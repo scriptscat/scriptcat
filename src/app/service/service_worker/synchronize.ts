@@ -27,6 +27,10 @@ import type { TDeleteScript, TInstallScript, TInstallScriptParams } from "../que
 import { errorMsg, makeBlobURL } from "@App/pkg/utils/utils";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
+import { AgentModelRepo } from "@App/app/repo/agent_model";
+import { MCPServerRepo } from "@App/app/repo/mcp_server_repo";
+import { AgentTaskRepo } from "@App/app/repo/agent_task";
+import { CONFIG_BUNDLE_VERSION, pickBundleKeys, type ConfigBundle } from "@App/pkg/backup/config_bundle";
 import { type ScriptService } from "./script";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { ExtVersion } from "@App/app/const";
@@ -114,6 +118,39 @@ export class SynchronizeService {
     };
 
     await new BackupExport(fs).export(data);
+  }
+
+  // 读取 ScriptCat 设置 bundle(SystemConfig sync+local + agent 模型/MCP/任务)
+  async getConfigBundle(): Promise<ConfigBundle> {
+    const [sync, local, models, mcp, tasks] = await Promise.all([
+      new ChromeStorage("system", true).keys(),
+      new ChromeStorage("system", false).keys(),
+      new AgentModelRepo().listModels(),
+      new MCPServerRepo().listServers(),
+      new AgentTaskRepo().listTasks(),
+    ]);
+    return {
+      version: CONFIG_BUNDLE_VERSION,
+      systemConfig: { sync: pickBundleKeys(sync), local: pickBundleKeys(local) },
+      agent: { models, mcp, tasks },
+    };
+  }
+
+  // 还原设置 bundle：合并语义=以备份值覆盖(逐键 set/save)
+  async restoreConfigBundle(bundle: ConfigBundle): Promise<void> {
+    if (!bundle) return;
+    const sync = new ChromeStorage("system", true);
+    const local = new ChromeStorage("system", false);
+    const modelRepo = new AgentModelRepo();
+    const mcpRepo = new MCPServerRepo();
+    const taskRepo = new AgentTaskRepo();
+    await Promise.all([
+      ...Object.entries(bundle.systemConfig?.sync || {}).map(([k, v]) => sync.set(k, v)),
+      ...Object.entries(bundle.systemConfig?.local || {}).map(([k, v]) => local.set(k, v)),
+      ...(bundle.agent?.models || []).map((m) => modelRepo.saveModel(m)),
+      ...(bundle.agent?.mcp || []).map((m) => mcpRepo.saveServer(m)),
+      ...(bundle.agent?.tasks || []).map((t) => taskRepo.saveTask(t)),
+    ]);
   }
 
   // 获取脚本备份数据
@@ -784,6 +821,8 @@ export class SynchronizeService {
     this.group.on("export", this.requestExport.bind(this));
     this.group.on("backupToCloud", this.backupToCloud.bind(this));
     this.group.on("importResources", this.importResources.bind(this));
+    this.group.on("getConfigBundle", this.getConfigBundle.bind(this));
+    this.group.on("restoreConfigBundle", this.restoreConfigBundle.bind(this));
     // 监听脚本变化, 进行同步
     this.mq.subscribe<TInstallScript>("installScript", this.scriptInstall.bind(this));
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", this.scriptsDelete.bind(this));
