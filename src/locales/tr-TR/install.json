@@ -23,7 +23,7 @@
   "perm_require_summary": "Aşağıdaki üçüncü taraf betikleri ve kaynakları yükler",
   "badge_background": "Arka Plan",
   "badge_scheduled": "Zamanlanmış",
-  "enabled_label": "Etkinleştirilmiş",
+  "enabled_label": "Etkin",
   "schedule_cron_label": "Zamanlanmış Görev",
   "schedule_next_run": "Sonraki Çalıştırma",
   "schedule_background_desc": "Tarayıcı açıkken otomatik olarak çalışır",
