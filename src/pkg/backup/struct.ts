@@ -118,3 +118,29 @@ export type BackupData = {
   script: ScriptBackupData[];
   subscribe: SubscribeBackupData[];
 };
+
+// Violentmonkey 导出的根清单文件（文件名恰为 "violentmonkey"）
+export type ViolentmonkeyManifest = {
+  scripts: {
+    [name: string]: {
+      custom?: {
+        match?: string[];
+        include?: string[];
+        exclude?: string[];
+        excludeMatch?: string[];
+        origMatch?: boolean;
+        origInclude?: boolean;
+        origExclude?: boolean;
+        origExcludeMatch?: boolean;
+        runAt?: string;
+        noframes?: number | null;
+        downloadURL?: string;
+      };
+      config?: { enabled?: number };
+      enabled?: number; // legacy 顶层 enabled
+      position?: number;
+    };
+  };
+  // 值以 encodeFilename(`${namespace}\n${name}\n`) 为键
+  values?: { [uri: string]: { [key: string]: string } };
+};

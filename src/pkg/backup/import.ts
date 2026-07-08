@@ -3,6 +3,8 @@ import Logger from "@App/app/logger/logger";
 import { isText } from "../utils/istextorbinary";
 import { blobToBase64 } from "../utils/utils";
 import { parseStorageValue } from "../utils/utils";
+import { parseMetadata } from "@App/pkg/utils/script";
+import { overrideToSelfMetadata, vmCustomToOverride, vmValueUri } from "./self_metadata";
 import type {
   BackupData,
   ResourceBackup,
@@ -14,19 +16,10 @@ import type {
   ValueStorage,
   ScriptData,
   SubscribeData,
+  ViolentmonkeyManifest,
 } from "./struct";
 import type { FileInfo } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
-
-type ViolentmonkeyFile = {
-  scripts: {
-    [key: string]: {
-      config: {
-        enabled: boolean;
-      };
-    };
-  };
-};
 
 // 备份导入工具
 
@@ -208,20 +201,37 @@ export default class BackupImport {
         files: files.map((f) => f.name),
       });
 
-    // 处理暴力猴导入资源
+    // 处理暴力猴：per-script 只有 .user.js，其余在根 violentmonkey 清单里。
+    // 归一成与 SC 相同的 ScriptOptionsFile(settings.enabled/position + selfMeta) + storage，使后续导入与来源无关。
     if (violentmonkeyFile) {
       try {
-        const data = (await this.getFileContent(violentmonkeyFile, true, "string")) as ViolentmonkeyFile;
-        // 设置开启状态
-        const scripts = data.scripts;
-        for (const key of Object.keys(scripts)) {
-          const vioScript = scripts[key];
-          if (!vioScript.config.enabled) {
-            const script = map.get(key);
-            if (!script) {
-              continue;
-            }
-            script.enabled = false;
+        const vm = (await this.getFileContent(violentmonkeyFile, true, "string")) as ViolentmonkeyManifest;
+        for (const [name, backupData] of map.entries()) {
+          const vmScript = vm.scripts?.[name];
+          if (!vmScript) continue;
+          const metadata = parseMetadata(backupData.code) || {};
+          const enabledRaw = vmScript.config?.enabled ?? vmScript.enabled;
+          const enabled = enabledRaw === undefined ? true : !!enabledRaw;
+          const selfMeta = overrideToSelfMetadata(vmCustomToOverride(vmScript.custom), metadata);
+          backupData.options = {
+            options: {} as never,
+            settings: { enabled, position: vmScript.position ?? 0 },
+            meta: {
+              name,
+              uuid: "",
+              sc_uuid: "",
+              modified: backupData.lastModificationDate || 0,
+              file_url: vmScript.custom?.downloadURL || "",
+            },
+            selfMeta: Object.keys(selfMeta).length > 0 ? selfMeta : undefined,
+          };
+          // 值：按 encodeFilename(namespace\nname\n) 找 values[uri] 并解码
+          const ns = metadata.namespace?.[0] || "";
+          const rawValues = vm.values?.[vmValueUri(ns, name)];
+          if (rawValues) {
+            const decoded: { [key: string]: any } = {};
+            for (const k of Object.keys(rawValues)) decoded[k] = parseStorageValue(rawValues[k]);
+            backupData.storage = { data: decoded, ts: backupData.lastModificationDate || 0 };
           }
         }
       } catch (e) {
