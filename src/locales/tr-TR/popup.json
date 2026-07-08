@@ -1,6 +1,6 @@
 {
   "new_version_available": "Yeni Sürüm Mevcut",
-  "current_page_scripts": "Geçerli sayfada çalışan betikler",
+  "current_page_scripts": "Bu Sayfada Çalışan Betikler",
   "enabled_background_scripts": "Etkin ve çalışan arka plan betikleri",
   "develop_mode_guide": "'Geliştirici modu' şu anda etkin değil, bu nedenle betikler düzgün çalışamaz. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉Nasıl etkinleştirileceğini öğrenmek için dokunun</a>",
   "lower_version_browser_guide": "Tarayıcınız çok eski olduğu için betikler düzgün çalışamaz. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\">👉Daha fazla bilgi edinmek için tıklayın</a>",
