@@ -8,8 +8,8 @@
   "script_list_action_content": "İşlem çubuğundan betikleri düzenleyebilir, çalışan betikleri (Arka Plan Betikleri) yönetebilir ve sonlandırabilir, ayrıca ayarlara erişebilirsiniz. (bkz. <Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link>). Sağdaki düğmeler gelişmiş filtrelemeye ve görünüm modunu değiştirmeye erişim sağlar.",
   "tools_backup_title": "Yedekleme",
   "tools_backup_content": "Yedekleme sayesinde betiklerinizi güvenle saklayabilir ve veri kaybını önleyebilirsiniz. Betiklerinizi yerel bilgisayarınıza dışa aktarabilir veya bilgisayarınızdan içe aktarabilirsiniz. Daha fazla kolaylık için buluta da yedekleme yapabilirsiniz. Başka bir betik yöneticisinden mi geçiş yapıyorsunuz? <Link href=\"https://docs.scriptcat.org/en/docs/use/from-other/migrate-from-tampermonkey/\">Geçiş Kılavuzu'na</Link> bakın.",
-  "setting_sync_title": "Güncelle ve Senkronize Et",
-  "setting_sync_content": "Betik eşitleme özelliği, bu cihazdaki betik içeriğini bulutla kolayca eşitlemenizi sağlar. Silme işlemlerini eşitleme seçeneğini belirlerseniz bu cihazda bir betik silindiğinde buluttan da silinir. Daha güçlü özellikler için betik sürümünü buradan da güncelleyebilirsiniz.",
+  "setting_sync_title": "Betik Senkronizasyonu",
+  "setting_sync_content": "Betik Senkronizasyonu özelliği, bu cihazdaki betik içeriğini bulutla kolayca eşitlemenizi sağlar. Silme Senkronizasyonu seçeneğini belirlerseniz bu cihazda bir betik silindiğinde buluttan da silinir. Daha güçlü özellikler için betik sürümünü buradan da güncelleyebilirsiniz",
   "installed_scripts_title": "Yüklü Betikler",
   "subscribe_title": "Abonelikler",
   "subscribe_content": "Bir betik bağlantısına abone olduktan sonra betik otomatik olarak güncel kalır. <Link href=\"https://docs.scriptcat.org/en/docs/dev/subscribe/\">Abonelik belgelerinde</Link> daha fazla bilgi edinin.",
@@ -26,8 +26,8 @@
   "tour_finish": "Tamamla",
   "tour_progress": "{{current}} / {{total}}",
   "title": "Başlangıç Kılavuzu",
-  "demo_normal_name": "Örnek Betik",
-  "demo_normal_desc": "Bu kılavuz için örnek bir betik",
+  "demo_normal_name": "Örnek Normal Betik",
+  "demo_normal_desc": "Bu kılavuz için örnek bir Normal Betik",
   "demo_background_name": "Örnek Arka Plan Betiği",
   "demo_background_desc": "Bu kılavuz için örnek bir arka plan betiği"
 }
