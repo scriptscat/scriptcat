@@ -331,8 +331,8 @@ function MoreMenu({
             const browserInfo = navigator.userAgent;
             const issueUrl =
               `https://github.com/scriptscat/scriptcat/issues/new?` +
-              `template=bug_report${isChineseUser() ? "" : "_en"}.yaml&scriptcat-version=${ExtVersion}&` +
-              `browser-version=${encodeURIComponent(browserInfo)}`;
+              `template=${isChineseUser() ? "01_bug_report" : "11_bug_report_en"}.yaml&scriptcat-version=${ExtVersion}&` +
+              `browser=${encodeURIComponent(browserInfo)}`;
             window.open(issueUrl, "_blank");
           }}
         >
