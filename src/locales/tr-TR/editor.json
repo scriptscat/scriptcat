@@ -97,7 +97,7 @@
   "create_success_note": "Yeni betik başarıyla oluşturuldu. Arka plan betiğinin varsayılan olarak etkinleştirilmeyeceğini unutmayın.",
   "save_as_failed": "Kaydetme Başarısız",
   "save_as_success": "Başarıyla Kaydedildi",
-  "only_background_scheduled_can_run": "Yalnızca arka plan betiği/crontab betikleri çalıştırılabilir",
+  "only_background_scheduled_can_run": "Yalnızca arka plan betiği/zamanlanmış betikler çalıştırılabilir",
   "build_success_message": "Başarıyla derlendi; çıktıyı konsolda görmek için geliştirici araçlarını açın",
   "script_modified_close_confirm": "Betik değiştirildi. Kapatırsanız değişiklikler kaybolacak, devam edilsin mi?",
   "close_current_tab": "Geçerli sekmeyi kapat",
