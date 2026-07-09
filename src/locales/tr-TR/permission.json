@@ -10,7 +10,7 @@
   "access_cookie_content": "Betik web sitesi çerez içeriğine erişmeye çalışıyor",
   "confirm_script_operation": "Lütfen betiğin bu işlemi gerçekleştirmesine izin verip vermediğinizi onaylayın. Çerezler önemli kullanıcı verileri içerir, bu nedenle yalnızca güvenilir betiklere erişim izni verin.",
   "cookie_domain": "Çerez Alanı",
-  "script_operation_title": ""Bu betik, betik depolama alanına erişmeye çalışıyor",
+  "script_operation_title": : "Bu betik, betik depolama alanına erişmeye çalışıyor",
   "script_operation_description": "Lütfen betiğin bu işlemi gerçekleştirmesine izin verip vermediğinizi onaylayın. İzin verilirse, betik, kurduğunuz depolama alanına erişebilecek ve içinde bir app/${dir} dizini oluşturabilecektir",
   "script_permission_content": "Kullanıcı Betiği",
   "extension_site_access_title": "ScriptCat'in site erişimine ihtiyacı var",
