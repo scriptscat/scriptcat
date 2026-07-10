@@ -1,16 +1,14 @@
+import { STORAGE_LOCAL_KEYS } from "@App/pkg/config/consts";
 import type { AgentModelConfig, AgentTask, MCPServerConfig } from "@App/app/service/agent/core/types";
 
-// ScriptCat 设置备份 bundle：SystemConfig(sync+local) + agent 配置(模型/MCP/任务定义)
-// 不含 OPFS 的 skills/对话历史/运行记录(agent 未发布、格式可破坏性变更、后续可无痛加)
+// ScriptCat 设置备份 bundle：SystemConfig(仅跨设备同步键) + agent 配置(模型/MCP/任务定义)
+// 本机相关配置(STORAGE_LOCAL_KEYS)不进备份；不含 OPFS 的 skills/对话历史/运行记录
 
 export const CONFIG_BUNDLE_VERSION = 1;
 
-// 不进设置备份的键：WebDAV/云同步凭据(出云同步范围 + 密码敏感,避免明文进 zip)
-export const CONFIG_BUNDLE_EXCLUDE_KEYS = ["cloud_sync", "backup", "cat_file_storage"];
-
 export type ConfigBundle = {
   version: number;
-  systemConfig: { sync: Record<string, any>; local: Record<string, any> };
+  systemConfig: Record<string, any>; // 扁平：仅 chrome.storage.sync 的 system 键
   agent: {
     models: AgentModelConfig[];
     mcp: MCPServerConfig[];
@@ -34,8 +32,10 @@ export function parseConfigBundle(value: unknown): ConfigBundle {
   const agent = value.agent;
   if (
     !isRecord(systemConfig) ||
-    !isRecord(systemConfig.sync) ||
-    !isRecord(systemConfig.local) ||
+    // 旧的嵌套结构（systemConfig.sync / .local）——配置键里不存在名为 sync/local 的键，
+    // 出现即为旧格式，直接判非法（功能未发布，不迁移）
+    "sync" in systemConfig ||
+    "local" in systemConfig ||
     !isRecord(agent) ||
     !Array.isArray(agent.models) ||
     !Array.isArray(agent.mcp) ||
@@ -57,12 +57,11 @@ export function pickBundleKeys(obj: Record<string, any>): Record<string, any> {
   return ret;
 }
 
-/** 构造进备份的 SystemConfig 分区：去 undefined + 去云同步凭据键 */
+/** 构造进备份的 SystemConfig：去 undefined + 去本机相关键(STORAGE_LOCAL_KEYS) */
 export function toBundleConfig(obj: Record<string, any>): Record<string, any> {
-  const excl = new Set(CONFIG_BUNDLE_EXCLUDE_KEYS);
   const ret: Record<string, any> = {};
   for (const k of Object.keys(obj)) {
-    if (obj[k] !== undefined && !excl.has(k)) ret[k] = obj[k];
+    if (obj[k] !== undefined && !STORAGE_LOCAL_KEYS.has(k)) ret[k] = obj[k];
   }
   return ret;
 }
