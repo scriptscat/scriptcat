@@ -3,6 +3,12 @@ import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE, ScriptDAO } from "@App/app/repo/scripts";
 import type { ScriptData, SubscribeData } from "@App/pkg/backup/struct";
 import type { ConfigBundle } from "@App/pkg/backup/config_bundle";
+import {
+  listConfigSections,
+  filterConfigBundle,
+  type ConfigSection,
+  type SectionId,
+} from "@App/pkg/backup/config_sections";
 import { cacheInstance } from "@App/app/cache";
 import { CACHE_KEY_IMPORT_FILE } from "@App/app/cache_key";
 import { loadAsyncJSZip } from "@App/pkg/utils/jszip-x";
@@ -46,9 +52,9 @@ export function useImport(): ImportView {
   const [resourceErrors, setResourceErrors] = useState<Record<string, string[]>>({});
   // 覆盖模式:导入前删除所有本地脚本(#841)
   const [overwriteLocal, setOverwriteLocal] = useState(false);
-  // 备份包内的 ScriptCat 设置 bundle(#1533)及"导入时包含设置"开关
+  // 备份包内的 ScriptCat 设置 bundle(#1533)及已勾选还原的设置板块
   const [configBundle, setConfigBundle] = useState<ConfigBundle | undefined>(undefined);
-  const [includeSettings, setIncludeSettings] = useState(false);
+  const [selectedSections, setSelectedSections] = useState<Set<SectionId>>(() => new Set());
   const [doneCount, setDoneCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [summaryState, setSummaryState] = useState({ scripts: 0, subscribes: 0, values: 0 });
@@ -139,6 +145,10 @@ export function useImport(): ImportView {
 
   const scripts = useMemo(() => sortByName(scriptData.map(toScriptImportItem)), [scriptData]);
   const subscribes = useMemo(() => sortByName(subData.map(toSubscribeImportItem)), [subData]);
+  const configSections: ConfigSection[] = useMemo(
+    () => (configBundle ? listConfigSections(configBundle) : []),
+    [configBundle]
+  );
 
   const onToggleScript = useCallback((id: string) => {
     setSelectedScripts((prev) => {
@@ -264,10 +274,10 @@ export function useImport(): ImportView {
       })
     );
 
-    // 应用备份包内的 ScriptCat 设置(#1533)
-    if (includeSettings && configBundle) {
+    // 应用备份包内选中的 ScriptCat 设置板块(#1533)
+    if (selectedSections.size > 0 && configBundle) {
       try {
-        await synchronizeClient.restoreConfigBundle(configBundle);
+        await synchronizeClient.restoreConfigBundle(filterConfigBundle(configBundle, selectedSections));
       } catch {
         /* 设置还原失败不阻断脚本导入结果 */
       }
@@ -282,12 +292,24 @@ export function useImport(): ImportView {
     selectedScripts,
     selectedSubscribes,
     overwriteLocal,
-    includeSettings,
+    selectedSections,
     configBundle,
   ]);
 
   const onToggleOverwrite = useCallback(() => setOverwriteLocal((v) => !v), []);
-  const onToggleIncludeSettings = useCallback(() => setIncludeSettings((v) => !v), []);
+  const onToggleSection = useCallback((id: SectionId) => {
+    setSelectedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const onToggleAllSections = useCallback(() => {
+    const ids = configSections.map((s) => s.id);
+    setSelectedSections((prev) => (ids.length > 0 && ids.every((id) => prev.has(id)) ? new Set() : new Set(ids)));
+  }, [configSections]);
   const onClose = useCallback(() => window.close(), []);
   const onCancel = useCallback(() => window.close(), []);
   const onRetry = useCallback(() => {
@@ -310,13 +332,15 @@ export function useImport(): ImportView {
     importStatus,
     resourceErrors,
     overwriteLocal,
-    hasConfig: !!configBundle,
-    includeSettings,
+    hasConfig: configSections.length > 0,
+    configSections,
+    selectedSections,
     doneCount,
     totalCount,
     summary: summaryState,
     onToggleOverwrite,
-    onToggleIncludeSettings,
+    onToggleSection,
+    onToggleAllSections,
     onToggleScript,
     onToggleAllScripts,
     onToggleSubscribe,

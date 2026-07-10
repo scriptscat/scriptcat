@@ -1,11 +1,12 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, Loader2, Rss, ShieldCheck, Tag, TriangleAlert, X } from "lucide-react";
+import { ChevronRight, Download, Loader2, Rss, ShieldCheck, Tag, TriangleAlert, X } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Switch } from "@App/pages/components/ui/switch";
 import { Surface } from "@App/pages/components/ui/surface";
+import { Sheet, SheetContent } from "@App/pages/components/ui/sheet";
 import { importableScriptIds, importableSubscribeIds, type ScriptImportItem, type SubscribeImportItem } from "./logic";
 import {
   DataCell,
@@ -15,6 +16,7 @@ import {
   ImportLoading,
   ImportStatusIcon,
   OpBadge,
+  RestoreSettingsList,
   ScriptAvatar,
   SourceCell,
   TopProgressBar,
@@ -229,7 +231,17 @@ function MobileActions({ view }: { view: ImportView }) {
   const { t } = useTranslation();
   const importing = view.phase === "importing";
   const total = view.selectedScripts.size + view.selectedSubscribes.size;
-  const canImport = total > 0 || (view.hasConfig && view.includeSettings);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const secTotal = view.configSections.length;
+  const secSelected = view.configSections.filter((s) => view.selectedSections.has(s.id)).length;
+  const master = secSelected === 0 ? false : secSelected === secTotal ? true : "indeterminate";
+  const canImport = total > 0 || secSelected > 0;
+  const importLabel =
+    secSelected === 0
+      ? t("install:importpage.import_selected", { count: total })
+      : secSelected === secTotal
+        ? t("install:importpage.import_all_settings", { count: total })
+        : t("install:importpage.import_partial_settings", { count: total, selected: secSelected, sections: secTotal });
   return (
     <div className="flex shrink-0 flex-col gap-2.5 border-t border-border bg-card px-4 pt-2.5 pb-6">
       {importing ? (
@@ -259,14 +271,32 @@ function MobileActions({ view }: { view: ImportView }) {
             {t("install:importpage.overwrite_local")}
           </label>
           {view.hasConfig && (
-            <label className="flex cursor-pointer items-center justify-center gap-1.5 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 rounded-lg border border-border px-3 py-2.5">
               <Checkbox
-                data-testid="include-settings"
-                checked={view.includeSettings}
-                onCheckedChange={view.onToggleIncludeSettings}
+                data-testid="restore-settings-master-mobile"
+                checked={master}
+                onCheckedChange={view.onToggleAllSections}
               />
-              {t("install:importpage.include_settings")}
-            </label>
+              <span className="text-[13px] font-medium text-foreground">
+                {t("install:importpage.include_settings")}
+              </span>
+              <button
+                type="button"
+                data-testid="restore-settings-customize"
+                className="ml-auto inline-flex items-center gap-1 rounded-full bg-primary-light px-2.5 py-1 text-xs font-semibold text-primary"
+                onClick={() => setSheetOpen(true)}
+              >
+                {secSelected === 0
+                  ? t("install:importpage.restore_settings_customize")
+                  : t("install:importpage.restore_settings_selected", { selected: secSelected, total: secTotal })}
+                <ChevronRight className="size-3.5" />
+              </button>
+              <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+                <SheetContent side="bottom" className="rounded-t-2xl p-0">
+                  <RestoreSettingsList view={view} />
+                </SheetContent>
+              </Sheet>
+            </div>
           )}
           <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
             <ShieldCheck className="size-3.5 shrink-0" />
@@ -278,7 +308,7 @@ function MobileActions({ view }: { view: ImportView }) {
             </Button>
             <Button data-testid="import-btn" className="h-11 flex-1" disabled={!canImport} onClick={view.onImport}>
               <Download />
-              {t("install:importpage.import_selected", { count: total })}
+              {importLabel}
             </Button>
           </div>
         </>

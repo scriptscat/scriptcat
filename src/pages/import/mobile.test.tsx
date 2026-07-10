@@ -42,9 +42,11 @@ function mkView(p: Partial<ImportView> = {}): ImportView {
     resourceErrors: {},
     overwriteLocal: false,
     hasConfig: false,
-    includeSettings: true,
+    configSections: [],
+    selectedSections: new Set(),
+    onToggleSection: () => {},
+    onToggleAllSections: () => {},
     onToggleOverwrite: () => {},
-    onToggleIncludeSettings: () => {},
     doneCount: 0,
     totalCount: 0,
     summary: { scripts: 0, subscribes: 0, values: 0 },
@@ -97,8 +99,12 @@ describe("导入移动视图", () => {
     expect(onImport).toHaveBeenCalledTimes(1);
   });
 
-  it("仅还原设置时导入按钮可用", () => {
-    renderMobile({ hasConfig: true, includeSettings: true });
+  it("有选中设置板块时导入按钮可用", () => {
+    renderMobile({
+      hasConfig: true,
+      configSections: [{ id: "appearance", group: "app", count: 3 }],
+      selectedSections: new Set(["appearance"]),
+    });
     expect((screen.getByTestId("import-btn") as HTMLButtonElement).disabled).toBe(false);
   });
 

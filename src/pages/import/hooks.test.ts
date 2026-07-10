@@ -125,7 +125,7 @@ async function renderLoaded(scripts: ScriptBackupData[], subscribe: SubscribeBac
 
 const configBundle: ConfigBundle = {
   version: 1,
-  systemConfig: { sync: {}, local: {} },
+  systemConfig: { menu_expand_num: 5 },
   agent: { models: [], mcp: [], tasks: [], defaultModelId: "", summaryModelId: "" },
 };
 
@@ -165,15 +165,16 @@ describe("useImport 装配与默认勾选", () => {
     expect(result.current.phase).toBe("empty");
   });
 
-  it("备份仅包含设置时仍进入可导入状态", async () => {
+  it("备份仅包含设置时仍进入可导入状态并暴露板块", async () => {
     const { result } = await renderLoaded([], [], configBundle);
     expect(result.current.phase).toBe("ready");
     expect(result.current.hasConfig).toBe(true);
+    expect(result.current.configSections.map((s) => s.id)).toEqual(["appearance"]);
   });
 
-  it("备份包含设置时默认不勾选还原设置", async () => {
+  it("备份包含设置时默认不勾选任何板块", async () => {
     const { result } = await renderLoaded([], [], configBundle);
-    expect(result.current.includeSettings).toBe(false);
+    expect(result.current.selectedSections.size).toBe(0);
   });
 
   it("fetch/解析异常进入加载失败(error)并带错误信息", async () => {
@@ -185,14 +186,25 @@ describe("useImport 装配与默认勾选", () => {
 });
 
 describe("useImport 导入编排", () => {
-  it("未选择脚本或订阅时可单独恢复设置", async () => {
+  it("全选板块后可单独恢复设置(以过滤后的 bundle 调用 restoreConfigBundle)", async () => {
     const { result } = await renderLoaded([], [], configBundle);
-    act(() => result.current.onToggleIncludeSettings());
+    act(() => result.current.onToggleAllSections());
+    expect(result.current.selectedSections.has("appearance")).toBe(true);
     await act(async () => {
       await result.current.onImport();
     });
-    expect(h.restoreConfigBundle).toHaveBeenCalledWith(configBundle);
+    expect(h.restoreConfigBundle).toHaveBeenCalledWith(
+      expect.objectContaining({ systemConfig: { menu_expand_num: 5 } })
+    );
     expect(result.current.phase).toBe("done");
+  });
+
+  it("未勾选任何板块时导入不调用 restoreConfigBundle", async () => {
+    const { result } = await renderLoaded([mkBackupScript({ name: "A", uuid: "a" })], [], configBundle);
+    await act(async () => {
+      await result.current.onImport();
+    });
+    expect(h.restoreConfigBundle).not.toHaveBeenCalled();
   });
 
   it("点击导入对已勾选脚本调用 install / importResources / setScriptValues 并进入完成", async () => {
