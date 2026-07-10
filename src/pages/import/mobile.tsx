@@ -229,6 +229,7 @@ function MobileActions({ view }: { view: ImportView }) {
   const { t } = useTranslation();
   const importing = view.phase === "importing";
   const total = view.selectedScripts.size + view.selectedSubscribes.size;
+  const canImport = total > 0 || (view.hasConfig && view.includeSettings);
   return (
     <div className="flex shrink-0 flex-col gap-2.5 border-t border-border bg-card px-4 pt-2.5 pb-6">
       {importing ? (
@@ -275,7 +276,7 @@ function MobileActions({ view }: { view: ImportView }) {
             <Button variant="outline" className="h-11 flex-1" onClick={view.onClose}>
               {t("common:close")}
             </Button>
-            <Button data-testid="import-btn" className="h-11 flex-1" disabled={total === 0} onClick={view.onImport}>
+            <Button data-testid="import-btn" className="h-11 flex-1" disabled={!canImport} onClick={view.onImport}>
               <Download />
               {t("install:importpage.import_selected", { count: total })}
             </Button>

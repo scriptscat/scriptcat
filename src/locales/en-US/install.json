@@ -134,7 +134,7 @@
     "row_error": "File corrupted, cannot import",
     "unknown_script": "Unknown script",
     "subscribe_section": "Subscriptions",
-    "trust_hint": "Only the items you select are restored; importing sends no data anywhere",
+    "trust_hint": "Only selected items are restored",
     "import_selected": "Import Selected ({{count}})",
     "importing_progress": "Restoring backup · {{done}} / {{total}} done",
     "importing_hint": "Keep this page open",

@@ -134,7 +134,7 @@
     "row_error": "文件损坏，无法导入",
     "unknown_script": "未知脚本",
     "subscribe_section": "订阅",
-    "trust_hint": "仅恢复你勾选的项目，导入不会向外发送任何数据",
+    "trust_hint": "仅恢复勾选的项目",
     "import_selected": "导入所选 ({{count}})",
     "importing_progress": "正在恢复备份 · 已完成 {{done}} / {{total}}",
     "importing_hint": "请保持页面打开",

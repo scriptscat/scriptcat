@@ -134,7 +134,7 @@
     "row_error": "檔案損毀，無法匯入",
     "unknown_script": "未知腳本",
     "subscribe_section": "訂閱",
-    "trust_hint": "僅還原你勾選的項目，匯入不會向外傳送任何資料",
+    "trust_hint": "僅還原勾選的項目",
     "import_selected": "匯入所選 ({{count}})",
     "importing_progress": "正在還原備份 · 已完成 {{done}} / {{total}}",
     "importing_hint": "請保持頁面開啟",

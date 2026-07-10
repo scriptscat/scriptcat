@@ -409,7 +409,22 @@ describe.concurrent("backup", () => {
     const config = {
       version: 1,
       systemConfig: { sync: { language: "zh-CN" }, local: { backup: { filesystem: "webdav", params: {} } } },
-      agent: { models: [{ id: "m1", name: "gpt" }], mcp: [], tasks: [] },
+      agent: {
+        models: [
+          {
+            id: "m1",
+            name: "gpt",
+            provider: "openai" as const,
+            apiBaseUrl: "",
+            apiKey: "",
+            model: "gpt-4o",
+          },
+        ],
+        mcp: [],
+        tasks: [],
+        defaultModelId: "m1",
+        summaryModelId: "",
+      },
     };
     await new BackupExport(fs).export({ script: [], subscribe: [], config });
     const resp = await parseBackupZipFile(zipFile);

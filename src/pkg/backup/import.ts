@@ -5,7 +5,7 @@ import { blobToBase64 } from "../utils/utils";
 import { parseStorageValue } from "../utils/utils";
 import { parseMetadata } from "@App/pkg/utils/script";
 import { overrideToSelfMetadata, vmCustomToOverride, vmValueUri } from "./self_metadata";
-import type { ConfigBundle } from "./config_bundle";
+import { parseConfigBundle, type ConfigBundle } from "./config_bundle";
 import type {
   BackupData,
   ResourceBackup,
@@ -53,7 +53,7 @@ export default class BackupImport {
       if (file.name !== "scriptcat-config.json") {
         return false;
       }
-      configBundle = (await this.getFileContent(file, true)) as ConfigBundle;
+      configBundle = parseConfigBundle(await this.getFileContent(file, true));
       return true;
     });
 
@@ -224,21 +224,29 @@ export default class BackupImport {
           const enabledRaw = vmScript.config?.enabled ?? vmScript.enabled;
           const enabled = enabledRaw === undefined ? true : !!enabledRaw;
           const selfMeta = overrideToSelfMetadata(vmCustomToOverride(vmScript.custom), metadata);
+          const shouldUpdate = vmScript.config?.shouldUpdate;
           backupData.options = {
             options: {} as never,
-            settings: { enabled, position: vmScript.position ?? 0 },
+            settings: {
+              enabled,
+              position: vmScript.position ?? 0,
+              ...(shouldUpdate === undefined ? {} : { checkUpdate: !!shouldUpdate }),
+            },
             meta: {
               name,
               uuid: "",
               sc_uuid: "",
               modified: backupData.lastModificationDate || 0,
-              file_url: vmScript.custom?.downloadURL || "",
+              file_url: vmScript.custom?.downloadURL || vmScript.custom?.lastInstallURL || "",
             },
             selfMeta: Object.keys(selfMeta).length > 0 ? selfMeta : undefined,
           };
-          // 值：按 encodeFilename(namespace\nname\n) 找 values[uri] 并解码
+          // 值：按 encodeFilename(namespace\nname\n) 找 values[uri] 并解码。
+          // uri 用脚本默认 @name(VM props.uri 的来源)而非文件名——本地化脚本(@name:zh-CN)的
+          // 文件名是显示名,与建键用的默认 @name 不同,用文件名会丢值。
           const ns = metadata.namespace?.[0] || "";
-          const rawValues = vm.values?.[vmValueUri(ns, name)];
+          const nameForUri = metadata.name?.[0] || name;
+          const rawValues = vm.values?.[vmValueUri(ns, nameForUri)];
           if (rawValues) {
             const decoded: { [key: string]: any } = {};
             for (const k of Object.keys(rawValues)) decoded[k] = parseStorageValue(rawValues[k]);

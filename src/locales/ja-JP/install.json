@@ -134,7 +134,7 @@
     "row_error": "ファイルが破損しており、インポートできません",
     "unknown_script": "不明なスクリプト",
     "subscribe_section": "サブスクリプション",
-    "trust_hint": "選択した項目のみを復元します。インポートでデータが送信されることはありません",
+    "trust_hint": "選択した項目のみ復元します",
     "import_selected": "選択した項目をインポート ({{count}})",
     "importing_progress": "バックアップを復元中 · {{done}} / {{total}} 完了",
     "importing_hint": "このページを開いたままにしてください",

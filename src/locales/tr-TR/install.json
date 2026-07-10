@@ -134,7 +134,7 @@
     "row_error": "Dosya bozuk, içe aktarılamıyor",
     "unknown_script": "Bilinmeyen betik",
     "subscribe_section": "Abonelikler",
-    "trust_hint": "Yalnızca seçtiğiniz öğeler geri yüklenir; içe aktarma hiçbir yere veri göndermez",
+    "trust_hint": "Yalnızca seçilen öğeler geri yüklenir",
     "import_selected": "Seçilenleri İçe Aktar ({{count}})",
     "importing_progress": "Yedek geri yükleniyor · {{done}} / {{total}} tamamlandı",
     "importing_hint": "Bu sayfayı açık tut",

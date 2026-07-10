@@ -134,7 +134,7 @@
     "row_error": "Datei beschädigt, Import nicht möglich",
     "unknown_script": "Unbekanntes Skript",
     "subscribe_section": "Abonnements",
-    "trust_hint": "Es werden nur ausgewählte Einträge wiederhergestellt; beim Import werden keine Daten gesendet",
+    "trust_hint": "Nur ausgewählte Einträge werden wiederhergestellt",
     "import_selected": "Auswahl importieren ({{count}})",
     "importing_progress": "Backup wird wiederhergestellt · {{done}} / {{total}} abgeschlossen",
     "importing_hint": "Diese Seite geöffnet lassen",

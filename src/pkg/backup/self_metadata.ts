@@ -5,11 +5,11 @@ export type OverrideInput = {
   use_matches?: string[];
   use_includes?: string[];
   use_excludes?: string[];
-  use_connects?: string[];
+  use_tags?: string[];
   merge_matches?: boolean;
   merge_includes?: boolean;
   merge_excludes?: boolean;
-  merge_connects?: boolean;
+  merge_tags?: boolean;
   run_at?: string | null;
   noframes?: boolean | null;
 };
@@ -18,7 +18,7 @@ const LIST_MAP = [
   ["match", "use_matches", "merge_matches"],
   ["include", "use_includes", "merge_includes"],
   ["exclude", "use_excludes", "merge_excludes"],
-  ["connect", "use_connects", "merge_connects"],
+  ["tag", "use_tags", "merge_tags"],
 ] as const;
 
 const RUN_AT_RE = /^document-(start|body|end|idle)$/;
@@ -52,10 +52,12 @@ type VMCustom = {
   include?: string[];
   exclude?: string[];
   excludeMatch?: string[];
+  tag?: string[];
   origMatch?: boolean;
   origInclude?: boolean;
   origExclude?: boolean;
   origExcludeMatch?: boolean;
+  origTag?: boolean;
   runAt?: string;
   noframes?: number | null;
 };
@@ -68,10 +70,11 @@ export function vmCustomToOverride(custom: VMCustom | undefined): OverrideInput 
     use_matches: c.match,
     use_includes: c.include,
     use_excludes: hasExclude ? [...(c.exclude || []), ...(c.excludeMatch || [])] : undefined,
-    use_connects: undefined,
+    use_tags: c.tag,
     merge_matches: c.origMatch !== false,
     merge_includes: c.origInclude !== false,
     merge_excludes: c.origExclude !== false && c.origExcludeMatch !== false,
+    merge_tags: c.origTag !== false,
     run_at: c.runAt,
     noframes: c.noframes == null ? null : !!c.noframes,
   };

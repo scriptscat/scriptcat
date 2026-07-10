@@ -1,3 +1,5 @@
+import type { AgentModelConfig, AgentTask, MCPServerConfig } from "@App/app/service/agent/core/types";
+
 // ScriptCat 设置备份 bundle：SystemConfig(sync+local) + agent 配置(模型/MCP/任务定义)
 // 不含 OPFS 的 skills/对话历史/运行记录(agent 未发布、格式可破坏性变更、后续可无痛加)
 
@@ -9,8 +11,42 @@ export const CONFIG_BUNDLE_EXCLUDE_KEYS = ["cloud_sync", "backup", "cat_file_sto
 export type ConfigBundle = {
   version: number;
   systemConfig: { sync: Record<string, any>; local: Record<string, any> };
-  agent: { models: any[]; mcp: any[]; tasks: any[] };
+  agent: {
+    models: AgentModelConfig[];
+    mcp: MCPServerConfig[];
+    tasks: AgentTask[];
+    defaultModelId: string;
+    summaryModelId: string;
+  };
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** 在备份文件边界校验版本与必要结构，避免损坏或未来格式被部分写入。 */
+export function parseConfigBundle(value: unknown): ConfigBundle {
+  if (!isRecord(value)) throw new Error("Invalid config bundle");
+  if (value.version !== CONFIG_BUNDLE_VERSION) {
+    throw new Error(`Unsupported config bundle version: ${String(value.version)}`);
+  }
+  const systemConfig = value.systemConfig;
+  const agent = value.agent;
+  if (
+    !isRecord(systemConfig) ||
+    !isRecord(systemConfig.sync) ||
+    !isRecord(systemConfig.local) ||
+    !isRecord(agent) ||
+    !Array.isArray(agent.models) ||
+    !Array.isArray(agent.mcp) ||
+    !Array.isArray(agent.tasks) ||
+    typeof agent.defaultModelId !== "string" ||
+    typeof agent.summaryModelId !== "string"
+  ) {
+    throw new Error("Invalid config bundle");
+  }
+  return value as ConfigBundle;
+}
 
 /** 过滤掉值为 undefined 的键(chrome.storage.keys 结果可能带空值) */
 export function pickBundleKeys(obj: Record<string, any>): Record<string, any> {

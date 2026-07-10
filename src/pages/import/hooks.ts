@@ -48,7 +48,7 @@ export function useImport(): ImportView {
   const [overwriteLocal, setOverwriteLocal] = useState(false);
   // 备份包内的 ScriptCat 设置 bundle(#1533)及"导入时包含设置"开关
   const [configBundle, setConfigBundle] = useState<ConfigBundle | undefined>(undefined);
-  const [includeSettings, setIncludeSettings] = useState(true);
+  const [includeSettings, setIncludeSettings] = useState(false);
   const [doneCount, setDoneCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [summaryState, setSummaryState] = useState({ scripts: 0, subscribes: 0, values: 0 });
@@ -94,6 +94,9 @@ export function useImport(): ImportView {
             // 还原备份中的列表排序位置(对照 v1.4-agent)
             const position = item.options?.settings.position;
             if (typeof position === "number") prepared.script.sort = position;
+            // 还原检查更新开关(VM config.shouldUpdate;仅在备份显式携带时覆盖,旧备份无此字段则保持默认)
+            const checkUpdate = item.options?.settings.checkUpdate;
+            if (typeof checkUpdate === "boolean") prepared.script.checkUpdate = checkUpdate;
             // 还原脚本自定义配置(自定义 match/exclude/run-at 等):SC 用 selfMeta,TM 从 override 推导,VM 已预置
             const selfMeta = deriveSelfMetadata(item, prepared.script.metadata);
             if (selfMeta) prepared.script.selfMetadata = selfMeta;
@@ -115,7 +118,7 @@ export function useImport(): ImportView {
           }
         }
 
-        if (scripts.length === 0 && subs.length === 0) {
+        if (scripts.length === 0 && subs.length === 0 && !backData.config) {
           setPhase("empty");
           return;
         }
@@ -221,6 +224,7 @@ export function useImport(): ImportView {
             code: d.code,
             createtime: d.lastModificationDate,
             updatetime: d.lastModificationDate,
+            overwriteSelfMetadata: true,
           });
           let failedResources: string[] = [];
           if (hasResources(d)) {

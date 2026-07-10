@@ -256,7 +256,13 @@ describe("deriveSelfMetadata", () => {
         options: {
           run_at: null,
           noframes: null,
-          override: { use_excludes: ["https://a.com/y"], merge_excludes: true },
+          override: {
+            use_excludes: ["https://a.com/y"],
+            use_blockers: ["https://a.com/blocked/*"],
+            use_connects: ["api.example.com"],
+            merge_excludes: true,
+            merge_connects: true,
+          },
         },
       },
     } as unknown as ScriptData;

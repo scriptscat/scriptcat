@@ -26,6 +26,11 @@ describe("overrideToSelfMetadata", () => {
     expect(self["run-at"]).toEqual(["document-start"]);
     expect(self.noframes).toEqual([""]);
   });
+  it("tag 的合并/替换语义与 match 一致", () => {
+    const m: SCMetadata = { tag: ["orig"] };
+    expect(overrideToSelfMetadata({ use_tags: ["te", "tag"], merge_tags: true }, m).tag).toEqual(["orig", "te", "tag"]);
+    expect(overrideToSelfMetadata({ use_tags: ["only"], merge_tags: false }, m).tag).toEqual(["only"]);
+  });
 });
 
 describe("vmCustomToOverride", () => {
@@ -43,6 +48,12 @@ describe("vmCustomToOverride", () => {
     const ov = vmCustomToOverride({ exclude: ["a"], excludeMatch: ["b"], origExclude: false, origExcludeMatch: true });
     expect(ov.use_excludes).toEqual(["a", "b"]);
     expect(ov.merge_excludes).toBe(false); // origExclude=false → 不再合并
+  });
+  it("把 VM custom 的 tag/origTag 归一到 override", () => {
+    const ov = vmCustomToOverride({ tag: ["te", "tag"], origTag: true });
+    expect(ov.use_tags).toEqual(["te", "tag"]);
+    expect(ov.merge_tags).toBe(true);
+    expect(vmCustomToOverride({ tag: ["x"], origTag: false }).merge_tags).toBe(false);
   });
 });
 

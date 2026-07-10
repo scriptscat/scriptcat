@@ -123,17 +123,20 @@ export class SynchronizeService {
 
   // 读取 ScriptCat 设置 bundle(SystemConfig sync+local + agent 模型/MCP/任务)
   async getConfigBundle(): Promise<ConfigBundle> {
-    const [sync, local, models, mcp, tasks] = await Promise.all([
+    const modelRepo = new AgentModelRepo();
+    const [sync, local, models, mcp, tasks, defaultModelId, summaryModelId] = await Promise.all([
       new ChromeStorage("system", true).keys(),
       new ChromeStorage("system", false).keys(),
-      new AgentModelRepo().listModels(),
+      modelRepo.listModels(),
       new MCPServerRepo().listServers(),
       new AgentTaskRepo().listTasks(),
+      modelRepo.getDefaultModelId(),
+      modelRepo.getSummaryModelId(),
     ]);
     return {
       version: CONFIG_BUNDLE_VERSION,
       systemConfig: { sync: toBundleConfig(sync), local: toBundleConfig(local) },
-      agent: { models, mcp, tasks },
+      agent: { models, mcp, tasks, defaultModelId, summaryModelId },
     };
   }
 
@@ -151,6 +154,10 @@ export class SynchronizeService {
       ...(bundle.agent?.models || []).map((m) => modelRepo.saveModel(m)),
       ...(bundle.agent?.mcp || []).map((m) => mcpRepo.saveServer(m)),
       ...(bundle.agent?.tasks || []).map((t) => taskRepo.saveTask(t)),
+    ]);
+    await Promise.all([
+      modelRepo.setDefaultModelId(bundle.agent.defaultModelId),
+      modelRepo.setSummaryModelId(bundle.agent.summaryModelId),
     ]);
   }
 
@@ -340,7 +347,7 @@ export class SynchronizeService {
     // 首先生成zip文件
     const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
-    await this.backup(fs);
+    await this.backup(fs, undefined, true);
     this.logger.info("backup to cloud");
     // 然后创建云端文件系统
     let cloudFs = await FileSystemFactory.create(type, params);

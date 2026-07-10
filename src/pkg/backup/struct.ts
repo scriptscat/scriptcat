@@ -63,7 +63,7 @@ export type ScriptMeta = {
 
 export type ScriptOptionsFile = {
   options: ScriptOptions;
-  settings: { enabled: boolean; position: number };
+  settings: { enabled: boolean; position: number; checkUpdate?: boolean };
   meta: ScriptMeta;
   // ScriptCat 自定义脚本元数据（自往返无损用；TM/VM 备份无此字段，导入时从 override/custom 推导）
   selfMeta?: SCMetadata;
@@ -131,15 +131,18 @@ export type ViolentmonkeyManifest = {
         include?: string[];
         exclude?: string[];
         excludeMatch?: string[];
+        tag?: string[];
         origMatch?: boolean;
         origInclude?: boolean;
         origExclude?: boolean;
         origExcludeMatch?: boolean;
+        origTag?: boolean;
         runAt?: string;
         noframes?: number | null;
         downloadURL?: string;
+        lastInstallURL?: string; // 安装源(无 downloadURL 时作 file_url 兜底)
       };
-      config?: { enabled?: number };
+      config?: { enabled?: number; shouldUpdate?: number };
       enabled?: number; // legacy 顶层 enabled
       position?: number;
     };

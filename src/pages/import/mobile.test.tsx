@@ -97,6 +97,11 @@ describe("导入移动视图", () => {
     expect(onImport).toHaveBeenCalledTimes(1);
   });
 
+  it("仅还原设置时导入按钮可用", () => {
+    renderMobile({ hasConfig: true, includeSettings: true });
+    expect((screen.getByTestId("import-btn") as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("importing 阶段显示顶部进度条且行内状态取代复选框", () => {
     renderMobile({
       phase: "importing",

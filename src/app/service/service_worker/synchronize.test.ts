@@ -5,6 +5,8 @@ import type FileSystem from "@Packages/filesystem/filesystem";
 import type { CloudSyncConfig } from "@App/pkg/config/config";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { md5OfText } from "@App/pkg/utils/crypto";
+import FileSystemFactory from "@Packages/filesystem/factory";
+import { AgentModelRepo } from "@App/app/repo/agent_model";
 
 initTestEnv();
 
@@ -74,6 +76,61 @@ describe("SynchronizeService", () => {
       downloadSpy.mockRestore();
       consoleErrorSpy.mockRestore();
     }
+  });
+
+  it("手动云端备份与本地导出一样包含设置", async () => {
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { scriptCodeDAO: {} } as any
+    );
+    const backupSpy = vi.spyOn(service, "backup").mockResolvedValue(undefined);
+    const cloudFs = createFs({
+      openDir: vi
+        .fn()
+        .mockResolvedValue(
+          createFs({ create: vi.fn().mockResolvedValue({ write: vi.fn().mockResolvedValue(undefined) }) })
+        ),
+    });
+    const factorySpy = vi.spyOn(FileSystemFactory, "create").mockResolvedValue(cloudFs);
+
+    try {
+      await service.backupToCloud({ type: "webdav", params: {} });
+      expect(backupSpy).toHaveBeenCalledWith(expect.anything(), undefined, true);
+    } finally {
+      factorySpy.mockRestore();
+    }
+  });
+
+  it("设置备份往返默认模型与摘要模型选择", async () => {
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { scriptCodeDAO: {} } as any
+    );
+    const modelRepo = new AgentModelRepo();
+    await modelRepo.setDefaultModelId("default-model");
+    await modelRepo.setSummaryModelId("summary-model");
+
+    const bundle = await service.getConfigBundle();
+    expect(bundle.agent.defaultModelId).toBe("default-model");
+    expect(bundle.agent.summaryModelId).toBe("summary-model");
+
+    await modelRepo.setDefaultModelId("");
+    await modelRepo.setSummaryModelId("");
+    await service.restoreConfigBundle(bundle);
+    expect(await modelRepo.getDefaultModelId()).toBe("default-model");
+    expect(await modelRepo.getSummaryModelId()).toBe("summary-model");
   });
 
   it("serializes concurrent syncOnce calls", async () => {

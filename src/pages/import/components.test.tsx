@@ -137,6 +137,11 @@ describe("导入桌面视图 交互", () => {
     expect((screen.getByTestId("import-btn") as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("仅还原设置时导入按钮可用", () => {
+    renderDesktop({ hasConfig: true, includeSettings: true });
+    expect((screen.getByTestId("import-btn") as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("点击全选触发 onToggleAllScripts", () => {
     const onToggleAllScripts = vi.fn();
     renderDesktop({ scripts: [mkScriptItem()], onToggleAllScripts });

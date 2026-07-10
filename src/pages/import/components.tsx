@@ -573,6 +573,7 @@ function ImportingToolbar({ view }: { view: ImportView }) {
 function ReadyActions({ view }: { view: ImportView }) {
   const { t } = useTranslation();
   const total = view.selectedScripts.size + view.selectedSubscribes.size;
+  const canImport = total > 0 || (view.hasConfig && view.includeSettings);
   return (
     <div className="flex items-center gap-4">
       <label className="flex cursor-pointer items-center gap-1.5 text-[13px] text-muted-foreground">
@@ -601,7 +602,7 @@ function ReadyActions({ view }: { view: ImportView }) {
         <Button variant="outline" onClick={view.onClose}>
           {t("common:close")}
         </Button>
-        <Button data-testid="import-btn" disabled={total === 0} onClick={view.onImport}>
+        <Button data-testid="import-btn" disabled={!canImport} onClick={view.onImport}>
           <Download />
           {t("install:importpage.import_selected", { count: total })}
         </Button>

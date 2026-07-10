@@ -134,7 +134,7 @@
     "row_error": "Tệp bị hỏng, không thể nhập",
     "unknown_script": "Script không xác định",
     "subscribe_section": "Đăng ký",
-    "trust_hint": "Chỉ khôi phục các mục bạn chọn; việc nhập không gửi dữ liệu đi đâu cả",
+    "trust_hint": "Chỉ khôi phục các mục đã chọn",
     "import_selected": "Nhập mục đã chọn ({{count}})",
     "importing_progress": "Đang khôi phục bản sao lưu · {{done}} / {{total}} hoàn tất",
     "importing_hint": "Vui lòng giữ trang này mở",
