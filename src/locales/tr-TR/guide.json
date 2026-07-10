@@ -1,7 +1,7 @@
 {
   "installed_scripts": "Yüklediğiniz betikler burada görüntülenir. Temel bilgiler için <Link href=\"https://docs.scriptcat.org/en/docs/use/use/\">Hızlı Başlangıca</Link> bakın.",
-  "script_list_title": "Betik Galerisi",
-  "script_list_content": "Betikleri <Link href=\"https://scriptcat.org/en/search\">Betik Galerisi</Link>'nden yükleyebilirsiniz. ScriptCat, kullanıcı betiklerinin yanı sıra <Link href=\"https://docs.scriptcat.org/en/docs/dev/background/\">Arka Plan Betikleri'ni</Link> de destekler.",
+  "script_list_title": "Betik Kütüphanesi",
+  "script_list_content": "Betikleri <Link href=\"https://scriptcat.org/en/search\">Betik Kütüphanesi</Link>'nden yükleyebilirsiniz. ScriptCat, kullanıcı betiklerinin yanı sıra <Link href=\"https://docs.scriptcat.org/en/docs/dev/background/\">Arka Plan Betikleri'ni</Link> de destekler.",
   "script_list_enable_title": "Betikleri Etkinleştir",
   "script_list_enable_content": "Betiklerin kullanılabilmesi için etkinleştirilmesi gerekir. Sayfa betikleri kurulumdan sonra varsayılan olarak etkindir, Arka Plan Betikleri ise varsayılan olarak devre dışıdır.",
   "script_list_action_title": "Eylem",
@@ -17,7 +17,7 @@
   "welcome_subtitle": "Güçlü bir kullanıcı betiği yöneticisi — birkaç adımda başlamanıza yardımcı olalım.",
   "welcome_feature_manage_title": "Yüklü Betikleri Yönet",
   "welcome_feature_manage_desc": "Tüm betikleriniz \"Yüklü betikler\" sayfasında bir arada bulunur",
-  "welcome_feature_market_title": "Betik Galerisi'nden Yükle",
+  "welcome_feature_market_title": "Betik Kütüphanesi'nden Yükle",
   "welcome_feature_market_desc": "scriptcat.org'daki betikleri tek tıklamayla keşfedin ve yükleyin",
   "welcome_feature_backup_title": "Betiklerinizi Asla Kaybetmeyin",
   "welcome_feature_backup_desc": "Betikleri yerel olarak veya buluta yedekleyin ve cihazları sorunsuzca değiştirin",
