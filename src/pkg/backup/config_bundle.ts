@@ -48,15 +48,6 @@ export function parseConfigBundle(value: unknown): ConfigBundle {
   return value as ConfigBundle;
 }
 
-/** 过滤掉值为 undefined 的键(chrome.storage.keys 结果可能带空值) */
-export function pickBundleKeys(obj: Record<string, any>): Record<string, any> {
-  const ret: Record<string, any> = {};
-  for (const k of Object.keys(obj)) {
-    if (obj[k] !== undefined) ret[k] = obj[k];
-  }
-  return ret;
-}
-
 /** 构造进备份的 SystemConfig：去 undefined + 去本机相关键(STORAGE_LOCAL_KEYS) */
 export function toBundleConfig(obj: Record<string, any>): Record<string, any> {
   const ret: Record<string, any> = {};
