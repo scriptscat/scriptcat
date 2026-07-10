@@ -408,7 +408,7 @@ describe.concurrent("backup", () => {
     const fs = new ZipFileSystem(zipFile);
     const config = {
       version: 1,
-      systemConfig: { sync: { language: "zh-CN" }, local: { backup: { filesystem: "webdav", params: {} } } },
+      systemConfig: { language: "zh-CN" },
       agent: {
         models: [
           {
