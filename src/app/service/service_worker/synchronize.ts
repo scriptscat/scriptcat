@@ -121,12 +121,11 @@ export class SynchronizeService {
     await new BackupExport(fs).export(data);
   }
 
-  // 读取 ScriptCat 设置 bundle(SystemConfig sync+local + agent 模型/MCP/任务)
+  // 读取 ScriptCat 设置 bundle(SystemConfig 仅 sync 键 + agent 模型/MCP/任务)
   async getConfigBundle(): Promise<ConfigBundle> {
     const modelRepo = new AgentModelRepo();
-    const [sync, local, models, mcp, tasks, defaultModelId, summaryModelId] = await Promise.all([
+    const [sync, models, mcp, tasks, defaultModelId, summaryModelId] = await Promise.all([
       new ChromeStorage("system", true).keys(),
-      new ChromeStorage("system", false).keys(),
       modelRepo.listModels(),
       new MCPServerRepo().listServers(),
       new AgentTaskRepo().listTasks(),
@@ -135,30 +134,27 @@ export class SynchronizeService {
     ]);
     return {
       version: CONFIG_BUNDLE_VERSION,
-      systemConfig: { sync: toBundleConfig(sync), local: toBundleConfig(local) },
+      systemConfig: toBundleConfig(sync),
       agent: { models, mcp, tasks, defaultModelId, summaryModelId },
     };
   }
 
-  // 还原设置 bundle：合并语义=以备份值覆盖(逐键 set/save)
+  // 还原设置 bundle：合并语义=以备份值覆盖(逐键 set/save)；只写 sync storage
   async restoreConfigBundle(bundle: ConfigBundle): Promise<void> {
     if (!bundle) return;
     const sync = new ChromeStorage("system", true);
-    const local = new ChromeStorage("system", false);
     const modelRepo = new AgentModelRepo();
     const mcpRepo = new MCPServerRepo();
     const taskRepo = new AgentTaskRepo();
     await Promise.all([
-      ...Object.entries(bundle.systemConfig?.sync || {}).map(([k, v]) => sync.set(k, v)),
-      ...Object.entries(bundle.systemConfig?.local || {}).map(([k, v]) => local.set(k, v)),
+      ...Object.entries(bundle.systemConfig || {}).map(([k, v]) => sync.set(k, v)),
       ...(bundle.agent?.models || []).map((m) => modelRepo.saveModel(m)),
       ...(bundle.agent?.mcp || []).map((m) => mcpRepo.saveServer(m)),
       ...(bundle.agent?.tasks || []).map((t) => taskRepo.saveTask(t)),
     ]);
-    await Promise.all([
-      modelRepo.setDefaultModelId(bundle.agent.defaultModelId),
-      modelRepo.setSummaryModelId(bundle.agent.summaryModelId),
-    ]);
+    // 仅在备份带出模型选择时覆盖（部分还原未选"AI 模型"时保留本机当前默认/摘要模型）
+    if (bundle.agent?.defaultModelId) await modelRepo.setDefaultModelId(bundle.agent.defaultModelId);
+    if (bundle.agent?.summaryModelId) await modelRepo.setSummaryModelId(bundle.agent.summaryModelId);
   }
 
   // 获取脚本备份数据
