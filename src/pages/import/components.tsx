@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Ban,
   Bot,
+  Check,
   ChevronUp,
   CircleCheck,
   CircleX,
@@ -16,6 +17,7 @@ import {
   Globe,
   List,
   Loader2,
+  Minus,
   MoreHorizontal,
   PackageOpen,
   Palette,
@@ -597,6 +599,22 @@ function sectionCountLabel(s: ConfigSection, t: TFunction): string {
   });
 }
 
+/** 非交互复选框视觉(用于嵌套在外层 <button> 内的展示位,避免 <button> 套 <button>) */
+function CheckboxGlyph({ state, className }: { state: boolean | "indeterminate"; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "flex size-4 shrink-0 items-center justify-center rounded-sm border",
+        state ? "border-primary bg-primary-background text-primary-foreground" : "border-switch-off",
+        className
+      )}
+    >
+      {state === "indeterminate" ? <Minus className="size-3" /> : state ? <Check className="size-3" /> : null}
+    </span>
+  );
+}
+
 /** 板块勾选清单(桌面 Popover / 移动 Sheet 共用) */
 export function RestoreSettingsList({ view }: { view: ImportView }) {
   const { t } = useTranslation();
@@ -637,11 +655,7 @@ export function RestoreSettingsList({ view }: { view: ImportView }) {
                 onClick={() => view.onToggleSection(s.id)}
                 className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-accent"
               >
-                <Checkbox
-                  checked={view.selectedSections.has(s.id)}
-                  tabIndex={-1}
-                  className="pointer-events-none mt-0.5"
-                />
+                <CheckboxGlyph state={view.selectedSections.has(s.id)} className="mt-0.5" />
                 <span
                   className={cn(
                     "flex size-[26px] shrink-0 items-center justify-center rounded-md",
@@ -698,7 +712,7 @@ function RestoreSettingsControl({ view }: { view: ImportView }) {
           onClick={view.onToggleAllSections}
           className="flex items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-[13px] text-muted-foreground hover:border-border hover:bg-accent"
         >
-          <Checkbox checked={master} tabIndex={-1} className="pointer-events-none" />
+          <CheckboxGlyph state={master} />
           <span className="font-medium text-foreground">{t("install:importpage.include_settings")}</span>
           {selected > 0 && (
             <span className="rounded-full bg-primary-light px-1.5 text-[11px] font-semibold text-primary">{`${selected} / ${total}`}</span>
@@ -712,6 +726,7 @@ function RestoreSettingsControl({ view }: { view: ImportView }) {
         onMouseEnter={openNow}
         onMouseLeave={closeLater}
         onOpenAutoFocus={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
         className="w-[400px] p-0"
       >
         <RestoreSettingsList view={view} />

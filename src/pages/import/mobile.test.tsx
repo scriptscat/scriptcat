@@ -131,4 +131,16 @@ describe("导入移动视图", () => {
     renderMobile({ phase: "empty" });
     expect(screen.getByTestId("import-empty")).toBeTruthy();
   });
+
+  it("点击自定义还原设置打开底部面板,面板带无障碍标题「还原设置」", () => {
+    renderMobile({
+      hasConfig: true,
+      configSections: [{ id: "appearance", group: "app", count: 3 }],
+      selectedSections: new Set(),
+    });
+    fireEvent.click(screen.getByTestId("restore-settings-customize"));
+    const title = document.querySelector('[data-slot="sheet-title"]');
+    expect(title).toBeTruthy();
+    expect(title?.textContent).toBe("还原设置");
+  });
 });

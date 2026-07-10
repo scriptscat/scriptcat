@@ -6,7 +6,7 @@ import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Switch } from "@App/pages/components/ui/switch";
 import { Surface } from "@App/pages/components/ui/surface";
-import { Sheet, SheetContent } from "@App/pages/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@App/pages/components/ui/sheet";
 import { importableScriptIds, importableSubscribeIds, type ScriptImportItem, type SubscribeImportItem } from "./logic";
 import {
   DataCell,
@@ -293,6 +293,10 @@ function MobileActions({ view }: { view: ImportView }) {
               </button>
               <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
                 <SheetContent side="bottom" className="rounded-t-2xl p-0">
+                  <SheetTitle className="sr-only">{t("install:importpage.restore_settings_title")}</SheetTitle>
+                  <SheetDescription className="sr-only">
+                    {t("install:importpage.restore_settings_note")}
+                  </SheetDescription>
                   <RestoreSettingsList view={view} />
                 </SheetContent>
               </Sheet>
