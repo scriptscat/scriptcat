@@ -139,3 +139,23 @@ describe("Violentmonkey 备份导入", () => {
     expect(data.script[0].storage.data).toEqual({ cfg: "X", n: 7 });
   });
 });
+
+describe("备份导入 config 容错", () => {
+  it("无 scriptcat-config.json 时 config 为 undefined 且脚本正常解析", async () => {
+    const zip = createJSZip();
+    zip.file("a.user.js", code);
+    const data = await parseBackupZipFile(zip);
+    expect(data.config).toBeUndefined();
+    expect(data.script).toHaveLength(1);
+  });
+
+  it("scriptcat-config.json 损坏/不兼容时不抛错,config 为 undefined,脚本仍解析", async () => {
+    const zip = createJSZip();
+    zip.file("a.user.js", code);
+    // 旧的 { sync, local } 结构会被 parseConfigBundle 判非法
+    zip.file("scriptcat-config.json", JSON.stringify({ version: 1, systemConfig: { sync: {}, local: {} }, agent: {} }));
+    const data = await parseBackupZipFile(zip);
+    expect(data.config).toBeUndefined();
+    expect(data.script).toHaveLength(1);
+  });
+});
