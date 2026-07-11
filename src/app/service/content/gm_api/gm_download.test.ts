@@ -351,17 +351,18 @@ describe("GM_download 补充回归测试（native 部分下载 / browser connect
     await expect(retPromise).rejects.toThrow("Unknown ERROR");
   });
 
-  it("native 模式：xhr 阶段失败后于用户 onloadend 内呼叫 abort()，retPromise 仍应 reject 而非永久 pending", async () => {
+  it("native 模式：xhr 阶段失败后于用户 onloadend 内呼叫 abort()，retPromise 仍应 reject 而非永久 pending，且不应中断内部 XHR", async () => {
     const fakeA = {
       isInvalidContext: () => false,
       connect: vi.fn(),
     };
+    const innerAbort = vi.fn();
     vi.mocked(GM_xmlhttpRequest).mockImplementationOnce((_a: unknown, xhrParams: any) => {
       queueMicrotask(() => {
         xhrParams.onerror?.();
       });
       // 模拟真实 GM_xmlhttpRequest：内部 retPromise 最终也会 reject（比 xhrParams.onerror 更晚触发）。
-      return { retPromise: Promise.reject(new Error("mock xhr error")), abort: vi.fn() };
+      return { retPromise: Promise.reject(new Error("mock xhr error")), abort: innerAbort };
     });
     const abortHolder: { fn?: () => void } = {};
     const details: GMTypes.DownloadDetails<string> = {
@@ -376,5 +377,44 @@ describe("GM_download 补充回归测试（native 部分下载 / browser connect
     abortHolder.fn = abort;
 
     await expect(retPromise).rejects.toThrow();
+    // XHR 阶段已失败：呼叫外层 abort() 不应再中断内部 XHR（否则内部 XHR 收不到
+    // 自己真正的 onloadend 消息，其自身生命周期会永久卡住、无法完成清理）。
+    expect(innerAbort).not.toHaveBeenCalled();
+  });
+
+  it("native 模式：xhr 阶段用户回调抛错不应同步向上传播（避免打断 GM_xmlhttpRequest 内部状态机）", async () => {
+    const fakeA = {
+      isInvalidContext: () => false,
+      connect: vi.fn(),
+    };
+    const capturedHandlers: { onerror?: () => void; ontimeout?: () => void } = {};
+    vi.mocked(GM_xmlhttpRequest).mockImplementationOnce((_a: unknown, xhrParams: any) => {
+      capturedHandlers.onerror = xhrParams.onerror;
+      capturedHandlers.ontimeout = xhrParams.ontimeout;
+      return { retPromise: Promise.reject(new Error("mock xhr error")), abort: vi.fn() };
+    });
+    // 拦截 queueMicrotask：避免测试环境中真的抛出未捕获例外，同时保留对其排程内容的断言能力。
+    const queueMicrotaskSpy = vi.spyOn(globalThis, "queueMicrotask").mockImplementation(() => {});
+    const onerror = vi.fn(() => {
+      throw new Error("boom");
+    });
+    const details: GMTypes.DownloadDetails<string> = {
+      url: "https://example.com/a.zip",
+      name: "a.zip",
+      downloadMode: "native",
+      onerror,
+    };
+    GMApi._GM_download(fakeA as any, details, false);
+    await flushMicrotasks();
+
+    // 模拟 GM_xmlhttpRequest 内部（例如 code===-1 协议错误分支）同步呼叫 xhrParams.onerror()：
+    // 若此处同步抛出，会中断该分支后续的 reqDone 置位与合成 onloadend 排程。
+    expect(() => capturedHandlers.onerror?.()).not.toThrow();
+    expect(onerror).toHaveBeenCalledTimes(1);
+    expect(queueMicrotaskSpy).toHaveBeenCalledTimes(1);
+    const deferredThrow = queueMicrotaskSpy.mock.calls[0][0] as () => void;
+    expect(deferredThrow).toThrow("boom");
+
+    queueMicrotaskSpy.mockRestore();
   });
 });

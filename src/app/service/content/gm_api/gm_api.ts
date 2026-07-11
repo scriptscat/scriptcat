@@ -1255,11 +1255,25 @@ export default class GMApi extends GM_Base {
           },
           ontimeout: () => {
             xhrFailed = true;
+            // XHR 阶段已终结：清空 nativeAbort，避免使用者在 onloadend 内呼叫
+            // download.abort() 时经由 nativeAbort() 强制断开内部 XHR 的消息连线
+            // （其 abort() 会无条件 disconnect），导致内部 XHR 收不到自己真正的
+            // onloadend 消息、其 retPromise 永久 pending、refCleanup 也无法执行。
+            // 清空后 abort() 中的 nativeAbort?.() 变为空操作，内部 XHR 可自然收尾。
+            nativeAbort = null;
             try {
               withLoadEnd(
                 () => details.ontimeout?.(makeCallbackParam({})),
                 () => details.onloadend?.(makeCallbackParam({}))
               );
+            } catch (err) {
+              // 不能让使用者回调的例外同步传播回 GM_xmlhttpRequest 的内部消息处理循环：
+              // 那会中断其状态机（跳过 reqDone 置位、协议错误分支下合成 onloadend 的
+              // 排程），导致内部请求永久卡住、无法完成清理。改为异步重新抛出，让例外
+              // 仍可被观察到（如全局错误上报），但不阻断内部生命周期收尾。
+              queueMicrotask(() => {
+                throw err;
+              });
             } finally {
               // 必须在此直接 settle：若使用者在 onloadend 内呼叫 abort()，
               // 只会设置 aborted 旗标，不代表这次下载没有失败。原本仅靠
@@ -1271,11 +1285,16 @@ export default class GMApi extends GM_Base {
           },
           onerror: () => {
             xhrFailed = true;
+            nativeAbort = null;
             try {
               withLoadEnd(
                 () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
                 () => details.onloadend?.(makeCallbackParam({ error: "unknown" }))
               );
+            } catch (err) {
+              queueMicrotask(() => {
+                throw err;
+              });
             } finally {
               retPromiseReject?.(new Error("Native Download ERROR"));
             }
