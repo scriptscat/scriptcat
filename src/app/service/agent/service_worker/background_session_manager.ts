@@ -199,7 +199,7 @@ export class BackgroundSessionManager {
         if (resolver) {
           rc.askResolvers.delete(msg.data.id);
           rc.pendingAskUser = undefined;
-          sendEvent({ type: "ask_user_resolved", id: msg.data.id });
+          this.broadcastEvent(rc, { type: "ask_user_resolved", id: msg.data.id });
           resolver(msg.data.answer);
         }
       }

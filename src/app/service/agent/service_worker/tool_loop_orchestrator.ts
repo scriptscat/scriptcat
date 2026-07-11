@@ -14,7 +14,11 @@ import type {
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { getContextWindow } from "@App/app/service/agent/core/model_context";
 import { detectToolCallIssues, type ToolCallRecord } from "@App/app/service/agent/core/tool_call_guard";
-import { elideOldToolResults } from "@App/app/service/agent/core/context_elision";
+import {
+  elideOldToolResults,
+  elideUntilWithinBudget,
+  estimateRequestTokens,
+} from "@App/app/service/agent/core/context_elision";
 import type { LLMCallResult } from "./llm_client";
 import { t } from "@App/locales/locales";
 
@@ -66,7 +70,7 @@ function waitForGuardAnswer(
 
     signal.addEventListener("abort", onAbort, { once: true });
     Promise.resolve()
-      .then(() => askUserForGuard(strikeCount))
+      .then(() => (settled || signal.aborted ? null : askUserForGuard(strikeCount)))
       .then(resolveOnce, rejectOnce);
   });
 }
@@ -143,10 +147,11 @@ export class ToolLoopOrchestrator {
     // 持久化历史保留完整结果供 UI 展示；LLM 只使用独立副本，续接时首个请求也先裁剪旧结果。
     const messages = rehydratedHistory ? inputMessages.map((message) => ({ ...message })) : inputMessages;
     if (rehydratedHistory) {
-      const estimatedInputTokens = JSON.stringify(messages).length / 4;
+      const initialTools = params.skipBuiltinTools ? tools || [] : toolRegistry.getDefinitions(tools);
+      const estimatedInputTokens = estimateRequestTokens(messages, initialTools);
       const estimatedUsageRatio = estimatedInputTokens / getContextWindow(model);
       if (estimatedUsageRatio >= ELISION_THRESHOLDS[0]) {
-        elideOldToolResults(messages, ELISION_KEEP_LAST_ASSISTANT_TURNS);
+        elideUntilWithinBudget(messages, getContextWindow(model), initialTools, ELISION_THRESHOLDS[0]);
       }
     }
 

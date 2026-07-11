@@ -171,6 +171,7 @@ export class SubAgentService {
           currentMsg = { content: "", toolCalls: [] };
           break;
         case "done":
+        case "error":
           if (event.usage) {
             subUsage.inputTokens += event.usage.inputTokens;
             subUsage.outputTokens += event.usage.outputTokens;

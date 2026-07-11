@@ -63,4 +63,29 @@ describe("SubAgentService", () => {
     expect(result.result).toBe("result");
     expect(orchestrator.callLLMWithToolLoop).toHaveBeenCalledOnce();
   });
+
+  it("max_iterations 错误事件也累计 usage", async () => {
+    const subOrchestrator = makeMockOrchestrator();
+    (subOrchestrator.callLLMWithToolLoop as ReturnType<typeof vi.fn>).mockImplementationOnce(async ({ sendEvent }) => {
+      sendEvent({
+        type: "error",
+        message: "达到上限",
+        errorCode: "max_iterations",
+        usage: { inputTokens: 12, outputTokens: 4 },
+      });
+    });
+    service = new SubAgentService(subOrchestrator);
+
+    const result = await service.runSubAgent({
+      options: { prompt: "做个任务", description: "测试任务" },
+      agentId: "test-agent-2",
+      model: MODEL,
+      parentConversationId: "conv-1",
+      toolRegistry,
+      sendEvent,
+      signal,
+    });
+
+    expect(result.details?.usage).toEqual(expect.objectContaining({ inputTokens: 12, outputTokens: 4 }));
+  });
 });

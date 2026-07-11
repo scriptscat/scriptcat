@@ -383,8 +383,8 @@ describe("handleAttachToConversation 重连逻辑", () => {
     rc.pendingAskUser = { id: "ask-1", question: "选择" };
     (service as any).bgSessionManager.set("conv-multi", rc);
 
-    const { sender: sender1, simulateMessage: sim1 } = createMockSender();
-    const { sender: sender2, simulateMessage: sim2 } = createMockSender();
+    const { sender: sender1, sentMessages: sent1, simulateMessage: sim1 } = createMockSender();
+    const { sender: sender2, sentMessages: sent2, simulateMessage: sim2 } = createMockSender();
     await (service as any).handleAttachToConversation({ conversationId: "conv-multi" }, sender1);
     await (service as any).handleAttachToConversation({ conversationId: "conv-multi" }, sender2);
 
@@ -394,6 +394,8 @@ describe("handleAttachToConversation 重连逻辑", () => {
 
     expect(resolveCount).toBe(1);
     expect(lastAnswer).toBe("第一个");
+    expect(sent1.some((message) => message.data?.type === "ask_user_resolved")).toBe(true);
+    expect(sent2.some((message) => message.data?.type === "ask_user_resolved")).toBe(true);
 
     (service as any).bgSessionManager.delete("conv-multi");
   });

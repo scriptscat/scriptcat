@@ -84,6 +84,7 @@ export class AgentTaskScheduler {
         run.status = "error";
         run.error = e.message || "Unknown error";
         if (e.usage) run.usage = e.usage;
+        if (e.conversationId) run.conversationId = e.conversationId;
         run.endtime = Date.now();
 
         task.lastRunStatus = "error";

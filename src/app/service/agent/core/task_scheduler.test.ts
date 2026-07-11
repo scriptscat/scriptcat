@@ -216,6 +216,7 @@ describe("AgentTaskScheduler", () => {
     internalExecutor.mockRejectedValue(
       Object.assign(new Error("超过最大迭代次数"), {
         usage: { inputTokens: 120, outputTokens: 40 },
+        conversationId: "conv-failed",
       })
     );
 
@@ -226,6 +227,7 @@ describe("AgentTaskScheduler", () => {
     const runs = await runRepo.listRuns("error-usage-1");
     expect(runs[0].status).toBe("error");
     expect(runs[0].usage).toEqual({ inputTokens: 120, outputTokens: 40 });
+    expect(runs[0].conversationId).toBe("conv-failed");
   });
 
   it("执行完成后更新 nextruntime", async () => {

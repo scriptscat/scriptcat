@@ -380,7 +380,12 @@ function mockConnectWithEvents(events: any[]): MessageConnect {
 
 describe("errorCode 透传：chat()", () => {
   it("error event 带 errorCode 时，reject 的 Error 应有对应 errorCode", async () => {
-    const errorEvent = { type: "error", message: "Rate limit exceeded", errorCode: "rate_limit" };
+    const errorEvent = {
+      type: "error",
+      message: "Rate limit exceeded",
+      errorCode: "rate_limit",
+      usage: { inputTokens: 12, outputTokens: 3 },
+    };
     const gmConnect = vi.fn().mockResolvedValue(mockConnectWithEvents([errorEvent]));
 
     const instance = new ConversationInstance(
@@ -395,6 +400,7 @@ describe("errorCode 透传：chat()", () => {
     expect(err).toBeInstanceOf(Error);
     expect(err.message).toBe("Rate limit exceeded");
     expect((err as any).errorCode).toBe("rate_limit");
+    expect((err as any).usage).toEqual({ inputTokens: 12, outputTokens: 3 });
   });
 
   it("error event 无 errorCode 时，errorCode 应为 undefined", async () => {
@@ -442,7 +448,12 @@ describe("errorCode 透传：chatStream()", () => {
   // 因此不会 throw，只需检查 chunk 中的 errorCode 即可。
 
   it("error event 带 errorCode 时，error chunk 应有对应 errorCode", async () => {
-    const errorEvent = { type: "error", message: "Tool timed out", errorCode: "tool_timeout" };
+    const errorEvent = {
+      type: "error",
+      message: "Tool timed out",
+      errorCode: "tool_timeout",
+      usage: { inputTokens: 12, outputTokens: 3 },
+    };
     const gmConnect = vi.fn().mockResolvedValue(mockConnectWithEvents([errorEvent]));
 
     const instance = new ConversationInstance(
@@ -463,6 +474,7 @@ describe("errorCode 透传：chatStream()", () => {
     expect(errorChunk).toBeDefined();
     expect(errorChunk!.error).toBe("Tool timed out");
     expect((errorChunk as any).errorCode).toBe("tool_timeout");
+    expect((errorChunk as any).usage).toEqual({ inputTokens: 12, outputTokens: 3 });
   });
 
   it("error event 无 errorCode 时，chunk.errorCode 应为 undefined", async () => {

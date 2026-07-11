@@ -228,6 +228,7 @@ export default function ChatArea({
             sa.retryInfo = { attempt: event.attempt, maxRetries: event.maxRetries, error: event.error };
             break;
           case "done":
+          case "error":
             if (event.usage) {
               if (!sa.usage) sa.usage = { inputTokens: 0, outputTokens: 0 };
               sa.usage.inputTokens += event.usage.inputTokens;
@@ -237,8 +238,6 @@ export default function ChatArea({
               sa.usage.cacheReadInputTokens =
                 (sa.usage.cacheReadInputTokens || 0) + (event.usage.cacheReadInputTokens || 0);
             }
-          // falls through
-          case "error":
             sa.retryInfo = undefined;
             if (sa.currentContent || sa.currentThinking || sa.currentToolCalls.length > 0) {
               sa.completedMessages.push({
@@ -381,6 +380,8 @@ export default function ChatArea({
         case "error":
           msg.error = event.message;
           msg.errorCode = event.errorCode;
+          if (event.usage) msg.usage = event.usage;
+          if (event.durationMs != null) msg.durationMs = event.durationMs;
           break;
         case "done":
           if (event.usage) msg.usage = event.usage;

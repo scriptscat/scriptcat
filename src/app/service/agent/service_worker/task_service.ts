@@ -163,6 +163,7 @@ export class AgentTaskService {
           throw Object.assign(new Error(event.message), {
             errorCode: event.errorCode,
             usage: totalUsage,
+            conversationId,
           });
         }
       };

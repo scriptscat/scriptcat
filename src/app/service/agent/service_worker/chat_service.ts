@@ -38,7 +38,8 @@ import { getTextContent } from "@App/app/service/agent/core/content_utils";
 import { toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { t } from "@App/locales/locales";
-import { elideOldToolResults } from "@App/app/service/agent/core/context_elision";
+import { elideUntilWithinBudget } from "@App/app/service/agent/core/context_elision";
+import { getContextWindow } from "@App/app/service/agent/core/model_context";
 import type { LLMCallResult } from "./llm_client";
 
 /** ChatService 需要的 execute_script 工具依赖 */
@@ -203,6 +204,10 @@ export class ChatService {
     // 5 分钟无人应答时默认"继续"，避免无 UI 监听的后台会话被无限期挂起
     const askUserForGuard = (strikeCount: number): Promise<string> => {
       return new Promise((resolve) => {
+        if (abortController.signal.aborted) {
+          resolve("stop");
+          return;
+        }
         const askId = `guard_${uuidv4()}`;
         const cleanup = () => abortController.signal.removeEventListener("abort", onAbort);
         const finish = (answer: string) => {
@@ -371,7 +376,7 @@ export class ChatService {
           conversationId: params.conversationId,
           rehydratedHistory: true,
           skipBuiltinTools: !enableTools,
-          askUserForGuard,
+          askUserForGuard: params.scriptUuid ? undefined : askUserForGuard,
         });
         // 后台模式：正常完成后延迟清理
         this.bgSessionManager.cleanupIfDone(params.conversationId);
@@ -479,7 +484,7 @@ export class ChatService {
     summaryMessages.push({ role: "system", content: COMPACT_SYSTEM_PROMPT });
 
     summaryMessages.push(...historyMessages);
-    elideOldToolResults(summaryMessages, 5);
+    elideUntilWithinBudget(summaryMessages, getContextWindow(model));
 
     summaryMessages.push({ role: "user", content: buildCompactUserPrompt(params.compactInstruction) });
 
