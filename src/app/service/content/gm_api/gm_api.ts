@@ -55,6 +55,10 @@ export interface GMRequestHandle {
 
 const integrity = {}; // 仅防止非法实例化
 
+// GM_audio 恢复重连的退避延迟基准值与上限（毫秒）
+const GM_AUDIO_RETRY_BASE_DELAY = 250;
+const GM_AUDIO_RETRY_MAX_DELAY = 8000;
+
 let valChangeCounterId = 0;
 
 let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
@@ -223,6 +227,12 @@ export default class GMApi extends GM_Base {
     // 每次“最后一个监听器被移除”或 context 失效时递增，
     // 用于识别并丢弃在此之后才resolve的过期 connect() 请求，避免其连接泄漏
     generation: number;
+    // 是否曾经成功收到过 "registered"：一旦为 true，后续任何连接尝试（包括恢复期间
+    // 尚未收到 registered 就又断线的重连尝试）都视为暂时性故障并保留监听器重试，
+    // 而非当作首次注册失败而放弃
+    everRegistered?: boolean;
+    // 恢复重连的退避延迟（毫秒），每次收到 registered 后重置，每次退避重试后倍增并封顶
+    retryDelay?: number;
   };
 
   constructor(
@@ -705,6 +715,8 @@ export default class GMApi extends GM_Base {
             }
             if (message.action === "registered") {
               registered = true;
+              state.everRegistered = true;
+              state.retryDelay = undefined;
               resolve();
               return;
             }
@@ -722,12 +734,18 @@ export default class GMApi extends GM_Base {
             if (state.connection !== connection) return;
             state.connection = undefined;
             state.registration = undefined;
-            if (registered && !isSelfDisconnected && a.audioStateChange === state && state.listeners.size) {
-              // service worker 意外终止（如 MV3 闲置回收）导致端口断开，而非脚本主动移除监听器，
-              // 此时应保留监听器并自动重连，而非静默丢弃——重新 connect() 会自动唤醒 service worker
-              const reconnect = GMApi._GM_audioConnect(a, state);
+            // 曾经成功收到过 registered（无论是本次连接还是更早的连接）时，此后任何非本端
+            // 主动触发的断线——包括恢复期间尚未收到 registered 就又断线的重连尝试——都应视为
+            // 暂时性故障并保留监听器重试，而非当作注册失败而放弃
+            if (!isSelfDisconnected && isCurrentAttempt() && state.everRegistered && state.listeners.size) {
+              const reconnect = registered
+                ? // 已确认过的连接意外断线：立即重连，重新 connect() 本身即可唤醒被回收的 service worker
+                  GMApi._GM_audioConnect(a, state)
+                : // 恢复期间的重连尝试在收到 registered 前又断线：退避后重试，避免持续故障时的忙等
+                  GMApi._GM_audioScheduleReconnect(a, state);
               state.registration = reconnect;
               reconnect.catch(() => {});
+              resolve();
               return;
             }
             state.generation = state.generation > 1e9 ? 1 : state.generation + 1;
@@ -747,6 +765,23 @@ export default class GMApi extends GM_Base {
       throw error;
     });
     return state.registration;
+  }
+
+  // 恢复期间的重连尝试在收到 registered 前又断线时，退避一段时间后重试，直至重连成功、
+  // 监听器被显式移除（listeners 归零）或 context 失效（audioStateChange 被替换）
+  static _GM_audioScheduleReconnect(a: GMApi, state: NonNullable<GMApi["audioStateChange"]>): Promise<void> {
+    const generation = state.generation;
+    const delay = state.retryDelay || GM_AUDIO_RETRY_BASE_DELAY;
+    state.retryDelay = Math.min(delay * 2, GM_AUDIO_RETRY_MAX_DELAY);
+    return new Promise<void>((resolve, reject) => {
+      setTimeout(() => {
+        if (a.audioStateChange !== state || state.generation !== generation || !state.listeners.size) {
+          resolve();
+          return;
+        }
+        GMApi._GM_audioConnect(a, state).then(resolve, reject);
+      }, delay);
+    });
   }
 
   static _GM_audioAddStateChangeListener(a: GMApi, listener: GMTypes.AudioStateChangeListener): Promise<void> {

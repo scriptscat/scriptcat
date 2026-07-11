@@ -242,6 +242,64 @@ describe("GM_audio 状态变化监听", () => {
     await api["GM.audio.removeStateChangeListener"](listener);
   });
 
+  it("恢复期间的重连尝试在收到 registered 前又断线时，应保留监听器并退避重试，而非放弃", async () => {
+    vi.useFakeTimers();
+    try {
+      const connections = [
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+      ];
+      const connect = vi
+        .fn()
+        .mockResolvedValueOnce(connections[0])
+        .mockResolvedValueOnce(connections[1])
+        .mockResolvedValueOnce(connections[2]);
+      const message = { connect } as unknown as Message;
+      const api = new GMApi("serviceWorker", message, message, {
+        uuid: "gm-audio-test",
+        value: {},
+      } as ScriptRunResource);
+      const listener = vi.fn();
+
+      // 连接 1：初始注册成功
+      const registration = api["GM.audio.addStateChangeListener"](listener);
+      await Promise.resolve();
+      connections[0].sendMessage({ action: "registered" });
+      await registration;
+      expect(connect).toHaveBeenCalledTimes(1);
+
+      // 连接 1 意外断线（如 service worker 闲置回收），应立即发起连接 2
+      connections[0].EE!.emit("disconnect", false);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(connect).toHaveBeenCalledTimes(2);
+
+      // 连接 2 是恢复期间的重连尝试，在收到 registered 前又断线
+      connections[1].EE!.emit("disconnect", false);
+      await Promise.resolve();
+      await Promise.resolve();
+      // 曾经成功注册过，监听器不应被清空，也不应停止重试
+      expect(listener).not.toHaveBeenCalled();
+
+      // 退避期间不应立即重连
+      expect(connect).toHaveBeenCalledTimes(2);
+
+      // 退避到期后应发起连接 3
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(connect).toHaveBeenCalledTimes(3);
+
+      connections[2].sendMessage({ action: "registered" });
+      await Promise.resolve();
+      connections[2].sendMessage({ action: "stateChange", data: { audible: true } });
+      expect(listener).toHaveBeenCalledWith({ audible: true });
+
+      await api["GM.audio.removeStateChangeListener"](listener);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("本端主动 disconnect（如 removeStateChangeListener）不应触发自动重连", async () => {
     const { api, connect, connection } = createAudioApi();
     const listener = vi.fn();
