@@ -88,6 +88,10 @@ if (chromeManifest.content_security_policy && Object.keys(chromeManifest.content
 // Firefox MV3 不支持 "background" permission
 firefoxManifest.optional_permissions = firefoxManifest.optional_permissions.filter((val) => val !== "background");
 delete firefoxManifest.background.service_worker;
+
+// Firefox - incognito "split" is unsupported
+delete firefoxManifest.incognito;
+
 // Firefox 的扩展消息默认即为 structured clone，该键仅 Chromium 148+ 识别
 delete firefoxManifest.message_serialization;
 firefoxManifest.browser_specific_settings = {
