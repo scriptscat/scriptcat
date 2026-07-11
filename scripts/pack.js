@@ -93,7 +93,7 @@ firefoxManifest.permissions = firefoxManifest.permissions.filter(
 );
 
 if (process.env.SC_KEEP_EVENT_PAGE_ACTIVE === "true") {
-  // bindEventPageLifeCycleBlocker
+  // for startFirefoxEventPageKeepAliveLoop
   firefoxManifest.permissions.push("webRequestBlocking");
 }
 
