@@ -48,6 +48,9 @@
   "sandbox": {
     "pages": ["src/sandbox.html"]
   },
+  "content_security_policy": {
+    "sandbox": "sandbox allow-downloads allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-scripts allow-storage-access-by-user-activation allow-top-navigation allow-top-navigation-by-user-activation allow-top-navigation-to-custom-protocols; script-src 'unsafe-inline' 'unsafe-eval' https: http: data: blob: 'self';"
+  },
   "web_accessible_resources": [
     {
       "resources": ["/src/install.html"],

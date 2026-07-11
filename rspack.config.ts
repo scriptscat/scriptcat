@@ -155,9 +155,11 @@ export default {
               manifest.name = "__MSG_scriptcat_beta__";
             }
             if (isReactTools) {
-              manifest.content_security_policy = {
-                extension_pages: "script-src 'self' http://localhost:8097; object-src 'self'",
-              };
+              if (!manifest.content_security_policy) {
+                manifest.content_security_policy = {};
+              }
+              manifest.content_security_policy.extension_pages =
+                "script-src 'self' http://localhost:8097; object-src 'self'";
             }
             return JSON.stringify(manifest);
           },

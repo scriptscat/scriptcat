@@ -71,6 +71,10 @@ const chromeManifest = applyAgentManifest({ ...manifest, background: { ...manife
 
 chromeManifest.optional_permissions = chromeManifest.optional_permissions.filter((val) => val !== "userScripts");
 delete chromeManifest.background.scripts;
+delete chromeManifest.content_security_policy.sandbox; // chromeManifest 不需要？
+if (chromeManifest.content_security_policy && Object.keys(chromeManifest.content_security_policy).length === 0) {
+  delete chromeManifest.content_security_policy;
+}
 
 // Firefox MV3 不支持 "background" permission
 firefoxManifest.optional_permissions = firefoxManifest.optional_permissions.filter((val) => val !== "background");
