@@ -1,6 +1,6 @@
 import { newMockXhr } from "mock-xmlhttprequest";
 import type EventEmitter from "eventemitter3";
-import type MockXhrRequest from "node_modules/mock-xmlhttprequest/dist/cjs/MockXhrRequest.d.cts";
+import type MockXhrRequest from "../../node_modules/mock-xmlhttprequest/dist/cjs/MockXhrRequest.d.cts";
 
 export const setNetworkRequestCounter = (url: string) => {
   const wbr = chrome.webRequest.onBeforeRequest as any;
