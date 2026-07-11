@@ -13,6 +13,8 @@ import type { CATFileStorage } from "@App/pkg/config/config";
 
 const STORAGE_EXAMPLE_URL = "https://github.com/scriptscat/scriptcat/blob/main/example/cat_file_storage.js";
 
+const boolFirefox = isFirefox();
+
 export function RuntimeSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
   const [bg, setBg] = useState(false);
@@ -20,14 +22,16 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
   const [storage, setStorage] = useState<CATFileStorage | undefined>(undefined);
 
   useEffect(() => {
-    if (!isFirefox()) {
+    if (!boolFirefox) {
       void isPermissionOk("background").then((r) => {
         if (r !== null) setBg(r);
       });
     }
-    void isPermissionOk("webRequestBlocking").then((r) => {
-      setKeepAlive(r);
-    });
+    if (boolFirefox) {
+      void isPermissionOk("webRequestBlocking").then((r) => {
+        setKeepAlive(r);
+      });
+    }
     void Promise.resolve(systemConfig.get("cat_file_storage")).then((v) => setStorage(v as CATFileStorage));
   }, []);
 
@@ -123,7 +127,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
 
   return (
     <SettingCard id="runtime" title={t("logs:runtime")} register={register}>
-      {!isFirefox() && (
+      {!boolFirefox && (
         <SettingRow
           label={t("settings:enable_background.title")}
           description={t("settings:enable_background.description")}
@@ -132,7 +136,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
         </SettingRow>
       )}
 
-      {keepAlive !== null && (
+      {boolFirefox && keepAlive !== null && (
         <SettingRow
           label={t("settings:keep_scripts_alive.title")}
           description={t("settings:keep_scripts_alive.description")}
