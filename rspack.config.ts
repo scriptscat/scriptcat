@@ -138,6 +138,7 @@ export default {
       "process.env.VI_TESTING": "'false'",
       "process.env.SC_RANDOM_KEY": `'${uuidv4()}'`,
       "process.env.SC_DISABLE_AGENT": `'${enableAgent ? "false" : "true"}'`,
+      "process.env.SC_KEEP_EVENT_PAGE_ACTIVE": "'false'",
     }),
     new rspack.CopyRspackPlugin({
       patterns: [

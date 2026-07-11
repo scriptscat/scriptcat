@@ -92,6 +92,11 @@ firefoxManifest.permissions = firefoxManifest.permissions.filter(
   (val) => val !== "userScripts" && val !== "debugger" && val !== "offscreen"
 );
 
+if (process.env.SC_KEEP_EVENT_PAGE_ACTIVE === "true") {
+  // bindEventPageLifeCycleBlocker
+  firefoxManifest.permissions.push("webRequestBlocking");
+}
+
 // Firefox MV3 不支持 "background" permission
 firefoxManifest.optional_permissions = firefoxManifest.optional_permissions.filter((val) => val !== "background");
 delete firefoxManifest.background.service_worker;
