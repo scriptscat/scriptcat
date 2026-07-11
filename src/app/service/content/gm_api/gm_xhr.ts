@@ -607,11 +607,11 @@ export function GM_xmlhttpRequest(
             // 对齐原生 XHR abort() 语义：upload 尚未完成时，先补发 upload 的 abort；
             // 若已收到进度事件，则沿用最后一次真实进度数据
             uploadDone = true;
-            const uploadEventData = lastUploadEventData ?? {
+            const uploadEventData = {
               ...data,
-              lengthComputable: false,
-              loaded: 0,
-              total: 0,
+              lengthComputable: lastUploadEventData?.lengthComputable ?? false,
+              loaded: lastUploadEventData?.loaded ?? 0,
+              total: lastUploadEventData?.total ?? 0,
             };
             details.upload?.onabort?.(makeProgressCallbackParam(uploadEventData));
             fireUploadLoadEnd(uploadEventData);

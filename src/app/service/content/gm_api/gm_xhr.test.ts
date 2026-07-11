@@ -550,6 +550,9 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     for (const fn of [onUploadAbort, onUploadLoadEnd]) {
       expect(fn).toHaveBeenCalledTimes(1);
       const arg = fn.mock.calls[0][0];
+      expect(arg.readyState).toBe(0);
+      expect(arg.status).toBe(0);
+      expect(arg.error).toBe("aborted");
       expect(arg.loaded).toBe(5 * 1024 * 1024);
       expect(arg.total).toBe(10 * 1024 * 1024);
       expect(arg.lengthComputable).toBe(true);
