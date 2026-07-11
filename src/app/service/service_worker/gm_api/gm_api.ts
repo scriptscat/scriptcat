@@ -313,6 +313,8 @@ const supportedRequestMethods = new Set<string>([
 export default class GMApi {
   logger: Logger;
 
+  private warnedFirstPartyDomainScriptUuids = new Set<string>();
+
   scriptDAO: ScriptDAO = new ScriptDAO();
   subscribeDAO: SubscribeDAO = new SubscribeDAO();
 
@@ -466,6 +468,15 @@ export default class GMApi {
     // https://github.com/violentmonkey/violentmonkey/issues/746
     const firstPartyDomainRaw =
       typeof detail.firstPartyDomain === "string" ? detail.firstPartyDomain.trim() : undefined;
+    if (firstPartyDomainRaw !== undefined && !this.warnedFirstPartyDomainScriptUuids.has(request.script.uuid)) {
+      this.warnedFirstPartyDomainScriptUuids.add(request.script.uuid);
+      this.logger.warn(
+        isFirefox()
+          ? "GM_cookie firstPartyDomain is Firefox-specific and may behave differently in other browsers."
+          : "GM_cookie firstPartyDomain is only supported by Firefox and is ignored in this browser.",
+        { uuid: request.uuid, name: request.script.name, component: "GM_cookie" }
+      );
+    }
     const firstPartyDomainForList: string | null | undefined = isFirefox() ? (firstPartyDomainRaw ?? null) : undefined;
     const firstPartyDomainForSetOrDelete: string | undefined = isFirefox() ? firstPartyDomainRaw : undefined;
 
