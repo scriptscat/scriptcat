@@ -115,14 +115,15 @@ declare namespace globalThis {
 // @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
 declare namespace chrome.cookies {
   interface GetAllDetails {
-    // null 代表不按 firstPartyDomain 过滤（getAll 专用，remove 通过 CookieDetails 复用同一约定）
+    // getAll 专属：字面量 null 代表不按 firstPartyDomain 过滤，且跳过 FPI 必填校验（remove/set 无此语义，见
+    // gm_api.ts 内 GM_cookie 的详细注释，依据实测的 Firefox ext-cookies.js 源码，而非 MDN 文档）
     firstPartyDomain?: string | null;
   }
   interface SetDetails {
     firstPartyDomain?: string;
   }
   interface CookieDetails {
-    firstPartyDomain?: string | null;
+    firstPartyDomain?: string;
   }
   interface Cookie {
     firstPartyDomain?: string;

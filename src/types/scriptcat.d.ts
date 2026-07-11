@@ -539,6 +539,8 @@ declare namespace GMTypes {
     partitionKey?: CookieDetailsPartitionKeyType;
     /**
      * Firefox-only: the First-Party Isolation key (`privacy.firstparty.isolate`). Not supported on Chrome.
+     * `list` works without it even when FPI is on (matches cookies across all first-party domains).
+     * `set`/`delete` require it explicitly when FPI is on; the browser rejects the call otherwise.
      * @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
      */
     firstPartyDomain?: string;

@@ -271,24 +271,45 @@ describe("GM_cookie 的 firstPartyDomain 参数（Firefox First-Party Isolation�
     expect(setSpy.mock.calls[0][0].firstPartyDomain).toBe("example.com");
   });
 
-  it("Firefox 环境下，list/delete 未提供 firstPartyDomain 时补 null（与 Violentmonkey 一致，避免 FPI/Tor Browser 下报错，见 violentmonkey#746）", async () => {
+  it("Firefox 环境下，list 未提供 firstPartyDomain 时补字面量 null（Firefox 的 getAll 专门区分「完全没有该 key」与「该 key 为 null」，只有前者在 FPI 开启时报错，见 violentmonkey#746）", async () => {
     vi.stubGlobal("mozInnerScreenX", 0);
     const getAllSpy = vi.spyOn(cookiesApi, "getAll").mockResolvedValue([]);
-    const removeSpy = vi.spyOn(cookiesApi, "remove").mockResolvedValue({} as chrome.cookies.CookieDetails);
-
-    await (GMApi.prototype as any).GM_cookie.call(
-      {},
-      makeCookieReq({ url: "https://example.com" }, "list"),
-      cookieSender
-    );
+    const req = makeCookieReq({ url: "https://example.com" }, "list");
+    await (GMApi.prototype as any).GM_cookie.call({}, req, cookieSender);
     expect(getAllSpy.mock.calls[0][0].firstPartyDomain).toBeNull();
+  });
 
-    await (GMApi.prototype as any).GM_cookie.call(
-      {},
-      makeCookieReq({ url: "https://example.com", name: "n" }, "delete"),
-      cookieSender
+  it("Firefox 环境下，delete 未提供 firstPartyDomain 时直接省略该字段（remove 对 null 与未提供一视同仁，补 null 无意义）", async () => {
+    vi.stubGlobal("mozInnerScreenX", 0);
+    const removeSpy = vi.spyOn(cookiesApi, "remove").mockResolvedValue({} as chrome.cookies.CookieDetails);
+    const req = makeCookieReq({ url: "https://example.com", name: "n" }, "delete");
+    await (GMApi.prototype as any).GM_cookie.call({}, req, cookieSender);
+    expect(removeSpy.mock.calls[0][0]).not.toHaveProperty("firstPartyDomain");
+  });
+
+  it("Firefox 环境下，set/delete 未提供 firstPartyDomain 且 FPI 开启时，Firefox 的拒绝会原样传播给调用方，而不是被吞掉", async () => {
+    vi.stubGlobal("mozInnerScreenX", 0);
+    const fpiError = new Error(
+      "First-Party Isolation is enabled, but the required 'firstPartyDomain' attribute was not set."
     );
-    expect(removeSpy.mock.calls[0][0].firstPartyDomain).toBeNull();
+    vi.spyOn(cookiesApi, "set").mockRejectedValue(fpiError);
+    vi.spyOn(cookiesApi, "remove").mockRejectedValue(fpiError);
+
+    await expect(
+      (GMApi.prototype as any).GM_cookie.call(
+        {},
+        makeCookieReq({ url: "https://example.com", name: "n", value: "v" }, "set"),
+        cookieSender
+      )
+    ).rejects.toThrow(fpiError.message);
+
+    await expect(
+      (GMApi.prototype as any).GM_cookie.call(
+        {},
+        makeCookieReq({ url: "https://example.com", name: "n" }, "delete"),
+        cookieSender
+      )
+    ).rejects.toThrow(fpiError.message);
   });
 
   it("Firefox 环境下，显式传空字符串 firstPartyDomain 时应保留空字符串（代表 FPI 关闭时创建的 cookie），而非当作未提供", async () => {

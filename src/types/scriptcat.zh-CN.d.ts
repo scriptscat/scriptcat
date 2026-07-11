@@ -545,6 +545,8 @@ declare namespace GMTypes {
     partitionKey?: CookieDetailsPartitionKeyType;
     /**
      * 仅 Firefox 支持：First-Party Isolation 隔离键（`privacy.firstparty.isolate`）。Chrome 不支持。
+     * `list` 即使 FPI 开启也不需要提供（会跨所有 first-party 分区匹配）；
+     * `set`/`delete` 在 FPI 开启时必须显式提供，否则浏览器会拒绝调用。
      * @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
      */
     firstPartyDomain?: string;
