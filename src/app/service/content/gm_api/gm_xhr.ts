@@ -128,6 +128,21 @@ const getMimeType = (contentType: string) => {
 
 const docParseTypes = new Set(["application/xhtml+xml", "application/xml", "image/svg+xml", "text/html", "text/xml"]);
 
+// 只有真正注册了至少一个 upload 回调时，后台才会为 xhr.upload 绑定监听器。
+// 原因：为 xhr.upload 注册任何监听器都会令浏览器对跨域请求触发 CORS 预检 (OPTIONS)，
+// 不应对未使用 upload 功能的脚本造成额外的预检开销/兼容性影响。
+const hasAnyUploadHandler = (upload: GMTypes.XHRUpload | undefined): boolean =>
+  !!(
+    upload &&
+    (upload.onloadstart ||
+      upload.onprogress ||
+      upload.onload ||
+      upload.onloadend ||
+      upload.onerror ||
+      upload.onabort ||
+      upload.ontimeout)
+  );
+
 const retStateFnMap = new WeakMap<ThisType<GMXHRResponseType>, RetStateFnRecord>();
 
 interface RetStateFnRecord {
@@ -215,6 +230,7 @@ export function GM_xmlhttpRequest(
     password: details.password,
     redirect: details.redirect,
     fetch: details.fetch,
+    hasUpload: hasAnyUploadHandler(details.upload),
   };
   if (!param.headers) {
     param.headers = {};
@@ -500,7 +516,19 @@ export function GM_xmlhttpRequest(
       return makeResponseRet(retParam, addGetters, res.contentType);
     };
     let makeXHRCallbackParam: typeof makeXHRCallbackParam_ | null = makeXHRCallbackParam_;
+    // upload 事件均为 ProgressEvent (标准语义)，统一携带 loaded/total/lengthComputable
+    const makeUploadCallbackParam = (
+      uploadData: TXhrCallBackArg & { lengthComputable?: boolean; loaded?: number; total?: number }
+    ) => ({
+      ...(makeXHRCallbackParam?.(uploadData) ?? {}),
+      lengthComputable: uploadData.lengthComputable as boolean,
+      loaded: uploadData.loaded as number,
+      total: uploadData.total as number,
+      done: uploadData.loaded,
+      totalSize: uploadData.total,
+    });
     let loadendCalled = false;
+    let uploadDone = !hasAnyUploadHandler(details.upload); // 未注册 upload 回调时视为已完成，abort 时无需补发 upload 事件
     const doLoadEnd = (data: TXhrCallBackArg) => {
       if (!loadendCalled) {
         loadendCalled = true;
@@ -521,6 +549,12 @@ export function GM_xmlhttpRequest(
     doAbort = (data: TXhrCallBackArg) => {
       if (!reqDone) {
         errorOccur = "AbortError";
+        if (!uploadDone) {
+          // 对齐原生 XHR abort() 语义：upload 尚未完成时，先补发 upload 的 abort 与 loadend
+          uploadDone = true;
+          details.upload?.onabort?.(makeXHRCallbackParam?.(data) ?? {});
+          details.upload?.onloadend?.(makeXHRCallbackParam?.(data) ?? {});
+        }
         details.onabort?.(makeXHRCallbackParam?.(data) ?? {});
         reqDone = true;
         // 不要进行 refCleanup ！要等待最后的 onloadend
@@ -703,37 +737,28 @@ export function GM_xmlhttpRequest(
           case "onabort":
             doAbort?.(data);
             break;
+          // upload 事件均为 ProgressEvent (标准语义)，统一携带 loaded/total/lengthComputable
           case "onuploadloadstart":
-            details.upload?.onloadstart?.(makeXHRCallbackParam?.(data) ?? {});
+            details.upload?.onloadstart?.(makeUploadCallbackParam(data));
             break;
-          case "onuploadprogress": {
-            if (details.upload?.onprogress) {
-              const res = {
-                ...(makeXHRCallbackParam?.(data) ?? {}),
-                lengthComputable: data.lengthComputable as boolean,
-                loaded: data.loaded as number,
-                total: data.total as number,
-                done: data.loaded,
-                totalSize: data.total,
-              };
-              details.upload.onprogress?.(res);
-            }
+          case "onuploadprogress":
+            details.upload?.onprogress?.(makeUploadCallbackParam(data));
             break;
-          }
           case "onuploadload":
-            details.upload?.onload?.(makeXHRCallbackParam?.(data) ?? {});
+            details.upload?.onload?.(makeUploadCallbackParam(data));
             break;
           case "onuploadloadend":
-            details.upload?.onloadend?.(makeXHRCallbackParam?.(data) ?? {});
+            uploadDone = true;
+            details.upload?.onloadend?.(makeUploadCallbackParam(data));
             break;
           case "onuploaderror":
-            details.upload?.onerror?.(makeXHRCallbackParam?.(data) ?? {});
+            details.upload?.onerror?.(makeUploadCallbackParam(data));
             break;
           case "onuploadabort":
-            details.upload?.onabort?.(makeXHRCallbackParam?.(data) ?? {});
+            details.upload?.onabort?.(makeUploadCallbackParam(data));
             break;
           case "onuploadtimeout":
-            details.upload?.ontimeout?.(makeXHRCallbackParam?.(data) ?? {});
+            details.upload?.ontimeout?.(makeUploadCallbackParam(data));
             break;
           // case "onstream":
           //   controller?.enqueue(new Uint8Array(data));
@@ -757,7 +782,7 @@ export function GM_xmlhttpRequest(
         connect.disconnect(true); // 断开连结(容忍已断开)
         connect = null;
       }
-      if (doAbort && details.onabort && !reqDone) {
+      if (doAbort && !reqDone && (details.onabort || hasAnyUploadHandler(details.upload))) {
         // https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/abort
         // When a request is aborted, its readyState is changed to XMLHttpRequest.UNSENT (0) and the request's status code is set to 0.
         doAbort?.({

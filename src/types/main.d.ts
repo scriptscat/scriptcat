@@ -79,6 +79,8 @@ declare namespace GMSend {
     dataType?: "FormData" | "Blob";
     redirect?: "follow" | "error" | "manual";
     byPassConnect?: boolean;
+    /** True when the caller registered at least one `upload` event handler; gates whether the background attaches `xhr.upload` listeners (registering any triggers a CORS preflight). */
+    hasUpload?: boolean;
   }
 
   interface XHRFormDataFile {

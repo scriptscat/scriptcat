@@ -85,8 +85,12 @@ describe("BgGMXhr 的 upload 事件转发", () => {
     global.XMLHttpRequest = originalXHR;
   });
 
-  const createXhr = async () => {
-    const details = { method: "POST", url: "https://example.com/upload" } as unknown as GMSend.XHRDetails;
+  const createXhr = async (hasUpload = true) => {
+    const details = {
+      method: "POST",
+      url: "https://example.com/upload",
+      hasUpload,
+    } as unknown as GMSend.XHRDetails;
     const bgGmXhr = new BgGMXhr(
       details,
       { statusCode: 0, finalUrl: "", responseHeaders: "" },
@@ -100,6 +104,17 @@ describe("BgGMXhr 的 upload 事件转发", () => {
     expect(xhr).toBeDefined();
     return xhr;
   };
+
+  it("details.hasUpload 为假时，不应为 xhr.upload 绑定任何事件监听器（避免为未使用该功能的请求触发 CORS 预检）", async () => {
+    const xhr = await createXhr(false);
+    expect(xhr.upload.onloadstart).toBeUndefined();
+    expect(xhr.upload.onprogress).toBeUndefined();
+    expect(xhr.upload.onload).toBeUndefined();
+    expect(xhr.upload.onloadend).toBeUndefined();
+    expect(xhr.upload.onerror).toBeUndefined();
+    expect(xhr.upload.onabort).toBeUndefined();
+    expect(xhr.upload.ontimeout).toBeUndefined();
+  });
 
   it("原生 XHR 的 upload.onprogress 触发时，应发送携带进度数据的 onuploadprogress 消息", async () => {
     const xhr = await createXhr();

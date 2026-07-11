@@ -655,15 +655,18 @@ declare namespace GMTypes {
 
   type GMXHRDataType = string | Blob | File | BufferSource | FormData | URLSearchParams;
 
-  /** Event handlers for the request's upload phase, mirroring `XMLHttpRequestUpload`. */
+  /**
+   * Event handlers for the request's upload phase, mirroring `XMLHttpRequestUpload`.
+   * All upload events are progress events per the XHR spec, so every handler receives `XHRProgress`.
+   */
   interface XHRUpload {
-    onloadstart?: Listener<XHRResponse>;
+    onloadstart?: Listener<XHRProgress>;
     onprogress?: Listener<XHRProgress>;
-    onload?: Listener<XHRResponse>;
-    onloadend?: Listener<XHRResponse>;
-    onerror?: Listener<XHRResponse>;
-    onabort?: Listener<XHRResponse>;
-    ontimeout?: Listener<XHRResponse>;
+    onload?: Listener<XHRProgress>;
+    onloadend?: Listener<XHRProgress>;
+    onerror?: Listener<XHRProgress>;
+    onabort?: Listener<XHRProgress>;
+    ontimeout?: Listener<XHRProgress>;
   }
 
   interface XHRDetails {
@@ -694,7 +697,11 @@ declare namespace GMTypes {
     redirect?: "follow" | "error" | "manual";
     /** Partitioned cookie key for storage partitioning. */
     cookiePartition?: Record<string, any> & { topLevelSite?: string };
-    /** Event handlers for the upload phase, mirroring `XMLHttpRequestUpload`. */
+    /**
+     * Event handlers for the upload phase, mirroring `XMLHttpRequestUpload`.
+     * Requires the native-XHR strategy: not supported whenever the request runs over `fetch()`
+     * (`fetch: true`, `redirect` set, `anonymous`/`mozAnon`, or `responseType: "stream"`).
+     */
     upload?: XHRUpload;
 
     onload?: Listener<XHRResponse>;
