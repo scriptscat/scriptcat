@@ -991,13 +991,83 @@ export default class GMApi extends GM_Base {
       }
       return retParam as K;
     };
-    // 保证「主回调」(onload/onerror/ontimeout) 与 onloadend 各自独立执行：
-    // 若主回调抛错，onloadend 仍必须照常触发，反之亦然。
-    const withLoadEnd = (primary: () => void, loadend: () => void) => {
+    // 保证「主回调」(onload/onerror/ontimeout) 与 onloadend 各自独立执行，且无论是否抛错，
+    // settle（resolve/reject retPromise，必要时 releaseResources）最终都会被调用一次。
+    // onError 用于 native xhr 的 ontimeout/onerror：不能让使用者回调的例外同步传播回
+    // GM_xmlhttpRequest 的内部消息处理循环（会中断其状态机，导致内部请求永久卡住），
+    // 改为异步重新抛出，让例外仍可被观察到（如全局错误上报），但不阻断内部生命周期收尾。
+    const withLoadEnd = (
+      primary: () => void,
+      loadendData: Record<string, any>,
+      settle: () => void,
+      onError?: (err: unknown) => void
+    ) => {
       try {
-        primary();
+        try {
+          primary();
+        } finally {
+          details.onloadend?.(makeCallbackParam(loadendData));
+        }
+      } catch (err) {
+        if (onError) {
+          onError(err);
+        } else {
+          throw err;
+        }
       } finally {
-        loadend();
+        settle();
+      }
+    };
+    // browser 与 native 两条路径最终都经由后台 GM_download 回传同一组消息（onload/save_cancelled/
+    // onerror），此处共用同一份处理逻辑；releaseResources 仅 native 路径需要，browser 路径不传。
+    const handleDownloadMessage = (data: { action?: string; data?: any }, releaseResources?: () => void) => {
+      switch (data.action) {
+        case "onload":
+        case "save_cancelled": // saveAs cancelled by user，TM 视为下载成功
+          withLoadEnd(
+            () => details.onload?.(makeCallbackParam({ ...data.data })),
+            { ...data.data },
+            () => {
+              retPromiseResolve?.(data.data);
+              releaseResources?.();
+            }
+          );
+          break;
+        case "onprogress":
+          details.onprogress?.(makeCallbackParam({ ...data.data, mode: "browser" }));
+          retPromiseReject?.(new Error("Timeout ERROR"));
+          break;
+        case "ontimeout":
+          withLoadEnd(
+            () => details.ontimeout?.(makeCallbackParam({})),
+            {},
+            () => {
+              retPromiseReject?.(new Error("Timeout ERROR"));
+              releaseResources?.();
+            }
+          );
+          break;
+        case "onerror":
+          withLoadEnd(
+            () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
+            { error: "unknown" },
+            () => {
+              retPromiseReject?.(new Error("Unknown ERROR"));
+              releaseResources?.();
+            }
+          );
+          break;
+        default:
+          LoggerCore.logger().warn("GM_download resp is error", { data });
+          withLoadEnd(
+            () => {},
+            {},
+            () => {
+              retPromiseReject?.(new Error("Unexpected Internal ERROR"));
+              releaseResources?.();
+            }
+          );
+          break;
       }
     };
     const handle = async () => {
@@ -1036,77 +1106,17 @@ export default class GMApi extends GM_Base {
           // 后台连接失败：通过 onerror / reject 通知调用方，行为与 “onMessage 收到 onerror” 一致，
           // 否则 GM.download 的 promise 会永远 pending（issue: 无 native XHR 后备路径可兜底）。
           if (!aborted) {
-            try {
-              withLoadEnd(
-                () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
-                () => details.onloadend?.(makeCallbackParam({ error: "unknown" }))
-              );
-            } finally {
-              retPromiseReject?.(e instanceof Error ? e : new Error("GM_download connect ERROR"));
-            }
+            withLoadEnd(
+              () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
+              { error: "unknown" },
+              () => retPromiseReject?.(e instanceof Error ? e : new Error("GM_download connect ERROR"))
+            );
           }
           return;
         }
         if (aborted) return;
         connect = con;
-        connect.onMessage((data) => {
-          switch (data.action) {
-            case "onload":
-              try {
-                withLoadEnd(
-                  () => details.onload?.(makeCallbackParam({ ...data.data })),
-                  () => details.onloadend?.(makeCallbackParam({ ...data.data }))
-                );
-              } finally {
-                retPromiseResolve?.(data.data);
-              }
-              break;
-            case "save_cancelled": // saveAs cancelled by user，TM 视为下载成功
-              try {
-                withLoadEnd(
-                  () => details.onload?.(makeCallbackParam({ ...data.data })),
-                  () => details.onloadend?.(makeCallbackParam({ ...data.data }))
-                );
-              } finally {
-                retPromiseResolve?.(data.data);
-              }
-              break;
-            case "onprogress":
-              details.onprogress?.(makeCallbackParam({ ...data.data, mode: "browser" }));
-              retPromiseReject?.(new Error("Timeout ERROR"));
-              break;
-            case "ontimeout":
-              try {
-                withLoadEnd(
-                  () => details.ontimeout?.(makeCallbackParam({})),
-                  () => details.onloadend?.(makeCallbackParam({}))
-                );
-              } finally {
-                retPromiseReject?.(new Error("Timeout ERROR"));
-              }
-              break;
-            case "onerror":
-              try {
-                withLoadEnd(
-                  () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
-                  () => details.onloadend?.(makeCallbackParam({ error: "unknown" }))
-                );
-              } finally {
-                retPromiseReject?.(new Error("Unknown ERROR"));
-              }
-              break;
-            default:
-              LoggerCore.logger().warn("GM_download resp is error", {
-                data,
-              });
-              try {
-                details.onloadend?.(makeCallbackParam({}));
-              } finally {
-                retPromiseReject?.(new Error("Unexpected Internal ERROR"));
-              }
-              break;
-          }
-        });
+        connect.onMessage((data) => handleDownloadMessage(data));
       } else {
         // native
         // xhr 已因 ontimeout/onerror 失败：即使失败前已收到部分数据，底层 XHR 实现仍会在其
@@ -1157,14 +1167,11 @@ export default class GMApi extends GM_Base {
               // 行为与 “onMessage 收到 onerror” 一致，保持外层 contract 不变。
               releaseResources();
               if (!aborted) {
-                try {
-                  withLoadEnd(
-                    () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
-                    () => details.onloadend?.(makeCallbackParam({ error: "unknown" }))
-                  );
-                } finally {
-                  retPromiseReject?.(e instanceof Error ? e : new Error("GM_download connect ERROR"));
-                }
+                withLoadEnd(
+                  () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
+                  { error: "unknown" },
+                  () => retPromiseReject?.(e instanceof Error ? e : new Error("GM_download connect ERROR"))
+                );
               }
               return;
             }
@@ -1181,65 +1188,7 @@ export default class GMApi extends GM_Base {
             }
 
             connect = con;
-            connect.onMessage((data) => {
-              switch (data.action) {
-                case "onload":
-                  try {
-                    withLoadEnd(
-                      () => details.onload?.(makeCallbackParam({ ...data.data })),
-                      () => details.onloadend?.(makeCallbackParam({ ...data.data }))
-                    );
-                  } finally {
-                    retPromiseResolve?.(data.data);
-                    releaseResources();
-                  }
-                  break;
-                case "save_cancelled": // saveAs cancelled by user，TM 视为下载成功
-                  try {
-                    withLoadEnd(
-                      () => details.onload?.(makeCallbackParam({ ...data.data })),
-                      () => details.onloadend?.(makeCallbackParam({ ...data.data }))
-                    );
-                  } finally {
-                    retPromiseResolve?.(data.data);
-                    releaseResources();
-                  }
-                  break;
-                case "ontimeout":
-                  try {
-                    withLoadEnd(
-                      () => details.ontimeout?.(makeCallbackParam({})),
-                      () => details.onloadend?.(makeCallbackParam({}))
-                    );
-                  } finally {
-                    retPromiseReject?.(new Error("Timeout ERROR"));
-                    releaseResources();
-                  }
-                  break;
-                case "onerror":
-                  try {
-                    withLoadEnd(
-                      () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
-                      () => details.onloadend?.(makeCallbackParam({ error: "unknown" }))
-                    );
-                  } finally {
-                    retPromiseReject?.(new Error("Unknown ERROR"));
-                    releaseResources();
-                  }
-                  break;
-                default:
-                  LoggerCore.logger().warn("GM_download resp is error", {
-                    data,
-                  });
-                  try {
-                    details.onloadend?.(makeCallbackParam({}));
-                  } finally {
-                    retPromiseReject?.(new Error("Unexpected Internal ERROR"));
-                    releaseResources();
-                  }
-                  break;
-              }
-            });
+            connect.onMessage((data) => handleDownloadMessage(data, releaseResources));
 
             // 后台主动断连（例如 SW 重启、扩展更新）也释放 URL，避免长尾泄漏。
             // releaseResources 通过 released 标志位幂等，与 onMessage 内部的释放调用顺序无关。
@@ -1261,43 +1210,32 @@ export default class GMApi extends GM_Base {
             // onloadend 消息、其 retPromise 永久 pending、refCleanup 也无法执行。
             // 清空后 abort() 中的 nativeAbort?.() 变为空操作，内部 XHR 可自然收尾。
             nativeAbort = null;
-            try {
-              withLoadEnd(
-                () => details.ontimeout?.(makeCallbackParam({})),
-                () => details.onloadend?.(makeCallbackParam({}))
-              );
-            } catch (err) {
-              // 不能让使用者回调的例外同步传播回 GM_xmlhttpRequest 的内部消息处理循环：
-              // 那会中断其状态机（跳过 reqDone 置位、协议错误分支下合成 onloadend 的
-              // 排程），导致内部请求永久卡住、无法完成清理。改为异步重新抛出，让例外
-              // 仍可被观察到（如全局错误上报），但不阻断内部生命周期收尾。
-              queueMicrotask(() => {
-                throw err;
-              });
-            } finally {
-              // 必须在此直接 settle：若使用者在 onloadend 内呼叫 abort()，
-              // 只会设置 aborted 旗标，不代表这次下载没有失败。原本仅靠
-              // GM_xmlhttpRequest 内部 retPromise 之后才 reject 的路径，
-              // 会被外层 `if (aborted) return` 短路，导致 GM.download 的
-              // promise 永久 pending。settle 具幂等性，重复调用是安全的。
-              retPromiseReject?.(new Error("Native Download ERROR"));
-            }
+            // 必须在此直接 settle：若使用者在 onloadend 内呼叫 abort()，只会设置 aborted
+            // 旗标，不代表这次下载没有失败。原本仅靠 GM_xmlhttpRequest 内部 retPromise 之后
+            // 才 reject 的路径，会被外层 `if (aborted) return` 短路，导致 GM.download 的
+            // promise 永久 pending。settle 具幂等性，重复调用是安全的。
+            withLoadEnd(
+              () => details.ontimeout?.(makeCallbackParam({})),
+              {},
+              () => retPromiseReject?.(new Error("Native Download ERROR")),
+              (err) =>
+                queueMicrotask(() => {
+                  throw err;
+                })
+            );
           },
           onerror: () => {
             xhrFailed = true;
             nativeAbort = null;
-            try {
-              withLoadEnd(
-                () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
-                () => details.onloadend?.(makeCallbackParam({ error: "unknown" }))
-              );
-            } catch (err) {
-              queueMicrotask(() => {
-                throw err;
-              });
-            } finally {
-              retPromiseReject?.(new Error("Native Download ERROR"));
-            }
+            withLoadEnd(
+              () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
+              { error: "unknown" },
+              () => retPromiseReject?.(new Error("Native Download ERROR")),
+              (err) =>
+                queueMicrotask(() => {
+                  throw err;
+                })
+            );
           },
         } as GMTypes.XHRDetails;
         if (typeof details.headers === "object") {
