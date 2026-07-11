@@ -585,6 +585,14 @@ export class SystemConfig {
     return this._get<boolean>("enable_script_incognito", true);
   }
 
+  setMcpEnabled(enable: boolean) {
+    this._set("mcp_enabled", enable);
+  }
+
+  getMcpEnabled() {
+    return this._get<boolean>("mcp_enabled", false);
+  }
+
   setBlacklist(blacklist: string) {
     this._set("blacklist", blacklist);
   }

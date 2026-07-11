@@ -67,6 +67,20 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       const syncData = await chrome.storage.sync.get("system_enable_script");
       expect(syncData["system_enable_script"]).toBeUndefined();
     });
+
+    it("mcp_enabled 应写入 local storage 而非 sync", async () => {
+      config.setMcpEnabled(true);
+
+      const localData = await chrome.storage.local.get("system_mcp_enabled");
+      expect(localData["system_mcp_enabled"]).toBe(true);
+
+      const syncData = await chrome.storage.sync.get("system_mcp_enabled");
+      expect(syncData["system_mcp_enabled"]).toBeUndefined();
+    });
+
+    it("mcp_enabled 默认值为 false", async () => {
+      expect(await config.getMcpEnabled()).toBe(false);
+    });
   });
 
   describe("sync key 读写", () => {
