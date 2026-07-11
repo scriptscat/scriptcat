@@ -75,7 +75,6 @@ delete chromeManifest.background.scripts;
 // Firefox MV3 不支持 "background" permission
 firefoxManifest.optional_permissions = firefoxManifest.optional_permissions.filter((val) => val !== "background");
 delete firefoxManifest.background.service_worker;
-delete firefoxManifest.sandbox;
 // Firefox 的扩展消息默认即为 structured clone，该键仅 Chromium 148+ 识别
 delete firefoxManifest.message_serialization;
 firefoxManifest.browser_specific_settings = {
