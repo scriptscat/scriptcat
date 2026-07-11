@@ -560,6 +560,7 @@ export default class GMApi extends GM_Base {
       typeof (details || false) !== "object" ||
       typeof (details.domain ?? "") !== "string" ||
       typeof (details.expirationDate ?? 0) !== "number" ||
+      typeof (details.firstPartyDomain ?? "") !== "string" ||
       typeof (details.httpOnly ?? false) !== "boolean" ||
       typeof (details.name ?? "") !== "string" ||
       typeof (details.partitionKey ?? null) !== "object" ||

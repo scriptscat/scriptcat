@@ -458,6 +458,20 @@ export default class GMApi {
       // string | undefined
       detail.partitionKey.topLevelSite = undefined;
     }
+    // firstPartyDomain 仅 Firefox 支持（First-Party Isolation）；Chrome 的 chrome.cookies 参数校验会拒绝未知属性，故不传递
+    let firstPartyDomain = undefined;
+    if (isFirefox()) {
+      // see https://github.com/violentmonkey/violentmonkey/issues/746
+      // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies#first-party_isolation
+      // When first-party isolation is on, you must provide this option or the API call fails and returns a rejected promise.
+      // For get(), set(), and remove() you must pass a string value. For getAll(), you may also pass null here, and this gets all cookies,
+      // whether or not they have a non-empty value for firstPartyDomain.
+      if (cookieAction === "getAll") {
+        firstPartyDomain = detail.firstPartyDomain ? `${detail.firstPartyDomain}`.trim() : null;
+      } else {
+        firstPartyDomain = detail.firstPartyDomain ? `${detail.firstPartyDomain}`.trim() : undefined;
+      }
+    }
     // 处理tab的storeid
     const tabId = sender.getExtMessageSender().tabId;
     let storeId: string | undefined;
@@ -472,18 +486,20 @@ export default class GMApi {
       case "list": {
         detail.domain = detail.domain || undefined;
         detail.url = detail.url || undefined;
-        const cookies = await chrome.cookies.getAll(
-          stripUndefined({
-            domain: detail.domain,
-            name: detail.name,
-            path: detail.path,
-            secure: detail.secure,
-            session: detail.session,
-            url: detail.url,
-            storeId: storeId,
-            partitionKey: stripUndefined(detail.partitionKey),
-          })
-        );
+        const o: Record<string, any> = stripUndefined({
+          domain: detail.domain,
+          name: detail.name,
+          path: detail.path,
+          secure: detail.secure,
+          session: detail.session,
+          url: detail.url,
+          storeId: storeId,
+          partitionKey: stripUndefined(detail.partitionKey),
+        });
+        if (firstPartyDomain !== undefined) {
+          o.firstPartyDomain = firstPartyDomain;
+        }
+        const cookies = await chrome.cookies.getAll(o);
         return cookies;
       }
       case "delete": {
@@ -492,14 +508,16 @@ export default class GMApi {
         if (!detail.url || !detail.name) {
           throw new Error("delete operation must have url and name");
         }
-        await chrome.cookies.remove(
-          stripUndefined({
-            name: detail.name,
-            url: detail.url,
-            storeId: storeId,
-            partitionKey: stripUndefined(detail.partitionKey),
-          })
-        );
+        const o: any = stripUndefined({
+          name: detail.name,
+          url: detail.url,
+          storeId: storeId,
+          partitionKey: stripUndefined(detail.partitionKey),
+        });
+        if (firstPartyDomain !== undefined) {
+          o.firstPartyDomain = firstPartyDomain;
+        }
+        await chrome.cookies.remove(o);
         break;
       }
       case "set": {
@@ -511,20 +529,22 @@ export default class GMApi {
         if (!detail.url) {
           throw new Error("set operation must have url");
         }
-        await chrome.cookies.set(
-          stripUndefined({
-            url: detail.url,
-            name: detail.name,
-            domain: detail.domain,
-            value: detail.value,
-            expirationDate: detail.expirationDate,
-            path: detail.path,
-            httpOnly: detail.httpOnly,
-            secure: detail.secure,
-            storeId: storeId,
-            partitionKey: stripUndefined(detail.partitionKey),
-          })
-        );
+        const o: any = stripUndefined({
+          url: detail.url,
+          name: detail.name,
+          domain: detail.domain,
+          value: detail.value,
+          expirationDate: detail.expirationDate,
+          path: detail.path,
+          httpOnly: detail.httpOnly,
+          secure: detail.secure,
+          storeId: storeId,
+          partitionKey: stripUndefined(detail.partitionKey),
+        });
+        if (firstPartyDomain !== undefined) {
+          o.firstPartyDomain = firstPartyDomain;
+        }
+        await chrome.cookies.set(o);
         break;
       }
       default: {

@@ -543,6 +543,11 @@ declare namespace GMTypes {
     httpOnly?: boolean;
     expirationDate?: number;
     partitionKey?: CookieDetailsPartitionKeyType;
+    /**
+     * 仅 Firefox 支持：First-Party Isolation 隔离键（`privacy.firstparty.isolate`）。Chrome 不支持。
+     * @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+     */
+    firstPartyDomain?: string;
   }
 
   interface Cookie {

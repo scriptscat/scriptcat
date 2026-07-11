@@ -537,6 +537,11 @@ declare namespace GMTypes {
     httpOnly?: boolean;
     expirationDate?: number;
     partitionKey?: CookieDetailsPartitionKeyType;
+    /**
+     * Firefox-only: the First-Party Isolation key (`privacy.firstparty.isolate`). Not supported on Chrome.
+     * @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+     */
+    firstPartyDomain?: string;
   }
 
   interface Cookie {

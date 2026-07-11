@@ -110,3 +110,20 @@ declare namespace globalThis {
     Scriptcat?: App.ExternalScriptCat;
   }
 }
+
+// Firefox 在 chrome.* 命名空间下同样支持 browser.cookies 的 firstPartyDomain 参数，但 @types/chrome 未声明
+// @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+declare namespace chrome.cookies {
+  interface GetAllDetails {
+    firstPartyDomain?: string;
+  }
+  interface SetDetails {
+    firstPartyDomain?: string;
+  }
+  interface CookieDetails {
+    firstPartyDomain?: string;
+  }
+  interface Cookie {
+    firstPartyDomain?: string;
+  }
+}

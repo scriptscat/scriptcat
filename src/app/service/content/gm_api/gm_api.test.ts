@@ -6,6 +6,7 @@ import { compileScript, compileScriptCode } from "../utils";
 import type { Message } from "@Packages/message/types";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import GMApi from "./gm_api";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
@@ -1322,5 +1323,30 @@ describe("@grant CAT.agent.dom", () => {
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     expect(ret.hasCat).toEqual(false);
+  });
+});
+
+describe.concurrent("GM_cookie 参数校验（firstPartyDomain）", () => {
+  const makeA = () => ({ sendMessage: vi.fn().mockResolvedValue([]) }) as any;
+
+  it.concurrent("firstPartyDomain 非字符串时应回传 Invalid Argument Type 错误", async () => {
+    const a = makeA();
+    const done = vi.fn();
+    (GMApi as any)._GM_cookie(a, "list", { url: "https://example.com", firstPartyDomain: 123 }, done);
+    await Promise.resolve();
+    expect(done).toHaveBeenCalledWith(undefined, expect.any(Error));
+    expect(done.mock.calls[0][1].message).toEqual("Invalid Argument Type");
+    expect(a.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it.concurrent("firstPartyDomain 为合法字符串时应正常透传给 sendMessage", async () => {
+    const a = makeA();
+    const done = vi.fn();
+    (GMApi as any)._GM_cookie(a, "list", { url: "https://example.com", firstPartyDomain: "example.com" }, done);
+    await Promise.resolve();
+    expect(a.sendMessage).toHaveBeenCalledWith("GM_cookie", [
+      "list",
+      expect.objectContaining({ firstPartyDomain: "example.com" }),
+    ]);
   });
 });
