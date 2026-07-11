@@ -131,17 +131,19 @@ const docParseTypes = new Set(["application/xhtml+xml", "application/xml", "imag
 // 只有真正注册了至少一个 upload 回调时，后台才会为 xhr.upload 绑定监听器。
 // 原因：为 xhr.upload 注册任何监听器都会令浏览器对跨域请求触发 CORS 预检 (OPTIONS)，
 // 不应对未使用 upload 功能的脚本造成额外的预检开销/兼容性影响。
+// 只接受函数值：truthy 但非函数的值（如 { onprogress: true }）既不应启用 upload 监听，
+// 也不应在事件到达时被当作函数调用而抛出。
 const hasAnyUploadHandler = (upload: GMTypes.XHRUpload | undefined): boolean =>
-  !!(
-    upload &&
-    (upload.onloadstart ||
-      upload.onprogress ||
-      upload.onload ||
-      upload.onloadend ||
-      upload.onerror ||
-      upload.onabort ||
-      upload.ontimeout)
-  );
+  !!upload &&
+  [
+    upload.onloadstart,
+    upload.onprogress,
+    upload.onload,
+    upload.onloadend,
+    upload.onerror,
+    upload.onabort,
+    upload.ontimeout,
+  ].some((fn) => typeof fn === "function");
 
 const retStateFnMap = new WeakMap<ThisType<GMXHRResponseType>, RetStateFnRecord>();
 
@@ -528,7 +530,19 @@ export function GM_xmlhttpRequest(
       totalSize: uploadData.total,
     });
     let loadendCalled = false;
-    let uploadDone = !hasAnyUploadHandler(details.upload); // 未注册 upload 回调时视为已完成，abort 时无需补发 upload 事件
+    // 未注册 upload 回调时视为已完成，abort 时无需补发 upload 事件
+    let uploadDone = !hasAnyUploadHandler(details.upload);
+    let uploadLoadEndCalled = false;
+    // 对齐 XHR 规范：upload 的 load/loadend/error/abort/timeout 到达前，upload complete flag 已置位，
+    // 所以 onloadend 需要去重——既可能由真实消息触发，也可能由 abort() 的同步补发触发。
+    const fireUploadLoadEnd = (
+      data: TXhrCallBackArg & { lengthComputable?: boolean; loaded?: number; total?: number }
+    ) => {
+      if (!uploadLoadEndCalled) {
+        uploadLoadEndCalled = true;
+        details.upload?.onloadend?.(makeUploadCallbackParam(data));
+      }
+    };
     const doLoadEnd = (data: TXhrCallBackArg) => {
       if (!loadendCalled) {
         loadendCalled = true;
@@ -549,12 +563,17 @@ export function GM_xmlhttpRequest(
     doAbort = (data: TXhrCallBackArg) => {
       if (!reqDone) {
         errorOccur = "AbortError";
-        if (!uploadDone) {
-          // 对齐原生 XHR abort() 语义：upload 尚未完成时，先补发 upload 的 abort 与 loadend
+        const uploadWasDone = uploadDone;
+        if (!uploadWasDone) {
+          // 对齐原生 XHR abort() 语义：upload 尚未完成时，先补发 upload 的 abort；
+          // 此时尚未实际传输（或已中断），loaded/total/lengthComputable 对齐规范取 0/0/false
           uploadDone = true;
-          details.upload?.onabort?.(makeXHRCallbackParam?.(data) ?? {});
-          details.upload?.onloadend?.(makeXHRCallbackParam?.(data) ?? {});
+          details.upload?.onabort?.(makeUploadCallbackParam({ ...data, lengthComputable: false, loaded: 0, total: 0 }));
         }
+        // 无论 upload 是自然完成还是被中止，onloadend 都必须触发且只触发一次：
+        // abort() 会立即断开通道，之后到达的真实 onuploadloadend 消息不再可靠，此处兜底补发；
+        // fireUploadLoadEnd 内建去重，若真实消息已先行触发过则跳过
+        fireUploadLoadEnd(uploadWasDone ? data : { ...data, lengthComputable: false, loaded: 0, total: 0 });
         details.onabort?.(makeXHRCallbackParam?.(data) ?? {});
         reqDone = true;
         // 不要进行 refCleanup ！要等待最后的 onloadend
@@ -745,19 +764,25 @@ export function GM_xmlhttpRequest(
             details.upload?.onprogress?.(makeUploadCallbackParam(data));
             break;
           case "onuploadload":
+            // 对齐规范：upload complete flag 在 load 派发前已置位，须先于回调设置，
+            // 否则回调内同步调用 abort() 会误判 upload 尚未完成
+            uploadDone = true;
             details.upload?.onload?.(makeUploadCallbackParam(data));
             break;
           case "onuploadloadend":
             uploadDone = true;
-            details.upload?.onloadend?.(makeUploadCallbackParam(data));
+            fireUploadLoadEnd(data);
             break;
           case "onuploaderror":
+            uploadDone = true;
             details.upload?.onerror?.(makeUploadCallbackParam(data));
             break;
           case "onuploadabort":
+            uploadDone = true;
             details.upload?.onabort?.(makeUploadCallbackParam(data));
             break;
           case "onuploadtimeout":
+            uploadDone = true;
             details.upload?.ontimeout?.(makeUploadCallbackParam(data));
             break;
           // case "onstream":

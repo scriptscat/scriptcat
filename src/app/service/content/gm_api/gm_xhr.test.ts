@@ -239,6 +239,130 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     expect(onabort).toHaveBeenCalledTimes(1);
   });
 
+  it("在 upload.onload 回调内同步调用 abort() 时，不应误触发 upload.onabort，onloadend 只触发一次", async () => {
+    const { api, getMessageHandler } = createFakeApi();
+    const onUploadAbort = vi.fn();
+    const onUploadLoadEnd = vi.fn();
+    const requestRef: { current?: ReturnType<typeof GM_xmlhttpRequest> } = {};
+    const details = {
+      url: "https://example.com/upload",
+      upload: {
+        onload: () => requestRef.current?.abort(),
+        onabort: onUploadAbort,
+        onloadend: onUploadLoadEnd,
+      },
+    } as unknown as GMTypes.XHRDetails;
+
+    requestRef.current = GM_xmlhttpRequest(api, details, false);
+    await waitTick();
+    const messageHandler = getMessageHandler();
+
+    // 对齐规范：原生实现会先送 upload load，upload complete flag 随即置位，随后才是 loadend
+    messageHandler!({
+      action: "onuploadload",
+      data: {
+        finalUrl: "",
+        readyState: 1,
+        status: 0,
+        statusText: "",
+        responseHeaders: "",
+        useFetch: false,
+        eventType: "uploadload",
+        ok: false,
+        contentType: "",
+        loaded: 10,
+        total: 10,
+        lengthComputable: true,
+      },
+    });
+    await waitTick();
+
+    expect(onUploadAbort).not.toHaveBeenCalled();
+
+    messageHandler!({
+      action: "onuploadloadend",
+      data: {
+        finalUrl: "",
+        readyState: 1,
+        status: 0,
+        statusText: "",
+        responseHeaders: "",
+        useFetch: false,
+        eventType: "uploadloadend",
+        ok: false,
+        contentType: "",
+        loaded: 10,
+        total: 10,
+        lengthComputable: true,
+      },
+    });
+    await waitTick();
+
+    expect(onUploadAbort).not.toHaveBeenCalled();
+    expect(onUploadLoadEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("同步 abort() 补发的 upload.onabort / onloadend 应携带 loaded:0/total:0/lengthComputable:false", async () => {
+    const { api } = createFakeApi();
+    const onUploadAbort = vi.fn();
+    const onUploadLoadEnd = vi.fn();
+    const details = {
+      url: "https://example.com/upload",
+      upload: { onabort: onUploadAbort, onloadend: onUploadLoadEnd },
+    } as unknown as GMTypes.XHRDetails;
+
+    const { abort } = GM_xmlhttpRequest(api, details, false);
+    await waitTick();
+
+    abort();
+    await waitTick();
+
+    for (const fn of [onUploadAbort, onUploadLoadEnd]) {
+      expect(fn).toHaveBeenCalledTimes(1);
+      const arg = fn.mock.calls[0][0];
+      expect(arg.loaded).toBe(0);
+      expect(arg.total).toBe(0);
+      expect(arg.lengthComputable).toBe(false);
+    }
+  });
+
+  it("从未完成的 upload 阶段调用 abort() 时，事件应按 upload.abort → upload.loadend → 主 abort → 主 loadend 的顺序触发", async () => {
+    const { api } = createFakeApi();
+    const order: string[] = [];
+    const details = {
+      url: "https://example.com/upload",
+      onabort: () => order.push("main-abort"),
+      onloadend: () => order.push("main-loadend"),
+      upload: {
+        onabort: () => order.push("upload-abort"),
+        onloadend: () => order.push("upload-loadend"),
+      },
+    } as unknown as GMTypes.XHRDetails;
+
+    const { abort } = GM_xmlhttpRequest(api, details, false);
+    await waitTick();
+
+    abort();
+    await waitTick();
+
+    expect(order).toEqual(["upload-abort", "upload-loadend", "main-abort", "main-loadend"]);
+  });
+
+  it("upload 回调为非函数真值时，不应视为已注册 upload 回调（不启用 upload 监听，避免额外 CORS 预检与运行时报错）", async () => {
+    const { api } = createFakeApi();
+    const details = {
+      url: "https://example.com/upload",
+      upload: { onprogress: true as unknown as GMTypes.Listener<GMTypes.XHRProgress> },
+    } as unknown as GMTypes.XHRDetails;
+
+    GM_xmlhttpRequest(api, details, false);
+    await waitTick();
+
+    const connectMock = api.connect as unknown as ReturnType<typeof vi.fn>;
+    const [, params] = connectMock.mock.calls[0];
+    expect(params[0].hasUpload).toBe(false);
+  });
+
   it("不应影响主响应回调（onload 仍正常派发）", async () => {
     const { api, getMessageHandler } = createFakeApi();
     const onload = vi.fn();
