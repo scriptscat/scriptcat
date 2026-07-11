@@ -146,6 +146,10 @@ export class EventPageOffscreenManager extends BackgroundEnvManagerBase implemen
   }
 }
 
+const nativeScheduler =
+  //@ts-ignore
+  typeof scheduler !== "undefined" && typeof scheduler?.postTask === "function" && scheduler;
+
 /**
  * 让 Firefox MV3 事件页避免被判定为"空闲"而被浏览器回收(自动挂起/卸载)的实验性 workaround。
  *
@@ -184,7 +188,7 @@ export class EventPageOffscreenManager extends BackgroundEnvManagerBase implemen
  *   环境变量 `SC_KEEP_EVENT_PAGE_ACTIVE=true` 才会启用，避免在未经充分验证前影响所有用户。
  */
 const startFirefoxEventPageKeepAliveLoop =
-  process.env.SC_KEEP_EVENT_PAGE_ACTIVE === "true"
+  process.env.SC_KEEP_EVENT_PAGE_ACTIVE === "true" && nativeScheduler
     ? () => {
         // 探测请求的目标延迟时长：webRequest 监听器会把匹配的请求扣住这么久才放行
         const DEFAULT_PROBE_DELAY_MS = 10_000;
@@ -225,10 +229,14 @@ const startFirefoxEventPageKeepAliveLoop =
               : DEFAULT_PROBE_DELAY_MS;
 
             return new Promise((resolve) => {
-              setTimeout(() => {
-                // 延迟结束，放行原始请求
-                resolve({});
-              }, delayMs);
+              nativeScheduler.postTask(
+                () => {
+                  // 延迟结束，放行原始请求
+                  resolve({});
+                },
+                { priority: "user-visible", delay: delayMs }
+              );
+              // user-visible: try hardest to service promptly regardless of focus state
             });
           },
           {
