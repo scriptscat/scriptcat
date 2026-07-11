@@ -1,0 +1,14 @@
+{
+  "i18n": {
+    "message": "i18n"
+  },
+  "scriptcat": {
+    "message": "ScriptCat"
+  },
+  "scriptcat_beta": {
+    "message": "ScriptCat Beta"
+  },
+  "scriptcat_description": {
+    "message": "브라우저의 모든 잠재력을 끌어내는 강력한 유저스크립트 매니저!"
+  }
+}
