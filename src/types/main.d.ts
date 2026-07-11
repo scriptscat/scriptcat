@@ -115,13 +115,14 @@ declare namespace globalThis {
 // @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
 declare namespace chrome.cookies {
   interface GetAllDetails {
-    firstPartyDomain?: string;
+    // null 代表不按 firstPartyDomain 过滤（getAll 专用，remove 通过 CookieDetails 复用同一约定）
+    firstPartyDomain?: string | null;
   }
   interface SetDetails {
     firstPartyDomain?: string;
   }
   interface CookieDetails {
-    firstPartyDomain?: string;
+    firstPartyDomain?: string | null;
   }
   interface Cookie {
     firstPartyDomain?: string;

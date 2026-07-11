@@ -460,15 +460,27 @@ export default class GMApi {
     }
 
     // firstPartyDomain 仅 Firefox 支持（First-Party Isolation）；Chrome 的 chrome.cookies 参数校验会拒绝未知属性，故不传递
-    // see https://github.com/violentmonkey/violentmonkey/issues/746
-    // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies#first-party_isolation
-    // "" 是合法值（代表该 cookie 是在 FPI 关闭时创建的），须与"未提供"区分，不能一并转成 undefined。
-    // 未提供时一律省略该字段，绝不主动补 null：chrome.cookies.getAll({firstPartyDomain:null}) 会跨越所有
-    // first-party 分区查询，而 GM_cookie 的权限校验只验证目标 hostname、未考虑调用脚本所在的 first-party 上下文，
-    // 若默认传 null 等同让脚本绕过 FPI 读取任意第三方上下文下的同名 cookie，构成信息泄露
-    // (见 https://github.com/violentmonkey/violentmonkey/issues/1467)。
-    const firstPartyDomain =
-      isFirefox() && typeof detail.firstPartyDomain === "string" ? detail.firstPartyDomain.trim() : undefined;
+    // 做法与 Violentmonkey 一致（见其 checkCookieOpts 实现）：
+    // - list/delete 未提供时补 null：FPI 开启（含 Tor Browser）时该参数为必填，缺省会导致 promise 被拒绝，
+    //   见 https://github.com/violentmonkey/violentmonkey/issues/746；getAll/remove 支持 null 代表不按
+    //   firstPartyDomain 过滤。
+    // - set 不做默认值：没有能代表"任意归属"的值可写入新 cookie，未提供时直接省略该字段。
+    // "" 是合法值（代表该 cookie 是在 FPI 关闭时创建的），须与"未提供"区分，不能一并转成 undefined/null。
+    //
+    // 已知取舍：null 会令查询跨越所有 first-party 分区，而 GM_cookie 的权限校验只验证目标 hostname、未限定
+    // 调用脚本自身的 first-party 上下文；将其正确收紧到"调用标签页当前分区"需要按 Firefox 内部算法计算
+    // eTLD+1（并感知 privacy.firstparty.isolate.use_site 等无法从 WebExtension API 读取的偏好），这在生态中
+    // 仍是未解决的问题——Violentmonkey 自身对此有长期开放的讨论且未实现收紧，见
+    // https://github.com/violentmonkey/violentmonkey/issues/1467。
+    const firstPartyDomainSupplied = typeof detail.firstPartyDomain === "string";
+    const firstPartyDomainTrimmed = firstPartyDomainSupplied ? detail.firstPartyDomain!.trim() : undefined;
+    const firstPartyDomainForListOrDelete: string | null | undefined = isFirefox()
+      ? firstPartyDomainSupplied
+        ? firstPartyDomainTrimmed
+        : null
+      : undefined;
+    const firstPartyDomainForSet: string | undefined =
+      isFirefox() && firstPartyDomainSupplied ? firstPartyDomainTrimmed : undefined;
 
     // 处理tab的storeid
     const tabId = sender.getExtMessageSender().tabId;
@@ -494,7 +506,7 @@ export default class GMApi {
             url: detail.url,
             storeId: storeId,
             partitionKey: stripUndefined(detail.partitionKey),
-            firstPartyDomain,
+            firstPartyDomain: firstPartyDomainForListOrDelete,
           })
         );
         return cookies;
@@ -511,7 +523,7 @@ export default class GMApi {
             url: detail.url,
             storeId: storeId,
             partitionKey: stripUndefined(detail.partitionKey),
-            firstPartyDomain,
+            firstPartyDomain: firstPartyDomainForListOrDelete,
           })
         );
         break;
@@ -537,7 +549,7 @@ export default class GMApi {
             secure: detail.secure,
             storeId: storeId,
             partitionKey: stripUndefined(detail.partitionKey),
-            firstPartyDomain,
+            firstPartyDomain: firstPartyDomainForSet,
           })
         );
         break;
