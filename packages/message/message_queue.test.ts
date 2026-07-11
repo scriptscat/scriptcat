@@ -198,6 +198,30 @@ describe("MessageQueueGroup", () => {
       });
     });
 
+    it("publish 在没有接收方时(Firefox 下 sendMessage 返回的 Promise 会 reject)会主动 catch 住该 rejection", () => {
+      // chrome.runtime.sendMessage() 不带回调时返回 Promise。Chrome 在没有其它监听方时该 Promise
+      // 不会 reject，但 Firefox 会 reject 并抛出 "Could not establish connection. Receiving end
+      // does not exist."。publish 广播给"任何在监听的人"，没人监听是正常情况，不应表现为报错，
+      // 也不应留下未处理的 Promise rejection。
+      // 直接断言 .catch() 是否被调用，而不是依赖 process 的 unhandledRejection 事件——
+      // 后者的触发时机取决于 Node 事件循环细节，在测试环境下并不可靠。
+      const group = messageQueue.group("api-publishNoReceiver");
+      const rejectedPromise = Promise.reject(
+        new Error("Could not establish connection. Receiving end does not exist.")
+      );
+      const originalCatch = rejectedPromise.catch.bind(rejectedPromise);
+      let caughtCalled = false;
+      rejectedPromise.catch = (onRejected: any) => {
+        caughtCalled = true;
+        return originalCatch(onRejected);
+      };
+      vi.spyOn(chrome.runtime, "sendMessage").mockImplementation(() => rejectedPromise as unknown as void);
+
+      expect(() => group.publish("test-publishNoReceiver", { data: 1 })).not.toThrow();
+
+      expect(caughtCalled).toBe(true);
+    });
+
     it("emit 方法应该只在本地发布", () => {
       const group = messageQueue.group("api-emitLocal");
       const handler = vi.fn();

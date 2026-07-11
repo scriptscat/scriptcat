@@ -73,13 +73,28 @@ export class MessageQueue implements IMessageQueue {
   }
 
   publish<T>(topic: string, message: NonNullable<T>) {
-    chrome.runtime.sendMessage({
-      msgQueue: topic,
-      data: { action: "message", message },
-    });
+    // chrome.runtime.sendMessage() 不带回调时返回 Promise。没有其它上下文在监听(例如尚未打开
+    // popup/options，或没有已注入的 content script)是完全正常的广播场景，不代表出错。
+    // Chrome 在这种情况下该 Promise 不会 reject；但 Firefox 会 reject 并抛出
+    // "Could not establish connection. Receiving end does not exist."——不接住就会变成
+    // 未处理的 Promise rejection。publish 本身是"广播给任何在监听的人"，无人监听应静默忽略。
+    const messageQueueLogger = LoggerCore.getInstance().logger({ service: "messageQueue" });
+    chrome.runtime
+      .sendMessage({
+        msgQueue: topic,
+        data: { action: "message", message },
+      })
+      .catch((e) => {
+        const msg = JSON.stringify(e?.message || e);
+        if (msg.includes("Could not establish connection. Receiving end does not exist.")) {
+          messageQueueLogger.debug("No target audience for .publish", { msg });
+        } else {
+          messageQueueLogger.debug("Unable to execute runtime.sendMessage for .publish", { msg });
+        }
+      });
     this.EE.emit(topic, message);
     //@ts-ignore
-    LoggerCore.getInstance().logger({ service: "messageQueue" }).trace("publish", { topic, message });
+    messageQueueLogger.trace("publish", { topic, message });
   }
 
   // 只发布给当前环境
