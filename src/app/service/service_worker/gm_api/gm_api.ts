@@ -458,20 +458,26 @@ export default class GMApi {
       // string | undefined
       detail.partitionKey.topLevelSite = undefined;
     }
+
     // firstPartyDomain 仅 Firefox 支持（First-Party Isolation）；Chrome 的 chrome.cookies 参数校验会拒绝未知属性，故不传递
-    let firstPartyDomain = undefined;
+    // see https://github.com/violentmonkey/violentmonkey/issues/746
+    // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies#first-party_isolation
+    // When first-party isolation is on, you must provide this option or the API call fails and returns a rejected promise.
+    // For get(), set(), and remove() you must pass a string value. For getAll(), you may also pass null here, and this gets all cookies,
+    // whether or not they have a non-empty value for firstPartyDomain.
+    let firstPartyDomainA: string | null | undefined = undefined;
+    let firstPartyDomainB: string | undefined = undefined;
     if (isFirefox()) {
-      // see https://github.com/violentmonkey/violentmonkey/issues/746
-      // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies#first-party_isolation
-      // When first-party isolation is on, you must provide this option or the API call fails and returns a rejected promise.
-      // For get(), set(), and remove() you must pass a string value. For getAll(), you may also pass null here, and this gets all cookies,
-      // whether or not they have a non-empty value for firstPartyDomain.
+      const trimmedFirstPartyDomain = detail.firstPartyDomain ? `${detail.firstPartyDomain}`.trim() : "";
       if (cookieAction === "getAll") {
-        firstPartyDomain = detail.firstPartyDomain ? `${detail.firstPartyDomain}`.trim() : null;
+        // getAll() 专用：允许显式传 null 代表不按 firstPartyDomain 过滤
+        firstPartyDomainA = trimmedFirstPartyDomain || null;
       } else {
-        firstPartyDomain = detail.firstPartyDomain ? `${detail.firstPartyDomain}`.trim() : undefined;
+        // set()/remove() 专用：不支持 null，未指定时省略该字段
+        firstPartyDomainB = trimmedFirstPartyDomain || undefined;
       }
     }
+
     // 处理tab的storeid
     const tabId = sender.getExtMessageSender().tabId;
     let storeId: string | undefined;
@@ -486,20 +492,19 @@ export default class GMApi {
       case "list": {
         detail.domain = detail.domain || undefined;
         detail.url = detail.url || undefined;
-        const o: Record<string, any> = stripUndefined({
-          domain: detail.domain,
-          name: detail.name,
-          path: detail.path,
-          secure: detail.secure,
-          session: detail.session,
-          url: detail.url,
-          storeId: storeId,
-          partitionKey: stripUndefined(detail.partitionKey),
-        });
-        if (firstPartyDomain !== undefined) {
-          o.firstPartyDomain = firstPartyDomain;
-        }
-        const cookies = await chrome.cookies.getAll(o);
+        const cookies = await chrome.cookies.getAll(
+          stripUndefined({
+            domain: detail.domain,
+            name: detail.name,
+            path: detail.path,
+            secure: detail.secure,
+            session: detail.session,
+            url: detail.url,
+            storeId: storeId,
+            partitionKey: stripUndefined(detail.partitionKey),
+            firstPartyDomain: firstPartyDomainA,
+          })
+        );
         return cookies;
       }
       case "delete": {
@@ -508,16 +513,15 @@ export default class GMApi {
         if (!detail.url || !detail.name) {
           throw new Error("delete operation must have url and name");
         }
-        const o: any = stripUndefined({
-          name: detail.name,
-          url: detail.url,
-          storeId: storeId,
-          partitionKey: stripUndefined(detail.partitionKey),
-        });
-        if (firstPartyDomain !== undefined) {
-          o.firstPartyDomain = firstPartyDomain;
-        }
-        await chrome.cookies.remove(o);
+        await chrome.cookies.remove(
+          stripUndefined({
+            name: detail.name,
+            url: detail.url,
+            storeId: storeId,
+            partitionKey: stripUndefined(detail.partitionKey),
+            firstPartyDomain: firstPartyDomainB,
+          })
+        );
         break;
       }
       case "set": {
@@ -529,22 +533,21 @@ export default class GMApi {
         if (!detail.url) {
           throw new Error("set operation must have url");
         }
-        const o: any = stripUndefined({
-          url: detail.url,
-          name: detail.name,
-          domain: detail.domain,
-          value: detail.value,
-          expirationDate: detail.expirationDate,
-          path: detail.path,
-          httpOnly: detail.httpOnly,
-          secure: detail.secure,
-          storeId: storeId,
-          partitionKey: stripUndefined(detail.partitionKey),
-        });
-        if (firstPartyDomain !== undefined) {
-          o.firstPartyDomain = firstPartyDomain;
-        }
-        await chrome.cookies.set(o);
+        await chrome.cookies.set(
+          stripUndefined({
+            url: detail.url,
+            name: detail.name,
+            domain: detail.domain,
+            value: detail.value,
+            expirationDate: detail.expirationDate,
+            path: detail.path,
+            httpOnly: detail.httpOnly,
+            secure: detail.secure,
+            storeId: storeId,
+            partitionKey: stripUndefined(detail.partitionKey),
+            firstPartyDomain: firstPartyDomainB,
+          })
+        );
         break;
       }
       default: {
