@@ -44,6 +44,38 @@ describe("SynchronizeService", () => {
     chrome.storage.local.clear();
   });
 
+  it("下载 API 失败时仍返回手动下载所需的信息", async () => {
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any
+    );
+    vi.spyOn(service, "backup").mockResolvedValue(undefined);
+    const createObjectURLSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:scriptcat-backup");
+    const downloadSpy = vi.spyOn(chrome.downloads, "download").mockRejectedValue(new Error("API unavailable"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      const result = await service.requestExport();
+      await flushMicrotasks();
+
+      expect(result).toEqual({
+        url: "blob:scriptcat-backup",
+        filename: expect.stringMatching(/^scriptcat-backup-.*\.zip$/),
+      });
+      expect(downloadSpy).toHaveBeenCalled();
+    } finally {
+      createObjectURLSpy.mockRestore();
+      downloadSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    }
+  });
+
   it("serializes concurrent syncOnce calls", async () => {
     let releaseFirst!: () => void;
     const firstGate = new Promise<void>((resolve) => {

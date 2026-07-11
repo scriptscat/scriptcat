@@ -140,6 +140,8 @@ describe("ScriptEditor 延迟面板缓存", () => {
 
   it("悬浮储存标签时应以当前脚本 UUID 启动预加载", async () => {
     render(<ScriptEditor />);
+    // 工具栏（preload-storage）先于脚本异步加载渲染；须等 tab 就绪（save 出现）后 activeUuid 才是 u1
+    await screen.findByTestId("save");
 
     fireEvent.pointerEnter(await screen.findByTestId("preload-storage"));
 
