@@ -2,7 +2,7 @@
 
 This document defines terminology for ScriptCat's US English (`en-US`) interface and documentation. It is intended to keep product concepts identifiable, make UI actions read naturally in English, and prevent later translations from copying unclear source wording.
 
-Usage sources reviewed: `src/locales/en-US/*.json`, `README.md`, `docs/ARCHITECTURE.md`
+Usage sources reviewed: `src/locales/en-US/*.json`, `README.md`, `docs/architecture.md`
 
 ## Principles
 
@@ -31,7 +31,7 @@ Usage sources reviewed: `src/locales/en-US/*.json`, `README.md`, `docs/ARCHITECT
 | ScriptCat browser extension | `ScriptCat extension` | `welcome_title`, `ext_update_notification` | Preserve the `ScriptCat` product capitalization. |
 | generic userscript capability | `user script` / `userscript` | `create_user_script`, `script_list_content`, README | Use `User Script` in UI type labels; prose may use `userscript` consistently within a document. |
 | normal userscript type | `User Script` / current category label `Normal Script` | `create_user_script`, `script_list.sidebar.normal_script` | Do not merge this category with background or scheduled scripts. |
-| Tampermonkey compatibility | `Tampermonkey-compatible userscript` / `Tampermonkey script` | `README.md`, `docs/ARCHITECTURE.md` | Use this wording when compatibility is the point; do not turn every generic userscript label into a Tampermonkey label. |
+| Tampermonkey compatibility | `Tampermonkey-compatible userscript` / `Tampermonkey script` | `README.md`, `docs/architecture.md` | Use this wording when compatibility is the point; do not turn every generic userscript label into a Tampermonkey label. |
 | page script | `Page Script` | `script_list_enable_content` | Identifies the page-running concept in UI copy; do not silently replace the normal userscript category label without checking the surface. |
 | background script | `Background Script` | `create_background_script`, `background_script`, `enable_background.description` | A ScriptCat script type and background-running capability. |
 | scheduled script | `Scheduled Script` | `create_scheduled_script`, `scheduled_script`, `scheduled_script_description_title` | Use this product term instead of introducing `crontab script`. |
