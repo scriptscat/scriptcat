@@ -19,7 +19,11 @@ function getRecordVideoOptions() {
   return process.env.E2E_RECORD_VIDEO_DIR ? { recordVideo: { dir: process.env.E2E_RECORD_VIDEO_DIR } } : {};
 }
 
-const chromeArgs = [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`];
+const chromeArgs = [
+  `--disable-extensions-except=${pathToExtension}`,
+  `--load-extension=${pathToExtension}`,
+  "--disable-gpu",
+];
 
 // 预先标记「非首次使用」，避免新手引导欢迎弹窗的模态遮罩拦截测试交互。
 // 用 addInitScript 在每个页面脚本执行前注入，避开持久化 profile 下「开页→写→关页」的 localStorage 落盘竞态。
@@ -43,6 +47,7 @@ export const test = base.extend<{
     const context = await chromium.launchPersistentContext("", {
       headless: false,
       args: ["--headless=new", ...chromeArgs],
+      timeout: 60_000,
       ...getProxyOptions(),
       ...getRecordVideoOptions(),
     });
@@ -87,6 +92,7 @@ export const testWithUserScripts = base.extend<
       const ctx1 = await chromium.launchPersistentContext(userDataDir, {
         headless: false,
         args: ["--headless=new", ...chromeArgs],
+        timeout: 60_000,
       });
       let [bg] = ctx1.serviceWorkers();
       if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 14_000 });
@@ -118,6 +124,7 @@ export const testWithUserScripts = base.extend<
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
       args: ["--headless=new", ...chromeArgs],
+      timeout: 60_000,
       ...getProxyOptions(),
       ...getRecordVideoOptions(),
     });

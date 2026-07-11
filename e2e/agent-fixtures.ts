@@ -5,7 +5,11 @@ import { test as base, expect, chromium, type BrowserContext, type Route } from 
 export { expect };
 
 const pathToExtension = path.resolve(__dirname, "../dist/ext");
-const chromeArgs = [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`];
+const chromeArgs = [
+  `--disable-extensions-except=${pathToExtension}`,
+  `--load-extension=${pathToExtension}`,
+  "--disable-gpu",
+];
 
 function getProxyOptions() {
   const proxy =
@@ -106,6 +110,7 @@ export const test = base.extend<AgentFixtures, { agentProfileDir: string }>({
       const ctx1 = await chromium.launchPersistentContext(userDataDir, {
         headless: false,
         args: ["--headless=new", ...chromeArgs],
+        timeout: 60_000,
       });
       let [bg] = ctx1.serviceWorkers();
       if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 14_000 });
@@ -165,6 +170,7 @@ export const test = base.extend<AgentFixtures, { agentProfileDir: string }>({
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
       args: ["--headless=new", ...chromeArgs],
+      timeout: 60_000,
       ...getProxyOptions(),
     });
     const [sw] = context.serviceWorkers();

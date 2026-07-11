@@ -14,6 +14,7 @@ const chromeArgs = [
   `--disable-extensions-except=${pathToExtension}`,
   `--load-extension=${pathToExtension}`,
   `--host-resolver-rules=MAP ${CSP_TARGET_HOST} ${MOCK_CONNECT_HOST},EXCLUDE localhost`,
+  "--disable-gpu",
 ];
 
 type GMApiMockServer = {
@@ -41,6 +42,7 @@ const test = base.extend<
       const ctx1 = await chromium.launchPersistentContext(userDataDir, {
         headless: false,
         args: ["--headless=new", ...chromeArgs],
+        timeout: 60_000,
       });
       let [bg] = ctx1.serviceWorkers();
       if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 14_000 });
@@ -72,6 +74,7 @@ const test = base.extend<
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
       args: ["--headless=new", ...chromeArgs],
+      timeout: 60_000,
     });
     const [sw] = context.serviceWorkers();
     if (!sw) await context.waitForEvent("serviceworker", { timeout: 14_000 });

@@ -35,6 +35,7 @@ const chromeArgs = [
   `--disable-extensions-except=${pathToExtension}`,
   `--load-extension=${pathToExtension}`,
   hostResolverRule,
+  "--disable-gpu",
 ];
 
 export const test = base.extend<
@@ -55,6 +56,7 @@ export const test = base.extend<
       const ctx1 = await chromium.launchPersistentContext(userDataDir, {
         headless: false,
         args: ["--headless=new", ...chromeArgs],
+        timeout: 60_000,
       });
       let [bg] = ctx1.serviceWorkers();
       if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 14_000 });
@@ -86,6 +88,7 @@ export const test = base.extend<
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
       args: ["--headless=new", ...chromeArgs],
+      timeout: 60_000,
     });
     const [sw] = context.serviceWorkers();
     if (!sw) await context.waitForEvent("serviceworker", { timeout: 14_000 });
