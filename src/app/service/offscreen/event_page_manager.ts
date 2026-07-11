@@ -9,6 +9,7 @@ import type {
 } from "@Packages/message/types";
 import { WindowMessage } from "@Packages/message/window_message";
 import EventEmitter from "eventemitter3";
+import { type IMessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerClient } from "../service_worker/client";
 import { BackgroundEnvManagerBase } from "./base";
 
@@ -88,7 +89,14 @@ export class EventPageOffscreenManager extends BackgroundEnvManagerBase implemen
   private readonly message: InProcessMessage;
   private initialized = false;
 
-  constructor(extMsgSender: MessageSend) {
+  constructor(
+    extMsgSender: MessageSend,
+    // 与 SW 是同一个脚本/进程时必须共用同一个 MessageQueue 实例：chrome.runtime.sendMessage 广播
+    // 不会送达发送方自己所在的 frame，两边各自新建 MessageQueue 会导致互相收不到广播
+    // (enableScripts/deleteScripts/installScript/setSandboxLanguage 全部失效，crontab 定时脚本
+    // 也因此从不会被自动调度)。见 BackgroundEnvManagerBase 构造函数中 messageQueue 参数的说明。
+    messageQueue: IMessageQueue
+  ) {
     if (typeof document !== "object" || !document?.documentElement) {
       throw new Error("EventPageOffscreenManager requires a DOM-capable Firefox MV3 Event Page.");
     }
@@ -115,7 +123,7 @@ export class EventPageOffscreenManager extends BackgroundEnvManagerBase implemen
     const offscreenServer = new Server("offscreen", [message, windowMessage]);
     const serviceWorker = new ServiceWorkerClient(extMsgSender);
 
-    super(extMsgSender, windowMessage, offscreenServer, serviceWorker);
+    super(extMsgSender, windowMessage, offscreenServer, serviceWorker, messageQueue);
     this.message = message;
   }
 

@@ -7,7 +7,7 @@ import { type WindowMessage } from "@Packages/message/window_message";
 import { type ServiceWorkerClient } from "../service_worker/client";
 import { sendMessage } from "@Packages/message/client";
 import GMApi from "./gm_api";
-import { MessageQueue } from "@Packages/message/message_queue";
+import { MessageQueue, type IMessageQueue } from "@Packages/message/message_queue";
 import { VSCodeConnect } from "./vscode-connect";
 import { HtmlExtractorService } from "./html_extractor";
 import { makeBlobURL } from "@App/pkg/utils/utils";
@@ -19,8 +19,6 @@ export const SANDBOX_READY_FALLBACK_MS = 15000;
 
 // offscreen环境的管理器
 export class BackgroundEnvManagerBase {
-  private readonly messageQueue = new MessageQueue();
-
   private readonly handshakeLogger = LoggerCore.getInstance().logger({ component: "offscreen-sandbox-handshake" });
 
   // 确保"通知 SW 环境就绪"只执行一次：可能由真实的 sandbox 握手触发，也可能由兜底超时触发，
@@ -31,7 +29,18 @@ export class BackgroundEnvManagerBase {
     private readonly extMsgSender: MessageSend,
     private readonly windowMessage: WindowMessage,
     private readonly offscreenServer: Server,
-    private readonly serviceWorker: ServiceWorkerClient
+    private readonly serviceWorker: ServiceWorkerClient,
+    // Chrome: offscreen 文档是独立进程，这里默认创建自己的 MessageQueue，
+    // 靠 chrome.runtime.sendMessage 广播与 SW 侧的 MessageQueue 互通，没有问题。
+    // Firefox: EventPageOffscreenManager 与 SW 是同一个脚本/进程；
+    // chrome.runtime.sendMessage 广播不会送达"发送方自己所在的 frame"
+    // (https://developer.chrome.com/docs/extensions/reference/api/runtime#event-onMessage 明确写明
+    // "except for the sender's frame")，所以若各自创建独立的 MessageQueue 实例，
+    // 广播永远到不了对方，enableScripts/deleteScripts/installScript/setSandboxLanguage 等
+    // 全部失效——crontab 定时脚本正是靠 enableScripts 广播才会被 sandbox 端调度，这也是
+    // "手动运行正常，但定时任务从不自动触发"的根本原因。因此 Firefox 侧必须把 SW 自己已有的
+    // 同一个 MessageQueue 实例注入进来，让两边共用同一份 EventEmitter，而不是各自新建。
+    private readonly messageQueue: IMessageQueue = new MessageQueue()
   ) {}
 
   logger(data: LoggerRecord) {

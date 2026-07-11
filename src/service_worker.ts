@@ -94,7 +94,10 @@ function main() {
     // forwarded GM API calls) stays in-process instead of round-tripping through chrome.runtime.
     const offscreenToSw = new InProcessMessage();
     const server = new Server("serviceWorker", [message, swMessage, offscreenToSw]);
-    const offscreen = new EventPageOffscreenManager(offscreenToSw);
+    // 同一个 messageQueue 实例同时用于 SW 和 offscreen 两个角色：见 BackgroundEnvManagerBase
+    // 构造函数中 messageQueue 参数的说明 - chrome.runtime.sendMessage 广播不会送达发送方自己
+    // 所在的 frame，各自新建 MessageQueue 会导致 mq.publish() 广播互相收不到。
+    const offscreen = new EventPageOffscreenManager(offscreenToSw, messageQueue);
     const manager = new ServiceWorkerManager(server, messageQueue, offscreen);
     manager.initManager();
   }
