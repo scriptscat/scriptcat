@@ -35,7 +35,8 @@ const test = base.extend<{
       args: ["--headless=new", ...chromeArgs],
     });
     let [bg] = ctx1.serviceWorkers();
-    if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 30_000 });
+    // CI 下并行 worker 抢占 CPU 会拖慢扩展 service worker 启动，30s 偶发不足，放宽到 60s 降低误报
+    if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 60_000 });
     const extensionId = bg.url().split("/")[2];
     const extPage = await ctx1.newPage();
     await extPage.goto("chrome://extensions/");
@@ -56,7 +57,8 @@ const test = base.extend<{
       args: ["--headless=new", ...chromeArgs],
     });
     const [sw] = context.serviceWorkers();
-    if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
+    // 同上：与 Phase 1 保持一致，放宽到 60s
+    if (!sw) await context.waitForEvent("serviceworker", { timeout: 60_000 });
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
