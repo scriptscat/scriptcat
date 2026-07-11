@@ -49,11 +49,10 @@ class InProcessMessageConnect implements MessageConnect {
   }
 }
 
-// 同一脚本内的进程内消息桥接：Firefox MV3 下事件页本身兼任 offscreen 角色，与 SW 是同一个
-// 脚本/进程，彼此之间不能通过 chrome.runtime.sendMessage/connect 通讯——自己发给自己会报
-// "Could not establish connection. Receiving end does not exist."。导出给 service_worker.ts
-// 用来搭建 offscreen -> SW 方向的桥接(SW -> offscreen 方向见本文件下方 EventPageOffscreenManager
-// 内部已有的同名用法)。
+// Firefox MV3 的 event page 同时承担 service worker 与 offscreen 两个角色，二者处在同一
+// JavaScript 上下文。runtime messaging 不会把消息回送给发送者所在的 frame，因此这里用
+// EventEmitter 实现进程内的 Message / MessageSend。service_worker.ts 用它承载 offscreen → SW；
+// EventPageOffscreenManager 内部的实例承载 SW → offscreen。
 export class InProcessMessage implements Message, MessageSend {
   private events = new EventEmitter<string, any>();
 
@@ -91,10 +90,9 @@ export class EventPageOffscreenManager extends BackgroundEnvManagerBase implemen
 
   constructor(
     extMsgSender: MessageSend,
-    // 与 SW 是同一个脚本/进程时必须共用同一个 MessageQueue 实例：chrome.runtime.sendMessage 广播
-    // 不会送达发送方自己所在的 frame，两边各自新建 MessageQueue 会导致互相收不到广播
-    // (enableScripts/deleteScripts/installScript/setSandboxLanguage 全部失效，crontab 定时脚本
-    // 也因此从不会被自动调度)。见 BackgroundEnvManagerBase 构造函数中 messageQueue 参数的说明。
+    // Firefox 的 SW 与 offscreen 共处同一 frame，runtime.sendMessage 广播不会回送给发送者；
+    // 因此必须注入 SW 已有的队列，让 publish() 的本地 EventEmitter 完成分发。
+    // Chrome 的独立 offscreen 文档仍由 BackgroundEnvManagerBase 使用默认队列。
     messageQueue: IMessageQueue
   ) {
     if (typeof document !== "object" || !document?.documentElement) {
@@ -110,11 +108,8 @@ export class EventPageOffscreenManager extends BackgroundEnvManagerBase implemen
 
     const message = new InProcessMessage();
 
-    // 不要缓存 sandbox.contentWindow 的快照：刚创建的 iframe 此刻仍是初始的 about:blank 文档，
-    // 之后才会导航到真正的 sandbox 页面(manifest sandbox 页在 Firefox 154+ 下是跨源 iframe)。
-    // 缓存的 WindowProxy 引用在跨源导航后是否仍与消息事件的 e.source 全等属于浏览器实现细节，
-    // 不应依赖；因此传入惰性求值函数，每次发送/比对都重新读取 contentWindow，并在读取时校验非空
-    // (覆盖 iframe 之后被移除等场景)。
+    // iframe 创建后会从 about:blank 导航到跨源 sandbox 页面。惰性读取 contentWindow，避免
+    // 在导航前固定目标引用，并在 iframe 被移除时给出明确错误。
     const windowMessage = new WindowMessage(window, () => {
       const win = sandbox.contentWindow;
       if (!win) {
@@ -146,64 +141,45 @@ export class EventPageOffscreenManager extends BackgroundEnvManagerBase implemen
   }
 }
 
+// 保活实验依赖 Scheduler API：带 delay 的 user-visible task 相比 setTimeout 更不容易在后台降频。
+// API 不可用时直接关闭实验，避免引入另一套行为不一致的计时路径。
 const nativeScheduler =
   //@ts-ignore
   typeof scheduler !== "undefined" && typeof scheduler?.postTask === "function" && scheduler;
 
 /**
- * 让 Firefox MV3 事件页避免被判定为"空闲"而被浏览器回收(自动挂起/卸载)的实验性 workaround。
+ * Firefox MV3 event page 保活实验（默认关闭）。
  *
- * ## 为什么需要这个
+ * 背景：Firefox 没有 Chrome 的 offscreen document；event page 被挂起时，sandbox iframe 及其
+ * 内存态定时任务会一并销毁，当前代码不会在恢复后重建这些 `@crontab` 调度。
  *
- * Firefox MV3 没有 Chrome 那种独立、长驻的 offscreen 文档；`EventPageOffscreenManager` 让事件页
- * 自己兼任 offscreen 角色（见本文件顶部说明）。但事件页本身仍会被 Firefox 按"空闲"策略挂起/回收——
- * 一旦发生，托管在其中的 sandbox iframe 连同它内部所有基于 setTimeout 的状态（尤其是
- * `Runtime.crontabScript()` 为 `@crontab` 脚本创建的 CronJob 定时器，见
- * `src/app/service/sandbox/runtime.ts`）会随之整体销毁，且没有任何机制会在事件页苏醒后重新
- * 挂载这些定时器。这正是"手动运行脚本正常，但 `@crontab` 定时任务从不自动触发"这一类问题的
- * 典型成因之一。
+ * 机制：使用 `webRequestBlocking` 暂停一个扩展自身发起的探测请求，并用
+ * `scheduler.postTask()` 延迟返回 blocking 响应；`<img>` 在请求结束后继续下一轮。
+ * 未完成网络请求可能阻止 event page 被判定为空闲。
  *
- * ## 工作原理
+ * 启用条件：
+ * - 构建时设置 `SC_KEEP_EVENT_PAGE_ACTIVE=true`；
+ * - Firefox manifest 包含 `webRequestBlocking`（`scripts/pack.js` 仅在同一开关开启时注入）；
+ * - 浏览器提供 `scheduler.postTask`。
  *
- * 利用 Firefox 支持、但 Chrome MV3 已禁止的 `webRequestBlocking` 权限：
- * 1. 注册一个 `chrome.webRequest.onBeforeRequest` 的 blocking 监听器，只拦截自己发出的、
- *    带有 `__network_delay` 查询参数、指向一个刻意编造的不存在域名的探测请求，用
- *    `setTimeout` 把该请求"扣住"指定的毫秒数才放行——这段时间里请求处于浏览器认定的
- *    "有未完成网络活动"状态。
- * 2. 用一个 `<img>` 标签持续发起这类探测请求，每次探测结束（无论成功还是失败，反正编造的域名
- *    本来就无法真正连通）就立刻发起下一次，形成自我延续的心跳循环，让事件页在浏览器眼中
- *    "一直很忙"，从而不满足空闲挂起的条件。
- *
- * ## 重要限制与前提
- *
- * - **仅在 Firefox 生效，且需要 `webRequestBlocking` 权限。** 该权限只在
- *   `scripts/pack.js`（构建正式 Firefox 安装包时）动态注入到 manifest 中，`pnpm dev`/
- *   `pnpm build` 产出的 `dist/ext/manifest.json` 默认不包含它——本地用 `dist/ext` 加载临时
- *   扩展调试时，若未手动给 manifest 补上这个权限，下面的 blocking 监听器形同虚设，探测请求会
- *   立即失败而不会被真正"扣住"，导致心跳循环在 `onKeepAliveProbeSettled` 里因耗时不足
- *   `MIN_ROUND_TRIP_TO_CONTINUE_MS` 而提前自行终止（见下方注释），使整个 workaround 悄悄失效
- *   却不会报错。
- * - **这只是启发式手段，不是浏览器保证的持久化机制。** 是否真的能阻止 Firefox 的空闲判定，
- *   取决于 Firefox 内部未公开的具体算法，无法从代码层面完全保证；因此默认关闭，需要显式设置
- *   环境变量 `SC_KEEP_EVENT_PAGE_ACTIVE=true` 才会启用，避免在未经充分验证前影响所有用户。
+ * 这不是 Firefox 保证的生命周期机制。任一条件不满足时函数为空操作；探测未被实际延迟时，
+ * `onKeepAliveProbeSettled` 会停止循环，避免快速重试。
  */
 const startFirefoxEventPageKeepAliveLoop =
   process.env.SC_KEEP_EVENT_PAGE_ACTIVE === "true" && nativeScheduler
     ? () => {
-        // 探测请求的目标延迟时长：webRequest 监听器会把匹配的请求扣住这么久才放行
+        // 期望每个 blocking request 保持未完成的时间。
         const DEFAULT_PROBE_DELAY_MS = 10_000;
         const MAX_PROBE_DELAY_MS = 120_000;
-        // 若一次探测的实际耗时低于这个阈值，说明 blocking 监听器很可能没有真正扣住请求
-        // (例如缺少 webRequestBlocking 权限、或请求提前失败)，此时不再发起下一次探测，
-        // 避免在网络失败的情况下无意义地空转循环。
+        // 实际往返过短说明 listener 未阻塞请求（通常是权限缺失或请求提前失败）；
+        // 此时停止后续探测，避免失败请求形成紧密循环。
         const MIN_ROUND_TRIP_TO_CONTINUE_MS = 5_000;
 
-        // 刻意编造一个不存在的域名作为探测目标：只需要浏览器认为"有一个进行中的网络请求"，
-        // 并不需要它真的连通到任何地方。域名基于扩展自身的 URL 派生，确保不会撞到真实网站。
+        // 使用扩展 ID 派生的探测域名，避免访问真实站点；请求是否最终成功并不重要。
         const keepAliveProbeUrl = `https://--extensions-${chrome.runtime.getURL("/dummy_image.png").split("//")[1]}`;
         const keepAliveProbeOrigin = new URL(keepAliveProbeUrl).origin;
 
-        // 拦截并延迟放行上面这个探测请求，使其在浏览器眼中长时间处于"进行中"状态。
+        // blocking listener 只处理带延迟标记的探测请求，并在 delayMs 后放行。
         chrome.webRequest.onBeforeRequest.addListener(
           (details) => {
             const lastError = chrome.runtime.lastError;
@@ -229,14 +205,14 @@ const startFirefoxEventPageKeepAliveLoop =
               : DEFAULT_PROBE_DELAY_MS;
 
             return new Promise((resolve) => {
+              // user-visible 优先级用于尽量减少后台页面降频；它不保证 event page 永久存活。
               nativeScheduler.postTask(
                 () => {
-                  // 延迟结束，放行原始请求
+                  // 延迟完成后放行 blocking request。
                   resolve({});
                 },
                 { priority: "user-visible", delay: delayMs }
               );
-              // user-visible: try hardest to service promptly regardless of focus state
             });
           },
           {
@@ -248,8 +224,7 @@ const startFirefoxEventPageKeepAliveLoop =
 
         let probeStartedAt: number;
 
-        // 一次探测请求结束(成功或失败都会触发)后的回调：判断这次探测是否被真正延迟过，
-        // 若是则说明 workaround 仍然有效，继续发起下一次探测，维持心跳循环。
+        // 只有请求确实被阻塞了足够久才继续下一轮；过快结束时停止，避免权限缺失导致忙循环。
         const onKeepAliveProbeSettled = function (this: HTMLImageElement) {
           this.remove();
           if (Date.now() - probeStartedAt < MIN_ROUND_TRIP_TO_CONTINUE_MS) return;
