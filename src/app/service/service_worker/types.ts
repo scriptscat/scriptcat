@@ -191,6 +191,7 @@ export type ScriptMenu = {
   enable: boolean; // 脚本是否启用
   updatetime: number; // 脚本更新时间
   hasUserConfig: boolean; // 是否有用户配置
+  icon?: string; // 脚本图标 URL（由 getPopupData 即时附加在响应中，不写回 session 缓存）
   // 不需要完整 metadata。目前在 Popup 未使用 metadata。
   // 有需要时请把 metadata 里需要的部份抽出 (例如 @match @include @exclude)，避免 chrome.storage.session 储存量过大
   // metadata: SCMetadata; // 脚本元数据

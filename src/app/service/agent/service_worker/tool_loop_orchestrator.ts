@@ -156,9 +156,10 @@ export class ToolLoopOrchestrator {
         const toolResults = await toolRegistry.execute(result.toolCalls, scriptToolCallback, excludeToolsSet);
 
         // 将 tool 结果加入消息，并通知 UI 工具执行完成
-        // 收集需要回写的 toolCall 元数据（附件 / 子代理详情）
+        // 收集需要回写的 toolCall 元数据（执行状态 / 附件 / 子代理详情）
         const attachmentUpdates = new Map<string, Attachment[]>();
         const subAgentUpdates = new Map<string, SubAgentDetails>();
+        const completedIds = new Set<string>();
 
         for (const tr of toolResults) {
           // LLM 上下文只包含文本结果，不含附件
@@ -166,6 +167,7 @@ export class ToolLoopOrchestrator {
           // 通知 UI 工具执行完成（含附件元数据）
           sendEvent({ type: "tool_call_complete", id: tr.id, result: tr.result, attachments: tr.attachments });
 
+          completedIds.add(tr.id);
           if (tr.attachments?.length) {
             attachmentUpdates.set(tr.id, tr.attachments);
           }
@@ -186,36 +188,34 @@ export class ToolLoopOrchestrator {
           }
         }
 
-        // 回写附件 / 子代理详情到 assistant 消息的 toolCalls（内存 + 持久化）
-        const needsUpdate = attachmentUpdates.size > 0 || subAgentUpdates.size > 0;
-        if (needsUpdate) {
-          const toolCallIds = new Set([...attachmentUpdates.keys(), ...subAgentUpdates.keys()]);
-          const assistantMsg = messages.find(
-            (m) => m.role === "assistant" && m.toolCalls?.some((tc: ToolCall) => toolCallIds.has(tc.id))
-          );
-          if (assistantMsg?.toolCalls) {
-            for (const tc of assistantMsg.toolCalls) {
-              const atts = attachmentUpdates.get(tc.id);
-              if (atts) tc.attachments = atts;
-              const sad = subAgentUpdates.get(tc.id);
-              if (sad) tc.subAgentDetails = sad;
-            }
-            // 更新持久化的 assistant 消息
-            if (conversationId) {
-              const allMessages = await this.chatRepo.getMessages(conversationId);
-              for (let i = allMessages.length - 1; i >= 0; i--) {
-                const msg = allMessages[i];
-                if (msg.role === "assistant" && msg.toolCalls?.some((tc: ToolCall) => toolCallIds.has(tc.id))) {
-                  for (const tc of msg.toolCalls!) {
-                    const atts = attachmentUpdates.get(tc.id);
-                    if (atts) tc.attachments = atts;
-                    const sad = subAgentUpdates.get(tc.id);
-                    if (sad) tc.subAgentDetails = sad;
-                  }
-                  await this.chatRepo.saveMessages(conversationId, allMessages);
-                  break;
-                }
-              }
+        // 回写工具执行结果到 assistant 消息的 toolCalls（内存 + 持久化）。
+        // assistant 消息在执行前已落库，其 toolCalls 的 status 仍是 "running"；
+        // 必须在此回写为 "completed"，否则刷新/重载会从库里读回 running，导致工具图标一直转圈。
+        const applyToolUpdates = (toolCalls: ToolCall[]) => {
+          for (const tc of toolCalls) {
+            if (completedIds.has(tc.id)) tc.status = "completed";
+            const atts = attachmentUpdates.get(tc.id);
+            if (atts) tc.attachments = atts;
+            const sad = subAgentUpdates.get(tc.id);
+            if (sad) tc.subAgentDetails = sad;
+          }
+        };
+
+        // 内存上下文中的 assistant 消息
+        const assistantMsg = messages.find(
+          (m) => m.role === "assistant" && m.toolCalls?.some((tc: ToolCall) => completedIds.has(tc.id))
+        );
+        if (assistantMsg?.toolCalls) applyToolUpdates(assistantMsg.toolCalls);
+
+        // 持久化的 assistant 消息
+        if (conversationId) {
+          const allMessages = await this.chatRepo.getMessages(conversationId);
+          for (let i = allMessages.length - 1; i >= 0; i--) {
+            const msg = allMessages[i];
+            if (msg.role === "assistant" && msg.toolCalls?.some((tc: ToolCall) => completedIds.has(tc.id))) {
+              applyToolUpdates(msg.toolCalls!);
+              await this.chatRepo.saveMessages(conversationId, allMessages);
+              break;
             }
           }
         }

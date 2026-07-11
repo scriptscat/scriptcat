@@ -108,3 +108,32 @@ describe("Runtime.execScript run-in 过滤", () => {
     expect(BgExecScriptWarpCtor).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Runtime.executeSkillScript 执行环境", () => {
+  beforeEach(() => {
+    BgExecScriptWarpCtor.mockClear();
+    mockExec.mockClear();
+    mockStop.mockClear();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("执行 skill 脚本时向 BgExecScriptWarp 传入扩展环境", async () => {
+    const extensionEnv: TExtensionEnv = { inIncognitoContext: true };
+    const runtime = setup(extensionEnv);
+
+    await runtime.executeSkillScript({
+      uuid: "skill-uuid",
+      name: "skill",
+      code: "return 1;",
+      grants: [],
+      args: {},
+    });
+
+    expect(BgExecScriptWarpCtor).toHaveBeenCalledTimes(1);
+    expect(BgExecScriptWarpCtor.mock.calls[0][2]).toBe(extensionEnv);
+  });
+});

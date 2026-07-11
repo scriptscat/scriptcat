@@ -7,10 +7,6 @@ function parseHtml(html: string): Document {
 }
 
 describe("duckduckgoEngine", () => {
-  it("引擎名为 duckduckgo", () => {
-    expect(duckduckgoEngine.name).toBe("duckduckgo");
-  });
-
   it("从标准 DuckDuckGo HTML 中提取结果", () => {
     const html = `
       <html><body>

@@ -1,13 +1,7 @@
-import { useCallback, useEffect, useState, memo } from "react";
-import { Card, Message } from "@arco-design/web-react";
-import { useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useState, memo, useMemo, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
-import { arrayMove, arraySwap } from "@dnd-kit/sortable";
-
-// 仓库与常量引用
-import type { Script, UserConfig } from "@App/app/repo/scripts";
+import { arrayMove } from "@dnd-kit/sortable";
 import {
-  ScriptDAO,
   SCRIPT_STATUS_ENABLE,
   SCRIPT_STATUS_DISABLE,
   SCRIPT_RUN_STATUS_RUNNING,
@@ -17,93 +11,149 @@ import {
 } from "@App/app/repo/scripts";
 import {
   requestDeleteScripts,
+  requestEnableScript,
   requestRunScript,
   requestStopScript,
+  scriptClient,
+  synchronizeClient,
+  pinToTop,
   sortScript,
 } from "@App/pages/store/features/script";
-import { ValueClient } from "@App/app/service/service_worker/client";
-import { message } from "@App/pages/store/global";
-
-// 组件与工具
+import type { ScriptLoading } from "@App/pages/store/features/script";
+import { useSearchParams } from "react-router-dom";
+import type { Script } from "@App/app/repo/scripts";
 import UserConfigPanel from "@App/pages/components/UserConfigPanel";
 import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
-import ScriptListSidebar from "./Sidebar";
-import ScriptCard from "./ScriptCard";
+
 import ScriptTable from "./ScriptTable";
+import type { ScriptTableProps } from "./ScriptTable";
+import ScriptCard from "./ScriptCard";
 import { SearchFilter, type SearchFilterRequest } from "./SearchFilter";
-
-// 类型定义
-import type { ScriptLoading } from "@App/pages/store/features/script";
-
 import { type TSelectFilter, useScriptDataManagement, useScriptFilters } from "./hooks";
-import { useAppContext } from "@App/pages/store/AppContext";
+import type { FilterBarProps } from "./FilterBar";
+import type { BatchActionsBarProps } from "./BatchActionsBar";
+import { useIsMobile } from "@App/pages/components/use-is-mobile";
+import ScriptListMobile from "./ScriptListMobile";
+import { notify } from "@App/pages/components/ui/toast";
+import { useUserConfigPreload } from "./preload";
+import { reindexScriptList } from "./sort";
+import type { SortState } from "./sort";
+import {
+  type ScriptListPreferences,
+  type ScriptListViewMode,
+  readScriptListPreferences,
+  writeScriptListPreferences,
+} from "./preferences";
+import { useOnboardingDemoActive } from "@App/pages/options/onboarding/OnboardingProvider";
+import { getDemoScripts } from "@App/pages/options/onboarding/demo-scripts";
 
-type TableProps = React.ComponentProps<typeof ScriptTable>;
-type CardProps = React.ComponentProps<typeof ScriptCard>;
+type SelectionProps = {
+  selectedUuids: Set<string>;
+  toggleSelect: (uuid: string) => void;
+  toggleSelectAll: () => void;
+  clearSelection: () => void;
+};
 
-type SharedProps = TableProps & CardProps;
+type BatchProps = Pick<
+  BatchActionsBarProps,
+  "onBatchEnable" | "onBatchDisable" | "onBatchExport" | "onBatchDelete" | "onBatchPinTop" | "onBatchCheckUpdate"
+>;
+
+type ContentProps = { viewMode: ScriptListViewMode } & ScriptTableProps & FilterBarProps & SelectionProps & BatchProps;
 
 /**
- * 子组件: 渲染内容区域 (通过 memo 防止 userConfig 变更触发列表重绘)
+ * 子组件: 内容区域（memo 防止弹窗状态引起列表重绘）
  */
-const MainContent = memo(({ viewMode, ...props }: { viewMode: "table" | "card" } & SharedProps) => {
-  return viewMode === "table" ? <ScriptTable {...props} /> : <ScriptCard {...props} />;
+const MainContent = memo(({ viewMode, ...rest }: ContentProps) => {
+  if (viewMode === "card") {
+    return <ScriptCard {...rest} />;
+  }
+  return <ScriptTable {...rest} />;
 });
-
 MainContent.displayName = "MainContent";
 
-// 一条演示数据
-const guideModeScriptList = [
-  {
-    uuid: "demo-uuid-1234",
-    name: "Demo Script",
-    namespace: "demo",
-    sort: 0,
-    createtime: Date.now(),
-    checktime: Date.now(),
-    metadata: {},
-    type: SCRIPT_TYPE_NORMAL,
-    favorite: [{ match: "Example", icon: "", website: "https://example.com" }],
-  } as ScriptLoading,
-];
+function PreloadedUserConfigPanel({ script, onClose }: { script: Script; onClose: () => void }) {
+  const { t } = useTranslation();
+  const query = useUserConfigPreload(script);
+
+  useEffect(() => {
+    if (!query.isError) return;
+    notify.error(
+      `${t("script:operation_failed")}: ${query.error instanceof Error ? query.error.message : query.error}`
+    );
+  }, [query.error, query.isError, t]);
+
+  if (!query.data) return null;
+  return (
+    <UserConfigPanel
+      open
+      onOpenChange={(open) => !open && onClose()}
+      script={query.data.script}
+      userConfig={query.data.userConfig}
+      values={query.data.values}
+    />
+  );
+}
 
 /**
- * 主组件
+ * 脚本列表主组件
  */
-function ScriptList() {
+export default function ScriptList() {
   const { t } = useTranslation();
-  const [usp] = useSearchParams();
-  const { guideMode } = useAppContext();
+  const [preferences, setPreferences] = useState<ScriptListPreferences>(readScriptListPreferences);
+  // 1. UI 状态
+  const { viewMode, selectedFilters, searchRequest, sortState } = preferences;
 
-  // 1. 基础 UI 状态
-  const [sidebarOpen, setSidebarOpen] = useState(() => localStorage.getItem("script-list-sidebar") === "1");
-  const [viewMode, setViewMode] = useState<"table" | "card">(() => {
-    const saved = localStorage.getItem("script-list-view-mode");
-    if (saved === "table" || saved === "card") return saved;
-    return window.screen.width < 1280 ? "card" : "table";
-  });
-  const [selectedFilters, setSelectedFilters] = useState<TSelectFilter>({
-    status: null,
-    type: null,
-    tags: null,
-    source: null,
-  });
-  const [searchRequest, setSearchRequest] = useState<SearchFilterRequest>({ keyword: "", type: "auto" });
+  const updatePreferences = useCallback((updater: (prev: ScriptListPreferences) => ScriptListPreferences) => {
+    setPreferences((prev) => {
+      const next = updater(prev);
+      writeScriptListPreferences(next);
+      return next;
+    });
+  }, []);
 
-  // 2. 弹窗状态 (独立状态，不会引起 MainContent 重绘)
-  const [userConfig, setUserConfig] = useState<{
-    script: Script;
-    userConfig: UserConfig;
-    values: Record<string, any>;
-  }>();
-  const [cloudScript, setCloudScript] = useState<Script>();
-
-  // 3. 数据与统计 Hook
+  // 2. 数据 Hook
   const { scriptList, setScriptList, loadingList } = useScriptDataManagement();
-  const { stats, filterItems } = useScriptFilters(scriptList, selectedFilters, searchRequest, t);
+  const isMobile = useIsMobile();
+  const { stats, filterItems } = useScriptFilters(scriptList, selectedFilters, searchRequest);
   const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
 
-  // 4. 更新函数 (useCallback 保证引用稳定)
+  const demoActive = useOnboardingDemoActive();
+  const demoScripts = useMemo(() => getDemoScripts(t), [t]);
+  const displayScripts = demoActive ? demoScripts : filterScriptList;
+
+  // 3. 持久化视图切换
+  const handleSetViewMode = useCallback(
+    (mode: ScriptListViewMode) => updatePreferences((prev) => ({ ...prev, viewMode: mode })),
+    [updatePreferences]
+  );
+
+  const handleSetSelectedFilters = useCallback(
+    (updater: SetStateAction<TSelectFilter>) => {
+      updatePreferences((prev) => ({
+        ...prev,
+        selectedFilters: typeof updater === "function" ? updater(prev.selectedFilters) : updater,
+      }));
+    },
+    [updatePreferences]
+  );
+
+  const handleSetSearchRequest = useCallback(
+    (req: SearchFilterRequest) => updatePreferences((prev) => ({ ...prev, searchRequest: req })),
+    [updatePreferences]
+  );
+
+  const handleSetSortState = useCallback(
+    (updater: SetStateAction<SortState>) => {
+      updatePreferences((prev) => ({
+        ...prev,
+        sortState: typeof updater === "function" ? updater(prev.sortState) : updater,
+      }));
+    },
+    [updatePreferences]
+  );
+
+  // 4. 更新脚本（useCallback 保证引用稳定）
   const updateScripts = useCallback(
     (uuids: string[], data: Partial<ScriptLoading>) => {
       const set = new Set(uuids);
@@ -114,9 +164,9 @@ function ScriptList() {
             let hasDiff = false;
             const next = { ...s };
             for (const [k, v] of Object.entries(data)) {
-              if ((s as any)[k] !== v) {
+              if ((s as unknown as Record<string, unknown>)[k] !== v) {
                 hasDiff = true;
-                (next as any)[k] = v;
+                (next as unknown as Record<string, unknown>)[k] = v;
               }
             }
             if (hasDiff) {
@@ -132,86 +182,152 @@ function ScriptList() {
     [setScriptList]
   );
 
-  // 5. 业务操作函数
-  const handleDelete = useCallback(
-    (item: ScriptLoading) => {
-      updateScripts([item.uuid], { actionLoading: true });
-      requestDeleteScripts([item.uuid]);
-    },
-    [updateScripts]
-  );
+  // 5. 选择状态
+  const [selectedUuids, setSelectedUuids] = useState<Set<string>>(new Set());
 
-  const handleConfig = useCallback((item: ScriptLoading) => {
-    new ValueClient(message).getScriptValue(item).then((newValues) => {
-      setUserConfig({ userConfig: { ...item.config! }, script: item, values: newValues });
+  const toggleSelect = useCallback((uuid: string) => {
+    setSelectedUuids((prev) => {
+      const next = new Set(prev);
+      if (next.has(uuid)) next.delete(uuid);
+      else next.add(uuid);
+      return next;
     });
   }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedUuids((prev) => {
+      if (prev.size === filterScriptList.length && prev.size > 0) return new Set();
+      return new Set(filterScriptList.map((s) => s.uuid));
+    });
+  }, [filterScriptList]);
+
+  const clearSelection = useCallback(() => setSelectedUuids(new Set()), []);
+
+  // 6. 业务操作
+  // 删除脚本（二次确认由行内 / 批量栏的 Popconfirm 气泡完成，此处直接执行删除）
+  const deleteScripts = useCallback(
+    async (uuids: string[]) => {
+      updateScripts(uuids, { actionLoading: true });
+      try {
+        await requestDeleteScripts(uuids);
+        notify.success(t("delete_success"));
+      } catch (e) {
+        updateScripts(uuids, { actionLoading: false });
+        notify.error(`${t("script:delete_failed")}: ${e}`);
+      }
+    },
+    [updateScripts, t]
+  );
+
+  const handleDelete = useCallback((item: ScriptLoading) => deleteScripts([item.uuid]), [deleteScripts]);
 
   const handleRunStop = useCallback(
     async (item: ScriptLoading) => {
       const isRunning = item.runStatus === SCRIPT_RUN_STATUS_RUNNING;
-      const msgId = isRunning ? "script-stop" : "script-run";
-      Message.loading({ id: msgId, content: t(isRunning ? "stopping_script" : "starting_script") });
       updateScripts([item.uuid], { actionLoading: true });
       try {
         if (isRunning) await requestStopScript(item.uuid);
         else await requestRunScript(item.uuid);
-        Message.success({ id: msgId, content: t(isRunning ? "script_stopped" : "script_started"), duration: 3000 });
-      } catch (_err) {
-        Message.error({ id: msgId, content: t("operation_failed") });
+      } catch (e) {
+        notify.error(`${t("script:operation_failed")}: ${e}`);
       } finally {
         updateScripts([item.uuid], { actionLoading: false });
       }
     },
-    [t, updateScripts]
+    [updateScripts, t]
   );
 
+  // 7. 批量操作（操作后保留选中状态）
+  const handleBatchEnable = useCallback(() => {
+    selectedUuids.forEach((uuid) => void requestEnableScript({ uuid, enable: true }));
+  }, [selectedUuids]);
+
+  const handleBatchDisable = useCallback(() => {
+    selectedUuids.forEach((uuid) => void requestEnableScript({ uuid, enable: false }));
+  }, [selectedUuids]);
+
+  const handleBatchDelete = useCallback(() => {
+    if (selectedUuids.size === 0) return;
+    void deleteScripts([...selectedUuids]);
+  }, [selectedUuids, deleteScripts]);
+
+  const handleBatchCheckUpdate = useCallback(() => {
+    selectedUuids.forEach((uuid) => void scriptClient.requestCheckUpdate(uuid));
+  }, [selectedUuids]);
+
+  // 按列表中的 sort 升序取出选中脚本的 uuid（导出/置顶均需保持显示顺序）
+  const selectedUuidsBySort = useCallback(() => {
+    return scriptList
+      .filter((s) => selectedUuids.has(s.uuid))
+      .sort((a, b) => a.sort - b.sort)
+      .map((s) => s.uuid);
+  }, [scriptList, selectedUuids]);
+
+  // 用户配置面板：通过 ?userConfig=<uuid> 打开（菜单项 navigate 到该地址，外部也可深链）
+  const [usp, setUsp] = useSearchParams();
+  const userConfigUuid = usp.get("userConfig");
+  const userConfigScript = userConfigUuid ? scriptList.find((script) => script.uuid === userConfigUuid) : undefined;
+
+  const closeUserConfig = useCallback(() => {
+    if (userConfigUuid) {
+      const next = new URLSearchParams(usp);
+      next.delete("userConfig");
+      setUsp(next, { replace: true });
+    }
+  }, [usp, setUsp, userConfigUuid]);
+
+  // 云端面板：通过 ?cloud=<uuid> 打开（即「上传到云端」，与脚本同步功能无关）。
+  // 与 userConfig 面板一致，直接由 URL 参数 + 列表渲染期派生，不引入额外 state/effect。
+  const cloudUuid = usp.get("cloud");
+  const cloudScript = cloudUuid ? (scriptList.find((s) => s.uuid === cloudUuid) ?? null) : null;
+
+  const closeCloud = useCallback(() => {
+    if (usp.get("cloud")) {
+      const next = new URLSearchParams(usp);
+      next.delete("cloud");
+      setUsp(next, { replace: true });
+    }
+  }, [usp, setUsp]);
+
+  const handleBatchExport = useCallback(() => {
+    const uuids = selectedUuidsBySort();
+    if (uuids.length === 0) return;
+    const id = notify.loading(t("editor:exporting"));
+    void synchronizeClient.export(uuids).then(() => {
+      notify.success(t("settings:export_success"), { id });
+    });
+  }, [selectedUuidsBySort, t]);
+
+  const handleBatchPinTop = useCallback(() => {
+    const uuids = selectedUuidsBySort();
+    if (uuids.length === 0) return;
+    void pinToTop(uuids).then(() => {
+      notify.success(t("script:scripts_pinned_to_top"));
+    });
+  }, [selectedUuidsBySort, t]);
+
+  // 6. 拖拽排序
   const scriptListSortOrderMove = useCallback(
     ({ active, over }: { active: string; over: string }) => {
       setFilterScriptList((prev) => {
         const before = prev.map((s) => s.uuid);
-        const oldIdx = before.findIndex((id) => id === active);
-        const newIdx = before.findIndex((id) => id === over);
-        if (oldIdx !== -1 && newIdx !== -1) {
-          const next = arrayMove(prev, oldIdx, newIdx);
-          const after = next.map((s) => s.uuid);
-          sortScript({ before, after });
-          next.forEach((s, i) => (s.sort = i));
-          return next;
-        }
-        return prev;
+        const oldIdx = before.indexOf(active);
+        const newIdx = before.indexOf(over);
+        if (oldIdx === -1 || newIdx === -1) return prev;
+        const next = arrayMove(prev, oldIdx, newIdx);
+        const after = next.map((s) => s.uuid);
+        void sortScript({ before, after });
+        return reindexScriptList(next);
       });
     },
     [setFilterScriptList]
   );
 
-  const scriptListSortOrderSwap = useCallback(
-    ({ active, over }: { active: string; over: string }) => {
-      setFilterScriptList((prev) => {
-        const before = prev.map((s) => s.uuid);
-        const oldIdx = before.findIndex((id) => id === active);
-        const newIdx = before.findIndex((id) => id === over);
-        if (oldIdx !== -1 && newIdx !== -1) {
-          const next = arraySwap(prev, oldIdx, newIdx);
-          const after = next.map((s) => s.uuid);
-          sortScript({ before, after });
-          next.forEach((s, i) => (s.sort = i));
-          return next;
-        }
-        return prev;
-      });
-    },
-    [setFilterScriptList]
-  );
-
-  // 6. 执行过滤逻辑
+  // 7. 过滤逻辑
   useEffect(() => {
     const { status, type, tags, source } = selectedFilters;
 
-    // 如果是引导模式，且没有脚本，则使用演示数据
-    const targetList = guideMode && scriptList.length === 0 ? guideModeScriptList : scriptList;
-
-    const list = targetList.filter((s) => {
+    const list = scriptList.filter((s) => {
       if (status !== null) {
         if (status === SCRIPT_STATUS_ENABLE || status === SCRIPT_STATUS_DISABLE) {
           if (s.status !== status) return false;
@@ -229,74 +345,83 @@ function ScriptList() {
       return true;
     });
 
-    let enableKeywordSearch = false;
-    if (searchRequest.keyword) {
-      enableKeywordSearch = true;
-      SearchFilter.requestFilterResult(searchRequest).then(() => {
-        if (!enableKeywordSearch) return; // effect cleanup 了
-        setFilterScriptList(list.filter((s) => SearchFilter.checkByUUID(s.uuid)));
-      });
-    } else {
-      setFilterScriptList(list);
-    }
+    // 统一走 requestFilterResult 的异步回调里 setState：无关键字时它会清空缓存并立即 resolve，
+    // 有关键字时再按命中结果过滤。避免在 effect 体内同步 setState 触发级联渲染。
+    const hasKeyword = Boolean(searchRequest.keyword);
+    let alive = true;
+    void SearchFilter.requestFilterResult(searchRequest).then(() => {
+      if (!alive) return;
+      setFilterScriptList(hasKeyword ? list.filter((s) => SearchFilter.checkByUUID(s.uuid)) : list);
+    });
     return () => {
-      enableKeywordSearch = false;
+      alive = false;
     };
-  }, [guideMode, scriptList, selectedFilters, stats, searchRequest]);
+  }, [scriptList, selectedFilters, stats, searchRequest]);
 
-  // 处理 URL 传参打开配置
-  useEffect(() => {
-    const openId = usp.get("userConfig");
-    if (openId) {
-      new ScriptDAO().get(openId).then((script) => {
-        if (script?.config) {
-          new ValueClient(message)
-            .getScriptValue(script)
-            .then((values) => setUserConfig({ script, userConfig: script.config!, values }));
-        }
-      });
-    }
-  }, []);
+  // 用户配置面板（桌面端 / 移动端共用）
+  const userConfigDialog = userConfigScript?.config && (
+    <PreloadedUserConfigPanel script={userConfigScript} onClose={closeUserConfig} />
+  );
+
+  // 云端面板（桌面端 / 移动端共用）
+  const cloudDialog = cloudScript && (
+    <CloudScriptPlan open onOpenChange={(o) => !o && closeCloud()} script={cloudScript} />
+  );
+
+  if (isMobile) {
+    return (
+      <div className="flex flex-col h-full">
+        <ScriptListMobile
+          scriptList={displayScripts}
+          loadingList={loadingList}
+          updateScripts={updateScripts}
+          handleDelete={handleDelete}
+          handleRunStop={handleRunStop}
+          searchRequest={searchRequest}
+          setSearchRequest={handleSetSearchRequest}
+          scriptListSortOrderMove={scriptListSortOrderMove}
+          filterItems={filterItems}
+          selectedFilters={selectedFilters}
+          setSelectedFilters={handleSetSelectedFilters}
+        />
+        {userConfigDialog}
+        {cloudDialog}
+      </div>
+    );
+  }
 
   return (
-    <Card id="script-list" className="script-list" style={{ height: "100%", overflowY: "auto" }}>
-      <div className="tw-flex tw-flex-col">
-        <div className="tw-flex tw-flex-row tw-relative tw-overscroll-none">
-          <ScriptListSidebar
-            open={sidebarOpen}
-            filterItems={filterItems}
-            selectedFilters={selectedFilters}
-            setSelectedFilters={setSelectedFilters}
-          />
-          <div className="tw-flex-1">
-            <MainContent
-              viewMode={viewMode}
-              loadingList={loadingList}
-              scriptList={filterScriptList}
-              scriptListSortOrderMove={scriptListSortOrderMove}
-              scriptListSortOrderSwap={scriptListSortOrderSwap}
-              updateScripts={updateScripts}
-              sidebarOpen={sidebarOpen}
-              setSidebarOpen={setSidebarOpen}
-              setViewMode={setViewMode}
-              setUserConfig={setUserConfig}
-              setCloudScript={setCloudScript}
-              handleDelete={handleDelete}
-              handleConfig={handleConfig}
-              handleRunStop={handleRunStop}
-              searchRequest={searchRequest} // Card 模式需要
-              setSearchRequest={setSearchRequest}
-            />
-          </div>
-        </div>
-
-        {userConfig && (
-          <UserConfigPanel script={userConfig.script} userConfig={userConfig.userConfig} values={userConfig.values} />
-        )}
-        <CloudScriptPlan script={cloudScript} onClose={() => setCloudScript(undefined)} />
-      </div>
-    </Card>
+    <div className="flex flex-col h-full">
+      <MainContent
+        viewMode={viewMode}
+        scriptList={displayScripts}
+        loadingList={loadingList}
+        updateScripts={updateScripts}
+        handleDelete={handleDelete}
+        handleRunStop={handleRunStop}
+        setViewMode={handleSetViewMode}
+        searchRequest={searchRequest}
+        setSearchRequest={handleSetSearchRequest}
+        totalCount={demoActive ? demoScripts.length : scriptList.length}
+        scriptListSortOrderMove={scriptListSortOrderMove}
+        filterItems={filterItems}
+        selectedFilters={selectedFilters}
+        setSelectedFilters={handleSetSelectedFilters}
+        sortState={sortState}
+        setSortState={handleSetSortState}
+        selectedUuids={selectedUuids}
+        toggleSelect={toggleSelect}
+        toggleSelectAll={toggleSelectAll}
+        clearSelection={clearSelection}
+        onBatchEnable={handleBatchEnable}
+        onBatchDisable={handleBatchDisable}
+        onBatchExport={handleBatchExport}
+        onBatchDelete={handleBatchDelete}
+        onBatchPinTop={handleBatchPinTop}
+        onBatchCheckUpdate={handleBatchCheckUpdate}
+      />
+      {userConfigDialog}
+      {cloudDialog}
+    </div>
   );
 }
-
-export default ScriptList;

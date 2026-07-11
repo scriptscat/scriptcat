@@ -22,6 +22,11 @@
 // @run-at       document-end
 // ==/UserScript==
 
+var testVar1001 = 1001;
+const mpt = document.body.appendChild(document.createElement("test-element-1002"));
+mpt.id = "test-element-1002";
+mpt.name = "test-element-1002";
+
 (async function () {
   "use strict";
 
@@ -144,6 +149,16 @@
   }
 
   section("沙盒全局身份");
+
+  await test("检测全局 testVar1001 会否跳出沙盒", () => {
+    assertSame(undefined, window["testVar1001"], "全局 testVar1001 不应跳出沙盒");
+    assertSame(undefined, unsafeWindow["testVar1001"], "全局 testVar1001 不应跳出沙盒");
+  });
+
+  await test("检测全局 test-element-1002", () => {
+    assertSame("test-element-1002", unsafeWindow["test-element-1002"]?.id, "全局 test-element-1002");
+    assertSame(undefined, window["test-element-1002"]?.id, "半沙盒无法检测 test-element-1002");
+  });
 
   await test("window/self/globalThis/top/parent/frames 均指向沙盒对象", () => {
     assertSame("object", typeof unsafeWindow, "unsafeWindow 应存在");
@@ -577,6 +592,15 @@
     );
   });
 
+  await test("TM半沙盒：把祖先类别继承直接写在半沙盒上 (Issue #1462 PR #1463)", async () => {
+    const trueWindow = unsafeWindow;
+    const sandboxWindow = window;
+    assertSame(false, Object.hasOwn(trueWindow, "addEventListener"), "unsafeWindow 继承 Object.hasOwn");
+    assertSame(true, Reflect.has(trueWindow, "addEventListener"), "unsafeWindow 继承 Reflect.has");
+    assertSame(true, Object.hasOwn(sandboxWindow, "addEventListener"), "window 属性 Object.hasOwn");
+    assertSame(true, Reflect.has(sandboxWindow, "addEventListener"), "window 属性 Reflect.has");
+  });
+
   section("GM API 注入与命名空间");
 
   await test("GM_info、GM.info 与 unsafeWindow 正确暴露", () => {
@@ -893,13 +917,19 @@
       () => {},
     ));
 
-  await test("eval 保持可用，并在当前沙盒内解析全局", () => {
-    const key = `${markerPrefix}_eval`;
-    eval(`window["${key}"] = "from-eval";`);
-    assertSame("from-eval", window[key], "eval 应能写入沙盒 window");
-    assertSame(undefined, unsafeWindow[key], "eval 写入不应穿透页面 window");
-    delete window[key];
-  });
+  if (location.origin.includes("content-security-policy")) {
+    // CSP 不测试 eval
+  } else {
+    // eval 不一定能通过
+    // 这跟沙盒无关。不应进行此测试
+    await test("eval 保持可用，并在当前沙盒内解析全局", () => {
+      const key = `${markerPrefix}_eval`;
+      eval(`window["${key}"] = "from-eval";`);
+      assertSame("from-eval", window[key], "eval 应能写入沙盒 window");
+      assertSame(undefined, unsafeWindow[key], "eval 写入不应穿透页面 window");
+      delete window[key];
+    });
+  }
 
   console.log(
     "\n%c=== 测试完成 ===",

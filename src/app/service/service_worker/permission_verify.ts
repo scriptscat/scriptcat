@@ -31,6 +31,8 @@ export interface ConfirmParam {
   permissionContent?: string;
   // 仅接受持久化（DB 存储）的授权，忽略临时缓存
   persistentOnly?: boolean;
+  // 需要在确认页面通过用户手势请求的扩展站点访问权限
+  extensionSiteAccessOrigins?: string[];
 }
 
 export interface UserConfirm {

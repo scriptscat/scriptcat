@@ -1,3 +1,300 @@
+const grantValuePromptsZhCN = {
+  none: "不申请特殊 GM API 权限，脚本会以接近普通页面脚本的方式运行。",
+  unsafeWindow: "访问页面自身的 window 对象，用于和网页原生脚本交互。",
+  GM_getValue: "读取脚本持久化存储中的单个值。",
+  GM_getValues: "批量读取脚本持久化存储中的多个值。",
+  GM_setValue: "写入脚本持久化存储中的单个值。",
+  GM_setValues: "批量写入脚本持久化存储中的多个值。",
+  GM_deleteValue: "删除脚本持久化存储中的单个值。",
+  GM_deleteValues: "批量删除脚本持久化存储中的多个值。",
+  GM_listValues: "列出脚本持久化存储中的所有键名。",
+  GM_addValueChangeListener: "监听脚本存储值的变化。",
+  GM_removeValueChangeListener: "移除脚本存储值变化监听器。",
+  GM_xmlhttpRequest: "发起跨域网络请求；请求目标通常需要配合 @connect 声明允许的域名。",
+  GM_download:
+    "下载文件。支持传入 URL 和文件名，或传入包含 url、name、headers、saveAs 等字段的详情对象，并返回可 abort 的句柄。",
+  GM_openInTab: "打开新标签页，并可控制前后台打开等选项。",
+  GM_closeInTab: "关闭由脚本打开或管理的标签页。",
+  GM_getTab: "读取当前标签页关联的临时数据。",
+  GM_saveTab: "保存当前标签页关联的临时数据。",
+  GM_getTabs: "读取脚本保存的所有标签页临时数据。",
+  GM_notification: "显示浏览器通知，并可处理点击、关闭等回调。",
+  GM_closeNotification: "关闭指定的脚本通知。",
+  GM_updateNotification: "更新指定的脚本通知内容。",
+  GM_setClipboard: "写入系统剪贴板。",
+  GM_registerMenuCommand: "注册脚本菜单命令。",
+  GM_unregisterMenuCommand: "取消注册脚本菜单命令。",
+  CAT_registerMenuInput: "ScriptCat 扩展 API：注册带输入框的脚本菜单命令。",
+  CAT_unregisterMenuInput: "ScriptCat 扩展 API：取消注册带输入框的脚本菜单命令。",
+  GM_addStyle: "向页面注入 CSS 样式。",
+  GM_addElement: "向页面创建并插入元素。",
+  GM_getResourceText: "读取 @resource 声明资源的文本内容。",
+  GM_getResourceURL: "获取 @resource 声明资源的 URL。",
+  GM_cookie: "访问 Cookie API，用于读取、写入或删除 Cookie。",
+  CAT_fetchBlob: "ScriptCat 内部扩展 API：读取扩展侧可访问资源并返回 Blob。",
+  CAT_fileStorage: "ScriptCat 扩展 API：访问脚本文件存储能力。",
+  CAT_userConfig: "ScriptCat 扩展 API：访问脚本用户配置。",
+  CAT_scriptLoaded: "ScriptCat 扩展 API：在 @early-start 场景下等待脚本完整加载完成。",
+  "window.close": "允许脚本调用 window.close()。",
+  "window.focus": "允许脚本调用 window.focus()。",
+  "window.onurlchange": "允许脚本监听 URL 变化事件。",
+} as const;
+
+const grantValuePromptsEnUS = {
+  none: "Request no special GM API permissions; the script runs more like a regular page script.",
+  unsafeWindow: "Access the page's own window object for interaction with native page scripts.",
+  GM_getValue: "Read one value from the script's persistent storage.",
+  GM_getValues: "Read multiple values from the script's persistent storage.",
+  GM_setValue: "Write one value to the script's persistent storage.",
+  GM_setValues: "Write multiple values to the script's persistent storage.",
+  GM_deleteValue: "Delete one value from the script's persistent storage.",
+  GM_deleteValues: "Delete multiple values from the script's persistent storage.",
+  GM_listValues: "List all keys in the script's persistent storage.",
+  GM_addValueChangeListener: "Listen for changes to script storage values.",
+  GM_removeValueChangeListener: "Remove a script storage value change listener.",
+  GM_xmlhttpRequest: "Make cross-origin network requests; target hosts usually need to be allowed with @connect.",
+  GM_download:
+    "Download files. Accepts a URL and filename, or a details object with fields such as url, name, headers, and saveAs, and returns an abortable handle.",
+  GM_openInTab: "Open a new tab, with options such as foreground or background opening.",
+  GM_closeInTab: "Close a tab opened or managed by the script.",
+  GM_getTab: "Read temporary data associated with the current tab.",
+  GM_saveTab: "Save temporary data associated with the current tab.",
+  GM_getTabs: "Read all temporary tab data saved by the script.",
+  GM_notification: "Show a browser notification and handle events such as click or close.",
+  GM_closeNotification: "Close a specific script notification.",
+  GM_updateNotification: "Update a specific script notification.",
+  GM_setClipboard: "Write to the system clipboard.",
+  GM_registerMenuCommand: "Register a script menu command.",
+  GM_unregisterMenuCommand: "Unregister a script menu command.",
+  CAT_registerMenuInput: "ScriptCat API: register a script menu command with an input field.",
+  CAT_unregisterMenuInput: "ScriptCat API: unregister a script menu command with an input field.",
+  GM_addStyle: "Inject CSS into the page.",
+  GM_addElement: "Create and insert an element into the page.",
+  GM_getResourceText: "Read the text content of a resource declared with @resource.",
+  GM_getResourceURL: "Get the URL of a resource declared with @resource.",
+  GM_cookie: "Access the Cookie API to read, write, or delete cookies.",
+  CAT_fetchBlob: "ScriptCat internal API: read an extension-side accessible resource and return a Blob.",
+  CAT_fileStorage: "ScriptCat API: access script file storage.",
+  CAT_userConfig: "ScriptCat API: access script user configuration.",
+  CAT_scriptLoaded: "ScriptCat API: wait until the script is fully loaded in @early-start scenarios.",
+  "window.close": "Allow the script to call window.close().",
+  "window.focus": "Allow the script to call window.focus().",
+  "window.onurlchange": "Allow the script to listen for URL change events.",
+} as const;
+
+const grantValuePromptsZhTW = {
+  none: "不申請特殊 GM API 權限，腳本會以接近一般頁面腳本的方式執行。",
+  unsafeWindow: "存取頁面自身的 window 物件，用於和網頁原生腳本互動。",
+  GM_getValue: "讀取腳本持久化儲存中的單一值。",
+  GM_getValues: "批次讀取腳本持久化儲存中的多個值。",
+  GM_setValue: "寫入腳本持久化儲存中的單一值。",
+  GM_setValues: "批次寫入腳本持久化儲存中的多個值。",
+  GM_deleteValue: "刪除腳本持久化儲存中的單一值。",
+  GM_deleteValues: "批次刪除腳本持久化儲存中的多個值。",
+  GM_listValues: "列出腳本持久化儲存中的所有鍵名。",
+  GM_addValueChangeListener: "監聽腳本儲存值的變化。",
+  GM_removeValueChangeListener: "移除腳本儲存值變化監聽器。",
+  GM_xmlhttpRequest: "發起跨來源網路請求；目標主機通常需要配合 @connect 宣告允許的網域。",
+  GM_download:
+    "下載檔案。支援傳入 URL 與檔名，或傳入包含 url、name、headers、saveAs 等欄位的詳細物件，並回傳可 abort 的控制代碼。",
+  GM_openInTab: "開啟新分頁，並可控制前景或背景開啟等選項。",
+  GM_closeInTab: "關閉由腳本開啟或管理的分頁。",
+  GM_getTab: "讀取目前分頁關聯的暫存資料。",
+  GM_saveTab: "儲存目前分頁關聯的暫存資料。",
+  GM_getTabs: "讀取腳本儲存的所有分頁暫存資料。",
+  GM_notification: "顯示瀏覽器通知，並可處理點擊、關閉等回呼。",
+  GM_closeNotification: "關閉指定的腳本通知。",
+  GM_updateNotification: "更新指定的腳本通知內容。",
+  GM_setClipboard: "寫入系統剪貼簿。",
+  GM_registerMenuCommand: "註冊腳本選單命令。",
+  GM_unregisterMenuCommand: "取消註冊腳本選單命令。",
+  CAT_registerMenuInput: "ScriptCat 擴充 API：註冊帶輸入框的腳本選單命令。",
+  CAT_unregisterMenuInput: "ScriptCat 擴充 API：取消註冊帶輸入框的腳本選單命令。",
+  GM_addStyle: "向頁面注入 CSS 樣式。",
+  GM_addElement: "向頁面建立並插入元素。",
+  GM_getResourceText: "讀取 @resource 宣告資源的文字內容。",
+  GM_getResourceURL: "取得 @resource 宣告資源的 URL。",
+  GM_cookie: "存取 Cookie API，用於讀取、寫入或刪除 Cookie。",
+  CAT_fetchBlob: "ScriptCat 內部擴充 API：讀取擴充側可存取資源並回傳 Blob。",
+  CAT_fileStorage: "ScriptCat 擴充 API：存取腳本檔案儲存能力。",
+  CAT_userConfig: "ScriptCat 擴充 API：存取腳本使用者設定。",
+  CAT_scriptLoaded: "ScriptCat 擴充 API：在 @early-start 場景下等待腳本完整載入完成。",
+  "window.close": "允許腳本呼叫 window.close()。",
+  "window.focus": "允許腳本呼叫 window.focus()。",
+  "window.onurlchange": "允許腳本監聽 URL 變化事件。",
+} as const;
+
+const grantValuePromptsJaJP = {
+  none: "特別な GM API 権限を要求せず、通常のページスクリプトに近い形で実行します。",
+  unsafeWindow: "ページ自身の window オブジェクトにアクセスし、ページのネイティブスクリプトと連携します。",
+  GM_getValue: "スクリプトの永続ストレージから 1 つの値を読み取ります。",
+  GM_getValues: "スクリプトの永続ストレージから複数の値をまとめて読み取ります。",
+  GM_setValue: "スクリプトの永続ストレージに 1 つの値を書き込みます。",
+  GM_setValues: "スクリプトの永続ストレージに複数の値をまとめて書き込みます。",
+  GM_deleteValue: "スクリプトの永続ストレージから 1 つの値を削除します。",
+  GM_deleteValues: "スクリプトの永続ストレージから複数の値をまとめて削除します。",
+  GM_listValues: "スクリプトの永続ストレージ内のすべてのキーを列挙します。",
+  GM_addValueChangeListener: "スクリプトのストレージ値の変更を監視します。",
+  GM_removeValueChangeListener: "ストレージ値変更リスナーを削除します。",
+  GM_xmlhttpRequest:
+    "クロスオリジンのネットワークリクエストを行います。対象ホストは通常 @connect で許可する必要があります。",
+  GM_download:
+    "ファイルをダウンロードします。URL とファイル名、または url、name、headers、saveAs などを含む詳細オブジェクトを受け取り、abort 可能なハンドルを返します。",
+  GM_openInTab: "新しいタブを開き、前面または背面で開くなどのオプションを指定できます。",
+  GM_closeInTab: "スクリプトが開いた、または管理しているタブを閉じます。",
+  GM_getTab: "現在のタブに関連付けられた一時データを読み取ります。",
+  GM_saveTab: "現在のタブに関連付けられた一時データを保存します。",
+  GM_getTabs: "スクリプトが保存したすべてのタブ一時データを読み取ります。",
+  GM_notification: "ブラウザー通知を表示し、クリックや閉じる操作などを処理できます。",
+  GM_closeNotification: "指定したスクリプト通知を閉じます。",
+  GM_updateNotification: "指定したスクリプト通知を更新します。",
+  GM_setClipboard: "システムクリップボードへ書き込みます。",
+  GM_registerMenuCommand: "スクリプトメニューコマンドを登録します。",
+  GM_unregisterMenuCommand: "スクリプトメニューコマンドの登録を解除します。",
+  CAT_registerMenuInput: "ScriptCat API: 入力欄付きのスクリプトメニューコマンドを登録します。",
+  CAT_unregisterMenuInput: "ScriptCat API: 入力欄付きのスクリプトメニューコマンドの登録を解除します。",
+  GM_addStyle: "ページに CSS スタイルを注入します。",
+  GM_addElement: "ページに要素を作成して挿入します。",
+  GM_getResourceText: "@resource で宣言されたリソースのテキスト内容を読み取ります。",
+  GM_getResourceURL: "@resource で宣言されたリソースの URL を取得します。",
+  GM_cookie: "Cookie API にアクセスし、Cookie の読み取り、書き込み、削除を行います。",
+  CAT_fetchBlob: "ScriptCat 内部 API: 拡張機能側でアクセス可能なリソースを読み取り Blob を返します。",
+  CAT_fileStorage: "ScriptCat API: スクリプトのファイルストレージへアクセスします。",
+  CAT_userConfig: "ScriptCat API: スクリプトのユーザー設定へアクセスします。",
+  CAT_scriptLoaded: "ScriptCat API: @early-start の場面でスクリプトが完全に読み込まれるまで待機します。",
+  "window.close": "スクリプトによる window.close() の呼び出しを許可します。",
+  "window.focus": "スクリプトによる window.focus() の呼び出しを許可します。",
+  "window.onurlchange": "スクリプトによる URL 変更イベントの監視を許可します。",
+} as const;
+
+const grantValuePromptsDeDE = {
+  none: "Fordert keine speziellen GM-API-Berechtigungen an; das Skript läuft eher wie ein normales Seitenskript.",
+  unsafeWindow: "Greift auf das window-Objekt der Seite zu, um mit nativen Seitenskripten zu interagieren.",
+  GM_getValue: "Liest einen Wert aus dem persistenten Skriptspeicher.",
+  GM_getValues: "Liest mehrere Werte aus dem persistenten Skriptspeicher.",
+  GM_setValue: "Schreibt einen Wert in den persistenten Skriptspeicher.",
+  GM_setValues: "Schreibt mehrere Werte in den persistenten Skriptspeicher.",
+  GM_deleteValue: "Löscht einen Wert aus dem persistenten Skriptspeicher.",
+  GM_deleteValues: "Löscht mehrere Werte aus dem persistenten Skriptspeicher.",
+  GM_listValues: "Listet alle Schlüssel im persistenten Skriptspeicher auf.",
+  GM_addValueChangeListener: "Überwacht Änderungen an Skriptspeicherwerten.",
+  GM_removeValueChangeListener: "Entfernt einen Listener für Änderungen an Skriptspeicherwerten.",
+  GM_xmlhttpRequest:
+    "Führt Cross-Origin-Netzwerkanfragen aus; Zielhosts müssen normalerweise mit @connect erlaubt werden.",
+  GM_download:
+    "Lädt Dateien herunter. Akzeptiert URL und Dateiname oder ein Detailobjekt mit Feldern wie url, name, headers und saveAs und gibt ein abbrechbares Handle zurück.",
+  GM_openInTab: "Öffnet einen neuen Tab mit Optionen wie Öffnen im Vorder- oder Hintergrund.",
+  GM_closeInTab: "Schließt einen vom Skript geöffneten oder verwalteten Tab.",
+  GM_getTab: "Liest temporäre Daten, die dem aktuellen Tab zugeordnet sind.",
+  GM_saveTab: "Speichert temporäre Daten, die dem aktuellen Tab zugeordnet sind.",
+  GM_getTabs: "Liest alle vom Skript gespeicherten temporären Tabdaten.",
+  GM_notification: "Zeigt eine Browserbenachrichtigung an und verarbeitet Ereignisse wie Klick oder Schließen.",
+  GM_closeNotification: "Schließt eine bestimmte Skriptbenachrichtigung.",
+  GM_updateNotification: "Aktualisiert eine bestimmte Skriptbenachrichtigung.",
+  GM_setClipboard: "Schreibt in die Systemzwischenablage.",
+  GM_registerMenuCommand: "Registriert einen Skript-Menübefehl.",
+  GM_unregisterMenuCommand: "Hebt die Registrierung eines Skript-Menübefehls auf.",
+  CAT_registerMenuInput: "ScriptCat-API: Registriert einen Skript-Menübefehl mit Eingabefeld.",
+  CAT_unregisterMenuInput: "ScriptCat-API: Hebt die Registrierung eines Skript-Menübefehls mit Eingabefeld auf.",
+  GM_addStyle: "Injiziert CSS-Stile in die Seite.",
+  GM_addElement: "Erstellt ein Element und fügt es in die Seite ein.",
+  GM_getResourceText: "Liest den Textinhalt einer mit @resource deklarierten Ressource.",
+  GM_getResourceURL: "Ruft die URL einer mit @resource deklarierten Ressource ab.",
+  GM_cookie: "Greift auf die Cookie-API zu, um Cookies zu lesen, zu schreiben oder zu löschen.",
+  CAT_fetchBlob:
+    "Interne ScriptCat-API: Liest eine erweiterungsseitig verfügbare Ressource und gibt einen Blob zurück.",
+  CAT_fileStorage: "ScriptCat-API: Zugriff auf den Dateispeicher des Skripts.",
+  CAT_userConfig: "ScriptCat-API: Zugriff auf die Benutzerkonfiguration des Skripts.",
+  CAT_scriptLoaded: "ScriptCat-API: Wartet in @early-start-Szenarien, bis das Skript vollständig geladen ist.",
+  "window.close": "Erlaubt dem Skript, window.close() aufzurufen.",
+  "window.focus": "Erlaubt dem Skript, window.focus() aufzurufen.",
+  "window.onurlchange": "Erlaubt dem Skript, URL-Änderungsereignisse zu überwachen.",
+} as const;
+
+const grantValuePromptsViVN = {
+  none: "Không yêu cầu quyền GM API đặc biệt; script chạy gần giống script trang thông thường.",
+  unsafeWindow: "Truy cập đối tượng window thật của trang để tương tác với script gốc của trang.",
+  GM_getValue: "Đọc một giá trị từ bộ nhớ lưu trữ bền vững của script.",
+  GM_getValues: "Đọc nhiều giá trị từ bộ nhớ lưu trữ bền vững của script.",
+  GM_setValue: "Ghi một giá trị vào bộ nhớ lưu trữ bền vững của script.",
+  GM_setValues: "Ghi nhiều giá trị vào bộ nhớ lưu trữ bền vững của script.",
+  GM_deleteValue: "Xóa một giá trị khỏi bộ nhớ lưu trữ bền vững của script.",
+  GM_deleteValues: "Xóa nhiều giá trị khỏi bộ nhớ lưu trữ bền vững của script.",
+  GM_listValues: "Liệt kê tất cả khóa trong bộ nhớ lưu trữ bền vững của script.",
+  GM_addValueChangeListener: "Theo dõi thay đổi của giá trị trong bộ nhớ script.",
+  GM_removeValueChangeListener: "Gỡ bộ lắng nghe thay đổi giá trị trong bộ nhớ script.",
+  GM_xmlhttpRequest: "Gửi yêu cầu mạng cross-origin; host đích thường cần được cho phép bằng @connect.",
+  GM_download:
+    "Tải tệp xuống. Nhận URL và tên tệp, hoặc đối tượng chi tiết có các trường như url, name, headers, saveAs, và trả về handle có thể abort.",
+  GM_openInTab: "Mở tab mới, có thể chọn mở ở nền hoặc phía trước.",
+  GM_closeInTab: "Đóng tab do script mở hoặc quản lý.",
+  GM_getTab: "Đọc dữ liệu tạm thời gắn với tab hiện tại.",
+  GM_saveTab: "Lưu dữ liệu tạm thời gắn với tab hiện tại.",
+  GM_getTabs: "Đọc tất cả dữ liệu tab tạm thời mà script đã lưu.",
+  GM_notification: "Hiển thị thông báo trình duyệt và xử lý các sự kiện như nhấp hoặc đóng.",
+  GM_closeNotification: "Đóng một thông báo script cụ thể.",
+  GM_updateNotification: "Cập nhật một thông báo script cụ thể.",
+  GM_setClipboard: "Ghi vào clipboard hệ thống.",
+  GM_registerMenuCommand: "Đăng ký lệnh menu của script.",
+  GM_unregisterMenuCommand: "Hủy đăng ký lệnh menu của script.",
+  CAT_registerMenuInput: "API ScriptCat: đăng ký lệnh menu script có ô nhập.",
+  CAT_unregisterMenuInput: "API ScriptCat: hủy đăng ký lệnh menu script có ô nhập.",
+  GM_addStyle: "Chèn CSS vào trang.",
+  GM_addElement: "Tạo và chèn phần tử vào trang.",
+  GM_getResourceText: "Đọc nội dung văn bản của tài nguyên khai báo bằng @resource.",
+  GM_getResourceURL: "Lấy URL của tài nguyên khai báo bằng @resource.",
+  GM_cookie: "Truy cập Cookie API để đọc, ghi hoặc xóa cookie.",
+  CAT_fetchBlob: "API nội bộ ScriptCat: đọc tài nguyên có thể truy cập từ phía tiện ích và trả về Blob.",
+  CAT_fileStorage: "API ScriptCat: truy cập bộ nhớ tệp của script.",
+  CAT_userConfig: "API ScriptCat: truy cập cấu hình người dùng của script.",
+  CAT_scriptLoaded: "API ScriptCat: chờ script tải hoàn tất trong tình huống @early-start.",
+  "window.close": "Cho phép script gọi window.close().",
+  "window.focus": "Cho phép script gọi window.focus().",
+  "window.onurlchange": "Cho phép script lắng nghe sự kiện thay đổi URL.",
+} as const;
+
+const grantValuePromptsRuRU = {
+  none: "Не запрашивает специальные права GM API; скрипт работает ближе к обычному скрипту страницы.",
+  unsafeWindow: "Доступ к собственному объекту window страницы для взаимодействия с нативными скриптами страницы.",
+  GM_getValue: "Читает одно значение из постоянного хранилища скрипта.",
+  GM_getValues: "Читает несколько значений из постоянного хранилища скрипта.",
+  GM_setValue: "Записывает одно значение в постоянное хранилище скрипта.",
+  GM_setValues: "Записывает несколько значений в постоянное хранилище скрипта.",
+  GM_deleteValue: "Удаляет одно значение из постоянного хранилища скрипта.",
+  GM_deleteValues: "Удаляет несколько значений из постоянного хранилища скрипта.",
+  GM_listValues: "Перечисляет все ключи в постоянном хранилище скрипта.",
+  GM_addValueChangeListener: "Отслеживает изменения значений в хранилище скрипта.",
+  GM_removeValueChangeListener: "Удаляет слушатель изменений значений в хранилище скрипта.",
+  GM_xmlhttpRequest: "Выполняет cross-origin сетевые запросы; целевые хосты обычно нужно разрешить через @connect.",
+  GM_download:
+    "Загружает файлы. Принимает URL и имя файла либо объект параметров с полями url, name, headers, saveAs и возвращает дескриптор с abort.",
+  GM_openInTab: "Открывает новую вкладку с параметрами, например в фоне или на переднем плане.",
+  GM_closeInTab: "Закрывает вкладку, открытую или управляемую скриптом.",
+  GM_getTab: "Читает временные данные, связанные с текущей вкладкой.",
+  GM_saveTab: "Сохраняет временные данные, связанные с текущей вкладкой.",
+  GM_getTabs: "Читает все временные данные вкладок, сохраненные скриптом.",
+  GM_notification: "Показывает уведомление браузера и обрабатывает события, например клик или закрытие.",
+  GM_closeNotification: "Закрывает указанное уведомление скрипта.",
+  GM_updateNotification: "Обновляет указанное уведомление скрипта.",
+  GM_setClipboard: "Записывает данные в системный буфер обмена.",
+  GM_registerMenuCommand: "Регистрирует команду меню скрипта.",
+  GM_unregisterMenuCommand: "Отменяет регистрацию команды меню скрипта.",
+  CAT_registerMenuInput: "API ScriptCat: регистрирует команду меню скрипта с полем ввода.",
+  CAT_unregisterMenuInput: "API ScriptCat: отменяет регистрацию команды меню скрипта с полем ввода.",
+  GM_addStyle: "Внедряет CSS-стили на страницу.",
+  GM_addElement: "Создает и вставляет элемент на страницу.",
+  GM_getResourceText: "Читает текстовое содержимое ресурса, объявленного через @resource.",
+  GM_getResourceURL: "Получает URL ресурса, объявленного через @resource.",
+  GM_cookie: "Доступ к Cookie API для чтения, записи или удаления cookie.",
+  CAT_fetchBlob: "Внутренний API ScriptCat: читает доступный со стороны расширения ресурс и возвращает Blob.",
+  CAT_fileStorage: "API ScriptCat: доступ к файловому хранилищу скрипта.",
+  CAT_userConfig: "API ScriptCat: доступ к пользовательской конфигурации скрипта.",
+  CAT_scriptLoaded: "API ScriptCat: ожидает полной загрузки скрипта в сценариях @early-start.",
+  "window.close": "Разрешает скрипту вызывать window.close().",
+  "window.focus": "Разрешает скрипту вызывать window.focus().",
+  "window.onurlchange": "Разрешает скрипту слушать события изменения URL.",
+} as const;
+
 export const editorLangs = {
   "zh-CN": {
     title: "简体中文",
@@ -7,6 +304,11 @@ export const editorLangs = {
     addEslintDisableNextLine: "添加 eslint-disable-next-line 注释",
     addEslintDisable: "添加 eslint-disable 注释",
     declareGlobal: "将 '{0}' 声明为全局变量 (/* global */)",
+    removeConnectWildcard: "移除 @connect 通配符，改为 {0}",
+    replaceMatchTldWildcardWithInclude: "将 @match 顶级域名通配符改为 @include {0}",
+    replaceIncludeWithMatch: "将 @include 改为 @match {0}",
+    grantConflict: "@grant none 不能和 GM API 同时使用；请移除 none 或所有 GM API。",
+    grantValuePrompts: grantValuePromptsZhCN,
     prompt: {
       name: "脚本名称",
       namespace: "脚本命名空间",
@@ -56,6 +358,13 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       downloadURL: "脚本更新的下载地址",
       supportURL: "支持站点、bug 反馈页面",
       source: "脚本源码页",
+      scriptUrl: "订阅脚本中引用的用户脚本地址",
+      storageName: "脚本值存储空间名称，用于让多个脚本共享同一个存储空间",
+      tag: "脚本标签，多个标签可用逗号或空格分隔",
+      cloudCat: "标记脚本支持导出为 CloudCat 云端脚本包",
+      cloudServer: "脚本使用的 CloudCat 云端服务",
+      exportValue: "导出为云端脚本时需要导出的脚本存储值",
+      exportCookie: "导出为云端脚本时需要导出的 Cookie",
       crontab: `定时脚本 crontab 参考（不适用于云端脚本）
 * * * * * * 每秒运行一次
 * * * * * 每分钟运行一次
@@ -83,6 +392,11 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     addEslintDisableNextLine: "Add eslint-disable-next-line Comment",
     addEslintDisable: "Add eslint-disable Comment",
     declareGlobal: "Declare '{0}' as a global variable (/* global */)",
+    removeConnectWildcard: "Remove @connect wildcard: {0}",
+    replaceMatchTldWildcardWithInclude: "Replace @match TLD wildcard with @include {0}",
+    replaceIncludeWithMatch: "Replace @include with @match {0}",
+    grantConflict: "@grant none cannot be used with GM APIs. Remove none or all GM APIs.",
+    grantValuePrompts: grantValuePromptsEnUS,
     prompt: {
       name: "Script name",
       namespace: "Script namespace",
@@ -120,11 +434,24 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       unwrap:
         "Makes the user script bypass sandbox wrapping and be injected and executed directly in the page’s native global scope. <br>The script can directly access and modify the page’s real global variables, but will not be able to use user script privileged APIs such as GM.*. <br>Commonly used in scenarios that require deep interaction with native page scripts or when migrating from regular page scripts.",
       definition: "ScriptCat-only: URL of a `.d.ts` file used for editor auto-completion",
-      antifeature: "For script markets: describe any unwanted or controversial features",
+      antifeature: `Related to script markets: unwanted features should include this description value
+referral-link: This script modifies or redirects to the author's referral link
+ads: This script inserts ads on the pages you visit
+payment: This script requires payment to be used properly
+miner: This script engages in mining activities
+membership: This script requires registration as a member to be used properly
+tracking: This script tracks your user information`.replace(/\n/g, "<br>"),
       updateURL: "URL used to check for script updates",
       downloadURL: "URL used to download script updates",
       supportURL: "Support site / bug report page",
       source: "Script source code page",
+      scriptUrl: "User script URL referenced by a subscription script",
+      storageName: "Script value storage name, used to share one storage area across multiple scripts",
+      tag: "Script tags, separated by commas or spaces",
+      cloudCat: "Marks the script as exportable to a CloudCat cloud script package",
+      cloudServer: "CloudCat cloud service used by the script",
+      exportValue: "Script storage values to export when exporting as a cloud script",
+      exportCookie: "Cookies to export when exporting as a cloud script",
       crontab: `Scheduled script crontab examples (not for cloud scripts)
 * * * * * * Run every second
 * * * * * Run every minute
@@ -152,6 +479,11 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     addEslintDisableNextLine: "新增 eslint-disable-next-line 註解",
     addEslintDisable: "新增 eslint-disable 註解",
     declareGlobal: "將 '{0}' 宣告為全域變數 (/* global */)",
+    removeConnectWildcard: "移除 @connect 萬用字元，改為 {0}",
+    replaceMatchTldWildcardWithInclude: "將 @match 頂級網域萬用字元改為 @include {0}",
+    replaceIncludeWithMatch: "將 @include 改為 @match {0}",
+    grantConflict: "@grant none 不能和 GM API 同時使用；請移除 none 或所有 GM API。",
+    grantValuePrompts: grantValuePromptsZhTW,
     prompt: {
       name: "腳本名稱",
       namespace: "腳本命名空間",
@@ -189,11 +521,24 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       unwrap:
         "讓使用者腳本不經過沙箱封裝，直接注入並執行於頁面的原生全域作用域中。<br>腳本可直接存取並修改頁面真實的全域變數，但將無法使用 GM.* 等使用者腳本的特權 API。<br>常用於需要與頁面原生腳本深度互動，或從一般頁面腳本遷移的場景。",
       definition: "ScriptCat 特有功能：一個 `.d.ts` 檔案的引用網址，可啟用編輯器自動提示",
-      antifeature: "與腳本市場相關，不受歡迎的功能需要在此描述",
+      antifeature: `與腳本市場相關，不受歡迎的功能需要加上此描述值
+referral-link：此腳本會修改或重新導向至作者的返傭連結
+ads：此腳本會在您存取的頁面上插入廣告
+payment：此腳本需要您付費才能正常使用
+miner：此腳本存在挖礦行為
+membership：此腳本需要註冊會員才能正常使用
+tracking：此腳本會追蹤您的使用者資訊`.replace(/\n/g, "<br>"),
       updateURL: "腳本檢查更新的 url",
       downloadURL: "腳本更新的下載網址",
       supportURL: "支援站點、錯誤回報頁面",
       source: "腳本原始碼頁面",
+      scriptUrl: "訂閱腳本中引用的使用者腳本網址",
+      storageName: "腳本值儲存空間名稱，用於讓多個腳本共享同一個儲存空間",
+      tag: "腳本標籤，多個標籤可用逗號或空格分隔",
+      cloudCat: "標記腳本支援匯出為 CloudCat 雲端腳本套件",
+      cloudServer: "腳本使用的 CloudCat 雲端服務",
+      exportValue: "匯出為雲端腳本時需要匯出的腳本儲存值",
+      exportCookie: "匯出為雲端腳本時需要匯出的 Cookie",
       crontab: `排程腳本 crontab 參考（不適用於雲端腳本）
 * * * * * * 每秒執行一次
 * * * * * 每分鐘執行一次
@@ -221,6 +566,11 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     addEslintDisableNextLine: "eslint-disable-next-line コメントを追加",
     addEslintDisable: "eslint-disable コメントを追加",
     declareGlobal: "'{0}' をグローバル変数として宣言 (/* global */)",
+    removeConnectWildcard: "@connect のワイルドカードを削除: {0}",
+    replaceMatchTldWildcardWithInclude: "@match の TLD ワイルドカードを @include {0} に置換",
+    replaceIncludeWithMatch: "@include を @match {0} に置換",
+    grantConflict: "@grant none は GM API と同時に使えません。none またはすべての GM API を削除してください。",
+    grantValuePrompts: grantValuePromptsJaJP,
     prompt: {
       name: "スクリプト名",
       namespace: "スクリプトの名前空間",
@@ -258,11 +608,24 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       unwrap:
         "ユーザースクリプトをサンドボックスでラップせず、ページのネイティブなグローバルスコープに直接注入して実行します。<br>スクリプトはページの実際のグローバル変数に直接アクセスおよび変更できますが、GM.* などのユーザースクリプトの特権 API は使用できなくなります。<br>ページのネイティブスクリプトとの深い連携が必要な場合や、通常のページスクリプトから移行する際によく使用されます。",
       definition: "ScriptCat 専用機能：`.d.ts` ファイルの URL。エディタの補完を有効にします。",
-      antifeature: "スクリプトマーケット向け：好まれない機能がある場合、ここに説明を記載します。",
+      antifeature: `スクリプトマーケットに関連します。好まれない機能にはこの説明値を追加する必要があります
+referral-link：このスクリプトは作者のアフィリエイトリンクに変更またはリダイレクトします
+ads：このスクリプトはアクセスしたページに広告を挿入します
+payment：このスクリプトは正常に使用するために支払いが必要です
+miner：このスクリプトにはマイニング動作があります
+membership：このスクリプトは正常に使用するためにメンバー登録が必要です
+tracking：このスクリプトはユーザー情報を追跡します`.replace(/\n/g, "<br>"),
       updateURL: "スクリプト更新を確認する URL",
       downloadURL: "スクリプト更新をダウンロードする URL",
       supportURL: "サポートサイト・バグ報告ページ",
       source: "スクリプトのソースコードページ",
+      scriptUrl: "サブスクリプションスクリプトで参照するユーザースクリプト URL",
+      storageName: "複数のスクリプトで同じ保存領域を共有するためのスクリプト値ストレージ名",
+      tag: "スクリプトタグ。複数のタグはカンマまたはスペースで区切ります",
+      cloudCat: "スクリプトを CloudCat クラウドスクリプトパッケージとしてエクスポート可能にする印",
+      cloudServer: "スクリプトが使用する CloudCat クラウドサービス",
+      exportValue: "クラウドスクリプトとしてエクスポートする際に出力するスクリプト保存値",
+      exportCookie: "クラウドスクリプトとしてエクスポートする際に出力する Cookie",
       crontab: `スケジュールスクリプトの crontab 例（クラウドスクリプトには非対応）
 * * * * * * 毎秒実行
 * * * * * 毎分実行
@@ -290,6 +653,12 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     addEslintDisableNextLine: "eslint-disable-next-line Kommentar hinzufügen",
     addEslintDisable: "eslint-disable Kommentar hinzufügen",
     declareGlobal: "'{0}' als globale Variable deklarieren (/* global */)",
+    removeConnectWildcard: "@connect-Wildcard entfernen: {0}",
+    replaceMatchTldWildcardWithInclude: "@match-TLD-Wildcard durch @include {0} ersetzen",
+    replaceIncludeWithMatch: "@include durch @match {0} ersetzen",
+    grantConflict:
+      "@grant none kann nicht zusammen mit GM-APIs verwendet werden. Entfernen Sie none oder alle GM-APIs.",
+    grantValuePrompts: grantValuePromptsDeDE,
     prompt: {
       name: "Skriptname",
       namespace: "Skript-Namensraum",
@@ -327,11 +696,25 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       unwrap:
         "Ermöglicht es, das Benutzerskript ohne Sandbox-Kapselung direkt in den nativen globalen Gültigkeitsbereich der Seite zu injizieren und auszuführen. <br>Das Skript kann direkt auf die tatsächlichen globalen Variablen der Seite zugreifen und diese verändern, kann jedoch keine privilegierten Benutzerskript-APIs wie GM.* verwenden. <br>Wird häufig in Szenarien eingesetzt, die eine tiefe Interaktion mit nativen Seitenskripten erfordern oder bei der Migration von normalen Seitenskripten.",
       definition: "Nur für ScriptCat: URL zu einer `.d.ts`-Datei für Editor-Autovervollständigung",
-      antifeature: "Für Script-Marktplätze: hier unerwünschte oder kontroverse Funktionen beschreiben",
+      antifeature:
+        `Bezieht sich auf Script-Marktplätze: unerwünschte Funktionen sollten diesen Beschreibungswert enthalten
+referral-link: Dieses Skript modifiziert oder leitet zu den Affiliate-Links des Autors um
+ads: Dieses Skript fügt Werbung auf den von Ihnen besuchten Seiten ein
+payment: Dieses Skript erfordert eine Zahlung für die normale Nutzung
+miner: Dieses Skript hat Mining-Verhalten
+membership: Dieses Skript erfordert eine Mitgliedschaftsregistrierung für die normale Nutzung
+tracking: Dieses Skript verfolgt Ihre Benutzerinformationen`.replace(/\n/g, "<br>"),
       updateURL: "URL zur Aktualisierungsprüfung des Skripts",
       downloadURL: "URL zum Herunterladen von Skriptaktualisierungen",
       supportURL: "Support-Seite / Bugtracker",
       source: "Quellcode-Seite des Skripts",
+      scriptUrl: "Benutzerskript-URL, die von einem Abonnement-Skript referenziert wird",
+      storageName: "Speichername für Skriptwerte, um einen Speicherbereich mit mehreren Skripten zu teilen",
+      tag: "Skript-Tags, getrennt durch Kommas oder Leerzeichen",
+      cloudCat: "Markiert das Skript als exportierbar in ein CloudCat-Cloud-Skriptpaket",
+      cloudServer: "Vom Skript verwendeter CloudCat-Clouddienst",
+      exportValue: "Skript-Speicherwerte, die beim Export als Cloud-Skript exportiert werden",
+      exportCookie: "Cookies, die beim Export als Cloud-Skript exportiert werden",
       crontab: `Beispiele für geplante Skripte (crontab, nicht für Cloud-Skripte)
 * * * * * * Jede Sekunde ausführen
 * * * * * Jede Minute ausführen
@@ -359,6 +742,11 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     addEslintDisableNextLine: "Thêm chú thích eslint-disable-next-line",
     addEslintDisable: "Thêm chú thích eslint-disable",
     declareGlobal: "Khai báo '{0}' là biến toàn cục (/* global */)",
+    removeConnectWildcard: "Bỏ ký tự đại diện @connect: {0}",
+    replaceMatchTldWildcardWithInclude: "Thay wildcard TLD @match bằng @include {0}",
+    replaceIncludeWithMatch: "Thay @include bằng @match {0}",
+    grantConflict: "@grant none không thể dùng cùng GM API. Hãy xóa none hoặc tất cả GM API.",
+    grantValuePrompts: grantValuePromptsViVN,
     prompt: {
       name: "Tên script",
       namespace: "Namespace của script",
@@ -396,11 +784,24 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       unwrap:
         "Cho phép script người dùng bỏ qua sandbox và được chèn, thực thi trực tiếp trong phạm vi toàn cục gốc của trang. <br>Script có thể trực tiếp truy cập và chỉnh sửa các biến toàn cục thực sự của trang, nhưng sẽ không thể sử dụng các API đặc quyền của user script như GM.*. <br>Thường được dùng trong các trường hợp cần tương tác sâu với script gốc của trang hoặc khi chuyển đổi từ script trang thông thường.",
       definition: "Tính năng riêng của ScriptCat: URL tới tệp `.d.ts` giúp bật gợi ý tự động trong trình soạn thảo",
-      antifeature: "Dùng cho chợ script: mô tả các tính năng không được người dùng ưa thích",
+      antifeature: `Liên quan đến chợ script: các tính năng không được ưa thích cần thêm giá trị mô tả này
+referral-link: Script này sửa đổi hoặc chuyển hướng đến liên kết giới thiệu của tác giả
+ads: Script này chèn quảng cáo vào các trang bạn truy cập
+payment: Script này yêu cầu thanh toán để sử dụng đúng cách
+miner: Script này tham gia vào các hoạt động đào coin
+membership: Script này yêu cầu đăng ký làm thành viên để sử dụng đúng cách
+tracking: Script này theo dõi thông tin người dùng của bạn`.replace(/\n/g, "<br>"),
       updateURL: "URL dùng để kiểm tra cập nhật script",
       downloadURL: "URL tải về bản cập nhật script",
       supportURL: "Trang hỗ trợ / báo lỗi",
       source: "Trang mã nguồn script",
+      scriptUrl: "URL user script được tham chiếu bởi script đăng ký",
+      storageName: "Tên vùng lưu trữ giá trị script, dùng để chia sẻ cùng một vùng lưu trữ giữa nhiều script",
+      tag: "Thẻ script, phân tách bằng dấu phẩy hoặc khoảng trắng",
+      cloudCat: "Đánh dấu script có thể xuất thành gói cloud script CloudCat",
+      cloudServer: "Dịch vụ CloudCat cloud mà script sử dụng",
+      exportValue: "Giá trị lưu trữ script cần xuất khi xuất thành cloud script",
+      exportCookie: "Cookie cần xuất khi xuất thành cloud script",
       crontab: `Ví dụ crontab cho script chạy định kỳ (không áp dụng cho script trên cloud)
 * * * * * * Chạy mỗi giây
 * * * * * Chạy mỗi phút
@@ -428,6 +829,11 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
     addEslintDisableNextLine: "Добавить комментарий eslint-disable-next-line",
     addEslintDisable: "Добавить комментарий eslint-disable",
     declareGlobal: "Объявить '{0}' как глобальную переменную (/* global */)",
+    removeConnectWildcard: "Удалить wildcard @connect: {0}",
+    replaceMatchTldWildcardWithInclude: "Заменить TLD wildcard @match на @include {0}",
+    replaceIncludeWithMatch: "Заменить @include на @match {0}",
+    grantConflict: "@grant none нельзя использовать вместе с GM API. Удалите none или все GM API.",
+    grantValuePrompts: grantValuePromptsRuRU,
     prompt: {
       name: "Имя скрипта",
       namespace: "Пространство имён скрипта",
@@ -465,11 +871,25 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
       unwrap:
         "Позволяет пользовательскому скрипту обходить песочницу и напрямую внедряться и выполняться в нативной глобальной области видимости страницы. <br>Скрипт может напрямую получать доступ к реальным глобальным переменным страницы и изменять их, однако не сможет использовать привилегированные API пользовательских скриптов, такие как GM.*. <br>Обычно используется в сценариях, требующих глубокой интеграции с нативными скриптами страницы или при миграции с обычных скриптов страницы.",
       definition: "Особенность ScriptCat: URL файла `.d.ts`, используемого для автодополнения в редакторе",
-      antifeature: "Для маркетплейсов скриптов: опишите здесь нежелательные / спорные функции",
+      antifeature: `Связано с маркетплейсами скриптов: для нежелательных функций следует добавить это значение описания
+referral-link: Этот скрипт изменяет или перенаправляет на реферальную ссылку автора
+ads: Этот скрипт вставляет рекламу на посещаемые вами страницы
+payment: Этот скрипт требует оплаты для нормального использования
+miner: Этот скрипт содержит функции майнинга
+membership: Этот скрипт требует регистрации членства для нормального использования
+tracking: Этот скрипт отслеживает информацию о пользователе`.replace(/\n/g, "<br>"),
       updateURL: "URL для проверки обновлений скрипта",
       downloadURL: "URL для загрузки обновлений скрипта",
       supportURL: "Страница поддержки / отчёта об ошибках",
       source: "Страница с исходным кодом скрипта",
+      scriptUrl: "URL пользовательского скрипта, на который ссылается скрипт подписки",
+      storageName:
+        "Имя хранилища значений скрипта для совместного использования одного хранилища несколькими скриптами",
+      tag: "Теги скрипта, разделённые запятыми или пробелами",
+      cloudCat: "Отмечает, что скрипт можно экспортировать в пакет облачного скрипта CloudCat",
+      cloudServer: "Облачный сервис CloudCat, используемый скриптом",
+      exportValue: "Значения хранилища скрипта для экспорта при экспорте как облачного скрипта",
+      exportCookie: "Cookie для экспорта при экспорте как облачного скрипта",
       crontab: `Примеры crontab для планового запуска скриптов (не для облачных скриптов)
 * * * * * * Запуск каждую секунду
 * * * * * Запуск каждую минуту
@@ -491,7 +911,6 @@ tracking：该脚本会追踪你的用户信息`.replace(/\n/g, "<br>"),
 } as const;
 
 export type EditorLangCode = keyof typeof editorLangs;
-export type EditorPrompt = (typeof editorLangs)["zh-CN"]["prompt"];
 export type EditorLangEntry = (typeof editorLangs)["zh-CN"];
 
 export function asEditorLangEntry<T extends keyof typeof editorLangs>(key: T) {

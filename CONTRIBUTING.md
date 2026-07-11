@@ -12,6 +12,8 @@ Before submitting an issue, we recommend that you first check the [existing Issu
 
 ScriptCat is an evolving project. If you encounter problems during use and are confident that these issues are caused by ScriptCat, we welcome you to submit an Issue. When submitting, please include detailed reproduction steps and runtime environment information.
 
+**Security vulnerabilities are an exception — do not open a public Issue.** Report them privately following our [Security Policy](SECURITY.md), so a fix can be prepared before the issue is disclosed.
+
 ### Proposing New Features
 
 We welcome you to propose new feature suggestions in Issues. To help us better understand your needs, we recommend that you describe the feature in as much detail as possible and provide what you think might be a possible solution.
@@ -61,9 +63,9 @@ pnpm start
 
 ScriptCat's translation files are hosted on GitHub. Contributions via Pull Request are welcome.
 
-- Translation files live in [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales); each language has its own `<locale>/translation.json`
-- **Improve an existing translation**: edit the corresponding `translation.json` directly
-- **Add a new language**: create a new directory under `src/locales/` (e.g. `fr-FR`), copy `en-US/translation.json` as a template and translate the strings, then register the locale in `src/locales/locales.ts`
+- Translation files live in [`src/locales`](https://github.com/scriptscat/scriptcat/tree/main/src/locales); each language has its own directory with multiple namespace files (`common.json`, `popup.json`, `script.json`, …) and an `index.ts` that re-exports them
+- **Improve an existing translation**: edit the relevant namespace `*.json` file(s) under `src/locales/<locale>/` directly
+- **Add a new language**: create a new directory under `src/locales/` (e.g. `fr-FR`), copy the namespace files from `en-US/` as templates and translate the strings, add an `index.ts` that re-exports them, then register the locale in `src/locales/locales.ts`
 - Open a Pull Request against the `main` branch when you are done
 
 ## Participating in Development
@@ -77,9 +79,9 @@ pnpm run lint
 
 ScriptCat's page development uses the following technologies:
 
-- [React](https://reactjs.org/)
-- UI framework [arco](https://arco.design)
-- CSS framework [unocss](https://unocss.dev/interactive/)
+- [React 19](https://reactjs.org/)
+- UI framework [shadcn/ui](https://ui.shadcn.com/) (Radix UI primitives, "new-york" style)
+- CSS framework [Tailwind CSS v4](https://tailwindcss.com/)
 - RsPack bundling tool [rspack](https://rspack.dev/)
 
 If you want to run ScriptCat locally, you can use the following commands:

@@ -6,6 +6,7 @@ import {
   selfMetadataUpdate,
   getUserScriptRegister,
   compileInjectionCode,
+  shouldAutoOpenChangelog,
 } from "./utils";
 import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
@@ -63,10 +64,10 @@ describe.concurrent("parseUrlSRI", () => {
     expect(result.hash).toBeUndefined();
   });
   it.concurrent("不规则的SRI", () => {
-    const url = "https://example.com/script.js#sha256";
+    const url = "https://example.com/script.js#sha256"; // 格式错误不视为哈希值
     const result = parseUrlSRI(url);
     expect(result.url).toEqual("https://example.com/script.js");
-    expect(result.hash).toEqual({});
+    expect(result.hash).toBeUndefined();
     const url2 = "https://example.com/script.js#sha256=abc123==,md5";
     const result2 = parseUrlSRI(url2);
     expect(result2.url).toEqual("https://example.com/script.js");
@@ -104,6 +105,18 @@ describe.concurrent("isBase64", () => {
       )
     ).toBe(false);
     expect(isBase64("")).toBe(false);
+  });
+});
+
+describe.concurrent("shouldAutoOpenChangelog", () => {
+  it.concurrent("beta 版本更新时应该自动打开更新页面", () => {
+    expect(shouldAutoOpenChangelog("1.5.0-beta")).toBe(true);
+    expect(shouldAutoOpenChangelog("1.5.1-beta.2")).toBe(true);
+  });
+
+  it.concurrent("正式版仅在次版本发布时自动打开更新页面", () => {
+    expect(shouldAutoOpenChangelog("1.5.0")).toBe(true);
+    expect(shouldAutoOpenChangelog("1.5.1")).toBe(false);
   });
 });
 

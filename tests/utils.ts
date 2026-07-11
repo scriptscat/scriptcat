@@ -1,4 +1,3 @@
-import LoggerCore, { EmptyWriter } from "@App/app/logger/core";
 import { MockMessage } from "@Packages/message/mock_message";
 import type { IGetSender } from "@Packages/message/server";
 import { Server } from "@Packages/message/server";
@@ -14,22 +13,7 @@ import type { ApiValue } from "@App/app/service/service_worker/permission_verify
 import PermissionVerify from "@App/app/service/service_worker/permission_verify";
 import type { GMApiRequest } from "@App/app/service/service_worker/types";
 
-export function initTestEnv() {
-  // @ts-ignore
-  if (global.initTest) {
-    return;
-  }
-  // @ts-ignore
-  global.initTest = true;
-
-  const logger = new LoggerCore({
-    level: "trace",
-    consoleLevel: "trace",
-    writer: new EmptyWriter(),
-    labels: { env: "test" },
-  });
-  logger.logger().debug("test start");
-}
+export { initTestEnv } from "./initTestEnv";
 
 const noConfirmScripts = new Set<string>();
 export const addTestPermission = (uuid: string) => {

@@ -1,6 +1,7 @@
 import type { Script } from "@App/app/repo/scripts";
 import {
   AgentClient,
+  LogClient,
   PermissionClient,
   PopupClient,
   ResourceClient,
@@ -23,13 +24,14 @@ export const valueClient = new ValueClient(message);
 export const resourceClient = new ResourceClient(message);
 export const synchronizeClient = new SynchronizeClient(message);
 export const agentClient = new AgentClient(message);
+export const logClient = new LogClient(message);
 
 export const fetchScriptList = async () => {
   return await scriptClient.getAllScripts();
 };
 
 export const fetchScript = async (uuid: string) => {
-  return await scriptClient.info(uuid);
+  return await scriptClient.findInfo(uuid);
 };
 
 export const requestEnableScript = async (param: { uuid: string; enable: boolean }) => {
@@ -43,10 +45,6 @@ export const requestRunScript = async (uuid: string) => {
 export const requestStopScript = async (uuid: string) => {
   return await runtimeClient.stopScript(uuid);
 };
-
-// export const requestDeleteScript = createAsyncThunk("script/deleteScript", async (uuid: string) => {
-//   return await scriptClient.delete(uuid);
-// });
 
 export const requestDeleteScripts = async (uuids: string[]) => {
   return await scriptClient.deletes(uuids);

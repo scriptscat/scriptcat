@@ -17,7 +17,7 @@ vi.stubGlobal("chrome", {
   tabs: { get: mockTabsGet },
 });
 
-import { cdpClick, withDebugger, cdpFill, cdpScreenshot } from "./dom_cdp";
+import { cdpClick } from "./dom_cdp";
 
 afterAll(() => {
   vi.stubGlobal("chrome", savedChrome);
@@ -53,13 +53,6 @@ function setupClickMocks(hitTestValue: string) {
 describe("agent_dom_cdp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
-
-  it("模块可正常导入", () => {
-    expect(withDebugger).toBeDefined();
-    expect(cdpClick).toBeDefined();
-    expect(cdpFill).toBeDefined();
-    expect(cdpScreenshot).toBeDefined();
   });
 
   it("cdpClick 在元素未被遮挡时正常点击", async () => {

@@ -29,7 +29,7 @@ export const initRegularUpdateCheck = async (systemConfig: SystemConfig) => {
     return;
   }
   let when = 0;
-  const checkupdate_script_lasttime: number = result.checkupdate_script_lasttime || 0;
+  const checkupdate_script_lasttime = (result.checkupdate_script_lasttime as number) || 0;
   // 有 checkupdate_script_lasttime 而且是单数值（上次的定时更新检查有完成）
   if (checkupdate_script_lasttime && (checkupdate_script_lasttime & 1) === 1) {
     const updateCycleMs = updateCycleSecond * 1000;
@@ -60,6 +60,13 @@ export const initRegularUpdateCheck = async (systemConfig: SystemConfig) => {
   allowRegularUpdateCheck = now + ALLOW_CHECK_DELAY_MS; // 可以触发alarm的更新程序了
 };
 
+// 监听更新周期配置变更，变更后立即重新设定alarm（否则要等到SW重启才会生效）
+export const watchRegularUpdateCheck = (systemConfig: SystemConfig) => {
+  return systemConfig.addListener("check_script_update_cycle", () => {
+    initRegularUpdateCheck(systemConfig);
+  });
+};
+
 const setCheckupdateScriptLasttime = async (t: number) => {
   try {
     // 试一下储存。储存不了也没所谓
@@ -88,7 +95,7 @@ export const onRegularUpdateCheckAlarm = async (
     // 不需要检查更新。退出操作
     return null;
   }
-  const checkupdate_script_lasttime: number = result.checkupdate_script_lasttime || 0;
+  const checkupdate_script_lasttime = (result.checkupdate_script_lasttime as number) || 0;
   const targetWhen = checkupdate_script_lasttime + updateCycleSecond * 1000;
   if (targetWhen - ALARM_TRIGGER_WINDOW_MS > now) return null; // 已检查过了（alarm触发了）
   const storeTime = Math.floor(now / 2) * 2; // 双数

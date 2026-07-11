@@ -1,0 +1,134 @@
+name: "📚 Documentation"
+description: Report ScriptCat documentation errors, outdated content, missing explanations, broken examples, or documentation structure improvements.
+title: "[Docs] "
+type: "Task"
+labels: ["documentation"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve ScriptCat documentation.
+
+        Please provide the exact page, section, current problem, and suggested change where possible.
+
+        If this is about UI translation, language packs, or localization wording, please use the **Translation / i18n** template instead.
+
+  - type: checkboxes
+    id: precheck
+    attributes:
+      label: Pre-check
+      options:
+        - label: I have searched existing issues and confirmed this is not a duplicate.
+          required: true
+        - label: I confirm this is a documentation issue, not a ScriptCat product bug.
+          required: true
+
+  - type: input
+    id: doc-url
+    attributes:
+      label: Related Documentation Page
+      description: Please provide the related docs.scriptcat.org, learn.scriptcat.org, README, CONTRIBUTING, or other page.
+      placeholder: "Example: <documentation page URL>"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: doc-language
+    attributes:
+      label: Documentation Language
+      options:
+        - Simplified Chinese / zh-CN
+        - Traditional Chinese / zh-TW
+        - English / en
+        - Japanese / ja
+        - Russian / ru
+        - German / de
+        - Vietnamese / vi
+        - Other
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: doc-area
+    attributes:
+      label: Documentation Area
+      multiple: true
+      options:
+        - Installation / update / browser support
+        - Userscript installation / update / subscription
+        - Userscript development guide
+        - GM API / CAT API
+        - Background scripts / scheduled scripts
+        - Cloud Sync / backup / restore / migration
+        - Permissions / security / incognito mode
+        - Popup / Options / UI
+        - Built-in editor / VSCode extension
+        - Debugging / logs / developer tools
+        - Build / contributing guide
+        - README / Release Notes
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: doc-issue-type
+    attributes:
+      label: Documentation Issue Type
+      multiple: true
+      options:
+        - Incorrect content
+        - Outdated content
+        - Missing explanation
+        - Unclear wording
+        - Code example does not work
+        - Broken link
+        - Outdated image / screenshot
+        - Page structure or navigation issue
+        - Inconsistent with actual UI or behavior
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-problem
+    attributes:
+      label: Current Problem
+      description: Please explain what is wrong with the current documentation.
+      placeholder: |
+        Example: This page still describes the old sync flow, but the current settings page has changed to ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-change
+    attributes:
+      label: Suggested Change
+      description: Please describe how the documentation should be changed. You may paste suggested wording directly.
+      placeholder: |
+        Suggested wording:
+        ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-version
+    attributes:
+      label: Related Version / Environment, if Applicable
+      description: If the documentation issue is related to a specific ScriptCat version, browser, or platform, please provide it.
+      placeholder: |
+        ScriptCat version:
+        Browser / platform:
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: Additional Information
+      description: Screenshots, related issues, PRs, code locations, or references can be added here.
+      placeholder: |
+        Screenshots / references / related links:
+    validations:
+      required: false

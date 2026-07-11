@@ -6,11 +6,12 @@ import { NativeMessageHandler } from "./native_msg";
 import { ResourceService } from "./resource";
 import { ValueService } from "./value";
 import { RuntimeService } from "./runtime";
-import { type ServiceWorkerMessageSend } from "@Packages/message/window_message";
+import { type IOffscreenSend } from "@Packages/message/types";
 import { PopupService } from "./popup";
 import { SystemConfig } from "@App/pkg/config/config";
 import { SynchronizeService } from "./synchronize";
 import { SubscribeService } from "./subscribe";
+import { LogService } from "./log";
 import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
@@ -21,7 +22,7 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { FaviconDAO } from "@App/app/repo/favicon";
 import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
 import { cacheInstance } from "@App/app/cache";
-import { InfoNotification } from "./utils";
+import { InfoNotification, shouldAutoOpenChangelog } from "./utils";
 import { AgentService } from "@App/app/service/agent/service_worker/agent";
 import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_env";
 import { cleanupStaleTempStorageEntries } from "./temp";
@@ -31,7 +32,7 @@ export default class ServiceWorkerManager {
   constructor(
     private api: Server,
     private mq: IMessageQueue,
-    private sender: ServiceWorkerMessageSend
+    private offscreenSend: IOffscreenSend
   ) {}
 
   logger(data: Logger) {
@@ -53,10 +54,10 @@ export default class ServiceWorkerManager {
     this.api.on("getExtensionEnv", this.getExtensionEnv.bind(this));
     this.api.on("preparationOffscreen", async () => {
       // 准备好环境
-      await this.sender.init();
+      await this.offscreenSend.init();
       this.mq.emit("preparationOffscreen", {});
     });
-    this.sender.init();
+    this.offscreenSend.init();
 
     const faviconDAO = new FaviconDAO();
 
@@ -87,7 +88,7 @@ export default class ServiceWorkerManager {
     const runtime = new RuntimeService(
       systemConfig,
       this.api.group("runtime"),
-      this.sender,
+      this.offscreenSend,
       this.mq,
       value,
       script,
@@ -100,7 +101,7 @@ export default class ServiceWorkerManager {
     popup.init();
     value.init(runtime, popup);
     const synchronize = new SynchronizeService(
-      this.sender,
+      this.offscreenSend,
       this.api.group("synchronize"),
       script,
       value,
@@ -112,16 +113,18 @@ export default class ServiceWorkerManager {
     synchronize.init();
     const subscribe = new SubscribeService(this.api.group("subscribe"), this.mq, script);
     subscribe.init();
+    const log = new LogService(this.api.group("log"));
+    log.init();
     const system = new SystemService(
       systemConfig,
       this.api.group("system"),
-      this.sender,
+      this.offscreenSend,
       this.mq,
       scriptDAO,
       faviconDAO
     );
     system.init();
-    const agent = new AgentService(this.api.group("agent"), this.sender, resource);
+    const agent = new AgentService(this.api.group("agent"), this.offscreenSend, resource);
     agent.init();
 
     // 注入 AgentService 到 GMApi，使 Agent API 走权限验证通道
@@ -274,10 +277,14 @@ export default class ServiceWorkerManager {
             const url = `${DocumentationSite}${localePath}/docs/change/${ExtVersion.includes("-") ? "beta-changelog/" : ""}#${ExtVersion}`;
             // 如果只是修复版本，只弹出通知不打开页面
             // beta版本还是每次都打开更新页面
-            InfoNotification(t("ext_update_notification"), t("ext_update_notification_desc", { version: ExtVersion }), {
-              url,
-            });
-            if (ExtVersion.endsWith(".0")) {
+            InfoNotification(
+              t("popup:ext_update_notification"),
+              t("popup:ext_update_notification_desc", { version: ExtVersion }),
+              {
+                url,
+              }
+            );
+            if (shouldAutoOpenChangelog(ExtVersion)) {
               getCurrentTab()
                 .then((tab) => {
                   // 检查是否正在播放视频，或者窗口未激活

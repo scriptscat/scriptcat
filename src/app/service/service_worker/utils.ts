@@ -21,6 +21,8 @@ import {
 } from "@App/pkg/utils/url_matcher";
 import { cacheInstance } from "@App/app/cache";
 
+export type RegisteredUserScriptWithJsCode = RequireField<chrome.userScripts.RegisteredUserScript, "js">;
+
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   // 没有 run-at 时为 undefined. Fallback 至 document_idle
   const runAt = runAts[0] as string | undefined;
@@ -69,30 +71,41 @@ export function isBase64(str: string): boolean {
   return false;
 }
 
-// 解析URL SRI
-export function parseUrlSRI(url: string): {
+export type TUrlSRIInfo = {
   url: string;
-  hash?: { [key: string]: string };
-} {
+  hash: { [key: string]: string } | undefined;
+  originalUrl: string;
+};
+
+// 解析URL SRI
+export function parseUrlSRI(url: string): TUrlSRIInfo {
   const urls = url.split("#");
   if (urls.length < 2) {
-    return { url: urls[0], hash: undefined };
+    return { url: urls[0], hash: undefined, originalUrl: url };
   }
   const hashs = urls[1].split(/[,;]/);
   const hash: { [key: string]: string } = {};
+  const pattern = /^([a-zA-Z0-9]+)[-=](.+)$/;
   for (const val of hashs) {
     // 接受以下格式
     // sha256-abc123== 格式
     // sha256=abc123== 格式
-    const match = val.match(/^([a-zA-Z0-9]+)[-=](.+)$/);
+    const match = pattern.exec(val);
     if (match) {
       const [, key, value] = match;
       hash[key] = value;
     }
   }
 
-  // 即使没有解析到任何哈希值，也只会返回空对象而不是 undefined
-  return { url: urls[0], hash };
+  // 如果没有解析到任何哈希值，则返回 undefined，与类型定义保持一致
+  if (Object.keys(hash).length === 0) {
+    return { url: urls[0], hash: undefined, originalUrl: url };
+  }
+  return { url: urls[0], hash, originalUrl: url };
+}
+
+export function shouldAutoOpenChangelog(version: string): boolean {
+  return version.includes("-") || version.endsWith(".0");
 }
 
 export async function notificationsUpdate(

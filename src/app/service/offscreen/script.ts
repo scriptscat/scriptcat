@@ -48,8 +48,8 @@ export class ScriptService {
     });
     this.messageQueue.subscribe<TEnableScript[]>("enableScripts", async (data) => {
       for (const { uuid, enable } of data) {
-        const script = await this.scriptClient.info(uuid);
-        if (script.type === SCRIPT_TYPE_NORMAL) {
+        const script = await this.scriptClient.findInfo(uuid);
+        if (!script || script.type === SCRIPT_TYPE_NORMAL) {
           continue;
         }
         if (enable) {

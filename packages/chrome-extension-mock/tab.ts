@@ -26,9 +26,9 @@ export default class MockTab {
 
   create(createProperties: chrome.tabs.CreateProperties, callback?: (tab: chrome.tabs.Tab) => void) {
     this.hook.emit("create", createProperties);
-    callback?.({
-      id: 1,
-    } as chrome.tabs.Tab);
+    const tab = { id: 1 } as chrome.tabs.Tab;
+    callback?.(tab);
+    return Promise.resolve(tab);
   }
 
   remove(tabId: number) {

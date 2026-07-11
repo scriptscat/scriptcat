@@ -47,8 +47,7 @@ export default class ZipFileSystem implements FileSystem {
     const files: FileInfo[] = [];
     for (const [filename, jsZipObject] of Object.entries(this.zip.files)) {
       const date = jsZipObject.date; // the last modification date
-      const dateWithOffset = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
-      const lastModificationDate = dateWithOffset.getTime();
+      const lastModificationDate = date.getTime();
       files.push({
         name: filename,
         path: filename,

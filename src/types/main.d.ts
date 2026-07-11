@@ -5,6 +5,7 @@ declare module "*.yaml";
 declare module "@App/app/types.d.ts";
 
 type Override<T, U> = Omit<T, keyof U> & U;
+type RequireField<T, K extends keyof T> = T & Required<Pick<T, K>>;
 type ValueOf<T> = T[keyof T];
 type ReactStateSetter<T> = (value: T | ((prev: T) => T)) => void;
 
@@ -27,6 +28,19 @@ interface FileSystemChangeRecord {
 interface FileSystemObserverInstance {
   disconnect(): void;
   observe(handle: FileSystemFileHandle | FileSystemDirectoryHandle | FileSystemSyncAccessHandle): Promise<void>;
+}
+
+// File System Access API：标准 DOM lib 未声明，仅 Chromium 提供，运行时以特性检测兜底
+interface DataTransferItem {
+  getAsFileSystemHandle(): Promise<FileSystemHandle | null>;
+}
+
+interface Window {
+  showOpenFilePicker(options?: {
+    multiple?: boolean;
+    excludeAcceptAllOption?: boolean;
+    types?: { description?: string; accept: Record<string, string[]> }[];
+  }): Promise<FileSystemFileHandle[]>;
 }
 
 declare const UserAgentData: typeof GM_info.userAgentData | undefined;

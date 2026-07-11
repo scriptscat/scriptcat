@@ -1,1 +1,3 @@
 minimumReleaseAge: 10080
+patchedDependencies:
+  happy-dom: patches/happy-dom.patch

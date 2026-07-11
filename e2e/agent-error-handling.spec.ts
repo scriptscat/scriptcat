@@ -88,58 +88,5 @@ test.describe("Agent Error Handling", () => {
   });
 
   // 401 auth error 已由单元测试覆盖（callLLM 内部重试 5 次需 ~90s，e2e 等待过久）
-
-  test("conversation abort — conv.abort() cancels ongoing chat", async ({ context, extensionId, mockLLMResponse }) => {
-    // Use a slow response to give time for abort
-    mockLLMResponse(() => {
-      return makeTextSSE("这是一个很长的回复");
-    });
-
-    const code = `// ==UserScript==
-// @name         Agent Abort Test
-// @namespace    https://e2e.test
-// @version      1.0.0
-// @description  Test conversation abort
-// @author       E2E
-// @match        ${TARGET_URL}*
-// @grant        CAT.agent.conversation
-// ==/UserScript==
-
-(async () => {
-  let passed = 0;
-  let failed = 0;
-  function assert(name, condition) {
-    if (condition) { passed++; console.log("PASS: " + name); }
-    else { failed++; console.log("FAIL: " + name); }
-  }
-
-  try {
-    const conv = await CAT.agent.conversation.create({
-      system: "你是助手。",
-    });
-    assert("conversation created", !!conv && !!conv.id);
-
-    // Start a chat and verify it completes normally first
-    const reply1 = await conv.chat("第一条消息");
-    assert("first chat works", !!reply1.content);
-
-    // Verify the conversation object exists and has expected methods
-    assert("conv has chat method", typeof conv.chat === "function");
-    assert("conv has id", typeof conv.id === "string");
-  } catch (e) {
-    failed++;
-    console.log("ERROR: " + e.message);
-  }
-
-  console.log("通过: " + passed + ", 失败: " + failed);
-})();
-`;
-
-    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 60_000);
-
-    console.log(`[abort] passed=${passed}, failed=${failed}`);
-    if (failed !== 0) console.log("[abort] logs:", logs.join("\n"));
-    expect(failed, "Some abort tests failed").toBe(0);
-    expect(passed, "No test results found").toBeGreaterThan(0);
-  });
+  // conversation abort 无用户脚本可达入口（abort 纯 SW 内部、连接断开驱动），故不在 e2e 覆盖
 });

@@ -1203,7 +1203,7 @@ export default class GMApi extends GM_Base {
       retPromise,
       abort: () => {
         aborted = true;
-        connect?.disconnect();
+        connect?.disconnect(true); // 断开连结(容忍已断开)
         nativeAbort?.();
       },
     };

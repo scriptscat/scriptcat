@@ -191,8 +191,8 @@ export class SubscribeService {
     await this.subscribeDAO.update(subscribe.url, subscribe);
 
     InfoNotification(
-      i18n.t("notification.subscribe_update", { subscribeName: subscribe.name }),
-      i18n.t("notification.subscribe_update_desc", {
+      i18n.t("settings:notification.subscribe_update", { subscribeName: subscribe.name }),
+      i18n.t("settings:notification.subscribe_update_desc", {
         newScripts: addedScriptNames.join(","),
         deletedScripts: removedScriptNames.join(","),
       })
@@ -325,6 +325,11 @@ export class SubscribeService {
     return this.checkUpdate(url, "user");
   }
 
+  // options 页读取全部订阅，直接从 serviceWorker 内存（DAO 缓存）取出，避免页面侧重复读取存储
+  getAllSubscribe(): Promise<Subscribe[]> {
+    return this.subscribeDAO.find();
+  }
+
   async enable(param: { url: string; enable: boolean }) {
     const logger = this.logger.with({
       url: param.url,
@@ -342,6 +347,7 @@ export class SubscribeService {
   }
 
   init() {
+    this.group.on("getAllSubscribe", this.getAllSubscribe.bind(this));
     this.group.on("install", this.install.bind(this));
     this.group.on("delete", this.delete.bind(this));
     this.group.on("checkUpdate", this.requestCheckUpdate.bind(this));

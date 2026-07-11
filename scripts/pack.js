@@ -1,13 +1,13 @@
 /* global process */
 import { promises as fs } from "fs";
-import { createWriteStream } from "fs";
-import JSZip from "jszip";
+import { ZipWriter } from "web-jszipp";
 import ChromeExtension from "crx";
 import { execSync } from "child_process";
 import manifest from "../src/manifest.json" with { type: "json" };
 import packageInfo from "../package.json" with { type: "json" };
 import semver from "semver";
 import { toChromeVersion } from "./version.js";
+import { resolveAgentEnabled, applyAgentManifest } from "./build-config.js";
 
 // ============================================================================
 
@@ -17,16 +17,22 @@ const PACK_FIREFOX = false;
 
 // ============================================================================
 
-const createJSZip = () => {
-  const currDate = new Date();
-  const dateWithOffset = new Date(currDate.getTime() - currDate.getTimezoneOffset() * 60000);
-  // replace the default date with dateWithOffset
-  JSZip.defaults.date = dateWithOffset;
-  return new JSZip();
+const zipMtime = new Date();
+
+const addZipFile = async (zip, path, content) => {
+  await zip.add({
+    path,
+    data: content,
+    meta: { modifiedAt: zipMtime },
+  });
 };
 
 // 判断是否为beta版本
 const version = semver.parse(packageInfo.version);
+const agentEnabled = resolveAgentEnabled({
+  isBeta: version.prerelease.length > 0,
+  disableEnv: process.env.SC_DISABLE_AGENT,
+});
 manifest.version = toChromeVersion(packageInfo.version);
 if (version.prerelease.length) {
   manifest.name = `__MSG_scriptcat_beta__`;
@@ -50,15 +56,19 @@ if (process.env.GITHUB_REF_TYPE === "branch") {
   await fs.writeFile("./src/app/const.ts", configSystem);
 }
 
-execSync("pnpm run build", { stdio: "inherit" });
+// 将 agent 屏蔽状态传递给子构建，使打入产物的 EnableAgent 与下方 manifest 处理保持一致
+execSync("pnpm run build", {
+  stdio: "inherit",
+  env: { ...process.env, SC_DISABLE_AGENT: agentEnabled ? "false" : "true" },
+});
 
 // logo 在 rspack.config.ts 处理
 
 // 处理firefox和chrome的zip压缩包
 
 // 浅拷贝防止后续修改
-const firefoxManifest = { ...manifest, background: { ...manifest.background } };
-const chromeManifest = { ...manifest, background: { ...manifest.background } };
+const firefoxManifest = applyAgentManifest({ ...manifest, background: { ...manifest.background } }, agentEnabled);
+const chromeManifest = applyAgentManifest({ ...manifest, background: { ...manifest.background } }, agentEnabled);
 
 chromeManifest.optional_permissions = chromeManifest.optional_permissions.filter((val) => val !== "userScripts");
 delete chromeManifest.background.scripts;
@@ -67,6 +77,8 @@ delete chromeManifest.background.scripts;
 firefoxManifest.optional_permissions = firefoxManifest.optional_permissions.filter((val) => val !== "background");
 delete firefoxManifest.background.service_worker;
 delete firefoxManifest.sandbox;
+// Firefox 的扩展消息默认即为 structured clone，该键仅 Chromium 148+ 识别
+delete firefoxManifest.message_serialization;
 firefoxManifest.browser_specific_settings = {
   gecko: {
     id: `{${
@@ -93,8 +105,14 @@ firefoxManifest.commands = {
   _execute_action: {},
 };
 
-const chrome = createJSZip();
-const firefox = createJSZip();
+// 避免将 Chrome 特有权限添加到 Firefox 的 manifest
+firefoxManifest.permissions = firefoxManifest.permissions?.filter((permission) => permission !== "background");
+firefoxManifest.optional_permissions = firefoxManifest.optional_permissions?.filter(
+  (permission) => permission !== "background"
+);
+
+const chrome = new ZipWriter({ outputAs: "uint8array" });
+const firefox = new ZipWriter({ outputAs: "uint8array" });
 
 async function addDir(zip, localDir, toDir, filters) {
   const sub = async (localDir, toDir) => {
@@ -109,15 +127,15 @@ async function addDir(zip, localDir, toDir, filters) {
       if (stats.isDirectory()) {
         await sub(localPath, `${toPath}/`);
       } else {
-        zip.file(toPath, await fs.readFile(localPath));
+        await addZipFile(zip, toPath, await fs.readFile(localPath));
       }
     }
   };
   await sub(localDir, toDir);
 }
 
-chrome.file("manifest.json", JSON.stringify(chromeManifest));
-firefox.file("manifest.json", JSON.stringify(firefoxManifest));
+await addZipFile(chrome, "manifest.json", JSON.stringify(chromeManifest));
+await addZipFile(firefox, "manifest.json", JSON.stringify(firefoxManifest));
 
 await Promise.all([
   addDir(chrome, "./dist/ext", "", ["manifest.json"]),
@@ -125,22 +143,10 @@ await Promise.all([
 ]);
 
 // 导出zip包
-chrome
-  .generateNodeStream({
-    type: "nodebuffer",
-    streamFiles: true,
-    compression: "DEFLATE",
-  })
-  .pipe(createWriteStream(`./dist/${packageInfo.name}-v${packageInfo.version}-chrome.zip`));
+await fs.writeFile(`./dist/${packageInfo.name}-v${packageInfo.version}-chrome.zip`, await chrome.close());
 
 PACK_FIREFOX &&
-  firefox
-    .generateNodeStream({
-      type: "nodebuffer",
-      streamFiles: true,
-      compression: "DEFLATE",
-    })
-    .pipe(createWriteStream(`./dist/${packageInfo.name}-v${packageInfo.version}-firefox.zip`));
+  (await fs.writeFile(`./dist/${packageInfo.name}-v${packageInfo.version}-firefox.zip`, await firefox.close()));
 
 // 处理crx
 const crx = new ChromeExtension({

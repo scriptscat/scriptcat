@@ -298,7 +298,8 @@ describe.concurrent("backup", () => {
     expect(resp).toEqual(data);
   });
 
-  it.concurrent("export and import script - 30 scripts + 20 subscribes", async () => {
+  // 50 项批量压缩为同步 CPU 工作，与其他用例并发会在同一 worker 内排队放大耗时，故顺序执行。
+  it.sequential("export and import script - 30 scripts + 20 subscribes", async () => {
     const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {

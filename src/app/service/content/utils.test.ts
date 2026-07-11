@@ -448,7 +448,7 @@ describe("utils", () => {
   });
 
   describe("addStyleSheet", () => {
-    // 简单的 CSSStyleSheet mock，适配 jsdom 环境
+    // 简单的 CSSStyleSheet mock，适配 DOM 测试环境
     beforeEach(() => {
       class MockCSSStyleSheet {
         cssText = "";

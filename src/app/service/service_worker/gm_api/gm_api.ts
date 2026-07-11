@@ -77,6 +77,7 @@ void GMAgentOPFSApi;
 import { nextSessionRuleId, removeSessionRuleIdEntry } from "./dnr_id_controller";
 import type { DownloadCallback } from "../download";
 import { detachDownloadCallback, startDownload } from "../download";
+import { isRequestInitiatorOriginMatched, gmXhrRequestLinker, type IWebRequestDetails } from "./mv3_utils";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -257,6 +258,13 @@ export const getConnectMatched = (
   return ConnectMatch.NONE;
 };
 
+export const getExtensionSiteAccessOriginPattern = (url: URL): string | undefined => {
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return undefined;
+  }
+  return `${url.protocol}//${url.hostname}/*`;
+};
+
 type NotificationData = {
   uuid: string;
   details: GMTypes.NotificationDetails;
@@ -417,14 +425,14 @@ export default class GMApi {
       }
       const metadata: { [key: string]: string } = {};
       metadata[i18next.t("script_name")] = i18nName(request.script);
-      metadata[i18next.t("request_domain")] = url.host;
+      metadata[i18next.t("permission:request_domain")] = url.host;
       return {
         permission: "cookie",
         permissionValue: url.host,
-        title: i18next.t("access_cookie_content")!,
+        title: i18next.t("permission:access_cookie_content")!,
         metadata,
-        describe: i18next.t("confirm_script_operation")!,
-        permissionContent: i18next.t("cookie_domain")!,
+        describe: i18next.t("permission:confirm_script_operation")!,
+        permissionContent: i18next.t("permission:cookie_domain")!,
         uuid: "",
       };
     },
@@ -586,11 +594,11 @@ export default class GMApi {
       return {
         permission: "file_storage",
         permissionValue: dir,
-        title: i18next.t("script_operation_title"),
+        title: i18next.t("permission:script_operation_title"),
         metadata,
-        describe: i18next.t("script_operation_description", { dir }),
+        describe: i18next.t("permission:script_operation_description", { dir }),
         wildcard: false,
-        permissionContent: i18next.t("script_permission_content"),
+        permissionContent: i18next.t("permission:script_permission_content"),
       } as ConfirmParam;
     },
   })
@@ -689,12 +697,7 @@ export default class GMApi {
     const headers = params.headers || (params.headers = {});
     const { anonymous, cookie } = params;
 
-    // HTTP/1.1 and HTTP/2
-    // https://www.rfc-editor.org/rfc/rfc7540#section-8.1.2
-    // https://datatracker.ietf.org/doc/html/rfc6648
-    // All header names in HTTP/2 are lower case, and CF will convert if needed.
-    // All headers comparisons in HTTP/1.1 should be case insensitive.
-    headers["x-sc-request-marker"] = `${markerID}`;
+    gmXhrRequestLinker.prepareRequest(params, headers, markerID);
 
     // 关联 reqID 方法
     // 1) 尝试在 onBeforeRequest 进行关连
@@ -773,13 +776,6 @@ export default class GMApi {
     }
 
     if (modifyReqHeaders.length > 0) {
-      // const tabs = await chrome.tabs.query({});
-      // const excludedTabIds: number[] = [];
-      // for (const tab of tabs) {
-      //   if (tab.id) {
-      //     excludedTabIds.push(tab.id);
-      //   }
-      // }
       let requestMethod = (params.method || "GET").toLowerCase() as chrome.declarativeNetRequest.RequestMethod;
       if (!supportedRequestMethods.has(requestMethod)) {
         requestMethod = "other" as chrome.declarativeNetRequest.RequestMethod;
@@ -818,101 +814,150 @@ export default class GMApi {
     return true;
   }
 
-  @PermissionVerify.API({
-    confirm: async (request: GMApiRequest<[GMSend.XHRDetails?]>, sender: IGetSender, GMApiInstance: GMApi) => {
-      const msgConn = sender.getConnect();
-      if (!msgConn) {
-        throw new Error("GM_xmlhttpRequest ERROR: msgConn is undefined");
-      }
-      // conn 为 nested scope 内 local 存取
-      let throwErrorFn: ((error: string) => Error) | null = ((conn: MessageConnect | null) => {
-        let errorOccur: string | null = null;
-        const doLoadEnd = () => {
-          conn?.sendMessage({
-            action: "onloadend",
-            data: {
-              status: 0,
-              responseHeaders: "",
-              error: errorOccur,
-              readyState: 4, // ERROR. DONE.
-            },
-          });
-          conn?.disconnect(); // 断开连结
-          conn = null; // 释放
-        };
-        return (error: string) => {
-          errorOccur = error;
-          conn?.sendMessage({
-            action: "onerror",
-            data: {
-              status: 0,
-              responseHeaders: "",
-              error: errorOccur,
-              readyState: 4, // ERROR. DONE.
-            },
-          });
-          // throwErrorFn 不是由通讯管控 onloadend. 需要手动处理. 排程在下一个 microTask 避免影响 throw Error 流程
-          Promise.resolve().then(doLoadEnd);
-          return new Error(errorOccur);
-        };
-      })(msgConn);
-      const details = request.params[0];
-      if (!details) {
-        throw throwErrorFn("param is failed");
-      }
-      let url;
+  // GM_xmlhttpRequest 与 native GM_download 共用的跨域校验（@connect / 黑名单 / 站点访问）
+  // softConnect=true（GM_download）：未列入 @connect 的域名改为弹窗询问而非直接拒绝，避免破坏 TM 下载脚本
+  private async verifyXhrConnect(
+    request: GMApiRequest<[GMSend.XHRDetails?]>,
+    sender: IGetSender,
+    softConnect = false
+  ): Promise<boolean | ConfirmParam> {
+    const msgConn = sender.getConnect();
+    if (!msgConn) {
+      throw new Error("GM_xmlhttpRequest ERROR: msgConn is undefined");
+    }
+    // conn 为 nested scope 内 local 存取
+    let throwErrorFn: ((error: string) => Error) | null = ((conn: MessageConnect) => {
+      let myConn: MessageConnect | null = conn;
+      let errorOccur: string | null = null;
+      const doLoadEnd = () => {
+        myConn?.sendMessage({
+          action: "onloadend",
+          data: {
+            status: 0,
+            responseHeaders: "",
+            error: errorOccur,
+            readyState: 4, // ERROR. DONE.
+          },
+        });
+        myConn?.disconnect(true); // 断开连结(容忍已断开)
+        myConn = null; // 释放
+      };
+      return (error: string) => {
+        errorOccur = error;
+        myConn?.sendMessage({
+          action: "onerror",
+          data: {
+            status: 0,
+            responseHeaders: "",
+            error: errorOccur,
+            readyState: 4, // ERROR. DONE.
+          },
+        });
+        // throwErrorFn 不是由通讯管控 onloadend. 需要手动处理. 排程在下一个 microTask 避免影响 throw Error 流程
+        Promise.resolve().then(doLoadEnd);
+        return new Error(errorOccur);
+      };
+    })(msgConn);
+    const details = request.params[0];
+    if (!details) {
+      throw throwErrorFn("param is failed");
+    }
+    let url;
+    try {
+      url = new URL(details.url);
+    } catch {
+      const msg = `Refused to connect to "${details.url}": The url is invalid`;
+      throw throwErrorFn(msg);
+    }
+    if (this.gmExternalDependencies.isBlacklistNetwork(url)) {
+      const msg = `Refused to connect to "${details.url}": URL is blacklisted`;
+      throw throwErrorFn(msg);
+    }
+    let hasOriginPermission = false;
+    const originPattern = getExtensionSiteAccessOriginPattern(url);
+    if (!originPattern) {
+      hasOriginPermission = true; // TBC
+    } else {
       try {
-        url = new URL(details.url);
-      } catch {
-        const msg = `Refused to connect to "${details.url}": The url is invalid`;
-        throw throwErrorFn(msg);
+        hasOriginPermission = await chrome.permissions.contains({ origins: [originPattern] });
+      } catch (e) {
+        console.warn(e);
       }
-      if (GMApiInstance.gmExternalDependencies.isBlacklistNetwork(url)) {
-        const msg = `Refused to connect to "${details.url}": URL is blacklisted`;
-        throw throwErrorFn(msg);
+    }
+    const extensionSiteAccessOrigins = hasOriginPermission ? undefined : [originPattern];
+    const confirmExtensionSiteAccess = (): ConfirmParam => {
+      const metadata: { [key: string]: string } = {};
+      metadata[i18next.t("script_name")] = i18nName(request.script);
+      metadata[i18next.t("permission:request_domain")] = url.hostname;
+      metadata[i18next.t("permission:request_url")] = details.url;
+      throwErrorFn = null; // 确保 GC 可以释放 conn
+      return {
+        permission: "extension-site-access",
+        permissionValue: originPattern,
+        title: i18next.t("permission:extension_site_access_title"),
+        metadata,
+        describe: i18next.t("permission:extension_site_access_description"),
+        permissionContent: i18next.t("permission:extension_site_access_content"),
+        extensionSiteAccessOrigins,
+      } as ConfirmParam;
+    };
+    const connectMatched = getConnectMatched(request.script.metadata.connect, url, sender);
+    if (connectMatched === ConnectMatch.ALL) {
+      // SC: 有 @connect * 就不询问
+      return hasOriginPermission ? true : confirmExtensionSiteAccess();
+    } else {
+      // 如果 @connect 有匹配到就放行
+      if (connectMatched > 0) {
+        return hasOriginPermission ? true : confirmExtensionSiteAccess();
       }
-      const connectMatched = getConnectMatched(request.script.metadata.connect, url, sender);
-      if (connectMatched === ConnectMatch.ALL) {
-        // SC: 有 @connect * 就不询问
-        return true;
-      } else {
-        // 如果 @connect 有匹配到就放行
-        if (connectMatched > 0) {
-          return true;
+      // @connect 没有匹配，但有列明 @connect 的话，则自动拒绝
+      if (request.script.metadata.connect?.find((e) => !!e)) {
+        // 查询数据库权限记录，如果之前用户允许过该域名，则放行，否则拒绝
+        const ret = await this.permissionVerify.queryPermission(request, {
+          permission: "cors",
+          permissionValue: url.hostname,
+          wildcard: true,
+        });
+        if (ret && ret.allow) {
+          return hasOriginPermission ? true : confirmExtensionSiteAccess();
         }
-        // @connect 没有匹配，但有列明 @connect 的话，则自动拒绝
-        if (request.script.metadata.connect?.find((e) => !!e)) {
-          // 查询数据库权限记录，如果之前用户允许过该域名，则放行，否则拒绝
-          const ret = await GMApiInstance.permissionVerify.queryPermission(request, {
-            permission: "cors",
-            permissionValue: url.hostname,
-            wildcard: true,
-          });
-          if (ret && ret.allow) {
-            return true;
-          }
+        // softConnect（GM_download）：不直接拒绝，落到下方用户确认，由用户决定是否放行
+        if (!softConnect) {
           const msg = `Refused to connect to "${details.url}": This domain is not a part of the @connect list`;
           throw throwErrorFn(msg);
         }
-        // 其他情况：要询问用户
       }
-      const metadata: { [key: string]: string } = {};
-      metadata[i18next.t("script_name")] = i18nName(request.script);
-      metadata[i18next.t("request_domain")] = url.hostname;
-      metadata[i18next.t("request_url")] = details.url;
+      // 其他情况：要询问用户
+    }
+    const metadata: { [key: string]: string } = {};
+    metadata[i18next.t("script_name")] = i18nName(request.script);
+    metadata[i18next.t("permission:request_domain")] = url.hostname;
+    metadata[i18next.t("permission:request_url")] = details.url;
 
-      throwErrorFn = null; // 确保 GC 可以释放 conn
+    throwErrorFn = null; // 确保 GC 可以释放 conn
 
-      return {
-        permission: "cors",
-        permissionValue: url.hostname,
-        title: i18next.t("script_accessing_cross_origin_resource"),
-        metadata,
-        describe: i18next.t("confirm_operation_description"),
-        wildcard: true,
-        permissionContent: i18next.t("domain"),
-      } as ConfirmParam;
-    },
+    const ret = await this.permissionVerify.queryPermission(request, {
+      permission: "cors",
+      permissionValue: url.hostname,
+      wildcard: true,
+    });
+    if (ret?.allow && !hasOriginPermission) {
+      return confirmExtensionSiteAccess();
+    }
+    return {
+      permission: "cors",
+      permissionValue: url.hostname,
+      title: i18next.t("permission:script_accessing_cross_origin_resource"),
+      metadata,
+      describe: i18next.t("permission:confirm_operation_description"),
+      wildcard: true,
+      permissionContent: i18next.t("domain"),
+      extensionSiteAccessOrigins,
+    } as ConfirmParam;
+  }
+
+  @PermissionVerify.API({
+    confirm: (request, sender, gmApi) => gmApi.verifyXhrConnect(request, sender),
     alias: ["GM.xmlHttpRequest"],
   })
   async GM_xmlhttpRequest(request: GMApiRequest<[GMSend.XHRDetails]>, sender: IGetSender) {
@@ -995,7 +1040,7 @@ export default class GMApi {
         strategy = new GMXhrXhrStrategy(resultParam);
       }
       if (strategy) {
-        const bgGmXhr = new BgGMXhr(details, resultParam, msgConn, strategy);
+        const bgGmXhr = new BgGMXhr(details, resultParam, msgConn, strategy, markerID);
         bgGmXhr.onLoaded(loadendCleanUp);
         bgGmXhr.do();
       } else {
@@ -1316,7 +1361,16 @@ export default class GMApi {
     chrome.notifications.update(<string>id, options);
   }
 
-  @PermissionVerify.API()
+  @PermissionVerify.API({
+    // native 下载会发起真实跨域请求，需校验黑名单 / 站点访问 / @connect。
+    // 与 TM 不同（TM 的 @connect 只作用于 xhr/fetch），未列入 @connect 的域名改为弹窗询问由用户决定，而非直接拒绝。
+    confirm: async (request, sender, gmApi) => {
+      if (request.params[0]?.downloadMode !== "native") {
+        return true;
+      }
+      return gmApi.verifyXhrConnect(request, sender, true);
+    },
+  })
   async GM_download(request: GMApiRequest<[GMTypes.DownloadDetails<string>]>, sender: IGetSender) {
     if (!sender.isType(GetSenderType.CONNECT)) {
       throw new Error("GM_download ERROR: sender is not MessageConnect");
@@ -1522,6 +1576,11 @@ export default class GMApi {
 
   // 处理GM_xmlhttpRequest请求
   handlerGmXhr() {
+    gmXhrRequestLinker.setup({ cleanupOnAPIError });
+    const currentOrigin: string = new URL(chrome.runtime.getURL("/")).origin;
+    const isInitiatedBySC = (details: IWebRequestDetails) => {
+      return details.tabId === -1 && isRequestInitiatorOriginMatched(details, currentOrigin);
+    };
     chrome.webRequest.onBeforeRedirect.addListener(
       (details) => {
         const lastError = chrome.runtime.lastError;
@@ -1531,7 +1590,7 @@ export default class GMApi {
           cleanupOnAPIError(details?.requestId);
           return undefined;
         }
-        if (details.tabId === -1) {
+        if (isInitiatedBySC(details)) {
           const markerID = scXhrRequests.get(details.requestId);
           if (markerID) {
             redirectedUrls.set(markerID, details.redirectUrl);
@@ -1560,7 +1619,7 @@ export default class GMApi {
           cleanupOnAPIError(details?.requestId);
           return undefined;
         }
-        if (details.tabId === -1) {
+        if (isInitiatedBySC(details)) {
           const markerID = scXhrRequests.get(details.requestId);
           if (!markerID) return;
           nwErrorResults.set(markerID, details.error);
@@ -1626,7 +1685,7 @@ export default class GMApi {
           cleanupOnAPIError(details?.requestId);
           return undefined;
         }
-        if (details.tabId === -1) {
+        if (isInitiatedBySC(details)) {
           const reqId = details.requestId;
           const requestHeaders = details.requestHeaders;
           if (requestHeaders) {
@@ -1661,7 +1720,7 @@ export default class GMApi {
           cleanupOnAPIError(details?.requestId);
           return undefined;
         }
-        if (details.tabId === -1) {
+        if (isInitiatedBySC(details)) {
           const reqId = details.requestId;
 
           const markerID = scXhrRequests.get(reqId);
@@ -1748,7 +1807,7 @@ export default class GMApi {
           cleanupOnAPIError(details?.requestId);
           return undefined;
         }
-        if (details.tabId === -1) {
+        if (isInitiatedBySC(details)) {
           const reqId = details.requestId;
 
           const markerID = scXhrRequests.get(reqId);
@@ -1768,37 +1827,6 @@ export default class GMApi {
         types: ["xmlhttprequest"],
       },
       respOpt
-    );
-
-    const ruleId = 999;
-    const rule = {
-      id: ruleId,
-      action: {
-        type: "modifyHeaders",
-        requestHeaders: [
-          {
-            header: "x-sc-request-marker",
-            operation: "remove",
-          },
-        ] satisfies chrome.declarativeNetRequest.ModifyHeaderInfo[],
-      },
-      priority: 1,
-      condition: {
-        resourceTypes: ["xmlhttprequest"],
-        tabIds: [chrome.tabs.TAB_ID_NONE], // 只限于后台 service_worker / offscreen
-      },
-    } as chrome.declarativeNetRequest.Rule;
-    chrome.declarativeNetRequest.updateSessionRules(
-      {
-        removeRuleIds: [ruleId],
-        addRules: [rule],
-      },
-      () => {
-        const lastError = chrome.runtime.lastError;
-        if (lastError) {
-          console.error("chrome.declarativeNetRequest.updateSessionRules:", lastError);
-        }
-      }
     );
   }
 
