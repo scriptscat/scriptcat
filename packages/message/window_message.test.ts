@@ -197,6 +197,102 @@ describe("WindowMessage.connect", () => {
   });
 });
 
+// 单测重点：target 支持传入惰性求值函数，避免在 Firefox sandbox iframe 尚处于初始 about:blank
+// 阶段就缓存 contentWindow 快照——导航到真正的 sandbox 页面后，浏览器是否仍保证该快照与
+// 事件的 e.source 全等属于实现细节，不可依赖；每次发送/比对都应重新读取当前值。
+describe("WindowMessage 惰性 target(懒解析)", () => {
+  it("target 为函数时，每次发送都重新读取当前返回值，而非构造时的快照", () => {
+    const sourceWindow = { addEventListener: vi.fn() } as unknown as Window;
+
+    // 模拟 iframe 导航前(about:blank)与导航后(真正的 sandbox 页面)两个不同的 Window 引用
+    const blankPostMessage = vi.fn();
+    const realPostMessage = vi.fn();
+    let current: Window = { postMessage: blankPostMessage } as unknown as Window;
+
+    const wm = new WindowMessage(sourceWindow, () => current);
+
+    wm.sendMessage({ action: "before-nav", data: 1 });
+    expect(blankPostMessage).toHaveBeenCalledTimes(1);
+    expect(realPostMessage).not.toHaveBeenCalled();
+
+    // 模拟导航完成：iframe 现在指向真正的 sandbox 页面
+    current = { postMessage: realPostMessage } as unknown as Window;
+
+    wm.sendMessage({ action: "after-nav", data: 2 });
+    expect(realPostMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("接收消息时按当前(而非构造时)读取的 target 比对 e.source，导航后不会误丢消息", () => {
+    let messageHandler: ((e: any) => void) | null = null;
+    const sourceWindow = {
+      addEventListener: vi.fn((event: string, handler: any) => {
+        if (event === "message") messageHandler = handler;
+      }),
+    } as unknown as Window;
+
+    // 构造时若立即读取 contentWindow 会拿到 about:blank 的引用；
+    // 这里用函数延迟到真正需要比对时才读取，模拟构造之后才完成导航的时序
+    const blankWindow = {} as unknown as Window;
+    const realWindow = {} as unknown as Window;
+    let current: Window = blankWindow;
+
+    const wm = new WindowMessage(sourceWindow, () => current);
+
+    // 模拟导航完成
+    current = realWindow;
+
+    const handler = vi.fn();
+    wm.onMessage(handler);
+
+    // 真正导航后的 sandbox 页面发出的消息，其 e.source 就是 realWindow
+    messageHandler!({
+      source: realWindow,
+      data: { messageId: "m1", type: "sendMessage", data: { action: "ping" } },
+    });
+
+    expect(handler.mock.calls[0]?.[0]).toEqual({ action: "ping" });
+  });
+
+  it("target 解析抛错时不让异常冒出事件回调，且不影响后续消息的正常处理", () => {
+    let messageHandler: ((e: any) => void) | null = null;
+    const sourceWindow = {
+      addEventListener: vi.fn((event: string, handler: any) => {
+        if (event === "message") messageHandler = handler;
+      }),
+    } as unknown as Window;
+
+    // 模拟 sandbox iframe 已从 DOM 移除：contentWindow 变为 null，getTarget() 因此抛错
+    let shouldThrow = true;
+    const realWindow = {} as unknown as Window;
+    const wm = new WindowMessage(sourceWindow, () => {
+      if (shouldThrow) {
+        throw new Error("contentWindow is null");
+      }
+      return realWindow;
+    });
+
+    const handler = vi.fn();
+    wm.onMessage(handler);
+
+    // target 解析失败期间收到的消息：不应抛出未捕获异常，消息被安全丢弃
+    expect(() =>
+      messageHandler!({
+        source: realWindow,
+        data: { messageId: "m1", type: "sendMessage", data: { action: "dropped" } },
+      })
+    ).not.toThrow();
+    expect(handler).not.toHaveBeenCalled();
+
+    // target 恢复可用后，后续消息应正常处理（证明前一次异常没有破坏监听器本身）
+    shouldThrow = false;
+    messageHandler!({
+      source: realWindow,
+      data: { messageId: "m2", type: "sendMessage", data: { action: "recovered" } },
+    });
+    expect(handler.mock.calls[0]?.[0]).toEqual({ action: "recovered" });
+  });
+});
+
 describe("ServiceWorkerMessageSend ↔ ServiceWorkerClientMessage 双向通信", () => {
   // 辅助函数: 将两端连接起来，模拟 postMessage 通道
   function createWiredPair() {

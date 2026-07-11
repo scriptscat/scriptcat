@@ -8,6 +8,14 @@ export function preparationSandbox(windowMessage: WindowMessage) {
   return sendMessage(windowMessage, "offscreen/preparationSandbox");
 }
 
+// sandbox 自身对通道做的一次连通性自检结果（只有 sandbox 自己知道它何时就绪、何时做完这次自检，
+// 因此由 sandbox 主动上报，而不是由父层去 ping sandbox）
+export type SandboxChannelHealth = { ok: true; roundTripMs: number } | { ok: false; error: string };
+
+export function reportSandboxChannelHealth(windowMessage: WindowMessage, health: SandboxChannelHealth) {
+  return sendMessage(windowMessage, "offscreen/reportSandboxChannelHealth", health);
+}
+
 export function getExtensionEnv(windowMessage: WindowMessage) {
   return sendMessage(windowMessage, "offscreen/getExtensionEnv", { requireUAD: true });
 }

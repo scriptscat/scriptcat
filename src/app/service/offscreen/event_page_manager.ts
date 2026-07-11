@@ -48,7 +48,12 @@ class InProcessMessageConnect implements MessageConnect {
   }
 }
 
-class InProcessMessage implements Message, MessageSend {
+// 同一脚本内的进程内消息桥接：Firefox MV3 下事件页本身兼任 offscreen 角色，与 SW 是同一个
+// 脚本/进程，彼此之间不能通过 chrome.runtime.sendMessage/connect 通讯——自己发给自己会报
+// "Could not establish connection. Receiving end does not exist."。导出给 service_worker.ts
+// 用来搭建 offscreen -> SW 方向的桥接(SW -> offscreen 方向见本文件下方 EventPageOffscreenManager
+// 内部已有的同名用法)。
+export class InProcessMessage implements Message, MessageSend {
   private events = new EventEmitter<string, any>();
 
   connect(data: TMessage): Promise<MessageConnect> {
@@ -89,18 +94,24 @@ export class EventPageOffscreenManager extends BackgroundEnvManagerBase implemen
     }
 
     const sandbox = document.createElement("iframe");
-    sandbox.src = chrome.runtime.getURL("src/sandbox.html");
+    sandbox.src = chrome.runtime.getURL("/src/sandbox.html");
     sandbox.style.display = "none";
     document.documentElement.appendChild(sandbox);
 
-    const target = sandbox.contentWindow;
-    if (!target) {
-      throw new Error("EventPageOffscreenManager failed to create sandbox iframe.");
-    }
-
     const message = new InProcessMessage();
 
-    const windowMessage = new WindowMessage(window, target);
+    // 不要缓存 sandbox.contentWindow 的快照：刚创建的 iframe 此刻仍是初始的 about:blank 文档，
+    // 之后才会导航到真正的 sandbox 页面(manifest sandbox 页在 Firefox 154+ 下是跨源 iframe)。
+    // 缓存的 WindowProxy 引用在跨源导航后是否仍与消息事件的 e.source 全等属于浏览器实现细节，
+    // 不应依赖；因此传入惰性求值函数，每次发送/比对都重新读取 contentWindow，并在读取时校验非空
+    // (覆盖 iframe 之后被移除等场景)。
+    const windowMessage = new WindowMessage(window, () => {
+      const win = sandbox.contentWindow;
+      if (!win) {
+        throw new Error("EventPageOffscreenManager: sandbox iframe has no contentWindow (removed from DOM?).");
+      }
+      return win;
+    });
     const offscreenServer = new Server("offscreen", [message, windowMessage]);
     const serviceWorker = new ServiceWorkerClient(extMsgSender);
 

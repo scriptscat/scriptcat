@@ -119,8 +119,19 @@ already has DOM and plays the offscreen role directly.
   finds the offscreen client via `clients.matchAll()` and `postMessage`s it); Offscreen → SW replies over
   `ExtensionMessage` (`chrome.runtime`).
 - **Firefox:** [`EventPageOffscreenManager`](../src/app/service/offscreen/event_page_manager.ts) substitutes
-  for the offscreen document; `service_worker.ts` emits `preparationOffscreen` immediately because the DOM
-  environment is already live.
+  for the offscreen document; its sandbox iframe is a `sandbox` manifest page, which Firefox 154+ loads as a
+  cross-origin frame (`contentDocument` is `null`, `contentWindow.location` is unreadable). Only the sandbox
+  itself knows when it's actually ready, so the parent never polls or pings it: `SandboxManager`
+  ([`src/app/service/sandbox/index.ts`](../src/app/service/sandbox/index.ts)) proactively posts a
+  `preparationSandbox` message once its own `Server` is wired up (same mechanism on both platforms), and
+  [`BackgroundEnvManagerBase.preparationSandbox`](../src/app/service/offscreen/base.ts) immediately tells the
+  service worker `preparationOffscreen` — no round trip, no waiting. Separately and non-blockingly, the
+  sandbox reuses its own in-flight `getExtensionEnv` request to self-check that the channel is genuinely
+  bidirectional, and reports the outcome via `reportSandboxChannelHealth`, which the parent logs (visible in
+  the parent's own console/log, since the sandbox iframe's console is far less discoverable). If the sandbox
+  never announces readiness at all (iframe failed to load, script error), a fallback timer in
+  `BackgroundEnvManagerBase` still tells the service worker `preparationOffscreen` after
+  `SANDBOX_READY_FALLBACK_MS`, logging a clear error instead of hanging forever.
 
 Services never see this difference: they receive an `IOffscreenSend` and call `.init()`.
 

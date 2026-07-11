@@ -4,6 +4,7 @@ import MessageWriter from "./app/logger/message_writer";
 import { SandboxManager } from "./app/service/sandbox";
 
 function main() {
+  window.parent.postMessage({ type: "sandbox-ready", msg: "0001" }, "*");
   // 建立与offscreen页面的连接
   const windowMessage: WindowMessage = new WindowMessage(window, parent);
 
@@ -14,6 +15,7 @@ function main() {
   });
   loggerCore.logger().debug("offscreen start");
 
+  window.parent.postMessage({ type: "sandbox-ready", msg: "0002" }, "*");
   // 初始化管理器
   const manager = new SandboxManager(windowMessage);
   manager.initManager();

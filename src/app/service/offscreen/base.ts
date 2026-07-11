@@ -1,7 +1,8 @@
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { ScriptService } from "./script";
-import { type Logger } from "@App/app/repo/logger";
+import { type Logger as LoggerRecord } from "@App/app/repo/logger";
+import LoggerCore from "@App/app/logger/core";
 import { type WindowMessage } from "@Packages/message/window_message";
 import { type ServiceWorkerClient } from "../service_worker/client";
 import { sendMessage } from "@Packages/message/client";
@@ -10,10 +11,21 @@ import { MessageQueue } from "@Packages/message/message_queue";
 import { VSCodeConnect } from "./vscode-connect";
 import { HtmlExtractorService } from "./html_extractor";
 import { makeBlobURL } from "@App/pkg/utils/utils";
+import { type SandboxChannelHealth } from "./client";
+
+// 兜底超时：sandbox 若在此时长内从未发出就绪通知(iframe 加载失败/脚本异常等)，
+// 也不能让 SW 永久卡在等待 offscreen 就绪上，超时后仍放行，但打印明确的错误日志
+export const SANDBOX_READY_FALLBACK_MS = 15000;
 
 // offscreen环境的管理器
 export class BackgroundEnvManagerBase {
   private readonly messageQueue = new MessageQueue();
+
+  private readonly handshakeLogger = LoggerCore.getInstance().logger({ component: "offscreen-sandbox-handshake" });
+
+  // 确保"通知 SW 环境就绪"只执行一次：可能由真实的 sandbox 握手触发，也可能由兜底超时触发，
+  // 二者存在竞态，缺少这个防重入会导致 preparationOffscreen 被重复调用
+  private offscreenReadyNotified = false;
 
   constructor(
     private readonly extMsgSender: MessageSend,
@@ -22,7 +34,7 @@ export class BackgroundEnvManagerBase {
     private readonly serviceWorker: ServiceWorkerClient
   ) {}
 
-  logger(data: Logger) {
+  logger(data: LoggerRecord) {
     // 发送日志消息
     this.sendMessageToServiceWorker({
       action: "logger",
@@ -31,8 +43,45 @@ export class BackgroundEnvManagerBase {
   }
 
   preparationSandbox() {
+    // sandbox 主动通知自己已就绪(而非由父层猜测/轮询/ping 探测)。
+    // Firefox 154+ 下 sandbox manifest 页面是跨源 iframe：contentDocument 为 null，
+    // contentWindow.location 不可读，父层没有别的办法探测其就绪状态，也不该去 ping sandbox——
+    // 只有 sandbox 自己知道它什么时候真正就绪。sandbox 还会自行做一次通道自检，
+    // 结果通过 reportSandboxChannelHealth 单独上报(见下)。
+    this.notifyOffscreenReady("sandbox reported readiness");
+  }
+
+  // sandbox 自己主动做的通道连通性自检结果，记录到父层(offscreen 文档 / Firefox event page)的日志，
+  // 因为 sandbox 自身的控制台通常不便查看
+  reportSandboxChannelHealth(health: SandboxChannelHealth) {
+    if (health.ok) {
+      this.handshakeLogger.debug(`sandbox communication verified (${health.roundTripMs}ms round trip)`);
+    } else {
+      this.handshakeLogger.error(`sandbox communication check failed: ${health.error}`);
+    }
+  }
+
+  private notifyOffscreenReady(reason: string) {
+    if (this.offscreenReadyNotified) {
+      return;
+    }
+    this.offscreenReadyNotified = true;
+    this.handshakeLogger.debug(`offscreen ready (${reason})`);
     // 通知初始化好环境了
     this.serviceWorker.preparationOffscreen();
+  }
+
+  // 兜底：sandbox 若因 iframe 加载失败/脚本异常等原因从未发出就绪通知，也不能让 SW 永久
+  // 卡在等待 offscreen 就绪上 —— 超时后仍然放行，只是没有经过连通性验证
+  private armReadyFallback() {
+    setTimeout(() => {
+      if (!this.offscreenReadyNotified) {
+        this.handshakeLogger.error(
+          `no sandbox readiness signal received within ${SANDBOX_READY_FALLBACK_MS}ms; proceeding without a verified sandbox channel`
+        );
+        this.notifyOffscreenReady("fallback timeout, sandbox never reported readiness");
+      }
+    }, SANDBOX_READY_FALLBACK_MS);
   }
 
   async getExtensionEnv(data: { requireUAD: boolean }) {
@@ -50,8 +99,10 @@ export class BackgroundEnvManagerBase {
     // 监听消息
     this.offscreenServer.on("logger", this.logger.bind(this));
     this.offscreenServer.on("preparationSandbox", this.preparationSandbox.bind(this));
+    this.offscreenServer.on("reportSandboxChannelHealth", this.reportSandboxChannelHealth.bind(this));
     this.offscreenServer.on("getExtensionEnv", this.getExtensionEnv.bind(this));
     this.offscreenServer.on("sendMessageToServiceWorker", this.sendMessageToServiceWorker.bind(this));
+    this.armReadyFallback();
     const script = new ScriptService(
       this.offscreenServer.group("script"),
       this.extMsgSender,
