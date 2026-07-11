@@ -81,7 +81,11 @@ function EditorTabs(props: EditorTabsProps) {
                 e.stopPropagation();
                 onClose(tab.uuid);
               }}
-              className="flex size-4 shrink-0 items-center justify-center rounded opacity-0 hover:bg-muted-foreground/20 group-hover/tab:opacity-100"
+              className={cn(
+                "flex size-4 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/20",
+                // 激活标签持续显示关闭按钮(对齐 VSCode);未激活标签仅 hover 时显示
+                isActive ? "opacity-100" : "opacity-0 group-hover/tab:opacity-100"
+              )}
             >
               <X className="size-3" />
             </button>

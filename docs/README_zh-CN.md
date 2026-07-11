@@ -7,7 +7,7 @@
 ScriptCat
 </h1>
 
-<p align="center">脚本猫，一个可以执行用户脚本的浏览器扩展，万物皆可脚本化，让你的浏览器可以做更多的事情！</p>
+<p align="center">脚本猫是一个强大的用户脚本管理器，轻松定制网页、消除广告、自动执行任务等，激活浏览器的无限可能！</p>
 
 <p align="center">
 <a href="https://docs.scriptcat.org/">文档</a> ·

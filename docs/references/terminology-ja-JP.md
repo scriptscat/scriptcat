@@ -2,7 +2,7 @@
 
 本書は、ScriptCat の日本語（`ja-JP`）UI およびドキュメントで使用する用語と UI 文言の基準です。日本語の文言を翻訳または修正する際は、日本語として自然で、製品 UI として一貫した表現を使用します。
 
-用例の参照元：`src/locales/ja-JP/*.json`、`docs/README_ja.md`、`docs/ARCHITECTURE.md`
+用例の参照元：`src/locales/ja-JP/*.json`、`docs/README_ja.md`、`docs/architecture.md`
 
 ## 外来語表記の基準
 
@@ -44,7 +44,7 @@
 | --- | --- | --- | --- |
 | user script | `ユーザースクリプト` | `create_user_script`, `script_list_content` | 一般名として使用します。 |
 | normal userscript type | `ユーザースクリプト` / 現行カテゴリ名 `通常スクリプト` | `create_user_script`, `script_list.sidebar.normal_script` | バックグラウンドスクリプトやスケジュールスクリプトと統合しないでください。 |
-| Tampermonkey compatibility | `Tampermonkey 互換ユーザースクリプト` / `Tampermonkey のスクリプト` | `docs/README_ja.md`, `docs/ARCHITECTURE.md` | 互換性を説明する場合に使用し、一般名やカテゴリ名を一律に置き換えないでください。 |
+| Tampermonkey compatibility | `Tampermonkey 互換ユーザースクリプト` / `Tampermonkey のスクリプト` | `docs/README_ja.md`, `docs/architecture.md` | 互換性を説明する場合に使用し、一般名やカテゴリ名を一律に置き換えないでください。 |
 | page script | `ページスクリプト` | `script_list_enable_content` | ページ上で動作する概念を示す UI 表記です。現行の `通常スクリプト` カテゴリ名とは表示箇所を確認して使い分けます。 |
 | background script | `バックグラウンドスクリプト` | `create_background_script`, `background_script`, `enable_background.description` | 実行方式を示す製品用語です。 |
 | scheduled script | `スケジュールスクリプト` | `create_scheduled_script`, `scheduled_script`, `scheduled_script_description_title` | 定時実行のスクリプト種別です。 |
