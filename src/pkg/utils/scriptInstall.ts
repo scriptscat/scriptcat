@@ -11,6 +11,13 @@ export type ScriptInfo = {
   metadata: SCMetadata;
   source: InstallSource;
   skillScript?: boolean;
+  // 由 McpApprovalService 在暂存时附加（source === "mcp" 时必存在），
+  // install.html 据此渲染 MCP 请求横幅（doc 05 §5.1）。
+  mcp?: {
+    operationId: string;
+    requestingClientName: string;
+    contentHash: string;
+  };
 };
 
 // 供 getInstallInfo 使用

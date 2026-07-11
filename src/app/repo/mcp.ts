@@ -1,0 +1,101 @@
+import { Repo } from "./repo";
+import type {
+  McpScope,
+  OperationKind,
+  OperationStatus,
+  BridgeErrorCode,
+} from "@App/app/service/service_worker/mcp/types";
+
+// 客户端记录（doc 02 §3）：主机侧持有权威 token store，扩展侧镜像用于 UI 与 scope 判定。
+export interface McpClient {
+  clientId: string; // 配对时生成的随机 UUID
+  displayName: string; // 用户可编辑，展示时需转义
+  tokenHash: string; // SHA-256(token) 十六进制；token 本身从不落地扩展侧
+  scopes: McpScope[];
+  createdAt: number;
+  lastUsedAt: number;
+  revoked: boolean;
+}
+
+export class McpClientDAO extends Repo<McpClient> {
+  constructor() {
+    super("mcpClient");
+  }
+
+  save(client: McpClient): Promise<McpClient> {
+    return this._save(client.clientId, client);
+  }
+}
+
+// 待批操作（doc 04 §4）：TOCTOU 绑定字段全部保留，执行器在批准瞬间重新校验。
+export interface McpOperation {
+  operationId: string; // 加密安全随机 UUID
+  clientId: string;
+  kind: OperationKind;
+  status: OperationStatus;
+  createdAt: number;
+  expiresAt: number; // createdAt + 5 分钟
+  sourceUrl?: string;
+  contentHash?: string; // 暂存代码的 SHA-256
+  stagedUuid?: string; // TempStorageDAO 的 key
+  targetUuid?: string; // 更新/启用/禁用/删除的目标脚本
+  existingCodeHash?: string; // 请求时目标脚本当前代码的 SHA-256
+  requestedEnabledState: false; // 安装操作恒为 false，仅为文档化约束保留字面量类型
+  decidedAt?: number;
+  errorCode?: BridgeErrorCode;
+}
+
+export class McpOperationDAO extends Repo<McpOperation> {
+  constructor() {
+    super("mcpOperation");
+  }
+
+  save(operation: McpOperation): Promise<McpOperation> {
+    return this._save(operation.operationId, operation);
+  }
+
+  byClient(clientId: string): Promise<McpOperation[]> {
+    return this.find((_key, value) => value.clientId === clientId);
+  }
+}
+
+// 审计事件（doc 04 §9）：环形缓冲，永不记录 token、脚本源码或 URL 中的凭据。
+export interface McpAuditEvent {
+  eventId: string;
+  timestamp: number;
+  clientId: string;
+  clientName: string;
+  action: string;
+  targetUuid?: string;
+  sourceHost?: string;
+  contentHash?: string;
+  decision: "allowed" | "denied" | "awaiting_user" | "approved" | "rejected" | "expired";
+  result?: "success" | "failure";
+  errorCode?: string;
+  correlationId: string;
+}
+
+export const MCP_AUDIT_RING_BUFFER_SIZE = 500;
+
+export class McpAuditDAO extends Repo<McpAuditEvent> {
+  constructor() {
+    super("mcpAudit");
+  }
+
+  // 追加一条事件，超出环形缓冲上限时裁剪最旧的记录（按 timestamp 排序）。
+  async append(event: McpAuditEvent): Promise<void> {
+    await this._save(event.eventId, event);
+    const all = await this.all();
+    if (all.length <= MCP_AUDIT_RING_BUFFER_SIZE) {
+      return;
+    }
+    const sorted = [...all].sort((a, b) => a.timestamp - b.timestamp);
+    const toPrune = sorted.slice(0, sorted.length - MCP_AUDIT_RING_BUFFER_SIZE);
+    await this.deletes(toPrune.map((e) => e.eventId));
+  }
+
+  async clear(): Promise<void> {
+    const all = await this.all();
+    await this.deletes(all.map((e) => e.eventId));
+  }
+}
