@@ -416,6 +416,122 @@ describe("GM_audio 状态变化监听", () => {
       vi.useRealTimers();
     }
   });
+
+  it("恢复期间收到终止性错误（code）后，也应丢弃 state；此后新增的监听器不应继承旧的 everRegistered", async () => {
+    const connections = [
+      new MockMessageConnect(new EventEmitter<string, TMessage>()),
+      new MockMessageConnect(new EventEmitter<string, TMessage>()),
+      new MockMessageConnect(new EventEmitter<string, TMessage>()),
+    ];
+    const connect = vi
+      .fn()
+      .mockResolvedValueOnce(connections[0])
+      .mockResolvedValueOnce(connections[1])
+      .mockResolvedValueOnce(connections[2]);
+    const message = { connect } as unknown as Message;
+    const api = new GMApi("serviceWorker", message, message, {
+      uuid: "gm-audio-test",
+      value: {},
+    } as ScriptRunResource);
+    const listenerA = vi.fn();
+    const listenerB = vi.fn();
+
+    // 监听器 A：注册成功
+    const registrationA = api["GM.audio.addStateChangeListener"](listenerA);
+    await Promise.resolve();
+    connections[0].sendMessage({ action: "registered" });
+    await registrationA;
+
+    // 连接 1 意外断线，进入恢复期间，立即发起连接 2
+    connections[0].EE!.emit("disconnect", false);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(connect).toHaveBeenCalledTimes(2);
+
+    // 连接 2（恢复期间）在收到 registered 前收到终止性错误（如权限被收回），应彻底放弃，
+    // 而不是重试；且应像其他放弃路径一样丢弃 state，而不是让 everRegistered 残留下来
+    connections[1].sendMessage({ code: -1, message: "恢复失败" });
+    await Promise.resolve();
+    // 此时不应再有监听器存活，A 从未被显式移除，但恢复失败后其注册已被放弃
+    expect(connect).toHaveBeenCalledTimes(2);
+
+    // 添加全新的监听器 B：这是一次全新的、从未成功过的注册
+    const registrationB = api["GM.audio.addStateChangeListener"](listenerB);
+    await Promise.resolve();
+    expect(connect).toHaveBeenCalledTimes(3);
+
+    // B 的连接在收到 registered 前断线：应按“首次注册失败”处理并 reject，
+    // 而不是被残留的 everRegistered 误判为“恢复期间的重连”而重试
+    connections[2].EE!.emit("disconnect", false);
+    await expect(registrationB).rejects.toBe("GM_audio.addStateChangeListener: Connection disconnected");
+    expect(connect).toHaveBeenCalledTimes(3);
+  });
+
+  it("同一轮恢复 episode 内的多次重试应共享同一个 state.registration，直至成功或彻底放弃才结算", async () => {
+    vi.useFakeTimers();
+    try {
+      const connections = [
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+      ];
+      const connect = vi
+        .fn()
+        .mockResolvedValueOnce(connections[0])
+        .mockResolvedValueOnce(connections[1])
+        .mockResolvedValueOnce(connections[2])
+        .mockResolvedValueOnce(connections[3]);
+      const message = { connect } as unknown as Message;
+      const api = new GMApi("serviceWorker", message, message, {
+        uuid: "gm-audio-test",
+        value: {},
+      } as ScriptRunResource);
+      const listener = vi.fn();
+
+      // 连接 1：初始注册成功
+      const registration = api["GM.audio.addStateChangeListener"](listener);
+      await Promise.resolve();
+      connections[0].sendMessage({ action: "registered" });
+      await registration;
+
+      // 连接 1 意外断线，立即发起连接 2（开启新一轮 episode）
+      connections[0].EE!.emit("disconnect", false);
+      await Promise.resolve();
+      await Promise.resolve();
+      // 已注册过的 listener 复用 state.registration，借此取得本轮 episode 的 Promise 身份
+      const episodeRegistration = api["GM.audio.addStateChangeListener"](listener);
+      let settled = false;
+      void episodeRegistration.then(() => {
+        settled = true;
+      });
+
+      // 连接 2、连接 3 均在收到 registered 前又断线：属于同一轮 episode 内的重试，
+      // state.registration 应保持同一身份，不应被替换成新的 Promise
+      connections[1].EE!.emit("disconnect", false);
+      await Promise.resolve();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(connect).toHaveBeenCalledTimes(3);
+      expect(api["GM.audio.addStateChangeListener"](listener)).toBe(episodeRegistration);
+      expect(settled).toBe(false);
+
+      connections[2].EE!.emit("disconnect", false);
+      await Promise.resolve();
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(connect).toHaveBeenCalledTimes(4);
+      expect(api["GM.audio.addStateChangeListener"](listener)).toBe(episodeRegistration);
+      expect(settled).toBe(false);
+
+      // 连接 4 真正收到 registered，本轮 episode 才结算——且结算的正是最初取得的那个 Promise
+      connections[3].sendMessage({ action: "registered" });
+      await episodeRegistration;
+      expect(settled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("GM_audio 回调不应在成功回调抛出异常后被重复调用", () => {
@@ -454,6 +570,25 @@ describe("GM_audio 回调不应在成功回调抛出异常后被重复调用", (
     api["GM_audio.addStateChangeListener"](vi.fn(), callback);
     await Promise.resolve();
     connection.sendMessage({ action: "registered" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it("GM_audio.removeStateChangeListener 的回调抛出异常时只应被调用一次", async () => {
+    const { api, connection } = createAudioApi();
+    const listener = vi.fn();
+    const callback = vi.fn(() => {
+      throw new Error("callback boom");
+    });
+
+    const registration = api["GM.audio.addStateChangeListener"](listener);
+    await Promise.resolve();
+    connection.sendMessage({ action: "registered" });
+    await registration;
+
+    api["GM_audio.removeStateChangeListener"](listener, callback);
     await new Promise((resolve) => setTimeout(resolve, 0));
     await new Promise((resolve) => setTimeout(resolve, 0));
 

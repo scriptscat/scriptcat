@@ -689,101 +689,120 @@ export default class GMApi extends GM_Base {
     }
   }
 
-  // 建立（或在 service worker 意外断线后重新建立）GM_audio 状态变化连接。
-  // 由 _GM_audioAddStateChangeListener 首次调用，也由断线重连逻辑自行递归调用。
+  // 建立（或在 service worker 意外断线后重新建立）GM_audio 状态变化连接，代表一轮"注册 episode"。
+  // 由 _GM_audioAddStateChangeListener 首次调用；一个已成功 registered 的连接意外断线后，
+  // 也会递归调用本函数开启新的一轮 episode（此时旧 episode 早已 resolve，新 episode 让此后
+  // 新增的监听器能感知"当前并非已连接"而非拿到一个陈旧的、早已成功的 Promise）。
+  // 而"同一轮 episode 内、尚未收到 registered 就又断线"的重试则完全在本函数的闭包内以
+  // setTimeout 迭代进行，共享同一个 deferred，不会像每次重试都新建 Promise 并递归 then()
+  // 链接那样、在长期故障时不断堆叠、无法被回收。
   static _GM_audioConnect(a: GMApi, state: NonNullable<GMApi["audioStateChange"]>): Promise<void> {
-    // 记录本次尝试所属的世代：若在 connect() 完成前监听器被清空（remove 归零 / context 失效），
+    // 记录本轮 episode 所属的世代：若在其间监听器被清空（remove 归零 / context 失效），
     // 世代会被递增或 audioStateChange 整体被替换，届时应丢弃这个迟到的连接，避免连接泄漏
     const generation = state.generation;
     const isCurrentAttempt = () => a.audioStateChange === state && state.generation === generation;
 
-    const registration = a.connect("GM_audio", ["addStateChangeListener"]).then(
-      (connection) =>
-        new Promise<void>((resolve, reject) => {
-          if (!isCurrentAttempt() || !state.listeners.size) {
-            connection.disconnect(true);
-            resolve();
-            return;
-          }
+    let resolveEpisode!: () => void;
+    let rejectEpisode!: (error: unknown) => void;
+    const episode = new Promise<void>((resolve, reject) => {
+      resolveEpisode = resolve;
+      rejectEpisode = reject;
+    });
+    state.registration = episode;
 
-          let registered = false;
-          state.connection = connection;
-          connection.onMessage((message) => {
-            if (message.code) {
-              reject(message.message);
-              return;
-            }
-            if (message.action === "registered") {
-              registered = true;
-              state.everRegistered = true;
-              state.retryDelay = undefined;
-              resolve();
-              return;
-            }
-            if (message.action === "stateChange") {
-              for (const stateListener of state.listeners) {
-                try {
-                  stateListener(message.data as GMTypes.AudioStateChangeInfo);
-                } catch (error) {
-                  console.error(error);
-                }
-              }
-            }
-          });
-          connection.onDisconnect((isSelfDisconnected) => {
-            if (state.connection !== connection) return;
-            state.connection = undefined;
-            state.registration = undefined;
-            // 曾经成功收到过 registered（无论是本次连接还是更早的连接）时，此后任何非本端
-            // 主动触发的断线——包括恢复期间尚未收到 registered 就又断线的重连尝试——都应视为
-            // 暂时性故障并保留监听器重试，而非当作注册失败而放弃
-            if (!isSelfDisconnected && isCurrentAttempt() && state.everRegistered && state.listeners.size) {
-              const reconnect = registered
-                ? // 已确认过的连接意外断线：立即重连，重新 connect() 本身即可唤醒被回收的 service worker
-                  GMApi._GM_audioConnect(a, state)
-                : // 恢复期间的重连尝试在收到 registered 前又断线：退避后重试，避免持续故障时的忙等
-                  GMApi._GM_audioScheduleReconnect(a, state);
-              state.registration = reconnect;
-              // 若本次尝试已 registered，本 Promise 早已 resolve，链接到 reconnect 只是无操作；
-              // 若本次尝试尚未 registered（恢复期间的重连尝试又失败），则应等待替补连接的最终结果，
-              // 而不是在毫无连接、尚未收到 registered 的情况下就让调用方以为注册已经成功
-              void reconnect.then(resolve, reject);
-              return;
-            }
-            state.generation = state.generation > 1e9 ? 1 : state.generation + 1;
-            state.listeners.clear();
-            if (!registered) reject("GM_audio.addStateChangeListener: Connection disconnected");
-          });
-        })
-    );
-    state.registration = registration.catch((error) => {
-      if (isCurrentAttempt()) {
-        state.connection?.disconnect(true);
+    // 彻底放弃：丢弃整个 state（开启全新生命周期，避免 everRegistered / retryDelay 残留到
+    // 下一次 addStateChangeListener，导致全新的注册被误判为"恢复期间的重连"），并以给定原因
+    // 结束本轮 episode。
+    // 注意：必须先 rejectEpisode() 锁定结果，再 disconnect() ——disconnect() 会同步重入触发
+    // 自身的 onDisconnect（先置空 state.connection 令其提前 return），否则重入的 giveUp() 会
+    // 抢先以另一个原因结算本已确定的 episode
+    const giveUp = (error: unknown) => {
+      const wasCurrentAttempt = isCurrentAttempt();
+      rejectEpisode(error);
+      if (wasCurrentAttempt) {
+        const connection = state.connection;
         state.generation = state.generation > 1e9 ? 1 : state.generation + 1;
         state.connection = undefined;
         state.registration = undefined;
         state.listeners.clear();
+        a.audioStateChange = undefined;
+        connection?.disconnect(true);
       }
-      throw error;
-    });
-    return state.registration;
-  }
+    };
 
-  // 恢复期间的重连尝试在收到 registered 前又断线时，退避一段时间后重试，直至重连成功、
-  // 监听器被显式移除（listeners 归零）或 context 失效（audioStateChange 被替换）
-  static _GM_audioScheduleReconnect(a: GMApi, state: NonNullable<GMApi["audioStateChange"]>): Promise<void> {
-    const generation = state.generation;
-    const delay = state.retryDelay || GM_AUDIO_RETRY_BASE_DELAY;
-    state.retryDelay = Math.min(delay * 2, GM_AUDIO_RETRY_MAX_DELAY);
-    return new Promise<void>((resolve, reject) => {
+    const scheduleRetry = () => {
+      const delay = state.retryDelay || GM_AUDIO_RETRY_BASE_DELAY;
+      state.retryDelay = Math.min(delay * 2, GM_AUDIO_RETRY_MAX_DELAY);
       setTimeout(() => {
-        if (a.audioStateChange !== state || state.generation !== generation || !state.listeners.size) {
-          resolve();
+        if (!isCurrentAttempt() || !state.listeners.size) {
+          resolveEpisode();
           return;
         }
-        GMApi._GM_audioConnect(a, state).then(resolve, reject);
+        attemptOnce();
       }, delay);
-    });
+    };
+
+    const attemptOnce = () => {
+      if (!isCurrentAttempt() || !state.listeners.size) {
+        resolveEpisode();
+        return;
+      }
+      a.connect("GM_audio", ["addStateChangeListener"]).then((connection) => {
+        if (!isCurrentAttempt() || !state.listeners.size) {
+          connection.disconnect(true);
+          resolveEpisode();
+          return;
+        }
+
+        let registered = false;
+        state.connection = connection;
+        connection.onMessage((message) => {
+          if (message.code) {
+            giveUp(message.message);
+            return;
+          }
+          if (message.action === "registered") {
+            registered = true;
+            state.everRegistered = true;
+            state.retryDelay = undefined;
+            resolveEpisode();
+            return;
+          }
+          if (message.action === "stateChange") {
+            for (const stateListener of state.listeners) {
+              try {
+                stateListener(message.data as GMTypes.AudioStateChangeInfo);
+              } catch (error) {
+                console.error(error);
+              }
+            }
+          }
+        });
+        connection.onDisconnect((isSelfDisconnected) => {
+          if (state.connection !== connection) return;
+          state.connection = undefined;
+          // 曾经成功收到过 registered（无论是本次连接还是更早的连接）时，此后任何非本端
+          // 主动触发的断线——包括恢复期间尚未收到 registered 就又断线的重连尝试——都应视为
+          // 暂时性故障并保留监听器重试，而非当作注册失败而放弃
+          if (!isSelfDisconnected && isCurrentAttempt() && state.everRegistered && state.listeners.size) {
+            if (registered) {
+              // 已确认过的连接意外断线：本轮 episode 早已 resolve，开启新的一轮
+              // episode——重新 connect() 本身即可唤醒被回收的 service worker
+              GMApi._GM_audioConnect(a, state).catch(() => {});
+            } else {
+              // 本轮 episode 内的重连尝试在收到 registered 前又断线：退避后在同一轮
+              // episode 内重试，避免持续故障时的忙等，也避免每次重试都新建 Promise
+              scheduleRetry();
+            }
+            return;
+          }
+          giveUp(registered ? undefined : "GM_audio.addStateChangeListener: Connection disconnected");
+        });
+      }, giveUp);
+    };
+
+    attemptOnce();
+    return episode;
   }
 
   static _GM_audioAddStateChangeListener(a: GMApi, listener: GMTypes.AudioStateChangeListener): Promise<void> {
@@ -848,7 +867,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ follow: "GM_audio" })
   public "GM_audio.removeStateChangeListener"(listener: GMTypes.AudioStateChangeListener, callback?: () => void): void {
-    void _GM_audioRemoveStateChangeListener(this, listener).then(() => callback?.());
+    void _GM_audioRemoveStateChangeListener(this, listener).then(() => _GM_audioSafeInvoke(callback));
   }
 
   @GMContext.API({ follow: "GM.audio" })
