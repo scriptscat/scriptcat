@@ -7,11 +7,7 @@ type AudioRegistrationCancel = () => void;
 
 const audioRegistrationCancels = new WeakMap<object, Map<AudioListener, Set<AudioRegistrationCancel>>>();
 
-function registerAudioCancellation(
-  context: object,
-  listener: AudioListener,
-  cancel: AudioRegistrationCancel
-): void {
+function registerAudioCancellation(context: object, listener: AudioListener, cancel: AudioRegistrationCancel): void {
   let registrations = audioRegistrationCancels.get(context);
   if (!registrations) {
     registrations = new Map();
@@ -25,11 +21,7 @@ function registerAudioCancellation(
   cancellations.add(cancel);
 }
 
-function unregisterAudioCancellation(
-  context: object,
-  listener: AudioListener,
-  cancel: AudioRegistrationCancel
-): void {
+function unregisterAudioCancellation(context: object, listener: AudioListener, cancel: AudioRegistrationCancel): void {
   const registrations = audioRegistrationCancels.get(context);
   const cancellations = registrations?.get(listener);
   cancellations?.delete(cancel);
@@ -83,15 +75,14 @@ function wrapAudioRegistrationApi(propertyName: string, api: (...args: any[]) =>
       if (typeof listener !== "function") return api.call(this, listener, callback);
 
       let settled = false;
-      let cancel!: AudioRegistrationCancel;
+      const cancel: AudioRegistrationCancel = () => {
+        void Promise.resolve().then(() => finish(undefined));
+      };
       const finish = (error?: unknown) => {
         if (settled) return;
         settled = true;
         unregisterAudioCancellation(this, listener as AudioListener, cancel);
         safeInvoke(callback, error);
-      };
-      cancel = () => {
-        void Promise.resolve().then(() => finish(undefined));
       };
       registerAudioCancellation(this, listener as AudioListener, cancel);
       try {
@@ -103,10 +94,7 @@ function wrapAudioRegistrationApi(propertyName: string, api: (...args: any[]) =>
     };
   }
 
-  if (
-    propertyName === "GM.audio.removeStateChangeListener" ||
-    propertyName === "GM_audio.removeStateChangeListener"
-  ) {
+  if (propertyName === "GM.audio.removeStateChangeListener" || propertyName === "GM_audio.removeStateChangeListener") {
     return function (this: object, listener: unknown, ...args: unknown[]) {
       cancelAudioRegistrations(this, listener);
       return api.call(this, listener, ...args);
