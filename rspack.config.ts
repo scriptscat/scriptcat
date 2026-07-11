@@ -138,7 +138,7 @@ export default {
       "process.env.VI_TESTING": "'false'",
       "process.env.SC_RANDOM_KEY": `'${uuidv4()}'`,
       "process.env.SC_DISABLE_AGENT": `'${enableAgent ? "false" : "true"}'`,
-      "process.env.SC_KEEP_EVENT_PAGE_ACTIVE": "'false'",
+      "process.env.SC_KEEP_EVENT_PAGE_ACTIVE": "'true'", // 正式 Release 需设为 true 避免定时脚本失效
     }),
     new rspack.CopyRspackPlugin({
       patterns: [
