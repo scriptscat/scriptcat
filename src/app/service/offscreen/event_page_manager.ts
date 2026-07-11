@@ -193,7 +193,7 @@ const startFirefoxEventPageKeepAliveLoop =
 
         // 发起一次探测请求，作为心跳循环的一拍
         const sendKeepAliveProbe = () => {
-          const image = new Image();
+          const image = new Image(1, 1);
           probeStartedAt = Date.now();
 
           image.onload = onKeepAliveProbeSettled;
