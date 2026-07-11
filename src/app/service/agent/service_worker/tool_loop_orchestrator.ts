@@ -1,5 +1,8 @@
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
-import type { ScriptToolCallback, ToolExecutorLike } from "@App/app/service/agent/core/tool_registry";
+import type {
+  ScriptToolCallback,
+  ToolExecutorLike,
+} from "@App/app/service/agent/core/tool_registry";
 import type {
   AgentModelConfig,
   ChatRequest,
@@ -13,12 +16,15 @@ import type {
 } from "@App/app/service/agent/core/types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { getContextWindow } from "@App/app/service/agent/core/model_context";
-import { detectToolCallIssues, type ToolCallRecord } from "@App/app/service/agent/core/tool_call_guard";
+import {
+  detectToolCallIssues,
+  type ToolCallRecord,
+} from "@App/app/service/agent/core/tool_call_guard";
 import { elideOldToolResults } from "@App/app/service/agent/core/context_elision";
 import type { LLMCallResult } from "./llm_client";
 
 // 上下文占用达到这些比例时，分批裁剪保留窗口外的旧 tool 结果（早于 autoCompact 的 80% 阈值）。
-// 按阈值分批触发而非逐轮触发，避免每轮都重写消息前缀导致 Anthropic 的 prompt cache 断点失效。
+// 按阈值分批触发，并在 60% 以上每新增一个保留窗口重新裁剪，兼顾真正的滑动窗口与 prompt cache 稳定性。
 const ELISION_THRESHOLDS = [0.4, 0.6];
 // 保留最近几轮 assistant(带 toolCalls) 及其 tool 结果的完整原文，更早的轮次被裁剪为占位文本
 const ELISION_KEEP_LAST_ASSISTANT_TURNS = 5;
@@ -27,21 +33,76 @@ const ELISION_KEEP_LAST_ASSISTANT_TURNS = 5;
 const GUARD_ESCALATION_STRIKES = 2;
 const GUARD_STOP_ANSWER = "Stop";
 
+type AskUserForGuard = (question: string, options: string[]) => Promise<string>;
+
+/**
+ * Provider 归一化后的实际上下文输入 token。
+ * Anthropic 将缓存命中/写入 token 与断点后的 input_tokens 分开返回；OpenAI 的 prompt_tokens 已含缓存部分。
+ */
+function getContextInputTokens(
+  model: AgentModelConfig,
+  usage: NonNullable<LLMCallResult["usage"]>,
+): number {
+  if (model.provider !== "anthropic") return usage.inputTokens;
+  return (
+    usage.inputTokens +
+    (usage.cacheCreationInputTokens || 0) +
+    (usage.cacheReadInputTokens || 0)
+  );
+}
+
+/** 等待 loop-guard 回答；AbortSignal 触发时立即返回 null，不再阻塞会话停止/断开。 */
+function waitForGuardAnswer(
+  askUserForGuard: AskUserForGuard,
+  question: string,
+  options: string[],
+  signal: AbortSignal,
+): Promise<string | null> {
+  if (signal.aborted) return Promise.resolve(null);
+
+  return new Promise<string | null>((resolve, reject) => {
+    let settled = false;
+    const cleanup = () => signal.removeEventListener("abort", onAbort);
+    const resolveOnce = (answer: string | null) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(answer);
+    };
+    const rejectOnce = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+    const onAbort = () => resolveOnce(null);
+
+    signal.addEventListener("abort", onAbort, { once: true });
+    Promise.resolve()
+      .then(() => askUserForGuard(question, options))
+      .then(resolveOnce, rejectOnce);
+  });
+}
+
 /** ToolLoopOrchestrator 所需的外部依赖（由 AgentService 注入） */
 export interface ToolLoopDeps {
   // callLLM 通过 lambda 注入，确保测试 spy 可以拦截
   callLLM(
     model: AgentModelConfig,
-    params: { messages: ChatRequest["messages"]; tools?: ToolDefinition[]; cache?: boolean },
+    params: {
+      messages: ChatRequest["messages"];
+      tools?: ToolDefinition[];
+      cache?: boolean;
+    },
     sendEvent: (event: ChatStreamEvent) => void,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<LLMCallResult>;
   autoCompact(
     conversationId: string,
     model: AgentModelConfig,
     messages: ChatRequest["messages"],
     sendEvent: (event: ChatStreamEvent) => void,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<void>;
 }
 
@@ -51,7 +112,7 @@ export class ToolLoopOrchestrator {
   // 保证并发会话各自使用独立的工具注册表，避免闭包互相覆盖。
   constructor(
     private deps: ToolLoopDeps,
-    private chatRepo: AgentChatRepo
+    private chatRepo: AgentChatRepo,
   ) {}
 
   // 统一的 tool calling 循环，UI 和脚本共用
@@ -76,7 +137,7 @@ export class ToolLoopOrchestrator {
     cache?: boolean;
     // 循环检测连续命中达到 GUARD_ESCALATION_STRIKES 次时调用，暂停循环询问用户是否继续。
     // 仅由 UI 对话（含后台会话）传入；定时任务、子代理不传，保持原有的仅告警不暂停行为。
-    askUserForGuard?: (question: string, options: string[]) => Promise<string>;
+    askUserForGuard?: AskUserForGuard;
   }): Promise<void> {
     const {
       toolRegistry,
@@ -92,11 +153,19 @@ export class ToolLoopOrchestrator {
 
     const startTime = Date.now();
     let iterations = 0;
-    const totalUsage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
+    const totalUsage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+    };
     const toolCallHistory: ToolCallRecord[] = [];
     let guardStartIndex = 0;
     // 已触发过的裁剪阈值下标（-1 表示尚未触发过），避免同一阈值区间内每轮重复裁剪
     let lastElisionThresholdIndex = -1;
+    // 60% 以上按“每新增一个保留窗口”重新裁剪，避免窗口在第二个阈值后停止滑动
+    let assistantToolTurns = 0;
+    let lastElisionAssistantTurn = 0;
     // 循环检测命中次数，达到 GUARD_ESCALATION_STRIKES 后暂停询问用户
     let guardStrikeCount = 0;
 
@@ -104,7 +173,9 @@ export class ToolLoopOrchestrator {
       iterations++;
 
       // 每轮重新获取工具定义（load_skill 可能动态注册了新工具）
-      let allToolDefs = params.skipBuiltinTools ? tools || [] : toolRegistry.getDefinitions(tools);
+      let allToolDefs = params.skipBuiltinTools
+        ? tools || []
+        : toolRegistry.getDefinitions(tools);
       if (params.excludeTools && params.excludeTools.length > 0) {
         const excludeSet = new Set(params.excludeTools);
         allToolDefs = allToolDefs.filter((t) => !excludeSet.has(t.name));
@@ -113,9 +184,13 @@ export class ToolLoopOrchestrator {
       // 调用 LLM（重试由 llm_client 内部处理）
       const result = await this.deps.callLLM(
         model,
-        { messages, tools: allToolDefs.length > 0 ? allToolDefs : undefined, cache: params.cache },
+        {
+          messages,
+          tools: allToolDefs.length > 0 ? allToolDefs : undefined,
+          cache: params.cache,
+        },
         sendEvent,
-        signal
+        signal,
       );
 
       if (signal.aborted) return;
@@ -124,21 +199,34 @@ export class ToolLoopOrchestrator {
       if (result.usage) {
         totalUsage.inputTokens += result.usage.inputTokens;
         totalUsage.outputTokens += result.usage.outputTokens;
-        totalUsage.cacheCreationInputTokens += result.usage.cacheCreationInputTokens || 0;
-        totalUsage.cacheReadInputTokens += result.usage.cacheReadInputTokens || 0;
+        totalUsage.cacheCreationInputTokens +=
+          result.usage.cacheCreationInputTokens || 0;
+        totalUsage.cacheReadInputTokens +=
+          result.usage.cacheReadInputTokens || 0;
       }
 
       // 自动 compact：当上下文占用超过 80% 时触发；否则按阈值分批裁剪旧 tool 结果（见下方 pendingElision）
       let pendingElision = false;
+      let contextUsageRatio: number | null = null;
       if (result.usage && conversationId) {
         const contextWindow = getContextWindow(model);
-        const usageRatio = result.usage.inputTokens / contextWindow;
+        contextUsageRatio =
+          getContextInputTokens(model, result.usage) / contextWindow;
 
-        if (usageRatio >= 0.8) {
-          await this.deps.autoCompact(conversationId, model, messages, sendEvent, signal);
+        if (contextUsageRatio >= 0.8) {
+          await this.deps.autoCompact(
+            conversationId,
+            model,
+            messages,
+            sendEvent,
+            signal,
+          );
         } else {
           for (let i = 0; i < ELISION_THRESHOLDS.length; i++) {
-            if (i > lastElisionThresholdIndex && usageRatio >= ELISION_THRESHOLDS[i]) {
+            if (
+              i > lastElisionThresholdIndex &&
+              contextUsageRatio >= ELISION_THRESHOLDS[i]
+            ) {
               pendingElision = true;
               lastElisionThresholdIndex = i;
             }
@@ -150,7 +238,8 @@ export class ToolLoopOrchestrator {
       const buildMessageContent = (): MessageContent => {
         if (result.contentBlocks && result.contentBlocks.length > 0) {
           const blocks: ContentBlock[] = [];
-          if (result.content) blocks.push({ type: "text", text: result.content });
+          if (result.content)
+            blocks.push({ type: "text", text: result.content });
           blocks.push(...result.contentBlocks);
           return blocks;
         }
@@ -158,7 +247,11 @@ export class ToolLoopOrchestrator {
       };
 
       // 如果有 tool calls，需要执行并继续循环
-      if (result.toolCalls && result.toolCalls.length > 0 && allToolDefs.length > 0) {
+      if (
+        result.toolCalls &&
+        result.toolCalls.length > 0 &&
+        allToolDefs.length > 0
+      ) {
         // 持久化 assistant 消息（含 tool calls）
         if (conversationId) {
           await this.chatRepo.appendMessage({
@@ -166,20 +259,32 @@ export class ToolLoopOrchestrator {
             conversationId,
             role: "assistant",
             content: buildMessageContent(),
-            thinking: result.thinking ? { content: result.thinking } : undefined,
+            thinking: result.thinking
+              ? { content: result.thinking }
+              : undefined,
             toolCalls: result.toolCalls,
             createtime: Date.now(),
           });
         }
 
         // 将 assistant 消息加入上下文（带 toolCalls，供 provider 构建 tool_calls 字段）
-        messages.push({ role: "assistant", content: result.content || "", toolCalls: result.toolCalls });
+        messages.push({
+          role: "assistant",
+          content: result.content || "",
+          toolCalls: result.toolCalls,
+        });
 
         // 通过 ToolRegistry 执行工具（内置工具直接执行，脚本工具回调 Sandbox）
         // excludeTools 做后端强校验：被排除的工具名直接返回 error，避免 LLM 盲调绕过白/黑名单
         const excludeToolsSet =
-          params.excludeTools && params.excludeTools.length > 0 ? new Set(params.excludeTools) : undefined;
-        const toolResults = await toolRegistry.execute(result.toolCalls, scriptToolCallback, excludeToolsSet);
+          params.excludeTools && params.excludeTools.length > 0
+            ? new Set(params.excludeTools)
+            : undefined;
+        const toolResults = await toolRegistry.execute(
+          result.toolCalls,
+          scriptToolCallback,
+          excludeToolsSet,
+        );
 
         // 将 tool 结果加入消息，并通知 UI 工具执行完成
         // 收集需要回写的 toolCall 元数据（执行状态 / 附件 / 子代理详情）
@@ -189,9 +294,18 @@ export class ToolLoopOrchestrator {
 
         for (const tr of toolResults) {
           // LLM 上下文只包含文本结果，不含附件
-          messages.push({ role: "tool", content: tr.result, toolCallId: tr.id });
+          messages.push({
+            role: "tool",
+            content: tr.result,
+            toolCallId: tr.id,
+          });
           // 通知 UI 工具执行完成（含附件元数据）
-          sendEvent({ type: "tool_call_complete", id: tr.id, result: tr.result, attachments: tr.attachments });
+          sendEvent({
+            type: "tool_call_complete",
+            id: tr.id,
+            result: tr.result,
+            attachments: tr.attachments,
+          });
 
           completedIds.add(tr.id);
           if (tr.attachments?.length) {
@@ -229,7 +343,9 @@ export class ToolLoopOrchestrator {
 
         // 内存上下文中的 assistant 消息
         const assistantMsg = messages.find(
-          (m) => m.role === "assistant" && m.toolCalls?.some((tc: ToolCall) => completedIds.has(tc.id))
+          (m) =>
+            m.role === "assistant" &&
+            m.toolCalls?.some((tc: ToolCall) => completedIds.has(tc.id)),
         );
         if (assistantMsg?.toolCalls) applyToolUpdates(assistantMsg.toolCalls);
 
@@ -238,7 +354,10 @@ export class ToolLoopOrchestrator {
           const allMessages = await this.chatRepo.getMessages(conversationId);
           for (let i = allMessages.length - 1; i >= 0; i--) {
             const msg = allMessages[i];
-            if (msg.role === "assistant" && msg.toolCalls?.some((tc: ToolCall) => completedIds.has(tc.id))) {
+            if (
+              msg.role === "assistant" &&
+              msg.toolCalls?.some((tc: ToolCall) => completedIds.has(tc.id))
+            ) {
               applyToolUpdates(msg.toolCalls!);
               await this.chatRepo.saveMessages(conversationId, allMessages);
               break;
@@ -260,7 +379,10 @@ export class ToolLoopOrchestrator {
 
         // 工具调用模式检测：检测重复/循环模式并注入针对性提醒
         // 每次警告后推进 startIndex，避免旧记录持续触发同一条警告
-        const toolCallWarning = detectToolCallIssues(toolCallHistory, guardStartIndex);
+        const toolCallWarning = detectToolCallIssues(
+          toolCallHistory,
+          guardStartIndex,
+        );
         if (toolCallWarning) {
           guardStartIndex = toolCallHistory.length;
           messages.push({ role: "user", content: toolCallWarning });
@@ -268,19 +390,32 @@ export class ToolLoopOrchestrator {
           guardStrikeCount++;
 
           // 连续命中达到阈值时暂停，询问用户是否继续（仅 UI 对话传入 askUserForGuard 时生效）
-          if (guardStrikeCount >= GUARD_ESCALATION_STRIKES && params.askUserForGuard) {
-            const answer = await params.askUserForGuard(
+          if (
+            guardStrikeCount >= GUARD_ESCALATION_STRIKES &&
+            params.askUserForGuard
+          ) {
+            const answer = await waitForGuardAnswer(
+              params.askUserForGuard,
               `[System] The Agent has triggered the loop-guard warning ${guardStrikeCount} times since the last check. Continue letting it proceed automatically, or stop here?`,
-              ["Continue", GUARD_STOP_ANSWER]
+              ["Continue", GUARD_STOP_ANSWER],
+              signal,
             );
-            if (answer.trim().toLowerCase() === GUARD_STOP_ANSWER.toLowerCase()) {
+            if (answer === null) {
+              const durationMs = Date.now() - startTime;
+              sendEvent({ type: "done", usage: totalUsage, durationMs });
+              return;
+            }
+            if (
+              answer.trim().toLowerCase() === GUARD_STOP_ANSWER.toLowerCase()
+            ) {
               const durationMs = Date.now() - startTime;
               if (conversationId) {
                 await this.chatRepo.appendMessage({
                   id: uuidv4(),
                   conversationId,
                   role: "assistant",
-                  content: "Stopped at the user's request after repeated loop-guard warnings.",
+                  content:
+                    "Stopped at the user's request after repeated loop-guard warnings.",
                   usage: totalUsage,
                   durationMs,
                   createtime: Date.now(),
@@ -294,9 +429,23 @@ export class ToolLoopOrchestrator {
           }
         }
 
+        assistantToolTurns++;
+        // 60% 以上每新增一个完整保留窗口再裁剪一次，既保持窗口滑动，也避免每轮破坏缓存前缀。
+        if (
+          !pendingElision &&
+          contextUsageRatio !== null &&
+          contextUsageRatio >=
+            ELISION_THRESHOLDS[ELISION_THRESHOLDS.length - 1] &&
+          assistantToolTurns - lastElisionAssistantTurn >=
+            ELISION_KEEP_LAST_ASSISTANT_TURNS
+        ) {
+          pendingElision = true;
+        }
+
         // 分批裁剪：待本轮 assistant/tool 消息入列后再裁剪，让本轮内容计入"最近 K 轮"窗口
         if (pendingElision) {
           elideOldToolResults(messages, ELISION_KEEP_LAST_ASSISTANT_TURNS);
+          lastElisionAssistantTurn = assistantToolTurns;
         }
 
         // 通知 UI 即将开始新一轮 LLM 调用，创建新的 assistant 消息
