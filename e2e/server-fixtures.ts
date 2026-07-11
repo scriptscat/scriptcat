@@ -38,6 +38,10 @@ const chromeArgs = [
   "--disable-gpu",
 ];
 
+// CI（GitHub Actions）跑在非 root 用户下不会自动应用 --no-sandbox，关掉沙箱能省下每次
+// launchPersistentContext 的 sandbox/fork 开销；本地开发机上仍保留沙箱隔离。
+const chromiumSandbox = !process.env.CI;
+
 export const test = base.extend<
   {
     context: BrowserContext;
@@ -57,6 +61,7 @@ export const test = base.extend<
         headless: false,
         args: ["--headless=new", ...chromeArgs],
         timeout: 60_000,
+        chromiumSandbox,
       });
       let [bg] = ctx1.serviceWorkers();
       if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 14_000 });
@@ -89,6 +94,7 @@ export const test = base.extend<
       headless: false,
       args: ["--headless=new", ...chromeArgs],
       timeout: 60_000,
+      chromiumSandbox,
     });
     const [sw] = context.serviceWorkers();
     if (!sw) await context.waitForEvent("serviceworker", { timeout: 14_000 });

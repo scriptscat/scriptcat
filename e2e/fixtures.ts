@@ -25,6 +25,10 @@ const chromeArgs = [
   "--disable-gpu",
 ];
 
+// CI（GitHub Actions）跑在非 root 用户下不会自动应用 --no-sandbox，关掉沙箱能省下每次
+// launchPersistentContext 的 sandbox/fork 开销；本地开发机上仍保留沙箱隔离。
+const chromiumSandbox = !process.env.CI;
+
 // 预先标记「非首次使用」，避免新手引导欢迎弹窗的模态遮罩拦截测试交互。
 // 用 addInitScript 在每个页面脚本执行前注入，避开持久化 profile 下「开页→写→关页」的 localStorage 落盘竞态。
 function dismissOnboarding() {
@@ -48,6 +52,7 @@ export const test = base.extend<{
       headless: false,
       args: ["--headless=new", ...chromeArgs],
       timeout: 60_000,
+      chromiumSandbox,
       ...getProxyOptions(),
       ...getRecordVideoOptions(),
     });
@@ -93,6 +98,7 @@ export const testWithUserScripts = base.extend<
         headless: false,
         args: ["--headless=new", ...chromeArgs],
         timeout: 60_000,
+        chromiumSandbox,
       });
       let [bg] = ctx1.serviceWorkers();
       if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 14_000 });
@@ -125,6 +131,7 @@ export const testWithUserScripts = base.extend<
       headless: false,
       args: ["--headless=new", ...chromeArgs],
       timeout: 60_000,
+      chromiumSandbox,
       ...getProxyOptions(),
       ...getRecordVideoOptions(),
     });
