@@ -48,7 +48,9 @@ describe("GM_audio pending registration cancellation", () => {
     await Promise.resolve();
 
     expect(registered).toHaveBeenCalledTimes(1);
-    expect(registered).toHaveBeenCalledWith(undefined);
+    // 与 setMute/getState/addStateChangeListener 等其余成功路径一致：不带参数调用回调
+    // （GMTypes.AudioErrorCallback 的 error 为可选参数，无参调用与显式传入 undefined 等价）
+    expect(registered).toHaveBeenCalledWith();
     expect(disconnect).toHaveBeenCalledTimes(1);
     expect(connect).toHaveBeenCalledTimes(1);
   });

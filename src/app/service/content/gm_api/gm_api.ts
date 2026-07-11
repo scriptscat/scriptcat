@@ -233,6 +233,11 @@ export default class GMApi extends GM_Base {
     everRegistered?: boolean;
     // 恢复重连的退避延迟（毫秒），每次收到 registered 后重置，每次退避重试后倍增并封顶
     retryDelay?: number;
+    // 当前这一轮 episode 的 resolve 函数：监听器归零（显式移除）时，若此时连接已建立但尚未
+    // 收到 registered，disconnect() 前会先置空 state.connection，导致 onDisconnect 的守卫
+    // 直接 return、无法感知这是"移除触发的断线"而结算 Promise；因此需要在这里直接结算，
+    // 避免 addStateChangeListener 返回的 Promise/回调永久悬挂
+    settleRegistration?: () => void;
   };
 
   constructor(
@@ -709,6 +714,10 @@ export default class GMApi extends GM_Base {
       rejectEpisode = reject;
     });
     state.registration = episode;
+    // 暴露给 _GM_audioRemoveStateChangeListener：监听器归零时，即使连接已建立但尚未收到
+    // registered，也能直接结算本轮 episode，而不必依赖 onDisconnect 的重入（见下方说明，
+    // 那条路径在这种情况下会被守卫提前 return，永远不会结算）
+    state.settleRegistration = resolveEpisode;
 
     // 彻底放弃：丢弃整个 state（开启全新生命周期，避免 everRegistered / retryDelay 残留到
     // 下一次 addStateChangeListener，导致全新的注册被误判为"恢复期间的重连"），并以给定原因
@@ -724,6 +733,7 @@ export default class GMApi extends GM_Base {
         state.generation = state.generation > 1e9 ? 1 : state.generation + 1;
         state.connection = undefined;
         state.registration = undefined;
+        state.settleRegistration = undefined;
         state.listeners.clear();
         a.audioStateChange = undefined;
         connection?.disconnect(true);
@@ -827,13 +837,20 @@ export default class GMApi extends GM_Base {
 
     if (state) {
       const connection = state.connection;
+      const settleRegistration = state.settleRegistration;
       state.generation = state.generation > 1e9 ? 1 : state.generation + 1;
       state.connection = undefined;
       state.registration = undefined;
+      state.settleRegistration = undefined;
       // 监听器归零：彻底丢弃 state，开启全新的注册生命周期，避免 everRegistered / retryDelay
       // 残留到下一次 addStateChangeListener，导致全新的注册被误判为“恢复期间的重连”
       a.audioStateChange = undefined;
       connection?.disconnect(true);
+      // 若此时连接已建立但尚未收到 registered，上面的 disconnect() 不会让 onDisconnect
+      // 结算 episode（state.connection 已被置空，守卫会直接 return）；若连接尚未建立
+      // （connect() 仍在进行中），attemptOnce() 的 resolve 也要等到 connect() 完成才会触发。
+      // 因此这里直接结算，确保 addStateChangeListener 返回的 Promise/回调不会永久悬挂
+      settleRegistration?.();
     }
     return Promise.resolve();
   }
