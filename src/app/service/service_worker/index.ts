@@ -21,7 +21,7 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { FaviconDAO } from "@App/app/repo/favicon";
 import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
 import { cacheInstance } from "@App/app/cache";
-import { InfoNotification } from "./utils";
+import { InfoNotification, shouldAutoOpenChangelog } from "./utils";
 import { AgentService } from "@App/app/service/agent/service_worker/agent";
 import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_env";
 import { cleanupStaleTempStorageEntries } from "./temp";
@@ -276,7 +276,7 @@ export default class ServiceWorkerManager {
                 url,
               }
             );
-            if (ExtVersion.endsWith(".0")) {
+            if (shouldAutoOpenChangelog(ExtVersion)) {
               getCurrentTab()
                 .then((tab) => {
                   // 检查是否正在播放视频，或者窗口未激活
