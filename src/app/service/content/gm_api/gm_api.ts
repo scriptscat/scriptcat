@@ -1027,10 +1027,12 @@ export default class GMApi extends GM_Base {
           switch (data.action) {
             case "onload":
               details.onload?.(makeCallbackParam({ ...data.data }));
+              details.onloadend?.(makeCallbackParam({ ...data.data }));
               retPromiseResolve?.(data.data);
               break;
             case "save_cancelled": // saveAs cancelled by user，TM 视为下载成功
               details.onload?.(makeCallbackParam({ ...data.data }));
+              details.onloadend?.(makeCallbackParam({ ...data.data }));
               retPromiseResolve?.(data.data);
               break;
             case "onprogress":
@@ -1039,16 +1041,19 @@ export default class GMApi extends GM_Base {
               break;
             case "ontimeout":
               details.ontimeout?.(makeCallbackParam({}));
+              details.onloadend?.(makeCallbackParam({}));
               retPromiseReject?.(new Error("Timeout ERROR"));
               break;
             case "onerror":
               details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
+              details.onloadend?.(makeCallbackParam({ error: "unknown" }));
               retPromiseReject?.(new Error("Unknown ERROR"));
               break;
             default:
               LoggerCore.logger().warn("GM_download resp is error", {
                 data,
               });
+              details.onloadend?.(makeCallbackParam({}));
               retPromiseReject?.(new Error("Unexpected Internal ERROR"));
               break;
           }
@@ -1100,6 +1105,7 @@ export default class GMApi extends GM_Base {
               releaseResources();
               if (!aborted) {
                 details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
+                details.onloadend?.(makeCallbackParam({ error: "unknown" }));
                 retPromiseReject?.(e instanceof Error ? e : new Error("GM_download connect ERROR"));
               }
               return;
@@ -1121,21 +1127,25 @@ export default class GMApi extends GM_Base {
               switch (data.action) {
                 case "onload":
                   details.onload?.(makeCallbackParam({ ...data.data }));
+                  details.onloadend?.(makeCallbackParam({ ...data.data }));
                   retPromiseResolve?.(data.data);
                   releaseResources();
                   break;
                 case "save_cancelled": // saveAs cancelled by user，TM 视为下载成功
                   details.onload?.(makeCallbackParam({ ...data.data }));
+                  details.onloadend?.(makeCallbackParam({ ...data.data }));
                   retPromiseResolve?.(data.data);
                   releaseResources();
                   break;
                 case "ontimeout":
                   details.ontimeout?.(makeCallbackParam({}));
+                  details.onloadend?.(makeCallbackParam({}));
                   retPromiseReject?.(new Error("Timeout ERROR"));
                   releaseResources();
                   break;
                 case "onerror":
                   details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
+                  details.onloadend?.(makeCallbackParam({ error: "unknown" }));
                   retPromiseReject?.(new Error("Unknown ERROR"));
                   releaseResources();
                   break;
@@ -1143,6 +1153,7 @@ export default class GMApi extends GM_Base {
                   LoggerCore.logger().warn("GM_download resp is error", {
                     data,
                   });
+                  details.onloadend?.(makeCallbackParam({}));
                   retPromiseReject?.(new Error("Unexpected Internal ERROR"));
                   releaseResources();
                   break;
@@ -1163,9 +1174,11 @@ export default class GMApi extends GM_Base {
           },
           ontimeout: () => {
             details.ontimeout?.(makeCallbackParam({}));
+            details.onloadend?.(makeCallbackParam({}));
           },
           onerror: () => {
             details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
+            details.onloadend?.(makeCallbackParam({ error: "unknown" }));
           },
         } as GMTypes.XHRDetails;
         if (typeof details.headers === "object") {
