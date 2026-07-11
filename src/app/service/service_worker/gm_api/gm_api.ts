@@ -1252,7 +1252,7 @@ export default class GMApi {
         const tab = await chrome.tabs.get(tabId);
         const state: GMTypes.AudioState = {};
         if (typeof tab.mutedInfo?.muted === "boolean") state.isMuted = tab.mutedInfo.muted;
-        if (tab.mutedInfo?.reason) state.muteReason = tab.mutedInfo.reason;
+        if (tab.mutedInfo?.muted && tab.mutedInfo.reason) state.muteReason = tab.mutedInfo.reason;
         if (typeof tab.audible === "boolean") state.isAudible = tab.audible;
         return state;
       }
