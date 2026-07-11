@@ -506,6 +506,56 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     }
   });
 
+  it("收到 upload 进度后调用 abort()，补发的 upload.onabort / onloadend 应携带最后一次进度数据", async () => {
+    const { api, getMessageHandler } = createFakeApi();
+    const onUploadAbort = vi.fn();
+    const onUploadLoadEnd = vi.fn();
+    const details = {
+      url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
+      upload: {
+        onprogress: vi.fn(),
+        onabort: onUploadAbort,
+        onloadend: onUploadLoadEnd,
+      },
+    } as unknown as GMTypes.XHRDetails;
+
+    const { abort } = GM_xmlhttpRequest(api, details, false);
+    await waitTick();
+    const messageHandler = getMessageHandler();
+
+    messageHandler!({
+      action: "onuploadprogress",
+      data: {
+        finalUrl: "",
+        readyState: 1,
+        status: 0,
+        statusText: "",
+        responseHeaders: "",
+        useFetch: false,
+        eventType: "uploadprogress",
+        ok: false,
+        contentType: "",
+        loaded: 5 * 1024 * 1024,
+        total: 10 * 1024 * 1024,
+        lengthComputable: true,
+      },
+    });
+    await waitTick();
+
+    abort();
+    await waitTick();
+
+    for (const fn of [onUploadAbort, onUploadLoadEnd]) {
+      expect(fn).toHaveBeenCalledTimes(1);
+      const arg = fn.mock.calls[0][0];
+      expect(arg.loaded).toBe(5 * 1024 * 1024);
+      expect(arg.total).toBe(10 * 1024 * 1024);
+      expect(arg.lengthComputable).toBe(true);
+    }
+  });
+
   it("从未完成的 upload 阶段调用 abort() 时，事件应按 upload.abort → upload.loadend → 主 abort → 主 loadend 的顺序触发", async () => {
     const { api } = createFakeApi();
     const order: string[] = [];

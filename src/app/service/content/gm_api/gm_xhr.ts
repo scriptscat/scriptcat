@@ -605,12 +605,16 @@ export function GM_xmlhttpRequest(
           const uploadWasDone = uploadDone;
           if (!uploadWasDone) {
             // 对齐原生 XHR abort() 语义：upload 尚未完成时，先补发 upload 的 abort；
-            // 此时尚未实际传输（或已中断），loaded/total/lengthComputable 对齐规范取 0/0/false
+            // 若已收到进度事件，则沿用最后一次真实进度数据
             uploadDone = true;
-            details.upload?.onabort?.(
-              makeProgressCallbackParam({ ...data, lengthComputable: false, loaded: 0, total: 0 })
-            );
-            fireUploadLoadEnd({ ...data, lengthComputable: false, loaded: 0, total: 0 });
+            const uploadEventData = lastUploadEventData ?? {
+              ...data,
+              lengthComputable: false,
+              loaded: 0,
+              total: 0,
+            };
+            details.upload?.onabort?.(makeProgressCallbackParam(uploadEventData));
+            fireUploadLoadEnd(uploadEventData);
           } else {
             // upload 已经成功完成：兜底补发的 onloadend 使用最后一次真实进度数据，
             // 而非 abort() 合成的响应对象（缺少 loaded/total/lengthComputable）
@@ -793,9 +797,11 @@ export function GM_xmlhttpRequest(
             break;
           // upload 事件均为 ProgressEvent (标准语义)，统一携带 loaded/total/lengthComputable
           case "onuploadloadstart":
+            lastUploadEventData = data;
             details.upload?.onloadstart?.(makeProgressCallbackParam(data));
             break;
           case "onuploadprogress":
+            lastUploadEventData = data;
             details.upload?.onprogress?.(makeProgressCallbackParam(data));
             break;
           case "onuploadload":
