@@ -730,7 +730,7 @@ export default class GMApi extends GM_Base {
               reconnect.catch(() => {});
               return;
             }
-            state.generation++;
+            state.generation = state.generation > 1e9 ? 1 : state.generation + 1;
             state.listeners.clear();
             if (!registered) reject("GM_audio.addStateChangeListener: Connection disconnected");
           });
@@ -739,7 +739,7 @@ export default class GMApi extends GM_Base {
     state.registration = registration.catch((error) => {
       if (isCurrentAttempt()) {
         state.connection?.disconnect(true);
-        state.generation++;
+        state.generation = state.generation > 1e9 ? 1 : state.generation + 1;
         state.connection = undefined;
         state.registration = undefined;
         state.listeners.clear();
@@ -771,7 +771,7 @@ export default class GMApi extends GM_Base {
 
     if (state) {
       const connection = state.connection;
-      state.generation++;
+      state.generation = state.generation > 1e9 ? 1 : state.generation + 1;
       state.connection = undefined;
       state.registration = undefined;
       connection?.disconnect(true);
