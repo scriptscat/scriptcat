@@ -314,6 +314,108 @@ describe("GM_audio 状态变化监听", () => {
     await Promise.resolve();
     expect(connect).toHaveBeenCalledTimes(1);
   });
+
+  it("完全移除监听器后重新添加，应开启全新的注册生命周期，而非继承旧的 everRegistered", async () => {
+    vi.useFakeTimers();
+    try {
+      const connections = [
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+      ];
+      const connect = vi.fn().mockResolvedValueOnce(connections[0]).mockResolvedValueOnce(connections[1]);
+      const message = { connect } as unknown as Message;
+      const api = new GMApi("serviceWorker", message, message, {
+        uuid: "gm-audio-test",
+        value: {},
+      } as ScriptRunResource);
+      const listenerA = vi.fn();
+      const listenerB = vi.fn();
+
+      // 监听器 A：注册成功
+      const registrationA = api["GM.audio.addStateChangeListener"](listenerA);
+      await Promise.resolve();
+      connections[0].sendMessage({ action: "registered" });
+      await registrationA;
+
+      // 移除 A（listeners 归零），随后添加全新的监听器 B
+      await api["GM.audio.removeStateChangeListener"](listenerA);
+      const registrationB = api["GM.audio.addStateChangeListener"](listenerB);
+      await Promise.resolve();
+
+      // B 的连接在收到 registered 之前就断线：这是一次全新的、从未成功过的注册，
+      // 应按“首次注册失败”处理并 reject，而不是被误判为“恢复期间的重连”而重试
+      // （若被误判为恢复重连，会改为退避重试，本测试使用 fake timers 且不推进，
+      // 此时 registrationB 永远不会 settle，会以超时失败，同样能暴露该缺陷）
+      connections[1].EE!.emit("disconnect", false);
+
+      await expect(registrationB).rejects.toBe("GM_audio.addStateChangeListener: Connection disconnected");
+      expect(connect).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("恢复期间新增的监听器不应在替补连接尚未注册成功前就提前收到成功", async () => {
+    vi.useFakeTimers();
+    try {
+      const connections = [
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+      ];
+      const connect = vi
+        .fn()
+        .mockResolvedValueOnce(connections[0])
+        .mockResolvedValueOnce(connections[1])
+        .mockResolvedValueOnce(connections[2]);
+      const message = { connect } as unknown as Message;
+      const api = new GMApi("serviceWorker", message, message, {
+        uuid: "gm-audio-test",
+        value: {},
+      } as ScriptRunResource);
+      const first = vi.fn();
+      const second = vi.fn();
+
+      // 连接 1：初始注册成功
+      const firstRegistration = api["GM.audio.addStateChangeListener"](first);
+      await Promise.resolve();
+      connections[0].sendMessage({ action: "registered" });
+      await firstRegistration;
+
+      // 连接 1 意外断线，立即发起连接 2（恢复期间的重连尝试）
+      connections[0].EE!.emit("disconnect", false);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(connect).toHaveBeenCalledTimes(2);
+
+      // 在连接 2 仍处于“已发起但尚未 registered”期间，添加监听器 second，
+      // 它应复用同一个仍在进行中的 state.registration
+      const secondRegistration = api["GM.audio.addStateChangeListener"](second);
+      let secondSettled = false;
+      void secondRegistration.then(() => {
+        secondSettled = true;
+      });
+
+      // 连接 2 在收到 registered 之前又断线：此时不应让 secondRegistration 提前 resolve，
+      // 因为既没有活跃连接，也没有收到过 registered 确认
+      connections[1].EE!.emit("disconnect", false);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(secondSettled).toBe(false);
+
+      // 退避到期、发起连接 3 之前，仍不应 resolve
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(connect).toHaveBeenCalledTimes(3);
+      expect(secondSettled).toBe(false);
+
+      // 直到连接 3（下一次重连）真正收到 registered，secondRegistration 才应 resolve
+      connections[2].sendMessage({ action: "registered" });
+      await secondRegistration;
+      expect(secondSettled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("GM_audio 回调不应在成功回调抛出异常后被重复调用", () => {

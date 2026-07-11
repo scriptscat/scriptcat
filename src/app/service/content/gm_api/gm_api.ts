@@ -744,8 +744,10 @@ export default class GMApi extends GM_Base {
                 : // 恢复期间的重连尝试在收到 registered 前又断线：退避后重试，避免持续故障时的忙等
                   GMApi._GM_audioScheduleReconnect(a, state);
               state.registration = reconnect;
-              reconnect.catch(() => {});
-              resolve();
+              // 若本次尝试已 registered，本 Promise 早已 resolve，链接到 reconnect 只是无操作；
+              // 若本次尝试尚未 registered（恢复期间的重连尝试又失败），则应等待替补连接的最终结果，
+              // 而不是在毫无连接、尚未收到 registered 的情况下就让调用方以为注册已经成功
+              void reconnect.then(resolve, reject);
               return;
             }
             state.generation = state.generation > 1e9 ? 1 : state.generation + 1;
@@ -809,6 +811,9 @@ export default class GMApi extends GM_Base {
       state.generation = state.generation > 1e9 ? 1 : state.generation + 1;
       state.connection = undefined;
       state.registration = undefined;
+      // 监听器归零：彻底丢弃 state，开启全新的注册生命周期，避免 everRegistered / retryDelay
+      // 残留到下一次 addStateChangeListener，导致全新的注册被误判为“恢复期间的重连”
+      a.audioStateChange = undefined;
       connection?.disconnect(true);
     }
     return Promise.resolve();
