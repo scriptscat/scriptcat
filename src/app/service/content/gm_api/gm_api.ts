@@ -224,9 +224,6 @@ export default class GMApi extends GM_Base {
     listeners: Set<GMTypes.AudioStateChangeListener>;
     connection?: MessageConnect;
     registration?: Promise<void>;
-    // 每次“最后一个监听器被移除”或 context 失效时递增，
-    // 用于识别并丢弃在此之后才resolve的过期 connect() 请求，避免其连接泄漏
-    generation: number;
     // 是否曾经成功收到过 "registered"：一旦为 true，后续任何连接尝试（包括恢复期间
     // 尚未收到 registered 就又断线的重连尝试）都视为暂时性故障并保留监听器重试，
     // 而非当作首次注册失败而放弃
@@ -702,10 +699,9 @@ export default class GMApi extends GM_Base {
   // setTimeout 迭代进行，共享同一个 deferred，不会像每次重试都新建 Promise 并递归 then()
   // 链接那样、在长期故障时不断堆叠、无法被回收。
   static _GM_audioConnect(a: GMApi, state: NonNullable<GMApi["audioStateChange"]>): Promise<void> {
-    // 记录本轮 episode 所属的世代：若在其间监听器被清空（remove 归零 / context 失效），
-    // 世代会被递增或 audioStateChange 整体被替换，届时应丢弃这个迟到的连接，避免连接泄漏
-    const generation = state.generation;
-    const isCurrentAttempt = () => a.audioStateChange === state && state.generation === generation;
+    // 若在本轮 episode 期间监听器被清空（remove 归零 / context 失效），audioStateChange
+    // 整体会被替换为新对象或置空，届时应丢弃这个迟到的连接，避免连接泄漏
+    const isCurrentAttempt = () => a.audioStateChange === state;
 
     let resolveEpisode!: () => void;
     let rejectEpisode!: (error: unknown) => void;
@@ -730,7 +726,6 @@ export default class GMApi extends GM_Base {
       rejectEpisode(error);
       if (wasCurrentAttempt) {
         const connection = state.connection;
-        state.generation = state.generation > 1e9 ? 1 : state.generation + 1;
         state.connection = undefined;
         state.registration = undefined;
         state.settleRegistration = undefined;
@@ -820,7 +815,7 @@ export default class GMApi extends GM_Base {
       return Promise.reject("GM_audio.addStateChangeListener: Invalid argument");
     }
 
-    const state = (a.audioStateChange ??= { listeners: new Set(), generation: 0 });
+    const state = (a.audioStateChange ??= { listeners: new Set() });
     if (state.listeners.has(listener)) {
       return state.registration ?? Promise.resolve();
     }
@@ -838,7 +833,6 @@ export default class GMApi extends GM_Base {
     if (state) {
       const connection = state.connection;
       const settleRegistration = state.settleRegistration;
-      state.generation = state.generation > 1e9 ? 1 : state.generation + 1;
       state.connection = undefined;
       state.registration = undefined;
       state.settleRegistration = undefined;
