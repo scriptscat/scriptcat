@@ -21,6 +21,7 @@ export interface SubAgentOrchestrator {
     scriptToolCallback: null;
     excludeTools?: string[];
     cache?: boolean;
+    throwOnTerminalError?: boolean;
   }): Promise<void>;
 }
 
@@ -192,6 +193,7 @@ export class SubAgentService {
       scriptToolCallback: null,
       excludeTools: params.excludeTools,
       cache: false,
+      throwOnTerminalError: true,
     });
 
     // 检查是否因超时中止（区分用户主动取消和超时）

@@ -185,6 +185,36 @@ describe("handleConversationChat skipSaveUserMessage", () => {
   });
 });
 
+describe("userscript 会话工具隔离", () => {
+  it("携带 scriptUuid 时不注册无法交互的 ask_user 工具", async () => {
+    const { service } = createTestService();
+    const chatService = (service as any).chatService;
+    const result = await chatService.buildSessionToolRegistry({
+      conv: {
+        id: "conv-script",
+        title: "Script",
+        modelId: "test-openai",
+        createtime: 1,
+        updatetime: 1,
+      },
+      model: {
+        id: "test-openai",
+        name: "Test",
+        provider: "openai",
+        apiBaseUrl: "",
+        apiKey: "",
+        model: "gpt-4o",
+      },
+      params: { conversationId: "conv-script", message: "hi", scriptUuid: "script-1" },
+      sendEvent: vi.fn(),
+      abortController: new AbortController(),
+      askResolvers: new Map(),
+    });
+
+    expect(result.sessionRegistry.getDefinitions().some((tool: any) => tool.name === "ask_user")).toBe(false);
+  });
+});
+
 // ---- handleConversationChat 场景补充 ----
 
 describe("handleConversationChat 场景补充", () => {

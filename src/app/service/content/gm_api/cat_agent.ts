@@ -370,7 +370,13 @@ export class ConversationInstance {
             break;
           }
           case "error":
-            reject(Object.assign(new Error(event.message), { errorCode: event.errorCode, usage: event.usage }));
+            reject(
+              Object.assign(new Error(event.message), {
+                errorCode: event.errorCode,
+                usage: event.usage,
+                durationMs: event.durationMs,
+              })
+            );
             break;
         }
       });
@@ -421,8 +427,18 @@ export class ConversationInstance {
           done = true;
           break;
         case "error":
-          chunk = { type: "error", error: event.message, errorCode: event.errorCode, usage: event.usage };
-          error = Object.assign(new Error(event.message), { errorCode: event.errorCode, usage: event.usage });
+          chunk = {
+            type: "error",
+            error: event.message,
+            errorCode: event.errorCode,
+            usage: event.usage,
+            durationMs: event.durationMs,
+          };
+          error = Object.assign(new Error(event.message), {
+            errorCode: event.errorCode,
+            usage: event.usage,
+            durationMs: event.durationMs,
+          });
           done = true;
           break;
       }

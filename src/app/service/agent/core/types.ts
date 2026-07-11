@@ -270,6 +270,7 @@ export type ChatReply = {
     cacheCreationInputTokens?: number;
     cacheReadInputTokens?: number;
   };
+  durationMs?: number;
   command?: boolean; // 标识该回复来自命令处理
 };
 
@@ -285,6 +286,7 @@ export type StreamChunk = {
     cacheCreationInputTokens?: number;
     cacheReadInputTokens?: number;
   };
+  durationMs?: number;
   error?: string;
   /** 错误分类码："rate_limit" | "auth" | "tool_timeout" | "max_iterations" | "api_error" */
   errorCode?: string;

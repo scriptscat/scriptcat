@@ -37,6 +37,7 @@ export interface TaskOrchestrator {
     scriptToolCallback: ScriptToolCallback | null;
     conversationId: string;
     rehydratedHistory?: boolean;
+    throwOnTerminalError?: boolean;
   }): Promise<void>;
 }
 
@@ -178,6 +179,7 @@ export class AgentTaskService {
         scriptToolCallback: null,
         conversationId,
         rehydratedHistory: Boolean(task.conversationId),
+        throwOnTerminalError: true,
       });
 
       // 通知

@@ -109,7 +109,7 @@ describe("Compact 功能", () => {
       apiBaseUrl: "",
       apiKey: "",
       model: "gpt-4o",
-      contextWindow: 1000,
+      contextWindow: 10000,
     });
     mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
     const messages: any[] = [];
@@ -126,7 +126,7 @@ describe("Compact 功能", () => {
         id: `t${i}`,
         conversationId: "conv-1",
         role: "tool",
-        content: "工具结果".repeat(100),
+        content: "工具结果".repeat(500),
         toolCallId: `tc${i}`,
         createtime: i,
       });

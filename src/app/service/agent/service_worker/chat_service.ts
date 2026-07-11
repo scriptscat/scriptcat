@@ -403,13 +403,15 @@ export class ChatService {
             content: "",
             error: errorMsg,
             errorCode,
+            usage: e.usage,
+            durationMs: e.durationMs,
             createtime: Date.now(),
           });
         } catch {
           // 持久化失败不阻塞错误事件发送
         }
       }
-      sendEvent({ type: "error", message: errorMsg, errorCode });
+      sendEvent({ type: "error", message: errorMsg, errorCode, usage: e.usage, durationMs: e.durationMs });
       this.bgSessionManager.cleanupIfDone(params.conversationId);
     }
   }
@@ -484,9 +486,12 @@ export class ChatService {
     summaryMessages.push({ role: "system", content: COMPACT_SYSTEM_PROMPT });
 
     summaryMessages.push(...historyMessages);
-    elideUntilWithinBudget(summaryMessages, getContextWindow(model));
-
     summaryMessages.push({ role: "user", content: buildCompactUserPrompt(params.compactInstruction) });
+
+    if (!elideUntilWithinBudget(summaryMessages, getContextWindow(model))) {
+      sendEvent({ type: "error", message: "Conversation history is too large to compact" });
+      return;
+    }
 
     // 不带 tools 调用 LLM
     const result = await this.llmDeps.callLLM(
@@ -562,8 +567,10 @@ export class ChatService {
       }
 
       // Ask user
-      const askTool = createAskUserTool(sendEvent, askResolvers);
-      sessionRegistry.register("session", askTool.definition, askTool.executor);
+      if (!params.scriptUuid) {
+        const askTool = createAskUserTool(sendEvent, askResolvers, abortController.signal);
+        sessionRegistry.register("session", askTool.definition, askTool.executor);
+      }
 
       // Sub-agent
       const subAgentTool = createSubAgentTool({

@@ -385,6 +385,7 @@ describe("errorCode 透传：chat()", () => {
       message: "Rate limit exceeded",
       errorCode: "rate_limit",
       usage: { inputTokens: 12, outputTokens: 3 },
+      durationMs: 321,
     };
     const gmConnect = vi.fn().mockResolvedValue(mockConnectWithEvents([errorEvent]));
 
@@ -401,6 +402,7 @@ describe("errorCode 透传：chat()", () => {
     expect(err.message).toBe("Rate limit exceeded");
     expect((err as any).errorCode).toBe("rate_limit");
     expect((err as any).usage).toEqual({ inputTokens: 12, outputTokens: 3 });
+    expect((err as any).durationMs).toBe(321);
   });
 
   it("error event 无 errorCode 时，errorCode 应为 undefined", async () => {
@@ -453,6 +455,7 @@ describe("errorCode 透传：chatStream()", () => {
       message: "Tool timed out",
       errorCode: "tool_timeout",
       usage: { inputTokens: 12, outputTokens: 3 },
+      durationMs: 321,
     };
     const gmConnect = vi.fn().mockResolvedValue(mockConnectWithEvents([errorEvent]));
 
@@ -475,6 +478,7 @@ describe("errorCode 透传：chatStream()", () => {
     expect(errorChunk!.error).toBe("Tool timed out");
     expect((errorChunk as any).errorCode).toBe("tool_timeout");
     expect((errorChunk as any).usage).toEqual({ inputTokens: 12, outputTokens: 3 });
+    expect((errorChunk as any).durationMs).toBe(321);
   });
 
   it("error event 无 errorCode 时，chunk.errorCode 应为 undefined", async () => {

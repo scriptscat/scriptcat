@@ -30,6 +30,7 @@ export type ScriptToolCallback = (toolCalls: ToolCall[]) => Promise<Array<{ id: 
 export type ToolExecuteResult = {
   id: string;
   result: string;
+  error?: boolean;
   attachments?: Attachment[];
   subAgentDetails?: SubAgentDetails;
 };
@@ -226,7 +227,7 @@ export class ToolRegistry implements ToolExecutorLike {
           }
         } catch (e: any) {
           console.error(`[ToolRegistry] tool "${tc.name}" execution failed:`, e);
-          return { id: tc.id, result: JSON.stringify({ error: extractErrorMessage(e) }) };
+          return { id: tc.id, result: JSON.stringify({ error: extractErrorMessage(e) }), error: true };
         }
       })
     );

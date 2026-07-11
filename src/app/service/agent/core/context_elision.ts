@@ -7,8 +7,12 @@ export const ELIDED_TOOL_RESULT_STUB =
 
 /** 以 UTF-8 字节数的保守上界估算 provider 请求 token。 */
 export function estimateRequestTokens(messages: ChatRequest["messages"], tools?: unknown[]): number {
+  const hasUnresolvedAttachment = messages.some(
+    (message) => Array.isArray(message.content) && message.content.some((block) => block.type !== "text")
+  );
+  if (hasUnresolvedAttachment) return Number.POSITIVE_INFINITY;
   const bytes = new TextEncoder().encode(JSON.stringify({ messages, tools })).byteLength;
-  return Math.ceil(bytes / 2);
+  return bytes;
 }
 
 /**
@@ -43,11 +47,14 @@ export function elideUntilWithinBudget(
   messages: ChatRequest["messages"],
   contextWindow: number,
   tools?: unknown[],
-  budgetRatio = 0.6
-): void {
-  if (estimateRequestTokens(messages, tools) / contextWindow < budgetRatio) return;
+  budgetRatio = 0.9
+): boolean {
+  const hasToolResults = messages.some((message) => message.role === "tool");
+  if (!hasToolResults) return estimateRequestTokens(messages, tools) / contextWindow < budgetRatio;
+  if (estimateRequestTokens(messages, tools) / contextWindow < budgetRatio) return true;
   for (let keep = 5; keep >= 0; keep--) {
     elideOldToolResults(messages, keep);
-    if (estimateRequestTokens(messages, tools) / contextWindow < budgetRatio) return;
+    if (estimateRequestTokens(messages, tools) / contextWindow < budgetRatio) return true;
   }
+  return false;
 }

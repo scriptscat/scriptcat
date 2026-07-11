@@ -131,6 +131,8 @@ export class ToolLoopOrchestrator {
     // 循环检测连续命中达到 GUARD_ESCALATION_STRIKES 次时调用，暂停循环询问用户是否继续。
     // 仅由 UI 对话（含后台会话）传入；定时任务、子代理不传，保持原有的仅告警不暂停行为。
     askUserForGuard?: AskUserForGuard;
+    // 定时任务和子代理需要将 max_iterations 作为失败抛给调用方。
+    throwOnTerminalError?: boolean;
   }): Promise<void> {
     const {
       toolRegistry,
@@ -143,7 +145,16 @@ export class ToolLoopOrchestrator {
       scriptToolCallback,
       conversationId,
       rehydratedHistory,
+      throwOnTerminalError,
     } = params;
+    const startTime = Date.now();
+    const totalUsage = {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+    };
+
     // 持久化历史保留完整结果供 UI 展示；LLM 只使用独立副本，续接时首个请求也先裁剪旧结果。
     const messages = rehydratedHistory ? inputMessages.map((message) => ({ ...message })) : inputMessages;
     if (rehydratedHistory) {
@@ -151,18 +162,42 @@ export class ToolLoopOrchestrator {
       const estimatedInputTokens = estimateRequestTokens(messages, initialTools);
       const estimatedUsageRatio = estimatedInputTokens / getContextWindow(model);
       if (estimatedUsageRatio >= ELISION_THRESHOLDS[0]) {
-        elideUntilWithinBudget(messages, getContextWindow(model), initialTools, ELISION_THRESHOLDS[0]);
+        const withinBudget = elideUntilWithinBudget(messages, getContextWindow(model), initialTools, 0.9);
+        const hasContinuationHistory =
+          messages.filter((message) => message.role === "user" || message.role === "assistant").length > 2;
+        if (!withinBudget && hasContinuationHistory) {
+          const error = Object.assign(new Error("Conversation history exceeds the model context window"), {
+            errorCode: "context_too_large",
+            usage: totalUsage,
+            durationMs: Date.now() - startTime,
+            conversationId,
+          });
+          sendEvent({
+            type: "error",
+            message: error.message,
+            errorCode: error.errorCode,
+            usage: error.usage,
+            durationMs: error.durationMs,
+          });
+          if (conversationId) {
+            await this.chatRepo.appendMessage({
+              id: uuidv4(),
+              conversationId,
+              role: "assistant",
+              content: "",
+              error: error.message,
+              errorCode: error.errorCode,
+              durationMs: error.durationMs,
+              createtime: Date.now(),
+            });
+          }
+          if (throwOnTerminalError) throw error;
+          return;
+        }
       }
     }
 
-    const startTime = Date.now();
     let iterations = 0;
-    const totalUsage = {
-      inputTokens: 0,
-      outputTokens: 0,
-      cacheCreationInputTokens: 0,
-      cacheReadInputTokens: 0,
-    };
     const toolCallHistory: ToolCallRecord[] = [];
     let guardStartIndex = 0;
     // 已触发过的裁剪阈值下标（-1 表示尚未触发过），避免同一阈值区间内每轮重复裁剪
@@ -184,16 +219,25 @@ export class ToolLoopOrchestrator {
       }
 
       // 调用 LLM（重试由 llm_client 内部处理）
-      const result = await this.deps.callLLM(
-        model,
-        {
-          messages,
-          tools: allToolDefs.length > 0 ? allToolDefs : undefined,
-          cache: params.cache,
-        },
-        sendEvent,
-        signal
-      );
+      let result: LLMCallResult;
+      try {
+        result = await this.deps.callLLM(
+          model,
+          {
+            messages,
+            tools: allToolDefs.length > 0 ? allToolDefs : undefined,
+            cache: params.cache,
+          },
+          sendEvent,
+          signal
+        );
+      } catch (error) {
+        throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+          usage: totalUsage,
+          durationMs: Date.now() - startTime,
+          conversationId,
+        });
+      }
 
       if (signal.aborted) return;
 
@@ -268,6 +312,7 @@ export class ToolLoopOrchestrator {
         const attachmentUpdates = new Map<string, Attachment[]>();
         const subAgentUpdates = new Map<string, SubAgentDetails>();
         const completedIds = new Set<string>();
+        const failedIds = new Set<string>();
 
         for (const tr of toolResults) {
           // LLM 上下文只包含文本结果，不含附件
@@ -285,6 +330,7 @@ export class ToolLoopOrchestrator {
           });
 
           completedIds.add(tr.id);
+          if (tr.error) failedIds.add(tr.id);
           if (tr.attachments?.length) {
             attachmentUpdates.set(tr.id, tr.attachments);
           }
@@ -310,7 +356,8 @@ export class ToolLoopOrchestrator {
         // 必须在此回写为 "completed"，否则刷新/重载会从库里读回 running，导致工具图标一直转圈。
         const applyToolUpdates = (toolCalls: ToolCall[]) => {
           for (const tc of toolCalls) {
-            if (completedIds.has(tc.id)) tc.status = "completed";
+            if (failedIds.has(tc.id)) tc.status = "error";
+            else if (completedIds.has(tc.id)) tc.status = "completed";
             const atts = attachmentUpdates.get(tc.id);
             if (atts) tc.attachments = atts;
             const sad = subAgentUpdates.get(tc.id);
@@ -447,12 +494,21 @@ export class ToolLoopOrchestrator {
         createtime: Date.now(),
       });
     }
-    sendEvent({
+    const terminalError = {
       type: "error",
       message: maxIterMsg,
       errorCode: "max_iterations",
       usage: totalUsage,
       durationMs,
-    });
+    } as const;
+    sendEvent(terminalError);
+    if (throwOnTerminalError) {
+      throw Object.assign(new Error(maxIterMsg), {
+        errorCode: terminalError.errorCode,
+        usage: totalUsage,
+        durationMs,
+        conversationId,
+      });
+    }
   }
 }
