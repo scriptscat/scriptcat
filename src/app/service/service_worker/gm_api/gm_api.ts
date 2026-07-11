@@ -462,19 +462,13 @@ export default class GMApi {
     // firstPartyDomain 仅 Firefox 支持（First-Party Isolation）；Chrome 的 chrome.cookies 参数校验会拒绝未知属性，故不传递
     // see https://github.com/violentmonkey/violentmonkey/issues/746
     // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies#first-party_isolation
-    // FPI 开启时该参数为必填，否则调用会被拒绝；"" 是合法值（代表该 cookie 是在 FPI 关闭时创建的），须与"未提供"区分，不能一并转成 undefined/null。
-    // getAll() 额外支持传 null：代表不按 firstPartyDomain 过滤，涵盖所有值（含未设置的 cookie）；set()/remove() 只接受 string，不支持 null。
-    const firstPartyDomainSupplied = typeof detail.firstPartyDomain === "string";
-    const firstPartyDomainTrimmed = firstPartyDomainSupplied ? detail.firstPartyDomain!.trim() : undefined;
-    // list（对应 chrome.cookies.getAll）：未提供时传 null，不按 firstPartyDomain 过滤
-    const firstPartyDomainForList: string | null | undefined = isFirefox()
-      ? firstPartyDomainSupplied
-        ? firstPartyDomainTrimmed
-        : null
-      : undefined;
-    // set / delete（对应 chrome.cookies.set / remove）：未提供时直接省略该字段
-    const firstPartyDomainForMutation: string | undefined =
-      isFirefox() && firstPartyDomainSupplied ? firstPartyDomainTrimmed : undefined;
+    // "" 是合法值（代表该 cookie 是在 FPI 关闭时创建的），须与"未提供"区分，不能一并转成 undefined。
+    // 未提供时一律省略该字段，绝不主动补 null：chrome.cookies.getAll({firstPartyDomain:null}) 会跨越所有
+    // first-party 分区查询，而 GM_cookie 的权限校验只验证目标 hostname、未考虑调用脚本所在的 first-party 上下文，
+    // 若默认传 null 等同让脚本绕过 FPI 读取任意第三方上下文下的同名 cookie，构成信息泄露
+    // (见 https://github.com/violentmonkey/violentmonkey/issues/1467)。
+    const firstPartyDomain =
+      isFirefox() && typeof detail.firstPartyDomain === "string" ? detail.firstPartyDomain.trim() : undefined;
 
     // 处理tab的storeid
     const tabId = sender.getExtMessageSender().tabId;
@@ -500,7 +494,7 @@ export default class GMApi {
             url: detail.url,
             storeId: storeId,
             partitionKey: stripUndefined(detail.partitionKey),
-            firstPartyDomain: firstPartyDomainForList,
+            firstPartyDomain,
           })
         );
         return cookies;
@@ -517,7 +511,7 @@ export default class GMApi {
             url: detail.url,
             storeId: storeId,
             partitionKey: stripUndefined(detail.partitionKey),
-            firstPartyDomain: firstPartyDomainForMutation,
+            firstPartyDomain,
           })
         );
         break;
@@ -543,7 +537,7 @@ export default class GMApi {
             secure: detail.secure,
             storeId: storeId,
             partitionKey: stripUndefined(detail.partitionKey),
-            firstPartyDomain: firstPartyDomainForMutation,
+            firstPartyDomain,
           })
         );
         break;
