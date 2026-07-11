@@ -327,4 +327,54 @@ describe("GM_download 补充回归测试（native 部分下载 / browser connect
     await new Promise((r) => setTimeout(r, 5));
     expect(revokeSpy).toHaveBeenCalled();
   });
+
+  it("downloadMode=browser：onerror 主回调抛错，仍应调用 onloadend 并 reject retPromise", async () => {
+    const { conn, emit } = createFakeConnect();
+    const fakeA = createFakeA(conn);
+    const onerror = vi.fn(() => {
+      throw new Error("boom");
+    });
+    const onloadend = vi.fn();
+    const details: GMTypes.DownloadDetails<string> = {
+      url: "https://example.com/a.zip",
+      name: "a.zip",
+      downloadMode: "browser",
+      onerror,
+      onloadend,
+    };
+    const { retPromise } = GMApi._GM_download(fakeA as any, details, true);
+    await flushMicrotasks();
+
+    expect(() => emit({ action: "onerror" })).toThrow("boom");
+    expect(onerror).toHaveBeenCalledTimes(1);
+    expect(onloadend).toHaveBeenCalledTimes(1);
+    await expect(retPromise).rejects.toThrow("Unknown ERROR");
+  });
+
+  it("native 模式：xhr 阶段失败后于用户 onloadend 内呼叫 abort()，retPromise 仍应 reject 而非永久 pending", async () => {
+    const fakeA = {
+      isInvalidContext: () => false,
+      connect: vi.fn(),
+    };
+    vi.mocked(GM_xmlhttpRequest).mockImplementationOnce((_a: unknown, xhrParams: any) => {
+      queueMicrotask(() => {
+        xhrParams.onerror?.();
+      });
+      // 模拟真实 GM_xmlhttpRequest：内部 retPromise 最终也会 reject（比 xhrParams.onerror 更晚触发）。
+      return { retPromise: Promise.reject(new Error("mock xhr error")), abort: vi.fn() };
+    });
+    const abortHolder: { fn?: () => void } = {};
+    const details: GMTypes.DownloadDetails<string> = {
+      url: "https://example.com/a.zip",
+      name: "a.zip",
+      downloadMode: "native",
+      onloadend: () => {
+        abortHolder.fn?.();
+      },
+    };
+    const { retPromise, abort } = GMApi._GM_download(fakeA as any, details, true);
+    abortHolder.fn = abort;
+
+    await expect(retPromise).rejects.toThrow();
+  });
 });
