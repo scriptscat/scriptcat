@@ -189,6 +189,10 @@ export function GM_xmlhttpRequest(
   isDownload: boolean = false
 ) {
   let reqDone = false;
+  // 一旦 upload 阶段以 error/abort/timeout 结束，整个请求已注定以同样的结果结束（原生实现此时
+  // readyState 已为 DONE，再调用 abort() 不会产生新事件）。置位后，返回的 abort() 变为空操作，
+  // 让真实的主 onerror/ontimeout/onabort 消息自然到达，而不是被本地合成的 AbortError 抢先覆盖。
+  let suppressSyntheticAbort = false;
   if (a.isInvalidContext()) {
     return {
       retPromise: requirePromise ? Promise.reject("GM_xmlhttpRequest: Invalid Context") : null,
@@ -533,6 +537,15 @@ export function GM_xmlhttpRequest(
     // 未注册 upload 回调时视为已完成，abort 时无需补发 upload 事件
     let uploadDone = !hasAnyUploadHandler(details.upload);
     let uploadLoadEndCalled = false;
+    // 记录最后一次真实 upload 进度数据：upload 成功完成后才调用 abort() 时，
+    // 兜底补发的 onloadend 应携带真实的已传输字节数，而非 abort() 合成响应对象里缺省的 undefined
+    let lastUploadEventData:
+      | (TXhrCallBackArg & {
+          lengthComputable?: boolean;
+          loaded?: number;
+          total?: number;
+        })
+      | null = null;
     // 对齐 XHR 规范：upload 的 load/loadend/error/abort/timeout 到达前，upload complete flag 已置位，
     // 所以 onloadend 需要去重——既可能由真实消息触发，也可能由 abort() 的同步补发触发。
     const fireUploadLoadEnd = (
@@ -569,11 +582,12 @@ export function GM_xmlhttpRequest(
           // 此时尚未实际传输（或已中断），loaded/total/lengthComputable 对齐规范取 0/0/false
           uploadDone = true;
           details.upload?.onabort?.(makeUploadCallbackParam({ ...data, lengthComputable: false, loaded: 0, total: 0 }));
+          fireUploadLoadEnd({ ...data, lengthComputable: false, loaded: 0, total: 0 });
+        } else {
+          // upload 已经成功完成：兜底补发的 onloadend 使用最后一次真实进度数据，
+          // 而非 abort() 合成的响应对象（缺少 loaded/total/lengthComputable）
+          fireUploadLoadEnd(lastUploadEventData ?? data);
         }
-        // 无论 upload 是自然完成还是被中止，onloadend 都必须触发且只触发一次：
-        // abort() 会立即断开通道，之后到达的真实 onuploadloadend 消息不再可靠，此处兜底补发；
-        // fireUploadLoadEnd 内建去重，若真实消息已先行触发过则跳过
-        fireUploadLoadEnd(uploadWasDone ? data : { ...data, lengthComputable: false, loaded: 0, total: 0 });
         details.onabort?.(makeXHRCallbackParam?.(data) ?? {});
         reqDone = true;
         // 不要进行 refCleanup ！要等待最后的 onloadend
@@ -767,6 +781,9 @@ export function GM_xmlhttpRequest(
             // 对齐规范：upload complete flag 在 load 派发前已置位，须先于回调设置，
             // 否则回调内同步调用 abort() 会误判 upload 尚未完成
             uploadDone = true;
+            // 记录真实进度数据：若回调内同步调用 abort()，兜底补发的 onloadend 需要这份数据，
+            // 而不是 abort() 合成响应对象里缺省的 undefined
+            lastUploadEventData = data;
             details.upload?.onload?.(makeUploadCallbackParam(data));
             break;
           case "onuploadloadend":
@@ -774,16 +791,21 @@ export function GM_xmlhttpRequest(
             fireUploadLoadEnd(data);
             break;
           case "onuploaderror":
-            uploadDone = true;
-            details.upload?.onerror?.(makeUploadCallbackParam(data));
-            break;
           case "onuploadabort":
-            uploadDone = true;
-            details.upload?.onabort?.(makeUploadCallbackParam(data));
-            break;
           case "onuploadtimeout":
+            // 对齐规范：request error steps 在派发 upload 的 error/abort/timeout 前，
+            // 已将整个请求置为 DONE——此时再调用 abort() 不会产生新事件（原生行为即为空操作）。
+            // 让返回的 abort() 变为空操作，使真实的主 onerror/ontimeout/onabort 消息能够到达，
+            // 而不是被这里同步调用 abort() 时合成的 AbortError 抢先覆盖。
             uploadDone = true;
-            details.upload?.ontimeout?.(makeUploadCallbackParam(data));
+            suppressSyntheticAbort = true;
+            if (msgData.action === "onuploaderror") {
+              details.upload?.onerror?.(makeUploadCallbackParam(data));
+            } else if (msgData.action === "onuploadabort") {
+              details.upload?.onabort?.(makeUploadCallbackParam(data));
+            } else {
+              details.upload?.ontimeout?.(makeUploadCallbackParam(data));
+            }
             break;
           // case "onstream":
           //   controller?.enqueue(new Uint8Array(data));
@@ -803,6 +825,11 @@ export function GM_xmlhttpRequest(
   return {
     retPromise,
     abort: () => {
+      if (suppressSyntheticAbort) {
+        // upload 阶段已以 error/abort/timeout 结束，整个请求已注定失败：保持通道开启，
+        // 让真实的主 onerror/ontimeout/onabort 消息自然到达并驱动正确的回调
+        return;
+      }
       if (connect) {
         connect.disconnect(true); // 断开连结(容忍已断开)
         connect = null;

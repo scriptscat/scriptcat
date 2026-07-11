@@ -302,6 +302,116 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     expect(onUploadLoadEnd).toHaveBeenCalledTimes(1);
   });
 
+  it("在 upload.onload 回调内同步调用 abort() 且 onloadend 消息因通道断开而丢失时，兜底补发的 onloadend 应携带真实的已传输数据", async () => {
+    const { api, getMessageHandler } = createFakeApi();
+    const onUploadLoadEnd = vi.fn();
+    const requestRef: { current?: ReturnType<typeof GM_xmlhttpRequest> } = {};
+    const details = {
+      url: "https://example.com/upload",
+      upload: {
+        onload: () => requestRef.current?.abort(),
+        onloadend: onUploadLoadEnd,
+      },
+    } as unknown as GMTypes.XHRDetails;
+
+    requestRef.current = GM_xmlhttpRequest(api, details, false);
+    await waitTick();
+    const messageHandler = getMessageHandler();
+
+    // 真实的 onuploadload 消息（携带真实进度数据）；其回调内同步调用 abort()，
+    // 通道随即断开，真正的 onuploadloadend 消息不会再被处理——由 abort() 兜底补发
+    messageHandler!({
+      action: "onuploadload",
+      data: {
+        finalUrl: "",
+        readyState: 1,
+        status: 0,
+        statusText: "",
+        responseHeaders: "",
+        useFetch: false,
+        eventType: "uploadload",
+        ok: false,
+        contentType: "",
+        loaded: 512,
+        total: 1024,
+        lengthComputable: true,
+      },
+    });
+    await waitTick();
+
+    expect(onUploadLoadEnd).toHaveBeenCalledTimes(1);
+    const arg = onUploadLoadEnd.mock.calls[0][0];
+    expect(arg.loaded).toBe(512);
+    expect(arg.total).toBe(1024);
+    expect(arg.lengthComputable).toBe(true);
+  });
+
+  it.each([
+    ["onuploaderror", "onerror", "onerror"],
+    ["onuploadtimeout", "ontimeout", "ontimeout"],
+  ])(
+    "在 upload.%s 回调内调用 abort() 时应为空操作，让真实的主 %s 消息正常驱动 details.%s",
+    async (uploadAction, uploadHandlerName, mainHandlerName) => {
+      const { api, getMessageHandler } = createFakeApi();
+      const mainHandler = vi.fn();
+      const onMainAbort = vi.fn();
+      const requestRef: { current?: ReturnType<typeof GM_xmlhttpRequest> } = {};
+      const details = {
+        url: "https://example.com/upload",
+        [mainHandlerName]: mainHandler,
+        onabort: onMainAbort,
+        upload: {
+          [uploadHandlerName]: () => requestRef.current?.abort(),
+        },
+      } as unknown as GMTypes.XHRDetails;
+
+      requestRef.current = GM_xmlhttpRequest(api, details, false);
+      await waitTick();
+      const messageHandler = getMessageHandler();
+
+      // 后台在真实的主 onerror/ontimeout 之前，先送出配对的 upload 事件
+      messageHandler!({
+        action: uploadAction,
+        data: {
+          finalUrl: "",
+          readyState: 4,
+          status: 0,
+          statusText: "",
+          responseHeaders: "",
+          useFetch: false,
+          eventType: uploadAction.slice(2),
+          ok: false,
+          contentType: "",
+        },
+      });
+      await waitTick();
+
+      // 回调内调用的 abort() 应为空操作：不应触发合成的主 onabort
+      expect(onMainAbort).not.toHaveBeenCalled();
+
+      // 通道未被断开，真实的主消息随后到达时应正常驱动对应回调
+      messageHandler!({
+        action: mainHandlerName,
+        data: {
+          finalUrl: "",
+          readyState: 4,
+          status: 0,
+          statusText: "",
+          responseHeaders: "",
+          useFetch: false,
+          eventType: mainHandlerName.slice(2),
+          ok: false,
+          contentType: "",
+          error: mainHandlerName === "onerror" ? "Unknown Error" : undefined,
+        },
+      });
+      await waitTick();
+
+      expect(mainHandler).toHaveBeenCalledTimes(1);
+      expect(onMainAbort).not.toHaveBeenCalled();
+    }
+  );
+
   it("同步 abort() 补发的 upload.onabort / onloadend 应携带 loaded:0/total:0/lengthComputable:false", async () => {
     const { api } = createFakeApi();
     const onUploadAbort = vi.fn();
