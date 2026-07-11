@@ -86,7 +86,9 @@ firefoxManifest.browser_specific_settings = {
     }}`,
     // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
     // Firefox 136 (Released 2025-03-04)
-    strict_min_version: "136.0",
+    // sandbox manifest: https://phabricator.services.mozilla.com/D308216
+    // Firefox 154.0a1 (Nightly Released 2026-07-07)
+    strict_min_version: "154.0a1",
     data_collection_permissions: {
       required: [
         "none", // 没有必须传送至第三方的资料。安装转页没有记录用户何时何地安装了什么。
