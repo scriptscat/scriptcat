@@ -43,7 +43,7 @@ const test = base.extend<
         args: ["--headless=new", ...chromeArgs],
       });
       let [bg] = ctx1.serviceWorkers();
-      if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 60_000 });
+      if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 30_000 });
       const extensionId = bg.url().split("/")[2];
       const extPage = await ctx1.newPage();
       await extPage.goto("chrome://extensions/");
@@ -74,7 +74,7 @@ const test = base.extend<
       args: ["--headless=new", ...chromeArgs],
     });
     const [sw] = context.serviceWorkers();
-    if (!sw) await context.waitForEvent("serviceworker", { timeout: 60_000 });
+    if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
