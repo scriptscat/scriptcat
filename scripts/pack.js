@@ -85,12 +85,19 @@ if (chromeManifest.content_security_policy && Object.keys(chromeManifest.content
   delete chromeManifest.content_security_policy;
 }
 
+// In Firefox, userScripts is an optional-only permission. It must appear only in optional_permissions, not both arrays.
+// Firefox does not implement Chrome’s debugger extension API, so remove "debugger" from the Firefox manifest and disable any code using chrome.debugger.
+// Firefox does not use Chrome’s offscreen permission/API. Your Firefox background.scripts runs in a document-based background context with a window, so DOM-related work can generally run there instead.
+firefoxManifest.permissions = firefoxManifest.permissions.filter(
+  (val) => val !== "userScripts" && val !== "debugger" && val !== "offscreen"
+);
+
 // Firefox MV3 不支持 "background" permission
 firefoxManifest.optional_permissions = firefoxManifest.optional_permissions.filter((val) => val !== "background");
 delete firefoxManifest.background.service_worker;
 
-// Firefox - incognito "split" is unsupported
-delete firefoxManifest.incognito;
+// Firefox does not support "incognito": "split". Use "spanning", or use "not_allowed" when the extension must never access private windows. Private-window access is still controlled by the Firefox user.
+firefoxManifest.incognito = "spanning";
 
 // Firefox 的扩展消息默认即为 structured clone，该键仅 Chromium 148+ 识别
 delete firefoxManifest.message_serialization;
