@@ -66,22 +66,17 @@ execSync("pnpm run build", {
 // 处理firefox和chrome的zip压缩包
 
 // 浅拷贝防止后续修改
-const firefoxManifest = applyAgentManifest(
-  {
-    ...manifest,
-    background: { ...manifest.background },
-    content_security_policy: { ...manifest.content_security_policy },
-  },
-  agentEnabled
-);
-const chromeManifest = applyAgentManifest(
-  {
-    ...manifest,
-    background: { ...manifest.background },
-    content_security_policy: { ...manifest.content_security_policy },
-  },
-  agentEnabled
-);
+const cloneManifest = () =>
+  applyAgentManifest(
+    {
+      ...manifest,
+      background: { ...manifest.background },
+      content_security_policy: { ...manifest.content_security_policy },
+    },
+    agentEnabled
+  );
+const firefoxManifest = cloneManifest();
+const chromeManifest = cloneManifest();
 
 chromeManifest.optional_permissions = chromeManifest.optional_permissions.filter((val) => val !== "userScripts");
 delete chromeManifest.background.scripts;
