@@ -212,6 +212,7 @@ export function useStreamingChat() {
               multiple: event.multiple,
             });
           }
+          if (event.type === "ask_user_expired") setAskUserPending(null);
           onEvent(event);
           if ((event.type === "done" || event.type === "error") && !("subAgent" in event && event.subAgent)) {
             setIsStreaming(false);
@@ -260,6 +261,7 @@ export function useStreamingChat() {
               multiple: event.multiple,
             });
           }
+          if (event.type === "ask_user_expired") setAskUserPending(null);
 
           onEvent(event);
 

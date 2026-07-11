@@ -35,6 +35,7 @@ import { createExecuteScriptTool } from "@App/app/service/agent/core/tools/execu
 import { resolveSubAgentType } from "@App/app/service/agent/core/sub_agent_types";
 import { classifyErrorCode } from "./retry_utils";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
+import { toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { LLMCallResult } from "./llm_client";
 
@@ -205,6 +206,7 @@ export class ChatService {
         const timer = setTimeout(
           () => {
             askResolvers.delete(askId);
+            sendEvent({ type: "ask_user_expired", id: askId });
             // 后台会话：清除过期的 pendingAskUser，避免后续 attach 的 UI 看到已超时的提问
             if (rc && rc.pendingAskUser?.id === askId) rc.pendingAskUser = undefined;
             resolve("Continue");
@@ -413,12 +415,7 @@ export class ChatService {
     // 添加脚本端维护的消息历史（已含最新 user message）
     if (params.messages) {
       for (const msg of params.messages) {
-        messages.push({
-          role: msg.role,
-          content: msg.content,
-          toolCallId: msg.toolCallId,
-          toolCalls: msg.toolCalls,
-        });
+        messages.push(...toLLMMessages([msg]));
       }
     }
 
@@ -429,7 +426,7 @@ export class ChatService {
       model,
       messages,
       tools: params.tools,
-      maxIterations: params.maxIterations || 20,
+      maxIterations: normalizeChatMaxIterations(params.maxIterations ?? 20),
       sendEvent,
       signal: abortController.signal,
       scriptToolCallback: params.tools && params.tools.length > 0 ? scriptToolCallback : null,
@@ -464,15 +461,7 @@ export class ChatService {
     const summaryMessages: ChatRequest["messages"] = [];
     summaryMessages.push({ role: "system", content: COMPACT_SYSTEM_PROMPT });
 
-    for (const msg of existingMessages) {
-      if (msg.role === "system") continue;
-      summaryMessages.push({
-        role: msg.role,
-        content: msg.content,
-        toolCallId: msg.toolCallId,
-        toolCalls: msg.toolCalls,
-      });
-    }
+    summaryMessages.push(...toLLMMessages(existingMessages).filter((msg) => msg.role !== "system"));
 
     summaryMessages.push({ role: "user", content: buildCompactUserPrompt(params.compactInstruction) });
 
@@ -680,16 +669,7 @@ export class ChatService {
     // 添加历史消息（跳过 system；跳过错误占位消息 —— 如超过 max_iterations 时持久化的空 content
     // assistant 消息，仅用于 UI 展示"继续对话"操作，重放给 LLM 会产生空 content 的无意义消息，
     // 部分 provider（如 Anthropic）甚至会因空 content 拒绝请求）
-    for (const msg of existingMessages) {
-      if (msg.role === "system") continue;
-      if (msg.error) continue;
-      messages.push({
-        role: msg.role,
-        content: msg.content,
-        toolCallId: msg.toolCallId,
-        toolCalls: msg.toolCalls,
-      });
-    }
+    messages.push(...toLLMMessages(existingMessages).filter((msg) => msg.role !== "system"));
 
     if (!params.skipSaveUserMessage) {
       // 添加新用户消息到 LLM 上下文并持久化

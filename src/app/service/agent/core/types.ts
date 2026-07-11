@@ -146,6 +146,7 @@ export type ForwardableEvent =
 export type ChatStreamEvent =
   | (ForwardableEvent & { subAgent?: SubAgentEventInfo })
   | { type: "ask_user"; id: string; question: string; options?: string[]; multiple?: boolean }
+  | { type: "ask_user_expired"; id: string }
   | { type: "system_warning"; message: string }
   | {
       type: "task_update";

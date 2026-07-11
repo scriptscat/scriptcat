@@ -4,6 +4,14 @@ import type { SubAgentState } from "./types";
 /** 消息分组：连续的 assistant 消息合并为一组，user 单独成组 */
 export type MessageGroup = { type: "user"; message: ChatMessage } | { type: "assistant"; messages: ChatMessage[] };
 
+export function canContinueMaxIterationsGroup(group: MessageGroup, isLastGroup: boolean): boolean {
+  return (
+    group.type === "assistant" &&
+    isLastGroup &&
+    group.messages.some((message) => message.errorCode === "max_iterations")
+  );
+}
+
 /** 将 tool 角色消息的结果合并进 assistant 的 toolCalls，并过滤掉 tool/system 消息 */
 export function mergeToolResults(messages: ChatMessage[]): ChatMessage[] {
   const toolResultMap = new Map<string, string>();

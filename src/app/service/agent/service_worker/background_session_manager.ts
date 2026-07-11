@@ -107,6 +107,9 @@ export class BackgroundSessionManager {
           multiple: event.multiple,
         };
         break;
+      case "ask_user_expired":
+        if (rc.pendingAskUser?.id === event.id) rc.pendingAskUser = undefined;
+        break;
       case "task_update":
         rc.tasks = event.tasks;
         break;

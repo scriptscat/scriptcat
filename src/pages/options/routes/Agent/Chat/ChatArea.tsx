@@ -25,6 +25,7 @@ import {
   computeEditAction,
   computeUserRegenerateAction,
   findNextAssistantGroupIndex,
+  canContinueMaxIterationsGroup,
   type MessageGroup,
 } from "./chat_utils";
 
@@ -731,7 +732,11 @@ export default function ChatArea({
                   onCopy={() => handleCopy(group.messages)}
                   onRegenerate={() => handleRegenerate(messageGroups, groupIndex)}
                   onDelete={() => handleDeleteRound(messageGroups, groupIndex)}
-                  onContinue={isStreaming ? undefined : () => void handleSend(t("agent:chat_continue_message"))}
+                  onContinue={
+                    !isStreaming && canContinueMaxIterationsGroup(group, groupIndex === messageGroups.length - 1)
+                      ? () => void handleSend(t("agent:chat_continue_message"))
+                      : undefined
+                  }
                 />
               )
             )

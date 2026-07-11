@@ -88,6 +88,28 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     expect(doneEvents).toHaveLength(1);
   });
 
+  it("续接长历史时，首个 LLM 请求使用裁剪后的副本且不修改原始历史", async () => {
+    const oldToolResult = "完整工具结果".repeat(100);
+    const messages: ChatRequest["messages"] = [];
+    for (let i = 0; i < 6; i++) {
+      messages.push({
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: `tc${i}`, name: "dup", arguments: "{}" }],
+      });
+      messages.push({ role: "tool", content: oldToolResult, toolCallId: `tc${i}` });
+    }
+    callLLM.mockImplementation(async (_model, request) => {
+      expect(request.messages[1].content).toBe(
+        "[tool result elided to save context — re-run the tool if you need this data again]"
+      );
+      expect(messages[1].content).toBe(oldToolResult);
+      return finalTextResult("done");
+    });
+
+    await orchestrator.callLLMWithToolLoop(baseParams({ messages }));
+  });
+
   it("第 2 次触发告警时应暂停并询问用户；回答非 Stop 时应继续循环", async () => {
     callLLM
       .mockResolvedValueOnce(dupToolCallResult("c1"))

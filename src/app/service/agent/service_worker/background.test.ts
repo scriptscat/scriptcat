@@ -644,7 +644,7 @@ describe("后台运行会话 集成测试", () => {
     try {
       const { service, mockRepo } = createTestService();
       setupConversation(mockRepo);
-      const { sender } = createMockSender();
+      const { sender, sentMessages } = createMockSender();
 
       const registry = (service as any).toolRegistry;
       registry.registerBuiltin(
@@ -677,6 +677,7 @@ describe("后台运行会话 集成测试", () => {
       expect(rc).toBeDefined();
       expect(rc.status).toBe("running");
       expect(rc.pendingAskUser).toBeUndefined();
+      expect(sentMessages.some((message) => message.data?.type === "ask_user_expired")).toBe(true);
 
       registry.unregisterBuiltin("dup");
     } finally {

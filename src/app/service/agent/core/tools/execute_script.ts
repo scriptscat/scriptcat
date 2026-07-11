@@ -32,8 +32,6 @@ const EXECUTE_SCRIPT_TIMEOUT_MS = 30_000;
 
 // 返回值过大时（如 DOM dump、模块映射）截断，避免其在后续每轮 tool loop 中被完整重复计费
 const MAX_RESULT_CHARS = 30_000;
-const HEAD_CHARS = 15_000;
-const TAIL_CHARS = 15_000;
 
 /** 将 result 序列化，超过阈值时截断为首尾各一部分并标注 truncated */
 function buildResultPayload(result: unknown, extra: Record<string, unknown>): string {
@@ -42,12 +40,24 @@ function buildResultPayload(result: unknown, extra: Record<string, unknown>): st
   if (resultStr.length <= MAX_RESULT_CHARS) {
     return JSON.stringify({ result: rawResult, ...extra });
   }
-  const omitted = resultStr.length - HEAD_CHARS - TAIL_CHARS;
-  const truncatedText =
-    resultStr.slice(0, HEAD_CHARS) +
-    `\n…[truncated ${omitted} chars — return a smaller value or write large data to OPFS via opfs_write]…\n` +
-    resultStr.slice(resultStr.length - TAIL_CHARS);
-  return JSON.stringify({ result: truncatedText, ...extra, truncated: true, original_length: resultStr.length });
+  const makePayload = (keptLength: number) => {
+    const headLength = Math.ceil(keptLength / 2);
+    const tailLength = keptLength - headLength;
+    const omitted = resultStr.length - keptLength;
+    const truncatedText =
+      resultStr.slice(0, headLength) +
+      `\n…[truncated ${omitted} chars — return a smaller value or write large data to OPFS via opfs_write]…\n` +
+      resultStr.slice(resultStr.length - tailLength);
+    return JSON.stringify({ result: truncatedText, ...extra, truncated: true, original_length: resultStr.length });
+  };
+  let low = 0;
+  let high = Math.min(MAX_RESULT_CHARS, resultStr.length);
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (makePayload(middle).length <= MAX_RESULT_CHARS) low = middle;
+    else high = middle - 1;
+  }
+  return makePayload(low);
 }
 
 export type ExecuteScriptDeps = {

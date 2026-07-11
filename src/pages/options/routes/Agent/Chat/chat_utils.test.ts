@@ -7,6 +7,7 @@ import {
   computeEditAction,
   computeUserRegenerateAction,
   findNextAssistantGroupIndex,
+  canContinueMaxIterationsGroup,
 } from "./chat_utils";
 
 // 辅助函数：创建测试消息
@@ -100,6 +101,23 @@ describe("mergeToolResults", () => {
     ];
     const result = mergeToolResults(messages);
     expect(result[1].toolCalls?.[0].status).toBe("error");
+  });
+});
+
+describe("canContinueMaxIterationsGroup", () => {
+  it("只允许最后一个包含 max_iterations 错误的助手组继续", () => {
+    const group = {
+      type: "assistant" as const,
+      messages: [makeMsg({ id: "a1", role: "assistant", errorCode: "max_iterations" })],
+    };
+    expect(canContinueMaxIterationsGroup(group, true)).toBe(true);
+    expect(canContinueMaxIterationsGroup(group, false)).toBe(false);
+    expect(
+      canContinueMaxIterationsGroup(
+        { type: "assistant", messages: [makeMsg({ id: "a2", role: "assistant", content: "later" })] },
+        true
+      )
+    ).toBe(false);
   });
 });
 

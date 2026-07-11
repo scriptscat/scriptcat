@@ -118,6 +118,17 @@ describe("execute_script 工具", () => {
   });
 
   describe("超大返回值截断", () => {
+    it.concurrent("最终 JSON 信封包含大量引号和反斜杠时仍不超过限制", async () => {
+      const escaped = '"\\'.repeat(40_000);
+      const deps = makeDeps({ executeInSandbox: vi.fn().mockResolvedValue(escaped) });
+      const { executor } = createExecuteScriptTool(deps);
+
+      const result = (await executor.execute({ code: "return escaped", target: "sandbox" })) as string;
+
+      expect(result.length).toBeLessThanOrEqual(30_000);
+      expect(JSON.parse(result).truncated).toBe(true);
+    });
+
     it.concurrent("page 模式返回值过大时应截断并标注 truncated", async () => {
       const bigString = "x".repeat(50_000);
       const mockExecuteInPage = vi.fn().mockResolvedValue({ result: bigString, tabId: 1 });

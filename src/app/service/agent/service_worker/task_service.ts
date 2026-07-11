@@ -21,6 +21,8 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 import { nextTimeInfo } from "@App/pkg/utils/cron";
 import { InfoNotification } from "@App/app/service/service_worker/utils";
 import { sendMessage } from "@Packages/message/client";
+import { normalizeChatMaxIterations } from "@App/app/service/agent/core/agent_config";
+import { toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
 
 /** 供 TaskService 调用的 orchestrator 能力 */
 export interface TaskOrchestrator {
@@ -115,12 +117,7 @@ export class AgentTaskService {
 
           for (const msg of existingMessages) {
             if (msg.role === "system") continue;
-            messages.push({
-              role: msg.role,
-              content: msg.content,
-              toolCallId: msg.toolCallId,
-              toolCalls: msg.toolCalls,
-            });
+            messages.push(...toLLMMessages([msg]).filter((message) => message.role !== "system"));
           }
         }
       } else {
@@ -167,7 +164,7 @@ export class AgentTaskService {
         toolRegistry: sessionRegistry,
         model,
         messages,
-        maxIterations: task.maxIterations || 10,
+        maxIterations: normalizeChatMaxIterations(task.maxIterations ?? 10),
         sendEvent,
         signal: abortController.signal,
         scriptToolCallback: null,

@@ -129,7 +129,7 @@ export class ToolLoopOrchestrator {
     const {
       toolRegistry,
       model,
-      messages,
+      messages: inputMessages,
       tools,
       maxIterations,
       sendEvent,
@@ -137,6 +137,9 @@ export class ToolLoopOrchestrator {
       scriptToolCallback,
       conversationId,
     } = params;
+    // 持久化历史保留完整结果供 UI 展示；LLM 只使用独立副本，续接时首个请求也先裁剪旧结果。
+    const messages = conversationId ? inputMessages.map((message) => ({ ...message })) : inputMessages;
+    if (conversationId) elideOldToolResults(messages, ELISION_KEEP_LAST_ASSISTANT_TURNS);
 
     const startTime = Date.now();
     let iterations = 0;
