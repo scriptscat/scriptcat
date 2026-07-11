@@ -43,6 +43,9 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
           return;
         }
         setBg(granted);
+        if (granted) {
+          notify.success(t("settings:enable_background.enable_success")!);
+        }
       });
     } else {
       chrome.permissions.remove({ permissions: ["background"] }, (removed) => {
@@ -52,6 +55,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
         }
         if (removed) {
           setBg(false);
+          notify.success(t("settings:enable_background.disable_success")!);
         } else {
           void isPermissionOk("background").then((r) => {
             if (r !== null) setBg(r);
@@ -69,6 +73,9 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
           return;
         }
         setKeepAlive(granted);
+        if (granted) {
+          notify.success(t("settings:keep_scripts_alive.enable_success")!);
+        }
       });
     } else {
       chrome.permissions.remove({ permissions: ["webRequestBlocking"] }, (removed) => {
@@ -78,6 +85,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
         }
         if (removed) {
           setKeepAlive(false);
+          notify.success(t("settings:keep_scripts_alive.disable_success")!);
         } else {
           void isPermissionOk("webRequestBlocking").then((r) => {
             setKeepAlive(r);
