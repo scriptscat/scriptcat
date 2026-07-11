@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { beforeAll, describe, it, expect, vi, afterEach } from "vitest";
 import { act, render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const { create } = vi.hoisted(() => ({
   create: vi.fn(() =>
@@ -33,7 +34,11 @@ vi.mock("@Packages/filesystem/auth", () => ({
   ClearNetDiskToken: vi.fn(() => Promise.resolve()),
 }));
 
-const { get, set } = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
+const { get, set, isPermissionOk } = vi.hoisted(() => ({
+  get: vi.fn(),
+  set: vi.fn(),
+  isPermissionOk: vi.fn((permission: string) => Promise.resolve(permission === "webRequestBlocking" ? null : false)),
+}));
 vi.mock("@App/pages/store/global", () => ({
   systemConfig: { get, set },
   subscribeMessage: () => () => {},
@@ -42,10 +47,12 @@ vi.mock("@App/pages/store/global", () => ({
 // 后台权限检测在挂载时调用，固定返回 false 以免干扰存储配置测试
 vi.mock("@App/pkg/utils/utils", async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
-  return { ...actual, isPermissionOk: vi.fn(() => Promise.resolve(false)) };
+  return { ...actual, isPermissionOk };
 });
 
 import { RuntimeSection } from "./RuntimeSection";
+
+beforeAll(() => initTestLanguage("en-US"));
 
 function mockStorage(over: Record<string, unknown> = {}) {
   get.mockImplementation((key: string) => {
@@ -59,9 +66,38 @@ afterEach(() => {
   cleanup();
   get.mockReset();
   set.mockReset();
+  isPermissionOk.mockReset();
+  isPermissionOk.mockImplementation((permission: string) =>
+    Promise.resolve(permission === "webRequestBlocking" ? null : false)
+  );
   create.mockReset();
   create.mockResolvedValue({
     openDir: vi.fn(() => Promise.resolve({ getDirUrl: vi.fn(() => Promise.resolve("https://dir")) })),
+  });
+});
+
+describe("运行时分区-可选保活权限", () => {
+  it("manifest 不包含 webRequestBlocking 时不显示 Firefox 保活开关", async () => {
+    mockStorage();
+    render(<RuntimeSection register={() => () => {}} />);
+    await screen.findByTestId("cat_storage_save");
+    expect(screen.queryByText("Keep Background and Scheduled Scripts Alive")).not.toBeInTheDocument();
+  });
+
+  it("manifest 包含 webRequestBlocking 时显示开关并可请求权限", async () => {
+    isPermissionOk.mockImplementation((permission: string) =>
+      Promise.resolve(permission === "webRequestBlocking" ? false : false)
+    );
+    const request = vi.spyOn(chrome.permissions, "request");
+    mockStorage();
+    render(<RuntimeSection register={() => () => {}} />);
+    await screen.findByText("Keep Background and Scheduled Scripts Alive");
+    const toggle = screen.getAllByRole("switch").at(-1);
+    expect(toggle).toBeInTheDocument();
+
+    fireEvent.click(toggle!);
+
+    expect(request).toHaveBeenCalledWith({ permissions: ["webRequestBlocking"] }, expect.any(Function));
   });
 });
 

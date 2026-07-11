@@ -102,6 +102,17 @@
     "maybe_later": "Belki Daha Sonra",
     "settings_hint": "Bu seçeneği istediğiniz zaman ayarlardan değiştirebilirsiniz."
   },
+  "keep_scripts_alive": {
+    "title": "Arka Plan ve Zamanlanmış Betikleri Canlı Tut",
+    "description": "Firefox'ta ScriptCat'in arka plan sayfasını etkin tutarak Arka Plan Betikleri ve Zamanlanmış Betiklerin çalışmaya devam etmesini sağlar. Bu özellik deneyseldir, tarayıcı tarafından garanti edilmez ve biraz daha fazla kaynak kullanabilir.",
+    "enable_failed": "Etkinleştirilemedi",
+    "disable_failed": "Devre Dışı Bırakılamadı",
+    "prompt_title": "Firefox'ta Betikler Canlı Tutulsun mu?",
+    "prompt_description": "Bu bir {{scriptType}}. Betiğin zamanında çalışmaya devam etmesi için ScriptCat'in Firefox arka plan sayfasını etkin tutmasına izin verin. Bu özellik deneyseldir ve biraz daha fazla kaynak kullanabilir.",
+    "enable_now": "Şimdi Etkinleştir",
+    "maybe_later": "Belki Daha Sonra",
+    "settings_hint": "Bu seçeneği istediğiniz zaman ayarlardan değiştirebilirsiniz."
+  },
   "favicon_service": "Site Simgesi Hizmeti",
   "favicon_service_desc": "Web sitesi simgelerini getirecek hizmeti seçin",
   "favicon_service_scriptcat": "ScriptCat",

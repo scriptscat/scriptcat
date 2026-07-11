@@ -93,8 +93,8 @@ firefoxManifest.permissions = firefoxManifest.permissions.filter(
 );
 
 if (process.env.SC_KEEP_EVENT_PAGE_ACTIVE === "true") {
-  // for startFirefoxEventPageKeepAliveLoop
-  firefoxManifest.permissions.push("webRequestBlocking");
+  // for startFirefoxEventPageKeepAliveLoop — 运行时按需向用户申请
+  firefoxManifest.optional_permissions.push("webRequestBlocking");
 }
 
 // Firefox MV3 不支持 "background" permission

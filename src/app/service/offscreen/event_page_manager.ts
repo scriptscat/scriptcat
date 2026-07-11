@@ -159,7 +159,8 @@ const nativeScheduler =
  *
  * 启用条件：
  * - 构建时设置 `SC_KEEP_EVENT_PAGE_ACTIVE=true`；
- * - Firefox manifest 包含 `webRequestBlocking`（`scripts/pack.js` 仅在同一开关开启时注入）；
+ * - Firefox manifest 在同一构建开关下把 `webRequestBlocking` 注入 `optional_permissions`；
+ * - 用户通过安装提示或设置页授予 `webRequestBlocking`；
  * - 浏览器提供 `scheduler.postTask`。
  *
  * 这不是 Firefox 保证的生命周期机制。任一条件不满足时函数为空操作；探测未被实际延迟时，
@@ -168,6 +169,8 @@ const nativeScheduler =
 const startFirefoxEventPageKeepAliveLoop =
   process.env.SC_KEEP_EVENT_PAGE_ACTIVE === "true" && nativeScheduler
     ? () => {
+        let running = false;
+
         // 期望每个 blocking request 保持未完成的时间。
         const DEFAULT_PROBE_DELAY_MS = 10_000;
         const MAX_PROBE_DELAY_MS = 120_000;
@@ -178,49 +181,6 @@ const startFirefoxEventPageKeepAliveLoop =
         // 使用扩展 ID 派生的探测域名，避免访问真实站点；请求是否最终成功并不重要。
         const keepAliveProbeUrl = `https://--extensions-${chrome.runtime.getURL("/dummy_image.png").split("//")[1]}`;
         const keepAliveProbeOrigin = new URL(keepAliveProbeUrl).origin;
-
-        // blocking listener 只处理带延迟标记的探测请求，并在 delayMs 后放行。
-        chrome.webRequest.onBeforeRequest.addListener(
-          (details) => {
-            const lastError = chrome.runtime.lastError;
-
-            if (lastError) {
-              console.error("chrome.runtime.lastError in chrome.webRequest.onBeforeRequest:", lastError);
-            }
-
-            if (!details.url.includes(keepAliveProbeUrl)) {
-              return {};
-            }
-            const url = new URL(details.url);
-
-            // 只延迟明确带有延迟标记的请求，避免误伤同源下的其它请求
-            if (!url.searchParams.has("__network_delay")) {
-              return {};
-            }
-
-            const requestedDelay = Number(url.searchParams.get("__network_delay"));
-
-            const delayMs = Number.isFinite(requestedDelay)
-              ? Math.max(0, Math.min(requestedDelay, MAX_PROBE_DELAY_MS))
-              : DEFAULT_PROBE_DELAY_MS;
-
-            return new Promise((resolve) => {
-              // user-visible 优先级用于尽量减少后台页面降频；它不保证 event page 永久存活。
-              nativeScheduler.postTask(
-                () => {
-                  // 延迟完成后放行 blocking request。
-                  resolve({});
-                },
-                { priority: "user-visible", delay: delayMs }
-              );
-            });
-          },
-          {
-            urls: [`${keepAliveProbeOrigin}/*`],
-            types: ["xmlhttprequest", "image"],
-          },
-          ["blocking"]
-        );
 
         let probeStartedAt: number;
 
@@ -244,6 +204,68 @@ const startFirefoxEventPageKeepAliveLoop =
           document.documentElement.appendChild(image);
         };
 
-        sendKeepAliveProbe();
+        const startLoop = () => {
+          if (running) return;
+          running = true;
+
+          // blocking listener 只处理带延迟标记的探测请求，并在 delayMs 后放行。
+          chrome.webRequest.onBeforeRequest.addListener(
+            (details) => {
+              const lastError = chrome.runtime.lastError;
+
+              if (lastError) {
+                console.error("chrome.runtime.lastError in chrome.webRequest.onBeforeRequest:", lastError);
+              }
+
+              if (!details.url.includes(keepAliveProbeUrl)) {
+                return {};
+              }
+              const url = new URL(details.url);
+
+              // 只延迟明确带有延迟标记的请求，避免误伤同源下的其它请求
+              if (!url.searchParams.has("__network_delay")) {
+                return {};
+              }
+
+              const requestedDelay = Number(url.searchParams.get("__network_delay"));
+
+              const delayMs = Number.isFinite(requestedDelay)
+                ? Math.max(0, Math.min(requestedDelay, MAX_PROBE_DELAY_MS))
+                : DEFAULT_PROBE_DELAY_MS;
+
+              return new Promise((resolve) => {
+                // user-visible 优先级用于尽量减少后台页面降频；它不保证 event page 永久存活。
+                nativeScheduler.postTask(
+                  () => {
+                    // 延迟完成后放行 blocking request。
+                    resolve({});
+                  },
+                  { priority: "user-visible", delay: delayMs }
+                );
+              });
+            },
+            {
+              urls: [`${keepAliveProbeOrigin}/*`],
+              types: ["xmlhttprequest", "image"],
+            },
+            ["blocking"]
+          );
+
+          sendKeepAliveProbe();
+        };
+
+        // 必须在事件页首个同步回合注册；撤销权限时依赖现有往返过短自停逻辑退出探测循环。
+        chrome.permissions.onAdded.addListener((permissions) => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.permissions.onAdded:", lastError);
+            return;
+          }
+          if (permissions.permissions?.includes("webRequestBlocking")) startLoop();
+        });
+
+        void chrome.permissions.contains({ permissions: ["webRequestBlocking"] }).then((granted) => {
+          if (granted) startLoop();
+        });
       }
     : () => {};

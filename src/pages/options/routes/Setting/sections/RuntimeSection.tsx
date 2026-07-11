@@ -16,6 +16,7 @@ const STORAGE_EXAMPLE_URL = "https://github.com/scriptscat/scriptcat/blob/main/e
 export function RuntimeSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
   const [bg, setBg] = useState(false);
+  const [keepAlive, setKeepAlive] = useState<boolean | null>(null);
   const [storage, setStorage] = useState<CATFileStorage | undefined>(undefined);
 
   useEffect(() => {
@@ -24,6 +25,9 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
         if (r !== null) setBg(r);
       });
     }
+    void isPermissionOk("webRequestBlocking").then((r) => {
+      setKeepAlive(r);
+    });
     void Promise.resolve(systemConfig.get("cat_file_storage")).then((v) => setStorage(v as CATFileStorage));
   }, []);
 
@@ -47,6 +51,32 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
         } else {
           void isPermissionOk("background").then((r) => {
             if (r !== null) setBg(r);
+          });
+        }
+      });
+    }
+  };
+
+  const toggleKeepAlive = (enable: boolean) => {
+    if (enable) {
+      chrome.permissions.request({ permissions: ["webRequestBlocking"] }, (granted) => {
+        if (chrome.runtime.lastError) {
+          notify.error(t("settings:keep_scripts_alive.enable_failed")!);
+          return;
+        }
+        setKeepAlive(granted);
+      });
+    } else {
+      chrome.permissions.remove({ permissions: ["webRequestBlocking"] }, (removed) => {
+        if (chrome.runtime.lastError) {
+          notify.error(t("settings:keep_scripts_alive.disable_failed")!);
+          return;
+        }
+        if (removed) {
+          setKeepAlive(false);
+        } else {
+          void isPermissionOk("webRequestBlocking").then((r) => {
+            setKeepAlive(r);
           });
         }
       });
@@ -99,6 +129,15 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
           description={t("settings:enable_background.description")}
         >
           <Switch checked={bg} onCheckedChange={toggleBg} />
+        </SettingRow>
+      )}
+
+      {keepAlive !== null && (
+        <SettingRow
+          label={t("settings:keep_scripts_alive.title")}
+          description={t("settings:keep_scripts_alive.description")}
+        >
+          <Switch checked={keepAlive} onCheckedChange={toggleKeepAlive} />
         </SettingRow>
       )}
 

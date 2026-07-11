@@ -103,7 +103,7 @@ if (hasOffscreenDocument) {
   new ServiceWorkerManager(server, messageQueue, offscreen).initManager();
   setupOffscreenDocument();                          // chrome.offscreen.createDocument(...)
 } else {
-  const offscreen = new EventPageOffscreenManager(message); // Firefox MV3: event page IS the DOM env
+  const offscreen = new EventPageOffscreenManager(message, messageQueue); // Firefox MV3: event page IS the DOM env
   new ServiceWorkerManager(server, messageQueue, offscreen).initManager();
 }
 ```
@@ -132,6 +132,12 @@ already has DOM and plays the offscreen role directly.
   never announces readiness at all (iframe failed to load, script error), a fallback timer in
   `BackgroundEnvManagerBase` still tells the service worker `preparationOffscreen` after
   `SANDBOX_READY_FALLBACK_MS`, logging a clear error instead of hanging forever.
+
+Firefox builds compiled with `SC_KEEP_EVENT_PAGE_ACTIVE=true` also include an experimental event-page keep-alive
+loop in `EventPageOffscreenManager`. That loop needs `webRequestBlocking`, so `scripts/pack.js` injects it only
+as a Firefox `optional_permissions` entry under the same build flag. Users grant it from the install prompt or
+runtime settings when they use Background Scripts or Scheduled Scripts; the event page listens for
+`chrome.permissions.onAdded` and starts the loop only after the grant is present.
 
 Services never see this difference: they receive an `IOffscreenSend` and call `.init()`.
 

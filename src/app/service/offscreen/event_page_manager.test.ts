@@ -1,11 +1,40 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { initTestEnv } from "@Tests/utils";
-import "@Packages/chrome-extension-mock";
+import chromeMock from "@Packages/chrome-extension-mock";
 import { Server } from "@Packages/message/server";
 import { MessageQueue } from "@Packages/message/message_queue";
+import type LoggerCoreType from "../../logger/core";
 import { EventPageOffscreenManager, InProcessMessage } from "./event_page_manager";
 
 initTestEnv();
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.stubGlobal("scheduler", undefined);
+  vi.restoreAllMocks();
+  chromeMock.init();
+  for (const node of Array.from(document.documentElement.querySelectorAll("iframe,img"))) {
+    node.remove();
+  }
+});
+
+const loadKeepAliveEnabledManager = async () => {
+  vi.stubEnv("SC_KEEP_EVENT_PAGE_ACTIVE", "true");
+  vi.stubGlobal("scheduler", {
+    postTask: vi.fn(),
+  });
+  vi.resetModules();
+  const loggerModule = await import("../../logger/core.js");
+  const LoggerCore = loggerModule.default as unknown as typeof LoggerCoreType;
+  const logger = new LoggerCore({
+    level: "trace",
+    consoleLevel: "trace",
+    writer: new loggerModule.EmptyWriter(),
+    labels: { env: "test" },
+  });
+  logger.logger().debug("test start");
+  return import("./event_page_manager.js");
+};
 
 // 单测重点：Firefox MV3 下事件页(EventPageOffscreenManager)与 service worker 是同一个脚本/进程，
 // offscreen -> SW 方向不能走 chrome.runtime.sendMessage(自己发给自己会报 "Could not establish
@@ -83,5 +112,61 @@ describe("EventPageOffscreenManager 与 SW 共用 MessageQueue", () => {
 
     expect(received.length).toBeGreaterThan(0);
     expect(received[0]).toEqual([{ uuid: "script-uuid", enable: true }]);
+  });
+});
+
+describe("EventPageOffscreenManager Firefox event page 保活权限门控", () => {
+  it("权限未授予时不注册 blocking listener，也不发起首拍探测", async () => {
+    chromeMock.permissions.__setGrantedPermissions([]);
+    const { EventPageOffscreenManager: KeepAliveManager, InProcessMessage: KeepAliveMessage } =
+      await loadKeepAliveEnabledManager();
+
+    new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
+    await Promise.resolve();
+
+    expect((chrome.webRequest.onBeforeRequest as any).listeners).toHaveLength(0);
+    expect(document.documentElement.querySelectorAll("img")).toHaveLength(0);
+  });
+
+  it("权限已授予时注册 blocking listener 并发起首拍探测", async () => {
+    chromeMock.permissions.__setGrantedPermissions(["webRequestBlocking"]);
+    const { EventPageOffscreenManager: KeepAliveManager, InProcessMessage: KeepAliveMessage } =
+      await loadKeepAliveEnabledManager();
+
+    new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
+    await Promise.resolve();
+
+    expect((chrome.webRequest.onBeforeRequest as any).listeners).toHaveLength(1);
+    expect((chrome.webRequest.onBeforeRequest as any).listeners[0].extraInfoSpec).toEqual(["blocking"]);
+    expect(document.documentElement.querySelectorAll("img")).toHaveLength(1);
+  });
+
+  it("运行中收到 webRequestBlocking 授权后启动循环，重复触发不会重复注册", async () => {
+    chromeMock.permissions.__setGrantedPermissions([]);
+    const { EventPageOffscreenManager: KeepAliveManager, InProcessMessage: KeepAliveMessage } =
+      await loadKeepAliveEnabledManager();
+
+    new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
+    await Promise.resolve();
+
+    chrome.permissions.request({ permissions: ["webRequestBlocking"] });
+    chrome.permissions.request({ permissions: ["webRequestBlocking"] });
+
+    expect((chrome.webRequest.onBeforeRequest as any).listeners).toHaveLength(1);
+    expect(document.documentElement.querySelectorAll("img")).toHaveLength(1);
+  });
+
+  it("构造同步回合内先注册 permissions.onAdded，再等待 contains 结果", async () => {
+    chromeMock.permissions.__setGrantedPermissions([]);
+    const contains = vi.spyOn(chrome.permissions, "contains").mockReturnValue(new Promise(() => {}) as never);
+    const addListener = vi.spyOn(chrome.permissions.onAdded, "addListener");
+    const { EventPageOffscreenManager: KeepAliveManager, InProcessMessage: KeepAliveMessage } =
+      await loadKeepAliveEnabledManager();
+
+    new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
+
+    expect(addListener).toHaveBeenCalledTimes(1);
+    expect(contains).toHaveBeenCalledTimes(1);
+    expect(addListener.mock.invocationCallOrder[0]).toBeLessThan(contains.mock.invocationCallOrder[0]);
   });
 });

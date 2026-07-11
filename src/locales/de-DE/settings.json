@@ -102,6 +102,17 @@
     "maybe_later": "Vielleicht später",
     "settings_hint": "Sie können diese Option jederzeit in den Einstellungen ändern."
   },
+  "keep_scripts_alive": {
+    "title": "Hintergrund- und geplante Skripte aktiv halten",
+    "description": "Hält in Firefox die Hintergrundseite von ScriptCat aktiv, damit Hintergrundskripte und geplante Skripte weiterlaufen. Diese Funktion ist experimentell, wird vom Browser nicht garantiert und kann etwas mehr Ressourcen verwenden.",
+    "enable_failed": "Aktivierung fehlgeschlagen",
+    "disable_failed": "Deaktivierung fehlgeschlagen",
+    "prompt_title": "Skripte in Firefox aktiv halten?",
+    "prompt_description": "Dies ist ein {{scriptType}}. Erlauben Sie ScriptCat, die Firefox-Hintergrundseite aktiv zu halten, damit das Skript nach Zeitplan weiterlaufen kann. Diese Funktion ist experimentell und kann etwas mehr Ressourcen verwenden.",
+    "enable_now": "Jetzt aktivieren",
+    "maybe_later": "Vielleicht später",
+    "settings_hint": "Sie können diese Option jederzeit in den Einstellungen ändern."
+  },
   "favicon_service": "Favicon-Dienst",
   "favicon_service_desc": "Dienst zum Abrufen von Website-Symbolen auswählen",
   "favicon_service_scriptcat": "ScriptCat",

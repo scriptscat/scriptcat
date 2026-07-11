@@ -102,6 +102,17 @@
     "maybe_later": "後で",
     "settings_hint": "設定ページでいつでも変更できます。"
   },
+  "keep_scripts_alive": {
+    "title": "バックグラウンドスクリプトとスケジュールスクリプトを維持",
+    "description": "Firefox で ScriptCat のバックグラウンドページをアクティブに保ち、バックグラウンドスクリプトとスケジュールスクリプトの実行を続けます。この機能は実験的で、ブラウザーが保証する仕組みではなく、リソース使用量が少し増える場合があります。",
+    "enable_failed": "有効化に失敗しました",
+    "disable_failed": "無効化に失敗しました",
+    "prompt_title": "Firefox でスクリプトを維持しますか？",
+    "prompt_description": "これは{{scriptType}}です。ScriptCat が Firefox のバックグラウンドページをアクティブに保つことを許可すると、スクリプトはスケジュールどおりに実行を続けられます。この機能は実験的で、リソース使用量が少し増える場合があります。",
+    "enable_now": "今すぐ有効にする",
+    "maybe_later": "後で",
+    "settings_hint": "設定ページでいつでも変更できます。"
+  },
   "favicon_service": "Favicon サービス",
   "favicon_service_desc": "ウェブサイトアイコンの取得サービスを選択",
   "favicon_service_scriptcat": "ScriptCat",
