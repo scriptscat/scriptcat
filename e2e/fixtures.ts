@@ -53,7 +53,7 @@ export const test = base.extend<{
   extensionId: async ({ context }, use) => {
     let [background] = context.serviceWorkers();
     if (!background) {
-      background = await context.waitForEvent("serviceworker");
+      background = await context.waitForEvent("serviceworker", { timeout: 14_000 });
     }
     const extensionId = background.url().split("/")[2];
     await use(extensionId);
@@ -89,7 +89,7 @@ export const testWithUserScripts = base.extend<
         args: ["--headless=new", ...chromeArgs],
       });
       let [bg] = ctx1.serviceWorkers();
-      if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 30_000 });
+      if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 14_000 });
       const extensionId = bg.url().split("/")[2];
       const extPage = await ctx1.newPage();
       await extPage.goto("chrome://extensions/");
@@ -123,14 +123,14 @@ export const testWithUserScripts = base.extend<
     });
     await context.addInitScript(dismissOnboarding);
     const [sw] = context.serviceWorkers();
-    if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
+    if (!sw) await context.waitForEvent("serviceworker", { timeout: 14_000 });
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
   },
   extensionId: async ({ context }, use) => {
     let [background] = context.serviceWorkers();
-    if (!background) background = await context.waitForEvent("serviceworker");
+    if (!background) background = await context.waitForEvent("serviceworker", { timeout: 14_000 });
     const extensionId = background.url().split("/")[2];
     await use(extensionId);
   },

@@ -108,7 +108,7 @@ export const test = base.extend<AgentFixtures, { agentProfileDir: string }>({
         args: ["--headless=new", ...chromeArgs],
       });
       let [bg] = ctx1.serviceWorkers();
-      if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 30_000 });
+      if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 14_000 });
       const extensionId = bg.url().split("/")[2];
 
       // 启用 userScripts 权限
@@ -128,7 +128,7 @@ export const test = base.extend<AgentFixtures, { agentProfileDir: string }>({
       // userScripts 启用后 SW 可能重启，重新获取
       let currentBg = ctx1.serviceWorkers().find((w) => w.url().includes(extensionId));
       if (!currentBg) {
-        currentBg = await ctx1.waitForEvent("serviceworker", { timeout: 15_000 });
+        currentBg = await ctx1.waitForEvent("serviceworker", { timeout: 14_000 });
       }
       await currentBg.evaluate(() => {
         const modelConfig = {
@@ -168,7 +168,7 @@ export const test = base.extend<AgentFixtures, { agentProfileDir: string }>({
       ...getProxyOptions(),
     });
     const [sw] = context.serviceWorkers();
-    if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
+    if (!sw) await context.waitForEvent("serviceworker", { timeout: 14_000 });
 
     await use(context);
     await context.close();
@@ -177,7 +177,7 @@ export const test = base.extend<AgentFixtures, { agentProfileDir: string }>({
 
   extensionId: async ({ context }, use) => {
     let [background] = context.serviceWorkers();
-    if (!background) background = await context.waitForEvent("serviceworker");
+    if (!background) background = await context.waitForEvent("serviceworker", { timeout: 14_000 });
     const extensionId = background.url().split("/")[2];
 
     // 关闭首次使用引导
