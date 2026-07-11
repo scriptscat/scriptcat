@@ -462,21 +462,19 @@ export default class GMApi {
     // firstPartyDomain 仅 Firefox 支持（First-Party Isolation）；Chrome 的 chrome.cookies 参数校验会拒绝未知属性，故不传递
     // see https://github.com/violentmonkey/violentmonkey/issues/746
     // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies#first-party_isolation
-    // When first-party isolation is on, you must provide this option or the API call fails and returns a rejected promise.
-    // For get(), set(), and remove() you must pass a string value. For getAll(), you may also pass null here, and this gets all cookies,
-    // whether or not they have a non-empty value for firstPartyDomain.
-    let firstPartyDomainA: string | null | undefined = undefined;
-    let firstPartyDomainB: string | undefined = undefined;
-    if (isFirefox()) {
-      const trimmedFirstPartyDomain = detail.firstPartyDomain ? `${detail.firstPartyDomain}`.trim() : "";
-      if (cookieAction === "getAll") {
-        // getAll() 专用：允许显式传 null 代表不按 firstPartyDomain 过滤
-        firstPartyDomainA = trimmedFirstPartyDomain || null;
-      } else {
-        // set()/remove() 专用：不支持 null，未指定时省略该字段
-        firstPartyDomainB = trimmedFirstPartyDomain || undefined;
-      }
-    }
+    // FPI 开启时该参数为必填，否则调用会被拒绝；"" 是合法值（代表该 cookie 是在 FPI 关闭时创建的），须与"未提供"区分，不能一并转成 undefined/null。
+    // getAll() 额外支持传 null：代表不按 firstPartyDomain 过滤，涵盖所有值（含未设置的 cookie）；set()/remove() 只接受 string，不支持 null。
+    const firstPartyDomainSupplied = typeof detail.firstPartyDomain === "string";
+    const firstPartyDomainTrimmed = firstPartyDomainSupplied ? detail.firstPartyDomain!.trim() : undefined;
+    // list（对应 chrome.cookies.getAll）：未提供时传 null，不按 firstPartyDomain 过滤
+    const firstPartyDomainForList: string | null | undefined = isFirefox()
+      ? firstPartyDomainSupplied
+        ? firstPartyDomainTrimmed
+        : null
+      : undefined;
+    // set / delete（对应 chrome.cookies.set / remove）：未提供时直接省略该字段
+    const firstPartyDomainForMutation: string | undefined =
+      isFirefox() && firstPartyDomainSupplied ? firstPartyDomainTrimmed : undefined;
 
     // 处理tab的storeid
     const tabId = sender.getExtMessageSender().tabId;
@@ -502,7 +500,7 @@ export default class GMApi {
             url: detail.url,
             storeId: storeId,
             partitionKey: stripUndefined(detail.partitionKey),
-            firstPartyDomain: firstPartyDomainA,
+            firstPartyDomain: firstPartyDomainForList,
           })
         );
         return cookies;
@@ -519,7 +517,7 @@ export default class GMApi {
             url: detail.url,
             storeId: storeId,
             partitionKey: stripUndefined(detail.partitionKey),
-            firstPartyDomain: firstPartyDomainB,
+            firstPartyDomain: firstPartyDomainForMutation,
           })
         );
         break;
@@ -545,7 +543,7 @@ export default class GMApi {
             secure: detail.secure,
             storeId: storeId,
             partitionKey: stripUndefined(detail.partitionKey),
-            firstPartyDomain: firstPartyDomainB,
+            firstPartyDomain: firstPartyDomainForMutation,
           })
         );
         break;

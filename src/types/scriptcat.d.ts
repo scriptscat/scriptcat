@@ -555,6 +555,11 @@ declare namespace GMTypes {
     httpOnly: boolean;
     secure: boolean;
     sameSite: "unspecified" | "no_restriction" | "lax" | "strict";
+    /**
+     * Firefox-only: the First-Party Isolation key. Empty string if the cookie was set while first-party isolation was off.
+     * @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+     */
+    firstPartyDomain?: string;
   }
 
   /** Value change listener. `tabid` is only available for background script listeners. */

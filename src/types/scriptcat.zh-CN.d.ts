@@ -561,6 +561,11 @@ declare namespace GMTypes {
     httpOnly: boolean;
     secure: boolean;
     sameSite: "unspecified" | "no_restriction" | "lax" | "strict";
+    /**
+     * 仅 Firefox 支持：First-Party Isolation 隔离键。若该 cookie 是在 First-Party Isolation 关闭时创建的，则为空字符串。
+     * @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+     */
+    firstPartyDomain?: string;
   }
 
   /** 值变化监听器。`tabid` 仅在后台脚本监听器中可用。 */

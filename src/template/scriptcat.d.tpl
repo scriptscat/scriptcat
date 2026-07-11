@@ -472,6 +472,11 @@ declare namespace GMTypes {
     httpOnly?: boolean;
     expirationDate?: number;
     partitionKey?: CookieDetailsPartitionKeyType;
+    /**
+     * Firefox-only: the First-Party Isolation key (`privacy.firstparty.isolate`). Not supported on Chrome.
+     * @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+     */
+    firstPartyDomain?: string;
   }
 
   interface Cookie {
@@ -485,6 +490,11 @@ declare namespace GMTypes {
     httpOnly: boolean;
     secure: boolean;
     sameSite: "unspecified" | "no_restriction" | "lax" | "strict";
+    /**
+     * Firefox-only: the First-Party Isolation key. Empty string if the cookie was set while first-party isolation was off.
+     * @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+     */
+    firstPartyDomain?: string;
   }
 
   // tabid是只有后台脚本监听才有的参数
