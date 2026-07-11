@@ -125,7 +125,12 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    name: Run E2E tests
+    name: Run E2E tests (${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2]
+        shardTotal: [2]
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v5
@@ -138,6 +143,9 @@ jobs:
 
       - name: Setup pnpm
         run: corepack enable
+
+      - name: Show runner CPU count
+        run: nproc
 
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
@@ -159,13 +167,13 @@ jobs:
         run: pnpm build
 
       - name: Run E2E tests
-        run: pnpm test:e2e
+        run: pnpm exec playwright test --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
       - name: Upload test artifacts
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: e2e-test-results
+          name: e2e-test-results-${{ matrix.shardIndex }}
           path: |
             test-results/
             playwright-report/
