@@ -34,10 +34,12 @@ vi.mock("@Packages/filesystem/auth", () => ({
   ClearNetDiskToken: vi.fn(() => Promise.resolve()),
 }));
 
-const { get, set, isPermissionOk } = vi.hoisted(() => ({
+const { get, set, isPermissionOk, isFirefoxMock } = vi.hoisted(() => ({
   get: vi.fn(),
   set: vi.fn(),
   isPermissionOk: vi.fn((permission: string) => Promise.resolve(permission === "webRequestBlocking" ? null : false)),
+  // 默认沿用 jsdom 下的真实判断（非 Firefox），仅在需要测试 Firefox 专属开关的用例中临时改为 true
+  isFirefoxMock: vi.fn(() => false),
 }));
 vi.mock("@App/pages/store/global", () => ({
   systemConfig: { get, set },
@@ -47,7 +49,7 @@ vi.mock("@App/pages/store/global", () => ({
 // 后台权限检测在挂载时调用，固定返回 false 以免干扰存储配置测试
 vi.mock("@App/pkg/utils/utils", async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
-  return { ...actual, isPermissionOk };
+  return { ...actual, isPermissionOk, isFirefox: isFirefoxMock };
 });
 
 import { RuntimeSection } from "./RuntimeSection";
@@ -70,6 +72,8 @@ afterEach(() => {
   isPermissionOk.mockImplementation((permission: string) =>
     Promise.resolve(permission === "webRequestBlocking" ? null : false)
   );
+  isFirefoxMock.mockReset();
+  isFirefoxMock.mockReturnValue(false);
   create.mockReset();
   create.mockResolvedValue({
     openDir: vi.fn(() => Promise.resolve({ getDirUrl: vi.fn(() => Promise.resolve("https://dir")) })),
@@ -88,16 +92,25 @@ describe("运行时分区-可选保活权限", () => {
     isPermissionOk.mockImplementation((permission: string) =>
       Promise.resolve(permission === "webRequestBlocking" ? false : false)
     );
-    const request = vi.spyOn(chrome.permissions, "request");
-    mockStorage();
-    render(<RuntimeSection register={() => () => {}} />);
-    await screen.findByText("Keep Background and Scheduled Scripts Alive");
-    const toggle = screen.getAllByRole("switch").at(-1);
-    expect(toggle).toBeInTheDocument();
+    // isFirefox 判断结果在模块顶层被固化为常量，临时开启后需重置模块并重新导入才能生效
+    isFirefoxMock.mockReturnValue(true);
+    vi.resetModules();
+    const { RuntimeSection: RuntimeSectionOnFirefox } = await import("./RuntimeSection.js");
+    try {
+      const request = vi.spyOn(chrome.permissions, "request");
+      mockStorage();
+      render(<RuntimeSectionOnFirefox register={() => () => {}} />);
+      await screen.findByText("Keep Background and Scheduled Scripts Alive");
+      const toggle = screen.getAllByRole("switch").at(-1);
+      expect(toggle).toBeInTheDocument();
 
-    fireEvent.click(toggle!);
+      fireEvent.click(toggle!);
 
-    expect(request).toHaveBeenCalledWith({ permissions: ["webRequestBlocking"] }, expect.any(Function));
+      expect(request).toHaveBeenCalledWith({ permissions: ["webRequestBlocking"] }, expect.any(Function));
+    } finally {
+      isFirefoxMock.mockReturnValue(false);
+      vi.resetModules();
+    }
   });
 });
 
