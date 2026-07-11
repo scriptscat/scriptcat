@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MessageConnect } from "@Packages/message/types";
 import GMApi from "./gm_api";
+import { GM_xmlhttpRequest } from "./gm_xhr";
 
 vi.mock("./gm_xhr", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -156,5 +157,174 @@ describe.concurrent("GM_download onloadend", () => {
     expect(onerror).toHaveBeenCalledTimes(1);
     expect(onloadend).toHaveBeenCalledTimes(1);
     expect(fakeA.connect).not.toHaveBeenCalled();
+  });
+});
+
+// 非 concurrent：以下用例通过 mockImplementationOnce 定制 GM_xmlhttpRequest 的行为，
+// 与 describe.concurrent 中并发触发的默认 mock 共享同一队列会有竞态，因此单独放在顺序执行的 describe 中。
+describe("GM_download 补充回归测试（native 部分下载 / browser connect 失败 / onloadend 抛错）", () => {
+  it("native 模式：onerror 后 xhr onloadend 携带非空 Blob，不应触发浏览器下载", async () => {
+    const fakeA = {
+      isInvalidContext: () => false,
+      connect: vi.fn(),
+    };
+    const onerror = vi.fn();
+    const onloadend = vi.fn();
+    vi.mocked(GM_xmlhttpRequest).mockImplementationOnce((_a: unknown, xhrParams: any) => {
+      queueMicrotask(() => {
+        xhrParams.onerror?.();
+        xhrParams.onloadend?.({ response: new Blob(["partial data"]) });
+      });
+      return { retPromise: Promise.resolve(), abort: vi.fn() };
+    });
+    const details: GMTypes.DownloadDetails<string> = {
+      url: "https://example.com/a.zip",
+      name: "a.zip",
+      downloadMode: "native",
+      onerror,
+      onloadend,
+    };
+    GMApi._GM_download(fakeA as any, details, false);
+    await flushMicrotasks();
+
+    expect(onerror).toHaveBeenCalledTimes(1);
+    expect(onloadend).toHaveBeenCalledTimes(1);
+    expect(fakeA.connect).not.toHaveBeenCalled();
+  });
+
+  it("native 模式：ontimeout 后 xhr onloadend 携带非空 Blob，不应触发浏览器下载", async () => {
+    const fakeA = {
+      isInvalidContext: () => false,
+      connect: vi.fn(),
+    };
+    const ontimeout = vi.fn();
+    const onloadend = vi.fn();
+    vi.mocked(GM_xmlhttpRequest).mockImplementationOnce((_a: unknown, xhrParams: any) => {
+      queueMicrotask(() => {
+        xhrParams.ontimeout?.();
+        xhrParams.onloadend?.({ response: new Blob(["partial data"]) });
+      });
+      return { retPromise: Promise.resolve(), abort: vi.fn() };
+    });
+    const details: GMTypes.DownloadDetails<string> = {
+      url: "https://example.com/a.zip",
+      name: "a.zip",
+      downloadMode: "native",
+      ontimeout,
+      onloadend,
+    };
+    GMApi._GM_download(fakeA as any, details, false);
+    await flushMicrotasks();
+
+    expect(ontimeout).toHaveBeenCalledTimes(1);
+    expect(onloadend).toHaveBeenCalledTimes(1);
+    expect(fakeA.connect).not.toHaveBeenCalled();
+  });
+
+  it("downloadMode=browser：a.connect 失败应触发 onerror/onloadend 并 reject retPromise", async () => {
+    const onerror = vi.fn();
+    const onloadend = vi.fn();
+    const connectError = new Error("connect failed");
+    const fakeA = {
+      isInvalidContext: () => false,
+      connect: vi.fn().mockRejectedValue(connectError),
+    };
+    const details: GMTypes.DownloadDetails<string> = {
+      url: "https://example.com/a.zip",
+      name: "a.zip",
+      downloadMode: "browser",
+      onerror,
+      onloadend,
+    };
+    const { retPromise } = GMApi._GM_download(fakeA as any, details, true);
+    await flushMicrotasks();
+
+    expect(onerror).toHaveBeenCalledTimes(1);
+    expect(onloadend).toHaveBeenCalledTimes(1);
+    await expect(retPromise).rejects.toBe(connectError);
+  });
+
+  it("downloadMode=browser：onload 触发时 onloadend 抛错，不应阻止 retPromise resolve", async () => {
+    const { conn, emit } = createFakeConnect();
+    const fakeA = createFakeA(conn);
+    const onloadend = vi.fn(() => {
+      throw new Error("boom");
+    });
+    const details: GMTypes.DownloadDetails<string> = {
+      url: "https://example.com/a.zip",
+      name: "a.zip",
+      downloadMode: "browser",
+      onloadend,
+    };
+    const { retPromise } = GMApi._GM_download(fakeA as any, details, true);
+    await flushMicrotasks();
+
+    const payload = { loaded: 10, total: 10 };
+    expect(() => emit({ action: "onload", data: payload })).toThrow("boom");
+
+    await expect(retPromise).resolves.toEqual(expect.objectContaining(payload));
+  });
+
+  it("downloadMode=native：下载成功后 onloadend 抛错，不应阻止 retPromise resolve 与 releaseResources（revokeObjectURL）", async () => {
+    const revokeSpy = vi.spyOn(URL, "revokeObjectURL");
+    const { conn, emit } = createFakeConnect();
+    const fakeA = createFakeA(conn);
+    vi.mocked(GM_xmlhttpRequest).mockImplementationOnce((_a: unknown, xhrParams: any) => {
+      queueMicrotask(() => {
+        xhrParams.onloadend?.({ response: new Blob(["full data"]) });
+      });
+      return { retPromise: Promise.resolve(), abort: vi.fn() };
+    });
+    const onloadend = vi.fn(() => {
+      throw new Error("boom");
+    });
+    const details: GMTypes.DownloadDetails<string> = {
+      url: "https://example.com/a.zip",
+      name: "a.zip",
+      downloadMode: "native",
+      onloadend,
+    };
+    const { retPromise } = GMApi._GM_download(fakeA as any, details, true);
+    await flushMicrotasks();
+
+    const payload = { loaded: 10, total: 10 };
+    expect(() => emit({ action: "onload", data: payload })).toThrow("boom");
+    await expect(retPromise).resolves.toEqual(payload);
+
+    await new Promise((r) => setTimeout(r, 5));
+    expect(revokeSpy).toHaveBeenCalled();
+  });
+
+  it("downloadMode=native：完整成功流程只触发一次 onload/onloadend，并释放 blob URL", async () => {
+    const revokeSpy = vi.spyOn(URL, "revokeObjectURL");
+    const { conn, emit } = createFakeConnect();
+    const fakeA = createFakeA(conn);
+    vi.mocked(GM_xmlhttpRequest).mockImplementationOnce((_a: unknown, xhrParams: any) => {
+      queueMicrotask(() => {
+        xhrParams.onloadend?.({ response: new Blob(["full data"]) });
+      });
+      return { retPromise: Promise.resolve(), abort: vi.fn() };
+    });
+    const onload = vi.fn();
+    const onloadend = vi.fn();
+    const details: GMTypes.DownloadDetails<string> = {
+      url: "https://example.com/a.zip",
+      name: "a.zip",
+      downloadMode: "native",
+      onload,
+      onloadend,
+    };
+    GMApi._GM_download(fakeA as any, details, false);
+    await flushMicrotasks();
+
+    expect(fakeA.connect).toHaveBeenCalledTimes(1);
+    const payload = { loaded: 20, total: 20 };
+    emit({ action: "onload", data: payload });
+
+    expect(onload).toHaveBeenCalledTimes(1);
+    expect(onloadend).toHaveBeenCalledTimes(1);
+
+    await new Promise((r) => setTimeout(r, 5));
+    expect(revokeSpy).toHaveBeenCalled();
   });
 });
