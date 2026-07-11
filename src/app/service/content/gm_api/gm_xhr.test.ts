@@ -28,10 +28,12 @@ function createFakeApi(): { api: GMApi; getMessageHandler: () => ((data: TMessag
 }
 
 describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
-  it("注册了 upload 回调时，发往后台的 param 应携带 hasUpload: true", async () => {
+  it("POST 且带请求体、注册了 upload 回调时，发往后台的 param 应携带 hasUpload: true", async () => {
     const { api } = createFakeApi();
     const details = {
       url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
       upload: { onprogress: vi.fn() },
     } as unknown as GMTypes.XHRDetails;
 
@@ -44,10 +46,36 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     expect(params[0].hasUpload).toBe(true);
   });
 
-  it("未注册 upload 回调时，发往后台的 param.hasUpload 应为 false", async () => {
+  it("未注册 upload 回调时，即使 POST 带请求体，发往后台的 param.hasUpload 也应为 false", async () => {
     const { api } = createFakeApi();
     const details = {
       url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
+    } as unknown as GMTypes.XHRDetails;
+
+    GM_xmlhttpRequest(api, details, false);
+    await waitTick();
+
+    const connectMock = api.connect as unknown as ReturnType<typeof vi.fn>;
+    const [, params] = connectMock.mock.calls[0];
+    expect(params[0].hasUpload).toBe(false);
+  });
+
+  it.each([
+    ["GET 请求（无请求体，即便注册了 upload 回调）", { method: "GET" }],
+    ["HEAD 请求（无请求体，即便注册了 upload 回调）", { method: "HEAD" }],
+    ["POST 但未提供 data（无请求体）", { method: "POST" }],
+    ["fetch: true（改走 fetch 传输，不支持 upload）", { method: "POST", data: "payload", fetch: true }],
+    ["设置了 redirect（改走 fetch 传输）", { method: "POST", data: "payload", redirect: "follow" }],
+    ["anonymous: true（改走 fetch 传输）", { method: "POST", data: "payload", anonymous: true }],
+    ["responseType: stream（改走 fetch 传输）", { method: "POST", data: "payload", responseType: "stream" }],
+  ])("%s：即使注册了 upload 回调，param.hasUpload 也应为 false（不会产生真实 upload 阶段）", async (_label, extra) => {
+    const { api } = createFakeApi();
+    const details = {
+      url: "https://example.com/upload",
+      ...extra,
+      upload: { onabort: vi.fn(), onloadend: vi.fn() },
     } as unknown as GMTypes.XHRDetails;
 
     GM_xmlhttpRequest(api, details, false);
@@ -146,13 +174,15 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     }
   );
 
-  it("调用返回的 abort() 时，若 upload 阶段尚未完成，应先补发 details.upload.onabort 与 onloadend", async () => {
+  it("调用返回的 abort() 时，若 upload 阶段尚未完成（POST 带请求体），应先补发 details.upload.onabort 与 onloadend", async () => {
     const { api } = createFakeApi();
     const onUploadAbort = vi.fn();
     const onUploadLoadEnd = vi.fn();
     const onabort = vi.fn();
     const details = {
       url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
       onabort,
       upload: {
         onabort: onUploadAbort,
@@ -171,12 +201,42 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     expect(onabort).toHaveBeenCalledTimes(1);
   });
 
-  it("即使未设置 details.onabort，只要注册了 upload 回调，调用 abort() 仍应触发 upload 的 abort/loadend", async () => {
+  it.each([
+    ["GET 请求", { method: "GET" }],
+    ["HEAD 请求", { method: "HEAD" }],
+    ["POST 但未提供 data", { method: "POST" }],
+    ["fetch: true", { method: "POST", data: "payload", fetch: true }],
+  ])(
+    "%s：即使注册了 upload 回调，调用 abort() 也不应触发 upload 的 abort/loadend（不存在真实 upload 阶段）",
+    async (_label, extra) => {
+      const { api } = createFakeApi();
+      const onUploadAbort = vi.fn();
+      const onUploadLoadEnd = vi.fn();
+      const details = {
+        url: "https://example.com/upload",
+        ...extra,
+        upload: { onabort: onUploadAbort, onloadend: onUploadLoadEnd },
+      } as unknown as GMTypes.XHRDetails;
+
+      const { abort } = GM_xmlhttpRequest(api, details, false);
+      await waitTick();
+
+      abort();
+      await waitTick();
+
+      expect(onUploadAbort).not.toHaveBeenCalled();
+      expect(onUploadLoadEnd).not.toHaveBeenCalled();
+    }
+  );
+
+  it("即使未设置 details.onabort，只要注册了 upload 回调且存在真实 upload 阶段，调用 abort() 仍应触发 upload 的 abort/loadend", async () => {
     const { api } = createFakeApi();
     const onUploadAbort = vi.fn();
     const onUploadLoadEnd = vi.fn();
     const details = {
       url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
       upload: {
         onabort: onUploadAbort,
         onloadend: onUploadLoadEnd,
@@ -200,6 +260,8 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     const onabort = vi.fn();
     const details = {
       url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
       onabort,
       upload: {
         onabort: onUploadAbort,
@@ -246,6 +308,8 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     const requestRef: { current?: ReturnType<typeof GM_xmlhttpRequest> } = {};
     const details = {
       url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
       upload: {
         onload: () => requestRef.current?.abort(),
         onabort: onUploadAbort,
@@ -308,6 +372,8 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     const requestRef: { current?: ReturnType<typeof GM_xmlhttpRequest> } = {};
     const details = {
       url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
       upload: {
         onload: () => requestRef.current?.abort(),
         onloadend: onUploadLoadEnd,
@@ -358,6 +424,8 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
       const requestRef: { current?: ReturnType<typeof GM_xmlhttpRequest> } = {};
       const details = {
         url: "https://example.com/upload",
+        method: "POST",
+        data: "payload",
         [mainHandlerName]: mainHandler,
         onabort: onMainAbort,
         upload: {
@@ -418,6 +486,8 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     const onUploadLoadEnd = vi.fn();
     const details = {
       url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
       upload: { onabort: onUploadAbort, onloadend: onUploadLoadEnd },
     } as unknown as GMTypes.XHRDetails;
 
@@ -441,6 +511,8 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     const order: string[] = [];
     const details = {
       url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
       onabort: () => order.push("main-abort"),
       onloadend: () => order.push("main-loadend"),
       upload: {

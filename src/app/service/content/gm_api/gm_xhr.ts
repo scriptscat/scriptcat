@@ -145,6 +145,12 @@ const hasAnyUploadHandler = (upload: GMTypes.XHRUpload | undefined): boolean =>
     upload.ontimeout,
   ].some((fn) => typeof fn === "function");
 
+// 与 bg_gm_xhr.ts 的 useFetch 判断保持一致：这些条件下后台会改走 fetch 传输，不会绑定 xhr.upload
+const isFetchForcedTransport = (details: GMTypes.XHRDetails): boolean => {
+  const anonymous = details.anonymous ?? details.mozAnon ?? false;
+  return !!(details.fetch || details.redirect || anonymous || details.responseType === "stream");
+};
+
 const retStateFnMap = new WeakMap<ThisType<GMXHRResponseType>, RetStateFnRecord>();
 
 interface RetStateFnRecord {
@@ -236,7 +242,7 @@ export function GM_xmlhttpRequest(
     password: details.password,
     redirect: details.redirect,
     fetch: details.fetch,
-    hasUpload: hasAnyUploadHandler(details.upload),
+    // hasUpload 需等待请求体编码完成、确认方法/请求体真的会产生 upload 阶段后才能计算，见下方 IIFE
   };
   if (!param.headers) {
     param.headers = {};
@@ -252,6 +258,19 @@ export function GM_xmlhttpRequest(
     const u = new URL(urlResolved, window.location.href);
     param.url = u.href;
     param.data = dataResolved;
+
+    // 对齐 XHR 规范：GET/HEAD 的请求体会被忽略，无请求体时 upload complete flag 在发送前已置位，
+    // 均不会产生 upload 阶段。fetch 传输也不绑定 xhr.upload（见 bg_gm_xhr.ts）。
+    // 只有真正会产生原生 upload 生命周期时，才告知后台绑定监听器、才在本地为 abort() 补发 upload 事件。
+    const uploadMethod = details.method || "GET";
+    const hasRequestBody = dataResolved.type !== "undefined" && dataResolved.type !== "null";
+    const canHaveUploadLifecycle =
+      !isFetchForcedTransport(details) &&
+      uploadMethod !== "GET" &&
+      uploadMethod !== "HEAD" &&
+      hasRequestBody &&
+      hasAnyUploadHandler(details.upload);
+    param.hasUpload = canHaveUploadLifecycle;
 
     // 处理返回数据
     const isStreamResponse = responseTypeOriginal === "stream";
@@ -534,8 +553,9 @@ export function GM_xmlhttpRequest(
       totalSize: uploadData.total,
     });
     let loadendCalled = false;
-    // 未注册 upload 回调时视为已完成，abort 时无需补发 upload 事件
-    let uploadDone = !hasAnyUploadHandler(details.upload);
+    // 请求不会产生真实 upload 阶段时（GET/HEAD、无请求体、fetch 传输、或未注册回调）视为已完成，
+    // abort 时无需补发 upload 事件
+    let uploadDone = !canHaveUploadLifecycle;
     let uploadLoadEndCalled = false;
     // 记录最后一次真实 upload 进度数据：upload 成功完成后才调用 abort() 时，
     // 兜底补发的 onloadend 应携带真实的已传输字节数，而非 abort() 合成响应对象里缺省的 undefined
@@ -576,17 +596,23 @@ export function GM_xmlhttpRequest(
     doAbort = (data: TXhrCallBackArg) => {
       if (!reqDone) {
         errorOccur = "AbortError";
-        const uploadWasDone = uploadDone;
-        if (!uploadWasDone) {
-          // 对齐原生 XHR abort() 语义：upload 尚未完成时，先补发 upload 的 abort；
-          // 此时尚未实际传输（或已中断），loaded/total/lengthComputable 对齐规范取 0/0/false
-          uploadDone = true;
-          details.upload?.onabort?.(makeUploadCallbackParam({ ...data, lengthComputable: false, loaded: 0, total: 0 }));
-          fireUploadLoadEnd({ ...data, lengthComputable: false, loaded: 0, total: 0 });
-        } else {
-          // upload 已经成功完成：兜底补发的 onloadend 使用最后一次真实进度数据，
-          // 而非 abort() 合成的响应对象（缺少 loaded/total/lengthComputable）
-          fireUploadLoadEnd(lastUploadEventData ?? data);
+        // canHaveUploadLifecycle 为 false 时（GET/HEAD、无请求体、或走 fetch 传输）根本不存在原生
+        // upload 阶段，不应触发任何 upload.* 回调；只有真正可能产生 upload 阶段的请求才需要处理
+        if (canHaveUploadLifecycle) {
+          const uploadWasDone = uploadDone;
+          if (!uploadWasDone) {
+            // 对齐原生 XHR abort() 语义：upload 尚未完成时，先补发 upload 的 abort；
+            // 此时尚未实际传输（或已中断），loaded/total/lengthComputable 对齐规范取 0/0/false
+            uploadDone = true;
+            details.upload?.onabort?.(
+              makeUploadCallbackParam({ ...data, lengthComputable: false, loaded: 0, total: 0 })
+            );
+            fireUploadLoadEnd({ ...data, lengthComputable: false, loaded: 0, total: 0 });
+          } else {
+            // upload 已经成功完成：兜底补发的 onloadend 使用最后一次真实进度数据，
+            // 而非 abort() 合成的响应对象（缺少 loaded/total/lengthComputable）
+            fireUploadLoadEnd(lastUploadEventData ?? data);
+          }
         }
         details.onabort?.(makeXHRCallbackParam?.(data) ?? {});
         reqDone = true;
