@@ -669,18 +669,19 @@ export default class GMApi extends GM_Base {
     return `${error}`;
   }
 
-  static _GM_audioAddStateChangeListener(a: GMApi, listener: GMTypes.AudioStateChangeListener): Promise<void> {
-    if (typeof listener !== "function") {
-      return Promise.reject("GM_audio.addStateChangeListener: Invalid argument");
+  // 调用脚本传入的回调，且吞掉回调自身抛出的异常，避免其被当作操作失败而重新以错误参数调用同一回调
+  static _GM_audioSafeInvoke<A extends unknown[]>(callback: ((...args: A) => void) | undefined, ...args: A): void {
+    if (!callback) return;
+    try {
+      callback(...args);
+    } catch (error) {
+      console.error(error);
     }
+  }
 
-    const state = (a.audioStateChange ??= { listeners: new Set(), generation: 0 });
-    if (state.listeners.has(listener)) {
-      return state.registration ?? Promise.resolve();
-    }
-    state.listeners.add(listener);
-    if (state.registration) return state.registration;
-
+  // 建立（或在 service worker 意外断线后重新建立）GM_audio 状态变化连接。
+  // 由 _GM_audioAddStateChangeListener 首次调用，也由断线重连逻辑自行递归调用。
+  static _GM_audioConnect(a: GMApi, state: NonNullable<GMApi["audioStateChange"]>): Promise<void> {
     // 记录本次尝试所属的世代：若在 connect() 完成前监听器被清空（remove 归零 / context 失效），
     // 世代会被递增或 audioStateChange 整体被替换，届时应丢弃这个迟到的连接，避免连接泄漏
     const generation = state.generation;
@@ -709,15 +710,27 @@ export default class GMApi extends GM_Base {
             }
             if (message.action === "stateChange") {
               for (const stateListener of state.listeners) {
-                stateListener(message.data as GMTypes.AudioStateChangeInfo);
+                try {
+                  stateListener(message.data as GMTypes.AudioStateChangeInfo);
+                } catch (error) {
+                  console.error(error);
+                }
               }
             }
           });
-          connection.onDisconnect(() => {
+          connection.onDisconnect((isSelfDisconnected) => {
             if (state.connection !== connection) return;
-            state.generation++;
             state.connection = undefined;
             state.registration = undefined;
+            if (registered && !isSelfDisconnected && a.audioStateChange === state && state.listeners.size) {
+              // service worker 意外终止（如 MV3 闲置回收）导致端口断开，而非脚本主动移除监听器，
+              // 此时应保留监听器并自动重连，而非静默丢弃——重新 connect() 会自动唤醒 service worker
+              const reconnect = GMApi._GM_audioConnect(a, state);
+              state.registration = reconnect;
+              reconnect.catch(() => {});
+              return;
+            }
+            state.generation++;
             state.listeners.clear();
             if (!registered) reject("GM_audio.addStateChangeListener: Connection disconnected");
           });
@@ -734,6 +747,21 @@ export default class GMApi extends GM_Base {
       throw error;
     });
     return state.registration;
+  }
+
+  static _GM_audioAddStateChangeListener(a: GMApi, listener: GMTypes.AudioStateChangeListener): Promise<void> {
+    if (typeof listener !== "function") {
+      return Promise.reject("GM_audio.addStateChangeListener: Invalid argument");
+    }
+
+    const state = (a.audioStateChange ??= { listeners: new Set(), generation: 0 });
+    if (state.listeners.has(listener)) {
+      return state.registration ?? Promise.resolve();
+    }
+    state.listeners.add(listener);
+    if (state.registration) return state.registration;
+
+    return GMApi._GM_audioConnect(a, state);
   }
 
   static _GM_audioRemoveStateChangeListener(a: GMApi, listener: GMTypes.AudioStateChangeListener): Promise<void> {
@@ -753,16 +781,18 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API({ follow: "GM_audio" })
   public "GM_audio.setMute"(details: GMTypes.AudioMuteDetails, callback?: GMTypes.AudioErrorCallback): void {
-    void this.sendMessage("GM_audio", ["setMute", details])
-      .then(() => callback?.())
-      .catch((error) => callback?.(_GM_audioError(error)));
+    void this.sendMessage("GM_audio", ["setMute", details]).then(
+      () => _GM_audioSafeInvoke(callback),
+      (error) => _GM_audioSafeInvoke(callback, _GM_audioError(error))
+    );
   }
 
   @GMContext.API({ follow: "GM_audio" })
   public "GM_audio.getState"(callback: GMTypes.AudioStateCallback): void {
-    void this.sendMessage("GM_audio", ["getState"])
-      .then((state: GMTypes.AudioState) => callback(state))
-      .catch(() => callback(undefined));
+    void this.sendMessage("GM_audio", ["getState"]).then(
+      (state: GMTypes.AudioState) => _GM_audioSafeInvoke(callback, state),
+      () => _GM_audioSafeInvoke(callback, undefined)
+    );
   }
 
   @GMContext.API({ follow: "GM_audio" })
@@ -770,9 +800,10 @@ export default class GMApi extends GM_Base {
     listener: GMTypes.AudioStateChangeListener,
     callback?: GMTypes.AudioErrorCallback
   ): void {
-    void _GM_audioAddStateChangeListener(this, listener)
-      .then(() => callback?.())
-      .catch((error) => callback?.(_GM_audioError(error)));
+    void _GM_audioAddStateChangeListener(this, listener).then(
+      () => _GM_audioSafeInvoke(callback),
+      (error) => _GM_audioSafeInvoke(callback, _GM_audioError(error))
+    );
   }
 
   @GMContext.API({ follow: "GM_audio" })
@@ -1771,6 +1802,7 @@ const {
   _GM_download,
   _GM_notification,
   _GM_audioError,
+  _GM_audioSafeInvoke,
   _GM_audioAddStateChangeListener,
   _GM_audioRemoveStateChangeListener,
 } = GMApi;

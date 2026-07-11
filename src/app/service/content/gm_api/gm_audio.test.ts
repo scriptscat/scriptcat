@@ -207,4 +207,117 @@ describe("GM_audio 状态变化监听", () => {
     await failedRegistration;
     expect(failure).toHaveBeenCalledWith("注册失败");
   });
+
+  it("service worker 意外断线（非本端主动断开）时应保留监听器并自动重连，而非静默丢弃", async () => {
+    const connections = [
+      new MockMessageConnect(new EventEmitter<string, TMessage>()),
+      new MockMessageConnect(new EventEmitter<string, TMessage>()),
+    ];
+    const connect = vi.fn().mockResolvedValueOnce(connections[0]).mockResolvedValueOnce(connections[1]);
+    const message = { connect } as unknown as Message;
+    const api = new GMApi("serviceWorker", message, message, {
+      uuid: "gm-audio-test",
+      value: {},
+    } as ScriptRunResource);
+    const listener = vi.fn();
+
+    const registration = api["GM.audio.addStateChangeListener"](listener);
+    await Promise.resolve();
+    connections[0].sendMessage({ action: "registered" });
+    await registration;
+    expect(connect).toHaveBeenCalledTimes(1);
+
+    // service worker 进入 idle 被 MV3 终止，端口在未经本端 disconnect() 调用的情况下断开
+    connections[0].EE!.emit("disconnect", false);
+    // 监听器不应被清空——脚本从未调用 removeStateChangeListener
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(connect).toHaveBeenCalledTimes(2);
+
+    connections[1].sendMessage({ action: "registered" });
+    await Promise.resolve();
+    connections[1].sendMessage({ action: "stateChange", data: { audible: true } });
+    expect(listener).toHaveBeenCalledWith({ audible: true });
+
+    await api["GM.audio.removeStateChangeListener"](listener);
+  });
+
+  it("本端主动 disconnect（如 removeStateChangeListener）不应触发自动重连", async () => {
+    const { api, connect, connection } = createAudioApi();
+    const listener = vi.fn();
+
+    const registration = api["GM.audio.addStateChangeListener"](listener);
+    await Promise.resolve();
+    connection.sendMessage({ action: "registered" });
+    await registration;
+    expect(connect).toHaveBeenCalledTimes(1);
+
+    await api["GM.audio.removeStateChangeListener"](listener);
+    await Promise.resolve();
+    expect(connect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("GM_audio 回调不应在成功回调抛出异常后被重复调用", () => {
+  it("GM_audio.setMute 的回调抛出异常时只应被调用一次", async () => {
+    const { api } = createAudioApi();
+    const callback = vi.fn(() => {
+      throw new Error("callback boom");
+    });
+
+    api["GM_audio.setMute"]({ isMuted: true }, callback);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it("GM_audio.getState 的回调抛出异常时不应以 undefined 重新调用", async () => {
+    const { api } = createAudioApi();
+    const callback = vi.fn(() => {
+      throw new Error("callback boom");
+    });
+
+    api["GM_audio.getState"](callback);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it("GM_audio.addStateChangeListener 的注册回调抛出异常时只应被调用一次", async () => {
+    const { api, connection } = createAudioApi();
+    const callback = vi.fn(() => {
+      throw new Error("callback boom");
+    });
+
+    api["GM_audio.addStateChangeListener"](vi.fn(), callback);
+    await Promise.resolve();
+    connection.sendMessage({ action: "registered" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("GM_audio 状态变化监听器互相隔离", () => {
+  it("一个监听器抛出异常不应阻止其余监听器接收状态变化", async () => {
+    const { api, connection } = createAudioApi();
+    const first = vi.fn(() => {
+      throw new Error("first listener boom");
+    });
+    const second = vi.fn();
+
+    const firstRegistration = api["GM.audio.addStateChangeListener"](first);
+    await Promise.resolve();
+    connection.sendMessage({ action: "registered" });
+    await firstRegistration;
+    await api["GM.audio.addStateChangeListener"](second);
+
+    connection.sendMessage({ action: "stateChange", data: { audible: true } });
+
+    expect(first).toHaveBeenCalledWith({ audible: true });
+    expect(second).toHaveBeenCalledWith({ audible: true });
+  });
 });
