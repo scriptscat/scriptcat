@@ -16,6 +16,7 @@ import { getContextWindow } from "@App/app/service/agent/core/model_context";
 import { detectToolCallIssues, type ToolCallRecord } from "@App/app/service/agent/core/tool_call_guard";
 import { elideOldToolResults } from "@App/app/service/agent/core/context_elision";
 import type { LLMCallResult } from "./llm_client";
+import { t } from "@App/locales/locales";
 
 // 上下文占用达到这些比例时，分批裁剪保留窗口外的旧 tool 结果（早于 autoCompact 的 80% 阈值）。
 // 按阈值分批触发，并在 60% 以上每新增一个保留窗口重新裁剪，兼顾真正的滑动窗口与 prompt cache 稳定性。
@@ -25,9 +26,9 @@ const ELISION_KEEP_LAST_ASSISTANT_TURNS = 5;
 
 // 循环检测（tool_call_guard）连续命中达到此次数时，暂停并询问用户是否继续（仅当调用方提供 askUserForGuard 时生效）
 const GUARD_ESCALATION_STRIKES = 2;
-const GUARD_STOP_ANSWER = "Stop";
+const GUARD_STOP_ANSWER = "stop";
 
-type AskUserForGuard = (question: string, options: string[]) => Promise<string>;
+type AskUserForGuard = (strikeCount: number) => Promise<string>;
 
 /**
  * Provider 归一化后的实际上下文输入 token。
@@ -41,8 +42,7 @@ function getContextInputTokens(model: AgentModelConfig, usage: NonNullable<LLMCa
 /** 等待 loop-guard 回答；AbortSignal 触发时立即返回 null，不再阻塞会话停止/断开。 */
 function waitForGuardAnswer(
   askUserForGuard: AskUserForGuard,
-  question: string,
-  options: string[],
+  strikeCount: number,
   signal: AbortSignal
 ): Promise<string | null> {
   if (signal.aborted) return Promise.resolve(null);
@@ -66,7 +66,7 @@ function waitForGuardAnswer(
 
     signal.addEventListener("abort", onAbort, { once: true });
     Promise.resolve()
-      .then(() => askUserForGuard(question, options))
+      .then(() => askUserForGuard(strikeCount))
       .then(resolveOnce, rejectOnce);
   });
 }
@@ -142,7 +142,13 @@ export class ToolLoopOrchestrator {
     } = params;
     // 持久化历史保留完整结果供 UI 展示；LLM 只使用独立副本，续接时首个请求也先裁剪旧结果。
     const messages = rehydratedHistory ? inputMessages.map((message) => ({ ...message })) : inputMessages;
-    if (rehydratedHistory) elideOldToolResults(messages, ELISION_KEEP_LAST_ASSISTANT_TURNS);
+    if (rehydratedHistory) {
+      const estimatedInputTokens = JSON.stringify(messages).length / 4;
+      const estimatedUsageRatio = estimatedInputTokens / getContextWindow(model);
+      if (estimatedUsageRatio >= ELISION_THRESHOLDS[0]) {
+        elideOldToolResults(messages, ELISION_KEEP_LAST_ASSISTANT_TURNS);
+      }
+    }
 
     const startTime = Date.now();
     let iterations = 0;
@@ -349,12 +355,7 @@ export class ToolLoopOrchestrator {
 
           // 连续命中达到阈值时暂停，询问用户是否继续（仅 UI 对话传入 askUserForGuard 时生效）
           if (guardStrikeCount >= GUARD_ESCALATION_STRIKES && params.askUserForGuard) {
-            const answer = await waitForGuardAnswer(
-              params.askUserForGuard,
-              `[System] The Agent has triggered the loop-guard warning ${guardStrikeCount} times since the last check. Continue letting it proceed automatically, or stop here?`,
-              ["Continue", GUARD_STOP_ANSWER],
-              signal
-            );
+            const answer = await waitForGuardAnswer(params.askUserForGuard, guardStrikeCount, signal);
             if (answer === null) {
               const durationMs = Date.now() - startTime;
               sendEvent({ type: "done", usage: totalUsage, durationMs });
@@ -367,7 +368,7 @@ export class ToolLoopOrchestrator {
                   id: uuidv4(),
                   conversationId,
                   role: "assistant",
-                  content: "Stopped at the user's request after repeated loop-guard warnings.",
+                  content: t("agent:chat_guard_stopped_message"),
                   usage: totalUsage,
                   durationMs,
                   createtime: Date.now(),
@@ -426,6 +427,7 @@ export class ToolLoopOrchestrator {
     }
 
     // 超过最大迭代次数
+    const durationMs = Date.now() - startTime;
     const maxIterMsg = `Tool calling loop exceeded maximum iterations (${maxIterations})`;
     if (conversationId) {
       await this.chatRepo.appendMessage({
@@ -435,6 +437,8 @@ export class ToolLoopOrchestrator {
         content: "",
         error: maxIterMsg,
         errorCode: "max_iterations",
+        usage: totalUsage,
+        durationMs,
         createtime: Date.now(),
       });
     }
@@ -442,6 +446,8 @@ export class ToolLoopOrchestrator {
       type: "error",
       message: maxIterMsg,
       errorCode: "max_iterations",
+      usage: totalUsage,
+      durationMs,
     });
   }
 }

@@ -380,6 +380,7 @@ export default function ChatArea({
           break;
         case "error":
           msg.error = event.message;
+          msg.errorCode = event.errorCode;
           break;
         case "done":
           if (event.usage) msg.usage = event.usage;
@@ -746,7 +747,9 @@ export default function ChatArea({
               id={askUserPending.id}
               question={askUserPending.question}
               options={askUserPending.options}
+              optionValues={askUserPending.optionValues}
               multiple={askUserPending.multiple}
+              allowCustom={askUserPending.allowCustom}
               onRespond={respondToAskUser}
             />
           )}

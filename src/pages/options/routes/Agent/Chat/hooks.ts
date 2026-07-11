@@ -135,7 +135,14 @@ export function useMessages(conversationId: string) {
 }
 
 // ask_user 待回复状态
-export type AskUserPending = { id: string; question: string; options?: string[]; multiple?: boolean };
+export type AskUserPending = {
+  id: string;
+  question: string;
+  options?: string[];
+  optionValues?: string[];
+  multiple?: boolean;
+  allowCustom?: boolean;
+};
 
 // 流式聊天 hook
 export function useStreamingChat() {
@@ -209,10 +216,13 @@ export function useStreamingChat() {
               id: event.id,
               question: event.question,
               options: event.options,
+              optionValues: event.optionValues,
               multiple: event.multiple,
+              allowCustom: event.allowCustom,
             });
           }
           if (event.type === "ask_user_expired") setAskUserPending(null);
+          if (event.type === "ask_user_resolved") setAskUserPending(null);
           onEvent(event);
           if ((event.type === "done" || event.type === "error") && !("subAgent" in event && event.subAgent)) {
             setIsStreaming(false);
@@ -258,10 +268,13 @@ export function useStreamingChat() {
               id: event.id,
               question: event.question,
               options: event.options,
+              optionValues: event.optionValues,
               multiple: event.multiple,
+              allowCustom: event.allowCustom,
             });
           }
           if (event.type === "ask_user_expired") setAskUserPending(null);
+          if (event.type === "ask_user_resolved") setAskUserPending(null);
 
           onEvent(event);
 

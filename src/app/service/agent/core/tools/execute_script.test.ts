@@ -118,6 +118,18 @@ describe("execute_script 工具", () => {
   });
 
   describe("超大返回值截断", () => {
+    it.concurrent("原始结果刚好低于限制但最终 JSON 信封超限时仍应截断", async () => {
+      const nearLimit = "x".repeat(29_970);
+      const deps = makeDeps({ executeInSandbox: vi.fn().mockResolvedValue(nearLimit) });
+      const { executor } = createExecuteScriptTool(deps);
+
+      const result = (await executor.execute({ code: "return nearLimit", target: "sandbox" })) as string;
+      const parsed = JSON.parse(result);
+
+      expect(result.length).toBeLessThanOrEqual(30_000);
+      expect(parsed.truncated).toBe(true);
+    });
+
     it.concurrent("最终 JSON 信封包含大量引号和反斜杠时仍不超过限制", async () => {
       const escaped = '"\\'.repeat(40_000);
       const deps = makeDeps({ executeInSandbox: vi.fn().mockResolvedValue(escaped) });

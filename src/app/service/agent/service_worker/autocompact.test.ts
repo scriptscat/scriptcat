@@ -99,6 +99,63 @@ describe("Compact 功能", () => {
     expect(lastUserMsg.content).toContain("只保留代码");
   });
 
+  it("手动 compact：先过滤错误占位消息并裁剪超出上下文阈值的旧工具结果", async () => {
+    const { service, mockRepo, mockModelRepo } = createTestService();
+    const { sender } = createMockSender();
+    mockModelRepo.getModel.mockResolvedValue({
+      id: "test-openai",
+      name: "Test",
+      provider: "openai",
+      apiBaseUrl: "",
+      apiKey: "",
+      model: "gpt-4o",
+      contextWindow: 1000,
+    });
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    const messages: any[] = [];
+    for (let i = 0; i < 6; i++) {
+      messages.push({
+        id: `a${i}`,
+        conversationId: "conv-1",
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: `tc${i}`, name: "tool", arguments: "{}" }],
+        createtime: i,
+      });
+      messages.push({
+        id: `t${i}`,
+        conversationId: "conv-1",
+        role: "tool",
+        content: "工具结果".repeat(100),
+        toolCallId: `tc${i}`,
+        createtime: i,
+      });
+    }
+    messages.push({
+      id: "error",
+      conversationId: "conv-1",
+      role: "assistant",
+      content: "",
+      error: "max iterations",
+      errorCode: "max_iterations",
+      createtime: 99,
+    });
+    mockRepo.getMessages.mockResolvedValue(messages);
+    fetchSpy.mockResolvedValueOnce(makeTextResponseWithTokens("<summary>压缩完成</summary>"));
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "", compact: true }, sender);
+
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string);
+    expect(
+      body.messages.some(
+        (message: any) => message.role === "assistant" && message.content === "" && !message.tool_calls
+      )
+    ).toBe(false);
+    expect(
+      body.messages.some((message: any) => typeof message.content === "string" && message.content.includes("elided"))
+    ).toBe(true);
+  });
+
   it("手动 compact：空消息时返回错误", async () => {
     const { service, mockRepo } = createTestService();
     const { sender, sentMessages } = createMockSender();

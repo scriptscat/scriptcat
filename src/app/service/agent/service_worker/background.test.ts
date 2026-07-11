@@ -356,7 +356,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
     rc.pendingAskUser = { id: "ask-1", question: "选择" };
     (service as any).bgSessionManager.set("conv-ask", rc);
 
-    const { sender, simulateMessage } = createMockSender();
+    const { sender, sentMessages, simulateMessage } = createMockSender();
     await (service as any).handleAttachToConversation({ conversationId: "conv-ask" }, sender);
 
     // 模拟 UI 回复 ask_user
@@ -365,6 +365,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
     expect(resolvedAnswer).toBe("红色");
     expect(rc.pendingAskUser).toBeUndefined();
     expect(rc.askResolvers.has("ask-1")).toBe(false);
+    expect(sentMessages.some((message) => message.data?.type === "ask_user_resolved")).toBe(true);
 
     (service as any).bgSessionManager.delete("conv-ask");
   });

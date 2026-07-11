@@ -212,6 +212,22 @@ describe("AgentTaskScheduler", () => {
     expect(updatedTask!.lastRunError).toBe("LLM 调用失败");
   });
 
+  it("执行失败时保留已累计的 usage", async () => {
+    internalExecutor.mockRejectedValue(
+      Object.assign(new Error("超过最大迭代次数"), {
+        usage: { inputTokens: 120, outputTokens: 40 },
+      })
+    );
+
+    const task = makeTask({ id: "error-usage-1", nextruntime: Date.now() - 1000 });
+    await repo.saveTask(task);
+    await scheduler.executeTask(task);
+
+    const runs = await runRepo.listRuns("error-usage-1");
+    expect(runs[0].status).toBe("error");
+    expect(runs[0].usage).toEqual({ inputTokens: 120, outputTokens: 40 });
+  });
+
   it("执行完成后更新 nextruntime", async () => {
     const task = makeTask({ id: "next-1", nextruntime: Date.now() - 1000 });
     await repo.saveTask(task);

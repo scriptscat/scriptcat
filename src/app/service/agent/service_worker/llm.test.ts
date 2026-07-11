@@ -512,6 +512,13 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     expect(errorEvents).toHaveLength(1);
     expect(errorEvents[0].message).toContain("maximum iterations");
     expect(errorEvents[0].errorCode).toBe("max_iterations");
+    expect(errorEvents[0].usage).toEqual(expect.objectContaining({ inputTokens: 10, outputTokens: 5 }));
+    expect(errorEvents[0].durationMs).toEqual(expect.any(Number));
+    const persistedError = mockRepo.appendMessage.mock.calls
+      .map((call: any[]) => call[0])
+      .find((message: any) => message.errorCode === "max_iterations");
+    expect(persistedError.usage).toEqual(expect.objectContaining({ inputTokens: 10, outputTokens: 5 }));
+    expect(persistedError.durationMs).toEqual(expect.any(Number));
 
     // fetch 只调用 1 次（maxIterations=1）
     expect(fetchSpy).toHaveBeenCalledTimes(1);

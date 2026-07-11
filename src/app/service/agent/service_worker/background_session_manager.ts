@@ -13,7 +13,14 @@ export type RunningConversation = {
   abortController: AbortController;
   listeners: Set<ListenerEntry>;
   streamingState: { content: string; thinking: string; toolCalls: ToolCall[] };
-  pendingAskUser?: { id: string; question: string; options?: string[]; multiple?: boolean };
+  pendingAskUser?: {
+    id: string;
+    question: string;
+    options?: string[];
+    optionValues?: string[];
+    multiple?: boolean;
+    allowCustom?: boolean;
+  };
   askResolvers: Map<string, (answer: string) => void>;
   tasks: Array<{ id: string; subject: string; status: "pending" | "in_progress" | "completed"; description?: string }>;
   status: "running" | "done" | "error";
@@ -104,10 +111,15 @@ export class BackgroundSessionManager {
           id: event.id,
           question: event.question,
           options: event.options,
+          optionValues: event.optionValues,
           multiple: event.multiple,
+          allowCustom: event.allowCustom,
         };
         break;
       case "ask_user_expired":
+        if (rc.pendingAskUser?.id === event.id) rc.pendingAskUser = undefined;
+        break;
+      case "ask_user_resolved":
         if (rc.pendingAskUser?.id === event.id) rc.pendingAskUser = undefined;
         break;
       case "task_update":
@@ -187,6 +199,7 @@ export class BackgroundSessionManager {
         if (resolver) {
           rc.askResolvers.delete(msg.data.id);
           rc.pendingAskUser = undefined;
+          sendEvent({ type: "ask_user_resolved", id: msg.data.id });
           resolver(msg.data.answer);
         }
       }

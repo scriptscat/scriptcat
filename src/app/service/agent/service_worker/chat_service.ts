@@ -37,6 +37,8 @@ import { classifyErrorCode } from "./retry_utils";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
 import { toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { t } from "@App/locales/locales";
+import { elideOldToolResults } from "@App/app/service/agent/core/context_elision";
 import type { LLMCallResult } from "./llm_client";
 
 /** ChatService 需要的 execute_script 工具依赖 */
@@ -199,24 +201,36 @@ export class ChatService {
 
     // 循环检测（tool_call_guard）连续命中时暂停询问用户是否继续；复用 ask_user 的事件/resolver 机制，
     // 5 分钟无人应答时默认"继续"，避免无 UI 监听的后台会话被无限期挂起
-    const askUserForGuard = (question: string, options: string[]): Promise<string> => {
+    const askUserForGuard = (strikeCount: number): Promise<string> => {
       return new Promise((resolve) => {
         const askId = `guard_${uuidv4()}`;
-        sendEvent({ type: "ask_user", id: askId, question, options, multiple: false });
+        const cleanup = () => abortController.signal.removeEventListener("abort", onAbort);
+        const finish = (answer: string) => {
+          clearTimeout(timer);
+          askResolvers.delete(askId);
+          cleanup();
+          resolve(answer);
+        };
+        const onAbort = () => finish("stop");
         const timer = setTimeout(
           () => {
-            askResolvers.delete(askId);
             sendEvent({ type: "ask_user_expired", id: askId });
-            // 后台会话：清除过期的 pendingAskUser，避免后续 attach 的 UI 看到已超时的提问
-            if (rc && rc.pendingAskUser?.id === askId) rc.pendingAskUser = undefined;
-            resolve("Continue");
+            finish("continue");
           },
           5 * 60 * 1000
         );
+        sendEvent({
+          type: "ask_user",
+          id: askId,
+          question: t("agent:chat_guard_question", { count: strikeCount }),
+          options: [t("agent:chat_guard_continue"), t("agent:chat_guard_stop")],
+          optionValues: ["continue", "stop"],
+          multiple: false,
+          allowCustom: false,
+        });
+        abortController.signal.addEventListener("abort", onAbort, { once: true });
         askResolvers.set(askId, (answer: string) => {
-          clearTimeout(timer);
-          askResolvers.delete(askId);
-          resolve(answer);
+          finish(answer);
         });
       });
     };
@@ -258,6 +272,7 @@ export class ChatService {
         if (resolver) {
           askResolvers.delete(msg.data.id);
           if (rc) rc.pendingAskUser = undefined;
+          sendEvent({ type: "ask_user_resolved", id: msg.data.id });
           resolver(msg.data.answer);
         }
       }
@@ -452,8 +467,9 @@ export class ChatService {
 
     const model = await this.modelService.getModel(params.modelId || conv.modelId);
     const existingMessages = await this.chatRepo.getMessages(params.conversationId);
+    const historyMessages = toLLMMessages(existingMessages).filter((msg) => msg.role !== "system");
 
-    if (existingMessages.filter((m) => m.role !== "system").length === 0) {
+    if (historyMessages.length === 0) {
       sendEvent({ type: "error", message: "No messages to compact" });
       return;
     }
@@ -462,7 +478,8 @@ export class ChatService {
     const summaryMessages: ChatRequest["messages"] = [];
     summaryMessages.push({ role: "system", content: COMPACT_SYSTEM_PROMPT });
 
-    summaryMessages.push(...toLLMMessages(existingMessages).filter((msg) => msg.role !== "system"));
+    summaryMessages.push(...historyMessages);
+    elideOldToolResults(summaryMessages, 5);
 
     summaryMessages.push({ role: "user", content: buildCompactUserPrompt(params.compactInstruction) });
 

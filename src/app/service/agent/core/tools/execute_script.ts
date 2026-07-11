@@ -37,9 +37,8 @@ const MAX_RESULT_CHARS = 30_000;
 function buildResultPayload(result: unknown, extra: Record<string, unknown>): string {
   const rawResult = result ?? null;
   const resultStr = JSON.stringify(rawResult);
-  if (resultStr.length <= MAX_RESULT_CHARS) {
-    return JSON.stringify({ result: rawResult, ...extra });
-  }
+  const normalPayload = JSON.stringify({ result: rawResult, ...extra });
+  if (normalPayload.length <= MAX_RESULT_CHARS) return normalPayload;
   const makePayload = (keptLength: number) => {
     const headLength = Math.ceil(keptLength / 2);
     const tailLength = keptLength - headLength;

@@ -138,15 +138,30 @@ export type ForwardableEvent =
       };
       durationMs?: number;
     }
-  | { type: "error"; message: string; errorCode?: string }
+  | {
+      type: "error";
+      message: string;
+      errorCode?: string;
+      usage?: TokenUsage;
+      durationMs?: number;
+    }
   | { type: "retry"; attempt: number; maxRetries: number; error: string; delayMs: number };
 
 // Service Worker -> UI/Sandbox 的流式事件（通过 MessageConnect 的 sendMessage 传输）
 // ForwardableEvent 携带可选 subAgent 标识（扁平化子代理事件，消除递归包装）
 export type ChatStreamEvent =
   | (ForwardableEvent & { subAgent?: SubAgentEventInfo })
-  | { type: "ask_user"; id: string; question: string; options?: string[]; multiple?: boolean }
+  | {
+      type: "ask_user";
+      id: string;
+      question: string;
+      options?: string[];
+      optionValues?: string[];
+      multiple?: boolean;
+      allowCustom?: boolean;
+    }
   | { type: "ask_user_expired"; id: string }
+  | { type: "ask_user_resolved"; id: string }
   | { type: "system_warning"; message: string }
   | {
       type: "task_update";
@@ -161,7 +176,14 @@ export type ChatStreamEvent =
   | {
       type: "sync";
       streamingMessage?: { content: string; thinking?: string; toolCalls: ToolCall[] };
-      pendingAskUser?: { id: string; question: string; options?: string[]; multiple?: boolean };
+      pendingAskUser?: {
+        id: string;
+        question: string;
+        options?: string[];
+        optionValues?: string[];
+        multiple?: boolean;
+        allowCustom?: boolean;
+      };
       tasks: Array<{
         id: string;
         subject: string;

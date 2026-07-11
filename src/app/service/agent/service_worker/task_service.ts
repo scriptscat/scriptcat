@@ -155,9 +155,15 @@ export class AgentTaskService {
 
       const sendEvent = (event: ChatStreamEvent) => {
         // 定时任务无 UI 连接，但需要收集 usage
-        if (event.type === "done" && event.usage) {
+        if ((event.type === "done" || event.type === "error") && event.usage) {
           totalUsage.inputTokens += event.usage.inputTokens;
           totalUsage.outputTokens += event.usage.outputTokens;
+        }
+        if (event.type === "error") {
+          throw Object.assign(new Error(event.message), {
+            errorCode: event.errorCode,
+            usage: totalUsage,
+          });
         }
       };
 
