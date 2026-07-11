@@ -459,37 +459,15 @@ export default class GMApi {
       detail.partitionKey.topLevelSite = undefined;
     }
 
-    // firstPartyDomain 仅 Firefox 支持（First-Party Isolation）；Chrome 的 chrome.cookies 参数校验会拒绝未知属性，故不传递
-    // "" 是合法值（代表该 cookie 是在 FPI 关闭时创建的），须与"未提供"区分，不能一并转成 undefined/null。
-    //
-    // list（getAll）与 set/delete（set/remove）在 Firefox 源码里的处理并不对称，行为依据实测的
-    // toolkit/components/extensions/parent/ext-cookies.js（非 MDN 文档，MDN 未写清楚这个区别）：
-    // - getAll 显式区分"完全没有这个 key"与"key 存在但值为 null/undefined"：只有前者才会在 FPI 开启时报错
-    //   （见 getAll() 里 `if (!("firstPartyDomain" in details)) validateFirstPartyDomain(details)`），后者会
-    //   直接跳过校验、且不按 firstPartyDomain 过滤（等同 Violentmonkey 生产环境的 `firstPartyDomain: null`
-    //   补偿写法，见 https://github.com/violentmonkey/violentmonkey/issues/746）。因此 list 必须显式传字面量
-    //   null（而非直接省略整个字段），stripUndefined 只会剔除 undefined、不会剔除 null，符合需要。
-    // - set/remove 无论传 null 还是完全不传，validateFirstPartyDomain 都无条件执行且视二者等价
-    //   （`details.firstPartyDomain != null` 对 null/undefined 皆为 false）；因此对 set/remove 补 null 毫无
-    //   意义——FPI 开启时未提供仍会被 Firefox 拒绝（ExtensionError: "... required 'firstPartyDomain' attribute
-    //   was not set."），只能让脚本自行提供，不去伪造一个值掩盖这个限制。
-    //
-    // 已知取舍（list 专属）：null 会令查询跨越所有 first-party 分区，而 GM_cookie 的权限校验只验证目标
-    // hostname、未限定调用脚本自身的 first-party 上下文；将其正确收紧到"调用标签页当前分区"需要按 Firefox
-    // 内部算法计算 eTLD+1（并感知 privacy.firstparty.isolate.use_site 等无法从 WebExtension API 读取的偏好），
-    // 这在生态中仍是未解决的问题——Violentmonkey 自身对此有长期开放的讨论且未实现收紧，见
-    // https://github.com/violentmonkey/violentmonkey/issues/1467。
-    const firstPartyDomainSupplied = typeof detail.firstPartyDomain === "string";
-    const firstPartyDomainTrimmed = firstPartyDomainSupplied ? detail.firstPartyDomain!.trim() : undefined;
-    // list 专属：未提供时必须补字面量 null，否则 FPI 开启时 chrome.cookies.getAll 会报错（见上方注释）
-    const firstPartyDomainForList: string | null | undefined = isFirefox()
-      ? firstPartyDomainSupplied
-        ? firstPartyDomainTrimmed
-        : null
-      : undefined;
-    // set/delete 专属：未提供时直接省略该字段；FPI 开启且脚本未提供时，交由 Firefox 自身报错
-    const firstPartyDomainForSetOrDelete: string | undefined =
-      isFirefox() && firstPartyDomainSupplied ? firstPartyDomainTrimmed : undefined;
+    // firstPartyDomain 仅 Firefox 支持；Chrome 会拒绝未知参数，故非 Firefox 下不传递。
+    // "" 是合法值（代表该 cookie 是在 FPI 关闭时创建的），须与"未提供"区分。
+    // getAll 未提供时需补字面量 null 才能在 FPI 开启时免于报错，且不按 firstPartyDomain 过滤；
+    // set/remove 对 null 与未提供一视同仁，补 null 无意义，未提供时交由 Firefox 自身报错。
+    // https://github.com/violentmonkey/violentmonkey/issues/746
+    const firstPartyDomainRaw =
+      typeof detail.firstPartyDomain === "string" ? detail.firstPartyDomain.trim() : undefined;
+    const firstPartyDomainForList: string | null | undefined = isFirefox() ? (firstPartyDomainRaw ?? null) : undefined;
+    const firstPartyDomainForSetOrDelete: string | undefined = isFirefox() ? firstPartyDomainRaw : undefined;
 
     // 处理tab的storeid
     const tabId = sender.getExtMessageSender().tabId;
