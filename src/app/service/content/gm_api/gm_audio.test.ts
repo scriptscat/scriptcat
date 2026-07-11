@@ -300,6 +300,49 @@ describe("GM_audio 状态变化监听", () => {
     }
   });
 
+  it("恢复期间 connect() rejects 时，应保留监听器并退避重试", async () => {
+    vi.useFakeTimers();
+    try {
+      const connections = [
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+        new MockMessageConnect(new EventEmitter<string, TMessage>()),
+      ];
+      const connect = vi
+        .fn()
+        .mockResolvedValueOnce(connections[0])
+        .mockRejectedValueOnce(new Error("temporary connection failure"))
+        .mockResolvedValueOnce(connections[1]);
+      const message = { connect } as unknown as Message;
+      const api = new GMApi("serviceWorker", message, message, {
+        uuid: "gm-audio-test",
+        value: {},
+      } as ScriptRunResource);
+      const listener = vi.fn();
+
+      const registration = api["GM.audio.addStateChangeListener"](listener);
+      await Promise.resolve();
+      connections[0].sendMessage({ action: "registered" });
+      await registration;
+
+      connections[0].EE!.emit("disconnect", false);
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(connect).toHaveBeenCalledTimes(2);
+
+      await vi.advanceTimersByTimeAsync(250);
+      expect(connect).toHaveBeenCalledTimes(3);
+
+      connections[1].sendMessage({ action: "registered" });
+      await Promise.resolve();
+      connections[1].sendMessage({ action: "stateChange", data: { audible: true } });
+      expect(listener).toHaveBeenCalledWith({ audible: true });
+
+      await api["GM.audio.removeStateChangeListener"](listener);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("本端主动 disconnect（如 removeStateChangeListener）不应触发自动重连", async () => {
     const { api, connect, connection } = createAudioApi();
     const listener = vi.fn();
