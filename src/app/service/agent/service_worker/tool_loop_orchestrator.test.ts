@@ -67,6 +67,7 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
       signal: new AbortController().signal,
       scriptToolCallback: null,
       conversationId: "conv-1",
+      rehydratedHistory: true,
       ...overrides,
     };
   }

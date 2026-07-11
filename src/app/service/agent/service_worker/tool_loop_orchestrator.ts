@@ -122,6 +122,8 @@ export class ToolLoopOrchestrator {
     excludeTools?: string[];
     // 是否启用 prompt caching，默认 true
     cache?: boolean;
+    // 消息来自持久化历史时，先在独立副本上裁剪旧 tool 结果。
+    rehydratedHistory?: boolean;
     // 循环检测连续命中达到 GUARD_ESCALATION_STRIKES 次时调用，暂停循环询问用户是否继续。
     // 仅由 UI 对话（含后台会话）传入；定时任务、子代理不传，保持原有的仅告警不暂停行为。
     askUserForGuard?: AskUserForGuard;
@@ -136,10 +138,11 @@ export class ToolLoopOrchestrator {
       signal,
       scriptToolCallback,
       conversationId,
+      rehydratedHistory,
     } = params;
     // 持久化历史保留完整结果供 UI 展示；LLM 只使用独立副本，续接时首个请求也先裁剪旧结果。
-    const messages = conversationId ? inputMessages.map((message) => ({ ...message })) : inputMessages;
-    if (conversationId) elideOldToolResults(messages, ELISION_KEEP_LAST_ASSISTANT_TURNS);
+    const messages = rehydratedHistory ? inputMessages.map((message) => ({ ...message })) : inputMessages;
+    if (rehydratedHistory) elideOldToolResults(messages, ELISION_KEEP_LAST_ASSISTANT_TURNS);
 
     const startTime = Date.now();
     let iterations = 0;

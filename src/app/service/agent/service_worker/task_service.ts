@@ -36,6 +36,7 @@ export interface TaskOrchestrator {
     signal: AbortSignal;
     scriptToolCallback: ScriptToolCallback | null;
     conversationId: string;
+    rehydratedHistory?: boolean;
   }): Promise<void>;
 }
 
@@ -169,6 +170,7 @@ export class AgentTaskService {
         signal: abortController.signal,
         scriptToolCallback: null,
         conversationId,
+        rehydratedHistory: Boolean(task.conversationId),
       });
 
       // 通知

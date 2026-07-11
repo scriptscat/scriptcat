@@ -354,6 +354,7 @@ export class ChatService {
           signal: abortController.signal,
           scriptToolCallback: enableTools && params.tools && params.tools.length > 0 ? scriptToolCallback : null,
           conversationId: params.conversationId,
+          rehydratedHistory: true,
           skipBuiltinTools: !enableTools,
           askUserForGuard,
         });
