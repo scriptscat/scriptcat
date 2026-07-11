@@ -655,6 +655,17 @@ declare namespace GMTypes {
 
   type GMXHRDataType = string | Blob | File | BufferSource | FormData | URLSearchParams;
 
+  /** Event handlers for the request's upload phase, mirroring `XMLHttpRequestUpload`. */
+  interface XHRUpload {
+    onloadstart?: Listener<XHRResponse>;
+    onprogress?: Listener<XHRProgress>;
+    onload?: Listener<XHRResponse>;
+    onloadend?: Listener<XHRResponse>;
+    onerror?: Listener<XHRResponse>;
+    onabort?: Listener<XHRResponse>;
+    ontimeout?: Listener<XHRResponse>;
+  }
+
   interface XHRDetails {
     method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS";
     url: string | URL | File | Blob;
@@ -683,6 +694,8 @@ declare namespace GMTypes {
     redirect?: "follow" | "error" | "manual";
     /** Partitioned cookie key for storage partitioning. */
     cookiePartition?: Record<string, any> & { topLevelSite?: string };
+    /** Event handlers for the upload phase, mirroring `XMLHttpRequestUpload`. */
+    upload?: XHRUpload;
 
     onload?: Listener<XHRResponse>;
     onloadstart?: Listener<XHRResponse>;

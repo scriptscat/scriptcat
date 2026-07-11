@@ -703,6 +703,38 @@ export function GM_xmlhttpRequest(
           case "onabort":
             doAbort?.(data);
             break;
+          case "onuploadloadstart":
+            details.upload?.onloadstart?.(makeXHRCallbackParam?.(data) ?? {});
+            break;
+          case "onuploadprogress": {
+            if (details.upload?.onprogress) {
+              const res = {
+                ...(makeXHRCallbackParam?.(data) ?? {}),
+                lengthComputable: data.lengthComputable as boolean,
+                loaded: data.loaded as number,
+                total: data.total as number,
+                done: data.loaded,
+                totalSize: data.total,
+              };
+              details.upload.onprogress?.(res);
+            }
+            break;
+          }
+          case "onuploadload":
+            details.upload?.onload?.(makeXHRCallbackParam?.(data) ?? {});
+            break;
+          case "onuploadloadend":
+            details.upload?.onloadend?.(makeXHRCallbackParam?.(data) ?? {});
+            break;
+          case "onuploaderror":
+            details.upload?.onerror?.(makeXHRCallbackParam?.(data) ?? {});
+            break;
+          case "onuploadabort":
+            details.upload?.onabort?.(makeXHRCallbackParam?.(data) ?? {});
+            break;
+          case "onuploadtimeout":
+            details.upload?.ontimeout?.(makeXHRCallbackParam?.(data) ?? {});
+            break;
           // case "onstream":
           //   controller?.enqueue(new Uint8Array(data));
           //   break;

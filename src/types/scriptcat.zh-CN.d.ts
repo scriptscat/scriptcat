@@ -661,6 +661,17 @@ declare namespace GMTypes {
 
   type GMXHRDataType = string | Blob | File | BufferSource | FormData | URLSearchParams;
 
+  /** 上传阶段的事件处理器，对齐 `XMLHttpRequestUpload`。 */
+  interface XHRUpload {
+    onloadstart?: Listener<XHRResponse>;
+    onprogress?: Listener<XHRProgress>;
+    onload?: Listener<XHRResponse>;
+    onloadend?: Listener<XHRResponse>;
+    onerror?: Listener<XHRResponse>;
+    onabort?: Listener<XHRResponse>;
+    ontimeout?: Listener<XHRResponse>;
+  }
+
   interface XHRDetails {
     method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS";
     url: string | URL | File | Blob;
@@ -689,6 +700,8 @@ declare namespace GMTypes {
     redirect?: "follow" | "error" | "manual";
     /** 分区 Cookie 键，用于存储分区。 */
     cookiePartition?: Record<string, any> & { topLevelSite?: string };
+    /** 上传阶段的事件处理器，对齐 `XMLHttpRequestUpload`。 */
+    upload?: XHRUpload;
 
     onload?: Listener<XHRResponse>;
     onloadstart?: Listener<XHRResponse>;

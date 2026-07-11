@@ -83,6 +83,7 @@ const isProgressEvent = (e: XHREvent): e is ProgressEvent<EventTarget> & { type:
  * | `onreadystatechange(response)` | Called when the request’s `readyState` changes. |
  * | `ontimeout(response)` | Called if the request times out. |
  * | `onload(response)` | Called when the request successfully completes. |
+ * | `upload` | Object probed for `onloadstart`/`onprogress`/`onload`/`onloadend`/`onerror`/`onabort`/`ontimeout`, mirroring `XMLHttpRequestUpload`. Not supported when `fetch: true`. |
  *
  * ---
  * ### Response Object
@@ -392,6 +393,37 @@ export class BgGMXhr {
         baseXHR.ontimeout = callback;
         baseXHR.onreadystatechange = callback;
         baseXHR.onloadend = callback;
+
+        // upload 阶段事件：仅原生 XMLHttpRequest 提供 xhr.upload，fetch 模式不支持上传进度回调
+        if (!(localThis instanceof FetchXHR)) {
+          const uploadCallback = (evt: ProgressEvent) => {
+            const xhr = localThis;
+            const eventType = `upload${evt.type}`;
+            this.callback({
+              useFetch: useFetch,
+              eventType,
+              ok: xhr.status >= 200 && xhr.status < 300,
+              contentType,
+              readyState: xhr.readyState as GMTypes.ReadyState,
+              status: xhr.status,
+              statusText: xhr.statusText,
+              responseHeaders,
+              responseURL: xhr.responseURL,
+              error: evt.type !== "error" ? undefined : "Unknown Error",
+              total: evt.total,
+              loaded: evt.loaded,
+              lengthComputable: evt.lengthComputable,
+            } satisfies BgGMXhrCallbackResult);
+          };
+          const upload = localThis.upload;
+          upload.onloadstart = uploadCallback;
+          upload.onprogress = uploadCallback;
+          upload.onload = uploadCallback;
+          upload.onloadend = uploadCallback;
+          upload.onerror = uploadCallback;
+          upload.onabort = uploadCallback;
+          upload.ontimeout = uploadCallback;
+        }
       }
 
       baseXHR.open(details.method ?? "GET", url, true, details.user, details.password);
