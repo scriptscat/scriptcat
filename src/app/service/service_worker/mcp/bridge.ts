@@ -229,6 +229,24 @@ export class McpBridge {
         const uuid = input.uuid as string;
         const script = await this.scriptDAO.get(uuid);
         if (!script) throw new McpBridgeError("NOT_FOUND", "script not found");
+
+        // First-use-per-client disclosure gate (doc 02 §4.2, doc 07 §5): source may contain
+        // secrets, so unlike scripts.list/metadata.get this read isn't unconditionally granted
+        // by the scope alone — the human must approve it once per client per script (or forever,
+        // via "Allow for this client").
+        const disclosure = await this.approval.checkSourceDisclosure({
+          clientId: request.clientId,
+          uuid,
+          requestingClientName: client.displayName,
+        });
+        if (disclosure !== "allowed") {
+          throw new McpBridgeError(
+            "USER_APPROVAL_REQUIRED",
+            "reading script source requires a one-time disclosure approval",
+            disclosure.operationId
+          );
+        }
+
         const scriptCode = await this.scriptCodeDAO.get(uuid);
         if (!scriptCode) throw new McpBridgeError("NOT_FOUND", "script source not found");
         if (new TextEncoder().encode(scriptCode.code).length > MAX_SOURCE_BYTES) {

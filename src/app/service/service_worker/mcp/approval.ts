@@ -60,7 +60,7 @@ export class McpApprovalService {
     private readonly mutator: McpScriptMutator,
     private readonly scriptDAO: Pick<ScriptDAO, "get">,
     private readonly scriptCodeDAO: Pick<ScriptCodeDAO, "get">,
-    private readonly clientDAO: Pick<McpClientDAO, "get"> = new McpClientDAO(),
+    private readonly clientDAO: Pick<McpClientDAO, "get" | "save"> = new McpClientDAO(),
     private readonly operationDAO: McpOperationDAO = new McpOperationDAO(),
     private readonly tempStorageDAO: TempStorageDAO = new TempStorageDAO()
   ) {}
@@ -185,13 +185,76 @@ export class McpApprovalService {
   }
 
   /**
+   * First-use-per-client source disclosure gate (doc 02 §4.2, doc 07 §5). Returns `"allowed"`
+   * when the client already holds a permanent "allow for this client" grant or has just consumed
+   * a freshly-approved one-shot operation for this exact (clientId, uuid) pair — the caller
+   * (McpBridge) may proceed to read and return the source. Returns a `PendingOperationRef` when a
+   * new approval prompt was opened (or an identical one was already awaiting_user) — the caller
+   * must surface `USER_APPROVAL_REQUIRED` with that operationId instead of reading source.
+   */
+  async checkSourceDisclosure(params: {
+    clientId: string;
+    uuid: string;
+    requestingClientName: string;
+  }): Promise<"allowed" | PendingOperationRef> {
+    const client = await this.clientDAO.get(params.clientId);
+    if (client?.sourceDisclosureAllowed?.includes(params.uuid)) {
+      return "allowed";
+    }
+
+    const existingOps = await this.operationDAO.byClient(params.clientId);
+    const approvedUnconsumed = existingOps.find(
+      (op) => op.kind === "source_disclosure" && op.targetUuid === params.uuid && op.status === "approved"
+    );
+    if (approvedUnconsumed) {
+      // One-shot consumption: an "approved" source_disclosure op authorizes exactly one read.
+      // Expiring it here (rather than leaving it "approved") means a second read attempt without
+      // a fresh decision falls through to a new prompt below, matching "Allow once" semantics.
+      await this.operationDAO.update(approvedUnconsumed.operationId, { status: "expired" });
+      return "allowed";
+    }
+
+    // Idempotency, mirroring prepareInstall (doc 04 §4 invariant 8): don't stack a second prompt
+    // for the same (clientId, uuid) while one is already awaiting_user.
+    const pending = existingOps.find(
+      (op) => op.kind === "source_disclosure" && op.targetUuid === params.uuid && op.status === "awaiting_user"
+    );
+    if (pending) {
+      return toRef(pending);
+    }
+
+    const target = await this.scriptDAO.get(params.uuid);
+    if (!target) {
+      throw new McpBridgeError("NOT_FOUND", "script not found");
+    }
+
+    const operationId = uuidv4();
+    const now = Date.now();
+    const operation: McpOperation = {
+      operationId,
+      clientId: params.clientId,
+      kind: "source_disclosure",
+      status: "awaiting_user",
+      createdAt: now,
+      expiresAt: now + APPROVAL_TTL_MS,
+      targetUuid: params.uuid,
+      requestedEnabledState: false,
+    };
+    await this.operationDAO.save(operation);
+    await openInCurrentTab(`/src/mcp_confirm.html?op=${operationId}`);
+    return toRef(operation);
+  }
+
+  /**
    * Approve or reject a pending operation. `options.enable` only applies to installs: whether
-   * the user flipped the enable switch on install.html (doc 04 §4 invariant 6).
+   * the user flipped the enable switch on install.html (doc 04 §4 invariant 6). `options.
+   * rememberChoice` only applies to source_disclosure: "client" persists a permanent per-client
+   * allow-list entry, "once"/undefined approves only the single pending read (doc 07 §5).
    */
   async decide(
     operationId: string,
     approved: boolean,
-    options: { enable?: boolean } = {}
+    options: { enable?: boolean; rememberChoice?: "once" | "client" } = {}
   ): Promise<OperationStatusResult> {
     const op = await this.sweepAndGet(operationId);
     if (!op) {
@@ -231,7 +294,7 @@ export class McpApprovalService {
 
   private async executeApproved(
     op: McpOperation,
-    options: { enable?: boolean }
+    options: { enable?: boolean; rememberChoice?: "once" | "client" }
   ): Promise<{ uuid?: string; name?: string; enabled?: boolean }> {
     switch (op.kind) {
       case "install":
@@ -241,9 +304,25 @@ export class McpApprovalService {
         return this.executeToggle(op, op.kind === "enable");
       case "delete":
         return this.executeDelete(op);
+      case "source_disclosure":
+        return this.executeSourceDisclosure(op, options);
       default:
         throw new McpBridgeError("INTERNAL_ERROR", `unsupported operation kind ${op.kind}`, op.operationId);
     }
+  }
+
+  private async executeSourceDisclosure(op: McpOperation, options: { rememberChoice?: "once" | "client" }) {
+    if (options.rememberChoice === "client") {
+      const client = await this.clientDAO.get(op.clientId);
+      if (client) {
+        const allowed = new Set(client.sourceDisclosureAllowed ?? []);
+        allowed.add(op.targetUuid!);
+        await this.clientDAO.save({ ...client, sourceDisclosureAllowed: [...allowed] });
+      }
+    }
+    // decide() sets status "approved" right after this returns; the bridge's very next
+    // scripts.source.get call consumes (and expires) it via checkSourceDisclosure above.
+    return { uuid: op.targetUuid };
   }
 
   private async executeInstall(op: McpOperation, options: { enable?: boolean }) {

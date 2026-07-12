@@ -15,6 +15,9 @@ export interface McpClient {
   createdAt: number;
   lastUsedAt: number;
   revoked: boolean;
+  // 用户选择「对该客户端始终允许」读取源码的脚本 uuid 列表（doc 02 §4.2, doc 07 §5
+  // "Allow for this client"）——一次性批准（"Allow once"）不会写入此处，只消费单次待批操作。
+  sourceDisclosureAllowed?: string[];
 }
 
 export class McpClientDAO extends Repo<McpClient> {

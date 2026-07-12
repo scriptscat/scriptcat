@@ -448,8 +448,9 @@ describe("McpApprovalService", () => {
     });
 
     it("批准一个类型不受支持的操作（如遗留/未实现的 kind）返回 INTERNAL_ERROR，而非静默成功", async () => {
-      // "update"/"source_disclosure" are valid OperationKind union members with no real create
-      // path anywhere in this codebase (doc 02 §4.2 — source_disclosure was never implemented) —
+      // "update" is a valid OperationKind union member with no real create path anywhere in this
+      // codebase (only scripts.install.prepare ever creates operations, and it always stages a
+      // brand-new uuid — there is no MCP-triggered "update existing script" flow) —
       // executeApproved's default branch exists specifically to fail loudly if one is ever seen.
       const client = makeClient();
       await clientDAO.save(client);
@@ -463,6 +464,142 @@ describe("McpApprovalService", () => {
         requestedEnabledState: false,
       } as any);
       await expect(service.decide("fixture-op", true)).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
+    });
+  });
+
+  describe("checkSourceDisclosure - 首次读取源码的按客户端一次性/永久同意（doc 02 §4.2, doc 07 §5）", () => {
+    async function seedScript(uuid: string) {
+      await scriptDAO.save({
+        uuid,
+        name: "Disclosure Target",
+        author: "",
+        namespace: "ns",
+        originDomain: "",
+        origin: "",
+        checkUpdate: true,
+        checkUpdateUrl: "",
+        downloadUrl: "",
+        config: undefined,
+        metadata: { name: ["Disclosure Target"], namespace: ["ns"], version: ["1.0.0"] } as any,
+        selfMetadata: {},
+        sort: -1,
+        type: SCRIPT_TYPE_NORMAL,
+        status: SCRIPT_STATUS_ENABLE,
+        runStatus: "complete",
+        createtime: Date.now(),
+        updatetime: Date.now(),
+        checktime: Date.now(),
+      } as any);
+    }
+
+    it("对不存在的脚本返回 NOT_FOUND，不创建任何待批操作", async () => {
+      await expect(
+        service.checkSourceDisclosure({ clientId: "client-1", uuid: "missing", requestingClientName: "c" })
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+      expect(await operationDAO.byClient("client-1")).toHaveLength(0);
+    });
+
+    it("首次读取创建 awaiting_user 的 source_disclosure 待批操作，而非直接放行", async () => {
+      await seedScript("script-x");
+      const result = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-x",
+        requestingClientName: "c",
+      });
+      expect(result).not.toBe("allowed");
+      if (result !== "allowed") {
+        expect(result.status).toBe("awaiting_user");
+        expect(result.kind).toBe("source_disclosure");
+      }
+    });
+
+    it("同一 (client, uuid) 重复请求且仍 awaiting_user 时返回同一个 operationId，不重复弹窗", async () => {
+      await seedScript("script-y");
+      const first = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-y",
+        requestingClientName: "c",
+      });
+      const second = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-y",
+        requestingClientName: "c",
+      });
+      expect(first === "allowed" ? undefined : first.operationId).toBe(
+        second === "allowed" ? undefined : second.operationId
+      );
+    });
+
+    it("批准且未选择记住（remember=once）时：紧接着的下一次读取放行一次，此后再次读取需要重新批准", async () => {
+      await seedScript("script-z");
+      const pending = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-z",
+        requestingClientName: "c",
+      });
+      const operationId = pending === "allowed" ? "" : pending.operationId;
+      await service.decide(operationId, true, { rememberChoice: "once" });
+
+      const afterApprove = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-z",
+        requestingClientName: "c",
+      });
+      expect(afterApprove).toBe("allowed");
+
+      // The one-shot grant is consumed by the read above — a second read is not silently allowed.
+      const secondRead = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-z",
+        requestingClientName: "c",
+      });
+      expect(secondRead).not.toBe("allowed");
+    });
+
+    it("批准并选择「对该客户端始终允许」（remember=client）后，后续任意次读取都直接放行且不再创建操作", async () => {
+      await seedScript("script-w");
+      const pending = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-w",
+        requestingClientName: "c",
+      });
+      const operationId = pending === "allowed" ? "" : pending.operationId;
+      await service.decide(operationId, true, { rememberChoice: "client" });
+
+      expect(await clientDAO.get("client-1")).toMatchObject({ sourceDisclosureAllowed: ["script-w"] });
+
+      const first = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-w",
+        requestingClientName: "c",
+      });
+      const second = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-w",
+        requestingClientName: "c",
+      });
+      expect(first).toBe("allowed");
+      expect(second).toBe("allowed");
+    });
+
+    it("拒绝披露后不放行，且该操作不能被重放批准", async () => {
+      await seedScript("script-v");
+      const pending = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-v",
+        requestingClientName: "c",
+      });
+      const operationId = pending === "allowed" ? "" : pending.operationId;
+      await service.decide(operationId, false);
+
+      const afterReject = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-v",
+        requestingClientName: "c",
+      });
+      // Rejected, not awaiting_user — a fresh prompt is created rather than silently allowing.
+      expect(afterReject).not.toBe("allowed");
+      await expect(service.decide(operationId, true)).rejects.toThrow(McpBridgeError);
     });
   });
 });

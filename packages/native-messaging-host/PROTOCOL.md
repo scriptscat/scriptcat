@@ -86,6 +86,14 @@ must be supplied by `url`, fetched by the extension itself). Writes return a `Pe
 (`{ operationId, status: "awaiting_user", kind, expiresAt }`); nothing mutates until a human
 approves via `install.html` or `mcp_confirm.html`.
 
+`scripts.source.get` is gated separately from its scope check: holding `scripts:source:read`
+authorizes the *capability*, but the first read of a given script by a given client additionally
+requires a one-time human disclosure decision (kind `source_disclosure`, same pending-operation
+mechanism as writes, approved/rejected via `mcp_confirm.html`). Until decided, the call returns
+`USER_APPROVAL_REQUIRED` with an `operationId` rather than the source. "Allow once" authorizes
+exactly the next read; "Allow for this client" persists a permanent grant on the client record so
+subsequent reads of that script by that client never prompt again.
+
 `operations.get`/`operations.list`/`operations.cancel` are scoped to the calling `clientId` —
 another client's operation is `NOT_FOUND`, not `INSUFFICIENT_SCOPE` (existence isn't leaked).
 

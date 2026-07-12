@@ -516,6 +516,7 @@ export class MCPClient extends Client {
     operationId: string;
     approved: boolean;
     enable?: boolean;
+    rememberChoice?: "once" | "client";
   }): ReturnType<McpUIService["decideOperation"]> {
     return this.doThrow("operationDecision", param);
   }

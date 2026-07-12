@@ -49,11 +49,7 @@ function formatCountdown(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// enable/disable/delete only — source-disclosure consent-gating (doc 02 §4.2) is not yet
-// implemented server-side (scripts.source.get in mcp/bridge.ts reads directly, no pending
-// operation created for it), so there is no such operation kind for this page to render yet.
-// Tracked as a follow-up; documented rather than building UI for a flow the backend can't emit.
-type SupportedKind = "enable" | "disable" | "delete";
+type SupportedKind = "enable" | "disable" | "delete" | "source_disclosure";
 
 const HOLD_TO_CONFIRM_MS = 1500;
 
@@ -156,11 +152,11 @@ export function McpConfirmView({ operationId }: { operationId: string }) {
     };
   }, [operationId]);
 
-  const decide = async (approved: boolean, enable?: boolean) => {
+  const decide = async (approved: boolean, options: { enable?: boolean; rememberChoice?: "once" | "client" } = {}) => {
     if (decidedRef.current) return;
     decidedRef.current = true;
     try {
-      await mcpClient.decideOperation({ operationId, approved, enable });
+      await mcpClient.decideOperation({ operationId, approved, ...options });
     } catch (e) {
       notify.error((e as Error)?.message || String(e));
     } finally {
@@ -190,7 +186,12 @@ export function McpConfirmView({ operationId }: { operationId: string }) {
       ? t("mcp:confirm_enable_title")
       : kind === "disable"
         ? t("mcp:confirm_disable_title")
-        : t("mcp:confirm_delete_title");
+        : kind === "source_disclosure"
+          ? t("mcp:source_disclosure_title", {
+              clientName: op.requestingClientName ?? "",
+              scriptName: script?.name ?? op.targetUuid ?? "",
+            })
+          : t("mcp:confirm_delete_title");
 
   return (
     <PageShell>
@@ -200,16 +201,21 @@ export function McpConfirmView({ operationId }: { operationId: string }) {
             <TriangleAlert className="size-7 text-warning" />
           </div>
           <h1 className="text-center text-lg font-semibold text-foreground">{title}</h1>
-          {op.requestingClientName && (
+          {kind === "source_disclosure" && (
+            <p className="text-center text-[13px] text-muted-foreground">{t("mcp:source_disclosure_body")}</p>
+          )}
+          {kind !== "source_disclosure" && op.requestingClientName && (
             <p className="text-center text-[13px] text-muted-foreground">
               {`${t("mcp:approve_requested_by")}: ${op.requestingClientName}`}
             </p>
           )}
         </div>
 
-        <div className="rounded-xl bg-secondary p-3 text-center">
-          <span className="text-sm font-semibold text-foreground">{script?.name ?? op.targetUuid}</span>
-        </div>
+        {kind !== "source_disclosure" && (
+          <div className="rounded-xl bg-secondary p-3 text-center">
+            <span className="text-sm font-semibold text-foreground">{script?.name ?? op.targetUuid}</span>
+          </div>
+        )}
 
         {kind === "delete" ? (
           <div className="flex flex-col gap-2.5 pt-1">
@@ -226,6 +232,36 @@ export function McpConfirmView({ operationId }: { operationId: string }) {
               {t("mcp:pair_reject")}
             </Button>
           </div>
+        ) : kind === "source_disclosure" ? (
+          <div className="flex flex-col gap-2.5 pt-1">
+            <Button
+              size="lg"
+              data-testid="mcp-confirm-allow-client"
+              className="w-full font-semibold"
+              onClick={() => void decide(true, { rememberChoice: "client" })}
+            >
+              {t("mcp:source_allow_client")}
+            </Button>
+            <Button
+              variant="secondary"
+              size="lg"
+              data-testid="mcp-confirm-allow-once"
+              className="w-full border border-border font-semibold"
+              onClick={() => void decide(true, { rememberChoice: "once" })}
+            >
+              {t("mcp:source_allow_once")}
+            </Button>
+            <Button
+              variant="ghost"
+              size="lg"
+              data-testid="mcp-confirm-reject"
+              autoFocus
+              className="w-full text-muted-foreground"
+              onClick={() => void decide(false)}
+            >
+              {t("mcp:source_deny")}
+            </Button>
+          </div>
         ) : (
           <div className="flex flex-col gap-2.5 pt-1">
             <div className="flex gap-3">
@@ -233,7 +269,7 @@ export function McpConfirmView({ operationId }: { operationId: string }) {
                 size="lg"
                 data-testid="mcp-confirm-approve"
                 className="flex-1 font-semibold"
-                onClick={() => void decide(true, kind === "enable")}
+                onClick={() => void decide(true, { enable: kind === "enable" })}
               >
                 {t("mcp:enable_confirm")}
               </Button>

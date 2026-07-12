@@ -135,6 +135,42 @@ describe("MCP 操作确认页", () => {
     fireEvent.click(approveButton);
     await waitFor(() => expect(decideOperation).toHaveBeenCalledTimes(1));
   });
+
+  it("source_disclosure：渲染 拒绝/仅本次允许/对该客户端始终允许 三个按钮，而非普通批准/拒绝", async () => {
+    getOperation.mockResolvedValue(baseOp({ kind: "source_disclosure" }));
+    render(<McpConfirmView operationId="op-1" />);
+    expect(await screen.findByTestId("mcp-confirm-allow-client")).toBeInTheDocument();
+    expect(screen.getByTestId("mcp-confirm-allow-once")).toBeInTheDocument();
+    expect(screen.getByTestId("mcp-confirm-reject")).toBeInTheDocument();
+    expect(screen.queryByTestId("mcp-confirm-approve")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("mcp-confirm-hold")).not.toBeInTheDocument();
+  });
+
+  it("source_disclosure：点击「对该客户端始终允许」调用 decideOperation({approved:true, rememberChoice:'client'})", async () => {
+    getOperation.mockResolvedValue(baseOp({ kind: "source_disclosure" }));
+    render(<McpConfirmView operationId="op-1" />);
+    fireEvent.click(await screen.findByTestId("mcp-confirm-allow-client"));
+    await waitFor(() =>
+      expect(decideOperation).toHaveBeenCalledWith({ operationId: "op-1", approved: true, rememberChoice: "client" })
+    );
+    expect(window.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("source_disclosure：点击「仅本次允许」调用 decideOperation({approved:true, rememberChoice:'once'})", async () => {
+    getOperation.mockResolvedValue(baseOp({ kind: "source_disclosure" }));
+    render(<McpConfirmView operationId="op-1" />);
+    fireEvent.click(await screen.findByTestId("mcp-confirm-allow-once"));
+    await waitFor(() =>
+      expect(decideOperation).toHaveBeenCalledWith({ operationId: "op-1", approved: true, rememberChoice: "once" })
+    );
+  });
+
+  it("source_disclosure：点击拒绝调用 decideOperation({approved:false})，不携带 rememberChoice", async () => {
+    getOperation.mockResolvedValue(baseOp({ kind: "source_disclosure" }));
+    render(<McpConfirmView operationId="op-1" />);
+    fireEvent.click(await screen.findByTestId("mcp-confirm-reject"));
+    await waitFor(() => expect(decideOperation).toHaveBeenCalledWith({ operationId: "op-1", approved: false }));
+  });
 });
 
 describe("MCP 配对对话框", () => {

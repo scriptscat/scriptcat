@@ -60,6 +60,11 @@ is a two-phase pending operation bound to the exact content hash and target stat
   enable it below" note, on the existing `install.html` review page.
 - **Enable/disable/delete confirmation** (`src/pages/mcp_confirm/App.tsx`, `McpConfirmView`): script
   name and requesting client for enable/disable; a press-and-hold confirmation for delete.
+- **Source disclosure prompt** (same `McpConfirmView`, `kind: "source_disclosure"`): the first time
+  a client calls `get_script_source` for a given script, the client name and script name are shown
+  with three options — "Deny", "Allow once" (authorizes exactly the next read only), and "Allow for
+  this client" (persists a permanent per-client, per-script grant on the client record). Until a
+  decision is made, the call returns `USER_APPROVAL_REQUIRED` rather than the source.
 
 Screenshots and a walkthrough recording of these surfaces are not yet captured — this is a known
 gap in the review package (tracked alongside the other follow-ups in §6), not a claim that they
@@ -115,7 +120,9 @@ An authorized client can read exactly what its granted scopes allow, and no more
 enabled-state (`scripts:list`), match patterns and permission grants (`scripts:metadata:read`), and
 full source (`scripts:source:read`, off by default, carries an explicit "may contain secrets" note
 at pairing). Nothing is readable before pairing completes with the corresponding scope granted by
-the human.
+the human. Holding `scripts:source:read` is necessary but not sufficient to read a given script's
+source: the first read of each script by each client additionally requires a one-time (or
+permanent, if the human chooses "Allow for this client") disclosure approval — see §4.
 
 ## 11. Demo recording
 
@@ -136,11 +143,15 @@ delete (press-and-hold confirm) → revoke the client → "Revoke all & stop bri
 
 ## 13. Known follow-ups (explicitly deferred, not blocking this feature)
 
-- Firefox event-page bridge support (this bridge currently targets Chrome's `connectNative`).
+- Firefox event-page bridge support (this bridge currently targets Chrome's `connectNative`; the
+  card and controller now correctly hide themselves on Firefox rather than attempting to connect).
 - Signed native-host binaries / single-file packaging.
-- A `source_disclosure` pending-operation kind: `get_script_source` currently reads and returns
-  script source directly with no per-client consent gate beyond the scope grant itself — the
-  first-use-per-client disclosure prompt described in earlier design notes was not implemented in
-  this pass. Tracked as a real, acknowledged gap rather than silently dropped.
-- Store screenshots and demo recording (§4, §11).
+- Windows installer verification: `install.ps1`/`uninstall.ps1` (including `-Rollback`) are
+  implemented and syntax-reviewed by hand, but never executed — no PowerShell interpreter is
+  available in the environment that produced this pass. Exercised only by the Windows leg of the
+  `native-host` CI job building/testing the TypeScript package itself.
+- The doc 09 §3 manual smoke test (a real browser with the extension loaded, a real installed
+  native host, and a real MCP client pairing and calling tools end-to-end) and store screenshots /
+  demo recording (§4, §11) — both need a live UI to drive or capture from, not achievable from an
+  automated pass.
 - Actual store submission — this package documents readiness, it does not constitute a submission.

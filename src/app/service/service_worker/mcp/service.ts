@@ -84,8 +84,16 @@ export class McpUIService {
     return this.approval.getOperationForUI(operationId);
   }
 
-  decideOperation(param: { operationId: string; approved: boolean; enable?: boolean }): Promise<OperationStatusResult> {
-    return this.approval.decide(param.operationId, param.approved, { enable: param.enable });
+  decideOperation(param: {
+    operationId: string;
+    approved: boolean;
+    enable?: boolean;
+    rememberChoice?: "once" | "client";
+  }): Promise<OperationStatusResult> {
+    return this.approval.decide(param.operationId, param.approved, {
+      enable: param.enable,
+      rememberChoice: param.rememberChoice,
+    });
   }
 
   getAudit(): Promise<McpAuditEvent[]> {

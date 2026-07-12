@@ -128,6 +128,17 @@ describe("McpUIService", () => {
     expect(result.status).toBe("rejected");
   });
 
+  it("decideOperation 将 rememberChoice 原样透传给 approval.decide（source_disclosure 用）", async () => {
+    const decideSpy = vi.spyOn(approval, "decide");
+    const ref = await approval.prepareInstall({
+      clientId: "client-1",
+      requestingClientName: "Test Client",
+      code: VALID_CODE("Svc Remember"),
+    });
+    await service.decideOperation({ operationId: ref.operationId, approved: false, rememberChoice: "client" });
+    expect(decideSpy).toHaveBeenCalledWith(ref.operationId, false, { enable: undefined, rememberChoice: "client" });
+  });
+
   it("getAudit 返回所有审计事件，clearAudit 清空它们", async () => {
     await auditDAO.append({
       eventId: "e1",

@@ -50,6 +50,7 @@ describe("McpBridge", () => {
   let scriptDAO: ScriptDAO;
   let scriptCodeDAO: ScriptCodeDAO;
   let auditDAO: McpAuditDAO;
+  let approval: McpApprovalService;
   let writeSessionActive: boolean;
 
   beforeEach(async () => {
@@ -68,7 +69,7 @@ describe("McpBridge", () => {
       enableScript: vi.fn(),
       deleteScript: vi.fn(),
     };
-    const approval = new McpApprovalService(mutator, scriptDAO, scriptCodeDAO, clientDAO, operationDAO, tempStorageDAO);
+    approval = new McpApprovalService(mutator, scriptDAO, scriptCodeDAO, clientDAO, operationDAO, tempStorageDAO);
     bridge = new McpBridge(scriptDAO, scriptCodeDAO, clientDAO, approval, auditDAO, () => writeSessionActive);
 
     await clientDAO.save(makeClient());
@@ -202,9 +203,25 @@ describe("McpBridge", () => {
     }
   });
 
-  it("scripts.source.get 返回完整代码与 sha256，contentTrust 标记为 untrusted-user-script-source", async () => {
+  it("scripts.source.get 首次读取要求先经过披露同意，返回 USER_APPROVAL_REQUIRED 而非直接给出源码", async () => {
     const uuid = uuidv4();
     await seedScript(uuid);
+    const response = await bridge.handle(makeRequest("scripts.source.get", { uuid }));
+    expect(response.ok).toBe(false);
+    if (!response.ok) {
+      expect(response.error.code).toBe("USER_APPROVAL_REQUIRED");
+      expect(response.error.operationId).toBeTruthy();
+    }
+  });
+
+  it("scripts.source.get 在披露操作被批准（remember=once）后，紧接着的一次调用返回完整代码与 sha256", async () => {
+    const uuid = uuidv4();
+    await seedScript(uuid);
+    const firstAttempt = await bridge.handle(makeRequest("scripts.source.get", { uuid }));
+    expect(firstAttempt.ok).toBe(false);
+    const operationId = !firstAttempt.ok ? firstAttempt.error.operationId! : "";
+    await approval.decide(operationId, true, { rememberChoice: "once" });
+
     const response = await bridge.handle(makeRequest("scripts.source.get", { uuid }));
     expect(response.ok).toBe(true);
     if (response.ok) {
@@ -214,10 +231,27 @@ describe("McpBridge", () => {
     }
   });
 
-  it("scripts.source.get 代码超过 2 MiB 时返回 PAYLOAD_TOO_LARGE", async () => {
+  it("scripts.source.get 在披露操作被批准（remember=client）后，此后任意次调用都直接放行", async () => {
+    const uuid = uuidv4();
+    await seedScript(uuid);
+    const firstAttempt = await bridge.handle(makeRequest("scripts.source.get", { uuid }));
+    const operationId = !firstAttempt.ok ? firstAttempt.error.operationId! : "";
+    await approval.decide(operationId, true, { rememberChoice: "client" });
+
+    const first = await bridge.handle(makeRequest("scripts.source.get", { uuid }));
+    const second = await bridge.handle(makeRequest("scripts.source.get", { uuid }));
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+  });
+
+  it("scripts.source.get 代码超过 2 MiB 时，在披露被批准后返回 PAYLOAD_TOO_LARGE", async () => {
     const uuid = uuidv4();
     await seedScript(uuid);
     await scriptCodeDAO.save({ uuid, code: "x".repeat(MAX_SOURCE_BYTES + 1) });
+    const firstAttempt = await bridge.handle(makeRequest("scripts.source.get", { uuid }));
+    const operationId = !firstAttempt.ok ? firstAttempt.error.operationId! : "";
+    await approval.decide(operationId, true, { rememberChoice: "once" });
+
     const response = await bridge.handle(makeRequest("scripts.source.get", { uuid }));
     expect(response.ok).toBe(false);
     if (!response.ok) expect(response.error.code).toBe("PAYLOAD_TOO_LARGE");
