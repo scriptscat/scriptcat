@@ -25,6 +25,7 @@ import { InfoNotification, shouldAutoOpenChangelog } from "./utils";
 import { AgentService } from "@App/app/service/agent/service_worker/agent";
 import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_env";
 import { cleanupStaleTempStorageEntries } from "./temp";
+import { hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -118,6 +119,11 @@ export default class ServiceWorkerManager {
     system.init();
     const agent = new AgentService(this.api.group("agent"), this.offscreenSend, resource);
     agent.init();
+
+    const hasOffscreenDocument = typeof chrome.offscreen?.createDocument === "function";
+    if (hasOffscreenDocument) {
+      hookServiceWorkerKeepAliveLoop(systemConfig, this.mq, this.offscreenSend);
+    }
 
     // 注入 AgentService 到 GMApi，使 Agent API 走权限验证通道
     const gmApi = runtime.getGMApi();

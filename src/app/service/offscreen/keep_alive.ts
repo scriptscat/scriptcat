@@ -6,6 +6,13 @@ import { sendMessage } from "@Packages/message/client";
 import type { IOffscreenSend } from "@Packages/message/types";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 
+let selfSw: ServiceWorkerGlobalScope | null = null;
+
+export const onServiceWorkerStarted = (sw: ServiceWorkerGlobalScope) => {
+  // assign the varible `selfSw` for later use.
+  selfSw = sw;
+};
+
 // API 不可用时直接关闭实验，避免引入另一套行为不一致的计时路径。
 const nativeScheduler =
   //@ts-ignore
@@ -154,12 +161,6 @@ const KEEP_ALIVE_MAX_PROBE_DELAY_MS = 120_000;
 
 const getKeepAliveProbeUrl = () => `https://--extensions-${chrome.runtime.getURL("/dummy_image.png").split("//")[1]}`;
 
-let selfSw: ServiceWorkerGlobalScope | null = null;
-
-export const setServiceWorkerSelf = (sw: ServiceWorkerGlobalScope) => {
-  selfSw = sw;
-};
-
 /**
  * Chrome MV3 service worker 保活实验：仅注册 ServiceWorkerGlobalScope 事件。
  *
@@ -175,6 +176,9 @@ export const setServiceWorkerSelf = (sw: ServiceWorkerGlobalScope) => {
 const startChromeServiceWorkerKeepAliveLoop =
   !boolFirefox && nativeScheduler
     ? () => {
+        const selfSw_ = selfSw;
+        if (!selfSw_) return () => {};
+
         let enabled = false;
 
         const keepAliveProbeUrl = getKeepAliveProbeUrl();
@@ -196,12 +200,7 @@ const startChromeServiceWorkerKeepAliveLoop =
         // Convert Base64 to a binary Uint8Array that the Response object can consume
         const gifBytes = Uint8Array.from(atob(TRANSPARENT_GIF_BASE64), (c) => c.charCodeAt(0));
 
-        if (!selfSw) return () => {};
-
-        selfSw.addEventListener("install", (_e: ExtendableEvent) => self.skipWaiting());
-        selfSw.addEventListener("activate", (e: ExtendableEvent) => e.waitUntil(self.clients.claim()));
-
-        selfSw.addEventListener("fetch", (event: FetchEvent) => {
+        selfSw_.addEventListener("fetch", (event: FetchEvent) => {
           if (!enabled || !event.request.url.includes(keepAliveProbeUrl)) {
             return void 0;
           }
