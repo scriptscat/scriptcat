@@ -25,6 +25,7 @@ import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 import type { LocalBackupExport } from "./synchronize";
 import type { McpUIService } from "./mcp/service";
+import type { McpScope } from "./mcp/types";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -525,5 +526,13 @@ export class MCPClient extends Client {
 
   clearAudit() {
     return this.do("auditClear");
+  }
+
+  getPendingPairing(): Promise<ReturnType<McpUIService["getPendingPairing"]>> {
+    return this.doThrow("pendingPairing");
+  }
+
+  decidePairing(param: { pairingId: string; approved: boolean; grantedScopes: McpScope[] }) {
+    return this.do("pairingDecision", param);
   }
 }

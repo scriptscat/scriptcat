@@ -158,6 +158,101 @@ describe("McpController", () => {
     await vi.waitFor(() => expect(bridgeHandle).toHaveBeenCalledTimes(1));
   });
 
+  it("收到 pair.request 后记录待处理配对并广播 mcpPairingRequested", async () => {
+    const controller = makeController();
+    await controller.initialize();
+    systemConfig.setMcpEnabled(true);
+    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
+
+    const events: unknown[] = [];
+    mq.subscribe("mcpPairingRequested", (data) => events.push(data));
+
+    ports[0].__emitMessage({
+      v: 1,
+      type: "pair.request",
+      requestId: "p1",
+      payload: {
+        pairingId: "pair-1",
+        clientName: "Claude Desktop",
+        requestedScopes: ["scripts:list"],
+        code: "ABCD1234",
+      },
+    });
+
+    expect(controller.getPendingPairing()).toMatchObject({ pairingId: "pair-1", clientName: "Claude Desktop" });
+    await vi.waitFor(() => expect(events).toContainEqual({ pairingId: "pair-1" }));
+  });
+
+  it("配对超过 2 分钟 TTL 后 getPendingPairing 返回 undefined", async () => {
+    vi.useFakeTimers();
+    const controller = makeController();
+    await controller.initialize();
+    systemConfig.setMcpEnabled(true);
+    await vi.advanceTimersByTimeAsync(0);
+
+    ports[0].__emitMessage({
+      v: 1,
+      type: "pair.request",
+      requestId: "p1",
+      payload: {
+        pairingId: "pair-1",
+        clientName: "Claude Desktop",
+        requestedScopes: ["scripts:list"],
+        code: "ABCD1234",
+      },
+    });
+    expect(controller.getPendingPairing()).toBeDefined();
+
+    vi.advanceTimersByTime(2 * 60_000 + 1);
+    expect(controller.getPendingPairing()).toBeUndefined();
+  });
+
+  it("decidePairing 向主机发送 pair.decision 并清空待处理配对", async () => {
+    const controller = makeController();
+    await controller.initialize();
+    systemConfig.setMcpEnabled(true);
+    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
+
+    ports[0].__emitMessage({
+      v: 1,
+      type: "pair.request",
+      requestId: "p1",
+      payload: {
+        pairingId: "pair-1",
+        clientName: "Claude Desktop",
+        requestedScopes: ["scripts:list"],
+        code: "ABCD1234",
+      },
+    });
+
+    controller.decidePairing("pair-1", true, ["scripts:list"]);
+
+    const decisionCall = ports[0].postMessage.mock.calls.find((call) => call[0].type === "pair.decision");
+    expect(decisionCall?.[0].payload).toEqual({ pairingId: "pair-1", approved: true, grantedScopes: ["scripts:list"] });
+    expect(controller.getPendingPairing()).toBeUndefined();
+  });
+
+  it("收到 client.sync 后将主机侧客户端列表镜像写入 McpClientDAO", async () => {
+    const saveMock = vi.fn().mockResolvedValue(undefined);
+    const controller = new McpController(systemConfig, { handle: bridgeHandle } as any, mq, { save: saveMock } as any);
+    await controller.initialize();
+    systemConfig.setMcpEnabled(true);
+    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
+
+    const client = {
+      clientId: "c1",
+      displayName: "Claude Desktop",
+      tokenHash: "hash1",
+      scopes: ["scripts:list"],
+      createdAt: 1,
+      lastUsedAt: 1,
+      revoked: false,
+    };
+    ports[0].__emitMessage({ v: 1, type: "client.sync", requestId: "s1", payload: [client] });
+
+    await vi.waitFor(() => expect(saveMock).toHaveBeenCalledWith(client));
+  });
+
   it("写会话标志存放于 chrome.storage.session，模拟重启后不再存在", async () => {
     const controller = makeController();
     controller.setWriteSessionActive(true);

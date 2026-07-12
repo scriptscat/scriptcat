@@ -138,7 +138,7 @@ export default class ServiceWorkerManager {
       const mcpClientDAO = new McpClientDAO();
       const mcpApproval = new McpApprovalService(script, scriptDAO, script.scriptCodeDAO, mcpClientDAO);
       const mcpBridge = new McpBridge(scriptDAO, script.scriptCodeDAO, mcpClientDAO, mcpApproval);
-      const mcpController = new McpController(systemConfig, mcpBridge, this.mq);
+      const mcpController = new McpController(systemConfig, mcpBridge, this.mq, mcpClientDAO);
       mcpBridge.setWriteSessionChecker(() => mcpController.isWriteSessionActive());
       mcpController.initialize();
       const mcpUIService = new McpUIService(this.api.group("mcp"), mcpController, mcpApproval, mcpClientDAO);

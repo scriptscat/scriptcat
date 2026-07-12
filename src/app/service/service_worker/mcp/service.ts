@@ -1,16 +1,19 @@
 import type { Group } from "@Packages/message/server";
 import { McpClientDAO, McpAuditDAO, type McpClient, type McpAuditEvent, type McpOperation } from "@App/app/repo/mcp";
 import type { McpApprovalService } from "./approval";
-import type { OperationStatusResult, McpBridgeStatus } from "./types";
+import type { OperationStatusResult, McpBridgeStatus, McpScope } from "./types";
+import type { PendingPairing } from "./controller";
 
-// Narrow surface McpUIService needs from McpController — status + write-session + the two
-// destructive actions the settings page can trigger. Does not depend on connect()/stop()
-// internals or the native-message routing McpController owns.
+// Narrow surface McpUIService needs from McpController — status + write-session + pairing +
+// the two destructive actions the settings page can trigger. Does not depend on connect()/
+// stop() internals or the native-message routing McpController owns.
 export interface McpControllerFacade {
   getStatus(): McpBridgeStatus;
   setWriteSessionActive(active: boolean): void;
   stop(): void;
   notifyClientRevoked(clientId: string): void;
+  getPendingPairing(): PendingPairing | undefined;
+  decidePairing(pairingId: string, approved: boolean, grantedScopes: McpScope[]): void;
 }
 
 /**
@@ -19,8 +22,7 @@ export interface McpControllerFacade {
  * SystemConfig get/set plumbing every other device-local setting uses (doc 05 §5.3), and audit
  * export is a client-side JSON.stringify + download over the same data `audit` already returns
  * — adding a second endpoint for it would just duplicate `audit` (AGENTS.md: no dead/duplicate
- * code). `pairingDecision` is deferred to the commit that adds the pairing dialog and the
- * corresponding `pair.request` handling in McpController — it would have nothing to call yet.
+ * code).
  */
 export class McpUIService {
   constructor(
@@ -41,6 +43,16 @@ export class McpUIService {
     this.group.on("operationDecision", this.decideOperation.bind(this));
     this.group.on("audit", this.getAudit.bind(this));
     this.group.on("auditClear", this.clearAudit.bind(this));
+    this.group.on("pendingPairing", this.getPendingPairing.bind(this));
+    this.group.on("pairingDecision", this.decidePairing.bind(this));
+  }
+
+  getPendingPairing(): PendingPairing | undefined {
+    return this.controller.getPendingPairing();
+  }
+
+  decidePairing(param: { pairingId: string; approved: boolean; grantedScopes: McpScope[] }): void {
+    this.controller.decidePairing(param.pairingId, param.approved, param.grantedScopes);
   }
 
   getStatus(): McpBridgeStatus {

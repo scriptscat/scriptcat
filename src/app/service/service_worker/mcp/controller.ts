@@ -1,14 +1,19 @@
 import semver from "semver";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { openInCurrentTab } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
 import type { IMessageQueue } from "@Packages/message/message_queue";
+import { McpClientDAO } from "@App/app/repo/mcp";
 import type { McpBridge } from "./bridge";
 import {
   MIN_HOST_VERSION,
+  type ClientSyncPayload,
   type HelloPayload,
   type McpBridgeRequest,
   type McpBridgeStatus,
+  type McpScope,
   type NativeEnvelope,
+  type PairRequestPayload,
 } from "./types";
 
 export const NATIVE_HOST_NAME = "com.scriptcat.native_host";
@@ -17,9 +22,23 @@ const BACKOFF_BASE_MS = 1000;
 const BACKOFF_CAP_MS = 60_000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const WRITE_SESSION_STORAGE_KEY = "mcp_write_session";
+// Mirrors the host's own 2-minute pairing TTL (doc 03 §4) so an expired pairing is never shown
+// as pending even if the host never got around to telling us.
+const PAIRING_TTL_MS = 2 * 60_000;
 
 // Broadcast on every status transition so the Tools settings page updates live.
 export const McpStatusChanged = "mcpStatusChanged";
+// Broadcast when a `pair.request` arrives, so an already-open options page/mcp_confirm popup
+// can render the dialog without polling.
+export const McpPairingRequested = "mcpPairingRequested";
+
+export interface PendingPairing {
+  pairingId: string;
+  clientName: string;
+  requestedScopes: McpScope[];
+  code: string;
+  expiresAt: number;
+}
 
 /**
  * Owns the native-messaging port lifecycle to `com.scriptcat.native_host` (doc 05 §4.2, doc 02
@@ -33,11 +52,13 @@ export class McpController {
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
   private writeSessionActive = false;
+  private pendingPairing: PendingPairing | undefined;
 
   constructor(
     private readonly systemConfig: SystemConfig,
     private readonly bridge: Pick<McpBridge, "handle">,
-    private readonly mq: IMessageQueue
+    private readonly mq: IMessageQueue,
+    private readonly clientDAO: Pick<McpClientDAO, "save"> = new McpClientDAO()
   ) {}
 
   async initialize(): Promise<void> {
@@ -87,12 +108,54 @@ export class McpController {
           void this.dispatchBridgeRequest(envelope.payload as McpBridgeRequest);
         }
         break;
+      case "pair.request":
+        this.onPairRequest(envelope.payload as PairRequestPayload);
+        break;
+      case "client.sync":
+        void this.onClientSync(envelope.payload as ClientSyncPayload);
+        break;
       default:
-        // pair.request / client.sync / operations.changed routing lands with the pairing UI
-        // and audit views in a later commit; unhandled here is intentional, not a gap.
+        // operations.changed relays to the owning shim's poller host-side; the extension has
+        // nothing to do with it (McpApprovalService is already the source of truth for status).
         break;
     }
   };
+
+  private onPairRequest(payload: PairRequestPayload): void {
+    this.pendingPairing = { ...payload, expiresAt: Date.now() + PAIRING_TTL_MS };
+    this.mq.publish(McpPairingRequested, { pairingId: payload.pairingId });
+    // doc 05 §5.4 also shows an in-page dialog when the options page is already open; this
+    // commit always opens the focused mcp_confirm popup instead, since detecting an open
+    // options tab needs its own chrome.tabs plumbing with no security benefit over the popup —
+    // deliberately deferred rather than building a second surface for the same decision.
+    void openInCurrentTab(`src/mcp_confirm.html?pairing=${payload.pairingId}`);
+  }
+
+  private async onClientSync(clients: ClientSyncPayload): Promise<void> {
+    // Host is the authority (owns tokenHash); the extension mirror is overwritten verbatim.
+    await Promise.all(clients.map((client) => this.clientDAO.save(client)));
+  }
+
+  getPendingPairing(): PendingPairing | undefined {
+    if (this.pendingPairing && this.pendingPairing.expiresAt <= Date.now()) {
+      this.pendingPairing = undefined;
+    }
+    return this.pendingPairing;
+  }
+
+  // Sends the human's decision to the host (doc 03 §4 `pair.decision`); the host mints the
+  // token/clientId on approval and reports the authoritative record back via `client.sync`.
+  decidePairing(pairingId: string, approved: boolean, grantedScopes: McpScope[]): void {
+    if (this.pendingPairing?.pairingId === pairingId) {
+      this.pendingPairing = undefined;
+    }
+    this.port?.postMessage({
+      v: 1,
+      type: "pair.decision",
+      requestId: uuidv4(),
+      payload: { pairingId, approved, grantedScopes },
+    });
+  }
 
   private async dispatchBridgeRequest(request: McpBridgeRequest): Promise<void> {
     const response = await this.bridge.handle(request);

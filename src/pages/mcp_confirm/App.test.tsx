@@ -2,17 +2,19 @@ import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vite
 import { render, cleanup, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
-const { getOperation, decideOperation, findInfo } = vi.hoisted(() => ({
+const { getOperation, decideOperation, findInfo, getPendingPairing, decidePairing } = vi.hoisted(() => ({
   getOperation: vi.fn(),
   decideOperation: vi.fn(),
   findInfo: vi.fn(),
+  getPendingPairing: vi.fn(),
+  decidePairing: vi.fn(),
 }));
 vi.mock("@App/pages/store/features/script", () => ({
-  mcpClient: { getOperation, decideOperation },
+  mcpClient: { getOperation, decideOperation, getPendingPairing, decidePairing },
   scriptClient: { findInfo },
 }));
 
-import { McpConfirmView } from "./App";
+import { McpConfirmView, McpPairingView } from "./App";
 
 const baseOp = (over: Record<string, unknown> = {}) => ({
   operationId: "op-1",
@@ -25,14 +27,25 @@ const baseOp = (over: Record<string, unknown> = {}) => ({
 
 beforeAll(() => initTestLanguage("zh-CN"));
 
+const basePairing = (over: Record<string, unknown> = {}) => ({
+  pairingId: "pair-1",
+  clientName: "Claude Desktop",
+  requestedScopes: ["scripts:list", "scripts:metadata:read", "scripts:source:read"],
+  code: "ABCD1234",
+  expiresAt: Date.now() + 120_000,
+  ...over,
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(window, "close").mockImplementation(() => {});
   decideOperation.mockResolvedValue(undefined);
   findInfo.mockResolvedValue({ uuid: "script-uuid-1", name: "自动签到脚本" });
+  getPendingPairing.mockResolvedValue(undefined);
 });
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
 });
 
 describe("MCP 操作确认页", () => {
@@ -121,5 +134,82 @@ describe("MCP 操作确认页", () => {
     fireEvent.click(approveButton);
     fireEvent.click(approveButton);
     await waitFor(() => expect(decideOperation).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("MCP 配对对话框", () => {
+  it("展示客户端名称、验证码，并默认勾选只读 scope、不勾选来源读取 scope", async () => {
+    getPendingPairing.mockResolvedValue(basePairing());
+    render(<McpPairingView pairingId="pair-1" />);
+    expect(await screen.findByTestId("mcp-pairing-card")).toBeInTheDocument();
+    expect(screen.getByTestId("mcp-pairing-client-name")).toHaveTextContent("Claude Desktop");
+    expect(screen.getByTestId("mcp-pairing-code")).toHaveTextContent("ABCD1234");
+    expect(screen.getByTestId("mcp-scope-checkbox-scripts:list")).toHaveAttribute("data-state", "checked");
+    expect(screen.getByTestId("mcp-scope-checkbox-scripts:metadata:read")).toHaveAttribute("data-state", "checked");
+    expect(screen.getByTestId("mcp-scope-checkbox-scripts:source:read")).toHaveAttribute("data-state", "unchecked");
+  });
+
+  it("写 scope（安装/启停/删除）默认不勾选", async () => {
+    getPendingPairing.mockResolvedValue(
+      basePairing({ requestedScopes: ["scripts:list", "scripts:install:request", "scripts:delete:request"] })
+    );
+    render(<McpPairingView pairingId="pair-1" />);
+    await screen.findByTestId("mcp-pairing-card");
+    expect(screen.getByTestId("mcp-scope-checkbox-scripts:install:request")).toHaveAttribute("data-state", "unchecked");
+    expect(screen.getByTestId("mcp-scope-checkbox-scripts:delete:request")).toHaveAttribute("data-state", "unchecked");
+  });
+
+  it("找不到匹配的待处理配对时展示过期提示", async () => {
+    getPendingPairing.mockResolvedValue(undefined);
+    render(<McpPairingView pairingId="pair-1" />);
+    expect(await screen.findByTestId("mcp-pairing-expired")).toBeInTheDocument();
+  });
+
+  it("点击批准调用 decidePairing，携带当前勾选的 scope 列表", async () => {
+    getPendingPairing.mockResolvedValue(basePairing({ requestedScopes: ["scripts:list", "scripts:source:read"] }));
+    render(<McpPairingView pairingId="pair-1" />);
+    fireEvent.click(await screen.findByTestId("mcp-scope-checkbox-scripts:source:read"));
+    fireEvent.click(screen.getByTestId("mcp-pairing-approve"));
+    await waitFor(() =>
+      expect(decidePairing).toHaveBeenCalledWith({
+        pairingId: "pair-1",
+        approved: true,
+        grantedScopes: expect.arrayContaining(["scripts:list", "scripts:source:read"]),
+      })
+    );
+    expect(window.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("点击拒绝调用 decidePairing({approved:false, grantedScopes:[]})", async () => {
+    getPendingPairing.mockResolvedValue(basePairing());
+    render(<McpPairingView pairingId="pair-1" />);
+    fireEvent.click(await screen.findByTestId("mcp-pairing-reject"));
+    await waitFor(() =>
+      expect(decidePairing).toHaveBeenCalledWith({ pairingId: "pair-1", approved: false, grantedScopes: [] })
+    );
+    expect(window.close).toHaveBeenCalledTimes(1);
+  });
+
+  it("未勾选任何 scope 时批准按钮禁用", async () => {
+    getPendingPairing.mockResolvedValue(basePairing({ requestedScopes: ["scripts:source:read"] }));
+    render(<McpPairingView pairingId="pair-1" />);
+    await screen.findByTestId("mcp-pairing-card");
+    expect(screen.getByTestId("mcp-pairing-approve")).toBeDisabled();
+  });
+
+  it("倒计时归零后自动按拒绝处理", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "setInterval", "Date"] });
+    getPendingPairing.mockResolvedValue(basePairing({ expiresAt: Date.now() + 2000 }));
+    render(<McpPairingView pairingId="pair-1" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(decidePairing).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(decidePairing).toHaveBeenCalledWith({ pairingId: "pair-1", approved: false, grantedScopes: [] });
   });
 });

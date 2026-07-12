@@ -47,6 +47,37 @@ export interface HelloPayload {
   hostVersion: string;
 }
 
+// host->ext, a new shim asked to pair (doc 03 §4 "Pairing (first run)"). `code` is the 8-char
+// verification string the user cross-checks against the shim's own terminal output.
+export interface PairRequestPayload {
+  pairingId: string;
+  clientName: string;
+  requestedScopes: McpScope[];
+  code: string;
+}
+
+// ext->host, the human's decision. On approval the host mints clientId/token and reports the
+// authoritative record back via a subsequent `client.sync` — this payload never carries a token.
+export interface PairDecisionPayload {
+  pairingId: string;
+  approved: boolean;
+  grantedScopes: McpScope[];
+}
+
+// host->ext, full client list after any host-side change (new pairing, revoke, scope edit).
+// The host is the authority on tokenHash/scopes/revoked; the extension mirrors it verbatim.
+export type ClientSyncPayload = McpClientRecord[];
+
+export interface McpClientRecord {
+  clientId: string;
+  displayName: string;
+  tokenHash: string;
+  scopes: McpScope[];
+  createdAt: number;
+  lastUsedAt: number;
+  revoked: boolean;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Layer 1.5 — bridge actions
 // ---------------------------------------------------------------------------------------------

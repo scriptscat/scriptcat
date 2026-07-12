@@ -36,6 +36,8 @@ describe("McpUIService", () => {
     setWriteSessionActive: ReturnType<typeof vi.fn>;
     stop: ReturnType<typeof vi.fn>;
     notifyClientRevoked: ReturnType<typeof vi.fn>;
+    getPendingPairing: ReturnType<typeof vi.fn>;
+    decidePairing: ReturnType<typeof vi.fn>;
   };
   let service: McpUIService;
 
@@ -62,6 +64,8 @@ describe("McpUIService", () => {
       setWriteSessionActive: vi.fn(),
       stop: vi.fn(),
       notifyClientRevoked: vi.fn(),
+      getPendingPairing: vi.fn().mockReturnValue(undefined),
+      decidePairing: vi.fn(),
     };
 
     service = new McpUIService({ on: vi.fn() } as any, controller as any, approval, clientDAO, auditDAO);
@@ -155,7 +159,25 @@ describe("McpUIService", () => {
         "operationDecision",
         "audit",
         "auditClear",
+        "pendingPairing",
+        "pairingDecision",
       ].sort()
     );
+  });
+
+  it("getPendingPairing 转发给 controller", () => {
+    controller.getPendingPairing.mockReturnValue({
+      pairingId: "p1",
+      clientName: "Claude Desktop",
+      requestedScopes: ["scripts:list"],
+      code: "ABCD1234",
+      expiresAt: Date.now() + 120_000,
+    });
+    expect(service.getPendingPairing()).toMatchObject({ pairingId: "p1" });
+  });
+
+  it("decidePairing 转发给 controller，参数原样传递", () => {
+    service.decidePairing({ pairingId: "p1", approved: true, grantedScopes: ["scripts:list"] });
+    expect(controller.decidePairing).toHaveBeenCalledWith("p1", true, ["scripts:list"]);
   });
 });
