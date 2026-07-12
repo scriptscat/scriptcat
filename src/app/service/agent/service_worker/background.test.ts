@@ -344,14 +344,16 @@ describe("handleAttachToConversation 重连逻辑", () => {
     (service as any).bgSessionManager.delete("conv-run");
   });
 
-  it("通过 attach 发送 askUserResponse 能正确 resolve", async () => {
+  it("通过 attach 发送 askUserResponse 能正确 resolve，且只广播一次 ask_user_resolved", async () => {
     const { service } = createTestService();
     const rc = createRunningConversation({ status: "running" });
 
-    // 注册一个 askResolver
+    // 真实的 resolver（ask_user.ts / askUserForGuard）在 resolve 时会自行广播终态事件，
+    // attach 不应该再额外广播一次，否则同一次回答会产生两条 ask_user_resolved
     let resolvedAnswer: string | undefined;
     rc.askResolvers.set("ask-1", (answer: string) => {
       resolvedAnswer = answer;
+      (service as any).bgSessionManager.broadcastEvent(rc, { type: "ask_user_resolved", id: "ask-1" });
     });
     rc.pendingAskUser = { id: "ask-1", question: "选择" };
     (service as any).bgSessionManager.set("conv-ask", rc);
@@ -365,12 +367,13 @@ describe("handleAttachToConversation 重连逻辑", () => {
     expect(resolvedAnswer).toBe("红色");
     expect(rc.pendingAskUser).toBeUndefined();
     expect(rc.askResolvers.has("ask-1")).toBe(false);
-    expect(sentMessages.some((message) => message.data?.type === "ask_user_resolved")).toBe(true);
+    const resolvedEvents = sentMessages.filter((message) => message.data?.type === "ask_user_resolved");
+    expect(resolvedEvents).toHaveLength(1);
 
     (service as any).bgSessionManager.delete("conv-ask");
   });
 
-  it("多个 listener 回复同一 ask_user 只有第一个生效", async () => {
+  it("多个 listener 回复同一 ask_user 只有第一个生效，且每个 listener 只收到一次 ask_user_resolved", async () => {
     const { service } = createTestService();
     const rc = createRunningConversation({ status: "running" });
 
@@ -379,6 +382,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
     rc.askResolvers.set("ask-1", (answer: string) => {
       resolveCount++;
       lastAnswer = answer;
+      (service as any).bgSessionManager.broadcastEvent(rc, { type: "ask_user_resolved", id: "ask-1" });
     });
     rc.pendingAskUser = { id: "ask-1", question: "选择" };
     (service as any).bgSessionManager.set("conv-multi", rc);
@@ -394,8 +398,8 @@ describe("handleAttachToConversation 重连逻辑", () => {
 
     expect(resolveCount).toBe(1);
     expect(lastAnswer).toBe("第一个");
-    expect(sent1.some((message) => message.data?.type === "ask_user_resolved")).toBe(true);
-    expect(sent2.some((message) => message.data?.type === "ask_user_resolved")).toBe(true);
+    expect(sent1.filter((message) => message.data?.type === "ask_user_resolved")).toHaveLength(1);
+    expect(sent2.filter((message) => message.data?.type === "ask_user_resolved")).toHaveLength(1);
 
     (service as any).bgSessionManager.delete("conv-multi");
   });
@@ -681,6 +685,8 @@ describe("后台运行会话 集成测试", () => {
       expect(rc.status).toBe("running");
       expect(rc.pendingAskUser).toBeUndefined();
       expect(sentMessages.some((message) => message.data?.type === "ask_user_expired")).toBe(true);
+      // 超时属于“过期”而非“已回答”：不应在发出 ask_user_expired 后又紧接着发出 ask_user_resolved
+      expect(sentMessages.some((message) => message.data?.type === "ask_user_resolved")).toBe(false);
 
       registry.unregisterBuiltin("dup");
     } finally {

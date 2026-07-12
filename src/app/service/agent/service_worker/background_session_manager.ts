@@ -199,7 +199,8 @@ export class BackgroundSessionManager {
         if (resolver) {
           rc.askResolvers.delete(msg.data.id);
           rc.pendingAskUser = undefined;
-          this.broadcastEvent(rc, { type: "ask_user_resolved", id: msg.data.id });
+          // resolver 自身（ask_user.ts / askUserForGuard）负责广播其终态事件，
+          // 这里不再重复广播，否则同一次回答会产生两条 ask_user_resolved
           resolver(msg.data.answer);
         }
       }
