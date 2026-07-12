@@ -66,6 +66,7 @@ export default {
     popup: `${src}/pages/popup/main.tsx`,
     options: `${src}/pages/options/main.tsx`,
     confirm: `${src}/pages/confirm/main.tsx`,
+    ...(enableMCP ? { mcp_confirm: `${src}/pages/mcp_confirm/main.tsx` } : {}),
     batchupdate: `${src}/pages/batchupdate/main.tsx`,
     install: `${src}/pages/install/main.tsx`,
     import: `${src}/pages/import/main.tsx`,
@@ -217,6 +218,19 @@ export default {
       minify: true,
       chunks: ["confirm"],
     }),
+    // Store builds must not emit the mcp_confirm chunk/HTML at all (doc 05 §5.2).
+    ...(enableMCP
+      ? [
+          new rspack.HtmlRspackPlugin({
+            filename: `${dist}/ext/src/mcp_confirm.html`,
+            template: `${src}/pages/mcp_confirm.html`,
+            inject: "head",
+            title: "ScriptCat",
+            minify: true,
+            chunks: ["mcp_confirm"],
+          }),
+        ]
+      : []),
     new rspack.HtmlRspackPlugin({
       filename: `${dist}/ext/src/batchupdate.html`,
       template: `${src}/pages/batchupdate.html`,
