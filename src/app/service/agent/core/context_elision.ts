@@ -44,6 +44,32 @@ export async function loadAttachmentSizes(
 // 除以该常量后仍保持保守（不会低估），同时不再把每个 UTF-8 字节当作独立 token。
 const CONSERVATIVE_BYTES_PER_TOKEN = 2;
 
+// 每条 message 的 role/content/toolCallId 序列化字节数缓存。
+// tool loop 每轮都要重新估算整段 messages 的预算占用；不缓存的话，每轮都要把（随对话增长的）
+// 完整历史重新 JSON.stringify 一遍，R 轮下来是 O(R·N) —— 长对话里最耗时的部分。
+// 而 content/toolCallId 一旦写入某条 message 就几乎不再变化，唯二的例外是
+// elideOldToolResults / elideOldAttachments 原地改写 m.content，这两处都会显式调用
+// invalidateMessageByteCache() 使缓存失效；因此按 message 对象身份缓存是安全的。
+// toolCalls 字段（status/attachments/subAgentDetails 会在工具执行后原地变化）不缓存，
+// 每次都单独重算——但它只随"该条消息自身的工具调用数"增长，不随对话长度增长，代价很小。
+const stableContentByteCache = new WeakMap<object, number>();
+
+/** 消息 content 被原地改写后必须调用，否则会读到改写前的缓存字节数。 */
+export function invalidateMessageByteCache(message: object): void {
+  stableContentByteCache.delete(message);
+}
+
+function getStableContentBytes(message: { role: string; content: unknown; toolCallId?: string }): number {
+  let bytes = stableContentByteCache.get(message);
+  if (bytes === undefined) {
+    const stable: Record<string, unknown> = { role: message.role, content: message.content };
+    if (message.toolCallId) stable.toolCallId = message.toolCallId;
+    bytes = new TextEncoder().encode(JSON.stringify(stable)).byteLength;
+    stableContentByteCache.set(message, bytes);
+  }
+  return bytes;
+}
+
 /**
  * 以 UTF-8 字节数的保守上界估算 provider 请求 token。
  * 只对 provider 实际会内联展开为 base64 的块计入二进制字节：
@@ -74,7 +100,17 @@ export function estimateRequestTokens(
     );
   }, 0);
   if (!Number.isFinite(attachmentBytes)) return Number.POSITIVE_INFINITY;
-  const bytes = new TextEncoder().encode(JSON.stringify({ messages, tools })).byteLength;
+
+  let bytes = 0;
+  for (const message of messages) {
+    bytes += getStableContentBytes(message);
+    if (message.toolCalls && message.toolCalls.length > 0) {
+      bytes += new TextEncoder().encode(JSON.stringify(message.toolCalls)).byteLength;
+    }
+  }
+  if (tools && tools.length > 0) {
+    bytes += new TextEncoder().encode(JSON.stringify(tools)).byteLength;
+  }
   return Math.ceil((bytes + attachmentBytes) / CONSERVATIVE_BYTES_PER_TOKEN);
 }
 
@@ -101,6 +137,7 @@ export function elideOldToolResults(messages: ChatRequest["messages"], keepLastA
     const m = messages[i];
     if (m.role === "tool" && m.content !== ELIDED_TOOL_RESULT_STUB) {
       m.content = ELIDED_TOOL_RESULT_STUB;
+      invalidateMessageByteCache(m);
     }
   }
 }
@@ -114,6 +151,7 @@ export function elideOldAttachments(messages: ChatRequest["messages"], keepLastM
     message.content = message.content.map((block) =>
       block.type === "text" ? block : { type: "text", text: elidedAttachmentStub(block) }
     );
+    invalidateMessageByteCache(message);
   }
 }
 

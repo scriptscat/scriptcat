@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   elideOldToolResults,
+  elideOldAttachments,
   ELIDED_TOOL_RESULT_STUB,
   elideUntilWithinBudget,
   estimateRequestTokens,
 } from "./context_elision";
-import type { AgentModelConfig, ChatRequest } from "./types";
+import type { AgentModelConfig, ChatRequest, ToolCall } from "./types";
 
 const VISION_MODEL: AgentModelConfig = {
   id: "m-vision",
@@ -196,5 +197,70 @@ describe("上下文预算估算与裁剪", () => {
     const sizes = new Map([["audio1", bigSize]]);
     const estimate = estimateRequestTokens(messages, [], sizes, VISION_MODEL);
     expect(estimate).toBeLessThan(bigSize);
+  });
+});
+
+describe("estimateRequestTokens 的按消息缓存不应产生陈旧结果", () => {
+  it("elideOldToolResults 原地改写 content 后，同一批 message 对象的估算值应立即反映裁剪后的内容", () => {
+    const messages: ChatRequest["messages"] = [
+      { role: "user", content: "你好" },
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "c1", name: "tool", arguments: "{}", status: "completed" }],
+      },
+      { role: "tool", content: "x".repeat(5000), toolCallId: "c1" },
+    ];
+
+    const before = estimateRequestTokens(messages);
+    // keepLastAssistantTurns=0 会把所有 tool 结果裁剪为占位文本
+    elideOldToolResults(messages, 0);
+    const after = estimateRequestTokens(messages);
+
+    expect(after).toBeLessThan(before);
+    expect(messages[2].content).toBe(ELIDED_TOOL_RESULT_STUB);
+  });
+
+  it("elideOldAttachments 原地改写 content 后，估算值应立即反映占位后的内容", () => {
+    const messages: ChatRequest["messages"] = [
+      { role: "user", content: [{ type: "image", attachmentId: "img1", mimeType: "image/png" }] },
+      { role: "user", content: "占位" },
+      { role: "user", content: "占位" },
+    ];
+    const sizes = new Map([["img1", 6_000_000]]);
+
+    const before = estimateRequestTokens(messages, [], sizes, VISION_MODEL);
+    elideOldAttachments(messages, 2);
+    const after = estimateRequestTokens(messages, [], sizes, VISION_MODEL);
+
+    expect(after).toBeLessThan(before);
+    expect(messages[0].content).toEqual([{ type: "text", text: expect.stringContaining("attachment elided") }]);
+  });
+
+  it("assistant 消息的 toolCalls.status 在工具执行后原地变化时，估算值应反映最新状态而非缓存旧值", () => {
+    const toolCall: ToolCall = { id: "c1", name: "tool", arguments: "{}", status: "running" };
+    const messages: ChatRequest["messages"] = [{ role: "assistant", content: "", toolCalls: [toolCall] }];
+
+    const runningEstimate = estimateRequestTokens(messages);
+    // 工具执行完成后原地回写 status（tool_loop_orchestrator_base.ts 的 applyToolUpdates 同款操作）
+    toolCall.status = "completed";
+    toolCall.result = "a longer completed result string that changes the byte size";
+    const completedEstimate = estimateRequestTokens(messages);
+
+    expect(completedEstimate).toBeGreaterThan(runningEstimate);
+  });
+
+  it("反复调用应返回稳定一致的结果（缓存命中不改变估算值）", () => {
+    const messages: ChatRequest["messages"] = [
+      { role: "user", content: "稳定内容".repeat(100) },
+      { role: "assistant", content: "回复内容".repeat(100) },
+    ];
+
+    const first = estimateRequestTokens(messages);
+    const second = estimateRequestTokens(messages);
+    const third = estimateRequestTokens(messages);
+
+    expect(second).toBe(first);
+    expect(third).toBe(first);
   });
 });
