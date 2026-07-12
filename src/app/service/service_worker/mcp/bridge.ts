@@ -158,8 +158,15 @@ export class McpBridge {
     private readonly clientDAO: Pick<McpClientDAO, "get">,
     private readonly approval: McpApprovalService,
     private readonly auditDAO: Pick<McpAuditDAO, "append"> = new McpAuditDAO(),
-    private readonly isWriteSessionActive: () => boolean = () => false
+    private isWriteSessionActive: () => boolean = () => false
   ) {}
+
+  // Lets the caller wire the write-session predicate after both McpBridge and McpController
+  // exist, avoiding a circular construction dependency between the two (McpController needs a
+  // constructed McpBridge; McpBridge's write-session check needs to read McpController's state).
+  setWriteSessionChecker(checker: () => boolean): void {
+    this.isWriteSessionActive = checker;
+  }
 
   async handle(request: McpBridgeRequest): Promise<McpBridgeResponse> {
     let client: McpClient | undefined;

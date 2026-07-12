@@ -145,6 +145,16 @@ describe("McpBridge", () => {
     if (!response.ok) expect(response.error.code).toBe("WRITE_MODE_DISABLED");
   });
 
+  it("setWriteSessionChecker 可在构造后更换写会话判定函数", async () => {
+    let laterFlag = false;
+    bridge.setWriteSessionChecker(() => laterFlag);
+    const denied = await bridge.handle(makeRequest("scripts.install.prepare", { code: "x" }));
+    expect(denied.ok).toBe(false);
+    laterFlag = true;
+    const allowed = await bridge.handle(makeRequest("scripts.install.prepare", { code: VALID_SCRIPT_CODE }));
+    expect(allowed.ok).toBe(true);
+  });
+
   it("input 含未知字段时返回 INVALID_REQUEST", async () => {
     const response = await bridge.handle(makeRequest("scripts.list", { unexpected: true }));
     expect(response.ok).toBe(false);

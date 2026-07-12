@@ -1,4 +1,4 @@
-import { DocumentationSite, ExtServer, ExtVersion } from "@App/app/const";
+import { DocumentationSite, EnableMCP, ExtServer, ExtVersion } from "@App/app/const";
 import { type Server } from "@Packages/message/server";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { ScriptService } from "./script";
@@ -25,6 +25,11 @@ import { InfoNotification, shouldAutoOpenChangelog } from "./utils";
 import { AgentService } from "@App/app/service/agent/service_worker/agent";
 import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_env";
 import { cleanupStaleTempStorageEntries } from "./temp";
+import { McpClientDAO } from "@App/app/repo/mcp";
+import { McpApprovalService } from "@App/app/service/service_worker/mcp/approval";
+import { McpBridge } from "@App/app/service/service_worker/mcp/bridge";
+import { McpController } from "@App/app/service/service_worker/mcp/controller";
+import { McpUIService } from "@App/app/service/service_worker/mcp/service";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -124,6 +129,20 @@ export default class ServiceWorkerManager {
     const gmApi = runtime.getGMApi();
     if (gmApi) {
       gmApi.setAgentService(agent);
+    }
+
+    // MCP 桥接（doc: workspace/.ref-docs/05-extension-implementation.md §4.5）：
+    // 双重开关 —— 构建期 EnableMCP + 运行期 mcp_enabled（由 McpController.initialize 内部监听）。
+    // 不建立连接，除非用户已在 Tools 设置里显式开启。
+    if (EnableMCP && typeof chrome.runtime?.connectNative === "function") {
+      const mcpClientDAO = new McpClientDAO();
+      const mcpApproval = new McpApprovalService(script, scriptDAO, script.scriptCodeDAO, mcpClientDAO);
+      const mcpBridge = new McpBridge(scriptDAO, script.scriptCodeDAO, mcpClientDAO, mcpApproval);
+      const mcpController = new McpController(systemConfig, mcpBridge, this.mq);
+      mcpBridge.setWriteSessionChecker(() => mcpController.isWriteSessionActive());
+      mcpController.initialize();
+      const mcpUIService = new McpUIService(this.api.group("mcp"), mcpController, mcpApproval, mcpClientDAO);
+      mcpUIService.init();
     }
 
     const regularScriptUpdateCheck = async () => {

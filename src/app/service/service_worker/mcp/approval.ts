@@ -293,6 +293,18 @@ export class McpApprovalService {
     return { uuid: op.targetUuid, name: target.name };
   }
 
+  // Used by the human-facing approval pages (install.html / mcp_confirm.html), which are
+  // reached only via an operationId the extension itself generated and opened a tab with — the
+  // human is the authority (doc 04 §2 Z0), so unlike getOperation() there is no clientId gate.
+  async getOperationForUI(
+    operationId: string
+  ): Promise<(McpOperation & { requestingClientName?: string }) | undefined> {
+    const op = await this.sweepAndGet(operationId);
+    if (!op) return undefined;
+    const client = await this.clientDAO.get(op.clientId);
+    return { ...op, requestingClientName: client?.displayName };
+  }
+
   async getOperation(clientId: string, operationId: string): Promise<OperationStatusResult> {
     const op = await this.sweepAndGet(operationId);
     // NOT_FOUND (not INSUFFICIENT_SCOPE) for another client's operation — don't leak existence.

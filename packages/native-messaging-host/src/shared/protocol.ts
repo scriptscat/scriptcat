@@ -18,6 +18,7 @@ export const PROTOCOL_VERSION = 1;
 // ---------------------------------------------------------------------------------------------
 
 export const NATIVE_MESSAGE_TYPES = [
+  "hello",
   "bridge.request",
   "bridge.response",
   "pair.request",
@@ -37,6 +38,11 @@ export interface NativeEnvelope<TPayload = unknown> {
   type: NativeMessageType;
   requestId: string;
   payload: TPayload;
+}
+
+// host->ext, sent once immediately after the native port connects (doc 03 §6 versioning).
+export interface HelloPayload {
+  hostVersion: string;
 }
 
 // ---------------------------------------------------------------------------------------------

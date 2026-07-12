@@ -24,6 +24,7 @@ import type {
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 import type { LocalBackupExport } from "./synchronize";
+import type { McpUIService } from "./mcp/service";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -475,5 +476,54 @@ export class AgentClient extends Client {
   // MCP API
   mcpApi(request: MCPApiRequest): Promise<unknown> {
     return this.doThrow("mcpApi", request);
+  }
+}
+
+// Page-facing client for the MCP native-messaging bridge (ScriptCat as an MCP *server* exposed
+// to external AI clients) — unrelated to AgentClient.mcpApi above, which is the opposite
+// direction (ScriptCat's own agent acting as an MCP *client* of external servers).
+export class MCPClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/mcp");
+  }
+
+  getBridgeStatus(): Promise<ReturnType<McpUIService["getStatus"]>> {
+    return this.doThrow("status");
+  }
+
+  setWriteSession(active: boolean) {
+    return this.do("setWriteSession", active);
+  }
+
+  getClients(): ReturnType<McpUIService["getClients"]> {
+    return this.doThrow("clients");
+  }
+
+  revokeClient(clientId: string) {
+    return this.do("revokeClient", clientId);
+  }
+
+  revokeAllAndStop() {
+    return this.do("revokeAllAndStop");
+  }
+
+  getOperation(operationId: string): ReturnType<McpUIService["getOperation"]> {
+    return this.doThrow("operation", operationId);
+  }
+
+  decideOperation(param: {
+    operationId: string;
+    approved: boolean;
+    enable?: boolean;
+  }): ReturnType<McpUIService["decideOperation"]> {
+    return this.doThrow("operationDecision", param);
+  }
+
+  getAudit(): ReturnType<McpUIService["getAudit"]> {
+    return this.doThrow("audit");
+  }
+
+  clearAudit() {
+    return this.do("auditClear");
   }
 }
