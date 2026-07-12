@@ -132,11 +132,18 @@ export class AgentService {
           });
           if (!signal) return execPromise;
           return new Promise<unknown>((resolve, reject) => {
+            let aborted = false;
             const onAbort = () => {
+              if (aborted) return;
+              aborted = true;
               void stopScript(this.sender, uuid);
               reject(createAbortError());
             };
             signal.addEventListener("abort", onAbort, { once: true });
+            if (signal.aborted) {
+              onAbort();
+              return;
+            }
             execPromise.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
           });
         },

@@ -31,7 +31,7 @@ export class BackgroundSessionManager {
   private runningConversations = new Map<string, RunningConversation>();
 
   has(conversationId: string): boolean {
-    return this.runningConversations.has(conversationId);
+    return this.runningConversations.get(conversationId)?.status === "running";
   }
 
   get(conversationId: string): RunningConversation | undefined {
@@ -47,7 +47,9 @@ export class BackgroundSessionManager {
   }
 
   listIds(): string[] {
-    return Array.from(this.runningConversations.keys());
+    return Array.from(this.runningConversations.entries())
+      .filter(([, conversation]) => conversation.status === "running")
+      .map(([conversationId]) => conversationId);
   }
 
   // 更新后台会话的流式状态快照
@@ -147,6 +149,21 @@ export class BackgroundSessionManager {
     }
   }
 
+  // 停止后台会话时必须同步终态化，避免保留为永远运行中的快照。
+  stop(conversationId: string): void {
+    const rc = this.runningConversations.get(conversationId);
+    if (!rc || rc.status !== "running") return;
+
+    rc.pendingAskUser = undefined;
+    rc.askResolvers.clear();
+    rc.abortController.abort();
+
+    const event: ChatStreamEvent = { type: "error", message: "Conversation cancelled", errorCode: "cancelled" };
+    this.updateStreamingState(rc, event);
+    this.broadcastEvent(rc, event);
+    this.cleanupIfDone(conversationId);
+  }
+
   // 附加 UI 连接到后台运行中的会话（同步快照 + listener + askUser resolver + stop）
   async handleAttach(params: { conversationId: string }, sender: IGetSender): Promise<void> {
     if (!sender.isType(GetSenderType.CONNECT)) {
@@ -205,7 +222,7 @@ export class BackgroundSessionManager {
         }
       }
       if (msg.action === "stop") {
-        rc.abortController.abort();
+        this.stop(params.conversationId);
       }
     });
 

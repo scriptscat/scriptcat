@@ -699,7 +699,7 @@ describe("callLLMWithToolLoop", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
 
     // 工具应被执行
-    expect(mockExecutor.execute).toHaveBeenCalledWith({ city: "北京" });
+    expect(mockExecutor.execute).toHaveBeenCalledWith({ city: "北京" }, expect.any(AbortSignal));
 
     // messages 应包含 assistant(tool_call) + tool(result) + user 原始消息
     expect(messages.length).toBe(3); // user + assistant(toolCalls) + tool(result)
@@ -845,7 +845,10 @@ describe("callLLMWithToolLoop", () => {
 
     // scriptCallback 应被调用
     expect(scriptCallback).toHaveBeenCalledTimes(1);
-    expect(scriptCallback).toHaveBeenCalledWith([expect.objectContaining({ id: "call_1", name: "script_tool" })]);
+    expect(scriptCallback).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: "call_1", name: "script_tool" })],
+      expect.any(AbortSignal)
+    );
 
     expect(events.find((e) => e.type === "done")).toBeDefined();
   });

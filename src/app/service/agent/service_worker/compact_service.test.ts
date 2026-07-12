@@ -33,6 +33,27 @@ function makeCurrentMessages(): ChatRequest["messages"] {
 }
 
 describe("CompactService 自动压缩", () => {
+  it("自动压缩应返回摘要请求的 token 用量", async () => {
+    const usage = { inputTokens: 120, outputTokens: 30, cacheCreationInputTokens: 10, cacheReadInputTokens: 5 };
+    const modelService = {} as any;
+    const orchestrator = { callLLM: vi.fn().mockResolvedValue({ content: "<summary>摘要</summary>", usage }) };
+    const chatRepo = {
+      getAttachment: vi.fn().mockResolvedValue(null),
+      saveMessages: vi.fn().mockResolvedValue(undefined),
+    } as any;
+    const service = new CompactService(modelService, orchestrator, chatRepo);
+
+    await expect(
+      service.autoCompact(
+        "conv-1",
+        MODEL,
+        [{ role: "user", content: "需要摘要的内容" }],
+        vi.fn(),
+        new AbortController().signal
+      )
+    ).resolves.toEqual(usage);
+  });
+
   it("摘要请求超过输出保留预算时应返回 context_too_large", async () => {
     const modelService = {} as any;
     const orchestrator = { callLLM: vi.fn() };

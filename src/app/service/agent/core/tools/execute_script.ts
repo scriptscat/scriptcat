@@ -1,7 +1,7 @@
 import type { ToolDefinition } from "@App/app/service/agent/core/types";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import { withTimeout } from "@App/pkg/utils/with_timeout";
-import { throwIfAborted } from "../abort_utils";
+import { createAbortError, throwIfAborted } from "../abort_utils";
 import { requireString } from "./param_utils";
 
 export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
@@ -33,6 +33,57 @@ const EXECUTE_SCRIPT_TIMEOUT_MS = 30_000;
 
 // 返回值过大时（如 DOM dump、模块映射）截断，避免其在后续每轮 tool loop 中被完整重复计费
 const MAX_RESULT_CHARS = 30_000;
+
+function executeSandboxWithTimeout<T>(
+  execute: (signal: AbortSignal) => Promise<T>,
+  parentSignal: AbortSignal | undefined,
+  timeoutMs: number
+): Promise<T> {
+  const controller = new AbortController();
+  const onParentAbort = () => controller.abort();
+  parentSignal?.addEventListener("abort", onParentAbort, { once: true });
+  if (parentSignal?.aborted) controller.abort();
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    let timedOut = false;
+    const cleanup = () => {
+      clearTimeout(timer);
+      controller.signal.removeEventListener("abort", onAbort);
+      parentSignal?.removeEventListener("abort", onParentAbort);
+    };
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback();
+    };
+    const timeoutError = () => new Error(`execute_script timed out after ${timeoutMs / 1000}s`);
+    const onAbort = () => finish(() => reject(timedOut ? timeoutError() : createAbortError()));
+
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+    if (controller.signal.aborted) {
+      onAbort();
+      return;
+    }
+
+    let execution: Promise<T>;
+    try {
+      execution = execute(controller.signal);
+    } catch (error) {
+      finish(() => reject(error));
+      return;
+    }
+    execution.then(
+      (result) => finish(() => resolve(result)),
+      (error) => finish(() => reject(error))
+    );
+  });
+}
 
 /** 将 result 序列化，超过阈值时截断为首尾各一部分并标注 truncated */
 function buildResultPayload(result: unknown, extra: Record<string, unknown>): string {
@@ -94,11 +145,10 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
       }
 
       // sandbox
-      const result = await withTimeout(
-        deps.executeInSandbox(code, signal),
-        timeoutMs,
-        () => new Error(`execute_script timed out after ${timeoutMs / 1000}s`),
-        signal
+      const result = await executeSandboxWithTimeout(
+        (executionSignal) => deps.executeInSandbox(code, executionSignal),
+        signal,
+        timeoutMs
       );
       return buildResultPayload(result, { target: "sandbox" });
     },

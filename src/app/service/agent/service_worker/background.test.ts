@@ -404,19 +404,37 @@ describe("handleAttachToConversation 重连逻辑", () => {
     (service as any).bgSessionManager.delete("conv-multi");
   });
 
-  it("通过 attach 发送 stop 能中止会话", async () => {
-    const { service } = createTestService();
-    const rc = createRunningConversation({ status: "running" });
-    (service as any).bgSessionManager.set("conv-stop", rc);
+  it("通过 attach 发送 stop 会终态化会话、广播终态并在延迟后清理", async () => {
+    vi.useFakeTimers();
+    try {
+      const { service } = createTestService();
+      const rc = createRunningConversation({
+        status: "running",
+        pendingAskUser: { id: "ask-1", question: "继续吗" },
+      });
+      rc.askResolvers.set("ask-1", vi.fn());
+      (service as any).bgSessionManager.set("conv-stop", rc);
 
-    const { sender, simulateMessage } = createMockSender();
-    await (service as any).handleAttachToConversation({ conversationId: "conv-stop" }, sender);
+      const { sender, sentMessages, simulateMessage } = createMockSender();
+      await (service as any).handleAttachToConversation({ conversationId: "conv-stop" }, sender);
 
-    simulateMessage({ action: "stop" });
+      simulateMessage({ action: "stop" });
 
-    expect(rc.abortController.signal.aborted).toBe(true);
+      expect(rc.abortController.signal.aborted).toBe(true);
+      expect(rc.status).toBe("error");
+      expect(rc.pendingAskUser).toBeUndefined();
+      expect(rc.askResolvers.size).toBe(0);
+      expect((service as any).bgSessionManager.has("conv-stop")).toBe(false);
+      expect(service.getRunningConversationIds()).not.toContain("conv-stop");
+      expect(
+        sentMessages.some((message) => message.data?.type === "error" && message.data.errorCode === "cancelled")
+      ).toBe(true);
 
-    (service as any).bgSessionManager.delete("conv-stop");
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect((service as any).bgSessionManager.get("conv-stop")).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("空 streamingState 的 sync 不包含 streamingMessage 字段", async () => {
@@ -617,11 +635,11 @@ describe("后台运行会话 集成测试", () => {
     expect(events.some((e: any) => e.type === "done")).toBe(true);
   });
 
-  it("后台模式：stop 指令中止会话后不抛未捕获异常", async () => {
+  it("后台模式：stop 指令中止会话后会广播终态而且不抛未捕获异常", async () => {
     const { service, mockRepo } = createTestService();
     setupConversation(mockRepo);
 
-    const { sender, simulateMessage } = createMockSender();
+    const { sender, sentMessages, simulateMessage } = createMockSender();
 
     fetchSpy.mockImplementation(async (_url: any, init: any) => {
       if (init?.signal?.aborted) {
@@ -643,7 +661,11 @@ describe("后台运行会话 集成测试", () => {
     simulateMessage({ action: "stop" });
 
     await chatPromise;
-    // 不应抛异常
+    const rc = (service as any).bgSessionManager.get("conv-bg");
+    expect(rc.status).toBe("error");
+    expect(
+      sentMessages.some((message) => message.data?.type === "error" && message.data.errorCode === "cancelled")
+    ).toBe(true);
   });
 
   it("循环检测升级提问超时（5 分钟无人应答）后，应清除 rc.pendingAskUser，避免后续 attach 看到过期提问", async () => {
@@ -703,9 +725,9 @@ describe("后台运行会话 集成测试", () => {
     (service as any).bgSessionManager.set("conv-2", { status: "done" });
 
     const ids = service.getRunningConversationIds();
-    expect(ids).toHaveLength(2);
+    expect(ids).toHaveLength(1);
     expect(ids).toContain("conv-1");
-    expect(ids).toContain("conv-2");
+    expect(ids).not.toContain("conv-2");
 
     (service as any).bgSessionManager.delete("conv-1");
     (service as any).bgSessionManager.delete("conv-2");

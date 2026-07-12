@@ -2,6 +2,7 @@ import type { Attachment, SubAgentDetails, ToolCall, ToolDefinition, ToolResultW
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { getExtFromMime } from "./content_utils";
+import { raceWithAbort, throwIfAborted } from "./abort_utils";
 
 // 工具执行器接口
 export interface ToolExecutor {
@@ -55,6 +56,15 @@ function extractErrorMessage(e: unknown): string {
   if (e instanceof Error) return e.message || e.toString();
   if (typeof e === "string") return e;
   return String(e) || "Tool execution failed";
+}
+
+function normalizeToolResult(value: unknown): string {
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value) ?? "null";
+  } catch {
+    return "null";
+  }
 }
 
 // 判断返回值是否是带附件的结构化结果
@@ -217,11 +227,12 @@ export class ToolRegistry implements ToolExecutorLike {
       builtinCalls.map(async (tc): Promise<ToolExecuteResult> => {
         const tool = tools.get(tc.name)!;
         try {
+          throwIfAborted(signal);
           let args: Record<string, unknown> = {};
           if (tc.arguments) {
             args = JSON.parse(tc.arguments);
           }
-          const rawResult = await tool.executor.execute(args, signal);
+          const rawResult = await raceWithAbort(tool.executor.execute(args, signal), signal);
 
           // 检查是否带附件或子代理详情
           if (isToolResultWithAttachments(rawResult)) {
@@ -230,7 +241,7 @@ export class ToolRegistry implements ToolExecutorLike {
           } else if (isToolResultWithSubAgent(rawResult)) {
             return { id: tc.id, result: rawResult.content, subAgentDetails: rawResult.subAgentDetails };
           } else {
-            return { id: tc.id, result: typeof rawResult === "string" ? rawResult : JSON.stringify(rawResult) };
+            return { id: tc.id, result: normalizeToolResult(rawResult) };
           }
         } catch (e: any) {
           console.error(`[ToolRegistry] tool "${tc.name}" execution failed:`, e);
@@ -252,7 +263,7 @@ export class ToolRegistry implements ToolExecutorLike {
     // 执行脚本工具
     if (scriptCalls.length > 0) {
       if (scriptCallback) {
-        const scriptResults = await scriptCallback(scriptCalls, signal);
+        const scriptResults = await raceWithAbort(scriptCallback(scriptCalls, signal), signal);
         // 脚本工具也可能返回带附件的结构化结果
         for (const sr of scriptResults) {
           try {

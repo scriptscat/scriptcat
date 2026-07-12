@@ -1,5 +1,6 @@
 import type { ToolDefinition, ChatStreamEvent } from "@App/app/service/agent/core/types";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
+import { throwIfAborted } from "../abort_utils";
 import { requireString, optionalString } from "./param_utils";
 
 export type Task = {
@@ -84,11 +85,13 @@ export function createTaskTools(options?: TaskToolsOptions): {
   }
 
   // 持久化并推送事件
-  const emitUpdate = async () => {
+  const emitUpdate = async (signal?: AbortSignal) => {
     const taskList = Array.from(tasks.values());
+    throwIfAborted(signal);
     if (options?.onSave) {
       await options.onSave(taskList);
     }
+    throwIfAborted(signal);
     if (options?.sendEvent) {
       options.sendEvent({
         type: "task_update",
@@ -103,21 +106,24 @@ export function createTaskTools(options?: TaskToolsOptions): {
   };
 
   const createExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       const task: Task = {
         id: String(nextId++),
         subject: requireString(args, "subject"),
         description: optionalString(args, "description"),
         status: "pending",
       };
+      throwIfAborted(signal);
       tasks.set(task.id, task);
-      await emitUpdate();
+      await emitUpdate(signal);
       return JSON.stringify(task);
     },
   };
 
   const updateExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       const taskId = requireString(args, "task_id");
       const task = tasks.get(taskId);
       if (!task) {
@@ -126,13 +132,15 @@ export function createTaskTools(options?: TaskToolsOptions): {
       if (args.status) task.status = args.status as Task["status"];
       if (args.subject) task.subject = args.subject as string;
       if (args.description !== undefined) task.description = args.description as string;
-      await emitUpdate();
+      throwIfAborted(signal);
+      await emitUpdate(signal);
       return JSON.stringify(task);
     },
   };
 
   const listExecutor: ToolExecutor = {
-    execute: async () => {
+    execute: async (_args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       return JSON.stringify(Array.from(tasks.values()));
     },
   };

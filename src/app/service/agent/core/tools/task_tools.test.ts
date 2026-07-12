@@ -22,6 +22,20 @@ describe("task_tools", () => {
     expect(result2).toEqual({ id: "2", subject: "Task 2", description: "Details", status: "pending" });
   });
 
+  it("中止时不应创建任务、持久化或发送更新", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const sendEvent = vi.fn();
+    const { tools, tasks } = createTaskTools({ onSave, sendEvent });
+    const create = tools.find((tool) => tool.definition.name === "create_task")!;
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(create.executor.execute({ subject: "不应创建" }, controller.signal)).rejects.toThrow("Aborted");
+    expect(tasks.size).toBe(0);
+    expect(onSave).not.toHaveBeenCalled();
+    expect(sendEvent).not.toHaveBeenCalled();
+  });
+
   it("update_task 应更新任务字段", async () => {
     const { tools } = createTaskTools();
     const create = tools.find((t) => t.definition.name === "create_task")!;

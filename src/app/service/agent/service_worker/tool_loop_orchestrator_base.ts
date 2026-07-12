@@ -10,6 +10,7 @@ import type {
   SubAgentDetails,
   ContentBlock,
   MessageContent,
+  TokenUsage,
 } from "@App/app/service/agent/core/types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { getContextWindow } from "@App/app/service/agent/core/model_context";
@@ -97,7 +98,7 @@ export interface ToolLoopDeps {
     messages: ChatRequest["messages"],
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
-  ): Promise<void>;
+  ): Promise<TokenUsage | undefined>;
 }
 
 export class ToolLoopOrchestrator {
@@ -202,15 +203,24 @@ export class ToolLoopOrchestrator {
     };
     const attachmentSizes = await loadAttachmentSizes(inputMessages, (id) => this.chatRepo.getAttachment(id));
     const budgetWindow = inputTokenBudget ?? getContextWindow(model);
+    const preflightBudgetWindow =
+      inputTokenBudget === undefined ? budgetWindow : Math.max(1, inputTokenBudget / PREFLIGHT_BUDGET_RATIO);
 
     // 持久化历史保留完整结果供 UI 展示；LLM 只使用独立副本，续接时首个请求也先裁剪旧结果。
     const messages = rehydratedHistory ? inputMessages.map((message) => ({ ...message })) : inputMessages;
     if (rehydratedHistory) {
       const initialTools = params.skipBuiltinTools ? tools || [] : toolRegistry.getDefinitions(tools);
       const estimatedInputTokens = estimateRequestTokens(messages, initialTools, attachmentSizes, model);
-      const estimatedUsageRatio = estimatedInputTokens / budgetWindow;
+      const estimatedUsageRatio = estimatedInputTokens / preflightBudgetWindow;
       if (estimatedUsageRatio >= ELISION_THRESHOLDS[0]) {
-        const withinBudget = elideUntilWithinBudget(messages, budgetWindow, initialTools, 0.9, attachmentSizes, model);
+        const withinBudget = elideUntilWithinBudget(
+          messages,
+          preflightBudgetWindow,
+          initialTools,
+          PREFLIGHT_BUDGET_RATIO,
+          attachmentSizes,
+          model
+        );
         if (!withinBudget) {
           await this.emitContextTooLarge(conversationId, totalUsage, startTime, sendEvent, throwOnTerminalError);
           return;
@@ -243,10 +253,10 @@ export class ToolLoopOrchestrator {
       // 无法覆盖“上一轮新追加的 tool 结果单独撑爆下一次请求”的情况，必须在这里对
       // 即将发出的完整请求（messages + 当前工具定义）做一次独立估算。
       const preflightTokens = estimateRequestTokens(messages, allToolDefs, attachmentSizes, model);
-      if (preflightTokens / budgetWindow >= PREFLIGHT_BUDGET_RATIO) {
+      if (preflightTokens / preflightBudgetWindow >= PREFLIGHT_BUDGET_RATIO) {
         const withinBudget = elideUntilWithinBudget(
           messages,
-          budgetWindow,
+          preflightBudgetWindow,
           allToolDefs,
           PREFLIGHT_BUDGET_RATIO,
           attachmentSizes,
@@ -297,7 +307,13 @@ export class ToolLoopOrchestrator {
 
         if (contextUsageRatio >= 0.8) {
           try {
-            await this.deps.autoCompact(conversationId, model, messages, sendEvent, signal);
+            const compactUsage = await this.deps.autoCompact(conversationId, model, messages, sendEvent, signal);
+            if (compactUsage) {
+              totalUsage.inputTokens += compactUsage.inputTokens;
+              totalUsage.outputTokens += compactUsage.outputTokens;
+              totalUsage.cacheCreationInputTokens += compactUsage.cacheCreationInputTokens || 0;
+              totalUsage.cacheReadInputTokens += compactUsage.cacheReadInputTokens || 0;
+            }
           } catch (error) {
             throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
               usage: totalUsage,

@@ -105,6 +105,30 @@ describe("ToolRegistry", () => {
       expect(results[0].result).toBe('{"temp":25,"unit":"C"}');
     });
 
+    it("内置工具返回 undefined 或不可序列化值时应返回已定义的字符串", async () => {
+      const registry = new ToolRegistry();
+      const cyclic: { self?: unknown } = {};
+      cyclic.self = cyclic;
+      registry.registerBuiltin(
+        weatherDef,
+        createExecutor(async () => undefined)
+      );
+      registry.registerBuiltin(
+        calcDef,
+        createExecutor(async () => cyclic)
+      );
+
+      const results = await registry.execute([
+        { id: "tc_1", name: "get_weather", arguments: "{}" },
+        { id: "tc_2", name: "calc", arguments: "{}" },
+      ]);
+
+      expect(results).toEqual([
+        { id: "tc_1", result: "null" },
+        { id: "tc_2", result: "null" },
+      ]);
+    });
+
     it("空 arguments 时应传入空对象", async () => {
       const registry = new ToolRegistry();
       const executeSpy = vi.fn().mockResolvedValue("ok");
@@ -227,6 +251,24 @@ describe("ToolRegistry", () => {
         controller.signal
       );
 
+      expect(executeSpy).toHaveBeenCalledWith({}, controller.signal);
+    });
+
+    it("取消时不等待不响应 signal 的内置工具", async () => {
+      const registry = new ToolRegistry();
+      const executeSpy = vi.fn().mockReturnValue(new Promise(() => {}));
+      registry.registerBuiltin(weatherDef, { execute: executeSpy });
+      const controller = new AbortController();
+
+      const resultPromise = registry.execute(
+        [{ id: "tc_1", name: "get_weather", arguments: "{}" }],
+        undefined,
+        undefined,
+        controller.signal
+      );
+      controller.abort();
+
+      await expect(resultPromise).resolves.toMatchObject([{ id: "tc_1", error: true }]);
       expect(executeSpy).toHaveBeenCalledWith({}, controller.signal);
     });
 

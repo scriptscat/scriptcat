@@ -310,7 +310,11 @@ export class ChatService {
         }
       }
       if (msg.action === "stop") {
-        abortController.abort();
+        if (rc) {
+          this.bgSessionManager.stop(params.conversationId);
+        } else {
+          abortController.abort();
+        }
       }
     });
 

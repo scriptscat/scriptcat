@@ -6,6 +6,7 @@ import type {
   ToolCall,
   ContentBlock,
   ToolDefinition,
+  TokenUsage,
 } from "@App/app/service/agent/core/types";
 import {
   COMPACT_SYSTEM_PROMPT,
@@ -60,7 +61,7 @@ export class CompactService {
     currentMessages: ChatRequest["messages"],
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
-  ): Promise<void> {
+  ): Promise<TokenUsage | undefined> {
     throwIfAborted(signal);
 
     // 构建摘要请求（用 currentMessages 而非从 repo 加载，因为可能有未持久化的 tool 消息）
@@ -111,6 +112,7 @@ export class CompactService {
 
     // 通知 UI
     sendEvent({ type: "compact_done", summary, originalCount: -1 });
+    return result.usage;
   }
 
   /** 使用 summary 模型对任意内容做提取/总结（供 tab 工具使用） */

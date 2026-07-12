@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ToolLoopOrchestrator, type ToolLoopDeps } from "./tool_loop_orchestrator";
 import type { ToolExecutorLike, ToolExecuteResult } from "@App/app/service/agent/core/tool_registry";
 import type { ToolCall, AgentModelConfig, ChatRequest, ChatStreamEvent } from "@App/app/service/agent/core/types";
+import { estimateRequestTokens } from "@App/app/service/agent/core/context_elision";
+import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
 import type { LLMCallResult } from "./llm_client";
 
 const MODEL: AgentModelConfig = {
@@ -115,6 +117,25 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     expect(callLLM.mock.calls[0][0]).toMatchObject({ contextWindow: 10_000, maxTokens: 2_000 });
     expect(autoCompact).toHaveBeenCalledTimes(1);
     expect(autoCompact.mock.calls[0][1]).toMatchObject({ contextWindow: 10_000, maxTokens: 2_000 });
+  });
+
+  it("自动压缩的 token 用量应计入最终 done 事件", async () => {
+    callLLM.mockResolvedValue({ content: "done", usage: { inputTokens: 6000, outputTokens: 5 } });
+    autoCompact.mockResolvedValue({
+      inputTokens: 120,
+      outputTokens: 30,
+      cacheCreationInputTokens: 10,
+      cacheReadInputTokens: 5,
+    });
+
+    await orchestrator.callLLMWithToolLoop(
+      baseParams({ model: { ...MODEL, contextWindow: 10_000, maxTokens: 2_000 } })
+    );
+
+    const doneEvent = sendEvent.mock.calls.find((call) => call[0].type === "done")?.[0];
+    expect(doneEvent).toMatchObject({
+      usage: { inputTokens: 6120, outputTokens: 35, cacheCreationInputTokens: 10, cacheReadInputTokens: 5 },
+    });
   });
 
   it("续接长历史时，首个 LLM 请求使用裁剪后的副本且不修改原始历史", async () => {
@@ -285,5 +306,29 @@ describe("ToolLoopOrchestrator 请求前预算检查（防止 tool 结果把下�
     await orchestrator.callLLMWithToolLoop(baseParams({ toolRegistry }));
 
     expect(callLLM).toHaveBeenCalledTimes(2);
+  });
+
+  it("已计算的输入预算不应再被额外保留 10%", async () => {
+    const model = { ...MODEL, contextWindow: 10_000, maxTokens: 2_000 };
+    const inputBudget = getInputTokenBudget(model);
+    const tools = toolRegistry.getDefinitions();
+    let low = 0;
+    let high = 40_000;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      const estimate = estimateRequestTokens([{ role: "user", content: "x".repeat(middle) }], tools, undefined, model);
+      if (estimate < inputBudget * 0.95) low = middle + 1;
+      else high = middle;
+    }
+    const messages: ChatRequest["messages"] = [{ role: "user", content: "x".repeat(low) }];
+    const estimatedTokens = estimateRequestTokens(messages, tools, undefined, model);
+    expect(estimatedTokens).toBeGreaterThan(inputBudget * 0.9);
+    expect(estimatedTokens).toBeLessThanOrEqual(inputBudget);
+    callLLM.mockResolvedValue(finalTextResult("done"));
+
+    await orchestrator.callLLMWithToolLoop(baseParams({ model, messages }));
+
+    expect(callLLM).toHaveBeenCalledOnce();
+    expect(sendEvent.mock.calls.some((call) => call[0].type === "error")).toBe(false);
   });
 });

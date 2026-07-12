@@ -80,7 +80,7 @@ describe("execute_script 工具", () => {
 
       expect(parsed).toEqual({ result: { sum: 42 }, target: "sandbox" });
       expect(parsed).not.toHaveProperty("tab_id");
-      expect(mockExecuteInSandbox).toHaveBeenCalledWith("return 1+2", undefined);
+      expect(mockExecuteInSandbox).toHaveBeenCalledWith("return 1+2", expect.any(AbortSignal));
     });
 
     it.concurrent("返回值为 undefined 时应转为 null", async () => {
@@ -107,13 +107,18 @@ describe("execute_script 工具", () => {
     });
 
     it.concurrent("sandbox 模式超时应报错", async () => {
-      const mockExecuteInSandbox = vi.fn().mockReturnValue(new Promise(() => {}));
+      const onAbort = vi.fn();
+      const mockExecuteInSandbox = vi.fn().mockImplementation((_code: string, signal?: AbortSignal) => {
+        signal?.addEventListener("abort", onAbort, { once: true });
+        return new Promise(() => {});
+      });
       const deps = makeDeps({ executeInSandbox: mockExecuteInSandbox, timeoutMs: 50 });
       const { executor } = createExecuteScriptTool(deps);
 
       await expect(executor.execute({ code: "while(true){}", target: "sandbox" })).rejects.toThrow(
         "execute_script timed out after 0.05s"
       );
+      expect(onAbort).toHaveBeenCalledOnce();
     });
 
     it.concurrent("signal 已中止时应立即中断并且不执行脚本", async () => {
