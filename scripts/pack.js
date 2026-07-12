@@ -92,7 +92,7 @@ firefoxManifest.permissions = firefoxManifest.permissions.filter(
   (val) => val !== "userScripts" && val !== "debugger" && val !== "offscreen"
 );
 
-if (process.env.SC_KEEP_EVENT_PAGE_ACTIVE === "true") {
+if (process.env.SC_KEEP_EVENT_PAGE_ACTIVE !== "false") {
   // for startFirefoxEventPageKeepAliveLoop — 运行时按需向用户申请
   firefoxManifest.optional_permissions.push("webRequestBlocking");
 }

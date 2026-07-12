@@ -34,7 +34,7 @@ const nativeScheduler =
 const boolFirefox = isFirefox();
 
 export const startFirefoxEventPageKeepAliveLoop =
-  boolFirefox && process.env.SC_KEEP_EVENT_PAGE_ACTIVE === "true" && nativeScheduler
+  boolFirefox && process.env.SC_KEEP_EVENT_PAGE_ACTIVE !== "false" && nativeScheduler
     ? () => {
         let running = false;
         let enabled = false;
