@@ -71,6 +71,39 @@ describe("NativeChannel - 主机↔浏览器请求关联（doc 03 §2, doc 02 §
     expect(received).toHaveLength(0);
   });
 
+  it("重复调用取消订阅函数是安全的空操作", () => {
+    const channel = new NativeChannel(MAX, 30_000, () => {});
+    const unsubscribe = channel.onMessage(() => {});
+    unsubscribe();
+    expect(() => unsubscribe()).not.toThrow();
+  });
+
+  it("feed() 收到无法解析（PARSE_ERROR）或超限（OVERSIZE）的帧时丢弃该帧，不派发也不崩溃", () => {
+    // Large enough to hold the well-formed "pong" frame used below (~51 bytes), small enough
+    // that a 200-byte body still trips the OVERSIZE path.
+    const channel = new NativeChannel(64, 30_000, () => {});
+    const received: NativeEnvelope[] = [];
+    channel.onMessage((envelope) => received.push(envelope));
+
+    // A length-prefixed body that isn't valid JSON -> PARSE_ERROR, dropped silently.
+    const badJsonBody = Buffer.from("not json!", "utf-8");
+    const lengthPrefix = Buffer.alloc(4);
+    lengthPrefix.writeUInt32LE(badJsonBody.length, 0);
+    expect(() => channel.feed(Buffer.concat([lengthPrefix, badJsonBody]))).not.toThrow();
+
+    // A body declared larger than maxMessageBytes (64 here) -> OVERSIZE, dropped silently.
+    const oversizeBody = Buffer.from("x".repeat(200), "utf-8");
+    const oversizePrefix = Buffer.alloc(4);
+    oversizePrefix.writeUInt32LE(oversizeBody.length, 0);
+    expect(() => channel.feed(Buffer.concat([oversizePrefix, oversizeBody]))).not.toThrow();
+
+    expect(received).toHaveLength(0);
+
+    // The stream stays aligned afterward — a following well-formed frame is still delivered.
+    channel.feed(encodeFrame({ v: 1, type: "pong", requestId: "x", payload: {} }));
+    expect(received.map((e) => e.type)).toEqual(["pong"]);
+  });
+
   it("rejectAllPending 使所有在途请求立即 reject", async () => {
     const channel = new NativeChannel(MAX, 30_000, () => {});
     const p1 = channel.request("bridge.request", {});

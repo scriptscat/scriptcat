@@ -100,6 +100,18 @@ describe("PairingManager - 配对状态机（doc 03 §4）", () => {
     expect(second.ok).toBe(true);
   });
 
+  it("resolve() 对不存在或已解决的 pairingId 是安全的空操作，不抛错", () => {
+    const manager = new PairingManager();
+    expect(() => manager.resolve("nonexistent-pairing-id")).not.toThrow();
+
+    const result = request(manager, { connectionId: "conn-1" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    manager.resolve(result.pairing.pairingId);
+    // Second resolve() of the same (already-removed) pairingId must also be a no-op.
+    expect(() => manager.resolve(result.pairing.pairingId)).not.toThrow();
+  });
+
   it("过期配对被清理后不再占用该连接的待批配额", () => {
     vi.useFakeTimers();
     const manager = new PairingManager();

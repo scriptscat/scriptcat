@@ -57,6 +57,7 @@ describe.skipIf(process.platform === "win32")(
     let ipcEndpoint: IpcEndpoint;
     let server: BrokerServer;
     let dispatchBridgeCall: (clientId: string, action: string, input: unknown) => Promise<BridgeCallOutcome>;
+    let lastConnectionId: string | undefined;
 
     beforeEach(async () => {
       tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "sc-mcp-server-"));
@@ -64,8 +65,10 @@ describe.skipIf(process.platform === "win32")(
       ipcEndpoint = await createIpcEndpoint(tmpRoot);
 
       dispatchBridgeCall = async () => ({ ok: true, result: { scripts: [] } });
+      lastConnectionId = undefined;
 
       server = new BrokerServer(ipcEndpoint, (connectionId, send) => {
+        lastConnectionId = connectionId;
         const deps: SessionDeps = {
           connectionId,
           endpointName: ipcEndpoint.endpointName,
@@ -111,6 +114,20 @@ describe.skipIf(process.platform === "win32")(
       await waitFor(() => received.some((m: any) => m.t === "result"));
       const result = received.find((m: any) => m.t === "result") as any;
       expect(result).toEqual({ t: "result", id: "req-1", ok: true, result: { scripts: [] } });
+
+      client.end();
+    });
+
+    it("getSession 返回已建立连接对应的 SessionHandler，未知 connectionId 返回 undefined（host.ts/pairing-decision.ts 依赖此查找连接）", async () => {
+      const client = net.createConnection(ipcEndpoint.endpointName);
+      await new Promise<void>((resolve, reject) => {
+        client.once("connect", () => resolve());
+        client.once("error", reject);
+      });
+
+      await waitFor(() => lastConnectionId !== undefined);
+      expect(server.getSession(lastConnectionId!)).toBeDefined();
+      expect(server.getSession("unknown-connection-id")).toBeUndefined();
 
       client.end();
     });

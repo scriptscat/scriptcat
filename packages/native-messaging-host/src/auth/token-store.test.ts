@@ -41,6 +41,22 @@ describe("TokenStore - 客户端令牌存储（doc 04 §8）", () => {
     expect(store.list()).toEqual([]);
   });
 
+  // Skipped as root (common in some CI containers): a chmod 0 file is still readable by root,
+  // so the permission-denied condition this test exercises can't be reproduced there.
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "load() 遇到非 ENOENT 错误（如权限不足）时应重新抛出，而非静默视为空存储",
+    async () => {
+      await fs.writeFile(filePath, "{}", { mode: 0o644 });
+      await fs.chmod(filePath, 0o000);
+      const store = new TokenStore(filePath);
+      try {
+        await expect(store.load()).rejects.toMatchObject({ code: "EACCES" });
+      } finally {
+        await fs.chmod(filePath, 0o600);
+      }
+    }
+  );
+
   it("addClient 持久化后可通过新实例 load() 读回", async () => {
     const store = new TokenStore(filePath);
     await store.load();
@@ -103,6 +119,20 @@ describe("TokenStore - 客户端令牌存储（doc 04 §8）", () => {
     const store = new TokenStore(filePath);
     await store.load();
     await expect(store.revoke("missing")).resolves.toBe(false);
+  });
+
+  it("touchLastUsed 对不存在的 clientId 直接返回，不写入文件", async () => {
+    const store = new TokenStore(filePath);
+    await store.load();
+    await expect(store.touchLastUsed("missing")).resolves.toBeUndefined();
+    await expect(fs.stat(filePath)).rejects.toThrow();
+  });
+
+  it("updateScopes 对不存在的 clientId 返回 false，不写入文件", async () => {
+    const store = new TokenStore(filePath);
+    await store.load();
+    await expect(store.updateScopes("missing", ["scripts:list"])).resolves.toBe(false);
+    await expect(fs.stat(filePath)).rejects.toThrow();
   });
 
   it("touchLastUsed 更新 lastUsedAt 并持久化", async () => {

@@ -40,6 +40,13 @@ describe("computeMac / verifyMac - HMAC 挑战响应（doc 03 §4）", () => {
     expect(verifyMac(tokenHash, nonce, endpoint, "not-hex-zzz")).toBe(false);
   });
 
+  it("candidateMac 运行时类型与声明不符（如解析 JSON 得到 null）时 Buffer.from 抛出，仍应捕获并返回 false 而非让调用方崩溃", () => {
+    // candidateMac arrives over the socket as parsed JSON — untrusted input whose runtime shape
+    // isn't guaranteed to match the `string` type declaration. Buffer.from(null, "hex") throws a
+    // TypeError, which is exactly what the try/catch in verifyMac exists to swallow.
+    expect(verifyMac(tokenHash, nonce, endpoint, null as unknown as string)).toBe(false);
+  });
+
   it("长度不同的 candidateMac 验证失败", () => {
     expect(verifyMac(tokenHash, nonce, endpoint, "ab")).toBe(false);
   });
