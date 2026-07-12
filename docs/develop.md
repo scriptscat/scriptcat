@@ -32,6 +32,29 @@ pre-commit runs `prettier --check` and `pnpm run typecheck` plus ESLint for stag
 
 After `pnpm run dev`, load `dist/ext` as an unpacked extension. The browser hot-reloads page changes, but edits to `manifest.json`, `service_worker`, `offscreen`, or `sandbox` require reloading the extension.
 
+### Build profiles & MCP gate
+
+The MCP bridge (`src/app/service/service_worker/mcp/`, `packages/native-messaging-host/`) is gated
+by a build-time flag on top of the usual dev/prod split, because `nativeMessaging` must never reach
+a store-submitted artifact:
+
+```bash
+SC_ENABLE_MCP=true pnpm dev           # dev build with the MCP bridge compiled in
+pnpm run pack:dev                     # developer-profile package with MCP enabled (SC_PACK_PROFILE=developer)
+```
+
+`SC_ENABLE_MCP` (default off) is the build-time gate — when off, `rspack.config.ts` swaps
+`McpSection.tsx` for a stub via `NormalModuleReplacementPlugin` and omits the `mcp_confirm` entry
+entirely, so the code never lands in the bundle at all (not just dead-code-eliminated). At runtime
+there is a second, independent gate: `mcp_enabled` (`SystemConfig`, device-local, off by default) —
+the bridge only connects to the native host once both gates are on. `scripts/pack.js`'s
+`--profile <store-stable|store-beta|developer>` flag (env `SC_PACK_PROFILE`) asserts store profiles
+never contain `nativeMessaging` or MCP UI strings in the built output, failing the build if they do.
+See [`docs/store-review/mcp.md`](./store-review/mcp.md) for the full store-review rationale and
+[`packages/native-messaging-host/PROTOCOL.md`](../packages/native-messaging-host/PROTOCOL.md) /
+[`THREAT-MODEL.md`](../packages/native-messaging-host/THREAT-MODEL.md) for the protocol and security
+design.
+
 ## Project Structure & Module Organization
 
 Core entry points live in `src` (`service_worker.ts`, `content.ts`, `inject.ts`, `offscreen.ts`, `sandbox.ts`). UI pages are in `src/pages`, with shared UI in `src/pages/components` and state in `src/pages/store`. Reusable domain code is in `src/pkg`; app services are in `src/app`; templates are in `src/template`; assets and translations are in `src/assets` and `src/locales`. Workspace packages live in `packages`, including browser mocks and filesystem adapters. Unit tests are colocated as `*.test.ts`/`*.test.tsx` or placed in `tests`; E2E specs are in `e2e`.

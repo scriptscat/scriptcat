@@ -20,7 +20,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Setup pnpm
         run: corepack enable
@@ -55,7 +55,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Setup pnpm
         run: corepack enable
@@ -65,11 +65,8 @@ jobs:
 
       - name: Run test shard
         run: >
-          pnpm exec vitest run
-          --coverage
-          --silent
-          --reporter=blob
-          --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+          pnpm exec vitest run --coverage --silent --reporter=blob --shard=${{ matrix.shardIndex }}/${{
+          matrix.shardTotal }}
 
       - name: Upload blob report
         if: ${{ !cancelled() }}
@@ -93,7 +90,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Setup pnpm
         run: corepack enable
@@ -110,11 +107,7 @@ jobs:
 
       - name: Merge test and coverage reports
         run: >
-          pnpm exec vitest
-          --merge-reports
-          --coverage
-          --reporter=default
-          --reporter.default.summary=false
+          pnpm exec vitest --merge-reports --coverage --reporter=default --reporter.default.summary=false
 
       - name: Verify prerequisite jobs
         if: ${{ always() && (needs.lint.result != 'success' || needs.test-shards.result != 'success') }}
@@ -122,6 +115,76 @@ jobs:
 
       - name: Upload coverage reports to Codecov with GitHub Action
         uses: codecov/codecov-action@v5
+
+  native-host:
+    runs-on: ${{ matrix.os }}
+    name: Native host (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+
+      - name: Use Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: "pnpm"
+          cache-dependency-path: packages/native-messaging-host/pnpm-lock.yaml
+
+      - name: Setup pnpm
+        run: corepack enable
+
+      # Standalone package (own lockfile, not a workspace member) — install/build/test in place.
+      - name: Install dependencies
+        working-directory: packages/native-messaging-host
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        working-directory: packages/native-messaging-host
+        run: pnpm build
+
+      - name: Test
+        working-directory: packages/native-messaging-host
+        run: pnpm test
+
+  pack-profiles:
+    runs-on: ubuntu-latest
+    name: Pack profile assertions
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+
+      - name: Use Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Setup pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm i --frozen-lockfile
+
+      # A throwaway signing key — CI verifies build-output compliance, it never publishes this
+      # artifact, so a real signing key (secrets.CHROME_PEM, used only by packageRelease.yml) is
+      # neither needed nor available on pull_request runs.
+      - name: Generate throwaway signing key
+        run: |
+          mkdir -p dist
+          openssl genrsa -out ./dist/scriptcat.pem 2048
+
+      - name: store-stable must not contain nativeMessaging or MCP UI strings
+        run: SC_PACK_PROFILE=store-stable pnpm run pack
+
+      - name: store-beta must not contain nativeMessaging or MCP UI strings
+        run: rm -rf dist/ext && SC_PACK_PROFILE=store-beta pnpm run pack
+
+      - name: developer profile must contain nativeMessaging when SC_ENABLE_MCP=true
+        run: rm -rf dist/ext && SC_PACK_PROFILE=developer SC_ENABLE_MCP=true pnpm run pack
 
   e2e:
     runs-on: ubuntu-latest
@@ -134,7 +197,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Setup pnpm
         run: corepack enable

@@ -31,6 +31,7 @@ Aspirational / feature-branch content belongs in that branch's docs, or is clear
 | [`verification.md`](./verification.md) | Lightweight end-to-end functional verification — throwaway scratch scripts driving the real built extension; report template split to [`references/verification-report-template.md`](./references/verification-report-template.md), debugging FAQ to [`references/verification-debugging.md`](./references/verification-debugging.md). |
 | [`architecture.md`](./architecture.md) | Deep internals: process model, message passing; subsystem deep-dives split to [`references/architecture-services.md`](./references/architecture-services.md), [`references/architecture-data.md`](./references/architecture-data.md), [`references/architecture-gm-api.md`](./references/architecture-gm-api.md), [`references/architecture-execution.md`](./references/architecture-execution.md), [`references/architecture-build.md`](./references/architecture-build.md). |
 | [`translation.md`](./translation.md) | Translation / localization single source of truth. |
+| [`store-review/mcp.md`](./store-review/mcp.md) | MCP bridge store-review package (data flow, tool privilege table, consent surfaces, kill-switch); protocol/threat-model detail lives in `packages/native-messaging-host/PROTOCOL.md`/`THREAT-MODEL.md` — link, don't duplicate. |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: doc-set organization rules + fact-check / anti-drift discipline. |
 | [`README.md`](./README.md) | The index that points to all of the above. |
 

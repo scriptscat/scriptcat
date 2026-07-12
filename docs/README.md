@@ -13,6 +13,16 @@
 | [`architecture.md`](./architecture.md) | 内部原理总览:多进程模型、消息传递;各子系统深入拆到 [`references/architecture-services.md`](./references/architecture-services.md)(服务层)、[`references/architecture-data.md`](./references/architecture-data.md)(数据层)、[`references/architecture-gm-api.md`](./references/architecture-gm-api.md)(GM API)、[`references/architecture-execution.md`](./references/architecture-execution.md)(脚本执行)、[`references/architecture-build.md`](./references/architecture-build.md)(构建管线)。 |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | 文档维护与事实核对指南:组织规则、逐条核对清单、一键校验脚本。**改/审文档前先读。** |
 
+## MCP 桥接 / MCP Bridge
+
+仅存在于 developer 构建产物(`SC_ENABLE_MCP=true`),不进入 store-stable/store-beta。
+
+| 文档 | 说明 |
+| --- | --- |
+| [`../packages/native-messaging-host/PROTOCOL.md`](../packages/native-messaging-host/PROTOCOL.md) | 协议规范:浏览器↔主机 native messaging、shim↔主机本地 socket、面向 agent 的 MCP 工具/资源目录三层协议。 |
+| [`../packages/native-messaging-host/THREAT-MODEL.md`](../packages/native-messaging-host/THREAT-MODEL.md) | 威胁模型:资产、攻击者与入口点、鉴权鉴权、写路径 TOCTOU 不变量、限流、审计模型。 |
+| [`store-review/mcp.md`](./store-review/mcp.md) | 应用商店审核材料汇编:数据流、工具权限表、同意界面、令牌存储与吊销、审计日志、隐私披露。 |
+
 ## 翻译 / Translation
 
 | 文档 | 说明 |
