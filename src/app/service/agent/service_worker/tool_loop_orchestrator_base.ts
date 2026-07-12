@@ -4,6 +4,7 @@ import type {
   AgentModelConfig,
   ChatRequest,
   ChatStreamEvent,
+  ChatMessage,
   ToolDefinition,
   ToolCall,
   Attachment,
@@ -385,9 +386,11 @@ export class ToolLoopOrchestrator {
 
       // 如果有 tool calls，需要执行并继续循环
       if (result.toolCalls && result.toolCalls.length > 0 && allToolDefs.length > 0) {
-        // 持久化 assistant 消息（含 tool calls）
+        // 持久化 assistant 消息（含 tool calls）。保留对象引用（含 id），
+        // 后续回写状态时按 id 直接 updateMessage，避免再整份 getMessages+scan+saveMessages。
+        let persistedAssistantMessage: ChatMessage | undefined;
         if (conversationId) {
-          await this.chatRepo.appendMessage({
+          persistedAssistantMessage = {
             id: uuidv4(),
             conversationId,
             role: "assistant",
@@ -395,7 +398,8 @@ export class ToolLoopOrchestrator {
             thinking: result.thinking ? { content: result.thinking } : undefined,
             toolCalls: result.toolCalls,
             createtime: Date.now(),
-          });
+          };
+          await this.chatRepo.appendMessage(persistedAssistantMessage);
         }
 
         // 将 assistant 消息加入上下文（带 toolCalls，供 provider 构建 tool_calls 字段）
@@ -485,23 +489,24 @@ export class ToolLoopOrchestrator {
           }
         };
 
-        // 内存上下文中的 assistant 消息
-        const assistantMsg = messages.find(
-          (m) => m.role === "assistant" && m.toolCalls?.some((tc: ToolCall) => completedIds.has(tc.id))
-        );
+        // 内存上下文中的 assistant 消息：目标消息一定是刚 push 过 toolCalls 的那条，
+        // 从尾部往回找（本轮只追加了少量消息）比 Array.prototype.find 的正向全量扫描更快。
+        // persistedAssistantMessage.toolCalls 与这里的 toolCalls 是同一个数组引用（都来自
+        // result.toolCalls），因此这一次 applyToolUpdates 同时完成了内存态与待持久化对象的回写。
+        let assistantMsg: (typeof messages)[number] | undefined;
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const m = messages[i];
+          if (m.role === "assistant" && m.toolCalls?.some((tc: ToolCall) => completedIds.has(tc.id))) {
+            assistantMsg = m;
+            break;
+          }
+        }
         if (assistantMsg?.toolCalls) applyToolUpdates(assistantMsg.toolCalls);
 
-        // 持久化的 assistant 消息
-        if (conversationId) {
-          const allMessages = await this.chatRepo.getMessages(conversationId);
-          for (let i = allMessages.length - 1; i >= 0; i--) {
-            const msg = allMessages[i];
-            if (msg.role === "assistant" && msg.toolCalls?.some((tc: ToolCall) => completedIds.has(tc.id))) {
-              applyToolUpdates(msg.toolCalls!);
-              await this.chatRepo.saveMessages(conversationId, allMessages);
-              break;
-            }
-          }
+        // 持久化：appendMessage 时已保留了带 id 的完整对象引用，直接按 id updateMessage，
+        // 不必再整份 getMessages 扫描 + saveMessages 覆写。
+        if (persistedAssistantMessage?.toolCalls) {
+          await this.chatRepo.updateMessage(persistedAssistantMessage);
         }
 
         // 工具调用状态已全部回写完毕，取消可以安全终态化了：只发一条终态事件，不再进入循环检测/下一轮

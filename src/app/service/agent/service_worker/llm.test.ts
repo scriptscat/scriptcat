@@ -720,6 +720,10 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
       storedMessages.length = 0;
       storedMessages.push(...msgs.map((m) => structuredClone(m)));
     });
+    mockRepo.updateMessage.mockImplementation(async (msg: any) => {
+      const index = storedMessages.findIndex((m) => m.id === msg.id);
+      if (index >= 0) storedMessages[index] = structuredClone(msg);
+    });
 
     fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "call_1", name: "echo", arguments: '{"msg":"hi"}' }]));
     fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));

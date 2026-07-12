@@ -20,6 +20,7 @@ function makeFakeChatRepo() {
     appendMessage: vi.fn().mockResolvedValue(undefined),
     getMessages: vi.fn().mockResolvedValue([]),
     saveMessages: vi.fn().mockResolvedValue(undefined),
+    updateMessage: vi.fn().mockResolvedValue(undefined),
   } as any;
 }
 

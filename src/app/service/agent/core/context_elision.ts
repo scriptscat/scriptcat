@@ -126,10 +126,10 @@ export function elideUntilWithinBudget(
   attachmentSizes?: Map<string, number>,
   model?: AgentModelConfig
 ): boolean {
-  const hasToolResults = messages.some((message) => message.role === "tool");
+  // 原先按 hasToolResults 分两条 if 判断，但两分支条件完全相同（结果都只取决于 estimate()），
+  // 白白多做一次 O(n) 的 messages.some() 扫描；合并为一次判断，语义不变。
   const estimate = () => estimateRequestTokens(messages, tools, attachmentSizes, model);
-  if (!hasToolResults && estimate() / contextWindow < budgetRatio) return true;
-  if (hasToolResults && estimate() / contextWindow < budgetRatio) return true;
+  if (estimate() / contextWindow < budgetRatio) return true;
   for (let keep = 5; keep >= 0; keep--) {
     elideOldToolResults(messages, keep);
     if (estimate() / contextWindow < budgetRatio) return true;

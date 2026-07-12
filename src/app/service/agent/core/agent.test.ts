@@ -588,6 +588,7 @@ function createTestService() {
     listConversations: vi.fn().mockResolvedValue([]),
     saveConversation: vi.fn().mockResolvedValue(undefined),
     saveMessages: vi.fn().mockResolvedValue(undefined),
+    updateMessage: vi.fn().mockResolvedValue(undefined),
     getAttachment: vi.fn().mockResolvedValue(null),
     saveAttachment: vi.fn().mockResolvedValue(0),
   });
