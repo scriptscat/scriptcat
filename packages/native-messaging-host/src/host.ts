@@ -18,6 +18,7 @@ import { BrokerServer } from "./broker/server.js";
 import { handlePairingDecision, type PairDecisionPayload } from "./broker/pairing-decision.js";
 import { NativeChannel } from "./native/channel.js";
 import type { McpBridgeRequest, McpBridgeResponse } from "./shared/protocol.js";
+import { generateManifest, serializeManifest } from "./installers/lib/manifest-gen.js";
 
 const HOST_VERSION = "0.1.0";
 const logger = new Logger("host");
@@ -25,6 +26,10 @@ const logger = new Logger("host");
 async function main(): Promise<void> {
   if (process.argv.includes("--doctor")) {
     await runDoctor();
+    return;
+  }
+  if (process.argv.includes("--print-manifest")) {
+    printManifest();
     return;
   }
 
@@ -160,6 +165,32 @@ async function runDoctor(): Promise<void> {
     process.stderr.write(`${result.ok ? "✓" : "✗"} ${result.check}${result.detail ? ` (${result.detail})` : ""}\n`);
   }
   process.exit(results.every((r) => r.ok) ? 0 : 1);
+}
+
+/**
+ * `--print-manifest --extension-id <id> [--extension-id <id> ...] --host-path <path>` — prints
+ * the generated manifest JSON to stdout for the installer scripts to write atomically to each
+ * browser's native-messaging-hosts directory (doc 06 §5). Exits non-zero without printing
+ * anything on invalid input, so an installer script can safely `set -e` on this call.
+ */
+function printManifest(): void {
+  const extensionIds: string[] = [];
+  let hostPath = "";
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--extension-id" && args[i + 1]) {
+      extensionIds.push(args[++i]);
+    } else if (args[i] === "--host-path" && args[i + 1]) {
+      hostPath = args[++i];
+    }
+  }
+
+  const result = generateManifest({ extensionIds, hostExecutablePath: hostPath });
+  if (!result.ok) {
+    process.stderr.write(`manifest generation failed: ${result.reason}\n`);
+    process.exit(1);
+  }
+  process.stdout.write(serializeManifest(result.manifest));
 }
 
 main().catch((e) => {
