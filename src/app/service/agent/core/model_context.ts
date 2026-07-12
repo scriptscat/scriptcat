@@ -1,3 +1,5 @@
+import type { AgentModelConfig } from "./types";
+
 // 模型上下文窗口大小映射表
 // [前缀, 上下文窗口大小]，按前缀长度降序排列以确保最精确匹配优先
 const MODEL_CONTEXT_PREFIXES: Array<[string, number]> = [
@@ -41,6 +43,8 @@ const MODEL_CONTEXT_PREFIXES: Array<[string, number]> = [
 ];
 
 export const DEFAULT_CONTEXT_WINDOW = 128_000;
+export const DEFAULT_ANTHROPIC_MAX_TOKENS = 16_384;
+export const CONTEXT_SAFETY_MARGIN_RATIO = 0.1;
 
 /** 获取模型的上下文窗口大小，优先使用用户配置，否则按前缀匹配 */
 export function getContextWindow(config: { model: string; contextWindow?: number }): number {
@@ -50,6 +54,27 @@ export function getContextWindow(config: { model: string; contextWindow?: number
     if (modelLower.startsWith(prefix)) return size;
   }
   return DEFAULT_CONTEXT_WINDOW;
+}
+
+/** 获取 provider 实际会请求的最大输出 token 数。 */
+export function getReservedOutputTokens(config: AgentModelConfig): number {
+  const contextWindow = getContextWindow(config);
+  const configured =
+    typeof config.maxTokens === "number" && Number.isFinite(config.maxTokens)
+      ? Math.max(0, Math.floor(config.maxTokens))
+      : 0;
+  const requested = configured > 0 ? configured : config.provider === "anthropic" ? DEFAULT_ANTHROPIC_MAX_TOKENS : 0;
+  return Math.min(contextWindow, requested);
+}
+
+/**
+ * 发送请求前允许输入占用的最大 token 预算。
+ * contextWindow 是输入与输出的总和，因此需同时预留 provider 请求的输出额度和安全边际。
+ */
+export function getInputTokenBudget(config: AgentModelConfig): number {
+  const contextWindow = getContextWindow(config);
+  const safetyMargin = Math.ceil(contextWindow * CONTEXT_SAFETY_MARGIN_RATIO);
+  return Math.max(0, contextWindow - getReservedOutputTokens(config) - safetyMargin);
 }
 
 /** 根据模型名称推断上下文窗口大小（不考虑用户配置） */
