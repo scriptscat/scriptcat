@@ -54,3 +54,53 @@ export function applyMcpManifest(manifest, mcpEnabled) {
     permissions: (manifest.permissions || []).filter((permission) => permission !== "nativeMessaging"),
   };
 }
+
+/**
+ * 打包 profile 的合法取值。
+ */
+export const PACK_PROFILES = ["store-stable", "store-beta", "developer"];
+
+/**
+ * 强断言（doc 05 §1.3, doc 08 §5）：store 系 profile 的产物绝不能包含 nativeMessaging 权限，
+ * 也不能有已编译进 bundle 的 MCP 主机集成代码；developer profile 在 MCP 开启时必须两者都有。
+ * 纯函数，不做任何 I/O —— 调用方负责先扫描 dist 产物得到 nativeHostCompiledIn。
+ * @param {{ profile: "store-stable" | "store-beta" | "developer", manifest: { permissions?: string[] }, mcpEnabled: boolean, nativeHostCompiledIn: boolean }} param
+ * @returns {{ ok: true } | { ok: false; reason: string }}
+ */
+export function checkMcpPackProfileCompliance({ profile, manifest, mcpEnabled, nativeHostCompiledIn }) {
+  const hasPermission = !!manifest.permissions?.includes("nativeMessaging");
+  const isStoreProfile = profile === "store-stable" || profile === "store-beta";
+
+  if (isStoreProfile) {
+    if (hasPermission) {
+      return {
+        ok: false,
+        reason: `pack profile "${profile}" must not contain the nativeMessaging permission, but it does.`,
+      };
+    }
+    if (nativeHostCompiledIn) {
+      return {
+        ok: false,
+        reason: `pack profile "${profile}" must not have MCP native-host integration code compiled into the bundle, but it does.`,
+      };
+    }
+    return { ok: true };
+  }
+
+  // developer profile
+  if (mcpEnabled) {
+    if (!hasPermission) {
+      return {
+        ok: false,
+        reason: `pack profile "${profile}" (MCP enabled) must contain the nativeMessaging permission, but it doesn't.`,
+      };
+    }
+    if (!nativeHostCompiledIn) {
+      return {
+        ok: false,
+        reason: `pack profile "${profile}" (MCP enabled) must have MCP native-host integration code compiled into the bundle, but it doesn't.`,
+      };
+    }
+  }
+  return { ok: true };
+}

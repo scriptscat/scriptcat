@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { resolveAgentEnabled, applyAgentManifest, resolveMcpEnabled, applyMcpManifest } from "./build-config.js";
+import {
+  resolveAgentEnabled,
+  applyAgentManifest,
+  resolveMcpEnabled,
+  applyMcpManifest,
+  checkMcpPackProfileCompliance,
+} from "./build-config.js";
 
 describe("构建配置 - agent 开关", () => {
   describe("resolveAgentEnabled - 打包判断（稳定版屏蔽、beta 开启，SC_DISABLE_AGENT 覆盖）", () => {
@@ -113,6 +119,85 @@ describe("构建配置 - MCP 开关", () => {
       const manifest = makeManifest();
       applyMcpManifest(manifest, false);
       expect(manifest.permissions).toContain("nativeMessaging");
+    });
+  });
+
+  describe("checkMcpPackProfileCompliance - store/developer 强断言（doc 05 §1.3, doc 08 §5）", () => {
+    const cleanManifest = { permissions: ["tabs", "storage"] };
+    const mcpManifest = { permissions: ["tabs", "storage", "nativeMessaging"] };
+
+    it("store-stable：manifest 无权限、bundle 无 MCP 代码 → 通过", () => {
+      const result = checkMcpPackProfileCompliance({
+        profile: "store-stable",
+        manifest: cleanManifest,
+        mcpEnabled: false,
+        nativeHostCompiledIn: false,
+      });
+      expect(result).toEqual({ ok: true });
+    });
+
+    it("store-stable：manifest 含 nativeMessaging 权限 → 拒绝", () => {
+      const result = checkMcpPackProfileCompliance({
+        profile: "store-stable",
+        manifest: mcpManifest,
+        mcpEnabled: false,
+        nativeHostCompiledIn: false,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.reason).toContain("nativeMessaging permission");
+    });
+
+    it("store-beta：即使 manifest 干净，bundle 中仍编译进了 MCP 代码 → 拒绝", () => {
+      const result = checkMcpPackProfileCompliance({
+        profile: "store-beta",
+        manifest: cleanManifest,
+        mcpEnabled: false,
+        nativeHostCompiledIn: true,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.reason).toContain("compiled into the bundle");
+    });
+
+    it("developer + MCP 未开启：即使 manifest 无权限、bundle 无代码，也视为合规（不要求）", () => {
+      const result = checkMcpPackProfileCompliance({
+        profile: "developer",
+        manifest: cleanManifest,
+        mcpEnabled: false,
+        nativeHostCompiledIn: false,
+      });
+      expect(result).toEqual({ ok: true });
+    });
+
+    it("developer + MCP 开启：manifest 有权限、bundle 有代码 → 通过", () => {
+      const result = checkMcpPackProfileCompliance({
+        profile: "developer",
+        manifest: mcpManifest,
+        mcpEnabled: true,
+        nativeHostCompiledIn: true,
+      });
+      expect(result).toEqual({ ok: true });
+    });
+
+    it("developer + MCP 开启：manifest 缺少权限 → 拒绝", () => {
+      const result = checkMcpPackProfileCompliance({
+        profile: "developer",
+        manifest: cleanManifest,
+        mcpEnabled: true,
+        nativeHostCompiledIn: true,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.reason).toContain("must contain the nativeMessaging permission");
+    });
+
+    it("developer + MCP 开启：bundle 中未编译进 MCP 代码 → 拒绝（可能是回归 bug，如本次修复的 DefinePlugin 缺口）", () => {
+      const result = checkMcpPackProfileCompliance({
+        profile: "developer",
+        manifest: mcpManifest,
+        mcpEnabled: true,
+        nativeHostCompiledIn: false,
+      });
+      expect(result.ok).toBe(false);
+      expect(result.reason).toContain("must have MCP native-host integration code compiled");
     });
   });
 });

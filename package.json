@@ -13,6 +13,7 @@
     "dev:noMap": "cross-env NODE_ENV=development NO_MAP=true rspack",
     "build": "cross-env NODE_ENV=production rspack build",
     "pack": "node ./scripts/pack.js",
+    "pack:dev": "cross-env SC_PACK_PROFILE=developer SC_ENABLE_MCP=true node ./scripts/pack.js",
     "typecheck": "tsc --noEmit",
     "lint": "concurrently -g \"prettier --check --cache \\\"**/*.{ts,tsx,js,jsx,mjs}\\\"\" \"tsc --noEmit\" && eslint . --cache --cache-location .eslintcache",
     "lint:ci": "concurrently -g \"prettier --check --cache \\\"**/*.{ts,tsx,js,jsx,mjs}\\\"\" \"tsc --noEmit\" && eslint . --cache --cache-location .eslintcache",
