@@ -1,18 +1,25 @@
 {
   "name": "@scriptcat/native-messaging-host",
-  "version": "1.0.0",
-  "description": "Native Messaging Host for ScriptCat MCP/CLI integration",
-  "main": "dist/index.js",
+  "version": "0.1.0",
+  "description": "ScriptCat native messaging host + MCP stdio bridge (doc: workspace/.ref-docs/06-native-host-and-installers.md)",
   "type": "module",
+  "bin": {
+    "scriptcat-native-host": "dist/host.js",
+    "scriptcat-mcp": "dist/shim.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node dist/index.js"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
-    "@types/node": "^20.0.0"
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "3.25.76"
   },
   "devDependencies": {
-    "typescript": "^5.0.0"
+    "@types/node": "20.19.28",
+    "typescript": "5.9.3",
+    "vitest": "4.1.8"
   }
 }
