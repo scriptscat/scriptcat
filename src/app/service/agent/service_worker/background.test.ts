@@ -404,7 +404,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
     (service as any).bgSessionManager.delete("conv-multi");
   });
 
-  it("通过 attach 发送 stop 会终态化会话、广播终态并在延迟后清理", async () => {
+  it("通过 attach 发送 stop 会先置为 cancelling 并广播终态，占位直到执行方 finalize 才真正清理", async () => {
     vi.useFakeTimers();
     try {
       const { service } = createTestService();
@@ -421,20 +421,39 @@ describe("handleAttachToConversation 重连逻辑", () => {
       simulateMessage({ action: "stop" });
 
       expect(rc.abortController.signal.aborted).toBe(true);
-      expect(rc.status).toBe("error");
+      // stop() 只置为 cancelling：真正的终态由持有该 rc 的执行方 promise 落定后写入，
+      // 避免同一 conversationId 在旧执行尚未退出时就被新会话顶替（见 finding 1）
+      expect(rc.status).toBe("cancelling");
       expect(rc.pendingAskUser).toBeUndefined();
       expect(rc.askResolvers.size).toBe(0);
-      expect((service as any).bgSessionManager.has("conv-stop")).toBe(false);
+      expect((service as any).bgSessionManager.has("conv-stop")).toBe(true);
       expect(service.getRunningConversationIds()).not.toContain("conv-stop");
       expect(
         sentMessages.some((message) => message.data?.type === "error" && message.data.errorCode === "cancelled")
       ).toBe(true);
+
+      // 模拟执行方在 abort 落定后调用 finalizeCancelled
+      (service as any).bgSessionManager.finalizeCancelled("conv-stop", rc);
+      expect(rc.status).toBe("error");
+      expect((service as any).bgSessionManager.has("conv-stop")).toBe(false);
 
       await vi.advanceTimersByTimeAsync(30_000);
       expect((service as any).bgSessionManager.get("conv-stop")).toBeUndefined();
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("stop() 传入 expectedRc 与当前会话实例不符时应忽略，避免旧连接的延迟 Stop 误伤新会话", async () => {
+    const { service } = createTestService();
+    const staleRc = createRunningConversation({ status: "running" });
+    const currentRc = createRunningConversation({ status: "running" });
+    (service as any).bgSessionManager.set("conv-race", currentRc);
+
+    (service as any).bgSessionManager.stop("conv-race", staleRc);
+
+    expect(currentRc.abortController.signal.aborted).toBe(false);
+    expect(currentRc.status).toBe("running");
   });
 
   it("空 streamingState 的 sync 不包含 streamingMessage 字段", async () => {

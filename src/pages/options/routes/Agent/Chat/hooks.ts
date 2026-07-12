@@ -228,6 +228,8 @@ export function useStreamingChat() {
             setIsStreaming(false);
             setAskUserPending(null);
             connRef.current = null;
+            // 终态事件后必须主动断开，否则 port/listener 会一直挂在 SW 侧，直到用户手动刷新页面
+            conn.disconnect();
             onDone();
           }
         });
@@ -289,6 +291,8 @@ export function useStreamingChat() {
               // done 或 error，无需保持连接
               setIsStreaming(false);
               connRef.current = null;
+              // 终态 sync 后必须主动断开，否则 port/listener 会一直挂在 SW 侧
+              conn.disconnect();
               onDone();
             }
             return;
@@ -298,6 +302,7 @@ export function useStreamingChat() {
             setIsStreaming(false);
             setAskUserPending(null);
             connRef.current = null;
+            conn.disconnect();
             onDone();
           }
         });

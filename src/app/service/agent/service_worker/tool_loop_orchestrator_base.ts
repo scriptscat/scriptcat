@@ -137,6 +137,7 @@ export class ToolLoopOrchestrator {
         content: "",
         error: error.message,
         errorCode: error.errorCode,
+        usage: totalUsage,
         durationMs: error.durationMs,
         createtime: Date.now(),
       });
@@ -149,6 +150,41 @@ export class ToolLoopOrchestrator {
       durationMs: error.durationMs,
     });
     if (throwOnTerminalError) throw error;
+  }
+
+  /** 取消（stop）落定时的统一终态化：持久化一条终态记录 + 发送唯一的终态事件，携带累计 usage/耗时。 */
+  private async emitCancelled(
+    conversationId: string | undefined,
+    totalUsage: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationInputTokens: number;
+      cacheReadInputTokens: number;
+    },
+    startTime: number,
+    sendEvent: (event: ChatStreamEvent) => void
+  ): Promise<void> {
+    const durationMs = Date.now() - startTime;
+    if (conversationId) {
+      await this.chatRepo.appendMessage({
+        id: uuidv4(),
+        conversationId,
+        role: "assistant",
+        content: "",
+        error: "Conversation cancelled",
+        errorCode: "cancelled",
+        usage: totalUsage,
+        durationMs,
+        createtime: Date.now(),
+      });
+    }
+    sendEvent({
+      type: "error",
+      message: "Conversation cancelled",
+      errorCode: "cancelled",
+      usage: totalUsage,
+      durationMs,
+    });
   }
 
   // 统一的 tool calling 循环，UI 和脚本共用
@@ -289,14 +325,17 @@ export class ToolLoopOrchestrator {
         });
       }
 
-      if (signal.aborted) return;
-
-      // 累计 usage
+      // 先累计本轮 usage 再检查 aborted：即使取消发生在这次响应之后，其花费也不应从终态 usage 中丢失
       if (result.usage) {
         totalUsage.inputTokens += result.usage.inputTokens;
         totalUsage.outputTokens += result.usage.outputTokens;
         totalUsage.cacheCreationInputTokens += result.usage.cacheCreationInputTokens || 0;
         totalUsage.cacheReadInputTokens += result.usage.cacheReadInputTokens || 0;
+      }
+
+      if (signal.aborted) {
+        await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+        return;
       }
 
       // 自动 compact：当上下文占用超过 80% 时触发；否则按阈值分批裁剪旧 tool 结果（见下方 pendingElision）
@@ -321,6 +360,8 @@ export class ToolLoopOrchestrator {
               conversationId,
             });
           }
+          // autoCompact 期间可能已被 stop：继续持久化/发送最终消息前必须重新检查
+          if (signal.aborted) return;
         } else {
           for (let i = 0; i < ELISION_THRESHOLDS.length; i++) {
             if (i > lastElisionThresholdIndex && contextUsageRatio >= ELISION_THRESHOLDS[i]) {
@@ -369,7 +410,21 @@ export class ToolLoopOrchestrator {
         const excludeToolsSet =
           params.excludeTools && params.excludeTools.length > 0 ? new Set(params.excludeTools) : undefined;
         const toolResults = await toolRegistry.execute(result.toolCalls, scriptToolCallback, excludeToolsSet, signal);
-        if (signal.aborted) return;
+        const cancelledDuringTools = signal.aborted;
+        if (cancelledDuringTools) {
+          // 取消发生在工具执行期间：toolRegistry 可能未及为所有 toolCalls 返回结果（如尚未触达的脚本工具），
+          // 在此补全为 cancelled，确保下面的回写逻辑不会把任何 toolCall 遗留在 "running"
+          const resultIds = new Set(toolResults.map((r) => r.id));
+          for (const tc of result.toolCalls) {
+            if (!resultIds.has(tc.id)) {
+              toolResults.push({
+                id: tc.id,
+                result: JSON.stringify({ error: "Tool execution cancelled" }),
+                error: true,
+              });
+            }
+          }
+        }
 
         // 将 tool 结果加入消息，并通知 UI 工具执行完成
         // 收集需要回写的 toolCall 元数据（执行状态 / 附件 / 子代理详情）
@@ -447,6 +502,12 @@ export class ToolLoopOrchestrator {
               break;
             }
           }
+        }
+
+        // 工具调用状态已全部回写完毕，取消可以安全终态化了：只发一条终态事件，不再进入循环检测/下一轮
+        if (cancelledDuringTools) {
+          await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+          return;
         }
 
         // 记录工具调用历史用于模式检测

@@ -149,7 +149,10 @@ describe("上下文预算估算与裁剪", () => {
       { role: "user", content: "继续" },
     ];
     const sizes = new Map([["old", 6000]]);
-    expect(estimateRequestTokens(messages, [], sizes, VISION_MODEL)).toBeGreaterThan(6000);
+    // 估算以字节为单位再折算为保守 token 数（见 CONSERVATIVE_BYTES_PER_TOKEN），
+    // 因此不能直接与原始字节数 6000 比较；改为验证 base64 展开确实被计入
+    // —— 若只是把原始字节数朴素折半（3000），结果不会超过它。
+    expect(estimateRequestTokens(messages, [], sizes, VISION_MODEL)).toBeGreaterThan(3000);
     expect(elideUntilWithinBudget(messages, 1000, [], 0.9, sizes, VISION_MODEL)).toBe(true);
     expect(messages[0].content).toEqual([{ type: "text", text: expect.stringContaining("attachment elided") }]);
     expect((messages[0].content as any)[0].text).toContain("uploads/old");

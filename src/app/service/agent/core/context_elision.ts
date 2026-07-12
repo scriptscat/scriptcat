@@ -38,6 +38,12 @@ export async function loadAttachmentSizes(
   return sizes;
 }
 
+// 字节→token 的保守换算：常见 tokenizer 在 UTF-8 文本上很少低于 2 字节/token
+// （英文/Latin 文本通常 ~4 字节/token，CJK 每字符 3 字节通常对应 1-2 token）。
+// 直接把字节数当 token 数会比真实 token 数偏大数倍，导致远低于模型真实上限就被裁剪/拒绝；
+// 除以该常量后仍保持保守（不会低估），同时不再把每个 UTF-8 字节当作独立 token。
+const CONSERVATIVE_BYTES_PER_TOKEN = 2;
+
 /**
  * 以 UTF-8 字节数的保守上界估算 provider 请求 token。
  * 只对 provider 实际会内联展开为 base64 的块计入二进制字节：
@@ -69,7 +75,7 @@ export function estimateRequestTokens(
   }, 0);
   if (!Number.isFinite(attachmentBytes)) return Number.POSITIVE_INFINITY;
   const bytes = new TextEncoder().encode(JSON.stringify({ messages, tools })).byteLength;
-  return bytes + attachmentBytes;
+  return Math.ceil((bytes + attachmentBytes) / CONSERVATIVE_BYTES_PER_TOKEN);
 }
 
 /**

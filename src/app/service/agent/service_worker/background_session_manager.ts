@@ -23,7 +23,9 @@ export type RunningConversation = {
   };
   askResolvers: Map<string, (answer: string) => void>;
   tasks: Array<{ id: string; subject: string; status: "pending" | "in_progress" | "completed"; description?: string }>;
-  status: "running" | "done" | "error";
+  // cancelling：stop() 已触发但执行方尚未真正退出（promise 未 settle）；
+  // 在此期间该 conversationId 仍视为"占用中"，避免同 ID 的替换会话被过早放行。
+  status: "running" | "cancelling" | "done" | "error";
 };
 
 // 后台会话注册表：管理流式状态快照、listener 广播、UI 附加逻辑
@@ -31,7 +33,8 @@ export class BackgroundSessionManager {
   private runningConversations = new Map<string, RunningConversation>();
 
   has(conversationId: string): boolean {
-    return this.runningConversations.get(conversationId)?.status === "running";
+    const status = this.runningConversations.get(conversationId)?.status;
+    return status === "running" || status === "cancelling";
   }
 
   get(conversationId: string): RunningConversation | undefined {
@@ -149,18 +152,29 @@ export class BackgroundSessionManager {
     }
   }
 
-  // 停止后台会话时必须同步终态化，避免保留为永远运行中的快照。
-  stop(conversationId: string): void {
+  // 停止后台会话：仅置为 cancelling（占用态，阻止同 ID 会话被过早顶替），
+  // 真正的终态（done/error）由持有该 rc 实例的执行方在 promise 落定后写入，见 finalizeCancelled()。
+  // expectedRc 用于校验调用方持有的会话实例仍是当前会话，防止旧连接的延迟 Stop 误伤已顶替上位的新会话。
+  stop(conversationId: string, expectedRc?: RunningConversation): void {
     const rc = this.runningConversations.get(conversationId);
-    if (!rc || rc.status !== "running") return;
+    if (!rc || (expectedRc && rc !== expectedRc)) return;
+    if (rc.status !== "running") return;
 
+    rc.status = "cancelling";
     rc.pendingAskUser = undefined;
     rc.askResolvers.clear();
     rc.abortController.abort();
 
     const event: ChatStreamEvent = { type: "error", message: "Conversation cancelled", errorCode: "cancelled" };
-    this.updateStreamingState(rc, event);
     this.broadcastEvent(rc, event);
+  }
+
+  // 执行方在 abort 落定、promise 真正 settle 后调用，把 cancelling 收敛为终态。
+  // 通过实例比对避免误将已被新会话顶替的 map 条目错误终态化。
+  finalizeCancelled(conversationId: string, rc: RunningConversation): void {
+    if (this.runningConversations.get(conversationId) !== rc) return;
+    if (rc.status !== "cancelling") return;
+    rc.status = "error";
     this.cleanupIfDone(conversationId);
   }
 
@@ -196,7 +210,9 @@ export class BackgroundSessionManager {
           : undefined,
       pendingAskUser: rc.pendingAskUser,
       tasks: rc.tasks,
-      status: rc.status,
+      // cancelling 对外等同于终态：晚到的重连者不会再收到任何后续广播（见 stop/finalizeCancelled），
+      // 应立即按已结束处理，而不是误报为 running 导致 UI 一直转圈等待
+      status: rc.status === "cancelling" ? "error" : rc.status,
     };
     sendEvent(syncEvent);
 
@@ -222,7 +238,7 @@ export class BackgroundSessionManager {
         }
       }
       if (msg.action === "stop") {
-        this.stop(params.conversationId);
+        this.stop(params.conversationId, rc);
       }
     });
 

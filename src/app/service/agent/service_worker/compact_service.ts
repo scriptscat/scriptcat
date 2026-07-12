@@ -92,6 +92,10 @@ export class CompactService {
       signal
     );
 
+    // LLM 调用期间可能已被 stop：摘要落地前必须重新检查，避免用过期摘要覆盖 currentMessages
+    // 或在取消之后仍持久化/广播 compact_done
+    throwIfAborted(signal);
+
     const summary = extractSummary(result.content);
 
     // 替换 currentMessages（保留 system，替换其余为摘要）
@@ -109,6 +113,9 @@ export class CompactService {
       createtime: Date.now(),
     };
     await this.chatRepo.saveMessages(conversationId, [summaryMessage]);
+
+    // 持久化期间也可能已被 stop：终态事件只能在确认未取消时广播
+    throwIfAborted(signal);
 
     // 通知 UI
     sendEvent({ type: "compact_done", summary, originalCount: -1 });

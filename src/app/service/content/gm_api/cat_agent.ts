@@ -212,6 +212,7 @@ function processChat(this: Instance, conn: MessageConnect, handlers: Map<string,
         case "done":
           usage = event.usage;
           durationMs = event.durationMs;
+          conn.disconnect();
           resolve({
             content: finishRound(false),
             thinking: thinking || undefined,
@@ -221,6 +222,7 @@ function processChat(this: Instance, conn: MessageConnect, handlers: Map<string,
           });
           break;
         case "error":
+          conn.disconnect();
           reject(Object.assign(new Error(event.message), event));
           break;
       }
@@ -344,6 +346,7 @@ function processStream(
           durationMs: event.durationMs,
         });
         done = true;
+        conn.disconnect();
         break;
       case "error":
         push({
@@ -355,6 +358,7 @@ function processStream(
         });
         error = Object.assign(new Error(event.message), event);
         done = true;
+        conn.disconnect();
         break;
     }
   });
@@ -364,6 +368,19 @@ function processStream(
     error = new Error("Connection disconnected");
     wake?.();
   });
+
+  // 提前退出（for await...break、消费方 throw）时必须断开连接并唤醒挂起的 next()，
+  // 否则 port/listener 会一直挂在 SW 侧，直到脚本上下文销毁
+  const closeEarly = () => {
+    if (done) return;
+    done = true;
+    try {
+      conn.disconnect();
+    } catch {
+      // port 可能已断开
+    }
+    wake?.();
+  };
 
   return {
     [Symbol.asyncIterator]() {
@@ -380,6 +397,14 @@ function processStream(
             throw error;
           }
           return { value: undefined as never, done: true };
+        },
+        async return(value?: unknown): Promise<IteratorResult<ConversationStreamChunk>> {
+          closeEarly();
+          return { value: value as never, done: true };
+        },
+        async throw(err?: unknown): Promise<IteratorResult<ConversationStreamChunk>> {
+          closeEarly();
+          throw err;
         },
       };
     },

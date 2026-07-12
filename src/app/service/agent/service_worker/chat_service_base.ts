@@ -311,7 +311,7 @@ export class ChatService {
       }
       if (msg.action === "stop") {
         if (rc) {
-          this.bgSessionManager.stop(params.conversationId);
+          this.bgSessionManager.stop(params.conversationId, rc);
         } else {
           abortController.abort();
         }
@@ -434,17 +434,28 @@ export class ChatService {
           skipBuiltinTools: !enableTools,
           askUserForGuard: params.scriptUuid ? undefined : askUserForGuard,
         });
-        // 后台模式：正常完成后延迟清理
-        this.bgSessionManager.cleanupIfDone(params.conversationId);
+        // callLLMWithToolLoop 在 signal.aborted 时是 return（正常 resolve）而非 throw，
+        // 因此 abort 落定也会走到这里；必须先收敛 cancelling 为终态，而不是直接当作正常完成清理
+        if (rc && abortController.signal.aborted) {
+          this.bgSessionManager.finalizeCancelled(params.conversationId, rc);
+        } else {
+          // 后台模式：正常完成后延迟清理
+          this.bgSessionManager.cleanupIfDone(params.conversationId);
+        }
       } finally {
         // sessionRegistry 超出作用域后由 GC 清理，无需手动 unregister
         // 清理子代理上下文缓存
         this.subAgentService.cleanup(params.conversationId);
       }
     } catch (e: any) {
-      // 后台模式：abort 也需要清理注册表
+      // 后台模式：abort 后必须等待本次执行 promise 真正落定，才能把 cancelling 收敛为终态，
+      // 否则 stop() 造成的 cancelling 占位会一直阻塞同 ID 的新会话（见 finalizeCancelled）
       if (abortController.signal.aborted) {
-        this.bgSessionManager.cleanupIfDone(params.conversationId);
+        if (rc) {
+          this.bgSessionManager.finalizeCancelled(params.conversationId, rc);
+        } else {
+          this.bgSessionManager.cleanupIfDone(params.conversationId);
+        }
         return;
       }
       const errorMsg = e.message || "Unknown error";
@@ -564,6 +575,10 @@ export class ChatService {
       abortController.signal
     );
 
+    // LLM 调用期间可能已被 stop：落库/广播终态事件前必须重新检查，
+    // 否则 cancelled 之后仍可能持久化摘要并发出 compact_done/done
+    if (abortController.signal.aborted) return;
+
     const summary = extractSummary(result.content);
     const originalCount = existingMessages.length;
 
@@ -576,6 +591,9 @@ export class ChatService {
       createtime: Date.now(),
     };
     await this.chatRepo.saveMessages(params.conversationId, [summaryMessage]);
+
+    // 持久化期间也可能已被 stop：终态事件只能在确认未取消时发送
+    if (abortController.signal.aborted) return;
 
     sendEvent({ type: "compact_done", summary, originalCount });
     sendEvent({ type: "done", usage: result.usage });

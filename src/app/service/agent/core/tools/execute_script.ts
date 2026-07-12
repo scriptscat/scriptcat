@@ -9,7 +9,10 @@ export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
   description:
     "Execute JavaScript code. " +
     "target='page': run in a browser tab (MAIN world) with full DOM access, shares page's window/globals — can access page JS variables and call page functions. Cannot access extension blob URLs. " +
-    "target='sandbox': isolated computation environment, no DOM. " +
+    "chrome.scripting.executeScript has no cancellation API: on timeout/stop this tool stops WAITING and returns an error, " +
+    "but the injected page code keeps running to completion in the tab (it is not actually terminated). " +
+    "Avoid long-running or blocking code with target='page'. " +
+    "target='sandbox': isolated computation environment, no DOM, and IS genuinely cancelled on timeout/stop. " +
     "Use `return` to return a value. Timeout: 30 seconds.",
   parameters: {
     type: "object",
@@ -134,11 +137,18 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
       }
 
       if (target === "page") {
+        // chrome.scripting.executeScript 无法被真正中止：withTimeout 只能让调用方停止等待，
+        // 注入到页面的代码仍会在 tab 内继续跑到自然结束。错误信息必须说明"调用方停止等待"
+        // 与"页面脚本已停止"是两回事，避免误导上层以为页面副作用已经终止。
         const tabId = args.tab_id as number | undefined;
         const { result, tabId: actualTabId } = await withTimeout(
           deps.executeInPage(code, { tabId }),
           timeoutMs,
-          () => new Error(`execute_script timed out after ${timeoutMs / 1000}s`),
+          () =>
+            new Error(
+              `execute_script (target=page) timed out after ${timeoutMs / 1000}s waiting for a response. ` +
+                `The page code cannot be forcibly terminated and may still be running in the tab.`
+            ),
           signal
         );
         return buildResultPayload(result, { target: "page", tab_id: actualTabId });
