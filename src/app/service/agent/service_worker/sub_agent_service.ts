@@ -132,6 +132,9 @@ export class SubAgentService {
     let currentMsg: SubAgentMessage = { content: "", toolCalls: [] };
     // 累计 usage
     const subUsage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
+    // 是否已通过 sendEvent 转发过终态（done/error）。orchestrator 在 callLLM/autoCompact
+    // 原生失败时只 throw、不 sendEvent，若不补发，实时 UI 收不到子代理的终态事件，会一直显示 running。
+    let terminalEventEmitted = false;
 
     const subSendEvent = (event: ChatStreamEvent) => {
       // 转发事件给父代理
@@ -170,7 +173,7 @@ export class SubAgentService {
         case "tool_call_complete": {
           const tc = currentMsg.toolCalls.find((t) => t.id === event.id);
           if (tc) {
-            tc.status = "completed";
+            tc.status = event.status ?? "completed";
             tc.result = event.result;
             tc.attachments = event.attachments;
           }
@@ -186,6 +189,7 @@ export class SubAgentService {
           break;
         case "done":
         case "error":
+          terminalEventEmitted = true;
           if (event.usage) {
             subUsage.inputTokens += event.usage.inputTokens;
             subUsage.outputTokens += event.usage.outputTokens;
@@ -216,6 +220,18 @@ export class SubAgentService {
       }
       const terminalUsage = (terminalError as Error & { usage?: TokenUsage }).usage;
       if (terminalUsage) Object.assign(subUsage, terminalUsage);
+      // orchestrator 的 callLLM/autoCompact 原生失败只 throw、不 sendEvent 终态；
+      // 若不在此补发一次，实时 UI（依赖 subAgent 元信息的 done/error 事件）会一直显示 running。
+      if (!terminalEventEmitted) {
+        const errorLike = terminalError as Error & { errorCode?: string; durationMs?: number };
+        params.sendEvent({
+          type: "error",
+          message: terminalError.message,
+          errorCode: errorLike.errorCode,
+          usage: subUsage,
+          durationMs: errorLike.durationMs,
+        });
+      }
       Object.assign(terminalError, { details, usage: subUsage });
       throw terminalError;
     }

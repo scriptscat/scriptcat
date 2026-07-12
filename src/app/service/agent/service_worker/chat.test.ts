@@ -538,3 +538,135 @@ describe.concurrent("handleModelApi", () => {
     );
   });
 });
+
+// ---- 脚本工具回调：abort/disconnect/超时应结束等待，而不是永远挂起 ----
+
+describe("scriptToolCallback 的 abort/disconnect/超时处理", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  // 带 message/disconnect 模拟回调的 mock sender（脚本工具不会主动回复 toolResults）
+  function createMockSender() {
+    const sentMessages: any[] = [];
+    let messageHandler: ((msg: any) => void) | null = null;
+    let disconnectHandler: (() => void) | null = null;
+    const mockConn = {
+      sendMessage: (msg: any) => sentMessages.push(msg),
+      onMessage: vi.fn((handler: any) => {
+        messageHandler = handler;
+      }),
+      onDisconnect: vi.fn((handler: any) => {
+        disconnectHandler = handler;
+      }),
+    };
+    const sender = {
+      isType: (type: any) => type === 1,
+      getConnect: () => mockConn,
+    };
+    return {
+      sender,
+      sentMessages,
+      simulateMessage: (msg: any) => messageHandler?.(msg),
+      simulateDisconnect: () => disconnectHandler?.(),
+    };
+  }
+
+  // 构造带脚本自定义工具调用（非内置工具，走 scriptCallback）的 OpenAI SSE 响应
+  function makeScriptToolCallResponse(toolId: string, toolName: string, args: string): Response {
+    const encoder = new TextEncoder();
+    const chunks = [
+      `data: {"choices":[{"delta":{"tool_calls":[{"id":"${toolId}","function":{"name":"${toolName}","arguments":""}}]}}]}\n\n`,
+      `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(args)}}}]}}]}\n\n`,
+      `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
+    ];
+    let i = 0;
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        getReader() {
+          return {
+            async read() {
+              if (i < chunks.length) return { done: false, value: encoder.encode(chunks[i++]) };
+              return { done: true, value: undefined };
+            },
+          };
+        },
+      },
+    } as unknown as Response;
+  }
+
+  function setupConversation(mockRepo: any) {
+    mockRepo.listConversations.mockResolvedValue([
+      { id: "conv-script", title: "Chat", modelId: "test-openai", createtime: Date.now(), updatetime: Date.now() },
+    ]);
+    mockRepo.getMessages.mockResolvedValue([]);
+  }
+
+  it("非后台会话断开（触发 abort）时，等待中的脚本工具调用应立即结束，而不是永远挂起", async () => {
+    const { service, mockRepo } = createTestService();
+    setupConversation(mockRepo);
+    const { sender, simulateDisconnect } = createMockSender();
+
+    fetchSpy.mockResolvedValueOnce(makeScriptToolCallResponse("call-1", "my_tool", "{}"));
+
+    const chatPromise = (service as any).handleConversationChat(
+      {
+        conversationId: "conv-script",
+        message: "使用工具",
+        tools: [{ name: "my_tool", description: "d", parameters: { type: "object", properties: {} } }],
+      },
+      sender
+    );
+
+    // 等待 SSE 响应被消费、executeTools 消息发出，进入"等待 toolResults"状态
+    await new Promise((r) => setTimeout(r, 20));
+    simulateDisconnect();
+
+    // 若脚本工具回调未结束，chatPromise 永远不会 resolve，下面的 race 会超时
+    const TIMEOUT = Symbol("timeout");
+    const result = await Promise.race([
+      chatPromise.then(() => "done"),
+      new Promise((r) => setTimeout(() => r(TIMEOUT), 500)),
+    ]);
+    expect(result).toBe("done");
+  });
+
+  it("脚本连接长时间无响应（超时）时，应主动结束该轮脚本工具调用而不是无限期等待", async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, mockRepo } = createTestService();
+      setupConversation(mockRepo);
+      const { sender, sentMessages } = createMockSender();
+
+      fetchSpy
+        .mockResolvedValueOnce(makeScriptToolCallResponse("call-2", "my_tool", "{}"))
+        .mockResolvedValueOnce(makeTextResponse("最终回复"));
+
+      const chatPromise = (service as any).handleConversationChat(
+        {
+          conversationId: "conv-script",
+          message: "使用工具",
+          tools: [{ name: "my_tool", description: "d", parameters: { type: "object", properties: {} } }],
+        },
+        sender
+      );
+
+      // 推进到脚本工具调用的超时阈值（5 分钟），期间脚本从未回复 toolResults
+      await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+      await chatPromise;
+
+      const doneEvents = sentMessages.filter((m) => m.data?.type === "done");
+      expect(doneEvents).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
