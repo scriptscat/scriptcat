@@ -941,17 +941,27 @@ declare namespace CATAgent {
      * Chunk type:
      * - `"content_delta"` — incremental text
      * - `"thinking_delta"` — incremental thinking/reasoning
-     * - `"tool_call"` — a tool call event
+     * - `"tool_call"` — a tool call event (start or argument delta)
+     * - `"tool_call_complete"` — a tool call finished executing, carries result/status/attachments
      * - `"content_block"` — a complete non-text content block
+     * - `"new_message"` — the current round ended, the next assistant message is about to start
      * - `"done"` — stream finished
      * - `"error"` — an error occurred
      */
-    type: "content_delta" | "thinking_delta" | "tool_call" | "content_block" | "done" | "error";
+    type:
+      | "content_delta"
+      | "thinking_delta"
+      | "tool_call"
+      | "tool_call_complete"
+      | "content_block"
+      | "new_message"
+      | "done"
+      | "error";
     /** Text delta (for content_delta / thinking_delta). */
     content?: string;
     /** Complete content block (for content_block). */
     block?: ContentBlock;
-    /** Tool call info (for tool_call). */
+    /** Tool call info (for tool_call / tool_call_complete). */
     toolCall?: ToolCallInfo;
     /** Token usage (for done). */
     usage?: { inputTokens: number; outputTokens: number };

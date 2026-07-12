@@ -948,17 +948,27 @@ declare namespace CATAgent {
      * 数据块类型：
      * - `"content_delta"` — 增量文本
      * - `"thinking_delta"` — 增量思考/推理
-     * - `"tool_call"` — 工具调用事件
+     * - `"tool_call"` — 工具调用事件（开始或参数增量）
+     * - `"tool_call_complete"` — 工具调用执行完成，携带结果/状态/附件
      * - `"content_block"` — 完整的非文本内容块
+     * - `"new_message"` — 当前轮次结束，下一轮 assistant 消息即将开始
      * - `"done"` — 流结束
      * - `"error"` — 发生错误
      */
-    type: "content_delta" | "thinking_delta" | "tool_call" | "content_block" | "done" | "error";
+    type:
+      | "content_delta"
+      | "thinking_delta"
+      | "tool_call"
+      | "tool_call_complete"
+      | "content_block"
+      | "new_message"
+      | "done"
+      | "error";
     /** 文本增量（用于 content_delta / thinking_delta）。 */
     content?: string;
     /** 完整内容块（用于 content_block）。 */
     block?: ContentBlock;
-    /** 工具调用信息（用于 tool_call）。 */
+    /** 工具调用信息（用于 tool_call / tool_call_complete）。 */
     toolCall?: ToolCallInfo;
     /** Token 用量（用于 done）。 */
     usage?: { inputTokens: number; outputTokens: number };

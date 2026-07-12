@@ -127,16 +127,9 @@ export class ConversationInstance {
 
     const reply = await this.processChat(conn, handlers);
 
-    // ephemeral 模式：收集 assistant 响应到内存历史
+    // ephemeral 模式：中间轮次（带 tool calls）已在 processChat 内按 new_message 边界追加到内存历史，
+    // 这里只需追加不含 tool calls 的最终回复（done 事件保证到达时已无待处理的 tool calls）。
     if (this.ephemeral) {
-      if (reply.toolCalls && reply.toolCalls.length > 0) {
-        this.messageHistory.push({ role: "assistant", content: reply.content, toolCalls: reply.toolCalls });
-        for (const tc of reply.toolCalls) {
-          if (tc.result !== undefined) {
-            this.messageHistory.push({ role: "tool", content: tc.result, toolCallId: tc.id });
-          }
-        }
-      }
       this.messageHistory.push({ role: "assistant", content: reply.content });
     }
 
@@ -312,11 +305,34 @@ export class ConversationInstance {
     return new Promise((resolve, reject) => {
       let content = "";
       let thinking = "";
-      const toolCalls: ToolCall[] = [];
+      let toolCalls: ToolCall[] = [];
       const contentBlocks: ContentBlock[] = [];
       let currentToolCall: ToolCall | null = null;
       let usage: { inputTokens: number; outputTokens: number } | undefined;
       let durationMs: number | undefined;
+
+      // 一轮（assistant + 其 tool calls 的执行结果）结束时，追加到 ephemeral 内存历史，
+      // 避免把多轮 tool calls 及其结果压平成一条消息，或遗漏对应的 tool 结果消息。
+      const finishRound = () => {
+        if (currentToolCall) {
+          toolCalls.push(currentToolCall);
+          currentToolCall = null;
+        }
+        if (this.ephemeral && (content || toolCalls.length > 0)) {
+          this.messageHistory.push({
+            role: "assistant",
+            content,
+            toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          });
+          for (const tc of toolCalls) {
+            if (tc.result !== undefined) {
+              this.messageHistory.push({ role: "tool", content: tc.result, toolCallId: tc.id });
+            }
+          }
+        }
+        content = "";
+        toolCalls = [];
+      };
 
       conn.onMessage(async (msg: any) => {
         if (msg.action === "executeTools") {
@@ -347,6 +363,19 @@ export class ConversationInstance {
             break;
           case "tool_call_delta":
             if (currentToolCall) currentToolCall.arguments += event.delta;
+            break;
+          case "tool_call_complete": {
+            const target =
+              currentToolCall?.id === event.id ? currentToolCall : toolCalls.find((tc) => tc.id === event.id);
+            if (target) {
+              target.result = event.result;
+              target.status = event.status ?? "completed";
+              target.attachments = event.attachments;
+            }
+            break;
+          }
+          case "new_message":
+            finishRound();
             break;
           case "done": {
             if (currentToolCall) {
@@ -399,6 +428,8 @@ export class ConversationInstance {
     let resolve: (() => void) | null = null;
     let done = false;
     let error: Error | null = null;
+    // 按 id 跟踪进行中的 tool call，供 tool_call_delta / tool_call_complete 原地更新
+    const toolCallsById = new Map<string, ToolCall>();
 
     conn.onMessage(async (msg: any) => {
       if (msg.action === "executeTools") {
@@ -422,8 +453,44 @@ export class ConversationInstance {
         case "content_block_complete":
           chunk = { type: "content_block", block: event.block };
           break;
-        case "tool_call_start":
-          chunk = { type: "tool_call", toolCall: { ...event.toolCall, arguments: "" } };
+        case "tool_call_start": {
+          const tc: ToolCall = { ...event.toolCall, arguments: event.toolCall.arguments || "" };
+          toolCallsById.set(tc.id, tc);
+          chunk = { type: "tool_call", toolCall: { ...tc } };
+          break;
+        }
+        case "tool_call_delta": {
+          const tc = toolCallsById.get(event.id);
+          if (tc) {
+            tc.arguments += event.delta;
+            chunk = { type: "tool_call", toolCall: { ...tc } };
+          }
+          break;
+        }
+        case "tool_call_complete": {
+          const tc = toolCallsById.get(event.id);
+          if (tc) {
+            tc.result = event.result;
+            tc.status = event.status ?? "completed";
+            tc.attachments = event.attachments;
+          }
+          chunk = {
+            type: "tool_call_complete",
+            toolCall: tc
+              ? { ...tc }
+              : {
+                  id: event.id,
+                  name: "",
+                  arguments: "",
+                  result: event.result,
+                  status: event.status ?? "completed",
+                  attachments: event.attachments,
+                },
+          };
+          break;
+        }
+        case "new_message":
+          chunk = { type: "new_message" };
           break;
         case "done":
           chunk = { type: "done", usage: event.usage, durationMs: event.durationMs };
@@ -488,7 +555,32 @@ export class ConversationInstance {
     const inner = this.processStream(conn, handlers);
     const messageHistory = this.messageHistory;
     let content = "";
-    const toolCalls: ToolCall[] = [];
+    let toolCalls: ToolCall[] = [];
+
+    // 一轮结束（new_message 或流结束）时追加 assistant + 对应 tool 结果消息，
+    // 避免把多轮 tool calls 压平成一条消息、或遗漏 tool 结果消息。
+    const finishRound = () => {
+      if (content || toolCalls.length > 0) {
+        messageHistory.push({
+          role: "assistant",
+          content,
+          toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
+        });
+        for (const tc of toolCalls) {
+          if (tc.result !== undefined) {
+            messageHistory.push({ role: "tool", content: tc.result, toolCallId: tc.id });
+          }
+        }
+      }
+      content = "";
+      toolCalls = [];
+    };
+
+    const upsertToolCall = (tc: ToolCall) => {
+      const idx = toolCalls.findIndex((existing) => existing.id === tc.id);
+      if (idx >= 0) toolCalls[idx] = tc;
+      else toolCalls.push(tc);
+    };
 
     return {
       [Symbol.asyncIterator]() {
@@ -497,14 +589,7 @@ export class ConversationInstance {
           async next(): Promise<IteratorResult<StreamChunk>> {
             const result = await iter.next();
             if (result.done) {
-              // 流结束时，追加 assistant 消息到历史
-              if (content || toolCalls.length > 0) {
-                messageHistory.push({
-                  role: "assistant",
-                  content,
-                  toolCalls: toolCalls.length > 0 ? [...toolCalls] : undefined,
-                });
-              }
+              finishRound();
               return result;
             }
 
@@ -514,9 +599,11 @@ export class ConversationInstance {
                 content += chunk.content || "";
                 break;
               case "tool_call":
-                if (chunk.toolCall) {
-                  toolCalls.push(chunk.toolCall);
-                }
+              case "tool_call_complete":
+                if (chunk.toolCall) upsertToolCall(chunk.toolCall);
+                break;
+              case "new_message":
+                finishRound();
                 break;
             }
             return result;

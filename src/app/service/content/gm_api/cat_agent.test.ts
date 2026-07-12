@@ -367,6 +367,121 @@ describe("ConversationInstance ephemeral 模式", () => {
   });
 });
 
+// ---- tool_call_complete / new_message 事件重建测试 ----
+
+// 模拟真实的一轮 tool call 往返：tool_call_start/delta → executeTools（脚本执行）→ toolResults →
+// tool_call_complete（带执行结果）→ new_message（下一轮开始）→ 最终文本 → done
+function mockConnectWithToolRound(toolId: string, toolName: string): MessageConnect {
+  let onMsgCb: (msg: any) => void = () => {};
+  return {
+    onMessage(cb: (msg: any) => void) {
+      onMsgCb = cb;
+      setTimeout(() => {
+        cb({
+          action: "event",
+          data: { type: "tool_call_start", toolCall: { id: toolId, name: toolName, arguments: "" } },
+        });
+        cb({ action: "event", data: { type: "tool_call_delta", id: toolId, delta: '{"a":1}' } });
+        cb({ action: "executeTools", data: [{ id: toolId, name: toolName, arguments: '{"a":1}' }] });
+      }, 0);
+    },
+    onDisconnect() {},
+    sendMessage(msg: any) {
+      if (msg.action === "toolResults") {
+        const result = msg.data[0];
+        setTimeout(() => {
+          onMsgCb({
+            action: "event",
+            data: {
+              type: "tool_call_complete",
+              id: toolId,
+              result: result.result,
+              status: result.error ? "error" : "completed",
+            },
+          });
+          onMsgCb({ action: "event", data: { type: "new_message" } });
+          onMsgCb({ action: "event", data: { type: "content_delta", delta: "Final answer" } });
+          onMsgCb({
+            action: "event",
+            data: { type: "done", usage: { inputTokens: 10, outputTokens: 5 }, durationMs: 50 },
+          });
+        }, 0);
+      }
+    },
+    disconnect() {},
+  };
+}
+
+describe("ConversationInstance tool_call_complete / new_message 重建历史", () => {
+  it("chat()：assistant toolCalls 应带执行结果与 completed 状态，最终回复不重复", async () => {
+    const handler = vi.fn().mockResolvedValue("ok");
+    const gmSendMessage = vi.fn().mockResolvedValue(undefined);
+    const gmConnect = vi.fn().mockResolvedValue(mockConnectWithToolRound("call-1", "my_tool"));
+
+    const instance = new ConversationInstance(
+      mockConversation({ modelId: "test-model" }),
+      gmSendMessage,
+      gmConnect,
+      "test-script-uuid",
+      20,
+      [{ name: "my_tool", description: "d", parameters: { type: "object", properties: {} }, handler }],
+      undefined,
+      true // ephemeral
+    );
+
+    const reply = await instance.chat("使用工具");
+    expect(reply.content).toBe("Final answer");
+
+    const messages = await instance.getMessages();
+    const assistantWithTools = messages.find((m) => m.toolCalls && m.toolCalls.length > 0);
+    expect(assistantWithTools).toBeDefined();
+    expect(assistantWithTools!.toolCalls![0]).toMatchObject({ id: "call-1", result: "ok", status: "completed" });
+
+    // 应有对应的 tool 角色消息
+    const toolMsg = messages.find((m) => m.role === "tool" && m.toolCallId === "call-1");
+    expect(toolMsg?.content).toBe("ok");
+
+    // 最终 assistant 内容只应出现一次，不应重复
+    const finalAssistantMsgs = messages.filter((m) => m.role === "assistant" && m.content === "Final answer");
+    expect(finalAssistantMsgs).toHaveLength(1);
+  });
+
+  it("chatStream()：ephemeral 历史应包含带结果的 toolCalls 及对应 tool 消息", async () => {
+    const handler = vi.fn().mockResolvedValue("ok");
+    const gmSendMessage = vi.fn().mockResolvedValue(undefined);
+    const gmConnect = vi.fn().mockResolvedValue(mockConnectWithToolRound("call-2", "my_tool"));
+
+    const instance = new ConversationInstance(
+      mockConversation({ modelId: "test-model" }),
+      gmSendMessage,
+      gmConnect,
+      "test-script-uuid",
+      20,
+      [{ name: "my_tool", description: "d", parameters: { type: "object", properties: {} }, handler }],
+      undefined,
+      true // ephemeral
+    );
+
+    const stream = await instance.chatStream("使用工具");
+    const chunks: any[] = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    expect(chunks.some((c) => c.type === "tool_call_complete")).toBe(true);
+
+    const messages = await instance.getMessages();
+    const assistantWithTools = messages.find((m) => m.toolCalls && m.toolCalls.length > 0);
+    expect(assistantWithTools).toBeDefined();
+    expect(assistantWithTools!.toolCalls![0]).toMatchObject({ id: "call-2", result: "ok", status: "completed" });
+
+    const toolMsg = messages.find((m) => m.role === "tool" && m.toolCallId === "call-2");
+    expect(toolMsg?.content).toBe("ok");
+
+    const finalAssistantMsgs = messages.filter((m) => m.role === "assistant" && m.content === "Final answer");
+    expect(finalAssistantMsgs).toHaveLength(1);
+  });
+});
+
 // ---- errorCode 透传测试 ----
 
 // 创建发送指定事件序列的 mock 连接

@@ -282,7 +282,15 @@ export type ChatReply = {
 
 // conv.chatStream() 的流式 chunk
 export type StreamChunk = {
-  type: "content_delta" | "thinking_delta" | "tool_call" | "content_block" | "done" | "error";
+  type:
+    | "content_delta"
+    | "thinking_delta"
+    | "tool_call"
+    | "tool_call_complete"
+    | "content_block"
+    | "new_message"
+    | "done"
+    | "error";
   content?: string;
   block?: ContentBlock;
   toolCall?: ToolCall;
