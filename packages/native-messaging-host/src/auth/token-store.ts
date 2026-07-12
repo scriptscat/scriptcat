@@ -1,7 +1,7 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs/promises";
-import { atomicWriteFile } from "../shared/config";
-import type { McpScope } from "../shared/protocol";
+import { atomicWriteFile } from "../shared/config.js";
+import type { McpScope } from "../shared/protocol.js";
 
 export interface StoredClient {
   clientId: string;

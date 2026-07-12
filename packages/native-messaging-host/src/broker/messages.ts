@@ -1,7 +1,7 @@
 // Layer 2 — shim <-> host socket protocol (doc 03 §4). Purely internal to this package; never
 // crosses to the extension, so unlike shared/protocol.ts these types aren't mirrored anywhere.
 
-import type { BridgeAction, McpScope } from "../shared/protocol";
+import type { BridgeAction, McpScope } from "../shared/protocol.js";
 
 export type ShimToHostMessage =
   | { t: "hello"; v: 1; clientId?: string }

@@ -1,6 +1,6 @@
 import * as crypto from "node:crypto";
-import { LIMITS } from "../shared/limits";
-import type { McpScope } from "../shared/protocol";
+import { LIMITS } from "../shared/limits.js";
+import type { McpScope } from "../shared/protocol.js";
 
 const CLIENT_NAME_MAX_LENGTH = 64;
 // Excludes visually ambiguous characters (0/O, 1/I/L) since the user cross-checks this code by

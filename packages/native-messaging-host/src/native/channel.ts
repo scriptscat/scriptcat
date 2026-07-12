@@ -1,6 +1,6 @@
 import * as crypto from "node:crypto";
-import { FramingDecoder, encodeFrame } from "./framing";
-import type { NativeEnvelope, NativeMessageType } from "../shared/protocol";
+import { FramingDecoder, encodeFrame } from "./framing.js";
+import type { NativeEnvelope, NativeMessageType } from "../shared/protocol.js";
 
 interface PendingRequest {
   resolve: (payload: unknown) => void;

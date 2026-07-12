@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BridgeAction, McpScope } from "../shared/protocol";
+import type { BridgeAction, McpScope } from "../shared/protocol.js";
 
 // zod .strict() input schemas mirroring doc 03 §3 exactly — unknown fields rejected before a
 // call ever reaches the socket (doc 03 §1 "unknown properties rejected").

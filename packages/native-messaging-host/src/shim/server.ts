@@ -1,5 +1,5 @@
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { McpScope } from "../shared/protocol";
+import type { McpScope } from "../shared/protocol.js";
 import {
   TOOL_INPUT_SCHEMAS,
   TOOL_TO_ACTION,
@@ -7,9 +7,9 @@ import {
   visibleTools,
   toToolResult,
   type ToolName,
-} from "./tools";
-import { buildSourceResourceUri, parseSourceResourceUri } from "./resources";
-import type { SocketClient, SocketClientEvent } from "./socket-client";
+} from "./tools.js";
+import { buildSourceResourceUri, parseSourceResourceUri } from "./resources.js";
+import type { SocketClient, SocketClientEvent } from "./socket-client.js";
 
 export interface ShimServerDeps {
   socketClient: Pick<SocketClient, "call">;

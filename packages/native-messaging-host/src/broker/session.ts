@@ -1,10 +1,10 @@
-import { generateNonce, verifyMac } from "../auth/challenge";
-import type { TokenStore } from "../auth/token-store";
-import type { PairingManager } from "../auth/pairing";
-import type { AuthFailureLockout, ConcurrencyLimiter, WindowedRateLimiter } from "./rate-limit";
-import { WRITE_ACTIONS, type BridgeAction, type McpScope } from "../shared/protocol";
-import type { HostToShimMessage, ShimToHostMessage } from "./messages";
-import { isShimToHostMessage } from "./messages";
+import { generateNonce, verifyMac } from "../auth/challenge.js";
+import type { TokenStore } from "../auth/token-store.js";
+import type { PairingManager } from "../auth/pairing.js";
+import type { AuthFailureLockout, ConcurrencyLimiter, WindowedRateLimiter } from "./rate-limit.js";
+import { WRITE_ACTIONS, type BridgeAction, type McpScope } from "../shared/protocol.js";
+import type { HostToShimMessage, ShimToHostMessage } from "./messages.js";
+import { isShimToHostMessage } from "./messages.js";
 
 export type SessionPhase = "unauthenticated" | "challenged" | "ready" | "closed";
 

@@ -1,9 +1,9 @@
 import type * as net from "node:net";
 import * as crypto from "node:crypto";
-import { SessionHandler, type SessionDeps } from "./session";
-import type { HostToShimMessage } from "./messages";
-import type { IpcEndpoint } from "./ipc";
-import { LIMITS } from "../shared/limits";
+import { SessionHandler, type SessionDeps } from "./session.js";
+import type { HostToShimMessage } from "./messages.js";
+import type { IpcEndpoint } from "./ipc.js";
+import { LIMITS } from "../shared/limits.js";
 
 export type SessionDepsFactory = (connectionId: string, send: (message: HostToShimMessage) => void) => SessionDeps;
 

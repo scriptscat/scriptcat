@@ -1,4 +1,4 @@
-import { MCP_SCOPES, type BridgeAction, type McpScope } from "../shared/protocol";
+import { MCP_SCOPES, type BridgeAction, type McpScope } from "../shared/protocol.js";
 
 export { MCP_SCOPES };
 export type { McpScope };

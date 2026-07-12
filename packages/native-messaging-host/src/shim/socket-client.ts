@@ -1,6 +1,6 @@
 import * as net from "node:net";
-import { computeMac } from "../auth/challenge";
-import type { BridgeAction, McpScope } from "../shared/protocol";
+import { computeMac } from "../auth/challenge.js";
+import type { BridgeAction, McpScope } from "../shared/protocol.js";
 
 export type SocketClientEvent =
   | {
