@@ -67,7 +67,7 @@ export class CompactService {
     summaryMessages.push({ role: "user", content: buildCompactUserPrompt() });
 
     const attachmentSizes = await loadAttachmentSizes(summaryMessages, (id) => this.chatRepo.getAttachment(id));
-    if (!elideUntilWithinBudget(summaryMessages, getContextWindow(model), undefined, 0.9, attachmentSizes)) {
+    if (!elideUntilWithinBudget(summaryMessages, getContextWindow(model), undefined, 0.9, attachmentSizes, model)) {
       throw Object.assign(new Error("Conversation history is too large to compact"), {
         errorCode: "context_too_large",
       });

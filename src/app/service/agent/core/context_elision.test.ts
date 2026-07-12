@@ -5,7 +5,25 @@ import {
   elideUntilWithinBudget,
   estimateRequestTokens,
 } from "./context_elision";
-import type { ChatRequest } from "./types";
+import type { AgentModelConfig, ChatRequest } from "./types";
+
+const VISION_MODEL: AgentModelConfig = {
+  id: "m-vision",
+  name: "Vision",
+  provider: "openai",
+  apiBaseUrl: "",
+  apiKey: "",
+  model: "gpt-4o",
+};
+
+const NON_VISION_MODEL: AgentModelConfig = {
+  id: "m-text",
+  name: "Text",
+  provider: "openai",
+  apiBaseUrl: "",
+  apiKey: "",
+  model: "gpt-4",
+};
 
 // 构造一轮 assistant(带 toolCalls) + N 条 tool 结果
 function round(index: number, toolCount = 1): ChatRequest["messages"] {
@@ -124,16 +142,45 @@ describe("上下文预算估算与裁剪", () => {
     ).toBe(true);
   });
 
-  it("按附件实际字节估算，并可只省略较旧的多模态块", () => {
+  it("vision 模型下按图片附件实际字节估算，并可只省略较旧的多模态块", () => {
     const messages: ChatRequest["messages"] = [
       { role: "user", content: [{ type: "image", attachmentId: "old", mimeType: "image/png" }] },
       { role: "assistant", content: "已看到图片" },
       { role: "user", content: "继续" },
     ];
     const sizes = new Map([["old", 6000]]);
-    expect(estimateRequestTokens(messages, [], sizes)).toBeGreaterThan(6000);
-    expect(elideUntilWithinBudget(messages, 1000, [], 0.9, sizes)).toBe(true);
+    expect(estimateRequestTokens(messages, [], sizes, VISION_MODEL)).toBeGreaterThan(6000);
+    expect(elideUntilWithinBudget(messages, 1000, [], 0.9, sizes, VISION_MODEL)).toBe(true);
     expect(messages[0].content).toEqual([{ type: "text", text: expect.stringContaining("attachment elided") }]);
+    expect((messages[0].content as any)[0].text).toContain("uploads/old");
     expect(messages[2].content).toBe("继续");
+  });
+
+  it("非 vision 模型下不解析图片，不应因缺失大小把预算估算撑爆", () => {
+    const messages: ChatRequest["messages"] = [
+      { role: "user", content: [{ type: "image", attachmentId: "old", mimeType: "image/png" }] },
+    ];
+    // 没有提供 size（模拟无法读取该附件），非 vision 模型下图片从不内联，不应导致 Infinity
+    expect(estimateRequestTokens(messages, [], undefined, NON_VISION_MODEL)).toBeLessThan(Number.POSITIVE_INFINITY);
+  });
+
+  it("file 块从不内联为二进制，缺失大小也不应导致估算为 Infinity", () => {
+    const messages: ChatRequest["messages"] = [
+      {
+        role: "user",
+        content: [{ type: "file", attachmentId: "missing-file", mimeType: "application/pdf", name: "a.pdf" }],
+      },
+    ];
+    expect(estimateRequestTokens(messages, [], undefined, VISION_MODEL)).toBeLessThan(Number.POSITIVE_INFINITY);
+  });
+
+  it("audio 块从不内联为二进制，即使是 vision 模型也不应计入大文件字节", () => {
+    const bigSize = 50_000_000;
+    const messages: ChatRequest["messages"] = [
+      { role: "user", content: [{ type: "audio", attachmentId: "audio1", mimeType: "audio/mpeg" }] },
+    ];
+    const sizes = new Map([["audio1", bigSize]]);
+    const estimate = estimateRequestTokens(messages, [], sizes, VISION_MODEL);
+    expect(estimate).toBeLessThan(bigSize);
   });
 });

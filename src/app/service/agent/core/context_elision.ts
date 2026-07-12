@@ -1,11 +1,15 @@
 // 滑动窗口裁剪：仅裁剪内存中传给 LLM 的 messages（不影响 chatRepo 持久化/UI 历史），
 // 用于在触及 autoCompact 的 80% 阈值之前，减少长 tool loop 中旧 tool 结果的重复计费。
-import type { ChatRequest } from "./types";
+import type { AgentModelConfig, ChatRequest, ContentBlock } from "./types";
+import { supportsVision } from "./model_capabilities";
 
 export const ELIDED_TOOL_RESULT_STUB =
   "[tool result elided to save context — re-run the tool if you need this data again]";
 
-export const ELIDED_ATTACHMENT_STUB = "[attachment elided to save context — re-open the attachment if needed]";
+/** 附件裁剪占位文本：保留 type/attachmentId（OPFS 路径），供模型按需重新读取，而非丢弃全部标识信息。 */
+function elidedAttachmentStub(block: Exclude<ContentBlock, { type: "text" }>): string {
+  return `[attachment elided to save context, type: ${block.type}, OPFS path: uploads/${block.attachmentId} — re-open the attachment if needed]`;
+}
 
 /** 读取 provider 会把附件展开成 data URL 后的实际字节规模。 */
 export async function loadAttachmentSizes(
@@ -33,21 +37,30 @@ export async function loadAttachmentSizes(
   return sizes;
 }
 
-/** 以 UTF-8 字节数的保守上界估算 provider 请求 token。 */
+/**
+ * 以 UTF-8 字节数的保守上界估算 provider 请求 token。
+ * 只对 provider 实际会内联展开为 base64 的块计入二进制字节：
+ * 当前仅 vision 模型的 image 块会被 resolveAttachments 加载；file/audio 及非 vision 模型的
+ * image 均降级为纯文本描述（见 providers/content_utils.ts），其体积已包含在下方的 JSON 基线字节里。
+ */
 export function estimateRequestTokens(
   messages: ChatRequest["messages"],
   tools?: unknown[],
-  attachmentSizes?: Map<string, number>
+  attachmentSizes?: Map<string, number>,
+  model?: AgentModelConfig
 ): number {
+  const hasVision = model ? supportsVision(model) : false;
   const attachmentBytes = messages.reduce((sum, message) => {
     if (!Array.isArray(message.content)) return sum;
     return (
       sum +
       message.content.reduce((blockSum, block) => {
         if (block.type === "text") return blockSum;
+        // file/audio 从不被内联；image 只在 vision 模型上才会被解析为 data URL
+        if (block.type === "file" || block.type === "audio" || !hasVision) return blockSum;
         const size = attachmentSizes?.get(block.attachmentId);
         if (size == null) return Number.POSITIVE_INFINITY;
-        return blockSum + (block.type === "file" ? 0 : Math.ceil(size / 3) * 4 + 128);
+        return blockSum + (Math.ceil(size / 3) * 4 + 128);
       }, 0)
     );
   }, 0);
@@ -90,7 +103,7 @@ export function elideOldAttachments(messages: ChatRequest["messages"], keepLastM
     const message = messages[i];
     if (!Array.isArray(message.content)) continue;
     message.content = message.content.map((block) =>
-      block.type === "text" ? block : { type: "text", text: ELIDED_ATTACHMENT_STUB }
+      block.type === "text" ? block : { type: "text", text: elidedAttachmentStub(block) }
     );
   }
 }
@@ -101,10 +114,11 @@ export function elideUntilWithinBudget(
   contextWindow: number,
   tools?: unknown[],
   budgetRatio = 0.9,
-  attachmentSizes?: Map<string, number>
+  attachmentSizes?: Map<string, number>,
+  model?: AgentModelConfig
 ): boolean {
   const hasToolResults = messages.some((message) => message.role === "tool");
-  const estimate = () => estimateRequestTokens(messages, tools, attachmentSizes);
+  const estimate = () => estimateRequestTokens(messages, tools, attachmentSizes, model);
   if (!hasToolResults && estimate() / contextWindow < budgetRatio) return true;
   if (hasToolResults && estimate() / contextWindow < budgetRatio) return true;
   for (let keep = 5; keep >= 0; keep--) {

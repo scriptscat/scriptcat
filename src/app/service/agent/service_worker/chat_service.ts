@@ -210,18 +210,22 @@ export class ChatService {
         }
         const askId = `guard_${uuidv4()}`;
         const cleanup = () => abortController.signal.removeEventListener("abort", onAbort);
-        const finish = (answer: string) => {
+        // settle 只负责清理与 resolve，不发送任何终态事件；
+        // 终态事件（resolved / expired）由每个触发路径各自发送且只发一次，避免重复广播
+        const settle = (answer: string) => {
           clearTimeout(timer);
           askResolvers.delete(askId);
           cleanup();
-          sendEvent({ type: "ask_user_resolved", id: askId });
           resolve(answer);
         };
-        const onAbort = () => finish("stop");
+        const onAbort = () => {
+          sendEvent({ type: "ask_user_expired", id: askId });
+          settle("stop");
+        };
         const timer = setTimeout(
           () => {
             sendEvent({ type: "ask_user_expired", id: askId });
-            finish("continue");
+            settle("continue");
           },
           5 * 60 * 1000
         );
@@ -236,9 +240,30 @@ export class ChatService {
         });
         abortController.signal.addEventListener("abort", onAbort, { once: true });
         askResolvers.set(askId, (answer: string) => {
-          finish(answer);
+          sendEvent({ type: "ask_user_resolved", id: askId });
+          settle(answer);
         });
       });
+    };
+
+    // 等待中的脚本工具调用：MessageConnect 断开或 abortController 触发时，
+    // 必须主动结束这个 pending promise —— 只有这个连接对应的 Sandbox 能回复 toolResults，
+    // 连接一旦断开该调用永远不会有结果，不结束会让整条 tool loop 挂起。
+    let pendingScriptCall: {
+      toolCalls: ToolCall[];
+      settle: (results: Array<{ id: string; result: string; error?: boolean }>) => void;
+    } | null = null;
+
+    const scriptToolAbortedResults = (message: string) =>
+      pendingScriptCall!.toolCalls.map((tc) => ({
+        id: tc.id,
+        result: JSON.stringify({ error: message }),
+        error: true,
+      }));
+
+    const settlePendingScriptCall = (message: string) => {
+      if (!pendingScriptCall) return;
+      pendingScriptCall.settle(scriptToolAbortedResults(message));
     };
 
     if (rc) {
@@ -254,8 +279,10 @@ export class ChatService {
 
       msgConn.onDisconnect(() => {
         isDisconnected = true;
-        // 后台模式：只移除 listener，不 abort
+        // 后台模式：只移除 listener，不 abort 整条会话；
+        // 但这条连接对应的脚本工具调用必须结束，否则永远等不到 toolResults
         rc!.listeners.delete(listener);
+        settlePendingScriptCall("Script connection disconnected");
       });
     } else {
       msgConn.onDisconnect(() => {
@@ -264,14 +291,16 @@ export class ChatService {
       });
     }
 
-    // 构建脚本工具回调：通过 MessageConnect 让 Sandbox 执行 handler
-    let toolResultResolve: ((results: Array<{ id: string; result: string }>) => void) | null = null;
+    // abort（stop / 非后台断开）时结束等待中的脚本工具调用，避免循环卡死
+    abortController.signal.addEventListener("abort", () => {
+      settlePendingScriptCall("Tool execution aborted");
+    });
 
     msgConn.onMessage((msg: any) => {
-      if (msg.action === "toolResults" && toolResultResolve) {
-        const resolve = toolResultResolve;
-        toolResultResolve = null;
-        resolve(msg.data);
+      if (msg.action === "toolResults" && pendingScriptCall) {
+        const { settle } = pendingScriptCall;
+        pendingScriptCall = null;
+        settle(msg.data);
       }
       if (msg.action === "askUserResponse" && msg.data) {
         const resolver = askResolvers.get(msg.data.id);
@@ -286,10 +315,34 @@ export class ChatService {
       }
     });
 
+    // 脚本工具单次调用的最长等待时间：Sandbox 长时间无响应（如脚本卡死）时，
+    // 主动结束这轮 tool call 而不是无限期挂起整条对话
+    const SCRIPT_TOOL_TIMEOUT_MS = 5 * 60 * 1000;
+
     const scriptToolCallback: ScriptToolCallback = (toolCalls: ToolCall[]) => {
       return new Promise((resolve) => {
-        toolResultResolve = resolve;
+        const settle = (results: Array<{ id: string; result: string; error?: boolean }>) => {
+          if (pendingScriptCall?.settle !== settle) return;
+          pendingScriptCall = null;
+          clearTimeout(timer);
+          resolve(results);
+        };
+        const timer = setTimeout(() => {
+          settle(
+            toolCalls.map((tc) => ({
+              id: tc.id,
+              result: JSON.stringify({ error: "Tool execution timed out" }),
+              error: true,
+            }))
+          );
+        }, SCRIPT_TOOL_TIMEOUT_MS);
+
+        pendingScriptCall = { toolCalls, settle };
         msgConn.sendMessage({ action: "executeTools", data: toolCalls });
+
+        if (abortController.signal.aborted) {
+          settle(scriptToolAbortedResults("Tool execution aborted"));
+        }
       });
     };
 
@@ -489,7 +542,7 @@ export class ChatService {
     summaryMessages.push({ role: "user", content: buildCompactUserPrompt(params.compactInstruction) });
 
     const attachmentSizes = await loadAttachmentSizes(summaryMessages, (id) => this.chatRepo.getAttachment(id));
-    if (!elideUntilWithinBudget(summaryMessages, getContextWindow(model), undefined, 0.9, attachmentSizes)) {
+    if (!elideUntilWithinBudget(summaryMessages, getContextWindow(model), undefined, 0.9, attachmentSizes, model)) {
       sendEvent({ type: "error", message: "Conversation history is too large to compact" });
       return;
     }
