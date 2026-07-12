@@ -88,4 +88,18 @@ describe("InstallActions 操作区", () => {
     render(<InstallActions {...baseProps()} />);
     expect(screen.getByTestId("action-bar-note")).toBeInTheDocument();
   });
+
+  it("未提供 onMcpReject 时不渲染拒绝按钮", () => {
+    render(<InstallActions {...baseProps()} />);
+    expect(screen.queryByTestId("mcp-reject")).not.toBeInTheDocument();
+  });
+
+  it("提供 onMcpReject 时渲染拒绝按钮，点击触发回调（doc 07 §5 MCP 请求安装流程）", () => {
+    const onMcpReject = vi.fn();
+    render(<InstallActions {...baseProps()} onMcpReject={onMcpReject} />);
+    const rejectButton = screen.getByTestId("mcp-reject");
+    expect(rejectButton).toBeInTheDocument();
+    fireEvent.click(rejectButton);
+    expect(onMcpReject).toHaveBeenCalledTimes(1);
+  });
 });

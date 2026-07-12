@@ -19,6 +19,8 @@ export interface InstallActionsProps {
   onInstall: (opts?: { closeAfterInstall?: boolean; noMoreUpdates?: boolean }) => void;
   onClose: (opts?: { noMoreUpdates?: boolean }) => void;
   onToggleWatch?: () => void;
+  /** 仅 MCP 客户端请求的安装提供：显式拒绝（区别于「关闭」——关闭不算决定，doc 04 §4 不变量 7） */
+  onMcpReject?: () => void;
 }
 
 /**
@@ -71,8 +73,9 @@ export function InstallActions({
   onInstall,
   onClose,
   onToggleWatch,
+  onMcpReject,
 }: InstallActionsProps) {
-  const { t } = useTranslation(["install", "common", "editor"]);
+  const { t } = useTranslation(["install", "common", "editor", "mcp"]);
 
   const primaryLabel = isUpdate ? t("install:update_script") : t("install:script");
   const noCloseLabel = isUpdate ? t("install:update_script_no_close") : t("install:script_no_close");
@@ -107,6 +110,12 @@ export function InstallActions({
           >
             {watching ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             {watching ? t("editor:stop_watch_file") : t("editor:watch_file")}
+          </Button>
+        )}
+
+        {onMcpReject && (
+          <Button data-testid="mcp-reject" variant="outline" autoFocus onClick={onMcpReject}>
+            {t("mcp:pair_reject")}
           </Button>
         )}
 

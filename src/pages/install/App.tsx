@@ -13,6 +13,7 @@ import { InstallActions } from "./components/InstallActions";
 import { InstallWarning } from "./components/InstallWarning";
 import { InstallLoading, InstallError } from "./components/InstallStates";
 import { WatchingBanner } from "./components/WatchingBanner";
+import { McpBanner } from "./components/McpBanner";
 import { BackgroundPrompt, backgroundPromptShownKey } from "./components/BackgroundPrompt";
 import { useInstallData } from "./useInstallData";
 
@@ -30,6 +31,7 @@ export default function App() {
     toggleWatch,
     install,
     close,
+    rejectMcp,
     installSkill,
     cancelSkill,
     retry,
@@ -108,6 +110,7 @@ export default function App() {
             onInstall={install}
             onClose={close}
             onToggleWatch={toggleWatch}
+            onMcpReject={view.mcp ? rejectMcp : undefined}
           />
         }
       >
@@ -124,6 +127,13 @@ export default function App() {
           enabled={enabled}
           onEnabledChange={setEnabled}
         />
+        {view.mcp && (
+          <McpBanner
+            requestingClientName={view.mcp.requestingClientName}
+            contentHash={view.mcp.contentHash}
+            source={view.source}
+          />
+        )}
         {watching && <WatchingBanner fileName={watchFileName || ""} lastSync={lastSync} />}
         {view.isSubscribe ? (
           <SubscribeScripts scriptUrls={view.subscribeScripts} />

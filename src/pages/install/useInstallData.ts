@@ -13,7 +13,7 @@ import { nextTimeDisplay } from "@App/pkg/utils/cron";
 import { prettyUrl } from "@App/pkg/utils/url-utils";
 import { formatBytes } from "@App/pkg/utils/utils";
 import { i18nName, i18nDescription } from "@App/locales/locales";
-import { scriptClient, subscribeClient, agentClient } from "@App/pages/store/features/script";
+import { scriptClient, subscribeClient, agentClient, mcpClient } from "@App/pages/store/features/script";
 import type { SkillConfigField } from "@App/app/service/agent/core/types";
 import { loadHandle } from "@App/pkg/utils/filehandle-db";
 import { startFileTrack, unmountFileTrack, type FTInfo } from "@App/pkg/utils/file-tracker";
@@ -51,6 +51,8 @@ export interface InstallView {
   diffStat?: DiffStat;
   /** 订阅安装时声明的脚本 URL 列表(@scriptURL) */
   subscribeScripts: string[];
+  /** 由 MCP 客户端请求安装时附加(doc 05 §5.1);非 MCP 来源为 undefined */
+  mcp?: ScriptInfo["mcp"];
 }
 
 /**
@@ -85,6 +87,7 @@ export function assembleInstallView(args: {
     oldCode,
     diffStat: oldCode !== undefined && oldCode !== code ? deriveDiffStat(oldCode, code) : undefined,
     subscribeScripts: scriptInfo.userSubscribe ? metadata.scripturl || [] : [],
+    mcp: scriptInfo.mcp,
   };
 }
 
@@ -140,6 +143,7 @@ export interface UseInstallData {
   toggleWatch: () => void | Promise<void>;
   install: (opts?: { closeAfterInstall?: boolean; noMoreUpdates?: boolean }) => Promise<void>;
   close: (opts?: { noMoreUpdates?: boolean }) => void;
+  rejectMcp: () => Promise<void>;
   installSkill: () => Promise<void>;
   cancelSkill: () => void;
   retry: () => void;
@@ -310,7 +314,17 @@ export function useInstallData(): UseInstallData {
       const info = infoRef.current;
       if (!action || !info) return;
       try {
-        if (info.userSubscribe) {
+        if (info.mcp) {
+          // MCP 请求的安装：页面只上报决定，实际安装由 McpApprovalService.decide 在服务端完成
+          // （重新校验暂存代码哈希，doc 04 §4 TOCTOU 不变量）——绝不在页面侧直接调用
+          // scriptClient.install(）。
+          await mcpClient.decideOperation({
+            operationId: info.mcp.operationId,
+            approved: true,
+            enable: action.status === SCRIPT_STATUS_ENABLE,
+          });
+          notify.success(t("install:success"));
+        } else if (info.userSubscribe) {
           await subscribeClient.install(action as Subscribe);
           notify.success(t("install:subscribe_success"));
         } else {
@@ -327,6 +341,17 @@ export function useInstallData(): UseInstallData {
     },
     [t]
   );
+
+  // MCP 请求专属的拒绝动作（doc 04 §4 不变量 7：关闭窗口本身不算决定，只有显式拒绝才算）。
+  const rejectMcp = useCallback(async () => {
+    const info = infoRef.current;
+    if (!info?.mcp) return;
+    try {
+      await mcpClient.decideOperation({ operationId: info.mcp.operationId, approved: false });
+    } finally {
+      window.close();
+    }
+  }, []);
 
   const close = useCallback((opts?: { noMoreUpdates?: boolean }) => {
     const info = infoRef.current;
@@ -419,6 +444,7 @@ export function useInstallData(): UseInstallData {
     toggleWatch,
     install,
     close,
+    rejectMcp,
     installSkill,
     cancelSkill,
     retry,
