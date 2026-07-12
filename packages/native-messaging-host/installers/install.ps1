@@ -2,15 +2,76 @@
 # 06-native-host-and-installers.md §5). Never uses Invoke-Expression; every path is quoted.
 #
 # Usage: .\install.ps1 -ExtensionIds <id1>,<id2> [-Browsers chrome,edge]
+#        .\install.ps1 -Rollback
 
 param(
-    [Parameter(Mandatory = $true)]
     [string[]]$ExtensionIds,
 
-    [string[]]$Browsers = @("chrome")
+    [string[]]$Browsers = @("chrome"),
+
+    [switch]$Rollback
 )
 
 $ErrorActionPreference = "Stop"
+
+$ConfigDir = Join-Path $env:LOCALAPPDATA "ScriptCat\NativeHost"
+
+# -Rollback re-points each browser's registry entry back at the previous version's manifest file
+# (doc 06 §5 "Upgrades": "keep previous version dir for rollback (--rollback restores prior
+# manifest)"). Unlike the POSIX installer, Windows manifests live inside the versioned install
+# dir (manifest-<browser>.json) rather than at one fixed path per browser, so the previous
+# version's manifest was never overwritten by the upgrade — no regeneration needed, just
+# re-pointing the registry value. Does not delete the newer version's install dir.
+if ($Rollback) {
+    $MetadataPath = Join-Path $ConfigDir "install-metadata.json"
+    if (-not (Test-Path $MetadataPath)) {
+        Write-Error "No install-metadata.json found at $MetadataPath — nothing to roll back."
+        exit 1
+    }
+    $Metadata = Get-Content -Raw $MetadataPath | ConvertFrom-Json
+    if (-not $Metadata.previous) {
+        Write-Error "No previous version recorded in $MetadataPath — nothing to roll back to."
+        exit 1
+    }
+    $Previous = $Metadata.previous
+
+    $RegistryRootsForRollback = @{
+        chrome   = "HKCU:\Software\Google\Chrome\NativeMessagingHosts"
+        edge     = "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts"
+        chromium = "HKCU:\Software\Chromium\NativeMessagingHosts"
+        brave    = "HKCU:\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts"
+    }
+    for ($i = 0; $i -lt $Previous.browsers.Count; $i++) {
+        $browser = $Previous.browsers[$i]
+        $manifestPath = $Previous.manifests[$i]
+        if (-not (Test-Path $manifestPath)) {
+            Write-Error "Previous manifest missing at $manifestPath — cannot roll back for $browser."
+            exit 1
+        }
+        $keyPath = "$($RegistryRootsForRollback[$browser])\com.scriptcat.native_host"
+        New-Item -Path $keyPath -Force | Out-Null
+        Set-ItemProperty -Path $keyPath -Name "(default)" -Value $manifestPath
+        Write-Host "Restored ${browser}: $manifestPath -> $($Previous.launcher)"
+    }
+
+    $RolledBackMetadata = @{
+        version     = $Previous.version
+        installDir  = $Previous.installDir
+        launcher    = $Previous.launcher
+        manifests   = $Previous.manifests
+        browsers    = $Previous.browsers
+        installedAt = (Get-Date -Format "o")
+    }
+    ($RolledBackMetadata | ConvertTo-Json -Depth 5) | Set-Content -Path $MetadataPath -Encoding UTF8
+
+    Write-Host "Rolled back to ScriptCat native host $($Previous.version)"
+    exit 0
+}
+
+if (-not $ExtensionIds -or $ExtensionIds.Count -eq 0) {
+    Write-Error "-ExtensionIds <id1>,<id2>,... is required (unless -Rollback)."
+    exit 1
+}
 
 foreach ($id in $ExtensionIds) {
     if ($id -notmatch '^[a-p]{32}$') {
@@ -23,7 +84,6 @@ $PackageRoot = Split-Path -Parent $PSScriptRoot
 $PackageJsonPath = Join-Path $PackageRoot "package.json"
 $Version = (Get-Content -Raw $PackageJsonPath | ConvertFrom-Json).version
 
-$ConfigDir = Join-Path $env:LOCALAPPDATA "ScriptCat\NativeHost"
 $InstallDir = Join-Path $ConfigDir $Version
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
@@ -95,6 +155,23 @@ foreach ($browser in $Browsers) {
     Write-Host "Registered for ${browser}: $manifestPath"
 }
 
+# A re-run of the SAME version (e.g. re-registering a browser) is not an upgrade and must not
+# overwrite an already-recorded `previous`.
+$MetadataPath = Join-Path $ConfigDir "install-metadata.json"
+$Previous = $null
+if (Test-Path $MetadataPath) {
+    $ExistingMetadata = Get-Content -Raw $MetadataPath | ConvertFrom-Json
+    if ($ExistingMetadata.version -ne $Version) {
+        $Previous = @{
+            version    = $ExistingMetadata.version
+            installDir = $ExistingMetadata.installDir
+            launcher   = $ExistingMetadata.launcher
+            manifests  = $ExistingMetadata.manifests
+            browsers   = $ExistingMetadata.browsers
+        }
+    }
+}
+
 $Metadata = @{
     version     = $Version
     installDir  = $InstallDir
@@ -103,7 +180,10 @@ $Metadata = @{
     browsers    = $Browsers
     installedAt = (Get-Date -Format "o")
 }
-($Metadata | ConvertTo-Json -Depth 5) | Set-Content -Path (Join-Path $ConfigDir "install-metadata.json") -Encoding UTF8
+if ($Previous) {
+    $Metadata.previous = $Previous
+}
+($Metadata | ConvertTo-Json -Depth 5) | Set-Content -Path $MetadataPath -Encoding UTF8
 
 Write-Host "Installed ScriptCat native host $Version to $InstallDir"
 Write-Host "Run 'node $HostJs --doctor' to verify."
