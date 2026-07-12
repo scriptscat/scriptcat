@@ -70,6 +70,15 @@ function getStableContentBytes(message: { role: string; content: unknown; toolCa
   return bytes;
 }
 
+// vision 图片的字节→token 保守换算。真实 provider 计费和 base64 字节数没有线性对应关系
+// （OpenAI 按分块计费，一张图约 85~1105 token；Anthropic 按 宽×高/750，一张 1920×1080 照片
+// 约 3686 token），典型压缩照片的 base64 体积换算下来大约是每 100~300 字节 1 token。
+// 本仓库在附件加载阶段还没有解出图片宽高（获取宽高需要解码，见 finding 8 的后续待办），
+// 因此这里用一个远比真实比例保守的固定换算：每 40 字节算 1 token——比真实比例保守
+// 2.5~7.5 倍，不会把图片开销算得比实际便宜，但也不会把一张普通照片（几十到一百多 KB）
+// 的开销放大到几万甚至十几万 token 从而把正常大小的截图/照片直接拒绝在预算之外。
+const IMAGE_CONSERVATIVE_BYTES_PER_TOKEN = 40;
+
 /**
  * 请求 token 的启发式估算，不是任何 provider 的精确 tokenizer（本仓库未接入
  * tiktoken/Anthropic 官方计数器，引入新依赖超出当前改动范围）。分两部分独立估算，
@@ -78,10 +87,9 @@ function getStableContentBytes(message: { role: string; content: unknown; toolCa
  * - 文本 + JSON 结构（messages/tools/toolCalls）：按 UTF-8 字节数 / CONSERVATIVE_BYTES_PER_TOKEN
  *   保守折算。这仍然是启发式而非保证：高熵内容或极端 tokenizer 差异下仍可能被低估，
  *   调用方（preflight 预算检查、elideUntilWithinBudget）应把结果当作"大致上界"而非精确值。
- * - vision 图片：provider 的图片计费与 base64 字节数 / 2 没有对应关系（如 OpenAI 按分块、
- *   Anthropic 按 宽×高/750），本仓库没有图片宽高元数据，无法套用具体公式；因此不对这部分
- *   字节数做任何折算（即按 1 字节 = 1 token 计），宁可在图片场景下偏保守（可能拒绝部分本可
- *   容纳的请求），也不假装能精确换算图片 token 从而低估导致请求超限。
+ * - vision 图片：按 IMAGE_CONSERVATIVE_BYTES_PER_TOKEN 折算（见上方常量注释），而不是直接把
+ *   base64 字节数当 token 数——后者会让一张普通照片的估算膨胀到几万 token，超出未配置
+ *   contextWindow 的模型（如 128K）的输入预算，把正常截图/照片当作"超出上下文"拒绝掉。
  *
  * 只对 provider 实际会内联展开为 base64 的块计入二进制字节：
  * 当前仅 vision 模型的 image 块会被 resolveAttachments 加载；file/audio 及非 vision 模型的
@@ -94,7 +102,7 @@ export function estimateRequestTokens(
   model?: AgentModelConfig
 ): number {
   const hasVision = model ? supportsVision(model) : false;
-  const attachmentBytes = messages.reduce((sum, message) => {
+  const attachmentTokens = messages.reduce((sum, message) => {
     if (!Array.isArray(message.content)) return sum;
     return (
       sum +
@@ -104,13 +112,19 @@ export function estimateRequestTokens(
         if (block.type === "file" || block.type === "audio" || !hasVision) return blockSum;
         const size = attachmentSizes?.get(block.attachmentId);
         if (size == null) {
-          return blockSum + new TextEncoder().encode(imageBlockFallbackText(block)).byteLength;
+          // 附件大小未知时降级为纯文本描述——这部分本身就是文本，按文本换算系数折算，
+          // 不能套用图片换算系数（那是给真实二进制图片数据用的）
+          return (
+            blockSum +
+            Math.ceil(new TextEncoder().encode(imageBlockFallbackText(block)).byteLength / CONSERVATIVE_BYTES_PER_TOKEN)
+          );
         }
-        return blockSum + (Math.ceil(size / 3) * 4 + 128);
+        const base64Bytes = Math.ceil(size / 3) * 4 + 128;
+        return blockSum + Math.ceil(base64Bytes / IMAGE_CONSERVATIVE_BYTES_PER_TOKEN);
       }, 0)
     );
   }, 0);
-  if (!Number.isFinite(attachmentBytes)) return Number.POSITIVE_INFINITY;
+  if (!Number.isFinite(attachmentTokens)) return Number.POSITIVE_INFINITY;
 
   let bytes = 0;
   for (const message of messages) {
@@ -122,8 +136,8 @@ export function estimateRequestTokens(
   if (tools && tools.length > 0) {
     bytes += new TextEncoder().encode(JSON.stringify(tools)).byteLength;
   }
-  // 文本/JSON 部分按保守系数折算；图片字节数不折算（见函数注释），两者独立相加
-  return Math.ceil(bytes / CONSERVATIVE_BYTES_PER_TOKEN) + attachmentBytes;
+  // 文本/JSON 部分按文本换算系数折算；图片部分已经在上面按图片换算系数折算成 token，两者相加
+  return Math.ceil(bytes / CONSERVATIVE_BYTES_PER_TOKEN) + attachmentTokens;
 }
 
 /**

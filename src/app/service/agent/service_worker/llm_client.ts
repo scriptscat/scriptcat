@@ -201,12 +201,22 @@ export class LLMClient {
               usage = event.usage;
             }
 
-            // 保存模型生成的图片到 OPFS，然后转发事件
+            // 保存模型生成的图片到 OPFS，然后转发事件。
+            // abort 安全：settled 一旦为 true（外层 Promise 已因 abort 落定），后续保存产生的
+            // 附件不会再被任何持久化的 assistant 消息引用，是孤儿文件；已发出的 content_block_complete
+            // 也会晚于终态事件到达客户端。因此每一步都先检查 settled，中途发现已 settle 就
+            // 停止继续保存/发送，并清理这一轮已经落盘但用不上的附件（见 finding 6）。
             const finalize = async () => {
               const savedBlocks: ContentBlock[] = [];
+              const orphanedIds: string[] = [];
               for (const pending of pendingImageSaves) {
+                if (settled) break;
                 try {
                   await this.chatRepo.saveAttachment(pending.block.attachmentId, pending.data);
+                  if (settled) {
+                    orphanedIds.push(pending.block.attachmentId);
+                    break;
+                  }
                   savedBlocks.push(pending.block);
                   // 转发不含 data 的 content_block_complete 事件给 UI
                   sendEvent({ type: "content_block_complete", block: pending.block });
@@ -219,13 +229,17 @@ export class LLMClient {
               const imgRegex = /!\[([^\]]*)\]\((data:image\/([^;]+);base64,[A-Za-z0-9+/=\s]+)\)/g;
               let match;
               let cleanedContent = content;
-              while ((match = imgRegex.exec(content)) !== null) {
+              while (!settled && (match = imgRegex.exec(content)) !== null) {
                 const [fullMatch, alt, dataUrl, subtype] = match;
                 const mimeType = `image/${subtype}`;
                 const ext = subtype || "png";
                 const blockId = generateAttachmentId(ext);
                 try {
                   await this.chatRepo.saveAttachment(blockId, dataUrl);
+                  if (settled) {
+                    orphanedIds.push(blockId);
+                    break;
+                  }
                   const block: ContentBlock = {
                     type: "image",
                     attachmentId: blockId,
@@ -242,6 +256,10 @@ export class LLMClient {
               // 清理提取图片后的多余空行
               if (cleanedContent !== content) {
                 content = cleanedContent.replace(/\n{3,}/g, "\n\n").trim();
+              }
+
+              if (orphanedIds.length > 0) {
+                await Promise.all(orphanedIds.map((id) => this.chatRepo.deleteAttachment(id).catch(() => {})));
               }
 
               return savedBlocks.length > 0 ? savedBlocks : undefined;

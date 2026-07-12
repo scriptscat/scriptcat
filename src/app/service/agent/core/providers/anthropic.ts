@@ -1,6 +1,7 @@
 import type { ChatStreamEvent, ChatRequest, ContentBlock } from "../types";
 import type { AgentModelConfig } from "../types";
 import { isContentBlocks } from "../content_utils";
+import { getReservedOutputTokens } from "../model_context";
 import {
   generateAttachmentId,
   convertTextBlock,
@@ -138,7 +139,9 @@ export function buildAnthropicRequest(
     stream: true,
   };
 
-  body.max_tokens = config.maxTokens || 16384;
+  // 用归一化后的 getReservedOutputTokens 而不是 config.maxTokens || 16384：
+  // 负数在 JS 里是 truthy，会绕过 || 兜底原样发给 provider（见 finding 10）
+  body.max_tokens = getReservedOutputTokens(config) || 16384;
 
   if (systemMessages.length > 0) {
     const systemBlocks = systemMessages.map((m) => ({
@@ -345,13 +348,22 @@ export function parseAnthropicStream(
       doneSent = true;
       onEvent({ type: "error", message });
     }
-  ).then(() => {
-    // 流正常结束（reader done）但没收到 message_stop / message_delta(usage) / error 终态帧，
-    // 必须补发终态事件，否则调用方的外层 Promise 会永远挂起
-    if (!signal.aborted && !doneSent) {
-      onEvent({ type: "error", message: "Stream ended unexpectedly without a terminal frame" });
-    }
-  });
+  )
+    .then(() => {
+      // 流正常结束（reader done）但没收到 message_stop / message_delta(usage) / error 终态帧，
+      // 必须补发终态事件，否则调用方的外层 Promise 会永远挂起
+      if (!signal.aborted && !doneSent) {
+        onEvent({ type: "error", message: "Stream ended unexpectedly without a terminal frame" });
+      }
+    })
+    .catch((error) => {
+      // readSSEStream 只在 abort 时才 reject（见 content_utils.ts）；message_start 可能已经
+      // 带回了 input/cache usage，把它带在 abort 错误上，避免取消时把这部分已知花费从终态
+      // usage 里丢掉（见 finding 6）。outputTokens 在 message_delta 之前始终未知，记 0。
+      throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+        usage: cachedUsage ? { ...cachedUsage, outputTokens: 0 } : undefined,
+      });
+    });
 }
 
 // ---- LLMProvider 接口适配 ----

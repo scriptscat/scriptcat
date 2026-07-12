@@ -268,7 +268,7 @@ describe("OpenAI Provider", () => {
 
     it("应正确解析带 usage 的 done 事件", async () => {
       const events = await collectEvents(parseOpenAIStream, [
-        'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":"hi"},"finish_reason":"stop"}]}\n\n',
         'data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n',
       ]);
 
@@ -547,7 +547,7 @@ function buildSSEResponse(sseChunks: string[]): Response {
 // 辅助：构造纯文本 SSE 数据（OpenAI 格式）
 function makeTextSSE(text: string, usage?: { prompt_tokens: number; completion_tokens: number }): string[] {
   const chunks: string[] = [];
-  chunks.push(`data: {"choices":[{"delta":{"content":"${text}"}}]}\n\n`);
+  chunks.push(`data: {"choices":[{"delta":{"content":"${text}"},"finish_reason":"stop"}]}\n\n`);
   if (usage) {
     chunks.push(`data: {"usage":${JSON.stringify(usage)}}\n\n`);
   } else {
@@ -568,7 +568,7 @@ function makeToolCallSSE(
     `data: {"choices":[{"delta":{"tool_calls":[{"id":"${toolId}","function":{"name":"${toolName}","arguments":""}}]}}]}\n\n`
   );
   chunks.push(
-    `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"${args.replace(/"/g, '\\"')}"}}]}}]}\n\n`
+    `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"${args.replace(/"/g, '\\"')}"}}]}, "finish_reason":"tool_calls"}]}\n\n`
   );
   if (usage) {
     chunks.push(`data: {"usage":${JSON.stringify(usage)}}\n\n`);

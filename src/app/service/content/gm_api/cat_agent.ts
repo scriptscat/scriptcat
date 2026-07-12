@@ -452,19 +452,31 @@ function processStreamEphemeral(
   let toolCalls: ToolCall[] = [];
   const finish = () => {
     if (text || blocks.length || toolCalls.length) {
+      // 提前退出（for await...break / 消费方抛错）时，可能有 toolCall 还停在 tool_call_start/
+      // delta 阶段就被 return()/throw() 打断，从未收到 tool_call_complete。这类 toolCall 没有
+      // result，如果原样把它们的 assistant 消息记入历史重放给 provider，大多数 provider 会
+      // 因为"assistant 消息里的 tool_call 缺少对应的 tool 结果消息"而报错（见 finding 9）。
+      // 统一在这里把没有 result 的 toolCall 补成终态 cancelled，并补上配对的 tool 结果消息，
+      // 保证重放给 provider 的历史里 tool_call/tool_result 协议状态始终完整。
+      const finalized = toolCalls.map((toolCall) => {
+        if (toolCall.result !== undefined) return cloneToolCall(toolCall);
+        return cloneToolCall({
+          ...toolCall,
+          status: "error",
+          result: JSON.stringify({ error: "Tool call cancelled: stream ended before it completed" }),
+        });
+      });
       this.messageHistory.push({
         role: "assistant",
         content: buildContent(text, blocks),
-        toolCalls: toolCalls.length ? toolCalls.map(cloneToolCall) : undefined,
+        toolCalls: finalized.length ? finalized : undefined,
       });
-      for (const toolCall of toolCalls) {
-        if (toolCall.result !== undefined) {
-          this.messageHistory.push({
-            role: "tool",
-            content: toolCall.result,
-            toolCallId: toolCall.id,
-          });
-        }
+      for (const toolCall of finalized) {
+        this.messageHistory.push({
+          role: "tool",
+          content: toolCall.result!,
+          toolCallId: toolCall.id,
+        });
       }
     }
     text = "";

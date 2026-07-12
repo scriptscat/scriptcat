@@ -492,6 +492,33 @@ describe("parseAnthropicStream", () => {
     expect(events).toHaveLength(0);
   });
 
+  it("abort 前已经收到过 message_start usage 时，reject 的错误应携带这部分已知 usage（finding 6）", async () => {
+    const controller = new AbortController();
+    const encoder = new TextEncoder();
+    let index = 0;
+    const chunks = [
+      'event: message_start\ndata: {"message":{"usage":{"input_tokens":20,"cache_read_input_tokens":5}}}\n\n',
+    ];
+    const reader = {
+      read: async () => {
+        if (index < chunks.length) {
+          return { done: false, value: encoder.encode(chunks[index++]) };
+        }
+        controller.abort();
+        throw new Error("Aborted");
+      },
+      cancel: async () => {},
+      closed: Promise.resolve(undefined),
+      releaseLock: () => {},
+    } as any;
+
+    const events: ChatStreamEvent[] = [];
+    await expect(parseAnthropicStream(reader, (e) => events.push(e), controller.signal)).rejects.toMatchObject({
+      message: "Aborted",
+      usage: { inputTokens: 20, outputTokens: 0, cacheReadInputTokens: 5 },
+    });
+  });
+
   it("流正常结束但没有 message_stop/message_delta(usage)/error 终态帧时应补发 error，而不是静默完成", async () => {
     // 只有 content_block_delta，reader 提前 done，模拟连接在终态帧之前被服务端关闭
     const reader = createMockReader([

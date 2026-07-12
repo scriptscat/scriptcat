@@ -149,11 +149,14 @@ describe("上下文预算估算与裁剪", () => {
       { role: "assistant", content: "已看到图片" },
       { role: "user", content: "继续" },
     ];
-    const sizes = new Map([["old", 6000]]);
-    // 估算以字节为单位再折算为保守 token 数（见 CONSERVATIVE_BYTES_PER_TOKEN），
-    // 因此不能直接与原始字节数 6000 比较；改为验证 base64 展开确实被计入
-    // —— 若只是把原始字节数朴素折半（3000），结果不会超过它。
-    expect(estimateRequestTokens(messages, [], sizes, VISION_MODEL)).toBeGreaterThan(3000);
+    // 用较大的真实照片量级（600KB）而不是 6000 字节：折算后（/40）约 2 万 token，
+    // 明显超出 1000 的预算才能触发裁剪；6000 字节这种量级折算后不到 200 token，不足以撑爆预算。
+    const sizes = new Map([["old", 600_000]]);
+    // 图片按 IMAGE_CONSERVATIVE_BYTES_PER_TOKEN（40）折算为 token（见 finding 8：不能再把
+    // base64 字节数 1:1 当 token 数，否则普通照片会被判定为超出上下文）。
+    // 验证 base64 展开确实被计入——若只是把原始字节数朴素除以换算系数（600000/40=15000），
+    // 结果不会低于它。
+    expect(estimateRequestTokens(messages, [], sizes, VISION_MODEL)).toBeGreaterThan(15_000);
     expect(elideUntilWithinBudget(messages, 1000, [], 0.9, sizes, VISION_MODEL)).toBe(true);
     expect(messages[0].content).toEqual([{ type: "text", text: expect.stringContaining("attachment elided") }]);
     expect((messages[0].content as any)[0].text).toContain("uploads/old");
@@ -197,6 +200,19 @@ describe("上下文预算估算与裁剪", () => {
     const sizes = new Map([["audio1", bigSize]]);
     const estimate = estimateRequestTokens(messages, [], sizes, VISION_MODEL);
     expect(estimate).toBeLessThan(bigSize);
+  });
+
+  it("普通 100KB 照片不应被判定为超出未配置 contextWindow 模型（128K）的输入预算（finding 8）", () => {
+    const messages: ChatRequest["messages"] = [
+      { role: "user", content: "帮我看看这张截图" },
+      { role: "user", content: [{ type: "image", attachmentId: "screenshot", mimeType: "image/png" }] },
+    ];
+    const sizes = new Map([["screenshot", 100_000]]);
+    // VISION_MODEL 未显式配置 contextWindow，按 gpt-4o 前缀推断为 128_000
+    const estimate = estimateRequestTokens(messages, [], sizes, VISION_MODEL);
+    // 128_000 * 0.9 的预检阈值 ≈ 115_200；一张普通照片折算后的 token 数应远低于这个预算，
+    // 而不是像按 1 字节 = 1 token 估算那样膨胀到十几万 token 直接把预算撑爆
+    expect(estimate).toBeLessThan(115_200 * 0.5);
   });
 });
 

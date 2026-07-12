@@ -498,6 +498,44 @@ describe("ConversationInstance tool_call_complete / new_message 重建历史", (
     const finalAssistantMsgs = messages.filter((m) => m.role === "assistant" && m.content === "Final answer");
     expect(finalAssistantMsgs).toHaveLength(1);
   });
+
+  it("chatStream() 提前 break：未完成的 toolCall 不应作为无结果的悬空协议状态记入历史（finding 9）", async () => {
+    const gmSendMessage = vi.fn().mockResolvedValue(undefined);
+    // 只发 tool_call_start，永远不发 tool_call_complete，模拟消费方在工具调用完成前就 break
+    const gmConnect = vi.fn().mockResolvedValue(
+      mockConnectWithEvents([
+        { type: "tool_call_start", toolCall: { id: "call-early", name: "my_tool", arguments: "" } },
+        { type: "tool_call_delta", id: "call-early", delta: "{}" },
+      ])
+    );
+
+    const instance = new ConversationInstance(
+      mockConversation({ modelId: "test-model" }),
+      gmSendMessage,
+      gmConnect,
+      "test-script-uuid",
+      20,
+      [],
+      undefined,
+      true // ephemeral
+    );
+
+    const stream = await instance.chatStream("使用工具");
+    for await (const chunk of stream) {
+      if (chunk.type === "tool_call") break;
+    }
+
+    const messages = await instance.getMessages();
+    const assistantWithTools = messages.find((m) => m.toolCalls && m.toolCalls.length > 0);
+    expect(assistantWithTools).toBeDefined();
+    // 没有收到 result 的 toolCall 必须被补成终态（而不是原样带着 status:"running"、result:undefined 记入历史）
+    expect(assistantWithTools!.toolCalls![0].status).not.toBe("running");
+    expect(assistantWithTools!.toolCalls![0].result).toBeDefined();
+
+    // 必须有配对的 tool 结果消息，否则重放给 provider 时协议状态不完整
+    const toolMsg = messages.find((m) => m.role === "tool" && m.toolCallId === "call-early");
+    expect(toolMsg).toBeDefined();
+  });
 });
 
 // ---- errorCode 透传测试 ----

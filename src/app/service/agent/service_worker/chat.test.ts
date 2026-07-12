@@ -583,7 +583,7 @@ describe("scriptToolCallback 的 abort/disconnect/超时处理", () => {
     const encoder = new TextEncoder();
     const chunks = [
       `data: {"choices":[{"delta":{"tool_calls":[{"id":"${toolId}","function":{"name":"${toolName}","arguments":""}}]}}]}\n\n`,
-      `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(args)}}}]}}]}\n\n`,
+      `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(args)}}}]}, "finish_reason":"tool_calls"}]}\n\n`,
       `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
     ];
     let i = 0;
@@ -597,6 +597,7 @@ describe("scriptToolCallback 的 abort/disconnect/超时处理", () => {
               if (i < chunks.length) return { done: false, value: encoder.encode(chunks[i++]) };
               return { done: true, value: undefined };
             },
+            cancel: async () => {},
           };
         },
       },

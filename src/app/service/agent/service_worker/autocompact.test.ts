@@ -16,7 +16,7 @@ describe("Compact 功能", () => {
 
   function makeTextResponseWithTokens(text: string, promptTokens = 10): Response {
     return makeSSEResponse([
-      `data: {"choices":[{"delta":{"content":${JSON.stringify(text)}}}]}\n\n`,
+      `data: {"choices":[{"delta":{"content":${JSON.stringify(text)}},"finish_reason":"stop"}]}\n\n`,
       `data: {"usage":{"prompt_tokens":${promptTokens},"completion_tokens":5}}\n\n`,
     ]);
   }
@@ -202,7 +202,7 @@ describe("Compact 功能", () => {
     // 第一次 LLM 调用：返回文本但 inputTokens 超过 80% (110000/128000 ≈ 86%)
     fetchSpy.mockResolvedValueOnce(
       makeSSEResponse([
-        `data: {"choices":[{"delta":{"content":"Some response"}}]}\n\n`,
+        `data: {"choices":[{"delta":{"content":"Some response"},"finish_reason":"stop"}]}\n\n`,
         `data: {"usage":{"prompt_tokens":110000,"completion_tokens":100}}\n\n`,
       ])
     );
@@ -235,7 +235,7 @@ describe("Compact 功能", () => {
     // inputTokens = 50000, contextWindow(gpt-4o) = 128000, 39% < 80%
     fetchSpy.mockResolvedValueOnce(
       makeSSEResponse([
-        `data: {"choices":[{"delta":{"content":"OK"}}]}\n\n`,
+        `data: {"choices":[{"delta":{"content":"OK"},"finish_reason":"stop"}]}\n\n`,
         `data: {"usage":{"prompt_tokens":50000,"completion_tokens":5}}\n\n`,
       ])
     );

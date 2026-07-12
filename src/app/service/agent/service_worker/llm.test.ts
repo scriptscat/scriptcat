@@ -69,7 +69,7 @@ describe("callLLM 流式响应解析", () => {
     fetchSpy.mockResolvedValueOnce(
       makeSSEResponse([
         `data: {"choices":[{"delta":{"content":"你好"}}]}\n\n`,
-        `data: {"choices":[{"delta":{"content":"世界"}}]}\n\n`,
+        `data: {"choices":[{"delta":{"content":"世界"},"finish_reason":"stop"}]}\n\n`,
         `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
       ])
     );
@@ -195,7 +195,7 @@ describe("callLLM 流式响应解析", () => {
     } as unknown as Response);
     fetchSpy.mockResolvedValueOnce(
       makeSSEResponse([
-        `data: {"choices":[{"delta":{"content":"重试成功"}}]}\n\n`,
+        `data: {"choices":[{"delta":{"content":"重试成功"},"finish_reason":"stop"}]}\n\n`,
         `data: {"usage":{"prompt_tokens":5,"completion_tokens":2}}\n\n`,
       ])
     );
@@ -241,7 +241,7 @@ describe("callLLM 流式响应解析", () => {
     // 第二次成功
     fetchSpy.mockResolvedValueOnce(
       makeSSEResponse([
-        `data: {"choices":[{"delta":{"content":"恢复了"}}]}\n\n`,
+        `data: {"choices":[{"delta":{"content":"恢复了"},"finish_reason":"stop"}]}\n\n`,
         `data: {"usage":{"prompt_tokens":10,"completion_tokens":3}}\n\n`,
       ])
     );
@@ -350,14 +350,15 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
 
   function makeToolCallResponse(toolCalls: Array<{ id: string; name: string; arguments: string }>): Response {
     const chunks: string[] = [];
-    for (const tc of toolCalls) {
+    toolCalls.forEach((tc, i) => {
       chunks.push(
         `data: {"choices":[{"delta":{"tool_calls":[{"id":"${tc.id}","function":{"name":"${tc.name}","arguments":""}}]}}]}\n\n`
       );
+      const isLast = i === toolCalls.length - 1;
       chunks.push(
-        `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}}]}\n\n`
+        `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}${isLast ? ', "finish_reason":"tool_calls"' : ""}}]}\n\n`
       );
-    }
+    });
     chunks.push(`data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`);
     return makeSSEResponse(chunks);
   }
@@ -368,14 +369,15 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     promptTokens: number
   ): Response {
     const chunks: string[] = [];
-    for (const tc of toolCalls) {
+    toolCalls.forEach((tc, i) => {
       chunks.push(
         `data: {"choices":[{"delta":{"tool_calls":[{"id":"${tc.id}","function":{"name":"${tc.name}","arguments":""}}]}}]}\n\n`
       );
+      const isLast = i === toolCalls.length - 1;
       chunks.push(
-        `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}}]}\n\n`
+        `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}${isLast ? ', "finish_reason":"tool_calls"' : ""}}]}\n\n`
       );
-    }
+    });
     chunks.push(`data: {"usage":{"prompt_tokens":${promptTokens},"completion_tokens":5}}\n\n`);
     return makeSSEResponse(chunks);
   }

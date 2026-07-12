@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getContextWindow, inferContextWindow, DEFAULT_CONTEXT_WINDOW } from "./model_context";
+import {
+  getContextWindow,
+  getInputTokenBudget,
+  inferContextWindow,
+  normalizeModelLimits,
+  DEFAULT_CONTEXT_WINDOW,
+} from "./model_context";
 
 describe("getContextWindow", () => {
   it("returns user-configured contextWindow when provided", () => {
@@ -52,6 +58,44 @@ describe("getContextWindow", () => {
 
   it("returns default for unknown models", () => {
     expect(getContextWindow({ model: "my-custom-model" })).toBe(DEFAULT_CONTEXT_WINDOW);
+  });
+
+  it("负数 contextWindow 是 truthy，不能被原样返回，否则 getInputTokenBudget 会塌缩为 0（finding 10）", () => {
+    expect(getContextWindow({ model: "gpt-4o", contextWindow: -1 })).toBe(128_000);
+    expect(getInputTokenBudget({ model: "gpt-4o", contextWindow: -1, provider: "openai" } as any)).toBeGreaterThan(0);
+  });
+
+  it("非有限数 contextWindow 应回退到前缀匹配", () => {
+    expect(getContextWindow({ model: "gpt-4o", contextWindow: Infinity })).toBe(128_000);
+    expect(getContextWindow({ model: "gpt-4o", contextWindow: NaN })).toBe(128_000);
+  });
+});
+
+describe("normalizeModelLimits（finding 10：存储边界统一归一化）", () => {
+  it("负数 / 非有限数 / 超出合理范围一律归一化为 undefined", () => {
+    expect(normalizeModelLimits({ maxTokens: -5, contextWindow: -1 })).toEqual({
+      maxTokens: undefined,
+      contextWindow: undefined,
+    });
+    expect(normalizeModelLimits({ maxTokens: Infinity, contextWindow: NaN })).toEqual({
+      maxTokens: undefined,
+      contextWindow: undefined,
+    });
+    expect(normalizeModelLimits({ maxTokens: 50_000_000, contextWindow: 50_000_000 })).toEqual({
+      maxTokens: undefined,
+      contextWindow: undefined,
+    });
+  });
+
+  it("合法正整数保持不变（向下取整）", () => {
+    expect(normalizeModelLimits({ maxTokens: 4096.7, contextWindow: 128_000 })).toEqual({
+      maxTokens: 4096,
+      contextWindow: 128_000,
+    });
+  });
+
+  it("未配置（undefined）保持 undefined，交给下游默认值", () => {
+    expect(normalizeModelLimits({})).toEqual({ maxTokens: undefined, contextWindow: undefined });
   });
 });
 

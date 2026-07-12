@@ -203,7 +203,7 @@ export function createMockSenderWithCallbacks() {
 export function makeTextResponse(text: string): Response {
   const encoder = new TextEncoder();
   const chunks = [
-    `data: {"choices":[{"delta":{"content":"${text}"}}]}\n\n`,
+    `data: {"choices":[{"delta":{"content":"${text}"},"finish_reason":"stop"}]}\n\n`,
     `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
   ];
   let i = 0;

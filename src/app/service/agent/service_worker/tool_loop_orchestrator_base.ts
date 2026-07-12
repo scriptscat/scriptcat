@@ -111,7 +111,9 @@ export class ToolLoopOrchestrator {
     private chatRepo: AgentChatRepo
   ) {}
 
-  /** 上下文即使裁剪到底也无法容纳下一次请求时，落库 + 通知 UI + （可选）抛出结构化错误。 */
+  /** 上下文即使裁剪到底也无法容纳下一次请求时，落库 + 通知 UI + （可选）抛出结构化错误。
+   * 落库失败不能阻塞事件发送（见 finding 5：事件投递不应依赖持久化成功）；
+   * 若此时已被 Stop，取消优先于 context_too_large，改走统一的取消终态化路径。 */
   private async emitContextTooLarge(
     conversationId: string | undefined,
     totalUsage: {
@@ -122,8 +124,13 @@ export class ToolLoopOrchestrator {
     },
     startTime: number,
     sendEvent: (event: ChatStreamEvent) => void,
+    signal: AbortSignal,
     throwOnTerminalError?: boolean
   ): Promise<void> {
+    if (signal.aborted) {
+      await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+      return;
+    }
     const error = Object.assign(new Error("Conversation history exceeds the model context window"), {
       errorCode: "context_too_large",
       usage: totalUsage,
@@ -131,17 +138,21 @@ export class ToolLoopOrchestrator {
       conversationId,
     });
     if (conversationId) {
-      await this.chatRepo.appendMessage({
-        id: uuidv4(),
-        conversationId,
-        role: "assistant",
-        content: "",
-        error: error.message,
-        errorCode: error.errorCode,
-        usage: totalUsage,
-        durationMs: error.durationMs,
-        createtime: Date.now(),
-      });
+      try {
+        await this.chatRepo.appendMessage({
+          id: uuidv4(),
+          conversationId,
+          role: "assistant",
+          content: "",
+          error: error.message,
+          errorCode: error.errorCode,
+          usage: totalUsage,
+          durationMs: error.durationMs,
+          createtime: Date.now(),
+        });
+      } catch {
+        // 持久化失败不阻塞终态事件发送
+      }
     }
     sendEvent({
       type: "error",
@@ -153,7 +164,8 @@ export class ToolLoopOrchestrator {
     if (throwOnTerminalError) throw error;
   }
 
-  /** 取消（stop）落定时的统一终态化：持久化一条终态记录 + 发送唯一的终态事件，携带累计 usage/耗时。 */
+  /** 取消（stop）落定时的统一终态化：持久化一条终态记录 + 发送唯一的终态事件，携带累计 usage/耗时。
+   * 落库失败不能阻塞事件发送，否则客户端永远收不到终态事件（见 finding 5）。 */
   private async emitCancelled(
     conversationId: string | undefined,
     totalUsage: {
@@ -167,17 +179,21 @@ export class ToolLoopOrchestrator {
   ): Promise<void> {
     const durationMs = Date.now() - startTime;
     if (conversationId) {
-      await this.chatRepo.appendMessage({
-        id: uuidv4(),
-        conversationId,
-        role: "assistant",
-        content: "",
-        error: "Conversation cancelled",
-        errorCode: "cancelled",
-        usage: totalUsage,
-        durationMs,
-        createtime: Date.now(),
-      });
+      try {
+        await this.chatRepo.appendMessage({
+          id: uuidv4(),
+          conversationId,
+          role: "assistant",
+          content: "",
+          error: "Conversation cancelled",
+          errorCode: "cancelled",
+          usage: totalUsage,
+          durationMs,
+          createtime: Date.now(),
+        });
+      } catch {
+        // 持久化失败不阻塞终态事件发送
+      }
     }
     sendEvent({
       type: "error",
@@ -259,7 +275,14 @@ export class ToolLoopOrchestrator {
           model
         );
         if (!withinBudget) {
-          await this.emitContextTooLarge(conversationId, totalUsage, startTime, sendEvent, throwOnTerminalError);
+          await this.emitContextTooLarge(
+            conversationId,
+            totalUsage,
+            startTime,
+            sendEvent,
+            signal,
+            throwOnTerminalError
+          );
           return;
         }
       }
@@ -300,7 +323,14 @@ export class ToolLoopOrchestrator {
           model
         );
         if (!withinBudget) {
-          await this.emitContextTooLarge(conversationId, totalUsage, startTime, sendEvent, throwOnTerminalError);
+          await this.emitContextTooLarge(
+            conversationId,
+            totalUsage,
+            startTime,
+            sendEvent,
+            signal,
+            throwOnTerminalError
+          );
           return;
         }
       }
@@ -322,6 +352,16 @@ export class ToolLoopOrchestrator {
         // SSE 解析层现在会在 abort 时 reject（而不是静默挂起，见 content_utils.ts），
         // 这类 reject 必须走统一的取消终态化路径，而不是当作真实错误往外抛
         if (signal.aborted) {
+          // provider 层可能已经把这一轮已知的部分 usage（如 Anthropic 的 message_start、
+          // 部分 OpenAI 兼容 API 每个 chunk 都带的 usage）挂在 abort 错误上，取消前必须并入
+          // totalUsage，否则这部分已经产生的花费会从终态 usage 里丢失（见 finding 6）
+          const partialUsage = (error as { usage?: LLMCallResult["usage"] })?.usage;
+          if (partialUsage) {
+            totalUsage.inputTokens += partialUsage.inputTokens;
+            totalUsage.outputTokens += partialUsage.outputTokens;
+            totalUsage.cacheCreationInputTokens += partialUsage.cacheCreationInputTokens || 0;
+            totalUsage.cacheReadInputTokens += partialUsage.cacheReadInputTokens || 0;
+          }
           await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
           return;
         }
@@ -570,15 +610,24 @@ export class ToolLoopOrchestrator {
             if (answer.trim().toLowerCase() === GUARD_STOP_ANSWER.toLowerCase()) {
               const durationMs = Date.now() - startTime;
               if (conversationId) {
-                await this.chatRepo.appendMessage({
-                  id: uuidv4(),
-                  conversationId,
-                  role: "assistant",
-                  content: t("agent:chat_guard_stopped_message"),
-                  usage: totalUsage,
-                  durationMs,
-                  createtime: Date.now(),
-                });
+                try {
+                  await this.chatRepo.appendMessage({
+                    id: uuidv4(),
+                    conversationId,
+                    role: "assistant",
+                    content: t("agent:chat_guard_stopped_message"),
+                    usage: totalUsage,
+                    durationMs,
+                    createtime: Date.now(),
+                  });
+                } catch {
+                  // 持久化失败不阻塞终态事件发送
+                }
+              }
+              // 持久化期间也可能已被 Stop：取消优先于 done，不能在 Stop 之后仍报告成功
+              if (signal.aborted) {
+                await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+                return;
               }
               sendEvent({ type: "done", usage: totalUsage, durationMs });
               return;
@@ -615,16 +664,20 @@ export class ToolLoopOrchestrator {
       // 没有 tool calls，对话结束
       const durationMs = Date.now() - startTime;
       if (conversationId) {
-        await this.chatRepo.appendMessage({
-          id: uuidv4(),
-          conversationId,
-          role: "assistant",
-          content: buildMessageContent(),
-          thinking: result.thinking ? { content: result.thinking } : undefined,
-          usage: totalUsage,
-          durationMs,
-          createtime: Date.now(),
-        });
+        try {
+          await this.chatRepo.appendMessage({
+            id: uuidv4(),
+            conversationId,
+            role: "assistant",
+            content: buildMessageContent(),
+            thinking: result.thinking ? { content: result.thinking } : undefined,
+            usage: totalUsage,
+            durationMs,
+            createtime: Date.now(),
+          });
+        } catch {
+          // 持久化失败不阻塞终态事件发送
+        }
       }
 
       // 持久化期间也可能已被 stop：内容已经落库（不丢失），但终态事件必须反映取消，
@@ -643,17 +696,26 @@ export class ToolLoopOrchestrator {
     const durationMs = Date.now() - startTime;
     const maxIterMsg = `Tool calling loop exceeded maximum iterations (${maxIterations})`;
     if (conversationId) {
-      await this.chatRepo.appendMessage({
-        id: uuidv4(),
-        conversationId,
-        role: "assistant",
-        content: "",
-        error: maxIterMsg,
-        errorCode: "max_iterations",
-        usage: totalUsage,
-        durationMs,
-        createtime: Date.now(),
-      });
+      try {
+        await this.chatRepo.appendMessage({
+          id: uuidv4(),
+          conversationId,
+          role: "assistant",
+          content: "",
+          error: maxIterMsg,
+          errorCode: "max_iterations",
+          usage: totalUsage,
+          durationMs,
+          createtime: Date.now(),
+        });
+      } catch {
+        // 持久化失败不阻塞终态事件发送
+      }
+    }
+    // 持久化期间也可能已被 Stop：取消优先于 max_iterations
+    if (signal.aborted) {
+      await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+      return;
     }
     const terminalError = {
       type: "error",

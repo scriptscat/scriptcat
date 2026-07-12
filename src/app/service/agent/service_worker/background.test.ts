@@ -4,14 +4,15 @@ import { createTestService, makeTextResponse, makeSSEResponse, createRunningConv
 // 与 llm.test.ts 中的同名辅助函数一致：构造带 tool_call 的 OpenAI SSE 响应
 function makeToolCallResponse(toolCalls: Array<{ id: string; name: string; arguments: string }>): Response {
   const chunks: string[] = [];
-  for (const tc of toolCalls) {
+  toolCalls.forEach((tc, i) => {
     chunks.push(
       `data: {"choices":[{"delta":{"tool_calls":[{"id":"${tc.id}","function":{"name":"${tc.name}","arguments":""}}]}}]}\n\n`
     );
+    const isLast = i === toolCalls.length - 1;
     chunks.push(
-      `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}}]}\n\n`
+      `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}${isLast ? ', "finish_reason":"tool_calls"' : ""}}]}\n\n`
     );
-  }
+  });
   chunks.push(`data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`);
   return makeSSEResponse(chunks);
 }
@@ -327,6 +328,55 @@ describe("handleAttachToConversation 重连逻辑", () => {
     (service as any).bgSessionManager.delete("conv-done");
   });
 
+  it("cancelling 阶段 attach：sync 仍报 running 并继续订阅 listener，直到真正的终态事件（finding 1）", async () => {
+    const { service } = createTestService();
+    const rc = createRunningConversation({ status: "cancelling" });
+    (service as any).bgSessionManager.set("conv-cancelling", rc);
+
+    const { sender, sentMessages } = createMockSender();
+    await (service as any).handleAttachToConversation({ conversationId: "conv-cancelling" }, sender);
+
+    const syncEvent = sentMessages.find((m: any) => m.action === "event" && m.data.type === "sync");
+    // 不能报 error：那会让客户端立即断开重载，永远收不到 orchestrator 后续广播的真正终态事件
+    expect(syncEvent.data.status).toBe("running");
+    expect(rc.listeners.size).toBe(1);
+
+    // 之后 orchestrator 广播真正的终态事件时，这个迟到的 listener 应该能收到
+    (service as any).bgSessionManager.broadcastEvent(rc, {
+      type: "error",
+      message: "Conversation cancelled",
+      errorCode: "cancelled",
+      usage: { inputTokens: 1, outputTokens: 2 },
+    });
+    const terminalEvent = sentMessages.find((m: any) => m.data?.errorCode === "cancelled");
+    expect(terminalEvent).toBeDefined();
+    expect(terminalEvent.data.usage).toBeDefined();
+
+    (service as any).bgSessionManager.delete("conv-cancelling");
+  });
+
+  it("finalizeCancelled 在 status 已被终态事件改写为 error 后仍应调度清理（finding 1）", async () => {
+    vi.useFakeTimers();
+    try {
+      const { service } = createTestService();
+      const rc = createRunningConversation({ status: "cancelling" });
+      (service as any).bgSessionManager.set("conv-late-error", rc);
+
+      // 模拟 emitCancelled() 广播的终态事件已经先经过 sendEvent → updateStreamingState
+      // 把 status 从 cancelling 改写成 error（真实时序：chat_service_base.ts 的 sendEvent
+      // 总是先 updateStreamingState 再 finalizeCancelled 才被调用）
+      (service as any).bgSessionManager.updateStreamingState(rc, { type: "error", message: "x" });
+      expect(rc.status).toBe("error");
+
+      (service as any).bgSessionManager.finalizeCancelled("conv-late-error", rc);
+
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect((service as any).bgSessionManager.get("conv-late-error")).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("运行中的会话添加 listener，断开时移除", async () => {
     const { service } = createTestService();
     const rc = createRunningConversation({ status: "running" });
@@ -554,7 +604,7 @@ describe("后台运行会话 集成测试", () => {
             if (readCalled === 1) {
               return {
                 done: false,
-                value: encoder.encode(`data: {"choices":[{"delta":{"content":"hello"}}]}\n\n`),
+                value: encoder.encode(`data: {"choices":[{"delta":{"content":"hello"},"finish_reason":"stop"}]}\n\n`),
               };
             }
             if (readCalled === 2) {

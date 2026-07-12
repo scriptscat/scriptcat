@@ -48,7 +48,11 @@ export const CONTEXT_SAFETY_MARGIN_RATIO = 0.1;
 
 /** 获取模型的上下文窗口大小，优先使用用户配置，否则按前缀匹配 */
 export function getContextWindow(config: { model: string; contextWindow?: number }): number {
-  if (config.contextWindow) return config.contextWindow;
+  // > 0 而非直接 truthy 判断：负数是 truthy，会原样返回并让 getInputTokenBudget() 的预算计算
+  // 塌缩为 0（见 finding 10）
+  if (typeof config.contextWindow === "number" && Number.isFinite(config.contextWindow) && config.contextWindow > 0) {
+    return config.contextWindow;
+  }
   const modelLower = config.model.toLowerCase();
   for (const [prefix, size] of MODEL_CONTEXT_PREFIXES) {
     if (modelLower.startsWith(prefix)) return size;
@@ -84,4 +88,30 @@ export function inferContextWindow(model: string): number {
     if (modelLower.startsWith(prefix)) return size;
   }
   return DEFAULT_CONTEXT_WINDOW;
+}
+
+// 允许的 token 数上限：远超已知最大模型（Gemini/GPT-4.1 约 1M），为未来更大模型留余量，
+// 同时拒绝明显异常的值（Infinity、Number.MAX_SAFE_INTEGER 等）
+const MAX_REASONABLE_TOKEN_LIMIT = 10_000_000;
+
+/**
+ * 把用户可能填入的 maxTokens/contextWindow 归一化为有限正整数（或 undefined，交给下游默认值）。
+ * 非有限数、非正数、超出合理范围一律视为未配置——防止负数因为 JS 的 truthy 判断被当作"已配置"
+ * 直接发给 provider（如 Anthropic 的 max_tokens = config.maxTokens || 16384 会把负数原样发出），
+ * 也防止负的 contextWindow 让 getInputTokenBudget() 的预算计算塌缩为 0（见 finding 10）。
+ */
+function normalizeTokenLimit(value: number | undefined): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  const normalized = Math.floor(value);
+  if (normalized <= 0 || normalized > MAX_REASONABLE_TOKEN_LIMIT) return undefined;
+  return normalized;
+}
+
+/** 在模型配置持久化前统一归一化 maxTokens/contextWindow，作为存储边界的唯一校验点。 */
+export function normalizeModelLimits<T extends { maxTokens?: number; contextWindow?: number }>(config: T): T {
+  return {
+    ...config,
+    maxTokens: normalizeTokenLimit(config.maxTokens),
+    contextWindow: normalizeTokenLimit(config.contextWindow),
+  };
 }

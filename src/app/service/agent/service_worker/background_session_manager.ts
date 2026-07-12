@@ -170,12 +170,17 @@ export class BackgroundSessionManager {
     rc.abortController.abort();
   }
 
-  // 执行方在 abort 落定、promise 真正 settle 后调用，把 cancelling 收敛为终态。
+  // 执行方在 abort 落定、promise 真正 settle 后调用，把 cancelling 收敛为终态并调度清理。
+  // 幂等：emitCancelled() 广播的终态事件会先经过正常的 sendEvent → updateStreamingState
+  // 把 status 从 cancelling 改写成 error，等这里再执行时 status 已经不是 cancelling 了——
+  // 之前的实现只认 cancelling，导致这个真实存在的时序下 cleanupIfDone() 永远不会被调度，
+  // 记录永久留在 runningConversations 里。这里改为：cancelling 或已经落定的终态都视为
+  // 可以安全调度清理（cleanupIfDone 自身按实例比对 + status!=="running" 做二次确认，幂等安全）。
   // 通过实例比对避免误将已被新会话顶替的 map 条目错误终态化。
   finalizeCancelled(conversationId: string, rc: RunningConversation): void {
     if (this.runningConversations.get(conversationId) !== rc) return;
-    if (rc.status !== "cancelling") return;
-    rc.status = "error";
+    if (rc.status === "running") return;
+    if (rc.status === "cancelling") rc.status = "error";
     this.cleanupIfDone(conversationId);
   }
 
@@ -211,14 +216,18 @@ export class BackgroundSessionManager {
           : undefined,
       pendingAskUser: rc.pendingAskUser,
       tasks: rc.tasks,
-      // cancelling 对外等同于终态：晚到的重连者不会再收到任何后续广播（见 stop/finalizeCancelled），
-      // 应立即按已结束处理，而不是误报为 running 导致 UI 一直转圈等待
-      status: rc.status === "cancelling" ? "error" : rc.status,
+      // cancelling 还没有产生真正携带取消原因/usage/耗时的终态事件（那条事件由 orchestrator 的
+      // emitCancelled() 在 promise 落定后才广播，见 tool_loop_orchestrator_base.ts）。
+      // 之前这里直接报 "error" 会让客户端立即断开重载，永远收不到那条真正完整的终态事件，
+      // 也可能在取消记录落库前就重载；改为对外仍按 "running" 处理并继续订阅 listener，
+      // 客户端会一直等到下面广播的那条真正的终态事件再断开。
+      status: rc.status === "cancelling" ? "running" : rc.status,
     };
     sendEvent(syncEvent);
 
-    // 已完成则不需要添加 listener
-    if (rc.status !== "running") {
+    // 只有已产生真正终态事件（done/error）才不需要 listener；cancelling 必须继续订阅
+    // 直到 orchestrator 广播出那条真正的终态事件（见上面的注释）
+    if (rc.status !== "running" && rc.status !== "cancelling") {
       return;
     }
 
