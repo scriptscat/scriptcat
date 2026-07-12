@@ -478,7 +478,7 @@ describe("useInstallData 数据流编排", () => {
   });
 });
 
-describe("MCP 来源的安装请求（doc 05 §5.1, doc 04 §4）", () => {
+describe("MCP 来源的安装请求", () => {
   beforeAll(async () => {
     await initTestLanguage();
   });

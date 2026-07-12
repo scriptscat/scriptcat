@@ -7,7 +7,7 @@ beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(cleanup);
 
-describe("McpBanner MCP 请求安装横幅（doc 07 §5）", () => {
+describe("McpBanner MCP 请求安装横幅", () => {
   it("渲染请求方名称", () => {
     render(<McpBanner requestingClientName="Test Client" contentHash="abcdef1234567890" source="raw code" />);
     expect(screen.getByTestId("mcp-install-banner")).toHaveTextContent("Test Client");

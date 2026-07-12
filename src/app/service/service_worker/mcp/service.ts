@@ -17,12 +17,11 @@ export interface McpControllerFacade {
 }
 
 /**
- * Page-facing MCP endpoints (doc 05 §4.5), registered under the `mcp` Group. Deliberately does
- * NOT include `setEnabled` or `auditExport`: `mcp_enabled` already flows through the generic
- * SystemConfig get/set plumbing every other device-local setting uses (doc 05 §5.3), and audit
- * export is a client-side JSON.stringify + download over the same data `audit` already returns
- * — adding a second endpoint for it would just duplicate `audit` (AGENTS.md: no dead/duplicate
- * code).
+ * Page-facing MCP endpoints, registered under the `mcp` Group. Deliberately does NOT include
+ * `setEnabled` or `auditExport`: `mcp_enabled` already flows through the generic SystemConfig
+ * get/set plumbing every other device-local setting uses, and audit export is a client-side
+ * JSON.stringify + download over the same data `audit` already returns — adding a second
+ * endpoint for it would just duplicate `audit` (AGENTS.md: no dead/duplicate code).
  */
 export class McpUIService {
   constructor(

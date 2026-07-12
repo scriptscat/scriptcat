@@ -15,7 +15,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("Tools 分类项 · MCP 桥接卡片可见性（doc 01 Non-goals: Firefox 不在本次范围内）", () => {
+describe("Tools 分类项 · MCP 桥接卡片可见性（Firefox 上尚未支持，需隐藏）", () => {
   it("EnableMCP=true 且非 Firefox 时包含 mcp-bridge 分类", async () => {
     vi.doMock("@App/app/const", () => ({ EnableMCP: true }));
     isFirefox.mockReturnValue(false);

@@ -1,10 +1,10 @@
-// URL 检索策略（doc 04 §5）：`scripts.install.prepare` 携带 url 时，抓取前后都必须
-// 通过本模块的校验；抓取本身仍走 fetchScriptBody（浏览器代理/DNS），主机进程从不发起网络请求。
+// URL 检索策略：`scripts.install.prepare` 携带 url 时，抓取前后都必须
+// 通过本模块的校验；抓取本身仍走浏览器自身的 fetch（走浏览器代理/DNS），主机进程从不发起网络请求。
 //
 // 已知限制：扩展代码无法在建立连接前主动解析域名对应的 IP（浏览器不暴露 DNS 解析
 // API），因此本模块只能拦截“语法上明显本地/内网”的目标 —— 字面量回环/私有/链路本地/
 // 组播 IP，以及 localhost / *.local 主机名。真正的 DNS-rebinding（域名解析到私网 IP
-// 的那一刻才暴露）无法在此层完全杜绝；这是有意为之的已记录残余风险（doc 04 §2 A3）。
+// 的那一刻才暴露）无法在此层完全杜绝；这是有意为之、已在威胁模型中记录的残余风险。
 
 export const MAX_REDIRECTS = 3;
 export const MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024; // 2 MiB — 由扩展抓取，从不经过主机进程
@@ -47,10 +47,10 @@ function isLocalHostname(hostname: string): boolean {
 }
 
 /**
- * Validates a single URL against the doc 04 §5 install-source policy: scheme, embedded
- * credentials, and syntactically-local/private/loopback/link-local/multicast destinations.
- * Callers must re-invoke this on every redirect hop (see doc 04 §5 "re-validate on every
- * redirect"), not just the initial request.
+ * Validates a single URL against the install-source policy: scheme, embedded credentials, and
+ * syntactically-local/private/loopback/link-local/multicast destinations. Callers must re-invoke
+ * this on every redirect hop, not just the initial request — a URL that starts out pointing
+ * somewhere allowed can still redirect to a private target.
  */
 export function validateInstallUrl(rawUrl: string): UrlPolicyResult {
   let url: URL;
@@ -95,13 +95,13 @@ export class UrlPolicyViolation extends Error {
 }
 
 /**
- * Fetches a candidate install source under the doc 04 §5 policy: initial URL validated before
- * the request, final (post-redirect) URL validated against the same policy, response streamed
- * with a hard size-abort cap. `redirect: "manual"` is not usable here — the Fetch spec forces
- * such responses to be opaque (no readable status/headers), so per-hop redirect inspection is
- * not achievable through the standard Fetch API from an extension service worker; this is a
- * documented residual limitation (doc 04 §2 A3), not an oversight. `resp.redirected`/`resp.url`
- * still let us reject a chain that *ended up* somewhere the policy forbids.
+ * Fetches a candidate install source under the policy above: initial URL validated before the
+ * request, final (post-redirect) URL validated against the same policy, response streamed with a
+ * hard size-abort cap. `redirect: "manual"` is not usable here — the Fetch spec forces such
+ * responses to be opaque (no readable status/headers), so per-hop redirect inspection is not
+ * achievable through the standard Fetch API from an extension service worker; this is a
+ * documented residual limitation, not an oversight. `resp.redirected`/`resp.url` still let us
+ * reject a chain that *ended up* somewhere the policy forbids, even without seeing each hop.
  */
 export async function fetchInstallSourceWithPolicy(url: string): Promise<string> {
   const initial = validateInstallUrl(url);

@@ -131,12 +131,11 @@ export default class ServiceWorkerManager {
       gmApi.setAgentService(agent);
     }
 
-    // MCP 桥接（doc: workspace/.ref-docs/05-extension-implementation.md §4.5）：
-    // 双重开关 —— 构建期 EnableMCP + 运行期 mcp_enabled（由 McpController.initialize 内部监听）。
+    // MCP 桥接：双重开关 —— 构建期 EnableMCP + 运行期 mcp_enabled（由 McpController.initialize 内部监听）。
     // 不建立连接，除非用户已在 Tools 设置里显式开启。
-    // Firefox 也提供 chrome.runtime.connectNative，但其 MV3 事件页生命周期与 Chrome 不同
-    // （doc 01 "Non-goals": Firefox 支持不在本次范围内，controller 必须在 Firefox 上优雅降级/隐藏），
-    // 因此显式排除，而不仅依赖 connectNative 是否存在。
+    // Firefox 也提供 chrome.runtime.connectNative，但其 MV3 事件页生命周期与 Chrome 不同，
+    // 尚未验证/支持该场景，因此显式排除，而不仅依赖 connectNative 是否存在，避免功能在
+    // Firefox 上以未测试的方式静默启用。
     if (EnableMCP && !isFirefox() && typeof chrome.runtime?.connectNative === "function") {
       const mcpClientDAO = new McpClientDAO();
       const mcpApproval = new McpApprovalService(script, scriptDAO, script.scriptCodeDAO, mcpClientDAO);

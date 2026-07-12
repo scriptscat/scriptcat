@@ -6,7 +6,7 @@
  * built/tested by its own CI job). Kept in sync via protocol.conformance.test.ts, which imports
  * both modules and compares their literal unions.
  *
- * Spec: workspace/.ref-docs/03-protocol-spec.md §2-3 (gitignored reference doc).
+ * Full protocol spec: packages/native-messaging-host/PROTOCOL.md.
  */
 
 export const PROTOCOL_VERSION = 1;
@@ -42,13 +42,14 @@ export interface NativeEnvelope<TPayload = unknown> {
   payload: TPayload;
 }
 
-// host->ext, sent once immediately after the native port connects (doc 03 §6 versioning).
+// host->ext, sent once immediately after the native port connects, so the extension can compare
+// hostVersion against MIN_HOST_VERSION before dispatching any bridge call.
 export interface HelloPayload {
   hostVersion: string;
 }
 
-// host->ext, a new shim asked to pair (doc 03 §4 "Pairing (first run)"). `code` is the 8-char
-// verification string the user cross-checks against the shim's own terminal output.
+// host->ext, a new shim asked to pair. `code` is the 8-char verification string the user
+// cross-checks against the shim's own terminal output.
 export interface PairRequestPayload {
   pairingId: string;
   clientName: string;
@@ -224,11 +225,10 @@ export const WRITE_ACTIONS: readonly BridgeAction[] = [
 ] as const;
 
 // ---------------------------------------------------------------------------------------------
-// Extension-only types (doc 02 §3, doc 04 §4, doc 04 §9) — not part of the wire protocol, but
-// colocated here per the "types.ts" slice; entities move to src/app/repo/mcp.ts in the next
-// commit alongside their DAOs (repo convention: entity + DAO in one file). Declared here first
-// so bridge/approval code in that commit can import a single mcp/types.ts for wire + entity
-// shapes without a circular dependency on the repo layer.
+// Extension-only types — not part of the wire protocol, just UI/controller state. Persisted
+// entities (McpClient, McpOperation, McpAuditEvent) live in src/app/repo/mcp.ts alongside their
+// DAOs (repo convention: entity + DAO in one file); this status enum stays here because it's
+// derived controller state, never written to storage.
 // ---------------------------------------------------------------------------------------------
 
 export type McpBridgeStatus = "disabled" | "connecting" | "connected" | "host_unreachable" | "host_outdated";

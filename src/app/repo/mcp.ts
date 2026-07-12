@@ -6,7 +6,7 @@ import type {
   BridgeErrorCode,
 } from "@App/app/service/service_worker/mcp/types";
 
-// 客户端记录（doc 02 §3）：主机侧持有权威 token store，扩展侧镜像用于 UI 与 scope 判定。
+// 客户端记录：主机侧（原生消息宿主）持有权威 token store，本记录是扩展侧的镜像，仅用于 UI 展示与 scope 判定。
 export interface McpClient {
   clientId: string; // 配对时生成的随机 UUID
   displayName: string; // 用户可编辑，展示时需转义
@@ -15,8 +15,8 @@ export interface McpClient {
   createdAt: number;
   lastUsedAt: number;
   revoked: boolean;
-  // 用户选择「对该客户端始终允许」读取源码的脚本 uuid 列表（doc 02 §4.2, doc 07 §5
-  // "Allow for this client"）——一次性批准（"Allow once"）不会写入此处，只消费单次待批操作。
+  // 用户在源码披露弹窗中选择「对该客户端始终允许」时记录的脚本 uuid 列表——
+  // 一次性批准（「仅本次允许」）不会写入此处，只消费单次待批操作。
   sourceDisclosureAllowed?: string[];
 }
 
@@ -30,7 +30,8 @@ export class McpClientDAO extends Repo<McpClient> {
   }
 }
 
-// 待批操作（doc 04 §4）：TOCTOU 绑定字段全部保留，执行器在批准瞬间重新校验。
+// 待批操作：绑定请求当时的内容哈希/目标脚本状态等字段全部保留，执行器
+// （McpApprovalService.decide）在批准瞬间重新校验这些字段，防止请求与批准之间的 TOCTOU 篡改。
 export interface McpOperation {
   operationId: string; // 加密安全随机 UUID
   clientId: string;
@@ -62,7 +63,7 @@ export class McpOperationDAO extends Repo<McpOperation> {
   }
 }
 
-// 审计事件（doc 04 §9）：环形缓冲，永不记录 token、脚本源码或 URL 中的凭据。
+// 审计事件：环形缓冲，永不记录 token、脚本源码或 URL 中的凭据。
 export interface McpAuditEvent {
   eventId: string;
   timestamp: number;

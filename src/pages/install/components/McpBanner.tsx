@@ -8,7 +8,7 @@ export interface McpBannerProps {
 }
 
 /**
- * MCP 请求安装横幅（doc 07 §5，doc 05 §5.1）：标明请求方、来源、内容哈希，
+ * MCP 请求安装横幅：标明请求方、来源、内容哈希，
  * 以及「默认禁用」提示——警告色调，与站内其它警示区块共用 token。
  */
 export function McpBanner({ requestingClientName, contentHash, source }: McpBannerProps) {

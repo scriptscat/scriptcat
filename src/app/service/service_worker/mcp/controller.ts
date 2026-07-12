@@ -22,8 +22,8 @@ const BACKOFF_BASE_MS = 1000;
 const BACKOFF_CAP_MS = 60_000;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const WRITE_SESSION_STORAGE_KEY = "mcp_write_session";
-// Mirrors the host's own 2-minute pairing TTL (doc 03 §4) so an expired pairing is never shown
-// as pending even if the host never got around to telling us.
+// Mirrors the host's own 2-minute pairing TTL so an expired pairing is never shown as pending
+// even if the host never got around to telling us.
 const PAIRING_TTL_MS = 2 * 60_000;
 
 // Broadcast on every status transition so the Tools settings page updates live.
@@ -41,10 +41,10 @@ export interface PendingPairing {
 }
 
 /**
- * Owns the native-messaging port lifecycle to `com.scriptcat.native_host` (doc 05 §4.2, doc 02
- * §5). Only ever connects when `mcp_enabled` is true — the caller is responsible for gating
- * construction/initialize() on the build-time `EnableMCP` flag. Never auto-reconnects past the
- * capped backoff without a fresh user action.
+ * Owns the native-messaging port lifecycle to `com.scriptcat.native_host`. Only ever connects
+ * when `mcp_enabled` is true — the caller is responsible for gating construction/initialize() on
+ * the build-time `EnableMCP` flag. Never auto-reconnects past the capped backoff without a fresh
+ * user action (flipping `mcp_enabled` off and back on, or clicking Retry in the settings UI).
  */
 export class McpController {
   private port: chrome.runtime.Port | undefined;
@@ -124,9 +124,10 @@ export class McpController {
   private onPairRequest(payload: PairRequestPayload): void {
     this.pendingPairing = { ...payload, expiresAt: Date.now() + PAIRING_TTL_MS };
     // The mcpPairingRequested broadcast reaches every open extension page, including an
-    // already-open options tab — McpSection subscribes and renders an in-page Dialog itself
-    // (doc 05 §5.4 "if the options page is open, show dialog in place"). This publish is what
-    // drives that; the popup below is only opened as a fallback when no options tab is open.
+    // already-open options tab — McpSection subscribes and renders an in-page Dialog itself so
+    // the human doesn't have to context-switch to a popup if they're already looking at settings.
+    // This publish is what drives that; the popup below is only opened as a fallback when no
+    // options tab is open.
     this.mq.publish(McpPairingRequested, { pairingId: payload.pairingId });
     void this.openPairingPopupUnlessOptionsPageOpen(payload.pairingId);
   }
@@ -149,7 +150,7 @@ export class McpController {
     return this.pendingPairing;
   }
 
-  // Sends the human's decision to the host (doc 03 §4 `pair.decision`); the host mints the
+  // Sends the human's decision to the host as a `pair.decision` message; the host mints the
   // token/clientId on approval and reports the authoritative record back via `client.sync`.
   decidePairing(pairingId: string, approved: boolean, grantedScopes: McpScope[]): void {
     if (this.pendingPairing?.pairingId === pairingId) {
@@ -200,9 +201,10 @@ export class McpController {
     this.setStatus("disabled");
   }
 
-  // Tells the host to drop the token/session for a revoked client immediately (doc 03 §2
-  // `client.revoke`). A no-op when the bridge isn't connected — the extension-side revocation
-  // (McpClientDAO) already took effect, so the next authenticated call fails regardless.
+  // Tells the host to drop the token/session for a revoked client immediately, via a
+  // `client.revoke` message. A no-op when the bridge isn't connected — the extension-side
+  // revocation (McpClientDAO) already took effect, so the next authenticated call fails
+  // regardless.
   notifyClientRevoked(clientId: string): void {
     this.port?.postMessage({ v: 1, type: "client.revoke", requestId: uuidv4(), payload: { clientId } });
   }
@@ -212,7 +214,9 @@ export class McpController {
   }
 
   // "Allow write requests this session" — deliberately chrome.storage.session, not SystemConfig,
-  // so it never survives a browser restart (doc 05 §2.2, doc 02 §5 "Write session").
+  // so it never survives a browser restart. Holding a write scope is not enough on its own to
+  // mutate anything; this session-only switch must also be on, so "paired and scoped" never
+  // silently becomes "can write" across a restart without a fresh human decision.
   setWriteSessionActive(active: boolean): void {
     this.writeSessionActive = active;
     chrome.storage.session.set({ [WRITE_SESSION_STORAGE_KEY]: active });

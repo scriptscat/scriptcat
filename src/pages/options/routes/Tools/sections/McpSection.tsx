@@ -79,9 +79,9 @@ export function McpSection({ register }: { register: (id: string) => (el: HTMLEl
     void fetchMcpState().then(applyMcpState);
   }, []);
 
-  // In-page pairing dialog (doc 05 §5.4): McpController only skips its own popup when an options
-  // tab is already open, so this page is the one responsible for rendering the decision surface
-  // in that case — it must listen for the broadcast itself.
+  // In-page pairing dialog: McpController only skips its own popup when an options tab is
+  // already open, so this page is the one responsible for rendering the decision surface in that
+  // case — it must listen for the broadcast itself.
   useEffect(() => {
     return subscribeMessage<{ pairingId: string }>("mcpPairingRequested", (data) => {
       setPendingPairingId(data.pairingId);

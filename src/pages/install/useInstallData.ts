@@ -51,7 +51,7 @@ export interface InstallView {
   diffStat?: DiffStat;
   /** 订阅安装时声明的脚本 URL 列表(@scriptURL) */
   subscribeScripts: string[];
-  /** 由 MCP 客户端请求安装时附加(doc 05 §5.1);非 MCP 来源为 undefined */
+  /** 由 MCP 客户端请求安装时附加;非 MCP 来源为 undefined */
   mcp?: ScriptInfo["mcp"];
 }
 
@@ -316,7 +316,7 @@ export function useInstallData(): UseInstallData {
       try {
         if (info.mcp) {
           // MCP 请求的安装：页面只上报决定，实际安装由 McpApprovalService.decide 在服务端完成
-          // （重新校验暂存代码哈希，doc 04 §4 TOCTOU 不变量）——绝不在页面侧直接调用
+          // （重新校验暂存代码哈希，防止请求与批准之间代码被篡改）——绝不在页面侧直接调用
           // scriptClient.install(）。
           await mcpClient.decideOperation({
             operationId: info.mcp.operationId,
@@ -342,7 +342,7 @@ export function useInstallData(): UseInstallData {
     [t]
   );
 
-  // MCP 请求专属的拒绝动作（doc 04 §4 不变量 7：关闭窗口本身不算决定，只有显式拒绝才算）。
+  // MCP 请求专属的拒绝动作：关闭窗口本身不算决定（待批操作会保持挂起直至过期），只有点击这个显式拒绝才算真正的拒绝。
   const rejectMcp = useCallback(async () => {
     const info = infoRef.current;
     if (!info?.mcp) return;

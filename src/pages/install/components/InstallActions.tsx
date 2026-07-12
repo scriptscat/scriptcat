@@ -19,7 +19,7 @@ export interface InstallActionsProps {
   onInstall: (opts?: { closeAfterInstall?: boolean; noMoreUpdates?: boolean }) => void;
   onClose: (opts?: { noMoreUpdates?: boolean }) => void;
   onToggleWatch?: () => void;
-  /** 仅 MCP 客户端请求的安装提供：显式拒绝（区别于「关闭」——关闭不算决定，doc 04 §4 不变量 7） */
+  /** 仅 MCP 客户端请求的安装提供：显式拒绝（区别于「关闭」——关闭窗口本身不算决定，只有点击这个按钮才算拒绝） */
   onMcpReject?: () => void;
 }
 

@@ -5,12 +5,12 @@ import { usePendingPairing } from "@App/pages/mcp_confirm/usePendingPairing";
 import { PairingCode, PairingCountdown, PairingFields } from "@App/pages/mcp_confirm/PairingFields";
 
 /**
- * In-page pairing dialog (doc 05 §5.4 "if the options page is open, show dialog in place"):
- * McpSection renders this whenever it receives an `mcpPairingRequested` broadcast while mounted.
- * Shares the same decision state machine (usePendingPairing) and field components as the
- * standalone mcp_confirm.html?pairing=<id> popup — the only difference is the chrome around it
- * (a Dialog here, a full page there) and that closing this dialog dismisses it in place instead
- * of closing a popup window.
+ * In-page pairing dialog, shown when the options page is already open so the human doesn't have
+ * to context-switch to a popup: McpSection renders this whenever it receives an
+ * `mcpPairingRequested` broadcast while mounted. Shares the same decision state machine
+ * (usePendingPairing) and field components as the standalone mcp_confirm.html?pairing=<id> popup
+ * — the only difference is the chrome around it (a Dialog here, a full page there) and that
+ * closing this dialog dismisses it in place instead of closing a popup window.
  */
 export function McpPairingDialog({ pairingId, onClose }: { pairingId: string; onClose: () => void }) {
   const { t } = useTranslation(["mcp", "common"]);

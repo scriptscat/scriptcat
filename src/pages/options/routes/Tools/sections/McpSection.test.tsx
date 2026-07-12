@@ -161,7 +161,7 @@ describe("MCP 桥接分区", () => {
     expect(set).toHaveBeenCalledWith("mcp_enabled", false);
   });
 
-  it("订阅 mcpPairingRequested 广播，收到后渲染页面内配对对话框（doc 05 §5.4）", async () => {
+  it("订阅 mcpPairingRequested 广播，收到后渲染页面内配对对话框", async () => {
     get.mockResolvedValue(true);
     render(<McpSection register={() => () => {}} />);
     await screen.findByTestId("mcp_enable_switch");

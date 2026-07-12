@@ -24,14 +24,14 @@ import {
 } from "./types";
 
 // Chrome hard-caps native-messaging frames at 1 MiB host->browser; 2 MiB is the extension-local
-// cap on how much source `scripts.source.get` will return in one call (doc 03 §3).
+// cap on how much source `scripts.source.get` will return in one call.
 export const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 
 // operations.get/list/cancel are gated by ownership (checked inside McpApprovalService), not by
-// a single fixed scope — any write scope that could have created an operation is sufficient
-// (doc 03 §5 "any write scope"). ACTION_REQUIRED_SCOPE still names a scope for these actions
-// (used for MCP catalog-visibility filtering on the host/shim side), but the extension bridge
-// does not gate on it here.
+// a single fixed scope — any write scope that could have created an operation is sufficient to
+// poll/cancel it. ACTION_REQUIRED_SCOPE still names a scope for these actions (used for MCP
+// catalog-visibility filtering on the host/shim side), but the extension bridge does not gate on
+// it here.
 const OWNERSHIP_GATED_ACTIONS: readonly BridgeAction[] = ["operations.get", "operations.list", "operations.cancel"];
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -64,8 +64,9 @@ function assertStringField(input: Record<string, unknown>, field: string): strin
   return value;
 }
 
-// Strict, manual allow-list validation per action (doc 03 §1: "unknown properties rejected").
-// Every entry both rejects unexpected fields and asserts the ones it accepts.
+// Strict, manual allow-list validation per action — any field not explicitly named here is
+// rejected as INVALID_REQUEST. Every entry both rejects unexpected fields and asserts the ones
+// it accepts.
 const VALIDATORS: Record<BridgeAction, (input: unknown) => void> = {
   "scripts.list": (input) => {
     if (!isPlainObject(input)) throw new McpBridgeError("INVALID_REQUEST", "input must be an object");
@@ -146,10 +147,11 @@ function toSummary(script: Script): ScriptSummary {
 }
 
 /**
- * Routes an already-received McpBridgeRequest (doc 03 §3) to the extension's script/approval
- * services, re-checking scope from McpClientDAO on every call regardless of what the host
- * already checked (doc 04 §3 defense in depth — the extension never trusts the host's claim
- * alone). Writes exactly one audit event per request.
+ * Routes an already-received McpBridgeRequest to the extension's script/approval services,
+ * re-checking scope from McpClientDAO on every call regardless of what the native host already
+ * checked before forwarding it — this is defense in depth, since the extension never trusts the
+ * host's claim about a client's scopes alone; a compromised or buggy host can't grant a scope the
+ * extension's own record doesn't have. Writes exactly one audit event per request.
  */
 export class McpBridge {
   constructor(
@@ -230,10 +232,10 @@ export class McpBridge {
         const script = await this.scriptDAO.get(uuid);
         if (!script) throw new McpBridgeError("NOT_FOUND", "script not found");
 
-        // First-use-per-client disclosure gate (doc 02 §4.2, doc 07 §5): source may contain
-        // secrets, so unlike scripts.list/metadata.get this read isn't unconditionally granted
-        // by the scope alone — the human must approve it once per client per script (or forever,
-        // via "Allow for this client").
+        // First-use-per-client disclosure gate: source may contain secrets, so unlike
+        // scripts.list/metadata.get this read isn't unconditionally granted by the scope alone —
+        // the human must approve it once per client per script (or forever, via "Allow for this
+        // client").
         const disclosure = await this.approval.checkSourceDisclosure({
           clientId: request.clientId,
           uuid,

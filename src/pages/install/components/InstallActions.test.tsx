@@ -94,7 +94,7 @@ describe("InstallActions 操作区", () => {
     expect(screen.queryByTestId("mcp-reject")).not.toBeInTheDocument();
   });
 
-  it("提供 onMcpReject 时渲染拒绝按钮，点击触发回调（doc 07 §5 MCP 请求安装流程）", () => {
+  it("提供 onMcpReject 时渲染拒绝按钮，点击触发回调（MCP 请求安装流程）", () => {
     const onMcpReject = vi.fn();
     render(<InstallActions {...baseProps()} onMcpReject={onMcpReject} />);
     const rejectButton = screen.getByTestId("mcp-reject");

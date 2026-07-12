@@ -14,7 +14,8 @@ export const SCOPE_ORDER: McpScope[] = [
 ];
 
 // scripts:list / scripts:metadata:read default on when requested; every write-capable scope
-// (including source read, which can expose secrets) defaults off (doc 07 §3).
+// (including source read, which can expose secrets) defaults off, so the human has to actively
+// opt each one in rather than accidentally granting a write/read-source scope by not noticing it.
 export const SCOPE_DEFAULT_ON: Record<McpScope, boolean> = {
   "scripts:list": true,
   "scripts:metadata:read": true,
@@ -46,9 +47,9 @@ export function formatCountdown(seconds: number): string {
 }
 
 /**
- * Shared pairing-decision state machine (doc 05 §5.4, doc 07 §3), reused by the standalone
- * mcp_confirm.html?pairing=<id> popup and the in-page options-tab dialog (McpSection.tsx) — a
- * pairing request can be decided from either surface, whichever the human happens to have open.
+ * Shared pairing-decision state machine, reused by the standalone mcp_confirm.html?pairing=<id>
+ * popup and the in-page options-tab dialog (McpSection.tsx) — a pairing request can be decided
+ * from either surface, whichever the human happens to have open.
  * One fetch, not a poll: whichever surface renders this hook is the only decision surface for a
  * given pairingId, so there's nothing external that could change the pending pairing snapshot
  * after it loads. The countdown below owns secondsLeft from here on.

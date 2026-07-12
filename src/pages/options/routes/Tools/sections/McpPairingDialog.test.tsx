@@ -32,7 +32,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("McpPairingDialog · options 页面内的配对对话框（doc 05 §5.4）", () => {
+describe("McpPairingDialog · options 页面内的配对对话框", () => {
   it("加载待处理配对后展示客户端名称、验证码与 scope 勾选", async () => {
     getPendingPairing.mockResolvedValue(basePairing());
     render(<McpPairingDialog pairingId="pair-1" onClose={vi.fn()} />);

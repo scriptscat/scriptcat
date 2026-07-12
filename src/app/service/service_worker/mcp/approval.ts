@@ -18,13 +18,13 @@ import { validateInstallUrl, fetchInstallSourceWithPolicy, UrlPolicyViolation } 
 import { McpBridgeError } from "./errors";
 import type { OperationStatusResult, PendingOperationRef } from "./types";
 
-// 5 分钟批准有效期（doc 04 §7）。
+// 5 分钟批准有效期，足够用户切换到弹出的确认窗口完成决定，又不至于让过期请求悬挂太久。
 export const APPROVAL_TTL_MS = 5 * 60_000;
-// 内联代码上限：主机→浏览器 native message 单帧硬上限 1 MiB，512 KiB 为信封开销预留余量（doc 03 §3）。
+// 内联代码上限：主机→浏览器 native message 单帧硬上限 1 MiB，512 KiB 为信封开销预留余量。
 export const INLINE_CODE_MAX_BYTES = 512 * 1024;
 
 // 窄接口：McpApprovalService 只需要 ScriptService 的三个变更入口，不依赖整个 ScriptService
-// （AGENTS.md「依赖窄接口」）。批准前，这三个方法均不会被调用 —— doc 04 §4 的核心不变量。
+// （AGENTS.md「依赖窄接口」）。批准前，这三个方法均不会被调用——这是本文件最核心的不变量。
 export interface McpScriptMutator {
   installScript(param: TScriptInstallParam): Promise<TScriptInstallReturn>;
   enableScript(param: { uuid: string; enable: boolean }): Promise<unknown>;
@@ -50,10 +50,13 @@ function toStatusResult(op: McpOperation): OperationStatusResult {
 }
 
 /**
- * Owns the McpOperation lifecycle (doc 04 §4 TOCTOU invariants; doc 05 §4.4). Every write the
- * MCP bridge exposes becomes a pending operation here; the extension mutates scripts only
- * through `decide(...)`, which is driven by an explicit human action on install.html /
- * mcp_confirm.html — never by an inbound MCP request directly.
+ * Owns the McpOperation lifecycle: every write the MCP bridge exposes (install, enable/disable,
+ * delete, source disclosure) becomes a pending operation here rather than executing immediately.
+ * The extension mutates scripts only through `decide(...)`, which is driven by an explicit human
+ * action on install.html / mcp_confirm.html — never by an inbound MCP request directly. `decide`
+ * re-verifies the operation's binding (content hash, target state) at the moment of approval, not
+ * just at request time, so a change between request and approval surfaces as `CONFLICT` instead
+ * of silently applying to something other than what the human reviewed (TOCTOU protection).
  */
 export class McpApprovalService {
   constructor(
@@ -101,8 +104,8 @@ export class McpApprovalService {
 
     const contentHash = sha256OfText(code);
 
-    // Idempotency (doc 04 §4 invariant 8): identical (clientId, contentHash) while an install is
-    // still awaiting_user returns the existing operation instead of stacking a second prompt.
+    // Idempotency: identical (clientId, contentHash) while an install is still awaiting_user
+    // returns the existing operation instead of stacking a second prompt.
     const existingOps = await this.operationDAO.byClient(params.clientId);
     const duplicate = existingOps.find(
       (op) => op.kind === "install" && op.status === "awaiting_user" && op.contentHash === contentHash
@@ -117,7 +120,10 @@ export class McpApprovalService {
     // uuid is provided). There is deliberately no "update" path reachable from this action.
     const uuid = uuidv4();
     const { script } = await prepareScriptByCode(code, sourceUrl || "", uuid);
-    script.status = SCRIPT_STATUS_DISABLE; // doc 04 §4 invariant 6: installs always start disabled
+    // Staged with the record disabled — nothing has been approved yet. executeInstall() below is
+    // what actually flips it to enabled, and only if the human explicitly opted in on the review
+    // page; this staged value is never read as the final enabled state.
+    script.status = SCRIPT_STATUS_DISABLE;
 
     const operationId = uuidv4();
     const now = Date.now();
@@ -185,7 +191,7 @@ export class McpApprovalService {
   }
 
   /**
-   * First-use-per-client source disclosure gate (doc 02 §4.2, doc 07 §5). Returns `"allowed"`
+   * First-use-per-client source disclosure gate. Returns `"allowed"`
    * when the client already holds a permanent "allow for this client" grant or has just consumed
    * a freshly-approved one-shot operation for this exact (clientId, uuid) pair — the caller
    * (McpBridge) may proceed to read and return the source. Returns a `PendingOperationRef` when a
@@ -214,8 +220,8 @@ export class McpApprovalService {
       return "allowed";
     }
 
-    // Idempotency, mirroring prepareInstall (doc 04 §4 invariant 8): don't stack a second prompt
-    // for the same (clientId, uuid) while one is already awaiting_user.
+    // Idempotency, mirroring prepareInstall above: don't stack a second prompt for the same
+    // (clientId, uuid) while one is already awaiting_user.
     const pending = existingOps.find(
       (op) => op.kind === "source_disclosure" && op.targetUuid === params.uuid && op.status === "awaiting_user"
     );
@@ -247,9 +253,9 @@ export class McpApprovalService {
 
   /**
    * Approve or reject a pending operation. `options.enable` only applies to installs: whether
-   * the user flipped the enable switch on install.html (doc 04 §4 invariant 6). `options.
-   * rememberChoice` only applies to source_disclosure: "client" persists a permanent per-client
-   * allow-list entry, "once"/undefined approves only the single pending read (doc 07 §5).
+   * the user flipped the enable switch on install.html. `options.rememberChoice` only applies to
+   * source_disclosure: "client" persists a permanent per-client allow-list entry, "once"/undefined
+   * approves only the single pending read.
    */
   async decide(
     operationId: string,
@@ -260,8 +266,9 @@ export class McpApprovalService {
     if (!op) {
       throw new McpBridgeError("NOT_FOUND", "operation not found", operationId);
     }
-    // Single-shot: a decided/expired operation can never re-enter awaiting_user (replay defense,
-    // doc 04 §4 invariant 5).
+    // Single-shot: a decided/expired operation can never re-enter awaiting_user. This is the
+    // replay defense — without it, a stale approved/rejected record could be reused to authorize
+    // a second, unreviewed mutation.
     if (op.status !== "awaiting_user") {
       throw new McpBridgeError("OPERATION_EXPIRED", `operation already ${op.status}`, operationId);
     }
@@ -332,9 +339,9 @@ export class McpApprovalService {
       throw new McpBridgeError("CONFLICT", "staged install missing or expired", op.operationId);
     }
     const stagedCode = await getTempCode(stagedUuid);
-    // Re-verify the staged code hash immediately before mutation (doc 04 §4 invariant 2) — this
-    // is the TOCTOU check: staging and approval are separated by human reaction time, during
-    // which the staged entry could in principle have been overwritten by a second request.
+    // Re-verify the staged code hash immediately before mutation — this is the TOCTOU check:
+    // staging and approval are separated by human reaction time, during which the staged entry
+    // could in principle have been overwritten by a second request.
     if (!stagedCode || sha256OfText(stagedCode) !== op.contentHash) {
       throw new McpBridgeError("CONFLICT", "staged code changed since request", op.operationId);
     }
@@ -352,8 +359,8 @@ export class McpApprovalService {
     }
     const code = await this.scriptCodeDAO.get(op.targetUuid!);
     const currentHash = code ? sha256OfText(code.code) : undefined;
-    // Re-verify the target's current code hash immediately before mutation (doc 04 §4
-    // invariant 3) — catches the target having changed between request and decide.
+    // Re-verify the target's current code hash immediately before mutation — catches the target
+    // having changed between request and decide.
     if (currentHash !== op.existingCodeHash) {
       throw new McpBridgeError("CONFLICT", "target script changed since request", op.operationId);
     }
@@ -374,7 +381,7 @@ export class McpApprovalService {
 
   // Used by the human-facing approval pages (install.html / mcp_confirm.html), which are
   // reached only via an operationId the extension itself generated and opened a tab with — the
-  // human is the authority (doc 04 §2 Z0), so unlike getOperation() there is no clientId gate.
+  // human viewing that tab is the authority, so unlike getOperation() there is no clientId gate.
   async getOperationForUI(
     operationId: string
   ): Promise<(McpOperation & { requestingClientName?: string }) | undefined> {
@@ -400,7 +407,8 @@ export class McpApprovalService {
       const current = await this.sweepAndGet(op.operationId);
       if (current) swept.push(current);
     }
-    // doc 03 §3: operations.list returns the caller's non-expired operations.
+    // Only the caller's own non-expired operations — expired ones are dropped rather than
+    // reported, since the agent has nothing useful to do with a dead operationId.
     return swept.filter((op) => op.status !== "expired").map(toStatusResult);
   }
 
@@ -416,7 +424,8 @@ export class McpApprovalService {
     return { operationId, status: "cancelled" };
   }
 
-  // Lazy expiry sweep (doc 04 §4 invariant 1): expiry is enforced on every read, not by a timer.
+  // Lazy expiry sweep: expiry is enforced on every read, not by a background timer — an
+  // operation transitions to "expired" the moment something notices its TTL has passed.
   private async sweepAndGet(operationId: string): Promise<McpOperation | undefined> {
     const op = await this.operationDAO.get(operationId);
     if (!op) return undefined;

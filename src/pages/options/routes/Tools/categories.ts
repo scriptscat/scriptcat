@@ -12,7 +12,8 @@ export function getToolsCategories(t: TFunction): SettingsCategory[] {
     { id: "data-migration", icon: Database, label: t("tools:data_migration") },
     { id: "dev-tools", icon: Terminal, label: t("tools:development_tool") },
     // Firefox exposes chrome.runtime.connectNative too, but its MV3 event-page lifecycle differs
-    // and Firefox support is an explicit non-goal (doc 01) — the card must not be offered there.
+    // and the MCP bridge has not been built/tested against it — the card must not be offered
+    // there, to avoid silently enabling an unsupported configuration.
     ...(EnableMCP && !isFirefox() ? [{ id: "mcp-bridge", icon: Bot, label: t("mcp:section_title") }] : []),
   ];
 }
