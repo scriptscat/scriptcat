@@ -43,8 +43,11 @@ describe("shim-config.ts - shim 凭据存储", () => {
   });
 
   it("resolveShimConfigDir 按平台解析目录", () => {
-    expect(resolveShimConfigDir("win32")).toContain("scriptcat-mcp");
-    expect(resolveShimConfigDir("darwin")).toContain(".config/scriptcat-mcp");
-    expect(resolveShimConfigDir("linux")).toContain(".config/scriptcat-mcp");
+    expect(resolveShimConfigDir("win32")).toBe(path.join(process.env.APPDATA || os.homedir(), "scriptcat-mcp"));
+
+    const posixConfigDir = path.join(os.homedir(), ".config", "scriptcat-mcp");
+
+    expect(resolveShimConfigDir("darwin")).toBe(posixConfigDir);
+    expect(resolveShimConfigDir("linux")).toBe(posixConfigDir);
   });
 });

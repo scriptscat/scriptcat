@@ -6,19 +6,21 @@ import { resolveConfigDir, verifyDirPermissions, atomicWriteFile } from "./confi
 
 describe("resolveConfigDir - 按平台解析配置目录", () => {
   it("Windows 平台使用 LOCALAPPDATA 下的 ScriptCat/NativeHost", () => {
-    const dir = resolveConfigDir("win32");
-    expect(dir).toContain("ScriptCat");
-    expect(dir).toContain("NativeHost");
+    expect(resolveConfigDir("win32")).toBe(
+      path.join(process.env.LOCALAPPDATA || os.homedir(), "ScriptCat", "NativeHost")
+    );
   });
 
   it("macOS 平台使用 ~/Library/Application Support/ScriptCat/NativeHost", () => {
-    const dir = resolveConfigDir("darwin");
-    expect(dir).toContain("Library/Application Support/ScriptCat/NativeHost");
+    expect(resolveConfigDir("darwin")).toBe(
+      path.join(os.homedir(), "Library", "Application Support", "ScriptCat", "NativeHost")
+    );
   });
 
   it("Linux 平台使用 XDG_DATA_HOME 或 ~/.local/share 下的 scriptcat/native-host", () => {
-    const dir = resolveConfigDir("linux");
-    expect(dir).toContain("scriptcat/native-host");
+    const baseDir = process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share");
+
+    expect(resolveConfigDir("linux")).toBe(path.join(baseDir, "scriptcat", "native-host"));
   });
 });
 
