@@ -214,3 +214,63 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     expect(doneEvents).toHaveLength(1);
   });
 });
+
+describe("ToolLoopOrchestrator 请求前预算检查（防止 tool 结果把下一次请求撑爆）", () => {
+  let chatRepo: ReturnType<typeof makeFakeChatRepo>;
+  let toolRegistry: ToolExecutorLike;
+  let callLLM: ReturnType<typeof vi.fn<ToolLoopDeps["callLLM"]>>;
+  let autoCompact: ReturnType<typeof vi.fn<ToolLoopDeps["autoCompact"]>>;
+  let deps: ToolLoopDeps;
+  let orchestrator: ToolLoopOrchestrator;
+  let sendEvent: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    chatRepo = makeFakeChatRepo();
+    toolRegistry = makeFakeToolRegistry();
+    callLLM = vi.fn();
+    autoCompact = vi.fn().mockResolvedValue(undefined);
+    deps = { callLLM, autoCompact };
+    orchestrator = new ToolLoopOrchestrator(deps, chatRepo);
+    sendEvent = vi.fn();
+  });
+
+  function baseParams(overrides: Record<string, unknown> = {}) {
+    return {
+      toolRegistry,
+      model: { ...MODEL, contextWindow: 1000 },
+      messages: [{ role: "user", content: "开始" }] as ChatRequest["messages"],
+      maxIterations: 10,
+      sendEvent: sendEvent as (event: ChatStreamEvent) => void,
+      signal: new AbortController().signal,
+      scriptToolCallback: null,
+      conversationId: "conv-1",
+      ...overrides,
+    };
+  }
+
+  it("上一轮 tool 结果把下一次请求撑爆时，应在发送前裁剪，而不是等 usage 反馈后再处理", async () => {
+    // 第 1 轮：无 usage 反馈（模拟未携带 usage 的响应），但工具返回一段远超上下文窗口的巨大结果。
+    // 若没有“发送前预算检查”，第 2 轮请求会直接带着这段巨大文本发出去。
+    const hugeResult = "巨大的工具结果".repeat(2000);
+    toolRegistry = {
+      getDefinitions: () => [{ name: "dup", description: "dup", parameters: { type: "object", properties: {} } }],
+      execute: async (toolCalls: ToolCall[]): Promise<ToolExecuteResult[]> =>
+        toolCalls.map((tc) => ({ id: tc.id, result: hugeResult })),
+    };
+    deps = { callLLM, autoCompact };
+    orchestrator = new ToolLoopOrchestrator(deps, chatRepo);
+
+    callLLM
+      .mockResolvedValueOnce({ content: "", toolCalls: [{ id: "c1", name: "dup", arguments: "{}" }] } as LLMCallResult)
+      .mockImplementationOnce(async (_model, request) => {
+        // 第 2 次请求发出前应已裁剪掉巨大的 tool 结果
+        const toolMsg = request.messages.find((m) => m.role === "tool");
+        expect(toolMsg?.content).not.toBe(hugeResult);
+        return finalTextResult("done");
+      });
+
+    await orchestrator.callLLMWithToolLoop(baseParams({ toolRegistry }));
+
+    expect(callLLM).toHaveBeenCalledTimes(2);
+  });
+});

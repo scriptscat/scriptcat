@@ -26,6 +26,8 @@ import { t } from "@App/locales/locales";
 // 上下文占用达到这些比例时，分批裁剪保留窗口外的旧 tool 结果（早于 autoCompact 的 80% 阈值）。
 // 按阈值分批触发，并在 60% 以上每新增一个保留窗口重新裁剪，兼顾真正的滑动窗口与 prompt cache 稳定性。
 const ELISION_THRESHOLDS = [0.4, 0.6];
+// 发送前预算检查的安全阈值：估算的下一次请求体积达到该比例时才触发裁剪/拒绝，避免与 0.9 的硬预算基准脱节
+const PREFLIGHT_BUDGET_RATIO = 0.9;
 // 保留最近几轮 assistant(带 toolCalls) 及其 tool 结果的完整原文，更早的轮次被裁剪为占位文本
 const ELISION_KEEP_LAST_ASSISTANT_TURNS = 5;
 
@@ -107,6 +109,47 @@ export class ToolLoopOrchestrator {
     private chatRepo: AgentChatRepo
   ) {}
 
+  /** 上下文即使裁剪到底也无法容纳下一次请求时，落库 + 通知 UI + （可选）抛出结构化错误。 */
+  private async emitContextTooLarge(
+    conversationId: string | undefined,
+    totalUsage: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationInputTokens: number;
+      cacheReadInputTokens: number;
+    },
+    startTime: number,
+    sendEvent: (event: ChatStreamEvent) => void,
+    throwOnTerminalError?: boolean
+  ): Promise<void> {
+    const error = Object.assign(new Error("Conversation history exceeds the model context window"), {
+      errorCode: "context_too_large",
+      usage: totalUsage,
+      durationMs: Date.now() - startTime,
+      conversationId,
+    });
+    if (conversationId) {
+      await this.chatRepo.appendMessage({
+        id: uuidv4(),
+        conversationId,
+        role: "assistant",
+        content: "",
+        error: error.message,
+        errorCode: error.errorCode,
+        durationMs: error.durationMs,
+        createtime: Date.now(),
+      });
+    }
+    sendEvent({
+      type: "error",
+      message: error.message,
+      errorCode: error.errorCode,
+      usage: error.usage,
+      durationMs: error.durationMs,
+    });
+    if (throwOnTerminalError) throw error;
+  }
+
   // 统一的 tool calling 循环，UI 和脚本共用
   async callLLMWithToolLoop(params: {
     // 本次调用使用的工具注册表（SessionToolRegistry 或 ToolRegistry）
@@ -161,7 +204,7 @@ export class ToolLoopOrchestrator {
     const messages = rehydratedHistory ? inputMessages.map((message) => ({ ...message })) : inputMessages;
     if (rehydratedHistory) {
       const initialTools = params.skipBuiltinTools ? tools || [] : toolRegistry.getDefinitions(tools);
-      const estimatedInputTokens = estimateRequestTokens(messages, initialTools, attachmentSizes);
+      const estimatedInputTokens = estimateRequestTokens(messages, initialTools, attachmentSizes, model);
       const estimatedUsageRatio = estimatedInputTokens / getContextWindow(model);
       if (estimatedUsageRatio >= ELISION_THRESHOLDS[0]) {
         const withinBudget = elideUntilWithinBudget(
@@ -169,35 +212,11 @@ export class ToolLoopOrchestrator {
           getContextWindow(model),
           initialTools,
           0.9,
-          attachmentSizes
+          attachmentSizes,
+          model
         );
         if (!withinBudget) {
-          const error = Object.assign(new Error("Conversation history exceeds the model context window"), {
-            errorCode: "context_too_large",
-            usage: totalUsage,
-            durationMs: Date.now() - startTime,
-            conversationId,
-          });
-          if (conversationId) {
-            await this.chatRepo.appendMessage({
-              id: uuidv4(),
-              conversationId,
-              role: "assistant",
-              content: "",
-              error: error.message,
-              errorCode: error.errorCode,
-              durationMs: error.durationMs,
-              createtime: Date.now(),
-            });
-          }
-          sendEvent({
-            type: "error",
-            message: error.message,
-            errorCode: error.errorCode,
-            usage: error.usage,
-            durationMs: error.durationMs,
-          });
-          if (throwOnTerminalError) throw error;
+          await this.emitContextTooLarge(conversationId, totalUsage, startTime, sendEvent, throwOnTerminalError);
           return;
         }
       }
@@ -222,6 +241,26 @@ export class ToolLoopOrchestrator {
       if (params.excludeTools && params.excludeTools.length > 0) {
         const excludeSet = new Set(params.excludeTools);
         allToolDefs = allToolDefs.filter((t) => !excludeSet.has(t.name));
+      }
+
+      // 发送前预算检查：用上一轮真实 usage 判断是否需要裁剪只在响应之后生效，
+      // 无法覆盖“上一轮新追加的 tool 结果单独撑爆下一次请求”的情况，必须在这里对
+      // 即将发出的完整请求（messages + 当前工具定义）做一次独立估算。
+      const contextWindow = getContextWindow(model);
+      const preflightTokens = estimateRequestTokens(messages, allToolDefs, attachmentSizes, model);
+      if (preflightTokens / contextWindow >= PREFLIGHT_BUDGET_RATIO) {
+        const withinBudget = elideUntilWithinBudget(
+          messages,
+          contextWindow,
+          allToolDefs,
+          PREFLIGHT_BUDGET_RATIO,
+          attachmentSizes,
+          model
+        );
+        if (!withinBudget) {
+          await this.emitContextTooLarge(conversationId, totalUsage, startTime, sendEvent, throwOnTerminalError);
+          return;
+        }
       }
 
       // 调用 LLM（重试由 llm_client 内部处理）
@@ -259,7 +298,6 @@ export class ToolLoopOrchestrator {
       let pendingElision = false;
       let contextUsageRatio: number | null = null;
       if (result.usage && conversationId) {
-        const contextWindow = getContextWindow(model);
         contextUsageRatio = getContextInputTokens(model, result.usage) / contextWindow;
 
         if (contextUsageRatio >= 0.8) {
