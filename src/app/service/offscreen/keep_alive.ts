@@ -13,6 +13,9 @@ export const onServiceWorkerStarted = (sw: ServiceWorkerGlobalScope) => {
   selfSw = sw;
 };
 
+// 使用扩展 ID 派生的探测域名，避免访问真实站点；请求是否最终成功并不重要。
+const getKeepAliveProbeUrl = () => `https://--extensions-${chrome.runtime.getURL("/dummy_image.png").split("//")[1]}`;
+
 // API 不可用时直接关闭实验，避免引入另一套行为不一致的计时路径。
 const nativeScheduler =
   //@ts-ignore
@@ -40,48 +43,65 @@ const nativeScheduler =
 
 const boolFirefox = isFirefox();
 
+// 期望每个 blocking request 保持未完成的时间。
+const KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS = 10_000;
+// 实际往返过短说明 listener 未阻塞请求（通常是权限缺失或请求提前失败）；
+// 此时停止后续探测，避免失败请求形成紧密循环。
+const KEEP_ALIVE_MIN_ROUND_TRIP_TO_CONTINUE_MS = 5_000;
+const KEEP_ALIVE_MAX_PROBE_DELAY_MS = 120_000;
+
+const createKeepAliveProbeLoop = (keepAliveProbeUrl: string) => {
+  let enabled = false;
+  let probeStartedAt: number;
+
+  const onKeepAliveProbeSettled = function (this: HTMLImageElement) {
+    this.remove();
+    // 只有请求确实被阻塞了足够久才继续下一轮；过快结束时停止，避免忙循环。
+    if (!enabled || Date.now() - probeStartedAt < KEEP_ALIVE_MIN_ROUND_TRIP_TO_CONTINUE_MS) return;
+    sendKeepAliveProbe();
+  } as any;
+
+  // 发起一次探测请求，作为心跳循环的一拍
+  function sendKeepAliveProbe() {
+    const image = new Image(1, 1);
+    probeStartedAt = Date.now();
+
+    image.onload = onKeepAliveProbeSettled;
+    image.onerror = onKeepAliveProbeSettled;
+
+    image.src = `${keepAliveProbeUrl}?__network_delay=${KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS}&t=${probeStartedAt}`;
+    document.documentElement.appendChild(image);
+  }
+
+  return {
+    start() {
+      if (enabled) return;
+      enabled = true;
+      sendKeepAliveProbe();
+    },
+    stop() {
+      enabled = false;
+    },
+    isEnabled() {
+      return enabled;
+    },
+  };
+};
+
 export const startFirefoxEventPageKeepAliveLoop =
   boolFirefox && process.env.SC_KEEP_EVENT_PAGE_ACTIVE !== "false" && nativeScheduler
     ? () => {
         let running = false;
-        let enabled = false;
-
-        // 期望每个 blocking request 保持未完成的时间。
-        const DEFAULT_PROBE_DELAY_MS = 10_000;
-        const MAX_PROBE_DELAY_MS = 120_000;
-        // 实际往返过短说明 listener 未阻塞请求（通常是权限缺失或请求提前失败）；
-        // 此时停止后续探测，避免失败请求形成紧密循环。
-        const MIN_ROUND_TRIP_TO_CONTINUE_MS = 5_000;
-
         // 使用扩展 ID 派生的探测域名，避免访问真实站点；请求是否最终成功并不重要。
-        const keepAliveProbeUrl = `https://--extensions-${chrome.runtime.getURL("/dummy_image.png").split("//")[1]}`;
+        const keepAliveProbeUrl = getKeepAliveProbeUrl();
+        const keepAlive = createKeepAliveProbeLoop(keepAliveProbeUrl);
         const keepAliveProbeOrigin = new URL(keepAliveProbeUrl).origin;
 
-        let probeStartedAt: number;
-
-        // 只有请求确实被阻塞了足够久才继续下一轮；过快结束时停止，避免权限缺失导致忙循环。
-        const onKeepAliveProbeSettled = function (this: HTMLImageElement) {
-          this.remove();
-          if (!enabled || Date.now() - probeStartedAt < MIN_ROUND_TRIP_TO_CONTINUE_MS) return;
-          sendKeepAliveProbe();
-        } as any;
-
-        // 发起一次探测请求，作为心跳循环的一拍
-        const sendKeepAliveProbe = () => {
-          const image = new Image(1, 1);
-          probeStartedAt = Date.now();
-
-          image.onload = onKeepAliveProbeSettled;
-
-          image.onerror = onKeepAliveProbeSettled;
-
-          image.src = `${keepAliveProbeUrl}?__network_delay=${DEFAULT_PROBE_DELAY_MS}&t=${probeStartedAt}`;
-          document.documentElement.appendChild(image);
-        };
-
         const startLoop = () => {
-          enabled = true;
-          if (running) return;
+          if (running) {
+            keepAlive.start();
+            return;
+          }
           running = true;
 
           // blocking listener 只处理带延迟标记的探测请求，并在 delayMs 后放行。
@@ -93,7 +113,7 @@ export const startFirefoxEventPageKeepAliveLoop =
                 console.error("chrome.runtime.lastError in chrome.webRequest.onBeforeRequest:", lastError);
               }
 
-              if (!enabled || !details.url.includes(keepAliveProbeUrl)) {
+              if (!keepAlive.isEnabled() || !details.url.includes(keepAliveProbeUrl)) {
                 return {};
               }
               const url = new URL(details.url);
@@ -106,8 +126,8 @@ export const startFirefoxEventPageKeepAliveLoop =
               const requestedDelay = Number(url.searchParams.get("__network_delay"));
 
               const delayMs = Number.isFinite(requestedDelay)
-                ? Math.max(0, Math.min(requestedDelay, MAX_PROBE_DELAY_MS))
-                : DEFAULT_PROBE_DELAY_MS;
+                ? Math.max(0, Math.min(requestedDelay, KEEP_ALIVE_MAX_PROBE_DELAY_MS))
+                : KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS;
 
               return new Promise((resolve) => {
                 // user-visible 优先级用于尽量减少后台页面降频；它不保证 event page 永久存活。
@@ -127,7 +147,7 @@ export const startFirefoxEventPageKeepAliveLoop =
             ["blocking"]
           );
 
-          sendKeepAliveProbe();
+          keepAlive.start();
         };
 
         // 必须在事件页首个同步回合注册；权限移除时立即关闭探测并保留监听器以便重新授权。
@@ -146,7 +166,7 @@ export const startFirefoxEventPageKeepAliveLoop =
             console.error("chrome.runtime.lastError in chrome.permissions.onRemoved:", lastError);
             return;
           }
-          if (permissions.permissions?.includes("webRequestBlocking")) enabled = false;
+          if (permissions.permissions?.includes("webRequestBlocking")) keepAlive.stop();
         });
 
         void chrome.permissions.contains({ permissions: ["webRequestBlocking"] }).then((granted) => {
@@ -154,12 +174,6 @@ export const startFirefoxEventPageKeepAliveLoop =
         });
       }
     : () => {};
-
-// SW 与 offscreen 共用同一条探测 URL 及延迟上限，两端各自独立计算，避免跨上下文传递闭包状态。
-const KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS = 10_000;
-const KEEP_ALIVE_MAX_PROBE_DELAY_MS = 120_000;
-
-const getKeepAliveProbeUrl = () => `https://--extensions-${chrome.runtime.getURL("/dummy_image.png").split("//")[1]}`;
 
 /**
  * Chrome MV3 service worker 保活实验：仅注册 ServiceWorkerGlobalScope 事件。
@@ -283,42 +297,17 @@ export const hookServiceWorkerKeepAliveLoop = (
 export const startChromeOffscreenKeepAliveLoop =
   !boolFirefox && nativeScheduler
     ? () => {
-        let enabled = false;
-
         // 实际往返过短说明请求未被 SW 端延迟（通常是 fetch 监听器未注册或请求提前失败）；
         // 此时停止后续探测，避免失败请求形成紧密循环。
-        const MIN_ROUND_TRIP_TO_CONTINUE_MS = 5_000;
-
         const keepAliveProbeUrl = getKeepAliveProbeUrl();
-
-        let probeStartedAt: number;
-
-        // 只有请求确实被阻塞了足够久才继续下一轮；过快结束或已被禁用时停止，避免忙循环。
-        const onKeepAliveProbeSettled = function (this: HTMLImageElement) {
-          this.remove();
-          if (!enabled || Date.now() - probeStartedAt < MIN_ROUND_TRIP_TO_CONTINUE_MS) return;
-          sendKeepAliveProbe();
-        } as any;
-
-        // 发起一次探测请求，作为心跳循环的一拍
-        const sendKeepAliveProbe = () => {
-          const image = new Image(1, 1);
-          probeStartedAt = Date.now();
-
-          image.onload = onKeepAliveProbeSettled;
-
-          image.onerror = onKeepAliveProbeSettled;
-
-          image.src = `${keepAliveProbeUrl}?__network_delay=${KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS}&t=${probeStartedAt}`;
-          document.documentElement.appendChild(image);
-        };
+        const keepAlive = createKeepAliveProbeLoop(keepAliveProbeUrl);
 
         return (val: boolean) => {
-          const wasEnabled = enabled;
-          enabled = val;
-          if (enabled && !wasEnabled) {
-            sendKeepAliveProbe();
+          if (val) {
+            keepAlive.start();
+            return;
           }
+          keepAlive.stop();
         };
       }
     : () => (_val: boolean) => {};
