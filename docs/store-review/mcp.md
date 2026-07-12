@@ -51,10 +51,12 @@ is a two-phase pending operation bound to the exact content hash and target stat
 
 ## 4. Consent surfaces
 
-- **Pairing dialog** (`src/pages/mcp_confirm/App.tsx`, `McpPairingView`): client name, an 8-character
-  verification code the user cross-checks against the client's own terminal output, and a
-  scope checklist — read scopes pre-checked only if requested, write scopes and source-read always
-  unchecked by default.
+- **Pairing dialog**: client name, an 8-character verification code the user cross-checks against
+  the client's own terminal output, and a scope checklist — read scopes pre-checked only if
+  requested, write scopes and source-read always unchecked by default. Rendered in-page
+  (`McpPairingDialog`, `src/pages/options/routes/Tools/sections/`) when the options tab is already
+  open, or as a focused popup (`McpPairingView`, `src/pages/mcp_confirm/App.tsx`) otherwise —
+  `McpController` checks for an open options tab before deciding which.
 - **Install approval banner** (`src/pages/install/components/McpBanner.tsx`): requesting client name,
   source (URL host or "raw code"), content SHA-256, and an explicit "installs disabled unless you
   enable it below" note, on the existing `install.html` review page.

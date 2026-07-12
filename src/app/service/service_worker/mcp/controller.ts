@@ -123,12 +123,18 @@ export class McpController {
 
   private onPairRequest(payload: PairRequestPayload): void {
     this.pendingPairing = { ...payload, expiresAt: Date.now() + PAIRING_TTL_MS };
+    // The mcpPairingRequested broadcast reaches every open extension page, including an
+    // already-open options tab — McpSection subscribes and renders an in-page Dialog itself
+    // (doc 05 §5.4 "if the options page is open, show dialog in place"). This publish is what
+    // drives that; the popup below is only opened as a fallback when no options tab is open.
     this.mq.publish(McpPairingRequested, { pairingId: payload.pairingId });
-    // doc 05 §5.4 also shows an in-page dialog when the options page is already open; this
-    // commit always opens the focused mcp_confirm popup instead, since detecting an open
-    // options tab needs its own chrome.tabs plumbing with no security benefit over the popup —
-    // deliberately deferred rather than building a second surface for the same decision.
-    void openInCurrentTab(`src/mcp_confirm.html?pairing=${payload.pairingId}`);
+    void this.openPairingPopupUnlessOptionsPageOpen(payload.pairingId);
+  }
+
+  private async openPairingPopupUnlessOptionsPageOpen(pairingId: string): Promise<void> {
+    const optionsTabs = await chrome.tabs.query({ url: chrome.runtime.getURL("src/options.html") + "*" });
+    if (optionsTabs.length > 0) return;
+    await openInCurrentTab(`src/mcp_confirm.html?pairing=${pairingId}`);
   }
 
   private async onClientSync(clients: ClientSyncPayload): Promise<void> {

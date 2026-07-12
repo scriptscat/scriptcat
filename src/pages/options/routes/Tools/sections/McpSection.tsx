@@ -15,12 +15,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@App/pages/components/ui/dialog";
-import { systemConfig, message } from "@App/pages/store/global";
+import { systemConfig, message, subscribeMessage } from "@App/pages/store/global";
 import { MCPClient } from "@App/app/service/service_worker/client";
 import type { McpClient, McpAuditEvent } from "@App/app/repo/mcp";
 import type { McpBridgeStatus } from "@App/app/service/service_worker/mcp/types";
 import { semTime } from "@App/locales/relative-date";
 import { notify } from "@App/pages/components/ui/toast";
+import { McpPairingDialog } from "./McpPairingDialog";
 
 let mcpClientInstance: MCPClient | undefined;
 function getMcpClient(): MCPClient {
@@ -61,6 +62,7 @@ export function McpSection({ register }: { register: (id: string) => (el: HTMLEl
   const [clients, setClients] = useState<McpClient[]>([]);
   const [auditEvents, setAuditEvents] = useState<McpAuditEvent[]>([]);
   const [showEnableDialog, setShowEnableDialog] = useState(false);
+  const [pendingPairingId, setPendingPairingId] = useState<string>();
 
   const applyMcpState = (data: { status: McpBridgeStatus; clients: McpClient[]; audit: McpAuditEvent[] }) => {
     setStatus(data.status);
@@ -75,6 +77,15 @@ export function McpSection({ register }: { register: (id: string) => (el: HTMLEl
   useEffect(() => {
     void Promise.resolve(systemConfig.get("mcp_enabled")).then((v) => setEnabled(Boolean(v)));
     void fetchMcpState().then(applyMcpState);
+  }, []);
+
+  // In-page pairing dialog (doc 05 §5.4): McpController only skips its own popup when an options
+  // tab is already open, so this page is the one responsible for rendering the decision surface
+  // in that case — it must listen for the broadcast itself.
+  useEffect(() => {
+    return subscribeMessage<{ pairingId: string }>("mcpPairingRequested", (data) => {
+      setPendingPairingId(data.pairingId);
+    });
   }, []);
 
   const handleEnableToggle = (checked: boolean) => {
@@ -293,6 +304,16 @@ export function McpSection({ register }: { register: (id: string) => (el: HTMLEl
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {pendingPairingId && (
+        <McpPairingDialog
+          pairingId={pendingPairingId}
+          onClose={() => {
+            setPendingPairingId(undefined);
+            void refresh();
+          }}
+        />
+      )}
     </SettingCard>
   );
 }

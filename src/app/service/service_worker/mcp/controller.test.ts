@@ -183,6 +183,66 @@ describe("McpController", () => {
     await vi.waitFor(() => expect(events).toContainEqual({ pairingId: "pair-1" }));
   });
 
+  it("options 页面未打开时，pair.request 会打开 mcp_confirm 弹窗（doc 05 §5.4 兜底路径）", async () => {
+    const queryMock = vi.fn().mockResolvedValue([]);
+    (chrome.tabs as any).query = queryMock;
+    const createMock = vi.fn().mockResolvedValue({ id: 42 });
+    (chrome.tabs as any).create = createMock;
+    (chrome.tabs as any).get = vi.fn().mockResolvedValue(undefined);
+
+    const controller = makeController();
+    await controller.initialize();
+    systemConfig.setMcpEnabled(true);
+    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
+
+    ports[0].__emitMessage({
+      v: 1,
+      type: "pair.request",
+      requestId: "p1",
+      payload: {
+        pairingId: "pair-1",
+        clientName: "Claude Desktop",
+        requestedScopes: ["scripts:list"],
+        code: "ABCD1234",
+      },
+    });
+
+    await vi.waitFor(() => expect(createMock).toHaveBeenCalled());
+    const createArgs = createMock.mock.calls[0][0];
+    expect(createArgs.url).toContain("src/mcp_confirm.html?pairing=pair-1");
+  });
+
+  it("options 页面已打开时，pair.request 不再打开弹窗——只广播供页面内 Dialog 消费（doc 05 §5.4）", async () => {
+    const queryMock = vi.fn().mockResolvedValue([{ id: 7, url: "chrome-extension://abc/src/options.html" }]);
+    (chrome.tabs as any).query = queryMock;
+    const createMock = vi.fn().mockResolvedValue({ id: 42 });
+    (chrome.tabs as any).create = createMock;
+
+    const controller = makeController();
+    await controller.initialize();
+    systemConfig.setMcpEnabled(true);
+    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
+
+    const events: unknown[] = [];
+    mq.subscribe("mcpPairingRequested", (data) => events.push(data));
+
+    ports[0].__emitMessage({
+      v: 1,
+      type: "pair.request",
+      requestId: "p1",
+      payload: {
+        pairingId: "pair-1",
+        clientName: "Claude Desktop",
+        requestedScopes: ["scripts:list"],
+        code: "ABCD1234",
+      },
+    });
+
+    await vi.waitFor(() => expect(events).toContainEqual({ pairingId: "pair-1" }));
+    await vi.waitFor(() => expect(queryMock).toHaveBeenCalled());
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
   it("配对超过 2 分钟 TTL 后 getPendingPairing 返回 undefined", async () => {
     vi.useFakeTimers();
     const controller = makeController();

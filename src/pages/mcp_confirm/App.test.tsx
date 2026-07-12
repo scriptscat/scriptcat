@@ -40,6 +40,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(window, "close").mockImplementation(() => {});
   decideOperation.mockResolvedValue(undefined);
+  decidePairing.mockResolvedValue(undefined);
   findInfo.mockResolvedValue({ uuid: "script-uuid-1", name: "自动签到脚本" });
   getPendingPairing.mockResolvedValue(undefined);
 });

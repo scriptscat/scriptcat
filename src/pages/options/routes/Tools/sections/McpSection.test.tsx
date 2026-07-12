@@ -23,8 +23,36 @@ vi.mock("@App/app/service/service_worker/client", () => ({
   },
 }));
 
-const { get, set } = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
-vi.mock("@App/pages/store/global", () => ({ systemConfig: { get, set }, message: {} }));
+const { get, set, subscribeMessage, pairingHandlers } = vi.hoisted(() => {
+  const pairingHandlers: Array<(data: { pairingId: string }) => void> = [];
+  return {
+    get: vi.fn(),
+    set: vi.fn(),
+    subscribeMessage: vi.fn((topic: string, handler: (data: any) => void) => {
+      if (topic === "mcpPairingRequested") pairingHandlers.push(handler);
+      return () => {};
+    }),
+    pairingHandlers,
+  };
+});
+vi.mock("@App/pages/store/global", () => ({ systemConfig: { get, set }, message: {}, subscribeMessage }));
+
+// McpPairingDialog (rendered by McpSection when a pairing is pending) pulls in
+// @App/pages/mcp_confirm/usePendingPairing.ts, which imports @App/pages/store/features/script —
+// a module that constructs real Client instances (ScriptClient, etc.) from
+// @App/app/service/service_worker/client, whose mock above doesn't export them. Mocking the
+// feature-store module directly (matching mcp_confirm/App.test.tsx's own convention) avoids that
+// transitive construction without widening the client mock for an unrelated test file.
+vi.mock("@App/pages/mcp_confirm/usePendingPairing", () => ({
+  usePendingPairing: vi.fn(() => ({
+    pairing: undefined,
+    loadError: false,
+    selected: new Set(),
+    secondsLeft: 0,
+    decide: vi.fn(),
+    toggleScope: vi.fn(),
+  })),
+}));
 
 import { McpSection } from "./McpSection";
 
@@ -39,6 +67,7 @@ afterEach(() => {
   revokeClient.mockClear();
   revokeAllAndStop.mockClear();
   clearAudit.mockClear();
+  pairingHandlers.length = 0;
 });
 
 describe("MCP 桥接分区", () => {
@@ -130,5 +159,18 @@ describe("MCP 桥接分区", () => {
     fireEvent.click(await screen.findByRole("button", { name: /confirm/i }));
     await waitFor(() => expect(revokeAllAndStop).toHaveBeenCalled());
     expect(set).toHaveBeenCalledWith("mcp_enabled", false);
+  });
+
+  it("订阅 mcpPairingRequested 广播，收到后渲染页面内配对对话框（doc 05 §5.4）", async () => {
+    get.mockResolvedValue(true);
+    render(<McpSection register={() => () => {}} />);
+    await screen.findByTestId("mcp_enable_switch");
+    expect(subscribeMessage).toHaveBeenCalledWith("mcpPairingRequested", expect.any(Function));
+    expect(screen.queryByTestId("mcp-pairing-dialog")).not.toBeInTheDocument();
+
+    act(() => {
+      pairingHandlers.forEach((handler) => handler({ pairingId: "pair-1" }));
+    });
+    expect(await screen.findByTestId("mcp-pairing-dialog")).toBeInTheDocument();
   });
 });
