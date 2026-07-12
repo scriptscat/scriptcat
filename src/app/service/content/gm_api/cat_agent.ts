@@ -124,6 +124,9 @@ function mergeTools(this: Instance, callTools?: Array<any>) {
 
 function processChat(this: Instance, conn: MessageConnect, handlers: Map<string, ToolHandler>): Promise<ChatReply> {
   return new Promise((resolve, reject) => {
+    // 部分实现的 disconnect() 会同步触发 onDisconnect，若在 resolve/reject 之前调用会被
+    // "Connection disconnected" 抢先 reject；用 settled 标记确保只有第一次终态判定生效。
+    let settled = false;
     let content = "";
     let thinking = "";
     let blocks: ContentBlock[] = [];
@@ -212,7 +215,7 @@ function processChat(this: Instance, conn: MessageConnect, handlers: Map<string,
         case "done":
           usage = event.usage;
           durationMs = event.durationMs;
-          conn.disconnect();
+          settled = true;
           resolve({
             content: finishRound(false),
             thinking: thinking || undefined,
@@ -220,14 +223,20 @@ function processChat(this: Instance, conn: MessageConnect, handlers: Map<string,
             usage,
             durationMs,
           });
+          conn.disconnect();
           break;
         case "error":
-          conn.disconnect();
+          settled = true;
           reject(Object.assign(new Error(event.message), event));
+          conn.disconnect();
           break;
       }
     });
-    conn.onDisconnect(() => reject(new Error("Connection disconnected")));
+    conn.onDisconnect(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error("Connection disconnected"));
+    });
   });
 }
 
