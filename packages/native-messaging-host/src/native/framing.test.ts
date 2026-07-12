@@ -37,7 +37,7 @@ describe("FramingDecoder - 4 字节小端长度前缀分帧", () => {
     expect(decoder.push(frame.subarray(2))).toEqual([{ ok: true, value: { tiny: 1 } }]);
   });
 
-  it("超大帧（一次性到达完整体）只丢弃该帧，不影响后续帧 —— 回归 prelim 的 buf 清空 bug", () => {
+  it("超大帧（一次性到达完整体）只丢弃该帧，不影响后续帧 —— 回归内部缓冲区被整体清空导致后续帧丢失的 bug", () => {
     const decoder = new FramingDecoder(MAX);
     const oversizeBody = Buffer.from(JSON.stringify({ big: "x".repeat(MAX + 100) }), "utf-8");
     const header = Buffer.alloc(4);

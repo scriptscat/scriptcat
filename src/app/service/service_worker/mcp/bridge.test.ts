@@ -276,7 +276,7 @@ describe("McpBridge", () => {
     if (!response.ok) expect(response.error.code).toBe("NOT_FOUND");
   });
 
-  describe("VALIDATORS：每个 action 的输入允许列表拒绝非对象与未知字段（doc 03 §1, doc 08 §2）", () => {
+  describe("VALIDATORS：每个 action 的输入允许列表拒绝非对象与未知字段", () => {
     const actionsWithSampleValidInput: Array<[BridgeAction, Record<string, unknown>]> = [
       ["scripts.list", {}],
       ["scripts.metadata.get", { uuid: uuidv4() }],

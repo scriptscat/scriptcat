@@ -3,9 +3,9 @@ import * as hostProtocol from "@Packages/native-messaging-host/src/shared/protoc
 import * as extTypes from "./types";
 
 // The host package (packages/native-messaging-host) and the extension do not share a build
-// graph — types.ts is an independently maintained mirror of protocol.ts (doc 03 §1: "all
-// identifiers here are normative"). This test is the drift guard: any protocol change made on
-// one side without the other fails here instead of silently desyncing at runtime.
+// graph — types.ts is an independently maintained mirror of protocol.ts, and both are meant to
+// be normative for their respective sides. This test is the drift guard: any protocol change
+// made on one side without the other fails here instead of silently desyncing at runtime.
 describe("MCP 协议一致性 - 两侧独立副本必须同步", () => {
   it("PROTOCOL_VERSION 一致", () => {
     expect(extTypes.PROTOCOL_VERSION).toBe(hostProtocol.PROTOCOL_VERSION);
@@ -52,10 +52,11 @@ describe("MCP 协议一致性 - 两侧独立副本必须同步", () => {
   });
 
   it("ID 生成约定：本规范不允许顺序/可预测 ID（协议本身不生成 ID，仅作为文档化断言存在）", () => {
-    // Sequential IDs (e.g. "session_1") are forbidden by doc 03 §1 and doc 04 asset A3/A7.
-    // This is a documentation-anchoring test: real randomness is exercised in the host's
-    // auth/pairing tests (doc 08 §6) once that code exists; here we just assert the schema
-    // types model IDs as opaque strings, not numeric/sequential fields.
+    // Sequential IDs (e.g. "session_1") are forbidden — every ID (requestId, operationId,
+    // clientId, session nonces) must be cryptographically random. This is a
+    // documentation-anchoring test: real randomness is exercised in the host package's own
+    // auth/pairing tests (packages/native-messaging-host/src/auth/*.test.ts); here we just
+    // assert the schema types model IDs as opaque strings, not numeric/sequential fields.
     const sampleRequest: hostProtocol.McpBridgeRequest = {
       requestId: "test-id",
       protocolVersion: hostProtocol.PROTOCOL_VERSION,

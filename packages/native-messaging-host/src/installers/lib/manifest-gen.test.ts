@@ -73,7 +73,7 @@ describe("generateManifest - 类型化 manifest 生成", () => {
     expect(result.reason).toContain("INVALID_EXTENSION_ID");
   });
 
-  it("prelim 默认扩展 ID 被拒绝，不能被安装器复现该缺陷", () => {
+  it("看似合法但含 a-p 之外字符的 ID 非法（如 fomrtutthjerocmw，其中 r/t/u/w 超出 a-p 范围），不能被安装器复现该缺陷", () => {
     const result = generateManifest({ extensionIds: ["fomrtutthjerocmw"], hostExecutablePath: "/bin/host" });
     expect(result.ok).toBe(false);
   });

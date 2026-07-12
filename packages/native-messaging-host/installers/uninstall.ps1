@@ -1,5 +1,5 @@
-# ScriptCat native-messaging-host uninstaller — Windows (doc 06 §5). Removes registry keys and
-# files, leaving nothing stale.
+# ScriptCat native-messaging-host uninstaller — Windows. Removes registry keys and files,
+# leaving nothing stale.
 
 $ErrorActionPreference = "Stop"
 

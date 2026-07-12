@@ -467,7 +467,7 @@ describe("McpApprovalService", () => {
     });
   });
 
-  describe("checkSourceDisclosure - 首次读取源码的按客户端一次性/永久同意（doc 02 §4.2, doc 07 §5）", () => {
+  describe("checkSourceDisclosure - 首次读取源码的按客户端一次性/永久同意", () => {
     async function seedScript(uuid: string) {
       await scriptDAO.save({
         uuid,

@@ -143,10 +143,12 @@ export default {
       "process.env.SC_DISABLE_AGENT": `'${enableAgent ? "false" : "true"}'`,
       "process.env.SC_ENABLE_MCP": `'${enableMCP ? "true" : "false"}'`,
     }),
-    // Deterministic store-build exclusion for MCP UI (doc 05 §1.3, doc 08 §5): JSX-conditional
-    // tree-shaking across module boundaries isn't reliable enough on its own to keep
-    // McpSection's code (and its transitive MCPClient/mcp-repo-type imports) out of a shared
-    // options-page chunk, so swap in a trivial stub at resolution time instead when MCP is off.
+    // Deterministic store-build exclusion for MCP UI: JSX-conditional tree-shaking across module
+    // boundaries isn't reliable enough on its own to keep McpSection's code (and its transitive
+    // MCPClient/mcp-repo-type imports) out of a shared options-page chunk — verified by grepping
+    // the built store-profile bundle, which still showed McpSection's strings present when only
+    // a `{EnableMCP && ...}` render guard was relied on — so swap in a trivial stub at
+    // resolution time instead when MCP is off.
     ...(enableMCP
       ? []
       : [
@@ -218,7 +220,7 @@ export default {
       minify: true,
       chunks: ["confirm"],
     }),
-    // Store builds must not emit the mcp_confirm chunk/HTML at all (doc 05 §5.2).
+    // Store builds must not emit the mcp_confirm chunk/HTML at all.
     ...(enableMCP
       ? [
           new rspack.HtmlRspackPlugin({

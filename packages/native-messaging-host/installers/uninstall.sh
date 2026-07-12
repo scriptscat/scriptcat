@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ScriptCat native-messaging-host uninstaller — macOS & Linux (doc 06 §5). Removes every
+# ScriptCat native-messaging-host uninstaller — macOS & Linux. Removes every
 # manifest install.sh registered plus the versioned program files, leaving nothing stale.
 
 set -euo pipefail

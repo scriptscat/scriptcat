@@ -183,7 +183,7 @@ describe("McpController", () => {
     await vi.waitFor(() => expect(events).toContainEqual({ pairingId: "pair-1" }));
   });
 
-  it("options 页面未打开时，pair.request 会打开 mcp_confirm 弹窗（doc 05 §5.4 兜底路径）", async () => {
+  it("options 页面未打开时，pair.request 会打开 mcp_confirm 弹窗（兜底路径）", async () => {
     const queryMock = vi.fn().mockResolvedValue([]);
     (chrome.tabs as any).query = queryMock;
     const createMock = vi.fn().mockResolvedValue({ id: 42 });
@@ -212,7 +212,7 @@ describe("McpController", () => {
     expect(createArgs.url).toContain("src/mcp_confirm.html?pairing=pair-1");
   });
 
-  it("options 页面已打开时，pair.request 不再打开弹窗——只广播供页面内 Dialog 消费（doc 05 §5.4）", async () => {
+  it("options 页面已打开时，pair.request 不再打开弹窗——只广播供页面内 Dialog 消费", async () => {
     const queryMock = vi.fn().mockResolvedValue([{ id: 7, url: "chrome-extension://abc/src/options.html" }]);
     (chrome.tabs as any).query = queryMock;
     const createMock = vi.fn().mockResolvedValue({ id: 42 });

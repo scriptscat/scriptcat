@@ -1,5 +1,5 @@
-# ScriptCat native-messaging-host installer — Windows (doc: workspace/.ref-docs/
-# 06-native-host-and-installers.md §5). Never uses Invoke-Expression; every path is quoted.
+# ScriptCat native-messaging-host installer — Windows. Never uses Invoke-Expression; every path
+# is quoted.
 #
 # Usage: .\install.ps1 -ExtensionIds <id1>,<id2> [-Browsers chrome,edge]
 #        .\install.ps1 -Rollback
@@ -16,12 +16,11 @@ $ErrorActionPreference = "Stop"
 
 $ConfigDir = Join-Path $env:LOCALAPPDATA "ScriptCat\NativeHost"
 
-# -Rollback re-points each browser's registry entry back at the previous version's manifest file
-# (doc 06 §5 "Upgrades": "keep previous version dir for rollback (--rollback restores prior
-# manifest)"). Unlike the POSIX installer, Windows manifests live inside the versioned install
-# dir (manifest-<browser>.json) rather than at one fixed path per browser, so the previous
-# version's manifest was never overwritten by the upgrade — no regeneration needed, just
-# re-pointing the registry value. Does not delete the newer version's install dir.
+# -Rollback re-points each browser's registry entry back at the previous version's manifest
+# file. Unlike the POSIX installer, Windows manifests live inside the versioned install dir
+# (manifest-<browser>.json) rather than at one fixed path per browser, so the previous version's
+# manifest was never overwritten by the upgrade — no regeneration needed, just re-pointing the
+# registry value. Does not delete the newer version's install dir.
 if ($Rollback) {
     $MetadataPath = Join-Path $ConfigDir "install-metadata.json"
     if (-not (Test-Path $MetadataPath)) {
@@ -89,12 +88,12 @@ $InstallDir = Join-Path $ConfigDir $Version
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 Copy-Item -Path (Join-Path $PackageRoot "dist\*") -Destination $InstallDir -Recurse -Force
 
-# Restrict the config dir to the current user only (doc 04 §8 permission requirements — the
-# Windows equivalent of chmod 0700).
+# Restrict the config dir to the current user only — the Windows equivalent of chmod 0700.
 icacls "$ConfigDir" /inheritance:r /grant:r "$($env:USERNAME):(OI)(CI)F" | Out-Null
 
 # Pin the resolved node binary's absolute path in a launcher, rather than trusting whatever
-# "node" resolves to on the browser's PATH at connectNative time (PATH-hijack guard, doc 06 §6).
+# "node" resolves to on the browser's PATH at connectNative time — a PATH-hijack guard: a
+# malicious "node" earlier on PATH must not be able to intercept the browser's launch.
 $NodeCommand = Get-Command node -ErrorAction Stop
 $NodePath = $NodeCommand.Source
 $Launcher = Join-Path $InstallDir "launch-host.cmd"
@@ -111,7 +110,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# doc 04 §3 defense in depth: the host re-verifies the caller origin against its own config,
+# Defense in depth: the host re-verifies the caller origin against its own config at startup,
 # never trusting the registry-registered manifest's allowed_origins alone.
 $HostConfigPath = Join-Path $ConfigDir "config.json"
 $ExistingConfig = if (Test-Path $HostConfigPath) { Get-Content -Raw $HostConfigPath | ConvertFrom-Json } else { @{ allowedOrigins = @() } }

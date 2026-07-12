@@ -53,10 +53,10 @@ export function generateManifest(params: { extensionIds: string[]; hostExecutabl
 }
 
 /**
- * Serializes to the exact bytes written to disk: UTF-8 without a byte-order mark. The prelim
- * committed manifest had a BOM, which breaks strict JSON parsers Chrome's manifest loader (and
- * some downstream tooling) may use — this function is the single place that formatting decision
- * is made, so nothing downstream can accidentally reintroduce it.
+ * Serializes to the exact bytes written to disk: UTF-8 without a byte-order mark. A BOM in the
+ * manifest breaks strict JSON parsers that Chrome's manifest loader (and some downstream tooling)
+ * may use — this function is the single place that formatting decision is made, so nothing
+ * downstream can accidentally reintroduce it.
  */
 export function serializeManifest(manifest: NativeMessagingManifest): string {
   // JSON.stringify never emits a BOM; Node's fs.writeFile with the default "utf8" encoding

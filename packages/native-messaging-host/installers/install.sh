@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-# ScriptCat native-messaging-host installer — macOS & Linux (doc: workspace/.ref-docs/
-# 06-native-host-and-installers.md §5). Never mutates anything inside the git checkout;
-# never uses eval on user input; every path is quoted.
+# ScriptCat native-messaging-host installer — macOS & Linux. Never mutates anything inside the
+# git checkout; never uses eval on user input; every path is quoted.
 #
 # Usage: install.sh --extension-id <32-char-id> [--extension-id <id> ...] [--browser chrome|edge|chromium|brave]
 #
-# Contract (doc 06 §5): copy versioned files -> generate manifest via `host.js --print-manifest`
-# (typed generation, never string replacement) -> atomic write (temp + rename) -> register per
-# browser (a manifest file in the right directory IS the registration on macOS/Linux — no
-# separate registry step, unlike Windows) -> verify (re-read, parse, compare) -> write
+# Contract: copy versioned files -> generate manifest via `host.js --print-manifest` (typed
+# generation, never string replacement) -> atomic write (temp + rename) -> register per browser
+# (a manifest file in the right directory IS the registration on macOS/Linux — no separate
+# registry step, unlike Windows) -> verify (re-read, parse, compare) -> write
 # install-metadata.json for uninstall/upgrade.
 
 set -euo pipefail
@@ -59,8 +58,8 @@ fi
 
 # --rollback restores the manifest(s) registered by the last install to point at the previous
 # version's launcher, using the extension IDs already embedded in each manifest's allowed_origins
-# — it does not require --extension-id and does not delete the newer version's install dir (doc
-# 06 §5 "Upgrades": "keep previous version dir for rollback (--rollback restores prior manifest)").
+# — it does not require --extension-id and does not delete the newer version's install dir (that
+# dir is what makes the rollback possible in the first place).
 if [[ "${ROLLBACK}" -eq 1 ]]; then
   METADATA_PATH="${CONFIG_DIR}/install-metadata.json"
   if [[ ! -f "${METADATA_PATH}" ]]; then
@@ -134,8 +133,8 @@ chmod 0700 "${CONFIG_DIR}"
 cp -R "${PACKAGE_ROOT}/dist/." "${INSTALL_DIR}/"
 
 # Pin the resolved node binary's absolute path in a launcher script, rather than trusting
-# whatever "node" resolves to on the browser's PATH at connectNative time (PATH-hijack guard,
-# doc 06 §6).
+# whatever "node" resolves to on the browser's PATH at connectNative time — this is a PATH-hijack
+# guard: a malicious "node" earlier on PATH must not be able to intercept the browser's launch.
 NODE_PATH="$(command -v node)"
 LAUNCHER="${INSTALL_DIR}/launch-host.sh"
 cat > "${LAUNCHER}" <<LAUNCHER_EOF
@@ -154,8 +153,7 @@ MANIFEST_JSON="$("${NODE_PATH}" "${INSTALL_DIR}/host.js" "${MANIFEST_ARGS[@]}")"
 # Deliberately not `declare -A` (bash 4+ only): macOS ships bash 3.2 as /bin/bash (and therefore
 # as whatever `#!/usr/bin/env bash` resolves to for most users) for licensing reasons and has not
 # upgraded it in over a decade, so an associative array here would fail this installer on stock
-# macOS — exactly the platform doc 06 §5 "macOS (install.sh)" targets. A case statement is
-# portable back to bash 3.x.
+# macOS — exactly the platform this script targets. A case statement is portable back to bash 3.x.
 browser_dir() {
   case "${OS}:$1" in
     macos:chrome) echo "${HOME}/Library/Application Support/Google/Chrome/NativeMessagingHosts" ;;
@@ -194,9 +192,9 @@ for browser in "${BROWSERS[@]}"; do
   echo "Registered for ${browser}: ${manifest_path}"
 done
 
-# The host independently re-verifies the caller origin against its OWN config at startup
-# (doc 04 §3 defense in depth) — it never trusts Chrome's manifest allowed_origins alone, so the
-# same extension IDs must also land in the host's own config.json.
+# The host independently re-verifies the caller origin against its OWN config at startup — this
+# is defense in depth: it never trusts Chrome's manifest allowed_origins alone, so the same
+# extension IDs must also land in the host's own config.json.
 node -e '
 const fs = require("fs");
 const path = require("path");
@@ -217,10 +215,10 @@ fs.writeFileSync(configPath, JSON.stringify({ ...existing, allowedOrigins: origi
 ' "${CONFIG_DIR}" "$(node -e "console.log(JSON.stringify(process.argv.slice(1)))" "${EXTENSION_IDS[@]}")"
 
 METADATA_PATH="${CONFIG_DIR}/install-metadata.json"
-# doc 06 §5 "Upgrades": installing a new version over an existing install-metadata.json records
-# the just-superseded version as `previous`, so a later `install.sh --rollback` has somewhere to
-# go back to. A re-run of the SAME version (e.g. re-registering a browser) is not an upgrade and
-# must not overwrite an already-recorded `previous`.
+# Installing a new version over an existing install-metadata.json records the just-superseded
+# version as `previous`, so a later `install.sh --rollback` has somewhere to go back to. A re-run
+# of the SAME version (e.g. re-registering a browser) is not an upgrade and must not overwrite an
+# already-recorded `previous`.
 node -e '
 const fs = require("fs");
 const [metadataPath, version, installDir, launcher, manifestsJson] = process.argv.slice(1);

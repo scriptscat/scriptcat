@@ -152,8 +152,8 @@ delete (press-and-hold confirm) → revoke the client → "Revoke all & stop bri
   implemented and syntax-reviewed by hand, but never executed — no PowerShell interpreter is
   available in the environment that produced this pass. Exercised only by the Windows leg of the
   `native-host` CI job building/testing the TypeScript package itself.
-- The doc 09 §3 manual smoke test (a real browser with the extension loaded, a real installed
-  native host, and a real MCP client pairing and calling tools end-to-end) and store screenshots /
-  demo recording (§4, §11) — both need a live UI to drive or capture from, not achievable from an
+- A manual smoke test (a real browser with the extension loaded, a real installed native host,
+  and a real MCP client pairing and calling tools end-to-end) and store screenshots / demo
+  recording (§4, §11) — both need a live UI to drive or capture from, not achievable from an
   automated pass.
 - Actual store submission — this package documents readiness, it does not constitute a submission.

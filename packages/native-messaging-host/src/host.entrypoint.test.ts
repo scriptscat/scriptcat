@@ -61,7 +61,7 @@ describe.skipIf(!existsSync(distHostJs))("host.ts 入口 CLI 子命令", () => {
     expect(stdout).toBe("");
   });
 
-  it("--print-manifest 拒绝无效的扩展 ID（如 prelim 遗留的默认值）", async () => {
+  it("--print-manifest 拒绝无效的扩展 ID（如 fomrtutthjerocmw，其中 r/t/u/w 超出 a-p 范围）", async () => {
     const { stdout, status } = await runHost([
       "--print-manifest",
       "--extension-id",

@@ -31,7 +31,7 @@ function makeResponse(opts: { url: string; status?: number; body: string; conten
   };
 }
 
-describe("MCP install URL 策略 - validateInstallUrl（doc 04 §5）", () => {
+describe("MCP install URL 策略 - validateInstallUrl", () => {
   it("接受 https URL", () => {
     expect(validateInstallUrl("https://example.com/script.user.js")).toEqual({ ok: true });
   });
@@ -93,7 +93,7 @@ describe("MCP install URL 策略 - validateInstallUrl（doc 04 §5）", () => {
     expect(validateInstallUrl("https://[2001:4860:4860::8888]/x.user.js")).toEqual({ ok: true });
   });
 
-  it("限制常量与 doc 04 §7 一致", () => {
+  it("导出的限制常量为预期值", () => {
     expect(MAX_REDIRECTS).toBe(3);
     expect(MAX_DOWNLOAD_BYTES).toBe(2 * 1024 * 1024);
   });

@@ -1,7 +1,7 @@
 {
   "name": "@scriptcat/native-messaging-host",
   "version": "0.1.0",
-  "description": "ScriptCat native messaging host + MCP stdio bridge (doc: workspace/.ref-docs/06-native-host-and-installers.md)",
+  "description": "ScriptCat native messaging host + MCP stdio bridge",
   "type": "module",
   "bin": {
     "scriptcat-native-host": "dist/host.js",
