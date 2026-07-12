@@ -1,7 +1,6 @@
 import type {
   Message,
   MessageConnect,
-  MessageSend,
   OnConnectCallback,
   OnMessageCallback,
   RuntimeMessageSender,
@@ -336,7 +335,7 @@ export class ServiceWorkerMessageSend implements Message {
 // 与ServiceWorkerMessageSend配对使用,实现Offscreen→SW的postMessage通道
 // 注意: 扩展offscreen页面的navigator.serviceWorker.controller通常为null,
 // 需要通过navigator.serviceWorker.ready获取registration.active
-export class ServiceWorkerClientMessage implements MessageSend {
+export class ServiceWorkerClientMessage implements Message {
   EE = new EventEmitter<string, any>();
 
   private sw: ServiceWorker | null = null;
@@ -344,7 +343,7 @@ export class ServiceWorkerClientMessage implements MessageSend {
 
   constructor() {
     navigator.serviceWorker.addEventListener("message", (e) => {
-      this.messageHandle(e.data);
+      this.messageHandle(e.data, e.source as PostMessage);
     });
     // controller在扩展offscreen页面中通常为null,通过ready获取active
     this.sw = navigator.serviceWorker.controller;
@@ -358,15 +357,32 @@ export class ServiceWorkerClientMessage implements MessageSend {
     }
   }
 
-  messageHandle(data: WindowMessageBody) {
+  messageHandle(data: WindowMessageBody, source?: PostMessage) {
     // 只处理响应类消息,请求类消息由WindowMessage处理
-    if (data.type === "respMessage") {
+    if (data.type === "sendMessage" && source) {
+      this.EE.emit(
+        "message",
+        data.data,
+        (resp: any) => source.postMessage({ messageId: data.messageId, type: "respMessage", data: resp }),
+        {} as RuntimeMessageSender
+      );
+    } else if (data.type === "connect" && source) {
+      this.EE.emit("connect", data.data, new WindowMessageConnect(data.messageId, this.EE, source));
+    } else if (data.type === "respMessage") {
       this.EE.emit(`response:${data.messageId}`, data);
     } else if (data.type === "disconnect") {
       this.EE.emit(`disconnect:${data.messageId}`);
     } else if (data.type === "connectMessage") {
       this.EE.emit(`connectMessage:${data.messageId}`, data.data);
     }
+  }
+
+  onMessage(callback: OnMessageCallback): void {
+    this.EE.addListener("message", callback);
+  }
+
+  onConnect(callback: OnConnectCallback): void {
+    this.EE.addListener("connect", callback);
   }
 
   private postToServiceWorker(message: any) {

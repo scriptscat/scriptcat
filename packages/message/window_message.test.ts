@@ -163,6 +163,26 @@ describe("ServiceWorkerClientMessage", () => {
     expect((clientMsg as any).sw).not.toBeNull();
     expect((clientMsg as any).sw.postMessage).toBe(readyPostMessage);
   });
+
+  it("可接收 service worker 主动发送的请求并交给 Server 处理", () => {
+    const clientMsg = new ServiceWorkerClientMessage();
+    const server = new Server("offscreen", clientMsg);
+    const keepAlive = vi.fn((enabled: boolean) => enabled);
+    server.on("keepAlive", keepAlive);
+    const source = { postMessage: vi.fn() };
+
+    clientMsg.messageHandle(
+      { messageId: "keep-alive-1", type: "sendMessage", data: { action: "offscreen/keepAlive", data: true } },
+      source
+    );
+
+    expect(keepAlive).toHaveBeenCalledWith(true, expect.anything());
+    expect(source.postMessage).toHaveBeenCalledWith({
+      messageId: "keep-alive-1",
+      type: "respMessage",
+      data: { code: 0, data: true },
+    });
+  });
 });
 
 describe("WindowMessage.connect", () => {

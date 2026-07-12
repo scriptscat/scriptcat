@@ -20,6 +20,10 @@ export function getExtensionEnv(windowMessage: WindowMessage) {
   return sendMessage(windowMessage, "offscreen/getExtensionEnv", { requireUAD: true });
 }
 
+export function keepAlive(windowMessage: WindowMessage, val: boolean) {
+  return sendMessage(windowMessage, "offscreen/keepAlive", val);
+}
+
 // 代理发送消息到ServiceWorker
 export function sendMessageToServiceWorker(windowMessage: WindowMessage, action: string, data?: any) {
   return sendMessage(windowMessage, "offscreen/sendMessageToServiceWorker", { action, data });

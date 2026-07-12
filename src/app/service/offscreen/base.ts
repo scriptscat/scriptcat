@@ -12,6 +12,7 @@ import { VSCodeConnect } from "./vscode-connect";
 import { HtmlExtractorService } from "./html_extractor";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 import { type SandboxChannelHealth } from "./client";
+import { startChromeOffscreenKeepAliveLoop } from "./keep_alive";
 
 // 兜底超时：sandbox 若在此时长内从未发出就绪通知(iframe 加载失败/脚本异常等)，
 // 也不能让 SW 永久卡在等待 offscreen 就绪上，超时后仍放行，但打印明确的错误日志
@@ -111,6 +112,7 @@ export class BackgroundEnvManagerBase {
     this.offscreenServer.on("reportSandboxChannelHealth", this.reportSandboxChannelHealth.bind(this));
     this.offscreenServer.on("getExtensionEnv", this.getExtensionEnv.bind(this));
     this.offscreenServer.on("sendMessageToServiceWorker", this.sendMessageToServiceWorker.bind(this));
+    this.offscreenServer.on("keepAlive", startChromeOffscreenKeepAliveLoop());
     this.armReadyFallback();
     const script = new ScriptService(
       this.offscreenServer.group("script"),

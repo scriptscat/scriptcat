@@ -156,6 +156,31 @@ describe("EventPageOffscreenManager Firefox event page 保活权限门控", () =
     expect(document.documentElement.querySelectorAll("img")).toHaveLength(1);
   });
 
+  it("移除 webRequestBlocking 后立即停止 blocking 探测，重新授权后恢复", async () => {
+    chromeMock.permissions.__setGrantedPermissions(["webRequestBlocking"]);
+    const { EventPageOffscreenManager: KeepAliveManager, InProcessMessage: KeepAliveMessage } =
+      await loadKeepAliveEnabledManager();
+
+    new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
+    await Promise.resolve();
+
+    const listener = (chrome.webRequest.onBeforeRequest as any).listeners[0].callback;
+    const probeRequest = {
+      url: "https://--extensions-test.invalid/dummy_image.png?__network_delay=10000",
+    };
+
+    expect(listener(probeRequest)).toBeInstanceOf(Promise);
+
+    chrome.permissions.remove({ permissions: ["webRequestBlocking"] });
+
+    expect(listener(probeRequest)).toEqual({});
+
+    chrome.permissions.request({ permissions: ["webRequestBlocking"] });
+
+    expect(listener(probeRequest)).toBeInstanceOf(Promise);
+    expect(document.documentElement.querySelectorAll("img")).toHaveLength(1);
+  });
+
   it("构造同步回合内先注册 permissions.onAdded，再等待 contains 结果", async () => {
     chromeMock.permissions.__setGrantedPermissions([]);
     const contains = vi.spyOn(chrome.permissions, "contains").mockReturnValue(new Promise(() => {}) as never);
