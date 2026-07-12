@@ -15,6 +15,8 @@ const isBeta = version.includes("-");
 const isReactTools = process.env.REACT_DEVTOOLS === "true";
 // agent 默认开启；正式版屏蔽由 scripts/pack.js 按版本判断后通过 SC_DISABLE_AGENT 声明。
 const enableAgent = process.env.SC_DISABLE_AGENT !== "true";
+// MCP 默认关闭；由 scripts/pack.js 按 profile 判断后通过 SC_ENABLE_MCP 声明（与 EnableAgent 极性相反）。
+const enableMCP = process.env.SC_ENABLE_MCP === "true";
 
 // Target browsers, see: https://github.com/browserslist/browserslist
 // 依照 https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
@@ -138,7 +140,19 @@ export default {
       "process.env.VI_TESTING": "'false'",
       "process.env.SC_RANDOM_KEY": `'${uuidv4()}'`,
       "process.env.SC_DISABLE_AGENT": `'${enableAgent ? "false" : "true"}'`,
+      "process.env.SC_ENABLE_MCP": `'${enableMCP ? "true" : "false"}'`,
     }),
+    // Deterministic store-build exclusion for MCP UI (doc 05 §1.3, doc 08 §5): JSX-conditional
+    // tree-shaking across module boundaries isn't reliable enough on its own to keep
+    // McpSection's code (and its transitive MCPClient/mcp-repo-type imports) out of a shared
+    // options-page chunk, so swap in a trivial stub at resolution time instead when MCP is off.
+    ...(enableMCP
+      ? []
+      : [
+          new rspack.NormalModuleReplacementPlugin(/\/sections\/McpSection(\.tsx)?$/, (resource) => {
+            resource.request = resource.request.replace(/McpSection$/, "McpSection.stub");
+          }),
+        ]),
     new rspack.CopyRspackPlugin({
       patterns: [
         {
