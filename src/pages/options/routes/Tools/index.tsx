@@ -7,6 +7,7 @@ import { MigrationSection } from "./sections/MigrationSection";
 import { DevToolsSection } from "./sections/DevToolsSection";
 import { McpSection } from "./sections/McpSection";
 import { EnableMCP } from "@App/app/const";
+import { isFirefox } from "@App/pkg/utils/utils";
 import { useTranslation } from "react-i18next";
 
 export default function Tools() {
@@ -20,7 +21,7 @@ export default function Tools() {
           <AutoBackupSection register={register} />
           <MigrationSection register={register} />
           <DevToolsSection register={register} />
-          {EnableMCP && <McpSection register={register} />}
+          {EnableMCP && !isFirefox() && <McpSection register={register} />}
         </>
       )}
     </SettingsLayout>

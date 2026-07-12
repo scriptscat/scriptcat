@@ -66,6 +66,16 @@ describe.skipIf(process.platform === "win32")("createIpcEndpoint - Unix domain s
     client.end();
   });
 
+  it("server.address() 返回字符串路径而非 {port} —— 结构性证明从未监听 TCP 端口（doc 04 §2 A1, doc 08 §9）", async () => {
+    endpoint = await createIpcEndpoint(tmpRoot);
+    const address = endpoint.server.address();
+    // A TCP listener's address() returns { address, family, port }; a Unix domain socket's
+    // returns the socket path as a plain string. This is the structural proof the entire
+    // CORS/DNS-rebinding/port-scanning attack class (A1) cannot apply — there is no port to scan.
+    expect(typeof address).toBe("string");
+    expect(address).toBe(endpoint.endpointName);
+  });
+
   it("close() 移除 socket 文件，之后无法再连接", async () => {
     endpoint = await createIpcEndpoint(tmpRoot);
     const endpointName = endpoint.endpointName;
