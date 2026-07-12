@@ -19,7 +19,8 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [`mcp-bridge-guide.md`](./mcp-bridge-guide.md) | 使用指南:构建/安装/配对/授权的实操步骤,附工具清单与真实用例(读取源码、请求安装、启停、删除脚本、撤销客户端)。**想实际用起来先读这份。** |
+| [`mcp-bridge-guide.md`](./mcp-bridge-guide.md) | 使用指南:构建/安装/配对/授权的实操步骤,附工具清单与真实用例(读取源码、请求安装、启停、删除脚本、撤销客户端)。**想实际用起来先读这份。**中文版见 [`mcp-bridge-guide_zh-CN.md`](./mcp-bridge-guide_zh-CN.md)。 |
+| [`../packages/native-messaging-host/README.md`](../packages/native-messaging-host/README.md) | `native-messaging-host` 包的开发者文档:CLI 参考、目录结构、构建/测试命令。中文版见 [`README_zh-CN.md`](../packages/native-messaging-host/README_zh-CN.md)。 |
 | [`../packages/native-messaging-host/PROTOCOL.md`](../packages/native-messaging-host/PROTOCOL.md) | 协议规范:浏览器↔主机 native messaging、shim↔主机本地 socket、面向 agent 的 MCP 工具/资源目录三层协议。 |
 | [`../packages/native-messaging-host/THREAT-MODEL.md`](../packages/native-messaging-host/THREAT-MODEL.md) | 威胁模型:资产、攻击者与入口点、鉴权鉴权、写路径 TOCTOU 不变量、限流、审计模型。 |
 | [`store-review/mcp.md`](./store-review/mcp.md) | 应用商店审核材料汇编:数据流、工具权限表、同意界面、令牌存储与吊销、审计日志、隐私披露。 |

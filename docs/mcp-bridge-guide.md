@@ -1,3 +1,7 @@
+<p align="right">
+<a href="./mcp-bridge-guide_zh-CN.md">中文</a> <a href="./mcp-bridge-guide.md">English</a>
+</p>
+
 # Using the ScriptCat MCP Bridge
 
 A practical, task-oriented guide to connecting an AI agent (Claude Desktop, Claude Code, or any
