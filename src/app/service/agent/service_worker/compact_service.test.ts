@@ -16,19 +16,33 @@ const MODEL: AgentModelConfig = {
   maxTokens: 2_000,
 };
 
+// 二分查找最小长度而非逐字符递增：estimateRequestTokens 引入字节→token 折算后，
+// 命中目标区间所需的字符数随之变大，逐字符线性扫描（每次都要 O(len) 的 JSON.stringify）
+// 会在字符数翻倍后耗时成倍增长，曾在 CI 上导致该用例超时。
 function makeCurrentMessages(): ChatRequest["messages"] {
-  for (let len = 1; len < 20_000; len++) {
-    const currentMessages: ChatRequest["messages"] = [{ role: "user", content: "x".repeat(len) }];
+  const buildMessages = (len: number): ChatRequest["messages"] => [{ role: "user", content: "x".repeat(len) }];
+  const estimateFor = (len: number) => {
     const summaryMessages: ChatRequest["messages"] = [
       { role: "system", content: COMPACT_SYSTEM_PROMPT },
-      ...currentMessages,
+      ...buildMessages(len),
       { role: "user", content: buildCompactUserPrompt() },
     ];
-    const estimate = estimateRequestTokens(summaryMessages, undefined, undefined, MODEL);
-    if (estimate > getInputTokenBudget(MODEL) && estimate < getContextWindow(MODEL) * 0.9) {
-      return currentMessages;
-    }
+    return estimateRequestTokens(summaryMessages, undefined, undefined, MODEL);
+  };
+
+  const budget = getInputTokenBudget(MODEL);
+  const ceiling = getContextWindow(MODEL) * 0.9;
+
+  let low = 1;
+  let high = 20_000;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (estimateFor(mid) > budget) high = mid;
+    else low = mid + 1;
   }
+
+  const estimate = estimateFor(low);
+  if (estimate > budget && estimate < ceiling) return buildMessages(low);
   throw new Error("未能构造出位于输入预算与 90% 预检之间的 compact 测试样例");
 }
 
