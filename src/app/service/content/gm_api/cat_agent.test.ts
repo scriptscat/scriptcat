@@ -20,7 +20,7 @@ function mockConnect(): MessageConnect {
     onMessage(cb: (msg: any) => void) {
       setTimeout(() => {
         cb({ action: "event", data: { type: "content_delta", delta: "LLM reply" } });
-        cb({ action: "event", data: { type: "done", usage: { inputTokens: 10, outputTokens: 5 } } });
+        cb({ action: "event", data: { type: "done", usage: { inputTokens: 10, outputTokens: 5 }, durationMs: 123 } });
       }, 10);
     },
     onDisconnect() {},
@@ -83,6 +83,7 @@ describe("ConversationInstance 命令机制", () => {
 
     expect(result.command).toBeUndefined();
     expect(result.content).toBe("LLM reply");
+    expect(result.durationMs).toBe(123);
     // 应该建立了 LLM 连接
     expect(gmConnect).toHaveBeenCalled();
   });
@@ -114,6 +115,15 @@ describe("ConversationInstance 命令机制", () => {
     expect(chunks[0].command).toBe(true);
     // 不应建立 LLM 连接
     expect(gmConnect).not.toHaveBeenCalled();
+  });
+
+  it("chatStream 成功完成时透传 durationMs", async () => {
+    const { instance } = createInstance();
+    const stream = await instance.chatStream("你好");
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of stream) chunks.push(chunk);
+
+    expect(chunks.find((chunk) => chunk.type === "done")?.durationMs).toBe(123);
   });
 
   it("脚本覆盖内置 /new 命令", async () => {

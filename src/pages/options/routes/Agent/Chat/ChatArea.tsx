@@ -206,7 +206,7 @@ export default function ChatArea({
           case "tool_call_complete": {
             const tc = sa.currentToolCalls.find((x) => x.id === event.id);
             if (tc) {
-              tc.status = "completed";
+              tc.status = event.status || "completed";
               tc.result = event.result;
               tc.attachments = event.attachments;
             }
@@ -306,7 +306,7 @@ export default function ChatArea({
         case "tool_call_complete": {
           const tc = msg.toolCalls?.find((x) => x.id === event.id);
           if (tc) {
-            tc.status = "completed";
+            tc.status = event.status || "completed";
             tc.result = event.result;
             tc.attachments = event.attachments;
           }

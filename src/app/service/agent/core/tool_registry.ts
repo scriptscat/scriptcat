@@ -24,7 +24,9 @@ export interface ToolEntry {
 }
 
 // 脚本工具回调类型：将 tool calls 发送到 Sandbox 执行
-export type ScriptToolCallback = (toolCalls: ToolCall[]) => Promise<Array<{ id: string; result: string }>>;
+export type ScriptToolCallback = (
+  toolCalls: ToolCall[]
+) => Promise<Array<{ id: string; result: string; error?: boolean }>>;
 
 // 工具执行结果（可能含附件和子代理详情）
 export type ToolExecuteResult = {
@@ -195,6 +197,7 @@ export class ToolRegistry implements ToolExecutorLike {
         results.push({
           id: tc.id,
           result: JSON.stringify({ error: `Tool "${tc.name}" is not available in this context` }),
+          error: true,
         });
         continue;
       }
@@ -227,7 +230,12 @@ export class ToolRegistry implements ToolExecutorLike {
           }
         } catch (e: any) {
           console.error(`[ToolRegistry] tool "${tc.name}" execution failed:`, e);
-          return { id: tc.id, result: JSON.stringify({ error: extractErrorMessage(e) }), error: true };
+          return {
+            id: tc.id,
+            result: JSON.stringify({ error: extractErrorMessage(e) }),
+            error: true,
+            subAgentDetails: e.subAgentDetails,
+          };
         }
       })
     );
@@ -243,13 +251,13 @@ export class ToolRegistry implements ToolExecutorLike {
             const parsed = JSON.parse(sr.result);
             if (isToolResultWithAttachments(parsed)) {
               const attachments = await this.saveAttachments(parsed.attachments);
-              results.push({ id: sr.id, result: parsed.content, attachments });
+              results.push({ id: sr.id, result: parsed.content, attachments, error: sr.error });
               continue;
             }
           } catch {
             // 不是 JSON 或不是结构化结果，按原始字符串处理
           }
-          results.push({ id: sr.id, result: sr.result });
+          results.push({ id: sr.id, result: sr.result, error: sr.error });
         }
       } else {
         // 没有脚本回调，返回错误并列出可用工具名，引导 LLM 自我纠正
@@ -263,6 +271,7 @@ export class ToolRegistry implements ToolExecutorLike {
             result: JSON.stringify({
               error: `Tool "${tc.name}" not found. Available tools: [${availableNames.join(", ")}].${hint}`,
             }),
+            error: true,
           });
         }
       }

@@ -89,6 +89,21 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     expect(doneEvents).toHaveLength(1);
   });
 
+  it("auto compact 失败时抛出包含累计 usage 与 conversationId 的结构化错误", async () => {
+    callLLM.mockResolvedValue({ content: "继续", usage: { inputTokens: 9000, outputTokens: 5 } });
+    autoCompact.mockRejectedValue(new Error("compact failed"));
+
+    await expect(
+      orchestrator.callLLMWithToolLoop(
+        baseParams({ model: { ...MODEL, contextWindow: 10000 }, messages: [{ role: "user", content: "开始" }] })
+      )
+    ).rejects.toMatchObject({
+      message: "compact failed",
+      conversationId: "conv-1",
+      usage: { inputTokens: 9000, outputTokens: 5 },
+    });
+  });
+
   it("续接长历史时，首个 LLM 请求使用裁剪后的副本且不修改原始历史", async () => {
     const oldToolResult = "完整工具结果".repeat(100);
     const messages: ChatRequest["messages"] = [];

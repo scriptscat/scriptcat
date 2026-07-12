@@ -120,7 +120,13 @@ export type LLMStreamEvent =
   | { type: "thinking_delta"; delta: string }
   | { type: "tool_call_start"; toolCall: Omit<ToolCall, "result"> }
   | { type: "tool_call_delta"; id: string; delta: string; index?: number }
-  | { type: "tool_call_complete"; id: string; result: string; attachments?: Attachment[] }
+  | {
+      type: "tool_call_complete";
+      id: string;
+      result: string;
+      status?: "completed" | "error";
+      attachments?: Attachment[];
+    }
   | { type: "content_block_start"; block: Omit<ImageBlock | FileBlock | AudioBlock, "attachmentId"> }
   | { type: "content_block_complete"; block: ImageBlock | FileBlock | AudioBlock; data?: string };
 

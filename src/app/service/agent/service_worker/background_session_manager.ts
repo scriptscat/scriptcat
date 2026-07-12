@@ -96,7 +96,7 @@ export class BackgroundSessionManager {
       case "tool_call_complete": {
         const tc = rc.streamingState.toolCalls.find((t) => t.id === event.id);
         if (tc) {
-          tc.status = "completed";
+          tc.status = event.status || "completed";
           tc.result = event.result;
           tc.attachments = event.attachments;
         }

@@ -596,7 +596,7 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
       apiBaseUrl: "",
       apiKey: "",
       model: "gpt-4o",
-      contextWindow: 1000,
+      contextWindow: 100000,
     });
 
     // 使用两个不同名称的工具交替调用，避免触发 tool_call_guard 的重复调用检测
@@ -621,7 +621,7 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
 
     // 前 4 轮占用较低；第 5 轮跨过 0.4 阈值（此时恰好 5 轮，保留窗口内不裁剪）；
     // 第 6 轮跨过 0.6 阈值，触发第二次裁剪，第 1 轮此时已超出保留窗口
-    const usages = [100, 100, 100, 100, 500, 700];
+    const usages = [10000, 10000, 10000, 10000, 50000, 70000];
     for (let i = 0; i < usages.length; i++) {
       const toolName = i % 2 === 0 ? "counterA" : "counterB";
       // 每轮参数不同，避免触发 tool_call_guard 的“相同参数重复调用”检测
@@ -787,6 +787,7 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     // 应有两个 tool_call_complete
     const completeEvents = events.filter((e: any) => e.type === "tool_call_complete");
     expect(completeEvents).toHaveLength(2);
+    expect(completeEvents.every((event: any) => event.status === "completed")).toBe(true);
     expect(completeEvents.find((e: any) => e.id === "call_a").result).toBe("a: hello");
     expect(completeEvents.find((e: any) => e.id === "call_b").result).toBe("b: world");
 

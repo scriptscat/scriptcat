@@ -38,7 +38,7 @@ import { getTextContent } from "@App/app/service/agent/core/content_utils";
 import { toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { t } from "@App/locales/locales";
-import { elideUntilWithinBudget } from "@App/app/service/agent/core/context_elision";
+import { elideUntilWithinBudget, loadAttachmentSizes } from "@App/app/service/agent/core/context_elision";
 import { getContextWindow } from "@App/app/service/agent/core/model_context";
 import type { LLMCallResult } from "./llm_client";
 
@@ -214,6 +214,7 @@ export class ChatService {
           clearTimeout(timer);
           askResolvers.delete(askId);
           cleanup();
+          sendEvent({ type: "ask_user_resolved", id: askId });
           resolve(answer);
         };
         const onAbort = () => finish("stop");
@@ -277,7 +278,6 @@ export class ChatService {
         if (resolver) {
           askResolvers.delete(msg.data.id);
           if (rc) rc.pendingAskUser = undefined;
-          sendEvent({ type: "ask_user_resolved", id: msg.data.id });
           resolver(msg.data.answer);
         }
       }
@@ -488,7 +488,8 @@ export class ChatService {
     summaryMessages.push(...historyMessages);
     summaryMessages.push({ role: "user", content: buildCompactUserPrompt(params.compactInstruction) });
 
-    if (!elideUntilWithinBudget(summaryMessages, getContextWindow(model))) {
+    const attachmentSizes = await loadAttachmentSizes(summaryMessages, (id) => this.chatRepo.getAttachment(id));
+    if (!elideUntilWithinBudget(summaryMessages, getContextWindow(model), undefined, 0.9, attachmentSizes)) {
       sendEvent({ type: "error", message: "Conversation history is too large to compact" });
       return;
     }

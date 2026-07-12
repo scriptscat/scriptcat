@@ -123,4 +123,17 @@ describe("上下文预算估算与裁剪", () => {
         .every((message) => message.content === ELIDED_TOOL_RESULT_STUB)
     ).toBe(true);
   });
+
+  it("按附件实际字节估算，并可只省略较旧的多模态块", () => {
+    const messages: ChatRequest["messages"] = [
+      { role: "user", content: [{ type: "image", attachmentId: "old", mimeType: "image/png" }] },
+      { role: "assistant", content: "已看到图片" },
+      { role: "user", content: "继续" },
+    ];
+    const sizes = new Map([["old", 6000]]);
+    expect(estimateRequestTokens(messages, [], sizes)).toBeGreaterThan(6000);
+    expect(elideUntilWithinBudget(messages, 1000, [], 0.9, sizes)).toBe(true);
+    expect(messages[0].content).toEqual([{ type: "text", text: expect.stringContaining("attachment elided") }]);
+    expect(messages[2].content).toBe("继续");
+  });
 });

@@ -3,6 +3,7 @@ import type {
   ChatRequest,
   ChatStreamEvent,
   SubAgentMessage,
+  TokenUsage,
 } from "@App/app/service/agent/core/types";
 import type { ToolExecutorLike } from "@App/app/service/agent/core/tool_registry";
 import type { SubAgentRunOptions, SubAgentRunResult } from "@App/app/service/agent/core/tools/sub_agent";
@@ -67,19 +68,31 @@ export class SubAgentService {
       { role: "user", content: userPrompt },
     ];
 
-    const {
-      result,
-      details,
-      usage: subUsage,
-    } = await this.runSubAgentCore({
-      toolRegistry,
-      messages,
-      model,
-      excludeTools,
-      maxIterations: typeConfig.maxIterations,
-      sendEvent,
-      signal,
-    });
+    let coreResult: Awaited<ReturnType<SubAgentService["runSubAgentCore"]>>;
+    try {
+      coreResult = await this.runSubAgentCore({
+        toolRegistry,
+        messages,
+        model,
+        excludeTools,
+        maxIterations: typeConfig.maxIterations,
+        sendEvent,
+        signal,
+      });
+    } catch (error) {
+      const terminalError = error instanceof Error ? error : new Error(String(error));
+      const partial = terminalError as Error & { details?: SubAgentMessage[]; usage?: TokenUsage };
+      (terminalError as Error & { subAgentDetails?: NonNullable<SubAgentRunResult["details"]> }).subAgentDetails = {
+        agentId,
+        description: options.description,
+        subAgentType: typeConfig.name,
+        messages: partial.details || [],
+        usage: partial.usage,
+      };
+      throw terminalError;
+    }
+
+    const { result, details, usage: subUsage } = coreResult;
 
     return {
       agentId,
@@ -183,18 +196,29 @@ export class SubAgentService {
       }
     };
 
-    await this.orchestrator.callLLMWithToolLoop({
-      toolRegistry: params.toolRegistry,
-      model: params.model,
-      messages: params.messages,
-      maxIterations: params.maxIterations,
-      sendEvent: subSendEvent,
-      signal: params.signal,
-      scriptToolCallback: null,
-      excludeTools: params.excludeTools,
-      cache: false,
-      throwOnTerminalError: true,
-    });
+    try {
+      await this.orchestrator.callLLMWithToolLoop({
+        toolRegistry: params.toolRegistry,
+        model: params.model,
+        messages: params.messages,
+        maxIterations: params.maxIterations,
+        sendEvent: subSendEvent,
+        signal: params.signal,
+        scriptToolCallback: null,
+        excludeTools: params.excludeTools,
+        cache: false,
+        throwOnTerminalError: true,
+      });
+    } catch (error) {
+      const terminalError = error instanceof Error ? error : new Error(String(error));
+      if (currentMsg.content || currentMsg.thinking || currentMsg.toolCalls.length > 0) {
+        details.push(currentMsg);
+      }
+      const terminalUsage = (terminalError as Error & { usage?: TokenUsage }).usage;
+      if (terminalUsage) Object.assign(subUsage, terminalUsage);
+      Object.assign(terminalError, { details, usage: subUsage });
+      throw terminalError;
+    }
 
     // 检查是否因超时中止（区分用户主动取消和超时）
     if (params.signal.aborted) {

@@ -18,6 +18,7 @@ import {
   elideOldToolResults,
   elideUntilWithinBudget,
   estimateRequestTokens,
+  loadAttachmentSizes,
 } from "@App/app/service/agent/core/context_elision";
 import type { LLMCallResult } from "./llm_client";
 import { t } from "@App/locales/locales";
@@ -154,30 +155,28 @@ export class ToolLoopOrchestrator {
       cacheCreationInputTokens: 0,
       cacheReadInputTokens: 0,
     };
+    const attachmentSizes = await loadAttachmentSizes(inputMessages, (id) => this.chatRepo.getAttachment(id));
 
     // 持久化历史保留完整结果供 UI 展示；LLM 只使用独立副本，续接时首个请求也先裁剪旧结果。
     const messages = rehydratedHistory ? inputMessages.map((message) => ({ ...message })) : inputMessages;
     if (rehydratedHistory) {
       const initialTools = params.skipBuiltinTools ? tools || [] : toolRegistry.getDefinitions(tools);
-      const estimatedInputTokens = estimateRequestTokens(messages, initialTools);
+      const estimatedInputTokens = estimateRequestTokens(messages, initialTools, attachmentSizes);
       const estimatedUsageRatio = estimatedInputTokens / getContextWindow(model);
       if (estimatedUsageRatio >= ELISION_THRESHOLDS[0]) {
-        const withinBudget = elideUntilWithinBudget(messages, getContextWindow(model), initialTools, 0.9);
-        const hasContinuationHistory =
-          messages.filter((message) => message.role === "user" || message.role === "assistant").length > 2;
-        if (!withinBudget && hasContinuationHistory) {
+        const withinBudget = elideUntilWithinBudget(
+          messages,
+          getContextWindow(model),
+          initialTools,
+          0.9,
+          attachmentSizes
+        );
+        if (!withinBudget) {
           const error = Object.assign(new Error("Conversation history exceeds the model context window"), {
             errorCode: "context_too_large",
             usage: totalUsage,
             durationMs: Date.now() - startTime,
             conversationId,
-          });
-          sendEvent({
-            type: "error",
-            message: error.message,
-            errorCode: error.errorCode,
-            usage: error.usage,
-            durationMs: error.durationMs,
           });
           if (conversationId) {
             await this.chatRepo.appendMessage({
@@ -191,6 +190,13 @@ export class ToolLoopOrchestrator {
               createtime: Date.now(),
             });
           }
+          sendEvent({
+            type: "error",
+            message: error.message,
+            errorCode: error.errorCode,
+            usage: error.usage,
+            durationMs: error.durationMs,
+          });
           if (throwOnTerminalError) throw error;
           return;
         }
@@ -257,7 +263,15 @@ export class ToolLoopOrchestrator {
         contextUsageRatio = getContextInputTokens(model, result.usage) / contextWindow;
 
         if (contextUsageRatio >= 0.8) {
-          await this.deps.autoCompact(conversationId, model, messages, sendEvent, signal);
+          try {
+            await this.deps.autoCompact(conversationId, model, messages, sendEvent, signal);
+          } catch (error) {
+            throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+              usage: totalUsage,
+              durationMs: Date.now() - startTime,
+              conversationId,
+            });
+          }
         } else {
           for (let i = 0; i < ELISION_THRESHOLDS.length; i++) {
             if (i > lastElisionThresholdIndex && contextUsageRatio >= ELISION_THRESHOLDS[i]) {
@@ -326,6 +340,7 @@ export class ToolLoopOrchestrator {
             type: "tool_call_complete",
             id: tr.id,
             result: tr.result,
+            status: tr.error ? "error" : "completed",
             attachments: tr.attachments,
           });
 

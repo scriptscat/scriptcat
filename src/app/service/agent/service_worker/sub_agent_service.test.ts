@@ -88,4 +88,33 @@ describe("SubAgentService", () => {
 
     expect(result.details?.usage).toEqual(expect.objectContaining({ inputTokens: 12, outputTokens: 4 }));
   });
+
+  it("终态异常保留子代理的部分消息与 usage", async () => {
+    const subOrchestrator = makeMockOrchestrator();
+    (subOrchestrator.callLLMWithToolLoop as ReturnType<typeof vi.fn>).mockImplementationOnce(async ({ sendEvent }) => {
+      sendEvent({ type: "content_delta", delta: "部分结果" });
+      throw Object.assign(new Error("达到上限"), {
+        errorCode: "max_iterations",
+        usage: { inputTokens: 20, outputTokens: 6 },
+      });
+    });
+    service = new SubAgentService(subOrchestrator);
+
+    await expect(
+      service.runSubAgent({
+        options: { prompt: "做个任务", description: "失败任务" },
+        agentId: "test-agent-failed",
+        model: MODEL,
+        parentConversationId: "conv-1",
+        toolRegistry,
+        sendEvent,
+        signal,
+      })
+    ).rejects.toMatchObject({
+      subAgentDetails: {
+        messages: [{ content: "部分结果" }],
+        usage: { inputTokens: 20, outputTokens: 6 },
+      },
+    });
+  });
 });

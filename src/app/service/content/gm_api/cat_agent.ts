@@ -316,6 +316,7 @@ export class ConversationInstance {
       const contentBlocks: ContentBlock[] = [];
       let currentToolCall: ToolCall | null = null;
       let usage: { inputTokens: number; outputTokens: number } | undefined;
+      let durationMs: number | undefined;
 
       conn.onMessage(async (msg: any) => {
         if (msg.action === "executeTools") {
@@ -353,6 +354,7 @@ export class ConversationInstance {
               currentToolCall = null;
             }
             if (event.usage) usage = event.usage;
+            durationMs = event.durationMs;
             // 合并文本和 content blocks 到 MessageContent
             let finalContent: MessageContent = content;
             if (contentBlocks.length > 0) {
@@ -366,6 +368,7 @@ export class ConversationInstance {
               thinking: thinking || undefined,
               toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
               usage,
+              durationMs,
             });
             break;
           }
@@ -423,7 +426,7 @@ export class ConversationInstance {
           chunk = { type: "tool_call", toolCall: { ...event.toolCall, arguments: "" } };
           break;
         case "done":
-          chunk = { type: "done", usage: event.usage };
+          chunk = { type: "done", usage: event.usage, durationMs: event.durationMs };
           done = true;
           break;
         case "error":
@@ -527,13 +530,13 @@ export class ConversationInstance {
   private async executeTools(
     toolCalls: ToolCall[],
     handlers: Map<string, (args: Record<string, unknown>) => Promise<unknown>>
-  ): Promise<Array<{ id: string; result: string }>> {
-    const results: Array<{ id: string; result: string }> = [];
+  ): Promise<Array<{ id: string; result: string; error?: boolean }>> {
+    const results: Array<{ id: string; result: string; error?: boolean }> = [];
 
     for (const tc of toolCalls) {
       const handler = handlers.get(tc.name);
       if (!handler) {
-        results.push({ id: tc.id, result: JSON.stringify({ error: `Tool "${tc.name}" not found` }) });
+        results.push({ id: tc.id, result: JSON.stringify({ error: `Tool "${tc.name}" not found` }), error: true });
         continue;
       }
 
@@ -551,7 +554,7 @@ export class ConversationInstance {
             : typeof e === "string"
               ? e
               : String(e) || "Tool execution failed";
-        results.push({ id: tc.id, result: JSON.stringify({ error: errorMsg }) });
+        results.push({ id: tc.id, result: JSON.stringify({ error: errorMsg }), error: true });
       }
     }
 

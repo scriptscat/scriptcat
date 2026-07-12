@@ -160,13 +160,6 @@ export class AgentTaskService {
           totalUsage.inputTokens += event.usage.inputTokens;
           totalUsage.outputTokens += event.usage.outputTokens;
         }
-        if (event.type === "error") {
-          throw Object.assign(new Error(event.message), {
-            errorCode: event.errorCode,
-            usage: totalUsage,
-            conversationId,
-          });
-        }
       };
 
       await this.orchestrator.callLLMWithToolLoop({

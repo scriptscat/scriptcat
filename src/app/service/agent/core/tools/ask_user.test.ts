@@ -27,6 +27,7 @@ describe("ask_user", () => {
     const result = await resultPromise;
     expect(JSON.parse(result as string)).toEqual({ answer: "Blue" });
     expect(resolvers.size).toBe(0);
+    expect(events.filter((event) => event.type === "ask_user_resolved")).toHaveLength(1);
   });
 
   it("should throw if question is missing", async () => {
