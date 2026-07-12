@@ -236,7 +236,7 @@ export class ToolRegistry implements ToolExecutorLike {
 
           // 检查是否带附件或子代理详情
           if (isToolResultWithAttachments(rawResult)) {
-            const attachments = await this.saveAttachments(rawResult.attachments);
+            const attachments = await this.saveAttachments(rawResult.attachments, signal);
             return { id: tc.id, result: rawResult.content, attachments };
           } else if (isToolResultWithSubAgent(rawResult)) {
             return { id: tc.id, result: rawResult.content, subAgentDetails: rawResult.subAgentDetails };
@@ -269,11 +269,22 @@ export class ToolRegistry implements ToolExecutorLike {
           try {
             const parsed = JSON.parse(sr.result);
             if (isToolResultWithAttachments(parsed)) {
-              const attachments = await this.saveAttachments(parsed.attachments);
+              const attachments = await this.saveAttachments(parsed.attachments, signal);
               results.push({ id: sr.id, result: parsed.content, attachments, error: sr.error });
               continue;
             }
-          } catch {
+          } catch (e: any) {
+            // signal 已 abort 时是附件写入被中止（见 saveAttachments 的 throwIfAborted），
+            // 不能落回"按原始字符串处理"分支——那会让脚本工具的原始成功结果继续被当作
+            // 已完成上报，掩盖掉附件其实没写完的事实（见 finding 4）
+            if (signal?.aborted) {
+              results.push({
+                id: sr.id,
+                result: JSON.stringify({ error: extractErrorMessage(e) }),
+                error: true,
+              });
+              continue;
+            }
             // 不是 JSON 或不是结构化结果，按原始字符串处理
           }
           results.push({ id: sr.id, result: sr.result, error: sr.error });
@@ -299,12 +310,18 @@ export class ToolRegistry implements ToolExecutorLike {
     return results;
   }
 
-  // 保存附件数据到 OPFS，返回 Attachment 元数据
-  private async saveAttachments(attachmentDataList: ToolResultWithAttachments["attachments"]): Promise<Attachment[]> {
+  // 保存附件数据到 OPFS，返回 Attachment 元数据。
+  // 传入 signal 时在每个附件写入前检查，abort 时中止剩余写入并抛错——调用方的 catch 块会把这
+  // 转成该 toolCall 的 error 结果，避免 Stop 之后仍继续写多个文件（见 finding 4）。
+  private async saveAttachments(
+    attachmentDataList: ToolResultWithAttachments["attachments"],
+    signal?: AbortSignal
+  ): Promise<Attachment[]> {
     if (!this.chatRepo || attachmentDataList.length === 0) return [];
 
     const attachments: Attachment[] = [];
     for (const ad of attachmentDataList) {
+      throwIfAborted(signal);
       if (!ad.data) {
         // 无 data 的附件是已保存的引用（如 skill script 返回的 imageBlock），直接透传元数据
         if ("attachmentId" in ad && (ad as any).attachmentId) {

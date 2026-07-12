@@ -72,6 +72,10 @@ export async function readSSEStream(
   };
   signal.addEventListener("abort", onAbort, { once: true });
 
+  // onEvent 提前终止（返回 true）时，body 里可能还有未读完的数据（例如 Anthropic 在
+  // message_delta 就终止本地处理，message_stop 及之后的数据从未被读取）；finally 里需要
+  // 据此决定是否主动 cancel 释放底层连接资源，避免 reader lock 一直占用到 GC（见 finding 12）
+  let earlyExit = false;
   try {
     while (!signal.aborted) {
       const { done, value } = await reader.read();
@@ -82,7 +86,10 @@ export async function readSSEStream(
 
       for (const sseEvent of events) {
         // onEvent 返回 true 代表流处理完毕，提前退出
-        if (onEvent(sseEvent)) return;
+        if (onEvent(sseEvent)) {
+          earlyExit = true;
+          return;
+        }
       }
     }
     // abort 导致循环退出：必须 reject 而不是静默 resolve，否则调用方（LLMClient.callLLM）
@@ -93,5 +100,12 @@ export async function readSSEStream(
     onError(e.message || "Stream read error");
   } finally {
     signal.removeEventListener("abort", onAbort);
+    if (earlyExit) {
+      try {
+        await reader.cancel();
+      } catch {
+        // 已经关闭/abort 时 cancel 可能抛错，忽略
+      }
+    }
   }
 }

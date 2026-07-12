@@ -49,9 +49,12 @@ export class BackgroundSessionManager {
     this.runningConversations.delete(conversationId);
   }
 
+  // cancelling 也算在内：handleAttach() 已经支持对 cancelling 会话继续订阅直到真正的终态
+  // 事件，但如果这里不把 cancelling 纳入发现列表，UI 侧（Options 页面刷新/重连）永远不会
+  // 尝试 attach，也就永远等不到那条真正携带取消原因/usage 的终态事件（见 finding 6）
   listIds(): string[] {
     return Array.from(this.runningConversations.entries())
-      .filter(([, conversation]) => conversation.status === "running")
+      .filter(([, conversation]) => conversation.status === "running" || conversation.status === "cancelling")
       .map(([conversationId]) => conversationId);
   }
 

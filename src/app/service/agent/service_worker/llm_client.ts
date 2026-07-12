@@ -143,7 +143,14 @@ export class LLMClient {
         signal.removeEventListener("abort", onAbortSafeguard);
         fn();
       };
-      const onAbortSafeguard = () => settleOnce(() => reject(new Error("Aborted")));
+      // parseStream 自身在 abort 时会 reject，并可能携带这一轮已知的部分 usage（见 openai.ts/
+      // anthropic.ts）。这里的 signal 监听只是最后一道保险，不能抢在 parseStream 的 reject 之前
+      // 立即 settle——那样会用一个不带 usage 的裸 Error 抢占更有信息量的那个 reject（见 finding 7）。
+      // 延迟到下一个宏任务，给 parseStream 的 reject 一个先落定的机会，本身仍然是安全网，
+      // 不依赖它必定生效。
+      const onAbortSafeguard = () => {
+        setTimeout(() => settleOnce(() => reject(new Error("Aborted"))), 0);
+      };
       signal.addEventListener("abort", onAbortSafeguard, { once: true });
       const resolveOnce: typeof resolve = (value) => settleOnce(() => resolve(value));
       const rejectOnce: typeof reject = (reason) => settleOnce(() => reject(reason));
@@ -208,15 +215,17 @@ export class LLMClient {
             // 停止继续保存/发送，并清理这一轮已经落盘但用不上的附件（见 finding 6）。
             const finalize = async () => {
               const savedBlocks: ContentBlock[] = [];
-              const orphanedIds: string[] = [];
+              // 本轮所有成功落盘的附件 id（不止是取消时正在保存的那一个）：一旦 settled，
+              // finalize() 的返回值不会再被使用（resolveOnce/rejectOnce 已是 no-op），
+              // 这一轮已经保存的所有附件都变成孤儿文件，必须全部清理，不能只删除取消时
+              // 正在保存的那一个而漏掉更早已经保存成功的（见 finding 8）
+              const allSavedIds: string[] = [];
               for (const pending of pendingImageSaves) {
                 if (settled) break;
                 try {
                   await this.chatRepo.saveAttachment(pending.block.attachmentId, pending.data);
-                  if (settled) {
-                    orphanedIds.push(pending.block.attachmentId);
-                    break;
-                  }
+                  allSavedIds.push(pending.block.attachmentId);
+                  if (settled) break;
                   savedBlocks.push(pending.block);
                   // 转发不含 data 的 content_block_complete 事件给 UI
                   sendEvent({ type: "content_block_complete", block: pending.block });
@@ -236,10 +245,8 @@ export class LLMClient {
                 const blockId = generateAttachmentId(ext);
                 try {
                   await this.chatRepo.saveAttachment(blockId, dataUrl);
-                  if (settled) {
-                    orphanedIds.push(blockId);
-                    break;
-                  }
+                  allSavedIds.push(blockId);
+                  if (settled) break;
                   const block: ContentBlock = {
                     type: "image",
                     attachmentId: blockId,
@@ -258,8 +265,8 @@ export class LLMClient {
                 content = cleanedContent.replace(/\n{3,}/g, "\n\n").trim();
               }
 
-              if (orphanedIds.length > 0) {
-                await Promise.all(orphanedIds.map((id) => this.chatRepo.deleteAttachment(id).catch(() => {})));
+              if (settled && allSavedIds.length > 0) {
+                await Promise.all(allSavedIds.map((id) => this.chatRepo.deleteAttachment(id).catch(() => {})));
               }
 
               return savedBlocks.length > 0 ? savedBlocks : undefined;
@@ -279,7 +286,14 @@ export class LLMClient {
             break;
           }
           case "error":
-            rejectOnce(new Error(event.message));
+            // 保留 usage/errorCode/durationMs 等字段，不能转成裸 Error 丢掉这些信息（见 finding 7）
+            rejectOnce(
+              Object.assign(new Error(event.message), {
+                errorCode: event.errorCode,
+                usage: event.usage,
+                durationMs: event.durationMs,
+              })
+            );
             break;
         }
       };

@@ -109,7 +109,10 @@ describe("Compact 功能", () => {
       apiBaseUrl: "",
       apiKey: "",
       model: "gpt-4o",
-      contextWindow: 10000,
+      // 提高到 40000：getReservedOutputTokens 现在对未显式配置 maxTokens 的 OpenAI 兼容模型
+      // 也预留一个非零默认输出额度（见 model_context.ts，finding 11），10000 的窗口在扣除
+      // 预留额度后输入预算会塌缩到 0，这里相应放宽窗口，保留测试原本想验证的"裁剪旧工具结果"场景
+      contextWindow: 40000,
     });
     mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
     const messages: any[] = [];

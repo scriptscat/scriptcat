@@ -23,9 +23,70 @@ vi.mock("@App/app/repo/skill_repo", () => ({
   },
 }));
 vi.mock("@App/pages/store/global", () => ({ message: {} }));
-vi.mock("@Packages/message/client", () => ({ connect: vi.fn(), sendMessage: vi.fn(() => Promise.resolve([])) }));
 
-import { useConversations, deleteMessages, clearMessages } from "./hooks";
+// 可控 mock 连接：测试直接驱动 onMessage 回调，模拟"stop 之后终态事件才到达"的真实时序
+function createMockConn() {
+  let messageHandler: ((msg: any) => void) | null = null;
+  let disconnectHandler: (() => void) | null = null;
+  return {
+    conn: {
+      sendMessage: vi.fn(),
+      onMessage: (cb: (msg: any) => void) => {
+        messageHandler = cb;
+      },
+      onDisconnect: (cb: () => void) => {
+        disconnectHandler = cb;
+      },
+      disconnect: vi.fn(),
+    },
+    emit: (data: any) => messageHandler?.({ data }),
+    fireDisconnect: () => disconnectHandler?.(),
+  };
+}
+
+const mockConnect = vi.hoisted(() => vi.fn());
+vi.mock("@Packages/message/client", () => ({
+  connect: mockConnect,
+  sendMessage: vi.fn(() => Promise.resolve([])),
+}));
+
+import { useConversations, deleteMessages, clearMessages, useStreamingChat } from "./hooks";
+
+describe("useStreamingChat：stop 后仍需放行终态事件（finding 6）", () => {
+  it("stopGeneration 之后到达的终态事件仍应触发 onDone 并断开连接，而不是被 abortedRef 吞掉", async () => {
+    const { conn, emit } = createMockConn();
+    mockConnect.mockResolvedValue(conn);
+
+    const { result } = renderHook(() => useStreamingChat());
+    const onEvent = vi.fn();
+    const onDone = vi.fn();
+
+    await act(async () => {
+      await result.current.sendMessage("conv-1", "hi", onEvent, onDone);
+    });
+
+    // 用户点击 Stop：只发 stop 消息、置 abortedRef，不立即断开
+    act(() => {
+      result.current.stopGeneration();
+    });
+    expect(conn.sendMessage).toHaveBeenCalledWith({ action: "stop" });
+    expect(conn.disconnect).not.toHaveBeenCalled();
+
+    // Stop 之后、真正终态事件到达之前的流式增量应被抑制
+    act(() => {
+      emit({ type: "content_delta", delta: "不应该被处理" });
+    });
+    expect(onEvent).not.toHaveBeenCalledWith({ type: "content_delta", delta: "不应该被处理" });
+
+    // 真正的终态事件（携带取消原因/usage）到达：必须放行、断开连接、触发 onDone
+    act(() => {
+      emit({ type: "error", errorCode: "cancelled", message: "Conversation cancelled", usage: { inputTokens: 1 } });
+    });
+    expect(onEvent).toHaveBeenCalledWith(expect.objectContaining({ type: "error", errorCode: "cancelled" }));
+    expect(conn.disconnect).toHaveBeenCalledOnce();
+    expect(onDone).toHaveBeenCalledOnce();
+  });
+});
 
 const conv = (id: string, title = "c"): Conversation => ({
   id,

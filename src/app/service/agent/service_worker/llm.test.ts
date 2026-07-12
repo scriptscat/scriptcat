@@ -590,7 +590,11 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     const { service, mockRepo, mockModelRepo } = createTestService();
     const { sender } = createMockSender();
 
-    // 使用较小的 contextWindow，便于用少量 prompt_tokens 触发裁剪阈值
+    // 使用较小的 contextWindow，便于用少量 prompt_tokens 触发裁剪阈值。
+    // 120000：getReservedOutputTokens 现在对未显式配置 maxTokens 的模型也预留非零默认输出额度
+    // （见 model_context.ts，finding 11），输入预算公式变成 0.9*contextWindow-16384；
+    // 调大窗口使输入预算重新接近原先按 0.9*contextWindow 设计时的量级（约 90000），
+    // 保持下面按 usages 数组设计的"第 5 轮跨 0.4、第 6 轮跨 0.6 但不到 0.8（不触发 autoCompact）"场景
     mockModelRepo.getModel.mockResolvedValue({
       id: "test-openai",
       name: "Test",
@@ -598,7 +602,7 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
       apiBaseUrl: "",
       apiKey: "",
       model: "gpt-4o",
-      contextWindow: 100000,
+      contextWindow: 120000,
     });
 
     // 使用两个不同名称的工具交替调用，避免触发 tool_call_guard 的重复调用检测
@@ -808,5 +812,40 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
 
     registry.unregisterBuiltin("tool_a");
     registry.unregisterBuiltin("tool_b");
+  });
+
+  it("最终回复持久化多次重试仍失败时应报结构化错误而不是假装 done（finding 10）", async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, mockRepo } = createTestService();
+      const { sender, sentMessages } = createMockSender();
+
+      mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+      mockRepo.getMessages.mockResolvedValue([]);
+      // 只让最终 assistant 消息持久化失败（模拟 OPFS 写入故障），user 消息正常落库，
+      // 这样才能验证的是"最终成功回复的落库失败处理"而不是更早的用户消息落库失败
+      mockRepo.appendMessage.mockImplementation(async (msg: any) => {
+        if (msg.role === "assistant") throw new Error("disk write failed");
+      });
+
+      fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
+
+      const chatPromise = (service as any).handleConversationChat(
+        { conversationId: "conv-1", message: "test" },
+        sender
+      );
+      // 有限重试之间有退避延迟（200ms/400ms），推进假定时器让它们落定
+      await vi.advanceTimersByTimeAsync(1000);
+      await chatPromise;
+
+      const events = sentMessages.map((m) => m.data);
+      // 不应报告 done：持久化最终失败，不能对外承诺"回复已保存"
+      expect(events.some((e: any) => e.type === "done")).toBe(false);
+      const errorEvent = events.find((e: any) => e.type === "error");
+      expect(errorEvent).toBeDefined();
+      expect(errorEvent.errorCode).toBe("persist_failed");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

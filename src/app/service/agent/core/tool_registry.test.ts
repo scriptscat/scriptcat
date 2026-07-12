@@ -444,6 +444,39 @@ describe("ToolRegistry", () => {
       expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(2);
     });
 
+    it("保存附件期间 signal abort：应停止继续写入并把该 toolCall 标为 error（finding 4）", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      const controller = new AbortController();
+      // 第一个附件保存"成功"的同时触发 abort，模拟 Stop 恰好落在多附件保存期间
+      (mockRepo.saveAttachment as any).mockImplementationOnce(async () => {
+        controller.abort();
+        return 1024;
+      });
+      registry.setChatRepo(mockRepo);
+
+      const structuredResult: ToolResultWithAttachments = {
+        content: "Files generated.",
+        attachments: [
+          { type: "image", name: "img1.png", mimeType: "image/png", data: "data:image/png;base64,abc" },
+          { type: "file", name: "report.xlsx", mimeType: "application/octet-stream", data: "base64data" },
+        ],
+      };
+      const executor = createExecutor(async () => structuredResult);
+      registry.registerBuiltin(weatherDef, executor);
+
+      const results = await registry.execute(
+        [{ id: "tc_1", name: "get_weather", arguments: "{}" }],
+        undefined,
+        undefined,
+        controller.signal
+      );
+
+      // 只应写入第一个附件，第二个在 abort 后不再保存
+      expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(1);
+      expect(results[0].error).toBe(true);
+    });
+
     it("内置工具返回 Blob 附件时应正确保存", async () => {
       const registry = new ToolRegistry();
       const mockRepo = createMockChatRepo();

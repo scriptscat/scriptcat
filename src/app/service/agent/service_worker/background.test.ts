@@ -477,7 +477,9 @@ describe("handleAttachToConversation 重连逻辑", () => {
       expect(rc.pendingAskUser).toBeUndefined();
       expect(rc.askResolvers.size).toBe(0);
       expect((service as any).bgSessionManager.has("conv-stop")).toBe(true);
-      expect(service.getRunningConversationIds()).not.toContain("conv-stop");
+      // cancelling 现在也纳入发现列表：UI 侧（Options 页面刷新/重连）需要据此判断是否
+      // 应该继续 attach 等待真正的终态事件，而不是误判为"已经不在运行"（见 finding 6）
+      expect(service.getRunningConversationIds()).toContain("conv-stop");
       // stop() 本身不再广播任何终态事件：唯一的终态事件来自执行方（orchestrator 的
       // emitCancelled，走正常 sendEvent → updateStreamingState → broadcastEvent 路径），
       // 避免"先广播一条不带 usage 的事件，UI 断开后丢失后到的真实终态事件"的竞态

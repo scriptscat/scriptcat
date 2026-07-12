@@ -538,6 +538,65 @@ describe("ConversationInstance tool_call_complete / new_message 重建历史", (
   });
 });
 
+describe("executeTools：连接 settle 后不应继续执行剩余 handler（finding 9）", () => {
+  it("连接在第一个 handler 执行期间断开时，第二个 handler 不应被调用", async () => {
+    let disconnectCb: ((isSelfDisconnected: boolean) => void) | undefined;
+
+    const handlerA = vi.fn().mockImplementation(async () => {
+      // 模拟 handlerA 执行期间用户点击 Stop / 脚本工具超时：连接断开
+      disconnectCb?.(false);
+      return "result-a";
+    });
+    const handlerB = vi.fn().mockResolvedValue("result-b");
+
+    const conn: MessageConnect = {
+      onMessage(cb: (msg: any) => void) {
+        // 与文件中其他 mock 一致：用 setTimeout(0) 异步派发，避免手动轮询回调是否已注册
+        setTimeout(() => {
+          cb({
+            action: "executeTools",
+            requestId: "req-1",
+            data: [
+              { id: "call-a", name: "tool_a", arguments: "{}" },
+              { id: "call-b", name: "tool_b", arguments: "{}" },
+            ],
+          });
+        }, 0);
+      },
+      onDisconnect(cb: (isSelfDisconnected: boolean) => void) {
+        disconnectCb = cb;
+      },
+      sendMessage() {},
+      disconnect() {},
+    };
+
+    const gmSendMessage = vi.fn().mockResolvedValue(undefined);
+    const gmConnect = vi.fn().mockResolvedValue(conn);
+
+    const instance = new ConversationInstance(
+      mockConversation({ modelId: "test-model" }),
+      gmSendMessage,
+      gmConnect,
+      "test-script-uuid",
+      20,
+      [
+        { name: "tool_a", description: "d", parameters: { type: "object", properties: {} }, handler: handlerA },
+        { name: "tool_b", description: "d", parameters: { type: "object", properties: {} }, handler: handlerB },
+      ],
+      undefined,
+      true // ephemeral
+    );
+
+    // chat() 因连接断开而 reject，这正是本测试要观察的效果
+    await expect(instance.chat("使用工具")).rejects.toThrow();
+
+    expect(handlerA).toHaveBeenCalledOnce();
+    // handlerB 不应被调用：executeTools 在 handlerA 执行期间连接已 settle，
+    // 后续 toolCall 直接补成取消结果，不再串行往下执行（见 finding 9）
+    expect(handlerB).not.toHaveBeenCalled();
+  });
+});
+
 // ---- errorCode 透传测试 ----
 
 // 创建发送指定事件序列的 mock 连接

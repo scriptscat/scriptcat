@@ -74,10 +74,22 @@ function resolveToolCall(
 async function executeTools(
   this: Instance,
   toolCalls: ToolCall[],
-  handlers: Map<string, ToolHandler>
+  handlers: Map<string, ToolHandler>,
+  // 连接/请求批次是否已经 settle（Stop、脚本工具超时、连接断开）。串行执行期间在每个
+  // handler 之前检查，而不是只在整批结束后检查一次——否则已经 settle 之后，剩余的
+  // handler 仍会继续跑，其副作用可能和后续新批次的 handler 重叠（见 finding 9）
+  isSettled?: () => boolean
 ): Promise<Array<{ id: string; result: string; error?: boolean }>> {
   const results: Array<{ id: string; result: string; error?: boolean }> = [];
   for (const toolCall of toolCalls) {
+    if (isSettled?.()) {
+      results.push({
+        id: toolCall.id,
+        result: JSON.stringify({ error: "Tool execution cancelled: connection already settled" }),
+        error: true,
+      });
+      continue;
+    }
     const handler = handlers.get(toolCall.name);
     if (!handler) {
       results.push({
@@ -165,7 +177,7 @@ function processChat(this: Instance, conn: MessageConnect, handlers: Map<string,
 
     conn.onMessage(async (message: any) => {
       if (message.action === "executeTools") {
-        const data = await executeTools.call(this, message.data, handlers);
+        const data = await executeTools.call(this, message.data, handlers, () => settled);
         // 工具函数执行期间连接可能已经因 Stop/脚本工具超时而 settle 并断开；
         // 断开后的连接 sendMessage 会抛错，且这里是异步回调，事件源不会 await/捕获它，
         // 会在用户脚本上下文里变成 unhandled rejection（见 finding 7）
@@ -276,7 +288,7 @@ function processStream(
 
   conn.onMessage(async (message: any) => {
     if (message.action === "executeTools") {
-      const data = await executeTools.call(this, message.data, handlers);
+      const data = await executeTools.call(this, message.data, handlers, () => done);
       // 工具函数执行期间连接可能已经因 Stop/脚本工具超时而结束并断开；
       // 断开后的连接 sendMessage 会抛错，且这里是异步回调，事件源不会 await/捕获它，
       // 会在用户脚本上下文里变成 unhandled rejection（见 finding 7）

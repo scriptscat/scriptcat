@@ -154,6 +154,12 @@ export class ToolLoopOrchestrator {
         // 持久化失败不阻塞终态事件发送
       }
     }
+    // 持久化期间也可能已被 Stop：取消优先于 context_too_large，不能在 Stop 之后仍对外报告/
+    // 抛出 context_too_large（见 finding 5）
+    if (signal.aborted) {
+      await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+      return;
+    }
     sendEvent({
       type: "error",
       message: error.message,
@@ -661,22 +667,34 @@ export class ToolLoopOrchestrator {
         continue;
       }
 
-      // 没有 tool calls，对话结束
+      // 没有 tool calls，对话结束。与取消/错误终态不同，done 对外承诺"回复已持久化"；
+      // UI 完成回调会重新从 OPFS 加载消息，静默吞掉写入失败仍报 done 会让回复看起来生成成功、
+      // 刷新后又消失。这里有限重试几次，仍失败则改报结构化错误而不是假装成功（见 finding 10）。
       const durationMs = Date.now() - startTime;
+      let persistFailed = false;
       if (conversationId) {
-        try {
-          await this.chatRepo.appendMessage({
-            id: uuidv4(),
-            conversationId,
-            role: "assistant",
-            content: buildMessageContent(),
-            thinking: result.thinking ? { content: result.thinking } : undefined,
-            usage: totalUsage,
-            durationMs,
-            createtime: Date.now(),
-          });
-        } catch {
-          // 持久化失败不阻塞终态事件发送
+        const assistantMessage = {
+          id: uuidv4(),
+          conversationId,
+          role: "assistant" as const,
+          content: buildMessageContent(),
+          thinking: result.thinking ? { content: result.thinking } : undefined,
+          usage: totalUsage,
+          durationMs,
+          createtime: Date.now(),
+        };
+        const MAX_PERSIST_ATTEMPTS = 3;
+        for (let attempt = 1; attempt <= MAX_PERSIST_ATTEMPTS; attempt++) {
+          try {
+            await this.chatRepo.appendMessage(assistantMessage);
+            persistFailed = false;
+            break;
+          } catch {
+            persistFailed = true;
+            if (attempt < MAX_PERSIST_ATTEMPTS) {
+              await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
+            }
+          }
         }
       }
 
@@ -684,6 +702,17 @@ export class ToolLoopOrchestrator {
       // 不能在 Stop 之后仍对外报告 done（否则后台会话状态会被"成功"覆盖掉 cancelled）
       if (signal.aborted) {
         await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+        return;
+      }
+
+      if (persistFailed) {
+        sendEvent({
+          type: "error",
+          message: "Reply was generated but failed to save. It may be lost after reloading.",
+          errorCode: "persist_failed",
+          usage: totalUsage,
+          durationMs,
+        });
         return;
       }
 

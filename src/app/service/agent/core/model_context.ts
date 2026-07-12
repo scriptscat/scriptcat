@@ -60,14 +60,21 @@ export function getContextWindow(config: { model: string; contextWindow?: number
   return DEFAULT_CONTEXT_WINDOW;
 }
 
-/** 获取 provider 实际会请求的最大输出 token 数。 */
+/**
+ * 获取 provider 实际会请求的最大输出 token 数。
+ * 未显式配置 maxTokens 时，不能按 0 预留：OpenAI 兼容请求体在这种情况下会直接省略
+ * max_tokens 字段（见 providers/openai.ts），provider 侧会套用它自己的默认输出上限
+ * （通常有实质数值，不是 0）。这里统一用一个有记录的保守默认值兜底，而不是假装输出不占预算，
+ * 否则输入预算会把整个 contextWindow 都算给输入，实际请求的 输入+输出 可能超出真实上限
+ * （见 finding 11）。
+ */
 export function getReservedOutputTokens(config: AgentModelConfig): number {
   const contextWindow = getContextWindow(config);
   const configured =
     typeof config.maxTokens === "number" && Number.isFinite(config.maxTokens)
       ? Math.max(0, Math.floor(config.maxTokens))
       : 0;
-  const requested = configured > 0 ? configured : config.provider === "anthropic" ? DEFAULT_ANTHROPIC_MAX_TOKENS : 0;
+  const requested = configured > 0 ? configured : DEFAULT_ANTHROPIC_MAX_TOKENS;
   return Math.min(contextWindow, requested);
 }
 

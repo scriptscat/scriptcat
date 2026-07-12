@@ -110,6 +110,10 @@ export class CompactService {
     };
     await this.chatRepo.saveMessages(conversationId, [summaryMessage], signal);
 
+    // 落盘之后也可能已被 Stop：写入已提交（无法撤销），但内存态覆盖和 compact_done 广播
+    // 必须让位给取消——不能在 Stop 之后仍报告自动压缩"成功"（见 finding 3）
+    throwIfAborted(signal);
+
     // 替换 currentMessages（保留 system，替换其余为摘要）——只有走到这里才说明落盘已提交
     const systemMsg = currentMessages.find((m) => m.role === "system");
     currentMessages.length = 0;
