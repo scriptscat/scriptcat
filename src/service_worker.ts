@@ -9,11 +9,17 @@ import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import { EventPageOffscreenManager, InProcessMessage } from "./app/service/offscreen/event_page_manager";
 import migrate, { migrateChromeStorage } from "./app/migrate";
 import { cleanInvalidKeys } from "./app/repo/resource";
+import { SystemConfig } from "./pkg/config/config";
 
 migrate();
 migrateChromeStorage();
 
 const OFFSCREEN_DOCUMENT_PATH = "src/offscreen.html";
+
+const startChromeServiceWorkerKeepAliveLoop = (enabled: boolean) => {
+  if (!enabled) return;
+  // Chrome service worker 保活循环将在后续实现。
+};
 
 let creating: Promise<void> | null | boolean = null;
 
@@ -73,6 +79,10 @@ function main() {
   const swMessage = new ServiceWorkerMessageSend();
   const messageQueue = new MessageQueue();
   const hasOffscreenDocument = typeof chrome.offscreen?.createDocument === "function";
+  if (hasOffscreenDocument) {
+    const systemConfig = new SystemConfig(messageQueue);
+    void systemConfig.getKeepChromeScriptsAlive().then(startChromeServiceWorkerKeepAliveLoop);
+  }
   // Chrome needs a real offscreen document. Firefox MV3 uses EventPageOffscreenManager instead.
   if (hasOffscreenDocument) {
     // 同时接收ExtensionMessage(chrome.runtime)和ServiceWorkerMessageSend(postMessage)的消息

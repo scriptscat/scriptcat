@@ -106,7 +106,7 @@
   },
   "keep_scripts_alive": {
     "title": "Arka Plan ve Zamanlanmış Betikleri Canlı Tut",
-    "description": "Firefox'ta ScriptCat'in arka plan sayfasını etkin tutarak Arka Plan Betikleri ve Zamanlanmış Betiklerin çalışmaya devam etmesini sağlar. Bu özellik deneyseldir, tarayıcı tarafından garanti edilmez ve biraz daha fazla kaynak kullanabilir.",
+    "description": "ScriptCat'in arka plan çalışma ortamını etkin tutarak Arka Plan Betikleri ve Zamanlanmış Betiklerin çalışmaya devam etmesini sağlar. Bu özellik deneyseldir, tarayıcı tarafından garanti edilmez ve biraz daha fazla kaynak kullanabilir.",
     "enable_failed": "Etkinleştirilemedi",
     "enable_success": "Etkinleştirildi",
     "disable_failed": "Devre Dışı Bırakılamadı",

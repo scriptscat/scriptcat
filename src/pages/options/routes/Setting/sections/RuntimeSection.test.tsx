@@ -81,11 +81,22 @@ afterEach(() => {
 });
 
 describe("运行时分区-可选保活权限", () => {
-  it("manifest 不包含 webRequestBlocking 时不显示 Firefox 保活开关", async () => {
+  it("非 Firefox 浏览器显示 Chrome 保活开关而不依赖 webRequestBlocking", async () => {
     mockStorage();
     render(<RuntimeSection register={() => () => {}} />);
     await screen.findByTestId("cat_storage_save");
-    expect(screen.queryByText("Keep Background and Scheduled Scripts Alive")).not.toBeInTheDocument();
+    expect(screen.getByText("Keep Background and Scheduled Scripts Alive")).toBeInTheDocument();
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
+  });
+
+  it("非 Firefox 浏览器切换保活开关时保存配置", async () => {
+    mockStorage();
+    render(<RuntimeSection register={() => () => {}} />);
+    await screen.findByText("Keep Background and Scheduled Scripts Alive");
+
+    fireEvent.click(screen.getAllByRole("switch")[1]);
+
+    expect(set).toHaveBeenCalledWith("keep_chrome_scripts_alive", true);
   });
 
   it("manifest 包含 webRequestBlocking 时显示开关并可请求权限", async () => {

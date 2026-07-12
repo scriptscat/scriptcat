@@ -106,7 +106,7 @@
   },
   "keep_scripts_alive": {
     "title": "Giữ script nền và script hẹn giờ hoạt động",
-    "description": "Trên Firefox, giữ trang nền của ScriptCat hoạt động để script nền và script hẹn giờ tiếp tục chạy. Tính năng này còn thử nghiệm, không được trình duyệt bảo đảm và có thể dùng thêm một ít tài nguyên.",
+    "description": "Giữ môi trường chạy nền của ScriptCat hoạt động để script nền và script hẹn giờ tiếp tục chạy. Tính năng này còn thử nghiệm, không được trình duyệt bảo đảm và có thể dùng thêm một ít tài nguyên.",
     "enable_failed": "Bật thất bại",
     "enable_success": "Đã bật",
     "disable_failed": "Tắt thất bại",

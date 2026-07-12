@@ -18,6 +18,7 @@ const boolFirefox = isFirefox();
 export function RuntimeSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
   const [bg, setBg] = useState(false);
+  const [chromeKeepAlive, setChromeKeepAlive] = useState(false);
   const [keepAlive, setKeepAlive] = useState<boolean | null>(null);
   const [storage, setStorage] = useState<CATFileStorage | undefined>(undefined);
 
@@ -26,6 +27,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
       void isPermissionOk("background").then((r) => {
         if (r !== null) setBg(r);
       });
+      void Promise.resolve(systemConfig.get("keep_chrome_scripts_alive")).then((r) => setChromeKeepAlive(Boolean(r)));
     }
     if (boolFirefox) {
       void isPermissionOk("webRequestBlocking").then((r) => {
@@ -63,6 +65,11 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
         }
       });
     }
+  };
+
+  const toggleChromeKeepAlive = (enable: boolean) => {
+    setChromeKeepAlive(enable);
+    systemConfig.set("keep_chrome_scripts_alive", enable);
   };
 
   const toggleKeepAlive = (enable: boolean) => {
@@ -136,12 +143,20 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
   return (
     <SettingCard id="runtime" title={t("logs:runtime")} register={register}>
       {!boolFirefox && (
-        <SettingRow
-          label={t("settings:enable_background.title")}
-          description={t("settings:enable_background.description")}
-        >
-          <Switch checked={bg} onCheckedChange={toggleBg} />
-        </SettingRow>
+        <>
+          <SettingRow
+            label={t("settings:enable_background.title")}
+            description={t("settings:enable_background.description")}
+          >
+            <Switch checked={bg} onCheckedChange={toggleBg} />
+          </SettingRow>
+          <SettingRow
+            label={t("settings:keep_scripts_alive.title")}
+            description={t("settings:keep_scripts_alive.description")}
+          >
+            <Switch checked={chromeKeepAlive} onCheckedChange={toggleChromeKeepAlive} />
+          </SettingRow>
+        </>
       )}
 
       {boolFirefox && keepAlive !== null && (

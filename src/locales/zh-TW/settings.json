@@ -106,7 +106,7 @@
   },
   "keep_scripts_alive": {
     "title": "保持背景與定時腳本執行",
-    "description": "在 Firefox 上保持 ScriptCat 的背景頁面作用中，讓背景腳本與定時腳本繼續執行。此功能仍屬實驗性質，瀏覽器不保證一定有效，且可能略微增加資源用量。",
+    "description": "保持 ScriptCat 的背景執行環境作用中，讓背景腳本與定時腳本繼續執行。此功能仍屬實驗性質，瀏覽器不保證一定有效，且可能略微增加資源用量。",
     "enable_failed": "啟用失敗",
     "enable_success": "啟用成功",
     "disable_failed": "停用失敗",

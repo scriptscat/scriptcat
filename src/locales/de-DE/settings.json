@@ -106,7 +106,7 @@
   },
   "keep_scripts_alive": {
     "title": "Hintergrund- und geplante Skripte aktiv halten",
-    "description": "Hält in Firefox die Hintergrundseite von ScriptCat aktiv, damit Hintergrundskripte und geplante Skripte weiterlaufen. Diese Funktion ist experimentell, wird vom Browser nicht garantiert und kann etwas mehr Ressourcen verwenden.",
+    "description": "Hält die Hintergrundausführungsumgebung von ScriptCat aktiv, damit Hintergrundskripte und geplante Skripte weiterlaufen. Diese Funktion ist experimentell, wird vom Browser nicht garantiert und kann etwas mehr Ressourcen verwenden.",
     "enable_failed": "Aktivierung fehlgeschlagen",
     "enable_success": "Aktiviert",
     "disable_failed": "Deaktivierung fehlgeschlagen",

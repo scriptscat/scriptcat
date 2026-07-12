@@ -106,7 +106,7 @@
   },
   "keep_scripts_alive": {
     "title": "Keep Background and Scheduled Scripts Alive",
-    "description": "On Firefox, keeps ScriptCat's background page active so Background Scripts and Scheduled Scripts continue to run. This is experimental, not guaranteed by the browser, and may use slightly more resources.",
+    "description": "Keeps ScriptCat's background execution environment active so Background Scripts and Scheduled Scripts continue to run. This is experimental, not guaranteed by the browser, and may use slightly more resources.",
     "enable_failed": "Failed to enable",
     "enable_success": "Enabled successfully",
     "disable_failed": "Failed to disable",
