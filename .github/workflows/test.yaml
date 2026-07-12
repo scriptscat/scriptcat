@@ -13,11 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     name: Lint
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v5
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
 
       - name: Use Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: 'pnpm'
@@ -29,7 +29,7 @@ jobs:
         run: pnpm i --frozen-lockfile
 
       - name: Cache ESLint cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: .eslintcache
           key: eslint-${{ hashFiles('pnpm-lock.yaml', '.eslintrc*') }}
@@ -48,11 +48,11 @@ jobs:
         shardIndex: [1, 2]
         shardTotal: [2]
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v5
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
 
       - name: Use Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: 'pnpm'
@@ -86,11 +86,11 @@ jobs:
     needs: [lint, test-shards]
     if: ${{ !cancelled() }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v5
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
 
       - name: Use Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: 'pnpm'
@@ -127,11 +127,11 @@ jobs:
     runs-on: ubuntu-latest
     name: Run E2E tests
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v5
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
 
       - name: Use Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: 'pnpm'
@@ -144,7 +144,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ hashFiles('pnpm-lock.yaml') }}
