@@ -3,7 +3,7 @@ import { FramingDecoder, encodeFrame } from "./framing";
 
 const MAX = 1024;
 
-describe("FramingDecoder - 4 字节小端长度前缀分帧（doc 03 §2）", () => {
+describe("FramingDecoder - 4 字节小端长度前缀分帧", () => {
   it("单个完整帧一次性到达时正确解码", () => {
     const decoder = new FramingDecoder(MAX);
     const results = decoder.push(encodeFrame({ hello: "world" }));

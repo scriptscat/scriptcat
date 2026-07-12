@@ -6,7 +6,7 @@ import { buildMcpServer } from "./server";
 // owns and must verify is that registration itself succeeds across every scope combination and
 // that it doesn't throw building against the real SDK types — tool/resource *visibility* by
 // scope is unit-tested directly against tools.ts's visibleTools() in tools.test.ts.
-describe("buildMcpServer - 按 scope 构造 McpServer（doc 03 §5, doc 06 §1）", () => {
+describe("buildMcpServer - 按 scope 构造 McpServer", () => {
   const socketClient = { call: vi.fn() };
 
   it("只读 scope 时可以成功构造", () => {

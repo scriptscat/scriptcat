@@ -19,7 +19,7 @@ function makeDeps(
   return { pairingManager, tokenStore: { addClient }, getSession, addClient, resolvePairing, session };
 }
 
-describe("handlePairingDecision - 应用配对决定并签发 token（doc 03 §4）", () => {
+describe("handlePairingDecision - 应用配对决定并签发 token", () => {
   it("批准时生成 token、写入 tokenStore，并通过 session 发送一次性明文 token", async () => {
     const pairingManager = new PairingManager();
     const requestResult = pairingManager.requestPairing({

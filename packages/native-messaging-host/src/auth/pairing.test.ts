@@ -10,7 +10,7 @@ function request(manager: PairingManager, overrides: Partial<Parameters<PairingM
   });
 }
 
-describe("PairingManager - 配对状态机（doc 03 §4）", () => {
+describe("PairingManager - 配对状态机", () => {
   afterEach(() => {
     vi.useRealTimers();
   });

@@ -24,7 +24,7 @@ vi.mock("node:net", async (importOriginal) => {
   return { ...actual, createServer: vi.fn(() => fakeServer) };
 });
 
-describe("createIpcEndpoint - Windows named pipe 分支（doc 06 §3）", () => {
+describe("createIpcEndpoint - Windows named pipe 分支", () => {
   it("构造 \\\\.\\pipe\\ 命名管道路径，且 close() 不涉及 fs.chmod/unlink（那些只适用于 POSIX 路径）", async () => {
     const platformSpy = vi.spyOn(process, "platform", "get").mockReturnValue("win32");
     fakeServer.listen.mockClear();

@@ -4,7 +4,7 @@ import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import { resolveConfigDir, verifyDirPermissions, atomicWriteFile } from "./config";
 
-describe("resolveConfigDir - 按平台解析配置目录（doc 06 §2）", () => {
+describe("resolveConfigDir - 按平台解析配置目录", () => {
   it("Windows 平台使用 LOCALAPPDATA 下的 ScriptCat/NativeHost", () => {
     const dir = resolveConfigDir("win32");
     expect(dir).toContain("ScriptCat");
@@ -22,7 +22,7 @@ describe("resolveConfigDir - 按平台解析配置目录（doc 06 §2）", () =>
   });
 });
 
-describe("verifyDirPermissions / atomicWriteFile - 文件系统安全（doc 04 §8, doc 06 §5）", () => {
+describe("verifyDirPermissions / atomicWriteFile - 文件系统安全", () => {
   let tmpRoot: string;
 
   beforeEach(async () => {

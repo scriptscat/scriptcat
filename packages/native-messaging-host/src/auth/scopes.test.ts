@@ -15,7 +15,7 @@ describe("hasScope / hasAnyWriteScope", () => {
   });
 });
 
-describe("visibleActions - tools/list 按 scope 过滤（doc 03 §5）", () => {
+describe("visibleActions - tools/list 按 scope 过滤", () => {
   it("只读客户端看不到任何 request_* 工具", () => {
     const actions = visibleActions(["scripts:list", "scripts:metadata:read"], ACTION_REQUIRED_SCOPE);
     expect(actions).toContain("scripts.list");

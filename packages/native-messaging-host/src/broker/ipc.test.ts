@@ -5,7 +5,7 @@ import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import { createIpcEndpoint, type IpcEndpoint } from "./ipc";
 
-describe.skipIf(process.platform === "win32")("createIpcEndpoint - Unix domain socket（doc 03 §4, doc 06 §3）", () => {
+describe.skipIf(process.platform === "win32")("createIpcEndpoint - Unix domain socket", () => {
   let tmpRoot: string;
   let endpoint: IpcEndpoint | undefined;
 
@@ -66,7 +66,7 @@ describe.skipIf(process.platform === "win32")("createIpcEndpoint - Unix domain s
     client.end();
   });
 
-  it("server.address() 返回字符串路径而非 {port} —— 结构性证明从未监听 TCP 端口（doc 04 §2 A1, doc 08 §9）", async () => {
+  it("server.address() 返回字符串路径而非 {port} —— 结构性证明从未监听 TCP 端口", async () => {
     endpoint = await createIpcEndpoint(tmpRoot);
     const address = endpoint.server.address();
     // A TCP listener's address() returns { address, family, port }; a Unix domain socket's

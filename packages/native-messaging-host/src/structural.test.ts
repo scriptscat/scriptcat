@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-// Structural / static proofs for doc 04 §2 A1 and doc 08 §7/§9: this package must never open an
-// HTTP listener or make outbound network calls — the entire CORS/DNS-rebinding/port-scanning
-// attack class doesn't apply because there is nothing on the network to attack. These are
-// source-level checks (not runtime spies) so they catch a violation anywhere in the tree, not
-// just on paths a runtime test happens to exercise.
+// Structural / static proofs that this package must never open an HTTP listener or make outbound
+// network calls — the entire CORS/DNS-rebinding/port-scanning attack class doesn't apply because
+// there is nothing on the network to attack. These are source-level checks (not runtime spies)
+// so they catch a violation anywhere in the tree, not just on paths a runtime test happens to
+// exercise.
 
 async function listProductionSourceFiles(): Promise<string[]> {
   const srcDir = path.resolve(__dirname, "..", "src");
@@ -25,7 +25,7 @@ async function listProductionSourceFiles(): Promise<string[]> {
   return out;
 }
 
-describe("结构性安全断言：宿主/垫片从不开放 HTTP 监听或发起出站网络请求（doc 04 §2 A1, doc 08 §7/§9）", () => {
+describe("结构性安全断言：宿主/垫片从不开放 HTTP 监听或发起出站网络请求", () => {
   it("生产源码中不存在 http/https 模块导入", async () => {
     const files = await listProductionSourceFiles();
     const offenders: string[] = [];

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { LIMITS, resolveLimits } from "./limits";
 
-describe("resolveLimits - 有界配置覆盖（doc 04 §7）", () => {
+describe("resolveLimits - 有界配置覆盖", () => {
   it("无覆盖时返回默认值", () => {
     expect(resolveLimits()).toEqual(LIMITS);
   });

@@ -5,7 +5,7 @@ import type { NativeEnvelope } from "../shared/protocol";
 
 const MAX = 1024 * 1024;
 
-describe("NativeChannel - 主机↔浏览器请求关联（doc 03 §2, doc 02 §6）", () => {
+describe("NativeChannel - 主机↔浏览器请求关联", () => {
   afterEach(() => {
     vi.useRealTimers();
   });

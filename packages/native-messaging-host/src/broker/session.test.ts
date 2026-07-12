@@ -61,7 +61,7 @@ async function authenticate(
   await session.onMessage({ t: "auth", clientId, mac });
 }
 
-describe("SessionHandler - 握手与鉴权（doc 03 §4）", () => {
+describe("SessionHandler - 握手与鉴权", () => {
   it("hello 缺少 clientId 时拒绝（引导走 pair 流程）", async () => {
     const { session, sent } = makeSession();
     await session.onMessage({ t: "hello", v: 1 });
@@ -130,7 +130,7 @@ describe("SessionHandler - 握手与鉴权（doc 03 §4）", () => {
   });
 });
 
-describe("SessionHandler - call 分发（doc 03 §4 steady state）", () => {
+describe("SessionHandler - call 分发（稳态阶段）", () => {
   it("未认证时调用 call 返回 UNAUTHENTICATED 错误", async () => {
     const { session, sent } = makeSession();
     await session.onMessage({ t: "call", id: "req-1", action: "scripts.list", input: {} });
@@ -199,7 +199,7 @@ describe("SessionHandler - call 分发（doc 03 §4 steady state）", () => {
   });
 });
 
-describe("SessionHandler - 配对流程（doc 03 §4 Pairing）", () => {
+describe("SessionHandler - 配对流程", () => {
   it("pair 请求返回 pair_pending 并通知 onPairingRequested", async () => {
     const { session, sent, onPairingRequested } = makeSession();
     await session.onMessage({ t: "pair", v: 1, clientName: "New Client", requestedScopes: ["scripts:list"] });

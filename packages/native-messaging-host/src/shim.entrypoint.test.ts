@@ -12,7 +12,7 @@ import * as path from "node:path";
 // at the SessionHandler/BrokerServer/SocketClient level (server.test.ts, session.test.ts).
 const distShimJs = path.resolve(__dirname, "..", "dist", "shim.js");
 
-describe.skipIf(!existsSync(distShimJs))("shim.ts 入口 · 未配对时的早退路径（doc 06 §4）", () => {
+describe.skipIf(!existsSync(distShimJs))("shim.ts 入口 · 未配对时的早退路径", () => {
   it("尚无凭据时打印配对指引并以非 0 退出，且不创建任何配置目录（不会先尝试连接主机）", async () => {
     const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "sc-mcp-shim-precheck-"));
     try {

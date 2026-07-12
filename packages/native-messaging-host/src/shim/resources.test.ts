@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildSourceResourceUri, parseSourceResourceUri, SOURCE_RESOURCE_URI_TEMPLATE } from "./resources";
 
-describe("buildSourceResourceUri / parseSourceResourceUri（doc 03 §5）", () => {
+describe("buildSourceResourceUri / parseSourceResourceUri", () => {
   const uuid = "00000000-0000-4000-8000-000000000000";
 
   it("build 与 parse 互为逆运算", () => {

@@ -11,7 +11,7 @@ describe("generateNonce", () => {
   });
 });
 
-describe("computeMac / verifyMac - HMAC 挑战响应（doc 03 §4）", () => {
+describe("computeMac / verifyMac - HMAC 挑战响应", () => {
   const tokenHash = "a".repeat(64);
   const nonce = generateNonce();
   const endpoint = "/run/scriptcat-mcp-abc123.sock";

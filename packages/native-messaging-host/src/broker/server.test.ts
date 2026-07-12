@@ -50,137 +50,134 @@ function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
   });
 }
 
-describe.skipIf(process.platform === "win32")(
-  "BrokerServer - 端到端握手/call over 真实 Unix socket（doc 03 §4）",
-  () => {
-    let tmpRoot: string;
-    let ipcEndpoint: IpcEndpoint;
-    let server: BrokerServer;
-    let dispatchBridgeCall: (clientId: string, action: string, input: unknown) => Promise<BridgeCallOutcome>;
-    let lastConnectionId: string | undefined;
+describe.skipIf(process.platform === "win32")("BrokerServer - 端到端握手/call over 真实 Unix socket", () => {
+  let tmpRoot: string;
+  let ipcEndpoint: IpcEndpoint;
+  let server: BrokerServer;
+  let dispatchBridgeCall: (clientId: string, action: string, input: unknown) => Promise<BridgeCallOutcome>;
+  let lastConnectionId: string | undefined;
 
-    beforeEach(async () => {
-      tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "sc-mcp-server-"));
-      await fs.chmod(tmpRoot, 0o700);
-      ipcEndpoint = await createIpcEndpoint(tmpRoot);
+  beforeEach(async () => {
+    tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "sc-mcp-server-"));
+    await fs.chmod(tmpRoot, 0o700);
+    ipcEndpoint = await createIpcEndpoint(tmpRoot);
 
-      dispatchBridgeCall = async () => ({ ok: true, result: { scripts: [] } });
-      lastConnectionId = undefined;
+    dispatchBridgeCall = async () => ({ ok: true, result: { scripts: [] } });
+    lastConnectionId = undefined;
 
-      server = new BrokerServer(ipcEndpoint, (connectionId, send) => {
-        lastConnectionId = connectionId;
-        const deps: SessionDeps = {
-          connectionId,
-          endpointName: ipcEndpoint.endpointName,
-          serverInfo: { name: "scriptcat-native-host", version: "0.1.0" },
-          tokenStore: {
-            get: (id) => (id === STORED_CLIENT.clientId ? STORED_CLIENT : undefined),
-            touchLastUsed: async () => {},
-          },
-          pairingManager: new PairingManager(),
-          authFailureLockout: new AuthFailureLockout(3, 60_000, 300_000),
-          readLimiter: new WindowedRateLimiter(60, 60_000),
-          writeLimiter: new WindowedRateLimiter(10, 60 * 60_000),
-          concurrencyLimiter: new ConcurrencyLimiter(4),
-          send,
-          dispatchBridgeCall: (clientId, action, input) => dispatchBridgeCall(clientId, action, input),
-          onPairingRequested: () => {},
-        };
-        return deps;
-      });
+    server = new BrokerServer(ipcEndpoint, (connectionId, send) => {
+      lastConnectionId = connectionId;
+      const deps: SessionDeps = {
+        connectionId,
+        endpointName: ipcEndpoint.endpointName,
+        serverInfo: { name: "scriptcat-native-host", version: "0.1.0" },
+        tokenStore: {
+          get: (id) => (id === STORED_CLIENT.clientId ? STORED_CLIENT : undefined),
+          touchLastUsed: async () => {},
+        },
+        pairingManager: new PairingManager(),
+        authFailureLockout: new AuthFailureLockout(3, 60_000, 300_000),
+        readLimiter: new WindowedRateLimiter(60, 60_000),
+        writeLimiter: new WindowedRateLimiter(10, 60 * 60_000),
+        concurrencyLimiter: new ConcurrencyLimiter(4),
+        send,
+        dispatchBridgeCall: (clientId, action, input) => dispatchBridgeCall(clientId, action, input),
+        onPairingRequested: () => {},
+      };
+      return deps;
+    });
+  });
+
+  afterEach(async () => {
+    await server.close();
+    await fs.rm(tmpRoot, { recursive: true, force: true });
+  });
+
+  it("完整握手 -> call -> result 全流程通过真实 socket 往返", async () => {
+    const client = net.createConnection(ipcEndpoint.endpointName);
+    await new Promise<void>((resolve, reject) => {
+      client.once("connect", () => resolve());
+      client.once("error", reject);
+    });
+    const received = createLineCollector(client);
+
+    client.write(JSON.stringify({ t: "hello", v: 1, clientId: "client-1" }) + "\n");
+    await waitFor(() => received.some((m: any) => m.t === "challenge"));
+    const challenge = received.find((m: any) => m.t === "challenge") as any;
+    const mac = computeMac(TOKEN_HASH, challenge.nonce, ipcEndpoint.endpointName);
+    client.write(JSON.stringify({ t: "auth", clientId: "client-1", mac }) + "\n");
+    await waitFor(() => received.some((m: any) => m.t === "ready"));
+
+    client.write(JSON.stringify({ t: "call", id: "req-1", action: "scripts.list", input: {} }) + "\n");
+    await waitFor(() => received.some((m: any) => m.t === "result"));
+    const result = received.find((m: any) => m.t === "result") as any;
+    expect(result).toEqual({ t: "result", id: "req-1", ok: true, result: { scripts: [] } });
+
+    client.end();
+  });
+
+  it("getSession 返回已建立连接对应的 SessionHandler，未知 connectionId 返回 undefined（host.ts/pairing-decision.ts 依赖此查找连接）", async () => {
+    const client = net.createConnection(ipcEndpoint.endpointName);
+    await new Promise<void>((resolve, reject) => {
+      client.once("connect", () => resolve());
+      client.once("error", reject);
     });
 
-    afterEach(async () => {
-      await server.close();
-      await fs.rm(tmpRoot, { recursive: true, force: true });
+    await waitFor(() => lastConnectionId !== undefined);
+    expect(server.getSession(lastConnectionId!)).toBeDefined();
+    expect(server.getSession("unknown-connection-id")).toBeUndefined();
+
+    client.end();
+  });
+
+  it("超大行（超过 socketLineMax）被丢弃，不影响后续消息 —— 分帧层同样不因超限而失步", async () => {
+    const client = net.createConnection(ipcEndpoint.endpointName);
+    await new Promise<void>((resolve, reject) => {
+      client.once("connect", () => resolve());
+      client.once("error", reject);
     });
+    const received = createLineCollector(client);
 
-    it("完整握手 -> call -> result 全流程通过真实 socket 往返", async () => {
-      const client = net.createConnection(ipcEndpoint.endpointName);
-      await new Promise<void>((resolve, reject) => {
-        client.once("connect", () => resolve());
-        client.once("error", reject);
-      });
-      const received = createLineCollector(client);
+    const hugeLine = JSON.stringify({ t: "hello", v: 1, clientId: "x".repeat(5 * 1024 * 1024) });
+    client.write(hugeLine + "\n");
+    client.write(JSON.stringify({ t: "hello", v: 1, clientId: "client-1" }) + "\n");
 
-      client.write(JSON.stringify({ t: "hello", v: 1, clientId: "client-1" }) + "\n");
-      await waitFor(() => received.some((m: any) => m.t === "challenge"));
-      const challenge = received.find((m: any) => m.t === "challenge") as any;
-      const mac = computeMac(TOKEN_HASH, challenge.nonce, ipcEndpoint.endpointName);
-      client.write(JSON.stringify({ t: "auth", clientId: "client-1", mac }) + "\n");
-      await waitFor(() => received.some((m: any) => m.t === "ready"));
+    await waitFor(() => received.some((m: any) => m.t === "challenge"));
+    expect(received.some((m: any) => m.t === "challenge")).toBe(true);
 
-      client.write(JSON.stringify({ t: "call", id: "req-1", action: "scripts.list", input: {} }) + "\n");
-      await waitFor(() => received.some((m: any) => m.t === "result"));
-      const result = received.find((m: any) => m.t === "result") as any;
-      expect(result).toEqual({ t: "result", id: "req-1", ok: true, result: { scripts: [] } });
+    client.end();
+  });
 
-      client.end();
+  it("格式错误的一行被丢弃，不使连接崩溃，后续消息仍能处理", async () => {
+    const client = net.createConnection(ipcEndpoint.endpointName);
+    await new Promise<void>((resolve, reject) => {
+      client.once("connect", () => resolve());
+      client.once("error", reject);
     });
+    const received = createLineCollector(client);
 
-    it("getSession 返回已建立连接对应的 SessionHandler，未知 connectionId 返回 undefined（host.ts/pairing-decision.ts 依赖此查找连接）", async () => {
-      const client = net.createConnection(ipcEndpoint.endpointName);
-      await new Promise<void>((resolve, reject) => {
-        client.once("connect", () => resolve());
-        client.once("error", reject);
-      });
+    client.write("not valid json\n");
+    client.write(JSON.stringify({ t: "hello", v: 1, clientId: "client-1" }) + "\n");
+    await waitFor(() => received.some((m: any) => m.t === "challenge"));
 
-      await waitFor(() => lastConnectionId !== undefined);
-      expect(server.getSession(lastConnectionId!)).toBeDefined();
-      expect(server.getSession("unknown-connection-id")).toBeUndefined();
+    client.end();
+  });
 
-      client.end();
+  it("消息拆分成多个 TCP/socket 写入片段时仍正确重组一行", async () => {
+    const client = net.createConnection(ipcEndpoint.endpointName);
+    await new Promise<void>((resolve, reject) => {
+      client.once("connect", () => resolve());
+      client.once("error", reject);
     });
+    const received = createLineCollector(client);
 
-    it("超大行（超过 socketLineMax）被丢弃，不影响后续消息 —— 分帧层同样不因超限而失步", async () => {
-      const client = net.createConnection(ipcEndpoint.endpointName);
-      await new Promise<void>((resolve, reject) => {
-        client.once("connect", () => resolve());
-        client.once("error", reject);
-      });
-      const received = createLineCollector(client);
+    const line = JSON.stringify({ t: "hello", v: 1, clientId: "client-1" }) + "\n";
+    const mid = Math.floor(line.length / 2);
+    client.write(line.slice(0, mid));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    client.write(line.slice(mid));
 
-      const hugeLine = JSON.stringify({ t: "hello", v: 1, clientId: "x".repeat(5 * 1024 * 1024) });
-      client.write(hugeLine + "\n");
-      client.write(JSON.stringify({ t: "hello", v: 1, clientId: "client-1" }) + "\n");
-
-      await waitFor(() => received.some((m: any) => m.t === "challenge"));
-      expect(received.some((m: any) => m.t === "challenge")).toBe(true);
-
-      client.end();
-    });
-
-    it("格式错误的一行被丢弃，不使连接崩溃，后续消息仍能处理", async () => {
-      const client = net.createConnection(ipcEndpoint.endpointName);
-      await new Promise<void>((resolve, reject) => {
-        client.once("connect", () => resolve());
-        client.once("error", reject);
-      });
-      const received = createLineCollector(client);
-
-      client.write("not valid json\n");
-      client.write(JSON.stringify({ t: "hello", v: 1, clientId: "client-1" }) + "\n");
-      await waitFor(() => received.some((m: any) => m.t === "challenge"));
-
-      client.end();
-    });
-
-    it("消息拆分成多个 TCP/socket 写入片段时仍正确重组一行", async () => {
-      const client = net.createConnection(ipcEndpoint.endpointName);
-      await new Promise<void>((resolve, reject) => {
-        client.once("connect", () => resolve());
-        client.once("error", reject);
-      });
-      const received = createLineCollector(client);
-
-      const line = JSON.stringify({ t: "hello", v: 1, clientId: "client-1" }) + "\n";
-      const mid = Math.floor(line.length / 2);
-      client.write(line.slice(0, mid));
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      client.write(line.slice(mid));
-
-      await waitFor(() => received.some((m: any) => m.t === "challenge"));
-      client.end();
-    });
-  }
-);
+    await waitFor(() => received.some((m: any) => m.t === "challenge"));
+    client.end();
+  });
+});

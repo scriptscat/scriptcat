@@ -22,7 +22,7 @@ describe("generateToken / hashToken", () => {
   });
 });
 
-describe("TokenStore - 客户端令牌存储（doc 04 §8）", () => {
+describe("TokenStore - 客户端令牌存储", () => {
   let tmpRoot: string;
   let filePath: string;
 

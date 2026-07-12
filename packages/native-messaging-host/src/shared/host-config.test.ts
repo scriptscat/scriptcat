@@ -4,7 +4,7 @@ import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import { loadHostConfig, saveHostConfig, hostConfigPath, clientsPath, runtimeDir } from "./host-config";
 
-describe("host-config.ts - 主机配置读写（doc 06 §2-3）", () => {
+describe("host-config.ts - 主机配置读写", () => {
   let tmpRoot: string;
 
   beforeEach(async () => {

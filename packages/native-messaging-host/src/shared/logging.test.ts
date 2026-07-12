@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { Logger, redactUrl, redactSecret } from "./logging";
 
-describe("redactUrl - URL 中的敏感查询参数脱敏（doc 04 §8-9）", () => {
+describe("redactUrl - URL 中的敏感查询参数脱敏", () => {
   it("token 参数被替换", () => {
     expect(redactUrl("https://example.com/x?token=abc123")).toBe("https://example.com/x?token=%5BREDACTED%5D");
   });
@@ -28,7 +28,7 @@ describe("redactSecret", () => {
   });
 });
 
-describe("Logger - 仅写入 stderr（doc 04 §10）", () => {
+describe("Logger - 仅写入 stderr", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });

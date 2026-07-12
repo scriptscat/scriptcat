@@ -3,7 +3,7 @@ import { verifyCallerOrigin, extractCallerOrigin, truncateForLog } from "./origi
 
 const VALID_ORIGIN = "chrome-extension://abcdefghijklmnopabcdefghijklmnop/";
 
-describe("verifyCallerOrigin - 主机启动时的调用方来源校验（doc 04 §3 A6, doc 05 §5）", () => {
+describe("verifyCallerOrigin - 主机启动时的调用方来源校验", () => {
   it("argv 中存在且在允许列表中时通过", () => {
     const result = verifyCallerOrigin(["node", "host.js", VALID_ORIGIN], [VALID_ORIGIN]);
     expect(result).toEqual({ ok: true, origin: VALID_ORIGIN });

@@ -8,9 +8,8 @@ import * as path from "node:path";
 // host.ts's `main()` runs unconditionally at module load (`main().catch(...)` at the bottom of
 // the file) and touches process.stdin/exits the process — importing it in-process would run the
 // full host, not just the CLI subcommand under test. It's exercised here as a real subprocess
-// against the built dist/host.js instead, exactly like doc 09 §2's reviewer script
-// (`node dist/host.js --doctor`) and doc 09 §3's manual smoke test step 1 — this is the
-// automated equivalent of both, and the only previously-untested surface of this entrypoint.
+// against the built dist/host.js instead — this is the automated equivalent of manually running
+// `node dist/host.js --doctor`, and the only previously-untested surface of this entrypoint.
 const distHostJs = path.resolve(__dirname, "..", "dist", "host.js");
 
 /** Runs a fresh HOME/LOCALAPPDATA/XDG_DATA_HOME per call so runDoctor's config-dir creation
@@ -39,7 +38,7 @@ async function runHost(args: string[]): Promise<{ stdout: string; stderr: string
   }
 }
 
-describe.skipIf(!existsSync(distHostJs))("host.ts 入口 CLI 子命令（doc 09 §2/§3, doc 06）", () => {
+describe.skipIf(!existsSync(distHostJs))("host.ts 入口 CLI 子命令", () => {
   it("--print-manifest 携带合法参数时打印无 BOM 的清单 JSON 并以 0 退出", async () => {
     const validId = "a".repeat(32);
     const { stdout, status } = await runHost([

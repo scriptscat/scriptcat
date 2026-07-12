@@ -4,7 +4,7 @@ import * as path from "node:path";
 import * as fs from "node:fs/promises";
 import { loadShimCredentials, saveShimCredentials, credentialsPath, resolveShimConfigDir } from "./shim-config";
 
-describe("shim-config.ts - shim 凭据存储（doc 06 §2, doc 04 §8）", () => {
+describe("shim-config.ts - shim 凭据存储", () => {
   let tmpRoot: string;
 
   beforeEach(async () => {
@@ -31,7 +31,7 @@ describe("shim-config.ts - shim 凭据存储（doc 06 §2, doc 04 §8）", () =>
     expect(creds?.token).toBe("raw-token");
   });
 
-  it.skipIf(process.platform === "win32")("凭据文件权限为 0600（doc 04 §8 chmod 600）", async () => {
+  it.skipIf(process.platform === "win32")("凭据文件权限为 0600", async () => {
     await saveShimCredentials(tmpRoot, {
       clientId: "c1",
       token: "raw-token",
