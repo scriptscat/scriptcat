@@ -610,6 +610,38 @@ describe("scriptToolCallback 的 abort/disconnect/超时处理", () => {
     mockRepo.getMessages.mockResolvedValue([]);
   }
 
+  it("脚本工具返回结果时，应继续工具循环并完成对话", async () => {
+    const { service, mockRepo } = createTestService();
+    setupConversation(mockRepo);
+    const { sender, sentMessages, simulateMessage } = createMockSender();
+
+    fetchSpy
+      .mockResolvedValueOnce(makeScriptToolCallResponse("call-success", "my_tool", "{}"))
+      .mockResolvedValueOnce(makeTextResponse("最终回复"));
+
+    const chatPromise = (service as any).handleConversationChat(
+      {
+        conversationId: "conv-script",
+        message: "使用工具",
+        tools: [{ name: "my_tool", description: "d", parameters: { type: "object", properties: {} } }],
+      },
+      sender
+    );
+
+    await vi.waitFor(() => {
+      expect(sentMessages.some((message) => message.action === "executeTools")).toBe(true);
+    });
+    const executeMessage = sentMessages.find((message) => message.action === "executeTools");
+    simulateMessage({
+      action: "toolResults",
+      requestId: executeMessage.requestId,
+      data: [{ id: "call-success", result: "ok" }],
+    });
+
+    await expect(chatPromise).resolves.toBeUndefined();
+    expect(sentMessages.some((message) => message.data?.type === "done")).toBe(true);
+  });
+
   it("非后台会话断开（触发 abort）时，等待中的脚本工具调用应立即结束，而不是永远挂起", async () => {
     const { service, mockRepo } = createTestService();
     setupConversation(mockRepo);

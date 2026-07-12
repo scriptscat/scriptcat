@@ -299,7 +299,6 @@ export class ChatService {
     msgConn.onMessage((msg: any) => {
       if (msg.action === "toolResults" && pendingScriptCall) {
         const { settle } = pendingScriptCall;
-        pendingScriptCall = null;
         settle(msg.data);
       }
       if (msg.action === "askUserResponse" && msg.data) {
