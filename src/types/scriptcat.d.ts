@@ -879,6 +879,8 @@ declare namespace CATAgent {
     ephemeral?: boolean;
     /** Enable prompt caching. Defaults to true. */
     cache?: boolean;
+    /** Keep the conversation running in the Service Worker after the page disconnects. */
+    background?: boolean;
   }
 
   /** Options for a single `chat()` / `chatStream()` call. */
@@ -930,7 +932,14 @@ declare namespace CATAgent {
     /** Tool calls made during this turn. */
     toolCalls?: ToolCallInfo[];
     /** Token usage. */
-    usage?: { inputTokens: number; outputTokens: number };
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationInputTokens?: number;
+      cacheReadInputTokens?: number;
+    };
+    /** Total response duration in ms. */
+    durationMs?: number;
     /** `true` when the reply was produced by a command handler, not the LLM. */
     command?: boolean;
   }
@@ -964,13 +973,47 @@ declare namespace CATAgent {
     /** Tool call info (for tool_call / tool_call_complete). */
     toolCall?: ToolCallInfo;
     /** Token usage (for done). */
-    usage?: { inputTokens: number; outputTokens: number };
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationInputTokens?: number;
+      cacheReadInputTokens?: number;
+    };
     /** Error message (for error). */
     error?: string;
     /** Error classification: `"rate_limit"` | `"auth"` | `"tool_timeout"` | `"max_iterations"` | `"api_error"` */
     errorCode?: string;
     /** `true` when the chunk was produced by a command handler. */
     command?: boolean;
+  }
+
+  /** Initial snapshot returned when attaching to a background conversation. */
+  interface SyncStreamChunk {
+    type: "sync";
+    /** Assistant output accumulated before attach(). */
+    streamingMessage?: {
+      content: string;
+      thinking?: string;
+      toolCalls: ToolCallInfo[];
+    };
+    /** Ask-user request when the conversation is waiting for input. */
+    pendingAskUser?: {
+      id: string;
+      question: string;
+      options?: string[];
+      optionValues?: string[];
+      multiple?: boolean;
+      allowCustom?: boolean;
+    };
+    /** Current task snapshot. */
+    tasks: Array<{
+      id: string;
+      subject: string;
+      status: "pending" | "in_progress" | "completed";
+      description?: string;
+    }>;
+    /** Final snapshot status emitted by attach(). */
+    status: "running" | "done" | "error";
   }
 
   // ---- Chat message ----
@@ -1033,6 +1076,9 @@ declare namespace CATAgent {
 
     /** Send a message and receive a streaming response. */
     chatStream(content: MessageContent, options?: ChatOptions): Promise<AsyncIterable<StreamChunk>>;
+
+    /** Attach to a background conversation and receive the sync snapshot plus stream events. */
+    attach(): Promise<AsyncIterable<StreamChunk | SyncStreamChunk>>;
 
     /** Get all messages in this conversation. */
     getMessages(): Promise<ChatMessage[]>;

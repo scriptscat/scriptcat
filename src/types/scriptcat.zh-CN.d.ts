@@ -3,7 +3,6 @@
 // 此文件为 scriptcat.d.ts 的中文翻译版本，包含所有 GM_*/CAT_*/CAT.agent API。
 // 如需接入，请在 tsconfig.json 中替换或追加此文件。
 // ============================================================================
-
 // @copyright https://github.com/silverwzw/Tampermonkey-Typescript-Declaration
 
 declare const unsafeWindow: Window;
@@ -886,6 +885,8 @@ declare namespace CATAgent {
     ephemeral?: boolean;
     /** 是否启用 prompt caching，默认 true。 */
     cache?: boolean;
+    /** 在页面断开后仍让对话继续在 Service Worker 中运行。 */
+    background?: boolean;
   }
 
   /** 单次 `chat()` / `chatStream()` 调用的选项。 */
@@ -937,7 +938,14 @@ declare namespace CATAgent {
     /** 本轮中的工具调用。 */
     toolCalls?: ToolCallInfo[];
     /** Token 用量。 */
-    usage?: { inputTokens: number; outputTokens: number };
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationInputTokens?: number;
+      cacheReadInputTokens?: number;
+    };
+    /** 总响应时长（毫秒）。 */
+    durationMs?: number;
     /** 当回复由命令处理器产生（而非 LLM）时为 `true`。 */
     command?: boolean;
   }
@@ -971,13 +979,47 @@ declare namespace CATAgent {
     /** 工具调用信息（用于 tool_call / tool_call_complete）。 */
     toolCall?: ToolCallInfo;
     /** Token 用量（用于 done）。 */
-    usage?: { inputTokens: number; outputTokens: number };
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationInputTokens?: number;
+      cacheReadInputTokens?: number;
+    };
     /** 错误信息（用于 error）。 */
     error?: string;
     /** 错误分类码：`"rate_limit"` | `"auth"` | `"tool_timeout"` | `"max_iterations"` | `"api_error"` */
     errorCode?: string;
     /** 当数据块由命令处理器产生时为 `true`。 */
     command?: boolean;
+  }
+
+  /** 附加到后台对话时返回的初始状态快照。 */
+  interface SyncStreamChunk {
+    type: "sync";
+    /** 附加前已累计的 assistant 输出。 */
+    streamingMessage?: {
+      content: string;
+      thinking?: string;
+      toolCalls: ToolCallInfo[];
+    };
+    /** 会话正在等待输入时的 ask_user 请求。 */
+    pendingAskUser?: {
+      id: string;
+      question: string;
+      options?: string[];
+      optionValues?: string[];
+      multiple?: boolean;
+      allowCustom?: boolean;
+    };
+    /** 当前任务快照。 */
+    tasks: Array<{
+      id: string;
+      subject: string;
+      status: "pending" | "in_progress" | "completed";
+      description?: string;
+    }>;
+    /** attach() 返回的最终快照状态。 */
+    status: "running" | "done" | "error";
   }
 
   // ---- 聊天消息 ----
@@ -1040,6 +1082,9 @@ declare namespace CATAgent {
 
     /** 发送消息并接收流式响应。 */
     chatStream(content: MessageContent, options?: ChatOptions): Promise<AsyncIterable<StreamChunk>>;
+
+    /** 附加到后台运行中的对话，接收初始快照与后续流式数据。 */
+    attach(): Promise<AsyncIterable<StreamChunk | SyncStreamChunk>>;
 
     /** 获取此对话中的所有消息。 */
     getMessages(): Promise<ChatMessage[]>;

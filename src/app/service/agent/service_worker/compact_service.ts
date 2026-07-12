@@ -15,7 +15,7 @@ import {
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { AgentModelService } from "./model_service";
 import { elideUntilWithinBudget, loadAttachmentSizes } from "@App/app/service/agent/core/context_elision";
-import { getContextWindow } from "@App/app/service/agent/core/model_context";
+import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
 
 /** LLM 调用结果（与 AgentService.callLLM 返回值一致） */
 interface CompactLLMResult {
@@ -67,7 +67,9 @@ export class CompactService {
     summaryMessages.push({ role: "user", content: buildCompactUserPrompt() });
 
     const attachmentSizes = await loadAttachmentSizes(summaryMessages, (id) => this.chatRepo.getAttachment(id));
-    if (!elideUntilWithinBudget(summaryMessages, getContextWindow(model), undefined, 0.9, attachmentSizes, model)) {
+    const inputBudget = getInputTokenBudget(model);
+    const effectiveWindow = Math.max(1, Math.floor(inputBudget / 0.9));
+    if (!elideUntilWithinBudget(summaryMessages, effectiveWindow, undefined, 0.9, attachmentSizes, model)) {
       throw Object.assign(new Error("Conversation history is too large to compact"), {
         errorCode: "context_too_large",
       });

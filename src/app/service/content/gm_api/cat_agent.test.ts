@@ -30,9 +30,27 @@ function mockConnect(): MessageConnect {
   return conn;
 }
 
-function createInstance(commands?: Record<string, (args: string, conv: any) => Promise<string | void>>) {
+function mockConnectWithSequence(events: Array<{ delayMs: number; data: any }>): MessageConnect {
+  return {
+    onMessage(cb: (msg: any) => void) {
+      for (const { delayMs, data } of events) {
+        setTimeout(() => {
+          cb({ action: "event", data });
+        }, delayMs);
+      }
+    },
+    onDisconnect() {},
+    sendMessage() {},
+    disconnect() {},
+  };
+}
+
+function createInstance(
+  commands?: Record<string, (args: string, conv: any) => Promise<string | void>>,
+  conn: MessageConnect = mockConnect()
+) {
   const gmSendMessage = vi.fn().mockResolvedValue(undefined);
-  const gmConnect = vi.fn().mockResolvedValue(mockConnect());
+  const gmConnect = vi.fn().mockResolvedValue(conn);
 
   const instance = new ConversationInstance(
     mockConversation(),
@@ -654,5 +672,119 @@ describe("errorCode 透传：chatStream()", () => {
       const errorChunk = chunks.find((c) => c.type === "error");
       expect((errorChunk as any).errorCode).toBe(code);
     }
+  });
+});
+
+describe("ConversationInstance 子代理事件隔离", () => {
+  it("chat() 应忽略 subAgent 终态事件并等待父会话结束", async () => {
+    const subAgent = { agentId: "sa-1", description: "child task", subAgentType: "general" };
+    const conn = mockConnectWithSequence([
+      { delayMs: 0, data: { type: "content_delta", delta: "child text", subAgent } },
+      {
+        delayMs: 1,
+        data: {
+          type: "error",
+          message: "child failed",
+          errorCode: "api_error",
+          subAgent,
+        },
+      },
+      { delayMs: 2, data: { type: "content_delta", delta: "parent text" } },
+      {
+        delayMs: 3,
+        data: { type: "done", usage: { inputTokens: 11, outputTokens: 4 }, durationMs: 91 },
+      },
+    ]);
+    const { instance } = createInstance(undefined, conn);
+
+    await expect(instance.chat("hello")).resolves.toMatchObject({
+      content: "parent text",
+      durationMs: 91,
+    });
+  });
+
+  it("chatStream() 应忽略 subAgent 终态事件并继续输出父会话内容", async () => {
+    const subAgent = { agentId: "sa-2", description: "child task", subAgentType: "general" };
+    const conn = mockConnectWithSequence([
+      { delayMs: 0, data: { type: "content_delta", delta: "child text", subAgent } },
+      {
+        delayMs: 1,
+        data: {
+          type: "done",
+          usage: { inputTokens: 7, outputTokens: 2 },
+          durationMs: 33,
+          subAgent,
+        },
+      },
+      { delayMs: 2, data: { type: "content_delta", delta: "parent text" } },
+      {
+        delayMs: 3,
+        data: { type: "done", usage: { inputTokens: 11, outputTokens: 4 }, durationMs: 91 },
+      },
+    ]);
+    const { instance } = createInstance(undefined, conn);
+
+    const chunks: StreamChunk[] = [];
+    const stream = await instance.chatStream("hello");
+    for await (const chunk of stream) chunks.push(chunk);
+
+    expect(chunks).toEqual([
+      { type: "content_delta", content: "parent text" },
+      { type: "done", usage: { inputTokens: 11, outputTokens: 4 }, durationMs: 91 },
+    ]);
+  });
+});
+
+describe("ConversationInstance tool_call_complete 结果净化", () => {
+  it("chat() 返回的 toolCalls 不应携带事件专属字段，且无 status 时默认 completed", async () => {
+    const conn = mockConnectWithSequence([
+      {
+        delayMs: 0,
+        data: { type: "tool_call_start", toolCall: { id: "tc-1", name: "my_tool", arguments: "" } },
+      },
+      { delayMs: 1, data: { type: "tool_call_complete", id: "tc-1", result: "done" } },
+      { delayMs: 2, data: { type: "done", usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 12 } },
+    ]);
+    const { instance } = createInstance(undefined, conn);
+
+    const reply = await instance.chat("hello");
+    expect(reply.toolCalls).toHaveLength(1);
+    expect(reply.toolCalls?.[0]).toMatchObject({
+      id: "tc-1",
+      name: "my_tool",
+      arguments: "",
+      result: "done",
+      status: "completed",
+    });
+    expect(reply.toolCalls?.[0]).not.toHaveProperty("type");
+    expect(reply.toolCalls?.[0]).not.toHaveProperty("subAgent");
+  });
+
+  it("chatStream() 返回的 tool_call_complete chunk 应只保留工具调用字段", async () => {
+    const conn = mockConnectWithSequence([
+      {
+        delayMs: 0,
+        data: { type: "tool_call_start", toolCall: { id: "tc-2", name: "my_tool", arguments: "" } },
+      },
+      { delayMs: 1, data: { type: "tool_call_complete", id: "tc-2", result: "done" } },
+      { delayMs: 2, data: { type: "done", usage: { inputTokens: 1, outputTokens: 1 }, durationMs: 12 } },
+    ]);
+    const { instance } = createInstance(undefined, conn);
+
+    const chunks: StreamChunk[] = [];
+    const stream = await instance.chatStream("hello");
+    for await (const chunk of stream) chunks.push(chunk);
+
+    const completionChunk = chunks.find((chunk) => chunk.type === "tool_call_complete");
+    expect(completionChunk).toBeDefined();
+    expect(completionChunk?.toolCall).toMatchObject({
+      id: "tc-2",
+      name: "my_tool",
+      arguments: "",
+      result: "done",
+      status: "completed",
+    });
+    expect(completionChunk?.toolCall).not.toHaveProperty("type");
+    expect(completionChunk?.toolCall).not.toHaveProperty("subAgent");
   });
 });

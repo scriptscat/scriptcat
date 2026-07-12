@@ -171,6 +171,7 @@ function processChat(this: Instance, conn: MessageConnect, handlers: Map<string,
       }
       if (message.action !== "event") return;
       const event: ChatStreamEvent = message.data;
+      if ("subAgent" in event && event.subAgent) return;
       switch (event.type) {
         case "content_delta":
           content += event.delta;
@@ -198,10 +199,11 @@ function processChat(this: Instance, conn: MessageConnect, handlers: Map<string,
         }
         case "tool_call_complete": {
           const toolCall = resolveToolCall(ordered, byId, event.id);
-          if (toolCall)
-            Object.assign(toolCall, event, {
-              status: event.status ?? "completed",
-            });
+          if (toolCall) {
+            toolCall.result = event.result;
+            toolCall.status = event.status ?? "completed";
+            toolCall.attachments = event.attachments ? [...event.attachments] : undefined;
+          }
           break;
         }
         case "new_message":
@@ -263,6 +265,7 @@ function processStream(
     }
     if (message.action !== "event") return;
     const event: ChatStreamEvent = message.data;
+    if ("subAgent" in event && event.subAgent) return;
     switch (event.type) {
       case "sync":
         reset(event.streamingMessage?.toolCalls || []);
@@ -310,10 +313,11 @@ function processStream(
       }
       case "tool_call_complete": {
         const toolCall = resolveToolCall(ordered, byId, event.id);
-        if (toolCall)
-          Object.assign(toolCall, event, {
-            status: event.status ?? "completed",
-          });
+        if (toolCall) {
+          toolCall.result = event.result;
+          toolCall.status = event.status ?? "completed";
+          toolCall.attachments = event.attachments ? [...event.attachments] : undefined;
+        }
         push({
           type: "tool_call_complete",
           toolCall:
@@ -323,7 +327,8 @@ function processStream(
               name: "",
               arguments: "",
               result: event.result,
-              status: event.status,
+              status: event.status ?? "completed",
+              attachments: event.attachments ? [...event.attachments] : undefined,
             } as ToolCall),
         });
         break;

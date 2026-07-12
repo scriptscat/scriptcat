@@ -39,7 +39,7 @@ import { toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { t } from "@App/locales/locales";
 import { elideUntilWithinBudget, loadAttachmentSizes } from "@App/app/service/agent/core/context_elision";
-import { getContextWindow } from "@App/app/service/agent/core/model_context";
+import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
 import type { LLMCallResult } from "./llm_client";
 
 /** ChatService 需要的 execute_script 工具依赖 */
@@ -541,8 +541,14 @@ export class ChatService {
     summaryMessages.push({ role: "user", content: buildCompactUserPrompt(params.compactInstruction) });
 
     const attachmentSizes = await loadAttachmentSizes(summaryMessages, (id) => this.chatRepo.getAttachment(id));
-    if (!elideUntilWithinBudget(summaryMessages, getContextWindow(model), undefined, 0.9, attachmentSizes, model)) {
-      sendEvent({ type: "error", message: "Conversation history is too large to compact" });
+    const inputBudget = getInputTokenBudget(model);
+    const effectiveWindow = Math.max(1, Math.floor(inputBudget / 0.9));
+    if (!elideUntilWithinBudget(summaryMessages, effectiveWindow, undefined, 0.9, attachmentSizes, model)) {
+      sendEvent({
+        type: "error",
+        message: "Conversation history is too large to compact",
+        errorCode: "context_too_large",
+      });
       return;
     }
 

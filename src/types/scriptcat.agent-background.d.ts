@@ -19,7 +19,7 @@ declare namespace CATAgent {
       allowCustom?: boolean;
     };
     /** 当前任务快照。 */
-    tasks?: Array<{
+    tasks: Array<{
       id: string;
       subject: string;
       status: "pending" | "in_progress" | "completed";
