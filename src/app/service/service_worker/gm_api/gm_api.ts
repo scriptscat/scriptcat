@@ -1503,7 +1503,7 @@ export default class GMApi {
       await chrome.tabs.update(tabId as number, {
         active: true,
       });
-      if (tab && Number.isFinite(tab.windowId)) {
+      if (tab && Number.isFinite(tab.windowId) && tab.windowId >= 0) {
         await chrome.windows.update(tab.windowId as number, {
           focused: true,
         });
