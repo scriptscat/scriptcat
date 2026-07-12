@@ -1,7 +1,15 @@
 // OPFS 工作区公共辅助函数
 // 供 opfs_tools、agent_dom 等模块复用
 
-export const WORKSPACE_ROOT = "agents/workspace";
+export const WORKSPACE_PATH = ["agents", "workspace"] as const;
+export const WORKSPACE_ROOT = WORKSPACE_PATH.join("/");
+
+export function isWorkspacePath(path: readonly string[]): boolean {
+  return (
+    path.every((part) => part.length > 0 && part !== "." && part !== "..") &&
+    WORKSPACE_PATH.every((part, index) => path[index] === part)
+  );
+}
 
 /** Strip leading `/`, reject `..` segments */
 export function sanitizePath(raw: string): string {
