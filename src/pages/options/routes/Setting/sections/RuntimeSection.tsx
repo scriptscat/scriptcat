@@ -27,7 +27,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
       void isPermissionOk("background").then((r) => {
         if (r !== null) setBg(r);
       });
-      void Promise.resolve(systemConfig.get("keep_chrome_scripts_alive")).then((r) => setChromeKeepAlive(Boolean(r)));
+      void Promise.resolve(systemConfig.get("keep_ext_background_alive")).then((r) => setChromeKeepAlive(Boolean(r)));
     }
     if (boolFirefox) {
       void isPermissionOk("webRequestBlocking").then((r) => {
@@ -69,7 +69,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
 
   const toggleChromeKeepAlive = (enable: boolean) => {
     setChromeKeepAlive(enable);
-    systemConfig.set("keep_chrome_scripts_alive", enable);
+    systemConfig.set("keep_ext_background_alive", enable);
   };
 
   const toggleKeepAlive = (enable: boolean) => {

@@ -376,12 +376,12 @@ export class SystemConfig {
     this._set("vscode_reconnect", val);
   }
 
-  public getKeepChromeScriptsAlive() {
-    return this._get<boolean>("keep_chrome_scripts_alive", false);
+  public getKeepExtBackgroundAlive() {
+    return this._get<boolean>("keep_ext_background_alive", false);
   }
 
-  public setKeepChromeScriptsAlive(val: boolean) {
-    this._set("keep_chrome_scripts_alive", val);
+  public setKeepExtBackgroundAlive(val: boolean) {
+    this._set("keep_ext_background_alive", val);
   }
 
   defaultBackup(): Parameters<typeof this.setBackup>[0] {

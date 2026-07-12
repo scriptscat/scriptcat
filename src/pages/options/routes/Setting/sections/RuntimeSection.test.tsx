@@ -96,7 +96,7 @@ describe("运行时分区-可选保活权限", () => {
 
     fireEvent.click(screen.getAllByRole("switch")[1]);
 
-    expect(set).toHaveBeenCalledWith("keep_chrome_scripts_alive", true);
+    expect(set).toHaveBeenCalledWith("keep_ext_background_alive", true);
   });
 
   it("manifest 包含 webRequestBlocking 时显示开关并可请求权限", async () => {

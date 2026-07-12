@@ -13,6 +13,17 @@ export const onServiceWorkerStarted = (sw: ServiceWorkerGlobalScope) => {
   selfSw = sw;
 };
 
+const deferredResponse = <T>(o: T, delayMs: number) =>
+  new Promise<T>((resolve) => {
+    // user-visible 优先级用于尽量减少后台页面降频；它不保证永久存活。
+    nativeScheduler.postTask(
+      () => {
+        resolve(o);
+      },
+      { priority: "user-visible", delay: delayMs }
+    );
+  });
+
 // 使用扩展 ID 派生的探测域名，避免访问真实站点；请求是否最终成功并不重要。
 const getKeepAliveProbeUrl = () => `https://--extensions-${chrome.runtime.getURL("/dummy_image.png").split("//")[1]}`;
 
@@ -54,24 +65,54 @@ const createKeepAliveProbeLoop = (keepAliveProbeUrl: string) => {
   let enabled = false;
   let probeStartedAt: number;
 
-  const onKeepAliveProbeSettled = function (this: HTMLImageElement) {
-    this.remove();
-    // 只有请求确实被阻塞了足够久才继续下一轮；过快结束时停止，避免忙循环。
-    if (!enabled || Date.now() - probeStartedAt < KEEP_ALIVE_MIN_ROUND_TRIP_TO_CONTINUE_MS) return;
-    sendKeepAliveProbe();
-  } as any;
+  // 注意：不要让 image 在未 settled 前 GC 掉
+  let image: HTMLImageElement | null = null;
+
+  const onKeepAliveProbeSettled = boolFirefox
+    ? (function (this: HTMLImageElement, ev: Event) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.stopImmediatePropagation();
+        if (image === this) {
+          // 上一輪的 image 可以被 GC 了
+          image.onload = image.onerror = null;
+          image = null;
+          // 只有请求确实被阻塞了足够久才继续下一轮；过快结束时停止，避免忙循环。
+          if (!enabled || Date.now() - probeStartedAt < KEEP_ALIVE_MIN_ROUND_TRIP_TO_CONTINUE_MS) return;
+          // 下一轮
+          sendKeepAliveProbe();
+        }
+      } as any)
+    : (x: any) => {
+        if (image === x) {
+          image = null;
+
+          // 只有请求确实被阻塞了足够久才继续下一轮；过快结束时停止，避免忙循环。
+          if (!enabled || Date.now() - probeStartedAt < KEEP_ALIVE_MIN_ROUND_TRIP_TO_CONTINUE_MS) return;
+          // 下一轮
+          sendKeepAliveProbe();
+        }
+      };
 
   // 发起一次探测请求，作为心跳循环的一拍
-  function sendKeepAliveProbe() {
-    const image = new Image(1, 1);
-    probeStartedAt = Date.now();
+  const sendKeepAliveProbe = boolFirefox
+    ? () => {
+        // Image 特性：网络要求发起不需要跟随 DOM 节点附付
+        image = new Image(1, 1);
+        probeStartedAt = Date.now();
 
-    image.onload = onKeepAliveProbeSettled;
-    image.onerror = onKeepAliveProbeSettled;
+        // onload / onerror 在呼叫前 image 不会被 GC
+        image.onload = onKeepAliveProbeSettled;
+        image.onerror = onKeepAliveProbeSettled;
 
-    image.src = `${keepAliveProbeUrl}?__network_delay=${KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS}&t=${probeStartedAt}`;
-    document.documentElement.appendChild(image);
-  }
+        image.src = `${keepAliveProbeUrl}?__network_delay=${KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS}&t=${probeStartedAt}`;
+      }
+    : () => {
+        image = new Image(1, 1);
+        probeStartedAt = Date.now();
+        image.src = `data:image/gif;base64,${TRANSPARENT_GIF_BASE64}`;
+        deferredResponse(image, KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS).then(onKeepAliveProbeSettled);
+      };
 
   return {
     start() {
@@ -88,6 +129,8 @@ const createKeepAliveProbeLoop = (keepAliveProbeUrl: string) => {
   };
 };
 
+const TRANSPARENT_GIF_BASE64 = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
 export const startFirefoxEventPageKeepAliveLoop =
   boolFirefox && process.env.SC_KEEP_EVENT_PAGE_ACTIVE !== "false" && nativeScheduler
     ? () => {
@@ -96,6 +139,8 @@ export const startFirefoxEventPageKeepAliveLoop =
         const keepAliveProbeUrl = getKeepAliveProbeUrl();
         const keepAlive = createKeepAliveProbeLoop(keepAliveProbeUrl);
         const keepAliveProbeOrigin = new URL(keepAliveProbeUrl).origin;
+
+        const dataUri = `data:image/gif;base64,${TRANSPARENT_GIF_BASE64}`;
 
         const startLoop = () => {
           if (running) {
@@ -129,16 +174,8 @@ export const startFirefoxEventPageKeepAliveLoop =
                 ? Math.max(0, Math.min(requestedDelay, KEEP_ALIVE_MAX_PROBE_DELAY_MS))
                 : KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS;
 
-              return new Promise((resolve) => {
-                // user-visible 优先级用于尽量减少后台页面降频；它不保证 event page 永久存活。
-                nativeScheduler.postTask(
-                  () => {
-                    // 延迟完成后放行 blocking request。
-                    resolve({});
-                  },
-                  { priority: "user-visible", delay: delayMs }
-                );
-              });
+              const response = { redirectUrl: dataUri };
+              return deferredResponse(response, delayMs);
             },
             {
               urls: [`${keepAliveProbeOrigin}/*`],
@@ -197,22 +234,11 @@ const startChromeServiceWorkerKeepAliveLoop =
 
         const keepAliveProbeUrl = getKeepAliveProbeUrl();
 
-        // Helper function to create a delay promise
-        const delay = (delayMs: number) =>
-          new Promise<void>((resolve) =>
-            nativeScheduler.postTask(
-              () => {
-                resolve();
-              },
-              { priority: "user-visible", delay: delayMs }
-            )
-          );
-
-        // Base64 string for a valid, minimal 1x1 transparent GIF
-        const TRANSPARENT_GIF_BASE64 = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-
-        // Convert Base64 to a binary Uint8Array that the Response object can consume
-        const gifBytes = Uint8Array.from(atob(TRANSPARENT_GIF_BASE64), (c) => c.charCodeAt(0));
+        // TRANSPARENT_GIF_BASE64
+        const gifBytes = new Uint8Array([
+          71, 73, 70, 56, 57, 97, 1, 0, 1, 0, 128, 0, 0, 0, 0, 0, 255, 255, 255, 33, 249, 4, 1, 0, 0, 0, 0, 44, 0, 0, 0,
+          0, 1, 0, 1, 0, 0, 2, 2, 68, 1, 0, 59,
+        ]);
 
         selfSw_.addEventListener("fetch", (event: FetchEvent) => {
           if (!enabled || !event.request.url.includes(keepAliveProbeUrl)) {
@@ -231,23 +257,16 @@ const startChromeServiceWorkerKeepAliveLoop =
             ? Math.max(0, Math.min(requestedDelay, KEEP_ALIVE_MAX_PROBE_DELAY_MS))
             : KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS;
 
-          event.respondWith(
-            delay(delayMs) // 10-second delay
-              .then(
-                () =>
-                  // Return a fresh Response containing the image binary
-                  new Response(gifBytes, {
-                    status: 200,
-                    statusText: "OK",
-                    headers: {
-                      "Content-Type": "image/gif",
-                      "Content-Length": gifBytes.length.toString(),
-                      "Cache-Control": "no-store, must-revalidate", // Prevent browser caching during tests
-                    },
-                  })
-              )
-              .catch(() => new Response("Network error occurred", { status: 408 }))
-          );
+          const response = new Response(gifBytes, {
+            status: 200,
+            statusText: "OK",
+            headers: {
+              "Content-Type": "image/gif",
+              "Content-Length": gifBytes.length.toString(),
+              "Cache-Control": "no-store, must-revalidate", // Prevent browser caching during tests
+            },
+          });
+          event.respondWith(deferredResponse(response, delayMs));
         });
 
         return (val: boolean) => {
@@ -272,7 +291,7 @@ export const hookServiceWorkerKeepAliveLoop = (
     });
   };
 
-  systemConfig.watch("keep_chrome_scripts_alive", (value, prev) => {
+  systemConfig.watch("keep_ext_background_alive", (value, prev) => {
     enabled = value;
     setKeepAliveEnabled(value);
     if (value !== prev) informOffscreen();
