@@ -979,6 +979,8 @@ declare namespace CATAgent {
       cacheCreationInputTokens?: number;
       cacheReadInputTokens?: number;
     };
+    /** Total response duration in ms. */
+    durationMs?: number;
     /** Error message (for error). */
     error?: string;
     /** Error classification: `"rate_limit"` | `"auth"` | `"tool_timeout"` | `"max_iterations"` | `"api_error"` */

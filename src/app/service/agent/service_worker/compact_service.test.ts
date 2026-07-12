@@ -52,4 +52,23 @@ describe("CompactService 自动压缩", () => {
     expect(orchestrator.callLLM).not.toHaveBeenCalled();
     expect(chatRepo.saveMessages).not.toHaveBeenCalled();
   });
+
+  it("摘要内容超过摘要模型预算时应在调用 provider 前返回 context_too_large", async () => {
+    const modelService = {
+      getSummaryModel: vi.fn().mockResolvedValue(MODEL),
+    } as any;
+    const orchestrator = { callLLM: vi.fn().mockResolvedValue({ content: "ok" }) };
+    const chatRepo = {
+      getAttachment: vi.fn().mockResolvedValue(null),
+      saveMessages: vi.fn().mockResolvedValue(undefined),
+    } as any;
+    const service = new CompactService(modelService, orchestrator, chatRepo);
+    const hugeContent = "x".repeat(20_000);
+
+    await expect(service.summarizeContent(hugeContent, "extract")).rejects.toMatchObject({
+      errorCode: "context_too_large",
+    });
+
+    expect(orchestrator.callLLM).not.toHaveBeenCalled();
+  });
 });

@@ -14,8 +14,13 @@ import {
 } from "@App/app/service/agent/core/compact_prompt";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { AgentModelService } from "./model_service";
-import { elideUntilWithinBudget, loadAttachmentSizes } from "@App/app/service/agent/core/context_elision";
+import {
+  elideUntilWithinBudget,
+  estimateRequestTokens,
+  loadAttachmentSizes,
+} from "@App/app/service/agent/core/context_elision";
 import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
+import { throwIfAborted } from "@App/app/service/agent/core/abort_utils";
 
 /** LLM 调用结果（与 AgentService.callLLM 返回值一致） */
 interface CompactLLMResult {
@@ -56,6 +61,8 @@ export class CompactService {
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
   ): Promise<void> {
+    throwIfAborted(signal);
+
     // 构建摘要请求（用 currentMessages 而非从 repo 加载，因为可能有未持久化的 tool 消息）
     const summaryMessages: ChatRequest["messages"] = [];
     summaryMessages.push({ role: "system", content: COMPACT_SYSTEM_PROMPT });
@@ -107,7 +114,9 @@ export class CompactService {
   }
 
   /** 使用 summary 模型对任意内容做提取/总结（供 tab 工具使用） */
-  async summarizeContent(content: string, prompt: string): Promise<string> {
+  async summarizeContent(content: string, prompt: string, signal?: AbortSignal): Promise<string> {
+    throwIfAborted(signal);
+
     const model = await this.modelService.getSummaryModel();
 
     const messages: ChatRequest["messages"] = [
@@ -122,17 +131,33 @@ export class CompactService {
       },
     ];
 
+    const inputBudget = getInputTokenBudget(model);
+    const estimatedInputTokens = estimateRequestTokens(messages, undefined, undefined, model);
+    if (estimatedInputTokens > inputBudget) {
+      throw Object.assign(new Error("Summarization content exceeds the summary model context window"), {
+        errorCode: "context_too_large",
+        usage: {
+          inputTokens: estimatedInputTokens,
+          outputTokens: 0,
+          cacheCreationInputTokens: 0,
+          cacheReadInputTokens: 0,
+        },
+      });
+    }
+
     const noopSendEvent = () => {};
-    const controller = new AbortController();
     try {
       const result = await this.orchestrator.callLLM(
         model,
         { messages, cache: false },
         noopSendEvent,
-        controller.signal
+        signal ?? new AbortController().signal
       );
       return result.content;
     } catch (e: any) {
+      if (e?.errorCode || e?.message === "Aborted") {
+        throw e;
+      }
       throw new Error(`Summarization failed: ${e.message}`);
     }
   }

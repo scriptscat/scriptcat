@@ -156,6 +156,17 @@ describe("上下文预算估算与裁剪", () => {
     expect(messages[2].content).toBe("继续");
   });
 
+  it("vision 模型下缺失图片大小时应使用文本降级估算而不是 Infinity", () => {
+    const messages: ChatRequest["messages"] = [
+      { role: "user", content: [{ type: "image", attachmentId: "missing", mimeType: "image/png" }] },
+    ];
+
+    const estimate = estimateRequestTokens(messages, [], undefined, VISION_MODEL);
+
+    expect(Number.isFinite(estimate)).toBe(true);
+    expect(estimate).toBeGreaterThan(0);
+  });
+
   it("非 vision 模型下不解析图片，不应因缺失大小把预算估算撑爆", () => {
     const messages: ChatRequest["messages"] = [
       { role: "user", content: [{ type: "image", attachmentId: "old", mimeType: "image/png" }] },

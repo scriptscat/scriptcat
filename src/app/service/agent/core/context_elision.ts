@@ -2,6 +2,7 @@
 // 用于在触及 autoCompact 的 80% 阈值之前，减少长 tool loop 中旧 tool 结果的重复计费。
 import type { AgentModelConfig, ChatRequest, ContentBlock } from "./types";
 import { supportsVision } from "./model_capabilities";
+import { imageBlockFallbackText } from "./providers/content_utils";
 
 export const ELIDED_TOOL_RESULT_STUB =
   "[tool result elided to save context — re-run the tool if you need this data again]";
@@ -59,7 +60,9 @@ export function estimateRequestTokens(
         // file/audio 从不被内联；image 只在 vision 模型上才会被解析为 data URL
         if (block.type === "file" || block.type === "audio" || !hasVision) return blockSum;
         const size = attachmentSizes?.get(block.attachmentId);
-        if (size == null) return Number.POSITIVE_INFINITY;
+        if (size == null) {
+          return blockSum + new TextEncoder().encode(imageBlockFallbackText(block)).byteLength;
+        }
         return blockSum + (Math.ceil(size / 3) * 4 + 128);
       }, 0)
     );

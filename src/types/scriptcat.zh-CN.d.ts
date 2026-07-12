@@ -985,6 +985,8 @@ declare namespace CATAgent {
       cacheCreationInputTokens?: number;
       cacheReadInputTokens?: number;
     };
+    /** 总响应时长（毫秒）。 */
+    durationMs?: number;
     /** 错误信息（用于 error）。 */
     error?: string;
     /** 错误分类码：`"rate_limit"` | `"auth"` | `"tool_timeout"` | `"max_iterations"` | `"api_error"` */

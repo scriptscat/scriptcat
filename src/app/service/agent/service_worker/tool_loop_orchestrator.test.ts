@@ -104,6 +104,19 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     });
   });
 
+  it("触发 autoCompact 时应保留原始模型，而不是把 contextWindow 预先缩小", async () => {
+    callLLM.mockResolvedValue({ content: "done", usage: { inputTokens: 6000, outputTokens: 5 } });
+
+    await orchestrator.callLLMWithToolLoop(
+      baseParams({ model: { ...MODEL, contextWindow: 10_000, maxTokens: 2_000 } })
+    );
+
+    expect(callLLM).toHaveBeenCalledTimes(1);
+    expect(callLLM.mock.calls[0][0]).toMatchObject({ contextWindow: 10_000, maxTokens: 2_000 });
+    expect(autoCompact).toHaveBeenCalledTimes(1);
+    expect(autoCompact.mock.calls[0][1]).toMatchObject({ contextWindow: 10_000, maxTokens: 2_000 });
+  });
+
   it("续接长历史时，首个 LLM 请求使用裁剪后的副本且不修改原始历史", async () => {
     const oldToolResult = "完整工具结果".repeat(100);
     const messages: ChatRequest["messages"] = [];

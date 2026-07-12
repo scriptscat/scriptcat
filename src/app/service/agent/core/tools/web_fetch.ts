@@ -3,6 +3,7 @@ import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import type { MessageSend } from "@Packages/message/types";
 import { extractHtmlContent } from "@App/app/service/offscreen/client";
 import { requireString, optionalNumber } from "./param_utils";
+import { raceWithAbort, throwIfAborted } from "../abort_utils";
 
 // Agent User-Agent 字符串
 const AGENT_USER_AGENT = "Mozilla/5.0 (compatible; ScriptCat Agent)";
@@ -38,16 +39,16 @@ export function stripHtmlTags(html: string): string {
 }
 
 export class WebFetchExecutor implements ToolExecutor {
-  private summarize?: (content: string, prompt: string) => Promise<string>;
+  private summarize?: (content: string, prompt: string, signal?: AbortSignal) => Promise<string>;
 
   constructor(
     private sender: MessageSend,
-    deps?: { summarize?: (content: string, prompt: string) => Promise<string> }
+    deps?: { summarize?: (content: string, prompt: string, signal?: AbortSignal) => Promise<string> }
   ) {
     this.summarize = deps?.summarize;
   }
 
-  async execute(args: Record<string, unknown>): Promise<string> {
+  async execute(args: Record<string, unknown>, signal?: AbortSignal): Promise<string> {
     const url = requireString(args, "url");
     const prompt = requireString(args, "prompt");
     const maxLength = optionalNumber(args, "max_length");
@@ -63,9 +64,11 @@ export class WebFetchExecutor implements ToolExecutor {
       throw new Error("Only http/https URLs are supported");
     }
 
+    throwIfAborted(signal);
+
     const response = await fetch(url, {
       headers: { "User-Agent": AGENT_USER_AGENT },
-      signal: AbortSignal.timeout(30_000),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -73,9 +76,11 @@ export class WebFetchExecutor implements ToolExecutor {
 
     // 检测重定向：最终 URL 与请求 URL 不同
     const finalUrl = response.url && response.url !== url ? response.url : undefined;
+    throwIfAborted(signal);
 
     const contentType = response.headers.get("content-type") || "";
     const text = await response.text();
+    throwIfAborted(signal);
     let content: string;
     let detectedType: string;
 
@@ -94,7 +99,7 @@ export class WebFetchExecutor implements ToolExecutor {
     // b) Content-Type 含 html 或未知 → 送 Offscreen extractHtmlContent
     else if (contentType.includes("html") || !contentType) {
       try {
-        const extracted = await extractHtmlContent(this.sender, text);
+        const extracted = await raceWithAbort(extractHtmlContent(this.sender, text), signal);
         if (extracted && extracted.length > 50) {
           content = extracted;
           detectedType = "html";
@@ -103,7 +108,10 @@ export class WebFetchExecutor implements ToolExecutor {
           content = stripHtmlTags(text);
           detectedType = "text";
         }
-      } catch {
+      } catch (error) {
+        if (error instanceof Error && error.message === "Aborted") {
+          throw error;
+        }
         // Offscreen 提取失败，降级
         content = stripHtmlTags(text);
         detectedType = "text";
@@ -123,7 +131,7 @@ export class WebFetchExecutor implements ToolExecutor {
 
     // LLM 摘要
     if (this.summarize) {
-      content = await this.summarize(content, prompt);
+      content = await this.summarize(content, prompt, signal);
       truncated = false;
     }
 

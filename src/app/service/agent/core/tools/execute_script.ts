@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "@App/app/service/agent/core/types";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import { withTimeout } from "@App/pkg/utils/with_timeout";
+import { throwIfAborted } from "../abort_utils";
 import { requireString } from "./param_utils";
 
 export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
@@ -61,7 +62,7 @@ function buildResultPayload(result: unknown, extra: Record<string, unknown>): st
 
 export type ExecuteScriptDeps = {
   executeInPage: (code: string, options?: { tabId?: number }) => Promise<{ result: unknown; tabId: number }>;
-  executeInSandbox: (code: string) => Promise<unknown>;
+  executeInSandbox: (code: string, signal?: AbortSignal) => Promise<unknown>;
   timeoutMs?: number; // 可选超时（ms），默认 30s，测试用
 };
 
@@ -72,7 +73,8 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
   const timeoutMs = deps.timeoutMs ?? EXECUTE_SCRIPT_TIMEOUT_MS;
 
   const executor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       const code = requireString(args, "code");
 
       const target = requireString(args, "target");
@@ -85,16 +87,18 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
         const { result, tabId: actualTabId } = await withTimeout(
           deps.executeInPage(code, { tabId }),
           timeoutMs,
-          () => new Error(`execute_script timed out after ${timeoutMs / 1000}s`)
+          () => new Error(`execute_script timed out after ${timeoutMs / 1000}s`),
+          signal
         );
         return buildResultPayload(result, { target: "page", tab_id: actualTabId });
       }
 
       // sandbox
       const result = await withTimeout(
-        deps.executeInSandbox(code),
+        deps.executeInSandbox(code, signal),
         timeoutMs,
-        () => new Error(`execute_script timed out after ${timeoutMs / 1000}s`)
+        () => new Error(`execute_script timed out after ${timeoutMs / 1000}s`),
+        signal
       );
       return buildResultPayload(result, { target: "sandbox" });
     },

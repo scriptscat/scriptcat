@@ -40,11 +40,11 @@ import { AgentConfigRepo, type AgentGeneralConfig } from "@App/app/service/agent
 import { SubAgentService } from "./sub_agent_service";
 import { BackgroundSessionManager } from "./background_session_manager";
 import { createOPFSTools, setCreateBlobUrlFn } from "@App/app/service/agent/core/tools/opfs_tools";
-import { createObjectURL } from "@App/app/service/offscreen/client";
 import { AgentOPFSService } from "./opfs_service";
-import { executeSkillScript } from "@App/app/service/offscreen/client";
+import { createObjectURL, executeSkillScript, stopScript } from "@App/app/service/offscreen/client";
 import { createTabTools } from "@App/app/service/agent/core/tools/tab_tools";
 import { ChatService } from "./chat_service";
+import { createAbortError, throwIfAborted } from "@App/app/service/agent/core/abort_utils";
 
 // 保留对外 API（测试文件直接从 "./agent" import 这三个函数）
 export { isRetryableError, withRetry, classifyErrorCode } from "./retry_utils";
@@ -120,14 +120,24 @@ export class AgentService {
       this.subAgentService,
       {
         executeInPage: (code, options) => this.domService.executeScript(code, options),
-        executeInSandbox: (code) => {
+        executeInSandbox: (code: string, signal?: AbortSignal) => {
+          throwIfAborted(signal);
           const uuid = SKILL_SCRIPT_UUID_PREFIX + uuidv4();
-          return executeSkillScript(this.sender, {
+          const execPromise = executeSkillScript(this.sender, {
             uuid,
             code,
             args: {},
             grants: [],
             name: "execute_script",
+          });
+          if (!signal) return execPromise;
+          return new Promise<unknown>((resolve, reject) => {
+            const onAbort = () => {
+              void stopScript(this.sender, uuid);
+              reject(createAbortError());
+            };
+            signal.addEventListener("abort", onAbort, { once: true });
+            execPromise.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
           });
         },
       },
@@ -224,7 +234,7 @@ export class AgentService {
     this.toolRegistry.registerBuiltin(
       WEB_FETCH_DEFINITION,
       new WebFetchExecutor(this.sender, {
-        summarize: (content, prompt) => this.summarizeContent(content, prompt),
+        summarize: (content, prompt, signal) => this.summarizeContent(content, prompt, signal),
       })
     );
     this.toolRegistry.registerBuiltin(WEB_SEARCH_DEFINITION, new WebSearchExecutor(this.sender, this.searchConfigRepo));
@@ -241,7 +251,7 @@ export class AgentService {
     // 注册 Tab 操作工具
     const tabTools = createTabTools({
       sender: this.sender,
-      summarize: (content, prompt) => this.summarizeContent(content, prompt),
+      summarize: (content, prompt, signal) => this.summarizeContent(content, prompt, signal),
     });
     for (const t of tabTools.tools) {
       this.toolRegistry.registerBuiltin(t.definition, t.executor);
@@ -402,8 +412,8 @@ export class AgentService {
 
   // 对内容做摘要/提取（供 tab 工具使用）
   // 优先使用摘要模型，fallback 到默认模型
-  private async summarizeContent(content: string, prompt: string): Promise<string> {
-    return this.compactService.summarizeContent(content, prompt);
+  private async summarizeContent(content: string, prompt: string, signal?: AbortSignal): Promise<string> {
+    return this.compactService.summarizeContent(content, prompt, signal);
   }
 
   // 调用 LLM 并收集完整响应（委托给 LLMClient）

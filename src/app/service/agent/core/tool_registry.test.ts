@@ -5,7 +5,7 @@ import type { ToolCall, ToolDefinition, ToolResultWithAttachments } from "./type
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 
 // 创建一个简单的 mock executor
-function createExecutor(fn: (args: Record<string, unknown>) => Promise<unknown>): ToolExecutor {
+function createExecutor(fn: (args: Record<string, unknown>, signal?: AbortSignal) => Promise<unknown>): ToolExecutor {
   return { execute: fn };
 }
 
@@ -112,7 +112,7 @@ describe("ToolRegistry", () => {
 
       await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "" }]);
 
-      expect(executeSpy).toHaveBeenCalledWith({});
+      expect(executeSpy).toHaveBeenCalledWith({}, undefined);
     });
 
     it("内置工具抛出异常时应返回错误信息", async () => {
@@ -162,7 +162,7 @@ describe("ToolRegistry", () => {
 
       const results = await registry.execute([{ id: "tc_1", name: "unknown_tool", arguments: "{}" }], scriptCallback);
 
-      expect(scriptCallback).toHaveBeenCalledWith([{ id: "tc_1", name: "unknown_tool", arguments: "{}" }]);
+      expect(scriptCallback).toHaveBeenCalledWith([{ id: "tc_1", name: "unknown_tool", arguments: "{}" }], undefined);
       expect(results[0].result).toBe("script result");
     });
 
@@ -205,13 +205,29 @@ describe("ToolRegistry", () => {
       // 脚本工具结果
       expect(results.find((r) => r.id === "tc_2")?.result).toBe("script_result");
       // scriptCallback 只收到脚本工具
-      expect(scriptCallback).toHaveBeenCalledWith([toolCalls[1]]);
+      expect(scriptCallback).toHaveBeenCalledWith([toolCalls[1]], undefined);
     });
 
     it("空 toolCalls 数组时应返回空结果", async () => {
       const registry = new ToolRegistry();
       const results = await registry.execute([]);
       expect(results).toHaveLength(0);
+    });
+
+    it("应将 signal 传递给内置工具执行器", async () => {
+      const registry = new ToolRegistry();
+      const executeSpy = vi.fn().mockResolvedValue("ok");
+      registry.registerBuiltin(weatherDef, { execute: executeSpy });
+      const controller = new AbortController();
+
+      await registry.execute(
+        [{ id: "tc_1", name: "get_weather", arguments: "{}" }],
+        undefined,
+        undefined,
+        controller.signal
+      );
+
+      expect(executeSpy).toHaveBeenCalledWith({}, controller.signal);
     });
 
     it("JSON 解析失败时应返回错误", async () => {

@@ -80,7 +80,7 @@ describe("execute_script 工具", () => {
 
       expect(parsed).toEqual({ result: { sum: 42 }, target: "sandbox" });
       expect(parsed).not.toHaveProperty("tab_id");
-      expect(mockExecuteInSandbox).toHaveBeenCalledWith("return 1+2");
+      expect(mockExecuteInSandbox).toHaveBeenCalledWith("return 1+2", undefined);
     });
 
     it.concurrent("返回值为 undefined 时应转为 null", async () => {
@@ -114,6 +114,19 @@ describe("execute_script 工具", () => {
       await expect(executor.execute({ code: "while(true){}", target: "sandbox" })).rejects.toThrow(
         "execute_script timed out after 0.05s"
       );
+    });
+
+    it.concurrent("signal 已中止时应立即中断并且不执行脚本", async () => {
+      const mockExecuteInSandbox = vi.fn().mockReturnValue(new Promise(() => {}));
+      const deps = makeDeps({ executeInSandbox: mockExecuteInSandbox });
+      const { executor } = createExecuteScriptTool(deps);
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(executor.execute({ code: "return 1", target: "sandbox" }, controller.signal)).rejects.toThrow(
+        "Aborted"
+      );
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled();
     });
   });
 

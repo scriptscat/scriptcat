@@ -163,6 +163,23 @@ describe("SessionToolRegistry", () => {
       expect(parentSpy).not.toHaveBeenCalled();
     });
 
+    it("应将 signal 传递给 session 工具执行器", async () => {
+      const parent = new ToolRegistry();
+      const session = new SessionToolRegistry(parent);
+      const executeSpy = vi.fn().mockResolvedValue("session_result");
+      session.register("session", taskDef, { execute: executeSpy });
+      const controller = new AbortController();
+
+      await session.execute(
+        [{ id: "t1", name: "create_task", arguments: "{}" }],
+        undefined,
+        undefined,
+        controller.signal
+      );
+
+      expect(executeSpy).toHaveBeenCalledWith({}, controller.signal);
+    });
+
     it("session 无该工具时回退到 parent 工具", async () => {
       const parent = new ToolRegistry();
       parent.registerBuiltin(

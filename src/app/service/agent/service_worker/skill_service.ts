@@ -18,6 +18,7 @@ import { cacheInstance } from "@App/app/cache";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import type { ResourceService } from "@App/app/service/service_worker/resource";
 import { versionCompare } from "@App/pkg/utils/semver";
+import { throwIfAborted } from "@App/app/service/agent/core/abort_utils";
 
 // 更新检查结果
 export type SkillUpdateInfo = {
@@ -459,7 +460,8 @@ export class SkillService {
         },
       },
       executor: {
-        execute: async (args: Record<string, unknown>) => {
+        execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+          throwIfAborted(signal);
           const skillName = args.skill_name as string;
           const record = this.skillCache.get(skillName);
           if (!record) {
@@ -512,7 +514,8 @@ export class SkillService {
         },
       },
       executor: {
-        execute: async (args: Record<string, unknown>) => {
+        execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+          throwIfAborted(signal);
           const skillName = args.skill as string;
           const scriptName = args.script as string;
           const params = (args.params || {}) as Record<string, unknown>;
@@ -528,7 +531,7 @@ export class SkillService {
             ? await this.skillRepo.getConfigValues(skillName)
             : undefined;
           const executor = new SkillScriptExecutor(scriptRecord, this.sender, this.createRequireLoader(), configValues);
-          return executor.execute(params);
+          return executor.execute(params, signal);
         },
       },
     });
@@ -550,7 +553,8 @@ export class SkillService {
           },
         },
         executor: {
-          execute: async (args: Record<string, unknown>) => {
+          execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+            throwIfAborted(signal);
             const skillName = args.skill_name as string;
             const refName = args.reference_name as string;
             const ref = await this.skillRepo.getReference(skillName, refName);

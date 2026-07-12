@@ -1,6 +1,5 @@
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
-import type { AgentModelConfig } from "@App/app/service/agent/core/types";
-import { getContextWindow, getInputTokenBudget } from "@App/app/service/agent/core/model_context";
+import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
 import { ToolLoopOrchestrator as BaseToolLoopOrchestrator, type ToolLoopDeps } from "./tool_loop_orchestrator_base";
 
 export type { ToolLoopDeps } from "./tool_loop_orchestrator_base";
@@ -13,13 +12,7 @@ export class ToolLoopOrchestrator {
   ) {}
 
   async callLLMWithToolLoop(params: Parameters<BaseToolLoopOrchestrator["callLLMWithToolLoop"]>[0]) {
-    const actualWindow = getContextWindow(params.model);
     const inputBudget = getInputTokenBudget(params.model);
-    const effectiveWindow = Math.max(1, Math.floor(inputBudget / 0.9));
-    const model: AgentModelConfig = {
-      ...params.model,
-      contextWindow: Math.min(actualWindow, effectiveWindow),
-    };
     const totalUsage = {
       inputTokens: 0,
       outputTokens: 0,
@@ -51,6 +44,6 @@ export class ToolLoopOrchestrator {
       },
     });
     const orchestrator = new BaseToolLoopOrchestrator(deps, repo);
-    return orchestrator.callLLMWithToolLoop({ ...params, model });
+    return orchestrator.callLLMWithToolLoop({ ...params, inputTokenBudget: inputBudget });
   }
 }

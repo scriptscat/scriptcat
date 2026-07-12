@@ -155,6 +155,7 @@ export class ToolLoopOrchestrator {
     // 本次调用使用的工具注册表（SessionToolRegistry 或 ToolRegistry）
     toolRegistry: ToolExecutorLike;
     model: AgentModelConfig;
+    inputTokenBudget?: number;
     messages: ChatRequest["messages"];
     tools?: ToolDefinition[];
     maxIterations: number;
@@ -181,6 +182,7 @@ export class ToolLoopOrchestrator {
     const {
       toolRegistry,
       model,
+      inputTokenBudget,
       messages: inputMessages,
       tools,
       maxIterations,
@@ -199,22 +201,16 @@ export class ToolLoopOrchestrator {
       cacheReadInputTokens: 0,
     };
     const attachmentSizes = await loadAttachmentSizes(inputMessages, (id) => this.chatRepo.getAttachment(id));
+    const budgetWindow = inputTokenBudget ?? getContextWindow(model);
 
     // 持久化历史保留完整结果供 UI 展示；LLM 只使用独立副本，续接时首个请求也先裁剪旧结果。
     const messages = rehydratedHistory ? inputMessages.map((message) => ({ ...message })) : inputMessages;
     if (rehydratedHistory) {
       const initialTools = params.skipBuiltinTools ? tools || [] : toolRegistry.getDefinitions(tools);
       const estimatedInputTokens = estimateRequestTokens(messages, initialTools, attachmentSizes, model);
-      const estimatedUsageRatio = estimatedInputTokens / getContextWindow(model);
+      const estimatedUsageRatio = estimatedInputTokens / budgetWindow;
       if (estimatedUsageRatio >= ELISION_THRESHOLDS[0]) {
-        const withinBudget = elideUntilWithinBudget(
-          messages,
-          getContextWindow(model),
-          initialTools,
-          0.9,
-          attachmentSizes,
-          model
-        );
+        const withinBudget = elideUntilWithinBudget(messages, budgetWindow, initialTools, 0.9, attachmentSizes, model);
         if (!withinBudget) {
           await this.emitContextTooLarge(conversationId, totalUsage, startTime, sendEvent, throwOnTerminalError);
           return;
@@ -246,12 +242,11 @@ export class ToolLoopOrchestrator {
       // 发送前预算检查：用上一轮真实 usage 判断是否需要裁剪只在响应之后生效，
       // 无法覆盖“上一轮新追加的 tool 结果单独撑爆下一次请求”的情况，必须在这里对
       // 即将发出的完整请求（messages + 当前工具定义）做一次独立估算。
-      const contextWindow = getContextWindow(model);
       const preflightTokens = estimateRequestTokens(messages, allToolDefs, attachmentSizes, model);
-      if (preflightTokens / contextWindow >= PREFLIGHT_BUDGET_RATIO) {
+      if (preflightTokens / budgetWindow >= PREFLIGHT_BUDGET_RATIO) {
         const withinBudget = elideUntilWithinBudget(
           messages,
-          contextWindow,
+          budgetWindow,
           allToolDefs,
           PREFLIGHT_BUDGET_RATIO,
           attachmentSizes,
@@ -298,7 +293,7 @@ export class ToolLoopOrchestrator {
       let pendingElision = false;
       let contextUsageRatio: number | null = null;
       if (result.usage && conversationId) {
-        contextUsageRatio = getContextInputTokens(model, result.usage) / contextWindow;
+        contextUsageRatio = getContextInputTokens(model, result.usage) / budgetWindow;
 
         if (contextUsageRatio >= 0.8) {
           try {
@@ -357,7 +352,8 @@ export class ToolLoopOrchestrator {
         // excludeTools 做后端强校验：被排除的工具名直接返回 error，避免 LLM 盲调绕过白/黑名单
         const excludeToolsSet =
           params.excludeTools && params.excludeTools.length > 0 ? new Set(params.excludeTools) : undefined;
-        const toolResults = await toolRegistry.execute(result.toolCalls, scriptToolCallback, excludeToolsSet);
+        const toolResults = await toolRegistry.execute(result.toolCalls, scriptToolCallback, excludeToolsSet, signal);
+        if (signal.aborted) return;
 
         // 将 tool 结果加入消息，并通知 UI 工具执行完成
         // 收集需要回写的 toolCall 元数据（执行状态 / 附件 / 子代理详情）

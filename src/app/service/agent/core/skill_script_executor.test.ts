@@ -507,7 +507,9 @@ describe("SkillScriptExecutor 超时处理", () => {
     let capturedUuid = "";
     const sender = {
       sendMessage: vi.fn().mockImplementation((msg: any) => {
-        capturedUuid = msg.data.uuid;
+        if (msg.action === "offscreen/executeSkillScript") {
+          capturedUuid = msg.data.uuid;
+        }
         return new Promise(() => {});
       }),
     } as any;
@@ -565,5 +567,34 @@ describe("SkillScriptExecutor 超时处理", () => {
     await vi.advanceTimersByTimeAsync(5_000);
 
     await expect(execPromise).resolves.toBeDefined();
+  });
+
+  it("signal 中止时应停止脚本并返回 Aborted", async () => {
+    let capturedUuid = "";
+    const sender = {
+      sendMessage: vi.fn().mockImplementation((msg: any) => {
+        if (msg.action === "offscreen/executeSkillScript") {
+          capturedUuid = msg.data.uuid;
+          return new Promise(() => {});
+        }
+        if (msg.action === "offscreen/script/stopScript") {
+          return Promise.resolve({ data: undefined });
+        }
+        return Promise.resolve({ data: "mock_result" });
+      }),
+    } as any;
+
+    const record = createRecord([], { name: "abort_tool" });
+    const executor = new SkillScriptExecutor(record, sender);
+    const controller = new AbortController();
+
+    const execPromise = executor.execute({}, controller.signal);
+    controller.abort();
+
+    await expect(execPromise).rejects.toThrow("Aborted");
+    expect(sender.sendMessage.mock.calls.some((call: any[]) => call[0].action === "offscreen/script/stopScript")).toBe(
+      true
+    );
+    expect(getSkillScriptNameByUuid(capturedUuid)).toBe("");
   });
 });

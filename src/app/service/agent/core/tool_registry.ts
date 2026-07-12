@@ -5,7 +5,7 @@ import { getExtFromMime } from "./content_utils";
 
 // 工具执行器接口
 export interface ToolExecutor {
-  execute(args: Record<string, unknown>): Promise<unknown>;
+  execute(args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown>;
 }
 
 // 工具来源分类
@@ -25,7 +25,8 @@ export interface ToolEntry {
 
 // 脚本工具回调类型：将 tool calls 发送到 Sandbox 执行
 export type ScriptToolCallback = (
-  toolCalls: ToolCall[]
+  toolCalls: ToolCall[],
+  signal?: AbortSignal
 ) => Promise<Array<{ id: string; result: string; error?: boolean }>>;
 
 // 工具执行结果（可能含附件和子代理详情）
@@ -44,7 +45,8 @@ export interface ToolExecutorLike {
   execute(
     toolCalls: ToolCall[],
     scriptCallback?: ScriptToolCallback | null,
-    excludeTools?: Set<string>
+    excludeTools?: Set<string>,
+    signal?: AbortSignal
   ): Promise<ToolExecuteResult[]>;
 }
 
@@ -174,9 +176,10 @@ export class ToolRegistry implements ToolExecutorLike {
   async execute(
     toolCalls: ToolCall[],
     scriptCallback?: ScriptToolCallback | null,
-    excludeTools?: Set<string>
+    excludeTools?: Set<string>,
+    signal?: AbortSignal
   ): Promise<ToolExecuteResult[]> {
-    return this.executeTools(this.tools, toolCalls, scriptCallback, excludeTools);
+    return this.executeTools(this.tools, toolCalls, scriptCallback, excludeTools, signal);
   }
 
   // 执行工具调用（接收外部 tools Map），供 SessionToolRegistry 复用附件保存等共享逻辑
@@ -185,7 +188,8 @@ export class ToolRegistry implements ToolExecutorLike {
     tools: ReadonlyMap<string, ToolEntry>,
     toolCalls: ToolCall[],
     scriptCallback?: ScriptToolCallback | null,
-    excludeTools?: Set<string>
+    excludeTools?: Set<string>,
+    signal?: AbortSignal
   ): Promise<ToolExecuteResult[]> {
     const results: ToolExecuteResult[] = [];
     const builtinCalls: ToolCall[] = [];
@@ -217,7 +221,7 @@ export class ToolRegistry implements ToolExecutorLike {
           if (tc.arguments) {
             args = JSON.parse(tc.arguments);
           }
-          const rawResult = await tool.executor.execute(args);
+          const rawResult = await tool.executor.execute(args, signal);
 
           // 检查是否带附件或子代理详情
           if (isToolResultWithAttachments(rawResult)) {
@@ -241,10 +245,14 @@ export class ToolRegistry implements ToolExecutorLike {
     );
     results.push(...builtinResults);
 
+    if (signal?.aborted) {
+      return results;
+    }
+
     // 执行脚本工具
     if (scriptCalls.length > 0) {
       if (scriptCallback) {
-        const scriptResults = await scriptCallback(scriptCalls);
+        const scriptResults = await scriptCallback(scriptCalls, signal);
         // 脚本工具也可能返回带附件的结构化结果
         for (const sr of scriptResults) {
           try {

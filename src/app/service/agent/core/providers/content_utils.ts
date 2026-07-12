@@ -29,10 +29,17 @@ export function convertFileBlock(block: Extract<ContentBlock, { type: "file" }>)
 /**
  * image 块无法解析时的文本降级描述
  */
+export function imageBlockFallbackText(block: { name?: string; attachmentId: string }): string {
+  return `[Image: ${block.name || "image"}, OPFS path: uploads/${block.attachmentId}]`;
+}
+
+/**
+ * image 块无法解析时的文本降级描述
+ */
 export function imageBlockFallback(block: Extract<ContentBlock, { type: "image" }>): Record<string, unknown> {
   return {
     type: "text",
-    text: `[Image: ${block.name || "image"}, OPFS path: uploads/${block.attachmentId}]`,
+    text: imageBlockFallbackText(block),
   };
 }
 

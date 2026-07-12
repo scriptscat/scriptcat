@@ -45,7 +45,7 @@ import type { LLMCallResult } from "./llm_client";
 /** ChatService 需要的 execute_script 工具依赖 */
 export interface ChatServiceExecuteScriptDeps {
   executeInPage: (code: string, options?: { tabId?: number }) => Promise<{ result: unknown; tabId: number }>;
-  executeInSandbox: (code: string) => Promise<unknown>;
+  executeInSandbox: (code: string, signal?: AbortSignal) => Promise<unknown>;
 }
 
 /** ChatService 需要的 LLM 调用依赖 */
@@ -399,7 +399,7 @@ export class ChatService {
 
       // 预加载历史中已使用过的 skill 工具
       if (enableTools) {
-        await this.preloadSkillsFromHistory(existingMessages, metaTools);
+        await this.preloadSkillsFromHistory(existingMessages, metaTools, abortController.signal);
       }
 
       // 构建消息列表并持久化用户消息
@@ -700,7 +700,8 @@ export class ChatService {
    */
   private async preloadSkillsFromHistory(
     existingMessages: Awaited<ReturnType<AgentChatRepo["getMessages"]>>,
-    metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }>
+    metaTools: Array<{ definition: ToolDefinition; executor: ToolExecutor }>,
+    signal?: AbortSignal
   ): Promise<void> {
     const loadSkillMeta = metaTools.find((mt) => mt.definition.name === "load_skill");
     if (!loadSkillMeta) return;
@@ -725,8 +726,9 @@ export class ChatService {
 
     // 预执行 load_skill 以注册动态工具（结果不需要，只需要副作用）
     for (const skillName of loadedSkillNames) {
+      if (signal?.aborted) break;
       try {
-        await loadSkillMeta.executor.execute({ skill_name: skillName });
+        await loadSkillMeta.executor.execute({ skill_name: skillName }, signal);
       } catch {
         // 加载失败，跳过
       }
