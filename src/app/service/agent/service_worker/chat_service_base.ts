@@ -37,6 +37,7 @@ import { classifyErrorCode } from "./retry_utils";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
 import { toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { t } from "@App/locales/locales";
 import { elideUntilWithinBudget, loadAttachmentSizes } from "@App/app/service/agent/core/context_elision";
 import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
@@ -121,8 +122,12 @@ export class ChatService {
         // 对话已经在 chat 过程中持久化，这里确保元数据也保存
         return true;
       case "clearMessages":
-        await this.chatRepo.saveMessages(params.conversationId, []);
-        return true;
+        // 与 chat/compact 共用同一把按 conversationId 的队列锁，避免正在进行的对话/压缩
+        // 与清空操作互相覆盖对方的写入（见 finding 5）
+        return stackAsyncTask(this.conversationLockKey(params.conversationId), async () => {
+          await this.chatRepo.saveMessages(params.conversationId, []);
+          return true;
+        });
       default:
         throw new Error(`Unknown conversation action: ${(params as any).action}`);
     }
@@ -149,6 +154,9 @@ export class ChatService {
   }
 
   // 统一的流式 conversation chat（UI 和脚本 API 共用）
+  // 同一 conversationId 的 chat / compact（compact 复用本方法的 params.compact 分支）都必须与
+  // clearMessages 串行执行，避免并发读改写互相覆盖对方的持久化写入（见 finding 5）。
+  // "会话正在运行中" 的快速拒绝在排队之前完成，避免重复的后台请求白白卡在队列里等待。
   async handleConversationChat(params: ConversationChatParams, sender: IGetSender) {
     if (!sender.isType(GetSenderType.CONNECT)) {
       throw new Error("Conversation chat requires connect mode");
@@ -166,6 +174,26 @@ export class ChatService {
       });
       return;
     }
+
+    // ephemeral 不读写 chatRepo（消息历史由调用方在内存中维护），没有跨请求的持久化竞争，无需排队
+    if (params.ephemeral) {
+      return this.handleConversationChatLocked(params, sender);
+    }
+
+    return stackAsyncTask(this.conversationLockKey(params.conversationId), () =>
+      this.handleConversationChatLocked(params, sender)
+    );
+  }
+
+  private conversationLockKey(conversationId: string): string {
+    return `agent-chat:${conversationId}`;
+  }
+
+  private async handleConversationChatLocked(params: ConversationChatParams, sender: IGetSender) {
+    const msgConn = sender.getConnect()!;
+
+    // 后台模式：非 ephemeral、非 compact 时可用（外层 handleConversationChat 已用同一条件做过快速拒绝检查）
+    const isBackground = params.background === true && !params.ephemeral && !params.compact;
 
     const abortController = new AbortController();
     let isDisconnected = false;
@@ -590,7 +618,8 @@ export class ChatService {
       content: `[Conversation Summary]\n\n${summary}`,
       createtime: Date.now(),
     };
-    await this.chatRepo.saveMessages(params.conversationId, [summaryMessage]);
+    // 传入 signal：写入落定前若已 abort，则放弃这次整份覆写而不提交（见 finding 4）
+    await this.chatRepo.saveMessages(params.conversationId, [summaryMessage], abortController.signal);
 
     // 持久化期间也可能已被 stop：终态事件只能在确认未取消时发送
     if (abortController.signal.aborted) return;

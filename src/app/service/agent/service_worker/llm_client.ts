@@ -135,6 +135,19 @@ export class LLMClient {
     const pendingImageSaves: Array<{ block: ContentBlock & { type: "image" }; data: string }> = [];
 
     return new Promise((resolve, reject) => {
+      // 最后一道保险：即使 provider parser 出现未预见的静默完成路径，也不能让这个 Promise 永远挂起
+      let settled = false;
+      const settleOnce = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbortSafeguard);
+        fn();
+      };
+      const onAbortSafeguard = () => settleOnce(() => reject(new Error("Aborted")));
+      signal.addEventListener("abort", onAbortSafeguard, { once: true });
+      const resolveOnce: typeof resolve = (value) => settleOnce(() => resolve(value));
+      const rejectOnce: typeof reject = (reason) => settleOnce(() => reject(reason));
+
       const onEvent = (event: ChatStreamEvent) => {
         // 只转发流式内容事件，done 和 error 由 callLLMWithToolLoop 统一管理
         // 避免在 tool calling 循环中提前发送 done 导致客户端过早 resolve
@@ -236,7 +249,7 @@ export class LLMClient {
 
             finalize()
               .then((contentBlocks) => {
-                resolve({
+                resolveOnce({
                   content,
                   thinking: thinking || undefined,
                   toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
@@ -244,16 +257,16 @@ export class LLMClient {
                   contentBlocks,
                 });
               })
-              .catch(reject);
+              .catch(rejectOnce);
             break;
           }
           case "error":
-            reject(new Error(event.message));
+            rejectOnce(new Error(event.message));
             break;
         }
       };
 
-      parseStream(reader, onEvent, signal).catch(reject);
+      parseStream(reader, onEvent, signal).catch(rejectOnce);
     });
   }
 }

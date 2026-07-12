@@ -152,8 +152,12 @@ export class BackgroundSessionManager {
     }
   }
 
-  // 停止后台会话：仅置为 cancelling（占用态，阻止同 ID 会话被过早顶替），
-  // 真正的终态（done/error）由持有该 rc 实例的执行方在 promise 落定后写入，见 finalizeCancelled()。
+  // 停止后台会话：仅置为 cancelling（占用态，阻止同 ID 会话被过早顶替）并 abort，
+  // 不在这里广播终态事件。终态事件的唯一来源是执行方（orchestrator 的 emitCancelled，
+  // 见 tool_loop_orchestrator_base.ts）在 promise 真正落定后发出的那一条——它携带完整的
+  // 累计 usage/耗时。此前 stop() 自己先广播一条不带 usage 的 error:cancelled，会导致 UI
+  // 连接在收到 orchestrator 发出的、携带真实 usage 的终态事件之前就已断开丢弃它，
+  // 也会让 finalizeCancelled() 因为 status 已被后到的 error 事件提前改写而永远不触发清理。
   // expectedRc 用于校验调用方持有的会话实例仍是当前会话，防止旧连接的延迟 Stop 误伤已顶替上位的新会话。
   stop(conversationId: string, expectedRc?: RunningConversation): void {
     const rc = this.runningConversations.get(conversationId);
@@ -164,9 +168,6 @@ export class BackgroundSessionManager {
     rc.pendingAskUser = undefined;
     rc.askResolvers.clear();
     rc.abortController.abort();
-
-    const event: ChatStreamEvent = { type: "error", message: "Conversation cancelled", errorCode: "cancelled" };
-    this.broadcastEvent(rc, event);
   }
 
   // 执行方在 abort 落定、promise 真正 settle 后调用，把 cancelling 收敛为终态。

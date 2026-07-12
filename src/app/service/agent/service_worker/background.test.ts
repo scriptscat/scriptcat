@@ -404,7 +404,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
     (service as any).bgSessionManager.delete("conv-multi");
   });
 
-  it("通过 attach 发送 stop 会先置为 cancelling 并广播终态，占位直到执行方 finalize 才真正清理", async () => {
+  it("通过 attach 发送 stop 只置为 cancelling 并 abort，不自行广播终态（终态事件唯一来源是执行方 emitCancelled）", async () => {
     vi.useFakeTimers();
     try {
       const { service } = createTestService();
@@ -428,9 +428,10 @@ describe("handleAttachToConversation 重连逻辑", () => {
       expect(rc.askResolvers.size).toBe(0);
       expect((service as any).bgSessionManager.has("conv-stop")).toBe(true);
       expect(service.getRunningConversationIds()).not.toContain("conv-stop");
-      expect(
-        sentMessages.some((message) => message.data?.type === "error" && message.data.errorCode === "cancelled")
-      ).toBe(true);
+      // stop() 本身不再广播任何终态事件：唯一的终态事件来自执行方（orchestrator 的
+      // emitCancelled，走正常 sendEvent → updateStreamingState → broadcastEvent 路径），
+      // 避免"先广播一条不带 usage 的事件，UI 断开后丢失后到的真实终态事件"的竞态
+      expect(sentMessages.some((message) => message.data?.type === "error")).toBe(false);
 
       // 模拟执行方在 abort 落定后调用 finalizeCancelled
       (service as any).bgSessionManager.finalizeCancelled("conv-stop", rc);

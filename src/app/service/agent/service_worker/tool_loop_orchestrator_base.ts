@@ -319,6 +319,12 @@ export class ToolLoopOrchestrator {
           signal
         );
       } catch (error) {
+        // SSE 解析层现在会在 abort 时 reject（而不是静默挂起，见 content_utils.ts），
+        // 这类 reject 必须走统一的取消终态化路径，而不是当作真实错误往外抛
+        if (signal.aborted) {
+          await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+          return;
+        }
         throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
           usage: totalUsage,
           durationMs: Date.now() - startTime,
@@ -355,14 +361,22 @@ export class ToolLoopOrchestrator {
               totalUsage.cacheReadInputTokens += compactUsage.cacheReadInputTokens || 0;
             }
           } catch (error) {
+            if (signal.aborted) {
+              await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+              return;
+            }
             throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
               usage: totalUsage,
               durationMs: Date.now() - startTime,
               conversationId,
             });
           }
-          // autoCompact 期间可能已被 stop：继续持久化/发送最终消息前必须重新检查
-          if (signal.aborted) return;
+          // autoCompact 期间可能已被 stop：继续持久化/发送最终消息前必须重新检查，
+          // 并统一走取消终态化路径（唯一一条终态事件 + 已回写的累计 usage），而不是静默 return
+          if (signal.aborted) {
+            await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+            return;
+          }
         } else {
           for (let i = 0; i < ELISION_THRESHOLDS.length; i++) {
             if (i > lastElisionThresholdIndex && contextUsageRatio >= ELISION_THRESHOLDS[i]) {
@@ -413,7 +427,15 @@ export class ToolLoopOrchestrator {
         // excludeTools 做后端强校验：被排除的工具名直接返回 error，避免 LLM 盲调绕过白/黑名单
         const excludeToolsSet =
           params.excludeTools && params.excludeTools.length > 0 ? new Set(params.excludeTools) : undefined;
-        const toolResults = await toolRegistry.execute(result.toolCalls, scriptToolCallback, excludeToolsSet, signal);
+        // 脚本工具通过 raceWithAbort 包裹：abort 时会直接 reject，而不是返回部分结果，
+        // 必须捕获后按"取消"处理，复用下面统一的补全逻辑，而不是让异常直接抛出跳过终态化
+        let toolResults: Awaited<ReturnType<typeof toolRegistry.execute>>;
+        try {
+          toolResults = await toolRegistry.execute(result.toolCalls, scriptToolCallback, excludeToolsSet, signal);
+        } catch (error) {
+          if (!signal.aborted) throw error;
+          toolResults = [];
+        }
         const cancelledDuringTools = signal.aborted;
         if (cancelledDuringTools) {
           // 取消发生在工具执行期间：toolRegistry 可能未及为所有 toolCalls 返回结果（如尚未触达的脚本工具），
@@ -540,8 +562,9 @@ export class ToolLoopOrchestrator {
           if (guardStrikeCount >= GUARD_ESCALATION_STRIKES && params.askUserForGuard) {
             const answer = await waitForGuardAnswer(params.askUserForGuard, guardStrikeCount, signal);
             if (answer === null) {
-              const durationMs = Date.now() - startTime;
-              sendEvent({ type: "done", usage: totalUsage, durationMs });
+              // waitForGuardAnswer 只在 signal abort 时才会返回 null，必须走取消终态化路径，
+              // 而不是当作正常完成发 done——否则 Stop 期间恰好卡在等待用户回答会被误报为成功
+              await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
               return;
             }
             if (answer.trim().toLowerCase() === GUARD_STOP_ANSWER.toLowerCase()) {
@@ -602,6 +625,13 @@ export class ToolLoopOrchestrator {
           durationMs,
           createtime: Date.now(),
         });
+      }
+
+      // 持久化期间也可能已被 stop：内容已经落库（不丢失），但终态事件必须反映取消，
+      // 不能在 Stop 之后仍对外报告 done（否则后台会话状态会被"成功"覆盖掉 cancelled）
+      if (signal.aborted) {
+        await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+        return;
       }
 
       // 发送 done 事件

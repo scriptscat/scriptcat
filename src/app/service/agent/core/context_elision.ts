@@ -71,7 +71,18 @@ function getStableContentBytes(message: { role: string; content: unknown; toolCa
 }
 
 /**
- * 以 UTF-8 字节数的保守上界估算 provider 请求 token。
+ * 请求 token 的启发式估算，不是任何 provider 的精确 tokenizer（本仓库未接入
+ * tiktoken/Anthropic 官方计数器，引入新依赖超出当前改动范围）。分两部分独立估算，
+ * 因为文本/JSON 与 vision 图片的字节→token 比例机制完全不同，不应共用同一个换算系数：
+ *
+ * - 文本 + JSON 结构（messages/tools/toolCalls）：按 UTF-8 字节数 / CONSERVATIVE_BYTES_PER_TOKEN
+ *   保守折算。这仍然是启发式而非保证：高熵内容或极端 tokenizer 差异下仍可能被低估，
+ *   调用方（preflight 预算检查、elideUntilWithinBudget）应把结果当作"大致上界"而非精确值。
+ * - vision 图片：provider 的图片计费与 base64 字节数 / 2 没有对应关系（如 OpenAI 按分块、
+ *   Anthropic 按 宽×高/750），本仓库没有图片宽高元数据，无法套用具体公式；因此不对这部分
+ *   字节数做任何折算（即按 1 字节 = 1 token 计），宁可在图片场景下偏保守（可能拒绝部分本可
+ *   容纳的请求），也不假装能精确换算图片 token 从而低估导致请求超限。
+ *
  * 只对 provider 实际会内联展开为 base64 的块计入二进制字节：
  * 当前仅 vision 模型的 image 块会被 resolveAttachments 加载；file/audio 及非 vision 模型的
  * image 均降级为纯文本描述（见 providers/content_utils.ts），其体积已包含在下方的 JSON 基线字节里。
@@ -111,7 +122,8 @@ export function estimateRequestTokens(
   if (tools && tools.length > 0) {
     bytes += new TextEncoder().encode(JSON.stringify(tools)).byteLength;
   }
-  return Math.ceil((bytes + attachmentBytes) / CONSERVATIVE_BYTES_PER_TOKEN);
+  // 文本/JSON 部分按保守系数折算；图片字节数不折算（见函数注释），两者独立相加
+  return Math.ceil(bytes / CONSERVATIVE_BYTES_PER_TOKEN) + attachmentBytes;
 }
 
 /**

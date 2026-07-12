@@ -328,18 +328,17 @@ describe("OpenAI Provider", () => {
       }
     });
 
-    it("signal 中断时不应产生错误事件", async () => {
+    it("signal 中断时应 reject 而不是静默完成（否则外层 callLLM 永远挂起）", async () => {
       const abortController = new AbortController();
       abortController.abort();
 
-      const events = await collectEvents(
-        parseOpenAIStream,
-        ['data: {"choices":[{"delta":{"content":"hello"}}]}\n\n'],
-        abortController.signal
-      );
-
-      // signal 已中断，不应处理任何数据
-      expect(events).toHaveLength(0);
+      await expect(
+        collectEvents(
+          parseOpenAIStream,
+          ['data: {"choices":[{"delta":{"content":"hello"}}]}\n\n'],
+          abortController.signal
+        )
+      ).rejects.toThrow("Aborted");
     });
   });
 });

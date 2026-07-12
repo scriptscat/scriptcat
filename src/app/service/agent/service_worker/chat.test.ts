@@ -702,3 +702,103 @@ describe("scriptToolCallback 的 abort/disconnect/超时处理", () => {
     }
   });
 });
+
+describe("同一 conversationId 的 chat/compact/clear 必须串行执行（finding 5）", () => {
+  function createMockSender() {
+    const sentMessages: any[] = [];
+    const mockConn = {
+      sendMessage: (msg: any) => sentMessages.push(msg),
+      onMessage: vi.fn(),
+      onDisconnect: vi.fn(),
+    };
+    const sender = {
+      isType: (type: any) => type === 1,
+      getConnect: () => mockConn,
+    };
+    return { sender, sentMessages };
+  }
+
+  it("clearMessages 与另一个并发的 clearMessages 请求不应交叉执行（按 conversationId 排队）", async () => {
+    const { service, mockRepo } = createTestService();
+
+    const order: string[] = [];
+    mockRepo.saveMessages.mockImplementation(async (_id: string, _msgs: any[]) => {
+      order.push("start");
+      // 人为延迟第一次调用，暴露"若未排队，第二次调用会在第一次完成前插入"的竞态
+      await new Promise((r) => setTimeout(r, 20));
+      order.push("end");
+    });
+
+    const call1 = (service as any).handleConversation({ action: "clearMessages", conversationId: "conv-race" });
+    const call2 = (service as any).handleConversation({ action: "clearMessages", conversationId: "conv-race" });
+
+    await Promise.all([call1, call2]);
+
+    // 排队生效：必须是 start,end,start,end，而不是 start,start,end,end（交叉执行）
+    expect(order).toEqual(["start", "end", "start", "end"]);
+  });
+
+  it("不同 conversationId 之间不应互相阻塞排队", async () => {
+    const { service, mockRepo } = createTestService();
+
+    const order: string[] = [];
+    mockRepo.saveMessages.mockImplementation(async (id: string) => {
+      order.push(`start:${id}`);
+      await new Promise((r) => setTimeout(r, 20));
+      order.push(`end:${id}`);
+    });
+
+    const call1 = (service as any).handleConversation({ action: "clearMessages", conversationId: "conv-a" });
+    const call2 = (service as any).handleConversation({ action: "clearMessages", conversationId: "conv-b" });
+
+    await Promise.all([call1, call2]);
+
+    // 不同会话应并发执行，两个 start 都先于任意一个 end 出现
+    expect(order.indexOf("start:conv-a")).toBeLessThan(order.indexOf("end:conv-a"));
+    expect(order.indexOf("start:conv-b")).toBeLessThan(order.indexOf("end:conv-b"));
+    expect(order.slice(0, 2).sort()).toEqual(["start:conv-a", "start:conv-b"]);
+  });
+
+  it("正在进行的 chat 与随后到达的 clearMessages 不应交叉：clear 必须等 chat 落库完成", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      const { service, mockRepo } = createTestService();
+      mockRepo.listConversations.mockResolvedValue([
+        { id: "conv-lock", title: "Chat", modelId: "test-openai", createtime: Date.now(), updatetime: Date.now() },
+      ]);
+      mockRepo.getMessages.mockResolvedValue([]);
+
+      const order: string[] = [];
+      mockRepo.appendMessage.mockImplementation(async () => {
+        order.push("chat-write");
+      });
+      mockRepo.saveMessages.mockImplementation(async () => {
+        order.push("clear-write");
+      });
+
+      fetchSpy.mockImplementation(async () => {
+        // 模拟一次有延迟的 LLM 响应，给 clearMessages 制造"抢在 chat 落库前执行"的窗口
+        await new Promise((r) => setTimeout(r, 20));
+        return makeTextResponse("ok");
+      });
+
+      const { sender } = createMockSender();
+      const chatPromise = (service as any).handleConversationChat(
+        { conversationId: "conv-lock", message: "hi" },
+        sender
+      );
+      const clearPromise = (service as any).handleConversation({
+        action: "clearMessages",
+        conversationId: "conv-lock",
+      });
+
+      await Promise.all([chatPromise, clearPromise]);
+
+      // chat 的落库（appendMessage）必须先于随后到达的 clear 的落库（saveMessages）完成，
+      // 而不是被 clear 抢先覆盖掉正在写入的历史
+      expect(order.indexOf("chat-write")).toBeLessThan(order.indexOf("clear-write"));
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});

@@ -1,6 +1,7 @@
 import type { ContentBlock } from "../types";
 import { SSEParser } from "../sse_parser";
 import type { SSEEvent } from "../sse_parser";
+import { createAbortError } from "../abort_utils";
 
 /**
  * 生成图片附件 ID，格式：img_{时间戳}_{随机串}.{扩展名}
@@ -65,6 +66,11 @@ export async function readSSEStream(
 ): Promise<void> {
   const parser = new SSEParser();
   const decoder = new TextDecoder();
+  // abort 时主动 cancel reader，唤醒可能卡在 reader.read() 上的等待
+  const onAbort = () => {
+    reader.cancel().catch(() => {});
+  };
+  signal.addEventListener("abort", onAbort, { once: true });
 
   try {
     while (!signal.aborted) {
@@ -79,8 +85,13 @@ export async function readSSEStream(
         if (onEvent(sseEvent)) return;
       }
     }
+    // abort 导致循环退出：必须 reject 而不是静默 resolve，否则调用方（LLMClient.callLLM）
+    // 的外层 Promise 永远不会 settle，取消会一直挂起
+    if (signal.aborted) throw createAbortError();
   } catch (e: any) {
-    if (signal.aborted) return;
+    if (signal.aborted) throw createAbortError();
     onError(e.message || "Stream read error");
+  } finally {
+    signal.removeEventListener("abort", onAbort);
   }
 }

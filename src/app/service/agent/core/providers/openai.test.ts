@@ -238,14 +238,14 @@ describe("parseOpenAIStream", () => {
     expect(events[0]).toEqual({ type: "content_delta", delta: "ok" });
   });
 
-  it("signal 已中止时应停止读取", async () => {
+  it("signal 已中止时应停止读取并 reject，而不是静默 resolve（否则外层 callLLM 永远挂起）", async () => {
     const controller = new AbortController();
     controller.abort();
 
     const reader = createMockReader(['data: {"choices":[{"delta":{"content":"hello"}}]}\n\n']);
 
     const events: ChatStreamEvent[] = [];
-    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+    await expect(parseOpenAIStream(reader, (e) => events.push(e), controller.signal)).rejects.toThrow("Aborted");
 
     expect(events).toHaveLength(0);
   });
@@ -272,7 +272,7 @@ describe("parseOpenAIStream", () => {
     }
   });
 
-  it("读取错误但 signal 已中止时不应发送 error 事件", async () => {
+  it("读取错误但 signal 已中止时应 reject 而不是发送 error 事件", async () => {
     const controller = new AbortController();
     const reader = {
       read: async () => {
@@ -285,7 +285,7 @@ describe("parseOpenAIStream", () => {
     } as any;
 
     const events: ChatStreamEvent[] = [];
-    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+    await expect(parseOpenAIStream(reader, (e) => events.push(e), controller.signal)).rejects.toThrow("Aborted");
 
     expect(events).toHaveLength(0);
   });

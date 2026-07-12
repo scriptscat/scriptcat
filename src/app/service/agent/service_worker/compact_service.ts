@@ -92,19 +92,15 @@ export class CompactService {
       signal
     );
 
-    // LLM 调用期间可能已被 stop：摘要落地前必须重新检查，避免用过期摘要覆盖 currentMessages
-    // 或在取消之后仍持久化/广播 compact_done
+    // LLM 调用期间可能已被 stop：落地前必须重新检查，避免取消之后仍持久化/广播 compact_done
     throwIfAborted(signal);
 
     const summary = extractSummary(result.content);
 
-    // 替换 currentMessages（保留 system，替换其余为摘要）
-    const systemMsg = currentMessages.find((m) => m.role === "system");
-    currentMessages.length = 0;
-    if (systemMsg) currentMessages.push(systemMsg);
-    currentMessages.push({ role: "user", content: `[Conversation Summary]\n\n${summary}` });
-
-    // 持久化
+    // 持久化：先写盘、成功后才允许覆写内存中的 currentMessages。
+    // OPFS 的 createWritable() 是事务性的，signal 在 close() 落定前 abort 时会放弃这次
+    // 整份覆写而不提交（见 opfs_repo.ts writeJsonFile）；只有 saveMessages 真正成功后，
+    // 再让内存态 currentMessages 反映同一份摘要，避免"写盘失败但内存已被摘要顶替"的不一致（见 finding 4）
     const summaryMessage = {
       id: uuidv4(),
       conversationId,
@@ -112,10 +108,13 @@ export class CompactService {
       content: `[Conversation Summary]\n\n${summary}`,
       createtime: Date.now(),
     };
-    await this.chatRepo.saveMessages(conversationId, [summaryMessage]);
+    await this.chatRepo.saveMessages(conversationId, [summaryMessage], signal);
 
-    // 持久化期间也可能已被 stop：终态事件只能在确认未取消时广播
-    throwIfAborted(signal);
+    // 替换 currentMessages（保留 system，替换其余为摘要）——只有走到这里才说明落盘已提交
+    const systemMsg = currentMessages.find((m) => m.role === "system");
+    currentMessages.length = 0;
+    if (systemMsg) currentMessages.push(systemMsg);
+    currentMessages.push({ role: "user", content: `[Conversation Summary]\n\n${summary}` });
 
     // 通知 UI
     sendEvent({ type: "compact_done", summary, originalCount: -1 });

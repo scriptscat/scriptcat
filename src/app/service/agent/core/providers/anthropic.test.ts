@@ -478,7 +478,7 @@ describe("parseAnthropicStream", () => {
     }
   });
 
-  it("signal 已中止时应停止读取", async () => {
+  it("signal 已中止时应停止读取并 reject，而不是静默 resolve（否则外层 callLLM 永远挂起）", async () => {
     const controller = new AbortController();
     controller.abort();
 
@@ -487,9 +487,22 @@ describe("parseAnthropicStream", () => {
     ]);
 
     const events: ChatStreamEvent[] = [];
-    await parseAnthropicStream(reader, (e) => events.push(e), controller.signal);
+    await expect(parseAnthropicStream(reader, (e) => events.push(e), controller.signal)).rejects.toThrow("Aborted");
 
     expect(events).toHaveLength(0);
+  });
+
+  it("流正常结束但没有 message_stop/message_delta(usage)/error 终态帧时应补发 error，而不是静默完成", async () => {
+    // 只有 content_block_delta，reader 提前 done，模拟连接在终态帧之前被服务端关闭
+    const reader = createMockReader([
+      'event: content_block_delta\ndata: {"delta":{"type":"text_delta","text":"hi"}}\n\n',
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+    await parseAnthropicStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events.some((e) => e.type === "error")).toBe(true);
   });
 
   it("读取错误时应发送 error 事件", async () => {
@@ -514,7 +527,7 @@ describe("parseAnthropicStream", () => {
     }
   });
 
-  it("读取错误但 signal 已中止时不应发送 error", async () => {
+  it("读取错误但 signal 已中止时应 reject 而不是发送 error", async () => {
     const controller = new AbortController();
     const reader = {
       read: async () => {
@@ -527,7 +540,7 @@ describe("parseAnthropicStream", () => {
     } as any;
 
     const events: ChatStreamEvent[] = [];
-    await parseAnthropicStream(reader, (e) => events.push(e), controller.signal);
+    await expect(parseAnthropicStream(reader, (e) => events.push(e), controller.signal)).rejects.toThrow("Aborted");
 
     expect(events).toHaveLength(0);
   });

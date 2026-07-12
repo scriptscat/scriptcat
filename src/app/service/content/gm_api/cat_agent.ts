@@ -165,11 +165,20 @@ function processChat(this: Instance, conn: MessageConnect, handlers: Map<string,
 
     conn.onMessage(async (message: any) => {
       if (message.action === "executeTools") {
-        conn.sendMessage({
-          action: "toolResults",
-          requestId: message.requestId,
-          data: await executeTools.call(this, message.data, handlers),
-        });
+        const data = await executeTools.call(this, message.data, handlers);
+        // 工具函数执行期间连接可能已经因 Stop/脚本工具超时而 settle 并断开；
+        // 断开后的连接 sendMessage 会抛错，且这里是异步回调，事件源不会 await/捕获它，
+        // 会在用户脚本上下文里变成 unhandled rejection（见 finding 7）
+        if (settled) return;
+        try {
+          conn.sendMessage({
+            action: "toolResults",
+            requestId: message.requestId,
+            data,
+          });
+        } catch {
+          // 连接已断开，结果无处可送，安全忽略
+        }
         return;
       }
       if (message.action !== "event") return;
@@ -267,11 +276,20 @@ function processStream(
 
   conn.onMessage(async (message: any) => {
     if (message.action === "executeTools") {
-      conn.sendMessage({
-        action: "toolResults",
-        requestId: message.requestId,
-        data: await executeTools.call(this, message.data, handlers),
-      });
+      const data = await executeTools.call(this, message.data, handlers);
+      // 工具函数执行期间连接可能已经因 Stop/脚本工具超时而结束并断开；
+      // 断开后的连接 sendMessage 会抛错，且这里是异步回调，事件源不会 await/捕获它，
+      // 会在用户脚本上下文里变成 unhandled rejection（见 finding 7）
+      if (done) return;
+      try {
+        conn.sendMessage({
+          action: "toolResults",
+          requestId: message.requestId,
+          data,
+        });
+      } catch {
+        // 连接已断开，结果无处可送，安全忽略
+      }
       return;
     }
     if (message.action !== "event") return;
@@ -293,6 +311,9 @@ function processStream(
           status: event.status,
         });
         done = event.status !== "running";
+        // 终态快照：attach 的会话已经结束，SW 侧不会再为这条连接注册 listener，
+        // 也就不会再有后续事件——必须在这里主动断开，否则 port 会一直挂着
+        if (done) conn.disconnect();
         break;
       case "content_delta":
         push({ type: "content_delta", content: event.delta });
@@ -469,6 +490,20 @@ function processStreamEphemeral(
             else toolCalls.push(cloneToolCall(chunk.toolCall));
           } else if (chunk.type === "new_message") finish();
           return result;
+        },
+        // 转发 return()/throw() 给内层 processStream 的迭代器，否则 for await...break
+        // 或消费方抛错时内层不会 disconnect，port 会一直挂着（见 finding 6）。
+        // 提前退出时也提交已累积的部分输出到 messageHistory，与正常完成时的行为一致，
+        // 避免下一轮 chat() 因为丢失这部分历史而导致上下文断裂。
+        async return(value?: unknown) {
+          finish();
+          await iterator.return?.(value);
+          return { value: value as never, done: true };
+        },
+        async throw(err?: unknown) {
+          finish();
+          await iterator.throw?.(err);
+          throw err;
         },
       };
     },

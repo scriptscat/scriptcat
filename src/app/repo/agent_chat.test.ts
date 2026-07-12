@@ -10,6 +10,8 @@ function createMockOPFS() {
         data = content;
       }),
       close: vi.fn(async () => {}),
+      // 真实 OPFS 的 abort() 放弃这次写入的临时副本，不影响 dir 里已提交的旧内容
+      abort: vi.fn(async () => {}),
       getData: () => data,
     };
   }
@@ -248,5 +250,36 @@ describe("AgentChatRepo 附件存储", () => {
     // 附件应被清理
     expect(await repo.getAttachment("att-del-1")).toBeNull();
     expect(await repo.getAttachment("att-del-2")).toBeNull();
+  });
+});
+
+describe("AgentChatRepo.saveMessages 取消安全（finding 4）", () => {
+  let repo: AgentChatRepo;
+
+  beforeEach(() => {
+    createMockOPFS();
+    repo = new AgentChatRepo();
+  });
+
+  it("signal 已 abort 时 saveMessages 应 reject 且不覆盖已持久化的旧消息", async () => {
+    const convId = "conv-cancel";
+    const oldMessage = {
+      id: "msg-old",
+      conversationId: convId,
+      role: "user" as const,
+      content: "原始历史",
+      createtime: Date.now(),
+    };
+    await repo.saveMessages(convId, [oldMessage]);
+
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      repo.saveMessages(convId, [{ ...oldMessage, id: "msg-new", content: "摘要覆盖" }], controller.signal)
+    ).rejects.toThrow("Aborted");
+
+    // 旧内容必须完整保留，没有被这次放弃的写入部分覆盖或破坏
+    const stored = await repo.getMessages(convId);
+    expect(stored).toEqual([oldMessage]);
   });
 });

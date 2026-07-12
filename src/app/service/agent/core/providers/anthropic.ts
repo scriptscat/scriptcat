@@ -202,6 +202,10 @@ export function parseAnthropicStream(
   // 跟踪图片块的累积 base64 数据
   let imageBlockData: { index: number; mediaType: string; base64Chunks: string[] } | null = null;
 
+  // 标记是否已发出终态事件（message_stop / message_delta 带 usage / error），
+  // 避免连接在收到终态帧前就断开时，调用方（LLMClient.callLLM）的外层 Promise 永远不 settle
+  let doneSent = false;
+
   const toolUseByIndex = new Map<number, { id: string }>();
 
   return readSSEStream(
@@ -303,6 +307,7 @@ export function parseAnthropicStream(
           case "message_delta": {
             // 消息结束，合并 message_start 的 input usage 和 message_delta 的 output usage
             if (json.usage) {
+              doneSent = true;
               onEvent({
                 type: "done",
                 usage: {
@@ -318,10 +323,12 @@ export function parseAnthropicStream(
           }
           case "message_stop": {
             toolUseByIndex.clear();
+            doneSent = true;
             onEvent({ type: "done" });
             return true;
           }
           case "error": {
+            doneSent = true;
             onEvent({
               type: "error",
               message: json.error?.message || "Anthropic API error",
@@ -334,8 +341,17 @@ export function parseAnthropicStream(
       }
       return false;
     },
-    (message) => onEvent({ type: "error", message })
-  );
+    (message) => {
+      doneSent = true;
+      onEvent({ type: "error", message });
+    }
+  ).then(() => {
+    // 流正常结束（reader done）但没收到 message_stop / message_delta(usage) / error 终态帧，
+    // 必须补发终态事件，否则调用方的外层 Promise 会永远挂起
+    if (!signal.aborted && !doneSent) {
+      onEvent({ type: "error", message: "Stream ended unexpectedly without a terminal frame" });
+    }
+  });
 }
 
 // ---- LLMProvider 接口适配 ----

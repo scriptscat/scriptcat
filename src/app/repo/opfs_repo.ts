@@ -56,12 +56,26 @@ export class OPFSRepo {
     }
   }
 
-  // 写入 JSON 文件
-  protected async writeJsonFile(filename: string, data: unknown, dir?: FileSystemDirectoryHandle): Promise<void> {
+  // 写入 JSON 文件。
+  // OPFS 的 createWritable() 本身是事务性的：write() 写入的是临时副本，只有 close() 成功
+  // 才会原子替换原文件；调用方持有的旧内容在此之前始终完整可读。
+  // 传入 signal 时，若在 close() 落定前已 abort，则改为 writable.abort() 放弃这次写入，
+  // 避免"取消已经发生，但覆盖性写入仍然提交"的竞态（见 finding 4）。
+  protected async writeJsonFile(
+    filename: string,
+    data: unknown,
+    dir?: FileSystemDirectoryHandle,
+    signal?: AbortSignal
+  ): Promise<void> {
+    if (signal?.aborted) throw new Error("Aborted");
     const targetDir = dir || (await this.getDir());
     const fileHandle = await targetDir.getFileHandle(filename, { create: true });
     const writable = await fileHandle.createWritable();
     await writable.write(JSON.stringify(data));
+    if (signal?.aborted) {
+      await writable.abort().catch(() => {});
+      throw new Error("Aborted");
+    }
     await writable.close();
   }
 

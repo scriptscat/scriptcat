@@ -99,10 +99,12 @@ export class AgentChatRepo extends OPFSRepo {
     }
   }
 
-  // 保存整个消息列表（用于批量更新）
-  async saveMessages(conversationId: string, messages: ChatMessage[]): Promise<void> {
+  // 保存整个消息列表（用于批量更新）。
+  // signal 可选：传入时若在写入落定前已 abort，则放弃这次整份覆写而不是让它继续提交
+  // （OPFS createWritable() 本身是事务性的，写入的是临时副本，abort 不会影响已持久化的旧内容，见 finding 4）
+  async saveMessages(conversationId: string, messages: ChatMessage[], signal?: AbortSignal): Promise<void> {
     const messagesDir = await this.getChildDir(MESSAGES_DIR);
-    await this.writeJsonFile(`${conversationId}.json`, messages, messagesDir);
+    await this.writeJsonFile(`${conversationId}.json`, messages, messagesDir, signal);
   }
 
   // ---- 附件存储 ----
