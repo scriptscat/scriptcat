@@ -241,4 +241,115 @@ describe("McpBridge", () => {
     expect(response.ok).toBe(false);
     if (!response.ok) expect(response.error.code).toBe("NOT_FOUND");
   });
+
+  describe("VALIDATORS：每个 action 的输入允许列表拒绝非对象与未知字段（doc 03 §1, doc 08 §2）", () => {
+    const actionsWithSampleValidInput: Array<[BridgeAction, Record<string, unknown>]> = [
+      ["scripts.list", {}],
+      ["scripts.metadata.get", { uuid: uuidv4() }],
+      ["scripts.source.get", { uuid: uuidv4() }],
+      ["scripts.install.prepare", { code: VALID_SCRIPT_CODE }],
+      ["scripts.toggle.request", { uuid: uuidv4(), enable: true }],
+      ["scripts.delete.request", { uuid: uuidv4() }],
+      ["operations.get", { operationId: "op-1" }],
+      ["operations.list", {}],
+      ["operations.cancel", { operationId: "op-1" }],
+    ];
+
+    it.each(actionsWithSampleValidInput)("%s：input 非对象（如数组或字符串）时返回 INVALID_REQUEST", async (action) => {
+      const response = await bridge.handle(makeRequest(action, ["not", "an", "object"]));
+      expect(response.ok).toBe(false);
+      if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+    });
+
+    it.each(actionsWithSampleValidInput)("%s：input 含未知字段时返回 INVALID_REQUEST", async (action, validInput) => {
+      const response = await bridge.handle(makeRequest(action, { ...validInput, unexpectedField: "x" }));
+      expect(response.ok).toBe(false);
+      if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+    });
+  });
+
+  it("scripts.toggle.request：enable 非布尔值时返回 INVALID_REQUEST", async () => {
+    const response = await bridge.handle(
+      makeRequest("scripts.toggle.request", { uuid: uuidv4(), enable: "yes" } as unknown as Record<string, unknown>)
+    );
+    expect(response.ok).toBe(false);
+    if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+  });
+
+  it("scripts.install.prepare：同时提供 url 与 code 时返回 INVALID_REQUEST（要求恰好其一）", async () => {
+    const response = await bridge.handle(
+      makeRequest("scripts.install.prepare", { url: "https://example.com/a.user.js", code: VALID_SCRIPT_CODE })
+    );
+    expect(response.ok).toBe(false);
+    if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+  });
+
+  it("scripts.install.prepare：既未提供 url 也未提供 code 时返回 INVALID_REQUEST", async () => {
+    const response = await bridge.handle(makeRequest("scripts.install.prepare", {}));
+    expect(response.ok).toBe(false);
+    if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+  });
+
+  it("scripts.install.prepare：url 或 code 类型非字符串时返回 INVALID_REQUEST", async () => {
+    const urlResponse = await bridge.handle(
+      makeRequest("scripts.install.prepare", { url: 123 } as unknown as Record<string, unknown>)
+    );
+    expect(urlResponse.ok).toBe(false);
+    if (!urlResponse.ok) expect(urlResponse.error.code).toBe("INVALID_REQUEST");
+
+    const codeResponse = await bridge.handle(
+      makeRequest("scripts.install.prepare", { code: 123 } as unknown as Record<string, unknown>)
+    );
+    expect(codeResponse.ok).toBe(false);
+    if (!codeResponse.ok) expect(codeResponse.error.code).toBe("INVALID_REQUEST");
+  });
+
+  it("operations.get/cancel：operationId 为空字符串时返回 INVALID_REQUEST", async () => {
+    const response = await bridge.handle(makeRequest("operations.get", { operationId: "" }));
+    expect(response.ok).toBe(false);
+    if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+  });
+
+  it("scripts.metadata.get 对不存在的 uuid 返回 NOT_FOUND", async () => {
+    const response = await bridge.handle(makeRequest("scripts.metadata.get", { uuid: uuidv4() }));
+    expect(response.ok).toBe(false);
+    if (!response.ok) expect(response.error.code).toBe("NOT_FOUND");
+  });
+
+  it("scripts.source.get 对不存在的 uuid 返回 NOT_FOUND", async () => {
+    const response = await bridge.handle(makeRequest("scripts.source.get", { uuid: uuidv4() }));
+    expect(response.ok).toBe(false);
+    if (!response.ok) expect(response.error.code).toBe("NOT_FOUND");
+  });
+
+  it("scripts.toggle.request 分派到 approval.requestToggle，返回待批操作引用", async () => {
+    const uuid = uuidv4();
+    await seedScript(uuid);
+    const response = await bridge.handle(makeRequest("scripts.toggle.request", { uuid, enable: true }));
+    expect(response.ok).toBe(true);
+    if (response.ok) expect(response.result).toMatchObject({ status: "awaiting_user", kind: "enable" });
+  });
+
+  it("scripts.delete.request 分派到 approval.requestDelete，返回待批操作引用", async () => {
+    const uuid = uuidv4();
+    await seedScript(uuid);
+    const response = await bridge.handle(makeRequest("scripts.delete.request", { uuid }));
+    expect(response.ok).toBe(true);
+    if (response.ok) expect(response.result).toMatchObject({ status: "awaiting_user", kind: "delete" });
+  });
+
+  it("operations.list 分派到 approval.listOperations，返回调用方自己的操作列表", async () => {
+    await bridge.handle(makeRequest("scripts.install.prepare", { code: VALID_SCRIPT_CODE }));
+    const response = await bridge.handle(makeRequest("operations.list", {}));
+    expect(response.ok).toBe(true);
+    if (response.ok) expect((response.result as { operations: unknown[] }).operations).toHaveLength(1);
+  });
+
+  it("operations.cancel 分派到 approval.cancelOperation，取消调用方自己的待批操作", async () => {
+    const prepareResponse = await bridge.handle(makeRequest("scripts.install.prepare", { code: VALID_SCRIPT_CODE }));
+    const operationId = prepareResponse.ok ? (prepareResponse.result as { operationId: string }).operationId : "";
+    const response = await bridge.handle(makeRequest("operations.cancel", { operationId }));
+    expect(response.ok).toBe(true);
+    if (response.ok) expect(response.result).toEqual({ operationId, status: "cancelled" });
+  });
 });

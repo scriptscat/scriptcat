@@ -23,6 +23,31 @@ function validCode(name: string) {
 console.log("hi");`;
 }
 
+// Mirrors url_policy.test.ts's helper — a minimal fetch Response stand-in with a single-chunk
+// streaming body, enough for fetchInstallSourceWithPolicy's reader loop.
+function makeResponse(opts: { url: string; status?: number; body: string; contentLength?: string }) {
+  const bytes = new TextEncoder().encode(opts.body);
+  return {
+    url: opts.url,
+    status: opts.status ?? 200,
+    headers: new Headers(opts.contentLength !== undefined ? { "content-length": opts.contentLength } : {}),
+    body: {
+      getReader() {
+        let sent = false;
+        return {
+          read: async () => {
+            if (sent) return { done: true, value: undefined };
+            sent = true;
+            return { done: false, value: bytes };
+          },
+          cancel: async () => {},
+        };
+      },
+    },
+    text: async () => opts.body,
+  };
+}
+
 function makeClient(overrides: Partial<McpClient> = {}): McpClient {
   return {
     clientId: "client-1",
@@ -114,6 +139,63 @@ describe("McpApprovalService", () => {
         service.prepareInstall({ clientId: "client-1", requestingClientName: "c", url: "https://127.0.0.1/x.user.js" })
       ).rejects.toThrow(McpBridgeError);
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("URL 通过初步校验并成功抓取后正常暂存，sourceUrl 记录为该 URL", async () => {
+      const code = validCode("FromUrl");
+      const fetchMock = vi.fn().mockResolvedValue(makeResponse({ url: "https://example.com/x.user.js", body: code }));
+      vi.stubGlobal("fetch", fetchMock);
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        url: "https://example.com/x.user.js",
+      });
+      expect(ref.status).toBe("awaiting_user");
+      expect(fetchMock).toHaveBeenCalled();
+    });
+
+    it("抓取阶段违反 URL 策略（如重定向到私网主机）时返回 INVALID_REQUEST，而非未处理异常", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(makeResponse({ url: "https://127.0.0.1/redirected.user.js", body: "malicious" }));
+      vi.stubGlobal("fetch", fetchMock);
+      await expect(
+        service.prepareInstall({
+          clientId: "client-1",
+          requestingClientName: "c",
+          url: "https://example.com/x.user.js",
+        })
+      ).rejects.toMatchObject({ code: "INVALID_REQUEST" });
+      expect(mutator.installScript).not.toHaveBeenCalled();
+    });
+
+    it("抓取阶段下载超过 2 MiB 时返回 PAYLOAD_TOO_LARGE", async () => {
+      const big = "x".repeat(3 * 1024 * 1024);
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(
+          makeResponse({ url: "https://example.com/x.user.js", body: big, contentLength: String(big.length) })
+        );
+      vi.stubGlobal("fetch", fetchMock);
+      await expect(
+        service.prepareInstall({
+          clientId: "client-1",
+          requestingClientName: "c",
+          url: "https://example.com/x.user.js",
+        })
+      ).rejects.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+    });
+
+    it("抓取阶段发生非 URL 策略类错误（如网络失败）时原样向上抛出，而非误包装为 URL 策略拒绝", async () => {
+      const fetchMock = vi.fn().mockRejectedValue(new TypeError("network failure"));
+      vi.stubGlobal("fetch", fetchMock);
+      await expect(
+        service.prepareInstall({
+          clientId: "client-1",
+          requestingClientName: "c",
+          url: "https://example.com/x.user.js",
+        })
+      ).rejects.toThrow("network failure");
     });
 
     it("重复请求（同 clientId + contentHash）返回同一个 operationId，不重复弹窗", async () => {
@@ -266,6 +348,14 @@ describe("McpApprovalService", () => {
       });
     });
 
+    it("目标脚本在请求后被整个删除时批准返回 CONFLICT（而非把 undefined 当作哈希匹配）", async () => {
+      await seedScript("script-3b", "console.log(1)");
+      const ref = await service.requestToggle({ clientId: "client-1", uuid: "script-3b", enable: false });
+      await scriptDAO.delete("script-3b");
+      await expect(service.decide(ref.operationId, true)).rejects.toMatchObject({ code: "CONFLICT" });
+      expect(mutator.enableScript).not.toHaveBeenCalled();
+    });
+
     it("批准 delete 后调用 deleteScript", async () => {
       await seedScript("script-4", "console.log(4)");
       const ref = await service.requestDelete({ clientId: "client-1", uuid: "script-4" });
@@ -316,6 +406,63 @@ describe("McpApprovalService", () => {
       expect(result.status).toBe("cancelled");
       await expect(service.decide(ref.operationId, true)).rejects.toThrow(McpBridgeError);
       expect(mutator.installScript).not.toHaveBeenCalled();
+    });
+
+    it("cancelOperation 对不存在的 operationId 返回 NOT_FOUND", async () => {
+      await expect(service.cancelOperation("client-1", "nonexistent-op")).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+
+    it("cancelOperation 对已被决定（非 awaiting_user）的操作再次取消返回 CONFLICT", async () => {
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("M"),
+      });
+      await service.decide(ref.operationId, false);
+      await expect(service.cancelOperation("client-1", ref.operationId)).rejects.toMatchObject({ code: "CONFLICT" });
+    });
+
+    it("decide 对不存在的 operationId 返回 NOT_FOUND", async () => {
+      await expect(service.decide("nonexistent-op", true)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
+    it("getOperation 对不存在的 operationId 返回 NOT_FOUND", async () => {
+      await expect(service.getOperation("client-1", "nonexistent-op")).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
+    it("getOperationForUI 对不存在的 operationId 返回 undefined", async () => {
+      await expect(service.getOperationForUI("nonexistent-op")).resolves.toBeUndefined();
+    });
+
+    it("暂存条目在批准前过期/丢失（TempStorageDAO 已清除）时批准返回 CONFLICT", async () => {
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("N"),
+      });
+      await tempStorageDAO.delete((await operationDAO.get(ref.operationId))!.stagedUuid!);
+      await expect(service.decide(ref.operationId, true)).rejects.toMatchObject({ code: "CONFLICT" });
+      expect(mutator.installScript).not.toHaveBeenCalled();
+    });
+
+    it("批准一个类型不受支持的操作（如遗留/未实现的 kind）返回 INTERNAL_ERROR，而非静默成功", async () => {
+      // "update"/"source_disclosure" are valid OperationKind union members with no real create
+      // path anywhere in this codebase (doc 02 §4.2 — source_disclosure was never implemented) —
+      // executeApproved's default branch exists specifically to fail loudly if one is ever seen.
+      const client = makeClient();
+      await clientDAO.save(client);
+      await operationDAO.save({
+        operationId: "fixture-op",
+        clientId: client.clientId,
+        kind: "update",
+        status: "awaiting_user",
+        createdAt: Date.now(),
+        expiresAt: Date.now() + 5 * 60_000,
+        requestedEnabledState: false,
+      } as any);
+      await expect(service.decide("fixture-op", true)).rejects.toMatchObject({ code: "INTERNAL_ERROR" });
     });
   });
 });

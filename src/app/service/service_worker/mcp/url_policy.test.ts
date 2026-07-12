@@ -78,6 +78,7 @@ describe("MCP install URL 策略 - validateInstallUrl（doc 04 §5）", () => {
       "https://[::1]/x.user.js",
       "https://[fe80::1]/x.user.js",
       "https://[fc00::1]/x.user.js",
+      "https://[ff02::1]/x.user.js",
     ];
     it.each(rejected)("拒绝 %s", (url) => {
       expect(validateInstallUrl(url).ok).toBe(false);
@@ -86,6 +87,10 @@ describe("MCP install URL 策略 - validateInstallUrl（doc 04 §5）", () => {
 
   it("接受非私有范围的公网类字面量 IP（策略只拦截保留段，不做 DNS 解析）", () => {
     expect(validateInstallUrl("https://93.184.216.34/x.user.js")).toEqual({ ok: true });
+  });
+
+  it("接受非保留范围的公网类字面量 IPv6 地址", () => {
+    expect(validateInstallUrl("https://[2001:4860:4860::8888]/x.user.js")).toEqual({ ok: true });
   });
 
   it("限制常量与 doc 04 §7 一致", () => {
@@ -146,6 +151,32 @@ describe("MCP install URL 策略 - fetchInstallSourceWithPolicy", () => {
   it("流式读取中途超过 2 MiB 时中止", async () => {
     const big = "x".repeat(MAX_DOWNLOAD_BYTES + 10);
     const fetchMock = vi.fn().mockResolvedValue(makeResponse({ url: "https://example.com/x.user.js", body: big }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(fetchInstallSourceWithPolicy("https://example.com/x.user.js")).rejects.toThrow(UrlPolicyViolation);
+  });
+
+  it("响应不支持流式 body 时回退到 text()，仍返回代码文本", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      url: "https://example.com/x.user.js",
+      status: 200,
+      headers: new Headers(),
+      body: undefined,
+      text: async () => "// ==UserScript==\nfallback",
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const text = await fetchInstallSourceWithPolicy("https://example.com/x.user.js");
+    expect(text).toBe("// ==UserScript==\nfallback");
+  });
+
+  it("响应不支持流式 body 且 text() 结果超过 2 MiB 时拒绝", async () => {
+    const big = "x".repeat(MAX_DOWNLOAD_BYTES + 10);
+    const fetchMock = vi.fn().mockResolvedValue({
+      url: "https://example.com/x.user.js",
+      status: 200,
+      headers: new Headers(),
+      body: undefined,
+      text: async () => big,
+    });
     vi.stubGlobal("fetch", fetchMock);
     await expect(fetchInstallSourceWithPolicy("https://example.com/x.user.js")).rejects.toThrow(UrlPolicyViolation);
   });
