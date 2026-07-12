@@ -2,8 +2,8 @@
  * MCP bridge protocol — single normative source for the browser<->host native-messaging
  * envelope and the host<->extension bridge action vocabulary.
  *
- * Spec: workspace/.ref-docs/03-protocol-spec.md §2-3 (gitignored reference doc; this file plus
- * packages/native-messaging-host/PROTOCOL.md are the in-repo, committed source of truth).
+ * Full prose spec: packages/native-messaging-host/PROTOCOL.md (this file is the typed source of
+ * truth; PROTOCOL.md documents the same shapes in prose for a human reader).
  *
  * The extension keeps an independently-typed mirror at
  * src/app/service/service_worker/mcp/types.ts rather than importing this file, so the two
@@ -40,7 +40,8 @@ export interface NativeEnvelope<TPayload = unknown> {
   payload: TPayload;
 }
 
-// host->ext, sent once immediately after the native port connects (doc 03 §6 versioning).
+// host->ext, sent once immediately after the native port connects, so the extension can compare
+// hostVersion against its own MIN_HOST_VERSION before dispatching any bridge call.
 export interface HelloPayload {
   hostVersion: string;
 }
@@ -176,7 +177,7 @@ export interface OperationStatusResult {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Per-action input/result schemas (doc 03 §3)
+// Per-action input/result schemas
 // ---------------------------------------------------------------------------------------------
 
 export type ScriptsListInput = Record<string, never>;
@@ -244,8 +245,9 @@ export interface BridgeActionSchema {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Scope required per action (doc 03 §5 table) — used by both the host broker and the extension
-// bridge for defense-in-depth authorization checks.
+// Scope required per action — used by both the host broker and the extension bridge for
+// defense-in-depth authorization checks (each side checks independently rather than trusting
+// the other's claim).
 // ---------------------------------------------------------------------------------------------
 
 export const ACTION_REQUIRED_SCOPE: Record<BridgeAction, McpScope> = {

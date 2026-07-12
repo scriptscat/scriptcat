@@ -17,9 +17,9 @@ function isOperationAction(action: BridgeAction): boolean {
 
 /**
  * Filters the bridge action catalog down to what a client's granted scopes make visible in
- * `tools/list` (doc 03 §5). operations.get/list/cancel are visible to any client holding at
- * least one write scope — ownership, not a fixed scope, is the real per-call gate enforced by
- * the extension bridge (mcp/bridge.ts); everything else needs its own exact required scope.
+ * `tools/list`. operations.get/list/cancel are visible to any client holding at least one write
+ * scope — ownership, not a fixed scope, is the real per-call gate enforced by the extension
+ * bridge (mcp/bridge.ts); everything else needs its own exact required scope.
  */
 export function visibleActions(
   clientScopes: readonly McpScope[],

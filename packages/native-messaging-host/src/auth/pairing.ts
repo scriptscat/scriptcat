@@ -4,7 +4,7 @@ import type { McpScope } from "../shared/protocol.js";
 
 const CLIENT_NAME_MAX_LENGTH = 64;
 // Excludes visually ambiguous characters (0/O, 1/I/L) since the user cross-checks this code by
-// eye against the shim's terminal output (doc 03 §4).
+// eye against the shim's terminal output.
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 export interface PendingPairing {
@@ -36,9 +36,9 @@ function isPrintable(value: string): boolean {
 }
 
 /**
- * Tracks in-flight pairing requests (doc 03 §4 "Pairing (first run)"). Purely in-memory — a
- * host restart requires clients to re-pair, which is fine since pairings are short-lived
- * (2 min TTL) and this is not where long-term client identity lives (that's TokenStore).
+ * Tracks in-flight pairing requests from a shim's first run. Purely in-memory — a host restart
+ * requires clients to re-pair, which is fine since pairings are short-lived (2 min TTL) and this
+ * is not where long-term client identity lives (that's TokenStore).
  */
 export class PairingManager {
   private pending = new Map<string, PendingPairing>();

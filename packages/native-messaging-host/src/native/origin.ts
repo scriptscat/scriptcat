@@ -1,7 +1,8 @@
 // Verifies the caller origin Chrome passes as an argv entry against the host's own configured
-// allow-list (doc 04 §3 adversary A6; doc 05 §5 "the host additionally verifies caller origin").
-// Exact string match only — no wildcards, no trailing-slash/case normalization, since Chrome
-// itself never varies the format it passes.
+// allow-list — defense in depth against a rogue or compromised extension trying to connect,
+// independent of Chrome's own manifest-based `allowed_origins` check. Exact string match only —
+// no wildcards, no trailing-slash/case normalization, since Chrome itself never varies the
+// format it passes.
 
 export type OriginCheckResult = { ok: true; origin: string } | { ok: false; reason: string };
 

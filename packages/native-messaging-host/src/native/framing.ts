@@ -1,9 +1,9 @@
-// Chrome native-messaging framing: 4-byte little-endian length prefix + UTF-8 JSON (doc 03 §2).
+// Chrome native-messaging framing: 4-byte little-endian length prefix + UTF-8 JSON.
 // Streaming decoder: feed arbitrary chunks (split or coalesced across reads), get back complete
 // messages as they arrive. An oversize message drops only THAT message and keeps the stream
-// aligned — this is an explicit regression guard against the prelim's `buf = Buffer.alloc(0)` on
-// overflow, which discarded any partial data already buffered for the NEXT message and
-// permanently desynchronized the stream (doc 03 §2, doc 08 §6).
+// aligned — a naive implementation that resets its whole internal buffer on overflow would
+// discard any partial data already buffered for the NEXT message and permanently desynchronize
+// the stream; this decoder is deliberately built to never do that.
 
 const LENGTH_PREFIX_BYTES = 4;
 

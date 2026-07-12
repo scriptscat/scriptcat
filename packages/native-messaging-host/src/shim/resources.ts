@@ -1,6 +1,6 @@
-// scriptcat://scripts/<uuid>/source resource (doc 03 §5, doc 04 §6). Exposes the same data as
-// the get_script_source tool through the MCP resource mechanism — kept in its own module so the
-// URI parsing/matching logic is testable independent of the SDK's ResourceTemplate wiring.
+// scriptcat://scripts/<uuid>/source resource. Exposes the same data as the get_script_source
+// tool through the MCP resource mechanism — kept in its own module so the URI parsing/matching
+// logic is testable independent of the SDK's ResourceTemplate wiring.
 
 export const SOURCE_RESOURCE_URI_TEMPLATE = "scriptcat://scripts/{uuid}/source";
 

@@ -1,5 +1,5 @@
-// Doc 04 §7 — bounded-configurable limits. These are the defaults; `config.ts` may narrow them
-// (never widen) from the host's config file, per doc 06 §2 config schema.
+// Rate/size limits, bounded-configurable: these are the defaults, and `resolveLimits` below may
+// narrow (never widen) them from the host's config file.
 export const LIMITS = {
   socketLineMaxBytes: 4 * 1024 * 1024, // 4 MiB
   nativeMessageMaxBytes: 1024 * 1024, // 1 MiB each way (Chrome hard-caps host->browser at 1 MiB)
@@ -23,9 +23,8 @@ export type Limits = typeof LIMITS;
 
 /**
  * Merges bounded overrides from host config on top of the defaults. Every override is clamped
- * to `[1, default]` — an override can only make a limit *stricter*, never looser (doc 04 §7
- * "bounded-configurable"): a compromised or misconfigured config file must not be able to
- * relax rate limits or size caps.
+ * to `[1, default]` — an override can only make a limit *stricter*, never looser: a compromised
+ * or misconfigured config file must not be able to relax rate limits or size caps.
  */
 export function resolveLimits(overrides: Partial<Record<keyof Limits, number>> = {}): Limits {
   const resolved = { ...LIMITS };

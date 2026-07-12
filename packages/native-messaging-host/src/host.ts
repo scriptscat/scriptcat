@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// scriptcat-native-host — launched by the browser via chrome.runtime.connectNative (doc 06 §3).
+// scriptcat-native-host — launched by the browser via chrome.runtime.connectNative.
 // Never interprets script content and has no network access at all (no fetch anywhere in this
-// file or anything it imports — URL retrieval lives entirely in the extension, doc 04 §5).
+// file or anything it imports — URL retrieval for script installs lives entirely in the
+// extension, which fetches through the browser's own network stack).
 
 import * as fs from "node:fs/promises";
 import * as crypto from "node:crypto";
@@ -44,7 +45,8 @@ async function main(): Promise<void> {
   const hostConfig = await loadHostConfig(configDir);
   const originCheck = verifyCallerOrigin(process.argv, hostConfig.allowedOrigins);
   if (!originCheck.ok) {
-    // doc 04 §3: log only the rejected origin string, truncated, never the full argv.
+    // Log only the classification reason, never the actual origin string or the full argv —
+    // argv could in principle contain other sensitive launch parameters we don't want in the log.
     logger.error("caller origin rejected", { reason: originCheck.reason });
     process.exit(1);
   }
@@ -170,8 +172,8 @@ async function runDoctor(): Promise<void> {
 /**
  * `--print-manifest --extension-id <id> [--extension-id <id> ...] --host-path <path>` — prints
  * the generated manifest JSON to stdout for the installer scripts to write atomically to each
- * browser's native-messaging-hosts directory (doc 06 §5). Exits non-zero without printing
- * anything on invalid input, so an installer script can safely `set -e` on this call.
+ * browser's native-messaging-hosts directory. Exits non-zero without printing anything on
+ * invalid input, so an installer script can safely `set -e` on this call.
  */
 function printManifest(): void {
   const extensionIds: string[] = [];

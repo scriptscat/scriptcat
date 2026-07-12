@@ -9,13 +9,14 @@ interface PendingRequest {
 }
 
 /**
- * Host-side duplex channel to the browser over native messaging (doc 03 §2, doc 02 §6). Wraps
- * the framing codec with request/response correlation: `request()` sends a `bridge.request` and
- * resolves when the matching `bridge.response` arrives (same requestId) or the bounded timeout
- * fires — mirrors the prelim's `sendToBrowser`, but with a random (not sequential) requestId and
- * a bounded pending map (entries are removed on resolve/reject/timeout, never accumulate).
- * Unsolicited extension-initiated messages (`pair.decision`, `client.revoke`,
- * `operations.changed`, `pong`) are delivered to `onMessage` listeners instead.
+ * Host-side duplex channel to the browser over native messaging. Wraps the framing codec with
+ * request/response correlation: `request()` sends a `bridge.request` and resolves when the
+ * matching `bridge.response` arrives (same requestId) or the bounded timeout fires. requestId is
+ * a cryptographically random UUID, never a sequential counter (predictable IDs would let one
+ * client guess or interfere with another's in-flight request), and the pending map is bounded —
+ * entries are removed on resolve/reject/timeout, never accumulate. Unsolicited
+ * extension-initiated messages (`pair.decision`, `client.revoke`, `operations.changed`, `pong`)
+ * are delivered to `onMessage` listeners instead.
  */
 export class NativeChannel {
   private readonly decoder: FramingDecoder;

@@ -1,7 +1,7 @@
-// Token-bucket rate limiting per client (doc 04 §7): read calls, write requests, concurrent
-// in-flight calls, and auth-failure lockout. Each limiter is intentionally single-purpose rather
-// than one generic configurable bucket, matching the distinct units doc 04 §7 specifies (calls
-// per minute vs. per hour vs. a concurrency ceiling).
+// Token-bucket rate limiting per client: read calls, write requests, concurrent in-flight calls,
+// and auth-failure lockout. Each limiter is intentionally single-purpose rather than one generic
+// configurable bucket, since the limits genuinely have different units (calls per minute vs. per
+// hour vs. a concurrency ceiling) — see shared/limits.ts for the actual numbers.
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -61,8 +61,8 @@ export class ConcurrencyLimiter {
 
 /**
  * Auth-failure lockout: N failures within `windowMs` locks the endpoint out for `lockoutMs`
- * (doc 04 §7: "3/min/endpoint → 5 min lockout"). Keyed by endpoint identity, not clientId — a
- * failing handshake has no authenticated identity yet.
+ * (defaults: 3 failures/minute/endpoint → 5-minute lockout, see shared/limits.ts). Keyed by
+ * endpoint identity, not clientId — a failing handshake has no authenticated identity yet.
  */
 export class AuthFailureLockout {
   private failures = new Map<string, number[]>();

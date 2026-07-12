@@ -19,10 +19,10 @@ export interface PairingDecisionDeps {
 }
 
 /**
- * Applies an extension-side `pair.decision` (doc 03 §2) to the pairing state and, on approval,
- * mints the client's token (doc 03 §4 "On approval the host issues a 256-bit random token;
- * stores only SHA-256(token) + client record") — the raw token is handed to `resolvePairing`
- * exactly once, over the already-authenticated local socket, and never persisted.
+ * Applies an extension-side `pair.decision` to the pairing state and, on approval, mints the
+ * client's token — a 256-bit random value, only its SHA-256 hash persisted alongside the new
+ * client record. The raw token is handed to `resolvePairing` exactly once, over the
+ * already-authenticated local socket, and never persisted.
  *
  * Silently no-ops if the pairing has already expired/resolved, or if the originating connection
  * has since disconnected — there's nothing meaningful left to notify.

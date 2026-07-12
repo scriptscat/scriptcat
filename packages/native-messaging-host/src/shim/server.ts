@@ -39,11 +39,12 @@ async function callBridge(
 }
 
 /**
- * Builds the MCP server (official SDK, doc 06 §1 shim/server.ts): registers only the tools the
- * connected client's granted scopes make visible (doc 03 §5), with static compile-time
- * descriptions (doc 04 §6) and structured, no-Markdown results (tools.ts's toToolResult). Server
- * info is static; scopes/tool visibility come from the broker's `ready` handshake response, not
- * from anything script-controlled.
+ * Builds the MCP server (using the official `@modelcontextprotocol/sdk`): registers only the
+ * tools the connected client's granted scopes make visible, with static compile-time
+ * descriptions and structured, no-Markdown results (tools.ts's toToolResult). Server info is
+ * static; scopes/tool visibility come from the broker's `ready` handshake response, not from
+ * anything script-controlled — a malicious userscript's content can never influence which tools
+ * an agent sees or how they're described.
  */
 export function buildMcpServer(deps: ShimServerDeps): McpServer {
   const server = new McpServer({ name: "scriptcat", version: deps.serverVersion });

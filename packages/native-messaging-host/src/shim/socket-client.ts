@@ -19,10 +19,10 @@ export type ConnectResult =
   | { ok: false; code: string };
 
 /**
- * Shim-side counterpart to broker/session.ts (doc 03 §4): connects to the broker's Unix
- * socket/named pipe, performs the hello/challenge/auth handshake using the stored credential, or
- * — when no credential is available yet — the pairing flow, then exposes `call()` for
- * steady-state requests and an event stream for unsolicited pushes.
+ * Shim-side counterpart to broker/session.ts: connects to the broker's Unix socket/named pipe,
+ * performs the hello/challenge/auth handshake using the stored credential, or — when no
+ * credential is available yet — the pairing flow, then exposes `call()` for steady-state
+ * requests and an event stream for unsolicited pushes.
  *
  * All incoming bytes flow through exactly one line buffer + dispatch path (`onData`/`dispatch`)
  * regardless of protocol phase — `authenticate()` observes handshake messages via `onEvent`

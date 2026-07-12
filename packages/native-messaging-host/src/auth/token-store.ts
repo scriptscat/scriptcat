@@ -13,7 +13,7 @@ export interface StoredClient {
   revoked: boolean;
 }
 
-/** 256-bit random token (doc 04 §8). */
+/** 256-bit random token — shown to a shim exactly once on approval, never persisted raw. */
 export function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
@@ -24,7 +24,7 @@ export function hashToken(token: string): string {
 
 /**
  * Authoritative client/token registry, persisted to `clients.json` in the host's config dir
- * (`0600`, doc 06 §2). Never holds a raw token past the moment it's generated for the pairing
+ * (mode `0600`). Never holds a raw token past the moment it's generated for the pairing
  * response — only its hash survives.
  */
 export class TokenStore {

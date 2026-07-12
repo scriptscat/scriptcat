@@ -2,7 +2,8 @@ import * as os from "node:os";
 import * as path from "node:path";
 import * as fs from "node:fs/promises";
 
-// Per-platform base config/data directory (doc 06 §2).
+// Per-platform base config/data directory for the native host's own state (host config,
+// paired-client token store, runtime IPC socket/pipe directory).
 export function resolveConfigDir(platform: NodeJS.Platform = process.platform): string {
   if (platform === "win32") {
     return path.join(process.env.LOCALAPPDATA || os.homedir(), "ScriptCat", "NativeHost");
@@ -16,10 +17,10 @@ export function resolveConfigDir(platform: NodeJS.Platform = process.platform): 
 export type PermissionCheckResult = { ok: true } | { ok: false; reason: string };
 
 /**
- * Refuses a group/world-writable directory, after resolving symlinks first (doc 04 §8): a
- * symlink swap could otherwise point a "verified" path at an attacker-writable location between
- * the check and use. POSIX mode bits are meaningless on Windows — ACL correctness there is the
- * installer's job (doc 06 §5 `icacls`), so this check is a no-op success on win32.
+ * Refuses a group/world-writable directory, after resolving symlinks first: a symlink swap
+ * could otherwise point a "verified" path at an attacker-writable location between the check and
+ * use. POSIX mode bits are meaningless on Windows — ACL correctness there is the installer's job
+ * (`icacls`, run at install time), so this check is a no-op success on win32.
  */
 export async function verifyDirPermissions(dirPath: string): Promise<PermissionCheckResult> {
   let real: string;
@@ -43,7 +44,7 @@ export async function verifyDirPermissions(dirPath: string): Promise<PermissionC
  * Writes atomically: a temp file in the same directory (so the rename is same-filesystem and
  * therefore atomic), `wx` flag so a concurrent writer can't race us into an interleaved partial
  * file, then rename over the destination. A crash between write and rename leaves the original
- * file (or nothing, on first write) untouched — never a half-written destination (doc 06 §5).
+ * file (or nothing, on first write) untouched — never a half-written destination.
  */
 export async function atomicWriteFile(filePath: string, content: string, mode = 0o600): Promise<void> {
   const dir = path.dirname(filePath);

@@ -1,5 +1,6 @@
-// Typed native-messaging host manifest generation (doc 05 §5 Solution A: "generate the whole
-// document from typed installer code rather than using string replacement"). Chrome requires an
+// Typed native-messaging host manifest generation: the manifest is built as a typed object and
+// serialized, never assembled via string templating/replacement, so it can't accidentally
+// produce malformed JSON or drift from what NativeMessagingManifest declares. Chrome requires an
 // exact path and an exact allowed_origins list — no wildcards.
 
 const EXTENSION_ID_RE = /^[a-p]{32}$/;
@@ -20,11 +21,11 @@ export function isValidExtensionId(id: string): boolean {
 
 /**
  * Builds the manifest object Chrome expects at the registered path. Validates every extension ID
- * strictly (`^[a-p]{32}$`, doc 05 §5) — the prelim's default `fomrtutthjerocmw` is not a valid ID
- * (it contains characters outside a-p) and installers must not be able to reproduce that mistake.
- * Rejects an empty ID list too: a manifest with no allowed_origins would still be syntactically
- * valid but functionally lock out every extension, which is never the intent of running the
- * installer.
+ * strictly (`^[a-p]{32}$`) — a plausible-looking but invalid ID like `fomrtutthjerocmw` (it
+ * contains characters outside a-p) must be rejected rather than silently written into the
+ * manifest. Rejects an empty ID list too: a manifest with no allowed_origins would still be
+ * syntactically valid but functionally lock out every extension, which is never the intent of
+ * running the installer.
  */
 export function generateManifest(params: { extensionIds: string[]; hostExecutablePath: string }): ManifestGenResult {
   if (params.extensionIds.length === 0) {

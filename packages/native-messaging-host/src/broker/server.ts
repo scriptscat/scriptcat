@@ -8,8 +8,8 @@ import { LIMITS } from "../shared/limits.js";
 export type SessionDepsFactory = (connectionId: string, send: (message: HostToShimMessage) => void) => SessionDeps;
 
 /**
- * Accepts connections on an IpcEndpoint, decodes doc 03 §4's line-delimited JSON framing
- * (`\n`-terminated, max 4 MiB/line), and hands each parsed message to that connection's
+ * Accepts connections on an IpcEndpoint, decodes the socket protocol's line-delimited JSON
+ * framing (`\n`-terminated, max 4 MiB/line), and hands each parsed message to that connection's
  * SessionHandler. Malformed or oversize lines are dropped individually — same "don't
  * desynchronize the stream" discipline as native/framing.ts, just for the socket side of the
  * protocol rather than the native-messaging side.

@@ -1,6 +1,6 @@
-// stdout is exclusively the native-messaging channel (host) / MCP stdio (shim) — all diagnostics
-// go to stderr (doc 04 §10). Never logs tokens, script source, or URL credentials/query secrets
-// (doc 04 §8-9).
+// stdout is exclusively the native-messaging channel (host) / MCP stdio (shim) — writing a log
+// line to stdout would corrupt the framed protocol stream, so all diagnostics go to stderr.
+// Never logs tokens, script source, or URL credentials/query secrets.
 
 const REDACTED = "[REDACTED]";
 

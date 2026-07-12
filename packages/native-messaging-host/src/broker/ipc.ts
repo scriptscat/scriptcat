@@ -15,17 +15,17 @@ function randomSuffix(bytes: number): string {
 }
 
 /**
- * Creates the broker's listening endpoint (doc 03 §4, doc 06 §3): a random-named Unix domain
- * socket under `runtimeDir` on POSIX, or a random-named Windows named pipe. `runtimeDir` must
- * already exist with 0700 permissions — callers verify that via shared/config.ts before calling
- * this (this function doesn't create or chmod the directory itself, only the socket file).
+ * Creates the broker's listening endpoint: a random-named Unix domain socket under
+ * `runtimeDir` on POSIX, or a random-named Windows named pipe. `runtimeDir` must already exist
+ * with 0700 permissions — callers verify that via shared/config.ts before calling this (this
+ * function doesn't create or chmod the directory itself, only the socket file).
  *
- * Peer-UID verification (SO_PEERCRED / LOCAL_PEERCRED, doc 04 §7 "verify peer UID === own UID on
- * each connection") has no portable Node.js core API without a native addon, so it is not
- * implemented here — this is a documented residual limitation (doc 04 §2 A3/A4). The enforced
- * boundary instead is filesystem permissions: the containing directory is 0700 (only the owning
- * user can even locate the socket) and the socket file itself is chmod'd 0600 after listen,
- * which the OS enforces on `connect()` for AF_UNIX sockets exactly like a regular file.
+ * Peer-UID verification (SO_PEERCRED / LOCAL_PEERCRED — checking that the connecting process
+ * runs as the same OS user) has no portable Node.js core API without a native addon, so it is
+ * not implemented here — this is a documented residual limitation, not an oversight. The
+ * enforced boundary instead is filesystem permissions: the containing directory is 0700 (only
+ * the owning user can even locate the socket) and the socket file itself is chmod'd 0600 after
+ * listen, which the OS enforces on `connect()` for AF_UNIX sockets exactly like a regular file.
  */
 export async function createIpcEndpoint(runtimeDir: string): Promise<IpcEndpoint> {
   if (process.platform === "win32") {

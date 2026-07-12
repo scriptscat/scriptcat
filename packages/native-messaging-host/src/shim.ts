@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// scriptcat-mcp — launched by the MCP client (Claude Code, Claude Desktop, Cursor, etc.), per
-// doc 06 §4. Discovers the broker's socket from the host's published config, authenticates (or
-// pairs on first run), then serves the MCP protocol over its own stdio via the official SDK.
+// scriptcat-mcp — launched by the MCP client (Claude Code, Claude Desktop, Cursor, etc.).
+// Discovers the broker's socket from the host's published config, authenticates (or pairs on
+// first run), then serves the MCP protocol over its own stdio via the official SDK.
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { readFileSync } from "node:fs";

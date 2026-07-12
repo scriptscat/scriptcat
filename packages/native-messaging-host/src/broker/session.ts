@@ -38,10 +38,10 @@ export interface SessionDeps {
 }
 
 /**
- * Owns one socket connection's protocol state machine (doc 03 §4): handshake, pairing, and
- * steady-state call dispatch. Pure protocol logic — actual socket I/O (framing into lines,
- * writing bytes) lives in broker/server.ts, which feeds this class one parsed JSON message at a
- * time via `onMessage` and receives outbound messages via the injected `send`.
+ * Owns one socket connection's protocol state machine: handshake, pairing, and steady-state call
+ * dispatch. Pure protocol logic — actual socket I/O (framing into lines, writing bytes) lives in
+ * broker/server.ts, which feeds this class one parsed JSON message at a time via `onMessage` and
+ * receives outbound messages via the injected `send`.
  */
 export class SessionHandler {
   private phase: SessionPhase = "unauthenticated";
@@ -111,10 +111,10 @@ export class SessionHandler {
       return;
     }
     if (!message.clientId) {
-      // doc 03 §4: "clientId absent = wants pairing" — but the actual pairing flow uses a
-      // dedicated `pair` message (see handlePair). A hello with no clientId can't proceed down
-      // the authenticated handshake, so we guide the shim to the pairing flow instead of
-      // silently hanging.
+      // A `hello` with no clientId signals "wants pairing", but pairing actually happens via a
+      // dedicated `pair` message (see handlePair) rather than continuing this handshake. A hello
+      // with no clientId can't proceed down the authenticated handshake, so we guide the shim to
+      // the pairing flow instead of silently hanging.
       this.deny("UNAUTHENTICATED");
       return;
     }
