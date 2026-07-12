@@ -132,23 +132,19 @@ jobs:
         with:
           node-version: 20
           cache: "pnpm"
-          cache-dependency-path: packages/native-messaging-host/pnpm-lock.yaml
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Setup pnpm
         run: corepack enable
 
-      # Standalone package (own lockfile, not a workspace member) — install/build/test in place.
       - name: Install dependencies
-        working-directory: packages/native-messaging-host
         run: pnpm install --frozen-lockfile
 
       - name: Build
-        working-directory: packages/native-messaging-host
-        run: pnpm build
+        run: pnpm --filter @scriptcat/native-messaging-host build
 
       - name: Test
-        working-directory: packages/native-messaging-host
-        run: pnpm test
+        run: pnpm --filter @scriptcat/native-messaging-host test
 
   pack-profiles:
     runs-on: ubuntu-latest
