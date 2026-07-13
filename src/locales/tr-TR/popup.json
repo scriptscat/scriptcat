@@ -19,7 +19,7 @@
   "auto_collapse_when_exceeds": "Bu sayıyı aştığında otomatik daralt",
   "allow_user_script_guide": "\"Kullanıcı Betiklerine İzin Ver\" şu anda etkin değil, bu nedenle betikler düzgün çalışamaz. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉Nasıl etkinleştireceğinizi öğrenmek için tıklayın</a>",
   "request_permission": "İzin İste",
-  "show_more_scripts": "+{{count}} Betik",
+  "show_more_scripts": "+{{count}} betik",
   "use_on_mobile": "ScriptCat'i mobilde kullanın",
   "scan_qr_to_install": "ScriptCat'i telefonunuza yüklemek için QR kodunu tarayın",
   "menu_expand_num_before": "Menü öğelerinin sayısı",
