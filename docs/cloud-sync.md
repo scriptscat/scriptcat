@@ -107,7 +107,18 @@ type FileDigestMap = {
 - 不能用本地 md5 覆盖 provider 已返回的原生 digest。
 - 文件操作失败时，对应文件名必须保留旧 digest，不能写入“看起来成功”的新值。
 
-`updateFileDigest()` 会重新 `fs.list()` 构造新 map；对于刚 push 但 provider list 暂时不可见的文件，才使用 `pushScript()` 返回的本地 md5 作为兜底。
+digest 更新有两条路径，区别在于对账范围：
+
+- `updateFileDigest()`（`syncOnce` 用）重新 `fs.list()` 全量构造新 map。`syncOnce` 已逐文件对账整份云端列表，可以安全全量盖章。
+- `updateFileDigestForUuids()`（`scriptInstall` / `scriptsDelete` 队列用）只更新本次涉及 uuid 的文件。队列路径没有对账整份云端列表，若也全量盖章，会把他端已更新、本机尚未 pull 的文件误标成已同步，导致下一轮 `syncOnce` 早退漏 pull。
+
+两条路径都遵守同一套规则：云端仍在则记录 `fs.list()` 返回的原生 digest；刚 push 但 provider list 暂时不可见时才用 `pushScript()` 返回的本地 md5 兜底；云端已删除则移除记录；失败文件保留旧 digest，不写入“看起来成功”的新值。
+
+## `push_content_md5`
+
+另有一份独立的 `push_content_md5`（同存 `ChromeStorage("sync")`，格式同 `FileDigestMap`）记录本机每次成功推送的内容 md5，仅供自我 412 收敛（见下文 `pushScript()` 一节）判定云端冲突文件是否为本机上次所写。它与 `file_digest` 用途不同：`file_digest` 存 provider 原生 digest 做 CAS 基准，`push_content_md5` 存本地内容 md5 做内容身份判定，二者不可混用。
+
+`push_content_md5` 随 `file_digest` 生命周期收敛，不会只增不删：`updateFileDigest()` 全量对账后清理 `file_digest` 之外的条目；`updateFileDigestForUuids()` 只清理本次确认已从云端删除的目标文件（队列路径未全量对账，不能全局清理）。
 
 ## 同步入口和队列
 
@@ -144,7 +155,10 @@ type FileDigestMap = {
 - 如果云端更新时间更晚，pull 云端脚本。
 - 如果云端缺 `.meta.json`，push 本地脚本补齐 meta。
 
-注意：云端 digest 已变且本地更新时间更晚（双端并发编辑）时，CAS provider 上 push 会以 conflict 失败并在后续轮次持续失败，直到云端出现更新（转为 pull）或人工介入。这是有意的保守语义——拒绝用本地版本静默覆盖他端改动——当前仅日志可见（`errorKind: "conflict"`）。
+注意：云端 digest 已变且本地更新时间更晚时，CAS provider 上 push 会以 conflict 失败。此时按云端内容身份分两种情况：
+
+- 冲突文件的云端内容正是本机上次成功推送（`push_content_md5` 命中）：说明只是本地 digest 记账丢失（上一轮 `fs.list()` 抛错或 SW 被杀），并非真·并发编辑。`pushScript()` 会以云端当前 digest 为新基准自我收敛重推一次（见下文「自我 412 收敛」），避免永久卡在自我冲突。
+- 云端内容与本机记录不符（真·双端并发编辑）：维持停在 conflict，后续轮次持续失败，直到云端出现更新（转为 pull）或人工介入。这是有意的保守语义——拒绝用本地版本静默覆盖他端改动——当前仅日志可见（`errorKind: "conflict"`）。
 
 本地脚本存在、云端只有 `.meta.json`：
 
@@ -182,6 +196,15 @@ type FileDigestMap = {
 - provider 未声明能力时，只传 `modifiedDate`，保持旧覆盖语义。
 
 `pushScript()` 成功后返回本地计算的 md5 patch，仅用于 provider list 暂时看不到刚上传文件时兜底。它不能覆盖 provider 已返回的原生 digest。
+
+#### 自我 412 收敛
+
+`pushScript()` 捕获到 `.user.js` 写入 conflict、且本轮尚未重试（`selfHealRetried` 未置位）时，调用 `rebaseSelfWrittenConflict()`：读 `push_content_md5` 取本机上次推送的内容 md5，再 `fs.list()` + 读云端当前内容比对。
+
+- 命中（云端内容 == 本机上次所写）：以云端当前原生 digest 为新基准，用 `selfHealRetried: true` 重推一次；该标记防止二次冲突时无限重试。
+- 未命中（云端内容 != 本机记录，即真·他端并发编辑）：返回 null，维持停在 conflict，绝不覆盖他端。
+
+这解决「本机写入成功但 digest 记账失败后再次编辑，拿过期 digest 对自己写的云端内容做 If-Match 而永久 412」的自我死锁；只在识别到云端就是自己所写时才重推，不破坏对真·并发编辑的保守停走语义。
 
 ### `pullScript()`
 
@@ -332,7 +355,7 @@ Baidu 当前不声明 atomic 能力。维护时注意：
 - 只把明确 file-exists errno 判为 conflict。
 - HTTP 429 转 typed rateLimit，瞬时 5xx（500/502/503/504）转 typed retryable。
 - 2xx 非 JSON 响应（如代理返回 HTML）会报错，不能当作成功——否则 list 会被判空触发全量覆盖。
-- `filemetas` errno 或空列表转 typed notFound。
+- `filemetas` 空列表强制转 typed notFound（errno -9）；服务端返回的其他 errno 走通用 errno 分类，不一定是 notFound。
 - request 显式 `credentials: "omit"`，不要重新依赖全局 DNR 规则。
 - Baidu 没有被声明为 create-only 或 CAS provider。
 
@@ -378,6 +401,8 @@ ZipFileSystem 主要服务备份/导出，不应接入云同步 CAS 语义。它
 6. provider conflict/transient/notFound 能映射到正确 `SyncErrorKind`。
 7. 条件写删只在 provider 声明能力时使用。
 8. Google Drive / Dropbox / Baidu 明确保持非 atomic capability。
+9. 自我 412 收敛：本机 digest 记账丢失后再次编辑，识别云端为自己所写则重推；真·并发编辑维持停在 conflict。
+10. 队列路径 digest 只更新本次 uuid 文件，不全量盖章漏 pull。
 
 真实 provider 验证仍需要账号和夹具。不能把 unit test 或 mock response 结果宣称为真实云端验证。
 

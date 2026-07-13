@@ -762,6 +762,8 @@ export class SynchronizeService {
       }
     });
     await this.storage.set("file_digest", newFileDigestMap);
+    // syncOnce 已全量对账整份云端列表，可安全清理 file_digest 之外的 push_content_md5，避免只增不删
+    await this.prunePushedContentMd5((name) => !(name in newFileDigestMap));
     return;
   }
 
@@ -780,6 +782,8 @@ export class SynchronizeService {
     const targetFiles = new Set(uuids.flatMap((uuid) => [`${uuid}.user.js`, `${uuid}.meta.json`]));
     const newList = await fs.list();
     const listedDigest = new Map(newList.map((file) => [file.name, file.digest]));
+    // 本次确认已从云端删除的目标文件，其 push_content_md5 一并清理（仅限本次目标，队列路径未全量对账不能全局清理）
+    const deletedTargetFiles = new Set<string>();
     for (const name of targetFiles) {
       if (preserveFileNames.has(name)) {
         // 失败文件保留旧 digest，下轮重试
@@ -794,9 +798,11 @@ export class SynchronizeService {
       } else {
         // 云端已不存在（删除）：移除记录
         delete fileDigestMap[name];
+        deletedTargetFiles.add(name);
       }
     }
     await this.storage.set("file_digest", fileDigestMap);
+    await this.prunePushedContentMd5((name) => deletedTargetFiles.has(name));
     return;
   }
 
@@ -968,6 +974,21 @@ export class SynchronizeService {
       stored[name] = pushedMd5Map[name];
     }
     await this.storage.set("push_content_md5", stored);
+  }
+
+  // 随 file_digest 生命周期收敛 push_content_md5，避免只增不删。shouldRemove 决定某文件名是否移除。
+  private async prunePushedContentMd5(shouldRemove: (name: string) => boolean) {
+    const stored = ((await this.storage.get("push_content_md5")) as FileDigestMap) || {};
+    let changed = false;
+    for (const name of Object.keys(stored)) {
+      if (shouldRemove(name)) {
+        delete stored[name];
+        changed = true;
+      }
+    }
+    if (changed) {
+      await this.storage.set("push_content_md5", stored);
+    }
   }
 
   private buildPushCreateOptions(

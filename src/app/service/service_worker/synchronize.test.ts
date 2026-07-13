@@ -1423,6 +1423,66 @@ console.log("ok");`
     expect(userDigests).toEqual(["d0-stale"]);
   });
 
+  it("updateFileDigest 全量对账时应清理云端已删除文件的 push_content_md5，避免只增不删", async () => {
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValue([
+          { name: "keep.user.js", path: "keep.user.js", size: 1, digest: "d-keep", createtime: 1, updatetime: 1 },
+        ]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { scriptCodeDAO: { get: vi.fn() }, all: vi.fn().mockResolvedValue([]) } as any
+    );
+    await (service as any).storage.set("push_content_md5", {
+      "keep.user.js": "md5-keep",
+      // 云端已删除（不在 list 快照中），其 push_content_md5 条目应被清理
+      "gone.user.js": "md5-gone",
+    });
+
+    await service.updateFileDigest(fs as any);
+
+    await expect((service as any).storage.get("push_content_md5")).resolves.toEqual({
+      "keep.user.js": "md5-keep",
+    });
+  });
+
+  it("updateFileDigestForUuids 删除本次目标文件时仅清理目标 push_content_md5，不误删无关条目", async () => {
+    // 队列路径未对账整份云端列表，只能按本次目标 uuid 清理，不能全量盖章误删他端窗口内的记录
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { scriptCodeDAO: { get: vi.fn() }, all: vi.fn() } as any
+    );
+    await (service as any).storage.set("push_content_md5", {
+      "del-uuid.user.js": "md5-user",
+      "del-uuid.meta.json": "md5-meta",
+      // 非本次目标且不在 list：不应被队列路径清理
+      "other.user.js": "md5-other",
+    });
+
+    await service.updateFileDigestForUuids(fs as any, ["del-uuid"]);
+
+    await expect((service as any).storage.get("push_content_md5")).resolves.toEqual({
+      "other.user.js": "md5-other",
+    });
+  });
+
   it("push 云端缺失文件时应当使用 createOnly，避免覆盖并发新增", async () => {
     const script = {
       uuid: "new-uuid",
