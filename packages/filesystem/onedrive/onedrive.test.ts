@@ -432,6 +432,30 @@ describe("OneDriveFileSystem", () => {
     expect((requestSpy.mock.calls[0][1] as RequestInit).body).toBe(emptyBlob);
   });
 
+  it("空内容 simple PUT 条件写入应携带 HTTP 引号形式的 If-Match", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+
+    const writer = await fs.create("empty.txt", { expectedDigest: "abc123" });
+    await writer.write("");
+
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+    const config = requestSpy.mock.calls[0][1] as RequestInit;
+    expect((config.headers as Headers).get("If-Match")).toBe('"abc123"');
+  });
+
+  it("空内容 simple PUT create-only 应携带 If-None-Match: *", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+
+    const writer = await fs.create("empty.txt", { createOnly: true });
+    await writer.write("");
+
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+    const config = requestSpy.mock.calls[0][1] as RequestInit;
+    expect((config.headers as Headers).get("If-None-Match")).toBe("*");
+  });
+
   it("writer should keep upload session for non-empty content", async () => {
     const fs = new OneDriveFileSystem("/", "token");
     const requestSpy = vi
