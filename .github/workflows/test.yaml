@@ -80,6 +80,32 @@ jobs:
           include-hidden-files: true
           retention-days: 1
 
+  benchmark-test-unsharded:
+    runs-on: ubuntu-latest
+    name: Benchmark test unsharded
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+
+      - name: Use Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm i --frozen-lockfile
+
+      - name: Run tests without sharding
+        run: >
+          pnpm exec vitest run
+          --coverage
+          --silent
+          --reporter=blob
+
   tests:
     runs-on: ubuntu-latest
     name: Run tests
@@ -178,3 +204,44 @@ jobs:
             test-results/
             playwright-report/
           retention-days: 14
+
+  benchmark-e2e-unsharded:
+    runs-on: ubuntu-latest
+    name: Benchmark E2E unsharded
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+
+      - name: Use Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Setup pnpm
+        run: corepack enable
+
+      - name: Show runner CPU count
+        run: nproc
+
+      - name: Install dependencies
+        run: pnpm i --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-
+
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm test:e2e:install
+
+      - name: Build extension
+        run: pnpm build
+
+      - name: Run E2E tests without sharding
+        run: pnpm exec playwright test
