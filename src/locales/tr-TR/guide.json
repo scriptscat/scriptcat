@@ -1,6 +1,6 @@
 {
   "installed_scripts": "Yüklediğiniz betikler burada görüntülenecektir. Temel bilgiler için <Link href=\"https://docs.scriptcat.org/en/docs/use/use/\">hızlı başlangıç</Link> kılavuzuna bakın.",
-  "script_list_title": "Betik Pazarı",
+  "script_list_title": "Betik Kütüphanesi",
   "script_list_content": "<Link href=\"https://scriptcat.org/en/search\">Betik Pazarı</Link>'ndan betikler yükleyebilirsiniz. ScriptCat, kullanıcı betiklerini desteklemenin yanı sıra <Link href=\"https://docs.scriptcat.org/en/docs/dev/background/\">arka plan betiklerini</Link> de destekler.",
   "script_list_enable_title": "Betikleri Etkinleştir",
   "script_list_enable_content": "Betiklerin kullanılması için etkinleştirilmesi gerekir. Sayfa betikleri yükleme sırasında varsayılan olarak etkinleştirilirken, arka plan betikleri varsayılan olarak devre dışı bırakılır.",
