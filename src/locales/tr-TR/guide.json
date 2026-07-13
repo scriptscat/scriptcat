@@ -9,7 +9,7 @@
   "tools_backup_title": "Yedekleme",
   "tools_backup_content": "Yedekleme, betikleri kaybetmemek için kaydetmenize olanak tanır. Betik dosyalarını yerel makinenize dışa aktarabilir veya yerel makinenizden betik dosyaları yükleyebilirsiniz. Ek kolaylık için buluta da yedekleme yapabilirsiniz. Başka bir yöneticiden mi geçiyorsunuz? <Link href=\"https://docs.scriptcat.org/en/docs/use/from-other/migrate-from-tampermonkey/\">Geçiş Kılavuzu'na</Link> bakın.",
   "setting_sync_title": "Güncelleme ve Eşitleme",
-  "setting_sync_content": "Betik senkronizasyon işlevi, bu cihazdaki betik içeriğini buluta kolayca senkronize etmenizi sağlar. Birden fazla cihazınız varsa ve "Silmeyi senkronize et" seçeneğini seçerseniz bu cihazdan bir betik silindiğinde, buluttan ve diğer cihazlardan da ilgili betik silinir.",
+  "setting_sync_content": "Betik eşitleme işlevi, bu cihazdaki betik içeriğini buluta kolayca senkronize etmenizi sağlar. Birden fazla cihazınız varsa ve 'Silme İşlemlerini Eşitle' seçeneğini seçerseniz bu cihazdan bir betik silindiğinde, buluttan ve diğer cihazlardan da ilgili betik silinir.",
   "installed_scripts_title": "Yüklü Betikler",
   "subscribe_title": "Abonelikler",
   "subscribe_content": "Bir betik bağlantısına abone olduktan sonra, betik otomatik olarak güncel kalır. <Link href=\"https://docs.scriptcat.org/en/docs/dev/subscribe/\">Abonelik Dokümanları'nda</Link> daha fazla bilgi edinin.",
