@@ -8,7 +8,7 @@
   "page_in_blacklist": "Geçerli sayfa kara listeye alındığından betik kullanılamaz",
   "ext_update_notification": "ScriptCat uzantısı güncellendi",
   "ext_update_notification_desc": "Geçerli sürüm: {{version}}, ayrıntılar için güncelleme günlüğüne bakın",
-  "script_menu_display": "Betik Menü Kaydı",
+  "script_menu_display": "Betik Menüsü",
   "badge_type_none": "Yok",
   "badge_type_run_count": "Çalıştırma Sayısı",
   "badge_type_script_count": "Betik Sayısı",
@@ -22,6 +22,6 @@
   "show_more_scripts": "+{{count}} betik",
   "use_on_mobile": "ScriptCat'i mobilde kullanın",
   "scan_qr_to_install": "ScriptCat'i telefonunuza yüklemek için QR kodunu tarayın",
-  "menu_expand_num_before": "Menü öğesi sayısı",
+  "menu_expand_num_before": "Menü öğelerinin sayısı",
   "menu_expand_num_after": "aşıldığında gizlenecektir."
 }
