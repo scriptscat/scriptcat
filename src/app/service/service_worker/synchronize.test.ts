@@ -440,7 +440,8 @@ describe("SynchronizeService", () => {
           size: 1,
           digest: "script-digest",
           createtime: 1,
-          updatetime: 1,
+          // 云端文件与本地同版本（digest 一致、更新时间不早于本地），仅同步状态差异，不触发文件推送
+          updatetime: 200,
         },
         {
           name: "status-uuid.meta.json",
@@ -616,7 +617,8 @@ describe("SynchronizeService", () => {
           size: 1,
           digest: "script-digest",
           createtime: 1,
-          updatetime: 1,
+          // 云端文件与本地同版本（digest 一致、更新时间不早于本地），仅同步状态差异，不触发文件推送
+          updatetime: 200,
         },
         {
           name: "status-uuid.meta.json",
@@ -720,7 +722,8 @@ describe("SynchronizeService", () => {
           size: 1,
           digest: "ok-digest",
           createtime: 1,
-          updatetime: 1,
+          // 云端文件与本地同版本（digest 一致、更新时间不早于本地），仅同步状态差异，不触发文件推送
+          updatetime: 200,
         },
         {
           name: "ok.meta.json",
@@ -2334,5 +2337,300 @@ console.log("ok");`
     } finally {
       process.off("unhandledRejection", unhandled);
     }
+  });
+
+  it("scriptInstall 对已同步过的脚本改用 CAS 而非 create-only 上传", async () => {
+    // 编辑一个已经同步到云端的脚本会以 upsertBy=user 再次触发 installScript。
+    // 云端文件已存在，此时若仍用 create-only 上传必然 412 冲突，本地编辑永远上不了云。
+    // 正确行为：凭本地已存的云端 digest 做 CAS 覆盖（expectedDigest），不带 createOnly。
+    const createCalls: Array<{ name: string; opts: any }> = [];
+    const fs = createFs({
+      capabilities: { supportsCreateOnly: true, supportsAtomicCompareAndSwap: true },
+      list: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockImplementation(async (name: string, opts: any) => {
+        createCalls.push({ name, opts });
+        return { write: vi.fn().mockResolvedValue(undefined) };
+      }),
+    } as unknown as Partial<FileSystem>);
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        getCloudSync: vi.fn().mockResolvedValue({ ...syncConfig, enable: true }),
+      } as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(fs);
+    // 该脚本此前已同步过，本地记录了它的云端 digest
+    await (service as any).storage.set("file_digest", {
+      "u1.user.js": "etag-user",
+      "u1.meta.json": "etag-meta",
+    });
+
+    await service.scriptInstall({
+      script: { uuid: "u1", name: "t", origin: "", downloadUrl: "", checkUpdateUrl: "" } as any,
+      upsertBy: "user",
+    } as any);
+    // 在同一队列排一个 barrier，barrier 完成意味着 install 任务已完成
+    await stackAsyncTask("cloud_sync_queue", async () => "barrier");
+
+    const userJs = createCalls.find((c) => c.name === "u1.user.js");
+    const metaJson = createCalls.find((c) => c.name === "u1.meta.json");
+    expect(userJs?.opts?.createOnly).toBeUndefined();
+    expect(userJs?.opts?.expectedDigest).toBe("etag-user");
+    expect(metaJson?.opts?.createOnly).toBeUndefined();
+    expect(metaJson?.opts?.expectedDigest).toBe("etag-meta");
+  });
+
+  it("本地编辑后即便云端 digest 未变也应推送而非因 digest 相等被跳过", async () => {
+    // 云端 digest 只反映云端侧变化，检测不到本地编辑。若脚本本地更新时间已比云端新，
+    // 即便 digest 相等也必须上传，否则本地改动永远上不了云（#1）。
+    const fs = createFs({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([
+          { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu1", createtime: 1, updatetime: 5 },
+          { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm1", createtime: 1, updatetime: 5 },
+        ])
+        .mockResolvedValueOnce([]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi
+          .fn()
+          .mockResolvedValue([
+            { uuid: "u1", name: "t", updatetime: 20, createtime: 1, status: 1, sort: 0, metadata: {} },
+          ]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+    const pushSpy = vi.spyOn(service, "pushScript").mockResolvedValue({});
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(pushSpy).toHaveBeenCalledWith(fs, expect.objectContaining({ uuid: "u1" }), expect.anything());
+  });
+
+  it("pushScript 在 .meta.json 写入失败时带出已成功写入的 .user.js", async () => {
+    // 分两次写 .user.js / .meta.json，前者成功后者失败时要让调用方知道 .user.js 已写成功，
+    // 才能只保留失败文件的旧 digest、推进成功文件的 digest，避免永久 CAS 冲突（#3）。
+    const fs = createFs({
+      create: vi.fn().mockImplementation(async (name: string) => ({
+        write: vi.fn().mockImplementation(async () => {
+          if (name === "u1.meta.json") throw new Error("meta write failed");
+        }),
+      })),
+    } as unknown as Partial<FileSystem>);
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// code" }) },
+      } as any
+    );
+    const script = {
+      uuid: "u1",
+      name: "t",
+      origin: "",
+      downloadUrl: "",
+      checkUpdateUrl: "",
+      updatetime: 5,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+
+    await expect(service.pushScript(fs, script as any)).rejects.toMatchObject({
+      writtenFiles: ["u1.user.js"],
+    });
+  });
+
+  it("新脚本 .meta.json 失败：应推进已成功的 .user.js digest，并在下一轮补传 .meta.json", async () => {
+    let failMeta = true;
+    let seq = 0;
+    const cloud = new Map<string, { digest: string; content: string; updatetime: number }>();
+    const cloudFs = createFs({
+      capabilities: { supportsCreateOnly: true },
+      list: vi.fn(async () =>
+        Array.from(cloud, ([name, f]) => ({
+          name,
+          path: name,
+          size: 1,
+          digest: f.digest,
+          createtime: 1,
+          updatetime: f.updatetime,
+        }))
+      ),
+      create: vi.fn(async (name: string, opts: any) => ({
+        write: vi.fn(async (content: string) => {
+          const existing = cloud.get(name);
+          if (opts?.createOnly && existing) {
+            throw new FileSystemError({ provider: "webdav", message: "createOnly", status: 412, conflict: true });
+          }
+          if (failMeta && name === "u1.meta.json") {
+            throw new FileSystemError({ provider: "webdav", message: "meta fail", status: 500, retryable: true });
+          }
+          cloud.set(name, {
+            digest: `d${++seq}`,
+            content,
+            updatetime: opts?.modifiedDate ?? existing?.updatetime ?? 0,
+          });
+        }),
+      })),
+    } as unknown as Partial<FileSystem>);
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// code" }) },
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "u1",
+            name: "t",
+            origin: "",
+            downloadUrl: "",
+            checkUpdateUrl: "",
+            updatetime: 5,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+
+    // 第一轮：.user.js 成功、.meta.json 失败
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, cloudFs);
+    expect(cloud.has("u1.user.js")).toBe(true);
+    expect(cloud.has("u1.meta.json")).toBe(false);
+    const dig1 = (await (service as any).storage.get("file_digest")) as Record<string, string>;
+    expect(dig1["u1.user.js"]).toBeDefined(); // 推进已成功文件的 digest
+    expect(dig1["u1.meta.json"]).toBeUndefined(); // 失败文件不记录
+
+    // 第二轮：meta 故障恢复，应补传 .meta.json（不因 .user.js digest 相等被当作无变动跳过）
+    failMeta = false;
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, cloudFs);
+    expect(cloud.has("u1.meta.json")).toBe(true);
+  });
+
+  it("编辑已同步脚本时 .meta.json 失败，下一轮同步自愈而不陷入永久 CAS 冲突", async () => {
+    // 端到端复现 #2+#3+#1：编辑已同步脚本 → scriptInstall 推送，.user.js 成功、.meta.json 失败。
+    // 已成功的 .user.js digest 必须被推进，否则下一轮 syncOnce 拿过期 digest 做 CAS 永久 412。
+    let failMeta = true;
+    const writes: string[] = [];
+    let seq = 0;
+    const cloud = new Map<string, { digest: string; content: string; updatetime: number }>([
+      ["u1.user.js", { digest: "cu1", content: "// v0", updatetime: 5 }],
+      ["u1.meta.json", { digest: "cm1", content: "{}", updatetime: 5 }],
+    ]);
+    const conflict = () =>
+      new FileSystemError({ provider: "webdav", message: "CAS conflict", status: 412, conflict: true });
+    const cloudFs = createFs({
+      capabilities: { supportsCreateOnly: true, supportsAtomicCompareAndSwap: true },
+      list: vi.fn(async () =>
+        Array.from(cloud, ([name, f]) => ({
+          name,
+          path: name,
+          size: 1,
+          digest: f.digest,
+          createtime: 1,
+          updatetime: f.updatetime,
+        }))
+      ),
+      create: vi.fn(async (name: string, opts: any) => ({
+        write: vi.fn(async (content: string) => {
+          const existing = cloud.get(name);
+          if (opts?.createOnly && existing) throw conflict();
+          if (opts?.expectedDigest !== undefined && (!existing || existing.digest !== opts.expectedDigest)) {
+            throw conflict();
+          }
+          if (failMeta && name === "u1.meta.json") throw conflict();
+          cloud.set(name, {
+            digest: `d${++seq}`,
+            content,
+            updatetime: opts?.modifiedDate ?? existing?.updatetime ?? 0,
+          });
+          writes.push(name);
+        }),
+      })),
+    } as unknown as Partial<FileSystem>);
+
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        getCloudSync: vi.fn().mockResolvedValue({ ...syncConfig, syncStatus: false, enable: true }),
+      } as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// v1" }) },
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "u1",
+            name: "t",
+            origin: "",
+            downloadUrl: "",
+            checkUpdateUrl: "",
+            updatetime: 20,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+    vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(cloudFs);
+    await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+
+    // 第一轮：编辑触发 scriptInstall，.user.js 成功、.meta.json 失败
+    await service.scriptInstall({
+      script: { uuid: "u1", name: "t", origin: "", downloadUrl: "", checkUpdateUrl: "", updatetime: 10 } as any,
+      upsertBy: "user",
+    } as any);
+    await stackAsyncTask("cloud_sync_queue", async () => "barrier");
+
+    expect(writes).toContain("u1.user.js");
+    expect(cloud.get("u1.meta.json")!.digest).toBe("cm1");
+
+    // 第二轮：meta 故障恢复，syncOnce 应自愈（成功文件 digest 已推进，CAS 不再永久冲突）
+    failMeta = false;
+    writes.length = 0;
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, cloudFs);
+
+    expect(writes).toContain("u1.user.js");
+    expect(writes).toContain("u1.meta.json");
   });
 });

@@ -93,6 +93,19 @@ type SyncTask = {
 
 type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported" | "fatal";
 
+// pushScript 分两次写 .user.js / .meta.json，前者成功后者失败时抛出本错误，
+// 带出已成功写入的文件名，让调用方只保留真正失败文件的旧 digest、推进成功文件的 digest，
+// 避免成功文件的 digest 永久变旧后与云端 CAS 永远不匹配（永久 412）。
+class PushScriptPartialError extends Error {
+  constructor(
+    readonly originalError: unknown,
+    readonly writtenFiles: string[]
+  ) {
+    super(originalError instanceof Error ? originalError.message : String(originalError));
+    this.name = "PushScriptPartialError";
+  }
+}
+
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 
 function getScriptModifiedDate(script: PushScriptParam): number {
@@ -485,11 +498,18 @@ export class SynchronizeService {
           );
           return;
         }
-        // 过滤掉无变动的文件
-        if (fileDigestMap[file.script!.name] === file.script!.digest) {
+        const updatetime = script.updatetime || script.createtime;
+        // 过滤掉无变动的文件：仅当 .meta.json 齐全、云端 digest 与上次同步记录一致、
+        // 且本地更新时间不比云端新时，才认为无需处理直接跳过。
+        // 否则要么本地编辑过（updatetime 更新，digest 相等只反映云端未变）需上传（#1），
+        // 要么云端缺 .meta.json（上一轮分片上传残留）需补传，均不能在此提前跳过。
+        if (
+          file.meta &&
+          fileDigestMap[file.script!.name] === file.script!.digest &&
+          updatetime <= file.script!.updatetime
+        ) {
           return;
         }
-        const updatetime = script.updatetime || script.createtime;
         // 对比脚本更新时间和文件更新时间
         if (updatetime > file.script!.updatetime || !file.meta) {
           // 如果脚本更新时间大于文件更新时间
@@ -534,7 +554,14 @@ export class SynchronizeService {
         Object.assign(pushedFileDigestMap, ret.value);
       } else if (ret.status === "rejected") {
         failedSyncUuids.add(result[index].uuid);
-        result[index].preserveDigestFiles.forEach((name) => preserveDigestFiles.add(name));
+        // 分片上传时已成功写入云端的文件（如 .user.js 成功、.meta.json 失败）不保留旧 digest，
+        // 让 updateFileDigest 记录其云端最新 digest，避免成功文件 digest 永久变旧、后续 CAS 永久冲突。
+        const writtenFiles = ret.reason instanceof PushScriptPartialError ? ret.reason.writtenFiles : [];
+        result[index].preserveDigestFiles.forEach((name) => {
+          if (!writtenFiles.includes(name)) {
+            preserveDigestFiles.add(name);
+          }
+        });
         this.logger.warn("sync task failed", Logger.E(ret.reason), {
           errorKind: this.classifySyncError(ret.reason),
           files: result[index].preserveDigestFiles,
@@ -629,6 +656,9 @@ export class SynchronizeService {
   }
 
   private classifySyncError(error: unknown): SyncErrorKind {
+    if (error instanceof PushScriptPartialError) {
+      return this.classifySyncError(error.originalError);
+    }
     if (error instanceof FileSystemError) {
       if (error.conflict) {
         return "conflict";
@@ -789,6 +819,8 @@ export class SynchronizeService {
       name: script.name,
       file: filename,
     });
+    // 记录本次已成功写入云端的文件，供部分失败时区分「成功文件」与「失败文件」
+    const writtenFiles: string[] = [];
     try {
       const modifiedDate = getScriptModifiedDate(script);
       const w = await fs.create(
@@ -799,6 +831,7 @@ export class SynchronizeService {
       const code = await this.scriptCodeDAO.get(script.uuid);
       const scriptCode = code!.code;
       await w.write(scriptCode);
+      writtenFiles.push(filename);
       const meta = await fs.create(
         metaFilename,
         this.buildPushCreateOptions(fs, metaFilename, modifiedDate, opts.metaFile, opts.fileDigestMap)
@@ -810,6 +843,7 @@ export class SynchronizeService {
         checkUpdateUrl: script.checkUpdateUrl,
       });
       await meta.write(metaJson);
+      writtenFiles.push(metaFilename);
       logger.info("push script success");
       return {
         [filename]: md5OfText(scriptCode),
@@ -817,7 +851,7 @@ export class SynchronizeService {
       };
     } catch (e) {
       logger.error("push script error", Logger.E(e));
-      throw e;
+      throw new PushScriptPartialError(e, writtenFiles);
     }
   }
 
@@ -830,13 +864,18 @@ export class SynchronizeService {
   ): FileCreateOptions {
     const capabilities = getFileSystemCapabilities(fs);
     const createOptions: FileCreateOptions = { modifiedDate };
-    if (!existingFile) {
+    // CAS 的 If-Match 基准取本地记录的云端 digest（脚本上次同步/安装成功时的版本），
+    // 这样其他设备改动过云端文件时能正确检测冲突而不误覆盖。
+    const expectedDigest = fileDigestMap?.[filename];
+    // 只有确实首次上传（本轮没列到该文件、本地也无它的 digest 记录）才用 create-only 防止误覆盖他处文件；
+    // 已同步过的脚本（本地有 digest 记录，如编辑后经 scriptInstall 再次上传）必须走 CAS 覆盖，
+    // 否则 create-only 撞上已存在的云端文件必然 412，本地改动永远上不了云。
+    if (existingFile === undefined && expectedDigest === undefined) {
       if (capabilities.supportsCreateOnly) {
         createOptions.createOnly = true;
       }
       return createOptions;
     }
-    const expectedDigest = fileDigestMap?.[filename];
     if (expectedDigest && capabilities.supportsAtomicCompareAndSwap) {
       createOptions.expectedDigest = expectedDigest;
     }
@@ -937,8 +976,26 @@ export class SynchronizeService {
     if (config.enable) {
       stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
         const fs = await this.buildFileSystem(config);
-        const pushedFileDigestMap = await this.pushScript(fs, params.script);
-        await this.updateFileDigest(fs, pushedFileDigestMap);
+        // 已同步过的脚本本地记录了其云端 digest，据此做 CAS 覆盖；没有记录才是首次上传走 create-only。
+        // 缺了它，编辑已存在的云端脚本会因 create-only 而 412 冲突，本地改动永远上不了云。
+        const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
+        const script = params.script;
+        try {
+          const pushedFileDigestMap = await this.pushScript(fs, script, { fileDigestMap });
+          await this.updateFileDigest(fs, pushedFileDigestMap);
+        } catch (e) {
+          // 部分成功（如 .user.js 成功、.meta.json 失败）时，已写成功文件的云端 digest 已更新，
+          // 必须记录其最新 digest、只保留失败文件的旧值，否则下一轮同步会拿过期 digest 做 CAS 永久 412。
+          // 全部失败（无文件写入成功）则不动 file_digest，保持"失败不污染"。
+          const writtenFiles = e instanceof PushScriptPartialError ? e.writtenFiles : [];
+          if (writtenFiles.length > 0) {
+            const preserve = new Set(
+              [`${script.uuid}.user.js`, `${script.uuid}.meta.json`].filter((name) => !writtenFiles.includes(name))
+            );
+            await this.updateFileDigest(fs, {}, preserve);
+          }
+          throw e;
+        }
       }).catch((e) => {
         this.logger.error("push script on install error", Logger.E(e), {
           errorKind: this.classifySyncError(e),
