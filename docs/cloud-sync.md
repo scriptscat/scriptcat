@@ -227,7 +227,7 @@ provider 应尽量抛 `FileSystemError`。同步层用 `classifySyncError()` 映
 | 条件 | `SyncErrorKind` | 语义 |
 | --- | --- | --- |
 | `FileSystemError.conflict` | `conflict` | 条件写删失败或 provider 冲突 |
-| `FileSystemError.rateLimit` 或 `retryable` | `transient` | 429、5xx、可重试错误 |
+| `FileSystemError.rateLimit` 或 `retryable` | `transient` | 429、瞬时 5xx（500/502/503/504）等可重试错误 |
 | `FileSystemError.notFound` | `stale_snapshot` | list 到操作之间远端消失或缓存过期 |
 | `FileSystemError.auth` 或 `WarpTokenError` | `fatal` | 授权失败 |
 | error message 包含 `unsupported` | `unsupported` | provider 不支持 |
@@ -246,6 +246,8 @@ provider 应尽量抛 `FileSystemError`。同步层用 `classifySyncError()` 映
 
 原因：没有条件保护的写入和删除不是安全幂等操作。重复执行可能创建重复文件、覆盖并发更新或误删。
 
+typed `retryable` 只覆盖瞬时 5xx（500/502/503/504）。501（如后端不支持条件请求）、505、507 等属于永久失败，不标记可重试，避免 limiter 空转退避。
+
 ## provider 差异
 
 | Provider | digest 来源 | atomic CAS | create-only | conditional delete | 关键实现 |
@@ -257,6 +259,8 @@ provider 应尽量抛 `FileSystemError`。同步层用 `classifySyncError()` 映
 | Dropbox | `content_hash` | 不支持 | 不支持 | 不支持 | 先 `exists()`，存在 overwrite，不存在 add；未暴露 rev CAS |
 | Baidu | `md5` | 不支持 | 不支持 | 不支持 | precreate/upload/create，`rtype=3` 覆盖；HTTP 429/5xx typed |
 | Zip | 空或 zip metadata | 不支持 | 不支持 | 不支持 | 备份用途，不参与云端 CAS |
+
+注意：WebDAV / S3 / OneDrive 的 `capabilities` 是按协议硬编码的声明，没有对具体服务器做探测。若某个 S3 兼容后端静默忽略条件头，条件写/删会退化为无条件覆盖且客户端无法察觉；对条件请求返回 501 的后端会得到不可重试的 typed 错误并在日志中标记 `fatal`。
 
 ### WebDAV
 
@@ -311,6 +315,7 @@ Dropbox 当前不声明 atomic 能力。维护时注意：
 - 写入是 `exists()` 后 overwrite 或 add，存在 TOCTOU。
 - 当前没有使用 Dropbox rev CAS。
 - request 层已解析 `error_summary` 和 structured `path_lookup` / `path`。
+- 只有 `path/conflict` / `path_write/conflict` 判 conflict；其余 409（无写权限、空间不足等）保留原错误语义，不能被 createDir 当"目录已存在"吞掉。
 - raw download 429 会转 typed rateLimit。
 - 删除 not_found 视为幂等成功。
 
@@ -321,8 +326,8 @@ Baidu 当前不声明 atomic 能力。维护时注意：
 - digest 来自 `md5`。
 - 写入流程是 precreate、upload、create，`rtype=3` 覆盖。
 - 只把明确 file-exists errno 判为 conflict。
-- HTTP 429 转 typed rateLimit。
-- HTTP 5xx 转 typed retryable。
+- HTTP 429 转 typed rateLimit，瞬时 5xx（500/502/503/504）转 typed retryable。
+- 2xx 非 JSON 响应（如代理返回 HTML）会报错，不能当作成功——否则 list 会被判空触发全量覆盖。
 - `filemetas` errno 或空列表转 typed notFound。
 - request 显式 `credentials: "omit"`，不要重新依赖全局 DNR 规则。
 - Baidu 没有被声明为 create-only 或 CAS provider。
