@@ -6,7 +6,7 @@
   "lower_version_browser_guide": "Tarayıcınız çok eski, bu nedenle betikler düzgün çalışamaz. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\">👉Daha fazla bilgi edinmek için tıklayın</a>",
   "click_to_reload": "👉Yeniden Yüklemek İçin Tıklayın",
   "page_in_blacklist": "Geçerli sayfa kara listeye alındığından betik kullanılamaz",
-  "ext_update_notification": "ScriptCat Uzantısı Güncellendi",
+  "ext_update_notification": "ScriptCat uzantısı güncellendi",
   "ext_update_notification_desc": "Geçerli sürüm: {{version}}, ayrıntılar için güncelleme günlüğüne bakın",
   "script_menu_display": "Betik Menüsü",
   "badge_type_none": "Yok",
