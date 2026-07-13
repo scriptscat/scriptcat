@@ -1306,6 +1306,189 @@ console.log("ok");`
     );
   });
 
+  it("删除无效 meta 后重传：本轮已确认不存在的文件应走 createOnly 而非过期 digest CAS", async () => {
+    // 云端只有普通 .meta.json（无 .user.js）：删除无效 meta 后重传两个文件。
+    // 本轮 list 已确认 .user.js 不存在、meta 刚被我们删除，若再拿本地记录的过期 digest
+    // 对不存在的文件做 If-Match 必然 412，且失败保留旧 digest 后永不自愈。
+    const script = {
+      uuid: "remeta-uuid",
+      name: "remeta",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 10,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+    const fs = createFs({
+      capabilities: {
+        supportsAtomicCompareAndSwap: true,
+        supportsCreateOnly: true,
+        supportsConditionalDelete: true,
+      },
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            name: "remeta-uuid.meta.json",
+            path: "remeta-uuid.meta.json",
+            size: 1,
+            digest: "cloud-meta",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ])
+        .mockResolvedValueOnce([]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockResolvedValue(JSON.stringify({ uuid: "remeta-uuid", origin: "origin" })),
+      }),
+    } as unknown as Partial<FileSystem>);
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([script]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "remeta-uuid.user.js": "stale-user-digest",
+      "remeta-uuid.meta.json": "stale-meta-digest",
+    });
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    const createCalls = vi.mocked(fs.create).mock.calls;
+    const userCall = createCalls.find((c) => c[0] === "remeta-uuid.user.js");
+    const metaCall = createCalls.find((c) => c[0] === "remeta-uuid.meta.json");
+    expect(userCall?.[1]).toMatchObject({ createOnly: true });
+    expect(userCall?.[1]?.expectedDigest).toBeUndefined();
+    expect(metaCall?.[1]).toMatchObject({ createOnly: true });
+    expect(metaCall?.[1]?.expectedDigest).toBeUndefined();
+  });
+
+  it("云端缺 .meta.json 的补传：meta 走 createOnly，.user.js 仍用记录 digest 做 CAS", async () => {
+    const script = {
+      uuid: "remeta2-uuid",
+      name: "remeta2",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 10,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+    const fs = createFs({
+      capabilities: {
+        supportsAtomicCompareAndSwap: true,
+        supportsCreateOnly: true,
+      },
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            name: "remeta2-uuid.user.js",
+            path: "remeta2-uuid.user.js",
+            size: 1,
+            digest: "cloud-user-new",
+            createtime: 1,
+            updatetime: 1,
+          },
+        ])
+        .mockResolvedValueOnce([]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([script]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "remeta2-uuid.user.js": "old-user-digest",
+      "remeta2-uuid.meta.json": "stale-meta-digest",
+    });
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    const createCalls = vi.mocked(fs.create).mock.calls;
+    const userCall = createCalls.find((c) => c[0] === "remeta2-uuid.user.js");
+    const metaCall = createCalls.find((c) => c[0] === "remeta2-uuid.meta.json");
+    expect(userCall?.[1]).toMatchObject({ expectedDigest: "old-user-digest" });
+    expect(metaCall?.[1]).toMatchObject({ createOnly: true });
+    expect(metaCall?.[1]?.expectedDigest).toBeUndefined();
+  });
+
+  it("云端已确认不存在的新脚本：即便本地残留过期 digest 记录也应走 createOnly", async () => {
+    const script = {
+      uuid: "fresh-uuid",
+      name: "fresh",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 10,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+    const fs = createFs({
+      capabilities: {
+        supportsAtomicCompareAndSwap: true,
+        supportsCreateOnly: true,
+      },
+      list: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {
+          get: vi.fn().mockResolvedValue({ code: "// code" }),
+        },
+        all: vi.fn().mockResolvedValue([script]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", {
+      "fresh-uuid.user.js": "stale-user-digest",
+      "fresh-uuid.meta.json": "stale-meta-digest",
+    });
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    const createCalls = vi.mocked(fs.create).mock.calls;
+    const userCall = createCalls.find((c) => c[0] === "fresh-uuid.user.js");
+    const metaCall = createCalls.find((c) => c[0] === "fresh-uuid.meta.json");
+    expect(userCall?.[1]).toMatchObject({ createOnly: true });
+    expect(userCall?.[1]?.expectedDigest).toBeUndefined();
+    expect(metaCall?.[1]).toMatchObject({ createOnly: true });
+    expect(metaCall?.[1]?.expectedDigest).toBeUndefined();
+  });
+
   it("部分 push 失败时只推进成功文件 digest 并保留失败文件旧 digest", async () => {
     const fs = createFs({
       list: vi

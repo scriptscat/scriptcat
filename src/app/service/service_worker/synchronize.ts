@@ -83,6 +83,8 @@ type PushScriptOptions = {
   fileDigestMap?: FileDigestMap;
   scriptFile?: FileInfo;
   metaFile?: FileInfo;
+  // syncOnce 场景为 true：scriptFile/metaFile 反映本轮 fs.list() 快照，undefined 表示已确认云端不存在
+  hasListSnapshot?: boolean;
 };
 
 type SyncTask = {
@@ -491,7 +493,7 @@ export class SynchronizeService {
               } else {
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
                 await fs.delete(file.meta!.name);
-                return await this.pushScript(fs, script, { fileDigestMap });
+                return await this.pushScript(fs, script, { fileDigestMap, hasListSnapshot: true });
               }
             })(),
             [file.meta!.name, `${uuid}.user.js`]
@@ -516,7 +518,12 @@ export class SynchronizeService {
           // 或者不存在.meta文件,则上传文件
           addSyncTask(
             uuid,
-            this.pushScript(fs, script, { fileDigestMap, scriptFile: file.script, metaFile: file.meta })
+            this.pushScript(fs, script, {
+              fileDigestMap,
+              scriptFile: file.script,
+              metaFile: file.meta,
+              hasListSnapshot: true,
+            })
           );
         } else {
           // 如果脚本更新时间小于文件更新时间,则更新脚本
@@ -542,7 +549,7 @@ export class SynchronizeService {
     });
     // 上传剩下的脚本
     scriptMap.forEach((script) => {
-      addSyncTask(script.uuid, this.pushScript(fs, script, { fileDigestMap }));
+      addSyncTask(script.uuid, this.pushScript(fs, script, { fileDigestMap, hasListSnapshot: true }));
     });
     // 忽略错误
     const syncResults = await Promise.allSettled(result.map((item) => item.promise));
@@ -825,7 +832,7 @@ export class SynchronizeService {
       const modifiedDate = getScriptModifiedDate(script);
       const w = await fs.create(
         filename,
-        this.buildPushCreateOptions(fs, filename, modifiedDate, opts.scriptFile, opts.fileDigestMap)
+        this.buildPushCreateOptions(fs, filename, modifiedDate, opts.scriptFile, opts)
       );
       // 获取脚本代码
       const code = await this.scriptCodeDAO.get(script.uuid);
@@ -834,7 +841,7 @@ export class SynchronizeService {
       writtenFiles.push(filename);
       const meta = await fs.create(
         metaFilename,
-        this.buildPushCreateOptions(fs, metaFilename, modifiedDate, opts.metaFile, opts.fileDigestMap)
+        this.buildPushCreateOptions(fs, metaFilename, modifiedDate, opts.metaFile, opts)
       );
       const metaJson = JSON.stringify(<SyncMeta>{
         uuid: script.uuid,
@@ -859,17 +866,20 @@ export class SynchronizeService {
     fs: FileSystem,
     filename: string,
     modifiedDate: number,
-    existingFile?: FileInfo,
-    fileDigestMap?: FileDigestMap
+    existingFile: FileInfo | undefined,
+    opts: PushScriptOptions
   ): FileCreateOptions {
     const capabilities = getFileSystemCapabilities(fs);
     const createOptions: FileCreateOptions = { modifiedDate };
     // CAS 的 If-Match 基准取本地记录的云端 digest（脚本上次同步/安装成功时的版本），
     // 这样其他设备改动过云端文件时能正确检测冲突而不误覆盖。
-    const expectedDigest = fileDigestMap?.[filename];
-    // 只有确实首次上传（本轮没列到该文件、本地也无它的 digest 记录）才用 create-only 防止误覆盖他处文件；
-    // 已同步过的脚本（本地有 digest 记录，如编辑后经 scriptInstall 再次上传）必须走 CAS 覆盖，
-    // 否则 create-only 撞上已存在的云端文件必然 412，本地改动永远上不了云。
+    // 但本轮 list 快照已确认云端不存在的文件（existingFile 为 undefined 且有快照）例外：
+    // 本地残留的 digest 必然过期，对不存在的文件做 If-Match 必然 412，
+    // 且失败保留旧 digest 后永不自愈，只能走 create-only。
+    // 无快照的场景（scriptInstall 队列）才允许用本地记录 digest 做 CAS——
+    // 已同步过的脚本编辑后再次上传必须 CAS 覆盖，否则 create-only 撞上已存在文件必然 412。
+    const expectedDigest =
+      existingFile === undefined && opts.hasListSnapshot ? undefined : opts.fileDigestMap?.[filename];
     if (existingFile === undefined && expectedDigest === undefined) {
       if (capabilities.supportsCreateOnly) {
         createOptions.createOnly = true;
