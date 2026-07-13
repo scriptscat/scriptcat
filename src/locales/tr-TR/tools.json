@@ -10,7 +10,7 @@
   "pulling_data_from_cloud": "Veriler Buluttan Çekiliyor",
   "pull_failed": "Çekme İşlemi Başarısız",
   "restore": "Geri Yükle",
-  "manual_download": "İndirme Başlamazsa, Manuel Olarak İndirmek İçin Lütfen Buraya Tıklayın",
+  "manual_download": "İndirme başlamazsa, manuel olarak indirmek için lütfen buraya tıklayın",
   "local_backup": "Yerel Yedekleme",
   "cloud_backup": "Bulut Yedeklemesi",
   "auto_backup": "Otomatik Yedekleme",
