@@ -108,3 +108,35 @@ describe("EditorTabs「＋」新建菜单", () => {
     expect(onNew).toHaveBeenCalledWith();
   });
 });
+
+describe("EditorTabs 关闭按钮可见性", () => {
+  // tabs 按顺序渲染,故 closeButtons[0]=激活的 u1、[1]=未激活的 u2
+  function renderActiveAndInactive() {
+    render(
+      <EditorTabs
+        tabs={[makeTab("u1", "脚本一"), makeTab("u2", "脚本二")]}
+        activeUuid="u1"
+        onActivate={vi.fn()}
+        onClose={vi.fn()}
+        onCloseOthers={vi.fn()}
+        onCloseLeft={vi.fn()}
+        onCloseRight={vi.fn()}
+        onNew={onNew}
+      />
+    );
+    return screen.getAllByLabelText("关闭当前标签页");
+  }
+
+  it("激活标签的关闭按钮持续可见,不依赖 hover", () => {
+    const [activeClose] = renderActiveAndInactive();
+    expect(activeClose).toHaveClass("opacity-100");
+    expect(activeClose).not.toHaveClass("opacity-0");
+  });
+
+  it("未激活标签的关闭按钮默认隐藏,仅 hover 时显示", () => {
+    const [, inactiveClose] = renderActiveAndInactive();
+    expect(inactiveClose).toHaveClass("opacity-0");
+    expect(inactiveClose).toHaveClass("group-hover/tab:opacity-100");
+    expect(inactiveClose).not.toHaveClass("opacity-100");
+  });
+});

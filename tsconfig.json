@@ -20,16 +20,15 @@
     "experimentalDecorators": true,
     "useDefineForClassFields": true,
     "allowImportingTsExtensions": true,
-    "baseUrl": ".",
     "paths": {
       "@App/*": [
-        "src/*"
+        "./src/*"
       ],
       "@Packages/*": [
-        "packages/*"
+        "./packages/*"
       ],
       "@Tests/*": [
-        "tests/*"
+        "./tests/*"
       ]
     }
   },

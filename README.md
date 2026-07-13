@@ -7,7 +7,7 @@
 ScriptCat
 </h1>
 
-<p align="center">ScriptCat, a browser extension that can execute user scripts, everything can be scripted, allowing your browser to do more things!</p>
+<p align="center">ScriptCat is a powerful userscript manager that lets you customize web pages, remove ads, automate tasks, and more — unlocking your browser's full potential!</p>
 
 <p align="center">
 <a href="https://docs.scriptcat.org/">Documentation</a> ·
