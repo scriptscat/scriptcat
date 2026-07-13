@@ -10,6 +10,7 @@ import type PermissionVerify from "./permission_verify";
 import { type UserConfirm } from "./permission_verify";
 import { type FileSystemType } from "@Packages/filesystem/factory";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
+import { type ConfigBundle } from "@App/pkg/backup/config_bundle";
 import { type VSCodeConnectParam } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { AgentModelConfig, MCPApiRequest, SkillConfigField } from "@App/app/service/agent/core/types";
@@ -292,8 +293,12 @@ export class SynchronizeClient extends Client {
     requires: ResourceBackup[],
     resources: ResourceBackup[],
     requiresCss: ResourceBackup[]
-  ) {
+  ): Promise<string[] | undefined> {
     return this.do("importResources", { uuid, requires, resources, requiresCss });
+  }
+
+  restoreConfigBundle(bundle: ConfigBundle): Promise<void> {
+    return this.do("restoreConfigBundle", bundle);
   }
 }
 
