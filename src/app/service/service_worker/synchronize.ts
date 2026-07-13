@@ -929,6 +929,10 @@ export class SynchronizeService {
         script,
         code,
         upsertBy: "sync",
+        // 本地 updatetime 采用云端文件时间（与 push 把 modifiedDate 设为本地 updatetime 对称）。
+        // 若放任 prepareScriptByCode 的 Date.now()，下一轮会把刚拉下来的内容误判为
+        // "本地编辑过"而补偿 push；etag 型 provider 重写会换 etag，两台设备将永久 pull/push 振荡
+        updatetime: file.script.updatetime,
       });
       logger.info("pull script success");
     } catch (e) {

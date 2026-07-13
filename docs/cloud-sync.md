@@ -192,7 +192,7 @@ type FileDigestMap = {
 3. `JSON.parse(meta)`。
 4. `prepareScriptByCode()` 解析脚本。
 5. 根据 `scriptcat-sync.json` status 调整 enable/sort。
-6. `script.installScript({ upsertBy: "sync" })` 写入本地。
+6. `script.installScript({ upsertBy: "sync", updatetime: file.script.updatetime })` 写入本地——本地 updatetime 必须采用云端文件时间（与 push 对称），否则下一轮会把刚拉下来的内容误判为本地编辑触发补偿 push，在 etag 型 provider 上形成双设备永久 pull/push 振荡。
 
 真实失败会向上抛出，由 `syncOnceInternal()` 作为单文件失败处理。不要在 `pullScript()` 内吞掉错误，否则会重新引入 digest 污染。
 

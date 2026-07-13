@@ -883,6 +883,68 @@ console.log("ok");`
     expect(settled).toBe(true);
   });
 
+  it("pull 安装时本地 updatetime 应采用云端文件时间，避免下一轮误判本地较新而补偿 push", async () => {
+    // prepareScriptByCode 会把 updatetime 置为 Date.now()（必然大于云端文件 mtime）。
+    // 若不用云端时间覆盖，下一轮 syncOnce 会把刚拉下来的内容当"本地编辑过"再推回云端；
+    // 在 etag 型 provider（WebDAV/OneDrive）上相同内容重写也会换 etag，
+    // 两台设备会陷入 pull→push→etag 变化→对端 pull→push 的永久振荡。
+    const installScript = vi.fn().mockResolvedValue(undefined);
+    const fs = createFs({
+      open: vi.fn().mockImplementation(async (file) => ({
+        read: vi.fn().mockResolvedValue(
+          file.name.endsWith(".user.js")
+            ? `// ==UserScript==
+// @name Pull Time Test
+// @namespace sync-test
+// @match https://example.com/*
+// ==/UserScript==
+console.log("ok");`
+            : JSON.stringify({ uuid: "pull-time-uuid" })
+        ),
+      })),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {
+        installScript,
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+      } as any
+    );
+
+    await service.pullScript(
+      fs,
+      {
+        script: {
+          name: "pull-time-uuid.user.js",
+          path: "pull-time-uuid.user.js",
+          size: 1,
+          digest: "d1",
+          createtime: 1,
+          updatetime: 12345,
+        },
+        meta: {
+          name: "pull-time-uuid.meta.json",
+          path: "pull-time-uuid.meta.json",
+          size: 1,
+          digest: "d2",
+          createtime: 1,
+          updatetime: 1,
+        },
+      },
+      undefined
+    );
+
+    expect(installScript).toHaveBeenCalledTimes(1);
+    expect(installScript).toHaveBeenCalledWith(expect.objectContaining({ updatetime: 12345 }));
+  });
+
   it("waits for deleteScript before updating file digest", async () => {
     let releaseDelete!: () => void;
     const deleteGate = new Promise<void>((resolve) => {
