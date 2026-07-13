@@ -152,6 +152,29 @@ describe("OneDriveFileSystem", () => {
     });
   });
 
+  it("删除文件遇到 501 响应时不应标记为可重试", async () => {
+    // 501 Not Implemented 是永久失败，重试只会空转退避
+    const fs = new OneDriveFileSystem("/", "token");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 501,
+        text: JSON.stringify({
+          error: {
+            code: "notImplemented",
+            message: "Not implemented",
+          },
+        }),
+      })
+    );
+
+    await expect(fs.delete("stub.txt")).rejects.toMatchObject({
+      provider: "onedrive",
+      status: 501,
+      retryable: false,
+    });
+  });
+
   it("create should normalize double slashes in paths", async () => {
     const fs = new OneDriveFileSystem("/ScriptCat//sync", "token");
 

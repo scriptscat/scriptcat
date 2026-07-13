@@ -64,13 +64,15 @@ export default class BaiduFileSystem implements FileSystem {
     // 对百度网盘请求显式禁用 cookie，避免依赖全局 DNR 规则造成并发竞态
     config.credentials = "omit";
     const parseResponse = async (response: Response) => {
-      const data = await response.json().catch(() => ({
-        errmsg: response.statusText || `HTTP ${response.status}`,
-      }));
       if (!response.ok) {
+        // 失败响应可能没有 JSON body，容忍解析失败以保留 HTTP 状态分类
+        const data = await response.json().catch(() => ({
+          errmsg: response.statusText || `HTTP ${response.status}`,
+        }));
         throw createBaiduFileSystemError({ ...data, httpStatus: response.status });
       }
-      return data;
+      // 2xx 非 JSON（如代理返回的 HTML 页）必须报错，否则 list 会被判空导致全量覆盖云端
+      return response.json();
     };
     return fetch(url, config)
       .then(parseResponse)

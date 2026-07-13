@@ -51,8 +51,12 @@ function toDropboxFileSystemError(status: number, raw: unknown): FileSystemError
   const { summary, raw: parsed } = parseDropboxError(raw);
   const code = summary;
   const notFound = summary?.includes("path_lookup/not_found") === true || summary?.includes("path/not_found") === true;
-  const conflict = !notFound && (status === 409 || summary?.includes("path/conflict") === true);
+  // Dropbox 用 HTTP 409 承载所有结构化错误（无写权限/空间不足等），只有明确 conflict 语义才算冲突
+  const conflict =
+    !notFound && (summary?.includes("path/conflict") === true || summary?.includes("path_write/conflict") === true);
   const rateLimit = status === 429;
+  // 只重试瞬时 5xx；501 等属于永久失败，重试只会空转退避
+  const transient = [500, 502, 503, 504].includes(status);
   const auth = status === 401 || summary?.includes("invalid_access_token") === true;
   return new FileSystemError({
     provider: "dropbox",
@@ -63,7 +67,7 @@ function toDropboxFileSystemError(status: number, raw: unknown): FileSystemError
     conflict,
     rateLimit,
     auth,
-    retryable: rateLimit || status >= 500,
+    retryable: rateLimit || transient,
     raw: parsed,
   });
 }

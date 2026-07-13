@@ -114,6 +114,72 @@ describe("DropboxFileSystem", () => {
     });
   });
 
+  it("非冲突类 409（如无写权限）不应误判为 conflict", async () => {
+    // Dropbox 用 HTTP 409 承载所有结构化错误；若一律判 conflict，
+    // createDir 会把无写权限/空间不足当"目录已存在"静默吞掉
+    const fs = new DropboxFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: async () =>
+          JSON.stringify({
+            error_summary: "path/no_write_permission/..",
+            error: { ".tag": "path", path: { ".tag": "no_write_permission" } },
+          }),
+      })
+    );
+
+    await expect(fs.request("https://api.dropboxapi.com/2/files/create_folder_v2")).rejects.toMatchObject({
+      provider: "dropbox",
+      status: 409,
+      conflict: false,
+      notFound: false,
+    });
+  });
+
+  it("delete 的 path_write/conflict 应判为 conflict", async () => {
+    const fs = new DropboxFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        text: async () =>
+          JSON.stringify({
+            error_summary: "path_write/conflict/file/..",
+            error: { ".tag": "path_write" },
+          }),
+      })
+    );
+
+    await expect(fs.request("https://api.dropboxapi.com/2/files/delete_v2")).rejects.toMatchObject({
+      provider: "dropbox",
+      status: 409,
+      conflict: true,
+    });
+  });
+
+  it("request 遇到 501 时不应标记为可重试", async () => {
+    // 501 Not Implemented 是永久失败，重试只会空转退避
+    const fs = new DropboxFileSystem("/", "token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 501,
+        text: async () => "Not Implemented",
+      })
+    );
+
+    await expect(fs.request("https://api.dropboxapi.com/2/files/list_folder")).rejects.toMatchObject({
+      provider: "dropbox",
+      status: 501,
+      retryable: false,
+    });
+  });
+
   it("request should throw typed rate-limit error", async () => {
     const fs = new DropboxFileSystem("/", "token");
     vi.stubGlobal(

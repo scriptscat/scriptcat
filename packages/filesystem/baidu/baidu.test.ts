@@ -86,6 +86,41 @@ describe("BaiduFileSystem", () => {
     });
   });
 
+  it("request 遇到 HTTP 501 时不应标记为可重试", async () => {
+    // 501 Not Implemented 是永久失败，重试只会空转退避
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 501,
+      statusText: "Not Implemented",
+      json: async () => ({ errno: 0, errmsg: "not implemented" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const fs = new BaiduFileSystem("/apps", "token");
+
+    await expect(fs.request("https://pan.baidu.com/rest/2.0/xpan/file?method=list")).rejects.toMatchObject({
+      provider: "baidu",
+      status: 501,
+      retryable: false,
+    });
+  });
+
+  it("request 遇到 2xx 非 JSON 响应时应拒绝而不能当作成功", async () => {
+    // 代理/网关可能返回 200 + HTML 错误页；若被当成功，list() 会把云端判空并触发全量覆盖
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => {
+        throw new SyntaxError("Unexpected token '<'");
+      },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const fs = new BaiduFileSystem("/apps", "token");
+
+    await expect(fs.request("https://pan.baidu.com/rest/2.0/xpan/file?method=list")).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("create should normalize double slashes in paths", async () => {
     const fs = new BaiduFileSystem("/apps//ScriptCat", "token");
 

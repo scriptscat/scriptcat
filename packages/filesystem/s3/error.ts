@@ -7,6 +7,8 @@ export function createS3FileSystemError(error: unknown): unknown {
   }
 
   const rateLimit = error.statusCode === 429 || error.code === "SlowDown";
+  // 只重试瞬时 5xx；501/505/507 等属于永久失败，重试只会空转退避
+  const transient = [500, 502, 503, 504].includes(error.statusCode);
 
   return new FileSystemError({
     provider: "s3",
@@ -17,7 +19,7 @@ export function createS3FileSystemError(error: unknown): unknown {
     notFound: error.statusCode === 404 || error.code === "NoSuchKey" || error.code === "NoSuchBucket",
     conflict: error.statusCode === 409 || error.statusCode === 412 || error.code === "PreconditionFailed",
     rateLimit,
-    retryable: rateLimit || error.statusCode >= 500,
+    retryable: rateLimit || transient,
     raw: error,
   });
 }

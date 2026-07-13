@@ -106,6 +106,8 @@ export default class OneDriveFileSystem implements FileSystem {
       code === "itemAlreadyExists" ||
       code === "PreconditionFailed";
     const rateLimit = status === 429;
+    // 只重试瞬时 5xx；501 等属于永久失败，重试只会空转退避
+    const transient = status !== undefined && [500, 502, 503, 504].includes(status);
 
     return new FileSystemError({
       provider: "onedrive",
@@ -116,7 +118,7 @@ export default class OneDriveFileSystem implements FileSystem {
       notFound,
       conflict,
       rateLimit,
-      retryable: rateLimit || (status !== undefined && status >= 500),
+      retryable: rateLimit || transient,
       raw,
     });
   }

@@ -309,6 +309,8 @@ describe("LimiterFileSystem", () => {
 
     await expect(promise).resolves.toBeUndefined();
     expect(fs.delete).toHaveBeenCalledTimes(2);
+    // 守卫 opts 透传：若 limiter 丢掉 expectedDigest，条件删除会退化成无条件删除
+    expect(fs.delete).toHaveBeenCalledWith(file.path, { expectedDigest: "digest" });
   });
 
   it("should retry reader.read on 429", async () => {

@@ -304,6 +304,28 @@ describe("WebDAVFileSystem", () => {
         retryable: true,
       });
     });
+
+    it("读取文件遇到 501 时不应标记为可重试", async () => {
+      // 501 Not Implemented 是永久失败，重试只会空转退避
+      const err = new Error("Not Implemented");
+      (err as any).response = { status: 501 };
+      (mockClient.getFileContents as ReturnType<typeof vi.fn>).mockRejectedValue(err);
+      const fs = createTestFS(mockClient);
+      const reader = await fs.open({
+        name: "busy.user.js",
+        path: "/",
+        size: 1,
+        digest: "digest",
+        createtime: 1,
+        updatetime: 1,
+      });
+
+      await expect(reader.read("string")).rejects.toMatchObject({
+        provider: "webdav",
+        status: 501,
+        retryable: false,
+      });
+    });
   });
 
   describe("list", () => {

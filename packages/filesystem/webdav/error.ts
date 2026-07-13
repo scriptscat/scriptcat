@@ -15,6 +15,8 @@ export function createWebDAVFileSystemError(error: unknown): unknown {
   }
 
   const rateLimit = status === 429;
+  // 只重试瞬时 5xx；501/505/507 等属于永久失败，重试只会空转退避
+  const transient = [500, 502, 503, 504].includes(status);
 
   return new FileSystemError({
     provider: "webdav",
@@ -24,7 +26,7 @@ export function createWebDAVFileSystemError(error: unknown): unknown {
     notFound: status === 404,
     conflict: status === 409 || status === 412,
     rateLimit,
-    retryable: rateLimit || status >= 500,
+    retryable: rateLimit || transient,
     raw: error,
   });
 }

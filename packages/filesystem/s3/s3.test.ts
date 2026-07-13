@@ -187,6 +187,29 @@ describe("S3FileSystem", () => {
         retryable: true,
       });
     });
+
+    it("读取文件遇到 501 时不应标记为可重试", async () => {
+      // 501 Not Implemented 是永久失败（如后端不支持条件请求），重试只会空转退避
+      const fileInfo: FileInfo = {
+        name: "busy.user.js",
+        path: "/",
+        size: 50,
+        digest: "xyz",
+        createtime: 1000,
+        updatetime: 2000,
+      };
+      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new S3Error("NotImplemented", "A header you provided implies functionality that is not implemented", 501)
+      );
+
+      const reader = await fs.open(fileInfo);
+
+      await expect(reader.read("string")).rejects.toMatchObject({
+        provider: "s3",
+        status: 501,
+        retryable: false,
+      });
+    });
   });
 
   // ---- create ----
