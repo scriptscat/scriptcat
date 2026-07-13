@@ -85,6 +85,31 @@ describe("GoogleDriveFileSystem", () => {
     });
   });
 
+  it("删除文件遇到 501 响应时不应标记为可重试", async () => {
+    // 501 Not Implemented 是永久失败，重试只会空转退避
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "getFileId").mockResolvedValue("file-1");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 501,
+        text: JSON.stringify({
+          error: {
+            code: 501,
+            message: "Not implemented",
+            status: "UNIMPLEMENTED",
+          },
+        }),
+      })
+    );
+
+    await expect(fs.delete("stub.txt")).rejects.toMatchObject({
+      provider: "googledrive",
+      status: 501,
+      retryable: false,
+    });
+  });
+
   it("读取文件遇到 raw 429 响应时抛出 typed 限流错误", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
     vi.spyOn(fs, "getFileId").mockResolvedValue("file-1");
