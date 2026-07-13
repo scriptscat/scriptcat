@@ -10,6 +10,7 @@
   "pulling_data_from_cloud": "Đang tải dữ liệu từ đám mây",
   "pull_failed": "Tải thất bại",
   "restore": "Khôi phục",
+  "manual_download": "Tải xuống thủ công nếu quá trình tải xuống không bắt đầu",
   "local_backup": "Sao lưu cục bộ",
   "cloud_backup": "Sao lưu đám mây",
   "auto_backup": "Sao lưu tự động",

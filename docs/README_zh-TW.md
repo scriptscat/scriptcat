@@ -7,7 +7,7 @@
 ScriptCat
 </h1>
 
-<p align="center">ScriptCat，一款能執行使用者腳本的瀏覽器擴充套件，萬物皆可被腳本化，讓你的瀏覽器能做得更多！</p>
+<p align="center">腳本貓是一款強大的使用者腳本管理器，輕鬆自訂網頁、消除廣告、自動執行任務等，釋放瀏覽器的無限可能！</p>
 
 <p align="center">
 <a href="https://docs.scriptcat.org/">文件</a> ·
