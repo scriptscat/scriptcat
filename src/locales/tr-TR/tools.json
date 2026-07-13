@@ -1,7 +1,7 @@
 {
-  "development_tool": "Geliştirici Aracı",
+  "development_tool": "Geliştirici aracı",
   "vscode_url": "VSCode URL'si",
-  "auto_connect_vscode_service": "VSCode Hizmetine Otomatik Bağlan",
+  "auto_connect_vscode_service": "VSCode hizmetine otomatik bağlan",
   "connect": "Bağlan",
   "connection_success": "Bağlantı başarılı",
   "connection_failed": "Bağlantı başarısız",
@@ -10,9 +10,9 @@
   "pulling_data_from_cloud": "Veriler buluttan çekiliyor",
   "pull_failed": "Çekme işlemi başarısız",
   "restore": "Geri yükle",
-  "manual_download": "İndirme başlamazsa manuel olarak indirin",
-  "local_backup": "Yerel yedek",
-  "cloud_backup": "Bulut yedeği",
+  "manual_download": "İndirme başlamazsa, manuel olarak indirmek için lütfen buraya tıklayın",
+  "local_backup": "Yerel yedekleme",
+  "cloud_backup": "Bulut yedeklemesi",
   "auto_backup": "Otomatik yedekleme",
   "data_migration": "Veri geçişi"
 }
