@@ -2633,4 +2633,79 @@ console.log("ok");`
     expect(writes).toContain("u1.user.js");
     expect(writes).toContain("u1.meta.json");
   });
+
+  it("本地编辑经 syncOnce 真实上云，且推进 digest 后下一轮不再重复推送", async () => {
+    // 端到端验证 #1：脚本已同步（云端 digest 与本地记录一致），随后本地编辑（updatetime 变新、
+    // 但云端文件未变故 digest 仍相等）。syncOnce 必须真正把新内容 CAS 覆盖上云；
+    // 且推进 digest/更新时间后，下一轮应回到稳态不再重复推送。
+    let seq = 0;
+    const cloud = new Map<string, { digest: string; content: string; updatetime: number }>([
+      ["u1.user.js", { digest: "cu1", content: "// v1", updatetime: 5 }],
+      ["u1.meta.json", { digest: "cm1", content: "{}", updatetime: 5 }],
+    ]);
+    const writes: string[] = [];
+    const cloudFs = createFs({
+      capabilities: { supportsAtomicCompareAndSwap: true },
+      list: vi.fn(async () =>
+        Array.from(cloud, ([name, f]) => ({
+          name,
+          path: name,
+          size: 1,
+          digest: f.digest,
+          createtime: 1,
+          updatetime: f.updatetime,
+        }))
+      ),
+      create: vi.fn(async (name: string, opts: any) => ({
+        write: vi.fn(async (content: string) => {
+          const existing = cloud.get(name);
+          if (opts?.expectedDigest !== undefined && (!existing || existing.digest !== opts.expectedDigest)) {
+            throw new FileSystemError({ provider: "webdav", message: "CAS conflict", status: 412, conflict: true });
+          }
+          cloud.set(name, {
+            digest: `d${++seq}`,
+            content,
+            updatetime: opts?.modifiedDate ?? existing?.updatetime ?? 0,
+          });
+          writes.push(name);
+        }),
+      })),
+    } as unknown as Partial<FileSystem>);
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// v2" }) },
+        all: vi.fn().mockResolvedValue([
+          {
+            uuid: "u1",
+            name: "t",
+            origin: "",
+            downloadUrl: "",
+            checkUpdateUrl: "",
+            updatetime: 20,
+            createtime: 1,
+            status: 1,
+            sort: 0,
+            metadata: {},
+          },
+        ]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+
+    // 本地编辑（updatetime 20 > 云端 5，digest 仍相等）→ 应真正把 // v2 覆盖上云
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, cloudFs);
+    expect(cloud.get("u1.user.js")!.content).toBe("// v2");
+
+    // 下一轮：digest 与更新时间已推进，稳态不再重复推送
+    writes.length = 0;
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, cloudFs);
+    expect(writes).toEqual([]);
+  });
 });
