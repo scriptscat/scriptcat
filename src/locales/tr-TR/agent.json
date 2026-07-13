@@ -108,7 +108,7 @@
   "chat_message_queued": "Sıraya alındı",
   "chat_cancel_message": "Göndermeyi iptal et",
   "permission_title": "Betik, Ajan konuşmasını kullanmak istiyor",
-  "permission_describe": "Bu betik, API token'larını tüketecek olan Ajan konuşma erişimi istiyor. Yalnızca güvenilir betiklere erişim izni verin.",
+  "permission_describe": "Bu betik, API tokenlerini tüketecek olan Ajan konuşma erişimi istiyor. Yalnızca güvenilir betiklere erişim izni verin.",
   "permission_content": "Ajan Konuşması",
   "opfs": "OPFS",
   "opfs_title": "OPFS Dosya Tarayıcısı",
