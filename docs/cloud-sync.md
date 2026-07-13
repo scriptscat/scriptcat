@@ -115,7 +115,7 @@ type FileDigestMap = {
 
 - 配置启用后触发的 `syncOnce()`。
 - 定时同步，Chrome alarm 名称为 `cloudSync`，周期为 60 分钟。
-- 非 sync 来源安装脚本后的 `scriptInstall()`。
+- 非 sync 来源安装脚本后的 `scriptInstall()`。push 失败时按 `PushScriptPartialError` 只保留失败文件的旧 digest，已成功文件推进到云端最新值。
 - 非 sync 来源删除脚本后的 `scriptsDelete()`。
 
 串行队列很重要：安装、删除和定时同步都可能写同一批云端文件，如果并发执行，会扩大覆盖和 digest 污染风险。
@@ -131,7 +131,7 @@ type FileDigestMap = {
 5. 对每个云端 uuid 和本地脚本做决策。
 6. 用 `Promise.allSettled()` 等待所有文件任务，保持 per-file best-effort。
 7. 收集成功任务返回的 digest patch。
-8. 对失败任务记录 `failedSyncUuids` 和 `preserveDigestFiles`。
+8. 对失败任务记录 `failedSyncUuids` 和 `preserveDigestFiles`；push 部分失败时（`PushScriptPartialError`），已成功写入云端的文件不保留旧 digest，让其推进到云端最新值，避免过期 digest 造成后续 CAS 永久冲突。
 9. 如果启用 `syncStatus`，合并本地状态、初始云端状态、写回前重新读取的最新云端状态。
 10. 调用 `updateFileDigest()`，成功文件推进 digest，失败文件保留旧 digest。
 
@@ -139,10 +139,12 @@ type FileDigestMap = {
 
 本地脚本存在、云端脚本也存在：
 
-- 如果 `.user.js` digest 与 `file_digest` 一致，跳过。
-- 如果本地脚本更新时间更晚，push 本地脚本。
+- 仅当 `.meta.json` 齐全、`.user.js` digest 与 `file_digest` 一致、且本地更新时间不比云端新时，跳过。
+- 如果本地脚本更新时间更晚，push 本地脚本——即便云端 digest 未变也要补偿 push，云端 digest 检测不到本地编辑。
 - 如果云端更新时间更晚，pull 云端脚本。
 - 如果云端缺 `.meta.json`，push 本地脚本补齐 meta。
+
+注意：云端 digest 已变且本地更新时间更晚（双端并发编辑）时，CAS provider 上 push 会以 conflict 失败并在后续轮次持续失败，直到云端出现更新（转为 pull）或人工介入。这是有意的保守语义——拒绝用本地版本静默覆盖他端改动——当前仅日志可见（`errorKind: "conflict"`）。
 
 本地脚本存在、云端只有 `.meta.json`：
 
@@ -173,8 +175,10 @@ type FileDigestMap = {
 
 写入参数由 `buildPushCreateOptions()` 决定：
 
-- 云端文件不存在且 provider 支持 `supportsCreateOnly`：传 `createOnly: true`。
-- 云端文件存在且 provider 支持 `supportsAtomicCompareAndSwap`，并且 `file_digest` 中有旧 digest：传 `expectedDigest`。
+- syncOnce 场景（`hasListSnapshot: true`，文件存在性来自本轮 `fs.list()`）：
+  - 云端文件存在且 provider 支持 `supportsAtomicCompareAndSwap`，并且 `file_digest` 中有旧 digest：传 `expectedDigest` 做 CAS 冲突检测。
+  - 云端文件确认不存在：传 `createOnly: true`（支持时）。此时不得回退 `file_digest`——本地残留 digest 必然过期，对不存在的文件做 If-Match 必然 412 且永不自愈。
+- scriptInstall 队列场景（无 list 快照）：`file_digest` 有记录（脚本已同步过）→ 传 `expectedDigest` 做 CAS 覆盖；无记录（首次上传）→ 传 `createOnly: true`。
 - provider 未声明能力时，只传 `modifiedDate`，保持旧覆盖语义。
 
 `pushScript()` 成功后返回本地计算的 md5 patch，仅用于 provider list 暂时看不到刚上传文件时兜底。它不能覆盖 provider 已返回的原生 digest。
