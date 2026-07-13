@@ -13,7 +13,7 @@
   "labels": "Etiketler",
   "search_regex": "Ara (Düzenli ifade destekler)",
   "clean_schedule": "Şu süreden eski günlükleri otomatik temizle",
-  "days_ago_logs": "Gün",
+  "days_ago_logs": "Gün önceki günlükler",
   "delete_completed": "Silme tamamlandı",
   "delete_current_logs": "Geçerli günlükleri sil",
   "clear_completed": "Temizleme tamamlandı",
