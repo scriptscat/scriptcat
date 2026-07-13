@@ -5,7 +5,7 @@
   "script_sync": "Betik Eşitleme",
   "sync_delete": "Silme İşlemlerini Eşitle",
   "sync_delete_desc": "Etkinleştirildiğinde, komut dosyası silindiğinde silinmiş olarak işaretlenir ve diğer cihazlar silme durumunu algıladıklarında komut dosyasını siler. Devre dışı bırakıldığında, komut dosyası hem yerel hem de bulut depolama alanından doğrudan silinir. Birden fazla cihaz varsa, komut dosyası tekrar tekrar senkronize edilebilir.",
-  "enable_script_sync_to": "Betik Eşitlemeyi Şuraya Etkinleştir:",
+  "enable_script_sync_to": "Betik Eşitlemeyi Etkinleştir:",
   "never": "Asla",
   "6_hours": "6 Saat",
   "12_hours": "12 Saat",
