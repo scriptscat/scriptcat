@@ -259,6 +259,32 @@ describe("SettingsPane 网站匹配/排除", () => {
     fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
     expect(resetMatch).toHaveBeenCalledWith("u1", undefined);
   });
+
+  it("重置匹配后应恢复脚本自带规则而非清空列表", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://user.com/*");
+    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[0]);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    // 用户添加的 user.com 被清除，脚本自带的 script.com 应保留并标记为「脚本」
+    expect(screen.getByText("*://script.com/*")).toBeInTheDocument();
+    expect(screen.queryByText("*://user.com/*")).toBeNull();
+    expect(screen.getByText(t("editor:from_script"))).toBeInTheDocument();
+  });
+
+  it("重置排除后应恢复脚本自带规则而非清空列表", async () => {
+    fetchScript.mockResolvedValue({
+      ...sampleScript(),
+      metadata: { ...sampleScript().metadata, exclude: ["*://ads.script.com/*"] },
+      selfMetadata: { ...sampleScript().selfMetadata, exclude: ["*://ads.script.com/*", "*://exclude.com/*"] },
+    });
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://exclude.com/*");
+    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[1]);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    // 用户添加的 exclude.com 被清除，脚本自带的 ads.script.com 应保留
+    expect(screen.getByText("*://ads.script.com/*")).toBeInTheDocument();
+    expect(screen.queryByText("*://exclude.com/*")).toBeNull();
+  });
 });
 
 describe("SettingsPane 授权管理(CORS)", () => {

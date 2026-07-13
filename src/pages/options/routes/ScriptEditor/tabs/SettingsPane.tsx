@@ -234,14 +234,25 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
 
   // ===== 匹配 / 排除 =====
   const setMatchList = (kind: "match" | "exclude", next: string[] | undefined) => {
+    // next 为 undefined 表示重置：删除用户覆盖，生效列表回落到脚本自带的 metadata（与后端 selfMetadataUpdate 一致）
+    const metaList = kind === "match" ? metaMatch : metaExclude;
     if (kind === "match") {
       void scriptClient.resetMatch(uuid, next);
-      setMatches(next ?? []);
+      setMatches(next ?? metaList);
     } else {
       void scriptClient.resetExclude(uuid, next);
-      setExcludes(next ?? []);
+      setExcludes(next ?? metaList);
     }
-    patchSelf({ [kind]: next ?? [] });
+    setScript((prev) => {
+      if (!prev) return prev;
+      const selfMetadata = { ...prev.selfMetadata };
+      if (next === undefined) {
+        delete selfMetadata[kind];
+      } else {
+        selfMetadata[kind] = next;
+      }
+      return { ...prev, selfMetadata };
+    });
   };
   const openBulkMatch = (kind: "match" | "exclude") => {
     setBulkMatchValue("");
