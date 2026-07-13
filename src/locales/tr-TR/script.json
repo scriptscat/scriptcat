@@ -5,7 +5,7 @@
   "create_script": "Betik Oluştur",
   "installed_scripts": "Yüklü Betikler",
   "nav_scripts": "Betikler",
-  "subscribe": "Abone Ol",
+  "subscribe": "Abonelik",
   "subscribe_scripts_count": "{{count}} betik",
   "enter_subscribe_name": "Lütfen abonelik adını girin",
   "subscribe_url": "Abonelik URL'si",
