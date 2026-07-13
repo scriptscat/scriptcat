@@ -14,14 +14,13 @@ overrides:
   ajv@8.18.0>fast-uri: 3.1.2
   express@4.22.1>qs: 6.15.2
   body-parser@1.20.4>qs: 6.15.2
-  fast-xml-parser@5.7.0>fast-xml-builder: 1.1.7
   vitest@4.1.9>vite: 7.3.6
   vite@7.3.6>esbuild: 0.28.1
   '@eslint/eslintrc@3.3.1>js-yaml': 4.2.0
   cosmiconfig@9.0.0>js-yaml: 4.2.0
   resolve-protobuf-schema@2.1.0>protocol-buffers-schema: 3.6.1
   webpack-bundle-analyzer@4.10.2>ws: 7.5.11
-  webpack-dev-server@5.2.5>sockjs@0.3.24: github:sockjs/sockjs-node#c239289d8cd85647aff064337d81073f0e4e080a
+  webpack-dev-server@5.2.5>sockjs@0.3.24: https://codeload.github.com/sockjs/sockjs-node/tar.gz/c239289d8cd85647aff064337d81073f0e4e080a
 
 patchedDependencies:
   happy-dom:
@@ -4354,8 +4353,8 @@ packages:
     resolution: {integrity: sha512-94Bdh3cC2PKrbgSOUqTiGPWVZeSiXfKOVZNJniWoqrWrRkB1CJzBU3NEbiTsPcYy1lDsANA/THzS+9WBiy5nfQ==}
     engines: {node: '>= 10'}
 
-  sockjs@git+https://git@github.com:sockjs/sockjs-node.git#c239289d8cd85647aff064337d81073f0e4e080a:
-    resolution: {commit: c239289d8cd85647aff064337d81073f0e4e080a, repo: git@github.com:sockjs/sockjs-node.git, type: git}
+  sockjs@https://codeload.github.com/sockjs/sockjs-node/tar.gz/c239289d8cd85647aff064337d81073f0e4e080a:
+    resolution: {gitHosted: true, integrity: sha512-ouaKPfY8XDmKQXrYbvNmqPYIr8KyYkqUznY0/Lwb09qND5cIgKQej3n931To1TpVC5sTX9jVkwh3c635yyo/8w==, tarball: https://codeload.github.com/sockjs/sockjs-node/tar.gz/c239289d8cd85647aff064337d81073f0e4e080a}
     version: 0.4.0-rc.1
     engines: {node: '>=18.0.0'}
 
@@ -9589,9 +9588,9 @@ snapshots:
       mrmime: 2.0.0
       totalist: 3.0.1
 
-  sockjs@git+https://git@github.com:sockjs/sockjs-node.git#c239289d8cd85647aff064337d81073f0e4e080a:
+  sockjs@https://codeload.github.com/sockjs/sockjs-node/tar.gz/c239289d8cd85647aff064337d81073f0e4e080a:
     dependencies:
-      debug: 4.4.1
+      debug: 4.4.3
       faye-websocket: 0.11.4
     transitivePeerDependencies:
       - supports-color
@@ -9607,7 +9606,7 @@ snapshots:
 
   spdy-transport@3.0.0:
     dependencies:
-      debug: 4.4.1
+      debug: 4.4.3
       detect-node: 2.1.0
       hpack.js: 2.1.6
       obuf: 1.1.2
@@ -10080,7 +10079,7 @@ snapshots:
       schema-utils: 4.3.2
       selfsigned: 5.5.0
       serve-index: 1.9.2
-      sockjs: git+https://git@github.com:sockjs/sockjs-node.git#c239289d8cd85647aff064337d81073f0e4e080a
+      sockjs: https://codeload.github.com/sockjs/sockjs-node/tar.gz/c239289d8cd85647aff064337d81073f0e4e080a
       spdy: 4.0.2
       webpack-dev-middleware: 7.4.5(tslib@2.8.1)
       ws: 8.21.0
