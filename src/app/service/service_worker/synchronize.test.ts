@@ -1269,6 +1269,160 @@ console.log("ok");`
     );
   });
 
+  it("CAS 冲突时云端内容是本机上次所写则重挂基准重推，收敛自我 412", async () => {
+    const script = {
+      uuid: "sh-uuid",
+      name: "sh",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 20,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+    const written: { name: string; content: string }[] = [];
+    const conflictError = new FileSystemError({
+      provider: "webdav",
+      message: "precondition failed",
+      status: 412,
+      conflict: true,
+    });
+    const fs = createFs({
+      capabilities: { supportsAtomicCompareAndSwap: true },
+      // 首次用过期基准 d0 做 If-Match → 412（自己上次写入把云端推到了 e1，但 digest 记账失败）
+      create: vi.fn().mockImplementation(async (name: string, opts: { expectedDigest?: string }) => {
+        if (name === "sh-uuid.user.js" && opts?.expectedDigest === "d0-stale") {
+          throw conflictError;
+        }
+        return {
+          write: vi.fn().mockImplementation(async (content: string) => {
+            written.push({ name, content });
+          }),
+        };
+      }),
+      list: vi.fn().mockResolvedValue([
+        { name: "sh-uuid.user.js", path: "sh-uuid.user.js", size: 1, digest: "e1-cloud", createtime: 1, updatetime: 5 },
+        {
+          name: "sh-uuid.meta.json",
+          path: "sh-uuid.meta.json",
+          size: 1,
+          digest: "m1-cloud",
+          createtime: 1,
+          updatetime: 5,
+        },
+      ]),
+      open: vi.fn().mockImplementation(async (fileInfo: { name: string }) => ({
+        read: vi.fn().mockResolvedValue(fileInfo.name === "sh-uuid.user.js" ? "// cloud-edit-1" : "{}"),
+      })),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// local-edit-2" }) },
+        all: vi.fn().mockResolvedValue([script]),
+      } as any
+    );
+    vi.spyOn(service.logger, "error").mockImplementation(() => undefined as any);
+    // 本机上次成功写入云端的内容是 edit-1（digest 记账失败 → file_digest 仍停在 d0）
+    await (service as any).storage.set("push_content_md5", {
+      "sh-uuid.user.js": md5OfText("// cloud-edit-1"),
+    });
+
+    const result = await service.pushScript(fs as any, script as any, {
+      fileDigestMap: { "sh-uuid.user.js": "d0-stale", "sh-uuid.meta.json": "m0-stale" },
+    });
+
+    // 首次以过期基准 CAS
+    expect(fs.create).toHaveBeenCalledWith("sh-uuid.user.js", expect.objectContaining({ expectedDigest: "d0-stale" }));
+    // 识别为自我所写后以云端当前 digest 重挂基准重推
+    expect(fs.create).toHaveBeenCalledWith("sh-uuid.user.js", expect.objectContaining({ expectedDigest: "e1-cloud" }));
+    // 重推的是本机当前内容 edit-2
+    expect(written).toContainEqual({ name: "sh-uuid.user.js", content: "// local-edit-2" });
+    expect(result["sh-uuid.user.js"]).toBe(md5OfText("// local-edit-2"));
+  });
+
+  it("CAS 冲突时云端内容非本机所写则维持停在冲突，不重推覆盖他端", async () => {
+    const script = {
+      uuid: "cf-uuid",
+      name: "cf",
+      origin: "origin",
+      downloadUrl: "download-url",
+      checkUpdateUrl: "check-update-url",
+      updatetime: 20,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
+    const conflictError = new FileSystemError({
+      provider: "webdav",
+      message: "precondition failed",
+      status: 412,
+      conflict: true,
+    });
+    const create = vi.fn().mockImplementation(async (name: string, opts: { expectedDigest?: string }) => {
+      if (name === "cf-uuid.user.js" && opts?.expectedDigest === "d0-stale") {
+        throw conflictError;
+      }
+      return { write: vi.fn().mockResolvedValue(undefined) };
+    });
+    const fs = createFs({
+      capabilities: { supportsAtomicCompareAndSwap: true },
+      create,
+      list: vi.fn().mockResolvedValue([
+        { name: "cf-uuid.user.js", path: "cf-uuid.user.js", size: 1, digest: "eB-cloud", createtime: 1, updatetime: 9 },
+        {
+          name: "cf-uuid.meta.json",
+          path: "cf-uuid.meta.json",
+          size: 1,
+          digest: "mB-cloud",
+          createtime: 1,
+          updatetime: 9,
+        },
+      ]),
+      open: vi.fn().mockImplementation(async () => ({
+        read: vi.fn().mockResolvedValue("// other-device"),
+      })),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// local" }) },
+        all: vi.fn().mockResolvedValue([script]),
+      } as any
+    );
+    vi.spyOn(service.logger, "error").mockImplementation(() => undefined as any);
+    await (service as any).storage.set("push_content_md5", {
+      "cf-uuid.user.js": md5OfText("// my-previous-push"),
+    });
+
+    await expect(
+      service.pushScript(fs as any, script as any, {
+        fileDigestMap: { "cf-uuid.user.js": "d0-stale", "cf-uuid.meta.json": "m0-stale" },
+      })
+    ).rejects.toThrow();
+
+    // 云端内容不是本机所写 → 不应以其它 digest 重推覆盖他端
+    const userDigests = create.mock.calls
+      .filter((c: any[]) => c[0] === "cf-uuid.user.js")
+      .map((c: any[]) => c[1]?.expectedDigest);
+    expect(userDigests).toEqual(["d0-stale"]);
+  });
+
   it("push 云端缺失文件时应当使用 createOnly，避免覆盖并发新增", async () => {
     const script = {
       uuid: "new-uuid",
@@ -2372,11 +2526,10 @@ console.log("ok");`
     });
     const realUpdateDigest = service.updateFileDigest.bind(service);
     vi.spyOn(service, "updateFileDigest").mockImplementation(async (fs) => {
-      if (fs === installFs) {
-        order.push("install:digest");
-        return;
-      }
       await realUpdateDigest(fs);
+    });
+    vi.spyOn(service, "updateFileDigestForUuids").mockImplementation(async () => {
+      order.push("install:digest");
     });
 
     const syncPromise = service.syncOnce(syncConfig, syncFs);
@@ -2451,6 +2604,85 @@ console.log("ok");`
     });
   });
 
+  it("scriptInstall 不应把他端已更新但本机未 pull 的文件标成已同步（避免漏 pull）", async () => {
+    const installFs = createFs({
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "install-uuid.user.js",
+          path: "install-uuid.user.js",
+          size: 1,
+          digest: "install-user-etag",
+          createtime: 1,
+          updatetime: 1,
+        },
+        {
+          name: "install-uuid.meta.json",
+          path: "install-uuid.meta.json",
+          size: 1,
+          digest: "install-meta-etag",
+          createtime: 1,
+          updatetime: 1,
+        },
+        // 他端已把 other-uuid 更新到 d2/m2，本机尚未 pull
+        {
+          name: "other-uuid.user.js",
+          path: "other-uuid.user.js",
+          size: 1,
+          digest: "other-user-d2",
+          createtime: 1,
+          updatetime: 2,
+        },
+        {
+          name: "other-uuid.meta.json",
+          path: "other-uuid.meta.json",
+          size: 1,
+          digest: "other-meta-m2",
+          createtime: 1,
+          updatetime: 2,
+        },
+      ]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        getCloudSync: vi.fn().mockResolvedValue({ ...syncConfig, enable: true }),
+      } as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+    vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(installFs);
+    vi.spyOn(service, "pushScript").mockResolvedValue({
+      "install-uuid.user.js": "install-user-md5",
+      "install-uuid.meta.json": "install-meta-md5",
+    });
+    // 本机上次同步 other-uuid 记录的是旧 d1/m1
+    await (service as any).storage.set("file_digest", {
+      "other-uuid.user.js": "other-user-d1",
+      "other-uuid.meta.json": "other-meta-m1",
+    });
+
+    await service.scriptInstall({
+      script: { uuid: "install-uuid", name: "install" } as any,
+      upsertBy: "user",
+    } as any);
+    await stackAsyncTask("cloud_sync_queue", async () => "barrier");
+
+    const digest = (await (service as any).storage.get("file_digest")) as Record<string, string>;
+    // 本次推送的文件应记录云端原生 digest
+    expect(digest["install-uuid.user.js"]).toBe("install-user-etag");
+    expect(digest["install-uuid.meta.json"]).toBe("install-meta-etag");
+    // 他端未 pull 的更新不能被标成已同步，否则下轮 syncOnce 会早退漏 pull
+    expect(digest["other-uuid.user.js"]).toBe("other-user-d1");
+    expect(digest["other-uuid.meta.json"]).toBe("other-meta-m1");
+  });
+
   it("scriptsDelete enters cloud_sync queue and updates digest after deleting", async () => {
     let releaseSync!: () => void;
     const syncGate = new Promise<void>((resolve) => {
@@ -2495,11 +2727,10 @@ console.log("ok");`
     });
     const realUpdateDigest = service.updateFileDigest.bind(service);
     vi.spyOn(service, "updateFileDigest").mockImplementation(async (fs) => {
-      if (fs === deleteFs) {
-        order.push("delete:digest");
-        return;
-      }
       await realUpdateDigest(fs);
+    });
+    vi.spyOn(service, "updateFileDigestForUuids").mockImplementation(async () => {
+      order.push("delete:digest");
     });
 
     const syncPromise = service.syncOnce(syncConfig, syncFs);

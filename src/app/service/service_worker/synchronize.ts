@@ -85,6 +85,8 @@ type PushScriptOptions = {
   metaFile?: FileInfo;
   // syncOnce 场景为 true：scriptFile/metaFile 反映本轮 fs.list() 快照，undefined 表示已确认云端不存在
   hasListSnapshot?: boolean;
+  // 自我 412 收敛的重推标记，避免二次冲突时无限重试
+  selfHealRetried?: boolean;
 };
 
 type SyncTask = {
@@ -732,6 +734,8 @@ export class SynchronizeService {
     knownFileDigestMap: FileDigestMap = {},
     preserveFileNames = new Set<string>()
   ) {
+    // 先落库本次成功推送内容的 md5（独立于易失的 fs.list），供 CAS 冲突时识别云端是否为本机所写
+    await this.recordPushedContentMd5(knownFileDigestMap);
     const oldFileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
     const newList = await fs.list();
     const newFileDigestMap: FileDigestMap = {};
@@ -758,6 +762,41 @@ export class SynchronizeService {
       }
     });
     await this.storage.set("file_digest", newFileDigestMap);
+    return;
+  }
+
+  // 队列路径（scriptInstall/scriptsDelete）只推送/删除了指定 uuid 的文件，只能更新这些文件的 digest 记录。
+  // 不能像 syncOnce 那样全量盖章：syncOnce 已逐文件对账整份云端列表，而队列路径没有——全量盖章会把
+  // 他端已更新但本机尚未 pull 的文件也标成已同步，导致下轮 syncOnce 早退漏 pull。
+  async updateFileDigestForUuids(
+    fs: FileSystem,
+    uuids: string[],
+    knownFileDigestMap: FileDigestMap = {},
+    preserveFileNames = new Set<string>()
+  ) {
+    // 先落库本次成功推送内容的 md5（独立于易失的 fs.list），供 CAS 冲突时识别云端是否为本机所写
+    await this.recordPushedContentMd5(knownFileDigestMap);
+    const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
+    const targetFiles = new Set(uuids.flatMap((uuid) => [`${uuid}.user.js`, `${uuid}.meta.json`]));
+    const newList = await fs.list();
+    const listedDigest = new Map(newList.map((file) => [file.name, file.digest]));
+    for (const name of targetFiles) {
+      if (preserveFileNames.has(name)) {
+        // 失败文件保留旧 digest，下轮重试
+        continue;
+      }
+      if (listedDigest.has(name)) {
+        // 云端仍在：记录原生 digest（各后端 etag/content_hash/md5 格式不一，须用 list 的原生值而非本地 md5）
+        fileDigestMap[name] = listedDigest.get(name)!;
+      } else if (name in knownFileDigestMap) {
+        // 云端列表暂时漏掉刚上传的文件（最终一致性延迟）：用本地 md5 兜底
+        fileDigestMap[name] = knownFileDigestMap[name];
+      } else {
+        // 云端已不存在（删除）：移除记录
+        delete fileDigestMap[name];
+      }
+    }
+    await this.storage.set("file_digest", fileDigestMap);
     return;
   }
 
@@ -857,9 +896,78 @@ export class SynchronizeService {
         [metaFilename]: md5OfText(metaJson),
       };
     } catch (e) {
+      // 自我 412 收敛：本地记录的云端 digest 记账失败（上次 fs.list 抛错 / SW 被杀）后再次编辑，
+      // 会拿过期 digest 对「自己上次写入的云端内容」做 If-Match，陷入永久 412。识别到冲突文件的
+      // 云端内容正是本机上次成功写入时，以云端当前 digest 为新基准重推一次收敛；真·他端并发编辑
+      // （内容不符）则维持停在冲突，绝不覆盖他端。
+      if (!opts.selfHealRetried && !writtenFiles.includes(filename) && this.classifySyncError(e) === "conflict") {
+        const rebased = await this.rebaseSelfWrittenConflict(fs, script, opts.fileDigestMap);
+        if (rebased) {
+          logger.warn("self-heal 412 conflict by rebasing on own last push");
+          return await this.pushScript(fs, script, {
+            fileDigestMap: rebased,
+            hasListSnapshot: false,
+            selfHealRetried: true,
+          });
+        }
+      }
       logger.error("push script error", Logger.E(e));
       throw new PushScriptPartialError(e, writtenFiles);
     }
+  }
+
+  // CAS 冲突时判断冲突文件的云端内容是否为本机上次成功写入：
+  // 是 → 返回以云端当前原生 digest 为新基准的 fileDigestMap（供重推）；否 → 返回 null（真·他端并发编辑）。
+  private async rebaseSelfWrittenConflict(
+    fs: FileSystem,
+    script: PushScriptParam,
+    fileDigestMap: FileDigestMap = {}
+  ): Promise<FileDigestMap | null> {
+    const filename = `${script.uuid}.user.js`;
+    const metaFilename = `${script.uuid}.meta.json`;
+    try {
+      const pushedContentMd5 = ((await this.storage.get("push_content_md5")) as FileDigestMap) || {};
+      const recordedMd5 = pushedContentMd5[filename];
+      if (!recordedMd5) {
+        return null;
+      }
+      const list = await fs.list();
+      const cloudFiles = new Map(list.map((file) => [file.name, file]));
+      const cloudScript = cloudFiles.get(filename);
+      if (!cloudScript) {
+        return null;
+      }
+      const cloudCode = (await fs.open(cloudScript).then((r) => r.read("string"))) as string;
+      if (md5OfText(cloudCode) !== recordedMd5) {
+        // 云端内容不是本机上次写入 → 真·他端并发编辑，维持停在冲突
+        return null;
+      }
+      const rebased: FileDigestMap = { ...fileDigestMap };
+      for (const name of [filename, metaFilename]) {
+        const info = cloudFiles.get(name);
+        if (info) {
+          rebased[name] = info.digest;
+        }
+      }
+      return rebased;
+    } catch (e) {
+      this.logger.warn("rebase self-written conflict failed", Logger.E(e), { uuid: script.uuid });
+      return null;
+    }
+  }
+
+  // 落库本次成功推送内容的 md5（键为文件名），供 CAS 冲突时识别云端是否为本机所写。
+  // 在 updateFileDigest* 内部、fs.list 之前调用，确保即便随后 list 抛错也已持久化。
+  private async recordPushedContentMd5(pushedMd5Map: FileDigestMap) {
+    const names = Object.keys(pushedMd5Map);
+    if (!names.length) {
+      return;
+    }
+    const stored = ((await this.storage.get("push_content_md5")) as FileDigestMap) || {};
+    for (const name of names) {
+      stored[name] = pushedMd5Map[name];
+    }
+    await this.storage.set("push_content_md5", stored);
   }
 
   private buildPushCreateOptions(
@@ -996,7 +1104,7 @@ export class SynchronizeService {
         const script = params.script;
         try {
           const pushedFileDigestMap = await this.pushScript(fs, script, { fileDigestMap });
-          await this.updateFileDigest(fs, pushedFileDigestMap);
+          await this.updateFileDigestForUuids(fs, [script.uuid], pushedFileDigestMap);
         } catch (e) {
           // 部分成功（如 .user.js 成功、.meta.json 失败）时，已写成功文件的云端 digest 已更新，
           // 必须记录其最新 digest、只保留失败文件的旧值，否则下一轮同步会拿过期 digest 做 CAS 永久 412。
@@ -1006,7 +1114,7 @@ export class SynchronizeService {
             const preserve = new Set(
               [`${script.uuid}.user.js`, `${script.uuid}.meta.json`].filter((name) => !writtenFiles.includes(name))
             );
-            await this.updateFileDigest(fs, {}, preserve);
+            await this.updateFileDigestForUuids(fs, [script.uuid], {}, preserve);
           }
           throw e;
         }
@@ -1043,7 +1151,12 @@ export class SynchronizeService {
             });
           }
         }
-        await this.updateFileDigest(fs, {}, preserveDigestFiles);
+        await this.updateFileDigestForUuids(
+          fs,
+          items.map((item) => item.uuid),
+          {},
+          preserveDigestFiles
+        );
       }).catch((e) => {
         this.logger.error("delete cloud script error", Logger.E(e));
       });
