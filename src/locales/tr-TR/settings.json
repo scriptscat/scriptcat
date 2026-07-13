@@ -49,7 +49,7 @@
   "blacklist_pages": "Kara Liste Sayfası",
   "blacklist_placeholder": "ScriptCat'in aşağıdaki sayfalarda betik çalıştırmasını engelleyin, birden fazla sayfayı satır sonuyla ayırın, örneğin:\nhttps://*.example.com",
   "expression_format_error": "Koşul ifadesi biçim hatası",
-  "migration_confirm_message": "Depolama motoru geçişini yeniden denemek mevcut verileri değiştirecektir, lütfen onaylayın. Ayrıntılar için bkz.: https://ntılar için bkz:https://docs.scriptcat.org/docs/change/v0.17/.",
+  "migration_confirm_message": "Depolama motoru geçişini yeniden denemek mevcut verileri değiştirecektir, lütfen onaylayın. Ayrıntılar için bkz.: https://docs.scriptcat.org/docs/change/v0.17/.",
   "retry_migration": "Depolama Motoru Geçişini Yeniden Dene",
   "sync_status": "Eşitleme Durumu",
   "interface_settings": "Arayüz",
