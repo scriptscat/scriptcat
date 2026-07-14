@@ -7,10 +7,12 @@ import { OneDriveFileReader, OneDriveFileWriter } from "./rw";
 import { quoteETag } from "./utils";
 
 export default class OneDriveFileSystem implements FileSystem {
+  // Graph 实测三项条件原语都生效，但同步层统一走无条件读写 + 最终一致（#1504 结论），
+  // 避免同一套同步逻辑在不同 provider 上行为分裂；待按 endpoint 探测能力的后续 PR 再回开
   readonly capabilities = {
-    supportsAtomicCompareAndSwap: true,
-    supportsCreateOnly: true,
-    supportsConditionalDelete: true,
+    supportsAtomicCompareAndSwap: false,
+    supportsCreateOnly: false,
+    supportsConditionalDelete: false,
   };
 
   accessToken?: string;

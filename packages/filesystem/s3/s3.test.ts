@@ -48,11 +48,11 @@ describe("S3FileSystem", () => {
     fs = new S3FileSystem("test-bucket", mockClient);
   });
 
-  it("应当声明支持原子条件写入和条件删除能力", () => {
+  it("不应声明条件写删能力：MinIO 实测忽略 If-None-Match:*，DeleteObject 无条件删除语义", () => {
     expect((fs as any).capabilities).toMatchObject({
-      supportsAtomicCompareAndSwap: true,
-      supportsCreateOnly: true,
-      supportsConditionalDelete: true,
+      supportsAtomicCompareAndSwap: false,
+      supportsCreateOnly: false,
+      supportsConditionalDelete: false,
     });
   });
 

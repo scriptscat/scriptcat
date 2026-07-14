@@ -28,13 +28,13 @@ describe("OneDriveFileSystem", () => {
     vi.stubGlobal("fetch", originalFetch);
   });
 
-  it("应当声明支持原子条件写入和条件删除能力", () => {
+  it("不应声明条件写删能力：与其余 provider 一致回落无条件读写，避免同步层行为分裂", () => {
     const fs = new OneDriveFileSystem("/", "token");
 
     expect((fs as any).capabilities).toMatchObject({
-      supportsAtomicCompareAndSwap: true,
-      supportsCreateOnly: true,
-      supportsConditionalDelete: true,
+      supportsAtomicCompareAndSwap: false,
+      supportsCreateOnly: false,
+      supportsConditionalDelete: false,
     });
   });
 

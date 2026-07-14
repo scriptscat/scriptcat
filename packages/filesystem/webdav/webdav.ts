@@ -27,10 +27,13 @@ const initWebDAVPatch = () => {
 };
 
 export default class WebDAVFileSystem implements FileSystem {
+  // 真实 WebDAV 服务端对条件头的兑现极不一致且方向相反（坚果云对正确 etag 的 If-Match 也恒 412，
+  // Alist 类完全忽略 If-Match/If-None-Match），任何一项都不能依赖，保守声明为不支持，
+  // 回落无条件读写 + 最终一致（#1504 实测结论）
   readonly capabilities = {
-    supportsAtomicCompareAndSwap: true,
-    supportsCreateOnly: true,
-    supportsConditionalDelete: true,
+    supportsAtomicCompareAndSwap: false,
+    supportsCreateOnly: false,
+    supportsConditionalDelete: false,
   };
 
   client: WebDAVClient;

@@ -54,10 +54,12 @@ function parseListObjectsV2(xml: string): ListObjectsV2Result {
  * 使用原生 fetch + AWS Signature V4 签名，不依赖 @aws-sdk/client-s3
  */
 export default class S3FileSystem implements FileSystem {
+  // S3 兼容服务端对条件写删的支持因实现/版本而异（MinIO 实测忽略 If-None-Match:*，
+  // DeleteObject 本无 If-Match 语义），统一保守声明为不支持，回落无条件读写 + 最终一致（#1504 实测结论）
   readonly capabilities = {
-    supportsAtomicCompareAndSwap: true,
-    supportsCreateOnly: true,
-    supportsConditionalDelete: true,
+    supportsAtomicCompareAndSwap: false,
+    supportsCreateOnly: false,
+    supportsConditionalDelete: false,
   };
 
   client: S3Client;
