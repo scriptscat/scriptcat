@@ -26,6 +26,9 @@ patchedDependencies:
   happy-dom:
     hash: 86b1a6f00877afcb6d67373ff776e646c72e69fa38fa94f6bde86e7ae9b300da
     path: patches/happy-dom.patch
+  uri-js@4.4.1:
+    hash: afaa23653b7f5bb89d7e0e8dd00b95bf4ab5d556847cf04b92226540e4d67aa4
+    path: patches/uri-js@4.4.1.patch
 
 importers:
 
@@ -6913,7 +6916,7 @@ snapshots:
       fast-deep-equal: 3.1.3
       fast-json-stable-stringify: 2.1.0
       json-schema-traverse: 0.4.1
-      uri-js: 4.4.1
+      uri-js: 4.4.1(patch_hash=afaa23653b7f5bb89d7e0e8dd00b95bf4ab5d556847cf04b92226540e4d67aa4)
 
   ajv@8.18.0:
     dependencies:
@@ -9905,7 +9908,7 @@ snapshots:
       escalade: 3.2.0
       picocolors: 1.1.1
 
-  uri-js@4.4.1:
+  uri-js@4.4.1(patch_hash=afaa23653b7f5bb89d7e0e8dd00b95bf4ab5d556847cf04b92226540e4d67aa4):
     dependencies:
       punycode: 2.3.1
 

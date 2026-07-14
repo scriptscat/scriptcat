@@ -9,61 +9,88 @@ import { autoApprovePermissions, installScriptByCode } from "./utils";
 const MOCK_CONNECT_HOST = "127.0.0.1";
 const CSP_TARGET_HOST = "content-security-policy.test";
 
+const pathToExtension = path.resolve(__dirname, "../dist/ext");
+const chromeArgs = [
+  `--disable-extensions-except=${pathToExtension}`,
+  `--load-extension=${pathToExtension}`,
+  `--host-resolver-rules=MAP ${CSP_TARGET_HOST} ${MOCK_CONNECT_HOST},EXCLUDE localhost`,
+  "--disable-gpu",
+];
+
+// CI（GitHub Actions）跑在非 root 用户下不会自动应用 --no-sandbox，关掉沙箱能省下每次
+// launchPersistentContext 的 sandbox/fork 开销；本地开发机上仍保留沙箱隔离。
+const chromiumSandbox = !process.env.CI;
+
 type GMApiMockServer = {
   origin: string;
   cspOrigin: string;
   close: () => Promise<void>;
 };
 
-const test = base.extend<{
-  context: BrowserContext;
-  extensionId: string;
-}>({
-  // eslint-disable-next-line no-empty-pattern
-  context: async ({}, use) => {
-    const pathToExtension = path.resolve(__dirname, "../dist/ext");
-    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "pw-ext-"));
-    const chromeArgs = [
-      `--disable-extensions-except=${pathToExtension}`,
-      `--load-extension=${pathToExtension}`,
-      `--host-resolver-rules=MAP ${CSP_TARGET_HOST} ${MOCK_CONNECT_HOST},EXCLUDE localhost`,
-    ];
+const test = base.extend<
+  {
+    context: BrowserContext;
+    extensionId: string;
+  },
+  { gmApiProfileDir: string }
+>({
+  // Worker 级 fixture：启用 user scripts 权限的 Phase 1（含 chrome://extensions 导航 +
+  // developerPrivate 调用）每个 worker 只做一次，而不是每个 test 都重新做一遍。
+  // 之前每个 test 都要完整走两次 launchPersistentContext，CI 下 workers 并行时
+  // 大量并发 Chrome 启动会互相抢占 CPU，把扩展 service worker 的启动拖到超过 30s 超时。
+  gmApiProfileDir: [
+    // eslint-disable-next-line no-empty-pattern
+    async ({}, use) => {
+      const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "pw-ext-profile-"));
 
-    // Phase 1: Enable user scripts permission
-    const ctx1 = await chromium.launchPersistentContext(userDataDir, {
-      headless: false,
-      args: ["--headless=new", ...chromeArgs],
-    });
-    let [bg] = ctx1.serviceWorkers();
-    if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 30_000 });
-    const extensionId = bg.url().split("/")[2];
-    const extPage = await ctx1.newPage();
-    await extPage.goto("chrome://extensions/");
-    await extPage.waitForLoadState("domcontentloaded");
-    await extPage.waitForFunction(() => !!(chrome as any).developerPrivate, { timeout: 10_000 });
-    await extPage.evaluate(async (id) => {
-      await (chrome as any).developerPrivate.updateExtensionConfiguration({
-        extensionId: id,
-        userScriptsAccess: true,
+      const ctx1 = await chromium.launchPersistentContext(userDataDir, {
+        headless: false,
+        args: ["--headless=new", ...chromeArgs],
+        timeout: 60_000,
+        chromiumSandbox,
       });
-    }, extensionId);
-    await extPage.close();
-    await ctx1.close();
+      let [bg] = ctx1.serviceWorkers();
+      if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 14_000 });
+      const extensionId = bg.url().split("/")[2];
+      const extPage = await ctx1.newPage();
+      await extPage.goto("chrome://extensions/");
+      await extPage.waitForLoadState("domcontentloaded");
+      await extPage.waitForFunction(() => !!(chrome as any).developerPrivate, { timeout: 10_000 });
+      await extPage.evaluate(async (id) => {
+        await (chrome as any).developerPrivate.updateExtensionConfiguration({
+          extensionId: id,
+          userScriptsAccess: true,
+        });
+      }, extensionId);
+      await extPage.close();
+      await ctx1.close();
 
-    // Phase 2: Relaunch with user scripts enabled
+      await use(userDataDir);
+      fs.rmSync(userDataDir, { recursive: true, force: true });
+    },
+    { scope: "worker" },
+  ],
+  context: async ({ gmApiProfileDir }, use) => {
+    // 每个测试使用从预配置 profile 拷贝出的独立目录，避免脚本/storage 状态泄漏到后续测试，
+    // 同时跳过每个测试都重新做一次的 Phase 1 权限配置。
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "pw-ext-test-"));
+    fs.cpSync(gmApiProfileDir, userDataDir, { recursive: true });
+
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
       args: ["--headless=new", ...chromeArgs],
+      timeout: 60_000,
+      chromiumSandbox,
     });
     const [sw] = context.serviceWorkers();
-    if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
+    if (!sw) await context.waitForEvent("serviceworker", { timeout: 14_000 });
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
   },
   extensionId: async ({ context }, use) => {
     let [background] = context.serviceWorkers();
-    if (!background) background = await context.waitForEvent("serviceworker");
+    if (!background) background = await context.waitForEvent("serviceworker", { timeout: 14_000 });
     const extensionId = background.url().split("/")[2];
     const initPage = await context.newPage();
     await initPage.goto(`chrome-extension://${extensionId}/src/options.html`);
