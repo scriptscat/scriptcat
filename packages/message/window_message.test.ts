@@ -132,6 +132,92 @@ describe("ServiceWorkerMessageSend", () => {
   });
 });
 
+describe("ServiceWorkerMessageSend 目标客户端解析", () => {
+  const offscreenUrl = "chrome-extension://mock-extension-id/src/offscreen.html";
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("offscreen 客户端尚未出现时 sendMessage 应等待客户端出现后再发送", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(chrome.runtime, "getURL").mockReturnValue(offscreenUrl);
+
+    const swSend = new ServiceWorkerMessageSend();
+    const clientPostMessage = vi.fn((body: WindowMessageBody) => {
+      // offscreen 收到请求后回复响应
+      swSend.messageHandle({ messageId: body.messageId, type: "respMessage", data: { code: 0, data: "pong" } });
+    });
+
+    // 前两次查询 offscreen 文档尚未创建完成, 之后出现（模拟 SW 启动早于 offscreen 创建的竞态）
+    const matchAll = (self as any).clients.matchAll as ReturnType<typeof vi.fn>;
+    matchAll
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([{ url: offscreenUrl, postMessage: clientPostMessage }]);
+
+    const promise = swSend.sendMessage({ action: "offscreen/test", data: "ping" });
+    const assertion = expect(promise).resolves.toEqual({ code: 0, data: "pong" });
+    await vi.advanceTimersByTimeAsync(3000);
+    await assertion;
+    expect(clientPostMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("offscreen 客户端始终不可用时应以描述性错误拒绝而不是抛 TypeError", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(chrome.runtime, "getURL").mockReturnValue(offscreenUrl);
+
+    const swSend = new ServiceWorkerMessageSend();
+    // matchAll 始终返回 []（offscreen 一直不存在）
+    const promise = swSend.sendMessage({ action: "offscreen/test", data: "ping" });
+    const assertion = expect(promise).rejects.toThrow(/offscreen/i);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await assertion;
+  });
+
+  it("收到来自 offscreen 的消息后应刷新 target, 无需 matchAll 即可发送", async () => {
+    vi.spyOn(chrome.runtime, "getURL").mockReturnValue(offscreenUrl);
+
+    const swSend = new ServiceWorkerMessageSend();
+    const clientPostMessage = vi.fn((body: WindowMessageBody) => {
+      if (body.type === "sendMessage") {
+        swSend.messageHandle({ messageId: body.messageId, type: "respMessage", data: { code: 0, data: "ok" } });
+      }
+    });
+
+    // offscreen 先主动发来一条请求（例如 preparationOffscreen）, source 即当前有效的 offscreen 客户端
+    swSend.messageHandle({ messageId: "m1", type: "sendMessage", data: { action: "x" } }, {
+      url: offscreenUrl,
+      postMessage: clientPostMessage,
+    } as any);
+
+    // SW 主动发消息应直接使用刷新后的 target（即使 matchAll 查不到客户端）
+    await expect(swSend.sendMessage({ action: "offscreen/test", data: 1 })).resolves.toEqual({
+      code: 0,
+      data: "ok",
+    });
+    expect((self as any).clients.matchAll).not.toHaveBeenCalled();
+  });
+
+  it("非 offscreen 页面的消息来源不应污染 target", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(chrome.runtime, "getURL").mockReturnValue(offscreenUrl);
+
+    const swSend = new ServiceWorkerMessageSend();
+    const strangerPostMessage = vi.fn();
+    swSend.messageHandle({ messageId: "m2", type: "sendMessage", data: { action: "x" } }, {
+      url: "chrome-extension://mock-extension-id/src/options.html",
+      postMessage: strangerPostMessage,
+    } as any);
+
+    const promise = swSend.sendMessage({ action: "offscreen/test", data: 1 });
+    const assertion = expect(promise).rejects.toThrow(/offscreen/i);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await assertion;
+    expect(strangerPostMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: "sendMessage" }));
+  });
+});
+
 describe("ServiceWorkerClientMessage", () => {
   it("controller 可用时直接使用", () => {
     const clientMsg = new ServiceWorkerClientMessage();

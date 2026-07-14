@@ -217,10 +217,17 @@ export class WindowMessageConnect implements MessageConnect {
 // 不进行监听的话又无法从service_worker主动发送消息
 // 所以service_worker与offscreen使用ServiceWorker的方式进行通信
 // 现在同时支持接收来自offscreen的请求(实现完整Message接口),使双向通道都走postMessage(结构化克隆,支持Blob)
+
+const OFFSCREEN_DOCUMENT_PATH = "src/offscreen.html";
+// offscreen客户端出现前的轮询间隔与等待上限(SW启动早于offscreen文档创建完成的竞态窗口)
+const OFFSCREEN_TARGET_POLL_INTERVAL = 200;
+const OFFSCREEN_TARGET_WAIT_TIMEOUT = 30_000;
+
 export class ServiceWorkerMessageSend implements Message {
   EE = new EventEmitter<string, any>();
 
   private target: PostMessage | undefined = undefined;
+  private targetWaiter: Promise<PostMessage> | undefined = undefined;
 
   constructor() {
     // 在构造函数中设置监听,确保能接收来自offscreen的请求
@@ -229,15 +236,50 @@ export class ServiceWorkerMessageSend implements Message {
     });
   }
 
-  async init() {
+  private async queryTarget() {
     if (!this.target && self.clients) {
       const list = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
       // 找到offscreen.html窗口
-      this.target = list.find((client) => client.url == chrome.runtime.getURL("src/offscreen.html")) as PostMessage;
+      this.target = list.find((client) => client.url == chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)) as PostMessage;
     }
   }
 
+  async init() {
+    await this.queryTarget();
+  }
+
+  // offscreen文档可能尚未创建完成,轮询等待其出现;超时则以可诊断的错误拒绝,而不是对undefined调用postMessage
+  private waitForTarget(): Promise<PostMessage> {
+    if (this.target) {
+      return Promise.resolve(this.target);
+    }
+    if (!this.targetWaiter) {
+      this.targetWaiter = (async () => {
+        const deadline = Date.now() + OFFSCREEN_TARGET_WAIT_TIMEOUT;
+        for (;;) {
+          await this.queryTarget();
+          if (this.target) {
+            return this.target;
+          }
+          if (Date.now() >= deadline) {
+            throw new Error("ServiceWorkerMessageSend: offscreen document client not found (timeout)");
+          }
+          await new Promise((resolve) => setTimeout(resolve, OFFSCREEN_TARGET_POLL_INTERVAL));
+        }
+      })().finally(() => {
+        // 成功后走 this.target 快路径;失败后允许后续调用重新等待
+        this.targetWaiter = undefined;
+      });
+    }
+    return this.targetWaiter;
+  }
+
   messageHandle(data: WindowMessageBody, source?: PostMessage) {
+    // 来自offscreen的消息自带最新的客户端引用,用于刷新target(offscreen重建后旧Client已失效)
+    const sourceUrl = (source as { url?: string } | undefined)?.url;
+    if (sourceUrl && sourceUrl === chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)) {
+      this.target = source;
+    }
     // 处理消息
     if (data.type === "sendMessage" && source) {
       // 接收到来自offscreen的请求消息
@@ -281,19 +323,19 @@ export class ServiceWorkerMessageSend implements Message {
   }
 
   async connect(data: TMessage): Promise<MessageConnect> {
-    await this.init();
+    const target = await this.waitForTarget();
     const body: WindowMessageBody<TMessage> = {
       messageId: uuidv4(),
       type: "connect",
       data,
     };
-    this.target!.postMessage(body);
-    return new WindowMessageConnect(body.messageId, this.EE, this.target!);
+    target.postMessage(body);
+    return new WindowMessageConnect(body.messageId, this.EE, target);
   }
 
   // 发送消息 注意不进行回调的内存泄漏
   async sendMessage<T = any>(data: TMessage): Promise<T> {
-    await this.init();
+    const target = await this.waitForTarget();
     return new Promise((resolve: ((value: T) => void) | null) => {
       const messageId = uuidv4();
       const body: WindowMessageBody<TMessage> = {
@@ -307,7 +349,7 @@ export class ServiceWorkerMessageSend implements Message {
         resolve!(body.data as T);
         resolve = null; // 设为 null 提醒JS引擎可以GC
       });
-      this.target!.postMessage(body);
+      target.postMessage(body);
     });
   }
 }
