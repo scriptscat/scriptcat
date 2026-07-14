@@ -48,6 +48,7 @@ import { initRegularUpdateCheck, watchRegularUpdateCheck } from "./regular_updat
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 import { EnableAgent } from "@App/app/const";
+import { TrashScriptDAO } from "@App/app/repo/trash_script";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -74,6 +75,7 @@ export class ScriptService {
   scriptCodeDAO: ScriptCodeDAO = new ScriptCodeDAO();
   localStorageDAO: LocalStorageDAO = new LocalStorageDAO();
   compiledResourceDAO: CompiledResourceDAO = new CompiledResourceDAO();
+  trashScriptDAO: TrashScriptDAO = new TrashScriptDAO();
   private readonly scriptUpdateCheck;
 
   constructor(
@@ -544,6 +546,34 @@ export class ScriptService {
       })
       .catch((e) => {
         logger.error("delete error", Logger.E(e));
+        throw e;
+      });
+  }
+
+  /** 彻底删除:从回收站移除并销毁全部关联数据。单条删除 / 清空回收站 / 到期自动清理共用此入口 */
+  async purgeScripts(uuids: string[]) {
+    const logger = this.logger.with({ uuids });
+    const scripts = (await this.trashScriptDAO.gets(uuids)).filter((s) => !!s);
+    if (!scripts.length) {
+      logger.error("trash scripts not found");
+      throw new Error("trash scripts not found");
+    }
+    return this.trashScriptDAO
+      .deletes(uuids)
+      .then(async () => {
+        await this.scriptCodeDAO.deletes(uuids);
+        await this.compiledResourceDAO.deletes(uuids);
+        logger.info("purge success");
+        const data = scripts.map((script) => ({
+          uuid: script.uuid,
+          storageName: getStorageName(script),
+          type: script.type,
+        })) as TDeleteScript[];
+        this.mq.publish<TDeleteScript[]>("deleteScripts", data);
+        return true;
+      })
+      .catch((e) => {
+        logger.error("purge error", Logger.E(e));
         throw e;
       });
   }
@@ -1488,6 +1518,7 @@ export class ScriptService {
     this.group.on("getInstallInfo", this.getInstallInfo);
     this.group.on("install", this.installScript.bind(this));
     this.group.on("deletes", this.deleteScripts.bind(this));
+    this.group.on("purges", this.purgeScripts.bind(this));
     this.group.on("enable", this.enableScript.bind(this));
     this.group.on("enables", this.enableScripts.bind(this));
     this.group.on("fetchInfo", this.fetchInfo.bind(this));
