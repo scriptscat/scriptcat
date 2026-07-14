@@ -8,10 +8,25 @@ import { EventPageOffscreenManager, InProcessMessage } from "./event_page_manage
 
 initTestEnv();
 
+// keep_alive.ts 在模块顶层把 isFirefox() 固化为 boolFirefox 常量；测试环境不是 Firefox，
+// 必须 mock isFirefox 并配合 vi.resetModules() 重新导入，Firefox 保活分支才会生效。
+const { isFirefoxMock } = vi.hoisted(() => ({
+  isFirefoxMock: vi.fn(() => false),
+}));
+
+vi.mock("@App/pkg/utils/utils", async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return { ...actual, isFirefox: isFirefoxMock };
+});
+
+const RealImage = globalThis.Image;
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.stubGlobal("scheduler", undefined);
   vi.restoreAllMocks();
+  isFirefoxMock.mockReturnValue(false);
+  vi.stubGlobal("Image", RealImage);
   chromeMock.init();
   for (const node of Array.from(document.documentElement.querySelectorAll("iframe,img"))) {
     node.remove();
@@ -23,6 +38,20 @@ const loadKeepAliveEnabledManager = async () => {
   vi.stubGlobal("scheduler", {
     postTask: vi.fn(),
   });
+  isFirefoxMock.mockReturnValue(true);
+  // Firefox 分支的探测 <img> 不再挂载到 DOM（仅靠变量引用防 GC），改用可追踪的 Image 替身观察探测请求
+  const probeImages: Array<{ src: string; onload: unknown; onerror: unknown }> = [];
+  vi.stubGlobal(
+    "Image",
+    class {
+      onload: unknown = null;
+      onerror: unknown = null;
+      src = "";
+      constructor() {
+        probeImages.push(this);
+      }
+    }
+  );
   vi.resetModules();
   const loggerModule = await import("../../logger/core.js");
   const LoggerCore = loggerModule.default as unknown as typeof LoggerCoreType;
@@ -33,7 +62,7 @@ const loadKeepAliveEnabledManager = async () => {
     labels: { env: "test" },
   });
   logger.logger().debug("test start");
-  return import("./event_page_manager.js");
+  return { ...(await import("./event_page_manager.js")), probeImages };
 };
 
 // 单测重点：Firefox MV3 下事件页(EventPageOffscreenManager)与 service worker 是同一个脚本/进程，
@@ -118,33 +147,43 @@ describe("EventPageOffscreenManager 与 SW 共用 MessageQueue", () => {
 describe("EventPageOffscreenManager Firefox event page 保活权限门控", () => {
   it("权限未授予时不注册 blocking listener，也不发起首拍探测", async () => {
     chromeMock.permissions.__setGrantedPermissions([]);
-    const { EventPageOffscreenManager: KeepAliveManager, InProcessMessage: KeepAliveMessage } =
-      await loadKeepAliveEnabledManager();
+    const {
+      EventPageOffscreenManager: KeepAliveManager,
+      InProcessMessage: KeepAliveMessage,
+      probeImages,
+    } = await loadKeepAliveEnabledManager();
 
     new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
     await Promise.resolve();
 
     expect((chrome.webRequest.onBeforeRequest as any).listeners).toHaveLength(0);
-    expect(document.documentElement.querySelectorAll("img")).toHaveLength(0);
+    expect(probeImages).toHaveLength(0);
   });
 
   it("权限已授予时注册 blocking listener 并发起首拍探测", async () => {
     chromeMock.permissions.__setGrantedPermissions(["webRequestBlocking"]);
-    const { EventPageOffscreenManager: KeepAliveManager, InProcessMessage: KeepAliveMessage } =
-      await loadKeepAliveEnabledManager();
+    const {
+      EventPageOffscreenManager: KeepAliveManager,
+      InProcessMessage: KeepAliveMessage,
+      probeImages,
+    } = await loadKeepAliveEnabledManager();
 
     new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
     await Promise.resolve();
 
     expect((chrome.webRequest.onBeforeRequest as any).listeners).toHaveLength(1);
     expect((chrome.webRequest.onBeforeRequest as any).listeners[0].extraInfoSpec).toEqual(["blocking"]);
-    expect(document.documentElement.querySelectorAll("img")).toHaveLength(1);
+    expect(probeImages).toHaveLength(1);
+    expect(probeImages[0].src).toContain("__network_delay=");
   });
 
   it("运行中收到 webRequestBlocking 授权后启动循环，重复触发不会重复注册", async () => {
     chromeMock.permissions.__setGrantedPermissions([]);
-    const { EventPageOffscreenManager: KeepAliveManager, InProcessMessage: KeepAliveMessage } =
-      await loadKeepAliveEnabledManager();
+    const {
+      EventPageOffscreenManager: KeepAliveManager,
+      InProcessMessage: KeepAliveMessage,
+      probeImages,
+    } = await loadKeepAliveEnabledManager();
 
     new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
     await Promise.resolve();
@@ -153,20 +192,24 @@ describe("EventPageOffscreenManager Firefox event page 保活权限门控", () =
     chrome.permissions.request({ permissions: ["webRequestBlocking"] });
 
     expect((chrome.webRequest.onBeforeRequest as any).listeners).toHaveLength(1);
-    expect(document.documentElement.querySelectorAll("img")).toHaveLength(1);
+    expect(probeImages).toHaveLength(1);
   });
 
   it("移除 webRequestBlocking 后立即停止 blocking 探测，重新授权后恢复", async () => {
     chromeMock.permissions.__setGrantedPermissions(["webRequestBlocking"]);
-    const { EventPageOffscreenManager: KeepAliveManager, InProcessMessage: KeepAliveMessage } =
-      await loadKeepAliveEnabledManager();
+    const {
+      EventPageOffscreenManager: KeepAliveManager,
+      InProcessMessage: KeepAliveMessage,
+      probeImages,
+    } = await loadKeepAliveEnabledManager();
 
     new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
     await Promise.resolve();
 
     const listener = (chrome.webRequest.onBeforeRequest as any).listeners[0].callback;
+    // 与 keep_alive.ts 相同的派生规则：探测域名来自扩展自身的 runtime.getURL
     const probeRequest = {
-      url: "https://--extensions-test.invalid/dummy_image.png?__network_delay=10000",
+      url: `https://--extensions-${chrome.runtime.getURL("/dummy_image.png").split("//")[1]}?__network_delay=10000`,
     };
 
     expect(listener(probeRequest)).toBeInstanceOf(Promise);
@@ -178,7 +221,8 @@ describe("EventPageOffscreenManager Firefox event page 保活权限门控", () =
     chrome.permissions.request({ permissions: ["webRequestBlocking"] });
 
     expect(listener(probeRequest)).toBeInstanceOf(Promise);
-    expect(document.documentElement.querySelectorAll("img")).toHaveLength(1);
+    // 首拍探测 + 重新授权后的恢复探测
+    expect(probeImages).toHaveLength(2);
   });
 
   it("构造同步回合内先注册 permissions.onAdded，再等待 contains 结果", async () => {
