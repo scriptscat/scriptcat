@@ -362,7 +362,11 @@ export default function ScriptEditor() {
   const onCloseOthersTab = useCallback((uuid: string) => dispatch({ type: "closeOthers", uuid }), []);
   const onCloseLeftTab = useCallback((uuid: string) => dispatch({ type: "closeLeft", uuid }), []);
   const onCloseRightTab = useCallback((uuid: string) => dispatch({ type: "closeRight", uuid }), []);
-  const onNewTab = useCallback(() => void openScript(undefined, templateRef.current, targetRef.current), [openScript]);
+  // template 未传时沿用 URL 默认模板；「＋」菜单显式选择类型时以所选为准
+  const onNewTab = useCallback(
+    (template?: string) => void openScript(undefined, template ?? templateRef.current, targetRef.current),
+    [openScript]
+  );
   const onOpenScript = useCallback((uuid: string) => void openScript(uuid), [openScript]);
   const onBack = useCallback(() => navigate("/"), [navigate]);
 

@@ -3,6 +3,13 @@ import { useTranslation } from "react-i18next";
 import { Plus, X } from "lucide-react";
 import { i18nName } from "@App/locales/locales";
 import { cn } from "@App/pkg/utils/cn";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@App/pages/components/ui/dropdown-menu";
+import { useHoverMenu } from "@App/pages/components/ui/use-hover-menu";
 import type { EditorTab } from "./useEditorTabs";
 
 export interface EditorTabsProps {
@@ -13,7 +20,8 @@ export interface EditorTabsProps {
   onCloseOthers: (uuid: string) => void;
   onCloseLeft: (uuid: string) => void;
   onCloseRight: (uuid: string) => void;
-  onNew: () => void;
+  /** 不传模板即沿用页面默认模板（URL template 参数） */
+  onNew: (template?: string) => void;
 }
 
 interface MenuState {
@@ -26,6 +34,12 @@ function EditorTabs(props: EditorTabsProps) {
   const { t } = useTranslation();
   const { tabs, activeUuid, onActivate, onClose, onCloseOthers, onCloseLeft, onCloseRight, onNew } = props;
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const { close, rootProps, hoverProps, contentProps } = useHoverMenu();
+
+  const handleNew = (template: string) => {
+    close();
+    onNew(template);
+  };
 
   const menuItems = menu
     ? [
@@ -67,21 +81,43 @@ function EditorTabs(props: EditorTabsProps) {
                 e.stopPropagation();
                 onClose(tab.uuid);
               }}
-              className="flex size-4 shrink-0 items-center justify-center rounded opacity-0 hover:bg-muted-foreground/20 group-hover/tab:opacity-100"
+              className={cn(
+                "flex size-4 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/20",
+                // 激活标签持续显示关闭按钮(对齐 VSCode);未激活标签仅 hover 时显示
+                isActive ? "opacity-100" : "opacity-0 group-hover/tab:opacity-100"
+              )}
             >
               <X className="size-3" />
             </button>
           </div>
         );
       })}
-      <button
-        type="button"
-        aria-label={t("editor:new_script")}
-        onClick={onNew}
-        className="flex w-9 shrink-0 items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground"
-      >
-        <Plus className="size-4" />
-      </button>
+      {/* hover 弹出脚本类型选择（同「新建脚本」下拉）；直接点击仍按默认模板快速新建 */}
+      <DropdownMenu {...rootProps}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={t("editor:new_script")}
+            onClick={() => {
+              close();
+              onNew();
+            }}
+            className="flex w-9 shrink-0 items-center justify-center text-muted-foreground hover:bg-accent hover:text-foreground"
+            {...hoverProps}
+          >
+            <Plus className="size-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" {...contentProps}>
+          <DropdownMenuItem onClick={() => handleNew("")}>{t("script:create_user_script")}</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handleNew("background")}>
+            {t("script:create_background_script")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => handleNew("crontab")}>
+            {t("script:create_scheduled_script")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {menu && (
         <>

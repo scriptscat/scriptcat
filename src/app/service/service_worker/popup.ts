@@ -291,8 +291,34 @@ export class PopupService {
     list.push({ ...message, registerType });
     let retUpdated: string[] | undefined;
     return Promise.resolve(list) // 增加一个 await Promise.reslove() 转移微任务队列 再判断长度是否为0
-      .then((list) => {
+      .then(async (list) => {
         if (!list.length) return;
+
+        // 内容脚本可能在其脚本被删除后，仍迟到地发来 GM_registerMenuCommand。
+        // 必须先丢弃这些已删脚本的注册记录，避免它们重新生成残留的 tabScript:<tabId> Popup 菜单项。
+        const registerUuids = [
+          ...new Set(
+            list.filter((entry) => entry.registerType === ScriptMenuRegisterType.REGISTER).map((entry) => entry.uuid)
+          ),
+        ];
+        if (registerUuids.length) {
+          // gets() 返回结果与入参下标一一对应，不存在的脚本为 undefined，由此得出「仍存在」的 uuid 集合。
+          const scripts = await this.scriptDAO.gets(registerUuids);
+          const existingUuids = new Set();
+          for (const s of scripts) if (s) existingUuids.add(s.uuid);
+          // 倒序遍历删除，避免 splice 改变后续元素下标。
+          for (let idx = list.length - 1; idx >= 0; idx--) {
+            const entry = list[idx];
+            if (entry.registerType === ScriptMenuRegisterType.REGISTER && !existingUuids.has(entry.uuid)) {
+              list.splice(idx, 1);
+            }
+          }
+          if (!list.length) {
+            this.updateMenuCommands.delete(tabId);
+            return;
+          }
+        }
+
         return cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${tabId}`, (data: ScriptMenu[] | undefined, tx) => {
           if (!list.length) return;
           data = data || [];
@@ -342,7 +368,7 @@ export class PopupService {
   async getPopupData(req: GetPopupDataReq): Promise<GetPopupDataRes> {
     const { url, tabId } = req;
     const [matchingResult, runScripts, backScriptList] = await Promise.all([
-      this.runtime.getPageScriptMatchingResultByUrl(url, true, true),
+      this.runtime.getPopupPageScriptMatchingResultByUrl(url),
       this.getScriptMenu(tabId),
       this.getScriptMenu(-1),
     ]);
@@ -382,11 +408,16 @@ export class PopupService {
     }
 
     // 将未匹配当前 url 但仍在运行的脚本，附加到清单末端，避免使用者找不到其菜单。
-    // 把运行了但是不在匹配中的脚本加入到菜单的最后 （因此 runMap 和 scriptMenuMap 分开成两个变数）
-    for (const script of runScripts) {
-      // 把运行了但是不在匹配中的脚本加入菜单
-      if (!scriptMenuMap.has(script.uuid)) {
-        scriptMenuMap.set(script.uuid, script);
+    // 这些记录来自 tabScript:<tabId> session cache；脚本删除事件与 Popup 读取可能交错，
+    // 因此这里必须用 DAO 结果做读侧防护，避免已删除脚本残留在 Popup 清单。
+    const unmatchedRunScripts = runScripts.filter((script) => !scriptMenuMap.has(script.uuid));
+    if (unmatchedRunScripts.length) {
+      const existingRunScripts = await this.scriptDAO.gets(unmatchedRunScripts.map((script) => script.uuid));
+      for (let idx = 0, l = unmatchedRunScripts.length; idx < l; idx++) {
+        const script = unmatchedRunScripts[idx];
+        if (existingRunScripts[idx]) {
+          scriptMenuMap.set(script.uuid, script);
+        }
       }
     }
     const scriptMenu = [...scriptMenuMap.values()];
@@ -411,6 +442,60 @@ export class PopupService {
   async getScriptMenu(tabId: number): Promise<ScriptMenu[]> {
     const cacheKey = `${CACHE_KEY_TAB_SCRIPT}${tabId}`;
     return (await cacheInstance.get<ScriptMenu[]>(cacheKey)) || [];
+  }
+
+  // 菜单变化后同步角标计数缓存（脚本数、运行数）。计数为 0 时存空字符串表示不显示角标。
+  // tabId <= 0 为后台菜单(-1)等非真实标签页，跳过。
+  private updateCachedScriptMenuCounters(tabId: number, menu: ScriptMenu[]) {
+    if (tabId <= 0) return;
+    scriptCountMap.set(tabId, menu.length ? `${menu.length}` : "");
+    const runCount = menu.reduce((count, script) => count + (script.runNum || 0), 0);
+    runCountMap.set(tabId, runCount ? `${runCount}` : "");
+  }
+
+  // 把待处理菜单命令队列里属于已删除脚本的项一并清掉，防止它们之后被处理而再次产生残留。
+  private removeDeletedScriptsFromPendingMenuCommands(deletedUuids: Set<string>) {
+    for (const [tabId, commands] of this.updateMenuCommands) {
+      const nextCommands = commands.filter((command) => !deletedUuids.has(command.uuid));
+      if (nextCommands.length) {
+        if (nextCommands.length !== commands.length) {
+          this.updateMenuCommands.set(tabId, nextCommands);
+        }
+      } else {
+        this.updateMenuCommands.delete(tabId);
+      }
+    }
+  }
+
+  // 删除脚本时，扫描「所有」tabScript:<tabId> 缓存清除已删脚本，并同步角标计数。
+  // 旧实现只清理了后台菜单(-1)，导致各标签页缓存残留——这是「删除脚本后 Popup 残留」的根因。
+  private async removeDeletedScriptsFromPopupCaches(uuids: string[]) {
+    if (!uuids.length) return false;
+
+    const deletedUuids = new Set(uuids);
+    this.removeDeletedScriptsFromPendingMenuCommands(deletedUuids);
+
+    const keys = (await cacheInstance.list()).filter((key) => key.startsWith(CACHE_KEY_TAB_SCRIPT));
+    let changed = false;
+    await Promise.all(
+      keys.map((key) =>
+        cacheInstance.tx(key, (menu: ScriptMenu[] | undefined, tx) => {
+          if (!menu?.length) return;
+          const nextMenu = menu.filter((item) => !deletedUuids.has(item.uuid));
+          if (nextMenu.length === menu.length) return;
+
+          changed = true;
+          const tabId = Number(key.slice(CACHE_KEY_TAB_SCRIPT.length));
+          this.updateCachedScriptMenuCounters(tabId, nextMenu);
+          if (nextMenu.length) {
+            tx.set(nextMenu);
+          } else {
+            tx.del();
+          }
+        })
+      )
+    );
+    return changed;
   }
 
   async addScriptRunNumber(o: TPopupPageLoadInfo) {
@@ -516,17 +601,12 @@ export class PopupService {
         }
       });
     });
-    this.mq.subscribe<TDeleteScript[]>("deleteScripts", (data) => {
-      cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${-1}`, (menu: ScriptMenu[] | undefined, tx) => {
-        if (!menu) return;
-        for (const { uuid } of data) {
-          const index = menu.findIndex((item) => item.uuid === uuid);
-          if (index !== -1) {
-            menu.splice(index, 1);
-            tx.set(menu);
-          }
-        }
-      });
+    this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
+      const changed = await this.removeDeletedScriptsFromPopupCaches(data.map(({ uuid }) => uuid));
+      if (changed) {
+        this.updateBadgeIcon();
+        this.genScriptMenu();
+      }
     });
     this.mq.subscribe<TScriptRunStatus>("scriptRunStatus", ({ uuid, runStatus }) => {
       cacheInstance.tx(`${CACHE_KEY_TAB_SCRIPT}${-1}`, (menu: ScriptMenu[] | undefined, tx) => {
