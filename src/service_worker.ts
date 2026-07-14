@@ -9,56 +9,10 @@ import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import { EventPageOffscreenManager } from "./app/service/offscreen/event_page_manager";
 import migrate, { migrateChromeStorage } from "./app/migrate";
 import { cleanInvalidKeys } from "./app/repo/resource";
+import { setupOffscreenDocument } from "./app/service/service_worker/offscreen_setup";
 
 migrate();
 migrateChromeStorage();
-
-const OFFSCREEN_DOCUMENT_PATH = "src/offscreen.html";
-
-let creating: Promise<void> | null | boolean = null;
-
-async function hasDocument() {
-  const offscreenUrl = chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH);
-  const existingContexts = await chrome.runtime.getContexts({
-    contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
-    documentUrls: [offscreenUrl],
-  });
-  return existingContexts.length > 0;
-}
-
-async function setupOffscreenDocument() {
-  if (typeof chrome.offscreen?.createDocument !== "function") {
-    // Firefox does not support offscreen
-    console.error("Your browser does not support chrome.offscreen.createDocument");
-    return;
-  }
-  //if we do not have a document, we are already setup and can skip
-  if (!(await hasDocument())) {
-    // create offscreen document
-    if (!creating) {
-      const promise = chrome.offscreen
-        .createDocument({
-          url: OFFSCREEN_DOCUMENT_PATH,
-          reasons: [
-            chrome.offscreen.Reason.BLOBS,
-            chrome.offscreen.Reason.CLIPBOARD,
-            chrome.offscreen.Reason.DOM_SCRAPING,
-            chrome.offscreen.Reason.LOCAL_STORAGE,
-          ],
-          justification: "offscreen page",
-        })
-        .then(() => {
-          if (creating !== promise) {
-            console.log("setupOffscreenDocument() calling is invalid.");
-            return;
-          }
-          creating = true; // chrome.offscreen.createDocument 只执行一次
-        });
-      creating = promise;
-    }
-    await creating;
-  }
-}
 
 function main() {
   cleanInvalidKeys();
