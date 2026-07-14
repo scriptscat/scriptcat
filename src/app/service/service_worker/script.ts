@@ -61,6 +61,7 @@ export type TScriptInstallParam = {
   upsertBy?: InstallSource; // 安装/更新来源（用于标识脚本来源渠道）
   createtime?: number; // 导入时指定的创建时间（时间戳，毫秒）
   updatetime?: number; // 导入时指定的最后更新时间（时间戳，毫秒）
+  overwriteSelfMetadata?: boolean; // 备份导入时用备份中的自定义元数据覆盖本地配置
 };
 
 export type TScriptInstallReturn = {
@@ -423,7 +424,9 @@ export class ScriptService {
     if (oldScript) {
       // 执行更新逻辑
       update = true;
-      script.selfMetadata = oldScript.selfMetadata;
+      if (!param.overwriteSelfMetadata) {
+        script.selfMetadata = oldScript.selfMetadata;
+      }
       // 如果已安装的脚本是由 Subscribe 安装，即使是手动更新也不会影响跟 Subscribe 关联
       if (oldScript.subscribeUrl && oldScript.origin) {
         // origin 和 subscribeUrl 保持不变

@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import type { Resource } from "@App/app/repo/resource";
+import type { Resource, ResourceType } from "@App/app/repo/resource";
 import {
   type Script,
   SCRIPT_STATUS_DISABLE,
@@ -27,6 +27,10 @@ import type { TDeleteScript, TInstallScript, TInstallScriptParams } from "../que
 import { errorMsg, makeBlobURL } from "@App/pkg/utils/utils";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
+import { AgentModelRepo } from "@App/app/repo/agent_model";
+import { MCPServerRepo } from "@App/app/repo/mcp_server_repo";
+import { AgentTaskRepo } from "@App/app/repo/agent_task";
+import { CONFIG_BUNDLE_VERSION, toBundleConfig, type ConfigBundle } from "@App/pkg/backup/config_bundle";
 import { type ScriptService } from "./script";
 import { prepareScriptByCode } from "@App/pkg/utils/script";
 import { ExtVersion } from "@App/app/const";
@@ -105,15 +109,52 @@ export class SynchronizeService {
     this.scriptCodeDAO = this.scriptDAO.scriptCodeDAO;
   }
 
-  // 生成备份文件到文件系统
-  async backup(fs: FileSystem, uuids?: string[]) {
+  // 生成备份文件到文件系统(includeConfig=true 时附带 ScriptCat 设置 bundle,#1533)
+  async backup(fs: FileSystem, uuids?: string[], includeConfig = false) {
     // 生成导出数据
     const data: BackupData = {
       script: await this.getScriptBackupData(uuids),
       subscribe: [],
+      config: includeConfig ? await this.getConfigBundle() : undefined,
     };
 
     await new BackupExport(fs).export(data);
+  }
+
+  // 读取 ScriptCat 设置 bundle(SystemConfig 仅 sync 键 + agent 模型/MCP/任务)
+  async getConfigBundle(): Promise<ConfigBundle> {
+    const modelRepo = new AgentModelRepo();
+    const [sync, models, mcp, tasks, defaultModelId, summaryModelId] = await Promise.all([
+      new ChromeStorage("system", true).keys(),
+      modelRepo.listModels(),
+      new MCPServerRepo().listServers(),
+      new AgentTaskRepo().listTasks(),
+      modelRepo.getDefaultModelId(),
+      modelRepo.getSummaryModelId(),
+    ]);
+    return {
+      version: CONFIG_BUNDLE_VERSION,
+      systemConfig: toBundleConfig(sync),
+      agent: { models, mcp, tasks, defaultModelId, summaryModelId },
+    };
+  }
+
+  // 还原设置 bundle：合并语义=以备份值覆盖(逐键 set/save)；只写 sync storage
+  async restoreConfigBundle(bundle: ConfigBundle): Promise<void> {
+    if (!bundle) return;
+    const sync = new ChromeStorage("system", true);
+    const modelRepo = new AgentModelRepo();
+    const mcpRepo = new MCPServerRepo();
+    const taskRepo = new AgentTaskRepo();
+    await Promise.all([
+      ...Object.entries(bundle.systemConfig || {}).map(([k, v]) => sync.set(k, v)),
+      ...(bundle.agent?.models || []).map((m) => modelRepo.saveModel(m)),
+      ...(bundle.agent?.mcp || []).map((m) => mcpRepo.saveServer(m)),
+      ...(bundle.agent?.tasks || []).map((t) => taskRepo.saveTask(t)),
+    ]);
+    // 仅在备份带出模型选择时覆盖（部分还原未选"AI 模型"时保留本机当前默认/摘要模型）
+    if (bundle.agent?.defaultModelId) await modelRepo.setDefaultModelId(bundle.agent.defaultModelId);
+    if (bundle.agent?.summaryModelId) await modelRepo.setSummaryModelId(bundle.agent.summaryModelId);
   }
 
   // 获取脚本备份数据
@@ -169,6 +210,7 @@ export class SynchronizeService {
           file_url: script.downloadUrl!,
           subscribe_url: script.subscribeUrl,
         },
+        selfMeta: script.selfMetadata && Object.keys(script.selfMetadata).length > 0 ? script.selfMetadata : undefined,
       },
       // storage,
       requires: this.resourceToBackdata(requires),
@@ -199,23 +241,31 @@ export class SynchronizeService {
     return ret;
   }
 
-  importResources(data: {
+  // 导入脚本资源；返回失败的资源名列表(不因单个资源失败而整体 reject，供导入页逐项展示)
+  async importResources(data: {
     uuid: string;
     requires: ResourceBackup[];
     resources: ResourceBackup[];
     requiresCss: ResourceBackup[];
-  }) {
+  }): Promise<string[]> {
     const { uuid, requires, resources, requiresCss } = data;
-    return Promise.all([
-      // 处理requires
-      ...requires.map((item) => this.resource.importResource(uuid, item, "require")),
-      // 处理resources
-      ...resources.map((item) => this.resource.importResource(uuid, item, "resource")),
-      // 处理requiresCss
-      ...requiresCss.map((item) => this.resource.importResource(uuid, item, "require-css")),
-    ]).then(() => {
-      return;
+    const items: Array<{ res: ResourceBackup; type: ResourceType }> = [
+      ...requires.map((res) => ({ res, type: "require" as ResourceType })),
+      ...resources.map((res) => ({ res, type: "resource" as ResourceType })),
+      ...requiresCss.map((res) => ({ res, type: "require-css" as ResourceType })),
+    ];
+    const settled = await Promise.allSettled(
+      items.map(({ res, type }) => this.resource.importResource(uuid, res, type))
+    );
+    const failed: string[] = [];
+    settled.forEach((r, i) => {
+      if (r.status === "rejected") {
+        const { res } = items[i];
+        failed.push(res.meta.name || res.meta.url);
+        this.logger.error("import resource failed", { uuid, url: res.meta.url }, Logger.E(r.reason));
+      }
     });
+    return failed;
   }
 
   getUrlName(url: string): string {
@@ -262,11 +312,11 @@ export class SynchronizeService {
     };
   }
 
-  // 请求导出文件
+  // 请求导出文件(本地文件导出附带设置 bundle,#1533/#684)
   async requestExport(uuids?: string[]): Promise<LocalBackupExport> {
     const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
-    await this.backup(fs, uuids);
+    await this.backup(fs, uuids, true);
     // 生成文件,并下载
     const zipOutput = await zipFile.generateAsync({
       type: "blob",
@@ -293,7 +343,7 @@ export class SynchronizeService {
     // 首先生成zip文件
     const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
-    await this.backup(fs);
+    await this.backup(fs, undefined, true);
     this.logger.info("backup to cloud");
     // 然后创建云端文件系统
     let cloudFs = await FileSystemFactory.create(type, params);
@@ -775,6 +825,7 @@ export class SynchronizeService {
     this.group.on("export", this.requestExport.bind(this));
     this.group.on("backupToCloud", this.backupToCloud.bind(this));
     this.group.on("importResources", this.importResources.bind(this));
+    this.group.on("restoreConfigBundle", this.restoreConfigBundle.bind(this));
     // 监听脚本变化, 进行同步
     this.mq.subscribe<TInstallScript>("installScript", this.scriptInstall.bind(this));
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", this.scriptsDelete.bind(this));
