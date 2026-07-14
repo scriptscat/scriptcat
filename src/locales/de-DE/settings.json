@@ -88,6 +88,8 @@
   "notification": {
     "script_sync_delete": "Skript-Löschsynchronisation",
     "script_sync_delete_desc": "Skript {{scriptName}} wurde gelöscht",
+    "script_sync_conflict": "Cloud-Synchronisierungskonflikt",
+    "script_sync_conflict_desc": "Skript {{scriptNames}} wurde sowohl lokal als auch in der Cloud geändert. Die Synchronisierung dieses Skripts ist pausiert, bitte lösen Sie den Konflikt manuell",
     "subscribe_update": "Abonnement {{subscribeName}} wurde aktualisiert",
     "subscribe_update_desc": "Neue Skripte: {{newScripts}}\nGelöschte Skripte: {{deletedScripts}}"
   },

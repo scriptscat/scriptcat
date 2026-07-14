@@ -88,6 +88,8 @@
   "notification": {
     "script_sync_delete": "脚本删除同步",
     "script_sync_delete_desc": "脚本 {{scriptName}} 已被删除",
+    "script_sync_conflict": "云同步冲突",
+    "script_sync_conflict_desc": "脚本 {{scriptNames}} 的本地与云端版本均已修改，已暂停同步该脚本，请手动处理冲突",
     "subscribe_update": "订阅 {{subscribeName}} 已更新",
     "subscribe_update_desc": "新增脚本：{{newScripts}}\n删除脚本：{{deletedScripts}}"
   },

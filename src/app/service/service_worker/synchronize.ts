@@ -110,6 +110,18 @@ class PushScriptPartialError extends Error {
   }
 }
 
+// 本地与云端在上次同步后都发生了修改（真冲突）：不自动覆盖任何一端，
+// 本轮跳过该脚本（沿用失败路径保留旧 digest 与云端状态），并聚合通知用户手动处理
+class SyncBothChangedConflictError extends Error {
+  constructor(
+    readonly uuid: string,
+    readonly scriptName: string
+  ) {
+    super(`sync conflict: both local and cloud changed for ${uuid}`);
+    this.name = "SyncBothChangedConflictError";
+  }
+}
+
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 
 function getScriptModifiedDate(script: PushScriptParam): number {
@@ -122,6 +134,9 @@ export class SynchronizeService {
   scriptCodeDAO: ScriptCodeDAO;
 
   storage: ChromeStorage = new ChromeStorage("sync", false);
+
+  // 上一轮已通知过的冲突脚本集合（uuid 排序拼接），冲突集合未变化时不重复通知
+  private lastNotifiedConflictKey = "";
 
   constructor(
     private msgSender: MessageSend,
@@ -399,6 +414,8 @@ export class SynchronizeService {
     const uuidMap = new Map<string, Partial<SyncFiles>>();
     // 储存文件摘要,用于检测文件是否有变化
     const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
+    // 上次同步成功时的本地内容基线（md5），用于云端已变时判断本地是否也变过（方向判定不依赖跨时钟时间比较）
+    const syncedContentMd5Map = ((await this.storage.get("sync_content_md5")) as FileDigestMap) || {};
 
     for (const file of list) {
       if (file.name.endsWith(".user.js")) {
@@ -503,21 +520,8 @@ export class SynchronizeService {
           return;
         }
         const updatetime = script.updatetime || script.createtime;
-        // 过滤掉无变动的文件：仅当 .meta.json 齐全、云端 digest 与上次同步记录一致、
-        // 且本地更新时间不比云端新时，才认为无需处理直接跳过。
-        // 否则要么本地编辑过（updatetime 更新，digest 相等只反映云端未变）需上传（#1），
-        // 要么云端缺 .meta.json（上一轮分片上传残留）需补传，均不能在此提前跳过。
-        if (
-          file.meta &&
-          fileDigestMap[file.script!.name] === file.script!.digest &&
-          updatetime <= file.script!.updatetime
-        ) {
-          return;
-        }
-        // 对比脚本更新时间和文件更新时间
-        if (updatetime > file.script!.updatetime || !file.meta) {
-          // 如果脚本更新时间大于文件更新时间
-          // 或者不存在.meta文件,则上传文件
+        // 云端缺 .meta.json（上一轮分片上传残留）：无论方向判定如何都需补传修复
+        if (!file.meta) {
           addSyncTask(
             uuid,
             this.pushScript(fs, script, {
@@ -527,11 +531,51 @@ export class SynchronizeService {
               hasListSnapshot: true,
             })
           );
-        } else {
-          // 如果脚本更新时间小于文件更新时间,则更新脚本
-          updateScript.set(uuid, true);
-          addSyncTask(uuid, this.pullScript(fs, file as SyncFiles, cloudStatus[uuid], script));
+          return;
         }
+        if (fileDigestMap[file.script!.name] === file.script!.digest) {
+          // 云端自上次同步未变：本地更新时间不比云端新则无事可做；
+          // 否则本地编辑过（digest 相等只反映云端未变），需补偿上传（#1，队列 push 失败后的兜底）
+          if (updatetime <= file.script!.updatetime) {
+            return;
+          }
+          addSyncTask(
+            uuid,
+            this.pushScript(fs, script, {
+              fileDigestMap,
+              scriptFile: file.script,
+              metaFile: file.meta,
+              hasListSnapshot: true,
+            })
+          );
+          return;
+        }
+        // 云端自上次同步已变（或本机无记录）。本地毫秒时钟与服务端整秒 mtime 属于两个时钟域，
+        // 对端更新落在同一秒内时"本地时间戳更大"是误报（L4 同秒竞态），
+        // 方向判定优先用本地内容基线：本地内容自上次同步未变 → pull；双方都变 → 冲突，不自动覆盖任何一端
+        addSyncTask(
+          uuid,
+          (async () => {
+            const direction = await this.decideDirectionOnRemoteChange(fs, file.script!, script, syncedContentMd5Map);
+            if (direction.action === "pull") {
+              updateScript.set(uuid, true);
+              return await this.pullScript(fs, file as SyncFiles, cloudStatus[uuid], script);
+            }
+            if (direction.action === "push") {
+              return await this.pushScript(fs, script, {
+                fileDigestMap,
+                scriptFile: file.script,
+                metaFile: file.meta,
+                hasListSnapshot: true,
+              });
+            }
+            if (direction.action === "adopt") {
+              // 两端内容一致只是基线过期：返回内容 md5 让 updateFileDigest 推进基线，不产生写操作
+              return direction.digestMap;
+            }
+            throw new SyncBothChangedConflictError(uuid, i18nName(script));
+          })()
+        );
         return;
       }
       // 如果脚本不存在，但文件存在，则安装脚本
@@ -558,11 +602,15 @@ export class SynchronizeService {
     const pushedFileDigestMap: FileDigestMap = {};
     const preserveDigestFiles = new Set<string>();
     const failedSyncUuids = new Set<string>();
+    const conflictScripts: SyncBothChangedConflictError[] = [];
     syncResults.forEach((ret, index) => {
       if (ret.status === "fulfilled" && ret.value) {
         Object.assign(pushedFileDigestMap, ret.value);
       } else if (ret.status === "rejected") {
         failedSyncUuids.add(result[index].uuid);
+        if (ret.reason instanceof SyncBothChangedConflictError) {
+          conflictScripts.push(ret.reason);
+        }
         // 分片上传时已成功写入云端的文件（如 .user.js 成功、.meta.json 失败）不保留旧 digest，
         // 让 updateFileDigest 记录其云端最新 digest，避免成功文件 digest 永久变旧、后续 CAS 永久冲突。
         const writtenFiles = ret.reason instanceof PushScriptPartialError ? ret.reason.writtenFiles : [];
@@ -577,6 +625,20 @@ export class SynchronizeService {
         });
       }
     });
+    // 冲突通知：一轮只发一条；同一批脚本持续冲突时不重复轰炸，集合变化或冲突消失后重置
+    const conflictKey = conflictScripts
+      .map((c) => c.uuid)
+      .sort()
+      .join(",");
+    if (conflictScripts.length && conflictKey !== this.lastNotifiedConflictKey) {
+      InfoNotification(
+        i18n.t("settings:notification.script_sync_conflict"),
+        i18n.t("settings:notification.script_sync_conflict_desc", {
+          scriptNames: conflictScripts.map((c) => c.scriptName).join(", "),
+        })
+      );
+    }
+    this.lastNotifiedConflictKey = conflictKey;
     // 同步状态
     if (syncConfig.syncStatus && canWriteScriptcatSync) {
       try {
@@ -668,6 +730,9 @@ export class SynchronizeService {
     if (error instanceof PushScriptPartialError) {
       return this.classifySyncError(error.originalError);
     }
+    if (error instanceof SyncBothChangedConflictError) {
+      return "conflict";
+    }
     if (error instanceof FileSystemError) {
       if (error.conflict) {
         return "conflict";
@@ -735,7 +800,7 @@ export class SynchronizeService {
     preserveFileNames = new Set<string>()
   ) {
     // 先落库本次成功推送内容的 md5（独立于易失的 fs.list），供 CAS 冲突时识别云端是否为本机所写
-    await this.recordPushedContentMd5(knownFileDigestMap);
+    await this.recordSyncedContentMd5(knownFileDigestMap);
     const oldFileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
     const newList = await fs.list();
     const newFileDigestMap: FileDigestMap = {};
@@ -762,8 +827,8 @@ export class SynchronizeService {
       }
     });
     await this.storage.set("file_digest", newFileDigestMap);
-    // syncOnce 已全量对账整份云端列表，可安全清理 file_digest 之外的 push_content_md5，避免只增不删
-    await this.prunePushedContentMd5((name) => !(name in newFileDigestMap));
+    // syncOnce 已全量对账整份云端列表，可安全清理 file_digest 之外的 sync_content_md5，避免只增不删
+    await this.pruneSyncedContentMd5((name) => !(name in newFileDigestMap));
     return;
   }
 
@@ -777,12 +842,12 @@ export class SynchronizeService {
     preserveFileNames = new Set<string>()
   ) {
     // 先落库本次成功推送内容的 md5（独立于易失的 fs.list），供 CAS 冲突时识别云端是否为本机所写
-    await this.recordPushedContentMd5(knownFileDigestMap);
+    await this.recordSyncedContentMd5(knownFileDigestMap);
     const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
     const targetFiles = new Set(uuids.flatMap((uuid) => [`${uuid}.user.js`, `${uuid}.meta.json`]));
     const newList = await fs.list();
     const listedDigest = new Map(newList.map((file) => [file.name, file.digest]));
-    // 本次确认已从云端删除的目标文件，其 push_content_md5 一并清理（仅限本次目标，队列路径未全量对账不能全局清理）
+    // 本次确认已从云端删除的目标文件，其 sync_content_md5 一并清理（仅限本次目标，队列路径未全量对账不能全局清理）
     const deletedTargetFiles = new Set<string>();
     for (const name of targetFiles) {
       if (preserveFileNames.has(name)) {
@@ -802,7 +867,7 @@ export class SynchronizeService {
       }
     }
     await this.storage.set("file_digest", fileDigestMap);
-    await this.prunePushedContentMd5((name) => deletedTargetFiles.has(name));
+    await this.pruneSyncedContentMd5((name) => deletedTargetFiles.has(name));
     return;
   }
 
@@ -932,8 +997,8 @@ export class SynchronizeService {
     const filename = `${script.uuid}.user.js`;
     const metaFilename = `${script.uuid}.meta.json`;
     try {
-      const pushedContentMd5 = ((await this.storage.get("push_content_md5")) as FileDigestMap) || {};
-      const recordedMd5 = pushedContentMd5[filename];
+      const syncedContentMd5 = ((await this.storage.get("sync_content_md5")) as FileDigestMap) || {};
+      const recordedMd5 = syncedContentMd5[filename];
       if (!recordedMd5) {
         return null;
       }
@@ -962,23 +1027,24 @@ export class SynchronizeService {
     }
   }
 
-  // 落库本次成功推送内容的 md5（键为文件名），供 CAS 冲突时识别云端是否为本机所写。
+  // 落库本次成功推送/拉取内容的 md5（键为文件名）：作为本地内容基线供方向判定（L4），
+  // 也供 CAS 冲突时识别云端是否为本机所写。
   // 在 updateFileDigest* 内部、fs.list 之前调用，确保即便随后 list 抛错也已持久化。
-  private async recordPushedContentMd5(pushedMd5Map: FileDigestMap) {
-    const names = Object.keys(pushedMd5Map);
+  private async recordSyncedContentMd5(syncedMd5Map: FileDigestMap) {
+    const names = Object.keys(syncedMd5Map);
     if (!names.length) {
       return;
     }
-    const stored = ((await this.storage.get("push_content_md5")) as FileDigestMap) || {};
+    const stored = ((await this.storage.get("sync_content_md5")) as FileDigestMap) || {};
     for (const name of names) {
-      stored[name] = pushedMd5Map[name];
+      stored[name] = syncedMd5Map[name];
     }
-    await this.storage.set("push_content_md5", stored);
+    await this.storage.set("sync_content_md5", stored);
   }
 
-  // 随 file_digest 生命周期收敛 push_content_md5，避免只增不删。shouldRemove 决定某文件名是否移除。
-  private async prunePushedContentMd5(shouldRemove: (name: string) => boolean) {
-    const stored = ((await this.storage.get("push_content_md5")) as FileDigestMap) || {};
+  // 随 file_digest 生命周期收敛 sync_content_md5，避免只增不删。shouldRemove 决定某文件名是否移除。
+  private async pruneSyncedContentMd5(shouldRemove: (name: string) => boolean) {
+    const stored = ((await this.storage.get("sync_content_md5")) as FileDigestMap) || {};
     let changed = false;
     for (const name of Object.keys(stored)) {
       if (shouldRemove(name)) {
@@ -987,7 +1053,7 @@ export class SynchronizeService {
       }
     }
     if (changed) {
-      await this.storage.set("push_content_md5", stored);
+      await this.storage.set("sync_content_md5", stored);
     }
   }
 
@@ -1019,6 +1085,39 @@ export class SynchronizeService {
       createOptions.expectedDigest = expectedDigest;
     }
     return createOptions;
+  }
+
+  // 云端 digest 相对上次同步已变时决定同步方向。
+  // 不比较本地毫秒时钟与服务端整秒 mtime（同秒竞态会误判方向，L4）：
+  // 用上次同步的本地内容基线判断本地是否也变过，双方都变才算冲突；
+  // 无基线（升级前旧数据/从未同步成功）时退回旧的时间比较规则。
+  private async decideDirectionOnRemoteChange(
+    fs: FileSystem,
+    cloudFile: FileInfo,
+    script: Script,
+    syncedContentMd5Map: FileDigestMap
+  ): Promise<{ action: "push" | "pull" | "conflict" } | { action: "adopt"; digestMap: FileDigestMap }> {
+    const baselineMd5 = syncedContentMd5Map[cloudFile.name];
+    if (baselineMd5 === undefined) {
+      const updatetime = script.updatetime || script.createtime;
+      return { action: updatetime > cloudFile.updatetime ? "push" : "pull" };
+    }
+    const code = await this.scriptCodeDAO.get(script.uuid);
+    const localMd5 = code ? md5OfText(code.code) : undefined;
+    if (localMd5 === baselineMd5) {
+      return { action: "pull" };
+    }
+    // 本地也变了：读取云端内容确认是否真冲突。两端内容一致（两台设备做了同样的编辑，
+    // 或本机记账失败后云端内容实为本机所写）只是基线过期，直接采用云端 digest 收敛
+    try {
+      const cloudCode = (await fs.open(cloudFile).then((r) => r.read("string"))) as string;
+      if (localMd5 !== undefined && md5OfText(cloudCode) === localMd5) {
+        return { action: "adopt", digestMap: { [cloudFile.name]: localMd5 } };
+      }
+    } catch (e) {
+      this.logger.warn("read cloud content for conflict check failed", Logger.E(e), { uuid: script.uuid });
+    }
+    return { action: "conflict" };
   }
 
   async pullScript(fs: FileSystem, file: SyncFiles, status: ScriptcatSyncStatus | undefined, existingScript?: Script) {
@@ -1062,6 +1161,11 @@ export class SynchronizeService {
         // 若放任 prepareScriptByCode 的 Date.now()，下一轮会把刚拉下来的内容误判为
         // "本地编辑过"而补偿 push；etag 型 provider 重写会换 etag，两台设备将永久 pull/push 振荡
         updatetime: file.script.updatetime,
+      });
+      // 记录拉取内容基线：下轮云端再变时用它判断本地是否也改过（方向判定不依赖跨时钟时间比较）
+      await this.recordSyncedContentMd5({
+        [file.script.name]: md5OfText(code),
+        [file.meta.name]: md5OfText(metaJson),
       });
       logger.info("pull script success");
     } catch (e) {

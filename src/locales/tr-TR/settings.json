@@ -88,6 +88,8 @@
   "notification": {
     "script_sync_delete": "Betik Silme Senkronizasyonu",
     "script_sync_delete_desc": "{{scriptName}} betiği silindi",
+    "script_sync_conflict": "Bulut Eşitleme Çakışması",
+    "script_sync_conflict_desc": "{{scriptNames}} betiği hem yerelde hem bulutta değiştirildi. Bu betiğin eşitlemesi duraklatıldı, lütfen çakışmayı elle çözün",
     "subscribe_update": "{{subscribeName}} aboneliği güncellendi",
     "subscribe_update_desc": "Yeni betikler: {{newScripts}}\nSilinen betikler: {{deletedScripts}}"
   },

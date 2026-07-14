@@ -88,6 +88,8 @@
   "notification": {
     "script_sync_delete": "腳本刪除同步",
     "script_sync_delete_desc": "腳本 {{scriptName}} 已被刪除",
+    "script_sync_conflict": "雲端同步衝突",
+    "script_sync_conflict_desc": "腳本 {{scriptNames}} 的本機與雲端版本皆已修改，已暫停同步該腳本，請手動處理衝突",
     "subscribe_update": "訂閱 {{subscribeName}} 已更新",
     "subscribe_update_desc": "新增腳本：{{newScripts}}\n刪除腳本：{{deletedScripts}}"
   },

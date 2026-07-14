@@ -88,6 +88,8 @@
   "notification": {
     "script_sync_delete": "Đồng bộ xóa script",
     "script_sync_delete_desc": "Script {{scriptName}} đã bị xóa",
+    "script_sync_conflict": "Xung đột đồng bộ đám mây",
+    "script_sync_conflict_desc": "Script {{scriptNames}} đã thay đổi cả trên máy và trên đám mây. Đã tạm dừng đồng bộ script này, vui lòng xử lý thủ công",
     "subscribe_update": "Đăng ký {{subscribeName}} đã được cập nhật",
     "subscribe_update_desc": "Script mới: {{newScripts}}\nScript đã xóa: {{deletedScripts}}"
   },

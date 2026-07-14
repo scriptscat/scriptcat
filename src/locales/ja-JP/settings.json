@@ -88,6 +88,8 @@
   "notification": {
     "script_sync_delete": "スクリプト同期削除",
     "script_sync_delete_desc": "スクリプト {{scriptName}} が削除されました",
+    "script_sync_conflict": "クラウド同期の競合",
+    "script_sync_conflict_desc": "スクリプト {{scriptNames}} はローカルとクラウドの両方で変更されています。同期を一時停止しました。手動で解決してください",
     "subscribe_update": "サブスクリプション {{subscribeName}} が更新されました",
     "subscribe_update_desc": "新しいスクリプト: {{newScripts}}\n削除されたスクリプト: {{deletedScripts}}"
   },

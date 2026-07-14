@@ -88,6 +88,8 @@
   "notification": {
     "script_sync_delete": "Script Sync Delete",
     "script_sync_delete_desc": "Script {{scriptName}} has been deleted",
+    "script_sync_conflict": "Cloud Sync Conflict",
+    "script_sync_conflict_desc": "Both the local and cloud versions of {{scriptNames}} have been modified. Sync for the script is paused; please resolve the conflict manually",
     "subscribe_update": "Subscribe {{subscribeName}} has been updated",
     "subscribe_update_desc": "New scripts: {{newScripts}}\nDeleted scripts: {{deletedScripts}}"
   },

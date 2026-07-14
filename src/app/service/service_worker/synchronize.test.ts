@@ -1332,7 +1332,7 @@ console.log("ok");`
     );
     vi.spyOn(service.logger, "error").mockImplementation(() => undefined as any);
     // 本机上次成功写入云端的内容是 edit-1（digest 记账失败 → file_digest 仍停在 d0）
-    await (service as any).storage.set("push_content_md5", {
+    await (service as any).storage.set("sync_content_md5", {
       "sh-uuid.user.js": md5OfText("// cloud-edit-1"),
     });
 
@@ -1406,7 +1406,7 @@ console.log("ok");`
       } as any
     );
     vi.spyOn(service.logger, "error").mockImplementation(() => undefined as any);
-    await (service as any).storage.set("push_content_md5", {
+    await (service as any).storage.set("sync_content_md5", {
       "cf-uuid.user.js": md5OfText("// my-previous-push"),
     });
 
@@ -1423,7 +1423,7 @@ console.log("ok");`
     expect(userDigests).toEqual(["d0-stale"]);
   });
 
-  it("updateFileDigest 全量对账时应清理云端已删除文件的 push_content_md5，避免只增不删", async () => {
+  it("updateFileDigest 全量对账时应清理云端已删除文件的 sync_content_md5，避免只增不删", async () => {
     const fs = createFs({
       list: vi
         .fn()
@@ -1441,20 +1441,20 @@ console.log("ok");`
       {} as any,
       { scriptCodeDAO: { get: vi.fn() }, all: vi.fn().mockResolvedValue([]) } as any
     );
-    await (service as any).storage.set("push_content_md5", {
+    await (service as any).storage.set("sync_content_md5", {
       "keep.user.js": "md5-keep",
-      // 云端已删除（不在 list 快照中），其 push_content_md5 条目应被清理
+      // 云端已删除（不在 list 快照中），其 sync_content_md5 条目应被清理
       "gone.user.js": "md5-gone",
     });
 
     await service.updateFileDigest(fs as any);
 
-    await expect((service as any).storage.get("push_content_md5")).resolves.toEqual({
+    await expect((service as any).storage.get("sync_content_md5")).resolves.toEqual({
       "keep.user.js": "md5-keep",
     });
   });
 
-  it("updateFileDigestForUuids 删除本次目标文件时仅清理目标 push_content_md5，不误删无关条目", async () => {
+  it("updateFileDigestForUuids 删除本次目标文件时仅清理目标 sync_content_md5，不误删无关条目", async () => {
     // 队列路径未对账整份云端列表，只能按本次目标 uuid 清理，不能全量盖章误删他端窗口内的记录
     const fs = createFs({
       list: vi.fn().mockResolvedValue([]),
@@ -1469,7 +1469,7 @@ console.log("ok");`
       {} as any,
       { scriptCodeDAO: { get: vi.fn() }, all: vi.fn() } as any
     );
-    await (service as any).storage.set("push_content_md5", {
+    await (service as any).storage.set("sync_content_md5", {
       "del-uuid.user.js": "md5-user",
       "del-uuid.meta.json": "md5-meta",
       // 非本次目标且不在 list：不应被队列路径清理
@@ -1478,7 +1478,7 @@ console.log("ok");`
 
     await service.updateFileDigestForUuids(fs as any, ["del-uuid"]);
 
-    await expect((service as any).storage.get("push_content_md5")).resolves.toEqual({
+    await expect((service as any).storage.get("sync_content_md5")).resolves.toEqual({
       "other.user.js": "md5-other",
     });
   });
@@ -3243,5 +3243,265 @@ console.log("ok");`
     writes.length = 0;
     await service.syncOnce({ ...syncConfig, syncStatus: false }, cloudFs);
     expect(writes).toEqual([]);
+  });
+
+  it("云端已变而本地内容未变时，即使本地时间戳更大也应 pull 而非 push（同秒竞态 L4）", async () => {
+    // 本地 updatetime 是客户端毫秒时钟，云端 mtime 是服务端整秒时钟，两者不可比：
+    // 对端更新落在同一秒时，毫秒余数会让本地"看起来更新"而误走 push。
+    // 方向判定应基于内容基线：云端 digest 已变、本地内容自上次同步未变 → pull。
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu2", createtime: 1, updatetime: 5000 },
+        { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm2", createtime: 1, updatetime: 5000 },
+      ]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// code" }) },
+        all: vi
+          .fn()
+          .mockResolvedValue([
+            { uuid: "u1", name: "t", updatetime: 5497, createtime: 1, status: 1, sort: 0, metadata: {} },
+          ]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+    await (service as any).storage.set("sync_content_md5", { "u1.user.js": md5OfText("// code") });
+    const pushSpy = vi.spyOn(service, "pushScript").mockResolvedValue({});
+    const pullSpy = vi.spyOn(service, "pullScript").mockResolvedValue(undefined);
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(pullSpy).toHaveBeenCalledWith(fs, expect.anything(), undefined, expect.objectContaining({ uuid: "u1" }));
+    expect(pushSpy).not.toHaveBeenCalled();
+  });
+
+  it("本地与云端都已修改时不自动覆盖任何一端：保留旧 digest 并通知一次", async () => {
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu2", createtime: 1, updatetime: 5000 },
+        { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm2", createtime: 1, updatetime: 5000 },
+      ]),
+      open: vi.fn().mockImplementation(async () => ({
+        read: vi.fn().mockResolvedValue("// cloud edit"),
+      })),
+    });
+    const notificationSpy = vi.spyOn(chrome.notifications, "create");
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// local edit" }) },
+        all: vi
+          .fn()
+          .mockResolvedValue([
+            { uuid: "u1", name: "t", updatetime: 5497, createtime: 1, status: 1, sort: 0, metadata: {} },
+          ]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+    await (service as any).storage.set("sync_content_md5", { "u1.user.js": md5OfText("// base") });
+    const pushSpy = vi.spyOn(service, "pushScript").mockResolvedValue({});
+    const pullSpy = vi.spyOn(service, "pullScript").mockResolvedValue(undefined);
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(pushSpy).not.toHaveBeenCalled();
+    expect(pullSpy).not.toHaveBeenCalled();
+    expect(notificationSpy).toHaveBeenCalledTimes(1);
+    // 冲突文件保留旧 digest，下一轮仍能识别云端变化
+    await expect((service as any).storage.get("file_digest")).resolves.toMatchObject({
+      "u1.user.js": "cu1",
+      "u1.meta.json": "cm1",
+    });
+  });
+
+  it("同一批冲突脚本多轮同步只通知一次，冲突消失后重置", async () => {
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu2", createtime: 1, updatetime: 5000 },
+        { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm2", createtime: 1, updatetime: 5000 },
+      ]),
+      open: vi.fn().mockImplementation(async () => ({
+        read: vi.fn().mockResolvedValue("// cloud edit"),
+      })),
+    });
+    const notificationSpy = vi.spyOn(chrome.notifications, "create");
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// local edit" }) },
+        all: vi
+          .fn()
+          .mockResolvedValue([
+            { uuid: "u1", name: "t", updatetime: 5497, createtime: 1, status: 1, sort: 0, metadata: {} },
+          ]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+    await (service as any).storage.set("sync_content_md5", { "u1.user.js": md5OfText("// base") });
+    vi.spyOn(service, "pushScript").mockResolvedValue({});
+    vi.spyOn(service, "pullScript").mockResolvedValue(undefined);
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(notificationSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("云端已变但内容与本地一致时直接收敛基线，不 push 不 pull 不通知", async () => {
+    // 两台设备做了同样的编辑（或本机记账失败后云端内容实为本机所写）：
+    // 内容一致只是基线过期，采用云端 digest 收敛即可，不算冲突
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu2", createtime: 1, updatetime: 5000 },
+        { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm2", createtime: 1, updatetime: 5000 },
+      ]),
+      open: vi.fn().mockImplementation(async () => ({
+        read: vi.fn().mockResolvedValue("// same edit"),
+      })),
+    });
+    const notificationSpy = vi.spyOn(chrome.notifications, "create");
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// same edit" }) },
+        all: vi
+          .fn()
+          .mockResolvedValue([
+            { uuid: "u1", name: "t", updatetime: 5497, createtime: 1, status: 1, sort: 0, metadata: {} },
+          ]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+    await (service as any).storage.set("sync_content_md5", { "u1.user.js": md5OfText("// base") });
+    const pushSpy = vi.spyOn(service, "pushScript").mockResolvedValue({});
+    const pullSpy = vi.spyOn(service, "pullScript").mockResolvedValue(undefined);
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(pushSpy).not.toHaveBeenCalled();
+    expect(pullSpy).not.toHaveBeenCalled();
+    expect(notificationSpy).not.toHaveBeenCalled();
+    // digest 与内容基线一并推进，下一轮回到稳态
+    await expect((service as any).storage.get("file_digest")).resolves.toMatchObject({
+      "u1.user.js": "cu2",
+      "u1.meta.json": "cm2",
+    });
+    await expect((service as any).storage.get("sync_content_md5")).resolves.toMatchObject({
+      "u1.user.js": md5OfText("// same edit"),
+    });
+  });
+
+  it("无本地内容基线时退回时间比较决定方向（升级兼容）", async () => {
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu2", createtime: 1, updatetime: 5 },
+        { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm2", createtime: 1, updatetime: 5 },
+      ]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// code" }) },
+        all: vi
+          .fn()
+          .mockResolvedValue([
+            { uuid: "u1", name: "t", updatetime: 20, createtime: 1, status: 1, sort: 0, metadata: {} },
+          ]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+    const pushSpy = vi.spyOn(service, "pushScript").mockResolvedValue({});
+    const pullSpy = vi.spyOn(service, "pullScript").mockResolvedValue(undefined);
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(pushSpy).toHaveBeenCalledWith(fs, expect.objectContaining({ uuid: "u1" }), expect.anything());
+    expect(pullSpy).not.toHaveBeenCalled();
+  });
+
+  it("pull 成功后记录内容基线，供下轮云端再变时判定本地是否也改过", async () => {
+    const installScript = vi.fn().mockResolvedValue(undefined);
+    const pulledCode = `// ==UserScript==
+// @name Baseline Test
+// @namespace sync-test
+// @match https://example.com/*
+// ==/UserScript==
+console.log("ok");`;
+    const pulledMeta = JSON.stringify({ uuid: "baseline-uuid" });
+    const fs = createFs({
+      open: vi.fn().mockImplementation(async (file) => ({
+        read: vi.fn().mockResolvedValue(file.name.endsWith(".user.js") ? pulledCode : pulledMeta),
+      })),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      { installScript } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { scriptCodeDAO: {} } as any
+    );
+
+    await service.pullScript(
+      fs,
+      {
+        script: {
+          name: "baseline-uuid.user.js",
+          path: "baseline-uuid.user.js",
+          size: 1,
+          digest: "d1",
+          createtime: 1,
+          updatetime: 12345,
+        },
+        meta: {
+          name: "baseline-uuid.meta.json",
+          path: "baseline-uuid.meta.json",
+          size: 1,
+          digest: "d2",
+          createtime: 1,
+          updatetime: 1,
+        },
+      },
+      undefined
+    );
+
+    await expect((service as any).storage.get("sync_content_md5")).resolves.toMatchObject({
+      "baseline-uuid.user.js": md5OfText(pulledCode),
+      "baseline-uuid.meta.json": md5OfText(pulledMeta),
+    });
   });
 });
