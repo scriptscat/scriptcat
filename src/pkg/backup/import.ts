@@ -3,6 +3,9 @@ import Logger from "@App/app/logger/logger";
 import { isText } from "../utils/istextorbinary";
 import { blobToBase64 } from "../utils/utils";
 import { parseStorageValue } from "../utils/utils";
+import { parseMetadata } from "@App/pkg/utils/script";
+import { overrideToSelfMetadata, vmCustomToOverride, vmValueUri } from "./self_metadata";
+import { parseConfigBundle, type ConfigBundle } from "./config_bundle";
 import type {
   BackupData,
   ResourceBackup,
@@ -14,19 +17,10 @@ import type {
   ValueStorage,
   ScriptData,
   SubscribeData,
+  ViolentmonkeyManifest,
 } from "./struct";
 import type { FileInfo } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
-
-type ViolentmonkeyFile = {
-  scripts: {
-    [key: string]: {
-      config: {
-        enabled: boolean;
-      };
-    };
-  };
-};
 
 // 备份导入工具
 
@@ -52,6 +46,21 @@ export default class BackupImport {
     const map = new Map<string, Partial<ScriptData> & ScriptBackupData>();
     const subscribe = new Map<string, Partial<SubscribeData> & SubscribeBackupData>();
     let files = await this.fs.list();
+
+    // 处理 ScriptCat 设置 bundle(#1533)：可选文件，解析失败当作"无设置"，不连累脚本导入
+    let configBundle: ConfigBundle | undefined;
+    files = await this.dealFile(files, async (file) => {
+      if (file.name !== "scriptcat-config.json") {
+        return false;
+      }
+      try {
+        configBundle = parseConfigBundle(await this.getFileContent(file, true));
+      } catch (e) {
+        this.logger.warn("parse config bundle failed, skip settings", Logger.E(e));
+        configBundle = undefined;
+      }
+      return true;
+    });
 
     // 处理订阅
     files = await this.dealFile(files, async (file) => {
@@ -208,20 +217,45 @@ export default class BackupImport {
         files: files.map((f) => f.name),
       });
 
-    // 处理暴力猴导入资源
+    // 处理暴力猴：per-script 只有 .user.js，其余在根 violentmonkey 清单里。
+    // 归一成与 SC 相同的 ScriptOptionsFile(settings.enabled/position + selfMeta) + storage，使后续导入与来源无关。
     if (violentmonkeyFile) {
       try {
-        const data = (await this.getFileContent(violentmonkeyFile, true, "string")) as ViolentmonkeyFile;
-        // 设置开启状态
-        const scripts = data.scripts;
-        for (const key of Object.keys(scripts)) {
-          const vioScript = scripts[key];
-          if (!vioScript.config.enabled) {
-            const script = map.get(key);
-            if (!script) {
-              continue;
-            }
-            script.enabled = false;
+        const vm = (await this.getFileContent(violentmonkeyFile, true, "string")) as ViolentmonkeyManifest;
+        for (const [name, backupData] of map.entries()) {
+          const vmScript = vm.scripts?.[name];
+          if (!vmScript) continue;
+          const metadata = parseMetadata(backupData.code) || {};
+          const enabledRaw = vmScript.config?.enabled ?? vmScript.enabled;
+          const enabled = enabledRaw === undefined ? true : !!enabledRaw;
+          const selfMeta = overrideToSelfMetadata(vmCustomToOverride(vmScript.custom), metadata);
+          const shouldUpdate = vmScript.config?.shouldUpdate;
+          backupData.options = {
+            options: {} as never,
+            settings: {
+              enabled,
+              position: vmScript.position ?? 0,
+              ...(shouldUpdate === undefined ? {} : { checkUpdate: !!shouldUpdate }),
+            },
+            meta: {
+              name,
+              uuid: "",
+              sc_uuid: "",
+              modified: backupData.lastModificationDate || 0,
+              file_url: vmScript.custom?.downloadURL || vmScript.custom?.lastInstallURL || "",
+            },
+            selfMeta: Object.keys(selfMeta).length > 0 ? selfMeta : undefined,
+          };
+          // 值：按 encodeFilename(namespace\nname\n) 找 values[uri] 并解码。
+          // uri 用脚本默认 @name(VM props.uri 的来源)而非文件名——本地化脚本(@name:zh-CN)的
+          // 文件名是显示名,与建键用的默认 @name 不同,用文件名会丢值。
+          const ns = metadata.namespace?.[0] || "";
+          const nameForUri = metadata.name?.[0] || name;
+          const rawValues = vm.values?.[vmValueUri(ns, nameForUri)];
+          if (rawValues) {
+            const decoded: { [key: string]: any } = {};
+            for (const k of Object.keys(rawValues)) decoded[k] = parseStorageValue(rawValues[k]);
+            backupData.storage = { data: decoded, ts: backupData.lastModificationDate || 0 };
           }
         }
       } catch (e) {
@@ -233,6 +267,7 @@ export default class BackupImport {
     return {
       script: [...map.values()] as ScriptData[],
       subscribe: [...subscribe.values()] as SubscribeData[],
+      config: configBundle,
     };
   }
 
