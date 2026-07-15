@@ -525,6 +525,9 @@ export class ScriptService {
       logger.error("scripts not found");
       throw new Error("scripts not found");
     }
+    if (!(await this.systemConfig.getTrashEnabled())) {
+      return this.destroyActiveScripts(scripts, deleteBy);
+    }
     const deleteTime = Date.now();
     try {
       // 先写回收站,成功后再删活跃表。失败的最坏结果是两张表短暂都有(可被 upsert 清理自愈),
@@ -544,6 +547,34 @@ export class ScriptService {
       return true;
     } catch (e) {
       logger.error("trash error", Logger.E(e));
+      throw e;
+    }
+  }
+
+  /**
+   * 回收站关闭时的删除:不经回收站直接销毁。
+   * 必须同时发出 trashScripts 与 deleteScripts —— 二者的订阅者是不相交的两半(停用 / 销毁),
+   * 且「彻底删除永远发生在进回收站之后」这条前提在关闭态不成立。只发后者会让 runtime 注销不掉、
+   * cron 停不下、云端删不掉,即脚本被删了却还在跑。
+   */
+  private async destroyActiveScripts(scripts: Script[], deleteBy: InstallSource) {
+    const uuids = scripts.map((s) => s.uuid);
+    const logger = this.logger.with({ uuids });
+    try {
+      await this.scriptDAO.deletes(uuids);
+      await this.scriptCodeDAO.deletes(uuids);
+      await this.compiledResourceDAO.deletes(uuids);
+      logger.info("delete without trash success");
+      const data = scripts.map((script) => ({
+        uuid: script.uuid,
+        storageName: getStorageName(script),
+        type: script.type,
+      }));
+      this.mq.publish<TDeleteScript[]>("trashScripts", data.map((d) => ({ ...d, deleteBy })) as TDeleteScript[]);
+      this.mq.publish<TDeleteScript[]>("deleteScripts", data as TDeleteScript[]);
+      return true;
+    } catch (e) {
+      logger.error("delete without trash error", Logger.E(e));
       throw e;
     }
   }

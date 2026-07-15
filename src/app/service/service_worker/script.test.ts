@@ -364,3 +364,53 @@ describe("ScriptService —— 回收站 DAO 缓存", () => {
     expect(service.trashScriptDAO.useCache).toBe(true);
   });
 });
+
+describe("ScriptService.deleteScripts —— 回收站关闭时直接销毁", () => {
+  beforeEach(async () => {
+    clearCacheForTest();
+    await chrome.storage.local.clear();
+  });
+
+  it("未设置 trash_enabled 时默认仍走回收站,脚本代码保留", async () => {
+    const { service, scriptDAO, trashDAO, codeDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "d1" }));
+    await codeDAO.save({ uuid: "d1", code: "// code" });
+
+    await service.deleteScripts(["d1"]);
+
+    expect(await trashDAO.get("d1")).toBeDefined();
+    expect(await codeDAO.get("d1")).toBeDefined();
+  });
+
+  it("关闭回收站后删除不写回收站表,并一并销毁脚本代码", async () => {
+    const { service, scriptDAO, trashDAO, codeDAO, systemConfig } = buildService();
+    systemConfig.setTrashEnabled(false);
+    await scriptDAO.save(makeScript({ uuid: "d2" }));
+    await codeDAO.save({ uuid: "d2", code: "// code" });
+
+    await service.deleteScripts(["d2"]);
+
+    expect(await scriptDAO.get("d2")).toBeUndefined();
+    expect(await trashDAO.get("d2")).toBeUndefined();
+    expect(await codeDAO.get("d2")).toBeUndefined();
+  });
+
+  it("关闭回收站后删除必须同时广播 trashScripts(停用)与 deleteScripts(销毁)", async () => {
+    const { service, mq, scriptDAO, systemConfig } = buildService();
+    systemConfig.setTrashEnabled(false);
+    await scriptDAO.save(makeScript({ uuid: "d3" }));
+    const trashEvents: TDeleteScript[][] = [];
+    const deleteEvents: TDeleteScript[][] = [];
+    mq.subscribe<TDeleteScript[]>("trashScripts", (d) => void trashEvents.push(d));
+    mq.subscribe<TDeleteScript[]>("deleteScripts", (d) => void deleteEvents.push(d));
+
+    await service.deleteScripts(["d3"]);
+
+    // 漏发 trashScripts 的后果:runtime 不注销、cron 不停、云端不删 —— 脚本删了却还在跑。
+    // 次数不断言:MessageQueue.publish() 在测试环境会双投递(见 cleanupExpiredTrash 测试的注释)。
+    expect(trashEvents.length).toBeGreaterThan(0);
+    expect(deleteEvents.length).toBeGreaterThan(0);
+    expect(trashEvents[0][0].uuid).toBe("d3");
+    expect(deleteEvents[0][0].uuid).toBe("d3");
+  });
+});

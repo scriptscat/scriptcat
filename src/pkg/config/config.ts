@@ -494,6 +494,15 @@ export class SystemConfig {
     this._set("log_clean_cycle", val);
   }
 
+  /** 回收站是否启用。关闭后删除脚本将直接彻底删除 */
+  getTrashEnabled() {
+    return this._get<boolean>("trash_enabled", true);
+  }
+
+  setTrashEnabled(val: boolean) {
+    this._set("trash_enabled", val);
+  }
+
   /** 回收站保留天数。0 表示永不自动清理 */
   getTrashRetentionDays() {
     return this._get<number>("trash_retention_days", 30);
