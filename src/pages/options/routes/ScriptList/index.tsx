@@ -11,6 +11,7 @@ import {
 } from "@App/app/repo/scripts";
 import {
   requestDeleteScripts,
+  requestRestoreScripts,
   requestEnableScript,
   requestRunScript,
   requestStopScript,
@@ -209,16 +210,33 @@ export default function ScriptList() {
   // 删除脚本（二次确认由行内 / 批量栏的 Popconfirm 气泡完成，此处直接执行删除）
   const deleteScripts = useCallback(
     async (uuids: string[]) => {
+      // 名字必须在删除前抓：删完脚本已不在活跃表，toast 副标题就查不到了
+      const firstName = uuids.length === 1 ? scriptList.find((s) => s.uuid === uuids[0])?.name : undefined;
       updateScripts(uuids, { actionLoading: true });
       try {
         await requestDeleteScripts(uuids);
-        notify.success(t("delete_success"));
+        const undo = async () => {
+          const ret = await requestRestoreScripts(uuids);
+          if (ret?.restored.length) {
+            // 还原会广播 installScript，列表经 hooks 的订阅自动刷新，无需手动 reload
+            notify.success(t("script:trash_undo_success"));
+          } else {
+            notify.error(t("script:trash_undo_failed"));
+          }
+        };
+        notify.success(
+          uuids.length === 1 ? t("script:trash_moved_single") : t("script:trash_moved_batch", { count: uuids.length }),
+          {
+            description: firstName,
+            action: { label: t("script:trash_undo"), onClick: () => void undo() },
+          }
+        );
       } catch (e) {
         updateScripts(uuids, { actionLoading: false });
         notify.error(`${t("script:delete_failed")}: ${e}`);
       }
     },
-    [updateScripts, t]
+    [updateScripts, t, scriptList]
   );
 
   const handleDelete = useCallback((item: ScriptLoading) => deleteScripts([item.uuid]), [deleteScripts]);
