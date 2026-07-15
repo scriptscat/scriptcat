@@ -1,6 +1,6 @@
 {
   "create_user_script": "Criar Script de Usuário",
-  "create_background_script": "Criar Script em Segundo Plano",
+  "create_background_script": "Criar Script de Segundo Plano",
   "create_scheduled_script": "Criar Script Agendado",
   "create_script": "Criar Script",
   "installed_scripts": "Scripts Instalados",
