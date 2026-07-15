@@ -49,6 +49,7 @@ import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
 import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 import { EnableAgent } from "@App/app/const";
 import { TrashScriptDAO } from "@App/app/repo/trash_script";
+import type { TrashScript } from "@App/app/repo/trash_script";
 import { SubscribeDAO } from "@App/app/repo/subscribe";
 
 export type TCheckScriptUpdateOption = Partial<
@@ -618,6 +619,12 @@ export class ScriptService {
     await this.purgeScripts(expired);
     this.logger.info("cleanup expired trash", { count: expired.length });
     return expired.length;
+  }
+
+  /** 读取回收站全部条目,按删除时间倒序(最近删的在前) */
+  async getTrashScripts(): Promise<TrashScript[]> {
+    const all = await this.trashScriptDAO.all();
+    return all.sort((a, b) => b.deleteTime - a.deleteTime);
   }
 
   async enableScript(param: { uuid: string; enable: boolean }) {
@@ -1563,6 +1570,7 @@ export class ScriptService {
     this.group.on("deletes", (uuids: string[]) => this.deleteScripts(uuids));
     this.group.on("purges", this.purgeScripts.bind(this));
     this.group.on("restores", this.restoreScripts.bind(this));
+    this.group.on("getTrashScripts", this.getTrashScripts.bind(this));
     this.group.on("enable", this.enableScript.bind(this));
     this.group.on("enables", this.enableScripts.bind(this));
     this.group.on("fetchInfo", this.fetchInfo.bind(this));
