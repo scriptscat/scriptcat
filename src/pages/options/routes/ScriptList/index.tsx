@@ -403,9 +403,8 @@ export default function ScriptList() {
 
   // 已安装 / 回收站切换。占据顶栏最左侧（取代「已安装脚本 + 数量」标题槽位，数量改由 tab 上的角标承载）。
   const [trashCount, setTrashCount] = useTrashCount();
-  // trashEnabled 已在上方声明（deleteScripts 需要提前拿到），此处直接复用
-  // 关闭回收站只影响「以后」：站内残留条目仍要可见可清，清空后 tab 才消失
-  const showTrashTab = (trashEnabled ?? true) || trashCount > 0;
+  // 空回收站不占用标签位；无论功能开关状态如何，只要仍有条目就允许进入清理。
+  const showTrashTab = trashCount > 0;
 
   // 回落：showTrashTab 转 false 时若仍停留在 trash tab，跳回 installed。用「渲染期比较」模式
   // （见 Logger/hooks.ts 同类写法）而非 effect 内同步 setState，避免级联渲染告警。

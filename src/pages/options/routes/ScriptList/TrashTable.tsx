@@ -10,7 +10,10 @@ import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { SearchInput } from "@App/pages/components/ui/search-input";
+import { semTime } from "@App/locales/relative-date";
+import { versionDisplay } from "@App/pages/utils";
 import SelectionBar, { SelectionBarButton } from "./SelectionBar";
+import { ScriptIcon } from "./components";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -261,18 +264,21 @@ export default function TrashTable({
                       }}
                     />
                   </div>
-                  <div className="flex flex-col flex-1 min-w-0 gap-0.5">
-                    <span className="text-sm font-medium truncate text-muted-foreground">{item.name}</span>
-                    <span className="text-xs truncate text-muted-foreground">{item.namespace}</span>
+                  <div className="flex flex-1 min-w-0 items-center gap-2.5">
+                    <ScriptIcon name={item.name} metadata={item.metadata} />
+                    <div className="flex min-w-0 flex-col gap-px">
+                      <span className="truncate text-sm font-medium text-muted-foreground">{item.name}</span>
+                      <span className="truncate text-[11px] text-muted-foreground">
+                        {[item.namespace, versionDisplay(item.metadata?.version?.[0])].filter(Boolean).join(" · ")}
+                      </span>
+                    </div>
                   </div>
                   <div className="w-[120px]">
                     <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
                       {t(sourceKeyOf(item.deleteBy))}
                     </span>
                   </div>
-                  <div className="w-[150px] text-xs text-muted-foreground">
-                    {new Date(item.deleteTime).toLocaleString()}
-                  </div>
+                  <div className="w-[150px] text-xs text-muted-foreground">{semTime(new Date(item.deleteTime))}</div>
                   <div className="w-[110px] flex items-center gap-1.5">
                     {left === null ? (
                       <span className="text-xs text-muted-foreground">{"—"}</span>

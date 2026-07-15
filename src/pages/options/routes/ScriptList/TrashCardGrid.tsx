@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { FileCode, RotateCcw, Settings2, Trash2, TriangleAlert } from "lucide-react";
+import { RotateCcw, Settings2, Trash2, TriangleAlert } from "lucide-react";
 import type { TrashScript } from "@App/app/repo/trash_script";
 import type { InstallSource } from "@App/app/service/service_worker/types";
 import { requestTrashScripts, requestRestoreScripts, requestPurgeScripts } from "@App/pages/store/features/script";
@@ -10,6 +10,9 @@ import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { EmptyState } from "@App/pages/components/ui/empty-state";
 import { Surface } from "@App/pages/components/ui/surface";
+import { semTime } from "@App/locales/relative-date";
+import { versionDisplay } from "@App/pages/utils";
+import { ScriptIcon } from "./components";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -185,18 +188,18 @@ export default function TrashCardGrid({
             return (
               <Surface key={item.uuid} className="flex flex-col gap-2 p-3.5">
                 <div className="flex items-center gap-2">
-                  <FileCode className="w-4 h-4 shrink-0 text-muted-foreground" />
+                  <ScriptIcon name={item.name} metadata={item.metadata} size={20} />
                   <span className="text-sm font-medium truncate text-muted-foreground">{item.name}</span>
                   <div className="flex-1" />
                   <span className="px-2 py-0.5 text-[10px] font-medium rounded-full shrink-0 bg-muted text-muted-foreground">
                     {t(sourceKeyOf(item.deleteBy))}
                   </span>
                 </div>
-                <span className="text-xs truncate text-muted-foreground">{item.namespace}</span>
+                <span className="truncate text-[11px] text-muted-foreground">
+                  {[item.namespace, versionDisplay(item.metadata?.version?.[0])].filter(Boolean).join(" · ")}
+                </span>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-muted-foreground">
-                    {new Date(item.deleteTime).toLocaleDateString()}
-                  </span>
+                  <span className="text-[11px] text-muted-foreground">{semTime(new Date(item.deleteTime))}</span>
                   <span className="text-[11px] text-muted-foreground">{"·"}</span>
                   {urgent && <TriangleAlert className="w-3 h-3 shrink-0 text-destructive" />}
                   <span

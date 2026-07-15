@@ -70,3 +70,26 @@ describe("桌面回收站批量操作槽位", () => {
     expect(checkboxes[1]).not.toBeChecked();
   });
 });
+
+describe("回收站脚本元信息样式", () => {
+  const trashed = {
+    uuid: "trash-meta",
+    name: "带版本脚本",
+    namespace: "example.namespace",
+    deleteBy: "user",
+    deleteTime: Date.now() - 3 * 24 * 60 * 60 * 1000,
+    metadata: { icon: ["https://example.com/icon.png"], version: ["1.2.3"] },
+  };
+
+  it.each([
+    ["桌面端", <TrashTable key="desktop" />],
+    ["移动端", <TrashCardGrid key="mobile" />],
+  ])("%s 与脚本列表一致显示图标、11px 版本和语义化时间", async (_name, view) => {
+    requestTrashScripts.mockResolvedValue([trashed]);
+    renderWithRouter(view);
+
+    expect(await screen.findByText("example.namespace · v1.2.3")).toHaveClass("text-[11px]");
+    expect(screen.getByRole("img", { name: "带版本脚本" })).toHaveAttribute("src", "https://example.com/icon.png");
+    expect(screen.getByText(/3 days ago|3天前/)).toBeInTheDocument();
+  });
+});

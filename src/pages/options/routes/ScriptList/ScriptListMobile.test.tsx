@@ -173,7 +173,15 @@ describe("回收站 tab 显隐", () => {
   const disableTrash = () =>
     get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? false : 30));
 
-  it("回收站开启时桌面端显示回收站 tab", async () => {
+  it("回收站开启但数量为 0 时桌面端不显示回收站 tab", async () => {
+    renderWithRouter(<ScriptList />);
+
+    await screen.findByRole("button", { name: /已安装/ });
+    expect(screen.queryByRole("button", { name: /回收站/ })).not.toBeInTheDocument();
+  });
+
+  it("回收站数量大于 0 时桌面端显示回收站 tab", async () => {
+    mockTrashCount.value = 1;
     renderWithRouter(<ScriptList />);
 
     expect(await screen.findByRole("button", { name: /回收站/ })).toBeInTheDocument();
@@ -198,6 +206,14 @@ describe("回收站 tab 显隐", () => {
 
   it("回收站关闭且已清空时移动端同样不显示回收站 tab", async () => {
     disableTrash();
+    mockedUseIsMobile.mockReturnValue(true);
+    renderWithRouter(<ScriptList />);
+
+    await screen.findByRole("button", { name: /已安装/ });
+    expect(screen.queryByRole("button", { name: /回收站/ })).not.toBeInTheDocument();
+  });
+
+  it("回收站开启但数量为 0 时移动端同样不显示回收站 tab", async () => {
     mockedUseIsMobile.mockReturnValue(true);
     renderWithRouter(<ScriptList />);
 
