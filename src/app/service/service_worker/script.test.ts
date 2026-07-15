@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { initTestEnv } from "@Tests/utils";
 import { ScriptService } from "./script";
 import {
@@ -87,5 +87,80 @@ describe("ScriptService.purgeScripts —— 彻底删除", () => {
   it("回收站中不存在该脚本时应抛错", async () => {
     const { service } = buildService();
     await expect(service.purgeScripts(["nope"])).rejects.toThrow("trash scripts not found");
+  });
+});
+
+describe("ScriptService.deleteScripts —— 进回收站", () => {
+  beforeEach(async () => {
+    await chrome.storage.local.clear();
+  });
+
+  it("应把脚本搬进回收站并从活跃表移除", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "t1" }));
+
+    await service.deleteScripts(["t1"]);
+
+    expect(await scriptDAO.get("t1")).toBeUndefined();
+    const trashed = await trashDAO.get("t1");
+    expect(trashed?.uuid).toBe("t1");
+    expect(trashed?.deleteBy).toBe("user");
+    expect(typeof trashed?.deleteTime).toBe("number");
+  });
+
+  it("应记录传入的删除来源", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "t2" }));
+
+    await service.deleteScripts(["t2"], "sync");
+
+    expect((await trashDAO.get("t2"))?.deleteBy).toBe("sync");
+  });
+
+  it("应广播 trashScripts 且绝不广播 deleteScripts", async () => {
+    const { service, mq, scriptDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "t3" }));
+    const trashEvents: TDeleteScript[][] = [];
+    const deleteEvents: TDeleteScript[][] = [];
+    mq.subscribe<TDeleteScript[]>("trashScripts", (d) => void trashEvents.push(d));
+    mq.subscribe<TDeleteScript[]>("deleteScripts", (d) => void deleteEvents.push(d));
+
+    await service.deleteScripts(["t3"]);
+
+    // 注：裸 MessageQueue.publish() 在同一实例内会经由 chrome.runtime 回环 + 直接 EE.emit 双重投递给本地订阅者，
+    // 这是 packages/message/message_queue.ts 既有行为，与本方法无关，因此这里只断言"至少广播了一次，且载荷正确"，
+    // 不绑定具体次数（deleteScripts 绝不广播这一条是关键分界线，次数为 0 不受该 mock 行为影响，须精确断言）。
+    expect(trashEvents.length).toBeGreaterThan(0);
+    expect(trashEvents[0][0]).toMatchObject({ uuid: "t3", deleteBy: "user" });
+    expect(deleteEvents).toHaveLength(0);
+  });
+
+  it("必须保留脚本代码,否则还原出来是空壳", async () => {
+    const { service, scriptDAO, codeDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "t4" }));
+    await codeDAO.save({ uuid: "t4", code: "// 我必须活下来" });
+
+    await service.deleteScripts(["t4"]);
+
+    expect((await codeDAO.get("t4"))?.code).toBe("// 我必须活下来");
+  });
+
+  it("deleteScript 单条应委托给 deleteScripts 并透传来源", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "t5" }));
+
+    await service.deleteScript("t5", "subscribe");
+
+    expect((await trashDAO.get("t5"))?.deleteBy).toBe("subscribe");
+    expect(await scriptDAO.get("t5")).toBeUndefined();
+  });
+
+  it("写回收站失败时不得删除活跃表中的脚本(宁可短暂重复,不可丢数据)", async () => {
+    const { service, scriptDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "t6" }));
+    vi.spyOn(service.trashScriptDAO, "save").mockRejectedValueOnce(new Error("storage boom"));
+
+    await expect(service.deleteScripts(["t6"])).rejects.toThrow("storage boom");
+    expect(await scriptDAO.get("t6")).toBeDefined();
   });
 });
