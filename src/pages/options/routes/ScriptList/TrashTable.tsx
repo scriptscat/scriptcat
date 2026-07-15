@@ -8,6 +8,7 @@ import { notify } from "@App/pages/components/ui/toast";
 import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
+import { SearchInput } from "@App/pages/components/ui/search-input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +45,7 @@ export default function TrashTable() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [purgeAllOpen, setPurgeAllOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [keyword, setKeyword] = useState("");
   const [retentionDays] = useSystemConfig("trash_retention_days");
 
   const reload = useCallback(
@@ -91,10 +93,14 @@ export default function TrashTable() {
     [reload, t]
   );
 
-  const visible = useMemo(
-    () => (sourceFilter === "all" ? list : list.filter((item) => item.deleteBy === sourceFilter)),
-    [list, sourceFilter]
-  );
+  const visible = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    return list.filter(
+      (item) =>
+        (sourceFilter === "all" || item.deleteBy === sourceFilter) &&
+        (!kw || item.name.toLowerCase().includes(kw) || item.namespace.toLowerCase().includes(kw))
+    );
+  }, [list, sourceFilter, keyword]);
 
   const allSelected = useMemo(
     () => visible.length > 0 && visible.every((item) => selected.has(item.uuid)),
@@ -163,6 +169,14 @@ export default function TrashTable() {
       </div>
 
       <div className="flex items-center h-9 gap-2">
+        <SearchInput
+          className="w-[260px]"
+          inputClassName="text-sm"
+          aria-label={t("script:trash_search_placeholder")}
+          placeholder={t("script:trash_search_placeholder")}
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+        />
         {FILTERS.map((f) => (
           <button
             key={f.value}
