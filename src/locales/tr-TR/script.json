@@ -80,6 +80,7 @@
   "tab_installed": "Yüklü",
   "trash_empty_title": "Çöp kutusu boş",
   "trash_empty_desc": "Silinen betikler burada {{days}} gün boyunca saklanır ve bu süre içinde istediğiniz zaman geri yükleyebilirsiniz",
+  "trash_empty_desc_never": "Silinen betikler, siz kalıcı olarak silene kadar burada saklanır",
   "trash_hint": "Çöp kutusundaki betikler çalıştırılmaz · {{days}} gün sonra otomatik olarak silinir",
   "trash_hint_never": "Çöp kutusundaki betikler çalıştırılmaz · Otomatik olarak silinmez",
   "trash_hint_disabled": "Çöp kutusu kapalı · Bundan sonra silinen betikler doğrudan kalıcı olarak silinir",

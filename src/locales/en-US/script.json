@@ -80,6 +80,7 @@
   "tab_installed": "Installed",
   "trash_empty_title": "Trash is empty",
   "trash_empty_desc": "Deleted scripts stay here for {{days}} days, during which you can restore them anytime",
+  "trash_empty_desc_never": "Deleted scripts stay here until you delete them permanently",
   "trash_hint": "Scripts in Trash won't run · Automatically cleaned up after {{days}} days",
   "trash_hint_never": "Scripts in Trash won't run · Won't be automatically cleaned up",
   "trash_hint_disabled": "Trash is off · Newly deleted scripts are removed permanently right away",

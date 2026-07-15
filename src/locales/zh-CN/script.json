@@ -80,6 +80,7 @@
   "tab_installed": "已安装",
   "trash_empty_title": "回收站是空的",
   "trash_empty_desc": "删除的脚本会先移到这里保留 {{days}} 天,期间可以随时还原",
+  "trash_empty_desc_never": "删除的脚本会先移到这里,除非手动彻底删除,否则会一直保留",
   "trash_hint": "回收站中的脚本不会运行 · {{days}} 天后自动清理",
   "trash_hint_never": "回收站中的脚本不会运行 · 不会自动清理",
   "trash_hint_disabled": "回收站已关闭 · 新删除的脚本将直接彻底删除",

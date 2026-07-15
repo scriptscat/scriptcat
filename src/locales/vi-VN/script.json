@@ -80,6 +80,7 @@
   "tab_installed": "Đã cài đặt",
   "trash_empty_title": "Thùng rác trống",
   "trash_empty_desc": "Script đã xóa sẽ được lưu ở đây trong {{days}} ngày, trong thời gian đó bạn có thể khôi phục bất cứ lúc nào",
+  "trash_empty_desc_never": "Script đã xóa sẽ được lưu ở đây cho đến khi bạn xóa vĩnh viễn",
   "trash_hint": "Script trong thùng rác sẽ không chạy · Tự động dọn dẹp sau {{days}} ngày",
   "trash_hint_never": "Script trong thùng rác sẽ không chạy · Sẽ không tự động dọn dẹp",
   "trash_hint_disabled": "Thùng rác đã tắt · Script xóa từ giờ sẽ bị xóa vĩnh viễn ngay",

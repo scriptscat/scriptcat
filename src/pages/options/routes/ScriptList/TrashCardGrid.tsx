@@ -77,6 +77,13 @@ export default function TrashCardGrid({
   // 关闭回收站后残留条目不再自动清理，倒计时须归零，否则会倒数一个永远不会到来的期限
   const days = (trashEnabled ?? true) ? configuredDays : 0;
 
+  // days=0 有两种含义（关闭 / 永不清理），空状态说明须分别措辞，不能插值出「保留 0 天」
+  const emptyDesc = !(trashEnabled ?? true)
+    ? t("script:trash_hint_disabled")
+    : days
+      ? t("script:trash_empty_desc", { days })
+      : t("script:trash_empty_desc_never");
+
   const daysLeftOf = useCallback(
     (item: TrashScript) => (days ? Math.ceil((item.deleteTime + days * DAY - Date.now()) / DAY) : null),
     [days]
@@ -84,13 +91,19 @@ export default function TrashCardGrid({
 
   const onRestore = useCallback(
     async (uuids: string[]) => {
-      const ret = await requestRestoreScripts(uuids);
-      if (!ret) return;
-      for (const c of ret.conflicts) {
-        notify.error(t("script:trash_restore_conflict", { name: c.name }));
-      }
-      if (ret.restored.length) {
-        notify.success(t("script:trash_restore_success", { count: ret.restored.length }));
+      try {
+        const ret = await requestRestoreScripts(uuids);
+        if (ret) {
+          for (const c of ret.conflicts) {
+            notify.error(t("script:trash_restore_conflict", { name: c.name }));
+          }
+          if (ret.restored.length) {
+            notify.success(t("script:trash_restore_success", { count: ret.restored.length }));
+          }
+        }
+      } catch {
+        // 条目可能已被其他窗口或到期清理抢先处理(SW 抛 trash scripts not found);失败也要重拉列表清掉陈旧行
+        notify.error(t("script:trash_undo_failed"));
       }
       await reload();
     },
@@ -99,8 +112,12 @@ export default function TrashCardGrid({
 
   const onPurge = useCallback(
     async (uuids: string[]) => {
-      await requestPurgeScripts(uuids);
-      notify.success(t("script:trash_purge_success", { count: uuids.length }));
+      try {
+        await requestPurgeScripts(uuids);
+        notify.success(t("script:trash_purge_success", { count: uuids.length }));
+      } catch {
+        notify.error(t("script:delete_failed"));
+      }
       await reload();
     },
     [reload, t]
@@ -183,11 +200,7 @@ export default function TrashCardGrid({
 
       <div className="flex flex-col flex-1 min-h-0 gap-2.5 px-4 pb-4 overflow-y-auto">
         {!list.length ? (
-          <EmptyState
-            icon={Trash2}
-            title={t("script:trash_empty_title")}
-            description={t("script:trash_empty_desc", { days })}
-          />
+          <EmptyState icon={Trash2} title={t("script:trash_empty_title")} description={emptyDesc} />
         ) : (
           visible.map((item) => {
             const left = daysLeftOf(item);

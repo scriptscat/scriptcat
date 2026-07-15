@@ -80,6 +80,7 @@
   "tab_installed": "已安裝",
   "trash_empty_title": "回收筒是空的",
   "trash_empty_desc": "刪除的腳本會先移到這裡保留 {{days}} 天，期間可以隨時還原",
+  "trash_empty_desc_never": "刪除的腳本會先移到這裡，除非手動永久刪除，否則會一直保留",
   "trash_hint": "回收筒中的腳本不會執行 · {{days}} 天後自動清理",
   "trash_hint_never": "回收筒中的腳本不會執行 · 不會自動清理",
   "trash_hint_disabled": "回收筒已關閉 · 新刪除的腳本將直接永久刪除",

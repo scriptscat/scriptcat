@@ -80,6 +80,7 @@
   "tab_installed": "インストール済み",
   "trash_empty_title": "ゴミ箱は空です",
   "trash_empty_desc": "削除したスクリプトはここに {{days}} 日間保存され、その間はいつでも復元できます",
+  "trash_empty_desc_never": "削除したスクリプトは、完全に削除するまでここに保存されます",
   "trash_hint": "ゴミ箱内のスクリプトは実行されません · {{days}} 日後に自動的に削除されます",
   "trash_hint_never": "ゴミ箱内のスクリプトは実行されません · 自動削除はされません",
   "trash_hint_disabled": "ゴミ箱は無効です · 今後削除するスクリプトはすぐに完全に削除されます",

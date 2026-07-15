@@ -80,6 +80,7 @@
   "tab_installed": "Installiert",
   "trash_empty_title": "Papierkorb ist leer",
   "trash_empty_desc": "Gelöschte Skripte werden hier {{days}} Tage lang aufbewahrt und können in dieser Zeit jederzeit wiederhergestellt werden",
+  "trash_empty_desc_never": "Gelöschte Skripte werden hier aufbewahrt, bis Sie sie endgültig löschen",
   "trash_hint": "Skripte im Papierkorb werden nicht ausgeführt · Werden nach {{days}} Tagen automatisch gelöscht",
   "trash_hint_never": "Skripte im Papierkorb werden nicht ausgeführt · Werden nicht automatisch gelöscht",
   "trash_hint_disabled": "Papierkorb ist deaktiviert · Neu gelöschte Skripte werden sofort endgültig gelöscht",
