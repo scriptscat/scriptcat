@@ -363,7 +363,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
       (service as any).bgSessionManager.set("conv-late-error", rc);
 
       // 模拟 emitCancelled() 广播的终态事件已经先经过 sendEvent → updateStreamingState
-      // 把 status 从 cancelling 改写成 error（真实时序：chat_service_base.ts 的 sendEvent
+      // 把 status 从 cancelling 改写成 error（真实时序：chat_service.ts 的 sendEvent
       // 总是先 updateStreamingState 再 finalizeCancelled 才被调用）
       (service as any).bgSessionManager.updateStreamingState(rc, { type: "error", message: "x" });
       expect(rc.status).toBe("error");

@@ -62,7 +62,7 @@ export class OPFSRepo {
   // 传入 signal 时，若在"调用 close() 之前"已 abort，则改为 writable.abort() 放弃这次写入。
   // 诚实说明这里的边界：这只保证 close() 调用前的 abort 一定不会提交；一旦 close() 已经
   // 发出，FSA 规范不提供可靠的方式中途取消它，abort 恰好落在 close() 进行期间这个极窄窗口
-  // 理论上仍可能提交。调用方（compact_service.ts / chat_service_base.ts）都会在
+  // 理论上仍可能提交。调用方（compact_service.ts / chat_service.ts）都会在
   // saveMessages() resolve 之后再次检查 signal，因此即使命中这个窗口，也不会对外报告
   // 虚假的成功事件（compact_done/done）——唯一的残留风险是磁盘内容被替换但会话已判定为
   // 取消，这是一个已知的、极窄的边界情况，未做完整的事务回滚（见 finding 2）。
