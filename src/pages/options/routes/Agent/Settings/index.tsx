@@ -14,11 +14,14 @@ import { Surface } from "@App/pages/components/ui/surface";
 import { agentClient } from "@App/pages/store/features/script";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import type { SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
-import { DEFAULT_CHAT_MAX_ITERATIONS, type AgentGeneralConfig } from "@App/app/service/agent/core/agent_config";
+import {
+  DEFAULT_CHAT_MAX_ITERATIONS,
+  MIN_CHAT_MAX_ITERATIONS,
+  MAX_CHAT_MAX_ITERATIONS,
+  type AgentGeneralConfig,
+} from "@App/app/service/agent/core/agent_config";
 
 const DEFAULT_MODEL = "__default__";
-const MIN_CHAT_MAX_ITERATIONS = 1;
-const MAX_CHAT_MAX_ITERATIONS = 1000;
 
 type Engine = SearchEngineConfig["engine"];
 
