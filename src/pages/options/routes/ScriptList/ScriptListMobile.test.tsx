@@ -75,7 +75,9 @@ vi.mock("@App/pages/store/global", async () => {
 // ScriptTable stub renders the view-toggle testid so desktop tests still work; it must forward
 // `leading` (the tabs, per ScriptTableProps) since that's the only place index.tsx renders them.
 vi.mock("./ScriptTable", () => ({
-  default: ({ leading }: { leading?: ReactNode }) => <div data-testid="view-toggle">{leading}</div>,
+  default: ({ leading }: { leading?: ReactNode }) => (
+    <div data-testid="view-toggle">{leading ?? <span data-testid="legacy-installed-title" />}</div>
+  ),
 }));
 vi.mock("./ScriptCard", () => ({
   default: () => null,
@@ -176,7 +178,8 @@ describe("回收站 tab 显隐", () => {
   it("回收站开启但数量为 0 时桌面端不显示回收站 tab", async () => {
     renderWithRouter(<ScriptList />);
 
-    await screen.findByRole("button", { name: /已安装/ });
+    expect(await screen.findByTestId("legacy-installed-title")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /已安装/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /回收站/ })).not.toBeInTheDocument();
   });
 
@@ -191,8 +194,8 @@ describe("回收站 tab 显隐", () => {
     disableTrash();
     renderWithRouter(<ScriptList />);
 
-    // 先等已安装 tab 落地，确保配置已异步到位，否则「查不到回收站」会是假阳性
-    await screen.findByRole("button", { name: /已安装/ });
+    expect(await screen.findByTestId("legacy-installed-title")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /已安装/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /回收站/ })).not.toBeInTheDocument();
   });
 
@@ -209,7 +212,8 @@ describe("回收站 tab 显隐", () => {
     mockedUseIsMobile.mockReturnValue(true);
     renderWithRouter(<ScriptList />);
 
-    await screen.findByRole("button", { name: /已安装/ });
+    expect(await screen.findByTestId("mobile-search")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /已安装/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /回收站/ })).not.toBeInTheDocument();
   });
 
@@ -217,7 +221,8 @@ describe("回收站 tab 显隐", () => {
     mockedUseIsMobile.mockReturnValue(true);
     renderWithRouter(<ScriptList />);
 
-    await screen.findByRole("button", { name: /已安装/ });
+    expect(await screen.findByTestId("mobile-search")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /已安装/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /回收站/ })).not.toBeInTheDocument();
   });
 });

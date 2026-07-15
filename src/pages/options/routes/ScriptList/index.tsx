@@ -469,7 +469,7 @@ export default function ScriptList() {
         <TrashTable leading={tabs} onCountChange={setTrashCount} />
       ) : (
         <MainContent
-          leading={tabs}
+          leading={showTrashTab ? tabs : undefined}
           viewMode={viewMode}
           scriptList={displayScripts}
           loadingList={loadingList}

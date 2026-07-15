@@ -50,32 +50,34 @@ function ScriptListMobile({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center px-4 py-1.5 shrink-0">
-        <div className="flex items-center flex-1 gap-0.5 p-[3px] rounded-md bg-muted">
-          {(showTrashTab ? (["installed", "trash"] as const) : (["installed"] as const)).map((tab) => {
-            const active = activeTab === tab;
-            const count = tab === "installed" ? scriptList.length : trashCount;
-            return (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex items-center justify-center flex-1 gap-1.5 h-7 rounded-sm text-sm ${
-                  active ? "bg-background font-semibold text-foreground" : "text-muted-foreground"
-                }`}
-              >
-                {tab === "installed" ? t("script:tab_installed") : t("script:trash_tab")}
-                <span
-                  className={`rounded-full px-1.5 text-[11px] font-medium tabular-nums ${
-                    active ? "bg-primary/10 text-primary" : "text-muted-foreground"
+      {showTrashTab && (
+        <div className="flex items-center px-4 py-1.5 shrink-0">
+          <div className="flex items-center flex-1 gap-0.5 p-[3px] rounded-md bg-muted">
+            {(["installed", "trash"] as const).map((tab) => {
+              const active = activeTab === tab;
+              const count = tab === "installed" ? scriptList.length : trashCount;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex items-center justify-center flex-1 gap-1.5 h-7 rounded-sm text-sm ${
+                    active ? "bg-background font-semibold text-foreground" : "text-muted-foreground"
                   }`}
                 >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+                  {tab === "installed" ? t("script:tab_installed") : t("script:trash_tab")}
+                  <span
+                    className={`rounded-full px-1.5 text-[11px] font-medium tabular-nums ${
+                      active ? "bg-primary/10 text-primary" : "text-muted-foreground"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
       <MobileSearchBar
         searchRequest={searchRequest}
         setSearchRequest={setSearchRequest}
