@@ -1,0 +1,18 @@
+{
+  "development_tool": "Ferramenta de Desenvolvimento",
+  "vscode_url": "URL do VSCode",
+  "auto_connect_vscode_service": "Conectar Automaticamente ao Serviço do VSCode",
+  "connect": "Conectar",
+  "connection_success": "Conexão Bem-sucedida",
+  "connection_failed": "Falha na Conexão",
+  "select_import_script": "Por favor, Selecione o Script para Importar na Nova Página",
+  "import_error": "Erro de Importação",
+  "pulling_data_from_cloud": "Puxando Dados da Nuvem",
+  "pull_failed": "Falha ao Puxar",
+  "restore": "Restaurar",
+  "manual_download": "Faça o download manualmente se o download não iniciar",
+  "local_backup": "Backup Local",
+  "cloud_backup": "Backup na Nuvem",
+  "auto_backup": "Backup Automático",
+  "data_migration": "Migração de Dados"
+}
