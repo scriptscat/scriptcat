@@ -7,7 +7,7 @@ import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts"
 import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { ScriptDAO } from "@App/app/repo/scripts";
-import type { ValueDAO } from "@App/app/repo/value";
+import { ValueDAO } from "@App/app/repo/value";
 import { MockMessage } from "@Packages/message/mock_message";
 import { Server } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
@@ -16,6 +16,8 @@ import type { ValueUpdateSender } from "../content/types";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { TKeyValuePair } from "@App/pkg/utils/message_value";
 import { encodeRValue } from "@App/pkg/utils/message_value";
+import { TrashScriptDAO } from "@App/app/repo/trash_script";
+import type { TDeleteScript } from "@App/app/service/queue";
 
 initTestEnv();
 
@@ -443,5 +445,68 @@ describe("ValueService - setValue 方法测试", () => {
         valueUpdated: true,
       })
     );
+  });
+});
+
+describe("ValueService —— 共享 storagename 的回收站感知", () => {
+  beforeEach(async () => {
+    await chrome.storage.local.clear();
+  });
+
+  it("彻底删除某脚本时,若共用同一 storagename 的脚本尚在回收站,则不得删除共享 value", async () => {
+    const eventEmitter = new EventEmitter<string, any>();
+    const server = new Server("test", new MockMessage(eventEmitter));
+    const mq = new MessageQueue();
+    const service = new ValueService(server.group("value"), mq);
+    service.init({} as any, {} as any);
+
+    const trashDAO = new TrashScriptDAO();
+    const valueDAO = new ValueDAO();
+    const shared = "shared-storage";
+
+    // A、B 都声明 @storagename "shared-storage",两者都已在回收站
+    // 注意:metadata 的 key 必须是全小写 storagename,getStorageName 只认这个
+    const base = {
+      namespace: "ns",
+      type: 1,
+      status: 1,
+      sort: 0,
+      runStatus: "complete",
+      createtime: Date.now(),
+      checktime: Date.now(),
+      metadata: { storagename: [shared] },
+      deleteTime: Date.now(),
+      deleteBy: "user",
+    };
+    await trashDAO.save({ ...base, uuid: "A", name: "脚本A" } as any);
+    await trashDAO.save({ ...base, uuid: "B", name: "脚本B" } as any);
+    await valueDAO.save(shared, { uuid: "A", storageName: shared, data: { k: "别删我" } } as any);
+
+    // 彻底删除 B。必须先把 B 移出回收站再广播,以忠实还原 purgeScripts 的真实顺序
+    // (它先 trashScriptDAO.deletes(uuids) 成功后才 publish)。
+    // 若留着 B 不删,回收站查询会因 B 自身而非目标 A 命中 → 用例失去分辨力。
+    await trashDAO.delete("B");
+    mq.publish<TDeleteScript[]>("deleteScripts", [{ uuid: "B", storageName: shared, type: 1 }]);
+    await new Promise((r) => setTimeout(r, 0));
+
+    // 此刻回收站里只剩 A。A 还在等着被还原,它的 value 必须活着
+    expect(await valueDAO.get(shared)).toBeDefined();
+  });
+
+  it("两张表都没有脚本使用该 storagename 时才删除 value", async () => {
+    const eventEmitter = new EventEmitter<string, any>();
+    const server = new Server("test", new MockMessage(eventEmitter));
+    const mq = new MessageQueue();
+    const service = new ValueService(server.group("value"), mq);
+    service.init({} as any, {} as any);
+
+    const valueDAO = new ValueDAO();
+    const lonely = "lonely-storage";
+    await valueDAO.save(lonely, { uuid: "C", storageName: lonely, data: { k: "v" } } as any);
+
+    mq.publish<TDeleteScript[]>("deleteScripts", [{ uuid: "C", storageName: lonely, type: 1 }]);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(await valueDAO.get(lonely)).toBeUndefined();
   });
 });
