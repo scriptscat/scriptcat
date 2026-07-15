@@ -39,14 +39,28 @@ const FILTERS: { value: SourceFilter; key: string }[] = [
   { value: "subscribe", key: "script:trash_source_subscribe" },
 ];
 
-export default function TrashCardGrid({ keyword = "" }: { keyword?: string }) {
+export default function TrashCardGrid({
+  keyword = "",
+  onCountChange,
+}: {
+  keyword?: string;
+  /** 回报条目数，供 tab 角标显示（彻底删除/清空只在本组件内发生，外部感知不到） */
+  onCountChange?: (n: number) => void;
+}) {
   const { t } = useTranslation();
   const [list, setList] = useState<TrashScript[]>([]);
   const [purgeAllOpen, setPurgeAllOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [retentionDays] = useSystemConfig("trash_retention_days");
 
-  const reload = useCallback(() => requestTrashScripts().then((l) => setList(l ?? [])), []);
+  const reload = useCallback(
+    () =>
+      requestTrashScripts().then((l) => {
+        setList(l ?? []);
+        onCountChange?.(l?.length ?? 0);
+      }),
+    [onCountChange]
+  );
 
   // setState 只发生在异步回调中，避免 effect 体内同步 setState（同 Logger/hooks.ts 的既有写法）
   useEffect(() => {
