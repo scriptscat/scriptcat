@@ -1,10 +1,14 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import {
   ArrowRight,
   Ban,
+  Bot,
+  Check,
+  ChevronUp,
   CircleCheck,
   CircleX,
   CloudOff,
+  Code2,
   Database,
   Download,
   FileArchive,
@@ -13,11 +17,15 @@ import {
   Globe,
   List,
   Loader2,
+  Minus,
+  MoreHorizontal,
   PackageOpen,
+  Palette,
   Pencil,
   Plus,
   RefreshCw,
   Rss,
+  Server,
   ShieldCheck,
   Timer,
   TriangleAlert,
@@ -32,6 +40,8 @@ import { DataPanel } from "@App/pages/components/ui/data-panel";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Switch } from "@App/pages/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
+import { Popover, PopoverAnchor, PopoverContent } from "@App/pages/components/ui/popover";
+import type { ConfigSection, SectionId } from "@App/pkg/backup/config_sections";
 import {
   importableScriptIds,
   importableSubscribeIds,
@@ -43,8 +53,8 @@ import {
 
 export type ImportPhase = "loading" | "invalid" | "error" | "empty" | "ready" | "importing" | "done";
 
-/** 导入过程中单项的逐行状态 */
-export type ImportItemStatus = "pending" | "importing" | "done" | "skipped";
+/** 导入过程中单项的逐行状态(warning=脚本已导入但部分资源失败) */
+export type ImportItemStatus = "pending" | "importing" | "done" | "skipped" | "warning";
 
 /** 导入页视图(桌面/移动共用)所需的数据与回调 */
 export interface ImportView {
@@ -59,6 +69,18 @@ export interface ImportView {
   selectedSubscribes: Set<string>;
   /** 导入进行中/完成时,各项的逐行状态(id → status) */
   importStatus: Record<string, ImportItemStatus>;
+  /** 导入后各脚本导入失败的资源名(uuid → 资源名列表) */
+  resourceErrors: Record<string, string[]>;
+  /** 覆盖模式:导入前删除所有本地脚本(#841) */
+  overwriteLocal: boolean;
+  /** 备份包是否含 ScriptCat 设置(#1533) */
+  hasConfig: boolean;
+  /** 备份内可还原的设置板块(含计数);空数组表示无设置 */
+  configSections: ConfigSection[];
+  /** 已勾选还原的板块 */
+  selectedSections: Set<SectionId>;
+  onToggleSection: (id: SectionId) => void;
+  onToggleAllSections: () => void;
   doneCount: number;
   totalCount: number;
   /** 完成屏统计(已勾选可导入项) */
@@ -68,6 +90,7 @@ export interface ImportView {
   onToggleSubscribe: (id: string) => void;
   onToggleAllSubscribes: () => void;
   onSetEnabled: (id: string, enabled: boolean) => void;
+  onToggleOverwrite: () => void;
   onImport: () => void | Promise<void>;
   onCancel: () => void;
   onClose: () => void;
@@ -305,11 +328,20 @@ const STATUS_ICON: Record<ImportItemStatus, ReactNode> = {
   importing: <Loader2 className="size-4 animate-spin text-primary" />,
   done: <CircleCheck className="size-4 text-success" />,
   skipped: <Ban className="size-4 text-muted-foreground" />,
+  warning: <TriangleAlert className="size-4 text-warning" />,
 };
 
-export function ImportStatusIcon({ status, id }: { status: ImportItemStatus; id: string }) {
+export function ImportStatusIcon({
+  status,
+  id,
+  resourceErrors,
+}: {
+  status: ImportItemStatus;
+  id: string;
+  resourceErrors?: string[];
+}) {
   const { t } = useTranslation();
-  return (
+  const icon = (
     <span
       data-testid={`status-${status}-${id}`}
       className="flex items-center justify-center"
@@ -318,6 +350,22 @@ export function ImportStatusIcon({ status, id }: { status: ImportItemStatus; id:
       {STATUS_ICON[status]}
     </span>
   );
+  if (status === "warning" && resourceErrors?.length) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{icon}</TooltipTrigger>
+        <TooltipContent>
+          <p className="font-medium">{t("install:importpage.resource_import_failed")}</p>
+          <ul className="list-disc pl-4">
+            {resourceErrors.map((name) => (
+              <li key={name}>{name}</li>
+            ))}
+          </ul>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  return icon;
 }
 
 /** 桌面端脚本行 */
@@ -330,7 +378,11 @@ function ScriptRow({ item, view }: { item: ScriptImportItem; view: ImportView })
     <div className="flex h-14 items-center gap-3.5 px-4 border-b border-border last:border-b-0 hover:bg-accent/40 transition-colors">
       <div className="flex w-9 shrink-0 items-center">
         {inProgress ? (
-          <ImportStatusIcon status={item.importable ? status : "skipped"} id={item.id} />
+          <ImportStatusIcon
+            status={item.importable ? status : "skipped"}
+            id={item.id}
+            resourceErrors={view.resourceErrors[item.id]}
+          />
         ) : (
           <Checkbox
             data-testid={`script-checkbox-${item.id}`}
@@ -409,7 +461,11 @@ function SubscribeRow({ item, view }: { item: SubscribeImportItem; view: ImportV
     <div className="flex h-[54px] items-center gap-3.5 px-4 border-b border-border last:border-b-0 hover:bg-accent/40 transition-colors">
       <div className="flex w-9 shrink-0 items-center">
         {inProgress ? (
-          <ImportStatusIcon status={item.importable ? status : "skipped"} id={item.id} />
+          <ImportStatusIcon
+            status={item.importable ? status : "skipped"}
+            id={item.id}
+            resourceErrors={view.resourceErrors[item.id]}
+          />
         ) : (
           <Checkbox
             data-testid={`sub-checkbox-${item.id}`}
@@ -527,11 +583,185 @@ function ImportingToolbar({ view }: { view: ImportView }) {
   );
 }
 
+const SECTION_META: Record<SectionId, { titleKey: string; descKey: string; icon: typeof Palette; agent?: boolean }> = {
+  appearance: { titleKey: "section_appearance_title", descKey: "section_appearance_desc", icon: Palette },
+  update: { titleKey: "section_update_title", descKey: "section_update_desc", icon: RefreshCw },
+  editor: { titleKey: "section_editor_title", descKey: "section_editor_desc", icon: Code2 },
+  other: { titleKey: "section_other_title", descKey: "section_other_desc", icon: MoreHorizontal },
+  models: { titleKey: "section_models_title", descKey: "section_models_desc", icon: Bot, agent: true },
+  mcp: { titleKey: "section_mcp_title", descKey: "section_mcp_desc", icon: Server, agent: true },
+  tasks: { titleKey: "section_tasks_title", descKey: "section_tasks_desc", icon: Timer, agent: true },
+};
+
+function sectionCountLabel(s: ConfigSection, t: TFunction): string {
+  return t(`install:importpage.${s.group === "agent" ? "settings_count_units" : "settings_count_keys"}`, {
+    count: s.count,
+  });
+}
+
+/** 非交互复选框视觉(用于嵌套在外层 <button> 内的展示位,避免 <button> 套 <button>) */
+function CheckboxGlyph({ state, className }: { state: boolean | "indeterminate"; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "flex size-4 shrink-0 items-center justify-center rounded-sm border",
+        state ? "border-primary bg-primary-background text-primary-foreground" : "border-switch-off",
+        className
+      )}
+    >
+      {state === "indeterminate" ? <Minus className="size-3" /> : state ? <Check className="size-3" /> : null}
+    </span>
+  );
+}
+
+/** 板块勾选清单(桌面 Popover / 移动 Sheet 共用) */
+export function RestoreSettingsList({ view }: { view: ImportView }) {
+  const { t } = useTranslation();
+  const total = view.configSections.length;
+  const selected = view.configSections.filter((s) => view.selectedSections.has(s.id)).length;
+  const allSelected = total > 0 && selected === total;
+  return (
+    <div className="flex flex-col">
+      <div className="flex items-center gap-2.5 px-3.5 py-3 border-b border-border">
+        <Checkbox
+          data-testid="restore-settings-master"
+          checked={selected === 0 ? false : allSelected ? true : "indeterminate"}
+          onCheckedChange={view.onToggleAllSections}
+        />
+        <span className="text-sm font-semibold text-foreground">{t("install:importpage.restore_settings_title")}</span>
+        <button type="button" className="ml-auto text-xs font-medium text-primary" onClick={view.onToggleAllSections}>
+          {t(`install:importpage.${allSelected ? "restore_settings_clear_all" : "restore_settings_select_all"}`)}
+        </button>
+      </div>
+      <div className="max-h-[340px] overflow-auto scrollbar-custom p-1.5">
+        {view.configSections.map((s, i) => {
+          const meta = SECTION_META[s.id];
+          const Icon = meta.icon;
+          const header =
+            i === 0 || s.group !== view.configSections[i - 1].group
+              ? t(`install:importpage.settings_group_${s.group}`)
+              : null;
+          return (
+            <div key={s.id}>
+              {header && (
+                <div className="px-2.5 pt-2.5 pb-1 text-[11px] font-semibold uppercase text-muted-foreground">
+                  {header}
+                </div>
+              )}
+              <button
+                type="button"
+                data-testid={`restore-section-${s.id}`}
+                onClick={() => view.onToggleSection(s.id)}
+                className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left hover:bg-accent"
+              >
+                <CheckboxGlyph state={view.selectedSections.has(s.id)} className="mt-0.5" />
+                <span
+                  className={cn(
+                    "flex size-[26px] shrink-0 items-center justify-center rounded-md",
+                    meta.agent ? "bg-skill-bg text-skill-fg" : "bg-primary-light text-primary"
+                  )}
+                >
+                  <Icon className="size-3.5" />
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+                    {t(`install:importpage.${meta.titleKey}`)}
+                    <span className="rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground">
+                      {sectionCountLabel(s, t)}
+                    </span>
+                  </span>
+                  <span className="text-[11.5px] text-muted-foreground">{t(`install:importpage.${meta.descKey}`)}</span>
+                </span>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-start gap-1.5 border-t border-border px-3.5 py-2.5 text-[11.5px] text-muted-foreground">
+        <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-warning-fg" />
+        <span>{t("install:importpage.restore_settings_note")}</span>
+      </div>
+    </div>
+  );
+}
+
+/** 桌面:底部触发器 + 悬停向上弹出的板块清单 */
+function RestoreSettingsControl({ view }: { view: ImportView }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const openNow = () => {
+    clearTimeout(timer.current);
+    setOpen(true);
+  };
+  const closeLater = () => {
+    timer.current = setTimeout(() => setOpen(false), 200);
+  };
+  const total = view.configSections.length;
+  const selected = view.configSections.filter((s) => view.selectedSections.has(s.id)).length;
+  const master = selected === 0 ? false : selected === total ? true : "indeterminate";
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <button
+          type="button"
+          data-testid="restore-settings-trigger"
+          onMouseEnter={openNow}
+          onMouseLeave={closeLater}
+          onClick={view.onToggleAllSections}
+          className="flex items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-[13px] text-muted-foreground hover:border-border hover:bg-accent"
+        >
+          <CheckboxGlyph state={master} />
+          <span className="font-medium text-foreground">{t("install:importpage.include_settings")}</span>
+          {selected > 0 && (
+            <span className="rounded-full bg-primary-light px-1.5 text-[11px] font-semibold text-primary">{`${selected} / ${total}`}</span>
+          )}
+          <ChevronUp className="size-3.5 text-muted-foreground" />
+        </button>
+      </PopoverAnchor>
+      <PopoverContent
+        side="top"
+        align="start"
+        onMouseEnter={openNow}
+        onMouseLeave={closeLater}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        className="w-[400px] p-0"
+      >
+        <RestoreSettingsList view={view} />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function ReadyActions({ view }: { view: ImportView }) {
   const { t } = useTranslation();
-  const total = view.selectedScripts.size + view.selectedSubscribes.size;
+  const scriptTotal = view.selectedScripts.size + view.selectedSubscribes.size;
+  const secTotal = view.configSections.length;
+  const secSelected = view.configSections.filter((s) => view.selectedSections.has(s.id)).length;
+  const canImport = scriptTotal > 0 || secSelected > 0;
+  const importLabel =
+    secSelected === 0
+      ? t("install:importpage.import_selected", { count: scriptTotal })
+      : secSelected === secTotal
+        ? t("install:importpage.import_all_settings", { count: scriptTotal })
+        : t("install:importpage.import_partial_settings", {
+            count: scriptTotal,
+            selected: secSelected,
+            sections: secTotal,
+          });
   return (
     <div className="flex items-center gap-4">
+      <label className="flex cursor-pointer items-center gap-1.5 text-[13px] text-muted-foreground">
+        <Checkbox
+          data-testid="overwrite-local"
+          checked={view.overwriteLocal}
+          onCheckedChange={view.onToggleOverwrite}
+        />
+        {t("install:importpage.overwrite_local")}
+      </label>
+      {view.hasConfig && <RestoreSettingsControl view={view} />}
       <span className="hidden items-center gap-1.5 text-[13px] text-muted-foreground sm:flex">
         <ShieldCheck className="size-4 shrink-0" />
         {t("install:importpage.trust_hint")}
@@ -540,9 +770,9 @@ function ReadyActions({ view }: { view: ImportView }) {
         <Button variant="outline" onClick={view.onClose}>
           {t("common:close")}
         </Button>
-        <Button data-testid="import-btn" disabled={total === 0} onClick={view.onImport}>
+        <Button data-testid="import-btn" disabled={!canImport} onClick={view.onImport}>
           <Download />
-          {t("install:importpage.import_selected", { count: total })}
+          {importLabel}
         </Button>
       </div>
     </div>
