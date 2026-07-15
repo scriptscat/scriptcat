@@ -207,6 +207,9 @@ export default function ScriptList() {
 
   const clearSelection = useCallback(() => setSelectedUuids(new Set()), []);
 
+  // 回收站开关：决定删除后是「移入回收站可撤销」还是「彻底销毁不可撤销」，deleteScripts 需要提前拿到它
+  const [trashEnabled] = useSystemConfig("trash_enabled");
+
   // 6. 业务操作
   // 删除脚本（二次确认由行内 / 批量栏的 Popconfirm 气泡完成，此处直接执行删除）
   const deleteScripts = useCallback(
@@ -216,12 +219,21 @@ export default function ScriptList() {
       updateScripts(uuids, { actionLoading: true });
       try {
         await requestDeleteScripts(uuids);
+        // 回收站关闭时 requestDeleteScripts 已彻底销毁脚本，不能再提供撤销入口
+        if (!(trashEnabled ?? true)) {
+          notify.success(t("delete_success"), { description: firstName });
+          return;
+        }
         const undo = async () => {
-          const ret = await requestRestoreScripts(uuids);
-          if (ret?.restored.length) {
-            // 还原会广播 installScript，列表经 hooks 的订阅自动刷新，无需手动 reload
-            notify.success(t("script:trash_undo_success"));
-          } else {
+          try {
+            const ret = await requestRestoreScripts(uuids);
+            if (ret?.restored.length) {
+              // 还原会广播 installScript，列表经 hooks 的订阅自动刷新，无需手动 reload
+              notify.success(t("script:trash_undo_success"));
+            } else {
+              notify.error(t("script:trash_undo_failed"));
+            }
+          } catch {
             notify.error(t("script:trash_undo_failed"));
           }
         };
@@ -237,7 +249,7 @@ export default function ScriptList() {
         notify.error(`${t("script:delete_failed")}: ${e}`);
       }
     },
-    [updateScripts, t, scriptList]
+    [updateScripts, t, scriptList, trashEnabled]
   );
 
   const handleDelete = useCallback((item: ScriptLoading) => deleteScripts([item.uuid]), [deleteScripts]);
@@ -391,7 +403,7 @@ export default function ScriptList() {
 
   // 已安装 / 回收站切换。占据顶栏最左侧（取代「已安装脚本 + 数量」标题槽位，数量改由 tab 上的角标承载）。
   const [trashCount, setTrashCount] = useTrashCount();
-  const [trashEnabled] = useSystemConfig("trash_enabled");
+  // trashEnabled 已在上方声明（deleteScripts 需要提前拿到），此处直接复用
   // 关闭回收站只影响「以后」：站内残留条目仍要可见可清，清空后 tab 才消失
   const showTrashTab = (trashEnabled ?? true) || trashCount > 0;
 
