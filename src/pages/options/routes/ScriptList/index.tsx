@@ -12,6 +12,7 @@ import {
 import {
   requestDeleteScripts,
   requestRestoreScripts,
+  requestTrashScripts,
   requestEnableScript,
   requestRunScript,
   requestStopScript,
@@ -388,6 +389,41 @@ export default function ScriptList() {
     <CloudScriptPlan open onOpenChange={(o) => !o && closeCloud()} script={cloudScript} />
   );
 
+  // 已安装 / 回收站切换。占据顶栏最左侧（取代「已安装脚本 + 数量」标题槽位，数量改由 tab 上的角标承载）。
+  // scriptList 变化即重取回收站数量：删除会让脚本从 scriptList 移出、还原会广播 installScript 让它移回，
+  // 两者都会触发这里；在回收站内彻底删除则由 TrashTable 的 onCountChange 回报。
+  const [trashCount, setTrashCount] = useState(0);
+  useEffect(() => {
+    void requestTrashScripts().then((l) => setTrashCount(l?.length ?? 0));
+  }, [scriptList]);
+
+  const tabs = (
+    <div className="flex items-center gap-0.5 p-[3px] rounded-md shrink-0 bg-muted">
+      {(["installed", "trash"] as const).map((tab) => {
+        const active = activeTab === tab;
+        const count = tab === "installed" ? scriptList.length : trashCount;
+        return (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex items-center gap-1.5 h-7 px-3 rounded-md text-[13px] ${
+              active ? "bg-card font-semibold text-foreground" : "text-muted-foreground"
+            }`}
+          >
+            {tab === "installed" ? t("script:tab_installed") : t("script:trash_tab")}
+            <span
+              className={`rounded-full px-1.5 text-[11px] font-medium tabular-nums ${
+                active ? "bg-primary/10 text-primary" : "text-muted-foreground"
+              }`}
+            >
+              {count}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   if (isMobile) {
     return (
       <div className="flex flex-col h-full">
@@ -412,25 +448,11 @@ export default function ScriptList() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center h-14 px-6 border-b border-border">
-        <div className="flex items-center gap-0.5 p-[3px] rounded-md bg-muted">
-          {(["installed", "trash"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`h-7 px-3 rounded-md text-sm ${
-                activeTab === tab ? "bg-background font-semibold text-foreground" : "text-muted-foreground"
-              }`}
-            >
-              {tab === "installed" ? t("script:tab_installed") : t("script:trash_tab")}
-            </button>
-          ))}
-        </div>
-      </div>
       {activeTab === "trash" ? (
-        <TrashTable />
+        <TrashTable leading={tabs} onCountChange={setTrashCount} />
       ) : (
         <MainContent
+          leading={tabs}
           viewMode={viewMode}
           scriptList={displayScripts}
           loadingList={loadingList}

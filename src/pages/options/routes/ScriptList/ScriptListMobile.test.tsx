@@ -38,6 +38,8 @@ vi.mock("@App/pages/store/features/script", () => ({
   requestRunScript: vi.fn().mockResolvedValue(undefined),
   requestStopScript: vi.fn().mockResolvedValue(undefined),
   requestDeleteScripts: vi.fn().mockResolvedValue(undefined),
+  requestRestoreScripts: vi.fn().mockResolvedValue({ restored: [], conflicts: [] }),
+  requestTrashScripts: vi.fn().mockResolvedValue([]),
   requestFilterResult: vi.fn().mockResolvedValue([]),
   sortScript: vi.fn().mockResolvedValue(undefined),
   pinToTop: vi.fn().mockResolvedValue(undefined),
