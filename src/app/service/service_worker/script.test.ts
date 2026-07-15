@@ -1,13 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { initTestEnv } from "@Tests/utils";
 import { ScriptService } from "./script";
-import {
-  ScriptDAO,
-  ScriptCodeDAO,
-  SCRIPT_TYPE_NORMAL,
-  SCRIPT_STATUS_ENABLE,
-  SCRIPT_RUN_STATUS_COMPLETE,
-} from "@App/app/repo/scripts";
+import { ScriptDAO, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 import { TrashScriptDAO, type TrashScript } from "@App/app/repo/trash_script";
 import type { Script } from "@App/app/repo/scripts";
 import { SubscribeDAO } from "@App/app/repo/subscribe";
@@ -54,7 +48,9 @@ export const buildService = () => {
   // installScript 会调 updateResourceByTypes 下载资源;单元测试不关心资源下载,给个 no-op 即可
   const resourceService = { updateResourceByTypes: async () => {} } as unknown as ResourceService;
   const service = new ScriptService(systemConfig, group, mq, {} as ValueService, resourceService, scriptDAO);
-  return { service, mq, scriptDAO, systemConfig, trashDAO: new TrashScriptDAO(), codeDAO: new ScriptCodeDAO() };
+  // 复用 service 自己持有的实例（而非各 new 一份）：ScriptService 只给这两个 DAO 开了缓存，
+  // 若测试另起一份未缓存的实例，写读会各自维护一份模块内缓存，读写顺序一旦不再是先写后读就会静默错数据。
+  return { service, mq, scriptDAO, systemConfig, trashDAO: service.trashScriptDAO, codeDAO: service.scriptCodeDAO };
 };
 
 describe("ScriptService.purgeScripts —— 彻底删除", () => {
@@ -399,6 +395,13 @@ describe("ScriptService —— 回收站 DAO 缓存", () => {
     const { service } = buildService();
 
     expect(service.trashScriptDAO.useCache).toBe(true);
+  });
+
+  // TrashScriptDAO 自身不能默认开缓存：它也会在安装页/编辑器/导入页等页面上下文里被 new 出来
+  // （见 pkg/utils/script.ts），若缓存下放到构造函数，这些页面会把整个扩展 storage 常驻加载进内存。
+  // 缓存只应由 ScriptService 构造时按需 enableCache()。
+  it("TrashScriptDAO 自身不应默认开缓存,否则会在页面上下文里把整个 storage 常驻内存", () => {
+    expect(new TrashScriptDAO().useCache).toBe(false);
   });
 });
 

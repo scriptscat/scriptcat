@@ -59,7 +59,9 @@ export function GeneralSection({ register }: { register: (id: string) => (el: HT
   const handleRetentionChange = (v: string) => {
     if (v === CUSTOM_VALUE) {
       setCustom(true);
-      setCustomDraft(String(days));
+      // days 在存储值为 0（永不）时也是 0：0 恰好是非法值（低于 Input 的 min=1），
+      // 播种它会让草稿显示「自定义 [0] 天」且永远提交不了，退到一个合法默认值
+      setCustomDraft(String(days || 30));
       return;
     }
     setCustom(false);
@@ -122,7 +124,9 @@ export function GeneralSection({ register }: { register: (id: string) => (el: HT
             <div className="flex items-center gap-1.5">
               <Input
                 type="number"
-                aria-label={t("settings:trash_retention")}
+                // SettingRow 的 label 是纯 <span>（无 htmlFor），aria-label 是这两个控件唯一的命名来源；
+                // 与上面 Select 用同一个 key 会让读屏报出两个同名控件,这里换成有区分度的「自定义」
+                aria-label={t("settings:trash_retention_custom")}
                 className="w-[90px]"
                 min={MIN_RETENTION_DAYS}
                 max={MAX_RETENTION_DAYS}
