@@ -19,6 +19,7 @@ import EventEmitter from "eventemitter3";
 import type { ValueService } from "./value";
 import type { ResourceService } from "./resource";
 import type { TDeleteScript, TInstallScript } from "@App/app/service/queue";
+import { clearCacheForTest } from "@App/app/repo/repo";
 
 initTestEnv();
 
@@ -58,6 +59,7 @@ export const buildService = () => {
 
 describe("ScriptService.purgeScripts —— 彻底删除", () => {
   beforeEach(async () => {
+    clearCacheForTest();
     await chrome.storage.local.clear();
   });
 
@@ -95,6 +97,7 @@ describe("ScriptService.purgeScripts —— 彻底删除", () => {
 
 describe("ScriptService.deleteScripts —— 进回收站", () => {
   beforeEach(async () => {
+    clearCacheForTest();
     await chrome.storage.local.clear();
   });
 
@@ -170,6 +173,7 @@ describe("ScriptService.deleteScripts —— 进回收站", () => {
 
 describe("ScriptService.restoreScripts —— 还原", () => {
   beforeEach(async () => {
+    clearCacheForTest();
     await chrome.storage.local.clear();
   });
 
@@ -268,6 +272,7 @@ describe("ScriptService.restoreScripts —— 还原", () => {
 
 describe("installScript —— 回收站 uuid 不变量", () => {
   beforeEach(async () => {
+    clearCacheForTest();
     await chrome.storage.local.clear();
   });
 
@@ -304,6 +309,7 @@ describe("ScriptService.cleanupExpiredTrash —— 到期自动清理", () => {
   const DAY = 24 * 60 * 60 * 1000;
 
   beforeEach(async () => {
+    clearCacheForTest();
     await chrome.storage.local.clear();
   });
 
@@ -348,5 +354,13 @@ describe("ScriptService.cleanupExpiredTrash —— 到期自动清理", () => {
     const { service, systemConfig } = buildService();
     systemConfig.setTrashRetentionDays(30);
     expect(await service.cleanupExpiredTrash()).toBe(0);
+  });
+});
+
+describe("ScriptService —— 回收站 DAO 缓存", () => {
+  it("构造后回收站 DAO 应启用缓存,否则每次读回收站都会全量扫描 storage", () => {
+    const { service } = buildService();
+
+    expect(service.trashScriptDAO.useCache).toBe(true);
   });
 });

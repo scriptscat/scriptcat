@@ -96,6 +96,9 @@ export class ScriptService {
   ) {
     this.logger = LoggerCore.logger().with({ service: "script" });
     this.scriptCodeDAO.enableCache();
+    // 不开缓存时 Repo.find() 会走不带 key 的 storage.get(),每次读回收站都全量反序列化整个存储。
+    // 只给 SW 这个实例开:TrashScriptDAO 在安装页/编辑器里也会被 new,自开缓存会把整个存储拉进页面内存。
+    this.trashScriptDAO.enableCache();
     this.scriptUpdateCheck = new ScriptUpdateCheck(systemConfig, group, mq, valueService, resourceService, scriptDAO);
   }
 
