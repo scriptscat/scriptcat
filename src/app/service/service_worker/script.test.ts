@@ -355,6 +355,28 @@ describe("ScriptService.cleanupExpiredTrash —— 到期自动清理", () => {
     systemConfig.setTrashRetentionDays(30);
     expect(await service.cleanupExpiredTrash()).toBe(0);
   });
+
+  it("回收站关闭时不清理任何残留条目", async () => {
+    const { service, trashDAO, systemConfig } = buildService();
+    systemConfig.setTrashEnabled(false);
+    systemConfig.setTrashRetentionDays(30);
+    await trashDAO.save(makeTrashScript({ uuid: "leftover", deleteTime: Date.now() - 99 * DAY }));
+
+    expect(await service.cleanupExpiredTrash()).toBe(0);
+    expect(await trashDAO.get("leftover")).toBeDefined();
+  });
+
+  it("回收站关闭后残留条目仍可还原", async () => {
+    const { service, scriptDAO, trashDAO, systemConfig } = buildService();
+    systemConfig.setTrashEnabled(false);
+    await trashDAO.save(makeTrashScript({ uuid: "leftover2" }));
+
+    const ret = await service.restoreScripts(["leftover2"]);
+
+    expect(ret.restored).toEqual(["leftover2"]);
+    expect(await scriptDAO.get("leftover2")).toBeDefined();
+    expect(await trashDAO.get("leftover2")).toBeUndefined();
+  });
 });
 
 describe("ScriptService —— 回收站 DAO 缓存", () => {

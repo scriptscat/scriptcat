@@ -640,6 +640,10 @@ export class ScriptService {
 
   /** 清理回收站中超过保留期的脚本。返回清理条数 */
   async cleanupExpiredTrash(): Promise<number> {
+    // 回收站关闭 = 一切自动行为停摆,残留条目只由用户手动清空
+    if (!(await this.systemConfig.getTrashEnabled())) {
+      return 0;
+    }
     const retentionDays = await this.systemConfig.getTrashRetentionDays();
     if (!retentionDays) {
       return 0; // 0 = 永不自动清理
