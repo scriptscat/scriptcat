@@ -207,5 +207,8 @@
   "miner_description": "Bu betik madencilik faaliyetlerinde bulunur",
   "membership_description": "Bu betik, düzgün kullanılabilmesi için üye olarak kayıt olmayı gerektirir",
   "tracking_description": "Bu betik kullanıcı bilgilerinizi izler",
-  "script_info_load_failed": "Betik bilgileri yüklenemedi"
+  "script_info_load_failed": "Betik bilgileri yüklenemedi",
+  "btn_restore": "Betik Geri Yükle",
+  "btn_restore_update": "Betik Geri Yükle ve Güncelle",
+  "in_trash_hint": "Bu betik çöp kutusunda; yüklemek onu geri yükleyecek ve mevcut verilerini koruyacaktır"
 }

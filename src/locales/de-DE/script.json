@@ -103,5 +103,10 @@
   "trash_purge_one_confirm": "„{{name}}“ wird endgültig gelöscht, einschließlich der gespeicherten Daten, heruntergeladenen Ressourcen und erteilten Berechtigungen. Diese Aktion kann nicht rückgängig gemacht werden.",
   "trash_purge_confirm_title": "Papierkorb leeren?",
   "trash_purge_confirm_body": "{{count}} Skript(e) im Papierkorb werden endgültig gelöscht, einschließlich ihrer gespeicherten Daten, heruntergeladenen Ressourcen und erteilten Berechtigungen.",
-  "trash_purge_confirm_warn": "Diese Aktion kann nicht rückgängig gemacht werden"
+  "trash_purge_confirm_warn": "Diese Aktion kann nicht rückgängig gemacht werden",
+  "trash_moved_single": "In den Papierkorb verschoben",
+  "trash_moved_batch": "{{count}} Skript(e) in den Papierkorb verschoben",
+  "trash_undo": "Rückgängig",
+  "trash_undo_success": "Wiederhergestellt",
+  "trash_undo_failed": "Wiederherstellen fehlgeschlagen"
 }

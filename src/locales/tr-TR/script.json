@@ -103,5 +103,10 @@
   "trash_purge_one_confirm": "\"{{name}}\" kalıcı olarak silinecek; depolanan verileri, indirilen kaynakları ve verilen izinler de birlikte kaldırılacaktır. Bu işlem geri alınamaz.",
   "trash_purge_confirm_title": "Çöp kutusu boşaltılsın mı?",
   "trash_purge_confirm_body": "Çöp kutusundaki {{count}} betik kalıcı olarak silinecek; depolanan verileri, indirilen kaynakları ve verilen izinler de birlikte kaldırılacaktır.",
-  "trash_purge_confirm_warn": "Bu işlem geri alınamaz"
+  "trash_purge_confirm_warn": "Bu işlem geri alınamaz",
+  "trash_moved_single": "Çöp kutusuna taşındı",
+  "trash_moved_batch": "{{count}} betik çöp kutusuna taşındı",
+  "trash_undo": "Geri Al",
+  "trash_undo_success": "Geri yüklendi",
+  "trash_undo_failed": "Geri yükleme başarısız"
 }

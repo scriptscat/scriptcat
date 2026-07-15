@@ -103,5 +103,10 @@
   "trash_purge_one_confirm": "「{{name}}」を完全に削除します。保存データ、ダウンロード済みのリソース、付与された権限もあわせて削除されます。この操作は元に戻せません。",
   "trash_purge_confirm_title": "ゴミ箱を空にしますか？",
   "trash_purge_confirm_body": "ゴミ箱内の {{count}} 件のスクリプトを完全に削除します。保存データ、ダウンロード済みのリソース、付与された権限もあわせて削除されます。",
-  "trash_purge_confirm_warn": "この操作は元に戻せません"
+  "trash_purge_confirm_warn": "この操作は元に戻せません",
+  "trash_moved_single": "ゴミ箱に移動しました",
+  "trash_moved_batch": "{{count}} 件のスクリプトをゴミ箱に移動しました",
+  "trash_undo": "元に戻す",
+  "trash_undo_success": "復元しました",
+  "trash_undo_failed": "復元に失敗しました"
 }

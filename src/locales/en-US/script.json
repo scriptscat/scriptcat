@@ -103,5 +103,10 @@
   "trash_purge_one_confirm": "This will permanently delete \"{{name}}\", along with its stored data, downloaded resources, and granted permissions. This action cannot be undone.",
   "trash_purge_confirm_title": "Empty Trash?",
   "trash_purge_confirm_body": "This will permanently delete {{count}} script(s) in Trash, along with their stored data, downloaded resources, and granted permissions.",
-  "trash_purge_confirm_warn": "This action cannot be undone"
+  "trash_purge_confirm_warn": "This action cannot be undone",
+  "trash_moved_single": "Moved to Trash",
+  "trash_moved_batch": "Moved {{count}} scripts to Trash",
+  "trash_undo": "Undo",
+  "trash_undo_success": "Restored",
+  "trash_undo_failed": "Restore failed"
 }

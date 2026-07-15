@@ -103,5 +103,10 @@
   "trash_purge_one_confirm": "将彻底删除「{{name}}」,同时清除它的存储数据、下载的资源和已授予的权限。此操作无法撤销。",
   "trash_purge_confirm_title": "清空回收站？",
   "trash_purge_confirm_body": "将彻底删除回收站中的 {{count}} 个脚本,同时清除它们的存储数据、下载的资源和已授予的权限。",
-  "trash_purge_confirm_warn": "此操作无法撤销"
+  "trash_purge_confirm_warn": "此操作无法撤销",
+  "trash_moved_single": "已移入回收站",
+  "trash_moved_batch": "已将 {{count}} 个脚本移入回收站",
+  "trash_undo": "撤销",
+  "trash_undo_success": "已还原",
+  "trash_undo_failed": "还原失败"
 }

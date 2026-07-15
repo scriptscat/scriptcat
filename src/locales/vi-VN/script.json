@@ -103,5 +103,10 @@
   "trash_purge_one_confirm": "Script \"{{name}}\" sẽ bị xóa vĩnh viễn, đồng thời xóa luôn dữ liệu lưu trữ, tài nguyên đã tải xuống và các quyền đã cấp của nó. Hành động này không thể hoàn tác.",
   "trash_purge_confirm_title": "Dọn sạch thùng rác?",
   "trash_purge_confirm_body": "{{count}} script trong thùng rác sẽ bị xóa vĩnh viễn, đồng thời xóa luôn dữ liệu lưu trữ, tài nguyên đã tải xuống và các quyền đã cấp của chúng.",
-  "trash_purge_confirm_warn": "Hành động này không thể hoàn tác"
+  "trash_purge_confirm_warn": "Hành động này không thể hoàn tác",
+  "trash_moved_single": "Đã chuyển vào thùng rác",
+  "trash_moved_batch": "Đã chuyển {{count}} script vào thùng rác",
+  "trash_undo": "Hoàn tác",
+  "trash_undo_success": "Đã khôi phục",
+  "trash_undo_failed": "Khôi phục thất bại"
 }

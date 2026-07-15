@@ -207,5 +207,8 @@
   "miner_description": "该脚本存在挖矿行为",
   "membership_description": "该脚本需要注册会员才能正常使用",
   "tracking_description": "该脚本会追踪你的用户信息",
-  "script_info_load_failed": "脚本信息加载失败！"
+  "script_info_load_failed": "脚本信息加载失败！",
+  "btn_restore": "还原",
+  "btn_restore_update": "还原并更新",
+  "in_trash_hint": "此脚本在回收站中,安装将还原它并保留原有数据"
 }
