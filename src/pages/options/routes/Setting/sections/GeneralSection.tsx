@@ -68,11 +68,15 @@ export function GeneralSection({ register }: { register: (id: string) => (el: HT
     setRetention(Number(v));
   };
 
-  const handleCustomDraftChange = (v: string) => {
-    setCustomDraft(v);
-    const n = Number(v);
-    // 空值/非法值只留在草稿里，不落配置，避免中途输入把保留时间写成 0 天
-    if (!v.trim() || !Number.isInteger(n) || n < MIN_RETENTION_DAYS || n > MAX_RETENTION_DAYS) return;
+  // 失焦才落库：trash_retention_days 走 chrome.storage.sync，逐键提交会把「365」写成 3→36→365
+  // 三次写入 + 三次跨设备同步（sync 有 120 次/分配额）。同 DeveloperSection 的 onBlur 提交范式。
+  const commitCustomDraft = () => {
+    const n = Number(customDraft);
+    if (!customDraft.trim() || !Number.isInteger(n) || n < MIN_RETENTION_DAYS || n > MAX_RETENTION_DAYS) {
+      // 非法值不落库，草稿退回已存值，避免输入框停在一个并未生效的数字上
+      setCustomDraft(String(days || 30));
+      return;
+    }
     setRetention(n);
   };
 
@@ -132,7 +136,9 @@ export function GeneralSection({ register }: { register: (id: string) => (el: HT
                 max={MAX_RETENTION_DAYS}
                 disabled={!enabled}
                 value={customDraft}
-                onChange={(e) => handleCustomDraftChange(e.target.value)}
+                onChange={(e) => setCustomDraft(e.target.value)}
+                onBlur={commitCustomDraft}
+                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
               />
               <span className="text-sm text-muted-foreground">{t("settings:trash_retention_days_unit")}</span>
             </div>
