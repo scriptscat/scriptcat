@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const { requestTrashScripts } = vi.hoisted(() => ({ requestTrashScripts: vi.fn() }));
@@ -41,17 +41,31 @@ describe("空回收站的固定控制区", () => {
 });
 
 describe("桌面回收站批量操作槽位", () => {
-  it("选择脚本后用批量操作替换来源筛选行", async () => {
+  const renderWithOneTrashed = async () => {
     requestTrashScripts.mockResolvedValue([
       { uuid: "trash-1", name: "待还原脚本", namespace: "verify", deleteBy: "user", deleteTime: Date.now() },
     ]);
     render(<TrashTable />);
-
     await screen.findByText("待还原脚本");
-    const checkboxes = screen.getAllByRole("checkbox");
+    return screen.getAllByRole("checkbox");
+  };
+
+  it("选择脚本后展开批量操作栏，与已安装列表复用同一个计数文案，栏内带批量还原", async () => {
+    const checkboxes = await renderWithOneTrashed();
     fireEvent.click(checkboxes[1]);
 
-    expect(screen.getByText("已选择 1 项")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "全部" })).toBeNull();
+    // 行内也有同名的图标按钮，故须限定在栏内查询，确认操作按钮确实挂进了 SelectionBar 的 children 槽位
+    const bar = screen.getByText("已选择 1 项").parentElement!;
+    expect(within(bar).getByRole("button", { name: "还原" })).toBeInTheDocument();
+  });
+
+  it("点击批量操作栏的关闭按钮清空选择", async () => {
+    const checkboxes = await renderWithOneTrashed();
+    fireEvent.click(checkboxes[1]);
+    expect(checkboxes[1]).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+
+    expect(checkboxes[1]).not.toBeChecked();
   });
 });

@@ -99,7 +99,6 @@
   "trash_restore_success": "Restored {{count}} script(s)",
   "trash_restore_conflict": "A script named \"{{name}}\" already exists; cannot restore",
   "trash_purge_success": "Permanently deleted {{count}} script(s)",
-  "trash_selected": "{{count}} selected",
   "trash_purge_one_confirm": "This will permanently delete \"{{name}}\", along with its stored data, downloaded resources, and granted permissions. This action cannot be undone.",
   "trash_purge_confirm_title": "Empty Trash?",
   "trash_purge_confirm_body": "This will permanently delete {{count}} script(s) in Trash, along with their stored data, downloaded resources, and granted permissions.",

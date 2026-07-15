@@ -9,6 +9,7 @@ import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { SearchInput } from "@App/pages/components/ui/search-input";
+import SelectionBar, { SelectionBarButton } from "./SelectionBar";
 import { TrashRetentionDialog } from "./TrashRetentionDialog";
 import {
   AlertDialog,
@@ -139,54 +140,48 @@ export default function TrashTable({
         </button>
       </div>
 
-      {/* 筛选行：来源 chips + 右侧保留提示 */}
-      <div className="h-11 shrink-0 overflow-hidden border-b border-border">
-        {selected.size > 0 ? (
-          <div className="flex h-11 animate-in items-center gap-3 bg-accent px-6 text-xs duration-200 fade-in-0 slide-in-from-bottom-1">
-            <span className="font-medium text-primary">{t("script:trash_selected", { count: selected.size })}</span>
-            <div className="flex-1" />
+      {/* 批量操作栏撑开时把筛选行顶出这个 h-11 窗口（与已安装列表同构） */}
+      <div className="h-11 shrink-0 overflow-hidden contain-layout">
+        <SelectionBar selectedCount={selected.size} onClose={() => setSelected(new Set())}>
+          <SelectionBarButton color="primary" onClick={() => void onRestore([...selected])}>
+            <RotateCcw className="w-3 h-3" />
+            {t("script:trash_restore")}
+          </SelectionBarButton>
+          <Popconfirm
+            description={t("script:trash_purge_confirm_body", { count: selected.size })}
+            destructive
+            confirmText={t("script:trash_purge")}
+            cancelText={t("editor:cancel")}
+            onConfirm={() => void onPurge([...selected])}
+          >
+            <SelectionBarButton color="destructive">
+              <Trash2 className="w-3 h-3" />
+              {t("script:trash_purge")}
+            </SelectionBarButton>
+          </Popconfirm>
+        </SelectionBar>
+
+        {/* 筛选行：来源 chips + 右侧保留提示 */}
+        <div className="flex h-11 shrink-0 items-center gap-2 px-6 border-b border-border">
+          {FILTERS.map((f) => (
             <button
-              className="flex items-center gap-1.5 px-3 py-1 border rounded-md border-primary text-primary"
-              onClick={() => void onRestore([...selected])}
+              key={f.value}
+              onClick={() => setSourceFilter(f.value)}
+              className={`px-3 py-0.5 text-xs rounded-full border ${
+                sourceFilter === f.value
+                  ? "bg-primary border-primary text-primary-foreground font-medium"
+                  : "border-border text-muted-foreground"
+              }`}
             >
-              <RotateCcw className="w-3 h-3" />
-              {t("script:trash_restore")}
+              {t(f.key)}
             </button>
-            <Popconfirm
-              description={t("script:trash_purge_confirm_body", { count: selected.size })}
-              destructive
-              confirmText={t("script:trash_purge")}
-              cancelText={t("editor:cancel")}
-              onConfirm={() => void onPurge([...selected])}
-            >
-              <button className="flex items-center gap-1.5 px-3 py-1 border rounded-md border-destructive text-destructive">
-                <Trash2 className="w-3 h-3" />
-                {t("script:trash_purge")}
-              </button>
-            </Popconfirm>
-          </div>
-        ) : (
-          <div className="flex h-11 animate-in items-center gap-2 px-6 duration-200 fade-in-0 slide-in-from-top-1">
-            {FILTERS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setSourceFilter(f.value)}
-                className={`px-3 py-0.5 text-xs rounded-full border ${
-                  sourceFilter === f.value
-                    ? "bg-primary border-primary text-primary-foreground font-medium"
-                    : "border-border text-muted-foreground"
-                }`}
-              >
-                {t(f.key)}
-              </button>
-            ))}
-            <div className="flex-1" />
-            <span className="text-xs text-muted-foreground">
-              {days ? t("script:trash_hint", { days }) : t("script:trash_hint_never")}
-            </span>
-            <TrashRetentionDialog />
-          </div>
-        )}
+          ))}
+          <div className="flex-1" />
+          <span className="text-xs text-muted-foreground">
+            {days ? t("script:trash_hint", { days }) : t("script:trash_hint_never")}
+          </span>
+          <TrashRetentionDialog />
+        </div>
       </div>
 
       <div className="flex flex-col flex-1 min-h-0 px-6 pb-6">

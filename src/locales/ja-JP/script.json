@@ -99,7 +99,6 @@
   "trash_restore_success": "{{count}} 件のスクリプトを復元しました",
   "trash_restore_conflict": "同名のスクリプト「{{name}}」が既に存在するため復元できません",
   "trash_purge_success": "{{count}} 件のスクリプトを完全に削除しました",
-  "trash_selected": "{{count}} 件選択中",
   "trash_purge_one_confirm": "「{{name}}」を完全に削除します。保存データ、ダウンロード済みのリソース、付与された権限もあわせて削除されます。この操作は元に戻せません。",
   "trash_purge_confirm_title": "ゴミ箱を空にしますか？",
   "trash_purge_confirm_body": "ゴミ箱内の {{count}} 件のスクリプトを完全に削除します。保存データ、ダウンロード済みのリソース、付与された権限もあわせて削除されます。",

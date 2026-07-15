@@ -99,7 +99,6 @@
   "trash_restore_success": "{{count}} Skript(e) wiederhergestellt",
   "trash_restore_conflict": "Ein Skript namens „{{name}}“ ist bereits vorhanden; Wiederherstellen nicht möglich",
   "trash_purge_success": "{{count}} Skript(e) endgültig gelöscht",
-  "trash_selected": "{{count}} ausgewählt",
   "trash_purge_one_confirm": "„{{name}}“ wird endgültig gelöscht, einschließlich der gespeicherten Daten, heruntergeladenen Ressourcen und erteilten Berechtigungen. Diese Aktion kann nicht rückgängig gemacht werden.",
   "trash_purge_confirm_title": "Papierkorb leeren?",
   "trash_purge_confirm_body": "{{count}} Skript(e) im Papierkorb werden endgültig gelöscht, einschließlich ihrer gespeicherten Daten, heruntergeladenen Ressourcen und erteilten Berechtigungen.",

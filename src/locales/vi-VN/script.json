@@ -99,7 +99,6 @@
   "trash_restore_success": "Đã khôi phục {{count}} script",
   "trash_restore_conflict": "Đã tồn tại script cùng tên \"{{name}}\", không thể khôi phục",
   "trash_purge_success": "Đã xóa vĩnh viễn {{count}} script",
-  "trash_selected": "Đã chọn {{count}} mục",
   "trash_purge_one_confirm": "Script \"{{name}}\" sẽ bị xóa vĩnh viễn, đồng thời xóa luôn dữ liệu lưu trữ, tài nguyên đã tải xuống và các quyền đã cấp của nó. Hành động này không thể hoàn tác.",
   "trash_purge_confirm_title": "Dọn sạch thùng rác?",
   "trash_purge_confirm_body": "{{count}} script trong thùng rác sẽ bị xóa vĩnh viễn, đồng thời xóa luôn dữ liệu lưu trữ, tài nguyên đã tải xuống và các quyền đã cấp của chúng.",

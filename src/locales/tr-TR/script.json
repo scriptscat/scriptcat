@@ -99,7 +99,6 @@
   "trash_restore_success": "{{count}} betik geri yüklendi",
   "trash_restore_conflict": "\"{{name}}\" adlı bir betik zaten var, geri yüklenemiyor",
   "trash_purge_success": "{{count}} betik kalıcı olarak silindi",
-  "trash_selected": "{{count}} öğe seçildi",
   "trash_purge_one_confirm": "\"{{name}}\" kalıcı olarak silinecek; depolanan verileri, indirilen kaynakları ve verilen izinler de birlikte kaldırılacaktır. Bu işlem geri alınamaz.",
   "trash_purge_confirm_title": "Çöp kutusu boşaltılsın mı?",
   "trash_purge_confirm_body": "Çöp kutusundaki {{count}} betik kalıcı olarak silinecek; depolanan verileri, indirilen kaynakları ve verilen izinler de birlikte kaldırılacaktır.",

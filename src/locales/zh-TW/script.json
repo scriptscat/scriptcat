@@ -99,7 +99,6 @@
   "trash_restore_success": "已還原 {{count}} 個腳本",
   "trash_restore_conflict": "已存在同名腳本「{{name}}」，無法還原",
   "trash_purge_success": "已永久刪除 {{count}} 個腳本",
-  "trash_selected": "已選擇 {{count}} 項",
   "trash_purge_one_confirm": "將永久刪除「{{name}}」，同時清除它的儲存資料、已下載的資源與已授予的權限。此操作無法復原。",
   "trash_purge_confirm_title": "清空回收筒？",
   "trash_purge_confirm_body": "將永久刪除回收筒中的 {{count}} 個腳本，同時清除它們的儲存資料、已下載的資源與已授予的權限。",
