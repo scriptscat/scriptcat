@@ -10,6 +10,7 @@ import {
 } from "@App/app/repo/scripts";
 import { TrashScriptDAO, type TrashScript } from "@App/app/repo/trash_script";
 import type { Script } from "@App/app/repo/scripts";
+import { SubscribeDAO } from "@App/app/repo/subscribe";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { MockMessage } from "@Packages/message/mock_message";
 import { Server } from "@Packages/message/server";
@@ -17,7 +18,7 @@ import { SystemConfig } from "@App/pkg/config/config";
 import EventEmitter from "eventemitter3";
 import type { ValueService } from "./value";
 import type { ResourceService } from "./resource";
-import type { TDeleteScript } from "@App/app/service/queue";
+import type { TDeleteScript, TInstallScript } from "@App/app/service/queue";
 
 initTestEnv();
 
@@ -162,5 +163,103 @@ describe("ScriptService.deleteScripts —— 进回收站", () => {
 
     await expect(service.deleteScripts(["t6"])).rejects.toThrow("storage boom");
     expect(await scriptDAO.get("t6")).toBeDefined();
+  });
+});
+
+describe("ScriptService.restoreScripts —— 还原", () => {
+  beforeEach(async () => {
+    await chrome.storage.local.clear();
+  });
+
+  it("应把脚本搬回活跃表并从回收站移除", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    await trashDAO.save(makeTrashScript({ uuid: "r1", name: "还我" }));
+
+    const ret = await service.restoreScripts(["r1"]);
+
+    expect(ret.restored).toEqual(["r1"]);
+    expect(ret.conflicts).toEqual([]);
+    expect((await scriptDAO.get("r1"))?.name).toBe("还我");
+    expect(await trashDAO.get("r1")).toBeUndefined();
+  });
+
+  it("还原后的脚本不得残留删除元数据", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    await trashDAO.save(makeTrashScript({ uuid: "r2" }));
+
+    await service.restoreScripts(["r2"]);
+
+    const restored = (await scriptDAO.get("r2")) as any;
+    expect(restored.deleteTime).toBeUndefined();
+    expect(restored.deleteBy).toBeUndefined();
+  });
+
+  it("应广播 installScript 以重新注册脚本并上传云端", async () => {
+    const { service, mq, trashDAO } = buildService();
+    await trashDAO.save(makeTrashScript({ uuid: "r3" }));
+    const events: TInstallScript[] = [];
+    mq.subscribe<TInstallScript>("installScript", (d) => void events.push(d));
+
+    await service.restoreScripts(["r3"]);
+
+    // 注：MessageQueue.publish() 在测试环境会双投递给同实例本地订阅者（chrome-extension-mock 回环 + 直接 EE.emit，
+    // 实测恒为 2 次），是既有 mock 假象而非业务行为，故只断言"至少投递一次 + 载荷正确"，不绑定次数。
+    expect(events.length).toBeGreaterThan(0);
+    expect(events[0].script.uuid).toBe("r3");
+    expect(events[0].update).toBe(false);
+  });
+
+  it("已存在同 name+namespace 的活跃脚本时应拒绝还原,且回收站条目保留", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "alive", name: "撞名", namespace: "ns" }));
+    await trashDAO.save(makeTrashScript({ uuid: "r4", name: "撞名", namespace: "ns" }));
+
+    const ret = await service.restoreScripts(["r4"]);
+
+    expect(ret.restored).toEqual([]);
+    expect(ret.conflicts).toEqual([{ uuid: "r4", name: "撞名" }]);
+    expect(await scriptDAO.get("r4")).toBeUndefined();
+    expect(await trashDAO.get("r4")).toBeDefined();
+  });
+
+  it("订阅已不存在时应清空 subscribeUrl,避免还原后被订阅更新再次删除", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    await trashDAO.save(makeTrashScript({ uuid: "r5", subscribeUrl: "https://gone.example/s.json" }));
+
+    await service.restoreScripts(["r5"]);
+
+    expect((await scriptDAO.get("r5"))?.subscribeUrl).toBeUndefined();
+  });
+
+  it("订阅仍存在时应保留 subscribeUrl", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    const url = "https://live.example/s.json";
+    await new SubscribeDAO().save({
+      url,
+      name: "订阅",
+      scripts: {},
+      metadata: {},
+      status: 1,
+      createtime: Date.now(),
+      updatetime: Date.now(),
+      checktime: Date.now(),
+    } as any);
+    await trashDAO.save(makeTrashScript({ uuid: "r6", subscribeUrl: url }));
+
+    await service.restoreScripts(["r6"]);
+
+    expect((await scriptDAO.get("r6"))?.subscribeUrl).toBe(url);
+  });
+
+  it("部分冲突时应还原其余脚本", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "alive2", name: "占位", namespace: "ns" }));
+    await trashDAO.save(makeTrashScript({ uuid: "r7", name: "占位", namespace: "ns" }));
+    await trashDAO.save(makeTrashScript({ uuid: "r8", name: "没占位", namespace: "ns" }));
+
+    const ret = await service.restoreScripts(["r7", "r8"]);
+
+    expect(ret.restored).toEqual(["r8"]);
+    expect(ret.conflicts).toEqual([{ uuid: "r7", name: "占位" }]);
   });
 });
