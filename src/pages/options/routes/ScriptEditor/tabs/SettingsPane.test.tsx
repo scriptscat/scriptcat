@@ -285,6 +285,21 @@ describe("SettingsPane 网站匹配/排除", () => {
     expect(screen.getByText("*://ads.script.com/*")).toBeInTheDocument();
     expect(screen.queryByText("*://exclude.com/*")).toBeNull();
   });
+
+  it("删除最后一项匹配后应回落脚本自带规则而非清空列表", async () => {
+    fetchScript.mockResolvedValue({
+      ...sampleScript(),
+      selfMetadata: { exclude: ["*://exclude.com/*"] },
+    });
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://script.com/*");
+    fireEvent.click(screen.getByLabelText(`${t("delete")} *://script.com/*`));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    // 后端 selfMetadataUpdate 收到空集即删除覆盖，生效列表回落 metadata.match，脚本自带规则应保留
+    expect(resetMatch).toHaveBeenCalledWith("u1", []);
+    expect(screen.getByText("*://script.com/*")).toBeInTheDocument();
+    expect(screen.getByText(t("editor:from_script"))).toBeInTheDocument();
+  });
 });
 
 describe("SettingsPane 授权管理(CORS)", () => {
