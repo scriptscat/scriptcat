@@ -476,6 +476,9 @@ export class ScriptService {
       script.downloadUrl = oldScript.downloadUrl;
       script.checkUpdateUrl = oldScript.checkUpdateUrl;
     }
+    // 不变量:同一 uuid 不得同时存在于 script: 与 trashScript:。
+    // 装回来了,回收站那份即作废。同步复活 / vscode 推送 / 安装页复用回收站 uuid 均汇流至此。
+    await this.trashScriptDAO.delete(script.uuid);
     return this.scriptDAO
       .save(script)
       .then(async () => {

@@ -50,7 +50,9 @@ export const buildService = () => {
   const group = server.group("script");
   const systemConfig = new SystemConfig(mq);
   const scriptDAO = new ScriptDAO();
-  const service = new ScriptService(systemConfig, group, mq, {} as ValueService, {} as ResourceService, scriptDAO);
+  // installScript 会调 updateResourceByTypes 下载资源;单元测试不关心资源下载,给个 no-op 即可
+  const resourceService = { updateResourceByTypes: async () => {} } as unknown as ResourceService;
+  const service = new ScriptService(systemConfig, group, mq, {} as ValueService, resourceService, scriptDAO);
   return { service, mq, scriptDAO, systemConfig, trashDAO: new TrashScriptDAO(), codeDAO: new ScriptCodeDAO() };
 };
 
@@ -261,5 +263,39 @@ describe("ScriptService.restoreScripts —— 还原", () => {
 
     expect(ret.restored).toEqual(["r8"]);
     expect(ret.conflicts).toEqual([{ uuid: "r7", name: "占位" }]);
+  });
+});
+
+describe("installScript —— 回收站 uuid 不变量", () => {
+  beforeEach(async () => {
+    await chrome.storage.local.clear();
+  });
+
+  it("安装同 uuid 的脚本时应清除回收站中的旧条目,两张表不得共存", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    const uuid = "inv-1";
+    await trashDAO.save(makeTrashScript({ uuid, name: "复活脚本", deleteBy: "sync" }));
+
+    await service.installScript({
+      script: makeScript({ uuid, name: "复活脚本" }),
+      code: "// code",
+      upsertBy: "sync",
+    });
+
+    expect(await scriptDAO.get(uuid)).toBeDefined();
+    expect(await trashDAO.get(uuid)).toBeUndefined();
+  });
+
+  it("安装无关脚本时不得动回收站中的其他条目", async () => {
+    const { service, trashDAO } = buildService();
+    await trashDAO.save(makeTrashScript({ uuid: "keep-me" }));
+
+    await service.installScript({
+      script: makeScript({ uuid: "other" }),
+      code: "// code",
+      upsertBy: "user",
+    });
+
+    expect(await trashDAO.get("keep-me")).toBeDefined();
   });
 });
