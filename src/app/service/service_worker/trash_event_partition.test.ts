@@ -48,14 +48,18 @@ describe("回收站事件二分护栏", () => {
     ]);
   });
 
-  it("deleteScripts 的订阅者只能是「销毁关联数据」的反应方", () => {
-    // 这几个一旦误订阅 trashScripts，脚本进回收站时数据就被销毁了，
+  it("deleteScripts 的订阅者只能是「销毁关联数据」的反应方，外加只读的 UI 刷新方", () => {
+    // 前四个一旦误订阅 trashScripts，脚本进回收站时数据就被销毁了，
     // 「还原」会还原出一个空壳——这正是回收站要防的事。
     expect(subscribersOf("deleteScripts")).toEqual([
       "src/app/service/service_worker/permission_verify.ts", // 清权限
       "src/app/service/service_worker/resource.ts", // 清资源
       "src/app/service/service_worker/system.ts", // 清图标
       "src/app/service/service_worker/value.ts", // 清 value
+      // useTrashCount：彻底删除后刷新回收站 tab 的数量角标。它只读不销毁，故不违反二分。
+      // 不可省：到期自动清理由 chrome.alarms 在 SW 里直接 purge，全程没有 UI 参与，
+      // 不订阅这里角标就会一直停在旧数字（站内手动清空另有 onCountChange 回报）。
+      "src/pages/options/routes/ScriptList/hooks.ts",
     ]);
   });
 });
