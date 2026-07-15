@@ -249,8 +249,25 @@ export default class ServiceWorkerManager {
     // 定期清理过期的临时安装信息
     chrome.alarms.create("cleanupTempStorage", { periodInMinutes: 30 });
 
-    // 定期清理回收站中过期的脚本(30 天精度无需更细)
-    chrome.alarms.create("cleanupTrash", { periodInMinutes: 12 * 60 });
+    // 定期清理回收站中过期的脚本(30 天精度无需更细)。
+    // 必须先 get 再 create(同 checkUpdate/agentTaskScheduler):create 同名 alarm 会重置倒计时,
+    // 活跃使用时 SW 频繁冷启动,无条件 create 会让 12 小时的闹钟永远数不满、清理永远不触发。
+    chrome.alarms.get("cleanupTrash", (alarm) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
+        // 非预期的异常API错误，停止处理
+      }
+      if (!alarm) {
+        chrome.alarms.create("cleanupTrash", { periodInMinutes: 12 * 60 }, () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
+            console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
+          }
+        });
+      }
+    });
 
     // 一些只需启动时运行一次的任务
     cacheInstance.getOrSet("extension_initialized", () => {
