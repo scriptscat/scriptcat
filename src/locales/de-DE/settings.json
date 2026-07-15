@@ -116,5 +116,9 @@
   "trash_retention_7": "7 Tage",
   "trash_retention_30": "30 Tage",
   "trash_retention_90": "90 Tage",
-  "trash_retention_never": "Nie"
+  "trash_retention_never": "Nie",
+  "trash_enabled": "Papierkorb aktivieren",
+  "trash_enabled_desc": "Gelöschte Skripte wandern zuerst in den Papierkorb und können jederzeit wiederhergestellt werden. Ist die Option deaktiviert, werden Skripte sofort endgültig gelöscht.",
+  "trash_retention_custom": "Benutzerdefiniert",
+  "trash_retention_days_unit": "Tage"
 }

@@ -116,5 +116,9 @@
   "trash_retention_7": "7天",
   "trash_retention_30": "30天",
   "trash_retention_90": "90天",
-  "trash_retention_never": "從不"
+  "trash_retention_never": "從不",
+  "trash_enabled": "啟用回收筒",
+  "trash_enabled_desc": "刪除腳本時先移入回收筒，可隨時還原；關閉後刪除將直接永久刪除",
+  "trash_retention_custom": "自訂",
+  "trash_retention_days_unit": "天"
 }

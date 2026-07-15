@@ -116,5 +116,9 @@
   "trash_retention_7": "7 дней",
   "trash_retention_30": "30 дней",
   "trash_retention_90": "90 дней",
-  "trash_retention_never": "Никогда"
+  "trash_retention_never": "Никогда",
+  "trash_enabled": "Включить корзину",
+  "trash_enabled_desc": "Удалённые скрипты сначала попадают в корзину, и их можно восстановить в любой момент. Если отключить, скрипты будут удаляться окончательно сразу.",
+  "trash_retention_custom": "Пользовательское",
+  "trash_retention_days_unit": "дн."
 }

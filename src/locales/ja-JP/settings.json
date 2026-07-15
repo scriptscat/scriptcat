@@ -116,5 +116,9 @@
   "trash_retention_7": "7日",
   "trash_retention_30": "30日",
   "trash_retention_90": "90日",
-  "trash_retention_never": "無期限"
+  "trash_retention_never": "無期限",
+  "trash_enabled": "ゴミ箱を有効にする",
+  "trash_enabled_desc": "削除したスクリプトはまずゴミ箱に移動し、いつでも復元できます。無効にすると、削除したスクリプトはすぐに完全に削除されます。",
+  "trash_retention_custom": "カスタム",
+  "trash_retention_days_unit": "日"
 }

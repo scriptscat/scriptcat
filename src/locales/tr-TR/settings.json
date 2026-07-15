@@ -116,5 +116,9 @@
   "trash_retention_7": "7 Gün",
   "trash_retention_30": "30 Gün",
   "trash_retention_90": "90 Gün",
-  "trash_retention_never": "Asla"
+  "trash_retention_never": "Asla",
+  "trash_enabled": "Çöp Kutusunu Etkinleştir",
+  "trash_enabled_desc": "Silinen betikler önce çöp kutusuna taşınır ve istediğiniz zaman geri yüklenebilir. Devre dışı bırakıldığında betikler doğrudan kalıcı olarak silinir.",
+  "trash_retention_custom": "Özel",
+  "trash_retention_days_unit": "gün"
 }
