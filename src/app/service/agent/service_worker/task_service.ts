@@ -23,6 +23,8 @@ import { InfoNotification } from "@App/app/service/service_worker/utils";
 import { sendMessage } from "@Packages/message/client";
 import { normalizeChatMaxIterations } from "@App/app/service/agent/core/agent_config";
 import { toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import { conversationChatLockKey } from "./chat_service";
 
 /** 供 TaskService 调用的 orchestrator 能力 */
 export interface TaskOrchestrator {
@@ -75,13 +77,27 @@ export class AgentTaskService {
       sessionRegistry.register("skill", mt.definition, mt.executor);
     }
 
+    // 与同一会话的 UI 聊天 / compact / clearMessages 共用同一把按 conversationId 的队列锁：
+    // appendMessage 是读-改-写，续接已有会话的定时任务若不排队，会与进行中的对话互相覆盖丢消息
+    const conversationId = task.conversationId || uuidv4();
+    return stackAsyncTask(conversationChatLockKey(conversationId), () =>
+      this.executeInternalTaskLocked(task, conversationId, model, promptSuffix, metaTools, sessionRegistry)
+    );
+  }
+
+  private async executeInternalTaskLocked(
+    task: InternalAgentTask,
+    conversationId: string,
+    model: AgentModelConfig,
+    promptSuffix: string,
+    metaTools: ReturnType<SkillService["resolveSkills"]>["metaTools"],
+    sessionRegistry: SessionToolRegistry
+  ): Promise<{ conversationId: string; usage?: { inputTokens: number; outputTokens: number } }> {
     try {
-      let conversationId: string;
       const messages: ChatRequest["messages"] = [];
 
       if (task.conversationId) {
         // 续接已有对话
-        conversationId = task.conversationId;
         const conv = await this.getConversation(conversationId);
 
         const systemContent = buildSystemPrompt({
@@ -124,7 +140,6 @@ export class AgentTaskService {
         }
       } else {
         // 创建新对话
-        conversationId = uuidv4();
         const conv: Conversation = {
           id: conversationId,
           title: task.name,
