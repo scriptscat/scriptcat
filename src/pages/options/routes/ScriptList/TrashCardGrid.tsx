@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileCode, RotateCcw, Trash2, TriangleAlert } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { FileCode, RotateCcw, Settings2, Trash2, TriangleAlert } from "lucide-react";
 import type { TrashScript } from "@App/app/repo/trash_script";
 import type { InstallSource } from "@App/app/service/service_worker/types";
 import { requestTrashScripts, requestRestoreScripts, requestPurgeScripts } from "@App/pages/store/features/script";
@@ -9,7 +10,6 @@ import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { EmptyState } from "@App/pages/components/ui/empty-state";
 import { Surface } from "@App/pages/components/ui/surface";
-import { TrashRetentionDialog } from "./TrashRetentionDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +49,7 @@ export default function TrashCardGrid({
   onCountChange?: (n: number) => void;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [list, setList] = useState<TrashScript[]>([]);
   const [purgeAllOpen, setPurgeAllOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
@@ -130,7 +131,14 @@ export default function TrashCardGrid({
         <span className="min-w-0 truncate text-xs text-muted-foreground">
           {days ? t("script:trash_hint", { days }) : t("script:trash_hint_never")}
         </span>
-        <TrashRetentionDialog />
+        <button
+          type="button"
+          onClick={() => navigate("/settings")}
+          className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/15"
+        >
+          <Settings2 className="size-3" />
+          {t("settings")}
+        </button>
         <div className="flex-1" />
         <button
           className="flex shrink-0 items-center gap-1 whitespace-nowrap px-2.5 py-1 text-xs border rounded-sm border-destructive text-destructive disabled:cursor-not-allowed disabled:opacity-40"

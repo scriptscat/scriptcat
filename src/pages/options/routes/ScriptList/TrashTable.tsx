@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { RotateCcw, Trash2, TriangleAlert } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { RotateCcw, Settings2, Trash2, TriangleAlert } from "lucide-react";
 import type { TrashScript } from "@App/app/repo/trash_script";
 import type { InstallSource } from "@App/app/service/service_worker/types";
 import { requestTrashScripts, requestRestoreScripts, requestPurgeScripts } from "@App/pages/store/features/script";
@@ -10,7 +11,6 @@ import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { SearchInput } from "@App/pages/components/ui/search-input";
 import SelectionBar, { SelectionBarButton } from "./SelectionBar";
-import { TrashRetentionDialog } from "./TrashRetentionDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,6 +50,7 @@ export default function TrashTable({
   onCountChange?: (n: number) => void;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [list, setList] = useState<TrashScript[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [purgeAllOpen, setPurgeAllOpen] = useState(false);
@@ -180,7 +181,14 @@ export default function TrashTable({
           <span className="text-xs text-muted-foreground">
             {days ? t("script:trash_hint", { days }) : t("script:trash_hint_never")}
           </span>
-          <TrashRetentionDialog />
+          <button
+            type="button"
+            onClick={() => navigate("/settings")}
+            className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/15"
+          >
+            <Settings2 className="size-3" />
+            {t("settings")}
+          </button>
         </div>
       </div>
 
