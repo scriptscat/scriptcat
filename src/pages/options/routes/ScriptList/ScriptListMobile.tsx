@@ -8,6 +8,7 @@ import { MobileSearchBar } from "./MobileSearchBar";
 import ScriptCardGrid from "./ScriptCardGrid";
 import TrashCardGrid from "./TrashCardGrid";
 import { useTrashCount } from "./hooks";
+import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 
 export interface ScriptListMobileProps extends FilterBarProps {
   scriptList: ScriptLoading[];
@@ -38,12 +39,22 @@ function ScriptListMobile({
   const isTrash = activeTab === "trash";
 
   const [trashCount, setTrashCount] = useTrashCount();
+  const [trashEnabled] = useSystemConfig("trash_enabled");
+  const showTrashTab = (trashEnabled ?? true) || trashCount > 0;
+
+  // 回落：showTrashTab 转 false 时若仍停留在 trash tab，跳回 installed。用「渲染期比较」模式
+  // （见 Logger/hooks.ts 同类写法）而非 effect 内同步 setState，避免级联渲染告警。
+  const [lastShowTrashTab, setLastShowTrashTab] = useState(showTrashTab);
+  if (lastShowTrashTab !== showTrashTab) {
+    setLastShowTrashTab(showTrashTab);
+    if (!showTrashTab && activeTab === "trash") setActiveTab("installed");
+  }
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center px-4 py-1.5 shrink-0">
         <div className="flex items-center flex-1 gap-0.5 p-[3px] rounded-md bg-muted">
-          {(["installed", "trash"] as const).map((tab) => {
+          {(showTrashTab ? (["installed", "trash"] as const) : (["installed"] as const)).map((tab) => {
             const active = activeTab === tab;
             const count = tab === "installed" ? scriptList.length : trashCount;
             return (

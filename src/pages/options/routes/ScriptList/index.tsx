@@ -34,6 +34,7 @@ import { type TSelectFilter, useScriptDataManagement, useScriptFilters, useTrash
 import type { FilterBarProps } from "./FilterBar";
 import type { BatchActionsBarProps } from "./BatchActionsBar";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
+import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import ScriptListMobile from "./ScriptListMobile";
 import TrashTable from "./TrashTable";
 import { notify } from "@App/pages/components/ui/toast";
@@ -390,10 +391,21 @@ export default function ScriptList() {
 
   // 已安装 / 回收站切换。占据顶栏最左侧（取代「已安装脚本 + 数量」标题槽位，数量改由 tab 上的角标承载）。
   const [trashCount, setTrashCount] = useTrashCount();
+  const [trashEnabled] = useSystemConfig("trash_enabled");
+  // 关闭回收站只影响「以后」：站内残留条目仍要可见可清，清空后 tab 才消失
+  const showTrashTab = (trashEnabled ?? true) || trashCount > 0;
+
+  // 回落：showTrashTab 转 false 时若仍停留在 trash tab，跳回 installed。用「渲染期比较」模式
+  // （见 Logger/hooks.ts 同类写法）而非 effect 内同步 setState，避免级联渲染告警。
+  const [lastShowTrashTab, setLastShowTrashTab] = useState(showTrashTab);
+  if (lastShowTrashTab !== showTrashTab) {
+    setLastShowTrashTab(showTrashTab);
+    if (!showTrashTab && activeTab === "trash") setActiveTab("installed");
+  }
 
   const tabs = (
     <div className="flex items-center gap-0.5 p-[3px] rounded-md shrink-0 bg-muted">
-      {(["installed", "trash"] as const).map((tab) => {
+      {(showTrashTab ? (["installed", "trash"] as const) : (["installed"] as const)).map((tab) => {
         const active = activeTab === tab;
         const count = tab === "installed" ? scriptList.length : trashCount;
         return (
