@@ -34,6 +34,7 @@ import type { FilterBarProps } from "./FilterBar";
 import type { BatchActionsBarProps } from "./BatchActionsBar";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import ScriptListMobile from "./ScriptListMobile";
+import TrashTable from "./TrashTable";
 import { notify } from "@App/pages/components/ui/toast";
 import { useUserConfigPreload } from "./preload";
 import { reindexScriptList } from "./sort";
@@ -117,6 +118,7 @@ export default function ScriptList() {
   const isMobile = useIsMobile();
   const { stats, filterItems } = useScriptFilters(scriptList, selectedFilters, searchRequest);
   const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
+  const [activeTab, setActiveTab] = useState<"installed" | "trash">("installed");
 
   const demoActive = useOnboardingDemoActive();
   const demoScripts = useMemo(() => getDemoScripts(t), [t]);
@@ -392,34 +394,53 @@ export default function ScriptList() {
 
   return (
     <div className="flex flex-col h-full">
-      <MainContent
-        viewMode={viewMode}
-        scriptList={displayScripts}
-        loadingList={loadingList}
-        updateScripts={updateScripts}
-        handleDelete={handleDelete}
-        handleRunStop={handleRunStop}
-        setViewMode={handleSetViewMode}
-        searchRequest={searchRequest}
-        setSearchRequest={handleSetSearchRequest}
-        totalCount={demoActive ? demoScripts.length : scriptList.length}
-        scriptListSortOrderMove={scriptListSortOrderMove}
-        filterItems={filterItems}
-        selectedFilters={selectedFilters}
-        setSelectedFilters={handleSetSelectedFilters}
-        sortState={sortState}
-        setSortState={handleSetSortState}
-        selectedUuids={selectedUuids}
-        toggleSelect={toggleSelect}
-        toggleSelectAll={toggleSelectAll}
-        clearSelection={clearSelection}
-        onBatchEnable={handleBatchEnable}
-        onBatchDisable={handleBatchDisable}
-        onBatchExport={handleBatchExport}
-        onBatchDelete={handleBatchDelete}
-        onBatchPinTop={handleBatchPinTop}
-        onBatchCheckUpdate={handleBatchCheckUpdate}
-      />
+      <div className="flex items-center h-14 px-6 border-b border-border">
+        <div className="flex items-center gap-0.5 p-[3px] rounded-md bg-muted">
+          {(["installed", "trash"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`h-7 px-3 rounded-md text-sm ${
+                activeTab === tab ? "bg-background font-semibold text-foreground" : "text-muted-foreground"
+              }`}
+            >
+              {tab === "installed" ? t("script:tab_installed") : t("script:trash_tab")}
+            </button>
+          ))}
+        </div>
+      </div>
+      {activeTab === "trash" ? (
+        <TrashTable />
+      ) : (
+        <MainContent
+          viewMode={viewMode}
+          scriptList={displayScripts}
+          loadingList={loadingList}
+          updateScripts={updateScripts}
+          handleDelete={handleDelete}
+          handleRunStop={handleRunStop}
+          setViewMode={handleSetViewMode}
+          searchRequest={searchRequest}
+          setSearchRequest={handleSetSearchRequest}
+          totalCount={demoActive ? demoScripts.length : scriptList.length}
+          scriptListSortOrderMove={scriptListSortOrderMove}
+          filterItems={filterItems}
+          selectedFilters={selectedFilters}
+          setSelectedFilters={handleSetSelectedFilters}
+          sortState={sortState}
+          setSortState={handleSetSortState}
+          selectedUuids={selectedUuids}
+          toggleSelect={toggleSelect}
+          toggleSelectAll={toggleSelectAll}
+          clearSelection={clearSelection}
+          onBatchEnable={handleBatchEnable}
+          onBatchDisable={handleBatchDisable}
+          onBatchExport={handleBatchExport}
+          onBatchDelete={handleBatchDelete}
+          onBatchPinTop={handleBatchPinTop}
+          onBatchCheckUpdate={handleBatchCheckUpdate}
+        />
+      )}
       {userConfigDialog}
       {cloudDialog}
     </div>
