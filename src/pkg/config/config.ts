@@ -494,6 +494,15 @@ export class SystemConfig {
     this._set("log_clean_cycle", val);
   }
 
+  /** 回收站保留天数。0 表示永不自动清理 */
+  getTrashRetentionDays() {
+    return this._get<number>("trash_retention_days", 30);
+  }
+
+  setTrashRetentionDays(val: number) {
+    this._set("trash_retention_days", val);
+  }
+
   defaultMenuExpandNum() {
     return 5;
   }

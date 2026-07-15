@@ -299,3 +299,54 @@ describe("installScript —— 回收站 uuid 不变量", () => {
     expect(await trashDAO.get("keep-me")).toBeDefined();
   });
 });
+
+describe("ScriptService.cleanupExpiredTrash —— 到期自动清理", () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  beforeEach(async () => {
+    await chrome.storage.local.clear();
+  });
+
+  it("应清理超过保留天数的条目,保留未到期的", async () => {
+    const { service, trashDAO, systemConfig } = buildService();
+    systemConfig.setTrashRetentionDays(30);
+    await trashDAO.save(makeTrashScript({ uuid: "old", deleteTime: Date.now() - 31 * DAY }));
+    await trashDAO.save(makeTrashScript({ uuid: "fresh", deleteTime: Date.now() - 3 * DAY }));
+
+    const cleaned = await service.cleanupExpiredTrash();
+
+    expect(cleaned).toBe(1);
+    expect(await trashDAO.get("old")).toBeUndefined();
+    expect(await trashDAO.get("fresh")).toBeDefined();
+  });
+
+  it("清理应走彻底删除链路并广播 deleteScripts", async () => {
+    const { service, mq, trashDAO, systemConfig } = buildService();
+    systemConfig.setTrashRetentionDays(30);
+    await trashDAO.save(makeTrashScript({ uuid: "old2", deleteTime: Date.now() - 40 * DAY }));
+    const events: TDeleteScript[][] = [];
+    mq.subscribe<TDeleteScript[]>("deleteScripts", (d) => void events.push(d));
+
+    await service.cleanupExpiredTrash();
+
+    // 注：MessageQueue.publish() 在测试环境会双投递给同实例本地订阅者（chrome-extension-mock 回环 + 直接 EE.emit，
+    // 实测恒为 2 次），是既有 mock 假象而非业务行为，故只断言"至少投递一次 + 载荷正确"，不绑定次数。
+    expect(events.length).toBeGreaterThan(0);
+    expect(events[0][0].uuid).toBe("old2");
+  });
+
+  it("保留时间设为永不(0)时一个都不清", async () => {
+    const { service, trashDAO, systemConfig } = buildService();
+    systemConfig.setTrashRetentionDays(0);
+    await trashDAO.save(makeTrashScript({ uuid: "ancient", deleteTime: Date.now() - 999 * DAY }));
+
+    expect(await service.cleanupExpiredTrash()).toBe(0);
+    expect(await trashDAO.get("ancient")).toBeDefined();
+  });
+
+  it("回收站为空时应安全返回 0", async () => {
+    const { service, systemConfig } = buildService();
+    systemConfig.setTrashRetentionDays(30);
+    expect(await service.cleanupExpiredTrash()).toBe(0);
+  });
+});

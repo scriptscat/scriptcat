@@ -187,6 +187,9 @@ export default class ServiceWorkerManager {
           // 避免浏览器打开时立即清除。先等tabs载入一下
           setTimeout(cleanupStaleTempStorageEntries, needsWarmupDelay ? 45_000 : 100);
           break;
+        case "cleanupTrash":
+          script.cleanupExpiredTrash();
+          break;
       }
     });
     // 12小时检查一次扩展更新
@@ -245,6 +248,9 @@ export default class ServiceWorkerManager {
 
     // 定期清理过期的临时安装信息
     chrome.alarms.create("cleanupTempStorage", { periodInMinutes: 30 });
+
+    // 定期清理回收站中过期的脚本(30 天精度无需更细)
+    chrome.alarms.create("cleanupTrash", { periodInMinutes: 12 * 60 });
 
     // 一些只需启动时运行一次的任务
     cacheInstance.getOrSet("extension_initialized", () => {

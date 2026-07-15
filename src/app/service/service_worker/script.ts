@@ -603,6 +603,23 @@ export class ScriptService {
     return { restored, conflicts };
   }
 
+  /** 清理回收站中超过保留期的脚本。返回清理条数 */
+  async cleanupExpiredTrash(): Promise<number> {
+    const retentionDays = await this.systemConfig.getTrashRetentionDays();
+    if (!retentionDays) {
+      return 0; // 0 = 永不自动清理
+    }
+    const deadline = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+    const all = await this.trashScriptDAO.all();
+    const expired = all.filter((item) => item.deleteTime < deadline).map((item) => item.uuid);
+    if (!expired.length) {
+      return 0;
+    }
+    await this.purgeScripts(expired);
+    this.logger.info("cleanup expired trash", { count: expired.length });
+    return expired.length;
+  }
+
   async enableScript(param: { uuid: string; enable: boolean }) {
     const { uuid, enable } = param;
     const logger = this.logger.with({ uuid, enable });
