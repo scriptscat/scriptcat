@@ -61,6 +61,9 @@ describe("ScriptService.purgeScripts —— 彻底删除", () => {
   beforeEach(async () => {
     clearCacheForTest();
     await chrome.storage.local.clear();
+    // trash_enabled/trash_retention_days 不在 STORAGE_LOCAL_KEYS 里，走 chrome.storage.sync，
+    // 不清会把上一个用例写入的值泄漏到这里
+    await chrome.storage.sync.clear();
   });
 
   it("应从回收站移除脚本并删除其代码", async () => {
@@ -99,6 +102,9 @@ describe("ScriptService.deleteScripts —— 进回收站", () => {
   beforeEach(async () => {
     clearCacheForTest();
     await chrome.storage.local.clear();
+    // trash_enabled/trash_retention_days 不在 STORAGE_LOCAL_KEYS 里，走 chrome.storage.sync，
+    // 不清会把上一个用例写入的值泄漏到这里
+    await chrome.storage.sync.clear();
   });
 
   it("应把脚本搬进回收站并从活跃表移除", async () => {
@@ -175,6 +181,9 @@ describe("ScriptService.restoreScripts —— 还原", () => {
   beforeEach(async () => {
     clearCacheForTest();
     await chrome.storage.local.clear();
+    // trash_enabled/trash_retention_days 不在 STORAGE_LOCAL_KEYS 里，走 chrome.storage.sync，
+    // 不清会把上一个用例写入的值泄漏到这里
+    await chrome.storage.sync.clear();
   });
 
   it("应把脚本搬回活跃表并从回收站移除", async () => {
@@ -274,6 +283,9 @@ describe("installScript —— 回收站 uuid 不变量", () => {
   beforeEach(async () => {
     clearCacheForTest();
     await chrome.storage.local.clear();
+    // trash_enabled/trash_retention_days 不在 STORAGE_LOCAL_KEYS 里，走 chrome.storage.sync，
+    // 不清会把上一个用例写入的值泄漏到这里
+    await chrome.storage.sync.clear();
   });
 
   it("安装同 uuid 的脚本时应清除回收站中的旧条目,两张表不得共存", async () => {
@@ -311,6 +323,9 @@ describe("ScriptService.cleanupExpiredTrash —— 到期自动清理", () => {
   beforeEach(async () => {
     clearCacheForTest();
     await chrome.storage.local.clear();
+    // trash_enabled/trash_retention_days 不在 STORAGE_LOCAL_KEYS 里，走 chrome.storage.sync，
+    // 不清会把上一个用例写入的值泄漏到这里
+    await chrome.storage.sync.clear();
   });
 
   it("应清理超过保留天数的条目,保留未到期的", async () => {
@@ -391,6 +406,9 @@ describe("ScriptService.deleteScripts —— 回收站关闭时直接销毁", ()
   beforeEach(async () => {
     clearCacheForTest();
     await chrome.storage.local.clear();
+    // trash_enabled/trash_retention_days 不在 STORAGE_LOCAL_KEYS 里，走 chrome.storage.sync，
+    // 不清会把上一个用例写入的值泄漏到这里
+    await chrome.storage.sync.clear();
   });
 
   it("未设置 trash_enabled 时默认仍走回收站,脚本代码保留", async () => {
