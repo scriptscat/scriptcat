@@ -8,7 +8,7 @@ import {
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_NORMAL,
 } from "@App/app/repo/scripts";
-import { fetchScript, fetchScriptList } from "@App/pages/store/features/script";
+import { fetchScript, fetchScriptList, requestTrashScripts } from "@App/pages/store/features/script";
 import { loadScriptFavicons } from "@App/pages/store/favicons";
 import { systemConfig, subscribeMessage } from "@App/pages/store/global";
 import { parseTags } from "@App/app/repo/metadata";
@@ -174,6 +174,29 @@ export function useScriptDataManagement() {
   }, []);
 
   return { scriptList, setScriptList, loadingList };
+}
+
+/**
+ * 回收站条目数（供顶栏 tab 角标）。
+ * 只订阅真正会改变回收站内容的事件——不能挂在 scriptList 上：它在启用/禁用/拖拽排序时都会换引用，
+ * 那会让每次拖动都在后台重拉一次回收站。
+ */
+export function useTrashCount(): [number, (n: number) => void] {
+  const [trashCount, setTrashCount] = useState(0);
+
+  useEffect(() => {
+    const reload = () => void requestTrashScripts().then((l) => setTrashCount(l?.length ?? 0));
+    reload();
+    const hookMgr = new HookManager();
+    hookMgr.append(
+      subscribeMessage<TDeleteScript[]>("trashScripts", reload),
+      subscribeMessage<TDeleteScript[]>("deleteScripts", reload),
+      subscribeMessage<TInstallScript>("installScript", reload)
+    );
+    return hookMgr.unhook;
+  }, []);
+
+  return [trashCount, setTrashCount];
 }
 
 /**

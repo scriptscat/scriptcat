@@ -19,6 +19,7 @@ vi.mock("./hooks", () => {
   return {
     useScriptDataManagement: () => data,
     useScriptFilters: () => filters,
+    useTrashCount: () => [0, () => {}],
   };
 });
 

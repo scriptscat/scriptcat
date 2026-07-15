@@ -21,6 +21,8 @@ const stableScriptList: never[] = [];
 const stableSetScriptList = vi.fn();
 const stableStats = { tagMap: {}, originMap: {}, counts: {} };
 const stableFilterItems = { statusItems: [], typeItems: [], tagItems: [], sourceItems: [] };
+const { mockTrashCount } = vi.hoisted(() => ({ mockTrashCount: { value: 0 } }));
+const stableSetTrashCount = vi.fn();
 
 vi.mock("./hooks", () => ({
   useScriptDataManagement: () => ({
@@ -29,6 +31,7 @@ vi.mock("./hooks", () => ({
     loadingList: false,
   }),
   useScriptFilters: () => ({ stats: stableStats, filterItems: stableFilterItems }),
+  useTrashCount: () => [mockTrashCount.value, stableSetTrashCount],
 }));
 
 vi.mock("@App/pages/store/features/script", () => ({

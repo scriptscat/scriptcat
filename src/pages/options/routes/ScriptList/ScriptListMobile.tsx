@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ScriptLoading } from "@App/pages/store/features/script";
-import { requestTrashScripts } from "@App/pages/store/features/script";
 import type { SearchFilterRequest } from "./SearchFilter";
 import type { FilterBarProps } from "./FilterBar";
 import FilterBar from "./FilterBar";
 import { MobileSearchBar } from "./MobileSearchBar";
 import ScriptCardGrid from "./ScriptCardGrid";
 import TrashCardGrid from "./TrashCardGrid";
+import { useTrashCount } from "./hooks";
 
 export interface ScriptListMobileProps extends FilterBarProps {
   scriptList: ScriptLoading[];
@@ -37,12 +37,7 @@ function ScriptListMobile({
   const [activeTab, setActiveTab] = useState<"installed" | "trash">("installed");
   const isTrash = activeTab === "trash";
 
-  // scriptList 变化即重取回收站数量：删除会让脚本移出 scriptList、还原会广播 installScript 让它移回，
-  // 两者都会触发这里；在回收站内彻底删除则由 TrashCardGrid 的 onCountChange 回报。
-  const [trashCount, setTrashCount] = useState(0);
-  useEffect(() => {
-    void requestTrashScripts().then((l) => setTrashCount(l?.length ?? 0));
-  }, [scriptList]);
+  const [trashCount, setTrashCount] = useTrashCount();
 
   return (
     <div className="flex flex-col h-full">

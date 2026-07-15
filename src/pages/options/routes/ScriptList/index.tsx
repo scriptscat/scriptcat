@@ -12,7 +12,6 @@ import {
 import {
   requestDeleteScripts,
   requestRestoreScripts,
-  requestTrashScripts,
   requestEnableScript,
   requestRunScript,
   requestStopScript,
@@ -31,7 +30,7 @@ import ScriptTable from "./ScriptTable";
 import type { ScriptTableProps } from "./ScriptTable";
 import ScriptCard from "./ScriptCard";
 import { SearchFilter, type SearchFilterRequest } from "./SearchFilter";
-import { type TSelectFilter, useScriptDataManagement, useScriptFilters } from "./hooks";
+import { type TSelectFilter, useScriptDataManagement, useScriptFilters, useTrashCount } from "./hooks";
 import type { FilterBarProps } from "./FilterBar";
 import type { BatchActionsBarProps } from "./BatchActionsBar";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
@@ -390,12 +389,7 @@ export default function ScriptList() {
   );
 
   // 已安装 / 回收站切换。占据顶栏最左侧（取代「已安装脚本 + 数量」标题槽位，数量改由 tab 上的角标承载）。
-  // scriptList 变化即重取回收站数量：删除会让脚本从 scriptList 移出、还原会广播 installScript 让它移回，
-  // 两者都会触发这里；在回收站内彻底删除则由 TrashTable 的 onCountChange 回报。
-  const [trashCount, setTrashCount] = useState(0);
-  useEffect(() => {
-    void requestTrashScripts().then((l) => setTrashCount(l?.length ?? 0));
-  }, [scriptList]);
+  const [trashCount, setTrashCount] = useTrashCount();
 
   const tabs = (
     <div className="flex items-center gap-0.5 p-[3px] rounded-md shrink-0 bg-muted">
