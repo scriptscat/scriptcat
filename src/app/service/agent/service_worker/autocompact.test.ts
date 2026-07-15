@@ -109,9 +109,9 @@ describe("Compact 功能", () => {
       apiBaseUrl: "",
       apiKey: "",
       model: "gpt-4o",
-      // 提高到 40000：getReservedOutputTokens 现在对未显式配置 maxTokens 的 OpenAI 兼容模型
-      // 也预留一个非零默认输出额度（见 model_context.ts，finding 11），10000 的窗口在扣除
-      // 预留额度后输入预算会塌缩到 0，这里相应放宽窗口，保留测试原本想验证的"裁剪旧工具结果"场景
+      // 40000 窗口 + 未配置 maxTokens：默认输出预留 min(16384, 窗口/4)=10000（见 model_context.ts），
+      // 输入预算 = 40000 - 10000 - 4000(10% 安全边际) = 26000 token；下面 6 条约 7200 token 的
+      // 工具结果远超预算，保证"裁剪旧工具结果"场景稳定触发
       contextWindow: 40000,
     });
     mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
@@ -129,7 +129,7 @@ describe("Compact 功能", () => {
         id: `t${i}`,
         conversationId: "conv-1",
         role: "tool",
-        content: "工具结果".repeat(500),
+        content: "工具结果".repeat(1200),
         toolCallId: `tc${i}`,
         createtime: i,
       });

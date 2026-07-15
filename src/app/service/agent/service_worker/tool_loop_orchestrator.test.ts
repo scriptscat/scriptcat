@@ -98,10 +98,10 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
 
     await expect(
       orchestrator.callLLMWithToolLoop(
-        // 30000：getReservedOutputTokens 现在对未显式配置 maxTokens 的模型也预留非零默认输出额度
-        // （见 model_context.ts，finding 11），10000 的窗口扣除后输入预算会塌缩到 0，
-        // 这里放宽窗口以保留测试原本想验证的 usage/contextWindow 比例触发 autoCompact 的场景
-        baseParams({ model: { ...MODEL, contextWindow: 30000 }, messages: [{ role: "user", content: "开始" }] })
+        // 16000：未显式配置 maxTokens 时默认输出预留为 min(16384, 窗口/4)（见 model_context.ts），
+        // 输入预算 = 16000 - 4000(输出预留) - 1600(10% 安全边际) = 10400，
+        // 9000/10400 ≈ 0.87 ≥ 0.8，保留测试原本要验证的 autoCompact 触发场景
+        baseParams({ model: { ...MODEL, contextWindow: 16000 }, messages: [{ role: "user", content: "开始" }] })
       )
     ).rejects.toMatchObject({
       message: "compact failed",

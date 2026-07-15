@@ -74,7 +74,11 @@ export function getReservedOutputTokens(config: AgentModelConfig): number {
     typeof config.maxTokens === "number" && Number.isFinite(config.maxTokens)
       ? Math.max(0, Math.floor(config.maxTokens))
       : 0;
-  const requested = configured > 0 ? configured : DEFAULT_ANTHROPIC_MAX_TOKENS;
+  // 未显式配置时，默认预留不能超过窗口的 1/4：否则小窗口模型（gpt-4 8K、gpt-3.5 16K、
+  // 本地小模型等）会被 16384 的默认预留 + 安全边际吃掉全部输入预算，
+  // getInputTokenBudget() 塌缩为 0，每次对话都直接报 context_too_large。
+  const requested =
+    configured > 0 ? configured : Math.min(DEFAULT_ANTHROPIC_MAX_TOKENS, Math.max(1, Math.floor(contextWindow / 4)));
   return Math.min(contextWindow, requested);
 }
 
