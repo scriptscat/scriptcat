@@ -165,7 +165,8 @@ export function useScriptDataManagement() {
     hookMgr.append(
       subscribeMessage<TScriptRunStatus>("scriptRunStatus", handlers.scriptRunStatus),
       subscribeMessage<TInstallScript>("installScript", (data) => void handlers.installScript(data)),
-      subscribeMessage<TDeleteScript[]>("deleteScripts", handlers.deleteScripts),
+      // 删除 = 移入回收站,广播的是 trashScripts;彻底删除(deleteScripts)时该行早已不在列表里,无事可做
+      subscribeMessage<TDeleteScript[]>("trashScripts", handlers.deleteScripts),
       subscribeMessage<TEnableScript[]>("enableScripts", handlers.enableScripts),
       subscribeMessage<TSortedScript[]>("sortedScripts", handlers.sortedScripts)
     );
