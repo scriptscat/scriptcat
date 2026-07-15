@@ -215,7 +215,13 @@ export async function prepareScriptByCode(
   // 「移出回收站」无需在此处理：installScript 落库前会先删掉同 uuid 的回收站条目。
   let oldInTrash = false;
   if (!old) {
-    const trashed = await new TrashScriptDAO().findByNameAndNamespace(script.name, script.namespace);
+    const trashDAO = new TrashScriptDAO();
+    // 跟随 dao 的缓存开关:备份导入等会开缓存后循环调用本函数,
+    // 回收站查找若固定走非缓存路径,每个脚本都是一次全量 storage 反序列化
+    if (dao.useCache) {
+      trashDAO.enableCache();
+    }
+    const trashed = await trashDAO.findByNameAndNamespace(script.name, script.namespace);
     if (trashed) {
       old = trashed;
       oldInTrash = true;
