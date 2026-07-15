@@ -57,6 +57,7 @@ export default function TrashCardGrid({
   const [purgeAllOpen, setPurgeAllOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [retentionDays] = useSystemConfig("trash_retention_days");
+  const [trashEnabled] = useSystemConfig("trash_enabled");
 
   const reload = useCallback(
     () =>
@@ -72,7 +73,9 @@ export default function TrashCardGrid({
     void requestTrashScripts().then((l) => setList(l ?? []));
   }, []);
 
-  const days = retentionDays ?? 30;
+  const configuredDays = retentionDays ?? 30;
+  // 关闭回收站后残留条目不再自动清理，倒计时须归零，否则会倒数一个永远不会到来的期限
+  const days = (trashEnabled ?? true) ? configuredDays : 0;
 
   const daysLeftOf = useCallback(
     (item: TrashScript) => (days ? Math.ceil((item.deleteTime + days * DAY - Date.now()) / DAY) : null),
@@ -132,7 +135,11 @@ export default function TrashCardGrid({
 
       <div className="flex items-center gap-1.5 px-4 pb-1.5 shrink-0">
         <span className="min-w-0 truncate text-xs text-muted-foreground">
-          {days ? t("script:trash_hint", { days }) : t("script:trash_hint_never")}
+          {!(trashEnabled ?? true)
+            ? t("script:trash_hint_disabled")
+            : days
+              ? t("script:trash_hint", { days })
+              : t("script:trash_hint_never")}
         </span>
         <button
           type="button"

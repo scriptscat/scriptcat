@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
+import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import SelectionBar, { SelectionBarButton } from "./SelectionBar";
 
 export interface BatchActionsBarProps {
@@ -24,6 +25,7 @@ export default function BatchActionsBar({
   onClose,
 }: BatchActionsBarProps) {
   const { t } = useTranslation();
+  const [trashEnabled] = useSystemConfig("trash_enabled");
 
   return (
     <SelectionBar selectedCount={selectedCount} onClose={onClose}>
@@ -37,7 +39,11 @@ export default function BatchActionsBar({
         {t("export")}
       </SelectionBarButton>
       <Popconfirm
-        description={t("script:confirm_delete_scripts_content", { count: selectedCount })}
+        description={
+          (trashEnabled ?? true)
+            ? t("script:confirm_delete_scripts_trash_content", { count: selectedCount })
+            : t("script:confirm_delete_scripts_content", { count: selectedCount })
+        }
         destructive
         confirmText={t("delete")}
         cancelText={t("editor:cancel")}
