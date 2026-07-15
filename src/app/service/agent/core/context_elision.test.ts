@@ -258,7 +258,7 @@ describe("estimateRequestTokens 的按消息缓存不应产生陈旧结果", () 
     const messages: ChatRequest["messages"] = [{ role: "assistant", content: "", toolCalls: [toolCall] }];
 
     const runningEstimate = estimateRequestTokens(messages);
-    // 工具执行完成后原地回写 status（tool_loop_orchestrator_base.ts 的 applyToolUpdates 同款操作）
+    // 工具执行完成后原地回写 status（tool_loop_orchestrator.ts 的 applyToolUpdates 同款操作）
     toolCall.status = "completed";
     toolCall.result = "a longer completed result string that changes the byte size";
     const completedEstimate = estimateRequestTokens(messages);

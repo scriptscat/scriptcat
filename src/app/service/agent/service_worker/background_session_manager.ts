@@ -157,7 +157,7 @@ export class BackgroundSessionManager {
 
   // 停止后台会话：仅置为 cancelling（占用态，阻止同 ID 会话被过早顶替）并 abort，
   // 不在这里广播终态事件。终态事件的唯一来源是执行方（orchestrator 的 emitCancelled，
-  // 见 tool_loop_orchestrator_base.ts）在 promise 真正落定后发出的那一条——它携带完整的
+  // 见 tool_loop_orchestrator.ts）在 promise 真正落定后发出的那一条——它携带完整的
   // 累计 usage/耗时。此前 stop() 自己先广播一条不带 usage 的 error:cancelled，会导致 UI
   // 连接在收到 orchestrator 发出的、携带真实 usage 的终态事件之前就已断开丢弃它，
   // 也会让 finalizeCancelled() 因为 status 已被后到的 error 事件提前改写而永远不触发清理。
@@ -220,7 +220,7 @@ export class BackgroundSessionManager {
       pendingAskUser: rc.pendingAskUser,
       tasks: rc.tasks,
       // cancelling 还没有产生真正携带取消原因/usage/耗时的终态事件（那条事件由 orchestrator 的
-      // emitCancelled() 在 promise 落定后才广播，见 tool_loop_orchestrator_base.ts）。
+      // emitCancelled() 在 promise 落定后才广播，见 tool_loop_orchestrator.ts）。
       // 之前这里直接报 "error" 会让客户端立即断开重载，永远收不到那条真正完整的终态事件，
       // 也可能在取消记录落库前就重载；改为对外仍按 "running" 处理并继续订阅 listener，
       // 客户端会一直等到下面广播的那条真正的终态事件再断开。
