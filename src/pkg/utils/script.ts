@@ -1,5 +1,6 @@
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { SCMetadata, Script, ScriptCode, UserConfig } from "@App/app/repo/scripts";
+import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import {
   SCRIPT_RUN_STATUS_COMPLETE,
   SCRIPT_STATUS_DISABLE,
@@ -179,7 +180,7 @@ export async function prepareScriptByCode(
     byEditor?: boolean; // 是否通过编辑器导入
     byWebRequest?: boolean; // 是否通过网页连结安装或更新
   }
-): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string }> {
+): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string; oldInTrash?: boolean }> {
   dao = dao ?? new ScriptDAO();
   const script = parseScriptFromCode(code, origin, uuid);
   let old: Script | undefined;
@@ -206,6 +207,18 @@ export async function prepareScriptByCode(
           /* empty */
         }
       }
+    }
+  }
+  // 所有活跃表查找都落空后，才查回收站：活跃脚本必须优先于回收站条目命中，
+  // 否则一个仍活着的脚本会被误判成「在回收站里」。
+  // 命中则复用它的 uuid —— 新代码写入旧身份，storageName 不变，value 与权限得以保留。
+  // 「移出回收站」无需在此处理：installScript 落库前会先删掉同 uuid 的回收站条目。
+  let oldInTrash = false;
+  if (!old) {
+    const trashed = await new TrashScriptDAO().findByNameAndNamespace(script.name, script.namespace);
+    if (trashed) {
+      old = trashed;
+      oldInTrash = true;
     }
   }
   const hasGrantConflict = (metadata: SCMetadata | undefined | null) =>
@@ -254,7 +267,7 @@ export async function prepareScriptByCode(
     }
     script.checktime = Date.now();
   }
-  return { script, oldScript: old, oldScriptCode: oldCode?.code };
+  return { script, oldScript: old, oldScriptCode: oldCode?.code, oldInTrash };
 }
 
 // 通过代码解析出脚本信息 (Subscribe)
