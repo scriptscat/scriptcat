@@ -3,11 +3,11 @@ import { ValueService } from "./value";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "crypto";
 import type { Script } from "@App/app/repo/scripts";
-import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
+import { SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { ScriptDAO } from "@App/app/repo/scripts";
-import { ValueDAO } from "@App/app/repo/value";
+import { ValueDAO, type Value } from "@App/app/repo/value";
 import { MockMessage } from "@Packages/message/mock_message";
 import { Server } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
@@ -16,9 +16,11 @@ import type { ValueUpdateSender } from "../content/types";
 import { getStorageName } from "@App/pkg/utils/utils";
 import type { TKeyValuePair } from "@App/pkg/utils/message_value";
 import { encodeRValue } from "@App/pkg/utils/message_value";
-import { TrashScriptDAO } from "@App/app/repo/trash_script";
+import { TrashScriptDAO, type TrashScript } from "@App/app/repo/trash_script";
 import type { TDeleteScript } from "@App/app/service/queue";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
+import type { RuntimeService } from "./runtime";
+import type { PopupService } from "./popup";
 
 initTestEnv();
 
@@ -461,7 +463,7 @@ describe("ValueService —— 共享 storagename 的回收站感知", () => {
     const server = new Server("test", new MockMessage(eventEmitter));
     const mq = new MessageQueue();
     const service = new ValueService(server.group("value"), mq);
-    service.init({} as any, {} as any);
+    service.init({} as RuntimeService, {} as PopupService);
 
     const trashDAO = new TrashScriptDAO();
     const valueDAO = new ValueDAO();
@@ -469,21 +471,28 @@ describe("ValueService —— 共享 storagename 的回收站感知", () => {
 
     // A、B 都声明 @storagename "shared-storage",两者都已在回收站
     // 注意:metadata 的 key 必须是全小写 storagename,getStorageName 只认这个
-    const base = {
+    const base: Omit<TrashScript, "uuid" | "name"> = {
       namespace: "ns",
-      type: 1,
-      status: 1,
+      type: SCRIPT_TYPE_NORMAL,
+      status: SCRIPT_STATUS_ENABLE,
       sort: 0,
-      runStatus: "complete",
+      runStatus: SCRIPT_RUN_STATUS_COMPLETE,
       createtime: Date.now(),
       checktime: Date.now(),
       metadata: { storagename: [shared] },
       deleteTime: Date.now(),
       deleteBy: "user",
     };
-    await trashDAO.save({ ...base, uuid: "A", name: "脚本A" } as any);
-    await trashDAO.save({ ...base, uuid: "B", name: "脚本B" } as any);
-    await valueDAO.save(shared, { uuid: "A", storageName: shared, data: { k: "别删我" } } as any);
+    await trashDAO.save({ ...base, uuid: "A", name: "脚本A" });
+    await trashDAO.save({ ...base, uuid: "B", name: "脚本B" });
+    const sharedValue: Value = {
+      uuid: "A",
+      storageName: shared,
+      data: { k: "别删我" },
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    };
+    await valueDAO.save(shared, sharedValue);
 
     // 彻底删除 B。必须先把 B 移出回收站再广播,以忠实还原 purgeScripts 的真实顺序
     // (它先 trashScriptDAO.deletes(uuids) 成功后才 publish)。
@@ -501,11 +510,17 @@ describe("ValueService —— 共享 storagename 的回收站感知", () => {
     const server = new Server("test", new MockMessage(eventEmitter));
     const mq = new MessageQueue();
     const service = new ValueService(server.group("value"), mq);
-    service.init({} as any, {} as any);
+    service.init({} as RuntimeService, {} as PopupService);
 
     const valueDAO = new ValueDAO();
     const lonely = "lonely-storage";
-    await valueDAO.save(lonely, { uuid: "C", storageName: lonely, data: { k: "v" } } as any);
+    await valueDAO.save(lonely, {
+      uuid: "C",
+      storageName: lonely,
+      data: { k: "v" },
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    });
 
     mq.publish<TDeleteScript[]>("deleteScripts", [{ uuid: "C", storageName: lonely, type: 1 }]);
     await new Promise((r) => setTimeout(r, 0));

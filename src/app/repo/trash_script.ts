@@ -40,7 +40,7 @@ function isNotFoundError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "NotFoundError";
 }
 
-/** 回收站专用 OPFS DAO。脚本元数据与代码均不进入 chrome.storage.local。 */
+/** 回收站专用 OPFS DAO。 */
 export class TrashScriptDAO {
   public useCache = false;
 

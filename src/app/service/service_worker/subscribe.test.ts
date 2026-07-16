@@ -10,7 +10,6 @@ import { MessageQueue } from "@Packages/message/message_queue";
 import { MockMessage } from "@Packages/message/mock_message";
 import { Server } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
-import { clearCacheForTest } from "@App/app/repo/repo";
 
 initTestEnv();
 
@@ -62,7 +61,6 @@ const buildService = () => {
 // 这些条目会被记成「本机删除」，筛选器永远筛不出订阅删除的脚本。
 describe("SubscribeService —— 删除脚本的来源标记", () => {
   beforeEach(async () => {
-    clearCacheForTest();
     await chrome.storage.local.clear();
   });
 

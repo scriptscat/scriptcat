@@ -3,12 +3,6 @@
 let loadCachePromise: Promise<Partial<Record<string, any>>> | undefined = undefined;
 let cache: Partial<Record<string, any>> | undefined = undefined;
 
-// 仅测试用:清除全局缓存,使后续读操作重新加载存储数据
-export function clearCacheForTest(): void {
-  cache = undefined;
-  loadCachePromise = undefined;
-}
-
 // 加载数据到缓存
 export function loadCache(): Promise<Partial<Record<string, any>>> {
   if (cache) {

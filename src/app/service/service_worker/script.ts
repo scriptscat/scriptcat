@@ -522,15 +522,13 @@ export class ScriptService {
         compiledResourceUpdatePromise,
         this.resourceService.updateResourceByTypes(script, ["require", "require-css", "resource"]),
       ]);
-      // 资源下载失败不阻止安装，失败不影响安装
-
       // 广播一下
       // Runtime 会负责更新 CompiledResource
       this.publishInstallScript(script, { update, upsertBy });
 
       // 传回(由后台控制的)实际更新时间，让 editor 中的script能保持正确的更新时间
       return { update, updatetime: script.updatetime };
-    })().catch((e: any) => {
+    })().catch((e: unknown) => {
       logger.error("install error", Logger.E(e));
       throw e;
     });

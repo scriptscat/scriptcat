@@ -5,7 +5,7 @@ import { ScriptService } from "./script";
 import { ScriptDAO, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 import { TrashScriptDAO, type TrashScript } from "@App/app/repo/trash_script";
 import type { Script } from "@App/app/repo/scripts";
-import { SubscribeDAO } from "@App/app/repo/subscribe";
+import { SubscribeDAO, type Subscribe } from "@App/app/repo/subscribe";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { MockMessage } from "@Packages/message/mock_message";
 import { Server } from "@Packages/message/server";
@@ -14,7 +14,6 @@ import EventEmitter from "eventemitter3";
 import type { ValueService } from "./value";
 import type { ResourceService } from "./resource";
 import type { TDeleteScript, TInstallScript } from "@App/app/service/queue";
-import { clearCacheForTest } from "@App/app/repo/repo";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
 import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
@@ -54,6 +53,7 @@ export const buildService = () => {
   // installScript 会调 updateResourceByTypes 下载资源;单元测试不关心资源下载,给个 no-op 即可
   const resourceService = { updateResourceByTypes: async () => {} } as unknown as ResourceService;
   const service = new ScriptService(systemConfig, group, mq, {} as ValueService, resourceService, scriptDAO);
+  service.scriptCodeDAO.useCache = false;
   // 复用 service 自己持有的实例（而非各 new 一份）：ScriptService 只给这两个 DAO 开了缓存，
   // 若测试另起一份未缓存的实例，写读会各自维护一份模块内缓存，读写顺序一旦不再是先写后读就会静默错数据。
   return { service, mq, scriptDAO, systemConfig, trashDAO: service.trashScriptDAO, codeDAO: service.scriptCodeDAO };
@@ -62,10 +62,11 @@ export const buildService = () => {
 const saveTrashWithCode = (dao: TrashScriptDAO, overrides: Partial<TrashScript>, code = "// trash code") =>
   dao.save(makeTrashScript(overrides), code);
 
+const resetActiveScriptData = () => chrome.storage.local.clear();
+
 describe("ScriptService.purgeScripts —— 彻底删除", () => {
   beforeEach(async () => {
-    clearCacheForTest();
-    await chrome.storage.local.clear();
+    await resetActiveScriptData();
     // trash_enabled/trash_retention_days 不在 STORAGE_LOCAL_KEYS 里，走 chrome.storage.sync，
     // 不清会把上一个用例写入的值泄漏到这里
     await chrome.storage.sync.clear();
@@ -105,8 +106,7 @@ describe("ScriptService.purgeScripts —— 彻底删除", () => {
 
 describe("ScriptService.deleteScripts —— 进回收站", () => {
   beforeEach(async () => {
-    clearCacheForTest();
-    await chrome.storage.local.clear();
+    await resetActiveScriptData();
     // trash_enabled/trash_retention_days 不在 STORAGE_LOCAL_KEYS 里，走 chrome.storage.sync，
     // 不清会把上一个用例写入的值泄漏到这里
     await chrome.storage.sync.clear();
@@ -193,17 +193,16 @@ describe("ScriptService.deleteScripts —— 进回收站", () => {
     const { service, scriptDAO, codeDAO } = buildService();
     await scriptDAO.save(makeScript({ uuid: "t6" }));
     await codeDAO.save({ uuid: "t6", code: "// code" });
-    vi.spyOn(service.trashScriptDAO, "save").mockRejectedValueOnce(new Error("storage boom"));
+    vi.spyOn(service.trashScriptDAO, "save").mockRejectedValueOnce(new Error("opfs boom"));
 
-    await expect(service.deleteScripts(["t6"])).rejects.toThrow("storage boom");
+    await expect(service.deleteScripts(["t6"])).rejects.toThrow("opfs boom");
     expect(await scriptDAO.get("t6")).toBeDefined();
   });
 });
 
 describe("ScriptService.restoreScripts —— 还原", () => {
   beforeEach(async () => {
-    clearCacheForTest();
-    await chrome.storage.local.clear();
+    await resetActiveScriptData();
     // trash_enabled/trash_retention_days 不在 STORAGE_LOCAL_KEYS 里，走 chrome.storage.sync，
     // 不清会把上一个用例写入的值泄漏到这里
     await chrome.storage.sync.clear();
@@ -228,9 +227,10 @@ describe("ScriptService.restoreScripts —— 还原", () => {
 
     await service.restoreScripts(["r2"]);
 
-    const restored = (await scriptDAO.get("r2")) as any;
-    expect(restored.deleteTime).toBeUndefined();
-    expect(restored.deleteBy).toBeUndefined();
+    const restored = await scriptDAO.get("r2");
+    expect(restored).toBeDefined();
+    expect(restored).not.toHaveProperty("deleteTime");
+    expect(restored).not.toHaveProperty("deleteBy");
   });
 
   it("回收站代码缺失时不得恢复空壳脚本或删除 OPFS 原件", async () => {
@@ -298,13 +298,15 @@ describe("ScriptService.restoreScripts —— 还原", () => {
     await new SubscribeDAO().save({
       url,
       name: "订阅",
+      code: "",
+      author: "",
       scripts: {},
       metadata: {},
       status: 1,
       createtime: Date.now(),
       updatetime: Date.now(),
       checktime: Date.now(),
-    } as any);
+    } satisfies Subscribe);
     await saveTrashWithCode(trashDAO, { uuid: "r6", subscribeUrl: url });
 
     await service.restoreScripts(["r6"]);
@@ -327,8 +329,7 @@ describe("ScriptService.restoreScripts —— 还原", () => {
 
 describe("installScript —— 回收站 uuid 不变量", () => {
   beforeEach(async () => {
-    clearCacheForTest();
-    await chrome.storage.local.clear();
+    await resetActiveScriptData();
     // trash_enabled/trash_retention_days 不在 STORAGE_LOCAL_KEYS 里，走 chrome.storage.sync，
     // 不清会把上一个用例写入的值泄漏到这里
     await chrome.storage.sync.clear();
@@ -371,13 +372,15 @@ describe("installScript —— 回收站 uuid 不变量", () => {
     await new SubscribeDAO().save({
       url: subscribeUrl,
       name: "订阅",
+      code: "",
+      author: "",
       scripts: {},
       metadata: {},
       status: 1,
       createtime: Date.now(),
       updatetime: Date.now(),
       checktime: Date.now(),
-    } as any);
+    } satisfies Subscribe);
     await trashDAO.save(makeTrashScript({ uuid, subscribeUrl }), "// old code");
 
     await service.installScript({
@@ -421,8 +424,7 @@ describe("ScriptService.cleanupExpiredTrash —— 到期自动清理", () => {
   const DAY = 24 * 60 * 60 * 1000;
 
   beforeEach(async () => {
-    clearCacheForTest();
-    await chrome.storage.local.clear();
+    await resetActiveScriptData();
     // trash_enabled/trash_retention_days 不在 STORAGE_LOCAL_KEYS 里，走 chrome.storage.sync，
     // 不清会把上一个用例写入的值泄漏到这里
     await chrome.storage.sync.clear();
@@ -521,14 +523,13 @@ describe("ScriptService —— 回收站 DAO 缓存", () => {
 
 describe("ScriptService.deleteScripts —— 回收站关闭时直接销毁", () => {
   beforeEach(async () => {
-    clearCacheForTest();
-    await chrome.storage.local.clear();
+    await resetActiveScriptData();
     // trash_enabled/trash_retention_days 不在 STORAGE_LOCAL_KEYS 里，走 chrome.storage.sync，
     // 不清会把上一个用例写入的值泄漏到这里
     await chrome.storage.sync.clear();
   });
 
-  it("未设置 trash_enabled 时默认仍走回收站,脚本代码迁入 OPFS", async () => {
+  it("未设置 trash_enabled 时默认仍走回收站,脚本代码保存在 OPFS", async () => {
     const { service, scriptDAO, trashDAO, codeDAO } = buildService();
     await scriptDAO.save(makeScript({ uuid: "d1" }));
     await codeDAO.save({ uuid: "d1", code: "// code" });

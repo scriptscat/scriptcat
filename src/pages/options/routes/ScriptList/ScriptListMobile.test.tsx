@@ -71,12 +71,11 @@ vi.mock("@App/pages/store/global", async () => {
   });
 });
 
-// Stub sub-trees with Radix Popper to avoid infinite setState loops in the DOM test environment.
-// ScriptTable stub renders the view-toggle testid so desktop tests still work; it must forward
-// `leading` (the tabs, per ScriptTableProps) since that's the only place index.tsx renders them.
+// 替换依赖 Radix Popper 的子树，避免 DOM 测试环境中反复更新状态。
+// ScriptTable 替身需要透传 leading，因为桌面端的 tabs 只会在该槽位渲染。
 vi.mock("./ScriptTable", () => ({
   default: ({ leading }: { leading?: ReactNode }) => (
-    <div data-testid="view-toggle">{leading ?? <span data-testid="legacy-installed-title" />}</div>
+    <div data-testid="view-toggle">{leading ?? <span data-testid="default-installed-title" />}</div>
   ),
 }));
 vi.mock("./ScriptCard", () => ({
@@ -206,7 +205,7 @@ describe("回收站 tab 显隐", () => {
   it("回收站开启但数量为 0 时桌面端不显示回收站 tab", async () => {
     renderWithRouter(<ScriptList />);
 
-    expect(await screen.findByTestId("legacy-installed-title")).toBeInTheDocument();
+    expect(await screen.findByTestId("default-installed-title")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /已安装/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /回收站/ })).not.toBeInTheDocument();
   });
@@ -222,7 +221,7 @@ describe("回收站 tab 显隐", () => {
     disableTrash();
     renderWithRouter(<ScriptList />);
 
-    expect(await screen.findByTestId("legacy-installed-title")).toBeInTheDocument();
+    expect(await screen.findByTestId("default-installed-title")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /已安装/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /回收站/ })).not.toBeInTheDocument();
   });

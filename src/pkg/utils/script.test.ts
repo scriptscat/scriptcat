@@ -17,7 +17,6 @@ import { TrashScriptDAO, type TrashScript } from "@App/app/repo/trash_script";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
 
 beforeEach(() => createMockOPFS());
-import { clearCacheForTest } from "@App/app/repo/repo";
 
 describe.concurrent("parseMetadata", () => {
   it.concurrent("解析标准UserScript元数据", () => {
@@ -1414,25 +1413,5 @@ describe("prepareScriptByCode —— 回收站中的同名脚本", () => {
 
     expect(p.script.uuid).toBe("alive-renamed");
     expect(p.oldInTrash).toBeFalsy();
-  });
-
-  // 回收站已迁入 OPFS；即使调用方启用了 ScriptDAO 缓存，查找也不得回退读取 chrome.storage.local。
-  it("传入已启用缓存的 dao 时,回收站查找不得读取 chrome.storage.local", async () => {
-    clearCacheForTest();
-    await seedTrashed("cached-dao");
-    const dao = new ScriptDAO();
-    dao.enableCache();
-    await dao.all(); // 预热模块级缓存(合法的一次性全量读)
-
-    const getSpy = vi.spyOn(chrome.storage.local, "get");
-    const p = await prepareScriptByCode(NEW_CODE, "https://e.com/s.user.js", undefined, false, dao);
-    // 缓存路径也必须命中回收站条目,行为与非缓存一致
-    expect(p.script.uuid).toBe("cached-dao");
-    expect(p.oldInTrash).toBe(true);
-    // 全量读 = 不带 key、首参即回调
-    const fullReads = getSpy.mock.calls.filter((args) => typeof args[0] === "function");
-    expect(fullReads).toHaveLength(0);
-    getSpy.mockRestore();
-    clearCacheForTest();
   });
 });

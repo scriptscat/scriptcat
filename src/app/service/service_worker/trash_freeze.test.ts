@@ -4,7 +4,7 @@ import { ScriptService } from "./script";
 import { ValueService } from "./value";
 import { ScriptDAO, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 import type { Script } from "@App/app/repo/scripts";
-import { ValueDAO } from "@App/app/repo/value";
+import { ValueDAO, type Value } from "@App/app/repo/value";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { MockMessage } from "@Packages/message/mock_message";
 import { Server } from "@Packages/message/server";
@@ -12,6 +12,8 @@ import { SystemConfig } from "@App/pkg/config/config";
 import EventEmitter from "eventemitter3";
 import type { ResourceService } from "./resource";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
+import type { RuntimeService } from "./runtime";
+import type { PopupService } from "./popup";
 
 initTestEnv();
 
@@ -36,6 +38,14 @@ const makeScript = (overrides: Partial<Script> = {}): Script => ({
 // 从而标定用例①——若只给②加长等待,①的否定断言会在清理根本没跑到时假绿,护栏失效。
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+const makeValue = (uuid: string): Value => ({
+  uuid,
+  storageName: uuid,
+  data: { k: "v" },
+  createtime: Date.now(),
+  updatetime: Date.now(),
+});
+
 describe("回收站期间的数据冻结", () => {
   let mq: MessageQueue;
   let service: ScriptService;
@@ -51,7 +61,7 @@ describe("回收站期间的数据冻结", () => {
     valueDAO = new ValueDAO();
     // 真实挂载 ValueService,使其订阅 deleteScripts
     const valueService = new ValueService(server.group("value"), mq);
-    valueService.init({} as any, {} as any);
+    valueService.init({} as RuntimeService, {} as PopupService);
     service = new ScriptService(
       systemConfig,
       server.group("script"),
@@ -65,7 +75,7 @@ describe("回收站期间的数据冻结", () => {
   it("进回收站后 value 必须完好(未触发 deleteScripts 的清理链路)", async () => {
     await scriptDAO.save(makeScript({ uuid: "f1" }));
     await service.scriptCodeDAO.save({ uuid: "f1", code: "// code" });
-    await valueDAO.save("f1", { uuid: "f1", storageName: "f1", data: { k: "v" } } as any);
+    await valueDAO.save("f1", makeValue("f1"));
 
     await service.deleteScripts(["f1"]);
     await flush();
@@ -76,7 +86,7 @@ describe("回收站期间的数据冻结", () => {
   it("彻底删除后 value 才被清理", async () => {
     await scriptDAO.save(makeScript({ uuid: "f2" }));
     await service.scriptCodeDAO.save({ uuid: "f2", code: "// code" });
-    await valueDAO.save("f2", { uuid: "f2", storageName: "f2", data: { k: "v" } } as any);
+    await valueDAO.save("f2", makeValue("f2"));
 
     await service.deleteScripts(["f2"]);
     await flush();
