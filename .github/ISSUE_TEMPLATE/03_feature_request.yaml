@@ -8,6 +8,10 @@ body:
   - type: markdown
     attributes:
       value: |
+        本模板仅用于提交尚不存在的新能力。
+
+        如果某个功能无法使用、以前可以使用但现在失效，或行为与你的预期不一致，请改用 Bug 模板。即使是功能请求，也必须填写浏览器和 ScriptCat 版本，以便维护者判断这是版本相关的 bug，还是确实缺少功能。
+
         请描述你真正想解决的问题，而不只是描述一个按钮或 API 名称。
         如果是 GM/CAT API 设计，建议给出 API 草案、兼容对象和安全影响。
 
@@ -20,6 +24,35 @@ body:
           required: true
         - label: 我已经确认这不是 bug；如果是异常行为，应使用 Bug 模板
           required: true
+
+  - type: input
+    id: browser-version
+    attributes:
+      label: 浏览器及版本
+      description: 请填写需要此功能的浏览器及其完整版本；如涉及多个浏览器，请全部列出。
+      placeholder: "例如：Chrome 138.0.7204.101；Firefox 140.0.2"
+    validations:
+      required: true
+
+  - type: input
+    id: scriptcat-version
+    attributes:
+      label: ScriptCat 版本
+      description: 可在扩展详情或关于页面查看，请不要只填写“最新版”。
+      placeholder: "例如：v0.17.0 或 commit/build 标识"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: expected-existing-behavior
+    attributes:
+      label: 你是否原本认为这个功能已经存在？
+      description: 此项用于区分缺少新功能、现有功能异常和回归问题。
+      options:
+        - 否，我请求的是一个全新的能力
+        - 是，我原本认为 ScriptCat 已支持；我会在下方说明为什么这不是 bug
+    validations:
+      required: true
 
   - type: dropdown
     id: feature-area
@@ -40,6 +73,18 @@ body:
         - 国际化 / 翻译
         - 性能 / 存储 / 安全
         - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: 当前行为和已尝试的方法
+      description: 请说明 ScriptCat 当前的行为、你尝试过的方法，以及现有流程为什么无法满足需求。如果某项操作失败或以前可以使用，请改用 Bug 模板。
+      placeholder: |
+        当前行为：
+        已尝试的步骤或替代方案：
+        现有行为无法满足需求的原因：
     validations:
       required: true
 
