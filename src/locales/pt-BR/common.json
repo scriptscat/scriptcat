@@ -44,7 +44,7 @@
   "update_success": "Atualização Bem-sucedida",
   "add_success": "Adição Bem-sucedida",
   "clear": "Limpar",
-  "type_string": "Texto",
+  "type_string": "String",
   "type_number": "Número",
   "type_boolean": "Booleano",
   "type_object": "Objeto",
