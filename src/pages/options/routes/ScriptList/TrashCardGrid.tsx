@@ -12,6 +12,9 @@ import { EmptyState } from "@App/pages/components/ui/empty-state";
 import { Surface } from "@App/pages/components/ui/surface";
 import { semTime } from "@App/locales/relative-date";
 import { versionDisplay } from "@App/pages/utils";
+import { subscribeMessage } from "@App/pages/store/global";
+import { HookManager } from "@App/pkg/utils/hookManager";
+import type { TDeleteScript, TInstallScript } from "@App/app/service/queue";
 import { ScriptIcon } from "./components";
 import {
   AlertDialog,
@@ -70,8 +73,15 @@ export default function TrashCardGrid({
 
   // setState 只发生在异步回调中，避免 effect 体内同步 setState（同 Logger/hooks.ts 的既有写法）
   useEffect(() => {
-    void requestTrashScripts().then((l) => setList(l ?? []));
-  }, []);
+    void reload();
+    const hooks = new HookManager();
+    hooks.append(
+      subscribeMessage<TDeleteScript[]>("trashScripts", () => void reload()),
+      subscribeMessage<TDeleteScript[]>("deleteScripts", () => void reload()),
+      subscribeMessage<TInstallScript>("installScript", () => void reload())
+    );
+    return hooks.unhook;
+  }, [reload]);
 
   const configuredDays = retentionDays ?? 30;
   // 关闭回收站后残留条目不再自动清理，倒计时须归零，否则会倒数一个永远不会到来的期限

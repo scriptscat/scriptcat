@@ -3,11 +3,12 @@ import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/re
 import { renderWithRouter } from "@Tests/renderWithThemeRouter";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
-const { requestTrashScripts, requestRestoreScripts, requestPurgeScripts, get } = vi.hoisted(() => ({
+const { requestTrashScripts, requestRestoreScripts, requestPurgeScripts, get, messageHandlers } = vi.hoisted(() => ({
   requestTrashScripts: vi.fn(),
   requestRestoreScripts: vi.fn(),
   requestPurgeScripts: vi.fn(),
   get: vi.fn(),
+  messageHandlers: new Map<string, (data: object) => void>(),
 }));
 vi.mock("@App/pages/store/features/script", () => ({
   requestTrashScripts,
@@ -29,7 +30,13 @@ vi.mock("@App/pages/components/ui/toast", () => ({
 // trash_enabled 默认「开启」，与关闭态相关的用例（见「回收站关闭时的提示与倒计时」describe）再各自切到 false。
 vi.mock("@App/pages/store/global", async () => {
   const { createGlobalStoreMock } = await import("@Tests/mocks/pageStores.ts");
-  return createGlobalStoreMock({ systemConfig: { get, set: vi.fn() } });
+  return {
+    ...createGlobalStoreMock({ systemConfig: { get, set: vi.fn() } }),
+    subscribeMessage: vi.fn((topic: string, handler: (data: object) => void) => {
+      messageHandlers.set(topic, handler);
+      return vi.fn();
+    }),
+  };
 });
 
 import TrashCardGrid from "./TrashCardGrid";
@@ -40,10 +47,27 @@ beforeAll(() => initTestLanguage("zh-CN"));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  messageHandlers.clear();
   requestTrashScripts.mockResolvedValue([]);
   get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? true : 30));
 });
 afterEach(cleanup);
+
+describe("多窗口回收站实时同步", () => {
+  it.each([
+    ["桌面端", <TrashTable key="desktop" />],
+    ["移动端", <TrashCardGrid key="mobile" />],
+  ])("%s 收到回收站内容事件时应重新拉取列表", async (_name, view) => {
+    renderWithRouter(view);
+    await waitFor(() => expect(requestTrashScripts).toHaveBeenCalledTimes(1));
+
+    messageHandlers.get("trashScripts")?.({});
+    messageHandlers.get("deleteScripts")?.({});
+    messageHandlers.get("installScript")?.({});
+
+    await waitFor(() => expect(requestTrashScripts).toHaveBeenCalledTimes(4));
+  });
+});
 
 describe("空回收站的固定控制区", () => {
   it("桌面端保留搜索、来源筛选和清理时间设置，仅表格内容显示空状态", async () => {

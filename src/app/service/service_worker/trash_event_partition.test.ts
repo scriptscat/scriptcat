@@ -43,6 +43,8 @@ describe("回收站事件二分护栏", () => {
       "src/app/service/service_worker/popup.ts", // 清 popup 菜单缓存 + 刷 badge
       "src/app/service/service_worker/runtime.ts", // 注销脚本、失效匹配器
       "src/app/service/service_worker/synchronize.ts", // 删除云端文件 + 写墓碑
+      "src/pages/options/routes/ScriptList/TrashCardGrid.tsx", // 多窗口下刷新移动回收站列表
+      "src/pages/options/routes/ScriptList/TrashTable.tsx", // 多窗口下刷新桌面回收站列表
       "src/pages/options/routes/ScriptList/hooks.ts", // 从「已安装」列表移除该行
       "src/pages/popup/usePopupData.ts", // 从 popup 列表移除该行
     ]);
@@ -56,6 +58,8 @@ describe("回收站事件二分护栏", () => {
       "src/app/service/service_worker/resource.ts", // 清资源
       "src/app/service/service_worker/system.ts", // 清图标
       "src/app/service/service_worker/value.ts", // 清 value
+      "src/pages/options/routes/ScriptList/TrashCardGrid.tsx", // 多窗口下刷新移动回收站列表
+      "src/pages/options/routes/ScriptList/TrashTable.tsx", // 多窗口下刷新桌面回收站列表
       // useTrashCount：彻底删除后刷新回收站 tab 的数量角标。它只读不销毁，故不违反二分。
       // 不可省：到期自动清理由 chrome.alarms 在 SW 里直接 purge，全程没有 UI 参与，
       // 不订阅这里角标就会一直停在旧数字（站内手动清空另有 onCountChange 回报）。
