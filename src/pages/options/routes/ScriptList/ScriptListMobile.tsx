@@ -35,6 +35,7 @@ function ScriptListMobile({
 }: ScriptListMobileProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"installed" | "trash">("installed");
+  const [trashSearchRequest, setTrashSearchRequest] = useState<SearchFilterRequest>({ keyword: "", type: "auto" });
   const isTrash = activeTab === "trash";
 
   const [trashCount, setTrashCount] = useTrashCount();
@@ -79,12 +80,12 @@ function ScriptListMobile({
         </div>
       )}
       <MobileSearchBar
-        searchRequest={searchRequest}
-        setSearchRequest={setSearchRequest}
+        searchRequest={isTrash ? trashSearchRequest : searchRequest}
+        setSearchRequest={isTrash ? setTrashSearchRequest : setSearchRequest}
         placeholder={isTrash ? t("script:trash_search_placeholder") : undefined}
       />
       {isTrash ? (
-        <TrashCardGrid keyword={searchRequest.keyword} onCountChange={setTrashCount} />
+        <TrashCardGrid keyword={trashSearchRequest.keyword} onCountChange={setTrashCount} />
       ) : (
         <>
           <FilterBar

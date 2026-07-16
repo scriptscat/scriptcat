@@ -92,7 +92,19 @@ vi.mock("./CreateScriptMenu", () => ({
   CreateScriptMenu: () => null,
 }));
 vi.mock("./MobileSearchBar", () => ({
-  MobileSearchBar: () => <div data-testid="mobile-search" />,
+  MobileSearchBar: ({
+    searchRequest,
+    setSearchRequest,
+  }: {
+    searchRequest: { keyword: string; type: "auto" };
+    setSearchRequest: (request: { keyword: string; type: "auto" }) => void;
+  }) => (
+    <button
+      data-testid="mobile-search"
+      data-keyword={searchRequest.keyword}
+      onClick={() => setSearchRequest({ ...searchRequest, keyword: "回收站关键词" })}
+    />
+  ),
 }));
 // 两个桩都暴露一个「清空」按钮回报 onCountChange(0)：真实组件里彻底删除/清空只发生在组件内部，
 // 外部只能通过这个回调感知归零，回落分支正是被它触发的。
@@ -105,8 +117,8 @@ vi.mock("./TrashTable", () => ({
   ),
 }));
 vi.mock("./TrashCardGrid", () => ({
-  default: ({ onCountChange }: { onCountChange?: (n: number) => void }) => (
-    <div data-testid="trash-card-grid">
+  default: ({ onCountChange, keyword }: { onCountChange?: (n: number) => void; keyword?: string }) => (
+    <div data-testid="trash-card-grid" data-keyword={keyword}>
       <button data-testid="purge-all" onClick={() => onCountChange?.(0)} />
     </div>
   ),
@@ -151,6 +163,22 @@ describe("ScriptListMobile 移动版", () => {
     const { getByTestId, queryByTestId } = renderWithRouter(<ScriptListMobile {...props} />);
     expect(getByTestId("mobile-search")).toBeInTheDocument();
     expect(queryByTestId("view-toggle")).toBeNull();
+  });
+
+  it("已安装与回收站应各自保留独立搜索关键字", () => {
+    mockTrashCount.value = 1;
+    const installedSearch = { keyword: "已安装关键词", type: "auto" as const };
+    renderWithRouter(<ScriptListMobile {...props} searchRequest={installedSearch} />);
+
+    expect(screen.getByTestId("mobile-search")).toHaveAttribute("data-keyword", "已安装关键词");
+    fireEvent.click(screen.getByRole("button", { name: /回收站/ }));
+    expect(screen.getByTestId("mobile-search")).toHaveAttribute("data-keyword", "");
+
+    fireEvent.click(screen.getByTestId("mobile-search"));
+    expect(screen.getByTestId("trash-card-grid")).toHaveAttribute("data-keyword", "回收站关键词");
+
+    fireEvent.click(screen.getByRole("button", { name: /已安装/ }));
+    expect(screen.getByTestId("mobile-search")).toHaveAttribute("data-keyword", "已安装关键词");
   });
 });
 
