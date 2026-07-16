@@ -16,8 +16,8 @@ interface TrashScriptFile {
   code?: string;
 }
 
-interface IterableDirectoryHandle extends FileSystemDirectoryHandle {
-  entries(): AsyncIterableIterator<[string, FileSystemHandle]>;
+interface IterableDirectoryHandle {
+  entries(): AsyncIterableIterator<[string, FileSystemDirectoryHandle | FileSystemFileHandle]>;
 }
 
 async function getTrashDir(): Promise<FileSystemDirectoryHandle> {
@@ -88,7 +88,7 @@ export class TrashScriptDAO {
     }
     const result = new Map<string, TrashScriptFile>();
     const dir = await getTrashDir();
-    for await (const [name, handle] of (dir as IterableDirectoryHandle).entries()) {
+    for await (const [name, handle] of (dir as unknown as IterableDirectoryHandle).entries()) {
       if (handle.kind !== "file" || !name.endsWith(".json")) continue;
       const fileHandle = handle as FileSystemFileHandle;
       const data = JSON.parse(await (await fileHandle.getFile()).text()) as TrashScriptFile;
