@@ -83,7 +83,7 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
       break;
     case "error":
       title = t("settings:sync_state_error");
-      desc = syncState.error || "";
+      desc = syncState.error || t("settings:sync_state_failed_desc", { failed: syncState.counts.failed });
       break;
     case "syncing":
       title = t("settings:sync_state_syncing");
@@ -115,7 +115,7 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
                 {variant !== "syncing" && (
                   <a
                     data-testid="cloud_sync_view_logs"
-                    href={syncLogHref(variant)}
+                    href={syncLogHref(syncState)}
                     className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
                   >
                     {t("settings:sync_view_logs")}

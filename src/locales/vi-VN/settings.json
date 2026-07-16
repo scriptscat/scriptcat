@@ -96,7 +96,7 @@
     "subscribe_update": "Đăng ký {{subscribeName}} đã được cập nhật",
     "subscribe_update_desc": "Script mới: {{newScripts}}\nScript đã xóa: {{deletedScripts}}",
     "script_sync_overwrite": "Cảnh báo ghi đè đồng bộ đám mây",
-    "script_sync_overwrite_desc": "{{scriptNames}} và {{count}} tập lệnh đã bị ghi đè bởi phiên bản đám mây. Nhấp để xem nhật ký đồng bộ."
+    "script_sync_overwrite_desc": "Có {{count}} script bị ghi đè trong khi đồng bộ ({{scriptNames}}). Mở nhật ký để xem hướng và chi tiết."
   },
   "enable_background": {
     "title": "Bật chạy nền",
@@ -135,6 +135,7 @@
   "sync_never": "Chưa đồng bộ",
   "sync_state_syncing": "Đang đồng bộ…",
   "sync_state_attention": "Lần đồng bộ gần nhất cần bạn xác nhận",
-  "sync_state_attention_desc": "{{overwrite}} tập lệnh bị đám mây ghi đè, {{conflict}} xung đột đã tạm dừng. Mở nhật ký để xác nhận.",
-  "sync_state_error": "Đồng bộ thất bại, đã tạm dừng"
+  "sync_state_attention_desc": "Có {{overwrite}} script bị ghi đè khi đồng bộ và {{conflict}} xung đột đã tạm dừng. Mở nhật ký để kiểm tra.",
+  "sync_state_error": "Đồng bộ thất bại, đã tạm dừng",
+  "sync_state_failed_desc": "Không thể đồng bộ {{failed}} script. Mở nhật ký để xem chi tiết."
 }

@@ -96,7 +96,7 @@
     "subscribe_update": "訂閱 {{subscribeName}} 已更新",
     "subscribe_update_desc": "新增腳本：{{newScripts}}\n刪除腳本：{{deletedScripts}}",
     "script_sync_overwrite": "雲同步覆蓋提醒",
-    "script_sync_overwrite_desc": "{{scriptNames}} 等 {{count}} 個腳本已被雲端版本覆蓋，點擊查看同步記錄確認"
+    "script_sync_overwrite_desc": "同步時有 {{count}} 個腳本發生覆蓋（{{scriptNames}}），請開啟日誌確認覆蓋方向與詳細資訊"
   },
   "enable_background": {
     "title": "啟用背景運行",
@@ -135,6 +135,7 @@
   "sync_never": "尚未同步",
   "sync_state_syncing": "正在同步…",
   "sync_state_attention": "上次同步有需要確認的變更",
-  "sync_state_attention_desc": "{{overwrite}} 個腳本被雲端覆蓋、{{conflict}} 個衝突已暫停，點開日誌確認",
-  "sync_state_error": "同步失敗，已暫停"
+  "sync_state_attention_desc": "同步時有 {{overwrite}} 個腳本發生覆蓋、{{conflict}} 個衝突已暫停，請開啟日誌確認",
+  "sync_state_error": "同步失敗，已暫停",
+  "sync_state_failed_desc": "{{failed}} 個腳本同步失敗，請開啟日誌查看詳細資訊"
 }

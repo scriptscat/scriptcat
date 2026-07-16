@@ -96,7 +96,7 @@
     "subscribe_update": "订阅 {{subscribeName}} 已更新",
     "subscribe_update_desc": "新增脚本：{{newScripts}}\n删除脚本：{{deletedScripts}}",
     "script_sync_overwrite": "云同步覆盖提醒",
-    "script_sync_overwrite_desc": "{{scriptNames}} 等 {{count}} 个脚本已被云端版本覆盖，点击查看同步记录确认"
+    "script_sync_overwrite_desc": "同步时有 {{count}} 个脚本发生覆盖（{{scriptNames}}），请打开日志确认覆盖方向和详情"
   },
   "enable_background": {
     "title": "启用后台运行",
@@ -135,6 +135,7 @@
   "sync_never": "尚未同步",
   "sync_state_syncing": "正在同步…",
   "sync_state_attention": "上次同步有需要确认的改动",
-  "sync_state_attention_desc": "{{overwrite}} 个脚本被云端覆盖、{{conflict}} 个冲突已暂停，点开日志确认",
-  "sync_state_error": "同步失败，已暂停"
+  "sync_state_attention_desc": "同步时有 {{overwrite}} 个脚本发生覆盖、{{conflict}} 个冲突已暂停，请打开日志确认",
+  "sync_state_error": "同步失败，已暂停",
+  "sync_state_failed_desc": "{{failed}} 个脚本同步失败，请打开日志查看详情"
 }

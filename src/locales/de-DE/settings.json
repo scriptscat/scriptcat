@@ -96,7 +96,7 @@
     "subscribe_update": "Abonnement {{subscribeName}} wurde aktualisiert",
     "subscribe_update_desc": "Neue Skripte: {{newScripts}}\nGelöschte Skripte: {{deletedScripts}}",
     "script_sync_overwrite": "Cloud-Sync-Überschreibung",
-    "script_sync_overwrite_desc": "{{scriptNames}} und {{count}} Skript(e) wurden durch die Cloud-Version überschrieben. Klicken Sie, um das Sync-Protokoll zu prüfen."
+    "script_sync_overwrite_desc": "Bei der Synchronisierung wurden {{count}} Skript(e) überschrieben ({{scriptNames}}). Prüfen Sie Richtung und Details im Protokoll."
   },
   "enable_background": {
     "title": "Hintergrundausführung aktivieren",
@@ -135,6 +135,7 @@
   "sync_never": "Noch nicht synchronisiert",
   "sync_state_syncing": "Synchronisiere…",
   "sync_state_attention": "Letzte Synchronisierung erfordert Ihre Prüfung",
-  "sync_state_attention_desc": "{{overwrite}} Skript(e) von der Cloud überschrieben, {{conflict}} Konflikt(e) pausiert. Öffnen Sie das Protokoll zur Bestätigung.",
-  "sync_state_error": "Synchronisierung fehlgeschlagen, pausiert"
+  "sync_state_attention_desc": "Bei der Synchronisierung wurden {{overwrite}} Skript(e) überschrieben und {{conflict}} Konflikt(e) pausiert. Prüfen Sie das Protokoll.",
+  "sync_state_error": "Synchronisierung fehlgeschlagen, pausiert",
+  "sync_state_failed_desc": "{{failed}} Skript(e) konnten nicht synchronisiert werden. Details finden Sie im Protokoll."
 }

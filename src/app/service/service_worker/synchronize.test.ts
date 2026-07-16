@@ -1562,9 +1562,9 @@ console.log("ok");`
     vi.spyOn(service, "pushScript").mockImplementation(async (_fs, script: any) => {
       if (script.uuid === "bad") {
         throw new FileSystemError({
-          provider: "s3",
-          message: "Precondition failed",
-          status: 412,
+          provider: "dropbox",
+          message: "Path conflict",
+          status: 409,
           conflict: true,
         });
       }
@@ -1578,7 +1578,7 @@ console.log("ok");`
 
     expect(warnSpy).toHaveBeenCalledWith(
       "sync task failed",
-      expect.objectContaining({ error: "Precondition failed" }),
+      expect.objectContaining({ error: "Path conflict" }),
       expect.objectContaining({
         errorKind: "conflict",
         files: ["bad.user.js", "bad.meta.json"],
@@ -1615,9 +1615,9 @@ console.log("ok");`
     },
     {
       title: "unsupported",
-      error: new Error("unsupported conditional write"),
+      error: new Error("unsupported provider operation"),
       expectedKind: "unsupported",
-      expectedMessage: "unsupported conditional write",
+      expectedMessage: "unsupported provider operation",
     },
   ])(
     "单文件同步遇到 $title 错误时应在日志中标记 $expectedKind 分类",
@@ -1897,13 +1897,13 @@ console.log("ok");`
     {
       title: "conflict",
       error: new FileSystemError({
-        provider: "s3",
-        message: "Precondition failed",
-        status: 412,
+        provider: "dropbox",
+        message: "Path conflict",
+        status: 409,
         conflict: true,
       }),
       expectedKind: "conflict",
-      expectedMessage: "Precondition failed",
+      expectedMessage: "Path conflict",
     },
   ])(
     "批量删除遇到 typed $title 失败时只阻塞对应脚本并标记 $expectedKind",
@@ -2912,7 +2912,7 @@ console.log("ok");`
     });
   });
 
-  it("同一批冲突脚本多轮同步只通知一次，冲突消失后重置", async () => {
+  it("Service Worker 重启后同一批冲突仍只通知一次", async () => {
     const fs = createFs({
       list: vi.fn().mockResolvedValue([
         { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu2", createtime: 1, updatetime: 5000 },
@@ -2923,30 +2923,23 @@ console.log("ok");`
       })),
     });
     const notificationSpy = vi.spyOn(chrome.notifications, "create");
-    const service = new SynchronizeService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {
-        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// local edit" }) },
-        all: vi
-          .fn()
-          .mockResolvedValue([
-            { uuid: "u1", name: "t", updatetime: 5497, createtime: 1, status: 1, sort: 0, metadata: {} },
-          ]),
-      } as any
-    );
-    await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
-    await (service as any).storage.set("sync_content_md5", { "u1.user.js": md5OfText("// base") });
-    vi.spyOn(service, "pushScript").mockResolvedValue({});
-    vi.spyOn(service, "pullScript").mockResolvedValue(undefined);
+    const scriptDAO = {
+      scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// local edit" }) },
+      all: vi
+        .fn()
+        .mockResolvedValue([
+          { uuid: "u1", name: "t", updatetime: 5497, createtime: 1, status: 1, sort: 0, metadata: {} },
+        ]),
+    } as any;
+    const makeService = () =>
+      new SynchronizeService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, scriptDAO);
+    const firstService = makeService();
+    await (firstService as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+    await (firstService as any).storage.set("sync_content_md5", { "u1.user.js": md5OfText("// base") });
 
-    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
-    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+    await firstService.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+    const restartedService = makeService();
+    await restartedService.syncOnce({ ...syncConfig, syncStatus: false }, fs);
 
     expect(notificationSpy).toHaveBeenCalledTimes(1);
   });
@@ -3195,6 +3188,34 @@ console.log("ok");`;
       vi.spyOn(service, "pushScript").mockResolvedValue({});
 
       await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+      expect(notificationSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("Service Worker 重启后同一批覆盖仍只通知一次", async () => {
+      const fs = createFs({
+        list: vi.fn().mockResolvedValue([
+          { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "c1", createtime: 1, updatetime: 100 },
+          { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "m1", createtime: 1, updatetime: 100 },
+        ]),
+      });
+      const notificationSpy = vi.spyOn(chrome.notifications, "create");
+      const scriptDAO = {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue(undefined) },
+        all: vi
+          .fn()
+          .mockResolvedValue([
+            { uuid: "u1", name: "u1", updatetime: 200, createtime: 1, status: 1, sort: 0, metadata: {} },
+          ]),
+      } as any;
+      const makeService = () =>
+        new SynchronizeService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, scriptDAO);
+      const firstService = makeService();
+      vi.spyOn(firstService, "pushScript").mockResolvedValue({});
+      await firstService.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+      const restartedService = makeService();
+      vi.spyOn(restartedService, "pushScript").mockResolvedValue({});
+      await restartedService.syncOnce({ ...syncConfig, syncStatus: false }, fs);
 
       expect(notificationSpy).toHaveBeenCalledTimes(1);
     });

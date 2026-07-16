@@ -96,7 +96,7 @@
     "subscribe_update": "{{subscribeName}} aboneliği güncellendi",
     "subscribe_update_desc": "Yeni betikler: {{newScripts}}\nSilinen betikler: {{deletedScripts}}",
     "script_sync_overwrite": "Bulut eşitleme üzerine yazma",
-    "script_sync_overwrite_desc": "{{scriptNames}} ve {{count}} betik bulut sürümüyle üzerine yazıldı. Eşitleme günlüğünü görmek için tıklayın."
+    "script_sync_overwrite_desc": "Eşitleme sırasında {{count}} betiğin üzerine yazıldı ({{scriptNames}}). Yön ve ayrıntılar için günlükleri açın."
   },
   "enable_background": {
     "title": "Arka Planda Çalıştırmayı Etkinleştir",
@@ -135,6 +135,7 @@
   "sync_never": "Henüz eşitlenmedi",
   "sync_state_syncing": "Eşitleniyor…",
   "sync_state_attention": "Son eşitleme incelemenizi gerektiriyor",
-  "sync_state_attention_desc": "{{overwrite}} betik bulut tarafından üzerine yazıldı, {{conflict}} çakışma duraklatıldı. Onaylamak için günlüğü açın.",
-  "sync_state_error": "Eşitleme başarısız, duraklatıldı"
+  "sync_state_attention_desc": "Eşitleme sırasında {{overwrite}} betiğin üzerine yazıldı ve {{conflict}} çakışma duraklatıldı. Günlükleri inceleyin.",
+  "sync_state_error": "Eşitleme başarısız, duraklatıldı",
+  "sync_state_failed_desc": "{{failed}} betik eşitlenemedi. Ayrıntılar için günlükleri açın."
 }

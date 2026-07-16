@@ -96,7 +96,7 @@
     "subscribe_update": "サブスクリプション {{subscribeName}} が更新されました",
     "subscribe_update_desc": "新しいスクリプト: {{newScripts}}\n削除されたスクリプト: {{deletedScripts}}",
     "script_sync_overwrite": "クラウド同期の上書き通知",
-    "script_sync_overwrite_desc": "{{scriptNames}} など {{count}} 個のスクリプトがクラウド版で上書きされました。クリックして同期ログを確認してください"
+    "script_sync_overwrite_desc": "同期中に {{count}} 個のスクリプト（{{scriptNames}}）で上書きが発生しました。ログで方向と詳細を確認してください"
   },
   "enable_background": {
     "title": "バックグラウンド実行を有効にする",
@@ -135,6 +135,7 @@
   "sync_never": "未同期",
   "sync_state_syncing": "同期中…",
   "sync_state_attention": "前回の同期に確認が必要な変更があります",
-  "sync_state_attention_desc": "{{overwrite}} 個のスクリプトがクラウドで上書き、{{conflict}} 個の競合が停止中です。ログを開いて確認してください",
-  "sync_state_error": "同期に失敗し、停止しました"
+  "sync_state_attention_desc": "同期中に {{overwrite}} 個のスクリプトで上書きが発生し、{{conflict}} 個の競合が停止中です。ログを確認してください",
+  "sync_state_error": "同期に失敗し、停止しました",
+  "sync_state_failed_desc": "{{failed}} 件のスクリプトを同期できませんでした。ログで詳細を確認してください。"
 }

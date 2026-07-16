@@ -98,7 +98,7 @@ type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported"
 
 // pushScript 分两次写 .user.js / .meta.json，前者成功后者失败时抛出本错误，
 // 带出已成功写入的文件名，让调用方只保留真正失败文件的旧 digest、推进成功文件的 digest，
-// 避免成功文件的 digest 永久变旧后与云端 CAS 永远不匹配（永久 412）。
+// 避免已成功文件继续保留旧 digest，让下一轮只重试真正失败的文件。
 class PushScriptPartialError extends Error {
   constructor(
     readonly originalError: unknown,
@@ -122,6 +122,8 @@ class SyncBothChangedConflictError extends Error {
 }
 
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
+const LAST_NOTIFIED_CONFLICT_KEY = "last_notified_sync_conflicts";
+const LAST_NOTIFIED_OVERWRITE_KEY = "last_notified_sync_overwrites";
 
 // 「查看日志」深链的标签过滤载荷（供 Logger 页 parseInitialQueries 解析）。覆盖通知直接落到 overwrite 行。
 const SYNC_LOG_QUERY_OVERWRITE = JSON.stringify([
@@ -139,12 +141,6 @@ export class SynchronizeService {
   scriptCodeDAO: ScriptCodeDAO;
 
   storage: ChromeStorage = new ChromeStorage("sync", false);
-
-  // 上一轮已通知过的冲突脚本集合（uuid 排序拼接），冲突集合未变化时不重复通知
-  private lastNotifiedConflictKey = "";
-
-  // 上一轮已通知过的覆盖脚本集合（uuid 排序拼接），覆盖集合未变化时不重复通知
-  private lastNotifiedOverwriteKey = "";
 
   constructor(
     private msgSender: MessageSend,
@@ -672,7 +668,7 @@ export class SynchronizeService {
           conflictScripts.push(ret.reason);
         }
         // 分片上传时已成功写入云端的文件（如 .user.js 成功、.meta.json 失败）不保留旧 digest，
-        // 让 updateFileDigest 记录其云端最新 digest，避免成功文件 digest 永久变旧、后续 CAS 永久冲突。
+        // 让 updateFileDigest 记录其云端最新 digest，下一轮只重试真正失败的文件。
         const writtenFiles = ret.reason instanceof PushScriptPartialError ? ret.reason.writtenFiles : [];
         result[index].preserveDigestFiles.forEach((name) => {
           if (!writtenFiles.includes(name)) {
@@ -690,32 +686,38 @@ export class SynchronizeService {
       .map((c) => c.uuid)
       .sort()
       .join(",");
-    if (conflictScripts.length && conflictKey !== this.lastNotifiedConflictKey) {
-      InfoNotification(
-        i18n.t("settings:notification.script_sync_conflict"),
-        i18n.t("settings:notification.script_sync_conflict_desc", {
-          scriptNames: conflictScripts.map((c) => c.scriptName).join(", "),
-        })
-      );
+    if (conflictScripts.length) {
+      const lastNotifiedConflictKey = ((await this.storage.get(LAST_NOTIFIED_CONFLICT_KEY)) as string) || "";
+      if (conflictKey !== lastNotifiedConflictKey) {
+        InfoNotification(
+          i18n.t("settings:notification.script_sync_conflict"),
+          i18n.t("settings:notification.script_sync_conflict_desc", {
+            scriptNames: conflictScripts.map((c) => c.scriptName).join(", "),
+          })
+        );
+        await this.storage.set(LAST_NOTIFIED_CONFLICT_KEY, conflictKey);
+      }
     }
-    this.lastNotifiedConflictKey = conflictKey;
     // 覆盖通知：无内容基线兜底覆盖可能覆盖了未知改动，聚合一轮一条；同批不重复（集合变化或消失后重置）。
     // 点击深链到已过滤 service=synchronize & action=overwrite 的日志，让用户自行确认改动。
     const overwriteKey = overwriteScripts
-      .map((c) => c.uuid)
+      .map((c) => `${c.uuid}:${c.direction}`)
       .sort()
       .join(",");
-    if (overwriteScripts.length && overwriteKey !== this.lastNotifiedOverwriteKey) {
-      InfoNotification(
-        i18n.t("settings:notification.script_sync_overwrite"),
-        i18n.t("settings:notification.script_sync_overwrite_desc", {
-          scriptNames: overwriteScripts.map((c) => c.scriptName).join(", "),
-          count: overwriteScripts.length,
-        }),
-        { url: `/src/options.html#/logs?query=${encodeURIComponent(SYNC_LOG_QUERY_OVERWRITE)}` }
-      );
+    if (overwriteScripts.length) {
+      const lastNotifiedOverwriteKey = ((await this.storage.get(LAST_NOTIFIED_OVERWRITE_KEY)) as string) || "";
+      if (overwriteKey !== lastNotifiedOverwriteKey) {
+        InfoNotification(
+          i18n.t("settings:notification.script_sync_overwrite"),
+          i18n.t("settings:notification.script_sync_overwrite_desc", {
+            scriptNames: overwriteScripts.map((c) => c.scriptName).join(", "),
+            count: overwriteScripts.length,
+          }),
+          { url: `/src/options.html#/logs?query=${encodeURIComponent(SYNC_LOG_QUERY_OVERWRITE)}` }
+        );
+        await this.storage.set(LAST_NOTIFIED_OVERWRITE_KEY, overwriteKey);
+      }
     }
-    this.lastNotifiedOverwriteKey = overwriteKey;
     // 同步状态
     if (syncConfig.syncStatus && canWriteScriptcatSync) {
       try {
@@ -799,6 +801,14 @@ export class SynchronizeService {
     // 重新获取文件列表,保存文件摘要
     this.logger.info("update file digest");
     await this.updateFileDigest(fs, pushedFileDigestMap, preserveDigestFiles);
+    const notificationKeyResets: Promise<void>[] = [];
+    if (!conflictScripts.length) {
+      notificationKeyResets.push(this.storage.set(LAST_NOTIFIED_CONFLICT_KEY, ""));
+    }
+    if (!overwriteScripts.length) {
+      notificationKeyResets.push(this.storage.set(LAST_NOTIFIED_OVERWRITE_KEY, ""));
+    }
+    await Promise.all(notificationKeyResets);
     this.logger.info("sync complete");
     // failedSyncUuids 含冲突（冲突走失败路径），failed 计数排除冲突以免与 conflict 重复
     return {

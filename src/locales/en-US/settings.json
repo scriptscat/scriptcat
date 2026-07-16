@@ -96,7 +96,7 @@
     "subscribe_update": "Subscribe {{subscribeName}} has been updated",
     "subscribe_update_desc": "New scripts: {{newScripts}}\nDeleted scripts: {{deletedScripts}}",
     "script_sync_overwrite": "Cloud sync overwrite",
-    "script_sync_overwrite_desc": "{{scriptNames}} and {{count}} script(s) were overwritten by the cloud version. Click to review the sync log."
+    "script_sync_overwrite_desc": "{{scriptNames}}: {{count}} script(s) were overwritten during sync. Open the logs to review the direction and details."
   },
   "enable_background": {
     "title": "Enable Background Running",
@@ -135,6 +135,7 @@
   "sync_never": "Not synced yet",
   "sync_state_syncing": "Syncing…",
   "sync_state_attention": "Last sync needs your review",
-  "sync_state_attention_desc": "{{overwrite}} script(s) overwritten by cloud, {{conflict}} conflict(s) paused. Open the log to confirm.",
-  "sync_state_error": "Sync failed, paused"
+  "sync_state_attention_desc": "{{overwrite}} script(s) overwritten during sync, {{conflict}} conflict(s) paused. Open the logs to review.",
+  "sync_state_error": "Sync failed, paused",
+  "sync_state_failed_desc": "{{failed}} script(s) failed to sync. Open the logs for details."
 }

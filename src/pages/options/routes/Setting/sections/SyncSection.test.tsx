@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { act, render, screen, fireEvent, cleanup } from "@testing-library/react";
 
+const { t } = vi.hoisted(() => ({
+  t: vi.fn((key: string, opts?: Record<string, unknown>) =>
+    opts?.failed === undefined ? key : `${key}:${String(opts.failed)}`
+  ),
+}));
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t }) }));
+
 const { create } = vi.hoisted(() => ({ create: vi.fn(() => Promise.resolve({})) }));
 vi.mock("@Packages/filesystem/factory", () => ({
   default: {
@@ -81,6 +88,7 @@ beforeEach(() => {
   mockState();
   subscribeCloudSyncState.mockReturnValue(() => {});
   requestCloudSyncOnce.mockResolvedValue(undefined);
+  t.mockClear();
   notify.info.mockClear();
   notify.success.mockClear();
   notify.error.mockClear();
@@ -152,7 +160,17 @@ describe("同步分区", () => {
     expect(strip.getAttribute("data-variant")).toBe("warning");
     const href = screen.getByTestId("cloud_sync_view_logs").getAttribute("href") || "";
     expect(decodeURIComponent(href)).toContain("synchronize");
-    expect(decodeURIComponent(href)).toContain("overwrite");
+    expect(decodeURIComponent(href)).not.toContain("overwrite");
+  });
+
+  it("上次有文件同步失败时显示失败数量", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
+    mockState({ lastSyncAt: 1, counts: { total: 3, overwrite: 0, conflict: 0, failed: 2 } });
+    render(<SyncSection register={() => () => {}} />);
+
+    const strip = await screen.findByTestId("cloud_sync_status");
+    expect(strip.getAttribute("data-variant")).toBe("error");
+    expect(strip.textContent).toContain("settings:sync_state_failed_desc:2");
   });
 
   it("点击立即同步触发一次云同步", async () => {

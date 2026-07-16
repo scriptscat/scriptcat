@@ -96,7 +96,7 @@
     "subscribe_update": "Подписка {{subscribeName}} была обновлена",
     "subscribe_update_desc": "Новые скрипты: {{newScripts}}\nУдаленные скрипты: {{deletedScripts}}",
     "script_sync_overwrite": "Перезапись при облачной синхронизации",
-    "script_sync_overwrite_desc": "{{scriptNames}} и ещё {{count}} скрипт(ов) перезаписаны облачной версией. Нажмите, чтобы просмотреть журнал синхронизации."
+    "script_sync_overwrite_desc": "Во время синхронизации перезаписано скриптов: {{count}} ({{scriptNames}}). Направление и подробности смотрите в журнале."
   },
   "enable_background": {
     "title": "Включить фоновый режим",
@@ -135,6 +135,7 @@
   "sync_never": "Ещё не синхронизировано",
   "sync_state_syncing": "Синхронизация…",
   "sync_state_attention": "Последняя синхронизация требует проверки",
-  "sync_state_attention_desc": "{{overwrite}} скрипт(ов) перезаписаны облаком, {{conflict}} конфликт(ов) приостановлено. Откройте журнал для подтверждения.",
-  "sync_state_error": "Сбой синхронизации, приостановлено"
+  "sync_state_attention_desc": "Во время синхронизации перезаписано скриптов: {{overwrite}}, приостановлено конфликтов: {{conflict}}. Проверьте журнал.",
+  "sync_state_error": "Сбой синхронизации, приостановлено",
+  "sync_state_failed_desc": "Не удалось синхронизировать скрипты: {{failed}}. Подробности смотрите в журнале."
 }

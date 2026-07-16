@@ -5,7 +5,7 @@
 相关代码入口：
 
 - [`src/app/service/service_worker/synchronize.ts`](../src/app/service/service_worker/synchronize.ts)：同步服务、队列、状态合并、digest 更新。
-- [`packages/filesystem/filesystem.ts`](../packages/filesystem/filesystem.ts)：统一文件系统接口、条件操作参数、provider capability。
+- [`packages/filesystem/filesystem.ts`](../packages/filesystem/filesystem.ts)：统一文件系统接口。
 - [`packages/filesystem/error.ts`](../packages/filesystem/error.ts)：统一 typed provider error。
 - [`packages/filesystem/*`](../packages/filesystem/)：各云盘 provider 实现。
 
@@ -18,9 +18,9 @@
 1. 单个脚本失败不能阻塞其他脚本同步。
 2. 成功脚本可以推进自己的 `file_digest`，失败脚本必须保留旧 digest。
 3. `scriptcat-sync.json` 写回前要合并远端较新状态，避免覆盖其他设备状态。
-4. provider 没有声明原子能力时，同步层不能传条件写删参数，也不能把 best-effort 行为描述成 CAS。
+4. provider 写入使用普通覆盖语义；同步层必须诚实记录无法检测的并发覆盖窗口。
 5. 旧 `.user.js`、旧 `.meta.json`、旧 `file_digest` string map、缺字段 `scriptcat-sync.json` 必须继续可读。
-6. filesystem 包只负责暴露能力、执行文件操作、抛 typed error；同步冲突策略属于 `SynchronizeService`。
+6. filesystem 包只负责执行文件操作、抛 typed error；同步冲突策略属于 `SynchronizeService`。
 7. 本地与云端都改过的脚本（真冲突）不自动覆盖任何一端：跳过、保留基线、聚合通知用户。
 
 功能范围：云同步只同步脚本源码、来源 metadata（`.meta.json`）、启用状态与排序（`scriptcat-sync.json`）。GM storage 值和 `@require`/`@resource` 资源缓存**不**参与云同步（它们只在完整备份/导出路径处理），属于有意取舍，扩展需另行设计（隐私、容量、二进制资源、多端 merge）。
@@ -119,10 +119,9 @@ digest 更新有两条路径，区别在于对账范围：
 
 ## `sync_content_md5`（本地内容基线）
 
-另有一份独立的 `sync_content_md5`（同存 `ChromeStorage("sync")`，格式同 `FileDigestMap`）记录本机每次成功推送**或拉取**的内容 md5，即"上次同步成功时的本地内容基线"。它有两个用途：
+另有一份独立的 `sync_content_md5`（同存 `ChromeStorage("sync")`，格式同 `FileDigestMap`）记录本机每次成功推送**或拉取**的内容 md5，即"上次同步成功时的本地内容基线"。它用于云端变化时判断本地内容是否也发生变化：
 
-1. **方向判定（L4 修复）**：云端 digest 相对 `file_digest` 已变时，用本地当前内容 md5 与基线比较判断"本地是否也改过"，取代跨时钟域的墙钟比较（本地毫秒 updatetime vs 服务端整秒 mtime 在同一秒内会误判方向，导致 push 覆盖较新的云端内容）。
-2. **自我 412 收敛**（见下文 `pushScript()` 一节）：判定云端冲突文件是否为本机上次所写。
+- **方向判定（L4 修复）**：云端 digest 相对 `file_digest` 已变时，用本地当前内容 md5 与基线比较判断"本地是否也改过"，取代跨时钟域的墙钟比较（本地毫秒 updatetime vs 服务端整秒 mtime 在同一秒内会误判方向，导致 push 覆盖较新的云端内容）。
 
 它与 `file_digest` 用途不同：`file_digest` 存 provider 原生 digest 检测云端变化，`sync_content_md5` 存本地内容 md5 检测本地变化，二者不可混用。
 
@@ -150,7 +149,7 @@ digest 更新有两条路径，区别在于对账范围：
 5. 对每个云端 uuid 和本地脚本做决策。
 6. 用 `Promise.allSettled()` 等待所有文件任务，保持 per-file best-effort。
 7. 收集成功任务返回的 digest patch。
-8. 对失败任务记录 `failedSyncUuids` 和 `preserveDigestFiles`；push 部分失败时（`PushScriptPartialError`），已成功写入云端的文件不保留旧 digest，让其推进到云端最新值，避免过期 digest 造成后续 CAS 永久冲突。
+8. 对失败任务记录 `failedSyncUuids` 和 `preserveDigestFiles`；push 部分失败时（`PushScriptPartialError`），已成功写入云端的文件不保留旧 digest，让下一轮只重试真正失败的文件。
 9. 如果启用 `syncStatus`，合并本地状态、初始云端状态、写回前重新读取的最新云端状态。
 10. 调用 `updateFileDigest()`，成功文件推进 digest，失败文件保留旧 digest。
 
@@ -169,7 +168,7 @@ digest 更新有两条路径，区别在于对账范围：
   - 无基线（升级前旧数据/从未同步成功）：退回旧的时间比较规则（时间更晚一方胜出）。
 - 冲突通知：一轮同步只发一条通知，列出所有冲突脚本名；同一批脚本持续冲突时后续轮次不重复通知（集合变化后重新通知）。冲突脚本会一直停走，直到某一端内容与另一端一致（自动收敛）或某一端被删除/重装。
 
-注意：所有 provider 目前都不声明条件写删能力（见「provider 差异」），push 是无条件覆盖写。`list → 决策 → write` 之间存在 TOCTOU 窗口：若对端恰好在这几秒内写入同一文件，后写者胜（last-writer-wins），同步层无法察觉。内容基线把误覆盖收窄到"真·同时编辑同一脚本"这一罕见场景；需要原子保护时必须由 provider 侧 CAS 支持（后续按 endpoint 探测能力的方案）。
+注意：push 是普通覆盖写。`list → 决策 → write` 之间存在 TOCTOU 窗口：若对端恰好在这几秒内写入同一文件，后写者胜（last-writer-wins），同步层无法察觉。内容基线只能减少基于旧快照做出错误方向判断的概率，不能消除请求之间的并发窗口。
 
 本地脚本存在、云端只有 `.meta.json`：
 
@@ -262,7 +261,7 @@ provider 应尽量抛 `FileSystemError`。同步层用 `classifySyncError()` 映
 
 原因：写入和删除不是安全幂等操作。重复执行可能创建重复文件、覆盖并发更新或误删。
 
-typed `retryable` 只覆盖瞬时 5xx（500/502/503/504）。501（如后端不支持条件请求）、505、507 等属于永久失败，不标记可重试，避免 limiter 空转退避。
+typed `retryable` 只覆盖瞬时 5xx（500/502/503/504）。501、505、507 等属于永久失败，不标记可重试，避免 limiter 空转退避。
 
 ## provider 差异
 
@@ -313,11 +312,10 @@ Google Drive 维护时注意：
 
 ### Dropbox
 
-Dropbox 当前不声明 atomic 能力。维护时注意：
+Dropbox 维护时注意：
 
 - digest 来自 `content_hash`，必须当作 opaque provider digest。
 - 写入是 `exists()` 后 overwrite 或 add，存在 TOCTOU。
-- 当前没有使用 Dropbox rev CAS。
 - request 层已解析 `error_summary` 和 structured `path_lookup` / `path`。
 - 只有 `path/conflict` / `path_write/conflict` 判 conflict；其余 409（无写权限、空间不足等）保留原错误语义，不能被 createDir 当"目录已存在"吞掉。
 - raw download 429 会转 typed rateLimit。
@@ -357,8 +355,8 @@ type CloudSyncState = {
 ```
 
 - 开始置 `syncing:true`，结束写 `counts`/`lastSyncAt`，异常写 `error`。注意：读旧值与写 `syncing` **不能** await 在 `syncOnceInternal` 之前，否则存储 I/O 会推迟内部起始，打乱测试的微任务门控。
-- 设置页「脚本同步」卡片顶部状态条（`SyncSection.tsx` + `syncStatus.ts`）读取并订阅 `chrome.storage.onChanged` 实时展示四态：正常 / 同步中 / 有覆盖或冲突（琥珀警示）/ 失败。
-- `立即同步` 按钮经 `SynchronizeClient.cloudSyncOnce()` → SW `group.on("cloudSyncOnce")` → 用**已保存**配置跑一次 `syncOnce`（未启用则不触发）。
+- 设置页「脚本同步」卡片顶部状态条（`SyncSection.tsx` + `syncStatus.ts`）读取并订阅 `chrome.storage.onChanged` 实时展示四态：正常 / 同步中 / 有覆盖或冲突（琥珀警示）/ 失败。单文件 best-effort 失败通过 `counts.failed` 显示为失败，不能回落成“同步正常”。
+- `立即同步` 按钮经 `SynchronizeClient.cloudSyncOnce()` → SW `group.on("cloudSyncOnce")` → 用**已保存**配置跑一次 `syncOnce`（未启用则不触发）。构建文件系统失败发生在 `syncOnce()` 之前，因此 `cloudSyncOnce()` 会单独写入 `error` 状态并向 UI 抛出，由设置页显示 toast。
 
 ### 覆盖日志（`action` 标签）
 
@@ -372,7 +370,9 @@ this.logger.warn("sync overwrite", { action: "overwrite", direction, uuid, name 
 
 ### 通知与深链
 
-本轮有覆盖时聚合一条 `InfoNotification`（仿冲突的 `lastNotifiedOverwriteKey`，一轮一条、同批不重复、集合变化重发），点击打开 `/src/options.html#/logs?query=...`。`?query` 载荷 `[{key,value}]` 由 Logger 页 `parseInitialQueries` 解析，预过滤到 `service=synchronize` 且 `action=overwrite` 的行。状态条「查看日志」用同一深链格式。
+本轮有覆盖时聚合一条 `InfoNotification`，点击打开 `/src/options.html#/logs?query=...`。覆盖和冲突的已通知集合存入设备本地 sync storage，因此 MV3 Service Worker 重启后同一批问题也不会重复通知；集合或覆盖方向变化时重新提醒，问题消失时清空。
+
+`?query` 载荷 `[{key,value}]` 由 Logger 页 `parseInitialQueries` 解析。只有纯覆盖状态才预过滤到 `service=synchronize` 且 `action=overwrite`；存在冲突或失败时只过滤 `service=synchronize`，避免把对应失败日志隐藏掉。覆盖通知与状态文案使用中性“同步时发生覆盖”，具体是本地覆盖云端还是云端覆盖本地以日志的 `direction` 标签为准。
 
 ### 边界
 
@@ -413,12 +413,12 @@ this.logger.warn("sync overwrite", { action: "overwrite", direction, uuid, name 
 4. 损坏或旧格式 `scriptcat-sync.json` 不阻塞脚本同步。
 5. orphan `.user.js` 跳过并保留 status。
 6. provider conflict/transient/notFound 能映射到正确 `SyncErrorKind`。
-7. 条件写删只在 provider 声明能力时使用；当前所有 provider capabilities 均为 false，不得发出任何条件头。
-8. 云端已变、本地内容基线未变时必须 pull——即使本地 updatetime 大于云端 mtime（同秒竞态 L4）。
-9. 本地与云端都变（真冲突）时不 push 不 pull，保留旧 digest 与云端 status，一轮只发一条聚合通知，同一批冲突不重复通知。
-10. 云端已变、本地也变但内容与云端一致时，收敛基线且不产生写操作。
-11. 无内容基线（升级前旧数据）时退回时间比较规则。
-12. 自我 412 收敛：本机 digest 记账丢失后再次编辑，识别云端为自己所写则重推；真·并发编辑维持停在 conflict。
-13. 队列路径 digest 只更新本次 uuid 文件，不全量盖章漏 pull。
+7. 云端已变、本地内容基线未变时必须 pull——即使本地 updatetime 大于云端 mtime（同秒竞态 L4）。
+8. 本地与云端都变（真冲突）时不 push 不 pull，保留旧 digest 与云端 status，一轮只发一条聚合通知，同一批冲突不重复通知。
+9. 云端已变、本地也变但内容与云端一致时，收敛基线且不产生写操作。
+10. 无内容基线（升级前旧数据）时退回时间比较规则。
+11. 队列路径 digest 只更新本次 uuid 文件，不全量盖章漏 pull。
+12. 同步失败计数必须在设置页显示为失败，不能显示为同步正常。
+13. 冲突或失败状态的日志深链不能被覆盖过滤条件隐藏。
 
 真实 provider 验证仍需要账号和夹具。不能把 unit test 或 mock response 结果宣称为真实云端验证。
