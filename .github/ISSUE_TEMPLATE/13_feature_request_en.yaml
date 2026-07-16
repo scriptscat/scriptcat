@@ -8,6 +8,10 @@ body:
   - type: markdown
     attributes:
       value: |
+        Use this form only for a capability that does not exist yet.
+
+        If something does not work, stopped working, or behaves differently from what you expected, please use the Bug Report template instead. Browser and ScriptCat versions are required here because they help maintainers determine whether the request is actually a version-specific bug or an unavailable feature.
+
         Please describe the real problem you want to solve, not just a button name or an API name.
 
         If this is a GM/CAT API design request, please provide:
@@ -25,6 +29,35 @@ body:
           required: true
         - label: I confirm this is not a bug. If this is unexpected behavior, I should use the Bug Report template.
           required: true
+
+  - type: input
+    id: browser-version
+    attributes:
+      label: Browser and Version
+      description: Specify the browser where you need this feature, including its version. List all affected browsers if applicable.
+      placeholder: "Example: Chrome 138.0.7204.101; Firefox 140.0.2"
+    validations:
+      required: true
+
+  - type: input
+    id: scriptcat-version
+    attributes:
+      label: ScriptCat Version
+      description: Find this in ScriptCat's extension details or About page. Do not write only "latest".
+      placeholder: "Example: v0.17.0 or commit/build identifier"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: expected-existing-behavior
+    attributes:
+      label: Did You Expect This to Already Work?
+      description: This helps distinguish a missing feature from a bug or regression.
+      options:
+        - No. I am requesting a completely new capability.
+        - Yes. I expected ScriptCat to support this already; I have explained why this is not a bug below.
+    validations:
+      required: true
 
   - type: dropdown
     id: feature-area
@@ -45,6 +78,18 @@ body:
         - Internationalization / translation
         - Performance / storage / security
         - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current Behavior and What You Tried
+      description: Describe what ScriptCat currently does, what you tried, and why the existing workflow cannot achieve your goal. If something is failing or used to work, use the Bug Report template instead.
+      placeholder: |
+        Current behavior:
+        Steps or workarounds tried:
+        Why the current behavior is insufficient:
     validations:
       required: true
 
