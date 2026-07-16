@@ -46,6 +46,39 @@ describe("saveScript 保存逻辑", () => {
     expect(res.updated).toBe(false);
   });
 
+  it("新建脚本命中回收站旧身份时应先提示恢复,用户取消则不得安装", async () => {
+    const deps = baseDeps({
+      prepareScript: vi.fn(async () => ({
+        script: mk({ uuid: "trashed", createtime: 0 }),
+        oldScript: mk({ uuid: "trashed" }),
+        oldInTrash: true,
+      })),
+      confirm: vi.fn(async () => false),
+    });
+
+    await expect(saveScript(mk({ uuid: "new", createtime: 0 }), "code", deps)).rejects.toThrow(SAVE_CANCELED);
+    expect(deps.confirm).toHaveBeenCalledWith({ kind: "trash" });
+    expect(deps.install).not.toHaveBeenCalled();
+  });
+
+  it("新建脚本命中回收站旧身份且用户确认时应恢复旧 UUID", async () => {
+    const deps = baseDeps({
+      prepareScript: vi.fn(async () => ({
+        script: mk({ uuid: "trashed", createtime: 0 }),
+        oldScript: mk({ uuid: "trashed" }),
+        oldInTrash: true,
+      })),
+    });
+
+    const result = await saveScript(mk({ uuid: "new", createtime: 0 }), "code", deps);
+
+    expect(deps.confirm).toHaveBeenCalledWith({ kind: "trash" });
+    expect(deps.install).toHaveBeenCalledWith(
+      expect.objectContaining({ script: expect.objectContaining({ uuid: "trashed" }) })
+    );
+    expect(result.script.uuid).toBe("trashed");
+  });
+
   it("重名冲突且用户取消时应抛 SAVE_CANCELED 且不 install", async () => {
     const deps = baseDeps({
       prepareScript: vi.fn(async () => ({ script: mk({ uuid: "u1" }), oldScript: undefined })),

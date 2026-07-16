@@ -207,5 +207,8 @@
   "miner_description": "このスクリプトにはマイニング動作があります",
   "membership_description": "このスクリプトは正常に使用するためにメンバー登録が必要です",
   "tracking_description": "このスクリプトはユーザー情報を追跡します",
-  "script_info_load_failed": "スクリプト情報の読み込みに失敗しました！"
+  "script_info_load_failed": "スクリプト情報の読み込みに失敗しました！",
+  "btn_restore": "復元",
+  "btn_restore_update": "復元して更新",
+  "in_trash_hint": "このスクリプトはゴミ箱に入っています。インストールすると復元され、既存のデータはそのまま保持されます"
 }

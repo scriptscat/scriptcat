@@ -601,7 +601,7 @@ export class PopupService {
         }
       });
     });
-    this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
+    this.mq.subscribe<TDeleteScript[]>("trashScripts", async (data) => {
       const changed = await this.removeDeletedScriptsFromPopupCaches(data.map(({ uuid }) => uuid));
       if (changed) {
         this.updateBadgeIcon();

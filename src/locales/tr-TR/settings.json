@@ -110,5 +110,15 @@
   "favicon_service_icon-horse": "Icon Horse",
   "favicon_service_local": "Yerel Getirme",
   "cloud_sync_account_verification": "Bulut eşitleme hesabı doğrulaması devam ediyor...",
-  "cloud_sync_verification_failed": "Bulut eşitleme hesabı doğrulaması başarısız"
+  "cloud_sync_verification_failed": "Bulut eşitleme hesabı doğrulaması başarısız",
+  "trash_retention": "Çöp Kutusu Saklama Süresi",
+  "trash_retention_desc": "Silinen betiklerin otomatik olarak kalıcı olarak silinmeden önce çöp kutusunda ne kadar süre saklanacağı",
+  "trash_retention_7": "7 Gün",
+  "trash_retention_30": "30 Gün",
+  "trash_retention_90": "90 Gün",
+  "trash_retention_never": "Asla",
+  "trash_enabled": "Çöp Kutusunu Etkinleştir",
+  "trash_enabled_desc": "Silinen betikler önce çöp kutusuna taşınır ve istediğiniz zaman geri yüklenebilir. Devre dışı bırakıldığında betikler doğrudan kalıcı olarak silinir.",
+  "trash_retention_custom": "Özel",
+  "trash_retention_days_unit": "gün"
 }

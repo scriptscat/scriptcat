@@ -110,5 +110,15 @@
   "favicon_service_icon-horse": "Icon Horse",
   "favicon_service_local": "Lấy cục bộ",
   "cloud_sync_account_verification": "Đang xác minh tài khoản đồng bộ đám mây...",
-  "cloud_sync_verification_failed": "Xác minh tài khoản đồng bộ đám mây thất bại"
+  "cloud_sync_verification_failed": "Xác minh tài khoản đồng bộ đám mây thất bại",
+  "trash_retention": "Thời gian lưu trong thùng rác",
+  "trash_retention_desc": "Script đã xóa được lưu trong thùng rác bao lâu trước khi tự động bị xóa vĩnh viễn",
+  "trash_retention_7": "7 ngày",
+  "trash_retention_30": "30 ngày",
+  "trash_retention_90": "90 ngày",
+  "trash_retention_never": "Không bao giờ",
+  "trash_enabled": "Bật thùng rác",
+  "trash_enabled_desc": "Script đã xóa sẽ được chuyển vào thùng rác trước và có thể khôi phục bất cứ lúc nào. Khi tắt, script sẽ bị xóa vĩnh viễn ngay lập tức.",
+  "trash_retention_custom": "Tùy chỉnh",
+  "trash_retention_days_unit": "ngày"
 }

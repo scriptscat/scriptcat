@@ -8,13 +8,17 @@ export const SAVE_EMPTY_NAME = "SAVE_EMPTY_NAME";
 
 export interface SaveDeps {
   // 解析代码并与磁盘对比，返回新脚本及磁盘旧脚本
-  prepareScript: (code: string, origin: string, uuid?: string) => Promise<{ script: Script; oldScript?: Script }>;
+  prepareScript: (
+    code: string,
+    origin: string,
+    uuid?: string
+  ) => Promise<{ script: Script; oldScript?: Script; oldInTrash?: boolean }>;
   // 按 name+namespace 查重
   findByNameAndNamespace: (name: string, namespace: string) => Promise<Script | undefined>;
   // 安装/更新脚本
   install: (params: { script: Script; code: string }) => Promise<{ update: boolean; updatetime?: number }>;
   // 冲突确认：返回 true 继续，false 取消
-  confirm: (o: { kind: "name" | "edit" }) => Promise<boolean>;
+  confirm: (o: { kind: "name" | "edit" | "trash" }) => Promise<boolean>;
   now?: () => number;
 }
 
@@ -28,7 +32,12 @@ export interface SaveResult {
 export async function saveScript(editorScript: Script, code: string, deps: SaveDeps): Promise<SaveResult> {
   const now = deps.now ?? Date.now;
   const targetUUID = editorScript.uuid;
-  const { script, oldScript } = await deps.prepareScript(code, editorScript.origin || "", targetUUID);
+  const { script, oldScript, oldInTrash } = await deps.prepareScript(code, editorScript.origin || "", targetUUID);
+
+  if (oldInTrash) {
+    const restore = await deps.confirm({ kind: "trash" });
+    if (!restore) throw new Error(SAVE_CANCELED);
+  }
 
   // 新增/改名时若已有同名同命名空间的其他脚本，提醒确认
   if (

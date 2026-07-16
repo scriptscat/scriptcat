@@ -110,5 +110,15 @@
   "favicon_service_icon-horse": "Icon Horse",
   "favicon_service_local": "Local Fetch",
   "cloud_sync_account_verification": "Cloud Sync Account Verification in Progress...",
-  "cloud_sync_verification_failed": "Cloud Sync Account Verification Failed"
+  "cloud_sync_verification_failed": "Cloud Sync Account Verification Failed",
+  "trash_retention": "Trash Retention",
+  "trash_retention_desc": "How long deleted scripts stay in Trash before being automatically deleted permanently",
+  "trash_retention_7": "7 Days",
+  "trash_retention_30": "30 Days",
+  "trash_retention_90": "90 Days",
+  "trash_retention_never": "Never",
+  "trash_enabled": "Enable Trash",
+  "trash_enabled_desc": "Deleted scripts go to Trash first and can be restored at any time. When disabled, deleting a script removes it permanently right away.",
+  "trash_retention_custom": "Custom",
+  "trash_retention_days_unit": "days"
 }

@@ -207,5 +207,8 @@
   "miner_description": "This script engages in mining activities",
   "membership_description": "This script requires registration as a member to be used properly",
   "tracking_description": "This script tracks your user information",
-  "script_info_load_failed": "Failed to load script information"
+  "script_info_load_failed": "Failed to load script information",
+  "btn_restore": "Restore Script",
+  "btn_restore_update": "Restore and Update Script",
+  "in_trash_hint": "This script is in Trash. Installing will restore it and keep its existing data."
 }
