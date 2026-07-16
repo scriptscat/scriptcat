@@ -30,7 +30,7 @@ export default class LoggerCore {
   writer: Writer;
 
   // 日志级别, 会记录在日志文件中
-  level: LogLevel = "info";
+  level: LogLevel;
 
   // 打印在console的等级, 会在控制台输出
   consoleLevel: LogLevel = "warn";
@@ -39,7 +39,7 @@ export default class LoggerCore {
 
   constructor(config: { level?: LogLevel; consoleLevel?: LogLevel; writer: Writer; labels: LogLabel }) {
     this.writer = config.writer;
-    this.level = config.level || this.level;
+    this.level = config.level ?? (process.env.NODE_ENV === "development" ? "debug" : "info");
     this.labels = config.labels || {};
     // 获取日志debug等级, 如果是开发环境, 则默认为debug
     if (config.consoleLevel !== undefined) {
