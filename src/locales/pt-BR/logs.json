@@ -50,9 +50,9 @@
   "year_month": "{{month}}/{{year}}",
   "time": "Hora",
   "prev_month": "Mês Anterior",
-  "next_month": "Próximo Mês",
-  "live": "Ao Vivo",
-  "total_logs": "Um total de {{length}} logs foram consultados",
+  "next_month": "Próximo mês",
+  "live": "Em tempo real",
+  "total_logs": "Foram encontrados {{length}} logs no total",
   "filtered_logs": "{{length}} logs após a filtragem",
   "enter_filter_conditions": "Por favor, Insira as Condições de Filtro para a Consulta",
   "custom_range": "Intervalo Personalizado"

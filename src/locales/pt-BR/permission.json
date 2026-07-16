@@ -2,7 +2,7 @@
   "permission": "Permissão",
   "permission_value": "Valor da Permissão",
   "allow": "Permitir",
-  "permission_management": "Gerenciamento de Permissões",
+  "permission_management": "Gerenciamento de permissões",
   "script_accessing_cross_origin_resource": "O script está tentando acessar um recurso entre origens",
   "confirm_operation_description": "Por favor, confirme se você permite que o script execute esta operação. O script também pode adicionar a tag @connect para ignorar esta opção.",
   "request_domain": "Domínio da Requisição",

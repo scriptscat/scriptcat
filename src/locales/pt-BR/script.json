@@ -23,7 +23,7 @@
   "new_version_available": "Nova Versão Disponível",
   "latest_version": "Última Versão",
   "update_check_failed": "Falha na Verificação de Atualização",
-  "operation_failed": "Operação falhou",
+  "operation_failed": "A operação falhou",
   "scripts_pinned_to_top": "O script selecionado foi fixado",
   "homepage": "Página do script",
   "script_total_runs": "O script foi executado {{runNum}} vezes, {{runNumByIframe}} vezes em iframes",
@@ -66,12 +66,12 @@
   "import_group": "Importar",
   "import_local_script": "Importar Script Local",
   "link_import": "Importar de URL",
-  "import_skill": "Importar Habilidade",
+  "import_skill": "Importar Skill",
   "link_import_desc": "Cole as URLs do script ou assinatura, uma por linha",
   "link_import_placeholder": "https://example.com/script.user.js",
-  "link_import_hint": "Suporta scripts de usuário, assinaturas ou URLs de Habilidade",
+  "link_import_hint": "Suporta URLs de scripts de usuário, assinaturas ou Skills",
   "not_a_valid_script": "Não é um script de usuário ou SkillScript válido",
   "import_done": "Importação concluída: {{success}} com êxito · {{fail}} com falha",
-  "drop_to_install": "Arraste scripts ou Habilidades aqui para instalar",
-  "drop_to_install_hint": "Arraste scripts de usuário .js / inscrições · pacotes de Habilidade .zip"
+  "drop_to_install": "Arraste scripts ou Skills aqui para instalar",
+  "drop_to_install_hint": "Arraste scripts de usuário ou assinaturas (.js) e pacotes de Skill (.zip)"
 }
