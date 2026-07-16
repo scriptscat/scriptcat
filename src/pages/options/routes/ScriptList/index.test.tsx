@@ -1,11 +1,26 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { act, render, cleanup, screen, fireEvent } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { act, render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { requestDeleteScripts } from "@App/pages/store/features/script";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import { SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
+
+// useSystemConfig("trash_enabled") 读的是这个 store；默认给回收站「开启」，
+// 与关闭态相关的用例（见下方「回收站关闭」describe）再各自切到 false。
+const { get } = vi.hoisted(() => ({ get: vi.fn() }));
+vi.mock("@App/pages/store/global", async () => {
+  const { createGlobalStoreMock } = await import("@Tests/mocks/pageStores.ts");
+  return createGlobalStoreMock({
+    systemConfig: {
+      get,
+      getLanguage: vi.fn().mockResolvedValue("zh-CN"),
+      set: vi.fn(),
+    },
+  });
+});
 
 // 列表数据 Hook 涉及 OPFS/favicon/后台消息等副作用，测试中整体打桩。
 // 注意：返回值须为稳定引用，否则过滤 useEffect 依赖每次渲染都变化会触发无限重渲染。
@@ -22,12 +37,15 @@ vi.mock("./hooks", () => {
   return {
     useScriptDataManagement: () => mockScriptData,
     useScriptFilters: () => filters,
+    useTrashCount: () => [0, () => {}],
   };
 });
 
 // 业务请求打桩，重点观察 requestDeleteScripts 是否被调用
 vi.mock("@App/pages/store/features/script", () => ({
   requestDeleteScripts: vi.fn(() => Promise.resolve()),
+  requestRestoreScripts: vi.fn(() => Promise.resolve({ restored: [], conflicts: [] })),
+  requestTrashScripts: vi.fn(() => Promise.resolve([])),
   requestEnableScript: vi.fn(),
   requestRunScript: vi.fn(),
   requestStopScript: vi.fn(),
@@ -55,6 +73,7 @@ vi.mock("@App/pages/components/ui/toast", () => ({
 const testScript = { uuid: "u1", name: "TestScript", metadata: {} };
 vi.mock("./ScriptTable", () => ({
   default: (props: {
+    leading?: ReactNode;
     handleDelete: (s: unknown) => void;
     toggleSelect: (uuid: string) => void;
     onBatchDelete: () => void;
@@ -64,6 +83,7 @@ vi.mock("./ScriptTable", () => ({
     setSortState: (updater: (prev: { key: unknown; order: "asc" | "desc" }) => { key: "name"; order: "asc" }) => void;
   }) => (
     <>
+      {props.leading}
       <button onClick={() => props.handleDelete(testScript)}>{"trigger-delete"}</button>
       <button onClick={() => props.toggleSelect("u1")}>{"trigger-select"}</button>
       <button onClick={() => props.onBatchDelete()}>{"trigger-batch-delete"}</button>
@@ -81,6 +101,7 @@ vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: () => false
 import ScriptList from "./index";
 import { invalidateUserConfig, preloadUserConfig } from "./preload";
 import { SCRIPT_LIST_PREFERENCES_KEY, SCRIPT_LIST_VIEW_MODE_KEY } from "./preferences";
+import { notify } from "@App/pages/components/ui/toast";
 
 beforeAll(() => initTestLanguage("zh-CN"));
 
@@ -93,6 +114,7 @@ beforeEach(() => {
   localStorage.removeItem(SCRIPT_LIST_PREFERENCES_KEY);
   localStorage.removeItem(SCRIPT_LIST_VIEW_MODE_KEY);
   vi.clearAllMocks();
+  get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? true : 30));
 });
 
 afterEach(() => {
@@ -124,6 +146,41 @@ describe("脚本列表删除接口调用", () => {
     render(<ScriptList />, { wrapper: MemoryRouter });
     fireEvent.click(screen.getByText("trigger-batch-delete"));
     expect(requestDeleteScripts).not.toHaveBeenCalled();
+  });
+});
+
+// 回收站关闭时 requestDeleteScripts 已彻底销毁脚本（服务端不再保留可还原记录），
+// 若还沿用「已移入回收站」文案 + 撤销按钮，用户点了撤销只会静默失败。
+describe("回收站关闭时的删除提示", () => {
+  it("删除后只提示删除成功，不出现撤销按钮", async () => {
+    get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? false : 30));
+    // deleteScripts 在请求删除前从活跃列表里查名字做 toast 副标题，得先把它塞进去
+    mockScriptData.scriptList = [
+      {
+        uuid: "u1",
+        name: "TestScript",
+        namespace: "",
+        metadata: {},
+        type: SCRIPT_TYPE_NORMAL,
+        status: SCRIPT_STATUS_ENABLE,
+        sort: 0,
+        runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+        createtime: 0,
+        checktime: 0,
+      },
+    ];
+    render(<ScriptList />, { wrapper: MemoryRouter });
+    // 「回收站」tab 在配置解析完成前默认显示（trashEnabled ?? true），消失即代表 false 已落地，
+    // 否则删除会命中解析完成前的默认值，把这个用例测成假阳性
+    await waitFor(() => expect(screen.queryByRole("button", { name: /回收站/ })).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("trigger-delete"));
+
+    await waitFor(() => expect(notify.success).toHaveBeenCalled());
+    expect(notify.success).toHaveBeenCalledWith(t("delete_success"), { description: "TestScript" });
+    expect(notify.success).not.toHaveBeenCalledWith(t("script:trash_moved_single"), expect.anything());
+    const call = vi.mocked(notify.success).mock.calls[0];
+    expect(call[1]).not.toHaveProperty("action");
   });
 });
 

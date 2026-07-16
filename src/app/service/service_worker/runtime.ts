@@ -593,7 +593,7 @@ export class RuntimeService {
     });
 
     // 监听脚本删除
-    this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
+    this.mq.subscribe<TDeleteScript[]>("trashScripts", async (data) => {
       // 显式提前失效，确保在任何 await 之前就清掉陈旧的 disabled 匹配器。
       // 虽然下方 updateSorter() 内部也会调用 invalidateDisabledMatcher()，但此处与 installScript 保持一致：
       // 由于 updateSorter() 位于 await 之后，必须先在最前面显式失效一次。

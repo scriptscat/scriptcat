@@ -69,6 +69,9 @@
   "display_right_click_menu_desc": "Tarayıcı sağ tıklama menüsünde betik menüsünü göster",
   "expand_count": "Genişletme Sayısı",
   "auto_collapse_when_exceeds": "Bu sayıyı aştığında otomatik daralt",
+  "popup_layout": "Açılır Pencere Düzeni",
+  "compact_popup_layout": "Kompakt Açılır Pencere Düzeni",
+  "compact_popup_layout_desc": "Açılır penceredeki bölümler ve betik satırları arasındaki boşluğu azaltır",
   "script_update_check_frequency": "Betik Güncelleme Denetimi Sıklığı",
   "script_auto_update_frequency": "Betik Otomatik Güncelleme Denetimi Sıklığı",
   "control_script_update_behavior": "Betik güncelleme davranışını kontrol et",
@@ -112,5 +115,15 @@
   "favicon_service_icon-horse": "Icon Horse",
   "favicon_service_local": "Yerel Getirme",
   "cloud_sync_account_verification": "Bulut eşitleme hesabı doğrulaması devam ediyor...",
-  "cloud_sync_verification_failed": "Bulut eşitleme hesabı doğrulaması başarısız"
+  "cloud_sync_verification_failed": "Bulut eşitleme hesabı doğrulaması başarısız",
+  "trash_retention": "Çöp Kutusu Saklama Süresi",
+  "trash_retention_desc": "Silinen betiklerin otomatik olarak kalıcı olarak silinmeden önce çöp kutusunda ne kadar süre saklanacağı",
+  "trash_retention_7": "7 Gün",
+  "trash_retention_30": "30 Gün",
+  "trash_retention_90": "90 Gün",
+  "trash_retention_never": "Asla",
+  "trash_enabled": "Çöp Kutusunu Etkinleştir",
+  "trash_enabled_desc": "Silinen betikler önce çöp kutusuna taşınır ve istediğiniz zaman geri yüklenebilir. Devre dışı bırakıldığında betikler doğrudan kalıcı olarak silinir.",
+  "trash_retention_custom": "Özel",
+  "trash_retention_days_unit": "gün"
 }

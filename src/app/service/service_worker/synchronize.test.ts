@@ -9,8 +9,11 @@ import { md5OfText } from "@App/pkg/utils/crypto";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import { AgentModelRepo } from "@App/app/repo/agent_model";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
+import { createMockOPFS } from "@App/app/repo/test-helpers";
 
 initTestEnv();
+
+beforeEach(() => createMockOPFS());
 
 const syncConfig: CloudSyncConfig = {
   enable: true,

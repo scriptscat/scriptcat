@@ -1345,6 +1345,6 @@ export class SynchronizeService {
     this.group.on("restoreConfigBundle", this.restoreConfigBundle.bind(this));
     // 监听脚本变化, 进行同步
     this.mq.subscribe<TInstallScript>("installScript", this.scriptInstall.bind(this));
-    this.mq.subscribe<TDeleteScript[]>("deleteScripts", this.scriptsDelete.bind(this));
+    this.mq.subscribe<TDeleteScript[]>("trashScripts", this.scriptsDelete.bind(this));
   }
 }
