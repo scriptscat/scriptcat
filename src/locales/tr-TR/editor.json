@@ -129,6 +129,8 @@
   "editor_config_format_error": "Düzenleyici Yapılandırma Biçimi Hatalı",
   "editor_type_definition_reset": "Düzenleyici Tür Tanımları Sıfırlandı",
   "editor_type_definition_saved": "Düzenleyici Tür Tanımları Kaydedildi",
+  "trash_restore_prompt_title": "Silinen betik geri yüklensin mi?",
+  "trash_restore_prompt_description": "Çöp kutusunda aynı ada ve ad alanına sahip bir betik var. Geri yüklemek, betiğin kimliğini ve korunan verilerini yeniden kullanır. Kaydetmeden düzenlemeye devam etmek için iptal edin.",
   "editor": {
     "show_script_list": "Betik Listesini Göster",
     "hide_script_list": "Betik Listesini Gizle"

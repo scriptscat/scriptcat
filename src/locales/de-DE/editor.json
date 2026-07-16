@@ -129,6 +129,8 @@
   "editor_config_format_error": "Editor-Konfiguration Formatfehler",
   "editor_type_definition_reset": "Editor-Typdefinitionen wurden zurückgesetzt",
   "editor_type_definition_saved": "Editor-Typdefinitionen wurden gespeichert",
+  "trash_restore_prompt_title": "Gelöschtes Skript wiederherstellen?",
+  "trash_restore_prompt_description": "Im Papierkorb befindet sich ein Skript mit demselben Namen und Namespace. Beim Wiederherstellen werden seine Identität und erhaltenen Daten wiederverwendet. Abbrechen setzt die Bearbeitung ohne Speichern fort.",
   "editor": {
     "show_script_list": "Skriptliste anzeigen",
     "hide_script_list": "Skriptliste ausblenden"
