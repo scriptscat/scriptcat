@@ -171,9 +171,9 @@ export class AgentChatRepo extends OPFSRepo {
   }
 
   // 保存会话关联的任务列表
-  async saveTasks(conversationId: string, tasks: Task[]): Promise<void> {
+  async saveTasks(conversationId: string, tasks: Task[], signal?: AbortSignal): Promise<void> {
     const tasksDir = await this.getChildDir(TASKS_DIR);
-    await this.writeJsonFile(`${conversationId}.json`, tasks, tasksDir);
+    await this.writeJsonFile(`${conversationId}.json`, tasks, tasksDir, signal);
   }
 
   // 删除会话关联的任务

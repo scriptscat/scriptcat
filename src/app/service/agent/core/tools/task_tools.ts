@@ -60,8 +60,8 @@ const LIST_TASKS_DEFINITION: ToolDefinition = {
 export type TaskToolsOptions = {
   // 初始任务列表（从持久化加载）
   initialTasks?: Task[];
-  // 任务变更时的持久化回调
-  onSave?: (tasks: Task[]) => Promise<void>;
+  // 任务变更时的持久化回调；signal 透传到底层写入，Stop 后不再提交任务快照（见 finding 4）
+  onSave?: (tasks: Task[], signal?: AbortSignal) => Promise<void>;
   // 任务变更时的事件推送回调（推送到 UI）
   sendEvent?: (event: ChatStreamEvent) => void;
 };
@@ -89,7 +89,7 @@ export function createTaskTools(options?: TaskToolsOptions): {
     const taskList = Array.from(tasks.values());
     throwIfAborted(signal);
     if (options?.onSave) {
-      await options.onSave(taskList);
+      await options.onSave(taskList, signal);
     }
     throwIfAborted(signal);
     if (options?.sendEvent) {

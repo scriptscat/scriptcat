@@ -416,6 +416,45 @@ describe("ToolRegistry", () => {
       expect(mockRepo.saveAttachment).toHaveBeenCalledWith(expect.any(String), "data:image/jpeg;base64,/9j/abc");
     });
 
+    it("附件写入期间被取消时，应回收本批已保存的附件并返回错误结果", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      registry.setChatRepo(mockRepo);
+      const controller = new AbortController();
+
+      const savedIds: string[] = [];
+      // 第二个附件写入完成的同时 Stop 到达：写入已提交，但结果不能再按成功上报
+      vi.mocked(mockRepo.saveAttachment).mockImplementation(async (id: string) => {
+        savedIds.push(id);
+        if (savedIds.length === 2) controller.abort();
+        return 1024;
+      });
+
+      const structuredResult: ToolResultWithAttachments = {
+        content: "Files generated.",
+        attachments: [
+          { type: "image", name: "a.png", mimeType: "image/png", data: "data:image/png;base64,a" },
+          { type: "image", name: "b.png", mimeType: "image/png", data: "data:image/png;base64,b" },
+        ],
+      };
+      const executor = createExecutor(async () => structuredResult);
+      registry.registerBuiltin(weatherDef, executor);
+
+      const results = await registry.execute(
+        [{ id: "tc_1", name: "get_weather", arguments: "{}" }],
+        null,
+        undefined,
+        controller.signal
+      );
+
+      expect(results[0].error).toBe(true);
+      expect(results[0].attachments).toBeUndefined();
+      // 本批两个已落盘的附件都必须被回收，不能只删最后一个
+      for (const id of savedIds) {
+        expect(mockRepo.deleteAttachment).toHaveBeenCalledWith(id);
+      }
+    });
+
     it("内置工具返回 ToolResultWithAttachments 含多个附件时应全部保存", async () => {
       const registry = new ToolRegistry();
       const mockRepo = createMockChatRepo();

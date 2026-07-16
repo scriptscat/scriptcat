@@ -600,8 +600,11 @@ export class ToolLoopOrchestrator {
           await this.chatRepo.updateMessage(persistedAssistantMessage);
         }
 
-        // 工具调用状态已全部回写完毕，取消可以安全终态化了：只发一条终态事件，不再进入循环检测/下一轮
-        if (cancelledDuringTools) {
+        // 工具调用状态已全部回写完毕，取消可以安全终态化了：只发一条终态事件，不再进入循环检测/下一轮。
+        // cancelledDuringTools 是工具执行结束时的采样；上面的事件发送/tool 消息持久化/状态回写
+        // 都是 await，期间到达的 Stop 也必须在这里被观察到，否则会带着已取消的 signal 继续
+        // 进入循环检测甚至下一轮 LLM 调用（见 finding 4）
+        if (cancelledDuringTools || signal.aborted) {
           await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
           return;
         }

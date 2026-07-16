@@ -36,6 +36,17 @@ describe("task_tools", () => {
     expect(sendEvent).not.toHaveBeenCalled();
   });
 
+  it("onSave 应收到透传的 AbortSignal，Stop 后底层写入可拒绝提交", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const { tools } = createTaskTools({ onSave });
+    const create = tools.find((tool) => tool.definition.name === "create_task")!;
+    const controller = new AbortController();
+
+    await create.executor.execute({ subject: "任务" }, controller.signal);
+
+    expect(onSave).toHaveBeenCalledWith(expect.any(Array), controller.signal);
+  });
+
   it("update_task 应更新任务字段", async () => {
     const { tools } = createTaskTools();
     const create = tools.find((t) => t.definition.name === "create_task")!;
@@ -103,7 +114,8 @@ describe("task_tools", () => {
     await create.executor.execute({ subject: "Test" });
 
     expect(onSave).toHaveBeenCalledOnce();
-    expect(onSave).toHaveBeenCalledWith([{ id: "1", subject: "Test", status: "pending" }]);
+    // 第二个参数是透传给底层写入的 AbortSignal，未传 signal 时为 undefined
+    expect(onSave).toHaveBeenCalledWith([{ id: "1", subject: "Test", status: "pending" }], undefined);
 
     expect(sendEvent).toHaveBeenCalledOnce();
     expect(sendEvent).toHaveBeenCalledWith({

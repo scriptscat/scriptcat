@@ -320,31 +320,43 @@ export class ToolRegistry implements ToolExecutorLike {
     if (!this.chatRepo || attachmentDataList.length === 0) return [];
 
     const attachments: Attachment[] = [];
-    for (const ad of attachmentDataList) {
-      throwIfAborted(signal);
-      if (!ad.data) {
-        // 无 data 的附件是已保存的引用（如 skill script 返回的 imageBlock），直接透传元数据
-        if ("attachmentId" in ad && (ad as any).attachmentId) {
-          attachments.push({
-            id: (ad as any).attachmentId,
-            type: ad.type,
-            name: ad.name,
-            mimeType: ad.mimeType,
-            size: (ad as any).size,
-          });
+    // 本批真正由这里写入的附件 id（不含无 data 的已保存引用）：中途 abort/失败时必须整批回收，
+    // 否则该 toolCall 以 error 结果收场后，这些文件不再被任何消息引用（见 finding 4）
+    const savedIds: string[] = [];
+    try {
+      for (const ad of attachmentDataList) {
+        throwIfAborted(signal);
+        if (!ad.data) {
+          // 无 data 的附件是已保存的引用（如 skill script 返回的 imageBlock），直接透传元数据
+          if ("attachmentId" in ad && (ad as any).attachmentId) {
+            attachments.push({
+              id: (ad as any).attachmentId,
+              type: ad.type,
+              name: ad.name,
+              mimeType: ad.mimeType,
+              size: (ad as any).size,
+            });
+          }
+          continue;
         }
-        continue;
+        const ext = getExtFromMime(ad.mimeType);
+        const id = `${uuidv4()}.${ext}`;
+        const size = await this.chatRepo.saveAttachment(id, ad.data);
+        savedIds.push(id);
+        // 写入期间可能已被 Stop：不能把这次结果当作成功返回，进入 catch 统一回收
+        throwIfAborted(signal);
+        attachments.push({
+          id,
+          type: ad.type,
+          name: ad.name,
+          mimeType: ad.mimeType,
+          size,
+        });
       }
-      const ext = getExtFromMime(ad.mimeType);
-      const id = `${uuidv4()}.${ext}`;
-      const size = await this.chatRepo.saveAttachment(id, ad.data);
-      attachments.push({
-        id,
-        type: ad.type,
-        name: ad.name,
-        mimeType: ad.mimeType,
-        size,
-      });
+    } catch (error) {
+      const repo = this.chatRepo;
+      await Promise.all(savedIds.map((id) => repo.deleteAttachment(id).catch(() => {})));
+      throw error;
     }
     return attachments;
   }

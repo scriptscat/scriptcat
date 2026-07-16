@@ -173,6 +173,22 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     }
   );
 
+  it("工具结果持久化期间被取消时应立即终态化，而不是带着已取消的信号进入下一轮", async () => {
+    const controller = new AbortController();
+    callLLM.mockResolvedValueOnce(dupToolCallResult("c1"));
+    // 工具执行正常结束后，tool 结果消息落库完成的同时 Stop 到达（晚于 cancelledDuringTools 采样点）
+    chatRepo.appendMessage.mockImplementation(async (msg: any) => {
+      if (msg.role === "tool") controller.abort();
+    });
+
+    await orchestrator.callLLMWithToolLoop(baseParams({ signal: controller.signal }));
+
+    expect(callLLM).toHaveBeenCalledTimes(1);
+    const events = sendEvent.mock.calls.map((c) => c[0]);
+    expect(events.find((e) => e.type === "error")?.errorCode).toBe("cancelled");
+    expect(events.some((e) => e.type === "new_message")).toBe(false);
+  });
+
   it("触发 autoCompact 时应保留原始模型，而不是把 contextWindow 预先缩小", async () => {
     callLLM.mockResolvedValue({ content: "done", usage: { inputTokens: 6000, outputTokens: 5 } });
 

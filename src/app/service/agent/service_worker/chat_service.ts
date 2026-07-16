@@ -741,7 +741,7 @@ export class ChatService {
       const initialTasks = await this.chatRepo.getTasks(params.conversationId);
       const { tools: taskToolDefs } = createTaskTools({
         initialTasks,
-        onSave: (tasks) => this.chatRepo.saveTasks(params.conversationId, tasks),
+        onSave: (tasks, signal) => this.chatRepo.saveTasks(params.conversationId, tasks, signal),
         sendEvent,
       });
       for (const t of taskToolDefs) {
