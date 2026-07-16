@@ -5,7 +5,7 @@
   "create_script": "Criar script",
   "installed_scripts": "Scripts instalados",
   "nav_scripts": "Scripts",
-  "subscribe": "Assinar",
+  "subscribe": "Assinaturas",
   "subscribe_scripts_count": "{{count}} scripts",
   "enter_subscribe_name": "Por favor, insira o nome da assinatura",
   "subscribe_url": "URL da Assinatura",
