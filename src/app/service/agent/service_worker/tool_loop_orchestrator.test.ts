@@ -21,6 +21,8 @@ function makeFakeChatRepo() {
     getMessages: vi.fn().mockResolvedValue([]),
     saveMessages: vi.fn().mockResolvedValue(undefined),
     updateMessage: vi.fn().mockResolvedValue(undefined),
+    getAttachment: vi.fn().mockResolvedValue(null),
+    deleteAttachment: vi.fn().mockResolvedValue(undefined),
   } as any;
 }
 
@@ -130,6 +132,46 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
       usage: { inputTokens: 17, outputTokens: 8 },
     });
   });
+
+  it("LLM 返回后立即取消时，已保存但未被任何消息引用的生成附件应被删除", async () => {
+    const controller = new AbortController();
+    callLLM.mockImplementation(async () => {
+      // 取消恰好落在 provider 成功返回之后、消息持久化之前
+      controller.abort();
+      return {
+        content: "生成了一张图",
+        contentBlocks: [{ type: "image", attachmentId: "img_orphan.png", mimeType: "image/png" }],
+        usage: { inputTokens: 10, outputTokens: 5 },
+      } as LLMCallResult;
+    });
+
+    await orchestrator.callLLMWithToolLoop(baseParams({ signal: controller.signal }));
+
+    // 终态是取消，assistant 消息不会持久化，生成的附件必须回收，否则成为孤儿文件
+    expect(chatRepo.deleteAttachment).toHaveBeenCalledWith("img_orphan.png");
+    const terminal = sendEvent.mock.calls.map((c) => c[0]).find((e) => e.type === "error");
+    expect(terminal?.errorCode).toBe("cancelled");
+  });
+
+  it(
+    "最终回复持久化失败（persist_failed）时应回收生成附件",
+    // 持久化重试退避 200ms + 400ms，放宽超时
+    { timeout: 3000 },
+    async () => {
+      chatRepo.appendMessage.mockRejectedValue(new Error("disk full"));
+      callLLM.mockResolvedValue({
+        content: "回复",
+        contentBlocks: [{ type: "image", attachmentId: "img_lost.png", mimeType: "image/png" }],
+        usage: { inputTokens: 3, outputTokens: 2 },
+      } as LLMCallResult);
+
+      await orchestrator.callLLMWithToolLoop(baseParams());
+
+      const terminal = sendEvent.mock.calls.map((c) => c[0]).find((e) => e.type === "error");
+      expect(terminal?.errorCode).toBe("persist_failed");
+      expect(chatRepo.deleteAttachment).toHaveBeenCalledWith("img_lost.png");
+    }
+  );
 
   it("触发 autoCompact 时应保留原始模型，而不是把 contextWindow 预先缩小", async () => {
     callLLM.mockResolvedValue({ content: "done", usage: { inputTokens: 6000, outputTokens: 5 } });

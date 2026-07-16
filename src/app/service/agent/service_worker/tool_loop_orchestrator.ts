@@ -170,6 +170,19 @@ export class ToolLoopOrchestrator {
     if (throwOnTerminalError) throw error;
   }
 
+  /** 生成的附件（如模型产出的图片）在被 assistant 消息持久化引用之前只是"本轮租约"：
+   * 任何不会把引用消息落库的退出路径（取消、持久化失败、落库异常）都必须删除这些文件，
+   * 否则它们会成为无任何消息引用的孤儿附件（见 finding 5）。 */
+  private async releaseGeneratedAttachments(result: LLMCallResult): Promise<void> {
+    const blocks = result.contentBlocks;
+    if (!blocks || blocks.length === 0) return;
+    await Promise.all(
+      blocks
+        .filter((block): block is Exclude<ContentBlock, { type: "text" }> => block.type !== "text")
+        .map((block) => this.chatRepo.deleteAttachment(block.attachmentId).catch(() => {}))
+    );
+  }
+
   /** 取消（stop）落定时的统一终态化：持久化一条终态记录 + 发送唯一的终态事件，携带累计 usage/耗时。
    * 落库失败不能阻塞事件发送，否则客户端永远收不到终态事件（见 finding 5）。 */
   private async emitCancelled(
@@ -386,6 +399,8 @@ export class ToolLoopOrchestrator {
       }
 
       if (signal.aborted) {
+        // 本轮生成的附件尚未被任何持久化消息引用，取消退出前必须回收
+        await this.releaseGeneratedAttachments(result);
         await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
         return;
       }
@@ -406,6 +421,8 @@ export class ToolLoopOrchestrator {
               totalUsage.cacheReadInputTokens += compactUsage.cacheReadInputTokens || 0;
             }
           } catch (error) {
+            // 本轮结果的 assistant 消息不会再持久化，生成的附件必须先回收
+            await this.releaseGeneratedAttachments(result);
             if (signal.aborted) {
               await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
               return;
@@ -419,6 +436,7 @@ export class ToolLoopOrchestrator {
           // autoCompact 期间可能已被 stop：继续持久化/发送最终消息前必须重新检查，
           // 并统一走取消终态化路径（唯一一条终态事件 + 已回写的累计 usage），而不是静默 return
           if (signal.aborted) {
+            await this.releaseGeneratedAttachments(result);
             await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
             return;
           }
@@ -458,7 +476,13 @@ export class ToolLoopOrchestrator {
             toolCalls: result.toolCalls,
             createtime: Date.now(),
           };
-          await this.chatRepo.appendMessage(persistedAssistantMessage);
+          try {
+            await this.chatRepo.appendMessage(persistedAssistantMessage);
+          } catch (error) {
+            // 引用消息落库失败：本轮生成的附件不会有任何持久化引用，先回收再抛出
+            await this.releaseGeneratedAttachments(result);
+            throw error;
+          }
         }
 
         // 将 assistant 消息加入上下文（带 toolCalls，供 provider 构建 tool_calls 字段）
@@ -700,11 +724,17 @@ export class ToolLoopOrchestrator {
       // 持久化期间也可能已被 stop：内容已经落库（不丢失），但终态事件必须反映取消，
       // 不能在 Stop 之后仍对外报告 done（否则后台会话状态会被"成功"覆盖掉 cancelled）
       if (signal.aborted) {
+        // 引用消息未落库（ephemeral 或 persist 失败）时，生成附件没有持久化引用，必须回收
+        if (!conversationId || persistFailed) {
+          await this.releaseGeneratedAttachments(result);
+        }
         await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
         return;
       }
 
       if (persistFailed) {
+        // 回复消息没有落库成功，生成附件不会有任何持久化引用，回收后再报告失败
+        await this.releaseGeneratedAttachments(result);
         sendEvent({
           type: "error",
           message: "Reply was generated but failed to save. It may be lost after reloading.",
