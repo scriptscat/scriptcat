@@ -33,22 +33,16 @@ export default class LoggerCore {
   level: LogLevel;
 
   // 打印在console的等级, 会在控制台输出
-  consoleLevel: LogLevel = "warn";
+  consoleLevel: LogLevel;
 
   labels: LogLabel;
 
   constructor(config: { level?: LogLevel; consoleLevel?: LogLevel; writer: Writer; labels: LogLabel }) {
+    const isDevelopment = process.env.NODE_ENV === "development";
     this.writer = config.writer;
-    this.level = config.level ?? (process.env.NODE_ENV === "development" ? "debug" : "info");
-    this.labels = config.labels || {};
-    // 获取日志debug等级, 如果是开发环境, 则默认为debug
-    if (config.consoleLevel !== undefined) {
-      this.consoleLevel = config.consoleLevel;
-    } else {
-      if (process.env.NODE_ENV === "development") {
-        this.consoleLevel = "debug";
-      }
-    }
+    this.level = config.level ?? (isDevelopment ? "debug" : "info");
+    this.consoleLevel = config.consoleLevel ?? (isDevelopment ? "debug" : "warn");
+    this.labels = config.labels;
     if (!LoggerCore.instance) {
       LoggerCore.instance = this;
     }
