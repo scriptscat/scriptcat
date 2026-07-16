@@ -7,7 +7,7 @@
   "connection_failed": "Falha na Conexão",
   "select_import_script": "Por favor, Selecione o Script para Importar na Nova Página",
   "import_error": "Erro de Importação",
-  "pulling_data_from_cloud": "Puxando Dados da Nuvem",
+  "pulling_data_from_cloud": "Obtendo dados da nuvem",
   "pull_failed": "Falha ao Puxar",
   "restore": "Restaurar",
   "manual_download": "Faça o download manualmente se o download não iniciar",

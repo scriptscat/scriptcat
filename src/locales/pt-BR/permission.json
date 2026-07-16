@@ -20,7 +20,7 @@
   "user_script_type": "Script de usuário",
   "auth_duration": "Duração da autorização",
   "duration_once": "Apenas uma vez",
-  "duration_temporary": "Temporário",
+  "duration_temporary": "Temporária",
   "duration_permanent": "Permanente",
   "apply_to_all_domains": "Aplicar a todos os domínios solicitados",
   "apply_to_all_domains_desc": "Aplica-se a todas as solicitações deste script (curinga)",
@@ -33,7 +33,7 @@
   "cookie_warning_desc": "Cookies contêm dados sensíveis, como o estado de login. Autorize apenas scripts confiáveis.",
   "confirm_expired_title": "A solicitação de autorização expirou",
   "confirm_expired_desc": "Esta solicitação de autorização expirou ou já foi tratada. Por favor, retorne à página e acione-a novamente.",
-  "auto_close_in": "A janela fechará automaticamente em {{second}}s",
+  "auto_close_in": "A janela fechará automaticamente em {{second}} s",
   "permission_cors": "Entre origens (CORS)",
   "permission_cookie": "Gerenciar cookies"
 }
