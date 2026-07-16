@@ -94,7 +94,9 @@
     "script_sync_conflict": "Cloud-Synchronisierungskonflikt",
     "script_sync_conflict_desc": "Skript {{scriptNames}} wurde sowohl lokal als auch in der Cloud geändert. Die Synchronisierung dieses Skripts ist pausiert, bitte lösen Sie den Konflikt manuell",
     "subscribe_update": "Abonnement {{subscribeName}} wurde aktualisiert",
-    "subscribe_update_desc": "Neue Skripte: {{newScripts}}\nGelöschte Skripte: {{deletedScripts}}"
+    "subscribe_update_desc": "Neue Skripte: {{newScripts}}\nGelöschte Skripte: {{deletedScripts}}",
+    "script_sync_overwrite": "Cloud-Sync-Überschreibung",
+    "script_sync_overwrite_desc": "{{scriptNames}} und {{count}} Skript(e) wurden durch die Cloud-Version überschrieben. Klicken Sie, um das Sync-Protokoll zu prüfen."
   },
   "enable_background": {
     "title": "Hintergrundausführung aktivieren",
@@ -125,5 +127,14 @@
   "trash_enabled": "Papierkorb aktivieren",
   "trash_enabled_desc": "Gelöschte Skripte wandern zuerst in den Papierkorb und können jederzeit wiederhergestellt werden. Ist die Option deaktiviert, werden Skripte sofort endgültig gelöscht.",
   "trash_retention_custom": "Benutzerdefiniert",
-  "trash_retention_days_unit": "Tage"
+  "trash_retention_days_unit": "Tage",
+  "sync_view_logs": "Protokoll anzeigen",
+  "sync_now": "Jetzt synchronisieren",
+  "sync_state_idle": "Synchronisierung in Ordnung",
+  "sync_last_at": "Zuletzt synchronisiert {{time}}",
+  "sync_never": "Noch nicht synchronisiert",
+  "sync_state_syncing": "Synchronisiere…",
+  "sync_state_attention": "Letzte Synchronisierung erfordert Ihre Prüfung",
+  "sync_state_attention_desc": "{{overwrite}} Skript(e) von der Cloud überschrieben, {{conflict}} Konflikt(e) pausiert. Öffnen Sie das Protokoll zur Bestätigung.",
+  "sync_state_error": "Synchronisierung fehlgeschlagen, pausiert"
 }

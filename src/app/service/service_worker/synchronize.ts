@@ -23,7 +23,13 @@ import { createJSZip } from "@App/pkg/utils/jszip-x";
 import { type ValueService } from "./value";
 import { type ResourceService } from "./resource";
 import { createObjectURL } from "../offscreen/client";
-import { type CloudSyncConfig, type SystemConfig } from "@App/pkg/config/config";
+import {
+  type CloudSyncConfig,
+  type CloudSyncState,
+  type SystemConfig,
+  CLOUD_SYNC_STATE_KEY,
+  DEFAULT_CLOUD_SYNC_STATE,
+} from "@App/pkg/config/config";
 import type { TDeleteScript, TInstallScript, TInstallScriptParams } from "../queue";
 import { errorMsg, makeBlobURL } from "@App/pkg/utils/utils";
 import { t } from "i18next";
@@ -128,6 +134,12 @@ class SyncBothChangedConflictError extends Error {
 
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 
+// 「查看日志」深链的标签过滤载荷（供 Logger 页 parseInitialQueries 解析）。覆盖通知直接落到 overwrite 行。
+const SYNC_LOG_QUERY_OVERWRITE = JSON.stringify([
+  { key: "service", value: "synchronize" },
+  { key: "action", value: "overwrite" },
+]);
+
 function getScriptModifiedDate(script: PushScriptParam): number {
   return script.updatetime || script.createtime || Date.now();
 }
@@ -141,6 +153,9 @@ export class SynchronizeService {
 
   // 上一轮已通知过的冲突脚本集合（uuid 排序拼接），冲突集合未变化时不重复通知
   private lastNotifiedConflictKey = "";
+
+  // 上一轮已通知过的覆盖脚本集合（uuid 排序拼接），覆盖集合未变化时不重复通知
+  private lastNotifiedOverwriteKey = "";
 
   constructor(
     private msgSender: MessageSend,
@@ -448,10 +463,25 @@ export class SynchronizeService {
   // 同步一次
   async syncOnce(syncConfig: CloudSyncConfig, fs: FileSystem) {
     return stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
+      // 设备本地同步状态：开始置 syncing，结束写入计数/时间或错误，供设置页状态条展示。
+      // 读旧值与写 syncing 不能 await 在 syncOnceInternal 之前，否则存储 I/O 会推迟内部起始时序（见测试的微任务门控）。
+      const prevStatePromise = this.storage.get(CLOUD_SYNC_STATE_KEY).then(async (prev) => {
+        const prevState = (prev as CloudSyncState) || DEFAULT_CLOUD_SYNC_STATE;
+        await this.storage.set(CLOUD_SYNC_STATE_KEY, { ...prevState, syncing: true, error: undefined });
+        return prevState;
+      });
       try {
-        await this.syncOnceInternal(syncConfig, fs);
+        const counts = await this.syncOnceInternal(syncConfig, fs);
+        await prevStatePromise; // 保证 syncing 起始写在结束写之前
+        await this.storage.set(CLOUD_SYNC_STATE_KEY, { syncing: false, lastSyncAt: Date.now(), counts });
       } catch (e) {
         this.logger.error("sync once error", Logger.E(e));
+        const prevState = await prevStatePromise.catch(() => DEFAULT_CLOUD_SYNC_STATE);
+        await this.storage.set(CLOUD_SYNC_STATE_KEY, {
+          ...prevState,
+          syncing: false,
+          error: e instanceof Error ? e.message : String(e),
+        });
       }
     });
   }
@@ -521,6 +551,8 @@ export class SynchronizeService {
     // 对比脚本列表和文件列表,进行同步
     const result: SyncTask[] = [];
     const updateScript: Map<string, boolean> = new Map();
+    // 无内容基线兜底覆盖：记录本轮"可能覆盖了未知改动"的脚本，供覆盖日志与聚合通知使用
+    const overwriteScripts: { uuid: string; scriptName: string; direction: "pull" | "push" }[] = [];
     // 记录被跳过的孤儿云端脚本（仅 .user.js 无 .meta.json）
     // 避免本机回写 scriptcat-sync.json 时丢失对应 uuid 的云端 status
     const skippedOrphanUuids = new Set<string>();
@@ -608,10 +640,20 @@ export class SynchronizeService {
           (async () => {
             const direction = await this.decideDirectionOnRemoteChange(fs, file.script!, script, syncedContentMd5Map);
             if (direction.action === "pull") {
+              if (direction.unverified) {
+                const scriptName = i18nName(script);
+                this.logger.warn("sync overwrite", { action: "overwrite", direction: "pull", uuid, name: scriptName });
+                overwriteScripts.push({ uuid, scriptName, direction: "pull" });
+              }
               updateScript.set(uuid, true);
               return await this.pullScript(fs, file as SyncFiles, cloudStatus[uuid], script);
             }
             if (direction.action === "push") {
+              if (direction.unverified) {
+                const scriptName = i18nName(script);
+                this.logger.warn("sync overwrite", { action: "overwrite", direction: "push", uuid, name: scriptName });
+                overwriteScripts.push({ uuid, scriptName, direction: "push" });
+              }
               return await this.pushScript(fs, script, {
                 fileDigestMap,
                 scriptFile: file.script,
@@ -689,6 +731,23 @@ export class SynchronizeService {
       );
     }
     this.lastNotifiedConflictKey = conflictKey;
+    // 覆盖通知：无内容基线兜底覆盖可能覆盖了未知改动，聚合一轮一条；同批不重复（集合变化或消失后重置）。
+    // 点击深链到已过滤 service=synchronize & action=overwrite 的日志，让用户自行确认改动。
+    const overwriteKey = overwriteScripts
+      .map((c) => c.uuid)
+      .sort()
+      .join(",");
+    if (overwriteScripts.length && overwriteKey !== this.lastNotifiedOverwriteKey) {
+      InfoNotification(
+        i18n.t("settings:notification.script_sync_overwrite"),
+        i18n.t("settings:notification.script_sync_overwrite_desc", {
+          scriptNames: overwriteScripts.map((c) => c.scriptName).join(", "),
+          count: overwriteScripts.length,
+        }),
+        { url: `/src/options.html#/logs?query=${encodeURIComponent(SYNC_LOG_QUERY_OVERWRITE)}` }
+      );
+    }
+    this.lastNotifiedOverwriteKey = overwriteKey;
     // 同步状态
     if (syncConfig.syncStatus && canWriteScriptcatSync) {
       try {
@@ -773,7 +832,13 @@ export class SynchronizeService {
     this.logger.info("update file digest");
     await this.updateFileDigest(fs, pushedFileDigestMap, preserveDigestFiles);
     this.logger.info("sync complete");
-    return;
+    // failedSyncUuids 含冲突（冲突走失败路径），failed 计数排除冲突以免与 conflict 重复
+    return {
+      total: scriptList.length,
+      overwrite: overwriteScripts.length,
+      conflict: conflictScripts.length,
+      failed: Math.max(0, failedSyncUuids.size - conflictScripts.length),
+    };
   }
 
   private classifySyncError(error: unknown): SyncErrorKind {
@@ -1146,11 +1211,15 @@ export class SynchronizeService {
     cloudFile: FileInfo,
     script: Script,
     syncedContentMd5Map: FileDigestMap
-  ): Promise<{ action: "push" | "pull" | "conflict" } | { action: "adopt"; digestMap: FileDigestMap }> {
+  ): Promise<
+    { action: "push" | "pull" | "conflict"; unverified?: boolean } | { action: "adopt"; digestMap: FileDigestMap }
+  > {
     const baselineMd5 = syncedContentMd5Map[cloudFile.name];
     if (baselineMd5 === undefined) {
+      // 无内容基线（升级前旧数据/从未同步成功）：只能退回跨时钟域的墙钟比较，无法确认落败一端是否真未改动，
+      // 因此标记 unverified——上层据此打 overwrite 日志并通知用户，让其自行确认（见 docs/cloud-sync.md 覆盖可见性）。
       const updatetime = script.updatetime || script.createtime;
-      return { action: updatetime > cloudFile.updatetime ? "push" : "pull" };
+      return { action: updatetime > cloudFile.updatetime ? "push" : "pull", unverified: true };
     }
     const code = await this.scriptCodeDAO.get(script.uuid);
     const localMd5 = code ? md5OfText(code.code) : undefined;
@@ -1338,7 +1407,16 @@ export class SynchronizeService {
     }
   }
 
+  // 手动触发一次云同步（设置页「立即同步」按钮）。用已保存配置，未启用则不触发。
+  async cloudSyncOnce() {
+    const config = await this.systemConfig.getCloudSync();
+    if (!config.enable) return;
+    const fs = await this.buildFileSystem(config);
+    await this.syncOnce(config, fs);
+  }
+
   init() {
+    this.group.on("cloudSyncOnce", this.cloudSyncOnce.bind(this));
     this.group.on("export", this.requestExport.bind(this));
     this.group.on("backupToCloud", this.backupToCloud.bind(this));
     this.group.on("importResources", this.importResources.bind(this));

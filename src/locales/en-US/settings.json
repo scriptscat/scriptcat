@@ -94,7 +94,9 @@
     "script_sync_conflict": "Cloud Sync Conflict",
     "script_sync_conflict_desc": "Both the local and cloud versions of {{scriptNames}} have been modified. Sync for the script is paused; please resolve the conflict manually",
     "subscribe_update": "Subscribe {{subscribeName}} has been updated",
-    "subscribe_update_desc": "New scripts: {{newScripts}}\nDeleted scripts: {{deletedScripts}}"
+    "subscribe_update_desc": "New scripts: {{newScripts}}\nDeleted scripts: {{deletedScripts}}",
+    "script_sync_overwrite": "Cloud sync overwrite",
+    "script_sync_overwrite_desc": "{{scriptNames}} and {{count}} script(s) were overwritten by the cloud version. Click to review the sync log."
   },
   "enable_background": {
     "title": "Enable Background Running",
@@ -125,5 +127,14 @@
   "trash_enabled": "Enable Trash",
   "trash_enabled_desc": "Deleted scripts go to Trash first and can be restored at any time. When disabled, deleting a script removes it permanently right away.",
   "trash_retention_custom": "Custom",
-  "trash_retention_days_unit": "days"
+  "trash_retention_days_unit": "days",
+  "sync_view_logs": "View logs",
+  "sync_now": "Sync now",
+  "sync_state_idle": "Sync healthy",
+  "sync_last_at": "Last synced {{time}}",
+  "sync_never": "Not synced yet",
+  "sync_state_syncing": "Syncing…",
+  "sync_state_attention": "Last sync needs your review",
+  "sync_state_attention_desc": "{{overwrite}} script(s) overwritten by cloud, {{conflict}} conflict(s) paused. Open the log to confirm.",
+  "sync_state_error": "Sync failed, paused"
 }

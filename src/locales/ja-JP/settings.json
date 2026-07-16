@@ -94,7 +94,9 @@
     "script_sync_conflict": "クラウド同期の競合",
     "script_sync_conflict_desc": "スクリプト {{scriptNames}} はローカルとクラウドの両方で変更されています。同期を一時停止しました。手動で解決してください",
     "subscribe_update": "サブスクリプション {{subscribeName}} が更新されました",
-    "subscribe_update_desc": "新しいスクリプト: {{newScripts}}\n削除されたスクリプト: {{deletedScripts}}"
+    "subscribe_update_desc": "新しいスクリプト: {{newScripts}}\n削除されたスクリプト: {{deletedScripts}}",
+    "script_sync_overwrite": "クラウド同期の上書き通知",
+    "script_sync_overwrite_desc": "{{scriptNames}} など {{count}} 個のスクリプトがクラウド版で上書きされました。クリックして同期ログを確認してください"
   },
   "enable_background": {
     "title": "バックグラウンド実行を有効にする",
@@ -125,5 +127,14 @@
   "trash_enabled": "ゴミ箱を有効にする",
   "trash_enabled_desc": "削除したスクリプトはまずゴミ箱に移動し、いつでも復元できます。無効にすると、削除したスクリプトはすぐに完全に削除されます。",
   "trash_retention_custom": "カスタム",
-  "trash_retention_days_unit": "日"
+  "trash_retention_days_unit": "日",
+  "sync_view_logs": "ログを表示",
+  "sync_now": "今すぐ同期",
+  "sync_state_idle": "同期は正常です",
+  "sync_last_at": "前回の同期 {{time}}",
+  "sync_never": "未同期",
+  "sync_state_syncing": "同期中…",
+  "sync_state_attention": "前回の同期に確認が必要な変更があります",
+  "sync_state_attention_desc": "{{overwrite}} 個のスクリプトがクラウドで上書き、{{conflict}} 個の競合が停止中です。ログを開いて確認してください",
+  "sync_state_error": "同期に失敗し、停止しました"
 }

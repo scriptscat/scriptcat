@@ -381,6 +381,46 @@ Baidu 当前不声明 atomic 能力。维护时注意：
 
 ZipFileSystem 主要服务备份/导出，不应接入云同步 CAS 语义。它不声明 capabilities。
 
+## 覆盖/冲突可见性
+
+云同步在 best-effort、last-writer-wins 下可能静默覆盖或停走脚本。为让用户可感知、可回溯，增加了三处可见性（**不改变同步语义**，只增加提示与记录）。
+
+### 同步状态 `cloud_sync_state`
+
+`syncOnce()` 每轮把设备本地同步状态写入 `ChromeStorage("sync")`（即 `chrome.storage.local`，物理键 `sync_cloud_sync_state`）：
+
+```ts
+type CloudSyncState = {
+  syncing: boolean;
+  lastSyncAt: number; // ms，从未同步为 0
+  error?: string; // 最近一次失败原因（如账号验证失败）
+  counts: { total: number; overwrite: number; conflict: number; failed: number };
+};
+```
+
+- 开始置 `syncing:true`，结束写 `counts`/`lastSyncAt`，异常写 `error`。注意：读旧值与写 `syncing` **不能** await 在 `syncOnceInternal` 之前，否则存储 I/O 会推迟内部起始，打乱测试的微任务门控。
+- 设置页「脚本同步」卡片顶部状态条（`SyncSection.tsx` + `syncStatus.ts`）读取并订阅 `chrome.storage.onChanged` 实时展示四态：正常 / 同步中 / 有覆盖或冲突（琥珀警示）/ 失败。
+- `立即同步` 按钮经 `SynchronizeClient.cloudSyncOnce()` → SW `group.on("cloudSyncOnce")` → 用**已保存**配置跑一次 `syncOnce`（未启用则不触发）。
+
+### 覆盖日志（`action` 标签）
+
+`decideDirectionOnRemoteChange()` 的**无内容基线兜底**分支（`baselineMd5 === undefined`）只能按跨时钟域墙钟比较 pull/push，可能覆盖未知改动。该分支返回 `{ action, unverified: true }`，调用点据此打警告日志：
+
+```ts
+this.logger.warn("sync overwrite", { action: "overwrite", direction, uuid, name });
+```
+
+日志经现有 `LoggerDAO` 落 IndexedDB（`service: "synchronize"`）。日志 `message` 保持稳定英文标识（与既有同步日志一致），人类可读文案由状态条与通知承载。
+
+### 通知与深链
+
+本轮有覆盖时聚合一条 `InfoNotification`（仿冲突的 `lastNotifiedOverwriteKey`，一轮一条、同批不重复、集合变化重发），点击打开 `/src/options.html#/logs?query=...`。`?query` 载荷 `[{key,value}]` 由 Logger 页 `parseInitialQueries` 解析，预过滤到 `service=synchronize` 且 `action=overwrite` 的行。状态条「查看日志」用同一深链格式。
+
+### 边界
+
+- 日志按 `LogCleanCycle`（默认 7 天，`LoggerDAO.deleteBefore`）自动清理，回溯窗口约最近 7 天。
+- `overwrite` 只覆盖「无基线兜底」这一**可检测**的静默覆盖；纯 TOCTOU last-writer-wins（见上文 push 一节）客户端无法察觉，不在本轮可见性范围内。
+
 ## 生产兼容要求
 
 改同步逻辑前必须检查：

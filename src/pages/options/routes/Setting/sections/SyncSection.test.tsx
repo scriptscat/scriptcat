@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { act, render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 const { create } = vi.hoisted(() => ({ create: vi.fn(() => Promise.resolve({})) }));
@@ -33,7 +33,28 @@ vi.mock("@App/pages/store/global", () => ({
   subscribeMessage: () => () => {},
 }));
 
+const { fetchCloudSyncState, subscribeCloudSyncState, requestCloudSyncOnce } = vi.hoisted(() => ({
+  fetchCloudSyncState: vi.fn(),
+  subscribeCloudSyncState: vi.fn(() => () => {}),
+  requestCloudSyncOnce: vi.fn(() => Promise.resolve()),
+}));
+vi.mock("@App/pages/store/features/cloud_sync", () => ({
+  fetchCloudSyncState,
+  subscribeCloudSyncState,
+  requestCloudSyncOnce,
+}));
+
 import { SyncSection } from "./SyncSection";
+
+function mockState(over: Record<string, unknown> = {}) {
+  fetchCloudSyncState.mockResolvedValue({
+    syncing: false,
+    lastSyncAt: 0,
+    error: undefined,
+    counts: { total: 0, overwrite: 0, conflict: 0, failed: 0 },
+    ...over,
+  });
+}
 
 function mockCloudSync(over: Record<string, unknown> = {}) {
   get.mockImplementation((key: string) => {
@@ -50,12 +71,22 @@ function mockCloudSync(over: Record<string, unknown> = {}) {
   });
 }
 
+beforeEach(() => {
+  // 默认：状态读取返回空闲态，订阅返回空清理函数，避免未显式 mock 的用例在 effect 中崩溃
+  mockState();
+  subscribeCloudSyncState.mockReturnValue(() => {});
+  requestCloudSyncOnce.mockResolvedValue(undefined);
+});
+
 afterEach(() => {
   cleanup();
   get.mockReset();
   set.mockReset();
   create.mockReset();
   create.mockResolvedValue({});
+  fetchCloudSyncState.mockReset();
+  subscribeCloudSyncState.mockReset();
+  requestCloudSyncOnce.mockReset();
 });
 
 describe("同步分区", () => {
@@ -103,5 +134,33 @@ describe("同步分区", () => {
     fireEvent.click(cb);
     await act(async () => fireEvent.click(screen.getByTestId("cloud_sync_save")));
     expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ syncStatus: false }));
+  });
+
+  it("启用同步且上次有覆盖/冲突时显示警示状态条与查看日志深链", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
+    mockState({ lastSyncAt: 1, counts: { total: 3, overwrite: 2, conflict: 1, failed: 0 } });
+    render(<SyncSection register={() => () => {}} />);
+    const strip = await screen.findByTestId("cloud_sync_status");
+    expect(strip.getAttribute("data-variant")).toBe("warning");
+    const href = screen.getByTestId("cloud_sync_view_logs").getAttribute("href") || "";
+    expect(decodeURIComponent(href)).toContain("synchronize");
+    expect(decodeURIComponent(href)).toContain("overwrite");
+  });
+
+  it("点击立即同步触发一次云同步", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
+    mockState({ lastSyncAt: 1 });
+    render(<SyncSection register={() => () => {}} />);
+    const btn = await screen.findByTestId("cloud_sync_now");
+    await act(async () => fireEvent.click(btn));
+    expect(requestCloudSyncOnce).toHaveBeenCalled();
+  });
+
+  it("未启用同步时不显示状态条", async () => {
+    mockCloudSync({ enable: false });
+    mockState({});
+    render(<SyncSection register={() => () => {}} />);
+    await screen.findByTestId("cloud_sync_save");
+    expect(screen.queryByTestId("cloud_sync_status")).toBeNull();
   });
 });

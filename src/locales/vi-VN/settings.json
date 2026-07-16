@@ -94,7 +94,9 @@
     "script_sync_conflict": "Xung đột đồng bộ đám mây",
     "script_sync_conflict_desc": "Script {{scriptNames}} đã thay đổi cả trên máy và trên đám mây. Đã tạm dừng đồng bộ script này, vui lòng xử lý thủ công",
     "subscribe_update": "Đăng ký {{subscribeName}} đã được cập nhật",
-    "subscribe_update_desc": "Script mới: {{newScripts}}\nScript đã xóa: {{deletedScripts}}"
+    "subscribe_update_desc": "Script mới: {{newScripts}}\nScript đã xóa: {{deletedScripts}}",
+    "script_sync_overwrite": "Cảnh báo ghi đè đồng bộ đám mây",
+    "script_sync_overwrite_desc": "{{scriptNames}} và {{count}} tập lệnh đã bị ghi đè bởi phiên bản đám mây. Nhấp để xem nhật ký đồng bộ."
   },
   "enable_background": {
     "title": "Bật chạy nền",
@@ -125,5 +127,14 @@
   "trash_enabled": "Bật thùng rác",
   "trash_enabled_desc": "Script đã xóa sẽ được chuyển vào thùng rác trước và có thể khôi phục bất cứ lúc nào. Khi tắt, script sẽ bị xóa vĩnh viễn ngay lập tức.",
   "trash_retention_custom": "Tùy chỉnh",
-  "trash_retention_days_unit": "ngày"
+  "trash_retention_days_unit": "ngày",
+  "sync_view_logs": "Xem nhật ký",
+  "sync_now": "Đồng bộ ngay",
+  "sync_state_idle": "Đồng bộ bình thường",
+  "sync_last_at": "Đồng bộ lần cuối {{time}}",
+  "sync_never": "Chưa đồng bộ",
+  "sync_state_syncing": "Đang đồng bộ…",
+  "sync_state_attention": "Lần đồng bộ gần nhất cần bạn xác nhận",
+  "sync_state_attention_desc": "{{overwrite}} tập lệnh bị đám mây ghi đè, {{conflict}} xung đột đã tạm dừng. Mở nhật ký để xác nhận.",
+  "sync_state_error": "Đồng bộ thất bại, đã tạm dừng"
 }

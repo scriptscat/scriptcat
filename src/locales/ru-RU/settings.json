@@ -94,7 +94,9 @@
     "script_sync_conflict": "Конфликт облачной синхронизации",
     "script_sync_conflict_desc": "Скрипт {{scriptNames}} изменен и локально, и в облаке. Синхронизация этого скрипта приостановлена, разрешите конфликт вручную",
     "subscribe_update": "Подписка {{subscribeName}} была обновлена",
-    "subscribe_update_desc": "Новые скрипты: {{newScripts}}\nУдаленные скрипты: {{deletedScripts}}"
+    "subscribe_update_desc": "Новые скрипты: {{newScripts}}\nУдаленные скрипты: {{deletedScripts}}",
+    "script_sync_overwrite": "Перезапись при облачной синхронизации",
+    "script_sync_overwrite_desc": "{{scriptNames}} и ещё {{count}} скрипт(ов) перезаписаны облачной версией. Нажмите, чтобы просмотреть журнал синхронизации."
   },
   "enable_background": {
     "title": "Включить фоновый режим",
@@ -125,5 +127,14 @@
   "trash_enabled": "Включить корзину",
   "trash_enabled_desc": "Удалённые скрипты сначала попадают в корзину, и их можно восстановить в любой момент. Если отключить, скрипты будут удаляться окончательно сразу.",
   "trash_retention_custom": "Пользовательское",
-  "trash_retention_days_unit": "дн."
+  "trash_retention_days_unit": "дн.",
+  "sync_view_logs": "Показать журнал",
+  "sync_now": "Синхронизировать сейчас",
+  "sync_state_idle": "Синхронизация в норме",
+  "sync_last_at": "Последняя синхронизация {{time}}",
+  "sync_never": "Ещё не синхронизировано",
+  "sync_state_syncing": "Синхронизация…",
+  "sync_state_attention": "Последняя синхронизация требует проверки",
+  "sync_state_attention_desc": "{{overwrite}} скрипт(ов) перезаписаны облаком, {{conflict}} конфликт(ов) приостановлено. Откройте журнал для подтверждения.",
+  "sync_state_error": "Сбой синхронизации, приостановлено"
 }

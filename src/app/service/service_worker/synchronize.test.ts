@@ -3608,4 +3608,200 @@ console.log("ok");`;
       "baseline-uuid.meta.json": md5OfText(pulledMeta),
     });
   });
+
+  describe("覆盖可见性", () => {
+    const makeService = (scriptCodeDAO: any) =>
+      new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { scriptCodeDAO } as any
+      );
+
+    it("云端已变但本地无内容基线时，方向判定标记为 unverified（可能覆盖未知改动）", async () => {
+      const service = makeService({ get: vi.fn().mockResolvedValue(undefined) });
+      const cloudFile = { name: "u1.user.js", updatetime: 100 } as any;
+      const script = { uuid: "u1", name: "u1", updatetime: 200, createtime: 1 } as any;
+
+      const direction = await (service as any).decideDirectionOnRemoteChange(createFs(), cloudFile, script, {});
+
+      expect(direction).toEqual({ action: "push", unverified: true });
+    });
+
+    it("有内容基线且本地未改时，pull 不标记 unverified", async () => {
+      const code = "// code";
+      const service = makeService({ get: vi.fn().mockResolvedValue({ code }) });
+      const cloudFile = { name: "u1.user.js", updatetime: 100 } as any;
+      const script = { uuid: "u1", name: "u1", updatetime: 200, createtime: 1 } as any;
+
+      const direction = await (service as any).decideDirectionOnRemoteChange(createFs(), cloudFile, script, {
+        "u1.user.js": md5OfText(code),
+      });
+
+      expect(direction).toEqual({ action: "pull" });
+    });
+
+    it("无内容基线兜底覆盖时，记录 action:overwrite 的警告日志", async () => {
+      const fs = createFs({
+        list: vi
+          .fn()
+          .mockResolvedValueOnce([
+            { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cloudD", createtime: 1, updatetime: 100 },
+            { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cloudM", createtime: 1, updatetime: 100 },
+          ])
+          .mockResolvedValueOnce([]),
+      });
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {
+          scriptCodeDAO: { get: vi.fn().mockResolvedValue(undefined) },
+          all: vi
+            .fn()
+            .mockResolvedValue([
+              { uuid: "u1", name: "u1", updatetime: 200, createtime: 1, status: 1, sort: 0, metadata: {} },
+            ]),
+        } as any
+      );
+      vi.spyOn(service, "pushScript").mockResolvedValue({});
+      const warnSpy = vi.spyOn(service.logger, "warn");
+
+      await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+      const overwriteLabel = warnSpy.mock.calls
+        .flat()
+        .find((arg: any) => arg && typeof arg === "object" && arg.action === "overwrite");
+      expect(overwriteLabel).toMatchObject({ action: "overwrite", direction: "push", uuid: "u1" });
+    });
+
+    it("同一轮多个覆盖只发送一条聚合覆盖通知", async () => {
+      const fs = createFs({
+        list: vi
+          .fn()
+          .mockResolvedValueOnce([
+            { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "c1", createtime: 1, updatetime: 100 },
+            { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "m1", createtime: 1, updatetime: 100 },
+            { name: "u2.user.js", path: "u2.user.js", size: 1, digest: "c2", createtime: 1, updatetime: 100 },
+            { name: "u2.meta.json", path: "u2.meta.json", size: 1, digest: "m2", createtime: 1, updatetime: 100 },
+          ])
+          .mockResolvedValueOnce([]),
+      });
+      const notificationSpy = vi.spyOn(chrome.notifications, "create");
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {
+          scriptCodeDAO: { get: vi.fn().mockResolvedValue(undefined) },
+          all: vi.fn().mockResolvedValue([
+            { uuid: "u1", name: "u1", updatetime: 200, createtime: 1, status: 1, sort: 0, metadata: {} },
+            { uuid: "u2", name: "u2", updatetime: 200, createtime: 1, status: 1, sort: 1, metadata: {} },
+          ]),
+        } as any
+      );
+      vi.spyOn(service, "pushScript").mockResolvedValue({});
+
+      await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+      expect(notificationSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("同步完成后写入 cloud_sync_state（覆盖计数与 lastSyncAt）", async () => {
+      const fs = createFs({
+        list: vi
+          .fn()
+          .mockResolvedValueOnce([
+            { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cloudD", createtime: 1, updatetime: 100 },
+            { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cloudM", createtime: 1, updatetime: 100 },
+          ])
+          .mockResolvedValueOnce([]),
+      });
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {
+          scriptCodeDAO: { get: vi.fn().mockResolvedValue(undefined) },
+          all: vi
+            .fn()
+            .mockResolvedValue([
+              { uuid: "u1", name: "u1", updatetime: 200, createtime: 1, status: 1, sort: 0, metadata: {} },
+            ]),
+        } as any
+      );
+      vi.spyOn(service, "pushScript").mockResolvedValue({});
+
+      await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+      const state = await (service as any).storage.get("cloud_sync_state");
+      expect(state).toMatchObject({ syncing: false, counts: expect.objectContaining({ overwrite: 1 }) });
+      expect(state.lastSyncAt).toBeGreaterThan(0);
+    });
+  });
+
+  describe("手动同步 cloudSyncOnce", () => {
+    const cfg = (enable: boolean): CloudSyncConfig => ({
+      enable,
+      syncDelete: false,
+      syncStatus: true,
+      filesystem: "webdav",
+      params: {},
+    });
+
+    it("云同步未启用时不触发同步", async () => {
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { getCloudSync: vi.fn().mockResolvedValue(cfg(false)) } as any,
+        {} as any
+      );
+      const syncSpy = vi.spyOn(service, "syncOnce").mockResolvedValue(undefined);
+
+      await service.cloudSyncOnce();
+
+      expect(syncSpy).not.toHaveBeenCalled();
+    });
+
+    it("云同步启用时构建文件系统并同步一次", async () => {
+      const config = cfg(true);
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { getCloudSync: vi.fn().mockResolvedValue(config) } as any,
+        {} as any
+      );
+      const fsMock = createFs();
+      vi.spyOn(service, "buildFileSystem").mockResolvedValue(fsMock);
+      const syncSpy = vi.spyOn(service, "syncOnce").mockResolvedValue(undefined);
+
+      await service.cloudSyncOnce();
+
+      expect(syncSpy).toHaveBeenCalledWith(config, fsMock);
+    });
+  });
 });
