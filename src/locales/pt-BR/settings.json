@@ -2,8 +2,8 @@
   "general": "Geral",
   "language": "Idioma",
   "help_translate": "Ajude-nos a traduzir",
-  "script_sync": "Sincronização de Scripts",
-  "sync_delete": "Sincronizar Exclusão",
+  "script_sync": "Sincronização de scripts",
+  "sync_delete": "Sincronizar exclusões",
   "sync_delete_desc": "Quando ativado, os scripts serão marcados como excluídos ao serem removidos, e outros dispositivos detectarão esse status e excluirão o script. Quando desativado, os scripts serão excluídos diretamente do armazenamento local e na nuvem, o que pode causar problemas de sincronização repetida se vários dispositivos estiverem em uso.",
   "enable_script_sync_to": "Ativar Sincronização de Scripts para",
   "never": "Nunca",
@@ -65,8 +65,8 @@
   "badge_type_run_count": "Contagem de Execuções",
   "badge_type_script_count": "Contagem de Scripts",
   "script_menu": "Menu de Scripts",
-  "display_right_click_menu": "Mostrar menu de clique com o botão direito",
-  "display_right_click_menu_desc": "Mostrar menu de scripts no menu de clique com o botão direito do navegador",
+  "display_right_click_menu": "Exibir menu de contexto",
+  "display_right_click_menu_desc": "Exibe o menu de scripts no menu de contexto do navegador",
   "expand_count": "Contagem para Expandir",
   "auto_collapse_when_exceeds": "Recolher automaticamente quando exceder este número",
   "script_update_check_frequency": "Frequência de Verificação de Atualização de Scripts",
@@ -88,7 +88,7 @@
   "notification": {
     "script_sync_delete": "Exclusão por Sincronização de Script",
     "script_sync_delete_desc": "O script {{scriptName}} foi excluído",
-    "subscribe_update": "A inscrição {{subscribeName}} foi atualizada",
+    "subscribe_update": "A assinatura {{subscribeName}} foi atualizada",
     "subscribe_update_desc": "Novos scripts: {{newScripts}}\nScripts excluídos: {{deletedScripts}}"
   },
   "enable_background": {

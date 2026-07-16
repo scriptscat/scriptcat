@@ -3,7 +3,7 @@
   "permission_value": "Valor da Permissão",
   "allow": "Permitir",
   "permission_management": "Gerenciamento de Permissões",
-  "script_accessing_cross_origin_resource": "O script está tentando acessar um recurso de origem cruzada",
+  "script_accessing_cross_origin_resource": "O script está tentando acessar um recurso entre origens",
   "confirm_operation_description": "Por favor, confirme se você permite que o script execute esta operação. O script também pode adicionar a tag @connect para ignorar esta opção.",
   "request_domain": "Domínio da Requisição",
   "request_url": "URL da Requisição",
@@ -34,6 +34,6 @@
   "confirm_expired_title": "A solicitação de autorização expirou",
   "confirm_expired_desc": "Esta solicitação de autorização expirou ou já foi tratada. Por favor, retorne à página e acione-a novamente.",
   "auto_close_in": "A janela fechará automaticamente em {{second}}s",
-  "permission_cors": "Domínio cruzado (cors)",
+  "permission_cors": "Entre origens (CORS)",
   "permission_cookie": "Gerenciar Cookies"
 }
