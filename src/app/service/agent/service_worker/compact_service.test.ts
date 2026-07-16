@@ -53,6 +53,7 @@ describe("CompactService 自动压缩", () => {
     const orchestrator = { callLLM: vi.fn().mockResolvedValue({ content: "<summary>摘要</summary>", usage }) };
     const chatRepo = {
       getAttachment: vi.fn().mockResolvedValue(null),
+      getMessages: vi.fn().mockResolvedValue([]),
       saveMessages: vi.fn().mockResolvedValue(undefined),
     } as any;
     const service = new CompactService(modelService, orchestrator, chatRepo);
@@ -66,6 +67,34 @@ describe("CompactService 自动压缩", () => {
         new AbortController().signal
       )
     ).resolves.toEqual(usage);
+  });
+
+  it("Stop 恰好落在摘要写盘提交之后时，应回写压缩前的持久化历史（补偿性回滚）", async () => {
+    const controller = new AbortController();
+    const priorMessages = [{ id: "m1", conversationId: "conv-1", role: "user", content: "原始历史", createtime: 1 }];
+    const modelService = {} as any;
+    const orchestrator = { callLLM: vi.fn().mockResolvedValue({ content: "<summary>摘要</summary>" }) };
+    const saveCalls: any[][] = [];
+    const chatRepo = {
+      getAttachment: vi.fn().mockResolvedValue(null),
+      getMessages: vi.fn().mockResolvedValue(priorMessages),
+      saveMessages: vi.fn().mockImplementation(async (_id: string, messages: any[]) => {
+        saveCalls.push(messages);
+        // 模拟 abort 恰好落在 close() 提交窗口：写入已生效，signal 事后才被观察到
+        if (saveCalls.length === 1) controller.abort();
+      }),
+    } as any;
+    const service = new CompactService(modelService, orchestrator, chatRepo);
+    const sendEvent = vi.fn();
+
+    await expect(
+      service.autoCompact("conv-1", MODEL, [{ role: "user", content: "内容" }], sendEvent, controller.signal)
+    ).rejects.toThrow("Aborted");
+
+    // 第二次写入必须把压缩前的历史原样写回，磁盘内容与"已取消"的对外结果保持一致
+    expect(saveCalls).toHaveLength(2);
+    expect(saveCalls[1]).toEqual(priorMessages);
+    expect(sendEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: "compact_done" }));
   });
 
   it("摘要请求超过输出保留预算时应返回 context_too_large", async () => {

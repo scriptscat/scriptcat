@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createTestService, makeSSEResponse } from "./test-helpers";
+import { createTestService, createMockSenderWithCallbacks, makeSSEResponse } from "./test-helpers";
 
 // ---- Compact 功能测试 ----
 
@@ -74,6 +74,35 @@ describe("Compact 功能", () => {
     expect(compactDone.summary).toBe("User said hello. Assistant greeted back.");
     expect(compactDone.originalCount).toBe(2);
     expect(events.some((e: any) => e.type === "done")).toBe(true);
+  });
+
+  it("手动 compact：Stop 恰好落在摘要写盘提交之后时应回写原历史且不发送 compact_done", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages, simulateMessage } = createMockSenderWithCallbacks();
+
+    const original = [
+      { id: "m1", conversationId: "conv-1", role: "user", content: "Hello", createtime: 1 },
+      { id: "m2", conversationId: "conv-1", role: "assistant", content: "Hi there!", createtime: 2 },
+    ];
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue(original);
+
+    const saveCalls: any[][] = [];
+    mockRepo.saveMessages.mockImplementation(async (_id: string, messages: any[]) => {
+      saveCalls.push(messages);
+      // 模拟 Stop 恰好落在 close() 提交窗口：写入已生效，signal 事后才被观察到
+      if (saveCalls.length === 1) simulateMessage({ action: "stop" });
+    });
+
+    fetchSpy.mockResolvedValueOnce(makeTextResponseWithTokens("<summary>迟到的压缩</summary>"));
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "", compact: true }, sender);
+
+    // 第二次写入必须把压缩前的历史原样写回，磁盘内容与"已取消"的结果保持一致
+    expect(saveCalls).toHaveLength(2);
+    expect(saveCalls[1]).toEqual(original);
+    const events = sentMessages.map((m: any) => m.data);
+    expect(events.some((e: any) => e.type === "compact_done")).toBe(false);
   });
 
   it("手动 compact：带自定义指令", async () => {

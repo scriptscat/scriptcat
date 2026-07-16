@@ -693,8 +693,13 @@ export class ChatService {
     // 传入 signal：写入落定前若已 abort，则放弃这次整份覆写而不提交（见 finding 4）
     await this.chatRepo.saveMessages(params.conversationId, [summaryMessage], abortController.signal);
 
-    // 持久化期间也可能已被 stop：终态事件只能在确认未取消时发送
-    if (abortController.signal.aborted) return;
+    // 持久化期间也可能已被 stop：abort 恰好落在 close() 提交窗口时写入仍可能已生效，
+    // 用进入 compact 时加载的历史做补偿性回写，保证"已取消"的结果与磁盘内容一致（见 finding 3），
+    // 且终态事件只能在确认未取消时发送
+    if (abortController.signal.aborted) {
+      await this.chatRepo.saveMessages(params.conversationId, existingMessages);
+      return;
+    }
 
     sendEvent({ type: "compact_done", summary, originalCount });
     sendEvent({ type: "done", usage: result.usage });

@@ -108,10 +108,17 @@ export class CompactService {
       content: `[Conversation Summary]\n\n${summary}`,
       createtime: Date.now(),
     };
+    // 写入前快照当前持久化历史：writeJsonFile 的 signal 只保证 close() 发出前的 abort 不提交，
+    // abort 恰好落在 close() 进行期间的窗口仍可能提交（见 opfs_repo.ts）。命中该窗口时用快照
+    // 补偿性回写，保证"对外报告已取消"与"磁盘内容未被摘要顶替"一致（见 finding 3）。
+    const priorMessages = await this.chatRepo.getMessages(conversationId);
     await this.chatRepo.saveMessages(conversationId, [summaryMessage], signal);
 
-    // 落盘之后也可能已被 Stop：写入已提交（无法撤销），但内存态覆盖和 compact_done 广播
-    // 必须让位给取消——不能在 Stop 之后仍报告自动压缩"成功"（见 finding 3）
+    // 落盘之后也可能已被 Stop：先把压缩前的历史原样写回，再让位给取消——
+    // 不能在 Stop 之后仍报告自动压缩"成功"，也不能让磁盘停留在被摘要顶替的状态
+    if (signal.aborted) {
+      await this.chatRepo.saveMessages(conversationId, priorMessages);
+    }
     throwIfAborted(signal);
 
     // 替换 currentMessages（保留 system，替换其余为摘要）——只有走到这里才说明落盘已提交
