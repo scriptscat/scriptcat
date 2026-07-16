@@ -28,16 +28,6 @@ describe("OneDriveFileSystem", () => {
     vi.stubGlobal("fetch", originalFetch);
   });
 
-  it("不应声明条件写删能力：与其余 provider 一致回落无条件读写，避免同步层行为分裂", () => {
-    const fs = new OneDriveFileSystem("/", "token");
-
-    expect((fs as any).capabilities).toMatchObject({
-      supportsAtomicCompareAndSwap: false,
-      supportsCreateOnly: false,
-      supportsConditionalDelete: false,
-    });
-  });
-
   it("request should return retry result after token refresh", async () => {
     await localStorageDAO.saveValue("netdisk:token:onedrive", {
       accessToken: "expired-token",
@@ -192,24 +182,6 @@ describe("OneDriveFileSystem", () => {
     expect(request).toHaveBeenCalledWith(
       "https://graph.microsoft.com/v1.0/me/drive/special/approot:/ScriptCat/sync/dir/file.user.js",
       { method: "DELETE" },
-      true
-    );
-  });
-
-  it("条件删除应当将 expectedDigest 转成 If-Match", async () => {
-    const fs = new OneDriveFileSystem("/", "token");
-    const request = vi.spyOn(fs, "request").mockResolvedValue({ status: 204 });
-
-    await (fs as any).delete("test.txt", { expectedDigest: "abc123" });
-
-    expect(request).toHaveBeenCalledWith(
-      "https://graph.microsoft.com/v1.0/me/drive/special/approot:/test.txt",
-      {
-        method: "DELETE",
-        headers: expect.objectContaining({
-          "If-Match": '"abc123"',
-        }),
-      },
       true
     );
   });
@@ -432,30 +404,6 @@ describe("OneDriveFileSystem", () => {
     expect((requestSpy.mock.calls[0][1] as RequestInit).body).toBe(emptyBlob);
   });
 
-  it("空内容 simple PUT 条件写入应携带 HTTP 引号形式的 If-Match", async () => {
-    const fs = new OneDriveFileSystem("/", "token");
-    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
-
-    const writer = await fs.create("empty.txt", { expectedDigest: "abc123" });
-    await writer.write("");
-
-    expect(requestSpy).toHaveBeenCalledTimes(1);
-    const config = requestSpy.mock.calls[0][1] as RequestInit;
-    expect((config.headers as Headers).get("If-Match")).toBe('"abc123"');
-  });
-
-  it("空内容 simple PUT create-only 应携带 If-None-Match: *", async () => {
-    const fs = new OneDriveFileSystem("/", "token");
-    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
-
-    const writer = await fs.create("empty.txt", { createOnly: true });
-    await writer.write("");
-
-    expect(requestSpy).toHaveBeenCalledTimes(1);
-    const config = requestSpy.mock.calls[0][1] as RequestInit;
-    expect((config.headers as Headers).get("If-None-Match")).toBe("*");
-  });
-
   it("writer should keep upload session for non-empty content", async () => {
     const fs = new OneDriveFileSystem("/", "token");
     const requestSpy = vi
@@ -473,35 +421,5 @@ describe("OneDriveFileSystem", () => {
     expect(requestSpy.mock.calls[1][0]).toBe("https://upload.example/session");
     const headers = (requestSpy.mock.calls[1][1] as RequestInit).headers as Headers;
     expect(headers.get("Content-Range")).toBe("bytes 0-2/3");
-  });
-
-  it("条件写入应当将 expectedDigest 传给 upload session 的 If-Match", async () => {
-    const fs = new OneDriveFileSystem("/", "token");
-    const requestSpy = vi
-      .spyOn(fs, "request")
-      .mockResolvedValueOnce({ uploadUrl: "https://upload.example/session" })
-      .mockResolvedValueOnce({});
-
-    const writer = await (fs as any).create("not-empty.txt", { expectedDigest: "abc123" });
-    await writer.write("abc");
-
-    const headers = (requestSpy.mock.calls[0][1] as RequestInit).headers as Headers;
-    expect(headers.get("If-Match")).toBe('"abc123"');
-  });
-
-  it("createOnly 写入应当将 If-None-Match 传给 upload session 并使用 fail 语义", async () => {
-    const fs = new OneDriveFileSystem("/", "token");
-    const requestSpy = vi
-      .spyOn(fs, "request")
-      .mockResolvedValueOnce({ uploadUrl: "https://upload.example/session" })
-      .mockResolvedValueOnce({});
-
-    const writer = await (fs as any).create("not-empty.txt", { createOnly: true });
-    await writer.write("abc");
-
-    const headers = (requestSpy.mock.calls[0][1] as RequestInit).headers as Headers;
-    const body = JSON.parse((requestSpy.mock.calls[0][1] as RequestInit).body as string);
-    expect(headers.get("If-None-Match")).toBe("*");
-    expect(body.item["@microsoft.graph.conflictBehavior"]).toBe("fail");
   });
 });

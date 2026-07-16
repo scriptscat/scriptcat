@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import type FileSystem from "./filesystem";
-import { getFileSystemCapabilities } from "./filesystem";
 import LimiterFileSystem from "./limiter";
 
 function createFs(overrides: Partial<FileSystem> = {}): FileSystem {
@@ -17,44 +16,10 @@ function createFs(overrides: Partial<FileSystem> = {}): FileSystem {
   };
 }
 
-describe("FileSystem capabilities", () => {
-  it("未声明能力时应当默认不支持原子同步能力", () => {
-    const fs = createFs();
+describe("FileSystem 公共接口", () => {
+  it("LimiterFileSystem 不应暴露已移除的条件操作能力", () => {
+    const limiter = new LimiterFileSystem(createFs());
 
-    expect(getFileSystemCapabilities(fs)).toEqual({
-      supportsAtomicCompareAndSwap: false,
-      supportsCreateOnly: false,
-      supportsConditionalDelete: false,
-    });
-  });
-
-  it("应当合并 provider 显式声明的能力", () => {
-    const fs = createFs({
-      capabilities: {
-        supportsCreateOnly: true,
-      },
-    });
-
-    expect(getFileSystemCapabilities(fs)).toEqual({
-      supportsAtomicCompareAndSwap: false,
-      supportsCreateOnly: true,
-      supportsConditionalDelete: false,
-    });
-  });
-
-  it("LimiterFileSystem 应当透传底层 provider 能力", () => {
-    const fs = createFs({
-      capabilities: {
-        supportsAtomicCompareAndSwap: true,
-        supportsConditionalDelete: true,
-      },
-    });
-    const limiter = new LimiterFileSystem(fs);
-
-    expect(getFileSystemCapabilities(limiter)).toEqual({
-      supportsAtomicCompareAndSwap: true,
-      supportsCreateOnly: false,
-      supportsConditionalDelete: true,
-    });
+    expect("capabilities" in limiter).toBe(false);
   });
 });

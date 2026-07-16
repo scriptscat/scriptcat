@@ -1,7 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { initTestEnv } from "@Tests/utils";
 import { isNotFoundError, isRateLimitError } from "../error";
-import { getFileSystemCapabilities } from "../filesystem";
 import BaiduFileSystem from "./baidu";
 
 initTestEnv();
@@ -10,16 +9,6 @@ describe("BaiduFileSystem", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
-  });
-
-  it("不应声明原子条件写入能力", () => {
-    const fs = new BaiduFileSystem("/apps", "token");
-
-    expect(getFileSystemCapabilities(fs)).toEqual({
-      supportsAtomicCompareAndSwap: false,
-      supportsCreateOnly: false,
-      supportsConditionalDelete: false,
-    });
   });
 
   it("request should omit credentials without using global DNR rules", async () => {

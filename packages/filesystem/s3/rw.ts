@@ -1,7 +1,6 @@
 import type { S3Client } from "./client";
 import type { FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { createS3FileSystemError } from "./error";
-import { quoteETag } from "./utils";
 
 /**
  * S3 文件读取器
@@ -52,17 +51,11 @@ export class S3FileWriter implements FileWriter {
 
   modifiedDate?: number;
 
-  expectedDigest?: string;
-
-  createOnly?: boolean;
-
   constructor(client: S3Client, bucket: string, key: string, opts?: FileCreateOptions) {
     this.client = client;
     this.bucket = bucket;
     this.key = key;
     this.modifiedDate = opts?.modifiedDate;
-    this.expectedDigest = opts?.expectedDigest;
-    this.createOnly = opts?.createOnly;
   }
 
   /**
@@ -80,12 +73,6 @@ export class S3FileWriter implements FileWriter {
       // 历史兼容：S3 侧使用 createtime 元数据保存文件时间，实际来源是 FileCreateOptions.modifiedDate。
       headers["x-amz-meta-createtime"] = new Date(this.modifiedDate).toISOString();
     }
-    if (this.expectedDigest) {
-      headers["if-match"] = quoteETag(this.expectedDigest);
-    } else if (this.createOnly) {
-      headers["if-none-match"] = "*";
-    }
-
     try {
       await this.client.request("PUT", this.bucket, this.key, {
         body: typeof body === "string" ? body : body,

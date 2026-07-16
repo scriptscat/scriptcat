@@ -1,18 +1,8 @@
 import type FileSystem from "./filesystem";
-import type { FileCreateOptions, FileDeleteOptions, FileInfo, FileReader, FileWriter } from "./filesystem";
-import { getFileSystemCapabilities, type FileSystemCapabilities } from "./filesystem";
+import type { FileCreateOptions, FileInfo, FileReader, FileWriter } from "./filesystem";
 import { FileSystemError } from "./error";
 
-const RETRYABLE_TRANSIENT_OPS = new Set([
-  "verify",
-  "open",
-  "read",
-  "openDir",
-  "list",
-  "getDirUrl",
-  "conditionalWrite",
-  "conditionalDelete",
-]);
+const RETRYABLE_TRANSIENT_OPS = new Set(["verify", "open", "read", "openDir", "list", "getDirUrl"]);
 
 /**
  * 速率限制器
@@ -107,10 +97,6 @@ export default class LimiterFileSystem implements FileSystem {
     this.limiter = limiter || new RateLimiter();
   }
 
-  get capabilities(): FileSystemCapabilities {
-    return getFileSystemCapabilities(this.fs);
-  }
-
   verify(): Promise<void> {
     return this.limiter.execute(() => this.fs.verify(), "verify");
   }
@@ -134,9 +120,8 @@ export default class LimiterFileSystem implements FileSystem {
   async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
     return this.limiter.execute(async () => {
       const writer = await this.fs.create(path, opts);
-      const writeOp = opts?.expectedDigest || opts?.createOnly ? "conditionalWrite" : "write";
       return {
-        write: (content) => this.limiter.execute(() => writer.write(content), writeOp),
+        write: (content) => this.limiter.execute(() => writer.write(content), "write"),
       };
     }, "create");
   }
@@ -145,9 +130,8 @@ export default class LimiterFileSystem implements FileSystem {
     return this.limiter.execute(() => this.fs.createDir(dir, opts), "createDir");
   }
 
-  delete(path: string, opts?: FileDeleteOptions): Promise<void> {
-    const op = opts?.expectedDigest ? "conditionalDelete" : "delete";
-    return this.limiter.execute(() => this.fs.delete(path, opts), op);
+  delete(path: string): Promise<void> {
+    return this.limiter.execute(() => this.fs.delete(path), "delete");
   }
 
   list(): Promise<FileInfo[]> {

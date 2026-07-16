@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { isConflictError } from "../error";
 import S3FileSystem from "./s3";
 import { S3Client, S3Error } from "./client";
 import type { FileInfo } from "../filesystem";
@@ -46,14 +45,6 @@ describe("S3FileSystem", () => {
     vi.clearAllMocks();
     mockClient = createMockClient();
     fs = new S3FileSystem("test-bucket", mockClient);
-  });
-
-  it("不应声明条件写删能力：MinIO 实测忽略 If-None-Match:*，DeleteObject 无条件删除语义", () => {
-    expect((fs as any).capabilities).toMatchObject({
-      supportsAtomicCompareAndSwap: false,
-      supportsCreateOnly: false,
-      supportsConditionalDelete: false,
-    });
   });
 
   // ---- verify ----
@@ -258,52 +249,6 @@ describe("S3FileSystem", () => {
       );
     });
 
-    it("条件写入应当将 expectedDigest 转成 If-Match", async () => {
-      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true }));
-
-      const writer = await (fs as any).create("output.txt", { expectedDigest: "abc123" });
-      await writer.write("hello world");
-
-      expect(mockClient.request).toHaveBeenCalledWith(
-        "PUT",
-        "test-bucket",
-        "output.txt",
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            "if-match": '"abc123"',
-          }),
-        })
-      );
-    });
-
-    it("createOnly 写入应当使用 If-None-Match", async () => {
-      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true }));
-
-      const writer = await (fs as any).create("new.txt", { createOnly: true });
-      await writer.write("hello world");
-
-      expect(mockClient.request).toHaveBeenCalledWith(
-        "PUT",
-        "test-bucket",
-        "new.txt",
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            "if-none-match": "*",
-          }),
-        })
-      );
-    });
-
-    it("createOnly 写入遇到 412 时应当抛出 typed conflict 错误", async () => {
-      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new S3Error("PreconditionFailed", "At least one precondition failed", 412)
-      );
-
-      const writer = await (fs as any).create("new.txt", { createOnly: true });
-
-      await expect(writer.write("hello world")).rejects.toSatisfy(isConflictError);
-    });
-
     it("normalizes double slashes in object keys", async () => {
       const subFs = new S3FileSystem("test-bucket", mockClient, "/ScriptCat//sync");
 
@@ -352,31 +297,6 @@ describe("S3FileSystem", () => {
       await subFs.delete("dir//file.user.js");
 
       expect(mockClient.request).toHaveBeenCalledWith("DELETE", "test-bucket", "ScriptCat/sync/dir/file.user.js");
-    });
-
-    it("条件删除应当将 expectedDigest 转成 If-Match", async () => {
-      (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true, status: 204 }));
-
-      await (fs as any).delete("test.txt", { expectedDigest: "abc123" });
-
-      expect(mockClient.request).toHaveBeenCalledWith(
-        "DELETE",
-        "test-bucket",
-        "test.txt",
-        expect.objectContaining({
-          headers: {
-            "if-match": '"abc123"',
-          },
-        })
-      );
-    });
-
-    it("条件删除遇到 412 时应当抛出 typed conflict 错误", async () => {
-      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new S3Error("PreconditionFailed", "At least one precondition failed", 412)
-      );
-
-      await expect((fs as any).delete("test.txt", { expectedDigest: "abc123" })).rejects.toSatisfy(isConflictError);
     });
   });
 

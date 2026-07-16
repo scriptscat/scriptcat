@@ -2,12 +2,11 @@ import { XMLParser } from "fast-xml-parser";
 import { S3Client, S3Error } from "./client";
 import type { S3ClientConfig } from "./client";
 import type FileSystem from "../filesystem";
-import type { FileInfo, FileCreateOptions, FileDeleteOptions, FileReader, FileWriter } from "../filesystem";
+import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../filesystem";
 import { joinPath } from "../utils";
 import { S3FileReader, S3FileWriter } from "./rw";
 import { WarpTokenError } from "../error";
 import { createS3FileSystemError } from "./error";
-import { quoteETag } from "./utils";
 
 // ---- ListObjectsV2 XML 解析 ----
 
@@ -54,14 +53,6 @@ function parseListObjectsV2(xml: string): ListObjectsV2Result {
  * 使用原生 fetch + AWS Signature V4 签名，不依赖 @aws-sdk/client-s3
  */
 export default class S3FileSystem implements FileSystem {
-  // S3 兼容服务端对条件写删的支持因实现/版本而异（MinIO 实测忽略 If-None-Match:*，
-  // DeleteObject 本无 If-Match 语义），统一保守声明为不支持，回落无条件读写 + 最终一致（#1504 实测结论）
-  readonly capabilities = {
-    supportsAtomicCompareAndSwap: false,
-    supportsCreateOnly: false,
-    supportsConditionalDelete: false,
-  };
-
   client: S3Client;
 
   bucket: string;
@@ -192,15 +183,9 @@ export default class S3FileSystem implements FileSystem {
    * 此操作幂等——删除不存在的文件也会成功
    * @param path 相对于当前 basePath 的文件路径
    */
-  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
+  async delete(path: string): Promise<void> {
     try {
       const key = joinPath(this.basePath, path).substring(1);
-      if (opts?.expectedDigest) {
-        await this.client.request("DELETE", this.bucket, key, {
-          headers: { "if-match": quoteETag(opts.expectedDigest) },
-        });
-        return;
-      }
       await this.client.request("DELETE", this.bucket, key);
     } catch (error: any) {
       // S3 delete 是幂等的，key 不存在时也视为成功

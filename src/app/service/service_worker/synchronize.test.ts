@@ -1302,231 +1302,6 @@ console.log("ok");`
     });
   });
 
-  it("push 已有云端文件时应当用旧 digest 作为 expectedDigest", async () => {
-    const script = {
-      uuid: "push-uuid",
-      name: "push",
-      origin: "origin",
-      downloadUrl: "download-url",
-      checkUpdateUrl: "check-update-url",
-      updatetime: 10,
-      createtime: 1,
-      status: 1,
-      sort: 0,
-      metadata: {},
-    };
-    const fs = createFs({
-      capabilities: {
-        supportsAtomicCompareAndSwap: true,
-      },
-      list: vi
-        .fn()
-        .mockResolvedValueOnce([
-          {
-            name: "push-uuid.user.js",
-            path: "push-uuid.user.js",
-            size: 1,
-            digest: "cloud-user-new",
-            createtime: 1,
-            updatetime: 1,
-          },
-          {
-            name: "push-uuid.meta.json",
-            path: "push-uuid.meta.json",
-            size: 1,
-            digest: "cloud-meta-new",
-            createtime: 1,
-            updatetime: 1,
-          },
-        ])
-        .mockResolvedValueOnce([]),
-    });
-    const service = new SynchronizeService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {
-        scriptCodeDAO: {
-          get: vi.fn().mockResolvedValue({ code: "// code" }),
-        },
-        all: vi.fn().mockResolvedValue([script]),
-      } as any
-    );
-    await (service as any).storage.set("file_digest", {
-      "push-uuid.user.js": "old-user-digest",
-      "push-uuid.meta.json": "old-meta-digest",
-    });
-
-    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
-
-    expect(fs.create).toHaveBeenCalledWith(
-      "push-uuid.user.js",
-      expect.objectContaining({ expectedDigest: "old-user-digest" })
-    );
-    expect(fs.create).toHaveBeenCalledWith(
-      "push-uuid.meta.json",
-      expect.objectContaining({ expectedDigest: "old-meta-digest" })
-    );
-  });
-
-  it("CAS 冲突时云端内容是本机上次所写则重挂基准重推，收敛自我 412", async () => {
-    const script = {
-      uuid: "sh-uuid",
-      name: "sh",
-      origin: "origin",
-      downloadUrl: "download-url",
-      checkUpdateUrl: "check-update-url",
-      updatetime: 20,
-      createtime: 1,
-      status: 1,
-      sort: 0,
-      metadata: {},
-    };
-    const written: { name: string; content: string }[] = [];
-    const conflictError = new FileSystemError({
-      provider: "webdav",
-      message: "precondition failed",
-      status: 412,
-      conflict: true,
-    });
-    const fs = createFs({
-      capabilities: { supportsAtomicCompareAndSwap: true },
-      // 首次用过期基准 d0 做 If-Match → 412（自己上次写入把云端推到了 e1，但 digest 记账失败）
-      create: vi.fn().mockImplementation(async (name: string, opts: { expectedDigest?: string }) => {
-        if (name === "sh-uuid.user.js" && opts?.expectedDigest === "d0-stale") {
-          throw conflictError;
-        }
-        return {
-          write: vi.fn().mockImplementation(async (content: string) => {
-            written.push({ name, content });
-          }),
-        };
-      }),
-      list: vi.fn().mockResolvedValue([
-        { name: "sh-uuid.user.js", path: "sh-uuid.user.js", size: 1, digest: "e1-cloud", createtime: 1, updatetime: 5 },
-        {
-          name: "sh-uuid.meta.json",
-          path: "sh-uuid.meta.json",
-          size: 1,
-          digest: "m1-cloud",
-          createtime: 1,
-          updatetime: 5,
-        },
-      ]),
-      open: vi.fn().mockImplementation(async (fileInfo: { name: string }) => ({
-        read: vi.fn().mockResolvedValue(fileInfo.name === "sh-uuid.user.js" ? "// cloud-edit-1" : "{}"),
-      })),
-    });
-    const service = new SynchronizeService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {
-        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// local-edit-2" }) },
-        all: vi.fn().mockResolvedValue([script]),
-      } as any
-    );
-    vi.spyOn(service.logger, "error").mockImplementation(() => undefined as any);
-    // 本机上次成功写入云端的内容是 edit-1（digest 记账失败 → file_digest 仍停在 d0）
-    await (service as any).storage.set("sync_content_md5", {
-      "sh-uuid.user.js": md5OfText("// cloud-edit-1"),
-    });
-
-    const result = await service.pushScript(fs as any, script as any, {
-      fileDigestMap: { "sh-uuid.user.js": "d0-stale", "sh-uuid.meta.json": "m0-stale" },
-    });
-
-    // 首次以过期基准 CAS
-    expect(fs.create).toHaveBeenCalledWith("sh-uuid.user.js", expect.objectContaining({ expectedDigest: "d0-stale" }));
-    // 识别为自我所写后以云端当前 digest 重挂基准重推
-    expect(fs.create).toHaveBeenCalledWith("sh-uuid.user.js", expect.objectContaining({ expectedDigest: "e1-cloud" }));
-    // 重推的是本机当前内容 edit-2
-    expect(written).toContainEqual({ name: "sh-uuid.user.js", content: "// local-edit-2" });
-    expect(result["sh-uuid.user.js"]).toBe(md5OfText("// local-edit-2"));
-  });
-
-  it("CAS 冲突时云端内容非本机所写则维持停在冲突，不重推覆盖他端", async () => {
-    const script = {
-      uuid: "cf-uuid",
-      name: "cf",
-      origin: "origin",
-      downloadUrl: "download-url",
-      checkUpdateUrl: "check-update-url",
-      updatetime: 20,
-      createtime: 1,
-      status: 1,
-      sort: 0,
-      metadata: {},
-    };
-    const conflictError = new FileSystemError({
-      provider: "webdav",
-      message: "precondition failed",
-      status: 412,
-      conflict: true,
-    });
-    const create = vi.fn().mockImplementation(async (name: string, opts: { expectedDigest?: string }) => {
-      if (name === "cf-uuid.user.js" && opts?.expectedDigest === "d0-stale") {
-        throw conflictError;
-      }
-      return { write: vi.fn().mockResolvedValue(undefined) };
-    });
-    const fs = createFs({
-      capabilities: { supportsAtomicCompareAndSwap: true },
-      create,
-      list: vi.fn().mockResolvedValue([
-        { name: "cf-uuid.user.js", path: "cf-uuid.user.js", size: 1, digest: "eB-cloud", createtime: 1, updatetime: 9 },
-        {
-          name: "cf-uuid.meta.json",
-          path: "cf-uuid.meta.json",
-          size: 1,
-          digest: "mB-cloud",
-          createtime: 1,
-          updatetime: 9,
-        },
-      ]),
-      open: vi.fn().mockImplementation(async () => ({
-        read: vi.fn().mockResolvedValue("// other-device"),
-      })),
-    });
-    const service = new SynchronizeService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {
-        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// local" }) },
-        all: vi.fn().mockResolvedValue([script]),
-      } as any
-    );
-    vi.spyOn(service.logger, "error").mockImplementation(() => undefined as any);
-    await (service as any).storage.set("sync_content_md5", {
-      "cf-uuid.user.js": md5OfText("// my-previous-push"),
-    });
-
-    await expect(
-      service.pushScript(fs as any, script as any, {
-        fileDigestMap: { "cf-uuid.user.js": "d0-stale", "cf-uuid.meta.json": "m0-stale" },
-      })
-    ).rejects.toThrow();
-
-    // 云端内容不是本机所写 → 不应以其它 digest 重推覆盖他端
-    const userDigests = create.mock.calls
-      .filter((c: any[]) => c[0] === "cf-uuid.user.js")
-      .map((c: any[]) => c[1]?.expectedDigest);
-    expect(userDigests).toEqual(["d0-stale"]);
-  });
-
   it("updateFileDigest 全量对账时应清理云端已删除文件的 sync_content_md5，避免只增不删", async () => {
     const fs = createFs({
       list: vi
@@ -1587,48 +1362,7 @@ console.log("ok");`
     });
   });
 
-  it("push 云端缺失文件时应当使用 createOnly，避免覆盖并发新增", async () => {
-    const script = {
-      uuid: "new-uuid",
-      name: "new",
-      origin: "origin",
-      downloadUrl: "download-url",
-      checkUpdateUrl: "check-update-url",
-      updatetime: 10,
-      createtime: 1,
-      status: 1,
-      sort: 0,
-      metadata: {},
-    };
-    const fs = createFs({
-      capabilities: {
-        supportsCreateOnly: true,
-      },
-      list: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
-    });
-    const service = new SynchronizeService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {
-        scriptCodeDAO: {
-          get: vi.fn().mockResolvedValue({ code: "// code" }),
-        },
-        all: vi.fn().mockResolvedValue([script]),
-      } as any
-    );
-
-    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
-
-    expect(fs.create).toHaveBeenCalledWith("new-uuid.user.js", expect.objectContaining({ createOnly: true }));
-    expect(fs.create).toHaveBeenCalledWith("new-uuid.meta.json", expect.objectContaining({ createOnly: true }));
-  });
-
-  it("没有能力声明时 push 不应传条件写入参数", async () => {
+  it("push 始终只传文件修改时间", async () => {
     const script = {
       uuid: "push-uuid",
       name: "push",
@@ -1677,196 +1411,7 @@ console.log("ok");`
 
     await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
 
-    expect(fs.create).toHaveBeenCalledWith(
-      "push-uuid.user.js",
-      expect.not.objectContaining({
-        expectedDigest: expect.anything(),
-        createOnly: expect.anything(),
-      })
-    );
-  });
-
-  it("删除无效 meta 后重传：本轮已确认不存在的文件应走 createOnly 而非过期 digest CAS", async () => {
-    // 云端只有普通 .meta.json（无 .user.js）：删除无效 meta 后重传两个文件。
-    // 本轮 list 已确认 .user.js 不存在、meta 刚被我们删除，若再拿本地记录的过期 digest
-    // 对不存在的文件做 If-Match 必然 412，且失败保留旧 digest 后永不自愈。
-    const script = {
-      uuid: "remeta-uuid",
-      name: "remeta",
-      origin: "origin",
-      downloadUrl: "download-url",
-      checkUpdateUrl: "check-update-url",
-      updatetime: 10,
-      createtime: 1,
-      status: 1,
-      sort: 0,
-      metadata: {},
-    };
-    const fs = createFs({
-      capabilities: {
-        supportsAtomicCompareAndSwap: true,
-        supportsCreateOnly: true,
-        supportsConditionalDelete: true,
-      },
-      list: vi
-        .fn()
-        .mockResolvedValueOnce([
-          {
-            name: "remeta-uuid.meta.json",
-            path: "remeta-uuid.meta.json",
-            size: 1,
-            digest: "cloud-meta",
-            createtime: 1,
-            updatetime: 1,
-          },
-        ])
-        .mockResolvedValueOnce([]),
-      open: vi.fn().mockResolvedValue({
-        read: vi.fn().mockResolvedValue(JSON.stringify({ uuid: "remeta-uuid", origin: "origin" })),
-      }),
-    } as unknown as Partial<FileSystem>);
-    const service = new SynchronizeService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {
-        scriptCodeDAO: {
-          get: vi.fn().mockResolvedValue({ code: "// code" }),
-        },
-        all: vi.fn().mockResolvedValue([script]),
-      } as any
-    );
-    await (service as any).storage.set("file_digest", {
-      "remeta-uuid.user.js": "stale-user-digest",
-      "remeta-uuid.meta.json": "stale-meta-digest",
-    });
-
-    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
-
-    const createCalls = vi.mocked(fs.create).mock.calls;
-    const userCall = createCalls.find((c) => c[0] === "remeta-uuid.user.js");
-    const metaCall = createCalls.find((c) => c[0] === "remeta-uuid.meta.json");
-    expect(userCall?.[1]).toMatchObject({ createOnly: true });
-    expect(userCall?.[1]?.expectedDigest).toBeUndefined();
-    expect(metaCall?.[1]).toMatchObject({ createOnly: true });
-    expect(metaCall?.[1]?.expectedDigest).toBeUndefined();
-  });
-
-  it("云端缺 .meta.json 的补传：meta 走 createOnly，.user.js 仍用记录 digest 做 CAS", async () => {
-    const script = {
-      uuid: "remeta2-uuid",
-      name: "remeta2",
-      origin: "origin",
-      downloadUrl: "download-url",
-      checkUpdateUrl: "check-update-url",
-      updatetime: 10,
-      createtime: 1,
-      status: 1,
-      sort: 0,
-      metadata: {},
-    };
-    const fs = createFs({
-      capabilities: {
-        supportsAtomicCompareAndSwap: true,
-        supportsCreateOnly: true,
-      },
-      list: vi
-        .fn()
-        .mockResolvedValueOnce([
-          {
-            name: "remeta2-uuid.user.js",
-            path: "remeta2-uuid.user.js",
-            size: 1,
-            digest: "cloud-user-new",
-            createtime: 1,
-            updatetime: 1,
-          },
-        ])
-        .mockResolvedValueOnce([]),
-    });
-    const service = new SynchronizeService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {
-        scriptCodeDAO: {
-          get: vi.fn().mockResolvedValue({ code: "// code" }),
-        },
-        all: vi.fn().mockResolvedValue([script]),
-      } as any
-    );
-    await (service as any).storage.set("file_digest", {
-      "remeta2-uuid.user.js": "old-user-digest",
-      "remeta2-uuid.meta.json": "stale-meta-digest",
-    });
-
-    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
-
-    const createCalls = vi.mocked(fs.create).mock.calls;
-    const userCall = createCalls.find((c) => c[0] === "remeta2-uuid.user.js");
-    const metaCall = createCalls.find((c) => c[0] === "remeta2-uuid.meta.json");
-    expect(userCall?.[1]).toMatchObject({ expectedDigest: "old-user-digest" });
-    expect(metaCall?.[1]).toMatchObject({ createOnly: true });
-    expect(metaCall?.[1]?.expectedDigest).toBeUndefined();
-  });
-
-  it("云端已确认不存在的新脚本：即便本地残留过期 digest 记录也应走 createOnly", async () => {
-    const script = {
-      uuid: "fresh-uuid",
-      name: "fresh",
-      origin: "origin",
-      downloadUrl: "download-url",
-      checkUpdateUrl: "check-update-url",
-      updatetime: 10,
-      createtime: 1,
-      status: 1,
-      sort: 0,
-      metadata: {},
-    };
-    const fs = createFs({
-      capabilities: {
-        supportsAtomicCompareAndSwap: true,
-        supportsCreateOnly: true,
-      },
-      list: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]),
-    });
-    const service = new SynchronizeService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {
-        scriptCodeDAO: {
-          get: vi.fn().mockResolvedValue({ code: "// code" }),
-        },
-        all: vi.fn().mockResolvedValue([script]),
-      } as any
-    );
-    await (service as any).storage.set("file_digest", {
-      "fresh-uuid.user.js": "stale-user-digest",
-      "fresh-uuid.meta.json": "stale-meta-digest",
-    });
-
-    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
-
-    const createCalls = vi.mocked(fs.create).mock.calls;
-    const userCall = createCalls.find((c) => c[0] === "fresh-uuid.user.js");
-    const metaCall = createCalls.find((c) => c[0] === "fresh-uuid.meta.json");
-    expect(userCall?.[1]).toMatchObject({ createOnly: true });
-    expect(userCall?.[1]?.expectedDigest).toBeUndefined();
-    expect(metaCall?.[1]).toMatchObject({ createOnly: true });
-    expect(metaCall?.[1]?.expectedDigest).toBeUndefined();
+    expect(fs.create).toHaveBeenCalledWith("push-uuid.user.js", { modifiedDate: 10 });
   });
 
   it("部分 push 失败时只推进成功文件 digest 并保留失败文件旧 digest", async () => {
@@ -2428,43 +1973,7 @@ console.log("ok");`
     }
   );
 
-  it("deleteCloudScript 支持条件删除时应当传 expectedDigest", async () => {
-    const fs = createFs({
-      capabilities: {
-        supportsConditionalDelete: true,
-      },
-    });
-    const service = new SynchronizeService(
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {} as any,
-      {
-        scriptCodeDAO: {},
-        all: vi.fn().mockResolvedValue([]),
-      } as any
-    );
-    await (service as any).storage.set("file_digest", {
-      "delete-uuid.user.js": "old-user-digest",
-      "delete-uuid.meta.json": "old-meta-digest",
-    });
-
-    await service.deleteCloudScript(fs, "delete-uuid", false);
-
-    expect(fs.delete).toHaveBeenCalledWith(
-      "delete-uuid.user.js",
-      expect.objectContaining({ expectedDigest: "old-user-digest" })
-    );
-    expect(fs.delete).toHaveBeenCalledWith(
-      "delete-uuid.meta.json",
-      expect.objectContaining({ expectedDigest: "old-meta-digest" })
-    );
-  });
-
-  it("deleteCloudScript 无条件删除能力时不应传 expectedDigest", async () => {
+  it("deleteCloudScript 始终执行普通删除", async () => {
     const fs = createFs();
     const service = new SynchronizeService(
       {} as any,
@@ -2979,13 +2488,9 @@ console.log("ok");`
     }
   });
 
-  it("scriptInstall 对已同步过的脚本改用 CAS 而非 create-only 上传", async () => {
-    // 编辑一个已经同步到云端的脚本会以 upsertBy=user 再次触发 installScript。
-    // 云端文件已存在，此时若仍用 create-only 上传必然 412 冲突，本地编辑永远上不了云。
-    // 正确行为：凭本地已存的云端 digest 做 CAS 覆盖（expectedDigest），不带 createOnly。
+  it("scriptInstall 对已同步过的脚本执行普通覆盖写入", async () => {
     const createCalls: Array<{ name: string; opts: any }> = [];
     const fs = createFs({
-      capabilities: { supportsCreateOnly: true, supportsAtomicCompareAndSwap: true },
       list: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockImplementation(async (name: string, opts: any) => {
         createCalls.push({ name, opts });
@@ -3010,12 +2515,6 @@ console.log("ok");`
       } as any
     );
     vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(fs);
-    // 该脚本此前已同步过，本地记录了它的云端 digest
-    await (service as any).storage.set("file_digest", {
-      "u1.user.js": "etag-user",
-      "u1.meta.json": "etag-meta",
-    });
-
     await service.scriptInstall({
       script: { uuid: "u1", name: "t", origin: "", downloadUrl: "", checkUpdateUrl: "" } as any,
       upsertBy: "user",
@@ -3025,10 +2524,8 @@ console.log("ok");`
 
     const userJs = createCalls.find((c) => c.name === "u1.user.js");
     const metaJson = createCalls.find((c) => c.name === "u1.meta.json");
-    expect(userJs?.opts?.createOnly).toBeUndefined();
-    expect(userJs?.opts?.expectedDigest).toBe("etag-user");
-    expect(metaJson?.opts?.createOnly).toBeUndefined();
-    expect(metaJson?.opts?.expectedDigest).toBe("etag-meta");
+    expect(userJs?.opts).toEqual({ modifiedDate: expect.any(Number) });
+    expect(metaJson?.opts).toEqual({ modifiedDate: expect.any(Number) });
   });
 
   it("本地编辑后即便云端 digest 未变也应推送而非因 digest 相等被跳过", async () => {
@@ -3065,12 +2562,12 @@ console.log("ok");`
 
     await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
 
-    expect(pushSpy).toHaveBeenCalledWith(fs, expect.objectContaining({ uuid: "u1" }), expect.anything());
+    expect(pushSpy).toHaveBeenCalledWith(fs, expect.objectContaining({ uuid: "u1" }));
   });
 
   it("pushScript 在 .meta.json 写入失败时带出已成功写入的 .user.js", async () => {
     // 分两次写 .user.js / .meta.json，前者成功后者失败时要让调用方知道 .user.js 已写成功，
-    // 才能只保留失败文件的旧 digest、推进成功文件的 digest，避免永久 CAS 冲突（#3）。
+    // 才能只保留失败文件的旧 digest、推进成功文件的 digest。
     const fs = createFs({
       create: vi.fn().mockImplementation(async (name: string) => ({
         write: vi.fn().mockImplementation(async () => {
@@ -3113,7 +2610,6 @@ console.log("ok");`
     let seq = 0;
     const cloud = new Map<string, { digest: string; content: string; updatetime: number }>();
     const cloudFs = createFs({
-      capabilities: { supportsCreateOnly: true },
       list: vi.fn(async () =>
         Array.from(cloud, ([name, f]) => ({
           name,
@@ -3127,9 +2623,6 @@ console.log("ok");`
       create: vi.fn(async (name: string, opts: any) => ({
         write: vi.fn(async (content: string) => {
           const existing = cloud.get(name);
-          if (opts?.createOnly && existing) {
-            throw new FileSystemError({ provider: "webdav", message: "createOnly", status: 412, conflict: true });
-          }
           if (failMeta && name === "u1.meta.json") {
             throw new FileSystemError({ provider: "webdav", message: "meta fail", status: 500, retryable: true });
           }
@@ -3182,9 +2675,7 @@ console.log("ok");`
     expect(cloud.has("u1.meta.json")).toBe(true);
   });
 
-  it("编辑已同步脚本时 .meta.json 失败，下一轮同步自愈而不陷入永久 CAS 冲突", async () => {
-    // 端到端复现 #2+#3+#1：编辑已同步脚本 → scriptInstall 推送，.user.js 成功、.meta.json 失败。
-    // 已成功的 .user.js digest 必须被推进，否则下一轮 syncOnce 拿过期 digest 做 CAS 永久 412。
+  it("编辑已同步脚本时 .meta.json 失败，下一轮同步应补传", async () => {
     let failMeta = true;
     const writes: string[] = [];
     let seq = 0;
@@ -3192,10 +2683,7 @@ console.log("ok");`
       ["u1.user.js", { digest: "cu1", content: "// v0", updatetime: 5 }],
       ["u1.meta.json", { digest: "cm1", content: "{}", updatetime: 5 }],
     ]);
-    const conflict = () =>
-      new FileSystemError({ provider: "webdav", message: "CAS conflict", status: 412, conflict: true });
     const cloudFs = createFs({
-      capabilities: { supportsCreateOnly: true, supportsAtomicCompareAndSwap: true },
       list: vi.fn(async () =>
         Array.from(cloud, ([name, f]) => ({
           name,
@@ -3209,11 +2697,7 @@ console.log("ok");`
       create: vi.fn(async (name: string, opts: any) => ({
         write: vi.fn(async (content: string) => {
           const existing = cloud.get(name);
-          if (opts?.createOnly && existing) throw conflict();
-          if (opts?.expectedDigest !== undefined && (!existing || existing.digest !== opts.expectedDigest)) {
-            throw conflict();
-          }
-          if (failMeta && name === "u1.meta.json") throw conflict();
+          if (failMeta && name === "u1.meta.json") throw new Error("meta write failed");
           cloud.set(name, {
             digest: `d${++seq}`,
             content,
@@ -3265,7 +2749,7 @@ console.log("ok");`
     expect(writes).toContain("u1.user.js");
     expect(cloud.get("u1.meta.json")!.digest).toBe("cm1");
 
-    // 第二轮：meta 故障恢复，syncOnce 应自愈（成功文件 digest 已推进，CAS 不再永久冲突）
+    // 第二轮：meta 故障恢复，syncOnce 应补传两个文件
     failMeta = false;
     writes.length = 0;
     await service.syncOnce({ ...syncConfig, syncStatus: false }, cloudFs);
@@ -3276,7 +2760,7 @@ console.log("ok");`
 
   it("本地编辑经 syncOnce 真实上云，且推进 digest 后下一轮不再重复推送", async () => {
     // 端到端验证 #1：脚本已同步（云端 digest 与本地记录一致），随后本地编辑（updatetime 变新、
-    // 但云端文件未变故 digest 仍相等）。syncOnce 必须真正把新内容 CAS 覆盖上云；
+    // 但云端文件未变故 digest 仍相等）。syncOnce 必须真正把新内容覆盖上云；
     // 且推进 digest/更新时间后，下一轮应回到稳态不再重复推送。
     let seq = 0;
     const cloud = new Map<string, { digest: string; content: string; updatetime: number }>([
@@ -3285,7 +2769,6 @@ console.log("ok");`
     ]);
     const writes: string[] = [];
     const cloudFs = createFs({
-      capabilities: { supportsAtomicCompareAndSwap: true },
       list: vi.fn(async () =>
         Array.from(cloud, ([name, f]) => ({
           name,
@@ -3299,9 +2782,6 @@ console.log("ok");`
       create: vi.fn(async (name: string, opts: any) => ({
         write: vi.fn(async (content: string) => {
           const existing = cloud.get(name);
-          if (opts?.expectedDigest !== undefined && (!existing || existing.digest !== opts.expectedDigest)) {
-            throw new FileSystemError({ provider: "webdav", message: "CAS conflict", status: 412, conflict: true });
-          }
           cloud.set(name, {
             digest: `d${++seq}`,
             content,
@@ -3551,7 +3031,7 @@ console.log("ok");`
 
     await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
 
-    expect(pushSpy).toHaveBeenCalledWith(fs, expect.objectContaining({ uuid: "u1" }), expect.anything());
+    expect(pushSpy).toHaveBeenCalledWith(fs, expect.objectContaining({ uuid: "u1" }));
     expect(pullSpy).not.toHaveBeenCalled();
   });
 

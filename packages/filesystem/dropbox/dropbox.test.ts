@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FileSystemError } from "../error";
-import { getFileSystemCapabilities } from "../filesystem";
 import DropboxFileSystem from "./dropbox";
 
 describe("DropboxFileSystem", () => {
@@ -10,16 +9,6 @@ describe("DropboxFileSystem", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-  });
-
-  it("不应声明原子条件写入能力", () => {
-    const fs = new DropboxFileSystem("/", "token");
-
-    expect(getFileSystemCapabilities(fs)).toEqual({
-      supportsAtomicCompareAndSwap: false,
-      supportsCreateOnly: false,
-      supportsConditionalDelete: false,
-    });
   });
 
   it("request should throw typed not found error", async () => {

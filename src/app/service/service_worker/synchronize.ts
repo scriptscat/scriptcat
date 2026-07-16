@@ -10,9 +10,8 @@ import {
 } from "@App/app/repo/scripts";
 import BackupExport from "@App/pkg/backup/export";
 import type { BackupData, ResourceBackup, ScriptBackupData, ScriptOptions, ValueStorage } from "@App/pkg/backup/struct";
-import type { FileCreateOptions, FileInfo } from "@Packages/filesystem/filesystem";
+import type { FileInfo } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
-import { getFileSystemCapabilities } from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
 import { FileSystemError, isWarpTokenError } from "@Packages/filesystem/error";
@@ -87,16 +86,6 @@ export type LocalBackupExport = {
 
 type FileDigestMap = {
   [key: string]: string;
-};
-
-type PushScriptOptions = {
-  fileDigestMap?: FileDigestMap;
-  scriptFile?: FileInfo;
-  metaFile?: FileInfo;
-  // syncOnce 场景为 true：scriptFile/metaFile 反映本轮 fs.list() 快照，undefined 表示已确认云端不存在
-  hasListSnapshot?: boolean;
-  // 自我 412 收敛的重推标记，避免二次冲突时无限重试
-  selfHealRetried?: boolean;
 };
 
 type SyncTask = {
@@ -594,7 +583,7 @@ export class SynchronizeService {
               } else {
                 // 否则认为是一个无效的.meta文件，进行删除，并进行同步
                 await fs.delete(file.meta!.name);
-                return await this.pushScript(fs, script, { fileDigestMap, hasListSnapshot: true });
+                return await this.pushScript(fs, script);
               }
             })(),
             [file.meta!.name, `${uuid}.user.js`]
@@ -604,15 +593,7 @@ export class SynchronizeService {
         const updatetime = script.updatetime || script.createtime;
         // 云端缺 .meta.json（上一轮分片上传残留）：无论方向判定如何都需补传修复
         if (!file.meta) {
-          addSyncTask(
-            uuid,
-            this.pushScript(fs, script, {
-              fileDigestMap,
-              scriptFile: file.script,
-              metaFile: file.meta,
-              hasListSnapshot: true,
-            })
-          );
+          addSyncTask(uuid, this.pushScript(fs, script));
           return;
         }
         if (fileDigestMap[file.script!.name] === file.script!.digest) {
@@ -621,15 +602,7 @@ export class SynchronizeService {
           if (updatetime <= file.script!.updatetime) {
             return;
           }
-          addSyncTask(
-            uuid,
-            this.pushScript(fs, script, {
-              fileDigestMap,
-              scriptFile: file.script,
-              metaFile: file.meta,
-              hasListSnapshot: true,
-            })
-          );
+          addSyncTask(uuid, this.pushScript(fs, script));
           return;
         }
         // 云端自上次同步已变（或本机无记录）。本地毫秒时钟与服务端整秒 mtime 属于两个时钟域，
@@ -654,12 +627,7 @@ export class SynchronizeService {
                 this.logger.warn("sync overwrite", { action: "overwrite", direction: "push", uuid, name: scriptName });
                 overwriteScripts.push({ uuid, scriptName, direction: "push" });
               }
-              return await this.pushScript(fs, script, {
-                fileDigestMap,
-                scriptFile: file.script,
-                metaFile: file.meta,
-                hasListSnapshot: true,
-              });
+              return await this.pushScript(fs, script);
             }
             if (direction.action === "adopt") {
               // 两端内容一致只是基线过期：返回内容 md5 让 updateFileDigest 推进基线，不产生写操作
@@ -687,7 +655,7 @@ export class SynchronizeService {
     });
     // 上传剩下的脚本
     scriptMap.forEach((script) => {
-      addSyncTask(script.uuid, this.pushScript(fs, script, { fileDigestMap, hasListSnapshot: true }));
+      addSyncTask(script.uuid, this.pushScript(fs, script));
     });
     // 忽略错误
     const syncResults = await Promise.allSettled(result.map((item) => item.promise));
@@ -914,7 +882,7 @@ export class SynchronizeService {
     knownFileDigestMap: FileDigestMap = {},
     preserveFileNames = new Set<string>()
   ) {
-    // 先落库本次成功推送内容的 md5（独立于易失的 fs.list），供 CAS 冲突时识别云端是否为本机所写
+    // 先落库本次成功推送内容的 md5（独立于易失的 fs.list），供后续同步方向判定
     await this.recordSyncedContentMd5(knownFileDigestMap);
     const oldFileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
     const newList = await fs.list();
@@ -956,7 +924,7 @@ export class SynchronizeService {
     knownFileDigestMap: FileDigestMap = {},
     preserveFileNames = new Set<string>()
   ) {
-    // 先落库本次成功推送内容的 md5（独立于易失的 fs.list），供 CAS 冲突时识别云端是否为本机所写
+    // 先落库本次成功推送内容的 md5（独立于易失的 fs.list），供后续同步方向判定
     await this.recordSyncedContentMd5(knownFileDigestMap);
     const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
     const targetFiles = new Set(uuids.flatMap((uuid) => [`${uuid}.user.js`, `${uuid}.meta.json`]));
@@ -990,13 +958,12 @@ export class SynchronizeService {
   async deleteCloudScript(fs: FileSystem, uuid: string, syncDelete: boolean) {
     const filename = `${uuid}.user.js`;
     const metaFilename = `${uuid}.meta.json`;
-    const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
     const logger = this.logger.with({
       uuid: uuid,
       file: filename,
     });
     try {
-      await this.deleteCloudFile(fs, filename, fileDigestMap);
+      await fs.delete(filename);
       if (syncDelete) {
         // 留下一个.meta.json删除标记
         const modifiedDate = Date.now();
@@ -1012,7 +979,7 @@ export class SynchronizeService {
         );
       } else {
         // 直接删除所有相关文件
-        await this.deleteCloudFile(fs, metaFilename, fileDigestMap);
+        await fs.delete(metaFilename);
       }
       logger.info("delete success");
     } catch (e) {
@@ -1022,28 +989,8 @@ export class SynchronizeService {
     return;
   }
 
-  private buildDeleteOptions(fs: FileSystem, filename: string, fileDigestMap: FileDigestMap) {
-    if (!getFileSystemCapabilities(fs).supportsConditionalDelete) {
-      return undefined;
-    }
-    const expectedDigest = fileDigestMap[filename];
-    if (!expectedDigest) {
-      return undefined;
-    }
-    return { expectedDigest };
-  }
-
-  private async deleteCloudFile(fs: FileSystem, filename: string, fileDigestMap: FileDigestMap) {
-    const opts = this.buildDeleteOptions(fs, filename, fileDigestMap);
-    if (opts) {
-      await fs.delete(filename, opts);
-      return;
-    }
-    await fs.delete(filename);
-  }
-
   // 上传脚本
-  async pushScript(fs: FileSystem, script: PushScriptParam, opts: PushScriptOptions = {}): Promise<FileDigestMap> {
+  async pushScript(fs: FileSystem, script: PushScriptParam): Promise<FileDigestMap> {
     const filename = `${script.uuid}.user.js`;
     const metaFilename = `${script.uuid}.meta.json`;
     const logger = this.logger.with({
@@ -1055,19 +1002,13 @@ export class SynchronizeService {
     const writtenFiles: string[] = [];
     try {
       const modifiedDate = getScriptModifiedDate(script);
-      const w = await fs.create(
-        filename,
-        this.buildPushCreateOptions(fs, filename, modifiedDate, opts.scriptFile, opts)
-      );
+      const w = await fs.create(filename, { modifiedDate });
       // 获取脚本代码
       const code = await this.scriptCodeDAO.get(script.uuid);
       const scriptCode = code!.code;
       await w.write(scriptCode);
       writtenFiles.push(filename);
-      const meta = await fs.create(
-        metaFilename,
-        this.buildPushCreateOptions(fs, metaFilename, modifiedDate, opts.metaFile, opts)
-      );
+      const meta = await fs.create(metaFilename, { modifiedDate });
       const metaJson = JSON.stringify(<SyncMeta>{
         uuid: script.uuid,
         origin: script.origin,
@@ -1082,68 +1023,12 @@ export class SynchronizeService {
         [metaFilename]: md5OfText(metaJson),
       };
     } catch (e) {
-      // 自我 412 收敛：本地记录的云端 digest 记账失败（上次 fs.list 抛错 / SW 被杀）后再次编辑，
-      // 会拿过期 digest 对「自己上次写入的云端内容」做 If-Match，陷入永久 412。识别到冲突文件的
-      // 云端内容正是本机上次成功写入时，以云端当前 digest 为新基准重推一次收敛；真·他端并发编辑
-      // （内容不符）则维持停在冲突，绝不覆盖他端。
-      if (!opts.selfHealRetried && !writtenFiles.includes(filename) && this.classifySyncError(e) === "conflict") {
-        const rebased = await this.rebaseSelfWrittenConflict(fs, script, opts.fileDigestMap);
-        if (rebased) {
-          logger.warn("self-heal 412 conflict by rebasing on own last push");
-          return await this.pushScript(fs, script, {
-            fileDigestMap: rebased,
-            hasListSnapshot: false,
-            selfHealRetried: true,
-          });
-        }
-      }
       logger.error("push script error", Logger.E(e));
       throw new PushScriptPartialError(e, writtenFiles);
     }
   }
 
-  // CAS 冲突时判断冲突文件的云端内容是否为本机上次成功写入：
-  // 是 → 返回以云端当前原生 digest 为新基准的 fileDigestMap（供重推）；否 → 返回 null（真·他端并发编辑）。
-  private async rebaseSelfWrittenConflict(
-    fs: FileSystem,
-    script: PushScriptParam,
-    fileDigestMap: FileDigestMap = {}
-  ): Promise<FileDigestMap | null> {
-    const filename = `${script.uuid}.user.js`;
-    const metaFilename = `${script.uuid}.meta.json`;
-    try {
-      const syncedContentMd5 = ((await this.storage.get("sync_content_md5")) as FileDigestMap) || {};
-      const recordedMd5 = syncedContentMd5[filename];
-      if (!recordedMd5) {
-        return null;
-      }
-      const list = await fs.list();
-      const cloudFiles = new Map(list.map((file) => [file.name, file]));
-      const cloudScript = cloudFiles.get(filename);
-      if (!cloudScript) {
-        return null;
-      }
-      const cloudCode = (await fs.open(cloudScript).then((r) => r.read("string"))) as string;
-      if (md5OfText(cloudCode) !== recordedMd5) {
-        // 云端内容不是本机上次写入 → 真·他端并发编辑，维持停在冲突
-        return null;
-      }
-      const rebased: FileDigestMap = { ...fileDigestMap };
-      for (const name of [filename, metaFilename]) {
-        const info = cloudFiles.get(name);
-        if (info) {
-          rebased[name] = info.digest;
-        }
-      }
-      return rebased;
-    } catch (e) {
-      this.logger.warn("rebase self-written conflict failed", Logger.E(e), { uuid: script.uuid });
-      return null;
-    }
-  }
-
   // 落库本次成功推送/拉取内容的 md5（键为文件名）：作为本地内容基线供方向判定（L4），
-  // 也供 CAS 冲突时识别云端是否为本机所写。
   // 在 updateFileDigest* 内部、fs.list 之前调用，确保即便随后 list 抛错也已持久化。
   private async recordSyncedContentMd5(syncedMd5Map: FileDigestMap) {
     const names = Object.keys(syncedMd5Map);
@@ -1170,36 +1055,6 @@ export class SynchronizeService {
     if (changed) {
       await this.storage.set("sync_content_md5", stored);
     }
-  }
-
-  private buildPushCreateOptions(
-    fs: FileSystem,
-    filename: string,
-    modifiedDate: number,
-    existingFile: FileInfo | undefined,
-    opts: PushScriptOptions
-  ): FileCreateOptions {
-    const capabilities = getFileSystemCapabilities(fs);
-    const createOptions: FileCreateOptions = { modifiedDate };
-    // CAS 的 If-Match 基准取本地记录的云端 digest（脚本上次同步/安装成功时的版本），
-    // 这样其他设备改动过云端文件时能正确检测冲突而不误覆盖。
-    // 但本轮 list 快照已确认云端不存在的文件（existingFile 为 undefined 且有快照）例外：
-    // 本地残留的 digest 必然过期，对不存在的文件做 If-Match 必然 412，
-    // 且失败保留旧 digest 后永不自愈，只能走 create-only。
-    // 无快照的场景（scriptInstall 队列）才允许用本地记录 digest 做 CAS——
-    // 已同步过的脚本编辑后再次上传必须 CAS 覆盖，否则 create-only 撞上已存在文件必然 412。
-    const expectedDigest =
-      existingFile === undefined && opts.hasListSnapshot ? undefined : opts.fileDigestMap?.[filename];
-    if (existingFile === undefined && expectedDigest === undefined) {
-      if (capabilities.supportsCreateOnly) {
-        createOptions.createOnly = true;
-      }
-      return createOptions;
-    }
-    if (expectedDigest && capabilities.supportsAtomicCompareAndSwap) {
-      createOptions.expectedDigest = expectedDigest;
-    }
-    return createOptions;
   }
 
   // 云端 digest 相对上次同步已变时决定同步方向。
@@ -1342,16 +1197,13 @@ export class SynchronizeService {
     if (config.enable) {
       stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
         const fs = await this.buildFileSystem(config);
-        // 已同步过的脚本本地记录了其云端 digest，据此做 CAS 覆盖；没有记录才是首次上传走 create-only。
-        // 缺了它，编辑已存在的云端脚本会因 create-only 而 412 冲突，本地改动永远上不了云。
-        const fileDigestMap = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
         const script = params.script;
         try {
-          const pushedFileDigestMap = await this.pushScript(fs, script, { fileDigestMap });
+          const pushedFileDigestMap = await this.pushScript(fs, script);
           await this.updateFileDigestForUuids(fs, [script.uuid], pushedFileDigestMap);
         } catch (e) {
           // 部分成功（如 .user.js 成功、.meta.json 失败）时，已写成功文件的云端 digest 已更新，
-          // 必须记录其最新 digest、只保留失败文件的旧值，否则下一轮同步会拿过期 digest 做 CAS 永久 412。
+          // 必须记录其最新 digest、只保留失败文件的旧值，避免下一轮误判成功文件仍未同步。
           // 全部失败（无文件写入成功）则不动 file_digest，保持"失败不污染"。
           const writtenFiles = e instanceof PushScriptPartialError ? e.writtenFiles : [];
           if (writtenFiles.length > 0) {

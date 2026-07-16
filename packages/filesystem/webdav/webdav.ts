@@ -6,8 +6,6 @@ import { joinPath } from "../utils";
 import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
 import { WarpTokenError } from "../error";
 import { createWebDAVFileSystemError } from "./error";
-import type { FileDeleteOptions } from "../filesystem";
-import { quoteETag } from "./utils";
 
 // 禁止 WebDAV 请求携带浏览器 cookies，只通过账号密码认证 (#1297)
 // 全局单次注册
@@ -27,15 +25,6 @@ const initWebDAVPatch = () => {
 };
 
 export default class WebDAVFileSystem implements FileSystem {
-  // 真实 WebDAV 服务端对条件头的兑现极不一致且方向相反（坚果云对正确 etag 的 If-Match 也恒 412，
-  // Alist 类完全忽略 If-Match/If-None-Match），任何一项都不能依赖，保守声明为不支持，
-  // 回落无条件读写 + 最终一致（#1504 实测结论）
-  readonly capabilities = {
-    supportsAtomicCompareAndSwap: false,
-    supportsCreateOnly: false,
-    supportsConditionalDelete: false,
-  };
-
   client: WebDAVClient;
 
   url: string;
@@ -87,8 +76,8 @@ export default class WebDAVFileSystem implements FileSystem {
     return WebDAVFileSystem.fromSameClient(this, joinPath(this.basePath, path));
   }
 
-  async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
-    return new WebDAVFileWriter(this.client, joinPath(this.basePath, path), opts);
+  async create(path: string, _opts?: FileCreateOptions): Promise<FileWriter> {
+    return new WebDAVFileWriter(this.client, joinPath(this.basePath, path));
   }
 
   async createDir(path: string, _opts?: FileCreateOptions): Promise<void> {
@@ -103,16 +92,8 @@ export default class WebDAVFileSystem implements FileSystem {
     }
   }
 
-  async delete(path: string, opts?: FileDeleteOptions): Promise<void> {
+  async delete(path: string): Promise<void> {
     try {
-      if (opts?.expectedDigest) {
-        await this.client.deleteFile(joinPath(this.basePath, path), {
-          headers: {
-            "If-Match": quoteETag(opts.expectedDigest),
-          },
-        });
-        return;
-      }
       await this.client.deleteFile(joinPath(this.basePath, path));
     } catch (e: any) {
       if (e.response?.status === 404 || e.message?.includes("404")) {
