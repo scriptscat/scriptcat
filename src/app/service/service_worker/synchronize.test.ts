@@ -3283,5 +3283,26 @@ console.log("ok");`;
 
       expect(syncSpy).toHaveBeenCalledWith(config, fsMock);
     });
+
+    it("构建文件系统失败时写入 error 状态并抛出，供状态条与用户可见", async () => {
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { getCloudSync: vi.fn().mockResolvedValue(cfg(true)) } as any,
+        {} as any
+      );
+      vi.spyOn(service, "buildFileSystem").mockRejectedValue(new Error("WebDAV verify failed"));
+      const syncSpy = vi.spyOn(service, "syncOnce").mockResolvedValue(undefined);
+
+      await expect(service.cloudSyncOnce()).rejects.toThrow("WebDAV verify failed");
+
+      expect(syncSpy).not.toHaveBeenCalled();
+      const state = await (service as any).storage.get("cloud_sync_state");
+      expect(state).toMatchObject({ syncing: false, error: expect.stringContaining("WebDAV verify failed") });
+    });
   });
 });

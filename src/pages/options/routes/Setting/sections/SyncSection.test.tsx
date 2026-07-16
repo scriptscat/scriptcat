@@ -44,6 +44,11 @@ vi.mock("@App/pages/store/features/cloud_sync", () => ({
   requestCloudSyncOnce,
 }));
 
+const { notify } = vi.hoisted(() => ({
+  notify: { info: vi.fn(), success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+}));
+vi.mock("@App/pages/components/ui/toast", () => ({ notify }));
+
 import { SyncSection } from "./SyncSection";
 
 function mockState(over: Record<string, unknown> = {}) {
@@ -76,6 +81,9 @@ beforeEach(() => {
   mockState();
   subscribeCloudSyncState.mockReturnValue(() => {});
   requestCloudSyncOnce.mockResolvedValue(undefined);
+  notify.info.mockClear();
+  notify.success.mockClear();
+  notify.error.mockClear();
 });
 
 afterEach(() => {
@@ -162,5 +170,15 @@ describe("同步分区", () => {
     render(<SyncSection register={() => () => {}} />);
     await screen.findByTestId("cloud_sync_save");
     expect(screen.queryByTestId("cloud_sync_status")).toBeNull();
+  });
+
+  it("立即同步失败时弹出错误提示（不产生未捕获异常）", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
+    mockState({ lastSyncAt: 1 });
+    requestCloudSyncOnce.mockRejectedValue(new Error("verify failed"));
+    render(<SyncSection register={() => () => {}} />);
+    const btn = await screen.findByTestId("cloud_sync_now");
+    await act(async () => fireEvent.click(btn));
+    expect(notify.error).toHaveBeenCalled();
   });
 });

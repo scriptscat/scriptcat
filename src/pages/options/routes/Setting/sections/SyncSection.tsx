@@ -60,7 +60,13 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
   };
 
   const syncNow = async () => {
-    await requestCloudSyncOnce();
+    // 触发失败（如连接/账号验证失败）时给出即时反馈，避免静默失败与未捕获异常；
+    // 状态条随后也会因 SW 写入 error 状态而反映失败。
+    try {
+      await requestCloudSyncOnce();
+    } catch (e) {
+      notify.error(`${t("settings:cloud_sync_verification_failed")}: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   const variant = syncStatusVariant(syncState);

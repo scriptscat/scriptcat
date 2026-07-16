@@ -1263,7 +1263,20 @@ export class SynchronizeService {
   async cloudSyncOnce() {
     const config = await this.systemConfig.getCloudSync();
     if (!config.enable) return;
-    const fs = await this.buildFileSystem(config);
+    let fs: FileSystem;
+    try {
+      fs = await this.buildFileSystem(config);
+    } catch (e) {
+      // 构建文件系统失败（连接/认证）发生在 syncOnce 之前，syncOnce 的状态处理覆盖不到；
+      // 这里补写 error 状态，让设置页状态条反映失败，并向上抛出供 UI 提示用户。
+      const prev = ((await this.storage.get(CLOUD_SYNC_STATE_KEY)) as CloudSyncState) || DEFAULT_CLOUD_SYNC_STATE;
+      await this.storage.set(CLOUD_SYNC_STATE_KEY, {
+        ...prev,
+        syncing: false,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      throw e;
+    }
     await this.syncOnce(config, fs);
   }
 
