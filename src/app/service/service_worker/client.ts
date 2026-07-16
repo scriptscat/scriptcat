@@ -118,7 +118,8 @@ export class ScriptClient extends Client {
     return this.do("setCheckUpdateUrl", { uuid, checkUpdate, checkUpdateUrl });
   }
 
-  updateMetadata(uuid: string, key: string, value: string[]) {
+  // value 为 undefined 表示撤销用户覆盖，生效值回落脚本自带 metadata
+  updateMetadata(uuid: string, key: string, value: string[] | undefined) {
     return this.do("updateMetadata", { uuid, key, value });
   }
   async getBatchUpdateRecordLite(i: number) {

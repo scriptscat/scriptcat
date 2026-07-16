@@ -191,11 +191,24 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
   const runAt = self["early-start"] ? "early-start" : (self["run-at"]?.[0] ?? meta["run-at"]?.[0] ?? "default");
   const checkUpdate = script.checkUpdate !== false;
 
-  const patchSelf = (patch: Record<string, string[]>) =>
-    setScript((prev) => (prev ? { ...prev, selfMetadata: { ...prev.selfMetadata, ...patch } } : prev));
+  // patch 中值为 undefined 的 key 表示撤销该项覆盖（回落脚本自带 metadata），与后端删除覆盖语义一致
+  const patchSelf = (patch: Record<string, string[] | undefined>) =>
+    setScript((prev) => {
+      if (!prev) return prev;
+      const selfMetadata = { ...prev.selfMetadata };
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === undefined) {
+          delete selfMetadata[k];
+        } else {
+          selfMetadata[k] = v;
+        }
+      }
+      return { ...prev, selfMetadata };
+    });
 
   const onRunIn = (value: string) => {
-    const v = value === "default" ? [] : [value];
+    // 选「默认」= 撤销覆盖、跟随脚本自带 @run-in，故传 undefined 而非空数组
+    const v = value === "default" ? undefined : [value];
     void scriptClient.updateMetadata(uuid, "run-in", v);
     patchSelf({ "run-in": v });
   };
@@ -206,10 +219,11 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
       void scriptClient.updateMetadata(uuid, "run-at", ["document-start"]);
       patchSelf({ "early-start": [""], "run-at": ["document-start"] });
     } else {
-      const v = value === "default" ? [] : [value];
-      void scriptClient.updateMetadata(uuid, "early-start", []);
+      // 撤销 early-start 覆盖须传 undefined：空数组会被当成真值使 runAt 计算回落到 early-start
+      const v = value === "default" ? undefined : [value];
+      void scriptClient.updateMetadata(uuid, "early-start", undefined);
       void scriptClient.updateMetadata(uuid, "run-at", v);
-      patchSelf({ "early-start": [], "run-at": v });
+      patchSelf({ "early-start": undefined, "run-at": v });
     }
   };
 
@@ -234,27 +248,17 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
 
   // ===== 匹配 / 排除 =====
   const setMatchList = (kind: "match" | "exclude", next: string[] | undefined) => {
-    // next 为 undefined（重置）或空数组（删除最后一项）时后端 selfMetadataUpdate 均删除用户覆盖，
-    // 生效列表回落到脚本自带的 metadata，前端乐观更新保持一致
-    const override = next?.length ? next : undefined;
+    // next 为 undefined 表示重置（撤销覆盖、回落脚本自带 metadata）；数组（含空数组，即删除最后一项）
+    // 表示用户显式覆盖。与后端 selfMetadataUpdate 语义一致，前端乐观更新分别处理，不再把空数组塌成重置。
     const metaList = kind === "match" ? metaMatch : metaExclude;
     if (kind === "match") {
       void scriptClient.resetMatch(uuid, next);
-      setMatches(override ?? metaList);
+      setMatches(next ?? metaList);
     } else {
       void scriptClient.resetExclude(uuid, next);
-      setExcludes(override ?? metaList);
+      setExcludes(next ?? metaList);
     }
-    setScript((prev) => {
-      if (!prev) return prev;
-      const selfMetadata = { ...prev.selfMetadata };
-      if (override === undefined) {
-        delete selfMetadata[kind];
-      } else {
-        selfMetadata[kind] = override;
-      }
-      return { ...prev, selfMetadata };
-    });
+    patchSelf({ [kind]: next });
   };
   const openBulkMatch = (kind: "match" | "exclude") => {
     setBulkMatchValue("");
