@@ -346,6 +346,46 @@ describe("installScript —— 回收站 uuid 不变量", () => {
     expect(await trashDAO.get(uuid)).toBeUndefined();
   });
 
+  it("安装恢复时原订阅已不存在应清除 subscribeUrl", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    const uuid = "revive-gone-subscribe";
+    const subscribeUrl = "https://gone.example/sub.json";
+    await trashDAO.save(makeTrashScript({ uuid, subscribeUrl }), "// old code");
+
+    await service.installScript({
+      script: makeScript({ uuid, subscribeUrl }),
+      code: "// new code",
+      upsertBy: "user",
+    });
+
+    expect((await scriptDAO.get(uuid))?.subscribeUrl).toBeUndefined();
+  });
+
+  it("安装恢复时原订阅仍存在应保留 subscribeUrl", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    const uuid = "revive-live-subscribe";
+    const subscribeUrl = "https://live.example/sub.json";
+    await new SubscribeDAO().save({
+      url: subscribeUrl,
+      name: "订阅",
+      scripts: {},
+      metadata: {},
+      status: 1,
+      createtime: Date.now(),
+      updatetime: Date.now(),
+      checktime: Date.now(),
+    } as any);
+    await trashDAO.save(makeTrashScript({ uuid, subscribeUrl }), "// old code");
+
+    await service.installScript({
+      script: makeScript({ uuid, subscribeUrl }),
+      code: "// new code",
+      upsertBy: "user",
+    });
+
+    expect((await scriptDAO.get(uuid))?.subscribeUrl).toBe(subscribeUrl);
+  });
+
   it("复活脚本保存失败时应保留 OPFS 回收站原件和代码", async () => {
     const { service, scriptDAO, trashDAO } = buildService();
     const uuid = "revive-failed";
@@ -396,6 +436,16 @@ describe("ScriptService.cleanupExpiredTrash —— 到期自动清理", () => {
     expect(cleaned).toBe(1);
     expect(await trashDAO.get("old")).toBeUndefined();
     expect(await trashDAO.get("fresh")).toBeDefined();
+  });
+
+  it("到期条目在清理期间已被手动清空时应视为成功", async () => {
+    const { service, trashDAO, systemConfig } = buildService();
+    systemConfig.setTrashRetentionDays(30);
+    await trashDAO.save(makeTrashScript({ uuid: "expired-race", deleteTime: Date.now() - 31 * DAY }));
+    const purge = vi.spyOn(service, "purgeScripts").mockRejectedValueOnce(new Error("trash scripts not found"));
+
+    await expect(service.cleanupExpiredTrash()).resolves.toBe(0);
+    expect(purge).toHaveBeenCalledWith(["expired-race"]);
   });
 
   it("清理应走彻底删除链路并广播 deleteScripts", async () => {

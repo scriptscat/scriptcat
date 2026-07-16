@@ -482,6 +482,13 @@ export class ScriptService {
     // 同步复活 / vscode 推送 / 安装页复用回收站 uuid 均汇流至此。
     // OPFS 是回收站脚本的唯一原件，必须等活跃元数据与代码都保存成功后再删除。
     const trashedBeforeInstall = await this.trashScriptDAO.get(script.uuid);
+    if (
+      trashedBeforeInstall?.subscribeUrl &&
+      script.subscribeUrl === trashedBeforeInstall.subscribeUrl &&
+      !(await this.subscribeDAO.get(trashedBeforeInstall.subscribeUrl))
+    ) {
+      delete script.subscribeUrl;
+    }
     return (async () => {
       if (trashedBeforeInstall) {
         await this.scriptCodeDAO.save({
@@ -689,7 +696,13 @@ export class ScriptService {
     if (!expired.length) {
       return 0;
     }
-    await this.purgeScripts(expired);
+    try {
+      await this.purgeScripts(expired);
+    } catch (error) {
+      // 自动清理与用户手动清空并发时，目标已不存在已经满足清理目的；其他异常仍需暴露。
+      if (!(error instanceof Error) || error.message !== "trash scripts not found") throw error;
+      return 0;
+    }
     this.logger.info("cleanup expired trash", { count: expired.length });
     return expired.length;
   }
