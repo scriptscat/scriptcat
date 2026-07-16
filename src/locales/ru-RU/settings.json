@@ -113,5 +113,15 @@
   "favicon_service_icon-horse": "Icon Horse",
   "favicon_service_local": "Локальное получение",
   "cloud_sync_account_verification": "Проверка учетной записи облачной синхронизации...",
-  "cloud_sync_verification_failed": "Ошибка проверки учетной записи облачной синхронизации"
+  "cloud_sync_verification_failed": "Ошибка проверки учетной записи облачной синхронизации",
+  "trash_retention": "Хранение в корзине",
+  "trash_retention_desc": "Сколько времени удалённые скрипты хранятся в корзине, прежде чем будут автоматически удалены окончательно",
+  "trash_retention_7": "7 дней",
+  "trash_retention_30": "30 дней",
+  "trash_retention_90": "90 дней",
+  "trash_retention_never": "Никогда",
+  "trash_enabled": "Включить корзину",
+  "trash_enabled_desc": "Удалённые скрипты сначала попадают в корзину, и их можно восстановить в любой момент. Если отключить, скрипты будут удаляться окончательно сразу.",
+  "trash_retention_custom": "Пользовательское",
+  "trash_retention_days_unit": "дн."
 }

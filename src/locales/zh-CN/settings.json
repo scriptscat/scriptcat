@@ -113,5 +113,15 @@
   "favicon_service_icon-horse": "Icon Horse",
   "favicon_service_local": "本地获取",
   "cloud_sync_account_verification": "云同步账号信息验证中...",
-  "cloud_sync_verification_failed": "云同步账号信息验证失败"
+  "cloud_sync_verification_failed": "云同步账号信息验证失败",
+  "trash_retention": "回收站保留时间",
+  "trash_retention_desc": "删除的脚本在回收站中保留多久后自动彻底删除",
+  "trash_retention_7": "7天",
+  "trash_retention_30": "30天",
+  "trash_retention_90": "90天",
+  "trash_retention_never": "永不",
+  "trash_enabled": "启用回收站",
+  "trash_enabled_desc": "删除脚本时先移入回收站，可随时还原；关闭后删除将直接彻底删除",
+  "trash_retention_custom": "自定义",
+  "trash_retention_days_unit": "天"
 }

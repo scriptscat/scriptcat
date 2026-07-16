@@ -148,18 +148,19 @@ export function getCombinedMeta(metaBase: SCMetadata, metaCustom: SCMetadata): S
   return metaRet;
 }
 
-export function selfMetadataUpdate(script: Script, key: string, valueSet: Set<string>) {
+// valueSet 为 undefined 表示撤销用户覆盖(生效值回落脚本自带 metadata)；
+// 空集合表示用户显式清空该项，两者语义不同，不可互相替代
+export function selfMetadataUpdate(script: Script, key: string, valueSet: Set<string> | undefined) {
   // 更新 selfMetadata 时建立浅拷贝
   const selfMetadata = { ...(script.selfMetadata || {}) };
   script = { ...script, selfMetadata };
-  const value = [...valueSet].filter((item) => typeof item === "string");
-  if (value.length > 0) {
-    selfMetadata[key] = value;
-  } else {
+  if (valueSet === undefined) {
     delete selfMetadata[key];
     if (Object.keys(selfMetadata).length === 0) {
       script.selfMetadata = undefined; // delete script.selfMetadata;
     }
+  } else {
+    selfMetadata[key] = [...valueSet].filter((item) => typeof item === "string");
   }
   return script;
 }

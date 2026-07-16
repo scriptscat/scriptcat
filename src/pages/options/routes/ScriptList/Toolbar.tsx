@@ -65,24 +65,28 @@ export interface ToolbarProps {
   setViewMode: (mode: "table" | "card") => void;
   searchRequest: SearchFilterRequest;
   setSearchRequest: (req: SearchFilterRequest) => void;
+  /** 顶栏最左侧的内容；传入时取代「标题 + 数量」（回收站 tab 引入后由 tabs 占据该槽位） */
+  leading?: React.ReactNode;
 }
 
 /**
- * 脚本列表顶栏：标题+数量、搜索框、视图切换、新建脚本。
+ * 脚本列表顶栏：标题+数量（或 leading 槽位）、搜索框、视图切换、新建脚本。
  * 表格视图与卡片视图共用本组件，仅 viewMode 决定激活态，避免两份顶栏代码分叉
  * （此前卡片视图的顶栏漏掉了「新建脚本」按钮即源于此类重复）。
  */
-export function Toolbar({ totalCount, viewMode, setViewMode, searchRequest, setSearchRequest }: ToolbarProps) {
+export function Toolbar({ totalCount, viewMode, setViewMode, searchRequest, setSearchRequest, leading }: ToolbarProps) {
   const { t } = useTranslation();
   return (
     <div className="flex items-center gap-4 h-14 px-6 shrink-0 border-b border-border bg-card">
-      {/* 标题 + 数量 */}
-      <div className="flex items-center gap-2 shrink-0">
-        <h1 className="text-base font-semibold">{t("script:installed_scripts")}</h1>
-        <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium font-mono text-primary tabular-nums">
-          {totalCount}
-        </span>
-      </div>
+      {leading ?? (
+        // 标题 + 数量
+        <div className="flex items-center gap-2 shrink-0">
+          <h1 className="text-base font-semibold">{t("script:installed_scripts")}</h1>
+          <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium font-mono text-primary tabular-nums">
+            {totalCount}
+          </span>
+        </div>
+      )}
 
       {/* 搜索框 */}
       <SearchInput

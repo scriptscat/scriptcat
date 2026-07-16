@@ -168,8 +168,8 @@ export function usePopupData() {
         setScriptList(patch);
         setBackScriptList(patch);
       }),
-      // 脚本被删除
-      subscribeMessage<TDeleteScript[]>("deleteScripts", (data) => {
+      // 脚本被删除(= 移入回收站,广播 trashScripts);彻底删除时脚本早已不在列表里,无事可做
+      subscribeMessage<TDeleteScript[]>("trashScripts", (data) => {
         if (!Array.isArray(data)) return;
         const uuids = new Set(data.map((d) => d.uuid));
         setScriptList((prev) => prev.filter((s) => !uuids.has(s.uuid)));

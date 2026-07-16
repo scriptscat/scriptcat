@@ -71,3 +71,132 @@ describe("通用分区-界面语言", () => {
     expect(success).toHaveBeenCalledWith("语言切换成功");
   });
 });
+
+describe("通用分区-回收站", () => {
+  const mockConfig = (values: Record<string, unknown>) =>
+    get.mockImplementation((key: string) => Promise.resolve(values[key]));
+
+  it("关闭回收站开关后写入 trash_enabled=false", async () => {
+    mockConfig({ language: "zh-CN", trash_enabled: true, trash_retention_days: 30 });
+    render(<GeneralSection register={() => () => {}} />);
+
+    fireEvent.click(await screen.findByRole("switch", { name: "启用回收站" }));
+
+    expect(set).toHaveBeenCalledWith("trash_enabled", false);
+  });
+
+  it("回收站关闭时保留时间下拉不可用", async () => {
+    mockConfig({ language: "zh-CN", trash_enabled: false, trash_retention_days: 30 });
+    render(<GeneralSection register={() => () => {}} />);
+
+    expect(await screen.findByRole("combobox", { name: "回收站保留时间" })).toBeDisabled();
+  });
+
+  it("选择自定义后出现天数输入框，且不被已存的 30 天弹回预设档", async () => {
+    mockConfig({ language: "zh-CN", trash_enabled: true, trash_retention_days: 30 });
+    render(<GeneralSection register={() => () => {}} />);
+
+    fireEvent.click(await screen.findByRole("combobox", { name: "回收站保留时间" }));
+    fireEvent.click(await screen.findByText("自定义"));
+
+    expect(screen.getByRole("spinbutton", { name: "自定义" })).toBeInTheDocument();
+  });
+
+  it("自定义天数填入合法值后写入配置", async () => {
+    mockConfig({ language: "zh-CN", trash_enabled: true, trash_retention_days: 45 });
+    render(<GeneralSection register={() => () => {}} />);
+
+    const input = await screen.findByRole("spinbutton", { name: "自定义" });
+    fireEvent.change(input, { target: { value: "60" } });
+    fireEvent.blur(input);
+
+    expect(set).toHaveBeenCalledWith("trash_retention_days", 60);
+  });
+
+  it("自定义天数为空或超出 1-3650 时不写入配置", async () => {
+    mockConfig({ language: "zh-CN", trash_enabled: true, trash_retention_days: 45 });
+    render(<GeneralSection register={() => () => {}} />);
+
+    const input = await screen.findByRole("spinbutton", { name: "自定义" });
+    for (const value of ["", "0", "4000"]) {
+      fireEvent.change(input, { target: { value } });
+      fireEvent.blur(input);
+    }
+
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  // 边界值：只测过「被拒绝」的一侧,n < MIN 误写成 n <= MIN 这类 off-by-one 不会变红
+  it("自定义天数逐键输入时不写配置，失焦才提交一次", async () => {
+    mockConfig({ language: "zh-CN", trash_enabled: true, trash_retention_days: 45 });
+    render(<GeneralSection register={() => () => {}} />);
+
+    const input = await screen.findByRole("spinbutton", { name: "自定义" });
+    // 模拟打「365」的三次击键：逐键落库会把 3、36 也写进 chrome.storage.sync 并各同步一次
+    fireEvent.change(input, { target: { value: "3" } });
+    fireEvent.change(input, { target: { value: "36" } });
+    fireEvent.change(input, { target: { value: "365" } });
+
+    expect(set).not.toHaveBeenCalled();
+
+    fireEvent.blur(input);
+
+    expect(set).toHaveBeenCalledTimes(1);
+    expect(set).toHaveBeenCalledWith("trash_retention_days", 365);
+  });
+
+  it("自定义天数填入非法值后失焦，草稿退回已存值而非停在无效数字", async () => {
+    mockConfig({ language: "zh-CN", trash_enabled: true, trash_retention_days: 45 });
+    render(<GeneralSection register={() => () => {}} />);
+
+    const input = await screen.findByRole("spinbutton", { name: "自定义" });
+    fireEvent.change(input, { target: { value: "4000" } });
+    fireEvent.blur(input);
+
+    expect(set).not.toHaveBeenCalled();
+    expect(input).toHaveValue(45);
+  });
+
+  it("自定义天数为下界 1 时写入配置", async () => {
+    mockConfig({ language: "zh-CN", trash_enabled: true, trash_retention_days: 45 });
+    render(<GeneralSection register={() => () => {}} />);
+
+    const input = await screen.findByRole("spinbutton", { name: "自定义" });
+    fireEvent.change(input, { target: { value: "1" } });
+    fireEvent.blur(input);
+
+    expect(set).toHaveBeenCalledWith("trash_retention_days", 1);
+  });
+
+  it("自定义天数为上界 3650 时写入配置", async () => {
+    mockConfig({ language: "zh-CN", trash_enabled: true, trash_retention_days: 45 });
+    render(<GeneralSection register={() => () => {}} />);
+
+    const input = await screen.findByRole("spinbutton", { name: "自定义" });
+    fireEvent.change(input, { target: { value: "3650" } });
+    fireEvent.blur(input);
+
+    expect(set).toHaveBeenCalledWith("trash_retention_days", 3650);
+  });
+
+  it("自定义天数为 3651（超出上界 1 天）时不写入配置", async () => {
+    mockConfig({ language: "zh-CN", trash_enabled: true, trash_retention_days: 45 });
+    render(<GeneralSection register={() => () => {}} />);
+
+    const input = await screen.findByRole("spinbutton", { name: "自定义" });
+    fireEvent.change(input, { target: { value: "3651" } });
+    fireEvent.blur(input);
+
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it("保留时间为「永不」时切到自定义，天数草稿播种为合法默认值而非 0", async () => {
+    mockConfig({ language: "zh-CN", trash_enabled: true, trash_retention_days: 0 });
+    render(<GeneralSection register={() => () => {}} />);
+
+    fireEvent.click(await screen.findByRole("combobox", { name: "回收站保留时间" }));
+    fireEvent.click(await screen.findByText("自定义"));
+
+    expect(screen.getByRole("spinbutton", { name: "自定义" })).toHaveValue(30);
+  });
+});

@@ -3,23 +3,29 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Script } from "@App/app/repo/scripts";
 import type { ScriptBackupData, SubscribeBackupData } from "@App/pkg/backup/struct";
+import type { ConfigBundle } from "@App/pkg/backup/config_bundle";
 
 // useImport 通过 cache→fetch→zip→parse→prepare 装配数据,再逐项调用 store clients 导入。
 // 这里把这些副作用全部打桩,验证「装配/默认勾选/状态机/导入编排」逻辑。
 const h = vi.hoisted(() => ({
-  backup: { script: [] as ScriptBackupData[], subscribe: [] as SubscribeBackupData[] },
+  backup: {
+    script: [] as ScriptBackupData[],
+    subscribe: [] as SubscribeBackupData[],
+    config: undefined as ConfigBundle | undefined,
+  },
   cacheGet: vi.fn(),
   fetch: vi.fn(),
   loadAsyncJSZip: vi.fn(() => Promise.resolve("ZIP")),
   parseBackupZipFile: vi.fn(),
   prepareScriptByCode: vi.fn(),
   prepareSubscribeByCode: vi.fn(),
-  install: vi.fn((_params: { script: { uuid: string; sort?: number }; code: string }) =>
+  install: vi.fn((_params: { script: { uuid: string; sort?: number; checkUpdate?: boolean }; code: string }) =>
     Promise.resolve({ update: false, updatetime: 0 })
   ),
   importResources: vi.fn((..._args: unknown[]) => Promise.resolve()),
   setScriptValues: vi.fn((_params: { uuid: string; isReplace: boolean }) => Promise.resolve()),
   subscribeInstall: vi.fn((_subscribe: { url: string }) => Promise.resolve("url")),
+  restoreConfigBundle: vi.fn((_bundle: ConfigBundle) => Promise.resolve()),
 }));
 
 function mkScript(p: Partial<Script>): Script {
@@ -55,7 +61,7 @@ vi.mock("@App/app/repo/scripts", () => ({
 }));
 vi.mock("@App/pages/store/features/script", () => ({
   scriptClient: { install: h.install },
-  synchronizeClient: { importResources: h.importResources },
+  synchronizeClient: { importResources: h.importResources, restoreConfigBundle: h.restoreConfigBundle },
   valueClient: { setScriptValues: h.setScriptValues },
   subscribeClient: { install: h.subscribeInstall },
 }));
@@ -94,7 +100,7 @@ beforeAll(() => initTestLanguage("zh-CN"));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.backup = { script: [], subscribe: [] };
+  h.backup = { script: [], subscribe: [], config: undefined };
   h.cacheGet.mockResolvedValue({ filename: "backup.zip", url: "blob:abc" });
   h.fetch.mockResolvedValue({ blob: () => Promise.resolve("BLOB") });
   global.fetch = h.fetch as unknown as typeof fetch;
@@ -110,12 +116,18 @@ beforeEach(() => {
   window.history.replaceState(null, "", "/import.html?uuid=abc");
 });
 
-async function renderLoaded(scripts: ScriptBackupData[], subscribe: SubscribeBackupData[] = []) {
-  h.backup = { script: scripts, subscribe };
+async function renderLoaded(scripts: ScriptBackupData[], subscribe: SubscribeBackupData[] = [], config?: ConfigBundle) {
+  h.backup = { script: scripts, subscribe, config };
   const r = renderHook(() => useImport());
   await waitFor(() => expect(r.result.current.phase).not.toBe("loading"));
   return r;
 }
+
+const configBundle: ConfigBundle = {
+  version: 1,
+  systemConfig: { menu_expand_num: 5 },
+  agent: { models: [], mcp: [], tasks: [], defaultModelId: "", summaryModelId: "" },
+};
 
 describe("useImport 装配与默认勾选", () => {
   it("从 uuid 读取备份并渲染脚本与订阅,默认全选可导入项", async () => {
@@ -153,6 +165,18 @@ describe("useImport 装配与默认勾选", () => {
     expect(result.current.phase).toBe("empty");
   });
 
+  it("备份仅包含设置时仍进入可导入状态并暴露板块", async () => {
+    const { result } = await renderLoaded([], [], configBundle);
+    expect(result.current.phase).toBe("ready");
+    expect(result.current.hasConfig).toBe(true);
+    expect(result.current.configSections.map((s) => s.id)).toEqual(["appearance"]);
+  });
+
+  it("备份包含设置时默认不勾选任何板块", async () => {
+    const { result } = await renderLoaded([], [], configBundle);
+    expect(result.current.selectedSections.size).toBe(0);
+  });
+
   it("fetch/解析异常进入加载失败(error)并带错误信息", async () => {
     h.parseBackupZipFile.mockRejectedValue(new Error("failed to parse zip"));
     const { result } = await renderLoaded([mkBackupScript({ name: "x", uuid: "a" })]);
@@ -162,6 +186,27 @@ describe("useImport 装配与默认勾选", () => {
 });
 
 describe("useImport 导入编排", () => {
+  it("全选板块后可单独恢复设置(以过滤后的 bundle 调用 restoreConfigBundle)", async () => {
+    const { result } = await renderLoaded([], [], configBundle);
+    act(() => result.current.onToggleAllSections());
+    expect(result.current.selectedSections.has("appearance")).toBe(true);
+    await act(async () => {
+      await result.current.onImport();
+    });
+    expect(h.restoreConfigBundle).toHaveBeenCalledWith(
+      expect.objectContaining({ systemConfig: { menu_expand_num: 5 } })
+    );
+    expect(result.current.phase).toBe("done");
+  });
+
+  it("未勾选任何板块时导入不调用 restoreConfigBundle", async () => {
+    const { result } = await renderLoaded([mkBackupScript({ name: "A", uuid: "a" })], [], configBundle);
+    await act(async () => {
+      await result.current.onImport();
+    });
+    expect(h.restoreConfigBundle).not.toHaveBeenCalled();
+  });
+
   it("点击导入对已勾选脚本调用 install / importResources / setScriptValues 并进入完成", async () => {
     const { result } = await renderLoaded([
       mkBackupScript({ name: "带数据", uuid: "a", values: { k: 1 }, resources: [{ meta: {} }] }),
@@ -170,13 +215,48 @@ describe("useImport 导入编排", () => {
       await result.current.onImport();
     });
     expect(h.install).toHaveBeenCalledTimes(1);
-    expect(h.install.mock.calls[0][0]).toMatchObject({ code: "// 带数据" });
+    expect(h.install.mock.calls[0][0]).toMatchObject({ code: "// 带数据", overwriteSelfMetadata: true });
     expect(h.importResources).toHaveBeenCalledTimes(1);
     expect(h.setScriptValues).toHaveBeenCalledTimes(1);
     expect(h.setScriptValues.mock.calls[0][0]).toMatchObject({ uuid: "a", isReplace: false });
     expect(result.current.phase).toBe("done");
     expect(result.current.summary.scripts).toBe(1);
     expect(result.current.summary.values).toBe(1);
+  });
+
+  it("导入已存在脚本时覆盖支持的 TM override 配置并忽略 connects/blockers", async () => {
+    const backup = mkBackupScript({ name: "更新脚本", uuid: "a" });
+    backup.options!.options = {
+      override: {
+        use_excludes: ["https://example.com/private/*"],
+        use_blockers: ["https://example.com/blocked/*"],
+        use_connects: ["api.example.com"],
+        merge_excludes: true,
+        merge_connects: true,
+      },
+    } as never;
+    h.prepareScriptByCode.mockResolvedValueOnce({
+      script: mkScript({ uuid: "a", metadata: { version: ["2.0.0"] } }),
+      oldScript: mkScript({
+        uuid: "a",
+        metadata: { version: ["1.0.0"] },
+        selfMetadata: { exclude: ["https://local.example/*"], connect: ["local.example"] },
+      }),
+    });
+
+    const { result } = await renderLoaded([backup]);
+    await act(async () => {
+      await result.current.onImport();
+    });
+
+    expect(h.install.mock.calls[0][0]).toMatchObject({
+      overwriteSelfMetadata: true,
+      script: {
+        selfMetadata: {
+          exclude: ["https://example.com/private/*"],
+        },
+      },
+    });
   });
 
   it("未勾选的脚本在导入时被跳过,不调用 install", async () => {
@@ -209,6 +289,22 @@ describe("useImport 导入编排", () => {
       await result.current.onImport();
     });
     expect(h.install.mock.calls[0][0].script.sort).toBe(7);
+  });
+
+  it("导入时应用备份中的检查更新开关(checkUpdate = options.settings.checkUpdate)", async () => {
+    const off = mkBackupScript({ name: "关更新", uuid: "off" });
+    off.options!.settings.checkUpdate = false;
+    const on = mkBackupScript({ name: "开更新", uuid: "on" });
+    on.options!.settings.checkUpdate = true;
+    const plain = mkBackupScript({ name: "默认", uuid: "plain" }); // 未带 checkUpdate → 不设置
+    const { result } = await renderLoaded([off, on, plain]);
+    await act(async () => {
+      await result.current.onImport();
+    });
+    const call = (uuid: string) => h.install.mock.calls.find((c) => c[0].script.uuid === uuid)![0];
+    expect(call("off").script.checkUpdate).toBe(false);
+    expect(call("on").script.checkUpdate).toBe(true);
+    expect(call("plain").script.checkUpdate).toBeUndefined();
   });
 
   it("无 values/资源的脚本导入时只调用 install,不调用 importResources/setScriptValues", async () => {
