@@ -110,6 +110,27 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     });
   });
 
+  it("provider 非取消失败时，错误上挂载的本轮部分 usage 应并入累计 usage 后再抛出", async () => {
+    // 第 1 轮正常返回 tool call（累计 usage 10/5），第 2 轮 provider 失败，
+    // 失败错误上带有解析层已知的本轮部分 usage（如逐 chunk 附带 usage 的 OpenAI 兼容 API）
+    callLLM
+      .mockResolvedValueOnce({
+        content: "",
+        toolCalls: [{ id: "c1", name: "dup", arguments: "{}" }],
+        usage: { inputTokens: 10, outputTokens: 5 },
+      } as LLMCallResult)
+      .mockRejectedValueOnce(
+        Object.assign(new Error("stream truncated"), { usage: { inputTokens: 7, outputTokens: 3 } })
+      );
+
+    await expect(orchestrator.callLLMWithToolLoop(baseParams())).rejects.toMatchObject({
+      message: "stream truncated",
+      conversationId: "conv-1",
+      // 之前的实现用上一轮累计覆盖错误自带的 usage，本轮已知的 7/3 会丢失
+      usage: { inputTokens: 17, outputTokens: 8 },
+    });
+  });
+
   it("触发 autoCompact 时应保留原始模型，而不是把 contextWindow 预先缩小", async () => {
     callLLM.mockResolvedValue({ content: "done", usage: { inputTokens: 6000, outputTokens: 5 } });
 

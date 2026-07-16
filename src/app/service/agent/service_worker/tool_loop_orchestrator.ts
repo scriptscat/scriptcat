@@ -354,19 +354,19 @@ export class ToolLoopOrchestrator {
           signal
         );
       } catch (error) {
+        // 无论取消还是真实失败，provider 层挂在错误上的本轮已知部分 usage（如 Anthropic 的
+        // message_start、部分 OpenAI 兼容 API 每个 chunk 都带的 usage）都必须并入 totalUsage，
+        // 否则这部分已经产生的花费会从终态 usage、定时任务与子代理的累计里丢失（见 finding 6/7）
+        const partialUsage = (error as { usage?: LLMCallResult["usage"] })?.usage;
+        if (partialUsage) {
+          totalUsage.inputTokens += partialUsage.inputTokens;
+          totalUsage.outputTokens += partialUsage.outputTokens;
+          totalUsage.cacheCreationInputTokens += partialUsage.cacheCreationInputTokens || 0;
+          totalUsage.cacheReadInputTokens += partialUsage.cacheReadInputTokens || 0;
+        }
         // SSE 解析层现在会在 abort 时 reject（而不是静默挂起，见 content_utils.ts），
         // 这类 reject 必须走统一的取消终态化路径，而不是当作真实错误往外抛
         if (signal.aborted) {
-          // provider 层可能已经把这一轮已知的部分 usage（如 Anthropic 的 message_start、
-          // 部分 OpenAI 兼容 API 每个 chunk 都带的 usage）挂在 abort 错误上，取消前必须并入
-          // totalUsage，否则这部分已经产生的花费会从终态 usage 里丢失（见 finding 6）
-          const partialUsage = (error as { usage?: LLMCallResult["usage"] })?.usage;
-          if (partialUsage) {
-            totalUsage.inputTokens += partialUsage.inputTokens;
-            totalUsage.outputTokens += partialUsage.outputTokens;
-            totalUsage.cacheCreationInputTokens += partialUsage.cacheCreationInputTokens || 0;
-            totalUsage.cacheReadInputTokens += partialUsage.cacheReadInputTokens || 0;
-          }
           await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
           return;
         }
