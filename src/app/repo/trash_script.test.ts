@@ -1,9 +1,12 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { initTestEnv } from "@Tests/utils";
 import { TrashScriptDAO, type TrashScript } from "./trash_script";
 import { ScriptDAO, SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "./scripts";
+import { createMockOPFS } from "./test-helpers";
 
 initTestEnv();
+
+beforeEach(() => createMockOPFS());
 
 const makeTrashScript = (overrides: Partial<TrashScript> = {}): TrashScript => ({
   uuid: "uuid-trash-1",
@@ -37,6 +40,22 @@ describe("TrashScriptDAO", () => {
     expect(got?.uuid).toBe("u1");
     expect(got?.deleteTime).toBe(1234);
     expect(got?.deleteBy).toBe("sync");
+  });
+
+  it("回收站条目应只写入 OPFS,不得写入 chrome.storage.local", async () => {
+    await dao.save(makeTrashScript({ uuid: "opfs-only" }));
+
+    const storage = await chrome.storage.local.get(null);
+    expect(storage).not.toHaveProperty("trashScript:opfs-only");
+    expect(await new TrashScriptDAO().get("opfs-only")).toMatchObject({ uuid: "opfs-only" });
+  });
+
+  it("读取回收站不得扫描 chrome.storage.local", async () => {
+    const getSpy = vi.spyOn(chrome.storage.local, "get");
+
+    await dao.all();
+
+    expect(getSpy).not.toHaveBeenCalled();
   });
 
   it("回收站脚本不得出现在 ScriptDAO 的查询结果中(前缀隔离)", async () => {

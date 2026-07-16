@@ -96,8 +96,7 @@ export class ScriptService {
   ) {
     this.logger = LoggerCore.logger().with({ service: "script" });
     this.scriptCodeDAO.enableCache();
-    // 不开缓存时 Repo.find() 会走不带 key 的 storage.get(),每次读回收站都全量反序列化整个存储。
-    // 只给 SW 这个实例开:TrashScriptDAO 在安装页/编辑器里也会被 new,自开缓存会把整个存储拉进页面内存。
+    // 只给 SW 的长生命周期实例开启目录快照缓存；页面上下文中的短生命周期 DAO 按需读取 OPFS。
     this.trashScriptDAO.enableCache();
     this.scriptUpdateCheck = new ScriptUpdateCheck(systemConfig, group, mq, valueService, resourceService, scriptDAO);
   }
@@ -480,36 +479,54 @@ export class ScriptService {
       script.downloadUrl = oldScript.downloadUrl;
       script.checkUpdateUrl = oldScript.checkUpdateUrl;
     }
-    // 不变量:同一 uuid 不得同时存在于 script: 与 trashScript:。
-    // 装回来了,回收站那份即作废。同步复活 / vscode 推送 / 安装页复用回收站 uuid 均汇流至此。
-    await this.trashScriptDAO.delete(script.uuid);
-    return this.scriptDAO
-      .save(script)
-      .then(async () => {
+    // 同步复活 / vscode 推送 / 安装页复用回收站 uuid 均汇流至此。
+    // OPFS 是回收站脚本的唯一原件，必须等活跃元数据与代码都保存成功后再删除。
+    const trashedBeforeInstall = await this.trashScriptDAO.get(script.uuid);
+    return (async () => {
+      if (trashedBeforeInstall) {
         await this.scriptCodeDAO.save({
           uuid: script.uuid,
           code: param.code,
         });
-        logger.info("install success");
+        try {
+          await this.scriptDAO.save(script);
+        } catch (error) {
+          await this.scriptCodeDAO.delete(script.uuid);
+          throw error;
+        }
+        try {
+          await this.trashScriptDAO.delete(script.uuid);
+        } catch (error) {
+          await this.scriptDAO.delete(script.uuid);
+          await this.scriptCodeDAO.delete(script.uuid);
+          throw error;
+        }
+      } else {
+        await this.scriptDAO.save(script);
+        await this.scriptCodeDAO.save({
+          uuid: script.uuid,
+          code: param.code,
+        });
+      }
+      logger.info("install success");
 
-        // Cache更新 & 下载资源
-        await Promise.all([
-          compiledResourceUpdatePromise,
-          this.resourceService.updateResourceByTypes(script, ["require", "require-css", "resource"]),
-        ]);
-        // 资源下载失败不阻止安装，失败不影响安装
+      // Cache更新 & 下载资源
+      await Promise.all([
+        compiledResourceUpdatePromise,
+        this.resourceService.updateResourceByTypes(script, ["require", "require-css", "resource"]),
+      ]);
+      // 资源下载失败不阻止安装，失败不影响安装
 
-        // 广播一下
-        // Runtime 会负责更新 CompiledResource
-        this.publishInstallScript(script, { update, upsertBy });
+      // 广播一下
+      // Runtime 会负责更新 CompiledResource
+      this.publishInstallScript(script, { update, upsertBy });
 
-        // 传回(由后台控制的)实际更新时间，让 editor 中的script能保持正确的更新时间
-        return { update, updatetime: script.updatetime };
-      })
-      .catch((e: any) => {
-        logger.error("install error", Logger.E(e));
-        throw e;
-      });
+      // 传回(由后台控制的)实际更新时间，让 editor 中的script能保持正确的更新时间
+      return { update, updatetime: script.updatetime };
+    })().catch((e: any) => {
+      logger.error("install error", Logger.E(e));
+      throw e;
+    });
   }
 
   /** 删除脚本 = 移入回收站。不销毁任何关联数据(value/资源/权限/图标/代码全部保留) */
@@ -532,8 +549,17 @@ export class ScriptService {
     try {
       // 先写回收站,成功后再删活跃表。失败的最坏结果是两张表短暂都有(可被 upsert 清理自愈),
       // 反过来的顺序失败一次就是脚本彻底消失。
-      await Promise.all(scripts.map((script) => this.trashScriptDAO.save({ ...script, deleteTime, deleteBy })));
+      const codes = await this.scriptCodeDAO.gets(uuids);
+      const codeByUuid = new Map(codes.filter((item) => item !== undefined).map((item) => [item.uuid, item.code]));
+      await Promise.all(
+        scripts.map((script) => {
+          const code = codeByUuid.get(script.uuid);
+          if (code === undefined) throw new Error(`script code not found: ${script.uuid}`);
+          return this.trashScriptDAO.save({ ...script, deleteTime, deleteBy }, code);
+        })
+      );
       await this.scriptDAO.deletes(uuids);
+      await this.scriptCodeDAO.deletes(uuids);
       // 编译缓存是可重建缓存(runtime.ts:394-398 取不到会自动重建),直接丢弃
       await this.compiledResourceDAO.deletes(uuids);
       logger.info("trash success");
@@ -628,9 +654,18 @@ export class ScriptService {
       if (script.subscribeUrl && !(await this.subscribeDAO.get(script.subscribeUrl))) {
         delete script.subscribeUrl;
       }
-      // 先写活跃表,成功后再删回收站(同 deleteScripts 的顺序原则)
-      await this.scriptDAO.save(script);
-      await this.trashScriptDAO.delete(item.uuid);
+      const code = await this.trashScriptDAO.getCode(item.uuid);
+      if (code === undefined) throw new Error(`trash script code not found: ${item.uuid}`);
+      // 先恢复代码再写活跃表；后续任一步失败都回滚活跃数据并保留 OPFS 原件。
+      await this.scriptCodeDAO.save({ uuid: item.uuid, code });
+      try {
+        await this.scriptDAO.save(script);
+        await this.trashScriptDAO.delete(item.uuid);
+      } catch (error) {
+        await this.scriptDAO.delete(item.uuid);
+        await this.scriptCodeDAO.delete(item.uuid);
+        throw error;
+      }
       restored.push(item.uuid);
       this.mq.publish<TInstallScript>("installScript", { script, update: false, upsertBy: "user" });
     }

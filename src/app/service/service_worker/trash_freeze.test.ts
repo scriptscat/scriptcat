@@ -11,8 +11,11 @@ import { Server } from "@Packages/message/server";
 import { SystemConfig } from "@App/pkg/config/config";
 import EventEmitter from "eventemitter3";
 import type { ResourceService } from "./resource";
+import { createMockOPFS } from "@App/app/repo/test-helpers";
 
 initTestEnv();
+
+beforeEach(() => createMockOPFS());
 
 const makeScript = (overrides: Partial<Script> = {}): Script => ({
   uuid: "uuid-f1",
@@ -61,6 +64,7 @@ describe("回收站期间的数据冻结", () => {
 
   it("进回收站后 value 必须完好(未触发 deleteScripts 的清理链路)", async () => {
     await scriptDAO.save(makeScript({ uuid: "f1" }));
+    await service.scriptCodeDAO.save({ uuid: "f1", code: "// code" });
     await valueDAO.save("f1", { uuid: "f1", storageName: "f1", data: { k: "v" } } as any);
 
     await service.deleteScripts(["f1"]);
@@ -71,6 +75,7 @@ describe("回收站期间的数据冻结", () => {
 
   it("彻底删除后 value 才被清理", async () => {
     await scriptDAO.save(makeScript({ uuid: "f2" }));
+    await service.scriptCodeDAO.save({ uuid: "f2", code: "// code" });
     await valueDAO.save("f2", { uuid: "f2", storageName: "f2", data: { k: "v" } } as any);
 
     await service.deleteScripts(["f2"]);

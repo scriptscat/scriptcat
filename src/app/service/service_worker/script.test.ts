@@ -14,8 +14,11 @@ import type { ValueService } from "./value";
 import type { ResourceService } from "./resource";
 import type { TDeleteScript, TInstallScript } from "@App/app/service/queue";
 import { clearCacheForTest } from "@App/app/repo/repo";
+import { createMockOPFS } from "@App/app/repo/test-helpers";
 
 initTestEnv();
+
+beforeEach(() => createMockOPFS());
 
 const makeScript = (overrides: Partial<Script> = {}): Script => ({
   uuid: "uuid-1",
@@ -52,6 +55,9 @@ export const buildService = () => {
   // 若测试另起一份未缓存的实例，写读会各自维护一份模块内缓存，读写顺序一旦不再是先写后读就会静默错数据。
   return { service, mq, scriptDAO, systemConfig, trashDAO: service.trashScriptDAO, codeDAO: service.scriptCodeDAO };
 };
+
+const saveTrashWithCode = (dao: TrashScriptDAO, overrides: Partial<TrashScript>, code = "// trash code") =>
+  dao.save(makeTrashScript(overrides), code);
 
 describe("ScriptService.purgeScripts —— 彻底删除", () => {
   beforeEach(async () => {
@@ -104,8 +110,9 @@ describe("ScriptService.deleteScripts —— 进回收站", () => {
   });
 
   it("应把脚本搬进回收站并从活跃表移除", async () => {
-    const { service, scriptDAO, trashDAO } = buildService();
+    const { service, scriptDAO, trashDAO, codeDAO } = buildService();
     await scriptDAO.save(makeScript({ uuid: "t1" }));
+    await codeDAO.save({ uuid: "t1", code: "// trash code" });
 
     await service.deleteScripts(["t1"]);
 
@@ -114,11 +121,14 @@ describe("ScriptService.deleteScripts —— 进回收站", () => {
     expect(trashed?.uuid).toBe("t1");
     expect(trashed?.deleteBy).toBe("user");
     expect(typeof trashed?.deleteTime).toBe("number");
+    expect(await trashDAO.getCode("t1")).toBe("// trash code");
+    expect(await codeDAO.get("t1")).toBeUndefined();
   });
 
   it("应记录传入的删除来源", async () => {
-    const { service, scriptDAO, trashDAO } = buildService();
+    const { service, scriptDAO, trashDAO, codeDAO } = buildService();
     await scriptDAO.save(makeScript({ uuid: "t2" }));
+    await codeDAO.save({ uuid: "t2", code: "// code" });
 
     await service.deleteScripts(["t2"], "sync");
 
@@ -126,8 +136,9 @@ describe("ScriptService.deleteScripts —— 进回收站", () => {
   });
 
   it("应广播 trashScripts 且绝不广播 deleteScripts", async () => {
-    const { service, mq, scriptDAO } = buildService();
+    const { service, mq, scriptDAO, codeDAO } = buildService();
     await scriptDAO.save(makeScript({ uuid: "t3" }));
+    await codeDAO.save({ uuid: "t3", code: "// code" });
     const trashEvents: TDeleteScript[][] = [];
     const deleteEvents: TDeleteScript[][] = [];
     mq.subscribe<TDeleteScript[]>("trashScripts", (d) => void trashEvents.push(d));
@@ -144,18 +155,30 @@ describe("ScriptService.deleteScripts —— 进回收站", () => {
   });
 
   it("必须保留脚本代码,否则还原出来是空壳", async () => {
-    const { service, scriptDAO, codeDAO } = buildService();
+    const { service, scriptDAO, trashDAO, codeDAO } = buildService();
     await scriptDAO.save(makeScript({ uuid: "t4" }));
     await codeDAO.save({ uuid: "t4", code: "// 我必须活下来" });
 
     await service.deleteScripts(["t4"]);
 
-    expect((await codeDAO.get("t4"))?.code).toBe("// 我必须活下来");
+    expect(await codeDAO.get("t4")).toBeUndefined();
+    expect(await trashDAO.getCode("t4")).toBe("// 我必须活下来");
+  });
+
+  it("批量参数混入不存在的 uuid 时不得把有效脚本与错误代码下标配对", async () => {
+    const { service, scriptDAO, trashDAO, codeDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "valid" }));
+    await codeDAO.save({ uuid: "valid", code: "// valid code" });
+
+    await service.deleteScripts(["missing", "valid"]);
+
+    expect(await trashDAO.getCode("valid")).toBe("// valid code");
   });
 
   it("deleteScript 单条应委托给 deleteScripts 并透传来源", async () => {
-    const { service, scriptDAO, trashDAO } = buildService();
+    const { service, scriptDAO, trashDAO, codeDAO } = buildService();
     await scriptDAO.save(makeScript({ uuid: "t5" }));
+    await codeDAO.save({ uuid: "t5", code: "// code" });
 
     await service.deleteScript("t5", "subscribe");
 
@@ -164,8 +187,9 @@ describe("ScriptService.deleteScripts —— 进回收站", () => {
   });
 
   it("写回收站失败时不得删除活跃表中的脚本(宁可短暂重复,不可丢数据)", async () => {
-    const { service, scriptDAO } = buildService();
+    const { service, scriptDAO, codeDAO } = buildService();
     await scriptDAO.save(makeScript({ uuid: "t6" }));
+    await codeDAO.save({ uuid: "t6", code: "// code" });
     vi.spyOn(service.trashScriptDAO, "save").mockRejectedValueOnce(new Error("storage boom"));
 
     await expect(service.deleteScripts(["t6"])).rejects.toThrow("storage boom");
@@ -183,8 +207,8 @@ describe("ScriptService.restoreScripts —— 还原", () => {
   });
 
   it("应把脚本搬回活跃表并从回收站移除", async () => {
-    const { service, scriptDAO, trashDAO } = buildService();
-    await trashDAO.save(makeTrashScript({ uuid: "r1", name: "还我" }));
+    const { service, scriptDAO, trashDAO, codeDAO } = buildService();
+    await saveTrashWithCode(trashDAO, { uuid: "r1", name: "还我" }, "// restored code");
 
     const ret = await service.restoreScripts(["r1"]);
 
@@ -192,11 +216,12 @@ describe("ScriptService.restoreScripts —— 还原", () => {
     expect(ret.conflicts).toEqual([]);
     expect((await scriptDAO.get("r1"))?.name).toBe("还我");
     expect(await trashDAO.get("r1")).toBeUndefined();
+    expect(await codeDAO.get("r1")).toEqual({ uuid: "r1", code: "// restored code" });
   });
 
   it("还原后的脚本不得残留删除元数据", async () => {
     const { service, scriptDAO, trashDAO } = buildService();
-    await trashDAO.save(makeTrashScript({ uuid: "r2" }));
+    await saveTrashWithCode(trashDAO, { uuid: "r2" });
 
     await service.restoreScripts(["r2"]);
 
@@ -205,9 +230,31 @@ describe("ScriptService.restoreScripts —— 还原", () => {
     expect(restored.deleteBy).toBeUndefined();
   });
 
+  it("回收站代码缺失时不得恢复空壳脚本或删除 OPFS 原件", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    await trashDAO.save(makeTrashScript({ uuid: "missing-code" }));
+
+    await expect(service.restoreScripts(["missing-code"])).rejects.toThrow("trash script code not found");
+
+    expect(await scriptDAO.get("missing-code")).toBeUndefined();
+    expect(await trashDAO.get("missing-code")).toBeDefined();
+  });
+
+  it("恢复元数据失败时应回滚已写入 local storage 的代码并保留 OPFS 原件", async () => {
+    const { service, scriptDAO, trashDAO, codeDAO } = buildService();
+    await saveTrashWithCode(trashDAO, { uuid: "restore-failed" }, "// original code");
+    vi.spyOn(scriptDAO, "save").mockRejectedValueOnce(new Error("metadata save failed"));
+
+    await expect(service.restoreScripts(["restore-failed"])).rejects.toThrow("metadata save failed");
+
+    expect(await scriptDAO.get("restore-failed")).toBeUndefined();
+    expect(await codeDAO.get("restore-failed")).toBeUndefined();
+    expect(await trashDAO.getCode("restore-failed")).toBe("// original code");
+  });
+
   it("应广播 installScript 以重新注册脚本并上传云端", async () => {
     const { service, mq, trashDAO } = buildService();
-    await trashDAO.save(makeTrashScript({ uuid: "r3" }));
+    await saveTrashWithCode(trashDAO, { uuid: "r3" });
     const events: TInstallScript[] = [];
     mq.subscribe<TInstallScript>("installScript", (d) => void events.push(d));
 
@@ -235,7 +282,7 @@ describe("ScriptService.restoreScripts —— 还原", () => {
 
   it("订阅已不存在时应清空 subscribeUrl,避免还原后被订阅更新再次删除", async () => {
     const { service, scriptDAO, trashDAO } = buildService();
-    await trashDAO.save(makeTrashScript({ uuid: "r5", subscribeUrl: "https://gone.example/s.json" }));
+    await saveTrashWithCode(trashDAO, { uuid: "r5", subscribeUrl: "https://gone.example/s.json" });
 
     await service.restoreScripts(["r5"]);
 
@@ -255,7 +302,7 @@ describe("ScriptService.restoreScripts —— 还原", () => {
       updatetime: Date.now(),
       checktime: Date.now(),
     } as any);
-    await trashDAO.save(makeTrashScript({ uuid: "r6", subscribeUrl: url }));
+    await saveTrashWithCode(trashDAO, { uuid: "r6", subscribeUrl: url });
 
     await service.restoreScripts(["r6"]);
 
@@ -266,7 +313,7 @@ describe("ScriptService.restoreScripts —— 还原", () => {
     const { service, scriptDAO, trashDAO } = buildService();
     await scriptDAO.save(makeScript({ uuid: "alive2", name: "占位", namespace: "ns" }));
     await trashDAO.save(makeTrashScript({ uuid: "r7", name: "占位", namespace: "ns" }));
-    await trashDAO.save(makeTrashScript({ uuid: "r8", name: "没占位", namespace: "ns" }));
+    await saveTrashWithCode(trashDAO, { uuid: "r8", name: "没占位", namespace: "ns" });
 
     const ret = await service.restoreScripts(["r7", "r8"]);
 
@@ -297,6 +344,20 @@ describe("installScript —— 回收站 uuid 不变量", () => {
 
     expect(await scriptDAO.get(uuid)).toBeDefined();
     expect(await trashDAO.get(uuid)).toBeUndefined();
+  });
+
+  it("复活脚本保存失败时应保留 OPFS 回收站原件和代码", async () => {
+    const { service, scriptDAO, trashDAO } = buildService();
+    const uuid = "revive-failed";
+    await trashDAO.save(makeTrashScript({ uuid }), "// old trash code");
+    vi.spyOn(scriptDAO, "save").mockRejectedValueOnce(new Error("save failed"));
+
+    await expect(
+      service.installScript({ script: makeScript({ uuid }), code: "// new code", upsertBy: "user" })
+    ).rejects.toThrow("save failed");
+
+    expect(await trashDAO.get(uuid)).toBeDefined();
+    expect(await trashDAO.getCode(uuid)).toBe("// old trash code");
   });
 
   it("安装无关脚本时不得动回收站中的其他条目", async () => {
@@ -380,7 +441,7 @@ describe("ScriptService.cleanupExpiredTrash —— 到期自动清理", () => {
   it("回收站关闭后残留条目仍可还原", async () => {
     const { service, scriptDAO, trashDAO, systemConfig } = buildService();
     systemConfig.setTrashEnabled(false);
-    await trashDAO.save(makeTrashScript({ uuid: "leftover2" }));
+    await saveTrashWithCode(trashDAO, { uuid: "leftover2" });
 
     const ret = await service.restoreScripts(["leftover2"]);
 
@@ -391,16 +452,16 @@ describe("ScriptService.cleanupExpiredTrash —— 到期自动清理", () => {
 });
 
 describe("ScriptService —— 回收站 DAO 缓存", () => {
-  it("构造后回收站 DAO 应启用缓存,否则每次读回收站都会全量扫描 storage", () => {
+  it("构造后回收站 DAO 应启用缓存,避免重复枚举 OPFS 目录", () => {
     const { service } = buildService();
 
     expect(service.trashScriptDAO.useCache).toBe(true);
   });
 
   // TrashScriptDAO 自身不能默认开缓存：它也会在安装页/编辑器/导入页等页面上下文里被 new 出来
-  // （见 pkg/utils/script.ts），若缓存下放到构造函数，这些页面会把整个扩展 storage 常驻加载进内存。
+  // （见 pkg/utils/script.ts），若缓存下放到构造函数，这些页面会把整个回收站常驻加载进内存。
   // 缓存只应由 ScriptService 构造时按需 enableCache()。
-  it("TrashScriptDAO 自身不应默认开缓存,否则会在页面上下文里把整个 storage 常驻内存", () => {
+  it("TrashScriptDAO 自身不应默认开缓存,否则会在页面上下文里把整个回收站常驻内存", () => {
     expect(new TrashScriptDAO().useCache).toBe(false);
   });
 });
@@ -414,7 +475,7 @@ describe("ScriptService.deleteScripts —— 回收站关闭时直接销毁", ()
     await chrome.storage.sync.clear();
   });
 
-  it("未设置 trash_enabled 时默认仍走回收站,脚本代码保留", async () => {
+  it("未设置 trash_enabled 时默认仍走回收站,脚本代码迁入 OPFS", async () => {
     const { service, scriptDAO, trashDAO, codeDAO } = buildService();
     await scriptDAO.save(makeScript({ uuid: "d1" }));
     await codeDAO.save({ uuid: "d1", code: "// code" });
@@ -422,7 +483,8 @@ describe("ScriptService.deleteScripts —— 回收站关闭时直接销毁", ()
     await service.deleteScripts(["d1"]);
 
     expect(await trashDAO.get("d1")).toBeDefined();
-    expect(await codeDAO.get("d1")).toBeDefined();
+    expect(await trashDAO.getCode("d1")).toBe("// code");
+    expect(await codeDAO.get("d1")).toBeUndefined();
   });
 
   it("关闭回收站后删除不写回收站表,并一并销毁脚本代码", async () => {

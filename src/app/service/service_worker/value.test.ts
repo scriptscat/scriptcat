@@ -18,8 +18,11 @@ import type { TKeyValuePair } from "@App/pkg/utils/message_value";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import type { TDeleteScript } from "@App/app/service/queue";
+import { createMockOPFS } from "@App/app/repo/test-helpers";
 
 initTestEnv();
+
+beforeEach(() => createMockOPFS());
 
 /**
  * ValueService.setValue 方法的单元测试

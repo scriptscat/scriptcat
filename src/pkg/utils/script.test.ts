@@ -14,6 +14,9 @@ import {
 } from "@App/app/repo/scripts";
 import type { Script } from "@App/app/repo/scripts";
 import { TrashScriptDAO, type TrashScript } from "@App/app/repo/trash_script";
+import { createMockOPFS } from "@App/app/repo/test-helpers";
+
+beforeEach(() => createMockOPFS());
 import { clearCacheForTest } from "@App/app/repo/repo";
 
 describe.concurrent("parseMetadata", () => {
@@ -1293,22 +1296,23 @@ describe("prepareScriptByCode —— 回收站中的同名脚本", () => {
   const NEW_CODE = "// ==UserScript==\n// @name 重装脚本\n// @namespace ns\n// @version 2.0.0\n// ==/UserScript==\n";
 
   const seedTrashed = async (uuid: string) => {
-    await new TrashScriptDAO().save({
-      uuid,
-      name: "重装脚本",
-      namespace: "ns",
-      type: SCRIPT_TYPE_NORMAL,
-      status: SCRIPT_STATUS_ENABLE,
-      sort: 0,
-      runStatus: SCRIPT_RUN_STATUS_COMPLETE,
-      createtime: Date.now(),
-      checktime: Date.now(),
-      metadata: { name: ["重装脚本"], namespace: ["ns"], version: ["1.0.0"] },
-      deleteTime: Date.now(),
-      deleteBy: "user",
-    } as TrashScript);
-    // prepareScriptByCode 会取旧脚本代码，取不到会抛错；回收站保留代码正是为此
-    await new ScriptCodeDAO().save({ uuid, code: TRASHED_CODE });
+    await new TrashScriptDAO().save(
+      {
+        uuid,
+        name: "重装脚本",
+        namespace: "ns",
+        type: SCRIPT_TYPE_NORMAL,
+        status: SCRIPT_STATUS_ENABLE,
+        sort: 0,
+        runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+        createtime: Date.now(),
+        checktime: Date.now(),
+        metadata: { name: ["重装脚本"], namespace: ["ns"], version: ["1.0.0"] },
+        deleteTime: Date.now(),
+        deleteBy: "user",
+      } as TrashScript,
+      TRASHED_CODE
+    );
   };
 
   it("回收站中存在同 name+namespace 的脚本时应复用其 uuid 并标记 oldInTrash", async () => {
@@ -1360,21 +1364,23 @@ describe("prepareScriptByCode —— 回收站中的同名脚本", () => {
   it("上游改名时应优先命中活跃表而非回收站中的同名脚本", async () => {
     const renamedCode =
       "// ==UserScript==\n// @name 重装脚本\n// @namespace ns\n// @version 3.0.0\n// ==/UserScript==\n";
-    await new TrashScriptDAO().save({
-      uuid: "trash-same-name",
-      name: "重装脚本",
-      namespace: "ns",
-      type: SCRIPT_TYPE_NORMAL,
-      status: SCRIPT_STATUS_ENABLE,
-      sort: 0,
-      runStatus: SCRIPT_RUN_STATUS_COMPLETE,
-      createtime: Date.now(),
-      checktime: Date.now(),
-      metadata: { name: ["重装脚本"], namespace: ["ns"], version: ["1.0.0"] },
-      deleteTime: Date.now(),
-      deleteBy: "user",
-    } as TrashScript);
-    await new ScriptCodeDAO().save({ uuid: "trash-same-name", code: renamedCode });
+    await new TrashScriptDAO().save(
+      {
+        uuid: "trash-same-name",
+        name: "重装脚本",
+        namespace: "ns",
+        type: SCRIPT_TYPE_NORMAL,
+        status: SCRIPT_STATUS_ENABLE,
+        sort: 0,
+        runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+        createtime: Date.now(),
+        checktime: Date.now(),
+        metadata: { name: ["重装脚本"], namespace: ["ns"], version: ["1.0.0"] },
+        deleteTime: Date.now(),
+        deleteBy: "user",
+      } as TrashScript,
+      renamedCode
+    );
 
     // 活跃表里那份还是旧名，但 origin 与新代码一致
     await new ScriptDAO().save({
@@ -1410,9 +1416,8 @@ describe("prepareScriptByCode —— 回收站中的同名脚本", () => {
     expect(p.oldInTrash).toBeFalsy();
   });
 
-  // 备份导入会给 dao 开缓存后在循环里逐个调用本函数；若回收站查找无视缓存,
-  // 每个导入脚本都会触发一次全量 storage 反序列化,大备份导入会被拖垮。
-  it("传入已启用缓存的 dao 时,回收站查找不得全量扫描 storage", async () => {
+  // 回收站已迁入 OPFS；即使调用方启用了 ScriptDAO 缓存，查找也不得回退读取 chrome.storage.local。
+  it("传入已启用缓存的 dao 时,回收站查找不得读取 chrome.storage.local", async () => {
     clearCacheForTest();
     await seedTrashed("cached-dao");
     const dao = new ScriptDAO();

@@ -214,10 +214,10 @@ export async function prepareScriptByCode(
   // 命中则复用它的 uuid —— 新代码写入旧身份，storageName 不变，value 与权限得以保留。
   // 「移出回收站」无需在此处理：installScript 落库前会先删掉同 uuid 的回收站条目。
   let oldInTrash = false;
+  let trashDAO: TrashScriptDAO | undefined;
   if (!old) {
-    const trashDAO = new TrashScriptDAO();
-    // 跟随 dao 的缓存开关:备份导入等会开缓存后循环调用本函数,
-    // 回收站查找若固定走非缓存路径,每个脚本都是一次全量 storage 反序列化
+    trashDAO = new TrashScriptDAO();
+    // 跟随调用方的缓存策略：命中回收站后，后续读取代码可复用本次 OPFS 枚举结果。
     if (dao.useCache) {
       trashDAO.enableCache();
     }
@@ -249,11 +249,12 @@ export async function prepareScriptByCode(
     ) {
       throw new Error(i18n_t("script:error_script_type_mismatch"));
     }
-    const scriptCode = await new ScriptCodeDAO().get(old.uuid);
-    if (!scriptCode) {
+    const code =
+      oldInTrash && trashDAO ? await trashDAO.getCode(old.uuid) : (await new ScriptCodeDAO().get(old.uuid))?.code;
+    if (code === undefined) {
       throw new Error(i18n_t("script:error_old_script_code_missing"));
     }
-    oldCode = scriptCode;
+    oldCode = { uuid: old.uuid, code };
     const { uuid, createtime, lastruntime, error, sort, selfMetadata, subscribeUrl, checkUpdate, status } = old;
     Object.assign(script, {
       uuid,
