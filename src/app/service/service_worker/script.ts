@@ -926,8 +926,8 @@ export class ScriptService {
     if (!script) {
       throw new Error("script not found");
     }
-    // 建立Set去掉重复（如有）
-    const excludeSet = new Set(exclude || []);
+    // 建立Set去掉重复（如有）；exclude 为 undefined 表示重置，即撤销用户覆盖
+    const excludeSet = exclude === undefined ? undefined : new Set(exclude);
     // 更新 script.selfMetadata.exclude
     script = selfMetadataUpdate(script, "exclude", excludeSet);
     return this.scriptDAO
@@ -948,8 +948,8 @@ export class ScriptService {
     if (!script) {
       throw new Error("script not found");
     }
-    // 建立Set去掉重复（如有）
-    const matchSet = new Set(match || []);
+    // 建立Set去掉重复（如有）；match 为 undefined 表示重置，即撤销用户覆盖
+    const matchSet = match === undefined ? undefined : new Set(match);
     // 更新 script.selfMetadata.match
     script = selfMetadataUpdate(script, "match", matchSet);
     return this.scriptDAO
@@ -1536,13 +1536,13 @@ export class ScriptService {
     return this.scriptDAO.update(uuid, update);
   }
 
-  // 更新脚本元数据
-  async updateMetadata({ uuid, key, value }: { uuid: string; key: string; value: string[] }) {
+  // 更新脚本元数据；value 为 undefined 表示撤销用户覆盖，生效值回落脚本自带 metadata
+  async updateMetadata({ uuid, key, value }: { uuid: string; key: string; value: string[] | undefined }) {
     let script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
-    const valueSet = new Set(value);
+    const valueSet = value === undefined ? undefined : new Set(value);
     script = selfMetadataUpdate(script, key, valueSet);
     return this.scriptDAO
       .update(uuid, script)
