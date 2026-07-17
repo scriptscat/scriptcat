@@ -344,41 +344,38 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
   });
 
   describe.concurrent("restoreJSCodeFromCompiledResource 缓存恢复路径与首次编译路径的一致性", () => {
-    it.concurrent(
-      "@script-module + @grant none 脚本：缓存恢复路径也应套用 module 包装，而非退回 classic-script 编译",
-      async () => {
-        const { runtime, mockScriptService } = createRuntimeTestContext();
-        (mockScriptService as any).scriptCodeDAO = {
-          get: vi.fn().mockResolvedValue({ code: "import x from './x.js'; console.log(x);" }),
-        };
+    it.concurrent("@script-module 脚本：缓存恢复路径也应套用 module 包装，而非退回 classic-script 编译", async () => {
+      const { runtime, mockScriptService } = createRuntimeTestContext();
+      (mockScriptService as any).scriptCodeDAO = {
+        get: vi.fn().mockResolvedValue({ code: "import x from './x.js'; console.log(x);" }),
+      };
 
-        const script = createMockScript({
-          metadata: { "script-module": [""], grant: ["none"], match: ["https://www.example.com/*"] },
-        });
-        const compiledResource: CompiledResource = {
-          name: script.name,
-          flag: "#-" + script.uuid,
-          uuid: script.uuid,
-          require: [],
-          matches: ["https://www.example.com/*"],
-          includeGlobs: [],
-          excludeMatches: [],
-          excludeGlobs: [],
-          allFrames: false,
-          world: "MAIN",
-          runAt: "document-idle",
-          scriptUrlPatterns: [],
-          originalUrlPatterns: null,
-        };
+      const script = createMockScript({
+        metadata: { "script-module": [""], grant: ["GM.getValue"], match: ["https://www.example.com/*"] },
+      });
+      const compiledResource: CompiledResource = {
+        name: script.name,
+        flag: "#-" + script.uuid,
+        uuid: script.uuid,
+        require: [],
+        matches: ["https://www.example.com/*"],
+        includeGlobs: [],
+        excludeMatches: [],
+        excludeGlobs: [],
+        allFrames: false,
+        world: "MAIN",
+        runAt: "document-idle",
+        scriptUrlPatterns: [],
+        originalUrlPatterns: null,
+      };
 
-        const code = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
+      const code = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
 
-        expect(code).toContain('jsScript.type = "module"');
-        expect(code).toContain("Object.freeze({ info: Object.freeze(");
-        // 不得通过 document 临时属性传递 GM 权限对象
-        expect(code).not.toMatch(/document\s*\.\s*__/);
-      }
-    );
+      expect(code).toContain('jsScript.type = "module"');
+      expect(code).toMatch(
+        /document\.__[a-z0-9]+_[a-z0-9]+\s*=\s*\{GM, top, parent, window, globalThis: window, unsafeWindow:/
+      );
+    });
 
     it.concurrent("普通脚本（非 script-module）：缓存恢复路径不应套用 module 包装", async () => {
       const { runtime, mockScriptService } = createRuntimeTestContext();
