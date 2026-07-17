@@ -351,6 +351,54 @@ describe("PopupService getPopupData Popup 数据获取与合并", () => {
     expect(result.optInScriptList).toEqual([]);
   });
 
+  it("宽泛的用户 site-access 规则不应显示精确当前站点的移除操作", async () => {
+    const uuid = "opt-in-broad-user-uuid";
+    const matchMap = new Map([[uuid, { uuid, effective: true }]]);
+
+    const { service } = createService({
+      runtime: {
+        getPopupPageScriptMatchingResultByUrl: vi.fn().mockResolvedValue(matchMap),
+        isUrlBlacklist: vi.fn().mockReturnValue(false),
+      },
+      scriptDAO: {
+        gets: vi.fn().mockResolvedValue([
+          createScript(uuid, {
+            metadata: { match: ["*://*/*"], "site-access": ["opt-in"] },
+            selfMetadata: { "site-access": ["+*://*.example.com/*"] },
+          }),
+        ]),
+      },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: "https://www.example.com/" });
+
+    expect(result.scriptList[0]?.siteAccessUser).toBe(false);
+  });
+
+  it("作者默认允许当前站点时不应显示移除用户规则的操作", async () => {
+    const uuid = "opt-in-author-default-uuid";
+    const matchMap = new Map([[uuid, { uuid, effective: true }]]);
+
+    const { service } = createService({
+      runtime: {
+        getPopupPageScriptMatchingResultByUrl: vi.fn().mockResolvedValue(matchMap),
+        isUrlBlacklist: vi.fn().mockReturnValue(false),
+      },
+      scriptDAO: {
+        gets: vi.fn().mockResolvedValue([
+          createScript(uuid, {
+            metadata: { match: ["*://*/*"], "site-access": ["opt-in", "+*://example.com/*"] },
+            selfMetadata: { "site-access": ["+*://example.com/*"] },
+          }),
+        ]),
+      },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: "https://example.com/" });
+
+    expect(result.scriptList[0]?.siteAccessUser).toBe(false);
+  });
+
   it("脚本同时在匹配结果与运行缓存中，应复用缓存记录（保留 runNum）并更新 enable/isEffective/hasUserConfig", async () => {
     const uuid = "run-uuid";
     const matchMap = new Map([[uuid, { uuid, effective: false }]]);

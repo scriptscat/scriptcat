@@ -6,7 +6,7 @@ import type { GetPopupDataReq, GetPopupDataRes, MenuClickParams } from "./client
 import { cacheInstance } from "@App/app/cache";
 import type { ScriptDAO } from "@App/app/repo/scripts";
 import { applyScriptDisplayInfo, scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
-import { isSiteAccessAllowed, isSiteAccessAllowedByUser, isSiteAccessOptIn } from "./utils";
+import { hasExactUserSiteAccess, isSiteAccessAllowed, isSiteAccessAllowedByAuthor, isSiteAccessOptIn } from "./utils";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import type {
   TDeleteScript,
@@ -409,7 +409,8 @@ export class PopupService {
       }
       const siteAccessOptIn = isSiteAccessOptIn(script.metadata);
       run.siteAccess = siteAccessOptIn ? "opt-in" : undefined;
-      run.siteAccessUser = siteAccessOptIn && isSiteAccessAllowedByUser(script, url);
+      run.siteAccessUser =
+        siteAccessOptIn && !isSiteAccessAllowedByAuthor(script, url) && hasExactUserSiteAccess(script, url);
       if (siteAccessOptIn && !isSiteAccessAllowed(script, url)) {
         run.isEffective = false;
         optInScriptList.push(run);

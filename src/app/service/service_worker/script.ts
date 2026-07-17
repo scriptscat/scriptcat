@@ -412,10 +412,14 @@ export class ScriptService {
     return <[boolean, ScriptInfo, Record<string, any>]>entry?.value;
   }
 
-  publishInstallScript(scriptFull: Script, options: any) {
+  publishInstallScript(scriptFull: Script, options: any, waitForCompletion = false) {
     const { uuid, type, status, name, namespace, origin, checkUpdateUrl, downloadUrl } = scriptFull;
     const script = { uuid, type, status, name, namespace, origin, checkUpdateUrl, downloadUrl } as TInstallScriptParams;
-    return this.mq.publish<TInstallScript>("installScript", { script, ...options });
+    const message = { script, ...options } as TInstallScript;
+    if (waitForCompletion) {
+      return this.mq.publishAndWait<TInstallScript>("installScript", message);
+    }
+    this.mq.publish<TInstallScript>("installScript", message);
   }
 
   // 安装脚本 / 更新脚本
@@ -928,16 +932,14 @@ export class ScriptService {
     const siteAccessSet = new Set(script.selfMetadata?.["site-access"] || []);
     siteAccessSet.add(`+${includePattern}`);
     script = selfMetadataUpdate(script, "site-access", siteAccessSet);
-    return this.scriptDAO
-      .update(uuid, script)
-      .then(() => {
-        this.publishInstallScript(script, { update: true });
-        return true;
-      })
-      .catch((e) => {
-        this.logger.error("include url error", Logger.E(e));
-        throw e;
-      });
+    try {
+      await this.scriptDAO.update(uuid, script);
+      await this.publishInstallScript(script, { update: true }, true);
+      return true;
+    } catch (e) {
+      this.logger.error("include url error", Logger.E(e));
+      throw e;
+    }
   }
 
   // 将 opt-in 脚本的当前网址从用户自定义 site-access 白名单移除。
@@ -948,19 +950,17 @@ export class ScriptService {
     }
     const siteAccessSet = new Set(script.selfMetadata?.["site-access"] || []);
     if (!siteAccessSet.delete(`+${includePattern}`)) {
-      return;
+      return false;
     }
     script = selfMetadataUpdate(script, "site-access", siteAccessSet.size ? siteAccessSet : undefined);
-    return this.scriptDAO
-      .update(uuid, script)
-      .then(() => {
-        this.publishInstallScript(script, { update: true });
-        return true;
-      })
-      .catch((e) => {
-        this.logger.error("exclude site-access url error", Logger.E(e));
-        throw e;
-      });
+    try {
+      await this.scriptDAO.update(uuid, script);
+      await this.publishInstallScript(script, { update: true }, true);
+      return true;
+    } catch (e) {
+      this.logger.error("exclude site-access url error", Logger.E(e));
+      throw e;
+    }
   }
 
   async resetExclude({ uuid, exclude }: { uuid: string; exclude: string[] | undefined }) {

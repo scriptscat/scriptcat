@@ -13,7 +13,7 @@ export type TKeyValue<T extends SystemConfigKey> = {
 type MiddlewareFunction<T = any> = (topic: string, message: T, next: () => void) => void | Promise<void>;
 
 // 消息处理函数类型
-type MessageHandler<T = any> = (message: T) => void;
+type MessageHandler<T = any> = (message: T) => void | Promise<void>;
 
 export interface IMessageQueue {
   // 创建子分组
@@ -24,6 +24,9 @@ export interface IMessageQueue {
 
   // 发布消息
   publish<T>(topic: string, message: NonNullable<T>): void;
+
+  // 发布消息并等待当前环境的订阅者完成
+  publishAndWait<T>(topic: string, message: NonNullable<T>): Promise<void>;
 
   // 只发布给当前环境
   emit<T>(topic: string, message: NonNullable<T>): void;
@@ -80,6 +83,16 @@ export class MessageQueue implements IMessageQueue {
     this.EE.emit(topic, message);
     //@ts-ignore
     LoggerCore.getInstance().logger({ service: "messageQueue" }).trace("publish", { topic, message });
+  }
+
+  async publishAndWait<T>(topic: string, message: NonNullable<T>) {
+    chrome.runtime.sendMessage({
+      msgQueue: topic,
+      data: { action: "message", message },
+    });
+    await Promise.all(this.EE.listeners(topic).map((handler) => Promise.resolve(handler(message))));
+    //@ts-ignore
+    LoggerCore.getInstance().logger({ service: "messageQueue" }).trace("publishAndWait", { topic, message });
   }
 
   // 只发布给当前环境
@@ -144,8 +157,8 @@ export class MessageQueueGroup implements IMessageQueue {
               await result;
             }
           } else {
-            // 所有中间件都执行完毕，执行最终的处理函数
-            handler(message);
+            // 所有中间件都执行完毕，等待最终处理函数完成
+            await handler(message);
           }
         };
 
@@ -160,6 +173,12 @@ export class MessageQueueGroup implements IMessageQueue {
   publish<T>(topic: string, message: NonNullable<T>) {
     const fullTopic = `${this.name}${topic}`;
     this.messageQueue.publish(fullTopic, message);
+  }
+
+  // 发布消息并等待当前环境的订阅者完成
+  publishAndWait<T>(topic: string, message: NonNullable<T>) {
+    const fullTopic = `${this.name}${topic}`;
+    return this.messageQueue.publishAndWait(fullTopic, message);
   }
 
   // 只发布给当前环境

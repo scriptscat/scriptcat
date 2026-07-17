@@ -99,11 +99,11 @@ export class ScriptClient extends Client {
   }
 
   includeUrl(uuid: string, includePattern: string) {
-    return this.do("includeUrl", { uuid, includePattern });
+    return this.do<boolean>("includeUrl", { uuid, includePattern });
   }
 
   excludeSiteAccessUrl(uuid: string, includePattern: string) {
-    return this.do("excludeSiteAccessUrl", { uuid, includePattern });
+    return this.do<boolean>("excludeSiteAccessUrl", { uuid, includePattern });
   }
 
   // 重置匹配项

@@ -65,10 +65,29 @@ export const isSiteAccessAllowed = (script: Pick<Script, "metadata" | "selfMetad
   return patterns.some((pattern) => pattern.ruleType & RuleTypeBit.INCLUSION && isUrlMatch(url, pattern));
 };
 
+export const isSiteAccessAllowedByAuthor = (script: Pick<Script, "metadata">, url: string): boolean =>
+  getSiteAccessRules(script.metadata).some(
+    (pattern) => pattern.ruleType & RuleTypeBit.INCLUSION && isUrlMatch(url, pattern)
+  );
+
 export const isSiteAccessAllowedByUser = (script: Pick<Script, "selfMetadata">, url: string): boolean =>
   getSiteAccessRules(script.selfMetadata).some(
     (pattern) => pattern.ruleType & RuleTypeBit.INCLUSION && isUrlMatch(url, pattern)
   );
+
+export const getSiteAccessPatternForUrl = (url: string): string | undefined => {
+  try {
+    const host = new URL(url).host;
+    return host ? `+*://${host}/*` : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+export const hasExactUserSiteAccess = (script: Pick<Script, "selfMetadata">, url: string): boolean => {
+  const pattern = getSiteAccessPatternForUrl(url);
+  return pattern ? getSiteAccessPatterns(script.selfMetadata).includes(pattern) : false;
+};
 
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   // 没有 run-at 时为 undefined. Fallback 至 document_idle

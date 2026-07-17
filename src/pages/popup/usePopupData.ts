@@ -303,7 +303,8 @@ export function usePopupData() {
       const host = extractHost(stateRef.current.currentUrl);
       if (!host) return;
       try {
-        await scriptClient.excludeSiteAccessUrl(uuid, `*://${host}/*`);
+        const changed = await scriptClient.excludeSiteAccessUrl(uuid, `*://${host}/*`);
+        if (!changed) return;
         const tabId = stateRef.current.currentTabId;
         if (tabId >= 0) {
           await chrome.tabs.reload(tabId);
