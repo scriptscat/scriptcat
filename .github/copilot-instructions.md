@@ -109,7 +109,8 @@ pnpm run coverage      # Generate coverage reports
 ### Browser Extension Specifics
 - **Manifest V3** with service worker background
 - **User Scripts API** for script injection (Chrome/Edge)
-- **Offscreen API** for DOM access in background contexts  
+- **Offscreen API** for DOM access in background contexts — **Firefox MV3 has no Offscreen API**;
+  `EventPageOffscreenManager` runs the same DOM-dependent logic inside the background event page instead
 - **Declarative Net Request** for script installation interception
 
 ## Critical Integration Points
@@ -136,7 +137,8 @@ pnpm run coverage      # Generate coverage reports
 - Use `pnpm run dev:noMap` for incognito window development
 - Background script changes require extension reload
 - Message passing debugging available in service worker console
-- Sandbox script execution isolated from page context - use `unsafeWindow` for page access
+- Sandbox (background/scheduled scripts) has no page at all — not "isolated from" a page, it never has one.
+  `unsafeWindow` belongs to the **Inject** context (page scripts), not Sandbox
 
 ## File Structure Patterns
 - Tests co-located with source files (`.test.ts` suffix)
