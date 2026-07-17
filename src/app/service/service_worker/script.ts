@@ -919,15 +919,15 @@ export class ScriptService {
       });
   }
 
-  // 将 opt-in 脚本的当前网址加入用户自定义 match 白名单。
+  // 将 opt-in 脚本的当前网址加入用户自定义 site-access 白名单。
   async includeUrl({ uuid, includePattern }: { uuid: string; includePattern: string }) {
     let script = await this.scriptDAO.get(uuid);
     if (!script) {
       throw new Error("script not found");
     }
-    const matchSet = new Set(script.selfMetadata?.match || []);
-    matchSet.add(includePattern);
-    script = selfMetadataUpdate(script, "match", matchSet);
+    const siteAccessSet = new Set(script.selfMetadata?.["site-access"] || []);
+    siteAccessSet.add(`+${includePattern}`);
+    script = selfMetadataUpdate(script, "site-access", siteAccessSet);
     return this.scriptDAO
       .update(uuid, script)
       .then(() => {

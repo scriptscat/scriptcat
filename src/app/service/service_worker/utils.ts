@@ -28,14 +28,17 @@ export type RegisteredUserScriptWithJsCode = RequireField<chrome.userScripts.Reg
 export const isSiteAccessOptIn = (metadata: SCMetadata | undefined): boolean =>
   metadata?.["site-access"]?.some((value) => value.trim().toLowerCase() === "opt-in") ?? false;
 
-export const isSiteAccessAllowed = (script: Pick<Script, "selfMetadata">, url: string): boolean => {
-  const metadata = script.selfMetadata;
-  if (!metadata) return false;
+export const getSiteAccessPatterns = (metadata: SCMetadata | undefined): string[] =>
+  (metadata?.["site-access"] ?? [])
+    .map((value) => value.trim())
+    .filter((value) => value.startsWith("+") && value.length > 1);
 
-  const patterns = extractUrlPatterns([
-    ...(metadata.match || []).map((value) => `@match ${value}`),
-    ...(metadata.include || []).map((value) => `@include ${value}`),
-  ]);
+const getSiteAccessRules = (metadata: SCMetadata | undefined): URLRuleEntry[] =>
+  extractUrlPatterns(getSiteAccessPatterns(metadata).map((value) => `@include ${value.slice(1)}`));
+
+export const isSiteAccessAllowed = (script: Pick<Script, "metadata" | "selfMetadata">, url: string): boolean => {
+  const patterns = [...getSiteAccessRules(script.metadata), ...getSiteAccessRules(script.selfMetadata)];
+
   return patterns.some((pattern) => pattern.ruleType & RuleTypeBit.INCLUSION && isUrlMatch(url, pattern));
 };
 
@@ -159,7 +162,11 @@ export function getCombinedMeta(metaBase: SCMetadata, metaCustom: SCMetadata): S
   }
   for (const key of Object.keys(metaCustom)) {
     const v = metaCustom[key];
-    metaRet[key] = v ? [...v] : undefined;
+    if (key === "site-access" && v) {
+      metaRet[key] = [...new Set([...(metaRet[key] || []), ...v])];
+    } else {
+      metaRet[key] = v ? [...v] : undefined;
+    }
   }
   return metaRet;
 }

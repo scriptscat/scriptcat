@@ -659,13 +659,16 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
   });
 
   describe("includeUrl - popup 加入 opt-in 白名单", () => {
-    it("应追加当前网址到用户自定义 match 覆盖中", async () => {
-      const script = createMockScript({ selfMetadata: { match: ["*://existing.com/*"] } });
+    it("应追加当前网址到用户自定义 site-access 覆盖中", async () => {
+      const script = createMockScript({
+        metadata: { match: ["*://script.com/*"], "site-access": ["opt-in", "+*://default.com/*"] },
+        selfMetadata: { "site-access": ["+*://existing.com/*"] },
+      });
       vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
 
       await scriptService.includeUrl({ uuid: script.uuid, includePattern: "*://user.com/*" });
 
-      expect(savedSelfMetadata()).toEqual({ match: ["*://existing.com/*", "*://user.com/*"] });
+      expect(savedSelfMetadata()).toEqual({ "site-access": ["+*://existing.com/*", "+*://user.com/*"] });
       expect(mockMessageQueue.publish).toHaveBeenCalled();
     });
   });

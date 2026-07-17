@@ -824,7 +824,7 @@ describe("getScriptsForTab 附加边界场景", () => {
     expect(result).toBeNull();
   });
 
-  it("没有用户自定义 match 时，opt-in 脚本不应执行", async () => {
+  it("没有 site-access 加号规则时，opt-in 脚本不应执行", async () => {
     const { runtime, script, scriptRes } = createFullContext({
       metadata: { match: ["https://www.example.com/*"], "site-access": ["opt-in"] },
     });
@@ -836,10 +836,10 @@ describe("getScriptsForTab 附加边界场景", () => {
     expect((runtime as any).pageLoadCaches.has(script.uuid)).toBe(false);
   });
 
-  it("用户自定义 match 命中时，opt-in 脚本应正常执行", async () => {
+  it("作者或用户的 site-access 加号规则命中时，opt-in 脚本应正常执行", async () => {
     const { runtime, scriptRes } = createFullContext({
       metadata: { match: ["https://www.example.com/*"], "site-access": ["opt-in"] },
-      selfMetadata: { match: ["*://www.example.com/*"] },
+      selfMetadata: { "site-access": ["+*://www.example.com/*"] },
     });
     await runtime.applyScriptMatchInfo(scriptRes);
 

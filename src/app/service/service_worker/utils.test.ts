@@ -5,6 +5,7 @@ import {
   getCombinedMeta,
   selfMetadataUpdate,
   isSiteAccessOptIn,
+  getSiteAccessPatterns,
   isSiteAccessAllowed,
   getUserScriptRegister,
   compileInjectionCode,
@@ -166,6 +167,15 @@ describe.concurrent("getCombinedMeta", () => {
     expect(result.grant).toEqual([]);
     expect(result.exclude).toEqual(["https://admin.com/*"]);
   });
+
+  it.concurrent("应该合并 site-access 的脚本默认值与用户自定义值", () => {
+    const result = getCombinedMeta(
+      { "site-access": ["opt-in", "+https://script.com/*"] },
+      { "site-access": ["+https://user.com/*"] }
+    );
+
+    expect(result["site-access"]).toEqual(["opt-in", "+https://script.com/*", "+https://user.com/*"]);
+  });
 });
 
 describe.concurrent("selfMetadataUpdate", () => {
@@ -259,20 +269,31 @@ describe.concurrent("@site-access opt-in", () => {
   it.concurrent("应识别 opt-in 声明而忽略其他 site-access 值", () => {
     expect(isSiteAccessOptIn({ "site-access": ["opt-in"] })).toBe(true);
     expect(isSiteAccessOptIn({ "site-access": ["opt-out"] })).toBe(false);
+    expect(isSiteAccessOptIn({ "site-access": ["+*://example.com/*"] })).toBe(false);
   });
 
-  it.concurrent("只有当前网址命中用户自定义 match/include 时才允许 opt-in 脚本", () => {
-    const script = { selfMetadata: { match: ["*://example.com/*"] } };
+  it.concurrent("应提取作者默认与用户自定义的加号站点规则", () => {
+    expect(getSiteAccessPatterns({ "site-access": ["opt-in", " +*://example.com/*", "invalid"] })).toEqual([
+      "+*://example.com/*",
+    ]);
+  });
+
+  it.concurrent("只有当前网址命中 site-access 加号规则时才允许 opt-in 脚本", () => {
+    const script = {
+      metadata: { "site-access": ["opt-in", "+*://example.com/*"] },
+      selfMetadata: { "site-access": ["+*://user.com/*"] },
+    };
 
     expect(isSiteAccessAllowed(script, "https://example.com/page")).toBe(true);
+    expect(isSiteAccessAllowed(script, "https://user.com/page")).toBe(true);
     expect(isSiteAccessAllowed(script, "https://other.com/page")).toBe(false);
     expect(
-      isSiteAccessAllowed({ selfMetadata: { include: ["*://example.com/tools/*"] } }, "https://example.com/tools/a")
+      isSiteAccessAllowed(
+        { metadata: { "site-access": ["opt-in", "+*example.com/tools*"] } },
+        "https://example.com/tools/a"
+      )
     ).toBe(true);
-    expect(
-      isSiteAccessAllowed({ selfMetadata: { include: ["*example.com/tools*"] } }, "https://example.com/tools/a")
-    ).toBe(true);
-    expect(isSiteAccessAllowed({ selfMetadata: {} }, "https://example.com/page")).toBe(false);
+    expect(isSiteAccessAllowed({ metadata: { "site-access": ["opt-in"] } }, "https://example.com/page")).toBe(false);
   });
 });
 
