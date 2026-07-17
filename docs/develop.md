@@ -51,6 +51,29 @@ Use strict TypeScript, React JSX runtime, 2-space indentation, semicolons, doubl
 - UI default English (global users).
 - Template literals: `${i}`, not `${i.toString()}`.
 
+### Comment Discipline
+
+A comment earns its place by telling the reader something the code cannot: an invariant, a race condition, a
+workaround for a specific constraint, or a reason something looks wrong but isn't. Before adding or keeping a
+comment, ask whether deleting it would cost a future reader anything — if not, delete it.
+
+- **No internal tracking labels.** Never write review-round or audit identifiers into comments or test names —
+  e.g. `finding 5`, `issue #123`, `round 2 fix`, `【finding N 回归】`. These numbers are meaningless outside the
+  conversation that produced them and read as noise once that context is gone. If a fix needs traceability,
+  that belongs in the commit message or PR description, not in source code; the comment itself should just
+  state the invariant being protected (e.g. `确认读失败不代表写入未落盘，只是无法证实` rather than `见 finding 2`).
+- **Don't restate the next line.** A comment placed right above code must add information the code doesn't
+  already convey — never narrate what a reader can already see, like `// 继续循环` above `continue;` or
+  `// send done event` above `sendEvent({ type: "done" })`. If the comment would read the same after deleting
+  the code below it, it isn't explaining anything.
+- **Don't duplicate the enclosing doc comment.** If a function or class already has a JSDoc explaining a
+  behavior, don't repeat the same explanation as an inline comment inside its body — state each fact once, in
+  the place that owns it, and let the rest of the code speak for itself.
+- **Keep comments attached to what they describe.** When you move, replace, or reorder code, move or delete the
+  comments that described it. A comment that still describes logic that used to be there, but no longer sits
+  next to what actually runs now, is more misleading than no comment at all — verify this explicitly when a
+  diff moves code around, not just when it adds new code.
+
 ## UI
 
 React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 + React Router. Pages in
