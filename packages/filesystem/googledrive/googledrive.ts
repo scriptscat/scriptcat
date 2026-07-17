@@ -149,7 +149,7 @@ export default class GoogleDriveFileSystem implements FileSystem {
       code,
       auth: googleStatus === 401,
       notFound: googleStatus === 404,
-      conflict: googleStatus === 409 || googleStatus === 412,
+      conflict: googleStatus === 409,
       rateLimit,
       // 只重试瞬时 5xx；501 等属于永久失败，重试只会空转退避
       retryable: rateLimit || (googleStatus !== undefined && [500, 502, 503, 504].includes(googleStatus)),

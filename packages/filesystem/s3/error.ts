@@ -17,7 +17,7 @@ export function createS3FileSystemError(error: unknown): unknown {
     code: error.code,
     auth: error.statusCode === 401 || error.statusCode === 403,
     notFound: error.statusCode === 404 || error.code === "NoSuchKey" || error.code === "NoSuchBucket",
-    conflict: error.statusCode === 409 || error.statusCode === 412 || error.code === "PreconditionFailed",
+    conflict: error.statusCode === 409,
     rateLimit,
     retryable: rateLimit || transient,
     raw: error,

@@ -129,13 +129,6 @@ describe("WebDAVFileSystem", () => {
       expect(err).toBeInstanceOf(FileSystemError);
       expect((err as FileSystemError).conflict).toBe(false);
     });
-
-    it("412 应判定为冲突", () => {
-      const err = createWebDAVFileSystemError({ message: "Precondition Failed", response: { status: 412 } });
-
-      expect(err).toBeInstanceOf(FileSystemError);
-      expect((err as FileSystemError).conflict).toBe(true);
-    });
   });
 
   describe("openDir", () => {

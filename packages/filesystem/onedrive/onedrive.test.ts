@@ -303,11 +303,10 @@ describe("OneDriveFileSystem", () => {
     }
   });
 
-  it.each([
-    [409, "nameAlreadyExists"],
-    [412, "PreconditionFailed"],
-  ])("request should throw typed conflict error for status %s", async (status, code) => {
+  it("请求遇到 409 nameAlreadyExists 时应抛出 typed conflict 错误", async () => {
     const fs = new OneDriveFileSystem("/", "token");
+    const status = 409;
+    const code = "nameAlreadyExists";
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValueOnce(

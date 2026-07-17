@@ -414,8 +414,9 @@ describe("GoogleDriveFileSystem", () => {
     }
   });
 
-  it.each([409, 412])("request should throw typed conflict error for status %s", async (status) => {
+  it("请求遇到 409 时应抛出 typed conflict 错误", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
+    const status = 409;
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValueOnce(
@@ -426,7 +427,7 @@ describe("GoogleDriveFileSystem", () => {
             error: {
               code: status,
               message: "Conflict",
-              status: status === 409 ? "ABORTED" : "FAILED_PRECONDITION",
+              status: "ABORTED",
             },
           }),
         })

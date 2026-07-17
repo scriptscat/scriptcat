@@ -92,12 +92,7 @@ export default class OneDriveFileSystem implements FileSystem {
           : `OneDrive request failed${status ? ` with status ${status}` : ""}`;
     const auth = status === 401 || code === "InvalidAuthenticationToken";
     const notFound = status === 404 || code === "itemNotFound";
-    const conflict =
-      status === 409 ||
-      status === 412 ||
-      code === "nameAlreadyExists" ||
-      code === "itemAlreadyExists" ||
-      code === "PreconditionFailed";
+    const conflict = status === 409 || code === "nameAlreadyExists" || code === "itemAlreadyExists";
     const rateLimit = status === 429;
     // 只重试瞬时 5xx；501 等属于永久失败，重试只会空转退避
     const transient = status !== undefined && [500, 502, 503, 504].includes(status);

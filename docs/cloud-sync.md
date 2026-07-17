@@ -286,7 +286,6 @@ typed `retryable` 只覆盖瞬时 5xx（500/502/503/504）。501、505、507 等
 维护时注意：
 
 - list 返回的 `ETag` 会去掉引号作为 digest。
-- `PreconditionFailed` / 412 转 typed conflict。
 - `NoSuchKey` 删除视为成功。
 
 ### OneDrive
