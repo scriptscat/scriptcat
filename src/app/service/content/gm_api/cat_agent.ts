@@ -45,7 +45,7 @@ export type ConversationStreamChunk =
       status: "running" | "done" | "error";
     };
 
-type ToolHandler = (args: Record<string, unknown>) => Promise<unknown>;
+type ToolHandler = (args: Record<string, unknown>, signal: AbortSignal) => Promise<unknown>;
 
 function cloneToolCall(toolCall: ToolCall): ToolCall {
   return {
@@ -404,19 +404,33 @@ export class ConversationInstance {
       // SW 端脚本工具批次超时后发来的作废通知（按 requestId 关联）：
       // 该批次剩余 handler 不再执行，避免其副作用与下一批次交叠（见 finding 6）
       const cancelledBatches = new Set<string>();
+      const batchControllers = new Map<string, AbortController>();
+      const abortBatches = () => {
+        for (const controller of batchControllers.values()) controller.abort();
+        batchControllers.clear();
+      };
 
       conn.onMessage(async (message: any) => {
         if (message.action === "cancelToolBatch") {
-          if (message.requestId) cancelledBatches.add(message.requestId);
+          if (message.requestId) {
+            cancelledBatches.add(message.requestId);
+            batchControllers.get(message.requestId)?.abort();
+          }
           return;
         }
         if (message.action === "executeTools") {
           const batchId: string | undefined = message.requestId;
+          const controller = new AbortController();
+          if (batchId) batchControllers.set(batchId, controller);
           const data = await this.executeTools(
             message.data,
             handlers,
-            () => settled || (batchId !== undefined && cancelledBatches.has(batchId))
+            () => {
+              return settled || (batchId !== undefined && cancelledBatches.has(batchId));
+            },
+            controller.signal
           );
+          if (batchId) batchControllers.delete(batchId);
           // 工具函数执行期间连接可能已经因 Stop/脚本工具超时而 settle 并断开；
           // 断开后的连接 sendMessage 会抛错，且这里是异步回调，事件源不会 await/捕获它，
           // 会在用户脚本上下文里变成 unhandled rejection（见 finding 7）
@@ -476,6 +490,7 @@ export class ConversationInstance {
             usage = event.usage;
             durationMs = event.durationMs;
             settled = true;
+            abortBatches();
             resolve({
               content: finishRound(false),
               thinking: thinking || undefined,
@@ -487,6 +502,7 @@ export class ConversationInstance {
             break;
           case "error":
             settled = true;
+            abortBatches();
             reject(Object.assign(new Error(event.message), event));
             conn.disconnect();
             break;
@@ -495,6 +511,7 @@ export class ConversationInstance {
       conn.onDisconnect(() => {
         if (settled) return;
         settled = true;
+        abortBatches();
         reject(new Error("Connection disconnected"));
       });
     });
@@ -528,19 +545,33 @@ export class ConversationInstance {
     // SW 端脚本工具批次超时后发来的作废通知（按 requestId 关联）：
     // 该批次剩余 handler 不再执行，避免其副作用与下一批次交叠（见 finding 6）
     const cancelledBatches = new Set<string>();
+    const batchControllers = new Map<string, AbortController>();
+    const abortBatches = () => {
+      for (const controller of batchControllers.values()) controller.abort();
+      batchControllers.clear();
+    };
 
     conn.onMessage(async (message: any) => {
       if (message.action === "cancelToolBatch") {
-        if (message.requestId) cancelledBatches.add(message.requestId);
+        if (message.requestId) {
+          cancelledBatches.add(message.requestId);
+          batchControllers.get(message.requestId)?.abort();
+        }
         return;
       }
       if (message.action === "executeTools") {
         const batchId: string | undefined = message.requestId;
+        const controller = new AbortController();
+        if (batchId) batchControllers.set(batchId, controller);
         const data = await this.executeTools(
           message.data,
           handlers,
-          () => done || (batchId !== undefined && cancelledBatches.has(batchId))
+          () => {
+            return done || (batchId !== undefined && cancelledBatches.has(batchId));
+          },
+          controller.signal
         );
+        if (batchId) batchControllers.delete(batchId);
         // 工具函数执行期间连接可能已经因 Stop/脚本工具超时而结束并断开；
         // 断开后的连接 sendMessage 会抛错，且这里是异步回调，事件源不会 await/捕获它，
         // 会在用户脚本上下文里变成 unhandled rejection（见 finding 7）
@@ -640,6 +671,7 @@ export class ConversationInstance {
             durationMs: event.durationMs,
           });
           done = true;
+          abortBatches();
           conn.disconnect();
           break;
         case "error":
@@ -652,6 +684,7 @@ export class ConversationInstance {
           });
           error = Object.assign(new Error(event.message), event);
           done = true;
+          abortBatches();
           conn.disconnect();
           break;
       }
@@ -659,6 +692,7 @@ export class ConversationInstance {
     conn.onDisconnect(() => {
       if (done) return;
       done = true;
+      abortBatches();
       error = new Error("Connection disconnected");
       wake?.();
     });
@@ -668,6 +702,7 @@ export class ConversationInstance {
     const closeEarly = () => {
       if (done) return;
       done = true;
+      abortBatches();
       try {
         conn.disconnect();
       } catch {
@@ -793,11 +828,12 @@ export class ConversationInstance {
   protected async executeTools(
     toolCalls: ToolCall[],
     handlers: Map<string, ToolHandler>,
-    isSettled?: () => boolean
+    isSettled?: () => boolean,
+    signal: AbortSignal = new AbortController().signal
   ): Promise<Array<{ id: string; result: string; error?: boolean }>> {
     const results: Array<{ id: string; result: string; error?: boolean }> = [];
     for (const toolCall of toolCalls) {
-      if (isSettled?.()) {
+      if (signal.aborted || isSettled?.()) {
         results.push({
           id: toolCall.id,
           result: JSON.stringify({ error: "Tool execution cancelled: connection already settled" }),
@@ -818,7 +854,7 @@ export class ConversationInstance {
         const args = toolCall.arguments ? JSON.parse(toolCall.arguments) : {};
         results.push({
           id: toolCall.id,
-          result: stringifyToolResult(await handler(args)),
+          result: stringifyToolResult(await handler(args, signal)),
         });
       } catch (error) {
         const message = error instanceof Error ? error.message || error.toString() : String(error);
@@ -852,7 +888,7 @@ function buildInstance(
     ctx.sendMessage.bind(ctx),
     ctx.connect.bind(ctx),
     ctx.scriptRes?.uuid || "",
-    options?.maxIterations || 20,
+    options?.maxIterations ?? 20,
     options?.tools,
     options?.commands,
     options?.ephemeral,

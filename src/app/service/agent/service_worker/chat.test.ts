@@ -986,4 +986,134 @@ describe("会话队列的连接感知与重入策略（finding 2）", () => {
       (service as any).handleConversation({ action: "clearMessages", conversationId: "conv-reent" })
     ).resolves.toBe(true);
   });
+
+  it("会话等待脚本工具结果期间，同会话的重入 chat 应立即拒绝而不是排队死锁", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([conv("conv-reent-chat")]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    const encoder = new TextEncoder();
+    let index = 0;
+    const chunks = [
+      `data: {"choices":[{"delta":{"tool_calls":[{"id":"call-1","function":{"name":"my_tool","arguments":""}}]}}]}\n\n`,
+      `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"{}"}}]},"finish_reason":"tool_calls"}]}\n\n`,
+      `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
+    ];
+    fetchSpy
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        body: {
+          getReader: () => ({
+            read: async () =>
+              index < chunks.length
+                ? { done: false, value: encoder.encode(chunks[index++]) }
+                : { done: true, value: undefined },
+            cancel: async () => {},
+          }),
+        },
+      } as unknown as Response)
+      .mockResolvedValueOnce(makeTextResponse("最终回复"))
+      .mockResolvedValueOnce(makeTextResponse("不应执行的重入回复"));
+
+    const outer = createMockSender();
+    const outerPromise = (service as any).handleConversationChat(
+      {
+        conversationId: "conv-reent-chat",
+        message: "使用工具",
+        tools: [{ name: "my_tool", description: "d", parameters: { type: "object", properties: {} } }],
+      },
+      outer.sender
+    );
+    await vi.waitFor(() =>
+      expect(outer.sentMessages.some((message: any) => message.action === "executeTools")).toBe(true)
+    );
+
+    const nested = createMockSender();
+    const nestedPromise = (service as any).handleConversationChat(
+      { conversationId: "conv-reent-chat", message: "nested" },
+      nested.sender
+    );
+    const nestedOutcome = await Promise.race([
+      nestedPromise.then(() => "returned"),
+      new Promise<string>((resolve) => setTimeout(() => resolve("blocked"), 20)),
+    ]);
+
+    const executeMessage = outer.sentMessages.find((message: any) => message.action === "executeTools");
+    outer.simulateMessage({
+      action: "toolResults",
+      requestId: executeMessage.requestId,
+      data: [{ id: "call-1", result: "ok" }],
+    });
+    await Promise.all([outerPromise, nestedPromise]);
+
+    expect(nestedOutcome).toBe("returned");
+    expect(nested.sentMessages).toContainEqual({
+      action: "event",
+      data: expect.objectContaining({ type: "error" }),
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("手动 compact 在 LLM 调用期间 Stop 时应恰好发送一次 cancelled 终态", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([conv("conv-compact-stop")]);
+    mockRepo.getMessages.mockResolvedValue([
+      { id: "m1", conversationId: "conv-compact-stop", role: "user", content: "history", createtime: 1 },
+    ]);
+    fetchSpy.mockImplementation(
+      async (_url: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          (init?.signal as AbortSignal).addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true }
+          );
+        })
+    );
+
+    const connection = createMockSender();
+    const compactPromise = (service as any).handleConversationChat(
+      { conversationId: "conv-compact-stop", message: "", compact: true },
+      connection.sender
+    );
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce());
+    connection.simulateMessage({ action: "stop" });
+    await compactPromise;
+
+    const terminals = connection.sentMessages
+      .filter((message: any) => message.action === "event")
+      .map((message: any) => message.data)
+      .filter((event: any) => event.type === "done" || event.type === "error");
+    expect(terminals).toEqual([expect.objectContaining({ type: "error", errorCode: "cancelled" })]);
+  });
+
+  it("子代理终态不应吞掉父对话自己的终态", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([conv("conv-sub-terminal")]);
+    mockRepo.getMessages.mockResolvedValue([]);
+    const chatService = (service as any).chatService;
+    chatService.llmDeps.callLLMWithToolLoop = vi.fn(async ({ sendEvent }: any) => {
+      sendEvent({
+        type: "done",
+        subAgent: { agentId: "child-1", description: "子任务" },
+      });
+      sendEvent({ type: "done", usage: { inputTokens: 3, outputTokens: 2 } });
+    });
+
+    const connection = createMockSender();
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-sub-terminal", message: "run" },
+      connection.sender
+    );
+
+    const terminals = connection.sentMessages
+      .filter((message: any) => message.action === "event")
+      .map((message: any) => message.data)
+      .filter((event: any) => event.type === "done" || event.type === "error");
+    expect(terminals).toEqual([
+      expect.objectContaining({ type: "done", subAgent: expect.objectContaining({ agentId: "child-1" }) }),
+      expect.objectContaining({ type: "done", usage: { inputTokens: 3, outputTokens: 2 } }),
+    ]);
+  });
 });

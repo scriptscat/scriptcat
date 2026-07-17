@@ -253,7 +253,7 @@ export type ConversationCreateOptions = {
   model?: string; // modelId，不传则使用默认模型
   maxIterations?: number; // tool calling 最大循环次数，默认 20
   skills?: "auto" | string[]; // 加载的 Skill，"auto" 加载全部，数组指定名称
-  tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>) => Promise<unknown> }>;
+  tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>, signal: AbortSignal) => Promise<unknown> }>;
   commands?: Record<string, CommandHandler>; // 自定义命令处理器，以 / 开头
   ephemeral?: boolean; // 临时会话：不持久化、不加载内置资源、工具由脚本提供
   cache?: boolean; // 是否启用 prompt caching，默认 true
@@ -262,7 +262,7 @@ export type ConversationCreateOptions = {
 
 // conv.chat() 的参数
 export type ChatOptions = {
-  tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>) => Promise<unknown> }>;
+  tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>, signal: AbortSignal) => Promise<unknown> }>;
 };
 
 // conv.chat() 的返回值

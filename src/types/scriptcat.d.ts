@@ -841,8 +841,8 @@ declare namespace CATAgent {
     description: string;
     /** JSON Schema describing the tool parameters. */
     parameters: Record<string, unknown>;
-    /** Handler invoked when the LLM calls this tool. */
-    handler: (args: Record<string, unknown>) => Promise<unknown>;
+    /** Handler invoked when the LLM calls this tool. Stop work promptly when the batch signal is aborted. */
+    handler: (args: Record<string, unknown>, signal: AbortSignal) => Promise<unknown>;
   }
 
   /**

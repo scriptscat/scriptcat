@@ -848,7 +848,8 @@ declare namespace CATAgent {
     /** 描述工具参数的 JSON Schema。 */
     parameters: Record<string, unknown>;
     /** LLM 调用此工具时执行的处理函数。 */
-    handler: (args: Record<string, unknown>) => Promise<unknown>;
+    /** LLM 调用工具时执行；批次 signal 中止后应立即停止副作用。 */
+    handler: (args: Record<string, unknown>, signal: AbortSignal) => Promise<unknown>;
   }
 
   /**

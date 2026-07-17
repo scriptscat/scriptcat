@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ConversationInstance } from "./cat_agent";
+import CATAgentApi, { ConversationInstance } from "./cat_agent";
 import type { Conversation, StreamChunk } from "@App/app/service/agent/core/types";
 import type { MessageConnect } from "@Packages/message/types";
 
@@ -653,6 +653,81 @@ describe("executeTools：批次级取消（finding 6）", () => {
     expect(handlerA).toHaveBeenCalledOnce();
     // handlerB 不应被调用：批次已被 SW 端超时作废，剩余 handler 的副作用会与下一批次交叠
     expect(handlerB).not.toHaveBeenCalled();
+  });
+
+  it("收到 cancelToolBatch 时应中止当前 handler 的批次级 AbortSignal", async () => {
+    let messageCb: ((msg: any) => void) | undefined;
+    let handlerSignal: AbortSignal | undefined;
+
+    const handler = vi.fn().mockImplementation(async (_args: Record<string, unknown>, signal?: AbortSignal) => {
+      handlerSignal = signal;
+      messageCb?.({ action: "cancelToolBatch", requestId: "req-active" });
+      return "late-result";
+    });
+
+    const conn: MessageConnect = {
+      onMessage(cb: (msg: any) => void) {
+        messageCb = cb;
+        setTimeout(() => {
+          cb({
+            action: "executeTools",
+            requestId: "req-active",
+            data: [{ id: "call-active", name: "tool_active", arguments: "{}" }],
+          });
+          setTimeout(() => {
+            cb({ action: "event", data: { type: "done", usage: { inputTokens: 1, outputTokens: 1 } } });
+          }, 5);
+        }, 0);
+      },
+      onDisconnect() {},
+      sendMessage() {},
+      disconnect() {},
+    };
+
+    const instance = new ConversationInstance(
+      mockConversation({ modelId: "test-model" }),
+      vi.fn().mockResolvedValue(undefined),
+      vi.fn().mockResolvedValue(conn),
+      "test-script-uuid",
+      20,
+      [
+        {
+          name: "tool_active",
+          description: "d",
+          parameters: { type: "object", properties: {} },
+          handler,
+        },
+      ],
+      undefined,
+      true
+    );
+
+    await instance.chat("使用工具");
+
+    expect(handlerSignal).toBeInstanceOf(AbortSignal);
+    expect(handlerSignal?.aborted).toBe(true);
+  });
+});
+
+describe("conversation.create maxIterations 归一化入口", () => {
+  it("显式传入 0 时应原样送往服务端，由统一归一化逻辑钳位为 1", async () => {
+    const connect = vi.fn().mockResolvedValue(mockConnect());
+    const apiThis = {
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      connect,
+      scriptRes: { uuid: "script-1" },
+    };
+
+    const instance = await CATAgentApi.prototype["CAT.agent.conversation.create"].call(apiThis, {
+      ephemeral: true,
+      maxIterations: 0,
+    });
+    await instance.chat("hello");
+
+    expect(connect).toHaveBeenCalledWith(
+      "CAT_agentConversationChat",
+      expect.arrayContaining([expect.objectContaining({ maxIterations: 0 })])
+    );
   });
 });
 

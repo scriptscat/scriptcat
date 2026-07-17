@@ -47,6 +47,18 @@ describe("task_tools", () => {
     expect(onSave).toHaveBeenCalledWith(expect.any(Array), controller.signal);
   });
 
+  it("create_task 持久化失败时不应把未提交任务留在内存或消耗 ID", async () => {
+    const onSave = vi.fn().mockRejectedValueOnce(new Error("disk full")).mockResolvedValue(undefined);
+    const { tools, tasks } = createTaskTools({ onSave });
+    const create = tools.find((tool) => tool.definition.name === "create_task")!;
+
+    await expect(create.executor.execute({ subject: "失败任务" })).rejects.toThrow("disk full");
+    expect(tasks.size).toBe(0);
+
+    const committed = JSON.parse((await create.executor.execute({ subject: "成功任务" })) as string);
+    expect(committed.id).toBe("1");
+  });
+
   it("update_task 应更新任务字段", async () => {
     const { tools } = createTaskTools();
     const create = tools.find((t) => t.definition.name === "create_task")!;
@@ -59,6 +71,51 @@ describe("task_tools", () => {
     );
     expect(result.status).toBe("in_progress");
     expect(result.subject).toBe("Updated");
+  });
+
+  it("update_task 持久化失败时不应污染内存中的已提交任务", async () => {
+    const onSave = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("disk full"));
+    const { tools, tasks } = createTaskTools({ onSave });
+    const create = tools.find((tool) => tool.definition.name === "create_task")!;
+    const update = tools.find((tool) => tool.definition.name === "update_task")!;
+
+    await create.executor.execute({ subject: "Original" });
+    await expect(
+      update.executor.execute({ task_id: "1", status: "completed", subject: "Uncommitted" })
+    ).rejects.toThrow("disk full");
+
+    expect(tasks.get("1")).toEqual({ id: "1", subject: "Original", status: "pending" });
+  });
+
+  it("持久化落定时同时发生中止也应保持磁盘与内存状态一致", async () => {
+    const controller = new AbortController();
+    let persisted: Task[] = [];
+    const onSave = vi.fn(async (candidate: Task[]) => {
+      persisted = candidate.map((task) => ({ ...task }));
+      controller.abort();
+    });
+    const { tools, tasks } = createTaskTools({ onSave });
+    const create = tools.find((tool) => tool.definition.name === "create_task")!;
+
+    await create.executor.execute({ subject: "已提交任务" }, controller.signal);
+
+    expect(persisted).toEqual([{ id: "1", subject: "已提交任务", status: "pending" }]);
+    expect(Array.from(tasks.values())).toEqual(persisted);
+  });
+
+  it("通知失败不应回滚已提交任务或复用已消耗的 ID", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const sendEvent = vi.fn().mockImplementationOnce(() => {
+      throw new Error("port closed");
+    });
+    const { tools, tasks } = createTaskTools({ onSave, sendEvent });
+    const create = tools.find((tool) => tool.definition.name === "create_task")!;
+
+    await create.executor.execute({ subject: "任务一" });
+    const second = JSON.parse((await create.executor.execute({ subject: "任务二" })) as string);
+
+    expect(second.id).toBe("2");
+    expect(Array.from(tasks.keys())).toEqual(["1", "2"]);
   });
 
   it("update_task 应对不存在的任务抛错", async () => {

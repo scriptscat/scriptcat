@@ -8,6 +8,7 @@ import type {
   Conversation,
   ConversationApiRequest,
   MessageContent,
+  TokenUsage,
   ToolDefinition,
 } from "@App/app/service/agent/core/types";
 import type { ScriptToolCallback, ToolExecutor } from "@App/app/service/agent/core/tool_registry";
@@ -283,6 +284,22 @@ export class ChatService {
     // 后台模式：非 ephemeral、非 compact 时可用
     const isBackground = params.background === true && !params.ephemeral && !params.compact;
 
+    if (!params.ephemeral && this.conversationsAwaitingScriptTools.has(params.conversationId)) {
+      try {
+        msgConn.sendMessage({
+          action: "event",
+          data: {
+            type: "error",
+            message: "Conversation is waiting for script tool results; reentrant chat is not allowed",
+            errorCode: "conversation_busy",
+          } as ChatStreamEvent,
+        });
+      } catch {
+        // 端口已断开，无需通知
+      }
+      return;
+    }
+
     // 检查是否已有后台运行的同一会话（排队前快速拒绝，入锁后还会复查一次）
     if (isBackground && this.bgSessionManager.has(params.conversationId)) {
       try {
@@ -476,7 +493,13 @@ export class ChatService {
       if (!session.isDisconnected()) rc.listeners.add(listener);
     }
 
+    let terminalEventSent = false;
     const sendEvent = (event: ChatStreamEvent) => {
+      const isParentTerminal = (event.type === "done" || event.type === "error") && !event.subAgent;
+      if (isParentTerminal) {
+        if (terminalEventSent) return;
+        terminalEventSent = true;
+      }
       if (rc) {
         // 后台模式：先更新快照，再广播到所有 listener
         this.bgSessionManager.updateStreamingState(rc, event);
@@ -484,6 +507,16 @@ export class ChatService {
       } else {
         sendEventDirect(event);
       }
+    };
+
+    const emitCancelledOnce = (error?: { usage?: TokenUsage; durationMs?: number }) => {
+      sendEvent({
+        type: "error",
+        message: "Conversation cancelled",
+        errorCode: "cancelled",
+        usage: error?.usage,
+        durationMs: error?.durationMs,
+      });
     };
 
     // 循环检测（tool_call_guard）连续命中时暂停询问用户是否继续；复用 ask_user 的事件/resolver 机制，
@@ -542,6 +575,7 @@ export class ChatService {
       // compact 模式：压缩对话历史
       if (params.compact) {
         await this.handleCompactChat(params, sendEvent, abortController);
+        if (abortController.signal.aborted) emitCancelledOnce();
         return;
       }
 
@@ -634,6 +668,7 @@ export class ChatService {
       // 后台模式：abort 后必须等待本次执行 promise 真正落定，才能把 cancelling 收敛为终态，
       // 否则 stop() 造成的 cancelling 占位会一直阻塞同 ID 的新会话（见 finalizeCancelled）
       if (abortController.signal.aborted) {
+        emitCancelledOnce(e);
         if (rc) {
           this.bgSessionManager.finalizeCancelled(params.conversationId, rc);
         } else {
