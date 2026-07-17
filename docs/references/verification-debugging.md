@@ -12,6 +12,11 @@ model in [`ARCHITECTURE.md`](../architecture.md)):
 | Background / scheduled script, DOM-needing GM APIs | **Offscreen** — `dist/ext/src/offscreen.html` context |
 | Cron scheduling, `with`-sandboxed execution | **Sandbox** — `dist/ext/src/sandbox.html` context |
 
+> **Firefox has no separate Offscreen context.** `chrome.offscreen.createDocument` doesn't exist there, so
+> `offscreen.html` is never loaded — `EventPageOffscreenManager` runs the same logic inside the background event
+> page instead (see [`ARCHITECTURE.md`](../architecture.md#chrome-vs-firefox-the-offscreen-split)). On Firefox,
+> inspect the background/event page, not `offscreen.html`.
+
 In a scratch script, capture the page console (`page.on("console", …)`), take screenshots
 (`await page.screenshot({ path: "test-results/verify/<scenario>/screenshots/…png" })`), and write any manual
 notes to `test-results/verify/<scenario>/`. Playwright's automatic failure artifacts also go under
