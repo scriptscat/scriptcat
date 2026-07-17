@@ -5,6 +5,7 @@ import {
   compileInjectScript,
   compileScriptletCode,
   isScriptletUnwrap,
+  isScriptModule,
   addStyle,
   addStyleSheet,
 } from "./utils";
@@ -560,6 +561,32 @@ describe("utils", () => {
 
     it.concurrent("@unwrap 为 false 时返回 false", () => {
       expect(isScriptletUnwrap({ unwrap: ["false"] })).toBe(false);
+    });
+  });
+
+  describe.concurrent("isScriptModule", () => {
+    it.concurrent("@script-module 为空值时返回 true", () => {
+      expect(isScriptModule({ "script-module": [""] })).toBe(true);
+    });
+
+    it.concurrent("@script-module 为 true 时返回 true", () => {
+      expect(isScriptModule({ "script-module": ["true"] })).toBe(true);
+    });
+
+    it.concurrent("没有 @script-module 时返回 false", () => {
+      expect(isScriptModule({})).toBe(false);
+    });
+
+    it.concurrent("@script-module 为 false 时返回 false", () => {
+      expect(isScriptModule({ "script-module": ["false"] })).toBe(false);
+    });
+
+    it.concurrent("@script-module 与 @inject-into content 同时存在时返回 false", () => {
+      expect(isScriptModule({ "script-module": [""], "inject-into": ["content"] })).toBe(false);
+    });
+
+    it.concurrent("@script-module 与 @inject-into page 同时存在时返回 true", () => {
+      expect(isScriptModule({ "script-module": [""], "inject-into": ["page"] })).toBe(true);
     });
   });
 
