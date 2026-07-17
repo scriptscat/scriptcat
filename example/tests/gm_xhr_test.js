@@ -450,10 +450,11 @@ const enableTool = true;
     return body.args || body.query || body.queryParams || body.params || {};
   }
 
-  const encodedBase64 =
-    "VGhlIHF1aWNrIGJyb3duIGZveCBqdW1wcyBvdmVyIHRoZSBsYXp5IGRvZy4gVGhpcyBzZW50ZW5jZSBjb250YWlucyBldmVyeSBsZXR0ZXIgb2YgdGhlIEVuZ2xpc2ggYWxwaGFiZXQgYW5kIGlzIG9mdGVuIHVzZWQgZm9yIHR5cGluZyBwcmFjdGljZSwgZm9udCB0ZXN0aW5nLCBhbmQgZW5jb2RpbmcgZXhwZXJpbWVudHMuIEJhc2U2NCBlbmNvZGluZyB0cmFuc2Zvcm1zIHRoaXMgcmVhZGFibGUgdGV4dCBpbnRvIGEgc2VxdWVuY2Ugb2YgQVNDSUkgY2hhcmFjdGVycyB0aGF0IGNhbiBzYWZlbHkgYmUgdHJhbnNtaXR0ZWQgb3Igc3RvcmVkIGluIHN5c3RlbXMgdGhhdCBoYW5kbGUgdGV4dC1vbmx5IGRhdGEu";
-  const decodedBase64 =
-    "The quick brown fox jumps over the lazy dog. This sentence contains every letter of the English alphabet and is often used for typing practice, font testing, and encoding experiments. Base64 encoding transforms this readable text into a sequence of ASCII characters that can safely be transmitted or stored in systems that handle text-only data.";
+  // mockhttp.org's /base64/{value} route rejects path segments longer than
+  // ~100 characters with a 404 (undocumented limit, verified empirically), so
+  // the payload here must stay short unlike httpbun's unbounded /base64 route.
+  const encodedBase64 = "VGhlIHF1aWNrIGJyb3duIGZveCBqdW1wcyBvdmVyIHRoZSBsYXp5IGRvZy4gUGFjayBteSBib3gh";
+  const decodedBase64 = "The quick brown fox jumps over the lazy dog. Pack my box!";
 
   // ---------- Tests ----------
   const basicTests = [
