@@ -242,6 +242,13 @@ describe("AgentChatRepo 附件存储", () => {
           ],
           createtime: Date.now(),
         },
+        {
+          id: "msg-borrowed",
+          conversationId: convId,
+          role: "user",
+          content: [{ type: "image", attachmentId: "att-borrowed", mimeType: "image/jpeg" }],
+          createtime: Date.now(),
+        },
       ],
       undefined,
       { generation: conversation.generation! }
@@ -277,6 +284,7 @@ describe("AgentChatRepo 附件存储", () => {
       conversationId: conversation.id,
       role: "user" as const,
       content: [{ type: "image" as const, attachmentId: "att-keep", mimeType: "image/png" }],
+      ownedAttachmentIds: ["att-keep"],
       createtime: 1,
     };
     const nested = {
@@ -289,6 +297,7 @@ describe("AgentChatRepo 附件存储", () => {
           id: "tool-1",
           name: "agent",
           arguments: "{}",
+          ownedAttachmentIds: ["att-child", "att-child-tool"],
           subAgentDetails: {
             agentId: "child",
             description: "child",
@@ -329,6 +338,41 @@ describe("AgentChatRepo 附件存储", () => {
     expect(await repo.getAttachment("att-keep")).not.toBeNull();
     expect(await repo.getAttachment("att-child")).toBeNull();
     expect(await repo.getAttachment("att-child-tool")).toBeNull();
+  });
+
+  it("重新生成转移消息所有权时应暂时保留指定附件", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-transfer-attachment",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    await repo.saveMessages(
+      conversation.id,
+      [
+        {
+          id: "owned-user-message",
+          conversationId: conversation.id,
+          role: "user",
+          content: [{ type: "image", attachmentId: "transfer.png", mimeType: "image/png" }],
+          ownedAttachmentIds: ["transfer.png"],
+          createtime: 1,
+        },
+      ],
+      undefined,
+      { generation: conversation.generation! }
+    );
+    await repo.saveAttachment("transfer.png", new Blob(["image"]));
+    const snapshot = await repo.getMessageSnapshot(conversation.id, conversation.generation);
+
+    await repo.saveMessages(conversation.id, [], undefined, {
+      generation: conversation.generation!,
+      expectedRevision: snapshot.revision,
+      preserveAttachmentIds: ["transfer.png"],
+    });
+
+    expect(await repo.getAttachment("transfer.png")).not.toBeNull();
   });
 });
 

@@ -72,6 +72,7 @@ export interface ChatServiceLLMDeps {
 type ConversationChatParams = {
   conversationId: string;
   message: MessageContent;
+  ownedAttachmentIds?: string[];
   tools?: ToolDefinition[];
   maxIterations?: number;
   scriptUuid?: string;
@@ -266,7 +267,11 @@ export class ChatService {
             params.conversationId,
             snapshot.messages.filter((message) => !ids.has(message.id)),
             undefined,
-            { generation: snapshot.generation, expectedRevision: snapshot.revision }
+            {
+              generation: snapshot.generation,
+              expectedRevision: snapshot.revision,
+              preserveAttachmentIds: params.preserveAttachmentIds,
+            }
           );
           return true;
         });
@@ -1097,6 +1102,7 @@ export class ChatService {
           conversationId: params.conversationId,
           role: "user",
           content: params.message,
+          ownedAttachmentIds: params.ownedAttachmentIds,
           createtime: Date.now(),
         },
         conv.generation

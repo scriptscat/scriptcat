@@ -97,6 +97,8 @@ export type ChatMessage = {
   conversationId: string;
   role: MessageRole;
   content: MessageContent;
+  /** Attachment files owned by this persisted message. ContentBlock references are borrowed unless listed here. */
+  ownedAttachmentIds?: string[];
   thinking?: ThinkingBlock;
   toolCalls?: ToolCall[];
   // tool 角色的消息需要关联到对应的 tool_call
@@ -711,5 +713,5 @@ export type ConversationApiRequest =
   | { action: "getMessages"; conversationId: string; scriptUuid: string }
   | { action: "save"; conversationId: string; scriptUuid: string }
   | { action: "clearMessages"; conversationId: string; scriptUuid?: string }
-  | { action: "deleteMessages"; conversationId: string; messageIds: string[] }
+  | { action: "deleteMessages"; conversationId: string; messageIds: string[]; preserveAttachmentIds?: string[] }
   | { action: "delete"; conversationId: string; generation: string; revision?: number };

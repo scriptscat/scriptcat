@@ -57,6 +57,27 @@ vi.mock("@Packages/message/client", () => ({
 import { useConversations, deleteMessages, clearMessages, useStreamingChat } from "./hooks";
 
 describe("useStreamingChat：stop 后仍需放行终态事件（finding 6）", () => {
+  it("应把本次 UI 新上传附件的所有权发送给 Service Worker", async () => {
+    const { conn } = createMockConn();
+    mockConnect.mockResolvedValue(conn);
+    const { result } = renderHook(() => useStreamingChat());
+
+    await act(async () => {
+      await result.current.sendMessage("conv-1", "hi", vi.fn(), vi.fn(), undefined, undefined, undefined, {
+        ownedAttachmentIds: ["upload.png"],
+      });
+    });
+
+    expect(mockConnect).toHaveBeenCalledWith({}, "serviceWorker/agent/conversationChat", {
+      conversationId: "conv-1",
+      message: "hi",
+      modelId: undefined,
+      skipSaveUserMessage: undefined,
+      enableTools: undefined,
+      ownedAttachmentIds: ["upload.png"],
+    });
+  });
+
   it("stopGeneration 之后到达的终态事件仍应触发 onDone 并断开连接，而不是被 abortedRef 吞掉", async () => {
     const { conn, emit } = createMockConn();
     mockConnect.mockResolvedValue(conn);
@@ -166,6 +187,16 @@ describe("消息持久化操作", () => {
       action: "deleteMessages",
       conversationId: "c",
       messageIds: ["m2"],
+    });
+  });
+
+  it("deleteMessages 在重新生成时应保留即将转移所有权的附件", async () => {
+    await deleteMessages("c", ["m2"], ["keep.png"]);
+    expect(mockSendMessage).toHaveBeenCalledWith({}, "serviceWorker/agent/conversation", {
+      action: "deleteMessages",
+      conversationId: "c",
+      messageIds: ["m2"],
+      preserveAttachmentIds: ["keep.png"],
     });
   });
 

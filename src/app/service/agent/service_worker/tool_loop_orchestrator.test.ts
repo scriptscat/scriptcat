@@ -181,6 +181,20 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     expect(terminal?.errorCode).toBe("cancelled");
   });
 
+  it("模型生成附件应把所有权持久化到 assistant 消息", async () => {
+    callLLM.mockResolvedValue({
+      content: "生成完成",
+      contentBlocks: [{ type: "image", attachmentId: "generated-owned.png", mimeType: "image/png" }],
+    });
+
+    await orchestrator.callLLMWithToolLoop(baseParams());
+
+    expect(chatRepo.appendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ ownedAttachmentIds: ["generated-owned.png"] }),
+      "gen-1"
+    );
+  });
+
   it(
     "最终回复持久化失败（persist_failed）时应回收生成附件",
     // 持久化重试退避 200ms + 400ms，放宽超时

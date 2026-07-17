@@ -35,19 +35,9 @@ function convertContentBlocks(
         result.push(convertFileBlock(block));
         break;
       case "audio": {
-        const data = attachmentResolver?.(block.attachmentId);
-        if (data) {
-          const match = data.match(/^data:([^;]+);base64,(.+)$/s);
-          if (match) {
-            // 从 mimeType 提取格式 (e.g. "audio/wav" → "wav")
-            const format = block.mimeType.split("/")[1] || "wav";
-            result.push({ type: "input_audio", input_audio: { data: match[2], format } });
-          } else {
-            result.push(audioBlockFallback(block));
-          }
-        } else {
-          result.push(audioBlockFallback(block));
-        }
+        // Audio capability is not modeled or admitted by attachment preflight. Keep the durable OPFS reference
+        // as text instead of exposing an unreachable binary branch that request accounting cannot budget.
+        result.push(audioBlockFallback(block));
         break;
       }
     }

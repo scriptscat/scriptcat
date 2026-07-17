@@ -516,6 +516,9 @@ export class ToolLoopOrchestrator {
             conversationId,
             role: "assistant",
             content: buildMessageContent(),
+            ownedAttachmentIds: result.contentBlocks
+              ?.filter((block) => block.type !== "text")
+              .map((block) => block.attachmentId),
             thinking: result.thinking ? { content: result.thinking } : undefined,
             toolCalls: result.toolCalls,
             createtime: Date.now(),
@@ -782,6 +785,9 @@ export class ToolLoopOrchestrator {
           conversationId,
           role: "assistant" as const,
           content: buildMessageContent(),
+          ownedAttachmentIds: result.contentBlocks
+            ?.filter((block) => block.type !== "text")
+            .map((block) => block.attachmentId),
           thinking: result.thinking ? { content: result.thinking } : undefined,
           usage: totalUsage,
           durationMs,

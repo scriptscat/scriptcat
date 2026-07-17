@@ -30,17 +30,27 @@ describe("附件请求快照", () => {
   });
 
   it("Stop 应中断正在进行的附件读取且不继续构建 payload", async () => {
-    let finishRead!: (value: ArrayBuffer) => void;
-    const deferred = new Promise<ArrayBuffer>((resolve) => {
-      finishRead = resolve;
-    });
+    const deferred = new Promise<ArrayBuffer>(() => {});
     const blob = { size: 3, type: "image/png", arrayBuffer: () => deferred } as Blob;
     const controller = new AbortController();
     const pending = prepareAttachmentSnapshot(MESSAGES, MODEL, vi.fn().mockResolvedValue(blob), controller.signal);
 
     await Promise.resolve();
     controller.abort();
-    finishRead(new Uint8Array([1, 2, 3]).buffer);
+
+    await expect(pending).rejects.toThrow("Aborted");
+  });
+
+  it("Stop 应立即中断尚未完成的 OPFS 附件查询", async () => {
+    const controller = new AbortController();
+    const pending = prepareAttachmentSnapshot(
+      MESSAGES,
+      MODEL,
+      vi.fn().mockReturnValue(new Promise<Blob>(() => {})),
+      controller.signal
+    );
+
+    controller.abort();
 
     await expect(pending).rejects.toThrow("Aborted");
   });

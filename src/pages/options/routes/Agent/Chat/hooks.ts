@@ -193,7 +193,12 @@ export function useStreamingChat() {
       modelId?: string,
       skipSaveUserMessage?: boolean,
       enableTools?: boolean,
-      extra?: { compact?: boolean; compactInstruction?: string; background?: boolean }
+      extra?: {
+        compact?: boolean;
+        compactInstruction?: string;
+        background?: boolean;
+        ownedAttachmentIds?: string[];
+      }
     ) => {
       setIsStreaming(true);
       abortedRef.current = false;
@@ -370,11 +375,16 @@ export function useRunningConversations() {
 }
 
 // 批量删除持久化消息
-export async function deleteMessages(conversationId: string, messageIds: string[]): Promise<void> {
+export async function deleteMessages(
+  conversationId: string,
+  messageIds: string[],
+  preserveAttachmentIds?: string[]
+): Promise<void> {
   await sendMsg(extensionMessage, "serviceWorker/agent/conversation", {
     action: "deleteMessages",
     conversationId,
     messageIds,
+    ...(preserveAttachmentIds?.length ? { preserveAttachmentIds } : {}),
   });
 }
 

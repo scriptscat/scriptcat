@@ -19,6 +19,7 @@ export type MessageSnapshot = {
 export type ConversationMutationGuard = {
   generation: string;
   expectedRevision?: number;
+  preserveAttachmentIds?: string[];
 };
 
 function normalizeConversation(conversation: Conversation): Conversation {
@@ -33,26 +34,18 @@ function isMessageSnapshot(value: ChatMessage[] | MessageSnapshot): value is Mes
   return !Array.isArray(value);
 }
 
-function collectContentAttachmentIds(content: ChatMessage["content"], result: Set<string>) {
-  if (!Array.isArray(content)) return;
-  for (const block of content) {
-    if (block.type !== "text") result.add(block.attachmentId);
-  }
-}
-
 export function collectMessageAttachmentIds(messages: ChatMessage[]): Set<string> {
   const result = new Set<string>();
   const collectToolCalls = (toolCalls: NonNullable<ChatMessage["toolCalls"]>) => {
     for (const toolCall of toolCalls) {
       for (const attachmentId of toolCall.ownedAttachmentIds || []) result.add(attachmentId);
       for (const subMessage of toolCall.subAgentDetails?.messages || []) {
-        collectContentAttachmentIds(subMessage.content, result);
         collectToolCalls(subMessage.toolCalls);
       }
     }
   };
   for (const message of messages) {
-    collectContentAttachmentIds(message.content, result);
+    for (const attachmentId of message.ownedAttachmentIds || []) result.add(attachmentId);
     collectToolCalls(message.toolCalls || []);
   }
   return result;
@@ -255,6 +248,7 @@ export class AgentChatRepo extends OPFSRepo {
         const saved = { generation: current.generation!, revision: snapshot.revision + 1, messages };
         await this.writeJsonFile(`${conversationId}.json`, saved, messagesDir, signal);
         const retainedAttachments = collectMessageAttachmentIds(messages);
+        for (const attachmentId of guard?.preserveAttachmentIds || []) retainedAttachments.add(attachmentId);
         const removedAttachments = [...collectMessageAttachmentIds(snapshot.messages)].filter(
           (id) => !retainedAttachments.has(id)
         );

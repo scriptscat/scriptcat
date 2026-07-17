@@ -95,6 +95,28 @@ describe("buildOpenAIRequest", () => {
     expect(body.stream).toBe(true);
     expect(body.stream_options).toEqual({ include_usage: true });
   });
+
+  it("未建模音频能力时应稳定使用 OPFS 文本引用而不内联二进制", () => {
+    const { init } = buildOpenAIRequest(
+      config,
+      {
+        conversationId: "c1",
+        modelId: "test",
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "audio", attachmentId: "shared.wav", mimeType: "audio/wav", name: "sample.wav" }],
+          },
+        ],
+      },
+      () => "data:audio/wav;base64,AAAA"
+    );
+
+    const body = JSON.parse(init.body as string);
+    expect(body.messages[0].content).toEqual([
+      { type: "text", text: "[Audio: sample.wav, OPFS path: uploads/shared.wav]" },
+    ]);
+  });
 });
 
 // 辅助函数：创建 mock ReadableStreamDefaultReader

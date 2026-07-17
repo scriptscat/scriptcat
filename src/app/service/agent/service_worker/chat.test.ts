@@ -64,6 +64,26 @@ describe("handleConversationChat skipSaveUserMessage", () => {
     expect(userCall![0].content).toBe("你好");
   });
 
+  it("仅 UI 明确声明的新上传附件应随用户消息持久化所有权", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue([]);
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("收到"));
+
+    await (service as any).handleConversationChat(
+      {
+        conversationId: "conv-1",
+        message: [{ type: "image", attachmentId: "upload.png", mimeType: "image/png" }],
+        ownedAttachmentIds: ["upload.png"],
+      },
+      sender
+    );
+
+    const userMessage = mockRepo.appendMessage.mock.calls.find((call: any[]) => call[0].role === "user")?.[0];
+    expect(userMessage.ownedAttachmentIds).toEqual(["upload.png"]);
+  });
+
   it("【bug 回归】skipSaveUserMessage=true：用户消息不应再次保存到 storage", async () => {
     const { service, mockRepo } = createTestService();
     const { sender } = createMockSender();

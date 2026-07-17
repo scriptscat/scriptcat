@@ -2,7 +2,7 @@ import type { ChatRequest, AgentModelConfig } from "./types";
 import { isContentBlocks } from "./content_utils";
 import { supportsVision } from "./model_capabilities";
 import type { AttachmentSizeInfo } from "./context_elision";
-import { throwIfAborted } from "./abort_utils";
+import { raceWithAbort, throwIfAborted } from "./abort_utils";
 
 export type AttachmentSnapshot = {
   resolver: (id: string) => string | null;
@@ -33,13 +33,21 @@ export async function prepareAttachmentSnapshot(
   for (const id of ids) {
     throwIfAborted(signal);
     try {
-      const blob = await getAttachment(id);
+      const blob = await raceWithAbort(getAttachment(id), signal);
       throwIfAborted(signal);
       if (!blob) continue;
       const info: AttachmentSizeInfo = { bytes: blob.size };
       if (typeof createImageBitmap === "function") {
         try {
-          const bitmap = await createImageBitmap(blob);
+          const bitmapPromise = createImageBitmap(blob);
+          // raceWithAbort cannot cancel browser decoding. If it finishes after Stop, close the abandoned bitmap.
+          void bitmapPromise.then(
+            (bitmap) => {
+              if (signal?.aborted) bitmap.close();
+            },
+            () => {}
+          );
+          const bitmap = await raceWithAbort(bitmapPromise, signal);
           info.width = bitmap.width;
           info.height = bitmap.height;
           bitmap.close();
@@ -48,7 +56,7 @@ export async function prepareAttachmentSnapshot(
         }
       }
       throwIfAborted(signal);
-      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const bytes = new Uint8Array(await raceWithAbort(blob.arrayBuffer(), signal));
       throwIfAborted(signal);
       const chunks: string[] = [];
       for (let index = 0; index < bytes.length; index += 8192) {

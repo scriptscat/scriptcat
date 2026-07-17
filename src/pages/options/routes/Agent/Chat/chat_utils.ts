@@ -69,7 +69,12 @@ export function computeRegenerateAction(
   groups: MessageGroup[],
   assistantGroupIndex: number,
   allMessages: ChatMessage[]
-): { idsToDelete: string[]; remainingMessages: ChatMessage[]; userContent: MessageContent } | null {
+): {
+  idsToDelete: string[];
+  remainingMessages: ChatMessage[];
+  userContent: MessageContent;
+  ownedAttachmentIds: string[];
+} | null {
   const group = groups[assistantGroupIndex];
   if (!group || group.type !== "assistant") return null;
 
@@ -100,21 +105,26 @@ export function computeRegenerateAction(
   const idSet = new Set(idsToDelete);
   const remainingMessages = allMessages.filter((m) => !idSet.has(m.id));
 
-  return { idsToDelete, remainingMessages, userContent: userMessage.content };
+  return {
+    idsToDelete,
+    remainingMessages,
+    userContent: userMessage.content,
+    ownedAttachmentIds: userMessage.ownedAttachmentIds || [],
+  };
 }
 
 /** 计算「编辑用户消息」需要删除的消息（该消息及其后全部）与保留的消息 */
 export function computeEditAction(
   messageId: string,
   allMessages: ChatMessage[]
-): { idsToDelete: string[]; remainingMessages: ChatMessage[] } | null {
+): { idsToDelete: string[]; remainingMessages: ChatMessage[]; ownedAttachmentIds: string[] } | null {
   const idx = allMessages.findIndex((m) => m.id === messageId);
   if (idx < 0) return null;
 
   const idsToDelete = allMessages.slice(idx).map((m) => m.id);
   const remainingMessages = allMessages.slice(0, idx);
 
-  return { idsToDelete, remainingMessages };
+  return { idsToDelete, remainingMessages, ownedAttachmentIds: allMessages[idx].ownedAttachmentIds || [] };
 }
 
 /** 用户消息位于 groups 的 userGroupIndex，返回紧跟其后的 assistant 组索引 */

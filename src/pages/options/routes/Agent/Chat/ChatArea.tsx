@@ -105,7 +105,11 @@ export default function ChatArea({
   const firstTokenRecordedRef = useRef<boolean>(false);
   const firstTokenMsRef = useRef<number | undefined>(undefined);
 
-  const pendingMessageRef = useRef<{ content: MessageContent; messageId: string } | null>(null);
+  const pendingMessageRef = useRef<{
+    content: MessageContent;
+    messageId: string;
+    ownedAttachmentIds?: string[];
+  } | null>(null);
   const [pendingMessageId, setPendingMessageId] = useState<string | null>(null);
 
   // 切换会话时丢弃上个会话残留的排队消息（渲染期比较上一个会话 id，避免在 effect 中同步 setState）
@@ -427,7 +431,7 @@ export default function ChatArea({
     pendingMessageRef.current = null;
     setPendingMessageId(null);
     const freshMsgs = await agentChatRepo.getMessages(conversationId);
-    startStreamingRef.current(freshMsgs, pending.content);
+    startStreamingRef.current(freshMsgs, pending.content, undefined, pending.ownedAttachmentIds);
   };
 
   const createDoneCallback = () => {
@@ -447,7 +451,12 @@ export default function ChatArea({
     };
   };
 
-  const startStreaming = (baseMessages: ChatMessage[], content: MessageContent, skipUserMessage?: boolean) => {
+  const startStreaming = (
+    baseMessages: ChatMessage[],
+    content: MessageContent,
+    skipUserMessage?: boolean,
+    ownedAttachmentIds?: string[]
+  ) => {
     sendStartTimeRef.current = Date.now();
     setStreamStartTime(sendStartTimeRef.current);
     firstTokenRecordedRef.current = false;
@@ -460,6 +469,7 @@ export default function ChatArea({
         conversationId,
         role: "user",
         content,
+        ownedAttachmentIds,
         createtime: Date.now(),
       });
     }
@@ -485,7 +495,7 @@ export default function ChatArea({
       selectedModelId,
       skipUserMessage,
       enableTools,
-      { background: backgroundEnabled }
+      { background: backgroundEnabled, ownedAttachmentIds }
     );
   };
 
@@ -558,20 +568,28 @@ export default function ChatArea({
         await agentChatRepo.saveAttachment(id, file);
       }
     }
+    const ownedAttachmentIds = files && files.size > 0 ? [...files.keys()] : undefined;
 
     // LLM 运行中：排队
     if (isStreaming) {
       const msgId = genId();
-      pendingMessageRef.current = { content, messageId: msgId };
+      pendingMessageRef.current = { content, messageId: msgId, ownedAttachmentIds };
       setPendingMessageId(msgId);
       setMessages((prev) => [
         ...prev,
-        { id: msgId, conversationId, role: "user" as const, content, createtime: Date.now() },
+        {
+          id: msgId,
+          conversationId,
+          role: "user" as const,
+          content,
+          ownedAttachmentIds,
+          createtime: Date.now(),
+        },
       ]);
       return;
     }
 
-    startStreaming(messages, content);
+    startStreaming(messages, content, undefined, ownedAttachmentIds);
   };
 
   const handleCopy = useCallback(
@@ -597,10 +615,10 @@ export default function ChatArea({
       if (isStreaming) return;
       const action = computeRegenerateAction(groups, groupIndex, messages);
       if (!action) return;
-      await deleteMessages(conversationId, action.idsToDelete);
+      await deleteMessages(conversationId, action.idsToDelete, action.ownedAttachmentIds);
       await clearTasks();
       setMessages(action.remainingMessages);
-      startStreamingRef.current(action.remainingMessages, action.userContent);
+      startStreamingRef.current(action.remainingMessages, action.userContent, undefined, action.ownedAttachmentIds);
     },
     [conversationId, isStreaming, messages, setMessages, clearTasks]
   );
@@ -651,15 +669,22 @@ export default function ChatArea({
       if (isStreaming) return;
       const action = computeEditAction(messageId, messages);
       if (!action) return;
+      const referencedAttachmentIds = new Set(
+        Array.isArray(content) ? content.flatMap((block) => (block.type === "text" ? [] : [block.attachmentId])) : []
+      );
+      const preservedAttachmentIds = action.ownedAttachmentIds.filter((id) => referencedAttachmentIds.has(id));
       if (files && files.size > 0) {
         for (const [id, file] of files) {
           await agentChatRepo.saveAttachment(id, file);
         }
       }
-      await deleteMessages(conversationId, action.idsToDelete);
+      await deleteMessages(conversationId, action.idsToDelete, preservedAttachmentIds);
       await clearTasks();
       setMessages(action.remainingMessages);
-      startStreamingRef.current(action.remainingMessages, content);
+      startStreamingRef.current(action.remainingMessages, content, undefined, [
+        ...preservedAttachmentIds,
+        ...(files ? [...files.keys()] : []),
+      ]);
     },
     [conversationId, isStreaming, messages, setMessages, clearTasks]
   );
