@@ -2,7 +2,7 @@
 
 이 문서는 ScriptCat 한국어(`ko-KR`) 인터페이스와 문서에서 사용할 용어와 문체를 정의합니다. 목표는 한국어 사용자에게 자연스럽고 명확한 UI를 제공하면서 ScriptCat의 스크립트 유형, 기능 이름, 개발자 용어를 정확히 구분하는 것입니다.
 
-검토 기준: `src/locales/en-US/*.json`, `src/locales/zh-CN/*.json`, `src/pkg/utils/monaco-editor/langs.ts`, `docs/references/terminology-en-US.md`, `docs/references/terminology-zh-CN.md`
+검토 기준: `src/locales/ko-KR/*.json`, `docs/architecture.md`.
 
 ## 원칙
 
