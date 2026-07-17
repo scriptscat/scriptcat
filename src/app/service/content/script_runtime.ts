@@ -20,6 +20,10 @@ export class ScriptRuntime {
 
   // content环境的特殊初始化
   contentInit() {
+    this.server.on("historyBack", () => {
+      history.back();
+    });
+
     this.server.on("runtime/addElement", (data: { params: [number | null, string, Record<string, any> | null] }) => {
       const [parentNodeId, tagName, tmpAttr] = data.params;
 
