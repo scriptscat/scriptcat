@@ -27,13 +27,6 @@ import {
 // cap on how much source `scripts.source.get` will return in one call.
 export const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 
-// operations.get/list/cancel are gated by ownership (checked inside McpApprovalService), not by
-// a single fixed scope — any write scope that could have created an operation is sufficient to
-// poll/cancel it. ACTION_REQUIRED_SCOPE still names a scope for these actions (used for MCP
-// catalog-visibility filtering on the host/shim side), but the extension bridge does not gate on
-// it here.
-const OWNERSHIP_GATED_ACTIONS: readonly BridgeAction[] = ["operations.get", "operations.list", "operations.cancel"];
-
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -56,14 +49,6 @@ function assertUuidField(input: Record<string, unknown>, field: string): string 
   return value;
 }
 
-function assertStringField(input: Record<string, unknown>, field: string): string {
-  const value = input[field];
-  if (typeof value !== "string" || value.length === 0) {
-    throw new McpBridgeError("INVALID_REQUEST", `${field} must be a non-empty string`);
-  }
-  return value;
-}
-
 // Strict, manual allow-list validation per action — any field not explicitly named here is
 // rejected as INVALID_REQUEST. Every entry both rejects unexpected fields and asserts the ones
 // it accepts.
@@ -82,7 +67,7 @@ const VALIDATORS: Record<BridgeAction, (input: unknown) => void> = {
     assertKeys(input, ["uuid"]);
     assertUuidField(input, "uuid");
   },
-  "scripts.install.prepare": (input) => {
+  "scripts.install.request": (input) => {
     if (!isPlainObject(input)) throw new McpBridgeError("INVALID_REQUEST", "input must be an object");
     assertKeys(input, ["url", "code"]);
     if (input.url !== undefined && typeof input.url !== "string") {
@@ -107,20 +92,6 @@ const VALIDATORS: Record<BridgeAction, (input: unknown) => void> = {
     if (!isPlainObject(input)) throw new McpBridgeError("INVALID_REQUEST", "input must be an object");
     assertKeys(input, ["uuid"]);
     assertUuidField(input, "uuid");
-  },
-  "operations.get": (input) => {
-    if (!isPlainObject(input)) throw new McpBridgeError("INVALID_REQUEST", "input must be an object");
-    assertKeys(input, ["operationId"]);
-    assertStringField(input, "operationId");
-  },
-  "operations.list": (input) => {
-    if (!isPlainObject(input)) throw new McpBridgeError("INVALID_REQUEST", "input must be an object");
-    assertKeys(input, []);
-  },
-  "operations.cancel": (input) => {
-    if (!isPlainObject(input)) throw new McpBridgeError("INVALID_REQUEST", "input must be an object");
-    assertKeys(input, ["operationId"]);
-    assertStringField(input, "operationId");
   },
 };
 
@@ -177,11 +148,9 @@ export class McpBridge {
       if (!client || client.revoked) {
         throw new McpBridgeError("UNAUTHENTICATED", "unknown or revoked client");
       }
-      if (!OWNERSHIP_GATED_ACTIONS.includes(request.action)) {
-        const requiredScope = ACTION_REQUIRED_SCOPE[request.action];
-        if (!client.scopes.includes(requiredScope)) {
-          throw new McpBridgeError("INSUFFICIENT_SCOPE", `missing scope ${requiredScope}`);
-        }
+      const requiredScope = ACTION_REQUIRED_SCOPE[request.action];
+      if (!client.scopes.includes(requiredScope)) {
+        throw new McpBridgeError("INSUFFICIENT_SCOPE", `missing scope ${requiredScope}`);
       }
       if (WRITE_ACTIONS.includes(request.action) && !this.isWriteSessionActive()) {
         throw new McpBridgeError("WRITE_MODE_DISABLED", "write mode is off for this session");
@@ -263,7 +232,7 @@ export class McpBridge {
           contentTrust: "untrusted-user-script-source",
         };
       }
-      case "scripts.install.prepare":
+      case "scripts.install.request":
         return this.approval.prepareInstall({
           clientId: request.clientId,
           requestingClientName: client.displayName,
@@ -278,12 +247,6 @@ export class McpBridge {
         });
       case "scripts.delete.request":
         return this.approval.requestDelete({ clientId: request.clientId, uuid: input.uuid as string });
-      case "operations.get":
-        return this.approval.getOperation(request.clientId, input.operationId as string);
-      case "operations.list":
-        return { operations: await this.approval.listOperations(request.clientId) };
-      case "operations.cancel":
-        return this.approval.cancelOperation(request.clientId, input.operationId as string);
     }
   }
 

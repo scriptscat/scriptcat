@@ -1,0 +1,88 @@
+{
+  "$comment": "ScriptCat bridge protocol constants — single source of truth. Extension conformance tests and sctl (Go) CI both diff against this file byte-for-byte. Phase 0 draft; final home: scriptcat repo, mirrored into scriptscat/sctl.",
+  "protocolVersion": 1,
+  "transport": {
+    "defaultUrl": "ws://127.0.0.1:8643",
+    "defaultPort": 8643,
+    "frame": "json-text"
+  },
+  "versions": {
+    "minDaemonVersion": "0.1.0"
+  },
+  "envelopeTypes": [
+    "auth.challenge",
+    "auth.response",
+    "auth.ok",
+    "hello",
+    "bridge.request",
+    "bridge.response",
+    "bridge.cancel",
+    "pair.request",
+    "pair.decision",
+    "client.revoke",
+    "client.sync",
+    "ping",
+    "pong",
+    "bridge.shutdown"
+  ],
+  "scopes": [
+    "scripts:list",
+    "scripts:metadata:read",
+    "scripts:source:read",
+    "scripts:install:request",
+    "scripts:toggle:request",
+    "scripts:delete:request"
+  ],
+  "actions": {
+    "scripts.list": { "scope": "scripts:list", "write": false },
+    "scripts.metadata.get": { "scope": "scripts:metadata:read", "write": false },
+    "scripts.source.get": { "scope": "scripts:source:read", "write": false, "blocking": "disclosure" },
+    "scripts.install.request": { "scope": "scripts:install:request", "write": true, "blocking": "approval" },
+    "scripts.toggle.request": { "scope": "scripts:toggle:request", "write": true, "blocking": "approval" },
+    "scripts.delete.request": { "scope": "scripts:delete:request", "write": true, "blocking": "approval" }
+  },
+  "errorCodes": [
+    "INVALID_REQUEST",
+    "UNAUTHENTICATED",
+    "INSUFFICIENT_SCOPE",
+    "WRITE_MODE_DISABLED",
+    "USER_APPROVAL_REQUIRED",
+    "USER_REJECTED",
+    "OPERATION_EXPIRED",
+    "CONFLICT",
+    "NOT_FOUND",
+    "RATE_LIMITED",
+    "PAYLOAD_TOO_LARGE",
+    "INTERNAL_ERROR"
+  ],
+  "crypto": {
+    "mac": "HMAC-SHA-256",
+    "kdf": "HKDF-SHA-256",
+    "aead": "AES-256-GCM",
+    "nonceBytes": 32,
+    "encoding": "lowercase-hex",
+    "context": {
+      "sessionExt": "scriptcat-bridge-v1/ext",
+      "sessionDaemon": "scriptcat-bridge-v1/daemon",
+      "pairExt": "scriptcat-bridge-v1/pair-ext",
+      "pairDaemon": "scriptcat-bridge-v1/pair-daemon",
+      "pairKdfSalt": "scriptcat-bridge-v1/pair-salt",
+      "pairKdfInfoMac": "scriptcat-bridge-v1/pair-mac",
+      "pairKdfInfoEnc": "scriptcat-bridge-v1/pair-enc"
+    }
+  },
+  "limits": {
+    "authTimeoutMs": 5000,
+    "writeDecisionTtlMs": 300000,
+    "extPairingCodeTtlMs": 120000,
+    "mcpPairingTtlMs": 120000,
+    "maxSourceBytes": 2097152,
+    "maxFrameBytes": 4194304,
+    "pingIntervalMs": 30000
+  },
+  "pairingCode": {
+    "alphabet": "crockford-base32",
+    "length": 8,
+    "display": "XXXX-XXXX"
+  }
+}

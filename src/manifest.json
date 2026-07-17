@@ -41,8 +41,7 @@
     "clipboardWrite",
     "unlimitedStorage",
     "declarativeNetRequest",
-    "debugger",
-    "nativeMessaging"
+    "debugger"
   ],
   "optional_permissions": ["background", "userScripts"],
   "host_permissions": ["<all_urls>"],

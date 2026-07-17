@@ -122,7 +122,7 @@ describe("McpController", () => {
       v: 1,
       type: "hello",
       requestId: "h1",
-      payload: { hostVersion: "0.0.1" },
+      payload: { daemonVersion: "0.0.1" },
     });
     expect(controller.getStatus()).toBe("host_outdated");
 
@@ -145,7 +145,7 @@ describe("McpController", () => {
       v: 1,
       type: "hello",
       requestId: "h1",
-      payload: { hostVersion: MIN_HOST_VERSION },
+      payload: { daemonVersion: MIN_HOST_VERSION },
     });
     expect(controller.getStatus()).toBe("connected");
 

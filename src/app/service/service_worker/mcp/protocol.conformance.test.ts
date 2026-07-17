@@ -1,70 +1,51 @@
 import { describe, it, expect } from "vitest";
-import * as hostProtocol from "@Packages/native-messaging-host/src/shared/protocol";
+import protocolJson from "./protocol.json";
 import * as extTypes from "./types";
 
-// The host package (packages/native-messaging-host) and the extension do not share a build
-// graph — types.ts is an independently maintained mirror of protocol.ts, and both are meant to
-// be normative for their respective sides. This test is the drift guard: any protocol change
-// made on one side without the other fails here instead of silently desyncing at runtime.
-describe("MCP 协议一致性 - 两侧独立副本必须同步", () => {
-  it("PROTOCOL_VERSION 一致", () => {
-    expect(extTypes.PROTOCOL_VERSION).toBe(hostProtocol.PROTOCOL_VERSION);
+// protocol.json 是桥接协议常量的唯一权威(与 scriptscat/sctl 仓库逐字节同步);types.ts 是
+// 扩展侧的强类型镜像。本测试是漂移守卫:任一侧改了协议而没同步另一侧,就在这里失败,而不是
+// 运行时才与 daemon 静默失配。
+describe("MCP 协议一致性 - types.ts 必须与 protocol.json 同步", () => {
+  it("PROTOCOL_VERSION 与 protocol.json 一致", () => {
+    expect(extTypes.PROTOCOL_VERSION).toBe(protocolJson.protocolVersion);
   });
 
-  it("NATIVE_MESSAGE_TYPES 完全一致（含顺序无关性）", () => {
-    expect([...extTypes.NATIVE_MESSAGE_TYPES].sort()).toEqual([...hostProtocol.NATIVE_MESSAGE_TYPES].sort());
+  it("MIN_HOST_VERSION 与 protocol.json 的 minDaemonVersion 一致", () => {
+    expect(extTypes.MIN_HOST_VERSION).toBe(protocolJson.versions.minDaemonVersion);
   });
 
-  it("MCP_SCOPES 完全一致", () => {
-    expect([...extTypes.MCP_SCOPES].sort()).toEqual([...hostProtocol.MCP_SCOPES].sort());
+  it("envelope 类型集合完全一致(顺序无关)", () => {
+    expect([...extTypes.NATIVE_MESSAGE_TYPES].sort()).toEqual([...protocolJson.envelopeTypes].sort());
   });
 
-  it("BRIDGE_ACTIONS 完全一致", () => {
-    expect([...extTypes.BRIDGE_ACTIONS].sort()).toEqual([...hostProtocol.BRIDGE_ACTIONS].sort());
+  it("MCP_SCOPES 与 protocol.json 的 scopes 完全一致", () => {
+    expect([...extTypes.MCP_SCOPES].sort()).toEqual([...protocolJson.scopes].sort());
   });
 
-  it("BRIDGE_ERROR_CODES 完全一致", () => {
-    expect([...extTypes.BRIDGE_ERROR_CODES].sort()).toEqual([...hostProtocol.BRIDGE_ERROR_CODES].sort());
+  it("BRIDGE_ACTIONS 与 protocol.json 的 actions 键完全一致", () => {
+    expect([...extTypes.BRIDGE_ACTIONS].sort()).toEqual(Object.keys(protocolJson.actions).sort());
   });
 
-  it("OPERATION_KINDS 完全一致", () => {
-    expect([...extTypes.OPERATION_KINDS].sort()).toEqual([...hostProtocol.OPERATION_KINDS].sort());
+  it("BRIDGE_ERROR_CODES 与 protocol.json 的 errorCodes 完全一致", () => {
+    expect([...extTypes.BRIDGE_ERROR_CODES].sort()).toEqual([...protocolJson.errorCodes].sort());
   });
 
-  it("OPERATION_STATUSES 完全一致", () => {
-    expect([...extTypes.OPERATION_STATUSES].sort()).toEqual([...hostProtocol.OPERATION_STATUSES].sort());
-  });
-
-  it("ACTION_REQUIRED_SCOPE 的每个 action 在两侧映射到相同的 scope", () => {
-    for (const action of hostProtocol.BRIDGE_ACTIONS) {
-      expect(extTypes.ACTION_REQUIRED_SCOPE[action]).toBe(hostProtocol.ACTION_REQUIRED_SCOPE[action]);
+  it("每个 action 的 required scope 与 protocol.json 声明一致", () => {
+    for (const [action, meta] of Object.entries(protocolJson.actions)) {
+      expect(extTypes.ACTION_REQUIRED_SCOPE[action as extTypes.BridgeAction]).toBe(meta.scope);
     }
   });
 
-  it("WRITE_ACTIONS 完全一致", () => {
-    expect([...extTypes.WRITE_ACTIONS].sort()).toEqual([...hostProtocol.WRITE_ACTIONS].sort());
+  it("WRITE_ACTIONS 与 protocol.json 中 write=true 的 action 完全一致", () => {
+    const writeActions = Object.entries(protocolJson.actions)
+      .filter(([, meta]) => meta.write)
+      .map(([action]) => action);
+    expect([...extTypes.WRITE_ACTIONS].sort()).toEqual(writeActions.sort());
   });
 
-  it("每个 write action 都要求写入类 scope（scopes 命名以 :request 结尾）", () => {
-    for (const action of hostProtocol.WRITE_ACTIONS) {
-      expect(hostProtocol.ACTION_REQUIRED_SCOPE[action]).toMatch(/:request$/);
+  it("每个 write action 都要求写入类 scope(命名以 :request 结尾)", () => {
+    for (const action of extTypes.WRITE_ACTIONS) {
+      expect(extTypes.ACTION_REQUIRED_SCOPE[action]).toMatch(/:request$/);
     }
-  });
-
-  it("ID 生成约定：本规范不允许顺序/可预测 ID（协议本身不生成 ID，仅作为文档化断言存在）", () => {
-    // Sequential IDs (e.g. "session_1") are forbidden — every ID (requestId, operationId,
-    // clientId, session nonces) must be cryptographically random. This is a
-    // documentation-anchoring test: real randomness is exercised in the host package's own
-    // auth/pairing tests (packages/native-messaging-host/src/auth/*.test.ts); here we just
-    // assert the schema types model IDs as opaque strings, not numeric/sequential fields.
-    const sampleRequest: hostProtocol.McpBridgeRequest = {
-      requestId: "test-id",
-      protocolVersion: hostProtocol.PROTOCOL_VERSION,
-      clientId: "client-id",
-      action: "scripts.list",
-      input: {},
-    };
-    expect(typeof sampleRequest.requestId).toBe("string");
-    expect(typeof sampleRequest.clientId).toBe("string");
   });
 });

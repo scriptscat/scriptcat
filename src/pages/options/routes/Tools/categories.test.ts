@@ -16,25 +16,15 @@ afterEach(() => {
 });
 
 describe("Tools 分类项 · MCP 桥接卡片可见性（Firefox 上尚未支持，需隐藏）", () => {
-  it("EnableMCP=true 且非 Firefox 时包含 mcp-bridge 分类", async () => {
-    vi.doMock("@App/app/const", () => ({ EnableMCP: true }));
+  it("非 Firefox 时包含 mcp-bridge 分类", async () => {
     isFirefox.mockReturnValue(false);
     const { getToolsCategories } = await import("./categories.ts");
     const categories = getToolsCategories(i18n.t);
     expect(categories.some((c: { id: string }) => c.id === "mcp-bridge")).toBe(true);
   });
 
-  it("EnableMCP=true 但处于 Firefox 时不包含 mcp-bridge 分类（controller 需优雅降级隐藏）", async () => {
-    vi.doMock("@App/app/const", () => ({ EnableMCP: true }));
+  it("Firefox 上不包含 mcp-bridge 分类", async () => {
     isFirefox.mockReturnValue(true);
-    const { getToolsCategories } = await import("./categories.ts");
-    const categories = getToolsCategories(i18n.t);
-    expect(categories.some((c: { id: string }) => c.id === "mcp-bridge")).toBe(false);
-  });
-
-  it("EnableMCP=false 时不包含 mcp-bridge 分类，与浏览器种类无关", async () => {
-    vi.doMock("@App/app/const", () => ({ EnableMCP: false }));
-    isFirefox.mockReturnValue(false);
     const { getToolsCategories } = await import("./categories.ts");
     const categories = getToolsCategories(i18n.t);
     expect(categories.some((c: { id: string }) => c.id === "mcp-bridge")).toBe(false);

@@ -7,14 +7,7 @@ import manifest from "../src/manifest.json" with { type: "json" };
 import packageInfo from "../package.json" with { type: "json" };
 import semver from "semver";
 import { toChromeVersion } from "./version.js";
-import {
-  resolveAgentEnabled,
-  applyAgentManifest,
-  resolveMcpEnabled,
-  applyMcpManifest,
-  PACK_PROFILES,
-  checkMcpPackProfileCompliance,
-} from "./build-config.js";
+import { resolveAgentEnabled, applyAgentManifest } from "./build-config.js";
 
 // ============================================================================
 
@@ -34,24 +27,12 @@ const addZipFile = async (zip, path, content) => {
   });
 };
 
-// 打包 profile：store-stable（默认，供发布 CI 使用）| store-beta | developer（本地 pnpm pack:dev）。
-// --profile 优先于 SC_PACK_PROFILE 环境变量。
-const profileArgIndex = process.argv.indexOf("--profile");
-const profile =
-  (profileArgIndex >= 0 ? process.argv[profileArgIndex + 1] : undefined) ??
-  process.env.SC_PACK_PROFILE ??
-  "store-stable";
-if (!PACK_PROFILES.includes(profile)) {
-  throw new Error(`Unknown --profile "${profile}"; expected one of ${PACK_PROFILES.join(", ")}`);
-}
-
 // 判断是否为beta版本
 const version = semver.parse(packageInfo.version);
 const agentEnabled = resolveAgentEnabled({
   isBeta: version.prerelease.length > 0,
   disableEnv: process.env.SC_DISABLE_AGENT,
 });
-const mcpEnabled = resolveMcpEnabled({ profile, enableEnv: process.env.SC_ENABLE_MCP });
 manifest.version = toChromeVersion(packageInfo.version);
 if (version.prerelease.length) {
   manifest.name = `__MSG_scriptcat_beta__`;
@@ -75,14 +56,10 @@ if (process.env.GITHUB_REF_TYPE === "branch") {
   await fs.writeFile("./src/app/const.ts", configSystem);
 }
 
-// 将 agent/MCP 屏蔽状态传递给子构建，使打入产物的 EnableAgent/EnableMCP 与下方 manifest 处理保持一致
+// 将 agent 屏蔽状态传递给子构建，使打入产物的 EnableAgent 与下方 manifest 处理保持一致
 execSync("pnpm run build", {
   stdio: "inherit",
-  env: {
-    ...process.env,
-    SC_DISABLE_AGENT: agentEnabled ? "false" : "true",
-    SC_ENABLE_MCP: mcpEnabled ? "true" : "false",
-  },
+  env: { ...process.env, SC_DISABLE_AGENT: agentEnabled ? "false" : "true" },
 });
 
 // logo 在 rspack.config.ts 处理
@@ -90,11 +67,8 @@ execSync("pnpm run build", {
 // 处理firefox和chrome的zip压缩包
 
 // 浅拷贝防止后续修改
-// Firefox 本 PR 内恒不启用 MCP（doc 01 D1 非目标；doc 06 §「Firefox support」为后续 issue）。
-let firefoxManifest = applyAgentManifest({ ...manifest, background: { ...manifest.background } }, agentEnabled);
-firefoxManifest = applyMcpManifest(firefoxManifest, false);
-let chromeManifest = applyAgentManifest({ ...manifest, background: { ...manifest.background } }, agentEnabled);
-chromeManifest = applyMcpManifest(chromeManifest, mcpEnabled);
+const firefoxManifest = applyAgentManifest({ ...manifest, background: { ...manifest.background } }, agentEnabled);
+const chromeManifest = applyAgentManifest({ ...manifest, background: { ...manifest.background } }, agentEnabled);
 
 chromeManifest.optional_permissions = chromeManifest.optional_permissions.filter((val) => val !== "userScripts");
 delete chromeManifest.background.scripts;
@@ -136,36 +110,6 @@ firefoxManifest.permissions = firefoxManifest.permissions?.filter((permission) =
 firefoxManifest.optional_permissions = firefoxManifest.optional_permissions?.filter(
   (permission) => permission !== "background"
 );
-
-// MCP 强断言（doc 05 §1.3, doc 08 §5）：判定逻辑在 build-config.js 里是纯函数、有单测；这里只做
-// 扫描 dist 产物这一步 I/O。"com.scriptcat.native_host" 是 McpController 里的原生消息主机名字面量
-// 常量——即使经过 mangle/minify，字符串字面量本身也不会被改写，因此是判断 MCP 后台代码是否被
-// 编译进产物的可靠且抗压缩代理指标（这正是本次实现过程中发现并修复的 DefinePlugin 缺口所针对的
-// 那段代码）。
-async function scanDistForString(dir, needle) {
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const entryPath = `${dir}/${entry.name}`;
-    if (entry.isDirectory()) {
-      if (await scanDistForString(entryPath, needle)) return true;
-    } else if (entry.name.endsWith(".js")) {
-      const content = await fs.readFile(entryPath, "utf8");
-      if (content.includes(needle)) return true;
-    }
-  }
-  return false;
-}
-
-const nativeHostCompiledIn = await scanDistForString("./dist/ext", "com.scriptcat.native_host");
-const mcpCompliance = checkMcpPackProfileCompliance({
-  profile,
-  manifest: chromeManifest,
-  mcpEnabled,
-  nativeHostCompiledIn,
-});
-if (!mcpCompliance.ok) {
-  throw new Error(mcpCompliance.reason);
-}
 
 const chrome = new ZipWriter({ outputAs: "uint8array" });
 const firefox = new ZipWriter({ outputAs: "uint8array" });

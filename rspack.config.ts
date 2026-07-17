@@ -15,8 +15,6 @@ const isBeta = version.includes("-");
 const isReactTools = process.env.REACT_DEVTOOLS === "true";
 // agent 默认开启；正式版屏蔽由 scripts/pack.js 按版本判断后通过 SC_DISABLE_AGENT 声明。
 const enableAgent = process.env.SC_DISABLE_AGENT !== "true";
-// MCP 默认关闭；由 scripts/pack.js 按 profile 判断后通过 SC_ENABLE_MCP 声明（与 EnableAgent 极性相反）。
-const enableMCP = process.env.SC_ENABLE_MCP === "true";
 
 // Target browsers, see: https://github.com/browserslist/browserslist
 // 依照 https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
@@ -66,7 +64,7 @@ export default {
     popup: `${src}/pages/popup/main.tsx`,
     options: `${src}/pages/options/main.tsx`,
     confirm: `${src}/pages/confirm/main.tsx`,
-    ...(enableMCP ? { mcp_confirm: `${src}/pages/mcp_confirm/main.tsx` } : {}),
+    mcp_confirm: `${src}/pages/mcp_confirm/main.tsx`,
     batchupdate: `${src}/pages/batchupdate/main.tsx`,
     install: `${src}/pages/install/main.tsx`,
     import: `${src}/pages/import/main.tsx`,
@@ -141,21 +139,7 @@ export default {
       "process.env.VI_TESTING": "'false'",
       "process.env.SC_RANDOM_KEY": `'${uuidv4()}'`,
       "process.env.SC_DISABLE_AGENT": `'${enableAgent ? "false" : "true"}'`,
-      "process.env.SC_ENABLE_MCP": `'${enableMCP ? "true" : "false"}'`,
     }),
-    // Deterministic store-build exclusion for MCP UI: JSX-conditional tree-shaking across module
-    // boundaries isn't reliable enough on its own to keep McpSection's code (and its transitive
-    // MCPClient/mcp-repo-type imports) out of a shared options-page chunk — verified by grepping
-    // the built store-profile bundle, which still showed McpSection's strings present when only
-    // a `{EnableMCP && ...}` render guard was relied on — so swap in a trivial stub at
-    // resolution time instead when MCP is off.
-    ...(enableMCP
-      ? []
-      : [
-          new rspack.NormalModuleReplacementPlugin(/\/sections\/McpSection(\.tsx)?$/, (resource) => {
-            resource.request = resource.request.replace(/McpSection$/, "McpSection.stub");
-          }),
-        ]),
     new rspack.CopyRspackPlugin({
       patterns: [
         {
@@ -220,19 +204,14 @@ export default {
       minify: true,
       chunks: ["confirm"],
     }),
-    // Store builds must not emit the mcp_confirm chunk/HTML at all.
-    ...(enableMCP
-      ? [
-          new rspack.HtmlRspackPlugin({
-            filename: `${dist}/ext/src/mcp_confirm.html`,
-            template: `${src}/pages/mcp_confirm.html`,
-            inject: "head",
-            title: "ScriptCat",
-            minify: true,
-            chunks: ["mcp_confirm"],
-          }),
-        ]
-      : []),
+    new rspack.HtmlRspackPlugin({
+      filename: `${dist}/ext/src/mcp_confirm.html`,
+      template: `${src}/pages/mcp_confirm.html`,
+      inject: "head",
+      title: "ScriptCat",
+      minify: true,
+      chunks: ["mcp_confirm"],
+    }),
     new rspack.HtmlRspackPlugin({
       filename: `${dist}/ext/src/batchupdate.html`,
       template: `${src}/pages/batchupdate.html`,

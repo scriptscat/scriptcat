@@ -123,7 +123,7 @@ describe("McpBridge", () => {
       ["scripts.list", {}, "scripts:list"],
       ["scripts.metadata.get", { uuid: "00000000-0000-4000-8000-000000000000" }, "scripts:metadata:read"],
       ["scripts.source.get", { uuid: "00000000-0000-4000-8000-000000000000" }, "scripts:source:read"],
-      ["scripts.install.prepare", { code: "x" }, "scripts:install:request"],
+      ["scripts.install.request", { code: "x" }, "scripts:install:request"],
       [
         "scripts.toggle.request",
         { uuid: "00000000-0000-4000-8000-000000000000", enable: true },
@@ -141,7 +141,7 @@ describe("McpBridge", () => {
 
   it("写操作在写会话关闭时返回 WRITE_MODE_DISABLED，即使 client 持有写 scope", async () => {
     writeSessionActive = false;
-    const response = await bridge.handle(makeRequest("scripts.install.prepare", { code: "x" }));
+    const response = await bridge.handle(makeRequest("scripts.install.request", { code: "x" }));
     expect(response.ok).toBe(false);
     if (!response.ok) expect(response.error.code).toBe("WRITE_MODE_DISABLED");
   });
@@ -149,10 +149,10 @@ describe("McpBridge", () => {
   it("setWriteSessionChecker 可在构造后更换写会话判定函数", async () => {
     let laterFlag = false;
     bridge.setWriteSessionChecker(() => laterFlag);
-    const denied = await bridge.handle(makeRequest("scripts.install.prepare", { code: "x" }));
+    const denied = await bridge.handle(makeRequest("scripts.install.request", { code: "x" }));
     expect(denied.ok).toBe(false);
     laterFlag = true;
-    const allowed = await bridge.handle(makeRequest("scripts.install.prepare", { code: VALID_SCRIPT_CODE }));
+    const allowed = await bridge.handle(makeRequest("scripts.install.request", { code: VALID_SCRIPT_CODE }));
     expect(allowed.ok).toBe(true);
   });
 
@@ -266,27 +266,14 @@ describe("McpBridge", () => {
     expect(events.find((e) => e.decision === "denied")).toBeDefined();
   });
 
-  it("operations.get 对另一 client 的操作返回 NOT_FOUND（不泄露存在性）", async () => {
-    await clientDAO.save(makeClient({ clientId: "client-2", scopes: [...MCP_SCOPES] }));
-    const prepareResponse = await bridge.handle(makeRequest("scripts.install.prepare", { code: VALID_SCRIPT_CODE }));
-    expect(prepareResponse.ok).toBe(true);
-    const operationId = prepareResponse.ok ? (prepareResponse.result as { operationId: string }).operationId : "";
-    const response = await bridge.handle(makeRequest("operations.get", { operationId }, { clientId: "client-2" }));
-    expect(response.ok).toBe(false);
-    if (!response.ok) expect(response.error.code).toBe("NOT_FOUND");
-  });
-
   describe("VALIDATORS：每个 action 的输入允许列表拒绝非对象与未知字段", () => {
     const actionsWithSampleValidInput: Array<[BridgeAction, Record<string, unknown>]> = [
       ["scripts.list", {}],
       ["scripts.metadata.get", { uuid: uuidv4() }],
       ["scripts.source.get", { uuid: uuidv4() }],
-      ["scripts.install.prepare", { code: VALID_SCRIPT_CODE }],
+      ["scripts.install.request", { code: VALID_SCRIPT_CODE }],
       ["scripts.toggle.request", { uuid: uuidv4(), enable: true }],
       ["scripts.delete.request", { uuid: uuidv4() }],
-      ["operations.get", { operationId: "op-1" }],
-      ["operations.list", {}],
-      ["operations.cancel", { operationId: "op-1" }],
     ];
 
     it.each(actionsWithSampleValidInput)("%s：input 非对象（如数组或字符串）时返回 INVALID_REQUEST", async (action) => {
@@ -310,38 +297,32 @@ describe("McpBridge", () => {
     if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
   });
 
-  it("scripts.install.prepare：同时提供 url 与 code 时返回 INVALID_REQUEST（要求恰好其一）", async () => {
+  it("scripts.install.request：同时提供 url 与 code 时返回 INVALID_REQUEST（要求恰好其一）", async () => {
     const response = await bridge.handle(
-      makeRequest("scripts.install.prepare", { url: "https://example.com/a.user.js", code: VALID_SCRIPT_CODE })
+      makeRequest("scripts.install.request", { url: "https://example.com/a.user.js", code: VALID_SCRIPT_CODE })
     );
     expect(response.ok).toBe(false);
     if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
   });
 
-  it("scripts.install.prepare：既未提供 url 也未提供 code 时返回 INVALID_REQUEST", async () => {
-    const response = await bridge.handle(makeRequest("scripts.install.prepare", {}));
+  it("scripts.install.request：既未提供 url 也未提供 code 时返回 INVALID_REQUEST", async () => {
+    const response = await bridge.handle(makeRequest("scripts.install.request", {}));
     expect(response.ok).toBe(false);
     if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
   });
 
-  it("scripts.install.prepare：url 或 code 类型非字符串时返回 INVALID_REQUEST", async () => {
+  it("scripts.install.request：url 或 code 类型非字符串时返回 INVALID_REQUEST", async () => {
     const urlResponse = await bridge.handle(
-      makeRequest("scripts.install.prepare", { url: 123 } as unknown as Record<string, unknown>)
+      makeRequest("scripts.install.request", { url: 123 } as unknown as Record<string, unknown>)
     );
     expect(urlResponse.ok).toBe(false);
     if (!urlResponse.ok) expect(urlResponse.error.code).toBe("INVALID_REQUEST");
 
     const codeResponse = await bridge.handle(
-      makeRequest("scripts.install.prepare", { code: 123 } as unknown as Record<string, unknown>)
+      makeRequest("scripts.install.request", { code: 123 } as unknown as Record<string, unknown>)
     );
     expect(codeResponse.ok).toBe(false);
     if (!codeResponse.ok) expect(codeResponse.error.code).toBe("INVALID_REQUEST");
-  });
-
-  it("operations.get/cancel：operationId 为空字符串时返回 INVALID_REQUEST", async () => {
-    const response = await bridge.handle(makeRequest("operations.get", { operationId: "" }));
-    expect(response.ok).toBe(false);
-    if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
   });
 
   it("scripts.metadata.get 对不存在的 uuid 返回 NOT_FOUND", async () => {
@@ -370,20 +351,5 @@ describe("McpBridge", () => {
     const response = await bridge.handle(makeRequest("scripts.delete.request", { uuid }));
     expect(response.ok).toBe(true);
     if (response.ok) expect(response.result).toMatchObject({ status: "awaiting_user", kind: "delete" });
-  });
-
-  it("operations.list 分派到 approval.listOperations，返回调用方自己的操作列表", async () => {
-    await bridge.handle(makeRequest("scripts.install.prepare", { code: VALID_SCRIPT_CODE }));
-    const response = await bridge.handle(makeRequest("operations.list", {}));
-    expect(response.ok).toBe(true);
-    if (response.ok) expect((response.result as { operations: unknown[] }).operations).toHaveLength(1);
-  });
-
-  it("operations.cancel 分派到 approval.cancelOperation，取消调用方自己的待批操作", async () => {
-    const prepareResponse = await bridge.handle(makeRequest("scripts.install.prepare", { code: VALID_SCRIPT_CODE }));
-    const operationId = prepareResponse.ok ? (prepareResponse.result as { operationId: string }).operationId : "";
-    const response = await bridge.handle(makeRequest("operations.cancel", { operationId }));
-    expect(response.ok).toBe(true);
-    if (response.ok) expect(response.result).toEqual({ operationId, status: "cancelled" });
   });
 });

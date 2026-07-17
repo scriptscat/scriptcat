@@ -1,8 +1,4 @@
-packages:
-  - "packages/native-messaging-host"
-
 minimumReleaseAge: 10080
-
 patchedDependencies:
   happy-dom: patches/happy-dom.patch
   uri-js@4.4.1: patches/uri-js@4.4.1.patch

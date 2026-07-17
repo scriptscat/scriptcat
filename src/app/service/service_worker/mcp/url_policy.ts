@@ -1,4 +1,4 @@
-// URL 检索策略：`scripts.install.prepare` 携带 url 时，抓取前后都必须
+// URL 检索策略：`scripts.install.request` 携带 url 时，抓取前后都必须
 // 通过本模块的校验；抓取本身仍走浏览器自身的 fetch（走浏览器代理/DNS），主机进程从不发起网络请求。
 //
 // 已知限制：扩展代码无法在建立连接前主动解析域名对应的 IP（浏览器不暴露 DNS 解析

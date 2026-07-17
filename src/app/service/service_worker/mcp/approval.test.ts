@@ -364,72 +364,9 @@ describe("McpApprovalService", () => {
     });
   });
 
-  describe("get / list / cancel - 按 clientId 隔离", () => {
-    it("客户端 B 不能读取客户端 A 的操作（NOT_FOUND，而非 INSUFFICIENT_SCOPE，避免泄露存在性）", async () => {
-      const ref = await service.prepareInstall({
-        clientId: "client-1",
-        requestingClientName: "c",
-        code: validCode("J"),
-      });
-      await expect(service.getOperation("client-2", ref.operationId)).rejects.toMatchObject({ code: "NOT_FOUND" });
-    });
-
-    it("listOperations 只返回该 client 未过期的操作", async () => {
-      vi.useFakeTimers();
-      const ref1 = await service.prepareInstall({
-        clientId: "client-1",
-        requestingClientName: "c",
-        code: validCode("K1"),
-      });
-      const ref2 = await service.prepareInstall({
-        clientId: "client-1",
-        requestingClientName: "c",
-        code: validCode("K2"),
-      });
-      await service.decide(ref2.operationId, false);
-      const list = await service.listOperations("client-1");
-      expect(list.map((o) => o.operationId).sort()).toEqual([ref1.operationId, ref2.operationId].sort());
-
-      // Now expire ref1 and confirm it drops out of the list.
-      vi.advanceTimersByTime(6 * 60_000);
-      const listAfterExpiry = await service.listOperations("client-1");
-      expect(listAfterExpiry.map((o) => o.operationId)).not.toContain(ref1.operationId);
-    });
-
-    it("cancelOperation 仅在 awaiting_user 时可取消，关闭挂起的批准", async () => {
-      const ref = await service.prepareInstall({
-        clientId: "client-1",
-        requestingClientName: "c",
-        code: validCode("L"),
-      });
-      const result = await service.cancelOperation("client-1", ref.operationId);
-      expect(result.status).toBe("cancelled");
-      await expect(service.decide(ref.operationId, true)).rejects.toThrow(McpBridgeError);
-      expect(mutator.installScript).not.toHaveBeenCalled();
-    });
-
-    it("cancelOperation 对不存在的 operationId 返回 NOT_FOUND", async () => {
-      await expect(service.cancelOperation("client-1", "nonexistent-op")).rejects.toMatchObject({
-        code: "NOT_FOUND",
-      });
-    });
-
-    it("cancelOperation 对已被决定（非 awaiting_user）的操作再次取消返回 CONFLICT", async () => {
-      const ref = await service.prepareInstall({
-        clientId: "client-1",
-        requestingClientName: "c",
-        code: validCode("M"),
-      });
-      await service.decide(ref.operationId, false);
-      await expect(service.cancelOperation("client-1", ref.operationId)).rejects.toMatchObject({ code: "CONFLICT" });
-    });
-
+  describe("决策与 UI 读取 - 不存在的 operationId 处理", () => {
     it("decide 对不存在的 operationId 返回 NOT_FOUND", async () => {
       await expect(service.decide("nonexistent-op", true)).rejects.toMatchObject({ code: "NOT_FOUND" });
-    });
-
-    it("getOperation 对不存在的 operationId 返回 NOT_FOUND", async () => {
-      await expect(service.getOperation("client-1", "nonexistent-op")).rejects.toMatchObject({ code: "NOT_FOUND" });
     });
 
     it("getOperationForUI 对不存在的 operationId 返回 undefined", async () => {
@@ -449,7 +386,7 @@ describe("McpApprovalService", () => {
 
     it("批准一个类型不受支持的操作（如遗留/未实现的 kind）返回 INTERNAL_ERROR，而非静默成功", async () => {
       // "update" is a valid OperationKind union member with no real create path anywhere in this
-      // codebase (only scripts.install.prepare ever creates operations, and it always stages a
+      // codebase (only scripts.install.request ever creates operations, and it always stages a
       // brand-new uuid — there is no MCP-triggered "update existing script" flow) —
       // executeApproved's default branch exists specifically to fail loudly if one is ever seen.
       const client = makeClient();

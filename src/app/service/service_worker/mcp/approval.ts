@@ -391,39 +391,6 @@ export class McpApprovalService {
     return { ...op, requestingClientName: client?.displayName };
   }
 
-  async getOperation(clientId: string, operationId: string): Promise<OperationStatusResult> {
-    const op = await this.sweepAndGet(operationId);
-    // NOT_FOUND (not INSUFFICIENT_SCOPE) for another client's operation — don't leak existence.
-    if (!op || op.clientId !== clientId) {
-      throw new McpBridgeError("NOT_FOUND", "operation not found", operationId);
-    }
-    return toStatusResult(op);
-  }
-
-  async listOperations(clientId: string): Promise<OperationStatusResult[]> {
-    const ops = await this.operationDAO.byClient(clientId);
-    const swept: McpOperation[] = [];
-    for (const op of ops) {
-      const current = await this.sweepAndGet(op.operationId);
-      if (current) swept.push(current);
-    }
-    // Only the caller's own non-expired operations — expired ones are dropped rather than
-    // reported, since the agent has nothing useful to do with a dead operationId.
-    return swept.filter((op) => op.status !== "expired").map(toStatusResult);
-  }
-
-  async cancelOperation(clientId: string, operationId: string): Promise<{ operationId: string; status: "cancelled" }> {
-    const op = await this.sweepAndGet(operationId);
-    if (!op || op.clientId !== clientId) {
-      throw new McpBridgeError("NOT_FOUND", "operation not found", operationId);
-    }
-    if (op.status !== "awaiting_user") {
-      throw new McpBridgeError("CONFLICT", `cannot cancel operation in status ${op.status}`, operationId);
-    }
-    await this.operationDAO.update(operationId, { status: "cancelled", decidedAt: Date.now() });
-    return { operationId, status: "cancelled" };
-  }
-
   // Lazy expiry sweep: expiry is enforced on every read, not by a background timer — an
   // operation transitions to "expired" the moment something notices its TTL has passed.
   private async sweepAndGet(operationId: string): Promise<McpOperation | undefined> {

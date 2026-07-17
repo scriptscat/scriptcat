@@ -42,9 +42,9 @@ export interface PendingPairing {
 
 /**
  * Owns the native-messaging port lifecycle to `com.scriptcat.native_host`. Only ever connects
- * when `mcp_enabled` is true — the caller is responsible for gating construction/initialize() on
- * the build-time `EnableMCP` flag. Never auto-reconnects past the capped backoff without a fresh
- * user action (flipping `mcp_enabled` off and back on, or clicking Retry in the settings UI).
+ * when `mcp_enabled` is true (runtime setting, default off). Never auto-reconnects past the
+ * capped backoff without a fresh user action (flipping `mcp_enabled` off and back on, or
+ * clicking Retry in the settings UI).
  */
 export class McpController {
   private port: chrome.runtime.Port | undefined;
@@ -94,9 +94,9 @@ export class McpController {
   private onNativeMessage = (envelope: NativeEnvelope): void => {
     switch (envelope.type) {
       case "hello": {
-        const { hostVersion } = envelope.payload as HelloPayload;
+        const { daemonVersion } = envelope.payload as HelloPayload;
         this.reconnectAttempts = 0;
-        this.setStatus(semver.lt(hostVersion, MIN_HOST_VERSION) ? "host_outdated" : "connected");
+        this.setStatus(semver.lt(daemonVersion, MIN_HOST_VERSION) ? "host_outdated" : "connected");
         break;
       }
       case "ping":

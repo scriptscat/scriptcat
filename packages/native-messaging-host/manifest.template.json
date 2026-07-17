@@ -1,7 +1,0 @@
-{
-  "name": "com.scriptcat.native_host",
-  "description": "ScriptCat Native Messaging Host + MCP Bridge",
-  "path": "",
-  "type": "stdio",
-  "allowed_origins": []
-}

@@ -16,18 +16,24 @@ export const PROTOCOL_VERSION = 1;
 export const MIN_HOST_VERSION = "0.1.0";
 
 // ---------------------------------------------------------------------------------------------
-// Layer 1 — browser <-> native host envelope types
+// Layer 1 — ext <-> daemon envelope types (WS transport)
 // ---------------------------------------------------------------------------------------------
+// Kept in sync with protocol.json (envelopeTypes) via protocol.conformance.test.ts. The
+// `NativeEnvelope`/`NATIVE_MESSAGE_TYPES` names are transport-neutral here; the offscreen WS
+// client (Task#5) consumes them over a WebSocket, not native messaging.
 
 export const NATIVE_MESSAGE_TYPES = [
+  "auth.challenge",
+  "auth.response",
+  "auth.ok",
   "hello",
   "bridge.request",
   "bridge.response",
+  "bridge.cancel",
   "pair.request",
   "pair.decision",
   "client.revoke",
   "client.sync",
-  "operations.changed",
   "ping",
   "pong",
   "bridge.shutdown",
@@ -42,10 +48,11 @@ export interface NativeEnvelope<TPayload = unknown> {
   payload: TPayload;
 }
 
-// host->ext, sent once immediately after the native port connects, so the extension can compare
-// hostVersion against MIN_HOST_VERSION before dispatching any bridge call.
+// daemon->ext, sent once immediately after the auth handshake completes, so the extension can
+// compare daemonVersion against MIN_HOST_VERSION before dispatching any bridge call.
 export interface HelloPayload {
-  hostVersion: string;
+  daemonVersion: string;
+  protocolVersion: typeof PROTOCOL_VERSION;
 }
 
 // host->ext, a new shim asked to pair. `code` is the 8-char verification string the user
@@ -98,12 +105,9 @@ export const BRIDGE_ACTIONS = [
   "scripts.list",
   "scripts.metadata.get",
   "scripts.source.get",
-  "scripts.install.prepare",
+  "scripts.install.request",
   "scripts.toggle.request",
   "scripts.delete.request",
-  "operations.get",
-  "operations.list",
-  "operations.cancel",
 ] as const;
 
 export type BridgeAction = (typeof BRIDGE_ACTIONS)[number];
@@ -148,8 +152,7 @@ export interface BridgeError {
 }
 
 export type McpBridgeResponse<TResult = unknown> =
-  | { requestId: string; ok: true; result: TResult }
-  | { requestId: string; ok: false; error: BridgeError };
+  { requestId: string; ok: true; result: TResult } | { requestId: string; ok: false; error: BridgeError };
 
 // ---------------------------------------------------------------------------------------------
 // Shared result/input shapes
@@ -210,16 +213,13 @@ export const ACTION_REQUIRED_SCOPE: Record<BridgeAction, McpScope> = {
   "scripts.list": "scripts:list",
   "scripts.metadata.get": "scripts:metadata:read",
   "scripts.source.get": "scripts:source:read",
-  "scripts.install.prepare": "scripts:install:request",
+  "scripts.install.request": "scripts:install:request",
   "scripts.toggle.request": "scripts:toggle:request",
   "scripts.delete.request": "scripts:delete:request",
-  "operations.get": "scripts:install:request",
-  "operations.list": "scripts:install:request",
-  "operations.cancel": "scripts:install:request",
 } as const;
 
 export const WRITE_ACTIONS: readonly BridgeAction[] = [
-  "scripts.install.prepare",
+  "scripts.install.request",
   "scripts.toggle.request",
   "scripts.delete.request",
 ] as const;
