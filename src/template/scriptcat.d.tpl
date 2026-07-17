@@ -534,8 +534,9 @@ declare namespace GMTypes {
     /**
      * 是否在隐私窗口（无痕模式）中打开标签页。
      *
-     * 注意：ScriptCat 的 manifest.json 配置了 `"incognito": "spanning"`，
-     * 普通窗口和隐私窗口共用同一个后台上下文。
+     * 注意：ScriptCat 的 manifest.json 配置了 `"incognito": "split"`，
+     * 在 normal window 中执行时，tabId/windowId 将不可用，
+     * 只能执行「打开新标签页」动作。
      *
      * 默认值：false
      */

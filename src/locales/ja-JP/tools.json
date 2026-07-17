@@ -79,5 +79,6 @@
   "csp_error_revision_invalid": "ルールのリビジョンが無効です。",
   "csp_error_rule_count_invalid": "100 ルールの上限に達しました。",
   "csp_error_unsupported_schema": "この CSP ルールデータ形式はまだサポートされていません。",
-  "csp_duplicate_domain_notice": "このドメインは別のルールでも使用されています。保存できますが、両方のルールが適用されます。"
+  "csp_duplicate_domain_notice": "このドメインは別のルールでも使用されています。保存できますが、両方のルールが適用されます。",
+  "csp_incognito_unavailable": "CSP ルールは通常のウィンドウで管理してください。プライベートウィンドウでは利用できません。"
 }

@@ -79,5 +79,6 @@
   "csp_error_revision_invalid": "The rule revision is invalid.",
   "csp_error_rule_count_invalid": "You have reached the 100-rule limit.",
   "csp_error_unsupported_schema": "This CSP rules data format is not supported yet.",
-  "csp_duplicate_domain_notice": "This domain is already used by another rule. It is allowed, but both rules will apply."
+  "csp_duplicate_domain_notice": "This domain is already used by another rule. It is allowed, but both rules will apply.",
+  "csp_incognito_unavailable": "Manage CSP rules from a normal window. CSP rules are not available in incognito windows."
 }

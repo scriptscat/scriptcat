@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { MAX_CSP_RULES, type CspRule, type CspRuleState } from "@App/app/repo/csp_rule";
 import { CspRuleClient, parseCspRuleError, type CspRuleServiceError } from "@App/app/service/service_worker/client";
 import type { CspMutationResult, CspRuleSnapshot } from "@App/app/service/service_worker/csp_rule";
+import { extensionEnv } from "@App/app/service/extension/extension_env";
 import { message, subscribeMessage } from "@App/pages/store/global";
 import {
   AlertDialog,
@@ -63,6 +64,7 @@ function mutationErrorText(t: (key: string) => string, error: CspRuleServiceErro
 export function CspRulesSection({ register, client: injectedClient }: CspRulesSectionProps) {
   const { t } = useTranslation();
   const client = useMemo(() => injectedClient ?? new CspRuleClient(message), [injectedClient]);
+  const cspRuleOwner = !extensionEnv.inIncognitoContext;
   const [snapshot, setSnapshot] = useState<CspRuleSnapshot>();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<CspRuleServiceError>();
@@ -73,6 +75,7 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
   const [confirmation, setConfirmation] = useState<Confirmation>();
 
   useEffect(() => {
+    if (!cspRuleOwner) return;
     let active = true;
     void client
       .getState()
@@ -94,7 +97,7 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
       active = false;
       unsubscribe();
     };
-  }, [client]);
+  }, [client, cspRuleOwner]);
 
   const openCreate = () => {
     if (!snapshot || snapshot.state.rules.length >= MAX_CSP_RULES) return;
@@ -233,28 +236,35 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
       <p className="text-xs text-warning-fg">
         {t("tools:csp_rules_risk")} {t("tools:csp_rules_trusted_types")}
       </p>
-      <SettingRow label={t("tools:csp_run_rules")}>
-        <Switch
-          checked={state?.masterEnabled ?? true}
-          disabled={loading || Boolean(busy) || !state}
-          aria-label={t("tools:csp_run_rules")}
-          onCheckedChange={(checked) => {
-            if (!state) return;
-            const hasEnabledAllSites = state.rules.some((rule) => rule.enabled && rule.target.type === "allSites");
-            if (checked && hasEnabledAllSites) {
-              setConfirmation({
-                title: t("tools:csp_confirm_all_sites_title"),
-                description: t("tools:csp_confirm_all_sites_description"),
-                run: () => setMasterEnabled(true),
-              });
-            } else {
-              void setMasterEnabled(checked);
-            }
-          }}
-        />
-      </SettingRow>
+      {!cspRuleOwner && (
+        <div className="rounded-md border border-border bg-muted p-4 text-sm text-muted-foreground" role="status">
+          {t("tools:csp_incognito_unavailable")}
+        </div>
+      )}
+      {cspRuleOwner && (
+        <SettingRow label={t("tools:csp_run_rules")}>
+          <Switch
+            checked={state?.masterEnabled ?? true}
+            disabled={loading || Boolean(busy) || !state}
+            aria-label={t("tools:csp_run_rules")}
+            onCheckedChange={(checked) => {
+              if (!state) return;
+              const hasEnabledAllSites = state.rules.some((rule) => rule.enabled && rule.target.type === "allSites");
+              if (checked && hasEnabledAllSites) {
+                setConfirmation({
+                  title: t("tools:csp_confirm_all_sites_title"),
+                  description: t("tools:csp_confirm_all_sites_description"),
+                  run: () => setMasterEnabled(true),
+                });
+              } else {
+                void setMasterEnabled(checked);
+              }
+            }}
+          />
+        </SettingRow>
+      )}
 
-      {loading && (
+      {cspRuleOwner && loading && (
         <div className="space-y-3" aria-busy="true">
           <Skeleton className="h-5 w-48" />
           <Skeleton className="h-14 w-full" />
@@ -262,7 +272,7 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
         </div>
       )}
 
-      {!loading && loadError && (
+      {cspRuleOwner && !loading && loadError && (
         <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-4" role="alert">
           <p className="text-sm text-destructive">
             {t(`tools:${loadError.code === "unsupported_schema" ? "csp_unsupported_schema" : "csp_load_error"}`)}
@@ -274,7 +284,7 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
         </div>
       )}
 
-      {!loading && !loadError && snapshot && (
+      {cspRuleOwner && !loading && !loadError && snapshot && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3" role="status" aria-live="polite">
             <div className="flex items-center gap-2 text-sm">
@@ -425,14 +435,16 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
         </>
       )}
 
-      <p className="text-xs text-muted-foreground">{t("tools:csp_rules_reload")}</p>
+      {cspRuleOwner && <p className="text-xs text-muted-foreground">{t("tools:csp_rules_reload")}</p>}
       <CspRuleSheet
         key={`${editingRule?.id ?? "new"}-${sheetOpen ? "open" : "closed"}`}
         open={sheetOpen}
         rule={editingRule}
         baseRevision={snapshot?.state.revision ?? 0}
         existingRules={snapshot?.state.rules ?? []}
+        saving={busy === "sheet"}
         onOpenChange={(open) => {
+          if (busy === "sheet") return;
           setSheetOpen(open);
           if (!open) setEditingRule(undefined);
         }}

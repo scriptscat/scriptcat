@@ -79,5 +79,6 @@
   "csp_error_revision_invalid": "Phiên bản quy tắc không hợp lệ.",
   "csp_error_rule_count_invalid": "Đã đạt giới hạn 100 quy tắc.",
   "csp_error_unsupported_schema": "Định dạng dữ liệu quy tắc CSP này chưa được hỗ trợ.",
-  "csp_duplicate_domain_notice": "Miền này đã được dùng trong quy tắc khác. Bạn vẫn có thể lưu; cả hai quy tắc sẽ được áp dụng."
+  "csp_duplicate_domain_notice": "Miền này đã được dùng trong quy tắc khác. Bạn vẫn có thể lưu; cả hai quy tắc sẽ được áp dụng.",
+  "csp_incognito_unavailable": "Hãy quản lý quy tắc CSP trong cửa sổ bình thường. Quy tắc CSP không khả dụng trong cửa sổ ẩn danh."
 }

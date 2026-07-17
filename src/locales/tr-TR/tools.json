@@ -79,5 +79,6 @@
   "csp_error_revision_invalid": "Kural sürümü geçersiz.",
   "csp_error_rule_count_invalid": "100 kural sınırına ulaşıldı.",
   "csp_error_unsupported_schema": "Bu CSP kuralı veri biçimi henüz desteklenmiyor.",
-  "csp_duplicate_domain_notice": "Bu alan adı başka bir kuralda zaten kullanılıyor. Kaydedilebilir; iki kural da uygulanır."
+  "csp_duplicate_domain_notice": "Bu alan adı başka bir kuralda zaten kullanılıyor. Kaydedilebilir; iki kural da uygulanır.",
+  "csp_incognito_unavailable": "CSP kurallarını normal bir pencerede yönetin. CSP kuralları gizli pencerelerde kullanılamaz."
 }

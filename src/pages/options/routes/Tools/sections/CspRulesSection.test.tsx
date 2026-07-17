@@ -3,10 +3,14 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { CspRuleClient } from "@App/app/service/service_worker/client";
 import type { CspRuleSnapshot } from "@App/app/service/service_worker/csp_rule";
+import { extensionEnv } from "@App/app/service/extension/extension_env";
 import { CspRulesSection } from "./CspRulesSection";
 
 beforeAll(() => initTestLanguage("en-US"));
-afterEach(cleanup);
+afterEach(() => {
+  extensionEnv.inIncognitoContext = false;
+  cleanup();
+});
 
 function snapshot(rules: CspRuleSnapshot["state"]["rules"] = [], masterEnabled = true): CspRuleSnapshot {
   return {
@@ -28,6 +32,19 @@ function clientFor(current: CspRuleSnapshot) {
 }
 
 describe("CSP 规则工具卡", () => {
+  it("隐私窗口提示只能在普通窗口管理且不读取 CSP 状态", async () => {
+    extensionEnv.inIncognitoContext = true;
+    const client = clientFor(snapshot());
+    render(<CspRulesSection register={() => () => {}} client={client} />);
+
+    expect(
+      await screen.findByText(
+        "Manage CSP rules from a normal window. CSP rules are not available in incognito windows."
+      )
+    ).toBeInTheDocument();
+    expect(client.getState).not.toHaveBeenCalled();
+  });
+
   it("空状态显示新增入口并能打开表单", async () => {
     const client = clientFor(snapshot());
     render(<CspRulesSection register={() => () => {}} client={client} />);

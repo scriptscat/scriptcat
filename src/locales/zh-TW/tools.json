@@ -79,5 +79,6 @@
   "csp_error_revision_invalid": "規則版本無效。",
   "csp_error_rule_count_invalid": "已達到 100 條規則的上限。",
   "csp_error_unsupported_schema": "尚未支援此 CSP 規則資料格式。",
-  "csp_duplicate_domain_notice": "此網域已被其他規則使用，可以儲存，但兩條規則都會生效。"
+  "csp_duplicate_domain_notice": "此網域已被其他規則使用，可以儲存，但兩條規則都會生效。",
+  "csp_incognito_unavailable": "請在一般視窗中管理 CSP 規則，私密視窗目前不支援。"
 }

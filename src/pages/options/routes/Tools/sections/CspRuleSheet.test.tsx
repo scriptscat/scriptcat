@@ -9,8 +9,27 @@ afterEach(cleanup);
 describe("CSP 规则表单", () => {
   it("粘贴完整 URL 后显示规范化域名并提交域名 target", async () => {
     const onSave = vi.fn().mockResolvedValue(true);
-    render(
-      <CspRuleSheet open rule={undefined} baseRevision={4} existingRules={[]} onOpenChange={vi.fn()} onSave={onSave} />
+    const view = render(
+      <CspRuleSheet
+        open
+        rule={undefined}
+        baseRevision={4}
+        existingRules={[]}
+        saving={false}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
+    );
+    view.rerender(
+      <CspRuleSheet
+        open
+        rule={undefined}
+        baseRevision={5}
+        existingRules={[]}
+        saving={false}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
     );
 
     const websites = screen.getByRole("textbox", { name: "Websites" });
@@ -33,7 +52,15 @@ describe("CSP 规则表单", () => {
   it("表单错误就地显示且不会提交", () => {
     const onSave = vi.fn();
     render(
-      <CspRuleSheet open rule={undefined} baseRevision={0} existingRules={[]} onOpenChange={vi.fn()} onSave={onSave} />
+      <CspRuleSheet
+        open
+        rule={undefined}
+        baseRevision={0}
+        existingRules={[]}
+        saving={false}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
     );
     fireEvent.click(screen.getByRole("button", { name: "Save rule" }));
     expect(screen.getByText("Enter at least one website.")).toBeInTheDocument();
@@ -43,7 +70,15 @@ describe("CSP 规则表单", () => {
   it("保存失败时保留表单输入", async () => {
     const onSave = vi.fn().mockResolvedValue(false);
     render(
-      <CspRuleSheet open rule={undefined} baseRevision={0} existingRules={[]} onOpenChange={vi.fn()} onSave={onSave} />
+      <CspRuleSheet
+        open
+        rule={undefined}
+        baseRevision={0}
+        existingRules={[]}
+        saving={false}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
     );
     const websites = screen.getByLabelText("Websites");
     fireEvent.change(websites, { target: { value: "example.com" } });
@@ -55,7 +90,15 @@ describe("CSP 规则表单", () => {
   it("保存返回结构化校验错误时显示对应的本地化提示", async () => {
     const onSave = vi.fn().mockResolvedValue({ code: "invalid_input", messageKey: "rule_count_invalid" });
     render(
-      <CspRuleSheet open rule={undefined} baseRevision={0} existingRules={[]} onOpenChange={vi.fn()} onSave={onSave} />
+      <CspRuleSheet
+        open
+        rule={undefined}
+        baseRevision={0}
+        existingRules={[]}
+        saving={false}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
     );
     const websites = screen.getByLabelText("Websites");
     fireEvent.change(websites, { target: { value: "example.com" } });
@@ -67,7 +110,15 @@ describe("CSP 规则表单", () => {
   it("所有网站范围提交前要求确认且取消不会调用保存", () => {
     const onSave = vi.fn();
     render(
-      <CspRuleSheet open rule={undefined} baseRevision={0} existingRules={[]} onOpenChange={vi.fn()} onSave={onSave} />
+      <CspRuleSheet
+        open
+        rule={undefined}
+        baseRevision={0}
+        existingRules={[]}
+        saving={false}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
     );
     fireEvent.click(screen.getByRole("button", { name: "Advanced scope" }));
     fireEvent.click(screen.getByText("All websites", { exact: true }));
@@ -75,5 +126,97 @@ describe("CSP 规则表单", () => {
     expect(screen.getByRole("heading", { name: "Affect all websites?" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("编辑已有启用规则时隐藏 Enabled 开关且切换到所有网站仍需确认", () => {
+    const rule = {
+      id: "rule-1",
+      name: "Example",
+      enabled: true,
+      target: { type: "domains" as const, domains: ["example.com"] },
+      action: { type: "removeCspHeaders" as const },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const onSave = vi.fn();
+    render(
+      <CspRuleSheet
+        open
+        rule={rule}
+        baseRevision={4}
+        existingRules={[rule]}
+        saving={false}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
+    );
+
+    expect(screen.queryByRole("switch", { name: "Enabled" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Advanced scope" }));
+    fireEvent.click(screen.getByText("All websites", { exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Save rule" }));
+
+    expect(screen.getByRole("heading", { name: "Affect all websites?" })).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("提交进行中禁用表单和所有网站确认操作", () => {
+    const onSave = vi.fn();
+    const view = render(
+      <CspRuleSheet
+        open
+        rule={undefined}
+        baseRevision={0}
+        existingRules={[]}
+        saving={false}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
+    );
+    view.rerender(
+      <CspRuleSheet
+        open
+        rule={undefined}
+        baseRevision={0}
+        existingRules={[]}
+        saving
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
+    );
+    expect(screen.getByRole("button", { name: "Save rule" })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Cancel" })[0]).toBeDisabled();
+
+    view.rerender(
+      <CspRuleSheet
+        open
+        rule={undefined}
+        baseRevision={0}
+        existingRules={[]}
+        saving={false}
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Advanced scope" }));
+    fireEvent.click(screen.getByText("All websites", { exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Save rule" }));
+
+    view.rerender(
+      <CspRuleSheet
+        open
+        rule={undefined}
+        baseRevision={0}
+        existingRules={[]}
+        saving
+        onOpenChange={vi.fn()}
+        onSave={onSave}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Cancel" }).every((button) => button.hasAttribute("disabled"))).toBe(
+      true
+    );
   });
 });

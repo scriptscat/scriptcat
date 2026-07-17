@@ -79,5 +79,6 @@
   "csp_error_revision_invalid": "Die Regelversion ist ungültig.",
   "csp_error_rule_count_invalid": "Das Limit von 100 Regeln wurde erreicht.",
   "csp_error_unsupported_schema": "Dieses Datenformat für CSP-Regeln wird noch nicht unterstützt.",
-  "csp_duplicate_domain_notice": "Diese Domain wird bereits von einer anderen Regel verwendet. Das ist zulässig; beide Regeln werden angewendet."
+  "csp_duplicate_domain_notice": "Diese Domain wird bereits von einer anderen Regel verwendet. Das ist zulässig; beide Regeln werden angewendet.",
+  "csp_incognito_unavailable": "Verwalte CSP-Regeln in einem normalen Fenster. In Inkognito-Fenstern sind CSP-Regeln nicht verfügbar."
 }

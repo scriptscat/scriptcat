@@ -79,5 +79,6 @@
   "csp_error_revision_invalid": "规则版本无效。",
   "csp_error_rule_count_invalid": "已达到 100 条规则的上限。",
   "csp_error_unsupported_schema": "暂不支持此 CSP 规则数据格式。",
-  "csp_duplicate_domain_notice": "此域名已被其他规则使用，可以保存，但两条规则都会生效。"
+  "csp_duplicate_domain_notice": "此域名已被其他规则使用，可以保存，但两条规则都会生效。",
+  "csp_incognito_unavailable": "请在普通窗口中管理 CSP 规则，隐私窗口暂不支持。"
 }

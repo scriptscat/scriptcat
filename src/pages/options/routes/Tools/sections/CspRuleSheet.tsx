@@ -37,6 +37,7 @@ type CspRuleSheetProps = {
   rule: CspRule | undefined;
   baseRevision: number;
   existingRules: CspRule[];
+  saving: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (value: CspRuleFormValue, baseRevision: number) => Promise<CspRuleSaveResult>;
 };
@@ -52,7 +53,15 @@ function saveErrorText(t: (key: string) => string, error: Exclude<CspRuleSaveRes
   return t("tools:csp_storage_error");
 }
 
-export function CspRuleSheet({ open, rule, baseRevision, existingRules, onOpenChange, onSave }: CspRuleSheetProps) {
+export function CspRuleSheet({
+  open,
+  rule,
+  baseRevision,
+  existingRules,
+  saving,
+  onOpenChange,
+  onSave,
+}: CspRuleSheetProps) {
   const { t } = useTranslation();
   const [formBaseRevision] = useState(baseRevision);
   const initialTarget = rule?.target;
@@ -118,7 +127,7 @@ export function CspRuleSheet({ open, rule, baseRevision, existingRules, onOpenCh
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
+      <Sheet open={open} onOpenChange={(value) => !saving && onOpenChange(value)}>
         <SheetContent side="right" className="flex h-full w-full flex-col p-0 sm:max-w-[480px]">
           <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
             <SheetHeader className="shrink-0 border-b border-border px-6 py-5 pr-14 text-left">
@@ -132,7 +141,7 @@ export function CspRuleSheet({ open, rule, baseRevision, existingRules, onOpenCh
                   id="csp-websites"
                   aria-label={t("tools:csp_websites")}
                   value={websites}
-                  disabled={allSites}
+                  disabled={allSites || saving}
                   placeholder="example.com"
                   onChange={(event) => {
                     setWebsites(event.target.value);
@@ -184,31 +193,38 @@ export function CspRuleSheet({ open, rule, baseRevision, existingRules, onOpenCh
                 />
               </div>
 
-              <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
-                <div>
-                  <Label htmlFor="csp-rule-enabled">{t("tools:csp_enabled_field")}</Label>
-                  <p className="text-xs text-muted-foreground">
-                    {enabled ? t("tools:csp_enabled") : t("tools:csp_disabled")}
-                  </p>
+              {!rule && (
+                <div className="flex items-center justify-between gap-4 rounded-md border border-border p-3">
+                  <div>
+                    <Label htmlFor="csp-rule-enabled">{t("tools:csp_enabled_field")}</Label>
+                    <p className="text-xs text-muted-foreground">
+                      {enabled ? t("tools:csp_enabled") : t("tools:csp_disabled")}
+                    </p>
+                  </div>
+                  <Switch
+                    id="csp-rule-enabled"
+                    checked={enabled}
+                    disabled={saving}
+                    onCheckedChange={setEnabled}
+                    aria-label={t("tools:csp_enabled_field")}
+                  />
                 </div>
-                <Switch
-                  id="csp-rule-enabled"
-                  checked={enabled}
-                  onCheckedChange={setEnabled}
-                  aria-label={t("tools:csp_enabled_field")}
-                />
-              </div>
+              )}
 
               <Collapsible open={scopeOpen} onOpenChange={setScopeOpen}>
                 <CollapsibleTrigger asChild>
-                  <Button type="button" variant="ghost" className="w-full justify-between px-2">
+                  <Button type="button" variant="ghost" className="w-full justify-between px-2" disabled={saving}>
                     {t("tools:csp_advanced_scope")}
                     <ChevronDown className="size-4" />
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3 pt-3">
                   <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border p-3 text-sm">
-                    <Checkbox checked={allSites} onCheckedChange={(checked) => setAllSites(checked === true)} />
+                    <Checkbox
+                      checked={allSites}
+                      disabled={saving}
+                      onCheckedChange={(checked) => setAllSites(checked === true)}
+                    />
                     <span className="space-y-1">
                       <span className="block font-medium">{t("tools:csp_all_websites")}</span>
                       <span className="block text-xs text-muted-foreground">{t("tools:csp_all_sites_warning")}</span>
@@ -230,10 +246,12 @@ export function CspRuleSheet({ open, rule, baseRevision, existingRules, onOpenCh
               )}
             </div>
             <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-background px-6 py-4 sm:flex-row sm:justify-end">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
                 {t("tools:csp_cancel")}
               </Button>
-              <Button type="submit">{t("tools:csp_save_rule")}</Button>
+              <Button type="submit" disabled={saving}>
+                {t("tools:csp_save_rule")}
+              </Button>
             </footer>
           </form>
         </SheetContent>
@@ -241,7 +259,7 @@ export function CspRuleSheet({ open, rule, baseRevision, existingRules, onOpenCh
 
       <AlertDialog
         open={pendingAllSites !== undefined}
-        onOpenChange={(value) => !value && setPendingAllSites(undefined)}
+        onOpenChange={(value) => !value && !saving && setPendingAllSites(undefined)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -249,8 +267,11 @@ export function CspRuleSheet({ open, rule, baseRevision, existingRules, onOpenCh
             <AlertDialogDescription>{t("tools:csp_confirm_all_sites_description")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setPendingAllSites(undefined)}>{t("tools:csp_cancel")}</AlertDialogCancel>
+            <AlertDialogCancel disabled={saving} onClick={() => setPendingAllSites(undefined)}>
+              {t("tools:csp_cancel")}
+            </AlertDialogCancel>
             <AlertDialogAction
+              disabled={saving}
               onClick={() => {
                 if (pendingAllSites) void submit(pendingAllSites);
                 setPendingAllSites(undefined);
