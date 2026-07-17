@@ -67,6 +67,7 @@ export function InterfaceSection({ register }: { register: (id: string) => (el: 
         <Input
           type="number"
           className="w-20"
+          min={0}
           value={(expandNum as number) ?? 0}
           onChange={(e) => setExpandNum(Number(e.target.value))}
         />

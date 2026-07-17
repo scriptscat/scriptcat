@@ -75,8 +75,6 @@ function filterScripts(list: ScriptMenu[], query: string): ScriptMenu[] {
   return list.filter((s) => s.name.toLowerCase().includes(lower));
 }
 
-const EXPAND_LIMIT = 5;
-
 // ========== Hook ==========
 
 export function usePopupData() {
@@ -361,18 +359,18 @@ export function usePopupData() {
   const filteredScriptList = filterScripts(scriptList, searchQuery);
   const filteredBackScriptList = filterScripts(backScriptList, searchQuery);
   const totalScriptCount = scriptList.length + backScriptList.length;
-  const showSearch = totalScriptCount > EXPAND_LIMIT;
+  const showSearch = totalScriptCount > menuExpandNum;
 
-  const displayScriptList = expandedSections.current ? filteredScriptList : filteredScriptList.slice(0, EXPAND_LIMIT);
+  const displayScriptList = expandedSections.current ? filteredScriptList : filteredScriptList.slice(0, menuExpandNum);
   const remainingCurrentCount = filteredScriptList.length - displayScriptList.length;
   // 超过展示上限即可展开/收起：折叠时显示「显示更多」，展开时显示「收起」
-  const canExpandCurrent = filteredScriptList.length > EXPAND_LIMIT;
+  const canExpandCurrent = filteredScriptList.length > menuExpandNum;
 
   const displayBackScriptList = expandedSections.background
     ? filteredBackScriptList
-    : filteredBackScriptList.slice(0, EXPAND_LIMIT);
+    : filteredBackScriptList.slice(0, menuExpandNum);
   const remainingBackCount = filteredBackScriptList.length - displayBackScriptList.length;
-  const canExpandBack = filteredBackScriptList.length > EXPAND_LIMIT;
+  const canExpandBack = filteredBackScriptList.length > menuExpandNum;
 
   const backRunningCount = backScriptList.filter((s) => s.runStatus === SCRIPT_RUN_STATUS_RUNNING).length;
   const enabledScriptCount = scriptList.filter((s) => s.enable).length;
