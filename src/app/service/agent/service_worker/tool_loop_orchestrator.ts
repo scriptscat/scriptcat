@@ -114,7 +114,7 @@ export class ToolLoopOrchestrator {
   ) {}
 
   /** 上下文即使裁剪到底也无法容纳下一次请求时，落库 + 通知 UI + （可选）抛出结构化错误。
-   * 落库失败不能阻塞事件发送（见 finding 5：事件投递不应依赖持久化成功）；
+   * 落库失败不能阻塞事件发送（事件投递不应依赖持久化成功）；
    * 若此时已被 Stop，取消优先于 context_too_large，改走统一的取消终态化路径。 */
   private async emitContextTooLarge(
     conversationId: string | undefined,
@@ -161,7 +161,7 @@ export class ToolLoopOrchestrator {
       }
     }
     // 持久化期间也可能已被 Stop：取消优先于 context_too_large，不能在 Stop 之后仍对外报告/
-    // 抛出 context_too_large（见 finding 5）
+    // 抛出 context_too_large
     if (signal.aborted) {
       await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
       return;
@@ -178,7 +178,7 @@ export class ToolLoopOrchestrator {
 
   /** 生成的附件（如模型产出的图片）在被 assistant 消息持久化引用之前只是"本轮租约"：
    * 任何不会把引用消息落库的退出路径（取消、持久化失败、落库异常）都必须删除这些文件，
-   * 否则它们会成为无任何消息引用的孤儿附件（见 finding 5）。 */
+   * 否则它们会成为无任何消息引用的孤儿附件。 */
   private async releaseGeneratedAttachments(result: LLMCallResult): Promise<void> {
     const blocks = result.contentBlocks;
     if (!blocks || blocks.length === 0) return;
@@ -190,7 +190,7 @@ export class ToolLoopOrchestrator {
   }
 
   /** 工具轮次落盘状态：确认读本身失败时必须与"确实未提交"区分开——前者是不确定态，不能
-   * 被当作可以安全删除附件的证据（见 finding 2）。 */
+   * 被当作可以安全删除附件的证据。 */
   private async checkToolRoundDurability(
     conversationId: string,
     conversationGeneration: string | undefined,
@@ -223,7 +223,7 @@ export class ToolLoopOrchestrator {
   }
 
   /** 取消（stop）落定时的统一终态化：持久化一条终态记录 + 发送唯一的终态事件，携带累计 usage/耗时。
-   * 落库失败不能阻塞事件发送，否则客户端永远收不到终态事件（见 finding 5）。 */
+   * 落库失败不能阻塞事件发送，否则客户端永远收不到终态事件。 */
   private async emitCancelled(
     conversationId: string | undefined,
     conversationGeneration: string | undefined,
@@ -433,7 +433,7 @@ export class ToolLoopOrchestrator {
       } catch (error) {
         // 无论取消还是真实失败，provider 层挂在错误上的本轮已知部分 usage（如 Anthropic 的
         // message_start、部分 OpenAI 兼容 API 每个 chunk 都带的 usage）都必须并入 totalUsage，
-        // 否则这部分已经产生的花费会从终态 usage、定时任务与子代理的累计里丢失（见 finding 6/7）
+        // 否则这部分已经产生的花费会从终态 usage、定时任务与子代理的累计里丢失
         const partialUsage = (error as { usage?: LLMCallResult["usage"] })?.usage;
         if (partialUsage) {
           totalUsage.inputTokens += partialUsage.inputTokens;
@@ -704,7 +704,7 @@ export class ToolLoopOrchestrator {
               });
             }
             // durable：OPFS close 报告了二义性错误，但该轮次确已落盘，发布结果并保留附件。
-            // indeterminate：确认读本身失败，无法证实写入未落盘——同样不能删除可能仍被引用的附件（见 finding 2）。
+            // indeterminate：确认读本身失败，无法证实写入未落盘——同样不能删除可能仍被引用的附件。
           }
         }
 
@@ -724,7 +724,7 @@ export class ToolLoopOrchestrator {
         // 工具调用状态已全部回写完毕，取消可以安全终态化了：只发一条终态事件，不再进入循环检测/下一轮。
         // cancelledDuringTools 是工具执行结束时的采样；上面的事件发送/tool 消息持久化/状态回写
         // 都是 await，期间到达的 Stop 也必须在这里被观察到，否则会带着已取消的 signal 继续
-        // 进入循环检测甚至下一轮 LLM 调用（见 finding 4）
+        // 进入循环检测甚至下一轮 LLM 调用
         if (cancelledDuringTools || signal.aborted) {
           await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
           return;
@@ -819,7 +819,7 @@ export class ToolLoopOrchestrator {
 
       // 没有 tool calls，对话结束。与取消/错误终态不同，done 对外承诺"回复已持久化"；
       // UI 完成回调会重新从 OPFS 加载消息，静默吞掉写入失败仍报 done 会让回复看起来生成成功、
-      // 刷新后又消失。这里有限重试几次，仍失败则改报结构化错误而不是假装成功（见 finding 10）。
+      // 刷新后又消失。这里有限重试几次，仍失败则改报结构化错误而不是假装成功。
       const durationMs = Date.now() - startTime;
       let persistFailed = false;
       if (conversationId) {
@@ -833,7 +833,7 @@ export class ToolLoopOrchestrator {
             .map((block) => block.attachmentId),
           thinking: result.thinking ? { content: result.thinking } : undefined,
           // 生成图片保存失败等非致命问题：持久化到消息上，刷新后仍然可见，而不是只在这次流式响应里
-          // 一闪而过（见 finding 5）
+          // 一闪而过
           warning: result.warning,
           usage: totalUsage,
           durationMs,
@@ -854,7 +854,7 @@ export class ToolLoopOrchestrator {
         }
         // 重试全部失败仍不能断定未落盘：appendMessage 按 id 去重，第一次尝试可能已经真正写入，
         // 只是确认读恰好也持续失败。删除生成的图片附件之前必须 positively 证实消息确实不在
-        // 存储里，否则会删掉仍被这条消息引用的文件（见 finding 2）
+        // 存储里，否则会删掉仍被这条消息引用的文件
         if (persistFailed) {
           const committed = await this.chatRepo
             .getMessageSnapshot(conversationId, conversationGeneration)

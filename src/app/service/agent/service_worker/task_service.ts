@@ -108,7 +108,7 @@ export class AgentTaskService {
         const conv = await this.getConversation(conversationId);
         if (!conv?.generation) throw new Error("Conversation not found");
         // task.conversationGeneration 记录任务绑定该对话时的 generation；若当前 generation
-        // 不一致，说明该会话已被删除重建为无关的新一代，绝不能静默续接（见 finding 1）
+        // 不一致，说明该会话已被删除重建为无关的新一代，绝不能静默续接
         if (task.conversationGeneration && conv.generation !== task.conversationGeneration) {
           throw new Error("Conversation generation mismatch; the bound conversation was deleted and recreated");
         }
@@ -276,7 +276,7 @@ export class AgentTaskService {
             // cron 无效，不设置 nextruntime
           }
         }
-        // 绑定续接对话时记录当时的 generation，执行期据此拒绝已被删除重建的会话（见 finding 1）
+        // 绑定续接对话时记录当时的 generation，执行期据此拒绝已被删除重建的会话
         if (task.mode === "internal" && task.conversationId && !task.conversationGeneration) {
           const conv = await this.getConversation(task.conversationId);
           if (conv?.generation) task.conversationGeneration = conv.generation;
@@ -294,7 +294,7 @@ export class AgentTaskService {
           revision: params.revision,
           updatetime: Date.now(),
         } as AgentTask;
-        // conversationId 变更（或首次绑定）时重新记录 generation，避免沿用旧会话的 generation（见 finding 1）
+        // conversationId 变更（或首次绑定）时重新记录 generation，避免沿用旧会话的 generation
         if (updated.mode === "internal" && updated.conversationId && "conversationId" in params.task) {
           const conv = await this.getConversation(updated.conversationId);
           updated.conversationGeneration = conv?.generation;
@@ -316,7 +316,7 @@ export class AgentTaskService {
         // 先中止正在运行的执行，再清理元数据/运行记录：cancelTask 是同步的 abort()，必须最先
         // 发生，否则被删除的任务会在 removeTask（含 run-history 清理）完成前继续调用 LLM/工具/
         // 产生外部副作用；若 removeTask 之后才 cancel，一旦 removeTask 因清理失败而抛出，
-        // cancelTask 根本不会被调用，执行也就永远不会被中止（见 finding 7）
+        // cancelTask 根本不会被调用，执行也就永远不会被中止
         this.taskScheduler?.cancelTask(params.id);
         await this.taskRepo.removeTask(params.id, params.generation, params.revision);
         return true;

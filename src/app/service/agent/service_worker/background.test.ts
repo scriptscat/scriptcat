@@ -328,7 +328,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
     (service as any).bgSessionManager.delete("conv-done");
   });
 
-  it("cancelling 阶段 attach：sync 仍报 running 并继续订阅 listener，直到真正的终态事件（finding 1）", async () => {
+  it("cancelling 阶段 attach：sync 仍报 running 并继续订阅 listener，直到真正的终态事件", async () => {
     const { service } = createTestService();
     const rc = createRunningConversation({ status: "cancelling" });
     (service as any).bgSessionManager.set("conv-cancelling", rc);
@@ -355,7 +355,7 @@ describe("handleAttachToConversation 重连逻辑", () => {
     (service as any).bgSessionManager.delete("conv-cancelling");
   });
 
-  it("finalizeCancelled 在 status 已被终态事件改写为 error 后仍应调度清理（finding 1）", async () => {
+  it("finalizeCancelled 在 status 已被终态事件改写为 error 后仍应调度清理", async () => {
     vi.useFakeTimers();
     try {
       const { service } = createTestService();
@@ -472,13 +472,13 @@ describe("handleAttachToConversation 重连逻辑", () => {
 
       expect(rc.abortController.signal.aborted).toBe(true);
       // stop() 只置为 cancelling：真正的终态由持有该 rc 的执行方 promise 落定后写入，
-      // 避免同一 conversationId 在旧执行尚未退出时就被新会话顶替（见 finding 1）
+      // 避免同一 conversationId 在旧执行尚未退出时就被新会话顶替
       expect(rc.status).toBe("cancelling");
       expect(rc.pendingAskUser).toBeUndefined();
       expect(rc.askResolvers.size).toBe(0);
       expect((service as any).bgSessionManager.has("conv-stop")).toBe(true);
       // cancelling 现在也纳入发现列表：UI 侧（Options 页面刷新/重连）需要据此判断是否
-      // 应该继续 attach 等待真正的终态事件，而不是误判为"已经不在运行"（见 finding 6）
+      // 应该继续 attach 等待真正的终态事件，而不是误判为"已经不在运行"
       expect(service.getRunningConversationIds()).toContain("conv-stop");
       // stop() 本身不再广播任何终态事件：唯一的终态事件来自执行方（orchestrator 的
       // emitCancelled，走正常 sendEvent → updateStreamingState → broadcastEvent 路径），

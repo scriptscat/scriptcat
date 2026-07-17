@@ -153,7 +153,7 @@ describe("上下文预算估算与裁剪", () => {
     // 用较大的真实照片量级（600KB）而不是 6000 字节：折算后（/40）约 2 万 token，
     // 明显超出 1000 的预算才能触发裁剪；6000 字节这种量级折算后不到 200 token，不足以撑爆预算。
     const sizes = new Map([["old", { bytes: 600_000 }]]);
-    // 图片按 IMAGE_CONSERVATIVE_BYTES_PER_TOKEN（40）折算为 token（见 finding 8：不能再把
+    // 图片按 IMAGE_CONSERVATIVE_BYTES_PER_TOKEN（40）折算为 token（不能再把
     // base64 字节数 1:1 当 token 数，否则普通照片会被判定为超出上下文）。
     // 验证 base64 展开确实被计入——若只是把原始字节数朴素除以换算系数（600000/40=15000），
     // 结果不会低于它。
@@ -254,7 +254,7 @@ describe("上下文预算估算与裁剪", () => {
     expect(estimate).toBeLessThan(bigSize);
   });
 
-  it("普通 100KB 照片不应被判定为超出未配置 contextWindow 模型（128K）的输入预算（finding 8）", () => {
+  it("普通 100KB 照片不应被判定为超出未配置 contextWindow 模型（128K）的输入预算", () => {
     const messages: ChatRequest["messages"] = [
       { role: "user", content: "帮我看看这张截图" },
       { role: "user", content: [{ type: "image", attachmentId: "screenshot", mimeType: "image/png" }] },

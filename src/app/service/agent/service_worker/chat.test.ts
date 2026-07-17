@@ -385,7 +385,7 @@ describe("handleConversationChat 场景补充", () => {
     expect(mockRepo.deleteAttachment).toHaveBeenCalledWith("provisional.png");
   });
 
-  it("【finding 1 回归】调用方持有的 generation 与当前存储不一致时应拒绝 chat，而不是作用于新一代会话", async () => {
+  it("调用方持有的 generation 与当前存储不一致时应拒绝 chat，而不是作用于新一代会话", async () => {
     const { service, mockRepo } = createTestService();
     const { sender, sentMessages } = createMockSender();
 
@@ -416,7 +416,7 @@ describe("handleConversationChat 场景补充", () => {
     expect(mockRepo.appendMessage).not.toHaveBeenCalled();
   });
 
-  it("【finding 1 回归】handleConversation 的 getMessages/clearMessages 在 generation 不一致时应拒绝而非作用于新一代会话", async () => {
+  it("handleConversation 的 getMessages/clearMessages 在 generation 不一致时应拒绝而非作用于新一代会话", async () => {
     const { service, mockRepo } = createTestService();
 
     const conv = {
@@ -458,7 +458,7 @@ describe("handleConversationChat 场景补充", () => {
     expect(mockRepo.saveMessages).not.toHaveBeenCalled();
   });
 
-  it("【finding 2 回归】用户消息 append 报错但确认读证实已落盘时，不应删除刚上传的附件", async () => {
+  it("用户消息 append 报错但确认读证实已落盘时，不应删除刚上传的附件", async () => {
     const { service, mockRepo } = createTestService();
     const { sender } = createMockSender();
 
@@ -841,7 +841,7 @@ describe("scriptToolCallback 的 abort/disconnect/超时处理", () => {
       expect(doneEvents).toHaveLength(1);
 
       // 超时批次必须向客户端发送带 requestId 的作废通知：客户端可能仍在串行执行
-      // 该批次剩余 handler，不通知会让其副作用与下一批次交叠（见 finding 6）
+      // 该批次剩余 handler，不通知会让其副作用与下一批次交叠
       const executeMessage = sentMessages.find((m) => m.action === "executeTools");
       const cancelMessage = sentMessages.find((m) => m.action === "cancelToolBatch");
       expect(cancelMessage).toBeDefined();
@@ -852,7 +852,7 @@ describe("scriptToolCallback 的 abort/disconnect/超时处理", () => {
   });
 });
 
-describe("同一 conversationId 的 chat/compact/clear 必须串行执行（finding 5）", () => {
+describe("同一 conversationId 的 chat/compact/clear 必须串行执行", () => {
   function createMockSender() {
     const sentMessages: any[] = [];
     const mockConn = {
@@ -952,7 +952,7 @@ describe("同一 conversationId 的 chat/compact/clear 必须串行执行（find
   });
 });
 
-describe("会话队列的连接感知与重入策略（finding 2）", () => {
+describe("会话队列的连接感知与重入策略", () => {
   let fetchSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {

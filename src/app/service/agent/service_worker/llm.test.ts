@@ -385,7 +385,7 @@ describe("callLLM 流式响应解析", () => {
     await vi.waitFor(() => expect(repo.deleteAttachment).toHaveBeenCalledWith(attachmentId));
   });
 
-  it("【finding 5 回归】生成图片保存失败时应在结果里携带可见 warning，而不是静默丢弃", async () => {
+  it("生成图片保存失败时应在结果里携带可见 warning，而不是静默丢弃", async () => {
     const repo = {
       getAttachment: vi.fn().mockResolvedValue(null),
       saveAttachment: vi.fn().mockRejectedValue(new Error("disk full")),
@@ -683,7 +683,7 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
 
     // 使用较小的 contextWindow，便于用少量 prompt_tokens 触发裁剪阈值。
     // 120000：getReservedOutputTokens 现在对未显式配置 maxTokens 的模型也预留非零默认输出额度
-    // （见 model_context.ts，finding 11），输入预算公式变成 0.9*contextWindow-16384；
+    // （见 model_context.ts），输入预算公式变成 0.9*contextWindow-16384；
     // 调大窗口使输入预算重新接近原先按 0.9*contextWindow 设计时的量级（约 90000），
     // 保持下面按 usages 数组设计的"第 5 轮跨 0.4、第 6 轮跨 0.6 但不到 0.8（不触发 autoCompact）"场景
     mockModelRepo.getModel.mockResolvedValue({
@@ -906,7 +906,7 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     registry.unregisterBuiltin("tool_b");
   });
 
-  it("最终回复持久化多次重试仍失败时应报结构化错误而不是假装 done（finding 10）", async () => {
+  it("最终回复持久化多次重试仍失败时应报结构化错误而不是假装 done", async () => {
     vi.useFakeTimers();
     try {
       const { service, mockRepo } = createTestService();

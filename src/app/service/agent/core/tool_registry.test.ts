@@ -496,7 +496,7 @@ describe("ToolRegistry", () => {
       expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(2);
     });
 
-    it("保存附件期间 signal abort：应停止继续写入并把该 toolCall 标为 error（finding 4）", async () => {
+    it("保存附件期间 signal abort：应停止继续写入并把该 toolCall 标为 error", async () => {
       const registry = new ToolRegistry();
       const mockRepo = createMockChatRepo();
       const controller = new AbortController();

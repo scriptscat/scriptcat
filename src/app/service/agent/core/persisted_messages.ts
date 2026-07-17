@@ -19,7 +19,7 @@ function contentBlockAttachmentIds(content: MessageContent): string[] {
  * undefined/空的 ownedAttachmentIds 在当前模型里合法地表示"不拥有，content block 引用的都是借用"，
  * 因此只有 legacy=true（会话创建于所有权模型引入之前，见 agent_chat.ts 的 "legacy:" generation 前缀）
  * 时才退化为按 content block / 工具附件元数据推断候选集合；否则升级前对话摘要保留的旧附件
- * 永远无法被正确识别为候选，即使摘要文本里仍然显式引用了它（见 finding 4）。*/
+ * 永远无法被正确识别为候选，即使摘要文本里仍然显式引用了它。*/
 export function retainedSummaryAttachmentIds(summary: string, messages: ChatMessage[], legacy = false): string[] {
   const owned = new Set<string>();
   const collectToolCalls = (toolCalls: NonNullable<ChatMessage["toolCalls"]>) => {

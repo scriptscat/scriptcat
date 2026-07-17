@@ -22,7 +22,7 @@ export class AgentModelRepo extends Repo<AgentModelConfig> {
     return this.get(id);
   }
 
-  // 保存模型：存储边界统一归一化 maxTokens/contextWindow（见 model_context.ts，finding 10）
+  // 保存模型：存储边界统一归一化 maxTokens/contextWindow（见 model_context.ts）
   async saveModel(model: AgentModelConfig): Promise<void> {
     await this._save(model.id, normalizeModelLimits(model));
   }

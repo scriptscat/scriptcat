@@ -85,7 +85,7 @@ describe("AgentTaskService 定时任务与会话锁", () => {
     );
   });
 
-  it("【finding 1 回归】任务绑定的会话已被删除重建（generation 不一致）时应拒绝续接，而不是静默写入无关会话", async () => {
+  it("任务绑定的会话已被删除重建（generation 不一致）时应拒绝续接，而不是静默写入无关会话", async () => {
     const { service, repo, orchestrator } = createService();
     // 存储里 conv-lock 当前的 generation 是 "gen-b"（被删除重建过）
     repo.listConversations.mockResolvedValue([{ id: "conv-lock", title: "t", modelId: "m1", generation: "gen-b" }]);
@@ -188,7 +188,7 @@ describe("AgentTaskService 任务生命周期", () => {
     expect(taskRepo.removeTask).toHaveBeenCalledWith("task-cas", "generation-current", 3);
   });
 
-  it("【finding 7 回归】delete 应先 cancelTask 中止执行，再清理元数据/运行记录，即使清理失败", async () => {
+  it("delete 应先 cancelTask 中止执行，再清理元数据/运行记录，即使清理失败", async () => {
     const { service, taskRepo, scheduler } = createMutationService();
     const callOrder: string[] = [];
     scheduler.cancelTask.mockImplementation(() => {

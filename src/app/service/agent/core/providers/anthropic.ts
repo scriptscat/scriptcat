@@ -140,7 +140,7 @@ export function buildAnthropicRequest(
   };
 
   // 用归一化后的 getReservedOutputTokens 而不是 config.maxTokens || 16384：
-  // 负数在 JS 里是 truthy，会绕过 || 兜底原样发给 provider（见 finding 10）
+  // 负数在 JS 里是 truthy，会绕过 || 兜底原样发给 provider
   body.max_tokens = getReservedOutputTokens(config) || 16384;
 
   if (systemMessages.length > 0) {
@@ -371,7 +371,7 @@ export function parseAnthropicStream(
     .catch((error) => {
       // readSSEStream 只在 abort 时才 reject（见 content_utils.ts）；message_start 可能已经
       // 带回了 input/cache usage，把它带在 abort 错误上，避免取消时把这部分已知花费从终态
-      // usage 里丢掉（见 finding 6）。outputTokens 在 message_delta 之前始终未知，记 0。
+      // usage 里丢掉。outputTokens 在 message_delta 之前始终未知，记 0。
       throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
         usage: cachedUsage ? { ...cachedUsage, outputTokens: 0 } : undefined,
       });

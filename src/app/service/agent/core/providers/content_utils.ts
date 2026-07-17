@@ -74,7 +74,7 @@ export async function readSSEStream(
 
   // onEvent 提前终止（返回 true）时，body 里可能还有未读完的数据（例如 Anthropic 在
   // message_delta 就终止本地处理，message_stop 及之后的数据从未被读取）；finally 里需要
-  // 据此决定是否主动 cancel 释放底层连接资源，避免 reader lock 一直占用到 GC（见 finding 12）
+  // 据此决定是否主动 cancel 释放底层连接资源，避免 reader lock 一直占用到 GC
   let earlyExit = false;
   try {
     while (!signal.aborted) {

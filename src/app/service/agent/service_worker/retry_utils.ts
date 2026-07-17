@@ -44,7 +44,7 @@ export async function withRetry<T>(
 }
 
 // provider 侧因上下文过长拒绝请求时的常见措辞（OpenAI/Anthropic 及兼容实现）。
-// 本地的字节数估算是保守启发式，可能低估真实 token 数（见 finding 6）：估算认为"能放下"
+// 本地的字节数估算是保守启发式，可能低估真实 token 数：估算认为"能放下"
 // 而放行的请求仍可能被 provider 真正拒绝。没有逐 provider 精确计数的前提下，把这类错误
 // 识别出来并归到与本地预判一致的 errorCode，是唯一可行的兜底恢复路径——至少能让调用方
 // （UI/自动压缩）用同一套"上下文超限"处理逻辑响应，而不是当成不透明的 api_error。

@@ -351,7 +351,7 @@ export class ToolRegistry implements ToolExecutorLike {
           } catch (e: any) {
             // signal 已 abort 时是附件写入被中止（见 saveAttachments 的 throwIfAborted），
             // 不能落回"按原始字符串处理"分支——那会让脚本工具的原始成功结果继续被当作
-            // 已完成上报，掩盖掉附件其实没写完的事实（见 finding 4）
+            // 已完成上报，掩盖掉附件其实没写完的事实
             if (signal?.aborted) {
               results.push({
                 id: sr.id,
@@ -387,7 +387,7 @@ export class ToolRegistry implements ToolExecutorLike {
 
   // 保存附件数据到 OPFS，返回 Attachment 元数据。
   // 传入 signal 时在每个附件写入前检查，abort 时中止剩余写入并抛错——调用方的 catch 块会把这
-  // 转成该 toolCall 的 error 结果，避免 Stop 之后仍继续写多个文件（见 finding 4）。
+  // 转成该 toolCall 的 error 结果，避免 Stop 之后仍继续写多个文件。
   private async saveAttachments(
     attachmentDataList: ToolResultWithAttachments["attachments"],
     signal?: AbortSignal
@@ -396,7 +396,7 @@ export class ToolRegistry implements ToolExecutorLike {
 
     const attachments: Attachment[] = [];
     // 本批真正由这里写入的附件 id（不含无 data 的已保存引用）：中途 abort/失败时必须整批回收，
-    // 否则该 toolCall 以 error 结果收场后，这些文件不再被任何消息引用（见 finding 4）
+    // 否则该 toolCall 以 error 结果收场后，这些文件不再被任何消息引用
     const savedIds: string[] = [];
     try {
       for (const ad of attachmentDataList) {

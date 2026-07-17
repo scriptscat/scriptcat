@@ -12,7 +12,7 @@ function isNotFoundError(error: unknown): boolean {
 // 跨上下文互斥：Options 页与 Service Worker 都会直接读写同一份 OPFS JSON 文件，
 // 进程内队列（stackAsyncTask）覆盖不了跨上下文的读-改-写竞争。Web Locks 按 origin
 // 全局生效（扩展页与 MV3 SW 同源），是两者之间唯一共享的互斥原语；不支持 Web Locks
-// 的环境（单元测试 jsdom）退化为进程内按 key 排队（见 finding 1）。
+// 的环境（单元测试 jsdom）退化为进程内按 key 排队。
 function withExclusiveFileLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const locks = (globalThis as { navigator?: { locks?: LockManager } }).navigator?.locks;
   if (locks?.request) {
@@ -69,7 +69,7 @@ export class OPFSRepo {
   // 读取 JSON 文件。文件尚未创建（NotFoundError）是预期状态，返回默认值；
   // 解析失败、权限或 I/O 错误一律抛出——把这类失败静默转成默认值，会让后续的
   // 读-改-写（appendMessage / saveConversation 等）基于空快照把仍然存在的旧数据
-  // 整份覆写掉（见 finding 1）。
+  // 整份覆写掉。
   protected async readJsonFile<T>(filename: string, defaultValue: T, dir?: FileSystemDirectoryHandle): Promise<T> {
     const targetDir = dir || (await this.getDir());
     let fileHandle: FileSystemFileHandle;
@@ -96,7 +96,7 @@ export class OPFSRepo {
   // 理论上仍可能提交。调用方（compact_service.ts / chat_service.ts）都会在
   // saveMessages() resolve 之后再次检查 signal，因此即使命中这个窗口，也不会对外报告
   // 虚假的成功事件（compact_done/done）——唯一的残留风险是磁盘内容被替换但会话已判定为
-  // 取消，这是一个已知的、极窄的边界情况，未做完整的事务回滚（见 finding 2）。
+  // 取消，这是一个已知的、极窄的边界情况，未做完整的事务回滚。
   protected async writeJsonFile(
     filename: string,
     data: unknown,

@@ -287,7 +287,7 @@ describe("parseOpenAIStream", () => {
     expect(events).toHaveLength(0);
   });
 
-  it("abort 前已经收到过 usage chunk 时，reject 的错误应携带这部分已知 usage（finding 6）", async () => {
+  it("abort 前已经收到过 usage chunk 时，reject 的错误应携带这部分已知 usage", async () => {
     const controller = new AbortController();
     const encoder = new TextEncoder();
     let index = 0;
@@ -496,7 +496,7 @@ describe("parseOpenAIStream", () => {
     }
   });
 
-  it("EOF 前从未见过 finish_reason 时不应当作成功完成——网络中断和正常结束无法区分（finding 7）", async () => {
+  it("EOF 前从未见过 finish_reason 时不应当作成功完成——网络中断和正常结束无法区分", async () => {
     // 只有内容 delta，没有任何 chunk 带 finish_reason，也没有 [DONE]：模拟网络中断
     const reader = createMockReader([
       'data: {"choices":[{"delta":{"content":"部分"}}]}\n\n',

@@ -11,7 +11,7 @@ export type ListenerEntry = {
 export type RunningConversation = {
   conversationId: string;
   // 该次运行绑定的会话 generation；attach() 的调用方必须持有同一 generation 才允许附加，
-  // 否则会静默观察到删除重建后无关的新一代会话（见 finding 1）
+  // 否则会静默观察到删除重建后无关的新一代会话
   generation: string;
   abortController: AbortController;
   listeners: Set<ListenerEntry>;
@@ -54,7 +54,7 @@ export class BackgroundSessionManager {
 
   // cancelling 也算在内：handleAttach() 已经支持对 cancelling 会话继续订阅直到真正的终态
   // 事件，但如果这里不把 cancelling 纳入发现列表，UI 侧（Options 页面刷新/重连）永远不会
-  // 尝试 attach，也就永远等不到那条真正携带取消原因/usage 的终态事件（见 finding 6）
+  // 尝试 attach，也就永远等不到那条真正携带取消原因/usage 的终态事件
   listIds(): string[] {
     return Array.from(this.runningConversations.entries())
       .filter(([, conversation]) => conversation.status === "running" || conversation.status === "cancelling")
@@ -210,7 +210,7 @@ export class BackgroundSessionManager {
     }
 
     // 调用方持有的 generation 与实际运行中的会话不一致：会话已被删除重建，
-    // 不能让旧一代的调用方附加到无关的新一代会话上（见 finding 1）
+    // 不能让旧一代的调用方附加到无关的新一代会话上
     if (params.generation !== undefined && rc.generation !== params.generation) {
       sendEvent({ type: "sync", tasks: [], status: "done" });
       return;

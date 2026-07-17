@@ -76,7 +76,7 @@ export interface ChatServiceLLMDeps {
 /** handleConversationChat 参数类型 */
 type ConversationChatParams = {
   conversationId: string;
-  // 调用方持有的会话 generation；提供时服务端会校验与当前存储一致（见 finding 1）
+  // 调用方持有的会话 generation；提供时服务端会校验与当前存储一致
   generation?: string;
   message: MessageContent;
   ownedAttachmentIds?: string[];
@@ -133,7 +133,7 @@ function canAssertAttachmentOwnership(sender: IGetSender): boolean {
  * 连接回调（stop / askUserResponse / toolResults / 断开）必须在排队【之前】注册：
  * 断开的端口上注册回调会直接抛错（见 extension_message.ts），而且排队等待期间到达的
  * 断开与 Stop 必须被如实记录，否则临界区开始后要么在死连接上白跑一整条会话，
- * 要么漏掉停止指令（见 finding 2）。 */
+ * 要么漏掉停止指令。 */
 interface ChatConnectionSession {
   msgConn: MessageConnect;
   isBackground: boolean;
@@ -187,7 +187,7 @@ function wrapScriptToolConnection(original: MessageConnect): MessageConnect {
     sendMessage(message: any) {
       if (message.action === "cancelToolBatch") {
         // 由包装层补上当前批次的 requestId：批次超时后客户端可能仍在串行执行剩余 handler，
-        // 明确通知其作废该批次（见 finding 6）；没有进行中的批次则无事可做
+        // 明确通知其作废该批次；没有进行中的批次则无事可做
         if (!activeRequestId || disconnected) return;
         try {
           original.sendMessage({ ...message, requestId: activeRequestId });
@@ -231,7 +231,7 @@ function wrapScriptToolConnection(original: MessageConnect): MessageConnect {
 
 export class ChatService {
   // 正在等待 Sandbox 回复脚本工具结果的会话：此窗口内 chat 持有会话队列锁等待 toolResults，
-  // 来自工具 handler 内部的 await conv.clear() 若照常排队会形成"锁等我、我等锁"的死锁（见 finding 2）
+  // 来自工具 handler 内部的 await conv.clear() 若照常排队会形成"锁等我、我等锁"的死锁
   private conversationsAwaitingScriptTools = new Set<string>();
   private admittedChats = new Map<string, Set<AbortController>>();
 
@@ -274,7 +274,7 @@ export class ChatService {
       case "get":
         return this.getConversation(params.id);
       case "getMessages":
-        // params.generation 提供时，与当前存储不一致（会话已被删除重建）则拒绝而非返回无关一代的消息（见 finding 1）；
+        // params.generation 提供时，与当前存储不一致（会话已被删除重建）则拒绝而非返回无关一代的消息；
         // 未提供 generation 时保留旧行为：会话不存在则返回空数组
         try {
           return (await this.chatRepo.getMessageSnapshot(params.conversationId, params.generation)).messages;
@@ -283,7 +283,7 @@ export class ChatService {
           throw error;
         }
       case "save": {
-        // 对话已经在 chat 过程中持久化，这里确保元数据也保存；仍需校验调用方持有的 generation（见 finding 1）
+        // 对话已经在 chat 过程中持久化，这里确保元数据也保存；仍需校验调用方持有的 generation
         if (params.generation !== undefined) {
           const conv = await this.getConversation(params.conversationId);
           if (!conv || conv.generation !== params.generation) {
@@ -296,14 +296,14 @@ export class ChatService {
         // 会话正在等待脚本工具结果时，这个 clear 很可能来自该工具 handler 内部的
         // await conv.clear()：chat 持有会话队列锁等待 toolResults，clear 排队等锁，
         // 相互等待成死锁。对这个窗口显式拒绝（fail fast）；其余时刻仍与 chat/compact
-        // 共用同一把按 conversationId 的队列锁排队执行，避免互相覆盖写入（见 finding 2/5）
+        // 共用同一把按 conversationId 的队列锁排队执行，避免互相覆盖写入
         if (this.conversationsAwaitingScriptTools.has(params.conversationId)) {
           throw new Error(
             "Conversation is waiting for script tool results; clearing messages now would deadlock. Finish or stop the chat first."
           );
         }
         return stackAsyncTask(conversationChatLockKey(params.conversationId), async () => {
-          // 与 getMessages 同理，generation 提供时须匹配当前存储（见 finding 1）
+          // 与 getMessages 同理，generation 提供时须匹配当前存储
           const snapshot = await this.chatRepo.getMessageSnapshot(params.conversationId, params.generation);
           await this.chatRepo.saveMessages(params.conversationId, [], undefined, {
             generation: snapshot.generation,
@@ -371,7 +371,7 @@ export class ChatService {
 
   // 统一的流式 conversation chat（UI 和脚本 API 共用）
   // 同一 conversationId 的 chat / compact（compact 复用本方法的 params.compact 分支）都必须与
-  // clearMessages 串行执行，避免并发读改写互相覆盖对方的持久化写入（见 finding 5）。
+  // clearMessages 串行执行，避免并发读改写互相覆盖对方的持久化写入。
   // "会话正在运行中" 的快速拒绝在排队之前完成，避免重复的后台请求白白卡在队列里等待。
   async handleConversationChat(params: ConversationChatParams, sender: IGetSender) {
     if (params.ownedAttachmentIds?.length && !canAssertAttachmentOwnership(sender)) {
@@ -472,7 +472,7 @@ export class ChatService {
 
     // 连接回调必须在排队之前注册：断开的端口上注册会直接抛错（见 extension_message.ts），
     // 而且排队等待期间到达的断开/Stop 必须被记录，否则临界区开始后要么在死连接上白跑
-    // 一整条会话，要么漏掉停止指令（见 finding 2）
+    // 一整条会话，要么漏掉停止指令
     try {
       msgConn.onDisconnect(() => {
         isDisconnected = true;
@@ -540,7 +540,7 @@ export class ChatService {
         };
         const timer = setTimeout(() => {
           // 先通知客户端作废该批次（包装层补 requestId）：超时后客户端可能仍在串行执行
-          // 剩余 handler，其副作用会与下一批次交叠（见 finding 6）
+          // 剩余 handler，其副作用会与下一批次交叠
           try {
             msgConn.sendMessage({ action: "cancelToolBatch" });
           } catch {
@@ -603,7 +603,7 @@ export class ChatService {
       return;
     }
 
-    // 入锁后复查后台占用：排队前的快速拒绝与真正入锁之间存在时间窗（见 finding 2）
+    // 入锁后复查后台占用：排队前的快速拒绝与真正入锁之间存在时间窗
     if (isBackground && this.bgSessionManager.has(params.conversationId)) {
       await releaseProvisionalUserAttachments();
       sendEventDirect({ type: "error", message: "会话正在运行中" });
@@ -614,7 +614,7 @@ export class ChatService {
     let rc: RunningConversation | undefined;
     if (isBackground) {
       // 后台会话必须先确认调用方持有的 generation 与当前存储一致，否则一次删除重建后的
-      // 陈旧调用会静默附加到无关的新一代会话上（见 finding 1）
+      // 陈旧调用会静默附加到无关的新一代会话上
       const conv = await this.getConversation(params.conversationId);
       if (!conv) {
         await releaseProvisionalUserAttachments();
@@ -742,7 +742,7 @@ export class ChatService {
         sendEvent({ type: "error", message: "Conversation not found" });
         return;
       }
-      // 调用方持有的 generation 与当前存储不一致：会话已被删除重建，拒绝作用于无关的新一代会话（见 finding 1）
+      // 调用方持有的 generation 与当前存储不一致：会话已被删除重建，拒绝作用于无关的新一代会话
       if (params.generation !== undefined && conv.generation !== params.generation) {
         sendEvent({
           type: "error",
@@ -1006,7 +1006,7 @@ export class ChatService {
       ownedAttachmentIds: retainedSummaryAttachmentIds(summary, existingMessages, isLegacyGeneration(conv.generation)),
       createtime: Date.now(),
     };
-    // 传入 signal：写入落定前若已 abort，则放弃这次整份覆写而不提交（见 finding 4）
+    // 传入 signal：写入落定前若已 abort，则放弃这次整份覆写而不提交
     try {
       await this.chatRepo.saveMessages(params.conversationId, [summaryMessage], abortController.signal, {
         generation: conv.generation,
@@ -1232,7 +1232,7 @@ export class ChatService {
         // OPFS close 报告的错误具有二义性：写入可能已经落盘，只是确认读又恰好失败。
         // 附件所有权只有在这次 append 被判定成功后才会转移给消息（见 onUserMessagePersisted）；
         // 若在这里把二义性错误当作"未持久化"直接向上抛，外层会删除刚刚可能已经被这条
-        // 持久化消息引用的临时附件，导致消息引用悬空文件（见 finding 2）。因此必须先positively
+        // 持久化消息引用的临时附件，导致消息引用悬空文件。因此必须先positively
         // 确认这条消息是否已经真正写入，只有确认"确实未写入"才允许向上传播失败。
         const committed = await this.chatRepo
           .getMessageSnapshot(params.conversationId, conv.generation)

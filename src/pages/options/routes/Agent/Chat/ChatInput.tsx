@@ -274,7 +274,7 @@ export default function ChatInput({
   }, [attachments]);
 
   // 卸载时清理 objectURLs：读 ref 而非闭包里的 attachments，否则空依赖数组只会捕获挂载时的
-  // 初始空数组，之后选中的附件在卸载时永远不会被 revoke（见 finding 8）
+  // 初始空数组，之后选中的附件在卸载时永远不会被 revoke
   useEffect(() => {
     return () => {
       attachmentsRef.current.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));

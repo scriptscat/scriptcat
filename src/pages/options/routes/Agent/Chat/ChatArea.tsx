@@ -732,7 +732,7 @@ export default function ChatArea({
     // 只做纯 UI 侧的乐观更新（清掉"正在流式"标记、把仍显示 running 的 toolCall 标灰）；
     // 不在这里处理排队消息或重新加载历史——那必须等真正的终态事件到达、取消记录落库完成后，
     // 由 onDone（createDoneCallback，见 stopGeneration 里保留连接直到终态事件到达）统一处理，
-    // 否则排队消息可能在旧会话仍占用中时被拒绝、且从未持久化就丢失（见 finding 6）
+    // 否则排队消息可能在旧会话仍占用中时被拒绝、且从未持久化就丢失
     streamingMsgRef.current = null;
     setStreamingMsgId(null);
     setMessages((prev) => {

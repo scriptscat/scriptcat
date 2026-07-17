@@ -407,7 +407,7 @@ export class ConversationInstance {
       };
 
       // SW 端脚本工具批次超时后发来的作废通知（按 requestId 关联）：
-      // 该批次剩余 handler 不再执行，避免其副作用与下一批次交叠（见 finding 6）
+      // 该批次剩余 handler 不再执行，避免其副作用与下一批次交叠
       const cancelledBatches = new Set<string>();
       const batchControllers = new Map<string, AbortController>();
       const abortBatches = () => {
@@ -438,7 +438,7 @@ export class ConversationInstance {
           if (batchId) batchControllers.delete(batchId);
           // 工具函数执行期间连接可能已经因 Stop/脚本工具超时而 settle 并断开；
           // 断开后的连接 sendMessage 会抛错，且这里是异步回调，事件源不会 await/捕获它，
-          // 会在用户脚本上下文里变成 unhandled rejection（见 finding 7）
+          // 会在用户脚本上下文里变成 unhandled rejection
           if (settled || (batchId !== undefined && cancelledBatches.has(batchId))) return;
           try {
             conn.sendMessage({
@@ -548,7 +548,7 @@ export class ConversationInstance {
     };
 
     // SW 端脚本工具批次超时后发来的作废通知（按 requestId 关联）：
-    // 该批次剩余 handler 不再执行，避免其副作用与下一批次交叠（见 finding 6）
+    // 该批次剩余 handler 不再执行，避免其副作用与下一批次交叠
     const cancelledBatches = new Set<string>();
     const batchControllers = new Map<string, AbortController>();
     const abortBatches = () => {
@@ -579,7 +579,7 @@ export class ConversationInstance {
         if (batchId) batchControllers.delete(batchId);
         // 工具函数执行期间连接可能已经因 Stop/脚本工具超时而结束并断开；
         // 断开后的连接 sendMessage 会抛错，且这里是异步回调，事件源不会 await/捕获它，
-        // 会在用户脚本上下文里变成 unhandled rejection（见 finding 7）
+        // 会在用户脚本上下文里变成 unhandled rejection
         if (done || (batchId !== undefined && cancelledBatches.has(batchId))) return;
         try {
           conn.sendMessage({
@@ -759,7 +759,7 @@ export class ConversationInstance {
         // 提前退出（for await...break / 消费方抛错）时，可能有 toolCall 还停在 tool_call_start/
         // delta 阶段就被 return()/throw() 打断，从未收到 tool_call_complete。这类 toolCall 没有
         // result，如果原样把它们的 assistant 消息记入历史重放给 provider，大多数 provider 会
-        // 因为"assistant 消息里的 tool_call 缺少对应的 tool 结果消息"而报错（见 finding 9）。
+        // 因为"assistant 消息里的 tool_call 缺少对应的 tool 结果消息"而报错。
         // 统一在这里把没有 result 的 toolCall 补成终态 cancelled，并补上配对的 tool 结果消息，
         // 保证重放给 provider 的历史里 tool_call/tool_result 协议状态始终完整。
         const finalized = toolCalls.map((toolCall) => {
@@ -808,7 +808,7 @@ export class ConversationInstance {
             return result;
           },
           // 转发 return()/throw() 给内层 processStream 的迭代器，否则 for await...break
-          // 或消费方抛错时内层不会 disconnect，port 会一直挂着（见 finding 6）。
+          // 或消费方抛错时内层不会 disconnect，port 会一直挂着。
           // 提前退出时也提交已累积的部分输出到 messageHistory，与正常完成时的行为一致，
           // 避免下一轮 chat() 因为丢失这部分历史而导致上下文断裂。
           async return(value?: unknown) {
@@ -829,7 +829,7 @@ export class ConversationInstance {
   // 执行用户定义的 tool handlers。
   // isSettled：连接/请求批次是否已经 settle（Stop、脚本工具超时、连接断开）。串行执行期间在每个
   // handler 之前检查，而不是只在整批结束后检查一次——否则已经 settle 之后，剩余的
-  // handler 仍会继续跑，其副作用可能和后续新批次的 handler 重叠（见 finding 9）
+  // handler 仍会继续跑，其副作用可能和后续新批次的 handler 重叠
   protected async executeTools(
     toolCalls: ToolCall[],
     handlers: Map<string, ToolHandler>,

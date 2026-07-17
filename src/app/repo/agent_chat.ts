@@ -59,7 +59,7 @@ function contentBlockAttachmentIds(content: MessageContent): string[] {
 // 否则会把当前模型里正常的借用误判为拥有，导致这类附件被其它消息删除时连带误删（回归）。
 // 只有当调用方能证明这条历史确实创建于所有权模型引入之前（例如 generation 是本仓库为
 // 无 generation 的旧数据统一回填的 "legacy:" 前缀）时，才允许把 ownedAttachmentIds 缺失
-// 解读为"从未写入过"，退化为按 content block / 工具附件元数据推断所有权（见 finding 4）。
+// 解读为"从未写入过"，退化为按 content block / 工具附件元数据推断所有权。
 export function collectMessageAttachmentIds(messages: ChatMessage[], legacy = false): Set<string> {
   const result = new Set<string>();
   const collectToolCalls = (toolCalls: NonNullable<ChatMessage["toolCalls"]>) => {
@@ -162,7 +162,7 @@ export class AgentChatRepo extends OPFSRepo {
       // Reusing an explicitly supplied ID starts a fresh generation with no legacy child state.
       // The conversation record is already durably committed above; a failure here is garbage-collection
       // debt, not a creation failure — swallow it so the caller (and any retry) sees the conversation as
-      // created instead of conflicting with the record that already exists (见 finding 3). The stale files
+      // created instead of conflicting with the record that already exists. The stale files
       // stay inert: readMessageSnapshot/getTasks compare against the new generation and ignore them.
       try {
         const messagesDir = await this.getChildDir(MESSAGES_DIR);
@@ -178,7 +178,7 @@ export class AgentChatRepo extends OPFSRepo {
 
   // 更新现有会话。generation/revision 都必须匹配，绝不以 upsert 语义复活已删除记录。
   // conversations.json 被 Options 页与 Service Worker 两个上下文共享，所有读-改-写
-  // 都必须在同一把跨上下文排它锁内执行，否则双方会基于同一旧快照互相覆盖（见 finding 1）
+  // 都必须在同一把跨上下文排它锁内执行，否则双方会基于同一旧快照互相覆盖
   async saveConversation(conversation: Conversation): Promise<Conversation> {
     return this.withFileLock(`lifecycle:${conversation.id}`, async () => {
       return this.withFileLock(CONVERSATIONS_FILE, async () => {
@@ -230,7 +230,7 @@ export class AgentChatRepo extends OPFSRepo {
 
       // 会话记录已经在上面提交删除，这里是善后 GC：失败不能让 deleteConversation 报告失败——
       // 那样调用方重试时 conversations.json 里已经找不到该 id（见上面 `if (!current) return`），
-      // 会静默当作删除成功返回，剩余的消息/任务/附件却永远不会被清理（见 finding 3）。
+      // 会静默当作删除成功返回，剩余的消息/任务/附件却永远不会被清理。
       try {
         const messagesDir = await this.getChildDir(MESSAGES_DIR);
         const stored = await this.readMessageSnapshot(id, deleted.generation!, messagesDir);
@@ -266,7 +266,7 @@ export class AgentChatRepo extends OPFSRepo {
     });
   }
 
-  // 追加消息（读-改-写，须持有该会话消息文件的跨上下文排它锁，见 finding 1）
+  // 追加消息（读-改-写，须持有该会话消息文件的跨上下文排它锁）
   async appendMessage(message: ChatMessage, generation?: string): Promise<MessageSnapshot> {
     return this.withFileLock(`lifecycle:${message.conversationId}`, async () => {
       const current = await this.requireConversation(message.conversationId, generation);
@@ -348,7 +348,7 @@ export class AgentChatRepo extends OPFSRepo {
   // 保存整个消息列表（用于批量更新）。整份覆写虽无读阶段，但仍须与其它读-改-写同锁排队，
   // 否则可能穿插进别人临界区的读与写之间。
   // signal 可选：传入时若在写入落定前已 abort，则放弃这次整份覆写而不是让它继续提交
-  // （OPFS createWritable() 本身是事务性的，写入的是临时副本，abort 不会影响已持久化的旧内容，见 finding 4）
+  // （OPFS createWritable() 本身是事务性的，写入的是临时副本，abort 不会影响已持久化的旧内容）
   async saveMessages(
     conversationId: string,
     messages: ChatMessage[],
@@ -378,7 +378,7 @@ export class AgentChatRepo extends OPFSRepo {
           (id) => !retainedAttachments.has(id)
         );
         // 新快照已经提交在上面；删除不再被引用的旧附件属于 GC，失败不能让 clear/compact/deleteMessages
-        // 报告失败——历史其实已经替换成功了（见 finding 3）。
+        // 报告失败——历史其实已经替换成功了。
         try {
           await this.deleteAttachments(removedAttachments);
         } catch {

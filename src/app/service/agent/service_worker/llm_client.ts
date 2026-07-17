@@ -24,7 +24,7 @@ export interface LLMCallResult {
   contentBlocks?: ContentBlock[];
   /** Non-fatal issue surfaced alongside an otherwise-successful result, e.g. a generated image that
    * failed to persist. The round still resolves so accumulated usage/text aren't discarded, but callers
-   * should show this to the user and persist it onto the assistant message (见 finding 5). */
+   * should show this to the user and persist it onto the assistant message. */
   warning?: string;
 }
 
@@ -154,7 +154,7 @@ export class LLMClient {
       };
       // parseStream 自身在 abort 时会 reject，并可能携带这一轮已知的部分 usage（见 openai.ts/
       // anthropic.ts）。这里的 signal 监听只是最后一道保险，不能抢在 parseStream 的 reject 之前
-      // 立即 settle——那样会用一个不带 usage 的裸 Error 抢占更有信息量的那个 reject（见 finding 7）。
+      // 立即 settle——那样会用一个不带 usage 的裸 Error 抢占更有信息量的那个 reject。
       // 延迟到下一个宏任务，给 parseStream 的 reject 一个先落定的机会，本身仍然是安全网，
       // 不依赖它必定生效。
       const onAbortSafeguard = () => {
@@ -221,17 +221,17 @@ export class LLMClient {
             // abort 安全：settled 一旦为 true（外层 Promise 已因 abort 落定），后续保存产生的
             // 附件不会再被任何持久化的 assistant 消息引用，是孤儿文件；已发出的 content_block_complete
             // 也会晚于终态事件到达客户端。因此每一步都先检查 settled，中途发现已 settle 就
-            // 停止继续保存/发送，并清理这一轮已经落盘但用不上的附件（见 finding 6）。
+            // 停止继续保存/发送，并清理这一轮已经落盘但用不上的附件。
             const finalize = async () => {
               const savedBlocks: ContentBlock[] = [];
               // 本轮所有成功落盘的附件 id（不止是取消时正在保存的那一个）：一旦 settled，
               // finalize() 的返回值不会再被使用（resolveOnce/rejectOnce 已是 no-op），
               // 这一轮已经保存的所有附件都变成孤儿文件，必须全部清理，不能只删除取消时
-              // 正在保存的那一个而漏掉更早已经保存成功的（见 finding 8）
+              // 正在保存的那一个而漏掉更早已经保存成功的
               const allSavedIds: string[] = [];
               // 保存失败的图片没有 markdown 原文可回退：之前静默丢弃，用户会拿到一个成功、
               // 计费的回复但缺图（甚至纯图回复时 content 为空）。记录数量，随结果一起报告
-              // 给调用方持久化/展示，而不是假装什么都没发生（见 finding 5）
+              // 给调用方持久化/展示，而不是假装什么都没发生
               let failedImageSaves = 0;
               for (const pending of pendingImageSaves) {
                 if (settled) break;
@@ -306,7 +306,7 @@ export class LLMClient {
             break;
           }
           case "error":
-            // 保留 usage/errorCode/durationMs 等字段，不能转成裸 Error 丢掉这些信息（见 finding 7）
+            // 保留 usage/errorCode/durationMs 等字段，不能转成裸 Error 丢掉这些信息
             rejectOnce(
               Object.assign(new Error(event.message), {
                 errorCode: event.errorCode,

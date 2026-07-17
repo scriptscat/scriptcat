@@ -403,7 +403,7 @@ describe("AgentChatRepo 附件存储", () => {
   });
 });
 
-describe("AgentChatRepo.saveMessages 取消安全（finding 4）", () => {
+describe("AgentChatRepo.saveMessages 取消安全", () => {
   let repo: AgentChatRepo;
 
   beforeEach(() => {
@@ -441,7 +441,7 @@ describe("AgentChatRepo.saveMessages 取消安全（finding 4）", () => {
   });
 });
 
-describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
+describe("AgentChatRepo 跨上下文读-改-写安全", () => {
   let repo: AgentChatRepo;
   let rootStore: Map<string, any>;
 
@@ -739,7 +739,7 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
     expect(await repo.getAttachment("delete-me.png")).toBeNull();
   });
 
-  it("【finding 3 回归】deleteConversation 的附件/消息 GC 真正失败时仍应报告删除成功", async () => {
+  it("deleteConversation 的附件/消息 GC 真正失败时仍应报告删除成功", async () => {
     const conversation = await repo.createConversation({
       id: "conv-gc-fail-delete",
       title: "Test",
@@ -759,7 +759,7 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
     expect(await repo.listConversations()).toEqual([]);
   });
 
-  it("【finding 3 回归】createConversation 复用 ID 时旧数据清理失败不应报告创建失败", async () => {
+  it("createConversation 复用 ID 时旧数据清理失败不应报告创建失败", async () => {
     const original = await repo.createConversation({
       id: "conv-reused",
       title: "Old",
@@ -788,7 +788,7 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
     expect(list[0].title).toBe("New");
   });
 
-  it("【finding 3 回归】saveMessages 提交新快照后附件 GC 失败不应报告 clear/compact 失败", async () => {
+  it("saveMessages 提交新快照后附件 GC 失败不应报告 clear/compact 失败", async () => {
     const conversation = await repo.createConversation({
       id: "conv-gc-fail-save",
       title: "Test",
@@ -819,7 +819,7 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
     expect(await repo.getMessages(conversation.id)).toEqual([]);
   });
 
-  it("【finding 4 回归】升级前的历史会话（legacy generation）删除时应按 content block 推断清理旧附件", async () => {
+  it("升级前的历史会话（legacy generation）删除时应按 content block 推断清理旧附件", async () => {
     // 直接写入没有 generation/revision 字段的会话记录，模拟所有权模型引入之前创建的历史数据
     await (repo as any).writeJsonFile("conversations.json", [
       { id: "conv-legacy-del", title: "Test", modelId: "m1", createtime: 1, updatetime: 1 },
@@ -846,11 +846,11 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
 
     await repo.deleteConversation(conv.id, { generation: conv.generation!, expectedRevision: conv.revision });
 
-    // 升级前的历史必须能按 content block 推断出所有权，否则这类附件永远不会被清理（见 finding 4）
+    // 升级前的历史必须能按 content block 推断出所有权，否则这类附件永远不会被清理
     expect(await repo.getAttachment("legacy-owned.png")).toBeNull();
   });
 
-  it("【finding 4 回归】非 legacy 会话中未声明所有权的 content block 引用应保持借用语义，不因清理被误删", async () => {
+  it("非 legacy 会话中未声明所有权的 content block 引用应保持借用语义，不因清理被误删", async () => {
     const conversation = await repo.createConversation({
       id: "conv-current-borrow",
       title: "Test",

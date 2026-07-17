@@ -165,7 +165,7 @@ export function useStreamingChat() {
     // 不在这里把 isStreaming 置 false、也不立即断开连接——ChatArea 里"连接断开但 done
     // 回调未触发时处理排队消息"的兜底逻辑正是监听 isStreaming 由 true 变 false 来触发的；
     // 提前置为 false 会让排队消息在旧会话仍处于 cancelling（占用中）时就被处理，进而被拒绝
-    // 且从未持久化就丢失（见 finding 6）。isStreaming 必须留到真正的终态事件到达时
+    // 且从未持久化就丢失。isStreaming 必须留到真正的终态事件到达时
     // （onMessage 的终态分支）或连接意外断开时（onDisconnect）才由那两处统一置 false。
     if (conn) {
       try {
@@ -222,7 +222,7 @@ export function useStreamingChat() {
             (event.type === "done" || event.type === "error") && !("subAgent" in event && event.subAgent);
           // stop 之后（abortedRef=true）必须继续放行终态事件——那条事件携带真正的取消原因/
           // usage/耗时，且负责断开连接、触发 onDone（进而处理排队消息）；只需要抑制中间的
-          // 流式增量/ask_user 事件，避免用户点了停止之后 UI 还在继续刷新内容（见 finding 6）
+          // 流式增量/ask_user 事件，避免用户点了停止之后 UI 还在继续刷新内容
           if (abortedRef.current && !isTerminal) return;
           // 处理 ask_user 事件
           if (event.type === "ask_user") {
@@ -284,7 +284,6 @@ export function useStreamingChat() {
             (event.type === "done" || event.type === "error") && !("subAgent" in event && event.subAgent);
           // 与 sendMessage() 同理：stop 之后必须继续放行终态事件（含终态 sync），
           // 否则会错过真正携带取消原因/usage 的那条事件，也无法触发 onDone 处理排队消息
-          // （见 finding 6）
           if (abortedRef.current && event.type !== "sync" && !isTerminalEvent) return;
 
           if (event.type === "ask_user") {

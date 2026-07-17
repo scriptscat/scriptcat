@@ -125,7 +125,7 @@ export class CompactService {
     // 持久化：先写盘、成功后才允许覆写内存中的 currentMessages。
     // OPFS 的 createWritable() 是事务性的，signal 在 close() 落定前 abort 时会放弃这次
     // 整份覆写而不提交（见 opfs_repo.ts writeJsonFile）；只有 saveMessages 真正成功后，
-    // 再让内存态 currentMessages 反映同一份摘要，避免"写盘失败但内存已被摘要顶替"的不一致（见 finding 4）
+    // 再让内存态 currentMessages 反映同一份摘要，避免"写盘失败但内存已被摘要顶替"的不一致
     const summaryMessage = {
       id: uuidv4(),
       conversationId,

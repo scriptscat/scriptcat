@@ -499,7 +499,7 @@ describe("ConversationInstance tool_call_complete / new_message 重建历史", (
     expect(finalAssistantMsgs).toHaveLength(1);
   });
 
-  it("chatStream() 提前 break：未完成的 toolCall 不应作为无结果的悬空协议状态记入历史（finding 9）", async () => {
+  it("chatStream() 提前 break：未完成的 toolCall 不应作为无结果的悬空协议状态记入历史", async () => {
     const gmSendMessage = vi.fn().mockResolvedValue(undefined);
     // 只发 tool_call_start，永远不发 tool_call_complete，模拟消费方在工具调用完成前就 break
     const gmConnect = vi.fn().mockResolvedValue(
@@ -538,7 +538,7 @@ describe("ConversationInstance tool_call_complete / new_message 重建历史", (
   });
 });
 
-describe("executeTools：连接 settle 后不应继续执行剩余 handler（finding 9）", () => {
+describe("executeTools：连接 settle 后不应继续执行剩余 handler", () => {
   it("连接在第一个 handler 执行期间断开时，第二个 handler 不应被调用", async () => {
     let disconnectCb: ((isSelfDisconnected: boolean) => void) | undefined;
 
@@ -592,12 +592,12 @@ describe("executeTools：连接 settle 后不应继续执行剩余 handler（fin
 
     expect(handlerA).toHaveBeenCalledOnce();
     // handlerB 不应被调用：executeTools 在 handlerA 执行期间连接已 settle，
-    // 后续 toolCall 直接补成取消结果，不再串行往下执行（见 finding 9）
+    // 后续 toolCall 直接补成取消结果，不再串行往下执行
     expect(handlerB).not.toHaveBeenCalled();
   });
 });
 
-describe("executeTools：批次级取消（finding 6）", () => {
+describe("executeTools：批次级取消", () => {
   it("收到 cancelToolBatch 后，该批次剩余的 handler 不应再执行", async () => {
     let messageCb: ((msg: any) => void) | undefined;
 

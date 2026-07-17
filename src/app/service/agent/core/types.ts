@@ -704,7 +704,7 @@ export type ConversationApiRequest =
       action: "chat";
       conversationId: string;
       // 调用方持有的会话 generation；若与当前存储的 generation 不一致（会话已被删除重建），
-      // 服务端拒绝该次操作而不是静默作用于新的一代会话（见 finding 1）
+      // 服务端拒绝该次操作而不是静默作用于新的一代会话
       generation?: string;
       message: MessageContent;
       tools?: ToolDefinition[];

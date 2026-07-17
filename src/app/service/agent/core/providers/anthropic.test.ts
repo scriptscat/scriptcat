@@ -519,7 +519,7 @@ describe("parseAnthropicStream", () => {
     expect(events).toHaveLength(0);
   });
 
-  it("abort 前已经收到过 message_start usage 时，reject 的错误应携带这部分已知 usage（finding 6）", async () => {
+  it("abort 前已经收到过 message_start usage 时，reject 的错误应携带这部分已知 usage", async () => {
     const controller = new AbortController();
     const encoder = new TextEncoder();
     let index = 0;

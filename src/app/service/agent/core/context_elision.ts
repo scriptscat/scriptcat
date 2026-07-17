@@ -17,7 +17,7 @@ export type AttachmentSizeInfo = { bytes: number; width?: number; height?: numbe
 
 /** 读取 provider 会把附件展开成 data URL 后的实际字节规模；
  * 图片附件在环境支持时（Service Worker 有 createImageBitmap）额外解码出像素尺寸，
- * 供按 provider 尺寸计费规则估算视觉 token（见 finding 8）。 */
+ * 供按 provider 尺寸计费规则估算视觉 token。 */
 export async function loadAttachmentSizes(
   messages: ChatRequest["messages"],
   getAttachment: (id: string) => Promise<Blob | null | undefined>
@@ -101,7 +101,7 @@ const IMAGE_CONSERVATIVE_BYTES_PER_TOKEN = 40;
 // 能解出像素尺寸时按 provider 的尺寸计费规则估算：Anthropic 为 宽×高/750（长边超过 1568
 // 先等比缩小）；OpenAI 按 512px tile 计费，同尺寸下低于该公式。取更保守的 Anthropic 公式，
 // 并以 85（OpenAI 低清底价）为下限。相比压缩字节换算，尺寸公式不受压缩率影响：
-// 高度可压缩的大图不会被低估，噪点大的小图不会被高估（见 finding 8）。
+// 高度可压缩的大图不会被低估，噪点大的小图不会被高估。
 const IMAGE_MAX_DIMENSION = 1568;
 const IMAGE_PIXELS_PER_TOKEN = 750;
 const IMAGE_MIN_TOKENS = 85;

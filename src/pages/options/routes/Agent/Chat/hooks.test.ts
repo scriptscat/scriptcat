@@ -57,7 +57,7 @@ vi.mock("@Packages/message/client", () => ({
 
 import { useConversations, deleteMessages, clearMessages, useStreamingChat } from "./hooks";
 
-describe("useStreamingChat：stop 后仍需放行终态事件（finding 6）", () => {
+describe("useStreamingChat：stop 后仍需放行终态事件", () => {
   it("应把本次 UI 新上传附件的所有权发送给 Service Worker", async () => {
     const { conn } = createMockConn();
     mockConnect.mockResolvedValue(conn);

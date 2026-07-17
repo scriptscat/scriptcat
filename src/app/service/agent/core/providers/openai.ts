@@ -90,7 +90,7 @@ export function buildOpenAIRequest(
     stream_options: { include_usage: true },
   };
 
-  // config.maxTokens > 0 而非直接 truthy 判断：负数在 JS 里是 truthy，会绕过校验原样发给 provider（见 finding 10）
+  // config.maxTokens > 0 而非直接 truthy 判断：负数在 JS 里是 truthy，会绕过校验原样发给 provider
   if (typeof config.maxTokens === "number" && Number.isFinite(config.maxTokens) && config.maxTokens > 0) {
     body.max_tokens = Math.floor(config.maxTokens);
   }
@@ -143,7 +143,7 @@ export function parseOpenAIStream(
   // 标记是否观察到过 provider 的完成标记（finish_reason 非空）。
   // reader EOF 但没有 [DONE] 时，只有见过 finish_reason 才能确认是"提前不发 [DONE] 的
   // 非标准 provider"；否则无法区分"网络中断"与"正常结束"，不应把截断的部分内容当作
-  // 完整答案持久化（见 finding 7）。
+  // 完整答案持久化。
   let sawFinishReason = false;
 
   // 跨 chunk 追踪 <think>...</think> 块状态（用于把思考混在 content 里的模型）
@@ -308,7 +308,7 @@ export function parseOpenAIStream(
     .then(() => {
       // 流正常结束但没收到 [DONE]。只有见过 finish_reason（某些 API 提前不发 [DONE] 但仍会
       // 标出完成原因）才能确认这是真正的完整回答；否则无法与网络中断区分，按未预期断连报错，
-      // 不能把可能截断的部分内容当作成功答案持久化（见 finding 7）
+      // 不能把可能截断的部分内容当作成功答案持久化
       if (!signal.aborted && !doneSent) {
         flushThinkCarry();
         if (sawFinishReason) {
@@ -321,7 +321,7 @@ export function parseOpenAIStream(
     .catch((error) => {
       // readSSEStream 只在 abort 时才 reject（见 content_utils.ts）；把已知的部分 usage
       // （如某些 provider 每个 chunk 都带 usage）带在 abort 错误上，避免取消时把这部分
-      // 已经产生的花费从终态 usage 里丢掉（见 finding 6）
+      // 已经产生的花费从终态 usage 里丢掉
       throw Object.assign(error instanceof Error ? error : new Error(String(error)), { usage: lastUsage });
     });
 }
