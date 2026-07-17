@@ -49,7 +49,7 @@
   "blacklist_pages": "차단 목록 페이지",
   "blacklist_placeholder": "다음과 같은 페이지에서 ScriptCat이 스크립트를 실행하지 않도록 합니다\nhttps://*.example.com",
   "expression_format_error": "조건식 형식 오류",
-  "migration_confirm_message": "저장소 엔진 마이그레이션을 다시 시도하면 기존 데이터가 변경됩니다. 진행하기 전에 확인해 주세요. 자세한 내용: https://docs.scriptcat.org/docs/change/v0.17/",
+  "migration_confirm_message": "저장소 엔진 마이그레이션을 다시 시도하면 기존 데이터가 변경됩니다. 진행 전에 확인해 주세요. 자세한 내용: https://docs.scriptcat.org/docs/change/v0.17/",
   "retry_migration": "저장소 엔진 마이그레이션 다시 시도",
   "sync_status": "동기화 상태",
   "interface_settings": "인터페이스",
@@ -80,7 +80,7 @@
   "check_script_code_quality": "스크립트 코드 품질과 오류를 검사",
   "script_run_env": {
     "title": "실행 환경",
-    "all": "모든 탭",
+    "all": "전체",
     "normal-tabs": "일반 탭",
     "incognito-tabs": "시크릿 탭"
   },
@@ -90,10 +90,10 @@
   },
   "notification": {
     "script_sync_delete": "스크립트 동기화 삭제",
-    "script_sync_delete_desc": "{{scriptName}} 스크립트가 삭제되었습니다",
+    "script_sync_delete_desc": "스크립트 {{scriptName}}이(가) 삭제되었습니다",
     "script_sync_conflict": "클라우드 동기화 충돌",
     "script_sync_conflict_desc": "{{scriptNames}} 스크립트의 로컬 버전과 클라우드 버전이 모두 수정되었습니다. 이 스크립트의 동기화를 일시 중지했습니다. 충돌을 직접 해결해 주세요.",
-    "subscribe_update": "\"{{subscribeName}}\" 구독이 업데이트되었습니다",
+    "subscribe_update": "구독 {{subscribeName}}이(가) 업데이트되었습니다",
     "subscribe_update_desc": "새 스크립트: {{newScripts}}\n삭제된 스크립트: {{deletedScripts}}"
   },
   "enable_background": {
@@ -114,7 +114,7 @@
   "favicon_service_duckduckgo": "DuckDuckGo",
   "favicon_service_icon-horse": "Icon Horse",
   "favicon_service_local": "로컬에서 가져오기",
-  "cloud_sync_account_verification": "클라우드 동기화 계정 확인 중…",
+  "cloud_sync_account_verification": "클라우드 동기화 계정 확인 중...",
   "cloud_sync_verification_failed": "클라우드 동기화 계정 확인에 실패했습니다",
   "trash_retention": "휴지통 보관 기간",
   "trash_retention_desc": "삭제한 스크립트를 휴지통에 보관한 뒤 자동으로 영구 삭제하기까지의 기간",
