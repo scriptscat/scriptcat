@@ -146,7 +146,7 @@ describe("PopupService 删除脚本后 Popup 菜单残留清理", () => {
     expect(scriptDAO.gets).toHaveBeenCalledWith([deletedUuid]);
   });
 
-  it("deleteScripts 事件应从所有标签页缓存（包含后台 -1）清除已删脚本，并清理待处理菜单命令", async () => {
+  it("trashScripts 事件应从所有标签页缓存（包含后台 -1）清除已删脚本，并清理待处理菜单命令", async () => {
     const deletedUuid = "deleted-script";
     const liveUuid = "live-script";
     await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(deletedUuid), createMenu(liveUuid)]);
@@ -163,7 +163,9 @@ describe("PopupService 删除脚本后 Popup 菜单残留清理", () => {
     ] as never);
     service.dealBackgroundScriptInstall();
 
-    const [deleteHandler] = subscriptions.get("deleteScripts") || [];
+    // 删除脚本现在语义为“移入回收站”，该清理逻辑随 popup.ts 的订阅一并迁移到了 trashScripts 事件
+    // （事件名变更，handler 本身未变）。
+    const [deleteHandler] = subscriptions.get("trashScripts") || [];
     expect(deleteHandler).toBeDefined();
     await deleteHandler!([
       { uuid: deletedUuid, storageName: "deleted-script", type: SCRIPT_TYPE_NORMAL },

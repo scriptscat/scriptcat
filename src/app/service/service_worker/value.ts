@@ -2,6 +2,7 @@ import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
 import { type Script, ScriptDAO, type ValueStore } from "@App/app/repo/scripts";
 import { type Value, ValueDAO } from "@App/app/repo/value";
+import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import type { IGetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
 import { type PopupService } from "./popup";
@@ -27,6 +28,7 @@ export class ValueService {
   logger: Logger;
   scriptDAO: ScriptDAO = new ScriptDAO();
   valueDAO: ValueDAO = new ValueDAO();
+  trashScriptDAO: TrashScriptDAO = new TrashScriptDAO();
   private popup: PopupService | undefined;
   private runtime: RuntimeService | undefined;
 
@@ -180,11 +182,11 @@ export class ValueService {
 
     this.mq.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
       for (const { storageName } of data) {
-        // 判断还有没有其他同名storageName
-        const list = await this.scriptDAO.find((_, script) => {
-          return getStorageName(script) === storageName;
-        });
-        if (list.length === 0) {
+        // 判断还有没有其他同名storageName —— 必须同时查回收站,
+        // 否则共用 @storagename 的脚本还在回收站等还原时,其 value 会被误删
+        const matcher = (_: string, script: Script) => getStorageName(script) === storageName;
+        const [alive, trashed] = await Promise.all([this.scriptDAO.find(matcher), this.trashScriptDAO.find(matcher)]);
+        if (alive.length === 0 && trashed.length === 0) {
           this.valueDAO.delete(storageName).then(() => {
             this.logger.trace("delete value", { storageName });
           });

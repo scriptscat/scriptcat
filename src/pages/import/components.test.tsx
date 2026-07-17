@@ -45,6 +45,14 @@ function mkView(p: Partial<ImportView> = {}): ImportView {
     selectedScripts: new Set(),
     selectedSubscribes: new Set(),
     importStatus: {},
+    resourceErrors: {},
+    overwriteLocal: false,
+    hasConfig: false,
+    configSections: [],
+    selectedSections: new Set(),
+    onToggleSection: () => {},
+    onToggleAllSections: () => {},
+    onToggleOverwrite: () => {},
     doneCount: 0,
     totalCount: 0,
     summary: { scripts: 0, subscribes: 0, values: 0 },
@@ -129,6 +137,27 @@ describe("导入桌面视图 交互", () => {
   it("无勾选项时导入按钮禁用", () => {
     renderDesktop({ scripts: [mkScriptItem()], selectedScripts: new Set() });
     expect((screen.getByTestId("import-btn") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("有选中设置板块时导入按钮可用", () => {
+    renderDesktop({
+      hasConfig: true,
+      configSections: [{ id: "appearance", group: "app", count: 3 }],
+      selectedSections: new Set(["appearance"]),
+    });
+    expect((screen.getByTestId("import-btn") as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("有设置板块时渲染还原设置触发器,点击触发 onToggleAllSections", () => {
+    const onToggleAllSections = vi.fn();
+    renderDesktop({
+      hasConfig: true,
+      configSections: [{ id: "appearance", group: "app", count: 3 }],
+      selectedSections: new Set(),
+      onToggleAllSections,
+    });
+    fireEvent.click(screen.getByTestId("restore-settings-trigger"));
+    expect(onToggleAllSections).toHaveBeenCalledTimes(1);
   });
 
   it("点击全选触发 onToggleAllScripts", () => {

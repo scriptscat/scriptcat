@@ -71,7 +71,7 @@ export class SubscribeService {
           .then((scripts) =>
             Promise.all(
               scripts.map((script) => {
-                return this.scriptService.deleteScript(script.uuid);
+                return this.scriptService.deleteScript(script.uuid, "subscribe");
               })
             )
           ),
@@ -169,7 +169,7 @@ export class SubscribeService {
             const name = i18nName(script);
             // 如果不是以此 Subscribe 安装的话则略过删除（例如其他 Subscribe、直接安装、本地安装等）
             if (script.subscribeUrl === subscribe.url) {
-              await this.scriptService.deleteScript(script.uuid);
+              await this.scriptService.deleteScript(script.uuid, "subscribe");
               removedScriptNames.push(name);
             } else {
               logger.warn("Subscribe Update: skip deletion", {

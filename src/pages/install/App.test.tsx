@@ -27,6 +27,7 @@ const baseHook = () => ({
 
 const readyView = (over: Partial<InstallView> = {}): InstallView => ({
   isUpdate: false,
+  inTrash: false,
   isSubscribe: false,
   name: "全网每日签到助手",
   author: "scriptcat",
