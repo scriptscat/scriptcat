@@ -91,6 +91,8 @@
   "notification": {
     "script_sync_delete": "脚本删除同步",
     "script_sync_delete_desc": "脚本 {{scriptName}} 已被删除",
+    "script_sync_conflict": "云同步冲突",
+    "script_sync_conflict_desc": "脚本 {{scriptNames}} 的本地与云端版本均已修改，已暂停同步该脚本，请手动处理冲突",
     "subscribe_update": "订阅 {{subscribeName}} 已更新",
     "subscribe_update_desc": "新增脚本：{{newScripts}}\n删除脚本：{{deletedScripts}}"
   },
@@ -123,5 +125,16 @@
   "trash_enabled": "启用回收站",
   "trash_enabled_desc": "删除脚本时先移入回收站，可随时还原；关闭后删除将直接彻底删除",
   "trash_retention_custom": "自定义",
-  "trash_retention_days_unit": "天"
+  "trash_retention_days_unit": "天",
+  "sync_view_logs": "查看日志",
+  "sync_now": "立即同步",
+  "sync_state_idle": "同步正常",
+  "sync_last_at": "上次同步 {{time}}",
+  "sync_never": "尚未同步",
+  "sync_state_syncing": "正在同步…",
+  "sync_state_attention": "上次同步有需要确认的改动",
+  "sync_state_attention_desc": "同步时有 {{conflict}} 个脚本冲突已暂停，请打开日志确认",
+  "sync_state_overwrite_info": "上次同步有 {{overwrite}} 个脚本被覆盖，可查看日志",
+  "sync_state_error": "同步失败，已暂停",
+  "sync_state_failed_desc": "{{failed}} 个脚本同步失败，请打开日志查看详情"
 }

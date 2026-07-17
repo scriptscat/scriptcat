@@ -103,3 +103,7 @@ Execution paths: page scripts → `chrome.userScripts`; background → SW → Of
 > Two conventions are enforced via built-in rules in `eslint.config.mjs`: `no-restricted-imports` bans `@radix-ui/react-*` single packages (use the merged `radix-ui`) and the `sonner` `toast` export (use `notify`); `no-restricted-syntax` bans `forwardRef` across `src/pages/**` (use React 19 `function` + ref-prop). All four syntax-based harness rules are covered by `eslint-rules/harness.test.mjs`.
 >
 > Separately, type-aware rules run on `src/pages/**` (tests excluded) via `projectService` — `@typescript-eslint/no-floating-promises`, `no-misused-promises` (with `checksVoidReturn.attributes: false`, so `async` JSX handlers are allowed), and `await-thenable`, all `error` — to catch missing `await`s and promises misused as void callbacks. These need type information, so they are *not* part of `harness.test.mjs`.
+
+## Pull Request Description Format
+
+Detailed PR description guidance lives in [`docs/pull-request.md`](docs/pull-request.md). Start from the human-facing template, preserve its checklist, and expand the description only when the change needs more context. Do not claim human review or other evidence that did not happen.

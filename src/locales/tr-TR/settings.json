@@ -91,6 +91,8 @@
   "notification": {
     "script_sync_delete": "Betik Eşitleme Silme İşlemi",
     "script_sync_delete_desc": "{{scriptName}} betiği silindi",
+    "script_sync_conflict": "Bulut Eşitleme Çakışması",
+    "script_sync_conflict_desc": "{{scriptNames}} betiği hem yerelde hem bulutta değiştirildi. Bu betiğin eşitlemesi duraklatıldı, lütfen çakışmayı elle çözün",
     "subscribe_update": "{{subscribeName}} aboneliği güncellendi",
     "subscribe_update_desc": "Yeni betikler: {{newScripts}}\nSilinen betikler: {{deletedScripts}}"
   },
@@ -123,5 +125,16 @@
   "trash_enabled": "Çöp Kutusunu Etkinleştir",
   "trash_enabled_desc": "Silinen betikler önce çöp kutusuna taşınır ve istediğiniz zaman geri yüklenebilir. Devre dışı bırakıldığında betikler doğrudan kalıcı olarak silinir.",
   "trash_retention_custom": "Özel",
-  "trash_retention_days_unit": "gün"
+  "trash_retention_days_unit": "gün",
+  "sync_view_logs": "Günlükleri görüntüle",
+  "sync_now": "Şimdi eşitle",
+  "sync_state_idle": "Eşitleme normal",
+  "sync_last_at": "Son eşitleme {{time}}",
+  "sync_never": "Henüz eşitlenmedi",
+  "sync_state_syncing": "Eşitleniyor…",
+  "sync_state_attention": "Son eşitleme incelemenizi gerektiriyor",
+  "sync_state_attention_desc": "Eşitleme sırasında {{conflict}} betik çakışma nedeniyle duraklatıldı. Günlükleri inceleyin.",
+  "sync_state_overwrite_info": "Son eşitlemede {{overwrite}} betiğin üzerine yazıldı. Ayrıntılar için günlükleri açın.",
+  "sync_state_error": "Eşitleme başarısız, duraklatıldı",
+  "sync_state_failed_desc": "{{failed}} betik eşitlenemedi. Ayrıntılar için günlükleri açın."
 }

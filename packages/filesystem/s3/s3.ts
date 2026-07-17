@@ -6,6 +6,7 @@ import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../fil
 import { joinPath } from "../utils";
 import { S3FileReader, S3FileWriter } from "./rw";
 import { WarpTokenError } from "../error";
+import { createS3FileSystemError } from "./error";
 
 // ---- ListObjectsV2 XML 解析 ----
 
@@ -167,7 +168,7 @@ export default class S3FileSystem implements FileSystem {
    * @returns 文件写入器
    */
   async create(path: string, opts?: FileCreateOptions): Promise<FileWriter> {
-    return new S3FileWriter(this.client, this.bucket, joinPath(this.basePath, path).substring(1), opts?.modifiedDate);
+    return new S3FileWriter(this.client, this.bucket, joinPath(this.basePath, path).substring(1), opts);
   }
 
   /**
@@ -184,13 +185,14 @@ export default class S3FileSystem implements FileSystem {
    */
   async delete(path: string): Promise<void> {
     try {
-      await this.client.request("DELETE", this.bucket, joinPath(this.basePath, path).substring(1));
+      const key = joinPath(this.basePath, path).substring(1);
+      await this.client.request("DELETE", this.bucket, key);
     } catch (error: any) {
       // S3 delete 是幂等的，key 不存在时也视为成功
       if (error instanceof S3Error && error.code === "NoSuchKey") {
         return;
       }
-      throw error;
+      throw createS3FileSystemError(error);
     }
   }
 
@@ -254,7 +256,7 @@ export default class S3FileSystem implements FileSystem {
       if (error instanceof S3Error && error.code === "AccessDenied") {
         throw new Error(`Permission denied. Check your IAM permissions for bucket: ${this.bucket}`);
       }
-      throw error;
+      throw createS3FileSystemError(error);
     }
   }
 
