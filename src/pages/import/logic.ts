@@ -3,6 +3,7 @@ import type { SCMetadata } from "@App/app/repo/metadata";
 import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import type { ScriptBackupData, ScriptData, SubscribeData, ValueStorage } from "@App/pkg/backup/struct";
 import { i18nName } from "@App/locales/locales";
+import { overrideToSelfMetadata } from "@App/pkg/backup/self_metadata";
 
 /** 单项导入的操作语义:新增 / 更新已存在项 / 解析失败 */
 export type ImportOp = "add" | "update" | "error";
@@ -71,6 +72,29 @@ export function deriveSource(fileUrl?: string): ImportSource {
     // 落到下方兜底
   }
   return { kind: "url", host: fileUrl, full: fileUrl };
+}
+
+/**
+ * 从备份项解出脚本自定义元数据 selfMetadata:
+ * - SC 备份:直接用 options.selfMeta(无损)
+ * - TM 备份:从 options.options.override.use_* + run_at/noframes 推导
+ * - VM 备份:import.ts 解析时已预置为 options.selfMeta
+ * 无自定义时返回 undefined。
+ */
+export function deriveSelfMetadata(item: ScriptData, scriptMetadata: SCMetadata): SCMetadata | undefined {
+  const selfMeta = item.options?.selfMeta;
+  if (selfMeta && Object.keys(selfMeta).length > 0) {
+    return selfMeta;
+  }
+  const ov = item.options?.options;
+  if (ov?.override) {
+    const self = overrideToSelfMetadata(
+      { ...ov.override, run_at: ov.run_at ?? null, noframes: ov.noframes ?? null },
+      scriptMetadata
+    );
+    if (Object.keys(self).length > 0) return self;
+  }
+  return undefined;
 }
 
 /** 统计将恢复的本地数据条数 */

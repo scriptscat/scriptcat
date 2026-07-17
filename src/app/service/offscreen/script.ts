@@ -75,7 +75,7 @@ export class ScriptService {
         disableScript(this.windowMessage, data.script.uuid);
       }
     });
-    this.messageQueue.subscribe<TDeleteScript[]>("deleteScripts", async (data) => {
+    this.messageQueue.subscribe<TDeleteScript[]>("trashScripts", async (data) => {
       for (const { uuid, type } of data) {
         // 只发送后台脚本和定时脚本
         if (type === SCRIPT_TYPE_BACKGROUND || type === SCRIPT_TYPE_CRONTAB) {

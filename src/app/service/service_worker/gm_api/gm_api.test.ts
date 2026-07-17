@@ -133,6 +133,27 @@ describe.concurrent("GM API 注册完整性", () => {
   });
 });
 
+describe("window.focus", () => {
+  it("应同时激活标签页并将其所在窗口置于前台", async () => {
+    const tabsUpdate = vi.fn().mockResolvedValue(undefined);
+    const windowsUpdate = vi.fn().mockResolvedValue(undefined);
+    const originalChrome = globalThis.chrome;
+    vi.stubGlobal("chrome", {
+      ...originalChrome,
+      tabs: { ...originalChrome.tabs, update: tabsUpdate },
+      windows: { ...originalChrome.windows, update: windowsUpdate },
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42, windowId: 7 } as chrome.tabs.Tab });
+
+    await GMApi.prototype["window.focus"]({} as GMApiRequest<void>, sender);
+
+    expect(tabsUpdate).toHaveBeenCalledWith(42, { active: true });
+    expect(windowsUpdate).toHaveBeenCalledWith(7, { focused: true });
+    vi.stubGlobal("chrome", originalChrome);
+  });
+});
+
 describe.concurrent("getExtensionSiteAccessOriginPattern", () => {
   it.concurrent("应生成不带端口的扩展站点访问权限 pattern", () => {
     expect(getExtensionSiteAccessOriginPattern(new URL("http://127.0.0.1:3000/get"))).toBe("http://127.0.0.1/*");
