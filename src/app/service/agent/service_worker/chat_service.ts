@@ -1211,17 +1211,31 @@ export class ChatService {
     if (!params.skipSaveUserMessage) {
       // 添加新用户消息到 LLM 上下文并持久化
       messages.push({ role: "user", content: params.message });
-      await this.chatRepo.appendMessage(
-        {
-          id: uuidv4(),
-          conversationId: params.conversationId,
-          role: "user",
-          content: params.message,
-          ownedAttachmentIds: params.ownedAttachmentIds,
-          createtime: Date.now(),
-        },
-        conv.generation
-      );
+      const userMessageId = uuidv4();
+      try {
+        await this.chatRepo.appendMessage(
+          {
+            id: userMessageId,
+            conversationId: params.conversationId,
+            role: "user",
+            content: params.message,
+            ownedAttachmentIds: params.ownedAttachmentIds,
+            createtime: Date.now(),
+          },
+          conv.generation
+        );
+      } catch (error) {
+        // OPFS close 报告的错误具有二义性：写入可能已经落盘，只是确认读又恰好失败。
+        // 附件所有权只有在这次 append 被判定成功后才会转移给消息（见 onUserMessagePersisted）；
+        // 若在这里把二义性错误当作"未持久化"直接向上抛，外层会删除刚刚可能已经被这条
+        // 持久化消息引用的临时附件，导致消息引用悬空文件（见 finding 2）。因此必须先positively
+        // 确认这条消息是否已经真正写入，只有确认"确实未写入"才允许向上传播失败。
+        const committed = await this.chatRepo
+          .getMessageSnapshot(params.conversationId, conv.generation)
+          .then((snapshot) => snapshot.messages.some((message) => message.id === userMessageId))
+          .catch(() => false);
+        if (!committed) throw error;
+      }
       ctx.onUserMessagePersisted?.();
     }
 

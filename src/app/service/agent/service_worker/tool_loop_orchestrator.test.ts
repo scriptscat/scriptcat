@@ -333,6 +333,39 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     expect(sendEvent.mock.calls.some((call) => call[0].type === "tool_call_complete")).toBe(true);
   });
 
+  it("【finding 2 回归】提交报错且确认读本身也失败（不确定态）时不应删除附件，而不是当作未落盘", async () => {
+    toolRegistry = {
+      getDefinitions: () => [
+        { name: "image_tool", description: "image", parameters: { type: "object", properties: {} } },
+      ],
+      execute: vi.fn().mockResolvedValue([
+        {
+          id: "call-image",
+          result: "image",
+          attachments: [{ id: "owned.png", type: "image", name: "owned.png", mimeType: "image/png" }],
+          ownedAttachmentIds: ["owned.png"],
+        },
+      ]),
+    };
+    callLLM
+      .mockResolvedValueOnce({
+        content: "",
+        contentBlocks: [{ type: "image", attachmentId: "generated.png", mimeType: "image/png" }],
+        toolCalls: [{ id: "call-image", name: "image_tool", arguments: "{}" }],
+        usage: { inputTokens: 12, outputTokens: 4 },
+      })
+      .mockResolvedValueOnce(finalTextResult("done"));
+    chatRepo.commitToolRound.mockRejectedValueOnce(new Error("disk full"));
+    // 确认读也失败：无法证实写入是否落盘，属于不确定态，不能等同于"确实未落盘"
+    chatRepo.getMessageSnapshot.mockRejectedValueOnce(new Error("read failed"));
+
+    const error = await orchestrator.callLLMWithToolLoop(baseParams({ toolRegistry })).catch((reason) => reason);
+
+    expect(error).toBeUndefined();
+    expect(chatRepo.deleteAttachment).not.toHaveBeenCalledWith("owned.png");
+    expect(chatRepo.deleteAttachment).not.toHaveBeenCalledWith("generated.png");
+  });
+
   it("工具内部摘要 LLM 的 usage 应恰好一次计入父对话终态", async () => {
     toolRegistry = {
       getDefinitions: () => [

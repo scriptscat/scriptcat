@@ -189,32 +189,37 @@ export class ToolLoopOrchestrator {
     );
   }
 
-  private async isToolRoundDurable(
+  /** 工具轮次落盘状态：确认读本身失败时必须与"确实未提交"区分开——前者是不确定态，不能
+   * 被当作可以安全删除附件的证据（见 finding 2）。 */
+  private async checkToolRoundDurability(
     conversationId: string,
     conversationGeneration: string | undefined,
     assistantMessage: ChatMessage,
     toolMessages: ChatMessage[]
-  ): Promise<boolean> {
+  ): Promise<"durable" | "not_durable" | "indeterminate"> {
+    let snapshot: Awaited<ReturnType<AgentChatRepo["getMessageSnapshot"]>>;
     try {
-      const snapshot = await this.chatRepo.getMessageSnapshot(conversationId, conversationGeneration);
-      const assistant = snapshot.messages.find(
-        (message) => message.id === assistantMessage.id && message.role === "assistant"
-      );
-      if (!assistant) return false;
-      const expectedToolCallIds = new Set((assistantMessage.toolCalls || []).map((toolCall) => toolCall.id));
-      if (toolMessages.length !== expectedToolCallIds.size) return false;
-      return toolMessages.every(
-        (expected) =>
-          expected.toolCallId !== undefined &&
-          expectedToolCallIds.has(expected.toolCallId) &&
-          snapshot.messages.some(
-            (message) =>
-              message.id === expected.id && message.role === "tool" && message.toolCallId === expected.toolCallId
-          )
-      );
+      snapshot = await this.chatRepo.getMessageSnapshot(conversationId, conversationGeneration);
     } catch {
-      return false;
+      // 确认读失败不代表写入未落盘，只是无法证实——不确定态
+      return "indeterminate";
     }
+    const assistant = snapshot.messages.find(
+      (message) => message.id === assistantMessage.id && message.role === "assistant"
+    );
+    if (!assistant) return "not_durable";
+    const expectedToolCallIds = new Set((assistantMessage.toolCalls || []).map((toolCall) => toolCall.id));
+    if (toolMessages.length !== expectedToolCallIds.size) return "not_durable";
+    const durable = toolMessages.every(
+      (expected) =>
+        expected.toolCallId !== undefined &&
+        expectedToolCallIds.has(expected.toolCallId) &&
+        snapshot.messages.some(
+          (message) =>
+            message.id === expected.id && message.role === "tool" && message.toolCallId === expected.toolCallId
+        )
+    );
+    return durable ? "durable" : "not_durable";
   }
 
   /** 取消（stop）落定时的统一终态化：持久化一条终态记录 + 发送唯一的终态事件，携带累计 usage/耗时。
@@ -682,17 +687,13 @@ export class ToolLoopOrchestrator {
               conversationGeneration
             );
           } catch (error) {
-            if (
-              await this.isToolRoundDurable(
-                conversationId,
-                conversationGeneration,
-                persistedAssistantMessage,
-                persistedToolMessages
-              )
-            ) {
-              // The OPFS close reported an ambiguous failure after the exact round became durable.
-              // Publish the committed results and retain their attachments.
-            } else {
+            const durability = await this.checkToolRoundDurability(
+              conversationId,
+              conversationGeneration,
+              persistedAssistantMessage,
+              persistedToolMessages
+            );
+            if (durability === "not_durable") {
               const ownedAttachmentIds = toolResults.flatMap((toolResult) => toolResult.ownedAttachmentIds || []);
               await Promise.all(ownedAttachmentIds.map((id) => this.chatRepo.deleteAttachment(id).catch(() => {})));
               await this.releaseGeneratedAttachments(result);
@@ -702,6 +703,8 @@ export class ToolLoopOrchestrator {
                 conversationId,
               });
             }
+            // durable：OPFS close 报告了二义性错误，但该轮次确已落盘，发布结果并保留附件。
+            // indeterminate：确认读本身失败，无法证实写入未落盘——同样不能删除可能仍被引用的附件（见 finding 2）。
           }
         }
 
@@ -845,6 +848,16 @@ export class ToolLoopOrchestrator {
               await new Promise((resolve) => setTimeout(resolve, 200 * attempt));
             }
           }
+        }
+        // 重试全部失败仍不能断定未落盘：appendMessage 按 id 去重，第一次尝试可能已经真正写入，
+        // 只是确认读恰好也持续失败。删除生成的图片附件之前必须 positively 证实消息确实不在
+        // 存储里，否则会删掉仍被这条消息引用的文件（见 finding 2）
+        if (persistFailed) {
+          const committed = await this.chatRepo
+            .getMessageSnapshot(conversationId, conversationGeneration)
+            .then((snapshot) => snapshot.messages.some((message) => message.id === assistantMessage.id))
+            .catch(() => false);
+          if (committed) persistFailed = false;
         }
       }
 

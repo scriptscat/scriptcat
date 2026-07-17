@@ -458,6 +458,47 @@ describe("handleConversationChat 场景补充", () => {
     expect(mockRepo.saveMessages).not.toHaveBeenCalled();
   });
 
+  it("【finding 2 回归】用户消息 append 报错但确认读证实已落盘时，不应删除刚上传的附件", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    const conv = {
+      id: "conv-1",
+      title: "Test",
+      modelId: "test-openai",
+      generation: "gen-1",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    };
+    mockRepo.listConversations.mockResolvedValue([conv]);
+    mockRepo.getMessages.mockResolvedValue([]);
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("收到"));
+
+    let appended: any;
+    mockRepo.appendMessage.mockImplementationOnce(async (message: any) => {
+      // 写入其实已经落盘（模拟 OPFS close 报告二义性错误前已经 commit）
+      appended = message;
+      throw new Error("ambiguous close failure");
+    });
+    mockRepo.getMessageSnapshot.mockImplementation(async () => ({
+      generation: "gen-1",
+      revision: 1,
+      messages: appended ? [appended] : [],
+    }));
+
+    await (service as any).handleConversationChat(
+      {
+        conversationId: "conv-1",
+        message: [{ type: "image", attachmentId: "upload.png", mimeType: "image/png" }],
+        ownedAttachmentIds: ["upload.png"],
+      },
+      sender
+    );
+
+    // 已确认落盘：不能把二义性错误当作"未持久化"从而删除消息实际引用的附件
+    expect(mockRepo.deleteAttachment).not.toHaveBeenCalledWith("upload.png");
+  });
+
   it("skill 预加载：历史消息含 load_skill 调用时预执行以标记 skill 已加载", async () => {
     const { service, mockRepo, mockSkillRepo } = createTestService();
     const { sender } = createMockSender();
