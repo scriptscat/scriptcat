@@ -1,5 +1,7 @@
 import type { Script } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
+import type { SCMetadata } from "@App/app/repo/metadata";
+import type { ConfigBundle } from "./config_bundle";
 
 export type ResourceMeta = {
   name: string;
@@ -61,8 +63,10 @@ export type ScriptMeta = {
 
 export type ScriptOptionsFile = {
   options: ScriptOptions;
-  settings: { enabled: boolean; position: number };
+  settings: { enabled: boolean; position: number; checkUpdate?: boolean };
   meta: ScriptMeta;
+  // ScriptCat 自定义脚本元数据（自往返无损用；TM/VM 备份无此字段，导入时从 override/custom 推导）
+  selfMeta?: SCMetadata;
 };
 
 export type ScriptBackupData = {
@@ -101,7 +105,7 @@ export type SubscribeMeta = {
 
 export type SubscribeOptionsFile = {
   settings: { enabled: boolean };
-  scripts: { [key: string]: SubscribeScript };
+  scripts: Record<string, SubscribeScript>;
   meta: SubscribeMeta;
 };
 
@@ -114,4 +118,35 @@ export type SubscribeBackupData = {
 export type BackupData = {
   script: ScriptBackupData[];
   subscribe: SubscribeBackupData[];
+  // ScriptCat 自身设置 bundle(可选;#1533)
+  config?: ConfigBundle;
+};
+
+// Violentmonkey 导出的根清单文件（文件名恰为 "violentmonkey"）
+export type ViolentmonkeyManifest = {
+  scripts: {
+    [name: string]: {
+      custom?: {
+        match?: string[];
+        include?: string[];
+        exclude?: string[];
+        excludeMatch?: string[];
+        tag?: string[];
+        origMatch?: boolean;
+        origInclude?: boolean;
+        origExclude?: boolean;
+        origExcludeMatch?: boolean;
+        origTag?: boolean;
+        runAt?: string;
+        noframes?: number | null;
+        downloadURL?: string;
+        lastInstallURL?: string; // 安装源(无 downloadURL 时作 file_url 兜底)
+      };
+      config?: { enabled?: number; shouldUpdate?: number };
+      enabled?: number; // legacy 顶层 enabled
+      position?: number;
+    };
+  };
+  // 值以 encodeFilename(`${namespace}\n${name}\n`) 为键
+  values?: { [uri: string]: { [key: string]: string } };
 };

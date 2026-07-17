@@ -19,7 +19,7 @@ class ExtCache implements CacheStorage {
           console.error("chrome.runtime.lastError in chrome.storage.session.get:", lastError);
           // 无视storage API错误，继续执行
         }
-        resolve(value[key]);
+        resolve(value[key] as T | undefined);
       });
     });
   }

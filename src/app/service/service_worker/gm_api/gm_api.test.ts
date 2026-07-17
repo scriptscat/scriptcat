@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { type IGetSender } from "@Packages/message/server";
 import { type ExtMessageSender } from "@Packages/message/types";
-import { ConnectMatch, getConnectMatched, getExtensionSiteAccessOriginPattern } from "./gm_api";
+import GMApi, { ConnectMatch, getConnectMatched, getExtensionSiteAccessOriginPattern } from "./gm_api";
+import { PermissionVerifyApiGet, type ConfirmParam } from "../permission_verify";
+import type { GMApiRequest } from "../types";
+// 触发所有 GM API 装饰器注册（与 gm_api.ts 中的 import 保持同步）
+import "./gm_api";
 
 // 小工具：建立假的 IGetSender
 const makeSender = (url?: string): IGetSender => ({
@@ -99,6 +103,43 @@ describe.concurrent("isConnectMatched", () => {
   });
 });
 
+describe.concurrent("GM API 注册完整性", () => {
+  it.concurrent("CAT_agentDom 应已注册", () => {
+    const api = PermissionVerifyApiGet("CAT_agentDom");
+    expect(api).toBeDefined();
+    expect(api!.param.link).toContain("CAT.agent.dom");
+  });
+
+  it.concurrent("Agent 相关 API 应全部注册", () => {
+    // 确保 Agent 相关的 GM API 不会因 import 遗漏而丢失
+    const agentApis = ["CAT_agentConversation", "CAT_agentConversationChat", "CAT_agentSkills", "CAT_agentDom"];
+    for (const name of agentApis) {
+      expect(PermissionVerifyApiGet(name), `${name} 应已注册`).toBeDefined();
+    }
+  });
+});
+
+describe("window.focus", () => {
+  it("应同时激活标签页并将其所在窗口置于前台", async () => {
+    const tabsUpdate = vi.fn().mockResolvedValue(undefined);
+    const windowsUpdate = vi.fn().mockResolvedValue(undefined);
+    const originalChrome = globalThis.chrome;
+    vi.stubGlobal("chrome", {
+      ...originalChrome,
+      tabs: { ...originalChrome.tabs, update: tabsUpdate },
+      windows: { ...originalChrome.windows, update: windowsUpdate },
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42, windowId: 7 } as chrome.tabs.Tab });
+
+    await GMApi.prototype["window.focus"]({} as GMApiRequest<void>, sender);
+
+    expect(tabsUpdate).toHaveBeenCalledWith(42, { active: true });
+    expect(windowsUpdate).toHaveBeenCalledWith(7, { focused: true });
+    vi.stubGlobal("chrome", originalChrome);
+  });
+});
+
 describe.concurrent("getExtensionSiteAccessOriginPattern", () => {
   it.concurrent("应生成不带端口的扩展站点访问权限 pattern", () => {
     expect(getExtensionSiteAccessOriginPattern(new URL("http://127.0.0.1:3000/get"))).toBe("http://127.0.0.1/*");
@@ -108,5 +149,85 @@ describe.concurrent("getExtensionSiteAccessOriginPattern", () => {
   it.concurrent("应忽略非 http/https 协议", () => {
     expect(getExtensionSiteAccessOriginPattern(new URL("data:text/plain,hello"))).toBeUndefined();
     expect(getExtensionSiteAccessOriginPattern(new URL("file:///tmp/test.txt"))).toBeUndefined();
+  });
+});
+
+// 建立假的 IGetSender（getConnect 回传一个只有 sendMessage/disconnect 的假连结，供错误路径使用）
+const makeConnSender = (pageUrl?: string): IGetSender =>
+  ({
+    getSender: () => (pageUrl ? { url: pageUrl } : {}),
+    getType: () => 0,
+    isType: () => false,
+    getExtMessageSender: () => null as unknown as ExtMessageSender,
+    getConnect: () => ({ sendMessage: () => {}, disconnect: () => {} }) as any,
+  }) as IGetSender;
+
+const makeReq = (opts: { connect?: string[]; url: string; downloadMode?: string }): GMApiRequest<any> =>
+  ({
+    uuid: "uuid-test",
+    api: "GM_download",
+    runFlag: "run",
+    params: [{ url: opts.url, downloadMode: opts.downloadMode, name: "" }],
+    script: {
+      uuid: "uuid-test",
+      name: "测试脚本",
+      metadata: opts.connect ? { connect: opts.connect } : {},
+    },
+  }) as unknown as GMApiRequest<any>;
+
+// 假的 GMApi：仅提供 verifyXhrConnect 依赖的 gmExternalDependencies / permissionVerify，并挂上真实的 verifyXhrConnect
+const makeGmApi = (opts?: { blacklist?: boolean; allow?: boolean }) =>
+  ({
+    gmExternalDependencies: { isBlacklistNetwork: () => opts?.blacklist ?? false },
+    permissionVerify: { queryPermission: async () => (opts?.allow ? { allow: true } : undefined) },
+    verifyXhrConnect: (GMApi.prototype as any).verifyXhrConnect,
+  }) as any;
+
+const downloadConfirm = PermissionVerifyApiGet("GM_download")!.param.confirm!;
+const xhrConfirm = PermissionVerifyApiGet("GM_xmlhttpRequest")!.param.confirm!;
+
+describe.concurrent("native GM_download 的 @connect 校验（verifyXhrConnect 软/硬确认）", () => {
+  it.concurrent("downloadMode 非 native（browser）时直接放行，不做跨域校验", async () => {
+    // 即使 @connect 未匹配，browser 下载也不触发校验，保证浏览器下载行为不变
+    const req = makeReq({ url: "https://not-connected.com/f.zip", downloadMode: "browser", connect: ["example.com"] });
+    const ret = await downloadConfirm(req, makeConnSender(), makeGmApi());
+    expect(ret).toBe(true);
+  });
+
+  it.concurrent("native 下载：@connect 已声明但域名未匹配时，返回确认弹窗而非直接拒绝", async () => {
+    // 这是本次改动的核心：软确认（softConnect=true）不再硬拒绝，而是弹窗交给用户决定
+    const req = makeReq({ url: "https://not-connected.com/f.zip", downloadMode: "native", connect: ["example.com"] });
+    const ret = await downloadConfirm(req, makeConnSender(), makeGmApi());
+    expect(ret).not.toBe(true);
+    expect((ret as ConfirmParam).permission).toBe("cors");
+  });
+
+  it.concurrent("native 下载：完全未声明 @connect 时，返回确认弹窗", async () => {
+    const req = makeReq({ url: "https://not-connected.com/f.zip", downloadMode: "native" });
+    const ret = await downloadConfirm(req, makeConnSender(), makeGmApi());
+    expect((ret as ConfirmParam).permission).toBe("cors");
+  });
+
+  it.concurrent("native 下载：域名命中 @connect 时放行", async () => {
+    const req = makeReq({ url: "https://api.example.com/f.zip", downloadMode: "native", connect: ["example.com"] });
+    const ret = await downloadConfirm(req, makeConnSender(), makeGmApi());
+    expect(ret).toBe(true);
+  });
+
+  it.concurrent("native 下载：黑名单域名始终硬拒绝（软确认也不放行）", async () => {
+    const req = makeReq({ url: "https://blocked.com/f.zip", downloadMode: "native", connect: ["*"] });
+    await expect(downloadConfirm(req, makeConnSender(), makeGmApi({ blacklist: true }))).rejects.toThrow(/blacklisted/);
+  });
+
+  it.concurrent("native 下载：用户此前已授权该域名（cors 记录 allow）时放行", async () => {
+    const req = makeReq({ url: "https://not-connected.com/f.zip", downloadMode: "native", connect: ["example.com"] });
+    const ret = await downloadConfirm(req, makeConnSender(), makeGmApi({ allow: true }));
+    expect(ret).toBe(true);
+  });
+
+  it.concurrent("对照：GM_xmlhttpRequest（硬校验）对未匹配 @connect 的域名直接拒绝", async () => {
+    // 与 native GM_download 的软确认形成对比，锁定 softConnect 分叉
+    const req = makeReq({ url: "https://not-connected.com/api", connect: ["example.com"] });
+    await expect(xhrConfirm(req, makeConnSender(), makeGmApi())).rejects.toThrow(/not a part of the @connect list/);
   });
 });

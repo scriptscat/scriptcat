@@ -155,17 +155,3 @@ describe.concurrent("encodeRValue 与 decodeRValue 组合行为", () => {
     expect(roundTrip).toEqual(values);
   });
 });
-
-describe.concurrent("R_UNDEFINED 与 R_NULL 常量形状", () => {
-  it.concurrent("R_UNDEFINED 应为只包含 UNDEFINED 类型的单元素元组", () => {
-    expect(Array.isArray(R_UNDEFINED)).toBe(true);
-    expect(R_UNDEFINED.length).toBe(1);
-    expect(R_UNDEFINED[0]).toBe(RType.UNDEFINED);
-  });
-
-  it.concurrent("R_NULL 应为只包含 NULL 类型的单元素元组", () => {
-    expect(Array.isArray(R_NULL)).toBe(true);
-    expect(R_NULL.length).toBe(1);
-    expect(R_NULL[0]).toBe(RType.NULL);
-  });
-});

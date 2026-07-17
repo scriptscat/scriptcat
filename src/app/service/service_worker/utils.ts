@@ -6,9 +6,11 @@ import {
   compileInjectScript,
   compilePreInjectScript,
   compileScriptCode,
+  compileScriptletCode,
   getScriptFlag,
   isEarlyStartScript,
   isInjectIntoContent,
+  isScriptletUnwrap,
 } from "../content/utils";
 import {
   extractUrlPatterns,
@@ -18,6 +20,8 @@ import {
   type URLRuleEntry,
 } from "@App/pkg/utils/url_matcher";
 import { cacheInstance } from "@App/app/cache";
+
+export type RegisteredUserScriptWithJsCode = RequireField<chrome.userScripts.RegisteredUserScript, "js">;
 
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   // 没有 run-at 时为 undefined. Fallback 至 document_idle
@@ -67,30 +71,41 @@ export function isBase64(str: string): boolean {
   return false;
 }
 
-// 解析URL SRI
-export function parseUrlSRI(url: string): {
+export type TUrlSRIInfo = {
   url: string;
-  hash?: { [key: string]: string };
-} {
+  hash: { [key: string]: string } | undefined;
+  originalUrl: string;
+};
+
+// 解析URL SRI
+export function parseUrlSRI(url: string): TUrlSRIInfo {
   const urls = url.split("#");
   if (urls.length < 2) {
-    return { url: urls[0], hash: undefined };
+    return { url: urls[0], hash: undefined, originalUrl: url };
   }
   const hashs = urls[1].split(/[,;]/);
   const hash: { [key: string]: string } = {};
+  const pattern = /^([a-zA-Z0-9]+)[-=](.+)$/;
   for (const val of hashs) {
     // 接受以下格式
     // sha256-abc123== 格式
     // sha256=abc123== 格式
-    const match = val.match(/^([a-zA-Z0-9]+)[-=](.+)$/);
+    const match = pattern.exec(val);
     if (match) {
       const [, key, value] = match;
       hash[key] = value;
     }
   }
 
-  // 即使没有解析到任何哈希值，也只会返回空对象而不是 undefined
-  return { url: urls[0], hash };
+  // 如果没有解析到任何哈希值，则返回 undefined，与类型定义保持一致
+  if (Object.keys(hash).length === 0) {
+    return { url: urls[0], hash: undefined, originalUrl: url };
+  }
+  return { url: urls[0], hash, originalUrl: url };
+}
+
+export function shouldAutoOpenChangelog(version: string): boolean {
+  return version.includes("-") || version.endsWith(".0");
 }
 
 export async function notificationsUpdate(
@@ -133,18 +148,19 @@ export function getCombinedMeta(metaBase: SCMetadata, metaCustom: SCMetadata): S
   return metaRet;
 }
 
-export function selfMetadataUpdate(script: Script, key: string, valueSet: Set<string>) {
+// valueSet 为 undefined 表示撤销用户覆盖(生效值回落脚本自带 metadata)；
+// 空集合表示用户显式清空该项，两者语义不同，不可互相替代
+export function selfMetadataUpdate(script: Script, key: string, valueSet: Set<string> | undefined) {
   // 更新 selfMetadata 时建立浅拷贝
   const selfMetadata = { ...(script.selfMetadata || {}) };
   script = { ...script, selfMetadata };
-  const value = [...valueSet].filter((item) => typeof item === "string");
-  if (value.length > 0) {
-    selfMetadata[key] = value;
-  } else {
+  if (valueSet === undefined) {
     delete selfMetadata[key];
     if (Object.keys(selfMetadata).length === 0) {
       script.selfMetadata = undefined; // delete script.selfMetadata;
     }
+  } else {
+    selfMetadata[key] = [...valueSet].filter((item) => typeof item === "string");
   }
   return script;
 }
@@ -174,13 +190,17 @@ export function compileInjectionCode(
   scriptCode: string,
   scriptUrlPatterns: URLRuleEntry[]
 ): string {
-  const preDocumentStartScript = isEarlyStartScript(scriptRes.metadata);
+  // 注意！ restoreJSCodeFromCompiledResource 跟 compileInjectionCode 的处理是不同的！
   let scriptInjectCode;
-  scriptCode = compileScriptCode(scriptRes, scriptCode);
-  if (preDocumentStartScript) {
-    scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes, scriptUrlPatterns), scriptCode);
+  if (isScriptletUnwrap(scriptRes.metadata)) {
+    scriptInjectCode = compileScriptletCode(scriptRes, scriptCode, scriptUrlPatterns);
   } else {
-    scriptInjectCode = compileInjectScript(scriptRes, scriptCode);
+    scriptCode = compileScriptCode(scriptRes, scriptCode);
+    if (isEarlyStartScript(scriptRes.metadata)) {
+      scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes, scriptUrlPatterns), scriptCode);
+    } else {
+      scriptInjectCode = compileInjectScript(scriptRes, scriptCode);
+    }
   }
   return scriptInjectCode;
 }

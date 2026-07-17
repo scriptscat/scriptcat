@@ -1,6 +1,6 @@
 import chromeMock from "@Packages/chrome-extension-mock";
 import type Runtime from "@Packages/chrome-extension-mock/runtime";
-import { initTestEnv } from "./utils";
+import { initTestEnv } from "./initTestEnv";
 import "@testing-library/jest-dom/vitest";
 import { vi } from "vitest";
 import { MockRequest } from "./mocks/request";
@@ -46,38 +46,50 @@ chromeMock.runtime.getURL = vi.fn().mockImplementation(function (this: Runtime, 
   return `chrome-extension://${chrome.runtime.id}${path}`;
 });
 
-// ---- 修正 vitest 4.x.x 错误的 adoptedStyleSheets ----
-let fixAdoptedStyleSheets = false;
-if (!document.adoptedStyleSheets) fixAdoptedStyleSheets = true;
-else {
-  try {
-    document.adoptedStyleSheets = document.adoptedStyleSheets.concat([]);
-  } catch {
-    fixAdoptedStyleSheets = true;
-  }
-}
-if (fixAdoptedStyleSheets) {
-  //@ts-ignore
-  delete document.adoptedStyleSheets;
-  //@ts-ignore
-  delete Document.prototype.adoptedStyleSheets;
+const runtimeWithManifest = chromeMock.runtime as typeof chromeMock.runtime & {
+  getManifest: ReturnType<typeof vi.fn>;
+};
 
-  const map = new WeakMap<any, any>();
-  Object.defineProperty(Document.prototype, "adoptedStyleSheets", {
-    configurable: true,
-    enumerable: true,
-    get() {
-      let res = map.get(this);
-      if (!res) {
-        map.set(this, (res = []));
-      }
-      return res;
-    },
-    set(v) {
-      map.set(this, Object.freeze([...v])); // 模拟初版的 adoptedStyleSheets 无法 .push
-      return true;
-    },
-  });
+runtimeWithManifest.getManifest = vi.fn().mockReturnValue({
+  optional_permissions: [],
+  permissions: [],
+  host_permissions: [],
+});
+
+// ---- 修正 DOM 测试环境中的 adoptedStyleSheets 兼容问题 ----
+if (typeof document !== "undefined") {
+  let fixAdoptedStyleSheets = false;
+  if (!document.adoptedStyleSheets) fixAdoptedStyleSheets = true;
+  else {
+    try {
+      document.adoptedStyleSheets = document.adoptedStyleSheets.concat([]);
+    } catch {
+      fixAdoptedStyleSheets = true;
+    }
+  }
+  if (fixAdoptedStyleSheets) {
+    //@ts-ignore
+    delete document.adoptedStyleSheets;
+    //@ts-ignore
+    delete Document.prototype.adoptedStyleSheets;
+
+    const map = new WeakMap<any, any>();
+    Object.defineProperty(Document.prototype, "adoptedStyleSheets", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        let res = map.get(this);
+        if (!res) {
+          map.set(this, (res = []));
+        }
+        return res;
+      },
+      set(v) {
+        map.set(this, Object.freeze([...v])); // 模拟初版的 adoptedStyleSheets 无法 .push
+        return true;
+      },
+    });
+  }
 }
 // ---- --------------------------------------------- ----
 
@@ -191,10 +203,9 @@ if (!("onresize" in global)) {
     configurable: true,
     enumerable: true,
     set(_newVal) {
-      console.log("测试用.onresize.set");
+      // 测试环境不转发事件处理器赋值
     },
     get() {
-      console.log("测试用.onresize.get");
       return null;
     },
   });
@@ -209,10 +220,9 @@ if (!("onblur" in global)) {
     configurable: true,
     enumerable: true,
     set(_newVal) {
-      console.log("测试用.onblur.set");
+      // 测试环境不转发事件处理器赋值
     },
     get() {
-      console.log("测试用.onblur.get");
       return null;
     },
   });
@@ -227,10 +237,9 @@ if (!("onblur" in global)) {
     configurable: true,
     enumerable: true,
     set(_newVal) {
-      console.log("测试用.onfocus.set");
+      // 测试环境不转发事件处理器赋值
     },
     get() {
-      console.log("测试用.onfocus.get");
       return null;
     },
   });
@@ -293,3 +302,27 @@ vi.stubGlobal("define", "特殊关键字不能穿透沙盒");
 if (!URL.createObjectURL) URL.createObjectURL = undefined;
 //@ts-expect-error
 if (!URL.revokeObjectURL) URL.revokeObjectURL = undefined;
+
+// ---- Radix UI（DropdownMenu / Select / Sheet 等）在 DOM 测试环境下所需的指针 API 垫片 ----
+// 测试环境可能未实现 PointerEvent，导致 Radix 触发器的 `event.button === 0` 判断失效、菜单无法展开；
+// 同时缺少指针捕获与 scrollIntoView。下面补齐这些浏览器原生 API，仅用于测试环境。
+if (typeof window !== "undefined") {
+  if (typeof (globalThis as any).PointerEvent === "undefined") {
+    class PointerEventPolyfill extends MouseEvent {
+      public pointerId?: number;
+      public pointerType?: string;
+      constructor(type: string, params: PointerEventInit = {}) {
+        super(type, params);
+        this.pointerId = params.pointerId;
+        this.pointerType = params.pointerType;
+      }
+    }
+    vi.stubGlobal("PointerEvent", PointerEventPolyfill);
+  }
+  for (const method of ["hasPointerCapture", "setPointerCapture", "releasePointerCapture", "scrollIntoView"] as const) {
+    if (!(method in Element.prototype)) {
+      // @ts-ignore 测试环境补齐缺失的指针/滚动方法（no-op）
+      Element.prototype[method] = function () {};
+    }
+  }
+}

@@ -5,3 +5,13 @@ yarn.lock
 
 # Claude Code
 .claude
+
+# Docs & examples
+*.md
+example/
+
+# Build & test artifacts (match ESLint ignores)
+dist/
+playwright-report/
+test-results/
+coverage/

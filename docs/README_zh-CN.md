@@ -7,7 +7,7 @@
 ScriptCat
 </h1>
 
-<p align="center">脚本猫，一个可以执行用户脚本的浏览器扩展，万物皆可脚本化，让你的浏览器可以做更多的事情！</p>
+<p align="center">脚本猫是一个强大的用户脚本管理器，轻松定制网页、消除广告、自动执行任务等，激活浏览器的无限可能！</p>
 
 <p align="center">
 <a href="https://docs.scriptcat.org/">文档</a> ·
@@ -56,6 +56,14 @@ ScriptCat
 RunAPI 是高效稳定的 API OpenRouter 平替平台，一个 API Key 即可访问 OpenAI、Claude、Gemini、DeepSeek、Grok 等 150+ 主流模型，低至 1 折，极其稳定，可以无缝兼容 Claude Code、OpenClaw 等工具。RunAPI 为 ScriptCat 用户提供专属福利：注册联系管理员即可领取￥7 的免费额度。<br>
 <a href="https://runapi.co/register?aff=vpKz">了解更多</a>
 </td>
+</tr>
+<tr>
+<td width="180"><a href="https://enncy.cn/"><img src="./assets/sponsors/yanxi-tech-logo.png" alt="言溪科技" width="150"></a></td>
+<td>言溪科技专注脚本软件定制、网页程序设计开发，提供高度个性化定制服务，项目方案稳定可靠，同步分享行业前沿资讯，一站式满足各类程序开发定制需求。官网：<a href="https://enncy.cn/">https://enncy.cn/</a></td>
+</tr>
+<tr>
+<td width="180"><a href="https://runapi.co/register?aff=vpKz"><img src="./assets/sponsors/runapi-logo.png" alt="Run API" width="150"></a></td>
+<td>RunAPI 是高效稳定的 API OpenRouter 平替平台，一个 API Key 即可访问 OpenAI、Claude、Gemini、DeepSeek、Grok 等 150+ 主流模型，低至 1 折，极其稳定，可以无缝兼容 Claude Code、OpenClaw 等工具。RunAPI 为 ScriptCat 用户提供专属福利：注册联系管理员即可领取￥7 的免费额度。<a href="https://runapi.co/register?aff=vpKz">点此链接注册</a>。</td>
 </tr>
 </table>
 

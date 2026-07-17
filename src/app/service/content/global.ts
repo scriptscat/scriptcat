@@ -11,6 +11,8 @@ export const Native = {
   ownFragment: new DocumentFragment(),
   objectCreate: Object.create.bind(Object),
   objectGetOwnPropertyDescriptors: Object.getOwnPropertyDescriptors.bind(Object),
+  objectGetOwnPropertyDescriptor: Object.getOwnPropertyDescriptor.bind(Object),
+  objectGetPrototypeOf: Object.getPrototypeOf.bind(Object),
 } as const;
 
 export const customClone = (o: any) => {

@@ -9,10 +9,11 @@ import {
 } from "@App/app/repo/scripts";
 import type { Server } from "@Packages/message/server";
 import type { WindowMessage } from "@Packages/message/window_message";
-import { CronJob } from "cron";
+import { createCronJob, type CronJob } from "@App/pkg/utils/cron";
 import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
 import type ExecScript from "../content/exec_script";
+import { compileScriptCodeByResource } from "../content/utils";
 import type { ValueUpdateDataEncoded } from "../content/types";
 import { getStorageName, getMetadataStr, getUserConfigStr, getISOWeek } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
@@ -21,6 +22,7 @@ import { parseUserConfig } from "@App/pkg/utils/yaml";
 import { decodeRValue } from "@App/pkg/utils/message_value";
 import { extractCronExpr } from "@App/pkg/utils/cron";
 import { changeLanguage, initLanguage, t } from "@App/locales/locales";
+import { type TExtensionEnv } from "../extension/extension_env";
 
 const utime_1min = 60 * 1000;
 const utime_1hr = 60 * 60 * 1000;
@@ -40,7 +42,8 @@ export class Runtime {
 
   constructor(
     private windowMessage: WindowMessage,
-    private api: Server
+    private api: Server,
+    private readonly extensionEnvAsync: Promise<TExtensionEnv | undefined>
   ) {
     this.logger = LoggerCore.getInstance().logger({ component: "sandbox" });
     // 重试队列,5s检查一次
@@ -171,7 +174,20 @@ export class Runtime {
       // 暂未实现执行完成后立马释放,会在下一次执行时释放
       await this.stopScript(script.uuid);
     }
-    const exec = new BgExecScriptWarp(script, this.windowMessage);
+    const extensionEnv = await this.extensionEnvAsync;
+
+    // 判断 run-in
+    const runIn = script.metadata?.["run-in"]?.[0];
+    const inIncognitoContext = extensionEnv?.inIncognitoContext;
+    if (runIn && runIn !== "all" && typeof inIncognitoContext === "boolean") {
+      // 判断插件运行环境
+      const contextType = inIncognitoContext ? "incognito-tabs" : "normal-tabs";
+      if (runIn !== contextType) {
+        return;
+      }
+    }
+
+    const exec = new BgExecScriptWarp(script, this.windowMessage, extensionEnv);
     this.execScriptMap.set(script.uuid, exec);
     proxyUpdateRunStatus(this.windowMessage, { uuid: script.uuid, runStatus: SCRIPT_RUN_STATUS_RUNNING });
     // 修改掉脚本掉最后运行时间, 数据库也需要修改
@@ -224,7 +240,7 @@ export class Runtime {
   crontabScript(script: ScriptLoadInfo) {
     // 执行定时脚本 运行表达式
     if (!script.metadata.crontab) {
-      throw new Error(script.name + " - " + t("cron_invalid_expr"));
+      throw new Error(script.name + " - " + t("script:cron_invalid_expr"));
     }
     // 如果有nextruntime,则加入重试队列
     this.joinRetryList(script);
@@ -252,7 +268,11 @@ export class Runtime {
         ok = 2;
         const onTick = this.crontabExec(script, oncePos);
         ok = 4;
-        const cron = new CronJob(cronExpr, onTick);
+        const cron = createCronJob({
+          cronTime: cronExpr,
+          onTick,
+          start: false, // 不使用 start: true。下面手动执行。
+        });
         ok = 6;
         cron.start();
         ok = 8;
@@ -361,6 +381,69 @@ export class Runtime {
     this.api.on("runtime/valueUpdate", this.valueUpdate.bind(this));
     this.api.on("runtime/emitEvent", this.emitEvent.bind(this));
     this.api.on("setSandboxLanguage", this.setSandboxLanguage.bind(this));
+    this.api.on("executeSkillScript", this.executeSkillScript.bind(this));
     initLanguage();
+  }
+
+  // 执行 Skill Script：构建最小化脚本上下文，注入 args，执行并返回结果
+  async executeSkillScript(params: {
+    uuid: string;
+    code: string;
+    args: Record<string, unknown>;
+    grants: string[];
+    name: string;
+    requires?: Array<{ url: string; content: string }>;
+    configValues?: Record<string, unknown>;
+  }): Promise<unknown> {
+    const uuid = params.uuid;
+    const metadata: any = {
+      grant: params.grants,
+    };
+    // 通过 compileScriptCodeByResource 包裹代码，加上 with(arguments[0]||this.$) 等上下文绑定，
+    // 使脚本能访问 sandboxContext 上注入的变量（args、GM API 等）
+    const compiledCode = compileScriptCodeByResource({
+      name: params.name,
+      code: params.code,
+      require: params.requires || [],
+      isContextMenu: false,
+    });
+
+    // 构造最小化的 ScriptLoadInfo
+    const scriptLoadInfo = {
+      uuid,
+      name: params.name,
+      namespace: "",
+      type: SCRIPT_TYPE_BACKGROUND,
+      status: 1,
+      sort: 0,
+      runStatus: "complete" as const,
+      createtime: Date.now(),
+      checktime: 0,
+      code: compiledCode,
+      value: {},
+      flag: "",
+      resource: {},
+      metadata,
+      originalMetadata: metadata,
+      metadataStr: "",
+      userConfigStr: "",
+    } as ScriptLoadInfo;
+
+    // 使用 BgExecScriptWarp 执行，它会自动构建 setTimeout/setInterval 等
+    const extensionEnv = await this.extensionEnvAsync;
+    const exec = new BgExecScriptWarp(scriptLoadInfo, this.windowMessage, extensionEnv);
+    // 通过 sandboxContext 注入 args（BgExecScriptWarp 通过 globalInjection 注入了 setTimeout 等，
+    // sandboxContext 已经包含了这些，再追加 args 即可）
+    if ((exec as any).sandboxContext) {
+      (exec as any).sandboxContext.args = params.args;
+      (exec as any).sandboxContext.CAT_CONFIG = Object.freeze(params.configValues || {});
+    }
+
+    try {
+      const result = await exec.exec();
+      return result;
+    } finally {
+      exec.stop();
+    }
   }
 }

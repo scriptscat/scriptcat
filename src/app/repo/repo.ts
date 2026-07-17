@@ -220,7 +220,7 @@ export abstract class Repo<T> {
           console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
           // 无视storage API错误，继续执行
         }
-        resolve(keys.map((key) => result[key]));
+        resolve(keys.map((key) => result[key] as T | undefined));
       });
     });
   }

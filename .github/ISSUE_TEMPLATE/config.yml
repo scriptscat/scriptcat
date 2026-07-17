@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: 安全漏洞 / Security Vulnerability
+    url: https://github.com/scriptscat/scriptcat/security/policy
+    about: 请不要公开提交安全漏洞。ScriptCat 会运行用户脚本并拥有较高权限，请使用私密漏洞上报。 / Please do not publicly submit security vulnerabilities. ScriptCat runs user scripts and has elevated permissions, so please use private vulnerability reporting.
+
+  - name: 使用问题 / Community Support
+    url: https://discord.gg/JF76nHCCM7
+    about: 如果只是使用咨询、脚本写法、配置问题，建议优先到社区讨论。 / For general usage questions, script-writing help, or configuration issues, please discuss them in the community first.
+
+  - name: 文档 / Documentation
+    url: https://docs.scriptcat.org/
+    about: 请先查看官方文档；文档错误可以单独提交 issue 或 PR。 / Please check the official documentation first. Documentation errors can be reported separately by submitting an issue or PR.

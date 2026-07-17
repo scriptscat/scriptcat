@@ -1,0 +1,18 @@
+{
+  "development_tool": "Geliştirici Aracı",
+  "vscode_url": "VSCode URL'si",
+  "auto_connect_vscode_service": "VSCode Hizmetine Otomatik Bağlan",
+  "connect": "Bağlan",
+  "connection_success": "Bağlantı Başarılı",
+  "connection_failed": "Bağlantı Başarısız",
+  "select_import_script": "Lütfen Yeni Sayfada İçe Aktarmak İçin Bir Betik Seçin",
+  "import_error": "İçe Aktarma Hatası",
+  "pulling_data_from_cloud": "Veriler Buluttan Çekiliyor",
+  "pull_failed": "Çekme İşlemi Başarısız",
+  "restore": "Geri Yükle",
+  "manual_download": "İndirme başlamazsa, manuel olarak indirmek için lütfen buraya tıklayın",
+  "local_backup": "Yerel Yedekleme",
+  "cloud_backup": "Bulut Yedeklemesi",
+  "auto_backup": "Otomatik Yedekleme",
+  "data_migration": "Veri Geçişi"
+}

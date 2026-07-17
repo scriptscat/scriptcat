@@ -6,6 +6,7 @@ import {
   RuleType,
   extractMatchPatternsFromGlobs,
   extractSchemesOfGlobs,
+  embeddedPatternCheckerString,
 } from "./url_matcher";
 
 describe.concurrent("extractMatchPatternsFromGlobs", () => {
@@ -910,5 +911,101 @@ describe.concurrent("getApiMatchesAndGlobs-3 （全面性测试）", () => {
         "file:///myfile/*",
       ].sort()
     );
+  });
+});
+
+describe.concurrent("embeddedPatternChecker", () => {
+  // 构造 URLRuleEntry 的 ruleContent 格式与 extractUrlPatterns 一致
+  // match: [scheme, host, pathPattern], glob: string[], regex: [pattern, flags]
+
+  it.concurrent("match include 规则匹配", () => {
+    const patterns = extractUrlPatterns(["@match https://example.com/*"]);
+    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+    // 使用 embeddedPatternCheckerString 生成代码，通过 eval 执行
+    const code = embeddedPatternCheckerString('"https://example.com/page"', JSON.stringify(reduced));
+    expect(eval(code)).toBe(true);
+  });
+
+  it.concurrent("match include 规则不匹配", () => {
+    const patterns = extractUrlPatterns(["@match https://example.com/*"]);
+    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+    const code = embeddedPatternCheckerString('"https://other.com/page"', JSON.stringify(reduced));
+    expect(eval(code)).toBe(false);
+  });
+
+  it.concurrent("match exclude 规则排除", () => {
+    const patterns = extractUrlPatterns(["@match https://example.com/*", "@exclude https://example.com/admin/*"]);
+    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+    // 匹配 include 但被 exclude 排除
+    const code1 = embeddedPatternCheckerString('"https://example.com/admin/settings"', JSON.stringify(reduced));
+    expect(eval(code1)).toBe(false);
+    // 匹配 include 且不被 exclude 排除
+    const code2 = embeddedPatternCheckerString('"https://example.com/home"', JSON.stringify(reduced));
+    expect(eval(code2)).toBe(true);
+  });
+
+  it.concurrent("glob include 匹配", () => {
+    const patterns = extractUrlPatterns(["@include *example*"]);
+    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+    const code = embeddedPatternCheckerString('"https://example.com/page"', JSON.stringify(reduced));
+    expect(eval(code)).toBe(true);
+  });
+
+  it.concurrent("glob include 不匹配", () => {
+    const patterns = extractUrlPatterns(["@include *example*"]);
+    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+    const code = embeddedPatternCheckerString('"https://other.com/page"', JSON.stringify(reduced));
+    expect(eval(code)).toBe(false);
+  });
+
+  it.concurrent("glob exclude 排除", () => {
+    const patterns = extractUrlPatterns(["@include *example*", "@exclude *admin*"]);
+    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+    const code = embeddedPatternCheckerString('"https://example.com/admin"', JSON.stringify(reduced));
+    expect(eval(code)).toBe(false);
+  });
+
+  it.concurrent("regex include 匹配", () => {
+    const patterns = extractUrlPatterns(["@include /https?://example\\.com\\/.*/"]);
+    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+    const code = embeddedPatternCheckerString('"https://example.com/page"', JSON.stringify(reduced));
+    expect(eval(code)).toBe(true);
+  });
+
+  it.concurrent("regex include 不匹配", () => {
+    const patterns = extractUrlPatterns(["@include /https?://example\\.com\\/.*/"]);
+    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+    const code = embeddedPatternCheckerString('"https://other.com/page"', JSON.stringify(reduced));
+    expect(eval(code)).toBe(false);
+  });
+
+  it.concurrent("regex exclude 排除", () => {
+    const patterns = extractUrlPatterns(["@include /https?://example\\.com\\/.*/", "@exclude /\\/admin\\//"]);
+    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+    const code = embeddedPatternCheckerString('"https://example.com/admin/settings"', JSON.stringify(reduced));
+    expect(eval(code)).toBe(false);
+  });
+
+  it.concurrent("混合规则（include + exclude）", () => {
+    const patterns = extractUrlPatterns(["@match https://example.com/*", "@include *test*", "@exclude /\\/secret\\//"]);
+    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+    // match include 命中
+    const code1 = embeddedPatternCheckerString('"https://example.com/home"', JSON.stringify(reduced));
+    expect(eval(code1)).toBe(true);
+    // glob include 命中
+    const code2 = embeddedPatternCheckerString('"https://other.com/test"', JSON.stringify(reduced));
+    expect(eval(code2)).toBe(true);
+    // exclude 排除
+    const code3 = embeddedPatternCheckerString('"https://example.com/secret/data"', JSON.stringify(reduced));
+    expect(eval(code3)).toBe(false);
+  });
+
+  it.concurrent("embeddedPatternCheckerString 生成可执行代码", () => {
+    const patterns = extractUrlPatterns(["@match *://example.com/*"]);
+    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+    const codeStr = embeddedPatternCheckerString("location.href", JSON.stringify(reduced));
+    // 验证生成的是一个函数调用表达式字符串（IIFE 形式）
+    expect(typeof codeStr).toBe("string");
+    expect(codeStr).toContain("location.href");
   });
 });

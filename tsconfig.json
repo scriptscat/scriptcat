@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsc/.tsbuildinfo",
     "target": "ES2022",
     "lib": [
       "DOM",
@@ -18,16 +20,15 @@
     "experimentalDecorators": true,
     "useDefineForClassFields": true,
     "allowImportingTsExtensions": true,
-    "baseUrl": ".",
     "paths": {
       "@App/*": [
-        "src/*"
+        "./src/*"
       ],
       "@Packages/*": [
-        "packages/*"
+        "./packages/*"
       ],
       "@Tests/*": [
-        "tests/*"
+        "./tests/*"
       ]
     }
   },
@@ -35,10 +36,5 @@
     "src",
     "packages",
     "tests"
-  ],
-  "ts-node": {
-    "compilerOptions": {
-      "module": "CommonJS"
-    }
-  }
+  ]
 }

@@ -540,6 +540,32 @@ describe("Server", () => {
       const extSender = capturedSender!.getExtMessageSender();
       expect(extSender.tabId).toBe(-1);
     });
+
+    it.concurrent("sender 为 null/undefined 时不崩溃并返回默认值", async () => {
+      // postMessage 通道（如 Offscreen→SW）传入空对象作为 sender，
+      // SenderRuntime.getExtMessageSender() 应该返回默认兜底值
+      const senderNull = new SenderRuntime(null as unknown as RuntimeMessageSender);
+      const extNull = senderNull.getExtMessageSender();
+      expect(extNull.windowId).toBe(-1);
+      expect(extNull.tabId).toBe(-1);
+      expect(extNull.frameId).toBeUndefined();
+      expect(extNull.documentId).toBeUndefined();
+
+      const senderUndefined = new SenderRuntime(undefined as unknown as RuntimeMessageSender);
+      const extUndefined = senderUndefined.getExtMessageSender();
+      expect(extUndefined.windowId).toBe(-1);
+      expect(extUndefined.tabId).toBe(-1);
+      expect(extUndefined.frameId).toBeUndefined();
+      expect(extUndefined.documentId).toBeUndefined();
+
+      // 空对象（ServiceWorkerMessageSend 实际传入的值）也应正常处理
+      const senderEmpty = new SenderRuntime({} as RuntimeMessageSender);
+      const extEmpty = senderEmpty.getExtMessageSender();
+      expect(extEmpty.windowId).toBe(-1);
+      expect(extEmpty.tabId).toBe(-1);
+      expect(extEmpty.frameId).toBeUndefined();
+      expect(extEmpty.documentId).toBeUndefined();
+    });
   });
 
   describe("Connect 功能测试", () => {

@@ -253,7 +253,7 @@ describe("S3Client", () => {
     });
 
     it("应当在 DELETE 请求成功时返回 Response", async () => {
-      // jsdom 不支持 204 状态码构造 Response，使用 200 代替验证 DELETE 请求逻辑
+      // 测试环境不支持 204 状态码构造 Response，使用 200 代替验证 DELETE 请求逻辑
       fetchSpy.mockResolvedValue(new Response(null, { status: 200, statusText: "OK" }));
 
       const resp = await client.request("DELETE", "my-bucket", "file.txt");

@@ -193,7 +193,7 @@ describe.concurrent("createProxyContext", () => {
     expect(sandbox.self).toBe(sandbox);
     expect(sandbox.globalThis).toBe(sandbox);
     expect(sandbox.parent).toBe(sandbox);
-    // jsdom 的 frames 可能返回 Window proxy；这里覆盖浏览器稳定的自引用关键字。
+    // DOM 测试环境的 frames 可能返回 Window proxy；这里覆盖浏览器稳定的自引用关键字。
     expect(sandbox.GM_getValue("foo")).toBe("bar");
     expect(sandbox.runFlag).toBeUndefined();
     expect(sandbox.message).toBeUndefined();

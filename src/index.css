@@ -1,57 +1,504 @@
-@unocss preflights;
-@unocss default;
-@unocss;
+@import "tailwindcss";
+@import "tw-animate-css";
 
-* {
-    scrollbar-color: inherit;
-}
+@custom-variant dark (&:is(.dark *));
 
-html {
-  --body-background-color: #fff;
-  --body-text-color: #1d2129;
-}
-
-html.dark {
-  --body-background-color: #232324;
-  --body-text-color: #ffffffe6;
-}
-
-html, body { /* lowest priority */
-  background-color: var(--color-bg-2, var(--body-background-color));
-  color: var(--color-text-1, var(--body-text-color));
-}
-
-body {
-    scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
-}
-
-body[arco-theme='dark'] {
-    --color-scrollbar-thumb: #6b6b6b;
-    --color-scrollbar-track: #2d2d2d;
-}
-
-body[arco-theme='light'] {
-    --color-scrollbar-thumb: #6b6b6b;
-    --color-scrollbar-track: #f0f0f0;
-}
-
-#root {
-    overscroll-behavior: none;
-    contain: content;
-    overflow: auto;
-}
-
+/*
+  ScriptCat 设计系统色彩令牌
+  品牌色：蓝色 #1296DB（Light） / #3AACEF（Dark）
+  基础色：温和灰阶（Light #FAFAFA/#FFFFFF, Dark #1E1E1E/#151515）
+  对应 Pencil 设计稿变量 bg-primary/bg-card/border-light/brand-blue/fg-primary 等
+*/
 :root {
-	--sc-zero-1: 0;
-	--sc-zero-2: 0;
-	--sc-zero-3: 0;
-	--sc-zero-4: 0;
+  /* 基础背景与文字 */
+  --background: #fafafa;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+
+  /* 品牌主色 - 蓝色：primary 用于文字/图标/边框，primary-background 用于实色背景 */
+  --primary: #1296db;
+  --primary-background: #2b92ed;
+  --primary-foreground: #ffffff;
+  --primary-hover: #0a7db8;
+  --primary-light: #d6ecfa;
+
+  /* 次要/柔和/hover 背景 - 统一为同一灰色值（遵循 shadcn 规范） */
+  --secondary: #f0f0f0;
+  --secondary-foreground: #1a1a1a;
+  --muted: #f0f0f0;
+  --muted-foreground: #767676; /* WCAG AA：在 #fff/#fafafa 上 ≥4.5:1（旧 #888888 仅 3.5:1，正文不达标） */
+  --accent: #f0f0f0;
+  --accent-foreground: #1a1a1a;
+  --overlay: rgb(0 0 0 / 0.5);
+
+  /* 文字层级 */
+  --fg-secondary: #666666;
+
+  /* 边框与表单输入边框 */
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #1296db;
+
+  /* Switch 关闭态 track（对应设计稿 $border-default） */
+  --switch-off: #d0d0d0;
+
+  /* 滚动条（半透明，随明暗背景自适应） */
+  --scrollbar-thumb: rgba(0, 0, 0, 0.18);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.32);
+
+  /* 交互色 */
+  --destructive: #e7000b;
+  --destructive-foreground: #ffffff;
+
+  /* 状态色 - 运行中/周期执行 */
+  --success: #34c759;
+  --success-foreground: #ffffff;
+  --success-bg: #e8f9ec;
+  --success-fg: #0c8833;
+  --warning: #ff9500;
+  --warning-foreground: #ffffff;
+  --warning-bg: #fff4e6;
+  --warning-fg: #c46c00;
+
+  /* Skill / 紫色强调（Skill 安装、能力标签的紫色品牌识别色；solid 用于按钮/图标，bg/fg 用于软色 chip） */
+  --skill: #9333ea;
+  --skill-foreground: #ffffff;
+  --skill-bg: #f3e8ff;
+  --skill-fg: #7e22ce;
+
+  /* 储存值类型徽章色（设计稿储存表「类型」列：string 绿 / number 蓝 / boolean 琥珀 / object 紫） */
+  --type-string-bg: #e4f7ea;
+  --type-string-fg: #2ba24e;
+  --type-number-bg: #d6ecfa;
+  --type-number-fg: #1296db;
+  --type-boolean-bg: #fceedb;
+  --type-boolean-fg: #c2710c;
+  --type-object-bg: #f3e8ff;
+  --type-object-fg: #9333ea;
+
+  /* 脚本列表分类标签 chip 色（按标签名哈希取 8 色之一；软色 bg + 深色 fg）
+     light 取各 hue 的 50（bg）/700（fg）；dark 由 900@40% 叠加在 #151515 卡面 + 300 fg 得出 */
+  --label-green-bg: #f0fdf4;
+  --label-green-fg: #008236;
+  --label-blue-bg: #eff6ff;
+  --label-blue-fg: #1447e6;
+  --label-purple-bg: #faf5ff;
+  --label-purple-fg: #8200db;
+  --label-orange-bg: #fff7ed;
+  --label-orange-fg: #ca3500;
+  --label-rose-bg: #fff1f2;
+  --label-rose-fg: #c70036;
+  --label-teal-bg: #f0fdfa;
+  --label-teal-fg: #00786f;
+  --label-amber-bg: #fffbeb;
+  --label-amber-fg: #bb4d00;
+  --label-indigo-bg: #eef2ff;
+  --label-indigo-fg: #432dd7;
+
+  /* 切换按钮圆钮（Switch/Checkbox thumb） - 始终保持浅色 */
+  --thumb: #ffffff;
+
+  /* 侧边栏 */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #1296db;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #edf5fc;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #1296db;
+
+  /* 圆角基数 8px；@theme inline 由此派生 radius-sm 4 / md 6 / lg 8 / xl 12 */
+  --radius: 0.5rem;
 }
 
-/* 自定义 .sc-inset-0 避免打包成 inset: 0 使旧浏览器布局错位 */
-.sc-inset-0 {
-	top: var(--sc-zero-1);
-	left: var(--sc-zero-2);
-	right: var(--sc-zero-3);
-	bottom: var(--sc-zero-4);
+.dark {
+  /* 基础背景与文字 - 温和深灰 */
+  --background: #1e1e1e;
+  --foreground: #e5e5e5;
+  --card: #151515;
+  --card-foreground: #e5e5e5;
+  --popover: #151515;
+  --popover-foreground: #e5e5e5;
+
+  /* 品牌主色 - 暗色蓝：强调色提亮，实色背景加深以改善浅色前景对比度 */
+  --primary: #3aacef;
+  --primary-background: #0b84d8;
+  --primary-foreground: #ffffff;
+  --primary-hover: #1296db;
+  --primary-light: #1e3040;
+
+  /* 次要/柔和/hover 背景 - 统一为同一灰色值（遵循 shadcn 规范） */
+  --secondary: #2a2a2a;
+  --secondary-foreground: #e5e5e5;
+  --muted: #2a2a2a;
+  --muted-foreground: #8a8a8a;
+  --accent: #2a2a2a;
+  --accent-foreground: #e5e5e5;
+  --overlay: rgb(0 0 0 / 0.6);
+
+  /* 文字层级 */
+  --fg-secondary: #b5b5b5;
+
+  /* 边框与表单输入边框 */
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: #3aacef;
+
+  /* Switch 关闭态 track（对应设计稿 $dark-toggle-off） */
+  --switch-off: #3a3a3a;
+
+  /* 滚动条（半透明，随明暗背景自适应） */
+  --scrollbar-thumb: rgba(255, 255, 255, 0.16);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+
+  /* 交互色 */
+  --destructive: #ff6669e6;
+  --destructive-foreground: #ffffff;
+
+  /* 状态色 */
+  --success: #34c759;
+  --success-foreground: #ffffff;
+  --success-bg: #1e3520;
+  --success-fg: #6fdd8a;
+  --warning: #ff9500;
+  --warning-foreground: #ffffff;
+  --warning-bg: #352c1e;
+  --warning-fg: #ffb84d;
+
+  /* Skill / 紫色强调（暗色：solid 提亮以保证对比） */
+  --skill: #a855f7;
+  --skill-foreground: #ffffff;
+  --skill-bg: #2a1e3a;
+  --skill-fg: #c084fc;
+
+  /* 储存值类型徽章色（暗色） */
+  --type-string-bg: #1e3520;
+  --type-string-fg: #4ade80;
+  --type-number-bg: #1e3040;
+  --type-number-fg: #3aacef;
+  --type-boolean-bg: #352c1e;
+  --type-boolean-fg: #fb923c;
+  --type-object-bg: #2a1e3a;
+  --type-object-fg: #c084fc;
+
+  /* 脚本列表分类标签 chip 色（暗色：bg = hue-900@40% 叠加在 #151515 卡面的不透明等效值，fg = hue-300） */
+  --label-green-bg: #122e1e;
+  --label-green-fg: #7bf1a8;
+  --label-blue-bg: #182345;
+  --label-blue-fg: #8ec5ff;
+  --label-purple-bg: #301644;
+  --label-purple-fg: #dab2ff;
+  --label-orange-bg: #3f1d11;
+  --label-orange-fg: #ffb86a;
+  --label-rose-bg: #441022;
+  --label-rose-fg: #ffa1ad;
+  --label-teal-bg: #112c2a;
+  --label-teal-fg: #46ecd5;
+  --label-amber-bg: #3e210f;
+  --label-amber-fg: #ffd230;
+  --label-indigo-bg: #201e42;
+  --label-indigo-fg: #a3b3ff;
+
+  /* 切换按钮圆钮（Switch/Checkbox thumb） - 深色模式仍保持浅色 */
+  --thumb: #eeeeee;
+
+  /* 侧边栏 */
+  --sidebar: #1a1a1a;
+  --sidebar-foreground: #e5e5e5;
+  --sidebar-primary: #3aacef;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a2a30;
+  --sidebar-accent-foreground: #e5e5e5;
+  --sidebar-border: #2a2a2a;
+  --sidebar-ring: #3aacef;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-background: var(--primary-background);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-overlay: var(--overlay);
+  --color-fg-secondary: var(--fg-secondary);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-switch-off: var(--switch-off);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-thumb: var(--thumb);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-bg: var(--success-bg);
+  --color-success-fg: var(--success-fg);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-fg: var(--warning-fg);
+  --color-skill: var(--skill);
+  --color-skill-foreground: var(--skill-foreground);
+  --color-skill-bg: var(--skill-bg);
+  --color-skill-fg: var(--skill-fg);
+  --color-type-orange: var(--warning);
+  --color-type-green: var(--success);
+  --color-type-string-bg: var(--type-string-bg);
+  --color-type-string-fg: var(--type-string-fg);
+  --color-type-number-bg: var(--type-number-bg);
+  --color-type-number-fg: var(--type-number-fg);
+  --color-type-boolean-bg: var(--type-boolean-bg);
+  --color-type-boolean-fg: var(--type-boolean-fg);
+  --color-type-object-bg: var(--type-object-bg);
+  --color-type-object-fg: var(--type-object-fg);
+  --color-label-green-bg: var(--label-green-bg);
+  --color-label-green-fg: var(--label-green-fg);
+  --color-label-blue-bg: var(--label-blue-bg);
+  --color-label-blue-fg: var(--label-blue-fg);
+  --color-label-purple-bg: var(--label-purple-bg);
+  --color-label-purple-fg: var(--label-purple-fg);
+  --color-label-orange-bg: var(--label-orange-bg);
+  --color-label-orange-fg: var(--label-orange-fg);
+  --color-label-rose-bg: var(--label-rose-bg);
+  --color-label-rose-fg: var(--label-rose-fg);
+  --color-label-teal-bg: var(--label-teal-bg);
+  --color-label-teal-fg: var(--label-teal-fg);
+  --color-label-amber-bg: var(--label-amber-bg);
+  --color-label-amber-fg: var(--label-amber-fg);
+  --color-label-indigo-bg: var(--label-indigo-bg);
+  --color-label-indigo-fg: var(--label-indigo-fg);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", "Noto Sans SC",
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, "Cascadia Code", Consolas, "Liberation Mono", "PingFang SC", "Microsoft YaHei",
+    monospace;
+}
+
+/* Radix Collapsible 动画（基于 --radix-collapsible-content-height 变量） */
+@keyframes collapsible-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+  }
+}
+
+@keyframes collapsible-up {
+  from {
+    height: var(--radix-collapsible-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background font-sans text-foreground;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  /* 仅屏蔽鼠标点击 / Radix 关闭弹层后程序化回焦（:focus 但非 :focus-visible）的浏览器默认 outline，
+     保留键盘导航的 :focus-visible outline —— 确保键盘用户始终能看到当前焦点。
+     自带 focus-visible ring 的 shadcn 组件（Button/Input 等）会另行渲染 ring 并自带 focus-visible:outline-none，不受影响。 */
+  button:focus:not(:focus-visible),
+  [role="button"]:focus:not(:focus-visible),
+  a:focus:not(:focus-visible) {
+    outline: none;
+  }
+  button:focus-visible,
+  [role="button"]:focus-visible {
+    @apply outline-none ring-2 ring-ring/50;
+  }
+}
+
+@utility animate-collapsible-down {
+  animation: collapsible-down 200ms ease-out;
+}
+
+@utility animate-collapsible-up {
+  animation: collapsible-up 200ms ease-out;
+}
+
+@keyframes expand-bar {
+  from {
+    height: 0;
+    border-bottom-width: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes collapse-bar {
+  to {
+    height: 0;
+    border-bottom-width: 0;
+    opacity: 0;
+  }
+}
+
+@utility animate-expand-bar {
+  animation: expand-bar 200ms ease-out;
+}
+
+@utility animate-collapse-bar {
+  animation: collapse-bar 200ms ease-out forwards;
+}
+
+@keyframes indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}
+
+@utility animate-indeterminate-bar {
+  animation: indeterminate 1.1s ease-in-out infinite;
+}
+
+/*
+  自定义滚动条：细、圆角、半透明轨道透明。
+  颜色取自 --scrollbar-thumb*，由 :root / .dark 提供，明暗主题自动切换。
+  同时覆盖 Firefox 标准属性（scrollbar-width/color）与 WebKit/Chromium 伪元素。
+*/
+.scrollbar-custom {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+.scrollbar-custom::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 9999px;
+  /* 透明边框 + padding-box 裁剪：让滑块两侧留白，视觉更细更精致 */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/*
+  Sonner toast 自动关闭进度条。
+  底部 3px 细条随 --sc-toast-duration（由 notify 按每条实际时长注入）从满到空衰减，
+  提示距自动关闭的剩余时间；颜色取语义令牌（与左强调条一致），明暗主题自动切换。
+  仅 success / info / warning / error 显示；loading 与 Infinity（不自动关闭）无进度条。
+  hover 整列（data-expanded）或拖拽中（data-swiping）时随 sonner 计时器同步暂停。
+
+  实现说明：sonner 自身占用了 toast 的 ::before/::after（hover 桥接、滑动命中区），
+  故进度条改用 li 的多层 background-image 绘制——底部叠"填充层 + 轨道层"两条渐变，
+  由动画驱动自定义属性 --sc-progress(1→0) 改变填充层宽度。背景相关声明加 !important，
+  以压过 sonner 运行时注入到 <head> 末尾的 `background: var(--normal-bg)` 简写重置；
+  --sc-progress 经 @property 注册才能被动画插值，且 background-size 的 !important 不会冻结
+  动画——被动画改变的是自定义属性，而非 background-size 本身。圆角由 background-clip:
+  border-box + rounded-xl 自动裁切。
+*/
+@property --sc-progress {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 1;
+}
+@keyframes sc-toast-progress {
+  from {
+    --sc-progress: 1;
+  }
+  to {
+    --sc-progress: 0;
+  }
+}
+
+[data-sonner-toast][data-type="success"] {
+  --sc-toast-progress-color: var(--success);
+}
+[data-sonner-toast][data-type="info"] {
+  --sc-toast-progress-color: var(--primary);
+}
+[data-sonner-toast][data-type="warning"] {
+  --sc-toast-progress-color: var(--warning);
+}
+[data-sonner-toast][data-type="error"] {
+  --sc-toast-progress-color: var(--destructive);
+}
+
+[data-sonner-toast]:is([data-type="success"], [data-type="info"], [data-type="warning"], [data-type="error"]) {
+  /* 第一层＝填充（不透明语义色），第二层＝轨道（同色 18% 铺底） */
+  background-image:
+    linear-gradient(var(--sc-toast-progress-color), var(--sc-toast-progress-color)),
+    linear-gradient(
+      color-mix(in srgb, var(--sc-toast-progress-color) 18%, transparent),
+      color-mix(in srgb, var(--sc-toast-progress-color) 18%, transparent)
+    ) !important;
+  background-repeat: no-repeat !important;
+  background-position:
+    bottom left,
+    bottom left !important;
+  background-size:
+    calc(var(--sc-progress) * 100%) 3px,
+    100% 3px !important;
+  animation: sc-toast-progress var(--sc-toast-duration, 4000ms) linear forwards;
+}
+/* 与 sonner 计时器同步：hover 整列或拖拽时暂停倒计时 */
+[data-sonner-toast][data-expanded="true"],
+[data-sonner-toast][data-swiping="true"] {
+  animation-play-state: paused;
+}
+
+/*
+  无障碍：尊重系统「减少动态效果」偏好（prefers-reduced-motion）。
+  对开启该偏好的用户，把所有动画/过渡压到近乎瞬时，避免前庭不适，
+  同时保留终态（不直接 display:none，弹层仍会出现，只是不再有进出动画）。
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* 进度条只有动起来才有意义；减少动态效果时整条隐藏，不留静态轨道线 */
+  [data-sonner-toast]:is([data-type="success"], [data-type="info"], [data-type="warning"], [data-type="error"]) {
+    background-image: none !important;
+  }
 }
