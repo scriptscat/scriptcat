@@ -416,7 +416,7 @@ export class ToolLoopOrchestrator {
         }
       }
 
-      // 调用 LLM（重试由 llm_client 内部处理）
+      // 重试由 llm_client 内部处理
       let result: LLMCallResult;
       try {
         result = await this.deps.callLLM(
@@ -617,7 +617,6 @@ export class ToolLoopOrchestrator {
           totalUsage.cacheReadInputTokens += toolResult.usage.cacheReadInputTokens || 0;
         }
 
-        // 将 tool 结果加入消息，并通知 UI 工具执行完成
         // 收集需要回写的 toolCall 元数据（执行状态 / 附件 / 子代理详情）
         const attachmentUpdates = new Map<string, Attachment[]>();
         const ownershipUpdates = new Map<string, string[]>();
@@ -812,8 +811,6 @@ export class ToolLoopOrchestrator {
 
         // 通知 UI 即将开始新一轮 LLM 调用，创建新的 assistant 消息
         sendEvent({ type: "new_message" });
-
-        // 继续循环
         continue;
       }
 
@@ -893,7 +890,6 @@ export class ToolLoopOrchestrator {
         sendEvent({ type: "system_warning", message: result.warning });
       }
 
-      // 发送 done 事件
       sendEvent({ type: "done", usage: totalUsage, durationMs });
       return;
     }

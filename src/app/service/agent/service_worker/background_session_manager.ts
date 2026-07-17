@@ -244,7 +244,6 @@ export class BackgroundSessionManager {
       return;
     }
 
-    // 添加 listener
     const listener: ListenerEntry = { sendEvent };
     rc.listeners.add(listener);
 

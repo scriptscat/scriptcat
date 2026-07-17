@@ -889,7 +889,6 @@ export class ChatService {
   ): Promise<void> {
     const model = await this.modelService.getModel(params.modelId);
 
-    // 使用脚本传入的完整消息历史
     const messages: ChatRequest["messages"] = [];
 
     // 添加 system prompt（内置提示词 + 用户自定义）
@@ -947,7 +946,6 @@ export class ChatService {
       return;
     }
 
-    // 构建摘要请求
     const summaryMessages: ChatRequest["messages"] = [];
     summaryMessages.push({ role: "system", content: COMPACT_SYSTEM_PROMPT });
 
@@ -1045,9 +1043,6 @@ export class ChatService {
     // enableTools 默认为 true
     const enableTools = conv.enableTools !== false;
 
-    // 每个 chat 请求一个独立的 SessionToolRegistry（parent = 全局 toolRegistry）
-    // 会话级 meta-tools（skill / task / ask_user / sub_agent / execute_script）只注册到 session，
-    // 避免并发会话的闭包互相覆盖。session 超出作用域后由 GC 清理，无需手动 unregister。
     const sessionRegistry = new SessionToolRegistry(this.toolRegistry);
 
     // 解析 Skills（注入 prompt + 注册 meta-tools），仅在启用 tools 时执行
@@ -1058,7 +1053,6 @@ export class ChatService {
       promptSuffix = resolved.promptSuffix;
       metaTools = resolved.metaTools;
 
-      // 注册 skill meta-tools 到 session
       for (const mt of metaTools) {
         sessionRegistry.register("skill", mt.definition, mt.executor);
       }
@@ -1074,7 +1068,6 @@ export class ChatService {
         sessionRegistry.register("session", t.definition, t.executor);
       }
 
-      // Ask user
       if (!params.scriptUuid) {
         const askTool = createAskUserTool(sendEvent, askResolvers, abortController.signal);
         sessionRegistry.register("session", askTool.definition, askTool.executor);
@@ -1107,7 +1100,6 @@ export class ChatService {
             childRegistry.register("session", t.definition, t.executor);
           }
 
-          // 独立的 execute_script
           const childExecTool = createExecuteScriptTool(this.executeScriptDeps);
           childRegistry.register("session", childExecTool.definition, childExecTool.executor);
 
@@ -1135,7 +1127,6 @@ export class ChatService {
       });
       sessionRegistry.register("session", subAgentTool.definition, subAgentTool.executor);
 
-      // Execute script
       const executeScriptTool = createExecuteScriptTool(this.executeScriptDeps);
       sessionRegistry.register("session", executeScriptTool.definition, executeScriptTool.executor);
     }
@@ -1173,7 +1164,6 @@ export class ChatService {
       }
     }
 
-    // 预执行 load_skill 以注册动态工具（结果不需要，只需要副作用）
     for (const skillName of loadedSkillNames) {
       if (signal?.aborted) break;
       try {
@@ -1197,7 +1187,6 @@ export class ChatService {
   }): Promise<BuildMessagesResult> {
     const { conv, params, existingMessages, enableTools, promptSuffix } = ctx;
 
-    // 构建消息列表
     const messages: ChatRequest["messages"] = [];
 
     // 添加 system 消息（内置提示词 + 用户自定义 + skill prompt）
@@ -1232,7 +1221,7 @@ export class ChatService {
         // OPFS close 报告的错误具有二义性：写入可能已经落盘，只是确认读又恰好失败。
         // 附件所有权只有在这次 append 被判定成功后才会转移给消息（见 onUserMessagePersisted）；
         // 若在这里把二义性错误当作"未持久化"直接向上抛，外层会删除刚刚可能已经被这条
-        // 持久化消息引用的临时附件，导致消息引用悬空文件。因此必须先positively
+        // 持久化消息引用的临时附件，导致消息引用悬空文件。因此必须先明确
         // 确认这条消息是否已经真正写入，只有确认"确实未写入"才允许向上传播失败。
         const committed = await this.chatRepo
           .getMessageSnapshot(params.conversationId, conv.generation)
