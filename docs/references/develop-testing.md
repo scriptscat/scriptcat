@@ -8,11 +8,11 @@ Vitest + happy-dom. Per-test budgets live in `vitest.config.ts` per project: non
 `renderHook` tests in `.ts` files) uses 850ms because a render + interaction case genuinely costs 100–200ms
 solo under coverage and worker parallelism multiplies that (fake-timer countdown cases have been observed at
 ~630ms under full local load). Don't pass `--test-timeout` on the CLI — it would override every project's
-budget at once. Chrome APIs mocked via
-`@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` available for message-system tests.
+budget at once. Chrome APIs are mocked via
+`@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` is available for message-system tests.
 `happy-dom` is patched via `patches/` (see `pnpm-workspace.yaml` `patchedDependencies`) to build its
 invalid-selector `DOMException` lazily — the upstream eager construction captures a deep stack on every
-`matches()`/`querySelector()` call and cost ~15% of TSX suite time.
+`matches()`/`querySelector()` call and costs ~15% of TSX suite time.
 
 - Write failing tests **before** implementation; co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
 - BDD-style Chinese `describe`/`it` titles. Use `describe.concurrent()` / `it.concurrent()` where independent.
