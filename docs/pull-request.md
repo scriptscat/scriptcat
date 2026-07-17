@@ -1,6 +1,6 @@
 # Pull Request Description Guide
 
-This guide defines the detailed PR description format for agents and contributors. The human-facing template at [`../.github/pull_request_template.md`](../.github/pull_request_template.md) intentionally remains lightweight; use it as the starting point and expand its `Description / 描述` section when the change needs more context.
+This guide defines the detailed PR description format for agents and contributors. The human-facing template at [`../.github/pull_request_template.md`](../.github/pull_request_template.md) intentionally remains lightweight; use it as the starting point and expand its `Description / 描述` section when the change needs more context. This guide covers the description body only — for the PR **title** (gitmoji + Chinese preferred), see [`develop.md`](./develop.md#commit--pull-request-guidelines).
 
 ## Recommended structure
 
