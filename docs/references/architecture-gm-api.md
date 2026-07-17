@@ -57,7 +57,8 @@ work.
 ### Adding a GM API (sketch)
 
 1. Add the method to the content `GMApi` with `@GMContext.API({ alias: "GM.foo" })`; for sync APIs return
-   directly, for async ones forward via `sendMessage`/`connect`.
+   directly, for async ones forward via `sendMessage` (single request/reply) — or `connect` only when the reply
+   is streamed in chunks (progress events, large payloads; see the `GM_xmlhttpRequest` walkthrough above).
 2. If it needs privilege (network, cookies, tabs), add the handler on the SW `GMApi` with
    `@PermissionVerify.API(...)`.
 3. If it needs DOM, route through the offscreen GM API instead
