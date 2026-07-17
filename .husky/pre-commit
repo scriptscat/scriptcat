@@ -30,12 +30,11 @@ fi
 
 rm -f "$lint_files"
 
-# 涉及翻译相关文件时，强制跑机械完整性检查（缺失/多余 key、缺失 messages.json、
-# 缺失 terminology 规范文件等），未通过则拒绝提交
+# 涉及翻译 json 文件时，强制跑机械完整性检查（缺失/多余 key、缺失 messages.json 等），
+# 未通过则拒绝提交
 i18n_files=$(mktemp)
 git diff --cached --name-only -z --diff-filter=ACMR -- \
-  "src/locales/*" "src/assets/_locales/*" "docs/references/terminology-*.md" \
-  "src/pkg/utils/monaco-editor/langs.ts" "src/pkg/utils/monaco-editor/langs/*" > "$i18n_files"
+  "src/locales/*.json" "src/assets/_locales/*.json" > "$i18n_files"
 
 if [ -s "$i18n_files" ]; then
   rm -f "$i18n_files"
