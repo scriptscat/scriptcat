@@ -28,6 +28,11 @@ describe("同步状态样式判定", () => {
     expect(syncStatusVariant(base({ counts: { failed: 1 } }))).toBe("error");
   });
 
+  it("上一轮有失败但重试进行中时应显示同步中，而非失败已暂停", () => {
+    // SW 起始写只清 error 不清 counts：重试期间旧 counts.failed 不能把状态条压成"失败"
+    expect(syncStatusVariant(base({ syncing: true, counts: { failed: 1 } }))).toBe("syncing");
+  });
+
   it("无异常为 idle", () => {
     expect(syncStatusVariant(base({ counts: { total: 5 } }))).toBe("idle");
   });

@@ -2,10 +2,12 @@ import { type CloudSyncState } from "@App/pkg/config/config";
 
 export type SyncStatusVariant = "idle" | "syncing" | "warning" | "error";
 
-// 状态优先级：失败 > 同步中 > 有覆盖/冲突 > 正常
+// 状态优先级：失败(error) > 同步中 > 上轮文件失败 > 有覆盖/冲突 > 正常。
+// SW 起始写只清 error 不清 counts：重试进行中不能被旧 counts.failed 压成"失败已暂停"
 export function syncStatusVariant(state: CloudSyncState): SyncStatusVariant {
-  if (state.error || state.counts.failed > 0) return "error";
+  if (state.error) return "error";
   if (state.syncing) return "syncing";
+  if (state.counts.failed > 0) return "error";
   if (state.counts.overwrite > 0 || state.counts.conflict > 0) return "warning";
   return "idle";
 }
