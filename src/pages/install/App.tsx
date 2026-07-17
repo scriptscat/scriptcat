@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, RefreshCw, Rss, HardDrive } from "lucide-react";
+import { Download, RefreshCw, Rss, HardDrive, RotateCcw } from "lucide-react";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { isPermissionOk } from "@App/pkg/utils/utils";
 import { InstallLayout } from "./components/InstallLayout";
@@ -101,6 +101,8 @@ export default function App() {
         actions={
           <InstallActions
             isUpdate={view.isUpdate}
+            inTrash={view.inTrash}
+            versionChanged={view.version.kind === "update" && view.version.changed}
             isSubscribe={view.isSubscribe}
             primaryDisabled={watching}
             localFile={localFile}
@@ -125,6 +127,15 @@ export default function App() {
           onEnabledChange={setEnabled}
         />
         {watching && <WatchingBanner fileName={watchFileName || ""} lastSync={lastSync} />}
+        {view.inTrash && (
+          <div
+            data-testid="in-trash-banner"
+            className="flex items-center gap-2.5 px-4 py-3 border rounded-lg border-border bg-muted"
+          >
+            <RotateCcw className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="text-sm text-muted-foreground">{t("install:in_trash_hint")}</span>
+          </div>
+        )}
         {view.isSubscribe ? (
           <SubscribeScripts scriptUrls={view.subscribeScripts} />
         ) : (

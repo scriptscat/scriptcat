@@ -14,7 +14,12 @@ const chromeArgs = [
   `--disable-extensions-except=${pathToExtension}`,
   `--load-extension=${pathToExtension}`,
   `--host-resolver-rules=MAP ${CSP_TARGET_HOST} ${MOCK_CONNECT_HOST},EXCLUDE localhost`,
+  "--disable-gpu",
 ];
+
+// CI（GitHub Actions）跑在非 root 用户下不会自动应用 --no-sandbox，关掉沙箱能省下每次
+// launchPersistentContext 的 sandbox/fork 开销；本地开发机上仍保留沙箱隔离。
+const chromiumSandbox = !process.env.CI;
 
 type GMApiMockServer = {
   origin: string;
@@ -41,9 +46,12 @@ const test = base.extend<
       const ctx1 = await chromium.launchPersistentContext(userDataDir, {
         headless: false,
         args: ["--headless=new", ...chromeArgs],
+        timeout: 60_000,
+        chromiumSandbox,
       });
       let [bg] = ctx1.serviceWorkers();
       if (!bg) bg = await ctx1.waitForEvent("serviceworker", { timeout: 30_000 });
+
       const extensionId = bg.url().split("/")[2];
       const extPage = await ctx1.newPage();
       await extPage.goto("chrome://extensions/");
@@ -72,16 +80,18 @@ const test = base.extend<
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
       args: ["--headless=new", ...chromeArgs],
+      timeout: 60_000,
+      chromiumSandbox,
     });
     const [sw] = context.serviceWorkers();
-    if (!sw) await context.waitForEvent("serviceworker", { timeout: 30_000 });
+    if (!sw) await context.waitForEvent("serviceworker", { timeout: 14_000 });
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
   },
   extensionId: async ({ context }, use) => {
     let [background] = context.serviceWorkers();
-    if (!background) background = await context.waitForEvent("serviceworker");
+    if (!background) background = await context.waitForEvent("serviceworker", { timeout: 14_000 });
     const extensionId = background.url().split("/")[2];
     const initPage = await context.newPage();
     await initPage.goto(`chrome-extension://${extensionId}/src/options.html`);

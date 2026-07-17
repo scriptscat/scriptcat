@@ -1,3 +1,6 @@
+/// <reference types="chrome" />
+/// <reference types="serviceworker" />
+
 declare module "@App/types/scriptcat.d.ts";
 declare module "*.tpl";
 declare module "*.json";
