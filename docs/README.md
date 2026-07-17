@@ -18,7 +18,7 @@
 | 文档 | 说明 |
 | --- | --- |
 | [`translation.md`](./translation.md) | 翻译 / 本地化指南(单一信息源):术语与修改规则、工作流、提取翻译提示词。**翻译前先读。** |
-| [`translation.md` 术语规范表](./translation.md#各语言术语规范--per-locale-terminology) | 8 个语言地区的术语与界面文案规范 `terminology-<locale>.md`(en-US / zh-CN / zh-TW / ja-JP / ru-RU / de-DE / vi-VN / tr-TR)。 |
+| [`translation.md` 术语规范表](./translation.md#各语言术语规范--per-locale-terminology) | 9 个语言地区的术语与界面文案规范 `terminology-<locale>.md`(en-US / zh-CN / zh-TW / ja-JP / ru-RU / de-DE / vi-VN / tr-TR / pt-BR)。 |
 
 ## 贡献指南 / Contributing
 
