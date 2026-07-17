@@ -57,11 +57,18 @@ A comment earns its place by telling the reader something the code cannot: an in
 workaround for a specific constraint, or a reason something looks wrong but isn't. Before adding or keeping a
 comment, ask whether deleting it would cost a future reader anything — if not, delete it.
 
-- **No internal tracking labels.** Never write review-round or audit identifiers into comments or test names —
-  e.g. `finding 5`, `issue #123`, `round 2 fix`, `【finding N 回归】`. These numbers are meaningless outside the
-  conversation that produced them and read as noise once that context is gone. If a fix needs traceability,
-  that belongs in the commit message or PR description, not in source code; the comment itself should just
-  state the invariant being protected (e.g. `确认读失败不代表写入未落盘，只是无法证实` rather than `见 finding 2`).
+- **Ephemeral review labels never; permanent issue/PR references when they aid understanding.** Never write
+  review-round or audit identifiers that only made sense inside one throwaway conversation — e.g. `finding 5`,
+  `round 2 fix`, `【finding N 回归】`. A future reader has no way to look these up once that conversation is gone,
+  so they read as pure noise (see the invariant example below: state the "why" directly instead of pointing at
+  a number nobody can resolve). A reference to a real, permanent, externally-resolvable **issue or PR number**
+  is different and often exactly what a comment should do — e.g. `// regression test for #1234: 附件在会话删除
+  重建后被误删` on a test added because of a real tracked bug. That reference lets a future maintainer open the
+  tracker and read the full history, which is real value for understanding/review/maintenance, not noise. The
+  test is the same either way: would this reference still mean something, and help the reader, with no memory
+  of the conversation that added it? An issue number usually passes that test; a private review-round label
+  never does. Either way, still state the invariant/behavior itself in words
+  (e.g. `确认读失败不代表写入未落盘，只是无法证实`) — the reference supplements that sentence, it doesn't replace it.
 - **Don't restate the next line.** A comment placed right above code must add information the code doesn't
   already convey — never narrate what a reader can already see, like `// 继续循环` above `continue;` or
   `// send done event` above `sendEvent({ type: "done" })`. If the comment would read the same after deleting

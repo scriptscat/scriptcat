@@ -45,7 +45,7 @@ These are non-negotiable and apply to every change, regardless of what `docs/dev
 - **Direct replacement over adapter sandwiches.** When swapping a backend/library, replace in place — no `interface Foo + LegacyImpl + NewImpl` unless both must coexist at runtime.
 - **Scope discipline — stay in your lane.** Bug fix ≠ cleanup PR. Touch only the files the task requires; leave unrelated files untouched (不要动和任务不相干的文件). Don't add helpers, abstractions, validation, or backwards-compat shims you don't need today. Three similar lines beats a premature abstraction.
 - **No dead code or `// removed` markers** — git remembers. Delete unused code outright.
-- **Comments explain "why", not "what" — and never carry review/audit labels.** No `finding N`, issue numbers, or round labels in comments or test names; that traceability belongs in the commit message/PR description. Don't restate the next line, don't duplicate an existing JSDoc, and don't leave a comment behind describing code that moved or was replaced. See `docs/develop.md`'s Comment Discipline section.
+- **Comments explain "why", not "what" — never ephemeral review labels, but real issue/PR references are welcome.** No `finding N` / round labels in comments or test names (nobody outside that conversation can resolve them); a permanent, externally-resolvable issue or PR number is fine and often useful (e.g. a regression test's "why" is genuinely a tracked bug). Don't restate the next line, don't duplicate an existing JSDoc, and don't leave a comment behind describing code that moved or was replaced. See `docs/develop.md`'s Comment Discipline section.
 
 ## Architecture
 
