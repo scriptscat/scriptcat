@@ -159,13 +159,13 @@ digest 更新有两条路径，区别在于对账范围：
 
 - 云端缺 `.meta.json`（上一轮分片上传残留）：push 本地脚本补齐 meta。
 - 云端 digest 与 `file_digest` 一致（云端自上次同步未变）：
-  - 本地更新时间不比云端新：跳过。
-  - 本地更新时间更晚：补偿 push——云端 digest 检测不到本地编辑，队列 push 失败后也靠这里兜底。
+  - 本地更新时间不比云端新（整秒对齐比较）：跳过。
+  - 本地更新时间更晚：补偿 push——云端 digest 检测不到本地编辑，队列 push 失败后也靠这里兜底。这里仍是跨时钟域比较（本地是客户端毫秒时钟，云端 mtime 在 WebDAV 等服务端仅整秒精度），比较前两侧都截断到整秒：同秒内的毫秒余数不触发补偿，避免每次编辑上云后（服务端写入时间与编辑同秒）多一轮冗余覆盖 push。
 - 云端 digest 与 `file_digest` 不一致（云端自上次同步已变，或本机无记录），由 `decideDirectionOnRemoteChange()` 决定方向。**不比较本地毫秒时钟与服务端整秒 mtime**（对端更新落在同一秒内时"本地时间戳更大"是误报，会 push 覆盖较新的云端内容，即 L4 同秒竞态）：
   - 本地内容 md5 == `sync_content_md5` 基线（本地未改）：pull。
   - 本地内容已改，但与云端当前内容一致（两台设备做了同样编辑，或本机记账失败后云端实为本机所写）：直接采用云端 digest 收敛基线，不产生写操作（adopt）。
   - 本地与云端都改了（真冲突）：抛 `SyncBothChangedConflictError`，本轮跳过该脚本（沿用失败路径保留旧 digest 与云端 status），并聚合通知用户（见下）。
-  - 无基线（升级前旧数据/从未同步成功）：退回旧的时间比较规则（时间更晚一方胜出）。
+  - 无基线（升级前旧数据/从未同步成功）：退回旧的时间比较规则（整秒对齐后时间更晚一方胜出，同秒判 pull）。
 - 冲突通知：一轮同步只发一条通知，列出所有冲突脚本名；同一批脚本持续冲突时后续轮次不重复通知（集合变化后重新通知）。冲突脚本会一直停走，直到某一端内容与另一端一致（自动收敛）或某一端被删除/重装。
 
 注意：push 是普通覆盖写。`list → 决策 → write` 之间存在 TOCTOU 窗口：若对端恰好在这几秒内写入同一文件，后写者胜（last-writer-wins），同步层无法察觉。内容基线只能减少基于旧快照做出错误方向判断的概率，不能消除请求之间的并发窗口。
@@ -247,7 +247,6 @@ provider 应尽量抛 `FileSystemError`。同步层用 `classifySyncError()` 映
 | `FileSystemError.rateLimit` 或 `retryable` | `transient` | 429、瞬时 5xx（500/502/503/504）等可重试错误 |
 | `FileSystemError.notFound` | `stale_snapshot` | list 到操作之间远端消失或缓存过期 |
 | `FileSystemError.auth` 或 `WarpTokenError` | `fatal` | 授权失败 |
-| error message 包含 `unsupported` | `unsupported` | provider 不支持 |
 | 其他 | `fatal` | 未分类错误 |
 
 错误分类主要用于日志、保留 digest、后续 retry 策略和 review 判断。它不是用户可见错误协议。
@@ -273,7 +272,7 @@ typed `retryable` 只覆盖瞬时 5xx（500/502/503/504）。501、505、507 等
 | Google Drive | `md5Checksum` | 普通覆盖写入 | 先按路径查 fileId，再 PATCH 或 POST；path cache 可能 stale |
 | Dropbox | `content_hash` | 普通覆盖写入 | 先 `exists()`，存在 overwrite，不存在 add |
 | Baidu | `md5` | 普通覆盖写入 | precreate/upload/create，`rtype=3` 覆盖；HTTP 429/5xx typed |
-| Zip | 空或 zip metadata | 普通覆盖写入 | 备份用途 |
+| Zip | 空 | 普通覆盖写入 | 备份用途 |
 
 ### WebDAV
 
@@ -360,7 +359,7 @@ type CloudSyncState = {
 
 ### 覆盖日志（`action` 标签）
 
-`decideDirectionOnRemoteChange()` 的**无内容基线兜底**分支（`baselineMd5 === undefined`）只能按跨时钟域墙钟比较 pull/push，可能覆盖未知改动。该分支返回 `{ action, unverified: true }`，调用点据此打警告日志：
+`decideDirectionOnRemoteChange()` 的**无内容基线兜底**分支（`baselineMd5 === undefined`）只能按跨时钟域墙钟比较（整秒对齐）pull/push，可能覆盖未知改动。该分支返回 `{ action, unverified: true }`，调用点在**写入成功后**据此打警告日志（失败轮次不登记也不通知，避免谎报覆盖、且不让去重键把下一轮真覆盖静默掉）：
 
 ```ts
 this.logger.warn("sync overwrite", { action: "overwrite", direction, uuid, name });
@@ -376,7 +375,7 @@ this.logger.warn("sync overwrite", { action: "overwrite", direction, uuid, name 
 
 ### 边界
 
-- 日志按 `LogCleanCycle`（默认 7 天，`LoggerDAO.deleteBefore`）自动清理，回溯窗口约最近 7 天。
+- 日志目前没有自动清理机制（`LogCleanCycle` 设置与 `LoggerDAO.deleteBefore` 接口存在，但没有调用点执行清理），覆盖日志可长期回溯。
 - `overwrite` 只覆盖「无基线兜底」这一**可检测**的静默覆盖；纯 TOCTOU last-writer-wins（见上文 push 一节）客户端无法察觉，不在本轮可见性范围内。
 
 ## 生产兼容要求
@@ -416,7 +415,7 @@ this.logger.warn("sync overwrite", { action: "overwrite", direction, uuid, name 
 7. 云端已变、本地内容基线未变时必须 pull——即使本地 updatetime 大于云端 mtime（同秒竞态 L4）。
 8. 本地与云端都变（真冲突）时不 push 不 pull，保留旧 digest 与云端 status，一轮只发一条聚合通知，同一批冲突不重复通知。
 9. 云端已变、本地也变但内容与云端一致时，收敛基线且不产生写操作。
-10. 无内容基线（升级前旧数据）时退回时间比较规则。
+10. 无内容基线（升级前旧数据）时退回整秒对齐的时间比较规则，同秒判 pull。
 11. 队列路径 digest 只更新本次 uuid 文件，不全量盖章漏 pull。
 12. 同步失败计数必须在设置页显示为失败，不能显示为同步正常。
 13. 冲突或失败状态的日志深链不能被覆盖过滤条件隐藏。
