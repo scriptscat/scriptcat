@@ -265,7 +265,9 @@ describe.concurrent("stackAsyncTask 测试", () => {
   });
 
   /* ------------------- 5. 压力 + 递回 ------------------- */
-  it.sequential("【5】大量任务、递回不死锁 + 返回值正确", async () => {
+  // 3000 个任务的串行 await 链在并发 worker 争抢下单次实测可达 300ms+，
+  // 逼近全局 340ms 预算；对这类真实成本用例给出显式单测预算，不放宽全局超时。
+  it.sequential("【5】大量任务、递回不死锁 + 返回值正确", { timeout: 850 }, async () => {
     const kMass = generateKey("mass");
     const kRecur = generateKey("recur");
     const gMass = setupBlockingTask(kMass);
