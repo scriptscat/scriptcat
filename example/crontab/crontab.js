@@ -7,26 +7,26 @@
 // @crontab      */15 14-16 * * *
 // @grant        GM_log
 // @grant        GM_xmlhttpRequest
-// @connect      httpbun.com
+// @connect      mockhttp.org
 // ==/UserScript==
 
 return new Promise((resolve, reject) => {
   GM_log("下午两点至四点每十五分钟运行一次");
 
   GM_xmlhttpRequest({
-    url: "https://httpbun.com/get",
+    url: "https://mockhttp.org/get",
     method: "GET",
     responseType: "json",
     anonymous: true,
 
     onload(resp) {
       const data = resp.response;
-      if (resp.status !== 200 || data?.url !== "https://httpbun.com/get") {
+      if (resp.status !== 200 || resp.finalUrl !== "https://mockhttp.org/get" || data?.method !== "GET") {
         reject("服务器回应错误。");
         return;
       }
 
-      GM_log(`定时请求成功：\n${data.url}`);
+      GM_log(`定时请求成功：\n${resp.finalUrl}`);
       resolve();
     },
     onerror() {

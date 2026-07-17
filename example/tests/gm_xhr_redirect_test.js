@@ -6,7 +6,7 @@
 // @author       you
 // @match        *://*/*?GM_XHR_REDIRECT_TEST_SC
 // @grant        GM_xmlhttpRequest
-// @connect      httpbun.com
+// @connect      mockhttp.org
 // @noframes
 // ==/UserScript==
 
@@ -104,7 +104,7 @@ const enableTool = true;
     });
   }
 
-  const HB = "https://httpbun.com";
+  const HB = "https://mockhttp.org";
 
   // ---------- Assertion utils ----------
   function assertEq(a, b, msg) {
@@ -131,9 +131,9 @@ const enableTool = true;
       async run(fetch) {
         const { res } = await gmRequest({ method: "GET", url: `${HB}/get?testing=234&abc=567`, responseType: "json", fetch });
         assertEq(res.status, 200, "status 200");
-        assertEq(res.response?.args?.testing, "234", "response ok");
-        assertEq(res.response?.args?.abc, "567", "response ok");
-        assertEq(res.response?.url, `${HB}/get?testing=234&abc=567`, "response ok");
+        assertEq(res.response?.queryParams?.testing, "234", "response ok");
+        assertEq(res.response?.queryParams?.abc, "567", "response ok");
+        assertEq(res.finalUrl, `${HB}/get?testing=234&abc=567`, "response ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
@@ -142,9 +142,9 @@ const enableTool = true;
       async run(fetch) {
         const { res } = await gmRequest({ method: "GET", url: `${HB}/get?abc=567&testing=234`, responseType: "json", fetch });
         assertEq(res.status, 200, "status 200");
-        assertEq(res.response?.args?.testing, "234", "response ok");
-        assertEq(res.response?.args?.abc, "567", "response ok");
-        assertEq(res.response?.url, `${HB}/get?abc=567&testing=234`, "response ok");
+        assertEq(res.response?.queryParams?.testing, "234", "response ok");
+        assertEq(res.response?.queryParams?.abc, "567", "response ok");
+        assertEq(res.finalUrl, `${HB}/get?abc=567&testing=234`, "response ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
@@ -194,7 +194,7 @@ const enableTool = true;
           gmRequest({ method: "GET", url, redirect: "manual", fetch }),
           new Promise(resolve => setTimeout(resolve, 4000)),
         ]);
-        assertEq(res?.status, 301, "status is 301");
+        assertEq(res?.status, 302, "status is 302");
         assertEq(res?.finalUrl, url, "finalUrl is original url");
         assertEq(typeof res?.responseHeaders === "string" && res?.responseHeaders !== "", true, "responseHeaders ok");
         assertEq(objectProps(res), "ok", "Object Props OK");

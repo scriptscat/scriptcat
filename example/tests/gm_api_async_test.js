@@ -24,7 +24,7 @@
 // @grant        unsafeWindow
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js#sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK
 // @resource     testCSS https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css#sha256=62f74b1cf824a89f03554c638e719594c309b4d8a627a758928c0516fa7890ab
-// @connect      httpbun.com
+// @connect      mockhttp.org
 // @connect      example.com
 // @run-at       document-start
 // ==/UserScript==
@@ -192,7 +192,7 @@
     return new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
         method: "GET",
-        url: "https://httpbun.com/get",
+        url: "https://mockhttp.org/get",
         timeout: 10000,
         onload: (response) => {
           try {
@@ -200,8 +200,9 @@
             assert(true, !!response.responseText, "响应内容不应为空");
             const data = JSON.parse(response.responseText);
             assert("object", typeof data, "应该返回有效的 JSON 对象");
-            assert("https://httpbun.com/get", data.url, "响应应该包含 url 字段");
-            console.log("httpbun 响应信息:", data.url);
+            assert("GET", data.method, "响应应该包含 method 字段");
+            assert(true, response.finalUrl.includes("mockhttp.org/get"), "finalUrl 应指向请求的地址");
+            console.log("mockhttp 响应信息:", response.finalUrl);
             resolve();
           } catch (error) {
             reject(error);
@@ -220,7 +221,7 @@
   await testAsync("GM.xmlHttpRequest - 返回控制对象", async () => {
     const controller = GM.xmlHttpRequest({
       method: "GET",
-      url: "https://httpbun.com/get",
+      url: "https://mockhttp.org/get",
       timeout: 10000,
       onload: () => {},
       onerror: () => {},

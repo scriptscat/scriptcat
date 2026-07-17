@@ -6,7 +6,7 @@
 // @author       you
 // @match        *://*/*?GM_XHR_TEST_SC
 // @grant        GM_xmlhttpRequest
-// @connect      httpbun.com
+// @connect      mockhttp.org
 // @connect      nonexistent-domain-abcxyz.test
 // @connect      raw.githubusercontent.com
 // @connect      translate.googleapis.com
@@ -18,11 +18,12 @@
   --------------
   - Builds an in-page test runner panel.
   - Runs a battery of tests probing GM_xmlhttpRequest options, callbacks, and edge/abnormal paths.
-  - Uses httpbin.org endpoints for deterministic echo/response behavior.
+  - Uses mockhttp.org endpoints for deterministic echo/response behavior.
   - Prints a summary and a detailed per-test log with assertions.
 
-  NOTE: Endpoints now point to https://httpbun.com (a faster httpbin-like service).
-        See https://httpbun.com for docs and exact paths. (Also supports /get, /post, /bytes/{n}, /delay/{s}, /status/{code}, /redirect-to, /headers, /any, etc.)
+  NOTE: Endpoints point to https://mockhttp.org (open source, https://github.com/jaredwray/mockhttp).
+        See https://mockhttp.org for docs and exact paths. (Supports /get, /post, /put, /patch, /delete,
+        /anything, /bytes/{n}, /delay/{s}, /status/{code}, /redirect-to, /headers, /ip, /basic-auth, etc.)
 */
 
 /*
@@ -31,7 +32,7 @@
   ✓ method (GET/POST/PUT/DELETE/HEAD/OPTIONS)
   ✓ url & redirects (finalUrl)
   ✓ headers (custom headers echoed by server)
-  ✓ data (form-encoded, JSON, and raw/binary body)
+  ✓ data (JSON body; mockhttp.org only accepts application/json bodies)
   ✓ responseType: '', 'json', 'arraybuffer', 'blob'
   ✓ overrideMimeType
   ✓ timeout + ontimeout
@@ -39,7 +40,7 @@
   ✓ onload (non-2xx still onload)
   ✓ onerror (DNS/blocked host)
   ✓ onabort (manual abort)
-  ✓ anonymous (no cookies)
+  ✓ anonymous (basic-auth only; mockhttp.org's /cookies routes are stubs, see notes below)
   ✓ basic auth (user/password)
   ✓ edge cases: huge headers trimmed? invalid method; invalid URL; missing @connect domain triggers onerror
 */
@@ -439,14 +440,14 @@ const enableTool = true;
     });
   }
 
-  // Switched base host from httpbin to httpbun (faster).
-  // See: https://httpbun.com (endpoints: /get, /post, /bytes/{n}, /delay/{s}, /status/{code}, /redirect-to, /headers, /any, etc.)
-  const HB = "https://httpbun.com";
+  // Switched base host from httpbun to mockhttp.org (open source, more stable).
+  // See: https://mockhttp.org (endpoints: /get, /post, /bytes/{n}, /delay/{s}, /status/{code}, /redirect-to, /headers, /anything, etc.)
+  const HB = "https://mockhttp.org";
 
-  // Helper: handle minor schema diffs between httpbin/httpbun for query echo
+  // Helper: handle schema diffs across httpbin/httpbun/mockhttp for query echo
+  // (mockhttp's /get uses "queryParams"; /anything uses "args" like httpbin).
   function getQueryObj(body) {
-    // httpbin uses "args", httpbun may use "query" (and still often provides "args" for compatibility).
-    return body.args || body.query || body.params || {};
+    return body.args || body.query || body.queryParams || body.params || {};
   }
 
   const encodedBase64 =
@@ -602,8 +603,8 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(`${res.response}`.includes('"code": 200'), true, "response ok");
+        assertEq(`${res.responseText}`.includes("Response with status code 200"), true, "responseText ok");
+        assertEq(`${res.response}`.includes("Response with status code 200"), true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -619,8 +620,8 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(`${res.response}`.includes('"code": 200'), true, "response ok");
+        assertEq(`${res.responseText}`.includes("Response with status code 200"), true, "responseText ok");
+        assertEq(`${res.response}`.includes("Response with status code 200"), true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -636,8 +637,8 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(`${res.response}`.includes('"code": 200'), true, "response ok");
+        assertEq(`${res.responseText}`.includes("Response with status code 200"), true, "responseText ok");
+        assertEq(`${res.response}`.includes("Response with status code 200"), true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -653,8 +654,12 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
+        assertEq(`${res.responseText}`.includes("Response with status code 200"), true, "responseText ok");
+        assertEq(
+          typeof res.response === "object" && `${res.response?.status}`.includes("200"),
+          true,
+          "response ok"
+        );
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -670,7 +675,7 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
+        assertEq(`${res.responseText}`.includes("Response with status code 200"), true, "responseText ok");
         assertEq(res.response instanceof XMLDocument, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
@@ -704,7 +709,7 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
+        assertEq(`${res.responseText}`.includes("Response with status code 200"), true, "responseText ok");
         assertEq(res.response instanceof ArrayBuffer, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
@@ -721,7 +726,7 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
+        assertEq(`${res.responseText}`.includes("Response with status code 200"), true, "responseText ok");
         assertEq(res.response instanceof Blob, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
@@ -955,30 +960,15 @@ const enableTool = true;
           }),
           new Promise((resolve) => setTimeout(resolve, 4000)),
         ]);
-        assertEq(res?.status, 301, "status is 301");
+        assertEq(res?.status, 302, "status is 302");
         assertEq(res?.finalUrl, url, "finalUrl is original url");
         assertEq(typeof res?.responseHeaders === "string" && res?.responseHeaders !== "", true, "responseHeaders ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
-    {
-      name: "POST form-encoded data",
-      async run(fetch) {
-        const params = new URLSearchParams({ a: "1", b: "two" }).toString();
-        const { res } = await gmRequest({
-          method: "POST",
-          url: `${HB}/post`,
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          data: params,
-          fetch,
-        });
-        const body = JSON.parse(res.responseText);
-        assertEq(res.status, 200);
-        assertEq((body.form || {}).a, "1", "form a");
-        assertEq((body.form || {}).b, "two", "form b");
-        assertEq(objectProps(res), "ok", "Object Props OK");
-      },
-    },
+    // Note: mockhttp.org's /post rejects application/x-www-form-urlencoded bodies
+    // with 415 Unsupported Media Type, so the form-encoded POST case from the
+    // httpbun/httpbin era can no longer be exercised against this server.
     {
       name: "POST JSON body",
       async run(fetch) {
@@ -992,27 +982,13 @@ const enableTool = true;
         });
         const body = JSON.parse(res.responseText);
         assertEq(res.status, 200);
-        assertDeepEq(body.json, payload, "JSON echo matches");
+        assertDeepEq(body.body, payload, "JSON echo matches");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
-    {
-      name: "Send binary body (Uint8Array) + responseType text",
-      async run(fetch) {
-        const bytes = new Uint8Array([1, 2, 3, 4, 5]);
-        const { res } = await gmRequest({
-          method: "POST",
-          url: `${HB}/post`,
-          binary: true,
-          data: bytes,
-          fetch,
-        });
-        const body = JSON.parse(res.responseText);
-        assertEq(res.status, 200);
-        assert(body.data && body.data.length > 0, "server received some data");
-        assertEq(objectProps(res), "ok", "Object Props OK");
-      },
-    },
+    // Note: mockhttp.org's /post (and /anything) reject any request body whose
+    // Content-Type is not application/json with 415 Unsupported Media Type, so
+    // raw/binary body upload can no longer be exercised against this server.
     {
       name: "responseType=arraybuffer (download bytes)",
       async run(fetch) {
@@ -1055,7 +1031,7 @@ const enableTool = true;
         assertEq(buf.byteLength, size, "byte length matches");
         assert(progressCounter >= 1, "progressCounter >= 1");
         assertEq(objectProps(res), "ok", "Object Props OK");
-        // Do not assert image MIME; httpbun returns octet-stream here.
+        // Do not assert image MIME; mockhttp returns octet-stream here.
       },
     },
     {
@@ -1070,7 +1046,7 @@ const enableTool = true;
         });
         assertEq(res.status, 200);
         assert(res.response && typeof res.response === "object", "parsed JSON object");
-        assert(res.response.origin, "has JSON fields");
+        assert(res.response.ip, "has JSON fields");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
@@ -1320,11 +1296,12 @@ const enableTool = true;
       async run(fetch) {
         const { res } = await gmRequest({
           method: "OPTIONS",
-          url: `${HB}/any`,
+          url: `${HB}/anything`,
           fetch,
         });
-        // httpbun commonly returns 200 for OPTIONS
-        assert(res.status === 200 || res.status === 204, "200/204 on OPTIONS");
+        // mockhttp.org has no OPTIONS route registered on any endpoint (returns 404),
+        // unlike httpbun which commonly returned 200 for OPTIONS.
+        assertEq(res.status, 404, "404 on OPTIONS (no route registered)");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
@@ -1342,116 +1319,10 @@ const enableTool = true;
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
-    {
-      name: 'anonymous TEST - set cookie "abc"',
-      async run(fetch) {
-        // httpbin echoes Cookie header in headers
-        const { res } = await gmRequest({
-          method: "GET",
-          url: `${HB}/cookies/set/abc/123`,
-          fetch,
-        });
-      },
-    },
-    {
-      name: "anonymous TEST - get cookie",
-      async run(fetch) {
-        // httpbin echoes Cookie header in headers
-        const { res } = await gmRequest({
-          method: "GET",
-          url: `${HB}/cookies`,
-          fetch,
-        });
-        assertEq(res.status, 200);
-        const body = JSON.parse(res.responseText);
-        const cookieABC = body.cookies.abc;
-        assertEq(cookieABC, "123", "cookie abc=123");
-        assertEq(objectProps(res), "ok", "Object Props OK");
-      },
-    },
-    {
-      name: "anonymous: true (no cookies sent)",
-      async run(fetch) {
-        // httpbin echoes Cookie header in headers
-        const { res } = await gmRequest({
-          method: "GET",
-          url: `${HB}/headers`,
-          anonymous: true,
-          fetch,
-        });
-        const body = JSON.parse(res.responseText);
-        const cookies = body.headers.Cookie || body.headers.cookie;
-        assert(!`${cookies}`.includes("abc=123"), "no Cookie header when anonymous");
-        assertEq(objectProps(res), "ok", "Object Props OK");
-      },
-    },
-    {
-      name: "anonymous: false (cookies sent)",
-      async run(fetch) {
-        // httpbin echoes Cookie header in headers
-        const { res } = await gmRequest({
-          method: "GET",
-          url: `${HB}/headers`,
-          fetch,
-        });
-        const body = JSON.parse(res.responseText);
-        const cookies = body.headers.Cookie || body.headers.cookie;
-        assert(`${cookies}`.includes("abc=123"), "Cookie header");
-        assertEq(objectProps(res), "ok", "Object Props OK");
-      },
-    },
-    {
-      name: "anonymous TEST - delete cookies",
-      async run(fetch) {
-        // httpbin echoes Cookie header in headers
-        const { res } = await gmRequest({
-          method: "GET",
-          url: `${HB}/cookies/delete`,
-          anonymous: true,
-          fetch,
-        });
-      },
-    },
-    {
-      name: 'anonymous: true[2] - set cookie "def"',
-      async run(fetch) {
-        // httpbin echoes Cookie header in headers
-        const { res } = await gmRequest({
-          method: "GET",
-          url: `${HB}/cookies/set/def/456`,
-          anonymous: true,
-          fetch,
-        });
-      },
-    },
-    {
-      name: "anonymous: true[2] (no cookies sent)",
-      async run(fetch) {
-        // httpbin echoes Cookie header in headers
-        const { res } = await gmRequest({
-          method: "GET",
-          url: `${HB}/headers`,
-          anonymous: true,
-          fetch,
-        });
-        const body = JSON.parse(res.responseText);
-        const cookies = body.headers.Cookie || body.headers.cookie;
-        assert(!cookies, "no Cookie header when anonymous");
-        assertEq(objectProps(res), "ok", "Object Props OK");
-      },
-    },
-    {
-      name: "anonymous TEST - delete cookies",
-      async run(fetch) {
-        // httpbin echoes Cookie header in headers
-        const { res } = await gmRequest({
-          method: "GET",
-          url: `${HB}/cookies/delete`,
-          anonymous: true,
-          fetch,
-        });
-      },
-    },
+    // Note: mockhttp.org's /cookies/set and /cookies/delete don't actually emit a
+    // Set-Cookie header (its /cookies routes are stubs, unlike httpbin/httpbun),
+    // so the anonymous-mode cookie round-trip suite can no longer be verified
+    // against this server and was removed.
     {
       name: "Basic auth with user/password",
       async run(fetch) {
@@ -1485,15 +1356,17 @@ const enableTool = true;
       },
     },
     {
-      name: "Invalid method -> expected server 405 or 200 echo",
+      name: "Invalid method -> expected server error/echo",
       async run(fetch) {
-        // httpbun accepts any method on /headers (per docs), so status may be 200
+        // mockhttp.org's edge (Cloudflare) doesn't recognize non-standard HTTP
+        // methods and returns a 502, rather than routing them to the app like
+        // httpbun did (which echoed 200/405 depending on the route).
         const { res } = await gmRequest({
           method: "FOOBAR",
           url: `${HB}/headers`,
           fetch,
         });
-        assert([200, 405].includes(res.status), "200 or 405 depending on server handling");
+        assert([200, 404, 405, 502].includes(res.status), "200/404/405/502 depending on server handling");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
@@ -1612,8 +1485,12 @@ const enableTool = true;
           onprogress() {},
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
+        assertEq(`${res.responseText}`.includes("Response with status code 200"), true, "responseText ok");
+        assertEq(
+          typeof res.response === "object" && `${res.response?.status}`.includes("200"),
+          true,
+          "response ok"
+        );
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -1633,8 +1510,12 @@ const enableTool = true;
           },
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
+        assertEq(`${res.responseText}`.includes("Response with status code 200"), true, "responseText ok");
+        assertEq(
+          typeof res.response === "object" && `${res.response?.status}`.includes("200"),
+          true,
+          "response ok"
+        );
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertDeepEq(readyStateList, fetch ? [2, 4] : [1, 2, 3, 4], "status 200");
         assertEq(objectProps(res), "ok", "Object Props OK");

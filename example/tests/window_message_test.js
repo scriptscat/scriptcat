@@ -9,7 +9,7 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM.setClipboard
 // @grant        unsafeWindow
-// @connect      httpbun.com
+// @connect      mockhttp.org
 // @run-at       document-end
 // @noframes
 // ==/UserScript==
@@ -94,20 +94,21 @@
     const response = await withTimeout(
       GM.xmlHttpRequest({
         method: "GET",
-        url: `https://httpbun.com/get?marker=${encodeURIComponent(marker)}`,
+        url: `https://mockhttp.org/get?marker=${encodeURIComponent(marker)}`,
         responseType: "json",
       }),
       "GM.xmlHttpRequest",
     );
 
     assertSame(200, response.status, "status should be 200");
-    assertTrue(response.finalUrl.includes("httpbun.com/get"), "finalUrl should be populated");
+    assertTrue(response.finalUrl.includes("mockhttp.org/get"), "finalUrl should be populated");
     assertTrue(typeof response.responseHeaders === "string", "responseHeaders should be a string");
     assertTrue(response.response && typeof response.response === "object", "JSON response should be parsed");
 
     const args =
       response.response.args ||
       response.response.query ||
+      response.response.queryParams ||
       response.response.params ||
       {};
     assertSame(marker, args.marker, "query marker should round-trip through the response");
@@ -119,7 +120,7 @@
       new Promise((resolve, reject) => {
         GM_xmlhttpRequest({
           method: "GET",
-          url: "https://httpbun.com/bytes/64",
+          url: "https://mockhttp.org/bytes/64",
           onreadystatechange: (res) => {
             states.push(res.readyState);
           },
@@ -142,7 +143,7 @@
       new Promise((resolve, reject) => {
         const request = GM_xmlhttpRequest({
           method: "GET",
-          url: "https://httpbun.com/delay/5",
+          url: "https://mockhttp.org/delay/5",
           onload: () => reject(new Error("request loaded before abort")),
           onerror: reject,
           ontimeout: reject,

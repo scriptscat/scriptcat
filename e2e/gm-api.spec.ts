@@ -125,6 +125,7 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
       res.end(
         JSON.stringify({
           url: `http://${req.headers.host}${url.pathname}`,
+          method: req.method,
           args,
         })
       );
@@ -221,14 +222,14 @@ function patchGMApiTestCode(code: string, mockOrigin: string): string {
   const mockHost = new URL(mockOrigin).host;
   return code
     .replace(/^\/\/\s*@connect\s+api\.github\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
-    .replace(/^\/\/\s*@connect\s+httpbun\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
+    .replace(/^\/\/\s*@connect\s+mockhttp\.org$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
     .replace(/https:\/\/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockOrigin}/repos/scriptscat/scriptcat`)
-    .replace(/https:\/\/httpbun\.com\/get/g, `${mockOrigin}/get`)
-    .replace(/https:\/\/httpbun\.com\/bytes\/64/g, `${mockOrigin}/bytes/64`)
-    .replace(/https:\/\/httpbun\.com\/delay\/5/g, `${mockOrigin}/delay/5`)
+    .replace(/https:\/\/mockhttp\.org\/get/g, `${mockOrigin}/get`)
+    .replace(/https:\/\/mockhttp\.org\/bytes\/64/g, `${mockOrigin}/bytes/64`)
+    .replace(/https:\/\/mockhttp\.org\/delay\/5/g, `${mockOrigin}/delay/5`)
     .replace(/https:\/\/www\.tampermonkey\.net\/favicon\.ico/g, `${mockOrigin}/favicon.ico`)
     .replace(/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockHost}/repos/scriptscat/scriptcat`)
-    .replace(/httpbun\.com\/get/g, `${mockHost}/get`);
+    .replace(/mockhttp\.org\/get/g, `${mockHost}/get`);
 }
 
 async function runTestScript(
