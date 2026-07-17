@@ -12,7 +12,6 @@ import EventEmitter from "eventemitter3";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerClient } from "../service_worker/client";
 import { BackgroundEnvManagerBase } from "./base";
-import { startFirefoxEventPageKeepAliveLoop } from "./keep_alive";
 
 class InProcessMessageConnect implements MessageConnect {
   private messages = new EventEmitter<string, any>();
@@ -104,8 +103,6 @@ export class EventPageOffscreenManager extends BackgroundEnvManagerBase implemen
     sandbox.src = chrome.runtime.getURL("/src/sandbox.html");
     sandbox.style.display = "none";
     document.documentElement.appendChild(sandbox);
-
-    startFirefoxEventPageKeepAliveLoop();
 
     const message = new InProcessMessage();
 

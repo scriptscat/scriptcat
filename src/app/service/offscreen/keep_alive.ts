@@ -115,9 +115,11 @@ const createKeepAliveProbeLoop = (keepAliveProbeUrl: string) => {
 const TRANSPARENT_GIF_BASE64 = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 export const startFirefoxEventPageKeepAliveLoop =
-  boolFirefox && process.env.SC_KEEP_EVENT_PAGE_ACTIVE !== "false" && nativeScheduler
+  boolFirefox && nativeScheduler
     ? () => {
         let running = false;
+        let configEnabled = false;
+        let permissionGranted = false;
         // 使用扩展 ID 派生的探测域名，避免访问真实站点；请求是否最终成功并不重要。
         const keepAliveProbeUrl = getKeepAliveProbeUrl();
         const keepAlive = createKeepAliveProbeLoop(keepAliveProbeUrl);
@@ -125,7 +127,11 @@ export const startFirefoxEventPageKeepAliveLoop =
 
         const dataUri = `data:image/gif;base64,${TRANSPARENT_GIF_BASE64}`;
 
-        const startLoop = () => {
+        const syncLoop = () => {
+          if (!configEnabled || !permissionGranted) {
+            keepAlive.stop();
+            return;
+          }
           if (running) {
             keepAlive.start();
             return;
@@ -177,7 +183,10 @@ export const startFirefoxEventPageKeepAliveLoop =
             console.error("chrome.runtime.lastError in chrome.permissions.onAdded:", lastError);
             return;
           }
-          if (permissions.permissions?.includes("webRequestBlocking")) startLoop();
+          if (permissions.permissions?.includes("webRequestBlocking")) {
+            permissionGranted = true;
+            syncLoop();
+          }
         });
 
         chrome.permissions.onRemoved.addListener((permissions) => {
@@ -186,14 +195,28 @@ export const startFirefoxEventPageKeepAliveLoop =
             console.error("chrome.runtime.lastError in chrome.permissions.onRemoved:", lastError);
             return;
           }
-          if (permissions.permissions?.includes("webRequestBlocking")) keepAlive.stop();
+          if (permissions.permissions?.includes("webRequestBlocking")) {
+            permissionGranted = false;
+            syncLoop();
+          }
         });
 
         void chrome.permissions.contains({ permissions: ["webRequestBlocking"] }).then((granted) => {
-          if (granted) startLoop();
+          permissionGranted = granted;
+          syncLoop();
         });
+
+        return (enabled: boolean) => {
+          configEnabled = enabled;
+          syncLoop();
+        };
       }
-    : () => {};
+    : () => (_enabled: boolean) => {};
+
+export const hookFirefoxEventPageKeepAliveLoop = (systemConfig: SystemConfig) => {
+  const setKeepAliveEnabled = startFirefoxEventPageKeepAliveLoop();
+  systemConfig.watch("keep_ext_background_alive", (value) => setKeepAliveEnabled(value));
+};
 
 /**
  * Chrome MV3 service worker 侧接收 offscreen document 的 runtime port 心跳。

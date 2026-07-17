@@ -25,7 +25,7 @@ import { InfoNotification, shouldAutoOpenChangelog } from "./utils";
 import { AgentService } from "@App/app/service/agent/service_worker/agent";
 import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_env";
 import { cleanupStaleTempStorageEntries } from "./temp";
-import { hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
+import { hookFirefoxEventPageKeepAliveLoop, hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -67,6 +67,7 @@ export default class ServiceWorkerManager {
     const localStorageDAO = new LocalStorageDAO();
 
     const systemConfig = new SystemConfig(this.mq);
+    hookFirefoxEventPageKeepAliveLoop(systemConfig);
 
     initLocales(systemConfig);
 

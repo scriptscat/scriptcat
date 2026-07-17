@@ -123,6 +123,28 @@ describe("运行时分区-可选保活权限", () => {
       vi.resetModules();
     }
   });
+
+  it("Firefox 关闭保活时关闭配置并移除可选权限", async () => {
+    isPermissionOk.mockResolvedValue(true);
+    isFirefoxMock.mockReturnValue(true);
+    get.mockImplementation((key: string) => {
+      if (key === "keep_ext_background_alive") return Promise.resolve(true);
+      return Promise.resolve({ status: "unset", filesystem: "webdav", params: {} });
+    });
+    vi.resetModules();
+    const { RuntimeSection: RuntimeSectionOnFirefox } = await import("./RuntimeSection.js");
+    try {
+      const remove = vi.spyOn(chrome.permissions, "remove");
+      render(<RuntimeSectionOnFirefox register={() => () => {}} />);
+      await screen.findByText("Keep Background and Scheduled Scripts Alive");
+      fireEvent.click(screen.getAllByRole("switch").at(-1)!);
+      expect(set).toHaveBeenCalledWith("keep_ext_background_alive", false);
+      expect(remove).toHaveBeenCalledWith({ permissions: ["webRequestBlocking"] }, expect.any(Function));
+    } finally {
+      isFirefoxMock.mockReturnValue(false);
+      vi.resetModules();
+    }
+  });
 });
 
 describe("运行时分区-存储配置", () => {

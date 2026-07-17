@@ -92,8 +92,8 @@ firefoxManifest.permissions = firefoxManifest.permissions.filter(
   (val) => val !== "userScripts" && val !== "debugger" && val !== "offscreen"
 );
 
-if (process.env.SC_KEEP_EVENT_PAGE_ACTIVE !== "false") {
-  // for startFirefoxEventPageKeepAliveLoop — 运行时按需向用户申请
+// Firefox runtime toggle requests this optional capability when enabled.
+if (!firefoxManifest.optional_permissions.includes("webRequestBlocking")) {
   firefoxManifest.optional_permissions.push("webRequestBlocking");
 }
 

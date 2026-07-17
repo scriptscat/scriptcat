@@ -30,9 +30,10 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
       void Promise.resolve(systemConfig.get("keep_ext_background_alive")).then((r) => setChromeKeepAlive(Boolean(r)));
     }
     if (boolFirefox) {
-      void isPermissionOk("webRequestBlocking").then((r) => {
-        setKeepAlive(r);
-      });
+      void Promise.all([
+        Promise.resolve(systemConfig.get("keep_ext_background_alive")),
+        isPermissionOk("webRequestBlocking"),
+      ]).then(([enabled, permission]) => setKeepAlive(Boolean(enabled) && permission === true));
     }
     void Promise.resolve(systemConfig.get("cat_file_storage")).then((v) => setStorage(v as CATFileStorage));
   }, []);
@@ -79,25 +80,23 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
           notify.error(t("settings:keep_scripts_alive.enable_failed")!);
           return;
         }
-        setKeepAlive(granted);
         if (granted) {
+          setKeepAlive(true);
+          systemConfig.set("keep_ext_background_alive", true);
           notify.success(t("settings:keep_scripts_alive.enable_success")!);
+        } else {
+          setKeepAlive(false);
         }
       });
     } else {
+      systemConfig.set("keep_ext_background_alive", false);
       chrome.permissions.remove({ permissions: ["webRequestBlocking"] }, (removed) => {
         if (chrome.runtime.lastError) {
           notify.error(t("settings:keep_scripts_alive.disable_failed")!);
           return;
         }
-        if (removed) {
-          setKeepAlive(false);
-          notify.success(t("settings:keep_scripts_alive.disable_success")!);
-        } else {
-          void isPermissionOk("webRequestBlocking").then((r) => {
-            setKeepAlive(r);
-          });
-        }
+        setKeepAlive(false);
+        if (removed) notify.success(t("settings:keep_scripts_alive.disable_success")!);
       });
     }
   };

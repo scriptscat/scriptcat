@@ -63,7 +63,7 @@ const loadKeepAliveEnabledManager = async () => {
     labels: { env: "test" },
   });
   logger.logger().debug("test start");
-  return { ...(await import("./event_page_manager.js")), probeImages };
+  return { ...(await import("./event_page_manager.js")), ...(await import("./keep_alive.js")), probeImages };
 };
 
 const loadChromeKeepAlive = async () => {
@@ -157,9 +157,11 @@ describe("EventPageOffscreenManager Firefox event page 保活权限门控", () =
     const {
       EventPageOffscreenManager: KeepAliveManager,
       InProcessMessage: KeepAliveMessage,
+      startFirefoxEventPageKeepAliveLoop,
       probeImages,
     } = await loadKeepAliveEnabledManager();
 
+    startFirefoxEventPageKeepAliveLoop()(true);
     new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
     await Promise.resolve();
 
@@ -172,9 +174,11 @@ describe("EventPageOffscreenManager Firefox event page 保活权限门控", () =
     const {
       EventPageOffscreenManager: KeepAliveManager,
       InProcessMessage: KeepAliveMessage,
+      startFirefoxEventPageKeepAliveLoop,
       probeImages,
     } = await loadKeepAliveEnabledManager();
 
+    startFirefoxEventPageKeepAliveLoop()(true);
     new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
     await Promise.resolve();
 
@@ -189,9 +193,11 @@ describe("EventPageOffscreenManager Firefox event page 保活权限门控", () =
     const {
       EventPageOffscreenManager: KeepAliveManager,
       InProcessMessage: KeepAliveMessage,
+      startFirefoxEventPageKeepAliveLoop,
       probeImages,
     } = await loadKeepAliveEnabledManager();
 
+    startFirefoxEventPageKeepAliveLoop()(true);
     new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
     await Promise.resolve();
 
@@ -207,9 +213,11 @@ describe("EventPageOffscreenManager Firefox event page 保活权限门控", () =
     const {
       EventPageOffscreenManager: KeepAliveManager,
       InProcessMessage: KeepAliveMessage,
+      startFirefoxEventPageKeepAliveLoop,
       probeImages,
     } = await loadKeepAliveEnabledManager();
 
+    startFirefoxEventPageKeepAliveLoop()(true);
     new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
     await Promise.resolve();
 
@@ -237,9 +245,13 @@ describe("EventPageOffscreenManager Firefox event page 保活权限门控", () =
     chromeMock.permissions.__setGrantedPermissions([]);
     const contains = vi.spyOn(chrome.permissions, "contains").mockReturnValue(new Promise(() => {}) as never);
     const addListener = vi.spyOn(chrome.permissions.onAdded, "addListener");
-    const { EventPageOffscreenManager: KeepAliveManager, InProcessMessage: KeepAliveMessage } =
-      await loadKeepAliveEnabledManager();
+    const {
+      EventPageOffscreenManager: KeepAliveManager,
+      InProcessMessage: KeepAliveMessage,
+      startFirefoxEventPageKeepAliveLoop,
+    } = await loadKeepAliveEnabledManager();
 
+    startFirefoxEventPageKeepAliveLoop();
     new KeepAliveManager(new KeepAliveMessage(), new MessageQueue());
 
     expect(addListener).toHaveBeenCalledTimes(1);
