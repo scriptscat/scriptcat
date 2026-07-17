@@ -99,6 +99,33 @@ describe("GoogleDriveFileSystem", () => {
     });
   });
 
+  it("403 userRateLimitExceeded 应视为 typed 限流错误", async () => {
+    // Drive API 至今仍常以 403 + reason=rateLimitExceeded/userRateLimitExceeded 表达限流，
+    // 官方建议指数退避，不能归为永久失败
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "getFileId").mockResolvedValue("file-1");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 403,
+        text: JSON.stringify({
+          error: {
+            code: 403,
+            message: "User Rate Limit Exceeded",
+            errors: [{ domain: "usageLimits", reason: "userRateLimitExceeded" }],
+          },
+        }),
+      })
+    );
+
+    await expect(fs.delete("limited.txt")).rejects.toMatchObject({
+      provider: "googledrive",
+      status: 403,
+      rateLimit: true,
+      retryable: true,
+    });
+  });
+
   it("读取文件遇到 raw 429 响应时抛出 typed 限流错误", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
     vi.spyOn(fs, "getFileId").mockResolvedValue("file-1");

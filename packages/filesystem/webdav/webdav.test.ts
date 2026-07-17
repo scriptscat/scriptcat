@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { WebDAVClient } from "webdav";
 import { getPatcher } from "webdav";
 import WebDAVFileSystem from "./webdav";
-import { WarpTokenError } from "../error";
+import { FileSystemError, WarpTokenError } from "../error";
+import { createWebDAVFileSystemError } from "./error";
 
 /** 创建 mock WebDAVClient */
 function createMockClient(overrides?: Partial<WebDAVClient>): WebDAVClient {
@@ -118,6 +119,22 @@ describe("WebDAVFileSystem", () => {
       const fs = createTestFS(mockClient);
 
       await expect(fs.verify()).rejects.toThrow("WebDAV verify failed: Network error");
+    });
+  });
+
+  describe("createWebDAVFileSystemError", () => {
+    it("409 不应判定为冲突（RFC 4918 中 PUT/MKCOL 的 409 是父集合不存在）", () => {
+      const err = createWebDAVFileSystemError({ message: "Conflict", response: { status: 409 } });
+
+      expect(err).toBeInstanceOf(FileSystemError);
+      expect((err as FileSystemError).conflict).toBe(false);
+    });
+
+    it("412 应判定为冲突", () => {
+      const err = createWebDAVFileSystemError({ message: "Precondition Failed", response: { status: 412 } });
+
+      expect(err).toBeInstanceOf(FileSystemError);
+      expect((err as FileSystemError).conflict).toBe(true);
     });
   });
 

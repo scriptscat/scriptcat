@@ -133,6 +133,15 @@ export default class GoogleDriveFileSystem implements FileSystem {
           ? raw
           : `Google Drive request failed${googleStatus ? ` with status ${googleStatus}` : ""}`;
 
+    // Drive API 至今仍常以 403 + reason=rateLimitExceeded/userRateLimitExceeded 表达限流（官方建议指数退避）
+    const reasons = Array.isArray(errorBody?.errors)
+      ? (errorBody.errors as { reason?: string }[]).map((item) => item?.reason)
+      : [];
+    const rateLimited403 =
+      googleStatus === 403 &&
+      reasons.some((reason) => reason === "userRateLimitExceeded" || reason === "rateLimitExceeded");
+    const rateLimit = googleStatus === 429 || rateLimited403;
+
     return new FileSystemError({
       provider: "googledrive",
       message,
@@ -141,9 +150,9 @@ export default class GoogleDriveFileSystem implements FileSystem {
       auth: googleStatus === 401,
       notFound: googleStatus === 404,
       conflict: googleStatus === 409 || googleStatus === 412,
-      rateLimit: googleStatus === 429,
+      rateLimit,
       // 只重试瞬时 5xx；501 等属于永久失败，重试只会空转退避
-      retryable: googleStatus === 429 || (googleStatus !== undefined && [500, 502, 503, 504].includes(googleStatus)),
+      retryable: rateLimit || (googleStatus !== undefined && [500, 502, 503, 504].includes(googleStatus)),
       raw,
     });
   }

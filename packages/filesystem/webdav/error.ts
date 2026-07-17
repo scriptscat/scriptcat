@@ -24,7 +24,8 @@ export function createWebDAVFileSystemError(error: unknown): unknown {
     status,
     auth: status === 401 || status === 403,
     notFound: status === 404,
-    conflict: status === 409 || status === 412,
+    // RFC 4918 中 PUT/MKCOL 的 409 是父集合不存在等前置问题，不是资源版本冲突
+    conflict: status === 412,
     rateLimit,
     retryable: rateLimit || transient,
     raw: error,
