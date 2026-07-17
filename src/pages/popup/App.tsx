@@ -167,6 +167,7 @@ export default function App() {
                 onOpenEditor={data.handleOpenEditor}
                 onOpenUserConfig={data.handleOpenUserConfig}
                 onExcludeUrl={data.handleExcludeUrl}
+                onRemoveIncludeUrl={data.handleRemoveIncludeUrl}
                 onMenuClick={data.handleMenuClick}
               />
             ))}
@@ -496,6 +497,7 @@ interface ScriptRowProps {
   onOpenUserConfig: (uuid: string) => void;
   onExcludeUrl?: (uuid: string, isEffective: boolean) => void;
   onIncludeUrl?: (uuid: string) => void;
+  onRemoveIncludeUrl?: (uuid: string) => void;
   onMenuClick: (uuid: string, menus: ScriptMenuItem[], inputValue?: any) => void;
   onRun?: (uuid: string) => void;
   onStop?: (uuid: string) => void;
@@ -514,6 +516,7 @@ function ScriptRow({
   onOpenUserConfig,
   onExcludeUrl,
   onIncludeUrl,
+  onRemoveIncludeUrl,
   onMenuClick,
   onRun,
   onStop,
@@ -595,6 +598,14 @@ function ScriptRow({
           {isPageScript && isOptInScript && host && onIncludeUrl ? (
             <ActionItem icon={<PlusCircle className="w-3.5 h-3.5" />} success onClick={() => onIncludeUrl(script.uuid)}>
               {t("include_on").replace("$0", host)}
+            </ActionItem>
+          ) : isPageScript && script.siteAccessUser && host && onRemoveIncludeUrl ? (
+            <ActionItem
+              icon={<MinusCircle className="w-3.5 h-3.5" />}
+              warn
+              onClick={() => onRemoveIncludeUrl(script.uuid)}
+            >
+              {t("include_off").replace("$0", host)}
             </ActionItem>
           ) : isPageScript && host && onExcludeUrl && script.isEffective !== null ? (
             <ActionItem

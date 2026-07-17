@@ -671,6 +671,19 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
       expect(savedSelfMetadata()).toEqual({ "site-access": ["+*://existing.com/*", "+*://user.com/*"] });
       expect(mockMessageQueue.publish).toHaveBeenCalled();
     });
+
+    it("应从用户自定义 site-access 覆盖中移除当前网址并保留作者默认值", async () => {
+      const script = makeScript({
+        metadata: { match: ["*://script.com/*"], "site-access": ["opt-in", "+*://default.com/*"] },
+        selfMetadata: { "site-access": ["+*://existing.com/*", "+*://user.com/*"] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.excludeSiteAccessUrl({ uuid: script.uuid, includePattern: "*://user.com/*" });
+
+      expect(savedSelfMetadata()).toEqual({ "site-access": ["+*://existing.com/*"] });
+      expect(mockMessageQueue.publish).toHaveBeenCalled();
+    });
   });
 
   describe("resetMatch / resetExclude - 编辑器匹配列表", () => {

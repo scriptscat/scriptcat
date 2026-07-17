@@ -56,6 +56,7 @@ function makeData(overrides: Record<string, any> = {}) {
     handleOpenEditor: vi.fn(),
     handleOpenUserConfig: vi.fn(),
     handleExcludeUrl: vi.fn(),
+    handleRemoveIncludeUrl: vi.fn(),
     handleMenuClick: vi.fn(),
     handleRunScript: vi.fn(),
     handleStopScript: vi.fn(),
@@ -153,6 +154,24 @@ describe("Popup opt-in 脚本分组", () => {
     render(<App />);
 
     expect(screen.queryByText(new RegExp(t("popup:opt_in_scripts")))).not.toBeInTheDocument();
+  });
+
+  it("当前页用户加入白名单的 opt-in 脚本应提供移除白名单操作", () => {
+    const handleRemoveIncludeUrl = vi.fn();
+    const script = makeScriptMenu({ siteAccess: "opt-in", siteAccessUser: true, isEffective: true });
+    mockData = makeData({
+      scriptList: [script],
+      allScripts: [script],
+      fullScriptCount: 1,
+      enabledScriptCount: 1,
+      handleRemoveIncludeUrl,
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByText("Script A"));
+    fireEvent.click(screen.getByText(t("include_off").replace("$0", "example.com")));
+
+    expect(handleRemoveIncludeUrl).toHaveBeenCalledWith("u1");
   });
 });
 

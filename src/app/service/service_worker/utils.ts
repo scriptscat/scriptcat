@@ -20,6 +20,7 @@ import {
   RuleTypeBit,
   toUniquePatternStrings,
   type URLRuleEntry,
+  embeddedPatternCheckerString,
 } from "@App/pkg/utils/url_matcher";
 import { cacheInstance } from "@App/app/cache";
 
@@ -36,11 +37,38 @@ export const getSiteAccessPatterns = (metadata: SCMetadata | undefined): string[
 const getSiteAccessRules = (metadata: SCMetadata | undefined): URLRuleEntry[] =>
   extractUrlPatterns(getSiteAccessPatterns(metadata).map((value) => `@include ${value.slice(1)}`));
 
+const getEmbeddedPatternCondition = (patterns: URLRuleEntry[]): string =>
+  embeddedPatternCheckerString(
+    "location.href",
+    JSON.stringify(patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent })))
+  );
+
+const getSiteAccessCondition = (metadata: SCMetadata | undefined): string | undefined => {
+  if (!isSiteAccessOptIn(metadata)) return undefined;
+  const rules = getSiteAccessRules(metadata);
+  return rules.length ? getEmbeddedPatternCondition(rules) : "false";
+};
+
+export const getOptInExecutionCondition = (
+  metadata: SCMetadata | undefined,
+  scriptUrlPatterns: URLRuleEntry[]
+): string | undefined => {
+  const siteAccessCondition = getSiteAccessCondition(metadata);
+  return siteAccessCondition
+    ? `(${getEmbeddedPatternCondition(scriptUrlPatterns)})&&(${siteAccessCondition})`
+    : undefined;
+};
+
 export const isSiteAccessAllowed = (script: Pick<Script, "metadata" | "selfMetadata">, url: string): boolean => {
   const patterns = [...getSiteAccessRules(script.metadata), ...getSiteAccessRules(script.selfMetadata)];
 
   return patterns.some((pattern) => pattern.ruleType & RuleTypeBit.INCLUSION && isUrlMatch(url, pattern));
 };
+
+export const isSiteAccessAllowedByUser = (script: Pick<Script, "selfMetadata">, url: string): boolean =>
+  getSiteAccessRules(script.selfMetadata).some(
+    (pattern) => pattern.ruleType & RuleTypeBit.INCLUSION && isUrlMatch(url, pattern)
+  );
 
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   // 没有 run-at 时为 undefined. Fallback 至 document_idle
@@ -214,15 +242,22 @@ export function compileInjectionCode(
   scriptUrlPatterns: URLRuleEntry[]
 ): string {
   // 注意！ restoreJSCodeFromCompiledResource 跟 compileInjectionCode 的处理是不同的！
+  const siteAccessCondition = getSiteAccessCondition(scriptRes.metadata);
+  const executionCondition = getOptInExecutionCondition(scriptRes.metadata, scriptUrlPatterns);
   let scriptInjectCode;
   if (isScriptletUnwrap(scriptRes.metadata)) {
-    scriptInjectCode = compileScriptletCode(scriptRes, scriptCode, scriptUrlPatterns);
+    scriptInjectCode = compileScriptletCode(scriptRes, scriptCode, scriptUrlPatterns, siteAccessCondition);
   } else {
     scriptCode = compileScriptCode(scriptRes, scriptCode);
     if (isEarlyStartScript(scriptRes.metadata)) {
-      scriptInjectCode = compilePreInjectScript(parseScriptLoadInfo(scriptRes, scriptUrlPatterns), scriptCode);
+      scriptInjectCode = compilePreInjectScript(
+        parseScriptLoadInfo(scriptRes, scriptUrlPatterns),
+        scriptCode,
+        false,
+        executionCondition
+      );
     } else {
-      scriptInjectCode = compileInjectScript(scriptRes, scriptCode);
+      scriptInjectCode = compileInjectScript(scriptRes, scriptCode, false, executionCondition);
     }
   }
   return scriptInjectCode;
@@ -230,7 +265,12 @@ export function compileInjectionCode(
 
 // 构建userScript注册信息（忽略代码部份）
 export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
-  const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMatchInfo.scriptUrlPatterns);
+  const siteAccessRules = getSiteAccessRules(scriptMatchInfo.metadata);
+  const registrationPatterns =
+    isSiteAccessOptIn(scriptMatchInfo.metadata) && siteAccessRules.length
+      ? siteAccessRules
+      : scriptMatchInfo.scriptUrlPatterns;
+  const { matches, includeGlobs } = getApiMatchesAndGlobs(registrationPatterns);
 
   const excludeMatches = toUniquePatternStrings(
     scriptMatchInfo.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE)

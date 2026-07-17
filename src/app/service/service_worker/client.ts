@@ -102,6 +102,10 @@ export class ScriptClient extends Client {
     return this.do("includeUrl", { uuid, includePattern });
   }
 
+  excludeSiteAccessUrl(uuid: string, includePattern: string) {
+    return this.do("excludeSiteAccessUrl", { uuid, includePattern });
+  }
+
   // 重置匹配项
   resetMatch(uuid: string, match: string[] | undefined) {
     return this.do("resetMatch", { uuid, match });

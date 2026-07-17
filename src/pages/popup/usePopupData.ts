@@ -287,12 +287,32 @@ export function usePopupData() {
       if (!host) return;
       try {
         await scriptClient.includeUrl(uuid, `*://${host}/*`);
-        await fetchData(stateRef.current.currentTabId, stateRef.current.currentUrl);
+        const tabId = stateRef.current.currentTabId;
+        if (tabId >= 0) {
+          await chrome.tabs.reload(tabId);
+        }
       } catch (e) {
         showError(String(e));
       }
     },
-    [fetchData, showError]
+    [showError]
+  );
+
+  const handleRemoveIncludeUrl = useCallback(
+    async (uuid: string) => {
+      const host = extractHost(stateRef.current.currentUrl);
+      if (!host) return;
+      try {
+        await scriptClient.excludeSiteAccessUrl(uuid, `*://${host}/*`);
+        const tabId = stateRef.current.currentTabId;
+        if (tabId >= 0) {
+          await chrome.tabs.reload(tabId);
+        }
+      } catch (e) {
+        showError(String(e));
+      }
+    },
+    [showError]
   );
 
   /** 调用方需从 script.menus 中按 groupKey 过滤出所有匹配项传入 */
@@ -448,6 +468,7 @@ export function usePopupData() {
     handleOpenUserConfig,
     handleExcludeUrl,
     handleIncludeUrl,
+    handleRemoveIncludeUrl,
     handleMenuClick,
     handleRunScript,
     handleStopScript,

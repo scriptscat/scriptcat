@@ -940,6 +940,29 @@ export class ScriptService {
       });
   }
 
+  // 将 opt-in 脚本的当前网址从用户自定义 site-access 白名单移除。
+  async excludeSiteAccessUrl({ uuid, includePattern }: { uuid: string; includePattern: string }) {
+    let script = await this.scriptDAO.get(uuid);
+    if (!script) {
+      throw new Error("script not found");
+    }
+    const siteAccessSet = new Set(script.selfMetadata?.["site-access"] || []);
+    if (!siteAccessSet.delete(`+${includePattern}`)) {
+      return;
+    }
+    script = selfMetadataUpdate(script, "site-access", siteAccessSet.size ? siteAccessSet : undefined);
+    return this.scriptDAO
+      .update(uuid, script)
+      .then(() => {
+        this.publishInstallScript(script, { update: true });
+        return true;
+      })
+      .catch((e) => {
+        this.logger.error("exclude site-access url error", Logger.E(e));
+        throw e;
+      });
+  }
+
   async resetExclude({ uuid, exclude }: { uuid: string; exclude: string[] | undefined }) {
     let script = await this.scriptDAO.get(uuid);
     if (!script) {
@@ -1684,6 +1707,7 @@ export class ScriptService {
     this.group.on("getScriptRunResourceByUUID", this.getScriptRunResourceByUUID.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
     this.group.on("includeUrl", this.includeUrl.bind(this));
+    this.group.on("excludeSiteAccessUrl", this.excludeSiteAccessUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
     this.group.on("resetExclude", this.resetExclude.bind(this));
     this.group.on("requestCheckUpdate", this.requestCheckUpdate.bind(this));

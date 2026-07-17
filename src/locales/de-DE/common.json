@@ -61,6 +61,7 @@
   "exclude_on": "Wiederherstellen auf $0 zur Ausführung",
   "exclude_off": "Ausschließen auf $0 zur Ausführung",
   "include_on": "Ausführung auf $0 einschließen",
+  "include_off": "$0 von den erlaubten Websites entfernen",
   "confirm_error": "Bestätigung fehlgeschlagen",
   "import": "Importieren",
   "error": "Fehler",

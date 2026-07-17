@@ -13,6 +13,8 @@ import { runScript, stopScript } from "../offscreen/client";
 import {
   buildScriptRunResourceBasic,
   compileInjectionCode,
+  getCombinedMeta,
+  getOptInExecutionCondition,
   getUserScriptRegister,
   isSiteAccessAllowed,
   isSiteAccessOptIn,
@@ -34,16 +36,15 @@ import { UrlMatch } from "@App/pkg/utils/match";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
-import type { CompileScriptCodeResource } from "../content/utils";
 import {
   compileInjectScriptByFlag,
   compileScriptCodeByResource,
-  compileScriptletCode,
   isContextMenuScript,
   isEarlyStartScript,
   isInjectIntoContent,
   isScriptletUnwrap,
   trimScriptInfo,
+  type CompileScriptCodeResource,
 } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
@@ -914,15 +915,8 @@ export class RuntimeService {
 
   // 从CompiledResource中还原脚本代码
   async restoreJSCodeFromCompiledResource(script: Script, result: CompiledResource) {
-    // 如果是 Scriptlet (unwrap) 脚本，需要另外的处理方式
-    if (isScriptletUnwrap(script.metadata)) {
-      const scriptRes = await this.script.buildScriptRunResource(script);
-      if (!scriptRes) return "";
-      return compileScriptletCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
-    }
-
-    // 如果是预加载脚本，需要另外的处理方式
-    if (isEarlyStartScript(script.metadata)) {
+    // 如果是 Scriptlet (unwrap) 或预加载脚本，需要用完整脚本资源编译专用加载代码。
+    if (isScriptletUnwrap(script.metadata) || isEarlyStartScript(script.metadata)) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
       return compileInjectionCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
@@ -936,15 +930,17 @@ export class RuntimeService {
         require.push({ url: res.url, content: res.content });
       }
     }
-
+    const metadata = getCombinedMeta(script.metadata, script.selfMetadata || {});
     return compileInjectScriptByFlag(
       result.flag,
       compileScriptCodeByResource({
         name: result.name,
         code: originalCode?.code || "",
         require,
-        isContextMenu: isContextMenuScript(script.metadata),
-      })
+        isContextMenu: isContextMenuScript(metadata),
+      }),
+      false,
+      getOptInExecutionCondition(metadata, result.scriptUrlPatterns)
     );
   }
 
@@ -1324,7 +1320,12 @@ export class RuntimeService {
     // 代码/原始 metadata/userConfig/资源变化时，主要靠事件处理器（enable/install/delete）失效缓存。
     // 此缓存键只是低成本的兜底：用于 selfMetadata 修改 match/include/exclude 这类「合并后 metadata 变了
     // 但不一定 bump updatetime」的情况。
-    return `${status}:${type}:${updatetime || 0}~${JSON.stringify([metadata.match, metadata.include, metadata.exclude])}`;
+    return `${status}:${type}:${updatetime || 0}~${JSON.stringify([
+      metadata.match,
+      metadata.include,
+      metadata.exclude,
+      metadata["site-access"],
+    ])}`;
   }
 
   private getCodeCacheKey(script: Script) {
