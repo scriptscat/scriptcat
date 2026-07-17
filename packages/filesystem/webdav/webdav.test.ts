@@ -103,22 +103,34 @@ describe("WebDAVFileSystem", () => {
       await expect(fs.verify()).rejects.toBeInstanceOf(WarpTokenError);
     });
 
-    it("应当在 getQuota 其他错误时抛出包含原始信息的 Error", async () => {
+    it("应当在 getQuota 瞬时 5xx 时抛出可重试的 FileSystemError（供 limiter 重试、下游判 transient）", async () => {
       (mockClient.getQuota as ReturnType<typeof vi.fn>).mockRejectedValue({
-        message: "Network error",
+        message: "Service Unavailable",
+        response: { status: 503 },
       });
       const fs = createTestFS(mockClient);
 
-      await expect(fs.verify()).rejects.toThrow("WebDAV verify failed: Network error");
+      const err = await fs.verify().then(
+        () => null,
+        (e) => e
+      );
+      expect(err).toBeInstanceOf(FileSystemError);
+      expect((err as FileSystemError).retryable).toBe(true);
     });
 
-    it("应当在 getDirectoryContents 其他错误时抛出包含原始信息的 Error", async () => {
+    it("应当在 getDirectoryContents 瞬时 5xx 时抛出可重试的 FileSystemError", async () => {
       (mockClient.getDirectoryContents as ReturnType<typeof vi.fn>).mockRejectedValue({
-        message: "Network error",
+        message: "Internal Server Error",
+        response: { status: 500 },
       });
       const fs = createTestFS(mockClient);
 
-      await expect(fs.verify()).rejects.toThrow("WebDAV verify failed: Network error");
+      const err = await fs.verify().then(
+        () => null,
+        (e) => e
+      );
+      expect(err).toBeInstanceOf(FileSystemError);
+      expect((err as FileSystemError).retryable).toBe(true);
     });
   });
 

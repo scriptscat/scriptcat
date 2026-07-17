@@ -64,7 +64,9 @@ export default class WebDAVFileSystem implements FileSystem {
       if (e.response?.status === 401) {
         throw new WarpTokenError(e);
       }
-      throw new Error(`WebDAV verify failed: ${e.message}`); // 保留原始信息
+      // 转 typed error（与 list/read 等一致）：verify 在 RETRYABLE_TRANSIENT_OPS 内且每轮同步经 factory 必跑，
+      // 抛普通 Error 会让瞬时 5xx 既不被 limiter 重试、又被 classifySyncError 判 fatal 而中止整轮
+      throw createWebDAVFileSystemError(e);
     }
   }
 

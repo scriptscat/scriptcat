@@ -190,6 +190,17 @@ describe("同步分区", () => {
     expect(screen.queryByTestId("cloud_sync_status")).toBeNull();
   });
 
+  it("勾选启用但未保存时立即同步按钮保持禁用（按已保存配置门控，避免点击静默无响应）", async () => {
+    mockCloudSync({ enable: false });
+    mockState({});
+    render(<SyncSection register={() => () => {}} />);
+    const enable = await screen.findByTestId("cloud_sync_enable");
+    fireEvent.click(enable);
+    // 勾选草稿 enable 但未保存：SW cloudSyncOnce 用的是已保存配置（enable=false 时静默 return），
+    // 按钮须随已保存配置禁用，否则点击毫无反馈
+    expect((screen.getByTestId("cloud_sync_now") as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("勾选启用但未保存时不显示状态条（状态条只反映已保存配置）", async () => {
     mockCloudSync({ enable: false });
     mockState({});

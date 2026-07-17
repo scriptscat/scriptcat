@@ -177,7 +177,7 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
                   variant="outline"
                   size="sm"
                   data-testid="cloud_sync_now"
-                  disabled={!draft.enable}
+                  disabled={!savedEnable}
                   onClick={syncNow}
                 >
                   <RefreshCw className="size-4" />

@@ -1088,9 +1088,6 @@ export class SynchronizeService {
         await meta.write(
           JSON.stringify(<SyncMeta>{
             uuid: uuid,
-            // origin: script.origin,
-            // downloadUrl: script.downloadUrl,
-            // checkUpdateUrl: script.checkUpdateUrl,
             isDeleted: true,
           })
         );
