@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         GM_xmlhttpRequest cookie 覆盖测试 - tampermonkey/tampermonkey#2754 #2829
 // @namespace    tm-gmxhr-cookie-test
-// @version      1.0.2
+// @version      1.0.3
 // @description  验证 GM_xmlhttpRequest 的 cookie 参数语义：脚本指定的名称完全覆盖，未指定的名称原样保留（含同名多值场景）
-// @match        https://oof.ooo/*?GM_XHR_COOKIE_TEST_SC
+// @match        https://mockhttp.org/*?GM_XHR_COOKIE_TEST_SC
 // @grant        GM_xmlhttpRequest
-// @connect      oof.ooo
+// @connect      mockhttp.org
 // @noframes
 // ==/UserScript==
 
@@ -17,7 +17,7 @@
     "color: blue; font-size: 16px; font-weight: bold;"
   );
 
-  const OOF = "https://oof.ooo";
+  const MOCKHTTP = "https://mockhttp.org";
 
   const testResults = {
     passed: 0,
@@ -71,7 +71,9 @@
           } else {
             reject(
               new Error(
-                `HTTP 请求失败: ${response.status} ${response.statusText || ""}`
+                `HTTP 请求失败: ${response.status} ${
+                  response.statusText || ""
+                }`
               )
             );
           }
@@ -81,7 +83,9 @@
           reject(
             new Error(
               `GM_xmlhttpRequest 网络错误: ${
-                response?.error || response?.statusText || "未知错误"
+                response?.error ||
+                response?.statusText ||
+                "未知错误"
               }`
             )
           );
@@ -95,7 +99,7 @@
   }
 
   /**
-   * 解析 /headers 响应。
+   * 解析 mockhttp.org/headers 响应。
    */
   function getResponseHeadersBody(response) {
     let body;
@@ -104,13 +108,17 @@
       body = JSON.parse(response.responseText);
     } catch (error) {
       throw new Error(
-        `oof.ooo /headers 返回的内容不是有效 JSON: ${response.responseText}`
+        `mockhttp.org/headers 返回的内容不是有效 JSON: ${
+          response.responseText
+        }`
       );
     }
 
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       throw new Error(
-        `oof.ooo /headers 返回了非预期响应: ${response.responseText}`
+        `mockhttp.org/headers 返回了非预期响应: ${
+          response.responseText
+        }`
       );
     }
 
@@ -139,7 +147,10 @@
 
   function getCookieHeader(response) {
     const headers = getResponseHeadersBody(response);
-    const cookieHeader = getHeaderCaseInsensitive(headers, "cookie");
+    const cookieHeader = getHeaderCaseInsensitive(
+      headers,
+      "cookie"
+    );
 
     if (cookieHeader == null) {
       return "";
@@ -173,8 +184,13 @@
         continue;
       }
 
-      const name = trimmed.slice(0, separatorIndex).trim();
-      const value = trimmed.slice(separatorIndex + 1).trim();
+      const name = trimmed
+        .slice(0, separatorIndex)
+        .trim();
+
+      const value = trimmed
+        .slice(separatorIndex + 1)
+        .trim();
 
       if (!name) {
         continue;
@@ -190,7 +206,12 @@
     return map;
   }
 
-  function assertCookieValues(map, name, expectedValues, message) {
+  function assertCookieValues(
+    map,
+    name,
+    expectedValues,
+    message
+  ) {
     const actual = (map.get(name) || []).slice().sort();
     const expected = expectedValues.slice().sort();
 
@@ -207,12 +228,13 @@
   // 浏览器允许同名 Cookie 因 path 不同而共存。
   //
   // path=/ 和 path=/headers 都会匹配：
-  // https://oof.ooo/headers
+  // https://mockhttp.org/headers
   const ROOT = "/";
   const SUB = "/headers";
 
   function setCookie(name, value, path) {
-    document.cookie = `${name}=${value}; path=${path}; SameSite=Lax`;
+    document.cookie =
+      `${name}=${value}; path=${path}; SameSite=Lax`;
   }
 
   function clearCookie(name, path) {
@@ -289,13 +311,14 @@
         try {
           const response = await gmRequest({
             method: "GET",
-            url: `${OOF}/headers`,
+            url: `${MOCKHTTP}/headers`,
             cookie: "data=2",
             timeout: 15000,
           });
 
           const cookieHeader = getCookieHeader(response);
-          const cookieMap = parseCookieMultiMap(cookieHeader);
+          const cookieMap =
+            parseCookieMultiMap(cookieHeader);
 
           assertCookieValues(
             cookieMap,
@@ -320,13 +343,14 @@
       async () => {
         const response = await gmRequest({
           method: "GET",
-          url: `${OOF}/headers`,
+          url: `${MOCKHTTP}/headers`,
           cookie: "data1=1; data2=2",
           timeout: 15000,
         });
 
         const cookieHeader = getCookieHeader(response);
-        const cookieMap = parseCookieMultiMap(cookieHeader);
+        const cookieMap =
+          parseCookieMultiMap(cookieHeader);
 
         assertCookieValues(
           cookieMap,
@@ -369,17 +393,25 @@
 
         const response = await gmRequest({
           method: "GET",
-          url: `${OOF}/headers`,
+          url: `${MOCKHTTP}/headers`,
           cookie: customCookie,
           timeout: 15000,
         });
 
         const cookieHeader = getCookieHeader(response);
 
-        lastCookieMap = parseCookieMultiMap(cookieHeader);
+        lastCookieMap =
+          parseCookieMultiMap(cookieHeader);
 
-        assertTrue(cookieHeader.length > 0, "应收到 Cookie header");
-        assertTrue(lastCookieMap.size > 0, "Cookie header 应能成功解析");
+        assertTrue(
+          cookieHeader.length > 0,
+          "应收到 Cookie header"
+        );
+
+        assertTrue(
+          lastCookieMap.size > 0,
+          "Cookie header 应能成功解析"
+        );
       }
     );
 
@@ -394,7 +426,11 @@
       await test(
         "m01：浏览器无、脚本指定单值 → 应为脚本值",
         () => {
-          assertCookieValues(lastCookieMap, "m01", ["new"]);
+          assertCookieValues(
+            lastCookieMap,
+            "m01",
+            ["new"]
+          );
         }
       );
 
@@ -411,14 +447,22 @@
       await test(
         "m10：浏览器单值、脚本未指定 → 应保留浏览器原值",
         () => {
-          assertCookieValues(lastCookieMap, "m10", ["old"]);
+          assertCookieValues(
+            lastCookieMap,
+            "m10",
+            ["old"]
+          );
         }
       );
 
       await test(
         "m11：浏览器单值、脚本指定单值 → 应覆盖为脚本值",
         () => {
-          assertCookieValues(lastCookieMap, "m11", ["new"]);
+          assertCookieValues(
+            lastCookieMap,
+            "m11",
+            ["new"]
+          );
         }
       );
 
@@ -445,7 +489,11 @@
       await test(
         "m21：浏览器多值、脚本指定单值 → 应完全覆盖为脚本单一值",
         () => {
-          assertCookieValues(lastCookieMap, "m21", ["new"]);
+          assertCookieValues(
+            lastCookieMap,
+            "m21",
+            ["new"]
+          );
         }
       );
 
