@@ -1,7 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { type IGetSender } from "@Packages/message/server";
 import { type ExtMessageSender } from "@Packages/message/types";
-import GMApi, { ConnectMatch, getConnectMatched, getExtensionSiteAccessOriginPattern } from "./gm_api";
+import GMApi, {
+  ConnectMatch,
+  getConnectMatched,
+  getExtensionSiteAccessOriginPattern,
+  mergeCookieHeader,
+} from "./gm_api";
 import { PermissionVerifyApiGet, type ConfirmParam } from "../permission_verify";
 import type { GMApiRequest } from "../types";
 // 触发所有 GM API 装饰器注册（与 gm_api.ts 中的 import 保持同步）
@@ -137,6 +142,39 @@ describe("window.focus", () => {
     expect(tabsUpdate).toHaveBeenCalledWith(42, { active: true });
     expect(windowsUpdate).toHaveBeenCalledWith(7, { focused: true });
     vi.stubGlobal("chrome", originalChrome);
+  });
+});
+
+describe.concurrent("mergeCookieHeader（GM_xmlhttpRequest 非 anonymous 的 cookie 合并）", () => {
+  it.concurrent("同名 cookie 应以脚本自定义值覆盖已有 cookie，而非追加（TM #2754）", () => {
+    const result = mergeCookieHeader("data=2", [{ name: "data", value: "1" }]);
+    expect(result).toBe("data=2");
+  });
+
+  it.concurrent("不同名的已有 cookie 应全部保留，不因覆盖逻辑被截断（TM #2829）", () => {
+    const result = mergeCookieHeader(undefined, [
+      { name: "data1", value: "1" },
+      { name: "data2", value: "2" },
+    ]);
+    expect(result).toBe("data1=1; data2=2");
+  });
+
+  it.concurrent("同名覆盖与不同名保留应可同时生效", () => {
+    const result = mergeCookieHeader("data1=9", [
+      { name: "data1", value: "1" },
+      { name: "data2", value: "2" },
+    ]);
+    expect(result).toBe("data1=9; data2=2");
+  });
+
+  it.concurrent("脚本自定义多个 cookie 且无已有 cookie 时应原样透传", () => {
+    const result = mergeCookieHeader("data1=1; data2=2", []);
+    expect(result).toBe("data1=1; data2=2");
+  });
+
+  it.concurrent("无自定义 cookie 也无已有 cookie 时应回传空字符串", () => {
+    expect(mergeCookieHeader(undefined, [])).toBe("");
+    expect(mergeCookieHeader("", undefined)).toBe("");
   });
 });
 
