@@ -127,7 +127,7 @@ Playwright finalizes `.webm` files when pages/contexts close at the end of the t
 produce multiple videos because the harness may open setup pages as well as the page under verification; keep all
 of them beside the screenshots for the same scenario.
 
-> Scratch copying the inline fixture won't read `E2E_RECORD_VIDEO_DIR` — see [gotchas](./references/verification-debugging.md#common-gotchas).
+> A scratch script that copies the inline fixture won't read `E2E_RECORD_VIDEO_DIR` — see [gotchas](./references/verification-debugging.md#common-gotchas).
 
 ### Run only your scratch script
 
