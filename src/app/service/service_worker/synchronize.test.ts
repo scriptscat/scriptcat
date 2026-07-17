@@ -702,6 +702,8 @@ describe("SynchronizeService", () => {
         update: vi.fn().mockResolvedValue(undefined),
       } as any
     );
+    // digest 与云端一致的稳态：本测试只考察 status 写回合并，不涉及方向判定
+    await (service as any).storage.set("file_digest", { "kept-uuid.user.js": "d", "kept-uuid.meta.json": "d" });
 
     await service.syncOnce(syncConfig, fs);
 
@@ -1612,12 +1614,6 @@ console.log("ok");`
       }),
       expectedKind: "stale_snapshot",
       expectedMessage: "File moved",
-    },
-    {
-      title: "unsupported",
-      error: new Error("unsupported provider operation"),
-      expectedKind: "unsupported",
-      expectedMessage: "unsupported provider operation",
     },
   ])(
     "单文件同步遇到 $title 错误时应在日志中标记 $expectedKind 分类",
@@ -2535,8 +2531,8 @@ console.log("ok");`
       list: vi
         .fn()
         .mockResolvedValueOnce([
-          { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu1", createtime: 1, updatetime: 5 },
-          { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm1", createtime: 1, updatetime: 5 },
+          { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu1", createtime: 1, updatetime: 5000 },
+          { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm1", createtime: 1, updatetime: 5000 },
         ])
         .mockResolvedValueOnce([]),
     });
@@ -2553,7 +2549,7 @@ console.log("ok");`
         all: vi
           .fn()
           .mockResolvedValue([
-            { uuid: "u1", name: "t", updatetime: 20, createtime: 1, status: 1, sort: 0, metadata: {} },
+            { uuid: "u1", name: "t", updatetime: 20_000, createtime: 1, status: 1, sort: 0, metadata: {} },
           ]),
       } as any
     );
@@ -2680,8 +2676,8 @@ console.log("ok");`
     const writes: string[] = [];
     let seq = 0;
     const cloud = new Map<string, { digest: string; content: string; updatetime: number }>([
-      ["u1.user.js", { digest: "cu1", content: "// v0", updatetime: 5 }],
-      ["u1.meta.json", { digest: "cm1", content: "{}", updatetime: 5 }],
+      ["u1.user.js", { digest: "cu1", content: "// v0", updatetime: 5000 }],
+      ["u1.meta.json", { digest: "cm1", content: "{}", updatetime: 5000 }],
     ]);
     const cloudFs = createFs({
       list: vi.fn(async () =>
@@ -2727,7 +2723,7 @@ console.log("ok");`
             origin: "",
             downloadUrl: "",
             checkUpdateUrl: "",
-            updatetime: 20,
+            updatetime: 20_000,
             createtime: 1,
             status: 1,
             sort: 0,
@@ -2741,7 +2737,7 @@ console.log("ok");`
 
     // 第一轮：编辑触发 scriptInstall，.user.js 成功、.meta.json 失败
     await service.scriptInstall({
-      script: { uuid: "u1", name: "t", origin: "", downloadUrl: "", checkUpdateUrl: "", updatetime: 10 } as any,
+      script: { uuid: "u1", name: "t", origin: "", downloadUrl: "", checkUpdateUrl: "", updatetime: 10_000 } as any,
       upsertBy: "user",
     } as any);
     await stackAsyncTask("cloud_sync_queue", async () => "barrier");
@@ -2764,8 +2760,8 @@ console.log("ok");`
     // 且推进 digest/更新时间后，下一轮应回到稳态不再重复推送。
     let seq = 0;
     const cloud = new Map<string, { digest: string; content: string; updatetime: number }>([
-      ["u1.user.js", { digest: "cu1", content: "// v1", updatetime: 5 }],
-      ["u1.meta.json", { digest: "cm1", content: "{}", updatetime: 5 }],
+      ["u1.user.js", { digest: "cu1", content: "// v1", updatetime: 5000 }],
+      ["u1.meta.json", { digest: "cm1", content: "{}", updatetime: 5000 }],
     ]);
     const writes: string[] = [];
     const cloudFs = createFs({
@@ -2808,7 +2804,7 @@ console.log("ok");`
             origin: "",
             downloadUrl: "",
             checkUpdateUrl: "",
-            updatetime: 20,
+            updatetime: 20_000,
             createtime: 1,
             status: 1,
             sort: 0,
@@ -2827,6 +2823,42 @@ console.log("ok");`
     writes.length = 0;
     await service.syncOnce({ ...syncConfig, syncStatus: false }, cloudFs);
     expect(writes).toEqual([]);
+  });
+
+  it("云端未变且本地更新时间与云端同秒时不触发补偿 push（整秒对齐）", async () => {
+    // 本地 updatetime 是客户端毫秒时钟，云端 mtime 是服务端时钟（WebDAV 等仅整秒精度）：
+    // 同一秒内的毫秒余数不构成"本地更新"的证据，否则每次编辑上云后都会多一轮冗余覆盖 push
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu1", createtime: 1, updatetime: 5000 },
+        { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm1", createtime: 1, updatetime: 5000 },
+      ]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// code" }) },
+        all: vi
+          .fn()
+          .mockResolvedValue([
+            { uuid: "u1", name: "t", updatetime: 5497, createtime: 1, status: 1, sort: 0, metadata: {} },
+          ]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+    const pushSpy = vi.spyOn(service, "pushScript").mockResolvedValue({});
+    const pullSpy = vi.spyOn(service, "pullScript").mockResolvedValue(undefined);
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(pushSpy).not.toHaveBeenCalled();
+    expect(pullSpy).not.toHaveBeenCalled();
   });
 
   it("云端已变而本地内容未变时，即使本地时间戳更大也应 pull 而非 push（同秒竞态 L4）", async () => {
@@ -2997,8 +3029,8 @@ console.log("ok");`
   it("无本地内容基线时退回时间比较决定方向（升级兼容）", async () => {
     const fs = createFs({
       list: vi.fn().mockResolvedValue([
-        { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu2", createtime: 1, updatetime: 5 },
-        { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm2", createtime: 1, updatetime: 5 },
+        { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu2", createtime: 1, updatetime: 5000 },
+        { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm2", createtime: 1, updatetime: 5000 },
       ]),
     });
     const service = new SynchronizeService(
@@ -3014,7 +3046,7 @@ console.log("ok");`
         all: vi
           .fn()
           .mockResolvedValue([
-            { uuid: "u1", name: "t", updatetime: 20, createtime: 1, status: 1, sort: 0, metadata: {} },
+            { uuid: "u1", name: "t", updatetime: 20_000, createtime: 1, status: 1, sort: 0, metadata: {} },
           ]),
       } as any
     );
@@ -3026,6 +3058,42 @@ console.log("ok");`
 
     expect(pushSpy).toHaveBeenCalledWith(fs, expect.objectContaining({ uuid: "u1" }));
     expect(pullSpy).not.toHaveBeenCalled();
+  });
+
+  it("无基线回退的时间比较也按整秒对齐：同秒不判本地更新，应 pull", async () => {
+    // 回退规则仍是跨时钟域比较，同秒内毫秒余数会把"对端刚更新"误判成"本地更新"（L4），
+    // 截断到整秒后同秒判 pull，让较新的云端内容能同步下来
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu2", createtime: 1, updatetime: 5000 },
+        { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm2", createtime: 1, updatetime: 5000 },
+      ]),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// code" }) },
+        all: vi
+          .fn()
+          .mockResolvedValue([
+            { uuid: "u1", name: "t", updatetime: 5497, createtime: 1, status: 1, sort: 0, metadata: {} },
+          ]),
+      } as any
+    );
+    await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+    const pushSpy = vi.spyOn(service, "pushScript").mockResolvedValue({});
+    const pullSpy = vi.spyOn(service, "pullScript").mockResolvedValue(undefined);
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+    expect(pullSpy).toHaveBeenCalledWith(fs, expect.anything(), undefined, expect.objectContaining({ uuid: "u1" }));
+    expect(pushSpy).not.toHaveBeenCalled();
   });
 
   it("pull 成功后记录内容基线，供下轮云端再变时判定本地是否也改过", async () => {
@@ -3097,8 +3165,8 @@ console.log("ok");`;
 
     it("云端已变但本地无内容基线时，方向判定标记为 unverified（可能覆盖未知改动）", async () => {
       const service = makeService({ get: vi.fn().mockResolvedValue(undefined) });
-      const cloudFile = { name: "u1.user.js", updatetime: 100 } as any;
-      const script = { uuid: "u1", name: "u1", updatetime: 200, createtime: 1 } as any;
+      const cloudFile = { name: "u1.user.js", updatetime: 100_000 } as any;
+      const script = { uuid: "u1", name: "u1", updatetime: 200_000, createtime: 1 } as any;
 
       const direction = await (service as any).decideDirectionOnRemoteChange(createFs(), cloudFile, script, {});
 
@@ -3108,8 +3176,8 @@ console.log("ok");`;
     it("有内容基线且本地未改时，pull 不标记 unverified", async () => {
       const code = "// code";
       const service = makeService({ get: vi.fn().mockResolvedValue({ code }) });
-      const cloudFile = { name: "u1.user.js", updatetime: 100 } as any;
-      const script = { uuid: "u1", name: "u1", updatetime: 200, createtime: 1 } as any;
+      const cloudFile = { name: "u1.user.js", updatetime: 100_000 } as any;
+      const script = { uuid: "u1", name: "u1", updatetime: 200_000, createtime: 1 } as any;
 
       const direction = await (service as any).decideDirectionOnRemoteChange(createFs(), cloudFile, script, {
         "u1.user.js": md5OfText(code),
@@ -3123,8 +3191,15 @@ console.log("ok");`;
         list: vi
           .fn()
           .mockResolvedValueOnce([
-            { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cloudD", createtime: 1, updatetime: 100 },
-            { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cloudM", createtime: 1, updatetime: 100 },
+            { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cloudD", createtime: 1, updatetime: 100_000 },
+            {
+              name: "u1.meta.json",
+              path: "u1.meta.json",
+              size: 1,
+              digest: "cloudM",
+              createtime: 1,
+              updatetime: 100_000,
+            },
           ])
           .mockResolvedValueOnce([]),
       });
@@ -3141,7 +3216,7 @@ console.log("ok");`;
           all: vi
             .fn()
             .mockResolvedValue([
-              { uuid: "u1", name: "u1", updatetime: 200, createtime: 1, status: 1, sort: 0, metadata: {} },
+              { uuid: "u1", name: "u1", updatetime: 200_000, createtime: 1, status: 1, sort: 0, metadata: {} },
             ]),
         } as any
       );
@@ -3161,10 +3236,10 @@ console.log("ok");`;
         list: vi
           .fn()
           .mockResolvedValueOnce([
-            { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "c1", createtime: 1, updatetime: 100 },
-            { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "m1", createtime: 1, updatetime: 100 },
-            { name: "u2.user.js", path: "u2.user.js", size: 1, digest: "c2", createtime: 1, updatetime: 100 },
-            { name: "u2.meta.json", path: "u2.meta.json", size: 1, digest: "m2", createtime: 1, updatetime: 100 },
+            { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "c1", createtime: 1, updatetime: 100_000 },
+            { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "m1", createtime: 1, updatetime: 100_000 },
+            { name: "u2.user.js", path: "u2.user.js", size: 1, digest: "c2", createtime: 1, updatetime: 100_000 },
+            { name: "u2.meta.json", path: "u2.meta.json", size: 1, digest: "m2", createtime: 1, updatetime: 100_000 },
           ])
           .mockResolvedValueOnce([]),
       });
@@ -3180,8 +3255,8 @@ console.log("ok");`;
         {
           scriptCodeDAO: { get: vi.fn().mockResolvedValue(undefined) },
           all: vi.fn().mockResolvedValue([
-            { uuid: "u1", name: "u1", updatetime: 200, createtime: 1, status: 1, sort: 0, metadata: {} },
-            { uuid: "u2", name: "u2", updatetime: 200, createtime: 1, status: 1, sort: 1, metadata: {} },
+            { uuid: "u1", name: "u1", updatetime: 200_000, createtime: 1, status: 1, sort: 0, metadata: {} },
+            { uuid: "u2", name: "u2", updatetime: 200_000, createtime: 1, status: 1, sort: 1, metadata: {} },
           ]),
         } as any
       );
@@ -3195,8 +3270,8 @@ console.log("ok");`;
     it("Service Worker 重启后同一批覆盖仍只通知一次", async () => {
       const fs = createFs({
         list: vi.fn().mockResolvedValue([
-          { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "c1", createtime: 1, updatetime: 100 },
-          { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "m1", createtime: 1, updatetime: 100 },
+          { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "c1", createtime: 1, updatetime: 100_000 },
+          { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "m1", createtime: 1, updatetime: 100_000 },
         ]),
       });
       const notificationSpy = vi.spyOn(chrome.notifications, "create");
@@ -3205,7 +3280,7 @@ console.log("ok");`;
         all: vi
           .fn()
           .mockResolvedValue([
-            { uuid: "u1", name: "u1", updatetime: 200, createtime: 1, status: 1, sort: 0, metadata: {} },
+            { uuid: "u1", name: "u1", updatetime: 200_000, createtime: 1, status: 1, sort: 0, metadata: {} },
           ]),
       } as any;
       const makeService = () =>
@@ -3220,13 +3295,62 @@ console.log("ok");`;
       expect(notificationSpy).toHaveBeenCalledTimes(1);
     });
 
+    it("兜底覆盖写入失败时不通知不计数，下一轮真正覆盖成功才通知", async () => {
+      // 覆盖通知必须以"写入已发生"为前提：失败轮通知会谎报覆盖，
+      // 且去重键提前落库后，下一轮真覆盖发生时反而被静默
+      const fs = createFs({
+        list: vi.fn().mockResolvedValue([
+          { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "c1", createtime: 1, updatetime: 100_000 },
+          { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "m1", createtime: 1, updatetime: 100_000 },
+        ]),
+      });
+      const notificationSpy = vi.spyOn(chrome.notifications, "create");
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {
+          scriptCodeDAO: { get: vi.fn().mockResolvedValue(undefined) },
+          all: vi
+            .fn()
+            .mockResolvedValue([
+              { uuid: "u1", name: "u1", updatetime: 200_000, createtime: 1, status: 1, sort: 0, metadata: {} },
+            ]),
+        } as any
+      );
+      vi.spyOn(service, "pushScript").mockRejectedValueOnce(new Error("cloud write failed")).mockResolvedValue({});
+
+      await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+      expect(notificationSpy).not.toHaveBeenCalled();
+      let state = await (service as any).storage.get("cloud_sync_state");
+      expect(state.counts).toMatchObject({ overwrite: 0, failed: 1 });
+
+      await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+      expect(notificationSpy).toHaveBeenCalledTimes(1);
+      state = await (service as any).storage.get("cloud_sync_state");
+      expect(state.counts).toMatchObject({ overwrite: 1, failed: 0 });
+    });
+
     it("同步完成后写入 cloud_sync_state（覆盖计数与 lastSyncAt）", async () => {
       const fs = createFs({
         list: vi
           .fn()
           .mockResolvedValueOnce([
-            { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cloudD", createtime: 1, updatetime: 100 },
-            { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cloudM", createtime: 1, updatetime: 100 },
+            { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cloudD", createtime: 1, updatetime: 100_000 },
+            {
+              name: "u1.meta.json",
+              path: "u1.meta.json",
+              size: 1,
+              digest: "cloudM",
+              createtime: 1,
+              updatetime: 100_000,
+            },
           ])
           .mockResolvedValueOnce([]),
       });
@@ -3243,7 +3367,7 @@ console.log("ok");`;
           all: vi
             .fn()
             .mockResolvedValue([
-              { uuid: "u1", name: "u1", updatetime: 200, createtime: 1, status: 1, sort: 0, metadata: {} },
+              { uuid: "u1", name: "u1", updatetime: 200_000, createtime: 1, status: 1, sort: 0, metadata: {} },
             ]),
         } as any
       );
@@ -3254,6 +3378,89 @@ console.log("ok");`;
       const state = await (service as any).storage.get("cloud_sync_state");
       expect(state).toMatchObject({ syncing: false, counts: expect.objectContaining({ overwrite: 1 }) });
       expect(state.lastSyncAt).toBeGreaterThan(0);
+    });
+
+    it("单文件同步失败计入 counts.failed", async () => {
+      const fs = createFs({ list: vi.fn().mockResolvedValue([]) });
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {
+          scriptCodeDAO: {},
+          all: vi
+            .fn()
+            .mockResolvedValue([
+              { uuid: "u1", name: "u1", updatetime: 200_000, createtime: 1, status: 1, sort: 0, metadata: {} },
+            ]),
+        } as any
+      );
+      vi.spyOn(service, "pushScript").mockRejectedValue(new Error("push failed"));
+
+      await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+      const state = await (service as any).storage.get("cloud_sync_state");
+      expect(state.counts).toMatchObject({ failed: 1, conflict: 0, overwrite: 0 });
+      expect(state.error).toBeUndefined();
+    });
+
+    it("真冲突计入 counts.conflict 且不重复计入 failed", async () => {
+      const fs = createFs({
+        list: vi.fn().mockResolvedValue([
+          { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "cu2", createtime: 1, updatetime: 5000 },
+          { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "cm2", createtime: 1, updatetime: 5000 },
+        ]),
+        open: vi.fn().mockImplementation(async () => ({
+          read: vi.fn().mockResolvedValue("// cloud edit"),
+        })),
+      });
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {
+          scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// local edit" }) },
+          all: vi
+            .fn()
+            .mockResolvedValue([
+              { uuid: "u1", name: "t", updatetime: 5497, createtime: 1, status: 1, sort: 0, metadata: {} },
+            ]),
+        } as any
+      );
+      await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+      await (service as any).storage.set("sync_content_md5", { "u1.user.js": md5OfText("// base") });
+
+      await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+      const state = await (service as any).storage.get("cloud_sync_state");
+      expect(state.counts).toMatchObject({ conflict: 1, failed: 0 });
+    });
+
+    it("syncOnce 内部失败时写入 error 状态且结束 syncing", async () => {
+      const fs = createFs({ list: vi.fn().mockRejectedValue(new Error("list boom")) });
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        { scriptCodeDAO: {}, all: vi.fn().mockResolvedValue([]) } as any
+      );
+
+      await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
+
+      const state = await (service as any).storage.get("cloud_sync_state");
+      expect(state).toMatchObject({ syncing: false, error: expect.stringContaining("list boom") });
     });
   });
 

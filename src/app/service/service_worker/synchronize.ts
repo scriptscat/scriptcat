@@ -94,7 +94,11 @@ type SyncTask = {
   preserveDigestFiles: string[];
 };
 
-type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "unsupported" | "fatal";
+type SyncErrorKind = "conflict" | "stale_snapshot" | "transient" | "fatal";
+
+// 本地 updatetime 是客户端毫秒时钟，云端 mtime 是服务端时钟（WebDAV 等仅整秒精度）。
+// 跨时钟域比较前两侧都截断到整秒：同一秒内的毫秒余数不构成"本地更新"的证据（L4 同秒竞态）
+const isNewerBySecond = (localMs: number, cloudMs: number) => Math.floor(localMs / 1000) > Math.floor(cloudMs / 1000);
 
 // pushScript 分两次写 .user.js / .meta.json，前者成功后者失败时抛出本错误，
 // 带出已成功写入的文件名，让调用方只保留真正失败文件的旧 digest、推进成功文件的 digest，
@@ -593,9 +597,9 @@ export class SynchronizeService {
           return;
         }
         if (fileDigestMap[file.script!.name] === file.script!.digest) {
-          // 云端自上次同步未变：本地更新时间不比云端新则无事可做；
+          // 云端自上次同步未变：本地更新时间不比云端新（整秒对齐）则无事可做；
           // 否则本地编辑过（digest 相等只反映云端未变），需补偿上传（#1，队列 push 失败后的兜底）
-          if (updatetime <= file.script!.updatetime) {
+          if (!isNewerBySecond(updatetime, file.script!.updatetime)) {
             return;
           }
           addSyncTask(uuid, this.pushScript(fs, script));
@@ -608,22 +612,24 @@ export class SynchronizeService {
           uuid,
           (async () => {
             const direction = await this.decideDirectionOnRemoteChange(fs, file.script!, script, syncedContentMd5Map);
+            // 覆盖日志/通知只在写入成功后登记：失败轮通知会谎报覆盖，
+            // 且去重键提前落库后，下一轮真覆盖发生时反而被静默
+            const recordOverwrite = (dir: "pull" | "push") => {
+              if (direction.action === "adopt" || !direction.unverified) return;
+              const scriptName = i18nName(script);
+              this.logger.warn("sync overwrite", { action: "overwrite", direction: dir, uuid, name: scriptName });
+              overwriteScripts.push({ uuid, scriptName, direction: dir });
+            };
             if (direction.action === "pull") {
-              if (direction.unverified) {
-                const scriptName = i18nName(script);
-                this.logger.warn("sync overwrite", { action: "overwrite", direction: "pull", uuid, name: scriptName });
-                overwriteScripts.push({ uuid, scriptName, direction: "pull" });
-              }
               updateScript.set(uuid, true);
-              return await this.pullScript(fs, file as SyncFiles, cloudStatus[uuid], script);
+              await this.pullScript(fs, file as SyncFiles, cloudStatus[uuid], script);
+              recordOverwrite("pull");
+              return;
             }
             if (direction.action === "push") {
-              if (direction.unverified) {
-                const scriptName = i18nName(script);
-                this.logger.warn("sync overwrite", { action: "overwrite", direction: "push", uuid, name: scriptName });
-                overwriteScripts.push({ uuid, scriptName, direction: "push" });
-              }
-              return await this.pushScript(fs, script);
+              const pushed = await this.pushScript(fs, script);
+              recordOverwrite("push");
+              return pushed;
             }
             if (direction.action === "adopt") {
               // 两端内容一致只是基线过期：返回内容 md5 让 updateFileDigest 推进基线，不产生写操作
@@ -836,17 +842,10 @@ export class SynchronizeService {
       if (error.notFound) {
         return "stale_snapshot";
       }
-      if (error.auth) {
-        return "fatal";
-      }
+      // auth 等其余 typed 错误都属于 fatal
       return "fatal";
     }
-    if (isWarpTokenError(error)) {
-      return "fatal";
-    }
-    if (error instanceof Error && /\bunsupported\b/i.test(error.message)) {
-      return "unsupported";
-    }
+    // WarpTokenError 及其他未分类错误一律 fatal
     return "fatal";
   }
 
@@ -1081,10 +1080,11 @@ export class SynchronizeService {
   > {
     const baselineMd5 = syncedContentMd5Map[cloudFile.name];
     if (baselineMd5 === undefined) {
-      // 无内容基线（升级前旧数据/从未同步成功）：只能退回跨时钟域的墙钟比较，无法确认落败一端是否真未改动，
-      // 因此标记 unverified——上层据此打 overwrite 日志并通知用户，让其自行确认（见 docs/cloud-sync.md 覆盖可见性）。
+      // 无内容基线（升级前旧数据/从未同步成功）：只能退回跨时钟域的墙钟比较（整秒对齐，同秒判 pull），
+      // 无法确认落败一端是否真未改动，因此标记 unverified——上层据此打 overwrite 日志并通知用户，
+      // 让其自行确认（见 docs/cloud-sync.md 覆盖可见性）。
       const updatetime = script.updatetime || script.createtime;
-      return { action: updatetime > cloudFile.updatetime ? "push" : "pull", unverified: true };
+      return { action: isNewerBySecond(updatetime, cloudFile.updatetime) ? "push" : "pull", unverified: true };
     }
     const code = await this.scriptCodeDAO.get(script.uuid);
     const localMd5 = code ? md5OfText(code.code) : undefined;
