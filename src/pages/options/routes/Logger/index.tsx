@@ -241,6 +241,7 @@ export default function Logger() {
           <span>{t("logs:clean_schedule")}</span>
           <input
             type="number"
+            min={0}
             value={cleanCycle}
             onChange={(e) => setCleanCycle(parseInt(e.target.value, 10) || 0)}
             aria-label={t("logs:clean_schedule")}

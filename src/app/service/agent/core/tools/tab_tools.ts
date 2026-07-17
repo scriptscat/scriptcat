@@ -310,7 +310,7 @@ export function createTabTools(deps: {
       const tab = await chrome.tabs.update(tabId, { active: true });
       if (!tab) throw new Error(`Tab ${tabId} not found`);
       // 也激活对应窗口
-      if (tab.windowId) {
+      if (tab.windowId && Number.isFinite(tab.windowId) && tab.windowId >= 0) {
         await chrome.windows.update(tab.windowId, { focused: true });
       }
       return JSON.stringify({
