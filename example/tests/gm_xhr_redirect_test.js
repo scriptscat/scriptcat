@@ -152,9 +152,13 @@ const enableTool = true;
       name: "Redirect handling (finalUrl changes) [default]",
       async run(fetch) {
         const target = `${HB}/get?z=92`;
-        const { res } = await gmRequest({ method: "GET", url: `${HB}/redirect-to?url=${encodeURIComponent(target)}`, fetch });
+        const { res } = await gmRequest({ method: "GET", url: `${HB}/redirect-to?url=${encodeURIComponent(target)}`, responseType: "json", fetch });
         assertEq(res.status, 200, "status after redirect is 200");
         assertEq(res.finalUrl, target, "finalUrl is redirected target");
+        // finalUrl alone only proves the client thinks it followed the
+        // redirect - confirm the server actually served /get's response.
+        assertEq(res.response?.method, "GET", "redirected request reached /get as GET");
+        assertEq(res.response?.queryParams?.z, "92", "redirected response echoes the target's query");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
@@ -162,9 +166,11 @@ const enableTool = true;
       name: "Redirect handling (finalUrl changes) [follow]",
       async run(fetch) {
         const target = `${HB}/get?z=94`;
-        const { res } = await gmRequest({ method: "GET", url: `${HB}/redirect-to?url=${encodeURIComponent(target)}`, redirect: "follow", fetch });
+        const { res } = await gmRequest({ method: "GET", url: `${HB}/redirect-to?url=${encodeURIComponent(target)}`, redirect: "follow", responseType: "json", fetch });
         assertEq(res.status, 200, "status after redirect is 200");
         assertEq(res.finalUrl, target, "finalUrl is redirected target");
+        assertEq(res.response?.method, "GET", "redirected request reached /get as GET");
+        assertEq(res.response?.queryParams?.z, "94", "redirected response echoes the target's query");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },

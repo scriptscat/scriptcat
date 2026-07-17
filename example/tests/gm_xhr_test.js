@@ -900,6 +900,13 @@ const enableTool = true;
         });
         assertEq(res.status, 200, "status after redirect is 200");
         assertEq(res.finalUrl, target, "finalUrl is redirected target");
+        // finalUrl alone only proves the client thinks it followed the
+        // redirect - confirm the server actually served /get's response,
+        // not e.g. a cached/stale/error body that happens to carry a 200.
+        const body = JSON.parse(res.responseText);
+        assertEq(body.method, "GET", "redirected request reached /get as GET");
+        const q = getQueryObj(body);
+        assertEq(q.z, "92", "redirected response echoes the target's query");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
@@ -916,6 +923,10 @@ const enableTool = true;
         });
         assertEq(res.status, 200, "status after redirect is 200");
         assertEq(res.finalUrl, target, "finalUrl is redirected target");
+        const body = JSON.parse(res.responseText);
+        assertEq(body.method, "GET", "redirected request reached /get as GET");
+        const q = getQueryObj(body);
+        assertEq(q.z, "94", "redirected response echoes the target's query");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
