@@ -25,9 +25,13 @@ import { InfoNotification, shouldAutoOpenChangelog } from "./utils";
 import { AgentService } from "@App/app/service/agent/service_worker/agent";
 import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_env";
 import { cleanupStaleTempStorageEntries } from "./temp";
+import RuntimeLogger from "@App/app/logger/logger";
+import LoggerCore from "@App/app/logger/core";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
+  private serviceLogger = LoggerCore.logger().with({ service: "service_worker" });
+
   constructor(
     private api: Server,
     private mq: IMessageQueue,
@@ -105,7 +109,7 @@ export default class ServiceWorkerManager {
     synchronize.init();
     const subscribe = new SubscribeService(this.api.group("subscribe"), this.mq, script);
     subscribe.init();
-    const log = new LogService(this.api.group("log"));
+    const log = new LogService(this.api.group("log"), systemConfig);
     log.init();
     const system = new SystemService(
       systemConfig,
@@ -143,9 +147,9 @@ export default class ServiceWorkerManager {
               const isRead = items.notice !== data.notice ? false : items.isRead;
               systemConfig.setCheckUpdate({ ...data, isRead: isRead });
             })
-            .catch((e) => console.error("regularExtensionUpdateCheck: Check Error", e));
+            .catch((e) => this.serviceLogger.error("read extension update config failed", RuntimeLogger.E(e)));
         })
-        .catch((e) => console.error("regularExtensionUpdateCheck: Network Error", e));
+        .catch((e) => this.serviceLogger.error("check extension update failed", RuntimeLogger.E(e)));
     };
 
     this.mq.subscribe<any>("msgUpdatePageOpened", () => {
@@ -186,6 +190,14 @@ export default class ServiceWorkerManager {
         case "cleanupTempStorage":
           // 避免浏览器打开时立即清除。先等tabs载入一下
           setTimeout(cleanupStaleTempStorageEntries, needsWarmupDelay ? 45_000 : 100);
+          break;
+        case "cleanupTrash":
+          script.cleanupExpiredTrash();
+          break;
+        case "cleanupLogs":
+          log
+            .cleanupExpiredLogs()
+            .catch((e) => this.serviceLogger.error("cleanup expired logs failed", RuntimeLogger.E(e)));
           break;
       }
     });
@@ -246,6 +258,43 @@ export default class ServiceWorkerManager {
     // 定期清理过期的临时安装信息
     chrome.alarms.create("cleanupTempStorage", { periodInMinutes: 30 });
 
+    // 定期清理回收站中过期的脚本(30 天精度无需更细)。
+    // 必须先 get 再 create(同 checkUpdate/agentTaskScheduler):create 同名 alarm 会重置倒计时,
+    // 活跃使用时 SW 频繁冷启动,无条件 create 会让 12 小时的闹钟永远数不满、清理永远不触发。
+    chrome.alarms.get("cleanupTrash", (alarm) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
+        // 非预期的异常API错误，停止处理
+      }
+      if (!alarm) {
+        chrome.alarms.create("cleanupTrash", { periodInMinutes: 12 * 60 }, () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
+            console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
+          }
+        });
+      }
+    });
+
+    // 定期清理超过保留天数的运行日志。先 get 再 create，避免 SW 冷启动重置倒计时。
+    chrome.alarms.get("cleanupLogs", (alarm) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
+      }
+      if (!alarm) {
+        chrome.alarms.create("cleanupLogs", { delayInMinutes: 1, periodInMinutes: 12 * 60 }, () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
+            console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
+          }
+        });
+      }
+    });
+
     // 一些只需启动时运行一次的任务
     cacheInstance.getOrSet("extension_initialized", () => {
       // 启动一次云同步
@@ -289,9 +338,7 @@ export default class ServiceWorkerManager {
                     windowId: !tab ? undefined : tab.windowId,
                   });
                 })
-                .catch((e) => {
-                  console.error(e);
-                });
+                .catch((e) => this.serviceLogger.error("open extension changelog failed", { url }, RuntimeLogger.E(e)));
             }
           }
         });

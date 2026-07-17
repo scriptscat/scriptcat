@@ -128,6 +128,8 @@ function SortHeader({
 }
 
 export interface ScriptTableProps extends FilterBarProps {
+  /** 顶栏最左侧内容（tabs），透传给 Toolbar 取代标题槽位 */
+  leading?: React.ReactNode;
   scriptList: ScriptLoading[];
   loadingList: boolean;
   updateScripts: (uuids: string[], data: Partial<ScriptLoading>) => void;
@@ -153,6 +155,7 @@ export interface ScriptTableProps extends FilterBarProps {
 }
 
 export default function ScriptTable({
+  leading,
   scriptList,
   loadingList,
   updateScripts,
@@ -224,6 +227,7 @@ export default function ScriptTable({
     <div className="flex flex-col h-full">
       {/* 顶栏 */}
       <Toolbar
+        leading={leading}
         totalCount={totalCount}
         viewMode="table"
         setViewMode={setViewMode}

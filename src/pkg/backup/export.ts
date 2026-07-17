@@ -14,11 +14,16 @@ export default class BackupExport {
 
   // 导出备份数据
   export(data: BackupData): Promise<void> {
-    // 写入脚本备份
-    return Promise.all([
+    const tasks: Promise<void>[] = [
       ...data.script.flatMap((item) => this.writeScript(item)),
       ...data.subscribe.flatMap((item) => this.writeSubscribe(item)),
-    ]).then(() => {
+    ];
+    // ScriptCat 设置 bundle 写入 scriptcat-config.json(#1533)
+    if (data.config) {
+      const writeConfig = JSON.stringify(data.config);
+      tasks.push(this.fs.create("scriptcat-config.json").then((fileWriter) => fileWriter.write(writeConfig)));
+    }
+    return Promise.all(tasks).then(() => {
       return;
     });
   }

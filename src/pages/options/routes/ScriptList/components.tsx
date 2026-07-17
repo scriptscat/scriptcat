@@ -36,6 +36,7 @@ import {
 import { preloadCloudScriptPlan } from "@App/pages/components/CloudScriptPlan";
 import { preloadUserConfig } from "./preload";
 import { nextTimeDisplay } from "@App/pkg/utils/cron";
+import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 
 // ========== Tag 配色 ==========
 // 分类标签 chip 取 --label-* 令牌族（src/index.css），明暗主题自动切换；详见 docs/references/design-tokens.md。
@@ -340,6 +341,7 @@ export function ScriptRowActions({
   className?: string;
 }) {
   const { t } = useTranslation();
+  const [trashEnabled] = useSystemConfig("trash_enabled");
   const home = getScriptHomePage(script.metadata);
   const isBackground = script.type !== SCRIPT_TYPE_NORMAL;
   const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
@@ -389,7 +391,11 @@ export function ScriptRowActions({
         <Pencil className="w-3.5 h-3.5" />
       </ActionButton>
       <Popconfirm
-        description={t("script:confirm_delete_script_content", { name: i18nName(script) })}
+        description={
+          (trashEnabled ?? true)
+            ? t("script:confirm_delete_script_trash_content", { name: i18nName(script) })
+            : t("script:confirm_delete_script_content", { name: i18nName(script) })
+        }
         destructive
         confirmText={t("delete")}
         cancelText={t("editor:cancel")}
