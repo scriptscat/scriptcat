@@ -104,6 +104,23 @@ export function conversationChatLockKey(conversationId: string): string {
   return `agent-chat:${conversationId}`;
 }
 
+/** 一次 conversation chat 连接的共享状态。
+ * 连接回调（stop / askUserResponse / toolResults / 断开）必须在排队【之前】注册：
+ * 断开的端口上注册回调会直接抛错（见 extension_message.ts），而且排队等待期间到达的
+ * 断开与 Stop 必须被如实记录，否则临界区开始后要么在死连接上白跑一整条会话，
+ * 要么漏掉停止指令（见 finding 2）。 */
+interface ChatConnectionSession {
+  msgConn: MessageConnect;
+  isBackground: boolean;
+  abortController: AbortController;
+  askResolvers: Map<string, (answer: string) => void>;
+  scriptToolCallback: ScriptToolCallback;
+  isDisconnected: () => boolean;
+  /** 后台模式：临界区内创建 RunningConversation 后回填，供排队期间注册的连接回调路由 stop/askUser */
+  rc?: RunningConversation;
+  bgListener?: ListenerEntry;
+}
+
 /** 为脚本工具连接增加 executeTools 请求批次关联（requestId），并在后台客户端离线后
  * 直接返回结构化错误结果：过期批次的 toolResults 被丢弃，不会被下一个批次误认领；
  * 连接已断开时不再把 executeTools 扔进黑洞，而是立刻回填整批 error 结果，让 tool loop
@@ -175,6 +192,10 @@ function wrapScriptToolConnection(original: MessageConnect): MessageConnect {
 }
 
 export class ChatService {
+  // 正在等待 Sandbox 回复脚本工具结果的会话：此窗口内 chat 持有会话队列锁等待 toolResults，
+  // 来自工具 handler 内部的 await conv.clear() 若照常排队会形成"锁等我、我等锁"的死锁（见 finding 2）
+  private conversationsAwaitingScriptTools = new Set<string>();
+
   constructor(
     private toolRegistry: ToolRegistry,
     private modelService: AgentModelService,
@@ -200,8 +221,15 @@ export class ChatService {
         // 对话已经在 chat 过程中持久化，这里确保元数据也保存
         return true;
       case "clearMessages":
-        // 与 chat/compact 共用同一把按 conversationId 的队列锁，避免正在进行的对话/压缩
-        // 与清空操作互相覆盖对方的写入（见 finding 5）
+        // 会话正在等待脚本工具结果时，这个 clear 很可能来自该工具 handler 内部的
+        // await conv.clear()：chat 持有会话队列锁等待 toolResults，clear 排队等锁，
+        // 相互等待成死锁。对这个窗口显式拒绝（fail fast）；其余时刻仍与 chat/compact
+        // 共用同一把按 conversationId 的队列锁排队执行，避免互相覆盖写入（见 finding 2/5）
+        if (this.conversationsAwaitingScriptTools.has(params.conversationId)) {
+          throw new Error(
+            "Conversation is waiting for script tool results; clearing messages now would deadlock. Finish or stop the chat first."
+          );
+        }
         return stackAsyncTask(conversationChatLockKey(params.conversationId), async () => {
           await this.chatRepo.saveMessages(params.conversationId, []);
           return true;
@@ -244,33 +272,172 @@ export class ChatService {
     // 后台模式：非 ephemeral、非 compact 时可用
     const isBackground = params.background === true && !params.ephemeral && !params.compact;
 
-    // 检查是否已有后台运行的同一会话
+    // 检查是否已有后台运行的同一会话（排队前快速拒绝，入锁后还会复查一次）
     if (isBackground && this.bgSessionManager.has(params.conversationId)) {
-      msgConn.sendMessage({
-        action: "event",
-        data: { type: "error", message: "会话正在运行中" } as ChatStreamEvent,
-      });
+      try {
+        msgConn.sendMessage({
+          action: "event",
+          data: { type: "error", message: "会话正在运行中" } as ChatStreamEvent,
+        });
+      } catch {
+        // 端口已断开，无需通知
+      }
       return;
     }
 
+    const abortController = new AbortController();
+    const askResolvers = new Map<string, (answer: string) => void>();
+    let isDisconnected = false;
+
+    const session: ChatConnectionSession = {
+      msgConn,
+      isBackground,
+      abortController,
+      askResolvers,
+      isDisconnected: () => isDisconnected,
+      // 立即在下方赋值；提前占位以便连接回调闭包引用 session 对象本身
+      scriptToolCallback: null as unknown as ScriptToolCallback,
+    };
+
+    // 等待中的脚本工具调用：MessageConnect 断开或 abortController 触发时，
+    // 必须主动结束这个 pending promise —— 只有这个连接对应的 Sandbox 能回复 toolResults，
+    // 连接一旦断开该调用永远不会有结果，不结束会让整条 tool loop 挂起。
+    let pendingScriptCall: {
+      toolCalls: ToolCall[];
+      settle: (results: Array<{ id: string; result: string; error?: boolean }>) => void;
+    } | null = null;
+
+    const scriptToolAbortedResults = (message: string) =>
+      pendingScriptCall!.toolCalls.map((tc) => ({
+        id: tc.id,
+        result: JSON.stringify({ error: message }),
+        error: true,
+      }));
+
+    const settlePendingScriptCall = (message: string) => {
+      if (!pendingScriptCall) return;
+      pendingScriptCall.settle(scriptToolAbortedResults(message));
+    };
+
+    // 连接回调必须在排队之前注册：断开的端口上注册会直接抛错（见 extension_message.ts），
+    // 而且排队等待期间到达的断开/Stop 必须被记录，否则临界区开始后要么在死连接上白跑
+    // 一整条会话，要么漏掉停止指令（见 finding 2）
+    try {
+      msgConn.onDisconnect(() => {
+        isDisconnected = true;
+        if (isBackground) {
+          // 后台模式：只移除 listener，不 abort 整条会话；
+          // 但这条连接对应的脚本工具调用必须结束，否则永远等不到 toolResults
+          if (session.rc && session.bgListener) session.rc.listeners.delete(session.bgListener);
+          settlePendingScriptCall("Script connection disconnected");
+        } else {
+          abortController.abort();
+        }
+      });
+
+      msgConn.onMessage((msg: any) => {
+        if (msg.action === "toolResults" && pendingScriptCall) {
+          const { settle } = pendingScriptCall;
+          settle(msg.data);
+        }
+        if (msg.action === "askUserResponse" && msg.data) {
+          const resolver = askResolvers.get(msg.data.id);
+          if (resolver) {
+            askResolvers.delete(msg.data.id);
+            if (session.rc) session.rc.pendingAskUser = undefined;
+            resolver(msg.data.answer);
+          }
+        }
+        if (msg.action === "stop") {
+          if (session.rc) {
+            this.bgSessionManager.stop(params.conversationId, session.rc);
+          } else {
+            abortController.abort();
+          }
+        }
+      });
+    } catch {
+      // 连接在注册回调前就已断开：请求方已不存在，直接不入队
+      return;
+    }
+
+    // abort（stop / 非后台断开）时结束等待中的脚本工具调用，避免循环卡死
+    abortController.signal.addEventListener("abort", () => {
+      settlePendingScriptCall("Tool execution aborted");
+    });
+
+    // 脚本工具单次调用的最长等待时间：Sandbox 长时间无响应（如脚本卡死）时，
+    // 主动结束这轮 tool call 而不是无限期挂起整条对话
+    const SCRIPT_TOOL_TIMEOUT_MS = 5 * 60 * 1000;
+
+    session.scriptToolCallback = (toolCalls: ToolCall[]) => {
+      return new Promise((resolve) => {
+        const settle = (results: Array<{ id: string; result: string; error?: boolean }>) => {
+          if (pendingScriptCall?.settle !== settle) return;
+          pendingScriptCall = null;
+          if (!params.ephemeral) this.conversationsAwaitingScriptTools.delete(params.conversationId);
+          clearTimeout(timer);
+          resolve(results);
+        };
+        const timer = setTimeout(() => {
+          settle(
+            toolCalls.map((tc) => ({
+              id: tc.id,
+              result: JSON.stringify({ error: "Tool execution timed out" }),
+              error: true,
+            }))
+          );
+        }, SCRIPT_TOOL_TIMEOUT_MS);
+
+        pendingScriptCall = { toolCalls, settle };
+        if (!params.ephemeral) this.conversationsAwaitingScriptTools.add(params.conversationId);
+        try {
+          msgConn.sendMessage({ action: "executeTools", data: toolCalls });
+        } catch {
+          // 包装层已把断开的批次转成 failBatch 错误结果回填，这里仅防御极端时序下的底层抛错
+        }
+
+        if (abortController.signal.aborted) {
+          settle(scriptToolAbortedResults("Tool execution aborted"));
+        }
+      });
+    };
+
     // ephemeral 不读写 chatRepo（消息历史由调用方在内存中维护），没有跨请求的持久化竞争，无需排队
     if (params.ephemeral) {
-      return this.handleConversationChatLocked(params, msgConn);
+      return this.handleConversationChatLocked(params, session);
     }
 
     return stackAsyncTask(conversationChatLockKey(params.conversationId), () =>
-      this.handleConversationChatLocked(params, msgConn)
+      this.handleConversationChatLocked(params, session)
     );
   }
 
-  private async handleConversationChatLocked(params: ConversationChatParams, msgConn: MessageConnect) {
-    // 后台模式：非 ephemeral、非 compact 时可用（外层 handleConversationChat 已用同一条件做过快速拒绝检查）
-    const isBackground = params.background === true && !params.ephemeral && !params.compact;
+  private async handleConversationChatLocked(params: ConversationChatParams, session: ChatConnectionSession) {
+    const { msgConn, isBackground, abortController, askResolvers, scriptToolCallback } = session;
 
-    const abortController = new AbortController();
-    let isDisconnected = false;
+    const sendEventDirect = (event: ChatStreamEvent) => {
+      if (session.isDisconnected()) return;
+      try {
+        msgConn.sendMessage({ action: "event", data: event });
+      } catch {
+        // 端口在竞态下刚好断开，事件无处可送
+      }
+    };
 
-    // 后台模式：创建 RunningConversation
+    // 排队等待期间已被 Stop（前台断开也会 abort）：不再启动，回发终态取消事件收尾
+    if (abortController.signal.aborted) {
+      sendEventDirect({ type: "error", message: "Conversation cancelled", errorCode: "cancelled" });
+      return;
+    }
+
+    // 入锁后复查后台占用：排队前的快速拒绝与真正入锁之间存在时间窗（见 finding 2）
+    if (isBackground && this.bgSessionManager.has(params.conversationId)) {
+      sendEventDirect({ type: "error", message: "会话正在运行中" });
+      return;
+    }
+
+    // 后台模式：创建 RunningConversation（askResolvers 与排队前注册的连接回调共享同一个 Map）
     let rc: RunningConversation | undefined;
     if (isBackground) {
       rc = {
@@ -278,15 +445,18 @@ export class ChatService {
         abortController,
         listeners: new Set(),
         streamingState: { content: "", thinking: "", toolCalls: [] },
-        askResolvers: new Map(),
+        askResolvers,
         tasks: [],
         status: "running",
       };
       this.bgSessionManager.set(params.conversationId, rc);
-    }
+      session.rc = rc;
 
-    // ask_user resolvers（后台模式挂在 rc 上，普通模式本地）
-    const askResolvers = rc ? rc.askResolvers : new Map<string, (answer: string) => void>();
+      // 初始 listener；排队期间客户端已断开的后台会话照常运行，只是不再挂 listener
+      const listener: ListenerEntry = { sendEvent: sendEventDirect };
+      session.bgListener = listener;
+      if (!session.isDisconnected()) rc.listeners.add(listener);
+    }
 
     const sendEvent = (event: ChatStreamEvent) => {
       if (rc) {
@@ -294,9 +464,7 @@ export class ChatService {
         this.bgSessionManager.updateStreamingState(rc, event);
         this.bgSessionManager.broadcastEvent(rc, event);
       } else {
-        if (!isDisconnected) {
-          msgConn.sendMessage({ action: "event", data: event });
-        }
+        sendEventDirect(event);
       }
     };
 
@@ -343,109 +511,6 @@ export class ChatService {
           sendEvent({ type: "ask_user_resolved", id: askId });
           settle(answer);
         });
-      });
-    };
-
-    // 等待中的脚本工具调用：MessageConnect 断开或 abortController 触发时，
-    // 必须主动结束这个 pending promise —— 只有这个连接对应的 Sandbox 能回复 toolResults，
-    // 连接一旦断开该调用永远不会有结果，不结束会让整条 tool loop 挂起。
-    let pendingScriptCall: {
-      toolCalls: ToolCall[];
-      settle: (results: Array<{ id: string; result: string; error?: boolean }>) => void;
-    } | null = null;
-
-    const scriptToolAbortedResults = (message: string) =>
-      pendingScriptCall!.toolCalls.map((tc) => ({
-        id: tc.id,
-        result: JSON.stringify({ error: message }),
-        error: true,
-      }));
-
-    const settlePendingScriptCall = (message: string) => {
-      if (!pendingScriptCall) return;
-      pendingScriptCall.settle(scriptToolAbortedResults(message));
-    };
-
-    if (rc) {
-      // 后台模式：初始 listener
-      const listener: ListenerEntry = {
-        sendEvent: (event) => {
-          if (!isDisconnected) {
-            msgConn.sendMessage({ action: "event", data: event });
-          }
-        },
-      };
-      rc.listeners.add(listener);
-
-      msgConn.onDisconnect(() => {
-        isDisconnected = true;
-        // 后台模式：只移除 listener，不 abort 整条会话；
-        // 但这条连接对应的脚本工具调用必须结束，否则永远等不到 toolResults
-        rc!.listeners.delete(listener);
-        settlePendingScriptCall("Script connection disconnected");
-      });
-    } else {
-      msgConn.onDisconnect(() => {
-        isDisconnected = true;
-        abortController.abort();
-      });
-    }
-
-    // abort（stop / 非后台断开）时结束等待中的脚本工具调用，避免循环卡死
-    abortController.signal.addEventListener("abort", () => {
-      settlePendingScriptCall("Tool execution aborted");
-    });
-
-    msgConn.onMessage((msg: any) => {
-      if (msg.action === "toolResults" && pendingScriptCall) {
-        const { settle } = pendingScriptCall;
-        settle(msg.data);
-      }
-      if (msg.action === "askUserResponse" && msg.data) {
-        const resolver = askResolvers.get(msg.data.id);
-        if (resolver) {
-          askResolvers.delete(msg.data.id);
-          if (rc) rc.pendingAskUser = undefined;
-          resolver(msg.data.answer);
-        }
-      }
-      if (msg.action === "stop") {
-        if (rc) {
-          this.bgSessionManager.stop(params.conversationId, rc);
-        } else {
-          abortController.abort();
-        }
-      }
-    });
-
-    // 脚本工具单次调用的最长等待时间：Sandbox 长时间无响应（如脚本卡死）时，
-    // 主动结束这轮 tool call 而不是无限期挂起整条对话
-    const SCRIPT_TOOL_TIMEOUT_MS = 5 * 60 * 1000;
-
-    const scriptToolCallback: ScriptToolCallback = (toolCalls: ToolCall[]) => {
-      return new Promise((resolve) => {
-        const settle = (results: Array<{ id: string; result: string; error?: boolean }>) => {
-          if (pendingScriptCall?.settle !== settle) return;
-          pendingScriptCall = null;
-          clearTimeout(timer);
-          resolve(results);
-        };
-        const timer = setTimeout(() => {
-          settle(
-            toolCalls.map((tc) => ({
-              id: tc.id,
-              result: JSON.stringify({ error: "Tool execution timed out" }),
-              error: true,
-            }))
-          );
-        }, SCRIPT_TOOL_TIMEOUT_MS);
-
-        pendingScriptCall = { toolCalls, settle };
-        msgConn.sendMessage({ action: "executeTools", data: toolCalls });
-
-        if (abortController.signal.aborted) {
-          settle(scriptToolAbortedResults("Tool execution aborted"));
-        }
       });
     };
 

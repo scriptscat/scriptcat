@@ -803,3 +803,180 @@ describe("同一 conversationId 的 chat/compact/clear 必须串行执行（find
     }
   });
 });
+
+describe("会话队列的连接感知与重入策略（finding 2）", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  function createMockSender() {
+    const sentMessages: any[] = [];
+    let messageHandler: ((msg: any) => void) | null = null;
+    let disconnectHandler: (() => void) | null = null;
+    const mockConn = {
+      sendMessage: (msg: any) => sentMessages.push(msg),
+      onMessage: vi.fn((handler: any) => {
+        messageHandler = handler;
+      }),
+      onDisconnect: vi.fn((handler: any) => {
+        disconnectHandler = handler;
+      }),
+    };
+    const sender = {
+      isType: (type: any) => type === 1,
+      getConnect: () => mockConn,
+    };
+    return {
+      sender,
+      sentMessages,
+      simulateMessage: (msg: any) => messageHandler?.(msg),
+      simulateDisconnect: () => disconnectHandler?.(),
+    };
+  }
+
+  function conv(id: string) {
+    return { id, title: "Chat", modelId: "test-openai", createtime: Date.now(), updatetime: Date.now() };
+  }
+
+  it("排队等待期间收到 stop 的请求：入锁后直接以取消收尾，不再调用 LLM", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([conv("conv-q")]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    // chat1 占住会话队列（fetch 挂起直到手动放行）
+    let release!: (response: Response) => void;
+    fetchSpy.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+
+    const s1 = createMockSender();
+    const p1 = (service as any).handleConversationChat({ conversationId: "conv-q", message: "第一条" }, s1.sender);
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+
+    // chat2 入队等待；等待期间用户点了 Stop——回调必须在入队前就已注册，否则这次 stop 会被丢掉
+    const s2 = createMockSender();
+    const p2 = (service as any).handleConversationChat({ conversationId: "conv-q", message: "第二条" }, s2.sender);
+    s2.simulateMessage({ action: "stop" });
+
+    release(makeTextResponse("第一条回复"));
+    await Promise.all([p1, p2]);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const events2 = s2.sentMessages.filter((m: any) => m.action === "event").map((m: any) => m.data);
+    expect(events2.find((e: any) => e.type === "error")?.errorCode).toBe("cancelled");
+  });
+
+  it("排队等待期间客户端已断开的前台请求：不启动、不调用 LLM、不发送事件", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([conv("conv-q2")]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    let release!: (response: Response) => void;
+    fetchSpy.mockImplementationOnce(() => new Promise<Response>((resolve) => (release = resolve)));
+
+    const s1 = createMockSender();
+    const p1 = (service as any).handleConversationChat({ conversationId: "conv-q2", message: "第一条" }, s1.sender);
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+
+    const s2 = createMockSender();
+    const p2 = (service as any).handleConversationChat({ conversationId: "conv-q2", message: "第二条" }, s2.sender);
+    s2.simulateDisconnect();
+
+    release(makeTextResponse("第一条回复"));
+    await Promise.all([p1, p2]);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(s2.sentMessages.filter((m: any) => m.action === "event")).toHaveLength(0);
+  });
+
+  it("端口在入队前已死（注册回调即抛错）：请求安全返回，不留下卡死的后台会话记录", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([conv("conv-dead")]);
+    mockRepo.getMessages.mockResolvedValue([]);
+    const mockConn = {
+      sendMessage: vi.fn(),
+      onMessage: vi.fn(() => {
+        throw new Error("onMessage Invalid Port");
+      }),
+      onDisconnect: vi.fn(() => {
+        throw new Error("onDisconnect Invalid Port");
+      }),
+    };
+    const sender = { isType: () => true, getConnect: () => mockConn };
+
+    await expect(
+      (service as any).handleConversationChat({ conversationId: "conv-dead", message: "hi", background: true }, sender)
+    ).resolves.toBeUndefined();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    // 不能把后台会话记录留在 running/cancelling 占位状态
+    expect((service as any).bgSessionManager.has("conv-dead")).toBe(false);
+  });
+
+  it("会话等待脚本工具结果期间 clearMessages 应显式拒绝（重入死锁窗口），工具完成后恢复可用", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([conv("conv-reent")]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    const encoder = new TextEncoder();
+    const toolCallChunks = [
+      `data: {"choices":[{"delta":{"tool_calls":[{"id":"call-1","function":{"name":"my_tool","arguments":""}}]}}]}\n\n`,
+      `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":"{}"}}]}, "finish_reason":"tool_calls"}]}\n\n`,
+      `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
+    ];
+    let i = 0;
+    const toolCallResponse = {
+      ok: true,
+      status: 200,
+      body: {
+        getReader() {
+          return {
+            async read() {
+              if (i < toolCallChunks.length) return { done: false, value: encoder.encode(toolCallChunks[i++]) };
+              return { done: true, value: undefined };
+            },
+            cancel: async () => {},
+          };
+        },
+      },
+    } as unknown as Response;
+
+    fetchSpy.mockResolvedValueOnce(toolCallResponse).mockResolvedValueOnce(makeTextResponse("最终回复"));
+
+    const s = createMockSender();
+    const chatPromise = (service as any).handleConversationChat(
+      {
+        conversationId: "conv-reent",
+        message: "使用工具",
+        tools: [{ name: "my_tool", description: "d", parameters: { type: "object", properties: {} } }],
+      },
+      s.sender
+    );
+
+    await vi.waitFor(() => {
+      expect(s.sentMessages.some((message: any) => message.action === "executeTools")).toBe(true);
+    });
+
+    // 死锁窗口：chat 持有会话队列锁等待 toolResults；此刻的 clear 若排队会形成相互等待
+    await expect(
+      (service as any).handleConversation({ action: "clearMessages", conversationId: "conv-reent" })
+    ).rejects.toThrow();
+
+    const executeMessage = s.sentMessages.find((message: any) => message.action === "executeTools");
+    s.simulateMessage({
+      action: "toolResults",
+      requestId: executeMessage.requestId,
+      data: [{ id: "call-1", result: "ok" }],
+    });
+    await chatPromise;
+
+    // 工具等待结束后，clear 恢复正常排队语义
+    await expect(
+      (service as any).handleConversation({ action: "clearMessages", conversationId: "conv-reent" })
+    ).resolves.toBe(true);
+  });
+});
