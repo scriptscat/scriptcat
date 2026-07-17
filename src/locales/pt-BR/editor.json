@@ -66,8 +66,8 @@
   "confirm_reset": "Confirmar redefinição?",
   "confirm_delete_match": "Confirmar a exclusão desta correspondência?",
   "confirm_delete_exclude": "Excluir esta regra de exclusão?",
-  "after_deleting_match_item": "Regras de correspondência definidas pelo script são adicionadas de volta à lista de correspondência após a exclusão",
-  "after_deleting_exclude_item": "Regras de correspondência definidas pelo script são adicionadas de volta à lista de exclusão após a exclusão",
+  "after_deleting_match_item": "Após a edição, suas regras de correspondência personalizadas serão usadas; clique em Redefinir para restaurar as regras de correspondência integradas ao script.",
+  "after_deleting_exclude_item": "Após a edição, suas regras de exclusão personalizadas serão usadas; clique em Redefinir para restaurar as regras de exclusão integradas ao script.",
   "undo": "Desfazer",
   "redo": "Refazer",
   "cut": "Recortar",
@@ -129,6 +129,8 @@
   "editor_config_format_error": "Erro no formato da configuração do editor",
   "editor_type_definition_reset": "Definição de tipos do editor redefinida",
   "editor_type_definition_saved": "Definição de tipos do editor salva",
+  "trash_restore_prompt_title": "Restaurar o script excluído?",
+  "trash_restore_prompt_description": "Há um script com o mesmo nome e namespace na lixeira. Ao restaurá-lo, sua identidade e os dados preservados serão reutilizados. Cancele para continuar editando sem salvar.",
   "editor": {
     "show_script_list": "Mostrar lista de scripts",
     "hide_script_list": "Ocultar lista de scripts"

@@ -207,5 +207,8 @@
   "miner_description": "Este script realiza atividades de mineração",
   "membership_description": "Este script requer registro como membro para ser usado corretamente",
   "tracking_description": "Este script rastreia suas informações de usuário",
-  "script_info_load_failed": "Falha ao carregar informações do script"
+  "script_info_load_failed": "Falha ao carregar informações do script",
+  "btn_restore": "Restaurar script",
+  "btn_restore_update": "Restaurar e atualizar script",
+  "in_trash_hint": "Este script está na lixeira. Ao instalá-lo, ele será restaurado e seus dados existentes serão mantidos."
 }
