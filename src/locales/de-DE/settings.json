@@ -91,6 +91,8 @@
   "notification": {
     "script_sync_delete": "Skript-Löschsynchronisation",
     "script_sync_delete_desc": "Skript {{scriptName}} wurde gelöscht",
+    "script_sync_conflict": "Cloud-Synchronisierungskonflikt",
+    "script_sync_conflict_desc": "Skript {{scriptNames}} wurde sowohl lokal als auch in der Cloud geändert. Die Synchronisierung dieses Skripts ist pausiert, bitte lösen Sie den Konflikt manuell",
     "subscribe_update": "Abonnement {{subscribeName}} wurde aktualisiert",
     "subscribe_update_desc": "Neue Skripte: {{newScripts}}\nGelöschte Skripte: {{deletedScripts}}"
   },
@@ -138,5 +140,16 @@
   "trash_enabled": "Papierkorb aktivieren",
   "trash_enabled_desc": "Gelöschte Skripte wandern zuerst in den Papierkorb und können jederzeit wiederhergestellt werden. Ist die Option deaktiviert, werden Skripte sofort endgültig gelöscht.",
   "trash_retention_custom": "Benutzerdefiniert",
-  "trash_retention_days_unit": "Tage"
+  "trash_retention_days_unit": "Tage",
+  "sync_view_logs": "Protokoll anzeigen",
+  "sync_now": "Jetzt synchronisieren",
+  "sync_state_idle": "Synchronisierung in Ordnung",
+  "sync_last_at": "Zuletzt synchronisiert {{time}}",
+  "sync_never": "Noch nicht synchronisiert",
+  "sync_state_syncing": "Synchronisiere…",
+  "sync_state_attention": "Letzte Synchronisierung erfordert Ihre Prüfung",
+  "sync_state_attention_desc": "{{conflict}} Skript(e) wurden bei der Synchronisierung durch Konflikte pausiert. Prüfen Sie das Protokoll.",
+  "sync_state_overwrite_info": "{{overwrite}} Skript(e) bei der letzten Synchronisierung überschrieben. Details finden Sie im Protokoll.",
+  "sync_state_error": "Synchronisierung fehlgeschlagen, pausiert",
+  "sync_state_failed_desc": "{{failed}} Skript(e) konnten nicht synchronisiert werden. Details finden Sie im Protokoll."
 }

@@ -91,6 +91,8 @@
   "notification": {
     "script_sync_delete": "Đồng bộ xóa script",
     "script_sync_delete_desc": "Script {{scriptName}} đã bị xóa",
+    "script_sync_conflict": "Xung đột đồng bộ đám mây",
+    "script_sync_conflict_desc": "Script {{scriptNames}} đã thay đổi cả trên máy và trên đám mây. Đã tạm dừng đồng bộ script này, vui lòng xử lý thủ công",
     "subscribe_update": "Đăng ký {{subscribeName}} đã được cập nhật",
     "subscribe_update_desc": "Script mới: {{newScripts}}\nScript đã xóa: {{deletedScripts}}"
   },
@@ -138,5 +140,16 @@
   "trash_enabled": "Bật thùng rác",
   "trash_enabled_desc": "Script đã xóa sẽ được chuyển vào thùng rác trước và có thể khôi phục bất cứ lúc nào. Khi tắt, script sẽ bị xóa vĩnh viễn ngay lập tức.",
   "trash_retention_custom": "Tùy chỉnh",
-  "trash_retention_days_unit": "ngày"
+  "trash_retention_days_unit": "ngày",
+  "sync_view_logs": "Xem nhật ký",
+  "sync_now": "Đồng bộ ngay",
+  "sync_state_idle": "Đồng bộ bình thường",
+  "sync_last_at": "Đồng bộ lần cuối {{time}}",
+  "sync_never": "Chưa đồng bộ",
+  "sync_state_syncing": "Đang đồng bộ…",
+  "sync_state_attention": "Lần đồng bộ gần nhất cần bạn xác nhận",
+  "sync_state_attention_desc": "Có {{conflict}} script bị tạm dừng do xung đột khi đồng bộ. Mở nhật ký để kiểm tra.",
+  "sync_state_overwrite_info": "Lần đồng bộ gần nhất có {{overwrite}} script bị ghi đè. Xem nhật ký để biết chi tiết.",
+  "sync_state_error": "Đồng bộ thất bại, đã tạm dừng",
+  "sync_state_failed_desc": "Không thể đồng bộ {{failed}} script. Mở nhật ký để xem chi tiết."
 }
