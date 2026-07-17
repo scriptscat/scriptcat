@@ -22,6 +22,10 @@ export interface LLMCallResult {
     cacheReadInputTokens?: number;
   };
   contentBlocks?: ContentBlock[];
+  /** Non-fatal issue surfaced alongside an otherwise-successful result, e.g. a generated image that
+   * failed to persist. The round still resolves so accumulated usage/text aren't discarded, but callers
+   * should show this to the user and persist it onto the assistant message (见 finding 5). */
+  warning?: string;
 }
 
 export class LLMClient {
@@ -225,6 +229,10 @@ export class LLMClient {
               // 这一轮已经保存的所有附件都变成孤儿文件，必须全部清理，不能只删除取消时
               // 正在保存的那一个而漏掉更早已经保存成功的（见 finding 8）
               const allSavedIds: string[] = [];
+              // 保存失败的图片没有 markdown 原文可回退：之前静默丢弃，用户会拿到一个成功、
+              // 计费的回复但缺图（甚至纯图回复时 content 为空）。记录数量，随结果一起报告
+              // 给调用方持久化/展示，而不是假装什么都没发生（见 finding 5）
+              let failedImageSaves = 0;
               for (const pending of pendingImageSaves) {
                 if (settled) break;
                 try {
@@ -235,7 +243,7 @@ export class LLMClient {
                   // 转发不含 data 的 content_block_complete 事件给 UI
                   sendEvent({ type: "content_block_complete", block: pending.block });
                 } catch {
-                  // 保存失败忽略
+                  failedImageSaves++;
                 }
               }
 
@@ -274,17 +282,24 @@ export class LLMClient {
                 await Promise.all(allSavedIds.map((id) => this.chatRepo.deleteAttachment(id).catch(() => {})));
               }
 
-              return savedBlocks.length > 0 ? savedBlocks : undefined;
+              return {
+                contentBlocks: savedBlocks.length > 0 ? savedBlocks : undefined,
+                warning:
+                  failedImageSaves > 0
+                    ? `${failedImageSaves} generated image(s) failed to save and were lost.`
+                    : undefined,
+              };
             };
 
             finalize()
-              .then((contentBlocks) => {
+              .then(({ contentBlocks, warning }) => {
                 resolveOnce({
                   content,
                   thinking: thinking || undefined,
                   toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
                   usage,
                   contentBlocks,
+                  warning,
                 });
               })
               .catch(rejectOnce);

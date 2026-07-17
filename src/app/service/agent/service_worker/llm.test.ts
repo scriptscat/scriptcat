@@ -384,6 +384,46 @@ describe("callLLM 流式响应解析", () => {
     finishSave();
     await vi.waitFor(() => expect(repo.deleteAttachment).toHaveBeenCalledWith(attachmentId));
   });
+
+  it("【finding 5 回归】生成图片保存失败时应在结果里携带可见 warning，而不是静默丢弃", async () => {
+    const repo = {
+      getAttachment: vi.fn().mockResolvedValue(null),
+      saveAttachment: vi.fn().mockRejectedValue(new Error("disk full")),
+      deleteAttachment: vi.fn().mockResolvedValue(undefined),
+    } as any;
+    const client = new LLMClient(repo);
+    fetchSpy.mockResolvedValueOnce(
+      makeAnthropicSSEResponse([
+        { event: "message_start", data: { message: { usage: { input_tokens: 15 } } } },
+        {
+          event: "content_block_start",
+          data: { index: 0, content_block: { type: "image", source: { type: "base64", media_type: "image/png" } } },
+        },
+        { event: "content_block_delta", data: { index: 0, delta: { type: "image_delta", data: "AAAA" } } },
+        { event: "content_block_stop", data: { index: 0 } },
+        { event: "message_delta", data: { usage: { output_tokens: 4 } } },
+      ])
+    );
+
+    const result = await client.callLLM(
+      {
+        id: "anthropic-image",
+        name: "Anthropic image",
+        provider: "anthropic",
+        apiBaseUrl: "https://api.anthropic.com",
+        apiKey: "test",
+        model: "claude-test",
+      },
+      { messages: [{ role: "user", content: "draw" }] },
+      vi.fn(),
+      new AbortController().signal
+    );
+
+    // usage 不能因为图片保存失败而丢失，结果里必须携带可见 warning
+    expect(result.usage).toMatchObject({ inputTokens: 15, outputTokens: 4 });
+    expect(result.contentBlocks).toBeUndefined();
+    expect(result.warning).toMatch(/failed to save/i);
+  });
 });
 
 // ---- callLLMWithToolLoop 场景补充 ----

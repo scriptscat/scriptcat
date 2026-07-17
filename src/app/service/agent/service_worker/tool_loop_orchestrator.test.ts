@@ -196,6 +196,26 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     );
   });
 
+  it("【finding 5 回归】LLM 结果携带的图片保存 warning 应持久化到 assistant 消息并广播 system_warning", async () => {
+    callLLM.mockResolvedValue({
+      content: "",
+      warning: "1 generated image(s) failed to save and were lost.",
+    });
+
+    await orchestrator.callLLMWithToolLoop(baseParams());
+
+    expect(chatRepo.appendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ warning: "1 generated image(s) failed to save and were lost." }),
+      "gen-1"
+    );
+    expect(
+      sendEvent.mock.calls.some(
+        (call) =>
+          call[0].type === "system_warning" && call[0].message === "1 generated image(s) failed to save and were lost."
+      )
+    ).toBe(true);
+  });
+
   it(
     "最终回复持久化失败（persist_failed）时应回收生成附件",
     // 持久化重试退避 200ms + 400ms，放宽超时

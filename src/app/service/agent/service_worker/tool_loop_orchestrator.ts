@@ -832,6 +832,9 @@ export class ToolLoopOrchestrator {
             ?.filter((block) => block.type !== "text")
             .map((block) => block.attachmentId),
           thinking: result.thinking ? { content: result.thinking } : undefined,
+          // 生成图片保存失败等非致命问题：持久化到消息上，刷新后仍然可见，而不是只在这次流式响应里
+          // 一闪而过（见 finding 5）
+          warning: result.warning,
           usage: totalUsage,
           durationMs,
           createtime: Date.now(),
@@ -883,6 +886,11 @@ export class ToolLoopOrchestrator {
           durationMs,
         });
         return;
+      }
+
+      // 生成图片保存失败：done 之前发一次可见警告，让 UI 立即展示（消息里的 warning 字段负责刷新后仍可见）
+      if (result.warning) {
+        sendEvent({ type: "system_warning", message: result.warning });
       }
 
       // 发送 done 事件
