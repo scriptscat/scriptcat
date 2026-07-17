@@ -203,15 +203,19 @@ export const checkHasUnsafeHeaders = (key: string) => {
 
 /**
  * 合并脚本自定义 cookie 与网站本身存储的 cookie，供 GM_xmlhttpRequest 非 anonymous 请求使用。
- * TM兼容: 同名 cookie 以脚本自定义值为准（覆盖而非追加），不同名的 cookie 全部保留。
- * @link https://github.com/Tampermonkey/tampermonkey/issues/2754 自定义 cookie 应覆盖同名的已有 cookie
+ * TM兼容:
+ * - 同名的已有 cookie 只有唯一一个时，以脚本自定义值覆盖（而非追加）。
+ * - 同名的已有 cookie 存在多个时（例如不同 domain/path 的多值 cookie），无法判断脚本想覆盖哪一个，
+ *   故全部保留，脚本自定义值改为附加，不丢弃任何一个已有值。
+ * - 不同名的 cookie 全部保留，不因覆盖逻辑被截断。
+ * @link https://github.com/Tampermonkey/tampermonkey/issues/2754 自定义 cookie 应覆盖同名的已有 cookie（唯一时）
  * @link https://github.com/Tampermonkey/tampermonkey/issues/2829 覆盖逻辑不应截断其余的 cookie
  */
 export const mergeCookieHeader = (
   customCookie: string | undefined,
   storedCookies: { name: string; value: string }[] | undefined
 ): string => {
-  const names = new Set<string>();
+  const customNames = new Set<string>();
   const parts: string[] = [];
   if (customCookie) {
     for (const rawPart of customCookie.split(";")) {
@@ -219,13 +223,18 @@ export const mergeCookieHeader = (
       if (!part) continue;
       const name = part.split("=", 1)[0].trim();
       if (!name) continue;
-      names.add(name);
+      customNames.add(name);
       parts.push(part);
     }
   }
   if (storedCookies?.length) {
+    const nameCounts = new Map<string, number>();
+    for (const { name } of storedCookies) {
+      nameCounts.set(name, (nameCounts.get(name) || 0) + 1);
+    }
     for (const { name, value } of storedCookies) {
-      if (!names.has(name)) {
+      const isUniqueOverride = customNames.has(name) && nameCounts.get(name) === 1;
+      if (!isUniqueOverride) {
         parts.push(`${name}=${value}`);
       }
     }

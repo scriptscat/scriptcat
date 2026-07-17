@@ -176,6 +176,16 @@ describe.concurrent("mergeCookieHeader（GM_xmlhttpRequest 非 anonymous 的 coo
     expect(mergeCookieHeader(undefined, [])).toBe("");
     expect(mergeCookieHeader("", undefined)).toBe("");
   });
+
+  it.concurrent("已有同名 cookie 存在多个值时（如不同 domain/path），脚本自定义值应附加而非覆盖任何一个", () => {
+    // cookie 名称在规范上允许因 domain/path 不同而以多值形式共存，此时无法判断脚本想覆盖哪一个，
+    // 故全部保留已有值，脚本自定义值改为附加
+    const result = mergeCookieHeader("attr1=new", [
+      { name: "attr1", value: "old1" },
+      { name: "attr1", value: "old2" },
+    ]);
+    expect(result).toBe("attr1=new; attr1=old1; attr1=old2");
+  });
 });
 
 describe.concurrent("getExtensionSiteAccessOriginPattern", () => {
