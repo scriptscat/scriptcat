@@ -60,6 +60,7 @@ work.
    directly, for async ones forward via `sendMessage`/`connect`.
 2. If it needs privilege (network, cookies, tabs), add the handler on the SW `GMApi` with
    `@PermissionVerify.API(...)`.
-3. If it needs DOM, route through the offscreen GM API instead.
-4. Register the `@grant` so the linter and the context builder recognize it (see
-   [`packages/eslint`](../../packages/eslint)).
+3. If it needs DOM, route through the offscreen GM API instead
+   ([`src/app/service/offscreen/gm_api.ts`](../../src/app/service/offscreen/gm_api.ts)).
+4. Register the `@grant` so the linter and the context builder recognize it
+   ([`packages/eslint/linter-config.ts`](../../packages/eslint/linter-config.ts)).
