@@ -10,6 +10,7 @@ import FileSystemFactory from "@Packages/filesystem/factory";
 import { AgentModelRepo } from "@App/app/repo/agent_model";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
+import { cacheInstance } from "@App/app/cache";
 
 initTestEnv();
 
@@ -3155,6 +3156,7 @@ console.log(1);`;
       })),
     });
     const notificationSpy = vi.spyOn(chrome.notifications, "create");
+    const cacheSpy = vi.spyOn(cacheInstance, "set");
     const service = new SynchronizeService(
       {} as any,
       {} as any,
@@ -3182,6 +3184,9 @@ console.log(1);`;
     expect(pushSpy).not.toHaveBeenCalled();
     expect(pullSpy).not.toHaveBeenCalled();
     expect(notificationSpy).toHaveBeenCalledTimes(1);
+    expect(cacheSpy).toHaveBeenCalledWith(expect.stringMatching(/^notification:.*:options$/), {
+      url: chrome.runtime.getURL("/src/options.html#/settings?section=sync"),
+    });
     // 冲突文件保留旧 digest，下一轮仍能识别云端变化
     await expect((service as any).storage.get("file_digest")).resolves.toMatchObject({
       "u1.user.js": "cu1",

@@ -813,7 +813,10 @@ export class SynchronizeService {
           i18n.t("settings:notification.script_sync_conflict"),
           i18n.t("settings:notification.script_sync_conflict_desc", {
             scriptNames: conflictScripts.map((c) => c.scriptName).join(", "),
-          })
+          }),
+          {
+            url: chrome.runtime.getURL("/src/options.html#/settings?section=sync"),
+          }
         );
         await this.storage.set(LAST_NOTIFIED_CONFLICT_KEY, conflictKey);
       }
