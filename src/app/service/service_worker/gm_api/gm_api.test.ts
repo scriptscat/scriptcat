@@ -177,14 +177,31 @@ describe.concurrent("mergeCookieHeader（GM_xmlhttpRequest 非 anonymous 的 coo
     expect(mergeCookieHeader("", undefined)).toBe("");
   });
 
-  it.concurrent("已有同名 cookie 存在多个值时（如不同 domain/path），脚本自定义值应附加而非覆盖任何一个", () => {
-    // cookie 名称在规范上允许因 domain/path 不同而以多值形式共存，此时无法判断脚本想覆盖哪一个，
-    // 故全部保留已有值，脚本自定义值改为附加
+  it.concurrent("已有同名 cookie 存在多个值时（如不同 domain/path），只要脚本指定了该名称就应全部覆盖", () => {
+    // cookie 名称在规范上允许因 domain/path 不同而以多值形式共存，但只要脚本明确指定了该名称，
+    // 意图就是完全接管该名称，浏览器原有的全部同名值都应被丢弃
     const result = mergeCookieHeader("attr1=new", [
       { name: "attr1", value: "old1" },
       { name: "attr1", value: "old2" },
     ]);
-    expect(result).toBe("attr1=new; attr1=old1; attr1=old2");
+    expect(result).toBe("attr1=new");
+  });
+
+  it.concurrent("脚本指定的同名值本身也可以是多值，覆盖时应原样保留、不去重", () => {
+    const result = mergeCookieHeader("attr1=new1; attr1=new2", [
+      { name: "attr1", value: "old1" },
+      { name: "attr1", value: "old2" },
+    ]);
+    expect(result).toBe("attr1=new1; attr1=new2");
+  });
+
+  it.concurrent("未被脚本指定的 cookie 名称，无论浏览器原本是 0 个、1 个还是多个值都应保持不变", () => {
+    const result = mergeCookieHeader("other=x", [
+      { name: "attr1", value: "old1" },
+      { name: "attr1", value: "old2" },
+      { name: "single", value: "s" },
+    ]);
+    expect(result).toBe("other=x; attr1=old1; attr1=old2; single=s");
   });
 });
 

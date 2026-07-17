@@ -204,11 +204,10 @@ export const checkHasUnsafeHeaders = (key: string) => {
 /**
  * 合并脚本自定义 cookie 与网站本身存储的 cookie，供 GM_xmlhttpRequest 非 anonymous 请求使用。
  * TM兼容:
- * - 同名的已有 cookie 只有唯一一个时，以脚本自定义值覆盖（而非追加）。
- * - 同名的已有 cookie 存在多个时（例如不同 domain/path 的多值 cookie），无法判断脚本想覆盖哪一个，
- *   故全部保留，脚本自定义值改为附加，不丢弃任何一个已有值。
- * - 不同名的 cookie 全部保留，不因覆盖逻辑被截断。
- * @link https://github.com/Tampermonkey/tampermonkey/issues/2754 自定义 cookie 应覆盖同名的已有 cookie（唯一时）
+ * - 某个 cookie 名称若未被脚本指定，保留浏览器该名称下原本的全部值（无论是 0 个、1 个还是多个，均不改动）。
+ * - 某个 cookie 名称若被脚本指定，则完全以脚本指定的值覆盖该名称浏览器已有的全部值；
+ *   脚本指定的值本身也可以是同名多值，一并保留、不做去重。
+ * @link https://github.com/Tampermonkey/tampermonkey/issues/2754 自定义 cookie 应覆盖同名的已有 cookie
  * @link https://github.com/Tampermonkey/tampermonkey/issues/2829 覆盖逻辑不应截断其余的 cookie
  */
 export const mergeCookieHeader = (
@@ -228,13 +227,8 @@ export const mergeCookieHeader = (
     }
   }
   if (storedCookies?.length) {
-    const nameCounts = new Map<string, number>();
-    for (const { name } of storedCookies) {
-      nameCounts.set(name, (nameCounts.get(name) || 0) + 1);
-    }
     for (const { name, value } of storedCookies) {
-      const isUniqueOverride = customNames.has(name) && nameCounts.get(name) === 1;
-      if (!isUniqueOverride) {
+      if (!customNames.has(name)) {
         parts.push(`${name}=${value}`);
       }
     }
