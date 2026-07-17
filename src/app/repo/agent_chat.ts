@@ -131,10 +131,18 @@ export class AgentChatRepo extends OPFSRepo {
       });
 
       // Reusing an explicitly supplied ID starts a fresh generation with no legacy child state.
-      const messagesDir = await this.getChildDir(MESSAGES_DIR);
-      const tasksDir = await this.getChildDir(TASKS_DIR);
-      await this.deleteFile(`${created.id}.json`, messagesDir);
-      await this.deleteFile(`${created.id}.json`, tasksDir);
+      // The conversation record is already durably committed above; a failure here is garbage-collection
+      // debt, not a creation failure — swallow it so the caller (and any retry) sees the conversation as
+      // created instead of conflicting with the record that already exists (见 finding 3). The stale files
+      // stay inert: readMessageSnapshot/getTasks compare against the new generation and ignore them.
+      try {
+        const messagesDir = await this.getChildDir(MESSAGES_DIR);
+        const tasksDir = await this.getChildDir(TASKS_DIR);
+        await this.deleteFile(`${created.id}.json`, messagesDir);
+        await this.deleteFile(`${created.id}.json`, tasksDir);
+      } catch {
+        // best-effort cleanup of the previous generation's leftover files
+      }
       return created;
     });
   }
@@ -191,12 +199,19 @@ export class AgentChatRepo extends OPFSRepo {
       });
       if (!deleted) return;
 
-      const messagesDir = await this.getChildDir(MESSAGES_DIR);
-      const stored = await this.readMessageSnapshot(id, deleted.generation!, messagesDir);
-      await this.deleteAttachments([...collectMessageAttachmentIds(stored.messages)]);
-      await this.deleteFile(`${id}.json`, messagesDir);
-      const tasksDir = await this.getChildDir(TASKS_DIR);
-      await this.deleteFile(`${id}.json`, tasksDir);
+      // 会话记录已经在上面提交删除，这里是善后 GC：失败不能让 deleteConversation 报告失败——
+      // 那样调用方重试时 conversations.json 里已经找不到该 id（见上面 `if (!current) return`），
+      // 会静默当作删除成功返回，剩余的消息/任务/附件却永远不会被清理（见 finding 3）。
+      try {
+        const messagesDir = await this.getChildDir(MESSAGES_DIR);
+        const stored = await this.readMessageSnapshot(id, deleted.generation!, messagesDir);
+        await this.deleteAttachments([...collectMessageAttachmentIds(stored.messages)]);
+        await this.deleteFile(`${id}.json`, messagesDir);
+        const tasksDir = await this.getChildDir(TASKS_DIR);
+        await this.deleteFile(`${id}.json`, tasksDir);
+      } catch {
+        // best-effort cleanup of messages/tasks/attachments for the now-deleted conversation
+      }
     });
   }
 
@@ -330,7 +345,13 @@ export class AgentChatRepo extends OPFSRepo {
         const removedAttachments = [...collectMessageAttachmentIds(snapshot.messages)].filter(
           (id) => !retainedAttachments.has(id)
         );
-        await this.deleteAttachments(removedAttachments);
+        // 新快照已经提交在上面；删除不再被引用的旧附件属于 GC，失败不能让 clear/compact/deleteMessages
+        // 报告失败——历史其实已经替换成功了（见 finding 3）。
+        try {
+          await this.deleteAttachments(removedAttachments);
+        } catch {
+          // best-effort cleanup of attachments no longer referenced by the saved history
+        }
         return saved;
       });
     });

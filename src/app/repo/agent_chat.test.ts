@@ -739,6 +739,86 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
     expect(await repo.getAttachment("delete-me.png")).toBeNull();
   });
 
+  it("【finding 3 回归】deleteConversation 的附件/消息 GC 真正失败时仍应报告删除成功", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-gc-fail-delete",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    vi.spyOn(repo, "deleteAttachments").mockRejectedValueOnce(new Error("disk error"));
+
+    // 元数据删除本身（主提交）已经完成，附件/消息清理失败只是 GC 债务，不应报告整个删除失败
+    await expect(
+      repo.deleteConversation(conversation.id, {
+        generation: conversation.generation!,
+        expectedRevision: conversation.revision,
+      })
+    ).resolves.toBeUndefined();
+    expect(await repo.listConversations()).toEqual([]);
+  });
+
+  it("【finding 3 回归】createConversation 复用 ID 时旧数据清理失败不应报告创建失败", async () => {
+    const original = await repo.createConversation({
+      id: "conv-reused",
+      title: "Old",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    // 先正常删除，留下同 id 可被复用；被删除的旧一代消息/任务文件在真实场景里可能残留
+    await repo.deleteConversation("conv-reused", {
+      generation: original.generation!,
+      expectedRevision: original.revision,
+    });
+    vi.spyOn(repo as any, "deleteFile").mockRejectedValue(new Error("disk error"));
+
+    // 复用 id 时旧一代的消息/任务文件清理失败仅是 GC 债务；conversations.json 的插入才是主提交
+    const recreated = await repo.createConversation({
+      id: "conv-reused",
+      title: "New",
+      modelId: "m1",
+      createtime: 2,
+      updatetime: 2,
+    });
+    expect(recreated.id).toBe("conv-reused");
+    const list = await repo.listConversations();
+    expect(list).toHaveLength(1);
+    expect(list[0].title).toBe("New");
+  });
+
+  it("【finding 3 回归】saveMessages 提交新快照后附件 GC 失败不应报告 clear/compact 失败", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-gc-fail-save",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    await repo.saveMessages(
+      conversation.id,
+      [
+        {
+          id: "msg-with-attachment",
+          conversationId: conversation.id,
+          role: "user",
+          content: [{ type: "image", attachmentId: "removed.png", mimeType: "image/png" }],
+          ownedAttachmentIds: ["removed.png"],
+          createtime: 1,
+        },
+      ],
+      undefined,
+      { generation: conversation.generation! }
+    );
+    vi.spyOn(repo, "deleteAttachments").mockRejectedValueOnce(new Error("disk error"));
+
+    // 新的（空）快照已经提交；被移除消息引用的附件清理失败不应让 clear 报告失败
+    const saved = await repo.saveMessages(conversation.id, [], undefined, { generation: conversation.generation! });
+    expect(saved.messages).toEqual([]);
+    expect(await repo.getMessages(conversation.id)).toEqual([]);
+  });
+
   it("历史替换应以 revision 做 CAS，不能覆盖并发追加", async () => {
     const conversation = await repo.createConversation({
       id: "conv-cas",
