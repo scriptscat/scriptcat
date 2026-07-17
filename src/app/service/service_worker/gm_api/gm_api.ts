@@ -885,7 +885,7 @@ export default class GMApi {
       try {
         hasOriginPermission = await chrome.permissions.contains({ origins: [originPattern] });
       } catch (e) {
-        console.warn(e);
+        this.logger.warn("check extension origin permission failed", { originPattern }, Logger.E(e));
       }
     }
     const extensionSiteAccessOrigins = hasOriginPermission ? undefined : [originPattern];
@@ -1501,11 +1501,17 @@ export default class GMApi {
 
   @PermissionVerify.API()
   async ["window.focus"](request: GMApiRequest<void>, sender: IGetSender) {
-    const tabId = sender.getSender()?.tab?.id;
+    const tab = sender.getSender()?.tab;
+    const tabId = tab?.id;
     if (Number.isFinite(tabId)) {
       await chrome.tabs.update(tabId as number, {
         active: true,
       });
+      if (tab && Number.isFinite(tab.windowId) && tab.windowId >= 0) {
+        await chrome.windows.update(tab.windowId as number, {
+          focused: true,
+        });
+      }
     }
   }
 
