@@ -50,6 +50,7 @@
 - **关键字冲突**：同一页面中关键字相同但翻译不同时，使用 `page.key` 的方式区分。
 - 为满足部分扩展市场要求，`chrome.i18n` 语言文件位于 `src/assets/_locales`。
 - i18n 方案的实现细节见 [`src/locales/README.md`](../src/locales/README.md)。
+- 自动检查：[`src/locales/i18n-usage.test.ts`](../src/locales/i18n-usage.test.ts)（`pnpm test`）静态扫描代码中的 `t()`/`i18n.t()` 调用，但只按 **zh-CN** 资源解析 key 是否存在；修改其它 locale 时该测试不会给出任何信号，仍需人工核对目标 locale 是否缺 key。
 
 ## 提取翻译提示词 / Extract-translation prompt
 
