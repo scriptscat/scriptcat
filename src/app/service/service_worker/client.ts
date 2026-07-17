@@ -20,9 +20,11 @@ import type {
   ScriptService,
   TCheckScriptUpdateOption,
   TOpenBatchUpdatePageOption,
+  TRestoreResult,
   TScriptInstallParam,
   TScriptInstallReturn,
 } from "./script";
+import type { TrashScript } from "@App/app/repo/trash_script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 import type { LocalBackupExport } from "./synchronize";
@@ -59,6 +61,18 @@ export class ScriptClient extends Client {
 
   deletes(uuids: string[]) {
     return this.do("deletes", uuids);
+  }
+
+  restores(uuids: string[]) {
+    return this.do<TRestoreResult>("restores", uuids);
+  }
+
+  purges(uuids: string[]) {
+    return this.do<boolean>("purges", uuids);
+  }
+
+  getTrashScripts() {
+    return this.do<TrashScript[]>("getTrashScripts");
   }
 
   enable(uuid: string, enable: boolean) {
@@ -119,7 +133,8 @@ export class ScriptClient extends Client {
     return this.do("setCheckUpdateUrl", { uuid, checkUpdate, checkUpdateUrl });
   }
 
-  updateMetadata(uuid: string, key: string, value: string[]) {
+  // value 为 undefined 表示撤销用户覆盖，生效值回落脚本自带 metadata
+  updateMetadata(uuid: string, key: string, value: string[] | undefined) {
     return this.do("updateMetadata", { uuid, key, value });
   }
   async getBatchUpdateRecordLite(i: number) {

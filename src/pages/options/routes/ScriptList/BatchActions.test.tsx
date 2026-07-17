@@ -19,12 +19,15 @@ vi.mock("./hooks", () => {
   return {
     useScriptDataManagement: () => data,
     useScriptFilters: () => filters,
+    useTrashCount: () => [0, () => {}],
   };
 });
 
 // 业务请求打桩，重点观察导出/置顶接口
 vi.mock("@App/pages/store/features/script", () => ({
   requestDeleteScripts: vi.fn(() => Promise.resolve()),
+  requestRestoreScripts: vi.fn(() => Promise.resolve({ restored: [], conflicts: [] })),
+  requestTrashScripts: vi.fn(() => Promise.resolve([])),
   requestEnableScript: vi.fn(),
   requestRunScript: vi.fn(),
   requestStopScript: vi.fn(),
