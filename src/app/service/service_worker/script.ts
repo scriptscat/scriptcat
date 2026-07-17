@@ -51,8 +51,6 @@ import { EnableAgent } from "@App/app/const";
 import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import type { TrashScript } from "@App/app/repo/trash_script";
 import { SubscribeDAO } from "@App/app/repo/subscribe";
-import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
-import { sendMessage } from "@Packages/message/client";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -171,7 +169,9 @@ export class ScriptService {
           })
           .finally(() => {
             // 回退到到安装页
-            void sendMessage(new ExtensionContentMessageSend(req.tabId), "content/historyBack");
+            chrome.tabs.goBack(req.tabId).catch((e) => {
+              console.error("chrome.tabs.goBack error:", e);
+            });
           });
       },
       {
