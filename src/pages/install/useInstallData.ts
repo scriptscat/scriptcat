@@ -124,12 +124,18 @@ const buildScriptInfo = (uuid: string, code: string, url: string, metadata: SCMe
 // 安装页可能是专为安装打开的新标签(history.length === 1，关闭无损)，
 // 也可能是由 declarativeNetRequest 就地重定向而来的用户原浏览标签(history.length > 1)，
 // 后者若直接 window.close() 会连带关掉用户本来在看的页面，应改为返回上一页。
+let leaveInstallPageRunning = false;
 const leaveInstallPage = () => {
-  if (window.history.length > 1) {
-    window.history.back();
-  } else {
-    window.close();
-  }
+  if (leaveInstallPageRunning) return;
+  leaveInstallPageRunning = true;
+  requestAnimationFrame(() => {
+    leaveInstallPageRunning = false;
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.close();
+    }
+  });
 };
 
 let keepAliveTimer: ReturnType<typeof setInterval> | undefined;
