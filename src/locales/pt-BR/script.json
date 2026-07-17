@@ -1,6 +1,6 @@
 {
   "create_user_script": "Criar script de usuário",
-  "create_background_script": "Criar script de segundo plano",
+  "create_background_script": "Criar script em segundo plano",
   "create_scheduled_script": "Criar script agendado",
   "create_script": "Criar script",
   "installed_scripts": "Scripts instalados",
@@ -8,10 +8,10 @@
   "subscribe": "Assinaturas",
   "subscribe_scripts_count": "{{count}} scripts",
   "enter_subscribe_name": "Por favor, insira o nome da assinatura",
-  "subscribe_url": "URL da Assinatura",
+  "subscribe_url": "URL da assinatura",
   "confirm_delete_subscription": "Tem certeza de que deseja excluir esta assinatura? Os scripts relacionados também serão excluídos.",
   "list": {},
-  "apply_to_run_status": "Aplicar a / Status de execução",
+  "apply_to_run_status": "Sites / status de execução",
   "running": "Em execução",
   "source_subscribe_link": "Link da assinatura",
   "source_local_script": "Script local",
@@ -21,7 +21,7 @@
   "delete_failed": "Falha na exclusão",
   "checking_for_updates": "Verificando atualizações...",
   "new_version_available": "Nova versão disponível",
-  "latest_version": "Última versão",
+  "latest_version": "Já está na versão mais recente",
   "update_check_failed": "Falha na verificação de atualização",
   "operation_failed": "A operação falhou",
   "scripts_pinned_to_top": "O script selecionado foi fixado",
@@ -37,7 +37,7 @@
     "week": "{{next}} (executa toda semana)"
   },
   "cron_invalid_expr": "Expressão cron inválida",
-  "background_script": "Script de segundo plano",
+  "background_script": "Script em segundo plano",
   "scheduled_script": "Script agendado",
   "next_run": "Próxima execução",
   "background_script_tooltip": "Script em segundo plano. É executado em segundo plano quando ativado.",
@@ -47,7 +47,7 @@
     "sidebar": {
       "stopped": "Parado",
       "all": "Todos os scripts",
-      "normal_script": "Script Normal",
+      "normal_script": "Script normal",
       "status": "Status"
     }
   },
@@ -66,7 +66,7 @@
   "import_group": "Importar",
   "import_local_script": "Importar script local",
   "link_import": "Importar de URL",
-  "import_skill": "Importar skill",
+  "import_skill": "Importar Skill",
   "link_import_desc": "Cole as URLs do script ou assinatura, uma por linha",
   "link_import_placeholder": "https://example.com/script.user.js",
   "link_import_hint": "Suporta URLs de scripts de usuário, assinaturas ou Skills",
