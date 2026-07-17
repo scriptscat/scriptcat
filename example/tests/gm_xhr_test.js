@@ -40,7 +40,7 @@
   ✓ onload (non-2xx still onload)
   ✓ onerror (DNS/blocked host)
   ✓ onabort (manual abort)
-  ✓ anonymous (basic-auth only; mockhttp.org's /cookies routes are stubs, see notes below)
+  ✓ anonymous (no cookies)
   ✓ basic auth (user/password)
   ✓ edge cases: huge headers trimmed? invalid method; invalid URL; missing @connect domain triggers onerror
 */
@@ -1319,10 +1319,123 @@ const enableTool = true;
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
-    // Note: mockhttp.org's /cookies/set and /cookies/delete don't actually emit a
-    // Set-Cookie header (its /cookies routes are stubs, unlike httpbin/httpbun),
-    // so the anonymous-mode cookie round-trip suite can no longer be verified
-    // against this server and was removed.
+    // Note: mockhttp.org has a single REST-style /cookies resource (POST to set,
+    // GET to read, DELETE?name= to clear one), unlike httpbin/httpbun's
+    // /cookies/set/{name}/{value} and /cookies/delete path-style routes.
+    {
+      name: 'anonymous TEST - set cookie "abc"',
+      async run(fetch) {
+        // mockhttp echoes Set-Cookie for a POST /cookies {name, value} body
+        const { res } = await gmRequest({
+          method: "POST",
+          url: `${HB}/cookies`,
+          headers: { "Content-Type": "application/json" },
+          data: JSON.stringify({ name: "abc", value: "123" }),
+          fetch,
+        });
+      },
+    },
+    {
+      name: "anonymous TEST - get cookie",
+      async run(fetch) {
+        // mockhttp echoes the request's Cookie header via GET /cookies
+        const { res } = await gmRequest({
+          method: "GET",
+          url: `${HB}/cookies`,
+          fetch,
+        });
+        assertEq(res.status, 200);
+        const body = JSON.parse(res.responseText);
+        const cookieABC = body.cookies.abc;
+        assertEq(cookieABC, "123", "cookie abc=123");
+        assertEq(objectProps(res), "ok", "Object Props OK");
+      },
+    },
+    {
+      name: "anonymous: true (no cookies sent)",
+      async run(fetch) {
+        // mockhttp echoes Cookie header in headers
+        const { res } = await gmRequest({
+          method: "GET",
+          url: `${HB}/headers`,
+          anonymous: true,
+          fetch,
+        });
+        const body = JSON.parse(res.responseText);
+        const cookies = body.headers.Cookie || body.headers.cookie;
+        assert(!`${cookies}`.includes("abc=123"), "no Cookie header when anonymous");
+        assertEq(objectProps(res), "ok", "Object Props OK");
+      },
+    },
+    {
+      name: "anonymous: false (cookies sent)",
+      async run(fetch) {
+        // mockhttp echoes Cookie header in headers
+        const { res } = await gmRequest({
+          method: "GET",
+          url: `${HB}/headers`,
+          fetch,
+        });
+        const body = JSON.parse(res.responseText);
+        const cookies = body.headers.Cookie || body.headers.cookie;
+        assert(`${cookies}`.includes("abc=123"), "Cookie header");
+        assertEq(objectProps(res), "ok", "Object Props OK");
+      },
+    },
+    {
+      name: "anonymous TEST - delete cookies",
+      async run(fetch) {
+        // mockhttp deletes one named cookie per call via DELETE /cookies?name=
+        const { res } = await gmRequest({
+          method: "DELETE",
+          url: `${HB}/cookies?name=abc`,
+          anonymous: true,
+          fetch,
+        });
+      },
+    },
+    {
+      name: 'anonymous: true[2] - set cookie "def"',
+      async run(fetch) {
+        // mockhttp echoes Set-Cookie for a POST /cookies {name, value} body
+        const { res } = await gmRequest({
+          method: "POST",
+          url: `${HB}/cookies`,
+          headers: { "Content-Type": "application/json" },
+          data: JSON.stringify({ name: "def", value: "456" }),
+          anonymous: true,
+          fetch,
+        });
+      },
+    },
+    {
+      name: "anonymous: true[2] (no cookies sent)",
+      async run(fetch) {
+        // mockhttp echoes Cookie header in headers
+        const { res } = await gmRequest({
+          method: "GET",
+          url: `${HB}/headers`,
+          anonymous: true,
+          fetch,
+        });
+        const body = JSON.parse(res.responseText);
+        const cookies = body.headers.Cookie || body.headers.cookie;
+        assert(!cookies, "no Cookie header when anonymous");
+        assertEq(objectProps(res), "ok", "Object Props OK");
+      },
+    },
+    {
+      name: "anonymous TEST - delete cookies",
+      async run(fetch) {
+        // mockhttp deletes one named cookie per call via DELETE /cookies?name=
+        const { res } = await gmRequest({
+          method: "DELETE",
+          url: `${HB}/cookies?name=def`,
+          anonymous: true,
+          fetch,
+        });
+      },
+    },
     {
       name: "Basic auth with user/password",
       async run(fetch) {
