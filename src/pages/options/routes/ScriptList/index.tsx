@@ -11,6 +11,7 @@ import {
 } from "@App/app/repo/scripts";
 import {
   requestDeleteScripts,
+  requestRestoreScripts,
   requestEnableScript,
   requestRunScript,
   requestStopScript,
@@ -29,11 +30,13 @@ import ScriptTable from "./ScriptTable";
 import type { ScriptTableProps } from "./ScriptTable";
 import ScriptCard from "./ScriptCard";
 import { SearchFilter, type SearchFilterRequest } from "./SearchFilter";
-import { type TSelectFilter, useScriptDataManagement, useScriptFilters } from "./hooks";
+import { type TSelectFilter, useScriptDataManagement, useScriptFilters, useTrashCount } from "./hooks";
 import type { FilterBarProps } from "./FilterBar";
 import type { BatchActionsBarProps } from "./BatchActionsBar";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
+import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import ScriptListMobile from "./ScriptListMobile";
+import TrashTable from "./TrashTable";
 import { notify } from "@App/pages/components/ui/toast";
 import { useUserConfigPreload } from "./preload";
 import { reindexScriptList } from "./sort";
@@ -117,6 +120,7 @@ export default function ScriptList() {
   const isMobile = useIsMobile();
   const { stats, filterItems } = useScriptFilters(scriptList, selectedFilters, searchRequest);
   const [filterScriptList, setFilterScriptList] = useState<ScriptLoading[]>([]);
+  const [activeTab, setActiveTab] = useState<"installed" | "trash">("installed");
 
   const demoActive = useOnboardingDemoActive();
   const demoScripts = useMemo(() => getDemoScripts(t), [t]);
@@ -203,20 +207,49 @@ export default function ScriptList() {
 
   const clearSelection = useCallback(() => setSelectedUuids(new Set()), []);
 
+  // 回收站开关：决定删除后是「移入回收站可撤销」还是「彻底销毁不可撤销」，deleteScripts 需要提前拿到它
+  const [trashEnabled] = useSystemConfig("trash_enabled");
+
   // 6. 业务操作
   // 删除脚本（二次确认由行内 / 批量栏的 Popconfirm 气泡完成，此处直接执行删除）
   const deleteScripts = useCallback(
     async (uuids: string[]) => {
+      // 名字必须在删除前抓：删完脚本已不在活跃表，toast 副标题就查不到了
+      const firstName = uuids.length === 1 ? scriptList.find((s) => s.uuid === uuids[0])?.name : undefined;
       updateScripts(uuids, { actionLoading: true });
       try {
         await requestDeleteScripts(uuids);
-        notify.success(t("delete_success"));
+        // 回收站关闭时 requestDeleteScripts 已彻底销毁脚本，不能再提供撤销入口
+        if (!(trashEnabled ?? true)) {
+          notify.success(t("delete_success"), { description: firstName });
+          return;
+        }
+        const undo = async () => {
+          try {
+            const ret = await requestRestoreScripts(uuids);
+            if (ret?.restored.length) {
+              // 还原会广播 installScript，列表经 hooks 的订阅自动刷新，无需手动 reload
+              notify.success(t("script:trash_undo_success"));
+            } else {
+              notify.error(t("script:trash_undo_failed"));
+            }
+          } catch {
+            notify.error(t("script:trash_undo_failed"));
+          }
+        };
+        notify.success(
+          uuids.length === 1 ? t("script:trash_moved_single") : t("script:trash_moved_batch", { count: uuids.length }),
+          {
+            description: firstName,
+            action: { label: t("script:trash_undo"), onClick: () => void undo() },
+          }
+        );
       } catch (e) {
         updateScripts(uuids, { actionLoading: false });
         notify.error(`${t("script:delete_failed")}: ${e}`);
       }
     },
-    [updateScripts, t]
+    [updateScripts, t, scriptList, trashEnabled]
   );
 
   const handleDelete = useCallback((item: ScriptLoading) => deleteScripts([item.uuid]), [deleteScripts]);
@@ -368,6 +401,46 @@ export default function ScriptList() {
     <CloudScriptPlan open onOpenChange={(o) => !o && closeCloud()} script={cloudScript} />
   );
 
+  // 已安装 / 回收站切换。占据顶栏最左侧（取代「已安装脚本 + 数量」标题槽位，数量改由 tab 上的角标承载）。
+  const [trashCount, setTrashCount] = useTrashCount();
+  // 空回收站不占用标签位；无论功能开关状态如何，只要仍有条目就允许进入清理。
+  const showTrashTab = trashCount > 0;
+
+  // 回落：showTrashTab 转 false 时若仍停留在 trash tab，跳回 installed。用「渲染期比较」模式
+  // （见 Logger/hooks.ts 同类写法）而非 effect 内同步 setState，避免级联渲染告警。
+  const [lastShowTrashTab, setLastShowTrashTab] = useState(showTrashTab);
+  if (lastShowTrashTab !== showTrashTab) {
+    setLastShowTrashTab(showTrashTab);
+    if (!showTrashTab && activeTab === "trash") setActiveTab("installed");
+  }
+
+  const tabs = (
+    <div className="flex items-center gap-0.5 p-[3px] rounded-md shrink-0 bg-muted">
+      {(showTrashTab ? (["installed", "trash"] as const) : (["installed"] as const)).map((tab) => {
+        const active = activeTab === tab;
+        const count = tab === "installed" ? scriptList.length : trashCount;
+        return (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex items-center gap-1.5 h-7 px-3 rounded-md text-[13px] ${
+              active ? "bg-card font-semibold text-foreground" : "text-muted-foreground"
+            }`}
+          >
+            {tab === "installed" ? t("script:tab_installed") : t("script:trash_tab")}
+            <span
+              className={`rounded-full px-1.5 text-[11px] font-medium tabular-nums ${
+                active ? "bg-primary/10 text-primary" : "text-muted-foreground"
+              }`}
+            >
+              {count}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
   if (isMobile) {
     return (
       <div className="flex flex-col h-full">
@@ -392,34 +465,39 @@ export default function ScriptList() {
 
   return (
     <div className="flex flex-col h-full">
-      <MainContent
-        viewMode={viewMode}
-        scriptList={displayScripts}
-        loadingList={loadingList}
-        updateScripts={updateScripts}
-        handleDelete={handleDelete}
-        handleRunStop={handleRunStop}
-        setViewMode={handleSetViewMode}
-        searchRequest={searchRequest}
-        setSearchRequest={handleSetSearchRequest}
-        totalCount={demoActive ? demoScripts.length : scriptList.length}
-        scriptListSortOrderMove={scriptListSortOrderMove}
-        filterItems={filterItems}
-        selectedFilters={selectedFilters}
-        setSelectedFilters={handleSetSelectedFilters}
-        sortState={sortState}
-        setSortState={handleSetSortState}
-        selectedUuids={selectedUuids}
-        toggleSelect={toggleSelect}
-        toggleSelectAll={toggleSelectAll}
-        clearSelection={clearSelection}
-        onBatchEnable={handleBatchEnable}
-        onBatchDisable={handleBatchDisable}
-        onBatchExport={handleBatchExport}
-        onBatchDelete={handleBatchDelete}
-        onBatchPinTop={handleBatchPinTop}
-        onBatchCheckUpdate={handleBatchCheckUpdate}
-      />
+      {activeTab === "trash" ? (
+        <TrashTable leading={tabs} onCountChange={setTrashCount} />
+      ) : (
+        <MainContent
+          leading={showTrashTab ? tabs : undefined}
+          viewMode={viewMode}
+          scriptList={displayScripts}
+          loadingList={loadingList}
+          updateScripts={updateScripts}
+          handleDelete={handleDelete}
+          handleRunStop={handleRunStop}
+          setViewMode={handleSetViewMode}
+          searchRequest={searchRequest}
+          setSearchRequest={handleSetSearchRequest}
+          totalCount={demoActive ? demoScripts.length : scriptList.length}
+          scriptListSortOrderMove={scriptListSortOrderMove}
+          filterItems={filterItems}
+          selectedFilters={selectedFilters}
+          setSelectedFilters={handleSetSelectedFilters}
+          sortState={sortState}
+          setSortState={handleSetSortState}
+          selectedUuids={selectedUuids}
+          toggleSelect={toggleSelect}
+          toggleSelectAll={toggleSelectAll}
+          clearSelection={clearSelection}
+          onBatchEnable={handleBatchEnable}
+          onBatchDisable={handleBatchDisable}
+          onBatchExport={handleBatchExport}
+          onBatchDelete={handleBatchDelete}
+          onBatchPinTop={handleBatchPinTop}
+          onBatchCheckUpdate={handleBatchCheckUpdate}
+        />
+      )}
       {userConfigDialog}
       {cloudDialog}
     </div>

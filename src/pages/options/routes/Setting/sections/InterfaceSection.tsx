@@ -15,6 +15,7 @@ export function InterfaceSection({ register }: { register: (id: string) => (el: 
   const [menuType, setMenuType] = useSystemConfig("script_menu_display_type");
   const [expandNum, setExpandNum] = useSystemConfig("menu_expand_num");
   const [favicon, setFavicon] = useSystemConfig("favicon_service");
+  const [popupCompactLayout, setPopupCompactLayout] = useSystemConfig("popup_compact_layout");
 
   return (
     <SettingCard id="interface" title={t("settings:interface_settings")} register={register}>
@@ -45,6 +46,14 @@ export function InterfaceSection({ register }: { register: (id: string) => (el: 
           value={(textColor as string) ?? "#ffffff"}
           onChange={(e) => setTextColor(e.target.value)}
           className="h-8 w-12 rounded border border-border bg-transparent"
+        />
+      </SettingRow>
+      <div className="text-[13px] font-semibold text-foreground pt-1">{t("settings:popup_layout")}</div>
+      <SettingRow label={t("settings:compact_popup_layout")} description={t("settings:compact_popup_layout_desc")}>
+        <Switch
+          aria-label={t("settings:compact_popup_layout")}
+          checked={popupCompactLayout ?? false}
+          onCheckedChange={setPopupCompactLayout}
         />
       </SettingRow>
       <div className="text-[13px] font-semibold text-foreground pt-1">{t("settings:script_menu")}</div>

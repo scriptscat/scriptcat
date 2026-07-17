@@ -373,3 +373,48 @@ describe("ResourceService - getResourceByTypes", () => {
     expect(res.data).toBe(freshResource);
   });
 });
+
+describe("ResourceService - importResource", () => {
+  let service: ResourceService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new ResourceService({} as Group, {} as IMessageQueue);
+    vi.spyOn(service, "calculateHash").mockResolvedValue({
+      md5: "mock-md5",
+      sha1: "",
+      sha256: "",
+      sha384: "",
+      sha512: "",
+    });
+  });
+
+  it("二进制资源(仅 base64,无 source)也能导入", async () => {
+    await service.importResource(
+      "u1",
+      {
+        meta: { name: "img", url: "https://x/img.png", ts: 0, mimetype: "image/png" },
+        base64: "data:image/png;base64,aGVsbG8=",
+      },
+      "resource"
+    );
+    const saved = await service.resourceDAO.get("https://x/img.png");
+    expect(saved).toBeTruthy();
+    expect(saved!.contentType).toBe("image/png");
+    expect(saved!.link.u1).toBe(true);
+  });
+
+  it("文本资源仍按 source 导入", async () => {
+    await service.importResource(
+      "u2",
+      {
+        meta: { name: "js", url: "https://x/a.js", ts: 0, mimetype: "application/javascript" },
+        source: "console.log(1)",
+        base64: "data:application/javascript;base64,Y29uc29sZS5sb2coMSk=",
+      },
+      "require"
+    );
+    const saved = await service.resourceDAO.get("https://x/a.js");
+    expect(saved!.content).toBe("console.log(1)");
+  });
+});

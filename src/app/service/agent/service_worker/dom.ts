@@ -150,6 +150,9 @@ export class AgentDomService {
   private async captureVisibleTab(tabId: number, options?: ScreenshotOptions): Promise<string> {
     const quality = options?.quality ?? 80;
     const tab = await chrome.tabs.get(tabId);
+    if (!tab || !Number.isFinite(tab.windowId) || tab.windowId < 0) {
+      throw new Error(`No windowId for tab ${tabId}`);
+    }
     return chrome.tabs.captureVisibleTab(tab.windowId, {
       format: "jpeg",
       quality,
