@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { Settings } from "lucide-react";
+import { MemoryRouter } from "react-router-dom";
 import { SettingsLayout } from "./SettingsLayout";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
@@ -28,14 +29,22 @@ describe("设置外壳 SettingsLayout", () => {
   const cats = [
     { id: "general", icon: Settings, label: "通用" },
     { id: "interface", icon: Settings, label: "界面" },
+    { id: "sync", icon: Settings, label: "同步" },
   ];
 
-  const renderLayout = () =>
+  const renderLayout = (initialEntry = "/settings") =>
     render(
-      <SettingsLayout title="设置" categories={cats}>
-        {() => <div>{"body"}</div>}
-      </SettingsLayout>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <SettingsLayout title="设置" categories={cats}>
+          {() => <div>{"body"}</div>}
+        </SettingsLayout>
+      </MemoryRouter>
     );
+
+  it("通知入口指定云同步分区时自动滚动到同步设置", () => {
+    renderLayout("/settings?section=sync");
+    expect(scrollTo).toHaveBeenCalledWith("sync");
+  });
 
   describe("桌面端(竖向左栏)", () => {
     it("渲染标题与全部分类导航项", () => {

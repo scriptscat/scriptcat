@@ -1,7 +1,8 @@
 import type FileSystem from "./filesystem";
 import type { FileCreateOptions, FileInfo, FileReader, FileWriter } from "./filesystem";
+import { FileSystemError } from "./error";
 
-const RETRYABLE_429_OPS = new Set(["verify", "open", "read", "openDir", "list", "getDirUrl"]);
+const RETRYABLE_TRANSIENT_OPS = new Set(["verify", "open", "read", "openDir", "list", "getDirUrl"]);
 
 /**
  * 速率限制器
@@ -21,7 +22,7 @@ export class RateLimiter {
   /**
    * 执行限速操作
    * @param fn 要执行的操作函数
-   * @param op 操作类型，用于在遇到 429 时判断是否允许自动重试。默认值 "unknown" 不在白名单内，会被视为不可重试
+   * @param op 操作类型，用于判断 transient 错误是否允许自动重试。默认值 "unknown" 不在白名单内，会被视为不可重试
    * @returns 操作结果
    */
   async execute<T>(fn: () => Promise<T>, op = "unknown"): Promise<T> {
@@ -46,9 +47,9 @@ export class RateLimiter {
   }
 
   /**
-   * 执行操作并处理 429 错误重试
+   * 执行操作并处理 transient 错误重试
    * @param fn 要执行的操作函数
-   * @param op 操作类型，用于判定该操作在遇到 429 时是否进入指数退避重试
+   * @param op 操作类型，用于判定该操作在遇到 transient 错误时是否进入指数退避重试
    * @returns 操作结果
    */
   private async executeWithRetry<T>(fn: () => Promise<T>, op: string): Promise<T> {
@@ -57,10 +58,8 @@ export class RateLimiter {
       try {
         return await fn();
       } catch (error) {
-        // 检查错误字符串中是否包含 429
-        const errorStr = String(error).toLowerCase();
-        if (this.shouldRetry429(op, ` ${errorStr} `) && i < 10) {
-          // 遇到 429 错误且未达到重试上限，采用指数退避策略延迟后继续重试
+        if (this.shouldRetryTransient(op, error) && i < 10) {
+          // 遇到 transient 错误且未达到重试上限，采用指数退避策略延迟后继续重试
           const delay = Math.min(2000 * Math.pow(2, i), 60000);
           await new Promise((resolve) => setTimeout(resolve, delay));
           // 继续下一次循环重试
@@ -74,11 +73,15 @@ export class RateLimiter {
     throw new Error(`Max retries exceeded (op=${op})`);
   }
 
-  private shouldRetry429(op: string, errorStr: string): boolean {
-    return (
-      ((errorStr.includes("429") && /[^a-z\d]429[^a-z\d]/.test(errorStr)) || errorStr.includes("too many requests")) &&
-      RETRYABLE_429_OPS.has(op)
-    );
+  private shouldRetryTransient(op: string, error: unknown): boolean {
+    if (!RETRYABLE_TRANSIENT_OPS.has(op)) {
+      return false;
+    }
+    if (error instanceof FileSystemError) {
+      return error.rateLimit || error.retryable;
+    }
+    const errorStr = ` ${String(error).toLowerCase()} `;
+    return (errorStr.includes("429") && /[^a-z\d]429[^a-z\d]/.test(errorStr)) || errorStr.includes("too many requests");
   }
 }
 

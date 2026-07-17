@@ -91,6 +91,8 @@
   "notification": {
     "script_sync_delete": "スクリプト同期削除",
     "script_sync_delete_desc": "スクリプト {{scriptName}} が削除されました",
+    "script_sync_conflict": "クラウド同期の競合",
+    "script_sync_conflict_desc": "スクリプト {{scriptNames}} はローカルとクラウドの両方で変更されています。同期を一時停止しました。手動で解決してください",
     "subscribe_update": "サブスクリプション {{subscribeName}} が更新されました",
     "subscribe_update_desc": "新しいスクリプト: {{newScripts}}\n削除されたスクリプト: {{deletedScripts}}"
   },
@@ -123,5 +125,16 @@
   "trash_enabled": "ゴミ箱を有効にする",
   "trash_enabled_desc": "削除したスクリプトはまずゴミ箱に移動し、いつでも復元できます。無効にすると、削除したスクリプトはすぐに完全に削除されます。",
   "trash_retention_custom": "カスタム",
-  "trash_retention_days_unit": "日"
+  "trash_retention_days_unit": "日",
+  "sync_view_logs": "ログを表示",
+  "sync_now": "今すぐ同期",
+  "sync_state_idle": "同期は正常です",
+  "sync_last_at": "前回の同期 {{time}}",
+  "sync_never": "未同期",
+  "sync_state_syncing": "同期中…",
+  "sync_state_attention": "前回の同期に確認が必要な変更があります",
+  "sync_state_attention_desc": "同期中に {{conflict}} 個のスクリプトが競合で停止中です。ログを確認してください",
+  "sync_state_overwrite_info": "前回の同期で {{overwrite}} 個のスクリプトが上書きされました。ログで確認できます",
+  "sync_state_error": "同期に失敗し、停止しました",
+  "sync_state_failed_desc": "{{failed}} 件のスクリプトを同期できませんでした。ログで詳細を確認してください。"
 }

@@ -91,6 +91,8 @@
   "notification": {
     "script_sync_delete": "腳本刪除同步",
     "script_sync_delete_desc": "腳本 {{scriptName}} 已被刪除",
+    "script_sync_conflict": "雲端同步衝突",
+    "script_sync_conflict_desc": "腳本 {{scriptNames}} 的本機與雲端版本皆已修改，已暫停同步該腳本，請手動處理衝突",
     "subscribe_update": "訂閱 {{subscribeName}} 已更新",
     "subscribe_update_desc": "新增腳本：{{newScripts}}\n刪除腳本：{{deletedScripts}}"
   },
@@ -123,5 +125,16 @@
   "trash_enabled": "啟用回收筒",
   "trash_enabled_desc": "刪除腳本時先移入回收筒，可隨時還原；關閉後刪除將直接永久刪除",
   "trash_retention_custom": "自訂",
-  "trash_retention_days_unit": "天"
+  "trash_retention_days_unit": "天",
+  "sync_view_logs": "查看日誌",
+  "sync_now": "立即同步",
+  "sync_state_idle": "同步正常",
+  "sync_last_at": "上次同步 {{time}}",
+  "sync_never": "尚未同步",
+  "sync_state_syncing": "正在同步…",
+  "sync_state_attention": "上次同步有需要確認的變更",
+  "sync_state_attention_desc": "同步時有 {{conflict}} 個腳本衝突已暫停，請開啟日誌確認",
+  "sync_state_overwrite_info": "上次同步有 {{overwrite}} 個腳本被覆蓋，可檢視日誌",
+  "sync_state_error": "同步失敗，已暫停",
+  "sync_state_failed_desc": "{{failed}} 個腳本同步失敗，請開啟日誌查看詳細資訊"
 }
