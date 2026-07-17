@@ -205,6 +205,48 @@ describe.concurrent("mergeCookieHeader（GM_xmlhttpRequest 非 anonymous 的 coo
   });
 });
 
+// 针对单一 cookie 名称 attr1：脚本是否指定（0/1/多个值）× 浏览器已有是否存在（0/1/多个值）共 3×3=9 种组合，
+// 规则固定为：脚本指定则完全覆盖该名称（不论脚本给几个值、浏览器原本有几个值）；
+// 脚本未指定则完全保留浏览器原样（不论浏览器原本有几个值）。
+describe.concurrent("mergeCookieHeader 完整组合矩阵：脚本指定状态 × 浏览器已有状态（3×3=9）", () => {
+  const scriptCases = [
+    { label: "脚本未指定 attr1", customCookie: undefined, expectedWhenNotOverridden: null },
+    { label: "脚本指定 attr1 单一值", customCookie: "attr1=new", expectedWhenOverridden: "attr1=new" },
+    {
+      label: "脚本指定 attr1 多个值",
+      customCookie: "attr1=new1; attr1=new2",
+      expectedWhenOverridden: "attr1=new1; attr1=new2",
+    },
+  ] as const;
+
+  const storedCases: { label: string; stored: { name: string; value: string }[]; expectedWhenKept: string }[] = [
+    { label: "浏览器无 attr1", stored: [], expectedWhenKept: "" },
+    {
+      label: "浏览器有 1 个 attr1",
+      stored: [{ name: "attr1", value: "old" }],
+      expectedWhenKept: "attr1=old",
+    },
+    {
+      label: "浏览器有 2 个 attr1（同名多值，如不同 domain/path）",
+      stored: [
+        { name: "attr1", value: "old1" },
+        { name: "attr1", value: "old2" },
+      ],
+      expectedWhenKept: "attr1=old1; attr1=old2",
+    },
+  ];
+
+  for (const script of scriptCases) {
+    for (const stored of storedCases) {
+      it.concurrent(`${script.label} × ${stored.label}`, () => {
+        const result = mergeCookieHeader(script.customCookie, stored.stored);
+        const expected = "expectedWhenOverridden" in script ? script.expectedWhenOverridden : stored.expectedWhenKept;
+        expect(result).toBe(expected);
+      });
+    }
+  }
+});
+
 describe.concurrent("getExtensionSiteAccessOriginPattern", () => {
   it.concurrent("应生成不带端口的扩展站点访问权限 pattern", () => {
     expect(getExtensionSiteAccessOriginPattern(new URL("http://127.0.0.1:3000/get"))).toBe("http://127.0.0.1/*");
