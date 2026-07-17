@@ -106,6 +106,6 @@ Commits must be single-purpose and **start with a gitmoji emoji** — use the ac
 
 Work from a feature branch or fork and open PRs against `main`. Chinese PR titles are preferred for changelog generation.
 
-Use `.github/pull_request_template.md` as the starting point. It is intentionally lightweight for human-authored PRs; agents should preserve its checklist and expand `Description / 描述` only when useful. The detailed agent-facing structure is defined in [`AGENTS.md`](../AGENTS.md#pr-description-format), with optional `背景`, `本次改动`, `验证`, `实现考虑`, `已知限制`, `建议审查重点`, `参考`, and `关联` sections. Keep exact commands and results in `验证`, describe UI evidence when the change is visual, and do not claim checks or evidence that did not happen.
+Use `.github/pull_request_template.md` as the starting point. It is intentionally lightweight for human-authored PRs; agents should preserve its checklist and expand `Description / 描述` only when useful. The detailed structure is defined in [`pull-request.md`](./pull-request.md). Keep exact commands and results in `验证`, describe UI evidence when the change is visual, and do not claim checks or evidence that did not happen.
 
 **Review policy**: review **all** modified files (including `.md`/`.json`); PR description is context only — judge from the diff. Verify every code path touched.
