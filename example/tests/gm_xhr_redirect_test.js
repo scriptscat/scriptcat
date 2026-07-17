@@ -200,7 +200,15 @@ const enableTool = true;
           gmRequest({ method: "GET", url, redirect: "manual", fetch }),
           new Promise(resolve => setTimeout(resolve, 4000)),
         ]);
-        assertEq(res?.status, 302, "status is 302");
+        // NOT actually testing the server's real redirect status here: with
+        // redirect: "manual", GM_xhr routes through fetch()'s opaqueredirect
+        // response, whose real status the Fetch spec makes unreadable from
+        // JS. ScriptCat's fetch_xhr.ts hardcodes 301 in that branch as a
+        // fallback regardless of what the server actually sent - confirmed
+        // the live server returns 302 here (verified with curl), yet GM_xhr
+        // still reports 301. This assertion pins down ScriptCat's own known
+        // fallback value, not mockhttp.org's behavior.
+        assertEq(res?.status, 301, "status is 301 (ScriptCat's fixed fallback for opaque manual redirects, not the server's real code)");
         assertEq(res?.finalUrl, url, "finalUrl is original url");
         assertEq(typeof res?.responseHeaders === "string" && res?.responseHeaders !== "", true, "responseHeaders ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
