@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, HelpCircle, Loader2, MoreHorizontal, ShieldOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { MAX_CSP_RULES, type CspRule, type CspRuleState } from "@App/app/repo/csp_rule";
-import { CspRuleClient, parseCspRuleError, type CspRuleServiceError } from "@App/app/service/service_worker/client";
+import {
+  CspRuleAmbiguousResponseError,
+  CspRuleClient,
+  parseCspRuleError,
+  type CspRuleServiceError,
+} from "@App/app/service/service_worker/client";
 import type { CspMutationResult, CspRuleSnapshot } from "@App/app/service/service_worker/csp_rule";
 import { extensionEnv } from "@App/app/service/extension/extension_env";
 import { message, subscribeMessage } from "@App/pages/store/global";
@@ -24,7 +29,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@App/pages/components/ui/dropdown-menu";
-import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { SettingCard } from "@App/pages/options/components/SettingCard";
 import { SettingRow } from "@App/pages/options/components/SettingRow";
 import { Skeleton } from "@App/pages/components/ui/skeleton";
@@ -40,6 +44,8 @@ type CspRulesSectionProps = {
 type Confirmation = {
   title: string;
   description: string;
+  confirmText?: string;
+  destructive?: boolean;
   run: () => Promise<void>;
 };
 
@@ -117,6 +123,23 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
     return true;
   };
 
+  // chrome.runtime.sendMessage 的响应有时会在 service worker 挂起后丢失（例如用户填写表单期间
+  // service worker 进入空闲），此时提交其实已在后台成功执行。与其直接报错，不如重新拉取权威 state：
+  // revision 前进说明本次提交已生效，按成功处理；否则说明确实没有生效，让调用方按失败提示。
+  const reconcileAfterAmbiguousResponse = async (baseRevision: number): Promise<boolean> => {
+    try {
+      const latest = await client.getState();
+      if (latest.state.revision > baseRevision) {
+        finishMutation({ ...latest, outcome: latest.apply.state === "applied" ? "applied" : "apply-error" });
+        return true;
+      }
+      setSnapshot(latest);
+    } catch {
+      // 拉取失败时保留原有 snapshot，交由调用方展示原始错误。
+    }
+    return false;
+  };
+
   const saveRule = async (value: CspRuleFormValue, baseRevision: number): Promise<CspRuleSaveResult> => {
     if (!snapshot) return { code: "storage_read_failed" };
     setBusy("sheet");
@@ -142,6 +165,14 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
       setSheetOpen(false);
       return true;
     } catch (error) {
+      if (error instanceof CspRuleAmbiguousResponseError) {
+        if (await reconcileAfterAmbiguousResponse(baseRevision)) {
+          setSheetOpen(false);
+          return true;
+        }
+        notify.error(t("tools:csp_storage_error"));
+        return false;
+      }
       const parsed = parseCspRuleError(error);
       if (parsed.snapshot) setSnapshot(parsed.snapshot);
       notify.error(mutationErrorText(t, parsed));
@@ -161,6 +192,11 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
     try {
       finishMutation(await client.setRuleEnabled({ baseRevision: snapshot.state.revision, id: rule.id, enabled }));
     } catch (error) {
+      if (error instanceof CspRuleAmbiguousResponseError) {
+        if (!(await reconcileAfterAmbiguousResponse(snapshot.state.revision)))
+          notify.error(t("tools:csp_storage_error"));
+        return;
+      }
       const parsed = parseCspRuleError(error);
       if (parsed.snapshot) setSnapshot(parsed.snapshot);
       notify.error(t(`tools:csp_${parsed.code === "revision_conflict" ? "revision_conflict" : "storage_error"}`));
@@ -176,6 +212,11 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
       finishMutation(await client.deleteRule({ baseRevision: snapshot.state.revision, id: rule.id }));
       setVisibleCount((current) => Math.min(current, Math.max(20, (snapshot.state.rules.length || 1) - 1)));
     } catch (error) {
+      if (error instanceof CspRuleAmbiguousResponseError) {
+        if (!(await reconcileAfterAmbiguousResponse(snapshot.state.revision)))
+          notify.error(t("tools:csp_storage_error"));
+        return;
+      }
       const parsed = parseCspRuleError(error);
       if (parsed.snapshot) setSnapshot(parsed.snapshot);
       notify.error(t(`tools:csp_${parsed.code === "revision_conflict" ? "revision_conflict" : "storage_error"}`));
@@ -190,6 +231,11 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
     try {
       finishMutation(await client.setMasterEnabled({ baseRevision: snapshot.state.revision, enabled }));
     } catch (error) {
+      if (error instanceof CspRuleAmbiguousResponseError) {
+        if (!(await reconcileAfterAmbiguousResponse(snapshot.state.revision)))
+          notify.error(t("tools:csp_storage_error"));
+        return;
+      }
       const parsed = parseCspRuleError(error);
       if (parsed.snapshot) setSnapshot(parsed.snapshot);
       notify.error(t(`tools:csp_${parsed.code === "revision_conflict" ? "revision_conflict" : "storage_error"}`));
@@ -408,17 +454,20 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onSelect={() => openEdit(rule)}>{t("tools:csp_edit")}</DropdownMenuItem>
-                          <Popconfirm
-                            description={t("tools:csp_delete_description")}
-                            confirmText={t("tools:csp_delete")}
-                            cancelText={t("tools:csp_cancel")}
-                            destructive
-                            onConfirm={() => void deleteRule(rule)}
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onSelect={() =>
+                              setConfirmation({
+                                title: t("tools:csp_delete"),
+                                description: t("tools:csp_delete_description"),
+                                confirmText: t("tools:csp_delete"),
+                                destructive: true,
+                                run: () => deleteRule(rule),
+                              })
+                            }
                           >
-                            <DropdownMenuItem onSelect={(event) => event.preventDefault()}>
-                              {t("tools:csp_delete")}
-                            </DropdownMenuItem>
-                          </Popconfirm>
+                            {t("tools:csp_delete")}
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -460,13 +509,14 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setConfirmation(undefined)}>{t("tools:csp_cancel")}</AlertDialogCancel>
             <AlertDialogAction
+              variant={confirmation?.destructive ? "destructive" : "default"}
               onClick={() => {
                 const action = confirmation?.run;
                 setConfirmation(undefined);
                 if (action) void action();
               }}
             >
-              {t("tools:csp_confirm")}
+              {confirmation?.confirmText ?? t("tools:csp_confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
