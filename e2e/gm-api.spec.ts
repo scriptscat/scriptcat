@@ -154,6 +154,16 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
       return;
     }
 
+    if (url.pathname === "/module-lib.js") {
+      // 供 script_module_e2e_test.js 静态 `import ... from` 使用，验证注入的确是可被浏览器
+      // 当作 ES module 解析执行的 <script type="module">（普通 script 遇到 import 会直接语法报错）
+      res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
+      res.end(
+        'export function addNumbers(a, b) { return a + b; }\nexport const MODULE_LIB_MARKER = "script-module-e2e-import-ok";\n'
+      );
+      return;
+    }
+
     const bytesMatch = url.pathname.match(/^\/bytes\/(\d+)$/);
     if (bytesMatch) {
       const size = Number(bytesMatch[1]);

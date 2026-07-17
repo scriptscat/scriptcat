@@ -10,6 +10,10 @@
 // @script-module
 // ==/UserScript==
 
+// 真正的 ES module 才能使用静态 `import ... from`；普通 <script>（非 module）遇到此语法
+// 会直接抛出 SyntaxError，导致整份脚本都无法执行。以此验证注入的确是 <script type="module">
+import { addNumbers, MODULE_LIB_MARKER } from "/module-lib.js";
+
 // module 顶层的 this 应为 undefined（普通 <script> 顶层 this 为 window），
 // 必须在模块顶层（而非函数内）读取才能反映真实的执行上下文
 const __sc_module_top_level_this_is_undefined = typeof this === "undefined";
@@ -67,6 +71,11 @@ const __sc_module_e2e_marker = true;
   await test("window 为沙盒 window，与 unsafeWindow（真实页面 window）不同", async () => {
     assert(true, window !== unsafeWindow, "window 不应等于 unsafeWindow");
     assert(document, unsafeWindow.document, "unsafeWindow.document 应等于真实 document");
+  });
+
+  await test("静态 import 的模块（/module-lib.js）被正确加载并可用", async () => {
+    assert("script-module-e2e-import-ok", MODULE_LIB_MARKER, "导入的常量值应与 module-lib.js 导出的一致");
+    assert(7, addNumbers(3, 4), "导入的函数应可正常调用");
   });
 
   await test("GM.setValue / GM.getValue 正常工作", async () => {
