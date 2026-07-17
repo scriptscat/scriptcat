@@ -15,6 +15,7 @@ export type PopupInitialData = {
   isEnableScript: boolean;
   checkUpdate: { notice: string; version: string; isRead: boolean };
   menuExpandNum: number;
+  popupCompactLayout: boolean;
   defaultScriptProvider: ScriptProvider;
   isBlacklist: boolean;
   scriptList: ScriptMenu[];
@@ -31,11 +32,12 @@ export const scriptListSorter = (a: ScriptMenu, b: ScriptMenu) =>
 const popupDataQuery = createPreloadableQuery<"popup", PopupInitialData>({
   key: (key) => key,
   load: async (_key, signal) => {
-    const [tab, isEnableScript, checkUpdate, menuExpandNum, provider] = await Promise.all([
+    const [tab, isEnableScript, checkUpdate, menuExpandNum, popupCompactLayout, provider] = await Promise.all([
       getCurrentTab(),
       systemConfig.getEnableScript(),
       systemConfig.getCheckUpdate({ sanitizeHTML }),
       systemConfig.getMenuExpandNum(),
+      systemConfig.getPopupCompactLayout(),
       cacheInstance.get<ScriptProvider>("default_script_provider"),
     ]);
 
@@ -56,6 +58,7 @@ const popupDataQuery = createPreloadableQuery<"popup", PopupInitialData>({
       isEnableScript,
       checkUpdate: checkUpdate ?? { notice: "", version: ExtVersion, isRead: false },
       menuExpandNum,
+      popupCompactLayout,
       defaultScriptProvider: provider ?? "scriptcat",
       isBlacklist: popupData.isBlacklist,
       scriptList: popupData.scriptList.sort(scriptListSorter),

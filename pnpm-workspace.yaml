@@ -1,4 +1,50 @@
 minimumReleaseAge: 10080
+
+overrides:
+  # @rspack/dev-server@1.1.5 currently pins webpack-dev-server@5.2.2.
+  # Restrict the replacement to this exact Rspack dev-server release.
+  "@rspack/dev-server@1.1.5>webpack-dev-server": "5.2.5"
+
+  # @rspack/dev-server also directly depends on this package.
+  "@rspack/dev-server@1.1.5>http-proxy-middleware": "2.0.10"
+
+  # Dependencies of the replacement webpack-dev-server version.
+  "webpack-dev-server@5.2.5>http-proxy-middleware": "2.0.10"
+  "webpack-dev-server@5.2.5>launch-editor": "2.14.1"
+
+  # launch-editor@2.14.1 officially permits shell-quote ^1.8.4.
+  "launch-editor@2.14.1>shell-quote": "1.8.4"
+
+  # http-proxy dependency chain.
+  "http-proxy@1.18.1>follow-redirects": "1.16.0"
+
+  # schema-utils -> ajv dependency chain.
+  "ajv@8.18.0>fast-uri": "3.1.2"
+
+  # webpack-dev-server -> express dependency chain.
+  "express@4.22.1>qs": "6.15.2"
+  "body-parser@1.20.4>qs": "6.15.2"
+
+  # Vitest toolchain.
+  "vitest@4.1.9>vite": "7.3.6"
+  "vite@7.3.6>esbuild": "0.28.1"
+
+  # ESLint and other config-loading paths.
+  "@eslint/eslintrc@3.3.1>js-yaml": "4.2.0"
+  "cosmiconfig@9.0.0>js-yaml": "4.2.0"
+
+  # CRX build tooling.
+  "resolve-protobuf-schema@2.1.0>protocol-buffers-schema": "3.6.1"
+
+  # Rspack bundle-analysis tooling.
+  "webpack-bundle-analyzer@4.10.2>ws": "7.5.11"
+
+  # see https://github.com/sockjs/sockjs-node/pull/317
+  # Fetch the codeload tarball over HTTPS rather than the `github:` shorthand:
+  # pnpm resolves the shorthand to a git+ssh URL that fails on CI runners lacking
+  # an SSH key. The commit has no build step, so the tarball is usable as-is.
+  "webpack-dev-server@5.2.5>sockjs@0.3.24": "https://codeload.github.com/sockjs/sockjs-node/tar.gz/c239289d8cd85647aff064337d81073f0e4e080a"
+
 patchedDependencies:
   happy-dom: patches/happy-dom.patch
   uri-js@4.4.1: patches/uri-js@4.4.1.patch

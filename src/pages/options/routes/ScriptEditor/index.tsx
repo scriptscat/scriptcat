@@ -90,11 +90,17 @@ export default function ScriptEditor() {
 
   // saveScript 仍以 { kind } 形式回调，这里适配成通用确认框
   const askConfirm = useCallback(
-    ({ kind }: { kind: "name" | "edit" }) =>
+    ({ kind }: { kind: "name" | "edit" | "trash" }) =>
       confirm(
-        kind === "edit"
-          ? { title: t("editor:edit_conflict"), description: t("editor:confirm_override_when_edit_conflict") }
-          : { title: t("editor:scriptname_conflict"), description: t("editor:confirm_save_when_scriptname_conflict") }
+        kind === "trash"
+          ? {
+              title: t("editor:trash_restore_prompt_title"),
+              description: t("editor:trash_restore_prompt_description"),
+              confirmText: t("script:trash_restore"),
+            }
+          : kind === "edit"
+            ? { title: t("editor:edit_conflict"), description: t("editor:confirm_override_when_edit_conflict") }
+            : { title: t("editor:scriptname_conflict"), description: t("editor:confirm_save_when_scriptname_conflict") }
       ),
     [confirm, t]
   );

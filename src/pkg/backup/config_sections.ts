@@ -13,6 +13,7 @@ const APPEARANCE_KEYS = new Set([
   "badge_background_color",
   "badge_text_color",
   "favicon_service",
+  "popup_compact_layout",
 ]);
 const UPDATE_KEYS = new Set([
   "check_script_update_cycle",
