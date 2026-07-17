@@ -280,7 +280,7 @@ export class RuntimeService {
       this.injectJsCodePromise = fetch("/src/inject.js")
         .then((res) => res.text())
         .catch((e) => {
-          console.error("Unable to fetch /src/inject.js", e);
+          this.logger.error("load extension runtime script failed", { path: "/src/inject.js" }, Logger.E(e));
           return undefined;
         });
     }
@@ -292,7 +292,7 @@ export class RuntimeService {
       this.contentJsCodePromise = fetch("/src/content.js")
         .then((res) => res.text())
         .catch((e) => {
-          console.error("Unable to fetch /src/content.js", e);
+          this.logger.error("load extension runtime script failed", { path: "/src/content.js" }, Logger.E(e));
           return undefined;
         });
     }
@@ -483,7 +483,11 @@ export class RuntimeService {
         }
       }
     } catch (e) {
-      console.error("pushValueUpdate error", e);
+      this.logger.error(
+        "push value update failed",
+        { uuid: script.uuid, storageName: sendData.storageName },
+        Logger.E(e)
+      );
     }
   }
 
@@ -492,7 +496,7 @@ export class RuntimeService {
       // 让 scripting 存取 chrome.storage.session
       await chrome.storage.session.setAccessLevel({ accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS" });
     } catch (e) {
-      console.error("unable to call chrome.storage.session.setAccessLevel", e);
+      this.logger.error("set session storage access level failed", Logger.E(e));
     }
   }
 
@@ -1012,9 +1016,8 @@ export class RuntimeService {
         await chrome.userScripts.configureWorld({
           messaging: true,
         });
-      } catch (_e) {
-        console.error("chrome.userScripts.configureWorld({messaging:true}) failed.");
-        // do nothing
+      } catch (e) {
+        this.logger.error("configure userScripts world failed", Logger.E(e));
       }
     }
 
@@ -1099,7 +1102,7 @@ export class RuntimeService {
     try {
       await chrome.userScripts.resetWorldConfiguration();
     } catch (e: any) {
-      console.error("chrome.userScripts.resetWorldConfiguration() failed.", e);
+      this.logger.error("reset userScripts world configuration failed", Logger.E(e));
     }
 
     const options = {
@@ -1731,7 +1734,11 @@ export class RuntimeService {
         await chrome.userScripts.unregister({ ids: filteredIds });
       }
     } catch (e) {
-      console.error("unregistryPageScripts error:", e);
+      this.logger.error(
+        "unregister page scripts failed",
+        { count: uuids.length, uuids: uuids.slice(0, 20) },
+        Logger.E(e)
+      );
     }
   }
 }
