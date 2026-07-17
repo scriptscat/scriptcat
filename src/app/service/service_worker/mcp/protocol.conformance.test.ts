@@ -10,12 +10,12 @@ describe("MCP 协议一致性 - types.ts 必须与 protocol.json 同步", () => 
     expect(extTypes.PROTOCOL_VERSION).toBe(protocolJson.protocolVersion);
   });
 
-  it("MIN_HOST_VERSION 与 protocol.json 的 minDaemonVersion 一致", () => {
-    expect(extTypes.MIN_HOST_VERSION).toBe(protocolJson.versions.minDaemonVersion);
+  it("MIN_DAEMON_VERSION 与 protocol.json 的 minDaemonVersion 一致", () => {
+    expect(extTypes.MIN_DAEMON_VERSION).toBe(protocolJson.versions.minDaemonVersion);
   });
 
   it("envelope 类型集合完全一致(顺序无关)", () => {
-    expect([...extTypes.NATIVE_MESSAGE_TYPES].sort()).toEqual([...protocolJson.envelopeTypes].sort());
+    expect([...extTypes.WS_MESSAGE_TYPES].sort()).toEqual([...protocolJson.envelopeTypes].sort());
   });
 
   it("MCP_SCOPES 与 protocol.json 的 scopes 完全一致", () => {

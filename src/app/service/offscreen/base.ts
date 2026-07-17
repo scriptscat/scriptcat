@@ -8,6 +8,7 @@ import { sendMessage } from "@Packages/message/client";
 import GMApi from "./gm_api";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { VSCodeConnect } from "./vscode-connect";
+import { McpConnect } from "./mcp-connect";
 import { HtmlExtractorService } from "./html_extractor";
 import { makeBlobURL } from "@App/pkg/utils/utils";
 
@@ -71,6 +72,8 @@ export class BackgroundEnvManagerBase {
     gmApi.init();
     const vscodeConnect = new VSCodeConnect(this.offscreenServer.group("vscodeConnect"), this.extMsgSender);
     vscodeConnect.init();
+    const mcpConnect = new McpConnect(this.offscreenServer.group("mcpConnect"), this.extMsgSender);
+    mcpConnect.init();
     const htmlExtractor = new HtmlExtractorService(this.offscreenServer.group("htmlExtractor"));
     htmlExtractor.init();
 

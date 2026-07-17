@@ -81,6 +81,35 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
     it("mcp_enabled 默认值为 false", async () => {
       expect(await config.getMcpEnabled()).toBe(false);
     });
+
+    it("mcp_url 默认 ws://127.0.0.1:8643 并写入 local storage", async () => {
+      expect(await config.getMcpUrl()).toBe("ws://127.0.0.1:8643");
+      config.setMcpUrl("ws://127.0.0.1:9000");
+      const localData = await chrome.storage.local.get("system_mcp_url");
+      expect(localData["system_mcp_url"]).toBe("ws://127.0.0.1:9000");
+      const syncData = await chrome.storage.sync.get("system_mcp_url");
+      expect(syncData["system_mcp_url"]).toBeUndefined();
+    });
+
+    it("mcp_write_policy 默认 approval 并写入 local storage", async () => {
+      expect(await config.getMcpWritePolicy()).toBe("approval");
+      config.setMcpWritePolicy("allow");
+      expect(await config.getMcpWritePolicy()).toBe("allow");
+      const localData = await chrome.storage.local.get("system_mcp_write_policy");
+      expect(localData["system_mcp_write_policy"]).toBe("allow");
+      const syncData = await chrome.storage.sync.get("system_mcp_write_policy");
+      expect(syncData["system_mcp_write_policy"]).toBeUndefined();
+    });
+
+    it("mcp_pairing 默认未配对，写入后落 local storage 且不入 sync", async () => {
+      expect(await config.getMcpPairing()).toEqual({ key: "", clientId: "" });
+      config.setMcpPairing({ key: "deadbeef", clientId: "cid-1" });
+      expect(await config.getMcpPairing()).toEqual({ key: "deadbeef", clientId: "cid-1" });
+      const localData = await chrome.storage.local.get("system_mcp_pairing");
+      expect(localData["system_mcp_pairing"]).toEqual({ key: "deadbeef", clientId: "cid-1" });
+      const syncData = await chrome.storage.sync.get("system_mcp_pairing");
+      expect(syncData["system_mcp_pairing"]).toBeUndefined();
+    });
   });
 
   describe("sync key 读写", () => {

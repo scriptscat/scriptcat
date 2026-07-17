@@ -22,6 +22,16 @@ export type CloudSyncConfig = {
 
 export type FaviconService = "scriptcat" | "google" | "duckduckgo" | "icon-horse" | "local";
 
+// MCP 写操作策略：需人工审批（默认）/ 直接允许。
+export type McpWritePolicy = "approval" | "allow";
+
+// MCP 配对成功后落地的长期共享密钥 K（小写 hex）与本扩展实例的客户端身份。
+// key 为空串表示尚未配对。仅存 chrome.storage.local，绝不跨设备同步。
+export type McpPairing = {
+  key: string;
+  clientId: string;
+};
+
 export type CATFileStorage = {
   filesystem: FileSystemType;
   params: { [key: string]: any };
@@ -591,6 +601,30 @@ export class SystemConfig {
 
   getMcpEnabled() {
     return this._get<boolean>("mcp_enabled", false);
+  }
+
+  setMcpUrl(url: string) {
+    this._set("mcp_url", url);
+  }
+
+  getMcpUrl() {
+    return this._get<string>("mcp_url", "ws://127.0.0.1:8643");
+  }
+
+  setMcpWritePolicy(policy: McpWritePolicy) {
+    this._set("mcp_write_policy", policy);
+  }
+
+  getMcpWritePolicy() {
+    return this._get<McpWritePolicy>("mcp_write_policy", "approval");
+  }
+
+  setMcpPairing(pairing: McpPairing | undefined) {
+    this._set("mcp_pairing", pairing);
+  }
+
+  getMcpPairing() {
+    return this._get<McpPairing>("mcp_pairing", { key: "", clientId: "" });
   }
 
   setBlacklist(blacklist: string) {

@@ -11,4 +11,7 @@ export const STORAGE_LOCAL_KEYS: Set<string> = new Set([
   "enable_script", // 全局脚本开关（设备独立）
   "enable_script_incognito", // 隐身模式开关（浏览器级别）
   "mcp_enabled", // MCP 桥接开关（设备相关，绝不跨设备同步）
+  "mcp_url", // MCP 桥接 daemon 地址（设备相关）
+  "mcp_write_policy", // MCP 写操作策略（设备相关）
+  "mcp_pairing", // MCP 配对长期密钥 K + 客户端身份（含密钥，绝不跨设备同步）
 ]);

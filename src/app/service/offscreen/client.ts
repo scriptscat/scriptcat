@@ -3,6 +3,8 @@ import type { SCRIPT_RUN_STATUS, ScriptRunResource } from "@App/app/repo/scripts
 import { Client, sendMessage } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import { type VSCodeConnectParam } from "./vscode-connect";
+import { type McpConnectParam } from "./mcp-connect";
+import type { WSEnvelope } from "../service_worker/mcp/types";
 
 export function preparationSandbox(windowMessage: WindowMessage) {
   return sendMessage(windowMessage, "offscreen/preparationSandbox");
@@ -103,5 +105,26 @@ export class VscodeConnectClient extends Client {
 
   connect(params: VSCodeConnectParam): Promise<void> {
     return this.do("connect", params);
+  }
+}
+
+// SW → offscreen driver for the MCP WS transport. McpController uses it to open/close the socket
+// and to hand the offscreen McpConnect outbound envelopes (bridge.response / pair.decision /
+// client.revoke / bridge.shutdown) to write onto the wire.
+export class McpConnectClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "offscreen/mcpConnect");
+  }
+
+  connect(params: McpConnectParam): Promise<void> {
+    return this.do("connect", params);
+  }
+
+  disconnect(): Promise<void> {
+    return this.do("disconnect");
+  }
+
+  send(envelope: WSEnvelope): Promise<void> {
+    return this.do("send", envelope);
   }
 }

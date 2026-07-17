@@ -1,25 +1,26 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { McpController, NATIVE_HOST_NAME } from "./controller";
+import { McpController } from "./controller";
 import { SystemConfig } from "@App/pkg/config/config";
 import { MessageQueue } from "@Packages/message/message_queue";
-import { MIN_HOST_VERSION } from "./types";
+import { MIN_DAEMON_VERSION, type WSEnvelope } from "./types";
 
-function makeFakePort() {
-  const messageListeners: Array<(msg: any) => void> = [];
-  const disconnectListeners: Array<() => void> = [];
+// Captures the relay handlers McpController registers on its Group so tests can feed decoded
+// envelopes the way the offscreen McpConnect would over the wire.
+function makeFakeGroup() {
+  const handlers: Record<string, (params: any) => any> = {};
   return {
-    postMessage: vi.fn(),
-    disconnect: vi.fn(() => {
-      disconnectListeners.forEach((cb) => cb());
-    }),
-    onMessage: { addListener: (cb: (msg: any) => void) => messageListeners.push(cb) },
-    onDisconnect: { addListener: (cb: () => void) => disconnectListeners.push(cb) },
-    __emitMessage(msg: any) {
-      messageListeners.forEach((cb) => cb(msg));
-    },
-    __emitDisconnect() {
-      disconnectListeners.forEach((cb) => cb());
-    },
+    group: { on: (name: string, fn: (params: any) => any) => (handlers[name] = fn) } as any,
+    relayEnvelope: (env: WSEnvelope) => handlers["envelope"](env),
+    relayPaired: (key: string) => handlers["paired"]({ key }),
+    relayDisconnected: () => handlers["disconnected"](undefined),
+  };
+}
+
+function makeConnectClient() {
+  return {
+    connect: vi.fn().mockResolvedValue(undefined),
+    disconnect: vi.fn().mockResolvedValue(undefined),
+    send: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -27,29 +28,22 @@ describe("McpController", () => {
   let systemConfig: SystemConfig;
   let mq: MessageQueue;
   let bridgeHandle: ReturnType<typeof vi.fn>;
-  let connectNativeMock: ReturnType<typeof vi.fn>;
-  let ports: ReturnType<typeof makeFakePort>[];
+  let connectClient: ReturnType<typeof makeConnectClient>;
+  let fake: ReturnType<typeof makeFakeGroup>;
 
   beforeEach(() => {
     chrome.storage.local.clear();
     chrome.storage.sync.clear();
-    // chrome-extension-mock's Runtime keeps a single process-wide listener array that MessageQueue
-    // instances register onto in their constructor and never unregister; under this project's
-    // isolate:false test pool, stale listeners from earlier test files in the same worker would
-    // otherwise still fire (and — since chrome.runtime.connectNative is reassigned fresh below —
-    // route into *this* test's mock), inflating call counts. Reset before each test.
+    chrome.storage.session.clear();
+    // chrome-extension-mock keeps a process-wide runtime listener array MessageQueue registers onto
+    // and never clears; under isolate:false, stale listeners from earlier files would still fire.
     (chrome.runtime as unknown as { messageListener: unknown[] }).messageListener.length = 0;
     (chrome.runtime as unknown as { connectListener: unknown[] }).connectListener.length = 0;
     mq = new MessageQueue();
     systemConfig = new SystemConfig(mq);
     bridgeHandle = vi.fn().mockResolvedValue({ requestId: "r1", ok: true, result: {} });
-    ports = [];
-    connectNativeMock = vi.fn(() => {
-      const port = makeFakePort();
-      ports.push(port);
-      return port;
-    });
-    (chrome.runtime as any).connectNative = connectNativeMock;
+    connectClient = makeConnectClient();
+    fake = makeFakeGroup();
   });
 
   afterEach(() => {
@@ -57,76 +51,73 @@ describe("McpController", () => {
     vi.restoreAllMocks();
   });
 
-  function makeController() {
-    return new McpController(systemConfig, { handle: bridgeHandle } as any, mq);
+  function makeController(saveMock?: ReturnType<typeof vi.fn>) {
+    return new McpController(
+      systemConfig,
+      { handle: bridgeHandle } as any,
+      mq,
+      fake.group,
+      connectClient,
+      saveMock ? ({ save: saveMock } as any) : undefined
+    );
+  }
+
+  async function initPaired(key = "deadbeef", clientId = "c-existing") {
+    systemConfig.setMcpPairing({ key, clientId });
+    const controller = makeController();
+    await controller.initialize();
+    return controller;
   }
 
   it("initialize() 在 mcp_enabled=false 时只注册监听，不建立连接", async () => {
     const controller = makeController();
     await controller.initialize();
-    expect(connectNativeMock).not.toHaveBeenCalled();
+    expect(connectClient.connect).not.toHaveBeenCalled();
     expect(controller.getStatus()).toBe("disabled");
   });
 
-  it("mcp_enabled 由 false 变为 true 时恰好调用一次 connectNative", async () => {
+  it("已启用但尚未配对时不拨号，状态为 connecting", async () => {
     const controller = makeController();
     await controller.initialize();
     systemConfig.setMcpEnabled(true);
-    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
-    expect(connectNativeMock).toHaveBeenCalledWith(NATIVE_HOST_NAME);
+    await vi.waitFor(() => expect(controller.getStatus()).toBe("connecting"));
+    expect(connectClient.connect).not.toHaveBeenCalled();
   });
 
-  it("mcp_enabled 由 true 变为 false 时断开端口、发送 bridge.shutdown，状态变为 disabled", async () => {
-    const controller = makeController();
-    await controller.initialize();
+  it("已配对且 mcp_enabled 变为 true 时以会话模式拨号，携带 URL 与长期密钥", async () => {
+    await initPaired("abc123", "cid");
     systemConfig.setMcpEnabled(true);
-    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
-
-    systemConfig.setMcpEnabled(false);
-    await vi.waitFor(() => expect(ports[0].disconnect).toHaveBeenCalled());
-    const shutdownCall = ports[0].postMessage.mock.calls.find((call) => call[0].type === "bridge.shutdown");
-    expect(shutdownCall).toBeDefined();
-    expect(controller.getStatus()).toBe("disabled");
+    await vi.waitFor(() => expect(connectClient.connect).toHaveBeenCalledTimes(1));
+    expect(connectClient.connect).toHaveBeenCalledWith({
+      url: "ws://127.0.0.1:8643",
+      auth: { mode: "session", key: "abc123" },
+    });
   });
 
-  it("断线后按封顶指数退避重连,达到上限后状态变为 host_unreachable 且不再重试", async () => {
-    vi.useFakeTimers();
+  it("pair(code) 以配对模式拨号，携带配对码", async () => {
     const controller = makeController();
     await controller.initialize();
-    systemConfig.setMcpEnabled(true);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(connectNativeMock).toHaveBeenCalledTimes(1);
-
-    // Simulate 5 consecutive connect failures (disconnect immediately each time).
-    for (let i = 0; i < 5; i++) {
-      ports[ports.length - 1].__emitDisconnect();
-      const expectedDelay = Math.min(1000 * 2 ** i, 60_000);
-      await vi.advanceTimersByTimeAsync(expectedDelay);
-    }
-
-    // 5 reconnect attempts scheduled -> 1 initial + 5 = 6 total connectNative calls, then give up.
-    expect(connectNativeMock).toHaveBeenCalledTimes(6);
-    ports[ports.length - 1].__emitDisconnect();
-    await vi.advanceTimersByTimeAsync(120_000);
-    expect(connectNativeMock).toHaveBeenCalledTimes(6);
-    expect(controller.getStatus()).toBe("host_unreachable");
+    await controller.pair("MNBV-3456");
+    expect(connectClient.connect).toHaveBeenCalledWith({
+      url: "ws://127.0.0.1:8643",
+      auth: { mode: "pairing", code: "MNBV-3456" },
+    });
+    expect(controller.getStatus()).toBe("connecting");
   });
 
-  it("主机版本低于 MIN_HOST_VERSION 时状态为 host_outdated，且不再派发桥接请求", async () => {
+  it("hello：daemon 版本低于 MIN_DAEMON_VERSION 时 host_outdated，且不派发桥接请求", async () => {
     const controller = makeController();
     await controller.initialize();
-    systemConfig.setMcpEnabled(true);
-    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
 
-    ports[0].__emitMessage({
+    fake.relayEnvelope({
       v: 1,
       type: "hello",
       requestId: "h1",
-      payload: { daemonVersion: "0.0.1" },
+      payload: { daemonVersion: "0.0.1", protocolVersion: 1 },
     });
     expect(controller.getStatus()).toBe("host_outdated");
 
-    ports[0].__emitMessage({
+    fake.relayEnvelope({
       v: 1,
       type: "bridge.request",
       requestId: "req-1",
@@ -135,39 +126,91 @@ describe("McpController", () => {
     expect(bridgeHandle).not.toHaveBeenCalled();
   });
 
-  it("主机版本达到 MIN_HOST_VERSION 时状态为 connected，正常派发桥接请求", async () => {
+  it("hello：daemon 版本达标时 connected，桥接请求派发并回发 bridge.response", async () => {
     const controller = makeController();
     await controller.initialize();
-    systemConfig.setMcpEnabled(true);
-    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
 
-    ports[0].__emitMessage({
+    fake.relayEnvelope({
       v: 1,
       type: "hello",
       requestId: "h1",
-      payload: { daemonVersion: MIN_HOST_VERSION },
+      payload: { daemonVersion: MIN_DAEMON_VERSION, protocolVersion: 1 },
     });
     expect(controller.getStatus()).toBe("connected");
 
-    ports[0].__emitMessage({
+    fake.relayEnvelope({
       v: 1,
       type: "bridge.request",
       requestId: "req-1",
       payload: { requestId: "req-1", protocolVersion: 1, clientId: "c1", action: "scripts.list", input: {} },
     });
     await vi.waitFor(() => expect(bridgeHandle).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(connectClient.send).toHaveBeenCalledTimes(1));
+    expect(connectClient.send).toHaveBeenCalledWith({
+      v: 1,
+      type: "bridge.response",
+      requestId: "req-1",
+      payload: { requestId: "r1", ok: true, result: {} },
+    });
+  });
+
+  it("paired：持久化 daemon 下发的长期密钥并保留既有客户端身份", async () => {
+    systemConfig.setMcpPairing({ key: "old", clientId: "stable-id" });
+    const controller = makeController();
+    await controller.initialize();
+
+    await fake.relayPaired("newkey");
+    const pairing = await systemConfig.getMcpPairing();
+    expect(pairing.key).toBe("newkey");
+    expect(pairing.clientId).toBe("stable-id");
+  });
+
+  it("paired：首次配对无既有身份时生成一个客户端身份", async () => {
+    const controller = makeController();
+    await controller.initialize();
+    await fake.relayPaired("firstkey");
+    const pairing = await systemConfig.getMcpPairing();
+    expect(pairing.key).toBe("firstkey");
+    expect(pairing.clientId).not.toBe("");
+  });
+
+  it("disconnected：非 disabled 状态下转为 host_unreachable", async () => {
+    const controller = makeController();
+    await controller.initialize();
+    fake.relayEnvelope({
+      v: 1,
+      type: "hello",
+      requestId: "h1",
+      payload: { daemonVersion: "0.1.0", protocolVersion: 1 },
+    });
+    expect(controller.getStatus()).toBe("connected");
+    fake.relayDisconnected();
+    expect(controller.getStatus()).toBe("host_unreachable");
+  });
+
+  it("mcp_enabled 变为 false 时发送 bridge.shutdown、断开连接、状态 disabled，且 disconnected 不再改状态", async () => {
+    const controller = await initPaired();
+    systemConfig.setMcpEnabled(true);
+    await vi.waitFor(() => expect(connectClient.connect).toHaveBeenCalledTimes(1));
+
+    systemConfig.setMcpEnabled(false);
+    await vi.waitFor(() => expect(connectClient.disconnect).toHaveBeenCalled());
+    const shutdownCall = connectClient.send.mock.calls.find((call) => call[0].type === "bridge.shutdown");
+    expect(shutdownCall).toBeDefined();
+    expect(controller.getStatus()).toBe("disabled");
+
+    fake.relayDisconnected();
+    expect(controller.getStatus()).toBe("disabled");
   });
 
   it("收到 pair.request 后记录待处理配对并广播 mcpPairingRequested", async () => {
     const controller = makeController();
     await controller.initialize();
-    systemConfig.setMcpEnabled(true);
-    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
 
     const events: unknown[] = [];
     mq.subscribe("mcpPairingRequested", (data) => events.push(data));
 
-    ports[0].__emitMessage({
+    fake.relayEnvelope({
       v: 1,
       type: "pair.request",
       requestId: "p1",
@@ -184,18 +227,15 @@ describe("McpController", () => {
   });
 
   it("options 页面未打开时，pair.request 会打开 mcp_confirm 弹窗（兜底路径）", async () => {
-    const queryMock = vi.fn().mockResolvedValue([]);
-    (chrome.tabs as any).query = queryMock;
+    (chrome.tabs as any).query = vi.fn().mockResolvedValue([]);
     const createMock = vi.fn().mockResolvedValue({ id: 42 });
     (chrome.tabs as any).create = createMock;
     (chrome.tabs as any).get = vi.fn().mockResolvedValue(undefined);
 
     const controller = makeController();
     await controller.initialize();
-    systemConfig.setMcpEnabled(true);
-    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
 
-    ports[0].__emitMessage({
+    fake.relayEnvelope({
       v: 1,
       type: "pair.request",
       requestId: "p1",
@@ -208,8 +248,7 @@ describe("McpController", () => {
     });
 
     await vi.waitFor(() => expect(createMock).toHaveBeenCalled());
-    const createArgs = createMock.mock.calls[0][0];
-    expect(createArgs.url).toContain("src/mcp_confirm.html?pairing=pair-1");
+    expect(createMock.mock.calls[0][0].url).toContain("src/mcp_confirm.html?pairing=pair-1");
   });
 
   it("options 页面已打开时，pair.request 不再打开弹窗——只广播供页面内 Dialog 消费", async () => {
@@ -220,13 +259,8 @@ describe("McpController", () => {
 
     const controller = makeController();
     await controller.initialize();
-    systemConfig.setMcpEnabled(true);
-    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
 
-    const events: unknown[] = [];
-    mq.subscribe("mcpPairingRequested", (data) => events.push(data));
-
-    ports[0].__emitMessage({
+    fake.relayEnvelope({
       v: 1,
       type: "pair.request",
       requestId: "p1",
@@ -238,7 +272,6 @@ describe("McpController", () => {
       },
     });
 
-    await vi.waitFor(() => expect(events).toContainEqual({ pairingId: "pair-1" }));
     await vi.waitFor(() => expect(queryMock).toHaveBeenCalled());
     expect(createMock).not.toHaveBeenCalled();
   });
@@ -247,10 +280,8 @@ describe("McpController", () => {
     vi.useFakeTimers();
     const controller = makeController();
     await controller.initialize();
-    systemConfig.setMcpEnabled(true);
-    await vi.advanceTimersByTimeAsync(0);
 
-    ports[0].__emitMessage({
+    fake.relayEnvelope({
       v: 1,
       type: "pair.request",
       requestId: "p1",
@@ -267,13 +298,11 @@ describe("McpController", () => {
     expect(controller.getPendingPairing()).toBeUndefined();
   });
 
-  it("decidePairing 向主机发送 pair.decision 并清空待处理配对", async () => {
+  it("decidePairing 发送 pair.decision 并清空待处理配对", async () => {
     const controller = makeController();
     await controller.initialize();
-    systemConfig.setMcpEnabled(true);
-    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
 
-    ports[0].__emitMessage({
+    fake.relayEnvelope({
       v: 1,
       type: "pair.request",
       requestId: "p1",
@@ -286,18 +315,23 @@ describe("McpController", () => {
     });
 
     controller.decidePairing("pair-1", true, ["scripts:list"]);
-
-    const decisionCall = ports[0].postMessage.mock.calls.find((call) => call[0].type === "pair.decision");
+    const decisionCall = connectClient.send.mock.calls.find((call) => call[0].type === "pair.decision");
     expect(decisionCall?.[0].payload).toEqual({ pairingId: "pair-1", approved: true, grantedScopes: ["scripts:list"] });
     expect(controller.getPendingPairing()).toBeUndefined();
   });
 
+  it("notifyClientRevoked 发送 client.revoke", async () => {
+    const controller = makeController();
+    await controller.initialize();
+    controller.notifyClientRevoked("c1");
+    const revokeCall = connectClient.send.mock.calls.find((call) => call[0].type === "client.revoke");
+    expect(revokeCall?.[0].payload).toEqual({ clientId: "c1" });
+  });
+
   it("收到 client.sync 后将主机侧客户端列表镜像写入 McpClientDAO", async () => {
     const saveMock = vi.fn().mockResolvedValue(undefined);
-    const controller = new McpController(systemConfig, { handle: bridgeHandle } as any, mq, { save: saveMock } as any);
+    const controller = makeController(saveMock);
     await controller.initialize();
-    systemConfig.setMcpEnabled(true);
-    await vi.waitFor(() => expect(connectNativeMock).toHaveBeenCalledTimes(1));
 
     const client = {
       clientId: "c1",
@@ -308,8 +342,7 @@ describe("McpController", () => {
       lastUsedAt: 1,
       revoked: false,
     };
-    ports[0].__emitMessage({ v: 1, type: "client.sync", requestId: "s1", payload: [client] });
-
+    fake.relayEnvelope({ v: 1, type: "client.sync", requestId: "s1", payload: [client] });
     await vi.waitFor(() => expect(saveMock).toHaveBeenCalledWith(client));
   });
 
@@ -320,7 +353,6 @@ describe("McpController", () => {
     const sessionData = await chrome.storage.session.get("mcp_write_session");
     expect(sessionData["mcp_write_session"]).toBe(true);
 
-    // Simulate a browser restart by clearing session storage (its whole point is not persisting).
     await chrome.storage.session.clear();
     const freshController = makeController();
     expect(await freshController.readWriteSessionActive()).toBe(false);

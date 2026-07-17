@@ -26,7 +26,7 @@ import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 import type { LocalBackupExport } from "./synchronize";
 import type { McpUIService } from "./mcp/service";
-import type { McpScope } from "./mcp/types";
+import type { McpScope, WSEnvelope } from "./mcp/types";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -540,5 +540,27 @@ export class MCPClient extends Client {
 
   decidePairing(param: { pairingId: string; approved: boolean; grantedScopes: McpScope[] }) {
     return this.do("pairingDecision", param);
+  }
+}
+
+// offscreen → SW relay for the MCP WS transport. The offscreen McpConnect owns the socket and the
+// auth handshake; once a connection is live it forwards decoded business envelopes (and the newly
+// paired long-term key) up to McpController here. Deliberately fire-and-forget: a blocking write
+// approval may keep a bridge.request pending for minutes, so the relay never awaits the dispatch.
+export class McpConnectRelayClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/mcpConnect");
+  }
+
+  envelope(envelope: WSEnvelope): Promise<void> {
+    return this.do("envelope", envelope);
+  }
+
+  paired(key: string): Promise<void> {
+    return this.do("paired", { key });
+  }
+
+  disconnected(): Promise<void> {
+    return this.do("disconnected");
   }
 }

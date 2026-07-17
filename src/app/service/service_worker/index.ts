@@ -30,6 +30,7 @@ import { McpApprovalService } from "@App/app/service/service_worker/mcp/approval
 import { McpBridge } from "@App/app/service/service_worker/mcp/bridge";
 import { McpController } from "@App/app/service/service_worker/mcp/controller";
 import { McpUIService } from "@App/app/service/service_worker/mcp/service";
+import { McpConnectClient } from "@App/app/service/offscreen/client";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -137,7 +138,14 @@ export default class ServiceWorkerManager {
       const mcpClientDAO = new McpClientDAO();
       const mcpApproval = new McpApprovalService(script, scriptDAO, script.scriptCodeDAO, mcpClientDAO);
       const mcpBridge = new McpBridge(scriptDAO, script.scriptCodeDAO, mcpClientDAO, mcpApproval);
-      const mcpController = new McpController(systemConfig, mcpBridge, this.mq, mcpClientDAO);
+      const mcpController = new McpController(
+        systemConfig,
+        mcpBridge,
+        this.mq,
+        this.api.group("mcpConnect"),
+        new McpConnectClient(this.offscreenSend),
+        mcpClientDAO
+      );
       mcpBridge.setWriteSessionChecker(() => mcpController.isWriteSessionActive());
       mcpController.initialize();
       const mcpUIService = new McpUIService(this.api.group("mcp"), mcpController, mcpApproval, mcpClientDAO);

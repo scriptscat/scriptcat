@@ -2,28 +2,25 @@ import semver from "semver";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { openInCurrentTab } from "@App/pkg/utils/utils";
 import type { SystemConfig } from "@App/pkg/config/config";
+import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import { McpClientDAO } from "@App/app/repo/mcp";
+import type { McpConnectClient } from "../../offscreen/client";
 import type { McpBridge } from "./bridge";
 import {
-  MIN_HOST_VERSION,
+  MIN_DAEMON_VERSION,
   type ClientSyncPayload,
   type HelloPayload,
   type McpBridgeRequest,
   type McpBridgeStatus,
   type McpScope,
-  type NativeEnvelope,
   type PairRequestPayload,
+  type WSEnvelope,
 } from "./types";
 
-export const NATIVE_HOST_NAME = "com.scriptcat.native_host";
-
-const BACKOFF_BASE_MS = 1000;
-const BACKOFF_CAP_MS = 60_000;
-const MAX_RECONNECT_ATTEMPTS = 5;
 const WRITE_SESSION_STORAGE_KEY = "mcp_write_session";
-// Mirrors the host's own 2-minute pairing TTL so an expired pairing is never shown as pending
-// even if the host never got around to telling us.
+// Mirrors the daemon's own 2-minute pairing TTL so an expired pairing is never shown as pending
+// even if the daemon never got around to telling us.
 const PAIRING_TTL_MS = 2 * 60_000;
 
 // Broadcast on every status transition so the Tools settings page updates live.
@@ -40,17 +37,21 @@ export interface PendingPairing {
   expiresAt: number;
 }
 
+// The subset of the offscreen WS driver McpController needs: open/close the socket and push
+// outbound envelopes onto the wire. The socket itself, plus the auth handshake and reconnect
+// backoff, live in offscreen (src/app/service/offscreen/mcp-connect.ts).
+type ConnectDriver = Pick<McpConnectClient, "connect" | "disconnect" | "send">;
+
 /**
- * Owns the native-messaging port lifecycle to `com.scriptcat.native_host`. Only ever connects
- * when `mcp_enabled` is true (runtime setting, default off). Never auto-reconnects past the
- * capped backoff without a fresh user action (flipping `mcp_enabled` off and back on, or
- * clicking Retry in the settings UI).
+ * SW-side coordinator for the MCP bridge. Owns the status machine, MCP-client pairing/mirroring
+ * and write-session flag; drives the offscreen WS client for transport. Only ever connects when
+ * `mcp_enabled` is true AND a long-term pairing key exists — an enabled-but-unpaired bridge stays
+ * "connecting" until the user completes `sctl pair` (the pairing UI is Task #7). Reconnect/backoff
+ * is delegated to offscreen, which retries autonomously with capped exponential backoff.
  */
 export class McpController {
-  private port: chrome.runtime.Port | undefined;
   private status: McpBridgeStatus = "disabled";
-  private reconnectAttempts = 0;
-  private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  private active = false;
   private writeSessionActive = false;
   private pendingPairing: PendingPairing | undefined;
 
@@ -58,52 +59,66 @@ export class McpController {
     private readonly systemConfig: SystemConfig,
     private readonly bridge: Pick<McpBridge, "handle">,
     private readonly mq: IMessageQueue,
+    private readonly group: Group,
+    private readonly connectClient: ConnectDriver,
     private readonly clientDAO: Pick<McpClientDAO, "save"> = new McpClientDAO()
   ) {}
 
   async initialize(): Promise<void> {
+    // Offscreen relays every decoded business envelope (plus the newly paired key and socket
+    // disconnects) back here; register before anything can arrive.
+    this.group.on("envelope", (envelope: WSEnvelope) => this.onEnvelope(envelope));
+    this.group.on("paired", (payload: { key: string }) => this.onPaired(payload.key));
+    this.group.on("disconnected", () => this.onDisconnected());
+
     this.systemConfig.addListener("mcp_enabled", (enabled) => {
       if (enabled) {
-        this.connect();
+        void this.connect();
       } else {
         this.stop();
       }
     });
     await this.readWriteSessionActive();
     if (await this.systemConfig.getMcpEnabled()) {
-      this.connect();
+      await this.connect();
     }
   }
 
-  private connect(): void {
-    if (this.port) return; // already connected/connecting
-    clearTimeout(this.reconnectTimer);
+  // Session-mode connect using the stored long-term key. No-op if already driving a connection or
+  // not yet paired. `active` is set synchronously before the first await so a re-fired mcp_enabled
+  // listener can't race a second dial through the guard.
+  private async connect(): Promise<void> {
+    if (this.active) return;
+    this.active = true;
     this.setStatus("connecting");
-    let port: chrome.runtime.Port;
-    try {
-      port = chrome.runtime.connectNative(NATIVE_HOST_NAME);
-    } catch {
-      this.scheduleReconnect();
+    const pairing = await this.systemConfig.getMcpPairing();
+    if (!pairing.key) {
+      // Enabled but never paired — nothing to authenticate with; release so a later pair() dials.
+      this.active = false;
       return;
     }
-    this.port = port;
-    port.onMessage.addListener(this.onNativeMessage);
-    port.onDisconnect.addListener(this.onDisconnect);
+    const url = await this.systemConfig.getMcpUrl();
+    void this.connectClient.connect({ url, auth: { mode: "session", key: pairing.key } });
   }
 
-  private onNativeMessage = (envelope: NativeEnvelope): void => {
+  // Pairing-mode connect driven by a one-time `sctl pair` code the user entered. On success the
+  // daemon ships a fresh long-term key, which offscreen decrypts and relays back via `paired`.
+  async pair(code: string): Promise<void> {
+    this.active = true;
+    this.setStatus("connecting");
+    const url = await this.systemConfig.getMcpUrl();
+    void this.connectClient.connect({ url, auth: { mode: "pairing", code } });
+  }
+
+  private onEnvelope(envelope: WSEnvelope): void {
     switch (envelope.type) {
       case "hello": {
         const { daemonVersion } = envelope.payload as HelloPayload;
-        this.reconnectAttempts = 0;
-        this.setStatus(semver.lt(daemonVersion, MIN_HOST_VERSION) ? "host_outdated" : "connected");
+        this.setStatus(semver.lt(daemonVersion, MIN_DAEMON_VERSION) ? "host_outdated" : "connected");
         break;
       }
-      case "ping":
-        this.port?.postMessage({ v: 1, type: "pong", requestId: envelope.requestId, payload: {} });
-        break;
       case "bridge.request":
-        // A host below MIN_HOST_VERSION is never dispatched to — status alone communicates why.
+        // A daemon below MIN_DAEMON_VERSION is never dispatched to — status alone communicates why.
         if (this.status !== "host_outdated") {
           void this.dispatchBridgeRequest(envelope.payload as McpBridgeRequest);
         }
@@ -115,11 +130,23 @@ export class McpController {
         void this.onClientSync(envelope.payload as ClientSyncPayload);
         break;
       default:
-        // operations.changed relays to the owning shim's poller host-side; the extension has
-        // nothing to do with it (McpApprovalService is already the source of truth for status).
+        // bridge.cancel voiding and the bridge.shutdown reconnect path are handled elsewhere
+        // (approval blocking is Task #6; the socket close drives reconnect in offscreen).
         break;
     }
-  };
+  }
+
+  // Pairing succeeded: persist the daemon-minted long-term key alongside a stable local client
+  // identity so future reconnects use session-mode auth.
+  private async onPaired(key: string): Promise<void> {
+    const existing = await this.systemConfig.getMcpPairing();
+    this.systemConfig.setMcpPairing({ key, clientId: existing.clientId || uuidv4() });
+  }
+
+  private onDisconnected(): void {
+    if (this.status === "disabled") return; // user-initiated stop(), not a failure to recover from
+    this.setStatus("host_unreachable");
+  }
 
   private onPairRequest(payload: PairRequestPayload): void {
     this.pendingPairing = { ...payload, expiresAt: Date.now() + PAIRING_TTL_MS };
@@ -139,7 +166,7 @@ export class McpController {
   }
 
   private async onClientSync(clients: ClientSyncPayload): Promise<void> {
-    // Host is the authority (owns tokenHash); the extension mirror is overwritten verbatim.
+    // Daemon is the authority (owns tokenHash); the extension mirror is overwritten verbatim.
     await Promise.all(clients.map((client) => this.clientDAO.save(client)));
   }
 
@@ -150,13 +177,13 @@ export class McpController {
     return this.pendingPairing;
   }
 
-  // Sends the human's decision to the host as a `pair.decision` message; the host mints the
+  // Sends the human's decision to the daemon as a `pair.decision` message; the daemon mints the
   // token/clientId on approval and reports the authoritative record back via `client.sync`.
   decidePairing(pairingId: string, approved: boolean, grantedScopes: McpScope[]): void {
     if (this.pendingPairing?.pairingId === pairingId) {
       this.pendingPairing = undefined;
     }
-    this.port?.postMessage({
+    void this.connectClient.send({
       v: 1,
       type: "pair.decision",
       requestId: uuidv4(),
@@ -166,47 +193,23 @@ export class McpController {
 
   private async dispatchBridgeRequest(request: McpBridgeRequest): Promise<void> {
     const response = await this.bridge.handle(request);
-    this.port?.postMessage({ v: 1, type: "bridge.response", requestId: request.requestId, payload: response });
-  }
-
-  private onDisconnect = (): void => {
-    const lastError = chrome.runtime.lastError;
-    if (lastError) {
-      console.error("chrome.runtime.lastError in McpController native port:", lastError);
-    }
-    this.port = undefined;
-    if (this.status === "disabled") return; // user-initiated stop(), not a failure to recover from
-    this.scheduleReconnect();
-  };
-
-  private scheduleReconnect(): void {
-    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      this.setStatus("host_unreachable");
-      return;
-    }
-    const delay = Math.min(BACKOFF_BASE_MS * 2 ** this.reconnectAttempts, BACKOFF_CAP_MS);
-    this.reconnectAttempts++;
-    this.reconnectTimer = setTimeout(() => this.connect(), delay);
+    void this.connectClient.send({ v: 1, type: "bridge.response", requestId: request.requestId, payload: response });
   }
 
   // User disable, or emergency "revoke all & stop bridge".
   stop(): void {
-    clearTimeout(this.reconnectTimer);
-    this.reconnectAttempts = 0;
-    if (this.port) {
-      this.port.postMessage({ v: 1, type: "bridge.shutdown", requestId: uuidv4(), payload: {} });
-      this.port.disconnect();
-      this.port = undefined;
-    }
+    this.active = false;
+    void this.connectClient.send({ v: 1, type: "bridge.shutdown", requestId: uuidv4(), payload: {} });
+    void this.connectClient.disconnect();
     this.setStatus("disabled");
   }
 
-  // Tells the host to drop the token/session for a revoked client immediately, via a
+  // Tells the daemon to drop the token/session for a revoked client immediately, via a
   // `client.revoke` message. A no-op when the bridge isn't connected — the extension-side
   // revocation (McpClientDAO) already took effect, so the next authenticated call fails
   // regardless.
   notifyClientRevoked(clientId: string): void {
-    this.port?.postMessage({ v: 1, type: "client.revoke", requestId: uuidv4(), payload: { clientId } });
+    void this.connectClient.send({ v: 1, type: "client.revoke", requestId: uuidv4(), payload: { clientId } });
   }
 
   getStatus(): McpBridgeStatus {

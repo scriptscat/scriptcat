@@ -1,28 +1,26 @@
 /**
  * Extension-side mirror of the MCP bridge protocol.
  *
- * Intentionally NOT imported from packages/native-messaging-host/src/shared/protocol.ts — the
- * two packages don't share a build graph (the host package is standalone, its own lockfile,
- * built/tested by its own CI job). Kept in sync via protocol.conformance.test.ts, which imports
- * both modules and compares their literal unions.
+ * The wire constants live in protocol.json (this directory), which is the single source of truth
+ * shared byte-for-byte with the sctl daemon repo. This module is the strongly-typed mirror; the
+ * two are kept from drifting by protocol.conformance.test.ts.
  *
- * Full protocol spec: packages/native-messaging-host/PROTOCOL.md.
+ * Full protocol spec: PROTOCOL.md in the sctl repo (mirrored under docs/superpowers/specs).
  */
 
 export const PROTOCOL_VERSION = 1;
 
-// Minimum native-host package version the extension will talk to; below this the controller
-// reports status "host_outdated" and refuses to dispatch bridge calls.
-export const MIN_HOST_VERSION = "0.1.0";
+// Minimum sctl daemon version the extension will talk to; below this the controller reports
+// status "host_outdated" and refuses to dispatch bridge calls.
+export const MIN_DAEMON_VERSION = "0.1.0";
 
 // ---------------------------------------------------------------------------------------------
 // Layer 1 — ext <-> daemon envelope types (WS transport)
 // ---------------------------------------------------------------------------------------------
-// Kept in sync with protocol.json (envelopeTypes) via protocol.conformance.test.ts. The
-// `NativeEnvelope`/`NATIVE_MESSAGE_TYPES` names are transport-neutral here; the offscreen WS
-// client (Task#5) consumes them over a WebSocket, not native messaging.
+// Kept in sync with protocol.json (envelopeTypes) via protocol.conformance.test.ts. The offscreen
+// WS client owns the socket and relays decoded envelopes to/from the SW controller.
 
-export const NATIVE_MESSAGE_TYPES = [
+export const WS_MESSAGE_TYPES = [
   "auth.challenge",
   "auth.response",
   "auth.ok",
@@ -39,17 +37,41 @@ export const NATIVE_MESSAGE_TYPES = [
   "bridge.shutdown",
 ] as const;
 
-export type NativeMessageType = (typeof NATIVE_MESSAGE_TYPES)[number];
+export type WSMessageType = (typeof WS_MESSAGE_TYPES)[number];
 
-export interface NativeEnvelope<TPayload = unknown> {
+export interface WSEnvelope<TPayload = unknown> {
   v: 1;
-  type: NativeMessageType;
+  type: WSMessageType;
   requestId: string;
   payload: TPayload;
 }
 
+// The two auth modes carried by auth.response.mode (PROTOCOL §3.1 session / §3.2 pairing).
+export type AuthMode = "session" | "pairing";
+
+// daemon->ext, opens every connection: nonceD is a 32-byte random challenge, lowercase hex.
+export interface AuthChallengePayload {
+  nonceD: string;
+}
+
+// ext->daemon: the extension's nonceE plus HMAC(key, ctx || nonceD || nonceE). `key` is the
+// long-term K in session mode, or the code-derived Kp_mac in pairing mode.
+export interface AuthResponsePayload {
+  mode: AuthMode;
+  nonceE: string;
+  hmac: string;
+}
+
+// daemon->ext: HMAC(key, ctx || nonceE || nonceD) proving the daemon also holds the key. In
+// pairing mode it additionally ships the freshly minted long-term K, AES-256-GCM encrypted under
+// the code-derived Kp_enc.
+export interface AuthOkPayload {
+  hmac: string;
+  key?: { ciphertext: string; iv: string };
+}
+
 // daemon->ext, sent once immediately after the auth handshake completes, so the extension can
-// compare daemonVersion against MIN_HOST_VERSION before dispatching any bridge call.
+// compare daemonVersion against MIN_DAEMON_VERSION before dispatching any bridge call.
 export interface HelloPayload {
   daemonVersion: string;
   protocolVersion: typeof PROTOCOL_VERSION;
