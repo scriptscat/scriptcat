@@ -99,3 +99,51 @@ Execution paths: page scripts → `chrome.userScripts`; background → SW → Of
 > Two conventions are enforced via built-in rules in `eslint.config.mjs`: `no-restricted-imports` bans `@radix-ui/react-*` single packages (use the merged `radix-ui`) and the `sonner` `toast` export (use `notify`); `no-restricted-syntax` bans `forwardRef` across `src/pages/**` (use React 19 `function` + ref-prop). All four syntax-based harness rules are covered by `eslint-rules/harness.test.mjs`.
 >
 > Separately, type-aware rules run on `src/pages/**` (tests excluded) via `projectService` — `@typescript-eslint/no-floating-promises`, `no-misused-promises` (with `checksVoidReturn.attributes: false`, so `async` JSX handlers are allowed), and `await-thenable`, all `error` — to catch missing `await`s and promises misused as void callbacks. These need type information, so they are *not* part of `harness.test.mjs`.
+
+## PR Description Format
+
+When creating a PR, start from `.github/pull_request_template.md`. That human-facing template is intentionally lightweight: keep its checklist, fill its `Description / 描述` section, and keep `Screenshots / 截图` when the change is visual. Agents may expand the description with the sections below; do not replace or claim completion of the human-review checklist. In particular, leave `Code reviewed by human` unchecked unless a human has actually reviewed the PR. Write in Chinese or bilingually when practical.
+
+For a normal feature or behavior change, use this expanded structure:
+
+```markdown
+## Checklist / 检查清单
+
+- [ ] Fixes ... / 已修复或实现 ...
+- [ ] Code reviewed by human / 代码通过人工检查
+- [ ] Changes tested / 已完成测试
+
+## 背景
+
+<!-- What problem, compatibility gap, or maintenance need does this solve? -->
+
+## 本次改动
+
+<!-- Summarize user-visible behavior and important implementation changes. -->
+
+## 实现考虑
+
+<!-- For non-trivial changes: explain key design decisions, invariants, races, or compatibility choices. -->
+
+## 已知限制
+
+<!-- Record explicit scope boundaries, unsupported cases, and follow-up work. -->
+
+## 建议审查重点
+
+<!-- List concrete behaviors or risks reviewers should verify. -->
+
+## 参考
+
+<!-- Specs, documentation, code locations, or external API references. -->
+
+## 关联
+
+<!-- Related issues or PRs, using links or closing keywords when applicable. -->
+
+## 验证
+
+<!-- Exact commands and concise results. Include known warnings or explain why a check was not run. -->
+```
+
+Use `Checklist`、`背景`、`本次改动` and `验证` as the recommended core when meaningful; do not fill every heading mechanically. Add `实现考虑` for meaningful design or concurrency implications; add `已知限制` and `建议审查重点` when reviewers need explicit boundaries or risk areas. `参考` and `关联` are optional. Small docs, dependency, or CI changes may use a shorter description and omit sections that do not apply, but must still explain what changed and what was checked. Never claim a test, review, screenshot, or recording that did not happen.
