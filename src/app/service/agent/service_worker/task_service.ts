@@ -107,6 +107,11 @@ export class AgentTaskService {
         // 续接已有对话
         const conv = await this.getConversation(conversationId);
         if (!conv?.generation) throw new Error("Conversation not found");
+        // task.conversationGeneration 记录任务绑定该对话时的 generation；若当前 generation
+        // 不一致，说明该会话已被删除重建为无关的新一代，绝不能静默续接（见 finding 1）
+        if (task.conversationGeneration && conv.generation !== task.conversationGeneration) {
+          throw new Error("Conversation generation mismatch; the bound conversation was deleted and recreated");
+        }
         conversation = conv;
 
         const systemContent = buildSystemPrompt({
@@ -271,6 +276,11 @@ export class AgentTaskService {
             // cron 无效，不设置 nextruntime
           }
         }
+        // 绑定续接对话时记录当时的 generation，执行期据此拒绝已被删除重建的会话（见 finding 1）
+        if (task.mode === "internal" && task.conversationId && !task.conversationGeneration) {
+          const conv = await this.getConversation(task.conversationId);
+          if (conv?.generation) task.conversationGeneration = conv.generation;
+        }
         return this.taskRepo.createTask(task);
       }
       case "update": {
@@ -284,6 +294,11 @@ export class AgentTaskService {
           revision: params.revision,
           updatetime: Date.now(),
         } as AgentTask;
+        // conversationId 变更（或首次绑定）时重新记录 generation，避免沿用旧会话的 generation（见 finding 1）
+        if (updated.mode === "internal" && updated.conversationId && "conversationId" in params.task) {
+          const conv = await this.getConversation(updated.conversationId);
+          updated.conversationGeneration = conv?.generation;
+        }
         // 如果 crontab 或 enabled 变化，重新计算 nextruntime
         if (params.task.crontab !== undefined || params.task.enabled !== undefined) {
           if (updated.enabled) {

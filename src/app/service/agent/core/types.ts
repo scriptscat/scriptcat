@@ -653,6 +653,8 @@ export type InternalAgentTask = AgentTaskBase & {
   prompt: string; // 每次触发发送的消息
   modelId?: string; // 使用的模型 ID
   conversationId?: string; // 可选：续接已有对话
+  /** conversationId 指向对话被绑定时的 generation；执行时若当前 generation 不一致（会话已被删除重建）则拒绝续接 */
+  conversationGeneration?: string;
   skills?: "auto" | string[];
   maxIterations?: number; // 工具循环上限，默认 10
 };
@@ -701,6 +703,9 @@ export type ConversationApiRequest =
   | {
       action: "chat";
       conversationId: string;
+      // 调用方持有的会话 generation；若与当前存储的 generation 不一致（会话已被删除重建），
+      // 服务端拒绝该次操作而不是静默作用于新的一代会话（见 finding 1）
+      generation?: string;
       message: MessageContent;
       tools?: ToolDefinition[];
       scriptUuid: string;
@@ -710,8 +715,14 @@ export type ConversationApiRequest =
       system?: string;
       modelId?: string;
     }
-  | { action: "getMessages"; conversationId: string; scriptUuid: string }
-  | { action: "save"; conversationId: string; scriptUuid: string }
-  | { action: "clearMessages"; conversationId: string; scriptUuid?: string }
-  | { action: "deleteMessages"; conversationId: string; messageIds: string[]; preserveAttachmentIds?: string[] }
+  | { action: "getMessages"; conversationId: string; generation?: string; scriptUuid: string }
+  | { action: "save"; conversationId: string; generation?: string; scriptUuid: string }
+  | { action: "clearMessages"; conversationId: string; generation?: string; scriptUuid?: string }
+  | {
+      action: "deleteMessages";
+      conversationId: string;
+      generation?: string;
+      messageIds: string[];
+      preserveAttachmentIds?: string[];
+    }
   | { action: "delete"; conversationId: string; generation: string; revision?: number };

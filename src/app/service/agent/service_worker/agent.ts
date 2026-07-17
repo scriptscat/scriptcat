@@ -370,6 +370,7 @@ export class AgentService {
   async handleConversationChatFromGmApi(
     params: {
       conversationId: string;
+      generation?: string;
       message: MessageContent;
       tools?: ToolDefinition[];
       maxIterations?: number;
@@ -388,7 +389,7 @@ export class AgentService {
   }
 
   // 附加到后台运行会话，供 GMApi 调用
-  async handleAttachToConversationFromGmApi(params: { conversationId: string }, sender: IGetSender) {
+  async handleAttachToConversationFromGmApi(params: { conversationId: string; generation?: string }, sender: IGetSender) {
     return this.handleAttachToConversation(params, sender);
   }
 
@@ -398,7 +399,7 @@ export class AgentService {
   }
 
   // 附加到后台运行中的会话（委托给 BackgroundSessionManager）
-  private async handleAttachToConversation(params: { conversationId: string }, sender: IGetSender) {
+  private async handleAttachToConversation(params: { conversationId: string; generation?: string }, sender: IGetSender) {
     return this.bgSessionManager.handleAttach(params, sender);
   }
 

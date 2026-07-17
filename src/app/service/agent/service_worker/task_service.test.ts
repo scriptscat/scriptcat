@@ -84,6 +84,28 @@ describe("AgentTaskService 定时任务与会话锁", () => {
       expect.objectContaining({ conversationId: result.conversationId, rehydratedHistory: false })
     );
   });
+
+  it("【finding 1 回归】任务绑定的会话已被删除重建（generation 不一致）时应拒绝续接，而不是静默写入无关会话", async () => {
+    const { service, repo, orchestrator } = createService();
+    // 存储里 conv-lock 当前的 generation 是 "gen-b"（被删除重建过）
+    repo.listConversations.mockResolvedValue([
+      { id: "conv-lock", title: "t", modelId: "m1", generation: "gen-b" },
+    ]);
+
+    const task = {
+      id: "task-3",
+      name: "定时任务",
+      mode: "internal",
+      prompt: "继续",
+      conversationId: "conv-lock",
+      // 任务创建时绑定的是旧的一代
+      conversationGeneration: "gen-a",
+    } as unknown as InternalAgentTask;
+
+    await expect(service.executeInternalTask(task)).rejects.toThrow(/generation/i);
+    expect(repo.appendMessage).not.toHaveBeenCalled();
+    expect(orchestrator.callLLMWithToolLoop).not.toHaveBeenCalled();
+  });
 });
 
 describe("AgentTaskService 任务生命周期", () => {

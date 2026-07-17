@@ -45,6 +45,7 @@ import { elideUntilWithinBudget } from "@App/app/service/agent/core/context_elis
 import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
 import type { LLMCallResult } from "./llm_client";
 import { prepareAttachmentSnapshot, type AttachmentSnapshot } from "@App/app/service/agent/core/attachment_resolver";
+import { RevisionConflictError } from "@App/app/repo/revision";
 
 /** ChatService 需要的 execute_script 工具依赖 */
 export interface ChatServiceExecuteScriptDeps {
@@ -71,6 +72,8 @@ export interface ChatServiceLLMDeps {
 /** handleConversationChat 参数类型 */
 type ConversationChatParams = {
   conversationId: string;
+  // 调用方持有的会话 generation；提供时服务端会校验与当前存储一致（见 finding 1）
+  generation?: string;
   message: MessageContent;
   ownedAttachmentIds?: string[];
   tools?: ToolDefinition[];
@@ -267,10 +270,24 @@ export class ChatService {
       case "get":
         return this.getConversation(params.id);
       case "getMessages":
-        return this.chatRepo.getMessages(params.conversationId);
-      case "save":
-        // 对话已经在 chat 过程中持久化，这里确保元数据也保存
+        // params.generation 提供时，与当前存储不一致（会话已被删除重建）则拒绝而非返回无关一代的消息（见 finding 1）；
+        // 未提供 generation 时保留旧行为：会话不存在则返回空数组
+        try {
+          return (await this.chatRepo.getMessageSnapshot(params.conversationId, params.generation)).messages;
+        } catch (error) {
+          if (params.generation === undefined && error instanceof RevisionConflictError) return [];
+          throw error;
+        }
+      case "save": {
+        // 对话已经在 chat 过程中持久化，这里确保元数据也保存；仍需校验调用方持有的 generation（见 finding 1）
+        if (params.generation !== undefined) {
+          const conv = await this.getConversation(params.conversationId);
+          if (!conv || conv.generation !== params.generation) {
+            throw new Error("Conversation generation mismatch");
+          }
+        }
         return true;
+      }
       case "clearMessages":
         // 会话正在等待脚本工具结果时，这个 clear 很可能来自该工具 handler 内部的
         // await conv.clear()：chat 持有会话队列锁等待 toolResults，clear 排队等锁，
@@ -282,7 +299,8 @@ export class ChatService {
           );
         }
         return stackAsyncTask(conversationChatLockKey(params.conversationId), async () => {
-          const snapshot = await this.chatRepo.getMessageSnapshot(params.conversationId);
+          // 与 getMessages 同理，generation 提供时须匹配当前存储（见 finding 1）
+          const snapshot = await this.chatRepo.getMessageSnapshot(params.conversationId, params.generation);
           await this.chatRepo.saveMessages(params.conversationId, [], undefined, {
             generation: snapshot.generation,
             expectedRevision: snapshot.revision,
@@ -292,7 +310,7 @@ export class ChatService {
         });
       case "deleteMessages":
         return stackAsyncTask(conversationChatLockKey(params.conversationId), async () => {
-          const snapshot = await this.chatRepo.getMessageSnapshot(params.conversationId);
+          const snapshot = await this.chatRepo.getMessageSnapshot(params.conversationId, params.generation);
           const ids = new Set(params.messageIds);
           await this.chatRepo.saveMessages(
             params.conversationId,
@@ -591,8 +609,26 @@ export class ChatService {
     // 后台模式：创建 RunningConversation（askResolvers 与排队前注册的连接回调共享同一个 Map）
     let rc: RunningConversation | undefined;
     if (isBackground) {
+      // 后台会话必须先确认调用方持有的 generation 与当前存储一致，否则一次删除重建后的
+      // 陈旧调用会静默附加到无关的新一代会话上（见 finding 1）
+      const conv = await this.getConversation(params.conversationId);
+      if (!conv) {
+        await releaseProvisionalUserAttachments();
+        sendEventDirect({ type: "error", message: "Conversation not found" });
+        return;
+      }
+      if (params.generation !== undefined && conv.generation !== params.generation) {
+        await releaseProvisionalUserAttachments();
+        sendEventDirect({
+          type: "error",
+          message: "Conversation generation mismatch",
+          errorCode: "conversation_generation_mismatch",
+        });
+        return;
+      }
       rc = {
         conversationId: params.conversationId,
+        generation: conv.generation!,
         abortController,
         listeners: new Set(),
         streamingState: { content: "", thinking: "", toolCalls: [] },
@@ -700,6 +736,15 @@ export class ChatService {
       const conv = await this.getConversation(params.conversationId);
       if (!conv) {
         sendEvent({ type: "error", message: "Conversation not found" });
+        return;
+      }
+      // 调用方持有的 generation 与当前存储不一致：会话已被删除重建，拒绝作用于无关的新一代会话（见 finding 1）
+      if (params.generation !== undefined && conv.generation !== params.generation) {
+        sendEvent({
+          type: "error",
+          message: "Conversation generation mismatch",
+          errorCode: "conversation_generation_mismatch",
+        });
         return;
       }
       conversationGeneration = conv.generation;

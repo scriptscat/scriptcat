@@ -385,6 +385,79 @@ describe("handleConversationChat 场景补充", () => {
     expect(mockRepo.deleteAttachment).toHaveBeenCalledWith("provisional.png");
   });
 
+  it("【finding 1 回归】调用方持有的 generation 与当前存储不一致时应拒绝 chat，而不是作用于新一代会话", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    // conv-1 的 ID 被删除重建，当前存储的 generation 已经变成 "gen-b"
+    const conv = {
+      id: "conv-1",
+      title: "Test",
+      modelId: "test-openai",
+      generation: "gen-b",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    };
+    mockRepo.listConversations.mockResolvedValue([conv]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    // 陈旧的 ConversationInstance 仍持有创建时的 generation "gen-a"
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-1", generation: "gen-a", message: "hi" },
+      sender
+    );
+
+    const events = sentMessages.map((m) => m.data);
+    const errorEvents = events.filter((e: any) => e.type === "error");
+    expect(errorEvents).toHaveLength(1);
+    expect(errorEvents[0].errorCode).toBe("conversation_generation_mismatch");
+    // 不应触发任何 LLM 调用或持久化写入
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(mockRepo.appendMessage).not.toHaveBeenCalled();
+  });
+
+  it("【finding 1 回归】handleConversation 的 getMessages/clearMessages 在 generation 不一致时应拒绝而非作用于新一代会话", async () => {
+    const { service, mockRepo } = createTestService();
+
+    const conv = {
+      id: "conv-1",
+      title: "Test",
+      modelId: "test-openai",
+      generation: "gen-b",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    };
+    mockRepo.listConversations.mockResolvedValue([conv]);
+    // 模拟真实 repo 行为：generation 提供且与当前存储不一致时拒绝
+    mockRepo.getMessageSnapshot.mockImplementation(async (_conversationId: string, generation?: string) => {
+      if (generation !== undefined && generation !== "gen-b") {
+        throw new Error(`Conversation "conv-1" changed or was deleted`);
+      }
+      return { generation: "gen-b", revision: 3, messages: [] };
+    });
+
+    await expect(
+      (service as any).handleConversation({
+        action: "getMessages",
+        conversationId: "conv-1",
+        generation: "gen-a",
+        scriptUuid: "script-1",
+      })
+    ).rejects.toThrow();
+
+    await expect(
+      (service as any).handleConversation({
+        action: "clearMessages",
+        conversationId: "conv-1",
+        generation: "gen-a",
+        scriptUuid: "script-1",
+      })
+    ).rejects.toThrow();
+
+    // 拒绝路径不应触及持久化写入
+    expect(mockRepo.saveMessages).not.toHaveBeenCalled();
+  });
+
   it("skill 预加载：历史消息含 load_skill 调用时预执行以标记 skill 已加载", async () => {
     const { service, mockRepo, mockSkillRepo } = createTestService();
     const { sender } = createMockSender();

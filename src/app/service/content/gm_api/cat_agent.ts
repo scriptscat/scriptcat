@@ -164,6 +164,7 @@ export class ConversationInstance {
     // 通过 GM API connect 建立流式连接
     const connectParams: Record<string, unknown> = {
       conversationId: this.conv.id,
+      generation: this.conv.generation,
       message: content,
       tools: toolDefs.length > 0 ? toolDefs : undefined,
       maxIterations: this.maxIterations,
@@ -230,6 +231,7 @@ export class ConversationInstance {
 
     const connectParams: Record<string, unknown> = {
       conversationId: this.conv.id,
+      generation: this.conv.generation,
       message: content,
       tools: toolDefs.length > 0 ? toolDefs : undefined,
       maxIterations: this.maxIterations,
@@ -319,6 +321,7 @@ export class ConversationInstance {
       {
         action: "getMessages",
         conversationId: this.conv.id,
+        generation: this.conv.generation,
         scriptUuid: this.scriptUuid,
       } as ConversationApiRequest,
     ]);
@@ -335,6 +338,7 @@ export class ConversationInstance {
       {
         action: "clearMessages",
         conversationId: this.conv.id,
+        generation: this.conv.generation,
         scriptUuid: this.scriptUuid,
       } as ConversationApiRequest,
     ]);
@@ -346,6 +350,7 @@ export class ConversationInstance {
       {
         action: "save",
         conversationId: this.conv.id,
+        generation: this.conv.generation,
         scriptUuid: this.scriptUuid,
       } as ConversationApiRequest,
     ]);
@@ -354,7 +359,7 @@ export class ConversationInstance {
   // 附加到后台运行中的会话，返回流式事件（首个 chunk 为 sync 快照）
   async attach(): Promise<AsyncIterable<ConversationStreamChunk>> {
     const conn = await this.gmConnect("CAT_agentAttachToConversation", [
-      { conversationId: this.conv.id, scriptUuid: this.scriptUuid },
+      { conversationId: this.conv.id, generation: this.conv.generation, scriptUuid: this.scriptUuid },
     ]);
     return this.processStream(conn, new Map());
   }

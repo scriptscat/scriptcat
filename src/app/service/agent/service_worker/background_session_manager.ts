@@ -10,6 +10,9 @@ export type ListenerEntry = {
 // 后台运行会话状态
 export type RunningConversation = {
   conversationId: string;
+  // 该次运行绑定的会话 generation；attach() 的调用方必须持有同一 generation 才允许附加，
+  // 否则会静默观察到删除重建后无关的新一代会话（见 finding 1）
+  generation: string;
   abortController: AbortController;
   listeners: Set<ListenerEntry>;
   streamingState: { content: string; thinking: string; toolCalls: ToolCall[] };
@@ -188,7 +191,7 @@ export class BackgroundSessionManager {
   }
 
   // 附加 UI 连接到后台运行中的会话（同步快照 + listener + askUser resolver + stop）
-  async handleAttach(params: { conversationId: string }, sender: IGetSender): Promise<void> {
+  async handleAttach(params: { conversationId: string; generation?: string }, sender: IGetSender): Promise<void> {
     if (!sender.isType(GetSenderType.CONNECT)) {
       throw new Error("attachToConversation requires connect mode");
     }
@@ -202,6 +205,13 @@ export class BackgroundSessionManager {
 
     if (!rc) {
       // 会话不在运行中
+      sendEvent({ type: "sync", tasks: [], status: "done" });
+      return;
+    }
+
+    // 调用方持有的 generation 与实际运行中的会话不一致：会话已被删除重建，
+    // 不能让旧一代的调用方附加到无关的新一代会话上（见 finding 1）
+    if (params.generation !== undefined && rc.generation !== params.generation) {
       sendEvent({ type: "sync", tasks: [], status: "done" });
       return;
     }
