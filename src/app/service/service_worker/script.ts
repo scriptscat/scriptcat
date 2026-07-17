@@ -361,7 +361,7 @@ export class ScriptService {
       await openInCurrentTab(installPageUrl);
       return { success: true, msg: "" };
     } catch (err: any) {
-      console.error(err);
+      this.logger.error("open install page failed", { source: options.source }, Logger.E(err));
       return { success: false, msg: err.message };
     }
   }
@@ -375,7 +375,7 @@ export class ScriptService {
       await this.openUpdateOrInstallPage(uuid, url, options, false);
       return `/src/install.html?uuid=${uuid}`;
     } catch (err: any) {
-      console.error(err);
+      this.logger.error("prepare install page failed", { source: options.source }, Logger.E(err));
       return "";
     }
   }
@@ -1321,7 +1321,7 @@ export class ScriptService {
       const code = slienceUpdatesNewCode[i];
       const uuid = entry.uuid;
       const { script } = await prepareScriptByCode(code, url, uuid);
-      console.log("slienceUpdate", script.name);
+      this.logger.info("silent update script", { uuid, name: script.name });
       await this.installScript({
         script,
         code,
@@ -1409,7 +1409,7 @@ export class ScriptService {
       try {
         res = await this._checkScriptUpdate(opts);
       } catch (e) {
-        console.error(e);
+        this.logger.error("check script updates failed", Logger.E(e));
         res = {
           ok: false,
           err: e,
@@ -1634,7 +1634,7 @@ export class ScriptService {
           });
           updated.add(uuid);
         } catch (e) {
-          console.error(e);
+          this.logger.error("install checked script update failed", { uuid }, Logger.E(e));
           res.push({
             uuid,
             success: false,
