@@ -1,5 +1,12 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { act, render, screen, fireEvent, cleanup } from "@testing-library/react";
+
+const { t } = vi.hoisted(() => ({
+  t: vi.fn((key: string, opts?: Record<string, unknown>) =>
+    opts?.failed === undefined ? key : `${key}:${String(opts.failed)}`
+  ),
+}));
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t }) }));
 
 const { create } = vi.hoisted(() => ({ create: vi.fn(() => Promise.resolve({})) }));
 vi.mock("@Packages/filesystem/factory", () => ({
@@ -33,7 +40,33 @@ vi.mock("@App/pages/store/global", () => ({
   subscribeMessage: () => () => {},
 }));
 
+const { fetchCloudSyncState, subscribeCloudSyncState, requestCloudSyncOnce } = vi.hoisted(() => ({
+  fetchCloudSyncState: vi.fn(),
+  subscribeCloudSyncState: vi.fn(() => () => {}),
+  requestCloudSyncOnce: vi.fn(() => Promise.resolve()),
+}));
+vi.mock("@App/pages/store/features/cloud_sync", () => ({
+  fetchCloudSyncState,
+  subscribeCloudSyncState,
+  requestCloudSyncOnce,
+}));
+
+const { notify } = vi.hoisted(() => ({
+  notify: { info: vi.fn(), success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+}));
+vi.mock("@App/pages/components/ui/toast", () => ({ notify }));
+
 import { SyncSection } from "./SyncSection";
+
+function mockState(over: Record<string, unknown> = {}) {
+  fetchCloudSyncState.mockResolvedValue({
+    syncing: false,
+    lastSyncAt: 0,
+    error: undefined,
+    counts: { total: 0, overwrite: 0, conflict: 0, failed: 0 },
+    ...over,
+  });
+}
 
 function mockCloudSync(over: Record<string, unknown> = {}) {
   get.mockImplementation((key: string) => {
@@ -50,12 +83,26 @@ function mockCloudSync(over: Record<string, unknown> = {}) {
   });
 }
 
+beforeEach(() => {
+  // 默认：状态读取返回空闲态，订阅返回空清理函数，避免未显式 mock 的用例在 effect 中崩溃
+  mockState();
+  subscribeCloudSyncState.mockReturnValue(() => {});
+  requestCloudSyncOnce.mockResolvedValue(undefined);
+  t.mockClear();
+  notify.info.mockClear();
+  notify.success.mockClear();
+  notify.error.mockClear();
+});
+
 afterEach(() => {
   cleanup();
   get.mockReset();
   set.mockReset();
   create.mockReset();
   create.mockResolvedValue({});
+  fetchCloudSyncState.mockReset();
+  subscribeCloudSyncState.mockReset();
+  requestCloudSyncOnce.mockReset();
 });
 
 describe("同步分区", () => {
@@ -103,5 +150,94 @@ describe("同步分区", () => {
     fireEvent.click(cb);
     await act(async () => fireEvent.click(screen.getByTestId("cloud_sync_save")));
     expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ syncStatus: false }));
+  });
+
+  it("启用同步且上次有覆盖/冲突时显示警示状态条与查看日志深链", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
+    mockState({ lastSyncAt: 1, counts: { total: 3, overwrite: 2, conflict: 1, failed: 0 } });
+    render(<SyncSection register={() => () => {}} />);
+    const strip = await screen.findByTestId("cloud_sync_status");
+    expect(strip.getAttribute("data-variant")).toBe("warning");
+    const href = screen.getByTestId("cloud_sync_view_logs").getAttribute("href") || "";
+    expect(decodeURIComponent(href)).toContain("synchronize");
+    expect(decodeURIComponent(href)).not.toContain("overwrite");
+  });
+
+  it("上次有文件同步失败时显示失败数量", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
+    mockState({ lastSyncAt: 1, counts: { total: 3, overwrite: 0, conflict: 0, failed: 2 } });
+    render(<SyncSection register={() => () => {}} />);
+
+    const strip = await screen.findByTestId("cloud_sync_status");
+    expect(strip.getAttribute("data-variant")).toBe("error");
+    expect(strip.textContent).toContain("settings:sync_state_failed_desc:2");
+  });
+
+  it("点击立即同步触发一次云同步", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
+    mockState({ lastSyncAt: 1 });
+    render(<SyncSection register={() => () => {}} />);
+    const btn = await screen.findByTestId("cloud_sync_now");
+    await act(async () => fireEvent.click(btn));
+    expect(requestCloudSyncOnce).toHaveBeenCalled();
+  });
+
+  it("未启用同步时不显示状态条", async () => {
+    mockCloudSync({ enable: false });
+    mockState({});
+    render(<SyncSection register={() => () => {}} />);
+    await screen.findByTestId("cloud_sync_save");
+    expect(screen.queryByTestId("cloud_sync_status")).toBeNull();
+  });
+
+  it("勾选启用但未保存时立即同步按钮保持禁用（按已保存配置门控，避免点击静默无响应）", async () => {
+    mockCloudSync({ enable: false });
+    mockState({});
+    render(<SyncSection register={() => () => {}} />);
+    const enable = await screen.findByTestId("cloud_sync_enable");
+    fireEvent.click(enable);
+    // 勾选草稿 enable 但未保存：SW cloudSyncOnce 用的是已保存配置（enable=false 时静默 return），
+    // 按钮须随已保存配置禁用，否则点击毫无反馈
+    expect((screen.getByTestId("cloud_sync_now") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("勾选启用但未保存时不显示状态条（状态条只反映已保存配置）", async () => {
+    mockCloudSync({ enable: false });
+    mockState({});
+    render(<SyncSection register={() => () => {}} />);
+    const enable = await screen.findByTestId("cloud_sync_enable");
+    fireEvent.click(enable);
+    // 仅勾选草稿、尚未保存，不应立刻出现「同步正常」状态条
+    expect(screen.queryByTestId("cloud_sync_status")).toBeNull();
+  });
+
+  it("勾选启用并保存成功后才显示状态条", async () => {
+    mockCloudSync({ enable: false, params: { webdav: { url: "https://dav" } } });
+    mockState({});
+    render(<SyncSection register={() => () => {}} />);
+    const enable = await screen.findByTestId("cloud_sync_enable");
+    fireEvent.click(enable);
+    await act(async () => fireEvent.click(screen.getByTestId("cloud_sync_save")));
+    expect(screen.queryByTestId("cloud_sync_status")).not.toBeNull();
+  });
+
+  it("仅有覆盖无冲突时状态条为同步正常（覆盖降级为信息级）并可查看日志", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
+    mockState({ lastSyncAt: 1, counts: { total: 3, overwrite: 3, conflict: 0, failed: 0 } });
+    render(<SyncSection register={() => () => {}} />);
+    const strip = await screen.findByTestId("cloud_sync_status");
+    expect(strip.getAttribute("data-variant")).toBe("idle");
+    expect(screen.getByTestId("cloud_sync_view_logs")).not.toBeNull();
+    expect(strip.textContent).toContain("settings:sync_state_overwrite_info");
+  });
+
+  it("立即同步失败时弹出错误提示（不产生未捕获异常）", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
+    mockState({ lastSyncAt: 1 });
+    requestCloudSyncOnce.mockRejectedValue(new Error("verify failed"));
+    render(<SyncSection register={() => () => {}} />);
+    const btn = await screen.findByTestId("cloud_sync_now");
+    await act(async () => fireEvent.click(btn));
+    expect(notify.error).toHaveBeenCalled();
   });
 });

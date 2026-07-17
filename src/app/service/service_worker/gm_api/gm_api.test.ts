@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { type IGetSender } from "@Packages/message/server";
 import { type ExtMessageSender } from "@Packages/message/types";
 import GMApi, { ConnectMatch, getConnectMatched, getExtensionSiteAccessOriginPattern } from "./gm_api";
@@ -116,6 +116,27 @@ describe.concurrent("GM API 注册完整性", () => {
     for (const name of agentApis) {
       expect(PermissionVerifyApiGet(name), `${name} 应已注册`).toBeDefined();
     }
+  });
+});
+
+describe("window.focus", () => {
+  it("应同时激活标签页并将其所在窗口置于前台", async () => {
+    const tabsUpdate = vi.fn().mockResolvedValue(undefined);
+    const windowsUpdate = vi.fn().mockResolvedValue(undefined);
+    const originalChrome = globalThis.chrome;
+    vi.stubGlobal("chrome", {
+      ...originalChrome,
+      tabs: { ...originalChrome.tabs, update: tabsUpdate },
+      windows: { ...originalChrome.windows, update: windowsUpdate },
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42, windowId: 7 } as chrome.tabs.Tab });
+
+    await GMApi.prototype["window.focus"]({} as GMApiRequest<void>, sender);
+
+    expect(tabsUpdate).toHaveBeenCalledWith(42, { active: true });
+    expect(windowsUpdate).toHaveBeenCalledWith(7, { focused: true });
+    vi.stubGlobal("chrome", originalChrome);
   });
 });
 

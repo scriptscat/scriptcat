@@ -90,6 +90,19 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       expect(localData["system_enable_eslint"]).toBeUndefined();
     });
 
+    it("popup 紧凑布局应默认关闭并写入 sync storage", async () => {
+      await expect(config.getPopupCompactLayout()).resolves.toBe(false);
+
+      config.setPopupCompactLayout(true);
+
+      await expect(config.getPopupCompactLayout()).resolves.toBe(true);
+      const syncData = await chrome.storage.sync.get("system_popup_compact_layout");
+      expect(syncData["system_popup_compact_layout"]).toBe(true);
+
+      const localData = await chrome.storage.local.get("system_popup_compact_layout");
+      expect(localData["system_popup_compact_layout"]).toBeUndefined();
+    });
+
     it("编辑器偏好应返回默认值并写入 sync storage", async () => {
       await expect(config.getEditorPreferences()).resolves.toEqual({
         version: 1,

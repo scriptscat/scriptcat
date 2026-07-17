@@ -16,7 +16,8 @@ describe("config_sections 板块划分", () => {
     const bundle = mkBundle({
       systemConfig: {
         menu_expand_num: 5,
-        favicon_service: "scriptcat", // appearance ×2
+        favicon_service: "scriptcat",
+        popup_compact_layout: true, // appearance ×3
         enable_auto_sync: true, // update ×1
         eslint_config: "{}", // editor ×1
         blacklist: "x", // other
@@ -24,7 +25,7 @@ describe("config_sections 板块划分", () => {
       },
     });
     expect(listConfigSections(bundle)).toEqual([
-      { id: "appearance", group: "app", count: 2 },
+      { id: "appearance", group: "app", count: 3 },
       { id: "update", group: "app", count: 1 },
       { id: "editor", group: "app", count: 1 },
       { id: "other", group: "app", count: 2 },
@@ -52,9 +53,14 @@ describe("config_sections 板块划分", () => {
   });
 
   it("filterConfigBundle 只保留选中板块的 systemConfig 键", () => {
-    const bundle = mkBundle({ systemConfig: { menu_expand_num: 5, eslint_config: "{}", blacklist: "x" } });
+    const bundle = mkBundle({
+      systemConfig: { menu_expand_num: 5, popup_compact_layout: true, eslint_config: "{}", blacklist: "x" },
+    });
     const out = filterConfigBundle(bundle, new Set(["appearance"]));
-    expect(out.systemConfig).toEqual({ menu_expand_num: 5 });
+    expect(out.systemConfig).toEqual({ menu_expand_num: 5, popup_compact_layout: true });
+
+    const other = filterConfigBundle(bundle, new Set(["other"]));
+    expect(other.systemConfig).toEqual({ blacklist: "x" });
   });
 
   it("filterConfigBundle 选中 models 才带出 models 与默认/摘要模型 id", () => {
