@@ -194,6 +194,8 @@
   "downloading_status_percent": "正在下載。已接收 {{bytes}} / {{total}}（{{percent}}%）。",
   "page_load_failed": "安裝頁面載入失敗",
   "invalid_page": "無效頁面",
+  "frame_blocked_title": "禁止內嵌存取",
+  "frame_blocked_desc": "基於安全考量，安裝頁不允許在 iframe 中嵌入顯示，請在瀏覽器分頁中直接開啟。",
   "from_legitimate_sources_warning": "請從合法來源安裝腳本！未知的腳本可能會侵犯您的隱私或進行惡意操作！",
   "referral_link_title": "推薦連結",
   "ads_title": "附帶廣告",
