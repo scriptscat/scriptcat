@@ -1,5 +1,6 @@
 import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
+import LoggerCore from "@App/app/logger/core";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import {
   CspRuleStorageError,
@@ -132,6 +133,7 @@ function errorMessage(error: unknown): string {
 }
 
 export class CspRuleService {
+  private readonly logger = LoggerCore.getInstance().logger({ service: "cspRuleService" });
   private confirmedState: CspRuleState | undefined;
   private applyStatus: CspApplyStatus | undefined;
   private ready: Promise<void> = Promise.resolve();
@@ -266,8 +268,16 @@ export class CspRuleService {
     this.confirmedState = saved;
     const apply = await this.reconcile(saved);
     const snapshot = this.snapshot();
-    this.messageQueue.publish("cspRule/stateChanged", snapshot);
+    this.publishStateChanged(snapshot);
     return { ...snapshot, outcome: apply.state === "applied" ? "applied" : "apply-error" };
+  }
+
+  private publishStateChanged(snapshot: CspRuleSnapshot): void {
+    try {
+      this.messageQueue.publish("cspRule/stateChanged", snapshot);
+    } catch (error) {
+      this.logger.warn("发布 CSP 规则状态失败", { error: String(error) });
+    }
   }
 
   private async createRule(input: CspRuleCreateInput): Promise<CspMutationResult> {
@@ -394,7 +404,7 @@ export class CspRuleService {
       const state = this.confirmedState!;
       const apply = recoveringInitialization ? this.applyStatus! : await this.reconcile(state);
       const snapshot = this.snapshot();
-      this.messageQueue.publish("cspRule/stateChanged", snapshot);
+      this.publishStateChanged(snapshot);
       return { ...snapshot, outcome: apply.state === "applied" ? "applied" : "apply-error" };
     });
   }

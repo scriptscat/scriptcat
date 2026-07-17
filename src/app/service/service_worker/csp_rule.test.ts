@@ -94,6 +94,24 @@ describe("CspRuleService", () => {
     );
   });
 
+  it("状态广播失败时仍返回已保存的 mutation 结果", async () => {
+    const { handlers, queue, dao } = createHarness();
+    vi.mocked(queue.publish).mockImplementation(() => {
+      throw new Error("receiver unavailable");
+    });
+    const initial = (await handlers.get("getState")!()) as { state: CspRuleState };
+
+    const result = await handlers.get("createRule")!({
+      baseRevision: initial.state.revision,
+      name: "Example",
+      enabled: true,
+      target: { type: "domains", domains: ["example.com"] },
+    });
+
+    expect(result).toMatchObject({ outcome: "applied", state: { revision: 1 } });
+    expect(dao.state?.rules).toHaveLength(1);
+  });
+
   it("baseRevision 过期时返回 revision conflict 且不覆盖其他页面的修改", async () => {
     const { handlers, dao, applier } = createHarness();
     const initial = (await handlers.get("getState")!()) as { state: CspRuleState };
