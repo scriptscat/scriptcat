@@ -158,6 +158,17 @@ function wrapScriptToolConnection(original: MessageConnect): MessageConnect {
       });
     },
     sendMessage(message: any) {
+      if (message.action === "cancelToolBatch") {
+        // 由包装层补上当前批次的 requestId：批次超时后客户端可能仍在串行执行剩余 handler，
+        // 明确通知其作废该批次（见 finding 6）；没有进行中的批次则无事可做
+        if (!activeRequestId || disconnected) return;
+        try {
+          original.sendMessage({ ...message, requestId: activeRequestId });
+        } catch {
+          disconnected = true;
+        }
+        return;
+      }
       if (message.action !== "executeTools") {
         if (!disconnected) original.sendMessage(message);
         return;
@@ -380,6 +391,13 @@ export class ChatService {
           resolve(results);
         };
         const timer = setTimeout(() => {
+          // 先通知客户端作废该批次（包装层补 requestId）：超时后客户端可能仍在串行执行
+          // 剩余 handler，其副作用会与下一批次交叠（见 finding 6）
+          try {
+            msgConn.sendMessage({ action: "cancelToolBatch" });
+          } catch {
+            // 端口已断开，无需通知
+          }
           settle(
             toolCalls.map((tc) => ({
               id: tc.id,

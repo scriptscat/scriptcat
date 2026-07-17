@@ -597,6 +597,65 @@ describe("executeTools：连接 settle 后不应继续执行剩余 handler（fin
   });
 });
 
+describe("executeTools：批次级取消（finding 6）", () => {
+  it("收到 cancelToolBatch 后，该批次剩余的 handler 不应再执行", async () => {
+    let messageCb: ((msg: any) => void) | undefined;
+
+    const handlerA = vi.fn().mockImplementation(async () => {
+      // handlerA 执行期间，SW 端脚本工具批次超时，发来该批次的作废通知
+      messageCb?.({ action: "cancelToolBatch", requestId: "req-timeout" });
+      return "result-a";
+    });
+    const handlerB = vi.fn().mockResolvedValue("result-b");
+
+    const conn: MessageConnect = {
+      onMessage(cb: (msg: any) => void) {
+        messageCb = cb;
+        setTimeout(() => {
+          cb({
+            action: "executeTools",
+            requestId: "req-timeout",
+            data: [
+              { id: "call-a", name: "tool_a", arguments: "{}" },
+              { id: "call-b", name: "tool_b", arguments: "{}" },
+            ],
+          });
+          // SW 端已用超时错误结果推进对话，稍后正常完成
+          setTimeout(() => {
+            cb({ action: "event", data: { type: "done", usage: { inputTokens: 1, outputTokens: 1 } } });
+          }, 5);
+        }, 0);
+      },
+      onDisconnect() {},
+      sendMessage() {},
+      disconnect() {},
+    };
+
+    const gmSendMessage = vi.fn().mockResolvedValue(undefined);
+    const gmConnect = vi.fn().mockResolvedValue(conn);
+
+    const instance = new ConversationInstance(
+      mockConversation({ modelId: "test-model" }),
+      gmSendMessage,
+      gmConnect,
+      "test-script-uuid",
+      20,
+      [
+        { name: "tool_a", description: "d", parameters: { type: "object", properties: {} }, handler: handlerA },
+        { name: "tool_b", description: "d", parameters: { type: "object", properties: {} }, handler: handlerB },
+      ],
+      undefined,
+      true // ephemeral
+    );
+
+    await instance.chat("使用工具");
+
+    expect(handlerA).toHaveBeenCalledOnce();
+    // handlerB 不应被调用：批次已被 SW 端超时作废，剩余 handler 的副作用会与下一批次交叠
+    expect(handlerB).not.toHaveBeenCalled();
+  });
+});
+
 // ---- errorCode 透传测试 ----
 
 // 创建发送指定事件序列的 mock 连接

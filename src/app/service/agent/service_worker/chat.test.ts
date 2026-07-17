@@ -698,6 +698,13 @@ describe("scriptToolCallback 的 abort/disconnect/超时处理", () => {
 
       const doneEvents = sentMessages.filter((m) => m.data?.type === "done");
       expect(doneEvents).toHaveLength(1);
+
+      // 超时批次必须向客户端发送带 requestId 的作废通知：客户端可能仍在串行执行
+      // 该批次剩余 handler，不通知会让其副作用与下一批次交叠（见 finding 6）
+      const executeMessage = sentMessages.find((m) => m.action === "executeTools");
+      const cancelMessage = sentMessages.find((m) => m.action === "cancelToolBatch");
+      expect(cancelMessage).toBeDefined();
+      expect(cancelMessage.requestId).toBe(executeMessage.requestId);
     } finally {
       vi.useRealTimers();
     }

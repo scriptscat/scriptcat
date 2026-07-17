@@ -401,13 +401,26 @@ export class ConversationInstance {
         return finalContent;
       };
 
+      // SW 端脚本工具批次超时后发来的作废通知（按 requestId 关联）：
+      // 该批次剩余 handler 不再执行，避免其副作用与下一批次交叠（见 finding 6）
+      const cancelledBatches = new Set<string>();
+
       conn.onMessage(async (message: any) => {
+        if (message.action === "cancelToolBatch") {
+          if (message.requestId) cancelledBatches.add(message.requestId);
+          return;
+        }
         if (message.action === "executeTools") {
-          const data = await this.executeTools(message.data, handlers, () => settled);
+          const batchId: string | undefined = message.requestId;
+          const data = await this.executeTools(
+            message.data,
+            handlers,
+            () => settled || (batchId !== undefined && cancelledBatches.has(batchId))
+          );
           // 工具函数执行期间连接可能已经因 Stop/脚本工具超时而 settle 并断开；
           // 断开后的连接 sendMessage 会抛错，且这里是异步回调，事件源不会 await/捕获它，
           // 会在用户脚本上下文里变成 unhandled rejection（见 finding 7）
-          if (settled) return;
+          if (settled || (batchId !== undefined && cancelledBatches.has(batchId))) return;
           try {
             conn.sendMessage({
               action: "toolResults",
@@ -512,13 +525,26 @@ export class ConversationInstance {
       wake?.();
     };
 
+    // SW 端脚本工具批次超时后发来的作废通知（按 requestId 关联）：
+    // 该批次剩余 handler 不再执行，避免其副作用与下一批次交叠（见 finding 6）
+    const cancelledBatches = new Set<string>();
+
     conn.onMessage(async (message: any) => {
+      if (message.action === "cancelToolBatch") {
+        if (message.requestId) cancelledBatches.add(message.requestId);
+        return;
+      }
       if (message.action === "executeTools") {
-        const data = await this.executeTools(message.data, handlers, () => done);
+        const batchId: string | undefined = message.requestId;
+        const data = await this.executeTools(
+          message.data,
+          handlers,
+          () => done || (batchId !== undefined && cancelledBatches.has(batchId))
+        );
         // 工具函数执行期间连接可能已经因 Stop/脚本工具超时而结束并断开；
         // 断开后的连接 sendMessage 会抛错，且这里是异步回调，事件源不会 await/捕获它，
         // 会在用户脚本上下文里变成 unhandled rejection（见 finding 7）
-        if (done) return;
+        if (done || (batchId !== undefined && cancelledBatches.has(batchId))) return;
         try {
           conn.sendMessage({
             action: "toolResults",
