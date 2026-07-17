@@ -7,7 +7,7 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 > **Before writing any code, read [`docs/develop.md`](docs/develop.md)** — the development spec (commands,
 > project structure, coding style, UI & theme rules, testing mechanics, i18n, and the commit/PR workflow). This
 > file keeps only the non-negotiable engineering principles and the architecture map; the concrete "how" lives
-> in `DEVELOP.md`, and deep internals in [`docs/architecture.md`](docs/architecture.md).
+> in [`docs/develop.md`](docs/develop.md), and deep internals in [`docs/architecture.md`](docs/architecture.md).
 
 > **To manually verify a feature actually works, read [`docs/verification.md`](docs/verification.md)** — drive
 > the real built extension end-to-end with one-shot throwaway scratch scripts (not the committed test suite).
@@ -24,6 +24,10 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 
 > **Doc map:** [`docs/README.md`](docs/README.md) indexes every contributor doc (development, architecture,
 > translation, contributing, localized READMEs).
+>
+> **Feature specifications:** [`docs/specs/csp-rule-management.md`](docs/specs/csp-rule-management.md)
+> owns the planned CSP rule-management product, UX, technical, and acceptance contract. Read it before
+> implementing or reviewing that feature; it is target behavior, not a claim that the feature is shipped.
 
 ## Project Overview
 
