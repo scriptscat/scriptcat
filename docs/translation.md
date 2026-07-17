@@ -67,3 +67,16 @@
 3. 对需结合语境的术语，先核对实际功能、控件类型与上下文文案再决定用词。
 4. 保留 i18next 插值、程序标识符、HTML/React 标记、URL 与元数据标识符（`@match`、`@require` 等）。
 5. 完成后复查本次修改，确认符合对应术语规范，并检查命名一致性、名词/动词混用等问题。
+6. 运行 `pnpm run check:i18n`（或 `pnpm lint`，已内含此检查），确认没有遗漏或多余的翻译 key。
+
+## 机械检查：遗漏翻译 / Mechanical check: missing translations
+
+`scripts/check-i18n.mjs`（`pnpm run check:i18n`）在每次 `pnpm lint` / `pnpm lint:ci` 时自动运行，用于捕获人工审阅容易漏掉的问题：
+
+- `src/locales/<locale>/*.json` 中每个 key 是否与 `en-US`（模板 / fallback 语言）的 key 集合一一对应，缺失或多余的 key 都会报错。
+- `src/locales/<locale>/index.ts` 是否导出了 `en-US` 拥有的全部命名空间。
+- `src/assets/_locales/<chrome-locale>/messages.json`（`chrome.i18n` 语言文件，见上文"翻译工作流"一节）是否与 `en/messages.json` 的 key 一致；如果某个 locale 尚未创建该目录，只会给出提示（warning），不会导致失败。
+- `docs/references/terminology-<locale>.md` 是否存在：**`src/locales/` 下的每一个 locale 都必须有对应的术语规范文件**，缺失会导致检查失败——不允许新增或修改某个 locale 却不提交其 `terminology-<locale>.md`。
+- `src/pkg/utils/monaco-editor/langs.ts` 中 `editorLangs`（编辑器悬浮提示、脚本头字段提示等）的 key 是否与 `en-US` 一致；如果某个 locale 尚未在 `editorLangs` 中创建条目，只会给出提示（warning）；但只要该 locale 已有条目，其 key 缺失或多余就会报错。
+
+这个脚本无法判断翻译措辞是否准确、是否符合术语规范——那部分仍需人工审阅并遵循本文件与对应的 `terminology-<locale>.md`；它只保证不会有 key 或术语规范文件被整段遗漏。
