@@ -5,10 +5,14 @@
 // @description  E2E 测试 @script-module 功能（以 <script type="module"> 注入）
 // @author       ScriptCat
 // @match        https://content-security-policy.com/?script_module_e2e_test
-// @grant        GM.getValue
-// @grant        GM.setValue
+// @grant        none
 // @script-module
 // ==/UserScript==
+
+// 首版限制：@script-module 强制要求 @grant none。module 无法复用外层 with(arguments[0])
+// 沙盒 Proxy，若允许真实 GM_* 权限方法随之注入，页面 hook document.createElement/appendChild
+// 即可在临时挂载点被删除前窃取具备权限的 GM 对象。因此 GM.getValue / GM.setValue 等在
+// @script-module 下不可用，GM 只暴露一份序列化后的 GM.info（纯数据，无权限方法）。
 
 // 真正的 ES module 才能使用静态 `import ... from`；普通 <script>（非 module）遇到此语法
 // 会直接抛出 SyntaxError，导致整份脚本都无法执行。以此验证注入的确是 <script type="module">
@@ -66,11 +70,10 @@ const __sc_module_e2e_marker = true;
     assert("undefined", typeof window.__sc_module_e2e_marker, "module 顶层变量不应出现在 window 上");
   });
 
-  // 与其他 GM 脚本一致：window 为沙盒 window（与页面隔离），unsafeWindow 才是真实页面 window
-  // 参见 window_message_test.js 中同样的约定
-  await test("window 为沙盒 window，与 unsafeWindow（真实页面 window）不同", async () => {
-    assert(true, window !== unsafeWindow, "window 不应等于 unsafeWindow");
-    assert(document, unsafeWindow.document, "unsafeWindow.document 应等于真实 document");
+  // @script-module 强制 @grant none：module 与真实页面运行在同一全局对象上，
+  // 不像其他有权限的脚本那样存在沙盒 window，因此 window 与 unsafeWindow 应指向同一个对象
+  await test("@grant none 下 window 与 unsafeWindow 为同一对象（无沙盒隔离）", async () => {
+    assert(true, typeof unsafeWindow === "undefined" || unsafeWindow === window, "不应存在独立的沙盒 window");
   });
 
   await test("静态 import 的模块（/module-lib.js）被正确加载并可用", async () => {
@@ -78,10 +81,11 @@ const __sc_module_e2e_marker = true;
     assert(7, addNumbers(3, 4), "导入的函数应可正常调用");
   });
 
-  await test("GM.setValue / GM.getValue 正常工作", async () => {
-    await GM.setValue("script_module_e2e_key", "script_module_e2e_value");
-    const v = await GM.getValue("script_module_e2e_key");
-    assert("script_module_e2e_value", v, "GM.getValue 应读取到刚写入的值");
+  await test("@grant none 下 module 只能拿到 GM.info（无权限方法），验证 GM 权限对象不会暴露给 module", async () => {
+    assert("object", typeof GM.info, "GM.info 应为对象");
+    assert("undefined", typeof GM.getValue, "GM.getValue 不应存在——@script-module 强制 @grant none");
+    assert("undefined", typeof GM.setValue, "GM.setValue 不应存在——@script-module 强制 @grant none");
+    assert("undefined", typeof GM_getValue, "全局 GM_getValue 不应存在——module 不应拿到任何 GM_* 权限方法");
   });
 
   console.log("\n%c=== 测试结果总结 ===", "color: blue; font-size: 16px; font-weight: bold;");

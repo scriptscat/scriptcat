@@ -349,9 +349,9 @@ describe.concurrent("compileInjectionCode", () => {
     expect(result).toContain("window['#-test-uuid']");
   });
 
-  it.concurrent("script-module 脚本注入 <script type=module> 并透过 document 暴露沙盒变量", () => {
+  it.concurrent("script-module + grant none 脚本注入 <script type=module>，不暴露任何 GM 权限对象", () => {
     const scriptRes = createMockScriptRes({
-      metadata: { "script-module": [""] },
+      metadata: { "script-module": [""], grant: ["none"] },
     });
     const patterns = extractUrlPatterns(["@match https://example.com/*"]);
     const result = compileInjectionCode(scriptRes, scriptRes.code, patterns);
@@ -368,21 +368,32 @@ describe.concurrent("compileInjectionCode", () => {
       /\(document\.body \|\| document\.head \|\| document\.documentElement\)\.appendChild\(jsScript\)/
     );
 
-    // 通过临时 document 属性传递沙盒变量给 module script，并在读取后删除
-    expect(result).toMatch(
-      /document\.__[a-z0-9]+_[a-z0-9]+\s*=\s*\{GM, top, parent, window, globalThis: window, unsafeWindow:/
-    );
-    expect(result).toMatch(
-      /const \{GM, top, parent, window, unsafeWindow, globalThis\} = document\.__[a-z0-9]+_[a-z0-9]+; delete document\.__[a-z0-9]+_[a-z0-9]+;/
-    );
+    // 不得通过 document/window 等页面共享对象传递任何 GM 权限对象——
+    // module 只能拿到序列化的 GM.info（纯数据，无 GM_* 权限方法）
+    expect(result).not.toMatch(/document\s*\.\s*__/);
+    expect(result).toContain("Object.freeze({ info: Object.freeze(");
+    expect(result).toContain("JSON.stringify(GM_info)");
 
     // 原始脚本代码被内嵌到注入的 module 字符串中
     expect(result).toContain(scriptRes.code);
   });
 
+  it.concurrent("script-module 缺少 @grant none 时不生效（回退普通编译路径，避免暴露 GM 权限对象）", () => {
+    const scriptRes = createMockScriptRes({
+      metadata: { "script-module": [""], grant: ["GM.getValue"] },
+    });
+    const patterns = extractUrlPatterns(["@match https://example.com/*"]);
+    const result = compileInjectionCode(scriptRes, scriptRes.code, patterns);
+
+    expect(result).not.toContain('jsScript.type = "module"');
+    expect(result).not.toContain('document.createElement("script")');
+    expect(result).toContain("with(arguments[0]||this.$)");
+    expect(result).toContain("window['#-test-uuid']");
+  });
+
   it.concurrent("script-module 与 inject-into content 同时存在时不生效", () => {
     const scriptRes = createMockScriptRes({
-      metadata: { "script-module": [""], "inject-into": ["content"] },
+      metadata: { "script-module": [""], grant: ["none"], "inject-into": ["content"] },
     });
     const patterns = extractUrlPatterns(["@match https://example.com/*"]);
     const result = compileInjectionCode(scriptRes, scriptRes.code, patterns);
@@ -395,9 +406,20 @@ describe.concurrent("compileInjectionCode", () => {
     expect(result).toContain("window['#-test-uuid']");
   });
 
-  it.concurrent("script-module 脚本搭配 early-start 时走预注入编译路径", () => {
+  it.concurrent("script-module 搭配 @require 时不生效（module 无法访问外层词法变量）", () => {
     const scriptRes = createMockScriptRes({
-      metadata: { "script-module": [""], "early-start": [""], "run-at": ["document-start"] },
+      metadata: { "script-module": [""], grant: ["none"], require: ["https://example.com/lib.js"] },
+    });
+    const patterns = extractUrlPatterns(["@match https://example.com/*"]);
+    const result = compileInjectionCode(scriptRes, scriptRes.code, patterns);
+
+    expect(result).not.toContain('jsScript.type = "module"');
+    expect(result).toContain("with(arguments[0]||this.$)");
+  });
+
+  it.concurrent("script-module 搭配 early-start 时不生效（回退预注入编译路径，不生成 module 包装）", () => {
+    const scriptRes = createMockScriptRes({
+      metadata: { "script-module": [""], grant: ["none"], "early-start": [""], "run-at": ["document-start"] },
     });
     const patterns = extractUrlPatterns(["@match https://example.com/*"]);
     const result = compileInjectionCode(scriptRes, scriptRes.code, patterns);
@@ -405,7 +427,7 @@ describe.concurrent("compileInjectionCode", () => {
     // early-start 编译路径特征：window[flag] = function(){...} 且带 performance 事件派发
     expect(result).toContain("window['#-test-uuid'] = function(){");
     expect(result).toContain("performance.dispatchEvent");
-    // module script 包装仍然生效
-    expect(result).toContain('jsScript.type = "module"');
+    // module script 包装未生效——script-module 与 early-start 互斥
+    expect(result).not.toContain('jsScript.type = "module"');
   });
 });

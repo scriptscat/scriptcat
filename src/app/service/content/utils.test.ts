@@ -6,6 +6,8 @@ import {
   compileScriptletCode,
   isScriptletUnwrap,
   isScriptModule,
+  isGrantNone,
+  wrapScriptModuleCode,
   addStyle,
   addStyleSheet,
 } from "./utils";
@@ -565,28 +567,92 @@ describe("utils", () => {
   });
 
   describe.concurrent("isScriptModule", () => {
-    it.concurrent("@script-module 为空值时返回 true", () => {
-      expect(isScriptModule({ "script-module": [""] })).toBe(true);
+    it.concurrent("@script-module 为空值 + @grant none 时返回 true", () => {
+      expect(isScriptModule({ "script-module": [""], grant: ["none"] })).toBe(true);
     });
 
-    it.concurrent("@script-module 为 true 时返回 true", () => {
-      expect(isScriptModule({ "script-module": ["true"] })).toBe(true);
+    it.concurrent("@script-module 为 true + @grant none 时返回 true", () => {
+      expect(isScriptModule({ "script-module": ["true"], grant: ["none"] })).toBe(true);
     });
 
     it.concurrent("没有 @script-module 时返回 false", () => {
-      expect(isScriptModule({})).toBe(false);
+      expect(isScriptModule({ grant: ["none"] })).toBe(false);
     });
 
     it.concurrent("@script-module 为 false 时返回 false", () => {
-      expect(isScriptModule({ "script-module": ["false"] })).toBe(false);
+      expect(isScriptModule({ "script-module": ["false"], grant: ["none"] })).toBe(false);
     });
 
     it.concurrent("@script-module 与 @inject-into content 同时存在时返回 false", () => {
-      expect(isScriptModule({ "script-module": [""], "inject-into": ["content"] })).toBe(false);
+      expect(isScriptModule({ "script-module": [""], grant: ["none"], "inject-into": ["content"] })).toBe(false);
     });
 
     it.concurrent("@script-module 与 @inject-into page 同时存在时返回 true", () => {
-      expect(isScriptModule({ "script-module": [""], "inject-into": ["page"] })).toBe(true);
+      expect(isScriptModule({ "script-module": [""], grant: ["none"], "inject-into": ["page"] })).toBe(true);
+    });
+
+    it.concurrent("没有 @grant none 时返回 false（阻止 GM 权限对象暴露给 module）", () => {
+      expect(isScriptModule({ "script-module": [""] })).toBe(false);
+      expect(isScriptModule({ "script-module": [""], grant: ["GM.getValue"] })).toBe(false);
+      expect(isScriptModule({ "script-module": [""], grant: ["GM.getValue", "none"] })).toBe(true);
+    });
+
+    it.concurrent("搭配 @require 时返回 false（module 无法访问外层 classic-script 的词法变量）", () => {
+      expect(isScriptModule({ "script-module": [""], grant: ["none"], require: ["https://example.com/a.js"] })).toBe(
+        false
+      );
+    });
+
+    it.concurrent("搭配 early-start（document-start）时返回 false", () => {
+      expect(
+        isScriptModule({
+          "script-module": [""],
+          grant: ["none"],
+          "early-start": [""],
+          "run-at": ["document-start"],
+        })
+      ).toBe(false);
+    });
+  });
+
+  describe.concurrent("isGrantNone", () => {
+    it.concurrent("grant 数组包含 none 时返回 true", () => {
+      expect(isGrantNone({ grant: ["none"] })).toBe(true);
+      expect(isGrantNone({ grant: ["GM.getValue", "none"] })).toBe(true);
+    });
+
+    it.concurrent("没有 grant 或 grant 不含 none 时返回 false", () => {
+      expect(isGrantNone({})).toBe(false);
+      expect(isGrantNone({ grant: ["GM.getValue"] })).toBe(false);
+    });
+  });
+
+  describe.concurrent("wrapScriptModuleCode", () => {
+    it.concurrent("不写入 document/window 等页面共享对象，仅通过序列化的 GM.info 传递上下文", () => {
+      const result = wrapScriptModuleCode("console.log('hi')", "Test Script");
+
+      // 不得出现任何 document.<临时属性> 赋值——这正是被 review 指出的、可被页面 hook
+      // createElement/appendChild 窃取 GM 权限对象的手法
+      expect(result).not.toMatch(/document\s*\.\s*__/);
+      expect(result).not.toMatch(/document\s*\[\s*["'`]__/);
+
+      // 仍然创建并挂载 <script type="module">
+      expect(result).toContain('jsScript.type = "module"');
+      expect(result).toContain('document.createElement("script")');
+      expect(result).toMatch(
+        /\(document\.body \|\| document\.head \|\| document\.documentElement\)\.appendChild\(jsScript\)/
+      );
+
+      // module 只能拿到序列化后的 GM.info（纯数据），没有任何 GM_* 权限方法可供窃取
+      expect(result).toContain("Object.freeze({ info: Object.freeze(");
+      expect(result).toContain("JSON.stringify(GM_info)");
+
+      // 原始脚本代码被内嵌（JSON 字符串形式）
+      expect(result).toContain(JSON.stringify("console.log('hi')"));
+
+      // 注入失败（import 解析失败 / 被页面 CSP 拦截）时有可观测的错误处理
+      expect(result).toContain('jsScript.addEventListener("error"');
+      expect(result).toContain(JSON.stringify("Test Script"));
     });
   });
 

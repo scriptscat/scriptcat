@@ -12,6 +12,7 @@ import {
   isInjectIntoContent,
   isScriptletUnwrap,
   isScriptModule,
+  wrapScriptModuleCode,
 } from "../content/utils";
 import {
   extractUrlPatterns,
@@ -197,17 +198,7 @@ export function compileInjectionCode(
     scriptInjectCode = compileScriptletCode(scriptRes, scriptCode, scriptUrlPatterns);
   } else {
     if (isScriptModule(scriptRes.metadata)) {
-      const wId = `__${Date.now().toString(36)}_${(Math.random() + 1).toString(36).substring(2)}`;
-      const st = JSON.stringify(
-        `const {GM, top, parent, window, unsafeWindow, globalThis} = document.${wId}; delete document.${wId};\n${scriptCode}`
-      );
-      const p = (c: string) => {
-        const jsScript = document.createElement("script");
-        jsScript.type = "module";
-        jsScript.textContent = c;
-        (document.body || document.head || document.documentElement).appendChild(jsScript);
-      };
-      scriptCode = `document.${wId} = {GM, top, parent, window, globalThis: window, unsafeWindow: typeof unsafeWindow !== "undefined" ? unsafeWindow : undefined};(${p})(${st});`;
+      scriptCode = wrapScriptModuleCode(scriptCode, scriptRes.name);
     }
     scriptCode = compileScriptCode(scriptRes, scriptCode);
     if (isEarlyStartScript(scriptRes.metadata)) {

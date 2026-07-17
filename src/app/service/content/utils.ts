@@ -281,8 +281,46 @@ export function isScriptletUnwrap(metadata: SCMetadata): boolean {
   return metadataBlankOrTrue(metadata, "unwrap");
 }
 
+// @script-module 必须新建独立的 <script type="module">，无法复用外层 with(arguments[0]) 沙盒 Proxy，
+// 因此模块内只能拿到一份序列化后的 GM.info 快照（纯 JSON 数据，不含任何 GM_* 权限方法）。
+// 在浏览器能力允许模块脚本复用沙盒 Proxy、安全地传递权限对象之前，首版强制要求 @grant none，
+// 避免页面 hook document.createElement/appendChild 时窃取具备权限的 GM 对象。
+// 同理排除 @require（module 无法访问外层 classic-script 的词法变量）与 early-start
+// （document-start 时 GM_info 的 isIncognito/sandboxMode/userAgentData 可能尚未从后台补齐，
+// 而 module 只能拿到一次性快照，事后无法像沙盒 Proxy 那样以同一对象引用回填）。
 export function isScriptModule(metadata: SCMetadata): boolean {
-  return metadataBlankOrTrue(metadata, "script-module") && !isInjectIntoContent(metadata);
+  return (
+    metadataBlankOrTrue(metadata, "script-module") &&
+    !isInjectIntoContent(metadata) &&
+    isGrantNone(metadata) &&
+    !isEarlyStartScript(metadata) &&
+    !(Array.isArray(metadata.require) && metadata.require.length > 0)
+  );
+}
+
+export function isGrantNone(metadata: SCMetadata): boolean {
+  const grants = metadata.grant;
+  return Array.isArray(grants) && grants.includes("none");
+}
+
+/**
+ * 将脚本代码包装为通过独立 <script type="module"> 标签注入的形式。
+ * 仅通过序列化的 GM.info（纯 JSON 数据）向 module 传递上下文，不写入 document/window 等
+ * 页面共享对象，避免页面 hook createElement/appendChild 时取得具备权限的 GM 对象。
+ * @see {@link isScriptModule}
+ */
+export function wrapScriptModuleCode(scriptCode: string, scriptName: string): string {
+  const bakedScriptCode = JSON.stringify(scriptCode);
+  const bakedScriptName = JSON.stringify(scriptName);
+  return [
+    "(function(){",
+    'var jsScript = document.createElement("script");',
+    'jsScript.type = "module";',
+    `jsScript.textContent = "const GM = Object.freeze({ info: Object.freeze(" + JSON.stringify(GM_info) + ") });\\n" + ${bakedScriptCode};`,
+    `jsScript.addEventListener("error", function(e){ console.error("[ScriptCat] @script-module " + ${bakedScriptName} + " 执行失败（可能是 import 解析失败或被页面 CSP 拦截）", e); });`,
+    "(document.body || document.head || document.documentElement).appendChild(jsScript);",
+    "})();",
+  ].join("\n");
 }
 
 export function isInjectIntoContent(metadata: SCMetadata): boolean {
