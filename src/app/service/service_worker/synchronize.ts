@@ -14,7 +14,7 @@ import type { FileInfo } from "@Packages/filesystem/filesystem";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import ZipFileSystem from "@Packages/filesystem/zip/zip";
 import FileSystemFactory, { type FileSystemType } from "@Packages/filesystem/factory";
-import { FileSystemError, isWarpTokenError } from "@Packages/filesystem/error";
+import { FileSystemError, isNotFoundError, isWarpTokenError } from "@Packages/filesystem/error";
 import type { Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { type IMessageQueue } from "@Packages/message/message_queue";
@@ -125,7 +125,15 @@ class SyncBothChangedConflictError extends Error {
   }
 }
 
+// 未完成同步操作的持久化登记。file_digest 只是文件快照，表达不了「删除做到一半」
+// 「.meta.json 还欠一次写入」这类未完成意图：部分失败后下一轮的方向判定不一定会
+// 再生成重试任务（如「本地无脚本 + 云端只剩 .meta.json」不命中任何决策分支），
+// 须由本记录在 syncOnce 开头驱动重放，全部步骤成功才清除。
+type PendingSyncOp = { op: "delete"; syncDelete: boolean } | { op: "push" };
+type PendingSyncOps = { [uuid: string]: PendingSyncOp };
+
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
+const PENDING_SYNC_OPS_KEY = "pending_sync_ops";
 const LAST_NOTIFIED_CONFLICT_KEY = "last_notified_sync_conflicts";
 const LAST_NOTIFIED_OVERWRITE_KEY = "last_notified_sync_overwrites";
 
@@ -477,6 +485,60 @@ export class SynchronizeService {
 
   private async syncOnceInternal(syncConfig: CloudSyncConfig, fs: FileSystem) {
     this.logger.info("start sync once");
+    // 重放上一轮未完成的操作（半途失败的删除、欠写的 .meta.json）。
+    // 必须在主流程对账前先落地，否则「本地无脚本 + 云端有 .user.js」会把删到一半的脚本拉回本地
+    const pendingOps = await this.getPendingSyncOps();
+    const pendingFailedUuids = new Set<string>();
+    {
+      const pendingUuids = Object.keys(pendingOps);
+      if (pendingUuids.length) {
+        // push 重放是盲覆盖，须先确认云端 .user.js 仍是本机上次写入的内容；删除重放已幂等无须校验
+        const needGuard = pendingUuids.some((uuid) => pendingOps[uuid].op === "push");
+        const cloudDigests = needGuard
+          ? new Map((await fs.list()).map((file) => [file.name, file.digest]))
+          : new Map<string, string>();
+        const digestRecord = ((await this.storage.get("file_digest")) as FileDigestMap) || {};
+        const replayedUuids: string[] = [];
+        const replayedDigests: FileDigestMap = {};
+        for (const uuid of pendingUuids) {
+          const op = pendingOps[uuid];
+          try {
+            if (op.op === "delete") {
+              await this.deleteCloudScript(fs, uuid, op.syncDelete);
+            } else {
+              const script = await this.scriptDAO.get(uuid);
+              if (!script) {
+                // 本地已删，云端文件交给删除事件或主流程处理
+                delete pendingOps[uuid];
+                continue;
+              }
+              const name = `${uuid}.user.js`;
+              const cloudDigest = cloudDigests.get(name);
+              if (cloudDigest === undefined || cloudDigest !== digestRecord[name]) {
+                // 云端已被他端改写或删除，盲目补推会覆盖对端更新：交回主流程方向判定
+                delete pendingOps[uuid];
+                continue;
+              }
+              Object.assign(replayedDigests, await this.pushScript(fs, script));
+            }
+            delete pendingOps[uuid];
+            replayedUuids.push(uuid);
+          } catch (e) {
+            // 重放仍失败：保留登记待下一轮，本轮主流程跳过该 uuid，防止半完成状态被误判
+            pendingFailedUuids.add(uuid);
+            this.logger.warn("replay pending sync op failed", Logger.E(e), {
+              uuid,
+              op: op.op,
+              errorKind: this.classifySyncError(e),
+            });
+          }
+        }
+        await this.setPendingSyncOps(pendingOps);
+        if (replayedUuids.length) {
+          await this.updateFileDigestForUuids(fs, replayedUuids, replayedDigests);
+        }
+      }
+    }
     // 获取文件列表
     const list = await fs.list();
     // 根据文件名生成一个map
@@ -556,6 +618,11 @@ export class SynchronizeService {
       });
     };
     uuidMap.forEach((file, uuid) => {
+      if (pendingFailedUuids.has(uuid)) {
+        // 该 uuid 仍有未完成操作且本轮重放失败：跳过主流程决策，避免在半完成状态上误拉/误推
+        scriptMap.delete(uuid);
+        return;
+      }
       const script = scriptMap.get(uuid);
       if (script) {
         scriptMap.delete(uuid);
@@ -600,6 +667,30 @@ export class SynchronizeService {
           // 云端自上次同步未变：本地更新时间不比云端新（整秒对齐）则无事可做；
           // 否则本地编辑过（digest 相等只反映云端未变），需补偿上传（#1，队列 push 失败后的兜底）
           if (!isNewerBySecond(updatetime, file.script!.updatetime)) {
+            // .user.js 未变不代表 .meta.json 未变：他端可能只改了 meta 字段（downloadUrl 等）。
+            // 不检查就跳过，收尾的全量盖章会把这份未处理的 meta 标成已同步，之后永不再处理。
+            // 无记录（从未成功同步过该 meta）时无法判定变化，交由收尾盖章建立基线
+            const metaRecord = fileDigestMap[file.meta!.name];
+            if (metaRecord !== undefined && metaRecord !== file.meta!.digest) {
+              addSyncTask(
+                uuid,
+                (async () => {
+                  const metaJson = (await fs.open(file.meta!).then((r) => r.read("string"))) as string;
+                  const metaObj = JSON.parse(metaJson) as SyncMeta;
+                  if (metaObj.isDeleted) {
+                    // .user.js 仍在时的 tombstone 是他端部分推送的残留，等对端补完 meta 后再重新判定
+                    return;
+                  }
+                  await this.scriptDAO.update(uuid, {
+                    origin: metaObj.origin ?? script.origin,
+                    downloadUrl: metaObj.downloadUrl ?? script.downloadUrl,
+                    checkUpdateUrl: metaObj.checkUpdateUrl ?? script.checkUpdateUrl,
+                  });
+                  await this.recordSyncedContentMd5({ [file.meta!.name]: md5OfText(metaJson) });
+                })(),
+                [file.meta!.name]
+              );
+            }
             return;
           }
           addSyncTask(uuid, this.pushScript(fs, script));
@@ -653,6 +744,23 @@ export class SynchronizeService {
         }
         updateScript.set(uuid, true);
         addSyncTask(uuid, this.pullScript(fs, file as SyncFiles, cloudStatus[uuid]));
+        return;
+      }
+      // 本地无脚本、云端只剩 .meta.json：tombstone 是删除标记须保留；
+      // 非 tombstone 是他端分片删除的残留，放着会被其他设备当「无效 meta」重新上传脚本。
+      // 以 digest 变化为门（tombstone 首轮读取盖章后不再重复读取）
+      if (file.meta && fileDigestMap[file.meta.name] !== file.meta.digest) {
+        const meta = file.meta;
+        addSyncTask(
+          uuid,
+          (async () => {
+            const metaObj = JSON.parse((await fs.open(meta).then((r) => r.read("string"))) as string) as SyncMeta;
+            if (!metaObj.isDeleted) {
+              await fs.delete(meta.name);
+            }
+          })(),
+          [meta.name]
+        );
       }
     });
     // 上传剩下的脚本
@@ -663,8 +771,10 @@ export class SynchronizeService {
     const syncResults = await Promise.allSettled(result.map((item) => item.promise));
     const pushedFileDigestMap: FileDigestMap = {};
     const preserveDigestFiles = new Set<string>();
-    const failedSyncUuids = new Set<string>();
+    // 重放失败的 uuid 也计入失败：状态条如实显示、status 写回保留云端原值
+    const failedSyncUuids = new Set<string>(pendingFailedUuids);
     const conflictScripts: SyncBothChangedConflictError[] = [];
+    const partialPushUuids: string[] = [];
     syncResults.forEach((ret, index) => {
       if (ret.status === "fulfilled" && ret.value) {
         Object.assign(pushedFileDigestMap, ret.value);
@@ -676,6 +786,9 @@ export class SynchronizeService {
         // 分片上传时已成功写入云端的文件（如 .user.js 成功、.meta.json 失败）不保留旧 digest，
         // 让 updateFileDigest 记录其云端最新 digest，下一轮只重试真正失败的文件。
         const writtenFiles = ret.reason instanceof PushScriptPartialError ? ret.reason.writtenFiles : [];
+        if (writtenFiles.length > 0) {
+          partialPushUuids.push(result[index].uuid);
+        }
         result[index].preserveDigestFiles.forEach((name) => {
           if (!writtenFiles.includes(name)) {
             preserveDigestFiles.add(name);
@@ -687,6 +800,14 @@ export class SynchronizeService {
         });
       }
     });
+    // push 部分成功的 uuid：.user.js digest 会被推进，下一轮方向判定不会再生成 .meta.json
+    // 的重试任务，登记 pending push 由下一轮 syncOnce 开头重放
+    if (partialPushUuids.length) {
+      for (const uuid of partialPushUuids) {
+        pendingOps[uuid] = { op: "push" };
+      }
+      await this.setPendingSyncOps(pendingOps);
+    }
     // 冲突通知：一轮只发一条；同一批脚本持续冲突时不重复轰炸，集合变化或冲突消失后重置
     const conflictKey = conflictScripts
       .map((c) => c.uuid)
@@ -963,6 +1084,14 @@ export class SynchronizeService {
     return;
   }
 
+  private async getPendingSyncOps(): Promise<PendingSyncOps> {
+    return ((await this.storage.get(PENDING_SYNC_OPS_KEY)) as PendingSyncOps) || {};
+  }
+
+  private async setPendingSyncOps(ops: PendingSyncOps) {
+    await this.storage.set(PENDING_SYNC_OPS_KEY, ops);
+  }
+
   // 删除云端脚本数据
   async deleteCloudScript(fs: FileSystem, uuid: string, syncDelete: boolean) {
     const filename = `${uuid}.user.js`;
@@ -971,8 +1100,17 @@ export class SynchronizeService {
       uuid: uuid,
       file: filename,
     });
+    // 删除幂等化：目标文件已不存在即视为达成目的。部分 provider（Google Drive 等）
+    // 对缺失文件抛 notFound，重放半途失败的删除时不能被它中断
+    const deleteIgnoreMissing = async (name: string) => {
+      try {
+        await fs.delete(name);
+      } catch (e) {
+        if (!isNotFoundError(e)) throw e;
+      }
+    };
     try {
-      await fs.delete(filename);
+      await deleteIgnoreMissing(filename);
       if (syncDelete) {
         // 留下一个.meta.json删除标记
         const modifiedDate = Date.now();
@@ -988,7 +1126,7 @@ export class SynchronizeService {
         );
       } else {
         // 直接删除所有相关文件
-        await fs.delete(metaFilename);
+        await deleteIgnoreMissing(metaFilename);
       }
       logger.info("delete success");
     } catch (e) {
@@ -1217,6 +1355,12 @@ export class SynchronizeService {
           // 全部失败（无文件写入成功）则不动 file_digest，保持"失败不污染"。
           const writtenFiles = e instanceof PushScriptPartialError ? e.writtenFiles : [];
           if (writtenFiles.length > 0) {
+            // 部分成功后 .user.js digest 已推进，下一轮「digest 相等 + 本地时间不比云端新」
+            // 会跳过整个 uuid（生产安装消息不带时间字段，云端 mtime 是 push 时刻的 Date.now()，
+            // 本地时间必然不比它新），失败的 .meta.json 不会再获得重试：登记 pending push 由 syncOnce 重放
+            const pendingOps = await this.getPendingSyncOps();
+            pendingOps[script.uuid] = { op: "push" };
+            await this.setPendingSyncOps(pendingOps);
             const preserve = new Set(
               [`${script.uuid}.user.js`, `${script.uuid}.meta.json`].filter((name) => !writtenFiles.includes(name))
             );
@@ -1244,10 +1388,18 @@ export class SynchronizeService {
     if (config.enable) {
       stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
         const fs = await this.buildFileSystem(config);
+        // 写前登记删除意图：两步删除（删 .user.js + 写 tombstone/删 .meta.json）中途失败
+        // 或 SW 中途重启后，由 syncOnce 开头按登记重放，全部步骤成功才清除
+        const pendingOps = await this.getPendingSyncOps();
+        for (const { uuid } of items) {
+          pendingOps[uuid] = { op: "delete", syncDelete: config.syncDelete };
+        }
+        await this.setPendingSyncOps(pendingOps);
         const preserveDigestFiles = new Set<string>();
         for (const { uuid } of items) {
           try {
             await this.deleteCloudScript(fs, uuid, config.syncDelete);
+            delete pendingOps[uuid];
           } catch (e) {
             preserveDigestFiles.add(`${uuid}.user.js`);
             preserveDigestFiles.add(`${uuid}.meta.json`);
@@ -1257,6 +1409,7 @@ export class SynchronizeService {
             });
           }
         }
+        await this.setPendingSyncOps(pendingOps);
         await this.updateFileDigestForUuids(
           fs,
           items.map((item) => item.uuid),

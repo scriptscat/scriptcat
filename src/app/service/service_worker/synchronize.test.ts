@@ -39,7 +39,8 @@ const createFs = (overrides: Partial<FileSystem> = {}): FileSystem =>
   }) as unknown as FileSystem;
 
 // 等待若干轮微任务，确保所有已就绪的 await 都被推进
-const flushMicrotasks = async (rounds = 10) => {
+// （syncOnceInternal 开头有 pending_sync_ops 存储读取，轮数须覆盖它引入的额外 await）
+const flushMicrotasks = async (rounds = 30) => {
   for (let i = 0; i < rounds; i++) {
     await Promise.resolve();
   }
@@ -2630,6 +2631,18 @@ console.log("ok");`
         }),
       })),
     } as unknown as Partial<FileSystem>);
+    const daoScript = {
+      uuid: "u1",
+      name: "t",
+      origin: "",
+      downloadUrl: "",
+      checkUpdateUrl: "",
+      updatetime: 5,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
     const service = new SynchronizeService(
       {} as any,
       {} as any,
@@ -2640,20 +2653,8 @@ console.log("ok");`
       {} as any,
       {
         scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// code" }) },
-        all: vi.fn().mockResolvedValue([
-          {
-            uuid: "u1",
-            name: "t",
-            origin: "",
-            downloadUrl: "",
-            checkUpdateUrl: "",
-            updatetime: 5,
-            createtime: 1,
-            status: 1,
-            sort: 0,
-            metadata: {},
-          },
-        ]),
+        all: vi.fn().mockResolvedValue([daoScript]),
+        get: vi.fn().mockResolvedValue(daoScript),
       } as any
     );
 
@@ -2671,17 +2672,20 @@ console.log("ok");`
     expect(cloud.has("u1.meta.json")).toBe(true);
   });
 
-  it("编辑已同步脚本时 .meta.json 失败，下一轮同步应补传", async () => {
-    let failMeta = true;
-    const writes: string[] = [];
+  // 模拟共享状态的云端存储：list/open/create/delete 操作同一份文件表；
+  // 删除不存在的文件抛 typed notFound（模拟 Google Drive 等不幂等的 provider）；
+  // failures 中的文件名在写入/删除时抛瞬时错误
+  const createCloudStore = (initial: [string, { digest: string; content: string; updatetime: number }][] = []) => {
+    const files = new Map(initial);
+    const failures = new Set<string>();
     let seq = 0;
-    const cloud = new Map<string, { digest: string; content: string; updatetime: number }>([
-      ["u1.user.js", { digest: "cu1", content: "// v0", updatetime: 5000 }],
-      ["u1.meta.json", { digest: "cm1", content: "{}", updatetime: 5000 }],
-    ]);
-    const cloudFs = createFs({
+    const transientError = (message: string) =>
+      new FileSystemError({ provider: "webdav", message, status: 503, retryable: true });
+    const notFoundError = (name: string) =>
+      new FileSystemError({ provider: "webdav", message: `${name} not found`, status: 404, notFound: true });
+    const fs = createFs({
       list: vi.fn(async () =>
-        Array.from(cloud, ([name, f]) => ({
+        Array.from(files, ([name, f]) => ({
           name,
           path: name,
           size: 1,
@@ -2690,20 +2694,48 @@ console.log("ok");`
           updatetime: f.updatetime,
         }))
       ),
-      create: vi.fn(async (name: string, opts: any) => ({
-        write: vi.fn(async (content: string) => {
-          const existing = cloud.get(name);
-          if (failMeta && name === "u1.meta.json") throw new Error("meta write failed");
-          cloud.set(name, {
-            digest: `d${++seq}`,
-            content,
-            updatetime: opts?.modifiedDate ?? existing?.updatetime ?? 0,
-          });
-          writes.push(name);
+      open: vi.fn(async (info: { name: string }) => ({
+        read: vi.fn(async () => {
+          const f = files.get(info.name);
+          if (!f) throw notFoundError(info.name);
+          return f.content;
         }),
       })),
+      create: vi.fn(async (name: string, opts: { modifiedDate?: number }) => ({
+        write: vi.fn(async (content: string) => {
+          if (failures.has(name)) throw transientError(`write ${name} failed`);
+          files.set(name, { digest: `d${++seq}`, content, updatetime: opts?.modifiedDate ?? 0 });
+        }),
+      })),
+      delete: vi.fn(async (name: string) => {
+        if (failures.has(name)) throw transientError(`delete ${name} failed`);
+        if (!files.has(name)) throw notFoundError(name);
+        files.delete(name);
+      }),
     } as unknown as Partial<FileSystem>);
+    return { fs, files, failures };
+  };
 
+  it("生产形态安装消息（不带 updatetime）下 .meta.json 写失败：下一轮同步必须补传", async () => {
+    // publishInstallScript 不携带时间字段，pushScript 用 Date.now() 作云端 mtime。
+    // .user.js 成功、.meta.json 失败后，下一轮「digest 相等 + 本地时间不比云端新」会跳过整个 uuid，
+    // 补传不能依赖时间比较，必须由持久化的 pending 重放兜底。
+    const store = createCloudStore([
+      ["u1.user.js", { digest: "cu1", content: "// v0", updatetime: 5000 }],
+      ["u1.meta.json", { digest: "cm1", content: "{}", updatetime: 5000 }],
+    ]);
+    const daoScript = {
+      uuid: "u1",
+      name: "t",
+      origin: "",
+      downloadUrl: "",
+      checkUpdateUrl: "",
+      updatetime: 10_000,
+      createtime: 1,
+      status: 1,
+      sort: 0,
+      metadata: {},
+    };
     const service = new SynchronizeService(
       {} as any,
       {} as any,
@@ -2716,6 +2748,55 @@ console.log("ok");`
       } as any,
       {
         scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// v1" }) },
+        all: vi.fn().mockResolvedValue([daoScript]),
+        get: vi.fn().mockResolvedValue(daoScript),
+      } as any
+    );
+    vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(store.fs);
+    await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
+
+    // 第一轮：编辑发布生产形态消息（无 updatetime/createtime），.user.js 成功、.meta.json 失败
+    store.failures.add("u1.meta.json");
+    await service.scriptInstall({
+      script: { uuid: "u1", type: 1, status: 1, name: "t", namespace: "ns" },
+      update: true,
+      upsertBy: "user",
+    } as any);
+    await stackAsyncTask("cloud_sync_queue", async () => "barrier");
+
+    expect(store.files.get("u1.user.js")!.content).toBe("// v1");
+    expect(store.files.get("u1.meta.json")!.digest).toBe("cm1");
+
+    // 第二轮：provider 恢复。本地 updatetime（10s）早于云端写入时间（Date.now()），
+    // 「本地更新」的补偿推送不会触发，.meta.json 仍必须被补传
+    store.failures.clear();
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, store.fs);
+
+    expect(JSON.parse(store.files.get("u1.meta.json")!.content).uuid).toBe("u1");
+  });
+
+  it("云端仅 .meta.json 变化（源码未变）：必须采用云端 meta 而非盖章跳过", async () => {
+    const newMeta = JSON.stringify({
+      uuid: "u1",
+      origin: "https://example.com/o.user.js",
+      downloadUrl: "https://example.com/new.user.js",
+      checkUpdateUrl: "https://example.com/new.meta.js",
+    });
+    const store = createCloudStore([
+      ["u1.user.js", { digest: "cu1", content: "// v1", updatetime: 5000 }],
+      ["u1.meta.json", { digest: "cm2", content: newMeta, updatetime: 6000 }],
+    ]);
+    const update = vi.fn().mockResolvedValue(true);
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "// v1" }) },
         all: vi.fn().mockResolvedValue([
           {
             uuid: "u1",
@@ -2723,35 +2804,199 @@ console.log("ok");`
             origin: "",
             downloadUrl: "",
             checkUpdateUrl: "",
-            updatetime: 20_000,
+            updatetime: 4000,
             createtime: 1,
             status: 1,
             sort: 0,
             metadata: {},
           },
         ]),
+        update,
       } as any
     );
-    vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(cloudFs);
+    // .user.js digest 未变、本地时间不比云端新，旧逻辑会直接跳过并在收尾盖章 meta digest
     await (service as any).storage.set("file_digest", { "u1.user.js": "cu1", "u1.meta.json": "cm1" });
 
-    // 第一轮：编辑触发 scriptInstall，.user.js 成功、.meta.json 失败
-    await service.scriptInstall({
-      script: { uuid: "u1", name: "t", origin: "", downloadUrl: "", checkUpdateUrl: "", updatetime: 10_000 } as any,
-      upsertBy: "user",
-    } as any);
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, store.fs);
+
+    expect(update).toHaveBeenCalledWith(
+      "u1",
+      expect.objectContaining({
+        downloadUrl: "https://example.com/new.user.js",
+        checkUpdateUrl: "https://example.com/new.meta.js",
+      })
+    );
+    // 采用成功后推进内容基线，云端 meta 不再被视为未处理
+    await expect((service as any).storage.get("sync_content_md5")).resolves.toMatchObject({
+      "u1.meta.json": md5OfText(newMeta),
+    });
+  });
+
+  it("syncDelete=true 删除部分失败（tombstone 未写入）：SW 重启后下一轮自动补写", async () => {
+    const store = createCloudStore([
+      ["s1.user.js", { digest: "cu1", content: "// v1", updatetime: 5000 }],
+      ["s1.meta.json", { digest: "cm1", content: JSON.stringify({ uuid: "s1" }), updatetime: 5000 }],
+    ]);
+    const makeService = () => {
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {
+          getCloudSync: vi.fn().mockResolvedValue({ ...syncConfig, enable: true, syncDelete: true }),
+        } as any,
+        {
+          scriptCodeDAO: {},
+          all: vi.fn().mockResolvedValue([]),
+          get: vi.fn().mockResolvedValue(undefined),
+        } as any
+      );
+      vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(store.fs);
+      return service;
+    };
+
+    // 第一轮：删除 .user.js 成功，写 tombstone 失败
+    store.failures.add("s1.meta.json");
+    await makeService().scriptsDelete([{ uuid: "s1", deleteBy: "user" } as any]);
     await stackAsyncTask("cloud_sync_queue", async () => "barrier");
+    expect(store.files.has("s1.user.js")).toBe(false);
+    expect(JSON.parse(store.files.get("s1.meta.json")!.content).isDeleted).toBeUndefined();
 
-    expect(writes).toContain("u1.user.js");
-    expect(cloud.get("u1.meta.json")!.digest).toBe("cm1");
+    // SW 重启（新实例、共享 storage），provider 恢复：必须补写 tombstone 并清除 pending
+    store.failures.clear();
+    const service2 = makeService();
+    await service2.syncOnce({ ...syncConfig, syncStatus: false, syncDelete: true }, store.fs);
 
-    // 第二轮：meta 故障恢复，syncOnce 应补传两个文件
-    failMeta = false;
-    writes.length = 0;
-    await service.syncOnce({ ...syncConfig, syncStatus: false }, cloudFs);
+    expect(JSON.parse(store.files.get("s1.meta.json")!.content).isDeleted).toBe(true);
+    await expect((service2 as any).storage.get("pending_sync_ops")).resolves.toEqual({});
+  });
 
-    expect(writes).toContain("u1.user.js");
-    expect(writes).toContain("u1.meta.json");
+  it("syncDelete=false 删除部分失败（.meta.json 残留）：下一轮自动清理", async () => {
+    const store = createCloudStore([
+      ["s1.user.js", { digest: "cu1", content: "// v1", updatetime: 5000 }],
+      ["s1.meta.json", { digest: "cm1", content: JSON.stringify({ uuid: "s1" }), updatetime: 5000 }],
+    ]);
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        getCloudSync: vi.fn().mockResolvedValue({ ...syncConfig, enable: true, syncDelete: false }),
+      } as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+        get: vi.fn().mockResolvedValue(undefined),
+      } as any
+    );
+    vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(store.fs);
+
+    // 第一轮：删除 .user.js 成功，删除 .meta.json 失败
+    store.failures.add("s1.meta.json");
+    await service.scriptsDelete([{ uuid: "s1", deleteBy: "user" } as any]);
+    await stackAsyncTask("cloud_sync_queue", async () => "barrier");
+    expect(store.files.has("s1.user.js")).toBe(false);
+    expect(store.files.has("s1.meta.json")).toBe(true);
+
+    // 第二轮：provider 恢复，残留 .meta.json 必须被清理
+    store.failures.clear();
+    await service.syncOnce({ ...syncConfig, syncStatus: false, syncDelete: false }, store.fs);
+
+    expect(store.files.size).toBe(0);
+  });
+
+  it("删除云端全部失败后：下一轮必须重试删除，而不是把脚本拉回本地", async () => {
+    const code = `// ==UserScript==
+// @name resurrect
+// @namespace ns
+// @version 1.0.0
+// ==/UserScript==
+console.log(1);`;
+    const store = createCloudStore([
+      ["s1.user.js", { digest: "cu1", content: code, updatetime: 5000 }],
+      ["s1.meta.json", { digest: "cm1", content: JSON.stringify({ uuid: "s1" }), updatetime: 5000 }],
+    ]);
+    const installScript = vi.fn().mockResolvedValue({});
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      { installScript } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        getCloudSync: vi.fn().mockResolvedValue({ ...syncConfig, enable: true, syncDelete: true }),
+      } as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+        get: vi.fn().mockResolvedValue(undefined),
+      } as any
+    );
+    vi.spyOn(service as any, "buildFileSystem").mockResolvedValue(store.fs);
+
+    // 第一轮：第一步删除 .user.js 就失败，云端原样保留，本地脚本已删
+    store.failures.add("s1.user.js");
+    await service.scriptsDelete([{ uuid: "s1", deleteBy: "user" } as any]);
+    await stackAsyncTask("cloud_sync_queue", async () => "barrier");
+    expect(store.files.has("s1.user.js")).toBe(true);
+
+    // 第二轮：没有持久化删除意图时，「本地无脚本 + 云端有脚本」会被误判为新脚本拉回本地
+    store.failures.clear();
+    await service.syncOnce({ ...syncConfig, syncStatus: false, syncDelete: true }, store.fs);
+
+    expect(installScript).not.toHaveBeenCalled();
+    expect(store.files.has("s1.user.js")).toBe(false);
+    expect(JSON.parse(store.files.get("s1.meta.json")!.content).isDeleted).toBe(true);
+  });
+
+  it("deleteCloudScript 对云端已不存在的文件幂等成功", async () => {
+    const store = createCloudStore();
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { scriptCodeDAO: {} } as any
+    );
+
+    await expect(service.deleteCloudScript(store.fs, "gone", false)).resolves.toBeUndefined();
+  });
+
+  it("云端孤儿 .meta.json 对账：tombstone 保留，非 tombstone 残留清理", async () => {
+    // 他端分片删除残留的普通 .meta.json 若不清理，其他设备会按「无效 meta」重新上传脚本；
+    // tombstone 则是删除标记，必须长期保留
+    const store = createCloudStore([
+      ["t1.meta.json", { digest: "tm1", content: JSON.stringify({ uuid: "t1", isDeleted: true }), updatetime: 5000 }],
+      ["t2.meta.json", { digest: "nm1", content: JSON.stringify({ uuid: "t2" }), updatetime: 5000 }],
+    ]);
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    await service.syncOnce({ ...syncConfig, syncStatus: false }, store.fs);
+
+    expect(store.files.has("t1.meta.json")).toBe(true);
+    expect(store.files.has("t2.meta.json")).toBe(false);
   });
 
   it("本地编辑经 syncOnce 真实上云，且推进 digest 后下一轮不再重复推送", async () => {
