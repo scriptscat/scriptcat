@@ -118,6 +118,7 @@ const scriptcatRemoveConnectWildcardRuleId = "scriptcat/remove-connect-wildcard"
 const scriptcatReplaceMatchTldWildcardRuleId = "scriptcat/replace-match-tld-wildcard-with-include";
 const scriptcatReplaceIncludeWithMatchRuleId = "scriptcat/replace-include-with-match";
 const scriptcatGrantNoneConflictRuleId = "scriptcat/grant-none-conflict";
+const scriptcatUndefinedMetadataTagRuleId = "scriptcat/undefined-metadata-tag";
 const quickfixKind = "quickfix";
 const noop = () => {};
 const metaLinePattern = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
@@ -755,6 +756,38 @@ const contentChangeCanAffectMetadataMarkers = (model: editor.ITextModel, event: 
   return false;
 };
 
+const getUndefinedMetadataTagMarkers = (
+  model: editor.ITextModel,
+  blocks: MetadataAlignmentBlock[]
+): editor.IMarkerData[] => {
+  const markers: editor.IMarkerData[] = [];
+
+  for (const block of blocks) {
+    for (let lineNumber = block.startLineNumber; lineNumber <= block.endLineNumber; lineNumber += 1) {
+      const lineText = model.getLineContent(lineNumber);
+      const metadataMatch = metadataHoverPattern.exec(lineText);
+      if (!metadataMatch) continue;
+
+      const [, prefix, tag] = metadataMatch;
+      const normalizedTag = tag.toLowerCase() as keyof EditorLangEntryPrompt;
+      if (promptByMetadataTag[normalizedTag]) continue;
+
+      markers.push({
+        severity: MarkerSeverity.Warning,
+        message: currentEditorLang.undefinedPrompt,
+        source: scriptcatMarkerOwner,
+        code: scriptcatUndefinedMetadataTagRuleId,
+        startLineNumber: lineNumber,
+        startColumn: prefix.length + 1,
+        endLineNumber: lineNumber,
+        endColumn: prefix.length + tag.length + 1,
+      });
+    }
+  }
+
+  return markers;
+};
+
 const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
   if (model.getLanguageId() !== "javascript") {
     editor.setModelMarkers(model, scriptcatMarkerOwner, []);
@@ -764,6 +797,7 @@ const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
   const metadataBlocks = getMetadataAlignmentBlocks(model);
   const markers: editor.IMarkerData[] = [];
   markers.push(...getGrantNoneConflictMarkers(metadataBlocks));
+  markers.push(...getUndefinedMetadataTagMarkers(model, metadataBlocks));
 
   for (const block of metadataBlocks) {
     if (isMetadataAlignmentBlockAligned(block)) continue;
