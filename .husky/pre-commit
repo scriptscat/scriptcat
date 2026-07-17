@@ -30,6 +30,20 @@ fi
 
 rm -f "$lint_files"
 
+# 涉及翻译相关文件时，强制跑机械完整性检查（缺失/多余 key、缺失 messages.json、
+# 缺失 terminology 规范文件等），未通过则拒绝提交
+i18n_files=$(mktemp)
+git diff --cached --name-only -z --diff-filter=ACMR -- \
+  "src/locales/*" "src/assets/_locales/*" "docs/references/terminology-*.md" \
+  "src/pkg/utils/monaco-editor/langs.ts" "src/pkg/utils/monaco-editor/langs/*" > "$i18n_files"
+
+if [ -s "$i18n_files" ]; then
+  rm -f "$i18n_files"
+  pnpm run check:i18n || exit 1
+else
+  rm -f "$i18n_files"
+fi
+
 # 在 main 或 release/* 分支上提交时额外跑测试
 branch=$(git rev-parse --abbrev-ref HEAD)
 if [ "$branch" = "main" ] || echo "$branch" | grep -q "^release/"; then
