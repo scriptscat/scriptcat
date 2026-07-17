@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { WebDAVClient } from "webdav";
 import { getPatcher } from "webdav";
 import WebDAVFileSystem from "./webdav";
-import { WarpTokenError } from "../error";
+import { FileSystemError, WarpTokenError } from "../error";
+import { createWebDAVFileSystemError } from "./error";
 
 /** 创建 mock WebDAVClient */
 function createMockClient(overrides?: Partial<WebDAVClient>): WebDAVClient {
@@ -102,22 +103,43 @@ describe("WebDAVFileSystem", () => {
       await expect(fs.verify()).rejects.toBeInstanceOf(WarpTokenError);
     });
 
-    it("应当在 getQuota 其他错误时抛出包含原始信息的 Error", async () => {
+    it("应当在 getQuota 瞬时 5xx 时抛出可重试的 FileSystemError（供 limiter 重试、下游判 transient）", async () => {
       (mockClient.getQuota as ReturnType<typeof vi.fn>).mockRejectedValue({
-        message: "Network error",
+        message: "Service Unavailable",
+        response: { status: 503 },
       });
       const fs = createTestFS(mockClient);
 
-      await expect(fs.verify()).rejects.toThrow("WebDAV verify failed: Network error");
+      const err = await fs.verify().then(
+        () => null,
+        (e) => e
+      );
+      expect(err).toBeInstanceOf(FileSystemError);
+      expect((err as FileSystemError).retryable).toBe(true);
     });
 
-    it("应当在 getDirectoryContents 其他错误时抛出包含原始信息的 Error", async () => {
+    it("应当在 getDirectoryContents 瞬时 5xx 时抛出可重试的 FileSystemError", async () => {
       (mockClient.getDirectoryContents as ReturnType<typeof vi.fn>).mockRejectedValue({
-        message: "Network error",
+        message: "Internal Server Error",
+        response: { status: 500 },
       });
       const fs = createTestFS(mockClient);
 
-      await expect(fs.verify()).rejects.toThrow("WebDAV verify failed: Network error");
+      const err = await fs.verify().then(
+        () => null,
+        (e) => e
+      );
+      expect(err).toBeInstanceOf(FileSystemError);
+      expect((err as FileSystemError).retryable).toBe(true);
+    });
+  });
+
+  describe("createWebDAVFileSystemError", () => {
+    it("409 不应判定为冲突（RFC 4918 中 PUT/MKCOL 的 409 是父集合不存在）", () => {
+      const err = createWebDAVFileSystemError({ message: "Conflict", response: { status: 409 } });
+
+      expect(err).toBeInstanceOf(FileSystemError);
+      expect((err as FileSystemError).conflict).toBe(false);
     });
   });
 
@@ -221,6 +243,51 @@ describe("WebDAVFileSystem", () => {
     });
   });
 
+  describe("open", () => {
+    it("读取文件遇到 503 时应当抛出 typed 可重试错误", async () => {
+      const err = new Error("Service Unavailable");
+      (err as any).response = { status: 503 };
+      (mockClient.getFileContents as ReturnType<typeof vi.fn>).mockRejectedValue(err);
+      const fs = createTestFS(mockClient);
+      const reader = await fs.open({
+        name: "busy.user.js",
+        path: "/",
+        size: 1,
+        digest: "digest",
+        createtime: 1,
+        updatetime: 1,
+      });
+
+      await expect(reader.read("string")).rejects.toMatchObject({
+        provider: "webdav",
+        status: 503,
+        retryable: true,
+      });
+    });
+
+    it("读取文件遇到 501 时不应标记为可重试", async () => {
+      // 501 Not Implemented 是永久失败，重试只会空转退避
+      const err = new Error("Not Implemented");
+      (err as any).response = { status: 501 };
+      (mockClient.getFileContents as ReturnType<typeof vi.fn>).mockRejectedValue(err);
+      const fs = createTestFS(mockClient);
+      const reader = await fs.open({
+        name: "busy.user.js",
+        path: "/",
+        size: 1,
+        digest: "digest",
+        createtime: 1,
+        updatetime: 1,
+      });
+
+      await expect(reader.read("string")).rejects.toMatchObject({
+        provider: "webdav",
+        status: 501,
+        retryable: false,
+      });
+    });
+  });
+
   describe("list", () => {
     it("应当列出文件并过滤目录", async () => {
       (mockClient.getDirectoryContents as ReturnType<typeof vi.fn>).mockResolvedValue([
@@ -269,6 +336,20 @@ describe("WebDAVFileSystem", () => {
       const fs = createTestFS(mockClient);
 
       await expect(fs.list()).rejects.toThrow("Server Error");
+    });
+
+    it("列目录遇到 429 时应当抛出 typed 限流错误", async () => {
+      const err = new Error("Too Many Requests");
+      (err as any).response = { status: 429 };
+      (mockClient.getDirectoryContents as ReturnType<typeof vi.fn>).mockRejectedValue(err);
+      const fs = createTestFS(mockClient);
+
+      await expect(fs.list()).rejects.toMatchObject({
+        provider: "webdav",
+        status: 429,
+        rateLimit: true,
+        retryable: true,
+      });
     });
   });
 
