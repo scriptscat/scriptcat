@@ -32,7 +32,6 @@ const REFERENCE_LOCALE = "en-US";
 const CHROME_LOCALES_DIR = path.join(ROOT, "src/assets/_locales");
 const CHROME_REFERENCE_LOCALE = "en";
 const TERMINOLOGY_DIR = path.join(ROOT, "docs/references");
-const MONACO_LANGS_PATH = path.join(ROOT, "src/pkg/utils/monaco-editor/langs.ts");
 
 // chrome.i18n `_locales` directories don't follow one fixed rule (some are the bare language
 // subtag like "ko", others are the full region-qualified code like "zh_CN" or "pt_BR"), and a
@@ -70,69 +69,133 @@ function diffKeys(referenceKeys, targetKeys) {
   return { missing, extra };
 }
 
-// Parse `export const editorLangs = { "locale": { ... } } as const` in a TS source file
-// (not JSON, so it needs real AST parsing rather than JSON.parse) and return a Map from
-// locale code to its flattened key set, resolving identifier references (e.g. a
-// `grantValuePrompts: grantValuePromptsEnUS` property) against the file's top-level consts.
-function parseEditorLangs(filePath) {
+// Find the entry point for the Monaco editor's language data, whether it's still the original
+// single file or has been split into src/pkg/utils/monaco-editor/langs/<locale>.ts + index.ts
+// (each locale imported into an `editorLangs` map). Support both so a refactor of this file
+// doesn't make the check report a false "file missing".
+function findEditorLangsEntry() {
+  const splitIndex = path.join(ROOT, "src/pkg/utils/monaco-editor/langs/index.ts");
+  if (existsSync(splitIndex)) return splitIndex;
+  const singleFile = path.join(ROOT, "src/pkg/utils/monaco-editor/langs.ts");
+  if (existsSync(singleFile)) return singleFile;
+  return null;
+}
+
+function unwrapExpression(node) {
+  while (node && (ts.isAsExpression(node) || ts.isParenthesizedExpression(node))) {
+    node = node.expression;
+  }
+  return node;
+}
+
+function propName(nameNode, sourceFile) {
+  if (ts.isIdentifier(nameNode) || ts.isStringLiteral(nameNode) || ts.isNumericLiteral(nameNode)) {
+    return nameNode.text;
+  }
+  return nameNode.getText(sourceFile);
+}
+
+const moduleCache = new Map();
+
+// Parse one TS module: its top-level `const x = {...}` object literals (for resolving
+// same-file identifier references like `grantValuePrompts: grantValuePromptsEnUS`), its
+// default-import bindings resolved to absolute file paths (for the split-file layout, where
+// `editorLangs` maps a locale to an imported identifier), and its `export default {...}`.
+function parseModule(filePath) {
+  if (moduleCache.has(filePath)) return moduleCache.get(filePath);
+
   const source = readFileSync(filePath, "utf8");
   const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
 
-  function unwrap(node) {
-    while (ts.isAsExpression(node) || ts.isParenthesizedExpression(node) || ts.isSatisfiesExpression?.(node)) {
-      node = node.expression;
-    }
-    return node;
-  }
-
   const topLevelConsts = new Map();
+  const imports = new Map();
+  let defaultExport;
+
   for (const statement of sourceFile.statements) {
-    if (!ts.isVariableStatement(statement)) continue;
-    for (const decl of statement.declarationList.declarations) {
-      if (!decl.initializer) continue;
-      const initializer = unwrap(decl.initializer);
-      if (ts.isObjectLiteralExpression(initializer)) {
-        topLevelConsts.set(decl.name.getText(sourceFile), initializer);
+    if (ts.isVariableStatement(statement)) {
+      for (const decl of statement.declarationList.declarations) {
+        if (!decl.initializer) continue;
+        const initializer = unwrapExpression(decl.initializer);
+        if (ts.isObjectLiteralExpression(initializer)) {
+          topLevelConsts.set(decl.name.getText(sourceFile), initializer);
+        }
+      }
+    } else if (
+      ts.isImportDeclaration(statement) &&
+      statement.importClause?.name &&
+      ts.isStringLiteral(statement.moduleSpecifier) &&
+      statement.moduleSpecifier.text.startsWith(".")
+    ) {
+      const baseDir = path.dirname(filePath);
+      const specifier = statement.moduleSpecifier.text;
+      const resolved = [
+        path.join(baseDir, `${specifier}.ts`),
+        path.join(baseDir, `${specifier}.tsx`),
+        path.join(baseDir, specifier, "index.ts"),
+      ].find((candidate) => existsSync(candidate));
+      if (resolved) {
+        imports.set(statement.importClause.name.getText(sourceFile), resolved);
+      }
+    } else if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
+      const expr = unwrapExpression(statement.expression);
+      if (ts.isObjectLiteralExpression(expr)) defaultExport = expr;
+    }
+  }
+
+  const moduleInfo = { sourceFile, topLevelConsts, imports, defaultExport };
+  moduleCache.set(filePath, moduleInfo);
+  return moduleInfo;
+}
+
+// Flatten an object-literal AST node into dot-path keys, resolving identifiers against the
+// given module's own top-level consts first, then (for the split-file layout) against its
+// imports — recursing into the imported module's default export with ITS OWN scope.
+function flattenNode(node, prefix, out, moduleInfo) {
+  node = unwrapExpression(node);
+  if (ts.isObjectLiteralExpression(node)) {
+    for (const prop of node.properties) {
+      if (ts.isPropertyAssignment(prop)) {
+        const key = propName(prop.name, moduleInfo.sourceFile);
+        flattenNode(prop.initializer, prefix ? `${prefix}.${key}` : key, out, moduleInfo);
+      } else if (ts.isShorthandPropertyAssignment(prop)) {
+        const key = propName(prop.name, moduleInfo.sourceFile);
+        flattenNode(prop.name, prefix ? `${prefix}.${key}` : key, out, moduleInfo);
+      }
+    }
+    return;
+  }
+  if (ts.isIdentifier(node)) {
+    if (moduleInfo.topLevelConsts.has(node.text)) {
+      flattenNode(moduleInfo.topLevelConsts.get(node.text), prefix, out, moduleInfo);
+      return;
+    }
+    if (moduleInfo.imports.has(node.text)) {
+      const importedModule = parseModule(moduleInfo.imports.get(node.text));
+      if (importedModule.defaultExport) {
+        flattenNode(importedModule.defaultExport, prefix, out, importedModule);
+        return;
       }
     }
   }
+  // Leaf: string/template literal, `.replace(...)` call, or an unresolved identifier.
+  out.add(prefix);
+}
 
-  function propName(nameNode) {
-    if (ts.isIdentifier(nameNode) || ts.isStringLiteral(nameNode) || ts.isNumericLiteral(nameNode)) {
-      return nameNode.text;
-    }
-    return nameNode.getText(sourceFile);
-  }
-
-  function flattenNode(node, prefix, out) {
-    node = unwrap(node);
-    if (ts.isObjectLiteralExpression(node)) {
-      for (const prop of node.properties) {
-        if (!ts.isPropertyAssignment(prop)) continue;
-        const key = propName(prop.name);
-        flattenNode(prop.initializer, prefix ? `${prefix}.${key}` : key, out);
-      }
-      return;
-    }
-    if (ts.isIdentifier(node) && topLevelConsts.has(node.text)) {
-      flattenNode(topLevelConsts.get(node.text), prefix, out);
-      return;
-    }
-    // Leaf: string/template literal, `.replace(...)` call, or an unresolved identifier.
-    out.add(prefix);
-  }
-
-  const editorLangsNode = topLevelConsts.get("editorLangs");
+// Return a Map from locale code to its flattened key set, for either layout of the Monaco
+// editor's language data.
+function parseEditorLangs(entryPath) {
+  const moduleInfo = parseModule(entryPath);
+  const editorLangsNode = moduleInfo.topLevelConsts.get("editorLangs");
   if (!editorLangsNode) {
-    throw new Error(`Could not find "export const editorLangs = ..." in ${filePath}`);
+    throw new Error(`Could not find "export const editorLangs = ..." in ${entryPath}`);
   }
 
   const localeMap = new Map();
   for (const prop of editorLangsNode.properties) {
     if (!ts.isPropertyAssignment(prop)) continue;
-    const locale = propName(prop.name);
+    const locale = propName(prop.name, moduleInfo.sourceFile);
     const keys = new Set();
-    flattenNode(prop.initializer, "", keys);
+    flattenNode(prop.initializer, "", keys, moduleInfo);
     localeMap.set(locale, keys);
   }
   return localeMap;
@@ -273,13 +336,18 @@ for (const locale of localeDirs) {
   }
 }
 
-// --- 5: src/pkg/utils/monaco-editor/langs.ts ---
+// --- 5: src/pkg/utils/monaco-editor/langs.ts (or the split langs/<locale>.ts + index.ts) ---
 
-if (!existsSync(MONACO_LANGS_PATH)) {
-  reportError(`${path.relative(ROOT, MONACO_LANGS_PATH)} is missing.`);
+const editorLangsEntry = findEditorLangsEntry();
+
+if (!editorLangsEntry) {
+  reportError(
+    `Could not find the Monaco editor's language data — neither src/pkg/utils/monaco-editor/langs.ts nor ` +
+      `src/pkg/utils/monaco-editor/langs/index.ts exists.`
+  );
 } else {
-  const editorLangsByLocale = parseEditorLangs(MONACO_LANGS_PATH);
-  const relPath = path.relative(ROOT, MONACO_LANGS_PATH);
+  const editorLangsByLocale = parseEditorLangs(editorLangsEntry);
+  const relPath = path.relative(ROOT, editorLangsEntry);
 
   if (!editorLangsByLocale.has(REFERENCE_LOCALE)) {
     reportError(`${relPath}: editorLangs has no "${REFERENCE_LOCALE}" entry to use as a reference.`);
