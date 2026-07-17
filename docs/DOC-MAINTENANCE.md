@@ -111,6 +111,29 @@ for doc in AGENTS.md docs/README.md docs/DOC-MAINTENANCE.md docs/develop.md docs
 done
 ```
 
+Anchor integrity — the check above only confirms the **target file** exists; a `file.md#anchor` link's fragment
+can still rot silently if the target heading is renamed. This second pass re-derives each anchor from the
+target's actual headings using a best-effort GitHub-slug approximation (lowercase; drop everything but letters,
+digits, spaces, hyphens, underscores; each space becomes its own hyphen — consecutive spaces do **not** collapse,
+which is why `## Commit & Pull Request Guidelines` slugs to `commit--pull-request-guidelines` with a double
+hyphen). **ASCII-only:** it cannot slugify CJK/non-ASCII headings correctly, so anchors into those headings
+(e.g. `translation.md#各语言术语规范--per-locale-terminology`) need manual verification instead.
+
+```bash
+slugify() { printf '%s\n' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[`]//g; s/[^a-z0-9 _-]//g; s/[[:space:]]/-/g'; }
+for doc in AGENTS.md docs/README.md docs/DOC-MAINTENANCE.md docs/develop.md docs/references/develop-testing.md docs/design.md docs/references/design-tokens.md docs/references/design-components.md docs/references/design-patterns.md docs/architecture.md docs/references/architecture-services.md docs/references/architecture-data.md docs/references/architecture-gm-api.md docs/references/architecture-execution.md docs/references/architecture-build.md docs/verification.md docs/references/verification-debugging.md docs/references/verification-report-template.md docs/cloud-sync.md docs/translation.md; do
+  sed '/^```/,/^```/d' "$doc" | sed -E 's/`[^`]*`//g' | grep -oE '\]\([^)]+#[^)]+\)' | sed -E 's/^\]\(|\)$//g' | while read -r link; do
+    tf="${link%%#*}"; anchor="${link#*#}"
+    target="$doc"; [ -n "$tf" ] && target="$(dirname "$doc")/$tf"
+    [ -e "$target" ] || { echo "BROKEN-FILE $doc → $link"; continue; }
+    found=0
+    while IFS= read -r h; do [ "$(slugify "$h")" = "$anchor" ] && found=1 && break; done \
+      < <(grep -E "^#{1,6} " "$target" | sed -E 's/^#{1,6} +//')
+    [ "$found" -eq 1 ] && echo "ok           $doc → $link" || echo "BROKEN-ANCHOR $doc → $link (target: $target)"
+  done
+done
+```
+
 ## When you find a discrepancy
 
 Fix the **doc** to match the code — the code on this branch is the source of truth. The exception: if the code
