@@ -120,6 +120,13 @@ test("verify: options page opens and renders the script list area", async ({ con
 });
 ```
 
+To verify a UI change in **both themes** ([design.md](./design.md#theming) requires it), set the theme before
+navigating and capture one screenshot per theme:
+
+```ts
+await context.addInitScript(() => localStorage.setItem("lightMode", "dark")); // or "light"
+```
+
 If you need video evidence, enable it explicitly for the run. The shared fixture writes videos only when
 `E2E_RECORD_VIDEO_DIR` is set:
 
