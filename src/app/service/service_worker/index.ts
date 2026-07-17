@@ -25,9 +25,6 @@ import { InfoNotification, shouldAutoOpenChangelog } from "./utils";
 import { AgentService } from "@App/app/service/agent/service_worker/agent";
 import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_env";
 import { cleanupStaleTempStorageEntries } from "./temp";
-import { AgentService } from "@App/app/service/agent/service_worker/agent";
-import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_env";
-import { cleanupStaleTempStorageEntries } from "./temp";
 import RuntimeLogger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
 import { McpClientDAO } from "@App/app/repo/mcp";
@@ -35,7 +32,6 @@ import { McpApprovalService } from "@App/app/service/service_worker/mcp/approval
 import { McpBridge } from "@App/app/service/service_worker/mcp/bridge";
 import { McpController } from "@App/app/service/service_worker/mcp/controller";
 import { McpUIService } from "@App/app/service/service_worker/mcp/service";
-
 
 // service worker的管理器
 export default class ServiceWorkerManager {
