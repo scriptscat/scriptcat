@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 // 仅测试组件的渲染/可见性/回调逻辑，后端 schema 用受控 mock，避免拉起真实文件系统栈
 vi.mock("@Packages/filesystem/factory", () => ({
@@ -102,17 +102,15 @@ describe("文件系统参数表单", () => {
     setup({ fileSystemType: "baidu-netdsik", fileSystemParams: {} });
     const unbind = await screen.findByTestId("netdisk_unbind");
     fireEvent.click(unbind);
-    // 弹出确认气泡后点击确认按钮（气泡内最后一个按钮）
-    await waitFor(() => expect(screen.getAllByRole("button").length).toBeGreaterThan(1));
-    const buttons = screen.getAllByRole("button");
-    fireEvent.click(buttons[buttons.length - 1]);
-    await waitFor(() => expect(clearNetDiskToken).toHaveBeenCalledWith("baidu"));
+    const confirm = await screen.findByTestId("popconfirm-confirm");
+    await act(async () => fireEvent.click(confirm));
+    expect(clearNetDiskToken).toHaveBeenCalledWith("baidu");
   });
 
   it("非网盘后端不显示解绑按钮", async () => {
     hasNetDiskToken.mockResolvedValue(true);
     setup({ fileSystemType: "webdav", fileSystemParams: {} });
-    await waitFor(() => expect(screen.getByLabelText("url")).toBeInTheDocument());
+    expect(await screen.findByLabelText("url")).toBeInTheDocument();
     expect(screen.queryByTestId("netdisk_unbind")).not.toBeInTheDocument();
   });
 });

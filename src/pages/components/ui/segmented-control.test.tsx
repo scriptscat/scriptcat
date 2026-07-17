@@ -19,7 +19,7 @@ describe("SegmentedControl 分段选择", () => {
     );
 
     expect(screen.getByTestId("mode-a")).toHaveAttribute("data-state", "on");
-    fireEvent.click(screen.getByRole("radio", { name: "B" }));
+    fireEvent.click(screen.getByTestId("mode-b"));
 
     expect(onValueChange).toHaveBeenCalledWith("b");
   });

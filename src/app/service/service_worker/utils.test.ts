@@ -6,6 +6,7 @@ import {
   selfMetadataUpdate,
   getUserScriptRegister,
   compileInjectionCode,
+  shouldAutoOpenChangelog,
 } from "./utils";
 import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
@@ -107,6 +108,18 @@ describe.concurrent("isBase64", () => {
   });
 });
 
+describe.concurrent("shouldAutoOpenChangelog", () => {
+  it.concurrent("beta 版本更新时应该自动打开更新页面", () => {
+    expect(shouldAutoOpenChangelog("1.5.0-beta")).toBe(true);
+    expect(shouldAutoOpenChangelog("1.5.1-beta.2")).toBe(true);
+  });
+
+  it.concurrent("正式版仅在次版本发布时自动打开更新页面", () => {
+    expect(shouldAutoOpenChangelog("1.5.0")).toBe(true);
+    expect(shouldAutoOpenChangelog("1.5.1")).toBe(false);
+  });
+});
+
 describe.concurrent("getCombinedMeta", () => {
   const baseMetadata: SCMetadata = {
     name: ["Test Script"],
@@ -188,14 +201,36 @@ describe.concurrent("selfMetadataUpdate", () => {
     expect(result).not.toBe(script);
   });
 
-  it.concurrent("应该删除空字段并处理空对象", () => {
+  it.concurrent("传入 undefined 应删除用户覆盖并处理空对象", () => {
+    const script = createMockScript({
+      exclude: ["https://admin.com/*"],
+    });
+
+    const result = selfMetadataUpdate(script, "exclude", undefined);
+
+    expect(result.selfMetadata).toBeUndefined();
+  });
+
+  it.concurrent("传入空集合应保存为空覆盖而非删除用户覆盖", () => {
     const script = createMockScript({
       exclude: ["https://admin.com/*"],
     });
 
     const result = selfMetadataUpdate(script, "exclude", new Set());
 
-    expect(result.selfMetadata).toBeUndefined();
+    // 空覆盖代表「用户显式清空」，与 undefined(撤销覆盖、回落脚本自带 metadata) 是两回事
+    expect(result.selfMetadata).toEqual({ exclude: [] });
+  });
+
+  it.concurrent("传入 undefined 应只删除指定 key，保留其他覆盖", () => {
+    const script = createMockScript({
+      exclude: ["https://admin.com/*"],
+      match: ["https://user.com/*"],
+    });
+
+    const result = selfMetadataUpdate(script, "exclude", undefined);
+
+    expect(result.selfMetadata).toEqual({ match: ["https://user.com/*"] });
   });
 
   it.concurrent("应该处理没有 selfMetadata 的脚本", () => {

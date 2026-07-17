@@ -7,7 +7,7 @@ afterEach(cleanup);
 describe("Tooltip", () => {
   it("应当通过 Portal 将提示内容渲染到滚动容器之外，避免被 sticky 表头遮挡", () => {
     const { getByTestId } = render(
-      <TooltipProvider>
+      <TooltipProvider delayDuration={0}>
         <div data-testid="scroll-container" style={{ overflow: "auto" }}>
           <Tooltip open>
             <TooltipTrigger>{"编辑按钮"}</TooltipTrigger>

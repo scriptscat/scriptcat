@@ -10,6 +10,7 @@
   "pulling_data_from_cloud": "クラウドからデータを取得中",
   "pull_failed": "取得に失敗しました",
   "restore": "復元",
+  "manual_download": "ダウンロードが開始されない場合は、手動でダウンロード",
   "local_backup": "ローカルバックアップ",
   "cloud_backup": "クラウドバックアップ",
   "auto_backup": "自動バックアップ",

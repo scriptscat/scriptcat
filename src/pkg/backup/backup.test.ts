@@ -298,7 +298,8 @@ describe.concurrent("backup", () => {
     expect(resp).toEqual(data);
   });
 
-  it.concurrent("export and import script - 30 scripts + 20 subscribes", async () => {
+  // 50 项批量压缩为同步 CPU 工作，与其他用例并发会在同一 worker 内排队放大耗时，故顺序执行。
+  it.sequential("export and import script - 30 scripts + 20 subscribes", async () => {
     const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);
     const data: BackupData = {
@@ -375,5 +376,58 @@ describe.concurrent("backup", () => {
     await new BackupExport(fs).export(data);
     const resp = await parseBackupZipFile(zipFile);
     expect(resp).toEqual(data);
+  });
+
+  it.concurrent("导出的 options 携带 selfMeta 并可原样解析", async () => {
+    const zipFile = createJSZip();
+    const fs = new ZipFileSystem(zipFile);
+    await new BackupExport(fs).export({
+      script: [
+        {
+          code: "// ==UserScript==\n// @name t\n// @match https://a.com/*\n// ==/UserScript==\n",
+          options: {
+            options: {} as never,
+            settings: { enabled: true, position: 1 },
+            meta: { name: "t", uuid: "", sc_uuid: "", modified: 1, file_url: "" },
+            selfMeta: { exclude: ["https://a.com/x"] },
+          },
+          storage: { data: {}, ts: 0 },
+          requires: [],
+          requiresCss: [],
+          resources: [],
+        },
+      ],
+      subscribe: [],
+    });
+    const resp = await parseBackupZipFile(zipFile);
+    expect(resp.script[0].options?.selfMeta).toEqual({ exclude: ["https://a.com/x"] });
+  });
+
+  it.concurrent("导出携带 config bundle 并可原样解析回来", async () => {
+    const zipFile = createJSZip();
+    const fs = new ZipFileSystem(zipFile);
+    const config = {
+      version: 1,
+      systemConfig: { language: "zh-CN" },
+      agent: {
+        models: [
+          {
+            id: "m1",
+            name: "gpt",
+            provider: "openai" as const,
+            apiBaseUrl: "",
+            apiKey: "",
+            model: "gpt-4o",
+          },
+        ],
+        mcp: [],
+        tasks: [],
+        defaultModelId: "m1",
+        summaryModelId: "",
+      },
+    };
+    await new BackupExport(fs).export({ script: [], subscribe: [], config });
+    const resp = await parseBackupZipFile(zipFile);
+    expect(resp.config).toEqual(config);
   });
 });

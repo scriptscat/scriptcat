@@ -1,8 +1,10 @@
-import { describe, it, expect } from "vitest";
-import { initLanguage } from "@App/locales/locales";
+import { describe, it, expect, beforeAll } from "vitest";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Script } from "@App/app/repo/scripts";
 import type { TBatchUpdateRecord, TBatchUpdateRecordObject } from "@App/app/service/service_worker/types";
 import { riskLevel, getSource, toUpdateItem, categorize, assembleRecord } from "./logic";
+
+beforeAll(() => initTestLanguage("zh-CN"));
 
 function mkScript(p: Partial<Script>): Script {
   return {
@@ -130,13 +132,11 @@ describe("toUpdateItem 记录转视图模型", () => {
     });
   });
   it("脚本名优先取当前语言的本地化名称(@name:zh-CN)", () => {
-    initLanguage("zh-CN");
     const rec = mkRecord({ name: "Raw English Name" });
     rec.script!.metadata["name:zh-cn"] = ["中文脚本名"];
     expect(toUpdateItem(rec)!.name).toBe("中文脚本名");
   });
   it("无本地化名称时回退到脚本原名", () => {
-    initLanguage("zh-CN");
     expect(toUpdateItem(mkRecord({ name: "Plain Name" }))!.name).toBe("Plain Name");
   });
   it("忽略版本等于新版本时标记为 ignored", () => {

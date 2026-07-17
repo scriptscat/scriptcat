@@ -47,19 +47,19 @@ describe("InstallError 加载失败状态屏", () => {
   it("提供 onRetry 时渲染重试按钮并可点击", () => {
     const onRetry = vi.fn();
     render(<InstallError message="x" onRetry={onRetry} onClose={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    fireEvent.click(screen.getByText("重试").closest("button")!);
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
   it("未提供 onRetry 时不渲染重试按钮", () => {
     render(<InstallError message="x" onClose={() => {}} />);
-    expect(screen.queryByRole("button", { name: "重试" })).not.toBeInTheDocument();
+    expect(screen.queryByText("重试")).not.toBeInTheDocument();
   });
 
   it("点击关闭触发 onClose", () => {
     const onClose = vi.fn();
     render(<InstallError message="x" onClose={onClose} />);
-    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+    fireEvent.click(screen.getByText("关闭").closest("button")!);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

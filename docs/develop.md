@@ -4,7 +4,7 @@
 > principles (SOLID / high cohesion & low coupling, TDD/BDD-first, root-cause fixes, scope discipline) and the
 > architecture quick-map — those are **not** repeated here. This file is the concrete development spec: the
 > commands, structure, coding style, UI/theme rules, testing mechanics, i18n, and commit/PR workflow you follow
-> while implementing. For deep internals see [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md).
+> while implementing. For deep internals see [`docs/architecture.md`](./architecture.md).
 
 ## Commands
 
@@ -68,67 +68,21 @@ React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 +
   - No hard-coded colors.
 - **Design system** — the full color-token reference (light/dark values), component palette, layout &
   responsive patterns, motion guidance, state patterns, and a new-page recipe live in
-  [`DESIGN.md`](./DESIGN.md). Read it before building a new page, dialog, or block.
+  [`DESIGN.md`](./design.md). Read it before building a new page, dialog, or block.
 
 ## Testing
 
-> The **TDD/BDD-first principle** (write failing tests before implementation; fix code not tests) lives in
-> [`AGENTS.md`](../AGENTS.md) → *Engineering Principles*. This section is the mechanics.
+This project uses Vitest for unit tests and Playwright for end-to-end tests.
 
-Vitest + happy-dom, 850ms timeout. Chrome APIs mocked via `@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` available for message-system tests.
-
-- Write failing tests **before** implementation; co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
-- BDD-style Chinese `describe`/`it` titles. Use `describe.concurrent()` / `it.concurrent()` where independent.
-- Single file: `pnpm test -- --run path/to/file.test.ts`.
-- Playwright tests are `*.spec.ts` files in `e2e`; they run with one worker and retain failure artifacts. Run targeted tests while iterating, then run `pnpm run lint` plus the relevant full suite before a PR.
-- Firefox MV3 has a separate committed E2E suite (Selenium + geckodriver, `e2e/firefox/`) run via `pnpm run test:e2e:firefox` — Playwright cannot drive Firefox extension UI. See [`E2E-FIREFOX.md`](./E2E-FIREFOX.md).
-
-### Writing meaningful tests (what to clean up / not write)
-
-A test earns its place by exercising **our own logic** and failing on a real regression. Don't write the "tests nothing" kinds below — and clean them up when you find them (delete the test; don't touch business logic):
-
-- **Tautology** — asserting a constant equals its own literal definition (source `const FOO = [Type.BAR]`, test `expect(FOO).toEqual([Type.BAR])`).
-- **Genuine duplicate** — a whole file/block near-verbatim identical to another, differing only by irrelevant suffixes.
-- **Redundant** — when the caller's tests already cover a callee fully, skip the callee's standalone unit test.
-- **Pure pass-through render** — `render(<Comp prop={x} />)` that only asserts `x` shows up, with no branching / variant mapping / derived logic in the component.
-- **Testing the mock or framework, not our code** — configuring a `vi.fn()` then asserting it returned what it was fed; asserting a third-party lib's or the JS language's own semantics.
-- **Mislabeled** — the test name claims a behavior the body never triggers (e.g. claims to test abort but never calls abort). Worse than no test: it gives false confidence.
-- **File-content assertion that belongs in a lint rule** — reading a source file and grepping its text for a token/string is a mechanical convention; express it as an ESLint rule, not a unit test.
-
-Conversely, keep these — they look thin but carry real value:
-
-- One branch of a conditional (`showLabel` default vs hidden, optional prop present vs absent, compact vs non-compact).
-- Variant → design-token mapping (CVA `tone="success"` → `text-success-fg`) and accessibility derivation (`title` → `aria-label`).
-- `instanceof` / `name` guards on custom `Error` subclasses, security-blocklist completeness, and similar regression guards.
-- The **only** coverage of a component / sub-component — deleting it removes coverage, not noise.
-
-> **Verify each against the source before deleting.** Many "looks meaningless" tests actually exercise a real branch; judging in bulk from a scan over-flags heavily. Confirm the behavior genuinely exists / is covered elsewhere before removing anything.
-
-### Vitest Performance Hygiene
-
-- Keep `tests/vitest.setup.ts` lightweight. Shared setup should only install global browser/chrome mocks; heavier
-  feature helpers belong in opt-in test utilities.
-- For files that use one fixed UI language, prefer `initTestLanguage()` from `tests/initTestLanguage.ts` in
-  `beforeAll` over repeated `initLanguage()` calls inside every test. Tests that intentionally switch languages
-  should keep explicit language setup.
-- Prefer shared DOM helpers such as `mockMatchMedia()` from `tests/mockMatchMedia.ts` over copying local browser
-  stubs into every page test.
-- To spot setup/import regressions without running the full suite, run one small file and read Vitest's timing
-  breakdown, for example:
-
-```bash
-pnpm exec vitest run --test-timeout=850 --no-coverage --reporter=verbose src/pkg/utils/url-utils.test.ts
-```
-
-> To **verify a change works end-to-end without growing the suite** — drive the real built extension with a
-> throwaway scratch script — see [`VERIFICATION.md`](./VERIFICATION.md). That is lightweight verification, not
-> the committed test suite owned by this section.
+> Mechanics, meaningful-test guidance, and Vitest performance hygiene live in [testing.md](./references/develop-testing.md). To verify a change end-to-end without growing the suite, see [verification.md](./verification.md).
+>
+> Firefox MV3 has a separate committed E2E suite (Selenium + geckodriver, `e2e/firefox/`) run via `pnpm run test:e2e:firefox` — Playwright cannot drive Firefox extension UI. See [`E2E-FIREFOX.md`](./E2E-FIREFOX.md).
 
 ## i18n
 
-i18next, 7 locales (`src/locales/`: en-US, zh-CN, zh-TW, ja-JP, de-DE, vi-VN, ru-RU); extension strings in `src/assets/_locales/`. ESLint `react/jsx-no-literals: warn` enforces translation. Each locale is split by namespace into multiple `*.json` files (`common.json`, `popup.json`, `script.json`, …), re-exported via the locale's `index.ts` and merged in `src/locales/locales.ts`. `defaultNS` is `common`; keys in any other namespace need the `ns:` prefix (e.g. `t("script:tags")`). For localization, edit the relevant namespace `*.json` under `src/locales/<locale>/`; new locales must also be registered in `src/locales/locales.ts`.
+i18next, 8 locales (`src/locales/`: en-US, zh-CN, zh-TW, ja-JP, de-DE, vi-VN, ru-RU, tr-TR); extension strings in `src/assets/_locales/`. ESLint `react/jsx-no-literals: warn` enforces translation. Each locale is split by namespace into multiple `*.json` files (`common.json`, `popup.json`, `script.json`, …), re-exported via the locale's `index.ts` and merged in `src/locales/locales.ts`. `defaultNS` is `common`; keys in any other namespace need the `ns:` prefix (e.g. `t("script:tags")`). For localization, edit the relevant namespace `*.json` under `src/locales/<locale>/`; new locales must also be registered in `src/locales/locales.ts`.
 
-**Before translating, read [`docs/translation/README.md`](translation/README.md)** — the translation/localization guide (terminology rules + per-locale `terminology-<locale>.md` specs).
+**Before translating, read [`docs/translation.md`](./translation.md)** — the translation/localization guide (terminology rules + per-locale `terminology-<locale>.md` specs).
 
 ## Security & Configuration Tips
 

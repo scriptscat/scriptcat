@@ -10,6 +10,7 @@ import type PermissionVerify from "./permission_verify";
 import { type UserConfirm } from "./permission_verify";
 import { type FileSystemType } from "@Packages/filesystem/factory";
 import { type ResourceBackup } from "@App/pkg/backup/struct";
+import { type ConfigBundle } from "@App/pkg/backup/config_bundle";
 import { type VSCodeConnectParam } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
 import type { AgentModelConfig, MCPApiRequest, SkillConfigField } from "@App/app/service/agent/core/types";
@@ -18,11 +19,14 @@ import type {
   ScriptService,
   TCheckScriptUpdateOption,
   TOpenBatchUpdatePageOption,
+  TRestoreResult,
   TScriptInstallParam,
   TScriptInstallReturn,
 } from "./script";
+import type { TrashScript } from "@App/app/repo/trash_script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
+import type { LocalBackupExport } from "./synchronize";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -56,6 +60,18 @@ export class ScriptClient extends Client {
 
   deletes(uuids: string[]) {
     return this.do("deletes", uuids);
+  }
+
+  restores(uuids: string[]) {
+    return this.do<TRestoreResult>("restores", uuids);
+  }
+
+  purges(uuids: string[]) {
+    return this.do<boolean>("purges", uuids);
+  }
+
+  getTrashScripts() {
+    return this.do<TrashScript[]>("getTrashScripts");
   }
 
   enable(uuid: string, enable: boolean) {
@@ -116,7 +132,8 @@ export class ScriptClient extends Client {
     return this.do("setCheckUpdateUrl", { uuid, checkUpdate, checkUpdateUrl });
   }
 
-  updateMetadata(uuid: string, key: string, value: string[]) {
+  // value 为 undefined 表示撤销用户覆盖，生效值回落脚本自带 metadata
+  updateMetadata(uuid: string, key: string, value: string[] | undefined) {
     return this.do("updateMetadata", { uuid, key, value });
   }
   async getBatchUpdateRecordLite(i: number) {
@@ -278,8 +295,8 @@ export class SynchronizeClient extends Client {
     super(msgSender, "serviceWorker/synchronize");
   }
 
-  export(uuids?: string[]) {
-    return this.do("export", uuids);
+  export(uuids?: string[]): Promise<LocalBackupExport> {
+    return this.doThrow("export", uuids);
   }
 
   backupToCloud(type: FileSystemType, params: any) {
@@ -291,8 +308,12 @@ export class SynchronizeClient extends Client {
     requires: ResourceBackup[],
     resources: ResourceBackup[],
     requiresCss: ResourceBackup[]
-  ) {
+  ): Promise<string[] | undefined> {
     return this.do("importResources", { uuid, requires, resources, requiresCss });
+  }
+
+  restoreConfigBundle(bundle: ConfigBundle): Promise<void> {
+    return this.do("restoreConfigBundle", bundle);
   }
 }
 

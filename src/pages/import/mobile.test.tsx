@@ -39,6 +39,14 @@ function mkView(p: Partial<ImportView> = {}): ImportView {
     selectedScripts: new Set(),
     selectedSubscribes: new Set(),
     importStatus: {},
+    resourceErrors: {},
+    overwriteLocal: false,
+    hasConfig: false,
+    configSections: [],
+    selectedSections: new Set(),
+    onToggleSection: () => {},
+    onToggleAllSections: () => {},
+    onToggleOverwrite: () => {},
     doneCount: 0,
     totalCount: 0,
     summary: { scripts: 0, subscribes: 0, values: 0 },
@@ -91,6 +99,15 @@ describe("导入移动视图", () => {
     expect(onImport).toHaveBeenCalledTimes(1);
   });
 
+  it("有选中设置板块时导入按钮可用", () => {
+    renderMobile({
+      hasConfig: true,
+      configSections: [{ id: "appearance", group: "app", count: 3 }],
+      selectedSections: new Set(["appearance"]),
+    });
+    expect((screen.getByTestId("import-btn") as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("importing 阶段显示顶部进度条且行内状态取代复选框", () => {
     renderMobile({
       phase: "importing",
@@ -100,7 +117,7 @@ describe("导入移动视图", () => {
       doneCount: 1,
       totalCount: 1,
     });
-    expect(screen.getByRole("progressbar")).toBeTruthy();
+    expect(document.querySelector('[role="progressbar"]')).toBeTruthy();
     expect(screen.getByTestId("status-done-u1")).toBeTruthy();
     expect(screen.queryByTestId("script-checkbox-u1")).toBeNull();
   });
@@ -113,5 +130,17 @@ describe("导入移动视图", () => {
   it("empty 阶段显示空备份屏", () => {
     renderMobile({ phase: "empty" });
     expect(screen.getByTestId("import-empty")).toBeTruthy();
+  });
+
+  it("点击自定义还原设置打开底部面板,面板带无障碍标题「还原设置」", () => {
+    renderMobile({
+      hasConfig: true,
+      configSections: [{ id: "appearance", group: "app", count: 3 }],
+      selectedSections: new Set(),
+    });
+    fireEvent.click(screen.getByTestId("restore-settings-customize"));
+    const title = document.querySelector('[data-slot="sheet-title"]');
+    expect(title).toBeTruthy();
+    expect(title?.textContent).toBe("还原设置");
   });
 });

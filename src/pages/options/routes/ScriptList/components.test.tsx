@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { act, cleanup, render, screen, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
@@ -7,10 +7,11 @@ import { TooltipProvider } from "@App/pages/components/ui/tooltip";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB } from "@App/app/repo/scripts";
 
 // requestCheckUpdate 走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
-const { requestCheckUpdate, preloadUserConfig, preloadCloudScriptPlan } = vi.hoisted(() => ({
+const { requestCheckUpdate, preloadUserConfig, preloadCloudScriptPlan, get } = vi.hoisted(() => ({
   requestCheckUpdate: vi.fn(),
   preloadUserConfig: vi.fn(() => Promise.resolve()),
   preloadCloudScriptPlan: vi.fn(() => Promise.resolve()),
+  get: vi.fn(),
 }));
 vi.mock("@App/pages/store/features/script", () => ({
   scriptClient: { requestCheckUpdate },
@@ -20,6 +21,14 @@ vi.mock("@App/pages/components/CloudScriptPlan", () => ({ preloadCloudScriptPlan
 vi.mock("@App/pkg/utils/cron", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return { ...actual, nextTimeDisplay: vi.fn(() => "2026-06-25 08:00:00") };
+});
+// useSystemConfig("trash_enabled") 读的是这个 store；默认给回收站「开启」，
+// 关闭态相关用例（见「回收站关闭时的删除确认文案」describe）再各自切到 false。
+vi.mock("@App/pages/store/global", async () => {
+  const { createGlobalStoreMock } = await import("@Tests/mocks/pageStores.ts");
+  return createGlobalStoreMock({
+    systemConfig: { get, getLanguage: vi.fn().mockResolvedValue("zh-CN"), set: vi.fn() },
+  });
 });
 
 import {
@@ -32,9 +41,11 @@ import {
   UpdateTimeCell,
 } from "./components";
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initTestLanguage("zh-CN");
   vi.clearAllMocks();
+  get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? true : 30));
 });
 afterEach(cleanup);
 
@@ -68,7 +79,7 @@ describe("FaviconDots 站点图标可点击元素", () => {
   it("可点击元素为语义化 button，点击安全 URL 打开新标签", () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     renderWithTooltip(<FaviconDots favorites={[{ match: "a.com", website: "https://a.com", icon: "" }] as never} />);
-    const btn = screen.getByRole("button");
+    const btn = document.querySelector("button")!;
     fireEvent.click(btn);
     expect(openSpy).toHaveBeenCalledWith("https://a.com", "_blank");
     openSpy.mockRestore();
@@ -77,7 +88,7 @@ describe("FaviconDots 站点图标可点击元素", () => {
   it("异常协议 URL 不打开（避免 javascript: 注入）", () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     renderWithTooltip(<FaviconDots favorites={[{ match: "x", website: "javascript:alert(1)", icon: "" }] as never} />);
-    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(document.querySelector("button")!);
     expect(openSpy).not.toHaveBeenCalled();
     openSpy.mockRestore();
   });
@@ -119,19 +130,19 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
     renderWithTooltip(
       <ScriptRowActions script={makeScript()} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />
     );
-    expect(screen.getByRole("button", { name: t("edit") })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: t("delete") })).toBeInTheDocument();
+    expect(screen.getByLabelText(t("edit"))).toBeInTheDocument();
+    expect(screen.getByLabelText(t("delete"))).toBeInTheDocument();
     // 不应再有「更多」菜单
-    expect(screen.queryByRole("button", { name: t("more") })).toBeNull();
+    expect(screen.queryByLabelText(t("more"))).toBeNull();
   });
 
   it("无主页/配置/云端时不显示对应按钮", () => {
     renderWithTooltip(
       <ScriptRowActions script={makeScript()} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />
     );
-    expect(screen.queryByRole("button", { name: t("script:homepage") })).toBeNull();
-    expect(screen.queryByRole("button", { name: t("editor:user_config") })).toBeNull();
-    expect(screen.queryByRole("button", { name: t("editor:upload_to_cloud") })).toBeNull();
+    expect(screen.queryByLabelText(t("script:homepage"))).toBeNull();
+    expect(screen.queryByLabelText(t("editor:user_config"))).toBeNull();
+    expect(screen.queryByLabelText(t("editor:upload_to_cloud"))).toBeNull();
   });
 
   it("含主页字段时显示主页按钮，点击打开新标签", () => {
@@ -144,7 +155,7 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
         onRunStop={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByRole("button", { name: t("script:homepage") }));
+    fireEvent.click(screen.getByLabelText(t("script:homepage")));
     expect(openSpy).toHaveBeenCalledWith("https://home", "_blank");
     openSpy.mockRestore();
   });
@@ -159,7 +170,7 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
         onRunStop={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByRole("button", { name: t("editor:user_config") }));
+    fireEvent.click(screen.getByLabelText(t("editor:user_config")));
     expect(navigate).toHaveBeenCalledWith("/?userConfig=u1");
   });
 
@@ -167,7 +178,7 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
     const script = makeScript({ config: { group: {} } });
     renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />);
 
-    fireEvent.focus(screen.getByRole("button", { name: t("editor:user_config") }));
+    fireEvent.focus(screen.getByLabelText(t("editor:user_config")));
 
     expect(preloadUserConfig).toHaveBeenCalledWith(script);
   });
@@ -182,7 +193,7 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
         onRunStop={vi.fn()}
       />
     );
-    fireEvent.click(screen.getByRole("button", { name: t("editor:upload_to_cloud") }));
+    fireEvent.click(screen.getByLabelText(t("editor:upload_to_cloud")));
     expect(navigate).toHaveBeenCalledWith("/?cloud=u1");
   });
 
@@ -190,7 +201,7 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
     const script = makeScript({ metadata: { cloudcat: ["true"] } });
     renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />);
 
-    fireEvent.pointerEnter(screen.getByRole("button", { name: t("editor:upload_to_cloud") }));
+    fireEvent.pointerEnter(screen.getByLabelText(t("editor:upload_to_cloud")));
 
     expect(preloadCloudScriptPlan).toHaveBeenCalledWith(script);
   });
@@ -199,7 +210,7 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
     const onRunStop = vi.fn();
     const script = makeScript({ type: SCRIPT_TYPE_BACKGROUND });
     renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={onRunStop} />);
-    fireEvent.click(screen.getByRole("button", { name: t("editor:run") }));
+    fireEvent.click(screen.getByLabelText(t("editor:run")));
     expect(onRunStop).toHaveBeenCalledWith(script);
   });
 
@@ -207,21 +218,23 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
     renderWithTooltip(
       <ScriptRowActions script={makeScript()} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />
     );
-    const trigger = screen.getByRole("button", { name: t("delete") });
+    const trigger = screen.getByLabelText(t("delete"));
     expect(trigger.tagName).toBe("BUTTON");
     expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
   });
 
-  it("点击删除先弹出 Popconfirm 气泡确认，确认前不调用 onDelete", async () => {
+  it("点击删除先弹出 Popconfirm 气泡确认，确认前不调用 onDelete（回收站默认开启，文案说可还原）", async () => {
     const onDelete = vi.fn();
     const script = makeScript();
     renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={onDelete} onRunStop={vi.fn()} />);
 
-    const trigger = screen.getByRole("button", { name: t("delete") });
+    const trigger = screen.getByLabelText(t("delete"));
     fireEvent.click(trigger);
 
     // 气泡里展示含脚本名的确认文案，但尚未真正删除
-    expect(await screen.findByText(t("script:confirm_delete_script_content", { name: "脚本A" }))).toBeInTheDocument();
+    expect(
+      await screen.findByText(t("script:confirm_delete_script_trash_content", { name: "脚本A" }))
+    ).toBeInTheDocument();
     expect(onDelete).not.toHaveBeenCalled();
   });
 
@@ -230,12 +243,12 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
     const script = makeScript();
     renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={onDelete} onRunStop={vi.fn()} />);
 
-    const trigger = screen.getByRole("button", { name: t("delete") });
+    const trigger = screen.getByLabelText(t("delete"));
     fireEvent.click(trigger);
-    await screen.findByText(t("script:confirm_delete_script_content", { name: "脚本A" }));
+    await screen.findByText(t("script:confirm_delete_script_trash_content", { name: "脚本A" }));
 
     // 气泡内确认按钮与触发按钮同名（删除），取非触发的那一个
-    const confirmBtn = screen.getAllByRole("button", { name: t("delete") }).find((b) => b !== trigger)!;
+    const confirmBtn = screen.getByText(t("delete"), { selector: "button" });
     fireEvent.click(confirmBtn);
     expect(onDelete).toHaveBeenCalledWith(script);
   });
@@ -245,11 +258,24 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
     const script = makeScript();
     renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={onDelete} onRunStop={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: t("delete") }));
-    await screen.findByText(t("script:confirm_delete_script_content", { name: "脚本A" }));
+    fireEvent.click(screen.getByLabelText(t("delete")));
+    await screen.findByText(t("script:confirm_delete_script_trash_content", { name: "脚本A" }));
 
-    fireEvent.click(screen.getByRole("button", { name: t("editor:cancel") }));
+    fireEvent.click(screen.getByText(t("editor:cancel"), { selector: "button" }));
     expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("回收站关闭时，确认文案改回「此操作无法撤销」（既有 bug：开启态曾误用此文案）", async () => {
+    get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? false : 30));
+    const script = makeScript();
+    renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />);
+
+    fireEvent.click(screen.getByLabelText(t("delete")));
+
+    expect(await screen.findByText(t("script:confirm_delete_script_content", { name: "脚本A" }))).toBeInTheDocument();
+    expect(
+      screen.queryByText(t("script:confirm_delete_script_trash_content", { name: "脚本A" }))
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -259,32 +285,32 @@ describe("UpdateTimeCell 检查更新交互", () => {
 
   it("默认就常驻显示『检查更新』按钮（不再 opacity-0 隐藏）", () => {
     renderWithTooltip(<UpdateTimeCell script={makeScript()} />);
-    expect(screen.getByRole("button", { name: t("check_update") })).toBeInTheDocument();
+    expect(screen.getByLabelText(t("check_update"))).toBeInTheDocument();
   });
 
   it("无 checkUpdateUrl 时不显示检查更新按钮", () => {
     renderWithTooltip(<UpdateTimeCell script={makeScript({ checkUpdateUrl: undefined })} />);
-    expect(screen.queryByRole("button", { name: t("check_update") })).toBeNull();
+    expect(screen.queryByLabelText(t("check_update"))).toBeNull();
   });
 
   it("点击后调用 requestCheckUpdate", () => {
     requestCheckUpdate.mockReturnValue(new Promise(() => {}));
     renderWithTooltip(<UpdateTimeCell script={makeScript()} />);
-    fireEvent.click(screen.getByRole("button", { name: t("check_update") }));
+    fireEvent.click(screen.getByLabelText(t("check_update")));
     expect(requestCheckUpdate).toHaveBeenCalledWith("u1");
   });
 
   it("检查到已是最新时内联提示『已是最新版本』", async () => {
     requestCheckUpdate.mockResolvedValue(false);
     renderWithTooltip(<UpdateTimeCell script={makeScript()} />);
-    fireEvent.click(screen.getByRole("button", { name: t("check_update") }));
+    fireEvent.click(screen.getByLabelText(t("check_update")));
     expect(await screen.findByText(t("script:latest_version"))).toBeInTheDocument();
   });
 
   it("检查到新版本时显示『存在新版本』入口", async () => {
     requestCheckUpdate.mockResolvedValue(true);
     renderWithTooltip(<UpdateTimeCell script={makeScript()} />);
-    fireEvent.click(screen.getByRole("button", { name: t("check_update") }));
+    fireEvent.click(screen.getByLabelText(t("check_update")));
     expect(await screen.findByText(t("script:new_version_available"))).toBeInTheDocument();
   });
 
@@ -293,7 +319,7 @@ describe("UpdateTimeCell 检查更新交互", () => {
     const { container } = renderWithTooltip(<UpdateTimeCell script={makeScript()} />);
     // 初始（idle）应显示相对时间
     expect(container.textContent?.trim()).not.toBe("");
-    fireEvent.click(screen.getByRole("button", { name: t("check_update") }));
+    fireEvent.click(screen.getByLabelText(t("check_update")));
     await screen.findByText(t("script:new_version_available"));
     // 时间被入口取代：整格可见文本只剩「存在新版本」
     expect(container.textContent).toBe(t("script:new_version_available"));
@@ -302,7 +328,7 @@ describe("UpdateTimeCell 检查更新交互", () => {
   it("『存在新版本』为内联文字样式：无胶囊背景且不会竖排换行", async () => {
     requestCheckUpdate.mockResolvedValue(true);
     renderWithTooltip(<UpdateTimeCell script={makeScript()} />);
-    fireEvent.click(screen.getByRole("button", { name: t("check_update") }));
+    fireEvent.click(screen.getByLabelText(t("check_update")));
     const button = (await screen.findByText(t("script:new_version_available"))).closest("button")!;
     // 与「已是最新版本」一致的内联文字：不再用 rounded-full 胶囊背景
     expect(button.className).not.toContain("bg-primary/10");

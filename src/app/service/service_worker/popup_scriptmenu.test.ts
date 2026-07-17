@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { initLanguage, changeLanguage } from "@App/locales/locales";
+import { changeLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Script } from "@App/app/repo/scripts";
 import type { ScriptMenu } from "./types";
 import { applyScriptDisplayInfo } from "./popup_scriptmenu";
@@ -24,7 +25,7 @@ const makeScript = (metadata: Record<string, string[]>, name = "Raw Name"): Scri
   ({ name, metadata }) as unknown as Script;
 
 describe("applyScriptDisplayInfo Popup 展示信息补充", () => {
-  beforeAll(() => initLanguage("zh-CN"));
+  beforeAll(() => initTestLanguage("zh-CN"));
 
   it("应按当前语言本地化脚本名（@name:zh-CN）", () => {
     changeLanguage("zh-CN");

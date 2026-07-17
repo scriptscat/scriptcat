@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 const { get, set } = vi.hoisted(() => ({
   get: vi.fn(() => Promise.resolve(86400)),
@@ -19,6 +19,6 @@ describe("更新分区", () => {
     render(<UpdateSection register={() => () => {}} />);
     const sw = await screen.findByTestId("update_disabled_scripts_switch");
     fireEvent.click(sw);
-    await waitFor(() => expect(set).toHaveBeenCalledWith("update_disable_script", expect.any(Boolean)));
+    expect(set).toHaveBeenCalledWith("update_disable_script", expect.any(Boolean));
   });
 });

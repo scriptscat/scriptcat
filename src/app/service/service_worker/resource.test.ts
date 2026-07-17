@@ -345,3 +345,76 @@ describe("ResourceService - getResource", () => {
     expect(res).toBe(updatedResource);
   });
 });
+
+describe("ResourceService - getResourceByTypes", () => {
+  let service: ResourceService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const mockGroup = {} as Group;
+    const mockMQ = {} as IMessageQueue;
+    service = new ResourceService(mockGroup, mockMQ);
+  });
+
+  it("命名 @resource 的 file:/// path 应按 path 判断并立即更新", async () => {
+    // @resource 两段式写法 "key file:///..."，mdValue 本身不以 file:/// 开头，
+    // 必须按解析出的 path 判断，才能对本地文件走「每次读取都更新」而非命中缓存。
+    const url = "file:///tmp/local.txt";
+    const oldResource = resourceModel(url, "old");
+    const freshResource = resourceModel(url, "local");
+    vi.spyOn(service, "getResourceModel").mockResolvedValue(oldResource);
+    const updateSpy = vi.spyOn(service, "updateResource").mockResolvedValue(freshResource);
+
+    const [res] = await service.getResourceByTypes(normalScript("script-1", { resource: [`data ${url}`] }), [
+      "resource",
+    ]);
+
+    expect(updateSpy).toHaveBeenCalledWith("script-1", expect.objectContaining({ url }), "resource", oldResource);
+    expect(res.data).toBe(freshResource);
+  });
+});
+
+describe("ResourceService - importResource", () => {
+  let service: ResourceService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new ResourceService({} as Group, {} as IMessageQueue);
+    vi.spyOn(service, "calculateHash").mockResolvedValue({
+      md5: "mock-md5",
+      sha1: "",
+      sha256: "",
+      sha384: "",
+      sha512: "",
+    });
+  });
+
+  it("二进制资源(仅 base64,无 source)也能导入", async () => {
+    await service.importResource(
+      "u1",
+      {
+        meta: { name: "img", url: "https://x/img.png", ts: 0, mimetype: "image/png" },
+        base64: "data:image/png;base64,aGVsbG8=",
+      },
+      "resource"
+    );
+    const saved = await service.resourceDAO.get("https://x/img.png");
+    expect(saved).toBeTruthy();
+    expect(saved!.contentType).toBe("image/png");
+    expect(saved!.link.u1).toBe(true);
+  });
+
+  it("文本资源仍按 source 导入", async () => {
+    await service.importResource(
+      "u2",
+      {
+        meta: { name: "js", url: "https://x/a.js", ts: 0, mimetype: "application/javascript" },
+        source: "console.log(1)",
+        base64: "data:application/javascript;base64,Y29uc29sZS5sb2coMSk=",
+      },
+      "require"
+    );
+    const saved = await service.resourceDAO.get("https://x/a.js");
+    expect(saved!.content).toBe("console.log(1)");
+  });
+});

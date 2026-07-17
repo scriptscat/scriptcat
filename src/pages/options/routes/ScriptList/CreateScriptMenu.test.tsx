@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterEach, beforeEach } from "vitest";
 import { render, cleanup, screen, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { initLanguage } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { CreateScriptMenu } from "./CreateScriptMenu";
 import * as filePicker from "./filePicker";
 
@@ -9,8 +9,8 @@ vi.mock("./filePicker", () => ({ pickScriptFiles: vi.fn(async () => []), pickSki
 vi.mock("./importHandler", () => ({ handleImportFiles: vi.fn(), handleImportUrls: vi.fn() }));
 
 afterEach(cleanup);
+beforeAll(() => initTestLanguage("zh-CN"));
 beforeEach(() => {
-  initLanguage("zh-CN");
   vi.clearAllMocks();
 });
 
@@ -24,8 +24,8 @@ function renderMenu(variant: "default" | "icon" = "default") {
 
 describe("CreateScriptMenu 下拉菜单", () => {
   it("hover trigger 后菜单展开,包含三个导入项", async () => {
-    const { getByRole } = renderMenu();
-    const trigger = getByRole("button");
+    const { container } = renderMenu();
+    const trigger = container.querySelector("button")!;
 
     await act(async () => {
       fireEvent.mouseEnter(trigger);
@@ -37,8 +37,8 @@ describe("CreateScriptMenu 下拉菜单", () => {
   });
 
   it("点击「导入本地脚本」调用 pickScriptFiles", async () => {
-    const { getByRole } = renderMenu();
-    const trigger = getByRole("button");
+    const { container } = renderMenu();
+    const trigger = container.querySelector("button")!;
 
     await act(async () => {
       fireEvent.mouseEnter(trigger);
@@ -53,8 +53,8 @@ describe("CreateScriptMenu 下拉菜单", () => {
   });
 
   it("点击「链接导入」打开 LinkImportDialog", async () => {
-    const { getByRole } = renderMenu();
-    const trigger = getByRole("button");
+    const { container } = renderMenu();
+    const trigger = container.querySelector("button")!;
 
     await act(async () => {
       fireEvent.mouseEnter(trigger);
@@ -71,8 +71,8 @@ describe("CreateScriptMenu 下拉菜单", () => {
 
   describe("移动端图标菜单（variant=icon）", () => {
     it("应通过点击展开，而非 hover（移动端无 hover，hover 触发会导致菜单卡住）", async () => {
-      const { getByRole } = renderMenu("icon");
-      const trigger = getByRole("button");
+      const { container } = renderMenu("icon");
+      const trigger = container.querySelector("button")!;
 
       // hover 不应展开（移动端不依赖 hover）
       await act(async () => {
@@ -89,8 +89,8 @@ describe("CreateScriptMenu 下拉菜单", () => {
     });
 
     it("展开后按 Esc 应能关闭（不被 hover 菜单的 dismiss 拦截而卡住）", async () => {
-      const { getByRole } = renderMenu("icon");
-      const trigger = getByRole("button");
+      const { container } = renderMenu("icon");
+      const trigger = container.querySelector("button")!;
 
       await act(async () => {
         fireEvent.pointerDown(trigger, { button: 0 });

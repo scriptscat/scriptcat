@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
-import { initLanguage } from "@App/locales/locales";
+import { describe, it, expect, beforeAll } from "vitest";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Script } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
 import type { ScriptData } from "@App/pkg/backup/struct";
 import {
   deriveSource,
+  deriveSelfMetadata,
   countValues,
   hasResources,
   toScriptImportItem,
@@ -15,6 +16,8 @@ import {
   type PreparedSubscribe,
   type ScriptImportItem,
 } from "./logic";
+
+beforeAll(() => initTestLanguage("zh-CN"));
 
 function mkScript(p: Partial<Script>): Script {
   return {
@@ -162,7 +165,6 @@ describe("toScriptImportItem 脚本转视图模型", () => {
     expect(toScriptImportItem(mkScriptData({}), 0).iconUrl).toBe("");
   });
   it("脚本名优先取当前语言的本地化名称(@name:zh-CN)", () => {
-    initLanguage("zh-CN");
     const data = mkScriptData({ name: "Raw English Name" });
     data.script!.script.metadata["name:zh-cn"] = ["中文脚本名"];
     expect(toScriptImportItem(data, 0).name).toBe("中文脚本名");
@@ -239,5 +241,35 @@ describe("importableScriptIds / sortByName / summarize 选择与汇总", () => {
     );
     const result = summarize([a, b, err], [sub], new Set(["a", "b", "c"]), new Set(["u1"]));
     expect(result).toEqual({ scripts: 2, subscribes: 1, values: 3 });
+  });
+});
+
+describe("deriveSelfMetadata", () => {
+  const md = { match: ["https://a.com/*"] };
+  it("SC 备份:直接用 options.selfMeta", () => {
+    const item = { options: { selfMeta: { exclude: ["https://a.com/x"] } } } as unknown as ScriptData;
+    expect(deriveSelfMetadata(item, md)).toEqual({ exclude: ["https://a.com/x"] });
+  });
+  it("TM 备份:从 options.options.override.use_* 推导", () => {
+    const item = {
+      options: {
+        options: {
+          run_at: null,
+          noframes: null,
+          override: {
+            use_excludes: ["https://a.com/y"],
+            use_blockers: ["https://a.com/blocked/*"],
+            use_connects: ["api.example.com"],
+            merge_excludes: true,
+            merge_connects: true,
+          },
+        },
+      },
+    } as unknown as ScriptData;
+    expect(deriveSelfMetadata(item, md)).toEqual({ exclude: ["https://a.com/y"] });
+  });
+  it("无自定义时返回 undefined", () => {
+    const item = { options: { options: { override: {} } } } as unknown as ScriptData;
+    expect(deriveSelfMetadata(item, md)).toBeUndefined();
   });
 });

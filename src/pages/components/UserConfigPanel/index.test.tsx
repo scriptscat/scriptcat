@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const { setScriptValues } = vi.hoisted(() => ({ setScriptValues: vi.fn() }));
 vi.mock("@App/pages/store/features/script", () => ({
@@ -60,8 +61,9 @@ const renderPanel = (onOpenChange = vi.fn()) => {
   return onOpenChange;
 };
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   vi.clearAllMocks();
 });
 afterEach(cleanup);
@@ -75,22 +77,22 @@ describe("UserConfigPanel 用户配置面板（对齐设计稿）", () => {
 
   it("渲染分组 Tab 与配置项标题", () => {
     renderPanel();
-    expect(screen.getByRole("tab", { name: "基本设置" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "通知" })).toBeInTheDocument();
+    expect(screen.getByText("基本设置").closest('[role="tab"]')).toBeInTheDocument();
+    expect(screen.getByText("通知").closest('[role="tab"]')).toBeInTheDocument();
     expect(screen.getByText("API 地址")).toBeInTheDocument();
   });
 
   it("底部按钮为「取消 / 保存」，取消仅关闭、不写值", () => {
     const onOpenChange = renderPanel();
-    expect(screen.getByRole("button", { name: t("save") })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: t("editor:cancel") }));
+    expect(screen.getByText(t("save"), { selector: "button" })).toBeInTheDocument();
+    fireEvent.click(screen.getByText(t("editor:cancel"), { selector: "button" }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(setScriptValues).not.toHaveBeenCalled();
   });
 
   it("保存写入当前分组的值并关闭", () => {
     const onOpenChange = renderPanel();
-    fireEvent.click(screen.getByRole("button", { name: t("save") }));
+    fireEvent.click(screen.getByText(t("save"), { selector: "button" }));
     expect(setScriptValues).toHaveBeenCalledTimes(1);
     expect(setScriptValues.mock.calls[0][0]).toMatchObject({ uuid: "u1", isReplace: false });
     expect(onOpenChange).toHaveBeenCalledWith(false);

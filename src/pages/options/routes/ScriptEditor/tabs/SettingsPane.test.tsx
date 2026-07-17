@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
-import { initLanguage, t } from "@App/locales/locales";
+import { act, cleanup, screen, fireEvent } from "@testing-library/react";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithTooltip as render } from "@Tests/renderWithTooltip";
 
 // 脚本/授权数据走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
@@ -45,9 +46,7 @@ const samplePermissions = () => [
   { uuid: "u1", permission: "cookie", permissionValue: "b.com", allow: false, createtime: 2, updatetime: 0 },
 ];
 
-beforeAll(() => {
-  initLanguage("zh-CN");
-});
+beforeAll(() => initTestLanguage("zh-CN"));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -120,14 +119,14 @@ describe("SettingsPane 基本信息", () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("alpha");
     expect(screen.getByText("u1")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: t("copy") })).toBeInTheDocument();
+    expect(screen.getByLabelText(t("copy"))).toBeInTheDocument();
   });
 
   it("删除标签应以剩余标签调用 updateMetadata", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("alpha");
-    fireEvent.click(screen.getByRole("button", { name: `${t("delete")} alpha` }));
-    await waitFor(() => expect(updateMetadata).toHaveBeenCalledWith("u1", "tag", ["beta"]));
+    fireEvent.click(screen.getByLabelText(`${t("delete")} alpha`));
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "tag", ["beta"]);
   });
 
   it("添加标签后回车应调用 updateMetadata 写入新标签", async () => {
@@ -136,7 +135,7 @@ describe("SettingsPane 基本信息", () => {
     const input = screen.getByPlaceholderText(t("script:input_tags_placeholder"));
     fireEvent.change(input, { target: { value: "gamma" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    await waitFor(() => expect(updateMetadata).toHaveBeenCalledWith("u1", "tag", ["alpha", "beta", "gamma"]));
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "tag", ["alpha", "beta", "gamma"]);
   });
 });
 
@@ -160,6 +159,37 @@ describe("SettingsPane 运行设置", () => {
     // 运行环境与运行时机的默认值均显示本地化「默认」
     expect(screen.getAllByText(t("settings:script_setting.default")).length).toBe(2);
   });
+
+  // 打开 Radix Select（combobox 顺序：运行环境 / 运行时机）并选中给定文案的选项
+  const pickOption = async (comboIndex: number, optionText: string) => {
+    const trigger = screen.getAllByRole("combobox")[comboIndex];
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    await act(() => Promise.resolve());
+    fireEvent.click(screen.getAllByRole("option").find((o) => o.textContent === optionText)!);
+    await act(() => Promise.resolve());
+  };
+
+  it("选择非 early-start 的运行时机后下拉框不应回弹到 early-start", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("alpha");
+    await pickOption(1, "document-end");
+    // early-start 覆盖须以 undefined 撤销；若写入空数组会被当真值，runAt 计算回落 early-start
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "early-start", undefined);
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "run-at", ["document-end"]);
+    expect(screen.getAllByRole("combobox")[1]).toHaveTextContent("document-end");
+    expect(screen.getAllByRole("combobox")[1]).not.toHaveTextContent("early-start");
+  });
+
+  it("运行环境选「默认」应以 undefined 撤销覆盖而非写入空数组", async () => {
+    fetchScript.mockResolvedValue({
+      ...sampleScript(),
+      selfMetadata: { ...sampleScript().selfMetadata, "run-in": ["all"] },
+    });
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("alpha");
+    await pickOption(0, t("settings:script_setting.default"));
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "run-in", undefined);
+  });
 });
 
 describe("SettingsPane 更新URL", () => {
@@ -169,9 +199,7 @@ describe("SettingsPane 更新URL", () => {
     const input = screen.getByDisplayValue("https://example.com/a.meta.js");
     fireEvent.change(input, { target: { value: "https://new.example.com/a.meta.js" } });
     fireEvent.blur(input);
-    await waitFor(() =>
-      expect(setCheckUpdateUrl).toHaveBeenCalledWith("u1", true, "https://new.example.com/a.meta.js")
-    );
+    expect(setCheckUpdateUrl).toHaveBeenCalledWith("u1", true, "https://new.example.com/a.meta.js");
   });
 });
 
@@ -189,15 +217,15 @@ describe("SettingsPane 网站匹配/排除", () => {
   it("删除用户匹配应以剩余规则调用 resetMatch", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://user.com/*");
-    fireEvent.click(screen.getByRole("button", { name: `${t("delete")} *://user.com/*` }));
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
-    await waitFor(() => expect(resetMatch).toHaveBeenCalledWith("u1", ["*://script.com/*"]));
+    fireEvent.click(screen.getByLabelText(`${t("delete")} *://user.com/*`));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    expect(resetMatch).toHaveBeenCalledWith("u1", ["*://script.com/*"]);
   });
 
   it("删除匹配项的确认气泡应展示删除匹配文案而非通用重置文案", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://user.com/*");
-    fireEvent.click(screen.getByRole("button", { name: `${t("delete")} *://user.com/*` }));
+    fireEvent.click(screen.getByLabelText(`${t("delete")} *://user.com/*`));
     expect(screen.getByText(t("editor:confirm_delete_match"))).toBeInTheDocument();
     expect(screen.queryByText(t("editor:confirm_reset"))).toBeNull();
   });
@@ -205,7 +233,7 @@ describe("SettingsPane 网站匹配/排除", () => {
   it("删除排除项的确认气泡应展示删除排除文案", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://exclude.com/*");
-    fireEvent.click(screen.getByRole("button", { name: `${t("delete")} *://exclude.com/*` }));
+    fireEvent.click(screen.getByLabelText(`${t("delete")} *://exclude.com/*`));
     expect(screen.getByText(t("editor:confirm_delete_exclude"))).toBeInTheDocument();
   });
 
@@ -213,7 +241,7 @@ describe("SettingsPane 网站匹配/排除", () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://script.com/*");
 
-    fireEvent.click(screen.getByRole("button", { name: t("editor:add_match") }));
+    fireEvent.click(screen.getByText(t("editor:add_match"), { selector: "button" }));
     fireEvent.change(screen.getByLabelText(t("editor:bulk_values")), {
       target: {
         value: `
@@ -225,23 +253,21 @@ describe("SettingsPane 网站匹配/排除", () => {
         `,
       },
     });
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
 
-    await waitFor(() =>
-      expect(resetMatch).toHaveBeenCalledWith("u1", [
-        "*://script.com/*",
-        "*://user.com/*",
-        "https://new.example.com/*",
-        "*://trimmed.example.org/*",
-      ])
-    );
+    expect(resetMatch).toHaveBeenCalledWith("u1", [
+      "*://script.com/*",
+      "*://user.com/*",
+      "https://new.example.com/*",
+      "*://trimmed.example.org/*",
+    ]);
   });
 
   it("添加排除应打开多行弹窗并去除空行与重复项后复用 resetExclude", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://exclude.com/*");
 
-    fireEvent.click(screen.getByRole("button", { name: t("editor:add_exclude") }));
+    fireEvent.click(screen.getByText(t("editor:add_exclude"), { selector: "button" }));
     fireEvent.change(screen.getByLabelText(t("editor:bulk_values")), {
       target: {
         value: `
@@ -251,20 +277,59 @@ describe("SettingsPane 网站匹配/排除", () => {
         `,
       },
     });
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
 
-    await waitFor(() =>
-      expect(resetExclude).toHaveBeenCalledWith("u1", ["*://exclude.com/*", "https://ads.example.com/*"])
-    );
+    expect(resetExclude).toHaveBeenCalledWith("u1", ["*://exclude.com/*", "https://ads.example.com/*"]);
   });
 
   it("重置匹配应以 undefined 调用 resetMatch", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://script.com/*");
     // 三个重置按钮按 DOM 顺序：匹配 / 排除 / 授权
-    fireEvent.click(screen.getAllByRole("button", { name: t("reset") })[0]);
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
-    await waitFor(() => expect(resetMatch).toHaveBeenCalledWith("u1", undefined));
+    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[0]);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    expect(resetMatch).toHaveBeenCalledWith("u1", undefined);
+  });
+
+  it("重置匹配后应恢复脚本自带规则而非清空列表", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://user.com/*");
+    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[0]);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    // 用户添加的 user.com 被清除，脚本自带的 script.com 应保留并标记为「脚本」
+    expect(screen.getByText("*://script.com/*")).toBeInTheDocument();
+    expect(screen.queryByText("*://user.com/*")).toBeNull();
+    expect(screen.getByText(t("editor:from_script"))).toBeInTheDocument();
+  });
+
+  it("重置排除后应恢复脚本自带规则而非清空列表", async () => {
+    fetchScript.mockResolvedValue({
+      ...sampleScript(),
+      metadata: { ...sampleScript().metadata, exclude: ["*://ads.script.com/*"] },
+      selfMetadata: { ...sampleScript().selfMetadata, exclude: ["*://ads.script.com/*", "*://exclude.com/*"] },
+    });
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://exclude.com/*");
+    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[1]);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    // 用户添加的 exclude.com 被清除，脚本自带的 ads.script.com 应保留
+    expect(screen.getByText("*://ads.script.com/*")).toBeInTheDocument();
+    expect(screen.queryByText("*://exclude.com/*")).toBeNull();
+  });
+
+  it("删除最后一项匹配应显式清空覆盖而非复活脚本自带规则", async () => {
+    fetchScript.mockResolvedValue({
+      ...sampleScript(),
+      selfMetadata: { exclude: ["*://exclude.com/*"] },
+    });
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://script.com/*");
+    fireEvent.click(screen.getByLabelText(`${t("delete")} *://script.com/*`));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    // 删除最后一项 = 用户显式清空；后端持久化空覆盖，脚本自带的 script.com 不应复活
+    expect(resetMatch).toHaveBeenCalledWith("u1", []);
+    expect(screen.queryByText("*://script.com/*")).toBeNull();
+    expect(screen.getByText(t("no_data"))).toBeInTheDocument();
   });
 });
 
@@ -280,29 +345,27 @@ describe("SettingsPane 授权管理(CORS)", () => {
   it("点击是否允许徽标应调用 updatePermission", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("a.com");
-    fireEvent.click(screen.getByRole("button", { name: `${t("permission:allow")} a.com` }));
-    await waitFor(() =>
-      expect(updatePermission).toHaveBeenCalledWith(
-        expect.objectContaining({ permission: "cors", permissionValue: "a.com", allow: false })
-      )
+    fireEvent.click(screen.getByLabelText(`${t("permission:allow")} a.com`));
+    expect(updatePermission).toHaveBeenCalledWith(
+      expect.objectContaining({ permission: "cors", permissionValue: "a.com", allow: false })
     );
   });
 
   it("删除授权应调用 deletePermission 并移除该行", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("a.com");
-    fireEvent.click(screen.getByRole("button", { name: `${t("delete")} a.com` }));
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
-    await waitFor(() => expect(deletePermission).toHaveBeenCalledWith("u1", "cors", "a.com"));
-    await waitFor(() => expect(screen.queryByText("a.com")).toBeNull());
+    fireEvent.click(screen.getByLabelText(`${t("delete")} a.com`));
+    await act(async () => fireEvent.click(screen.getByText(t("confirm"), { selector: "button" })));
+    expect(deletePermission).toHaveBeenCalledWith("u1", "cors", "a.com");
+    expect(screen.queryByText("a.com")).toBeNull();
   });
 
   it("新增授权应打开多行弹窗并使用下拉框选择允许状态", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("a.com");
 
-    fireEvent.click(screen.getByRole("button", { name: t("editor:add_permission") }));
-    expect(screen.getByRole("combobox", { name: t("permission:allow") })).toBeInTheDocument();
+    fireEvent.click(screen.getByText(t("editor:add_permission"), { selector: "button" }));
+    expect(screen.getByLabelText(t("permission:allow"))).toHaveAttribute("role", "combobox");
     fireEvent.change(screen.getByLabelText(t("editor:bulk_values")), {
       target: {
         value: `
@@ -313,9 +376,9 @@ describe("SettingsPane 授权管理(CORS)", () => {
         `,
       },
     });
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
 
-    await waitFor(() => expect(addPermission).toHaveBeenCalledTimes(2));
+    expect(addPermission).toHaveBeenCalledTimes(2);
     expect(addPermission).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ uuid: "u1", permission: "cors", permissionValue: "c.com", allow: true })
@@ -330,10 +393,10 @@ describe("SettingsPane 授权管理(CORS)", () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("a.com");
     // 第三个重置按钮为授权管理
-    fireEvent.click(screen.getAllByRole("button", { name: t("reset") })[2]);
-    fireEvent.click(screen.getByRole("button", { name: t("confirm") }));
-    await waitFor(() => expect(resetPermission).toHaveBeenCalledWith("u1"));
-    await waitFor(() => expect(screen.queryByText("a.com")).toBeNull());
+    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[2]);
+    await act(async () => fireEvent.click(screen.getByText(t("confirm"), { selector: "button" })));
+    expect(resetPermission).toHaveBeenCalledWith("u1");
+    expect(screen.queryByText("a.com")).toBeNull();
   });
 
   it("无授权时应展示空状态", async () => {

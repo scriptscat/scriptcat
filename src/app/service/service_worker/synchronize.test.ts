@@ -5,8 +5,14 @@ import type FileSystem from "@Packages/filesystem/filesystem";
 import type { CloudSyncConfig } from "@App/pkg/config/config";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { md5OfText } from "@App/pkg/utils/crypto";
+import FileSystemFactory from "@Packages/filesystem/factory";
+import { AgentModelRepo } from "@App/app/repo/agent_model";
+import ChromeStorage from "@App/pkg/config/chrome_storage";
+import { createMockOPFS } from "@App/app/repo/test-helpers";
 
 initTestEnv();
+
+beforeEach(() => createMockOPFS());
 
 const syncConfig: CloudSyncConfig = {
   enable: true,
@@ -42,6 +48,136 @@ describe("SynchronizeService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     chrome.storage.local.clear();
+    chrome.storage.sync?.clear?.();
+  });
+
+  it("下载 API 失败时仍返回手动下载所需的信息", async () => {
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any
+    );
+    vi.spyOn(service, "backup").mockResolvedValue(undefined);
+    const createObjectURLSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:scriptcat-backup");
+    const downloadSpy = vi.spyOn(chrome.downloads, "download").mockRejectedValue(new Error("API unavailable"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      const result = await service.requestExport();
+      await flushMicrotasks();
+
+      expect(result).toEqual({
+        url: "blob:scriptcat-backup",
+        filename: expect.stringMatching(/^scriptcat-backup-.*\.zip$/),
+      });
+      expect(downloadSpy).toHaveBeenCalled();
+    } finally {
+      createObjectURLSpy.mockRestore();
+      downloadSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    }
+  });
+
+  it("手动云端备份与本地导出一样包含设置", async () => {
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { scriptCodeDAO: {} } as any
+    );
+    const backupSpy = vi.spyOn(service, "backup").mockResolvedValue(undefined);
+    const cloudFs = createFs({
+      openDir: vi
+        .fn()
+        .mockResolvedValue(
+          createFs({ create: vi.fn().mockResolvedValue({ write: vi.fn().mockResolvedValue(undefined) }) })
+        ),
+    });
+    const factorySpy = vi.spyOn(FileSystemFactory, "create").mockResolvedValue(cloudFs);
+
+    try {
+      await service.backupToCloud({ type: "webdav", params: {} });
+      expect(backupSpy).toHaveBeenCalledWith(expect.anything(), undefined, true);
+    } finally {
+      factorySpy.mockRestore();
+    }
+  });
+
+  it("设置备份往返默认模型与摘要模型选择", async () => {
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { scriptCodeDAO: {} } as any
+    );
+    const modelRepo = new AgentModelRepo();
+    await modelRepo.setDefaultModelId("default-model");
+    await modelRepo.setSummaryModelId("summary-model");
+
+    const bundle = await service.getConfigBundle();
+    expect(bundle.agent.defaultModelId).toBe("default-model");
+    expect(bundle.agent.summaryModelId).toBe("summary-model");
+
+    await modelRepo.setDefaultModelId("");
+    await modelRepo.setSummaryModelId("");
+    await service.restoreConfigBundle(bundle);
+    expect(await modelRepo.getDefaultModelId()).toBe("default-model");
+    expect(await modelRepo.getSummaryModelId()).toBe("summary-model");
+  });
+
+  it("getConfigBundle 产出扁平 systemConfig 且不含本机相关键", async () => {
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { scriptCodeDAO: {} } as any
+    );
+    // 往 system sync storage 写入 1 个可备份键 + 1 个本机键（language 属 STORAGE_LOCAL_KEYS）
+    const sync = new ChromeStorage("system", true);
+    await sync.set("menu_expand_num", 8);
+    await sync.set("language", "zh-CN");
+
+    const bundle = await service.getConfigBundle();
+    expect(bundle.systemConfig).toMatchObject({ menu_expand_num: 8 });
+    expect(bundle.systemConfig.language).toBeUndefined();
+    expect((bundle.systemConfig as any).sync).toBeUndefined();
+  });
+
+  it("restoreConfigBundle 把 systemConfig 键写回 sync storage", async () => {
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { scriptCodeDAO: {} } as any
+    );
+    await service.restoreConfigBundle({
+      version: 1,
+      systemConfig: { menu_expand_num: 12 },
+      agent: { models: [], mcp: [], tasks: [], defaultModelId: "", summaryModelId: "" },
+    });
+    const sync = new ChromeStorage("system", true);
+    expect(await sync.get("menu_expand_num")).toBe(12);
   });
 
   it("serializes concurrent syncOnce calls", async () => {

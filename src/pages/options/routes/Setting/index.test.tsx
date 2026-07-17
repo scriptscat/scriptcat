@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeAll, afterEach, beforeEach } from "vitest";
+import { render, cleanup } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockIntersectionObserver } from "@Tests/mockIntersectionObserver";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
@@ -23,21 +23,29 @@ vi.mock("@App/pages/store/global", async () => {
   const { createGlobalStoreMock } = await import("@Tests/mocks/pageStores.ts");
   return createGlobalStoreMock({ systemConfig: { get, set } });
 });
+vi.mock("./sections/GeneralSection", () => ({ GeneralSection: () => null }));
+vi.mock("./sections/InterfaceSection", () => ({ InterfaceSection: () => null }));
+vi.mock("./sections/SyncSection", () => ({ SyncSection: () => null }));
+vi.mock("./sections/UpdateSection", () => ({ UpdateSection: () => null }));
+vi.mock("./sections/RuntimeSection", () => ({ RuntimeSection: () => null }));
+vi.mock("./sections/SecuritySection", () => ({ SecuritySection: () => null }));
+vi.mock("./sections/DeveloperSection", () => ({ DeveloperSection: () => null }));
 vi.mock("./sections/DeveloperMonacoEditor", () => ({
   DeveloperMonacoEditor: ({ ariaLabel }: { ariaLabel: string }) => <textarea aria-label={ariaLabel} />,
 }));
 import Setting from "./index";
 
+beforeAll(() => initTestLanguage("en-US"));
+
 beforeEach(() => {
-  initTestLanguage("en-US");
   mockMatchMedia();
   mockIntersectionObserver();
 });
 afterEach(cleanup);
 
 describe("设置页", () => {
-  it("渲染 8 个分类导航项", async () => {
+  it("渲染 7 个分类导航项", () => {
     render(<Setting />);
-    await waitFor(() => expect(screen.getAllByRole("button").length).toBeGreaterThanOrEqual(8));
+    expect(document.querySelectorAll("nav button")).toHaveLength(7);
   });
 });

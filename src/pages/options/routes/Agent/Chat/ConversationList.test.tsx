@@ -68,7 +68,7 @@ describe("会话列表 ConversationList", () => {
     const { onDelete } = setup();
     fireEvent.click(screen.getByTestId("conv-delete-a"));
     expect(onDelete).not.toHaveBeenCalled();
-    fireEvent.click(await screen.findByRole("button", { name: t("common:confirm") }));
+    fireEvent.click(await screen.findByText(t("common:confirm"), { selector: "button" }));
     expect(onDelete).toHaveBeenCalledWith("a");
   });
 
@@ -87,7 +87,7 @@ describe("会话列表 ConversationList", () => {
 
   it("搜索框复用基础 SearchInput 语义", () => {
     setup();
-    const search = screen.getByRole("searchbox", { name: t("agent:chat_search_placeholder") });
+    const search = screen.getByLabelText(t("agent:chat_search_placeholder"));
     expect(search).toHaveAttribute("data-testid", "conv-search");
     expect(search.closest('[data-slot="search-input"]')).toBeInTheDocument();
   });

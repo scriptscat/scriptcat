@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { initLanguage, t } from "@App/locales/locales";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { TBatchUpdateRecord, TBatchUpdateRecordObject } from "@App/app/service/service_worker/types";
 
 // useBatchUpdate 通过消息总线订阅检查状态、拉取记录并发起动作；这里整体打桩，
@@ -83,8 +84,9 @@ async function runCheck(records: TBatchUpdateRecord[]) {
   });
 }
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
-  initLanguage("zh-CN");
   h.record = { checktime: 0, list: [] };
   h.handlers = {};
   vi.clearAllMocks();
@@ -100,7 +102,7 @@ describe("批量更新 Hook useBatchUpdate 检查完成反馈", () => {
 
     await runCheck([mkRecord("a")]);
 
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledTimes(1));
+    expect(h.toastSuccess).toHaveBeenCalledTimes(1);
     expect(h.toastSuccess.mock.calls[0][0]).toContain("1");
     expect(h.toastSuccess.mock.calls[0][0]).toBe(t("install:updatepage.toast_found", { count: 1 }));
   });
@@ -112,7 +114,7 @@ describe("批量更新 Hook useBatchUpdate 检查完成反馈", () => {
     act(() => result.current.onCheckNow());
     await runCheck([]);
 
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledTimes(1));
+    expect(h.toastSuccess).toHaveBeenCalledTimes(1);
     expect(h.toastSuccess.mock.calls[0][0]).toBe(t("install:updatepage.toast_uptodate"));
   });
 
@@ -121,7 +123,7 @@ describe("批量更新 Hook useBatchUpdate 检查完成反馈", () => {
     await act(async () => {});
 
     await runCheck([mkRecord("a")]);
-    await waitFor(() => expect(h.toastSuccess).not.toHaveBeenCalled());
+    expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 });
 

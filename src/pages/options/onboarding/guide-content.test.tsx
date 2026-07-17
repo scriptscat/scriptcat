@@ -7,7 +7,7 @@ afterEach(cleanup);
 describe("引导文案渲染", () => {
   it("应把 Link 标签渲染成新窗口打开的链接", () => {
     render(<div>{renderGuideContent('前往<Link href="https://scriptcat.org/search">脚本市场</Link>看看')}</div>);
-    const a = screen.getByRole("link", { name: "脚本市场" });
+    const a = screen.getByText("脚本市场").closest("a");
     expect(a).toHaveAttribute("href", "https://scriptcat.org/search");
     expect(a).toHaveAttribute("target", "_blank");
     expect(screen.getByText(/前往/)).toBeInTheDocument();

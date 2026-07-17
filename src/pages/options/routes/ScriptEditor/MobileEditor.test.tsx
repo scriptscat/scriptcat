@@ -19,6 +19,12 @@ const openSub = async (subTrigger: HTMLElement) => {
   });
 };
 
+const queryMenuItem = (name: string) =>
+  Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find((item) =>
+    item.textContent?.includes(name)
+  ) ?? null;
+const getMenuItem = (name: string) => queryMenuItem(name)!;
+
 const baseProps = () => ({
   title: "Bilibili Evolved",
   subView: "code" as const,
@@ -151,32 +157,32 @@ describe("MobileEditor 移动端编辑器外壳", () => {
 
 describe("MobileEditor 更多菜单（与桌面端共用同一份二级菜单）", () => {
   it("展开后应是 文件/编辑/运行 二级分组 + 设置 一级项", async () => {
-    const { getByLabelText, getByRole } = render(
+    const { getByLabelText } = render(
       <MobileEditor {...baseProps()}>
         <div />
       </MobileEditor>
     );
     await openMore(getByLabelText("更多"));
     for (const name of ["文件", "编辑", "运行", "设置"]) {
-      expect(getByRole("menuitem", { name })).toBeInTheDocument();
+      expect(getMenuItem(name)).toBeInTheDocument();
     }
   });
 
   it("普通脚本（canRun=false）展开更多菜单时应隐藏「运行」分组", async () => {
-    const { getByLabelText, getByRole, queryByRole } = render(
+    const { getByLabelText } = render(
       <MobileEditor {...baseProps()} canRun={false}>
         <div />
       </MobileEditor>
     );
     await openMore(getByLabelText("更多"));
     for (const name of ["文件", "编辑", "设置"]) {
-      expect(getByRole("menuitem", { name })).toBeInTheDocument();
+      expect(getMenuItem(name)).toBeInTheDocument();
     }
-    expect(queryByRole("menuitem", { name: "运行" })).toBeNull();
+    expect(queryMenuItem("运行")).toBeNull();
   });
 
   it("编辑子菜单应包含完整命令：剪切/复制/粘贴/替换/全选/格式化", async () => {
-    const { getByLabelText, getByText, getByRole } = render(
+    const { getByLabelText, getByText } = render(
       <MobileEditor {...baseProps()}>
         <div />
       </MobileEditor>
@@ -184,32 +190,32 @@ describe("MobileEditor 更多菜单（与桌面端共用同一份二级菜单）
     await openMore(getByLabelText("更多"));
     await openSub(getByText("编辑"));
     for (const name of ["剪切", "复制", "粘贴", "替换", "全选", "格式化"]) {
-      expect(getByRole("menuitem", { name: new RegExp(name) })).toBeInTheDocument();
+      expect(getMenuItem(name)).toBeInTheDocument();
     }
   });
 
   it("编辑 → 格式化 应回调 onCommand('format')", async () => {
     const props = baseProps();
-    const { getByLabelText, getByText, getByRole } = render(
+    const { getByLabelText, getByText } = render(
       <MobileEditor {...props}>
         <div />
       </MobileEditor>
     );
     await openMore(getByLabelText("更多"));
     await openSub(getByText("编辑"));
-    fireEvent.click(getByRole("menuitem", { name: /格式化/ }));
+    fireEvent.click(getMenuItem("格式化"));
     expect(props.onCommand).toHaveBeenCalledWith("format");
   });
 
   it("设置 作为一级项应回调 onSubView('setting')", async () => {
     const props = baseProps();
-    const { getByLabelText, getByRole } = render(
+    const { getByLabelText } = render(
       <MobileEditor {...props}>
         <div />
       </MobileEditor>
     );
     await openMore(getByLabelText("更多"));
-    fireEvent.click(getByRole("menuitem", { name: "设置" }));
+    fireEvent.click(getMenuItem("设置"));
     expect(props.onSubView).toHaveBeenCalledWith("setting");
   });
 });

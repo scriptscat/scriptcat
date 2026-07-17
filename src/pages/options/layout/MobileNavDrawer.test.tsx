@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
 import { cleanup, fireEvent, within } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
@@ -11,9 +11,10 @@ vi.mock("../onboarding/OnboardingProvider", () => ({
   useOnboarding: () => ({ start }),
 }));
 
+beforeAll(() => initTestLanguage("zh-CN"));
+
 beforeEach(() => {
   localStorage.clear();
-  initTestLanguage("zh-CN");
   mockMatchMedia();
   start.mockReset();
 });
