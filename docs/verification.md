@@ -9,6 +9,11 @@
 > **What this is NOT.** It is *not* the test-suite reference. The mechanics of Vitest unit tests and the
 > permanent Playwright E2E suite live in [`DEVELOP.md`](./develop.md) → *Testing*; the TDD-first principle and
 > engineering rules live in [`../AGENTS.md`](../AGENTS.md). Read those for writing committed tests.
+>
+> **When to skip this guide.** Docs-only, comment-only, and type-only changes need no browser run. When a change
+> or bug is fully reproducible in pure service/unit logic — no cross-context wiring, no real Chrome API, no DOM —
+> reproduce and verify it with a throwaway Vitest case instead of a scratch script; reach for this guide only when
+> the behavior only manifests through the built extension.
 
 ## The one rule: verification ≠ growing the E2E suite
 
