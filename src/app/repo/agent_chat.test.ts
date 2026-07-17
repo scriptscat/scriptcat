@@ -819,6 +819,68 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
     expect(await repo.getMessages(conversation.id)).toEqual([]);
   });
 
+  it("【finding 4 回归】升级前的历史会话（legacy generation）删除时应按 content block 推断清理旧附件", async () => {
+    // 直接写入没有 generation/revision 字段的会话记录，模拟所有权模型引入之前创建的历史数据
+    await (repo as any).writeJsonFile("conversations.json", [
+      { id: "conv-legacy-del", title: "Test", modelId: "m1", createtime: 1, updatetime: 1 },
+    ]);
+    const [conv] = await repo.listConversations();
+    expect(conv.generation).toBe("legacy:conv-legacy-del");
+
+    // 历史消息只有 content block 引用附件，从未写入过 ownedAttachmentIds（该字段是本次新增的）
+    await repo.saveMessages(
+      conv.id,
+      [
+        {
+          id: "legacy-msg",
+          conversationId: conv.id,
+          role: "user",
+          content: [{ type: "image", attachmentId: "legacy-owned.png", mimeType: "image/png" }],
+          createtime: 1,
+        },
+      ],
+      undefined,
+      { generation: conv.generation! }
+    );
+    await repo.saveAttachment("legacy-owned.png", new Blob(["legacy"]));
+
+    await repo.deleteConversation(conv.id, { generation: conv.generation!, expectedRevision: conv.revision });
+
+    // 升级前的历史必须能按 content block 推断出所有权，否则这类附件永远不会被清理（见 finding 4）
+    expect(await repo.getAttachment("legacy-owned.png")).toBeNull();
+  });
+
+  it("【finding 4 回归】非 legacy 会话中未声明所有权的 content block 引用应保持借用语义，不因清理被误删", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-current-borrow",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    await repo.saveMessages(
+      conversation.id,
+      [
+        {
+          id: "msg-borrowed",
+          conversationId: conversation.id,
+          role: "user",
+          // 当前模型下 undefined ownedAttachmentIds 合法地表示"借用"，不代表遗留数据
+          content: [{ type: "image", attachmentId: "shared.png", mimeType: "image/png" }],
+          createtime: 1,
+        },
+      ],
+      undefined,
+      { generation: conversation.generation! }
+    );
+    await repo.saveAttachment("shared.png", new Blob(["shared"]));
+
+    // 用一次空快照替换（模拟 clear）：借用引用不应被当作该会话的"已拥有附件"而删除
+    await repo.saveMessages(conversation.id, [], undefined, { generation: conversation.generation! });
+
+    expect(await repo.getAttachment("shared.png")).not.toBeNull();
+  });
+
   it("历史替换应以 revision 做 CAS，不能覆盖并发追加", async () => {
     const conversation = await repo.createConversation({
       id: "conv-cas",

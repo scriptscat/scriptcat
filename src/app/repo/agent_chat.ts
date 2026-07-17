@@ -1,5 +1,6 @@
-import type { Conversation, ChatMessage } from "@App/app/service/agent/core/types";
+import type { Conversation, ChatMessage, MessageContent } from "@App/app/service/agent/core/types";
 import type { Task } from "@App/app/service/agent/core/tools/task_tools";
+import { isLegacyGeneration } from "@App/app/service/agent/core/persisted_messages";
 import { OPFSRepo } from "./opfs_repo";
 import {
   decodeDataUrl,
@@ -44,18 +45,46 @@ function isMessageSnapshot(value: ChatMessage[] | MessageSnapshot): value is Mes
   return !Array.isArray(value);
 }
 
-export function collectMessageAttachmentIds(messages: ChatMessage[]): Set<string> {
+// content block 里携带的附件 id（image/file/audio block 均以 attachmentId 引用）
+function contentBlockAttachmentIds(content: MessageContent): string[] {
+  if (typeof content === "string") return [];
+  return content
+    .filter((block) => block.type !== "text")
+    .map((block) => (block as { attachmentId: string }).attachmentId);
+}
+
+// ownedAttachmentIds 是本次所有权模型新增的可选字段。当前模型里 undefined 与显式空数组
+// 都合法地表示"这条消息/工具调用不拥有任何附件、content block 引用的都是借用"（比如引用
+// 另一条消息已拥有的图片），因此不能仅凭字段缺失就判断为"升级前的历史数据"从而反推所有权，
+// 否则会把当前模型里正常的借用误判为拥有，导致这类附件被其它消息删除时连带误删（回归）。
+// 只有当调用方能证明这条历史确实创建于所有权模型引入之前（例如 generation 是本仓库为
+// 无 generation 的旧数据统一回填的 "legacy:" 前缀）时，才允许把 ownedAttachmentIds 缺失
+// 解读为"从未写入过"，退化为按 content block / 工具附件元数据推断所有权（见 finding 4）。
+export function collectMessageAttachmentIds(messages: ChatMessage[], legacy = false): Set<string> {
   const result = new Set<string>();
   const collectToolCalls = (toolCalls: NonNullable<ChatMessage["toolCalls"]>) => {
     for (const toolCall of toolCalls) {
-      for (const attachmentId of toolCall.ownedAttachmentIds || []) result.add(attachmentId);
+      if (toolCall.ownedAttachmentIds !== undefined) {
+        for (const attachmentId of toolCall.ownedAttachmentIds) result.add(attachmentId);
+      } else if (legacy) {
+        for (const attachment of toolCall.attachments || []) result.add(attachment.id);
+      }
       for (const subMessage of toolCall.subAgentDetails?.messages || []) {
+        // SubAgentMessage 从未有过 ownedAttachmentIds 字段，只有 legacy 历史才按引用推断，
+        // 避免把当前模型里子代理消息中正常借用的附件误判为拥有
+        if (legacy) {
+          for (const attachmentId of contentBlockAttachmentIds(subMessage.content)) result.add(attachmentId);
+        }
         collectToolCalls(subMessage.toolCalls);
       }
     }
   };
   for (const message of messages) {
-    for (const attachmentId of message.ownedAttachmentIds || []) result.add(attachmentId);
+    if (message.ownedAttachmentIds !== undefined) {
+      for (const attachmentId of message.ownedAttachmentIds) result.add(attachmentId);
+    } else if (legacy) {
+      for (const attachmentId of contentBlockAttachmentIds(message.content)) result.add(attachmentId);
+    }
     collectToolCalls(message.toolCalls || []);
   }
   return result;
@@ -205,7 +234,9 @@ export class AgentChatRepo extends OPFSRepo {
       try {
         const messagesDir = await this.getChildDir(MESSAGES_DIR);
         const stored = await this.readMessageSnapshot(id, deleted.generation!, messagesDir);
-        await this.deleteAttachments([...collectMessageAttachmentIds(stored.messages)]);
+        await this.deleteAttachments([
+          ...collectMessageAttachmentIds(stored.messages, isLegacyGeneration(deleted.generation)),
+        ]);
         await this.deleteFile(`${id}.json`, messagesDir);
         const tasksDir = await this.getChildDir(TASKS_DIR);
         await this.deleteFile(`${id}.json`, tasksDir);
@@ -340,9 +371,10 @@ export class AgentChatRepo extends OPFSRepo {
           messagesDir,
           signal
         );
-        const retainedAttachments = collectMessageAttachmentIds(messages);
+        const legacy = isLegacyGeneration(current.generation);
+        const retainedAttachments = collectMessageAttachmentIds(messages, legacy);
         for (const attachmentId of guard?.preserveAttachmentIds || []) retainedAttachments.add(attachmentId);
-        const removedAttachments = [...collectMessageAttachmentIds(snapshot.messages)].filter(
+        const removedAttachments = [...collectMessageAttachmentIds(snapshot.messages, legacy)].filter(
           (id) => !retainedAttachments.has(id)
         );
         // 新快照已经提交在上面；删除不再被引用的旧附件属于 GC，失败不能让 clear/compact/deleteMessages

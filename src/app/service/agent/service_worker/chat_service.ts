@@ -37,7 +37,11 @@ import { createExecuteScriptTool } from "@App/app/service/agent/core/tools/execu
 import { resolveSubAgentType } from "@App/app/service/agent/core/sub_agent_types";
 import { classifyErrorCode } from "./retry_utils";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
-import { retainedSummaryAttachmentIds, toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
+import {
+  isLegacyGeneration,
+  retainedSummaryAttachmentIds,
+  toLLMMessages,
+} from "@App/app/service/agent/core/persisted_messages";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { t } from "@App/locales/locales";
@@ -999,7 +1003,7 @@ export class ChatService {
       conversationId: params.conversationId,
       role: "user" as const,
       content: `[Conversation Summary]\n\n${summary}`,
-      ownedAttachmentIds: retainedSummaryAttachmentIds(summary, existingMessages),
+      ownedAttachmentIds: retainedSummaryAttachmentIds(summary, existingMessages, isLegacyGeneration(conv.generation)),
       createtime: Date.now(),
     };
     // 传入 signal：写入落定前若已 abort，则放弃这次整份覆写而不提交（见 finding 4）

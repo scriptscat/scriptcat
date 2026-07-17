@@ -19,7 +19,7 @@ import { elideUntilWithinBudget, estimateRequestTokens } from "@App/app/service/
 import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
 import { throwIfAborted } from "@App/app/service/agent/core/abort_utils";
 import { prepareAttachmentSnapshot, type AttachmentSnapshot } from "@App/app/service/agent/core/attachment_resolver";
-import { retainedSummaryAttachmentIds } from "@App/app/service/agent/core/persisted_messages";
+import { isLegacyGeneration, retainedSummaryAttachmentIds } from "@App/app/service/agent/core/persisted_messages";
 
 /** LLM 调用结果（与 AgentService.callLLM 返回值一致） */
 interface CompactLLMResult {
@@ -131,7 +131,11 @@ export class CompactService {
       conversationId,
       role: "user" as const,
       content: `[Conversation Summary]\n\n${summary}`,
-      ownedAttachmentIds: retainedSummaryAttachmentIds(summary, snapshot.messages),
+      ownedAttachmentIds: retainedSummaryAttachmentIds(
+        summary,
+        snapshot.messages,
+        isLegacyGeneration(conversationGeneration)
+      ),
       createtime: Date.now(),
     };
     try {
