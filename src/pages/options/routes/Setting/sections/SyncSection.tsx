@@ -29,10 +29,16 @@ const VARIANT_META: Record<SyncStatusVariant, { box: string; icon: string; Icon:
 export function SyncSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState<CloudSyncConfig | undefined>(undefined);
+  // 状态条只反映已保存/实际生效的同步配置：勾选草稿(draft.enable)尚未保存时不应展示运行状态。
+  const [savedEnable, setSavedEnable] = useState(false);
   const [syncState, setSyncState] = useState<CloudSyncState>(DEFAULT_CLOUD_SYNC_STATE);
 
   useEffect(() => {
-    void Promise.resolve(systemConfig.get("cloud_sync")).then((v) => setDraft(v as CloudSyncConfig));
+    void Promise.resolve(systemConfig.get("cloud_sync")).then((v) => {
+      const cfg = v as CloudSyncConfig;
+      setDraft(cfg);
+      setSavedEnable(cfg.enable);
+    });
   }, []);
 
   // 读取并订阅设备本地同步状态（SW 每轮同步写入 chrome.storage）
@@ -56,6 +62,7 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
       }
     }
     systemConfig.set("cloud_sync", draft);
+    setSavedEnable(draft.enable);
     notify.success(t("save_success"));
   };
 
@@ -76,10 +83,7 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
   switch (variant) {
     case "warning":
       title = t("settings:sync_state_attention");
-      desc = t("settings:sync_state_attention_desc", {
-        overwrite: syncState.counts.overwrite,
-        conflict: syncState.counts.conflict,
-      });
+      desc = t("settings:sync_state_attention_desc", { conflict: syncState.counts.conflict });
       break;
     case "error":
       title = t("settings:sync_state_error");
@@ -90,10 +94,14 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
       break;
     default:
       title = t("settings:sync_state_idle");
-      desc =
-        syncState.lastSyncAt > 0
-          ? t("settings:sync_last_at", { time: semTime(new Date(syncState.lastSyncAt)) })
-          : t("settings:sync_never");
+      // 覆盖降级为信息级：仅有覆盖(无冲突/失败)时状态仍是「同步正常」，附中性说明 + 日志深链
+      if (syncState.counts.overwrite > 0) {
+        desc = t("settings:sync_state_overwrite_info", { overwrite: syncState.counts.overwrite });
+      } else if (syncState.lastSyncAt > 0) {
+        desc = t("settings:sync_last_at", { time: semTime(new Date(syncState.lastSyncAt)) });
+      } else {
+        desc = t("settings:sync_never");
+      }
   }
 
   return (
@@ -101,7 +109,7 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
       <SettingCard id="sync" title={t("settings:script_sync")} register={register}>
         {draft && (
           <div className="flex flex-col gap-4">
-            {draft.enable && (
+            {savedEnable && (
               <div
                 data-testid="cloud_sync_status"
                 data-variant={variant}

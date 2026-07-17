@@ -380,7 +380,8 @@ type CloudSyncState = {
 ```
 
 - 开始置 `syncing:true`，结束写 `counts`/`lastSyncAt`，异常写 `error`。注意：读旧值与写 `syncing` **不能** await 在 `syncOnceInternal` 之前，否则存储 I/O 会推迟内部起始，打乱测试的微任务门控。
-- 设置页「脚本同步」卡片顶部状态条（`SyncSection.tsx` + `syncStatus.ts`）读取并订阅 `chrome.storage.onChanged` 实时展示四态：正常 / 同步中 / 有覆盖或冲突（琥珀警示）/ 失败。单文件 best-effort 失败通过 `counts.failed` 显示为失败，不能回落成“同步正常”。
+- 设置页「脚本同步」卡片顶部状态条（`SyncSection.tsx` + `syncStatus.ts`）读取并订阅 `chrome.storage.onChanged` 实时展示四态：正常 / 同步中 / 冲突（琥珀警示，已暂停需处理）/ 失败。覆盖（overwrite）不进入警示，属信息级：它是已发生、无需用户处理的事件，仅在「正常」态以中性信息行「N 个脚本被覆盖，可查看日志」+ 日志深链呈现（`sync_state_overwrite_info`）。单文件 best-effort 失败通过 `counts.failed` 显示为失败，不能回落成“同步正常”。
+- 状态条只在**已保存且启用**同步时展示（`SyncSection.tsx` 用 `savedEnable` 门控，非未保存草稿 `draft.enable`）：仅勾选「启用脚本同步至」但尚未保存不会立刻出现「同步正常」。
 - `立即同步` 按钮经 `SynchronizeClient.cloudSyncOnce()` → SW `group.on("cloudSyncOnce")` → 用**已保存**配置跑一次 `syncOnce`（未启用则不触发）。构建文件系统失败发生在 `syncOnce()` 之前，因此 `cloudSyncOnce()` 会单独写入 `error` 状态并向 UI 抛出，由设置页显示 toast。
 
 ### 覆盖日志（`action` 标签）
@@ -395,9 +396,11 @@ this.logger.warn("sync overwrite", { action: "overwrite", direction, uuid, name 
 
 ### 通知与深链
 
-本轮有覆盖时聚合一条 `InfoNotification`，点击打开 `/src/options.html#/logs?query=...`。覆盖和冲突的已通知集合存入设备本地 sync storage，因此 MV3 Service Worker 重启后同一批问题也不会重复通知；集合或覆盖方向变化时重新提醒，问题消失时清空。
+本轮有**冲突**时聚合一条 `InfoNotification`（冲突脚本已暂停走，需用户处理）：已通知集合（`LAST_NOTIFIED_CONFLICT_KEY`）存入设备本地 sync storage，MV3 Service Worker 重启后同一批冲突不重复通知；集合变化或冲突消失时重置。
 
-`?query` 载荷 `[{key,value}]` 由 Logger 页 `parseInitialQueries` 解析。只有纯覆盖状态才预过滤到 `service=synchronize` 且 `action=overwrite`；存在冲突或失败时只过滤 `service=synchronize`，避免把对应失败日志隐藏掉。覆盖通知与状态文案使用中性“同步时发生覆盖”，具体是本地覆盖云端还是云端覆盖本地以日志的 `direction` 标签为准。
+**覆盖（overwrite）不再弹桌面通知**：它是已发生、无需用户处理的信息级事件，只由 overwrite 日志与设置页状态条信息行 + 「查看日志」深链承载，避免首次同步/升级后无基线场景批量弹“N 个脚本被覆盖”的惊扰通知。
+
+「查看日志」深链的 `?query` 载荷 `[{key,value}]` 由 Logger 页 `parseInitialQueries` 解析（状态条侧见 `syncStatus.ts` 的 `syncLogHref`）：只有纯覆盖状态才预过滤到 `service=synchronize` 且 `action=overwrite`；存在冲突或失败时只过滤 `service=synchronize`，避免把对应失败日志隐藏掉。状态文案使用中性“发生覆盖”，具体是本地覆盖云端还是云端覆盖本地以日志的 `direction` 标签为准。
 
 ### 边界
 

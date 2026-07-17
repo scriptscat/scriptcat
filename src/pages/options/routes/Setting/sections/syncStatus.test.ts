@@ -20,8 +20,13 @@ describe("同步状态样式判定", () => {
     expect(syncStatusVariant(base({ syncing: true, counts: { overwrite: 1 } }))).toBe("syncing");
   });
 
-  it("有覆盖或冲突为 warning", () => {
+  it("有冲突为 warning", () => {
     expect(syncStatusVariant(base({ counts: { conflict: 1 } }))).toBe("warning");
+  });
+
+  it("仅有覆盖、无冲突无失败时为 idle（覆盖降级为信息级，不触发警示）", () => {
+    // 覆盖是已发生、无需用户处理的审计信息，不应与冲突同级弹琥珀警示
+    expect(syncStatusVariant(base({ counts: { overwrite: 5 } }))).toBe("idle");
   });
 
   it("有文件同步失败时为 error，不能显示同步正常", () => {
@@ -51,10 +56,14 @@ describe("同步状态样式判定", () => {
     expect(failedHref).not.toContain("overwrite");
   });
 
-  it("覆盖文案不应谎报固定方向", () => {
-    expect(enSettings.notification.script_sync_overwrite_desc).toBe(
-      "{{scriptNames}}: {{count}} script(s) were overwritten during sync. Open the logs to review the direction and details."
-    );
-    expect(enSettings.sync_state_attention_desc).toContain("overwritten during sync");
+  it("覆盖信息文案不谎报固定方向（只说发生覆盖，不断言本地/云端谁覆盖谁）", () => {
+    // 覆盖方向随每个脚本而变，状态条信息行只能中性描述，不能硬编码单一方向
+    expect(enSettings.sync_state_overwrite_info).toContain("overwritten during");
+    expect(enSettings.sync_state_overwrite_info).not.toMatch(/\b(local|cloud|remote)\b/i);
+  });
+
+  it("警示文案只描述冲突已暂停，覆盖已降级不再出现在警示里", () => {
+    expect(enSettings.sync_state_attention_desc).toContain("conflict");
+    expect(enSettings.sync_state_attention_desc).not.toContain("overwritten");
   });
 });

@@ -94,9 +94,7 @@
     "script_sync_conflict": "Bulut Eşitleme Çakışması",
     "script_sync_conflict_desc": "{{scriptNames}} betiği hem yerelde hem bulutta değiştirildi. Bu betiğin eşitlemesi duraklatıldı, lütfen çakışmayı elle çözün",
     "subscribe_update": "{{subscribeName}} aboneliği güncellendi",
-    "subscribe_update_desc": "Yeni betikler: {{newScripts}}\nSilinen betikler: {{deletedScripts}}",
-    "script_sync_overwrite": "Bulut eşitleme üzerine yazma",
-    "script_sync_overwrite_desc": "Eşitleme sırasında {{count}} betiğin üzerine yazıldı ({{scriptNames}}). Yön ve ayrıntılar için günlükleri açın."
+    "subscribe_update_desc": "Yeni betikler: {{newScripts}}\nSilinen betikler: {{deletedScripts}}"
   },
   "enable_background": {
     "title": "Arka Planda Çalıştırmayı Etkinleştir",
@@ -135,7 +133,8 @@
   "sync_never": "Henüz eşitlenmedi",
   "sync_state_syncing": "Eşitleniyor…",
   "sync_state_attention": "Son eşitleme incelemenizi gerektiriyor",
-  "sync_state_attention_desc": "Eşitleme sırasında {{overwrite}} betiğin üzerine yazıldı ve {{conflict}} çakışma duraklatıldı. Günlükleri inceleyin.",
+  "sync_state_attention_desc": "Eşitleme sırasında {{conflict}} betik çakışma nedeniyle duraklatıldı. Günlükleri inceleyin.",
+  "sync_state_overwrite_info": "Son eşitlemede {{overwrite}} betiğin üzerine yazıldı. Ayrıntılar için günlükleri açın.",
   "sync_state_error": "Eşitleme başarısız, duraklatıldı",
   "sync_state_failed_desc": "{{failed}} betik eşitlenemedi. Ayrıntılar için günlükleri açın."
 }

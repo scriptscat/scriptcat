@@ -3476,7 +3476,7 @@ console.log("ok");`;
       expect(overwriteLabel).toMatchObject({ action: "overwrite", direction: "push", uuid: "u1" });
     });
 
-    it("同一轮多个覆盖只发送一条聚合覆盖通知", async () => {
+    it("同一轮多个覆盖不再发送桌面通知（覆盖降级为信息级，只记录日志与计数）", async () => {
       const fs = createFs({
         list: vi
           .fn()
@@ -3509,40 +3509,14 @@ console.log("ok");`;
 
       await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
 
-      expect(notificationSpy).toHaveBeenCalledTimes(1);
+      expect(notificationSpy).not.toHaveBeenCalled();
+      const state = await (service as any).storage.get("cloud_sync_state");
+      expect(state.counts).toMatchObject({ overwrite: 2 });
     });
 
-    it("Service Worker 重启后同一批覆盖仍只通知一次", async () => {
-      const fs = createFs({
-        list: vi.fn().mockResolvedValue([
-          { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "c1", createtime: 1, updatetime: 100_000 },
-          { name: "u1.meta.json", path: "u1.meta.json", size: 1, digest: "m1", createtime: 1, updatetime: 100_000 },
-        ]),
-      });
-      const notificationSpy = vi.spyOn(chrome.notifications, "create");
-      const scriptDAO = {
-        scriptCodeDAO: { get: vi.fn().mockResolvedValue(undefined) },
-        all: vi
-          .fn()
-          .mockResolvedValue([
-            { uuid: "u1", name: "u1", updatetime: 200_000, createtime: 1, status: 1, sort: 0, metadata: {} },
-          ]),
-      } as any;
-      const makeService = () =>
-        new SynchronizeService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, scriptDAO);
-      const firstService = makeService();
-      vi.spyOn(firstService, "pushScript").mockResolvedValue({});
-      await firstService.syncOnce({ ...syncConfig, syncStatus: false }, fs);
-      const restartedService = makeService();
-      vi.spyOn(restartedService, "pushScript").mockResolvedValue({});
-      await restartedService.syncOnce({ ...syncConfig, syncStatus: false }, fs);
-
-      expect(notificationSpy).toHaveBeenCalledTimes(1);
-    });
-
-    it("兜底覆盖写入失败时不通知不计数，下一轮真正覆盖成功才通知", async () => {
-      // 覆盖通知必须以"写入已发生"为前提：失败轮通知会谎报覆盖，
-      // 且去重键提前落库后，下一轮真覆盖发生时反而被静默
+    it("兜底覆盖写入失败时不计数，下一轮真正覆盖成功才计数（覆盖不再触发通知）", async () => {
+      // 覆盖计数必须以"写入已发生"为前提：失败轮不能谎报覆盖；
+      // 覆盖已降级为信息级，任意轮次都不再弹桌面通知
       const fs = createFs({
         list: vi.fn().mockResolvedValue([
           { name: "u1.user.js", path: "u1.user.js", size: 1, digest: "c1", createtime: 1, updatetime: 100_000 },
@@ -3577,7 +3551,7 @@ console.log("ok");`;
 
       await service.syncOnce({ ...syncConfig, syncStatus: false }, fs);
 
-      expect(notificationSpy).toHaveBeenCalledTimes(1);
+      expect(notificationSpy).not.toHaveBeenCalled();
       state = await (service as any).storage.get("cloud_sync_state");
       expect(state.counts).toMatchObject({ overwrite: 1, failed: 0 });
     });

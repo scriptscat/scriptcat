@@ -94,9 +94,7 @@
     "script_sync_conflict": "雲端同步衝突",
     "script_sync_conflict_desc": "腳本 {{scriptNames}} 的本機與雲端版本皆已修改，已暫停同步該腳本，請手動處理衝突",
     "subscribe_update": "訂閱 {{subscribeName}} 已更新",
-    "subscribe_update_desc": "新增腳本：{{newScripts}}\n刪除腳本：{{deletedScripts}}",
-    "script_sync_overwrite": "雲同步覆蓋提醒",
-    "script_sync_overwrite_desc": "同步時有 {{count}} 個腳本發生覆蓋（{{scriptNames}}），請開啟日誌確認覆蓋方向與詳細資訊"
+    "subscribe_update_desc": "新增腳本：{{newScripts}}\n刪除腳本：{{deletedScripts}}"
   },
   "enable_background": {
     "title": "啟用背景運行",
@@ -135,7 +133,8 @@
   "sync_never": "尚未同步",
   "sync_state_syncing": "正在同步…",
   "sync_state_attention": "上次同步有需要確認的變更",
-  "sync_state_attention_desc": "同步時有 {{overwrite}} 個腳本發生覆蓋、{{conflict}} 個衝突已暫停，請開啟日誌確認",
+  "sync_state_attention_desc": "同步時有 {{conflict}} 個腳本衝突已暫停，請開啟日誌確認",
+  "sync_state_overwrite_info": "上次同步有 {{overwrite}} 個腳本被覆蓋，可檢視日誌",
   "sync_state_error": "同步失敗，已暫停",
   "sync_state_failed_desc": "{{failed}} 個腳本同步失敗，請開啟日誌查看詳細資訊"
 }

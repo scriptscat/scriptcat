@@ -190,6 +190,36 @@ describe("同步分区", () => {
     expect(screen.queryByTestId("cloud_sync_status")).toBeNull();
   });
 
+  it("勾选启用但未保存时不显示状态条（状态条只反映已保存配置）", async () => {
+    mockCloudSync({ enable: false });
+    mockState({});
+    render(<SyncSection register={() => () => {}} />);
+    const enable = await screen.findByTestId("cloud_sync_enable");
+    fireEvent.click(enable);
+    // 仅勾选草稿、尚未保存，不应立刻出现「同步正常」状态条
+    expect(screen.queryByTestId("cloud_sync_status")).toBeNull();
+  });
+
+  it("勾选启用并保存成功后才显示状态条", async () => {
+    mockCloudSync({ enable: false, params: { webdav: { url: "https://dav" } } });
+    mockState({});
+    render(<SyncSection register={() => () => {}} />);
+    const enable = await screen.findByTestId("cloud_sync_enable");
+    fireEvent.click(enable);
+    await act(async () => fireEvent.click(screen.getByTestId("cloud_sync_save")));
+    expect(screen.queryByTestId("cloud_sync_status")).not.toBeNull();
+  });
+
+  it("仅有覆盖无冲突时状态条为同步正常（覆盖降级为信息级）并可查看日志", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
+    mockState({ lastSyncAt: 1, counts: { total: 3, overwrite: 3, conflict: 0, failed: 0 } });
+    render(<SyncSection register={() => () => {}} />);
+    const strip = await screen.findByTestId("cloud_sync_status");
+    expect(strip.getAttribute("data-variant")).toBe("idle");
+    expect(screen.getByTestId("cloud_sync_view_logs")).not.toBeNull();
+    expect(strip.textContent).toContain("settings:sync_state_overwrite_info");
+  });
+
   it("立即同步失败时弹出错误提示（不产生未捕获异常）", async () => {
     mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
     mockState({ lastSyncAt: 1 });
