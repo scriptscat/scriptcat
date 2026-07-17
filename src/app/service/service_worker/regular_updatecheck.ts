@@ -1,4 +1,5 @@
 import { type SystemConfig } from "@App/pkg/config/config";
+import Logger from "@App/app/logger/logger";
 import { type ScriptService } from "./script";
 import { type SubscribeService } from "./subscribe";
 
@@ -67,12 +68,12 @@ export const watchRegularUpdateCheck = (systemConfig: SystemConfig) => {
   });
 };
 
-const setCheckupdateScriptLasttime = async (t: number) => {
+const setCheckupdateScriptLasttime = async (t: number, logger: Logger) => {
   try {
     // 试一下储存。储存不了也没所谓
     await chrome.storage.local.set({ checkupdate_script_lasttime: t });
   } catch (e: any) {
-    console.error(e);
+    logger.warn("store script update check time failed", Logger.E(e));
   }
 };
 
@@ -99,7 +100,7 @@ export const onRegularUpdateCheckAlarm = async (
   const targetWhen = checkupdate_script_lasttime + updateCycleSecond * 1000;
   if (targetWhen - ALARM_TRIGGER_WINDOW_MS > now) return null; // 已检查过了（alarm触发了）
   const storeTime = Math.floor(now / 2) * 2; // 双数
-  await setCheckupdateScriptLasttime(storeTime); // 双数值：alarm触发了，但不知道有没有真的检查好（例如中途浏览器关了）
+  await setCheckupdateScriptLasttime(storeTime, script.logger); // 双数值：alarm触发了，但不知道有没有真的检查好（例如中途浏览器关了）
   const res = await script.checkScriptUpdate({ checkType: "system" });
   try {
     if (subscribe) {
@@ -108,8 +109,8 @@ export const onRegularUpdateCheckAlarm = async (
       await subscribe.checkSubscribeUpdate(updateCycleSecond, checkDisableScript);
     }
   } catch (e: any) {
-    console.error(e);
+    script.logger.error("check subscribe updates failed", Logger.E(e));
   }
-  await setCheckupdateScriptLasttime(storeTime + 1); // 单数值：alarm触发了，而且真的检查好
+  await setCheckupdateScriptLasttime(storeTime + 1, script.logger); // 单数值：alarm触发了，而且真的检查好
   return res;
 };
