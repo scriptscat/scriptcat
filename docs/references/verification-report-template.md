@@ -4,8 +4,11 @@ Before running the browser, create a short verification record in the scenario d
 `test-results/verify/<scenario>/report.md`. Keep the reusable template headings in English, but write the actual
 record content in the user's language. Update it as the run proceeds instead of filling it in only at the end.
 
+This is the `Evidence Index` section alone, filled in, to show its shape — it is not the full report; the full
+report shape (which reuses this same section) is below.
+
 ```md
-## Evidence Index
+## Evidence Index (filled-in example)
 
 ### Screenshots
 
@@ -81,7 +84,8 @@ Use this shape:
 
 ## Evidence Index
 
-Embed screenshots inline, link videos / logs / resources, and annotate every item — see the shape above.
+Embed screenshots inline, link videos / logs / resources, and annotate every item — see `Evidence Index
+(filled-in example)` above.
 ```
 
 Fill `Result` at the end — the honest verdict, per *Step 4 — Report honestly* in [`verification.md`](../verification.md).
