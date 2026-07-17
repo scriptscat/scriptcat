@@ -22,6 +22,6 @@
   "show_more_scripts": "+{{count}}개 스크립트",
   "use_on_mobile": "모바일에서 ScriptCat 사용하기",
   "scan_qr_to_install": "QR 코드를 스캔하여 휴대폰에 ScriptCat 설치",
-  "menu_expand_num_before": "메뉴 항목이",
-  "menu_expand_num_after": "개를 초과하면 숨겨집니다."
+  "menu_expand_num_before": "메뉴 항목 수가 ",
+  "menu_expand_num_after": "개를 초과하면 자동으로 숨겨집니다."
 }

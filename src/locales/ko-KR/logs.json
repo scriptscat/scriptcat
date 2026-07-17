@@ -38,7 +38,7 @@
   "interval_1m": "1분",
   "interval_5m": "5분",
   "quick_range": "빠른 범위",
-  "absolute_range": "절대 범위",
+  "absolute_range": "절대 시간 범위",
   "from_start": "시작",
   "to_end": "종료",
   "apply_range": "범위 적용",

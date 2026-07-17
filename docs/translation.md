@@ -37,6 +37,7 @@
 | `de-DE` | Deutsch | [terminology-de-DE.md](./references/terminology-de-DE.md) |
 | `vi-VN` | Tiếng Việt | [terminology-vi-VN.md](./references/terminology-vi-VN.md) |
 | `tr-TR` | Türkçe | [terminology-tr-TR.md](./references/terminology-tr-TR.md) |
+| `ko-KR` | 한국어 | [terminology-ko-KR.md](./references/terminology-ko-KR.md) |
 
 > `en-US` 是运行时的回退语言（fallback），也是新翻译的模板。其措辞应被刻意校准而非将含糊或不通顺的英文直接传播到其他 locale。
 
