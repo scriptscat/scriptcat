@@ -88,9 +88,7 @@ describe("AgentTaskService 定时任务与会话锁", () => {
   it("【finding 1 回归】任务绑定的会话已被删除重建（generation 不一致）时应拒绝续接，而不是静默写入无关会话", async () => {
     const { service, repo, orchestrator } = createService();
     // 存储里 conv-lock 当前的 generation 是 "gen-b"（被删除重建过）
-    repo.listConversations.mockResolvedValue([
-      { id: "conv-lock", title: "t", modelId: "m1", generation: "gen-b" },
-    ]);
+    repo.listConversations.mockResolvedValue([{ id: "conv-lock", title: "t", modelId: "m1", generation: "gen-b" }]);
 
     const task = {
       id: "task-3",
@@ -188,6 +186,31 @@ describe("AgentTaskService 任务生命周期", () => {
 
     expect(scheduler.cancelTask).toHaveBeenCalledWith("task-cas");
     expect(taskRepo.removeTask).toHaveBeenCalledWith("task-cas", "generation-current", 3);
+  });
+
+  it("【finding 7 回归】delete 应先 cancelTask 中止执行，再清理元数据/运行记录，即使清理失败", async () => {
+    const { service, taskRepo, scheduler } = createMutationService();
+    const callOrder: string[] = [];
+    scheduler.cancelTask.mockImplementation(() => {
+      callOrder.push("cancelTask");
+      return true;
+    });
+    taskRepo.removeTask.mockImplementation(async () => {
+      callOrder.push("removeTask");
+      throw new Error("run-history cleanup failed");
+    });
+
+    await expect(
+      service.handleAgentTask({
+        action: "delete",
+        id: "task-cas",
+        generation: "generation-current",
+        revision: 3,
+      } as any)
+    ).rejects.toThrow("run-history cleanup failed");
+
+    // cancelTask 必须先发生：即使 removeTask（含 run-history 清理）失败，正在运行的执行也已经被中止
+    expect(callOrder).toEqual(["cancelTask", "removeTask"]);
   });
 
   it("runNow 遇到已到期任务时应领取当前槽位而不是随后再由 tick 重复执行", async () => {

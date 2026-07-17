@@ -313,8 +313,12 @@ export class AgentTaskService {
         return this.taskRepo.saveTask(updated);
       }
       case "delete": {
-        await this.taskRepo.removeTask(params.id, params.generation, params.revision);
+        // 先中止正在运行的执行，再清理元数据/运行记录：cancelTask 是同步的 abort()，必须最先
+        // 发生，否则被删除的任务会在 removeTask（含 run-history 清理）完成前继续调用 LLM/工具/
+        // 产生外部副作用；若 removeTask 之后才 cancel，一旦 removeTask 因清理失败而抛出，
+        // cancelTask 根本不会被调用，执行也就永远不会被中止（见 finding 7）
         this.taskScheduler?.cancelTask(params.id);
+        await this.taskRepo.removeTask(params.id, params.generation, params.revision);
         return true;
       }
       case "enable": {
