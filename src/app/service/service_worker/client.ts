@@ -67,6 +67,7 @@ export function parseCspRuleError(error: unknown): CspRuleServiceError {
       code === "invalid_input" ||
       code === "not_found" ||
       code === "revision_conflict" ||
+      code === "storage_read_failed" ||
       code === "storage_write_failed" ||
       code === "unsupported_schema"
     ) {

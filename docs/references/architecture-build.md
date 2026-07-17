@@ -46,7 +46,7 @@ dist/ext/
 - `background.service_worker` (Chrome) **and** `background.scripts` (Firefox fallback) point at the same bundle.
 - `permissions` include `userScripts`, `declarativeNetRequest`, `offscreen`, `scripting`, `cookies`,
   `webRequest`, `unlimitedStorage`, …; `optional_permissions` hold `background` + `userScripts`.
-- `host_permissions: ["<all_urls>"]`, `incognito: "split"`.
+- `host_permissions: ["<all_urls>"]`, `incognito: "spanning"` so the CSP rule state has one background owner.
 - `sandbox.pages` declares `src/sandbox.html`; `web_accessible_resources` exposes `install.html` so a
   `.user.js` page can hand off to the install flow.
 

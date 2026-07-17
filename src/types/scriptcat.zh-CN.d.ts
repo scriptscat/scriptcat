@@ -593,8 +593,8 @@ declare namespace GMTypes {
 
     /**
      * 在隐私/无痕窗口中打开。
-     * 注意：ScriptCat 使用 `"incognito": "split"` — 在普通窗口中，
-     * tabId/windowId 将不可用。
+     * 注意：ScriptCat 使用 `"incognito": "spanning"`，普通窗口和隐私窗口
+     * 共用同一个后台上下文。
      * @default false
      */
     incognito?: boolean;

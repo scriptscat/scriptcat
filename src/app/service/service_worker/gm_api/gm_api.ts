@@ -1153,7 +1153,7 @@ export default class GMApi {
       }
       let newTabIndex = -1;
       if (options.incognito && !currentTab?.incognito) {
-        // incognito: "split" 在 normal 里不会看到 incognito
+        // incognito: "spanning" 时由普通后台统一管理隐私窗口
         // 只能创建新 incognito window
         // pinned 无效
         // insert 不重要

@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { CspRule, CspRuleTarget } from "@App/app/repo/csp_rule";
+import type { CspRuleServiceError } from "@App/app/service/service_worker/client";
 import { parseCspDomains, type CspDomainParseResult } from "@App/pkg/utils/csp_domain";
 import {
   AlertDialog,
@@ -29,21 +30,31 @@ export type CspRuleFormValue = {
   target: CspRuleTarget;
 };
 
+export type CspRuleSaveResult = true | false | CspRuleServiceError;
+
 type CspRuleSheetProps = {
   open: boolean;
   rule: CspRule | undefined;
   baseRevision: number;
   existingRules: CspRule[];
   onOpenChange: (open: boolean) => void;
-  onSave: (value: CspRuleFormValue) => Promise<boolean>;
+  onSave: (value: CspRuleFormValue, baseRevision: number) => Promise<CspRuleSaveResult>;
 };
 
 function errorText(t: (key: string) => string, messageKey: string): string {
   return t(`tools:csp_error_${messageKey}`);
 }
 
-export function CspRuleSheet({ open, rule, existingRules, onOpenChange, onSave }: CspRuleSheetProps) {
+function saveErrorText(t: (key: string) => string, error: Exclude<CspRuleSaveResult, true>): string {
+  if (error === false) return t("tools:csp_storage_error");
+  if (error.code === "revision_conflict") return t("tools:csp_revision_conflict");
+  if (error.messageKey) return errorText(t, error.messageKey);
+  return t("tools:csp_storage_error");
+}
+
+export function CspRuleSheet({ open, rule, baseRevision, existingRules, onOpenChange, onSave }: CspRuleSheetProps) {
   const { t } = useTranslation();
+  const [formBaseRevision] = useState(baseRevision);
   const initialTarget = rule?.target;
   const initialDomainTarget = initialTarget && initialTarget.type === "domains" ? initialTarget : undefined;
   const [websites, setWebsites] = useState(() => initialDomainTarget?.domains.join("\n") ?? "");
@@ -76,8 +87,8 @@ export function CspRuleSheet({ open, rule, existingRules, onOpenChange, onSave }
   };
 
   const submit = async (value: CspRuleFormValue) => {
-    const saved = await onSave(value);
-    if (!saved) setSubmitError(t("tools:csp_storage_error"));
+    const saved = await onSave(value, formBaseRevision);
+    if (saved !== true) setSubmitError(saveErrorText(t, saved));
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {

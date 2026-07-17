@@ -587,8 +587,8 @@ declare namespace GMTypes {
 
     /**
      * Open in an incognito/private window.
-     * Note: ScriptCat uses `"incognito": "split"` — in a normal window,
-     * tabId/windowId will not be available.
+     * Note: ScriptCat uses `"incognito": "spanning"` so normal and incognito
+     * windows share one background owner.
      * @default false
      */
     incognito?: boolean;

@@ -12,7 +12,7 @@
     "service_worker": "src/service_worker.js",
     "scripts": ["src/service_worker.js"]
   },
-  "incognito": "split",
+  "incognito": "spanning",
   "message_serialization": "structured_clone",
   "action": {
     "default_popup": "src/popup.html",

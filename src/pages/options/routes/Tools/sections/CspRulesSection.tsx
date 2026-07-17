@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, HelpCircle, Loader2, MoreHorizontal, ShieldOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { CspRule, CspRuleState } from "@App/app/repo/csp_rule";
+import { MAX_CSP_RULES, type CspRule, type CspRuleState } from "@App/app/repo/csp_rule";
 import { CspRuleClient, parseCspRuleError, type CspRuleServiceError } from "@App/app/service/service_worker/client";
 import type { CspMutationResult, CspRuleSnapshot } from "@App/app/service/service_worker/csp_rule";
 import { message, subscribeMessage } from "@App/pages/store/global";
@@ -29,7 +29,7 @@ import { SettingRow } from "@App/pages/options/components/SettingRow";
 import { Skeleton } from "@App/pages/components/ui/skeleton";
 import { Switch } from "@App/pages/components/ui/switch";
 import { notify } from "@App/pages/components/ui/toast";
-import { CspRuleSheet, type CspRuleFormValue } from "./CspRuleSheet";
+import { CspRuleSheet, type CspRuleFormValue, type CspRuleSaveResult } from "./CspRuleSheet";
 
 type CspRulesSectionProps = {
   register: (id: string) => (el: HTMLElement | null) => void;
@@ -54,6 +54,12 @@ function outcomeIsApplied(result: CspMutationResult): boolean {
   return result.outcome === "applied" && result.apply.state === "applied";
 }
 
+function mutationErrorText(t: (key: string) => string, error: CspRuleServiceError): string {
+  if (error.code === "revision_conflict") return t("tools:csp_revision_conflict");
+  if (error.messageKey) return t(`tools:csp_error_${error.messageKey}`);
+  return t("tools:csp_storage_error");
+}
+
 export function CspRulesSection({ register, client: injectedClient }: CspRulesSectionProps) {
   const { t } = useTranslation();
   const client = useMemo(() => injectedClient ?? new CspRuleClient(message), [injectedClient]);
@@ -65,19 +71,6 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<CspRule>();
   const [confirmation, setConfirmation] = useState<Confirmation>();
-
-  const loadState = () => {
-    setLoading(true);
-    setLoadError(undefined);
-    void client
-      .getState()
-      .then((next) => {
-        setSnapshot(next);
-        setVisibleCount(20);
-      })
-      .catch((error: unknown) => setLoadError(parseCspRuleError(error)))
-      .finally(() => setLoading(false));
-  };
 
   useEffect(() => {
     let active = true;
@@ -104,6 +97,7 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
   }, [client]);
 
   const openCreate = () => {
+    if (!snapshot || snapshot.state.rules.length >= MAX_CSP_RULES) return;
     setEditingRule(undefined);
     setSheetOpen(true);
   };
@@ -120,8 +114,8 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
     return true;
   };
 
-  const saveRule = async (value: CspRuleFormValue): Promise<boolean> => {
-    if (!snapshot) return false;
+  const saveRule = async (value: CspRuleFormValue, baseRevision: number): Promise<CspRuleSaveResult> => {
+    if (!snapshot) return { code: "storage_read_failed" };
     setBusy("sheet");
     const name =
       value.name.trim() ||
@@ -131,12 +125,12 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
     try {
       const result = editingRule
         ? await client.updateRule({
-            baseRevision: snapshot.state.revision,
+            baseRevision,
             id: editingRule.id,
             patch: { name, target: value.target },
           })
         : await client.createRule({
-            baseRevision: snapshot.state.revision,
+            baseRevision,
             name,
             enabled: value.enabled,
             target: value.target,
@@ -147,8 +141,12 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
     } catch (error) {
       const parsed = parseCspRuleError(error);
       if (parsed.snapshot) setSnapshot(parsed.snapshot);
-      notify.error(t(`tools:csp_${parsed.code === "revision_conflict" ? "revision_conflict" : "storage_error"}`));
-      return false;
+      notify.error(mutationErrorText(t, parsed));
+      if (parsed.code === "revision_conflict") {
+        setSheetOpen(false);
+        setEditingRule(undefined);
+      }
+      return parsed;
     } finally {
       setBusy(undefined);
     }
@@ -201,8 +199,9 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
     setBusy("retry");
     try {
       finishMutation(await client.retryApply());
-    } catch {
-      notify.error(t("tools:csp_load_error"));
+      setLoadError(undefined);
+    } catch (error) {
+      setLoadError(parseCspRuleError(error));
     } finally {
       setBusy(undefined);
     }
@@ -268,7 +267,7 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
           <p className="text-sm text-destructive">
             {t(`tools:${loadError.code === "unsupported_schema" ? "csp_unsupported_schema" : "csp_load_error"}`)}
           </p>
-          <Button size="sm" variant="outline" disabled={busy === "retry"} onClick={loadState}>
+          <Button size="sm" variant="outline" disabled={busy === "retry"} onClick={() => void retry()}>
             {busy === "retry" && <Loader2 className="size-4 animate-spin" />}
             {t("tools:csp_retry")}
           </Button>
@@ -294,7 +293,11 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
               )}
             </div>
             {snapshot.state.rules.length > 0 && (
-              <Button size="sm" onClick={openCreate} disabled={Boolean(busy)}>
+              <Button
+                size="sm"
+                onClick={openCreate}
+                disabled={Boolean(busy) || snapshot.state.rules.length >= MAX_CSP_RULES}
+              >
                 {t("tools:csp_add_rule")}
               </Button>
             )}
@@ -429,7 +432,10 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
         rule={editingRule}
         baseRevision={snapshot?.state.revision ?? 0}
         existingRules={snapshot?.state.rules ?? []}
-        onOpenChange={setSheetOpen}
+        onOpenChange={(open) => {
+          setSheetOpen(open);
+          if (!open) setEditingRule(undefined);
+        }}
         onSave={saveRule}
       />
 

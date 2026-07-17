@@ -54,6 +54,22 @@ describe("CSP 规则工具卡", () => {
     expect(screen.getByText("Rule 20")).toBeInTheDocument();
   });
 
+  it("达到 100 条规则时禁用新增入口", async () => {
+    const rules = Array.from({ length: 100 }, (_, index) => ({
+      id: `rule-${index}`,
+      name: `Rule ${index}`,
+      enabled: true,
+      target: { type: "domains" as const, domains: [`${index}.example.com`] },
+      action: { type: "removeCspHeaders" as const },
+      createdAt: 1,
+      updatedAt: 1,
+    }));
+    const client = clientFor(snapshot(rules));
+    render(<CspRulesSection register={() => () => {}} client={client} />);
+
+    expect(await screen.findByRole("button", { name: "Add rule" })).toBeDisabled();
+  });
+
   it("总开关暂停时仍显示逐条启用状态", async () => {
     const client = clientFor(
       snapshot(
@@ -81,10 +97,13 @@ describe("CSP 规则工具卡", () => {
     const client = {
       ...clientFor(snapshot()),
       getState,
+      retryApply: vi.fn().mockResolvedValue({
+        ...snapshot(),
+        outcome: "applied" as const,
+      }),
     } as unknown as CspRuleClient;
     render(<CspRulesSection register={() => () => {}} client={client} />);
     expect(await screen.findByText("This CSP rules data format is not supported yet.")).toBeInTheDocument();
-    getState.mockResolvedValue(snapshot());
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("No CSP rules")).toBeInTheDocument();
   });

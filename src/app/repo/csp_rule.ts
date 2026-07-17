@@ -44,6 +44,13 @@ export class CspRuleStorageError extends Error {
   }
 }
 
+export class CspRuleStorageReadError extends Error {
+  constructor(message = "storage_read_failed") {
+    super(message);
+    this.name = "CspRuleStorageReadError";
+  }
+}
+
 export const DEFAULT_CSP_RULE_STATE: CspRuleState = {
   schemaVersion: CSP_RULE_SCHEMA_VERSION,
   revision: 0,
@@ -136,12 +143,33 @@ export function validateCspRuleState(value: unknown): asserts value is CspRuleSt
 }
 
 export class CspRuleStateDAO extends Repo<CspRuleState> {
+  private mutationQueue: Promise<void> = Promise.resolve();
+
   constructor() {
     super("csp_rule");
   }
 
   getState(): Promise<CspRuleState | undefined> {
-    return this.get("state");
+    const key = this.joinKey("state");
+    return new Promise((resolve, reject) => {
+      chrome.storage.local.get(key, (result) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          reject(new CspRuleStorageReadError(lastError.message));
+          return;
+        }
+        resolve(result[key] as CspRuleState | undefined);
+      });
+    });
+  }
+
+  runExclusive<T>(operation: () => Promise<T>): Promise<T> {
+    const next = this.mutationQueue.then(operation);
+    this.mutationQueue = next.then(
+      () => undefined,
+      () => undefined
+    );
+    return next;
   }
 
   async saveState(state: CspRuleState): Promise<CspRuleState> {

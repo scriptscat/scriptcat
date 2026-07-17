@@ -1,13 +1,18 @@
 import { beforeEach, describe, expect, it, vi, type Mocked } from "vitest";
 import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
-import { DEFAULT_CSP_RULE_STATE, type CspRuleState, type CspRuleStateDAO } from "@App/app/repo/csp_rule";
+import {
+  CspRuleStorageReadError,
+  DEFAULT_CSP_RULE_STATE,
+  type CspRuleState,
+  type CspRuleStateDAO,
+} from "@App/app/repo/csp_rule";
 import { CspRuleService, type CspRuleApplier } from "./csp_rule";
 import { compileCspRules } from "./csp_rule_compiler";
 
 type Handler = (params?: unknown) => Promise<unknown>;
 
-function createHarness(initialState?: CspRuleState) {
+function createHarness(initialState?: CspRuleState, getStateError?: unknown) {
   const handlers = new Map<string, Handler>();
   const group = {
     on: vi.fn((name: string, handler: Handler) => handlers.set(name, handler)),
@@ -17,18 +22,32 @@ function createHarness(initialState?: CspRuleState) {
   } as unknown as IMessageQueue;
   const dao = {
     state: initialState,
-    getState: vi.fn(async () => dao.state),
+    getState: vi.fn(async () => {
+      if (getStateError) throw getStateError;
+      return dao.state;
+    }),
     saveState: vi.fn(async (state: CspRuleState) => {
       dao.state = state;
       return state;
     }),
   } as unknown as CspRuleStateDAO & { state: CspRuleState | undefined };
+  let daoMutationQueue = Promise.resolve();
+  (dao as CspRuleStateDAO & { runExclusive: <T>(operation: () => Promise<T>) => Promise<T> }).runExclusive = <T>(
+    operation: () => Promise<T>
+  ) => {
+    const next = daoMutationQueue.then(operation);
+    daoMutationQueue = next.then(
+      () => undefined,
+      () => undefined
+    );
+    return next;
+  };
   const applier = {
     apply: vi.fn(async () => {}),
   } as Mocked<CspRuleApplier>;
   const service = new CspRuleService(group, queue, dao, compileCspRules, applier);
   service.init();
-  return { service, handlers, queue, dao, applier };
+  return { service, handlers, group, queue, dao, applier };
 }
 
 describe("CspRuleService", () => {
@@ -112,6 +131,61 @@ describe("CspRuleService", () => {
     const { handlers, applier } = createHarness({ schemaVersion: 2 } as unknown as CspRuleState);
     await expect(handlers.get("getState")!()).rejects.toMatchObject({ code: "unsupported_schema" });
     expect(applier.apply).toHaveBeenCalledWith([]);
+  });
+
+  it("storage read 失败时返回 storage_read_failed 且不清空已应用规则", async () => {
+    const { handlers, applier } = createHarness(undefined, new CspRuleStorageReadError());
+
+    await expect(handlers.get("getState")!()).rejects.toMatchObject({ code: "storage_read_failed" });
+    expect(applier.apply).not.toHaveBeenCalled();
+  });
+
+  it("启动清理失败后可通过 retryApply 恢复，不会被失败的 ready 永久阻塞", async () => {
+    const { handlers, dao, applier } = createHarness({ schemaVersion: 2 } as unknown as CspRuleState);
+    applier.apply.mockRejectedValueOnce(new Error("temporary DNR failure"));
+
+    await expect(handlers.get("getState")!()).rejects.toMatchObject({ code: "unsupported_schema" });
+    dao.state = undefined;
+    const retried = (await handlers.get("retryApply")!()) as { outcome: string; state: CspRuleState };
+
+    expect(retried.outcome).toBe("applied");
+    expect(retried.state.revision).toBe(0);
+    expect(applier.apply).toHaveBeenCalledTimes(2);
+    expect(applier.apply).toHaveBeenNthCalledWith(1, []);
+    expect(applier.apply).toHaveBeenNthCalledWith(2, []);
+  });
+
+  it("两个共享 DAO 的 service instance 竞争同一 revision 时不会静默覆盖", async () => {
+    const first = createHarness();
+    const secondHandlers = new Map<string, Handler>();
+    const secondGroup = {
+      on: vi.fn((name: string, handler: Handler) => secondHandlers.set(name, handler)),
+    } as unknown as Group;
+    const secondQueue = { publish: vi.fn() } as unknown as IMessageQueue;
+    const secondService = new CspRuleService(secondGroup, secondQueue, first.dao, compileCspRules, first.applier);
+    secondService.init();
+    const firstInitial = (await first.handlers.get("getState")!()) as { state: CspRuleState };
+    const secondInitial = (await secondHandlers.get("getState")!()) as { state: CspRuleState };
+
+    const firstMutation = first.handlers.get("createRule")!({
+      baseRevision: firstInitial.state.revision,
+      enabled: true,
+      target: { type: "domains", domains: ["first.example"] },
+    });
+    const secondMutation = secondHandlers.get("createRule")!({
+      baseRevision: secondInitial.state.revision,
+      enabled: true,
+      target: { type: "domains", domains: ["second.example"] },
+    });
+    const results = await Promise.allSettled([firstMutation, secondMutation]);
+
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    expect(results.find((result) => result.status === "rejected")).toMatchObject({
+      status: "rejected",
+      reason: { code: "revision_conflict" },
+    });
+    expect(first.dao.state?.rules).toHaveLength(1);
   });
 
   it("并发 mutation 按保存与 reconcile 的完整顺序串行执行", async () => {

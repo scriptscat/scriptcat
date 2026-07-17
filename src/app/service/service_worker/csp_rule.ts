@@ -3,6 +3,7 @@ import type { IMessageQueue } from "@Packages/message/message_queue";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import {
   CspRuleStorageError,
+  CspRuleStorageReadError,
   CspRuleValidationError,
   DEFAULT_CSP_RULE_STATE,
   type CspRule,
@@ -49,6 +50,7 @@ export type CspRuleServiceErrorCode =
   | "invalid_input"
   | "not_found"
   | "revision_conflict"
+  | "storage_read_failed"
   | "storage_write_failed"
   | "unsupported_schema";
 
@@ -130,6 +132,7 @@ export class CspRuleService {
   private applyStatus: CspApplyStatus | undefined;
   private ready: Promise<void> = Promise.resolve();
   private mutationQueue: Promise<void> = Promise.resolve();
+  private initializationError: CspRuleServiceError | undefined;
 
   constructor(
     private readonly group: Group,
@@ -151,20 +154,28 @@ export class CspRuleService {
   }
 
   private async initialize(): Promise<void> {
+    this.initializationError = undefined;
     let state: CspRuleState;
     try {
       state = (await this.stateDAO.getState()) ?? { ...DEFAULT_CSP_RULE_STATE, rules: [] };
       validateCspRuleState(state);
     } catch (error) {
-      try {
-        await this.applier.apply([]);
-      } catch {
-        // 规则损坏时仍须保留原数据，清理失败由后续恢复重试处理。
-      }
       if (error instanceof CspRuleValidationError) {
-        throw serviceError("unsupported_schema", { path: error.path, messageKey: error.messageKey });
+        try {
+          await this.applier.apply([]);
+        } catch {
+          // 清理失败时保留原数据，并让 retryApply 重新执行清理。
+        }
+        this.initializationError = serviceError("unsupported_schema", {
+          path: error.path,
+          messageKey: error.messageKey,
+        });
+      } else if (error instanceof CspRuleStorageReadError) {
+        this.initializationError = serviceError("storage_read_failed");
+      } else {
+        this.initializationError = serviceError("storage_write_failed");
       }
-      throw serviceError("storage_write_failed");
+      return;
     }
     this.confirmedState = state;
     await this.reconcile(state);
@@ -172,6 +183,7 @@ export class CspRuleService {
 
   private async waitUntilReady(): Promise<void> {
     await this.ready;
+    if (this.initializationError) throw this.initializationError;
   }
 
   private snapshot(): CspRuleSnapshot {
@@ -180,7 +192,7 @@ export class CspRuleService {
   }
 
   private async enqueue<T>(operation: () => Promise<T>): Promise<T> {
-    const next = this.mutationQueue.then(operation);
+    const next = this.mutationQueue.then(() => this.stateDAO.runExclusive(operation));
     this.mutationQueue = next.then(
       () => undefined,
       () => undefined
@@ -216,6 +228,18 @@ export class CspRuleService {
   private async currentForMutation(baseRevision: unknown): Promise<CspRuleState> {
     await this.waitUntilReady();
     validateBaseRevision(baseRevision);
+    let persisted: CspRuleState | undefined;
+    try {
+      persisted = await this.stateDAO.getState();
+      if (persisted) validateCspRuleState(persisted);
+    } catch (error) {
+      if (error instanceof CspRuleValidationError) {
+        throw serviceError("unsupported_schema", { path: error.path, messageKey: error.messageKey });
+      }
+      if (error instanceof CspRuleStorageReadError) throw serviceError("storage_read_failed");
+      throw serviceError("storage_write_failed");
+    }
+    if (persisted) this.confirmedState = persisted;
     const current = this.confirmedState!;
     if (baseRevision !== current.revision) {
       throw serviceError("revision_conflict", { snapshot: this.snapshot() });
@@ -356,9 +380,15 @@ export class CspRuleService {
 
   private async retryApply(): Promise<CspMutationResult> {
     return this.enqueue(async () => {
-      await this.waitUntilReady();
+      const recoveringInitialization = this.initializationError !== undefined;
+      if (recoveringInitialization) {
+        await this.initialize();
+        await this.waitUntilReady();
+      } else {
+        await this.waitUntilReady();
+      }
       const state = this.confirmedState!;
-      const apply = await this.reconcile(state);
+      const apply = recoveringInitialization ? this.applyStatus! : await this.reconcile(state);
       const snapshot = this.snapshot();
       this.messageQueue.publish("cspRule/stateChanged", snapshot);
       return { ...snapshot, outcome: apply.state === "applied" ? "applied" : "apply-error" };

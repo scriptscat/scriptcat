@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CspRuleStateDAO,
+  CspRuleStorageReadError,
   CspRuleValidationError,
   DEFAULT_CSP_RULE_STATE,
   type CspRuleState,
@@ -29,6 +30,20 @@ describe("CspRuleStateDAO", () => {
     expect(await dao.getState()).toBeUndefined();
     expect(await chrome.storage.local.get()).toEqual({});
     expect(DEFAULT_CSP_RULE_STATE).toEqual({ schemaVersion: 1, revision: 0, masterEnabled: true, rules: [] });
+  });
+
+  it("storage read 返回 runtime.lastError 时拒绝，而不是伪装成缺失 state", async () => {
+    vi.spyOn(chrome.storage.local, "get").mockImplementationOnce(((
+      _key: string,
+      callback: (result: Record<string, unknown>) => void
+    ) => {
+      const lastError = { message: "storage unavailable" };
+      Object.defineProperty(chrome.runtime, "lastError", { configurable: true, value: lastError });
+      callback({});
+      delete (chrome.runtime as unknown as Record<string, unknown>).lastError;
+    }) as never);
+
+    await expect(new CspRuleStateDAO().getState()).rejects.toBeInstanceOf(CspRuleStorageReadError);
   });
 
   it("保存后重新读取完整 state 并完成 round-trip", async () => {

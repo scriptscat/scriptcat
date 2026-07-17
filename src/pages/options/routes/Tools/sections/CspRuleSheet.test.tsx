@@ -10,7 +10,7 @@ describe("CSP 规则表单", () => {
   it("粘贴完整 URL 后显示规范化域名并提交域名 target", async () => {
     const onSave = vi.fn().mockResolvedValue(true);
     render(
-      <CspRuleSheet open rule={undefined} baseRevision={0} existingRules={[]} onOpenChange={vi.fn()} onSave={onSave} />
+      <CspRuleSheet open rule={undefined} baseRevision={4} existingRules={[]} onOpenChange={vi.fn()} onSave={onSave} />
     );
 
     const websites = screen.getByRole("textbox", { name: "Websites" });
@@ -20,11 +20,14 @@ describe("CSP 规则表单", () => {
     expect(screen.getByText("All paths and subdomains are included.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Save rule" }));
-    expect(onSave).toHaveBeenCalledWith({
-      name: "",
-      enabled: true,
-      target: { type: "domains", domains: ["example.com"] },
-    });
+    expect(onSave).toHaveBeenCalledWith(
+      {
+        name: "",
+        enabled: true,
+        target: { type: "domains", domains: ["example.com"] },
+      },
+      4
+    );
   });
 
   it("表单错误就地显示且不会提交", () => {
@@ -47,6 +50,18 @@ describe("CSP 规则表单", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save rule" }));
     expect(await screen.findByText("The rule could not be saved. Your form entries were kept.")).toBeInTheDocument();
     expect(websites).toHaveValue("example.com");
+  });
+
+  it("保存返回结构化校验错误时显示对应的本地化提示", async () => {
+    const onSave = vi.fn().mockResolvedValue({ code: "invalid_input", messageKey: "rule_count_invalid" });
+    render(
+      <CspRuleSheet open rule={undefined} baseRevision={0} existingRules={[]} onOpenChange={vi.fn()} onSave={onSave} />
+    );
+    const websites = screen.getByLabelText("Websites");
+    fireEvent.change(websites, { target: { value: "example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save rule" }));
+
+    expect(await screen.findByText("You have reached the 100-rule limit.")).toBeInTheDocument();
   });
 
   it("所有网站范围提交前要求确认且取消不会调用保存", () => {
