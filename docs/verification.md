@@ -89,8 +89,9 @@ sanitize them before saving evidence.
 
 Embed screenshots inline with `![alt](screenshots/…png)` plus a caption line, so `report.md` renders as a visual
 record you can skim without opening files. Link videos, logs, and resources instead — markdown can't inline them.
-Never list bare links: every item carries a short note explaining what it proves and how to read it. Before running
-the browser, create the record following the Evidence Index shape in the
+Never list bare links: every item carries a short note explaining what it proves and how to read it.
+
+**Before running the browser**, create the record following the Evidence Index shape in the
 [verification record template](./references/verification-report-template.md).
 
 ### Minimal template (drive a UI page)
