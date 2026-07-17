@@ -21,6 +21,7 @@ function makeFakeChatRepo() {
     getMessages: vi.fn().mockResolvedValue([]),
     saveMessages: vi.fn().mockResolvedValue(undefined),
     updateMessage: vi.fn().mockResolvedValue(undefined),
+    commitToolRound: vi.fn().mockResolvedValue(undefined),
     getAttachment: vi.fn().mockResolvedValue(null),
     deleteAttachment: vi.fn().mockResolvedValue(undefined),
   } as any;
@@ -72,6 +73,7 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
       signal: new AbortController().signal,
       scriptToolCallback: null,
       conversationId: "conv-1",
+      conversationGeneration: "gen-1",
       rehydratedHistory: true,
       ...overrides,
     };
@@ -94,9 +96,35 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     expect(doneEvents).toHaveLength(1);
   });
 
+  it("成功工具的内部 usage 应累计到父会话终态", async () => {
+    toolRegistry = {
+      getDefinitions: makeFakeToolRegistry().getDefinitions,
+      execute: async (toolCalls) =>
+        toolCalls.map((toolCall) => ({
+          id: toolCall.id,
+          result: "child done",
+          usage: { inputTokens: 100, outputTokens: 20 },
+        })),
+    };
+    callLLM
+      .mockResolvedValueOnce({
+        content: "",
+        toolCalls: [{ id: "child-1", name: "dup", arguments: "{}" }],
+        usage: { inputTokens: 10, outputTokens: 2 },
+      })
+      .mockResolvedValueOnce(finalTextResult("done"));
+
+    await orchestrator.callLLMWithToolLoop(baseParams({ toolRegistry }));
+
+    const doneEvent = sendEvent.mock.calls.map((call) => call[0]).find((event) => event.type === "done");
+    expect(doneEvent?.usage).toEqual(expect.objectContaining({ inputTokens: 110, outputTokens: 22 }));
+  });
+
   it("auto compact 失败时抛出包含累计 usage 与 conversationId 的结构化错误", async () => {
     callLLM.mockResolvedValue({ content: "继续", usage: { inputTokens: 9000, outputTokens: 5 } });
-    autoCompact.mockRejectedValue(new Error("compact failed"));
+    autoCompact.mockRejectedValue(
+      Object.assign(new Error("compact failed"), { usage: { inputTokens: 120, outputTokens: 15 } })
+    );
 
     await expect(
       orchestrator.callLLMWithToolLoop(
@@ -108,7 +136,7 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     ).rejects.toMatchObject({
       message: "compact failed",
       conversationId: "conv-1",
-      usage: { inputTokens: 9000, outputTokens: 5 },
+      usage: { inputTokens: 9120, outputTokens: 20 },
     });
   });
 
@@ -177,8 +205,8 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     const controller = new AbortController();
     callLLM.mockResolvedValueOnce(dupToolCallResult("c1"));
     // 工具执行正常结束后，tool 结果消息落库完成的同时 Stop 到达（晚于 cancelledDuringTools 采样点）
-    chatRepo.appendMessage.mockImplementation(async (msg: any) => {
-      if (msg.role === "tool") controller.abort();
+    chatRepo.commitToolRound.mockImplementation(async () => {
+      controller.abort();
     });
 
     await orchestrator.callLLMWithToolLoop(baseParams({ signal: controller.signal }));
@@ -187,6 +215,93 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     const events = sendEvent.mock.calls.map((c) => c[0]);
     expect(events.find((e) => e.type === "error")?.errorCode).toBe("cancelled");
     expect(events.some((e) => e.type === "new_message")).toBe(false);
+  });
+
+  it("脚本遗漏工具结果时应补齐完整结果组，并在原子提交后才发布事件", async () => {
+    toolRegistry = {
+      getDefinitions: () => [
+        { name: "script_tool", description: "script", parameters: { type: "object", properties: {} } },
+      ],
+      execute: vi.fn().mockResolvedValue([{ id: "call-1", result: "ok" }]),
+    };
+    callLLM
+      .mockResolvedValueOnce({
+        content: "",
+        toolCalls: [
+          { id: "call-1", name: "script_tool", arguments: "{}" },
+          { id: "call-2", name: "script_tool", arguments: "{}" },
+        ],
+      })
+      .mockResolvedValueOnce(finalTextResult("done"));
+    chatRepo.commitToolRound.mockImplementation(async () => {
+      expect(sendEvent.mock.calls.some((call) => call[0].type === "tool_call_complete")).toBe(false);
+    });
+
+    await orchestrator.callLLMWithToolLoop(baseParams({ toolRegistry }));
+
+    const [, toolMessages] = chatRepo.commitToolRound.mock.calls[0];
+    expect(toolMessages).toHaveLength(2);
+    expect(toolMessages.map((message: any) => message.toolCallId)).toEqual(["call-1", "call-2"]);
+    expect(toolMessages[1].content).toContain("missing");
+    const secondRequest = callLLM.mock.calls[1][1];
+    expect(secondRequest.messages.filter((message: any) => message.role === "tool")).toHaveLength(2);
+    expect(sendEvent.mock.calls.filter((call) => call[0].type === "tool_call_complete")).toHaveLength(2);
+  });
+
+  it("工具结果组提交失败时应回收本轮新建附件且不发布完成事件", async () => {
+    toolRegistry = {
+      getDefinitions: () => [
+        { name: "image_tool", description: "image", parameters: { type: "object", properties: {} } },
+      ],
+      execute: vi.fn().mockResolvedValue([
+        {
+          id: "call-image",
+          result: "image",
+          attachments: [{ id: "owned.png", type: "image", name: "owned.png", mimeType: "image/png" }],
+          ownedAttachmentIds: ["owned.png"],
+        },
+      ]),
+    };
+    callLLM.mockResolvedValueOnce({
+      content: "",
+      contentBlocks: [{ type: "image", attachmentId: "generated.png", mimeType: "image/png" }],
+      toolCalls: [{ id: "call-image", name: "image_tool", arguments: "{}" }],
+      usage: { inputTokens: 12, outputTokens: 4 },
+    });
+    chatRepo.commitToolRound.mockRejectedValueOnce(new Error("disk full"));
+
+    const error = await orchestrator.callLLMWithToolLoop(baseParams({ toolRegistry })).catch((reason) => reason);
+
+    expect(error).toMatchObject({
+      message: "disk full",
+      usage: expect.objectContaining({ inputTokens: 12, outputTokens: 4 }),
+    });
+    expect(chatRepo.deleteAttachment).toHaveBeenCalledWith("owned.png");
+    expect(chatRepo.deleteAttachment).toHaveBeenCalledWith("generated.png");
+    expect(sendEvent.mock.calls.some((call) => call[0].type === "tool_call_complete")).toBe(false);
+  });
+
+  it("工具内部摘要 LLM 的 usage 应恰好一次计入父对话终态", async () => {
+    toolRegistry = {
+      getDefinitions: () => [
+        { name: "web_fetch", description: "fetch", parameters: { type: "object", properties: {} } },
+      ],
+      execute: vi
+        .fn()
+        .mockResolvedValue([{ id: "call-summary", result: "summary", usage: { inputTokens: 30, outputTokens: 8 } }]),
+    };
+    callLLM
+      .mockResolvedValueOnce({
+        content: "",
+        toolCalls: [{ id: "call-summary", name: "web_fetch", arguments: "{}" }],
+        usage: { inputTokens: 10, outputTokens: 2 },
+      })
+      .mockResolvedValueOnce({ content: "done", usage: { inputTokens: 5, outputTokens: 1 } });
+
+    await orchestrator.callLLMWithToolLoop(baseParams({ toolRegistry }));
+
+    const done = sendEvent.mock.calls.map((call) => call[0]).find((event) => event.type === "done");
+    expect(done?.usage).toEqual(expect.objectContaining({ inputTokens: 45, outputTokens: 11 }));
   });
 
   it("触发 autoCompact 时应保留原始模型，而不是把 contextWindow 预先缩小", async () => {
@@ -199,7 +314,7 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     expect(callLLM).toHaveBeenCalledTimes(1);
     expect(callLLM.mock.calls[0][0]).toMatchObject({ contextWindow: 10_000, maxTokens: 2_000 });
     expect(autoCompact).toHaveBeenCalledTimes(1);
-    expect(autoCompact.mock.calls[0][1]).toMatchObject({ contextWindow: 10_000, maxTokens: 2_000 });
+    expect(autoCompact.mock.calls[0][2]).toMatchObject({ contextWindow: 10_000, maxTokens: 2_000 });
   });
 
   it("自动压缩的 token 用量应计入最终 done 事件", async () => {
@@ -302,9 +417,10 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     expect(doneEvents).toHaveLength(1);
 
     // 停止信息应被持久化
-    const assistantCalls = chatRepo.appendMessage.mock.calls.map((c: any) => c[0]).filter((m: any) => m.error == null);
-    const stopMessage = assistantCalls.find((m: any) => typeof m.content === "string");
-    expect(stopMessage).toBeDefined();
+    expect(chatRepo.appendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "assistant", conversationId: "conv-1" }),
+      "gen-1"
+    );
   });
 
   it("回答 Continue 后应重置命中计数，之后需再次连续命中 2 次才会重新暂停询问", async () => {

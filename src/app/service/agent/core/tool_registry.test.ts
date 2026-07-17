@@ -254,9 +254,14 @@ describe("ToolRegistry", () => {
       expect(executeSpy).toHaveBeenCalledWith({}, controller.signal);
     });
 
-    it("取消时不等待不响应 signal 的内置工具", async () => {
+    it("取消后应等待内置工具抵达提交边界并保留其已提交成功结果", async () => {
       const registry = new ToolRegistry();
-      const executeSpy = vi.fn().mockReturnValue(new Promise(() => {}));
+      let finishExecution!: () => void;
+      const executeSpy = vi.fn().mockReturnValue(
+        new Promise((resolve) => {
+          finishExecution = () => resolve("late success");
+        })
+      );
       registry.registerBuiltin(weatherDef, { execute: executeSpy });
       const controller = new AbortController();
 
@@ -268,7 +273,15 @@ describe("ToolRegistry", () => {
       );
       controller.abort();
 
-      await expect(resultPromise).resolves.toMatchObject([{ id: "tc_1", error: true }]);
+      let settled = false;
+      void resultPromise.finally(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      finishExecution();
+      await expect(resultPromise).resolves.toEqual([{ id: "tc_1", result: "late success" }]);
       expect(executeSpy).toHaveBeenCalledWith({}, controller.signal);
     });
 
@@ -514,6 +527,46 @@ describe("ToolRegistry", () => {
       // 只应写入第一个附件，第二个在 abort 后不再保存
       expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(1);
       expect(results[0].error).toBe(true);
+    });
+
+    it("子代理在取消边界返回时应保留已生成附件的所有权以供提交或回收", async () => {
+      const registry = new ToolRegistry();
+      registry.setChatRepo(createMockChatRepo());
+      const controller = new AbortController();
+      registry.registerBuiltin(weatherDef, {
+        execute: async () => {
+          controller.abort();
+          return {
+            content: "partial",
+            attachments: [
+              {
+                attachmentId: "sub-image.png",
+                type: "image" as const,
+                name: "sub-image.png",
+                mimeType: "image/png",
+              },
+            ],
+            ownedAttachmentIds: ["sub-image.png"],
+            subAgentDetails: { agentId: "child", description: "child", messages: [] },
+            usage: { inputTokens: 8, outputTokens: 2 },
+          };
+        },
+      });
+
+      const [result] = await registry.execute(
+        [{ id: "tc_1", name: "get_weather", arguments: "{}" }],
+        undefined,
+        undefined,
+        controller.signal
+      );
+
+      expect(result).toMatchObject({
+        attachments: [{ id: "sub-image.png" }],
+        ownedAttachmentIds: ["sub-image.png"],
+        subAgentDetails: { agentId: "child" },
+        usage: { inputTokens: 8, outputTokens: 2 },
+      });
+      expect(result.error).toBeUndefined();
     });
 
     it("内置工具返回 Blob 附件时应正确保存", async () => {

@@ -168,7 +168,14 @@ export function estimateRequestTokens(
   for (const message of messages) {
     bytes += getStableContentBytes(message);
     if (message.toolCalls && message.toolCalls.length > 0) {
-      bytes += new TextEncoder().encode(JSON.stringify(message.toolCalls)).byteLength;
+      // Providers only send the wire identity/function fields. UI-only result/status/attachments/
+      // subAgentDetails must not inflate admission estimates.
+      const wireToolCalls = message.toolCalls.map((toolCall) => ({
+        id: toolCall.id,
+        name: toolCall.name,
+        arguments: toolCall.arguments,
+      }));
+      bytes += new TextEncoder().encode(JSON.stringify(wireToolCalls)).byteLength;
     }
   }
   if (tools && tools.length > 0) {

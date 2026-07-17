@@ -59,7 +59,18 @@ export function createTestService() {
         (messagesByConv.get(conversationId) ?? []).map((m) => structuredClone(m))
       ),
     listConversations: vi.fn().mockResolvedValue([]),
+    createConversation: vi.fn().mockImplementation(async (conversation: any) => ({
+      ...conversation,
+      generation: conversation.generation || "test-generation",
+      revision: conversation.revision ?? 1,
+    })),
     saveConversation: vi.fn().mockResolvedValue(undefined),
+    deleteConversation: vi.fn().mockResolvedValue(undefined),
+    getMessageSnapshot: vi.fn().mockImplementation(async (conversationId: string) => ({
+      generation: "test-generation",
+      revision: 0,
+      messages: await mockChatRepo.getMessages(conversationId),
+    })),
     saveMessages: vi.fn().mockImplementation(async (conversationId: string, messages: any[]) => {
       messagesByConv.set(
         conversationId,
@@ -71,10 +82,16 @@ export function createTestService() {
       const index = list.findIndex((m) => m.id === message.id);
       if (index >= 0) list[index] = structuredClone(message);
     }),
+    commitToolRound: vi.fn().mockImplementation(async (assistant: any, toolMessages: any[]) => {
+      const list = messagesByConv.get(assistant.conversationId) ?? [];
+      list.push(structuredClone(assistant), ...toolMessages.map((message) => structuredClone(message)));
+      messagesByConv.set(assistant.conversationId, list);
+    }),
     getTasks: vi.fn().mockResolvedValue([]),
     saveTasks: vi.fn().mockResolvedValue(undefined),
     getAttachment: vi.fn().mockResolvedValue(null),
     saveAttachment: vi.fn().mockResolvedValue(0),
+    deleteAttachment: vi.fn().mockResolvedValue(undefined),
   });
 
   const service = new AgentService(mockGroup, mockSender);

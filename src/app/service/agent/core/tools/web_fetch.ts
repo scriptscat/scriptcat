@@ -4,6 +4,9 @@ import type { MessageSend } from "@Packages/message/types";
 import { extractHtmlContent } from "@App/app/service/offscreen/client";
 import { requireString, optionalNumber } from "./param_utils";
 import { raceWithAbort, throwIfAborted } from "../abort_utils";
+import type { TokenUsage } from "../types";
+
+type SummaryResult = string | { content: string; usage?: TokenUsage };
 
 // Agent User-Agent 字符串
 const AGENT_USER_AGENT = "Mozilla/5.0 (compatible; ScriptCat Agent)";
@@ -39,16 +42,16 @@ export function stripHtmlTags(html: string): string {
 }
 
 export class WebFetchExecutor implements ToolExecutor {
-  private summarize?: (content: string, prompt: string, signal?: AbortSignal) => Promise<string>;
+  private summarize?: (content: string, prompt: string, signal?: AbortSignal) => Promise<SummaryResult>;
 
   constructor(
     private sender: MessageSend,
-    deps?: { summarize?: (content: string, prompt: string, signal?: AbortSignal) => Promise<string> }
+    deps?: { summarize?: (content: string, prompt: string, signal?: AbortSignal) => Promise<SummaryResult> }
   ) {
     this.summarize = deps?.summarize;
   }
 
-  async execute(args: Record<string, unknown>, signal?: AbortSignal): Promise<string> {
+  async execute(args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
     const url = requireString(args, "url");
     const prompt = requireString(args, "prompt");
     const maxLength = optionalNumber(args, "max_length");
@@ -130,8 +133,11 @@ export class WebFetchExecutor implements ToolExecutor {
     }
 
     // LLM 摘要
+    let summaryUsage: TokenUsage | undefined;
     if (this.summarize) {
-      content = await this.summarize(content, prompt, signal);
+      const summary = await this.summarize(content, prompt, signal);
+      content = typeof summary === "string" ? summary : summary.content;
+      summaryUsage = typeof summary === "string" ? undefined : summary.usage;
       truncated = false;
     }
 
@@ -144,6 +150,7 @@ export class WebFetchExecutor implements ToolExecutor {
     if (finalUrl) {
       result.final_url = finalUrl;
     }
-    return JSON.stringify(result);
+    const serialized = JSON.stringify(result);
+    return summaryUsage ? { content: serialized, usage: summaryUsage } : serialized;
   }
 }

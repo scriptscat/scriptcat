@@ -150,7 +150,7 @@ export class SynchronizeService {
       ...Object.entries(bundle.systemConfig || {}).map(([k, v]) => sync.set(k, v)),
       ...(bundle.agent?.models || []).map((m) => modelRepo.saveModel(m)),
       ...(bundle.agent?.mcp || []).map((m) => mcpRepo.saveServer(m)),
-      ...(bundle.agent?.tasks || []).map((t) => taskRepo.saveTask(t)),
+      ...(bundle.agent?.tasks || []).map((t) => taskRepo.importTask(t)),
     ]);
     // 仅在备份带出模型选择时覆盖（部分还原未选"AI 模型"时保留本机当前默认/摘要模型）
     if (bundle.agent?.defaultModelId) await modelRepo.setDefaultModelId(bundle.agent.defaultModelId);

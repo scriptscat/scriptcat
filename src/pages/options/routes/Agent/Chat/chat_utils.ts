@@ -194,6 +194,7 @@ export function getSubAgentForToolCall(
       subAgentType: d.subAgentType,
       completedMessages: d.messages,
       currentContent: "",
+      currentBlocks: [],
       currentThinking: "",
       currentToolCalls: [],
       isRunning: false,

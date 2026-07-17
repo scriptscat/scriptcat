@@ -1,4 +1,11 @@
-import type { Attachment, SubAgentDetails, ToolCall, ToolDefinition, ToolResultWithAttachments } from "./types";
+import type {
+  Attachment,
+  SubAgentDetails,
+  TokenUsage,
+  ToolCall,
+  ToolDefinition,
+  ToolResultWithAttachments,
+} from "./types";
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { getExtFromMime } from "./content_utils";
@@ -37,6 +44,9 @@ export type ToolExecuteResult = {
   error?: boolean;
   attachments?: Attachment[];
   subAgentDetails?: SubAgentDetails;
+  /** Attachment files created by this execution and safe to release if the owning round cannot commit. */
+  ownedAttachmentIds?: string[];
+  usage?: TokenUsage;
 };
 
 // 可执行工具的最小接口，供 ToolLoopOrchestrator / SubAgentService 按接口接收
@@ -74,11 +84,41 @@ function isToolResultWithAttachments(value: unknown): value is ToolResultWithAtt
   return typeof obj.content === "string" && Array.isArray(obj.attachments);
 }
 
-// 判断返回值是否包含子代理详情
-function isToolResultWithSubAgent(value: unknown): value is { content: string; subAgentDetails: SubAgentDetails } {
+function isStructuredToolResult(value: unknown): value is {
+  content: string;
+  attachments?: ToolResultWithAttachments["attachments"];
+  subAgentDetails?: SubAgentDetails;
+  ownedAttachmentIds?: string[];
+  usage?: TokenUsage;
+} {
   if (typeof value !== "object" || value === null) return false;
   const obj = value as Record<string, unknown>;
-  return typeof obj.content === "string" && typeof obj.subAgentDetails === "object" && obj.subAgentDetails !== null;
+  return (
+    typeof obj.content === "string" &&
+    (Array.isArray(obj.attachments) ||
+      (typeof obj.subAgentDetails === "object" && obj.subAgentDetails !== null) ||
+      typeof obj.usage === "object")
+  );
+}
+
+function persistedAttachmentReferences(
+  attachments?: ToolResultWithAttachments["attachments"]
+): Attachment[] | undefined {
+  if (!attachments) return undefined;
+  const references = attachments.flatMap((attachment) =>
+    attachment.data == null && attachment.attachmentId
+      ? [
+          {
+            id: attachment.attachmentId,
+            type: attachment.type,
+            name: attachment.name,
+            mimeType: attachment.mimeType,
+            size: attachment.size,
+          },
+        ]
+      : []
+  );
+  return references.length > 0 ? references : undefined;
 }
 
 // 工具注册表，管理内置工具和脚本工具的统一执行
@@ -232,17 +272,36 @@ export class ToolRegistry implements ToolExecutorLike {
           if (tc.arguments) {
             args = JSON.parse(tc.arguments);
           }
-          const rawResult = await raceWithAbort(tool.executor.execute(args, signal), signal);
+          // Registered executors receive the signal and define their own commit boundary. Abandoning the promise
+          // with raceWithAbort can report failure while a non-cancellable storage close commits in the background.
+          const rawResult = await tool.executor.execute(args, signal);
 
-          // 检查是否带附件或子代理详情
-          if (isToolResultWithAttachments(rawResult)) {
-            const attachments = await this.saveAttachments(rawResult.attachments, signal);
-            return { id: tc.id, result: rawResult.content, attachments };
-          } else if (isToolResultWithSubAgent(rawResult)) {
-            return { id: tc.id, result: rawResult.content, subAgentDetails: rawResult.subAgentDetails };
-          } else {
-            return { id: tc.id, result: normalizeToolResult(rawResult) };
+          // 附件与子代理详情可以同时存在，统一保留两类元数据。
+          if (isStructuredToolResult(rawResult)) {
+            let saved: { attachments: Attachment[]; ownedAttachmentIds: string[] };
+            try {
+              saved = rawResult.attachments
+                ? await this.saveAttachments(rawResult.attachments, signal)
+                : { attachments: [], ownedAttachmentIds: [] };
+            } catch (error) {
+              throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+                subAgentDetails: rawResult.subAgentDetails,
+                attachments: persistedAttachmentReferences(rawResult.attachments),
+                ownedAttachmentIds: rawResult.ownedAttachmentIds,
+                usage: rawResult.usage,
+              });
+            }
+            const structured = {
+              id: tc.id,
+              result: rawResult.content,
+              attachments: saved.attachments,
+              subAgentDetails: rawResult.subAgentDetails,
+              ownedAttachmentIds: [...saved.ownedAttachmentIds, ...(rawResult.ownedAttachmentIds || [])],
+              usage: rawResult.usage,
+            };
+            return structured;
           }
+          return { id: tc.id, result: normalizeToolResult(rawResult) };
         } catch (e: any) {
           console.error(`[ToolRegistry] tool "${tc.name}" execution failed:`, e);
           return {
@@ -250,6 +309,9 @@ export class ToolRegistry implements ToolExecutorLike {
             result: JSON.stringify({ error: extractErrorMessage(e) }),
             error: true,
             subAgentDetails: e.subAgentDetails,
+            attachments: e.attachments,
+            ownedAttachmentIds: e.ownedAttachmentIds,
+            usage: e.usage,
           };
         }
       })
@@ -269,8 +331,8 @@ export class ToolRegistry implements ToolExecutorLike {
           try {
             const parsed = JSON.parse(sr.result);
             if (isToolResultWithAttachments(parsed)) {
-              const attachments = await this.saveAttachments(parsed.attachments, signal);
-              results.push({ id: sr.id, result: parsed.content, attachments, error: sr.error });
+              const saved = await this.saveAttachments(parsed.attachments, signal);
+              results.push({ id: sr.id, result: parsed.content, ...saved, error: sr.error });
               continue;
             }
           } catch (e: any) {
@@ -316,8 +378,8 @@ export class ToolRegistry implements ToolExecutorLike {
   private async saveAttachments(
     attachmentDataList: ToolResultWithAttachments["attachments"],
     signal?: AbortSignal
-  ): Promise<Attachment[]> {
-    if (!this.chatRepo || attachmentDataList.length === 0) return [];
+  ): Promise<{ attachments: Attachment[]; ownedAttachmentIds: string[] }> {
+    if (!this.chatRepo || attachmentDataList.length === 0) return { attachments: [], ownedAttachmentIds: [] };
 
     const attachments: Attachment[] = [];
     // 本批真正由这里写入的附件 id（不含无 data 的已保存引用）：中途 abort/失败时必须整批回收，
@@ -325,20 +387,20 @@ export class ToolRegistry implements ToolExecutorLike {
     const savedIds: string[] = [];
     try {
       for (const ad of attachmentDataList) {
-        throwIfAborted(signal);
-        if (!ad.data) {
+        if (ad.data == null) {
           // 无 data 的附件是已保存的引用（如 skill script 返回的 imageBlock），直接透传元数据
-          if ("attachmentId" in ad && (ad as any).attachmentId) {
+          if (ad.attachmentId) {
             attachments.push({
-              id: (ad as any).attachmentId,
+              id: ad.attachmentId,
               type: ad.type,
               name: ad.name,
               mimeType: ad.mimeType,
-              size: (ad as any).size,
+              size: ad.size,
             });
           }
           continue;
         }
+        throwIfAborted(signal);
         const ext = getExtFromMime(ad.mimeType);
         const id = `${uuidv4()}.${ext}`;
         const size = await this.chatRepo.saveAttachment(id, ad.data);
@@ -358,6 +420,6 @@ export class ToolRegistry implements ToolExecutorLike {
       await Promise.all(savedIds.map((id) => repo.deleteAttachment(id).catch(() => {})));
       throw error;
     }
-    return attachments;
+    return { attachments, ownedAttachmentIds: savedIds };
   }
 }

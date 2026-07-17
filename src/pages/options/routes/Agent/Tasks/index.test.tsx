@@ -6,18 +6,12 @@ import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
 const { listTasksMock } = vi.hoisted(() => ({ listTasksMock: vi.fn() }));
 
-vi.mock("@App/app/repo/agent_task", () => ({
-  AgentTaskRepo: class {
-    listTasks = listTasksMock;
-    saveTask = vi.fn();
-    removeTask = vi.fn();
-  },
-  AgentTaskRunRepo: class {
-    listRuns = vi.fn(async () => []);
-    clearRuns = vi.fn();
+vi.mock("@App/pages/store/features/script", () => ({
+  agentClient: {
+    listModels: vi.fn(async () => []),
+    agentTask: vi.fn(async (request: { action: string }) => (request.action === "list" ? listTasksMock() : [])),
   },
 }));
-vi.mock("@App/pages/store/features/script", () => ({ agentClient: { listModels: vi.fn(async () => []) } }));
 // DOM 测试环境默认未实现 matchMedia,useIsMobile 依赖它——默认桌面,移动用例单独覆盖
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
 

@@ -327,7 +327,10 @@ export function parseAnthropicStream(
           case "message_stop": {
             toolUseByIndex.clear();
             doneSent = true;
-            onEvent({ type: "done" });
+            onEvent({
+              type: "done",
+              usage: cachedUsage ? { ...cachedUsage, outputTokens: 0 } : undefined,
+            });
             return true;
           }
           case "error": {
@@ -335,6 +338,7 @@ export function parseAnthropicStream(
             onEvent({
               type: "error",
               message: json.error?.message || "Anthropic API error",
+              usage: cachedUsage ? { ...cachedUsage, outputTokens: 0 } : undefined,
             });
             return true;
           }
@@ -346,14 +350,22 @@ export function parseAnthropicStream(
     },
     (message) => {
       doneSent = true;
-      onEvent({ type: "error", message });
+      onEvent({
+        type: "error",
+        message,
+        usage: cachedUsage ? { ...cachedUsage, outputTokens: 0 } : undefined,
+      });
     }
   )
     .then(() => {
       // 流正常结束（reader done）但没收到 message_stop / message_delta(usage) / error 终态帧，
       // 必须补发终态事件，否则调用方的外层 Promise 会永远挂起
       if (!signal.aborted && !doneSent) {
-        onEvent({ type: "error", message: "Stream ended unexpectedly without a terminal frame" });
+        onEvent({
+          type: "error",
+          message: "Stream ended unexpectedly without a terminal frame",
+          usage: cachedUsage ? { ...cachedUsage, outputTokens: 0 } : undefined,
+        });
       }
     })
     .catch((error) => {

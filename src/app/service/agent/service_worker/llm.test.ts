@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createTestService, makeSSEResponse, makeTextResponse } from "./test-helpers";
+import { LLMClient } from "./llm_client";
 
 // ---- callLLM 相关测试（通过 callLLMWithToolLoop 间接测试） ----
 
@@ -333,6 +334,56 @@ describe("callLLM 流式响应解析", () => {
     const doneEvents = events.filter((e: any) => e.type === "done");
     expect(doneEvents).toHaveLength(0);
   });
+
+  it("图片落盘期间取消时应保留已知 usage 并清理稍后完成的孤儿附件", async () => {
+    const controller = new AbortController();
+    let finishSave!: () => void;
+    const savePending = new Promise<void>((resolve) => {
+      finishSave = resolve;
+    });
+    const repo = {
+      getAttachment: vi.fn().mockResolvedValue(null),
+      saveAttachment: vi.fn().mockImplementation(() => savePending),
+      deleteAttachment: vi.fn().mockResolvedValue(undefined),
+    } as any;
+    const client = new LLMClient(repo);
+    fetchSpy.mockResolvedValueOnce(
+      makeAnthropicSSEResponse([
+        { event: "message_start", data: { message: { usage: { input_tokens: 15 } } } },
+        {
+          event: "content_block_start",
+          data: { index: 0, content_block: { type: "image", source: { type: "base64", media_type: "image/png" } } },
+        },
+        { event: "content_block_delta", data: { index: 0, delta: { type: "image_delta", data: "AAAA" } } },
+        { event: "content_block_stop", data: { index: 0 } },
+        { event: "message_delta", data: { usage: { output_tokens: 4 } } },
+      ])
+    );
+
+    const call = client.callLLM(
+      {
+        id: "anthropic-image",
+        name: "Anthropic image",
+        provider: "anthropic",
+        apiBaseUrl: "https://api.anthropic.com",
+        apiKey: "test",
+        model: "claude-test",
+      },
+      { messages: [{ role: "user", content: "draw" }] },
+      vi.fn(),
+      controller.signal
+    );
+    await vi.waitFor(() => expect(repo.saveAttachment).toHaveBeenCalledOnce());
+    const attachmentId = repo.saveAttachment.mock.calls[0][0];
+    controller.abort();
+
+    await expect(call).rejects.toMatchObject({
+      message: "Aborted",
+      usage: { inputTokens: 15, outputTokens: 4 },
+    });
+    finishSave();
+    await vi.waitFor(() => expect(repo.deleteAttachment).toHaveBeenCalledWith(attachmentId));
+  });
 });
 
 // ---- callLLMWithToolLoop 场景补充 ----
@@ -436,10 +487,10 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     expect(events.some((e: any) => e.type === "new_message")).toBe(true);
     expect(events.some((e: any) => e.type === "done")).toBe(true);
 
-    // assistant 消息应持久化（tool_calls 和最终文本各一条）
-    const appendCalls = mockRepo.appendMessage.mock.calls;
-    const assistantCalls = appendCalls.filter((c: any) => c[0].role === "assistant");
-    expect(assistantCalls).toHaveLength(2); // tool_call + final text
+    // 工具 assistant 与结果原子提交，最终文本单独追加。
+    expect(mockRepo.commitToolRound).toHaveBeenCalledTimes(1);
+    expect(mockRepo.commitToolRound.mock.calls[0][0]).toMatchObject({ role: "assistant" });
+    expect(mockRepo.appendMessage.mock.calls.filter((c: any) => c[0].role === "assistant")).toHaveLength(1);
 
     // fetch 应调用 2 次
     expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -730,6 +781,9 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
       const index = storedMessages.findIndex((m) => m.id === msg.id);
       if (index >= 0) storedMessages[index] = structuredClone(msg);
     });
+    mockRepo.commitToolRound.mockImplementation(async (assistant: any, toolMessages: any[]) => {
+      storedMessages.push(structuredClone(assistant), ...toolMessages.map((message) => structuredClone(message)));
+    });
 
     fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "call_1", name: "echo", arguments: '{"msg":"hi"}' }]));
     fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
@@ -801,12 +855,10 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     expect(completeEvents.find((e: any) => e.id === "call_a").result).toBe("a: hello");
     expect(completeEvents.find((e: any) => e.id === "call_b").result).toBe("b: world");
 
-    // 持久化的 assistant 消息应包含两个 toolCalls
-    const assistantMsgs = mockRepo.appendMessage.mock.calls
-      .map((c: any) => c[0])
-      .filter((m: any) => m.role === "assistant" && m.toolCalls);
-    expect(assistantMsgs).toHaveLength(1);
-    expect(assistantMsgs[0].toolCalls).toHaveLength(2);
+    // 原子提交的 assistant 消息应包含两个 toolCalls。
+    expect(mockRepo.commitToolRound).toHaveBeenCalledTimes(1);
+    expect(mockRepo.commitToolRound.mock.calls[0][0].toolCalls).toHaveLength(2);
+    expect(mockRepo.commitToolRound.mock.calls[0][1]).toHaveLength(2);
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
 

@@ -6,6 +6,9 @@ import type { Conversation, ChatMessage } from "@App/app/service/agent/core/type
 // 会话仓库整体打桩：hooks 只是 repo + 消息总线的薄封装，测试聚焦其状态迁移逻辑。
 const repoMock = vi.hoisted(() => ({
   listConversations: vi.fn<() => Promise<Conversation[]>>(() => Promise.resolve([])),
+  createConversation: vi.fn<(c: Conversation) => Promise<Conversation>>((conversation) =>
+    Promise.resolve({ ...conversation, generation: "gen-new", revision: 1 })
+  ),
   saveConversation: vi.fn<(c: Conversation) => Promise<void>>(() => Promise.resolve()),
   deleteConversation: vi.fn<(id: string) => Promise<void>>(() => Promise.resolve()),
   getMessages: vi.fn<(id: string) => Promise<ChatMessage[]>>(() => Promise.resolve([])),
@@ -45,9 +48,10 @@ function createMockConn() {
 }
 
 const mockConnect = vi.hoisted(() => vi.fn());
+const mockSendMessage = vi.hoisted(() => vi.fn(() => Promise.resolve([])));
 vi.mock("@Packages/message/client", () => ({
   connect: mockConnect,
-  sendMessage: vi.fn(() => Promise.resolve([])),
+  sendMessage: mockSendMessage,
 }));
 
 import { useConversations, deleteMessages, clearMessages, useStreamingChat } from "./hooks";
@@ -90,6 +94,8 @@ describe("useStreamingChat：stop 后仍需放行终态事件（finding 6）", (
 
 const conv = (id: string, title = "c"): Conversation => ({
   id,
+  generation: `gen-${id}`,
+  revision: 1,
   title,
   modelId: "gpt-4o",
   createtime: 1,
@@ -117,7 +123,7 @@ describe("会话管理 Hook useConversations", () => {
     await act(async () => {
       created = await result.current.createConversation("gpt-4o");
     });
-    expect(repoMock.saveConversation).toHaveBeenCalledOnce();
+    expect(repoMock.createConversation).toHaveBeenCalledOnce();
     expect(created!.conv.modelId).toBe("gpt-4o");
     expect(created!.conv.title).toBe("New Chat");
     await waitFor(() => expect(result.current.activeId).toBe(created!.conv.id));
@@ -132,7 +138,11 @@ describe("会话管理 Hook useConversations", () => {
     await act(async () => {
       await result.current.deleteConversation("a");
     });
-    expect(repoMock.deleteConversation).toHaveBeenCalledWith("a");
+    expect(mockSendMessage).toHaveBeenCalledWith({}, "serviceWorker/agent/conversation", {
+      action: "delete",
+      conversationId: "a",
+      generation: "gen-a",
+    });
     await waitFor(() => expect(result.current.activeId).toBe("b"));
   });
 
@@ -150,24 +160,20 @@ describe("会话管理 Hook useConversations", () => {
 });
 
 describe("消息持久化操作", () => {
-  it("deleteMessages 过滤掉指定 id 后回写", async () => {
-    const msgs: ChatMessage[] = [
-      { id: "m1", conversationId: "c", role: "user", content: "a", createtime: 1 },
-      { id: "m2", conversationId: "c", role: "assistant", content: "b", createtime: 2 },
-      { id: "m3", conversationId: "c", role: "user", content: "c", createtime: 3 },
-    ];
-    repoMock.getMessages.mockResolvedValue(msgs);
-
+  it("deleteMessages 应通过 Service Worker 串行删除指定消息", async () => {
     await deleteMessages("c", ["m2"]);
-
-    const [convId, saved] = repoMock.saveMessages.mock.calls.at(-1)!;
-    expect(convId).toBe("c");
-    expect((saved as ChatMessage[]).map((m) => m.id)).toEqual(["m1", "m3"]);
+    expect(mockSendMessage).toHaveBeenCalledWith({}, "serviceWorker/agent/conversation", {
+      action: "deleteMessages",
+      conversationId: "c",
+      messageIds: ["m2"],
+    });
   });
 
-  it("clearMessages 同时清空消息与任务", async () => {
+  it("clearMessages 应通过 Service Worker 串行清空消息与任务", async () => {
     await clearMessages("c");
-    expect(repoMock.saveMessages).toHaveBeenCalledWith("c", []);
-    expect(repoMock.saveTasks).toHaveBeenCalledWith("c", []);
+    expect(mockSendMessage).toHaveBeenCalledWith({}, "serviceWorker/agent/conversation", {
+      action: "clearMessages",
+      conversationId: "c",
+    });
   });
 });

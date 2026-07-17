@@ -41,9 +41,10 @@ import { toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { t } from "@App/locales/locales";
-import { elideUntilWithinBudget, loadAttachmentSizes } from "@App/app/service/agent/core/context_elision";
+import { elideUntilWithinBudget } from "@App/app/service/agent/core/context_elision";
 import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
 import type { LLMCallResult } from "./llm_client";
+import { prepareAttachmentSnapshot, type AttachmentSnapshot } from "@App/app/service/agent/core/attachment_resolver";
 
 /** ChatService 需要的 execute_script 工具依赖 */
 export interface ChatServiceExecuteScriptDeps {
@@ -55,7 +56,12 @@ export interface ChatServiceExecuteScriptDeps {
 export interface ChatServiceLLMDeps {
   callLLM: (
     model: AgentModelConfig,
-    params: { messages: ChatRequest["messages"]; tools?: ToolDefinition[]; cache?: boolean },
+    params: {
+      messages: ChatRequest["messages"];
+      tools?: ToolDefinition[];
+      cache?: boolean;
+      attachmentSnapshot?: AttachmentSnapshot;
+    },
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
   ) => Promise<LLMCallResult>;
@@ -207,6 +213,7 @@ export class ChatService {
   // 正在等待 Sandbox 回复脚本工具结果的会话：此窗口内 chat 持有会话队列锁等待 toolResults，
   // 来自工具 handler 内部的 await conv.clear() 若照常排队会形成"锁等我、我等锁"的死锁（见 finding 2）
   private conversationsAwaitingScriptTools = new Set<string>();
+  private activeChats = new Map<string, AbortController>();
 
   constructor(
     private toolRegistry: ToolRegistry,
@@ -243,9 +250,37 @@ export class ChatService {
           );
         }
         return stackAsyncTask(conversationChatLockKey(params.conversationId), async () => {
-          await this.chatRepo.saveMessages(params.conversationId, []);
+          const snapshot = await this.chatRepo.getMessageSnapshot(params.conversationId);
+          await this.chatRepo.saveMessages(params.conversationId, [], undefined, {
+            generation: snapshot.generation,
+            expectedRevision: snapshot.revision,
+          });
+          await this.chatRepo.saveTasks(params.conversationId, [], undefined, snapshot.generation);
           return true;
         });
+      case "deleteMessages":
+        return stackAsyncTask(conversationChatLockKey(params.conversationId), async () => {
+          const snapshot = await this.chatRepo.getMessageSnapshot(params.conversationId);
+          const ids = new Set(params.messageIds);
+          await this.chatRepo.saveMessages(
+            params.conversationId,
+            snapshot.messages.filter((message) => !ids.has(message.id)),
+            undefined,
+            { generation: snapshot.generation, expectedRevision: snapshot.revision }
+          );
+          return true;
+        });
+      case "delete": {
+        this.activeChats.get(params.conversationId)?.abort();
+        this.bgSessionManager.stop(params.conversationId);
+        return stackAsyncTask(conversationChatLockKey(params.conversationId), async () => {
+          await this.chatRepo.deleteConversation(params.conversationId, {
+            generation: params.generation,
+            ...(params.revision === undefined ? {} : { expectedRevision: params.revision }),
+          });
+          return true;
+        });
+      }
       default:
         throw new Error(`Unknown conversation action: ${(params as any).action}`);
     }
@@ -262,13 +297,18 @@ export class ChatService {
       createtime: Date.now(),
       updatetime: Date.now(),
     };
-    await this.chatRepo.saveConversation(conv);
-    return conv;
+    return this.chatRepo.createConversation(conv);
   }
 
   private async getConversation(id: string): Promise<Conversation | null> {
     const conversations = await this.chatRepo.listConversations();
-    return conversations.find((c) => c.id === id) || null;
+    const conversation = conversations.find((item) => item.id === id);
+    if (!conversation) return null;
+    return {
+      ...conversation,
+      generation: conversation.generation || `legacy:${conversation.id}`,
+      revision: conversation.revision ?? 0,
+    };
   }
 
   // 统一的流式 conversation chat（UI 和脚本 API 共用）
@@ -391,6 +431,13 @@ export class ChatService {
 
     // abort（stop / 非后台断开）时结束等待中的脚本工具调用，避免循环卡死
     abortController.signal.addEventListener("abort", () => {
+      if (pendingScriptCall && !isDisconnected) {
+        try {
+          msgConn.sendMessage({ action: "cancelToolBatch" });
+        } catch {
+          // 端口在 abort 竞态中关闭，pending 仍会在下面本地 settle。
+        }
+      }
       settlePendingScriptCall("Tool execution aborted");
     });
 
@@ -519,6 +566,8 @@ export class ChatService {
       });
     };
 
+    if (!params.ephemeral) this.activeChats.set(params.conversationId, abortController);
+
     // 循环检测（tool_call_guard）连续命中时暂停询问用户是否继续；复用 ask_user 的事件/resolver 机制，
     // 5 分钟无人应答时默认"继续"，避免无 UI 监听的后台会话被无限期挂起
     const askUserForGuard = (strikeCount: number): Promise<string> => {
@@ -565,6 +614,7 @@ export class ChatService {
       });
     };
 
+    let conversationGeneration: string | undefined;
     try {
       // ephemeral 模式：无状态处理，不从 repo 加载/持久化
       if (params.ephemeral) {
@@ -585,6 +635,7 @@ export class ChatService {
         sendEvent({ type: "error", message: "Conversation not found" });
         return;
       }
+      conversationGeneration = conv.generation;
 
       // UI 传入 modelId / enableTools 时覆盖 conversation 的配置
       let needSave = false;
@@ -647,6 +698,7 @@ export class ChatService {
           signal: abortController.signal,
           scriptToolCallback: enableTools && params.tools && params.tools.length > 0 ? scriptToolCallback : null,
           conversationId: params.conversationId,
+          conversationGeneration,
           rehydratedHistory: true,
           skipBuiltinTools: !enableTools,
           askUserForGuard: params.scriptUuid ? undefined : askUserForGuard,
@@ -681,23 +733,30 @@ export class ChatService {
       // 持久化错误消息到 OPFS，确保刷新后仍可见
       if (params.conversationId && !params.ephemeral) {
         try {
-          await this.chatRepo.appendMessage({
-            id: uuidv4(),
-            conversationId: params.conversationId,
-            role: "assistant",
-            content: "",
-            error: errorMsg,
-            errorCode,
-            usage: e.usage,
-            durationMs: e.durationMs,
-            createtime: Date.now(),
-          });
+          await this.chatRepo.appendMessage(
+            {
+              id: uuidv4(),
+              conversationId: params.conversationId,
+              role: "assistant",
+              content: "",
+              error: errorMsg,
+              errorCode,
+              usage: e.usage,
+              durationMs: e.durationMs,
+              createtime: Date.now(),
+            },
+            conversationGeneration
+          );
         } catch {
           // 持久化失败不阻塞错误事件发送
         }
       }
       sendEvent({ type: "error", message: errorMsg, errorCode, usage: e.usage, durationMs: e.durationMs });
       this.bgSessionManager.cleanupIfDone(params.conversationId);
+    } finally {
+      if (this.activeChats.get(params.conversationId) === abortController) {
+        this.activeChats.delete(params.conversationId);
+      }
     }
   }
 
@@ -758,7 +817,12 @@ export class ChatService {
     }
 
     const model = await this.modelService.getModel(params.modelId || conv.modelId);
-    const existingMessages = await this.chatRepo.getMessages(params.conversationId);
+    if (!conv.generation) {
+      sendEvent({ type: "error", message: "Conversation not found" });
+      return;
+    }
+    const snapshot = await this.chatRepo.getMessageSnapshot(params.conversationId, conv.generation);
+    const existingMessages = snapshot.messages;
     const historyMessages = toLLMMessages(existingMessages).filter((msg) => msg.role !== "system");
 
     if (historyMessages.length === 0) {
@@ -773,10 +837,15 @@ export class ChatService {
     summaryMessages.push(...historyMessages);
     summaryMessages.push({ role: "user", content: buildCompactUserPrompt(params.compactInstruction) });
 
-    const attachmentSizes = await loadAttachmentSizes(summaryMessages, (id) => this.chatRepo.getAttachment(id));
+    const attachmentSnapshot = await prepareAttachmentSnapshot(
+      summaryMessages,
+      model,
+      (id) => this.chatRepo.getAttachment(id),
+      abortController.signal
+    );
     const inputBudget = getInputTokenBudget(model);
     const effectiveWindow = Math.max(1, Math.floor(inputBudget / 0.9));
-    if (!elideUntilWithinBudget(summaryMessages, effectiveWindow, undefined, 0.9, attachmentSizes, model)) {
+    if (!elideUntilWithinBudget(summaryMessages, effectiveWindow, undefined, 0.9, attachmentSnapshot.sizes, model)) {
       sendEvent({
         type: "error",
         message: "Conversation history is too large to compact",
@@ -788,14 +857,20 @@ export class ChatService {
     // 不带 tools 调用 LLM
     const result = await this.llmDeps.callLLM(
       model,
-      { messages: summaryMessages, cache: false },
+      { messages: summaryMessages, cache: false, attachmentSnapshot },
       sendEvent,
       abortController.signal
     );
+    const compactError = (message: string, cause?: unknown) =>
+      Object.assign(new Error(message), {
+        usage: result.usage,
+        durationMs: undefined,
+        cause,
+      });
 
     // LLM 调用期间可能已被 stop：落库/广播终态事件前必须重新检查，
     // 否则 cancelled 之后仍可能持久化摘要并发出 compact_done/done
-    if (abortController.signal.aborted) return;
+    if (abortController.signal.aborted) throw compactError("Aborted");
 
     const summary = extractSummary(result.content);
     const originalCount = existingMessages.length;
@@ -809,14 +884,19 @@ export class ChatService {
       createtime: Date.now(),
     };
     // 传入 signal：写入落定前若已 abort，则放弃这次整份覆写而不提交（见 finding 4）
-    await this.chatRepo.saveMessages(params.conversationId, [summaryMessage], abortController.signal);
+    try {
+      await this.chatRepo.saveMessages(params.conversationId, [summaryMessage], abortController.signal, {
+        generation: conv.generation,
+        expectedRevision: snapshot.revision,
+      });
+    } catch (error) {
+      throw compactError(error instanceof Error ? error.message : String(error), error);
+    }
 
-    // 持久化期间也可能已被 stop：abort 恰好落在 close() 提交窗口时写入仍可能已生效，
-    // 用进入 compact 时加载的历史做补偿性回写，保证"已取消"的结果与磁盘内容一致（见 finding 3），
-    // 且终态事件只能在确认未取消时发送
+    // 不做旧快照回滚：写入已经通过 revision CAS 线性化；无条件回写会覆盖随后追加的新消息。
+    // Stop 只影响终态报告，不得再用进入 compact 时的历史覆盖更新后的状态。
     if (abortController.signal.aborted) {
-      await this.chatRepo.saveMessages(params.conversationId, existingMessages);
-      return;
+      throw compactError("Aborted");
     }
 
     sendEvent({ type: "compact_done", summary, originalCount });
@@ -861,10 +941,10 @@ export class ChatService {
       }
 
       // Task tools（从持久化加载，变更时保存并推送事件到 UI）
-      const initialTasks = await this.chatRepo.getTasks(params.conversationId);
+      const initialTasks = await this.chatRepo.getTasks(params.conversationId, conv.generation);
       const { tools: taskToolDefs } = createTaskTools({
         initialTasks,
-        onSave: (tasks, signal) => this.chatRepo.saveTasks(params.conversationId, tasks, signal),
+        onSave: (tasks, signal) => this.chatRepo.saveTasks(params.conversationId, tasks, signal, conv.generation),
         sendEvent,
       });
       for (const t of taskToolDefs) {
@@ -1011,13 +1091,16 @@ export class ChatService {
     if (!params.skipSaveUserMessage) {
       // 添加新用户消息到 LLM 上下文并持久化
       messages.push({ role: "user", content: params.message });
-      await this.chatRepo.appendMessage({
-        id: uuidv4(),
-        conversationId: params.conversationId,
-        role: "user",
-        content: params.message,
-        createtime: Date.now(),
-      });
+      await this.chatRepo.appendMessage(
+        {
+          id: uuidv4(),
+          conversationId: params.conversationId,
+          role: "user",
+          content: params.message,
+          createtime: Date.now(),
+        },
+        conv.generation
+      );
     }
 
     // 更新对话标题（如果是第一条消息）

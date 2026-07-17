@@ -1116,4 +1116,37 @@ describe("会话队列的连接感知与重入策略（finding 2）", () => {
       expect.objectContaining({ type: "done", usage: { inputTokens: 3, outputTokens: 2 } }),
     ]);
   });
+
+  it("删除活动会话应先取消执行并等待落定，再删除对应 generation", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([conv("conv-delete-active")]);
+    mockRepo.getMessages.mockResolvedValue([]);
+    fetchSpy.mockImplementation(
+      async (_url: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          (init?.signal as AbortSignal).addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true }
+          );
+        })
+    );
+    const connection = createMockSender();
+    const chat = (service as any).handleConversationChat(
+      { conversationId: "conv-delete-active", message: "run" },
+      connection.sender
+    );
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce());
+
+    const deletion = (service as any).handleConversation({
+      action: "delete",
+      conversationId: "conv-delete-active",
+      generation: "legacy:conv-delete-active",
+    });
+    await Promise.all([chat, deletion]);
+
+    expect(mockRepo.deleteConversation).toHaveBeenCalledWith("conv-delete-active", {
+      generation: "legacy:conv-delete-active",
+    });
+  });
 });

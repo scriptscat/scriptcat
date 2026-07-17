@@ -212,44 +212,123 @@ describe("AgentChatRepo 附件存储", () => {
   it("deleteConversation 应清理关联的附件", async () => {
     // 先保存会话和消息（含附件）
     const convId = "conv-1";
-    await repo.saveConversation({
+    const conversation = await repo.createConversation({
       id: convId,
       title: "Test",
       modelId: "m1",
       createtime: Date.now(),
       updatetime: Date.now(),
     });
-    await repo.saveMessages(convId, [
-      {
-        id: "msg-1",
-        conversationId: convId,
-        role: "assistant",
-        content: "",
-        toolCalls: [
-          {
-            id: "tc-1",
-            name: "screenshot",
-            arguments: "{}",
-            attachments: [
-              { id: "att-del-1", type: "image", name: "img.jpg", mimeType: "image/jpeg" },
-              { id: "att-del-2", type: "file", name: "file.zip", mimeType: "application/zip" },
-            ],
-          },
-        ],
-        createtime: Date.now(),
-      },
-    ]);
+    await repo.saveMessages(
+      convId,
+      [
+        {
+          id: "msg-1",
+          conversationId: convId,
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            {
+              id: "tc-1",
+              name: "screenshot",
+              arguments: "{}",
+              attachments: [
+                { id: "att-del-1", type: "image", name: "img.jpg", mimeType: "image/jpeg" },
+                { id: "att-del-2", type: "file", name: "file.zip", mimeType: "application/zip" },
+                { id: "att-borrowed", type: "image", name: "borrowed.jpg", mimeType: "image/jpeg" },
+              ],
+              ownedAttachmentIds: ["att-del-1", "att-del-2"],
+            },
+          ],
+          createtime: Date.now(),
+        },
+      ],
+      undefined,
+      { generation: conversation.generation! }
+    );
 
     // 保存附件数据
     await repo.saveAttachment("att-del-1", new Blob(["img"]));
     await repo.saveAttachment("att-del-2", new Blob(["zip"]));
+    await repo.saveAttachment("att-borrowed", new Blob(["borrowed"]));
 
     // 删除会话
-    await repo.deleteConversation(convId);
+    await repo.deleteConversation(convId, {
+      generation: conversation.generation!,
+      expectedRevision: conversation.revision,
+    });
 
     // 附件应被清理
     expect(await repo.getAttachment("att-del-1")).toBeNull();
     expect(await repo.getAttachment("att-del-2")).toBeNull();
+    expect(await repo.getAttachment("att-borrowed")).not.toBeNull();
+  });
+
+  it("替换历史时应递归清理被移除的子代理附件并保留仍被引用的附件", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-nested-attachments",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    const retained = {
+      id: "keep",
+      conversationId: conversation.id,
+      role: "user" as const,
+      content: [{ type: "image" as const, attachmentId: "att-keep", mimeType: "image/png" }],
+      createtime: 1,
+    };
+    const nested = {
+      id: "nested",
+      conversationId: conversation.id,
+      role: "assistant" as const,
+      content: "",
+      toolCalls: [
+        {
+          id: "tool-1",
+          name: "agent",
+          arguments: "{}",
+          subAgentDetails: {
+            agentId: "child",
+            description: "child",
+            messages: [
+              {
+                content: [{ type: "image", attachmentId: "att-child", mimeType: "image/png" }],
+                toolCalls: [
+                  {
+                    id: "child-tool",
+                    name: "image_generation",
+                    arguments: "{}",
+                    attachments: [{ id: "att-child-tool", type: "image", name: "child.png", mimeType: "image/png" }],
+                    ownedAttachmentIds: ["att-child-tool"],
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+      createtime: 2,
+    } as any;
+    await repo.saveMessages(conversation.id, [retained, nested], undefined, {
+      generation: conversation.generation!,
+    });
+    await Promise.all([
+      repo.saveAttachment("att-keep", new Blob(["keep"])),
+      repo.saveAttachment("att-child", new Blob(["child"])),
+      repo.saveAttachment("att-child-tool", new Blob(["tool"])),
+    ]);
+    const snapshot = await repo.getMessageSnapshot(conversation.id, conversation.generation);
+
+    await repo.saveMessages(conversation.id, [retained], undefined, {
+      generation: conversation.generation!,
+      expectedRevision: snapshot.revision,
+    });
+
+    expect(await repo.getAttachment("att-keep")).not.toBeNull();
+    expect(await repo.getAttachment("att-child")).toBeNull();
+    expect(await repo.getAttachment("att-child-tool")).toBeNull();
   });
 });
 
@@ -263,6 +342,13 @@ describe("AgentChatRepo.saveMessages 取消安全（finding 4）", () => {
 
   it("signal 已 abort 时 saveMessages 应 reject 且不覆盖已持久化的旧消息", async () => {
     const convId = "conv-cancel";
+    const conversation = await repo.createConversation({
+      id: convId,
+      title: "Test",
+      modelId: "m1",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    });
     const oldMessage = {
       id: "msg-old",
       conversationId: convId,
@@ -270,7 +356,7 @@ describe("AgentChatRepo.saveMessages 取消安全（finding 4）", () => {
       content: "原始历史",
       createtime: Date.now(),
     };
-    await repo.saveMessages(convId, [oldMessage]);
+    await repo.saveMessages(convId, [oldMessage], undefined, { generation: conversation.generation! });
 
     const controller = new AbortController();
     controller.abort();
@@ -295,6 +381,13 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
 
   it("并发 appendMessage 不应互相覆盖丢消息", async () => {
     const convId = "conv-race";
+    const conversation = await repo.createConversation({
+      id: convId,
+      title: "Test",
+      modelId: "m1",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    });
     const makeMessage = (id: string) => ({
       id,
       conversationId: convId,
@@ -304,10 +397,35 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
     });
 
     // 两个并发的读-改-写：无锁时双方都会读到空快照，后写者覆盖先写者
-    await Promise.all([repo.appendMessage(makeMessage("m1")), repo.appendMessage(makeMessage("m2"))]);
+    await Promise.all([
+      repo.appendMessage(makeMessage("m1"), conversation.generation),
+      repo.appendMessage(makeMessage("m2"), conversation.generation),
+    ]);
 
     const stored = await repo.getMessages(convId);
     expect(stored.map((m) => m.id).sort()).toEqual(["m1", "m2"]);
+  });
+
+  it("相同消息 ID 的持久化重试不应生成重复记录", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-idempotent",
+      title: "Test",
+      modelId: "m1",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    });
+    const message = {
+      id: "stable-message",
+      conversationId: conversation.id,
+      role: "assistant" as const,
+      content: "done",
+      createtime: Date.now(),
+    };
+
+    await repo.appendMessage(message, conversation.generation);
+    await repo.appendMessage(message, conversation.generation);
+
+    expect((await repo.getMessages(conversation.id)).filter((item) => item.id === message.id)).toHaveLength(1);
   });
 
   it("并发 saveConversation 不应互相覆盖丢会话", async () => {
@@ -319,26 +437,36 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
       updatetime: Date.now(),
     });
 
-    await Promise.all([repo.saveConversation(makeConv("c1")), repo.saveConversation(makeConv("c2"))]);
+    await Promise.all([repo.createConversation(makeConv("c1")), repo.createConversation(makeConv("c2"))]);
 
     const stored = await repo.listConversations();
     expect(stored.map((c) => c.id).sort()).toEqual(["c1", "c2"]);
   });
 
   it("消息文件损坏时读取应抛错，而不是让后续写入基于空快照覆盖旧数据", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-corrupt",
+      title: "Test",
+      modelId: "m1",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    });
     const messagesDir = navigateDir(rootStore, "agents", "conversations", "data");
     messagesDir.set("conv-corrupt.json", "{ 损坏的 JSON");
 
     await expect(repo.getMessages("conv-corrupt")).rejects.toThrow();
     // appendMessage 的读阶段同样必须失败，绝不能把损坏文件当作空历史整份覆写
     await expect(
-      repo.appendMessage({
-        id: "m1",
-        conversationId: "conv-corrupt",
-        role: "user",
-        content: "hi",
-        createtime: Date.now(),
-      })
+      repo.appendMessage(
+        {
+          id: "m1",
+          conversationId: "conv-corrupt",
+          role: "user",
+          content: "hi",
+          createtime: Date.now(),
+        },
+        conversation.generation
+      )
     ).rejects.toThrow();
     expect(messagesDir.get("conv-corrupt.json")).toBe("{ 损坏的 JSON");
   });
@@ -355,13 +483,23 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
       writable: true,
     });
     try {
-      await repo.appendMessage({
-        id: "m1",
-        conversationId: "conv-lock",
-        role: "user",
-        content: "hi",
+      const conversation = await repo.createConversation({
+        id: "conv-lock",
+        title: "Test",
+        modelId: "m1",
         createtime: Date.now(),
+        updatetime: Date.now(),
       });
+      await repo.appendMessage(
+        {
+          id: "m1",
+          conversationId: "conv-lock",
+          role: "user",
+          content: "hi",
+          createtime: Date.now(),
+        },
+        conversation.generation
+      );
       expect(request).toHaveBeenCalledWith(
         expect.stringContaining("conv-lock"),
         expect.objectContaining({ mode: "exclusive" }),
@@ -371,5 +509,110 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
       // @ts-expect-error 清理测试注入的 locks
       delete navigator.locks;
     }
+  });
+
+  it("删除后延迟的元数据和消息写入都不应复活旧 generation", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-deleted",
+      title: "Test",
+      modelId: "m1",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    });
+    await repo.deleteConversation(conversation.id, {
+      generation: conversation.generation!,
+      expectedRevision: conversation.revision,
+    });
+
+    conversation.title = "stale rename";
+    await expect(repo.saveConversation(conversation)).rejects.toThrow("deleted");
+    await expect(
+      repo.appendMessage(
+        {
+          id: "late",
+          conversationId: conversation.id,
+          role: "assistant",
+          content: "late",
+          createtime: Date.now(),
+        },
+        conversation.generation
+      )
+    ).rejects.toThrow("deleted");
+    expect(await repo.listConversations()).toEqual([]);
+    expect(await repo.getMessages(conversation.id)).toEqual([]);
+  });
+
+  it("历史替换应以 revision 做 CAS，不能覆盖并发追加", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-cas",
+      title: "Test",
+      modelId: "m1",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    });
+    await repo.appendMessage(
+      { id: "m1", conversationId: conversation.id, role: "user", content: "old", createtime: 1 },
+      conversation.generation
+    );
+    const stale = await repo.getMessageSnapshot(conversation.id, conversation.generation);
+    await repo.appendMessage(
+      { id: "m2", conversationId: conversation.id, role: "assistant", content: "fresh", createtime: 2 },
+      conversation.generation
+    );
+
+    await expect(
+      repo.saveMessages(conversation.id, [], undefined, {
+        generation: conversation.generation!,
+        expectedRevision: stale.revision,
+      })
+    ).rejects.toThrow("changed");
+    expect((await repo.getMessages(conversation.id)).map((message) => message.id)).toEqual(["m1", "m2"]);
+  });
+
+  it("工具调用 assistant 与全部 tool 结果应在一次历史 revision 中提交", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-tool-round",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    const before = await repo.getMessageSnapshot(conversation.id, conversation.generation);
+    await repo.commitToolRound(
+      {
+        id: "assistant",
+        conversationId: conversation.id,
+        role: "assistant",
+        content: "",
+        toolCalls: [
+          { id: "call-1", name: "one", arguments: "{}", status: "completed" },
+          { id: "call-2", name: "two", arguments: "{}", status: "error" },
+        ],
+        createtime: 1,
+      },
+      [
+        {
+          id: "tool-1",
+          conversationId: conversation.id,
+          role: "tool",
+          content: "ok",
+          toolCallId: "call-1",
+          createtime: 2,
+        },
+        {
+          id: "tool-2",
+          conversationId: conversation.id,
+          role: "tool",
+          content: "failed",
+          toolCallId: "call-2",
+          createtime: 3,
+        },
+      ],
+      conversation.generation
+    );
+
+    const after = await repo.getMessageSnapshot(conversation.id, conversation.generation);
+    expect(after.revision).toBe(before.revision + 1);
+    expect(after.messages.map((message) => message.id)).toEqual(["assistant", "tool-1", "tool-2"]);
   });
 });

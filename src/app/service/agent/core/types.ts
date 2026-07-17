@@ -22,6 +22,10 @@ export type MessageContent = string | ContentBlock[];
 
 export type Conversation = {
   id: string;
+  /** Immutable identity for this incarnation of an ID. Filled when legacy records are loaded. */
+  generation?: string;
+  /** Optimistic-concurrency version. Filled when legacy records are loaded. */
+  revision?: number;
   title: string;
   modelId: string;
   system?: string;
@@ -46,7 +50,9 @@ export type AttachmentData = {
   type: "image" | "file" | "audio";
   name: string;
   mimeType: string;
-  data: string | Blob; // base64/data URL 或 Blob
+  data?: string | Blob; // base64/data URL 或 Blob；省略时表示已持久化引用
+  attachmentId?: string;
+  size?: number;
 };
 
 export type ToolResultWithAttachments = {
@@ -56,7 +62,7 @@ export type ToolResultWithAttachments = {
 
 // 子代理单轮消息（持久化用）
 export type SubAgentMessage = {
-  content: string;
+  content: MessageContent;
   thinking?: string;
   toolCalls: ToolCall[];
 };
@@ -76,6 +82,8 @@ export type ToolCall = {
   arguments: string;
   result?: string;
   attachments?: Attachment[];
+  /** Attachment files created by this tool call and owned by the persisted conversation. */
+  ownedAttachmentIds?: string[];
   subAgentDetails?: SubAgentDetails;
   status?: "pending" | "running" | "completed" | "error";
 };
@@ -126,6 +134,8 @@ export type LLMStreamEvent =
       result: string;
       status?: "completed" | "error";
       attachments?: Attachment[];
+      /** Internal ownership handoff used to clean nested tool attachments if the parent round cannot commit. */
+      ownedAttachmentIds?: string[];
     }
   | { type: "content_block_start"; block: Omit<ImageBlock | FileBlock | AudioBlock, "attachmentId"> }
   | { type: "content_block_complete"; block: ImageBlock | FileBlock | AudioBlock; data?: string };
@@ -618,6 +628,10 @@ export type MCPApiRequest =
 /** 定时任务基础字段（两种模式共用） */
 type AgentTaskBase = {
   id: string;
+  /** Immutable identity for this incarnation of the task ID. */
+  generation?: string;
+  /** Optimistic-concurrency version. */
+  revision?: number;
   name: string;
   crontab: string; // cron 表达式（复用 cron.ts 格式）
   enabled: boolean;
@@ -696,4 +710,6 @@ export type ConversationApiRequest =
     }
   | { action: "getMessages"; conversationId: string; scriptUuid: string }
   | { action: "save"; conversationId: string; scriptUuid: string }
-  | { action: "clearMessages"; conversationId: string; scriptUuid: string };
+  | { action: "clearMessages"; conversationId: string; scriptUuid?: string }
+  | { action: "deleteMessages"; conversationId: string; messageIds: string[] }
+  | { action: "delete"; conversationId: string; generation: string; revision?: number };

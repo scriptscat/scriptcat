@@ -118,6 +118,24 @@ describe("task_tools", () => {
     expect(Array.from(tasks.keys())).toEqual(["1", "2"]);
   });
 
+  it("同一批并发创建应串行分配 ID 并持久化包含全部任务的快照", async () => {
+    const snapshots: Task[][] = [];
+    const onSave = vi.fn(async (candidate: Task[]) => {
+      snapshots.push(candidate.map((task) => ({ ...task })));
+    });
+    const { tools, tasks } = createTaskTools({ onSave });
+    const create = tools.find((tool) => tool.definition.name === "create_task")!;
+
+    const [first, second] = await Promise.all([
+      create.executor.execute({ subject: "任务一" }),
+      create.executor.execute({ subject: "任务二" }),
+    ]);
+
+    expect([JSON.parse(first as string).id, JSON.parse(second as string).id]).toEqual(["1", "2"]);
+    expect(snapshots.at(-1)?.map((task) => task.id)).toEqual(["1", "2"]);
+    expect(Array.from(tasks.keys())).toEqual(["1", "2"]);
+  });
+
   it("update_task 应对不存在的任务抛错", async () => {
     const { tools } = createTaskTools();
     const update = tools.find((t) => t.definition.name === "update_task")!;

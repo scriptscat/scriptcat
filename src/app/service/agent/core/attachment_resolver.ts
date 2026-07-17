@@ -1,6 +1,69 @@
 import type { ChatRequest, AgentModelConfig } from "./types";
 import { isContentBlocks } from "./content_utils";
 import { supportsVision } from "./model_capabilities";
+import type { AttachmentSizeInfo } from "./context_elision";
+import { throwIfAborted } from "./abort_utils";
+
+export type AttachmentSnapshot = {
+  resolver: (id: string) => string | null;
+  sizes: Map<string, AttachmentSizeInfo>;
+};
+
+export async function prepareAttachmentSnapshot(
+  messages: ChatRequest["messages"],
+  model: AgentModelConfig,
+  getAttachment: (id: string) => Promise<Blob | null | undefined>,
+  signal?: AbortSignal
+): Promise<AttachmentSnapshot> {
+  const resolved = new Map<string, string>();
+  const sizes = new Map<string, AttachmentSizeInfo>();
+  const mimeTypes = new Map<string, string>();
+  const ids = new Set<string>();
+  if (supportsVision(model)) {
+    for (const message of messages) {
+      if (!isContentBlocks(message.content)) continue;
+      for (const block of message.content) {
+        if (block.type !== "image") continue;
+        ids.add(block.attachmentId);
+        if (block.mimeType) mimeTypes.set(block.attachmentId, block.mimeType);
+      }
+    }
+  }
+
+  for (const id of ids) {
+    throwIfAborted(signal);
+    try {
+      const blob = await getAttachment(id);
+      throwIfAborted(signal);
+      if (!blob) continue;
+      const info: AttachmentSizeInfo = { bytes: blob.size };
+      if (typeof createImageBitmap === "function") {
+        try {
+          const bitmap = await createImageBitmap(blob);
+          info.width = bitmap.width;
+          info.height = bitmap.height;
+          bitmap.close();
+        } catch {
+          // Unsupported or damaged image: size remains a conservative byte-based estimate.
+        }
+      }
+      throwIfAborted(signal);
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      throwIfAborted(signal);
+      const chunks: string[] = [];
+      for (let index = 0; index < bytes.length; index += 8192) {
+        chunks.push(String.fromCharCode(...bytes.subarray(index, Math.min(index + 8192, bytes.length))));
+      }
+      const mime = mimeTypes.get(id) || blob.type || "application/octet-stream";
+      resolved.set(id, `data:${mime};base64,${btoa(chunks.join(""))}`);
+      sizes.set(id, info);
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      // Keep a missing attachment unresolved; provider will use its textual fallback.
+    }
+  }
+  return { resolver: (id) => resolved.get(id) ?? null, sizes };
+}
 
 /**
  * 解析消息中 image+vision 的 attachmentId → base64 data URL
@@ -15,47 +78,5 @@ export async function resolveAttachments(
   model: AgentModelConfig,
   getAttachment: (id: string) => Promise<Blob | null | undefined>
 ): Promise<(id: string) => string | null> {
-  const resolved = new Map<string, string>();
-  const mimeTypes = new Map<string, string>();
-  const ids = new Set<string>();
-  const hasVision = supportsVision(model);
-
-  for (const m of messages) {
-    if (isContentBlocks(m.content)) {
-      for (const block of m.content) {
-        // 只收集 image + vision 的 attachmentId
-        if (block.type === "image" && hasVision && "attachmentId" in block) {
-          ids.add(block.attachmentId);
-          if (block.mimeType) {
-            mimeTypes.set(block.attachmentId, block.mimeType);
-          }
-        }
-      }
-    }
-  }
-
-  if (ids.size === 0) return () => null;
-
-  for (const id of ids) {
-    try {
-      const blob = await getAttachment(id);
-      if (blob) {
-        // Blob → base64 data URL（分块拼接，避免 O(n²) 字符串拼接）
-        const buffer = await blob.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        const CHUNK_SIZE = 8192;
-        const chunks: string[] = [];
-        for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
-          chunks.push(String.fromCharCode(...bytes.subarray(i, Math.min(i + CHUNK_SIZE, bytes.length))));
-        }
-        const b64 = btoa(chunks.join(""));
-        const mime = mimeTypes.get(id) || blob.type || "application/octet-stream";
-        resolved.set(id, `data:${mime};base64,${b64}`);
-      }
-    } catch {
-      // 加载失败，跳过
-    }
-  }
-
-  return (id: string) => resolved.get(id) ?? null;
+  return (await prepareAttachmentSnapshot(messages, model, getAttachment)).resolver;
 }

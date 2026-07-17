@@ -66,10 +66,10 @@ export function useConversations() {
         createtime: Date.now(),
         updatetime: Date.now(),
       };
-      await agentChatRepo.saveConversation(conv);
+      const created = await agentChatRepo.createConversation(conv);
       const list = await loadConversations();
-      setActiveId(conv.id);
-      return { conv, list };
+      setActiveId(created.id);
+      return { conv: created, list };
     },
     [loadConversations, setActiveId]
   );
@@ -77,13 +77,20 @@ export function useConversations() {
   // 删除会话
   const deleteConversation = useCallback(
     async (id: string) => {
-      await agentChatRepo.deleteConversation(id);
+      const conversation = conversations.find((item) => item.id === id);
+      if (conversation?.generation) {
+        await sendMsg(extensionMessage, "serviceWorker/agent/conversation", {
+          action: "delete",
+          conversationId: id,
+          generation: conversation.generation,
+        });
+      }
       const list = await loadConversations();
       if (activeId === id) {
         setActiveId(list[0]?.id || "");
       }
     },
-    [activeId, loadConversations, setActiveId]
+    [activeId, conversations, loadConversations, setActiveId]
   );
 
   // 重命名会话
@@ -364,16 +371,19 @@ export function useRunningConversations() {
 
 // 批量删除持久化消息
 export async function deleteMessages(conversationId: string, messageIds: string[]): Promise<void> {
-  const messages = await agentChatRepo.getMessages(conversationId);
-  const idSet = new Set(messageIds);
-  const filtered = messages.filter((m) => !idSet.has(m.id));
-  await agentChatRepo.saveMessages(conversationId, filtered);
+  await sendMsg(extensionMessage, "serviceWorker/agent/conversation", {
+    action: "deleteMessages",
+    conversationId,
+    messageIds,
+  });
 }
 
 // 清空对话消息及任务
 export async function clearMessages(conversationId: string): Promise<void> {
-  await agentChatRepo.saveMessages(conversationId, []);
-  await agentChatRepo.saveTasks(conversationId, []);
+  await sendMsg(extensionMessage, "serviceWorker/agent/conversation", {
+    action: "clearMessages",
+    conversationId,
+  });
 }
 
 // 会话任务列表 hook

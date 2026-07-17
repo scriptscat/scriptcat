@@ -74,6 +74,47 @@ describe("AgentTaskRepo", () => {
     const runs = await runRepo.listRuns(taskId);
     expect(runs).toHaveLength(0);
   });
+
+  it("删除后旧 generation 的完成写入不应复活任务", async () => {
+    const task = await repo.saveTask(makeTask({ id: "stale-task" }));
+    await repo.removeTask(task.id, task.generation, task.revision);
+
+    task.lastRunStatus = "success";
+    await expect(repo.saveTask(task)).rejects.toThrow("deleted");
+    await expect(
+      repo.updateRunState(task.id, task.generation!, {
+        lastruntime: Date.now(),
+        lastRunStatus: "success",
+        lastRunError: undefined,
+      })
+    ).rejects.toThrow("deleted");
+    expect(await repo.getTask(task.id)).toBeUndefined();
+  });
+
+  it("旧 revision 不应覆盖用户刚保存的新配置", async () => {
+    const task = await repo.saveTask(makeTask({ id: "cas-task" }));
+    const stale = { ...task } as AgentTask;
+    task.name = "新配置";
+    await repo.saveTask(task);
+
+    stale.name = "旧配置";
+    await expect(repo.saveTask(stale)).rejects.toThrow("changed");
+    expect((await repo.getTask(task.id))?.name).toBe("新配置");
+  });
+
+  it("从备份导入时应忽略外部 generation 并以本机版本覆盖同 ID 任务", async () => {
+    const local = await repo.saveTask(makeTask({ id: "import-task", name: "本机" }));
+
+    const imported = await repo.importTask(
+      makeTask({ id: "import-task", name: "备份", generation: "foreign-generation", revision: 99 })
+    );
+
+    expect(imported).toMatchObject({
+      name: "备份",
+      generation: local.generation,
+      revision: local.revision! + 1,
+    });
+  });
 });
 
 describe("AgentTaskRunRepo", () => {

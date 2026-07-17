@@ -33,6 +33,11 @@ function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+function buildSubAgentContent(text: string, blocks: ContentBlock[]): MessageContent {
+  if (blocks.length === 0) return text;
+  return [...(text ? [{ type: "text" as const, text }] : []), ...blocks];
+}
+
 // 欢迎界面
 function WelcomeScreen({ hasConversation }: { hasConversation: boolean }) {
   const { t } = useTranslation();
@@ -172,6 +177,7 @@ export default function ChatArea({
             subAgentType,
             completedMessages: [],
             currentContent: "",
+            currentBlocks: [],
             currentThinking: "",
             currentToolCalls: [],
             isRunning: true,
@@ -181,6 +187,10 @@ export default function ChatArea({
         switch (event.type) {
           case "content_delta":
             sa.currentContent += event.delta;
+            break;
+          case "content_block_complete":
+            sa.currentBlocks ||= [];
+            sa.currentBlocks.push(event.block);
             break;
           case "thinking_delta":
             sa.currentThinking += event.delta;
@@ -213,14 +223,15 @@ export default function ChatArea({
             break;
           }
           case "new_message":
-            if (sa.currentContent || sa.currentThinking || sa.currentToolCalls.length > 0) {
+            if (sa.currentContent || sa.currentBlocks?.length || sa.currentThinking || sa.currentToolCalls.length > 0) {
               sa.completedMessages.push({
-                content: sa.currentContent,
+                content: buildSubAgentContent(sa.currentContent, sa.currentBlocks || []),
                 thinking: sa.currentThinking || undefined,
                 toolCalls: [...sa.currentToolCalls],
               });
             }
             sa.currentContent = "";
+            sa.currentBlocks = [];
             sa.currentThinking = "";
             sa.currentToolCalls = [];
             break;
@@ -239,13 +250,14 @@ export default function ChatArea({
                 (sa.usage.cacheReadInputTokens || 0) + (event.usage.cacheReadInputTokens || 0);
             }
             sa.retryInfo = undefined;
-            if (sa.currentContent || sa.currentThinking || sa.currentToolCalls.length > 0) {
+            if (sa.currentContent || sa.currentBlocks?.length || sa.currentThinking || sa.currentToolCalls.length > 0) {
               sa.completedMessages.push({
-                content: sa.currentContent,
+                content: buildSubAgentContent(sa.currentContent, sa.currentBlocks || []),
                 thinking: sa.currentThinking || undefined,
                 toolCalls: [...sa.currentToolCalls],
               });
               sa.currentContent = "";
+              sa.currentBlocks = [];
               sa.currentThinking = "";
               sa.currentToolCalls = [];
             }

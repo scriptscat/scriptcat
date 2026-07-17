@@ -61,6 +61,12 @@ describe("SubAgentService", () => {
 
     expect(result.agentId).toBe("test-agent-1");
     expect(result.result).toBe("result");
+    expect(result.usage).toEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+    });
     expect(orchestrator.callLLMWithToolLoop).toHaveBeenCalledOnce();
   });
 
@@ -172,6 +178,46 @@ describe("SubAgentService", () => {
     expect(errorEvents).toHaveLength(1);
   });
 
+  it("父会话取消后子代理应以错误落定并保留部分结果与附件所有权", async () => {
+    const controller = new AbortController();
+    const subOrchestrator = makeMockOrchestrator();
+    (subOrchestrator.callLLMWithToolLoop as ReturnType<typeof vi.fn>).mockImplementationOnce(async ({ sendEvent }) => {
+      sendEvent({ type: "content_delta", delta: "部分结果" });
+      sendEvent({
+        type: "content_block_complete",
+        block: { type: "image", attachmentId: "partial.png", mimeType: "image/png", name: "partial.png" },
+      });
+      sendEvent({
+        type: "error",
+        message: "Cancelled",
+        errorCode: "cancelled",
+        usage: { inputTokens: 30, outputTokens: 6 },
+      });
+      controller.abort();
+    });
+    service = new SubAgentService(subOrchestrator);
+
+    await expect(
+      service.runSubAgent({
+        options: { prompt: "做个任务", description: "取消任务" },
+        agentId: "test-agent-cancelled",
+        model: MODEL,
+        parentConversationId: "conv-1",
+        toolRegistry,
+        sendEvent,
+        signal: controller.signal,
+      })
+    ).rejects.toMatchObject({
+      message: "Aborted",
+      usage: { inputTokens: 30, outputTokens: 6 },
+      ownedAttachmentIds: ["partial.png"],
+      subAgentDetails: {
+        messages: [expect.objectContaining({ content: expect.any(Array) })],
+        usage: { inputTokens: 30, outputTokens: 6 },
+      },
+    });
+  });
+
   it("tool_call_complete 应使用事件自身的 status，失败的嵌套工具重载后仍应显示为 error", async () => {
     const subOrchestrator = makeMockOrchestrator();
     (subOrchestrator.callLLMWithToolLoop as ReturnType<typeof vi.fn>).mockImplementationOnce(async ({ sendEvent }) => {
@@ -193,5 +239,69 @@ describe("SubAgentService", () => {
 
     const toolCall = result.details?.messages[0]?.toolCalls[0];
     expect(toolCall?.status).toBe("error");
+  });
+
+  it("嵌套工具创建的附件所有权应上交父工具轮次以便提交失败时回收", async () => {
+    const subOrchestrator = makeMockOrchestrator();
+    (subOrchestrator.callLLMWithToolLoop as ReturnType<typeof vi.fn>).mockImplementationOnce(async ({ sendEvent }) => {
+      sendEvent({ type: "tool_call_start", toolCall: { id: "t1", name: "image_generation", arguments: "" } });
+      sendEvent({
+        type: "tool_call_complete",
+        id: "t1",
+        result: "created",
+        status: "completed",
+        attachments: [{ id: "nested.png", type: "image", name: "nested.png", mimeType: "image/png" }],
+        ownedAttachmentIds: ["nested.png"],
+      });
+      sendEvent({ type: "done" });
+    });
+    service = new SubAgentService(subOrchestrator);
+
+    const result = await service.runSubAgent({
+      options: { prompt: "做个任务", description: "嵌套附件" },
+      agentId: "test-agent-owned",
+      model: MODEL,
+      parentConversationId: "conv-1",
+      toolRegistry,
+      sendEvent,
+      signal,
+    });
+
+    expect(result.ownedAttachmentIds).toEqual(["nested.png"]);
+    expect(result.details?.messages[0]?.toolCalls[0].attachments?.[0].id).toBe("nested.png");
+  });
+
+  it("子代理早期轮次生成的图片也应把 OPFS 引用、多模态详情和所有权转交父轮次", async () => {
+    const subOrchestrator = makeMockOrchestrator();
+    (subOrchestrator.callLLMWithToolLoop as ReturnType<typeof vi.fn>).mockImplementationOnce(async ({ sendEvent }) => {
+      sendEvent({
+        type: "content_block_complete",
+        block: { type: "image", attachmentId: "child-image.png", mimeType: "image/png", name: "child.png" },
+      });
+      sendEvent({ type: "new_message" });
+      sendEvent({ type: "content_delta", delta: "最终说明" });
+      sendEvent({ type: "done" });
+    });
+    service = new SubAgentService(subOrchestrator);
+
+    const result = await service.runSubAgent({
+      options: { prompt: "画图", description: "生成图片" },
+      agentId: "test-agent-image",
+      model: MODEL,
+      parentConversationId: "conv-1",
+      toolRegistry,
+      sendEvent,
+      signal,
+    });
+
+    expect(result.result).toContain("最终说明");
+    expect(result.result).toContain("uploads/child-image.png");
+    expect(result.details?.messages[0]?.content).toEqual([
+      { type: "image", attachmentId: "child-image.png", mimeType: "image/png", name: "child.png" },
+    ]);
+    expect(result.attachments).toEqual([
+      expect.objectContaining({ id: "child-image.png", type: "image", mimeType: "image/png" }),
+    ]);
+    expect(result.ownedAttachmentIds).toEqual(["child-image.png"]);
   });
 });

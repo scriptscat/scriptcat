@@ -58,4 +58,24 @@ describe("sub_agent", () => {
 
     await expect(executor.execute({ prompt: "fail" })).rejects.toThrow("Agent failed");
   });
+
+  it("应把子代理 usage 暴露给父工具循环", async () => {
+    const mockRunSubAgent = vi.fn().mockResolvedValue({
+      agentId: "usage-child",
+      result: "done",
+      usage: { inputTokens: 100, outputTokens: 20 },
+      details: {
+        agentId: "usage-child",
+        description: "usage",
+        messages: [],
+        usage: { inputTokens: 100, outputTokens: 20 },
+      },
+    });
+    const { executor } = createSubAgentTool({ runSubAgent: mockRunSubAgent });
+
+    await expect(executor.execute({ prompt: "count usage" })).resolves.toMatchObject({
+      usage: { inputTokens: 100, outputTokens: 20 },
+      subAgentDetails: { usage: { inputTokens: 100, outputTokens: 20 } },
+    });
+  });
 });

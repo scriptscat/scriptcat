@@ -588,6 +588,7 @@ function createTestService() {
     saveConversation: vi.fn().mockResolvedValue(undefined),
     saveMessages: vi.fn().mockResolvedValue(undefined),
     updateMessage: vi.fn().mockResolvedValue(undefined),
+    commitToolRound: vi.fn().mockResolvedValue(undefined),
     getAttachment: vi.fn().mockResolvedValue(null),
     saveAttachment: vi.fn().mockResolvedValue(0),
   });
@@ -877,7 +878,8 @@ describe("callLLMWithToolLoop", () => {
         conversationId: "conv-123",
         role: "assistant",
         content: "回答",
-      })
+      }),
+      undefined
     );
   });
 
@@ -927,25 +929,24 @@ describe("callLLMWithToolLoop", () => {
       conversationId: "conv-456",
     });
 
-    // 应持久化 3 条消息：assistant(tool_call) + tool(result) + assistant(final)
-    expect(mockRepo.appendMessage).toHaveBeenCalledTimes(3);
+    // 工具轮次必须作为一个原子组提交，最终回答再单独追加。
+    expect(mockRepo.commitToolRound).toHaveBeenCalledTimes(1);
+    expect(mockRepo.appendMessage).toHaveBeenCalledTimes(1);
 
-    // 第一次：assistant with toolCalls
-    expect(mockRepo.appendMessage.mock.calls[0][0]).toMatchObject({
+    const [toolAssistant, toolMessages] = mockRepo.commitToolRound.mock.calls[0];
+    expect(toolAssistant).toMatchObject({
       conversationId: "conv-456",
       role: "assistant",
       toolCalls: expect.arrayContaining([expect.objectContaining({ id: "call_1", name: "my_tool" })]),
     });
-
-    // 第二次：tool result
-    expect(mockRepo.appendMessage.mock.calls[1][0]).toMatchObject({
+    expect(toolMessages).toHaveLength(1);
+    expect(toolMessages[0]).toMatchObject({
       conversationId: "conv-456",
       role: "tool",
       toolCallId: "call_1",
     });
 
-    // 第三次：最终 assistant 回答
-    expect(mockRepo.appendMessage.mock.calls[2][0]).toMatchObject({
+    expect(mockRepo.appendMessage.mock.calls[0][0]).toMatchObject({
       conversationId: "conv-456",
       role: "assistant",
       content: "最终回答",
@@ -1128,10 +1129,13 @@ describe("callLLMWithToolLoop", () => {
     expect(messages[2].role).toBe("tool");
     expect(messages[3].role).toBe("tool");
 
-    // 持久化：assistant(toolCalls) + 2个tool结果 + assistant(final) = 4
-    expect(mockRepo.appendMessage).toHaveBeenCalledTimes(4);
-    expect(mockRepo.appendMessage.mock.calls[1][0]).toMatchObject({ role: "tool", toolCallId: "call_a" });
-    expect(mockRepo.appendMessage.mock.calls[2][0]).toMatchObject({ role: "tool", toolCallId: "call_b" });
+    // 工具 assistant 与两个结果原子提交，最终 assistant 单独追加。
+    expect(mockRepo.commitToolRound).toHaveBeenCalledTimes(1);
+    expect(mockRepo.commitToolRound.mock.calls[0][1]).toEqual([
+      expect.objectContaining({ role: "tool", toolCallId: "call_a" }),
+      expect.objectContaining({ role: "tool", toolCallId: "call_b" }),
+    ]);
+    expect(mockRepo.appendMessage).toHaveBeenCalledTimes(1);
 
     expect(events.find((e) => e.type === "done")).toBeDefined();
     callLLMSpy.mockRestore();

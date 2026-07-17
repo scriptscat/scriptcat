@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { Plus, CalendarClock } from "lucide-react";
 import { notify } from "@App/pages/components/ui/toast";
 import { Button } from "@App/pages/components/ui/button";
-import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
 import { agentClient } from "@App/pages/store/features/script";
 import type { AgentTask, AgentModelConfig, AgentTaskRun } from "@App/app/service/agent/core/types";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
@@ -15,9 +14,6 @@ import { TaskRow } from "./TaskRow";
 import { TaskFormDialog, type TaskFormValue } from "./TaskFormDialog";
 import { TaskHistorySheet } from "./TaskHistorySheet";
 import { nextRunText } from "./cron";
-
-const taskRepo = new AgentTaskRepo();
-const taskRunRepo = new AgentTaskRunRepo();
 
 export default function AgentTasks() {
   const { t } = useTranslation(["agent", "common"]);
@@ -35,7 +31,10 @@ export default function AgentTasks() {
   const [runs, setRuns] = useState<AgentTaskRun[]>([]);
 
   const reload = useCallback(async () => {
-    const [taskList, modelList] = await Promise.all([taskRepo.listTasks(), agentClient.listModels()]);
+    const [taskList, modelList] = await Promise.all([
+      agentClient.agentTask({ action: "list" }) as Promise<AgentTask[]>,
+      agentClient.listModels(),
+    ]);
     setTasks(taskList);
     setModels(modelList);
     setLoading(false);
@@ -58,13 +57,11 @@ export default function AgentTasks() {
   };
 
   const handleSubmit = async (formValue: TaskFormValue) => {
-    const now = Date.now();
-    const task = (
-      editing
-        ? { ...formValue, id: editing.id, createtime: editing.createtime, updatetime: now }
-        : { ...formValue, id: crypto.randomUUID(), createtime: now, updatetime: now }
-    ) as AgentTask;
-    await taskRepo.saveTask(task);
+    if (editing) {
+      await agentClient.agentTask({ action: "update", id: editing.id, task: formValue });
+    } else {
+      await agentClient.agentTask({ action: "create", task: formValue });
+    }
     setDialogOpen(false);
     notify.success(t("common:save_success"));
     await reload();
@@ -72,25 +69,21 @@ export default function AgentTasks() {
 
   const handleToggle = useCallback(
     async (task: AgentTask, enabled: boolean) => {
-      await taskRepo.saveTask({ ...task, enabled, updatetime: Date.now() });
+      await agentClient.agentTask({ action: "enable", id: task.id, enabled });
       await reload();
     },
     [reload]
   );
 
   const handleDelete = async (task: AgentTask) => {
-    await taskRepo.removeTask(task.id);
+    await agentClient.agentTask({ action: "delete", id: task.id });
     notify.success(t("common:delete_success"));
     await reload();
   };
 
   const handleRunNow = async (task: AgentTask) => {
     try {
-      await chrome.runtime.sendMessage({
-        channel: "agent",
-        action: "agentTask",
-        data: { action: "runNow", id: task.id },
-      });
+      await agentClient.agentTask({ action: "runNow", id: task.id });
       notify.success(t("agent:tasks_run_now"));
     } catch {
       // 调度器会在下次 tick 执行
@@ -102,14 +95,14 @@ export default function AgentTasks() {
     setHistoryTask(task);
     setHistoryOpen(true);
     setHistoryLoading(true);
-    const list = await taskRunRepo.listRuns(task.id);
+    const list = (await agentClient.agentTask({ action: "listRuns", taskId: task.id })) as AgentTaskRun[];
     setRuns(list);
     setHistoryLoading(false);
   };
 
   const handleClearRuns = async () => {
     if (!historyTask) return;
-    await taskRunRepo.clearRuns(historyTask.id);
+    await agentClient.agentTask({ action: "clearRuns", taskId: historyTask.id });
     setRuns([]);
   };
 

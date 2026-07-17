@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { AgentTaskScheduler } from "./task_scheduler";
 import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
-import type { AgentTask } from "@App/app/service/agent/core/types";
+import type { AgentTask, InternalAgentTask } from "@App/app/service/agent/core/types";
 
 // Mock OPFS 文件系统（AgentTaskRunRepo 使用 OPFS 存储）
 function createMockOPFS() {
@@ -261,5 +261,58 @@ describe("AgentTaskScheduler", () => {
     // 应能成功执行而不被 runningTasks.has() 阻挡
     await scheduler.executeTask(task);
     expect(internalExecutor).toHaveBeenCalled();
+  });
+
+  it("运行期间的用户编辑应保留，完成时只合并运行遥测", async () => {
+    let finish!: () => void;
+    internalExecutor.mockReturnValue(
+      new Promise((resolve) => {
+        finish = () => resolve({ conversationId: "conv-edited" });
+      })
+    );
+    const task = await repo.saveTask(makeTask({ id: "edited-during-run", name: "旧名称" }));
+    const execution = scheduler.executeTask(task);
+    await vi.waitFor(() => expect(internalExecutor).toHaveBeenCalledOnce());
+
+    const edited = (await repo.getTask(task.id))!;
+    edited.name = "用户的新名称";
+    (edited as InternalAgentTask).prompt = "用户的新提示词";
+    await repo.saveTask(edited);
+    finish();
+    await execution;
+
+    const stored = (await repo.getTask(task.id))!;
+    expect(stored.name).toBe("用户的新名称");
+    expect((stored as InternalAgentTask).prompt).toBe("用户的新提示词");
+    expect(stored.lastRunStatus).toBe("success");
+  });
+
+  it("运行期间删除任务后完成回写不应复活旧 generation", async () => {
+    let finish!: () => void;
+    internalExecutor.mockReturnValue(
+      new Promise((resolve) => {
+        finish = () => resolve({ conversationId: "conv-deleted" });
+      })
+    );
+    const task = await repo.saveTask(makeTask({ id: "deleted-during-run" }));
+    const execution = scheduler.executeTask(task);
+    await vi.waitFor(() => expect(internalExecutor).toHaveBeenCalledOnce());
+
+    await repo.removeTask(task.id, task.generation, task.revision);
+    finish();
+    await execution;
+
+    expect(await repo.getTask(task.id)).toBeUndefined();
+  });
+
+  it("已领取的调度槽即使运行记录更新失败也不应在下一次 tick 重复执行", async () => {
+    const task = await repo.saveTask(makeTask({ id: "claimed-slot", nextruntime: Date.now() - 1000 }));
+    runRepo.updateRun = vi.fn().mockRejectedValueOnce(new Error("run storage failed"));
+
+    await expect(scheduler.executeTask(task, true)).rejects.toThrow("run storage failed");
+    await scheduler.tick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(internalExecutor).toHaveBeenCalledTimes(1);
   });
 });

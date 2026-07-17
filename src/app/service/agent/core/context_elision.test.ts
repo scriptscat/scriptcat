@@ -305,7 +305,7 @@ describe("estimateRequestTokens 的按消息缓存不应产生陈旧结果", () 
     expect(messages[0].content).toEqual([{ type: "text", text: expect.stringContaining("attachment elided") }]);
   });
 
-  it("assistant 消息的 toolCalls.status 在工具执行后原地变化时，估算值应反映最新状态而非缓存旧值", () => {
+  it("assistant 的 UI-only 工具状态和结果不应进入 provider wire 估算", () => {
     const toolCall: ToolCall = { id: "c1", name: "tool", arguments: "{}", status: "running" };
     const messages: ChatRequest["messages"] = [{ role: "assistant", content: "", toolCalls: [toolCall] }];
 
@@ -315,7 +315,26 @@ describe("estimateRequestTokens 的按消息缓存不应产生陈旧结果", () 
     toolCall.result = "a longer completed result string that changes the byte size";
     const completedEstimate = estimateRequestTokens(messages);
 
-    expect(completedEstimate).toBeGreaterThan(runningEstimate);
+    expect(completedEstimate).toBe(runningEstimate);
+  });
+
+  it("大型 subAgentDetails 不应夸大 provider 实际只发送工具身份字段的请求", () => {
+    const toolCall: ToolCall = {
+      id: "c1",
+      name: "agent",
+      arguments: "{}",
+      subAgentDetails: {
+        agentId: "child",
+        description: "child",
+        messages: [{ content: "x".repeat(1_000_000), toolCalls: [] }],
+      },
+    };
+    const messages: ChatRequest["messages"] = [{ role: "assistant", content: "", toolCalls: [toolCall] }];
+    const withDetails = estimateRequestTokens(messages);
+    delete toolCall.subAgentDetails;
+    const withoutDetails = estimateRequestTokens(messages);
+
+    expect(withDetails).toBe(withoutDetails);
   });
 
   it("反复调用应返回稳定一致的结果（缓存命中不改变估算值）", () => {

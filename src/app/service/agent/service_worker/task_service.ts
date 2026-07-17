@@ -38,6 +38,7 @@ export interface TaskOrchestrator {
     signal: AbortSignal;
     scriptToolCallback: ScriptToolCallback | null;
     conversationId: string;
+    conversationGeneration: string;
     rehydratedHistory?: boolean;
     throwOnTerminalError?: boolean;
   }): Promise<void>;
@@ -95,10 +96,13 @@ export class AgentTaskService {
   ): Promise<{ conversationId: string; usage?: { inputTokens: number; outputTokens: number } }> {
     try {
       const messages: ChatRequest["messages"] = [];
+      let conversation: Conversation;
 
       if (task.conversationId) {
         // 续接已有对话
         const conv = await this.getConversation(conversationId);
+        if (!conv?.generation) throw new Error("Conversation not found");
+        conversation = conv;
 
         const systemContent = buildSystemPrompt({
           userSystem: conv?.system,
@@ -107,7 +111,7 @@ export class AgentTaskService {
         messages.push({ role: "system", content: systemContent });
 
         // 加载历史消息
-        if (conv) {
+        {
           const existingMessages = await this.repo.getMessages(conversationId);
 
           // 预加载之前已加载的 skill 的工具
@@ -133,10 +137,7 @@ export class AgentTaskService {
             }
           }
 
-          for (const msg of existingMessages) {
-            if (msg.role === "system") continue;
-            messages.push(...toLLMMessages([msg]).filter((message) => message.role !== "system"));
-          }
+          messages.push(...toLLMMessages(existingMessages).filter((message) => message.role !== "system"));
         }
       } else {
         // 创建新对话
@@ -148,7 +149,7 @@ export class AgentTaskService {
           createtime: Date.now(),
           updatetime: Date.now(),
         };
-        await this.repo.saveConversation(conv);
+        conversation = await this.repo.createConversation(conv);
 
         const systemContent = buildSystemPrompt({ skillSuffix: promptSuffix });
         messages.push({ role: "system", content: systemContent });
@@ -157,13 +158,16 @@ export class AgentTaskService {
       // 添加用户消息（task.prompt）
       const userContent = task.prompt || task.name;
       messages.push({ role: "user", content: userContent });
-      await this.repo.appendMessage({
-        id: uuidv4(),
-        conversationId,
-        role: "user",
-        content: userContent,
-        createtime: Date.now(),
-      });
+      await this.repo.appendMessage(
+        {
+          id: uuidv4(),
+          conversationId,
+          role: "user",
+          content: userContent,
+          createtime: Date.now(),
+        },
+        conversation.generation
+      );
 
       // 收集 usage
       const totalUsage = { inputTokens: 0, outputTokens: 0 };
@@ -186,6 +190,7 @@ export class AgentTaskService {
         signal: abortController.signal,
         scriptToolCallback: null,
         conversationId,
+        conversationGeneration: conversation.generation!,
         rehydratedHistory: Boolean(task.conversationId),
         throwOnTerminalError: true,
       });
@@ -225,7 +230,13 @@ export class AgentTaskService {
 
   private async getConversation(id: string): Promise<Conversation | null> {
     const conversations = await this.repo.listConversations();
-    return conversations.find((c) => c.id === id) || null;
+    const conversation = conversations.find((item) => item.id === id);
+    if (!conversation) return null;
+    return {
+      ...conversation,
+      generation: conversation.generation || `legacy:${conversation.id}`,
+      revision: conversation.revision ?? 0,
+    };
   }
 
   // 处理定时任务 CRUD 及 run 操作
@@ -252,8 +263,7 @@ export class AgentTaskService {
             // cron 无效，不设置 nextruntime
           }
         }
-        await this.taskRepo.saveTask(task);
-        return task;
+        return this.taskRepo.createTask(task);
       }
       case "update": {
         const existing = await this.taskRepo.getTask(params.id);
@@ -270,27 +280,27 @@ export class AgentTaskService {
             }
           }
         }
-        await this.taskRepo.saveTask(updated);
-        return updated;
+        return this.taskRepo.saveTask(updated);
       }
-      case "delete":
-        await this.taskRepo.removeTask(params.id);
+      case "delete": {
+        const task = await this.taskRepo.getTask(params.id);
+        if (!task) return true;
+        await this.taskRepo.removeTask(params.id, task.generation);
         return true;
+      }
       case "enable": {
         const task = await this.taskRepo.getTask(params.id);
         if (!task) throw new Error("Task not found");
-        task.enabled = params.enabled;
-        task.updatetime = Date.now();
-        if (task.enabled) {
+        const updated = { ...task, enabled: params.enabled, updatetime: Date.now() } as AgentTask;
+        if (updated.enabled) {
           try {
-            const info = nextTimeInfo(task.crontab);
-            task.nextruntime = info.next.toMillis();
+            const info = nextTimeInfo(updated.crontab);
+            updated.nextruntime = info.next.toMillis();
           } catch {
-            task.nextruntime = undefined;
+            updated.nextruntime = undefined;
           }
         }
-        await this.taskRepo.saveTask(task);
-        return task;
+        return this.taskRepo.saveTask(updated);
       }
       case "runNow": {
         const task = await this.taskRepo.getTask(params.id);

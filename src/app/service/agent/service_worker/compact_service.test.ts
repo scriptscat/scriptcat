@@ -53,7 +53,7 @@ describe("CompactService 自动压缩", () => {
     const orchestrator = { callLLM: vi.fn().mockResolvedValue({ content: "<summary>摘要</summary>", usage }) };
     const chatRepo = {
       getAttachment: vi.fn().mockResolvedValue(null),
-      getMessages: vi.fn().mockResolvedValue([]),
+      getMessageSnapshot: vi.fn().mockResolvedValue({ generation: "gen-1", revision: 2, messages: [] }),
       saveMessages: vi.fn().mockResolvedValue(undefined),
     } as any;
     const service = new CompactService(modelService, orchestrator, chatRepo);
@@ -61,6 +61,7 @@ describe("CompactService 自动压缩", () => {
     await expect(
       service.autoCompact(
         "conv-1",
+        "gen-1",
         MODEL,
         [{ role: "user", content: "需要摘要的内容" }],
         vi.fn(),
@@ -69,7 +70,7 @@ describe("CompactService 自动压缩", () => {
     ).resolves.toEqual(usage);
   });
 
-  it("Stop 恰好落在摘要写盘提交之后时，应回写压缩前的持久化历史（补偿性回滚）", async () => {
+  it("Stop 恰好落在摘要提交之后时不应以旧快照覆盖后续历史", async () => {
     const controller = new AbortController();
     const priorMessages = [{ id: "m1", conversationId: "conv-1", role: "user", content: "原始历史", createtime: 1 }];
     const modelService = {} as any;
@@ -77,7 +78,7 @@ describe("CompactService 自动压缩", () => {
     const saveCalls: any[][] = [];
     const chatRepo = {
       getAttachment: vi.fn().mockResolvedValue(null),
-      getMessages: vi.fn().mockResolvedValue(priorMessages),
+      getMessageSnapshot: vi.fn().mockResolvedValue({ generation: "gen-1", revision: 2, messages: priorMessages }),
       saveMessages: vi.fn().mockImplementation(async (_id: string, messages: any[]) => {
         saveCalls.push(messages);
         // 模拟 abort 恰好落在 close() 提交窗口：写入已生效，signal 事后才被观察到
@@ -88,12 +89,11 @@ describe("CompactService 自动压缩", () => {
     const sendEvent = vi.fn();
 
     await expect(
-      service.autoCompact("conv-1", MODEL, [{ role: "user", content: "内容" }], sendEvent, controller.signal)
+      service.autoCompact("conv-1", "gen-1", MODEL, [{ role: "user", content: "内容" }], sendEvent, controller.signal)
     ).rejects.toThrow("Aborted");
 
-    // 第二次写入必须把压缩前的历史原样写回，磁盘内容与"已取消"的对外结果保持一致
-    expect(saveCalls).toHaveLength(2);
-    expect(saveCalls[1]).toEqual(priorMessages);
+    // 写入已经通过 revision CAS 线性化；不能再无条件回写旧历史覆盖之后的追加。
+    expect(saveCalls).toHaveLength(1);
     expect(sendEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: "compact_done" }));
   });
 
@@ -102,6 +102,7 @@ describe("CompactService 自动压缩", () => {
     const orchestrator = { callLLM: vi.fn() };
     const chatRepo = {
       getAttachment: vi.fn().mockResolvedValue(null),
+      getMessageSnapshot: vi.fn().mockResolvedValue({ generation: "gen-1", revision: 0, messages: [] }),
       saveMessages: vi.fn().mockResolvedValue(undefined),
     } as any;
     const service = new CompactService(modelService, orchestrator, chatRepo);
@@ -109,12 +110,36 @@ describe("CompactService 自动压缩", () => {
     const signal = new AbortController().signal;
     const currentMessages = makeCurrentMessages();
 
-    await expect(service.autoCompact("conv-1", MODEL, currentMessages, sendEvent, signal)).rejects.toMatchObject({
+    await expect(
+      service.autoCompact("conv-1", "gen-1", MODEL, currentMessages, sendEvent, signal)
+    ).rejects.toMatchObject({
       errorCode: "context_too_large",
     });
 
     expect(orchestrator.callLLM).not.toHaveBeenCalled();
     expect(chatRepo.saveMessages).not.toHaveBeenCalled();
+  });
+
+  it("摘要成功后持久化失败时异常应保留摘要调用 usage", async () => {
+    const usage = { inputTokens: 44, outputTokens: 9 };
+    const orchestrator = { callLLM: vi.fn().mockResolvedValue({ content: "<summary>摘要</summary>", usage }) };
+    const chatRepo = {
+      getAttachment: vi.fn().mockResolvedValue(null),
+      getMessageSnapshot: vi.fn().mockResolvedValue({ generation: "gen-1", revision: 1, messages: [] }),
+      saveMessages: vi.fn().mockRejectedValue(new Error("disk full")),
+    } as any;
+    const service = new CompactService({} as any, orchestrator, chatRepo);
+
+    await expect(
+      service.autoCompact(
+        "conv-1",
+        "gen-1",
+        MODEL,
+        [{ role: "user", content: "content" }],
+        vi.fn(),
+        new AbortController().signal
+      )
+    ).rejects.toMatchObject({ message: "disk full", usage });
   });
 
   it("摘要内容超过摘要模型预算时应在调用 provider 前返回 context_too_large", async () => {
@@ -131,6 +156,7 @@ describe("CompactService 自动压缩", () => {
 
     await expect(service.summarizeContent(hugeContent, "extract")).rejects.toMatchObject({
       errorCode: "context_too_large",
+      estimatedInputTokens: expect.any(Number),
     });
 
     expect(orchestrator.callLLM).not.toHaveBeenCalled();

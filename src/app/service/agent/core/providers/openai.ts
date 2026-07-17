@@ -192,6 +192,7 @@ export function parseOpenAIStream(
           onEvent({
             type: "error",
             message: json.error.message || JSON.stringify(json.error),
+            usage: lastUsage,
           });
           return true;
         }
@@ -311,7 +312,7 @@ export function parseOpenAIStream(
     },
     (message) => {
       doneSent = true;
-      onEvent({ type: "error", message });
+      onEvent({ type: "error", message, usage: lastUsage });
     }
   )
     .then(() => {

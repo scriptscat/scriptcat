@@ -20,10 +20,10 @@ import {
   elideOldToolResults,
   elideUntilWithinBudget,
   estimateRequestTokens,
-  loadAttachmentSizes,
 } from "@App/app/service/agent/core/context_elision";
 import type { LLMCallResult } from "./llm_client";
 import { t } from "@App/locales/locales";
+import { prepareAttachmentSnapshot, type AttachmentSnapshot } from "@App/app/service/agent/core/attachment_resolver";
 
 // 上下文占用达到这些比例时，分批裁剪保留窗口外的旧 tool 结果（早于 autoCompact 的 80% 阈值）。
 // 按阈值分批触发，并在 60% 以上每新增一个保留窗口重新裁剪，兼顾真正的滑动窗口与 prompt cache 稳定性。
@@ -89,12 +89,14 @@ export interface ToolLoopDeps {
       messages: ChatRequest["messages"];
       tools?: ToolDefinition[];
       cache?: boolean;
+      attachmentSnapshot?: AttachmentSnapshot;
     },
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
   ): Promise<LLMCallResult>;
   autoCompact(
     conversationId: string,
+    conversationGeneration: string,
     model: AgentModelConfig,
     messages: ChatRequest["messages"],
     sendEvent: (event: ChatStreamEvent) => void,
@@ -116,6 +118,7 @@ export class ToolLoopOrchestrator {
    * 若此时已被 Stop，取消优先于 context_too_large，改走统一的取消终态化路径。 */
   private async emitContextTooLarge(
     conversationId: string | undefined,
+    conversationGeneration: string | undefined,
     totalUsage: {
       inputTokens: number;
       outputTokens: number;
@@ -128,7 +131,7 @@ export class ToolLoopOrchestrator {
     throwOnTerminalError?: boolean
   ): Promise<void> {
     if (signal.aborted) {
-      await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+      await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
       return;
     }
     const error = Object.assign(new Error("Conversation history exceeds the model context window"), {
@@ -139,17 +142,20 @@ export class ToolLoopOrchestrator {
     });
     if (conversationId) {
       try {
-        await this.chatRepo.appendMessage({
-          id: uuidv4(),
-          conversationId,
-          role: "assistant",
-          content: "",
-          error: error.message,
-          errorCode: error.errorCode,
-          usage: totalUsage,
-          durationMs: error.durationMs,
-          createtime: Date.now(),
-        });
+        await this.chatRepo.appendMessage(
+          {
+            id: uuidv4(),
+            conversationId,
+            role: "assistant",
+            content: "",
+            error: error.message,
+            errorCode: error.errorCode,
+            usage: totalUsage,
+            durationMs: error.durationMs,
+            createtime: Date.now(),
+          },
+          conversationGeneration
+        );
       } catch {
         // 持久化失败不阻塞终态事件发送
       }
@@ -157,7 +163,7 @@ export class ToolLoopOrchestrator {
     // 持久化期间也可能已被 Stop：取消优先于 context_too_large，不能在 Stop 之后仍对外报告/
     // 抛出 context_too_large（见 finding 5）
     if (signal.aborted) {
-      await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+      await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
       return;
     }
     sendEvent({
@@ -187,6 +193,7 @@ export class ToolLoopOrchestrator {
    * 落库失败不能阻塞事件发送，否则客户端永远收不到终态事件（见 finding 5）。 */
   private async emitCancelled(
     conversationId: string | undefined,
+    conversationGeneration: string | undefined,
     totalUsage: {
       inputTokens: number;
       outputTokens: number;
@@ -199,17 +206,20 @@ export class ToolLoopOrchestrator {
     const durationMs = Date.now() - startTime;
     if (conversationId) {
       try {
-        await this.chatRepo.appendMessage({
-          id: uuidv4(),
-          conversationId,
-          role: "assistant",
-          content: "",
-          error: "Conversation cancelled",
-          errorCode: "cancelled",
-          usage: totalUsage,
-          durationMs,
-          createtime: Date.now(),
-        });
+        await this.chatRepo.appendMessage(
+          {
+            id: uuidv4(),
+            conversationId,
+            role: "assistant",
+            content: "",
+            error: "Conversation cancelled",
+            errorCode: "cancelled",
+            usage: totalUsage,
+            durationMs,
+            createtime: Date.now(),
+          },
+          conversationGeneration
+        );
       } catch {
         // 持久化失败不阻塞终态事件发送
       }
@@ -239,6 +249,8 @@ export class ToolLoopOrchestrator {
     scriptToolCallback: ScriptToolCallback | null;
     // 对话 ID，用于持久化消息（可选，UI 场景由 hooks 自行持久化）
     conversationId?: string;
+    // 持久化会话的不可变 generation；旧执行在删除/重建后不得写入新会话。
+    conversationGeneration?: string;
     // 跳过内置工具，仅使用传入的 tools（ephemeral 模式）
     skipBuiltinTools?: boolean;
     // 排除的工具名称列表（子代理不可用 ask_user、agent）
@@ -263,6 +275,7 @@ export class ToolLoopOrchestrator {
       signal,
       scriptToolCallback,
       conversationId,
+      conversationGeneration,
       rehydratedHistory,
       throwOnTerminalError,
     } = params;
@@ -273,7 +286,13 @@ export class ToolLoopOrchestrator {
       cacheCreationInputTokens: 0,
       cacheReadInputTokens: 0,
     };
-    const attachmentSizes = await loadAttachmentSizes(inputMessages, (id) => this.chatRepo.getAttachment(id));
+    let attachmentSnapshot = await prepareAttachmentSnapshot(
+      inputMessages,
+      model,
+      (id) => this.chatRepo.getAttachment(id),
+      signal
+    );
+    let attachmentSizes = attachmentSnapshot.sizes;
     const budgetWindow = params.inputTokenBudget ?? getInputTokenBudget(model);
     const preflightBudgetWindow = Math.max(1, budgetWindow / PREFLIGHT_BUDGET_RATIO);
 
@@ -295,6 +314,7 @@ export class ToolLoopOrchestrator {
         if (!withinBudget) {
           await this.emitContextTooLarge(
             conversationId,
+            conversationGeneration,
             totalUsage,
             startTime,
             sendEvent,
@@ -319,6 +339,15 @@ export class ToolLoopOrchestrator {
 
     while (iterations < maxIterations) {
       iterations++;
+      if (iterations > 1) {
+        attachmentSnapshot = await prepareAttachmentSnapshot(
+          messages,
+          model,
+          (id) => this.chatRepo.getAttachment(id),
+          signal
+        );
+        attachmentSizes = attachmentSnapshot.sizes;
+      }
 
       // 每轮重新获取工具定义（load_skill 可能动态注册了新工具）
       let allToolDefs = params.skipBuiltinTools ? tools || [] : toolRegistry.getDefinitions(tools);
@@ -343,6 +372,7 @@ export class ToolLoopOrchestrator {
         if (!withinBudget) {
           await this.emitContextTooLarge(
             conversationId,
+            conversationGeneration,
             totalUsage,
             startTime,
             sendEvent,
@@ -362,6 +392,7 @@ export class ToolLoopOrchestrator {
             messages,
             tools: allToolDefs.length > 0 ? allToolDefs : undefined,
             cache: params.cache,
+            attachmentSnapshot,
           },
           sendEvent,
           signal
@@ -380,7 +411,7 @@ export class ToolLoopOrchestrator {
         // SSE 解析层现在会在 abort 时 reject（而不是静默挂起，见 content_utils.ts），
         // 这类 reject 必须走统一的取消终态化路径，而不是当作真实错误往外抛
         if (signal.aborted) {
-          await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+          await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
           return;
         }
         throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
@@ -401,7 +432,7 @@ export class ToolLoopOrchestrator {
       if (signal.aborted) {
         // 本轮生成的附件尚未被任何持久化消息引用，取消退出前必须回收
         await this.releaseGeneratedAttachments(result);
-        await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+        await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
         return;
       }
 
@@ -413,7 +444,14 @@ export class ToolLoopOrchestrator {
 
         if (contextUsageRatio >= 0.8) {
           try {
-            const compactUsage = await this.deps.autoCompact(conversationId, model, messages, sendEvent, signal);
+            const compactUsage = await this.deps.autoCompact(
+              conversationId,
+              conversationGeneration!,
+              model,
+              messages,
+              sendEvent,
+              signal
+            );
             if (compactUsage) {
               totalUsage.inputTokens += compactUsage.inputTokens;
               totalUsage.outputTokens += compactUsage.outputTokens;
@@ -421,10 +459,17 @@ export class ToolLoopOrchestrator {
               totalUsage.cacheReadInputTokens += compactUsage.cacheReadInputTokens || 0;
             }
           } catch (error) {
+            const compactUsage = (error as { usage?: TokenUsage })?.usage;
+            if (compactUsage) {
+              totalUsage.inputTokens += compactUsage.inputTokens;
+              totalUsage.outputTokens += compactUsage.outputTokens;
+              totalUsage.cacheCreationInputTokens += compactUsage.cacheCreationInputTokens || 0;
+              totalUsage.cacheReadInputTokens += compactUsage.cacheReadInputTokens || 0;
+            }
             // 本轮结果的 assistant 消息不会再持久化，生成的附件必须先回收
             await this.releaseGeneratedAttachments(result);
             if (signal.aborted) {
-              await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+              await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
               return;
             }
             throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
@@ -437,7 +482,7 @@ export class ToolLoopOrchestrator {
           // 并统一走取消终态化路径（唯一一条终态事件 + 已回写的累计 usage），而不是静默 return
           if (signal.aborted) {
             await this.releaseGeneratedAttachments(result);
-            await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+            await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
             return;
           }
         } else {
@@ -463,8 +508,7 @@ export class ToolLoopOrchestrator {
 
       // 如果有 tool calls，需要执行并继续循环
       if (result.toolCalls && result.toolCalls.length > 0 && allToolDefs.length > 0) {
-        // 持久化 assistant 消息（含 tool calls）。保留对象引用（含 id），
-        // 后续回写状态时按 id 直接 updateMessage，避免再整份 getMessages+scan+saveMessages。
+        // 先构造 assistant 消息，等全部工具结果归一化后与完整 tool 结果组一次性提交。
         let persistedAssistantMessage: ChatMessage | undefined;
         if (conversationId) {
           persistedAssistantMessage = {
@@ -476,19 +520,12 @@ export class ToolLoopOrchestrator {
             toolCalls: result.toolCalls,
             createtime: Date.now(),
           };
-          try {
-            await this.chatRepo.appendMessage(persistedAssistantMessage);
-          } catch (error) {
-            // 引用消息落库失败：本轮生成的附件不会有任何持久化引用，先回收再抛出
-            await this.releaseGeneratedAttachments(result);
-            throw error;
-          }
         }
 
         // 将 assistant 消息加入上下文（带 toolCalls，供 provider 构建 tool_calls 字段）
         messages.push({
           role: "assistant",
-          content: result.content || "",
+          content: buildMessageContent(),
           toolCalls: result.toolCalls,
         });
 
@@ -502,79 +539,80 @@ export class ToolLoopOrchestrator {
         try {
           toolResults = await toolRegistry.execute(result.toolCalls, scriptToolCallback, excludeToolsSet, signal);
         } catch (error) {
-          if (!signal.aborted) throw error;
+          if (!signal.aborted) {
+            await this.releaseGeneratedAttachments(result);
+            throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+              usage: totalUsage,
+              durationMs: Date.now() - startTime,
+              conversationId,
+            });
+          }
           toolResults = [];
         }
         const cancelledDuringTools = signal.aborted;
-        if (cancelledDuringTools) {
-          // 取消发生在工具执行期间：toolRegistry 可能未及为所有 toolCalls 返回结果（如尚未触达的脚本工具），
-          // 在此补全为 cancelled，确保下面的回写逻辑不会把任何 toolCall 遗留在 "running"
-          const resultIds = new Set(toolResults.map((r) => r.id));
-          for (const tc of result.toolCalls) {
-            if (!resultIds.has(tc.id)) {
-              toolResults.push({
-                id: tc.id,
-                result: JSON.stringify({ error: "Tool execution cancelled" }),
-                error: true,
-              });
-            }
+        // 外部脚本可能返回缺失、重复或未知 ID。始终按请求顺序规整为每个 call 恰好一个结果，
+        // 否则下一轮 provider 请求和持久化历史都会违反 tool-call 协议。
+        const returnedById = new Map<string, (typeof toolResults)[number]>();
+        const requestedIds = new Set(result.toolCalls.map((toolCall) => toolCall.id));
+        const discardedOwnedAttachmentIds: string[] = [];
+        for (const toolResult of toolResults) {
+          if (requestedIds.has(toolResult.id) && !returnedById.has(toolResult.id)) {
+            returnedById.set(toolResult.id, toolResult);
+          } else {
+            discardedOwnedAttachmentIds.push(...(toolResult.ownedAttachmentIds || []));
           }
+        }
+        await Promise.all(discardedOwnedAttachmentIds.map((id) => this.chatRepo.deleteAttachment(id).catch(() => {})));
+        toolResults = result.toolCalls.map(
+          (toolCall) =>
+            returnedById.get(toolCall.id) || {
+              id: toolCall.id,
+              result: JSON.stringify({
+                error: cancelledDuringTools ? "Tool execution cancelled" : "Tool result missing",
+              }),
+              error: true,
+            }
+        );
+        for (const toolResult of toolResults) {
+          if (!toolResult.usage) continue;
+          totalUsage.inputTokens += toolResult.usage.inputTokens;
+          totalUsage.outputTokens += toolResult.usage.outputTokens;
+          totalUsage.cacheCreationInputTokens += toolResult.usage.cacheCreationInputTokens || 0;
+          totalUsage.cacheReadInputTokens += toolResult.usage.cacheReadInputTokens || 0;
         }
 
         // 将 tool 结果加入消息，并通知 UI 工具执行完成
         // 收集需要回写的 toolCall 元数据（执行状态 / 附件 / 子代理详情）
         const attachmentUpdates = new Map<string, Attachment[]>();
+        const ownershipUpdates = new Map<string, string[]>();
         const subAgentUpdates = new Map<string, SubAgentDetails>();
         const completedIds = new Set<string>();
         const failedIds = new Set<string>();
 
         for (const tr of toolResults) {
-          // LLM 上下文只包含文本结果，不含附件
-          messages.push({
-            role: "tool",
-            content: tr.result,
-            toolCallId: tr.id,
-          });
-          // 通知 UI 工具执行完成（含附件元数据）
-          sendEvent({
-            type: "tool_call_complete",
-            id: tr.id,
-            result: tr.result,
-            status: tr.error ? "error" : "completed",
-            attachments: tr.attachments,
-          });
-
           completedIds.add(tr.id);
           if (tr.error) failedIds.add(tr.id);
           if (tr.attachments?.length) {
             attachmentUpdates.set(tr.id, tr.attachments);
           }
+          if (tr.ownedAttachmentIds?.length) {
+            ownershipUpdates.set(tr.id, tr.ownedAttachmentIds);
+          }
           if (tr.subAgentDetails) {
             subAgentUpdates.set(tr.id, tr.subAgentDetails);
           }
-
-          // 持久化 tool 结果消息
-          if (conversationId) {
-            await this.chatRepo.appendMessage({
-              id: uuidv4(),
-              conversationId,
-              role: "tool",
-              content: tr.result,
-              toolCallId: tr.id,
-              createtime: Date.now(),
-            });
-          }
         }
 
-        // 回写工具执行结果到 assistant 消息的 toolCalls（内存 + 持久化）。
-        // assistant 消息在执行前已落库，其 toolCalls 的 status 仍是 "running"；
-        // 必须在此回写为 "completed"，否则刷新/重载会从库里读回 running，导致工具图标一直转圈。
+        // 工具结果先回写到内存中的 assistant toolCalls，再与全部 tool 消息原子提交；
+        // 持久化历史因此不会暴露只有 running assistant 或缺少结果的半轮状态。
         const applyToolUpdates = (toolCalls: ToolCall[]) => {
           for (const tc of toolCalls) {
             if (failedIds.has(tc.id)) tc.status = "error";
             else if (completedIds.has(tc.id)) tc.status = "completed";
             const atts = attachmentUpdates.get(tc.id);
             if (atts) tc.attachments = atts;
+            const ownedAttachmentIds = ownershipUpdates.get(tc.id);
+            if (ownedAttachmentIds) tc.ownedAttachmentIds = ownedAttachmentIds;
             const sad = subAgentUpdates.get(tc.id);
             if (sad) tc.subAgentDetails = sad;
           }
@@ -594,10 +632,47 @@ export class ToolLoopOrchestrator {
         }
         if (assistantMsg?.toolCalls) applyToolUpdates(assistantMsg.toolCalls);
 
-        // 持久化：appendMessage 时已保留了带 id 的完整对象引用，直接按 id updateMessage，
-        // 不必再整份 getMessages 扫描 + saveMessages 覆写。
-        if (persistedAssistantMessage?.toolCalls) {
-          await this.chatRepo.updateMessage(persistedAssistantMessage);
+        const persistedToolMessages: ChatMessage[] = conversationId
+          ? toolResults.map((toolResult) => ({
+              id: uuidv4(),
+              conversationId,
+              role: "tool" as const,
+              content: toolResult.result,
+              toolCallId: toolResult.id,
+              createtime: Date.now(),
+            }))
+          : [];
+
+        if (persistedAssistantMessage) {
+          try {
+            await this.chatRepo.commitToolRound(
+              persistedAssistantMessage,
+              persistedToolMessages,
+              conversationGeneration
+            );
+          } catch (error) {
+            const ownedAttachmentIds = toolResults.flatMap((toolResult) => toolResult.ownedAttachmentIds || []);
+            await Promise.all(ownedAttachmentIds.map((id) => this.chatRepo.deleteAttachment(id).catch(() => {})));
+            await this.releaseGeneratedAttachments(result);
+            throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+              usage: totalUsage,
+              durationMs: Date.now() - startTime,
+              conversationId,
+            });
+          }
+        }
+
+        // Durability is the publication boundary: only committed results enter the next request or UI stream.
+        for (const toolResult of toolResults) {
+          messages.push({ role: "tool", content: toolResult.result, toolCallId: toolResult.id });
+          sendEvent({
+            type: "tool_call_complete",
+            id: toolResult.id,
+            result: toolResult.result,
+            status: toolResult.error ? "error" : "completed",
+            attachments: toolResult.attachments,
+            ownedAttachmentIds: toolResult.ownedAttachmentIds,
+          });
         }
 
         // 工具调用状态已全部回写完毕，取消可以安全终态化了：只发一条终态事件，不再进入循环检测/下一轮。
@@ -605,7 +680,7 @@ export class ToolLoopOrchestrator {
         // 都是 await，期间到达的 Stop 也必须在这里被观察到，否则会带着已取消的 signal 继续
         // 进入循环检测甚至下一轮 LLM 调用（见 finding 4）
         if (cancelledDuringTools || signal.aborted) {
-          await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+          await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
           return;
         }
 
@@ -636,29 +711,32 @@ export class ToolLoopOrchestrator {
             if (answer === null) {
               // waitForGuardAnswer 只在 signal abort 时才会返回 null，必须走取消终态化路径，
               // 而不是当作正常完成发 done——否则 Stop 期间恰好卡在等待用户回答会被误报为成功
-              await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+              await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
               return;
             }
             if (answer.trim().toLowerCase() === GUARD_STOP_ANSWER.toLowerCase()) {
               const durationMs = Date.now() - startTime;
               if (conversationId) {
                 try {
-                  await this.chatRepo.appendMessage({
-                    id: uuidv4(),
-                    conversationId,
-                    role: "assistant",
-                    content: t("agent:chat_guard_stopped_message"),
-                    usage: totalUsage,
-                    durationMs,
-                    createtime: Date.now(),
-                  });
+                  await this.chatRepo.appendMessage(
+                    {
+                      id: uuidv4(),
+                      conversationId,
+                      role: "assistant",
+                      content: t("agent:chat_guard_stopped_message"),
+                      usage: totalUsage,
+                      durationMs,
+                      createtime: Date.now(),
+                    },
+                    conversationGeneration
+                  );
                 } catch {
                   // 持久化失败不阻塞终态事件发送
                 }
               }
               // 持久化期间也可能已被 Stop：取消优先于 done，不能在 Stop 之后仍报告成功
               if (signal.aborted) {
-                await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+                await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
                 return;
               }
               sendEvent({ type: "done", usage: totalUsage, durationMs });
@@ -712,7 +790,7 @@ export class ToolLoopOrchestrator {
         const MAX_PERSIST_ATTEMPTS = 3;
         for (let attempt = 1; attempt <= MAX_PERSIST_ATTEMPTS; attempt++) {
           try {
-            await this.chatRepo.appendMessage(assistantMessage);
+            await this.chatRepo.appendMessage(assistantMessage, conversationGeneration);
             persistFailed = false;
             break;
           } catch {
@@ -731,7 +809,7 @@ export class ToolLoopOrchestrator {
         if (!conversationId || persistFailed) {
           await this.releaseGeneratedAttachments(result);
         }
-        await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+        await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
         return;
       }
 
@@ -758,24 +836,27 @@ export class ToolLoopOrchestrator {
     const maxIterMsg = `Tool calling loop exceeded maximum iterations (${maxIterations})`;
     if (conversationId) {
       try {
-        await this.chatRepo.appendMessage({
-          id: uuidv4(),
-          conversationId,
-          role: "assistant",
-          content: "",
-          error: maxIterMsg,
-          errorCode: "max_iterations",
-          usage: totalUsage,
-          durationMs,
-          createtime: Date.now(),
-        });
+        await this.chatRepo.appendMessage(
+          {
+            id: uuidv4(),
+            conversationId,
+            role: "assistant",
+            content: "",
+            error: maxIterMsg,
+            errorCode: "max_iterations",
+            usage: totalUsage,
+            durationMs,
+            createtime: Date.now(),
+          },
+          conversationGeneration
+        );
       } catch {
         // 持久化失败不阻塞终态事件发送
       }
     }
     // 持久化期间也可能已被 Stop：取消优先于 max_iterations
     if (signal.aborted) {
-      await this.emitCancelled(conversationId, totalUsage, startTime, sendEvent);
+      await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
       return;
     }
     const terminalError = {

@@ -206,6 +206,21 @@ describe("parseOpenAIStream", () => {
     }
   });
 
+  it("已知 usage 后收到 API 错误帧时应把用量保留在终态事件", async () => {
+    const reader = createMockReader([
+      'data: {"usage":{"prompt_tokens":12,"completion_tokens":4}}\n\n',
+      'data: {"error":{"message":"Rate limit exceeded"}}\n\n',
+    ]);
+    const events: ChatStreamEvent[] = [];
+
+    await parseOpenAIStream(reader, (event) => events.push(event), new AbortController().signal);
+
+    expect(events.at(-1)).toMatchObject({
+      type: "error",
+      usage: { inputTokens: 12, outputTokens: 4 },
+    });
+  });
+
   it("应忽略无 choices 的事件", async () => {
     const reader = createMockReader([
       'data: {"id":"chatcmpl-xxx","object":"chat.completion.chunk"}\n\n',

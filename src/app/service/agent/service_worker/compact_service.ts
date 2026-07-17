@@ -15,13 +15,10 @@ import {
 } from "@App/app/service/agent/core/compact_prompt";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { AgentModelService } from "./model_service";
-import {
-  elideUntilWithinBudget,
-  estimateRequestTokens,
-  loadAttachmentSizes,
-} from "@App/app/service/agent/core/context_elision";
+import { elideUntilWithinBudget, estimateRequestTokens } from "@App/app/service/agent/core/context_elision";
 import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
 import { throwIfAborted } from "@App/app/service/agent/core/abort_utils";
+import { prepareAttachmentSnapshot, type AttachmentSnapshot } from "@App/app/service/agent/core/attachment_resolver";
 
 /** LLM 调用结果（与 AgentService.callLLM 返回值一致） */
 interface CompactLLMResult {
@@ -41,11 +38,18 @@ interface CompactLLMResult {
 export interface CompactOrchestrator {
   callLLM(
     model: AgentModelConfig,
-    params: { messages: ChatRequest["messages"]; tools?: ToolDefinition[]; cache?: boolean },
+    params: {
+      messages: ChatRequest["messages"];
+      tools?: ToolDefinition[];
+      cache?: boolean;
+      attachmentSnapshot?: AttachmentSnapshot;
+    },
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
   ): Promise<CompactLLMResult>;
 }
+
+export type SummarizeResult = { content: string; usage?: TokenUsage };
 
 export class CompactService {
   constructor(
@@ -57,12 +61,14 @@ export class CompactService {
   /** 自动 compact：汇总对话历史为 summary 并替换 currentMessages */
   async autoCompact(
     conversationId: string,
+    conversationGeneration: string,
     model: AgentModelConfig,
     currentMessages: ChatRequest["messages"],
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
   ): Promise<TokenUsage | undefined> {
     throwIfAborted(signal);
+    const snapshot = await this.chatRepo.getMessageSnapshot(conversationId, conversationGeneration);
 
     // 构建摘要请求（用 currentMessages 而非从 repo 加载，因为可能有未持久化的 tool 消息）
     const summaryMessages: ChatRequest["messages"] = [];
@@ -74,10 +80,15 @@ export class CompactService {
     }
     summaryMessages.push({ role: "user", content: buildCompactUserPrompt() });
 
-    const attachmentSizes = await loadAttachmentSizes(summaryMessages, (id) => this.chatRepo.getAttachment(id));
+    const attachmentSnapshot = await prepareAttachmentSnapshot(
+      summaryMessages,
+      model,
+      (id) => this.chatRepo.getAttachment(id),
+      signal
+    );
     const inputBudget = getInputTokenBudget(model);
     const effectiveWindow = Math.max(1, Math.floor(inputBudget / 0.9));
-    if (!elideUntilWithinBudget(summaryMessages, effectiveWindow, undefined, 0.9, attachmentSizes, model)) {
+    if (!elideUntilWithinBudget(summaryMessages, effectiveWindow, undefined, 0.9, attachmentSnapshot.sizes, model)) {
       throw Object.assign(new Error("Conversation history is too large to compact"), {
         errorCode: "context_too_large",
       });
@@ -87,13 +98,17 @@ export class CompactService {
     const noopSendEvent = () => {};
     const result = await this.orchestrator.callLLM(
       model,
-      { messages: summaryMessages, cache: false },
+      { messages: summaryMessages, cache: false, attachmentSnapshot },
       noopSendEvent,
       signal
     );
 
+    const throwWithUsage = (error: unknown): never => {
+      throw Object.assign(error instanceof Error ? error : new Error(String(error)), { usage: result.usage });
+    };
+
     // LLM 调用期间可能已被 stop：落地前必须重新检查，避免取消之后仍持久化/广播 compact_done
-    throwIfAborted(signal);
+    if (signal.aborted) throwWithUsage(new Error("Aborted"));
 
     const summary = extractSummary(result.content);
 
@@ -108,18 +123,16 @@ export class CompactService {
       content: `[Conversation Summary]\n\n${summary}`,
       createtime: Date.now(),
     };
-    // 写入前快照当前持久化历史：writeJsonFile 的 signal 只保证 close() 发出前的 abort 不提交，
-    // abort 恰好落在 close() 进行期间的窗口仍可能提交（见 opfs_repo.ts）。命中该窗口时用快照
-    // 补偿性回写，保证"对外报告已取消"与"磁盘内容未被摘要顶替"一致（见 finding 3）。
-    const priorMessages = await this.chatRepo.getMessages(conversationId);
-    await this.chatRepo.saveMessages(conversationId, [summaryMessage], signal);
-
-    // 落盘之后也可能已被 Stop：先把压缩前的历史原样写回，再让位给取消——
-    // 不能在 Stop 之后仍报告自动压缩"成功"，也不能让磁盘停留在被摘要顶替的状态
-    if (signal.aborted) {
-      await this.chatRepo.saveMessages(conversationId, priorMessages);
+    try {
+      await this.chatRepo.saveMessages(conversationId, [summaryMessage], signal, {
+        generation: conversationGeneration,
+        expectedRevision: snapshot.revision,
+      });
+    } catch (error) {
+      throwWithUsage(error);
     }
-    throwIfAborted(signal);
+    // 写入由 revision CAS 线性化。提交后 Stop 不得用旧快照回滚，否则会覆盖更新的历史。
+    if (signal.aborted) throwWithUsage(new Error("Aborted"));
 
     // 替换 currentMessages（保留 system，替换其余为摘要）——只有走到这里才说明落盘已提交
     const systemMsg = currentMessages.find((m) => m.role === "system");
@@ -133,7 +146,7 @@ export class CompactService {
   }
 
   /** 使用 summary 模型对任意内容做提取/总结（供 tab 工具使用） */
-  async summarizeContent(content: string, prompt: string, signal?: AbortSignal): Promise<string> {
+  async summarizeContent(content: string, prompt: string, signal?: AbortSignal): Promise<SummarizeResult> {
     throwIfAborted(signal);
 
     const model = await this.modelService.getSummaryModel();
@@ -155,12 +168,7 @@ export class CompactService {
     if (estimatedInputTokens > inputBudget) {
       throw Object.assign(new Error("Summarization content exceeds the summary model context window"), {
         errorCode: "context_too_large",
-        usage: {
-          inputTokens: estimatedInputTokens,
-          outputTokens: 0,
-          cacheCreationInputTokens: 0,
-          cacheReadInputTokens: 0,
-        },
+        estimatedInputTokens,
       });
     }
 
@@ -172,12 +180,15 @@ export class CompactService {
         noopSendEvent,
         signal ?? new AbortController().signal
       );
-      return result.content;
+      return { content: result.content, usage: result.usage };
     } catch (e: any) {
       if (e?.errorCode || e?.message === "Aborted") {
         throw e;
       }
-      throw new Error(`Summarization failed: ${e.message}`);
+      throw Object.assign(new Error(`Summarization failed: ${e.message}`), {
+        usage: e?.usage,
+        cause: e,
+      });
     }
   }
 }

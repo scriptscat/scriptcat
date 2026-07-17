@@ -1,4 +1,4 @@
-import type { SubAgentMessage, ToolCall, TokenUsage } from "@App/app/service/agent/core/types";
+import type { ContentBlock, SubAgentMessage, ToolCall, TokenUsage } from "@App/app/service/agent/core/types";
 
 export type { SubAgentMessage };
 
@@ -11,6 +11,7 @@ export type SubAgentState = {
   completedMessages: SubAgentMessage[];
   /** 当前正在构建的消息内容 */
   currentContent: string;
+  currentBlocks?: ContentBlock[];
   currentThinking: string;
   currentToolCalls: ToolCall[];
   isRunning: boolean;

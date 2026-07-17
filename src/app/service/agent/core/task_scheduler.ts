@@ -2,6 +2,7 @@ import type { AgentTask, AgentTaskRun, EventAgentTask, InternalAgentTask } from 
 import type { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
 import { nextTimeInfo } from "@App/pkg/utils/cron";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { isRevisionConflict } from "@App/app/repo/revision";
 
 export type InternalExecutor = (task: InternalAgentTask) => Promise<{
   conversationId: string;
@@ -47,68 +48,73 @@ export class AgentTaskScheduler {
       if (!task.nextruntime || task.nextruntime > currentTime) continue;
 
       // 不 await，并行执行多个任务
-      this.executeTask(task).catch(() => {
+      this.executeTask(task, true, currentTime).catch(() => {
         // 错误已在 executeTask 内部处理
       });
     }
   }
 
-  async executeTask(task: AgentTask): Promise<void> {
+  async executeTask(task: AgentTask, claimScheduled = false, now = Date.now()): Promise<void> {
     if (this.runningTasks.has(task.id)) return;
     this.runningTasks.add(task.id);
 
     try {
+      let executionTask = task;
+      if (claimScheduled) {
+        const claimed = await this.repo.claimDueTask(task.id, task.generation!, now);
+        if (!claimed) return;
+        executionTask = claimed;
+      }
       const run: AgentTaskRun = {
         id: uuidv4(),
-        taskId: task.id,
+        taskId: executionTask.id,
         starttime: Date.now(),
         status: "running",
       };
       await this.runRepo.appendRun(run);
 
       try {
-        if (task.mode === "internal") {
-          const result = await this.internalExecutor(task);
+        if (executionTask.mode === "internal") {
+          const result = await this.internalExecutor(executionTask);
           run.conversationId = result.conversationId;
           run.usage = result.usage;
         } else {
-          await this.eventEmitter(task);
+          await this.eventEmitter(executionTask);
         }
 
         run.status = "success";
         run.endtime = Date.now();
-
-        task.lastRunStatus = "success";
-        task.lastRunError = undefined;
       } catch (e: any) {
         run.status = "error";
         run.error = e.message || "Unknown error";
         if (e.usage) run.usage = e.usage;
         if (e.conversationId) run.conversationId = e.conversationId;
         run.endtime = Date.now();
+      }
 
-        task.lastRunStatus = "error";
-        task.lastRunError = run.error;
-      } finally {
-        // 更新 run 记录
-        await this.runRepo.updateRun(task.id, run.id, {
-          status: run.status,
-          endtime: run.endtime,
-          error: run.error,
-          conversationId: run.conversationId,
-          usage: run.usage,
-        });
+      await this.runRepo.updateRun(executionTask.id, run.id, {
+        status: run.status,
+        endtime: run.endtime,
+        error: run.error,
+        conversationId: run.conversationId,
+        usage: run.usage,
+      });
 
-        // 更新 task 状态
-        task.lastruntime = run.starttime;
-        try {
-          const info = nextTimeInfo(task.crontab);
-          task.nextruntime = info.next.toMillis();
-        } catch {
-          task.nextruntime = undefined;
-        }
-        task.updatetime = Date.now();
-        await this.repo.saveTask(task);
+      // 只合并运行遥测，不保存启动时的旧配置快照；运行期间的编辑/禁用必须保留。
+      try {
+        await this.repo.updateRunState(
+          executionTask.id,
+          executionTask.generation!,
+          {
+            lastruntime: run.starttime,
+            lastRunStatus: run.status === "success" ? "success" : "error",
+            lastRunError: run.error,
+          },
+          !claimScheduled
+        );
+      } catch (error) {
+        // 删除或重建发生在运行期间时，旧 generation 的完成回写应被丢弃，而不是复活任务。
+        if (!isRevisionConflict(error)) throw error;
       }
     } finally {
       // 必须在最外层 finally 确保任何异常都能清理 runningTasks

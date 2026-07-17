@@ -43,6 +43,7 @@ import { createOPFSTools, setCreateBlobUrlFn } from "@App/app/service/agent/core
 import { AgentOPFSService } from "./opfs_service";
 import { createObjectURL, executeSkillScript, stopScript } from "@App/app/service/offscreen/client";
 import { createTabTools } from "@App/app/service/agent/core/tools/tab_tools";
+import type { AttachmentSnapshot } from "@App/app/service/agent/core/attachment_resolver";
 import { ChatService } from "./chat_service";
 import { createAbortError, throwIfAborted } from "@App/app/service/agent/core/abort_utils";
 
@@ -103,8 +104,8 @@ export class AgentService {
       {
         // callLLM 通过 lambda 注入，确保测试 spy 可以拦截 service.callLLM
         callLLM: (model, params, sendEvent, signal) => this.callLLM(model, params, sendEvent, signal),
-        autoCompact: (convId, model, msgs, sendEvent, signal) =>
-          this.compactService.autoCompact(convId, model, msgs, sendEvent, signal),
+        autoCompact: (convId, generation, model, msgs, sendEvent, signal) =>
+          this.compactService.autoCompact(convId, generation, model, msgs, sendEvent, signal),
       },
       agentChatRepo
     );
@@ -419,14 +420,19 @@ export class AgentService {
 
   // 对内容做摘要/提取（供 tab 工具使用）
   // 优先使用摘要模型，fallback 到默认模型
-  private async summarizeContent(content: string, prompt: string, signal?: AbortSignal): Promise<string> {
+  private async summarizeContent(content: string, prompt: string, signal?: AbortSignal) {
     return this.compactService.summarizeContent(content, prompt, signal);
   }
 
   // 调用 LLM 并收集完整响应（委托给 LLMClient）
   private async callLLM(
     model: AgentModelConfig,
-    params: { messages: ChatRequest["messages"]; tools?: ToolDefinition[]; cache?: boolean },
+    params: {
+      messages: ChatRequest["messages"];
+      tools?: ToolDefinition[];
+      cache?: boolean;
+      attachmentSnapshot?: AttachmentSnapshot;
+    },
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
   ) {

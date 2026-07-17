@@ -1,7 +1,9 @@
 import type {
   AgentModelConfig,
+  Attachment,
   ChatRequest,
   ChatStreamEvent,
+  ContentBlock,
   SubAgentMessage,
   TokenUsage,
 } from "@App/app/service/agent/core/types";
@@ -81,7 +83,12 @@ export class SubAgentService {
       });
     } catch (error) {
       const terminalError = error instanceof Error ? error : new Error(String(error));
-      const partial = terminalError as Error & { details?: SubAgentMessage[]; usage?: TokenUsage };
+      const partial = terminalError as Error & {
+        details?: SubAgentMessage[];
+        usage?: TokenUsage;
+        attachments?: Attachment[];
+        ownedAttachmentIds?: string[];
+      };
       (terminalError as Error & { subAgentDetails?: NonNullable<SubAgentRunResult["details"]> }).subAgentDetails = {
         agentId,
         description: options.description,
@@ -92,7 +99,7 @@ export class SubAgentService {
       throw terminalError;
     }
 
-    const { result, details, usage: subUsage } = coreResult;
+    const { result, details, usage: subUsage, attachments, ownedAttachmentIds } = coreResult;
 
     return {
       agentId,
@@ -104,6 +111,9 @@ export class SubAgentService {
         messages: details,
         usage: subUsage,
       },
+      usage: subUsage,
+      attachments,
+      ownedAttachmentIds,
     };
   }
 
@@ -125,11 +135,27 @@ export class SubAgentService {
       cacheCreationInputTokens: number;
       cacheReadInputTokens: number;
     };
+    attachments: Attachment[];
+    ownedAttachmentIds: string[];
   }> {
     let resultContent = "";
     // 收集子代理执行详情用于持久化
     const details: SubAgentMessage[] = [];
     let currentMsg: SubAgentMessage = { content: "", toolCalls: [] };
+    let currentText = "";
+    let currentBlocks: ContentBlock[] = [];
+    const generatedAttachments: Attachment[] = [];
+    const ownedAttachmentIds = new Set<string>();
+    const updateCurrentContent = () => {
+      currentMsg.content = currentBlocks.length
+        ? [...(currentText ? [{ type: "text" as const, text: currentText }] : []), ...currentBlocks]
+        : currentText;
+    };
+    const hasCurrentMessage = () =>
+      currentText.length > 0 ||
+      currentBlocks.length > 0 ||
+      Boolean(currentMsg.thinking) ||
+      currentMsg.toolCalls.length > 0;
     // 累计 usage
     const subUsage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
     // 是否已通过 sendEvent 转发过终态（done/error）。orchestrator 在 callLLM/autoCompact
@@ -143,8 +169,24 @@ export class SubAgentService {
       switch (event.type) {
         case "content_delta":
           resultContent += event.delta;
-          currentMsg.content += event.delta;
+          currentText += event.delta;
+          updateCurrentContent();
           break;
+        case "content_block_complete": {
+          currentBlocks.push(event.block);
+          updateCurrentContent();
+          generatedAttachments.push({
+            id: event.block.attachmentId,
+            type: event.block.type,
+            name: event.block.name || event.block.attachmentId,
+            mimeType: event.block.mimeType,
+            size: "size" in event.block ? event.block.size : undefined,
+          });
+          ownedAttachmentIds.add(event.block.attachmentId);
+          const reference = `[Generated ${event.block.type}: uploads/${event.block.attachmentId}]`;
+          resultContent += resultContent ? `\n\n${reference}` : reference;
+          break;
+        }
         case "thinking_delta":
           currentMsg.thinking = (currentMsg.thinking || "") + event.delta;
           break;
@@ -176,16 +218,20 @@ export class SubAgentService {
             tc.status = event.status ?? "completed";
             tc.result = event.result;
             tc.attachments = event.attachments;
+            tc.ownedAttachmentIds = event.ownedAttachmentIds;
+            for (const id of event.ownedAttachmentIds || []) ownedAttachmentIds.add(id);
           }
           break;
         }
         case "new_message":
           // 新一轮开始，归档当前消息
           resultContent = "";
-          if (currentMsg.content || currentMsg.thinking || currentMsg.toolCalls.length > 0) {
+          if (hasCurrentMessage()) {
             details.push(currentMsg);
           }
           currentMsg = { content: "", toolCalls: [] };
+          currentText = "";
+          currentBlocks = [];
           break;
         case "done":
         case "error":
@@ -215,7 +261,7 @@ export class SubAgentService {
       });
     } catch (error) {
       const terminalError = error instanceof Error ? error : new Error(String(error));
-      if (currentMsg.content || currentMsg.thinking || currentMsg.toolCalls.length > 0) {
+      if (hasCurrentMessage()) {
         details.push(currentMsg);
       }
       const terminalUsage = (terminalError as Error & { usage?: TokenUsage }).usage;
@@ -232,30 +278,52 @@ export class SubAgentService {
           durationMs: errorLike.durationMs,
         });
       }
-      Object.assign(terminalError, { details, usage: subUsage });
+      Object.assign(terminalError, {
+        details,
+        usage: subUsage,
+        attachments: generatedAttachments,
+        ownedAttachmentIds: [...ownedAttachmentIds],
+      });
       throw terminalError;
     }
 
     // 检查是否因超时中止（区分用户主动取消和超时）
-    if (params.signal.aborted) {
-      const reason = params.signal.reason;
-      const isTimeout = reason instanceof DOMException && reason.name === "TimeoutError";
-      if (isTimeout) {
-        resultContent += resultContent
-          ? "\n\n[Sub-agent timed out. The results above may be incomplete.]"
-          : "[Sub-agent timed out before producing any output.]";
-      }
+    const abortReason = params.signal.reason;
+    const isTimeout = abortReason instanceof DOMException && abortReason.name === "TimeoutError";
+    if (params.signal.aborted && isTimeout) {
+      resultContent += resultContent
+        ? "\n\n[Sub-agent timed out. The results above may be incomplete.]"
+        : "[Sub-agent timed out before producing any output.]";
     }
 
     // 归档最后一轮消息
-    if (currentMsg.content || currentMsg.thinking || currentMsg.toolCalls.length > 0) {
+    if (hasCurrentMessage()) {
       details.push(currentMsg);
     }
 
+    // 父会话 Stop 与超时策略不同：超时允许把已有结果作为部分成功返回；用户取消必须让
+    // 父工具调用持久化为 error，不能在实时流已显示 cancelled 后又提交 completed。
+    if (params.signal.aborted && !isTimeout) {
+      throw Object.assign(new Error("Aborted"), {
+        details,
+        usage: subUsage,
+        attachments: generatedAttachments,
+        ownedAttachmentIds: [...ownedAttachmentIds],
+      });
+    }
+
+    const attachmentReferences = generatedAttachments.map(
+      (attachment) => `[Generated ${attachment.type}: uploads/${attachment.id}]`
+    );
+    const missingReferences = attachmentReferences.filter((reference) => !resultContent.includes(reference));
+    const finalResult = [resultContent, ...missingReferences].filter(Boolean).join("\n\n");
+
     return {
-      result: resultContent || "(sub-agent produced no output)",
+      result: finalResult || "(sub-agent produced no output)",
       details,
       usage: subUsage,
+      attachments: generatedAttachments,
+      ownedAttachmentIds: [...ownedAttachmentIds],
     };
   }
 

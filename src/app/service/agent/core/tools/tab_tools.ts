@@ -6,6 +6,9 @@ import { assertDomUrlAllowed } from "@App/app/service/agent/service_worker/dom_p
 import { stripHtmlTags } from "./web_fetch";
 import { requireNumber, requireString, optionalString, optionalNumber, optionalBoolean } from "./param_utils";
 import { raceWithAbort, throwIfAborted } from "../abort_utils";
+import type { TokenUsage } from "../types";
+
+type SummaryResult = string | { content: string; usage?: TokenUsage };
 
 // ---- Tool Definitions ----
 
@@ -99,7 +102,7 @@ const ACTIVATE_TAB_DEFINITION: ToolDefinition = {
 
 export function createTabTools(deps: {
   sender: MessageSend;
-  summarize: (content: string, prompt: string, signal?: AbortSignal) => Promise<string>;
+  summarize: (content: string, prompt: string, signal?: AbortSignal) => Promise<SummaryResult>;
 }): { tools: Array<{ definition: ToolDefinition; executor: ToolExecutor }> } {
   const { sender, summarize } = deps;
 
@@ -179,12 +182,15 @@ export function createTabTools(deps: {
       }
 
       // LLM 摘要
+      let summaryUsage: TokenUsage | undefined;
       if (prompt) {
-        content = await summarize(content, prompt, signal);
+        const summary = await summarize(content, prompt, signal);
+        content = typeof summary === "string" ? summary : summary.content;
+        summaryUsage = typeof summary === "string" ? undefined : summary.usage;
         truncated = false; // 摘要后不再截断
       }
 
-      return JSON.stringify({
+      const serialized = JSON.stringify({
         tab_id: tabId,
         url: pageData.url,
         title: pageData.title,
@@ -192,6 +198,7 @@ export function createTabTools(deps: {
         truncated,
         used_selector: selector || null,
       });
+      return summaryUsage ? { content: serialized, usage: summaryUsage } : serialized;
     },
   };
 

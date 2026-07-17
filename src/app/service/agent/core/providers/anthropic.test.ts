@@ -464,6 +464,33 @@ describe("parseAnthropicStream", () => {
     }
   });
 
+  it("message_start 后的 error 终态应保留已知输入与缓存 usage", async () => {
+    const reader = createMockReader([
+      'event: message_start\ndata: {"message":{"usage":{"input_tokens":20,"cache_read_input_tokens":5}}}\n\n',
+      'event: error\ndata: {"error":{"message":"Overloaded"}}\n\n',
+    ]);
+    const events: ChatStreamEvent[] = [];
+
+    await parseAnthropicStream(reader, (event) => events.push(event), new AbortController().signal);
+
+    expect(events.at(-1)).toMatchObject({
+      type: "error",
+      usage: { inputTokens: 20, outputTokens: 0, cacheReadInputTokens: 5 },
+    });
+  });
+
+  it("message_start 后直接 message_stop 也应报告已知输入 usage", async () => {
+    const reader = createMockReader([
+      'event: message_start\ndata: {"message":{"usage":{"input_tokens":9}}}\n\n',
+      "event: message_stop\ndata: {}\n\n",
+    ]);
+    const events: ChatStreamEvent[] = [];
+
+    await parseAnthropicStream(reader, (event) => events.push(event), new AbortController().signal);
+
+    expect(events.at(-1)).toMatchObject({ type: "done", usage: { inputTokens: 9, outputTokens: 0 } });
+  });
+
   it("error 事件无 message 时使用默认错误信息", async () => {
     const reader = createMockReader(['event: error\ndata: {"error":{}}\n\n']);
 
@@ -530,6 +557,20 @@ describe("parseAnthropicStream", () => {
     await parseAnthropicStream(reader, (e) => events.push(e), controller.signal);
 
     expect(events.some((e) => e.type === "error")).toBe(true);
+  });
+
+  it("message_start 后意外 EOF 的 error 应保留已知 usage", async () => {
+    const reader = createMockReader([
+      'event: message_start\ndata: {"message":{"usage":{"input_tokens":7,"cache_creation_input_tokens":2}}}\n\n',
+    ]);
+    const events: ChatStreamEvent[] = [];
+
+    await parseAnthropicStream(reader, (event) => events.push(event), new AbortController().signal);
+
+    expect(events.at(-1)).toMatchObject({
+      type: "error",
+      usage: { inputTokens: 7, outputTokens: 0, cacheCreationInputTokens: 2 },
+    });
   });
 
   it("读取错误时应发送 error 事件", async () => {

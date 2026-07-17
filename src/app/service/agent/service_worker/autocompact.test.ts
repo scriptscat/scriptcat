@@ -76,7 +76,7 @@ describe("Compact 功能", () => {
     expect(events.some((e: any) => e.type === "done")).toBe(true);
   });
 
-  it("手动 compact：Stop 恰好落在摘要写盘提交之后时应回写原历史且不发送 compact_done", async () => {
+  it("手动 compact：Stop 恰好落在摘要提交之后时不应以旧快照回滚新历史", async () => {
     const { service, mockRepo } = createTestService();
     const { sender, sentMessages, simulateMessage } = createMockSenderWithCallbacks();
 
@@ -98,9 +98,9 @@ describe("Compact 功能", () => {
 
     await (service as any).handleConversationChat({ conversationId: "conv-1", message: "", compact: true }, sender);
 
-    // 第二次写入必须把压缩前的历史原样写回，磁盘内容与"已取消"的结果保持一致
-    expect(saveCalls).toHaveLength(2);
-    expect(saveCalls[1]).toEqual(original);
+    // 摘要已通过 CAS 提交，取消只能影响终态；旧历史不能再覆盖这次已提交写入。
+    expect(saveCalls).toHaveLength(1);
+    expect(saveCalls[0]).toEqual([expect.objectContaining({ content: expect.stringContaining("迟到的压缩") })]);
     const events = sentMessages.map((m: any) => m.data);
     expect(events.some((e: any) => e.type === "compact_done")).toBe(false);
   });

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Repo } from "./repo";
 
 // 定义测试数据类型
@@ -69,6 +69,21 @@ describe("Repo", () => {
 
       const result = await repo.get("1");
       expect(result).toEqual(item2);
+    });
+
+    it("chrome.storage 写入失败时应 reject 而不是报告幽灵成功", async () => {
+      const setSpy = vi.spyOn(chrome.storage.local, "set").mockImplementation((_items, callback) => {
+        Object.defineProperty(chrome.runtime, "lastError", {
+          value: { message: "quota exceeded" },
+          configurable: true,
+        });
+        callback?.();
+        delete (chrome.runtime as { lastError?: chrome.runtime.LastError }).lastError;
+      });
+
+      await expect(repo.save("failed", { id: "failed", name: "失败", value: 1 })).rejects.toThrow("quota exceeded");
+      setSpy.mockRestore();
+      await expect(repo.get("failed")).resolves.toBeUndefined();
     });
   });
 

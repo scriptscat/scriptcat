@@ -10,6 +10,11 @@ function createService(overrides?: { appendMessage?: ReturnType<typeof vi.fn> })
     appendMessage,
     getMessages: vi.fn().mockResolvedValue([]),
     listConversations: vi.fn().mockResolvedValue([{ id: "conv-lock", title: "t", modelId: "m1" }]),
+    createConversation: vi.fn().mockImplementation(async (conversation: any) => ({
+      ...conversation,
+      generation: "gen-created",
+      revision: 1,
+    })),
     saveConversation: vi.fn().mockResolvedValue(undefined),
   } as any;
   const orchestrator = {
@@ -74,7 +79,7 @@ describe("AgentTaskService 定时任务与会话锁", () => {
     const result = await service.executeInternalTask(task);
 
     expect(result.conversationId).toBeTruthy();
-    expect(repo.saveConversation).toHaveBeenCalled();
+    expect(repo.createConversation).toHaveBeenCalled();
     expect(orchestrator.callLLMWithToolLoop).toHaveBeenCalledWith(
       expect.objectContaining({ conversationId: result.conversationId, rehydratedHistory: false })
     );

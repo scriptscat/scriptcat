@@ -8,7 +8,7 @@ import type {
   ToolDefinition,
 } from "@App/app/service/agent/core/types";
 import { providerRegistry } from "@App/app/service/agent/core/providers";
-import { resolveAttachments } from "@App/app/service/agent/core/attachment_resolver";
+import { prepareAttachmentSnapshot, type AttachmentSnapshot } from "@App/app/service/agent/core/attachment_resolver";
 import { generateAttachmentId } from "@App/app/service/agent/core/providers/content_utils";
 
 export interface LLMCallResult {
@@ -32,7 +32,12 @@ export class LLMClient {
    */
   async callLLM(
     model: AgentModelConfig,
-    params: { messages: ChatRequest["messages"]; tools?: ToolDefinition[]; cache?: boolean },
+    params: {
+      messages: ChatRequest["messages"];
+      tools?: ToolDefinition[];
+      cache?: boolean;
+      attachmentSnapshot?: AttachmentSnapshot;
+    },
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
   ): Promise<LLMCallResult> {
@@ -45,9 +50,9 @@ export class LLMClient {
     };
 
     // 预解析消息中 ContentBlock 引用的 attachmentId → base64
-    const attachmentResolver = await resolveAttachments(params.messages, model, (id) =>
-      this.chatRepo.getAttachment(id)
-    );
+    const attachmentSnapshot =
+      params.attachmentSnapshot ||
+      (await prepareAttachmentSnapshot(params.messages, model, (id) => this.chatRepo.getAttachment(id), signal));
 
     const provider = providerRegistry.get(model.provider);
     if (!provider) {
@@ -56,7 +61,7 @@ export class LLMClient {
     const { url, init } = await provider.buildRequest({
       model,
       request: chatRequest,
-      resolver: attachmentResolver,
+      resolver: attachmentSnapshot.resolver,
     });
 
     // 带重试的 LLM 调用，最多重试 5 次，间隔递增：10s, 10s, 20s, 20s, 30s
@@ -149,7 +154,7 @@ export class LLMClient {
       // 延迟到下一个宏任务，给 parseStream 的 reject 一个先落定的机会，本身仍然是安全网，
       // 不依赖它必定生效。
       const onAbortSafeguard = () => {
-        setTimeout(() => settleOnce(() => reject(new Error("Aborted"))), 0);
+        setTimeout(() => settleOnce(() => reject(Object.assign(new Error("Aborted"), { usage }))), 0);
       };
       signal.addEventListener("abort", onAbortSafeguard, { once: true });
       const resolveOnce: typeof resolve = (value) => settleOnce(() => resolve(value));
