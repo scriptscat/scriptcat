@@ -248,6 +248,58 @@ describe("useInstallData 数据流编排", () => {
     expect(state.view.oldCode).toBe("// old code");
   });
 
+  describe("安装成功后离开安装页:独立新标签应关闭,同标签内被重定向而来应返回上一页", () => {
+    const setupReady = async () => {
+      window.history.replaceState({}, "", "/install.html?uuid=u1");
+      const metadata = { name: ["示例脚本"], version: ["1.0.0"], match: ["https://e.com/*"] };
+      const info: ScriptInfo = {
+        url: "https://e.com/x.user.js",
+        code: "",
+        uuid: "u1",
+        userSubscribe: false,
+        metadata,
+        source: "user",
+      };
+      (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+      (getTempCode as Mock).mockResolvedValue("// code");
+      (prepareScriptByCode as Mock).mockResolvedValue({ script: makeAction(metadata) });
+      (scriptClient.install as Mock).mockResolvedValue(undefined);
+      const { result } = renderHook(() => useInstallData());
+      await waitFor(() => expect(result.current.state.status).toBe("ready"));
+      return result;
+    };
+
+    it("history.length 为 1(以新标签打开)时应 window.close()", async () => {
+      const result = await setupReady();
+      const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+      const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
+      vi.spyOn(window.history, "length", "get").mockReturnValue(1);
+
+      await act(async () => {
+        await result.current.install();
+        await new Promise((r) => setTimeout(r, 320));
+      });
+
+      expect(closeSpy).toHaveBeenCalledOnce();
+      expect(backSpy).not.toHaveBeenCalled();
+    });
+
+    it("history.length > 1(同一标签被就地重定向而来)时应 history.back() 而非关闭标签", async () => {
+      const result = await setupReady();
+      const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+      const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
+      vi.spyOn(window.history, "length", "get").mockReturnValue(2);
+
+      await act(async () => {
+        await result.current.install();
+        await new Promise((r) => setTimeout(r, 320));
+      });
+
+      expect(backSpy).toHaveBeenCalledOnce();
+      expect(closeSpy).not.toHaveBeenCalled();
+    });
+  });
+
   it("?skill= 时读取技能数据进入 skill 状态", async () => {
     window.history.replaceState({}, "", "/install.html?skill=sk1");
     const skill = {
