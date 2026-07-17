@@ -1,7 +1,5 @@
 # GM API system
 
-## The GM API System
-
 The `GM_*` / `GM.*` functions a userscript calls are not one function — each is a small client that forwards
 across contexts to a privileged handler, then streams the result back. The implementation is split:
 

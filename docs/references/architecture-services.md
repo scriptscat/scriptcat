@@ -1,7 +1,5 @@
 # Service layer
 
-## The Service Layer
-
 Services live under `src/app/service/<context>/` — **split by the context they run in** — and hold the domain
 logic. They are deliberately "dumb plumbing on the outside, smart logic on the inside": construction is pure DI,
 wiring happens once in a manager, and message handlers are registered in `init()`.

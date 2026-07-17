@@ -1,7 +1,5 @@
 # Script execution
 
-## Script Execution
-
 There are three execution paths; all share one **compilation** step.
 
 ### Compilation — the `with(){}` sandbox wrapper

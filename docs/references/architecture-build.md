@@ -1,7 +1,5 @@
 # Build pipeline & manifest
 
-## Build Pipeline & Manifest
-
 ### Rspack
 
 [`rspack.config.ts`](../../rspack.config.ts) emits one bundle per context/page. Entry points:

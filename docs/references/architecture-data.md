@@ -1,7 +1,5 @@
 # Data layer (Repo<T> + DAOs)
 
-## The Data Layer (`Repo<T>` + DAOs)
-
 Persistence is a thin generic over `chrome.storage.local` with an optional in-memory cache, in
 [`src/app/repo/repo.ts`](../../src/app/repo/repo.ts).
 
