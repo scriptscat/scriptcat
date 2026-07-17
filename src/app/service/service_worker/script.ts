@@ -169,8 +169,11 @@ export class ScriptService {
           })
           .finally(async () => {
             try {
+              // 直接用 chrome.tabs.goBack，不再走 content script 消息通道：
+              // content.js 依赖 chrome.userScripts 注册，未开发者模式/脚本被禁用/命中黑名单时不会被注入，
+              // 消息发不到会静默失败；goBack 只依赖已必需的 tabs 权限，不受这些条件影响。
               const currentTab = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-              // 仅针对用户自行点击安装的Tab
+              // 仅针对用户自行点击安装、且仍停留在该标签的场景；用户若已切到其他标签，不应把后台标签拉回历史记录
               if (currentTab?.[0]?.id === req.tabId) {
                 // 回退到到安装页
                 await chrome.tabs.goBack(req.tabId);

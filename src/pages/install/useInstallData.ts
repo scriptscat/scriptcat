@@ -124,6 +124,9 @@ const buildScriptInfo = (uuid: string, code: string, url: string, metadata: SCMe
 // 安装页可能是专为安装打开的新标签(history.length === 1，关闭无损)，
 // 也可能是由 declarativeNetRequest 就地重定向而来的用户原浏览标签(history.length > 1)，
 // 后者若直接 window.close() 会连带关掉用户本来在看的页面，应改为返回上一页。
+// install()/close() 等可能在短时间内被重复触发(如用户连续点击、close 与 install 的
+// setTimeout 前后脚打到)，leaveInstallPageRunning 防止 back()/close() 被并发调用多次；
+// 推到 requestAnimationFrame 里执行，让触发它的那次交互(如按钮点击态)先完成一帧渲染。
 let leaveInstallPageRunning = false;
 const leaveInstallPage = () => {
   if (leaveInstallPageRunning) return;

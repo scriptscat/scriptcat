@@ -277,6 +277,7 @@ describe("useInstallData 数据流编排", () => {
 
       await act(async () => {
         await result.current.install();
+        // leaveInstallPage 延后到 install() 里 300ms 的 setTimeout 再叠一帧 rAF 才真正执行，多等一点确保已触发
         await new Promise((r) => setTimeout(r, 320));
       });
 
@@ -292,6 +293,7 @@ describe("useInstallData 数据流编排", () => {
 
       await act(async () => {
         await result.current.install();
+        // leaveInstallPage 延后到 install() 里 300ms 的 setTimeout 再叠一帧 rAF 才真正执行，多等一点确保已触发
         await new Promise((r) => setTimeout(r, 320));
       });
 

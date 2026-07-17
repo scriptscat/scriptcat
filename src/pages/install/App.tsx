@@ -18,6 +18,7 @@ import { useInstallData } from "./useInstallData";
 
 const isMainFrame = () => {
   try {
+    // 跨域 iframe 下访问 window.top.document 会抛 SecurityError，此时必然不是同源顶层窗口
     return window.top?.document === window.document;
   } catch {
     return false;
