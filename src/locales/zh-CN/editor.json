@@ -66,8 +66,8 @@
   "confirm_reset": "确定重置？",
   "confirm_delete_match": "确认删除该匹配？",
   "confirm_delete_exclude": "确认删除该排除？",
-  "after_deleting_match_item": "脚本设定的匹配项删除后会自动添加到匹配项中",
-  "after_deleting_exclude_item": "脚本设定的匹配项删除后会自动添加到排除项中",
+  "after_deleting_match_item": "编辑后将使用自定义的匹配规则；点击「重置」可恢复脚本自带的匹配规则。",
+  "after_deleting_exclude_item": "编辑后将使用自定义的排除规则；点击「重置」可恢复脚本自带的排除规则。",
   "undo": "撤销",
   "redo": "重做",
   "cut": "剪切",
@@ -129,6 +129,8 @@
   "editor_config_format_error": "编辑器配置格式错误",
   "editor_type_definition_reset": "编辑器类型定义已重置",
   "editor_type_definition_saved": "编辑器类型定义已保存",
+  "trash_restore_prompt_title": "恢复已删除的脚本？",
+  "trash_restore_prompt_description": "回收站中存在同名且命名空间相同的脚本。恢复后将复用原身份及保留的数据；取消则继续编辑且不保存。",
   "editor": {
     "show_script_list": "显示脚本列表",
     "hide_script_list": "隐藏脚本列表"

@@ -5,6 +5,7 @@ import type { FileInfo, FileCreateOptions, FileReader, FileWriter } from "../fil
 import { joinPath } from "../utils";
 import { WebDAVFileReader, WebDAVFileWriter } from "./rw";
 import { WarpTokenError } from "../error";
+import { createWebDAVFileSystemError } from "./error";
 
 // 禁止 WebDAV 请求携带浏览器 cookies，只通过账号密码认证 (#1297)
 // 全局单次注册
@@ -63,7 +64,9 @@ export default class WebDAVFileSystem implements FileSystem {
       if (e.response?.status === 401) {
         throw new WarpTokenError(e);
       }
-      throw new Error(`WebDAV verify failed: ${e.message}`); // 保留原始信息
+      // 转 typed error（与 list/read 等一致）：verify 在 RETRYABLE_TRANSIENT_OPS 内且每轮同步经 factory 必跑，
+      // 抛普通 Error 会让瞬时 5xx 既不被 limiter 重试、又被 classifySyncError 判 fatal 而中止整轮
+      throw createWebDAVFileSystemError(e);
     }
   }
 
@@ -87,7 +90,7 @@ export default class WebDAVFileSystem implements FileSystem {
       if (e.response?.status === 405 || e.message?.includes("405")) {
         return;
       }
-      throw e;
+      throw createWebDAVFileSystemError(e);
     }
   }
 
@@ -98,7 +101,7 @@ export default class WebDAVFileSystem implements FileSystem {
       if (e.response?.status === 404 || e.message?.includes("404")) {
         return;
       }
-      throw e;
+      throw createWebDAVFileSystemError(e);
     }
   }
 
@@ -108,7 +111,7 @@ export default class WebDAVFileSystem implements FileSystem {
       dir = (await this.client.getDirectoryContents(this.basePath)) as FileStat[];
     } catch (e: any) {
       if (e.response?.status === 404) return [] as FileInfo[]; // 目录不存在视为空
-      throw e;
+      throw createWebDAVFileSystemError(e);
     }
     const ret: FileInfo[] = [];
     for (const item of dir) {

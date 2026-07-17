@@ -98,6 +98,7 @@ export function usePopupData() {
   const [checkUpdateStatus, setCheckUpdateStatus] = useState(0); // 0=idle, 1=checking, 2=latest
   const [showAlert, setShowAlert] = useState(false);
   const [menuExpandNum, setMenuExpandNum] = useState(initialData?.menuExpandNum ?? 5);
+  const [popupCompactLayout, setPopupCompactLayout] = useState(initialData?.popupCompactLayout ?? false);
   const [defaultScriptProvider, setDefaultScriptProvider] = useState<ScriptProvider>(
     initialData?.defaultScriptProvider ?? "scriptcat"
   );
@@ -138,6 +139,7 @@ export function usePopupData() {
     setIsEnableScript(initialData.isEnableScript);
     setCheckUpdate(initialData.checkUpdate);
     setMenuExpandNum(initialData.menuExpandNum);
+    setPopupCompactLayout(initialData.popupCompactLayout);
     setDefaultScriptProvider(initialData.defaultScriptProvider);
     setInitialized(true);
   }
@@ -166,8 +168,8 @@ export function usePopupData() {
         setScriptList(patch);
         setBackScriptList(patch);
       }),
-      // 脚本被删除
-      subscribeMessage<TDeleteScript[]>("deleteScripts", (data) => {
+      // 脚本被删除(= 移入回收站,广播 trashScripts);彻底删除时脚本早已不在列表里,无事可做
+      subscribeMessage<TDeleteScript[]>("trashScripts", (data) => {
         if (!Array.isArray(data)) return;
         const uuids = new Set(data.map((d) => d.uuid));
         setScriptList((prev) => prev.filter((s) => !uuids.has(s.uuid)));
@@ -423,6 +425,7 @@ export function usePopupData() {
     checkUpdateStatus,
     showAlert,
     menuExpandNum,
+    popupCompactLayout,
     handleSearch,
     handleToggleExpand,
   };

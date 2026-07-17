@@ -7,6 +7,8 @@ import { Toolbar } from "./Toolbar";
 import ScriptCardGrid from "./ScriptCardGrid";
 
 export interface ScriptCardProps extends FilterBarProps {
+  /** 顶栏最左侧内容（tabs），透传给 Toolbar 取代标题槽位 */
+  leading?: React.ReactNode;
   scriptList: ScriptLoading[];
   loadingList: boolean;
   updateScripts: (uuids: string[], data: Partial<ScriptLoading>) => void;
@@ -33,10 +35,12 @@ function ScriptCard({
   filterItems,
   selectedFilters,
   setSelectedFilters,
+  leading,
 }: ScriptCardProps) {
   return (
     <div className="flex flex-col h-full">
       <Toolbar
+        leading={leading}
         totalCount={totalCount}
         viewMode="card"
         setViewMode={setViewMode}

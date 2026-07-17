@@ -20,6 +20,23 @@ export type CloudSyncConfig = {
   params: { [key: string]: any };
 };
 
+// 云同步运行状态（设备本地，非用户配置）：供设置页「脚本同步」卡片顶部状态条展示。
+// 由 SynchronizeService 每轮同步写入本地存储（ChromeStorage "sync" 命名空间），页面读取并订阅 chrome.storage 变更。
+export type CloudSyncState = {
+  syncing: boolean;
+  lastSyncAt: number; // ms，从未同步为 0
+  error?: string; // 最近一次同步失败原因（如账号验证失败）
+  counts: { total: number; overwrite: number; conflict: number; failed: number };
+};
+
+export const CLOUD_SYNC_STATE_KEY = "cloud_sync_state";
+
+export const DEFAULT_CLOUD_SYNC_STATE: CloudSyncState = {
+  syncing: false,
+  lastSyncAt: 0,
+  counts: { total: 0, overwrite: 0, conflict: 0, failed: 0 },
+};
+
 export type FaviconService = "scriptcat" | "google" | "duckduckgo" | "icon-horse" | "local";
 
 export type CATFileStorage = {
@@ -494,6 +511,24 @@ export class SystemConfig {
     this._set("log_clean_cycle", val);
   }
 
+  /** 回收站是否启用。关闭后删除脚本将直接彻底删除 */
+  getTrashEnabled() {
+    return this._get<boolean>("trash_enabled", true);
+  }
+
+  setTrashEnabled(val: boolean) {
+    this._set("trash_enabled", val);
+  }
+
+  /** 回收站保留天数。0 表示永不自动清理 */
+  getTrashRetentionDays() {
+    return this._get<number>("trash_retention_days", 30);
+  }
+
+  setTrashRetentionDays(val: number) {
+    this._set("trash_retention_days", val);
+  }
+
   defaultMenuExpandNum() {
     return 5;
   }
@@ -505,6 +540,14 @@ export class SystemConfig {
 
   setMenuExpandNum(val: number) {
     this._set("menu_expand_num", val);
+  }
+
+  getPopupCompactLayout() {
+    return this._get<boolean>("popup_compact_layout", false);
+  }
+
+  setPopupCompactLayout(val: boolean) {
+    this._set("popup_compact_layout", val);
   }
 
   async getLanguage() {

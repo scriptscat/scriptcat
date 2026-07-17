@@ -66,8 +66,8 @@
   "confirm_reset": "確定要重設嗎？",
   "confirm_delete_match": "確定要刪除此符合項目嗎？",
   "confirm_delete_exclude": "確定要刪除此排除項目嗎？",
-  "after_deleting_match_item": "腳本設定的符合項目刪除後會自動加入到符合項目中",
-  "after_deleting_exclude_item": "腳本設定的符合項目刪除後會自動加入到排除項目中",
+  "after_deleting_match_item": "編輯後將使用自訂的符合規則；點擊「重設」可恢復腳本自帶的符合規則。",
+  "after_deleting_exclude_item": "編輯後將使用自訂的排除規則；點擊「重設」可恢復腳本自帶的排除規則。",
   "undo": "復原",
   "redo": "重做",
   "cut": "剪下",
@@ -129,6 +129,8 @@
   "editor_config_format_error": "編輯器配置格式錯誤",
   "editor_type_definition_reset": "編輯器類型定義已重設",
   "editor_type_definition_saved": "編輯器類型定義已儲存",
+  "trash_restore_prompt_title": "要復原已刪除的腳本嗎？",
+  "trash_restore_prompt_description": "垃圾桶中有名稱與命名空間相同的腳本。復原後會沿用原本的身分與保留資料；取消則繼續編輯且不儲存。",
   "editor": {
     "show_script_list": "顯示腳本列表",
     "hide_script_list": "隱藏腳本列表"
