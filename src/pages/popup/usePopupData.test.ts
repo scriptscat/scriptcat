@@ -19,6 +19,7 @@ const popupInitialData = vi.hoisted(() => ({
       updatetime: 0,
     },
   ],
+  optInScriptList: [],
   backScriptList: [],
 }));
 

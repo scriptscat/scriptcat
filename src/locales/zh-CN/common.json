@@ -60,6 +60,7 @@
   "copy": "复制",
   "exclude_on": "恢复在 $0 上执行",
   "exclude_off": "排除在 $0 上执行",
+  "include_on": "允许在 $0 上执行",
   "confirm_error": "确认失败",
   "import": "导入",
   "error": "错误",

@@ -919,6 +919,27 @@ export class ScriptService {
       });
   }
 
+  // 将 opt-in 脚本的当前网址加入用户自定义 match 白名单。
+  async includeUrl({ uuid, includePattern }: { uuid: string; includePattern: string }) {
+    let script = await this.scriptDAO.get(uuid);
+    if (!script) {
+      throw new Error("script not found");
+    }
+    const matchSet = new Set(script.selfMetadata?.match || []);
+    matchSet.add(includePattern);
+    script = selfMetadataUpdate(script, "match", matchSet);
+    return this.scriptDAO
+      .update(uuid, script)
+      .then(() => {
+        this.publishInstallScript(script, { update: true });
+        return true;
+      })
+      .catch((e) => {
+        this.logger.error("include url error", Logger.E(e));
+        throw e;
+      });
+  }
+
   async resetExclude({ uuid, exclude }: { uuid: string; exclude: string[] | undefined }) {
     let script = await this.scriptDAO.get(uuid);
     if (!script) {
@@ -1662,6 +1683,7 @@ export class ScriptService {
     this.group.on("getFilterResult", this.getFilterResult.bind(this));
     this.group.on("getScriptRunResourceByUUID", this.getScriptRunResourceByUUID.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
+    this.group.on("includeUrl", this.includeUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
     this.group.on("resetExclude", this.resetExclude.bind(this));
     this.group.on("requestCheckUpdate", this.requestCheckUpdate.bind(this));

@@ -60,6 +60,7 @@
   "copy": "複製",
   "exclude_on": "恢復 $0 的執行",
   "exclude_off": "排除 $0 的執行",
+  "include_on": "允許在 $0 執行",
   "confirm_error": "確認失敗",
   "import": "匯入",
   "error": "錯誤",

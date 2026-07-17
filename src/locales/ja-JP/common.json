@@ -60,6 +60,7 @@
   "copy": "コピー",
   "exclude_on": "$0の実行を復元",
   "exclude_off": "$0の実行を除外",
+  "include_on": "$0での実行を含める",
   "confirm_error": "確認に失敗しました",
   "import": "インポート",
   "error": "エラー",

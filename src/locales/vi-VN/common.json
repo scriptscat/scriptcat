@@ -60,6 +60,7 @@
   "copy": "Sao chép",
   "exclude_on": "Cho phép chạy lại $0",
   "exclude_off": "Loại trừ chạy $0",
+  "include_on": "Cho phép chạy trên $0",
   "confirm_error": "Xác nhận thất bại",
   "import": "Nhập",
   "error": "Lỗi",

@@ -14,6 +14,8 @@ import {
   buildScriptRunResourceBasic,
   compileInjectionCode,
   getUserScriptRegister,
+  isSiteAccessAllowed,
+  isSiteAccessOptIn,
   parseUrlSRI,
   scriptURLPatternResults,
   type RegisteredUserScriptWithJsCode,
@@ -1509,6 +1511,8 @@ export class RuntimeService {
     for (let idx = 0, l = uuids.length; idx < l; idx++) {
       const script = scripts[idx];
       if (!script) continue;
+      // opt-in 脚本只有在用户通过 Popup 将当前网址加入白名单后才能执行。
+      if (isSiteAccessOptIn(script.metadata) && !isSiteAccessAllowed(script, url)) continue;
       const scriptRes = buildScriptRunResourceBasic(script);
       if (this.shouldSkipPageLoadScript(scriptRes, frameId)) continue;
 

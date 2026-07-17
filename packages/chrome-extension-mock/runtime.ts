@@ -99,6 +99,7 @@ export default class Runtime {
             updatetime: Date.now() - 1000,
           },
         ],
+        optInScriptList: [],
         backScriptList: [],
         isBlacklist: false,
       };

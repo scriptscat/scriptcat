@@ -60,6 +60,7 @@
   "copy": "Kopyala",
   "exclude_on": "$0 yürütmesini yeniden etkinleştir",
   "exclude_off": "$0 yürütmesini dışla",
+  "include_on": "$0 yürütmesini dahil et",
   "confirm_error": "Onay başarısız",
   "import": "İçe Aktar",
   "error": "Hata",

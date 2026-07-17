@@ -60,6 +60,7 @@
   "copy": "Kopieren",
   "exclude_on": "Wiederherstellen auf $0 zur Ausführung",
   "exclude_off": "Ausschließen auf $0 zur Ausführung",
+  "include_on": "Ausführung auf $0 einschließen",
   "confirm_error": "Bestätigung fehlgeschlagen",
   "import": "Importieren",
   "error": "Fehler",

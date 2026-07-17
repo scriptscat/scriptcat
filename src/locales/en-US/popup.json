@@ -1,6 +1,7 @@
 {
   "new_version_available": "New Version Available",
   "current_page_scripts": "Current Page Running Scripts",
+  "opt_in_scripts": "Opt-in Scripts",
   "enabled_background_scripts": "Enabled and Running Background Scripts",
   "develop_mode_guide": "'Developer mode' is currently not enabled, so the scripts cannot run properly. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉tap to learn how to enable</a>",
   "lower_version_browser_guide": "Your browser is too outdated, so the scripts cannot run properly. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\">👉Click me to learn more</a>",

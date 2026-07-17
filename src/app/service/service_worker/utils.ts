@@ -15,13 +15,29 @@ import {
 import {
   extractUrlPatterns,
   getApiMatchesAndGlobs,
+  isUrlMatch,
   RuleType,
+  RuleTypeBit,
   toUniquePatternStrings,
   type URLRuleEntry,
 } from "@App/pkg/utils/url_matcher";
 import { cacheInstance } from "@App/app/cache";
 
 export type RegisteredUserScriptWithJsCode = RequireField<chrome.userScripts.RegisteredUserScript, "js">;
+
+export const isSiteAccessOptIn = (metadata: SCMetadata | undefined): boolean =>
+  metadata?.["site-access"]?.some((value) => value.trim().toLowerCase() === "opt-in") ?? false;
+
+export const isSiteAccessAllowed = (script: Pick<Script, "selfMetadata">, url: string): boolean => {
+  const metadata = script.selfMetadata;
+  if (!metadata) return false;
+
+  const patterns = extractUrlPatterns([
+    ...(metadata.match || []).map((value) => `@match ${value}`),
+    ...(metadata.include || []).map((value) => `@include ${value}`),
+  ]);
+  return patterns.some((pattern) => pattern.ruleType & RuleTypeBit.INCLUSION && isUrlMatch(url, pattern));
+};
 
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   // 没有 run-at 时为 undefined. Fallback 至 document_idle

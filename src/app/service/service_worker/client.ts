@@ -98,6 +98,10 @@ export class ScriptClient extends Client {
     return this.do("excludeUrl", { uuid, excludePattern, remove });
   }
 
+  includeUrl(uuid: string, includePattern: string) {
+    return this.do("includeUrl", { uuid, includePattern });
+  }
+
   // 重置匹配项
   resetMatch(uuid: string, match: string[] | undefined) {
     return this.do("resetMatch", { uuid, match });
@@ -229,6 +233,7 @@ export type GetPopupDataRes = {
   // 在黑名单
   isBlacklist: boolean;
   scriptList: ScriptMenu[];
+  optInScriptList: ScriptMenu[];
   backScriptList: ScriptMenu[];
 };
 

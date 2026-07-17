@@ -301,6 +301,32 @@ describe("PopupService getPopupData Popup 数据获取与合并", () => {
     expect(result.isBlacklist).toBe(false);
   });
 
+  it("匹配但未加入当前网址白名单的 opt-in 脚本应单独返回，且不进入当前页脚本列表", async () => {
+    const uuid = "opt-in-uuid";
+    const matchMap = new Map([[uuid, { uuid, effective: true }]]);
+
+    const { service } = createService({
+      runtime: {
+        getPopupPageScriptMatchingResultByUrl: vi.fn().mockResolvedValue(matchMap),
+        isUrlBlacklist: vi.fn().mockReturnValue(false),
+      },
+      scriptDAO: {
+        gets: vi.fn().mockResolvedValue([
+          createScript(uuid, {
+            metadata: { match: ["*://*/*"], "site-access": ["opt-in"] },
+          }),
+        ]),
+      },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: "https://example.com/" });
+
+    expect(result.scriptList).toEqual([]);
+    expect(result.optInScriptList).toHaveLength(1);
+    expect(result.optInScriptList[0]?.uuid).toBe(uuid);
+    expect(result.optInScriptList[0]?.isEffective).toBe(false);
+  });
+
   it("脚本同时在匹配结果与运行缓存中，应复用缓存记录（保留 runNum）并更新 enable/isEffective/hasUserConfig", async () => {
     const uuid = "run-uuid";
     const matchMap = new Map([[uuid, { uuid, effective: false }]]);

@@ -60,6 +60,7 @@
   "copy": "Copy",
   "exclude_on": "Reinstate $0's execution",
   "exclude_off": "Exclude $0's execution",
+  "include_on": "Include $0's execution",
   "confirm_error": "Confirmation Failed",
   "import": "Import",
   "error": "Error",

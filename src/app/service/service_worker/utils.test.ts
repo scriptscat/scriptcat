@@ -4,6 +4,8 @@ import {
   parseUrlSRI,
   getCombinedMeta,
   selfMetadataUpdate,
+  isSiteAccessOptIn,
+  isSiteAccessAllowed,
   getUserScriptRegister,
   compileInjectionCode,
   shouldAutoOpenChangelog,
@@ -250,6 +252,27 @@ describe.concurrent("selfMetadataUpdate", () => {
     const result = selfMetadataUpdate(script, "test", mixedValues);
 
     expect(result.selfMetadata?.test).toEqual(["valid", "another-valid"]);
+  });
+});
+
+describe.concurrent("@site-access opt-in", () => {
+  it.concurrent("应识别 opt-in 声明而忽略其他 site-access 值", () => {
+    expect(isSiteAccessOptIn({ "site-access": ["opt-in"] })).toBe(true);
+    expect(isSiteAccessOptIn({ "site-access": ["opt-out"] })).toBe(false);
+  });
+
+  it.concurrent("只有当前网址命中用户自定义 match/include 时才允许 opt-in 脚本", () => {
+    const script = { selfMetadata: { match: ["*://example.com/*"] } };
+
+    expect(isSiteAccessAllowed(script, "https://example.com/page")).toBe(true);
+    expect(isSiteAccessAllowed(script, "https://other.com/page")).toBe(false);
+    expect(
+      isSiteAccessAllowed({ selfMetadata: { include: ["*://example.com/tools/*"] } }, "https://example.com/tools/a")
+    ).toBe(true);
+    expect(
+      isSiteAccessAllowed({ selfMetadata: { include: ["*example.com/tools*"] } }, "https://example.com/tools/a")
+    ).toBe(true);
+    expect(isSiteAccessAllowed({ selfMetadata: {} }, "https://example.com/page")).toBe(false);
   });
 });
 
