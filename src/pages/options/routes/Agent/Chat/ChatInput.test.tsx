@@ -113,4 +113,32 @@ describe("聊天输入框 ChatInput", () => {
     expect(ta.value).toBe("draft");
     expect(screen.getByTitle("draft.txt")).toBeInTheDocument();
   });
+
+  it("【finding 8 回归】选中图片附件后卸载组件应 revoke 对应的预览 URL，而不是卸载时的初始空数组", () => {
+    const createObjectURLSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-preview");
+    const revokeObjectURLSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    const props: React.ComponentProps<typeof ChatInput> = {
+      models: [model("gpt-4o")],
+      selectedModelId: "gpt-4o",
+      onModelChange: vi.fn(),
+      onSend: vi.fn(),
+      onStop: vi.fn(),
+      isStreaming: false,
+    };
+    const { unmount } = render(<ChatInput {...props} />);
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["img"], "pic.png", { type: "image/png" })] },
+    });
+    expect(createObjectURLSpy).toHaveBeenCalled();
+
+    unmount();
+
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith("blob:mock-preview");
+
+    createObjectURLSpy.mockRestore();
+    revokeObjectURLSpy.mockRestore();
+  });
 });

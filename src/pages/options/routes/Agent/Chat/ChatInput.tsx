@@ -233,6 +233,8 @@ export default function ChatInput({
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // 卸载清理只能在 effect 里读到挂载时那次渲染捕获的 attachments（空数组），必须用 ref 跟踪最新值
+  const attachmentsRef = useRef(attachments);
 
   // 斜杠命令过滤
   const slashQuery = useMemo(() => {
@@ -266,12 +268,17 @@ export default function ChatInput({
     }
   }, [input]);
 
-  // 卸载时清理 objectURLs
+  // 保持 ref 跟随最新 attachments，供下面卸载时的 effect 读取
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  // 卸载时清理 objectURLs：读 ref 而非闭包里的 attachments，否则空依赖数组只会捕获挂载时的
+  // 初始空数组，之后选中的附件在卸载时永远不会被 revoke（见 finding 8）
   useEffect(() => {
     return () => {
-      attachments.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+      attachmentsRef.current.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addFiles = useCallback((files: File[]) => {
