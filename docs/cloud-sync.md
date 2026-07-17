@@ -22,6 +22,7 @@
 5. 旧 `.user.js`、旧 `.meta.json`、旧 `file_digest` string map、缺字段 `scriptcat-sync.json` 必须继续可读。
 6. filesystem 包只负责执行文件操作、抛 typed error；同步冲突策略属于 `SynchronizeService`。
 7. 本地与云端都改过的脚本（真冲突）不自动覆盖任何一端：跳过、保留基线、聚合通知用户。
+8. `file_digest` 只是文件快照，表达不了「删除做到一半」「`.meta.json` 还欠一次写入」这类未完成意图；此类意图必须持久化到 `pending_sync_ops` 并在下一轮开头重放，不能指望方向判定自动再生成重试任务。
 
 功能范围：云同步只同步脚本源码、来源 metadata（`.meta.json`）、启用状态与排序（`scriptcat-sync.json`）。GM storage 值和 `@require`/`@resource` 资源缓存**不**参与云同步（它们只在完整备份/导出路径处理），属于有意取舍，扩展需另行设计（隐私、容量、二进制资源、多端 merge）。
 
@@ -127,14 +128,33 @@ digest 更新有两条路径，区别在于对账范围：
 
 `sync_content_md5` 随 `file_digest` 生命周期收敛，不会只增不删：`updateFileDigest()` 全量对账后清理 `file_digest` 之外的条目；`updateFileDigestForUuids()` 只清理本次确认已从云端删除的目标文件（队列路径未全量对账，不能全局清理）。
 
+## `pending_sync_ops`（未完成操作登记）
+
+同存 `ChromeStorage("sync")`，按 uuid 登记尚未完成的多步操作：
+
+```ts
+type PendingSyncOp = { op: "delete"; syncDelete: boolean } | { op: "push" };
+```
+
+写入时机：
+
+- `scriptsDelete()` **写前登记** `op: "delete"`（含当时的 `syncDelete` 意图）：两步删除（删 `.user.js` + 写 tombstone / 删 `.meta.json`）中途失败或 SW 中途重启后，登记仍在；该 uuid 全部步骤成功才清除。
+- push 部分成功（`.user.js` 成功、`.meta.json` 失败）时登记 `op: "push"`（队列路径与 `syncOnce` 内部 push 任务都登记）。原因：部分成功后 `.user.js` digest 已推进，且生产安装消息不带时间字段（云端 mtime 是 push 时刻的 `Date.now()`，本地时间必然不比它新），下一轮「digest 相等 + 本地时间不比云端新」会跳过整个 uuid，失败的 `.meta.json` 不会再获得重试。
+
+重放时机：`syncOnceInternal()` 开头、主流程对账之前逐条重放：
+
+- `delete`：直接重放 `deleteCloudScript()`（已幂等，见下）。若不先重放，「本地无脚本 + 云端有 `.user.js`」会把删到一半的脚本拉回本地；「本地无脚本 + 云端只剩 `.meta.json`」则不命中任何决策分支，tombstone 永远欠写。
+- `push`：盲覆盖写，重放前先校验云端 `.user.js` digest 仍等于本机 `file_digest` 记录（即云端仍是本机上次写入的内容）；已被他端改写或删除则丢弃登记，交回主流程方向判定，避免覆盖对端更新。本地脚本已删则丢弃登记。
+- 重放成功的 uuid 经 `updateFileDigestForUuids()` 推进 digest 与内容基线；重放仍失败的 uuid 保留登记、计入 `failedSyncUuids`，且本轮主流程跳过该 uuid（防止在半完成状态上误拉/误推）。
+
 ## 同步入口和队列
 
 `SynchronizeService` 使用 `SYNC_SERVICE_TASK_KEY = "cloud_sync_queue"` 串行化同步任务。以下入口都会进入同一队列：
 
 - 配置启用后触发的 `syncOnce()`。
 - 定时同步，Chrome alarm 名称为 `cloudSync`，周期为 60 分钟。
-- 非 sync 来源安装脚本后的 `scriptInstall()`。push 失败时按 `PushScriptPartialError` 只保留失败文件的旧 digest，已成功文件推进到云端最新值。
-- 非 sync 来源删除脚本后的 `scriptsDelete()`。
+- 非 sync 来源安装脚本后的 `scriptInstall()`。push 失败时按 `PushScriptPartialError` 只保留失败文件的旧 digest，已成功文件推进到云端最新值；部分成功还会登记 `pending_sync_ops` 的 push 意图（见上）。
+- 非 sync 来源删除脚本后的 `scriptsDelete()`。执行前写前登记删除意图，成功后清除。
 
 串行队列很重要：安装、删除和定时同步都可能写同一批云端文件，如果并发执行，会扩大覆盖和 digest 污染风险。
 
@@ -142,6 +162,7 @@ digest 更新有两条路径，区别在于对账范围：
 
 `syncOnceInternal(syncConfig, fs)` 是主同步流程：
 
+0. 重放 `pending_sync_ops` 中未完成的删除/push（见上），重放失败的 uuid 本轮跳过。
 1. 调用 `fs.list()` 获取云端目录。
 2. 按文件名把 `<uuid>.user.js` 和 `<uuid>.meta.json` 组装成 `uuidMap`。
 3. 读取本地脚本列表，生成 `scriptMap`。
@@ -159,7 +180,7 @@ digest 更新有两条路径，区别在于对账范围：
 
 - 云端缺 `.meta.json`（上一轮分片上传残留）：push 本地脚本补齐 meta。
 - 云端 digest 与 `file_digest` 一致（云端自上次同步未变）：
-  - 本地更新时间不比云端新（整秒对齐比较）：跳过。
+  - 本地更新时间不比云端新（整秒对齐比较）：再联合检查 `.meta.json` digest——`.user.js` 未变不代表 meta 未变。meta digest 与记录一致才跳过；不一致（他端只改了 meta 字段）则读取云端 meta 并采用其 `origin`/`downloadUrl`/`checkUpdateUrl`（tombstone + `.user.js` 仍在视为他端部分推送残留，等对端补完再判），采用成功后推进内容基线。若直接跳过，收尾的全量盖章会把未处理的 meta 标成已同步，之后永不再处理。meta 无 digest 记录（从未成功同步）时不判定，交由收尾盖章建立基线。
   - 本地更新时间更晚：补偿 push——云端 digest 检测不到本地编辑，队列 push 失败后也靠这里兜底。这里仍是跨时钟域比较（本地是客户端毫秒时钟，云端 mtime 在 WebDAV 等服务端仅整秒精度），比较前两侧都截断到整秒：同秒内的毫秒余数不触发补偿，避免每次编辑上云后（服务端写入时间与编辑同秒）多一轮冗余覆盖 push。
 - 云端 digest 与 `file_digest` 不一致（云端自上次同步已变，或本机无记录），由 `decideDirectionOnRemoteChange()` 决定方向。**不比较本地毫秒时钟与服务端整秒 mtime**（对端更新落在同一秒内时"本地时间戳更大"是误报，会 push 覆盖较新的云端内容，即 L4 同秒竞态）：
   - 本地内容 md5 == `sync_content_md5` 基线（本地未改）：pull。
@@ -183,6 +204,12 @@ digest 更新有两条路径，区别在于对账范围：
 
 - 视为 orphan cloud script，跳过。
 - 不删除、不覆盖、不清空对应远端 status。
+
+本地脚本不存在、云端只有 `.meta.json`：
+
+- tombstone：保留（删除标记须长期可见）。
+- 非 tombstone：他端分片删除的残留，清理掉——否则其他仍持有该脚本的设备会把它当「无效 meta」删除后重新上传，等于撤销删除。
+- 以 digest 变化为门：digest 与记录一致时不重复读取（tombstone 首轮读取盖章后不再产生 I/O）。
 
 遍历结束后，剩余只存在于本地的脚本会 push 到云端。
 
@@ -222,7 +249,7 @@ digest 更新有两条路径，区别在于对账范围：
 - 如果 `syncDelete` 为 true，写 tombstone meta。
 - 如果 `syncDelete` 为 false，删除 `<uuid>.meta.json`。
 
-失败会向上抛出。`scriptsDelete()` 必须逐条 catch，保证批量删除中一个 uuid 失败不影响后续 uuid。
+两步删除对 typed `notFound` 幂等：目标文件已不存在即视为达成目的（部分 provider 如 Google Drive 对缺失文件抛 notFound，重放半途失败的删除不能被它中断）。其余失败会向上抛出。`scriptsDelete()` 必须逐条 catch，保证批量删除中一个 uuid 失败不影响后续 uuid；未完成的 uuid 依赖 `pending_sync_ops` 登记由下一轮重放。
 
 ## status 合并
 
@@ -418,5 +445,8 @@ this.logger.warn("sync overwrite", { action: "overwrite", direction, uuid, name 
 11. 队列路径 digest 只更新本次 uuid 文件，不全量盖章漏 pull。
 12. 同步失败计数必须在设置页显示为失败，不能显示为同步正常。
 13. 冲突或失败状态的日志深链不能被覆盖过滤条件隐藏。
+14. push 部分失败（`.user.js` 成功、`.meta.json` 失败）后，用生产形态的安装消息（不带 `updatetime`）验证下一轮仍会补传 `.meta.json`。
+15. 删除部分失败（tombstone 未写 / `.meta.json` 残留）后，下一轮（含 SW 重启）自动完成剩余步骤；删除全失败后不得把脚本拉回本地。
+16. 源码未变但云端 `.meta.json` digest 变化时，必须读取采用而不是盖章跳过。
 
 真实 provider 验证仍需要账号和夹具。不能把 unit test 或 mock response 结果宣称为真实云端验证。
