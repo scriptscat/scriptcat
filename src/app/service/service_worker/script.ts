@@ -167,11 +167,17 @@ export class ScriptService {
               }
             );
           })
-          .finally(() => {
-            // 回退到到安装页
-            chrome.tabs.goBack(req.tabId).catch((e) => {
-              console.error("chrome.tabs.goBack error:", e);
-            });
+          .finally(async () => {
+            try {
+              const currentTab = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+              // 仅针对用户自行点击安装的Tab
+              if (currentTab?.[0]?.id === req.tabId) {
+                // 回退到到安装页
+                await chrome.tabs.goBack(req.tabId);
+              }
+            } catch (e) {
+              console.error("chrome.tabs.goBack/query error:", e);
+            }
           });
       },
       {
