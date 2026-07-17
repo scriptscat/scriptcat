@@ -219,7 +219,7 @@ Map a change onto the existing extension points instead of inventing new structu
 - **A new GM API.** Decorate the method with `@GMContext.API` on the content side, add a privileged/offscreen
   handler if needed, register the `@grant` (see [GM API system](./references/architecture-gm-api.md#adding-a-gm-api-sketch)).
 
-Follow the engineering principles in [`AGENTS.md`](../AGENTS.md): fix root causes (no `as any` / swallowed
+Follow the engineering principles in [`AGENTS.md`](../AGENTS.md#engineering-principles): fix root causes (no `as any` / swallowed
 errors), prefer direct replacement over adapter sandwiches, and keep scope tight — three similar lines beat a
 premature abstraction.
 

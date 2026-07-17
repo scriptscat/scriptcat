@@ -7,8 +7,9 @@
 > scripts and local-only evidence — kept out of Git and never deleted as part of a run; cleanup is the user's call.
 >
 > **What this is NOT.** It is *not* the test-suite reference. The mechanics of Vitest unit tests and the
-> permanent Playwright E2E suite live in [`DEVELOP.md`](./develop.md) → *Testing*; the TDD-first principle and
-> engineering rules live in [`../AGENTS.md`](../AGENTS.md). Read those for writing committed tests.
+> permanent Playwright E2E suite live in [`DEVELOP.md`](./develop.md#testing) → *Testing*; the TDD-first principle
+> and engineering rules live in [`../AGENTS.md`](../AGENTS.md#engineering-principles). Read those for writing
+> committed tests.
 >
 > **When to skip this guide.** Docs-only, comment-only, and type-only changes need no browser run. When a change
 > or bug is fully reproducible in pure service/unit logic — no cross-context wiring, no real Chrome API, no DOM —
@@ -25,12 +26,13 @@ you only want to *check that a feature works*, do not pay that cost and do not l
 - ✅ Write a **throwaway scratch script** under `e2e/scratch/` (git-ignored), run it, and keep any evidence local.
 
 Promoting a scenario into the permanent suite is a *separate, deliberate* decision — only when it deserves
-permanent regression coverage. That path is owned by [`DEVELOP.md`](./develop.md), not this guide.
+permanent regression coverage. That path is owned by [`DEVELOP.md`](./develop.md#testing), not this guide.
 
 **Reproducing a bug you intend to fix is *not* "casual verification."** A scratch reproduction is the *确定 bug
-存在* step from [`../AGENTS.md`](../AGENTS.md) (确定 bug 存在 → 写测试 → 修复): it confirms the bug is real but does
-**not** replace the test. Next, promote it into a *failing* committed test, then fix, then confirm it goes green —
-that permanent test is owned by [`DEVELOP.md`](./develop.md) / [`../AGENTS.md`](../AGENTS.md).
+存在* step from [`../AGENTS.md`](../AGENTS.md#engineering-principles) (确定 bug 存在 → 写测试 → 修复): it confirms the
+bug is real but does **not** replace the test. Next, promote it into a *failing* committed test, then fix, then
+confirm it goes green — that permanent test is owned by [`DEVELOP.md`](./develop.md#testing) /
+[`../AGENTS.md`](../AGENTS.md#engineering-principles).
 
 ## Prerequisite gate (cheap signals first)
 

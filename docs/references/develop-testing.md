@@ -1,7 +1,7 @@
 # Testing
 
 > The **TDD/BDD-first principle** (write failing tests before implementation; fix code not tests) lives in
-> [`AGENTS.md`](../../AGENTS.md) → *Engineering Principles*. This section is the mechanics.
+> [`AGENTS.md`](../../AGENTS.md#engineering-principles) → *Engineering Principles*. This section is the mechanics.
 
 Vitest + happy-dom. Per-test budgets live in `vitest.config.ts` per project: non-UI projects (`fast`,
 `isolated`) use 340ms; the `ui` project (`src/pages/**/*.test.{ts,tsx}` — React renders, including
