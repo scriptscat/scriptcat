@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterEach, beforeEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockIntersectionObserver } from "@Tests/mockIntersectionObserver";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
@@ -45,7 +46,11 @@ afterEach(cleanup);
 
 describe("设置页", () => {
   it("渲染 7 个分类导航项", () => {
-    render(<Setting />);
+    render(
+      <MemoryRouter>
+        <Setting />
+      </MemoryRouter>
+    );
     expect(document.querySelectorAll("nav button")).toHaveLength(7);
   });
 });
