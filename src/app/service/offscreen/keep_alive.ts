@@ -1,20 +1,20 @@
-// 保活实验依赖 Scheduler API：带 delay 的 user-visible task 相比 setTimeout 更不容易在后台降频。
-
 import { type SystemConfig } from "@App/pkg/config/config";
 import { isFirefox } from "@App/pkg/utils/utils";
 import { sendMessage } from "@Packages/message/client";
 import type { IOffscreenSend } from "@Packages/message/types";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 
-let selfSw: ServiceWorkerGlobalScope | null = null;
-
-export const onServiceWorkerStarted = (sw: ServiceWorkerGlobalScope) => {
-  // assign the varible `selfSw` for later use.
-  selfSw = sw;
-};
+// Firefox 的 blocking listener 依赖 Scheduler API；Chrome 使用 runtime port 心跳。
+const nativeScheduler =
+  typeof scheduler !== "undefined" && typeof scheduler?.postTask === "function" ? scheduler : null;
 
 const deferredResponse = <T>(o: T, delayMs: number) =>
   new Promise<T>((resolve) => {
+    if (!nativeScheduler) {
+      resolve(o);
+      return;
+    }
+
     // user-visible 优先级用于尽量减少后台页面降频；它不保证永久存活。
     nativeScheduler.postTask(
       () => {
@@ -25,12 +25,14 @@ const deferredResponse = <T>(o: T, delayMs: number) =>
   });
 
 // 使用扩展 ID 派生的探测域名，避免访问真实站点；请求是否最终成功并不重要。
-const getKeepAliveProbeUrl = () => `https://--extensions-${chrome.runtime.getURL("/dummy_image.png").split("//")[1]}`;
+const getKeepAliveProbeUrl = () => {
+  const extensionId = new URL(chrome.runtime.getURL("/")).hostname;
+  return `https://--extensions-${extensionId}.invalid`;
+};
 
-// API 不可用时直接关闭实验，避免引入另一套行为不一致的计时路径。
-const nativeScheduler =
-  //@ts-ignore
-  typeof scheduler !== "undefined" && typeof scheduler?.postTask === "function" && scheduler;
+const KEEP_ALIVE_PORT_NAME = "scriptcat-keep-alive";
+const KEEP_ALIVE_HEARTBEAT_INTERVAL_MS = 20_000;
+const KEEP_ALIVE_HEARTBEAT_MESSAGE = { type: "keep-alive" } as const;
 
 /**
  * Firefox MV3 event page 保活实验（默认关闭）。
@@ -68,51 +70,32 @@ const createKeepAliveProbeLoop = (keepAliveProbeUrl: string) => {
   // 注意：不要让 image 在未 settled 前 GC 掉
   let image: HTMLImageElement | null = null;
 
-  const onKeepAliveProbeSettled = boolFirefox
-    ? (function (this: HTMLImageElement, ev: Event) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        ev.stopImmediatePropagation();
-        if (image === this) {
-          // 上一輪的 image 可以被 GC 了
-          image.onload = image.onerror = null;
-          image = null;
-          // 只有请求确实被阻塞了足够久才继续下一轮；过快结束时停止，避免忙循环。
-          if (!enabled || Date.now() - probeStartedAt < KEEP_ALIVE_MIN_ROUND_TRIP_TO_CONTINUE_MS) return;
-          // 下一轮
-          sendKeepAliveProbe();
-        }
-      } as any)
-    : (x: any) => {
-        if (image === x) {
-          image = null;
+  const onFirefoxProbeSettled = (ev: Event | string) => {
+    if (!(ev instanceof Event)) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.stopImmediatePropagation();
+    if (!image || ev.currentTarget !== image) return;
 
-          // 只有请求确实被阻塞了足够久才继续下一轮；过快结束时停止，避免忙循环。
-          if (!enabled || Date.now() - probeStartedAt < KEEP_ALIVE_MIN_ROUND_TRIP_TO_CONTINUE_MS) return;
-          // 下一轮
-          sendKeepAliveProbe();
-        }
-      };
+    // 上一轮的 image 可以被 GC 了
+    image.onload = image.onerror = null;
+    image = null;
+    // 只有请求确实被阻塞了足够久才继续下一轮；过快结束时停止，避免忙循环。
+    if (!enabled || Date.now() - probeStartedAt < KEEP_ALIVE_MIN_ROUND_TRIP_TO_CONTINUE_MS) return;
+    // 下一轮
+    sendKeepAliveProbe();
+  };
 
   // 发起一次探测请求，作为心跳循环的一拍
-  const sendKeepAliveProbe = boolFirefox
-    ? () => {
-        // Image 特性：网络要求发起不需要跟随 DOM 节点附付
-        image = new Image(1, 1);
-        probeStartedAt = Date.now();
+  const sendKeepAliveProbe = () => {
+    image = new Image(1, 1);
+    probeStartedAt = Date.now();
 
-        // onload / onerror 在呼叫前 image 不会被 GC
-        image.onload = onKeepAliveProbeSettled;
-        image.onerror = onKeepAliveProbeSettled;
-
-        image.src = `${keepAliveProbeUrl}?__network_delay=${KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS}&t=${probeStartedAt}`;
-      }
-    : () => {
-        image = new Image(1, 1);
-        probeStartedAt = Date.now();
-        image.src = `data:image/gif;base64,${TRANSPARENT_GIF_BASE64}`;
-        deferredResponse(image, KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS).then(onKeepAliveProbeSettled);
-      };
+    // onload / onerror 在调用前 image 不会被 GC
+    image.onload = onFirefoxProbeSettled;
+    image.onerror = onFirefoxProbeSettled;
+    image.src = `${keepAliveProbeUrl}?__network_delay=${KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS}&t=${probeStartedAt}`;
+  };
 
   return {
     start() {
@@ -213,67 +196,35 @@ export const startFirefoxEventPageKeepAliveLoop =
     : () => {};
 
 /**
- * Chrome MV3 service worker 保活实验：仅注册 ServiceWorkerGlobalScope 事件。
+ * Chrome MV3 service worker 侧接收 offscreen document 的 runtime port 心跳。
  *
- * service worker 没有 DOM，不能创建 `Image`/访问 `document`；发起探测请求的职责在
- * {@link startChromeOffscreenKeepAliveLoop}（offscreen document 里有 DOM）。这里只负责拦截
- * 探测请求并用 `scheduler.postTask()` 延迟响应，使该请求在 offscreen 侧保持未完成状态。
- *
- * Chrome 要求 `install`/`activate`/`fetch` 监听器必须在 worker 脚本初次同步求值时注册，
- * 否则会报 "Event handler ... must be added on the initial evaluation of worker script" 并
- * 丢弃事件。因此监听器在调用时立即、无条件注册；是否真正拦截探测请求由返回的 setter 控制的
- * `enabled` 标志决定，setter 可在配置项异步加载或变更后随时调用。
+ * Chrome MV3 的 offscreen document 网络事件不会经过扩展 service worker 的 `fetch` 监听器，
+ * Chrome 文档说明，长连接上的消息会延长 service worker 生命周期；仅保持 port 打开不够，
+ * 因此 offscreen document 每 20 秒发送一条消息。
  */
-const startChromeServiceWorkerKeepAliveLoop =
-  !boolFirefox && nativeScheduler
-    ? () => {
-        const selfSw_ = selfSw;
-        if (!selfSw_) return () => {};
+export const startChromeServiceWorkerKeepAliveLoop = !boolFirefox
+  ? () => {
+      let keepAlivePort: chrome.runtime.Port | null = null;
 
-        let enabled = false;
-
-        const keepAliveProbeUrl = getKeepAliveProbeUrl();
-
-        // TRANSPARENT_GIF_BASE64
-        const gifBytes = new Uint8Array([
-          71, 73, 70, 56, 57, 97, 1, 0, 1, 0, 128, 0, 0, 0, 0, 0, 255, 255, 255, 33, 249, 4, 1, 0, 0, 0, 0, 44, 0, 0, 0,
-          0, 1, 0, 1, 0, 0, 2, 2, 68, 1, 0, 59,
-        ]);
-
-        selfSw_.addEventListener("fetch", (event: FetchEvent) => {
-          if (!enabled || !event.request.url.includes(keepAliveProbeUrl)) {
-            return void 0;
-          }
-          const url = new URL(event.request.url);
-
-          // 只延迟明确带有延迟标记的请求，避免误伤同源下的其它请求
-          if (!url.searchParams.has("__network_delay")) {
-            return void 0;
-          }
-
-          const requestedDelay = Number(url.searchParams.get("__network_delay"));
-
-          const delayMs = Number.isFinite(requestedDelay)
-            ? Math.max(0, Math.min(requestedDelay, KEEP_ALIVE_MAX_PROBE_DELAY_MS))
-            : KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS;
-
-          const response = new Response(gifBytes, {
-            status: 200,
-            statusText: "OK",
-            headers: {
-              "Content-Type": "image/gif",
-              "Content-Length": gifBytes.length.toString(),
-              "Cache-Control": "no-store, must-revalidate", // Prevent browser caching during tests
-            },
-          });
-          event.respondWith(deferredResponse(response, delayMs));
+      chrome.runtime.onConnect.addListener((port) => {
+        if (port.name !== KEEP_ALIVE_PORT_NAME) return;
+        keepAlivePort?.disconnect();
+        keepAlivePort = port;
+        port.onMessage.addListener((message) => {
+          if (message?.type !== KEEP_ALIVE_HEARTBEAT_MESSAGE.type) return;
         });
+        port.onDisconnect.addListener(() => {
+          if (keepAlivePort === port) keepAlivePort = null;
+        });
+      });
 
-        return (val: boolean) => {
-          enabled = val;
-        };
-      }
-    : () => (_val: boolean) => {};
+      return (val: boolean) => {
+        if (val) return;
+        keepAlivePort?.disconnect();
+        keepAlivePort = null;
+      };
+    }
+  : () => (_val: boolean) => {};
 
 export const hookServiceWorkerKeepAliveLoop = (
   systemConfig: SystemConfig,
@@ -303,11 +254,10 @@ export const hookServiceWorkerKeepAliveLoop = (
 };
 
 /**
- * Chrome MV3 offscreen document 保活实验：负责实际发起探测请求。
+ * Chrome MV3 offscreen document 通过 runtime port 发送保活心跳。
  *
- * offscreen document 具备 DOM，可以用 `<img>` 发起请求；请求会被
- * {@link startChromeServiceWorkerKeepAliveLoop} 中注册的 SW `fetch` 监听器拦截并延迟响应，
- * 未完成的探测请求用于减少 service worker 被判定为空闲的概率。
+ * offscreen document 的生命周期独立于 service worker，因此它可以作为心跳发送端；service
+ * worker 收到每条消息后会刷新 MV3 的活动窗口。
  *
  * 返回一个 setter：配置项初次异步加载完成或用户在设置页切换开关时都会调用它，
  * 从关闭切到开启时立即发起新一轮探测循环，切回关闭时让 `onKeepAliveProbeSettled` 中的
@@ -316,17 +266,49 @@ export const hookServiceWorkerKeepAliveLoop = (
 export const startChromeOffscreenKeepAliveLoop =
   !boolFirefox && nativeScheduler
     ? () => {
-        // 实际往返过短说明请求未被 SW 端延迟（通常是 fetch 监听器未注册或请求提前失败）；
-        // 此时停止后续探测，避免失败请求形成紧密循环。
-        const keepAliveProbeUrl = getKeepAliveProbeUrl();
-        const keepAlive = createKeepAliveProbeLoop(keepAliveProbeUrl);
+        let enabled = false;
+        let port: chrome.runtime.Port | null = null;
+        let heartbeatScheduled = false;
+
+        const sendHeartbeat = () => {
+          if (!enabled) return;
+          if (!port) {
+            port = chrome.runtime.connect({ name: KEEP_ALIVE_PORT_NAME });
+            const connectedPort = port;
+            port.onDisconnect.addListener(() => {
+              if (port === connectedPort) port = null;
+            });
+          }
+          try {
+            port.postMessage(KEEP_ALIVE_HEARTBEAT_MESSAGE);
+          } catch {
+            port = null;
+          }
+        };
+
+        const scheduleHeartbeat = () => {
+          if (!enabled || heartbeatScheduled || !nativeScheduler) return;
+          heartbeatScheduled = true;
+          nativeScheduler.postTask(
+            () => {
+              heartbeatScheduled = false;
+              if (!enabled) return;
+              sendHeartbeat();
+              scheduleHeartbeat();
+            },
+            { priority: "user-visible", delay: KEEP_ALIVE_HEARTBEAT_INTERVAL_MS }
+          );
+        };
 
         return (val: boolean) => {
-          if (val) {
-            keepAlive.start();
+          enabled = val;
+          if (enabled) {
+            sendHeartbeat();
+            scheduleHeartbeat();
             return;
           }
-          keepAlive.stop();
+          port?.disconnect();
+          port = null;
         };
       }
     : () => (_val: boolean) => {};

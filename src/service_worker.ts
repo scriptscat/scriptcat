@@ -9,9 +9,6 @@ import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
 import { EventPageOffscreenManager, InProcessMessage } from "./app/service/offscreen/event_page_manager";
 import migrate, { migrateChromeStorage } from "./app/migrate";
 import { cleanInvalidKeys } from "./app/repo/resource";
-import { onServiceWorkerStarted } from "./app/service/offscreen/keep_alive";
-
-onServiceWorkerStarted(self as unknown as ServiceWorkerGlobalScope);
 
 migrate();
 migrateChromeStorage();

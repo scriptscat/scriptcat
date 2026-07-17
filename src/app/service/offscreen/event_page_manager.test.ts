@@ -22,6 +22,7 @@ vi.mock("@App/pkg/utils/utils", async (orig) => {
 const RealImage = globalThis.Image;
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   vi.stubGlobal("scheduler", undefined);
   vi.restoreAllMocks();
@@ -63,6 +64,12 @@ const loadKeepAliveEnabledManager = async () => {
   });
   logger.logger().debug("test start");
   return { ...(await import("./event_page_manager.js")), probeImages };
+};
+
+const loadChromeKeepAlive = async () => {
+  isFirefoxMock.mockReturnValue(false);
+  vi.resetModules();
+  return await import("./keep_alive.js");
 };
 
 // 单测重点：Firefox MV3 下事件页(EventPageOffscreenManager)与 service worker 是同一个脚本/进程，
@@ -208,8 +215,9 @@ describe("EventPageOffscreenManager Firefox event page 保活权限门控", () =
 
     const listener = (chrome.webRequest.onBeforeRequest as any).listeners[0].callback;
     // 与 keep_alive.ts 相同的派生规则：探测域名来自扩展自身的 runtime.getURL
+    const extensionId = new URL(chrome.runtime.getURL("/")).hostname;
     const probeRequest = {
-      url: `https://--extensions-${chrome.runtime.getURL("/dummy_image.png").split("//")[1]}?__network_delay=10000`,
+      url: `https://--extensions-${extensionId}.invalid?__network_delay=10000`,
     };
 
     expect(listener(probeRequest)).toBeInstanceOf(Promise);
@@ -237,5 +245,44 @@ describe("EventPageOffscreenManager Firefox event page 保活权限门控", () =
     expect(addListener).toHaveBeenCalledTimes(1);
     expect(contains).toHaveBeenCalledTimes(1);
     expect(addListener.mock.invocationCallOrder[0]).toBeLessThan(contains.mock.invocationCallOrder[0]);
+  });
+});
+
+describe("Chrome offscreen document 保活探测", () => {
+  it("通过 runtime port 每 20 秒发送一次保活消息", async () => {
+    const scheduledTasks: Array<() => void> = [];
+    const postTask = vi.fn((task: () => void) => {
+      scheduledTasks.push(task);
+      return Promise.resolve();
+    });
+    vi.stubGlobal("scheduler", { postTask });
+    const port = {
+      name: "scriptcat-keep-alive",
+      postMessage: vi.fn(),
+      disconnect: vi.fn(),
+      onDisconnect: { addListener: vi.fn() },
+    } as unknown as chrome.runtime.Port;
+    const connect = vi.spyOn(chrome.runtime, "connect").mockReturnValue(port);
+    const { startChromeOffscreenKeepAliveLoop } = await loadChromeKeepAlive();
+
+    const setKeepAliveEnabled = startChromeOffscreenKeepAliveLoop();
+    setKeepAliveEnabled(true);
+
+    expect(connect).toHaveBeenCalledWith({ name: "scriptcat-keep-alive" });
+    expect(port.postMessage).toHaveBeenCalledWith({ type: "keep-alive" });
+    expect(postTask).toHaveBeenCalledWith(expect.any(Function), {
+      priority: "user-visible",
+      delay: 20_000,
+    });
+
+    scheduledTasks.shift()?.();
+    expect(port.postMessage).toHaveBeenCalledTimes(2);
+    expect(postTask).toHaveBeenCalledTimes(2);
+
+    setKeepAliveEnabled(false);
+    expect(port.disconnect).toHaveBeenCalledTimes(1);
+    scheduledTasks.shift()?.();
+    expect(port.postMessage).toHaveBeenCalledTimes(2);
+    expect(postTask).toHaveBeenCalledTimes(2);
   });
 });
