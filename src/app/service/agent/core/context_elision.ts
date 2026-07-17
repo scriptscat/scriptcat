@@ -12,24 +12,45 @@ function elidedAttachmentStub(block: Exclude<ContentBlock, { type: "text" }>): s
   return `[attachment elided to save context, type: ${block.type}, OPFS path: uploads/${block.attachmentId} — re-open the attachment if needed]`;
 }
 
-/** 读取 provider 会把附件展开成 data URL 后的实际字节规模。 */
+/** 附件的预算估算信息：字节规模 + （图片能解码时的）像素尺寸。 */
+export type AttachmentSizeInfo = { bytes: number; width?: number; height?: number };
+
+/** 读取 provider 会把附件展开成 data URL 后的实际字节规模；
+ * 图片附件在环境支持时（Service Worker 有 createImageBitmap）额外解码出像素尺寸，
+ * 供按 provider 尺寸计费规则估算视觉 token（见 finding 8）。 */
 export async function loadAttachmentSizes(
   messages: ChatRequest["messages"],
   getAttachment: (id: string) => Promise<Blob | null | undefined>
-): Promise<Map<string, number>> {
-  const ids = new Set<string>();
+): Promise<Map<string, AttachmentSizeInfo>> {
+  // 同一 attachmentId 可能被多个块引用；只要任一处以 image 块出现就按图片解码尺寸
+  const kinds = new Map<string, "image" | "other">();
   for (const message of messages) {
     if (!Array.isArray(message.content)) continue;
     for (const block of message.content) {
-      if (block.type !== "text") ids.add(block.attachmentId);
+      if (block.type === "text") continue;
+      if (block.type === "image" || !kinds.has(block.attachmentId)) {
+        kinds.set(block.attachmentId, block.type === "image" ? "image" : "other");
+      }
     }
   }
-  const sizes = new Map<string, number>();
+  const sizes = new Map<string, AttachmentSizeInfo>();
   await Promise.all(
-    [...ids].map(async (id) => {
+    [...kinds].map(async ([id, kind]) => {
       try {
         const blob = await getAttachment(id);
-        if (blob) sizes.set(id, blob.size);
+        if (!blob) return;
+        const info: AttachmentSizeInfo = { bytes: blob.size };
+        if (kind === "image" && typeof createImageBitmap === "function") {
+          try {
+            const bitmap = await createImageBitmap(blob);
+            info.width = bitmap.width;
+            info.height = bitmap.height;
+            bitmap.close();
+          } catch {
+            // 解码失败（损坏/不支持的格式）：退回按字节数的保守换算
+          }
+        }
+        sizes.set(id, info);
       } catch {
         // 无法读取的附件保留为未知大小，由预算检查决定是否省略或拒绝请求。
       }
@@ -70,14 +91,27 @@ function getStableContentBytes(message: { role: string; content: unknown; toolCa
   return bytes;
 }
 
-// vision 图片的字节→token 保守换算。真实 provider 计费和 base64 字节数没有线性对应关系
-// （OpenAI 按分块计费，一张图约 85~1105 token；Anthropic 按 宽×高/750，一张 1920×1080 照片
-// 约 3686 token），典型压缩照片的 base64 体积换算下来大约是每 100~300 字节 1 token。
-// 本仓库在附件加载阶段还没有解出图片宽高（获取宽高需要解码，见 finding 8 的后续待办），
-// 因此这里用一个远比真实比例保守的固定换算：每 40 字节算 1 token——比真实比例保守
-// 2.5~7.5 倍，不会把图片开销算得比实际便宜，但也不会把一张普通照片（几十到一百多 KB）
-// 的开销放大到几万甚至十几万 token 从而把正常大小的截图/照片直接拒绝在预算之外。
+// vision 图片的字节→token 保守换算（仅在解不出像素尺寸时使用）。真实 provider 计费和
+// base64 字节数没有线性对应关系（OpenAI 按分块计费，一张图约 85~1105 token；Anthropic 按
+// 宽×高/750），典型压缩照片的 base64 体积换算下来大约是每 100~300 字节 1 token。
+// 每 40 字节算 1 token 比真实比例保守 2.5~7.5 倍，不会把图片开销算得比实际便宜，
+// 也不会把一张普通照片（几十到一百多 KB）放大到几万 token 从而被拒绝在预算之外。
 const IMAGE_CONSERVATIVE_BYTES_PER_TOKEN = 40;
+
+// 能解出像素尺寸时按 provider 的尺寸计费规则估算：Anthropic 为 宽×高/750（长边超过 1568
+// 先等比缩小）；OpenAI 按 512px tile 计费，同尺寸下低于该公式。取更保守的 Anthropic 公式，
+// 并以 85（OpenAI 低清底价）为下限。相比压缩字节换算，尺寸公式不受压缩率影响：
+// 高度可压缩的大图不会被低估，噪点大的小图不会被高估（见 finding 8）。
+const IMAGE_MAX_DIMENSION = 1568;
+const IMAGE_PIXELS_PER_TOKEN = 750;
+const IMAGE_MIN_TOKENS = 85;
+
+function estimateImageTokensFromDimensions(width: number, height: number): number {
+  const scale = Math.min(1, IMAGE_MAX_DIMENSION / Math.max(width, height, 1));
+  const scaledWidth = Math.max(1, Math.floor(width * scale));
+  const scaledHeight = Math.max(1, Math.floor(height * scale));
+  return Math.max(IMAGE_MIN_TOKENS, Math.ceil((scaledWidth * scaledHeight) / IMAGE_PIXELS_PER_TOKEN));
+}
 
 /**
  * 请求 token 的启发式估算，不是任何 provider 的精确 tokenizer（本仓库未接入
@@ -98,7 +132,7 @@ const IMAGE_CONSERVATIVE_BYTES_PER_TOKEN = 40;
 export function estimateRequestTokens(
   messages: ChatRequest["messages"],
   tools?: unknown[],
-  attachmentSizes?: Map<string, number>,
+  attachmentSizes?: Map<string, AttachmentSizeInfo>,
   model?: AgentModelConfig
 ): number {
   const hasVision = model ? supportsVision(model) : false;
@@ -110,8 +144,8 @@ export function estimateRequestTokens(
         if (block.type === "text") return blockSum;
         // file/audio 从不被内联；image 只在 vision 模型上才会被解析为 data URL
         if (block.type === "file" || block.type === "audio" || !hasVision) return blockSum;
-        const size = attachmentSizes?.get(block.attachmentId);
-        if (size == null) {
+        const info = attachmentSizes?.get(block.attachmentId);
+        if (info == null) {
           // 附件大小未知时降级为纯文本描述——这部分本身就是文本，按文本换算系数折算，
           // 不能套用图片换算系数（那是给真实二进制图片数据用的）
           return (
@@ -119,7 +153,11 @@ export function estimateRequestTokens(
             Math.ceil(new TextEncoder().encode(imageBlockFallbackText(block)).byteLength / CONSERVATIVE_BYTES_PER_TOKEN)
           );
         }
-        const base64Bytes = Math.ceil(size / 3) * 4 + 128;
+        // 优先按像素尺寸估算（provider 的真实计费维度）；解不出尺寸时退回字节换算
+        if (info.width != null && info.height != null) {
+          return blockSum + estimateImageTokensFromDimensions(info.width, info.height);
+        }
+        const base64Bytes = Math.ceil(info.bytes / 3) * 4 + 128;
         return blockSum + Math.ceil(base64Bytes / IMAGE_CONSERVATIVE_BYTES_PER_TOKEN);
       }, 0)
     );
@@ -187,7 +225,7 @@ export function elideUntilWithinBudget(
   contextWindow: number,
   tools?: unknown[],
   budgetRatio = 0.9,
-  attachmentSizes?: Map<string, number>,
+  attachmentSizes?: Map<string, AttachmentSizeInfo>,
   model?: AgentModelConfig
 ): boolean {
   // 原先按 hasToolResults 分两条 if 判断，但两分支条件完全相同（结果都只取决于 estimate()），

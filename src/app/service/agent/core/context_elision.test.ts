@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   elideOldToolResults,
   elideOldAttachments,
   ELIDED_TOOL_RESULT_STUB,
   elideUntilWithinBudget,
   estimateRequestTokens,
+  loadAttachmentSizes,
 } from "./context_elision";
 import type { AgentModelConfig, ChatRequest, ToolCall } from "./types";
 
@@ -151,7 +152,7 @@ describe("上下文预算估算与裁剪", () => {
     ];
     // 用较大的真实照片量级（600KB）而不是 6000 字节：折算后（/40）约 2 万 token，
     // 明显超出 1000 的预算才能触发裁剪；6000 字节这种量级折算后不到 200 token，不足以撑爆预算。
-    const sizes = new Map([["old", 600_000]]);
+    const sizes = new Map([["old", { bytes: 600_000 }]]);
     // 图片按 IMAGE_CONSERVATIVE_BYTES_PER_TOKEN（40）折算为 token（见 finding 8：不能再把
     // base64 字节数 1:1 当 token 数，否则普通照片会被判定为超出上下文）。
     // 验证 base64 展开确实被计入——若只是把原始字节数朴素除以换算系数（600000/40=15000），
@@ -161,6 +162,57 @@ describe("上下文预算估算与裁剪", () => {
     expect(messages[0].content).toEqual([{ type: "text", text: expect.stringContaining("attachment elided") }]);
     expect((messages[0].content as any)[0].text).toContain("uploads/old");
     expect(messages[2].content).toBe("继续");
+  });
+
+  it("已知尺寸的图片按 宽×高/750（长边 1568 缩放）估算，而不是按压缩后的字节数", () => {
+    const messages: ChatRequest["messages"] = [
+      { role: "user", content: [{ type: "image", attachmentId: "dim", mimeType: "image/png" }] },
+    ];
+    // 高度可压缩的大图：压缩后只有 10KB，但 1920×1080 的真实视觉计费由尺寸决定
+    // （1568×882 / 750 ≈ 1845 token）；按字节换算只有 ~340 token，会被严重低估
+    const sizes = new Map([["dim", { bytes: 10_000, width: 1920, height: 1080 }]]);
+    const tokens = estimateRequestTokens(messages, [], sizes, VISION_MODEL);
+    expect(tokens).toBeGreaterThan(1500);
+    expect(tokens).toBeLessThan(3000);
+  });
+
+  it("解码不出尺寸的图片退回按字节数的保守换算", () => {
+    const messages: ChatRequest["messages"] = [
+      { role: "user", content: [{ type: "image", attachmentId: "nodim", mimeType: "image/png" }] },
+    ];
+    const sizes = new Map([["nodim", { bytes: 120_000 }]]);
+    // base64 展开约 16 万字节，按 40 字节/token 折算约 4000 token
+    expect(estimateRequestTokens(messages, [], sizes, VISION_MODEL)).toBeGreaterThan(3500);
+  });
+
+  it("loadAttachmentSizes 在支持 createImageBitmap 的环境下附带图片尺寸", async () => {
+    const close = vi.fn();
+    (globalThis as any).createImageBitmap = vi.fn(async () => ({ width: 800, height: 600, close }));
+    try {
+      const messages: ChatRequest["messages"] = [
+        { role: "user", content: [{ type: "image", attachmentId: "img1", mimeType: "image/png" }] },
+      ];
+      const sizes = await loadAttachmentSizes(messages, async () => new Blob(["x".repeat(100)]));
+      expect(sizes.get("img1")).toMatchObject({ bytes: 100, width: 800, height: 600 });
+      expect(close).toHaveBeenCalled();
+    } finally {
+      delete (globalThis as any).createImageBitmap;
+    }
+  });
+
+  it("loadAttachmentSizes 在解码失败时仍返回字节数（退回字节换算）", async () => {
+    (globalThis as any).createImageBitmap = vi.fn(async () => {
+      throw new Error("decode failed");
+    });
+    try {
+      const messages: ChatRequest["messages"] = [
+        { role: "user", content: [{ type: "image", attachmentId: "img2", mimeType: "image/png" }] },
+      ];
+      const sizes = await loadAttachmentSizes(messages, async () => new Blob(["x".repeat(64)]));
+      expect(sizes.get("img2")).toEqual({ bytes: 64 });
+    } finally {
+      delete (globalThis as any).createImageBitmap;
+    }
   });
 
   it("vision 模型下缺失图片大小时应使用文本降级估算而不是 Infinity", () => {
@@ -197,7 +249,7 @@ describe("上下文预算估算与裁剪", () => {
     const messages: ChatRequest["messages"] = [
       { role: "user", content: [{ type: "audio", attachmentId: "audio1", mimeType: "audio/mpeg" }] },
     ];
-    const sizes = new Map([["audio1", bigSize]]);
+    const sizes = new Map([["audio1", { bytes: bigSize }]]);
     const estimate = estimateRequestTokens(messages, [], sizes, VISION_MODEL);
     expect(estimate).toBeLessThan(bigSize);
   });
@@ -207,7 +259,7 @@ describe("上下文预算估算与裁剪", () => {
       { role: "user", content: "帮我看看这张截图" },
       { role: "user", content: [{ type: "image", attachmentId: "screenshot", mimeType: "image/png" }] },
     ];
-    const sizes = new Map([["screenshot", 100_000]]);
+    const sizes = new Map([["screenshot", { bytes: 100_000 }]]);
     // VISION_MODEL 未显式配置 contextWindow，按 gpt-4o 前缀推断为 128_000
     const estimate = estimateRequestTokens(messages, [], sizes, VISION_MODEL);
     // 128_000 * 0.9 的预检阈值 ≈ 115_200；一张普通照片折算后的 token 数应远低于这个预算，
@@ -243,7 +295,7 @@ describe("estimateRequestTokens 的按消息缓存不应产生陈旧结果", () 
       { role: "user", content: "占位" },
       { role: "user", content: "占位" },
     ];
-    const sizes = new Map([["img1", 6_000_000]]);
+    const sizes = new Map([["img1", { bytes: 6_000_000 }]]);
 
     const before = estimateRequestTokens(messages, [], sizes, VISION_MODEL);
     elideOldAttachments(messages, 2);
