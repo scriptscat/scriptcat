@@ -2,6 +2,8 @@ export default class DeclarativeNetRequest {
   MAX_NUMBER_OF_SESSION_RULES = 5000;
 
   private _sessionRules: chrome.declarativeNetRequest.Rule[] = [];
+  private _dynamicRules: chrome.declarativeNetRequest.Rule[] = [];
+  dynamicUpdateError: string | undefined;
 
   HeaderOperation = {
     APPEND: "append",
@@ -73,5 +75,39 @@ export default class DeclarativeNetRequest {
 
   getSessionRules(): Promise<chrome.declarativeNetRequest.Rule[]> {
     return Promise.resolve([...this._sessionRules]);
+  }
+
+  updateDynamicRules(options: chrome.declarativeNetRequest.UpdateRuleOptions, callback?: () => void): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      if (this.dynamicUpdateError) {
+        const message = this.dynamicUpdateError;
+        this.dynamicUpdateError = undefined;
+        (chrome.runtime as typeof chrome.runtime & { lastError?: chrome.runtime.LastError }).lastError = { message };
+        callback?.();
+        delete (chrome.runtime as typeof chrome.runtime & { lastError?: chrome.runtime.LastError }).lastError;
+        reject(new Error(message));
+        return;
+      }
+      const removeRuleIds = options.removeRuleIds ?? [];
+      const rules = this._dynamicRules.filter((rule) => !removeRuleIds.includes(rule.id));
+      for (const newRule of options.addRules ?? []) {
+        const index = rules.findIndex((rule) => rule.id === newRule.id);
+        if (index === -1) rules.push(newRule);
+        else rules[index] = newRule;
+      }
+      this._dynamicRules = rules;
+      callback?.();
+      resolve();
+    });
+  }
+
+  getDynamicRules(): Promise<chrome.declarativeNetRequest.Rule[]> {
+    return Promise.resolve([...this._dynamicRules]);
+  }
+
+  resetMock() {
+    this._sessionRules = [];
+    this._dynamicRules = [];
+    this.dynamicUpdateError = undefined;
   }
 }

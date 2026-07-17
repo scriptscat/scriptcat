@@ -20,7 +20,18 @@ vi.mock("@App/pages/store/global", () => ({
 }));
 vi.mock("@App/pages/store/features/script", () => ({ synchronizeClient: { export: vi.fn(), backupToCloud: vi.fn() } }));
 vi.mock("@App/app/migrate", () => ({ migrateToChromeStorage: vi.fn() }));
-vi.mock("@App/app/service/service_worker/client", () => ({ SystemClient: vi.fn() }));
+vi.mock("@App/app/service/service_worker/client", () => ({
+  SystemClient: vi.fn(),
+  CspRuleClient: vi.fn(function () {
+    return {
+      getState: vi.fn().mockResolvedValue({
+        state: { schemaVersion: 1, revision: 0, masterEnabled: true, rules: [] },
+        apply: { state: "applied", revision: 0, appliedAt: 1 },
+      }),
+    };
+  }),
+  parseCspRuleError: vi.fn(() => ({ code: "storage_write_failed" })),
+}));
 vi.mock("@Packages/filesystem/factory", () => ({
   default: {
     create: vi.fn(),
@@ -51,9 +62,9 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("工具页", () => {
-  it("渲染 5 个分类导航项", () => {
+  it("渲染 6 个分类导航项", () => {
     render(<Tools />);
     const nav = document.querySelector("nav")!;
-    expect(nav.querySelectorAll("button")).toHaveLength(5);
+    expect(nav.querySelectorAll("button")).toHaveLength(6);
   });
 });
