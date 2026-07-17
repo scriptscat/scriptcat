@@ -1,7 +1,21 @@
 // OPFS（Origin Private File System）通用 Repo 基类
 // 所有 Agent 相关的持久化数据统一存储在 agents/ 目录下
 
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+
 const AGENTS_ROOT = "agents";
+
+// 跨上下文互斥：Options 页与 Service Worker 都会直接读写同一份 OPFS JSON 文件，
+// 进程内队列（stackAsyncTask）覆盖不了跨上下文的读-改-写竞争。Web Locks 按 origin
+// 全局生效（扩展页与 MV3 SW 同源），是两者之间唯一共享的互斥原语；不支持 Web Locks
+// 的环境（单元测试 jsdom）退化为进程内按 key 排队（见 finding 1）。
+function withExclusiveFileLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const locks = (globalThis as { navigator?: { locks?: LockManager } }).navigator?.locks;
+  if (locks?.request) {
+    return locks.request(key, { mode: "exclusive" }, fn) as Promise<T>;
+  }
+  return stackAsyncTask(key, fn);
+}
 
 // 获取 agents 根目录
 async function getAgentsRoot(): Promise<FileSystemDirectoryHandle> {
@@ -43,17 +57,30 @@ export class OPFSRepo {
     return getSubDir(dir, childPath);
   }
 
-  // 读取 JSON 文件，文件不存在时返回默认值
+  // 以当前 Repo + 逻辑范围（scope）为粒度的排它锁，供子类把"读-改-写"包成互斥临界区
+  protected withFileLock<T>(scope: string, fn: () => Promise<T>): Promise<T> {
+    return withExclusiveFileLock(`opfs-repo:${this.subPath}:${scope}`, fn);
+  }
+
+  // 读取 JSON 文件。文件尚未创建（NotFoundError）是预期状态，返回默认值；
+  // 解析失败、权限或 I/O 错误一律抛出——把这类失败静默转成默认值，会让后续的
+  // 读-改-写（appendMessage / saveConversation 等）基于空快照把仍然存在的旧数据
+  // 整份覆写掉（见 finding 1）。
   protected async readJsonFile<T>(filename: string, defaultValue: T, dir?: FileSystemDirectoryHandle): Promise<T> {
+    const targetDir = dir || (await this.getDir());
+    let fileHandle: FileSystemFileHandle;
     try {
-      const targetDir = dir || (await this.getDir());
-      const fileHandle = await targetDir.getFileHandle(filename);
-      const file = await fileHandle.getFile();
-      const text = await file.text();
-      return JSON.parse(text) as T;
-    } catch {
-      return defaultValue;
+      fileHandle = await targetDir.getFileHandle(filename);
+    } catch (error) {
+      if ((error as { name?: string })?.name === "NotFoundError") return defaultValue;
+      throw error;
     }
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    // 空文件：createWritable() 事务性写入不会留下半截内容，空文件只可能是 create 后从未写入，
+    // 与"文件不存在"同义，按默认值处理
+    if (!text) return defaultValue;
+    return JSON.parse(text) as T;
   }
 
   // 写入 JSON 文件。

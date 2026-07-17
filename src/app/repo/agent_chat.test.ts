@@ -48,14 +48,14 @@ function createMockOPFS() {
           if (opts?.create) {
             store.set("__dir__" + name, new Map());
           } else {
-            throw new Error("Not found");
+            throw new DOMException("A requested file or directory could not be found.", "NotFoundError");
           }
         }
         return createMockDirHandle(store.get("__dir__" + name));
       }),
       getFileHandle: vi.fn(async (name: string, opts?: { create?: boolean }) => {
         if (!store.has(name) && !opts?.create) {
-          throw new Error("Not found");
+          throw new DOMException("A requested file or directory could not be found.", "NotFoundError");
         }
         if (!store.has(name)) {
           store.set(name, "");
@@ -281,5 +281,95 @@ describe("AgentChatRepo.saveMessages 取消安全（finding 4）", () => {
     // 旧内容必须完整保留，没有被这次放弃的写入部分覆盖或破坏
     const stored = await repo.getMessages(convId);
     expect(stored).toEqual([oldMessage]);
+  });
+});
+
+describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
+  let repo: AgentChatRepo;
+  let rootStore: Map<string, any>;
+
+  beforeEach(() => {
+    ({ rootStore } = createMockOPFS());
+    repo = new AgentChatRepo();
+  });
+
+  it("并发 appendMessage 不应互相覆盖丢消息", async () => {
+    const convId = "conv-race";
+    const makeMessage = (id: string) => ({
+      id,
+      conversationId: convId,
+      role: "user" as const,
+      content: id,
+      createtime: Date.now(),
+    });
+
+    // 两个并发的读-改-写：无锁时双方都会读到空快照，后写者覆盖先写者
+    await Promise.all([repo.appendMessage(makeMessage("m1")), repo.appendMessage(makeMessage("m2"))]);
+
+    const stored = await repo.getMessages(convId);
+    expect(stored.map((m) => m.id).sort()).toEqual(["m1", "m2"]);
+  });
+
+  it("并发 saveConversation 不应互相覆盖丢会话", async () => {
+    const makeConv = (id: string) => ({
+      id,
+      title: id,
+      modelId: "m",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    });
+
+    await Promise.all([repo.saveConversation(makeConv("c1")), repo.saveConversation(makeConv("c2"))]);
+
+    const stored = await repo.listConversations();
+    expect(stored.map((c) => c.id).sort()).toEqual(["c1", "c2"]);
+  });
+
+  it("消息文件损坏时读取应抛错，而不是让后续写入基于空快照覆盖旧数据", async () => {
+    const messagesDir = navigateDir(rootStore, "agents", "conversations", "data");
+    messagesDir.set("conv-corrupt.json", "{ 损坏的 JSON");
+
+    await expect(repo.getMessages("conv-corrupt")).rejects.toThrow();
+    // appendMessage 的读阶段同样必须失败，绝不能把损坏文件当作空历史整份覆写
+    await expect(
+      repo.appendMessage({
+        id: "m1",
+        conversationId: "conv-corrupt",
+        role: "user",
+        content: "hi",
+        createtime: Date.now(),
+      })
+    ).rejects.toThrow();
+    expect(messagesDir.get("conv-corrupt.json")).toBe("{ 损坏的 JSON");
+  });
+
+  it("文件尚未创建（NotFoundError）时读取返回默认值", async () => {
+    await expect(repo.getMessages("conv-none")).resolves.toEqual([]);
+  });
+
+  it("支持 Web Locks 的环境下写操作应在 navigator.locks 排它锁内执行", async () => {
+    const request = vi.fn(async (_name: string, _opts: unknown, fn: () => Promise<unknown>) => fn());
+    Object.defineProperty(navigator, "locks", {
+      value: { request },
+      configurable: true,
+      writable: true,
+    });
+    try {
+      await repo.appendMessage({
+        id: "m1",
+        conversationId: "conv-lock",
+        role: "user",
+        content: "hi",
+        createtime: Date.now(),
+      });
+      expect(request).toHaveBeenCalledWith(
+        expect.stringContaining("conv-lock"),
+        expect.objectContaining({ mode: "exclusive" }),
+        expect.any(Function)
+      );
+    } finally {
+      // @ts-expect-error 清理测试注入的 locks
+      delete navigator.locks;
+    }
   });
 });

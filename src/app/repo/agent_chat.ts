@@ -23,16 +23,20 @@ export class AgentChatRepo extends OPFSRepo {
     return this.readJsonFile<Conversation[]>(CONVERSATIONS_FILE, []);
   }
 
-  // 保存/更新会话
+  // 保存/更新会话。
+  // conversations.json 被 Options 页与 Service Worker 两个上下文共享，所有读-改-写
+  // 都必须在同一把跨上下文排它锁内执行，否则双方会基于同一旧快照互相覆盖（见 finding 1）
   async saveConversation(conversation: Conversation): Promise<void> {
-    const conversations = await this.readJsonFile<Conversation[]>(CONVERSATIONS_FILE, []);
-    const index = conversations.findIndex((c) => c.id === conversation.id);
-    if (index >= 0) {
-      conversations[index] = conversation;
-    } else {
-      conversations.unshift(conversation);
-    }
-    await this.writeJsonFile(CONVERSATIONS_FILE, conversations);
+    await this.withFileLock(CONVERSATIONS_FILE, async () => {
+      const conversations = await this.readJsonFile<Conversation[]>(CONVERSATIONS_FILE, []);
+      const index = conversations.findIndex((c) => c.id === conversation.id);
+      if (index >= 0) {
+        conversations[index] = conversation;
+      } else {
+        conversations.unshift(conversation);
+      }
+      await this.writeJsonFile(CONVERSATIONS_FILE, conversations);
+    });
   }
 
   // 删除会话及其消息和附件
@@ -64,12 +68,16 @@ export class AgentChatRepo extends OPFSRepo {
       await this.deleteAttachments(attachmentIds);
     }
 
-    const conversations = await this.readJsonFile<Conversation[]>(CONVERSATIONS_FILE, []);
-    const filtered = conversations.filter((c) => c.id !== id);
-    await this.writeJsonFile(CONVERSATIONS_FILE, filtered);
-    // 删除对应消息文件
-    const messagesDir = await this.getChildDir(MESSAGES_DIR);
-    await this.deleteFile(`${id}.json`, messagesDir);
+    await this.withFileLock(CONVERSATIONS_FILE, async () => {
+      const conversations = await this.readJsonFile<Conversation[]>(CONVERSATIONS_FILE, []);
+      const filtered = conversations.filter((c) => c.id !== id);
+      await this.writeJsonFile(CONVERSATIONS_FILE, filtered);
+    });
+    // 删除对应消息文件：与该会话消息文件的读-改-写同锁，避免并发 appendMessage 复活已删除文件
+    await this.withFileLock(`messages:${id}`, async () => {
+      const messagesDir = await this.getChildDir(MESSAGES_DIR);
+      await this.deleteFile(`${id}.json`, messagesDir);
+    });
     // 删除关联的任务数据
     await this.deleteTasks(id).catch(() => {});
   }
@@ -80,31 +88,38 @@ export class AgentChatRepo extends OPFSRepo {
     return this.readJsonFile<ChatMessage[]>(`${conversationId}.json`, [], messagesDir);
   }
 
-  // 追加消息
+  // 追加消息（读-改-写，须持有该会话消息文件的跨上下文排它锁，见 finding 1）
   async appendMessage(message: ChatMessage): Promise<void> {
-    const messagesDir = await this.getChildDir(MESSAGES_DIR);
-    const messages = await this.readJsonFile<ChatMessage[]>(`${message.conversationId}.json`, [], messagesDir);
-    messages.push(message);
-    await this.writeJsonFile(`${message.conversationId}.json`, messages, messagesDir);
-  }
-
-  // 更新消息（按 id 匹配）
-  async updateMessage(message: ChatMessage): Promise<void> {
-    const messagesDir = await this.getChildDir(MESSAGES_DIR);
-    const messages = await this.readJsonFile<ChatMessage[]>(`${message.conversationId}.json`, [], messagesDir);
-    const index = messages.findIndex((m) => m.id === message.id);
-    if (index >= 0) {
-      messages[index] = message;
+    await this.withFileLock(`messages:${message.conversationId}`, async () => {
+      const messagesDir = await this.getChildDir(MESSAGES_DIR);
+      const messages = await this.readJsonFile<ChatMessage[]>(`${message.conversationId}.json`, [], messagesDir);
+      messages.push(message);
       await this.writeJsonFile(`${message.conversationId}.json`, messages, messagesDir);
-    }
+    });
   }
 
-  // 保存整个消息列表（用于批量更新）。
+  // 更新消息（按 id 匹配；读-改-写，同上须持锁）
+  async updateMessage(message: ChatMessage): Promise<void> {
+    await this.withFileLock(`messages:${message.conversationId}`, async () => {
+      const messagesDir = await this.getChildDir(MESSAGES_DIR);
+      const messages = await this.readJsonFile<ChatMessage[]>(`${message.conversationId}.json`, [], messagesDir);
+      const index = messages.findIndex((m) => m.id === message.id);
+      if (index >= 0) {
+        messages[index] = message;
+        await this.writeJsonFile(`${message.conversationId}.json`, messages, messagesDir);
+      }
+    });
+  }
+
+  // 保存整个消息列表（用于批量更新）。整份覆写虽无读阶段，但仍须与其它读-改-写同锁排队，
+  // 否则可能穿插进别人临界区的读与写之间。
   // signal 可选：传入时若在写入落定前已 abort，则放弃这次整份覆写而不是让它继续提交
   // （OPFS createWritable() 本身是事务性的，写入的是临时副本，abort 不会影响已持久化的旧内容，见 finding 4）
   async saveMessages(conversationId: string, messages: ChatMessage[], signal?: AbortSignal): Promise<void> {
-    const messagesDir = await this.getChildDir(MESSAGES_DIR);
-    await this.writeJsonFile(`${conversationId}.json`, messages, messagesDir, signal);
+    await this.withFileLock(`messages:${conversationId}`, async () => {
+      const messagesDir = await this.getChildDir(MESSAGES_DIR);
+      await this.writeJsonFile(`${conversationId}.json`, messages, messagesDir, signal);
+    });
   }
 
   // ---- 附件存储 ----
@@ -172,8 +187,10 @@ export class AgentChatRepo extends OPFSRepo {
 
   // 保存会话关联的任务列表
   async saveTasks(conversationId: string, tasks: Task[], signal?: AbortSignal): Promise<void> {
-    const tasksDir = await this.getChildDir(TASKS_DIR);
-    await this.writeJsonFile(`${conversationId}.json`, tasks, tasksDir, signal);
+    await this.withFileLock(`tasks:${conversationId}`, async () => {
+      const tasksDir = await this.getChildDir(TASKS_DIR);
+      await this.writeJsonFile(`${conversationId}.json`, tasks, tasksDir, signal);
+    });
   }
 
   // 删除会话关联的任务

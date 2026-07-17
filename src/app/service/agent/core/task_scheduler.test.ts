@@ -40,12 +40,13 @@ function createMockOPFS() {
       getDirectoryHandle: vi.fn(async (name: string, opts?: { create?: boolean }) => {
         if (!store.has("__dir__" + name)) {
           if (opts?.create) store.set("__dir__" + name, new Map());
-          else throw new Error("Not found");
+          else throw new DOMException("A requested file or directory could not be found.", "NotFoundError");
         }
         return createMockDirHandle(store.get("__dir__" + name));
       }),
       getFileHandle: vi.fn(async (name: string, opts?: { create?: boolean }) => {
-        if (!store.has(name) && !opts?.create) throw new Error("Not found");
+        if (!store.has(name) && !opts?.create)
+          throw new DOMException("A requested file or directory could not be found.", "NotFoundError");
         if (!store.has(name)) store.set(name, "");
         return createMockFileHandle(name, store);
       }),
