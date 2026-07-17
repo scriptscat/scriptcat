@@ -34,6 +34,11 @@ function createMockOPFS() {
           const written = writable.getData();
           dir.set(name, written);
           await origClose();
+          const forcedError = dir.get("__close_error__");
+          if (forcedError) {
+            dir.delete("__close_error__");
+            throw forcedError;
+          }
         });
         return writable;
       }),
@@ -54,6 +59,8 @@ function createMockOPFS() {
         return createMockDirHandle(store.get("__dir__" + name));
       }),
       getFileHandle: vi.fn(async (name: string, opts?: { create?: boolean }) => {
+        const forcedError = store.get("__get_error__");
+        if (forcedError) throw forcedError;
         if (!store.has(name) && !opts?.create) {
           throw new DOMException("A requested file or directory could not be found.", "NotFoundError");
         }
@@ -63,6 +70,8 @@ function createMockOPFS() {
         return createMockFileHandle(name, store);
       }),
       removeEntry: vi.fn(async (name: string) => {
+        const forcedError = store.get("__remove_error__");
+        if (forcedError) throw forcedError;
         store.delete(name);
         store.delete("__dir__" + name);
       }),
@@ -204,9 +213,27 @@ describe("AgentChatRepo 附件存储", () => {
     expect(await repo.getAttachment("att-c")).toBeNull();
   });
 
+  it("附件读取与删除不得把权限错误伪装成不存在", async () => {
+    const uploadsDir = navigateDir(rootStore, "agents", "workspace", "uploads");
+    uploadsDir.set("__get_error__", new DOMException("read denied", "NotAllowedError"));
+    await expect(repo.getAttachment("private.png")).rejects.toThrow("read denied");
+
+    uploadsDir.delete("__get_error__");
+    uploadsDir.set("__remove_error__", new DOMException("delete denied", "NotAllowedError"));
+    await expect(repo.deleteAttachment("private.png")).rejects.toThrow("delete denied");
+  });
+
   it("saveAttachment 纯文本（非 data URL）应作为 octet-stream 存储", async () => {
     const size = await repo.saveAttachment("att-5", "plain text content");
     expect(size).toBeGreaterThan(0);
+  });
+
+  it("附件 close 已提交后报错时应通过大小读回确认成功", async () => {
+    const uploadsDir = navigateDir(rootStore, "agents", "workspace", "uploads");
+    uploadsDir.set("__close_error__", new Error("ambiguous attachment close"));
+
+    await expect(repo.saveAttachment("ambiguous.bin", new Blob(["durable"]))).resolves.toBe(7);
+    expect(await (await repo.getAttachment("ambiguous.bin"))!.text()).toBe("durable");
   });
 
   it("deleteConversation 应清理关联的附件", async () => {
@@ -472,6 +499,92 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
     expect((await repo.getMessages(conversation.id)).filter((item) => item.id === message.id)).toHaveLength(1);
   });
 
+  it("appendMessage close 已提交后报错时应读回确认消息及附件所有权", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-ambiguous-append",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    const message = {
+      id: "owned-message",
+      conversationId: conversation.id,
+      role: "user" as const,
+      content: [{ type: "image" as const, attachmentId: "owned.png", mimeType: "image/png" }],
+      ownedAttachmentIds: ["owned.png"],
+      createtime: 2,
+    };
+    const originalWrite = (repo as any).writeJsonFile.bind(repo);
+    vi.spyOn(repo as any, "writeJsonFile").mockImplementationOnce(async (...args: unknown[]) => {
+      await originalWrite(...args);
+      throw new Error("ambiguous append close");
+    });
+
+    await expect(repo.appendMessage(message, conversation.generation)).resolves.toMatchObject({
+      messages: [message],
+    });
+  });
+
+  it("saveTasks close 已提交后报错时应读回确认候选任务列表", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-ambiguous-tasks",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    const tasks = [{ id: "1", subject: "persist", status: "pending" as const }];
+    const originalWrite = (repo as any).writeJsonFile.bind(repo);
+    vi.spyOn(repo as any, "writeJsonFile").mockImplementationOnce(async (...args: unknown[]) => {
+      await originalWrite(...args);
+      throw new Error("ambiguous task close");
+    });
+
+    await expect(repo.saveTasks(conversation.id, tasks, undefined, conversation.generation)).resolves.toBeUndefined();
+    await expect(repo.getTasks(conversation.id, conversation.generation)).resolves.toEqual(tasks);
+  });
+
+  it("saveMessages close 已提交后报错时仍应继续清理被移除附件", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-ambiguous-replace",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    await repo.saveMessages(
+      conversation.id,
+      [
+        {
+          id: "owned-old",
+          conversationId: conversation.id,
+          role: "user",
+          content: [{ type: "image", attachmentId: "old.png", mimeType: "image/png" }],
+          ownedAttachmentIds: ["old.png"],
+          createtime: 1,
+        },
+      ],
+      undefined,
+      { generation: conversation.generation! }
+    );
+    await repo.saveAttachment("old.png", new Blob(["old"]));
+    const snapshot = await repo.getMessageSnapshot(conversation.id, conversation.generation);
+    const originalWrite = (repo as any).writeJsonFile.bind(repo);
+    vi.spyOn(repo as any, "writeJsonFile").mockImplementationOnce(async (...args: unknown[]) => {
+      await originalWrite(...args);
+      throw new Error("ambiguous replacement close");
+    });
+
+    await expect(
+      repo.saveMessages(conversation.id, [], undefined, {
+        generation: conversation.generation!,
+        expectedRevision: snapshot.revision,
+      })
+    ).resolves.toMatchObject({ messages: [] });
+    expect(await repo.getAttachment("old.png")).toBeNull();
+  });
+
   it("并发 saveConversation 不应互相覆盖丢会话", async () => {
     const makeConv = (id: string) => ({
       id,
@@ -586,6 +699,46 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
     expect(await repo.getMessages(conversation.id)).toEqual([]);
   });
 
+  it("会话元数据删除已提交后 close 报错时仍应完成子数据清理", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-ambiguous-delete",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    await repo.saveMessages(
+      conversation.id,
+      [
+        {
+          id: "owned-before-delete",
+          conversationId: conversation.id,
+          role: "user",
+          content: [{ type: "image", attachmentId: "delete-me.png", mimeType: "image/png" }],
+          ownedAttachmentIds: ["delete-me.png"],
+          createtime: 1,
+        },
+      ],
+      undefined,
+      { generation: conversation.generation! }
+    );
+    await repo.saveAttachment("delete-me.png", new Blob(["delete"]));
+    const originalWrite = (repo as any).writeJsonFile.bind(repo);
+    vi.spyOn(repo as any, "writeJsonFile").mockImplementationOnce(async (...args: unknown[]) => {
+      await originalWrite(...args);
+      throw new Error("ambiguous delete close");
+    });
+
+    await expect(
+      repo.deleteConversation(conversation.id, {
+        generation: conversation.generation!,
+        expectedRevision: conversation.revision,
+      })
+    ).resolves.toBeUndefined();
+    expect(await repo.listConversations()).toEqual([]);
+    expect(await repo.getAttachment("delete-me.png")).toBeNull();
+  });
+
   it("历史替换应以 revision 做 CAS，不能覆盖并发追加", async () => {
     const conversation = await repo.createConversation({
       id: "conv-cas",
@@ -658,5 +811,40 @@ describe("AgentChatRepo 跨上下文读-改-写安全（finding 1）", () => {
     const after = await repo.getMessageSnapshot(conversation.id, conversation.generation);
     expect(after.revision).toBe(before.revision + 1);
     expect(after.messages.map((message) => message.id)).toEqual(["assistant", "tool-1", "tool-2"]);
+  });
+
+  it("工具轮次 close 报错但读回确认完整时应按已提交成功处理", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-ambiguous-tool-round",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    const assistant = {
+      id: "assistant-ambiguous",
+      conversationId: conversation.id,
+      role: "assistant" as const,
+      content: "",
+      toolCalls: [{ id: "call-1", name: "tool", arguments: "{}" }],
+      createtime: 2,
+    };
+    const toolMessage = {
+      id: "tool-ambiguous",
+      conversationId: conversation.id,
+      role: "tool" as const,
+      content: "done",
+      toolCallId: "call-1",
+      createtime: 3,
+    };
+    const originalWrite = (repo as any).writeJsonFile.bind(repo);
+    vi.spyOn(repo as any, "writeJsonFile").mockImplementationOnce(async (...args: unknown[]) => {
+      await originalWrite(...args);
+      throw new Error("ambiguous close failure");
+    });
+
+    await expect(repo.commitToolRound(assistant, [toolMessage], conversation.generation)).resolves.toMatchObject({
+      messages: [assistant, toolMessage],
+    });
   });
 });

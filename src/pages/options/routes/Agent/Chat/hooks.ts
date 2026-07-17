@@ -254,6 +254,9 @@ export function useStreamingChat() {
           connRef.current = null;
         });
       } catch (e: any) {
+        await Promise.all(
+          (extra?.ownedAttachmentIds || []).map((id) => agentChatRepo.deleteAttachment(id).catch(() => {}))
+        );
         setIsStreaming(false);
         setAskUserPending(null);
         onEvent({ type: "error", message: e.message || "Connection failed" });

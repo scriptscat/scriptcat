@@ -189,6 +189,34 @@ export class ToolLoopOrchestrator {
     );
   }
 
+  private async isToolRoundDurable(
+    conversationId: string,
+    conversationGeneration: string | undefined,
+    assistantMessage: ChatMessage,
+    toolMessages: ChatMessage[]
+  ): Promise<boolean> {
+    try {
+      const snapshot = await this.chatRepo.getMessageSnapshot(conversationId, conversationGeneration);
+      const assistant = snapshot.messages.find(
+        (message) => message.id === assistantMessage.id && message.role === "assistant"
+      );
+      if (!assistant) return false;
+      const expectedToolCallIds = new Set((assistantMessage.toolCalls || []).map((toolCall) => toolCall.id));
+      if (toolMessages.length !== expectedToolCallIds.size) return false;
+      return toolMessages.every(
+        (expected) =>
+          expected.toolCallId !== undefined &&
+          expectedToolCallIds.has(expected.toolCallId) &&
+          snapshot.messages.some(
+            (message) =>
+              message.id === expected.id && message.role === "tool" && message.toolCallId === expected.toolCallId
+          )
+      );
+    } catch {
+      return false;
+    }
+  }
+
   /** 取消（stop）落定时的统一终态化：持久化一条终态记录 + 发送唯一的终态事件，携带累计 usage/耗时。
    * 落库失败不能阻塞事件发送，否则客户端永远收不到终态事件（见 finding 5）。 */
   private async emitCancelled(
@@ -646,7 +674,7 @@ export class ToolLoopOrchestrator {
             }))
           : [];
 
-        if (persistedAssistantMessage) {
+        if (persistedAssistantMessage && conversationId) {
           try {
             await this.chatRepo.commitToolRound(
               persistedAssistantMessage,
@@ -654,14 +682,26 @@ export class ToolLoopOrchestrator {
               conversationGeneration
             );
           } catch (error) {
-            const ownedAttachmentIds = toolResults.flatMap((toolResult) => toolResult.ownedAttachmentIds || []);
-            await Promise.all(ownedAttachmentIds.map((id) => this.chatRepo.deleteAttachment(id).catch(() => {})));
-            await this.releaseGeneratedAttachments(result);
-            throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
-              usage: totalUsage,
-              durationMs: Date.now() - startTime,
-              conversationId,
-            });
+            if (
+              await this.isToolRoundDurable(
+                conversationId,
+                conversationGeneration,
+                persistedAssistantMessage,
+                persistedToolMessages
+              )
+            ) {
+              // The OPFS close reported an ambiguous failure after the exact round became durable.
+              // Publish the committed results and retain their attachments.
+            } else {
+              const ownedAttachmentIds = toolResults.flatMap((toolResult) => toolResult.ownedAttachmentIds || []);
+              await Promise.all(ownedAttachmentIds.map((id) => this.chatRepo.deleteAttachment(id).catch(() => {})));
+              await this.releaseGeneratedAttachments(result);
+              throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+                usage: totalUsage,
+                durationMs: Date.now() - startTime,
+                conversationId,
+              });
+            }
           }
         }
 

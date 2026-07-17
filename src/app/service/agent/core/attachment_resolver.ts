@@ -32,43 +32,39 @@ export async function prepareAttachmentSnapshot(
 
   for (const id of ids) {
     throwIfAborted(signal);
-    try {
-      const blob = await raceWithAbort(getAttachment(id), signal);
-      throwIfAborted(signal);
-      if (!blob) continue;
-      const info: AttachmentSizeInfo = { bytes: blob.size };
-      if (typeof createImageBitmap === "function") {
-        try {
-          const bitmapPromise = createImageBitmap(blob);
-          // raceWithAbort cannot cancel browser decoding. If it finishes after Stop, close the abandoned bitmap.
-          void bitmapPromise.then(
-            (bitmap) => {
-              if (signal?.aborted) bitmap.close();
-            },
-            () => {}
-          );
-          const bitmap = await raceWithAbort(bitmapPromise, signal);
-          info.width = bitmap.width;
-          info.height = bitmap.height;
-          bitmap.close();
-        } catch {
-          // Unsupported or damaged image: size remains a conservative byte-based estimate.
-        }
+    const blob = await raceWithAbort(getAttachment(id), signal);
+    throwIfAborted(signal);
+    if (!blob) continue;
+    const info: AttachmentSizeInfo = { bytes: blob.size };
+    if (typeof createImageBitmap === "function") {
+      try {
+        const bitmapPromise = createImageBitmap(blob);
+        // raceWithAbort cannot cancel browser decoding. If it finishes after Stop, close the abandoned bitmap.
+        void bitmapPromise.then(
+          (bitmap) => {
+            if (signal?.aborted) bitmap.close();
+          },
+          () => {}
+        );
+        const bitmap = await raceWithAbort(bitmapPromise, signal);
+        info.width = bitmap.width;
+        info.height = bitmap.height;
+        bitmap.close();
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        // Unsupported or damaged image: size remains a conservative byte-based estimate.
       }
-      throwIfAborted(signal);
-      const bytes = new Uint8Array(await raceWithAbort(blob.arrayBuffer(), signal));
-      throwIfAborted(signal);
-      const chunks: string[] = [];
-      for (let index = 0; index < bytes.length; index += 8192) {
-        chunks.push(String.fromCharCode(...bytes.subarray(index, Math.min(index + 8192, bytes.length))));
-      }
-      const mime = mimeTypes.get(id) || blob.type || "application/octet-stream";
-      resolved.set(id, `data:${mime};base64,${btoa(chunks.join(""))}`);
-      sizes.set(id, info);
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      // Keep a missing attachment unresolved; provider will use its textual fallback.
     }
+    throwIfAborted(signal);
+    const bytes = new Uint8Array(await raceWithAbort(blob.arrayBuffer(), signal));
+    throwIfAborted(signal);
+    const chunks: string[] = [];
+    for (let index = 0; index < bytes.length; index += 8192) {
+      chunks.push(String.fromCharCode(...bytes.subarray(index, Math.min(index + 8192, bytes.length))));
+    }
+    const mime = mimeTypes.get(id) || blob.type || "application/octet-stream";
+    resolved.set(id, `data:${mime};base64,${btoa(chunks.join(""))}`);
+    sizes.set(id, info);
   }
   return { resolver: (id) => resolved.get(id) ?? null, sizes };
 }

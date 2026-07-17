@@ -212,7 +212,7 @@ export default function ChatInput({
   models: AgentModelConfig[];
   selectedModelId: string;
   onModelChange: (id: string) => void;
-  onSend: (content: MessageContent, files?: Map<string, File>) => void;
+  onSend: (content: MessageContent, files?: Map<string, File>) => Promise<void>;
   onStop: () => void;
   isStreaming: boolean;
   disabled?: boolean;
@@ -229,6 +229,7 @@ export default function ChatInput({
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -294,31 +295,47 @@ export default function ChatInput({
     });
   }, []);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = input.trim();
-    if ((!trimmed && attachments.length === 0) || disabled || hasPendingMessage) return;
+    if ((!trimmed && attachments.length === 0) || disabled || hasPendingMessage || isSending) return;
 
-    if (attachments.length > 0) {
-      const blocks: ContentBlock[] = [];
-      const files = new Map<string, File>();
-      if (trimmed) blocks.push({ type: "text", text: trimmed });
-      for (const att of attachments) {
-        const mime = att.file.type;
-        if (mime.startsWith("image/")) {
-          blocks.push({ type: "image", attachmentId: att.id, mimeType: mime, name: att.file.name });
-        } else if (mime.startsWith("audio/")) {
-          blocks.push({ type: "audio", attachmentId: att.id, mimeType: mime, name: att.file.name });
-        } else {
-          blocks.push({ type: "file", attachmentId: att.id, mimeType: mime, name: att.file.name, size: att.file.size });
+    setIsSending(true);
+    try {
+      if (attachments.length > 0) {
+        const blocks: ContentBlock[] = [];
+        const files = new Map<string, File>();
+        if (trimmed) blocks.push({ type: "text", text: trimmed });
+        for (const att of attachments) {
+          const mime = att.file.type;
+          if (mime.startsWith("image/")) {
+            blocks.push({ type: "image", attachmentId: att.id, mimeType: mime, name: att.file.name });
+          } else if (mime.startsWith("audio/")) {
+            blocks.push({ type: "audio", attachmentId: att.id, mimeType: mime, name: att.file.name });
+          } else {
+            blocks.push({
+              type: "file",
+              attachmentId: att.id,
+              mimeType: mime,
+              name: att.file.name,
+              size: att.file.size,
+            });
+          }
+          files.set(att.id, att.file);
         }
-        files.set(att.id, att.file);
+        await onSend(blocks, files);
+        for (const attachment of attachments) {
+          if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+        }
+        setAttachments([]);
+      } else {
+        await onSend(trimmed);
       }
-      onSend(blocks, files);
-      setAttachments([]);
-    } else {
-      onSend(trimmed);
+      setInput("");
+    } catch (error) {
+      notify.error(`${t("common:error")}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsSending(false);
     }
-    setInput("");
   };
 
   const handleSlashSelect = useCallback((skill: SkillSummary) => {
@@ -354,7 +371,7 @@ export default function ChatInput({
 
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
@@ -385,7 +402,7 @@ export default function ChatInput({
     e.target.value = "";
   };
 
-  const canSend = !!(input.trim() || attachments.length > 0) && !disabled && !hasPendingMessage;
+  const canSend = !!(input.trim() || attachments.length > 0) && !disabled && !hasPendingMessage && !isSending;
   const iconBtn =
     "size-7 max-md:size-11 rounded flex items-center justify-center bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
 
@@ -543,7 +560,7 @@ export default function ChatInput({
                     type="button"
                     data-testid="chat-send"
                     aria-label={t("agent:chat_send")}
-                    onClick={handleSend}
+                    onClick={() => void handleSend()}
                     disabled={!canSend}
                     className={cn(
                       "flex size-8 items-center justify-center rounded-full border-none shadow-sm transition-opacity max-md:size-11",

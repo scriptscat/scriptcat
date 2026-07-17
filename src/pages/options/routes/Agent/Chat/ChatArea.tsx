@@ -33,6 +33,10 @@ function genId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+async function releasePendingAttachments(attachmentIds?: string[]): Promise<void> {
+  await Promise.all((attachmentIds || []).map((id) => agentChatRepo.deleteAttachment(id).catch(() => {})));
+}
+
 function buildSubAgentContent(text: string, blocks: ContentBlock[]): MessageContent {
   if (blocks.length === 0) return text;
   return [...(text ? [{ type: "text" as const, text }] : []), ...blocks];
@@ -119,9 +123,13 @@ export default function ChatArea({
     setPendingMessageId(null);
   }
 
-  // ref 不能在渲染期写入，故清空排队消息内容放入 effect
+  // 会话切换或组件卸载时，尚未提交的排队附件仍是临时租约，必须回收。
   useEffect(() => {
-    pendingMessageRef.current = null;
+    return () => {
+      const pending = pendingMessageRef.current;
+      pendingMessageRef.current = null;
+      if (pending) void releasePendingAttachments(pending.ownedAttachmentIds);
+    };
   }, [conversationId]);
 
   const scrollToBottom = useCallback(() => {
@@ -430,8 +438,13 @@ export default function ChatArea({
     if (!pending) return;
     pendingMessageRef.current = null;
     setPendingMessageId(null);
-    const freshMsgs = await agentChatRepo.getMessages(conversationId);
-    startStreamingRef.current(freshMsgs, pending.content, undefined, pending.ownedAttachmentIds);
+    try {
+      const freshMsgs = await agentChatRepo.getMessages(conversationId);
+      startStreamingRef.current(freshMsgs, pending.content, undefined, pending.ownedAttachmentIds);
+    } catch {
+      await releasePendingAttachments(pending.ownedAttachmentIds);
+      setMessages((prev) => prev.filter((message) => message.id !== pending.messageId));
+    }
   };
 
   const createDoneCallback = () => {
@@ -564,8 +577,15 @@ export default function ChatArea({
 
     // 保存附件到 OPFS
     if (files && files.size > 0) {
-      for (const [id, file] of files) {
-        await agentChatRepo.saveAttachment(id, file);
+      const savedIds: string[] = [];
+      try {
+        for (const [id, file] of files) {
+          await agentChatRepo.saveAttachment(id, file);
+          savedIds.push(id);
+        }
+      } catch (error) {
+        await releasePendingAttachments(savedIds);
+        throw error;
       }
     }
     const ownedAttachmentIds = files && files.size > 0 ? [...files.keys()] : undefined;
@@ -615,10 +635,17 @@ export default function ChatArea({
       if (isStreaming) return;
       const action = computeRegenerateAction(groups, groupIndex, messages);
       if (!action) return;
-      await deleteMessages(conversationId, action.idsToDelete, action.ownedAttachmentIds);
       await clearTasks();
-      setMessages(action.remainingMessages);
-      startStreamingRef.current(action.remainingMessages, action.userContent, undefined, action.ownedAttachmentIds);
+      let historyDeleted = false;
+      try {
+        await deleteMessages(conversationId, action.idsToDelete, action.ownedAttachmentIds);
+        historyDeleted = true;
+        setMessages(action.remainingMessages);
+        startStreamingRef.current(action.remainingMessages, action.userContent, undefined, action.ownedAttachmentIds);
+      } catch (error) {
+        if (historyDeleted) await releasePendingAttachments(action.ownedAttachmentIds);
+        throw error;
+      }
     },
     [conversationId, isStreaming, messages, setMessages, clearTasks]
   );
@@ -658,10 +685,11 @@ export default function ChatArea({
         .map((m) => m.id);
       idsToDelete.push(...originalToolMsgIds);
 
+      await clearTasks();
       await deleteMessages(conversationId, idsToDelete);
       void loadMessages();
     },
-    [conversationId, isStreaming, messages, loadMessages]
+    [conversationId, isStreaming, messages, loadMessages, clearTasks]
   );
 
   const handleEditMessage = useCallback(
@@ -673,18 +701,27 @@ export default function ChatArea({
         Array.isArray(content) ? content.flatMap((block) => (block.type === "text" ? [] : [block.attachmentId])) : []
       );
       const preservedAttachmentIds = action.ownedAttachmentIds.filter((id) => referencedAttachmentIds.has(id));
-      if (files && files.size > 0) {
-        for (const [id, file] of files) {
-          await agentChatRepo.saveAttachment(id, file);
-        }
-      }
-      await deleteMessages(conversationId, action.idsToDelete, preservedAttachmentIds);
       await clearTasks();
-      setMessages(action.remainingMessages);
-      startStreamingRef.current(action.remainingMessages, content, undefined, [
-        ...preservedAttachmentIds,
-        ...(files ? [...files.keys()] : []),
-      ]);
+      const savedIds: string[] = [];
+      let historyDeleted = false;
+      try {
+        if (files && files.size > 0) {
+          for (const [id, file] of files) {
+            await agentChatRepo.saveAttachment(id, file);
+            savedIds.push(id);
+          }
+        }
+        await deleteMessages(conversationId, action.idsToDelete, preservedAttachmentIds);
+        historyDeleted = true;
+        setMessages(action.remainingMessages);
+        startStreamingRef.current(action.remainingMessages, content, undefined, [
+          ...preservedAttachmentIds,
+          ...savedIds,
+        ]);
+      } catch (error) {
+        await releasePendingAttachments([...savedIds, ...(historyDeleted ? preservedAttachmentIds : [])]);
+        throw error;
+      }
     },
     [conversationId, isStreaming, messages, setMessages, clearTasks]
   );
@@ -718,6 +755,7 @@ export default function ChatArea({
     pendingMessageRef.current = null;
     setPendingMessageId(null);
     setMessages((prev) => prev.filter((m) => m.id !== msgId));
+    void releasePendingAttachments(pending.ownedAttachmentIds);
   }, [setMessages]);
 
   // 兜底：连接断开但 done 回调未触发时，处理排队消息
@@ -732,7 +770,7 @@ export default function ChatArea({
 
   const noModel = modelsLoaded === true && models.length === 0;
   const showWelcome = !conversationId || (messages.length === 0 && !isStreaming);
-  const mergedMessages = mergeToolResults(messages);
+  const mergedMessages = mergeToolResults(messages, !isStreaming && !runningIds?.has(conversationId));
   const messageGroups = groupMessages(mergedMessages);
 
   return (

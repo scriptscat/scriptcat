@@ -325,7 +325,20 @@ export class ToolRegistry implements ToolExecutorLike {
     // 执行脚本工具
     if (scriptCalls.length > 0) {
       if (scriptCallback) {
-        const scriptResults = await raceWithAbort(scriptCallback(scriptCalls, signal), signal);
+        let scriptResults: Array<{ id: string; result: string; error?: boolean }>;
+        try {
+          scriptResults = await raceWithAbort(scriptCallback(scriptCalls, signal), signal);
+        } catch (error) {
+          if (!signal?.aborted) throw error;
+          // Builtin calls in the same batch may already own durable attachments. Preserve those completed
+          // results and synthesize only the interrupted script results so the caller can commit or reclaim all
+          // ownership metadata deterministically.
+          scriptResults = scriptCalls.map((toolCall) => ({
+            id: toolCall.id,
+            result: JSON.stringify({ error: "Tool execution cancelled" }),
+            error: true,
+          }));
+        }
         // 脚本工具也可能返回带附件的结构化结果
         for (const sr of scriptResults) {
           try {

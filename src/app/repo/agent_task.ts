@@ -124,7 +124,12 @@ export class AgentTaskRepo extends Repo<AgentTask> {
   async removeTask(id: string, generation?: string, expectedRevision?: number): Promise<void> {
     await stackAsyncTask(`agent-task:${id}`, async () => {
       const current = await this.getTask(id);
-      if (!current) return;
+      const runRepo = new AgentTaskRunRepo();
+      if (!current) {
+        // A previous attempt may have removed chrome.storage state before OPFS run cleanup failed.
+        await runRepo.clearRuns(id);
+        return;
+      }
       if (
         (generation !== undefined && current.generation !== generation) ||
         (expectedRevision !== undefined && current.revision !== expectedRevision)
@@ -133,7 +138,6 @@ export class AgentTaskRepo extends Repo<AgentTask> {
       }
       await this.delete(id);
       // 同时清理关联的 runs
-      const runRepo = new AgentTaskRunRepo();
       await runRepo.clearRuns(id);
     });
   }
@@ -150,13 +154,30 @@ export class AgentTaskRunRepo extends OPFSRepo {
     return `${taskId}.json`;
   }
 
-  async appendRun(run: AgentTaskRun): Promise<void> {
-    await this.withFileLock(`runs:${run.taskId}`, async () => {
+  private async writeRunsConfirmed(taskId: string, runs: AgentTaskRun[]): Promise<void> {
+    const filename = this.filename(taskId);
+    try {
+      await this.writeJsonFile(filename, runs);
+    } catch (error) {
+      try {
+        const durable = await this.readJsonFile<AgentTaskRun[]>(filename, []);
+        if (JSON.stringify(durable) === JSON.stringify(runs)) return;
+      } catch {
+        // Preserve the original write error when read-back confirmation itself fails.
+      }
+      throw error;
+    }
+  }
+
+  async appendRun(run: AgentTaskRun): Promise<boolean> {
+    return this.withFileLock(`runs:${run.taskId}`, async () => {
       const runs = await this.readJsonFile<AgentTaskRun[]>(this.filename(run.taskId), []);
+      if (runs.some((existing) => existing.id === run.id)) return false;
       runs.unshift(run);
       // 环形缓冲：超过上限时裁剪最老的记录
       if (runs.length > MAX_RUNS_PER_TASK) runs.length = MAX_RUNS_PER_TASK;
-      await this.writeJsonFile(this.filename(run.taskId), runs);
+      await this.writeRunsConfirmed(run.taskId, runs);
+      return true;
     });
   }
 
@@ -166,7 +187,16 @@ export class AgentTaskRunRepo extends OPFSRepo {
       const idx = runs.findIndex((run) => run.id === id);
       if (idx < 0) return;
       Object.assign(runs[idx], data);
-      await this.writeJsonFile(this.filename(taskId), runs);
+      await this.writeRunsConfirmed(taskId, runs);
+    });
+  }
+
+  async removeRun(taskId: string, id: string): Promise<void> {
+    await this.withFileLock(`runs:${taskId}`, async () => {
+      const runs = await this.readJsonFile<AgentTaskRun[]>(this.filename(taskId), []);
+      const retained = runs.filter((run) => run.id !== id);
+      if (retained.length === runs.length) return;
+      await this.writeRunsConfirmed(taskId, retained);
     });
   }
 

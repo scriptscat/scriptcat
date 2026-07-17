@@ -569,6 +569,45 @@ describe("ToolRegistry", () => {
       expect(result.error).toBeUndefined();
     });
 
+    it("混合批次在脚本回调期间取消时应保留已完成内置工具结果", async () => {
+      const registry = new ToolRegistry();
+      registry.setChatRepo(createMockChatRepo());
+      registry.registerBuiltin(weatherDef, {
+        execute: async () => ({
+          content: "builtin complete",
+          attachments: [
+            {
+              attachmentId: "builtin-owned.png",
+              type: "image" as const,
+              name: "builtin-owned.png",
+              mimeType: "image/png",
+            },
+          ],
+          ownedAttachmentIds: ["builtin-owned.png"],
+          usage: { inputTokens: 3, outputTokens: 1 },
+        }),
+      });
+      const controller = new AbortController();
+      const scriptCallback = vi.fn(() => new Promise<Array<{ id: string; result: string }>>(() => {}));
+
+      const pending = registry.execute(
+        [
+          { id: "builtin", name: "get_weather", arguments: "{}" },
+          { id: "script", name: "script_tool", arguments: "{}" },
+        ],
+        scriptCallback,
+        undefined,
+        controller.signal
+      );
+      await vi.waitFor(() => expect(scriptCallback).toHaveBeenCalledOnce());
+      controller.abort();
+
+      await expect(pending).resolves.toEqual([
+        expect.objectContaining({ id: "builtin", ownedAttachmentIds: ["builtin-owned.png"] }),
+        expect.objectContaining({ id: "script", error: true }),
+      ]);
+    });
+
     it("内置工具返回 Blob 附件时应正确保存", async () => {
       const registry = new ToolRegistry();
       const mockRepo = createMockChatRepo();

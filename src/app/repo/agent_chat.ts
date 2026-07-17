@@ -1,7 +1,13 @@
 import type { Conversation, ChatMessage } from "@App/app/service/agent/core/types";
 import type { Task } from "@App/app/service/agent/core/tools/task_tools";
 import { OPFSRepo } from "./opfs_repo";
-import { writeWorkspaceFile, getWorkspaceRoot, getDirectory } from "@App/app/service/agent/core/opfs_helpers";
+import {
+  decodeDataUrl,
+  getDirectory,
+  getWorkspaceRoot,
+  isDataUrl,
+  writeWorkspaceFile,
+} from "@App/app/service/agent/core/opfs_helpers";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { RevisionConflictError } from "./revision";
 
@@ -9,6 +15,10 @@ const CONVERSATIONS_FILE = "conversations.json";
 const MESSAGES_DIR = "data";
 const ATTACHMENTS_DIR = "attachments";
 const TASKS_DIR = "tasks";
+
+function isNotFoundError(error: unknown): boolean {
+  return (error as { name?: string })?.name === "NotFoundError";
+}
 
 export type MessageSnapshot = {
   generation: string;
@@ -51,6 +61,26 @@ export function collectMessageAttachmentIds(messages: ChatMessage[]): Set<string
   return result;
 }
 
+function containsCompleteToolRound(
+  messages: ChatMessage[],
+  assistantMessage: ChatMessage,
+  toolMessages: ChatMessage[]
+): boolean {
+  const assistant = messages.find((message) => message.id === assistantMessage.id && message.role === "assistant");
+  if (!assistant) return false;
+  const expectedToolCallIds = new Set((assistantMessage.toolCalls || []).map((toolCall) => toolCall.id));
+  if (toolMessages.length !== expectedToolCallIds.size) return false;
+  return toolMessages.every(
+    (expected) =>
+      expected.role === "tool" &&
+      expected.toolCallId !== undefined &&
+      expectedToolCallIds.has(expected.toolCallId) &&
+      messages.some(
+        (message) => message.id === expected.id && message.role === "tool" && message.toolCallId === expected.toolCallId
+      )
+  );
+}
+
 // 目录结构：agents/conversations/
 //            agents/conversations/conversations.json       - 会话列表
 //            agents/conversations/data/{id}.json           - 每个会话的消息
@@ -59,6 +89,26 @@ export function collectMessageAttachmentIds(messages: ChatMessage[]): Set<string
 export class AgentChatRepo extends OPFSRepo {
   constructor() {
     super("conversations");
+  }
+
+  private async writeJsonFileConfirmed<T>(
+    filename: string,
+    data: T,
+    defaultValue: T,
+    dir?: FileSystemDirectoryHandle,
+    signal?: AbortSignal
+  ): Promise<void> {
+    try {
+      await this.writeJsonFile(filename, data, dir, signal);
+    } catch (error) {
+      try {
+        const durable = await this.readJsonFile(filename, defaultValue, dir);
+        if (JSON.stringify(durable) === JSON.stringify(data)) return;
+      } catch {
+        // Preserve the original write error when read-back confirmation itself fails.
+      }
+      throw error;
+    }
   }
 
   // 获取所有会话列表
@@ -77,7 +127,7 @@ export class AgentChatRepo extends OPFSRepo {
           throw new RevisionConflictError(`Conversation "${created.id}" already exists`);
         }
         conversations.unshift(created);
-        await this.writeJsonFile(CONVERSATIONS_FILE, conversations);
+        await this.writeJsonFileConfirmed(CONVERSATIONS_FILE, conversations, []);
       });
 
       // Reusing an explicitly supplied ID starts a fresh generation with no legacy child state.
@@ -110,7 +160,7 @@ export class AgentChatRepo extends OPFSRepo {
         }
         const saved = normalizeConversation({ ...conversation, revision: current.revision! + 1 });
         conversations[index] = saved;
-        await this.writeJsonFile(CONVERSATIONS_FILE, conversations);
+        await this.writeJsonFileConfirmed(CONVERSATIONS_FILE, conversations, []);
         Object.assign(conversation, saved);
         return saved;
       });
@@ -137,7 +187,7 @@ export class AgentChatRepo extends OPFSRepo {
         }
         deleted = current;
         conversations.splice(index, 1);
-        await this.writeJsonFile(CONVERSATIONS_FILE, conversations);
+        await this.writeJsonFileConfirmed(CONVERSATIONS_FILE, conversations, []);
       });
       if (!deleted) return;
 
@@ -181,7 +231,12 @@ export class AgentChatRepo extends OPFSRepo {
         // ambiguous error, the retry must observe the committed message instead of appending a duplicate.
         if (snapshot.messages.some((item) => item.id === message.id)) return snapshot;
         const saved = { ...snapshot, revision: snapshot.revision + 1, messages: [...snapshot.messages, message] };
-        await this.writeJsonFile(`${message.conversationId}.json`, saved, messagesDir);
+        await this.writeJsonFileConfirmed(
+          `${message.conversationId}.json`,
+          saved,
+          { generation: current.generation!, revision: 0, messages: [] },
+          messagesDir
+        );
         return saved;
       });
     });
@@ -199,7 +254,12 @@ export class AgentChatRepo extends OPFSRepo {
         if (index < 0) return snapshot;
         messages[index] = message;
         const saved = { ...snapshot, revision: snapshot.revision + 1, messages };
-        await this.writeJsonFile(`${message.conversationId}.json`, saved, messagesDir);
+        await this.writeJsonFileConfirmed(
+          `${message.conversationId}.json`,
+          saved,
+          { generation: current.generation!, revision: 0, messages: [] },
+          messagesDir
+        );
         return saved;
       });
     });
@@ -221,8 +281,20 @@ export class AgentChatRepo extends OPFSRepo {
         const messages = snapshot.messages.filter((message) => !groupIds.has(message.id));
         messages.push(assistantMessage, ...toolMessages);
         const saved = { ...snapshot, revision: snapshot.revision + 1, messages };
-        await this.writeJsonFile(`${conversationId}.json`, saved, messagesDir);
-        return saved;
+        try {
+          await this.writeJsonFile(`${conversationId}.json`, saved, messagesDir);
+          return saved;
+        } catch (error) {
+          // OPFS close() may atomically commit and still surface an error. Read back before reporting failure so
+          // callers never delete attachments that the durable round already references.
+          try {
+            const committed = await this.readMessageSnapshot(conversationId, current.generation!, messagesDir);
+            if (containsCompleteToolRound(committed.messages, assistantMessage, toolMessages)) return committed;
+          } catch {
+            // Preserve the original commit error when confirmation itself fails.
+          }
+          throw error;
+        }
       });
     });
   }
@@ -246,7 +318,13 @@ export class AgentChatRepo extends OPFSRepo {
           throw new RevisionConflictError(`Messages for conversation "${conversationId}" changed`);
         }
         const saved = { generation: current.generation!, revision: snapshot.revision + 1, messages };
-        await this.writeJsonFile(`${conversationId}.json`, saved, messagesDir, signal);
+        await this.writeJsonFileConfirmed(
+          `${conversationId}.json`,
+          saved,
+          { generation: current.generation!, revision: 0, messages: [] },
+          messagesDir,
+          signal
+        );
         const retainedAttachments = collectMessageAttachmentIds(messages);
         for (const attachmentId of guard?.preserveAttachmentIds || []) retainedAttachments.add(attachmentId);
         const removedAttachments = [...collectMessageAttachmentIds(snapshot.messages)].filter(
@@ -284,8 +362,19 @@ export class AgentChatRepo extends OPFSRepo {
 
   // 保存附件数据到 workspace/uploads（支持 base64/data URL 字符串或 Blob）
   async saveAttachment(id: string, data: string | Blob): Promise<number> {
-    const result = await writeWorkspaceFile(`uploads/${id}`, data);
-    return result.size;
+    const expectedSize =
+      data instanceof Blob ? data.size : isDataUrl(data) ? decodeDataUrl(data).data.byteLength : new Blob([data]).size;
+    try {
+      const result = await writeWorkspaceFile(`uploads/${id}`, data);
+      return result.size;
+    } catch (error) {
+      try {
+        if ((await this.getAttachment(id))?.size === expectedSize) return expectedSize;
+      } catch {
+        // Preserve the original write error when read-back confirmation itself fails.
+      }
+      throw error;
+    }
   }
 
   // 读取附件数据为 Blob（先查 workspace 新路径，fallback 旧路径）
@@ -295,15 +384,16 @@ export class AgentChatRepo extends OPFSRepo {
       const workspace = await getWorkspaceRoot();
       const dir = await getDirectory(workspace, "uploads");
       return await (await dir.getFileHandle(id)).getFile();
-    } catch {
-      // 新路径不存在，尝试旧路径
+    } catch (error) {
+      if (!isNotFoundError(error)) throw error;
     }
     // 旧路径回退: agents/conversations/attachments/{id}
     try {
       const dir = await this.getChildDir(ATTACHMENTS_DIR);
       return await (await dir.getFileHandle(id)).getFile();
-    } catch {
-      return null;
+    } catch (error) {
+      if (isNotFoundError(error)) return null;
+      throw error;
     }
   }
 
@@ -314,15 +404,15 @@ export class AgentChatRepo extends OPFSRepo {
       const workspace = await getWorkspaceRoot();
       const dir = await getDirectory(workspace, "uploads");
       await dir.removeEntry(id);
-    } catch {
-      // 新路径不存在则忽略
+    } catch (error) {
+      if (!isNotFoundError(error)) throw error;
     }
     // 旧路径: agents/conversations/attachments/{id}
     try {
       const dir = await this.getChildDir(ATTACHMENTS_DIR);
       await dir.removeEntry(id);
-    } catch {
-      // 旧路径不存在则忽略
+    } catch (error) {
+      if (!isNotFoundError(error)) throw error;
     }
   }
 
@@ -350,7 +440,7 @@ export class AgentChatRepo extends OPFSRepo {
       await this.requireConversation(conversationId, generation);
       await this.withFileLock(`tasks:${conversationId}`, async () => {
         const tasksDir = await this.getChildDir(TASKS_DIR);
-        await this.writeJsonFile(`${conversationId}.json`, tasks, tasksDir, signal);
+        await this.writeJsonFileConfirmed(`${conversationId}.json`, tasks, [], tasksDir, signal);
       });
     });
   }

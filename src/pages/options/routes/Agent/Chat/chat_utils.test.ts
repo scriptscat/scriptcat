@@ -88,6 +88,25 @@ describe("mergeToolResults", () => {
     expect(result[1].toolCalls?.[0].status).toBe("running");
   });
 
+  it("会话已确认不活跃时应把缺失结果的历史工具修复为 error", () => {
+    const messages: ChatMessage[] = [
+      makeMsg({ id: "u1", role: "user", content: "hello" }),
+      makeMsg({
+        id: "a1",
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "tc1", name: "test", arguments: "{}", status: "running" }],
+      }),
+    ];
+
+    const result = mergeToolResults(messages, true);
+
+    expect(result[1].toolCalls?.[0]).toMatchObject({
+      status: "error",
+      result: expect.stringContaining("unavailable after recovery"),
+    });
+  });
+
   it("有 tool 结果消息时，error 状态不被覆盖为 completed", () => {
     const messages: ChatMessage[] = [
       makeMsg({ id: "u1", role: "user", content: "hello" }),

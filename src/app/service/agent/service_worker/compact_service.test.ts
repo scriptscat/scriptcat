@@ -50,11 +50,18 @@ describe("CompactService 自动压缩", () => {
   it("自动压缩应返回摘要请求的 token 用量", async () => {
     const usage = { inputTokens: 120, outputTokens: 30, cacheCreationInputTokens: 10, cacheReadInputTokens: 5 };
     const modelService = {} as any;
-    const orchestrator = { callLLM: vi.fn().mockResolvedValue({ content: "<summary>摘要</summary>", usage }) };
+    const orchestrator = {
+      callLLM: vi.fn().mockResolvedValue({
+        content: "<summary>摘要</summary>",
+        usage,
+        contentBlocks: [{ type: "image", attachmentId: "auto-orphan.png", mimeType: "image/png" }],
+      }),
+    };
     const chatRepo = {
       getAttachment: vi.fn().mockResolvedValue(null),
       getMessageSnapshot: vi.fn().mockResolvedValue({ generation: "gen-1", revision: 2, messages: [] }),
       saveMessages: vi.fn().mockResolvedValue(undefined),
+      deleteAttachment: vi.fn().mockResolvedValue(undefined),
     } as any;
     const service = new CompactService(modelService, orchestrator, chatRepo);
 
@@ -68,6 +75,44 @@ describe("CompactService 自动压缩", () => {
         new AbortController().signal
       )
     ).resolves.toEqual(usage);
+    expect(chatRepo.deleteAttachment).toHaveBeenCalledWith("auto-orphan.png");
+  });
+
+  it("摘要保留 uploads 路径时应把对应历史附件所有权转移给摘要消息", async () => {
+    const orchestrator = {
+      callLLM: vi.fn().mockResolvedValue({ content: "<summary>继续使用 uploads/retained.png</summary>" }),
+    };
+    const chatRepo = {
+      getAttachment: vi.fn().mockResolvedValue(new Blob(["image"], { type: "image/png" })),
+      getMessageSnapshot: vi.fn().mockResolvedValue({
+        generation: "gen-1",
+        revision: 2,
+        messages: [
+          {
+            id: "m1",
+            conversationId: "conv-1",
+            role: "user",
+            content: [{ type: "image", attachmentId: "retained.png", mimeType: "image/png" }],
+            ownedAttachmentIds: ["retained.png"],
+            createtime: 1,
+          },
+        ],
+      }),
+      saveMessages: vi.fn().mockResolvedValue(undefined),
+      deleteAttachment: vi.fn().mockResolvedValue(undefined),
+    } as any;
+    const service = new CompactService({} as any, orchestrator, chatRepo);
+
+    await service.autoCompact(
+      "conv-1",
+      "gen-1",
+      MODEL,
+      [{ role: "user", content: [{ type: "image", attachmentId: "retained.png", mimeType: "image/png" }] }],
+      vi.fn(),
+      new AbortController().signal
+    );
+
+    expect(chatRepo.saveMessages.mock.calls[0][1][0].ownedAttachmentIds).toEqual(["retained.png"]);
   });
 
   it("Stop 恰好落在摘要提交之后时不应以旧快照覆盖后续历史", async () => {
@@ -160,5 +205,20 @@ describe("CompactService 自动压缩", () => {
     });
 
     expect(orchestrator.callLLM).not.toHaveBeenCalled();
+  });
+
+  it("网页摘要忽略模型生成 block 时应清理对应附件", async () => {
+    const modelService = { getSummaryModel: vi.fn().mockResolvedValue(MODEL) } as any;
+    const orchestrator = {
+      callLLM: vi.fn().mockResolvedValue({
+        content: "summary",
+        contentBlocks: [{ type: "image", attachmentId: "summary-orphan.png", mimeType: "image/png" }],
+      }),
+    };
+    const chatRepo = { deleteAttachment: vi.fn().mockResolvedValue(undefined) } as any;
+    const service = new CompactService(modelService, orchestrator, chatRepo);
+
+    await expect(service.summarizeContent("content", "extract")).resolves.toMatchObject({ content: "summary" });
+    expect(chatRepo.deleteAttachment).toHaveBeenCalledWith("summary-orphan.png");
   });
 });

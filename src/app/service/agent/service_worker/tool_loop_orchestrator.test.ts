@@ -22,6 +22,7 @@ function makeFakeChatRepo() {
     saveMessages: vi.fn().mockResolvedValue(undefined),
     updateMessage: vi.fn().mockResolvedValue(undefined),
     commitToolRound: vi.fn().mockResolvedValue(undefined),
+    getMessageSnapshot: vi.fn().mockResolvedValue({ generation: "gen-1", revision: 0, messages: [] }),
     getAttachment: vi.fn().mockResolvedValue(null),
     deleteAttachment: vi.fn().mockResolvedValue(undefined),
   } as any;
@@ -293,6 +294,43 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     expect(chatRepo.deleteAttachment).toHaveBeenCalledWith("owned.png");
     expect(chatRepo.deleteAttachment).toHaveBeenCalledWith("generated.png");
     expect(sendEvent.mock.calls.some((call) => call[0].type === "tool_call_complete")).toBe(false);
+  });
+
+  it("工具结果组提交报错但读回确认已落盘时应保留附件并发布结果", async () => {
+    toolRegistry = {
+      getDefinitions: () => [
+        { name: "image_tool", description: "image", parameters: { type: "object", properties: {} } },
+      ],
+      execute: vi.fn().mockResolvedValue([
+        {
+          id: "call-image",
+          result: "image",
+          attachments: [{ id: "owned.png", type: "image", name: "owned.png", mimeType: "image/png" }],
+          ownedAttachmentIds: ["owned.png"],
+        },
+      ]),
+    };
+    callLLM
+      .mockResolvedValueOnce({
+        content: "",
+        contentBlocks: [{ type: "image", attachmentId: "generated.png", mimeType: "image/png" }],
+        toolCalls: [{ id: "call-image", name: "image_tool", arguments: "{}" }],
+      })
+      .mockResolvedValueOnce(finalTextResult("done"));
+    chatRepo.commitToolRound.mockImplementationOnce(async (assistant: any, toolMessages: any[]) => {
+      chatRepo.getMessageSnapshot.mockResolvedValueOnce({
+        generation: "gen-1",
+        revision: 1,
+        messages: [assistant, ...toolMessages],
+      });
+      throw new Error("ambiguous close failure");
+    });
+
+    await orchestrator.callLLMWithToolLoop(baseParams({ toolRegistry }));
+
+    expect(chatRepo.deleteAttachment).not.toHaveBeenCalledWith("owned.png");
+    expect(chatRepo.deleteAttachment).not.toHaveBeenCalledWith("generated.png");
+    expect(sendEvent.mock.calls.some((call) => call[0].type === "tool_call_complete")).toBe(true);
   });
 
   it("工具内部摘要 LLM 的 usage 应恰好一次计入父对话终态", async () => {

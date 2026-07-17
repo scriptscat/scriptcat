@@ -19,6 +19,7 @@ import { elideUntilWithinBudget, estimateRequestTokens } from "@App/app/service/
 import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
 import { throwIfAborted } from "@App/app/service/agent/core/abort_utils";
 import { prepareAttachmentSnapshot, type AttachmentSnapshot } from "@App/app/service/agent/core/attachment_resolver";
+import { retainedSummaryAttachmentIds } from "@App/app/service/agent/core/persisted_messages";
 
 /** LLM 调用结果（与 AgentService.callLLM 返回值一致） */
 interface CompactLLMResult {
@@ -57,6 +58,14 @@ export class CompactService {
     private orchestrator: CompactOrchestrator,
     private chatRepo: AgentChatRepo
   ) {}
+
+  private async releaseIgnoredContentBlocks(result: CompactLLMResult): Promise<void> {
+    await Promise.all(
+      (result.contentBlocks || [])
+        .filter((block) => block.type !== "text")
+        .map((block) => this.chatRepo.deleteAttachment(block.attachmentId).catch(() => {}))
+    );
+  }
 
   /** 自动 compact：汇总对话历史为 summary 并替换 currentMessages */
   async autoCompact(
@@ -102,6 +111,7 @@ export class CompactService {
       noopSendEvent,
       signal
     );
+    await this.releaseIgnoredContentBlocks(result);
 
     const throwWithUsage = (error: unknown): never => {
       throw Object.assign(error instanceof Error ? error : new Error(String(error)), { usage: result.usage });
@@ -121,6 +131,7 @@ export class CompactService {
       conversationId,
       role: "user" as const,
       content: `[Conversation Summary]\n\n${summary}`,
+      ownedAttachmentIds: retainedSummaryAttachmentIds(summary, snapshot.messages),
       createtime: Date.now(),
     };
     try {
@@ -180,6 +191,7 @@ export class CompactService {
         noopSendEvent,
         signal ?? new AbortController().signal
       );
+      await this.releaseIgnoredContentBlocks(result);
       return { content: result.content, usage: result.usage };
     } catch (e: any) {
       if (e?.errorCode || e?.message === "Aborted") {

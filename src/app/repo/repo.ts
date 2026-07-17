@@ -9,12 +9,13 @@ export function loadCache(): Promise<Partial<Record<string, any>>> {
     return Promise.resolve(cache);
   }
   if (!loadCachePromise) {
-    loadCachePromise = new Promise<Partial<Record<string, any>>>((resolve) => {
+    loadCachePromise = new Promise<Partial<Record<string, any>>>((resolve, reject) => {
       chrome.storage.local.get((result: Partial<Record<string, any>> | undefined) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-          // 无视storage API错误，继续执行
+          loadCachePromise = undefined;
+          reject(new Error(lastError.message || "chrome.storage.local.get failed"));
+          return;
         }
         cache = result || {};
         loadCachePromise = undefined;
@@ -100,12 +101,12 @@ function getCache(key: string): Promise<any> {
 }
 
 function getStorage(key: string): Promise<any> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.get(key, (result) => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-        // 无视storage API错误，继续执行
+        reject(new Error(lastError.message || "chrome.storage.local.get failed"));
+        return;
       }
       resolve(result[key]);
     });
@@ -113,12 +114,12 @@ function getStorage(key: string): Promise<any> {
 }
 
 function getStorageRecord(keys: string[]): Promise<Partial<Record<string, any>>> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.get(keys, (result) => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-        // 无视storage API错误，继续执行
+        reject(new Error(lastError.message || "chrome.storage.local.get failed"));
+        return;
       }
       resolve(result);
     });
@@ -203,12 +204,12 @@ export abstract class Repo<T> {
         });
       });
     }
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       chrome.storage.local.get(keys, (result) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-          // 无视storage API错误，继续执行
+          reject(new Error(lastError.message || "chrome.storage.local.get failed"));
+          return;
         }
         resolve(keys.map((key) => result[key] as T | undefined));
       });
@@ -230,12 +231,12 @@ export abstract class Repo<T> {
         return record;
       });
     }
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       chrome.storage.local.get(keys, (result) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-          // 无视storage API错误，继续执行
+          reject(new Error(lastError.message || "chrome.storage.local.get failed"));
+          return;
         }
         resolve(result as Partial<Record<string, T>>);
       });
@@ -265,12 +266,12 @@ export abstract class Repo<T> {
         });
       });
     }
-    return new Promise<T[]>((resolve) => {
+    return new Promise<T[]>((resolve, reject) => {
       chrome.storage.local.get((result: { [key: string]: T }) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-          // 无视storage API错误，继续执行
+          reject(new Error(lastError.message || "chrome.storage.local.get failed"));
+          return;
         }
         resolve(this.filter(result, filters));
       });

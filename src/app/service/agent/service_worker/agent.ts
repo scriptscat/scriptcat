@@ -226,10 +226,12 @@ export class AgentService {
     this.taskScheduler = new AgentTaskScheduler(
       this.taskRepo,
       this.taskRunRepo,
-      (task) => this.agentTaskService.executeInternalTask(task),
-      (task) => this.agentTaskService.emitTaskEvent(task)
+      (task, signal) => this.agentTaskService.executeInternalTask(task, signal),
+      (task, signal) => this.agentTaskService.emitTaskEvent(task, signal)
     );
-    this.taskScheduler.init();
+    void this.taskScheduler
+      .init()
+      .catch((error) => console.error("[AgentTaskScheduler] initialization failed:", error));
     // 注入 scheduler 到 AgentTaskService（解决循环依赖）
     this.agentTaskService.setScheduler(this.taskScheduler);
     // 搜索配置 API（供 Options UI 调用）

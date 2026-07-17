@@ -57,28 +57,62 @@ export default function AgentTasks() {
   };
 
   const handleSubmit = async (formValue: TaskFormValue) => {
-    if (editing) {
-      await agentClient.agentTask({ action: "update", id: editing.id, task: formValue });
-    } else {
-      await agentClient.agentTask({ action: "create", task: formValue });
+    try {
+      if (editing) {
+        await agentClient.agentTask({
+          action: "update",
+          id: editing.id,
+          generation: editing.generation!,
+          revision: editing.revision!,
+          task: formValue,
+        });
+      } else {
+        await agentClient.agentTask({ action: "create", task: formValue });
+      }
+      setDialogOpen(false);
+      notify.success(t("common:save_success"));
+      await reload();
+    } catch (error) {
+      setDialogOpen(false);
+      setEditing(null);
+      notify.error(`${t("common:error")}: ${error instanceof Error ? error.message : String(error)}`);
+      await reload();
     }
-    setDialogOpen(false);
-    notify.success(t("common:save_success"));
-    await reload();
   };
 
   const handleToggle = useCallback(
     async (task: AgentTask, enabled: boolean) => {
-      await agentClient.agentTask({ action: "enable", id: task.id, enabled });
-      await reload();
+      try {
+        await agentClient.agentTask({
+          action: "enable",
+          id: task.id,
+          generation: task.generation!,
+          revision: task.revision!,
+          enabled,
+        });
+      } catch (error) {
+        notify.error(`${t("common:error")}: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        await reload();
+      }
     },
-    [reload]
+    [reload, t]
   );
 
   const handleDelete = async (task: AgentTask) => {
-    await agentClient.agentTask({ action: "delete", id: task.id });
-    notify.success(t("common:delete_success"));
-    await reload();
+    try {
+      await agentClient.agentTask({
+        action: "delete",
+        id: task.id,
+        generation: task.generation!,
+        revision: task.revision!,
+      });
+      notify.success(t("common:delete_success"));
+    } catch (error) {
+      notify.error(`${t("common:error")}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      await reload();
+    }
   };
 
   const handleRunNow = async (task: AgentTask) => {

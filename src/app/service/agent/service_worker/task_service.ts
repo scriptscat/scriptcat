@@ -25,6 +25,7 @@ import { normalizeChatMaxIterations } from "@App/app/service/agent/core/agent_co
 import { toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { conversationChatLockKey } from "./chat_service";
+import { raceWithAbort, throwIfAborted } from "@App/app/service/agent/core/abort_utils";
 
 /** 供 TaskService 调用的 orchestrator 能力 */
 export interface TaskOrchestrator {
@@ -65,8 +66,10 @@ export class AgentTaskService {
 
   // internal 模式定时任务执行：构建对话并调用 LLM
   async executeInternalTask(
-    task: InternalAgentTask
+    task: InternalAgentTask,
+    signal = new AbortController().signal
   ): Promise<{ conversationId: string; usage?: { inputTokens: number; outputTokens: number } }> {
+    throwIfAborted(signal);
     const model = await this.orchestrator.getModel(task.modelId);
 
     // 解析 Skills
@@ -82,7 +85,7 @@ export class AgentTaskService {
     // appendMessage 是读-改-写，续接已有会话的定时任务若不排队，会与进行中的对话互相覆盖丢消息
     const conversationId = task.conversationId || uuidv4();
     return stackAsyncTask(conversationChatLockKey(conversationId), () =>
-      this.executeInternalTaskLocked(task, conversationId, model, promptSuffix, metaTools, sessionRegistry)
+      this.executeInternalTaskLocked(task, conversationId, model, promptSuffix, metaTools, sessionRegistry, signal)
     );
   }
 
@@ -92,9 +95,11 @@ export class AgentTaskService {
     model: AgentModelConfig,
     promptSuffix: string,
     metaTools: ReturnType<SkillService["resolveSkills"]>["metaTools"],
-    sessionRegistry: SessionToolRegistry
+    sessionRegistry: SessionToolRegistry,
+    signal: AbortSignal
   ): Promise<{ conversationId: string; usage?: { inputTokens: number; outputTokens: number } }> {
     try {
+      throwIfAborted(signal);
       const messages: ChatRequest["messages"] = [];
       let conversation: Conversation;
 
@@ -171,8 +176,6 @@ export class AgentTaskService {
 
       // 收集 usage
       const totalUsage = { inputTokens: 0, outputTokens: 0 };
-      const abortController = new AbortController();
-
       const sendEvent = (event: ChatStreamEvent) => {
         // 定时任务无 UI 连接，但需要收集 usage
         if ((event.type === "done" || event.type === "error") && event.usage) {
@@ -187,7 +190,7 @@ export class AgentTaskService {
         messages,
         maxIterations: normalizeChatMaxIterations(task.maxIterations ?? 10),
         sendEvent,
-        signal: abortController.signal,
+        signal,
         scriptToolCallback: null,
         conversationId,
         conversationGeneration: conversation.generation!,
@@ -207,7 +210,8 @@ export class AgentTaskService {
   }
 
   // event 模式定时任务：通知脚本
-  async emitTaskEvent(task: EventAgentTask): Promise<void> {
+  async emitTaskEvent(task: EventAgentTask, signal = new AbortController().signal): Promise<void> {
+    throwIfAborted(signal);
     const trigger: AgentTaskTrigger = {
       taskId: task.id,
       name: task.name,
@@ -216,12 +220,16 @@ export class AgentTaskService {
     };
 
     // 通过 offscreen → sandbox → 脚本 EventEmitter 链路通知脚本
-    await sendMessage(this.sender, "offscreen/runtime/emitEvent", {
-      uuid: task.sourceScriptUuid,
-      event: "agentTask",
-      eventId: task.id,
-      data: trigger,
-    });
+    await raceWithAbort(
+      sendMessage(this.sender, "offscreen/runtime/emitEvent", {
+        uuid: task.sourceScriptUuid,
+        event: "agentTask",
+        eventId: task.id,
+        data: trigger,
+      }),
+      signal
+    );
+    throwIfAborted(signal);
 
     if (task.notify) {
       InfoNotification(task.name, "定时任务已触发");
@@ -268,7 +276,14 @@ export class AgentTaskService {
       case "update": {
         const existing = await this.taskRepo.getTask(params.id);
         if (!existing) throw new Error("Task not found");
-        const updated = { ...existing, ...params.task, updatetime: Date.now() } as AgentTask;
+        const updated = {
+          ...existing,
+          ...params.task,
+          id: params.id,
+          generation: params.generation,
+          revision: params.revision,
+          updatetime: Date.now(),
+        } as AgentTask;
         // 如果 crontab 或 enabled 变化，重新计算 nextruntime
         if (params.task.crontab !== undefined || params.task.enabled !== undefined) {
           if (updated.enabled) {
@@ -283,15 +298,20 @@ export class AgentTaskService {
         return this.taskRepo.saveTask(updated);
       }
       case "delete": {
-        const task = await this.taskRepo.getTask(params.id);
-        if (!task) return true;
-        await this.taskRepo.removeTask(params.id, task.generation);
+        await this.taskRepo.removeTask(params.id, params.generation, params.revision);
+        this.taskScheduler?.cancelTask(params.id);
         return true;
       }
       case "enable": {
         const task = await this.taskRepo.getTask(params.id);
         if (!task) throw new Error("Task not found");
-        const updated = { ...task, enabled: params.enabled, updatetime: Date.now() } as AgentTask;
+        const updated = {
+          ...task,
+          enabled: params.enabled,
+          generation: params.generation,
+          revision: params.revision,
+          updatetime: Date.now(),
+        } as AgentTask;
         if (updated.enabled) {
           try {
             const info = nextTimeInfo(updated.crontab);
@@ -306,7 +326,9 @@ export class AgentTaskService {
         const task = await this.taskRepo.getTask(params.id);
         if (!task) throw new Error("Task not found");
         // 不 await，立即返回
-        this.taskScheduler?.executeTask(task).catch(() => {});
+        const now = Date.now();
+        const claimScheduled = Boolean(task.enabled && task.nextruntime && task.nextruntime <= now);
+        this.taskScheduler?.executeTask(task, claimScheduled, now).catch(() => {});
         return true;
       }
       case "listRuns":

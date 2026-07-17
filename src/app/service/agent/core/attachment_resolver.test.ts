@@ -54,4 +54,14 @@ describe("附件请求快照", () => {
 
     await expect(pending).rejects.toThrow("Aborted");
   });
+
+  it("OPFS 权限或 I/O 错误不得伪装成附件不存在", async () => {
+    await expect(
+      prepareAttachmentSnapshot(
+        MESSAGES,
+        MODEL,
+        vi.fn().mockRejectedValue(new DOMException("denied", "NotAllowedError"))
+      )
+    ).rejects.toThrow("denied");
+  });
 });

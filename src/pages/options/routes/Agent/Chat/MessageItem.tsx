@@ -418,6 +418,7 @@ export function UserMessageItem({
                   className={iconBtn}
                   title={t("agent:chat_cancel_message")}
                   aria-label={t("agent:chat_cancel_message")}
+                  data-testid="cancel-pending-message"
                   onClick={onCancel}
                 >
                   <X className="size-3.5" />

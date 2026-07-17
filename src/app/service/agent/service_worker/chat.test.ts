@@ -24,6 +24,7 @@ describe("handleConversationChat skipSaveUserMessage", () => {
     const sender = {
       isType: (type: any) => type === 1, // GetSenderType.CONNECT
       getConnect: () => mockConn,
+      getSender: () => ({ url: chrome.runtime.getURL("src/options.html#/agent/chat") }),
     };
     return { sender, sentMessages };
   }
@@ -258,6 +259,7 @@ describe("handleConversationChat 场景补充", () => {
     const sender = {
       isType: (type: any) => type === 1,
       getConnect: () => mockConn,
+      getSender: () => ({ url: chrome.runtime.getURL("src/options.html#/agent/chat") }),
     };
     return { sender, sentMessages };
   }
@@ -371,12 +373,16 @@ describe("handleConversationChat 场景补充", () => {
 
     mockRepo.listConversations.mockResolvedValue([]); // 空
 
-    await (service as any).handleConversationChat({ conversationId: "not-exist", message: "hi" }, sender);
+    await (service as any).handleConversationChat(
+      { conversationId: "not-exist", message: "hi", ownedAttachmentIds: ["provisional.png"] },
+      sender
+    );
 
     const events = sentMessages.map((m) => m.data);
     const errorEvents = events.filter((e: any) => e.type === "error");
     expect(errorEvents).toHaveLength(1);
     expect(errorEvents[0].message).toContain("Conversation not found");
+    expect(mockRepo.deleteAttachment).toHaveBeenCalledWith("provisional.png");
   });
 
   it("skill 预加载：历史消息含 load_skill 调用时预执行以标记 skill 已加载", async () => {
@@ -589,6 +595,7 @@ describe("scriptToolCallback 的 abort/disconnect/超时处理", () => {
     const sender = {
       isType: (type: any) => type === 1,
       getConnect: () => mockConn,
+      getSender: () => ({ url: chrome.runtime.getURL("src/options.html#/agent/chat") }),
     };
     return {
       sender,
@@ -858,6 +865,7 @@ describe("会话队列的连接感知与重入策略（finding 2）", () => {
     const sender = {
       isType: (type: any) => type === 1,
       getConnect: () => mockConn,
+      getSender: () => ({ url: chrome.runtime.getURL("src/options.html#/agent/chat") }),
     };
     return {
       sender,
@@ -895,6 +903,83 @@ describe("会话队列的连接感知与重入策略（finding 2）", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const events2 = s2.sentMessages.filter((m: any) => m.action === "event").map((m: any) => m.data);
     expect(events2.find((e: any) => e.type === "error")?.errorCode).toBe("cancelled");
+  });
+
+  it("删除会话应取消已入队但尚未开始的请求", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([conv("conv-delete-queued")]);
+    mockRepo.getMessages.mockResolvedValue([]);
+
+    let rejectFirst!: (error: Error) => void;
+    fetchSpy.mockImplementationOnce(
+      async (_url: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          rejectFirst = reject;
+          (init?.signal as AbortSignal).addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true }
+          );
+        })
+    );
+
+    const first = (service as any).handleConversationChat(
+      { conversationId: "conv-delete-queued", message: "第一条" },
+      createMockSender().sender
+    );
+    await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce());
+    const second = (service as any).handleConversationChat(
+      { conversationId: "conv-delete-queued", message: "第二条" },
+      createMockSender().sender
+    );
+
+    const deletion = (service as any).handleConversation({
+      action: "delete",
+      conversationId: "conv-delete-queued",
+      generation: "legacy:conv-delete-queued",
+    });
+    await Promise.all([first, second, deletion]);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(mockRepo.deleteConversation).toHaveBeenCalledWith("conv-delete-queued", {
+      generation: "legacy:conv-delete-queued",
+    });
+    void rejectFirst;
+  });
+
+  it("排队前快速拒绝应清理尚未被消息采用的上传附件", async () => {
+    const { service, mockRepo } = createTestService();
+    (service as any).chatService.conversationsAwaitingScriptTools.add("conv-busy-upload");
+
+    await (service as any).handleConversationChat(
+      {
+        conversationId: "conv-busy-upload",
+        message: [{ type: "image", attachmentId: "busy-upload.png", mimeType: "image/png" }],
+        ownedAttachmentIds: ["busy-upload.png"],
+      },
+      createMockSender().sender
+    );
+
+    expect(mockRepo.deleteAttachment).toHaveBeenCalledWith("busy-upload.png");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("非 Options 调用方不得借 ownedAttachmentIds 删除借用附件", async () => {
+    const { service, mockRepo } = createTestService();
+    (service as any).chatService.conversationsAwaitingScriptTools.add("conv-untrusted-upload");
+    const connection = createMockSender();
+    (connection.sender as any).getSender = () => ({ url: chrome.runtime.getURL("src/content.html") });
+
+    await (service as any).handleConversationChat(
+      {
+        conversationId: "conv-untrusted-upload",
+        message: [{ type: "image", attachmentId: "victim.png", mimeType: "image/png" }],
+        ownedAttachmentIds: ["victim.png"],
+      },
+      connection.sender
+    );
+
+    expect(mockRepo.deleteAttachment).not.toHaveBeenCalledWith("victim.png");
   });
 
   it("排队等待期间客户端已断开的前台请求：不启动、不调用 LLM、不发送事件", async () => {
@@ -1106,6 +1191,26 @@ describe("会话队列的连接感知与重入策略（finding 2）", () => {
       .map((message: any) => message.data)
       .filter((event: any) => event.type === "done" || event.type === "error");
     expect(terminals).toEqual([expect.objectContaining({ type: "error", errorCode: "cancelled" })]);
+  });
+
+  it("手动 compact 忽略模型生成 block 时应清理对应附件", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([conv("conv-compact-block")]);
+    mockRepo.getMessages.mockResolvedValue([
+      { id: "m1", conversationId: "conv-compact-block", role: "user", content: "history", createtime: 1 },
+    ]);
+    const chatService = (service as any).chatService;
+    chatService.llmDeps.callLLM = vi.fn().mockResolvedValue({
+      content: "<summary>摘要</summary>",
+      contentBlocks: [{ type: "image", attachmentId: "manual-orphan.png", mimeType: "image/png" }],
+    });
+
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-compact-block", message: "", compact: true },
+      createMockSender().sender
+    );
+
+    expect(mockRepo.deleteAttachment).toHaveBeenCalledWith("manual-orphan.png");
   });
 
   it("子代理终态不应吞掉父对话自己的终态", async () => {

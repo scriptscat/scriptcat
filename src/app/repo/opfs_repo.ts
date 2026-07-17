@@ -5,6 +5,10 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 
 const AGENTS_ROOT = "agents";
 
+function isNotFoundError(error: unknown): boolean {
+  return (error as { name?: string })?.name === "NotFoundError";
+}
+
 // 跨上下文互斥：Options 页与 Service Worker 都会直接读写同一份 OPFS JSON 文件，
 // 进程内队列（stackAsyncTask）覆盖不了跨上下文的读-改-写竞争。Web Locks 按 origin
 // 全局生效（扩展页与 MV3 SW 同源），是两者之间唯一共享的互斥原语；不支持 Web Locks
@@ -72,7 +76,7 @@ export class OPFSRepo {
     try {
       fileHandle = await targetDir.getFileHandle(filename);
     } catch (error) {
-      if ((error as { name?: string })?.name === "NotFoundError") return defaultValue;
+      if (isNotFoundError(error)) return defaultValue;
       throw error;
     }
     const file = await fileHandle.getFile();
@@ -116,8 +120,8 @@ export class OPFSRepo {
     try {
       const targetDir = dir || (await this.getDir());
       await targetDir.removeEntry(filename);
-    } catch {
-      // 文件不存在则忽略
+    } catch (error) {
+      if (!isNotFoundError(error)) throw error;
     }
   }
 
@@ -126,8 +130,8 @@ export class OPFSRepo {
     try {
       const targetDir = dir || (await this.getDir());
       await targetDir.removeEntry(name, { recursive: true });
-    } catch {
-      // 目录不存在则忽略
+    } catch (error) {
+      if (!isNotFoundError(error)) throw error;
     }
   }
 

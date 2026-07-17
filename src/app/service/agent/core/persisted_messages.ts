@@ -1,5 +1,21 @@
 import type { ChatMessage, ChatRequest } from "./types";
 
+/** Keep ownership only for durable artifacts that a compacted summary explicitly keeps addressable. */
+export function retainedSummaryAttachmentIds(summary: string, messages: ChatMessage[]): string[] {
+  const owned = new Set<string>();
+  const collectToolCalls = (toolCalls: NonNullable<ChatMessage["toolCalls"]>) => {
+    for (const toolCall of toolCalls) {
+      for (const id of toolCall.ownedAttachmentIds || []) owned.add(id);
+      for (const message of toolCall.subAgentDetails?.messages || []) collectToolCalls(message.toolCalls);
+    }
+  };
+  for (const message of messages) {
+    for (const id of message.ownedAttachmentIds || []) owned.add(id);
+    collectToolCalls(message.toolCalls || []);
+  }
+  return [...owned].filter((id) => summary.includes(`uploads/${id}`));
+}
+
 /** 将持久化消息转换为 LLM 消息，错误占位消息只用于 UI 展示，不应重放。 */
 export function toLLMMessages(
   messages: Array<Pick<ChatMessage, "role" | "content" | "toolCallId" | "toolCalls" | "error">>

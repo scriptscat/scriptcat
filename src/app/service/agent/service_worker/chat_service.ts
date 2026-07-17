@@ -37,7 +37,7 @@ import { createExecuteScriptTool } from "@App/app/service/agent/core/tools/execu
 import { resolveSubAgentType } from "@App/app/service/agent/core/sub_agent_types";
 import { classifyErrorCode } from "./retry_utils";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
-import { toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
+import { retainedSummaryAttachmentIds, toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { t } from "@App/locales/locales";
@@ -112,6 +112,16 @@ export function conversationChatLockKey(conversationId: string): string {
   return `agent-chat:${conversationId}`;
 }
 
+function canAssertAttachmentOwnership(sender: IGetSender): boolean {
+  const senderUrl = sender.getSender?.()?.url;
+  if (!senderUrl) return false;
+  try {
+    return senderUrl.startsWith(chrome.runtime.getURL("src/options.html"));
+  } catch {
+    return false;
+  }
+}
+
 /** 一次 conversation chat 连接的共享状态。
  * 连接回调（stop / askUserResponse / toolResults / 断开）必须在排队【之前】注册：
  * 断开的端口上注册回调会直接抛错（见 extension_message.ts），而且排队等待期间到达的
@@ -124,6 +134,8 @@ interface ChatConnectionSession {
   askResolvers: Map<string, (answer: string) => void>;
   scriptToolCallback: ScriptToolCallback;
   isDisconnected: () => boolean;
+  userAttachmentsAdopted: boolean;
+  releaseProvisionalUserAttachments: () => Promise<void>;
   /** 后台模式：临界区内创建 RunningConversation 后回填，供排队期间注册的连接回调路由 stop/askUser */
   rc?: RunningConversation;
   bgListener?: ListenerEntry;
@@ -214,7 +226,7 @@ export class ChatService {
   // 正在等待 Sandbox 回复脚本工具结果的会话：此窗口内 chat 持有会话队列锁等待 toolResults，
   // 来自工具 handler 内部的 await conv.clear() 若照常排队会形成"锁等我、我等锁"的死锁（见 finding 2）
   private conversationsAwaitingScriptTools = new Set<string>();
-  private activeChats = new Map<string, AbortController>();
+  private admittedChats = new Map<string, Set<AbortController>>();
 
   constructor(
     private toolRegistry: ToolRegistry,
@@ -227,6 +239,25 @@ export class ChatService {
     private chatRepo: AgentChatRepo,
     private agentConfigRepo: AgentConfigRepo
   ) {}
+
+  private admitChat(conversationId: string, abortController: AbortController) {
+    const controllers = this.admittedChats.get(conversationId) || new Set<AbortController>();
+    controllers.add(abortController);
+    this.admittedChats.set(conversationId, controllers);
+  }
+
+  private releaseAdmittedChat(conversationId: string, abortController: AbortController) {
+    const controllers = this.admittedChats.get(conversationId);
+    if (!controllers) return;
+    controllers.delete(abortController);
+    if (controllers.size === 0) this.admittedChats.delete(conversationId);
+  }
+
+  private abortAdmittedChats(conversationId: string) {
+    for (const abortController of this.admittedChats.get(conversationId) || []) {
+      abortController.abort();
+    }
+  }
 
   // 处理 Sandbox conversation API 请求（非流式）
   async handleConversation(params: ConversationApiRequest): Promise<unknown> {
@@ -276,7 +307,7 @@ export class ChatService {
           return true;
         });
       case "delete": {
-        this.activeChats.get(params.conversationId)?.abort();
+        this.abortAdmittedChats(params.conversationId);
         this.bgSessionManager.stop(params.conversationId);
         return stackAsyncTask(conversationChatLockKey(params.conversationId), async () => {
           await this.chatRepo.deleteConversation(params.conversationId, {
@@ -321,7 +352,23 @@ export class ChatService {
   // clearMessages 串行执行，避免并发读改写互相覆盖对方的持久化写入（见 finding 5）。
   // "会话正在运行中" 的快速拒绝在排队之前完成，避免重复的后台请求白白卡在队列里等待。
   async handleConversationChat(params: ConversationChatParams, sender: IGetSender) {
+    if (params.ownedAttachmentIds?.length && !canAssertAttachmentOwnership(sender)) {
+      params = { ...params, ownedAttachmentIds: undefined };
+    }
+    let userAttachmentsAdopted = false;
+    let releasePromise: Promise<void> | undefined;
+    const releaseProvisionalUserAttachments = () => {
+      if (params.ephemeral || userAttachmentsAdopted || !params.ownedAttachmentIds?.length) {
+        return Promise.resolve();
+      }
+      releasePromise ||= Promise.all(
+        [...new Set(params.ownedAttachmentIds)].map((id) => this.chatRepo.deleteAttachment(id).catch(() => {}))
+      ).then(() => undefined);
+      return releasePromise;
+    };
+
     if (!sender.isType(GetSenderType.CONNECT)) {
+      await releaseProvisionalUserAttachments();
       throw new Error("Conversation chat requires connect mode");
     }
     const msgConn = wrapScriptToolConnection(sender.getConnect()!);
@@ -342,6 +389,7 @@ export class ChatService {
       } catch {
         // 端口已断开，无需通知
       }
+      await releaseProvisionalUserAttachments();
       return;
     }
 
@@ -355,6 +403,7 @@ export class ChatService {
       } catch {
         // 端口已断开，无需通知
       }
+      await releaseProvisionalUserAttachments();
       return;
     }
 
@@ -370,6 +419,13 @@ export class ChatService {
       isDisconnected: () => isDisconnected,
       // 立即在下方赋值；提前占位以便连接回调闭包引用 session 对象本身
       scriptToolCallback: null as unknown as ScriptToolCallback,
+      get userAttachmentsAdopted() {
+        return userAttachmentsAdopted;
+      },
+      set userAttachmentsAdopted(value: boolean) {
+        userAttachmentsAdopted = value;
+      },
+      releaseProvisionalUserAttachments,
     };
 
     // 等待中的脚本工具调用：MessageConnect 断开或 abortController 触发时，
@@ -431,6 +487,7 @@ export class ChatService {
       });
     } catch {
       // 连接在注册回调前就已断开：请求方已不存在，直接不入队
+      await releaseProvisionalUserAttachments();
       return;
     }
 
@@ -491,13 +548,16 @@ export class ChatService {
     };
 
     // ephemeral 不读写 chatRepo（消息历史由调用方在内存中维护），没有跨请求的持久化竞争，无需排队
-    if (params.ephemeral) {
-      return this.handleConversationChatLocked(params, session);
+    if (!params.ephemeral) this.admitChat(params.conversationId, abortController);
+    try {
+      if (params.ephemeral) return await this.handleConversationChatLocked(params, session);
+      return await stackAsyncTask(conversationChatLockKey(params.conversationId), () =>
+        this.handleConversationChatLocked(params, session)
+      );
+    } finally {
+      if (!params.ephemeral) this.releaseAdmittedChat(params.conversationId, abortController);
+      await releaseProvisionalUserAttachments();
     }
-
-    return stackAsyncTask(conversationChatLockKey(params.conversationId), () =>
-      this.handleConversationChatLocked(params, session)
-    );
   }
 
   private async handleConversationChatLocked(params: ConversationChatParams, session: ChatConnectionSession) {
@@ -512,14 +572,18 @@ export class ChatService {
       }
     };
 
+    const { releaseProvisionalUserAttachments } = session;
+
     // 排队等待期间已被 Stop（前台断开也会 abort）：不再启动，回发终态取消事件收尾
     if (abortController.signal.aborted) {
+      await releaseProvisionalUserAttachments();
       sendEventDirect({ type: "error", message: "Conversation cancelled", errorCode: "cancelled" });
       return;
     }
 
     // 入锁后复查后台占用：排队前的快速拒绝与真正入锁之间存在时间窗（见 finding 2）
     if (isBackground && this.bgSessionManager.has(params.conversationId)) {
+      await releaseProvisionalUserAttachments();
       sendEventDirect({ type: "error", message: "会话正在运行中" });
       return;
     }
@@ -570,8 +634,6 @@ export class ChatService {
         durationMs: error?.durationMs,
       });
     };
-
-    if (!params.ephemeral) this.activeChats.set(params.conversationId, abortController);
 
     // 循环检测（tool_call_guard）连续命中时暂停询问用户是否继续；复用 ask_user 的事件/resolver 机制，
     // 5 分钟无人应答时默认"继续"，避免无 UI 监听的后台会话被无限期挂起
@@ -686,6 +748,9 @@ export class ChatService {
         existingMessages,
         enableTools,
         promptSuffix,
+        onUserMessagePersisted: () => {
+          session.userAttachmentsAdopted = true;
+        },
       });
 
       try {
@@ -759,9 +824,7 @@ export class ChatService {
       sendEvent({ type: "error", message: errorMsg, errorCode, usage: e.usage, durationMs: e.durationMs });
       this.bgSessionManager.cleanupIfDone(params.conversationId);
     } finally {
-      if (this.activeChats.get(params.conversationId) === abortController) {
-        this.activeChats.delete(params.conversationId);
-      }
+      await releaseProvisionalUserAttachments();
     }
   }
 
@@ -866,6 +929,11 @@ export class ChatService {
       sendEvent,
       abortController.signal
     );
+    await Promise.all(
+      (result.contentBlocks || [])
+        .filter((block) => block.type !== "text")
+        .map((block) => this.chatRepo.deleteAttachment(block.attachmentId).catch(() => {}))
+    );
     const compactError = (message: string, cause?: unknown) =>
       Object.assign(new Error(message), {
         usage: result.usage,
@@ -886,6 +954,7 @@ export class ChatService {
       conversationId: params.conversationId,
       role: "user" as const,
       content: `[Conversation Summary]\n\n${summary}`,
+      ownedAttachmentIds: retainedSummaryAttachmentIds(summary, existingMessages),
       createtime: Date.now(),
     };
     // 传入 signal：写入落定前若已 abort，则放弃这次整份覆写而不提交（见 finding 4）
@@ -1075,6 +1144,7 @@ export class ChatService {
     existingMessages: Awaited<ReturnType<AgentChatRepo["getMessages"]>>;
     enableTools: boolean;
     promptSuffix: string;
+    onUserMessagePersisted?: () => void;
   }): Promise<BuildMessagesResult> {
     const { conv, params, existingMessages, enableTools, promptSuffix } = ctx;
 
@@ -1107,6 +1177,7 @@ export class ChatService {
         },
         conv.generation
       );
+      ctx.onUserMessagePersisted?.();
     }
 
     // 更新对话标题（如果是第一条消息）

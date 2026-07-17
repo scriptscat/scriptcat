@@ -13,7 +13,7 @@ export function canContinueMaxIterationsGroup(group: MessageGroup, isLastGroup: 
 }
 
 /** 将 tool 角色消息的结果合并进 assistant 的 toolCalls，并过滤掉 tool/system 消息 */
-export function mergeToolResults(messages: ChatMessage[]): ChatMessage[] {
+export function mergeToolResults(messages: ChatMessage[], repairInactiveMissingResults = false): ChatMessage[] {
   const toolResultMap = new Map<string, string>();
   for (const msg of messages) {
     if (msg.role === "tool" && msg.toolCallId) {
@@ -25,7 +25,7 @@ export function mergeToolResults(messages: ChatMessage[]): ChatMessage[] {
   return messages
     .filter((msg) => msg.role === "user" || msg.role === "assistant")
     .map((msg) => {
-      if (msg.role === "assistant" && msg.toolCalls && toolResultMap.size > 0) {
+      if (msg.role === "assistant" && msg.toolCalls && (toolResultMap.size > 0 || repairInactiveMissingResults)) {
         const updatedToolCalls = msg.toolCalls.map((tc) => {
           const result = toolResultMap.get(tc.id);
           if (result !== undefined) {
@@ -34,6 +34,13 @@ export function mergeToolResults(messages: ChatMessage[]): ChatMessage[] {
             // 否则刷新/重载后工具图标会一直转圈。其它状态（error）保留。
             const status = !tc.status || tc.status === "running" ? "completed" : tc.status;
             return { ...tc, result, status };
+          }
+          if (repairInactiveMissingResults && (!tc.status || tc.status === "pending" || tc.status === "running")) {
+            return {
+              ...tc,
+              result: JSON.stringify({ error: "Tool result unavailable after recovery" }),
+              status: "error" as const,
+            };
           }
           return tc;
         });

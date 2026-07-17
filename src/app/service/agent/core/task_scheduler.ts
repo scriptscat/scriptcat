@@ -4,15 +4,19 @@ import { nextTimeInfo } from "@App/pkg/utils/cron";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { isRevisionConflict } from "@App/app/repo/revision";
 
-export type InternalExecutor = (task: InternalAgentTask) => Promise<{
+export type InternalExecutor = (
+  task: InternalAgentTask,
+  signal: AbortSignal
+) => Promise<{
   conversationId: string;
   usage?: { inputTokens: number; outputTokens: number };
 }>;
 
-export type EventEmitter = (task: EventAgentTask) => Promise<void>;
+export type EventEmitter = (task: EventAgentTask, signal: AbortSignal) => Promise<void>;
 
 export class AgentTaskScheduler {
-  private runningTasks = new Set<string>();
+  private runningTasks = new Map<string, AbortController>();
+  private initialization?: Promise<void>;
 
   constructor(
     private repo: AgentTaskRepo,
@@ -22,23 +26,60 @@ export class AgentTaskScheduler {
   ) {}
 
   async init(): Promise<void> {
+    if (!this.initialization) {
+      this.initialization = this.initialize().catch((error) => {
+        this.initialization = undefined;
+        throw error;
+      });
+    }
+    return this.initialization;
+  }
+
+  private async initialize(): Promise<void> {
     // 加载所有 enabled 任务，计算 nextruntime
     const tasks = await this.repo.listTasks();
     for (const task of tasks) {
+      let currentTask = task;
       if (task.enabled && !task.nextruntime) {
+        let nextRuntime: number | undefined;
         try {
-          const info = nextTimeInfo(task.crontab);
-          task.nextruntime = info.next.toMillis();
-          task.updatetime = Date.now();
-          await this.repo.saveTask(task);
+          nextRuntime = nextTimeInfo(task.crontab).next.toMillis();
         } catch {
-          // cron 表达式无效，跳过
+          // cron 表达式无效，保留未调度状态
         }
+        if (nextRuntime !== undefined) {
+          task.nextruntime = nextRuntime;
+          task.updatetime = Date.now();
+          currentTask = await this.repo.saveTask(task);
+        }
+      }
+
+      // A Service Worker restart can terminate JavaScript after the durable claim advanced nextruntime but
+      // before the executor outcome was recorded. Replaying may duplicate irreversible side effects, so use an
+      // explicit at-most-once recovery policy: close stale running telemetry as outcome-unknown and keep the
+      // already advanced schedule.
+      const interruptedRuns = (await this.runRepo.listRuns(currentTask.id, 500)).filter(
+        (run) => run.status === "running"
+      );
+      if (interruptedRuns.length > 0) {
+        const endtime = Date.now();
+        const error = "Task execution interrupted by service restart; outcome unknown";
+        await Promise.all(
+          interruptedRuns.map((run) =>
+            this.runRepo.updateRun(currentTask.id, run.id, { status: "error", error, endtime })
+          )
+        );
+        await this.repo.updateRunState(currentTask.id, currentTask.generation!, {
+          lastruntime: Math.max(...interruptedRuns.map((run) => run.starttime)),
+          lastRunStatus: "error",
+          lastRunError: error,
+        });
       }
     }
   }
 
   async tick(now?: number): Promise<void> {
+    await this.init();
     const currentTime = now ?? Date.now();
     const tasks = await this.repo.listTasks();
 
@@ -56,30 +97,39 @@ export class AgentTaskScheduler {
 
   async executeTask(task: AgentTask, claimScheduled = false, now = Date.now()): Promise<void> {
     if (this.runningTasks.has(task.id)) return;
-    this.runningTasks.add(task.id);
+    const abortController = new AbortController();
+    this.runningTasks.set(task.id, abortController);
 
     try {
-      let executionTask = task;
-      if (claimScheduled) {
-        const claimed = await this.repo.claimDueTask(task.id, task.generation!, now);
-        if (!claimed) return;
-        executionTask = claimed;
-      }
+      await this.init();
       const run: AgentTaskRun = {
-        id: uuidv4(),
-        taskId: executionTask.id,
+        id:
+          claimScheduled && task.nextruntime ? `scheduled:${task.id}:${task.generation}:${task.nextruntime}` : uuidv4(),
+        taskId: task.id,
         starttime: Date.now(),
         status: "running",
       };
-      await this.runRepo.appendRun(run);
+      // Record the slot before advancing nextruntime. A deterministic scheduled-run ID makes a restart between
+      // these two durable writes idempotent instead of either losing the slot or creating duplicate run records.
+      const createdRun = (await this.runRepo.appendRun(run)) !== false;
+      let executionTask = task;
+      if (claimScheduled) {
+        const claimed = await this.repo.claimDueTask(task.id, task.generation!, now);
+        if (!claimed) {
+          if (createdRun) await this.runRepo.removeRun(task.id, run.id);
+          return;
+        }
+        executionTask = claimed;
+      }
 
       try {
+        if (abortController.signal.aborted) throw new Error("Task cancelled");
         if (executionTask.mode === "internal") {
-          const result = await this.internalExecutor(executionTask);
+          const result = await this.internalExecutor(executionTask, abortController.signal);
           run.conversationId = result.conversationId;
           run.usage = result.usage;
         } else {
-          await this.eventEmitter(executionTask);
+          await this.eventEmitter(executionTask, abortController.signal);
         }
 
         run.status = "success";
@@ -118,11 +168,18 @@ export class AgentTaskScheduler {
       }
     } finally {
       // 必须在最外层 finally 确保任何异常都能清理 runningTasks
-      this.runningTasks.delete(task.id);
+      if (this.runningTasks.get(task.id) === abortController) this.runningTasks.delete(task.id);
     }
   }
 
   isRunning(taskId: string): boolean {
     return this.runningTasks.has(taskId);
+  }
+
+  cancelTask(taskId: string): boolean {
+    const abortController = this.runningTasks.get(taskId);
+    if (!abortController) return false;
+    abortController.abort();
+    return true;
   }
 }

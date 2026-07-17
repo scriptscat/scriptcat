@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AgentTaskService } from "./task_service";
 import { conversationChatLockKey } from "./chat_service";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
-import type { InternalAgentTask } from "@App/app/service/agent/core/types";
+import type { EventAgentTask, InternalAgentTask } from "@App/app/service/agent/core/types";
 
 function createService(overrides?: { appendMessage?: ReturnType<typeof vi.fn> }) {
   const appendMessage = overrides?.appendMessage ?? vi.fn().mockResolvedValue(undefined);
@@ -83,5 +83,117 @@ describe("AgentTaskService 定时任务与会话锁", () => {
     expect(orchestrator.callLLMWithToolLoop).toHaveBeenCalledWith(
       expect.objectContaining({ conversationId: result.conversationId, rehydratedHistory: false })
     );
+  });
+});
+
+describe("AgentTaskService 任务生命周期", () => {
+  function createMutationService() {
+    const current = {
+      id: "task-cas",
+      generation: "generation-current",
+      revision: 3,
+      name: "current",
+      crontab: "0 9 * * *",
+      mode: "internal",
+      prompt: "current",
+      enabled: true,
+      notify: false,
+      nextruntime: Date.now() - 1_000,
+      createtime: 1,
+      updatetime: 1,
+    } as const;
+    const taskRepo = {
+      getTask: vi.fn().mockResolvedValue(current),
+      saveTask: vi.fn(async (candidate: any) => {
+        if (candidate.generation !== current.generation || candidate.revision !== current.revision) {
+          throw new Error("revision conflict");
+        }
+        return candidate;
+      }),
+      removeTask: vi.fn().mockResolvedValue(undefined),
+    };
+    const scheduler = {
+      cancelTask: vi.fn(),
+      executeTask: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = new AgentTaskService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      taskRepo as any,
+      {} as any
+    );
+    service.setScheduler(scheduler as any);
+    return { service, taskRepo, scheduler, current };
+  }
+
+  it("update 与 enable 必须使用客户端看到的 generation/revision 做 CAS", async () => {
+    const { service, taskRepo } = createMutationService();
+
+    await expect(
+      service.handleAgentTask({
+        action: "update",
+        id: "task-cas",
+        generation: "generation-current",
+        revision: 2,
+        task: { name: "stale edit" },
+      } as any)
+    ).rejects.toThrow("revision conflict");
+    await expect(
+      service.handleAgentTask({
+        action: "enable",
+        id: "task-cas",
+        generation: "generation-current",
+        revision: 2,
+        enabled: false,
+      } as any)
+    ).rejects.toThrow("revision conflict");
+
+    expect(taskRepo.saveTask).toHaveBeenCalledWith(expect.objectContaining({ revision: 2 }));
+  });
+
+  it("delete 应先取消活动执行并使用客户端版本删除", async () => {
+    const { service, taskRepo, scheduler } = createMutationService();
+
+    await service.handleAgentTask({
+      action: "delete",
+      id: "task-cas",
+      generation: "generation-current",
+      revision: 3,
+    } as any);
+
+    expect(scheduler.cancelTask).toHaveBeenCalledWith("task-cas");
+    expect(taskRepo.removeTask).toHaveBeenCalledWith("task-cas", "generation-current", 3);
+  });
+
+  it("runNow 遇到已到期任务时应领取当前槽位而不是随后再由 tick 重复执行", async () => {
+    const { service, scheduler, current } = createMutationService();
+
+    await service.handleAgentTask({ action: "runNow", id: current.id });
+
+    expect(scheduler.executeTask).toHaveBeenCalledWith(current, true, expect.any(Number));
+  });
+
+  it("事件派发通道无响应时取消信号应立即终止等待", async () => {
+    const sender = { sendMessage: vi.fn(() => new Promise(() => {})) } as any;
+    const service = new AgentTaskService(sender, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+    const task = {
+      id: "event-cancel",
+      name: "事件任务",
+      mode: "event",
+      crontab: "0 9 * * *",
+      sourceScriptUuid: "script-1",
+      enabled: true,
+      notify: false,
+    } as EventAgentTask;
+    const controller = new AbortController();
+
+    const execution = service.emitTaskEvent(task, controller.signal);
+    await vi.waitFor(() => expect(sender.sendMessage).toHaveBeenCalledOnce());
+    controller.abort();
+
+    await expect(execution).rejects.toThrow("Aborted");
   });
 });

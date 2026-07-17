@@ -687,9 +687,9 @@ export type AgentTaskApiRequest =
   | { action: "list" }
   | { action: "get"; id: string }
   | { action: "create"; task: Omit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime"> }
-  | { action: "update"; id: string; task: Partial<AgentTask> }
-  | { action: "delete"; id: string }
-  | { action: "enable"; id: string; enabled: boolean }
+  | { action: "update"; id: string; generation: string; revision: number; task: Partial<AgentTask> }
+  | { action: "delete"; id: string; generation: string; revision: number }
+  | { action: "enable"; id: string; generation: string; revision: number; enabled: boolean }
   | { action: "runNow"; id: string }
   | { action: "listRuns"; taskId: string; limit?: number }
   | { action: "clearRuns"; taskId: string };

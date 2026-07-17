@@ -15,6 +15,7 @@ const repoMock = vi.hoisted(() => ({
   saveMessages: vi.fn<(id: string, m: ChatMessage[]) => Promise<void>>(() => Promise.resolve()),
   saveTasks: vi.fn<(id: string, t: unknown[]) => Promise<void>>(() => Promise.resolve()),
   getTasks: vi.fn<(id: string) => Promise<unknown[]>>(() => Promise.resolve([])),
+  deleteAttachment: vi.fn<(id: string) => Promise<void>>(() => Promise.resolve()),
 }));
 
 vi.mock("@App/app/repo/agent_chat", () => ({ agentChatRepo: repoMock }));
@@ -76,6 +77,19 @@ describe("useStreamingChat：stop 后仍需放行终态事件（finding 6）", (
       enableTools: undefined,
       ownedAttachmentIds: ["upload.png"],
     });
+  });
+
+  it("连接建立失败时应回收尚未被 Service Worker 接管的上传附件", async () => {
+    mockConnect.mockRejectedValueOnce(new Error("connect failed"));
+    const { result } = renderHook(() => useStreamingChat());
+
+    await act(async () => {
+      await result.current.sendMessage("conv-1", "hi", vi.fn(), vi.fn(), undefined, undefined, undefined, {
+        ownedAttachmentIds: ["upload.png"],
+      });
+    });
+
+    expect(repoMock.deleteAttachment).toHaveBeenCalledWith("upload.png");
   });
 
   it("stopGeneration 之后到达的终态事件仍应触发 onDone 并断开连接，而不是被 abortedRef 吞掉", async () => {
