@@ -125,13 +125,22 @@ already has DOM and plays the offscreen role directly.
   ([`src/app/service/sandbox/index.ts`](../src/app/service/sandbox/index.ts)) proactively posts a
   `preparationSandbox` message once its own `Server` is wired up (same mechanism on both platforms), and
   [`BackgroundEnvManagerBase.preparationSandbox`](../src/app/service/offscreen/base.ts) immediately tells the
-  service worker `preparationOffscreen` — no round trip, no waiting. Separately and non-blockingly, the
+  service worker `preparationOffscreen({ verified: true })` — no round trip, no waiting. The service worker
+  replays enabled background/scheduled scripts and the current language only for this verified signal, once.
+  Separately and non-blockingly, the
   sandbox reuses its own in-flight `getExtensionEnv` request to self-check that the channel is genuinely
   bidirectional, and reports the outcome via `reportSandboxChannelHealth`, which the parent logs (visible in
   the parent's own console/log, since the sandbox iframe's console is far less discoverable). If the sandbox
   never announces readiness at all (iframe failed to load, script error), a fallback timer in
-  `BackgroundEnvManagerBase` still tells the service worker `preparationOffscreen` after
-  `SANDBOX_READY_FALLBACK_MS`, logging a clear error instead of hanging forever.
+  `BackgroundEnvManagerBase` still tells the service worker `preparationOffscreen({ verified: false })` after
+  `SANDBOX_READY_FALLBACK_MS`, logging a clear error instead of hanging forever. That unverified notification
+  does not send initialization through an unavailable channel; if the real handshake arrives later, the
+  verified state replay still occurs exactly once.
+
+Firefox packages use `incognito: "spanning"`, so normal and private page scripts share one event page but retain
+their own `sender.tab.incognito` value for global-switch checks, `@run-in`, and `GM_info.isIncognito`. Background
+and scheduled scripts have no originating tab and run once in the shared event-page sandbox; tab-scoped
+`normal-tabs` / `incognito-tabs` values therefore do not create or imply separate background instances.
 
 Firefox builds compiled with `SC_KEEP_EVENT_PAGE_ACTIVE=true` also include an experimental event-page keep-alive
 loop in `EventPageOffscreenManager`. That loop needs `webRequestBlocking`, so `scripts/pack.js` injects it only

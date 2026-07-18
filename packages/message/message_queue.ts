@@ -89,7 +89,7 @@ export class MessageQueue implements IMessageQueue {
         if (msg.includes("Could not establish connection. Receiving end does not exist.")) {
           messageQueueLogger.debug("No target audience for .publish", { msg });
         } else {
-          messageQueueLogger.debug("Unable to execute runtime.sendMessage for .publish", { msg });
+          messageQueueLogger.error("Unable to execute runtime.sendMessage for .publish", { msg });
         }
       });
     this.EE.emit(topic, message);

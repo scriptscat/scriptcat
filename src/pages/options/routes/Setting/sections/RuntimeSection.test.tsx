@@ -124,6 +124,23 @@ describe("运行时分区-可选保活权限", () => {
     }
   });
 
+  it("Firefox manifest 不包含 webRequestBlocking 时隐藏保活开关", async () => {
+    isPermissionOk.mockResolvedValue(null);
+    isFirefoxMock.mockReturnValue(true);
+    vi.resetModules();
+    const { RuntimeSection: RuntimeSectionOnFirefox } = await import("./RuntimeSection.js");
+    try {
+      mockStorage();
+      render(<RuntimeSectionOnFirefox register={() => () => {}} />);
+      await screen.findByTestId("cat_storage_save");
+
+      expect(screen.queryByText("Keep Background and Scheduled Scripts Alive")).not.toBeInTheDocument();
+    } finally {
+      isFirefoxMock.mockReturnValue(false);
+      vi.resetModules();
+    }
+  });
+
   it("Firefox 关闭保活时关闭配置并移除可选权限", async () => {
     isPermissionOk.mockResolvedValue(true);
     isFirefoxMock.mockReturnValue(true);

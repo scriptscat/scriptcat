@@ -3,11 +3,15 @@ import { act, render, screen, cleanup, fireEvent } from "@testing-library/react"
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { BackgroundPrompt, backgroundPromptShownKey, keepAlivePromptShownKey } from "./BackgroundPrompt";
 
+const { set } = vi.hoisted(() => ({ set: vi.fn() }));
+vi.mock("@App/pages/store/global", () => ({ systemConfig: { set } }));
+
 beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  set.mockReset();
   vi.restoreAllMocks();
 });
 
@@ -36,6 +40,7 @@ describe("BackgroundPrompt 后台权限弹窗", () => {
     await act(async () => fireEvent.click(screen.getByText("立即启用").closest("button")!));
     expect(onResult).toHaveBeenCalledWith(true);
     expect(req).toHaveBeenCalledWith({ permissions: ["webRequestBlocking"] });
+    expect(set).toHaveBeenCalledWith("keep_ext_background_alive", true);
     expect(localStorage.getItem(keepAlivePromptShownKey)).toBe("true");
     expect(localStorage.getItem(backgroundPromptShownKey)).toBeNull();
   });

@@ -22,9 +22,10 @@ export const SANDBOX_READY_FALLBACK_MS = 15000;
 export class BackgroundEnvManagerBase {
   private readonly handshakeLogger = LoggerCore.getInstance().logger({ component: "offscreen-sandbox-handshake" });
 
-  // 确保"通知 SW 环境就绪"只执行一次：可能由真实的 sandbox 握手触发，也可能由兜底超时触发，
-  // 二者存在竞态，缺少这个防重入会导致 preparationOffscreen 被重复调用
-  private offscreenReadyNotified = false;
+  // fallback 只能表示父层不再无限等待，不能证明 sandbox 通道可用；真实握手需要独立记录，
+  // 这样 fallback 先发生时，迟到的 verified 握手仍可触发一次必要的状态重放。
+  private fallbackReadyNotified = false;
+  private sandboxReadyVerified = false;
 
   constructor(
     private readonly extMsgSender: MessageSend,
@@ -58,7 +59,9 @@ export class BackgroundEnvManagerBase {
     // contentWindow.location 不可读，父层没有别的办法探测其就绪状态，也不该去 ping sandbox——
     // 只有 sandbox 自己知道它什么时候真正就绪。sandbox 还会自行做一次通道自检，
     // 结果通过 reportSandboxChannelHealth 单独上报(见下)。
-    this.notifyOffscreenReady("sandbox reported readiness");
+    if (this.sandboxReadyVerified) return;
+    this.sandboxReadyVerified = true;
+    this.notifyOffscreenReady(true, "sandbox reported readiness");
   }
 
   // sandbox 自己主动做的通道连通性自检结果，记录到父层(offscreen 文档 / Firefox event page)的日志，
@@ -71,25 +74,22 @@ export class BackgroundEnvManagerBase {
     }
   }
 
-  private notifyOffscreenReady(reason: string) {
-    if (this.offscreenReadyNotified) {
-      return;
-    }
-    this.offscreenReadyNotified = true;
+  private notifyOffscreenReady(verified: boolean, reason: string) {
     this.handshakeLogger.debug(`offscreen ready (${reason})`);
     // 通知初始化好环境了
-    this.serviceWorker.preparationOffscreen();
+    this.serviceWorker.preparationOffscreen({ verified });
   }
 
   // 兜底：sandbox 若因 iframe 加载失败/脚本异常等原因从未发出就绪通知，也不能让 SW 永久
   // 卡在等待 offscreen 就绪上 —— 超时后仍然放行，只是没有经过连通性验证
   private armReadyFallback() {
     setTimeout(() => {
-      if (!this.offscreenReadyNotified) {
+      if (!this.sandboxReadyVerified && !this.fallbackReadyNotified) {
+        this.fallbackReadyNotified = true;
         this.handshakeLogger.error(
           `no sandbox readiness signal received within ${SANDBOX_READY_FALLBACK_MS}ms; proceeding without a verified sandbox channel`
         );
-        this.notifyOffscreenReady("fallback timeout, sandbox never reported readiness");
+        this.notifyOffscreenReady(false, "fallback timeout, sandbox never reported readiness");
       }
     }, SANDBOX_READY_FALLBACK_MS);
   }

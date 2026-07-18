@@ -222,6 +222,21 @@ describe("MessageQueueGroup", () => {
       expect(caughtCalled).toBe(true);
     });
 
+    it("publish 遇到非无人接收类异常时记录 error 而不是静默降为 debug", async () => {
+      const group = messageQueue.group("api-publishUnexpectedError");
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(chrome.runtime, "sendMessage").mockReturnValue(Promise.reject(new Error("transport exploded")) as never);
+
+      group.publish("test-publishUnexpectedError", { data: 1 });
+      await nextTick();
+      await nextTick();
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Unable to execute runtime.sendMessage"),
+        expect.anything()
+      );
+    });
+
     it("emit 方法应该只在本地发布", () => {
       const group = messageQueue.group("api-emitLocal");
       const handler = vi.fn();

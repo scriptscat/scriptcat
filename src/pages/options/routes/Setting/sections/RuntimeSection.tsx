@@ -33,7 +33,9 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
       void Promise.all([
         Promise.resolve(systemConfig.get("keep_ext_background_alive")),
         isPermissionOk("webRequestBlocking"),
-      ]).then(([enabled, permission]) => setKeepAlive(Boolean(enabled) && permission === true));
+      ]).then(([enabled, permission]) => {
+        setKeepAlive(permission === null ? null : Boolean(enabled) && permission);
+      });
     }
     void Promise.resolve(systemConfig.get("cat_file_storage")).then((v) => setStorage(v as CATFileStorage));
   }, []);

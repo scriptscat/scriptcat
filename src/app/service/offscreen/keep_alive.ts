@@ -55,6 +55,7 @@ const KEEP_ALIVE_HEARTBEAT_MESSAGE = { type: "keep-alive" } as const;
  */
 
 const boolFirefox = isFirefox();
+const firefoxEventPageKeepAliveEnabled = boolFirefox && process.env.SC_KEEP_EVENT_PAGE_ACTIVE === "true";
 
 // 期望每个 blocking request 保持未完成的时间。
 const KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS = 10_000;
@@ -115,7 +116,7 @@ const createKeepAliveProbeLoop = (keepAliveProbeUrl: string) => {
 const TRANSPARENT_GIF_BASE64 = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 export const startFirefoxEventPageKeepAliveLoop =
-  boolFirefox && nativeScheduler
+  firefoxEventPageKeepAliveEnabled && nativeScheduler
     ? () => {
         let running = false;
         let configEnabled = false;
@@ -270,7 +271,14 @@ export const hookServiceWorkerKeepAliveLoop = (
     setKeepAliveEnabled(value);
     if (value !== prev) informOffscreen();
   });
-  messageQueue.subscribe("preparationOffscreen", () => {
+  messageQueue.subscribe("preparationOffscreen", (data: { verified: boolean }) => {
+    if (!data.verified) return;
+    offscreenReady = true;
+    informOffscreen();
+  });
+  // Chrome 的 offscreen document 生命周期可跨 service worker 重启；重新发现既有文档时，
+  // sandbox 不会重新加载并再次握手，因此需要独立同步当前保活配置。
+  messageQueue.subscribe("offscreenDocumentReady", () => {
     offscreenReady = true;
     informOffscreen();
   });

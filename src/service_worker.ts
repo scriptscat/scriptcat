@@ -79,7 +79,9 @@ function main() {
     const server = new Server("serviceWorker", [message, swMessage]);
     const manager = new ServiceWorkerManager(server, messageQueue, offscreen);
     manager.initManager();
-    setupOffscreenDocument();
+    void setupOffscreenDocument()
+      .then(() => messageQueue.emit("offscreenDocumentReady", {}))
+      .catch((error) => console.error("Failed to setup offscreen document:", error));
   }
   // Chrome needs a real offscreen document. Firefox MV3 uses EventPageOffscreenManager instead.
   else {

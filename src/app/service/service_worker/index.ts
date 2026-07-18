@@ -56,10 +56,10 @@ export default class ServiceWorkerManager {
   initManager() {
     this.api.on("logger", this.logger.bind(this));
     this.api.on("getExtensionEnv", this.getExtensionEnv.bind(this));
-    this.api.on("preparationOffscreen", async () => {
+    this.api.on("preparationOffscreen", async (data: { verified: boolean }) => {
       // 准备好环境
       await this.offscreenSend.init();
-      this.mq.emit("preparationOffscreen", {});
+      this.mq.emit("preparationOffscreen", data);
     });
     this.offscreenSend.init();
 

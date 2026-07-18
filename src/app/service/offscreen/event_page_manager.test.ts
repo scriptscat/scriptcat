@@ -34,8 +34,8 @@ afterEach(() => {
   }
 });
 
-const loadKeepAliveEnabledManager = async () => {
-  vi.stubEnv("SC_KEEP_EVENT_PAGE_ACTIVE", "true");
+const loadKeepAliveEnabledManager = async (enabled = true) => {
+  vi.stubEnv("SC_KEEP_EVENT_PAGE_ACTIVE", enabled ? "true" : "false");
   vi.stubGlobal("scheduler", {
     postTask: vi.fn(),
   });
@@ -152,6 +152,17 @@ describe("EventPageOffscreenManager 与 SW 共用 MessageQueue", () => {
 });
 
 describe("EventPageOffscreenManager Firefox event page 保活权限门控", () => {
+  it("构建开关关闭时即使权限存在也不注册 listener 或发起探测", async () => {
+    chromeMock.permissions.__setGrantedPermissions(["webRequestBlocking"]);
+    const { startFirefoxEventPageKeepAliveLoop, probeImages } = await loadKeepAliveEnabledManager(false);
+
+    startFirefoxEventPageKeepAliveLoop()(true);
+    await Promise.resolve();
+
+    expect((chrome.webRequest.onBeforeRequest as any).listeners).toHaveLength(0);
+    expect(probeImages).toHaveLength(0);
+  });
+
   it("权限未授予时不注册 blocking listener，也不发起首拍探测", async () => {
     chromeMock.permissions.__setGrantedPermissions([]);
     const {
@@ -296,5 +307,34 @@ describe("Chrome offscreen document 保活探测", () => {
     scheduledTasks.shift()?.();
     expect(port.postMessage).toHaveBeenCalledTimes(2);
     expect(postTask).toHaveBeenCalledTimes(2);
+  });
+
+  it("service worker 重启并重新发现既有 offscreen document 后会同步当前保活开关", async () => {
+    const subscriptions = new Map<string, (data: unknown) => void>();
+    const messageQueue = {
+      subscribe: vi.fn((topic: string, handler: (data: unknown) => void) => {
+        subscriptions.set(topic, handler);
+        return () => subscriptions.delete(topic);
+      }),
+    };
+    const systemConfig = {
+      watch: vi.fn((_key: string, handler: (value: boolean, prev: boolean | undefined) => void) => {
+        handler(true, undefined);
+        return vi.fn();
+      }),
+    };
+    const offscreenSend = {
+      init: vi.fn().mockResolvedValue(undefined),
+      connect: vi.fn(),
+      sendMessage: vi.fn(() => new Promise(() => {})),
+    };
+    const { hookServiceWorkerKeepAliveLoop } = await loadChromeKeepAlive();
+
+    hookServiceWorkerKeepAliveLoop(systemConfig as never, messageQueue as never, offscreenSend as never);
+    subscriptions.get("offscreenDocumentReady")?.({});
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(offscreenSend.sendMessage).toHaveBeenCalledWith({ action: "offscreen/keepAlive", data: true });
   });
 });

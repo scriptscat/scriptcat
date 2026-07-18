@@ -5,8 +5,10 @@ import { Server } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
 import type { WindowMessage } from "@Packages/message/window_message";
 import type { ServiceWorkerClient } from "../service_worker/client";
-import type { MessageSend } from "@Packages/message/types";
+import type { MessageSend, TMessage } from "@Packages/message/types";
 import { BackgroundEnvManagerBase, SANDBOX_READY_FALLBACK_MS } from "./base";
+import { MessageQueueGroup, type IMessageQueue } from "@Packages/message/message_queue";
+import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_BACKGROUND, type ScriptRunResource } from "@App/app/repo/scripts";
 
 initTestEnv();
 
@@ -22,6 +24,33 @@ const buildManager = () => {
     serviceWorker
   );
   return { bus, offscreenServer, preparationOffscreen, manager };
+};
+
+class LocalMessageQueue implements IMessageQueue {
+  private readonly events = new EventEmitter<string, any>();
+
+  group(name: string, middleware?: Parameters<IMessageQueue["group"]>[1]) {
+    return new MessageQueueGroup(this, name, middleware);
+  }
+
+  subscribe<T>(topic: string, handler: (message: T) => void) {
+    this.events.on(topic, handler);
+    return () => this.events.off(topic, handler);
+  }
+
+  publish<T>(topic: string, message: NonNullable<T>) {
+    this.events.emit(topic, message);
+  }
+
+  emit<T>(topic: string, message: NonNullable<T>) {
+    this.events.emit(topic, message);
+  }
+}
+
+const flushAsyncHandlers = async () => {
+  for (let i = 0; i < 8; i += 1) {
+    await Promise.resolve();
+  }
 };
 
 // 单测重点：就绪信号完全由 sandbox 主动上报(preparationSandbox)，父层不 ping、不轮询、不猜测；
@@ -48,6 +77,7 @@ describe("BackgroundEnvManagerBase 就绪握手", () => {
     manager.preparationSandbox();
 
     expect(preparationOffscreen).toHaveBeenCalledTimes(1);
+    expect(preparationOffscreen).toHaveBeenCalledWith({ verified: true });
   });
 
   it("sandbox 上报通道自检成功时，记录通过日志", () => {
@@ -83,6 +113,7 @@ describe("BackgroundEnvManagerBase 就绪握手", () => {
       expect.anything()
     );
     expect(preparationOffscreen).toHaveBeenCalledTimes(1);
+    expect(preparationOffscreen).toHaveBeenCalledWith({ verified: false });
   });
 
   it("真实握手先到达时，兜底超时不会重复通知 SW 就绪", () => {
@@ -97,15 +128,87 @@ describe("BackgroundEnvManagerBase 就绪握手", () => {
     expect(preparationOffscreen).toHaveBeenCalledTimes(1);
   });
 
-  it("兜底超时先触发后，迟到的真实握手不会重复通知 SW 就绪", () => {
+  it("兜底超时先触发后，迟到的真实握手会补发一次 verified 通知", () => {
     vi.useFakeTimers();
     const { manager, preparationOffscreen } = buildManager();
 
     (manager as unknown as { armReadyFallback(): void }).armReadyFallback();
     vi.advanceTimersByTime(SANDBOX_READY_FALLBACK_MS);
     expect(preparationOffscreen).toHaveBeenCalledTimes(1);
+    expect(preparationOffscreen).toHaveBeenLastCalledWith({ verified: false });
 
     manager.preparationSandbox();
-    expect(preparationOffscreen).toHaveBeenCalledTimes(1);
+    expect(preparationOffscreen).toHaveBeenCalledTimes(2);
+    expect(preparationOffscreen).toHaveBeenLastCalledWith({ verified: true });
+
+    manager.preparationSandbox();
+    expect(preparationOffscreen).toHaveBeenCalledTimes(2);
+  });
+
+  it("兜底初始化消息丢失后，迟到的真实握手会把后台脚本与语言各重放一次", async () => {
+    vi.useFakeTimers();
+    const bus = new MockMessage(new EventEmitter<string, any>());
+    const offscreenServer = new Server("offscreen", bus);
+    const messageQueue = new LocalMessageQueue();
+    const backgroundScript = {
+      uuid: "background-script",
+      name: "background-script",
+      type: SCRIPT_TYPE_BACKGROUND,
+      status: SCRIPT_STATUS_ENABLE,
+    } as ScriptRunResource;
+    const extMsgSender = {
+      connect: vi.fn(),
+      sendMessage: vi.fn(async (message: TMessage) => {
+        if (message.action === "serviceWorker/script/fetchInfo") {
+          return { code: 0, data: backgroundScript };
+        }
+        if (message.action === "serviceWorker/script/getScriptRunResourceByUUID") {
+          return { code: 0, data: backgroundScript };
+        }
+        return { code: 0 };
+      }),
+    } as unknown as MessageSend;
+    let sandboxReady = false;
+    const attemptedActions: string[] = [];
+    const deliveredActions: string[] = [];
+    const windowMessage = {
+      connect: vi.fn(),
+      sendMessage: vi.fn((message: TMessage) => {
+        if (message.action) attemptedActions.push(message.action);
+        if (!sandboxReady) return new Promise(() => {});
+        if (message.action) deliveredActions.push(message.action);
+        return Promise.resolve({ code: 0 });
+      }),
+    } as unknown as WindowMessage;
+    const preparationOffscreen = vi.fn(() => {
+      messageQueue.publish("enableScripts", [{ uuid: backgroundScript.uuid, enable: true }]);
+      messageQueue.publish("setSandboxLanguage", "zh-CN");
+    });
+    const manager = new BackgroundEnvManagerBase(
+      extMsgSender,
+      windowMessage,
+      offscreenServer,
+      { preparationOffscreen } as unknown as ServiceWorkerClient,
+      messageQueue
+    );
+    await manager.initManager();
+
+    vi.advanceTimersByTime(SANDBOX_READY_FALLBACK_MS);
+    await flushAsyncHandlers();
+
+    expect(attemptedActions).toEqual(expect.arrayContaining(["sandbox/enableScript", "sandbox/setSandboxLanguage"]));
+    expect(deliveredActions).toEqual([]);
+
+    sandboxReady = true;
+    manager.preparationSandbox();
+    await flushAsyncHandlers();
+
+    expect(deliveredActions.filter((action) => action === "sandbox/enableScript")).toHaveLength(1);
+    expect(deliveredActions.filter((action) => action === "sandbox/setSandboxLanguage")).toHaveLength(1);
+
+    manager.preparationSandbox();
+    await flushAsyncHandlers();
+    expect(deliveredActions.filter((action) => action === "sandbox/enableScript")).toHaveLength(1);
+    expect(deliveredActions.filter((action) => action === "sandbox/setSandboxLanguage")).toHaveLength(1);
   });
 });

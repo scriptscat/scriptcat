@@ -9,6 +9,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@App/pages/components/ui/dialog";
+import { systemConfig } from "@App/pages/store/global";
 
 export const backgroundPromptShownKey = "background_prompt_shown";
 export const keepAlivePromptShownKey = "webrequest_blocking_prompt_shown";
@@ -43,6 +44,9 @@ export function BackgroundPrompt({
   const enable = async () => {
     localStorage.setItem(config.shownKey, "true");
     const granted = await chrome.permissions.request({ permissions: [permission] }).catch(() => false);
+    if (granted && permission === "webRequestBlocking") {
+      systemConfig.set("keep_ext_background_alive", true);
+    }
     onResult(!!granted);
   };
 

@@ -32,6 +32,7 @@ const agentEnabled = resolveAgentEnabled({
   isBeta: version.prerelease.length > 0,
   disableEnv: process.env.SC_DISABLE_AGENT,
 });
+const keepEventPageActive = process.env.SC_KEEP_EVENT_PAGE_ACTIVE !== "false";
 manifest.version = toChromeVersion(packageInfo.version);
 if (version.prerelease.length) {
   manifest.name = `__MSG_scriptcat_beta__`;
@@ -80,10 +81,6 @@ const chromeManifest = cloneManifest();
 
 chromeManifest.optional_permissions = chromeManifest.optional_permissions.filter((val) => val !== "userScripts");
 delete chromeManifest.background.scripts;
-delete chromeManifest.content_security_policy.sandbox; // chromeManifest 不需要？
-if (chromeManifest.content_security_policy && Object.keys(chromeManifest.content_security_policy).length === 0) {
-  delete chromeManifest.content_security_policy;
-}
 
 // In Firefox, userScripts is an optional-only permission. It must appear only in optional_permissions, not both arrays.
 // Firefox does not implement Chrome’s debugger extension API, so remove "debugger" from the Firefox manifest and disable any code using chrome.debugger.
@@ -92,8 +89,8 @@ firefoxManifest.permissions = firefoxManifest.permissions.filter(
   (val) => val !== "userScripts" && val !== "debugger" && val !== "offscreen"
 );
 
-// Firefox runtime toggle requests this optional capability when enabled.
-if (!firefoxManifest.optional_permissions.includes("webRequestBlocking")) {
+// Firefox runtime toggle requests this optional capability only when the keep-alive implementation is compiled in.
+if (keepEventPageActive && !firefoxManifest.optional_permissions.includes("webRequestBlocking")) {
   firefoxManifest.optional_permissions.push("webRequestBlocking");
 }
 

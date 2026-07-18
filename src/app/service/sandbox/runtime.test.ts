@@ -4,6 +4,7 @@ import type { Server } from "@Packages/message/server";
 import type { WindowMessage } from "@Packages/message/window_message";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { TExtensionEnv } from "../extension/extension_env";
+import { SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB, type SCRIPT_TYPE } from "@App/app/repo/scripts";
 
 // 单测重点：sandbox runtime.execScript 中新加的 run-in 过滤逻辑
 // 通过 mock BgExecScriptWarp 与 offscreen client，观察是否构造执行实例来判断过滤是否生效
@@ -32,11 +33,11 @@ import { Runtime } from "./runtime";
 
 initTestEnv();
 
-const buildScript = (runIn?: string): ScriptLoadInfo =>
+const buildScript = (runIn?: string, type: SCRIPT_TYPE = SCRIPT_TYPE_BACKGROUND): ScriptLoadInfo =>
   ({
-    uuid: `uuid-${runIn ?? "none"}`,
+    uuid: `uuid-${type}-${runIn ?? "none"}`,
     name: "bg",
-    type: 2,
+    type,
     code: "",
     sourceCode: "",
     metadata: runIn ? { "run-in": [runIn] } : {},
@@ -98,6 +99,19 @@ describe("Runtime.execScript run-in 过滤", () => {
   it('run-in === "incognito-tabs" 在隐身环境中执行', async () => {
     const runtime = setup({ inIncognitoContext: true });
     await runtime.execScript(buildScript("incognito-tabs"));
+    expect(BgExecScriptWarpCtor).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["后台", "normal-tabs", SCRIPT_TYPE_BACKGROUND],
+    ["后台", "incognito-tabs", SCRIPT_TYPE_BACKGROUND],
+    ["定时", "normal-tabs", SCRIPT_TYPE_CRONTAB],
+    ["定时", "incognito-tabs", SCRIPT_TYPE_CRONTAB],
+  ] as const)('Firefox spanning 共享事件页不把%s脚本的 run-in === "%s" 伪装成窗口隔离', async (_label, runIn, type) => {
+    const runtime = setup({ inIncognitoContext: false, incognitoMode: "spanning" });
+
+    await runtime.execScript(buildScript(runIn, type));
+
     expect(BgExecScriptWarpCtor).toHaveBeenCalledTimes(1);
   });
 
