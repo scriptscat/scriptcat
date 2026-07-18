@@ -23,9 +23,13 @@ Promoting a scenario into the permanent suite is a *separate, deliberate* decisi
 permanent regression coverage. That path is owned by [`DEVELOP.md`](./develop.md), not this guide.
 
 **Reproducing a bug you intend to fix is *not* "casual verification."** A scratch reproduction is the *确定 bug
-存在* step in [`../AGENTS.md`](../AGENTS.md)'s TDD / Confirm-before-you-fix policy — it confirms the bug is real
-but is not itself the required test or evidence. That policy (including its narrow exceptions) is owned by
-`../AGENTS.md`; follow its next step — a committed failing test in the general case — before fixing.
+存在* step in [`../AGENTS.md`](../AGENTS.md)'s TDD / Confirm-before-you-fix policy. In the general case it
+confirms the bug is real but is not itself the required test — promote it into a committed failing test before
+fixing. Under that policy's infeasible-automated-coverage exception (criteria in
+[`references/develop-testing.md`](./references/develop-testing.md#when-tdd-doesnt-apply)), this scratch
+reproduction — its `report.md`, screenshots, and observations — *is* the required evidence; no committed test
+is needed. `AGENTS.md` owns the governing principle; `references/develop-testing.md` owns the exception
+criteria — don't expect the exception boundary spelled out in `AGENTS.md` itself.
 
 Choose the reproduction method by what the bug depends on: a failing unit test for pure logic/parser/utility
 bugs; this guide's scratch-script workflow (above) when it depends on the built extension, browser APIs, or
