@@ -68,7 +68,7 @@ React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 +
   - No hard-coded colors.
 - **Design system** — the full color-token reference (light/dark values), component palette, layout &
   responsive patterns, motion guidance, state patterns, and a new-page recipe live in
-  [`design.md`](./design.md). Read it before building a new page, dialog, or block.
+  [`design.md`](./design.md). Read it before building or modifying any page, dialog, or block.
 
 ## Testing
 
