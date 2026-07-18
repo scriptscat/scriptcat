@@ -34,8 +34,7 @@ afterEach(() => {
   }
 });
 
-const loadKeepAliveEnabledManager = async (enabled = true) => {
-  vi.stubEnv("SC_KEEP_EVENT_PAGE_ACTIVE", enabled ? "true" : "false");
+const loadKeepAliveEnabledManager = async () => {
   vi.stubGlobal("scheduler", {
     postTask: vi.fn(),
   });
@@ -152,11 +151,11 @@ describe("EventPageOffscreenManager 与 SW 共用 MessageQueue", () => {
 });
 
 describe("EventPageOffscreenManager Firefox event page 保活权限门控", () => {
-  it("构建开关关闭时即使权限存在也不注册 listener 或发起探测", async () => {
+  it("运行时配置关闭时即使权限存在也不注册 listener 或发起探测", async () => {
     chromeMock.permissions.__setGrantedPermissions(["webRequestBlocking"]);
-    const { startFirefoxEventPageKeepAliveLoop, probeImages } = await loadKeepAliveEnabledManager(false);
+    const { startFirefoxEventPageKeepAliveLoop, probeImages } = await loadKeepAliveEnabledManager();
 
-    startFirefoxEventPageKeepAliveLoop()(true);
+    startFirefoxEventPageKeepAliveLoop()(false);
     await Promise.resolve();
 
     expect((chrome.webRequest.onBeforeRequest as any).listeners).toHaveLength(0);

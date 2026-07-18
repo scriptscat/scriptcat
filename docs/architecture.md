@@ -142,11 +142,11 @@ their own `sender.tab.incognito` value for global-switch checks, `@run-in`, and 
 and scheduled scripts have no originating tab and run once in the shared event-page sandbox; tab-scoped
 `normal-tabs` / `incognito-tabs` values therefore do not create or imply separate background instances.
 
-Firefox builds compiled with `SC_KEEP_EVENT_PAGE_ACTIVE=true` also include an experimental event-page keep-alive
-loop in `EventPageOffscreenManager`. That loop needs `webRequestBlocking`, so `scripts/pack.js` injects it only
-as a Firefox `optional_permissions` entry under the same build flag. Users grant it from the install prompt or
-runtime settings when they use Background Scripts or Scheduled Scripts; the event page listens for
-`chrome.permissions.onAdded` and starts the loop only after the grant is present.
+Firefox packages always list `webRequestBlocking` in `optional_permissions` for the experimental event-page
+keep-alive loop. On Firefox with `scheduler.postTask`, users can enable that loop from the install prompt or
+runtime settings when they use Background Scripts or Scheduled Scripts. The loop starts only while
+`keep_ext_background_alive` is enabled and the optional permission is granted; permission add/remove events
+start or stop probing at runtime.
 
 Services never see this difference: they receive an `IOffscreenSend` and call `.init()`.
 

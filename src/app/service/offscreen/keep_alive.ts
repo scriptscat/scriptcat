@@ -45,17 +45,17 @@ const KEEP_ALIVE_HEARTBEAT_MESSAGE = { type: "keep-alive" } as const;
  * 未完成网络请求可能阻止 event page 被判定为空闲。
  *
  * 启用条件：
- * - 构建时设置 `SC_KEEP_EVENT_PAGE_ACTIVE=true`；
- * - Firefox manifest 在同一构建开关下把 `webRequestBlocking` 注入 `optional_permissions`；
+ * - 当前环境是 Firefox；
+ * - 浏览器提供 `scheduler.postTask`；
+ * - `keep_ext_background_alive` 运行时配置已开启；
  * - 用户通过安装提示或设置页授予 `webRequestBlocking`；
- * - 浏览器提供 `scheduler.postTask`。
  *
- * 这不是 Firefox 保证的生命周期机制。任一条件不满足时函数为空操作；探测未被实际延迟时，
- * `onKeepAliveProbeSettled` 会停止循环，避免快速重试。
+ * 这不是 Firefox 保证的生命周期机制。Firefox 或 Scheduler 条件不满足时函数为空操作；运行时
+ * 配置或权限不满足时不启动探测。探测未被实际延迟时，`onKeepAliveProbeSettled` 会停止循环，
+ * 避免快速重试。
  */
 
 const boolFirefox = isFirefox();
-const firefoxEventPageKeepAliveEnabled = boolFirefox && process.env.SC_KEEP_EVENT_PAGE_ACTIVE === "true";
 
 // 期望每个 blocking request 保持未完成的时间。
 const KEEP_ALIVE_DEFAULT_PROBE_DELAY_MS = 10_000;
@@ -116,7 +116,7 @@ const createKeepAliveProbeLoop = (keepAliveProbeUrl: string) => {
 const TRANSPARENT_GIF_BASE64 = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 export const startFirefoxEventPageKeepAliveLoop =
-  firefoxEventPageKeepAliveEnabled && nativeScheduler
+  boolFirefox && nativeScheduler
     ? () => {
         let running = false;
         let configEnabled = false;

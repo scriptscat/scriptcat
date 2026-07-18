@@ -15,7 +15,6 @@ const isBeta = version.includes("-");
 const isReactTools = process.env.REACT_DEVTOOLS === "true";
 // agent 默认开启；正式版屏蔽由 scripts/pack.js 按版本判断后通过 SC_DISABLE_AGENT 声明。
 const enableAgent = process.env.SC_DISABLE_AGENT !== "true";
-const keepEventPageActive = process.env.SC_KEEP_EVENT_PAGE_ACTIVE !== "false";
 
 // Target browsers, see: https://github.com/browserslist/browserslist
 // 依照 https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
@@ -139,7 +138,6 @@ export default {
       "process.env.VI_TESTING": "'false'",
       "process.env.SC_RANDOM_KEY": `'${uuidv4()}'`,
       "process.env.SC_DISABLE_AGENT": `'${enableAgent ? "false" : "true"}'`,
-      "process.env.SC_KEEP_EVENT_PAGE_ACTIVE": `'${keepEventPageActive ? "true" : "false"}'`, // 正式 Release 需设为 true 避免定时脚本失效
     }),
     new rspack.CopyRspackPlugin({
       patterns: [

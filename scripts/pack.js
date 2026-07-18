@@ -32,7 +32,6 @@ const agentEnabled = resolveAgentEnabled({
   isBeta: version.prerelease.length > 0,
   disableEnv: process.env.SC_DISABLE_AGENT,
 });
-const keepEventPageActive = process.env.SC_KEEP_EVENT_PAGE_ACTIVE !== "false";
 manifest.version = toChromeVersion(packageInfo.version);
 if (version.prerelease.length) {
   manifest.name = `__MSG_scriptcat_beta__`;
@@ -89,8 +88,8 @@ firefoxManifest.permissions = firefoxManifest.permissions.filter(
   (val) => val !== "userScripts" && val !== "debugger" && val !== "offscreen"
 );
 
-// Firefox runtime toggle requests this optional capability only when the keep-alive implementation is compiled in.
-if (keepEventPageActive && !firefoxManifest.optional_permissions.includes("webRequestBlocking")) {
+// Firefox manifest 始终声明该可选权限，运行时开关启用时再向用户请求授权。
+if (!firefoxManifest.optional_permissions.includes("webRequestBlocking")) {
   firefoxManifest.optional_permissions.push("webRequestBlocking");
 }
 

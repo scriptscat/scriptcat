@@ -48,7 +48,6 @@ jobs:
       - name: Package with Node
         env:
           CHROME_PEM: ${{ secrets.CHROME_PEM }}
-          SC_KEEP_EVENT_PAGE_ACTIVE: "true"
         run: |
           mkdir dist
           echo "$CHROME_PEM" > ./dist/scriptcat.pem
