@@ -23,10 +23,8 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 > this branch, don't claim it*).
 
 > **Before opening or updating a pull request, read [`docs/pull-request.md`](docs/pull-request.md)** — the
-> required description structure (checklist, 背景/本次改动/已知限制/建议审查重点/验证, etc.), not a generic
-> `## Summary` / `## Test plan` template. Re-check this at PR-creation time specifically — by then "read the
-> docs at task start" is easy to have deprioritized, and a generic template is an easy default to reach for
-> instead. Never claim human review, testing, or verification that did not happen.
+> required PR description structure. Do not default to a generic `## Summary` / `## Test plan` template. Never
+> claim human review, testing, or verification that did not happen.
 
 > **Doc map:** [`docs/README.md`](docs/README.md) indexes every contributor doc (development, architecture,
 > translation, contributing, localized READMEs).
