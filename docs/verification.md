@@ -27,6 +27,10 @@ permanent regression coverage. That path is owned by [`DEVELOP.md`](./develop.md
 but is not itself the required test or evidence. That policy (including its narrow exceptions) is owned by
 `../AGENTS.md`; follow its next step — a committed failing test in the general case — before fixing.
 
+Choose the reproduction method by what the bug depends on: a failing unit test for pure logic/parser/utility
+bugs; this guide's scratch-script workflow (above) when it depends on the built extension, browser APIs, or
+cross-context behavior.
+
 ## Prerequisite gate (cheap signals first)
 
 Driving a browser is the *last* check, not the first. Confirm the cheap signals are green before you build:

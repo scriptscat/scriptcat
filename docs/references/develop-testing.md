@@ -19,7 +19,16 @@ invalid-selector `DOMException` lazily — the upstream eager construction captu
 - Single file: `pnpm test -- --run path/to/file.test.ts`.
 - Playwright tests are `*.spec.ts` files in `e2e`; they run with one worker and retain failure artifacts. Run targeted tests while iterating, then run `pnpm run lint` plus the relevant full suite before a PR.
 
+### When TDD doesn't apply
+
+Two exceptions to the TDD/BDD-first principle, neither a blanket file/task category — write a failing test for everything else:
+
+- **Genuinely behavior-preserving work** — refactors, type cleanup, dead-code removal, mechanical renames, or a config/dependency change confirmed not to alter behavior. Verify it instead of testing it.
+- **Automated coverage is genuinely infeasible** — a pure visual/animation tweak, a bug reproducible only in a specific browser version or extension lifecycle stage, a copy/translation wording change, platform behavior that can't be automated reliably. Verify it manually and record the evidence instead of committing a pass-through or low-value test just to satisfy the rule — [`../verification.md`](../verification.md)'s scratch-extension workflow when the change needs the built extension or browser APIs, a simpler noted check otherwise.
+
 ### Writing meaningful tests (what to clean up / not write)
+
+**Two distinct situations — don't conflate them.** A test that fails because *its own asserted contract* is wrong (a stale fixture, an assertion that was incorrect from the start, a contract that legitimately changed) — fix the test and say why. A test that never carried value regardless of pass/fail (see below) — clean it up independent of whether it's currently failing. Neither is license to weaken a valid regression test just to make CI pass.
 
 A test earns its place by exercising **our own logic** and failing on a real regression. Don't write the "tests nothing" kinds below — and clean them up when you find them (delete the test; don't touch business logic):
 
