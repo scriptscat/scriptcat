@@ -42,7 +42,7 @@ Core entry points live in `src` (`service_worker.ts`, `content.ts`, `inject.ts`,
 
 ## Coding Style & Naming Conventions
 
-Use strict TypeScript, React JSX runtime, 2-space indentation, semicolons, double quotes, trailing commas where valid, and a 120-column Prettier width. Prefer aliases from `tsconfig.json`: `@App/*`, `@Packages/*`, and `@Tests/*`. ESLint requires type-only imports, allows `_`-prefixed unused variables, warns on literal JSX text, and enforces `chrome.runtime.lastError` checks. Use `pnpm run lint-fix` for mechanical fixes.
+Use strict TypeScript, React JSX runtime, 2-space indentation, semicolons, double quotes, trailing commas where valid, and a 120-column Prettier width. Prefer aliases from `tsconfig.json`: `@App/*`, `@Packages/*`, and `@Tests/*`. ESLint requires type-only imports, allows `_`-prefixed unused variables, errors on literal JSX text, and enforces `chrome.runtime.lastError` checks. Use `pnpm run lint-fix` for mechanical fixes.
 
 ### Language Conventions
 
@@ -78,7 +78,7 @@ This project uses Vitest for unit tests and Playwright for end-to-end tests.
 
 ## i18n
 
-i18next, 9 locales (`src/locales/`: en-US, zh-CN, zh-TW, ja-JP, de-DE, vi-VN, ru-RU, tr-TR, pt-BR); extension strings in `src/assets/_locales/`. ESLint `react/jsx-no-literals: warn` enforces translation. Each locale is split by namespace into multiple `*.json` files (`common.json`, `popup.json`, `script.json`, …), re-exported via the locale's `index.ts` and merged in `src/locales/locales.ts`. `defaultNS` is `common`; keys in any other namespace need the `ns:` prefix (e.g. `t("script:tags")`). For localization, edit the relevant namespace `*.json` under `src/locales/<locale>/`; new locales must also be registered in `src/locales/locales.ts`.
+i18next; extension strings in `src/assets/_locales/`. The current locale list is owned by [`docs/translation.md`](./translation.md). ESLint `react/jsx-no-literals: error` enforces translation. Each locale is split by namespace into multiple `*.json` files (`common.json`, `popup.json`, `script.json`, …), re-exported via the locale's `index.ts` and merged in `src/locales/locales.ts`. `defaultNS` is `common`; keys in any other namespace need the `ns:` prefix (e.g. `t("script:tags")`). For localization, edit the relevant namespace `*.json` under `src/locales/<locale>/`; new locales must also be registered in `src/locales/locales.ts`.
 
 **Before translating, read [`docs/translation.md`](./translation.md)** — the translation/localization guide (terminology rules + per-locale `terminology-<locale>.md` specs).
 

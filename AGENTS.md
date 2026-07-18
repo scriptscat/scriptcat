@@ -16,6 +16,9 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 > **To manually verify a feature actually works, read [`docs/verification.md`](docs/verification.md)** — drive
 > the real built extension end-to-end with one-shot throwaway scratch scripts (not the committed test suite).
 
+> **Before building any new page, dialog, or block, read [`docs/design.md`](docs/design.md)** — the design
+> system: color tokens, component palette, layout/motion/state patterns, and the new-page recipe.
+
 > **Before any translation/localization work, read [`docs/translation.md`](docs/translation.md)** —
 > the single source of truth for translation. Whenever you add or change localized content
 > (`src/locales/<locale>/*.json` namespace files, per-language docs, UI copy, or test snapshots), you must first
@@ -36,16 +39,16 @@ ScriptCat — Manifest V3 browser extension that runs Tampermonkey-compatible us
 > **UI stack.** The presentation layer (`src/pages/`) is built with **shadcn/ui + Tailwind CSS v4** on
 > **React 19** (migrated from Arco Design + UnoCSS). The concrete UI/theme rules live in
 > [`docs/develop.md`](docs/develop.md); the design system (color tokens, components, layout/motion/state
-> patterns, new-page recipe) lives in [`docs/design.md`](docs/design.md) — read it before building any new
-> page, dialog, or block.
+> patterns, new-page recipe) lives in [`docs/design.md`](docs/design.md).
 
 ## Engineering Principles
 
-These are non-negotiable and apply to every code change, regardless of what `docs/develop.md` says about mechanics.
+These are non-negotiable, regardless of what `docs/develop.md` says about mechanics — where a principle's scope
+isn't universal, that's called out in the item itself.
 
-- **Fix root causes, not symptoms — refactor over patch.** No `as any` / `// @ts-ignore` / try-catch swallow / defensive skips to make errors disappear. When the clean fix needs restructuring, refactor rather than bolt on a patch (宁愿重构也不要打补丁). If a test fails, fix the code, not the test — unless the test itself is wrong (tautological, obsolete, or asserting an incorrect contract; see [`docs/references/develop-testing.md`](docs/references/develop-testing.md)'s "writing meaningful tests" section for what qualifies), in which case fix the test and say why.
-- **Confirm before you fix.** Before touching a reported bug, reproduce it and confirm it actually exists — never fix from assumption. [`docs/verification.md`](docs/verification.md) has the scratch-script workflow for driving the real extension to reproduce it. Then capture it in a failing test, then fix, **in that order** (确定 bug 存在 → 写测试 → 修复).
-- **TDD/BDD first.** Write failing tests **before** implementation, using BDD-style Chinese `describe`/`it` titles. (Runner, mocks, and how to run tests are in `docs/develop.md`.)
+- **Fix root causes, not symptoms — refactor over patch.** No `as any` / `// @ts-ignore` / try-catch swallow / defensive skips to make errors disappear. When the clean fix needs restructuring, refactor rather than bolt on a patch (宁愿重构也不要打补丁). If a test fails, fix the code, not the test — unless the *test's own contract* is wrong (a stale fixture, an assertion that was incorrect from the start, or a contract that legitimately changed), in which case fix the test and say why. That's distinct from proactively deleting a test that never carried value regardless of pass/fail (tautological, duplicate, framework-only, mislabeled — see [`docs/references/develop-testing.md`](docs/references/develop-testing.md)'s "writing meaningful tests" section).
+- **Confirm before you fix.** Before touching a reported bug, reproduce it and confirm it actually exists — never fix from assumption. Use the smallest reproduction that faithfully shows it: a failing unit test for pure logic/parser/utility bugs, or [`docs/verification.md`](docs/verification.md)'s scratch-script workflow when it depends on the built extension, browser APIs, or cross-context behavior. Then capture it in a failing test, then fix, **in that order** (确定 bug 存在 → 写测试 → 修复).
+- **TDD/BDD first, for behavior changes.** Write failing tests **before** implementing new or changed behavior, using BDD-style Chinese `describe`/`it` titles. Behavior-preserving refactors, type cleanup, config/dependency changes, dead-code removal, and mechanical renames don't need a new failing test — verify them instead. (Runner, mocks, and how to run tests are in `docs/develop.md`.)
 - **SOLID, high cohesion & low coupling — applied to the existing extension points.** `Repo<T>` for new entities, `Group.on(...)` for new messages. Inject `Group` / `IMessageQueue` / DAOs via constructor; don't `new` them inside methods. Depend on narrow interfaces (`IMessageQueue`, not `MessageQueue`).
 - **Direct replacement over adapter sandwiches.** When swapping a backend/library, replace in place — no `interface Foo + LegacyImpl + NewImpl` unless both must coexist at runtime.
 - **Scope discipline — stay in your lane.** Bug fix ≠ cleanup PR. Touch only the files the task requires; leave unrelated files untouched (不要动和任务不相干的文件). Don't add helpers, abstractions, validation, or backwards-compat shims you don't need today. Three similar lines beats a premature abstraction.
@@ -96,7 +99,7 @@ Execution paths: page scripts → `chrome.userScripts`; background → SW → Of
 
 `message/` (with mocks), `filesystem/` (WebDAV, cloud drive providers, zip export — see [`docs/cloud-sync.md`](docs/cloud-sync.md)), `cloudscript/`, `eslint/` (userscript lint config — `eslint-plugin-userscripts`-based `defaultConfig` for the in-app editor), `chrome-extension-mock/`.
 
-> The project's own custom ESLint rules live in `eslint-rules/` at the repo root (wired in `eslint.config.mjs`, **not** in `packages/eslint/`) and act as a **mechanical harness** for conventions that would otherwise rely on memory:
+> The project's own custom ESLint rules live in `eslint-rules/` at the repo root (wired in `eslint.config.mjs`, **not** in `packages/eslint/`) and act as a **mechanical harness** for conventions that would otherwise rely on memory. This list is a deliberate, narrow exception to the "detailed guidance lives in the owning doc" rule above: these rules are enforced by lint/tests, not prose, so — unlike freeform documentation — they can't silently drift out of sync with what's actually enforced:
 > - `chrome-error/require-last-error-check` — enforces `chrome.runtime.lastError` handling. Not covered by `harness.test.mjs` (see below).
 > - `scriptcat/no-i18n-default-value` — bans `t(key, { defaultValue })` inline fallbacks (they leak hardcoded text to every language and bypass the `i18n-usage` key check); add the key to `src/locales/<locale>/*.json` instead.
 > - `scriptcat/no-raw-color-classname` (`src/pages/**/*.tsx`) — bans raw palette/hex colors in `className` (`bg-white`, `text-gray-500`, `dark:bg-gray-800`, `bg-[#fff]`); use design tokens (`bg-background`/`text-foreground`/…) so light & dark both work.
