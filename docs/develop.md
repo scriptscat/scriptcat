@@ -68,7 +68,7 @@ React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 +
   - No hard-coded colors.
 - **Design system** — the full color-token reference (light/dark values), component palette, layout &
   responsive patterns, motion guidance, state patterns, and a new-page recipe live in
-  [`DESIGN.md`](./design.md). Read it before building a new page, dialog, or block.
+  [`design.md`](./design.md). Read it before building a new page, dialog, or block.
 
 ## Testing
 
@@ -78,7 +78,7 @@ This project uses Vitest for unit tests and Playwright for end-to-end tests.
 
 ## i18n
 
-i18next, 8 locales (`src/locales/`: en-US, zh-CN, zh-TW, ja-JP, de-DE, vi-VN, ru-RU, tr-TR); extension strings in `src/assets/_locales/`. ESLint `react/jsx-no-literals: warn` enforces translation. Each locale is split by namespace into multiple `*.json` files (`common.json`, `popup.json`, `script.json`, …), re-exported via the locale's `index.ts` and merged in `src/locales/locales.ts`. `defaultNS` is `common`; keys in any other namespace need the `ns:` prefix (e.g. `t("script:tags")`). For localization, edit the relevant namespace `*.json` under `src/locales/<locale>/`; new locales must also be registered in `src/locales/locales.ts`.
+i18next, 9 locales (`src/locales/`: en-US, zh-CN, zh-TW, ja-JP, de-DE, vi-VN, ru-RU, tr-TR, pt-BR); extension strings in `src/assets/_locales/`. ESLint `react/jsx-no-literals: warn` enforces translation. Each locale is split by namespace into multiple `*.json` files (`common.json`, `popup.json`, `script.json`, …), re-exported via the locale's `index.ts` and merged in `src/locales/locales.ts`. `defaultNS` is `common`; keys in any other namespace need the `ns:` prefix (e.g. `t("script:tags")`). For localization, edit the relevant namespace `*.json` under `src/locales/<locale>/`; new locales must also be registered in `src/locales/locales.ts`.
 
 **Before translating, read [`docs/translation.md`](./translation.md)** — the translation/localization guide (terminology rules + per-locale `terminology-<locale>.md` specs).
 

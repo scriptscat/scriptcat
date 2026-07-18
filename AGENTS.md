@@ -2,12 +2,16 @@
 
 This file provides guidance to AI coding agents (Claude Code, etc.) when working with code in this repository.
 
-> **Note:** This is the single source of truth. `CLAUDE.md` only contains `@AGENTS.md` and re-imports this file — do not add content to `CLAUDE.md`; put all guidance here in `AGENTS.md`.
+> **Note:** This is the single source of truth relative to `CLAUDE.md` — `CLAUDE.md` only contains `@AGENTS.md`
+> and re-imports this file; don't split guidance between the two, put it here. Detailed guidance beyond
+> engineering principles and the architecture map is owned by the docs linked below (see
+> [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md)'s ownership table) — cross-link them, don't duplicate
+> their content here.
 
 > **Before writing any code, read [`docs/develop.md`](docs/develop.md)** — the development spec (commands,
 > project structure, coding style, UI & theme rules, testing mechanics, i18n, and the commit/PR workflow). This
 > file keeps only the non-negotiable engineering principles and the architecture map; the concrete "how" lives
-> in `DEVELOP.md`, and deep internals in [`docs/architecture.md`](docs/architecture.md).
+> in that same guide, and deep internals in [`docs/architecture.md`](docs/architecture.md).
 
 > **To manually verify a feature actually works, read [`docs/verification.md`](docs/verification.md)** — drive
 > the real built extension end-to-end with one-shot throwaway scratch scripts (not the committed test suite).
@@ -32,14 +36,15 @@ ScriptCat — Manifest V3 browser extension that runs Tampermonkey-compatible us
 > **UI stack.** The presentation layer (`src/pages/`) is built with **shadcn/ui + Tailwind CSS v4** on
 > **React 19** (migrated from Arco Design + UnoCSS). The concrete UI/theme rules live in
 > [`docs/develop.md`](docs/develop.md); the design system (color tokens, components, layout/motion/state
-> patterns, new-page recipe) lives in [`docs/design.md`](docs/design.md) — read it before building any page.
+> patterns, new-page recipe) lives in [`docs/design.md`](docs/design.md) — read it before building any new
+> page, dialog, or block.
 
 ## Engineering Principles
 
-These are non-negotiable and apply to every change, regardless of what `docs/develop.md` says about mechanics.
+These are non-negotiable and apply to every code change, regardless of what `docs/develop.md` says about mechanics.
 
-- **Fix root causes, not symptoms — refactor over patch.** No `as any` / `// @ts-ignore` / try-catch swallow / defensive skips to make errors disappear. When the clean fix needs restructuring, refactor rather than bolt on a patch (宁愿重构也不要打补丁). If a test fails, fix the code, not the test.
-- **Confirm before you fix.** Before touching a reported bug, reproduce it and confirm it actually exists — never fix from assumption. Then capture it in a failing test, then fix, **in that order** (确定 bug 存在 → 写测试 → 修复).
+- **Fix root causes, not symptoms — refactor over patch.** No `as any` / `// @ts-ignore` / try-catch swallow / defensive skips to make errors disappear. When the clean fix needs restructuring, refactor rather than bolt on a patch (宁愿重构也不要打补丁). If a test fails, fix the code, not the test — unless the test itself is wrong (tautological, obsolete, or asserting an incorrect contract; see [`docs/references/develop-testing.md`](docs/references/develop-testing.md)'s "writing meaningful tests" section for what qualifies), in which case fix the test and say why.
+- **Confirm before you fix.** Before touching a reported bug, reproduce it and confirm it actually exists — never fix from assumption. [`docs/verification.md`](docs/verification.md) has the scratch-script workflow for driving the real extension to reproduce it. Then capture it in a failing test, then fix, **in that order** (确定 bug 存在 → 写测试 → 修复).
 - **TDD/BDD first.** Write failing tests **before** implementation, using BDD-style Chinese `describe`/`it` titles. (Runner, mocks, and how to run tests are in `docs/develop.md`.)
 - **SOLID, high cohesion & low coupling — applied to the existing extension points.** `Repo<T>` for new entities, `Group.on(...)` for new messages. Inject `Group` / `IMessageQueue` / DAOs via constructor; don't `new` them inside methods. Depend on narrow interfaces (`IMessageQueue`, not `MessageQueue`).
 - **Direct replacement over adapter sandwiches.** When swapping a backend/library, replace in place — no `interface Foo + LegacyImpl + NewImpl` unless both must coexist at runtime.
@@ -89,14 +94,14 @@ Execution paths: page scripts → `chrome.userScripts`; background → SW → Of
 
 ### Key Packages
 
-`message/` (with mocks), `filesystem/` (WebDAV + local), `cloudscript/`, `eslint/` (userscript lint config — `eslint-plugin-userscripts`-based `defaultConfig` for the in-app editor), `chrome-extension-mock/`.
+`message/` (with mocks), `filesystem/` (WebDAV, cloud drive providers, zip export — see [`docs/cloud-sync.md`](docs/cloud-sync.md)), `cloudscript/`, `eslint/` (userscript lint config — `eslint-plugin-userscripts`-based `defaultConfig` for the in-app editor), `chrome-extension-mock/`.
 
 > The project's own custom ESLint rules live in `eslint-rules/` at the repo root (wired in `eslint.config.mjs`, **not** in `packages/eslint/`) and act as a **mechanical harness** for conventions that would otherwise rely on memory:
-> - `require-last-error-check` — enforces `chrome.runtime.lastError` handling.
+> - `chrome-error/require-last-error-check` — enforces `chrome.runtime.lastError` handling. Not covered by `harness.test.mjs` (see below).
 > - `scriptcat/no-i18n-default-value` — bans `t(key, { defaultValue })` inline fallbacks (they leak hardcoded text to every language and bypass the `i18n-usage` key check); add the key to `src/locales/<locale>/*.json` instead.
 > - `scriptcat/no-raw-color-classname` (`src/pages/**/*.tsx`) — bans raw palette/hex colors in `className` (`bg-white`, `text-gray-500`, `dark:bg-gray-800`, `bg-[#fff]`); use design tokens (`bg-background`/`text-foreground`/…) so light & dark both work.
 >
-> Two conventions are enforced via built-in rules in `eslint.config.mjs`: `no-restricted-imports` bans `@radix-ui/react-*` single packages (use the merged `radix-ui`) and the `sonner` `toast` export (use `notify`); `no-restricted-syntax` bans `forwardRef` across `src/pages/**` (use React 19 `function` + ref-prop). All four syntax-based harness rules are covered by `eslint-rules/harness.test.mjs`.
+> Two conventions are enforced via built-in rules in `eslint.config.mjs`: `no-restricted-imports` bans `@radix-ui/react-*` single packages (use the merged `radix-ui`) and the `sonner` `toast` export (use `notify`); `no-restricted-syntax` bans `forwardRef` across `src/pages/**` (use React 19 `function` + ref-prop). `eslint-rules/harness.test.mjs` covers exactly four of these: `no-i18n-default-value`, `no-raw-color-classname`, the `radix-ui` pattern of `no-restricted-imports`, and `no-restricted-syntax` — not `require-last-error-check`, and not the `sonner` pattern of `no-restricted-imports`.
 >
 > Separately, type-aware rules run on `src/pages/**` (tests excluded) via `projectService` — `@typescript-eslint/no-floating-promises`, `no-misused-promises` (with `checksVoidReturn.attributes: false`, so `async` JSX handlers are allowed), and `await-thenable`, all `error` — to catch missing `await`s and promises misused as void callbacks. These need type information, so they are *not* part of `harness.test.mjs`.
 
