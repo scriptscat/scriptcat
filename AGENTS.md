@@ -23,7 +23,7 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 > this branch, don't claim it*).
 
 > **Before opening or updating a pull request, read [`docs/pull-request.md`](docs/pull-request.md)** — this
-> repo's PR description structure and evidence rules, not a generic `## Summary` / `## Test plan` template.
+> repo's PR description structure and evidence rules.
 
 > **Doc map:** [`docs/README.md`](docs/README.md) indexes every contributor doc (development, architecture,
 > translation, contributing, localized READMEs).
