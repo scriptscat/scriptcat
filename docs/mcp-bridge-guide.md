@@ -5,283 +5,257 @@
 # Using the ScriptCat MCP Bridge
 
 A practical, task-oriented guide to connecting an AI agent (Claude Desktop, Claude Code, or any
-other [Model Context Protocol](https://modelcontextprotocol.io/) client) to your ScriptCat
-userscripts, with worked examples of the flows you'll actually hit.
+other [Model Context Protocol](https://modelcontextprotocol.io/) client) — or your own terminal —
+to your ScriptCat userscripts, with worked examples of the flows you'll actually hit.
 
-This is a **developer-build-only** feature — it does not exist in the Chrome Web Store build. For
-*why* it's built this way (threat model, scope design, TOCTOU guarantees), see
-[`packages/native-messaging-host/THREAT-MODEL.md`](../packages/native-messaging-host/THREAT-MODEL.md)
-and [`packages/native-messaging-host/PROTOCOL.md`](../packages/native-messaging-host/PROTOCOL.md).
-This guide is the "how do I actually use it" companion to those.
+The bridge is **built into every build but ships turned off**; you opt in from the extension's
+settings. It talks to a small local companion binary, [`sctl`](https://github.com/scriptscat/sctl),
+which runs a WebSocket daemon on `127.0.0.1:8643`; the extension connects to it as a client from an
+offscreen document. No browser permission is added, and there is no native-messaging host or
+installer to register. For *why* it's built this way (threat model, handshake, scope design, TOCTOU
+guarantees) see the sctl repo's [`THREAT-MODEL.md`](https://github.com/scriptscat/sctl/blob/main/THREAT-MODEL.md)
+and [`PROTOCOL.md`](https://github.com/scriptscat/sctl/blob/main/PROTOCOL.md); this guide is the
+"how do I actually use it" companion.
 
 ## What you get
 
-Once connected, an AI agent can:
+Once connected, an AI agent (over MCP) **or** you (over the `sctl` CLI) can:
 
 - List your installed userscripts and read their metadata (matches, grants, enabled state) —
-  read-only, no approval needed once you've granted the scope.
+  read-only, no approval needed once the scope is granted.
 - Read a script's full source — gated behind a one-time (or permanent, your choice) approval per
-  script per client, because source can contain secrets.
-- **Request** installing a new script, enabling/disabling one, or deleting one — every one of
-  these is a *request*. Nothing changes until you review and click Approve in a ScriptCat window
-  that pops up. New installs are disabled by default even after you approve them, unless you
-  explicitly flip the enable switch on that same approval screen.
+  script per client, because source can contain secrets. (The `sctl` CLI is exempt from this
+  prompt — you typed the command yourself — but MCP agents are not.)
+- **Request** installing a new script, enabling/disabling one, or deleting one. Every one is a
+  *request*: the call blocks and nothing changes until you review it and click Approve in a
+  ScriptCat window that pops up automatically. New installs stay disabled even after you approve,
+  unless you flip the enable switch on that same approval screen.
 
-There is no code path from an MCP request to a script mutation that skips your approval. If an
-agent asks for something destructive, you'll see it before it happens.
+There is no code path from an MCP or CLI request to a script mutation that skips your approval (see
+"direct-allow mode" below for the one exception you can deliberately opt into).
 
 ## 1. Prerequisites
 
-- Node.js ≥ 20 on your PATH.
-- A **developer build** of the extension (the MCP bridge is compiled out of the store build
-  entirely — see [`docs/develop.md`](./develop.md#build-profiles--mcp-gate)).
-- macOS or Linux for now if you want to *build and run the installer yourself* — the Windows
-  installer (`install.ps1`) exists and is code-reviewed, but hasn't been exercised end-to-end in
-  this repo's CI (no Windows/PowerShell environment was available when it was written). It should
-  work; treat it as less battle-tested than the POSIX path.
+- The `sctl` binary. It's a single self-contained Go binary — no Node, no runtime deps. Build it
+  from the [`scriptscat/sctl`](https://github.com/scriptscat/sctl) repo:
 
-## 2. Build and load the extension with MCP enabled
+  ```bash
+  go build -ldflags "-X github.com/scriptscat/sctl/internal/cli.Version=0.1.0" -o sctl ./cmd/sctl
+  ```
 
-```bash
-pnpm install
-SC_ENABLE_MCP=true pnpm run dev
-```
+  > **Version matters.** The extension refuses any daemon reporting a version below
+  > `minDaemonVersion` (currently `0.1.0`) and shows "Host outdated". A plain `go build` stamps
+  > `0.0.0-dev`, which is *below* the gate — always build with the `-ldflags` above (or use a
+  > release binary) for anything you intend to actually connect.
 
-Load `dist/ext` as an unpacked extension (`chrome://extensions` → Developer mode → "Load
-unpacked"). Note the extension's ID from that page — you'll need it in step 4 (it looks like
-`abcdefghijklmnopabcdefghijklmnop`, 32 lowercase letters a–p).
+- macOS, Linux, or Windows — `sctl` is loopback-only and cross-platform; there is no OS-specific
+  installer step.
 
-## 3. Build the native host
-
-The native host is a standalone package, not bundled into the extension:
+## 2. Start the daemon
 
 ```bash
-cd packages/native-messaging-host
-pnpm install
-pnpm build
+sctl serve
 ```
 
-This produces `dist/host.js` (the native-messaging host Chrome launches) and `dist/shim.js` (the
-MCP-facing stdio server your AI client launches), plus two CLI entry points once installed:
-`scriptcat-native-host` and `scriptcat-mcp`.
+This binds the WebSocket hub on `127.0.0.1:8643` (loopback only — it refuses any non-loopback
+address) and writes a `0600` control-token file that local `sctl` front-ends use. You can also skip
+this step: `sctl pair`, `sctl mcp`, and the CLI verbs auto-start a detached `serve` if one isn't
+already running.
 
-## 4. Register the native host with Chrome
-
-```bash
-./installers/install.sh --extension-id <your-extension-id>
-```
-
-Run this from inside `packages/native-messaging-host`. Add `--browser edge`, `--browser chromium`,
-or `--browser brave` (repeatable) if you want it registered for a browser other than Chrome. This
-writes the native-messaging manifest Chrome needs, pins the exact `node` binary path into a
-generated launcher script (so nothing can hijack it via `PATH`), and writes the host's own config
-directory (`~/Library/Application Support/ScriptCat/NativeHost` on macOS,
-`~/.local/share/scriptcat/native-host` on Linux by default, or `$XDG_DATA_HOME/...` if set).
-
-Verify it worked:
-
-```bash
-node dist/host.js --doctor
-```
-
-You should see four green checks, including "allowed origins configured" — that one only turns
-green after `install.sh` has run at least once with a valid extension ID.
-
-**Upgrading later:** re-run `install.sh` with the new build in place; it installs alongside the
-old version (never overwrites it) and records the previous one so `install.sh --rollback` can
-restore it if something goes wrong.
-
-**Uninstalling:** `./installers/uninstall.sh` removes every manifest it registered plus the
-installed program files.
-
-## 5. Enable the bridge in ScriptCat
+## 3. Enable the bridge in ScriptCat
 
 Open the extension's options page → **Tools** → **MCP Bridge (Developer)**. Flip "Enable MCP
-bridge" — a warning dialog explains what you're turning on (agents can list/read metadata freely;
-everything else needs your approval) before it actually takes effect. Status should move from
-"Connecting…" to "Connected" within a second or two if the native host is reachable.
+bridge" — a dialog first explains what you're turning on (agents can list/read metadata freely;
+everything else needs your approval). The connection address defaults to `ws://127.0.0.1:8643`;
+leave it unless you moved the daemon. Status stays "Connecting…" until you pair (next step).
 
-If it says "Host unreachable": re-check step 4 — usually the extension ID in the manifest doesn't
-match the one Chrome actually assigned this load. If it says "Host outdated": you're running an
-older `native-messaging-host` build than the extension requires; rebuild it (step 3).
+## 4. Pair the extension with the daemon (one time)
 
-## 6. Pair your MCP client
-
-Every client (Claude Desktop, Claude Code, a custom script — anything speaking MCP over stdio)
-needs to pair once before it can do anything. Pairing is interactive and requires the ScriptCat
-window to be open so you can approve it:
+The extension and the daemon establish a shared long-term key once, so neither can be impersonated
+by another local process. Generate a code from the daemon and enter it in the extension:
 
 ```bash
-node dist/shim.js --pair --name "Claude Desktop"
+sctl pair
 ```
 
-This prints an 8-character code to your terminal and waits (up to 2 minutes) for you to approve
-it. Simultaneously, ScriptCat shows a pairing dialog — either in the already-open options tab, or
-as a new popup window if the options page wasn't open. **Check that the code shown in ScriptCat
-matches the one in your terminal** before approving; that's the whole point of the code (it stops
-a different local process from racing your real pairing request). The dialog also shows a scope
-checklist — `scripts:list` and `scripts:metadata:read` are requested and checked by default for a
-bare `--pair` call; check the boxes for anything else you want this client to be able to *request*
-(it can still only request writes — approval always happens per-operation regardless of scopes).
+This prints an 8-character one-time code (valid 2 minutes). In ScriptCat's MCP Bridge card, paste it
+into the **Pairing code** field and click **Pair**. The two sides run a mutual handshake, the daemon
+hands the extension a long-term key over an encrypted channel, and the status moves to **Connected**.
+Re-pairing replaces the old key (only one extension instance is supported in this version).
 
-Want to request more scopes up front instead of editing them later per-client in the UI?
+## 5a. Connect an MCP client (Claude Desktop, Claude Code, …)
+
+Each MCP agent pairs once, so it gets its own revocable identity and scopes. Because `sctl mcp`'s
+stdout is the MCP protocol channel, pairing is a **separate** terminal command:
 
 ```bash
-node dist/shim.js --pair --name "Claude Desktop" \
-  --scopes scripts:list,scripts:metadata:read,scripts:source:read,scripts:install:request,scripts:toggle:request,scripts:delete:request
+sctl mcp pair --name "Claude Desktop"
 ```
 
-On approval, credentials are saved to `~/.config/scriptcat-mcp/credentials.json` (macOS/Linux) or
-`%APPDATA%\scriptcat-mcp` (Windows) — the raw token lives only there and in the native host's
-in-memory session; ScriptCat itself never sees or stores it, only its hash.
+This prints an 8-character code and blocks. ScriptCat shows a pairing dialog (in the open options
+tab, or a popup) with the same code and a **scope checklist**. **Confirm the code matches**, tick
+the scopes this client may *request*, and approve. The minted token is cached at
+`<dataDir>/mcp-clients/Claude Desktop.json` (`0600`); ScriptCat only ever stores its hash.
 
-## 7. Register it with your MCP client
-
-For Claude Desktop or Claude Code, add an entry to your MCP server config:
+Then point your client's MCP config at the serving command (one identity per `--name`, so you can
+run several client configs):
 
 ```json
 {
   "mcpServers": {
-    "scriptcat": {
-      "command": "node",
-      "args": ["/absolute/path/to/packages/native-messaging-host/dist/shim.js"]
-    }
+    "scriptcat": { "command": "sctl", "args": ["mcp", "--name", "Claude Desktop"] }
   }
 }
 ```
 
-(This package isn't published to a registry yet, so point directly at the built `shim.js` rather
-than a bare `scriptcat-mcp` command — unless you've `npm link`ed it yourself, in which case the
-bin name works too.) Restart your client. It should now list a `scriptcat` MCP server with tools
-scoped to whatever you approved during pairing.
+Restart your client. It will list a `scriptcat` server exposing only the tools your approved scopes
+allow. An unpaired or revoked `sctl mcp` serves zero tools and tells the model to run
+`sctl mcp pair`.
 
-## 8. Turn on write mode when you actually want changes made
+## 5b. …or just use the CLI
 
-Even with write scopes granted, a paired client's `request_script_*` tools are refused
-(`WRITE_MODE_DISABLED`) until you flip **"Allow write requests this session"** in the Tools
-settings card. This is deliberately **not** persisted — it resets every time the browser
-restarts, and there's no way to turn it on from outside the ScriptCat UI. It exists so that
-"connected + scoped" is never enough on its own to mutate anything; a human has to actively decide
-"yes, this session, changes are OK" before any write request can even reach the approval stage.
+The `sctl` verbs drive the exact same bridge with a built-in `sctl-cli` identity — no pairing, full
+scope, but **writes still require your approval in the browser**:
 
-## Available tools
+```bash
+sctl scripts list                 # or --json for machine-readable output
+sctl scripts info <uuid>
+sctl scripts source <uuid>        # raw source to stdout (no disclosure prompt for the CLI)
+sctl install ./my-script.user.js  # or a URL; blocks until you approve/reject in the browser
+sctl enable <uuid>
+sctl disable <uuid>
+sctl rm <uuid>
+```
 
-| Tool | What it needs from you | Requires write mode? |
+Write verbs block until you decide; **Ctrl-C** cancels the request (the browser confirm page is
+dismissed). Exit codes: **0** approved/ok, **1** you rejected, **2** voided (timeout / Ctrl-C /
+disconnect), **3** other error.
+
+## 6. Turn on write mode when you actually want changes made
+
+Even with write scopes granted, write requests are refused (`WRITE_MODE_DISABLED`) until you flip
+**"Allow write requests this session"** in the Tools card. It is deliberately **not** persisted —
+it resets on browser restart and can't be toggled from outside the ScriptCat UI. Separately, the
+**write approval policy** chooses what happens to an allowed write request:
+
+- **Require approval** (default) — every write blocks on a per-item confirm page.
+- **Allow directly** — write requests run immediately without per-item confirmation (an amber
+  warning marks this as a safety downgrade). Even here, new installs still default to disabled, and
+  reading source still needs approval.
+
+## Available MCP tools
+
+| Tool | What it needs from you | Write? |
 |---|---|---|
-| `server_info` | Nothing — works as soon as you're paired | No |
-| `list_scripts` | `scripts:list` scope | No |
-| `get_script_metadata` | `scripts:metadata:read` scope | No |
-| `get_script_source` | `scripts:source:read` scope **+ a one-time disclosure approval per script** | No |
-| `request_script_install` | `scripts:install:request` scope + install approval | Yes |
-| `request_script_toggle` | `scripts:toggle:request` scope + toggle approval | Yes |
-| `request_script_delete` | `scripts:delete:request` scope + hold-to-confirm delete approval | Yes |
-| `get_operation_status` | Any write scope | No |
-| `list_pending_operations` | Any write scope | No |
-| `cancel_operation` | Any write scope | No |
+| `scripts_list` | `scripts:list` scope | No |
+| `scripts_metadata_get` | `scripts:metadata:read` scope | No |
+| `scripts_source_get` | `scripts:source:read` scope **+ a one-time disclosure approval per script** | No |
+| `scripts_install_request` | `scripts:install:request` scope + install approval | Yes |
+| `scripts_toggle_request` | `scripts:toggle:request` scope + toggle approval | Yes |
+| `scripts_delete_request` | `scripts:delete:request` scope + hold-to-confirm delete approval | Yes |
+
+Write tools are **blocking**: the call suspends until you approve or reject (there is no
+operation-polling API — the result comes back on the same call). While it waits, the MCP server
+sends progress notifications so clients don't time out; if the client disconnects or times out, the
+operation is voided and its confirm page invalidated.
 
 ## Case studies
 
 ### Case 1 — "What userscripts do I have installed, and which are enabled?"
 
-Purely read-only, works the moment you're paired with `scripts:list`:
+Read-only, works the moment you're paired with `scripts:list`:
 
 > **You:** What userscripts do I have installed right now?
-> **Agent:** *calls `list_scripts`* → gets back an array of `{ uuid, name, type, enabled,
-> updatedAt, hasUpdateUrl, ... }` with no source code and no full update URL (only whether one
-> exists) — those are metadata-tier fields, not secrets.
-> **Agent:** "You have 12 scripts installed; 9 are enabled. Want details on any of them?"
+> **Agent:** *calls `scripts_list`* → an array of `{ uuid, name, type, enabled, updatedAt,
+> hasUpdateUrl, … }` — no source, and only whether an update URL exists (metadata-tier, not
+> secrets).
+> **Agent:** "You have 12 scripts installed; 9 are enabled."
 
-No approval prompt appears anywhere in this flow — it's exactly as safe as looking at the Scripts
-list in the extension yourself.
+No approval prompt appears — it's exactly as safe as looking at the Scripts list yourself. (The same
+answer from your terminal: `sctl scripts list`.)
 
 ### Case 2 — "Find and fix a bug in my auto-login script"
 
 This is the flow that needs the disclosure gate:
 
 > **You:** There's a bug in my "Auto Login" script — can you find and fix it?
-> **Agent:** *calls `list_scripts`*, finds the uuid, then calls `get_script_metadata`* to confirm
-> it's the right one, then calls `get_script_source`.
-> **Result:** first call to `get_script_source` for *this script, this client* returns
-> `USER_APPROVAL_REQUIRED` with an `operationId` — nothing is sent back yet. ScriptCat pops up:
-> *"`Claude Desktop` wants to read the source of `Auto Login`. Source may contain secrets."* with
-> three buttons: **Deny**, **Allow once**, **Allow for this client**.
+> **Agent:** *calls `scripts_list`*, finds the uuid, *calls `scripts_metadata_get`* to confirm,
+> then *calls `scripts_source_get`*.
+> **Result:** the first `scripts_source_get` for *this script, this client* blocks. ScriptCat pops
+> up: *"`Claude Desktop` wants to read the source of `Auto Login`. Source may contain secrets."*
+> with **Deny**, **Allow once**, **Allow for this client**.
 >
-> - **Allow once** — this one read succeeds; the *next* call to `get_script_source` for the same
->   script prompts again.
+> - **Allow once** — this read succeeds; the *next* read prompts again.
 > - **Allow for this client** — this and every future read of *this script* by *this client*
->   succeed with no further prompting (a permanent grant recorded on the client, per-script — not
->   a blanket "always allow this client to read anything").
+>   succeed with no further prompt (a permanent per-script grant, not a blanket "read anything").
 >
-> Say you pick "Allow once." The agent retries `get_script_source`, gets the code, spots the bug,
-> and (assuming write mode is on and you've granted `scripts:install:request`) calls
-> `request_script_install` with the fixed code. ScriptCat's install page opens with a banner:
-> *"Requested by `Claude Desktop`"*, the source URL/`raw code` label, a content SHA-256 you can
-> expand, and the full normal permission/diff review UI — the enable switch defaults **off**, so
-> even after you click Install the fixed version won't run until you explicitly enable it.
+> Say you pick "Allow once." The call returns the source, the agent spots the bug and (with write
+> mode on and `scripts:install:request` granted) calls `scripts_install_request` with the fix.
+> ScriptCat's install page opens: *"Requested by `Claude Desktop`"*, the source label, an expandable
+> content SHA-256, and the normal permission/diff review — the enable switch defaults **off**, so
+> even after you click Install the fixed version won't run until you enable it.
 
 ### Case 3 — "Turn off the script that's breaking this site while I debug it"
 
 > **You:** Disable my "Ad Blocker Tweaks" script for now.
-> **Agent:** *calls `list_scripts`* to find the uuid, then `request_script_toggle` with
+> **Agent:** *calls `scripts_list`* to find the uuid, then `scripts_toggle_request` with
 > `{ uuid, enable: false }`.
-> **Result:** if write mode is off, the call fails immediately with `WRITE_MODE_DISABLED` and the
-> agent should tell you to flip the session switch. If write mode is on, ScriptCat opens
-> `mcp_confirm.html` (a lightweight popup, not the full install page): script name, requesting
-> client, Approve/Reject. You approve → `enableScript` runs → the agent's next
-> `get_operation_status` poll shows `status: "approved"`.
+> **Result:** if write mode is off, the call fails immediately with `WRITE_MODE_DISABLED`. If it's
+> on, ScriptCat opens a lightweight confirm popup (script name, requesting client, Approve/Reject).
+> You approve → the toggle runs → the blocking call returns success.
 >
 > Between your approval and the actual disable, ScriptCat re-checks that the script's code hasn't
-> changed since the request was made (TOCTOU protection) — if you'd edited it in the meantime,
-> you'd get `CONFLICT` instead, and the agent would need to make a fresh request.
+> changed since the request (TOCTOU protection) — if you'd edited it meanwhile you'd get `CONFLICT`,
+> and the agent would make a fresh request.
 
 ### Case 4 — "Clean up scripts I don't use anymore"
 
 > **You:** Delete the three scripts I haven't used in months: X, Y, Z.
-> **Agent:** calls `request_script_delete` three times, once per uuid, collecting three
-> `operationId`s.
-> **Result:** three separate `mcp_confirm.html` popups (or the agent can poll
-> `list_pending_operations` to see them all as `awaiting_user`), each requiring a **press-and-hold
-> for 1.5 seconds** on the Delete button — a deliberately harder-to-fumble confirmation than a
-> single click, since deletion also removes the script's stored values and isn't undoable. You can
-> reject any of the three independently; rejecting one doesn't touch the others.
+> **Agent:** calls `scripts_delete_request` three times, once per uuid.
+> **Result:** the requests block and their confirm pages are shown **one at a time** (concurrent
+> writes queue). Each Delete needs a **press-and-hold for 1.5 s** — harder to fumble than a click,
+> since deletion also removes the script's stored values and isn't undoable. You can reject any
+> independently; rejecting one doesn't touch the others. If you close a confirm page by mistake, the
+> request stays pending — reopen it from the **Awaiting confirmation** row in the settings card.
 
 ### Case 5 — Revoking access when you're done
 
-> Open Tools → MCP Bridge → the paired-clients list shows every client with its granted scopes and
-> last-used time. Click **Revoke** on "Claude Desktop" → confirm → its session is killed
-> immediately server-side (the host drops the token hash) and any future call from that client
-> fails authentication. If you want to shut the whole thing down at once — every client, right
-> now — **"Revoke all clients & stop bridge"** does exactly that and also flips the enable switch
-> off.
+> Tools → MCP Bridge → the paired-clients list shows every client with its scopes and last-used
+> time. **Revoke** → confirm → the daemon drops the token immediately and any in-flight or future
+> call from that client fails. **"Revoke all clients & stop bridge"** does that for everyone and
+> flips the enable switch off. (The `sctl-cli` identity isn't a paired client — it doesn't appear
+> here and shares the bridge's lifecycle; stopping the bridge stops it.)
 
 ## Auditing what happened
 
-The same settings card has an **Audit log** — every bridge call (allowed or denied), every pairing
-decision, every operation transition, and every revocation, newest first, with client name,
-action, and outcome. It never contains tokens or script source — the audit writer is only ever
-given the action name, the client, and the outcome, never the request/response payload, so there's
-no code path for a secret to end up in it. **Export JSON** downloads the same data client-side;
-**Clear** wipes it (irreversible, confirmed before it happens).
+The settings card has an **Audit log** — every bridge call (allowed or denied), pairing decision,
+operation transition, and revocation, newest first, with client name, action, and outcome. It never
+contains tokens or source; the audit writer is only given the action, client, and outcome. **Export
+JSON** downloads it client-side; **Clear** wipes it (confirmed, irreversible).
 
 ## Troubleshooting
 
 | Symptom | Likely cause |
 |---|---|
-| Status stuck on "Connecting…" then "Host unreachable" | Native host isn't registered for the extension ID Chrome actually assigned this load, or the host process crashed. Re-run `install.sh` with the correct ID; check `node dist/host.js --doctor`. |
-| "Host outdated" | Extension was built against a newer `MIN_HOST_VERSION` than your installed native host reports. Rebuild `packages/native-messaging-host` and re-run `install.sh`. |
-| `scriptcat-mcp` (no `--pair`) exits immediately with "No credentials found" | You haven't paired yet, or you're running it as a different OS user than the one who paired. Run `--pair` again. |
-| Pairing times out | You have 2 minutes to approve from the moment `--pair` prints the code; if ScriptCat isn't open or the MCP toggle is off, it can't show the dialog at all — check the bridge is Connected first. |
-| A write tool always returns `WRITE_MODE_DISABLED` | The session write switch is off (it resets every browser restart, on purpose). Flip it in Tools → MCP Bridge. |
-| A write tool returns `INSUFFICIENT_SCOPE` | The client wasn't granted that scope at pairing time. Re-pair with `--scopes` including it, or edit the client's scopes from the paired-clients list. |
-| `get_script_source` keeps returning `USER_APPROVAL_REQUIRED` even after you approved | You likely chose "Allow once" and the agent is making a *second* read — that's expected; approve again, or choose "Allow for this client" if you expect repeated reads. |
+| Status stuck on "Connecting…" then "Host unreachable" | The daemon isn't running or is on a different address. Start `sctl serve` (or run any `sctl` command), and check the connection address in the card matches. |
+| "Host outdated" | The daemon reports a version below `minDaemonVersion` (`0.1.0`) — almost always a plain `go build` (`0.0.0-dev`). Rebuild with the `-ldflags "…Version=0.1.0"` from step 1, or use a release binary. |
+| Pairing never completes | `sctl pair` codes last 2 minutes; the bridge must be enabled and the daemon reachable so ScriptCat can run the handshake. Confirm the code in the browser matches the terminal before clicking Pair. |
+| `sctl mcp` serves no tools / model says to run `sctl mcp pair` | That `--name` identity isn't paired (or was revoked). Run `sctl mcp pair --name "<same name>"`. |
+| A write always returns `WRITE_MODE_DISABLED` | The session write switch is off (resets each browser restart, on purpose). Flip it in Tools → MCP Bridge. |
+| A write returns `INSUFFICIENT_SCOPE` | The client wasn't granted that scope at pairing. Re-pair with the scope, or edit the client's scopes in the paired-clients list. (The `sctl-cli` identity always has full scope.) |
+| `scripts_source_get` prompts again after you approved | You chose "Allow once" and the agent made a second read — expected; approve again, or pick "Allow for this client". |
+| A CLI write exits `2` | The request was voided — you (or the client) timed out, Ctrl-C'd, or the extension disconnected before you decided. |
 
-## What this bridge deliberately does not do
+## What this bridge deliberately does and doesn't do
 
-- It never opens any network listener — the entire transport is stdio (agent↔host) plus an
-  OS-local Unix socket or named pipe (host↔shim). There's no port to attack from a web page.
-- It doesn't trust the AI client's own claims — the native host re-derives which client is calling
-  from the authenticated session on every request, and the extension independently re-checks that
-  client's scopes against its own record before acting.
-- It can't defend against another process already running as your own OS user account reading the
-  paired client's token file — that's a documented, accepted residual limitation, not a bug (see
-  the threat model doc linked at the top).
+- It **does** open a loopback WebSocket listener (`127.0.0.1:8643`) — that's the trade for zero new
+  browser permissions and no installer. A web page can see the port is open, but every connection
+  must pass a bidirectional HMAC handshake before any business message; an unauthenticated socket is
+  dropped after 5 s with no information leaked. There is deliberately no Origin check (a non-browser
+  process can forge Origin freely — the handshake is the only real gate).
+- It doesn't trust the client's own claims — the daemon re-derives which client is calling from the
+  authenticated session, and the extension independently re-checks that client's scopes against its
+  own record before acting.
+- It can't defend against another process already running as your own OS user reading the paired
+  token or key file (both `0600`) — a documented, accepted residual limitation, not a bug. See the
+  sctl [`THREAT-MODEL.md`](https://github.com/scriptscat/sctl/blob/main/THREAT-MODEL.md).

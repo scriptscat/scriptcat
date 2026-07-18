@@ -15,15 +15,13 @@
 
 ## MCP 桥接 / MCP Bridge
 
-仅存在于 developer 构建产物(`SC_ENABLE_MCP=true`),不进入 store-stable/store-beta。
+内置于所有构建、**默认关闭**,从扩展设置开启;经本地伴随二进制 [`sctl`](https://github.com/scriptscat/sctl)(WebSocket daemon,仅回环 `127.0.0.1:8643`)通信,不新增浏览器权限、无 native-messaging 主机与安装器。
 
 | 文档 | 说明 |
 | --- | --- |
-| [`mcp-bridge-guide.md`](./mcp-bridge-guide.md) | 使用指南:构建/安装/配对/授权的实操步骤,附工具清单与真实用例(读取源码、请求安装、启停、删除脚本、撤销客户端)。**想实际用起来先读这份。**中文版见 [`mcp-bridge-guide_zh-CN.md`](./mcp-bridge-guide_zh-CN.md)。 |
-| [`../packages/native-messaging-host/README.md`](../packages/native-messaging-host/README.md) | `native-messaging-host` 包的开发者文档:CLI 参考、目录结构、构建/测试命令。中文版见 [`README_zh-CN.md`](../packages/native-messaging-host/README_zh-CN.md)。 |
-| [`../packages/native-messaging-host/PROTOCOL.md`](../packages/native-messaging-host/PROTOCOL.md) | 协议规范:浏览器↔主机 native messaging、shim↔主机本地 socket、面向 agent 的 MCP 工具/资源目录三层协议。 |
-| [`../packages/native-messaging-host/THREAT-MODEL.md`](../packages/native-messaging-host/THREAT-MODEL.md) | 威胁模型:资产、攻击者与入口点、鉴权鉴权、写路径 TOCTOU 不变量、限流、审计模型。 |
-| [`store-review/mcp.md`](./store-review/mcp.md) | 应用商店审核材料汇编:数据流、工具权限表、同意界面、令牌存储与吊销、审计日志、隐私披露。 |
+| [`mcp-bridge-guide.md`](./mcp-bridge-guide.md) | 使用指南:安装 sctl、启用桥接、两条配对(扩展↔daemon、MCP 客户端)、授权的实操步骤,附 6 个 MCP 工具、CLI 动词与真实用例(读取源码、请求安装、启停、删除脚本、撤销客户端)。**想实际用起来先读这份。**中文版见 [`mcp-bridge-guide_zh-CN.md`](./mcp-bridge-guide_zh-CN.md)。 |
+| [`sctl` 仓库 `PROTOCOL.md`](https://github.com/scriptscat/sctl/blob/main/PROTOCOL.md) | 协议规范:扩展↔daemon WS 双向握手、扩展/客户端配对、bridge action、错误码、写操作阻塞语义。常量单源 `protocol.json` 与本仓库 [`src/app/service/service_worker/mcp/protocol.json`](../src/app/service/service_worker/mcp/protocol.json) 逐字节镜像(由 `protocol.conformance.test.ts` 守护)。 |
+| [`sctl` 仓库 `THREAT-MODEL.md`](https://github.com/scriptscat/sctl/blob/main/THREAT-MODEL.md) | 威胁模型:两个信任锚点(长期密钥 K + 0600 控制令牌)、攻击面与对策、写路径人工审批 + TOCTOU、落盘凭据一览。 |
 
 ## 翻译 / Translation
 
