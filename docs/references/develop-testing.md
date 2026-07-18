@@ -14,7 +14,7 @@ budget at once. Chrome APIs mocked via
 invalid-selector `DOMException` lazily — the upstream eager construction captures a deep stack on every
 `matches()`/`querySelector()` call and cost ~15% of TSX suite time.
 
-- Write failing tests **before** implementation; co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
+- Co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
 - BDD-style Chinese `describe`/`it` titles. Use `describe.concurrent()` / `it.concurrent()` where independent.
 - Single file: `pnpm test -- --run path/to/file.test.ts`.
 - Playwright tests are `*.spec.ts` files in `e2e`; they run with one worker and retain failure artifacts. Run targeted tests while iterating, then run `pnpm run lint` plus the relevant full suite before a PR.

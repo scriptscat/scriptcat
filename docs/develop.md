@@ -44,6 +44,35 @@ Core entry points live in `src` (`service_worker.ts`, `content.ts`, `inject.ts`,
 
 Use strict TypeScript, React JSX runtime, 2-space indentation, semicolons, double quotes, trailing commas where valid, and a 120-column Prettier width. Prefer aliases from `tsconfig.json`: `@App/*`, `@Packages/*`, and `@Tests/*`. ESLint requires type-only imports, allows `_`-prefixed unused variables, errors on literal JSX text, and enforces `chrome.runtime.lastError` checks. Use `pnpm run lint-fix` for mechanical fixes.
 
+### ESLint custom rules
+
+The project's own custom rules live in `eslint-rules/` at the repo root (wired in `eslint.config.mjs`, **not**
+`packages/eslint/`, which is the unrelated userscript lint config for the in-app editor) and act as a mechanical
+harness for conventions that would otherwise rely on memory. Lint enforces the rules themselves — code violating
+them fails CI — but this list of exactly which rule covers which scope, and which are covered by
+`eslint-rules/harness.test.mjs`, is hand-maintained prose; re-verify specifics with `grep` rather than trusting
+it as settled fact:
+
+- `chrome-error/require-last-error-check` — enforces `chrome.runtime.lastError` handling. Not covered by
+  `harness.test.mjs`.
+- `scriptcat/no-i18n-default-value` — bans `t(key, { defaultValue })` inline fallbacks (they leak hardcoded text
+  to every language and bypass the `i18n-usage` key check); add the key to `src/locales/<locale>/*.json` instead.
+- `scriptcat/no-raw-color-classname` (`src/pages/**/*.tsx`) — bans raw palette/hex colors in `className`
+  (`bg-white`, `text-gray-500`, `dark:bg-gray-800`, `bg-[#fff]`); use design tokens (`bg-background`/
+  `text-foreground`/…) so light & dark both work.
+
+Two conventions are enforced via built-in rules in `eslint.config.mjs`: `no-restricted-imports` bans
+`@radix-ui/react-*` single packages (use the merged `radix-ui`) and the `sonner` `toast` export (use `notify`);
+`no-restricted-syntax` bans `forwardRef` across `src/pages/**` (use React 19 `function` + ref-prop).
+`eslint-rules/harness.test.mjs` covers exactly four of these: `no-i18n-default-value`, `no-raw-color-classname`,
+the `radix-ui` pattern of `no-restricted-imports`, and `no-restricted-syntax` — not `require-last-error-check`,
+and not the `sonner` pattern of `no-restricted-imports`.
+
+Separately, type-aware rules run on `src/pages/**` (tests excluded) via `projectService` —
+`@typescript-eslint/no-floating-promises`, `no-misused-promises` (with `checksVoidReturn.attributes: false`, so
+`async` JSX handlers are allowed), and `await-thenable`, all `error` — to catch missing `await`s and promises
+misused as void callbacks. These need type information, so they are *not* part of `harness.test.mjs`.
+
 ### Language Conventions
 
 - Comments in Simplified Chinese.

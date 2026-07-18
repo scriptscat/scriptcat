@@ -23,9 +23,9 @@ Promoting a scenario into the permanent suite is a *separate, deliberate* decisi
 permanent regression coverage. That path is owned by [`DEVELOP.md`](./develop.md), not this guide.
 
 **Reproducing a bug you intend to fix is *not* "casual verification."** A scratch reproduction is the *确定 bug
-存在* step from [`../AGENTS.md`](../AGENTS.md) (确定 bug 存在 → 写测试 → 修复): it confirms the bug is real but does
-**not** replace the test. Next, promote it into a *failing* committed test, then fix, then confirm it goes green —
-that permanent test is owned by [`DEVELOP.md`](./develop.md) / [`../AGENTS.md`](../AGENTS.md).
+存在* step in [`../AGENTS.md`](../AGENTS.md)'s TDD / Confirm-before-you-fix policy — it confirms the bug is real
+but is not itself the required test or evidence. That policy (including its narrow exceptions) is owned by
+`../AGENTS.md`; follow its next step — a committed failing test in the general case — before fixing.
 
 ## Prerequisite gate (cheap signals first)
 
