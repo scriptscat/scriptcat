@@ -2,8 +2,9 @@
 
 This guide defines the detailed PR description format for agents and contributors. Start from the human-facing template at [`../.github/pull_request_template.md`](../.github/pull_request_template.md) — it intentionally remains lightweight. Preserve its `Checklist / 检查清单` section, and expand its `Description / 描述` section only when the change needs more context.
 
-**Do not use a generic `## Summary` / `## Test plan` template** — that's a common default baked into
-many agent tool instructions, not this repo's format. Use the structure below instead.
+A description using only generic `## Summary` / `## Test plan` headings is a sign this guide wasn't
+consulted. Use the structure below instead — its sections are recommended, not all mandatory (see below
+for which ones).
 
 ## Recommended structure
 

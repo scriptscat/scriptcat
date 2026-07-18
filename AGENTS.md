@@ -22,9 +22,8 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 > current, no duplication) and every claim factually true against the current branch (*if you can't grep it on
 > this branch, don't claim it*).
 
-> **Before opening or updating a pull request, read [`docs/pull-request.md`](docs/pull-request.md)** — the
-> required PR description structure. Do not default to a generic `## Summary` / `## Test plan` template. Never
-> claim human review, testing, or verification that did not happen.
+> **Before opening or updating a pull request, read [`docs/pull-request.md`](docs/pull-request.md)** — this
+> repo's PR description structure and evidence rules, not a generic `## Summary` / `## Test plan` template.
 
 > **Doc map:** [`docs/README.md`](docs/README.md) indexes every contributor doc (development, architecture,
 > translation, contributing, localized READMEs).
