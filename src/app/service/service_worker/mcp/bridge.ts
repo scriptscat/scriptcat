@@ -1,5 +1,4 @@
 import { uuidv4 } from "@App/pkg/utils/uuid";
-import { sha256OfText } from "@App/pkg/utils/crypto";
 import {
   type ScriptDAO,
   type ScriptCodeDAO,
@@ -11,21 +10,50 @@ import {
 } from "@App/app/repo/scripts";
 import type { McpClientDAO } from "@App/app/repo/mcp";
 import { McpAuditDAO, type McpClient } from "@App/app/repo/mcp";
+import type { McpWritePolicy } from "@App/pkg/config/config";
 import type { McpApprovalService } from "./approval";
 import { McpBridgeError } from "./errors";
+import { readScriptSource } from "./source";
 import {
   ACTION_REQUIRED_SCOPE,
+  MCP_SCOPES,
+  SCTL_CLI_CLIENT_ID,
   WRITE_ACTIONS,
   type BridgeAction,
   type McpBridgeRequest,
   type McpBridgeResponse,
+  type OperationKind,
   type ScriptSummary,
   type ScriptType,
 } from "./types";
 
-// Chrome hard-caps native-messaging frames at 1 MiB host->browser; 2 MiB is the extension-local
-// cap on how much source `scripts.source.get` will return in one call.
-export const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
+// Re-exported from its single definition in source.ts (shared with the approval service).
+export { MAX_SOURCE_BYTES } from "./source";
+
+// The built-in sctl CLI identity, synthesized rather than read from McpClientDAO — the CLI never
+// pairs (design §3.1). Full scope so every verb passes the scope gate; writes still hit the write
+// policy + write-session gate + confirm page below. Never persisted, so it can't be revoked and
+// never shows up in the paired-client list.
+const SCTL_CLI_CLIENT: McpClient = {
+  clientId: SCTL_CLI_CLIENT_ID,
+  displayName: "sctl (CLI)",
+  tokenHash: "",
+  scopes: [...MCP_SCOPES],
+  createdAt: 0,
+  lastUsedAt: 0,
+  revoked: false,
+};
+
+// Sentinel dispatch returns when a request is suspended pending a human decision (write approval
+// or first-time source disclosure): no bridge.response is produced now — the decide/void event
+// pushes it back later through the approval responder (design §5.1, event-driven not SW-Promise).
+const DEFERRED = Symbol("mcp-deferred-response");
+
+// Summary handed to the allow-policy write notification.
+export interface McpWriteNotice {
+  kind: OperationKind;
+  name?: string;
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -119,10 +147,16 @@ function toSummary(script: Script): ScriptSummary {
 
 /**
  * Routes an already-received McpBridgeRequest to the extension's script/approval services,
- * re-checking scope from McpClientDAO on every call regardless of what the native host already
- * checked before forwarding it — this is defense in depth, since the extension never trusts the
- * host's claim about a client's scopes alone; a compromised or buggy host can't grant a scope the
+ * re-checking scope from McpClientDAO on every call regardless of what the daemon already checked
+ * before forwarding it — this is defense in depth, since the extension never trusts the daemon's
+ * claim about a client's scopes alone; a compromised or buggy daemon can't grant a scope the
  * extension's own record doesn't have. Writes exactly one audit event per request.
+ *
+ * Write actions and first-time source disclosure are blocking (design §5.1): under the default
+ * "approval" write policy they suspend — `handle` returns `null` (no response now) after opening a
+ * confirm page, and the deferred `bridge.response` is emitted by the decide/void event. Under the
+ * "allow" policy writes execute immediately and fire a notification (source disclosure is never
+ * exempt — it is a privacy read, decision #12).
  */
 export class McpBridge {
   constructor(
@@ -131,7 +165,9 @@ export class McpBridge {
     private readonly clientDAO: Pick<McpClientDAO, "get">,
     private readonly approval: McpApprovalService,
     private readonly auditDAO: Pick<McpAuditDAO, "append"> = new McpAuditDAO(),
-    private isWriteSessionActive: () => boolean = () => false
+    private isWriteSessionActive: () => boolean = () => false,
+    private getWritePolicy: () => Promise<McpWritePolicy> = async () => "approval",
+    private readonly notifyWrite: (notice: McpWriteNotice) => void = () => {}
   ) {}
 
   // Lets the caller wire the write-session predicate after both McpBridge and McpController
@@ -141,10 +177,17 @@ export class McpBridge {
     this.isWriteSessionActive = checker;
   }
 
-  async handle(request: McpBridgeRequest): Promise<McpBridgeResponse> {
+  // daemon → bridge.cancel {requestId}: the requester (MCP client / CLI) timed out, Ctrl-C'd or
+  // its WS session died. Void the matching pending op; its confirm page's next decide then fails
+  // cleanly. First-terminal-wins arbitration vs a concurrent decide lives in the approval service.
+  cancel(requestId: string): Promise<void> {
+    return this.approval.cancelByRequestId(requestId);
+  }
+
+  async handle(request: McpBridgeRequest): Promise<McpBridgeResponse | null> {
     let client: McpClient | undefined;
     try {
-      client = await this.clientDAO.get(request.clientId);
+      client = request.clientId === SCTL_CLI_CLIENT_ID ? SCTL_CLI_CLIENT : await this.clientDAO.get(request.clientId);
       if (!client || client.revoked) {
         throw new McpBridgeError("UNAUTHENTICATED", "unknown or revoked client");
       }
@@ -157,6 +200,11 @@ export class McpBridge {
       }
 
       const result = await this.dispatch(request, client);
+      if (result === DEFERRED) {
+        // Suspended pending a human decision — the confirm page is open, response comes later.
+        await this.recordAudit(request, client, "awaiting_user");
+        return null;
+      }
       await this.recordAudit(request, client, "allowed", "success");
       return { requestId: request.requestId, ok: true, result };
     } catch (e) {
@@ -198,63 +246,86 @@ export class McpBridge {
       }
       case "scripts.source.get": {
         const uuid = input.uuid as string;
-        const script = await this.scriptDAO.get(uuid);
-        if (!script) throw new McpBridgeError("NOT_FOUND", "script not found");
-
         // First-use-per-client disclosure gate: source may contain secrets, so unlike
         // scripts.list/metadata.get this read isn't unconditionally granted by the scope alone —
         // the human must approve it once per client per script (or forever, via "Allow for this
-        // client").
+        // client"). Not exempt from blocking even under the "allow" write policy (decision #12).
         const disclosure = await this.approval.checkSourceDisclosure({
           clientId: request.clientId,
           uuid,
           requestingClientName: client.displayName,
+          requestId: request.requestId,
         });
         if (disclosure !== "allowed") {
-          throw new McpBridgeError(
-            "USER_APPROVAL_REQUIRED",
-            "reading script source requires a one-time disclosure approval",
-            disclosure.operationId
-          );
+          // Blocking: suspend until the user decides; the source is returned by the decide event,
+          // and a disconnect voids the op.
+          await this.approval.present(disclosure.operationId);
+          return DEFERRED;
         }
-
-        const scriptCode = await this.scriptCodeDAO.get(uuid);
-        if (!scriptCode) throw new McpBridgeError("NOT_FOUND", "script source not found");
-        if (new TextEncoder().encode(scriptCode.code).length > MAX_SOURCE_BYTES) {
-          throw new McpBridgeError("PAYLOAD_TOO_LARGE", "script source exceeds 2 MiB");
-        }
-        return {
-          uuid: script.uuid,
-          name: script.name,
-          version: script.metadata.version?.[0],
-          code: scriptCode.code,
-          sha256: sha256OfText(scriptCode.code),
-          contentTrust: "untrusted-user-script-source",
-        };
+        return readScriptSource(this.scriptDAO, this.scriptCodeDAO, uuid);
       }
       case "scripts.install.request":
-        return this.approval.prepareInstall({
-          clientId: request.clientId,
-          requestingClientName: client.displayName,
-          url: input.url as string | undefined,
-          code: input.code as string | undefined,
-        });
-      case "scripts.toggle.request":
-        return this.approval.requestToggle({
-          clientId: request.clientId,
-          uuid: input.uuid as string,
-          enable: input.enable as boolean,
-        });
+        return this.dispatchWrite(request, "install", (requestId) =>
+          this.approval.prepareInstall({
+            clientId: request.clientId,
+            requestingClientName: client.displayName,
+            url: input.url as string | undefined,
+            code: input.code as string | undefined,
+            requestId,
+          })
+        );
+      case "scripts.toggle.request": {
+        const enable = input.enable as boolean;
+        return this.dispatchWrite(
+          request,
+          enable ? "enable" : "disable",
+          (requestId) =>
+            this.approval.requestToggle({
+              clientId: request.clientId,
+              uuid: input.uuid as string,
+              enable,
+              requestId,
+            }),
+          {}
+        );
+      }
       case "scripts.delete.request":
-        return this.approval.requestDelete({ clientId: request.clientId, uuid: input.uuid as string });
+        return this.dispatchWrite(request, "delete", (requestId) =>
+          this.approval.requestDelete({ clientId: request.clientId, uuid: input.uuid as string, requestId })
+        );
     }
+  }
+
+  // Shared write dispatch: create the pending op, then branch on write policy.
+  //  - "approval" (default): open the confirm page and suspend (return DEFERRED); the decide/void
+  //    event emits the bridge.response later, addressed by the op's requestId.
+  //  - "allow": execute immediately via decide(approved) and fire the notification; the op carries
+  //    no requestId, so decide returns the result synchronously here instead of over the wire.
+  // `decideOptions` is passed to decide on the allow path (install forces enable:false so a
+  // freshly-installed script still defaults disabled — decision #12).
+  private async dispatchWrite(
+    request: McpBridgeRequest,
+    kind: OperationKind,
+    createOp: (requestId?: string) => Promise<{ operationId: string }>,
+    decideOptions: { enable?: boolean } = { enable: false }
+  ): Promise<unknown> {
+    const policy = await this.getWritePolicy();
+    if (policy === "allow") {
+      const ref = await createOp(undefined);
+      const result = await this.approval.decide(ref.operationId, true, decideOptions);
+      this.notifyWrite({ kind, name: result.resultSummary?.name });
+      return result;
+    }
+    const ref = await createOp(request.requestId);
+    await this.approval.present(ref.operationId);
+    return DEFERRED;
   }
 
   private async recordAudit(
     request: McpBridgeRequest,
     client: McpClient | undefined,
-    decision: "allowed" | "denied",
-    result: "success" | "failure",
+    decision: "allowed" | "denied" | "awaiting_user",
+    result?: "success" | "failure",
     errorCode?: string
   ): Promise<void> {
     await this.auditDAO.append({

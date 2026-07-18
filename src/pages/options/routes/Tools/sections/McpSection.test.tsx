@@ -1,21 +1,37 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { act, render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 
-const { getBridgeStatus, getClients, getAudit, setWriteSession, revokeClient, revokeAllAndStop, clearAudit } =
-  vi.hoisted(() => ({
-    getBridgeStatus: vi.fn(() => Promise.resolve("connected")),
-    getClients: vi.fn(() => Promise.resolve([] as any[])),
-    getAudit: vi.fn(() => Promise.resolve([] as any[])),
-    setWriteSession: vi.fn(() => Promise.resolve()),
-    revokeClient: vi.fn(() => Promise.resolve()),
-    revokeAllAndStop: vi.fn(() => Promise.resolve()),
-    clearAudit: vi.fn(() => Promise.resolve()),
-  }));
+const {
+  getBridgeStatus,
+  getClients,
+  getAudit,
+  getPendingOperations,
+  reopenOperation,
+  pair,
+  setWriteSession,
+  revokeClient,
+  revokeAllAndStop,
+  clearAudit,
+} = vi.hoisted(() => ({
+  getBridgeStatus: vi.fn(() => Promise.resolve("connected")),
+  getClients: vi.fn(() => Promise.resolve([] as any[])),
+  getAudit: vi.fn(() => Promise.resolve([] as any[])),
+  getPendingOperations: vi.fn(() => Promise.resolve([] as any[])),
+  reopenOperation: vi.fn(() => Promise.resolve()),
+  pair: vi.fn(() => Promise.resolve()),
+  setWriteSession: vi.fn(() => Promise.resolve()),
+  revokeClient: vi.fn(() => Promise.resolve()),
+  revokeAllAndStop: vi.fn(() => Promise.resolve()),
+  clearAudit: vi.fn(() => Promise.resolve()),
+}));
 vi.mock("@App/app/service/service_worker/client", () => ({
   MCPClient: class {
     getBridgeStatus = getBridgeStatus;
     getClients = getClients;
     getAudit = getAudit;
+    getPendingOperations = getPendingOperations;
+    reopenOperation = reopenOperation;
+    pair = pair;
     setWriteSession = setWriteSession;
     revokeClient = revokeClient;
     revokeAllAndStop = revokeAllAndStop;
@@ -23,19 +39,28 @@ vi.mock("@App/app/service/service_worker/client", () => ({
   },
 }));
 
-const { get, set, subscribeMessage, pairingHandlers } = vi.hoisted(() => {
-  const pairingHandlers: Array<(data: { pairingId: string }) => void> = [];
-  return {
-    get: vi.fn(),
-    set: vi.fn(),
-    subscribeMessage: vi.fn((topic: string, handler: (data: any) => void) => {
-      if (topic === "mcpPairingRequested") pairingHandlers.push(handler);
-      return () => {};
-    }),
-    pairingHandlers,
-  };
-});
-vi.mock("@App/pages/store/global", () => ({ systemConfig: { get, set }, message: {}, subscribeMessage }));
+const { get, set, getMcpWritePolicy, setMcpWritePolicy, getMcpUrl, setMcpUrl, subscribeMessage, pairingHandlers } =
+  vi.hoisted(() => {
+    const pairingHandlers: Array<(data: { pairingId: string }) => void> = [];
+    return {
+      get: vi.fn(),
+      set: vi.fn(),
+      getMcpWritePolicy: vi.fn(() => Promise.resolve("approval")),
+      setMcpWritePolicy: vi.fn(),
+      getMcpUrl: vi.fn(() => Promise.resolve("ws://127.0.0.1:8643")),
+      setMcpUrl: vi.fn(),
+      subscribeMessage: vi.fn((topic: string, handler: (data: any) => void) => {
+        if (topic === "mcpPairingRequested") pairingHandlers.push(handler);
+        return () => {};
+      }),
+      pairingHandlers,
+    };
+  });
+vi.mock("@App/pages/store/global", () => ({
+  systemConfig: { get, set, getMcpWritePolicy, setMcpWritePolicy, getMcpUrl, setMcpUrl },
+  message: {},
+  subscribeMessage,
+}));
 
 // McpPairingDialog (rendered by McpSection when a pairing is pending) pulls in
 // @App/pages/mcp_confirm/usePendingPairing.ts, which imports @App/pages/store/features/script —
@@ -60,9 +85,19 @@ afterEach(() => {
   cleanup();
   get.mockReset();
   set.mockReset();
+  getMcpWritePolicy.mockReset();
+  getMcpWritePolicy.mockResolvedValue("approval");
+  setMcpWritePolicy.mockReset();
+  getMcpUrl.mockReset();
+  getMcpUrl.mockResolvedValue("ws://127.0.0.1:8643");
+  setMcpUrl.mockReset();
   getBridgeStatus.mockClear();
   getClients.mockClear();
   getAudit.mockClear();
+  getPendingOperations.mockReset();
+  getPendingOperations.mockResolvedValue([]);
+  reopenOperation.mockClear();
+  pair.mockClear();
   setWriteSession.mockClear();
   revokeClient.mockClear();
   revokeAllAndStop.mockClear();
@@ -103,6 +138,64 @@ describe("MCP 桥接分区", () => {
     const writeSwitch = await screen.findByTestId("mcp_write_switch");
     await act(async () => fireEvent.click(writeSwitch));
     expect(setWriteSession).toHaveBeenCalledWith(true);
+  });
+
+  it("已启用时展示连接地址与配对码入口，输入配对码后点击配对调用 pair", async () => {
+    get.mockResolvedValue(true);
+    render(<McpSection register={() => () => {}} />);
+    const codeInput = await screen.findByTestId("mcp_pair_code_input");
+    const pairButton = screen.getByTestId("mcp_pair_button");
+    expect(pairButton).toBeDisabled();
+    fireEvent.change(codeInput, { target: { value: "MNBV-3456" } });
+    expect(pairButton).not.toBeDisabled();
+    await act(async () => fireEvent.click(pairButton));
+    expect(pair).toHaveBeenCalledWith("MNBV-3456");
+  });
+
+  it("修改连接地址失焦后写入 mcp_url", async () => {
+    get.mockResolvedValue(true);
+    render(<McpSection register={() => () => {}} />);
+    const urlInput = await screen.findByTestId("mcp_url_input");
+    fireEvent.change(urlInput, { target: { value: "ws://127.0.0.1:9000" } });
+    fireEvent.blur(urlInput);
+    expect(setMcpUrl).toHaveBeenCalledWith("ws://127.0.0.1:9000");
+  });
+
+  it("已启用时展示写策略开关，切换为直接允许后写入 mcp_write_policy 并显示琥珀警告", async () => {
+    get.mockResolvedValue(true);
+    getMcpWritePolicy.mockResolvedValue("approval");
+    render(<McpSection register={() => () => {}} />);
+    const policySwitch = await screen.findByTestId("mcp_write_policy_switch");
+    expect(screen.queryByTestId("mcp_write_policy_warning")).not.toBeInTheDocument();
+    await act(async () => fireEvent.click(policySwitch));
+    expect(setMcpWritePolicy).toHaveBeenCalledWith("allow");
+    expect(await screen.findByTestId("mcp_write_policy_warning")).toBeInTheDocument();
+  });
+
+  it("初始为直接允许策略时开关为开且直接显示警告", async () => {
+    get.mockResolvedValue(true);
+    getMcpWritePolicy.mockResolvedValue("allow");
+    render(<McpSection register={() => () => {}} />);
+    expect(await screen.findByTestId("mcp_write_policy_warning")).toBeInTheDocument();
+  });
+
+  it("有待确认操作时渲染待确认列表，点击重新打开调用 reopenOperation", async () => {
+    get.mockResolvedValue(true);
+    getPendingOperations.mockResolvedValue([
+      { operationId: "op-1", kind: "install", requestingClientName: "Claude Desktop", createdAt: Date.now() },
+    ]);
+    render(<McpSection register={() => () => {}} />);
+    expect(await screen.findByTestId("mcp_pending_list")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("mcp_pending_reopen_op-1"));
+    await waitFor(() => expect(reopenOperation).toHaveBeenCalledWith("op-1"));
+  });
+
+  it("没有待确认操作时不渲染待确认列表", async () => {
+    get.mockResolvedValue(true);
+    getPendingOperations.mockResolvedValue([]);
+    render(<McpSection register={() => () => {}} />);
+    await screen.findByTestId("mcp_enable_switch");
+    expect(screen.queryByTestId("mcp_pending_list")).not.toBeInTheDocument();
   });
 
   it("已启用时展示客户端列表，点击撤销并确认后调用 revokeClient", async () => {

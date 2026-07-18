@@ -35,6 +35,7 @@ describe("McpUIService", () => {
     getStatus: ReturnType<typeof vi.fn>;
     setWriteSessionActive: ReturnType<typeof vi.fn>;
     stop: ReturnType<typeof vi.fn>;
+    pair: ReturnType<typeof vi.fn>;
     notifyClientRevoked: ReturnType<typeof vi.fn>;
     getPendingPairing: ReturnType<typeof vi.fn>;
     decidePairing: ReturnType<typeof vi.fn>;
@@ -63,6 +64,7 @@ describe("McpUIService", () => {
       getStatus: vi.fn().mockReturnValue("connected"),
       setWriteSessionActive: vi.fn(),
       stop: vi.fn(),
+      pair: vi.fn(),
       notifyClientRevoked: vi.fn(),
       getPendingPairing: vi.fn().mockReturnValue(undefined),
       decidePairing: vi.fn(),
@@ -168,12 +170,32 @@ describe("McpUIService", () => {
         "revokeAllAndStop",
         "operation",
         "operationDecision",
+        "operationReopen",
+        "pendingOperations",
         "audit",
         "auditClear",
         "pendingPairing",
         "pairingDecision",
+        "pair",
       ].sort()
     );
+  });
+
+  it("pair 转发给 controller.pair", () => {
+    service.pair("MNBV-3456");
+    expect(controller.pair).toHaveBeenCalledWith("MNBV-3456");
+  });
+
+  it("reopenOperation 转发给 approval.reopen", async () => {
+    const reopenSpy = vi.spyOn(approval, "reopen").mockResolvedValue(undefined);
+    await service.reopenOperation("op-42");
+    expect(reopenSpy).toHaveBeenCalledWith("op-42");
+  });
+
+  it("getPendingOperations 转发给 approval.listPending", async () => {
+    const listSpy = vi.spyOn(approval, "listPending").mockResolvedValue([]);
+    await service.getPendingOperations();
+    expect(listSpy).toHaveBeenCalledTimes(1);
   });
 
   it("getPendingPairing 转发给 controller", () => {

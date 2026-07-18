@@ -45,6 +45,10 @@ export interface McpOperation {
   targetUuid?: string; // 更新/启用/禁用/删除的目标脚本
   existingCodeHash?: string; // 请求时目标脚本当前代码的 SHA-256
   requestedEnabledState: false; // 安装操作恒为 false，仅为文档化约束保留字面量类型
+  // 阻塞语义下发起该操作的 bridge.request.requestId：终态决策/断开作废时据此把 bridge.response
+  // 经 offscreen 回发给 daemon（不在 SW 内存里悬挂 Promise）。「直接允许」立即执行的操作不寻址
+  // 任何挂起请求，故不带 requestId。
+  requestId?: string;
   decidedAt?: number;
   errorCode?: BridgeErrorCode;
 }
@@ -60,6 +64,16 @@ export class McpOperationDAO extends Repo<McpOperation> {
 
   byClient(clientId: string): Promise<McpOperation[]> {
     return this.find((_key, value) => value.clientId === clientId);
+  }
+
+  // 断开作废按 bridge.request.requestId 定位待批操作（daemon 只知道 requestId，不知 operationId）。
+  byRequestId(requestId: string): Promise<McpOperation | undefined> {
+    return this.findOne((_key, value) => value.requestId === requestId);
+  }
+
+  // 串行确认队列的数据源：所有仍在等待用户决策的操作，用于关闭当前确认页后弹出下一个。
+  awaitingUser(): Promise<McpOperation[]> {
+    return this.find((_key, value) => value.status === "awaiting_user");
   }
 }
 

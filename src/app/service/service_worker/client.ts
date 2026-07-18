@@ -526,6 +526,17 @@ export class MCPClient extends Client {
     return this.doThrow("operationDecision", param);
   }
 
+  // Re-opens a still-pending op's confirm page (误关重开入口). The popup/settings "待确认" row calls
+  // this after the user closed the confirm tab without deciding.
+  reopenOperation(operationId: string): ReturnType<McpUIService["reopenOperation"]> {
+    return this.doThrow("operationReopen", operationId);
+  }
+
+  // Still-pending ops for the popup/settings "待确认" list.
+  getPendingOperations(): ReturnType<McpUIService["getPendingOperations"]> {
+    return this.doThrow("pendingOperations");
+  }
+
   getAudit(): ReturnType<McpUIService["getAudit"]> {
     return this.doThrow("audit");
   }
@@ -540,6 +551,11 @@ export class MCPClient extends Client {
 
   decidePairing(param: { pairingId: string; approved: boolean; grantedScopes: McpScope[] }) {
     return this.do("pairingDecision", param);
+  }
+
+  // Ext↔daemon pairing with the one-time code from `sctl pair` (user pastes it into settings).
+  pair(code: string) {
+    return this.do("pair", code);
   }
 }
 

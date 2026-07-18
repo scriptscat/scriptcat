@@ -5,6 +5,7 @@ import { SettingCard } from "../../../components/SettingCard";
 import { SettingRow } from "../../../components/SettingRow";
 import { Switch } from "@App/pages/components/ui/switch";
 import { Button } from "@App/pages/components/ui/button";
+import { Input } from "@App/pages/components/ui/input";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import {
@@ -18,10 +19,34 @@ import {
 import { systemConfig, message, subscribeMessage } from "@App/pages/store/global";
 import { MCPClient } from "@App/app/service/service_worker/client";
 import type { McpClient, McpAuditEvent } from "@App/app/repo/mcp";
-import type { McpBridgeStatus } from "@App/app/service/service_worker/mcp/types";
+import type {
+  McpBridgeStatus,
+  OperationKind,
+  PendingOperationSummary,
+} from "@App/app/service/service_worker/mcp/types";
+import type { McpWritePolicy } from "@App/pkg/config/config";
 import { semTime } from "@App/locales/relative-date";
 import { notify } from "@App/pages/components/ui/toast";
 import { McpPairingDialog } from "./McpPairingDialog";
+
+// Explicit kind → literal-key map so the i18n-usage static scan can see every key (a template
+// key like `mcp:pending_kind_${kind}` would bypass it). "update" has no MCP create path.
+function pendingKindLabel(kind: OperationKind, t: (key: string) => string): string {
+  switch (kind) {
+    case "install":
+      return t("mcp:pending_kind_install");
+    case "enable":
+      return t("mcp:pending_kind_enable");
+    case "disable":
+      return t("mcp:pending_kind_disable");
+    case "delete":
+      return t("mcp:pending_kind_delete");
+    case "source_disclosure":
+      return t("mcp:pending_kind_source_disclosure");
+    default:
+      return t("mcp:pending_kind_install");
+  }
+}
 
 let mcpClientInstance: MCPClient | undefined;
 function getMcpClient(): MCPClient {
@@ -31,14 +56,22 @@ function getMcpClient(): MCPClient {
   return mcpClientInstance;
 }
 
-async function fetchMcpState(): Promise<{ status: McpBridgeStatus; clients: McpClient[]; audit: McpAuditEvent[] }> {
+type McpState = {
+  status: McpBridgeStatus;
+  clients: McpClient[];
+  audit: McpAuditEvent[];
+  pending: PendingOperationSummary[];
+};
+
+async function fetchMcpState(): Promise<McpState> {
   const mcpClient = getMcpClient();
-  const [status, clients, audit] = await Promise.all([
+  const [status, clients, audit, pending] = await Promise.all([
     mcpClient.getBridgeStatus().catch(() => "disabled" as McpBridgeStatus),
     mcpClient.getClients().catch(() => []),
     mcpClient.getAudit().catch(() => []),
+    mcpClient.getPendingOperations().catch(() => []),
   ]);
-  return { status, clients: clients ?? [], audit: audit ?? [] };
+  return { status, clients: clients ?? [], audit: audit ?? [], pending: pending ?? [] };
 }
 
 function StatusPill({ status, t }: { status: McpBridgeStatus; t: (key: string) => string }) {
@@ -59,15 +92,20 @@ export function McpSection({ register }: { register: (id: string) => (el: HTMLEl
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState<McpBridgeStatus>("disabled");
   const [writeSession, setWriteSessionState] = useState(false);
+  const [writePolicy, setWritePolicy] = useState<McpWritePolicy>("approval");
+  const [mcpUrl, setMcpUrl] = useState("");
+  const [pairCode, setPairCode] = useState("");
   const [clients, setClients] = useState<McpClient[]>([]);
   const [auditEvents, setAuditEvents] = useState<McpAuditEvent[]>([]);
+  const [pendingOps, setPendingOps] = useState<PendingOperationSummary[]>([]);
   const [showEnableDialog, setShowEnableDialog] = useState(false);
   const [pendingPairingId, setPendingPairingId] = useState<string>();
 
-  const applyMcpState = (data: { status: McpBridgeStatus; clients: McpClient[]; audit: McpAuditEvent[] }) => {
+  const applyMcpState = (data: McpState) => {
     setStatus(data.status);
     setClients(data.clients);
     setAuditEvents(data.audit);
+    setPendingOps(data.pending);
   };
 
   const refresh = () => {
@@ -76,6 +114,8 @@ export function McpSection({ register }: { register: (id: string) => (el: HTMLEl
 
   useEffect(() => {
     void Promise.resolve(systemConfig.get("mcp_enabled")).then((v) => setEnabled(Boolean(v)));
+    void systemConfig.getMcpWritePolicy().then(setWritePolicy);
+    void systemConfig.getMcpUrl().then(setMcpUrl);
     void fetchMcpState().then(applyMcpState);
   }, []);
 
@@ -106,6 +146,35 @@ export function McpSection({ register }: { register: (id: string) => (el: HTMLEl
   const handleWriteSessionToggle = (checked: boolean) => {
     void getMcpClient().setWriteSession(checked);
     setWriteSessionState(checked);
+  };
+
+  const handleWritePolicyToggle = (checked: boolean) => {
+    const policy: McpWritePolicy = checked ? "allow" : "approval";
+    systemConfig.setMcpWritePolicy(policy);
+    setWritePolicy(policy);
+  };
+
+  const handleReopenOperation = async (operationId: string) => {
+    try {
+      await getMcpClient().reopenOperation(operationId);
+    } catch (e) {
+      notify.error((e as Error)?.message || String(e));
+    }
+    void refresh();
+  };
+
+  const handleSaveUrl = () => {
+    const trimmed = mcpUrl.trim();
+    if (!trimmed) return;
+    systemConfig.setMcpUrl(trimmed);
+  };
+
+  const handlePair = async () => {
+    const code = pairCode.trim();
+    if (!code) return;
+    await getMcpClient().pair(code);
+    setPairCode("");
+    notify.success(t("mcp:pair_started"));
   };
 
   const handleRevokeClient = async (clientId: string) => {
@@ -174,6 +243,37 @@ export function McpSection({ register }: { register: (id: string) => (el: HTMLEl
 
       {enabled && (
         <>
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-medium text-foreground">{t("mcp:local_bridge_title")}</span>
+            <SettingRow label={t("mcp:connect_address_label")}>
+              <Input
+                data-testid="mcp_url_input"
+                aria-label={t("mcp:connect_address_label")}
+                value={mcpUrl}
+                onChange={(e) => setMcpUrl(e.target.value)}
+                onBlur={handleSaveUrl}
+                className="w-56 max-w-full"
+              />
+            </SettingRow>
+            <div className="flex items-end gap-2">
+              <div className="flex flex-1 flex-col gap-1 min-w-0">
+                <label htmlFor="mcp_pair_code_input" className="text-[13px] font-medium text-foreground">
+                  {t("mcp:pair_code_label")}
+                </label>
+                <Input
+                  id="mcp_pair_code_input"
+                  data-testid="mcp_pair_code_input"
+                  value={pairCode}
+                  onChange={(e) => setPairCode(e.target.value)}
+                  placeholder={t("mcp:pair_code_placeholder")}
+                />
+              </div>
+              <Button data-testid="mcp_pair_button" disabled={!pairCode.trim()} onClick={() => void handlePair()}>
+                {t("mcp:pair_button")}
+              </Button>
+            </div>
+          </div>
+
           {(status === "host_unreachable" || status === "host_outdated") && (
             <SettingRow
               label={status === "host_outdated" ? t("mcp:status_host_outdated") : t("mcp:status_host_unreachable")}
@@ -192,6 +292,56 @@ export function McpSection({ register }: { register: (id: string) => (el: HTMLEl
               onCheckedChange={handleWriteSessionToggle}
             />
           </SettingRow>
+
+          <SettingRow label={t("mcp:write_policy_label")} description={t("mcp:write_policy_hint")}>
+            <Switch
+              data-testid="mcp_write_policy_switch"
+              aria-label={t("mcp:write_policy_label")}
+              checked={writePolicy === "allow"}
+              onCheckedChange={handleWritePolicyToggle}
+            />
+          </SettingRow>
+
+          {writePolicy === "allow" && (
+            <div
+              data-testid="mcp_write_policy_warning"
+              className="flex items-start gap-2 rounded-md border border-warning bg-warning-bg px-3 py-2 text-xs text-warning-fg"
+            >
+              <ShieldAlert className="size-4 shrink-0 mt-0.5" />
+              <span>{t("mcp:write_policy_allow_warning")}</span>
+            </div>
+          )}
+
+          {pendingOps.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <span className="text-[13px] font-medium text-foreground">{t("mcp:pending_title")}</span>
+              <ul className="flex flex-col gap-2" data-testid="mcp_pending_list">
+                {pendingOps.map((op) => (
+                  <li
+                    key={op.operationId}
+                    className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
+                  >
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-[13px] font-medium text-foreground truncate">
+                        {pendingKindLabel(op.kind, t)}
+                      </span>
+                      {op.requestingClientName && (
+                        <span className="text-xs text-muted-foreground truncate">{op.requestingClientName}</span>
+                      )}
+                    </div>
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      data-testid={`mcp_pending_reopen_${op.operationId}`}
+                      onClick={() => void handleReopenOperation(op.operationId)}
+                    >
+                      {t("mcp:pending_reopen")}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="flex flex-col gap-2">
             <span className="text-[13px] font-medium text-foreground">{t("mcp:clients_title")}</span>

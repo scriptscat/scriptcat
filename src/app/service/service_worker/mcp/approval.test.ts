@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { McpApprovalService, INLINE_CODE_MAX_BYTES, type McpScriptMutator } from "./approval";
+import { McpApprovalService, INLINE_CODE_MAX_BYTES, type McpScriptMutator, type SendBridgeResponse } from "./approval";
 import { McpBridgeError } from "./errors";
 import { McpClientDAO, McpOperationDAO, type McpClient } from "@App/app/repo/mcp";
 import {
@@ -72,6 +72,7 @@ describe("McpApprovalService", () => {
   let scriptDAO: ScriptDAO;
   let scriptCodeDAO: ScriptCodeDAO;
   let tempStorageDAO: TempStorageDAO;
+  let responder: ReturnType<typeof vi.fn>;
   let service: McpApprovalService;
 
   beforeEach(async () => {
@@ -93,7 +94,9 @@ describe("McpApprovalService", () => {
 
     await clientDAO.save(makeClient());
 
+    responder = vi.fn();
     service = new McpApprovalService(mutator, scriptDAO, scriptCodeDAO, clientDAO, operationDAO, tempStorageDAO);
+    service.setResponder(responder as unknown as SendBridgeResponse);
   });
 
   afterEach(() => {
@@ -101,18 +104,31 @@ describe("McpApprovalService", () => {
     vi.restoreAllMocks();
   });
 
-  describe("prepareInstall - 暂存但不安装", () => {
-    it("暂存代码、计算哈希、创建 awaiting_user 操作，且不调用 installScript", async () => {
+  describe("prepareInstall - 暂存但不安装、不弹窗", () => {
+    it("暂存代码、计算哈希、创建 awaiting_user 操作，且不调用 installScript，也不自行弹确认页", async () => {
       const code = validCode("Hello");
       const ref = await service.prepareInstall({ clientId: "client-1", requestingClientName: "Test Client", code });
 
       expect(ref.status).toBe("awaiting_user");
       expect(ref.kind).toBe("install");
       expect(mutator.installScript).not.toHaveBeenCalled();
+      // 弹窗与创建解耦：由 present() 负责，prepareInstall 本身不打开确认页。
+      expect(vi.mocked(utilsModule.openInCurrentTab)).not.toHaveBeenCalled();
 
       const op = await operationDAO.get(ref.operationId);
       expect(op?.contentHash).toBe(sha256OfText(code));
       expect(op?.requestedEnabledState).toBe(false);
+    });
+
+    it("传入 requestId 时记录到操作上（阻塞响应寻址用）", async () => {
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("Req"),
+        requestId: "req-abc",
+      });
+      const op = await operationDAO.get(ref.operationId);
+      expect(op?.requestId).toBe("req-abc");
     });
 
     it("url 与 code 同时提供或都不提供时拒绝", async () => {
@@ -198,12 +214,11 @@ describe("McpApprovalService", () => {
       ).rejects.toThrow("network failure");
     });
 
-    it("重复请求（同 clientId + contentHash）返回同一个 operationId，不重复弹窗", async () => {
+    it("重复请求（同 clientId + contentHash）返回同一个 operationId，不重复建操作", async () => {
       const code = validCode("Dup");
       const ref1 = await service.prepareInstall({ clientId: "client-1", requestingClientName: "c", code });
       const ref2 = await service.prepareInstall({ clientId: "client-1", requestingClientName: "c", code });
       expect(ref2.operationId).toBe(ref1.operationId);
-      expect(vi.mocked(utilsModule.openInCurrentTab)).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -287,6 +302,61 @@ describe("McpApprovalService", () => {
       await clientDAO.save(makeClient({ revoked: true }));
       await expect(service.decide(ref.operationId, true)).rejects.toMatchObject({ code: "UNAUTHENTICATED" });
       expect(mutator.installScript).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("decide - 阻塞响应回发（事件驱动，非 SW 悬挂 Promise）", () => {
+    it("带 requestId 的操作批准后经 responder 回发 ok:true 的 bridge.response", async () => {
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("Wire"),
+        requestId: "req-wire",
+      });
+      await service.decide(ref.operationId, true);
+      expect(responder).toHaveBeenCalledTimes(1);
+      expect(responder).toHaveBeenCalledWith("req-wire", expect.objectContaining({ requestId: "req-wire", ok: true }));
+    });
+
+    it("带 requestId 的操作被拒绝后经 responder 回发 USER_REJECTED", async () => {
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("WireRej"),
+        requestId: "req-rej",
+      });
+      await service.decide(ref.operationId, false);
+      expect(responder).toHaveBeenCalledWith(
+        "req-rej",
+        expect.objectContaining({ ok: false, error: expect.objectContaining({ code: "USER_REJECTED" }) })
+      );
+    });
+
+    it("不带 requestId 的操作（直接允许立即执行）批准时不经 responder 回发（同步返回结果）", async () => {
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("NoWire"),
+      });
+      const result = await service.decide(ref.operationId, true);
+      expect(result.status).toBe("approved");
+      expect(responder).not.toHaveBeenCalled();
+    });
+
+    it("批准执行失败（CONFLICT）时也经 responder 回发错误响应", async () => {
+      const code = validCode("WireFail");
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code,
+        requestId: "req-fail",
+      });
+      await operationDAO.update(ref.operationId, { contentHash: "tampered" });
+      await expect(service.decide(ref.operationId, true)).rejects.toMatchObject({ code: "CONFLICT" });
+      expect(responder).toHaveBeenCalledWith(
+        "req-fail",
+        expect.objectContaining({ ok: false, error: expect.objectContaining({ code: "CONFLICT" }) })
+      );
     });
   });
 
@@ -385,10 +455,6 @@ describe("McpApprovalService", () => {
     });
 
     it("批准一个类型不受支持的操作（如遗留/未实现的 kind）返回 INTERNAL_ERROR，而非静默成功", async () => {
-      // "update" is a valid OperationKind union member with no real create path anywhere in this
-      // codebase (only scripts.install.request ever creates operations, and it always stages a
-      // brand-new uuid — there is no MCP-triggered "update existing script" flow) —
-      // executeApproved's default branch exists specifically to fail loudly if one is ever seen.
       const client = makeClient();
       await clientDAO.save(client);
       await operationDAO.save({
@@ -404,8 +470,151 @@ describe("McpApprovalService", () => {
     });
   });
 
-  describe("checkSourceDisclosure - 首次读取源码的按客户端一次性/永久同意", () => {
-    async function seedScript(uuid: string) {
+  describe("present / reopen - 确认页展示与误关重开", () => {
+    it("present 打开对应确认页；install 走 install.html，其余走 mcp_confirm.html", async () => {
+      const install = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("P"),
+      });
+      await service.present(install.operationId);
+      expect(vi.mocked(utilsModule.openInCurrentTab)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(utilsModule.openInCurrentTab).mock.calls[0][0]).toContain("/src/install.html?uuid=");
+    });
+
+    it("串行展示：已有确认页在等待决策时，第二个操作的 present 不再打开新确认页（排队）", async () => {
+      const a = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("A"),
+        requestId: "ra",
+      });
+      const b = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("B"),
+        requestId: "rb",
+      });
+      await service.present(a.operationId);
+      await service.present(b.operationId);
+      expect(vi.mocked(utilsModule.openInCurrentTab)).toHaveBeenCalledTimes(1);
+    });
+
+    it("当前确认页决出后，presentNext 自动弹出下一个排队操作", async () => {
+      const a = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("A2"),
+        requestId: "ra2",
+      });
+      const b = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("B2"),
+        requestId: "rb2",
+      });
+      await service.present(a.operationId);
+      await service.present(b.operationId); // 排队
+      await service.decide(a.operationId, true); // a 决出 → 自动弹 b
+      expect(vi.mocked(utilsModule.openInCurrentTab)).toHaveBeenCalledTimes(2);
+    });
+
+    it("reopen 对仍待决的操作重新打开确认页（误关 ≠ 拒绝）", async () => {
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("Re"),
+      });
+      await service.reopen(ref.operationId);
+      expect(vi.mocked(utilsModule.openInCurrentTab)).toHaveBeenCalledTimes(1);
+    });
+
+    it("reopen 对已决出/过期的操作抛出 OPERATION_EXPIRED", async () => {
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("Re2"),
+      });
+      await service.decide(ref.operationId, false);
+      await expect(service.reopen(ref.operationId)).rejects.toMatchObject({ code: "OPERATION_EXPIRED" });
+    });
+
+    it("listPending 返回全部待决操作（含请求方名），已决出的不在其中，按创建时间排序", async () => {
+      const a = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("LP1"),
+      });
+      const b = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("LP2"),
+      });
+      await service.decide(a.operationId, false); // a 决出 → 不再 pending
+
+      const pending = await service.listPending();
+      expect(pending.map((p) => p.operationId)).toEqual([b.operationId]);
+      expect(pending[0]).toMatchObject({ kind: "install", requestingClientName: "Test Client" });
+    });
+
+    it("listPending 过滤掉 TTL 已过期的操作", async () => {
+      vi.useFakeTimers();
+      await service.prepareInstall({ clientId: "client-1", requestingClientName: "c", code: validCode("LPExp") });
+      vi.advanceTimersByTime(6 * 60_000);
+      expect(await service.listPending()).toHaveLength(0);
+    });
+  });
+
+  describe("cancelByRequestId - 断开即作废与决策仲裁（先到先得）", () => {
+    it("作废仍待决的操作：状态转为 cancelled，且不回发任何 bridge.response", async () => {
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("Cancel"),
+        requestId: "req-cancel",
+      });
+      await service.cancelByRequestId("req-cancel");
+      const op = await operationDAO.get(ref.operationId);
+      expect(op?.status).toBe("cancelled");
+      expect(responder).not.toHaveBeenCalled();
+    });
+
+    it("作废未知 requestId 时静默无操作", async () => {
+      await expect(service.cancelByRequestId("no-such-req")).resolves.toBeUndefined();
+    });
+
+    it("cancel 先到 → 随后的 decide 抛 OPERATION_EXPIRED，不执行安装、不回发批准响应", async () => {
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("CancelFirst"),
+        requestId: "req-cf",
+      });
+      await service.cancelByRequestId("req-cf");
+      await expect(service.decide(ref.operationId, true)).rejects.toMatchObject({ code: "OPERATION_EXPIRED" });
+      expect(mutator.installScript).not.toHaveBeenCalled();
+      expect(responder).not.toHaveBeenCalled();
+    });
+
+    it("decide 先到 → 随后的 cancel 是 no-op，不回滚已批准状态", async () => {
+      const ref = await service.prepareInstall({
+        clientId: "client-1",
+        requestingClientName: "c",
+        code: validCode("DecideFirst"),
+        requestId: "req-df",
+      });
+      await service.decide(ref.operationId, true);
+      await service.cancelByRequestId("req-df");
+      const op = await operationDAO.get(ref.operationId);
+      expect(op?.status).toBe("approved");
+      expect(mutator.installScript).toHaveBeenCalledTimes(1);
+      expect(responder).toHaveBeenCalledTimes(1);
+      expect(responder).toHaveBeenCalledWith("req-df", expect.objectContaining({ ok: true }));
+    });
+  });
+
+  describe("checkSourceDisclosure - 首次读取源码阻塞、断开即作废", () => {
+    async function seedScript(uuid: string, code = "console.log('secret')") {
       await scriptDAO.save({
         uuid,
         name: "Disclosure Target",
@@ -427,6 +636,7 @@ describe("McpApprovalService", () => {
         updatetime: Date.now(),
         checktime: Date.now(),
       } as any);
+      await scriptCodeDAO.save({ uuid, code });
     }
 
     it("对不存在的脚本返回 NOT_FOUND，不创建任何待批操作", async () => {
@@ -450,7 +660,7 @@ describe("McpApprovalService", () => {
       }
     });
 
-    it("同一 (client, uuid) 重复请求且仍 awaiting_user 时返回同一个 operationId，不重复弹窗", async () => {
+    it("同一 (client, uuid) 重复请求且仍 awaiting_user 时返回同一个 operationId", async () => {
       await seedScript("script-y");
       const first = await service.checkSourceDisclosure({
         clientId: "client-1",
@@ -467,7 +677,29 @@ describe("McpApprovalService", () => {
       );
     });
 
-    it("批准且未选择记住（remember=once）时：紧接着的下一次读取放行一次，此后再次读取需要重新批准", async () => {
+    it("批准披露（阻塞语义）即经 responder 回发脚本源码，无需二次调用", async () => {
+      await seedScript("script-src", "console.log('the-secret-source')");
+      const pending = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-src",
+        requestingClientName: "c",
+        requestId: "req-src",
+      });
+      const operationId = pending === "allowed" ? "" : pending.operationId;
+      await service.decide(operationId, true, { rememberChoice: "once" });
+      expect(responder).toHaveBeenCalledWith(
+        "req-src",
+        expect.objectContaining({
+          ok: true,
+          result: expect.objectContaining({
+            code: "console.log('the-secret-source')",
+            contentTrust: "untrusted-user-script-source",
+          }),
+        })
+      );
+    });
+
+    it("remember=once：批准并读取一次后，再次读取需要重新批准（不留可复用的已批准记录）", async () => {
       await seedScript("script-z");
       const pending = await service.checkSourceDisclosure({
         clientId: "client-1",
@@ -477,14 +709,6 @@ describe("McpApprovalService", () => {
       const operationId = pending === "allowed" ? "" : pending.operationId;
       await service.decide(operationId, true, { rememberChoice: "once" });
 
-      const afterApprove = await service.checkSourceDisclosure({
-        clientId: "client-1",
-        uuid: "script-z",
-        requestingClientName: "c",
-      });
-      expect(afterApprove).toBe("allowed");
-
-      // The one-shot grant is consumed by the read above — a second read is not silently allowed.
       const secondRead = await service.checkSourceDisclosure({
         clientId: "client-1",
         uuid: "script-z",
@@ -493,7 +717,7 @@ describe("McpApprovalService", () => {
       expect(secondRead).not.toBe("allowed");
     });
 
-    it("批准并选择「对该客户端始终允许」（remember=client）后，后续任意次读取都直接放行且不再创建操作", async () => {
+    it("remember=client：批准后写入客户端白名单，后续任意次读取都直接放行且不再创建操作", async () => {
       await seedScript("script-w");
       const pending = await service.checkSourceDisclosure({
         clientId: "client-1",
@@ -534,9 +758,22 @@ describe("McpApprovalService", () => {
         uuid: "script-v",
         requestingClientName: "c",
       });
-      // Rejected, not awaiting_user — a fresh prompt is created rather than silently allowing.
       expect(afterReject).not.toBe("allowed");
       await expect(service.decide(operationId, true)).rejects.toThrow(McpBridgeError);
+    });
+
+    it("断开即作废：source_disclosure 待批操作可经 cancelByRequestId 作废", async () => {
+      await seedScript("script-cancel");
+      const pending = await service.checkSourceDisclosure({
+        clientId: "client-1",
+        uuid: "script-cancel",
+        requestingClientName: "c",
+        requestId: "req-src-cancel",
+      });
+      const operationId = pending === "allowed" ? "" : pending.operationId;
+      await service.cancelByRequestId("req-src-cancel");
+      const op = await operationDAO.get(operationId);
+      expect(op?.status).toBe("cancelled");
     });
   });
 });

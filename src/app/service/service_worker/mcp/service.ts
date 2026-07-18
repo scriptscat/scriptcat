@@ -1,7 +1,7 @@
 import type { Group } from "@Packages/message/server";
 import { McpClientDAO, McpAuditDAO, type McpClient, type McpAuditEvent, type McpOperation } from "@App/app/repo/mcp";
 import type { McpApprovalService } from "./approval";
-import type { OperationStatusResult, McpBridgeStatus, McpScope } from "./types";
+import type { OperationStatusResult, McpBridgeStatus, McpScope, PendingOperationSummary } from "./types";
 import type { PendingPairing } from "./controller";
 
 // Narrow surface McpUIService needs from McpController — status + write-session + pairing +
@@ -11,6 +11,7 @@ export interface McpControllerFacade {
   getStatus(): McpBridgeStatus;
   setWriteSessionActive(active: boolean): void;
   stop(): void;
+  pair(code: string): void;
   notifyClientRevoked(clientId: string): void;
   getPendingPairing(): PendingPairing | undefined;
   decidePairing(pairingId: string, approved: boolean, grantedScopes: McpScope[]): void;
@@ -40,10 +41,19 @@ export class McpUIService {
     this.group.on("revokeAllAndStop", this.revokeAllAndStop.bind(this));
     this.group.on("operation", this.getOperation.bind(this));
     this.group.on("operationDecision", this.decideOperation.bind(this));
+    this.group.on("operationReopen", this.reopenOperation.bind(this));
+    this.group.on("pendingOperations", this.getPendingOperations.bind(this));
     this.group.on("audit", this.getAudit.bind(this));
     this.group.on("auditClear", this.clearAudit.bind(this));
     this.group.on("pendingPairing", this.getPendingPairing.bind(this));
     this.group.on("pairingDecision", this.decidePairing.bind(this));
+    this.group.on("pair", this.pair.bind(this));
+  }
+
+  // Ext↔daemon pairing: the user pasted the one-time code printed by `sctl pair`. Dials the daemon
+  // in pairing mode; on success the daemon ships the long-term key and the controller persists it.
+  pair(code: string): void {
+    this.controller.pair(code);
   }
 
   getPendingPairing(): PendingPairing | undefined {
@@ -93,6 +103,19 @@ export class McpUIService {
       enable: param.enable,
       rememberChoice: param.rememberChoice,
     });
+  }
+
+  // Re-opens a still-pending op's confirm page — the service-layer entry behind the popup/settings
+  // "待确认" row (Task #7). Closing a confirm page does not reject (误关 ≠ 拒绝, §5.1); the op stays
+  // pending until decided, disconnected, or TTL-expired, and this makes it addressable again.
+  reopenOperation(operationId: string): Promise<void> {
+    return this.approval.reopen(operationId);
+  }
+
+  // Data source for the popup/settings "待确认" list — the still-pending ops the row renders and
+  // whose reopenOperation it calls.
+  getPendingOperations(): Promise<PendingOperationSummary[]> {
+    return this.approval.listPending();
   }
 
   getAudit(): Promise<McpAuditEvent[]> {

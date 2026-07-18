@@ -27,10 +27,26 @@ import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_
 import { cleanupStaleTempStorageEntries } from "./temp";
 import { McpClientDAO } from "@App/app/repo/mcp";
 import { McpApprovalService } from "@App/app/service/service_worker/mcp/approval";
-import { McpBridge } from "@App/app/service/service_worker/mcp/bridge";
+import { McpBridge, type McpWriteNotice } from "@App/app/service/service_worker/mcp/bridge";
 import { McpController } from "@App/app/service/service_worker/mcp/controller";
 import { McpUIService } from "@App/app/service/service_worker/mcp/service";
 import { McpConnectClient } from "@App/app/service/offscreen/client";
+
+// "直接允许" 写策略下 MCP 无需人工确认即执行了写操作，发系统通知让用户知晓（决策 #12 的知情兜底）。
+function notifyMcpWrite(notice: McpWriteNotice): void {
+  const name = notice.name ?? "";
+  const body =
+    notice.kind === "install"
+      ? t("mcp:allow_notify_install", { name })
+      : notice.kind === "enable"
+        ? t("mcp:allow_notify_enable", { name })
+        : notice.kind === "disable"
+          ? t("mcp:allow_notify_disable", { name })
+          : notice.kind === "delete"
+            ? t("mcp:allow_notify_delete", { name })
+            : t("mcp:allow_notify_generic", { name });
+  void InfoNotification(t("mcp:allow_notify_title"), body);
+}
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -137,7 +153,16 @@ export default class ServiceWorkerManager {
     if (!isFirefox()) {
       const mcpClientDAO = new McpClientDAO();
       const mcpApproval = new McpApprovalService(script, scriptDAO, script.scriptCodeDAO, mcpClientDAO);
-      const mcpBridge = new McpBridge(scriptDAO, script.scriptCodeDAO, mcpClientDAO, mcpApproval);
+      const mcpBridge = new McpBridge(
+        scriptDAO,
+        script.scriptCodeDAO,
+        mcpClientDAO,
+        mcpApproval,
+        undefined,
+        undefined,
+        () => systemConfig.getMcpWritePolicy(),
+        notifyMcpWrite
+      );
       const mcpController = new McpController(
         systemConfig,
         mcpBridge,
@@ -147,6 +172,10 @@ export default class ServiceWorkerManager {
         mcpClientDAO
       );
       mcpBridge.setWriteSessionChecker(() => mcpController.isWriteSessionActive());
+      // Deferred bridge.response for blocking ops (write approval / source disclosure): the decide
+      // or bridge.cancel event resolves the persisted op and pushes the response back through the
+      // controller's offscreen relay — never a Promise left hanging in the (suspendable) SW.
+      mcpApproval.setResponder((requestId, response) => mcpController.sendBridgeResponse(requestId, response));
       mcpController.initialize();
       const mcpUIService = new McpUIService(this.api.group("mcp"), mcpController, mcpApproval, mcpClientDAO);
       mcpUIService.init();

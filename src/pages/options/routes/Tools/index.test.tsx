@@ -14,13 +14,41 @@ const { get, set } = vi.hoisted(() => ({
   set: vi.fn(),
 }));
 vi.mock("@App/pages/store/global", () => ({
-  systemConfig: { get, set },
+  systemConfig: {
+    get,
+    set,
+    getMcpWritePolicy: () => Promise.resolve("approval"),
+    getMcpUrl: () => Promise.resolve("ws://127.0.0.1:8643"),
+  },
   message: {},
   subscribeMessage: () => () => {},
 }));
 vi.mock("@App/pages/store/features/script", () => ({ synchronizeClient: { export: vi.fn(), backupToCloud: vi.fn() } }));
 vi.mock("@App/app/migrate", () => ({ migrateToChromeStorage: vi.fn() }));
-vi.mock("@App/app/service/service_worker/client", () => ({ SystemClient: vi.fn() }));
+vi.mock("@App/app/service/service_worker/client", () => ({
+  SystemClient: vi.fn(),
+  // MCP 卡片常显后其挂载 effect 会 new MCPClient 拉取状态；桩掉读取方法，避免未 mock 抛未捕获错误。
+  MCPClient: class {
+    getBridgeStatus() {
+      return Promise.resolve("disabled");
+    }
+    getClients() {
+      return Promise.resolve([]);
+    }
+    getAudit() {
+      return Promise.resolve([]);
+    }
+    getPendingOperations() {
+      return Promise.resolve([]);
+    }
+    reopenOperation() {
+      return Promise.resolve();
+    }
+    pair() {
+      return Promise.resolve();
+    }
+  },
+}));
 vi.mock("@Packages/filesystem/factory", () => ({
   default: {
     create: vi.fn(),
@@ -51,9 +79,10 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("工具页", () => {
-  it("渲染 5 个分类导航项", () => {
+  it("渲染 6 个分类导航项（含 MCP 桥接入口）", () => {
     render(<Tools />);
     const nav = document.querySelector("nav")!;
-    expect(nav.querySelectorAll("button")).toHaveLength(5);
+    // 非 Firefox 下 MCP 桥接卡片常显（内置默认关闭，卡片是启用入口），共 6 项。
+    expect(nav.querySelectorAll("button")).toHaveLength(6);
   });
 });

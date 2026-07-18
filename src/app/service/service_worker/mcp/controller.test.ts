@@ -28,6 +28,7 @@ describe("McpController", () => {
   let systemConfig: SystemConfig;
   let mq: MessageQueue;
   let bridgeHandle: ReturnType<typeof vi.fn>;
+  let bridgeCancel: ReturnType<typeof vi.fn>;
   let connectClient: ReturnType<typeof makeConnectClient>;
   let fake: ReturnType<typeof makeFakeGroup>;
 
@@ -42,6 +43,7 @@ describe("McpController", () => {
     mq = new MessageQueue();
     systemConfig = new SystemConfig(mq);
     bridgeHandle = vi.fn().mockResolvedValue({ requestId: "r1", ok: true, result: {} });
+    bridgeCancel = vi.fn().mockResolvedValue(undefined);
     connectClient = makeConnectClient();
     fake = makeFakeGroup();
   });
@@ -54,7 +56,7 @@ describe("McpController", () => {
   function makeController(saveMock?: ReturnType<typeof vi.fn>) {
     return new McpController(
       systemConfig,
-      { handle: bridgeHandle } as any,
+      { handle: bridgeHandle, cancel: bridgeCancel } as any,
       mq,
       fake.group,
       connectClient,
@@ -151,6 +153,48 @@ describe("McpController", () => {
       type: "bridge.response",
       requestId: "req-1",
       payload: { requestId: "r1", ok: true, result: {} },
+    });
+  });
+
+  it("bridge.handle 返回 null（挂起）时不回发任何 bridge.response", async () => {
+    bridgeHandle.mockResolvedValue(null);
+    const controller = makeController();
+    await controller.initialize();
+    fake.relayEnvelope({
+      v: 1,
+      type: "hello",
+      requestId: "h1",
+      payload: { daemonVersion: MIN_DAEMON_VERSION, protocolVersion: 1 },
+    });
+    fake.relayEnvelope({
+      v: 1,
+      type: "bridge.request",
+      requestId: "req-1",
+      payload: { requestId: "req-1", protocolVersion: 1, clientId: "c1", action: "scripts.install.request", input: {} },
+    });
+    await vi.waitFor(() => expect(bridgeHandle).toHaveBeenCalledTimes(1));
+    const responseSent = connectClient.send.mock.calls.some((call) => call[0].type === "bridge.response");
+    expect(responseSent).toBe(false);
+  });
+
+  it("收到 bridge.cancel 时调用 bridge.cancel 作废对应请求，且不回发 bridge.response", async () => {
+    const controller = makeController();
+    await controller.initialize();
+    fake.relayEnvelope({ v: 1, type: "bridge.cancel", requestId: "x", payload: { requestId: "req-dead" } });
+    await vi.waitFor(() => expect(bridgeCancel).toHaveBeenCalledWith("req-dead"));
+    const responseSent = connectClient.send.mock.calls.some((call) => call[0].type === "bridge.response");
+    expect(responseSent).toBe(false);
+  });
+
+  it("sendBridgeResponse 经 connectClient.send 回发 bridge.response（决策/作废事件驱动）", async () => {
+    const controller = makeController();
+    await controller.initialize();
+    controller.sendBridgeResponse("req-42", { requestId: "req-42", ok: true, result: { installed: true } });
+    expect(connectClient.send).toHaveBeenCalledWith({
+      v: 1,
+      type: "bridge.response",
+      requestId: "req-42",
+      payload: { requestId: "req-42", ok: true, result: { installed: true } },
     });
   });
 

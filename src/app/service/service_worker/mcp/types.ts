@@ -77,6 +77,13 @@ export interface HelloPayload {
   protocolVersion: typeof PROTOCOL_VERSION;
 }
 
+// daemon->ext: the requester behind `requestId` disconnected/timed out/Ctrl-C'd. The extension
+// voids the matching pending operation and invalidates its confirm page (design §5.1). Void, not
+// reject — no bridge.response is sent back for a cancel.
+export interface BridgeCancelPayload {
+  requestId: string;
+}
+
 // host->ext, a new shim asked to pair. `code` is the 8-char verification string the user
 // cross-checks against the shim's own terminal output.
 export interface PairRequestPayload {
@@ -122,6 +129,15 @@ export const MCP_SCOPES = [
 ] as const;
 
 export type McpScope = (typeof MCP_SCOPES)[number];
+
+// Built-in identity the sctl daemon forwards for every CLI-verb call (`sctl scripts list`,
+// `sctl install`, …) — it runs as the user's own process, not a paired MCP client, so it never
+// goes through pairing (design §3.1). The string MUST stay identical to the daemon's
+// control.CLIClientID. Treated as full-scope + source-disclosure-exempt (the human typed the
+// command), but writes still pass through the write policy + write-session gate and the confirm
+// page — the CLI cannot bypass human approval. It is non-revocable and never mirrored into the
+// paired-client list.
+export const SCTL_CLI_CLIENT_ID = "sctl-cli";
 
 export const BRIDGE_ACTIONS = [
   "scripts.list",
@@ -229,6 +245,15 @@ export interface OperationStatusResult {
   status: OperationStatus;
   resultSummary?: { uuid?: string; name?: string; enabled?: boolean };
   errorCode?: BridgeErrorCode;
+}
+
+// Row shape for the popup/settings "待确认" list (§5.1 误关重开入口): the still-pending ops the
+// user can re-open a confirm page for. Enriched with the requesting client's display name.
+export interface PendingOperationSummary {
+  operationId: string;
+  kind: OperationKind;
+  requestingClientName?: string;
+  createdAt: number;
 }
 
 export const ACTION_REQUIRED_SCOPE: Record<BridgeAction, McpScope> = {

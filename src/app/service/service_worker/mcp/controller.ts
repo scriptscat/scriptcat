@@ -9,9 +9,12 @@ import type { McpConnectClient } from "../../offscreen/client";
 import type { McpBridge } from "./bridge";
 import {
   MIN_DAEMON_VERSION,
+  SCTL_CLI_CLIENT_ID,
+  type BridgeCancelPayload,
   type ClientSyncPayload,
   type HelloPayload,
   type McpBridgeRequest,
+  type McpBridgeResponse,
   type McpBridgeStatus,
   type McpScope,
   type PairRequestPayload,
@@ -57,7 +60,7 @@ export class McpController {
 
   constructor(
     private readonly systemConfig: SystemConfig,
-    private readonly bridge: Pick<McpBridge, "handle">,
+    private readonly bridge: Pick<McpBridge, "handle" | "cancel">,
     private readonly mq: IMessageQueue,
     private readonly group: Group,
     private readonly connectClient: ConnectDriver,
@@ -129,9 +132,14 @@ export class McpController {
       case "client.sync":
         void this.onClientSync(envelope.payload as ClientSyncPayload);
         break;
+      case "bridge.cancel":
+        // Requester died (timeout / Ctrl-C / WS session gone) — void the matching pending op and
+        // invalidate its confirm page. Fire-and-forget: no bridge.response goes back for a cancel.
+        void this.bridge.cancel((envelope.payload as BridgeCancelPayload).requestId);
+        break;
       default:
-        // bridge.cancel voiding and the bridge.shutdown reconnect path are handled elsewhere
-        // (approval blocking is Task #6; the socket close drives reconnect in offscreen).
+        // The bridge.shutdown reconnect path is handled elsewhere (the socket close drives
+        // reconnect in offscreen).
         break;
     }
   }
@@ -167,7 +175,11 @@ export class McpController {
 
   private async onClientSync(clients: ClientSyncPayload): Promise<void> {
     // Daemon is the authority (owns tokenHash); the extension mirror is overwritten verbatim.
-    await Promise.all(clients.map((client) => this.clientDAO.save(client)));
+    // Defensively drop the built-in sctl-cli identity: it is synthesized in the bridge, never a
+    // paired client — a buggy/hostile daemon must not be able to inject it into the revocable list.
+    await Promise.all(
+      clients.filter((client) => client.clientId !== SCTL_CLI_CLIENT_ID).map((client) => this.clientDAO.save(client))
+    );
   }
 
   getPendingPairing(): PendingPairing | undefined {
@@ -193,7 +205,19 @@ export class McpController {
 
   private async dispatchBridgeRequest(request: McpBridgeRequest): Promise<void> {
     const response = await this.bridge.handle(request);
-    void this.connectClient.send({ v: 1, type: "bridge.response", requestId: request.requestId, payload: response });
+    // null = the request suspended pending a human decision (write approval / source disclosure).
+    // No response now; the decide/void event drives it later via sendBridgeResponse (design §5.1).
+    if (response) {
+      this.sendBridgeResponse(request.requestId, response);
+    }
+  }
+
+  // Deferred bridge.response for a blocking op — invoked by the approval responder (wired in
+  // index.ts) when a decide/void event resolves an op that suspended a write/disclosure request.
+  // Kept off any SW-memory Promise: the op state lives in storage, offscreen keeps the socket
+  // alive, and this call is reached by the message that woke the SW.
+  sendBridgeResponse(requestId: string, response: McpBridgeResponse): void {
+    void this.connectClient.send({ v: 1, type: "bridge.response", requestId, payload: response });
   }
 
   // User disable, or emergency "revoke all & stop bridge".
