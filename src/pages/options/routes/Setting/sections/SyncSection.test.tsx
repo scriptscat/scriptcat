@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { act, render, screen, fireEvent, cleanup } from "@testing-library/react";
+import type { CloudSyncConfig } from "@App/pkg/config/config";
 
 const { t } = vi.hoisted(() => ({
   t: vi.fn((key: string, opts?: Record<string, unknown>) =>
@@ -34,9 +35,39 @@ vi.mock("@Packages/filesystem/auth", () => ({
   ClearNetDiskToken: vi.fn(() => Promise.resolve()),
 }));
 
-const { get, set } = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
+const { get, set, externalStore, updateCloudSyncSnapshot, resetCloudSyncStore } = vi.hoisted(() => {
+  let snapshot: CloudSyncConfig | undefined;
+  const listeners = new Set<() => void>();
+  const get = vi.fn((key: string) => Promise.resolve(key === "cloud_sync" ? snapshot : ""));
+  const set = vi.fn((key: string, value: CloudSyncConfig) => {
+    if (key !== "cloud_sync") return;
+    snapshot = value;
+    listeners.forEach((listener) => listener());
+  });
+  const store = {
+    subscribe: (listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    getSnapshot: () => snapshot,
+    set: (value: CloudSyncConfig) => set("cloud_sync", value),
+  };
+  return {
+    get,
+    set,
+    externalStore: vi.fn(() => store),
+    updateCloudSyncSnapshot: (value: CloudSyncConfig) => {
+      snapshot = value;
+      listeners.forEach((listener) => listener());
+    },
+    resetCloudSyncStore: () => {
+      snapshot = undefined;
+      listeners.clear();
+    },
+  };
+});
 vi.mock("@App/pages/store/global", () => ({
-  systemConfig: { get, set },
+  systemConfig: { get, set, externalStore },
   subscribeMessage: () => () => {},
 }));
 
@@ -68,19 +99,25 @@ function mockState(over: Record<string, unknown> = {}) {
   });
 }
 
-function mockCloudSync(over: Record<string, unknown> = {}) {
-  get.mockImplementation((key: string) => {
-    if (key === "cloud_sync")
-      return Promise.resolve({
-        enable: false,
-        syncDelete: false,
-        syncStatus: true,
-        filesystem: "webdav",
-        params: {},
-        ...over,
-      });
-    return Promise.resolve("");
+function mockCloudSync(over: Partial<CloudSyncConfig> = {}) {
+  updateCloudSyncSnapshot({
+    enable: false,
+    syncDelete: false,
+    syncStatus: true,
+    filesystem: "webdav",
+    params: {},
+    ...over,
   });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 beforeEach(() => {
@@ -96,8 +133,10 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
-  get.mockReset();
-  set.mockReset();
+  get.mockClear();
+  set.mockClear();
+  externalStore.mockClear();
+  resetCloudSyncStore();
   create.mockReset();
   create.mockResolvedValue({});
   fetchCloudSyncState.mockReset();
@@ -106,50 +145,177 @@ afterEach(() => {
 });
 
 describe("同步分区", () => {
-  it("未启用同步时保存直接写入配置且不做账号校验", async () => {
-    mockCloudSync({ enable: false });
+  it("切换同步删除后立即写入配置", async () => {
+    mockCloudSync({ syncDelete: false });
     render(<SyncSection register={() => () => {}} />);
-    const save = await screen.findByTestId("cloud_sync_save");
-    await act(async () => fireEvent.click(save));
-    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ enable: false }));
-    expect(create).not.toHaveBeenCalled();
-  });
-
-  it("启用同步时保存先校验账号再写入配置", async () => {
-    mockCloudSync({ enable: true, filesystem: "webdav", params: { webdav: { url: "https://dav" } } });
-    render(<SyncSection register={() => () => {}} />);
-    const save = await screen.findByTestId("cloud_sync_save");
-    await act(async () => fireEvent.click(save));
-    expect(create).toHaveBeenCalledWith("webdav", { url: "https://dav" });
-    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ enable: true }));
-  });
-
-  it("校验失败时不写入配置", async () => {
-    create.mockRejectedValue(new Error("bad credentials"));
-    mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
-    render(<SyncSection register={() => () => {}} />);
-    const save = await screen.findByTestId("cloud_sync_save");
-    await act(async () => fireEvent.click(save));
-    expect(create).toHaveBeenCalled();
-    expect(set).not.toHaveBeenCalled();
-  });
-
-  it("切换同步删除复选框后保存写入新值", async () => {
-    mockCloudSync({ enable: false, syncDelete: false });
-    render(<SyncSection register={() => () => {}} />);
-    const cb = await screen.findByTestId("cloud_sync_sync_delete");
-    fireEvent.click(cb);
-    await act(async () => fireEvent.click(screen.getByTestId("cloud_sync_save")));
+    fireEvent.click(await screen.findByTestId("cloud_sync_sync_delete"));
     expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ syncDelete: true }));
   });
 
-  it("切换同步状态复选框后保存写入新值", async () => {
-    mockCloudSync({ enable: false, syncStatus: true });
+  it("切换同步状态后立即写入配置", async () => {
+    mockCloudSync({ syncStatus: true });
     render(<SyncSection register={() => () => {}} />);
-    const cb = await screen.findByTestId("cloud_sync_sync_status");
-    fireEvent.click(cb);
-    await act(async () => fireEvent.click(screen.getByTestId("cloud_sync_save")));
+    fireEvent.click(await screen.findByTestId("cloud_sync_sync_status"));
     expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ syncStatus: false }));
+  });
+
+  it("编辑文件系统参数后立即写入配置", async () => {
+    mockCloudSync({ params: { webdav: { url: "" } } });
+    render(<SyncSection register={() => () => {}} />);
+    fireEvent.change(await screen.findByLabelText("url"), { target: { value: "https://dav.example.com" } });
+    expect(set).toHaveBeenCalledWith(
+      "cloud_sync",
+      expect.objectContaining({ params: { webdav: { url: "https://dav.example.com" } } })
+    );
+  });
+
+  it("切换文件系统类型后立即写入配置", async () => {
+    mockCloudSync();
+    render(<SyncSection register={() => () => {}} />);
+    fireEvent.click(await screen.findByTestId("filesystem_type"));
+    fireEvent.click(await screen.findByText("Amazon S3"));
+    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ filesystem: "s3" }));
+  });
+
+  it("开启同步时显示校验状态且校验成功后才保存启用", async () => {
+    const verification = deferred<object>();
+    create.mockReturnValue(verification.promise);
+    mockCloudSync({ params: { webdav: { url: "https://dav" } } });
+    render(<SyncSection register={() => () => {}} />);
+    const enable = await screen.findByTestId("cloud_sync_enable");
+
+    fireEvent.click(enable);
+
+    expect(create).toHaveBeenCalledWith("webdav", { url: "https://dav" });
+    expect(set).not.toHaveBeenCalled();
+    expect(enable).toHaveAttribute("data-state", "unchecked");
+    expect(enable).toBeDisabled();
+    expect(enable).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("cloud_sync_verifying")).toHaveAttribute(
+      "aria-label",
+      "settings:cloud_sync_account_verification"
+    );
+    expect(screen.getByTestId("cloud_sync_now")).toBeDisabled();
+    expect(screen.queryByTestId("cloud_sync_status")).toBeNull();
+
+    await act(async () => verification.resolve({}));
+
+    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ enable: true }));
+    expect(enable).toHaveAttribute("data-state", "checked");
+    expect(enable).not.toBeDisabled();
+    expect(screen.getByTestId("cloud_sync_now")).not.toBeDisabled();
+    expect(screen.getByTestId("cloud_sync_status")).not.toBeNull();
+    expect(notify.success).toHaveBeenCalledWith("save_success");
+  });
+
+  it("开启校验失败时提示准确错误并保持未启用", async () => {
+    create.mockRejectedValue(new Error("bad credentials"));
+    mockCloudSync({ params: { webdav: { url: "https://dav" } } });
+    render(<SyncSection register={() => () => {}} />);
+    const enable = await screen.findByTestId("cloud_sync_enable");
+
+    await act(async () => fireEvent.click(enable));
+
+    expect(set).not.toHaveBeenCalled();
+    expect(enable).toHaveAttribute("data-state", "unchecked");
+    expect(enable).not.toBeDisabled();
+    expect(enable).toHaveAttribute("aria-busy", "false");
+    expect(notify.error).toHaveBeenCalledWith("settings:cloud_sync_verification_failed: bad credentials");
+  });
+
+  it("关闭同步时直接保存未启用且不校验连接", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "https://dav" } } });
+    render(<SyncSection register={() => () => {}} />);
+
+    fireEvent.click(await screen.findByTestId("cloud_sync_enable"));
+
+    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ enable: false }));
+    expect(create).not.toHaveBeenCalled();
+    expect(screen.getByTestId("cloud_sync_now")).toBeDisabled();
+  });
+
+  it("校验中禁用启用控件并忽略重复触发", async () => {
+    const verification = deferred<object>();
+    create.mockReturnValue(verification.promise);
+    mockCloudSync({ params: { webdav: { url: "https://dav" } } });
+    render(<SyncSection register={() => () => {}} />);
+    const enable = await screen.findByTestId("cloud_sync_enable");
+
+    fireEvent.click(enable);
+    fireEvent.click(enable);
+
+    expect(enable).toBeDisabled();
+    expect(create).toHaveBeenCalledTimes(1);
+    await act(async () => verification.resolve({}));
+  });
+
+  it("校验期间配置变化后忽略旧校验结果", async () => {
+    const verification = deferred<object>();
+    create.mockReturnValue(verification.promise);
+    mockCloudSync({ params: { webdav: { url: "https://old.example.com" } } });
+    render(<SyncSection register={() => () => {}} />);
+
+    fireEvent.click(await screen.findByTestId("cloud_sync_enable"));
+    fireEvent.change(screen.getByLabelText("url"), { target: { value: "https://new.example.com" } });
+    expect(screen.queryByTestId("cloud_sync_verifying")).toBeNull();
+
+    await act(async () => verification.resolve({}));
+
+    expect(set).toHaveBeenCalledTimes(1);
+    expect(set).toHaveBeenCalledWith(
+      "cloud_sync",
+      expect.objectContaining({ enable: false, params: { webdav: { url: "https://new.example.com" } } })
+    );
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it("外部配置变化应更新启用状态并淘汰进行中的校验", async () => {
+    const verification = deferred<object>();
+    create.mockReturnValue(verification.promise);
+    mockCloudSync({ params: { webdav: { url: "https://dav" } } });
+    render(<SyncSection register={() => () => {}} />);
+    const enable = await screen.findByTestId("cloud_sync_enable");
+    fireEvent.click(enable);
+
+    act(() =>
+      updateCloudSyncSnapshot({
+        enable: true,
+        syncDelete: false,
+        syncStatus: true,
+        filesystem: "webdav",
+        params: { webdav: { url: "https://external.example.com" } },
+      })
+    );
+
+    expect(enable).toHaveAttribute("data-state", "checked");
+    expect(screen.queryByTestId("cloud_sync_verifying")).toBeNull();
+    expect(screen.getByTestId("cloud_sync_now")).not.toBeDisabled();
+
+    await act(async () => verification.reject(new Error("stale credentials")));
+    expect(set).not.toHaveBeenCalled();
+    expect(notify.error).not.toHaveBeenCalled();
+  });
+
+  it("组件卸载后忽略未完成校验结果", async () => {
+    const verification = deferred<object>();
+    create.mockReturnValue(verification.promise);
+    mockCloudSync({ params: { webdav: { url: "https://dav" } } });
+    const { unmount } = render(<SyncSection register={() => () => {}} />);
+    fireEvent.click(await screen.findByTestId("cloud_sync_enable"));
+
+    unmount();
+    await act(async () => verification.resolve({}));
+
+    expect(set).not.toHaveBeenCalled();
+    expect(notify.success).not.toHaveBeenCalled();
+    expect(notify.error).not.toHaveBeenCalled();
+  });
+
+  it("不再显示保存按钮", async () => {
+    mockCloudSync();
+    render(<SyncSection register={() => () => {}} />);
+    await screen.findByTestId("cloud_sync_enable");
+    expect(screen.queryByTestId("cloud_sync_save")).toBeNull();
   });
 
   it("启用同步且上次有覆盖/冲突时显示警示状态条与查看日志深链", async () => {
@@ -186,39 +352,8 @@ describe("同步分区", () => {
     mockCloudSync({ enable: false });
     mockState({});
     render(<SyncSection register={() => () => {}} />);
-    await screen.findByTestId("cloud_sync_save");
+    await screen.findByTestId("cloud_sync_enable");
     expect(screen.queryByTestId("cloud_sync_status")).toBeNull();
-  });
-
-  it("勾选启用但未保存时立即同步按钮保持禁用（按已保存配置门控，避免点击静默无响应）", async () => {
-    mockCloudSync({ enable: false });
-    mockState({});
-    render(<SyncSection register={() => () => {}} />);
-    const enable = await screen.findByTestId("cloud_sync_enable");
-    fireEvent.click(enable);
-    // 勾选草稿 enable 但未保存：SW cloudSyncOnce 用的是已保存配置（enable=false 时静默 return），
-    // 按钮须随已保存配置禁用，否则点击毫无反馈
-    expect((screen.getByTestId("cloud_sync_now") as HTMLButtonElement).disabled).toBe(true);
-  });
-
-  it("勾选启用但未保存时不显示状态条（状态条只反映已保存配置）", async () => {
-    mockCloudSync({ enable: false });
-    mockState({});
-    render(<SyncSection register={() => () => {}} />);
-    const enable = await screen.findByTestId("cloud_sync_enable");
-    fireEvent.click(enable);
-    // 仅勾选草稿、尚未保存，不应立刻出现「同步正常」状态条
-    expect(screen.queryByTestId("cloud_sync_status")).toBeNull();
-  });
-
-  it("勾选启用并保存成功后才显示状态条", async () => {
-    mockCloudSync({ enable: false, params: { webdav: { url: "https://dav" } } });
-    mockState({});
-    render(<SyncSection register={() => () => {}} />);
-    const enable = await screen.findByTestId("cloud_sync_enable");
-    fireEvent.click(enable);
-    await act(async () => fireEvent.click(screen.getByTestId("cloud_sync_save")));
-    expect(screen.queryByTestId("cloud_sync_status")).not.toBeNull();
   });
 
   it("仅有覆盖无冲突时状态条为同步正常（覆盖降级为信息级）并可查看日志", async () => {
