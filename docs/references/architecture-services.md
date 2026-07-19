@@ -84,13 +84,16 @@ on the single `serviceWorker` `Server`. Other contexts have their own managers (
 
 ### Agent composition is different — by design
 
-The standard `Group` / `IMessageQueue` / DAO constructor triple above applies to context services. The Agent
-subsystem's sub-services (`AgentChatService`, `TaskService`, `SkillService`, `AgentModelService`, `MCPService`,
-etc. — see [`architecture-agent.md`](./architecture-agent.md)) are composed by `AgentService` instead of each
-independently owning a `Group`, and each takes only the narrower interface it actually needs (e.g.
-`AgentModelService` takes a `Group` and its own `AgentModelRepo`; `SubAgentService` takes a small
-`SubAgentOrchestrator` interface). When adding to the Agent subsystem, follow the pattern of the nearest
-existing sub-service rather than the SW context-service triple above.
+Context services take their collaborators through the constructor and register handlers in `init()` (the DI
+pattern above), but the *exact* dependency set still varies per service — `ResourceService` takes only
+`(Group, mq)`, `PopupService` takes `(Group, mq, runtime, scriptDAO, systemConfig)` — so "`Group` +
+`IMessageQueue` + DAOs" is a shorthand for "constructor-injected, no internal `new`," not a fixed parameter
+list to copy verbatim. The Agent subsystem's sub-services (`ChatService`, `AgentTaskService`, `SkillService`,
+`AgentModelService`, `MCPService`, etc. — see [`architecture-agent.md`](./architecture-agent.md)) are composed
+by `AgentService` instead of each independently owning a `Group`, and each takes only the narrower interface
+it actually needs (e.g. `AgentModelService` takes a `Group` and its own `AgentModelRepo`; `SubAgentService`
+takes a small `SubAgentOrchestrator` interface). When adding to the Agent subsystem, follow the pattern of the
+nearest existing sub-service rather than a context service's constructor shape.
 
 ## Adding a service
 

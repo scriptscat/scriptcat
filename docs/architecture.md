@@ -232,8 +232,11 @@ Map a change onto the existing extension points instead of inventing new structu
 - **A new persisted entity.** Pick a backend by matching an existing entity with the same data-size/query/lifecycle
   needs — `Repo<T>`, `DAO<T>`, or `OPFSRepo` (see [data layer](./references/architecture-data.md#adding-an-entity)),
   construct it in the manager, expose ops via `group.on`.
-- **A new service.** Constructor-inject `Group` + `IMessageQueue` + DAOs; register handlers in `init()`;
-  instantiate it in the relevant manager with its own `group("name")` (see [service layer](./references/architecture-services.md)).
+- **A new service.** First decide what kind: a context service (owned by one of `content/`, `offscreen/`,
+  `sandbox/`, `service_worker/`), an Agent/core component, or another cross-cutting subsystem — these do
+  **not** share one constructor shape. Then copy the nearest existing service of that kind. See
+  [service layer § Adding a service](./references/architecture-services.md#adding-a-service) for the decision
+  path; don't default to a `Group` + `IMessageQueue` + DAOs constructor for everything.
 - **A new GM API.** Decorate the method with `@GMContext.API` on the content side, add a privileged/offscreen
   handler if needed, register the `@grant` (see [GM API system](./references/architecture-gm-api.md#adding-a-gm-api-sketch)).
 
