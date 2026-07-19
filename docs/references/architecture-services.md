@@ -11,14 +11,17 @@
   handlers/cross-service subscriptions are registered in `init()`.
 - **Cross-cutting subsystems** — `agent/` (see [`architecture-agent.md`](./architecture-agent.md); spans all
   five contexts rather than living in one) and `extension/` (extension-wide environment helpers, e.g.
-  `extension_env.ts`) — plus `queue.ts` (the shared `MessageQueue` wiring used across contexts).
+  `extension_env.ts`) — plus `queue.ts` (shared `MessageQueue` **payload/type** definitions, e.g.
+  `TInstallScript`, `TDeleteScript` — not the `MessageQueue` implementation itself, which lives in
+  [`packages/message/message_queue.ts`](../../packages/message/message_queue.ts) and is instantiated per
+  entry point/manager).
 
 ```
 src/app/service/
 ├── agent/            cross-cutting: core/ (provider-agnostic) + service_worker/ (composed services) —
 │                     see architecture-agent.md
 ├── extension/         extension_env.ts (cross-cutting environment helpers)
-├── queue.ts           shared MessageQueue wiring
+├── queue.ts           shared MessageQueue payload/type definitions (not the implementation)
 ├── service_worker/    representative entry points: script.ts · value.ts · resource.ts · runtime.ts ·
 │                      popup.ts · subscribe.ts · synchronize.ts · system.ts · permission_verify.ts ·
 │                      clipboard.ts · download.ts · gm_api/ (SW-side GM handlers) · index.ts (ServiceWorkerManager)
@@ -43,41 +46,56 @@ class ScriptService {
     private readonly valueService: ValueService,
     private readonly resourceService: ResourceService,
     private readonly scriptDAO: ScriptDAO      // data access
-  ) {}
+  ) {
+    // local setup omitted here — see below: the real constructor does real work
+  }
 
   init() {
     this.group.on("getAllScripts", this.getAllScripts.bind(this));
     this.group.on("install", this.installScript.bind(this));
     this.group.on("enable", this.enableScript.bind(this));
-    // … ~20 more handlers
+    // … many more handlers
   }
 }
 ```
 
-But **don't over-read this as "never `new` internally, constructor never does work"** — several services break
-both of those:
+That's a trimmed illustration, not a literal copy of `script.ts` — don't infer an exact handler count from it
+(counts drift; check `git grep -c "this.group.on" src/app/service/service_worker/script.ts` for the current
+one) or assume the constructor body is empty.
 
+**Don't over-read the constructor as "never `new` internally, constructor never does work."** Several services
+break both of those:
+
+- [`ScriptService`](../../src/app/service/service_worker/script.ts) itself: alongside the injected
+  `scriptDAO`, it self-constructs `ScriptCodeDAO`, `LocalStorageDAO`, `CompiledResourceDAO`, `TrashScriptDAO`,
+  and `SubscribeDAO` as field initializers, and its real constructor body sets up a logger, enables caching on
+  two of those DAOs, and builds a `ScriptUpdateCheck` helper.
 - [`ResourceService`](../../src/app/service/service_worker/resource.ts) constructs its own `ResourceDAO` as a
-  field initializer (`resourceDAO: ResourceDAO = new ResourceDAO()`) and does real setup in the constructor
-  body (`this.logger = LoggerCore.logger().with(...)`, `this.resourceDAO.enableCache()`).
-- [`SubscribeService`](../../src/app/service/service_worker/subscribe.ts) likewise self-constructs
-  `SubscribeDAO` and `ScriptDAO` as field initializers, alongside constructor-injecting `Group`, `mq`, and
-  `ScriptService`.
+  field initializer and does real setup in the constructor body (logger, `enableCache()`).
+- [`SubscribeService`](../../src/app/service/service_worker/subscribe.ts) self-constructs `SubscribeDAO` *and*
+  `ScriptDAO` as field initializers, alongside constructor-injecting `Group`, `mq`, and `ScriptService`.
 
-The actual rule: a DAO/helper that's **local to one service** and nobody else needs is fine to construct
-internally; a DAO/service that's **shared across services** (like the `scriptDAO` passed into `ScriptService`
-above) gets injected so every owner points at the same instance and tests can substitute it. `init()` is where
-handler registration, cross-service subscriptions, and any wiring that depends on the *whole* object graph
-being built go — not a blanket "no work in the constructor" rule; a constructor doing local, self-contained
-setup (logger, own-DAO cache flag) is normal. Depend on narrow interfaces (`IMessageQueue`, not
-`MessageQueue`) so tests can pass `MockMessage`. Check the nearest existing service before assuming either
-extreme.
+**There is no "shared DAO type ⇒ same instance" invariant to rely on.** `ScriptService` builds its own
+`SubscribeDAO`; `SubscribeService` builds a *separate* `SubscribeDAO` instance, and its own `ScriptDAO` rather
+than reusing the `scriptDAO` the manager passes to `ScriptService`/`RuntimeService`/`PopupService`. Whether a
+given service injects a shared instance or builds its own is decided case by case — by caching needs, lifetime,
+and whether tests need to substitute it — not by a rule you can apply mechanically. Check the nearest existing
+service for the pattern it actually uses before assuming either "always inject" or "always self-construct."
+
+**`MockMessage` is not an `IMessageQueue` substitute.** It implements the lower-level `Message` transport
+(used to build a `Server`/`Group` for RPC in tests, e.g. `new Server("test", new MockMessage(...))`); the
+`IMessageQueue` a service receives is still a real `MessageQueue` instance in tests (`new MessageQueue()`),
+with individual methods like `publish` swapped for a spy (`vi.fn()`) when a test needs to assert on it. If you
+need a lightweight `IMessageQueue` fake, write one against that narrow interface — don't reach for
+`MockMessage`, which solves a different problem.
 
 ### Wiring: `ServiceWorkerManager`
 
 [`src/app/service/service_worker/index.ts`](../../src/app/service/service_worker/index.ts) is the composition
-root for the SW context. It builds DAOs, hands each service its own `group("name")` namespace and the shared
-`mq`, then calls `init()`:
+root for the SW context. It creates a `group("name")` namespace **for the services that need one** and passes
+the shared `mq` **to the services that need pub/sub** — not every service gets both: `LogService` is
+constructed with `(group, systemConfig)` and no `mq`, and `AgentService` is constructed with
+`(group, this.offscreenSend, resource)`, no `mq` at all. Then it calls `init()` on the services that have one:
 
 ```ts
 const scriptDAO = new ScriptDAO();
@@ -91,12 +109,20 @@ const runtime  = new RuntimeService(systemConfig, this.api.group("runtime"), thi
                                     value, script, resource, scriptDAO, localStorageDAO); runtime.init();
 const popup    = new PopupService(this.api.group("popup"), this.mq, runtime, scriptDAO, systemConfig); popup.init();
 value.init(runtime, popup);   // late-bound cross deps resolved after construction
+const log      = new LogService(this.api.group("log"), systemConfig); log.init();              // no mq
+const agent    = new AgentService(this.api.group("agent"), this.offscreenSend, resource); agent.init(); // no mq
 // … synchronize, subscribe, system
 ```
 
 The `group("name")` call is what gives each service its action prefix (`resource/*`, `value/*`, `script/*`, …)
-on the single `serviceWorker` `Server`. Other contexts have their own managers (`OffscreenManager`,
-`SandboxManager`, `ScriptRuntime` for content/inject) following the same shape.
+on the single `serviceWorker` `Server`. Other contexts have their own composition roots
+(`OffscreenManager`, `SandboxManager`, `ScriptRuntime` for content/inject) that play a similar
+"wire dependencies, register handlers" role, but they are **not** built to the same dependency/initialization
+shape as `ServiceWorkerManager` or each other: `OffscreenManager`'s constructor wraps a `WindowMessage` +
+`Server` + `ServiceWorkerClient` into a shared base class; `SandboxManager` builds its own `Server` and hands
+it to a single `Runtime`; and `ScriptRuntime` (content/inject) additionally owns lifecycle methods the others
+don't have, such as `contentInit()` and `externalMessage()`. Read each manager's own file rather than assuming
+it mirrors `ServiceWorkerManager`.
 
 ### Agent composition is different — by design
 
