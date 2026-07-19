@@ -73,7 +73,9 @@ Three ideas explain almost everything in the codebase:
                           │  Server("inject")     │         │  Server("sandbox")        │
                           └──────────────────────┘         └──────────────────────────┘
 
-         MessageQueue (pub/sub) broadcasts state changes across ALL contexts.
+         MessageQueue (pub/sub) broadcasts state changes among the contexts that instantiate it — currently
+         Service Worker, Offscreen, and UI pages (see architecture-services.md for the exact list); content,
+         inject, and sandbox don't hold a MessageQueue instance.
 ```
 
 ---
@@ -234,8 +236,15 @@ Map a change onto the existing extension points instead of inventing new structu
 - **A new broadcast event.** `this.mq.publish("myTopic", payload)` where state changes; `this.mq.subscribe(...)`
   wherever it matters. Use this, not RPC, for "X changed" notifications.
 - **A new persisted entity.** Pick a backend by matching an existing entity with the same data-size/query/lifecycle
-  needs — `Repo<T>`, `DAO<T>`, or `OPFSRepo` (see [data layer](./references/architecture-data.md#adding-an-entity)),
-  construct it in the manager, expose ops via `group.on`.
+  needs — `Repo<T>`, `DAO<T>`, or `OPFSRepo` (see [data layer](./references/architecture-data.md#adding-an-entity))
+  — then copy the nearest entity of that *same backend, in the same subsystem* for ownership and construction:
+  they don't all follow "construct in the manager, expose via `group.on`." Some context-service `Repo<T>`
+  entities do (e.g. `scriptDAO` built in `ServiceWorkerManager` and exposed through RPC); some Agent entities
+  don't — `AgentModelService` constructs its own `AgentModelRepo` internally by default rather than taking one
+  from a manager, and `AgentChatRepo` is a module-level singleton (`export const agentChatRepo = ...`) imported
+  directly rather than manager-constructed or exposed via `group.on`. Only route through the manager +
+  `group.on` when the entity is genuinely owned by a context composition root and needs to be reachable over
+  RPC.
 - **A new service.** First decide what kind: a context service (owned by one of `content/`, `offscreen/`,
   `sandbox/`, `service_worker/`), an Agent/core component, or another cross-cutting subsystem — these do
   **not** share one constructor shape. Then copy the nearest existing service of that kind. See
@@ -253,8 +262,14 @@ premature abstraction.
 ## Testing the Internals
 
 - **Unit (Vitest + happy-dom).** Co-locate `*.test.ts` next to source. `chrome.*` is mocked via
-  [`@Packages/chrome-extension-mock`](../packages/chrome-extension-mock) (`tests/vitest.setup.ts`); message-bus
-  behavior uses `MockMessage`. Run one file: `pnpm test -- --run path/to/file.test.ts`.
+  [`@Packages/chrome-extension-mock`](../packages/chrome-extension-mock) (`tests/vitest.setup.ts`). For the
+  message layer, keep the two pieces separate: `MockMessage` fakes the `Message` **transport** for `Server`/
+  `Group` RPC tests (`new Server("test", new MockMessage(...))`); a service's `IMessageQueue` dependency is
+  tested with a real `MessageQueue` instance (`new MessageQueue()`, with individual methods like `publish`
+  swapped for a spy when a test needs to assert on it) or a narrow fake written against `IMessageQueue` — not
+  `MockMessage`, which solves a different problem (see
+  [architecture-services.md](./references/architecture-services.md) for the detailed distinction). Run one
+  file: `pnpm test -- --run path/to/file.test.ts`.
 - **TDD.** See [AGENTS.md § Engineering Principles](../AGENTS.md#engineering-principles) for the write-failing-
   test-first principle and [develop-testing.md § When TDD doesn't apply](./references/develop-testing.md#when-tdd-doesnt-apply)
   for the narrow exceptions — this section only covers architecture-specific test mechanics, not the policy
@@ -263,6 +278,8 @@ premature abstraction.
   `pnpm run test:e2e:install`).
 - **Before a PR:** lint + the relevant suite — owned by [references/develop-testing.md](./references/develop-testing.md) → *Testing*.
 
-The DI + interface design is what makes this tractable: because services receive `IMessageQueue` and DAOs by
-constructor, a test builds a service with `MockMessage` and an in-memory DAO and exercises handlers directly,
-with no browser.
+The DI + interface design is what makes this tractable: because many services take `IMessageQueue`/DAOs
+through the constructor (dependency set varies — see [architecture-services.md](./references/architecture-services.md)),
+a test builds a service with a real `MessageQueue` (or a narrow fake) and an in-memory DAO and exercises
+handlers directly, with no browser. `MockMessage` is for the separate case of testing `Server`/`Group` RPC
+routing, not for standing in as a service's `IMessageQueue`.

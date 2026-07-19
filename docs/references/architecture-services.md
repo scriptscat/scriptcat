@@ -22,8 +22,11 @@
   ([`src/service_worker.ts`](../../src/service_worker.ts)), Offscreen
   ([`src/app/service/offscreen/base.ts`](../../src/app/service/offscreen/base.ts)), and UI pages subscribing
   to broadcasts ([`src/pages/store/global.ts`](../../src/pages/store/global.ts)) — not content, inject, or
-  sandbox, which don't instantiate it. Run `git grep -n "new MessageQueue" -- src packages` for the current
-  set rather than trusting this list to stay exhaustive.
+  sandbox, which don't instantiate it. Run
+  `git grep -n -E 'new MessageQueue\s*\(' -- src packages | grep -vE '\.(test|spec)\.[cm]?[jt]sx?:'` for
+  the current set rather than trusting this list to stay exhaustive — a plain `"new MessageQueue"` search also
+  matches `new MessageQueueGroup(...)` in `packages/message/message_queue.ts` and every test file that
+  constructs its own instance, neither of which are production instantiation sites.
 
 ```
 src/app/service/
