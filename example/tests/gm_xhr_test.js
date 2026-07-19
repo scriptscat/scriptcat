@@ -6,7 +6,7 @@
 // @author       you
 // @match        *://*/*?GM_XHR_TEST_SC
 // @grant        GM_xmlhttpRequest
-// @connect      httpbun.com
+// @connect      httpbingo.org
 // @connect      nonexistent-domain-abcxyz.test
 // @connect      raw.githubusercontent.com
 // @connect      translate.googleapis.com
@@ -21,8 +21,9 @@
   - Uses httpbin.org endpoints for deterministic echo/response behavior.
   - Prints a summary and a detailed per-test log with assertions.
 
-  NOTE: Endpoints now point to https://httpbun.com (a faster httpbin-like service).
-        See https://httpbun.com for docs and exact paths. (Also supports /get, /post, /bytes/{n}, /delay/{s}, /status/{code}, /redirect-to, /headers, /any, etc.)
+  NOTE: Endpoints now point to https://httpbingo.org (open source, https://github.com/mccutchen/httpbingo.org,
+        backed by https://github.com/mccutchen/go-httpbin — httpbin-compatible).
+        See https://httpbingo.org for docs and exact paths. (Also supports /get, /post, /bytes/{n}, /delay/{s}, /status/{code}, /redirect-to, /headers, /any, etc.)
 */
 
 /*
@@ -439,13 +440,13 @@ const enableTool = true;
     });
   }
 
-  // Switched base host from httpbin to httpbun (faster).
-  // See: https://httpbun.com (endpoints: /get, /post, /bytes/{n}, /delay/{s}, /status/{code}, /redirect-to, /headers, /any, etc.)
-  const HB = "https://httpbun.com";
+  // Switched base host to httpbingo.org (open source, go-httpbin-backed, httpbin-compatible).
+  // See: https://httpbingo.org (endpoints: /get, /post, /bytes/{n}, /delay/{s}, /status/{code}, /redirect-to, /headers, /any, etc.)
+  const HB = "https://httpbingo.org";
 
-  // Helper: handle minor schema diffs between httpbin/httpbun for query echo
+  // Helper: handle minor schema diffs across httpbin-family servers for query echo
   function getQueryObj(body) {
-    // httpbin uses "args", httpbun may use "query" (and still often provides "args" for compatibility).
+    // httpbin/httpbingo use "args" (and some httpbin-likes use "query" for compatibility).
     return body.args || body.query || body.params || {};
   }
 
@@ -595,15 +596,15 @@ const enableTool = true;
     {
       name: "GET json [responseType: undefined]",
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(`${res.response}`.includes('"code": 200'), true, "response ok");
+        assertEq(`${res.responseText}`.includes('"method": "GET"'), true, "responseText ok");
+        assertEq(`${res.response}`.includes('"method": "GET"'), true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -611,7 +612,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: ""]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -619,8 +620,8 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(`${res.response}`.includes('"code": 200'), true, "response ok");
+        assertEq(`${res.responseText}`.includes('"method": "GET"'), true, "responseText ok");
+        assertEq(`${res.response}`.includes('"method": "GET"'), true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -628,7 +629,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: "text"]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -636,8 +637,8 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(`${res.response}`.includes('"code": 200'), true, "response ok");
+        assertEq(`${res.responseText}`.includes('"method": "GET"'), true, "responseText ok");
+        assertEq(`${res.response}`.includes('"method": "GET"'), true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -645,7 +646,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: "json"]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -653,8 +654,8 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
+        assertEq(`${res.responseText}`.includes('"method": "GET"'), true, "responseText ok");
+        assertEq(typeof res.response === "object" && res.response?.method === "GET", true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -662,7 +663,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: "document"]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -670,7 +671,7 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
+        assertEq(`${res.responseText}`.includes('"method": "GET"'), true, "responseText ok");
         assertEq(res.response instanceof XMLDocument, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
@@ -679,7 +680,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: "stream"]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -696,7 +697,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: "arraybuffer"]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -704,7 +705,7 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
+        assertEq(`${res.responseText}`.includes('"method": "GET"'), true, "responseText ok");
         assertEq(res.response instanceof ArrayBuffer, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
@@ -713,7 +714,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: "blob"]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -721,7 +722,7 @@ const enableTool = true;
           fetch,
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
+        assertEq(`${res.responseText}`.includes('"method": "GET"'), true, "responseText ok");
         assertEq(res.response instanceof Blob, true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
@@ -974,8 +975,9 @@ const enableTool = true;
         });
         const body = JSON.parse(res.responseText);
         assertEq(res.status, 200);
-        assertEq((body.form || {}).a, "1", "form a");
-        assertEq((body.form || {}).b, "two", "form b");
+        // httpbingo.org echoes form values as arrays (Go's url.Values shape).
+        assertEq((body.form?.a || [])[0], "1", "form a");
+        assertEq((body.form?.b || [])[0], "two", "form b");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
@@ -1039,7 +1041,7 @@ const enableTool = true;
       async run(fetch) {
         let progressCounter = 0;
         const size = 40; // MAX 90
-        // httpbun doesn't have /image/png; use /bytes to ensure blob download
+        // httpbingo doesn't have /image/png; use /bytes to ensure blob download
         const { res } = await gmRequest({
           method: "GET",
           url: `${HB}/bytes/${size}`,
@@ -1055,7 +1057,7 @@ const enableTool = true;
         assertEq(buf.byteLength, size, "byte length matches");
         assert(progressCounter >= 1, "progressCounter >= 1");
         assertEq(objectProps(res), "ok", "Object Props OK");
-        // Do not assert image MIME; httpbun returns octet-stream here.
+        // Do not assert image MIME; httpbingo returns octet-stream here.
       },
     },
     {
@@ -1323,7 +1325,7 @@ const enableTool = true;
           url: `${HB}/any`,
           fetch,
         });
-        // httpbun commonly returns 200 for OPTIONS
+        // httpbingo commonly returns 200 for OPTIONS
         assert(res.status === 200 || res.status === 204, "200/204 on OPTIONS");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -1348,7 +1350,7 @@ const enableTool = true;
         // httpbin echoes Cookie header in headers
         const { res } = await gmRequest({
           method: "GET",
-          url: `${HB}/cookies/set/abc/123`,
+          url: `${HB}/cookies/set?abc=123`,
           fetch,
         });
       },
@@ -1406,7 +1408,7 @@ const enableTool = true;
         // httpbin echoes Cookie header in headers
         const { res } = await gmRequest({
           method: "GET",
-          url: `${HB}/cookies/delete`,
+          url: `${HB}/cookies/delete?abc`,
           anonymous: true,
           fetch,
         });
@@ -1418,7 +1420,7 @@ const enableTool = true;
         // httpbin echoes Cookie header in headers
         const { res } = await gmRequest({
           method: "GET",
-          url: `${HB}/cookies/set/def/456`,
+          url: `${HB}/cookies/set?def=456`,
           anonymous: true,
           fetch,
         });
@@ -1446,7 +1448,7 @@ const enableTool = true;
         // httpbin echoes Cookie header in headers
         const { res } = await gmRequest({
           method: "GET",
-          url: `${HB}/cookies/delete`,
+          url: `${HB}/cookies/delete?def`,
           anonymous: true,
           fetch,
         });
@@ -1487,7 +1489,7 @@ const enableTool = true;
     {
       name: "Invalid method -> expected server 405 or 200 echo",
       async run(fetch) {
-        // httpbun accepts any method on /headers (per docs), so status may be 200
+        // httpbingo accepts any method on /headers (per docs), so status may be 200
         const { res } = await gmRequest({
           method: "FOOBAR",
           url: `${HB}/headers`,
@@ -1603,7 +1605,7 @@ const enableTool = true;
     {
       name: "Test bug #1078",
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -1612,8 +1614,8 @@ const enableTool = true;
           onprogress() {},
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
+        assertEq(`${res.responseText}`.includes('"method": "GET"'), true, "responseText ok");
+        assertEq(typeof res.response === "object" && res.response?.method === "GET", true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -1622,7 +1624,7 @@ const enableTool = true;
       name: "Test bug #1080",
       async run(fetch) {
         const readyStateList = [];
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -1633,8 +1635,8 @@ const enableTool = true;
           },
         });
         assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
+        assertEq(`${res.responseText}`.includes('"method": "GET"'), true, "responseText ok");
+        assertEq(typeof res.response === "object" && res.response?.method === "GET", true, "response ok");
         assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
         assertDeepEq(readyStateList, fetch ? [2, 4] : [1, 2, 3, 4], "status 200");
         assertEq(objectProps(res), "ok", "Object Props OK");

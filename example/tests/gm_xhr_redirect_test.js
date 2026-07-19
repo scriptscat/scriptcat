@@ -6,7 +6,7 @@
 // @author       you
 // @match        *://*/*?GM_XHR_REDIRECT_TEST_SC
 // @grant        GM_xmlhttpRequest
-// @connect      httpbun.com
+// @connect      httpbingo.org
 // @noframes
 // ==/UserScript==
 
@@ -104,7 +104,7 @@ const enableTool = true;
     });
   }
 
-  const HB = "https://httpbun.com";
+  const HB = "https://httpbingo.org";
 
   // ---------- Assertion utils ----------
   function assertEq(a, b, msg) {
