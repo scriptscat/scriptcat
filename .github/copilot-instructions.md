@@ -10,10 +10,10 @@ ScriptCat is a sophisticated browser extension that executes user scripts with a
 
 ### Core Components
 - **Service Worker** (`src/service_worker.ts`) - Main background process handling script management, installations, and chrome APIs
-- **Offscreen** (`src/offscreen.ts`) - Isolated background environment for running background/scheduled scripts
-- **Sandbox** (`src/sandbox.ts`) - Secure execution environment inside offscreen for script isolation
+- **Offscreen** (`src/offscreen.ts`) - Isolated background environment for running background/scheduled scripts on Chrome. Firefox MV3 has no separate Offscreen document; `EventPageOffscreenManager` (`src/app/service/offscreen/event_page_manager.ts`) runs the same logic inside the DOM-capable background event page instead.
+- **Sandbox** (`src/sandbox.ts`) - Secure execution environment for background/scheduled scripts only (no page context); isolated via `with(arguments[0])`
 - **Content Scripts** (`src/content.ts`) - Injected into web pages to execute user scripts
-- **Inject Scripts** (`src/inject.ts`) - Runs in page context with access to page globals
+- **Inject Scripts** (`src/inject.ts`) - Runs in page context with access to page globals, including `unsafeWindow`
 
 ### Message Passing System
 ScriptCat uses a sophisticated message passing architecture (`packages/message/`):
@@ -22,7 +22,7 @@ ScriptCat uses a sophisticated message passing architecture (`packages/message/`
 - **CustomEventMessage** - CustomEvent-based communication between content/inject scripts
 - **MessageQueue** - Cross-environment event broadcasting system
 
-Key pattern: All communication flows through Service Worker → Offscreen → Sandbox for background scripts, or Service Worker → Content → Inject for page scripts.
+Key pattern: background scripts flow Service Worker → Offscreen → Sandbox; page scripts flow Service Worker → Content → Inject. Other paths exist alongside this: UI pages talk to the Service Worker directly, `MessageQueue` broadcasts across contexts outside the request/reply chain, and Agent storage (OPFS/Dexie) is read/written without going through this message flow.
 
 ### Script Execution Flow
 1. **Page Scripts**: Service Worker registers with `chrome.userScripts` → injected into pages
@@ -33,15 +33,14 @@ Key pattern: All communication flows through Service Worker → Offscreen → Sa
 
 ### Path Aliases
 ```typescript
-"@App": "./src/"
-"@Packages": "./packages/"
-"@Tests": "./tests/"
+import x from "@App/service_worker";   // -> src/service_worker
+import y from "@Packages/message";     // -> packages/message
+import z from "@Tests/utils";          // -> tests/utils
 ```
 
 ### Repository Pattern
-All data access uses DAO classes extending `Repo<T>` base class:
+Persistence is a small backend taxonomy, not one base class: `Repo<T>` (`chrome.storage.local`, e.g. `ScriptDAO`, `ResourceDAO`, `SubscribeDAO`), `DAO<T>` (Dexie/IndexedDB, e.g. `LoggerDAO`), `OPFSRepo` (OPFS-backed data, e.g. `AgentChatRepo`, `SkillRepo`), and a few custom repositories (e.g. `TrashScriptDAO`) where none of those fit. See [`docs/references/architecture-data.md`](../docs/references/architecture-data.md) for the full inventory and entity-decision recipe.
 ```typescript
-// Example: ScriptDAO, ResourceDAO, SubscribeDAO
 export class ScriptDAO extends Repo<Script> {
   public save(val: Script) { return super._save(val.uuid, val); }
 }
@@ -136,10 +135,10 @@ pnpm run coverage      # Generate coverage reports
 - Use `pnpm run dev:noMap` for incognito window development
 - Background script changes require extension reload
 - Message passing debugging available in service worker console
-- Sandbox script execution isolated from page context - use `unsafeWindow` for page access
+- Sandbox (background/scheduled scripts) has no page context; page-context access via `unsafeWindow` is only available to Inject/page scripts
 
 ## File Structure Patterns
-- Tests co-located with source files (`.test.ts` suffix)
+- Tests co-located with source files (`.test.ts` / `.test.tsx` suffix), plus end-to-end specs under `e2e/*.spec.ts`
 - Template files use `.tpl` extension for build-time processing
 - Configuration files use factory pattern for environment-specific setup
 

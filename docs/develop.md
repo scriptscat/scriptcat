@@ -68,6 +68,12 @@ Two conventions are enforced via built-in rules in `eslint.config.mjs`: `no-rest
 the `radix-ui` pattern of `no-restricted-imports`, and `no-restricted-syntax` — not `require-last-error-check`,
 and not the `sonner` pattern of `no-restricted-imports`.
 
+`src/pages/components/ui/toast.ts` has an override that turns `no-restricted-imports` **entirely off** for that
+one file — not just the `sonner` half of it. That means this file is also exempt from the `@radix-ui/react-*`
+restriction, since both bans live on the same rule; this is the one place in `src/pages/**` allowed to import
+`sonner`'s `toast` directly (it's the wrapper `notify` is built on) and a single-package `@radix-ui/react-*`
+import, should it ever need one. Any other file still gets both restrictions.
+
 Separately, type-aware rules run on `src/pages/**` (tests excluded) via `projectService` —
 `@typescript-eslint/no-floating-promises`, `no-misused-promises` (with `checksVoidReturn.attributes: false`, so
 `async` JSX handlers are allowed), and `await-thenable`, all `error` — to catch missing `await`s and promises

@@ -52,6 +52,15 @@
 - 为满足部分扩展市场要求，`chrome.i18n` 语言文件位于 `src/assets/_locales`。
 - i18n 方案的实现细节见 [`src/locales/README.md`](../src/locales/README.md)。
 
+### 自动化检查的真实范围
+
+[`src/locales/i18n-usage.test.ts`](../src/locales/i18n-usage.test.ts) 会扫描 `src/pages` 与
+`src/app/service/service_worker` 目录下非测试文件中双引号字面量的 `t()` / `i18n.t()` 调用，并按 `zh-CN`
+resources 解析对应 key 是否存在；动态/插值 key、`defaultValue` 内联回退，以及无法识别的 namespace 会被跳过,
+不计入检查范围。它**只**证明代码引用的 key 在 `zh-CN` 中存在，**不能**证明其他 locale 的 key 是否完整、
+译文措辞是否准确、或术语是否符合对应 `terminology-<locale>.md`——这些仍需人工或专项核对，不要把“测试通过”当成
+“翻译已核对”的证据。
+
 ## 提取翻译提示词 / Extract-translation prompt
 
 将 React 文件中的中文提取为 i18next key 时使用：

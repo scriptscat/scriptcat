@@ -16,10 +16,11 @@
 - [The Five Contexts (Process Model)](#the-five-contexts-process-model)
 - [Message Passing](#message-passing)
 - [Service layer](./references/architecture-services.md)
-- [Data layer (Repo<T> + DAOs)](./references/architecture-data.md)
+- [Data layer (backend taxonomy: Repo\<T\> / DAO\<T\> / OPFSRepo)](./references/architecture-data.md)
 - [GM API system](./references/architecture-gm-api.md)
 - [Script execution](./references/architecture-execution.md)
 - [Build pipeline & manifest](./references/architecture-build.md)
+- [Agent subsystem](./references/architecture-agent.md)
 - [Extending ScriptCat — Recipes](#extending-scriptcat--recipes)
 - [Testing the Internals](#testing-the-internals)
 
@@ -204,6 +205,22 @@ mock ([`@Packages/chrome-extension-mock`](../packages/chrome-extension-mock)) is
 
 ---
 
+## Agent Subsystem
+
+The Agent subsystem (`src/app/service/agent/`) is an AI-agent layer built **on top of** the five contexts
+above — it is not a sixth execution context. `AgentService` is assembled inside `ServiceWorkerManager`
+(`src/app/service/service_worker/index.ts`) from a set of narrower services (chat, task, skill, model, MCP,
+background session, sub-agent, compact, DOM automation, OPFS); a content-side `CAT.agent.*` API
+(`src/app/service/content/gm_api/cat_agent.ts`) exposes conversations to user scripts; offscreen and sandbox
+are used for skill-script execution the same way regular background/scheduled scripts are. The UI (chat/task
+pages) and userscript-driven conversations share the same streaming/tool-loop boundary in
+`core/tool_registry.ts` / `service_worker/tool_loop_orchestrator.ts` — there is one tool loop, not a separate
+implementation per caller. Full write-up, including the global vs. per-session tool registries, LLM
+streaming/retry/compact flow, background-session/sub-agent/scheduled-task lifecycle, storage backend choices,
+and the page/offscreen/sandbox delegation boundaries: [`references/architecture-agent.md`](./references/architecture-agent.md).
+
+---
+
 ## Extending ScriptCat — Recipes
 
 Map a change onto the existing extension points instead of inventing new structure:
@@ -212,7 +229,8 @@ Map a change onto the existing extension points instead of inventing new structu
   its `init()`, and call it from the other context with a `Client`. No new transport, no new wiring.
 - **A new broadcast event.** `this.mq.publish("myTopic", payload)` where state changes; `this.mq.subscribe(...)`
   wherever it matters. Use this, not RPC, for "X changed" notifications.
-- **A new persisted entity.** Subclass `Repo<T>` (see [data layer](./references/architecture-data.md#adding-an-entity-is-tiny)),
+- **A new persisted entity.** Pick a backend by matching an existing entity with the same data-size/query/lifecycle
+  needs — `Repo<T>`, `DAO<T>`, or `OPFSRepo` (see [data layer](./references/architecture-data.md#adding-an-entity)),
   construct it in the manager, expose ops via `group.on`.
 - **A new service.** Constructor-inject `Group` + `IMessageQueue` + DAOs; register handlers in `init()`;
   instantiate it in the relevant manager with its own `group("name")` (see [service layer](./references/architecture-services.md)).
@@ -230,8 +248,10 @@ premature abstraction.
 - **Unit (Vitest + happy-dom).** Co-locate `*.test.ts` next to source. `chrome.*` is mocked via
   [`@Packages/chrome-extension-mock`](../packages/chrome-extension-mock) (`tests/vitest.setup.ts`); message-bus
   behavior uses `MockMessage`. Run one file: `pnpm test -- --run path/to/file.test.ts`.
-- **TDD first.** Write the failing test before the implementation. When a test fails, fix the code — don't edit
-  the test to pass.
+- **TDD.** See [AGENTS.md § Engineering Principles](../AGENTS.md#engineering-principles) for the write-failing-
+  test-first principle and [develop-testing.md § When TDD doesn't apply](./references/develop-testing.md#when-tdd-doesnt-apply)
+  for the narrow exceptions — this section only covers architecture-specific test mechanics, not the policy
+  itself.
 - **E2E (Playwright).** `e2e/*.spec.ts`, one worker, real Chromium. `pnpm run test:e2e` (first run:
   `pnpm run test:e2e:install`).
 - **Before a PR:** lint + the relevant suite — owned by [references/develop-testing.md](./references/develop-testing.md) → *Testing*.

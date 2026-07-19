@@ -7,15 +7,33 @@
 > scripts and local-only evidence — kept out of Git and never deleted as part of a run; cleanup is the user's call.
 >
 > **What this is NOT.** It is *not* the test-suite reference. The mechanics of Vitest unit tests and the
-> permanent Playwright E2E suite live in [`DEVELOP.md`](./develop.md) → *Testing*; the TDD-first principle and
-> engineering rules live in [`../AGENTS.md`](../AGENTS.md). Read those for writing committed tests.
+> permanent Playwright E2E suite live in [develop.md § Testing](./develop.md#testing); the TDD-first principle
+> and engineering rules live in [AGENTS.md § Engineering Principles](../AGENTS.md#engineering-principles). Read
+> those for writing committed tests.
+
+## When to skip this guide
+
+This guide is **workflow routing**, not a TDD blanket exception — it applies when a change needs the built
+extension, real Chrome APIs, or cross-context behavior to observe. Skip it (and rely on typecheck + the
+relevant committed test instead) for:
+
+- Doc-only, comment-only, or type-only changes with no runtime behavior to observe.
+- Pure logic that a targeted unit test already exercises completely (a parser, a utility function, a reducer) —
+  write/run that test instead of driving a browser for it.
+- Any change fully reproducible and provable by a targeted committed test without the built extension.
+
+If you're unsure whether a change needs the built extension, the deciding question is: *does this depend on
+cross-context wiring or a real browser API that a unit test can't exercise?* If no, a targeted unit test is
+the whole verification; don't reach for this guide's scratch-script workflow just to "be thorough."
 
 ## The one rule: verification ≠ growing the E2E suite
 
 The full E2E suite is **heavy** (two-phase browser launch, real network fetches, multi-minute timeouts). When
 you only want to *check that a feature works*, do not pay that cost and do not leave anything behind:
 
-- ❌ **Never** run the whole suite (`pnpm run test:e2e`) just to verify one thing.
+- ❌ **Never** run the whole suite (`pnpm run test:e2e`) just to verify one thing *during casual verification*.
+  This rule scopes this guide's workflow — it is not a release/CI policy; CI and pre-release gates run the full
+  suite as their own separate, deliberate check.
 - ❌ **Never** add a permanent `e2e/*.spec.ts` as part of casual verification.
 - ✅ Write a **throwaway scratch script** under `e2e/scratch/` (git-ignored), run it, and keep any evidence local.
 
@@ -35,14 +53,22 @@ Choose the reproduction method by what the bug depends on: a failing unit test f
 bugs; this guide's scratch-script workflow (above) when it depends on the built extension, browser APIs, or
 cross-context behavior.
 
-## Prerequisite gate (cheap signals first)
+## Prerequisite gate (cheap signals first, proportional to risk)
 
-Driving a browser is the *last* check, not the first. Confirm the cheap signals are green before you build:
+Driving a browser is the *last* check, not the first. Confirm the cheap signals are green before you build —
+but scale which signals proportionally, not mechanically:
 
 ```bash
-pnpm run typecheck      # tsc --noEmit
-pnpm test               # Vitest unit tests (or target one file, see DEVELOP.md)
+pnpm run typecheck                        # tsc --noEmit — always
+pnpm test -- --run path/to/file.test.ts   # targeted unit test(s) for the change — the default
+pnpm test                                 # full Vitest suite — only when the change is broad/risky,
+                                           # touches shared code, or a repo gate/CI requires it
 ```
+
+Typecheck plus the targeted relevant test is the default prerequisite — it is not a requirement to run the
+full Vitest suite before every scratch verification. Run the broader suite when the change's blast radius
+isn't confirmed to be local (shared utilities, config, public interfaces) or when project policy requires it
+for the change type.
 
 Green unit tests do **not** mean the feature works — they mean the units you tested behave. Cross-context wiring
 (Service Worker ↔ Content ↔ Inject ↔ Offscreen ↔ Sandbox) and real Chrome APIs only exercise in a loaded
@@ -97,9 +123,13 @@ sanitize them before saving evidence.
 
 Embed screenshots inline with `![alt](screenshots/…png)` plus a caption line, so `report.md` renders as a visual
 record you can skim without opening files. Link videos, logs, and resources instead — markdown can't inline them.
-Never list bare links: every item carries a short note explaining what it proves and how to read it. Before running
-the browser, create the record following the Evidence Index shape in the
-[verification record template](./references/verification-report-template.md).
+Never list bare links: every item carries a short note explaining what it proves and how to read it.
+
+### Create `report.md` before you run the browser
+
+Before running the browser, create `test-results/verify/<scenario>/report.md` following the Evidence Index
+shape in the [verification record template](./references/verification-report-template.md). Fill it in as you
+go — don't reconstruct the run from memory afterward.
 
 ### Minimal template (drive a UI page)
 
@@ -237,6 +267,20 @@ discards the DOM event and calls the same message). State the substitution in `r
 
 > Hit a failure or a hang? See [debugging & common gotchas](./references/verification-debugging.md).
 
+### Verifying a UI change across light/dark theme
+
+The theme is stored in `localStorage` under the key `lightMode` with value `"light"` / `"dark"` / `"auto"`
+(see [`src/pages/components/theme-provider.tsx`](../src/pages/components/theme-provider.tsx) and
+[`src/pages/common.ts`](../src/pages/common.ts), which reads the same key during pre-render to avoid a theme
+flash). Setting this key **before** the page's own scripts run — e.g. via Playwright's `context.addInitScript`
+— is what makes the theme apply on first paint instead of flashing the default and then switching.
+
+Before relying on this in a scratch script, confirm it actually behaves that way for an `chrome-extension://`
+page in your Playwright setup — `addInitScript` timing relative to an extension page's own bootstrap can differ
+from a normal web page, so verify with a quick throwaway run rather than assuming it. Once confirmed for a
+scenario, capture one screenshot per theme (`light` and `dark`) as separate evidence — a single theme's
+screenshot doesn't demonstrate the other renders correctly.
+
 ## Step 4 — Report honestly
 
 Verification only counts if the result is reported as observed (this mirrors the engineering principle: evidence
@@ -247,8 +291,12 @@ before assertions).
 - If it fails or you could not verify a path, **say that plainly** with the console/output — do not soften it,
   do not claim success you did not see.
 - If you were **reproducing a bug**, state plainly whether it reproduced. If it did, the failing observation
-  (error, assertion diff, error screenshot) *is* the evidence — record it and move on to the failing-test → fix
-  cycle. If it did not reproduce, say so and note what you tried, instead of implying the bug is gone.
+  (error, assertion diff, error screenshot) *is* the evidence. In the general case, promote it into a committed
+  failing test before fixing (the failing-test → fix cycle). Under
+  [develop-testing.md § When TDD doesn't apply](./references/develop-testing.md#when-tdd-doesnt-apply)'s
+  infeasible-automated-coverage exception, keep this scratch reproduction as the evidence instead — fix the
+  code, then re-run the *same* reproduction script to confirm it now passes. If it did not reproduce, say so
+  and note what you tried, instead of implying the bug is gone.
   - Two honest framings for the scratch assertion: assert the **desired** behavior (the scratch stays *red* and
     directly shows the gap), or assert the **current buggy contract** (the scratch passes *green* while the bug
     is present, giving a deterministic re-runnable record) and note that the fix must flip it. Pick one and say

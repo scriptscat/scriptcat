@@ -4,6 +4,10 @@ Before running the browser, create a short verification record in the scenario d
 `test-results/verify/<scenario>/report.md`. Keep the reusable template headings in English, but write the actual
 record content in the user's language. Update it as the run proceeds instead of filling it in only at the end.
 
+**The snippet below is a filled *example* of the `## Evidence Index` shape** — it shows what a completed one
+looks like, not a second section to add. The full template further down has its own `## Evidence Index`
+heading; use that one heading and fill it following this example's shape.
+
 ```md
 ## Evidence Index
 

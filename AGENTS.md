@@ -25,10 +25,12 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 > (`src/locales/<locale>/*.json` namespace files, per-language docs, UI copy, or test snapshots), you must first
 > read that guide and follow the matching `docs/references/terminology-<locale>.md` if it exists.
 
-> **Before adding, editing, reorganizing, or reviewing any contributor doc (this file or `docs/*`), read
+> **Before adding, editing, reorganizing, or reviewing any tracked agent/contributor Markdown — this file,
+> `docs/*`, `.github/*.md`, package-local READMEs, and source-local READMEs — read
 > [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md)** — keep the doc set organized (links resolve, index
-> current, no duplication) and every claim factually true against the current branch (*if you can't grep it on
-> this branch, don't claim it*).
+> current, no duplication, no cross-document policy conflicts) and every claim factually true against the current
+> branch (*if you can't grep it on this branch, don't claim it*). That guide owns the full checklist; don't copy
+> it into this always-loaded file.
 
 > **Before opening or updating a pull request, read [`docs/pull-request.md`](docs/pull-request.md)** — this
 > repo's PR description structure and evidence rules.
@@ -53,9 +55,9 @@ isn't universal, that's called out in the item itself.
 - **Fix root causes, not symptoms — refactor over patch.** No `as any` / `// @ts-ignore` / try-catch swallow / defensive skips to make errors disappear (宁愿重构也不要打补丁). If a test fails, fix the code, not the test — the narrow exceptions (a wrong test contract; a test that never carried value) are in [`docs/references/develop-testing.md`](docs/references/develop-testing.md#writing-meaningful-tests-what-to-clean-up--not-write).
 - **Confirm before you fix.** Before touching a reported bug, reproduce it and confirm it actually exists — never fix from assumption. Capture the reproduction, then fix, **in that order** (确定 bug 存在 → 写测试或记录验证证据 → 修复); how to reproduce and what counts as capture are in [`docs/verification.md`](docs/verification.md) and the TDD entry below.
 - **TDD/BDD first, for changes that alter observable behavior.** Write failing tests **before** implementing new or changed behavior, using BDD-style Chinese `describe`/`it` titles. Two narrow exceptions — neither a blanket file/task category — are in [`docs/references/develop-testing.md`](docs/references/develop-testing.md#when-tdd-doesnt-apply). (Runner, mocks, and how to run tests are in `docs/develop.md`.)
-- **SOLID, high cohesion & low coupling — applied to the existing extension points.** `Repo<T>` for new entities, `Group.on(...)` for new messages. Inject `Group` / `IMessageQueue` / DAOs via constructor; don't `new` them inside methods. Depend on narrow interfaces (`IMessageQueue`, not `MessageQueue`).
+- **SOLID, high cohesion & low coupling — applied to the existing extension points.** Pick a persistence backend by matching an existing entity with the same needs, not by defaulting to one pattern: `Repo<T>` backs `chrome.storage.local`, `DAO<T>` backs Dexie/IndexedDB, `OPFSRepo` backs OPFS-stored data, and a custom repository (e.g. `TrashScriptDAO`) is only for cases none of those fit. For messages, use `Group.on(...)`. Context services still take `Group` / `IMessageQueue` / DAOs via constructor injection; the Agent subsystem also mixes in plain core modules and service-worker composition with narrower injected interfaces — don't force every new class into the same constructor shape. Depend on narrow interfaces (`IMessageQueue`, not `MessageQueue`).
 - **Direct replacement over adapter sandwiches.** When swapping a backend/library, replace in place — no `interface Foo + LegacyImpl + NewImpl` unless both must coexist at runtime.
-- **Scope discipline — stay in your lane.** Bug fix ≠ cleanup PR. Touch only the files the task requires; leave unrelated files untouched (不要动和任务不相干的文件). Don't add helpers, abstractions, validation, or backwards-compat shims you don't need today. Three similar lines beats a premature abstraction.
+- **Scope discipline — stay in your lane.** Bug fix ≠ cleanup PR. Touch only the files the task requires; leave unrelated files untouched (不要动和任务不相干的文件). Don't add helpers, abstractions, validation, or backwards-compat shims you don't need today. Three similar lines beats a premature abstraction. Don't remove or narrow currently supported behavior just to simplify a fix — only do so when the task or an already-verified contract explicitly calls for that change.
 - **No dead code or `// removed` markers** — git remembers. Delete unused code outright.
 
 ## Architecture
@@ -92,9 +94,10 @@ Execution paths: page scripts → `chrome.userScripts`; background → SW → Of
 `ExtensionMessage` (chrome.runtime — SW ↔ Content / Inject / Offscreen), `WindowMessage` (postMessage — Offscreen ↔ Sandbox), `ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage` — SW → Offscreen on Chrome), `CustomEventMessage` (CustomEvent — Content ↔ Inject), `MessageQueue` (cross-context broadcast).
 
 ### Service & Data Layers
-- Services in `src/app/service/<context>/` — split by execution context. Constructor-injected `Group`, `IMessageQueue`, DAOs.
-- DAOs in `src/app/repo/` extend `Repo<T>` (chrome.storage + cache): `ScriptDAO`, `ValueDAO`, `ResourceDAO`, `PermissionDAO`, `SubscribeDAO`.
-- **GM API** split across content / SW / offscreen, each a `GMApi` (content built on `GM_Base`; SW — permission verify, cross-origin; offscreen — DOM-dependent background-script APIs); values via `ValueService`.
+- Services live under `src/app/service/` as **context services** (`content/`, `offscreen/`, `sandbox/`, `service_worker/` — split by execution context, constructor-injected `Group`/`IMessageQueue`/DAOs) plus **cross-cutting subsystems** (`agent/` — see below; `extension/`; `queue.ts`). Full inventory and the "adding a service" recipe: [`docs/references/architecture-services.md`](docs/references/architecture-services.md).
+- Persistence is a small backend taxonomy, not one pattern: `Repo<T>` (`chrome.storage.local`), `DAO<T>` (Dexie/IndexedDB), `OPFSRepo` (OPFS-backed data), and a few custom repositories where none of those fit. Full inventory and the entity-decision recipe: [`docs/references/architecture-data.md`](docs/references/architecture-data.md).
+- **GM API** split across content / SW / offscreen, each a `GMApi` (content built on `GM_Base`; SW — permission verify, cross-origin; offscreen — DOM-dependent background-script APIs); values via `ValueService`. Adding a new GM API: [`docs/references/architecture-gm-api.md`](docs/references/architecture-gm-api.md).
+- **Agent subsystem** (`src/app/service/agent/`) is an AI-agent layer spanning the existing five runtime contexts, not a sixth context: `core/` (provider-agnostic tool loop, model context, tool registry), `service_worker/` (chat/task/skill/MCP services, composed into `ServiceWorkerManager`), plus content-side CAT/GM API and offscreen/sandbox delegation for skill-script execution. Details: [`docs/architecture.md`](docs/architecture.md).
 
 ### Browser Extension APIs (MV3)
 `chrome.userScripts` (page injection), Offscreen API (DOM in background), Declarative Net Request (intercepts `.user.js` URLs to trigger install flow).

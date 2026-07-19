@@ -2,24 +2,34 @@
 
 ## The Service Layer
 
-Services live under `src/app/service/<context>/` — **split by the context they run in** — and hold the domain
-logic. They are deliberately "dumb plumbing on the outside, smart logic on the inside": construction is pure DI,
-wiring happens once in a manager, and message handlers are registered in `init()`.
+`src/app/service/` holds two kinds of things, not one uniform pattern:
+
+- **Context services** — `content/`, `offscreen/`, `sandbox/`, `service_worker/` — split by the runtime context
+  they execute in. They are deliberately "dumb plumbing on the outside, smart logic on the inside": construction
+  is pure DI, wiring happens once in a manager, and message handlers are registered in `init()`.
+- **Cross-cutting subsystems** — `agent/` (see [`architecture-agent.md`](./architecture-agent.md); spans all
+  five contexts rather than living in one) and `extension/` (extension-wide environment helpers, e.g.
+  `extension_env.ts`) — plus `queue.ts` (the shared `MessageQueue` wiring used across contexts).
 
 ```
 src/app/service/
-├── service_worker/   script.ts · value.ts · resource.ts · runtime.ts · popup.ts · subscribe.ts
-│                     synchronize.ts · system.ts · permission_verify.ts · clipboard.ts · download.ts
-│                     gm_api/ (SW-side GM handlers) · index.ts (ServiceWorkerManager)
+├── agent/            cross-cutting: core/ (provider-agnostic) + service_worker/ (composed services) —
+│                     see architecture-agent.md
+├── extension/         extension_env.ts (cross-cutting environment helpers)
+├── queue.ts           shared MessageQueue wiring
+├── service_worker/    representative entry points: script.ts · value.ts · resource.ts · runtime.ts ·
+│                      popup.ts · subscribe.ts · synchronize.ts · system.ts · permission_verify.ts ·
+│                      clipboard.ts · download.ts · gm_api/ (SW-side GM handlers) · index.ts (ServiceWorkerManager)
+│                      — for the exact current set, run `git ls-tree --name-only HEAD src/app/service/service_worker/`
 ├── content/          script_runtime.ts · script_executor.ts · exec_script.ts · create_context.ts · gm_api/
-├── offscreen/        background-script runner, gm_api, event_page_manager.ts
+├── offscreen/        background-script runner, gm_api.ts, event_page_manager.ts, html_extractor.ts
 └── sandbox/          runtime.ts (background/scheduled eval + cron)
 ```
 
 ### The DI pattern
 
-Every service takes its collaborators through the constructor — never `new`s them internally. A representative
-signature ([`script.ts`](../../src/app/service/service_worker/script.ts)):
+Every context service takes its collaborators through the constructor — never `new`s them internally. A
+representative signature ([`script.ts`](../../src/app/service/service_worker/script.ts)):
 
 ```ts
 class ScriptService {
@@ -71,3 +81,28 @@ value.init(runtime, popup);   // late-bound cross deps resolved after constructi
 The `group("name")` call is what gives each service its action prefix (`resource/*`, `value/*`, `script/*`, …)
 on the single `serviceWorker` `Server`. Other contexts have their own managers (`OffscreenManager`,
 `SandboxManager`, `ScriptRuntime` for content/inject) following the same shape.
+
+### Agent composition is different — by design
+
+The standard `Group` / `IMessageQueue` / DAO constructor triple above applies to context services. The Agent
+subsystem's sub-services (`AgentChatService`, `TaskService`, `SkillService`, `AgentModelService`, `MCPService`,
+etc. — see [`architecture-agent.md`](./architecture-agent.md)) are composed by `AgentService` instead of each
+independently owning a `Group`, and each takes only the narrower interface it actually needs (e.g.
+`AgentModelService` takes a `Group` and its own `AgentModelRepo`; `SubAgentService` takes a small
+`SubAgentOrchestrator` interface). When adding to the Agent subsystem, follow the pattern of the nearest
+existing sub-service rather than the SW context-service triple above.
+
+## Adding a service
+
+First decide what you're adding:
+
+- **A context service** (owned by exactly one of `content/`, `offscreen/`, `sandbox/`, `service_worker/`) —
+  follow the DI pattern and manager wiring above; copy the nearest existing service in that context.
+- **An Agent/core component or cross-cutting subsystem** — copy the nearest existing file under
+  `agent/core/` or `agent/service_worker/` and follow its narrower-interface style (see
+  [`architecture-agent.md`](./architecture-agent.md)), or extend `extension/` for extension-wide environment
+  concerns.
+
+Guessing the wrong shape (e.g. forcing a full `Group`/`IMessageQueue`/DAO constructor onto an Agent
+sub-service) creates an adapter sandwich the codebase doesn't otherwise have — copy the nearest neighbor
+instead of the generic template.

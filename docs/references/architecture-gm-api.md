@@ -56,10 +56,25 @@ work.
 
 ### Adding a GM API (sketch)
 
-1. Add the method to the content `GMApi` with `@GMContext.API({ alias: "GM.foo" })`; for sync APIs return
-   directly, for async ones forward via `sendMessage`/`connect`.
-2. If it needs privilege (network, cookies, tabs), add the handler on the SW `GMApi` with
+1. Add the method to the content `GMApi` with `@GMContext.API({ alias: "GM.foo" })`.
+2. **Pick the transport by shape, not by habit** — check the nearest existing API of the same shape before
+   choosing:
+   - **Single request/reply** (a value lookup, a one-shot action) → `sendMessage`.
+   - **Streaming/progress, a large response, or a persistent bidirectional exchange** (e.g.
+     `GM_xmlhttpRequest`'s chunked response above) → `connect()` (`MessageConnect`).
+3. If it needs privilege (network, cookies, tabs), add the handler on the SW `GMApi`
+   ([`src/app/service/service_worker/gm_api/`](../../src/app/service/service_worker/gm_api)) with
    `@PermissionVerify.API(...)`.
-3. If it needs DOM, route through the offscreen GM API instead.
-4. Register the `@grant` so the linter and the context builder recognize it (see
-   [`packages/eslint`](../../packages/eslint)).
+4. If it needs DOM, route through the offscreen GM API instead:
+   [`src/app/service/offscreen/gm_api.ts`](../../src/app/service/offscreen/gm_api.ts).
+5. Register the `@grant` so the linter and the context builder recognize it — grant/compat data lives in
+   [`packages/eslint/linter-config.ts`](../../packages/eslint/linter-config.ts) (not just "the `eslint` package"
+   generally; that package also ships unrelated compat tables like `compat-headers.js`).
+
+### Agent/CAT API is a separate family
+
+The Agent subsystem's `CAT.agent.*` surface (`src/app/service/content/gm_api/cat_agent.ts` — see
+[`architecture-agent.md`](./architecture-agent.md)) is exposed alongside the traditional GM API but does not
+go through `@GMContext.API`/`@grant`/`@PermissionVerify.API`: it has its own service/permission path. Don't
+fold a new Agent-facing API into the four-step recipe above without first checking whether it's a GM API
+(script-facing, grant-gated) or an Agent API (conversation-facing, its own registration).
