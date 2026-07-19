@@ -129,6 +129,7 @@ beforeEach(() => {
   notify.info.mockClear();
   notify.success.mockClear();
   notify.error.mockClear();
+  notify.warning.mockClear();
 });
 
 afterEach(() => {
@@ -145,36 +146,90 @@ afterEach(() => {
 });
 
 describe("同步分区", () => {
-  it("切换同步删除后立即写入配置", async () => {
-    mockCloudSync({ syncDelete: false });
+  it("启用时切换同步删除会立即写入并保留启用状态", async () => {
+    mockCloudSync({ enable: true, syncDelete: false });
     render(<SyncSection register={() => () => {}} />);
     fireEvent.click(await screen.findByTestId("cloud_sync_sync_delete"));
-    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ syncDelete: true }));
+    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ enable: true, syncDelete: true }));
+    expect(notify.info).not.toHaveBeenCalledWith("settings:cloud_sync_connection_changed");
   });
 
-  it("切换同步状态后立即写入配置", async () => {
-    mockCloudSync({ syncStatus: true });
+  it("启用时切换同步状态会立即写入并保留启用状态", async () => {
+    mockCloudSync({ enable: true, syncStatus: true });
     render(<SyncSection register={() => () => {}} />);
     fireEvent.click(await screen.findByTestId("cloud_sync_sync_status"));
-    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ syncStatus: false }));
+    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ enable: true, syncStatus: false }));
+    expect(notify.info).not.toHaveBeenCalledWith("settings:cloud_sync_connection_changed");
   });
 
-  it("编辑文件系统参数后立即写入配置", async () => {
-    mockCloudSync({ params: { webdav: { url: "" } } });
+  it("启用时编辑 WebDAV 参数会在一次写入中保存新参数并暂停同步", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "" } } });
     render(<SyncSection register={() => () => {}} />);
     fireEvent.change(await screen.findByLabelText("url"), { target: { value: "https://dav.example.com" } });
+    expect(set).toHaveBeenCalledTimes(1);
     expect(set).toHaveBeenCalledWith(
       "cloud_sync",
-      expect.objectContaining({ params: { webdav: { url: "https://dav.example.com" } } })
+      expect.objectContaining({
+        enable: false,
+        params: { webdav: { url: "https://dav.example.com" } },
+      })
     );
+    expect(notify.info).toHaveBeenCalledTimes(1);
+    expect(notify.info).toHaveBeenCalledWith("settings:cloud_sync_connection_changed");
+    expect(screen.getByTestId("cloud_sync_enable")).toHaveAttribute("data-state", "unchecked");
   });
 
-  it("切换文件系统类型后立即写入配置", async () => {
-    mockCloudSync();
+  it("启用时切换文件系统会在一次写入中保存新类型并暂停同步", async () => {
+    mockCloudSync({ enable: true });
     render(<SyncSection register={() => () => {}} />);
     fireEvent.click(await screen.findByTestId("filesystem_type"));
     fireEvent.click(await screen.findByText("Amazon S3"));
-    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ filesystem: "s3" }));
+    expect(set).toHaveBeenCalledTimes(1);
+    expect(set).toHaveBeenCalledWith("cloud_sync", expect.objectContaining({ enable: false, filesystem: "s3" }));
+    expect(notify.info).toHaveBeenCalledTimes(1);
+    expect(notify.info).toHaveBeenCalledWith("settings:cloud_sync_connection_changed");
+  });
+
+  it("暂停后继续编辑连接参数会正常自动保存且不重复提示", async () => {
+    mockCloudSync({ enable: true, params: { webdav: { url: "" } } });
+    render(<SyncSection register={() => () => {}} />);
+    const url = await screen.findByLabelText("url");
+
+    fireEvent.change(url, { target: { value: "https://d" } });
+    fireEvent.change(url, { target: { value: "https://dav.example.com" } });
+
+    expect(set).toHaveBeenCalledTimes(2);
+    expect(set).toHaveBeenLastCalledWith(
+      "cloud_sync",
+      expect.objectContaining({
+        enable: false,
+        params: { webdav: { url: "https://dav.example.com" } },
+      })
+    );
+    expect(notify.info).toHaveBeenCalledTimes(1);
+    expect(notify.info).toHaveBeenCalledWith("settings:cloud_sync_connection_changed");
+  });
+
+  it("连接配置自动暂停后必须重新校验才能启用", async () => {
+    const verification = deferred<object>();
+    create.mockReturnValue(verification.promise);
+    mockCloudSync({ enable: true, params: { webdav: { url: "https://old.example.com" } } });
+    render(<SyncSection register={() => () => {}} />);
+
+    fireEvent.change(await screen.findByLabelText("url"), { target: { value: "https://new.example.com" } });
+    set.mockClear();
+    fireEvent.click(screen.getByTestId("cloud_sync_enable"));
+
+    expect(create).toHaveBeenCalledWith("webdav", { url: "https://new.example.com" });
+    expect(set).not.toHaveBeenCalled();
+    await act(async () => verification.resolve({}));
+    expect(set).toHaveBeenCalledWith(
+      "cloud_sync",
+      expect.objectContaining({
+        enable: true,
+        params: { webdav: { url: "https://new.example.com" } },
+      })
+    );
   });
 
   it("开启同步时显示校验状态且校验成功后才保存启用", async () => {

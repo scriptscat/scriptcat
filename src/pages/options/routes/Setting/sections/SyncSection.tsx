@@ -68,6 +68,17 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
     setConfig(updated);
   };
 
+  const patchConnection = (next: Partial<Pick<CloudSyncConfig, "filesystem" | "params">>) => {
+    if (!config) return;
+    cancelVerification();
+    const shouldPause = config.enable;
+    const updated = { ...config, ...next, enable: shouldPause ? false : config.enable };
+    setConfig(updated);
+    if (shouldPause) {
+      notify.info(t("settings:cloud_sync_connection_changed"));
+    }
+  };
+
   const toggleEnable = async (enable: boolean) => {
     if (!config) return;
 
@@ -223,9 +234,9 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
               }
               fileSystemType={config.filesystem}
               fileSystemParams={config.params[config.filesystem] || {}}
-              onChangeFileSystemType={(type) => patch({ filesystem: type })}
+              onChangeFileSystemType={(type) => patchConnection({ filesystem: type })}
               onChangeFileSystemParams={(params) =>
-                patch({ params: { ...config.params, [config.filesystem]: params } })
+                patchConnection({ params: { ...config.params, [config.filesystem]: params } })
               }
             >
               <Button

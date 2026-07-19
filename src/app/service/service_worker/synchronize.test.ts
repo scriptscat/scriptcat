@@ -2454,6 +2454,142 @@ console.log("ok");`
     expect(buildSpy).not.toHaveBeenCalled();
   });
 
+  describe("云同步配置变更调度", () => {
+    const alarmGet = vi.fn();
+    const alarmCreate = vi.fn();
+    const alarmClear = vi.fn();
+
+    const createService = () => {
+      const systemConfig = {
+        setCloudSync: vi.fn(),
+      };
+      const service = new SynchronizeService(
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        {} as any,
+        systemConfig as any,
+        {
+          scriptCodeDAO: {},
+          all: vi.fn().mockResolvedValue([]),
+        } as any
+      );
+      const fs = createFs();
+      const buildFileSystem = vi.spyOn(service, "buildFileSystem").mockResolvedValue(fs);
+      const syncOnce = vi.spyOn(service, "syncOnce").mockResolvedValue(undefined);
+      return { service, systemConfig, fs, buildFileSystem, syncOnce };
+    };
+
+    beforeEach(() => {
+      alarmGet.mockImplementation((_name: string, callback: (alarm?: chrome.alarms.Alarm) => void) => callback());
+      alarmCreate.mockImplementation((_name: string, _info: chrome.alarms.AlarmCreateInfo, callback?: () => void) =>
+        callback?.()
+      );
+      alarmClear.mockImplementation((_name: string, callback?: (wasCleared: boolean) => void) => callback?.(true));
+      (chrome as any).alarms = {
+        get: alarmGet,
+        create: alarmCreate,
+        clear: alarmClear,
+      };
+    });
+
+    it("启动时配置已启用会同步一次并确保小时闹钟存在", async () => {
+      const { service, buildFileSystem, syncOnce } = createService();
+
+      service.cloudSyncConfigChange(syncConfig, undefined);
+      await flushMicrotasks();
+
+      expect(buildFileSystem).toHaveBeenCalledTimes(1);
+      expect(syncOnce).toHaveBeenCalledTimes(1);
+      expect(alarmGet).toHaveBeenCalledWith("cloudSync", expect.any(Function));
+      expect(alarmCreate).toHaveBeenCalledWith("cloudSync", { periodInMinutes: 60 }, expect.any(Function));
+    });
+
+    it("从关闭到启用会同步一次并确保小时闹钟存在", async () => {
+      const { service, buildFileSystem, syncOnce } = createService();
+      const disabled = { ...syncConfig, enable: false };
+
+      service.cloudSyncConfigChange(syncConfig, disabled);
+      await flushMicrotasks();
+
+      expect(buildFileSystem).toHaveBeenCalledTimes(1);
+      expect(syncOnce).toHaveBeenCalledTimes(1);
+      expect(alarmGet).toHaveBeenCalledTimes(1);
+    });
+
+    it("从启用到关闭只清除小时闹钟", async () => {
+      const { service, buildFileSystem, syncOnce } = createService();
+
+      service.cloudSyncConfigChange({ ...syncConfig, enable: false }, syncConfig);
+      await flushMicrotasks();
+
+      expect(alarmClear).toHaveBeenCalledWith("cloudSync");
+      expect(buildFileSystem).not.toHaveBeenCalled();
+      expect(syncOnce).not.toHaveBeenCalled();
+    });
+
+    it("启用时只修改同步策略不会立即执行全量同步", async () => {
+      const { service, buildFileSystem, syncOnce } = createService();
+
+      service.cloudSyncConfigChange({ ...syncConfig, syncDelete: !syncConfig.syncDelete }, syncConfig);
+      await flushMicrotasks();
+
+      expect(buildFileSystem).not.toHaveBeenCalled();
+      expect(syncOnce).not.toHaveBeenCalled();
+      expect(alarmGet).not.toHaveBeenCalled();
+      expect(alarmClear).not.toHaveBeenCalled();
+    });
+
+    it("等价配置的重复写入不会触发任何动作", async () => {
+      const { service, buildFileSystem, syncOnce } = createService();
+      const previous = {
+        ...syncConfig,
+        params: { webdav: { username: "cat", url: "https://dav.example.com" } },
+      };
+      const equivalent = {
+        ...syncConfig,
+        params: { webdav: { url: "https://dav.example.com", username: "cat" } },
+      };
+
+      service.cloudSyncConfigChange(equivalent, previous);
+      await flushMicrotasks();
+
+      expect(buildFileSystem).not.toHaveBeenCalled();
+      expect(syncOnce).not.toHaveBeenCalled();
+      expect(alarmGet).not.toHaveBeenCalled();
+      expect(alarmClear).not.toHaveBeenCalled();
+    });
+
+    it("外部写入未提供旧值的启用连接变更也会被防御性暂停且不触发同步", async () => {
+      const { service, systemConfig, buildFileSystem, syncOnce } = createService();
+      const previous = {
+        ...syncConfig,
+        params: { webdav: { url: "https://old.example.com" } },
+      };
+      const changed = {
+        ...syncConfig,
+        params: { webdav: { url: "https://new.example.com" } },
+      };
+
+      service.cloudSyncConfigChange(previous, undefined);
+      await flushMicrotasks();
+      buildFileSystem.mockClear();
+      syncOnce.mockClear();
+      alarmGet.mockClear();
+      alarmCreate.mockClear();
+
+      service.cloudSyncConfigChange(changed, undefined);
+      await flushMicrotasks();
+
+      expect(systemConfig.setCloudSync).toHaveBeenCalledWith({ ...changed, enable: false });
+      expect(alarmClear).toHaveBeenCalledWith("cloudSync");
+      expect(buildFileSystem).not.toHaveBeenCalled();
+      expect(syncOnce).not.toHaveBeenCalled();
+    });
+  });
+
   it("cloudSyncConfigChange swallows buildFileSystem error", async () => {
     const service = new SynchronizeService(
       {} as any,
