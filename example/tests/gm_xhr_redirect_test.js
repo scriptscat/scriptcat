@@ -131,8 +131,9 @@ const enableTool = true;
       async run(fetch) {
         const { res } = await gmRequest({ method: "GET", url: `${HB}/get?testing=234&abc=567`, responseType: "json", fetch });
         assertEq(res.status, 200, "status 200");
-        assertEq(res.response?.args?.testing, "234", "response ok");
-        assertEq(res.response?.args?.abc, "567", "response ok");
+        // httpbingo.org echoes query args as arrays (Go's url.Values shape).
+        assertEq(res.response?.args?.testing?.[0], "234", "response ok");
+        assertEq(res.response?.args?.abc?.[0], "567", "response ok");
         assertEq(res.response?.url, `${HB}/get?testing=234&abc=567`, "response ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -142,8 +143,8 @@ const enableTool = true;
       async run(fetch) {
         const { res } = await gmRequest({ method: "GET", url: `${HB}/get?abc=567&testing=234`, responseType: "json", fetch });
         assertEq(res.status, 200, "status 200");
-        assertEq(res.response?.args?.testing, "234", "response ok");
-        assertEq(res.response?.args?.abc, "567", "response ok");
+        assertEq(res.response?.args?.testing?.[0], "234", "response ok");
+        assertEq(res.response?.args?.abc?.[0], "567", "response ok");
         assertEq(res.response?.url, `${HB}/get?abc=567&testing=234`, "response ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
