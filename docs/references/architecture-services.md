@@ -5,8 +5,10 @@
 `src/app/service/` holds two kinds of things, not one uniform pattern:
 
 - **Context services** — `content/`, `offscreen/`, `sandbox/`, `service_worker/` — split by the runtime context
-  they execute in. They are deliberately "dumb plumbing on the outside, smart logic on the inside": construction
-  is pure DI, wiring happens once in a manager, and message handlers are registered in `init()`.
+  they execute in. Shared or externally-owned collaborators (other services, the message `Group`, DAOs another
+  service also needs) are typically constructor-injected; whether a service also constructs its own *local*
+  DAO/helper internally varies per service — see below. Manager-level wiring happens once, and message
+  handlers/cross-service subscriptions are registered in `init()`.
 - **Cross-cutting subsystems** — `agent/` (see [`architecture-agent.md`](./architecture-agent.md); spans all
   five contexts rather than living in one) and `extension/` (extension-wide environment helpers, e.g.
   `extension_env.ts`) — plus `queue.ts` (the shared `MessageQueue` wiring used across contexts).
@@ -26,10 +28,11 @@ src/app/service/
 └── sandbox/          runtime.ts (background/scheduled eval + cron)
 ```
 
-### The DI pattern
+### The DI pattern — and its real variance
 
-Every context service takes its collaborators through the constructor — never `new`s them internally. A
-representative signature ([`script.ts`](../../src/app/service/service_worker/script.ts)):
+Shared collaborators (the `Group`, `IMessageQueue`, another service, a DAO owned elsewhere) come in through the
+constructor rather than being reached for via a singleton/import. A representative signature
+([`script.ts`](../../src/app/service/service_worker/script.ts)):
 
 ```ts
 class ScriptService {
@@ -51,11 +54,24 @@ class ScriptService {
 }
 ```
 
-Two consequences worth internalizing:
+But **don't over-read this as "never `new` internally, constructor never does work"** — several services break
+both of those:
 
-- **Depend on narrow interfaces** (`IMessageQueue`, not `MessageQueue`) so tests can pass `MockMessage`.
-- **No work in the constructor.** Handler registration and subscriptions belong in `init()`, called by the
-  manager after the whole graph is built (this avoids ordering hazards between mutually dependent services).
+- [`ResourceService`](../../src/app/service/service_worker/resource.ts) constructs its own `ResourceDAO` as a
+  field initializer (`resourceDAO: ResourceDAO = new ResourceDAO()`) and does real setup in the constructor
+  body (`this.logger = LoggerCore.logger().with(...)`, `this.resourceDAO.enableCache()`).
+- [`SubscribeService`](../../src/app/service/service_worker/subscribe.ts) likewise self-constructs
+  `SubscribeDAO` and `ScriptDAO` as field initializers, alongside constructor-injecting `Group`, `mq`, and
+  `ScriptService`.
+
+The actual rule: a DAO/helper that's **local to one service** and nobody else needs is fine to construct
+internally; a DAO/service that's **shared across services** (like the `scriptDAO` passed into `ScriptService`
+above) gets injected so every owner points at the same instance and tests can substitute it. `init()` is where
+handler registration, cross-service subscriptions, and any wiring that depends on the *whole* object graph
+being built go — not a blanket "no work in the constructor" rule; a constructor doing local, self-contained
+setup (logger, own-DAO cache flag) is normal. Depend on narrow interfaces (`IMessageQueue`, not
+`MessageQueue`) so tests can pass `MockMessage`. Check the nearest existing service before assuming either
+extreme.
 
 ### Wiring: `ServiceWorkerManager`
 
@@ -84,11 +100,11 @@ on the single `serviceWorker` `Server`. Other contexts have their own managers (
 
 ### Agent composition is different — by design
 
-Context services take their collaborators through the constructor and register handlers in `init()` (the DI
-pattern above), but the *exact* dependency set still varies per service — `ResourceService` takes only
-`(Group, mq)`, `PopupService` takes `(Group, mq, runtime, scriptDAO, systemConfig)` — so "`Group` +
-`IMessageQueue` + DAOs" is a shorthand for "constructor-injected, no internal `new`," not a fixed parameter
-list to copy verbatim. The Agent subsystem's sub-services (`ChatService`, `AgentTaskService`, `SkillService`,
+Context services take *shared* collaborators through the constructor and register handlers in `init()` (the DI
+pattern above), but the exact dependency set — and whether a service also self-constructs a local DAO/helper —
+varies per service (see the `ResourceService`/`SubscribeService` examples above); "`Group` + `IMessageQueue` +
+DAOs" is shorthand for "shared collaborators come in via constructor," not a fixed parameter list or a ban on
+any internal construction. The Agent subsystem's sub-services (`ChatService`, `AgentTaskService`, `SkillService`,
 `AgentModelService`, `MCPService`, etc. — see [`architecture-agent.md`](./architecture-agent.md)) are composed
 by `AgentService` instead of each independently owning a `Group`, and each takes only the narrower interface
 it actually needs (e.g. `AgentModelService` takes a `Group` and its own `AgentModelRepo`; `SubAgentService`
