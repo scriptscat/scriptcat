@@ -30,6 +30,9 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 > current, no duplication) and every claim factually true against the current branch (*if you can't grep it on
 > this branch, don't claim it*).
 
+> **Before opening or updating a pull request, read [`docs/pull-request.md`](docs/pull-request.md)** — this
+> repo's PR description structure and evidence rules.
+
 > **Doc map:** [`docs/README.md`](docs/README.md) indexes every contributor doc (development, architecture,
 > translation, contributing, localized READMEs).
 
@@ -104,7 +107,3 @@ Execution paths: page scripts → `chrome.userScripts`; background → SW → Of
 > **not** `packages/eslint/`, which is the unrelated userscript lint config) are documented in
 > [`docs/develop.md`](docs/develop.md#eslint-custom-rules): exact rule names, scopes, and which are covered by
 > `eslint-rules/harness.test.mjs`.
-
-## Pull Request Description Format
-
-Detailed PR description guidance lives in [`docs/pull-request.md`](docs/pull-request.md). Start from the human-facing template, preserve its checklist, and expand the description only when the change needs more context. Do not claim human review or other evidence that did not happen.
