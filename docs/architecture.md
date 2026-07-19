@@ -40,9 +40,13 @@ Three ideas explain almost everything in the codebase:
 - **One message layer, several transports.** [`packages/message`](../packages/message) abstracts
   `chrome.runtime`, `postMessage`, and DOM `CustomEvent` behind a single RPC + pub/sub API, so services are
   written against interfaces (`Server`/`Group`/`Client`/`IMessageQueue`), not raw browser APIs.
-- **Services are constructor-injected.** Domain logic lives in services that receive their `Group`,
-  `IMessageQueue`, and DAOs through the constructor and register message handlers in an `init()` method. This
-  is what makes the system testable with the mock message bus.
+- **Domain logic lives in services, wired explicitly.** Shared collaborators (a `Group`, `IMessageQueue`,
+  another service, a DAO owned elsewhere) typically come in through the constructor; message handlers and
+  subscriptions are registered through an explicit lifecycle method — commonly `init()`, though content and
+  Agent code have their own equivalents. The exact dependency set and lifecycle shape vary by service and
+  context — see [service layer](./references/architecture-services.md) for the real variance and the
+  exceptions, rather than assuming one uniform constructor/`init()` template. This explicit-wiring style is
+  what makes the system testable with the mock message bus.
 
 ```
                                 ┌───────────────────────────────────────────────┐

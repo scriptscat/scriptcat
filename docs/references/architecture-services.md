@@ -8,13 +8,22 @@
   they execute in. Shared or externally-owned collaborators (other services, the message `Group`, DAOs another
   service also needs) are typically constructor-injected; whether a service also constructs its own *local*
   DAO/helper internally varies per service — see below. Manager-level wiring happens once, and message
-  handlers/cross-service subscriptions are registered in `init()`.
+  handlers/subscriptions are registered through an explicit lifecycle method — commonly `init()`, but not
+  always: content additionally has `contentInit()` (`ScriptRuntime` registers `runtime/addElement` there,
+  called by the content entry point before `init()`), and Agent code has its own equivalents (see
+  [`architecture-agent.md`](./architecture-agent.md)). Check the specific file, don't assume `init()` is the
+  only place registration happens.
 - **Cross-cutting subsystems** — `agent/` (see [`architecture-agent.md`](./architecture-agent.md); spans all
   five contexts rather than living in one) and `extension/` (extension-wide environment helpers, e.g.
   `extension_env.ts`) — plus `queue.ts` (shared `MessageQueue` **payload/type** definitions, e.g.
   `TInstallScript`, `TDeleteScript` — not the `MessageQueue` implementation itself, which lives in
-  [`packages/message/message_queue.ts`](../../packages/message/message_queue.ts) and is instantiated per
-  entry point/manager).
+  [`packages/message/message_queue.ts`](../../packages/message/message_queue.ts) and is instantiated by the
+  contexts that actually need pub/sub — currently Service Worker
+  ([`src/service_worker.ts`](../../src/service_worker.ts)), Offscreen
+  ([`src/app/service/offscreen/base.ts`](../../src/app/service/offscreen/base.ts)), and UI pages subscribing
+  to broadcasts ([`src/pages/store/global.ts`](../../src/pages/store/global.ts)) — not content, inject, or
+  sandbox, which don't instantiate it. Run `git grep -n "new MessageQueue" -- src packages` for the current
+  set rather than trusting this list to stay exhaustive.
 
 ```
 src/app/service/
@@ -77,10 +86,12 @@ break both of those:
 
 **There is no "shared DAO type ⇒ same instance" invariant to rely on.** `ScriptService` builds its own
 `SubscribeDAO`; `SubscribeService` builds a *separate* `SubscribeDAO` instance, and its own `ScriptDAO` rather
-than reusing the `scriptDAO` the manager passes to `ScriptService`/`RuntimeService`/`PopupService`. Whether a
-given service injects a shared instance or builds its own is decided case by case — by caching needs, lifetime,
-and whether tests need to substitute it — not by a rule you can apply mechanically. Check the nearest existing
-service for the pattern it actually uses before assuming either "always inject" or "always self-construct."
+than reusing the `scriptDAO` the manager passes to `ScriptService`/`RuntimeService`/`PopupService`. The
+existing choices are case-by-case, not governed by one rule — don't assume either "always inject" or "always
+self-construct." When you're deciding for a new service, weigh cache ownership (does another service need the
+same in-memory cache state?), lifetime (does it need to outlive this service?), and test substitution (does a
+test need to swap it for a fake?) — but that's design guidance for your decision, not a documented reason
+behind each existing instance; check the nearest existing service for the pattern it actually uses.
 
 **`MockMessage` is not an `IMessageQueue` substitute.** It implements the lower-level `Message` transport
 (used to build a `Server`/`Group` for RPC in tests, e.g. `new Server("test", new MockMessage(...))`); the
@@ -126,11 +137,12 @@ it mirrors `ServiceWorkerManager`.
 
 ### Agent composition is different — by design
 
-Context services take *shared* collaborators through the constructor and register handlers in `init()` (the DI
-pattern above), but the exact dependency set — and whether a service also self-constructs a local DAO/helper —
-varies per service (see the `ResourceService`/`SubscribeService` examples above); "`Group` + `IMessageQueue` +
-DAOs" is shorthand for "shared collaborators come in via constructor," not a fixed parameter list or a ban on
-any internal construction. The Agent subsystem's sub-services (`ChatService`, `AgentTaskService`, `SkillService`,
+Context services take *shared* collaborators through the constructor and register handlers through an explicit
+lifecycle method (the DI pattern above — commonly `init()`, sometimes another one like content's
+`contentInit()`), but the exact dependency set — and whether a service also self-constructs a local
+DAO/helper — varies per service (see the `ResourceService`/`SubscribeService` examples above); "`Group` +
+`IMessageQueue` + DAOs" is shorthand for "shared collaborators come in via constructor," not a fixed parameter
+list or a ban on any internal construction. The Agent subsystem's sub-services (`ChatService`, `AgentTaskService`, `SkillService`,
 `AgentModelService`, `MCPService`, etc. — see [`architecture-agent.md`](./architecture-agent.md)) are composed
 by `AgentService` instead of each independently owning a `Group`, and each takes only the narrower interface
 it actually needs (e.g. `AgentModelService` takes a `Group` and its own `AgentModelRepo`; `SubAgentService`
