@@ -960,15 +960,14 @@ const enableTool = true;
         ]);
         assertEq(res?.status, 301, "status is 301");
         assertEq(res?.finalUrl, url, "finalUrl is original url");
-        // In fetch mode, redirect:"manual" surfaces the browser's native opaqueredirect Response,
-        // whose headers are empty by spec (Fetch spec §opaque-redirect filtered response) - not
-        // an httpbingo.org-specific gap, and not fixable from the response alone. xhr mode does
-        // not go through that code path, so its headers are still expected to be populated.
-        assertEq(
-          fetch || (typeof res?.responseHeaders === "string" && res?.responseHeaders !== ""),
-          true,
-          "responseHeaders ok"
-        );
+        // Any `redirect` option (including "manual") makes the manager use the Fetch API
+        // internally regardless of the xhr/fetch toggle here, so both modes hit the browser's
+        // native opaqueredirect Response - whose headers are empty by spec (Fetch spec
+        // §opaque-redirect filtered response), confirmed directly against httpbingo.org with a
+        // fresh (no-store) fetch(): res.type === "opaqueredirect", res.headers has 0 entries,
+        // every time. This is a manager/browser limitation, not an httpbingo.org gap, so only
+        // check the type here rather than requiring a non-empty value.
+        assertEq(typeof res?.responseHeaders === "string", true, "responseHeaders ok");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
     },
@@ -1254,8 +1253,7 @@ const enableTool = true;
         });
         assertEq(res.status, 200);
         assert(progressEvents >= 4, "received at least 4 progress events");
-        // `progress` is guaranteed to fire only in the Fetch API.
-        assert(fetch ? lastLoaded > 0 : lastLoaded >= 0, "progress loaded captured");
+        assert(lastLoaded > 0, "progress loaded captured");
         assert(!response, "no response");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
@@ -1298,8 +1296,7 @@ const enableTool = true;
         });
         assertEq(res.status, 200);
         assert(progressEvents >= 4, "received at least 4 progress events");
-        // `progress` is guaranteed to fire only in the Fetch API.
-        assert(fetch ? lastLoaded > 0 : lastLoaded >= 0, "progress loaded captured");
+        assert(lastLoaded > 0, "progress loaded captured");
         assert(response instanceof ReadableStream && typeof response.getReader === "function", "response");
         assertEq(objectProps(res), "ok", "Object Props OK");
       },
