@@ -104,14 +104,24 @@ The Agent subsystem does not use one persistence pattern; pick by data shape, ma
   recipe used for GM grants.
 - **DOM automation** runs from the service worker through a single `AgentDomService` (`dom.ts`), which handles
   every action (`navigate`, `readPage`, `screenshot`, `click`, `fill`, `scroll`, `waitFor`, `executeScript`,
-  tab monitoring). Navigation and tab bookkeeping always go through `chrome.tabs` (`navigate`, `update`,
-  `create`, `query`), independent of mode. For `click`/`fill`/`screenshot`/monitoring, `AgentDomService` picks
-  between two implementations: default mode drives them via `chrome.scripting.executeScript`, while "trusted"
-  mode delegates to CDP helpers imported from `dom_cdp.ts` (`cdpClick`, `cdpFill`, `cdpScreenshot`,
-  `cdpStartMonitor`/`cdpStopMonitor`/`cdpPeekMonitor`) for real synthetic input (`isTrusted: true`) via
-  `chrome.debugger`. CDP attaches the debugger to a tab and carries the extra permission/user-visible-banner
-  implications that come with `chrome.debugger` — `dom_cdp.ts` is a helper module `dom.ts` calls into, not an
-  independent service with its own request path.
+  tab monitoring) and delegates to CDP helpers imported from `dom_cdp.ts` (`cdpClick`, `cdpFill`,
+  `cdpScreenshot`, `cdpStartMonitor`/`cdpStopMonitor`/`cdpPeekMonitor`) where it needs `chrome.debugger`.
+  `dom_cdp.ts` is a helper module `dom.ts` calls into, not an independent service with its own request path.
+  The default-vs-trusted split is **not uniform across actions** — check each one:
+  - **Navigation and tab bookkeeping** (`navigate`, `update`, `create`, `query`) always go through
+    `chrome.tabs`, never CDP.
+  - **`click`/`fill`** genuinely branch on the caller's `trusted` option: default mode drives them via
+    `chrome.scripting.executeScript`, "trusted" mode delegates to CDP for real synthetic input
+    (`isTrusted: true`), falling back to the non-trusted path if the CDP call fails.
+  - **`screenshot`** has its own logic independent of any `trusted` flag: a `selector`-scoped capture always
+    uses CDP; a background (non-active) tab tries CDP first and falls back to `chrome.tabs.captureVisibleTab`
+    on failure; an active tab with no selector uses `chrome.tabs.captureVisibleTab` directly.
+  - **Tab monitoring** (`startMonitor`/`stopMonitor`/`peekMonitor`) is unconditionally CDP-based — there is no
+    non-CDP path for it at all.
+
+  CDP attaches the debugger to a tab and carries the extra permission/user-visible-banner implications that
+  come with `chrome.debugger`; how often that applies depends on which action you're looking at, not a single
+  binary "default vs. trusted mode" switch.
 - **OPFS access** is dispatched by caller: `AgentOPFSService.handleOPFSApi` checks whether the request has a
   `sender` (content script, no Blob support) or came over `postMessage` (offscreen, Blob support) and adjusts
   behavior accordingly, rather than assuming one execution context.

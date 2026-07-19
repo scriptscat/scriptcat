@@ -169,10 +169,11 @@ READMEs, a newly added `docs/references/*.md`):
 
 ```bash
 git ls-files '*.md' | while IFS= read -r doc; do
-  # the sed pipeline drops fenced code blocks and inline code spans first, so illustrative sample
-  # links inside ```md snippets or `single-backtick` text (e.g. references/verification-report-template.md's
-  # screenshot/resource examples, verification.md's "Evidence location" spans) aren't false-flagged as broken
-  sed '/^```/,/^```/d' "$doc" | sed -E 's/`[^`]*`//g' | grep -oE '\]\(([^)]+)\)' | sed -E 's/^\]\(|\)$//g' | grep -vE '^https?:|^#' | while IFS= read -r link; do
+  # the sed pipeline drops fenced code blocks (``` and ~~~) and inline code spans first, so illustrative
+  # sample links inside ```md/~~~md snippets or `single-backtick` text (e.g.
+  # references/verification-report-template.md's screenshot/resource examples, verification.md's
+  # "Evidence location" spans) aren't false-flagged as broken
+  sed '/^```/,/^```/d; /^~~~/,/^~~~/d' "$doc" | sed -E 's/`[^`]*`//g' | grep -oE '\]\(([^)]+)\)' | sed -E 's/^\]\(|\)$//g' | grep -vE '^(https?:|mailto:|#|app:)' | while IFS= read -r link; do
     target="$(dirname "$doc")/${link%%#*}"
     [ -e "$target" ] && echo "ok     $doc → $link" || echo "BROKEN $doc → $link"
   done
