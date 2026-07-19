@@ -12,7 +12,10 @@ budget at once. Chrome APIs are mocked via
 `@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` is available for message-system tests.
 `happy-dom` is patched via `patches/` (see `pnpm-workspace.yaml` `patchedDependencies`) to build its
 invalid-selector `DOMException` lazily — the upstream eager construction captures a deep stack on every
-`matches()`/`querySelector()` call and costs ~15% of TSX suite time.
+`matches()`/`querySelector()` call, which is measurably slower at TSX-suite scale. No specific percentage is
+tracked here since it isn't tied to a reproducible command/environment; if you need a number, measure
+before/after this patch in the same environment using the JSON-report method below rather than trusting a
+historical figure.
 
 - Co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
 - BDD-style Chinese `describe`/`it` titles. Use `describe.concurrent()` / `it.concurrent()` where independent.

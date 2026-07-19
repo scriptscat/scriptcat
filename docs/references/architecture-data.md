@@ -15,8 +15,6 @@ needs (see [Adding an entity](#adding-an-entity) below), not by defaulting to `R
 
 ### `Repo<T>`
 
-### `Repo<T>`
-
 ```ts
 export abstract class Repo<T> {
   useCache = false;

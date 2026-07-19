@@ -93,7 +93,7 @@ of sanitization patterns can otherwise look like matches — so don't rely on a 
 | [`pull-request.md`](./pull-request.md) | Detailed PR description structure and guidance for agents and contributors; the human-facing template remains lightweight. |
 | [`design.md`](./design.md) | The design system: theme mechanism, shadcn component selection, new-page recipe; tokens split to [`references/design-tokens.md`](./references/design-tokens.md), component palette to [`references/design-components.md`](./references/design-components.md), layout/motion/state/a11y patterns to [`references/design-patterns.md`](./references/design-patterns.md). |
 | [`verification.md`](./verification.md) | Lightweight end-to-end functional verification — throwaway scratch scripts driving the real built extension; report template split to [`references/verification-report-template.md`](./references/verification-report-template.md), debugging FAQ to [`references/verification-debugging.md`](./references/verification-debugging.md). |
-| [`architecture.md`](./architecture.md) | Deep internals: process model, message passing; subsystem deep-dives split to [`references/architecture-services.md`](./references/architecture-services.md), [`references/architecture-data.md`](./references/architecture-data.md), [`references/architecture-gm-api.md`](./references/architecture-gm-api.md), [`references/architecture-execution.md`](./references/architecture-execution.md), [`references/architecture-build.md`](./references/architecture-build.md). |
+| [`architecture.md`](./architecture.md) | Deep internals: process model, message passing; subsystem deep-dives split to [`references/architecture-services.md`](./references/architecture-services.md), [`references/architecture-data.md`](./references/architecture-data.md), [`references/architecture-gm-api.md`](./references/architecture-gm-api.md), [`references/architecture-execution.md`](./references/architecture-execution.md), [`references/architecture-build.md`](./references/architecture-build.md), [`references/architecture-agent.md`](./references/architecture-agent.md). |
 | [`cloud-sync.md`](./cloud-sync.md) | Cloud sync internals: sync files, digest/status semantics, provider differences, error classification, retry policy. |
 | [`translation.md`](./translation.md) | Translation / localization single source of truth. |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: doc-set organization rules, fact-check / anti-drift discipline, and policy-consistency checks — for every tracked agent/contributor Markdown file, not just `AGENTS.md` + `docs/*`. |
@@ -163,14 +163,16 @@ echo "== eslint (project rule in eslint-rules/ vs userscript config in packages/
 git ls-files eslint-rules/; git grep -l "require-last-error-check" -- eslint.config.mjs; git ls-files packages/eslint/linter-config.ts
 ```
 
-Link integrity — confirm every relative markdown link in the core docs resolves:
+Link integrity — confirm every relative markdown link resolves, across **every tracked Markdown file**
+(`git ls-files '*.md'`), not a fixed list that silently misses new files (`.github/*.md`, package/source
+READMEs, a newly added `docs/references/*.md`):
 
 ```bash
-for doc in AGENTS.md docs/README.md docs/DOC-MAINTENANCE.md docs/develop.md docs/references/develop-testing.md docs/pull-request.md docs/design.md docs/references/design-tokens.md docs/references/design-components.md docs/references/design-patterns.md docs/architecture.md docs/references/architecture-services.md docs/references/architecture-data.md docs/references/architecture-gm-api.md docs/references/architecture-execution.md docs/references/architecture-build.md docs/verification.md docs/references/verification-debugging.md docs/references/verification-report-template.md docs/cloud-sync.md docs/translation.md; do
+git ls-files '*.md' | while IFS= read -r doc; do
   # the sed pipeline drops fenced code blocks and inline code spans first, so illustrative sample
   # links inside ```md snippets or `single-backtick` text (e.g. references/verification-report-template.md's
   # screenshot/resource examples, verification.md's "Evidence location" spans) aren't false-flagged as broken
-  sed '/^```/,/^```/d' "$doc" | sed -E 's/`[^`]*`//g' | grep -oE '\]\(([^)]+)\)' | sed -E 's/^\]\(|\)$//g' | grep -vE '^https?:|^#' | while read -r link; do
+  sed '/^```/,/^```/d' "$doc" | sed -E 's/`[^`]*`//g' | grep -oE '\]\(([^)]+)\)' | sed -E 's/^\]\(|\)$//g' | grep -vE '^https?:|^#' | while IFS= read -r link; do
     target="$(dirname "$doc")/${link%%#*}"
     [ -e "$target" ] && echo "ok     $doc → $link" || echo "BROKEN $doc → $link"
   done
