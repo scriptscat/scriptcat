@@ -1233,7 +1233,12 @@ const enableTool = true;
           const start = performance.now();
           GM_xmlhttpRequest({
             method: "GET",
-            url: `${HB}/drip?duration=2&delay=1&numbytes=1024`, // ~1KB
+            // Native XMLHttpRequest only surfaces onprogress once the response has accumulated
+            // enough bytes to cross its internal flush threshold (~1KB was observed to fire only
+            // once end-to-end in real Chrome; 2KB reliably produced dozens of events across
+            // repeated runs), unlike the Fetch API's ReadableStream reader, which reports every
+            // chunk as it arrives regardless of size. Use 2KB so both modes clear the >=4 bar.
+            url: `${HB}/drip?duration=2&delay=1&numbytes=2048`, // ~2KB
             responseType: "arraybuffer",
             onprogress: (ev) => {
               progressEvents++;
@@ -1248,12 +1253,7 @@ const enableTool = true;
           });
         });
         assertEq(res.status, 200);
-        // Native XMLHttpRequest coalesces progress events for responseType "arraybuffer" far
-        // more coarsely than the Fetch API's ReadableStream reader does (confirmed identically
-        // in both ScriptCat and Tampermonkey against the real httpbingo.org /drip endpoint,
-        // which does deliver the response progressively at the network level) - only require
-        // >=4 events in fetch mode, and just "fired at least once" for xhr mode.
-        assert(fetch ? progressEvents >= 4 : progressEvents >= 1, "received progress events");
+        assert(progressEvents >= 4, "received at least 4 progress events");
         // `progress` is guaranteed to fire only in the Fetch API.
         assert(fetch ? lastLoaded > 0 : lastLoaded >= 0, "progress loaded captured");
         assert(!response, "no response");
@@ -1271,7 +1271,7 @@ const enableTool = true;
           const start = performance.now();
           GM_xmlhttpRequest({
             method: "GET",
-            url: `${HB}/drip?duration=2&delay=1&numbytes=1024`, // ~1KB
+            url: `${HB}/drip?duration=2&delay=1&numbytes=2048`, // ~2KB, see sibling [arraybuffer] test above
             responseType: "stream",
             onloadstart: async (ev) => {
               const reader = ev.response?.getReader();
