@@ -8,7 +8,12 @@ record content in the user's language. Update it as the run proceeds instead of 
 looks like, not a second section to add. The full template further down has its own `## Evidence Index`
 heading; use that one heading and fill it following this example's shape.
 
-```md
+This record exists so a reader can judge whether the implementation is correct, so **evidence is embedded, not
+linked**: scrolling `report.md` top to bottom should show the pixels and the deciding log lines without opening
+a single side file. A bare link is the fallback for artifacts that genuinely cannot render inline (archives,
+binaries, multi-megabyte logs), and it carries a note saying what it holds.
+
+~~~md
 ## Evidence Index
 
 ### Screenshots
@@ -16,24 +21,49 @@ heading; use that one heading and fill it following this example's shape.
 ![Options root](screenshots/options-root.png)
 The script list page rendered and the view toggle is visible, proving the `/` route mounted successfully.
 
-![Settings](screenshots/settings.png)
-The settings page shell and content are visible, proving `/settings` did not render blank or crash during mount.
+| Light | Dark |
+| --- | --- |
+| ![Settings light](screenshots/settings-light.png) | ![Settings dark](screenshots/settings-dark.png) |
+
+The settings shell renders in both themes with readable contrast, proving `/settings` mounted and picked up the
+theme tokens rather than falling back to one palette.
 
 ### Videos
 
-- [videos/page@abc.webm](videos/page@abc.webm) — Full page-viewport recording from the script list to the
-  settings page; review it for the navigation and final stable state.
+<video src="videos/page@abc.webm" controls width="720"></video>
+
+Full page-viewport recording from the script list to the settings page; watch it for the navigation and the
+final stable state.
+
+Same run, decisive moments as stills — a video is neither skimmable nor playable in every viewer:
+
+![Before navigation](screenshots/nav-01-list.png)
+The script list before the click; the settings entry is enabled.
+
+![After navigation](screenshots/nav-02-settings.png)
+The settings page after the click; the route changed and the content painted.
 
 ### Logs
 
-- [console.log](console.log) — Browser console output captured during the run; confirms whether unexpected errors
-  appeared.
+The lines the verdict rests on:
+
+```text
+[verify] options url = chrome-extension://<id>/src/options.html#/settings
+[verify] script count after import = 3
+```
+
+Full capture: [console.log](console.log) — no unexpected errors appeared during the run.
 
 ### Resources
 
-- [resources/import.yaml](resources/import.yaml) — Input file used by the import verification; keep it to
-  reproduce the import flow.
+`resources/import.yaml` — the input the import verification consumed:
+
+```yaml
+scripts:
+  - name: demo-script
+    source: https://example.com/demo.user.js
 ```
+~~~
 
 Use this shape:
 
@@ -85,7 +115,7 @@ Use this shape:
 
 ## Evidence Index
 
-Embed screenshots inline, link videos / logs / resources, and annotate every item — see the shape above.
+Embed every artifact inline and annotate what it proves — see the shape above.
 ```
 
 Fill `Result` at the end — the honest verdict, per *Step 4 — Report honestly* in [`verification.md`](../verification.md).
@@ -101,3 +131,20 @@ Keep the checklist factual:
 - Check items only after the corresponding command/assertion has actually passed.
 - If a step is blocked, leave its checkbox unchecked and add a concrete entry under `Blockers`: what failed,
   where it failed, and what evidence was captured.
+
+Keep the evidence embedded:
+
+- **Screenshots** — `![alt](screenshots/….png)` plus a caption line stating what it proves. Put paired shots
+  (before/after, light/dark) in a two-column table so the comparison is one glance, not two scrolls.
+- **Videos** — `<video src="videos/….webm" controls width="720"></video>`. This renders as a player only in
+  viewers that allow inline HTML, and a recording is slow to review either way, so capture the deciding moments
+  as `page.screenshot()` calls *during* the run and embed those stills next to the video. The stills, not the
+  recording, are what carries the verdict.
+- **Logs** — paste the lines the verdict rests on into a fenced block, then link the full capture for the rest.
+  A link alone forces the reader to reconstruct which line mattered.
+- **Resources** — paste short text fixtures (YAML/JSON/userscript) inline in a fenced block. Link only what is
+  large or binary, and say what it contains.
+- Sanitize tokens, cookies, and real credentials *before* pasting log or resource content inline — embedding
+  puts it in front of every reader.
+- Keep every path relative to `report.md`. The scenario directory, not `report.md` alone, is the unit you hand
+  to a reviewer; moving the file out of it breaks every embed.

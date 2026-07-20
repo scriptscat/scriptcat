@@ -117,13 +117,16 @@ Use `resources/` for any extra local inputs or outputs needed to understand or r
 - mock API responses, fixture JSON/YAML, import/export files, generated ZIPs, or downloaded artifacts
 - temporary HTML pages, saved network payloads, or before/after data snapshots
 
-Reference these resources from `report.md` with relative links such as `[Import file](resources/import.yaml)` or
-`[Mock response](resources/provider-response.json)`. Keep secrets and real credentials out of the resource directory;
-sanitize them before saving evidence.
+Surface these resources in `report.md` — short text fixtures pasted into a fenced block, anything large or
+binary as a relative link such as `[Exported backup](resources/backup.zip)`. Keep secrets and real credentials
+out of the resource directory; sanitize them before saving evidence, and again before pasting any of it inline.
 
-Embed screenshots inline with `![alt](screenshots/…png)` plus a caption line, so `report.md` renders as a visual
-record you can skim without opening files. Link videos, logs, and resources instead — markdown can't inline them.
-Never list bare links: every item carries a short note explaining what it proves and how to read it.
+`report.md` is read to decide whether the implementation is correct, so embed the evidence instead of linking
+it: screenshots as `![alt](screenshots/….png)`, videos as `<video src="videos/….webm" controls width="720">`
+alongside stills of the deciding moments, and the log lines or short fixtures that carry the verdict as fenced
+blocks. Scrolling the report should be enough to reach a verdict without opening a side file. Keep a bare link
+only for what cannot render inline — archives, binaries, a full log capture — and never list one bare: every
+item carries a short note explaining what it proves and how to read it.
 
 ### Create `report.md` before you run the browser
 
