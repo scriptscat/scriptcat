@@ -4,7 +4,7 @@
 
 用例参考来源：`src/locales/zh-CN/*.json`、`docs/README_zh-CN.md`、`docs/architecture.md`
 
-作者确认参考：[PR #1421 讨论](https://github.com/scriptscat/scriptcat/pull/1421)。其中 CodFrm 明确确认了 `同步删除`、`同步脚本删除`、`查询`，并建议将存储权限标题写为 `脚本正在尝试访问存储空间`。
+作者确认参考：[PR #1421 讨论](https://github.com/scriptscat/scriptcat/pull/1421)。其中 CodFrm 明确确认了 `同步删除`、`同步脚本删除`、`查询`，并建议将存储权限标题写为 `脚本正在尝试访问存储空间`。[PR #1622 讨论](https://github.com/scriptscat/scriptcat/pull/1622#issuecomment-5020839591) 中 CodFrm 明确了回收站脚本还原统一使用 `还原`，`恢复` 保留给数据损坏/备份找回的语境。
 
 ## 使用原则
 
@@ -54,7 +54,8 @@
 | enable / disable | `开启` / `关闭`；状态或系统能力可用 `启用` / `禁用` | `enable`, `disable`, `enabled_label`, `sync_system_closed`, `enable_background.title` | 操作按钮与配置状态需按句子自然度决定，不机械互换。 |
 | settings / configuration | `设置` / `配置` | `settings`, `script_setting`, `editor_config`, `user_config` | 产品设置页用 `设置`；配置对象或开发者配置使用 `配置`。 |
 | connect / synchronization | `连接` / `同步` | `connect`, `connection_success`, `script_sync`, `sync_system_connect_failed` | 分别表示网络或服务连接、数据同步。 |
-| restore / reset | `恢复` / `重置` | `restore`, `restore_default_values`, `reset`, `editor_config_reset` | 恢复备份/默认值与重置操作应按实际行为区分。 |
+| restore backup / reset to default | `恢复` / `重置` | `restore`, `restore_default_values`, `reset`, `editor_config_reset` | 用于数据损坏或需要找回时的“恢复”（如导入备份文件、恢复默认值），与重置操作应按实际行为区分。不用于回收站脚本还原，见下一行。 |
+| restore from Trash | `还原` | `trash_restore`, `trash_restore_success`, `trash_undo_success`, `btn_restore`, `btn_restore_update`, `trash_restore_save_prompt_title` | CodFrm 在 [PR #1622 讨论](https://github.com/scriptscat/scriptcat/pull/1622#issuecomment-5020839591) 中明确：“恢复”更像是数据损坏后的恢复，回收站中脚本从删除状态找回应统一使用“还原”，不使用“恢复”。 |
 | load / reload | `加载` / `重新加载` | `loading`, `loading_title`, `click_to_reload` | 与现行 UI 一致。 |
 | directory | `目录` | `open_directory`, `open_backup_dir` | 文件系统操作的常用表达。 |
 | tabs | `标签页` | `close_current_tab`, `close_other_tabs` | 指浏览器 tab 时使用完整的 `标签页`。 |
