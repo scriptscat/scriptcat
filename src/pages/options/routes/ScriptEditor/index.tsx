@@ -94,9 +94,9 @@ export default function ScriptEditor() {
       confirm(
         kind === "trash"
           ? {
-              title: t("editor:trash_restore_prompt_title"),
-              description: t("editor:trash_restore_prompt_description"),
-              confirmText: t("editor:trash_restore_prompt_confirm"),
+              title: t("editor:trash_restore_save_prompt_title"),
+              description: t("editor:trash_restore_save_prompt_description"),
+              confirmText: t("editor:trash_restore_save_prompt_confirm"),
             }
           : kind === "edit"
             ? { title: t("editor:edit_conflict"), description: t("editor:confirm_override_when_edit_conflict") }

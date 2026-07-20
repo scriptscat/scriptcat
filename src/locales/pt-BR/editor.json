@@ -129,9 +129,9 @@
   "editor_config_format_error": "Erro no formato da configuração do editor",
   "editor_type_definition_reset": "Definição de tipos do editor redefinida",
   "editor_type_definition_saved": "Definição de tipos do editor salva",
-  "trash_restore_prompt_title": "Restaurar e salvar o script?",
-  "trash_restore_prompt_description": "Há um script com o mesmo nome e namespace na lixeira. Ao continuar, a identidade e os dados preservados serão restaurados, e o conteúdo atual do editor será salvo como esse script. Cancele para continuar editando sem salvar.",
-  "trash_restore_prompt_confirm": "Restaurar e salvar",
+  "trash_restore_save_prompt_title": "Restaurar e salvar o script?",
+  "trash_restore_save_prompt_description": "Há um script com o mesmo nome e namespace na lixeira. Ao continuar, a identidade e os dados preservados serão restaurados, e o conteúdo atual do editor será salvo como esse script. Cancele para continuar editando sem salvar.",
+  "trash_restore_save_prompt_confirm": "Restaurar e salvar",
   "editor": {
     "show_script_list": "Mostrar lista de scripts",
     "hide_script_list": "Ocultar lista de scripts"
