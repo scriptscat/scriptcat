@@ -32,6 +32,7 @@ const grantValuePrompts = {
   GM_getResourceText: "@resource ile bildirilen bir kaynağın metin içeriğini okur.",
   GM_getResourceURL: "@resource ile bildirilen bir kaynağın URL'sini alır.",
   GM_cookie: "Çerezleri okumak, yazmak veya silmek için Cookie API'sine erişir.",
+  GM_audio: "Geçerli tarayıcı sekmesinin sessize alma ve ses durumunu denetler ve izler.",
   CAT_fetchBlob: "ScriptCat iç API'si: uzantı tarafından erişilebilen bir kaynağı okur ve Blob döndürür.",
   CAT_fileStorage: "ScriptCat API'si: betiğin dosya depolama alanına erişir.",
   CAT_userConfig: "ScriptCat API'si: betiğin kullanıcı yapılandırmasına erişir.",

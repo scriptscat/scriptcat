@@ -31,6 +31,7 @@ const grantValuePrompts = {
   GM_getResourceText: "@resource로 선언된 리소스의 텍스트 내용을 읽습니다.",
   GM_getResourceURL: "@resource로 선언된 리소스의 URL을 가져옵니다.",
   GM_cookie: "쿠키를 읽거나 쓰거나 삭제하기 위해 Cookie API에 접근합니다.",
+  GM_audio: "현재 브라우저 탭의 음소거 및 오디오 재생 상태를 제어하고 감시합니다.",
   CAT_fetchBlob: "ScriptCat 내부 API: 확장 프로그램 측에서 접근 가능한 리소스를 읽어 Blob으로 반환합니다.",
   CAT_fileStorage: "ScriptCat API: 스크립트 파일 저장소에 접근합니다.",
   CAT_userConfig: "ScriptCat API: 스크립트 사용자 설정에 접근합니다.",
