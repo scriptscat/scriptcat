@@ -1,51 +1,195 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { RefreshCw, TriangleAlert, CircleAlert, CircleCheckBig, ExternalLink, Loader2 } from "lucide-react";
 import { SettingCard } from "../../../components/SettingCard";
 import FileSystemParams from "../../../components/FileSystemParams";
+import { useSystemConfig } from "../../../hooks/useSystemConfig";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Button } from "@App/pages/components/ui/button";
 import { systemConfig } from "@App/pages/store/global";
+import {
+  fetchCloudSyncState,
+  subscribeCloudSyncState,
+  requestCloudSyncOnce,
+} from "@App/pages/store/features/cloud_sync";
 import FileSystemFactory from "@Packages/filesystem/factory";
 import { useTranslation } from "react-i18next";
 import { notify } from "@App/pages/components/ui/toast";
-import type { CloudSyncConfig } from "@App/pkg/config/config";
+import { cn } from "@App/pkg/utils/cn";
+import { semTime } from "@App/locales/relative-date";
+import { DEFAULT_CLOUD_SYNC_STATE, type CloudSyncConfig, type CloudSyncState } from "@App/pkg/config/config";
+import { syncStatusVariant, syncLogHref, type SyncStatusVariant } from "./syncStatus";
+
+// 各状态的容器/图标配色与图标（明暗自适应设计令牌）
+const VARIANT_META: Record<SyncStatusVariant, { box: string; icon: string; Icon: typeof RefreshCw; spin?: boolean }> = {
+  idle: { box: "border-border bg-muted/40", icon: "text-success", Icon: CircleCheckBig },
+  syncing: { box: "border-border bg-muted/40", icon: "text-muted-foreground", Icon: RefreshCw, spin: true },
+  warning: { box: "border-warning/40 bg-warning-bg", icon: "text-warning", Icon: TriangleAlert },
+  error: { box: "border-destructive/40 bg-destructive/10", icon: "text-destructive", Icon: CircleAlert },
+};
 
 export function SyncSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
-  const [draft, setDraft] = useState<CloudSyncConfig | undefined>(undefined);
+  const [config, setConfig] = useSystemConfig("cloud_sync");
+  const [syncState, setSyncState] = useState<CloudSyncState>(DEFAULT_CLOUD_SYNC_STATE);
+  const [verification, setVerification] = useState<{ config: CloudSyncConfig } | null>(null);
+  const verificationRef = useRef<{ config: CloudSyncConfig } | null>(null);
 
   useEffect(() => {
-    void Promise.resolve(systemConfig.get("cloud_sync")).then((v) => setDraft(v as CloudSyncConfig));
+    return () => {
+      verificationRef.current = null;
+    };
   }, []);
 
-  const patch = (next: Partial<CloudSyncConfig>) => setDraft((d) => (d ? { ...d, ...next } : d));
+  // 外部配置更新在提交阶段立即淘汰旧校验，避免旧成功或失败结果覆盖/干扰更新后的用户意图。
+  useLayoutEffect(() => {
+    if (verificationRef.current?.config !== config) {
+      verificationRef.current = null;
+    }
+  }, [config]);
 
-  const save = async () => {
-    if (!draft) return;
-    // 启用同步时先校验账号连通性
-    if (draft.enable) {
-      notify.info(t("settings:cloud_sync_account_verification"));
-      try {
-        await FileSystemFactory.create(draft.filesystem, draft.params[draft.filesystem]);
-      } catch (e) {
-        notify.error(`${t("settings:cloud_sync_verification_failed")}: ${e instanceof Error ? e.message : String(e)}`);
+  // 读取并订阅设备本地同步状态（SW 每轮同步写入 chrome.storage）
+  useEffect(() => {
+    void fetchCloudSyncState().then(setSyncState);
+    return subscribeCloudSyncState(setSyncState);
+  }, []);
+
+  const verifying = verification !== null && verification.config === config;
+
+  const cancelVerification = () => {
+    if (verificationRef.current === null) return;
+    verificationRef.current = null;
+    setVerification(null);
+  };
+
+  const patch = (next: Partial<CloudSyncConfig>) => {
+    if (!config) return;
+    cancelVerification();
+    const updated = { ...config, ...next };
+    setConfig(updated);
+  };
+
+  const patchConnection = (next: Partial<Pick<CloudSyncConfig, "filesystem" | "params">>) => {
+    if (!config) return;
+    cancelVerification();
+    const shouldPause = config.enable;
+    const updated = { ...config, ...next, enable: shouldPause ? false : config.enable };
+    setConfig(updated);
+    if (shouldPause) {
+      notify.info(t("settings:cloud_sync_connection_changed"));
+    }
+  };
+
+  const toggleEnable = async (enable: boolean) => {
+    if (!config) return;
+
+    if (!enable) {
+      cancelVerification();
+      if (config.enable) patch({ enable: false });
+      return;
+    }
+
+    if (config.enable || verificationRef.current?.config === config) return;
+
+    const request = { config };
+    verificationRef.current = request;
+    setVerification(request);
+    notify.info(t("settings:cloud_sync_account_verification"));
+
+    try {
+      await FileSystemFactory.create(config.filesystem, config.params[config.filesystem]);
+      const savedConfig = await Promise.resolve(systemConfig.get("cloud_sync"));
+      if (verificationRef.current !== request) return;
+      if (savedConfig !== request.config) {
+        cancelVerification();
         return;
       }
+
+      verificationRef.current = null;
+      setVerification(null);
+      const updated = { ...savedConfig, enable: true };
+      setConfig(updated);
+      notify.success(t("save_success"));
+    } catch (e) {
+      if (verificationRef.current !== request) return;
+      verificationRef.current = null;
+      setVerification(null);
+      notify.error(`${t("settings:cloud_sync_verification_failed")}: ${e instanceof Error ? e.message : String(e)}`);
     }
-    systemConfig.set("cloud_sync", draft);
-    notify.success(t("save_success"));
   };
+
+  const syncNow = async () => {
+    // 触发失败（如连接/账号验证失败）时给出即时反馈，避免静默失败与未捕获异常；
+    // 状态条随后也会因 SW 写入 error 状态而反映失败。
+    try {
+      await requestCloudSyncOnce();
+    } catch (e) {
+      notify.error(`${t("settings:cloud_sync_verification_failed")}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  const variant = syncStatusVariant(syncState);
+  const meta = VARIANT_META[variant];
+  let title: string;
+  let desc = "";
+  switch (variant) {
+    case "warning":
+      title = t("settings:sync_state_attention");
+      desc = t("settings:sync_state_attention_desc", { conflict: syncState.counts.conflict });
+      break;
+    case "error":
+      title = t("settings:sync_state_error");
+      desc = syncState.error || t("settings:sync_state_failed_desc", { failed: syncState.counts.failed });
+      break;
+    case "syncing":
+      title = t("settings:sync_state_syncing");
+      break;
+    default:
+      title = t("settings:sync_state_idle");
+      // 覆盖降级为信息级：仅有覆盖(无冲突/失败)时状态仍是「同步正常」，附中性说明 + 日志深链
+      if (syncState.counts.overwrite > 0) {
+        desc = t("settings:sync_state_overwrite_info", { overwrite: syncState.counts.overwrite });
+      } else if (syncState.lastSyncAt > 0) {
+        desc = t("settings:sync_last_at", { time: semTime(new Date(syncState.lastSyncAt)) });
+      } else {
+        desc = t("settings:sync_never");
+      }
+  }
 
   return (
     <div data-tour="setting-sync">
       <SettingCard id="sync" title={t("settings:script_sync")} register={register}>
-        {draft && (
+        {config && (
           <div className="flex flex-col gap-4">
+            {config.enable && (
+              <div
+                data-testid="cloud_sync_status"
+                data-variant={variant}
+                className={cn("flex items-start gap-2.5 rounded-md border px-3 py-2.5", meta.box)}
+              >
+                <meta.Icon className={cn("mt-0.5 size-4 shrink-0", meta.icon, meta.spin && "animate-spin")} />
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="text-[13px] font-medium text-foreground">{title}</span>
+                  {desc && <span className="text-xs text-muted-foreground">{desc}</span>}
+                </div>
+                {variant !== "syncing" && (
+                  <a
+                    data-testid="cloud_sync_view_logs"
+                    href={syncLogHref(syncState)}
+                    className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+                  >
+                    {t("settings:sync_view_logs")}
+                    <ExternalLink className="size-3" />
+                  </a>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-col gap-2">
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox
                   data-testid="cloud_sync_sync_delete"
                   aria-label={t("settings:sync_delete")}
-                  checked={draft.syncDelete}
+                  checked={config.syncDelete}
                   onCheckedChange={(c) => patch({ syncDelete: c === true })}
                 />
                 {t("settings:sync_delete")}
@@ -55,7 +199,7 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
                 <Checkbox
                   data-testid="cloud_sync_sync_status"
                   aria-label={t("settings:sync_status")}
-                  checked={draft.syncStatus}
+                  checked={config.syncStatus}
                   onCheckedChange={(c) => patch({ syncStatus: c === true })}
                 />
                 {t("settings:sync_status")}
@@ -68,19 +212,42 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
                   <Checkbox
                     data-testid="cloud_sync_enable"
                     aria-label={t("settings:enable_script_sync_to")}
-                    checked={draft.enable}
-                    onCheckedChange={(c) => patch({ enable: c === true })}
+                    aria-busy={verifying}
+                    checked={config.enable}
+                    disabled={verifying}
+                    onCheckedChange={(c) => {
+                      void toggleEnable(c === true);
+                    }}
                   />
+                  {verifying && (
+                    <span
+                      data-testid="cloud_sync_verifying"
+                      role="status"
+                      aria-label={t("settings:cloud_sync_account_verification")}
+                      className="inline-flex text-muted-foreground"
+                    >
+                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    </span>
+                  )}
                   {t("settings:enable_script_sync_to")}
                 </label>
               }
-              fileSystemType={draft.filesystem}
-              fileSystemParams={draft.params[draft.filesystem] || {}}
-              onChangeFileSystemType={(type) => patch({ filesystem: type })}
-              onChangeFileSystemParams={(params) => patch({ params: { ...draft.params, [draft.filesystem]: params } })}
+              fileSystemType={config.filesystem}
+              fileSystemParams={config.params[config.filesystem] || {}}
+              onChangeFileSystemType={(type) => patchConnection({ filesystem: type })}
+              onChangeFileSystemParams={(params) =>
+                patchConnection({ params: { ...config.params, [config.filesystem]: params } })
+              }
             >
-              <Button data-testid="cloud_sync_save" size="sm" onClick={save}>
-                {t("save")}
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="cloud_sync_now"
+                disabled={!config.enable}
+                onClick={syncNow}
+              >
+                <RefreshCw className="size-4" />
+                {t("settings:sync_now")}
               </Button>
             </FileSystemParams>
           </div>
