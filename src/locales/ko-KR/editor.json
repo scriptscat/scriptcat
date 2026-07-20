@@ -129,8 +129,9 @@
   "editor_config_format_error": "에디터 설정 형식 오류",
   "editor_type_definition_reset": "에디터 타입 정의가 초기화되었습니다",
   "editor_type_definition_saved": "에디터 타입 정의가 저장되었습니다",
-  "trash_restore_prompt_title": "삭제한 스크립트를 복원하시겠습니까?",
-  "trash_restore_prompt_description": "휴지통에 이름과 네임스페이스가 같은 스크립트가 있습니다. 복원하면 기존 식별 정보와 보관된 데이터를 다시 사용합니다. 저장하지 않고 편집을 계속하려면 취소하세요.",
+  "trash_restore_prompt_title": "스크립트를 복원하고 저장하시겠습니까?",
+  "trash_restore_prompt_description": "휴지통에 이름과 네임스페이스가 같은 스크립트가 있습니다. 계속하면 기존 식별 정보와 보관된 데이터를 복원하고 현재 편집기 내용을 이 스크립트로 저장합니다. 저장하지 않고 편집을 계속하려면 취소하세요.",
+  "trash_restore_prompt_confirm": "복원하고 저장",
   "editor": {
     "show_script_list": "스크립트 목록 표시",
     "hide_script_list": "스크립트 목록 숨기기"
