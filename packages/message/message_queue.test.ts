@@ -192,10 +192,13 @@ describe("MessageQueueGroup", () => {
       const sendSpy = vi.spyOn(chrome.runtime, "sendMessage");
       group.publish("test-sendChromeMessage", { data: "test-sendChromeMessage" });
 
-      expect(sendSpy).toHaveBeenCalledWith({
-        msgQueue: "api-sendChromeMessage/test-sendChromeMessage",
-        data: { action: "message", message: { data: "test-sendChromeMessage" } },
-      });
+      expect(sendSpy).toHaveBeenCalledWith(
+        {
+          msgQueue: "api-sendChromeMessage/test-sendChromeMessage",
+          data: { action: "message", message: { data: "test-sendChromeMessage" } },
+        },
+        expect.any(Function)
+      );
     });
 
     it("emit 方法应该只在本地发布", () => {
@@ -208,6 +211,35 @@ describe("MessageQueueGroup", () => {
 
       expect(handler).toHaveBeenCalledWith({ data: "test-emitLocal" });
       expect(sendSpy).not.toHaveBeenCalled();
+    });
+
+    it("publish 应传入回调并在回调中读取 chrome.runtime.lastError（接收端不存在时不产生未检查错误）", () => {
+      // 模拟浏览器行为: 没有任何接收方时, 回调执行期间 lastError 被设置;
+      // 若回调中不读取 lastError（或根本没传回调）, 浏览器会报
+      // "Unchecked runtime.lastError: Could not establish connection. Receiving end does not exist."
+      const lastErrorGetter = vi.fn(() => ({
+        message: "Could not establish connection. Receiving end does not exist.",
+      }));
+      const sendSpy = vi.spyOn(chrome.runtime, "sendMessage").mockImplementation(((
+        _message: any,
+        callback?: (resp: any) => void
+      ) => {
+        Object.defineProperty(chrome.runtime, "lastError", { get: lastErrorGetter, configurable: true });
+        try {
+          callback?.(undefined);
+        } finally {
+          delete (chrome.runtime as any).lastError;
+        }
+      }) as any);
+
+      const group = messageQueue.group("api-lastError");
+      expect(() => group.publish("test-lastError", { data: "test-lastError" })).not.toThrow();
+
+      expect(sendSpy).toHaveBeenCalledTimes(1);
+      // 必须传入回调, 否则 MV3 下无回调的 sendMessage 返回的 Promise 会产生 unhandled rejection
+      expect(typeof sendSpy.mock.calls[0]![1]).toBe("function");
+      // 回调中必须读取 lastError, 否则浏览器会报 Unchecked runtime.lastError
+      expect(lastErrorGetter).toHaveBeenCalled();
     });
   });
 

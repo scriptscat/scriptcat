@@ -73,10 +73,22 @@ export class MessageQueue implements IMessageQueue {
   }
 
   publish<T>(topic: string, message: NonNullable<T>) {
-    chrome.runtime.sendMessage({
-      msgQueue: topic,
-      data: { action: "message", message },
-    });
+    chrome.runtime.sendMessage(
+      {
+        msgQueue: topic,
+        data: { action: "message", message },
+      },
+      () => {
+        // 广播为 fire-and-forget: 其他上下文（offscreen/popup/options）可能不存在或不回应,
+        // 必须传入回调并读取 lastError, 否则产生 "Unchecked runtime.lastError" / unhandled rejection
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          LoggerCore.getInstance()
+            .logger({ service: "messageQueue" })
+            .trace("publish lastError", { topic, error: lastError.message });
+        }
+      }
+    );
     this.EE.emit(topic, message);
     //@ts-ignore
     LoggerCore.getInstance().logger({ service: "messageQueue" }).trace("publish", { topic, message });
