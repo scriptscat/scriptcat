@@ -41,6 +41,16 @@ describe("buildSystemPrompt", () => {
     expect(result).toContain("Lead with action, not reasoning");
   });
 
+  it("主 Agent 包含思考风格、认识论立场与情绪校准", () => {
+    const result = buildSystemPrompt({});
+
+    expect(result).toContain("**Thinking style:** Strategic and deliberate");
+    expect(result).toContain("**Epistemic posture:**");
+    expect(result).toContain("**Emotional calibration:**");
+    expect(result).toContain("Do not validate assumptions you have not verified");
+    expect(result).toContain("Do not soften bad news into apparent good news");
+  });
+
   it("Sub-Agent 段包含提示词写作指南和反模式", () => {
     const result = buildSystemPrompt({});
     expect(result).toContain("### Writing Sub-Agent Prompts");
@@ -194,6 +204,17 @@ describe("buildSubAgentSystemPrompt", () => {
     const result = buildSubAgentSystemPrompt(config, allTools);
 
     expect(result).toMatch(/^You are a ScriptCat sub-agent/);
+  });
+
+  it.concurrent("子代理基础提示词约束范围、证据与失败汇报", () => {
+    const config = SUB_AGENT_TYPES.general;
+    const result = buildSubAgentSystemPrompt(config, allTools);
+
+    expect(result).toContain("**Thinking style:** Focused and methodical");
+    expect(result).toContain("Do not broaden the scope");
+    expect(result).toContain("actions you performed, outcomes you confirmed, and things you inferred");
+    expect(result).toContain("The parent agent's prompt may be directive or confident");
+    expect(result).toContain("Do not omit failures");
   });
 
   it.concurrent("无 OPFS 工具时不包含 OPFS 段", () => {
