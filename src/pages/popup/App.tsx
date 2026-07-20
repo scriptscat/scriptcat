@@ -52,7 +52,6 @@ import { isChineseUser, localePath } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@App/pkg/utils/cn";
-import { usePreventEvent } from "../components/ui/use-prevent-event";
 
 export default function App() {
   const { t } = useTranslation();
@@ -293,7 +292,6 @@ function MoreMenu({
   onGetMoreScript: (provider?: ScriptProvider) => void;
 }) {
   const { t } = useTranslation();
-  const preventEvent = usePreventEvent();
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -305,7 +303,7 @@ function MoreMenu({
           <MoreVertical className="w-4 h-4" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48" onFocusOutside={preventEvent}>
+      <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuItem onClick={onCreateScript}>
           <Plus className="w-4 h-4" />
           {t("script:create_script")}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent, act } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import fs from "fs";
 import path from "path";
 import { initTestLanguage } from "@Tests/initTestLanguage";
@@ -101,40 +101,6 @@ describe("Popup 页头品牌标识", () => {
     const logo = screen.getByAltText("ScriptCat");
     expect(logo.tagName).toBe("IMG");
     expect(logo.getAttribute("src")).toContain("assets/logo.png");
-  });
-});
-
-describe("Popup 更多菜单焦点行为", () => {
-  it("Firefox 瞬时焦点移出时保持开启，Escape 和菜单项仍可关闭", async () => {
-    const handleCreateScript = vi.fn();
-    mockData = makeData({ handleCreateScript });
-    render(<App />);
-
-    const trigger = screen.getByRole("button", { name: t("more_menu") });
-    fireEvent.pointerDown(trigger);
-    fireEvent.click(trigger);
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    const outside = document.createElement("button");
-    document.body.appendChild(outside);
-    await act(async () => {
-      outside.focus();
-    });
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-    expect(document.activeElement).toBe(outside);
-    fireEvent.pointerDown(trigger);
-    fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole("menuitem", { name: t("script:create_script") }));
-    expect(handleCreateScript).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-
-    fireEvent.pointerDown(trigger);
-    fireEvent.click(trigger);
-    trigger.focus();
-    outside.remove();
   });
 });
 
