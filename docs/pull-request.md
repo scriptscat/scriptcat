@@ -1,6 +1,12 @@
 # Pull Request Description Guide
 
-This guide defines the detailed PR description format for agents and contributors. Start from the human-facing template at [`../.github/pull_request_template.md`](../.github/pull_request_template.md) — it intentionally remains lightweight. Preserve its `Checklist / 检查清单` section, and expand its `Description / 描述` section only when the change needs more context.
+This guide owns the **PR body**: structure, evidence, and reviewer-handoff expectations. It does not own
+commit message or PR title rules — those live in
+[develop.md § Commit & Pull Request Guidelines](./develop.md#commit--pull-request-guidelines) (gitmoji prefix,
+single-purpose commits). Start from the human-facing template at
+[`../.github/pull_request_template.md`](../.github/pull_request_template.md) — it intentionally remains
+lightweight. Preserve its `Checklist / 检查清单` section, and expand its `Description / 描述` section only when
+the change needs more context.
 
 Whatever headings you use, this guide's checklist and evidence expectations still apply — `## Summary` /
 `## Test plan` headings don't exempt a PR from them. Use the structure below; its sections are
@@ -64,3 +70,12 @@ For non-trivial changes, make the description useful for review:
 - `已知限制` records unsupported cases, explicit scope boundaries, and follow-up work.
 - `建议审查重点` lists concrete behaviors or risks reviewers should verify.
 - `验证` lists exact commands and concise results, including known warnings or why a check was not run.
+
+## Documentation-only PRs
+
+For a PR that only changes Markdown, `验证` should reflect what a doc change actually needs, not an unrelated
+full code test suite: a fact check against the final tree, a relative-link/actual-anchor check, a
+cross-document policy-consistency check, and a privacy/sanitization scan (see
+[`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md)). Before writing "all fixed" or "fully verified," re-review your
+own final diff and any nearby location sharing the same root cause — but only claim the scope you actually
+scanned; don't imply full-repo coverage you didn't perform.
