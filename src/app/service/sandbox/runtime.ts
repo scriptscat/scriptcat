@@ -14,7 +14,7 @@ import { proxyUpdateRunStatus } from "../offscreen/client";
 import { BgExecScriptWarp } from "../content/exec_warp";
 import type ExecScript from "../content/exec_script";
 import { compileScriptCodeByResource } from "../content/utils";
-import type { ValueUpdateDataEncoded } from "../content/types";
+import type { ValueUpdateSendData } from "../content/types";
 import { getStorageName, getMetadataStr, getUserConfigStr, getISOWeek } from "@App/pkg/utils/utils";
 import type { EmitEventRequest, ScriptLoadInfo } from "../service_worker/types";
 import { CATRetryError } from "../content/exec_warp";
@@ -340,21 +340,28 @@ export class Runtime {
     return this.execScript(loadScript, { execOnce: true });
   }
 
-  valueUpdate(data: ValueUpdateDataEncoded) {
+  valueUpdate(sendData: ValueUpdateSendData) {
     // runtime/valueUpdate
-    const dataEntries = data.entries;
-    // 转发给脚本
-    this.execScriptMap.forEach((val) => {
-      if (val.scriptRes.uuid === data.uuid || getStorageName(val.scriptRes) === data.storageName) {
-        val.valueUpdate(data);
+    const { storageName, storageChanges } = sendData;
+    for (const [uuid, responses] of Object.entries(storageChanges)) {
+      // 转发给脚本
+      for (const execScript of this.execScriptMap.values()) {
+        execScript.valueUpdate(storageName, uuid, responses);
       }
-    });
-    // 更新crontabScripts中的脚本值
-    for (const script of this.crontabSripts) {
-      if (script.uuid === data.uuid || getStorageName(script) === data.storageName) {
-        for (const [key, rTyped1, _rTyped2] of dataEntries) {
-          const value = decodeRValue(rTyped1);
-          script.value[key] = value;
+      // 更新crontabScripts中的脚本值
+      for (const script of this.crontabSripts) {
+        if (script.uuid === uuid || getStorageName(script) === storageName) {
+          const valueStore = script.value;
+          for (const { valueChanges } of responses) {
+            for (const [key, rTyped1, _rTyped2] of valueChanges) {
+              const value = decodeRValue(rTyped1);
+              if (value !== undefined) {
+                valueStore[key] = value;
+              } else if (valueStore[key] !== undefined) {
+                delete valueStore[key];
+              }
+            }
+          }
         }
       }
     }

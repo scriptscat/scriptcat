@@ -6,8 +6,13 @@ import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import type { IGetSender, Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
 import { type PopupService } from "./popup";
-import { getStorageName } from "@App/pkg/utils/utils";
-import type { ValueUpdateDataEncoded, ValueUpdateDataREntry, ValueUpdateSender } from "../content/types";
+import { aNow, getStorageName } from "@App/pkg/utils/utils";
+import type {
+  ValueUpdateDataEncoded,
+  ValueUpdateDataREntry,
+  ValueUpdateSendData,
+  ValueUpdateSender,
+} from "../content/types";
 import { type TDeleteScript } from "../queue";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { CACHE_KEY_SET_VALUE } from "@App/app/cache_key";
@@ -22,6 +27,15 @@ export type TSetValuesParams = {
   isReplace: boolean;
   ts?: number;
   valueSender?: ValueUpdateSender;
+};
+
+type ValueUpdateTask = {
+  script: Script;
+  id: string;
+  keyValuePairs: TKeyValuePair[];
+  valueSender: ValueUpdateSender;
+  isReplace: boolean;
+  ts: number;
 };
 
 export class ValueService {
@@ -76,43 +90,38 @@ export class ValueService {
     return this.getScriptValueDetails(script).then((res) => res[0]);
   }
 
-  async pushValueUpdate<T extends ValueUpdateDataEncoded>(script: Script, sendData: T) {
-    return this.runtime!.pushValueUpdate(script, sendData);
+  async pushValueUpdate(updatedScripts: Script[], sendData: ValueUpdateSendData) {
+    return this.runtime!.pushValueUpdate(updatedScripts, sendData);
   }
 
-  // 批量设置
-  async setValues(params: TSetValuesParams) {
-    const { uuid, keyValuePairs, isReplace } = params;
-    const id = params.id || "";
-    const ts = params.ts || 0;
-    const valueSender = params.valueSender || {
-      runFlag: "user",
-      tabId: -2,
-    };
-    // 查询出脚本
-    const script = await this.scriptDAO.get(uuid);
-    if (!script) {
-      throw new Error("script not found");
-    }
-    // 查询老的值
-    const storageName = getStorageName(script);
-    let oldValueRecord: ValueStore = {};
-    const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    const entries = [] as ValueUpdateDataREntry[];
-    const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
-      let valueModel: Value | undefined = await this.valueDAO.get(storageName);
+  // 排队中的 setValues 任务，以 storageName 分组，由 setValuesByStorageName 集中处理
+  private valueUpdateTasks = new Map<string, ValueUpdateTask[]>();
+
+  // 集中处理同一 storageName 下累积的 setValues 任务：一次读取、按序应用、一次保存、一次推送
+  async setValuesByStorageName(storageName: string) {
+    const taskList = this.valueUpdateTasks.get(storageName);
+    if (!taskList?.length) return;
+    // 同步取走整批任务；之后入队的任务会建立新列表，由其对应的队列调用处理
+    this.valueUpdateTasks.delete(storageName);
+    let valueModel: Value | undefined = await this.valueDAO.get(storageName);
+    const storageChanges: Record<string, ValueUpdateDataEncoded[]> = {};
+    // 有实际值变更的脚本（uuid 去重），供 early-start 脚本重新注册使用
+    const updatedScripts = new Map<string, Script>();
+    let valueModelUpdated = false;
+    for (const task of taskList) {
+      const { script, id, keyValuePairs, valueSender, isReplace, ts } = task;
+      const uuid = script.uuid;
+      const entries = [] as ValueUpdateDataREntry[];
+      const now = aNow(); // 保证 updatetime 严格递增
+      let changed = false;
+      let isNewModel = false;
+      let oldValueRecord: ValueStore = {};
+      let dataModel: ValueStore;
       if (!valueModel) {
-        const now = Date.now();
-        const dataModel: ValueStore = {};
-        for (const [key, rTyped1] of keyValuePairs) {
-          const value = decodeRValue(rTyped1);
-          if (value !== undefined) {
-            dataModel[key] = value;
-            entries.push([key, rTyped1, R_UNDEFINED]);
-          }
-        }
-        // 即使是空 dataModel 也进行更新
-        // 由于没entries, valueUpdated 是 false, 但 valueDAO 会有一个空的 valueModel 记录 updatetime
+        isNewModel = true;
+        // 即使无实际变更也保存空 dataModel，让 valueDAO 记录 updatetime
+        changed = true;
+        dataModel = {};
         valueModel = {
           uuid: uuid,
           storageName: storageName,
@@ -121,53 +130,89 @@ export class ValueService {
           updatetime: ts ? Math.min(ts, now) : now,
         };
       } else {
-        let changed = false;
-        let dataModel = (oldValueRecord = valueModel.data);
-        dataModel = { ...dataModel }; // 每次储存使用新参考
-        const containedKeys = new Set<string>();
-        for (const [key, rTyped1] of keyValuePairs) {
-          containedKeys.add(key);
-          const value = decodeRValue(rTyped1);
-          const oldValue = dataModel[key];
-          if (oldValue === value) continue;
-          changed = true;
-          if (value === undefined) {
-            delete dataModel[key];
-          } else {
-            dataModel[key] = value;
-          }
-          const rTyped2 = encodeRValue(oldValue);
-          entries.push([key, rTyped1, rTyped2]);
-        }
-        if (isReplace) {
-          // 处理oldValue有但是没有在data.values中的情况
-          for (const key of Object.keys(oldValueRecord)) {
-            if (!containedKeys.has(key)) {
-              changed = true;
-              const oldValue = oldValueRecord[key];
-              delete dataModel[key]; // 这里使用delete是因为保存不需要这个字段了
-              const rTyped2 = encodeRValue(oldValue);
-              entries.push([key, R_UNDEFINED, rTyped2]);
-            }
-          }
-        }
-        if (!changed) return false;
-        valueModel.data = dataModel; // 每次储存使用新参考
+        oldValueRecord = valueModel.data;
+        dataModel = { ...oldValueRecord }; // 每次储存使用新参考
       }
-      await this.valueDAO.save(storageName, valueModel);
-      return true;
+      const containedKeys = new Set<string>();
+      for (const [key, rTyped1] of keyValuePairs) {
+        containedKeys.add(key);
+        const value = decodeRValue(rTyped1);
+        const oldValue = dataModel[key];
+        if (oldValue === value) continue;
+        changed = true;
+        if (value === undefined) {
+          delete dataModel[key];
+        } else {
+          dataModel[key] = value;
+        }
+        const rTyped2 = encodeRValue(oldValue);
+        entries.push([key, rTyped1, rTyped2]);
+      }
+      if (isReplace) {
+        // 处理oldValue有但是没有在data.values中的情况
+        for (const key of Object.keys(oldValueRecord)) {
+          if (!containedKeys.has(key)) {
+            changed = true;
+            const oldValue = oldValueRecord[key];
+            delete dataModel[key]; // 这里使用delete是因为保存不需要这个字段了
+            const rTyped2 = encodeRValue(oldValue);
+            entries.push([key, R_UNDEFINED, rTyped2]);
+          }
+        }
+      }
+      if (changed) {
+        valueModel.data = dataModel; // 每次储存使用新参考
+        if (!isNewModel) {
+          valueModel.updatetime = now;
+        }
+        valueModelUpdated = true;
+      }
+      if (entries.length > 0 && !updatedScripts.has(uuid)) {
+        updatedScripts.set(uuid, script);
+      }
+      const list = storageChanges[uuid] || (storageChanges[uuid] = []);
+      list.push({
+        id,
+        valueChanges: entries,
+        uuid,
+        storageName,
+        sender: valueSender,
+      });
+    }
+    if (valueModelUpdated) {
+      await this.valueDAO.save(storageName, valueModel!);
+    }
+    // 推送到所有加载了本脚本的tab中；即使无实际变更也要推送，客户端依赖 id 回执解除等待
+    this.pushValueUpdate([...updatedScripts.values()], { storageName, storageChanges });
+  }
+
+  // 批量设置
+  async setValues(params: TSetValuesParams): Promise<void> {
+    const { uuid, keyValuePairs, isReplace } = params;
+    const id = params.id || "";
+    const ts = params.ts || 0;
+    const valueSender = params.valueSender || {
+      runFlag: "user",
+      tabId: -2,
+    };
+    let storageName!: string;
+    // 顺序队列：入队顺序与 setValues 调用顺序一致，
+    // 不因 scriptDAO.get 的异步耗时差异而打乱
+    await stackAsyncTask<void>("valueChangeOnSequence", async () => {
+      // 查询出脚本
+      const script = await this.scriptDAO.get(uuid);
+      if (!script) {
+        throw new Error("script not found");
+      }
+      storageName = getStorageName(script);
+      let taskList = this.valueUpdateTasks.get(storageName);
+      if (!taskList) {
+        this.valueUpdateTasks.set(storageName, (taskList = []));
+      }
+      taskList.push({ script, id, keyValuePairs, valueSender, isReplace, ts });
     });
-    // 推送到所有加载了本脚本的tab中
-    const valueUpdated = entries.length > 0;
-    const sendData = {
-      id,
-      entries: entries,
-      uuid,
-      storageName,
-      sender: valueSender,
-      valueUpdated,
-    } as ValueUpdateDataEncoded;
-    this.pushValueUpdate(script, sendData);
+    // valueDAO 读写以 storageName 为单位串行
+    await stackAsyncTask<void>(`${CACHE_KEY_SET_VALUE}${storageName}`, () => this.setValuesByStorageName(storageName));
   }
 
   setScriptValues(params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">, _sender: IGetSender) {
