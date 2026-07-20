@@ -91,6 +91,28 @@ misused as void callbacks. These need type information, so they are *not* part o
 - UI default English (global users).
 - Template literals: `${i}`, not `${i.toString()}`.
 
+### Browser-specific behavior
+
+ScriptCat's userscript-facing contract should remain stable across supported browsers. Do not add browser-specific
+configuration knobs merely because one browser exposes an extra setting; browser differences belong in the adapter
+layer and should not become a second, browser-shaped product design.
+
+When a browser API or option is inherently browser-specific and a userscript uses it:
+
+- Preserve the common behavior where possible, but never silently pass an unsupported option, silently ignore it, or
+  make the behavior look equivalent when it is not.
+- Emit a warning in the relevant browser DevTools console that names the browser-specific option and states what the
+  current browser actually does (for example, supported, ignored, or unavailable). Use the existing logger and
+  include the userscript identity so the warning is actionable.
+- Deduplicate that warning by userscript identity for the lifetime of the owning runtime; repeated API calls from the
+  same userscript must not flood DevTools, while different userscripts must be warned independently.
+- Add tests for every browser branch and for the per-userscript warning boundary. The tests must also prove that the
+  underlying API behavior remains correct after the diagnostic is emitted.
+
+This policy applies to future browser-specific API options as well as existing compatibility shims. The implementation
+may differ by context, but the user-visible rule is the same: browser capability differences are explicit diagnostics,
+not silently exposed configuration surfaces.
+
 ### Comment Discipline
 
 A comment must tell the reader something the code cannot: an invariant, a race condition, a workaround for a specific constraint, or why something looks wrong but is correct. If deleting it would cost a future reader nothing, delete it.

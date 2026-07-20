@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { type IGetSender } from "@Packages/message/server";
 import { type ExtMessageSender } from "@Packages/message/types";
 import GMApi, { ConnectMatch, getConnectMatched, getExtensionSiteAccessOriginPattern } from "./gm_api";
@@ -229,5 +229,193 @@ describe.concurrent("native GM_download 的 @connect 校验（verifyXhrConnect �
     // 与 native GM_download 的软确认形成对比，锁定 softConnect 分叉
     const req = makeReq({ url: "https://not-connected.com/api", connect: ["example.com"] });
     await expect(xhrConfirm(req, makeConnSender(), makeGmApi())).rejects.toThrow(/not a part of the @connect list/);
+  });
+});
+
+describe("GM_cookie 的 firstPartyDomain 参数（Firefox First-Party Isolation）", () => {
+  const makeCookieReq = (
+    detail: GMTypes.CookieDetails,
+    action: string
+  ): GMApiRequest<[string, GMTypes.CookieDetails]> =>
+    ({
+      uuid: "uuid-test",
+      api: "GM_cookie",
+      runFlag: "run",
+      params: [action, detail],
+      script: { uuid: "uuid-test", name: "测试脚本", metadata: {} },
+    }) as unknown as GMApiRequest<[string, GMTypes.CookieDetails]>;
+
+  // tabId 为 -1 以跳过 chrome.cookies.getAllCookieStores 查询
+  const cookieSender = makeSender("https://example.com/page") as unknown as IGetSender & {
+    getExtMessageSender: () => ExtMessageSender;
+  };
+  (cookieSender as any).getExtMessageSender = () => ({ tabId: -1 }) as ExtMessageSender;
+
+  // chrome.cookies.getAll/set/remove 是重载函数（Promise 或 callback 两种签名），vi.spyOn 只能推断出最后一个重载（callback/void）；
+  // 这里narrowing 到实际调用的 Promise 签名，避免 mockResolvedValue 类型报错
+  const cookiesApi = chrome.cookies as unknown as {
+    getAll(details: chrome.cookies.GetAllDetails): Promise<chrome.cookies.Cookie[]>;
+    set(details: chrome.cookies.SetDetails): Promise<chrome.cookies.Cookie>;
+    remove(details: chrome.cookies.CookieDetails): Promise<chrome.cookies.CookieDetails>;
+  };
+  const makeCookieGMApi = () => ({ logger: { warn: vi.fn() }, warnedFirstPartyDomainScriptUuids: new Set<string>() });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    // 仅还原本 describe 块自行 stub 的 mozInnerScreenX，避免影响 setup 文件里的全局 chrome stub
+    delete (globalThis as any).mozInnerScreenX;
+  });
+
+  it("每个脚本首次使用 firstPartyDomain 时只在开发者工具警告一次", async () => {
+    const getAllSpy = vi.spyOn(cookiesApi, "getAll").mockResolvedValue([]);
+    const warn = vi.fn();
+    const gmApi = { logger: { warn }, warnedFirstPartyDomainScriptUuids: new Set<string>() };
+    const req = makeCookieReq({ url: "https://example.com", firstPartyDomain: "example.com" }, "list");
+    const otherScriptReq = {
+      ...req,
+      uuid: "other-uuid-test",
+      script: { ...req.script, uuid: "other-uuid-test", name: "另一个测试脚本" },
+    };
+
+    await (GMApi.prototype as any).GM_cookie.call(gmApi, req, cookieSender);
+    await (GMApi.prototype as any).GM_cookie.call(gmApi, req, cookieSender);
+    await (GMApi.prototype as any).GM_cookie.call(gmApi, otherScriptReq, cookieSender);
+
+    expect(getAllSpy).toHaveBeenCalledTimes(3);
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenNthCalledWith(
+      1,
+      "GM_cookie firstPartyDomain is only supported by Firefox and is ignored in this browser.",
+      { uuid: "uuid-test", name: "测试脚本", component: "GM_cookie" }
+    );
+    expect(warn).toHaveBeenNthCalledWith(
+      2,
+      "GM_cookie firstPartyDomain is only supported by Firefox and is ignored in this browser.",
+      { uuid: "other-uuid-test", name: "另一个测试脚本", component: "GM_cookie" }
+    );
+  });
+
+  it("Firefox 环境下会提示 firstPartyDomain 的跨浏览器兼容性", async () => {
+    vi.stubGlobal("mozInnerScreenX", 0);
+    const getAllSpy = vi.spyOn(cookiesApi, "getAll").mockResolvedValue([]);
+    const warn = vi.fn();
+    const gmApi = { logger: { warn }, warnedFirstPartyDomainScriptUuids: new Set<string>() };
+    const req = makeCookieReq({ url: "https://example.com", firstPartyDomain: "example.com" }, "list");
+
+    await (GMApi.prototype as any).GM_cookie.call(gmApi, req, cookieSender);
+
+    expect(getAllSpy).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      "GM_cookie firstPartyDomain is Firefox-specific and may behave differently in other browsers.",
+      { uuid: "uuid-test", name: "测试脚本", component: "GM_cookie" }
+    );
+  });
+
+  it("非 Firefox 环境下，firstPartyDomain 不会传递给 chrome.cookies.getAll（Chrome 会拒绝未知参数）", async () => {
+    const getAllSpy = vi.spyOn(cookiesApi, "getAll").mockResolvedValue([]);
+    const req = makeCookieReq({ url: "https://example.com", firstPartyDomain: "example.com" }, "list");
+    await (GMApi.prototype as any).GM_cookie.call(makeCookieGMApi(), req, cookieSender);
+    expect(getAllSpy).toHaveBeenCalledTimes(1);
+    expect(getAllSpy.mock.calls[0][0]).not.toHaveProperty("firstPartyDomain");
+  });
+
+  it("Firefox 环境下，firstPartyDomain 会被裁剪空白后传递给 chrome.cookies.getAll", async () => {
+    vi.stubGlobal("mozInnerScreenX", 0); // 模拟 isFirefox() 为 true
+    const getAllSpy = vi.spyOn(cookiesApi, "getAll").mockResolvedValue([]);
+    const req = makeCookieReq({ url: "https://example.com", firstPartyDomain: "  example.com  " }, "list");
+    await (GMApi.prototype as any).GM_cookie.call(makeCookieGMApi(), req, cookieSender);
+    expect(getAllSpy.mock.calls[0][0].firstPartyDomain).toBe("example.com");
+  });
+
+  it("Firefox 环境下，set 操作也会传递 firstPartyDomain 给 chrome.cookies.set", async () => {
+    vi.stubGlobal("mozInnerScreenX", 0);
+    const setSpy = vi.spyOn(cookiesApi, "set").mockResolvedValue({} as chrome.cookies.Cookie);
+    const req = makeCookieReq(
+      { url: "https://example.com", name: "n", value: "v", firstPartyDomain: "example.com" },
+      "set"
+    );
+    await (GMApi.prototype as any).GM_cookie.call(makeCookieGMApi(), req, cookieSender);
+    expect(setSpy.mock.calls[0][0].firstPartyDomain).toBe("example.com");
+  });
+
+  it("Firefox 环境下，list 未提供 firstPartyDomain 时补字面量 null（Firefox 的 getAll 专门区分「完全没有该 key」与「该 key 为 null」，只有前者在 FPI 开启时报错，见 violentmonkey#746）", async () => {
+    vi.stubGlobal("mozInnerScreenX", 0);
+    const getAllSpy = vi.spyOn(cookiesApi, "getAll").mockResolvedValue([]);
+    const req = makeCookieReq({ url: "https://example.com" }, "list");
+    await (GMApi.prototype as any).GM_cookie.call({}, req, cookieSender);
+    expect(getAllSpy.mock.calls[0][0].firstPartyDomain).toBeNull();
+  });
+
+  it("Firefox 环境下，delete 未提供 firstPartyDomain 时直接省略该字段（remove 对 null 与未提供一视同仁，补 null 无意义）", async () => {
+    vi.stubGlobal("mozInnerScreenX", 0);
+    const removeSpy = vi.spyOn(cookiesApi, "remove").mockResolvedValue({} as chrome.cookies.CookieDetails);
+    const req = makeCookieReq({ url: "https://example.com", name: "n" }, "delete");
+    await (GMApi.prototype as any).GM_cookie.call({}, req, cookieSender);
+    expect(removeSpy.mock.calls[0][0]).not.toHaveProperty("firstPartyDomain");
+  });
+
+  it("Firefox 环境下，set/delete 未提供 firstPartyDomain 且 FPI 开启时，Firefox 的拒绝会原样传播给调用方，而不是被吞掉", async () => {
+    vi.stubGlobal("mozInnerScreenX", 0);
+    const fpiError = new Error(
+      "First-Party Isolation is enabled, but the required 'firstPartyDomain' attribute was not set."
+    );
+    vi.spyOn(cookiesApi, "set").mockRejectedValue(fpiError);
+    vi.spyOn(cookiesApi, "remove").mockRejectedValue(fpiError);
+
+    await expect(
+      (GMApi.prototype as any).GM_cookie.call(
+        {},
+        makeCookieReq({ url: "https://example.com", name: "n", value: "v" }, "set"),
+        cookieSender
+      )
+    ).rejects.toThrow(fpiError.message);
+
+    await expect(
+      (GMApi.prototype as any).GM_cookie.call(
+        {},
+        makeCookieReq({ url: "https://example.com", name: "n" }, "delete"),
+        cookieSender
+      )
+    ).rejects.toThrow(fpiError.message);
+  });
+
+  it("Firefox 环境下，显式传空字符串 firstPartyDomain 时应保留空字符串（代表 FPI 关闭时创建的 cookie），而非当作未提供", async () => {
+    vi.stubGlobal("mozInnerScreenX", 0);
+    const getAllSpy = vi.spyOn(cookiesApi, "getAll").mockResolvedValue([]);
+    const setSpy = vi.spyOn(cookiesApi, "set").mockResolvedValue({} as chrome.cookies.Cookie);
+    const removeSpy = vi.spyOn(cookiesApi, "remove").mockResolvedValue({} as chrome.cookies.CookieDetails);
+
+    await (GMApi.prototype as any).GM_cookie.call(
+      makeCookieGMApi(),
+      makeCookieReq({ url: "https://example.com", firstPartyDomain: "" }, "list"),
+      cookieSender
+    );
+    expect(getAllSpy.mock.calls[0][0].firstPartyDomain).toBe("");
+
+    await (GMApi.prototype as any).GM_cookie.call(
+      makeCookieGMApi(),
+      makeCookieReq({ url: "https://example.com", name: "n", value: "v", firstPartyDomain: "   " }, "set"),
+      cookieSender
+    );
+    expect(setSpy.mock.calls[0][0].firstPartyDomain).toBe("");
+
+    await (GMApi.prototype as any).GM_cookie.call(
+      makeCookieGMApi(),
+      makeCookieReq({ url: "https://example.com", name: "n", firstPartyDomain: "" }, "delete"),
+      cookieSender
+    );
+    expect(removeSpy.mock.calls[0][0].firstPartyDomain).toBe("");
+  });
+
+  it("Firefox 环境下，set 未提供 firstPartyDomain 时直接省略该字段（无法用 null 表达新 cookie 的归属，不能补默认值）", async () => {
+    vi.stubGlobal("mozInnerScreenX", 0);
+    const setSpy = vi.spyOn(cookiesApi, "set").mockResolvedValue({} as chrome.cookies.Cookie);
+
+    await (GMApi.prototype as any).GM_cookie.call(
+      {},
+      makeCookieReq({ url: "https://example.com", name: "n", value: "v" }, "set"),
+      cookieSender
+    );
+    expect(setSpy.mock.calls[0][0]).not.toHaveProperty("firstPartyDomain");
   });
 });
