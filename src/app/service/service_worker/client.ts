@@ -321,6 +321,11 @@ export class SynchronizeClient extends Client {
   restoreConfigBundle(bundle: ConfigBundle): Promise<void> {
     return this.do("restoreConfigBundle", bundle);
   }
+
+  // 手动触发一次云同步（设置页「立即同步」）
+  cloudSyncOnce(): Promise<void> {
+    return this.do("cloudSyncOnce");
+  }
 }
 
 export class SubscribeClient extends Client {

@@ -155,6 +155,52 @@ describe("S3FileSystem", () => {
       expect(mockClient.request).toHaveBeenCalledWith("GET", "test-bucket", "data/hello.txt");
       expect(content).toBe("file content");
     });
+
+    it("读取文件遇到 503 时应当抛出 typed 可重试错误", async () => {
+      const fileInfo: FileInfo = {
+        name: "busy.user.js",
+        path: "/",
+        size: 50,
+        digest: "xyz",
+        createtime: 1000,
+        updatetime: 2000,
+      };
+      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new S3Error("ServiceUnavailable", "Please retry later", 503)
+      );
+
+      const reader = await fs.open(fileInfo);
+
+      await expect(reader.read("string")).rejects.toMatchObject({
+        provider: "s3",
+        status: 503,
+        code: "ServiceUnavailable",
+        retryable: true,
+      });
+    });
+
+    it("读取文件遇到 501 时不应标记为可重试", async () => {
+      // 501 Not Implemented 是永久失败（如后端不支持条件请求），重试只会空转退避
+      const fileInfo: FileInfo = {
+        name: "busy.user.js",
+        path: "/",
+        size: 50,
+        digest: "xyz",
+        createtime: 1000,
+        updatetime: 2000,
+      };
+      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new S3Error("NotImplemented", "A header you provided implies functionality that is not implemented", 501)
+      );
+
+      const reader = await fs.open(fileInfo);
+
+      await expect(reader.read("string")).rejects.toMatchObject({
+        provider: "s3",
+        status: 501,
+        retryable: false,
+      });
+    });
   });
 
   // ---- create ----
@@ -399,6 +445,20 @@ describe("S3FileSystem", () => {
       );
 
       await expect(fs.list()).rejects.toThrow("Permission denied");
+    });
+
+    it("列目录遇到 429 时应当抛出 typed 限流错误", async () => {
+      (mockClient.request as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new S3Error("SlowDown", "Please reduce your request rate", 429)
+      );
+
+      await expect(fs.list()).rejects.toMatchObject({
+        provider: "s3",
+        status: 429,
+        code: "SlowDown",
+        rateLimit: true,
+        retryable: true,
+      });
     });
   });
 

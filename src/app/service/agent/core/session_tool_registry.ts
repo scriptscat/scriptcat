@@ -14,7 +14,7 @@ import type {
  *
  * 架构动机：
  * 原来的 ToolRegistry 是全局共享 Map，会话间 registerBuiltin 同名工具会互相覆盖闭包，
- * 导致并发会话的 task/ask_user/sub_agent 绑定到错误的 conversationId/sendEvent。
+ * 导致并发会话的 create_task/ask_user/agent 等会话级工具绑定到错误的 conversationId/sendEvent。
  *
  * 本类持有 parent: ToolRegistry 只读引用 + 自己的 sessionTools Map。
  * - register()：只写入 sessionTools（不污染 parent）
