@@ -4,9 +4,13 @@ import { sendMessage } from "@Packages/message/client";
 import type { IOffscreenSend } from "@Packages/message/types";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 
+type SchedulerLike = {
+  postTask<T>(callback: () => T, options: { priority: "user-visible"; delay: number }): Promise<T>;
+};
+
 // Firefox 的 blocking listener 依赖 Scheduler API；Chrome 使用 runtime port 心跳。
-const nativeScheduler =
-  typeof scheduler !== "undefined" && typeof scheduler?.postTask === "function" ? scheduler : null;
+const schedulerGlobal = (globalThis as typeof globalThis & { scheduler?: SchedulerLike }).scheduler;
+const nativeScheduler = typeof schedulerGlobal?.postTask === "function" ? schedulerGlobal : null;
 
 const deferredResponse = <T>(o: T, delayMs: number) =>
   new Promise<T>((resolve) => {
