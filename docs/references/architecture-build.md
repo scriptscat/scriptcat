@@ -51,6 +51,7 @@ dist/ext/
 - `permissions` include `userScripts`, `declarativeNetRequest`, `offscreen`, `scripting`, `cookies`,
   `webRequest`, `unlimitedStorage`, …; `optional_permissions` hold `background` + `userScripts`.
 - `host_permissions: ["<all_urls>"]`, `incognito: "split"`.
+- CSP rule state is owned only by the regular service worker; the incognito service worker does not register CSP rule handlers.
 - `sandbox.pages` declares `src/sandbox.html`; `web_accessible_resources` exposes `install.html` so a
   `.user.js` page can hand off to the install flow.
 

@@ -37,6 +37,10 @@ This file provides guidance to AI coding agents (Claude Code, etc.) when working
 
 > **Doc map:** [`docs/README.md`](docs/README.md) indexes every contributor doc (development, architecture,
 > translation, contributing, localized READMEs).
+>
+> **Feature specifications:** [`docs/specs/csp-rule-management.md`](docs/specs/csp-rule-management.md)
+> owns the planned CSP rule-management product, UX, technical, and acceptance contract. Read it before
+> implementing or reviewing that feature; it is target behavior, not a claim that the feature is shipped.
 
 ## Project Overview
 

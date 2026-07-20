@@ -26,6 +26,9 @@ import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_
 import { cleanupStaleTempStorageEntries } from "./temp";
 import RuntimeLogger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
+import { CspRuleStateDAO } from "@App/app/repo/csp_rule";
+import { CspRuleService, isCspRuleOwner } from "./csp_rule";
+import { DeclarativeNetRequestCspApplier, compileCspRules } from "./csp_rule_compiler";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -119,6 +122,18 @@ export default class ServiceWorkerManager {
       faviconDAO
     );
     system.init();
+
+    if (isCspRuleOwner(extensionEnv.inIncognitoContext)) {
+      const cspRule = new CspRuleService(
+        this.api.group("cspRule"),
+        this.mq,
+        new CspRuleStateDAO(),
+        compileCspRules,
+        new DeclarativeNetRequestCspApplier()
+      );
+      cspRule.init();
+    }
+
     const agent = new AgentService(this.api.group("agent"), this.offscreenSend, resource);
     agent.init();
 

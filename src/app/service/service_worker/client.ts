@@ -27,6 +27,18 @@ import type { TrashScript } from "@App/app/repo/trash_script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 import type { LocalBackupExport } from "./synchronize";
+import type {
+  CspMutationResult,
+  CspRuleCreateInput,
+  CspRuleDeleteInput,
+  CspRuleEnabledInput,
+  CspRuleMasterEnabledInput,
+  CspRuleServiceError,
+  CspRuleSnapshot,
+  CspRuleUpdateInput,
+} from "./csp_rule";
+
+export type { CspRuleServiceError } from "./csp_rule";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -35,6 +47,94 @@ export class ServiceWorkerClient extends Client {
 
   preparationOffscreen() {
     return this.do("preparationOffscreen");
+  }
+}
+
+export function parseCspRuleError(error: unknown): CspRuleServiceError {
+  const payload =
+    typeof error === "string"
+      ? (() => {
+          try {
+            return JSON.parse(error) as unknown;
+          } catch {
+            return undefined;
+          }
+        })()
+      : error;
+  if (payload && typeof payload === "object" && "code" in payload) {
+    const code = payload.code;
+    if (
+      code === "invalid_input" ||
+      code === "not_found" ||
+      code === "revision_conflict" ||
+      code === "storage_read_failed" ||
+      code === "storage_write_failed" ||
+      code === "unsupported_schema"
+    ) {
+      return payload as CspRuleServiceError;
+    }
+  }
+  return { code: "storage_write_failed" };
+}
+
+/**
+ * chrome.runtime.sendMessage 的响应通道在 service worker 处理耗时较长时可能被浏览器丢弃
+ * （例如用户填写表单期间 service worker 进入空闲状态）。此时请求本身可能已在后台成功执行，
+ * 只是响应没能送达，与服务端明确返回的失败无法用同一错误区分，因此单独抛出，交由调用方
+ * 通过重新拉取 state 来判断该次操作究竟是否已生效。
+ */
+export class CspRuleAmbiguousResponseError extends Error {
+  constructor() {
+    super("csp rule response lost in transit");
+    this.name = "CspRuleAmbiguousResponseError";
+  }
+}
+
+export class CspRuleClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/cspRule");
+  }
+
+  private async request<T>(action: string, data?: unknown): Promise<T> {
+    let result: T | undefined;
+    try {
+      result = await this.do<T>(action, data);
+    } catch (error) {
+      throw parseCspRuleError(error);
+    }
+    if (result === undefined) {
+      if (action === "getState") throw parseCspRuleError(undefined);
+      throw new CspRuleAmbiguousResponseError();
+    }
+    return result;
+  }
+
+  getState(): Promise<CspRuleSnapshot> {
+    return this.request<CspRuleSnapshot>("getState");
+  }
+
+  createRule(input: CspRuleCreateInput): Promise<CspMutationResult> {
+    return this.request<CspMutationResult>("createRule", input);
+  }
+
+  updateRule(input: CspRuleUpdateInput): Promise<CspMutationResult> {
+    return this.request<CspMutationResult>("updateRule", input);
+  }
+
+  deleteRule(input: CspRuleDeleteInput): Promise<CspMutationResult> {
+    return this.request<CspMutationResult>("deleteRule", input);
+  }
+
+  setRuleEnabled(input: CspRuleEnabledInput): Promise<CspMutationResult> {
+    return this.request<CspMutationResult>("setRuleEnabled", input);
+  }
+
+  setMasterEnabled(input: CspRuleMasterEnabledInput): Promise<CspMutationResult> {
+    return this.request<CspMutationResult>("setMasterEnabled", input);
+  }
+
+  retryApply(): Promise<CspMutationResult> {
+    return this.request<CspMutationResult>("retryApply");
   }
 }
 
