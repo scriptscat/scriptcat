@@ -3,7 +3,8 @@ import { SynchronizeService } from "./synchronize";
 import { initTestEnv } from "@Tests/utils";
 import type FileSystem from "@Packages/filesystem/filesystem";
 import { FileSystemError } from "@Packages/filesystem/error";
-import type { CloudSyncConfig } from "@App/pkg/config/config";
+import type { CloudSyncConfig, SystemConfig } from "@App/pkg/config/config";
+import type { ScriptDAO } from "@App/app/repo/scripts";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { md5OfText } from "@App/pkg/utils/crypto";
 import FileSystemFactory from "@Packages/filesystem/factory";
@@ -2455,44 +2456,32 @@ console.log("ok");`
   });
 
   describe("云同步配置变更调度", () => {
-    const alarmGet = vi.fn();
-    const alarmCreate = vi.fn();
-    const alarmClear = vi.fn();
+    const alarmGet = vi.fn((_name: string | undefined, callback: (alarm?: chrome.alarms.Alarm) => void) => callback());
+    const alarmCreate = vi.fn(
+      (_name: string | undefined, _info: chrome.alarms.AlarmCreateInfo, callback?: () => void) => callback?.()
+    );
+    const alarmClear = vi.fn((_name: string | undefined, callback?: (wasCleared: boolean) => void) => callback?.(true));
 
     const createService = () => {
-      const systemConfig = {
-        setCloudSync: vi.fn(),
-      };
-      const service = new SynchronizeService(
-        {} as any,
-        {} as any,
-        {} as any,
-        {} as any,
-        {} as any,
-        {} as any,
-        systemConfig as any,
-        {
-          scriptCodeDAO: {},
-          all: vi.fn().mockResolvedValue([]),
-        } as any
-      );
+      const setCloudSync = vi.fn();
+      const systemConfig = Object.assign(Object.create(null) as SystemConfig, { setCloudSync });
+      const scriptDAO = Object.assign(Object.create(null) as ScriptDAO, {
+        scriptCodeDAO: Object.create(null) as ScriptDAO["scriptCodeDAO"],
+        all: vi.fn().mockResolvedValue([]),
+      });
+      const service = new SynchronizeService(null!, null!, null!, null!, null!, null!, systemConfig, scriptDAO);
       const fs = createFs();
       const buildFileSystem = vi.spyOn(service, "buildFileSystem").mockResolvedValue(fs);
       const syncOnce = vi.spyOn(service, "syncOnce").mockResolvedValue(undefined);
-      return { service, systemConfig, fs, buildFileSystem, syncOnce };
+      return { service, setCloudSync, fs, buildFileSystem, syncOnce };
     };
 
     beforeEach(() => {
-      alarmGet.mockImplementation((_name: string, callback: (alarm?: chrome.alarms.Alarm) => void) => callback());
-      alarmCreate.mockImplementation((_name: string, _info: chrome.alarms.AlarmCreateInfo, callback?: () => void) =>
-        callback?.()
-      );
-      alarmClear.mockImplementation((_name: string, callback?: (wasCleared: boolean) => void) => callback?.(true));
-      (chrome as any).alarms = {
+      chrome.alarms = Object.assign(Object.create(null) as typeof chrome.alarms, {
         get: alarmGet,
         create: alarmCreate,
         clear: alarmClear,
-      };
+      });
     });
 
     it("启动时配置已启用会同步一次并确保小时闹钟存在", async () => {
@@ -2563,7 +2552,7 @@ console.log("ok");`
     });
 
     it("外部写入未提供旧值的启用连接变更也会被防御性暂停且不触发同步", async () => {
-      const { service, systemConfig, buildFileSystem, syncOnce } = createService();
+      const { service, setCloudSync, buildFileSystem, syncOnce } = createService();
       const previous = {
         ...syncConfig,
         params: { webdav: { url: "https://old.example.com" } },
@@ -2583,7 +2572,7 @@ console.log("ok");`
       service.cloudSyncConfigChange(changed, undefined);
       await flushMicrotasks();
 
-      expect(systemConfig.setCloudSync).toHaveBeenCalledWith({ ...changed, enable: false });
+      expect(setCloudSync).toHaveBeenCalledWith({ ...changed, enable: false });
       expect(alarmClear).toHaveBeenCalledWith("cloudSync");
       expect(buildFileSystem).not.toHaveBeenCalled();
       expect(syncOnce).not.toHaveBeenCalled();
