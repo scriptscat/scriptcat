@@ -281,6 +281,43 @@ export function isScriptletUnwrap(metadata: SCMetadata): boolean {
   return metadataBlankOrTrue(metadata, "unwrap");
 }
 
+// @script-module 必须新建独立的 <script type="module">，无法复用外层 with(arguments[0]) 沙盒 Proxy，
+// 因此通过临时的 document 属性把 GM（按 @grant 授予的实际能力）、window、unsafeWindow 等
+// 转交给新建的 module；module 读取后立即删除该属性。
+// 排除 @require：其内容在外层 classic-script 作用域执行，module 无法访问那些词法变量，
+// 组合使用会静默产生 require 内容对 module 不可见的错误行为，因此在此明确拒绝而非放任。
+export function isScriptModule(metadata: SCMetadata): boolean {
+  return (
+    metadataBlankOrTrue(metadata, "script-module") &&
+    !isInjectIntoContent(metadata) &&
+    !(Array.isArray(metadata.require) && metadata.require.length > 0)
+  );
+}
+
+/**
+ * 将脚本代码包装为通过独立 <script type="module"> 标签注入的形式。
+ * 通过临时的 document 属性把当前脚本的 GM（按 @grant 授予的实际能力）、window、unsafeWindow、
+ * top、parent、globalThis 转交给新建的 module，module 读取后立即删除该属性。
+ * @see {@link isScriptModule}
+ */
+export function wrapScriptModuleCode(scriptCode: string, scriptName: string): string {
+  const wId = `__${Date.now().toString(36)}_${(Math.random() + 1).toString(36).substring(2)}`;
+  const bakedScriptName = JSON.stringify(scriptName);
+  const moduleSource = JSON.stringify(
+    `const {GM, top, parent, window, unsafeWindow, globalThis} = document.${wId}; delete document.${wId};\n${scriptCode}`
+  );
+  return [
+    "(function(){",
+    `document.${wId} = {GM, top, parent, window, globalThis: window, unsafeWindow: typeof unsafeWindow !== "undefined" ? unsafeWindow : undefined};`,
+    'var jsScript = document.createElement("script");',
+    'jsScript.type = "module";',
+    `jsScript.textContent = ${moduleSource};`,
+    `jsScript.addEventListener("error", function(e){ console.error("[ScriptCat] @script-module " + ${bakedScriptName} + " 执行失败（可能是 import 解析失败或被页面 CSP 拦截）", e); });`,
+    "(document.body || document.head || document.documentElement).appendChild(jsScript);",
+    "})();",
+  ].join("\n");
+}
+
 export function isInjectIntoContent(metadata: SCMetadata): boolean {
   return metadata["inject-into"]?.[0] === "content";
 }

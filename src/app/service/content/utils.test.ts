@@ -5,6 +5,8 @@ import {
   compileInjectScript,
   compileScriptletCode,
   isScriptletUnwrap,
+  isScriptModule,
+  wrapScriptModuleCode,
   addStyle,
   addStyleSheet,
 } from "./utils";
@@ -560,6 +562,78 @@ describe("utils", () => {
 
     it.concurrent("@unwrap 为 false 时返回 false", () => {
       expect(isScriptletUnwrap({ unwrap: ["false"] })).toBe(false);
+    });
+  });
+
+  describe.concurrent("isScriptModule", () => {
+    it.concurrent("@script-module 为空值时返回 true", () => {
+      expect(isScriptModule({ "script-module": [""] })).toBe(true);
+    });
+
+    it.concurrent("@script-module 为 true 时返回 true", () => {
+      expect(isScriptModule({ "script-module": ["true"] })).toBe(true);
+    });
+
+    it.concurrent("没有 @script-module 时返回 false", () => {
+      expect(isScriptModule({})).toBe(false);
+    });
+
+    it.concurrent("@script-module 为 false 时返回 false", () => {
+      expect(isScriptModule({ "script-module": ["false"] })).toBe(false);
+    });
+
+    it.concurrent("@script-module 与 @inject-into content 同时存在时返回 false", () => {
+      expect(isScriptModule({ "script-module": [""], "inject-into": ["content"] })).toBe(false);
+    });
+
+    it.concurrent("@script-module 与 @inject-into page 同时存在时返回 true", () => {
+      expect(isScriptModule({ "script-module": [""], "inject-into": ["page"] })).toBe(true);
+    });
+
+    it.concurrent("搭配真实 @grant 时仍返回 true（module 支持完整 GM.* 能力，不限于 @grant none）", () => {
+      expect(isScriptModule({ "script-module": [""], grant: ["GM.getValue", "GM.setValue"] })).toBe(true);
+    });
+
+    it.concurrent("搭配 @require 时返回 false（module 无法访问外层 classic-script 的词法变量）", () => {
+      expect(isScriptModule({ "script-module": [""], require: ["https://example.com/a.js"] })).toBe(false);
+    });
+
+    it.concurrent("搭配 early-start（document-start）时仍返回 true", () => {
+      expect(
+        isScriptModule({
+          "script-module": [""],
+          "early-start": [""],
+          "run-at": ["document-start"],
+        })
+      ).toBe(true);
+    });
+  });
+
+  describe.concurrent("wrapScriptModuleCode", () => {
+    it.concurrent("透过临时 document 属性传递 GM（含实际授予的能力）/window/unsafeWindow 等，并在读取后删除", () => {
+      const result = wrapScriptModuleCode("console.log('hi')", "Test Script");
+
+      // 生成 <script type="module"> 并挂载到 document
+      expect(result).toContain('jsScript.type = "module"');
+      expect(result).toContain('document.createElement("script")');
+      expect(result).toMatch(
+        /\(document\.body \|\| document\.head \|\| document\.documentElement\)\.appendChild\(jsScript\)/
+      );
+
+      // 通过临时 document 属性传递沙盒变量给 module script，并在读取后删除
+      expect(result).toMatch(
+        /document\.__[a-z0-9]+_[a-z0-9]+\s*=\s*\{GM, top, parent, window, globalThis: window, unsafeWindow:/
+      );
+      expect(result).toMatch(
+        /const \{GM, top, parent, window, unsafeWindow, globalThis\} = document\.__[a-z0-9]+_[a-z0-9]+; delete document\.__[a-z0-9]+_[a-z0-9]+;/
+      );
+
+      // 原始脚本代码被内嵌到注入的 module 字符串中
+      expect(result).toContain("console.log('hi')");
+
+      // 注入失败（import 解析失败 / 被页面 CSP 拦截）时有可观测的错误处理
+      expect(result).toContain('jsScript.addEventListener("error"');
+      expect(result).toContain(JSON.stringify("Test Script"));
     });
   });
 

@@ -343,6 +343,71 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     });
   });
 
+  describe.concurrent("restoreJSCodeFromCompiledResource 缓存恢复路径与首次编译路径的一致性", () => {
+    it.concurrent("@script-module 脚本：缓存恢复路径也应套用 module 包装，而非退回 classic-script 编译", async () => {
+      const { runtime, mockScriptService } = createRuntimeTestContext();
+      (mockScriptService as any).scriptCodeDAO = {
+        get: vi.fn().mockResolvedValue({ code: "import x from './x.js'; console.log(x);" }),
+      };
+
+      const script = createMockScript({
+        metadata: { "script-module": [""], grant: ["GM.getValue"], match: ["https://www.example.com/*"] },
+      });
+      const compiledResource: CompiledResource = {
+        name: script.name,
+        flag: "#-" + script.uuid,
+        uuid: script.uuid,
+        require: [],
+        matches: ["https://www.example.com/*"],
+        includeGlobs: [],
+        excludeMatches: [],
+        excludeGlobs: [],
+        allFrames: false,
+        world: "MAIN",
+        runAt: "document-idle",
+        scriptUrlPatterns: [],
+        originalUrlPatterns: null,
+      };
+
+      const code = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
+
+      expect(code).toContain('jsScript.type = "module"');
+      expect(code).toMatch(
+        /document\.__[a-z0-9]+_[a-z0-9]+\s*=\s*\{GM, top, parent, window, globalThis: window, unsafeWindow:/
+      );
+    });
+
+    it.concurrent("普通脚本（非 script-module）：缓存恢复路径不应套用 module 包装", async () => {
+      const { runtime, mockScriptService } = createRuntimeTestContext();
+      (mockScriptService as any).scriptCodeDAO = {
+        get: vi.fn().mockResolvedValue({ code: "console.log('normal');" }),
+      };
+
+      const script = createMockScript({
+        metadata: { match: ["https://www.example.com/*"] },
+      });
+      const compiledResource: CompiledResource = {
+        name: script.name,
+        flag: "#-" + script.uuid,
+        uuid: script.uuid,
+        require: [],
+        matches: ["https://www.example.com/*"],
+        includeGlobs: [],
+        excludeMatches: [],
+        excludeGlobs: [],
+        allFrames: false,
+        world: "MAIN",
+        runAt: "document-idle",
+        scriptUrlPatterns: [],
+        originalUrlPatterns: null,
+      };
+
+      const code = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
+
+      expect(code).not.toContain('jsScript.type = "module"');
+    });
+  });
+
   describe("redo matcher cache behavior", () => {
     it("安装或排序更新后，已缓存 URL 的下一次匹配顺序应立即反映新 sort", async () => {
       const { runtime } = createRuntimeTestContext();

@@ -154,6 +154,16 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
       return;
     }
 
+    if (url.pathname === "/module-lib.js") {
+      // 供 script_module_e2e_test.js 静态 `import ... from` 使用，验证注入的确是可被浏览器
+      // 当作 ES module 解析执行的 <script type="module">（普通 script 遇到 import 会直接语法报错）
+      res.writeHead(200, { "Content-Type": "text/javascript; charset=utf-8" });
+      res.end(
+        'export function addNumbers(a, b) { return a + b; }\nexport const MODULE_LIB_MARKER = "script-module-e2e-import-ok";\n'
+      );
+      return;
+    }
+
     const bytesMatch = url.pathname.match(/^\/bytes\/(\d+)$/);
     if (bytesMatch) {
       const size = Number(bytesMatch[1]);
@@ -212,7 +222,7 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   const url = new URL(targetUrl);
   const targetPattern = `${url.protocol}//${url.hostname}/*${url.search}`;
   return code.replace(
-    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test)$/gm,
+    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|script_module_e2e_test)$/gm,
     `// @match        ${targetPattern}`
   );
 }
@@ -372,6 +382,25 @@ test.describe("GM API", () => {
       console.log("[unwrap_e2e_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some unwrap scriptlet tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("@script-module tests (script_module_e2e_test.js)", async ({ context, extensionId }) => {
+    // @script-module 以 <script type="module"> 直接注入页面 DOM，会受页面自身 CSP 限制
+    // （见 PR 描述的限制3），因此使用无 CSP 头的普通 mock 站点，而非 cspOrigin。
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "script_module_e2e_test.js",
+      `${gmApiMockServer.origin}/?script_module_e2e_test`,
+      60_000
+    );
+
+    console.log(`[script_module_e2e_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[script_module_e2e_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some @script-module tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
