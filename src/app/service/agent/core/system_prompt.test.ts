@@ -68,6 +68,23 @@ describe("buildSystemPrompt", () => {
     }
   });
 
+  it("Sub-Agent 段按职责列出辅助、流水线与安全类型", () => {
+    const result = buildSystemPrompt({});
+    for (const typeName of [
+      "summarizer",
+      "data_validator",
+      "diff_checker",
+      "page_extractor",
+      "file_converter",
+      "action_reviewer",
+      "script_auditor",
+    ]) {
+      expect(result).toContain(`**${typeName}**`);
+    }
+    expect(result).toContain("the author does not audit their own output");
+    expect(result).toContain("Only after user confirmation");
+  });
+
   it("有 userSystem 时拼接在内置提示词之后", () => {
     const result = buildSystemPrompt({ userSystem: "You are a helpful bot." });
     expect(result).toContain("You are ScriptCat Agent");

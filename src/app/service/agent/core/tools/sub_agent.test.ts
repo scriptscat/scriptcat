@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createSubAgentTool, SUB_AGENT_DEFINITION } from "./sub_agent";
 
 describe("sub_agent", () => {
-  it("类型 schema 公开所有专项 sub-agent", () => {
+  it("类型 schema 公开所有专项与辅助 sub-agent", () => {
     const parameters = SUB_AGENT_DEFINITION.parameters as {
       properties: { type: { enum: string[]; description: string } };
     };
@@ -14,6 +14,17 @@ describe("sub_agent", () => {
     for (const typeName of ["data_processor", "form_filler", "content_writer", "script_engineer"]) {
       expect(typeSchema.description).toContain(typeName);
     }
+    const auxiliaryTypes = [
+      "summarizer",
+      "data_validator",
+      "diff_checker",
+      "page_extractor",
+      "file_converter",
+      "action_reviewer",
+      "script_auditor",
+    ];
+    expect(typeSchema.enum).toEqual(expect.arrayContaining(auxiliaryTypes));
+    for (const typeName of auxiliaryTypes) expect(typeSchema.description).toContain(typeName);
   });
 
   it("should call runSubAgent with correct parameters", async () => {

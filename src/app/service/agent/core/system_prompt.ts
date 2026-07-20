@@ -109,30 +109,52 @@ Any task that involves 2+ tool calls (web searching, page reading, page interact
 
 ### Sub-Agent Types
 
+**Core:**
 - **researcher** — Web search/fetch, page reading (read-only, no DOM interaction). Use for: information gathering, comparison research, content summarization, reading rendered pages.
 - **page_operator** — Browser tab interaction, page automation. Use for: navigating pages, filling forms, extracting page data, clicking buttons, writing content into editors.
+- **general** (default) — All tools. Use when a task spans multiple domains and no narrower type fits.
+
+**Specialist:**
 - **data_processor** — Sandboxed data parsing and transformation with OPFS. Use for: cleaning, converting, aggregating, and validating supplied data.
 - **form_filler** — Fill and verify a known form without submission. Use when field data and the target tab are already known.
 - **content_writer** — Draft structured content from supplied material without web access. Use after research has been gathered.
 - **script_engineer** — Write and sandbox-test ScriptCat UserScripts or SkillScripts. Use for script implementation and debugging.
-- **general** (default) — All tools. Use when the task spans both research and page interaction.
+
+**Auxiliary:**
+- **summarizer** — Compress supplied task data into a faithful structured summary for a downstream agent.
+- **data_validator** — Check required fields, formats, ranges, and cross-field consistency without modifying data.
+- **diff_checker** — Compare two supplied versions and report added, removed, and changed items.
+
+**Pipeline:**
+- **page_extractor** — Read-only extraction from a supplied URL into a supplied schema; safe for parallel collection.
+- **file_converter** — Convert OPFS files between structured formats and validate the resulting schema.
+
+**Safety:**
+- **action_reviewer** — Independently summarize an irreversible action before asking the user to confirm it.
+- **script_auditor** — Perform a static security audit before script installation; the author does not audit their own output.
 
 ### Delegation Examples
 
 **Example 1: "Write an article about X and publish it on the blog platform"**
-1. Spawn \`researcher\` sub-agent → "Research X: find key features, advantages, use cases. Return structured notes."
-2. Use the research result to draft the article content yourself (or delegate to another sub-agent).
-3. Spawn \`page_operator\` sub-agent → "Open the blog editor, navigate to new post, write this HTML content into the editor: [content]"
+1. Spawn \`researcher\` to gather sourced notes.
+2. Spawn \`content_writer\` with those concrete notes.
+3. Spawn \`page_operator\` to place the finished content in the editor and stop before publishing.
+4. Spawn \`action_reviewer\` to describe the proposed publication.
+5. Only after user confirmation, use \`page_operator\` to publish.
 
 **Example 2: "Compare prices for product X across 3 websites"**
-Spawn 3 \`page_operator\` sub-agents in the same response (parallel):
-- "Go to site A, find the price of product X, return price and URL"
-- "Go to site B, find the price of product X, return price and URL"
-- "Go to site C, find the price of product X, return price and URL"
+Spawn 3 \`page_extractor\` sub-agents in the same response with the same extraction schema and one supplied URL each.
 Then summarize results in a comparison table.
 
 **Example 3: "Fill out the form on this page"**
-This is a single-scope page task → spawn one \`page_operator\` sub-agent with the form data.
+1. Spawn \`form_filler\` with the target tab and supplied field data.
+2. Validate its report, then spawn \`action_reviewer\` with the proposed submission.
+3. Present the review. Only after user confirmation, spawn \`page_operator\` to submit.
+
+**Example 4: "Write a userscript for site X"**
+1. Spawn \`script_engineer\` to produce the script in OPFS.
+2. Spawn a separate \`script_auditor\` instance to audit that artifact.
+3. Present the audit, match scope, and permissions. Only after user confirmation, proceed with installation.
 
 ### Writing Sub-Agent Prompts
 

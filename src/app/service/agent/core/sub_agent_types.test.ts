@@ -26,6 +26,18 @@ describe("Sub-Agent 类型系统", () => {
       expect(resolveSubAgentType("script_engineer")).toBe(SUB_AGENT_TYPES.script_engineer);
     });
 
+    it.each([
+      "summarizer",
+      "data_validator",
+      "diff_checker",
+      "page_extractor",
+      "file_converter",
+      "action_reviewer",
+      "script_auditor",
+    ])("返回 %s 辅助类型", (typeName) => {
+      expect(resolveSubAgentType(typeName)).toBe(SUB_AGENT_TYPES[typeName]);
+    });
+
     it.concurrent("未知类型抛错（防止攻击者传 xxx 获得更宽权限）", () => {
       expect(() => resolveSubAgentType("unknown_type")).toThrow(/Unknown sub-agent type/);
       expect(() => resolveSubAgentType("unknown_type")).toThrow(/Available types/);
@@ -169,6 +181,69 @@ describe("Sub-Agent 类型系统", () => {
 
       expect(prompt).toContain(role);
       expect(prompt).toContain(boundary);
+    });
+  });
+
+  describe("辅助类型职责边界", () => {
+    const availableTools = [
+      "web_fetch",
+      "web_search",
+      "opfs_read",
+      "opfs_write",
+      "opfs_list",
+      "opfs_delete",
+      "execute_script",
+      "get_tab_content",
+      "list_tabs",
+      "open_tab",
+      "close_tab",
+      "activate_tab",
+      "ask_user",
+      "agent",
+    ];
+    it.each([
+      ["summarizer", "## Role: Summarizer", "do not rewrite"],
+      ["data_validator", "## Role: Data Validator", "do not modify"],
+      ["diff_checker", "## Role: Diff Checker", "what changed"],
+      ["page_extractor", "## Role: Page Extractor", "read-only"],
+      ["file_converter", "## Role: File Converter", "schema"],
+      ["action_reviewer", "## Role: Action Reviewer", "cannot execute"],
+      ["script_auditor", "## Role: Script Auditor", "static analysis"],
+    ])("%s 包含独立角色边界", (typeName, role, boundary) => {
+      const config = SUB_AGENT_TYPES[typeName];
+      expect(config.systemPromptAddition).toContain(role);
+      expect(config.systemPromptAddition.toLowerCase()).toContain(boundary.toLowerCase());
+    });
+
+    it.each(["summarizer", "data_validator", "diff_checker", "file_converter", "action_reviewer", "script_auditor"])(
+      "%s 只能在 sandbox 执行脚本",
+      (typeName) => {
+        expect(SUB_AGENT_TYPES[typeName].executeScriptTargets).toEqual(["sandbox"]);
+      }
+    );
+
+    it("page_extractor 不应具有任意脚本或交互能力", () => {
+      const tools = SUB_AGENT_TYPES.page_extractor.allowedTools;
+      expect(tools).toEqual(expect.arrayContaining(["get_tab_content", "open_tab", "close_tab", "web_fetch"]));
+      expect(tools).not.toEqual(expect.arrayContaining(["execute_script", "activate_tab"]));
+    });
+
+    it("file_converter 不应具有删除文件权限", () => {
+      expect(SUB_AGENT_TYPES.file_converter.allowedTools).not.toContain("opfs_delete");
+    });
+
+    it.each([
+      ["summarizer", ["execute_script", "opfs_read", "opfs_write"], ["web_fetch", "get_tab_content"]],
+      ["data_validator", ["execute_script", "opfs_read"], ["opfs_write", "web_fetch"]],
+      ["diff_checker", ["execute_script", "opfs_read", "opfs_write"], ["web_fetch", "get_tab_content"]],
+      ["page_extractor", ["web_fetch", "open_tab", "get_tab_content", "close_tab"], ["execute_script", "list_tabs"]],
+      ["file_converter", ["execute_script", "opfs_read", "opfs_write"], ["opfs_delete", "web_fetch"]],
+      ["action_reviewer", ["execute_script", "opfs_read"], ["opfs_write", "get_tab_content"]],
+      ["script_auditor", ["execute_script", "opfs_read"], ["opfs_write", "get_tab_content"]],
+    ])("%s 的最终工具集合遵守职责边界", (typeName, included, forbidden) => {
+      const excluded = getExcludeToolsForType(SUB_AGENT_TYPES[typeName], availableTools);
+      for (const tool of included) expect(excluded).not.toContain(tool);
+      for (const tool of forbidden) expect(excluded).toContain(tool);
     });
   });
 
