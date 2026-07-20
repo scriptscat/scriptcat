@@ -8,9 +8,13 @@
 
 ```
 context bundles : service_worker · offscreen · sandbox · content · inject · scripting
+shared          : common (pre-React bootstrap, e.g. early theme init — see src/pages/common.ts)
 UI pages (React): popup · options · install · batchupdate · confirm · import
-workers         : editor.worker · ts.worker (Monaco) · linter.worker
+workers         : editor.worker · ts.worker · json.worker (Monaco) · linter.worker
 ```
+
+For the exact current set, check [`rspack.config.ts`](../../rspack.config.ts)'s `entry` block directly — this
+list is a snapshot and can drift when an entry is added or removed.
 
 Output goes to `dist/ext/src/[name].js` (cleaned each build). Notable behavior:
 
@@ -33,10 +37,10 @@ dist/ext/
 ├── manifest.json                 # version-stamped, browser-specialized at pack time
 ├── assets/  _locales/
 └── src/
-    ├── service_worker.js content.js inject.js scripting.js offscreen.js sandbox.js
+    ├── service_worker.js content.js inject.js scripting.js offscreen.js sandbox.js common.js
     ├── popup.html/.js options.html/.js install.html/.js …
     ├── offscreen.html sandbox.html
-    └── lib_*.js  editor.worker.js ts.worker.js linter.worker.js
+    └── lib_*.js  editor.worker.js ts.worker.js json.worker.js linter.worker.js
 ```
 
 ### Manifest (MV3)

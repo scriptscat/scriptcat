@@ -6,21 +6,21 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [`../AGENTS.md`](../AGENTS.md) | 工程原则、架构速览、AI/贡献者约定的单一信息源(`CLAUDE.md` 仅导入它)。 |
+| [`../AGENTS.md`](../AGENTS.md) | 工程原则、架构速览、AI/贡献者约定的单一信息源 —— 但仅相对 `CLAUDE.md`(其仅导入它)成立;`.github/copilot-instructions.md` 是 Copilot 的独立入口,与本文件共享的事实需在两边都改动时做一致性核对(parity review)。 |
 | [`develop.md`](./develop.md) | 开发规范:命令、目录结构、编码风格、UI/主题、i18n、提交/PR 流程;测试机制(含 Vitest 性能)拆到 [`references/develop-testing.md`](./references/develop-testing.md)。**写代码前先读。** |
 | [`pull-request.md`](./pull-request.md) | PR 描述指南:代理与贡献者使用的详细章节、按变更类型取舍规则、验证与审查信息要求。 |
 | [`design.md`](./design.md) | 设计系统参考:主题机制、shadcn 组件选型、新建页面配方总览;令牌完整值拆到 [`references/design-tokens.md`](./references/design-tokens.md),组件清单拆到 [`references/design-components.md`](./references/design-components.md),布局/响应式/动效/状态/无障碍范式拆到 [`references/design-patterns.md`](./references/design-patterns.md)。**做页面/对话框/区块前先读。** |
 | [`verification.md`](./verification.md) | 功能验证指南:用一次性 scratch 脚本驱动真实扩展做端到端验证(不跑全量 E2E、不加永久用例);报告模板拆到 [`references/verification-report-template.md`](./references/verification-report-template.md),调试 FAQ 拆到 [`references/verification-debugging.md`](./references/verification-debugging.md)。**验证改动是否真正跑通时读。** |
-| [`architecture.md`](./architecture.md) | 内部原理总览:多进程模型、消息传递;各子系统深入拆到 [`references/architecture-services.md`](./references/architecture-services.md)(服务层)、[`references/architecture-data.md`](./references/architecture-data.md)(数据层)、[`references/architecture-gm-api.md`](./references/architecture-gm-api.md)(GM API)、[`references/architecture-execution.md`](./references/architecture-execution.md)(脚本执行)、[`references/architecture-build.md`](./references/architecture-build.md)(构建管线)。 |
+| [`architecture.md`](./architecture.md) | 内部原理总览:多进程模型、消息传递;各子系统深入拆到 [`references/architecture-services.md`](./references/architecture-services.md)(服务层)、[`references/architecture-data.md`](./references/architecture-data.md)(数据层)、[`references/architecture-gm-api.md`](./references/architecture-gm-api.md)(GM API)、[`references/architecture-execution.md`](./references/architecture-execution.md)(脚本执行)、[`references/architecture-build.md`](./references/architecture-build.md)(构建管线)、[`references/architecture-agent.md`](./references/architecture-agent.md)(Agent 子系统)。 |
 | [`cloud-sync.md`](./cloud-sync.md) | 云同步实现说明:同步文件语义、主流程、状态合并、provider 差异、错误分类、retry 策略和维护注意事项。 |
-| [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | 文档维护与事实核对指南:组织规则、逐条核对清单、一键校验脚本。**改/审文档前先读。** |
+| [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | 文档维护与事实核对指南:组织规则、逐条核对清单、跨文档政策一致性核对、隐私清理、以及在 resolved final tree 上的复核方法,覆盖全部 tracked 的 agent/contributor Markdown(不止 `AGENTS.md` + `docs/*`,还包括 `.github/*.md`、package-local README)。**改/审文档前先读。** |
 
 ## 翻译 / Translation
 
 | 文档 | 说明 |
 | --- | --- |
 | [`translation.md`](./translation.md) | 翻译 / 本地化指南(单一信息源):术语与修改规则、工作流、提取翻译提示词。**翻译前先读。** |
-| [`translation.md` 术语规范表](./translation.md#各语言术语规范--per-locale-terminology) | 10 个语言地区的术语与界面文案规范 `terminology-<locale>.md`(en-US / zh-CN / zh-TW / ja-JP / ru-RU / de-DE / vi-VN / tr-TR / pt-BR / ko-KR)。 |
+| [`translation.md` 术语规范表](./translation.md#各语言术语规范--per-locale-terminology) | 当前 locale 清单与对应 `terminology-<locale>.md` 的 canonical table —— 数量与列表以该表为准,本索引不重复维护一份固定副本。 |
 
 ## 贡献指南 / Contributing
 
