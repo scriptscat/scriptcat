@@ -1,5 +1,7 @@
 import type { WebDAVClient } from "webdav";
 import type { FileReader, FileWriter } from "../filesystem";
+import { FileSystemError } from "../error";
+import { createWebDAVFileSystemError } from "./error";
 
 export class WebDAVFileReader implements FileReader {
   client: WebDAVClient;
@@ -12,17 +14,21 @@ export class WebDAVFileReader implements FileReader {
   }
 
   async read(type?: "string" | "blob"): Promise<string | Blob> {
-    switch (type) {
-      case "string":
-        return await (this.client.getFileContents(this.path, {
-          format: "text",
-        }) as Promise<string>);
-      default: {
-        const resp = (await this.client.getFileContents(this.path, {
-          format: "binary",
-        })) as ArrayBuffer;
-        return new Blob([resp]);
+    try {
+      switch (type) {
+        case "string":
+          return await (this.client.getFileContents(this.path, {
+            format: "text",
+          }) as Promise<string>);
+        default: {
+          const resp = (await this.client.getFileContents(this.path, {
+            format: "binary",
+          })) as ArrayBuffer;
+          return new Blob([resp]);
+        }
       }
+    } catch (error) {
+      throw createWebDAVFileSystemError(error);
     }
   }
 }
@@ -39,9 +45,19 @@ export class WebDAVFileWriter implements FileWriter {
 
   async write(content: string | Blob): Promise<void> {
     const data = content instanceof Blob ? await content.arrayBuffer() : content;
-    const resp = await this.client.putFileContents(this.path, data);
+    let resp: boolean;
+    try {
+      resp = await this.client.putFileContents(this.path, data);
+    } catch (error) {
+      throw createWebDAVFileSystemError(error);
+    }
     if (!resp) {
-      throw new Error("write error");
+      throw new FileSystemError({
+        provider: "webdav",
+        message: "WebDAV write failed",
+        status: 500,
+        retryable: false,
+      });
     }
   }
 }

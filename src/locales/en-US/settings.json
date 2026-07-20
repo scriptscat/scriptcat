@@ -91,6 +91,8 @@
   "notification": {
     "script_sync_delete": "Script Sync Delete",
     "script_sync_delete_desc": "Script {{scriptName}} has been deleted",
+    "script_sync_conflict": "Cloud Sync Conflict",
+    "script_sync_conflict_desc": "Both the local and cloud versions of {{scriptNames}} have been modified. Sync for the script is paused; please resolve the conflict manually",
     "subscribe_update": "Subscribe {{subscribeName}} has been updated",
     "subscribe_update_desc": "New scripts: {{newScripts}}\nDeleted scripts: {{deletedScripts}}"
   },
@@ -114,6 +116,7 @@
   "favicon_service_local": "Local Fetch",
   "cloud_sync_account_verification": "Cloud Sync Account Verification in Progress...",
   "cloud_sync_verification_failed": "Cloud Sync Account Verification Failed",
+  "cloud_sync_connection_changed": "The sync connection configuration changed, so sync has been paused. Review the configuration and enable sync again.",
   "trash_retention": "Trash Retention",
   "trash_retention_desc": "How long deleted scripts stay in Trash before being automatically deleted permanently",
   "trash_retention_7": "7 Days",
@@ -123,5 +126,16 @@
   "trash_enabled": "Enable Trash",
   "trash_enabled_desc": "Deleted scripts go to Trash first and can be restored at any time. When disabled, deleting a script removes it permanently right away.",
   "trash_retention_custom": "Custom",
-  "trash_retention_days_unit": "days"
+  "trash_retention_days_unit": "days",
+  "sync_view_logs": "View logs",
+  "sync_now": "Sync now",
+  "sync_state_idle": "Sync healthy",
+  "sync_last_at": "Last synced {{time}}",
+  "sync_never": "Not synced yet",
+  "sync_state_syncing": "Syncing…",
+  "sync_state_attention": "Last sync needs your review",
+  "sync_state_attention_desc": "{{conflict}} script(s) paused by conflicts during sync. Open the logs to review.",
+  "sync_state_overwrite_info": "{{overwrite}} script(s) overwritten during the last sync. View the logs for details.",
+  "sync_state_error": "Sync failed, paused",
+  "sync_state_failed_desc": "{{failed}} script(s) failed to sync. Open the logs for details."
 }
