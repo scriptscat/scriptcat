@@ -10,7 +10,7 @@
 
 | Owned here | Owned elsewhere |
 | --- | --- |
-| Color-token values, semantics, usage → [`tokens.md`](./references/design-tokens.md) | The hard rules that mandate them (no hard-coded colors, hover via pseudo-classes, `cn()` / CVA / `lucide`) → [`DEVELOP.md` UI section](./develop.md) |
+| Color-token values, semantics, usage → [`tokens.md`](./references/design-tokens.md) | The hard rules that mandate them (no hard-coded colors, hover via pseudo-classes, `cn()` / CVA / `lucide`) → [`DEVELOP.md` UI section](./develop.md#ui) |
 | Theming mechanism, `dark:` usage | Commands, structure, coding style, testing, i18n, commit/PR → [`DEVELOP.md`](./develop.md) |
 | Component palette, variants, selection guidance → [`components.md`](./references/design-components.md) | Process model, message passing, service layers, internals → [`ARCHITECTURE.md`](./architecture.md) |
 | Layout shell, responsive patterns, **layering (z-index)**, motion, state patterns, **accessibility** → [`patterns.md`](./references/design-patterns.md); **elevation (shadows)** → [`tokens.md`](./references/design-tokens.md#elevation-shadows); page recipe (this doc) | — |

@@ -1,18 +1,21 @@
 # Testing
 
 > The **TDD/BDD-first principle** (write failing tests before implementation; fix code not tests) lives in
-> [`AGENTS.md`](../../AGENTS.md) → *Engineering Principles*. This section is the mechanics.
+> [AGENTS.md § Engineering Principles](../../AGENTS.md#engineering-principles). This section is the mechanics.
 
 Vitest + happy-dom. Per-test budgets live in `vitest.config.ts` per project: non-UI projects (`fast`,
 `isolated`) use 340ms; the `ui` project (`src/pages/**/*.test.{ts,tsx}` — React renders, including
 `renderHook` tests in `.ts` files) uses 850ms because a render + interaction case genuinely costs 100–200ms
 solo under coverage and worker parallelism multiplies that (fake-timer countdown cases have been observed at
 ~630ms under full local load). Don't pass `--test-timeout` on the CLI — it would override every project's
-budget at once. Chrome APIs mocked via
-`@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` available for message-system tests.
+budget at once. Chrome APIs are mocked via
+`@Packages/chrome-extension-mock` (`tests/vitest.setup.ts`). `MockMessage` is available for message-system tests.
 `happy-dom` is patched via `patches/` (see `pnpm-workspace.yaml` `patchedDependencies`) to build its
 invalid-selector `DOMException` lazily — the upstream eager construction captures a deep stack on every
-`matches()`/`querySelector()` call and cost ~15% of TSX suite time.
+`matches()`/`querySelector()` call, which is measurably slower at TSX-suite scale. No specific percentage is
+tracked here since it isn't tied to a reproducible command/environment; if you need a number, measure
+before/after this patch in the same environment using the JSON-report method below rather than trusting a
+historical figure.
 
 - Co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
 - BDD-style Chinese `describe`/`it` titles. Use `describe.concurrent()` / `it.concurrent()` where independent.
