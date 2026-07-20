@@ -57,6 +57,7 @@ isn't universal, that's called out in the item itself.
 - **Direct replacement over adapter sandwiches.** When swapping a backend/library, replace in place — no `interface Foo + LegacyImpl + NewImpl` unless both must coexist at runtime.
 - **Scope discipline — stay in your lane.** Bug fix ≠ cleanup PR. Touch only the files the task requires; leave unrelated files untouched (不要动和任务不相干的文件). Don't add helpers, abstractions, validation, or backwards-compat shims you don't need today. Three similar lines beats a premature abstraction.
 - **No dead code or `// removed` markers** — git remembers. Delete unused code outright.
+- **Comments explain "why", not "what".** Do not use ephemeral review labels such as `finding N` or review-round identifiers in comments or test names. Permanent issue or PR references are allowed when useful, but must supplement—not replace—the explanation. Do not restate code, duplicate enclosing documentation, or leave stale comments after code changes. See [`docs/develop.md`](docs/develop.md#comment-discipline) for the full policy.
 
 ## Architecture
 

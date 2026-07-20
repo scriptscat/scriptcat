@@ -80,6 +80,15 @@ misused as void callbacks. These need type information, so they are *not* part o
 - UI default English (global users).
 - Template literals: `${i}`, not `${i.toString()}`.
 
+### Comment Discipline
+
+A comment must tell the reader something the code cannot: an invariant, a race condition, a workaround for a specific constraint, or why something looks wrong but is correct. If deleting it would cost a future reader nothing, delete it.
+
+- **No ephemeral review labels; permanent issue/PR references are allowed when useful.** Never write review-round or audit identifiers that only made sense inside a now-gone conversation, such as `finding 5`, `round 2 fix`, or `【finding N 回归】`. A permanent issue or PR reference that is accessible to the intended maintainers can be useful, for example: `// regression test for #1234: 附件在会话删除重建后被误删`. Apply the same test to every reference: will it still help a future reader who has no memory of the conversation that added it? A relevant, accessible issue or PR usually passes; a private review label never does. In all cases, state the invariant or behavior in words first, such as `确认读失败不代表写入未落盘，只是无法证实`. The reference supplements the explanation; it does not replace it.
+- **Do not restate the next line.** A comment above code must add information the code does not already convey. Do not write `// 继续循环` above `continue;` or `// send done event` above `sendEvent({ type: "done" })`. If the comment adds no meaning beyond the code below it, delete it.
+- **Do not duplicate enclosing documentation.** If a function, class, or module doc comment already explains a behavior, do not repeat the same fact inside the implementation. State each fact once, in the place that owns it.
+- **Keep comments attached to the code they describe.** When code is moved, replaced, reordered, or deleted, move, update, or delete its comments as well. A comment that no longer describes what actually runs is worse than no comment. Check this explicitly whenever a diff changes existing code, not only when it adds new code.
+
 ## UI
 
 React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 + React Router. Pages in
