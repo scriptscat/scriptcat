@@ -20,6 +20,10 @@ describe("Sub-Agent 类型系统", () => {
       expect(resolveSubAgentType("researcher")).toBe(SUB_AGENT_TYPES.researcher);
       expect(resolveSubAgentType("page_operator")).toBe(SUB_AGENT_TYPES.page_operator);
       expect(resolveSubAgentType("general")).toBe(SUB_AGENT_TYPES.general);
+      expect(resolveSubAgentType("data_processor")).toBe(SUB_AGENT_TYPES.data_processor);
+      expect(resolveSubAgentType("form_filler")).toBe(SUB_AGENT_TYPES.form_filler);
+      expect(resolveSubAgentType("content_writer")).toBe(SUB_AGENT_TYPES.content_writer);
+      expect(resolveSubAgentType("script_engineer")).toBe(SUB_AGENT_TYPES.script_engineer);
     });
 
     it.concurrent("未知类型抛错（防止攻击者传 xxx 获得更宽权限）", () => {
@@ -133,6 +137,58 @@ describe("Sub-Agent 类型系统", () => {
       expect(excluded).toContain("web_search");
       expect(excluded).toContain("execute_script");
       expect(excluded).not.toContain("web_fetch");
+    });
+
+    it.concurrent.each([
+      ["data_processor", ["execute_script", "opfs_read", "opfs_write"], ["web_fetch", "web_search", "get_tab_content"]],
+      [
+        "form_filler",
+        ["get_tab_content", "activate_tab", "read_form_field", "fill_form_field"],
+        ["execute_script", "web_fetch", "web_search", "open_tab"],
+      ],
+      ["content_writer", ["execute_script", "opfs_read", "opfs_write"], ["web_fetch", "get_tab_content", "open_tab"]],
+      ["script_engineer", ["execute_script", "opfs_read", "web_fetch"], ["web_search", "get_tab_content", "open_tab"]],
+    ])("%s 仅保留职责所需工具", (typeName, includedTools, excludedTools) => {
+      const excluded = getExcludeToolsForType(SUB_AGENT_TYPES[typeName as string], allTools);
+
+      for (const tool of includedTools) expect(excluded).not.toContain(tool);
+      for (const tool of excludedTools) expect(excluded).toContain(tool);
+      expect(excluded).toContain("ask_user");
+      expect(excluded).toContain("agent");
+    });
+  });
+
+  describe("专项类型提示词", () => {
+    it.concurrent.each([
+      ["data_processor", "## Role: Data Processor", "All input data must be passed"],
+      ["form_filler", "## Role: Form Filler", "Never click submit"],
+      ["content_writer", "## Role: Content Writer", "Do not introduce facts"],
+      ["script_engineer", "## Role: Script Engineer", "cannot install scripts into ScriptCat directly"],
+    ])("%s 包含角色边界", (typeName, role, boundary) => {
+      const prompt = SUB_AGENT_TYPES[typeName as string].systemPromptAddition;
+
+      expect(prompt).toContain(role);
+      expect(prompt).toContain(boundary);
+    });
+  });
+
+  describe("专项类型 execute_script 运行环境", () => {
+    it.concurrent.each([
+      ["data_processor", "sandbox", "page"],
+      ["content_writer", "sandbox", "page"],
+      ["script_engineer", "sandbox", "page"],
+    ])("%s 限制 execute_script 运行环境", (typeName, allowedTarget, deniedTarget) => {
+      const config = SUB_AGENT_TYPES[typeName as string];
+
+      expect(config.executeScriptTargets).toContain(allowedTarget);
+      expect(config.executeScriptTargets).not.toContain(deniedTarget);
+    });
+
+    it("form_filler 不应获得任意脚本执行能力", () => {
+      expect(SUB_AGENT_TYPES.form_filler.allowedTools).not.toContain("execute_script");
+      expect(SUB_AGENT_TYPES.form_filler.allowedTools).toEqual(
+        expect.arrayContaining(["read_form_field", "fill_form_field"])
+      );
     });
   });
 });

@@ -3,30 +3,41 @@ import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import { withTimeout } from "@App/pkg/utils/with_timeout";
 import { requireString } from "./param_utils";
 
-export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
-  name: "execute_script",
-  description:
-    "Execute JavaScript code. " +
-    "target='page': run in a browser tab (MAIN world) with full DOM access, shares page's window/globals — can access page JS variables and call page functions. Cannot access extension blob URLs. " +
-    "target='sandbox': isolated computation environment, no DOM. " +
-    "Use `return` to return a value. Timeout: 30 seconds.",
-  parameters: {
-    type: "object",
-    properties: {
-      code: { type: "string", description: "JavaScript code to execute. Use `return` to return a value." },
-      target: {
-        type: "string",
-        enum: ["page", "sandbox"],
-        description: "'page' runs in a tab, 'sandbox' runs in isolated env.",
+const EXECUTE_SCRIPT_TARGETS = ["page", "sandbox"] as const;
+type ExecuteScriptTarget = (typeof EXECUTE_SCRIPT_TARGETS)[number];
+
+function createExecuteScriptDefinition(allowedTargets: ExecuteScriptTarget[]): ToolDefinition {
+  const targetDescriptions: Record<ExecuteScriptTarget, string> = {
+    page: "'page' runs in a browser tab (MAIN world) with full DOM access and shares the page's window and globals. It cannot access extension blob URLs.",
+    sandbox: "'sandbox' runs in an isolated computation environment without DOM access.",
+  };
+  return {
+    name: "execute_script",
+    description: `Execute JavaScript code. ${allowedTargets.map((target) => targetDescriptions[target]).join(" ")} Use \`return\` to return a value. Timeout: 30 seconds.`,
+    parameters: {
+      type: "object",
+      properties: {
+        code: { type: "string", description: "JavaScript code to execute. Use `return` to return a value." },
+        target: {
+          type: "string",
+          enum: allowedTargets,
+          description: allowedTargets.map((target) => targetDescriptions[target]).join(" "),
+        },
+        ...(allowedTargets.includes("page")
+          ? {
+              tab_id: {
+                type: "number",
+                description: "Target tab ID for page execution. Defaults to active tab.",
+              },
+            }
+          : {}),
       },
-      tab_id: {
-        type: "number",
-        description: "Target tab ID for page execution. Defaults to active tab. Ignored for sandbox.",
-      },
+      required: ["code", "target"],
     },
-    required: ["code", "target"],
-  },
-};
+  };
+}
+
+export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = createExecuteScriptDefinition([...EXECUTE_SCRIPT_TARGETS]);
 
 const EXECUTE_SCRIPT_TIMEOUT_MS = 30_000;
 
@@ -36,11 +47,15 @@ export type ExecuteScriptDeps = {
   timeoutMs?: number; // 可选超时（ms），默认 30s，测试用
 };
 
-export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
+export function createExecuteScriptTool(
+  deps: ExecuteScriptDeps,
+  options?: { allowedTargets?: ExecuteScriptTarget[] }
+): {
   definition: ToolDefinition;
   executor: ToolExecutor;
 } {
   const timeoutMs = deps.timeoutMs ?? EXECUTE_SCRIPT_TIMEOUT_MS;
+  const allowedTargets = options?.allowedTargets ?? [...EXECUTE_SCRIPT_TARGETS];
 
   const executor: ToolExecutor = {
     execute: async (args: Record<string, unknown>) => {
@@ -49,6 +64,9 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
       const target = requireString(args, "target");
       if (target !== "page" && target !== "sandbox") {
         throw new Error(`Invalid target: ${target}. Must be 'page' or 'sandbox'.`);
+      }
+      if (!allowedTargets.includes(target)) {
+        throw new Error(`execute_script target="${target}" is not available in this context`);
       }
 
       if (target === "page") {
@@ -71,5 +89,5 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
     },
   };
 
-  return { definition: EXECUTE_SCRIPT_DEFINITION, executor };
+  return { definition: createExecuteScriptDefinition(allowedTargets), executor };
 }

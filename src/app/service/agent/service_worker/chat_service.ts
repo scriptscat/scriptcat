@@ -30,6 +30,7 @@ import { createTaskTools } from "@App/app/service/agent/core/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/core/tools/ask_user";
 import { createSubAgentTool } from "@App/app/service/agent/core/tools/sub_agent";
 import { createExecuteScriptTool } from "@App/app/service/agent/core/tools/execute_script";
+import { bindToolToAssignedTab, createFormFieldTools } from "@App/app/service/agent/core/tools/form_fields";
 import { resolveSubAgentType } from "@App/app/service/agent/core/sub_agent_types";
 import { classifyErrorCode } from "./retry_utils";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
@@ -546,9 +547,27 @@ export class ChatService {
             childRegistry.register("session", t.definition, t.executor);
           }
 
-          // 独立的 execute_script
-          const childExecTool = createExecuteScriptTool(this.executeScriptDeps);
-          childRegistry.register("session", childExecTool.definition, childExecTool.executor);
+          if (typeConfig.name === "form_filler") {
+            if (options.tabId === undefined) {
+              throw new Error("form_filler requires a target tab_id");
+            }
+            for (const toolName of ["get_tab_content", "activate_tab"]) {
+              const inheritedTool = this.toolRegistry.getTools().get(toolName);
+              if (!inheritedTool) {
+                throw new Error(`Required form_filler tool is not registered: ${toolName}`);
+              }
+              const boundTool = bindToolToAssignedTab(inheritedTool, options.tabId);
+              childRegistry.register("session", boundTool.definition, boundTool.executor);
+            }
+            for (const tool of createFormFieldTools(this.executeScriptDeps, options.tabId)) {
+              childRegistry.register("session", tool.definition, tool.executor);
+            }
+          } else {
+            const childExecTool = createExecuteScriptTool(this.executeScriptDeps, {
+              allowedTargets: typeConfig.executeScriptTargets,
+            });
+            childRegistry.register("session", childExecTool.definition, childExecTool.executor);
+          }
 
           // general 类型：独立的 skill meta-tools（load_skill / execute_skill_script / read_reference）
           let skillPromptSuffix = "";

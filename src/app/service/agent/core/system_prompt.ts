@@ -111,6 +111,10 @@ Any task that involves 2+ tool calls (web searching, page reading, page interact
 
 - **researcher** — Web search/fetch, page reading (read-only, no DOM interaction). Use for: information gathering, comparison research, content summarization, reading rendered pages.
 - **page_operator** — Browser tab interaction, page automation. Use for: navigating pages, filling forms, extracting page data, clicking buttons, writing content into editors.
+- **data_processor** — Sandboxed data parsing and transformation with OPFS. Use for: cleaning, converting, aggregating, and validating supplied data.
+- **form_filler** — Fill and verify a known form without submission. Use when field data and the target tab are already known.
+- **content_writer** — Draft structured content from supplied material without web access. Use after research has been gathered.
+- **script_engineer** — Write and sandbox-test ScriptCat UserScripts or SkillScripts. Use for script implementation and debugging.
 - **general** (default) — All tools. Use when the task spans both research and page interaction.
 
 ### Delegation Examples
@@ -293,6 +297,12 @@ const SUB_AGENT_SECTION_SAFETY = `## Safety
 - **Never fill sensitive data you invented** — only use credentials or personal info provided in the task prompt.
 - **Never bypass site security** — do not attempt to circumvent CAPTCHAs, rate limits, or access controls.`;
 
+const SUB_AGENT_SECTION_STRICT_SAFETY = `## Safety
+
+- **Never submit forms or take any irreversible action**: do not submit, confirm, purchase, delete, post, or navigate away from the assigned form.
+- **Only fill editable data fields** with values provided in the task prompt. Never invent sensitive data.
+- **Never bypass site security** — do not attempt to circumvent CAPTCHAs, rate limits, or access controls.`;
+
 const SUB_AGENT_SECTION_COMMUNICATION = `## Communication
 
 - Keep your intermediate responses minimal — focus on actions.
@@ -306,10 +316,18 @@ const SUB_AGENT_SECTION_COMMUNICATION = `## Communication
 
 // 工具指南条目映射：工具名 → 指南文本
 // 使用数组保持顺序，同一工具可以有多个条目（条件不同）
-const TOOL_GUIDE_ENTRIES: Array<{ tools: string[]; guide: string }> = [
+const TOOL_GUIDE_ENTRIES: Array<{
+  tools: string[];
+  executeScriptTarget?: "page" | "sandbox";
+  guide: string;
+}> = [
   {
     tools: ["get_tab_content"],
     guide: `- **Read page content & get selectors** → \`get_tab_content\` returns markdown with CSS selector annotations. Always call this first before interacting with a page.`,
+  },
+  {
+    tools: ["read_form_field", "fill_form_field"],
+    guide: `- **Fill a form without submitting** → use \`fill_form_field\` with an exact selector, then verify the actual value with \`read_form_field\`.`,
   },
   {
     tools: ["web_fetch"],
@@ -318,10 +336,12 @@ const TOOL_GUIDE_ENTRIES: Array<{ tools: string[]; guide: string }> = [
   {
     // 页面 DOM 交互仅在有 tab 工具时展示
     tools: ["execute_script", "get_tab_content"],
+    executeScriptTarget: "page",
     guide: `- **Interact with page DOM** → \`execute_script(target='page')\` using selectors obtained from \`get_tab_content\`. Never guess selectors.`,
   },
   {
     tools: ["execute_script"],
+    executeScriptTarget: "sandbox",
     guide: `- **Compute without DOM** → \`execute_script(target='sandbox')\` for data processing, text parsing, calculations.`,
   },
   {
@@ -334,11 +354,21 @@ const TOOL_GUIDE_ENTRIES: Array<{ tools: string[]; guide: string }> = [
  * 根据可用工具名列表动态生成工具选择指南
  * 只有当条目所需的所有工具都可用时才包含该条目
  */
-function buildToolGuideForTools(availableToolNames: string[]): string {
+function buildToolGuideForTools(
+  availableToolNames: string[],
+  executeScriptTargets?: Array<"page" | "sandbox">
+): string {
   const nameSet = new Set(availableToolNames);
   const entries: string[] = [];
 
   for (const entry of TOOL_GUIDE_ENTRIES) {
+    if (
+      entry.executeScriptTarget &&
+      executeScriptTargets &&
+      !executeScriptTargets.includes(entry.executeScriptTarget)
+    ) {
+      continue;
+    }
     if (entry.tools.every((t) => nameSet.has(t))) {
       entries.push(entry.guide);
     }
@@ -397,7 +427,8 @@ export function buildSubAgentSystemPrompt(typeConfig: SubAgentTypeConfig, availa
   const nameSet = new Set(availableToolNames);
   const hasOpfs = nameSet.has("opfs_read") || nameSet.has("opfs_write");
   // 页面交互指南需要同时具备 get_tab_content 和 execute_script
-  const hasPageInteraction = nameSet.has("get_tab_content") && nameSet.has("execute_script");
+  const canExecuteInPage = !typeConfig.executeScriptTargets || typeConfig.executeScriptTargets.includes("page");
+  const hasPageInteraction = canExecuteInPage && nameSet.has("get_tab_content") && nameSet.has("execute_script");
 
   const sections: string[] = [
     SUB_AGENT_SECTION_INTRO,
@@ -412,7 +443,11 @@ export function buildSubAgentSystemPrompt(typeConfig: SubAgentTypeConfig, availa
     sections.push(SUB_AGENT_SECTION_PAGE_INTERACTION);
   }
 
-  sections.push(SUB_AGENT_SECTION_SAFETY, SUB_AGENT_SECTION_COMMUNICATION, buildToolGuideForTools(availableToolNames));
+  sections.push(
+    typeConfig.forbidIrreversibleActions ? SUB_AGENT_SECTION_STRICT_SAFETY : SUB_AGENT_SECTION_SAFETY,
+    SUB_AGENT_SECTION_COMMUNICATION,
+    buildToolGuideForTools(availableToolNames, typeConfig.executeScriptTargets)
+  );
 
   if (hasOpfs) {
     sections.push(SECTION_OPFS);

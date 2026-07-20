@@ -60,6 +60,14 @@ describe("buildSystemPrompt", () => {
     expect(result).toContain("Don't duplicate work");
   });
 
+  it("Sub-Agent 段列出专项类型", () => {
+    const result = buildSystemPrompt({});
+
+    for (const typeName of ["data_processor", "form_filler", "content_writer", "script_engineer"]) {
+      expect(result).toContain(`**${typeName}**`);
+    }
+  });
+
   it("有 userSystem 时拼接在内置提示词之后", () => {
     const result = buildSystemPrompt({ userSystem: "You are a helpful bot." });
     expect(result).toContain("You are ScriptCat Agent");
@@ -181,6 +189,30 @@ describe("buildSubAgentSystemPrompt", () => {
     expect(result).toContain("get_tab_content");
     expect(result).toContain("web_fetch");
     expect(result).toContain("web_search");
+  });
+
+  it.concurrent("专项类型只显示允许的 execute_script 运行环境", () => {
+    const dataProcessor = SUB_AGENT_TYPES.data_processor;
+    const dataPrompt = buildSubAgentSystemPrompt(dataProcessor, dataProcessor.allowedTools || []);
+    expect(dataPrompt).toContain("execute_script(target='sandbox')");
+    expect(dataPrompt).not.toContain("execute_script(target='page')");
+
+    const formFiller = SUB_AGENT_TYPES.form_filler;
+    const formPrompt = buildSubAgentSystemPrompt(formFiller, formFiller.allowedTools || []);
+    expect(formPrompt).not.toContain("execute_script(target='page')");
+    expect(formPrompt).not.toContain("execute_script(target='sandbox')");
+    expect(formPrompt).toContain("fill_form_field");
+  });
+
+  it("表单填写类型应禁止所有不可逆动作", () => {
+    const prompt = buildSubAgentSystemPrompt(SUB_AGENT_TYPES.form_filler, [
+      "get_tab_content",
+      "read_form_field",
+      "fill_form_field",
+    ]);
+
+    expect(prompt).toContain("Never submit forms");
+    expect(prompt).not.toContain("Only proceed if the task clearly requires it");
   });
 
   it.concurrent("不包含 ask_user 引用", () => {
