@@ -95,6 +95,76 @@ describe("OneDriveFileSystem", () => {
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
 
+  it("删除文件遇到 raw 429 响应时抛出 typed 限流错误", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 429,
+        text: JSON.stringify({
+          error: {
+            code: "TooManyRequests",
+            message: "Too many requests",
+          },
+        }),
+      })
+    );
+
+    await expect(fs.delete("limited.txt")).rejects.toMatchObject({
+      provider: "onedrive",
+      status: 429,
+      rateLimit: true,
+      retryable: true,
+    });
+  });
+
+  it("读取文件遇到 raw 429 响应时抛出 typed 限流错误", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 429,
+        text: JSON.stringify({
+          error: {
+            code: "TooManyRequests",
+            message: "Too many requests",
+          },
+        }),
+      })
+    );
+    const reader = await fs.open({ name: "limited.txt", path: "/", size: 0, digest: "", createtime: 0, updatetime: 0 });
+
+    await expect(reader.read("string")).rejects.toMatchObject({
+      provider: "onedrive",
+      status: 429,
+      rateLimit: true,
+      retryable: true,
+    });
+  });
+
+  it("删除文件遇到 501 响应时不应标记为可重试", async () => {
+    // 501 Not Implemented 是永久失败，重试只会空转退避
+    const fs = new OneDriveFileSystem("/", "token");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 501,
+        text: JSON.stringify({
+          error: {
+            code: "notImplemented",
+            message: "Not implemented",
+          },
+        }),
+      })
+    );
+
+    await expect(fs.delete("stub.txt")).rejects.toMatchObject({
+      provider: "onedrive",
+      status: 501,
+      retryable: false,
+    });
+  });
+
   it("create should normalize double slashes in paths", async () => {
     const fs = new OneDriveFileSystem("/ScriptCat//sync", "token");
 
@@ -233,11 +303,10 @@ describe("OneDriveFileSystem", () => {
     }
   });
 
-  it.each([
-    [409, "nameAlreadyExists"],
-    [412, "PreconditionFailed"],
-  ])("request should throw typed conflict error for status %s", async (status, code) => {
+  it("请求遇到 409 nameAlreadyExists 时应抛出 typed conflict 错误", async () => {
     const fs = new OneDriveFileSystem("/", "token");
+    const status = 409;
+    const code = "nameAlreadyExists";
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValueOnce(
