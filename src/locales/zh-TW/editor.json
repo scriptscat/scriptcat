@@ -129,8 +129,9 @@
   "editor_config_format_error": "編輯器配置格式錯誤",
   "editor_type_definition_reset": "編輯器類型定義已重設",
   "editor_type_definition_saved": "編輯器類型定義已儲存",
-  "trash_restore_prompt_title": "要復原已刪除的腳本嗎？",
-  "trash_restore_prompt_description": "垃圾桶中有名稱與命名空間相同的腳本。復原後會沿用原本的身分與保留資料；取消則繼續編輯且不儲存。",
+  "trash_restore_save_prompt_title": "要復原並儲存腳本嗎？",
+  "trash_restore_save_prompt_description": "垃圾桶中有名稱與命名空間相同的腳本。繼續後會復原原本的身分與保留資料，並將目前的編輯內容儲存為該腳本；取消則繼續編輯且不儲存。",
+  "trash_restore_save_prompt_confirm": "復原並儲存",
   "editor": {
     "show_script_list": "顯示腳本列表",
     "hide_script_list": "隱藏腳本列表"
