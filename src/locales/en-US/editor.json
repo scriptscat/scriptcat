@@ -129,8 +129,9 @@
   "editor_config_format_error": "Editor Configuration Format Error",
   "editor_type_definition_reset": "Editor Type Definition Reset",
   "editor_type_definition_saved": "Editor Type Definition Saved",
-  "trash_restore_prompt_title": "Restore the deleted script?",
-  "trash_restore_prompt_description": "A script with the same name and namespace is in Trash. Restoring it will reuse its identity and retained data. Cancel to keep editing without saving.",
+  "trash_restore_save_prompt_title": "Restore and save the script?",
+  "trash_restore_save_prompt_description": "A script with the same name and namespace is in Trash. Continuing will restore its identity and retained data, then save the current editor content as the script. Cancel to keep editing without saving.",
+  "trash_restore_save_prompt_confirm": "Restore and Save",
   "editor": {
     "show_script_list": "Show Script List",
     "hide_script_list": "Hide Script List"

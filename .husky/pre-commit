@@ -30,6 +30,25 @@ fi
 
 rm -f "$lint_files"
 
+# 涉及翻译 json 文件时，强制跑机械完整性检查（缺失/多余 key、缺失 messages.json 等），
+# 未通过则拒绝提交。--diff-filter 包含 D：删除一个翻译文件同样要触发检查。
+# 检查对象是 Git 索引里的暂存快照（git checkout-index 直接读索引，不碰工作区/索引本身），
+# 而不是工作区当前文件——避免"暂存坏版本、工作区又改回好版本"绕过检查。
+i18n_files=$(mktemp)
+git diff --cached --name-only -z --diff-filter=ACMRD -- \
+  "src/locales/*.json" "src/assets/_locales/*.json" > "$i18n_files"
+
+if [ -s "$i18n_files" ]; then
+  rm -f "$i18n_files"
+  snapshot_dir=$(mktemp -d)
+  node scripts/git-staged-snapshot.mjs "$(pwd)" "$snapshot_dir" && pnpm run check:i18n -- "--root=$snapshot_dir"
+  status=$?
+  rm -rf "$snapshot_dir"
+  [ $status -eq 0 ] || exit 1
+else
+  rm -f "$i18n_files"
+fi
+
 # 在 main 或 release/* 分支上提交时额外跑测试
 branch=$(git rev-parse --abbrev-ref HEAD)
 if [ "$branch" = "main" ] || echo "$branch" | grep -q "^release/"; then
