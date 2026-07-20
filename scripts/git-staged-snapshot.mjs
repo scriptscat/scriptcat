@@ -10,9 +10,10 @@
 // tree nor the index itself.
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, realpathSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
 export function materializeStagedSnapshot(repoRoot, destDir) {
   mkdirSync(destDir, { recursive: true });
@@ -23,7 +24,10 @@ export function materializeStagedSnapshot(repoRoot, destDir) {
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// 同 check-i18n.mjs：两边都要归一化成真实文件路径（percent-encoding + 软链）再比对，否则含空格 /
+// 非 ASCII 字符或位于软链下的仓库路径里这段不会执行，快照目录留空，pre-commit 的 `&&` 串联随之
+// 整体静默放行。
+if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
   const [repoRoot, destDir] = process.argv.slice(2);
   if (!repoRoot || !destDir) {
     console.error("Usage: git-staged-snapshot.mjs <repoRoot> <destDir>");

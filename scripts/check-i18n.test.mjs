@@ -1,8 +1,13 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, copyFileSync, symlinkSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import os from "node:os";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { runCheck } from "./check-i18n.mjs";
+
+const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 // check-i18n.mjs 是 fail-closed 的机械检查：任何它无法静态解析的结构都必须报错，而不是放行。
 // 这里用最小 fixture 仓库树（而非真实仓库）逐一复现 PR #1606 review 中指出的可复现 fail-open
@@ -261,4 +266,59 @@ describe("check-i18n 机械完整性检查", () => {
       expect(messages(problems).some((m) => m.includes("Circular import"))).toBe(true);
     });
   });
+});
+
+// 上面的用例直接调 runCheck()，绕过了 CLI 入口，因此覆盖不到"脚本到底有没有被执行"这一层。
+// `import.meta.url` 是 percent-encoded 的，而 `process.argv[1]` 是原始路径：仓库路径一旦含空格或
+// 非 ASCII 字符（如 ~/我的项目/），两者永不相等，main() 不执行，进程零输出 exit 0 —— CI 的
+// lint 与 pre-commit 会双双静默放行坏翻译，恰好是本脚本 fail-closed 承诺要杜绝的失败模式。
+describe("CLI 入口守卫（脚本路径含空格 / 非 ASCII 字符）", () => {
+  // 这些用例要真实 spawn node 子进程（实测 300ms+），不适用 vitest.config.ts 给单元测试定的
+  // 340ms 预算，否则必然在 CI 满载下偶发超时。
+  const CLI_TIMEOUT = 15_000;
+
+  // 把脚本复制到含特殊字符的目录下真实 spawn；node_modules 放在其父级，让 typescript 仍可解析。
+  function runScriptAt(dirName, scriptName, args) {
+    const host = path.join(os.tmpdir(), `check-i18n-cli-${Math.random().toString(36).slice(2)}`);
+    tmpDirs.push(host);
+    const dir = path.join(host, dirName);
+    mkdirSync(dir, { recursive: true });
+    symlinkSync(path.join(SCRIPTS_DIR, "../node_modules"), path.join(host, "node_modules"), "dir");
+    const scriptPath = path.join(dir, scriptName);
+    copyFileSync(path.join(SCRIPTS_DIR, scriptName), scriptPath);
+
+    try {
+      const stdout = execFileSync(process.execPath, [scriptPath, ...args], { encoding: "utf8", stdio: "pipe" });
+      return { status: 0, output: stdout };
+    } catch (err) {
+      return { status: err.status, output: `${err.stdout || ""}${err.stderr || ""}` };
+    }
+  }
+
+  for (const dirName of ["with space", "中文目录"]) {
+    describe(`目录名 "${dirName}"`, () => {
+      it(
+        "干净仓库树应真正执行检查并输出通过信息，而不是静默 no-op",
+        () => {
+          const root = makeFixtureRoot();
+          const { status, output } = runScriptAt(dirName, "check-i18n.mjs", [`--root=${root}`]);
+          expect(status).toBe(0);
+          expect(output).toContain("i18n check passed");
+        },
+        CLI_TIMEOUT
+      );
+
+      it(
+        "缺失翻译 key 时必须以 exit 1 失败，不得静默放行",
+        () => {
+          const root = makeFixtureRoot();
+          writeFileSync(path.join(root, "src/locales/zh-CN/common.json"), JSON.stringify({}));
+          const { status, output } = runScriptAt(dirName, "check-i18n.mjs", [`--root=${root}`]);
+          expect(status).toBe(1);
+          expect(output).toContain("hello");
+        },
+        CLI_TIMEOUT
+      );
+    });
+  }
 });

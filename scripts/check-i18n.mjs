@@ -30,7 +30,7 @@
 // .husky/pre-commit to validate the Git *staged* snapshot rather than the working tree.
 
 import process from "node:process";
-import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync, statSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -623,7 +623,12 @@ function main() {
   console.log("\n✅ i18n check passed (with warnings above).");
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// 判断是否被直接执行时，必须两边都归一化成真实文件路径再比：
+//   - `import.meta.url` 是 percent-encoded 的，拼字符串 `file://${argv[1]}` 在仓库路径含空格或
+//     非 ASCII 字符（如 ~/我的项目/）时永不相等；
+//   - `import.meta.url` 还会解析软链，而 argv[1] 不会（macOS 的 /tmp、/var 即是软链）。
+// 任一情况下 main() 都不执行，进程零输出 exit 0——CI 的 lint 与 pre-commit 双双静默放行坏翻译。
+if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
   main();
 }
 
