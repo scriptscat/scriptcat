@@ -5,6 +5,10 @@ import { extractHtmlWithSelectors } from "@App/app/service/offscreen/client";
 import { assertDomUrlAllowed } from "@App/app/service/agent/service_worker/dom_policy";
 import { stripHtmlTags } from "./web_fetch";
 import { requireNumber, requireString, optionalString, optionalNumber, optionalBoolean } from "./param_utils";
+import { raceWithAbort, throwIfAborted } from "../abort_utils";
+import type { TokenUsage } from "../types";
+
+type SummaryResult = string | { content: string; usage?: TokenUsage };
 
 // ---- Tool Definitions ----
 
@@ -98,12 +102,13 @@ const ACTIVATE_TAB_DEFINITION: ToolDefinition = {
 
 export function createTabTools(deps: {
   sender: MessageSend;
-  summarize: (content: string, prompt: string) => Promise<string>;
+  summarize: (content: string, prompt: string, signal?: AbortSignal) => Promise<SummaryResult>;
 }): { tools: Array<{ definition: ToolDefinition; executor: ToolExecutor }> } {
   const { sender, summarize } = deps;
 
   const getTabContentExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       const tabId = requireNumber(args, "tab_id");
       const prompt = args.prompt as string | undefined;
       const selector = optionalString(args, "selector");
@@ -156,11 +161,15 @@ export function createTabTools(deps: {
       }
 
       // 通过 Offscreen 提取 markdown（带 selector 标注）
+      throwIfAborted(signal);
       let content: string;
       try {
-        const extracted = await extractHtmlWithSelectors(sender, pageData.html);
+        const extracted = await raceWithAbort(extractHtmlWithSelectors(sender, pageData.html), signal);
         content = extracted && extracted.length > 20 ? extracted : pageData.html;
-      } catch {
+      } catch (error) {
+        if (error instanceof Error && error.message === "Aborted") {
+          throw error;
+        }
         // 降级：简单去标签
         content = stripHtmlTags(pageData.html);
       }
@@ -173,12 +182,15 @@ export function createTabTools(deps: {
       }
 
       // LLM 摘要
+      let summaryUsage: TokenUsage | undefined;
       if (prompt) {
-        content = await summarize(content, prompt);
+        const summary = await summarize(content, prompt, signal);
+        content = typeof summary === "string" ? summary : summary.content;
+        summaryUsage = typeof summary === "string" ? undefined : summary.usage;
         truncated = false; // 摘要后不再截断
       }
 
-      return JSON.stringify({
+      const serialized = JSON.stringify({
         tab_id: tabId,
         url: pageData.url,
         title: pageData.title,
@@ -186,11 +198,13 @@ export function createTabTools(deps: {
         truncated,
         used_selector: selector || null,
       });
+      return summaryUsage ? { content: serialized, usage: summaryUsage } : serialized;
     },
   };
 
   const listTabsExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       const urlPattern = optionalString(args, "url_pattern");
       const titlePattern = optionalString(args, "title_pattern");
       const active = optionalBoolean(args, "active");
@@ -242,7 +256,8 @@ export function createTabTools(deps: {
   };
 
   const openTabExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       const url = requireString(args, "url");
       const tabId = optionalNumber(args, "tab_id");
 
@@ -253,19 +268,27 @@ export function createTabTools(deps: {
         await chrome.tabs.update(tabId, { url });
 
         if (waitUntilLoaded) {
-          await new Promise<void>((resolve) => {
+          await new Promise<void>((resolve, reject) => {
             const timerId = setTimeout(() => {
               chrome.tabs.onUpdated.removeListener(listener);
               resolve();
             }, 30_000);
+            const onAbort = () => {
+              clearTimeout(timerId);
+              chrome.tabs.onUpdated.removeListener(listener);
+              reject(new Error("Aborted"));
+            };
             const listener = (updatedTabId: number, changeInfo: { status?: string }) => {
               if (updatedTabId === tabId && changeInfo.status === "complete") {
                 clearTimeout(timerId);
+                signal?.removeEventListener("abort", onAbort);
                 chrome.tabs.onUpdated.removeListener(listener);
                 resolve();
               }
             };
             chrome.tabs.onUpdated.addListener(listener);
+            signal?.addEventListener("abort", onAbort, { once: true });
+            if (signal?.aborted) onAbort();
           });
         }
 
@@ -297,7 +320,8 @@ export function createTabTools(deps: {
   };
 
   const closeTabExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       const tabId = requireNumber(args, "tab_id");
       await chrome.tabs.remove(tabId);
       return JSON.stringify({ success: true, tab_id: tabId });
@@ -305,7 +329,8 @@ export function createTabTools(deps: {
   };
 
   const activateTabExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       const tabId = requireNumber(args, "tab_id");
       const tab = await chrome.tabs.update(tabId, { active: true });
       if (!tab) throw new Error(`Tab ${tabId} not found`);

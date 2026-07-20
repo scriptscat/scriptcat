@@ -22,6 +22,10 @@ export type MessageContent = string | ContentBlock[];
 
 export type Conversation = {
   id: string;
+  /** Immutable identity for this incarnation of an ID. Filled when legacy records are loaded. */
+  generation?: string;
+  /** Optimistic-concurrency version. Filled when legacy records are loaded. */
+  revision?: number;
   title: string;
   modelId: string;
   system?: string;
@@ -46,7 +50,9 @@ export type AttachmentData = {
   type: "image" | "file" | "audio";
   name: string;
   mimeType: string;
-  data: string | Blob; // base64/data URL 或 Blob
+  data?: string | Blob; // base64/data URL 或 Blob；省略时表示已持久化引用
+  attachmentId?: string;
+  size?: number;
 };
 
 export type ToolResultWithAttachments = {
@@ -56,9 +62,11 @@ export type ToolResultWithAttachments = {
 
 // 子代理单轮消息（持久化用）
 export type SubAgentMessage = {
-  content: string;
+  content: MessageContent;
   thinking?: string;
   toolCalls: ToolCall[];
+  /** 生成数据丢失等非致命警告（如图片保存失败），需与最终回复分支同样持久化，避免刷新后丢失提示 */
+  warning?: string;
 };
 
 // 子代理执行详情（持久化到 ToolCall）
@@ -76,6 +84,8 @@ export type ToolCall = {
   arguments: string;
   result?: string;
   attachments?: Attachment[];
+  /** Attachment files created by this tool call and owned by the persisted conversation. */
+  ownedAttachmentIds?: string[];
   subAgentDetails?: SubAgentDetails;
   status?: "pending" | "running" | "completed" | "error";
 };
@@ -89,11 +99,15 @@ export type ChatMessage = {
   conversationId: string;
   role: MessageRole;
   content: MessageContent;
+  /** Attachment files owned by this persisted message. ContentBlock references are borrowed unless listed here. */
+  ownedAttachmentIds?: string[];
   thinking?: ThinkingBlock;
   toolCalls?: ToolCall[];
   // tool 角色的消息需要关联到对应的 tool_call
   toolCallId?: string;
   error?: string;
+  // 错误分类码，如 "max_iterations"；用于 UI 判断是否展示针对性操作（如"继续对话"）
+  errorCode?: string;
   warning?: string;
   modelId?: string;
   usage?: TokenUsage;
@@ -110,6 +124,9 @@ export type SubAgentEventInfo = {
   agentId: string;
   description: string;
   subAgentType?: string;
+  // 发起该子代理的父级 agent 工具调用 ID。并行 agent 调用各自持有独立的 toolCallId，
+  // UI 据此做显式 toolCallId -> agentId 匹配，避免并发时错误关联到另一个子代理。
+  toolCallId?: string;
 };
 
 // LLM 流式输出事件
@@ -118,7 +135,15 @@ export type LLMStreamEvent =
   | { type: "thinking_delta"; delta: string }
   | { type: "tool_call_start"; toolCall: Omit<ToolCall, "result"> }
   | { type: "tool_call_delta"; id: string; delta: string; index?: number }
-  | { type: "tool_call_complete"; id: string; result: string; attachments?: Attachment[] }
+  | {
+      type: "tool_call_complete";
+      id: string;
+      result: string;
+      status?: "completed" | "error";
+      attachments?: Attachment[];
+      /** Internal ownership handoff used to clean nested tool attachments if the parent round cannot commit. */
+      ownedAttachmentIds?: string[];
+    }
   | { type: "content_block_start"; block: Omit<ImageBlock | FileBlock | AudioBlock, "attachmentId"> }
   | { type: "content_block_complete"; block: ImageBlock | FileBlock | AudioBlock; data?: string };
 
@@ -136,15 +161,31 @@ export type ForwardableEvent =
       };
       durationMs?: number;
     }
-  | { type: "error"; message: string; errorCode?: string }
-  | { type: "retry"; attempt: number; maxRetries: number; error: string; delayMs: number };
+  | {
+      type: "error";
+      message: string;
+      errorCode?: string;
+      usage?: TokenUsage;
+      durationMs?: number;
+    }
+  | { type: "retry"; attempt: number; maxRetries: number; error: string; delayMs: number }
+  | { type: "system_warning"; message: string };
 
 // Service Worker -> UI/Sandbox 的流式事件（通过 MessageConnect 的 sendMessage 传输）
 // ForwardableEvent 携带可选 subAgent 标识（扁平化子代理事件，消除递归包装）
 export type ChatStreamEvent =
   | (ForwardableEvent & { subAgent?: SubAgentEventInfo })
-  | { type: "ask_user"; id: string; question: string; options?: string[]; multiple?: boolean }
-  | { type: "system_warning"; message: string }
+  | {
+      type: "ask_user";
+      id: string;
+      question: string;
+      options?: string[];
+      optionValues?: string[];
+      multiple?: boolean;
+      allowCustom?: boolean;
+    }
+  | { type: "ask_user_expired"; id: string }
+  | { type: "ask_user_resolved"; id: string }
   | {
       type: "task_update";
       tasks: Array<{
@@ -158,7 +199,14 @@ export type ChatStreamEvent =
   | {
       type: "sync";
       streamingMessage?: { content: string; thinking?: string; toolCalls: ToolCall[] };
-      pendingAskUser?: { id: string; question: string; options?: string[]; multiple?: boolean };
+      pendingAskUser?: {
+        id: string;
+        question: string;
+        options?: string[];
+        optionValues?: string[];
+        multiple?: boolean;
+        allowCustom?: boolean;
+      };
       tasks: Array<{
         id: string;
         subject: string;
@@ -222,7 +270,7 @@ export type ConversationCreateOptions = {
   model?: string; // modelId，不传则使用默认模型
   maxIterations?: number; // tool calling 最大循环次数，默认 20
   skills?: "auto" | string[]; // 加载的 Skill，"auto" 加载全部，数组指定名称
-  tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>) => Promise<unknown> }>;
+  tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>, signal: AbortSignal) => Promise<unknown> }>;
   commands?: Record<string, CommandHandler>; // 自定义命令处理器，以 / 开头
   ephemeral?: boolean; // 临时会话：不持久化、不加载内置资源、工具由脚本提供
   cache?: boolean; // 是否启用 prompt caching，默认 true
@@ -231,7 +279,7 @@ export type ConversationCreateOptions = {
 
 // conv.chat() 的参数
 export type ChatOptions = {
-  tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>) => Promise<unknown> }>;
+  tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>, signal: AbortSignal) => Promise<unknown> }>;
 };
 
 // conv.chat() 的返回值
@@ -245,12 +293,24 @@ export type ChatReply = {
     cacheCreationInputTokens?: number;
     cacheReadInputTokens?: number;
   };
+  durationMs?: number;
   command?: boolean; // 标识该回复来自命令处理
+  /** 生成数据丢失等非致命警告（如图片保存失败），与 UI 侧的消息 warning 字段同一语义 */
+  warning?: string;
 };
 
 // conv.chatStream() 的流式 chunk
 export type StreamChunk = {
-  type: "content_delta" | "thinking_delta" | "tool_call" | "content_block" | "done" | "error";
+  type:
+    | "content_delta"
+    | "thinking_delta"
+    | "tool_call"
+    | "tool_call_complete"
+    | "content_block"
+    | "new_message"
+    | "system_warning"
+    | "done"
+    | "error";
   content?: string;
   block?: ContentBlock;
   toolCall?: ToolCall;
@@ -260,10 +320,13 @@ export type StreamChunk = {
     cacheCreationInputTokens?: number;
     cacheReadInputTokens?: number;
   };
+  durationMs?: number;
   error?: string;
   /** 错误分类码："rate_limit" | "auth" | "tool_timeout" | "max_iterations" | "api_error" */
   errorCode?: string;
   command?: boolean; // 标识该 chunk 来自命令处理
+  /** type 为 "system_warning" 时携带的警告文本；type 为 "done" 时携带本轮累计警告 */
+  warning?: string;
 };
 
 // ---- Skill 类型 ----
@@ -577,6 +640,10 @@ export type MCPApiRequest =
 /** 定时任务基础字段（两种模式共用） */
 type AgentTaskBase = {
   id: string;
+  /** Immutable identity for this incarnation of the task ID. */
+  generation?: string;
+  /** Optimistic-concurrency version. */
+  revision?: number;
   name: string;
   crontab: string; // cron 表达式（复用 cron.ts 格式）
   enabled: boolean;
@@ -596,6 +663,8 @@ export type InternalAgentTask = AgentTaskBase & {
   prompt: string; // 每次触发发送的消息
   modelId?: string; // 使用的模型 ID
   conversationId?: string; // 可选：续接已有对话
+  /** conversationId 指向对话被绑定时的 generation；执行时若当前 generation 不一致（会话已被删除重建）则拒绝续接 */
+  conversationGeneration?: string;
   skills?: "auto" | string[];
   maxIterations?: number; // 工具循环上限，默认 10
 };
@@ -630,9 +699,9 @@ export type AgentTaskApiRequest =
   | { action: "list" }
   | { action: "get"; id: string }
   | { action: "create"; task: Omit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime"> }
-  | { action: "update"; id: string; task: Partial<AgentTask> }
-  | { action: "delete"; id: string }
-  | { action: "enable"; id: string; enabled: boolean }
+  | { action: "update"; id: string; generation: string; revision: number; task: Partial<AgentTask> }
+  | { action: "delete"; id: string; generation: string; revision: number }
+  | { action: "enable"; id: string; generation: string; revision: number; enabled: boolean }
   | { action: "runNow"; id: string }
   | { action: "listRuns"; taskId: string; limit?: number }
   | { action: "clearRuns"; taskId: string };
@@ -644,6 +713,9 @@ export type ConversationApiRequest =
   | {
       action: "chat";
       conversationId: string;
+      // 调用方持有的会话 generation；若与当前存储的 generation 不一致（会话已被删除重建），
+      // 服务端拒绝该次操作而不是静默作用于新的一代会话
+      generation?: string;
       message: MessageContent;
       tools?: ToolDefinition[];
       scriptUuid: string;
@@ -653,6 +725,14 @@ export type ConversationApiRequest =
       system?: string;
       modelId?: string;
     }
-  | { action: "getMessages"; conversationId: string; scriptUuid: string }
-  | { action: "save"; conversationId: string; scriptUuid: string }
-  | { action: "clearMessages"; conversationId: string; scriptUuid: string };
+  | { action: "getMessages"; conversationId: string; generation?: string; scriptUuid: string }
+  | { action: "save"; conversationId: string; generation?: string; scriptUuid: string }
+  | { action: "clearMessages"; conversationId: string; generation?: string; scriptUuid?: string }
+  | {
+      action: "deleteMessages";
+      conversationId: string;
+      generation?: string;
+      messageIds: string[];
+      preserveAttachmentIds?: string[];
+    }
+  | { action: "delete"; conversationId: string; generation: string; revision?: number };

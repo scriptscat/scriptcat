@@ -9,8 +9,8 @@ export class MCPToolExecutor implements ToolExecutor {
     private toolName: string
   ) {}
 
-  async execute(args: Record<string, unknown>): Promise<unknown> {
-    const result = await this.client.callTool(this.toolName, args);
+  async execute(args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
+    const result = await this.client.callTool(this.toolName, args, signal);
 
     // 检测 MCP 返回的 content 数组是否包含 image 类型
     if (Array.isArray(result)) {

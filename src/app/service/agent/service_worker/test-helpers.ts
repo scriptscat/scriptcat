@@ -39,17 +39,59 @@ export function createTestService() {
   const mockGroup = { on: vi.fn() } as any;
   const mockSender = {} as any;
 
+  // 消息按 conversationId 存储，供下面的 appendMessage/updateMessage/getMessages mock 共享，
+  // 让 updateMessage 的按 id 替换语义在测试里也能被后续 getMessages 断言观察到（与真实 repo 行为一致）。
+  // 真实 OPFS repo 每次读写都经过 JSON 序列化往返，调用方之间不共享对象引用；
+  // 这里的 mock 也必须在存取时做深拷贝，否则某次调用记录下的数组引用会被后续调用原地修改
+  // （例如 saveMessages 记录的数组之后被 appendMessage push，导致 vi.fn() 的 mock.calls 断言看到"事后被改过"的内容）。
+  const messagesByConv = new Map<string, any[]>();
+
   // 重置 agent_chat 单例 mock 方法（保持对象身份不变，只替换 vi.fn）
   Object.assign(mockChatRepo, {
-    appendMessage: vi.fn().mockResolvedValue(undefined),
-    getMessages: vi.fn().mockResolvedValue([]),
+    appendMessage: vi.fn().mockImplementation(async (message: any) => {
+      const list = messagesByConv.get(message.conversationId) ?? [];
+      list.push(structuredClone(message));
+      messagesByConv.set(message.conversationId, list);
+    }),
+    getMessages: vi
+      .fn()
+      .mockImplementation(async (conversationId: string) =>
+        (messagesByConv.get(conversationId) ?? []).map((m) => structuredClone(m))
+      ),
     listConversations: vi.fn().mockResolvedValue([]),
+    createConversation: vi.fn().mockImplementation(async (conversation: any) => ({
+      ...conversation,
+      generation: conversation.generation || "test-generation",
+      revision: conversation.revision ?? 1,
+    })),
     saveConversation: vi.fn().mockResolvedValue(undefined),
-    saveMessages: vi.fn().mockResolvedValue(undefined),
+    deleteConversation: vi.fn().mockResolvedValue(undefined),
+    getMessageSnapshot: vi.fn().mockImplementation(async (conversationId: string) => ({
+      generation: "test-generation",
+      revision: 0,
+      messages: await mockChatRepo.getMessages(conversationId),
+    })),
+    saveMessages: vi.fn().mockImplementation(async (conversationId: string, messages: any[]) => {
+      messagesByConv.set(
+        conversationId,
+        messages.map((m) => structuredClone(m))
+      );
+    }),
+    updateMessage: vi.fn().mockImplementation(async (message: any) => {
+      const list = messagesByConv.get(message.conversationId) ?? [];
+      const index = list.findIndex((m) => m.id === message.id);
+      if (index >= 0) list[index] = structuredClone(message);
+    }),
+    commitToolRound: vi.fn().mockImplementation(async (assistant: any, toolMessages: any[]) => {
+      const list = messagesByConv.get(assistant.conversationId) ?? [];
+      list.push(structuredClone(assistant), ...toolMessages.map((message) => structuredClone(message)));
+      messagesByConv.set(assistant.conversationId, list);
+    }),
     getTasks: vi.fn().mockResolvedValue([]),
     saveTasks: vi.fn().mockResolvedValue(undefined),
     getAttachment: vi.fn().mockResolvedValue(null),
     saveAttachment: vi.fn().mockResolvedValue(0),
+    deleteAttachment: vi.fn().mockResolvedValue(undefined),
   });
 
   const service = new AgentService(mockGroup, mockSender);
@@ -178,7 +220,7 @@ export function createMockSenderWithCallbacks() {
 export function makeTextResponse(text: string): Response {
   const encoder = new TextEncoder();
   const chunks = [
-    `data: {"choices":[{"delta":{"content":"${text}"}}]}\n\n`,
+    `data: {"choices":[{"delta":{"content":"${text}"},"finish_reason":"stop"}]}\n\n`,
     `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
   ];
   let i = 0;

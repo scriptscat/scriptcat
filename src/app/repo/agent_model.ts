@@ -1,4 +1,5 @@
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
+import { normalizeModelLimits } from "@App/app/service/agent/core/model_context";
 import { Repo, loadCache } from "./repo";
 
 const DEFAULT_MODEL_KEY = "agent_model:__default__";
@@ -21,9 +22,9 @@ export class AgentModelRepo extends Repo<AgentModelConfig> {
     return this.get(id);
   }
 
-  // 保存模型
+  // 保存模型：存储边界统一归一化 maxTokens/contextWindow（见 model_context.ts）
   async saveModel(model: AgentModelConfig): Promise<void> {
-    await this._save(model.id, model);
+    await this._save(model.id, normalizeModelLimits(model));
   }
 
   // 删除模型

@@ -11,6 +11,8 @@ export type TMessagQueueUnit<T = any> = {
 export type TMessageCommAction<T = any> = {
   action: string;
   data?: NonNullable<T>;
+  /** 可选请求关联 ID，用于连接上的请求/响应批次匹配。 */
+  requestId?: string;
   msgQueue?: never;
   code?: never;
 };

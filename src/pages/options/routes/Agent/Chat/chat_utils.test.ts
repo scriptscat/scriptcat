@@ -7,6 +7,7 @@ import {
   computeEditAction,
   computeUserRegenerateAction,
   findNextAssistantGroupIndex,
+  canContinueMaxIterationsGroup,
 } from "./chat_utils";
 
 // 辅助函数：创建测试消息
@@ -87,6 +88,25 @@ describe("mergeToolResults", () => {
     expect(result[1].toolCalls?.[0].status).toBe("running");
   });
 
+  it("会话已确认不活跃时应把缺失结果的历史工具修复为 error", () => {
+    const messages: ChatMessage[] = [
+      makeMsg({ id: "u1", role: "user", content: "hello" }),
+      makeMsg({
+        id: "a1",
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "tc1", name: "test", arguments: "{}", status: "running" }],
+      }),
+    ];
+
+    const result = mergeToolResults(messages, true);
+
+    expect(result[1].toolCalls?.[0]).toMatchObject({
+      status: "error",
+      result: expect.stringContaining("unavailable after recovery"),
+    });
+  });
+
   it("有 tool 结果消息时，error 状态不被覆盖为 completed", () => {
     const messages: ChatMessage[] = [
       makeMsg({ id: "u1", role: "user", content: "hello" }),
@@ -100,6 +120,23 @@ describe("mergeToolResults", () => {
     ];
     const result = mergeToolResults(messages);
     expect(result[1].toolCalls?.[0].status).toBe("error");
+  });
+});
+
+describe("canContinueMaxIterationsGroup", () => {
+  it("只允许最后一个包含 max_iterations 错误的助手组继续", () => {
+    const group = {
+      type: "assistant" as const,
+      messages: [makeMsg({ id: "a1", role: "assistant", errorCode: "max_iterations" })],
+    };
+    expect(canContinueMaxIterationsGroup(group, true)).toBe(true);
+    expect(canContinueMaxIterationsGroup(group, false)).toBe(false);
+    expect(
+      canContinueMaxIterationsGroup(
+        { type: "assistant", messages: [makeMsg({ id: "a2", role: "assistant", content: "later" })] },
+        true
+      )
+    ).toBe(false);
   });
 });
 

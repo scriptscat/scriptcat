@@ -5,7 +5,7 @@ import type { ToolCall, ToolDefinition, ToolResultWithAttachments } from "./type
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 
 // 创建一个简单的 mock executor
-function createExecutor(fn: (args: Record<string, unknown>) => Promise<unknown>): ToolExecutor {
+function createExecutor(fn: (args: Record<string, unknown>, signal?: AbortSignal) => Promise<unknown>): ToolExecutor {
   return { execute: fn };
 }
 
@@ -105,6 +105,30 @@ describe("ToolRegistry", () => {
       expect(results[0].result).toBe('{"temp":25,"unit":"C"}');
     });
 
+    it("内置工具返回 undefined 或不可序列化值时应返回已定义的字符串", async () => {
+      const registry = new ToolRegistry();
+      const cyclic: { self?: unknown } = {};
+      cyclic.self = cyclic;
+      registry.registerBuiltin(
+        weatherDef,
+        createExecutor(async () => undefined)
+      );
+      registry.registerBuiltin(
+        calcDef,
+        createExecutor(async () => cyclic)
+      );
+
+      const results = await registry.execute([
+        { id: "tc_1", name: "get_weather", arguments: "{}" },
+        { id: "tc_2", name: "calc", arguments: "{}" },
+      ]);
+
+      expect(results).toEqual([
+        { id: "tc_1", result: "null" },
+        { id: "tc_2", result: "null" },
+      ]);
+    });
+
     it("空 arguments 时应传入空对象", async () => {
       const registry = new ToolRegistry();
       const executeSpy = vi.fn().mockResolvedValue("ok");
@@ -112,7 +136,17 @@ describe("ToolRegistry", () => {
 
       await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "" }]);
 
-      expect(executeSpy).toHaveBeenCalledWith({});
+      expect(executeSpy).toHaveBeenCalledWith({}, undefined, "tc_1");
+    });
+
+    it("应把 tool call 的 id 作为 toolCallId 传给 executor（供 agent 等需要区分并发调用的工具使用）", async () => {
+      const registry = new ToolRegistry();
+      const executeSpy = vi.fn().mockResolvedValue("ok");
+      registry.registerBuiltin(weatherDef, { execute: executeSpy });
+
+      await registry.execute([{ id: "tc_unique_42", name: "get_weather", arguments: "{}" }]);
+
+      expect(executeSpy).toHaveBeenCalledWith({}, undefined, "tc_unique_42");
     });
 
     it("内置工具抛出异常时应返回错误信息", async () => {
@@ -162,7 +196,7 @@ describe("ToolRegistry", () => {
 
       const results = await registry.execute([{ id: "tc_1", name: "unknown_tool", arguments: "{}" }], scriptCallback);
 
-      expect(scriptCallback).toHaveBeenCalledWith([{ id: "tc_1", name: "unknown_tool", arguments: "{}" }]);
+      expect(scriptCallback).toHaveBeenCalledWith([{ id: "tc_1", name: "unknown_tool", arguments: "{}" }], undefined);
       expect(results[0].result).toBe("script result");
     });
 
@@ -205,13 +239,60 @@ describe("ToolRegistry", () => {
       // 脚本工具结果
       expect(results.find((r) => r.id === "tc_2")?.result).toBe("script_result");
       // scriptCallback 只收到脚本工具
-      expect(scriptCallback).toHaveBeenCalledWith([toolCalls[1]]);
+      expect(scriptCallback).toHaveBeenCalledWith([toolCalls[1]], undefined);
     });
 
     it("空 toolCalls 数组时应返回空结果", async () => {
       const registry = new ToolRegistry();
       const results = await registry.execute([]);
       expect(results).toHaveLength(0);
+    });
+
+    it("应将 signal 传递给内置工具执行器", async () => {
+      const registry = new ToolRegistry();
+      const executeSpy = vi.fn().mockResolvedValue("ok");
+      registry.registerBuiltin(weatherDef, { execute: executeSpy });
+      const controller = new AbortController();
+
+      await registry.execute(
+        [{ id: "tc_1", name: "get_weather", arguments: "{}" }],
+        undefined,
+        undefined,
+        controller.signal
+      );
+
+      expect(executeSpy).toHaveBeenCalledWith({}, controller.signal, "tc_1");
+    });
+
+    it("取消后应等待内置工具抵达提交边界并保留其已提交成功结果", async () => {
+      const registry = new ToolRegistry();
+      let finishExecution!: () => void;
+      const executeSpy = vi.fn().mockReturnValue(
+        new Promise((resolve) => {
+          finishExecution = () => resolve("late success");
+        })
+      );
+      registry.registerBuiltin(weatherDef, { execute: executeSpy });
+      const controller = new AbortController();
+
+      const resultPromise = registry.execute(
+        [{ id: "tc_1", name: "get_weather", arguments: "{}" }],
+        undefined,
+        undefined,
+        controller.signal
+      );
+      controller.abort();
+
+      let settled = false;
+      void resultPromise.finally(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+
+      finishExecution();
+      await expect(resultPromise).resolves.toEqual([{ id: "tc_1", result: "late success" }]);
+      expect(executeSpy).toHaveBeenCalledWith({}, controller.signal, "tc_1");
     });
 
     it("JSON 解析失败时应返回错误", async () => {
@@ -358,6 +439,45 @@ describe("ToolRegistry", () => {
       expect(mockRepo.saveAttachment).toHaveBeenCalledWith(expect.any(String), "data:image/jpeg;base64,/9j/abc");
     });
 
+    it("附件写入期间被取消时，应回收本批已保存的附件并返回错误结果", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      registry.setChatRepo(mockRepo);
+      const controller = new AbortController();
+
+      const savedIds: string[] = [];
+      // 第二个附件写入完成的同时 Stop 到达：写入已提交，但结果不能再按成功上报
+      vi.mocked(mockRepo.saveAttachment).mockImplementation(async (id: string) => {
+        savedIds.push(id);
+        if (savedIds.length === 2) controller.abort();
+        return 1024;
+      });
+
+      const structuredResult: ToolResultWithAttachments = {
+        content: "Files generated.",
+        attachments: [
+          { type: "image", name: "a.png", mimeType: "image/png", data: "data:image/png;base64,a" },
+          { type: "image", name: "b.png", mimeType: "image/png", data: "data:image/png;base64,b" },
+        ],
+      };
+      const executor = createExecutor(async () => structuredResult);
+      registry.registerBuiltin(weatherDef, executor);
+
+      const results = await registry.execute(
+        [{ id: "tc_1", name: "get_weather", arguments: "{}" }],
+        null,
+        undefined,
+        controller.signal
+      );
+
+      expect(results[0].error).toBe(true);
+      expect(results[0].attachments).toBeUndefined();
+      // 本批两个已落盘的附件都必须被回收，不能只删最后一个
+      for (const id of savedIds) {
+        expect(mockRepo.deleteAttachment).toHaveBeenCalledWith(id);
+      }
+    });
+
     it("内置工具返回 ToolResultWithAttachments 含多个附件时应全部保存", async () => {
       const registry = new ToolRegistry();
       const mockRepo = createMockChatRepo();
@@ -384,6 +504,118 @@ describe("ToolRegistry", () => {
       expect(results[0].attachments![0].name).toBe("img1.png");
       expect(results[0].attachments![1].name).toBe("report.xlsx");
       expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(2);
+    });
+
+    it("保存附件期间 signal abort：应停止继续写入并把该 toolCall 标为 error", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      const controller = new AbortController();
+      // 第一个附件保存"成功"的同时触发 abort，模拟 Stop 恰好落在多附件保存期间
+      (mockRepo.saveAttachment as any).mockImplementationOnce(async () => {
+        controller.abort();
+        return 1024;
+      });
+      registry.setChatRepo(mockRepo);
+
+      const structuredResult: ToolResultWithAttachments = {
+        content: "Files generated.",
+        attachments: [
+          { type: "image", name: "img1.png", mimeType: "image/png", data: "data:image/png;base64,abc" },
+          { type: "file", name: "report.xlsx", mimeType: "application/octet-stream", data: "base64data" },
+        ],
+      };
+      const executor = createExecutor(async () => structuredResult);
+      registry.registerBuiltin(weatherDef, executor);
+
+      const results = await registry.execute(
+        [{ id: "tc_1", name: "get_weather", arguments: "{}" }],
+        undefined,
+        undefined,
+        controller.signal
+      );
+
+      // 只应写入第一个附件，第二个在 abort 后不再保存
+      expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(1);
+      expect(results[0].error).toBe(true);
+    });
+
+    it("子代理在取消边界返回时应保留已生成附件的所有权以供提交或回收", async () => {
+      const registry = new ToolRegistry();
+      registry.setChatRepo(createMockChatRepo());
+      const controller = new AbortController();
+      registry.registerBuiltin(weatherDef, {
+        execute: async () => {
+          controller.abort();
+          return {
+            content: "partial",
+            attachments: [
+              {
+                attachmentId: "sub-image.png",
+                type: "image" as const,
+                name: "sub-image.png",
+                mimeType: "image/png",
+              },
+            ],
+            ownedAttachmentIds: ["sub-image.png"],
+            subAgentDetails: { agentId: "child", description: "child", messages: [] },
+            usage: { inputTokens: 8, outputTokens: 2 },
+          };
+        },
+      });
+
+      const [result] = await registry.execute(
+        [{ id: "tc_1", name: "get_weather", arguments: "{}" }],
+        undefined,
+        undefined,
+        controller.signal
+      );
+
+      expect(result).toMatchObject({
+        attachments: [{ id: "sub-image.png" }],
+        ownedAttachmentIds: ["sub-image.png"],
+        subAgentDetails: { agentId: "child" },
+        usage: { inputTokens: 8, outputTokens: 2 },
+      });
+      expect(result.error).toBeUndefined();
+    });
+
+    it("混合批次在脚本回调期间取消时应保留已完成内置工具结果", async () => {
+      const registry = new ToolRegistry();
+      registry.setChatRepo(createMockChatRepo());
+      registry.registerBuiltin(weatherDef, {
+        execute: async () => ({
+          content: "builtin complete",
+          attachments: [
+            {
+              attachmentId: "builtin-owned.png",
+              type: "image" as const,
+              name: "builtin-owned.png",
+              mimeType: "image/png",
+            },
+          ],
+          ownedAttachmentIds: ["builtin-owned.png"],
+          usage: { inputTokens: 3, outputTokens: 1 },
+        }),
+      });
+      const controller = new AbortController();
+      const scriptCallback = vi.fn(() => new Promise<Array<{ id: string; result: string }>>(() => {}));
+
+      const pending = registry.execute(
+        [
+          { id: "builtin", name: "get_weather", arguments: "{}" },
+          { id: "script", name: "script_tool", arguments: "{}" },
+        ],
+        scriptCallback,
+        undefined,
+        controller.signal
+      );
+      await vi.waitFor(() => expect(scriptCallback).toHaveBeenCalledOnce());
+      controller.abort();
+
+      await expect(pending).resolves.toEqual([
+        expect.objectContaining({ id: "builtin", ownedAttachmentIds: ["builtin-owned.png"] }),
+        expect.objectContaining({ id: "script", error: true }),
+      ]);
     });
 
     it("内置工具返回 Blob 附件时应正确保存", async () => {
@@ -473,6 +705,24 @@ describe("ToolRegistry", () => {
       expect(results[0].attachments).toHaveLength(1);
       expect(results[0].attachments![0].name).toBe("output.zip");
       expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(1);
+    });
+
+    it("脚本工具附件写入报错时，应回收可能已提交但无法确认的附件", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      vi.mocked(mockRepo.saveAttachment).mockRejectedValue(new Error("ambiguous close failure"));
+      registry.setChatRepo(mockRepo);
+      const structuredResult: ToolResultWithAttachments = {
+        content: "File generated.",
+        attachments: [{ type: "file", name: "output.zip", mimeType: "application/zip", data: "base64zipdata" }],
+      };
+      const scriptCallback = vi.fn().mockResolvedValue([{ id: "tc_1", result: JSON.stringify(structuredResult) }]);
+
+      const results = await registry.execute([{ id: "tc_1", name: "script_tool", arguments: "{}" }], scriptCallback);
+
+      const attemptedId = vi.mocked(mockRepo.saveAttachment).mock.calls[0][0];
+      expect(results[0].error).toBe(true);
+      expect(mockRepo.deleteAttachment).toHaveBeenCalledWith(attemptedId);
     });
 
     it("脚本工具返回普通 JSON 时不应产生附件", async () => {

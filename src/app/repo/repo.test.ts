@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Repo } from "./repo";
+import { OPFSRepo } from "./opfs_repo";
 
 // 定义测试数据类型
 interface TestItem {
@@ -24,6 +25,37 @@ class TestRepo extends Repo<TestItem> {
     return this.joinKey(key);
   }
 }
+
+class TestOPFSRepo extends OPFSRepo {
+  constructor() {
+    super("test");
+  }
+
+  removeFile(dir: FileSystemDirectoryHandle) {
+    return this.deleteFile("item.json", dir);
+  }
+
+  removeDir(dir: FileSystemDirectoryHandle) {
+    return this.removeDirectory("items", dir);
+  }
+}
+
+describe("OPFSRepo 删除错误", () => {
+  it("仅忽略 NotFoundError，权限或 I/O 错误必须向上传播", async () => {
+    const repo = new TestOPFSRepo();
+    const denied = {
+      removeEntry: vi.fn().mockRejectedValue(new DOMException("denied", "NotAllowedError")),
+    } as unknown as FileSystemDirectoryHandle;
+    const missing = {
+      removeEntry: vi.fn().mockRejectedValue(new DOMException("missing", "NotFoundError")),
+    } as unknown as FileSystemDirectoryHandle;
+
+    await expect(repo.removeFile(denied)).rejects.toThrow("denied");
+    await expect(repo.removeDir(denied)).rejects.toThrow("denied");
+    await expect(repo.removeFile(missing)).resolves.toBeUndefined();
+    await expect(repo.removeDir(missing)).resolves.toBeUndefined();
+  });
+});
 
 describe("Repo", () => {
   let repo: TestRepo;
@@ -69,6 +101,39 @@ describe("Repo", () => {
 
       const result = await repo.get("1");
       expect(result).toEqual(item2);
+    });
+
+    it("chrome.storage 写入失败时应 reject 而不是报告幽灵成功", async () => {
+      const setSpy = vi.spyOn(chrome.storage.local, "set").mockImplementation((_items, callback) => {
+        Object.defineProperty(chrome.runtime, "lastError", {
+          value: { message: "quota exceeded" },
+          configurable: true,
+        });
+        callback?.();
+        delete (chrome.runtime as { lastError?: chrome.runtime.LastError }).lastError;
+      });
+
+      await expect(repo.save("failed", { id: "failed", name: "失败", value: 1 })).rejects.toThrow("quota exceeded");
+      setSpy.mockRestore();
+      await expect(repo.get("failed")).resolves.toBeUndefined();
+    });
+
+    it("chrome.storage 读取失败时所有查询入口都应 reject", async () => {
+      const getSpy = vi.spyOn(chrome.storage.local, "get").mockImplementation((_keys?: unknown, callback?: any) => {
+        const cb = typeof _keys === "function" ? _keys : callback;
+        Object.defineProperty(chrome.runtime, "lastError", {
+          value: { message: "storage unavailable" },
+          configurable: true,
+        });
+        cb?.({});
+        delete (chrome.runtime as { lastError?: chrome.runtime.LastError }).lastError;
+      });
+
+      await expect(repo.get("failed")).rejects.toThrow("storage unavailable");
+      await expect(repo.gets(["failed"])).rejects.toThrow("storage unavailable");
+      await expect(repo.getRecord(["failed"])).rejects.toThrow("storage unavailable");
+      await expect(repo.find()).rejects.toThrow("storage unavailable");
+      getSpy.mockRestore();
     });
   });
 

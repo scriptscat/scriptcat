@@ -1,4 +1,4 @@
-import type { SubAgentDetails, ToolDefinition } from "@App/app/service/agent/core/types";
+import type { Attachment, SubAgentDetails, TokenUsage, ToolDefinition } from "@App/app/service/agent/core/types";
 import type { ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import { SUB_AGENT_TYPES } from "@App/app/service/agent/core/sub_agent_types";
 import { requireString } from "./param_utils";
@@ -9,6 +9,9 @@ export type SubAgentRunOptions = {
   description: string;
   type?: string;
   tabId?: number; // 父代理传递的标签页上下文
+  // 发起本次子代理的 agent 工具调用 ID。并行 agent 调用各自独立，
+  // 供上层把子代理事件与自己的 toolCallId 关联，避免并发时 UI 误匹配到另一个子代理。
+  toolCallId?: string;
 };
 
 // 子代理运行结果
@@ -16,6 +19,9 @@ export type SubAgentRunResult = {
   agentId: string;
   result: string;
   details?: SubAgentDetails; // 执行详情（用于持久化）
+  usage?: TokenUsage;
+  attachments?: Attachment[];
+  ownedAttachmentIds?: string[];
 };
 
 // 在模块加载时固化一次可用 type 列表，供 provider 做 JSON Schema 强校验
@@ -60,18 +66,30 @@ export function createSubAgentTool(params: {
   executor: ToolExecutor;
 } {
   const executor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, _signal?: AbortSignal, toolCallId?: string) => {
       const prompt = requireString(args, "prompt");
       const description = (args.description as string) || "Sub-agent task";
       const type = args.type as string | undefined;
       const tabId = args.tab_id as number | undefined;
 
-      const result = await params.runSubAgent({ prompt, description, type, tabId });
+      const result = await params.runSubAgent({ prompt, description, type, tabId, toolCallId });
 
       // 返回结构化结果，附带子代理执行详情用于持久化
       const content = `[agentId: ${result.agentId}]\n\n${result.result}`;
       if (result.details) {
-        return { content, subAgentDetails: result.details };
+        return {
+          content,
+          subAgentDetails: result.details,
+          usage: result.usage,
+          attachments: result.attachments?.map((attachment) => ({
+            attachmentId: attachment.id,
+            type: attachment.type,
+            name: attachment.name,
+            mimeType: attachment.mimeType,
+            size: attachment.size,
+          })),
+          ownedAttachmentIds: result.ownedAttachmentIds,
+        };
       }
       return content;
     },

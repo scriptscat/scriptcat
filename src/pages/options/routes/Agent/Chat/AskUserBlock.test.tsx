@@ -43,4 +43,23 @@ describe("用户提问块 AskUserBlock", () => {
     expect(screen.queryByTestId("ask-input")).toBeNull();
     expect(screen.getByText("红")).toBeInTheDocument();
   });
+
+  it("禁用自定义输入时使用稳定选项值", () => {
+    const onRespond = vi.fn();
+    render(
+      <AskUserBlock
+        id="guard-1"
+        question="是否继续？"
+        options={["继续", "停止"]}
+        optionValues={["continue", "stop"]}
+        allowCustom={false}
+        onRespond={onRespond}
+      />
+    );
+
+    expect(screen.queryByTestId("ask-input")).toBeNull();
+    fireEvent.click(screen.getByTestId("ask-option-stop"));
+    expect(onRespond).toHaveBeenCalledWith("guard-1", "stop");
+    expect(screen.getByText("停止")).toBeInTheDocument();
+  });
 });

@@ -212,7 +212,7 @@ export default function ChatInput({
   models: AgentModelConfig[];
   selectedModelId: string;
   onModelChange: (id: string) => void;
-  onSend: (content: MessageContent, files?: Map<string, File>) => void;
+  onSend: (content: MessageContent, files?: Map<string, File>) => Promise<void>;
   onStop: () => void;
   isStreaming: boolean;
   disabled?: boolean;
@@ -229,9 +229,12 @@ export default function ChatInput({
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // 卸载清理只能在 effect 里读到挂载时那次渲染捕获的 attachments（空数组），必须用 ref 跟踪最新值
+  const attachmentsRef = useRef(attachments);
 
   // 斜杠命令过滤
   const slashQuery = useMemo(() => {
@@ -265,12 +268,17 @@ export default function ChatInput({
     }
   }, [input]);
 
-  // 卸载时清理 objectURLs
+  // 保持 ref 跟随最新 attachments，供下面卸载时的 effect 读取
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  // 卸载时清理 objectURLs：读 ref 而非闭包里的 attachments，否则空依赖数组只会捕获挂载时的
+  // 初始空数组，之后选中的附件在卸载时永远不会被 revoke
   useEffect(() => {
     return () => {
-      attachments.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+      attachmentsRef.current.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addFiles = useCallback((files: File[]) => {
@@ -294,31 +302,47 @@ export default function ChatInput({
     });
   }, []);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmed = input.trim();
-    if ((!trimmed && attachments.length === 0) || disabled || hasPendingMessage) return;
+    if ((!trimmed && attachments.length === 0) || disabled || hasPendingMessage || isSending) return;
 
-    if (attachments.length > 0) {
-      const blocks: ContentBlock[] = [];
-      const files = new Map<string, File>();
-      if (trimmed) blocks.push({ type: "text", text: trimmed });
-      for (const att of attachments) {
-        const mime = att.file.type;
-        if (mime.startsWith("image/")) {
-          blocks.push({ type: "image", attachmentId: att.id, mimeType: mime, name: att.file.name });
-        } else if (mime.startsWith("audio/")) {
-          blocks.push({ type: "audio", attachmentId: att.id, mimeType: mime, name: att.file.name });
-        } else {
-          blocks.push({ type: "file", attachmentId: att.id, mimeType: mime, name: att.file.name, size: att.file.size });
+    setIsSending(true);
+    try {
+      if (attachments.length > 0) {
+        const blocks: ContentBlock[] = [];
+        const files = new Map<string, File>();
+        if (trimmed) blocks.push({ type: "text", text: trimmed });
+        for (const att of attachments) {
+          const mime = att.file.type;
+          if (mime.startsWith("image/")) {
+            blocks.push({ type: "image", attachmentId: att.id, mimeType: mime, name: att.file.name });
+          } else if (mime.startsWith("audio/")) {
+            blocks.push({ type: "audio", attachmentId: att.id, mimeType: mime, name: att.file.name });
+          } else {
+            blocks.push({
+              type: "file",
+              attachmentId: att.id,
+              mimeType: mime,
+              name: att.file.name,
+              size: att.file.size,
+            });
+          }
+          files.set(att.id, att.file);
         }
-        files.set(att.id, att.file);
+        await onSend(blocks, files);
+        for (const attachment of attachments) {
+          if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+        }
+        setAttachments([]);
+      } else {
+        await onSend(trimmed);
       }
-      onSend(blocks, files);
-      setAttachments([]);
-    } else {
-      onSend(trimmed);
+      setInput("");
+    } catch (error) {
+      notify.error(`${t("common:error")}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsSending(false);
     }
-    setInput("");
   };
 
   const handleSlashSelect = useCallback((skill: SkillSummary) => {
@@ -354,7 +378,7 @@ export default function ChatInput({
 
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      void handleSend();
     }
   };
 
@@ -385,7 +409,7 @@ export default function ChatInput({
     e.target.value = "";
   };
 
-  const canSend = !!(input.trim() || attachments.length > 0) && !disabled && !hasPendingMessage;
+  const canSend = !!(input.trim() || attachments.length > 0) && !disabled && !hasPendingMessage && !isSending;
   const iconBtn =
     "size-7 max-md:size-11 rounded flex items-center justify-center bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
 
@@ -543,7 +567,7 @@ export default function ChatInput({
                     type="button"
                     data-testid="chat-send"
                     aria-label={t("agent:chat_send")}
-                    onClick={handleSend}
+                    onClick={() => void handleSend()}
                     disabled={!canSend}
                     className={cn(
                       "flex size-8 items-center justify-center rounded-full border-none shadow-sm transition-opacity max-md:size-11",

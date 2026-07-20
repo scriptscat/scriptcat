@@ -30,10 +30,12 @@ function AssistantMessageContent({
   message,
   isStreaming,
   subAgents,
+  onContinue,
 }: {
   message: ChatMessage;
   isStreaming?: boolean;
   subAgents?: Map<string, SubAgentState>;
+  onContinue?: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -73,7 +75,19 @@ function AssistantMessageContent({
       {message.error && (
         <div className="flex items-start gap-2 mt-2 px-3 py-2 rounded-lg text-xs bg-destructive/10 text-destructive">
           <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
-          <span className="min-w-0 break-words">{message.error}</span>
+          <div className="min-w-0 flex flex-col gap-1.5 items-start">
+            <span className="break-words">{message.error}</span>
+            {message.errorCode === "max_iterations" && onContinue && (
+              <button
+                type="button"
+                data-testid="continue-max-iterations"
+                onClick={onContinue}
+                className="rounded-md border border-destructive/30 bg-transparent px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+              >
+                {t("agent:chat_continue_max_iterations")}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -159,7 +173,7 @@ export function UserMessageItem({
   onCancel,
 }: {
   message: ChatMessage;
-  onEdit?: (content: MessageContent, files?: Map<string, File>) => void;
+  onEdit?: (content: MessageContent, files?: Map<string, File>) => void | Promise<void>;
   onRegenerate?: () => void;
   isStreaming?: boolean;
   onCancel?: () => void;
@@ -171,6 +185,19 @@ export function UserMessageItem({
   const [pendingAttachments, setPendingAttachments] = useState<EditPendingAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // 卸载清理只能在 effect 里读到挂载时那次渲染捕获的 pendingAttachments（空数组），必须用 ref 跟踪最新值
+  const pendingAttachmentsRef = useRef(pendingAttachments);
+
+  useEffect(() => {
+    pendingAttachmentsRef.current = pendingAttachments;
+  }, [pendingAttachments]);
+
+  // 卸载时清理未保存的编辑态预览 objectURLs：读 ref 而非闭包里的 pendingAttachments
+  useEffect(() => {
+    return () => {
+      pendingAttachmentsRef.current.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+    };
+  }, []);
 
   useEffect(() => {
     if (editing && textareaRef.current) {
@@ -197,14 +224,14 @@ export function UserMessageItem({
     setEditBlocks([]);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const trimmed = editContent.trim();
     const hasAttachments = editBlocks.length > 0 || pendingAttachments.length > 0;
     if (!trimmed && !hasAttachments) return;
     setEditing(false);
 
     if (!hasAttachments) {
-      onEdit?.(trimmed);
+      void onEdit?.(trimmed);
       return;
     }
 
@@ -225,7 +252,11 @@ export function UserMessageItem({
       files.set(att.id, att.file);
     }
 
-    onEdit?.(blocks, files.size > 0 ? files : undefined);
+    // 附件已随 blocks/files 交给上层保存，交接完成后再 revoke 预览 URL，避免过早释放仍在使用的 Blob
+    await onEdit?.(blocks, files.size > 0 ? files : undefined);
+    pendingAttachmentsRef.current.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+    setPendingAttachments([]);
+    setEditBlocks([]);
   };
 
   const addFiles = useCallback((files: File[]) => {
@@ -350,7 +381,7 @@ export function UserMessageItem({
                 if (e.key === "Escape") handleCancel();
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  handleSave();
+                  void handleSave();
                 }
               }}
               onPaste={handleEditPaste}
@@ -404,6 +435,7 @@ export function UserMessageItem({
                   className={iconBtn}
                   title={t("agent:chat_cancel_message")}
                   aria-label={t("agent:chat_cancel_message")}
+                  data-testid="cancel-pending-message"
                   onClick={onCancel}
                 >
                   <X className="size-3.5" />
@@ -466,6 +498,7 @@ export function AssistantMessageGroup({
   onCopy,
   onRegenerate,
   onDelete,
+  onContinue,
 }: {
   messages: ChatMessage[];
   streamingId?: string;
@@ -475,6 +508,7 @@ export function AssistantMessageGroup({
   onCopy: () => void;
   onRegenerate: () => void;
   onDelete: () => void;
+  onContinue?: () => void;
 }) {
   const lastMsg = messages[messages.length - 1];
   const usage = lastMsg.usage;
@@ -492,7 +526,13 @@ export function AssistantMessageGroup({
 
       <div className="flex flex-col max-w-[80%] min-w-0 gap-1">
         {messages.map((m) => (
-          <AssistantMessageContent key={m.id} message={m} isStreaming={streamingId === m.id} subAgents={subAgents} />
+          <AssistantMessageContent
+            key={m.id}
+            message={m}
+            isStreaming={streamingId === m.id}
+            subAgents={subAgents}
+            onContinue={onContinue}
+          />
         ))}
 
         <MessageToolbar

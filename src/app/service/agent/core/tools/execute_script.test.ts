@@ -80,7 +80,7 @@ describe("execute_script 工具", () => {
 
       expect(parsed).toEqual({ result: { sum: 42 }, target: "sandbox" });
       expect(parsed).not.toHaveProperty("tab_id");
-      expect(mockExecuteInSandbox).toHaveBeenCalledWith("return 1+2");
+      expect(mockExecuteInSandbox).toHaveBeenCalledWith("return 1+2", expect.any(AbortSignal));
     });
 
     it.concurrent("返回值为 undefined 时应转为 null", async () => {
@@ -102,18 +102,102 @@ describe("execute_script 工具", () => {
       const { executor } = createExecuteScriptTool(deps);
 
       await expect(executor.execute({ code: "while(true){}", target: "page" })).rejects.toThrow(
-        "execute_script timed out after 0.05s"
+        "execute_script (target=page) timed out after 0.05s"
       );
     });
 
     it.concurrent("sandbox 模式超时应报错", async () => {
-      const mockExecuteInSandbox = vi.fn().mockReturnValue(new Promise(() => {}));
+      const onAbort = vi.fn();
+      const mockExecuteInSandbox = vi.fn().mockImplementation((_code: string, signal?: AbortSignal) => {
+        signal?.addEventListener("abort", onAbort, { once: true });
+        return new Promise(() => {});
+      });
       const deps = makeDeps({ executeInSandbox: mockExecuteInSandbox, timeoutMs: 50 });
       const { executor } = createExecuteScriptTool(deps);
 
       await expect(executor.execute({ code: "while(true){}", target: "sandbox" })).rejects.toThrow(
         "execute_script timed out after 0.05s"
       );
+      expect(onAbort).toHaveBeenCalledOnce();
+    });
+
+    it.concurrent("signal 已中止时应立即中断并且不执行脚本", async () => {
+      const mockExecuteInSandbox = vi.fn().mockReturnValue(new Promise(() => {}));
+      const deps = makeDeps({ executeInSandbox: mockExecuteInSandbox });
+      const { executor } = createExecuteScriptTool(deps);
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(executor.execute({ code: "return 1", target: "sandbox" }, controller.signal)).rejects.toThrow(
+        "Aborted"
+      );
+      expect(mockExecuteInSandbox).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("超大返回值截断", () => {
+    it.concurrent("原始结果刚好低于限制但最终 JSON 信封超限时仍应截断", async () => {
+      const nearLimit = "x".repeat(29_970);
+      const deps = makeDeps({ executeInSandbox: vi.fn().mockResolvedValue(nearLimit) });
+      const { executor } = createExecuteScriptTool(deps);
+
+      const result = (await executor.execute({ code: "return nearLimit", target: "sandbox" })) as string;
+      const parsed = JSON.parse(result);
+
+      expect(result.length).toBeLessThanOrEqual(30_000);
+      expect(parsed.truncated).toBe(true);
+    });
+
+    it.concurrent("最终 JSON 信封包含大量引号和反斜杠时仍不超过限制", async () => {
+      const escaped = '"\\'.repeat(40_000);
+      const deps = makeDeps({ executeInSandbox: vi.fn().mockResolvedValue(escaped) });
+      const { executor } = createExecuteScriptTool(deps);
+
+      const result = (await executor.execute({ code: "return escaped", target: "sandbox" })) as string;
+
+      expect(result.length).toBeLessThanOrEqual(30_000);
+      expect(JSON.parse(result).truncated).toBe(true);
+    });
+
+    it.concurrent("page 模式返回值过大时应截断并标注 truncated", async () => {
+      const bigString = "x".repeat(50_000);
+      const mockExecuteInPage = vi.fn().mockResolvedValue({ result: bigString, tabId: 1 });
+      const deps = makeDeps({ executeInPage: mockExecuteInPage });
+      const { executor } = createExecuteScriptTool(deps);
+
+      const result = await executor.execute({ code: "return bigString", target: "page" });
+      const parsed = JSON.parse(result as string);
+
+      expect(parsed.truncated).toBe(true);
+      expect(typeof parsed.result).toBe("string");
+      expect(parsed.result.length).toBeLessThan(bigString.length);
+      expect(parsed.result).toContain("truncated");
+      expect(parsed.original_length).toBeGreaterThan(50_000);
+    });
+
+    it.concurrent("sandbox 模式返回值过大时应截断并标注 truncated", async () => {
+      const bigArray = Array.from({ length: 10_000 }, (_, i) => i);
+      const mockExecuteInSandbox = vi.fn().mockResolvedValue(bigArray);
+      const deps = makeDeps({ executeInSandbox: mockExecuteInSandbox });
+      const { executor } = createExecuteScriptTool(deps);
+
+      const result = await executor.execute({ code: "return bigArray", target: "sandbox" });
+      const parsed = JSON.parse(result as string);
+
+      expect(parsed.truncated).toBe(true);
+      expect(typeof parsed.result).toBe("string");
+    });
+
+    it.concurrent("正常大小的返回值不应被截断或添加 truncated 字段", async () => {
+      const mockExecuteInPage = vi.fn().mockResolvedValue({ result: { count: 5 }, tabId: 1 });
+      const deps = makeDeps({ executeInPage: mockExecuteInPage });
+      const { executor } = createExecuteScriptTool(deps);
+
+      const result = await executor.execute({ code: "return {count:5}", target: "page" });
+      const parsed = JSON.parse(result as string);
+
+      expect(parsed).toEqual({ result: { count: 5 }, target: "page", tab_id: 1 });
+      expect(parsed.truncated).toBeUndefined();
     });
   });
 

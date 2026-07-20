@@ -16,7 +16,10 @@ vi.mock("@App/pages/options/hooks/useScrollSpy", () => ({
   }),
 }));
 
-const { getSearchConfigMock } = vi.hoisted(() => ({ getSearchConfigMock: vi.fn() }));
+const { getSearchConfigMock, getAgentConfigMock } = vi.hoisted(() => ({
+  getSearchConfigMock: vi.fn(),
+  getAgentConfigMock: vi.fn(),
+}));
 vi.mock("@App/pages/store/features/script", () => ({
   agentClient: {
     listModels: vi.fn(async () => [
@@ -26,6 +29,8 @@ vi.mock("@App/pages/store/features/script", () => ({
     getSearchConfig: getSearchConfigMock,
     setSummaryModelId: vi.fn(async () => {}),
     saveSearchConfig: vi.fn(async () => {}),
+    getAgentConfig: getAgentConfigMock,
+    saveAgentConfig: vi.fn(async () => {}),
   },
 }));
 
@@ -37,6 +42,7 @@ beforeAll(() => initTestLanguage("zh-CN"));
 
 beforeEach(() => {
   getSearchConfigMock.mockResolvedValue({ engine: "bing" });
+  getAgentConfigMock.mockResolvedValue({ chatMaxIterations: 50 });
   mockedUseIsMobile.mockReturnValue(false);
 });
 afterEach(() => cleanup());
@@ -102,6 +108,43 @@ describe("AgentSettings 页面", () => {
       fireEvent.click(await screen.findByTestId("settings-docs-desktop"));
       expect(open).toHaveBeenCalledWith(expect.stringContaining("/docs/dev/agent/agent"), "_blank");
       open.mockRestore();
+    });
+  });
+
+  describe("对话设置", () => {
+    it("挂载后展示已保存的最大工具调用次数", async () => {
+      render(<AgentSettings />);
+      const input = await screen.findByTestId("chat-max-iterations");
+      expect(input).toHaveValue(50);
+    });
+
+    it("修改最大工具调用次数触发 saveAgentConfig", async () => {
+      render(<AgentSettings />);
+      const input = await screen.findByTestId("chat-max-iterations");
+      fireEvent.change(input, { target: { value: "200" } });
+      expect(agentClient.saveAgentConfig).toHaveBeenCalledWith({ chatMaxIterations: 200 });
+    });
+
+    it("超过上限时应被截断为 1000", async () => {
+      render(<AgentSettings />);
+      const input = await screen.findByTestId("chat-max-iterations");
+      fireEvent.change(input, { target: { value: "5000" } });
+      expect(agentClient.saveAgentConfig).toHaveBeenCalledWith({ chatMaxIterations: 1000 });
+    });
+
+    it("小于 1 时应被截断为 1", async () => {
+      render(<AgentSettings />);
+      const input = await screen.findByTestId("chat-max-iterations");
+      fireEvent.change(input, { target: { value: "0" } });
+      expect(agentClient.saveAgentConfig).toHaveBeenCalledWith({ chatMaxIterations: 1 });
+    });
+
+    it("保存对话设置失败时提示错误", async () => {
+      vi.mocked(agentClient.saveAgentConfig).mockRejectedValueOnce(new Error("boom"));
+      render(<AgentSettings />);
+      const input = await screen.findByTestId("chat-max-iterations");
+      await act(async () => fireEvent.change(input, { target: { value: "200" } }));
+      expect(notify.error).toHaveBeenCalledWith(t("agent:settings_save_failed"));
     });
   });
 

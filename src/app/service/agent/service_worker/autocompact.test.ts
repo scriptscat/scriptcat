@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createTestService, makeSSEResponse } from "./test-helpers";
+import { createTestService, createMockSenderWithCallbacks, makeSSEResponse } from "./test-helpers";
 
 // ---- Compact 功能测试 ----
 
@@ -16,7 +16,7 @@ describe("Compact 功能", () => {
 
   function makeTextResponseWithTokens(text: string, promptTokens = 10): Response {
     return makeSSEResponse([
-      `data: {"choices":[{"delta":{"content":${JSON.stringify(text)}}}]}\n\n`,
+      `data: {"choices":[{"delta":{"content":${JSON.stringify(text)}},"finish_reason":"stop"}]}\n\n`,
       `data: {"usage":{"prompt_tokens":${promptTokens},"completion_tokens":5}}\n\n`,
     ]);
   }
@@ -76,6 +76,35 @@ describe("Compact 功能", () => {
     expect(events.some((e: any) => e.type === "done")).toBe(true);
   });
 
+  it("手动 compact：Stop 恰好落在摘要提交之后时不应以旧快照回滚新历史", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages, simulateMessage } = createMockSenderWithCallbacks();
+
+    const original = [
+      { id: "m1", conversationId: "conv-1", role: "user", content: "Hello", createtime: 1 },
+      { id: "m2", conversationId: "conv-1", role: "assistant", content: "Hi there!", createtime: 2 },
+    ];
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    mockRepo.getMessages.mockResolvedValue(original);
+
+    const saveCalls: any[][] = [];
+    mockRepo.saveMessages.mockImplementation(async (_id: string, messages: any[]) => {
+      saveCalls.push(messages);
+      // 模拟 Stop 恰好落在 close() 提交窗口：写入已生效，signal 事后才被观察到
+      if (saveCalls.length === 1) simulateMessage({ action: "stop" });
+    });
+
+    fetchSpy.mockResolvedValueOnce(makeTextResponseWithTokens("<summary>迟到的压缩</summary>"));
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "", compact: true }, sender);
+
+    // 摘要已通过 CAS 提交，取消只能影响终态；旧历史不能再覆盖这次已提交写入。
+    expect(saveCalls).toHaveLength(1);
+    expect(saveCalls[0]).toEqual([expect.objectContaining({ content: expect.stringContaining("迟到的压缩") })]);
+    const events = sentMessages.map((m: any) => m.data);
+    expect(events.some((e: any) => e.type === "compact_done")).toBe(false);
+  });
+
   it("手动 compact：带自定义指令", async () => {
     const { service, mockRepo } = createTestService();
     const { sender } = createMockSender();
@@ -97,6 +126,66 @@ describe("Compact 功能", () => {
     const body = JSON.parse(fetchCall[1].body as string);
     const lastUserMsg = body.messages[body.messages.length - 1];
     expect(lastUserMsg.content).toContain("只保留代码");
+  });
+
+  it("手动 compact：先过滤错误占位消息并裁剪超出上下文阈值的旧工具结果", async () => {
+    const { service, mockRepo, mockModelRepo } = createTestService();
+    const { sender } = createMockSender();
+    mockModelRepo.getModel.mockResolvedValue({
+      id: "test-openai",
+      name: "Test",
+      provider: "openai",
+      apiBaseUrl: "",
+      apiKey: "",
+      model: "gpt-4o",
+      // 40000 窗口 + 未配置 maxTokens：默认输出预留 min(16384, 窗口/4)=10000（见 model_context.ts），
+      // 输入预算 = 40000 - 10000 - 4000(10% 安全边际) = 26000 token；下面 6 条约 7200 token 的
+      // 工具结果远超预算，保证"裁剪旧工具结果"场景稳定触发
+      contextWindow: 40000,
+    });
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    const messages: any[] = [];
+    for (let i = 0; i < 6; i++) {
+      messages.push({
+        id: `a${i}`,
+        conversationId: "conv-1",
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: `tc${i}`, name: "tool", arguments: "{}" }],
+        createtime: i,
+      });
+      messages.push({
+        id: `t${i}`,
+        conversationId: "conv-1",
+        role: "tool",
+        content: "工具结果".repeat(1200),
+        toolCallId: `tc${i}`,
+        createtime: i,
+      });
+    }
+    messages.push({
+      id: "error",
+      conversationId: "conv-1",
+      role: "assistant",
+      content: "",
+      error: "max iterations",
+      errorCode: "max_iterations",
+      createtime: 99,
+    });
+    mockRepo.getMessages.mockResolvedValue(messages);
+    fetchSpy.mockResolvedValueOnce(makeTextResponseWithTokens("<summary>压缩完成</summary>"));
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "", compact: true }, sender);
+
+    const body = JSON.parse(fetchSpy.mock.calls[0][1].body as string);
+    expect(
+      body.messages.some(
+        (message: any) => message.role === "assistant" && message.content === "" && !message.tool_calls
+      )
+    ).toBe(false);
+    expect(
+      body.messages.some((message: any) => typeof message.content === "string" && message.content.includes("elided"))
+    ).toBe(true);
   });
 
   it("手动 compact：空消息时返回错误", async () => {
@@ -145,7 +234,7 @@ describe("Compact 功能", () => {
     // 第一次 LLM 调用：返回文本但 inputTokens 超过 80% (110000/128000 ≈ 86%)
     fetchSpy.mockResolvedValueOnce(
       makeSSEResponse([
-        `data: {"choices":[{"delta":{"content":"Some response"}}]}\n\n`,
+        `data: {"choices":[{"delta":{"content":"Some response"},"finish_reason":"stop"}]}\n\n`,
         `data: {"usage":{"prompt_tokens":110000,"completion_tokens":100}}\n\n`,
       ])
     );
@@ -178,7 +267,7 @@ describe("Compact 功能", () => {
     // inputTokens = 50000, contextWindow(gpt-4o) = 128000, 39% < 80%
     fetchSpy.mockResolvedValueOnce(
       makeSSEResponse([
-        `data: {"choices":[{"delta":{"content":"OK"}}]}\n\n`,
+        `data: {"choices":[{"delta":{"content":"OK"},"finish_reason":"stop"}]}\n\n`,
         `data: {"usage":{"prompt_tokens":50000,"completion_tokens":5}}\n\n`,
       ])
     );

@@ -16,7 +16,7 @@ describe("MCPToolExecutor", () => {
     const result = await executor.execute({ query: "hello" });
 
     expect(result).toBe("tool result");
-    expect(client.callTool).toHaveBeenCalledWith("search", { query: "hello" });
+    expect(client.callTool).toHaveBeenCalledWith("search", { query: "hello" }, undefined);
   });
 
   it("应正确传递工具名", async () => {
@@ -26,7 +26,7 @@ describe("MCPToolExecutor", () => {
     const result = await executor.execute({ limit: 10 });
 
     expect(result).toEqual({ data: [1, 2, 3] });
-    expect(client.callTool).toHaveBeenCalledWith("fetch_data", { limit: 10 });
+    expect(client.callTool).toHaveBeenCalledWith("fetch_data", { limit: 10 }, undefined);
   });
 
   it("callTool 抛出异常时应向上传播", async () => {

@@ -66,10 +66,10 @@ export function useConversations() {
         createtime: Date.now(),
         updatetime: Date.now(),
       };
-      await agentChatRepo.saveConversation(conv);
+      const created = await agentChatRepo.createConversation(conv);
       const list = await loadConversations();
-      setActiveId(conv.id);
-      return { conv, list };
+      setActiveId(created.id);
+      return { conv: created, list };
     },
     [loadConversations, setActiveId]
   );
@@ -77,13 +77,20 @@ export function useConversations() {
   // 删除会话
   const deleteConversation = useCallback(
     async (id: string) => {
-      await agentChatRepo.deleteConversation(id);
+      const conversation = conversations.find((item) => item.id === id);
+      if (conversation?.generation) {
+        await sendMsg(extensionMessage, "serviceWorker/agent/conversation", {
+          action: "delete",
+          conversationId: id,
+          generation: conversation.generation,
+        });
+      }
       const list = await loadConversations();
       if (activeId === id) {
         setActiveId(list[0]?.id || "");
       }
     },
-    [activeId, loadConversations, setActiveId]
+    [activeId, conversations, loadConversations, setActiveId]
   );
 
   // 重命名会话
@@ -135,7 +142,14 @@ export function useMessages(conversationId: string) {
 }
 
 // ask_user 待回复状态
-export type AskUserPending = { id: string; question: string; options?: string[]; multiple?: boolean };
+export type AskUserPending = {
+  id: string;
+  question: string;
+  options?: string[];
+  optionValues?: string[];
+  multiple?: boolean;
+  allowCustom?: boolean;
+};
 
 // 流式聊天 hook
 export function useStreamingChat() {
@@ -147,18 +161,15 @@ export function useStreamingChat() {
   const stopGeneration = useCallback(() => {
     abortedRef.current = true;
     const conn = connRef.current;
-    connRef.current = null;
-    // 先确保 UI 状态重置，再断开连接（避免 sendMessage/disconnect 抛异常导致状态卡住）
-    setIsStreaming(false);
     setAskUserPending(null);
+    // 不在这里把 isStreaming 置 false、也不立即断开连接——ChatArea 里"连接断开但 done
+    // 回调未触发时处理排队消息"的兜底逻辑正是监听 isStreaming 由 true 变 false 来触发的；
+    // 提前置为 false 会让排队消息在旧会话仍处于 cancelling（占用中）时就被处理，进而被拒绝
+    // 且从未持久化就丢失。isStreaming 必须留到真正的终态事件到达时
+    // （onMessage 的终态分支）或连接意外断开时（onDisconnect）才由那两处统一置 false。
     if (conn) {
       try {
         conn.sendMessage({ action: "stop" });
-      } catch {
-        // port 可能已断开
-      }
-      try {
-        conn.disconnect();
       } catch {
         // port 可能已断开
       }
@@ -182,7 +193,15 @@ export function useStreamingChat() {
       modelId?: string,
       skipSaveUserMessage?: boolean,
       enableTools?: boolean,
-      extra?: { compact?: boolean; compactInstruction?: string; background?: boolean }
+      extra?: {
+        compact?: boolean;
+        compactInstruction?: string;
+        background?: boolean;
+        ownedAttachmentIds?: string[];
+        // 调用方持有的会话 generation：与当前存储不一致（会话已被删除重建）时，
+        // 服务端拒绝而不是静默作用于无关的新一代会话（含 compact 分支）
+        generation?: string;
+      }
     ) => {
       setIsStreaming(true);
       abortedRef.current = false;
@@ -201,22 +220,33 @@ export function useStreamingChat() {
         connRef.current = conn;
 
         conn.onMessage((msg) => {
-          if (abortedRef.current) return;
           const event = msg.data as ChatStreamEvent;
+          const isTerminal =
+            (event.type === "done" || event.type === "error") && !("subAgent" in event && event.subAgent);
+          // stop 之后（abortedRef=true）必须继续放行终态事件——那条事件携带真正的取消原因/
+          // usage/耗时，且负责断开连接、触发 onDone（进而处理排队消息）；只需要抑制中间的
+          // 流式增量/ask_user 事件，避免用户点了停止之后 UI 还在继续刷新内容
+          if (abortedRef.current && !isTerminal) return;
           // 处理 ask_user 事件
           if (event.type === "ask_user") {
             setAskUserPending({
               id: event.id,
               question: event.question,
               options: event.options,
+              optionValues: event.optionValues,
               multiple: event.multiple,
+              allowCustom: event.allowCustom,
             });
           }
+          if (event.type === "ask_user_expired") setAskUserPending(null);
+          if (event.type === "ask_user_resolved") setAskUserPending(null);
           onEvent(event);
-          if ((event.type === "done" || event.type === "error") && !("subAgent" in event && event.subAgent)) {
+          if (isTerminal) {
             setIsStreaming(false);
             setAskUserPending(null);
             connRef.current = null;
+            // 终态事件后必须主动断开，否则 port/listener 会一直挂在 SW 侧，直到用户手动刷新页面
+            conn.disconnect();
             onDone();
           }
         });
@@ -227,6 +257,9 @@ export function useStreamingChat() {
           connRef.current = null;
         });
       } catch (e: any) {
+        await Promise.all(
+          (extra?.ownedAttachmentIds || []).map((id) => agentChatRepo.deleteAttachment(id).catch(() => {}))
+        );
         setIsStreaming(false);
         setAskUserPending(null);
         onEvent({ type: "error", message: e.message || "Connection failed" });
@@ -238,28 +271,42 @@ export function useStreamingChat() {
 
   // 附加到后台运行中的会话
   const attachToConversation = useCallback(
-    async (conversationId: string, onEvent: (event: ChatStreamEvent) => void, onDone: () => void) => {
+    async (
+      conversationId: string,
+      onEvent: (event: ChatStreamEvent) => void,
+      onDone: () => void,
+      generation?: string
+    ) => {
       abortedRef.current = false;
 
       try {
         const conn = await connect(extensionMessage, "serviceWorker/agent/attachToConversation", {
           conversationId,
+          generation,
         });
 
         connRef.current = conn;
 
         conn.onMessage((msg) => {
-          if (abortedRef.current) return;
           const event = msg.data as ChatStreamEvent;
+          const isTerminalEvent =
+            (event.type === "done" || event.type === "error") && !("subAgent" in event && event.subAgent);
+          // 与 sendMessage() 同理：stop 之后必须继续放行终态事件（含终态 sync），
+          // 否则会错过真正携带取消原因/usage 的那条事件，也无法触发 onDone 处理排队消息
+          if (abortedRef.current && event.type !== "sync" && !isTerminalEvent) return;
 
           if (event.type === "ask_user") {
             setAskUserPending({
               id: event.id,
               question: event.question,
               options: event.options,
+              optionValues: event.optionValues,
               multiple: event.multiple,
+              allowCustom: event.allowCustom,
             });
           }
+          if (event.type === "ask_user_expired") setAskUserPending(null);
+          if (event.type === "ask_user_resolved") setAskUserPending(null);
 
           onEvent(event);
 
@@ -274,15 +321,18 @@ export function useStreamingChat() {
               // done 或 error，无需保持连接
               setIsStreaming(false);
               connRef.current = null;
+              // 终态 sync 后必须主动断开，否则 port/listener 会一直挂在 SW 侧
+              conn.disconnect();
               onDone();
             }
             return;
           }
 
-          if ((event.type === "done" || event.type === "error") && !("subAgent" in event && event.subAgent)) {
+          if (isTerminalEvent) {
             setIsStreaming(false);
             setAskUserPending(null);
             connRef.current = null;
+            conn.disconnect();
             onDone();
           }
         });
@@ -336,17 +386,28 @@ export function useRunningConversations() {
 }
 
 // 批量删除持久化消息
-export async function deleteMessages(conversationId: string, messageIds: string[]): Promise<void> {
-  const messages = await agentChatRepo.getMessages(conversationId);
-  const idSet = new Set(messageIds);
-  const filtered = messages.filter((m) => !idSet.has(m.id));
-  await agentChatRepo.saveMessages(conversationId, filtered);
+export async function deleteMessages(
+  conversationId: string,
+  messageIds: string[],
+  preserveAttachmentIds?: string[],
+  generation?: string
+): Promise<void> {
+  await sendMsg(extensionMessage, "serviceWorker/agent/conversation", {
+    action: "deleteMessages",
+    conversationId,
+    generation,
+    messageIds,
+    ...(preserveAttachmentIds?.length ? { preserveAttachmentIds } : {}),
+  });
 }
 
 // 清空对话消息及任务
-export async function clearMessages(conversationId: string): Promise<void> {
-  await agentChatRepo.saveMessages(conversationId, []);
-  await agentChatRepo.saveTasks(conversationId, []);
+export async function clearMessages(conversationId: string, generation?: string): Promise<void> {
+  await sendMsg(extensionMessage, "serviceWorker/agent/conversation", {
+    action: "clearMessages",
+    conversationId,
+    generation,
+  });
 }
 
 // 会话任务列表 hook

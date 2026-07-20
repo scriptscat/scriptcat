@@ -161,4 +161,27 @@ describe("classifyErrorCode", () => {
     expect(classifyErrorCode(new Error("500 Internal Server Error"))).toBe("api_error");
     expect(classifyErrorCode(new Error("Unknown error"))).toBe("api_error");
   });
+
+  // 本地字节数估算可能低估真实 token 数，放行的请求仍可能被 provider 真正拒绝；
+  // 没有逐 provider 精确计数的前提下，把常见的"上下文超限"错误措辞识别出来分类为
+  // context_too_large，是仅有的兜底恢复路径，而不是笼统地归为不透明的 api_error。
+  it("OpenAI 风格 context_length_exceeded 应分类为 context_too_large", () => {
+    expect(
+      classifyErrorCode(
+        new Error(
+          "This model's maximum context length is 128000 tokens. However, your messages resulted in 130000 tokens"
+        )
+      )
+    ).toBe("context_too_large");
+  });
+
+  it("Anthropic 风格 prompt is too long 应分类为 context_too_large", () => {
+    expect(classifyErrorCode(new Error("400 prompt is too long: 250000 tokens > 200000 maximum"))).toBe(
+      "context_too_large"
+    );
+  });
+
+  it("含 context window 措辞应分类为 context_too_large", () => {
+    expect(classifyErrorCode(new Error("Input exceeds the context window of this model"))).toBe("context_too_large");
+  });
 });

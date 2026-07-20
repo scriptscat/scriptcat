@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { AgentTaskScheduler } from "./task_scheduler";
 import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
-import type { AgentTask } from "@App/app/service/agent/core/types";
+import type { AgentTask, InternalAgentTask } from "@App/app/service/agent/core/types";
 
 // Mock OPFS 文件系统（AgentTaskRunRepo 使用 OPFS 存储）
 function createMockOPFS() {
@@ -40,12 +40,13 @@ function createMockOPFS() {
       getDirectoryHandle: vi.fn(async (name: string, opts?: { create?: boolean }) => {
         if (!store.has("__dir__" + name)) {
           if (opts?.create) store.set("__dir__" + name, new Map());
-          else throw new Error("Not found");
+          else throw new DOMException("A requested file or directory could not be found.", "NotFoundError");
         }
         return createMockDirHandle(store.get("__dir__" + name));
       }),
       getFileHandle: vi.fn(async (name: string, opts?: { create?: boolean }) => {
-        if (!store.has(name) && !opts?.create) throw new Error("Not found");
+        if (!store.has(name) && !opts?.create)
+          throw new DOMException("A requested file or directory could not be found.", "NotFoundError");
         if (!store.has(name)) store.set(name, "");
         return createMockFileHandle(name, store);
       }),
@@ -84,13 +85,17 @@ describe("AgentTaskScheduler", () => {
   let runRepo: AgentTaskRunRepo;
   let internalExecutor: ReturnType<
     typeof vi.fn<
-      (task: AgentTask) => Promise<{ conversationId: string; usage?: { inputTokens: number; outputTokens: number } }>
+      (
+        task: AgentTask,
+        signal?: AbortSignal
+      ) => Promise<{ conversationId: string; usage?: { inputTokens: number; outputTokens: number } }>
     >
   >;
-  let eventEmitter: ReturnType<typeof vi.fn<(task: AgentTask) => Promise<void>>>;
+  let eventEmitter: ReturnType<typeof vi.fn<(task: AgentTask, signal?: AbortSignal) => Promise<void>>>;
   let scheduler: AgentTaskScheduler;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await chrome.storage.local.clear();
     createMockOPFS();
     repo = new AgentTaskRepo();
     runRepo = new AgentTaskRunRepo();
@@ -112,6 +117,25 @@ describe("AgentTaskScheduler", () => {
     expect(updated!.nextruntime).toBeGreaterThan(Date.now() - 1000);
   });
 
+  it("init 应把上次 Service Worker 中断留下的 running 记录收敛为结果未知错误", async () => {
+    const task = await repo.saveTask(makeTask({ id: "interrupted-run", nextruntime: Date.now() + 60_000 }));
+    await runRepo.appendRun({
+      id: `scheduled:${task.id}:${task.generation}:${Date.now() - 1_000}`,
+      taskId: task.id,
+      starttime: Date.now() - 5_000,
+      status: "running",
+    });
+
+    await scheduler.init();
+
+    expect((await runRepo.listRuns(task.id))[0]).toMatchObject({
+      status: "error",
+      error: expect.stringContaining("interrupted"),
+      endtime: expect.any(Number),
+    });
+    expect((await repo.getTask(task.id))!.lastRunStatus).toBe("error");
+  });
+
   it("tick 执行到期任务", async () => {
     const task = makeTask({ id: "tick-1", nextruntime: Date.now() - 1000 });
     await repo.saveTask(task);
@@ -122,6 +146,7 @@ describe("AgentTaskScheduler", () => {
     await vi.waitFor(async () => {
       expect(internalExecutor).toHaveBeenCalledTimes(1);
     });
+    await vi.waitFor(() => expect(scheduler.isRunning("tick-1")).toBe(false));
   });
 
   it("tick 跳过未到期任务", async () => {
@@ -169,7 +194,10 @@ describe("AgentTaskScheduler", () => {
     await scheduler.executeTask(task);
 
     expect(internalExecutor).toHaveBeenCalledTimes(1);
-    expect(internalExecutor).toHaveBeenCalledWith(expect.objectContaining({ id: "internal-1" }));
+    expect(internalExecutor).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "internal-1" }),
+      expect.any(AbortSignal)
+    );
     expect(eventEmitter).not.toHaveBeenCalled();
 
     // 检查 run 记录
@@ -212,6 +240,24 @@ describe("AgentTaskScheduler", () => {
     expect(updatedTask!.lastRunError).toBe("LLM 调用失败");
   });
 
+  it("执行失败时保留已累计的 usage", async () => {
+    internalExecutor.mockRejectedValue(
+      Object.assign(new Error("超过最大迭代次数"), {
+        usage: { inputTokens: 120, outputTokens: 40 },
+        conversationId: "conv-failed",
+      })
+    );
+
+    const task = makeTask({ id: "error-usage-1", nextruntime: Date.now() - 1000 });
+    await repo.saveTask(task);
+    await scheduler.executeTask(task);
+
+    const runs = await runRepo.listRuns("error-usage-1");
+    expect(runs[0].status).toBe("error");
+    expect(runs[0].usage).toEqual({ inputTokens: 120, outputTokens: 40 });
+    expect(runs[0].conversationId).toBe("conv-failed");
+  });
+
   it("执行完成后更新 nextruntime", async () => {
     const task = makeTask({ id: "next-1", nextruntime: Date.now() - 1000 });
     await repo.saveTask(task);
@@ -242,5 +288,91 @@ describe("AgentTaskScheduler", () => {
     // 应能成功执行而不被 runningTasks.has() 阻挡
     await scheduler.executeTask(task);
     expect(internalExecutor).toHaveBeenCalled();
+  });
+
+  it("调度运行记录无法持久化时不得提前消耗到期槽位", async () => {
+    const due = Date.now() - 1_000;
+    const task = await repo.saveTask(makeTask({ id: "append-before-claim", nextruntime: due }));
+    runRepo.appendRun = vi.fn().mockRejectedValue(new Error("run storage unavailable"));
+
+    await expect(scheduler.executeTask(task, true, Date.now())).rejects.toThrow("run storage unavailable");
+
+    expect((await repo.getTask(task.id))!.nextruntime).toBe(due);
+    expect(internalExecutor).not.toHaveBeenCalled();
+  });
+
+  it("取消活动任务应中止传给执行器的 signal 并释放运行占位", async () => {
+    let observedSignal: AbortSignal | undefined;
+    internalExecutor.mockImplementation(
+      async (_task, signal) =>
+        new Promise((_resolve, reject) => {
+          observedSignal = signal;
+          signal?.addEventListener("abort", () => reject(new Error("Task cancelled")), { once: true });
+        })
+    );
+    const task = await repo.saveTask(makeTask({ id: "cancel-active" }));
+    const execution = scheduler.executeTask(task);
+    await vi.waitFor(() => expect(internalExecutor).toHaveBeenCalledOnce());
+
+    scheduler.cancelTask(task.id);
+    await execution;
+
+    expect(observedSignal?.aborted).toBe(true);
+    expect(scheduler.isRunning(task.id)).toBe(false);
+    expect((await runRepo.listRuns(task.id))[0]).toMatchObject({ status: "error", error: "Task cancelled" });
+  });
+
+  it("运行期间的用户编辑应保留，完成时只合并运行遥测", async () => {
+    let finish!: () => void;
+    internalExecutor.mockReturnValue(
+      new Promise((resolve) => {
+        finish = () => resolve({ conversationId: "conv-edited" });
+      })
+    );
+    const task = await repo.saveTask(makeTask({ id: "edited-during-run", name: "旧名称" }));
+    const execution = scheduler.executeTask(task);
+    await vi.waitFor(() => expect(internalExecutor).toHaveBeenCalledOnce());
+
+    const edited = (await repo.getTask(task.id))!;
+    edited.name = "用户的新名称";
+    (edited as InternalAgentTask).prompt = "用户的新提示词";
+    await repo.saveTask(edited);
+    finish();
+    await execution;
+
+    const stored = (await repo.getTask(task.id))!;
+    expect(stored.name).toBe("用户的新名称");
+    expect((stored as InternalAgentTask).prompt).toBe("用户的新提示词");
+    expect(stored.lastRunStatus).toBe("success");
+  });
+
+  it("运行期间删除任务后完成回写不应复活旧 generation", async () => {
+    let finish!: () => void;
+    internalExecutor.mockReturnValue(
+      new Promise((resolve) => {
+        finish = () => resolve({ conversationId: "conv-deleted" });
+      })
+    );
+    const task = await repo.saveTask(makeTask({ id: "deleted-during-run" }));
+    const execution = scheduler.executeTask(task);
+    await vi.waitFor(() => expect(internalExecutor).toHaveBeenCalledOnce());
+
+    const current = (await repo.getTask(task.id))!;
+    await repo.removeTask(current.id, current.generation, current.revision);
+    finish();
+    await execution;
+
+    expect(await repo.getTask(task.id)).toBeUndefined();
+  });
+
+  it("已领取的调度槽即使运行记录更新失败也不应在下一次 tick 重复执行", async () => {
+    const task = await repo.saveTask(makeTask({ id: "claimed-slot", nextruntime: Date.now() - 1000 }));
+    runRepo.updateRun = vi.fn().mockRejectedValueOnce(new Error("run storage failed"));
+
+    await expect(scheduler.executeTask(task, true)).rejects.toThrow("run storage failed");
+    await scheduler.tick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(internalExecutor).toHaveBeenCalledTimes(1);
   });
 });

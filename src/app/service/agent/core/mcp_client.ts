@@ -63,12 +63,16 @@ export class MCPClient {
     }));
   }
 
-  async callTool(name: string, args?: Record<string, unknown>): Promise<unknown> {
+  async callTool(name: string, args?: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
     this.ensureInitialized();
-    const result = (await this.sendRequest("tools/call", {
-      name,
-      arguments: args || {},
-    })) as {
+    const result = (await this.sendRequest(
+      "tools/call",
+      {
+        name,
+        arguments: args || {},
+      },
+      signal
+    )) as {
       content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
       isError?: boolean;
     };
@@ -183,7 +187,7 @@ export class MCPClient {
     return headers;
   }
 
-  async sendRequest(method: string, params?: Record<string, unknown>): Promise<unknown> {
+  async sendRequest(method: string, params?: Record<string, unknown>, signal?: AbortSignal): Promise<unknown> {
     const id = this.nextId++;
     const body: JsonRpcRequest = {
       jsonrpc: "2.0",
@@ -196,7 +200,7 @@ export class MCPClient {
       method: "POST",
       headers: this.buildHeaders(),
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(60_000),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(60_000)]) : AbortSignal.timeout(60_000),
     });
 
     // 存储 session ID

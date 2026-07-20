@@ -21,7 +21,10 @@ import { nextRunText } from "./cron";
 
 // 在联合类型每个分支上分别 Omit，保留 internal/event 各自的专有字段
 type DistributiveOmit<T, K extends keyof any> = T extends unknown ? Omit<T, K> : never;
-export type TaskFormValue = DistributiveOmit<AgentTask, "id" | "createtime" | "updatetime" | "nextruntime">;
+export type TaskFormValue = DistributiveOmit<
+  AgentTask,
+  "id" | "generation" | "revision" | "createtime" | "updatetime" | "nextruntime"
+>;
 
 export function TaskFormDialog({
   open,
@@ -34,7 +37,7 @@ export function TaskFormDialog({
   value: AgentTask | null;
   models: AgentModelConfig[];
   onOpenChange: (v: boolean) => void;
-  onSubmit: (task: TaskFormValue) => void;
+  onSubmit: (task: TaskFormValue) => Promise<void>;
 }) {
   const { t } = useTranslation(["agent", "common", "script"]);
   const [name, setName] = useState("");
@@ -45,6 +48,7 @@ export function TaskFormDialog({
   const [prompt, setPrompt] = useState("");
   const [modelId, setModelId] = useState("");
   const [maxIterations, setMaxIterations] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 弹窗打开（或打开期间 value 变化）时，依据传入的 value 重置/同步各字段。
   // 用「渲染期比较上一次的 open/value 再 setState」模式同步外部 prop，等价于原 useEffect。
@@ -77,8 +81,11 @@ export function TaskFormDialog({
   const cronInvalid = crontab.trim().length > 0 && !cron.valid;
   const canSubmit = !!name && cron.valid;
   const hasModels = models.length > 0;
+  // Options 无法像脚本上下文那样自动注入创建者的脚本 UUID，事件任务留空 sourceScriptUuid
+  // 会导致后端拒绝创建；因此事件模式仅对已存在的事件任务（编辑场景）开放，新建任务不可选
+  const eventModeSelectable = value?.mode === "event";
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const base = { name, crontab, enabled, notify };
     const task: TaskFormValue =
       mode === "internal"
@@ -95,7 +102,12 @@ export function TaskFormDialog({
             // 事件任务由脚本创建；编辑时保留来源脚本 UUID，新建时留空
             sourceScriptUuid: value?.mode === "event" ? value.sourceScriptUuid : "",
           };
-    onSubmit(task);
+    setIsSubmitting(true);
+    try {
+      await onSubmit(task);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -120,6 +132,7 @@ export function TaskFormDialog({
                 value: m,
                 label: m === "internal" ? t("agent:tasks_mode_internal_short") : t("agent:tasks_mode_event_short"),
                 testId: `task-mode-${m}`,
+                disabled: m === "event" && !eventModeSelectable,
               }))}
             />
           </FormField>
@@ -197,7 +210,7 @@ export function TaskFormDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common:cancel")}
           </Button>
-          <Button data-testid="task-submit" disabled={!canSubmit} onClick={handleSubmit}>
+          <Button data-testid="task-submit" disabled={!canSubmit || isSubmitting} onClick={() => void handleSubmit()}>
             {t("common:save")}
           </Button>
         </DialogFooter>
