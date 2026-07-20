@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { notify } from "@App/pages/components/ui/toast";
+import { agentClient } from "@App/pages/store/features/script";
 import { Bot } from "lucide-react";
 import type {
   AgentModelConfig,
@@ -766,6 +767,8 @@ export default function ChatArea({
         backgroundEnabled={backgroundEnabled}
         onBackgroundEnabledChange={onBackgroundEnabledChange}
         hasPendingMessage={pendingMessageId !== null}
+        onOptimizePrompt={(prompt, modelId, requestId) => agentClient.optimizePrompt({ requestId, prompt, modelId })}
+        onCancelOptimizePrompt={(requestId) => agentClient.cancelPromptOptimization(requestId)}
       />
       {noModel && (
         <div data-testid="no-model-hint" className="text-center text-xs text-muted-foreground pb-2">
