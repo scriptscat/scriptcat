@@ -11,7 +11,8 @@ import type {
   TScriptMenuItemKey,
   MessageRequest,
 } from "@App/app/service/service_worker/types";
-import { base64ToBlob, randNum, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
+import type { Deferred } from "@App/pkg/utils/utils";
+import { base64ToBlob, deferred, randNum, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
@@ -60,6 +61,15 @@ let valChangeCounterId = 0;
 let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
 
 const valueChangePromiseMap = new Map<string, any>();
+
+const generateValChangeId = () => {
+  if (valChangeCounterId > 1e8) {
+    // 防止 valChangeCounterId 过大导致无法正常工作
+    valChangeCounterId = 0;
+    valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
+  }
+  return `${valChangeRandomId}::${++valChangeCounterId}`;
+};
 
 const execEnvInit = (execEnv: GMApi) => {
   if (!execEnv.contentEnvKey) {
@@ -112,6 +122,14 @@ class GM_Base implements IGM_Base {
 
   @GMContext.protected()
   protected loadScriptPromise: Promise<void> | undefined;
+
+  // 本执行环境已同步到的 valueDAO updatetime；只由 valueUpdate 推送更新
+  @GMContext.protected()
+  protected valueDaoUpdatetime: number | undefined;
+
+  // 等待本地缓存同步到指定 updatetime 的读取请求
+  @GMContext.protected()
+  protected readFreshes: Map<number, Deferred<number>> | undefined;
 
   constructor(options: any = null, obj: any = null) {
     if (obj !== integrity) throw new TypeError("Illegal invocation");
@@ -171,7 +189,7 @@ class GM_Base implements IGM_Base {
   public valueUpdate(data: ValueUpdateDataEncoded) {
     if (!this.scriptRes || !this.valueChangeListener) return;
     const scriptRes = this.scriptRes;
-    const { id, uuid, entries, storageName, sender, valueUpdated } = data;
+    const { id, uuid, entries, storageName, sender, valueUpdated, updatetime } = data;
     if (uuid === scriptRes.uuid || storageName === getStorageName(scriptRes)) {
       const valueStore = scriptRes.value;
       const remote = sender.runFlag !== this.runFlag;
@@ -196,6 +214,19 @@ class GM_Base implements IGM_Base {
             valueStore[key] = value;
           }
           this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
+        }
+      }
+      if (updatetime && !(this.valueDaoUpdatetime! >= updatetime)) {
+        this.valueDaoUpdatetime = updatetime;
+        const readFreshes = this.readFreshes;
+        if (readFreshes) {
+          // 本地缓存已同步到 updatetime，放行所有不晚于该时点的等待读取
+          for (const [t, d] of readFreshes) {
+            if (updatetime >= t) {
+              readFreshes.delete(t);
+              d.resolve(updatetime);
+            }
+          }
         }
       }
     }
@@ -253,6 +284,42 @@ export default class GMApi extends GM_Base {
     );
   }
 
+  /**
+   * 确保本地缓存 values 不旧于 valueDAO 当前状态，供异步 GM.* 读取前调用。
+   * - 尚未收过任何 valueUpdate（valueDaoUpdatetime 为 undefined）时，附带 id 让
+   *   service_worker 走一次空 setValues，借同一条推送通道回推当前 updatetime；
+   * - service_worker 返回的 updatetime 较新时，等待对应的 valueUpdate 到达。
+   */
+  static async waitForFreshValueState(a: GMApi): Promise<void> {
+    if (!a.scriptRes || !a.message) return;
+    let id = "";
+    let d: Deferred<void> | null = null;
+    if (!a.valueDaoUpdatetime) {
+      id = generateValChangeId();
+      d = deferred();
+      valueChangePromiseMap.set(id, d.resolve);
+    }
+    const updatetime = await a.sendMessage("internalApiWaitForFreshValueState", [id]);
+    if (updatetime === undefined) {
+      // message 通道失效（如 extension context invalidated）时不会再有 valueUpdate 推送，
+      // 放弃等待，直接读取本地缓存
+      if (id) valueChangePromiseMap.delete(id);
+      return;
+    }
+    if (d) {
+      await d.promise;
+    }
+    if (updatetime && a.valueDaoUpdatetime && a.valueDaoUpdatetime < updatetime) {
+      // 该 updatetime 对应的 valueUpdate 尚未到达本环境，等待推送同步本地缓存
+      const readFreshes = (a.readFreshes ||= new Map<number, Deferred<number>>());
+      let dd = readFreshes.get(updatetime);
+      if (!dd) {
+        readFreshes.set(updatetime, (dd = deferred<number>()));
+      }
+      await dd.promise;
+    }
+  }
+
   static _GM_getValue(a: GMApi, key: string, defaultValue?: any) {
     if (!a.scriptRes) return undefined;
     const ret = a.scriptRes.value[key];
@@ -274,21 +341,15 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public "GM.getValue"(key: string, defaultValue?: any): Promise<any> {
     // 兼容GM.getValue
-    return new Promise((resolve) => {
-      const ret = _GM_getValue(this, key, defaultValue);
-      resolve(ret);
+    return waitForFreshValueState(this).then(() => {
+      return _GM_getValue(this, key, defaultValue);
     });
   }
 
   static _GM_setValue(a: GMApi, promise: any, key: string, value: any) {
     key = `${key}`;
     if (!a.scriptRes) return;
-    if (valChangeCounterId > 1e8) {
-      // 防止 valChangeCounterId 过大导致无法正常工作
-      valChangeCounterId = 0;
-      valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
-    }
-    const id = `${valChangeRandomId}::${++valChangeCounterId}`;
+    const id = generateValChangeId();
     if (promise) {
       valueChangePromiseMap.set(id, promise);
     }
@@ -313,12 +374,7 @@ export default class GMApi extends GM_Base {
 
   static _GM_setValues(a: GMApi, promise: any, values: TGMKeyValue) {
     if (!a.scriptRes) return;
-    if (valChangeCounterId > 1e8) {
-      // 防止 valChangeCounterId 过大导致无法正常工作
-      valChangeCounterId = 0;
-      valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
-    }
-    const id = `${valChangeRandomId}::${++valChangeCounterId}`;
+    const id = generateValChangeId();
     if (promise) {
       valueChangePromiseMap.set(id, promise);
     }
@@ -379,10 +435,10 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public "GM.listValues"(): Promise<string[]> {
     // Asynchronous wrapper for GM_listValues to support GM.listValues
-    return new Promise((resolve) => {
-      if (!this.scriptRes) return resolve([]);
+    return waitForFreshValueState(this).then(() => {
+      if (!this.scriptRes) return [];
       const keys = Object.keys(this.scriptRes.value);
-      resolve(keys);
+      return keys;
     });
   }
 
@@ -431,9 +487,8 @@ export default class GMApi extends GM_Base {
   @GMContext.API({ depend: ["GM_getValues"] })
   public "GM.getValues"(keysOrDefaults: TGMKeyValue | string[] | null | undefined): Promise<TGMKeyValue> {
     if (!this.scriptRes) return new Promise<TGMKeyValue>(() => {});
-    return new Promise((resolve) => {
-      const ret = this.GM_getValues(keysOrDefaults);
-      resolve(ret);
+    return waitForFreshValueState(this).then(() => {
+      return this.GM_getValues(keysOrDefaults);
     });
   }
 
@@ -1614,4 +1669,12 @@ export default class GMApi extends GM_Base {
 export const { createGMBase } = GM_Base;
 
 // 从 GMApi 对象中解构出内部函数，用于后续本地使用，不导出
-const { _GM_getValue, _GM_cookie, _GM_setValue, _GM_setValues, _GM_download, _GM_notification } = GMApi;
+const {
+  waitForFreshValueState,
+  _GM_getValue,
+  _GM_cookie,
+  _GM_setValue,
+  _GM_setValues,
+  _GM_download,
+  _GM_notification,
+} = GMApi;

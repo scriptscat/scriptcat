@@ -161,6 +161,7 @@ describe.concurrent("createContext", () => {
       sender: { runFlag: "other-run-flag", tabId: 7 },
       entries: [["foo", encodeRValue("next"), encodeRValue("bar")]],
       valueUpdated: true,
+      updatetime: Date.now(),
     });
     expect(listener).toHaveBeenCalledWith("foo", "bar", "next", true, 7);
 
@@ -175,6 +176,7 @@ describe.concurrent("createContext", () => {
       sender: { runFlag: "other-run-flag", tabId: 8 },
       entries: [["foo", encodeRValue("again"), encodeRValue("next")]],
       valueUpdated: true,
+      updatetime: Date.now(),
     });
     expect(listener).toHaveBeenCalledTimes(1);
   });
