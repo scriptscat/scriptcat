@@ -1,6 +1,10 @@
 # Pull Request Description Guide
 
-This guide defines the detailed PR description format for agents and contributors. The human-facing template at [`../.github/pull_request_template.md`](../.github/pull_request_template.md) intentionally remains lightweight; use it as the starting point and expand its `Description / 描述` section when the change needs more context.
+This guide defines the detailed PR description format for agents and contributors. Start from the human-facing template at [`../.github/pull_request_template.md`](../.github/pull_request_template.md) — it intentionally remains lightweight. Preserve its `Checklist / 检查清单` section, and expand its `Description / 描述` section only when the change needs more context.
+
+Whatever headings you use, this guide's checklist and evidence expectations still apply — `## Summary` /
+`## Test plan` headings don't exempt a PR from them. Use the structure below; its sections are
+recommended, not all mandatory (see below for which ones).
 
 ## Recommended structure
 
@@ -48,7 +52,7 @@ For a normal feature or behavior change, use the following sections when they ar
 
 `Checklist`、`背景`、`本次改动` and `验证` are the recommended core for a normal feature or behavior change, not mandatory headings for every PR. Add `实现考虑` for meaningful design or concurrency implications; add `已知限制` and `建议审查重点` when reviewers need explicit boundaries or risk areas. `参考` and `关联` are optional.
 
-Small documentation, dependency, or CI changes may use a shorter description and omit sections that do not apply, but must still explain what changed and what was checked. For visual changes, retain the template's screenshot section and provide the relevant evidence. Never claim a test, review, screenshot, or recording that did not happen. Leave `Code reviewed by human` unchecked unless a human has actually reviewed the PR.
+Small documentation, dependency, or CI changes may use a shorter description and omit sections that do not apply, but must still explain what changed and what was checked. For visual changes, retain the template's screenshot section and provide the relevant evidence. Never claim a test, review, screenshot, or recording that did not happen. Leave `Code reviewed by human` unchecked unless a human has actually reviewed the PR — the same applies to any other checklist item: leave it unchecked (without rewording it) whether the work wasn't done or doesn't apply. If an item doesn't apply to this PR, add a brief `N/A — <why>` note below the checklist, so reviewers can tell "not applicable" from "not done" — an unchecked box alone doesn't distinguish the two.
 
 ## Review-oriented content
 
