@@ -827,6 +827,7 @@ export default function ChatArea({
           )}
           {askUserPending && (
             <AskUserBlock
+              key={askUserPending.id}
               id={askUserPending.id}
               question={askUserPending.question}
               options={askUserPending.options}

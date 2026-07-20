@@ -697,6 +697,24 @@ describe("ToolRegistry", () => {
       expect(mockRepo.saveAttachment).toHaveBeenCalledTimes(1);
     });
 
+    it("脚本工具附件写入报错时，应回收可能已提交但无法确认的附件", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      vi.mocked(mockRepo.saveAttachment).mockRejectedValue(new Error("ambiguous close failure"));
+      registry.setChatRepo(mockRepo);
+      const structuredResult: ToolResultWithAttachments = {
+        content: "File generated.",
+        attachments: [{ type: "file", name: "output.zip", mimeType: "application/zip", data: "base64zipdata" }],
+      };
+      const scriptCallback = vi.fn().mockResolvedValue([{ id: "tc_1", result: JSON.stringify(structuredResult) }]);
+
+      const results = await registry.execute([{ id: "tc_1", name: "script_tool", arguments: "{}" }], scriptCallback);
+
+      const attemptedId = vi.mocked(mockRepo.saveAttachment).mock.calls[0][0];
+      expect(results[0].error).toBe(true);
+      expect(mockRepo.deleteAttachment).toHaveBeenCalledWith(attemptedId);
+    });
+
     it("脚本工具返回普通 JSON 时不应产生附件", async () => {
       const registry = new ToolRegistry();
       const mockRepo = createMockChatRepo();

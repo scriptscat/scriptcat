@@ -176,4 +176,18 @@ describe("聊天主区域 ChatArea", () => {
 
     await waitFor(() => expect(repoMock.saveTasks).toHaveBeenCalledWith("c1", []));
   });
+
+  it("新的 ask_user 请求应重置上一个请求的已提交状态", () => {
+    hookState.askUserPending = { id: "question-1", question: "旧问题", options: ["旧答案"] };
+    const { rerender } = render(<ChatArea {...baseProps} />);
+
+    fireEvent.click(screen.getByTestId("ask-option-旧答案"));
+    expect(screen.queryByTestId("ask-input")).toBeNull();
+
+    hookState.askUserPending = { id: "question-2", question: "新问题" };
+    rerender(<ChatArea {...baseProps} />);
+
+    expect(screen.getByText("新问题")).toBeInTheDocument();
+    expect(screen.getByTestId("ask-input")).toBeInTheDocument();
+  });
 });

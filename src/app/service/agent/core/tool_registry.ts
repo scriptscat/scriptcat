@@ -397,8 +397,8 @@ export class ToolRegistry implements ToolExecutorLike {
     if (!this.chatRepo || attachmentDataList.length === 0) return { attachments: [], ownedAttachmentIds: [] };
 
     const attachments: Attachment[] = [];
-    // 本批真正由这里写入的附件 id（不含无 data 的已保存引用）：中途 abort/失败时必须整批回收，
-    // 否则该 toolCall 以 error 结果收场后，这些文件不再被任何消息引用
+    // 本批尝试写入的附件 id（不含无 data 的已保存引用）：写入报错仍可能已经提交，必须整批回收，
+    // 否则该 toolCall 以 error 结果收场后，这些文件不再被任何消息引用。
     const savedIds: string[] = [];
     try {
       for (const ad of attachmentDataList) {
@@ -418,8 +418,8 @@ export class ToolRegistry implements ToolExecutorLike {
         throwIfAborted(signal);
         const ext = getExtFromMime(ad.mimeType);
         const id = `${uuidv4()}.${ext}`;
-        const size = await this.chatRepo.saveAttachment(id, ad.data);
         savedIds.push(id);
+        const size = await this.chatRepo.saveAttachment(id, ad.data);
         // 写入期间可能已被 Stop：不能把这次结果当作成功返回，进入 catch 统一回收
         throwIfAborted(signal);
         attachments.push({
