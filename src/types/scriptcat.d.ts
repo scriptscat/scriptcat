@@ -365,6 +365,9 @@ declare const GM: {
     /** Delete a cookie. */
     delete(details: GMTypes.CookieDetails): Promise<GMTypes.Cookie[]>;
   };
+
+  /** cross-context exclusive execution */
+  takeTurn<T>(key: string, callback: () => T | PromiseLike<T>, timeout?: number): Promise<T>;
 };
 
 // ===========================================================================
