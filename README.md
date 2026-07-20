@@ -23,31 +23,39 @@ ScriptCat
 [![Edge](https://img.shields.io/badge/edge-success-brightgreen?logo=microsoft%20edge)](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
 [![FireFox](https://img.shields.io/badge/firefox-success-brightgreen?logo=firefox)](https://addons.mozilla.org/en/firefox/addon/scriptcat/)
 
-## ❤️ Sponsor
+## ❤️ Sponsors & Supporters
 
-> [Want to appear here?](mailto:codfrm@gmail.com)
+Thanks to our sponsors for supporting ScriptCat’s development and community.  
+Interested in sponsoring ScriptCat? Contact [codfrm@gmail.com](mailto:codfrm@gmail.com).
 
 <details open>
-<summary>Click to collapse</summary>
-
-[![OpenModel](./docs/assets/sponsors/openmodel-banner-2.jpg)](https://www.openmodel.ai?ref=pyGPw93M)
-
-**DeepSeek-V4-Flash is now free on OpenModel for a limited time!**
-
-One API, every top AI model.
-
-OpenModel is a high-availability AI model platform built to keep your apps fast and reliable: automatic failover, no
-double-charging on retries, and per-key rate limits and quotas. Switch models by changing a single parameter, use new
-models the day they launch, and plug straight into Claude Code, Codex, and Gemini CLI.
-
-[Register via this link](https://www.openmodel.ai?ref=pyGPw93M) and get started!
-
----
+<summary>View sponsors</summary>
 
 <table>
 <tr>
-<td width="180"><a href="https://www.packyapi.com/register?aff=BOKa"><img src="./docs/assets/sponsors/packycode-banner.png" alt="PackyCode" width="150"></a></td>
-<td>PackyCode is a stable, high-performance API relay provider, offering relay services for Claude Code, Codex, Gemini, and more. With automatic failover, smart routing, and unlimited concurrency, it turns AI programming into a real productivity tool. <a href="https://www.packyapi.com/register?aff=BOKa">Register via this link</a> and get started!</td>
+<td width="180" align="center">
+<a href="https://enncy.cn/">
+<img src="./docs/assets/sponsors/yanxi-tech-logo.png" alt="Yanxi Technology" width="160">
+</a>
+</td>
+<td>
+<strong>Yanxi Technology</strong><br>
+Yanxi Technology focuses on custom script software and web application design and development. It provides highly personalized customization services, stable and reliable project solutions, and industry insights to meet a wide range of custom program development needs in one place.<br>
+<a href="https://enncy.cn/">Learn more</a>
+</td>
+</tr>
+
+<tr>
+<td width="180" align="center">
+<a href="https://runapi.co/register?aff=vpKz">
+<img src="./docs/assets/sponsors/runapi-logo.png" alt="Run API" width="160">
+</a>
+</td>
+<td>
+<strong>RunAPI</strong><br>
+RunAPI is an efficient and stable API platform, and an alternative to OpenRouter. A single API Key gives you access to 150+ leading models, including OpenAI, Claude, Gemini, DeepSeek, Grok, and more, at prices as low as 10% of the original, with exceptional stability. It's seamlessly compatible with tools like Claude Code, OpenClaw, and others. RunAPI offers an exclusive perk for ScriptCat users: register and contact an administrator to claim ¥7 in free credit.<br>
+<a href="https://runapi.co/register?aff=vpKz">Learn more</a>
+</td>
 </tr>
 <tr>
 <td width="180"><a href="https://enncy.cn/"><img src="./docs/assets/sponsors/yanxi-tech-logo.png" alt="Yanxi Technology" width="150"></a></td>
@@ -58,6 +66,8 @@ models the day they launch, and plug straight into Claude Code, Codex, and Gemin
 <td>RunAPI is an efficient and stable API platform, and an alternative to OpenRouter. A single API Key gives you access to 150+ leading models, including OpenAI, Claude, Gemini, DeepSeek, Grok, and more, at prices as low as 10% of the original, with exceptional stability. It's seamlessly compatible with tools like Claude Code, OpenClaw, and others. RunAPI offers an exclusive perk for ScriptCat users: register and contact an administrator to claim ¥7 in free credit. <a href="https://runapi.co/register?aff=vpKz">Register via this link</a>.</td>
 </tr>
 </table>
+
+<sub>Sponsor links may contain referral parameters. Sponsorship helps support ScriptCat development.</sub>
 
 </details>
 

@@ -23,29 +23,39 @@ ScriptCat
 [![Edge](https://img.shields.io/badge/edge-success-brightgreen?logo=microsoft%20edge)](https://microsoftedge.microsoft.com/addons/detail/scriptcat/liilgpjgabokdklappibcjfablkpcekh)
 [![FireFox](https://img.shields.io/badge/firefox-success-brightgreen?logo=firefox)](https://addons.mozilla.org/zh-TW/firefox/addon/scriptcat/)
 
-## ❤️ 贊助商
+## ❤️ 贊助商與支持者
 
-> [想出現在這裡？](mailto:codfrm@gmail.com)
+感謝贊助商支持 ScriptCat 的開發與社群建設。  
+有興趣贊助 ScriptCat？請聯絡 [codfrm@gmail.com](mailto:codfrm@gmail.com)。
 
 <details open>
-<summary>點擊收合</summary>
-
-[![OpenModel](./assets/sponsors/openmodel-banner-1.jpg)](https://www.openmodel.ai?ref=pyGPw93M)
-
-**DeepSeek-V4-Flash 在 OpenModel 上限時免費！**
-
-一個 API，用遍所有頂級 AI 模型。
-
-OpenModel 是高可用、高可靠的 AI 模型呼叫平台，讓你的應用程式快速且穩定地運作：自動故障轉移、重試不重複扣費，且每個 Key 都能單獨設定額度與頻率限制。切換模型只需修改一個參數，新模型發布當天即可使用，還能直接對接 Claude Code、Codex 與 Gemini CLI。
-
-[點此連結註冊](https://www.openmodel.ai?ref=pyGPw93M)，立即開始使用！
-
----
+<summary>查看贊助商</summary>
 
 <table>
 <tr>
-<td width="180"><a href="https://www.packyapi.com/register?aff=BOKa"><img src="./assets/sponsors/packycode-banner.png" alt="PackyCode" width="150"></a></td>
-<td>PackyCode 是穩定、高效的 API 中轉服務商，提供 Claude Code、Codex、Gemini 等多種中轉服務。具備自動故障轉移、智慧路由與無限並行等功能，讓 AI 編程成為真正的生產力工具。<a href="https://www.packyapi.com/register?aff=BOKa">點此連結註冊</a>，立即開始使用！</td>
+<td width="180" align="center">
+<a href="https://enncy.cn/">
+<img src="./assets/sponsors/yanxi-tech-logo.png" alt="言溪科技" width="160">
+</a>
+</td>
+<td>
+<strong>言溪科技</strong><br>
+言溪科技專注於腳本軟體客製化、網頁程式設計與開發，提供高度個人化的客製化服務；專案方案穩定可靠，並同步分享產業前沿資訊，一站式滿足各類程式開發客製需求。<br>
+<a href="https://enncy.cn/">了解更多</a>
+</td>
+</tr>
+
+<tr>
+<td width="180" align="center">
+<a href="https://runapi.co/register?aff=vpKz">
+<img src="./assets/sponsors/runapi-logo.png" alt="Run API" width="160">
+</a>
+</td>
+<td>
+<strong>RunAPI</strong><br>
+RunAPI 是高效穩定的 API 平台，可作為 OpenRouter 的替代方案；一個 API Key 即可存取 OpenAI、Claude、Gemini、DeepSeek、Grok 等 150+ 主流模型，價格最低可到原價 1 折，且穩定性極高。它能無縫相容 Claude Code、OpenClaw 等工具。RunAPI 為 ScriptCat 使用者提供專屬福利：註冊後聯絡管理員即可領取 ￥7 免費額度。<br>
+<a href="https://runapi.co/register?aff=vpKz">了解更多</a>
+</td>
 </tr>
 <tr>
 <td width="180"><a href="https://enncy.cn/"><img src="./assets/sponsors/yanxi-tech-logo.png" alt="言溪科技" width="150"></a></td>
@@ -56,6 +66,8 @@ OpenModel 是高可用、高可靠的 AI 模型呼叫平台，讓你的應用程
 <td>RunAPI 是高效穩定的 API 平台，可作為 OpenRouter 的替代方案；一個 API Key 即可存取 OpenAI、Claude、Gemini、DeepSeek、Grok 等 150+ 主流模型，價格最低可到原價 1 折，且穩定性極高。它能無縫相容 Claude Code、OpenClaw 等工具。RunAPI 為 ScriptCat 使用者提供專屬福利：註冊後聯絡管理員即可領取 ￥7 免費額度。<a href="https://runapi.co/register?aff=vpKz">點此連結註冊</a>。</td>
 </tr>
 </table>
+
+<sub>贊助連結可能包含推薦參數。贊助收入將用於支持 ScriptCat 的持續開發。</sub>
 
 </details>
 
