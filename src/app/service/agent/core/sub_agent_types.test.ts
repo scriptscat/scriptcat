@@ -2,6 +2,19 @@ import { describe, it, expect } from "vitest";
 import { resolveSubAgentType, getExcludeToolsForType, SUB_AGENT_TYPES } from "./sub_agent_types";
 
 describe("Sub-Agent 类型系统", () => {
+  describe("内置类型提示词", () => {
+    it.concurrent.each(["researcher", "page_operator", "general"])(
+      "%s 包含思考风格、认识论纪律与情绪校准",
+      (typeName) => {
+        const prompt = SUB_AGENT_TYPES[typeName].systemPromptAddition;
+
+        expect(prompt).toContain("**Thinking style:**");
+        expect(prompt).toContain("**Epistemic discipline — strictly required:**");
+        expect(prompt).toContain("**Emotional calibration:**");
+      }
+    );
+  });
+
   describe("resolveSubAgentType", () => {
     it.concurrent("返回指定的内置类型", () => {
       expect(resolveSubAgentType("researcher")).toBe(SUB_AGENT_TYPES.researcher);
