@@ -488,6 +488,14 @@ export class AgentClient extends Client {
     return this.do("setSummaryModelId", id);
   }
 
+  optimizePrompt(params: { requestId: string; prompt: string; modelId?: string }): Promise<string> {
+    return this.doThrow("optimizePrompt", params);
+  }
+
+  cancelPromptOptimization(requestId: string): Promise<void> {
+    return this.do("cancelPromptOptimization", requestId).then(() => undefined);
+  }
+
   // 搜索配置
   getSearchConfig(): Promise<SearchEngineConfig> {
     return this.doThrow("getSearchConfig");
