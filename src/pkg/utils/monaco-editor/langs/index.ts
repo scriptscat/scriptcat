@@ -7,6 +7,7 @@ import viVN from "./vi-VN";
 import ruRU from "./ru-RU";
 import trTR from "./tr-TR";
 import ptBR from "./pt-BR";
+import koKR from "./ko-KR";
 
 export const editorLangs = {
   "zh-CN": zhCN,
@@ -18,6 +19,7 @@ export const editorLangs = {
   "ru-RU": ruRU,
   "tr-TR": trTR,
   "pt-BR": ptBR,
+  "ko-KR": koKR,
 } as const;
 
 export type EditorLangCode = keyof typeof editorLangs;
