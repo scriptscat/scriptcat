@@ -73,10 +73,13 @@
 
 `scripts/check-i18n.mjs`（`pnpm run check:i18n`）在每次 `pnpm lint` / `pnpm lint:ci` 时自动运行，用于捕获人工审阅容易漏掉的问题：
 
+- `src/locales/locales.ts`：`src/locales/` 下的每一个 locale 目录都必须被 `import * as X from "./<locale>"` 并在 `resources` 中以自己的 locale code 展开注册；一个目录只存在于磁盘、没有接入 `locales.ts` 会导致检查失败。顶层 `NS` 数组也必须与 `en-US/` 下的命名空间文件集合完全一致，多一个或少一个都会报错。
 - `src/locales/<locale>/*.json` 中每个 key 是否与 `en-US`（模板 / fallback 语言）的 key 集合一一对应，缺失或多余的 key 都会报错。
-- `src/locales/<locale>/index.ts` 是否导出了 `en-US` 拥有的全部命名空间。
-- `src/assets/_locales/<chrome-locale>/messages.json`（`chrome.i18n` 语言文件，见上文"翻译工作流"一节）是否与 `en/messages.json` 的 key 一致；如果某个 locale 尚未创建该目录，只会给出提示（warning），不会导致失败。
+- `src/locales/<locale>/index.ts` 是否（以真实的 `export ... from "./<ns>.json"` 语句，而非文本匹配）导出了 `en-US` 拥有的全部命名空间。
+- `src/assets/_locales/<chrome-locale>/messages.json`（`chrome.i18n` 语言文件，见上文"翻译工作流"一节）是否与 `en/messages.json` 的 key 一致；**`src/locales/` 下的每一个 locale 都必须有对应的 `_locales` 目录**，缺失会导致检查失败。
 - `docs/references/terminology-<locale>.md` 是否存在：**`src/locales/` 下的每一个 locale 都必须有对应的术语规范文件**，缺失会导致检查失败——不允许新增或修改某个 locale 却不提交其 `terminology-<locale>.md`。
-- `src/pkg/utils/monaco-editor/langs.ts` 中 `editorLangs`（编辑器悬浮提示、脚本头字段提示等）的 key 是否与 `en-US` 一致；如果某个 locale 尚未在 `editorLangs` 中创建条目，只会给出提示（warning）；但只要该 locale 已有条目，其 key 缺失或多余就会报错。
+- `src/pkg/utils/monaco-editor/langs/`（或历史上未拆分时的单文件 `langs.ts`）中 `editorLangs`（编辑器悬浮提示、脚本头字段提示等）的 key 是否与 `en-US` 一致；**`src/locales/` 下的每一个 locale 都必须有对应的 `editorLangs` 条目**，缺失或 key 集合不一致都会导致检查失败。
 
-这个脚本无法判断翻译措辞是否准确、是否符合术语规范——那部分仍需人工审阅并遵循本文件与对应的 `terminology-<locale>.md`；它只保证不会有 key 或术语规范文件被整段遗漏。
+这个脚本无法判断翻译措辞是否准确、是否符合术语规范——那部分仍需人工审阅并遵循本文件与对应的 `terminology-<locale>.md`；它只保证不会有 key、注册项或术语规范文件被整段遗漏。检查本身是 fail-closed 的：任何它无法静态解析的结构（`spread`、计算属性、`satisfies`、语法错误、循环引用等）都会报错，而不会被静默放行。
+
+提交时机上，`git commit` 触发的 `.husky/pre-commit` 校验的是 **Git 暂存区（`git add` 之后的内容）**，不是工作区当前文件——`pnpm lint` / `pnpm run check:i18n` 手动运行时校验的才是工作区文件。
