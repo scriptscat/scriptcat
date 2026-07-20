@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, type Mock, vi } from "vitest";
 import ExecScript from "../exec_script";
 import type { ScriptLoadInfo } from "@App/app/service/service_worker/types";
 import type { GMInfoEnv, ScriptFunc } from "../types";
@@ -6,6 +6,7 @@ import { compileScript, compileScriptCode } from "../utils";
 import type { Message } from "@Packages/message/types";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { getStorageName } from "@App/pkg/utils/utils";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
@@ -176,6 +177,31 @@ describe.concurrent("window.*", () => {
 });
 
 describe.concurrent("GM Api", () => {
+  // 异步 GM.* 取值会先发出 internalApiWaitForFreshValueState，等 valueUpdate 回推最新
+  // updatetime 后才读取本地缓存；这里模拟 service_worker 的该次回推
+  const respondFreshValueState = (
+    mockSendMessage: Mock<(...args: any[]) => any>,
+    exec: ExecScript,
+    script: ScriptLoadInfo
+  ) => {
+    const idx = mockSendMessage.mock.calls.findIndex((entry) => {
+      return entry?.[0]?.data?.api === "internalApiWaitForFreshValueState";
+    });
+    expect(idx).toBeGreaterThanOrEqual(0);
+    const actualCall = mockSendMessage.mock.calls[idx][0];
+    const [id] = actualCall.data.params;
+    expect(id).toBeTypeOf("string");
+    expect(id.length).greaterThan(0);
+    exec.valueUpdate({
+      id,
+      entries: [],
+      uuid: script.uuid,
+      storageName: getStorageName(script),
+      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+      valueUpdated: false,
+      updatetime: Date.now(),
+    });
+  };
   it.concurrent("GM_getValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test: "ok" };
@@ -192,7 +218,91 @@ describe.concurrent("GM Api", () => {
     const ret = await exec.exec();
     expect(ret).toEqual("ok");
   });
-  it.concurrent("GM.getValue", async () => {
+  it.concurrent("GM.getValue 应等待最新值同步后返回", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.value = { test: "ok" };
+    script.metadata.grant = ["GM.getValue"];
+    script.code = `return GM.getValue("test").then(v=>v+"!");`;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const retPromise = exec.exec();
+    respondFreshValueState(mockSendMessage, exec, script);
+    const ret = await retPromise;
+    expect(ret).toEqual("ok!");
+  });
+
+  it.concurrent("GM.getValue 遇到更新的 updatetime 时应等待对应 valueUpdate 才读取", async () => {
+    const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
+    script.value = { k: "old" };
+    script.metadata.grant = ["GM.getValue"];
+    script.code = `return GM.getValue("k").then(v1=>GM.getValue("k").then(v2=>[v1, v2]));`;
+    const t0 = Date.now();
+    const t1 = t0 + 1000;
+    const internalCalls: any[] = [];
+    const mockSendMessage = vi.fn().mockImplementation((msg: any) => {
+      if (msg?.data?.api === "internalApiWaitForFreshValueState") {
+        internalCalls.push(msg);
+        // 第一次返回当前 updatetime t0；第二次返回更新的 t1，模拟其他环境已写入新值
+        return Promise.resolve({ code: 0, data: internalCalls.length === 1 ? t0 : t1 });
+      }
+      return Promise.resolve({ code: 0 });
+    });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const retPromise = exec.exec();
+    // 第一次读取：以 id 对应的 valueUpdate 回推 t0
+    expect(internalCalls.length).toBe(1);
+    exec.valueUpdate({
+      id: internalCalls[0].data.params[0],
+      entries: [],
+      uuid: script.uuid,
+      storageName: getStorageName(script),
+      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+      valueUpdated: false,
+      updatetime: t0,
+    });
+    await vi.waitFor(() => expect(internalCalls.length).toBe(2));
+    // 第二次读取：service_worker 返回 t1 > t0，在 valueUpdate 到达前不得完成
+    let settled = false;
+    retPromise.then(() => {
+      settled = true;
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(settled).toBe(false);
+    // t1 的 valueUpdate 到达后放行，且读取到同步后的新值
+    exec.valueUpdate({
+      id: "",
+      entries: [["k", encodeRValue("new"), encodeRValue("old")]],
+      uuid: script.uuid,
+      storageName: getStorageName(script),
+      sender: { runFlag: "user", tabId: -2 },
+      valueUpdated: true,
+      updatetime: t1,
+    });
+    const ret = await retPromise;
+    expect(ret).toEqual(["old", "new"]);
+  });
+
+  it.concurrent("GM.getValue 在 message 无效时直接返回本地缓存", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test: "ok" };
     script.metadata.grant = ["GM.getValue"];
@@ -247,20 +357,26 @@ describe.concurrent("GM Api", () => {
     expect(ret).toEqual("test5-test2-test3-test1"); // TM也没有sort
   });
 
-  it.concurrent("GM.listValues", async () => {
+  it.concurrent("GM.listValues 应等待最新值同步后返回", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: "45", test3: "67" };
     script.metadata.grant = ["GM.listValues"];
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
     const exec = new ExecScript(script, {
       envPrefix: "scripting",
-      message: undefined as any,
+      message: mockMessage,
       contentMsg: undefined as any,
       code: nilFn,
       envInfo,
     });
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
+    const retPromise = exec.exec();
+    respondFreshValueState(mockSendMessage, exec, script);
+    const ret = await retPromise;
     expect(ret).toEqual("test1-test2-test3");
   });
 
@@ -273,15 +389,21 @@ describe.concurrent("GM Api", () => {
     script.value.test1 = "40";
     script.metadata.grant = ["GM.listValues"];
     script.code = `return GM.listValues().then(v=>v.join("-"));`;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
     const exec = new ExecScript(script, {
       envPrefix: "scripting",
-      message: undefined as any,
+      message: mockMessage,
       contentMsg: undefined as any,
       code: nilFn,
       envInfo,
     });
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
+    const retPromise = exec.exec();
+    respondFreshValueState(mockSendMessage, exec, script);
+    const ret = await retPromise;
     expect(ret).toEqual("test5-test2-test3-test1"); // TM也没有sort
   });
 
@@ -311,20 +433,26 @@ describe.concurrent("GM Api", () => {
     expect(ret2.test4).toEqual("default");
   });
 
-  it.concurrent("GM.getValues", async () => {
+  it.concurrent("GM.getValues 应等待最新值同步后返回", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: 45, test3: "67" };
     script.metadata.grant = ["GM.getValues"];
     script.code = `return GM.getValues(["test2", "test3", "test1"]).then(v=>v);`;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = {
+      sendMessage: mockSendMessage,
+    } as unknown as Message;
     const exec = new ExecScript(script, {
       envPrefix: "scripting",
-      message: undefined as any,
+      message: mockMessage,
       contentMsg: undefined as any,
       code: nilFn,
       envInfo,
     });
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = await exec.exec();
+    const retPromise = exec.exec();
+    respondFreshValueState(mockSendMessage, exec, script);
+    const ret = await retPromise;
     expect(ret.test1).toEqual("23");
     expect(ret.test2).toEqual(45);
     expect(ret.test3).toEqual("67");
@@ -1122,6 +1250,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       storageName: script.uuid,
       sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
       valueUpdated: true,
+      updatetime: Date.now(),
     });
     const ret = await retPromise;
     expect(ret).toEqual({ name: "param1", oldValue: undefined, newValue: 123, remote: false });
@@ -1162,6 +1291,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       storageName: "testStorage",
       sender: { runFlag: "user", tabId: -2 },
       valueUpdated: true,
+      updatetime: Date.now(),
     });
     const ret2 = await retPromise;
     expect(ret2).toEqual({ name: "param2", oldValue: undefined, newValue: 456, remote: true });
@@ -1202,6 +1332,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       storageName: script.uuid,
       sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
       valueUpdated: true,
+      updatetime: Date.now(),
     });
 
     const ret = await retPromise;
