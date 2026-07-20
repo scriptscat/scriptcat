@@ -20,7 +20,7 @@ export class OneDriveFileReader implements FileReader {
       true
     );
     if (data.status !== 200) {
-      throw new Error(await data.text());
+      throw await this.fs.createResponseError(data);
     }
     switch (type) {
       case "string":
@@ -60,10 +60,11 @@ export class OneDriveFileWriter implements FileWriter {
     // 预上传获取id
     const size = this.size(content);
     if (size === 0) {
-      return this.fs.request(`https://graph.microsoft.com/v1.0/me/drive/special/approot:${this.path}:/content`, {
+      const config: RequestInit = {
         method: "PUT",
         body: content,
-      });
+      };
+      return this.fs.request(`https://graph.microsoft.com/v1.0/me/drive/special/approot:${this.path}:/content`, config);
     }
 
     let myHeaders = new Headers();
