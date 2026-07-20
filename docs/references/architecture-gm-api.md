@@ -67,14 +67,19 @@ work.
    `@PermissionVerify.API(...)`.
 4. If it needs DOM, route through the offscreen GM API instead:
    [`src/app/service/offscreen/gm_api.ts`](../../src/app/service/offscreen/gm_api.ts).
-5. Register the `@grant` so the linter and the context builder recognize it — grant/compat data lives in
-   [`packages/eslint/linter-config.ts`](../../packages/eslint/linter-config.ts) (not just "the `eslint` package"
-   generally; that package also ships unrelated compat tables like `compat-headers.js`).
+5. Register the `@grant` so the linter and the context builder recognize it — the grant/compat map lives in
+   [`packages/eslint/compat-grant.js`](../../packages/eslint/compat-grant.js) (not just "the `eslint` package"
+   generally; that package also ships unrelated compat tables like `compat-headers.js`, and
+   `linter-config.ts` holds the ESLint `rules`/`globals`/`env` config, no grant data).
 
-### Agent/CAT API is a separate family
+### Agent/CAT API is the same recipe with dotted grants
 
 The Agent subsystem's `CAT.agent.*` surface (`src/app/service/content/gm_api/cat_agent.ts` — see
-[`architecture-agent.md`](./architecture-agent.md)) is exposed alongside the traditional GM API but does not
-go through `@GMContext.API`/`@grant`/`@PermissionVerify.API`: it has its own service/permission path. Don't
-fold a new Agent-facing API into the four-step recipe above without first checking whether it's a GM API
-(script-facing, grant-gated) or an Agent API (conversation-facing, its own registration).
+[`architecture-agent.md`](./architecture-agent.md)) goes through the *same* registration path as the
+traditional GM API: `@GMContext.API` on the content side
+([`cat_agent.ts`](../../src/app/service/content/gm_api/cat_agent.ts)), `@PermissionVerify.API` on the SW side
+([`gm_agent.ts`](../../src/app/service/service_worker/gm_api/gm_agent.ts)), and a registered grant in
+[`compat-grant.js`](../../packages/eslint/compat-grant.js). What differs is the naming and transport
+shape — the grant is dotted (`CAT.agent.conversation`) and bound with `follow:` rather than `alias:`, the SW
+handlers set `dotAlias: false`, and conversation chat streams over `connect()` instead of `sendMessage`. Copy
+the nearest existing `CAT.agent.*` method rather than a `GM_*` one.

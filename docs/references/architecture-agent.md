@@ -39,14 +39,19 @@ into `Group`/`Server`.
 
 [`ToolRegistry`](../../src/app/service/agent/core/tool_registry.ts) is the **global** registry: tools it holds
 persist for the process lifetime and are classified by `ToolSource` — `builtin` (permanent, e.g.
-`web_fetch`/`web_search`/`opfs_*`/`tab_*`), `mcp` (from an `MCPService`-managed server), `skill` (skill
-meta-tools: `load_skill`, `execute_skill_script`, `read_reference`), `session` (registered per conversation:
-task tools, `ask_user`, `sub_agent`, `execute_script`), and `script` (user-script-supplied tools passed through
-`conv.chat`, dispatched via a callback rather than stored in the map).
+`web_fetch`/`web_search`/`opfs_*`/the tab tools such as `list_tabs`/`open_tab`), `mcp` (from an
+`MCPService`-managed server), `skill` (skill meta-tools: `load_skill`, `execute_skill_script`,
+`read_reference`), `session` (registered per conversation: task tools, `ask_user`, `agent`, `execute_script`),
+and `script` (user-script-supplied tools passed through `conv.chat`, dispatched via a callback rather than
+stored in the map).
+
+Tool names don't always match their source file — the sub-agent tool defined in `sub_agent.ts` registers as
+`agent`, and `tab_tools.ts` registers `get_tab_content`/`list_tabs`/`open_tab`/`close_tab`/`activate_tab` with
+no shared prefix. Read the `name:` field, not the filename.
 
 [`SessionToolRegistry`](../../src/app/service/agent/core/session_tool_registry.ts) wraps a read-only reference
 to the global `ToolRegistry` with its own per-session `Map`. This exists because registering a same-named
-builtin tool (task tools, `ask_user`, `sub_agent`) directly on the global registry would let concurrent
+builtin tool (task tools, `ask_user`, `agent`) directly on the global registry would let concurrent
 sessions clobber each other's closures — a session-scoped tool needs to stay bound to its own
 `conversationId`/`sendEvent`. `getDefinitions()` merges session tools over parent tools (session shadows
 parent); `execute()` builds the merged map and delegates to `parent.executeTools()` so shared behavior (e.g.
@@ -99,9 +104,9 @@ The Agent subsystem does not use one persistence pattern; pick by data shape, ma
 
 - **Content (`src/app/service/content/gm_api/cat_agent.ts`)** exposes the `CAT.agent.*` API to user scripts —
   `ConversationInstance` wraps a conversation and dispatches tool-call handlers registered by the calling
-  script. This is a distinct API family from the traditional GM API (see
-  [`architecture-gm-api.md`](./architecture-gm-api.md)); it does not follow the four-step `@GMContext.API`
-  recipe used for GM grants.
+  script. It registers through the same `@GMContext.API` / `@PermissionVerify.API` / `@grant` path as the
+  traditional GM API, with dotted grant names and `connect()`-based chat streaming — see
+  [`architecture-gm-api.md`](./architecture-gm-api.md) for the differences that matter when adding one.
 - **DOM automation** runs from the service worker through a single `AgentDomService` (`dom.ts`), which handles
   every action (`navigate`, `readPage`, `screenshot`, `click`, `fill`, `scroll`, `waitFor`, `executeScript`,
   tab monitoring) and delegates to CDP helpers imported from `dom_cdp.ts` (`cdpClick`, `cdpFill`,

@@ -146,7 +146,7 @@ communication styles** over **several transports**.
 | `CustomEventMessage` | [`custom_event_message.ts`](../packages/message/custom_event_message.ts) | Content ↔ Inject | DOM `CustomEvent` dispatch (bypasses page tampering) |
 | `WindowMessage` | [`window_message.ts`](../packages/message/window_message.ts) | Offscreen ↔ Sandbox | `window.postMessage` |
 | `ServiceWorkerMessageSend` | [`window_message.ts`](../packages/message/window_message.ts) | SW → Offscreen (Chrome) | `clients.matchAll()` + `postMessage` |
-| `MessageQueue` | [`message_queue.ts`](../packages/message/message_queue.ts) | All contexts (broadcast) | `chrome.runtime.sendMessage` + local `EventEmitter3` |
+| `MessageQueue` | [`message_queue.ts`](../packages/message/message_queue.ts) | Broadcast among the contexts that instantiate it — SW, Offscreen, UI pages | `chrome.runtime.sendMessage` + local `EventEmitter3` |
 | `MockMessage` | [`mock_message.ts`](../packages/message/mock_message.ts) | Tests | in-memory `EventEmitter3` |
 
 All transports implement the small `Message` / `MessageSend` / `MessageConnect` interfaces in
