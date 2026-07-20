@@ -17,6 +17,7 @@ import { openInCurrentTab } from "@App/pkg/utils/utils";
 import { validateInstallUrl, fetchInstallSourceWithPolicy, UrlPolicyViolation } from "./url_policy";
 import { McpBridgeError } from "./errors";
 import { readScriptSource } from "./source";
+import { resolveMcpClient } from "./client_identity";
 import { SCTL_CLI_CLIENT_ID } from "./types";
 import type {
   BridgeErrorCode,
@@ -382,7 +383,7 @@ export class McpApprovalService {
       throw new McpBridgeError("OPERATION_EXPIRED", `operation already ${op.status}`, operationId);
     }
 
-    const client = await this.clientDAO.get(op.clientId);
+    const client = await resolveMcpClient(this.clientDAO, op.clientId);
     if (!client || client.revoked) {
       await this.operationDAO.update(op.operationId, {
         status: "rejected",
@@ -547,7 +548,7 @@ export class McpApprovalService {
       pending.map(async (op): Promise<PendingOperationSummary | undefined> => {
         const fresh = await this.sweepAndGet(op.operationId);
         if (!fresh || fresh.status !== "awaiting_user") return undefined;
-        const client = await this.clientDAO.get(fresh.clientId);
+        const client = await resolveMcpClient(this.clientDAO, fresh.clientId);
         return {
           operationId: fresh.operationId,
           kind: fresh.kind,
@@ -569,7 +570,7 @@ export class McpApprovalService {
   ): Promise<(McpOperation & { requestingClientName?: string }) | undefined> {
     const op = await this.sweepAndGet(operationId);
     if (!op) return undefined;
-    const client = await this.clientDAO.get(op.clientId);
+    const client = await resolveMcpClient(this.clientDAO, op.clientId);
     return { ...op, requestingClientName: client?.displayName };
   }
 

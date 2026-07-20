@@ -14,10 +14,9 @@ import type { McpWritePolicy } from "@App/pkg/config/config";
 import type { McpApprovalService } from "./approval";
 import { McpBridgeError } from "./errors";
 import { readScriptSource } from "./source";
+import { resolveMcpClient } from "./client_identity";
 import {
   ACTION_REQUIRED_SCOPE,
-  MCP_SCOPES,
-  SCTL_CLI_CLIENT_ID,
   WRITE_ACTIONS,
   type BridgeAction,
   type McpBridgeRequest,
@@ -29,20 +28,6 @@ import {
 
 // Re-exported from its single definition in source.ts (shared with the approval service).
 export { MAX_SOURCE_BYTES } from "./source";
-
-// The built-in sctl CLI identity, synthesized rather than read from McpClientDAO — the CLI never
-// pairs (design §3.1). Full scope so every verb passes the scope gate; writes still hit the write
-// policy + write-session gate + confirm page below. Never persisted, so it can't be revoked and
-// never shows up in the paired-client list.
-const SCTL_CLI_CLIENT: McpClient = {
-  clientId: SCTL_CLI_CLIENT_ID,
-  displayName: "sctl (CLI)",
-  tokenHash: "",
-  scopes: [...MCP_SCOPES],
-  createdAt: 0,
-  lastUsedAt: 0,
-  revoked: false,
-};
 
 // Sentinel dispatch returns when a request is suspended pending a human decision (write approval
 // or first-time source disclosure): no bridge.response is produced now — the decide/void event
@@ -187,7 +172,7 @@ export class McpBridge {
   async handle(request: McpBridgeRequest): Promise<McpBridgeResponse | null> {
     let client: McpClient | undefined;
     try {
-      client = request.clientId === SCTL_CLI_CLIENT_ID ? SCTL_CLI_CLIENT : await this.clientDAO.get(request.clientId);
+      client = await resolveMcpClient(this.clientDAO, request.clientId);
       if (!client || client.revoked) {
         throw new McpBridgeError("UNAUTHENTICATED", "unknown or revoked client");
       }

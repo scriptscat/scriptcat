@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { McpApprovalService, INLINE_CODE_MAX_BYTES, type McpScriptMutator, type SendBridgeResponse } from "./approval";
 import { McpBridgeError } from "./errors";
+import { SCTL_CLI_CLIENT_ID } from "./types";
 import { McpClientDAO, McpOperationDAO, type McpClient } from "@App/app/repo/mcp";
 import {
   ScriptDAO,
@@ -103,6 +104,31 @@ describe("McpApprovalService", () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
+
+  async function seedScript(uuid: string, code: string) {
+    await scriptDAO.save({
+      uuid,
+      name: "Existing",
+      author: "",
+      namespace: "ns",
+      originDomain: "",
+      origin: "",
+      checkUpdate: true,
+      checkUpdateUrl: "",
+      downloadUrl: "",
+      config: undefined,
+      metadata: { name: ["Existing"], namespace: ["ns"], version: ["1.0.0"] } as any,
+      selfMetadata: {},
+      sort: -1,
+      type: SCRIPT_TYPE_NORMAL,
+      status: SCRIPT_STATUS_DISABLE,
+      runStatus: "complete",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+      checktime: Date.now(),
+    } as any);
+    await scriptCodeDAO.save({ uuid, code });
+  }
 
   describe("prepareInstall - 暂存但不安装、不弹窗", () => {
     it("暂存代码、计算哈希、创建 awaiting_user 操作，且不调用 installScript，也不自行弹确认页", async () => {
@@ -361,31 +387,6 @@ describe("McpApprovalService", () => {
   });
 
   describe("requestToggle / requestDelete - 现有脚本的写请求", () => {
-    async function seedScript(uuid: string, code: string) {
-      await scriptDAO.save({
-        uuid,
-        name: "Existing",
-        author: "",
-        namespace: "ns",
-        originDomain: "",
-        origin: "",
-        checkUpdate: true,
-        checkUpdateUrl: "",
-        downloadUrl: "",
-        config: undefined,
-        metadata: { name: ["Existing"], namespace: ["ns"], version: ["1.0.0"] } as any,
-        selfMetadata: {},
-        sort: -1,
-        type: SCRIPT_TYPE_NORMAL,
-        status: SCRIPT_STATUS_DISABLE,
-        runStatus: "complete",
-        createtime: Date.now(),
-        updatetime: Date.now(),
-        checktime: Date.now(),
-      } as any);
-      await scriptCodeDAO.save({ uuid, code });
-    }
-
     it("requestToggle 记录 existingCodeHash 并创建 awaiting_user 操作", async () => {
       await seedScript("script-1", "console.log(1)");
       const ref = await service.requestToggle({ clientId: "client-1", uuid: "script-1", enable: true });
@@ -431,6 +432,32 @@ describe("McpApprovalService", () => {
       const ref = await service.requestDelete({ clientId: "client-1", uuid: "script-4" });
       await service.decide(ref.operationId, true);
       expect(mutator.deleteScript).toHaveBeenCalledWith("script-4", "mcp");
+    });
+  });
+
+  // sctl CLI 是 bridge 合成的内建身份（design §3.1），从不写进 McpClientDAO。批准链路上任何
+  // 「查 DAO 拿客户端」的地方都必须认识它，否则人点了批准之后写操作反而被判成撤销客户端。
+  describe("sctl CLI 内建身份 - 批准链路", () => {
+    it("CLI 发起的 toggle 在批准后正常执行，不因身份不在 DAO 里被判成 client revoked", async () => {
+      await seedScript("cli-script-1", "console.log(1)");
+      const ref = await service.requestToggle({ clientId: SCTL_CLI_CLIENT_ID, uuid: "cli-script-1", enable: false });
+      await service.decide(ref.operationId, true);
+      expect(mutator.enableScript).toHaveBeenCalledWith({ uuid: "cli-script-1", enable: false });
+    });
+
+    it("CLI 发起的 delete 在批准后正常执行", async () => {
+      await seedScript("cli-script-2", "console.log(2)");
+      const ref = await service.requestDelete({ clientId: SCTL_CLI_CLIENT_ID, uuid: "cli-script-2" });
+      await service.decide(ref.operationId, true);
+      expect(mutator.deleteScript).toHaveBeenCalledWith("cli-script-2", "mcp");
+    });
+
+    it("确认页与待确认列表把 CLI 操作的请求方显示为内建身份名，而非留空", async () => {
+      await seedScript("cli-script-3", "console.log(3)");
+      const ref = await service.requestDelete({ clientId: SCTL_CLI_CLIENT_ID, uuid: "cli-script-3" });
+      expect((await service.getOperationForUI(ref.operationId))?.requestingClientName).toBe("sctl (CLI)");
+      const pending = await service.listPending();
+      expect(pending.find((row) => row.operationId === ref.operationId)?.requestingClientName).toBe("sctl (CLI)");
     });
   });
 
