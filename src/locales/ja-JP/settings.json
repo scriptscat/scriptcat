@@ -116,6 +116,7 @@
   "favicon_service_local": "ローカル取得",
   "cloud_sync_account_verification": "クラウド同期アカウント情報を確認中...",
   "cloud_sync_verification_failed": "クラウド同期アカウント情報の確認に失敗しました",
+  "cloud_sync_connection_changed": "同期接続の設定が変更されたため、同期を一時停止しました。設定を確認してから、もう一度有効にしてください。",
   "trash_retention": "ゴミ箱の保存期間",
   "trash_retention_desc": "削除したスクリプトをゴミ箱でどのくらいの期間保持してから自動的に完全に削除するか",
   "trash_retention_7": "7日",
