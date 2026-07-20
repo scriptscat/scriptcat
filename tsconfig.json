@@ -28,6 +28,5 @@
       ]
     }
   },
-  "include": ["src", "packages", "tests"],
-  "exclude": ["packages/native-messaging-host"]
+  "include": ["src", "packages", "tests"]
 }

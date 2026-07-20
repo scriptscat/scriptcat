@@ -31,10 +31,7 @@ const ISOLATED = [
   "src/app/service/content/exec_script.test.ts",
 ];
 
-// packages/native-messaging-host is a standalone package (own lockfile, own tsconfig/module
-// settings, own CI job) — not part of the extension's dependency graph. Its tests run via
-// `cd packages/native-messaging-host && pnpm test`, never implicitly from the root suite.
-const BASE_EXCLUDE = ["**/node_modules/**", "**/.claude/**", "e2e/**", "packages/native-messaging-host/**"];
+const BASE_EXCLUDE = ["**/node_modules/**", "**/.claude/**", "e2e/**"];
 
 // 页面层（React 渲染，含 .ts 的 renderHook 测试）用例的真实 solo 成本在覆盖率下可达 100–200ms，
 // 乘上 worker 并行负载后 340ms 预算必然偶发超时（本地满载观测峰值 ~630ms）；
