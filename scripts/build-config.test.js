@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { resolveAgentEnabled, applyAgentManifest, applyFirefoxSandboxManifest } from "./build-config.js";
+import {
+  resolveAgentEnabled,
+  applyAgentManifest,
+  applyFirefoxSandboxManifest,
+  FIREFOX_SANDBOX_CSP,
+  createChromeManifest,
+  createFirefoxManifest,
+} from "./build-config.js";
 
 describe("构建配置 - agent 开关", () => {
   describe("resolveAgentEnabled - 打包判断（稳定版屏蔽、beta 开启，SC_DISABLE_AGENT 覆盖）", () => {
@@ -71,5 +78,67 @@ describe("构建配置 - Firefox sandbox manifest", () => {
         "sandbox allow-downloads allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-scripts allow-storage-access-by-user-activation allow-top-navigation allow-top-navigation-by-user-activation allow-top-navigation-to-custom-protocols; script-src 'unsafe-inline' 'unsafe-eval' https: http: data: blob: 'self';",
     });
     expect(manifest).not.toHaveProperty("content_security_policy");
+  });
+});
+
+describe("构建配置 - 浏览器专用 manifest", () => {
+  it("Chrome 产物保留原有权限语义并移除 Firefox 专用字段", () => {
+    const source = {
+      permissions: ["tabs", "userScripts", "debugger"],
+      optional_permissions: ["background", "userScripts"],
+      background: {
+        service_worker: "src/service_worker.js",
+        scripts: ["src/service_worker.js"],
+      },
+      content_security_policy: {
+        extension_pages: "script-src 'self'",
+        sandbox: "firefox-only",
+      },
+    };
+
+    const result = createChromeManifest(source, true);
+
+    expect(result).toEqual({
+      permissions: ["tabs", "userScripts", "debugger"],
+      optional_permissions: ["background"],
+      background: {
+        service_worker: "src/service_worker.js",
+      },
+      content_security_policy: {
+        extension_pages: "script-src 'self'",
+      },
+    });
+    expect(source.background).toHaveProperty("scripts");
+    expect(source.optional_permissions).toContain("userScripts");
+    expect(source.content_security_policy).toHaveProperty("sandbox");
+  });
+
+  it("Firefox 产物仅保留支持的后台字段和权限", () => {
+    const source = {
+      permissions: ["tabs", "userScripts", "debugger", "offscreen"],
+      optional_permissions: ["background", "userScripts"],
+      background: {
+        service_worker: "src/service_worker.js",
+        scripts: ["src/service_worker.js"],
+      },
+      sandbox: { pages: ["src/sandbox.html"] },
+      incognito: "split",
+      message_serialization: "structured_clone",
+    };
+
+    const result = createFirefoxManifest(source, true, "{firefox-id}");
+
+    expect(result.permissions).toEqual(["tabs"]);
+    expect(result.optional_permissions).toEqual(["userScripts", "webRequestBlocking"]);
+    expect(result.background).toEqual({ scripts: ["src/service_worker.js"] });
+    expect(result.sandbox).toEqual(source.sandbox);
+    expect(result.content_security_policy?.sandbox).toBe(FIREFOX_SANDBOX_CSP);
+    expect(result.incognito).toBe("spanning");
+    expect(result).not.toHaveProperty("message_serialization");
+    expect(result.browser_specific_settings.gecko.id).toBe("{firefox-id}");
+    expect(result.browser_specific_settings.gecko.strict_min_version).toBe("154.0a1");
+    expect(result.commands).toEqual({ _execute_action: {} });
+    expect(source.optional_permissions).toEqual(["background", "userScripts"]);
+    expect(source.background).toHaveProperty("service_worker");
   });
 });

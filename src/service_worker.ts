@@ -28,7 +28,7 @@ async function hasDocument() {
 
 async function setupOffscreenDocument() {
   if (typeof chrome.offscreen?.createDocument !== "function") {
-    // Firefox does not support offscreen
+    // Firefox 不支持 offscreen document。
     console.error("Your browser does not support chrome.offscreen.createDocument");
     return;
   }
@@ -83,18 +83,10 @@ function main() {
       .then(() => messageQueue.emit("offscreenDocumentReady", {}))
       .catch((error) => console.error("Failed to setup offscreen document:", error));
   }
-  // Chrome needs a real offscreen document. Firefox MV3 uses EventPageOffscreenManager instead.
+  // Chrome 使用真实 offscreen document；Firefox MV3 改用 event page。
   else {
-    // Firefox MV3: the event page itself is the DOM-capable offscreen environment and runs in the
-    // SAME script/process as this service worker code - they are not separate contexts. Sending
-    // offscreen -> SW messages through chrome.runtime.sendMessage/connect (as Chrome's real
-    // offscreen document must) fails here with "Could not establish connection. Receiving end
-    // does not exist.", because a script cannot reach itself through that channel. `offscreenToSw`
-    // is an in-process bridge (mirrors the SW -> offscreen bridge already built into
-    // EventPageOffscreenManager) added as an extra receiver on the "serviceWorker" Server, and
-    // passed to EventPageOffscreenManager in place of the real chrome.runtime channel so every
-    // offscreen -> SW call (sendMessageToServiceWorker, getExtensionEnv, preparationOffscreen,
-    // forwarded GM API calls) stays in-process instead of round-tripping through chrome.runtime.
+    // Firefox 的 event page 与 SW 共用同一上下文，runtime 消息不会回送发送者所在 frame；
+    // offscreen → SW 因此必须使用进程内桥接，Chrome 的独立 offscreen 文档仍走原通道。
     const offscreenToSw = new InProcessMessage();
     const server = new Server("serviceWorker", [message, swMessage, offscreenToSw]);
     // 同一个 messageQueue 实例同时用于 SW 和 offscreen 两个角色：见 BackgroundEnvManagerBase

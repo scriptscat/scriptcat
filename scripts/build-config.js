@@ -43,3 +43,74 @@ export function applyFirefoxSandboxManifest(manifest) {
     },
   };
 }
+
+/**
+ * 生成 Chrome 打包使用的 manifest，不修改共用源对象。
+ * @template {{ permissions?: string[], optional_permissions: string[], background: object, content_security_policy?: object }} T
+ * @param {T} manifest
+ * @param {boolean} agentEnabled
+ * @returns {T}
+ */
+export function createChromeManifest(manifest, agentEnabled) {
+  const background = { ...manifest.background };
+  delete background.scripts;
+  const contentSecurityPolicy = manifest.content_security_policy ? { ...manifest.content_security_policy } : undefined;
+  if (contentSecurityPolicy) {
+    delete contentSecurityPolicy.sandbox;
+  }
+
+  return applyAgentManifest(
+    {
+      ...manifest,
+      background,
+      optional_permissions: manifest.optional_permissions.filter((permission) => permission !== "userScripts"),
+      ...(contentSecurityPolicy ? { content_security_policy: contentSecurityPolicy } : {}),
+    },
+    agentEnabled
+  );
+}
+
+/**
+ * 生成 Firefox 打包使用的 manifest，不修改共用源对象。
+ * @template {{ permissions: string[], optional_permissions: string[], background: object }} T
+ * @param {T} manifest
+ * @param {boolean} agentEnabled
+ * @param {string} firefoxId
+ * @returns {T}
+ */
+export function createFirefoxManifest(manifest, agentEnabled, firefoxId) {
+  const background = { ...manifest.background };
+  delete background.service_worker;
+  const optionalPermissions = manifest.optional_permissions.filter((permission) => permission !== "background");
+  if (!optionalPermissions.includes("webRequestBlocking")) {
+    optionalPermissions.push("webRequestBlocking");
+  }
+
+  const result = applyFirefoxSandboxManifest(
+    applyAgentManifest(
+      {
+        ...manifest,
+        background,
+        permissions: manifest.permissions.filter(
+          (permission) => !["userScripts", "debugger", "offscreen", "background"].includes(permission)
+        ),
+        optional_permissions: optionalPermissions,
+        incognito: "spanning",
+        commands: { _execute_action: {} },
+        browser_specific_settings: {
+          gecko: {
+            id: firefoxId,
+            strict_min_version: "154.0a1",
+            data_collection_permissions: {
+              required: ["none"],
+              optional: ["authenticationInfo", "personallyIdentifyingInfo"],
+            },
+          },
+        },
+      },
+      agentEnabled
+    )
+  );
+  delete result.message_serialization;
+  return result;
+}

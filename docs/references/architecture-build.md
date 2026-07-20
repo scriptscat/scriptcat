@@ -52,17 +52,19 @@ dist/ext/
   `webRequest`, `unlimitedStorage`, …; `optional_permissions` hold `background` + `userScripts`.
 - `host_permissions: ["<all_urls>"]`, `incognito: "split"` (Chrome; the Firefox variant overrides this to
   `"spanning"` — see below).
-- `sandbox.pages` declares `src/sandbox.html`; `content_security_policy.sandbox` sets that page's CSP.
-  `web_accessible_resources` exposes `install.html` so a `.user.js` page can hand off to the install flow.
+- `sandbox.pages` declares `src/sandbox.html`. The Firefox package adds that page's
+  `content_security_policy.sandbox` during browser-specific manifest generation; the shared source manifest and
+  Chrome package do not contain this Firefox-only CSP. `web_accessible_resources` exposes `install.html` so a
+  `.user.js` page can hand off to the install flow.
 
 ### Packaging — `pnpm run pack`
 
 [`scripts/pack.js`](../../scripts/pack.js) drives release packaging: it derives the version (special-casing
 alpha/beta into internal version codes), runs the production build, then **emits browser-specific manifests** —
-the Chrome variant strips the Firefox `scripts`/CSP bits and the `userScripts` permission (keeping it
-optional-only), while the Firefox variant drops `service_worker` and the `userScripts` / `debugger` / `offscreen`
-permissions (Firefox has none of those APIs), keeps `sandbox` (its sandbox iframe is a real manifest sandbox
-page there — see
+the Chrome variant removes the Firefox `background.scripts` fallback and removes `userScripts` from
+`optional_permissions` while retaining it in required `permissions`; the Firefox variant adds its sandbox CSP,
+makes `userScripts` optional-only, drops `service_worker` and the Chrome-only `debugger` / `offscreen`
+permissions, and keeps `sandbox` (its sandbox iframe is a real manifest sandbox page there — see
 [architecture.md § Chrome vs Firefox: the offscreen split](../architecture.md#chrome-vs-firefox-the-offscreen-split)),
 adds `webRequestBlocking` to `optional_permissions` (for the experimental keep-alive loop), sets
 `incognito: "spanning"` (Firefox has no `"split"` mode), adds `browser_specific_settings` (Gecko ID, min
