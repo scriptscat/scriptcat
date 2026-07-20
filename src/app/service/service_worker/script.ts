@@ -412,10 +412,14 @@ export class ScriptService {
     return <[boolean, ScriptInfo, Record<string, any>]>entry?.value;
   }
 
-  publishInstallScript(scriptFull: Script, options: any) {
+  publishInstallScript(scriptFull: Script, options: any, waitForCompletion = false) {
     const { uuid, type, status, name, namespace, origin, checkUpdateUrl, downloadUrl } = scriptFull;
     const script = { uuid, type, status, name, namespace, origin, checkUpdateUrl, downloadUrl } as TInstallScriptParams;
-    return this.mq.publish<TInstallScript>("installScript", { script, ...options });
+    const message = { script, ...options } as TInstallScript;
+    if (waitForCompletion) {
+      return this.mq.publishAndWait<TInstallScript>("installScript", message);
+    }
+    this.mq.publish<TInstallScript>("installScript", message);
   }
 
   // 安装脚本 / 更新脚本
@@ -917,6 +921,46 @@ export class ScriptService {
         this.logger.error("exclude url error", Logger.E(e));
         throw e;
       });
+  }
+
+  // 将 opt-in 脚本的当前网址加入用户自定义 site-access 白名单。
+  async includeUrl({ uuid, includePattern }: { uuid: string; includePattern: string }) {
+    let script = await this.scriptDAO.get(uuid);
+    if (!script) {
+      throw new Error("script not found");
+    }
+    const siteAccessSet = new Set(script.selfMetadata?.["site-access"] || []);
+    siteAccessSet.add(`+${includePattern}`);
+    script = selfMetadataUpdate(script, "site-access", siteAccessSet);
+    try {
+      await this.scriptDAO.update(uuid, script);
+      await this.publishInstallScript(script, { update: true }, true);
+      return true;
+    } catch (e) {
+      this.logger.error("include url error", Logger.E(e));
+      throw e;
+    }
+  }
+
+  // 将 opt-in 脚本的当前网址从用户自定义 site-access 白名单移除。
+  async excludeSiteAccessUrl({ uuid, includePattern }: { uuid: string; includePattern: string }) {
+    let script = await this.scriptDAO.get(uuid);
+    if (!script) {
+      throw new Error("script not found");
+    }
+    const siteAccessSet = new Set(script.selfMetadata?.["site-access"] || []);
+    if (!siteAccessSet.delete(`+${includePattern}`)) {
+      return false;
+    }
+    script = selfMetadataUpdate(script, "site-access", siteAccessSet.size ? siteAccessSet : undefined);
+    try {
+      await this.scriptDAO.update(uuid, script);
+      await this.publishInstallScript(script, { update: true }, true);
+      return true;
+    } catch (e) {
+      this.logger.error("exclude site-access url error", Logger.E(e));
+      throw e;
+    }
   }
 
   async resetExclude({ uuid, exclude }: { uuid: string; exclude: string[] | undefined }) {
@@ -1662,6 +1706,8 @@ export class ScriptService {
     this.group.on("getFilterResult", this.getFilterResult.bind(this));
     this.group.on("getScriptRunResourceByUUID", this.getScriptRunResourceByUUID.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
+    this.group.on("includeUrl", this.includeUrl.bind(this));
+    this.group.on("excludeSiteAccessUrl", this.excludeSiteAccessUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
     this.group.on("resetExclude", this.resetExclude.bind(this));
     this.group.on("requestCheckUpdate", this.requestCheckUpdate.bind(this));

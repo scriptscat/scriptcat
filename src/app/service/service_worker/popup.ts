@@ -6,6 +6,7 @@ import type { GetPopupDataReq, GetPopupDataRes, MenuClickParams } from "./client
 import { cacheInstance } from "@App/app/cache";
 import type { ScriptDAO } from "@App/app/repo/scripts";
 import { applyScriptDisplayInfo, scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
+import { hasExactUserSiteAccess, isSiteAccessAllowed, isSiteAccessAllowedByAuthor, isSiteAccessOptIn } from "./utils";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import type {
   TDeleteScript,
@@ -382,6 +383,8 @@ export class PopupService {
     const runMap = new Map<string, ScriptMenu>(runScripts.map((script) => [script.uuid, script]));
     // 合并后结果
     const scriptMenuMap = new Map<string, ScriptMenu>();
+    const optInScriptList: ScriptMenu[] = [];
+    const optInScriptUuids = new Set<string>();
     // 合并数据
     for (let idx = 0, l = uuids.length; idx < l; idx++) {
       const uuid = uuids[idx];
@@ -404,13 +407,25 @@ export class PopupService {
         run = scriptToMenu(script);
         run.isEffective = o.effective!;
       }
-      scriptMenuMap.set(uuid, run);
+      const siteAccessOptIn = isSiteAccessOptIn(script.metadata);
+      run.siteAccess = siteAccessOptIn ? "opt-in" : undefined;
+      run.siteAccessUser =
+        siteAccessOptIn && !isSiteAccessAllowedByAuthor(script, url) && hasExactUserSiteAccess(script, url);
+      if (siteAccessOptIn && !isSiteAccessAllowed(script, url)) {
+        run.isEffective = false;
+        optInScriptList.push(run);
+        optInScriptUuids.add(uuid);
+      } else {
+        scriptMenuMap.set(uuid, run);
+      }
     }
 
     // 将未匹配当前 url 但仍在运行的脚本，附加到清单末端，避免使用者找不到其菜单。
     // 这些记录来自 tabScript:<tabId> session cache；脚本删除事件与 Popup 读取可能交错，
     // 因此这里必须用 DAO 结果做读侧防护，避免已删除脚本残留在 Popup 清单。
-    const unmatchedRunScripts = runScripts.filter((script) => !scriptMenuMap.has(script.uuid));
+    const unmatchedRunScripts = runScripts.filter(
+      (script) => !scriptMenuMap.has(script.uuid) && !optInScriptUuids.has(script.uuid)
+    );
     if (unmatchedRunScripts.length) {
       const existingRunScripts = await this.scriptDAO.gets(unmatchedRunScripts.map((script) => script.uuid));
       for (let idx = 0, l = unmatchedRunScripts.length; idx < l; idx++) {
@@ -424,12 +439,18 @@ export class PopupService {
     // 检查是否在黑名单中
     const isBlacklist = this.runtime.isUrlBlacklist(url);
     // 即时附加图标与本地化脚本名（仅写入响应，不回写 session 缓存，避免 icon64 等占用过大）
-    const [scriptListWithInfo, backScriptListWithInfo] = await Promise.all([
+    const [scriptListWithInfo, optInScriptListWithInfo, backScriptListWithInfo] = await Promise.all([
       this.attachScriptDisplayInfo(scriptMenu),
+      this.attachScriptDisplayInfo(optInScriptList),
       this.attachScriptDisplayInfo(backScriptList),
     ]);
     // 后台脚本只显示开启或者运行中的脚本
-    return { isBlacklist, scriptList: scriptListWithInfo, backScriptList: backScriptListWithInfo };
+    return {
+      isBlacklist,
+      scriptList: scriptListWithInfo,
+      optInScriptList: optInScriptListWithInfo,
+      backScriptList: backScriptListWithInfo,
+    };
   }
 
   /** 为 ScriptMenu 列表即时附加图标 URL 与本地化脚本名（返回浅拷贝，不修改缓存中的原对象） */

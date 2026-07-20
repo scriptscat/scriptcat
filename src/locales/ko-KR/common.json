@@ -60,6 +60,8 @@
   "copy": "복사",
   "exclude_on": "$0에서 다시 실행",
   "exclude_off": "$0에서 실행 제외",
+  "include_on": "$0의 실행 포함",
+  "include_off": "허용된 사이트에서 $0 제거",
   "confirm_error": "확인 실패",
   "import": "가져오기",
   "error": "오류",

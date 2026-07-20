@@ -19,6 +19,7 @@ export type PopupInitialData = {
   defaultScriptProvider: ScriptProvider;
   isBlacklist: boolean;
   scriptList: ScriptMenu[];
+  optInScriptList: ScriptMenu[];
   backScriptList: ScriptMenu[];
 };
 
@@ -48,7 +49,7 @@ const popupDataQuery = createPreloadableQuery<"popup", PopupInitialData>({
     const popupData =
       tabId >= 0 && url
         ? await popupClient.getPopupData({ tabId, url })
-        : { isBlacklist: false, scriptList: [], backScriptList: [] };
+        : { isBlacklist: false, scriptList: [], optInScriptList: [], backScriptList: [] };
 
     if (signal.aborted) throw new DOMException("Popup preload aborted", "AbortError");
 
@@ -62,6 +63,7 @@ const popupDataQuery = createPreloadableQuery<"popup", PopupInitialData>({
       defaultScriptProvider: provider ?? "scriptcat",
       isBlacklist: popupData.isBlacklist,
       scriptList: popupData.scriptList.sort(scriptListSorter),
+      optInScriptList: popupData.optInScriptList.sort(scriptListSorter),
       backScriptList: popupData.backScriptList,
     };
   },

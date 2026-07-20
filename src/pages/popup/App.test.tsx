@@ -23,9 +23,11 @@ function makeData(overrides: Record<string, any> = {}) {
     isBlacklist: false,
     host: "example.com",
     scriptList: [],
+    optInScriptList: [],
     backScriptList: [],
     allScripts: [],
     fullScriptCount: 0,
+    fullOptInScriptCount: 0,
     fullBackScriptCount: 0,
     remainingCurrentCount: 0,
     remainingBackCount: 0,
@@ -36,6 +38,7 @@ function makeData(overrides: Record<string, any> = {}) {
     totalScriptCount: 0,
     backRunningCount: 0,
     enabledScriptCount: 0,
+    enabledOptInScriptCount: 0,
     enabledBackScriptCount: 0,
     errorMessage: "",
     showSearch: false,
@@ -53,6 +56,7 @@ function makeData(overrides: Record<string, any> = {}) {
     handleOpenEditor: vi.fn(),
     handleOpenUserConfig: vi.fn(),
     handleExcludeUrl: vi.fn(),
+    handleRemoveIncludeUrl: vi.fn(),
     handleMenuClick: vi.fn(),
     handleRunScript: vi.fn(),
     handleStopScript: vi.fn(),
@@ -119,6 +123,55 @@ describe("Popup 紧凑布局", () => {
 
     expect(screen.getByText(new RegExp(t("popup:current_page_scripts"))).closest("button")).toHaveClass("h-8", "px-3");
     expect(screen.getByText("Script A").closest("button")?.parentElement).toHaveClass("h-9", "px-3", "gap-2");
+  });
+});
+
+describe("Popup opt-in 脚本分组", () => {
+  it("有匹配的 opt-in 脚本时，应按当前页、opt-in、后台的顺序显示分组", () => {
+    const script = makeScriptMenu({ uuid: "opt-in", name: "Opt-in Script", siteAccess: "opt-in" });
+    mockData = makeData({
+      optInScriptList: [script],
+      allScripts: [script],
+      fullOptInScriptCount: 1,
+      enabledOptInScriptCount: 1,
+    });
+
+    const { container } = render(<App />);
+    const sectionTitles = Array.from(container.querySelectorAll("h3 > button")).map((button) => button.textContent);
+
+    expect(sectionTitles.findIndex((title) => title?.includes(t("popup:current_page_scripts")))).toBeLessThan(
+      sectionTitles.findIndex((title) => title?.includes(t("popup:opt_in_scripts")))
+    );
+    expect(sectionTitles.findIndex((title) => title?.includes(t("popup:opt_in_scripts")))).toBeLessThan(
+      sectionTitles.findIndex((title) => title?.includes(t("popup:enabled_background_scripts")))
+    );
+    expect(screen.getByText("Opt-in Script")).toBeInTheDocument();
+  });
+
+  it("没有匹配的 opt-in 脚本时，不应显示空的 opt-in 分组", () => {
+    mockData = makeData();
+
+    render(<App />);
+
+    expect(screen.queryByText(new RegExp(t("popup:opt_in_scripts")))).not.toBeInTheDocument();
+  });
+
+  it("当前页用户加入白名单的 opt-in 脚本应提供移除白名单操作", () => {
+    const handleRemoveIncludeUrl = vi.fn();
+    const script = makeScriptMenu({ siteAccess: "opt-in", siteAccessUser: true, isEffective: true });
+    mockData = makeData({
+      scriptList: [script],
+      allScripts: [script],
+      fullScriptCount: 1,
+      enabledScriptCount: 1,
+      handleRemoveIncludeUrl,
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByText("Script A"));
+    fireEvent.click(screen.getByText(t("include_off").replace("$0", "example.com")));
+
+    expect(handleRemoveIncludeUrl).toHaveBeenCalledWith("u1");
   });
 });
 

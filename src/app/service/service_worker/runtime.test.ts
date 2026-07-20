@@ -824,6 +824,31 @@ describe("getScriptsForTab 附加边界场景", () => {
     expect(result).toBeNull();
   });
 
+  it("没有 site-access 加号规则时，opt-in 脚本不应执行", async () => {
+    const { runtime, script, scriptRes } = createFullContext({
+      metadata: { match: ["https://www.example.com/*"], "site-access": ["opt-in"] },
+    });
+    await runtime.applyScriptMatchInfo(scriptRes);
+
+    const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+
+    expect(result).toBeNull();
+    expect((runtime as any).pageLoadCaches.has(script.uuid)).toBe(false);
+  });
+
+  it("作者或用户的 site-access 加号规则命中时，opt-in 脚本应正常执行", async () => {
+    const { runtime, scriptRes } = createFullContext({
+      metadata: { match: ["https://www.example.com/*"], "site-access": ["opt-in"] },
+      selfMetadata: { "site-access": ["+*://www.example.com/*"] },
+    });
+    await runtime.applyScriptMatchInfo(scriptRes);
+
+    const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+
+    expect(result).not.toBeNull();
+    expect(result!.injectScriptList.length + result!.contentScriptList.length).toBe(1);
+  });
+
   it("匹配结果中的脚本被 DAO 返回为 DISABLE 状态时，shouldSkipPageLoadScript 过滤后返回 null", async () => {
     const { runtime, script, scriptRes, mockScriptDAO } = createFullContext();
     await runtime.applyScriptMatchInfo(scriptRes); // 启用时写入匹配器

@@ -45,6 +45,7 @@ describe("Popup 数据预加载", () => {
     mocks.getPopupData.mockResolvedValue({
       isBlacklist: true,
       scriptList: [script("disabled", false), script("enabled", true)],
+      optInScriptList: [],
       backScriptList: [],
     });
 

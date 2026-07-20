@@ -19,11 +19,28 @@ const popupInitialData = vi.hoisted(() => ({
       updatetime: 0,
     },
   ],
+  optInScriptList: [],
   backScriptList: [],
+}));
+
+const popupClients = vi.hoisted(() => ({
+  includeUrl: vi.fn().mockResolvedValue(undefined),
+  excludeSiteAccessUrl: vi.fn().mockResolvedValue(undefined),
+  getPopupData: vi.fn(),
 }));
 
 vi.mock("./preload", () => ({
   usePopupDataQuery: () => ({ data: popupInitialData, isError: false }),
+}));
+
+vi.mock("../store/features/script", () => ({
+  popupClient: popupClients,
+  scriptClient: {
+    includeUrl: popupClients.includeUrl,
+    excludeSiteAccessUrl: popupClients.excludeSiteAccessUrl,
+  },
+  runtimeClient: { runScript: vi.fn(), stopScript: vi.fn() },
+  requestOpenBatchUpdatePage: vi.fn(),
 }));
 
 // 仅替换 openInCurrentTab / getCurrentTab，其余实导出保留（getCurrentTab 置空以避免触及 chrome.tabs）
@@ -96,5 +113,72 @@ describe("usePopupData 预加载数据", () => {
     expect(result.current.currentUrl).toBe("https://example.com/page");
     expect(result.current.fullScriptCount).toBe(1);
     expect(result.current.scriptList[0]?.name).toBe("Preloaded script");
+  });
+
+  it("opt-in 当前网址加入白名单后应重新加载当前标签页", async () => {
+    const reload = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(chrome.tabs, "reload", { configurable: true, value: reload });
+    const { result } = renderHook(() => usePopupData());
+
+    await act(async () => {
+      await result.current.handleIncludeUrl("opt-in-uuid");
+    });
+
+    expect(popupClients.includeUrl).toHaveBeenCalledWith("opt-in-uuid", "*://example.com/*");
+    expect(reload).toHaveBeenCalledWith(7);
+    Object.defineProperty(chrome.tabs, "reload", { configurable: true, value: undefined });
+  });
+
+  it("opt-in 加入白名单应等待服务端注册完成后再重新加载当前标签页", async () => {
+    const reload = vi.fn().mockResolvedValue(undefined);
+    let resolveRegistration!: () => void;
+    popupClients.includeUrl.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (resolveRegistration = resolve))
+    );
+    Object.defineProperty(chrome.tabs, "reload", { configurable: true, value: reload });
+    const { result } = renderHook(() => usePopupData());
+
+    const includePromise = result.current.handleIncludeUrl("opt-in-uuid");
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(reload).not.toHaveBeenCalled();
+
+    resolveRegistration();
+    await act(async () => {
+      await includePromise;
+    });
+    expect(reload).toHaveBeenCalledWith(7);
+    Object.defineProperty(chrome.tabs, "reload", { configurable: true, value: undefined });
+  });
+
+  it("移除当前网址的用户白名单后应重新加载当前标签页", async () => {
+    const reload = vi.fn().mockResolvedValue(undefined);
+    popupClients.excludeSiteAccessUrl.mockResolvedValueOnce(true);
+    Object.defineProperty(chrome.tabs, "reload", { configurable: true, value: reload });
+    const { result } = renderHook(() => usePopupData());
+
+    await act(async () => {
+      await result.current.handleRemoveIncludeUrl("opt-in-uuid");
+    });
+
+    expect(popupClients.excludeSiteAccessUrl).toHaveBeenCalledWith("opt-in-uuid", "*://example.com/*");
+    expect(reload).toHaveBeenCalledWith(7);
+    Object.defineProperty(chrome.tabs, "reload", { configurable: true, value: undefined });
+  });
+
+  it("移除不存在的用户白名单时不应重新加载当前标签页", async () => {
+    const reload = vi.fn().mockResolvedValue(undefined);
+    popupClients.excludeSiteAccessUrl.mockResolvedValueOnce(false);
+    Object.defineProperty(chrome.tabs, "reload", { configurable: true, value: reload });
+    const { result } = renderHook(() => usePopupData());
+
+    await act(async () => {
+      await result.current.handleRemoveIncludeUrl("opt-in-uuid");
+    });
+
+    expect(popupClients.excludeSiteAccessUrl).toHaveBeenCalledWith("opt-in-uuid", "*://example.com/*");
+    expect(reload).not.toHaveBeenCalled();
+    Object.defineProperty(chrome.tabs, "reload", { configurable: true, value: undefined });
   });
 });
