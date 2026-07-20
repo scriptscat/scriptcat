@@ -1,6 +1,7 @@
 {
   "new_version_available": "Nova versão disponível",
   "current_page_scripts": "Scripts em execução na página atual",
+  "opt_in_scripts": "Scripts opt-in",
   "enabled_background_scripts": "Scripts em segundo plano ativados e em execução",
   "develop_mode_guide": "O 'Modo de Desenvolvedor' não está ativado, então os scripts não podem ser executados corretamente. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉clique para saber como ativar</a>",
   "lower_version_browser_guide": "Seu navegador está muito desatualizado, então os scripts não podem ser executados corretamente. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\">👉Clique aqui para saber mais</a>",
