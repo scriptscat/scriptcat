@@ -341,26 +341,28 @@ export class ToolRegistry implements ToolExecutorLike {
         }
         // 脚本工具也可能返回带附件的结构化结果
         for (const sr of scriptResults) {
+          let parsed: unknown;
           try {
-            const parsed = JSON.parse(sr.result);
-            if (isToolResultWithAttachments(parsed)) {
+            parsed = JSON.parse(sr.result);
+          } catch {
+            // 不是 JSON，按原始字符串处理
+            results.push({ id: sr.id, result: sr.result, error: sr.error });
+            continue;
+          }
+          if (isToolResultWithAttachments(parsed)) {
+            // saveAttachments 失败（含 abort 及 OPFS 写入错误等其他原因）必须落为 error 结果，
+            // 不能落回“按原始字符串处理”分支——那会让脚本工具声明产出的附件在实际未写入时仍被当作已完成上报
+            try {
               const saved = await this.saveAttachments(parsed.attachments, signal);
               results.push({ id: sr.id, result: parsed.content, ...saved, error: sr.error });
-              continue;
-            }
-          } catch (e: any) {
-            // signal 已 abort 时是附件写入被中止（见 saveAttachments 的 throwIfAborted），
-            // 不能落回"按原始字符串处理"分支——那会让脚本工具的原始成功结果继续被当作
-            // 已完成上报，掩盖掉附件其实没写完的事实
-            if (signal?.aborted) {
+            } catch (e: any) {
               results.push({
                 id: sr.id,
                 result: JSON.stringify({ error: extractErrorMessage(e) }),
                 error: true,
               });
-              continue;
             }
-            // 不是 JSON 或不是结构化结果，按原始字符串处理
+            continue;
           }
           results.push({ id: sr.id, result: sr.result, error: sr.error });
         }

@@ -105,6 +105,9 @@ export default function ChatArea({
   const { tasks, setTasks, handleTaskUpdate, loadTasks } = useConversationTasks(conversationId);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingMsgRef = useRef<ChatMessage | null>(null);
+  // "继续对话"按钮的点击去重：isStreaming 是异步 state，两次点击可能在同一渲染帧内都读到
+  // 旧值 false，从而各自触发一次 handleSend——用同步 ref 在点击时立即锁定，避免重复发送
+  const continueInFlightRef = useRef(false);
   const sendStartTimeRef = useRef<number>(0);
   const firstTokenRecordedRef = useRef<boolean>(false);
   const firstTokenMsRef = useRef<number | undefined>(undefined);
@@ -809,7 +812,13 @@ export default function ChatArea({
                   onDelete={() => handleDeleteRound(messageGroups, groupIndex)}
                   onContinue={
                     !isStreaming && canContinueMaxIterationsGroup(group, groupIndex === messageGroups.length - 1)
-                      ? () => void handleSend(t("agent:chat_continue_message"))
+                      ? () => {
+                          if (continueInFlightRef.current) return;
+                          continueInFlightRef.current = true;
+                          void handleSend(t("agent:chat_continue_message")).finally(() => {
+                            continueInFlightRef.current = false;
+                          });
+                        }
                       : undefined
                   }
                 />

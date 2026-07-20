@@ -122,7 +122,7 @@ export default function AskUserBlock({
                 const isSelected = selectedOptions.includes(value);
                 return (
                   <button
-                    key={opt}
+                    key={index}
                     type="button"
                     data-testid={`ask-option-${value}`}
                     onClick={() => (multiple ? handleMultiToggle(value) : handleSingleSelect(value))}
