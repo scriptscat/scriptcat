@@ -1,6 +1,7 @@
 import type { FileInfo, FileReader, FileWriter } from "../filesystem";
 import { calculateMd5, md5OfText } from "@App/pkg/utils/crypto";
 import type BaiduFileSystem from "./baidu";
+import { createBaiduFileSystemError } from "./error";
 
 export class BaiduFileReader implements FileReader {
   file: FileInfo;
@@ -19,8 +20,11 @@ export class BaiduFileReader implements FileReader {
         this.fs.accessToken
       }&fsids=[${this.file.fsid!}]&dlink=1`
     );
-    if (!data.list.length) {
-      throw new Error("file not found");
+    if (data.errno) {
+      throw createBaiduFileSystemError(data);
+    }
+    if (!data.list?.length) {
+      throw createBaiduFileSystemError({ errno: -9, errmsg: "file not found" });
     }
     const resp = await fetch(`${data.list[0].dlink}&access_token=${this.fs.accessToken}`);
     switch (type) {
@@ -80,7 +84,7 @@ export class BaiduFileWriter implements FileWriter {
       }
     );
     if (data.errno) {
-      throw new Error(JSON.stringify(data));
+      throw createBaiduFileSystemError(data);
     }
     const uploadid = data.uploadid;
     const body = new FormData();
@@ -102,7 +106,7 @@ export class BaiduFileWriter implements FileWriter {
       }
     );
     if (data.errno) {
-      throw new Error(JSON.stringify(data));
+      throw createBaiduFileSystemError(data);
     }
     // 创建文件
     urlencoded = new URLSearchParams();
@@ -121,7 +125,7 @@ export class BaiduFileWriter implements FileWriter {
       }
     );
     if (data.errno) {
-      throw new Error(JSON.stringify(data));
+      throw createBaiduFileSystemError(data);
     }
   }
 }

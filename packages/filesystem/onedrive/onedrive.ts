@@ -92,13 +92,10 @@ export default class OneDriveFileSystem implements FileSystem {
           : `OneDrive request failed${status ? ` with status ${status}` : ""}`;
     const auth = status === 401 || code === "InvalidAuthenticationToken";
     const notFound = status === 404 || code === "itemNotFound";
-    const conflict =
-      status === 409 ||
-      status === 412 ||
-      code === "nameAlreadyExists" ||
-      code === "itemAlreadyExists" ||
-      code === "PreconditionFailed";
+    const conflict = status === 409 || code === "nameAlreadyExists" || code === "itemAlreadyExists";
     const rateLimit = status === 429;
+    // 只重试瞬时 5xx；501 等属于永久失败，重试只会空转退避
+    const transient = status !== undefined && [500, 502, 503, 504].includes(status);
 
     return new FileSystemError({
       provider: "onedrive",
@@ -109,12 +106,12 @@ export default class OneDriveFileSystem implements FileSystem {
       notFound,
       conflict,
       rateLimit,
-      retryable: rateLimit || (status !== undefined && status >= 500),
+      retryable: rateLimit || transient,
       raw,
     });
   }
 
-  private async createResponseError(resp: Response): Promise<FileSystemError> {
+  async createResponseError(resp: Response): Promise<FileSystemError> {
     const text = await resp.text();
     let raw;
     try {
@@ -127,7 +124,7 @@ export default class OneDriveFileSystem implements FileSystem {
 
   request(url: string, config?: RequestInit, nothen?: boolean): Promise<Response | any> {
     config = config || {};
-    const headers = <Headers>config.headers || new Headers();
+    const headers = new Headers(config.headers);
     if (!url.includes("uploadSession")) {
       headers.set(`Authorization`, `Bearer ${this.accessToken}`);
     }
@@ -183,18 +180,19 @@ export default class OneDriveFileSystem implements FileSystem {
   }
 
   async delete(path: string): Promise<void> {
+    const config: RequestInit = {
+      method: "DELETE",
+    };
     const resp = await this.request(
       `https://graph.microsoft.com/v1.0/me/drive/special/approot:${joinPath(this.path, path)}`,
-      {
-        method: "DELETE",
-      },
+      config,
       true
     );
     if (resp.status === 404) {
       return;
     }
     if (resp.status !== 204) {
-      throw new Error(await resp.text());
+      throw await this.createResponseError(resp);
     }
   }
 
