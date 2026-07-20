@@ -1,6 +1,6 @@
 # ScriptCat Design System
 
-> **A reuse-oriented design reference.** It consolidates the visual language that lives in `src/index.css` and the shadcn component layer into one place you can copy from: **color tokens (full light/dark values), the theming mechanism, the component palette, layout & responsive patterns, motion, state patterns, and an end-to-end new-page recipe.** Read this before building any new page, dialog, or block so it stays visually and behaviorally consistent with the rest of the app.
+> **A reuse-oriented design reference.** It consolidates the visual language that lives in `src/index.css` and the shadcn component layer into one place you can copy from: **color tokens (full light/dark values), the theming mechanism, the component palette, layout & responsive patterns, motion, state patterns, and an end-to-end new-page recipe.** Read this before building or modifying any page, dialog, or block so it stays visually and behaviorally consistent with the rest of the app.
 
 > **Stack in one line:** React 19 + shadcn/ui (Radix primitives, `new-york` style) + Tailwind CSS v4 + React Router. Colors and motion are defined in the `@theme inline` block of `src/index.css`. **There is no `tailwind.config.js`** (Tailwind v4); PostCSS runs through `@tailwindcss/postcss` (`postcss.config.mjs`); **class names have no prefix** (`bg-background`, not `tw-bg-background`).
 
@@ -10,7 +10,7 @@
 
 | Owned here | Owned elsewhere |
 | --- | --- |
-| Color-token values, semantics, usage → [`tokens.md`](./references/design-tokens.md) | The hard rules that mandate them (no hard-coded colors, hover via pseudo-classes, `cn()` / CVA / `lucide`) → [`DEVELOP.md` UI section](./develop.md) |
+| Color-token values, semantics, usage → [`tokens.md`](./references/design-tokens.md) | The hard rules that mandate them (no hard-coded colors, hover via pseudo-classes, `cn()` / CVA / `lucide`) → [`DEVELOP.md` UI section](./develop.md#ui) |
 | Theming mechanism, `dark:` usage | Commands, structure, coding style, testing, i18n, commit/PR → [`DEVELOP.md`](./develop.md) |
 | Component palette, variants, selection guidance → [`components.md`](./references/design-components.md) | Process model, message passing, service layers, internals → [`ARCHITECTURE.md`](./architecture.md) |
 | Layout shell, responsive patterns, **layering (z-index)**, motion, state patterns, **accessibility** → [`patterns.md`](./references/design-patterns.md); **elevation (shadows)** → [`tokens.md`](./references/design-tokens.md#elevation-shadows); page recipe (this doc) | — |
