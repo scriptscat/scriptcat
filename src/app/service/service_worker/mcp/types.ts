@@ -190,7 +190,8 @@ export interface BridgeError {
 }
 
 export type McpBridgeResponse<TResult = unknown> =
-  { requestId: string; ok: true; result: TResult } | { requestId: string; ok: false; error: BridgeError };
+  | { requestId: string; ok: true; result: TResult }
+  | { requestId: string; ok: false; error: BridgeError };
 
 // ---------------------------------------------------------------------------------------------
 // Shared result/input shapes
