@@ -123,7 +123,7 @@ describe("McpController", () => {
       v: 1,
       type: "bridge.request",
       requestId: "req-1",
-      payload: { requestId: "req-1", protocolVersion: 1, clientId: "c1", action: "scripts.list", input: {} },
+      payload: { protocolVersion: 1, clientId: "c1", action: "scripts.list", input: {} },
     });
     expect(bridgeHandle).not.toHaveBeenCalled();
   });
@@ -144,7 +144,7 @@ describe("McpController", () => {
       v: 1,
       type: "bridge.request",
       requestId: "req-1",
-      payload: { requestId: "req-1", protocolVersion: 1, clientId: "c1", action: "scripts.list", input: {} },
+      payload: { protocolVersion: 1, clientId: "c1", action: "scripts.list", input: {} },
     });
     await vi.waitFor(() => expect(bridgeHandle).toHaveBeenCalledTimes(1));
     await vi.waitFor(() => expect(connectClient.send).toHaveBeenCalledTimes(1));
@@ -154,6 +154,42 @@ describe("McpController", () => {
       requestId: "req-1",
       payload: { requestId: "r1", ok: true, result: {} },
     });
+  });
+
+  // PROTOCOL §4 的线格式：requestId 只在 envelope 层，payload 里没有这个字段。
+  // daemon 正是这么发的，扩展必须据此回填应答，否则应答的 requestId 为空、
+  // daemon 匹配不到挂起的调用，调用方一直等到超时。
+  it("bridge.request 的 payload 不含 requestId 时，仍用 envelope 的 requestId 回发应答", async () => {
+    const controller = makeController();
+    await controller.initialize();
+
+    fake.relayEnvelope({
+      v: 1,
+      type: "hello",
+      requestId: "h1",
+      payload: { daemonVersion: MIN_DAEMON_VERSION, protocolVersion: 1 },
+    });
+    expect(controller.getStatus()).toBe("connected");
+
+    fake.relayEnvelope({
+      v: 1,
+      type: "bridge.request",
+      requestId: "env-req-1",
+      payload: { protocolVersion: 1, clientId: "c1", action: "scripts.list", input: {} },
+    });
+
+    await vi.waitFor(() => expect(connectClient.send).toHaveBeenCalledTimes(1));
+    expect(connectClient.send.mock.calls[0][0]).toMatchObject({
+      type: "bridge.response",
+      requestId: "env-req-1",
+    });
+  });
+
+  it("bridge.cancel 的 requestId 取自 envelope 层（payload 为空对象）", async () => {
+    const controller = makeController();
+    await controller.initialize();
+    fake.relayEnvelope({ v: 1, type: "bridge.cancel", requestId: "env-req-2", payload: {} });
+    await vi.waitFor(() => expect(bridgeCancel).toHaveBeenCalledWith("env-req-2"));
   });
 
   it("bridge.handle 返回 null（挂起）时不回发任何 bridge.response", async () => {
@@ -170,7 +206,7 @@ describe("McpController", () => {
       v: 1,
       type: "bridge.request",
       requestId: "req-1",
-      payload: { requestId: "req-1", protocolVersion: 1, clientId: "c1", action: "scripts.install.request", input: {} },
+      payload: { protocolVersion: 1, clientId: "c1", action: "scripts.install.request", input: {} },
     });
     await vi.waitFor(() => expect(bridgeHandle).toHaveBeenCalledTimes(1));
     const responseSent = connectClient.send.mock.calls.some((call) => call[0].type === "bridge.response");
@@ -180,7 +216,7 @@ describe("McpController", () => {
   it("收到 bridge.cancel 时调用 bridge.cancel 作废对应请求，且不回发 bridge.response", async () => {
     const controller = makeController();
     await controller.initialize();
-    fake.relayEnvelope({ v: 1, type: "bridge.cancel", requestId: "x", payload: { requestId: "req-dead" } });
+    fake.relayEnvelope({ v: 1, type: "bridge.cancel", requestId: "req-dead", payload: {} });
     await vi.waitFor(() => expect(bridgeCancel).toHaveBeenCalledWith("req-dead"));
     const responseSent = connectClient.send.mock.calls.some((call) => call[0].type === "bridge.response");
     expect(responseSent).toBe(false);

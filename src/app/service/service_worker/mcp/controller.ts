@@ -10,7 +10,6 @@ import type { McpBridge } from "./bridge";
 import {
   MIN_DAEMON_VERSION,
   SCTL_CLI_CLIENT_ID,
-  type BridgeCancelPayload,
   type ClientSyncPayload,
   type HelloPayload,
   type McpBridgeRequest,
@@ -123,7 +122,12 @@ export class McpController {
       case "bridge.request":
         // A daemon below MIN_DAEMON_VERSION is never dispatched to — status alone communicates why.
         if (this.status !== "host_outdated") {
-          void this.dispatchBridgeRequest(envelope.payload as McpBridgeRequest);
+          // requestId 只存在于 envelope 层（PROTOCOL §4）；payload 不带它，应答必须用 envelope
+          // 的值回填，否则 daemon 匹配不到挂起的调用，调用方一直等到 TTL 超时。
+          void this.dispatchBridgeRequest({
+            ...(envelope.payload as McpBridgeRequest),
+            requestId: envelope.requestId,
+          });
         }
         break;
       case "pair.request":
@@ -135,7 +139,8 @@ export class McpController {
       case "bridge.cancel":
         // Requester died (timeout / Ctrl-C / WS session gone) — void the matching pending op and
         // invalidate its confirm page. Fire-and-forget: no bridge.response goes back for a cancel.
-        void this.bridge.cancel((envelope.payload as BridgeCancelPayload).requestId);
+        // 同 bridge.request：requestId 在 envelope 层，payload 是空对象（PROTOCOL §5）。
+        void this.bridge.cancel(envelope.requestId);
         break;
       default:
         // The bridge.shutdown reconnect path is handled elsewhere (the socket close drives

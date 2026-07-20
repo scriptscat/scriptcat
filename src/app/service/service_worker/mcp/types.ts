@@ -77,13 +77,6 @@ export interface HelloPayload {
   protocolVersion: typeof PROTOCOL_VERSION;
 }
 
-// daemon->ext: the requester behind `requestId` disconnected/timed out/Ctrl-C'd. The extension
-// voids the matching pending operation and invalidates its confirm page (design §5.1). Void, not
-// reject — no bridge.response is sent back for a cancel.
-export interface BridgeCancelPayload {
-  requestId: string;
-}
-
 // host->ext, a new shim asked to pair. `code` is the 8-char verification string the user
 // cross-checks against the shim's own terminal output.
 export interface PairRequestPayload {
@@ -176,6 +169,8 @@ export const OPERATION_STATUSES = ["awaiting_user", "approved", "rejected", "exp
 export type OperationStatus = (typeof OPERATION_STATUSES)[number];
 
 export interface McpBridgeRequest<TInput = unknown> {
+  // 线上 payload 不含此字段（PROTOCOL §4：requestId 属于 envelope 层）；由 McpController 从
+  // envelope 注入，供下游关联挂起操作与回发应答。
   requestId: string;
   protocolVersion: typeof PROTOCOL_VERSION;
   clientId: string;
