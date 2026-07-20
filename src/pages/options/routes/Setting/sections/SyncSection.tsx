@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { RefreshCw, TriangleAlert, CircleAlert, CircleCheckBig, ExternalLink } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { RefreshCw, TriangleAlert, CircleAlert, CircleCheckBig, ExternalLink, Loader2 } from "lucide-react";
 import { SettingCard } from "../../../components/SettingCard";
 import FileSystemParams from "../../../components/FileSystemParams";
+import { useSystemConfig } from "../../../hooks/useSystemConfig";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Button } from "@App/pages/components/ui/button";
 import { systemConfig } from "@App/pages/store/global";
@@ -28,18 +29,23 @@ const VARIANT_META: Record<SyncStatusVariant, { box: string; icon: string; Icon:
 
 export function SyncSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
-  const [draft, setDraft] = useState<CloudSyncConfig | undefined>(undefined);
-  // 状态条只反映已保存/实际生效的同步配置：勾选草稿(draft.enable)尚未保存时不应展示运行状态。
-  const [savedEnable, setSavedEnable] = useState(false);
+  const [config, setConfig] = useSystemConfig("cloud_sync");
   const [syncState, setSyncState] = useState<CloudSyncState>(DEFAULT_CLOUD_SYNC_STATE);
+  const [verification, setVerification] = useState<{ config: CloudSyncConfig } | null>(null);
+  const verificationRef = useRef<{ config: CloudSyncConfig } | null>(null);
 
   useEffect(() => {
-    void Promise.resolve(systemConfig.get("cloud_sync")).then((v) => {
-      const cfg = v as CloudSyncConfig;
-      setDraft(cfg);
-      setSavedEnable(cfg.enable);
-    });
+    return () => {
+      verificationRef.current = null;
+    };
   }, []);
+
+  // 外部配置更新在提交阶段立即淘汰旧校验，避免旧成功或失败结果覆盖/干扰更新后的用户意图。
+  useLayoutEffect(() => {
+    if (verificationRef.current?.config !== config) {
+      verificationRef.current = null;
+    }
+  }, [config]);
 
   // 读取并订阅设备本地同步状态（SW 每轮同步写入 chrome.storage）
   useEffect(() => {
@@ -47,23 +53,68 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
     return subscribeCloudSyncState(setSyncState);
   }, []);
 
-  const patch = (next: Partial<CloudSyncConfig>) => setDraft((d) => (d ? { ...d, ...next } : d));
+  const verifying = verification !== null && verification.config === config;
 
-  const save = async () => {
-    if (!draft) return;
-    // 启用同步时先校验账号连通性
-    if (draft.enable) {
-      notify.info(t("settings:cloud_sync_account_verification"));
-      try {
-        await FileSystemFactory.create(draft.filesystem, draft.params[draft.filesystem]);
-      } catch (e) {
-        notify.error(`${t("settings:cloud_sync_verification_failed")}: ${e instanceof Error ? e.message : String(e)}`);
+  const cancelVerification = () => {
+    if (verificationRef.current === null) return;
+    verificationRef.current = null;
+    setVerification(null);
+  };
+
+  const patch = (next: Partial<CloudSyncConfig>) => {
+    if (!config) return;
+    cancelVerification();
+    const updated = { ...config, ...next };
+    setConfig(updated);
+  };
+
+  const patchConnection = (next: Partial<Pick<CloudSyncConfig, "filesystem" | "params">>) => {
+    if (!config) return;
+    cancelVerification();
+    const shouldPause = config.enable;
+    const updated = { ...config, ...next, enable: shouldPause ? false : config.enable };
+    setConfig(updated);
+    if (shouldPause) {
+      notify.info(t("settings:cloud_sync_connection_changed"));
+    }
+  };
+
+  const toggleEnable = async (enable: boolean) => {
+    if (!config) return;
+
+    if (!enable) {
+      cancelVerification();
+      if (config.enable) patch({ enable: false });
+      return;
+    }
+
+    if (config.enable || verificationRef.current?.config === config) return;
+
+    const request = { config };
+    verificationRef.current = request;
+    setVerification(request);
+    notify.info(t("settings:cloud_sync_account_verification"));
+
+    try {
+      await FileSystemFactory.create(config.filesystem, config.params[config.filesystem]);
+      const savedConfig = await Promise.resolve(systemConfig.get("cloud_sync"));
+      if (verificationRef.current !== request) return;
+      if (savedConfig !== request.config) {
+        cancelVerification();
         return;
       }
+
+      verificationRef.current = null;
+      setVerification(null);
+      const updated = { ...savedConfig, enable: true };
+      setConfig(updated);
+      notify.success(t("save_success"));
+    } catch (e) {
+      if (verificationRef.current !== request) return;
+      verificationRef.current = null;
+      setVerification(null);
+      notify.error(`${t("settings:cloud_sync_verification_failed")}: ${e instanceof Error ? e.message : String(e)}`);
     }
-    systemConfig.set("cloud_sync", draft);
-    setSavedEnable(draft.enable);
-    notify.success(t("save_success"));
   };
 
   const syncNow = async () => {
@@ -107,9 +158,9 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
   return (
     <div data-tour="setting-sync">
       <SettingCard id="sync" title={t("settings:script_sync")} register={register}>
-        {draft && (
+        {config && (
           <div className="flex flex-col gap-4">
-            {savedEnable && (
+            {config.enable && (
               <div
                 data-testid="cloud_sync_status"
                 data-variant={variant}
@@ -138,7 +189,7 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
                 <Checkbox
                   data-testid="cloud_sync_sync_delete"
                   aria-label={t("settings:sync_delete")}
-                  checked={draft.syncDelete}
+                  checked={config.syncDelete}
                   onCheckedChange={(c) => patch({ syncDelete: c === true })}
                 />
                 {t("settings:sync_delete")}
@@ -148,7 +199,7 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
                 <Checkbox
                   data-testid="cloud_sync_sync_status"
                   aria-label={t("settings:sync_status")}
-                  checked={draft.syncStatus}
+                  checked={config.syncStatus}
                   onCheckedChange={(c) => patch({ syncStatus: c === true })}
                 />
                 {t("settings:sync_status")}
@@ -161,32 +212,43 @@ export function SyncSection({ register }: { register: (id: string) => (el: HTMLE
                   <Checkbox
                     data-testid="cloud_sync_enable"
                     aria-label={t("settings:enable_script_sync_to")}
-                    checked={draft.enable}
-                    onCheckedChange={(c) => patch({ enable: c === true })}
+                    aria-busy={verifying}
+                    checked={config.enable}
+                    disabled={verifying}
+                    onCheckedChange={(c) => {
+                      void toggleEnable(c === true);
+                    }}
                   />
+                  {verifying && (
+                    <span
+                      data-testid="cloud_sync_verifying"
+                      role="status"
+                      aria-label={t("settings:cloud_sync_account_verification")}
+                      className="inline-flex text-muted-foreground"
+                    >
+                      <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    </span>
+                  )}
                   {t("settings:enable_script_sync_to")}
                 </label>
               }
-              fileSystemType={draft.filesystem}
-              fileSystemParams={draft.params[draft.filesystem] || {}}
-              onChangeFileSystemType={(type) => patch({ filesystem: type })}
-              onChangeFileSystemParams={(params) => patch({ params: { ...draft.params, [draft.filesystem]: params } })}
+              fileSystemType={config.filesystem}
+              fileSystemParams={config.params[config.filesystem] || {}}
+              onChangeFileSystemType={(type) => patchConnection({ filesystem: type })}
+              onChangeFileSystemParams={(params) =>
+                patchConnection({ params: { ...config.params, [config.filesystem]: params } })
+              }
             >
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  data-testid="cloud_sync_now"
-                  disabled={!savedEnable}
-                  onClick={syncNow}
-                >
-                  <RefreshCw className="size-4" />
-                  {t("settings:sync_now")}
-                </Button>
-                <Button data-testid="cloud_sync_save" size="sm" onClick={save}>
-                  {t("save")}
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="cloud_sync_now"
+                disabled={!config.enable}
+                onClick={syncNow}
+              >
+                <RefreshCw className="size-4" />
+                {t("settings:sync_now")}
+              </Button>
             </FileSystemParams>
           </div>
         )}
