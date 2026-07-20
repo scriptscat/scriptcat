@@ -44,14 +44,14 @@ export function createMockOPFS() {
           if (opts?.create) {
             store.set("__dir__" + name, new Map());
           } else {
-            throw new Error("Not found");
+            throw new DOMException("Not found", "NotFoundError");
           }
         }
         return createMockDirHandle(store.get("__dir__" + name));
       }),
       getFileHandle: vi.fn(async (name: string, opts?: { create?: boolean }) => {
         if (!store.has(name) && !opts?.create) {
-          throw new Error("Not found");
+          throw new DOMException("Not found", "NotFoundError");
         }
         if (!store.has(name)) {
           store.set(name, "");
@@ -62,6 +62,15 @@ export function createMockOPFS() {
         store.delete(name);
         store.delete("__dir__" + name);
       }),
+      async *entries() {
+        for (const [name, value] of store) {
+          if (name.startsWith("__dir__")) {
+            yield [name.slice(7), createMockDirHandle(value)];
+          } else {
+            yield [name, createMockFileHandle(name, store)];
+          }
+        }
+      },
     };
   }
 

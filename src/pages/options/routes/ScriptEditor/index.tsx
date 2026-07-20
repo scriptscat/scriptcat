@@ -90,11 +90,17 @@ export default function ScriptEditor() {
 
   // saveScript 仍以 { kind } 形式回调，这里适配成通用确认框
   const askConfirm = useCallback(
-    ({ kind }: { kind: "name" | "edit" }) =>
+    ({ kind }: { kind: "name" | "edit" | "trash" }) =>
       confirm(
-        kind === "edit"
-          ? { title: t("editor:edit_conflict"), description: t("editor:confirm_override_when_edit_conflict") }
-          : { title: t("editor:scriptname_conflict"), description: t("editor:confirm_save_when_scriptname_conflict") }
+        kind === "trash"
+          ? {
+              title: t("editor:trash_restore_save_prompt_title"),
+              description: t("editor:trash_restore_save_prompt_description"),
+              confirmText: t("editor:trash_restore_save_prompt_confirm"),
+            }
+          : kind === "edit"
+            ? { title: t("editor:edit_conflict"), description: t("editor:confirm_override_when_edit_conflict") }
+            : { title: t("editor:scriptname_conflict"), description: t("editor:confirm_save_when_scriptname_conflict") }
       ),
     [confirm, t]
   );
@@ -142,16 +148,18 @@ export default function ScriptEditor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadingList, params.uuid]);
 
-  // 激活标签 → 同步 URL + 标题
+  const activeTab = useMemo(() => state.tabs.find((x) => x.uuid === state.activeUuid), [state.tabs, state.activeUuid]);
+  const activeTabScriptName = activeTab?.script && i18nName(activeTab.script);
+
+  // 激活标签或其脚本数据变化(如保存后改名) → 同步 URL + 标题
   useEffect(() => {
     if (!state.activeUuid) return;
     if (params.uuid !== state.activeUuid) {
       void navigate(`/script/editor/${state.activeUuid}`, { replace: true });
     }
-    const tab = state.tabs.find((x) => x.uuid === state.activeUuid);
-    if (tab) document.title = `${i18nName(tab.script)} - Script Editor`;
+    if (activeTabScriptName) document.title = `${activeTabScriptName} - Script Editor`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.activeUuid]);
+  }, [state.activeUuid, activeTabScriptName]);
 
   // 切换标签后把焦点恢复到对应编辑器(各标签实例常驻,仅丢失键盘焦点)
   useActiveEditorFocus(state.activeUuid, editorsRef);
@@ -169,7 +177,6 @@ export default function ScriptEditor() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [anyChanged]);
 
-  const activeTab = useMemo(() => state.tabs.find((x) => x.uuid === state.activeUuid), [state.tabs, state.activeUuid]);
   const subView = activeTab?.subView ?? "code";
   // 仅后台/定时脚本可运行；普通脚本隐藏「运行」入口（与脚本列表/弹窗一致）
   const canRun = !!activeTab && activeTab.script.type !== SCRIPT_TYPE_NORMAL;

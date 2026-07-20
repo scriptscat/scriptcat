@@ -66,8 +66,8 @@
   "confirm_reset": "Confirm reset?",
   "confirm_delete_match": "Confirm deletion of this match?",
   "confirm_delete_exclude": "Confirm deletion of this exclusion?",
-  "after_deleting_match_item": "Match rules defined by the script are added back to the match list after deletion",
-  "after_deleting_exclude_item": "Match rules defined by the script are added back to the exclude list after deletion",
+  "after_deleting_match_item": "After editing, your custom match rules are used; click Reset to restore the script's built-in match rules.",
+  "after_deleting_exclude_item": "After editing, your custom exclude rules are used; click Reset to restore the script's built-in exclude rules.",
   "undo": "Undo",
   "redo": "Redo",
   "cut": "Cut",
@@ -129,6 +129,9 @@
   "editor_config_format_error": "Editor Configuration Format Error",
   "editor_type_definition_reset": "Editor Type Definition Reset",
   "editor_type_definition_saved": "Editor Type Definition Saved",
+  "trash_restore_save_prompt_title": "Restore and save the script?",
+  "trash_restore_save_prompt_description": "A script with the same name and namespace is in Trash. Continuing will restore its identity and retained data, then save the current editor content as the script. Cancel to keep editing without saving.",
+  "trash_restore_save_prompt_confirm": "Restore and Save",
   "editor": {
     "show_script_list": "Show Script List",
     "hide_script_list": "Hide Script List"

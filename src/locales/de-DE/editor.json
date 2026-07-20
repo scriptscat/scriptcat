@@ -66,8 +66,8 @@
   "confirm_reset": "Zurücksetzen bestätigen?",
   "confirm_delete_match": "Diese Übereinstimmung löschen bestätigen?",
   "confirm_delete_exclude": "Diese Ausnahme löschen bestätigen?",
-  "after_deleting_match_item": "Nach dem Löschen werden die vom Skript definierten Übereinstimmungsregeln wieder zur Übereinstimmungsliste hinzugefügt",
-  "after_deleting_exclude_item": "Nach dem Löschen werden die vom Skript definierten Übereinstimmungsregeln wieder zur Ausnahmeliste hinzugefügt",
+  "after_deleting_match_item": "Nach dem Bearbeiten werden benutzerdefinierte Übereinstimmungsregeln verwendet; klicken Sie auf „Zurücksetzen“, um die vom Skript definierten Übereinstimmungsregeln wiederherzustellen.",
+  "after_deleting_exclude_item": "Nach dem Bearbeiten werden benutzerdefinierte Ausnahmeregeln verwendet; klicken Sie auf „Zurücksetzen“, um die vom Skript definierten Ausnahmeregeln wiederherzustellen.",
   "undo": "Rückgängig",
   "redo": "Wiederherstellen",
   "cut": "Ausschneiden",
@@ -129,6 +129,9 @@
   "editor_config_format_error": "Editor-Konfiguration Formatfehler",
   "editor_type_definition_reset": "Editor-Typdefinitionen wurden zurückgesetzt",
   "editor_type_definition_saved": "Editor-Typdefinitionen wurden gespeichert",
+  "trash_restore_save_prompt_title": "Skript wiederherstellen und speichern?",
+  "trash_restore_save_prompt_description": "Im Papierkorb befindet sich ein Skript mit demselben Namen und Namespace. Beim Fortfahren werden seine Identität und erhaltenen Daten wiederhergestellt und der aktuelle Editorinhalt als dieses Skript gespeichert. Abbrechen setzt die Bearbeitung ohne Speichern fort.",
+  "trash_restore_save_prompt_confirm": "Wiederherstellen und speichern",
   "editor": {
     "show_script_list": "Skriptliste anzeigen",
     "hide_script_list": "Skriptliste ausblenden"

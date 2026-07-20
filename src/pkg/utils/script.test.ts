@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { parseMetadata, parseScriptFromCode, fetchScriptBody } from "./script";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { parseMetadata, parseScriptFromCode, fetchScriptBody, prepareScriptByCode } from "./script";
 import { getMetadataStr, getUserConfigStr } from "./utils";
 import { parseUserConfig } from "./yaml";
 import {
@@ -7,8 +7,16 @@ import {
   SCRIPT_TYPE_CRONTAB,
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_STATUS_DISABLE,
+  SCRIPT_STATUS_ENABLE,
   SCRIPT_RUN_STATUS_COMPLETE,
+  ScriptDAO,
+  ScriptCodeDAO,
 } from "@App/app/repo/scripts";
+import type { Script } from "@App/app/repo/scripts";
+import { TrashScriptDAO, type TrashScript } from "@App/app/repo/trash_script";
+import { createMockOPFS } from "@App/app/repo/test-helpers";
+
+beforeEach(() => createMockOPFS());
 
 describe.concurrent("parseMetadata", () => {
   it.concurrent("解析标准UserScript元数据", () => {
@@ -1274,5 +1282,136 @@ describe("fetchScriptBody 流式下载与进度", () => {
     await fetchScriptBody("https://greasyfork.org/scripts/1.user.js");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][1]?.referrer).toBe("https://greasyfork.org/");
+  });
+});
+
+describe("prepareScriptByCode —— 回收站中的同名脚本", () => {
+  beforeEach(async () => {
+    await chrome.storage.local.clear();
+  });
+
+  const TRASHED_CODE =
+    "// ==UserScript==\n// @name 重装脚本\n// @namespace ns\n// @version 1.0.0\n// ==/UserScript==\n";
+  const NEW_CODE = "// ==UserScript==\n// @name 重装脚本\n// @namespace ns\n// @version 2.0.0\n// ==/UserScript==\n";
+
+  const seedTrashed = async (uuid: string) => {
+    await new TrashScriptDAO().save(
+      {
+        uuid,
+        name: "重装脚本",
+        namespace: "ns",
+        type: SCRIPT_TYPE_NORMAL,
+        status: SCRIPT_STATUS_ENABLE,
+        sort: 0,
+        runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+        createtime: Date.now(),
+        checktime: Date.now(),
+        metadata: { name: ["重装脚本"], namespace: ["ns"], version: ["1.0.0"] },
+        deleteTime: Date.now(),
+        deleteBy: "user",
+      } as TrashScript,
+      TRASHED_CODE
+    );
+  };
+
+  it("回收站中存在同 name+namespace 的脚本时应复用其 uuid 并标记 oldInTrash", async () => {
+    await seedTrashed("reuse-me");
+
+    const p = await prepareScriptByCode(NEW_CODE, "https://e.com/s.user.js");
+
+    expect(p.script.uuid).toBe("reuse-me");
+    expect(p.oldScript?.uuid).toBe("reuse-me");
+    expect(p.oldInTrash).toBe(true);
+  });
+
+  it("回收站里没有同名脚本时应是全新安装,不得标记 oldInTrash", async () => {
+    const p = await prepareScriptByCode(NEW_CODE, "https://e.com/s.user.js");
+
+    expect(p.oldScript).toBeUndefined();
+    expect(p.oldInTrash).toBeFalsy();
+  });
+
+  it("活跃表已有同名脚本时应优先命中活跃表,不得标记 oldInTrash", async () => {
+    await seedTrashed("trashed-one");
+    const aliveUuid = "alive-one";
+    await new ScriptDAO().save({
+      uuid: aliveUuid,
+      name: "重装脚本",
+      namespace: "ns",
+      type: SCRIPT_TYPE_NORMAL,
+      status: SCRIPT_STATUS_ENABLE,
+      sort: 0,
+      runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+      createtime: Date.now(),
+      checktime: Date.now(),
+      metadata: { name: ["重装脚本"], namespace: ["ns"], version: ["1.5.0"] },
+    } as Script);
+    await new ScriptCodeDAO().save({ uuid: aliveUuid, code: TRASHED_CODE });
+
+    const p = await prepareScriptByCode(NEW_CODE, "https://e.com/s.user.js");
+
+    expect(p.script.uuid).toBe(aliveUuid);
+    expect(p.oldInTrash).toBeFalsy();
+  });
+
+  // 这条才真正锁住「回收站查找必须在所有活跃表查找之后」。
+  // 场景：上游把脚本改了名 → 活跃表里那份仍是旧名，findByNameAndNamespace(新名) 落空，
+  // 只有 byWebRequest 的 searchExistingScript(按 origin 匹配 + 拉 meta 校验新名) 能认出它；
+  // 而回收站里恰好躺着一个同为新名的**另一个**脚本。
+  // 若回收站查找抢在 searchExistingScript 之前，就会误判成「还原回收站里那个」，
+  // 结果是复用错的 uuid、且活跃表那份仍在 → 同名两份。
+  it("上游改名时应优先命中活跃表而非回收站中的同名脚本", async () => {
+    const renamedCode =
+      "// ==UserScript==\n// @name 重装脚本\n// @namespace ns\n// @version 3.0.0\n// ==/UserScript==\n";
+    await new TrashScriptDAO().save(
+      {
+        uuid: "trash-same-name",
+        name: "重装脚本",
+        namespace: "ns",
+        type: SCRIPT_TYPE_NORMAL,
+        status: SCRIPT_STATUS_ENABLE,
+        sort: 0,
+        runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+        createtime: Date.now(),
+        checktime: Date.now(),
+        metadata: { name: ["重装脚本"], namespace: ["ns"], version: ["1.0.0"] },
+        deleteTime: Date.now(),
+        deleteBy: "user",
+      } as TrashScript,
+      renamedCode
+    );
+
+    // 活跃表里那份还是旧名，但 origin 与新代码一致
+    await new ScriptDAO().save({
+      uuid: "alive-renamed",
+      name: "旧名",
+      namespace: "ns",
+      origin: "https://e.com/s.user.js",
+      checkUpdateUrl: "https://e.com/s.meta.js",
+      type: SCRIPT_TYPE_NORMAL,
+      status: SCRIPT_STATUS_ENABLE,
+      sort: 0,
+      runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+      createtime: Date.now(),
+      checktime: Date.now(),
+      metadata: { name: ["旧名"], namespace: ["ns"], version: ["2.0.0"] },
+    } as Script);
+    await new ScriptCodeDAO().save({ uuid: "alive-renamed", code: renamedCode });
+
+    // meta.js 已是新名 → searchExistingScript 的校验会认下这条活跃脚本
+    globalThis.fetch = vi.fn(async () => ({
+      status: 200,
+      headers: new Map([["content-type", "application/javascript"]]),
+      body: null,
+      text: async () => renamedCode,
+      arrayBuffer: async () => new TextEncoder().encode(renamedCode).buffer,
+    })) as unknown as typeof fetch;
+
+    const p = await prepareScriptByCode(renamedCode, "https://e.com/s.user.js", undefined, false, undefined, {
+      byWebRequest: true,
+    });
+
+    expect(p.script.uuid).toBe("alive-renamed");
+    expect(p.oldInTrash).toBeFalsy();
   });
 });

@@ -159,6 +159,37 @@ describe("SettingsPane 运行设置", () => {
     // 运行环境与运行时机的默认值均显示本地化「默认」
     expect(screen.getAllByText(t("settings:script_setting.default")).length).toBe(2);
   });
+
+  // 打开 Radix Select（combobox 顺序：运行环境 / 运行时机）并选中给定文案的选项
+  const pickOption = async (comboIndex: number, optionText: string) => {
+    const trigger = screen.getAllByRole("combobox")[comboIndex];
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    await act(() => Promise.resolve());
+    fireEvent.click(screen.getAllByRole("option").find((o) => o.textContent === optionText)!);
+    await act(() => Promise.resolve());
+  };
+
+  it("选择非 early-start 的运行时机后下拉框不应回弹到 early-start", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("alpha");
+    await pickOption(1, "document-end");
+    // early-start 覆盖须以 undefined 撤销；若写入空数组会被当真值，runAt 计算回落 early-start
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "early-start", undefined);
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "run-at", ["document-end"]);
+    expect(screen.getAllByRole("combobox")[1]).toHaveTextContent("document-end");
+    expect(screen.getAllByRole("combobox")[1]).not.toHaveTextContent("early-start");
+  });
+
+  it("运行环境选「默认」应以 undefined 撤销覆盖而非写入空数组", async () => {
+    fetchScript.mockResolvedValue({
+      ...sampleScript(),
+      selfMetadata: { ...sampleScript().selfMetadata, "run-in": ["all"] },
+    });
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("alpha");
+    await pickOption(0, t("settings:script_setting.default"));
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "run-in", undefined);
+  });
 });
 
 describe("SettingsPane 更新URL", () => {
@@ -258,6 +289,47 @@ describe("SettingsPane 网站匹配/排除", () => {
     fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[0]);
     fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
     expect(resetMatch).toHaveBeenCalledWith("u1", undefined);
+  });
+
+  it("重置匹配后应恢复脚本自带规则而非清空列表", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://user.com/*");
+    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[0]);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    // 用户添加的 user.com 被清除，脚本自带的 script.com 应保留并标记为「脚本」
+    expect(screen.getByText("*://script.com/*")).toBeInTheDocument();
+    expect(screen.queryByText("*://user.com/*")).toBeNull();
+    expect(screen.getByText(t("editor:from_script"))).toBeInTheDocument();
+  });
+
+  it("重置排除后应恢复脚本自带规则而非清空列表", async () => {
+    fetchScript.mockResolvedValue({
+      ...sampleScript(),
+      metadata: { ...sampleScript().metadata, exclude: ["*://ads.script.com/*"] },
+      selfMetadata: { ...sampleScript().selfMetadata, exclude: ["*://ads.script.com/*", "*://exclude.com/*"] },
+    });
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://exclude.com/*");
+    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[1]);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    // 用户添加的 exclude.com 被清除，脚本自带的 ads.script.com 应保留
+    expect(screen.getByText("*://ads.script.com/*")).toBeInTheDocument();
+    expect(screen.queryByText("*://exclude.com/*")).toBeNull();
+  });
+
+  it("删除最后一项匹配应显式清空覆盖而非复活脚本自带规则", async () => {
+    fetchScript.mockResolvedValue({
+      ...sampleScript(),
+      selfMetadata: { exclude: ["*://exclude.com/*"] },
+    });
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://script.com/*");
+    fireEvent.click(screen.getByLabelText(`${t("delete")} *://script.com/*`));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    // 删除最后一项 = 用户显式清空；后端持久化空覆盖，脚本自带的 script.com 不应复活
+    expect(resetMatch).toHaveBeenCalledWith("u1", []);
+    expect(screen.queryByText("*://script.com/*")).toBeNull();
+    expect(screen.getByText(t("no_data"))).toBeInTheDocument();
   });
 });
 

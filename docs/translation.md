@@ -37,6 +37,8 @@
 | `de-DE` | Deutsch | [terminology-de-DE.md](./references/terminology-de-DE.md) |
 | `vi-VN` | Tiếng Việt | [terminology-vi-VN.md](./references/terminology-vi-VN.md) |
 | `tr-TR` | Türkçe | [terminology-tr-TR.md](./references/terminology-tr-TR.md) |
+| `pt-BR` | Português (Brasil) | [terminology-pt-BR.md](./references/terminology-pt-BR.md) |
+| `ko-KR` | 한국어 | [terminology-ko-KR.md](./references/terminology-ko-KR.md) |
 
 > `en-US` 是运行时的回退语言（fallback），也是新翻译的模板。其措辞应被刻意校准而非将含糊或不通顺的英文直接传播到其他 locale。
 
@@ -50,6 +52,15 @@
 - **关键字冲突**：同一页面中关键字相同但翻译不同时，使用 `page.key` 的方式区分。
 - 为满足部分扩展市场要求，`chrome.i18n` 语言文件位于 `src/assets/_locales`。
 - i18n 方案的实现细节见 [`src/locales/README.md`](../src/locales/README.md)。
+
+### 自动化检查的真实范围
+
+[`src/locales/i18n-usage.test.ts`](../src/locales/i18n-usage.test.ts) 会扫描 `src/pages` 与
+`src/app/service/service_worker` 目录下非测试文件中双引号字面量的 `t()` / `i18n.t()` 调用，并按 `zh-CN`
+resources 解析对应 key 是否存在；动态/插值 key、`defaultValue` 内联回退，以及无法识别的 namespace 会被跳过,
+不计入检查范围。它**只**证明代码引用的 key 在 `zh-CN` 中存在，**不能**证明其他 locale 的 key 是否完整、
+译文措辞是否准确、或术语是否符合对应 `terminology-<locale>.md`——这些仍需人工或专项核对，不要把“测试通过”当成
+“翻译已核对”的证据。
 
 ## 提取翻译提示词 / Extract-translation prompt
 
@@ -66,3 +77,19 @@
 3. 对需结合语境的术语，先核对实际功能、控件类型与上下文文案再决定用词。
 4. 保留 i18next 插值、程序标识符、HTML/React 标记、URL 与元数据标识符（`@match`、`@require` 等）。
 5. 完成后复查本次修改，确认符合对应术语规范，并检查命名一致性、名词/动词混用等问题。
+6. 运行 `pnpm run check:i18n`（或 `pnpm lint`，已内含此检查），确认没有遗漏或多余的翻译 key。
+
+## 机械检查：遗漏翻译 / Mechanical check: missing translations
+
+`scripts/check-i18n.mjs`（`pnpm run check:i18n`）在每次 `pnpm lint` / `pnpm lint:ci` 时自动运行，用于捕获人工审阅容易漏掉的问题：
+
+- `src/locales/locales.ts`：`src/locales/` 下的每一个 locale 目录都必须被 `import * as X from "./<locale>"` 并在 `resources` 中以自己的 locale code 展开注册；一个目录只存在于磁盘、没有接入 `locales.ts` 会导致检查失败。顶层 `NS` 数组也必须与 `en-US/` 下的命名空间文件集合完全一致，多一个或少一个都会报错。
+- `src/locales/<locale>/*.json` 中每个 key 是否与 `en-US`（模板 / fallback 语言）的 key 集合一一对应，缺失或多余的 key 都会报错。
+- `src/locales/<locale>/index.ts` 是否（以真实的 `export ... from "./<ns>.json"` 语句，而非文本匹配）导出了 `en-US` 拥有的全部命名空间。
+- `src/assets/_locales/<chrome-locale>/messages.json`（`chrome.i18n` 语言文件，见上文"翻译工作流"一节）是否与 `en/messages.json` 的 key 一致；**`src/locales/` 下的每一个 locale 都必须有对应的 `_locales` 目录**，缺失会导致检查失败。
+- `docs/references/terminology-<locale>.md` 是否存在：**`src/locales/` 下的每一个 locale 都必须有对应的术语规范文件**，缺失会导致检查失败——不允许新增或修改某个 locale 却不提交其 `terminology-<locale>.md`。
+- `src/pkg/utils/monaco-editor/langs/`（或历史上未拆分时的单文件 `langs.ts`）中 `editorLangs`（编辑器悬浮提示、脚本头字段提示等）的 key 是否与 `en-US` 一致；**`src/locales/` 下的每一个 locale 都必须有对应的 `editorLangs` 条目**，缺失或 key 集合不一致都会导致检查失败。
+
+这个脚本无法判断翻译措辞是否准确、是否符合术语规范——那部分仍需人工审阅并遵循本文件与对应的 `terminology-<locale>.md`；它只保证不会有 key、注册项或术语规范文件被整段遗漏。检查本身是 fail-closed 的：任何它无法静态解析的结构（`spread`、计算属性、`satisfies`、语法错误、循环引用等）都会报错，而不会被静默放行。
+
+提交时机上，`git commit` 触发的 `.husky/pre-commit` 校验的是 **Git 暂存区（`git add` 之后的内容）**，不是工作区当前文件——`pnpm lint` / `pnpm run check:i18n` 手动运行时校验的才是工作区文件。

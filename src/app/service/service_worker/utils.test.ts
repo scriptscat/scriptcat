@@ -201,14 +201,36 @@ describe.concurrent("selfMetadataUpdate", () => {
     expect(result).not.toBe(script);
   });
 
-  it.concurrent("应该删除空字段并处理空对象", () => {
+  it.concurrent("传入 undefined 应删除用户覆盖并处理空对象", () => {
+    const script = createMockScript({
+      exclude: ["https://admin.com/*"],
+    });
+
+    const result = selfMetadataUpdate(script, "exclude", undefined);
+
+    expect(result.selfMetadata).toBeUndefined();
+  });
+
+  it.concurrent("传入空集合应保存为空覆盖而非删除用户覆盖", () => {
     const script = createMockScript({
       exclude: ["https://admin.com/*"],
     });
 
     const result = selfMetadataUpdate(script, "exclude", new Set());
 
-    expect(result.selfMetadata).toBeUndefined();
+    // 空覆盖代表「用户显式清空」，与 undefined(撤销覆盖、回落脚本自带 metadata) 是两回事
+    expect(result.selfMetadata).toEqual({ exclude: [] });
+  });
+
+  it.concurrent("传入 undefined 应只删除指定 key，保留其他覆盖", () => {
+    const script = createMockScript({
+      exclude: ["https://admin.com/*"],
+      match: ["https://user.com/*"],
+    });
+
+    const result = selfMetadataUpdate(script, "exclude", undefined);
+
+    expect(result.selfMetadata).toEqual({ match: ["https://user.com/*"] });
   });
 
   it.concurrent("应该处理没有 selfMetadata 的脚本", () => {

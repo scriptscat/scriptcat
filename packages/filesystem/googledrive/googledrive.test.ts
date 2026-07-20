@@ -49,6 +49,119 @@ describe("GoogleDriveFileSystem", () => {
     await expect(fs.delete("missing.txt")).resolves.toBeUndefined();
   });
 
+  it("删除文件遇到 raw 429 响应时抛出 typed 限流错误", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "getFileId").mockResolvedValue("file-1");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 429,
+        text: JSON.stringify({
+          error: {
+            code: 429,
+            message: "Quota exceeded",
+            status: "RESOURCE_EXHAUSTED",
+          },
+        }),
+      })
+    );
+
+    await expect(fs.delete("limited.txt")).rejects.toMatchObject({
+      provider: "googledrive",
+      status: 429,
+      rateLimit: true,
+      retryable: true,
+    });
+  });
+
+  it("删除文件遇到 501 响应时不应标记为可重试", async () => {
+    // 501 Not Implemented 是永久失败，重试只会空转退避
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "getFileId").mockResolvedValue("file-1");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 501,
+        text: JSON.stringify({
+          error: {
+            code: 501,
+            message: "Not implemented",
+            status: "UNIMPLEMENTED",
+          },
+        }),
+      })
+    );
+
+    await expect(fs.delete("stub.txt")).rejects.toMatchObject({
+      provider: "googledrive",
+      status: 501,
+      retryable: false,
+    });
+  });
+
+  it("403 userRateLimitExceeded 应视为 typed 限流错误", async () => {
+    // Drive API 至今仍常以 403 + reason=rateLimitExceeded/userRateLimitExceeded 表达限流，
+    // 官方建议指数退避，不能归为永久失败
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "getFileId").mockResolvedValue("file-1");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 403,
+        text: JSON.stringify({
+          error: {
+            code: 403,
+            message: "User Rate Limit Exceeded",
+            errors: [{ domain: "usageLimits", reason: "userRateLimitExceeded" }],
+          },
+        }),
+      })
+    );
+
+    await expect(fs.delete("limited.txt")).rejects.toMatchObject({
+      provider: "googledrive",
+      status: 403,
+      rateLimit: true,
+      retryable: true,
+    });
+  });
+
+  it("读取文件遇到 raw 429 响应时抛出 typed 限流错误", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "getFileId").mockResolvedValue("file-1");
+    vi.spyOn(fs, "request").mockResolvedValue(
+      createMockResponse({
+        ok: false,
+        status: 429,
+        text: JSON.stringify({
+          error: {
+            code: 429,
+            message: "Quota exceeded",
+            status: "RESOURCE_EXHAUSTED",
+          },
+        }),
+      })
+    );
+    const reader = await fs.open({ name: "limited.txt", path: "/", size: 0, digest: "", createtime: 0, updatetime: 0 });
+
+    await expect(reader.read("string")).rejects.toMatchObject({
+      provider: "googledrive",
+      status: 429,
+      rateLimit: true,
+      retryable: true,
+    });
+  });
+
+  it("读取文件路径查找失败时应抛出 typed not found 错误", async () => {
+    const fs = new GoogleDriveFileSystem("/", "token");
+    vi.spyOn(fs, "getFileId").mockResolvedValue(null);
+    const requestSpy = vi.spyOn(fs, "request");
+    const reader = await fs.open({ name: "missing.txt", path: "/", size: 0, digest: "", createtime: 0, updatetime: 0 });
+
+    await expect(reader.read("string")).rejects.toSatisfy(isNotFoundError);
+    expect(requestSpy).not.toHaveBeenCalled();
+  });
+
   it("ensureDirExists should create missing nested directories and return final id", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
     const findSpy = vi.spyOn(fs, "findFolderByName").mockResolvedValue(null);
@@ -301,8 +414,9 @@ describe("GoogleDriveFileSystem", () => {
     }
   });
 
-  it.each([409, 412])("request should throw typed conflict error for status %s", async (status) => {
+  it("请求遇到 409 时应抛出 typed conflict 错误", async () => {
     const fs = new GoogleDriveFileSystem("/", "token");
+    const status = 409;
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValueOnce(
@@ -313,7 +427,7 @@ describe("GoogleDriveFileSystem", () => {
             error: {
               code: status,
               message: "Conflict",
-              status: status === 409 ? "ABORTED" : "FAILED_PRECONDITION",
+              status: "ABORTED",
             },
           }),
         })
