@@ -20,7 +20,6 @@ import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./ur
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { FaviconDAO } from "@App/app/repo/favicon";
 import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
-import { cacheInstance } from "@App/app/cache";
 import { InfoNotification, shouldAutoOpenChangelog } from "./utils";
 import { AgentService } from "@App/app/service/agent/service_worker/agent";
 import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_env";
@@ -258,8 +257,8 @@ export default class ServiceWorkerManager {
     });
 
     // 云同步
-    systemConfig.watch("cloud_sync", (value) => {
-      synchronize.cloudSyncConfigChange(value);
+    systemConfig.watch("cloud_sync", (value, previous) => {
+      synchronize.cloudSyncConfigChange(value, previous);
     });
 
     // 定期清理过期的临时安装信息
@@ -300,15 +299,6 @@ export default class ServiceWorkerManager {
           }
         });
       }
-    });
-
-    // 一些只需启动时运行一次的任务
-    cacheInstance.getOrSet("extension_initialized", () => {
-      // 启动一次云同步
-      systemConfig.getCloudSync().then((config) => {
-        synchronize.cloudSyncConfigChange(config);
-      });
-      return true;
     });
 
     if (process.env.NODE_ENV === "production") {

@@ -136,6 +136,36 @@ const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 const PENDING_SYNC_OPS_KEY = "pending_sync_ops";
 const LAST_NOTIFIED_CONFLICT_KEY = "last_notified_sync_conflicts";
 
+function isEquivalentConfigValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (left === null || right === null || typeof left !== "object" || typeof right !== "object") return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((value, index) => isEquivalentConfigValue(value, right[index]));
+  }
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord);
+  const rightKeys = Object.keys(rightRecord);
+  if (leftKeys.length !== rightKeys.length) return false;
+  return leftKeys.every(
+    (key) => Object.hasOwn(rightRecord, key) && isEquivalentConfigValue(leftRecord[key], rightRecord[key])
+  );
+}
+
+function isCloudSyncConnectionEquivalent(left: CloudSyncConfig, right: CloudSyncConfig): boolean {
+  return left.filesystem === right.filesystem && isEquivalentConfigValue(left.params, right.params);
+}
+
+function isCloudSyncConfigEquivalent(left: CloudSyncConfig, right: CloudSyncConfig): boolean {
+  return (
+    left.enable === right.enable &&
+    left.syncDelete === right.syncDelete &&
+    left.syncStatus === right.syncStatus &&
+    isCloudSyncConnectionEquivalent(left, right)
+  );
+}
+
 function getScriptModifiedDate(script: PushScriptParam): number {
   return script.updatetime || script.createtime || Date.now();
 }
@@ -146,6 +176,8 @@ export class SynchronizeService {
   scriptCodeDAO: ScriptCodeDAO;
 
   storage: ChromeStorage = new ChromeStorage("sync", false);
+
+  private lastCloudSyncConfig?: CloudSyncConfig;
 
   constructor(
     private msgSender: MessageSend,
@@ -1266,43 +1298,71 @@ export class SynchronizeService {
     }
   }
 
-  cloudSyncConfigChange(value: CloudSyncConfig) {
-    if (value.enable) {
-      // 开启云同步同步
-      this.buildFileSystem(value)
-        .then(async (fs) => {
-          await this.syncOnce(value, fs);
-          // 开启定时器, 一小时一次
-          chrome.alarms.get("cloudSync", (alarm) => {
+  private ensureCloudSyncAlarm() {
+    chrome.alarms.get("cloudSync", (alarm) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
+      }
+      if (!alarm) {
+        chrome.alarms.create(
+          "cloudSync",
+          {
+            periodInMinutes: 60,
+          },
+          () => {
             const lastError = chrome.runtime.lastError;
             if (lastError) {
-              console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
-              // 非预期的异常API错误，停止处理
+              console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
+              // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
+              console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
             }
-            if (!alarm) {
-              chrome.alarms.create(
-                "cloudSync",
-                {
-                  periodInMinutes: 60,
-                },
-                () => {
-                  const lastError = chrome.runtime.lastError;
-                  if (lastError) {
-                    console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
-                    // Starting in Chrome 117, the number of active alarms is limited to 500. Once this limit is reached, chrome.alarms.create() will fail.
-                    console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
-                  }
-                }
-              );
-            }
-          });
-        })
-        .catch((e) => {
-          this.logger.error("cloud sync config change error", Logger.E(e));
-        });
-    } else {
-      // 停止计时器
-      chrome.alarms.clear("cloudSync");
+          }
+        );
+      }
+    });
+  }
+
+  private clearCloudSyncAlarm() {
+    chrome.alarms.clear("cloudSync");
+  }
+
+  private startCloudSync(value: CloudSyncConfig) {
+    this.ensureCloudSyncAlarm();
+    this.buildFileSystem(value)
+      .then((fs) => this.syncOnce(value, fs))
+      .catch((e) => {
+        this.logger.error("cloud sync config change error", Logger.E(e));
+      });
+  }
+
+  cloudSyncConfigChange(value: CloudSyncConfig, previous?: CloudSyncConfig) {
+    const knownPrevious = this.lastCloudSyncConfig || previous;
+    this.lastCloudSyncConfig = value;
+    if (knownPrevious && isCloudSyncConfigEquivalent(value, knownPrevious)) return;
+
+    // 启动时首次处理配置：按当前值恢复运行状态，避免 SW 重启后漏掉同步或小时闹钟。
+    if (!knownPrevious) {
+      if (value.enable) {
+        this.startCloudSync(value);
+      } else {
+        this.clearCloudSyncAlarm();
+      }
+      return;
+    }
+
+    const connectionChanged = !isCloudSyncConnectionEquivalent(value, knownPrevious);
+    if (value.enable && connectionChanged) {
+      // 防御非设置页写入：连接变化不得在启用状态下生效，否则连续凭据写入会触发同步风暴。
+      this.clearCloudSyncAlarm();
+      this.systemConfig.setCloudSync({ ...value, enable: false });
+      return;
+    }
+
+    if (!knownPrevious.enable && value.enable) {
+      this.startCloudSync(value);
+    } else if (knownPrevious.enable && !value.enable) {
+      this.clearCloudSyncAlarm();
     }
   }
 

@@ -100,7 +100,7 @@ git ls-files eslint-rules/; git grep -l "require-last-error-check" -- eslint.con
 Link integrity — confirm every relative markdown link in the core docs resolves:
 
 ```bash
-for doc in AGENTS.md docs/README.md docs/DOC-MAINTENANCE.md docs/develop.md docs/references/develop-testing.md docs/design.md docs/references/design-tokens.md docs/references/design-components.md docs/references/design-patterns.md docs/architecture.md docs/references/architecture-services.md docs/references/architecture-data.md docs/references/architecture-gm-api.md docs/references/architecture-execution.md docs/references/architecture-build.md docs/verification.md docs/references/verification-debugging.md docs/references/verification-report-template.md docs/cloud-sync.md docs/translation.md; do
+for doc in AGENTS.md docs/README.md docs/DOC-MAINTENANCE.md docs/develop.md docs/references/develop-testing.md docs/pull-request.md docs/design.md docs/references/design-tokens.md docs/references/design-components.md docs/references/design-patterns.md docs/architecture.md docs/references/architecture-services.md docs/references/architecture-data.md docs/references/architecture-gm-api.md docs/references/architecture-execution.md docs/references/architecture-build.md docs/verification.md docs/references/verification-debugging.md docs/references/verification-report-template.md docs/cloud-sync.md docs/translation.md; do
   # the sed pipeline drops fenced code blocks and inline code spans first, so illustrative sample
   # links inside ```md snippets or `single-backtick` text (e.g. references/verification-report-template.md's
   # screenshot/resource examples, verification.md's "Evidence location" spans) aren't false-flagged as broken

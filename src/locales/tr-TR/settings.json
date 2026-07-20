@@ -131,6 +131,7 @@
   "favicon_service_local": "Yerel Getirme",
   "cloud_sync_account_verification": "Bulut eşitleme hesabı doğrulaması devam ediyor...",
   "cloud_sync_verification_failed": "Bulut eşitleme hesabı doğrulaması başarısız",
+  "cloud_sync_connection_changed": "Eşitleme bağlantısı yapılandırması değiştiği için eşitleme duraklatıldı. Yapılandırmayı kontrol edip eşitlemeyi yeniden etkinleştirin.",
   "trash_retention": "Çöp Kutusu Saklama Süresi",
   "trash_retention_desc": "Silinen betiklerin otomatik olarak kalıcı olarak silinmeden önce çöp kutusunda ne kadar süre saklanacağı",
   "trash_retention_7": "7 Gün",

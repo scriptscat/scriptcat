@@ -131,6 +131,7 @@
   "favicon_service_local": "本地取得",
   "cloud_sync_account_verification": "雲端同步帳號資訊驗證中...",
   "cloud_sync_verification_failed": "雲端同步帳號資訊驗證失敗",
+  "cloud_sync_connection_changed": "同步連線設定已變更，已暫停同步。請確認設定後重新啟用。",
   "trash_retention": "回收筒保留時間",
   "trash_retention_desc": "刪除的腳本在回收筒中保留多久後自動永久刪除",
   "trash_retention_7": "7天",
