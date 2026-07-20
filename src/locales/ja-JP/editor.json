@@ -129,8 +129,9 @@
   "editor_config_format_error": "エディタ設定のフォーマットエラー",
   "editor_type_definition_reset": "エディタ型定義がリセットされました",
   "editor_type_definition_saved": "エディタ型定義が保存されました",
-  "trash_restore_prompt_title": "削除したスクリプトを復元しますか？",
-  "trash_restore_prompt_description": "同じ名前と名前空間のスクリプトがゴミ箱にあります。復元すると元の識別情報と保持データを再利用します。キャンセルすると保存せずに編集を続けます。",
+  "trash_restore_save_prompt_title": "スクリプトを復元して保存しますか？",
+  "trash_restore_save_prompt_description": "同じ名前と名前空間のスクリプトがゴミ箱にあります。続行すると元の識別情報と保持データを復元し、現在のエディター内容をこのスクリプトとして保存します。キャンセルすると保存せずに編集を続けます。",
+  "trash_restore_save_prompt_confirm": "復元して保存",
   "editor": {
     "show_script_list": "スクリプトリストを表示",
     "hide_script_list": "スクリプトリストを非表示"
