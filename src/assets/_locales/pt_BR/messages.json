@@ -1,0 +1,14 @@
+{
+  "i18n": {
+    "message": "i18n"
+  },
+  "scriptcat": {
+    "message": "ScriptCat"
+  },
+  "scriptcat_beta": {
+    "message": "ScriptCat Beta"
+  },
+  "scriptcat_description": {
+    "message": "Um poderoso gerenciador de scripts de usuário que libera todo o potencial do seu navegador!"
+  }
+}

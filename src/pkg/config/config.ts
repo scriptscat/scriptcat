@@ -153,6 +153,7 @@ interface SystemConfigEntry {
   hasValue: boolean;
   value: unknown;
   version: number;
+  pendingWrite?: Promise<void>;
   store?: unknown;
 }
 
@@ -318,18 +319,25 @@ export class SystemConfig {
     const entry = this.cacheEntry(key);
     const prev = entry.value as SystemConfigValueType<T> | undefined;
     entry.version += 1;
+    const writeVersion = entry.version;
     const storage = this.getStorage(key);
-    let asyncOp;
+    const persist = () => (value === undefined ? storage.remove(key) : storage.set(key, value));
     if (value === undefined) {
-      entry.hasValue = false;
+      entry.hasValue = true;
       entry.value = undefined;
-      asyncOp = storage.remove(key);
     } else {
       entry.hasValue = true;
       entry.value = value;
-      asyncOp = storage.set(key, value);
     }
+    // 同一配置键可能在输入框逐字编辑时被高频写入。chrome.storage 的异步回调
+    // 不保证多次并发写入按调用顺序完成，旧写入后完成会把新值覆盖掉；按键串行化
+    // 持久化可确保最终落盘值与内存中的最新快照一致，不影响不同配置键并行保存。
+    const asyncOp = entry.pendingWrite ? entry.pendingWrite.then(persist, persist) : persist();
+    entry.pendingWrite = asyncOp;
     asyncOp.then(() => {
+      if (entry.pendingWrite === asyncOp) entry.pendingWrite = undefined;
+      // 后续写入已更新了内存快照时，不再广播这个中间值，避免旧通知把最新输入覆盖。
+      if (entry.version !== writeVersion) return;
       // 发送消息通知更新
       this.mq.publish<TKeyValue<T>>(SystemConfigChange, {
         key,

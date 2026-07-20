@@ -116,6 +116,7 @@
   "favicon_service_local": "Busca local",
   "cloud_sync_account_verification": "Verificação da conta de sincronização na nuvem em andamento...",
   "cloud_sync_verification_failed": "Falha na verificação da conta de sincronização na nuvem",
+  "cloud_sync_connection_changed": "A configuração da conexão de sincronização foi alterada, então a sincronização foi pausada. Revise a configuração e ative a sincronização novamente.",
   "trash_retention": "Período de retenção da lixeira",
   "trash_retention_desc": "Por quanto tempo os scripts excluídos permanecem na lixeira antes de serem excluídos permanentemente de forma automática",
   "trash_retention_7": "7 dias",
