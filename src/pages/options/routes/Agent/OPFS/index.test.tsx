@@ -83,6 +83,14 @@ describe("AgentOPFS 页面", () => {
     expect(screen.getByText("subdir")).toBeInTheDocument();
   });
 
+  it("系统目录浏览时只提供读取和下载，不提供修改操作", async () => {
+    render(<AgentOPFS />);
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
+    expect(screen.queryByTestId("opfs-upload")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("delete-file1.txt")).not.toBeInTheDocument();
+    expect(screen.getByTestId("opfs-read-only-notice")).toBeInTheDocument();
+  });
+
   it("点击目录进入并更新面包屑", async () => {
     render(<AgentOPFS />);
     expect(await screen.findByTestId("entry-subdir")).toBeInTheDocument();
@@ -109,8 +117,12 @@ describe("AgentOPFS 页面", () => {
   });
 
   it("选择文件后写入当前目录并刷新展示", async () => {
+    const workspace = dirHandle("workspace");
+    root = dirHandle("root", { agents: dirHandle("agents", { workspace }) });
+    (navigator.storage.getDirectory as any).mockResolvedValue(root);
     render(<AgentOPFS />);
-    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
+    fireEvent.click(await screen.findByTestId("entry-agents"));
+    fireEvent.click(await screen.findByTestId("entry-workspace"));
     const input = screen.getByTestId("opfs-upload-input") as HTMLInputElement;
     const file = new File(["uploaded-content"], "report.json", { type: "application/json" });
     fireEvent.change(input, { target: { files: [file] } });
@@ -123,8 +135,8 @@ describe("AgentOPFS 页面", () => {
     const closeGate = new Promise<void>((resolve) => {
       releaseClose = resolve;
     });
-    root = dirHandle("root", { "file1.txt": fileHandle("file1.txt", "hi") });
-    root.getFileHandle = async (n: string) => ({
+    const workspace = dirHandle("workspace", { "file1.txt": fileHandle("file1.txt", "hi") });
+    workspace.getFileHandle = async (n: string) => ({
       kind: "file",
       name: n,
       async createWritable() {
@@ -136,9 +148,12 @@ describe("AgentOPFS 页面", () => {
         };
       },
     });
+    root = dirHandle("root", { agents: dirHandle("agents", { workspace }) });
     (navigator.storage.getDirectory as any).mockResolvedValue(root);
 
     render(<AgentOPFS />);
+    fireEvent.click(await screen.findByTestId("entry-agents"));
+    fireEvent.click(await screen.findByTestId("entry-workspace"));
     expect(await screen.findByText("file1.txt")).toBeInTheDocument();
 
     const upload = screen.getByTestId("opfs-upload");
@@ -174,12 +189,9 @@ describe("AgentOPFS 页面", () => {
     mockedUseIsMobile.mockReturnValue(true);
     render(<AgentOPFS />);
     expect(await screen.findByText("file1.txt")).toBeInTheDocument();
-    const upload = screen.getByTestId("opfs-upload");
     const refresh = screen.getByTestId("opfs-refresh");
-    // 图标按钮:有可访问名,但没有可见文本节点
-    expect(upload).toHaveAccessibleName();
-    expect(upload.textContent).toBe("");
     expect(refresh.textContent).toBe("");
+    expect(screen.queryByTestId("opfs-upload")).not.toBeInTheDocument();
     // 页内标题存在(以 test-id 断言,不耦合译文)
     expect(screen.getByTestId("opfs-mobile-title")).toBeInTheDocument();
   });
@@ -191,15 +203,15 @@ describe("AgentOPFS 页面", () => {
     // AgentPageHeader 的副标题与带文案的桌面按钮均不应出现:说明 64px 页头未渲染
     expect(screen.queryByText("Origin Private File System · Agent 私有存储")).not.toBeInTheDocument();
     expect(screen.queryByTestId("opfs-refresh")?.textContent).not.toContain("刷新");
-    expect(screen.queryByTestId("opfs-upload")?.textContent).not.toContain("上传");
+    expect(screen.queryByTestId("opfs-upload")).not.toBeInTheDocument();
   });
 
-  it("桌面端渲染 64px 页头(含副标题与带文案的刷新/上传按钮)", async () => {
+  it("桌面端渲染 64px 页头并在系统目录隐藏上传按钮", async () => {
     mockedUseIsMobile.mockReturnValue(false);
     render(<AgentOPFS />);
     expect(await screen.findByText("file1.txt")).toBeInTheDocument();
     expect(screen.getByText("Origin Private File System · Agent 私有存储")).toBeInTheDocument();
     expect(screen.getByTestId("opfs-refresh")).toHaveTextContent("刷新");
-    expect(screen.getByTestId("opfs-upload")).toHaveTextContent("上传");
+    expect(screen.queryByTestId("opfs-upload")).not.toBeInTheDocument();
   });
 });
