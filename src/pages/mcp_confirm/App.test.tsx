@@ -90,6 +90,19 @@ describe("MCP 操作确认页", () => {
     );
   });
 
+  // 批准按钮的文案必须跟着操作类型走：禁用请求配「禁用」按钮，否则页面读作
+  // 「禁用该脚本？[启用]」，用户看不出自己在批准什么。
+  it("批准按钮文案随操作类型变化，禁用请求不再显示为启用", async () => {
+    getOperation.mockResolvedValue(baseOp({ kind: "disable" }));
+    render(<McpConfirmView operationId="op-1" />);
+    expect(await screen.findByTestId("mcp-confirm-approve")).toHaveTextContent("禁用");
+
+    cleanup();
+    getOperation.mockResolvedValue(baseOp({ kind: "enable" }));
+    render(<McpConfirmView operationId="op-1" />);
+    expect(await screen.findByTestId("mcp-confirm-approve")).toHaveTextContent("启用");
+  });
+
   it("点击拒绝调用 decideOperation({approved:false}) 并关闭窗口", async () => {
     getOperation.mockResolvedValue(baseOp({ kind: "enable" }));
     render(<McpConfirmView operationId="op-1" />);

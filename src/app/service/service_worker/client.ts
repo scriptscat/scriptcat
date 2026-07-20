@@ -521,6 +521,10 @@ export class MCPClient extends Client {
     return this.do("setWriteSession", active);
   }
 
+  getWriteSession(): ReturnType<McpUIService["getWriteSession"]> {
+    return this.doThrow("writeSession");
+  }
+
   getClients(): ReturnType<McpUIService["getClients"]> {
     return this.doThrow("clients");
   }

@@ -10,6 +10,7 @@ import type { PendingPairing } from "./controller";
 export interface McpControllerFacade {
   getStatus(): McpBridgeStatus;
   setWriteSessionActive(active: boolean): void;
+  readWriteSessionActive(): Promise<boolean>;
   stop(): void;
   pair(code: string): void;
   notifyClientRevoked(clientId: string): void;
@@ -36,6 +37,7 @@ export class McpUIService {
   init(): void {
     this.group.on("status", this.getStatus.bind(this));
     this.group.on("setWriteSession", this.setWriteSession.bind(this));
+    this.group.on("writeSession", this.getWriteSession.bind(this));
     this.group.on("clients", this.getClients.bind(this));
     this.group.on("revokeClient", this.revokeClient.bind(this));
     this.group.on("revokeAllAndStop", this.revokeAllAndStop.bind(this));
@@ -70,6 +72,12 @@ export class McpUIService {
 
   setWriteSession(active: boolean): void {
     this.controller.setWriteSessionActive(active);
+  }
+
+  // 权威来源是 chrome.storage.session，而不是页面自己的 useState——SW 重启或多个设置页同时开着
+  // 时，内存值可能已经不作数了。
+  getWriteSession(): Promise<boolean> {
+    return this.controller.readWriteSessionActive();
   }
 
   getClients(): Promise<McpClient[]> {

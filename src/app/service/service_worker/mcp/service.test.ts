@@ -34,6 +34,7 @@ describe("McpUIService", () => {
   let controller: {
     getStatus: ReturnType<typeof vi.fn>;
     setWriteSessionActive: ReturnType<typeof vi.fn>;
+    readWriteSessionActive: ReturnType<typeof vi.fn>;
     stop: ReturnType<typeof vi.fn>;
     pair: ReturnType<typeof vi.fn>;
     notifyClientRevoked: ReturnType<typeof vi.fn>;
@@ -63,6 +64,7 @@ describe("McpUIService", () => {
     controller = {
       getStatus: vi.fn().mockReturnValue("connected"),
       setWriteSessionActive: vi.fn(),
+      readWriteSessionActive: vi.fn().mockResolvedValue(true),
       stop: vi.fn(),
       pair: vi.fn(),
       notifyClientRevoked: vi.fn(),
@@ -76,6 +78,13 @@ describe("McpUIService", () => {
 
   it("getStatus 返回 controller 的当前状态", () => {
     expect(service.getStatus()).toBe("connected");
+  });
+
+  // 页面挂载时必须能读回写会话的真实状态：只写不读会让刷新后的开关显示为关，
+  // 而实际写权限仍然开着——用户会据此以为自己已经关掉了授权。
+  it("getWriteSession 返回 controller 侧持久化的写会话状态", async () => {
+    expect(await service.getWriteSession()).toBe(true);
+    expect(controller.readWriteSessionActive).toHaveBeenCalled();
   });
 
   it("setWriteSession 转发给 controller", () => {
@@ -165,6 +174,7 @@ describe("McpUIService", () => {
       [
         "status",
         "setWriteSession",
+        "writeSession",
         "clients",
         "revokeClient",
         "revokeAllAndStop",

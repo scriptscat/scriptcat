@@ -58,6 +58,7 @@ function getMcpClient(): MCPClient {
 
 type McpState = {
   status: McpBridgeStatus;
+  writeSession: boolean;
   clients: McpClient[];
   audit: McpAuditEvent[];
   pending: PendingOperationSummary[];
@@ -65,13 +66,14 @@ type McpState = {
 
 async function fetchMcpState(): Promise<McpState> {
   const mcpClient = getMcpClient();
-  const [status, clients, audit, pending] = await Promise.all([
+  const [status, writeSession, clients, audit, pending] = await Promise.all([
     mcpClient.getBridgeStatus().catch(() => "disabled" as McpBridgeStatus),
+    mcpClient.getWriteSession().catch(() => false),
     mcpClient.getClients().catch(() => []),
     mcpClient.getAudit().catch(() => []),
     mcpClient.getPendingOperations().catch(() => []),
   ]);
-  return { status, clients: clients ?? [], audit: audit ?? [], pending: pending ?? [] };
+  return { status, writeSession: !!writeSession, clients: clients ?? [], audit: audit ?? [], pending: pending ?? [] };
 }
 
 function StatusPill({ status, t }: { status: McpBridgeStatus; t: (key: string) => string }) {
@@ -107,6 +109,7 @@ export function McpSection({ register }: { register: (id: string) => (el: HTMLEl
 
   const applyMcpState = (data: McpState) => {
     setStatus(data.status);
+    setWriteSessionState(data.writeSession);
     setClients(data.clients);
     setAuditEvents(data.audit);
     setPendingOps(data.pending);

@@ -9,6 +9,7 @@ const {
   reopenOperation,
   pair,
   setWriteSession,
+  getWriteSession,
   revokeClient,
   revokeAllAndStop,
   clearAudit,
@@ -20,6 +21,7 @@ const {
   reopenOperation: vi.fn(() => Promise.resolve()),
   pair: vi.fn(() => Promise.resolve()),
   setWriteSession: vi.fn(() => Promise.resolve()),
+  getWriteSession: vi.fn(() => Promise.resolve(false)),
   revokeClient: vi.fn(() => Promise.resolve()),
   revokeAllAndStop: vi.fn(() => Promise.resolve()),
   clearAudit: vi.fn(() => Promise.resolve()),
@@ -33,6 +35,7 @@ vi.mock("@App/app/service/service_worker/client", () => ({
     reopenOperation = reopenOperation;
     pair = pair;
     setWriteSession = setWriteSession;
+    getWriteSession = getWriteSession;
     revokeClient = revokeClient;
     revokeAllAndStop = revokeAllAndStop;
     clearAudit = clearAudit;
@@ -111,6 +114,8 @@ afterEach(() => {
   reopenOperation.mockClear();
   pair.mockClear();
   setWriteSession.mockClear();
+  getWriteSession.mockReset();
+  getWriteSession.mockResolvedValue(false);
   revokeClient.mockClear();
   revokeAllAndStop.mockClear();
   clearAudit.mockClear();
@@ -265,6 +270,14 @@ describe("MCP 桥接分区", () => {
     fireEvent.click(await screen.findByRole("button", { name: /confirm/i }));
     await waitFor(() => expect(revokeAllAndStop).toHaveBeenCalled());
     expect(set).toHaveBeenCalledWith("mcp_enabled", false);
+  });
+
+  // 写会话只写不读会让刷新后的开关显示为关、实际写权限还开着——用户会以为自己已经关掉了授权。
+  it("挂载时把 SW 侧的写会话状态同步到开关，而不是一律显示为关", async () => {
+    get.mockResolvedValue(true);
+    getWriteSession.mockResolvedValue(true);
+    render(<McpSection register={() => () => {}} />);
+    await waitFor(() => expect(screen.getByTestId("mcp_write_switch")).toBeChecked());
   });
 
   it("订阅 mcpStatusChanged 广播，配对成功后状态胶囊无需刷新页面即更新", async () => {

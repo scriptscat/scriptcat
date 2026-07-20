@@ -36,6 +36,8 @@
   "enable_by_default_off_note": "新しいスクリプトは、下で有効にしない限り無効の状態でインストールされます。",
   "confirm_enable_title": "スクリプトを有効にしますか？",
   "confirm_disable_title": "スクリプトを無効にしますか？",
+  "confirm_enable_action": "有効にする",
+  "confirm_disable_action": "無効にする",
   "confirm_delete_title": "スクリプトを削除しますか？",
   "confirm_delete_impact": "これにより、保存されている {{count}} 件の値も削除されます。",
   "confirm_delete_hold": "長押しして確認",

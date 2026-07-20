@@ -36,6 +36,8 @@
   "enable_by_default_off_note": "Aşağıdan etkinleştirmediğiniz sürece yeni betikler devre dışı yüklenir.",
   "confirm_enable_title": "Betik etkinleştirilsin mi?",
   "confirm_disable_title": "Betik devre dışı bırakılsın mı?",
+  "confirm_enable_action": "Etkinleştir",
+  "confirm_disable_action": "Devre Dışı Bırak",
   "confirm_delete_title": "Betik silinsin mi?",
   "confirm_delete_impact": "Bu işlem, saklanan {{count}} değeri de siler.",
   "confirm_delete_hold": "Onaylamak için basılı tutun",

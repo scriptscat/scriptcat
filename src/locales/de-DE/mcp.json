@@ -36,6 +36,8 @@
   "enable_by_default_off_note": "Neue Skripte werden deaktiviert installiert, sofern Sie sie unten nicht aktivieren.",
   "confirm_enable_title": "Skript aktivieren?",
   "confirm_disable_title": "Skript deaktivieren?",
+  "confirm_enable_action": "Aktivieren",
+  "confirm_disable_action": "Deaktivieren",
   "confirm_delete_title": "Skript löschen?",
   "confirm_delete_impact": "Dabei werden auch {{count}} gespeicherte Werte gelöscht.",
   "confirm_delete_hold": "Zum Bestätigen gedrückt halten",

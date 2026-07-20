@@ -233,7 +233,7 @@ export function McpConfirmView({ operationId }: { operationId: string }) {
                 className="flex-1 font-semibold"
                 onClick={() => void decide(true, { enable: kind === "enable" })}
               >
-                {t("mcp:enable_confirm")}
+                {kind === "enable" ? t("mcp:confirm_enable_action") : t("mcp:confirm_disable_action")}
               </Button>
               <Button
                 variant="secondary"

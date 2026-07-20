@@ -36,6 +36,8 @@
   "enable_by_default_off_note": "新腳本預設以停用狀態安裝，除非您在下方啟用它。",
   "confirm_enable_title": "啟用該腳本？",
   "confirm_disable_title": "停用該腳本？",
+  "confirm_enable_action": "啟用",
+  "confirm_disable_action": "停用",
   "confirm_delete_title": "刪除該腳本？",
   "confirm_delete_impact": "同時會刪除 {{count}} 項已儲存的資料。",
   "confirm_delete_hold": "按住以確認",

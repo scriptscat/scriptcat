@@ -36,6 +36,8 @@
   "enable_by_default_off_note": "새 스크립트는 아래에서 직접 활성화하지 않는 한 비활성화 상태로 설치됩니다.",
   "confirm_enable_title": "스크립트를 활성화하시겠습니까?",
   "confirm_disable_title": "스크립트를 비활성화하시겠습니까?",
+  "confirm_enable_action": "활성화",
+  "confirm_disable_action": "비활성화",
   "confirm_delete_title": "스크립트를 삭제하시겠습니까?",
   "confirm_delete_impact": "저장된 값 {{count}}개도 함께 삭제됩니다.",
   "confirm_delete_hold": "길게 눌러 확인",

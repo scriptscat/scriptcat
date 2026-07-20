@@ -36,6 +36,8 @@
   "enable_by_default_off_note": "Novos scripts são instalados desativados, a menos que você os ative abaixo.",
   "confirm_enable_title": "Ativar o script?",
   "confirm_disable_title": "Desativar o script?",
+  "confirm_enable_action": "Ativar",
+  "confirm_disable_action": "Desativar",
   "confirm_delete_title": "Excluir o script?",
   "confirm_delete_impact": "Isso também exclui {{count}} valor(es) armazenado(s).",
   "confirm_delete_hold": "Pressione e segure para confirmar",

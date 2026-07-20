@@ -36,6 +36,8 @@
   "enable_by_default_off_note": "Các script mới được cài đặt ở trạng thái tắt trừ khi bạn bật chúng bên dưới.",
   "confirm_enable_title": "Bật script?",
   "confirm_disable_title": "Tắt script?",
+  "confirm_enable_action": "Bật",
+  "confirm_disable_action": "Tắt",
   "confirm_delete_title": "Xóa script?",
   "confirm_delete_impact": "Thao tác này cũng xóa {{count}} giá trị đã lưu.",
   "confirm_delete_hold": "Nhấn và giữ để xác nhận",

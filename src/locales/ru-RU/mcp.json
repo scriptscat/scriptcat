@@ -36,6 +36,8 @@
   "enable_by_default_off_note": "Новые скрипты устанавливаются отключёнными, пока вы не включите их ниже.",
   "confirm_enable_title": "Включить скрипт?",
   "confirm_disable_title": "Отключить скрипт?",
+  "confirm_enable_action": "Включить",
+  "confirm_disable_action": "Отключить",
   "confirm_delete_title": "Удалить скрипт?",
   "confirm_delete_impact": "Также будет удалено сохранённых значений: {{count}}.",
   "confirm_delete_hold": "Нажмите и удерживайте для подтверждения",

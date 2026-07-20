@@ -36,6 +36,8 @@
   "enable_by_default_off_note": "新脚本默认以禁用状态安装，除非你在下方启用它。",
   "confirm_enable_title": "启用该脚本？",
   "confirm_disable_title": "禁用该脚本？",
+  "confirm_enable_action": "启用",
+  "confirm_disable_action": "禁用",
   "confirm_delete_title": "删除该脚本？",
   "confirm_delete_impact": "同时会删除 {{count}} 项已存储的数据。",
   "confirm_delete_hold": "按住以确认",

@@ -36,6 +36,8 @@
   "enable_by_default_off_note": "New scripts install disabled unless you enable them below.",
   "confirm_enable_title": "Enable script?",
   "confirm_disable_title": "Disable script?",
+  "confirm_enable_action": "Enable",
+  "confirm_disable_action": "Disable",
   "confirm_delete_title": "Delete script?",
   "confirm_delete_impact": "This also deletes {{count}} stored value(s).",
   "confirm_delete_hold": "Press and hold to confirm",
