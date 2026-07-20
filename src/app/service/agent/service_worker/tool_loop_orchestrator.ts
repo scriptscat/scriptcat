@@ -819,6 +819,7 @@ export class ToolLoopOrchestrator {
       // 刷新后又消失。这里有限重试几次，仍失败则改报结构化错误而不是假装成功。
       const durationMs = Date.now() - startTime;
       let persistFailed = false;
+      let persistenceIndeterminate = false;
       if (conversationId) {
         const assistantMessage = {
           id: uuidv4(),
@@ -853,11 +854,12 @@ export class ToolLoopOrchestrator {
         // 只是确认读恰好也持续失败。删除生成的图片附件之前必须 positively 证实消息确实不在
         // 存储里，否则会删掉仍被这条消息引用的文件
         if (persistFailed) {
-          const committed = await this.chatRepo
-            .getMessageSnapshot(conversationId, conversationGeneration)
-            .then((snapshot) => snapshot.messages.some((message) => message.id === assistantMessage.id))
-            .catch(() => false);
-          if (committed) persistFailed = false;
+          try {
+            const snapshot = await this.chatRepo.getMessageSnapshot(conversationId, conversationGeneration);
+            if (snapshot.messages.some((message) => message.id === assistantMessage.id)) persistFailed = false;
+          } catch {
+            persistenceIndeterminate = true;
+          }
         }
       }
 
@@ -865,7 +867,7 @@ export class ToolLoopOrchestrator {
       // 不能在 Stop 之后仍对外报告 done（否则后台会话状态会被"成功"覆盖掉 cancelled）
       if (signal.aborted) {
         // 引用消息未落库（ephemeral 或 persist 失败）时，生成附件没有持久化引用，必须回收
-        if (!conversationId || persistFailed) {
+        if (!conversationId || (persistFailed && !persistenceIndeterminate)) {
           await this.releaseGeneratedAttachments(result);
         }
         await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
@@ -873,8 +875,8 @@ export class ToolLoopOrchestrator {
       }
 
       if (persistFailed) {
-        // 回复消息没有落库成功，生成附件不会有任何持久化引用，回收后再报告失败
-        await this.releaseGeneratedAttachments(result);
+        // 只有确认读证实消息未落盘时才能回收；确认读失败属于不确定态，附件可能已被消息引用。
+        if (!persistenceIndeterminate) await this.releaseGeneratedAttachments(result);
         sendEvent({
           type: "error",
           message: "Reply was generated but failed to save. It may be lost after reloading.",

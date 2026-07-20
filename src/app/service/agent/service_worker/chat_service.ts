@@ -1223,10 +1223,15 @@ export class ChatService {
         // 若在这里把二义性错误当作"未持久化"直接向上抛，外层会删除刚刚可能已经被这条
         // 持久化消息引用的临时附件，导致消息引用悬空文件。因此必须先明确
         // 确认这条消息是否已经真正写入，只有确认"确实未写入"才允许向上传播失败。
-        const committed = await this.chatRepo
-          .getMessageSnapshot(params.conversationId, conv.generation)
-          .then((snapshot) => snapshot.messages.some((message) => message.id === userMessageId))
-          .catch(() => false);
+        let committed: boolean;
+        try {
+          const snapshot = await this.chatRepo.getMessageSnapshot(params.conversationId, conv.generation);
+          committed = snapshot.messages.some((message) => message.id === userMessageId);
+        } catch {
+          // 无法确认是否落盘时，附件可能已经被消息引用；先阻止外层把它当作临时文件删除。
+          ctx.onUserMessagePersisted?.();
+          throw error;
+        }
         if (!committed) throw error;
       }
       ctx.onUserMessagePersisted?.();

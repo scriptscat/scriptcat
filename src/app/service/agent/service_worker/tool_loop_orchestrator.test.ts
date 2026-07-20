@@ -236,6 +236,20 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     }
   );
 
+  it("最终回复持久化报错且确认读也失败时，不应删除可能已被消息引用的生成附件", { timeout: 3000 }, async () => {
+    chatRepo.appendMessage.mockRejectedValue(new Error("ambiguous close failure"));
+    chatRepo.getMessageSnapshot.mockRejectedValue(new Error("confirmation read failed"));
+    callLLM.mockResolvedValue({
+      content: "回复",
+      contentBlocks: [{ type: "image", attachmentId: "img_maybe_committed.png", mimeType: "image/png" }],
+      usage: { inputTokens: 3, outputTokens: 2 },
+    } as LLMCallResult);
+
+    await orchestrator.callLLMWithToolLoop(baseParams());
+
+    expect(chatRepo.deleteAttachment).not.toHaveBeenCalledWith("img_maybe_committed.png");
+  });
+
   it("工具结果持久化期间被取消时应立即终态化，而不是带着已取消的信号进入下一轮", async () => {
     const controller = new AbortController();
     callLLM.mockResolvedValueOnce(dupToolCallResult("c1"));

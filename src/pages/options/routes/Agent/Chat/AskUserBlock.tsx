@@ -62,6 +62,14 @@ export default function AskUserBlock({
 
   const displayAnswer = (() => {
     if (!answer) return "";
+    if (selectedOptions.length > 0) {
+      return selectedOptions
+        .map((value) => {
+          const index = optionValues?.indexOf(value) ?? -1;
+          return index >= 0 ? options?.[index] || value : value;
+        })
+        .join(", ");
+    }
     if (multiple) {
       try {
         const arr = JSON.parse(answer);

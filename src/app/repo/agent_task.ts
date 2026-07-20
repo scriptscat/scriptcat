@@ -14,6 +14,13 @@ function normalizeTask(task: AgentTask): AgentTask {
   };
 }
 
+function withTaskLock<T>(id: string, fn: () => Promise<T>): Promise<T> {
+  const key = `agent-task:${id}`;
+  const locks = (globalThis as { navigator?: { locks?: LockManager } }).navigator?.locks;
+  if (locks?.request) return locks.request(key, { mode: "exclusive" }, fn) as Promise<T>;
+  return stackAsyncTask(key, fn);
+}
+
 export class AgentTaskRepo extends Repo<AgentTask> {
   constructor() {
     super("agent_task:");
@@ -29,7 +36,7 @@ export class AgentTaskRepo extends Repo<AgentTask> {
   }
 
   async createTask(task: AgentTask): Promise<AgentTask> {
-    return stackAsyncTask(`agent-task:${task.id}`, async () => {
+    return withTaskLock(task.id, async () => {
       if (await this.getTask(task.id)) throw new RevisionConflictError(`Task "${task.id}" already exists`);
       const created = normalizeTask({ ...task, generation: uuidv4(), revision: 1 });
       await this._save(created.id, created);
@@ -39,7 +46,7 @@ export class AgentTaskRepo extends Repo<AgentTask> {
   }
 
   async saveTask(task: AgentTask): Promise<AgentTask> {
-    return stackAsyncTask(`agent-task:${task.id}`, async () => {
+    return withTaskLock(task.id, async () => {
       const current = await this.getTask(task.id);
       if (!current) {
         // Backward-compatible import path for legacy unversioned records. Versioned stale writes never create.
@@ -63,7 +70,7 @@ export class AgentTaskRepo extends Repo<AgentTask> {
 
   /** Restore a task from backup while keeping generations local to this installation. */
   async importTask(task: AgentTask): Promise<AgentTask> {
-    return stackAsyncTask(`agent-task:${task.id}`, async () => {
+    return withTaskLock(task.id, async () => {
       const current = await this.getTask(task.id);
       const imported = normalizeTask({
         ...task,
@@ -81,7 +88,7 @@ export class AgentTaskRepo extends Repo<AgentTask> {
     state: Pick<AgentTask, "lastruntime" | "lastRunStatus" | "lastRunError">,
     advanceSchedule = false
   ): Promise<AgentTask> {
-    return stackAsyncTask(`agent-task:${id}`, async () => {
+    return withTaskLock(id, async () => {
       const current = await this.getTask(id);
       if (!current || current.generation !== generation) {
         throw new RevisionConflictError(`Task "${id}" changed or was deleted`);
@@ -99,7 +106,7 @@ export class AgentTaskRepo extends Repo<AgentTask> {
   }
 
   async claimDueTask(id: string, generation: string, now: number): Promise<AgentTask | null> {
-    return stackAsyncTask(`agent-task:${id}`, async () => {
+    return withTaskLock(id, async () => {
       const current = await this.getTask(id);
       if (
         !current ||
@@ -122,7 +129,7 @@ export class AgentTaskRepo extends Repo<AgentTask> {
   }
 
   async removeTask(id: string, generation?: string, expectedRevision?: number): Promise<void> {
-    await stackAsyncTask(`agent-task:${id}`, async () => {
+    await withTaskLock(id, async () => {
       const current = await this.getTask(id);
       const runRepo = new AgentTaskRunRepo();
       if (!current) {

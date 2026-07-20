@@ -499,6 +499,35 @@ describe("handleConversationChat 场景补充", () => {
     expect(mockRepo.deleteAttachment).not.toHaveBeenCalledWith("upload.png");
   });
 
+  it("用户消息 append 报错且确认读也失败时，不应删除可能已被消息引用的附件", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender } = createMockSender();
+    mockRepo.listConversations.mockResolvedValue([
+      {
+        id: "conv-1",
+        title: "Test",
+        modelId: "test-openai",
+        generation: "gen-1",
+        createtime: Date.now(),
+        updatetime: Date.now(),
+      },
+    ]);
+    mockRepo.getMessages.mockResolvedValue([]);
+    mockRepo.appendMessage.mockRejectedValueOnce(new Error("ambiguous close failure"));
+    mockRepo.getMessageSnapshot.mockRejectedValueOnce(new Error("confirmation read failed"));
+
+    await (service as any).handleConversationChat(
+      {
+        conversationId: "conv-1",
+        message: [{ type: "image", attachmentId: "upload-uncertain.png", mimeType: "image/png" }],
+        ownedAttachmentIds: ["upload-uncertain.png"],
+      },
+      sender
+    );
+
+    expect(mockRepo.deleteAttachment).not.toHaveBeenCalledWith("upload-uncertain.png");
+  });
+
   it("skill 预加载：历史消息含 load_skill 调用时预执行以标记 skill 已加载", async () => {
     const { service, mockRepo, mockSkillRepo } = createTestService();
     const { sender } = createMockSender();

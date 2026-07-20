@@ -60,5 +60,6 @@ describe("用户提问块 AskUserBlock", () => {
     expect(screen.queryByTestId("ask-input")).toBeNull();
     fireEvent.click(screen.getByTestId("ask-option-stop"));
     expect(onRespond).toHaveBeenCalledWith("guard-1", "stop");
+    expect(screen.getByText("停止")).toBeInTheDocument();
   });
 });

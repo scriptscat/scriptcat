@@ -123,6 +123,29 @@ describe("AgentTaskRepo", () => {
     expect((await repo.getTask(task.id))?.name).toBe("新配置");
   });
 
+  it("支持 Web Locks 时任务生命周期写操作应使用跨上下文排它锁", async () => {
+    const request = vi.fn(async (_name: string, _opts: unknown, fn: () => Promise<unknown>) => fn());
+    Object.defineProperty(navigator, "locks", {
+      value: { request },
+      configurable: true,
+      writable: true,
+    });
+    try {
+      const task = await repo.createTask(makeTask({ id: "cross-context-lock" }));
+      task.name = "已更新";
+      await repo.saveTask(task);
+
+      expect(request).toHaveBeenCalledWith(
+        expect.stringContaining("cross-context-lock"),
+        expect.objectContaining({ mode: "exclusive" }),
+        expect.any(Function)
+      );
+    } finally {
+      // @ts-expect-error 清理测试注入的 locks
+      delete navigator.locks;
+    }
+  });
+
   it("从备份导入时应忽略外部 generation 并以本机版本覆盖同 ID 任务", async () => {
     const local = await repo.saveTask(makeTask({ id: "import-task", name: "本机" }));
 
