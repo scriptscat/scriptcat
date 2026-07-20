@@ -103,7 +103,7 @@
     "empty_title": "모든 스크립트가 최신 상태입니다",
     "empty_desc": "{{count}}개 스크립트 확인 · 업데이트 없음",
     "recheck": "다시 확인",
-    "tap_to_expand": "탭하여 펼치기",
+    "tap_to_expand": "클릭하여 펼치기",
     "similarity": "유사도",
     "new_connects": "새 @connect",
     "toast_found": "업데이트 가능한 스크립트 {{count}}개를 찾았습니다",

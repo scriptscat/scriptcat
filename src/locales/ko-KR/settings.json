@@ -80,7 +80,7 @@
   "check_script_code_quality": "스크립트 코드 품질과 오류를 검사",
   "script_run_env": {
     "title": "실행 환경",
-    "all": "전체",
+    "all": "모든 탭",
     "normal-tabs": "일반 탭",
     "incognito-tabs": "시크릿 탭"
   },
@@ -116,6 +116,7 @@
   "favicon_service_local": "로컬에서 가져오기",
   "cloud_sync_account_verification": "클라우드 동기화 계정 확인 중...",
   "cloud_sync_verification_failed": "클라우드 동기화 계정 확인에 실패했습니다",
+  "cloud_sync_connection_changed": "동기화 연결 설정이 변경되어 동기화가 일시 중지되었습니다. 설정을 확인한 후 다시 활성화해 주세요.",
   "trash_retention": "휴지통 보관 기간",
   "trash_retention_desc": "삭제한 스크립트를 휴지통에 보관한 뒤 자동으로 영구 삭제하기까지의 기간",
   "trash_retention_7": "7일",

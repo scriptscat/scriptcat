@@ -34,6 +34,6 @@
   "confirm_expired_title": "권한 요청이 만료되었습니다",
   "confirm_expired_desc": "이 권한 요청은 시간이 초과되었거나 이미 처리되었습니다. 페이지로 돌아가 다시 시도해 주세요.",
   "auto_close_in": "{{second}}초 후 창이 자동으로 닫힙니다",
-  "permission_cors": "교차 도메인(CORS)",
+  "permission_cors": "교차 출처 접근(CORS)",
   "permission_cookie": "쿠키 관리"
 }

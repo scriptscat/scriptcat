@@ -42,15 +42,15 @@ const grantValuePrompts = {
 
 export default {
   title: "한국어",
-  thisIsAUserScript: "사용자 스크립트",
+  thisIsAUserScript: "유저스크립트",
   undefinedPrompt: "정의되지 않은 프롬프트",
   quickfix: "{0} 문제 수정",
   addEslintDisableNextLine: "eslint-disable-next-line 주석 추가",
   addEslintDisable: "eslint-disable 주석 추가",
   declareGlobal: "'{0}'을(를) 전역 변수로 선언 (/* global */)",
   removeConnectWildcard: "@connect 와일드카드 제거: {0}",
-  replaceMatchTldWildcardWithInclude: "@match 최상위 도메인 와일드카드를 @include {0}(으)로 교체",
-  replaceIncludeWithMatch: "@include를 @match {0}(으)로 교체",
+  replaceMatchTldWildcardWithInclude: "@match 최상위 도메인 와일드카드를 @include {0}으로 바꾸기",
+  replaceIncludeWithMatch: "@include를 @match {0}으로 바꾸기",
   grantConflict: "@grant none은 GM API와 함께 사용할 수 없습니다. none 또는 모든 GM API를 제거하세요.",
   grantValuePrompts,
   prompt: {
