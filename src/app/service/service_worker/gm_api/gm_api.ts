@@ -881,7 +881,7 @@ export default class GMApi {
       try {
         hasOriginPermission = await chrome.permissions.contains({ origins: [originPattern] });
       } catch (e) {
-        console.warn(e);
+        this.logger.warn("check extension origin permission failed", { originPattern }, Logger.E(e));
       }
     }
     const extensionSiteAccessOrigins = hasOriginPermission ? undefined : [originPattern];

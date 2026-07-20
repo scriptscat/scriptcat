@@ -13,7 +13,7 @@ preloadPopupData();
 
 // 初始化日志组件
 const loggerCore = new LoggerCore({
-  writer: new MessageWriter(message),
+  writer: MessageWriter.serviceWorker(message),
   labels: { env: "popup" },
 });
 

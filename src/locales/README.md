@@ -25,11 +25,13 @@ for example:
 
 ### Help Us Translate
 
-Translation files are located in `src/locales`, organized by namespace. If you're interested in helping translate, please submit a PR directly.
+For the translation workflow, terminology rules, and per-locale checklist, see
+[`docs/translation.md`](../../docs/translation.md) — this file only covers the i18n implementation, not the
+contribution workflow.
 
 # i18n 方案
 
-i18n 使用[i8next](https://www.i18next.com/)实现，之所以不是用`chrome.i18n`的原因是该方案不支持动态切换语言。但是为了某些扩展市场的要求，我们还是在`src/assets/_locales`目录下添加了`chrome.i18n`的语言文件。
+i18n 使用[i18next](https://www.i18next.com/)实现，之所以不是用`chrome.i18n`的原因是该方案不支持动态切换语言。但是为了某些扩展市场的要求，我们还是在`src/assets/_locales`目录下添加了`chrome.i18n`的语言文件。
 
 ## 语言文件
 
@@ -50,4 +52,5 @@ i18n 使用[i8next](https://www.i18next.com/)实现，之所以不是用`chrome.
 
 ### 帮助我们翻译
 
-翻译文件位于 `src/locales` 目录下，按命名空间划分。如果您有兴趣帮助翻译，请直接提交 PR。
+翻译工作流、术语规则与逐语言检查清单见 [`docs/translation.md`](../../docs/translation.md)——本文件只覆盖 i18n
+实现机制，不重复维护贡献流程。

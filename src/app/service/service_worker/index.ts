@@ -20,14 +20,17 @@ import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./ur
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { FaviconDAO } from "@App/app/repo/favicon";
 import { onRegularUpdateCheckAlarm } from "./regular_updatecheck";
-import { cacheInstance } from "@App/app/cache";
 import { InfoNotification, shouldAutoOpenChangelog } from "./utils";
 import { AgentService } from "@App/app/service/agent/service_worker/agent";
 import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_env";
 import { cleanupStaleTempStorageEntries } from "./temp";
+import RuntimeLogger from "@App/app/logger/logger";
+import LoggerCore from "@App/app/logger/core";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
+  private serviceLogger = LoggerCore.logger().with({ service: "service_worker" });
+
   constructor(
     private api: Server,
     private mq: IMessageQueue,
@@ -105,7 +108,7 @@ export default class ServiceWorkerManager {
     synchronize.init();
     const subscribe = new SubscribeService(this.api.group("subscribe"), this.mq, script);
     subscribe.init();
-    const log = new LogService(this.api.group("log"));
+    const log = new LogService(this.api.group("log"), systemConfig);
     log.init();
     const system = new SystemService(
       systemConfig,
@@ -143,9 +146,9 @@ export default class ServiceWorkerManager {
               const isRead = items.notice !== data.notice ? false : items.isRead;
               systemConfig.setCheckUpdate({ ...data, isRead: isRead });
             })
-            .catch((e) => console.error("regularExtensionUpdateCheck: Check Error", e));
+            .catch((e) => this.serviceLogger.error("read extension update config failed", RuntimeLogger.E(e)));
         })
-        .catch((e) => console.error("regularExtensionUpdateCheck: Network Error", e));
+        .catch((e) => this.serviceLogger.error("check extension update failed", RuntimeLogger.E(e)));
     };
 
     this.mq.subscribe<any>("msgUpdatePageOpened", () => {
@@ -189,6 +192,11 @@ export default class ServiceWorkerManager {
           break;
         case "cleanupTrash":
           script.cleanupExpiredTrash();
+          break;
+        case "cleanupLogs":
+          log
+            .cleanupExpiredLogs()
+            .catch((e) => this.serviceLogger.error("cleanup expired logs failed", RuntimeLogger.E(e)));
           break;
       }
     });
@@ -242,8 +250,8 @@ export default class ServiceWorkerManager {
     });
 
     // 云同步
-    systemConfig.watch("cloud_sync", (value) => {
-      synchronize.cloudSyncConfigChange(value);
+    systemConfig.watch("cloud_sync", (value, previous) => {
+      synchronize.cloudSyncConfigChange(value, previous);
     });
 
     // 定期清理过期的临时安装信息
@@ -269,13 +277,21 @@ export default class ServiceWorkerManager {
       }
     });
 
-    // 一些只需启动时运行一次的任务
-    cacheInstance.getOrSet("extension_initialized", () => {
-      // 启动一次云同步
-      systemConfig.getCloudSync().then((config) => {
-        synchronize.cloudSyncConfigChange(config);
-      });
-      return true;
+    // 定期清理超过保留天数的运行日志。先 get 再 create，避免 SW 冷启动重置倒计时。
+    chrome.alarms.get("cleanupLogs", (alarm) => {
+      const lastError = chrome.runtime.lastError;
+      if (lastError) {
+        console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
+      }
+      if (!alarm) {
+        chrome.alarms.create("cleanupLogs", { delayInMinutes: 1, periodInMinutes: 12 * 60 }, () => {
+          const lastError = chrome.runtime.lastError;
+          if (lastError) {
+            console.error("chrome.runtime.lastError in chrome.alarms.create:", lastError);
+            console.error("Chrome alarm is unable to create. Please check whether limit is reached.");
+          }
+        });
+      }
     });
 
     if (process.env.NODE_ENV === "production") {
@@ -312,9 +328,7 @@ export default class ServiceWorkerManager {
                     windowId: !tab ? undefined : tab.windowId,
                   });
                 })
-                .catch((e) => {
-                  console.error(e);
-                });
+                .catch((e) => this.serviceLogger.error("open extension changelog failed", { url }, RuntimeLogger.E(e)));
             }
           }
         });

@@ -11,6 +11,8 @@ import * as deDE from "./de-DE";
 import * as viVN from "./vi-VN";
 import * as ruRU from "./ru-RU";
 import * as trTR from "./tr-TR";
+import * as ptBR from "./pt-BR";
+import * as koKR from "./ko-KR";
 import { changeRelativeTimeLanguage } from "./relative-date";
 
 export let localePath = "";
@@ -57,6 +59,8 @@ export function initLanguage(lng: string = "en-US"): void {
       "vi-VN": { title: "Tiếng Việt", ...viVN },
       "ru-RU": { title: "Русский", ...ruRU },
       "tr-TR": { title: "Türkçe", ...trTR },
+      "pt-BR": { title: "Português (Brasil)", ...ptBR },
+      "ko-KR": { title: "한국어", ...koKR },
     },
   });
 
