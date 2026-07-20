@@ -16,10 +16,11 @@
 - [The Five Contexts (Process Model)](#the-five-contexts-process-model)
 - [Message Passing](#message-passing)
 - [Service layer](./references/architecture-services.md)
-- [Data layer (Repo<T> + DAOs)](./references/architecture-data.md)
+- [Data layer (backend taxonomy: Repo\<T\> / DAO\<T\> / OPFSRepo)](./references/architecture-data.md)
 - [GM API system](./references/architecture-gm-api.md)
 - [Script execution](./references/architecture-execution.md)
 - [Build pipeline & manifest](./references/architecture-build.md)
+- [Agent subsystem](./references/architecture-agent.md)
 - [Extending ScriptCat — Recipes](#extending-scriptcat--recipes)
 - [Testing the Internals](#testing-the-internals)
 
@@ -39,9 +40,13 @@ Three ideas explain almost everything in the codebase:
 - **One message layer, several transports.** [`packages/message`](../packages/message) abstracts
   `chrome.runtime`, `postMessage`, and DOM `CustomEvent` behind a single RPC + pub/sub API, so services are
   written against interfaces (`Server`/`Group`/`Client`/`IMessageQueue`), not raw browser APIs.
-- **Services are constructor-injected.** Domain logic lives in services that receive their `Group`,
-  `IMessageQueue`, and DAOs through the constructor and register message handlers in an `init()` method. This
-  is what makes the system testable with the mock message bus.
+- **Domain logic lives in services, wired explicitly.** Shared collaborators (a `Group`, `IMessageQueue`,
+  another service, a DAO owned elsewhere) typically come in through the constructor; message handlers and
+  subscriptions are registered through an explicit lifecycle method — commonly `init()`, though content and
+  Agent code have their own equivalents. The exact dependency set and lifecycle shape vary by service and
+  context — see [service layer](./references/architecture-services.md) for the real variance and the
+  exceptions, rather than assuming one uniform constructor/`init()` template. This explicit-wiring style is
+  what makes the system testable with the mock message bus.
 
 ```
                                 ┌───────────────────────────────────────────────┐
@@ -68,7 +73,9 @@ Three ideas explain almost everything in the codebase:
                           │  Server("inject")     │         │  Server("sandbox")        │
                           └──────────────────────┘         └──────────────────────────┘
 
-         MessageQueue (pub/sub) broadcasts state changes across ALL contexts.
+         MessageQueue (pub/sub) broadcasts state changes among the contexts that instantiate it — currently
+         Service Worker, Offscreen, and UI pages (see architecture-services.md for the exact list); content,
+         inject, and sandbox don't hold a MessageQueue instance.
 ```
 
 ---
@@ -165,7 +172,7 @@ communication styles** over **several transports**.
 | `CustomEventMessage` | [`custom_event_message.ts`](../packages/message/custom_event_message.ts) | Content ↔ Inject | DOM `CustomEvent` dispatch (bypasses page tampering) |
 | `WindowMessage` | [`window_message.ts`](../packages/message/window_message.ts) | Offscreen ↔ Sandbox | `window.postMessage` |
 | `ServiceWorkerMessageSend` | [`window_message.ts`](../packages/message/window_message.ts) | SW → Offscreen (Chrome) | `clients.matchAll()` + `postMessage` |
-| `MessageQueue` | [`message_queue.ts`](../packages/message/message_queue.ts) | All contexts (broadcast) | `chrome.runtime.sendMessage` + local `EventEmitter3` |
+| `MessageQueue` | [`message_queue.ts`](../packages/message/message_queue.ts) | Broadcast among the contexts that instantiate it — SW, Offscreen, UI pages | `chrome.runtime.sendMessage` + local `EventEmitter3` |
 | `MockMessage` | [`mock_message.ts`](../packages/message/mock_message.ts) | Tests | in-memory `EventEmitter3` |
 
 All transports implement the small `Message` / `MessageSend` / `MessageConnect` interfaces in
@@ -230,6 +237,22 @@ mock ([`@Packages/chrome-extension-mock`](../packages/chrome-extension-mock)) is
 
 ---
 
+## Agent Subsystem
+
+The Agent subsystem (`src/app/service/agent/`) is an AI-agent layer built **on top of** the five contexts
+above — it is not a sixth execution context. `AgentService` is assembled inside `ServiceWorkerManager`
+(`src/app/service/service_worker/index.ts`) from a set of narrower services (chat, task, skill, model, MCP,
+background session, sub-agent, compact, DOM automation, OPFS); a content-side `CAT.agent.*` API
+(`src/app/service/content/gm_api/cat_agent.ts`) exposes conversations to user scripts; offscreen and sandbox
+are used for skill-script execution the same way regular background/scheduled scripts are. The UI (chat/task
+pages) and userscript-driven conversations share the same streaming/tool-loop boundary in
+`core/tool_registry.ts` / `service_worker/tool_loop_orchestrator.ts` — there is one tool loop, not a separate
+implementation per caller. Full write-up, including the global vs. per-session tool registries, LLM
+streaming/retry/compact flow, background-session/sub-agent/scheduled-task lifecycle, storage backend choices,
+and the page/offscreen/sandbox delegation boundaries: [`references/architecture-agent.md`](./references/architecture-agent.md).
+
+---
+
 ## Extending ScriptCat — Recipes
 
 Map a change onto the existing extension points instead of inventing new structure:
@@ -238,10 +261,21 @@ Map a change onto the existing extension points instead of inventing new structu
   its `init()`, and call it from the other context with a `Client`. No new transport, no new wiring.
 - **A new broadcast event.** `this.mq.publish("myTopic", payload)` where state changes; `this.mq.subscribe(...)`
   wherever it matters. Use this, not RPC, for "X changed" notifications.
-- **A new persisted entity.** Subclass `Repo<T>` (see [data layer](./references/architecture-data.md#adding-an-entity-is-tiny)),
-  construct it in the manager, expose ops via `group.on`.
-- **A new service.** Constructor-inject `Group` + `IMessageQueue` + DAOs; register handlers in `init()`;
-  instantiate it in the relevant manager with its own `group("name")` (see [service layer](./references/architecture-services.md)).
+- **A new persisted entity.** Pick a backend by matching an existing entity with the same data-size/query/lifecycle
+  needs — `Repo<T>`, `DAO<T>`, or `OPFSRepo` (see [data layer](./references/architecture-data.md#adding-an-entity))
+  — then copy the nearest entity of that *same backend, in the same subsystem* for ownership and construction:
+  they don't all follow "construct in the manager, expose via `group.on`." Some context-service `Repo<T>`
+  entities do (e.g. `scriptDAO` built in `ServiceWorkerManager` and exposed through RPC); some Agent entities
+  don't — `AgentModelService` constructs its own `AgentModelRepo` internally by default rather than taking one
+  from a manager, and `AgentChatRepo` is a module-level singleton (`export const agentChatRepo = ...`) imported
+  directly rather than manager-constructed or exposed via `group.on`. Only route through the manager +
+  `group.on` when the entity is genuinely owned by a context composition root and needs to be reachable over
+  RPC.
+- **A new service.** First decide what kind: a context service (owned by one of `content/`, `offscreen/`,
+  `sandbox/`, `service_worker/`), an Agent/core component, or another cross-cutting subsystem — these do
+  **not** share one constructor shape. Then copy the nearest existing service of that kind. See
+  [service layer § Adding a service](./references/architecture-services.md#adding-a-service) for the decision
+  path; don't default to a `Group` + `IMessageQueue` + DAOs constructor for everything.
 - **A new GM API.** Decorate the method with `@GMContext.API` on the content side, add a privileged/offscreen
   handler if needed, register the `@grant` (see [GM API system](./references/architecture-gm-api.md#adding-a-gm-api-sketch)).
 
@@ -254,14 +288,24 @@ premature abstraction.
 ## Testing the Internals
 
 - **Unit (Vitest + happy-dom).** Co-locate `*.test.ts` next to source. `chrome.*` is mocked via
-  [`@Packages/chrome-extension-mock`](../packages/chrome-extension-mock) (`tests/vitest.setup.ts`); message-bus
-  behavior uses `MockMessage`. Run one file: `pnpm test -- --run path/to/file.test.ts`.
-- **TDD first.** Write the failing test before the implementation. When a test fails, fix the code — don't edit
-  the test to pass.
+  [`@Packages/chrome-extension-mock`](../packages/chrome-extension-mock) (`tests/vitest.setup.ts`). For the
+  message layer, keep the two pieces separate: `MockMessage` fakes the `Message` **transport** for `Server`/
+  `Group` RPC tests (`new Server("test", new MockMessage(...))`); a service's `IMessageQueue` dependency is
+  tested with a real `MessageQueue` instance (`new MessageQueue()`, with individual methods like `publish`
+  swapped for a spy when a test needs to assert on it) or a narrow fake written against `IMessageQueue` — not
+  `MockMessage`, which solves a different problem (see
+  [architecture-services.md](./references/architecture-services.md) for the detailed distinction). Run one
+  file: `pnpm test -- --run path/to/file.test.ts`.
+- **TDD.** See [AGENTS.md § Engineering Principles](../AGENTS.md#engineering-principles) for the write-failing-
+  test-first principle and [develop-testing.md § When TDD doesn't apply](./references/develop-testing.md#when-tdd-doesnt-apply)
+  for the narrow exceptions — this section only covers architecture-specific test mechanics, not the policy
+  itself.
 - **E2E (Playwright).** `e2e/*.spec.ts`, one worker, real Chromium. `pnpm run test:e2e` (first run:
   `pnpm run test:e2e:install`).
 - **Before a PR:** lint + the relevant suite — owned by [references/develop-testing.md](./references/develop-testing.md) → *Testing*.
 
-The DI + interface design is what makes this tractable: because services receive `IMessageQueue` and DAOs by
-constructor, a test builds a service with `MockMessage` and an in-memory DAO and exercises handlers directly,
-with no browser.
+The DI + interface design is what makes this tractable: because many services take `IMessageQueue`/DAOs
+through the constructor (dependency set varies — see [architecture-services.md](./references/architecture-services.md)),
+a test builds a service with a real `MessageQueue` (or a narrow fake) and an in-memory DAO and exercises
+handlers directly, with no browser. `MockMessage` is for the separate case of testing `Server`/`Group` RPC
+routing, not for standing in as a service's `IMessageQueue`.

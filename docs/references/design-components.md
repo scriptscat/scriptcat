@@ -2,7 +2,7 @@
 
 ## Component palette & usage
 
-The shadcn primitives live in [`src/pages/components/ui/`](../../src/pages/components/ui/) — `new-york` style, CSS variables enabled, no class prefix (`components.json`). Icons are always `lucide-react`; class merging is always `cn()` ([`src/pkg/utils/cn.ts`](../../src/pkg/utils/cn.ts)); variants are always CVA — these are the [`DEVELOP.md` UI section](../develop.md) hard rules, not repeated here. This section is "what exists and how to choose."
+The shadcn primitives live in [`src/pages/components/ui/`](../../src/pages/components/ui/) — `new-york` style, CSS variables enabled, no class prefix (`components.json`). Icons are always `lucide-react`; class merging is always `cn()` ([`src/pkg/utils/cn.ts`](../../src/pkg/utils/cn.ts)); variants are always CVA — these are the [`DEVELOP.md` UI section](../develop.md#ui) hard rules, not repeated here. This section is "what exists and how to choose."
 
 ### Primitives & shared composites
 
@@ -27,6 +27,7 @@ The shadcn primitives live in [`src/pages/components/ui/`](../../src/pages/compo
 | `toggle.tsx` / `toggle-group.tsx` | Toggle button / toggle group (base of `SegmentedControl`) |
 | `label.tsx` | Form label |
 | `progress.tsx` | Progress bar — `default` / `top` / `indeterminate` variants |
+| `slider.tsx` | Range slider |
 | `skeleton.tsx` | Loading-placeholder block |
 | `sonner.tsx` | Global toast container |
 | `use-hover-menu.ts` | Helper hook for hover-triggered menus |
