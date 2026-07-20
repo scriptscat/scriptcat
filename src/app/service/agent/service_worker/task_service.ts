@@ -14,6 +14,7 @@ import type { ScriptToolCallback, ToolExecutorLike, ToolRegistry } from "@App/ap
 import { SessionToolRegistry } from "@App/app/service/agent/core/session_tool_registry";
 import type { SkillService } from "./skill_service";
 import type { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
+import type { ScriptDAO } from "@App/app/repo/scripts";
 import type { AgentTaskScheduler } from "@App/app/service/agent/core/task_scheduler";
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
 import { buildSystemPrompt } from "@App/app/service/agent/core/system_prompt";
@@ -56,8 +57,21 @@ export class AgentTaskService {
     private skillService: SkillService,
     private orchestrator: TaskOrchestrator,
     private taskRepo: AgentTaskRepo,
-    private taskRunRepo: AgentTaskRunRepo
+    private taskRunRepo: AgentTaskRunRepo,
+    private scriptDAO: ScriptDAO
   ) {}
+
+  // event 模式任务的 sourceScriptUuid 必须指向当前已安装的脚本，否则事件派发时无脚本可接收，
+  // 任务会显示为"已调度/成功"但实际是死信——校验必须在写入前完成，不能事后依赖执行期报错
+  private async assertValidEventSource(sourceScriptUuid: string | undefined): Promise<void> {
+    if (!sourceScriptUuid) {
+      throw new Error("Event task requires a non-empty sourceScriptUuid identifying an installed script");
+    }
+    const script = await this.scriptDAO.get(sourceScriptUuid);
+    if (!script) {
+      throw new Error(`Event task sourceScriptUuid does not match an installed script: ${sourceScriptUuid}`);
+    }
+  }
 
   // 延迟注入 scheduler（避免循环依赖：AgentTaskScheduler ↔ AgentTaskService）
   setScheduler(scheduler: AgentTaskScheduler) {
@@ -267,6 +281,9 @@ export class AgentTaskService {
           createtime: now,
           updatetime: now,
         } as AgentTask;
+        if (task.mode === "event") {
+          await this.assertValidEventSource(task.sourceScriptUuid);
+        }
         // 计算 nextruntime
         if (task.enabled) {
           try {
@@ -298,6 +315,9 @@ export class AgentTaskService {
         if (updated.mode === "internal" && updated.conversationId && "conversationId" in params.task) {
           const conv = await this.getConversation(updated.conversationId);
           updated.conversationGeneration = conv?.generation;
+        }
+        if (updated.mode === "event") {
+          await this.assertValidEventSource(updated.sourceScriptUuid);
         }
         // 如果 crontab 或 enabled 变化，重新计算 nextruntime
         if (params.task.crontab !== undefined || params.task.enabled !== undefined) {

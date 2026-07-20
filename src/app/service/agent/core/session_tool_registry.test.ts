@@ -177,7 +177,7 @@ describe("SessionToolRegistry", () => {
         controller.signal
       );
 
-      expect(executeSpy).toHaveBeenCalledWith({}, controller.signal);
+      expect(executeSpy).toHaveBeenCalledWith({}, controller.signal, "t1");
     });
 
     it("session 无该工具时回退到 parent 工具", async () => {

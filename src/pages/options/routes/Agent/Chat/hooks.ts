@@ -198,6 +198,9 @@ export function useStreamingChat() {
         compactInstruction?: string;
         background?: boolean;
         ownedAttachmentIds?: string[];
+        // 调用方持有的会话 generation：与当前存储不一致（会话已被删除重建）时，
+        // 服务端拒绝而不是静默作用于无关的新一代会话（含 compact 分支）
+        generation?: string;
       }
     ) => {
       setIsStreaming(true);
@@ -268,12 +271,18 @@ export function useStreamingChat() {
 
   // 附加到后台运行中的会话
   const attachToConversation = useCallback(
-    async (conversationId: string, onEvent: (event: ChatStreamEvent) => void, onDone: () => void) => {
+    async (
+      conversationId: string,
+      onEvent: (event: ChatStreamEvent) => void,
+      onDone: () => void,
+      generation?: string
+    ) => {
       abortedRef.current = false;
 
       try {
         const conn = await connect(extensionMessage, "serviceWorker/agent/attachToConversation", {
           conversationId,
+          generation,
         });
 
         connRef.current = conn;
@@ -380,21 +389,24 @@ export function useRunningConversations() {
 export async function deleteMessages(
   conversationId: string,
   messageIds: string[],
-  preserveAttachmentIds?: string[]
+  preserveAttachmentIds?: string[],
+  generation?: string
 ): Promise<void> {
   await sendMsg(extensionMessage, "serviceWorker/agent/conversation", {
     action: "deleteMessages",
     conversationId,
+    generation,
     messageIds,
     ...(preserveAttachmentIds?.length ? { preserveAttachmentIds } : {}),
   });
 }
 
 // 清空对话消息及任务
-export async function clearMessages(conversationId: string): Promise<void> {
+export async function clearMessages(conversationId: string, generation?: string): Promise<void> {
   await sendMsg(extensionMessage, "serviceWorker/agent/conversation", {
     action: "clearMessages",
     conversationId,
+    generation,
   });
 }
 

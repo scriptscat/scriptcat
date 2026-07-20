@@ -136,7 +136,17 @@ describe("ToolRegistry", () => {
 
       await registry.execute([{ id: "tc_1", name: "get_weather", arguments: "" }]);
 
-      expect(executeSpy).toHaveBeenCalledWith({}, undefined);
+      expect(executeSpy).toHaveBeenCalledWith({}, undefined, "tc_1");
+    });
+
+    it("应把 tool call 的 id 作为 toolCallId 传给 executor（供 agent 等需要区分并发调用的工具使用）", async () => {
+      const registry = new ToolRegistry();
+      const executeSpy = vi.fn().mockResolvedValue("ok");
+      registry.registerBuiltin(weatherDef, { execute: executeSpy });
+
+      await registry.execute([{ id: "tc_unique_42", name: "get_weather", arguments: "{}" }]);
+
+      expect(executeSpy).toHaveBeenCalledWith({}, undefined, "tc_unique_42");
     });
 
     it("内置工具抛出异常时应返回错误信息", async () => {
@@ -251,7 +261,7 @@ describe("ToolRegistry", () => {
         controller.signal
       );
 
-      expect(executeSpy).toHaveBeenCalledWith({}, controller.signal);
+      expect(executeSpy).toHaveBeenCalledWith({}, controller.signal, "tc_1");
     });
 
     it("取消后应等待内置工具抵达提交边界并保留其已提交成功结果", async () => {
@@ -282,7 +292,7 @@ describe("ToolRegistry", () => {
 
       finishExecution();
       await expect(resultPromise).resolves.toEqual([{ id: "tc_1", result: "late success" }]);
-      expect(executeSpy).toHaveBeenCalledWith({}, controller.signal);
+      expect(executeSpy).toHaveBeenCalledWith({}, controller.signal, "tc_1");
     });
 
     it("JSON 解析失败时应返回错误", async () => {

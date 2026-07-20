@@ -65,6 +65,8 @@ export type SubAgentMessage = {
   content: MessageContent;
   thinking?: string;
   toolCalls: ToolCall[];
+  /** 生成数据丢失等非致命警告（如图片保存失败），需与最终回复分支同样持久化，避免刷新后丢失提示 */
+  warning?: string;
 };
 
 // 子代理执行详情（持久化到 ToolCall）
@@ -122,6 +124,9 @@ export type SubAgentEventInfo = {
   agentId: string;
   description: string;
   subAgentType?: string;
+  // 发起该子代理的父级 agent 工具调用 ID。并行 agent 调用各自持有独立的 toolCallId，
+  // UI 据此做显式 toolCallId -> agentId 匹配，避免并发时错误关联到另一个子代理。
+  toolCallId?: string;
 };
 
 // LLM 流式输出事件
@@ -163,7 +168,8 @@ export type ForwardableEvent =
       usage?: TokenUsage;
       durationMs?: number;
     }
-  | { type: "retry"; attempt: number; maxRetries: number; error: string; delayMs: number };
+  | { type: "retry"; attempt: number; maxRetries: number; error: string; delayMs: number }
+  | { type: "system_warning"; message: string };
 
 // Service Worker -> UI/Sandbox 的流式事件（通过 MessageConnect 的 sendMessage 传输）
 // ForwardableEvent 携带可选 subAgent 标识（扁平化子代理事件，消除递归包装）
@@ -180,7 +186,6 @@ export type ChatStreamEvent =
     }
   | { type: "ask_user_expired"; id: string }
   | { type: "ask_user_resolved"; id: string }
-  | { type: "system_warning"; message: string }
   | {
       type: "task_update";
       tasks: Array<{
@@ -290,6 +295,8 @@ export type ChatReply = {
   };
   durationMs?: number;
   command?: boolean; // 标识该回复来自命令处理
+  /** 生成数据丢失等非致命警告（如图片保存失败），与 UI 侧的消息 warning 字段同一语义 */
+  warning?: string;
 };
 
 // conv.chatStream() 的流式 chunk
@@ -301,6 +308,7 @@ export type StreamChunk = {
     | "tool_call_complete"
     | "content_block"
     | "new_message"
+    | "system_warning"
     | "done"
     | "error";
   content?: string;
@@ -317,6 +325,8 @@ export type StreamChunk = {
   /** 错误分类码："rate_limit" | "auth" | "tool_timeout" | "max_iterations" | "api_error" */
   errorCode?: string;
   command?: boolean; // 标识该 chunk 来自命令处理
+  /** type 为 "system_warning" 时携带的警告文本；type 为 "done" 时携带本轮累计警告 */
+  warning?: string;
 };
 
 // ---- Skill 类型 ----

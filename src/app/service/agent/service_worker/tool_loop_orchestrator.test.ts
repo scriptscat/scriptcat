@@ -216,6 +216,36 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     ).toBe(true);
   });
 
+  it("带工具调用的 assistant 消息携带 warning 时也应持久化并广播 system_warning，而不只是最终回复分支", async () => {
+    toolRegistry = {
+      getDefinitions: () => [
+        { name: "image_tool", description: "image", parameters: { type: "object", properties: {} } },
+      ],
+      execute: vi.fn().mockResolvedValue([{ id: "call-1", result: "ok" }]),
+    };
+    callLLM
+      .mockResolvedValueOnce({
+        content: "",
+        warning: "1 generated image(s) failed to save and were lost.",
+        toolCalls: [{ id: "call-1", name: "image_tool", arguments: "{}" }],
+      })
+      .mockResolvedValueOnce(finalTextResult("done"));
+
+    await orchestrator.callLLMWithToolLoop(baseParams({ toolRegistry }));
+
+    expect(chatRepo.commitToolRound).toHaveBeenCalledWith(
+      expect.objectContaining({ warning: "1 generated image(s) failed to save and were lost." }),
+      expect.anything(),
+      "gen-1"
+    );
+    expect(
+      sendEvent.mock.calls.some(
+        (call) =>
+          call[0].type === "system_warning" && call[0].message === "1 generated image(s) failed to save and were lost."
+      )
+    ).toBe(true);
+  });
+
   it(
     "最终回复持久化失败（persist_failed）时应回收生成附件",
     // 持久化重试退避 200ms + 400ms，放宽超时
@@ -400,6 +430,44 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     expect(chatRepo.deleteAttachment).not.toHaveBeenCalledWith("generated.png");
   });
 
+  it("提交与幂等重试均报错、确认读本身也持续失败时应以 persist_indeterminate 终止，不发布也不删附件", async () => {
+    toolRegistry = {
+      getDefinitions: () => [
+        { name: "image_tool", description: "image", parameters: { type: "object", properties: {} } },
+      ],
+      execute: vi.fn().mockResolvedValue([
+        {
+          id: "call-image",
+          result: "image",
+          attachments: [{ id: "owned.png", type: "image", name: "owned.png", mimeType: "image/png" }],
+          ownedAttachmentIds: ["owned.png"],
+        },
+      ]),
+    };
+    callLLM.mockResolvedValueOnce({
+      content: "",
+      contentBlocks: [{ type: "image", attachmentId: "generated.png", mimeType: "image/png" }],
+      toolCalls: [{ id: "call-image", name: "image_tool", arguments: "{}" }],
+      usage: { inputTokens: 12, outputTokens: 4 },
+    });
+    // 首次提交失败、确认读失败（不确定态）；幂等重试提交依旧失败、重试后的确认读依旧失败——
+    // 无法在合理次数内确认落盘状态，必须终止而不是当作成功发布
+    chatRepo.commitToolRound
+      .mockRejectedValueOnce(new Error("disk full"))
+      .mockRejectedValueOnce(new Error("disk full"));
+    chatRepo.getMessageSnapshot
+      .mockRejectedValueOnce(new Error("read failed"))
+      .mockRejectedValueOnce(new Error("read failed"));
+
+    const error = await orchestrator.callLLMWithToolLoop(baseParams({ toolRegistry })).catch((reason) => reason);
+
+    expect(error).toMatchObject({ errorCode: "persist_indeterminate" });
+    expect(chatRepo.commitToolRound).toHaveBeenCalledTimes(2);
+    expect(chatRepo.deleteAttachment).not.toHaveBeenCalledWith("owned.png");
+    expect(chatRepo.deleteAttachment).not.toHaveBeenCalledWith("generated.png");
+    expect(sendEvent.mock.calls.some((call) => call[0].type === "tool_call_complete")).toBe(false);
+  });
+
   it("工具内部摘要 LLM 的 usage 应恰好一次计入父对话终态", async () => {
     toolRegistry = {
       getDefinitions: () => [
@@ -493,6 +561,43 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     });
 
     await orchestrator.callLLMWithToolLoop(baseParams({ messages }));
+  });
+
+  it("裁剪到底后估算仍超预算但未达到启发式硬拒绝倍数时，不应本地拒绝，而是放行给 provider 判定", async () => {
+    // estimateRequestTokens 按固定 2 字节/token 换算，30000 字节 ≈ 15000 token；
+    // contextWindow 16000 时预算 ≈ 10400（见下方模型注释），15000/10400 ≈ 1.44 倍，
+    // 未达到 HEURISTIC_HARD_REJECT_RATIO(2) 的硬拒绝阈值——单条 user 消息无可裁剪的旧 tool
+    // 结果，elideUntilWithinBudget 必然裁剪失败，但不应因此本地拒绝
+    const bigContent = "x".repeat(30000);
+    callLLM.mockResolvedValueOnce(finalTextResult("done"));
+
+    await orchestrator.callLLMWithToolLoop(
+      baseParams({
+        model: { ...MODEL, contextWindow: 16000 },
+        messages: [{ role: "user", content: bigContent }],
+      })
+    );
+
+    expect(callLLM).toHaveBeenCalledTimes(1);
+    const errorEvents = sendEvent.mock.calls.map((c) => c[0]).filter((e: any) => e.type === "error");
+    expect(errorEvents.find((e: any) => e.errorCode === "context_too_large")).toBeUndefined();
+  });
+
+  it("裁剪到底后估算仍达到预算 2 倍以上时应本地拒绝为 context_too_large，不再调用 provider", async () => {
+    // 120000 字节 ≈ 60000 token，远超 10400 预算的 2 倍，属于启发式估算也几乎不可能有误差的
+    // 极端超限场景，此时才值得省下一次必然失败的 provider 调用
+    const hugeContent = "x".repeat(120000);
+
+    await orchestrator.callLLMWithToolLoop(
+      baseParams({
+        model: { ...MODEL, contextWindow: 16000 },
+        messages: [{ role: "user", content: hugeContent }],
+      })
+    );
+
+    expect(callLLM).not.toHaveBeenCalled();
+    const errorEvents = sendEvent.mock.calls.map((c) => c[0]).filter((e: any) => e.type === "error");
+    expect(errorEvents[0]?.errorCode).toBe("context_too_large");
   });
 
   it("第 2 次触发告警时应暂停并询问用户；回答非 Stop 时应继续循环", async () => {

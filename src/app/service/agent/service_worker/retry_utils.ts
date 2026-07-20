@@ -53,6 +53,9 @@ const CONTEXT_LENGTH_ERROR_PATTERN =
 
 // 将 Error 分类为 errorCode 字符串
 export function classifyErrorCode(e: Error): string {
+  // 抛出方已经明确标注过（如 persist_indeterminate）：这类自定义 code 携带的语义比消息
+  // 文本匹配更精确，直接透传，不应被下面的启发式规则重新归类为笼统的 api_error。
+  if ((e as any).errorCode === "persist_indeterminate") return "persist_indeterminate";
   const msg = e.message;
   if (CONTEXT_LENGTH_ERROR_PATTERN.test(msg)) return "context_too_large";
   if (/429/.test(msg)) return "rate_limit";

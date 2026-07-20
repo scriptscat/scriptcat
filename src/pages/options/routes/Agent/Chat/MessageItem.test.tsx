@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { ChatMessage } from "@App/app/service/agent/core/types";
 import type { SubAgentState } from "./types";
@@ -38,6 +38,51 @@ describe("用户消息 UserMessageItem", () => {
     render(<UserMessageItem message={msg({ role: "user", content: "原文" })} onRegenerate={onRegenerate} />);
     fireEvent.click(screen.getByTestId("user-regenerate"));
     expect(onRegenerate).toHaveBeenCalledOnce();
+  });
+
+  it("编辑中添加图片附件并保存成功后应 revoke 预览 URL 并清空待处理附件", async () => {
+    const createObjectURLSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-edit-preview");
+    const revokeObjectURLSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const onEdit = vi.fn().mockResolvedValue(undefined);
+
+    render(<UserMessageItem message={msg({ role: "user", content: "原文" })} onEdit={onEdit} />);
+    fireEvent.click(screen.getByTestId("user-edit"));
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["img"], "pic.png", { type: "image/png" })] },
+    });
+    expect(createObjectURLSpy).toHaveBeenCalled();
+    expect(revokeObjectURLSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("user-edit-save"));
+    expect(onEdit).toHaveBeenCalled();
+
+    await waitFor(() => expect(revokeObjectURLSpy).toHaveBeenCalledWith("blob:mock-edit-preview"));
+
+    createObjectURLSpy.mockRestore();
+    revokeObjectURLSpy.mockRestore();
+  });
+
+  it("编辑中选中图片附件后卸载组件应 revoke 对应的预览 URL", () => {
+    const createObjectURLSpy = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-unmount-preview");
+    const revokeObjectURLSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+
+    const { unmount } = render(<UserMessageItem message={msg({ role: "user", content: "原文" })} onEdit={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("user-edit"));
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(fileInput, {
+      target: { files: [new File(["img"], "pic.png", { type: "image/png" })] },
+    });
+    expect(createObjectURLSpy).toHaveBeenCalled();
+
+    unmount();
+
+    expect(revokeObjectURLSpy).toHaveBeenCalledWith("blob:mock-unmount-preview");
+
+    createObjectURLSpy.mockRestore();
+    revokeObjectURLSpy.mockRestore();
   });
 });
 

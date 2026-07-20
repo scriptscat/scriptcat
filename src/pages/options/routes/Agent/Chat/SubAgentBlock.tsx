@@ -31,6 +31,7 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
     state.currentContent ||
     state.currentBlocks?.length ||
     state.currentThinking ||
+    state.currentWarning ||
     state.currentToolCalls.length > 0
   ) {
     const content: SubAgentMessage["content"] = state.currentBlocks?.length
@@ -42,6 +43,7 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
     allMessages.push({
       content,
       thinking: state.currentThinking,
+      warning: state.currentWarning,
       toolCalls: state.currentToolCalls,
     });
   }
@@ -110,6 +112,12 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
               {msg.toolCalls.map((tc) => (
                 <ToolCallBlock key={tc.id} toolCall={tc} />
               ))}
+              {msg.warning && (
+                <div className="flex items-start gap-2 mt-2 px-3 py-2 rounded-lg text-xs bg-warning-bg text-warning-fg">
+                  <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+                  <span className="min-w-0 break-words">{msg.warning}</span>
+                </div>
+              )}
             </div>
           ))}
 

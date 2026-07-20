@@ -13,7 +13,9 @@ import { raceWithAbort, throwIfAborted } from "./abort_utils";
 
 // 工具执行器接口
 export interface ToolExecutor {
-  execute(args: Record<string, unknown>, signal?: AbortSignal): Promise<unknown>;
+  // toolCallId: 本次调用的 tool_call id（如 LLM 未提供则为 undefined）。
+  // 供需要区分并发调用的工具（如 agent 子代理）关联自身产生的事件与结果。
+  execute(args: Record<string, unknown>, signal?: AbortSignal, toolCallId?: string): Promise<unknown>;
 }
 
 // 工具来源分类
@@ -274,7 +276,7 @@ export class ToolRegistry implements ToolExecutorLike {
           }
           // Registered executors receive the signal and define their own commit boundary. Abandoning the promise
           // with raceWithAbort can report failure while a non-cancellable storage close commits in the background.
-          const rawResult = await tool.executor.execute(args, signal);
+          const rawResult = await tool.executor.execute(args, signal, tc.id);
 
           // 附件与子代理详情可以同时存在，统一保留两类元数据。
           if (isStructuredToolResult(rawResult)) {

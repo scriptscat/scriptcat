@@ -167,12 +167,19 @@ export function computeUserRegenerateAction(
 
 /** 匹配 agent 工具调用对应的子代理状态（流式 map 优先，回退到持久化 subAgentDetails） */
 export function getSubAgentForToolCall(
-  tc: { name: string; result?: string; arguments?: string; subAgentDetails?: SubAgentDetails },
+  tc: { id?: string; name: string; result?: string; arguments?: string; subAgentDetails?: SubAgentDetails },
   subAgents?: Map<string, SubAgentState>
 ): SubAgentState | undefined {
   if (tc.name !== "agent") return undefined;
 
   if (subAgents) {
+    // 0. 显式 toolCallId -> agentId 匹配：并发 agent 调用各自持有独立 toolCallId，
+    // 一旦子代理事件带上了它就能唯一定位，不再依赖"猜第一个运行中的"这类推断。
+    if (tc.id) {
+      for (const sa of subAgents.values()) {
+        if (sa.toolCallId === tc.id) return sa;
+      }
+    }
     // 1a. 从已完成结果匹配（格式: "[agentId: xxx]\n\n..."）
     if (tc.result) {
       const match = tc.result.match(/^\[agentId: ([^\]]+)\]/);
@@ -190,15 +197,22 @@ export function getSubAgentForToolCall(
         // 参数可能仍在流式构建中
       }
     }
-    // 1c. 无结果时：优先运行中的子代理，回退到已完成的
-    // （覆盖 sub-agent done → tool_call_complete 之间的间隙）
-    if (!tc.result) {
+    // 1c. 无结果、且这次调用未携带 toolCallId 时（旧数据/尚未收到子代理事件）的兜底：
+    // 仅当至多一个候选子代理时才可信；一旦并发数 > 1，宁可不匹配也不能张冠李戴。
+    if (!tc.result && !tc.id) {
       let completed: SubAgentState | undefined;
+      let runningCount = 0;
+      let running: SubAgentState | undefined;
       for (const sa of subAgents.values()) {
-        if (sa.isRunning) return sa;
-        if (!completed) completed = sa;
+        if (sa.isRunning) {
+          runningCount++;
+          running = sa;
+        } else if (!completed) {
+          completed = sa;
+        }
       }
-      if (completed) return completed;
+      if (runningCount === 1 && running) return running;
+      if (runningCount === 0 && completed) return completed;
     }
   }
 

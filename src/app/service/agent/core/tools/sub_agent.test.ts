@@ -44,6 +44,19 @@ describe("sub_agent", () => {
     });
   });
 
+  it("should forward the invoking tool call's id as toolCallId", async () => {
+    const mockRunSubAgent = vi.fn().mockResolvedValue({ agentId: "id4", result: "ok" });
+    const { executor } = createSubAgentTool({ runSubAgent: mockRunSubAgent });
+
+    await executor.execute({ prompt: "Research X" }, undefined, "tool-call-42");
+    expect(mockRunSubAgent).toHaveBeenCalledWith({
+      prompt: "Research X",
+      description: "Sub-agent task",
+      type: undefined,
+      toolCallId: "tool-call-42",
+    });
+  });
+
   it("should throw if prompt is missing", async () => {
     const mockRunSubAgent = vi.fn();
     const { executor } = createSubAgentTool({ runSubAgent: mockRunSubAgent });

@@ -32,6 +32,7 @@ import { SkillService } from "./skill_service";
 import { AgentTaskService } from "./task_service";
 import { AgentModelService } from "./model_service";
 import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
+import { ScriptDAO } from "@App/app/repo/scripts";
 import { AgentTaskScheduler } from "@App/app/service/agent/core/task_scheduler";
 import { WEB_FETCH_DEFINITION, WebFetchExecutor } from "@App/app/service/agent/core/tools/web_fetch";
 import { WEB_SEARCH_DEFINITION, WebSearchExecutor } from "@App/app/service/agent/core/tools/web_search";
@@ -64,6 +65,7 @@ export class AgentService {
   private opfsService!: AgentOPFSService;
   private taskRepo = new AgentTaskRepo();
   private taskRunRepo = new AgentTaskRunRepo();
+  private scriptDAO = new ScriptDAO();
   private taskScheduler!: AgentTaskScheduler;
   // 定时任务逻辑委托给 AgentTaskService
   private agentTaskService!: AgentTaskService;
@@ -220,7 +222,8 @@ export class AgentService {
         callLLMWithToolLoop: (params) => this.callLLMWithToolLoop(params),
       },
       this.taskRepo,
-      this.taskRunRepo
+      this.taskRunRepo,
+      this.scriptDAO
     );
     // 初始化定时任务调度器
     this.taskScheduler = new AgentTaskScheduler(

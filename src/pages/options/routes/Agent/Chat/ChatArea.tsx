@@ -62,6 +62,7 @@ function WelcomeScreen({ hasConversation }: { hasConversation: boolean }) {
 
 export default function ChatArea({
   conversationId,
+  conversationGeneration,
   models,
   modelsLoaded,
   selectedModelId,
@@ -77,6 +78,9 @@ export default function ChatArea({
   onBackgroundEnabledChange,
 }: {
   conversationId: string;
+  // 当前会话的 generation：随每次 activeConv 变化传入，用于让下面的持久化操作在服务端做
+  // 乐观并发校验，避免一个过期的 Options 标签页作用于同 ID 被删除重建后的新会话
+  conversationGeneration?: string;
   models: AgentModelConfig[];
   modelsLoaded?: boolean;
   selectedModelId: string;
@@ -183,13 +187,14 @@ export default function ChatArea({
 
       // 子代理事件：扁平化路由
       if ("subAgent" in event && event.subAgent) {
-        const { agentId, description, subAgentType } = event.subAgent;
+        const { agentId, description, subAgentType, toolCallId } = event.subAgent;
         let sa = subAgentsRef.current.get(agentId);
         if (!sa) {
           sa = {
             agentId,
             description,
             subAgentType,
+            toolCallId,
             completedMessages: [],
             currentContent: "",
             currentBlocks: [],
@@ -237,17 +242,30 @@ export default function ChatArea({
             }
             break;
           }
+          case "system_warning":
+            // 生成数据丢失等警告（如子代理内图片保存失败）需随当前轮次一起归档，
+            // 否则子代理气泡下刷新页面就丢失了这条提示——与父级消息 warning 字段同样的语义
+            sa.currentWarning = sa.currentWarning ? `${sa.currentWarning}\n${event.message}` : event.message;
+            break;
           case "new_message":
-            if (sa.currentContent || sa.currentBlocks?.length || sa.currentThinking || sa.currentToolCalls.length > 0) {
+            if (
+              sa.currentContent ||
+              sa.currentBlocks?.length ||
+              sa.currentThinking ||
+              sa.currentWarning ||
+              sa.currentToolCalls.length > 0
+            ) {
               sa.completedMessages.push({
                 content: buildSubAgentContent(sa.currentContent, sa.currentBlocks || []),
                 thinking: sa.currentThinking || undefined,
+                warning: sa.currentWarning,
                 toolCalls: [...sa.currentToolCalls],
               });
             }
             sa.currentContent = "";
             sa.currentBlocks = [];
             sa.currentThinking = "";
+            sa.currentWarning = undefined;
             sa.currentToolCalls = [];
             break;
           case "retry":
@@ -265,15 +283,23 @@ export default function ChatArea({
                 (sa.usage.cacheReadInputTokens || 0) + (event.usage.cacheReadInputTokens || 0);
             }
             sa.retryInfo = undefined;
-            if (sa.currentContent || sa.currentBlocks?.length || sa.currentThinking || sa.currentToolCalls.length > 0) {
+            if (
+              sa.currentContent ||
+              sa.currentBlocks?.length ||
+              sa.currentThinking ||
+              sa.currentWarning ||
+              sa.currentToolCalls.length > 0
+            ) {
               sa.completedMessages.push({
                 content: buildSubAgentContent(sa.currentContent, sa.currentBlocks || []),
                 thinking: sa.currentThinking || undefined,
+                warning: sa.currentWarning,
                 toolCalls: [...sa.currentToolCalls],
               });
               sa.currentContent = "";
               sa.currentBlocks = [];
               sa.currentThinking = "";
+              sa.currentWarning = undefined;
               sa.currentToolCalls = [];
             }
             sa.isRunning = false;
@@ -511,7 +537,7 @@ export default function ChatArea({
       selectedModelId,
       skipUserMessage,
       enableTools,
-      { background: backgroundEnabled, ownedAttachmentIds }
+      { background: backgroundEnabled, ownedAttachmentIds, generation: conversationGeneration }
     );
   };
 
@@ -540,7 +566,7 @@ export default function ChatArea({
       // assistantMsg 在此处才进入 messages 被渲染，故 streamingMsgId 镜像也在此同步设置
       setStreamingMsgId(assistantMsg.id);
       setMessages((prev) => [...prev, assistantMsg]);
-      void attachToConversation(conversationId, createStreamCallback(), createDoneCallback());
+      void attachToConversation(conversationId, createStreamCallback(), createDoneCallback(), conversationGeneration);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, runningIds]);
@@ -551,7 +577,7 @@ export default function ChatArea({
     // /new：清空对话上下文及任务
     if (typeof content === "string" && content.trim() === "/new") {
       if (isStreaming) return;
-      await clearMessages(conversationId);
+      await clearMessages(conversationId, conversationGeneration);
       setMessages([]);
       void loadTasks();
       return;
@@ -573,7 +599,7 @@ export default function ChatArea({
         selectedModelId,
         undefined,
         undefined,
-        { compact: true, compactInstruction: instruction || undefined }
+        { compact: true, compactInstruction: instruction || undefined, generation: conversationGeneration }
       );
       return;
     }
@@ -641,7 +667,7 @@ export default function ChatArea({
       await clearTasks();
       let historyDeleted = false;
       try {
-        await deleteMessages(conversationId, action.idsToDelete, action.ownedAttachmentIds);
+        await deleteMessages(conversationId, action.idsToDelete, action.ownedAttachmentIds, conversationGeneration);
         historyDeleted = true;
         setMessages(action.remainingMessages);
         startStreamingRef.current(action.remainingMessages, action.userContent, undefined, action.ownedAttachmentIds);
@@ -650,7 +676,7 @@ export default function ChatArea({
         throw error;
       }
     },
-    [conversationId, isStreaming, messages, setMessages, clearTasks]
+    [conversationId, conversationGeneration, isStreaming, messages, setMessages, clearTasks]
   );
 
   const handleRegenerateUserMessage = useCallback(
@@ -659,13 +685,13 @@ export default function ChatArea({
       const action = computeUserRegenerateAction(messageId, messages);
       if (!action) return;
       if (action.idsToDelete.length > 0) {
-        await deleteMessages(conversationId, action.idsToDelete);
+        await deleteMessages(conversationId, action.idsToDelete, undefined, conversationGeneration);
       }
       await clearTasks();
       setMessages(action.remainingMessages);
       startStreamingRef.current(action.remainingMessages, action.userContent, action.skipUserMessage);
     },
-    [conversationId, isStreaming, messages, setMessages, clearTasks]
+    [conversationId, conversationGeneration, isStreaming, messages, setMessages, clearTasks]
   );
 
   const handleDeleteRound = useCallback(
@@ -689,10 +715,10 @@ export default function ChatArea({
       idsToDelete.push(...originalToolMsgIds);
 
       await clearTasks();
-      await deleteMessages(conversationId, idsToDelete);
+      await deleteMessages(conversationId, idsToDelete, undefined, conversationGeneration);
       void loadMessages();
     },
-    [conversationId, isStreaming, messages, loadMessages, clearTasks]
+    [conversationId, conversationGeneration, isStreaming, messages, loadMessages, clearTasks]
   );
 
   const handleEditMessage = useCallback(
@@ -714,7 +740,7 @@ export default function ChatArea({
             savedIds.push(id);
           }
         }
-        await deleteMessages(conversationId, action.idsToDelete, preservedAttachmentIds);
+        await deleteMessages(conversationId, action.idsToDelete, preservedAttachmentIds, conversationGeneration);
         historyDeleted = true;
         setMessages(action.remainingMessages);
         startStreamingRef.current(action.remainingMessages, content, undefined, [
@@ -726,7 +752,7 @@ export default function ChatArea({
         throw error;
       }
     },
-    [conversationId, isStreaming, messages, setMessages, clearTasks]
+    [conversationId, conversationGeneration, isStreaming, messages, setMessages, clearTasks]
   );
 
   const handleStop = useCallback(async () => {

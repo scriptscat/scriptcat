@@ -81,6 +81,9 @@ export function TaskFormDialog({
   const cronInvalid = crontab.trim().length > 0 && !cron.valid;
   const canSubmit = !!name && cron.valid;
   const hasModels = models.length > 0;
+  // Options 无法像脚本上下文那样自动注入创建者的脚本 UUID，事件任务留空 sourceScriptUuid
+  // 会导致后端拒绝创建；因此事件模式仅对已存在的事件任务（编辑场景）开放，新建任务不可选
+  const eventModeSelectable = value?.mode === "event";
 
   const handleSubmit = async () => {
     const base = { name, crontab, enabled, notify };
@@ -129,6 +132,7 @@ export function TaskFormDialog({
                 value: m,
                 label: m === "internal" ? t("agent:tasks_mode_internal_short") : t("agent:tasks_mode_event_short"),
                 testId: `task-mode-${m}`,
+                disabled: m === "event" && !eventModeSelectable,
               }))}
             />
           </FormField>

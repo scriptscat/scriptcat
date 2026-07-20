@@ -155,6 +155,7 @@ export class SubAgentService {
       currentText.length > 0 ||
       currentBlocks.length > 0 ||
       Boolean(currentMsg.thinking) ||
+      Boolean(currentMsg.warning) ||
       currentMsg.toolCalls.length > 0;
     // 累计 usage
     const subUsage = { inputTokens: 0, outputTokens: 0, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 };
@@ -189,6 +190,11 @@ export class SubAgentService {
         }
         case "thinking_delta":
           currentMsg.thinking = (currentMsg.thinking || "") + event.delta;
+          break;
+        case "system_warning":
+          // 生成数据丢失等警告（如图片保存失败）需随当前轮次一起归档，否则子代理详情持久化
+          // 后刷新页面就丢失了这条提示——与父级 assistant 消息的 warning 字段同样的语义
+          currentMsg.warning = currentMsg.warning ? `${currentMsg.warning}\n${event.message}` : event.message;
           break;
         case "tool_call_start":
           currentMsg.toolCalls.push({

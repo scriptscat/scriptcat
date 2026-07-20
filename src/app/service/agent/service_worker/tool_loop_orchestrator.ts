@@ -30,6 +30,12 @@ import { prepareAttachmentSnapshot, type AttachmentSnapshot } from "@App/app/ser
 const ELISION_THRESHOLDS = [0.4, 0.6];
 // 发送前预算检查的安全阈值：估算的下一次请求体积达到该比例时才触发裁剪/拒绝，避免与 0.9 的硬预算基准脱节
 const PREFLIGHT_BUDGET_RATIO = 0.9;
+// estimateRequestTokens 是固定 2 字节/token 的启发式估算，不是真实 tokenizer，对高熵文本/CJK 等
+// 可能明显低估或高估。裁剪到底后估算值仍未达到原始预算窗口的这个倍数时，才在本地硬拒绝——
+// 否则只把估算当作触发裁剪的信号，仍把（已尽量裁剪过的）请求交给 provider 自己判定是否能放下；
+// provider 的真实拒绝会经由 classifyErrorCode 的 CONTEXT_LENGTH_ERROR_PATTERN 识别为
+// context_too_large，走同一套恢复路径，不会退化成不透明的 api_error。
+export const HEURISTIC_HARD_REJECT_RATIO = 2;
 // 保留最近几轮 assistant(带 toolCalls) 及其 tool 结果的完整原文，更早的轮次被裁剪为占位文本
 const ELISION_KEEP_LAST_ASSISTANT_TURNS = 5;
 
@@ -345,16 +351,20 @@ export class ToolLoopOrchestrator {
           model
         );
         if (!withinBudget) {
-          await this.emitContextTooLarge(
-            conversationId,
-            conversationGeneration,
-            totalUsage,
-            startTime,
-            sendEvent,
-            signal,
-            throwOnTerminalError
-          );
-          return;
+          const elidedTokens = estimateRequestTokens(messages, initialTools, attachmentSizes, model);
+          if (elidedTokens >= budgetWindow * HEURISTIC_HARD_REJECT_RATIO) {
+            await this.emitContextTooLarge(
+              conversationId,
+              conversationGeneration,
+              totalUsage,
+              startTime,
+              sendEvent,
+              signal,
+              throwOnTerminalError
+            );
+            return;
+          }
+          // 估算值仍在启发式的合理误差范围内：不把本地估算当作最终定论，放行给 provider 自行判定
         }
       }
     }
@@ -403,16 +413,20 @@ export class ToolLoopOrchestrator {
           model
         );
         if (!withinBudget) {
-          await this.emitContextTooLarge(
-            conversationId,
-            conversationGeneration,
-            totalUsage,
-            startTime,
-            sendEvent,
-            signal,
-            throwOnTerminalError
-          );
-          return;
+          const elidedTokens = estimateRequestTokens(messages, allToolDefs, attachmentSizes, model);
+          if (elidedTokens >= budgetWindow * HEURISTIC_HARD_REJECT_RATIO) {
+            await this.emitContextTooLarge(
+              conversationId,
+              conversationGeneration,
+              totalUsage,
+              startTime,
+              sendEvent,
+              signal,
+              throwOnTerminalError
+            );
+            return;
+          }
+          // 估算值仍在启发式的合理误差范围内：不把本地估算当作最终定论，放行给 provider 自行判定
         }
       }
 
@@ -554,6 +568,7 @@ export class ToolLoopOrchestrator {
               .map((block) => block.attachmentId),
             thinking: result.thinking ? { content: result.thinking } : undefined,
             toolCalls: result.toolCalls,
+            warning: result.warning,
             createtime: Date.now(),
           };
         }
@@ -564,6 +579,12 @@ export class ToolLoopOrchestrator {
           content: buildMessageContent(),
           toolCalls: result.toolCalls,
         });
+
+        // 生成图片保存失败等警告：与最终回复分支同样的即时可见提示，不等到工具轮结束——
+        // 消息里的 warning 字段（上面已写入 persistedAssistantMessage）负责刷新后仍可见
+        if (result.warning) {
+          sendEvent({ type: "system_warning", message: result.warning });
+        }
 
         // 通过 ToolRegistry 执行工具（内置工具直接执行，脚本工具回调 Sandbox）
         // excludeTools 做后端强校验：被排除的工具名直接返回 error，避免 LLM 盲调绕过白/黑名单
@@ -686,24 +707,49 @@ export class ToolLoopOrchestrator {
               conversationGeneration
             );
           } catch (error) {
-            const durability = await this.checkToolRoundDurability(
+            let durability = await this.checkToolRoundDurability(
               conversationId,
               conversationGeneration,
               persistedAssistantMessage,
               persistedToolMessages
             );
-            if (durability === "not_durable") {
-              const ownedAttachmentIds = toolResults.flatMap((toolResult) => toolResult.ownedAttachmentIds || []);
-              await Promise.all(ownedAttachmentIds.map((id) => this.chatRepo.deleteAttachment(id).catch(() => {})));
-              await this.releaseGeneratedAttachments(result);
+            if (durability === "indeterminate") {
+              // 确认读本身失败，无法判断是否已落盘。commitToolRound 按消息 id 去重（同一 id 的
+              // assistant/tool 消息会先被过滤掉再重新写入），用同一批消息重试是幂等的——重试一次
+              // 并重新确认，而不是直接把不确定态当成功发布或直接判定失败。
+              try {
+                await this.chatRepo.commitToolRound(
+                  persistedAssistantMessage,
+                  persistedToolMessages,
+                  conversationGeneration
+                );
+                durability = "durable";
+              } catch {
+                durability = await this.checkToolRoundDurability(
+                  conversationId,
+                  conversationGeneration,
+                  persistedAssistantMessage,
+                  persistedToolMessages
+                );
+              }
+            }
+            if (durability !== "durable") {
+              // not_durable：确已证实未落盘，回收本轮租约态附件。
+              // indeterminate（重试后仍无法确认）：不能证实未落盘，可能仍被引用，不能删除，
+              // 只能保留租约、以 persist_indeterminate 终止而不是当作成功发布。
+              if (durability === "not_durable") {
+                const ownedAttachmentIds = toolResults.flatMap((toolResult) => toolResult.ownedAttachmentIds || []);
+                await Promise.all(ownedAttachmentIds.map((id) => this.chatRepo.deleteAttachment(id).catch(() => {})));
+                await this.releaseGeneratedAttachments(result);
+              }
               throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
                 usage: totalUsage,
                 durationMs: Date.now() - startTime,
                 conversationId,
+                errorCode: durability === "indeterminate" ? "persist_indeterminate" : undefined,
               });
             }
-            // durable：OPFS close 报告了二义性错误，但该轮次确已落盘，发布结果并保留附件。
-            // indeterminate：确认读本身失败，无法证实写入未落盘——同样不能删除可能仍被引用的附件。
+            // durable：OPFS close 报告了二义性错误，或重试后确认已落盘，发布结果并保留附件。
           }
         }
 

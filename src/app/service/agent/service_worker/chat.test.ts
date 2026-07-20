@@ -416,6 +416,36 @@ describe("handleConversationChat 场景补充", () => {
     expect(mockRepo.appendMessage).not.toHaveBeenCalled();
   });
 
+  it("compact 模式下调用方持有的 generation 与当前存储不一致时也应拒绝，而不是压缩新一代会话的历史", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+
+    // conv-1 的 ID 被删除重建，当前存储的 generation 已经变成 "gen-b"
+    const conv = {
+      id: "conv-1",
+      title: "Test",
+      modelId: "test-openai",
+      generation: "gen-b",
+      createtime: Date.now(),
+      updatetime: Date.now(),
+    };
+    mockRepo.listConversations.mockResolvedValue([conv]);
+
+    // 陈旧的 Options 标签页仍持有创建时的 generation "gen-a"
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-1", generation: "gen-a", message: "", compact: true },
+      sender
+    );
+
+    const events = sentMessages.map((m) => m.data);
+    const errorEvents = events.filter((e: any) => e.type === "error");
+    expect(errorEvents).toHaveLength(1);
+    expect(errorEvents[0].errorCode).toBe("conversation_generation_mismatch");
+    // 不应读取消息快照或触发任何 LLM 调用
+    expect(mockRepo.getMessageSnapshot).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("handleConversation 的 getMessages/clearMessages 在 generation 不一致时应拒绝而非作用于新一代会话", async () => {
     const { service, mockRepo } = createTestService();
 

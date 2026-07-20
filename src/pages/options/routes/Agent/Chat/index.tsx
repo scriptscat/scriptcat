@@ -172,6 +172,7 @@ export default function AgentChat() {
   const chatArea = (
     <ChatArea
       conversationId={activeId}
+      conversationGeneration={activeConv?.generation}
       models={models}
       modelsLoaded={modelsLoaded}
       selectedModelId={effectiveModelId}

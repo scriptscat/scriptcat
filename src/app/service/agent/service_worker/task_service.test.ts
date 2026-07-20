@@ -22,6 +22,7 @@ function createService(overrides?: { appendMessage?: ReturnType<typeof vi.fn> })
     callLLMWithToolLoop: vi.fn().mockResolvedValue(undefined),
   };
   const skillService = { resolveSkills: vi.fn().mockReturnValue({ promptSuffix: "", metaTools: [] }) } as any;
+  const scriptDAO = { get: vi.fn().mockResolvedValue(undefined) } as any;
   const service = new AgentTaskService(
     {} as any,
     repo,
@@ -29,9 +30,10 @@ function createService(overrides?: { appendMessage?: ReturnType<typeof vi.fn> })
     skillService,
     orchestrator as any,
     {} as any,
-    {} as any
+    {} as any,
+    scriptDAO
   );
-  return { service, repo, orchestrator };
+  return { service, repo, orchestrator, scriptDAO };
 }
 
 describe("AgentTaskService 定时任务与会话锁", () => {
@@ -124,6 +126,7 @@ describe("AgentTaskService 任务生命周期", () => {
     } as const;
     const taskRepo = {
       getTask: vi.fn().mockResolvedValue(current),
+      createTask: vi.fn(async (candidate: any) => candidate),
       saveTask: vi.fn(async (candidate: any) => {
         if (candidate.generation !== current.generation || candidate.revision !== current.revision) {
           throw new Error("revision conflict");
@@ -136,6 +139,7 @@ describe("AgentTaskService 任务生命周期", () => {
       cancelTask: vi.fn(),
       executeTask: vi.fn().mockResolvedValue(undefined),
     };
+    const scriptDAO = { get: vi.fn().mockResolvedValue({ uuid: "installed-script" }) } as any;
     const service = new AgentTaskService(
       {} as any,
       {} as any,
@@ -143,10 +147,11 @@ describe("AgentTaskService 任务生命周期", () => {
       {} as any,
       {} as any,
       taskRepo as any,
-      {} as any
+      {} as any,
+      scriptDAO
     );
     service.setScheduler(scheduler as any);
-    return { service, taskRepo, scheduler, current };
+    return { service, taskRepo, scheduler, current, scriptDAO };
   }
 
   it("update 与 enable 必须使用客户端看到的 generation/revision 做 CAS", async () => {
@@ -221,9 +226,107 @@ describe("AgentTaskService 任务生命周期", () => {
     expect(scheduler.executeTask).toHaveBeenCalledWith(current, true, expect.any(Number));
   });
 
+  it("create 拒绝 sourceScriptUuid 为空的事件任务，防止创建无接收脚本的死信任务", async () => {
+    const { service, taskRepo, scriptDAO } = createMutationService();
+    scriptDAO.get.mockResolvedValue(undefined);
+
+    await expect(
+      service.handleAgentTask({
+        action: "create",
+        task: {
+          name: "事件任务",
+          mode: "event",
+          crontab: "0 9 * * *",
+          sourceScriptUuid: "",
+          enabled: true,
+          notify: false,
+        },
+      } as any)
+    ).rejects.toThrow(/sourceScriptUuid/);
+    expect(taskRepo.createTask).not.toHaveBeenCalled();
+  });
+
+  it("create 拒绝 sourceScriptUuid 指向未安装脚本的事件任务", async () => {
+    const { service, taskRepo, scriptDAO } = createMutationService();
+    scriptDAO.get.mockResolvedValue(undefined);
+
+    await expect(
+      service.handleAgentTask({
+        action: "create",
+        task: {
+          name: "事件任务",
+          mode: "event",
+          crontab: "0 9 * * *",
+          sourceScriptUuid: "unknown-script",
+          enabled: true,
+          notify: false,
+        },
+      } as any)
+    ).rejects.toThrow(/sourceScriptUuid/);
+    expect(taskRepo.createTask).not.toHaveBeenCalled();
+  });
+
+  it("create 接受 sourceScriptUuid 指向已安装脚本的事件任务", async () => {
+    const { service, taskRepo, scriptDAO } = createMutationService();
+    scriptDAO.get.mockResolvedValue({ uuid: "installed-script" });
+
+    await service.handleAgentTask({
+      action: "create",
+      task: {
+        name: "事件任务",
+        mode: "event",
+        crontab: "0 9 * * *",
+        sourceScriptUuid: "installed-script",
+        enabled: true,
+        notify: false,
+      },
+    } as any);
+
+    expect(scriptDAO.get).toHaveBeenCalledWith("installed-script");
+    expect(taskRepo.createTask).toHaveBeenCalled();
+  });
+
+  it("update 拒绝把事件任务的 sourceScriptUuid 改成未安装的脚本", async () => {
+    const { service, taskRepo, scriptDAO } = createMutationService();
+    taskRepo.getTask.mockResolvedValue({
+      id: "task-cas",
+      generation: "generation-current",
+      revision: 3,
+      name: "事件任务",
+      crontab: "0 9 * * *",
+      mode: "event",
+      sourceScriptUuid: "installed-script",
+      enabled: true,
+      notify: false,
+      createtime: 1,
+      updatetime: 1,
+    });
+    scriptDAO.get.mockResolvedValue(undefined);
+
+    await expect(
+      service.handleAgentTask({
+        action: "update",
+        id: "task-cas",
+        generation: "generation-current",
+        revision: 3,
+        task: { sourceScriptUuid: "" },
+      } as any)
+    ).rejects.toThrow(/sourceScriptUuid/);
+    expect(taskRepo.saveTask).not.toHaveBeenCalled();
+  });
+
   it("事件派发通道无响应时取消信号应立即终止等待", async () => {
     const sender = { sendMessage: vi.fn(() => new Promise(() => {})) } as any;
-    const service = new AgentTaskService(sender, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+    const service = new AgentTaskService(
+      sender,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      { get: vi.fn().mockResolvedValue({ uuid: "script-1" }) } as any
+    );
     const task = {
       id: "event-cancel",
       name: "事件任务",

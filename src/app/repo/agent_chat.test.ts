@@ -788,6 +788,42 @@ describe("AgentChatRepo 跨上下文读-改-写安全", () => {
     expect(list[0].title).toBe("New");
   });
 
+  it("会话 ID 复用且旧任务文件清理失败时，getTasks 不应读到上一代的任务", async () => {
+    const original = await repo.createConversation({
+      id: "conv-task-reused",
+      title: "Old",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    await repo.saveTasks(
+      original.id,
+      [{ id: "task-1", title: "旧一代任务", status: "pending" } as any],
+      undefined,
+      original.generation
+    );
+    // 删除会话本身成功，但旧任务文件的清理失败（GC 债务），文件残留在磁盘上
+    vi.spyOn(repo as any, "deleteFile").mockRejectedValue(new Error("disk error"));
+    await repo.deleteConversation("conv-task-reused", {
+      generation: original.generation!,
+      expectedRevision: original.revision,
+    });
+
+    // 复用同一个 ID 创建新一代会话
+    const recreated = await repo.createConversation({
+      id: "conv-task-reused",
+      title: "New",
+      modelId: "m1",
+      createtime: 2,
+      updatetime: 2,
+    });
+    expect(recreated.generation).not.toBe(original.generation);
+
+    // 新一代会话读取任务时不应看到残留的旧一代任务，而应得到空列表
+    const tasks = await repo.getTasks(recreated.id, recreated.generation);
+    expect(tasks).toEqual([]);
+  });
+
   it("saveMessages 提交新快照后附件 GC 失败不应报告 clear/compact 失败", async () => {
     const conversation = await repo.createConversation({
       id: "conv-gc-fail-save",

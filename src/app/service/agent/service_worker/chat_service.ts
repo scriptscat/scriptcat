@@ -45,7 +45,8 @@ import {
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { t } from "@App/locales/locales";
-import { elideUntilWithinBudget } from "@App/app/service/agent/core/context_elision";
+import { elideUntilWithinBudget, estimateRequestTokens } from "@App/app/service/agent/core/context_elision";
+import { HEURISTIC_HARD_REJECT_RATIO } from "./tool_loop_orchestrator";
 import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
 import type { LLMCallResult } from "./llm_client";
 import { prepareAttachmentSnapshot, type AttachmentSnapshot } from "@App/app/service/agent/core/attachment_resolver";
@@ -931,6 +932,16 @@ export class ChatService {
       sendEvent({ type: "error", message: "Conversation not found" });
       return;
     }
+    // 与非 compact 的 chat 分支同样的保护：调用方持有的 generation 与当前存储不一致时
+    // （会话已被删除重建），拒绝而不是静默压缩无关的新一代会话历史
+    if (params.generation !== undefined && conv.generation !== params.generation) {
+      sendEvent({
+        type: "error",
+        message: "Conversation generation mismatch",
+        errorCode: "conversation_generation_mismatch",
+      });
+      return;
+    }
 
     const model = await this.modelService.getModel(params.modelId || conv.modelId);
     if (!conv.generation) {
@@ -961,12 +972,18 @@ export class ChatService {
     const inputBudget = getInputTokenBudget(model);
     const effectiveWindow = Math.max(1, Math.floor(inputBudget / 0.9));
     if (!elideUntilWithinBudget(summaryMessages, effectiveWindow, undefined, 0.9, attachmentSnapshot.sizes, model)) {
-      sendEvent({
-        type: "error",
-        message: "Conversation history is too large to compact",
-        errorCode: "context_too_large",
-      });
-      return;
+      // estimateRequestTokens 是启发式估算（固定 2 字节/token），不是真实 tokenizer，可能明显
+      // 高估。裁剪到底后仍未达到预算的这个倍数时才在本地硬拒绝，否则仍交给 provider 自行判定——
+      // provider 的真实拒绝会经由 classifyErrorCode 识别为 context_too_large
+      const elidedTokens = estimateRequestTokens(summaryMessages, undefined, attachmentSnapshot.sizes, model);
+      if (elidedTokens >= inputBudget * HEURISTIC_HARD_REJECT_RATIO) {
+        sendEvent({
+          type: "error",
+          message: "Conversation history is too large to compact",
+          errorCode: "context_too_large",
+        });
+        return;
+      }
     }
 
     // 不带 tools 调用 LLM
@@ -1091,6 +1108,7 @@ export class ChatService {
                 agentId,
                 description: options.description || "Sub-agent task",
                 subAgentType: typeConfig.name,
+                toolCallId: options.toolCallId,
               },
             } as ChatStreamEvent);
 

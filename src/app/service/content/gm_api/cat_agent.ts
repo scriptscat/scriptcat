@@ -378,6 +378,7 @@ export class ConversationInstance {
       const aggregate: ToolCall[] = [];
       let usage: ChatReply["usage"];
       let durationMs: number | undefined;
+      let warning: string | undefined;
 
       const finishRound = (record = true): MessageContent => {
         const finalContent = buildContent(content, blocks);
@@ -491,6 +492,9 @@ export class ConversationInstance {
           case "new_message":
             finishRound();
             break;
+          case "system_warning":
+            warning = warning ? `${warning}\n${event.message}` : event.message;
+            break;
           case "done":
             usage = event.usage;
             durationMs = event.durationMs;
@@ -502,6 +506,7 @@ export class ConversationInstance {
               toolCalls: aggregate.length ? aggregate : undefined,
               usage,
               durationMs,
+              warning,
             });
             conn.disconnect();
             break;
@@ -668,6 +673,9 @@ export class ConversationInstance {
         case "new_message":
           push({ type: "new_message" });
           reset();
+          break;
+        case "system_warning":
+          push({ type: "system_warning", warning: event.message });
           break;
         case "done":
           push({

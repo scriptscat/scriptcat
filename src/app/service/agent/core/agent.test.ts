@@ -700,7 +700,7 @@ describe("callLLMWithToolLoop", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
 
     // 工具应被执行
-    expect(mockExecutor.execute).toHaveBeenCalledWith({ city: "北京" }, expect.any(AbortSignal));
+    expect(mockExecutor.execute).toHaveBeenCalledWith({ city: "北京" }, expect.any(AbortSignal), "call_1");
 
     // messages 应包含 assistant(tool_call) + tool(result) + user 原始消息
     expect(messages.length).toBe(3); // user + assistant(toolCalls) + tool(result)

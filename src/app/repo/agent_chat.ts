@@ -27,6 +27,12 @@ export type MessageSnapshot = {
   messages: ChatMessage[];
 };
 
+export type TaskSnapshot = {
+  generation: string;
+  revision: number;
+  tasks: Task[];
+};
+
 export type ConversationMutationGuard = {
   generation: string;
   expectedRevision?: number;
@@ -42,6 +48,10 @@ function normalizeConversation(conversation: Conversation): Conversation {
 }
 
 function isMessageSnapshot(value: ChatMessage[] | MessageSnapshot): value is MessageSnapshot {
+  return !Array.isArray(value);
+}
+
+function isTaskSnapshot(value: Task[] | TaskSnapshot): value is TaskSnapshot {
   return !Array.isArray(value);
 }
 
@@ -409,6 +419,19 @@ export class AgentChatRepo extends OPFSRepo {
     return stored;
   }
 
+  private async readTaskSnapshot(
+    conversationId: string,
+    generation: string,
+    tasksDir: FileSystemDirectoryHandle
+  ): Promise<TaskSnapshot> {
+    const stored = await this.readJsonFile<Task[] | TaskSnapshot>(`${conversationId}.json`, [], tasksDir);
+    // 旧格式（未打 generation 标签的原始 Task[]）视为迁移前的历史数据，直接接受，
+    // 与 readMessageSnapshot 对旧版 ChatMessage[] 的兼容处理保持一致。
+    if (!isTaskSnapshot(stored)) return { generation, revision: 0, tasks: stored };
+    if (stored.generation !== generation) return { generation, revision: 0, tasks: [] };
+    return stored;
+  }
+
   // ---- 附件存储 ----
   // 新路径: agents/workspace/uploads/{id}（LLM 可通过 opfs_read 访问）
   // 旧路径: agents/conversations/attachments/{id}（兼容读取）
@@ -481,19 +504,30 @@ export class AgentChatRepo extends OPFSRepo {
   // 获取会话关联的任务列表
   async getTasks(conversationId: string, generation?: string): Promise<Task[]> {
     return this.withFileLock(`lifecycle:${conversationId}`, async () => {
-      await this.requireConversation(conversationId, generation);
+      const current = await this.requireConversation(conversationId, generation);
       const tasksDir = await this.getChildDir(TASKS_DIR);
-      return this.readJsonFile<Task[]>(`${conversationId}.json`, [], tasksDir);
+      // generation 不匹配（例如会话 ID 被复用、旧任务文件清理失败残留）时返回空快照，
+      // 而不是把上一代会话的任务列表当作当前会话的任务，与 readMessageSnapshot 的语义一致。
+      const snapshot = await this.readTaskSnapshot(conversationId, current.generation!, tasksDir);
+      return snapshot.tasks;
     });
   }
 
   // 保存会话关联的任务列表
   async saveTasks(conversationId: string, tasks: Task[], signal?: AbortSignal, generation?: string): Promise<void> {
     await this.withFileLock(`lifecycle:${conversationId}`, async () => {
-      await this.requireConversation(conversationId, generation);
+      const current = await this.requireConversation(conversationId, generation);
       await this.withFileLock(`tasks:${conversationId}`, async () => {
         const tasksDir = await this.getChildDir(TASKS_DIR);
-        await this.writeJsonFileConfirmed(`${conversationId}.json`, tasks, [], tasksDir, signal);
+        const previous = await this.readTaskSnapshot(conversationId, current.generation!, tasksDir);
+        const saved: TaskSnapshot = { generation: current.generation!, revision: previous.revision + 1, tasks };
+        await this.writeJsonFileConfirmed(
+          `${conversationId}.json`,
+          saved,
+          { generation: current.generation!, revision: 0, tasks: [] },
+          tasksDir,
+          signal
+        );
       });
     });
   }

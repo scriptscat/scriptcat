@@ -949,6 +949,8 @@ declare namespace CATAgent {
     durationMs?: number;
     /** 当回复由命令处理器产生（而非 LLM）时为 `true`。 */
     command?: boolean;
+    /** 生成数据丢失等非致命警告（如生成的图片保存失败）。 */
+    warning?: string;
   }
 
   /** 通过 `chatStream()` 流式返回的单个数据块。 */
@@ -961,6 +963,7 @@ declare namespace CATAgent {
      * - `"tool_call_complete"` — 工具调用执行完成，携带结果/状态/附件
      * - `"content_block"` — 完整的非文本内容块
      * - `"new_message"` — 当前轮次结束，下一轮 assistant 消息即将开始
+     * - `"system_warning"` — 生成数据丢失等非致命警告
      * - `"done"` — 流结束
      * - `"error"` — 发生错误
      */
@@ -971,6 +974,7 @@ declare namespace CATAgent {
       | "tool_call_complete"
       | "content_block"
       | "new_message"
+      | "system_warning"
       | "done"
       | "error";
     /** 文本增量（用于 content_delta / thinking_delta）。 */
@@ -994,6 +998,8 @@ declare namespace CATAgent {
     errorCode?: string;
     /** 当数据块由命令处理器产生时为 `true`。 */
     command?: boolean;
+    /** 警告文本（用于 `"system_warning"`）。 */
+    warning?: string;
   }
 
   /** 附加到后台对话时返回的初始状态快照。 */
@@ -1345,6 +1351,13 @@ declare namespace CATAgentTask {
   interface AgentTask {
     /** 任务 ID。 */
     id: string;
+    /**
+     * 乐观并发版本号，由 `get()`/`list()` 返回。调用 `update()`/`remove()` 时须传回这个取到的值，
+     * 系统才能识别出该任务是否已在此期间被修改或重建。
+     */
+    generation?: string;
+    /** 乐观并发修订号，与 `generation` 配对使用。 */
+    revision?: number;
     /** 任务名称。 */
     name: string;
     /** Cron 表达式。 */
@@ -1423,11 +1436,17 @@ declare namespace CATAgentTask {
     /** 根据 ID 获取任务。 */
     get(id: string): Promise<AgentTask | undefined>;
 
-    /** 更新任务。 */
+    /**
+     * 更新任务。`task` 必须携带 `get()`/`list()` 返回的 `generation`/`revision`——先展开取到的任务对象
+     * 再应用改动。若任务在此期间被修改或重建，会抛出错误。
+     */
     update(id: string, task: Partial<AgentTask>): Promise<AgentTask>;
 
-    /** 根据 ID 删除任务。 */
-    remove(id: string): Promise<boolean>;
+    /**
+     * 根据 ID 删除任务。`task` 必须携带 `get()`/`list()` 返回的 `generation`/`revision`，
+     * 避免持有旧引用的调用方删掉同 ID 被重建后的新任务。
+     */
+    remove(id: string, task: Pick<AgentTask, "generation" | "revision">): Promise<boolean>;
 
     /** 立即触发任务（不受 cron 计划限制）。 */
     runNow(id: string): Promise<void>;
