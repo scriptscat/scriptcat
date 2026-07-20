@@ -39,23 +39,35 @@ vi.mock("@App/app/service/service_worker/client", () => ({
   },
 }));
 
-const { get, set, getMcpWritePolicy, setMcpWritePolicy, getMcpUrl, setMcpUrl, subscribeMessage, pairingHandlers } =
-  vi.hoisted(() => {
-    const pairingHandlers: Array<(data: { pairingId: string }) => void> = [];
-    return {
-      get: vi.fn(),
-      set: vi.fn(),
-      getMcpWritePolicy: vi.fn(() => Promise.resolve("approval")),
-      setMcpWritePolicy: vi.fn(),
-      getMcpUrl: vi.fn(() => Promise.resolve("ws://127.0.0.1:8643")),
-      setMcpUrl: vi.fn(),
-      subscribeMessage: vi.fn((topic: string, handler: (data: any) => void) => {
-        if (topic === "mcpPairingRequested") pairingHandlers.push(handler);
-        return () => {};
-      }),
-      pairingHandlers,
-    };
-  });
+const {
+  get,
+  set,
+  getMcpWritePolicy,
+  setMcpWritePolicy,
+  getMcpUrl,
+  setMcpUrl,
+  subscribeMessage,
+  pairingHandlers,
+  statusHandlers,
+} = vi.hoisted(() => {
+  const pairingHandlers: Array<(data: { pairingId: string }) => void> = [];
+  const statusHandlers: Array<(data: { status: string }) => void> = [];
+  return {
+    get: vi.fn(),
+    set: vi.fn(),
+    getMcpWritePolicy: vi.fn(() => Promise.resolve("approval")),
+    setMcpWritePolicy: vi.fn(),
+    getMcpUrl: vi.fn(() => Promise.resolve("ws://127.0.0.1:8643")),
+    setMcpUrl: vi.fn(),
+    subscribeMessage: vi.fn((topic: string, handler: (data: any) => void) => {
+      if (topic === "mcpPairingRequested") pairingHandlers.push(handler);
+      if (topic === "mcpStatusChanged") statusHandlers.push(handler);
+      return () => {};
+    }),
+    pairingHandlers,
+    statusHandlers,
+  };
+});
 vi.mock("@App/pages/store/global", () => ({
   systemConfig: { get, set, getMcpWritePolicy, setMcpWritePolicy, getMcpUrl, setMcpUrl },
   message: {},
@@ -103,6 +115,7 @@ afterEach(() => {
   revokeAllAndStop.mockClear();
   clearAudit.mockClear();
   pairingHandlers.length = 0;
+  statusHandlers.length = 0;
 });
 
 describe("MCP 桥接分区", () => {
@@ -252,6 +265,32 @@ describe("MCP 桥接分区", () => {
     fireEvent.click(await screen.findByRole("button", { name: /confirm/i }));
     await waitFor(() => expect(revokeAllAndStop).toHaveBeenCalled());
     expect(set).toHaveBeenCalledWith("mcp_enabled", false);
+  });
+
+  it("订阅 mcpStatusChanged 广播，配对成功后状态胶囊无需刷新页面即更新", async () => {
+    get.mockResolvedValue(true);
+    getBridgeStatus.mockResolvedValue("disabled");
+    render(<McpSection register={() => () => {}} />);
+    expect(await screen.findByTestId("mcp_status_pill")).toHaveTextContent("mcp:status_off");
+
+    act(() => {
+      statusHandlers.forEach((handler) => handler({ status: "connected" }));
+    });
+    expect(screen.getByTestId("mcp_status_pill")).toHaveTextContent("mcp:status_connected");
+  });
+
+  it("桥接断开的广播同样反映到状态胶囊", async () => {
+    get.mockResolvedValue(true);
+    getBridgeStatus.mockResolvedValue("connected");
+    render(<McpSection register={() => () => {}} />);
+    expect(await screen.findByTestId("mcp_status_pill")).toHaveTextContent("mcp:status_connected");
+
+    act(() => {
+      statusHandlers.forEach((handler) => handler({ status: "host_unreachable" }));
+    });
+    expect(screen.getByTestId("mcp_status_pill")).toHaveTextContent("mcp:status_host_unreachable");
+    // 断开态才有的重试入口，胶囊之外的条件渲染也应跟着广播走
+    expect(screen.getByTestId("mcp_retry")).toBeInTheDocument();
   });
 
   it("订阅 mcpPairingRequested 广播，收到后渲染页面内配对对话框", async () => {

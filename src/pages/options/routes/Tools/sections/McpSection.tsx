@@ -84,7 +84,11 @@ function StatusPill({ status, t }: { status: McpBridgeStatus; t: (key: string) =
       host_outdated: { label: t("mcp:status_host_outdated"), variant: "destructive" },
     };
   const entry = map[status];
-  return <Badge variant={entry.variant}>{entry.label}</Badge>;
+  return (
+    <Badge variant={entry.variant} data-testid="mcp_status_pill">
+      {entry.label}
+    </Badge>
+  );
 }
 
 export function McpSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
@@ -117,6 +121,14 @@ export function McpSection({ register }: { register: (id: string) => (el: HTMLEl
     void systemConfig.getMcpWritePolicy().then(setWritePolicy);
     void systemConfig.getMcpUrl().then(setMcpUrl);
     void fetchMcpState().then(applyMcpState);
+  }, []);
+
+  // McpController 的状态机在 SW 里推进（配对完成、hello 到达、socket 断开），页面这边只在挂载时
+  // 拉过一次；不订阅广播的话，配对成功后胶囊会一直停在旧状态直到用户手动刷新页面。
+  useEffect(() => {
+    return subscribeMessage<{ status: McpBridgeStatus }>("mcpStatusChanged", (data) => {
+      setStatus(data.status);
+    });
   }, []);
 
   // In-page pairing dialog: McpController only skips its own popup when an options tab is
