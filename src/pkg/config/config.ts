@@ -9,6 +9,7 @@ import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
 import { toCamelCase } from "../utils/utils";
 import EventEmitter from "eventemitter3";
 import { STORAGE_LOCAL_KEYS } from "./consts";
+import { mergeJsonConfig, diffJsonConfig } from "./json_overrides";
 
 export const SystemConfigChange = "systemConfigChange";
 
@@ -182,6 +183,31 @@ export class SystemConfig {
   // 设备相关的配置项，使用 chrome.storage.local（不跨设备同步）
   private readonly localStorage = new ChromeStorage("system", false);
 
+  // JSON 配置项的默认配置：storage 只保存与默认配置的稀疏差异，
+  // 缓存与消息广播中始终是合并后的完整配置（#1517）
+  private readonly jsonConfigDefaults: Partial<Record<SystemConfigKey, string>> = {
+    eslint_config: defaultConfig,
+    editor_config: editorDefaultConfig,
+  };
+
+  // 读取解码：将存储的用户差异合并到最新默认配置
+  private decodeStored(key: SystemConfigKey, stored: unknown): unknown {
+    const defaultStr = this.jsonConfigDefaults[key];
+    if (defaultStr !== undefined && typeof stored === "string") {
+      return mergeJsonConfig(defaultStr, stored);
+    }
+    return stored;
+  }
+
+  // 写入编码：只保存与默认配置的差异，完全一致时返回 undefined（清除存储）
+  private encodeForStorage(key: SystemConfigKey, value: unknown): unknown {
+    const defaultStr = this.jsonConfigDefaults[key];
+    if (defaultStr !== undefined && typeof value === "string") {
+      return diffJsonConfig(defaultStr, value);
+    }
+    return value;
+  }
+
   private isLocalKey(key: string): boolean {
     return STORAGE_LOCAL_KEYS.has(key);
   }
@@ -289,9 +315,10 @@ export class SystemConfig {
         return entry.hasValue && entry.value !== undefined ? (entry.value as T) : this.resolveDefault<T>(defaultValue);
       }
       if (val !== undefined) {
+        const decoded = this.decodeStored(key, val);
         entry.hasValue = true;
-        entry.value = val;
-        return val as T;
+        entry.value = decoded;
+        return decoded as T;
       }
       // 对 local key，回退读取 sync storage（兼容旧版本数据迁移）
       if (this.isLocalKey(key)) {
@@ -321,14 +348,13 @@ export class SystemConfig {
     entry.version += 1;
     const writeVersion = entry.version;
     const storage = this.getStorage(key);
-    const persist = () => (value === undefined ? storage.remove(key) : storage.set(key, value));
-    if (value === undefined) {
-      entry.hasValue = true;
-      entry.value = undefined;
-    } else {
-      entry.hasValue = true;
-      entry.value = value;
-    }
+    const persist = () => {
+      if (value === undefined) return storage.remove(key);
+      const stored = this.encodeForStorage(key, value);
+      return stored === undefined ? storage.remove(key) : storage.set(key, stored);
+    };
+    entry.hasValue = true;
+    entry.value = value;
     // 同一配置键可能在输入框逐字编辑时被高频写入。chrome.storage 的异步回调
     // 不保证多次并发写入按调用顺序完成，旧写入后完成会把新值覆盖掉；按键串行化
     // 持久化可确保最终落盘值与内存中的最新快照一致，不影响不同配置键并行保存。
@@ -464,8 +490,7 @@ export class SystemConfig {
 
   setEslintConfig(v: string) {
     if (v === "") {
-      this._set("eslint_config", defaultConfig);
-      return;
+      v = defaultConfig;
     }
     JSON.parse(v);
     return this._set("eslint_config", v);
@@ -477,8 +502,7 @@ export class SystemConfig {
 
   setEditorConfig(v: string) {
     if (v === "") {
-      this._set("editor_config", editorDefaultConfig);
-      return;
+      v = editorDefaultConfig;
     }
     JSON.parse(v);
     return this._set("editor_config", v);
