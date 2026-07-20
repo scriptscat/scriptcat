@@ -116,6 +116,7 @@
   "favicon_service_local": "Local Fetch",
   "cloud_sync_account_verification": "Cloud Sync Account Verification in Progress...",
   "cloud_sync_verification_failed": "Cloud Sync Account Verification Failed",
+  "cloud_sync_connection_changed": "The sync connection configuration changed, so sync has been paused. Review the configuration and enable sync again.",
   "trash_retention": "Trash Retention",
   "trash_retention_desc": "How long deleted scripts stay in Trash before being automatically deleted permanently",
   "trash_retention_7": "7 Days",
