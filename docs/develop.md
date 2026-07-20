@@ -71,6 +71,17 @@ Two conventions are enforced via built-in rules in `eslint.config.mjs`: `no-rest
 the `radix-ui` pattern of `no-restricted-imports`, and `no-restricted-syntax` — not `require-last-error-check`,
 and not the `sonner` pattern of `no-restricted-imports`.
 
+`src/pages/components/ui/toast.ts` has an override that turns `no-restricted-imports` **entirely off** for that
+one file — not just the `sonner` half of it. Only the `sonner` exception is intentional: this is the one place
+in `src/pages/**` allowed to import `sonner`'s `toast` directly (it's the wrapper `notify` is built on). The
+file happens to also lose the `@radix-ui/react-*` restriction as a side effect of the rule being off wholesale
+— it does not currently import from `@radix-ui/react-*` (or `radix-ui`) at all, and the merged-package
+convention still applies to it in spirit; `eslint-rules/harness.test.mjs`'s Radix case only exercises
+`dialog.tsx`, so a Radix-restricted import landing in `toast.ts` would not be caught by lint today. Don't read
+this override as "Radix single-package imports are permitted here" — treat it as a lint gap this file
+currently doesn't exploit, and prefer narrowing the override to the `sonner` import specifically (or adding a
+`toast.ts` case to the harness) over relying on the blanket `off`. Any other file still gets both restrictions.
+
 Separately, type-aware rules run on `src/pages/**` (tests excluded) via `projectService` —
 `@typescript-eslint/no-floating-promises`, `no-misused-promises` (with `checksVoidReturn.attributes: false`, so
 `async` JSX handlers are allowed), and `await-thenable`, all `error` — to catch missing `await`s and promises
