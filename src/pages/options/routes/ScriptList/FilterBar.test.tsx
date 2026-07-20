@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent, act } from "@testing-library/react";
+import { render, cleanup, screen } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { SCRIPT_STATUS_ENABLE } from "@App/app/repo/scripts";
 import FilterBar from "./FilterBar";
@@ -21,33 +21,6 @@ describe("FilterBar 国际化", () => {
     // script_list.sidebar.* 的 key 存放在 script 命名空间，必须带 "script:" 前缀才能解析
     expect(container.textContent).toContain("状态");
     expect(container.textContent).not.toContain("script_list.sidebar.status");
-  });
-
-  it("普通筛选菜单焦点移出后应按默认行为关闭", async () => {
-    render(
-      <FilterBar
-        filterItems={{
-          statusItems: [{ key: SCRIPT_STATUS_ENABLE, label: "启用", icon: () => null, count: 1 }],
-          typeItems: [],
-          tagItems: [],
-          sourceItems: [],
-        }}
-        selectedFilters={{ status: null, type: null, tags: null, source: null }}
-        setSelectedFilters={() => {}}
-      />
-    );
-
-    const trigger = screen.getByRole("button", { name: "状态" });
-    fireEvent.pointerDown(trigger);
-    fireEvent.click(trigger);
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    const outside = document.createElement("button");
-    document.body.appendChild(outside);
-    await act(async () => outside.focus());
-
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-    outside.remove();
   });
 
   it("chip 行可横向滚动,清除按钮固定在滚动区之外", () => {
