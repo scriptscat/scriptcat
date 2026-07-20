@@ -7,7 +7,7 @@ import manifest from "../src/manifest.json" with { type: "json" };
 import packageInfo from "../package.json" with { type: "json" };
 import semver from "semver";
 import { toChromeVersion } from "./version.js";
-import { resolveAgentEnabled, applyAgentManifest } from "./build-config.js";
+import { resolveAgentEnabled, applyAgentManifest, applyFirefoxSandboxManifest } from "./build-config.js";
 
 // ============================================================================
 
@@ -65,18 +65,11 @@ execSync("pnpm run build", {
 
 // 处理firefox和chrome的zip压缩包
 
-// 浅拷贝防止后续修改
-const cloneManifest = () =>
-  applyAgentManifest(
-    {
-      ...manifest,
-      background: { ...manifest.background },
-      content_security_policy: { ...manifest.content_security_policy },
-    },
-    agentEnabled
-  );
-const firefoxManifest = cloneManifest();
-const chromeManifest = cloneManifest();
+// 浅拷贝防止后续修改；Firefox 专用 CSP 不进入共用 manifest 和 Chrome 产物。
+const firefoxManifest = applyFirefoxSandboxManifest(
+  applyAgentManifest({ ...manifest, background: { ...manifest.background } }, agentEnabled)
+);
+const chromeManifest = applyAgentManifest({ ...manifest, background: { ...manifest.background } }, agentEnabled);
 
 chromeManifest.optional_permissions = chromeManifest.optional_permissions.filter((val) => val !== "userScripts");
 delete chromeManifest.background.scripts;

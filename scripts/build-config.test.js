@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveAgentEnabled, applyAgentManifest } from "./build-config.js";
+import { resolveAgentEnabled, applyAgentManifest, applyFirefoxSandboxManifest } from "./build-config.js";
 
 describe("构建配置 - agent 开关", () => {
   describe("resolveAgentEnabled - 打包判断（稳定版屏蔽、beta 开启，SC_DISABLE_AGENT 覆盖）", () => {
@@ -54,5 +54,22 @@ describe("构建配置 - agent 开关", () => {
       applyAgentManifest(manifest, false);
       expect(manifest.permissions).toContain("debugger");
     });
+  });
+});
+
+describe("构建配置 - Firefox sandbox manifest", () => {
+  it("仅为 Firefox 产物添加 sandbox CSP，且不修改共用 manifest", () => {
+    const manifest = {
+      manifest_version: 3,
+      sandbox: { pages: ["src/sandbox.html"] },
+    };
+
+    const result = applyFirefoxSandboxManifest(manifest);
+
+    expect(result.content_security_policy).toEqual({
+      sandbox:
+        "sandbox allow-downloads allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-scripts allow-storage-access-by-user-activation allow-top-navigation allow-top-navigation-by-user-activation allow-top-navigation-to-custom-protocols; script-src 'unsafe-inline' 'unsafe-eval' https: http: data: blob: 'self';",
+    });
+    expect(manifest).not.toHaveProperty("content_security_policy");
   });
 });

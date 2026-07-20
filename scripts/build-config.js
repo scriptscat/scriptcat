@@ -25,3 +25,21 @@ export function applyAgentManifest(manifest, agentEnabled) {
     permissions: (manifest.permissions || []).filter((permission) => permission !== "debugger"),
   };
 }
+
+export const FIREFOX_SANDBOX_CSP =
+  "sandbox allow-downloads allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-scripts allow-storage-access-by-user-activation allow-top-navigation allow-top-navigation-by-user-activation allow-top-navigation-to-custom-protocols; script-src 'unsafe-inline' 'unsafe-eval' https: http: data: blob: 'self';";
+
+/**
+ * Firefox MV3 的 sandbox manifest 支持要求显式声明 CSP；Chrome 继续使用原有 manifest。
+ * @template {object} T
+ * @param {T} manifest
+ * @returns {T & { content_security_policy: { sandbox: string } }}
+ */
+export function applyFirefoxSandboxManifest(manifest) {
+  return {
+    ...manifest,
+    content_security_policy: {
+      sandbox: FIREFOX_SANDBOX_CSP,
+    },
+  };
+}
