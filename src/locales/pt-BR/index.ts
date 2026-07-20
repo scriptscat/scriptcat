@@ -1,0 +1,11 @@
+export { default as agent } from "./agent.json";
+export { default as common } from "./common.json";
+export { default as editor } from "./editor.json";
+export { default as guide } from "./guide.json";
+export { default as install } from "./install.json";
+export { default as logs } from "./logs.json";
+export { default as permission } from "./permission.json";
+export { default as popup } from "./popup.json";
+export { default as script } from "./script.json";
+export { default as settings } from "./settings.json";
+export { default as tools } from "./tools.json";

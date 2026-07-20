@@ -135,8 +135,9 @@
   "editor_config_format_error": "Lỗi định dạng cấu hình trình soạn thảo",
   "editor_type_definition_reset": "Định nghĩa kiểu trình soạn thảo đã được đặt lại",
   "editor_type_definition_saved": "Định nghĩa kiểu trình soạn thảo đã được lưu",
-  "trash_restore_prompt_title": "Khôi phục script đã xóa?",
-  "trash_restore_prompt_description": "Thùng rác có một script cùng tên và namespace. Khôi phục sẽ dùng lại danh tính và dữ liệu được giữ lại của script đó. Hủy để tiếp tục chỉnh sửa mà không lưu.",
+  "trash_restore_save_prompt_title": "Khôi phục và lưu script?",
+  "trash_restore_save_prompt_description": "Thùng rác có một script cùng tên và namespace. Khi tiếp tục, danh tính và dữ liệu được giữ lại sẽ được khôi phục, sau đó nội dung hiện tại trong trình chỉnh sửa sẽ được lưu thành script này. Hủy để tiếp tục chỉnh sửa mà không lưu.",
+  "trash_restore_save_prompt_confirm": "Khôi phục và lưu",
   "editor": {
     "show_script_list": "Hiển thị danh sách script",
     "hide_script_list": "Ẩn danh sách script"

@@ -135,8 +135,9 @@
   "editor_config_format_error": "编辑器配置格式错误",
   "editor_type_definition_reset": "编辑器类型定义已重置",
   "editor_type_definition_saved": "编辑器类型定义已保存",
-  "trash_restore_prompt_title": "恢复已删除的脚本？",
-  "trash_restore_prompt_description": "回收站中存在同名且命名空间相同的脚本。恢复后将复用原身份及保留的数据；取消则继续编辑且不保存。",
+  "trash_restore_save_prompt_title": "还原并保存脚本？",
+  "trash_restore_save_prompt_description": "回收站中存在同名且命名空间相同的脚本。继续后将还原原身份及保留的数据，并将当前编辑内容保存为该脚本；取消则继续编辑且不保存。",
+  "trash_restore_save_prompt_confirm": "还原并保存",
   "editor": {
     "show_script_list": "显示脚本列表",
     "hide_script_list": "隐藏脚本列表"
