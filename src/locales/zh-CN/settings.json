@@ -116,6 +116,7 @@
   "favicon_service_local": "本地获取",
   "cloud_sync_account_verification": "云同步账号信息验证中...",
   "cloud_sync_verification_failed": "云同步账号信息验证失败",
+  "cloud_sync_connection_changed": "同步连接配置已更改，已暂停同步。请确认配置后重新启用。",
   "trash_retention": "回收站保留时间",
   "trash_retention_desc": "删除的脚本在回收站中保留多久后自动彻底删除",
   "trash_retention_7": "7天",
