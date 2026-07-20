@@ -70,6 +70,19 @@ const makeAction = (metadata: Record<string, string[]>): Script =>
 beforeAll(() => initTestLanguage("zh-CN"));
 
 describe("assembleInstallView 组装安装视图", () => {
+  it("应透出 inTrash 标记；缺省为 false", () => {
+    const metadata = { name: ["示例脚本"], version: ["2.3.1"] };
+    const base = {
+      isUpdate: true,
+      scriptInfo: makeScriptInfo(metadata),
+      action: makeAction(metadata),
+      code: "// code",
+      oldVersion: "1.0.0",
+    };
+    expect(assembleInstallView({ ...base, inTrash: true }).inTrash).toBe(true);
+    expect(assembleInstallView(base).inTrash).toBe(false);
+  });
+
   it("全新安装组装名称、来源、版本与权限", () => {
     const metadata = {
       name: ["示例脚本"],

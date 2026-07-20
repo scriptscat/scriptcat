@@ -66,8 +66,8 @@
   "confirm_reset": "Sıfırlansın mı?",
   "confirm_delete_match": "Bu eşleşme silinsin mi?",
   "confirm_delete_exclude": "Bu dışlama silinsin mi?",
-  "after_deleting_match_item": "Silinen betik tarafından tanımlanan eşleşme kuralları tekrar eşleşme listesine eklenir",
-  "after_deleting_exclude_item": "Silinen betik tarafından tanımlanan dışlama kuralları tekrar dışlama listesine eklenir",
+  "after_deleting_match_item": "Düzenledikten sonra özel eşleşme kuralları kullanılır; betiğin yerleşik eşleşme kurallarını geri yüklemek için «Sıfırla»ya tıklayın.",
+  "after_deleting_exclude_item": "Düzenledikten sonra özel dışlama kuralları kullanılır; betiğin yerleşik dışlama kurallarını geri yüklemek için «Sıfırla»ya tıklayın.",
   "undo": "Geri Al",
   "redo": "Yinele",
   "cut": "Kes",
@@ -129,6 +129,9 @@
   "editor_config_format_error": "Düzenleyici Yapılandırma Biçimi Hatalı",
   "editor_type_definition_reset": "Düzenleyici Tür Tanımları Sıfırlandı",
   "editor_type_definition_saved": "Düzenleyici Tür Tanımları Kaydedildi",
+  "trash_restore_save_prompt_title": "Betik geri yüklenip kaydedilsin mi?",
+  "trash_restore_save_prompt_description": "Çöp kutusunda aynı ada ve ad alanına sahip bir betik var. Devam edildiğinde betiğin kimliği ve korunan verileri geri yüklenir, mevcut düzenleyici içeriği de bu betik olarak kaydedilir. Kaydetmeden düzenlemeye devam etmek için iptal edin.",
+  "trash_restore_save_prompt_confirm": "Geri Yükle ve Kaydet",
   "editor": {
     "show_script_list": "Betik Listesini Göster",
     "hide_script_list": "Betik Listesini Gizle"

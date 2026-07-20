@@ -33,6 +33,8 @@ import {
 
 export interface InstallView {
   isUpdate: boolean;
+  /** 该脚本正躺在回收站里：安装即还原其身份，value/权限不会丢失 */
+  inTrash: boolean;
   isSubscribe: boolean;
   name: string;
   iconUrl?: string;
@@ -61,17 +63,19 @@ export interface InstallView {
  */
 export function assembleInstallView(args: {
   isUpdate: boolean;
+  inTrash?: boolean;
   scriptInfo: ScriptInfo;
   action: Script | Subscribe;
   code: string;
   oldVersion: string | null;
   oldCode?: string;
 }): InstallView {
-  const { isUpdate, scriptInfo, action, code, oldVersion, oldCode } = args;
+  const { isUpdate, inTrash, scriptInfo, action, code, oldVersion, oldCode } = args;
   const metadata = scriptInfo.metadata;
   const schedule = deriveScheduleInfo(metadata);
   return {
     isUpdate,
+    inTrash: inTrash === true,
     isSubscribe: scriptInfo.userSubscribe,
     name: i18nName(action),
     iconUrl: metadata.icon?.[0],
@@ -183,6 +187,7 @@ export function useInstallData(): UseInstallData {
       let action: Script | Subscribe;
       let oldVersion: string | null;
       let oldCode: string | undefined;
+      let inTrash = false;
       if (info.userSubscribe) {
         const p = await prepareSubscribeByCode(code, info.url);
         action = p.subscribe;
@@ -200,6 +205,7 @@ export function useInstallData(): UseInstallData {
         action = p.script;
         oldVersion = versionOf(p.oldScript);
         oldCode = p.oldScriptCode;
+        inTrash = p.oldInTrash === true;
       }
       if (cancelled) return;
       actionRef.current = action;
@@ -209,6 +215,7 @@ export function useInstallData(): UseInstallData {
         status: "ready",
         view: assembleInstallView({
           isUpdate: oldVersion !== null,
+          inTrash,
           scriptInfo: info,
           action,
           code,

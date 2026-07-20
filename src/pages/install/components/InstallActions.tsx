@@ -12,6 +12,10 @@ import { cn } from "@App/pkg/utils/cn";
 
 export interface InstallActionsProps {
   isUpdate: boolean;
+  /** 脚本在回收站中：主按钮由「安装/更新」改为「还原/还原并更新」 */
+  inTrash?: boolean;
+  /** 回收站态下页面版本与回收站里那份是否不同，决定「还原」还是「还原并更新」 */
+  versionChanged?: boolean;
   isSubscribe: boolean;
   primaryDisabled?: boolean;
   localFile?: boolean;
@@ -66,6 +70,8 @@ function MoreMenu({
 
 export function InstallActions({
   isUpdate,
+  inTrash,
+  versionChanged,
   isSubscribe,
   primaryDisabled,
   localFile,
@@ -77,7 +83,13 @@ export function InstallActions({
 }: InstallActionsProps) {
   const { t } = useTranslation(["install", "common", "editor", "mcp"]);
 
-  const primaryLabel = isUpdate ? t("install:update_script") : t("install:script");
+  const primaryLabel = inTrash
+    ? versionChanged
+      ? t("install:btn_restore_update")
+      : t("install:btn_restore")
+    : isUpdate
+      ? t("install:update_script")
+      : t("install:script");
   const noCloseLabel = isUpdate ? t("install:update_script_no_close") : t("install:script_no_close");
   const noMoreUpdateLabel = isUpdate ? t("install:update_script_no_more_update") : t("install:script_no_more_update");
   const PrimaryIcon = isUpdate ? RefreshCw : Download;

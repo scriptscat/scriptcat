@@ -207,5 +207,8 @@
   "miner_description": "Dieses Skript hat Mining-Verhalten",
   "membership_description": "Dieses Skript erfordert eine Mitgliedschaftsregistrierung für die normale Nutzung",
   "tracking_description": "Dieses Skript verfolgt Ihre Benutzerinformationen",
-  "script_info_load_failed": "Skript-Informationen laden fehlgeschlagen!"
+  "script_info_load_failed": "Skript-Informationen laden fehlgeschlagen!",
+  "btn_restore": "Wiederherstellen",
+  "btn_restore_update": "Wiederherstellen und aktualisieren",
+  "in_trash_hint": "Dieses Skript befindet sich im Papierkorb. Die Installation stellt es wieder her und behält die vorhandenen Daten."
 }

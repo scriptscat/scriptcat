@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterEach, beforeEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockIntersectionObserver } from "@Tests/mockIntersectionObserver";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
@@ -80,7 +81,11 @@ afterEach(cleanup);
 
 describe("工具页", () => {
   it("渲染 6 个分类导航项（含 MCP 桥接入口）", () => {
-    render(<Tools />);
+    render(
+      <MemoryRouter>
+        <Tools />
+      </MemoryRouter>
+    );
     const nav = document.querySelector("nav")!;
     // 非 Firefox 下 MCP 桥接卡片常显（内置默认关闭，卡片是启用入口），共 6 项。
     expect(nav.querySelectorAll("button")).toHaveLength(6);

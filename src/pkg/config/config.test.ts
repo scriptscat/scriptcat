@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { SystemConfig } from "./config";
 import { MessageQueue } from "@Packages/message/message_queue";
 
@@ -12,6 +12,10 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
     chrome.storage.local.clear();
     mq = new MessageQueue();
     config = new SystemConfig(mq);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe("local key 读写", () => {
@@ -35,6 +39,38 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       // 验证值不在 sync 中
       const syncData = await chrome.storage.sync.get("system_cloud_sync");
       expect(syncData["system_cloud_sync"]).toBeUndefined();
+    });
+
+    it("同一配置键连续写入应按调用顺序持久化，避免旧值后完成覆盖新值", async () => {
+      const callbacks: Array<() => void> = [];
+      const set = vi.spyOn(chrome.storage.local, "set").mockImplementation(((
+        _items: Record<string, unknown>,
+        callback?: () => void
+      ) => {
+        callbacks.push(callback || (() => {}));
+      }) as never);
+      const first = {
+        enable: false,
+        syncDelete: false,
+        syncStatus: true,
+        filesystem: "webdav" as const,
+        params: { webdav: { url: "h" } },
+      };
+      const second = {
+        ...first,
+        params: { webdav: { url: "ht" } },
+      };
+
+      config.setCloudSync(first);
+      config.setCloudSync(second);
+
+      expect(set).toHaveBeenCalledTimes(1);
+      callbacks.shift()?.();
+      await vi.waitFor(() => expect(set).toHaveBeenCalledTimes(2));
+      callbacks.shift()?.();
+      await vi.waitFor(() => expect(callbacks).toHaveLength(0));
+      await expect(config.getCloudSync()).resolves.toEqual(second);
+      set.mockRestore();
     });
 
     it("language 应写入 local storage", async () => {
@@ -131,6 +167,19 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
 
       const localData = await chrome.storage.local.get("system_enable_eslint");
       expect(localData["system_enable_eslint"]).toBeUndefined();
+    });
+
+    it("popup 紧凑布局应默认关闭并写入 sync storage", async () => {
+      await expect(config.getPopupCompactLayout()).resolves.toBe(false);
+
+      config.setPopupCompactLayout(true);
+
+      await expect(config.getPopupCompactLayout()).resolves.toBe(true);
+      const syncData = await chrome.storage.sync.get("system_popup_compact_layout");
+      expect(syncData["system_popup_compact_layout"]).toBe(true);
+
+      const localData = await chrome.storage.local.get("system_popup_compact_layout");
+      expect(localData["system_popup_compact_layout"]).toBeUndefined();
     });
 
     it("编辑器偏好应返回默认值并写入 sync storage", async () => {

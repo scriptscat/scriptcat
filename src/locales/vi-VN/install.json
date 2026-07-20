@@ -207,5 +207,8 @@
   "miner_description": "Script này tham gia vào các hoạt động đào coin",
   "membership_description": "Script này yêu cầu đăng ký làm thành viên để sử dụng đúng cách",
   "tracking_description": "Script này theo dõi thông tin người dùng của bạn",
-  "script_info_load_failed": "Tải thông tin script thất bại"
+  "script_info_load_failed": "Tải thông tin script thất bại",
+  "btn_restore": "Khôi phục script",
+  "btn_restore_update": "Khôi phục và cập nhật script",
+  "in_trash_hint": "Script này đang ở trong thùng rác, cài đặt sẽ khôi phục nó và giữ nguyên dữ liệu hiện có"
 }

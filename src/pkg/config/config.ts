@@ -20,6 +20,23 @@ export type CloudSyncConfig = {
   params: { [key: string]: any };
 };
 
+// 云同步运行状态（设备本地，非用户配置）：供设置页「脚本同步」卡片顶部状态条展示。
+// 由 SynchronizeService 每轮同步写入本地存储（ChromeStorage "sync" 命名空间），页面读取并订阅 chrome.storage 变更。
+export type CloudSyncState = {
+  syncing: boolean;
+  lastSyncAt: number; // ms，从未同步为 0
+  error?: string; // 最近一次同步失败原因（如账号验证失败）
+  counts: { total: number; overwrite: number; conflict: number; failed: number };
+};
+
+export const CLOUD_SYNC_STATE_KEY = "cloud_sync_state";
+
+export const DEFAULT_CLOUD_SYNC_STATE: CloudSyncState = {
+  syncing: false,
+  lastSyncAt: 0,
+  counts: { total: 0, overwrite: 0, conflict: 0, failed: 0 },
+};
+
 export type FaviconService = "scriptcat" | "google" | "duckduckgo" | "icon-horse" | "local";
 
 // MCP 写操作策略：需人工审批（默认）/ 直接允许。
@@ -146,6 +163,7 @@ interface SystemConfigEntry {
   hasValue: boolean;
   value: unknown;
   version: number;
+  pendingWrite?: Promise<void>;
   store?: unknown;
 }
 
@@ -311,18 +329,25 @@ export class SystemConfig {
     const entry = this.cacheEntry(key);
     const prev = entry.value as SystemConfigValueType<T> | undefined;
     entry.version += 1;
+    const writeVersion = entry.version;
     const storage = this.getStorage(key);
-    let asyncOp;
+    const persist = () => (value === undefined ? storage.remove(key) : storage.set(key, value));
     if (value === undefined) {
-      entry.hasValue = false;
+      entry.hasValue = true;
       entry.value = undefined;
-      asyncOp = storage.remove(key);
     } else {
       entry.hasValue = true;
       entry.value = value;
-      asyncOp = storage.set(key, value);
     }
+    // 同一配置键可能在输入框逐字编辑时被高频写入。chrome.storage 的异步回调
+    // 不保证多次并发写入按调用顺序完成，旧写入后完成会把新值覆盖掉；按键串行化
+    // 持久化可确保最终落盘值与内存中的最新快照一致，不影响不同配置键并行保存。
+    const asyncOp = entry.pendingWrite ? entry.pendingWrite.then(persist, persist) : persist();
+    entry.pendingWrite = asyncOp;
     asyncOp.then(() => {
+      if (entry.pendingWrite === asyncOp) entry.pendingWrite = undefined;
+      // 后续写入已更新了内存快照时，不再广播这个中间值，避免旧通知把最新输入覆盖。
+      if (entry.version !== writeVersion) return;
       // 发送消息通知更新
       this.mq.publish<TKeyValue<T>>(SystemConfigChange, {
         key,
@@ -504,6 +529,24 @@ export class SystemConfig {
     this._set("log_clean_cycle", val);
   }
 
+  /** 回收站是否启用。关闭后删除脚本将直接彻底删除 */
+  getTrashEnabled() {
+    return this._get<boolean>("trash_enabled", true);
+  }
+
+  setTrashEnabled(val: boolean) {
+    this._set("trash_enabled", val);
+  }
+
+  /** 回收站保留天数。0 表示永不自动清理 */
+  getTrashRetentionDays() {
+    return this._get<number>("trash_retention_days", 30);
+  }
+
+  setTrashRetentionDays(val: number) {
+    this._set("trash_retention_days", val);
+  }
+
   defaultMenuExpandNum() {
     return 5;
   }
@@ -515,6 +558,14 @@ export class SystemConfig {
 
   setMenuExpandNum(val: number) {
     this._set("menu_expand_num", val);
+  }
+
+  getPopupCompactLayout() {
+    return this._get<boolean>("popup_compact_layout", false);
+  }
+
+  setPopupCompactLayout(val: boolean) {
+    this._set("popup_compact_layout", val);
   }
 
   async getLanguage() {

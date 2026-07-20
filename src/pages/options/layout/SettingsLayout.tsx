@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, type ComponentType, type ReactNode } from "
 import { cn } from "@App/pkg/utils/cn";
 import { useScrollSpy } from "../hooks/useScrollSpy";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
+import { useSearchParams } from "react-router-dom";
 
 export interface SettingsCategory {
   id: string;
@@ -24,7 +25,13 @@ export function SettingsLayout({ title, categories, children }: SettingsLayoutPr
   const ids = useMemo(() => categories.map((c) => c.id), [categories]);
   const { activeId, register, scrollContainerRef, scrollTo } = useScrollSpy(ids);
   const isMobile = useIsMobile();
+  const [searchParams] = useSearchParams();
   const activeChipRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const section = searchParams.get("section");
+    if (section && ids.includes(section)) scrollTo(section);
+  }, [ids, scrollTo, searchParams]);
 
   // 移动横向栏:激活分类滚动到可视区域(仅横向,不影响页面纵向滚动)
   useEffect(() => {

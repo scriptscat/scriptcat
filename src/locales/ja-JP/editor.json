@@ -66,8 +66,8 @@
   "confirm_reset": "リセットしてもよろしいですか？",
   "confirm_delete_match": "このマッチを削除してもよろしいですか？",
   "confirm_delete_exclude": "この除外を削除してもよろしいですか？",
-  "after_deleting_match_item": "削除後、スクリプトで定義された対象ルールが対象リストに再度追加されます",
-  "after_deleting_exclude_item": "削除後、スクリプトで定義された対象ルールが除外リストに再度追加されます",
+  "after_deleting_match_item": "編集するとカスタムのマッチルールが使用されます。「リセット」をクリックするとスクリプト本来のマッチルールに戻ります。",
+  "after_deleting_exclude_item": "編集するとカスタムの除外ルールが使用されます。「リセット」をクリックするとスクリプト本来の除外ルールに戻ります。",
   "undo": "元に戻す",
   "redo": "やり直し",
   "cut": "切り取り",
@@ -129,6 +129,9 @@
   "editor_config_format_error": "エディタ設定のフォーマットエラー",
   "editor_type_definition_reset": "エディタ型定義がリセットされました",
   "editor_type_definition_saved": "エディタ型定義が保存されました",
+  "trash_restore_save_prompt_title": "スクリプトを復元して保存しますか？",
+  "trash_restore_save_prompt_description": "同じ名前と名前空間のスクリプトがゴミ箱にあります。続行すると元の識別情報と保持データを復元し、現在のエディター内容をこのスクリプトとして保存します。キャンセルすると保存せずに編集を続けます。",
+  "trash_restore_save_prompt_confirm": "復元して保存",
   "editor": {
     "show_script_list": "スクリプトリストを表示",
     "hide_script_list": "スクリプトリストを非表示"

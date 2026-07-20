@@ -1,0 +1,18 @@
+{
+  "development_tool": "개발 도구",
+  "vscode_url": "VSCode 주소",
+  "auto_connect_vscode_service": "VSCode 서비스 자동 연결",
+  "connect": "연결",
+  "connection_success": "연결되었습니다",
+  "connection_failed": "연결에 실패했습니다",
+  "select_import_script": "새 페이지에서 가져올 스크립트를 선택하세요",
+  "import_error": "가져오기 오류",
+  "pulling_data_from_cloud": "클라우드에서 데이터를 가져오는 중",
+  "pull_failed": "가져오기에 실패했습니다",
+  "restore": "복원",
+  "manual_download": "다운로드가 시작되지 않으면 수동으로 다운로드하세요",
+  "local_backup": "로컬 백업",
+  "cloud_backup": "클라우드 백업",
+  "auto_backup": "자동 백업",
+  "data_migration": "데이터 마이그레이션"
+}

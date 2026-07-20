@@ -52,6 +52,18 @@ export const requestDeleteScripts = async (uuids: string[]) => {
   return await scriptClient.deletes(uuids);
 };
 
+export const requestRestoreScripts = async (uuids: string[]) => {
+  return await scriptClient.restores(uuids);
+};
+
+export const requestPurgeScripts = async (uuids: string[]) => {
+  return await scriptClient.purges(uuids);
+};
+
+export const requestTrashScripts = async () => {
+  return await scriptClient.getTrashScripts();
+};
+
 export const requestFilterResult = async (req: { value: string }) => {
   return await scriptClient.getFilterResult(req);
 };
