@@ -7,7 +7,7 @@
 **Usage:**
 - Background `bg-<token>`, text `text-<token>`, border `border-<token>`, focus ring `ring-ring`.
 - Opacity modifiers compose directly: `bg-primary-background/90` (solid primary hover), `ring-destructive/20`, `bg-input/30`.
-- **Never hard-code a color value** — see Constraint 1 and [`DEVELOP.md` UI section](../develop.md). For dark-only tweaks use the `dark:` variant.
+- **Never hard-code a color value** — see Constraint 1 and [`DEVELOP.md` UI section](../develop.md#ui). For dark-only tweaks use the `dark:` variant.
 
 ### Base surfaces & text
 
