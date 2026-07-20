@@ -12,6 +12,13 @@ model in [`ARCHITECTURE.md`](../architecture.md)):
 | Background / scheduled script, DOM-needing GM APIs | **Offscreen** — `dist/ext/src/offscreen.html` context |
 | Cron scheduling, `with`-sandboxed execution | **Sandbox** — `dist/ext/src/sandbox.html` context |
 
+**Firefox note.** Firefox MV3 has no separate Offscreen document — there is no `offscreen.html` to inspect.
+`EventPageOffscreenManager` runs offscreen-equivalent logic (background/scheduled-script DOM work) inside the
+DOM-capable background event page instead, so look there for those logs on Firefox. The Sandbox iframe is
+still a separate execution boundary on both browsers. See
+[architecture.md § Chrome vs Firefox: the offscreen split](../architecture.md#chrome-vs-firefox-the-offscreen-split)
+for the full picture.
+
 In a scratch script, capture the page console (`page.on("console", …)`), take screenshots
 (`await page.screenshot({ path: "test-results/verify/<scenario>/screenshots/…png" })`), and write any manual
 notes to `test-results/verify/<scenario>/`. Playwright's automatic failure artifacts also go under
