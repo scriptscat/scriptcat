@@ -7,7 +7,7 @@ import viVN from "./vi-VN";
 import ruRU from "./ru-RU";
 import trTR from "./tr-TR";
 import ptBR from "./pt-BR";
-import koKR from "./ko-kR";
+import koKR from "./ko-KR";
 
 export const editorLangs = {
   "zh-CN": zhCN,
