@@ -6,6 +6,18 @@ import type { EditorLangCode, EditorLangEntry } from "./langs";
 import { asEditorLangEntry, editorLangs } from "./langs";
 import { deferred } from "../utils";
 import { type EslintFix, getModelEslintFixKey } from "./eslintFixCache";
+import {
+  contentChangeCanAffectMetadataMarkers,
+  getMetadataAlignmentBlocks,
+  getMetadataAlignmentTargetColumn,
+  getUndefinedMetadataTagMatches,
+  isMetadataAlignmentBlockAligned,
+  metadataHoverPattern,
+  resolveMetadataTagBase,
+  type MetadataAlignmentBlock,
+  type MetadataAlignmentLine,
+  type MetadataBlockRange,
+} from "./metadata";
 
 interface ILinterWorker extends Worker {
   myLinterHook: EventEmitter<string, any>;
@@ -30,22 +42,6 @@ type MetadataLineFix = {
 
 type TextEdit = languages.IWorkspaceTextEdit["textEdit"];
 
-type MetadataAlignmentLine = {
-  lineNumber: number;
-  lineText: string;
-  prefix: string;
-  tag: string;
-  spacing: string;
-  value: string;
-  valueColumn: number;
-};
-
-type MetadataAlignmentBlock = {
-  startLineNumber: number;
-  endLineNumber: number;
-  lines: MetadataAlignmentLine[];
-};
-
 type MetadataAlignmentFix = {
   range: TextEdit["range"];
   text: string;
@@ -63,12 +59,14 @@ const configuredLanguagePromise = systemConfig.getLanguage();
 let currentEditorLang: EditorLangEntry;
 type EditorLangEntryPrompt = typeof currentEditorLang.prompt;
 let promptByMetadataTag: EditorLangEntryPrompt;
+let knownMetadataTagSet: ReadonlySet<string>;
 
 const loadEditorLangEntry = (languageCode: EditorLangCode) => {
   currentEditorLang = asEditorLangEntry(languageCode);
   promptByMetadataTag = Object.fromEntries(
     Object.entries(currentEditorLang.prompt).map(([metadataTag, prompt]) => [metadataTag.toLowerCase(), prompt])
   ) as typeof currentEditorLang.prompt;
+  knownMetadataTagSet = new Set(Object.keys(promptByMetadataTag));
 };
 
 loadEditorLangEntry("en-US");
@@ -118,15 +116,10 @@ const scriptcatRemoveConnectWildcardRuleId = "scriptcat/remove-connect-wildcard"
 const scriptcatReplaceMatchTldWildcardRuleId = "scriptcat/replace-match-tld-wildcard-with-include";
 const scriptcatReplaceIncludeWithMatchRuleId = "scriptcat/replace-include-with-match";
 const scriptcatGrantNoneConflictRuleId = "scriptcat/grant-none-conflict";
+const scriptcatUndefinedMetadataTagRuleId = "scriptcat/undefined-metadata-tag";
 const quickfixKind = "quickfix";
 const noop = () => {};
-const metaLinePattern = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/;
-const metadataHoverPattern = /^(\s*\/\/[ \t]*@)(\S+)([ \t]*)(.*)$/;
 const metadataFixPattern = /^(\s*\/\/[ \t]*@)(connect|match|include)([ \t]+)(\S+)(.*)$/i;
-const metadataAlignmentPattern = /^(\s*\/\/[ \t]*@)(\S+)([ \t]+)(.*)$/;
-const metadataLineStartPattern = /^\s*\/\/[ \t]*@/;
-const userscriptHeaderPattern = /^\s*\/\/[ \t]*==UserScript==[ \t]*$/;
-const userscriptEndPattern = /^\s*\/\/[ \t]*==\/UserScript==[ \t]*$/;
 const matchMetadataPattern = /^(\*|[-a-z]+|http\*):\/\/([^/]+)(\/.*)?$/i;
 const noUndefMessagePattern = /^[^']*'([^']+)'[^']*$/;
 
@@ -437,72 +430,6 @@ const getMetadataLineActions = (
   );
 };
 
-const getMetadataAlignmentLine = (lineNumber: number, lineText: string): MetadataAlignmentLine | null => {
-  const match = metadataAlignmentPattern.exec(lineText);
-  if (!match) return null;
-
-  const [, prefix, tag, spacing, value] = match;
-  return {
-    lineNumber,
-    lineText,
-    prefix,
-    tag,
-    spacing,
-    value,
-    valueColumn: prefix.length + tag.length + spacing.length,
-  };
-};
-
-const getMetadataAlignmentBlocks = (model: editor.ITextModel): MetadataAlignmentBlock[] => {
-  const blocks: MetadataAlignmentBlock[] = [];
-  const lineCount = model.getLineCount();
-  let currentBlock: MetadataAlignmentBlock | null = null;
-
-  const finishBlock = (endLineNumber: number) => {
-    if (!currentBlock) return;
-    currentBlock.endLineNumber = endLineNumber;
-    blocks.push(currentBlock);
-    currentBlock = null;
-  };
-
-  for (let lineNumber = 1; lineNumber <= lineCount; lineNumber += 1) {
-    const lineText = model.getLineContent(lineNumber);
-
-    if (userscriptHeaderPattern.test(lineText)) {
-      finishBlock(lineNumber - 1);
-      currentBlock = {
-        startLineNumber: lineNumber,
-        endLineNumber: lineNumber,
-        lines: [],
-      };
-      continue;
-    }
-
-    if (!currentBlock) continue;
-
-    const alignmentLine = getMetadataAlignmentLine(lineNumber, lineText);
-    if (alignmentLine) {
-      currentBlock.lines.push(alignmentLine);
-    }
-
-    if (userscriptEndPattern.test(lineText)) {
-      finishBlock(lineNumber);
-    }
-  }
-
-  finishBlock(lineCount);
-  return blocks;
-};
-
-const getMetadataAlignmentTargetColumn = (lines: MetadataAlignmentLine[]) =>
-  Math.max(...lines.map((line) => line.prefix.length + line.tag.length + 1));
-
-const isMetadataAlignmentBlockAligned = (block: MetadataAlignmentBlock) => {
-  if (block.lines.length < 2) return true;
-  const firstValueColumn = block.lines[0].valueColumn;
-  return block.lines.every((line) => line.valueColumn === firstValueColumn);
-};
-
 const getMetadataAlignmentFix = (model: editor.ITextModel, block: MetadataAlignmentBlock): MetadataAlignmentFix => {
   const targetColumn = getMetadataAlignmentTargetColumn(block.lines);
   const lineFixes = new Map(
@@ -725,45 +652,43 @@ const getMarkerCodeActions = (
   return actions;
 };
 
-const lineCanAffectMetadataMarkers = (lineText: string) =>
-  metadataLineStartPattern.test(lineText) ||
-  userscriptHeaderPattern.test(lineText) ||
-  userscriptEndPattern.test(lineText);
+// 记录每个 model 上一次识别到的 metadata 区块行范围，供 contentChangeCanAffectMetadataMarkers
+// 判断编辑是否落在区块内；WeakMap 随 model 被丢弃自动释放，无需手动清理。
+const metadataBlockRangeByModel = new WeakMap<editor.ITextModel, MetadataBlockRange | null>();
 
-const commentEditCanAffectMetadataMarkers = (lineText: string, change: editor.IModelContentChange) =>
-  /^\s*\/\//.test(lineText) || (change.rangeLength > 0 && change.range.startColumn <= 12);
-
-const contentChangeCanAffectMetadataMarkers = (model: editor.ITextModel, event: editor.IModelContentChangedEvent) => {
-  if (event.isFlush || event.isEolChange) return true;
-
-  for (const change of event.changes) {
-    if (
-      change.range.startLineNumber !== change.range.endLineNumber ||
-      change.text.includes("\n") ||
-      change.text.includes("@") ||
-      change.text.includes("UserScript")
-    ) {
-      return true;
-    }
-
-    const lineText = model.getLineContent(change.range.startLineNumber);
-    if (lineCanAffectMetadataMarkers(lineText) || commentEditCanAffectMetadataMarkers(lineText, change)) {
-      return true;
-    }
-  }
-
-  return false;
-};
+const getUndefinedMetadataTagMarkers = (
+  model: editor.ITextModel,
+  blocks: MetadataAlignmentBlock[]
+): editor.IMarkerData[] =>
+  getUndefinedMetadataTagMatches(model, blocks, knownMetadataTagSet).map((match) => ({
+    severity: MarkerSeverity.Warning,
+    message: currentEditorLang.undefinedPrompt,
+    source: scriptcatMarkerOwner,
+    code: scriptcatUndefinedMetadataTagRuleId,
+    startLineNumber: match.lineNumber,
+    startColumn: match.startColumn,
+    endLineNumber: match.lineNumber,
+    endColumn: match.endColumn,
+  }));
 
 const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
   if (model.getLanguageId() !== "javascript") {
     editor.setModelMarkers(model, scriptcatMarkerOwner, []);
+    metadataBlockRangeByModel.set(model, null);
     return;
   }
 
   const metadataBlocks = getMetadataAlignmentBlocks(model);
+  metadataBlockRangeByModel.set(
+    model,
+    metadataBlocks[0]
+      ? { startLineNumber: metadataBlocks[0].startLineNumber, endLineNumber: metadataBlocks[0].endLineNumber }
+      : null
+  );
+
   const markers: editor.IMarkerData[] = [];
   markers.push(...getGrantNoneConflictMarkers(metadataBlocks));
+  markers.push(...getUndefinedMetadataTagMarkers(model, metadataBlocks));
 
   for (const block of metadataBlocks) {
     if (isMetadataAlignmentBlockAligned(block)) continue;
@@ -805,7 +730,7 @@ const registerScriptcatMetadataMarkerProvider = () => {
     updateScriptcatMetadataMarkers(model);
     model.onDidChangeContent((event) => {
       if (model.getLanguageId() !== "javascript") return;
-      if (contentChangeCanAffectMetadataMarkers(model, event)) {
+      if (contentChangeCanAffectMetadataMarkers(model, event, metadataBlockRangeByModel.get(model) ?? null)) {
         updateScriptcatMetadataMarkers(model);
       }
     });
@@ -876,14 +801,15 @@ export function registerEditor() {
         };
       }
 
-      const metadataCommentMatch = metaLinePattern.exec(lineText);
+      const metadataCommentMatch = metadataHoverPattern.exec(lineText);
 
       if (metadataCommentMatch) {
-        const metadataTag = metadataCommentMatch[1].toLowerCase() as keyof EditorLangEntryPrompt;
+        const [, , metadataTag] = metadataCommentMatch;
+        const baseTag = resolveMetadataTagBase(metadataTag) as keyof EditorLangEntryPrompt;
         return {
           contents: [
             {
-              value: promptByMetadataTag[metadataTag] || currentEditorLang.undefinedPrompt,
+              value: promptByMetadataTag[baseTag] || currentEditorLang.undefinedPrompt,
               supportHtml: true,
             },
           ],
