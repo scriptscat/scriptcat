@@ -613,13 +613,8 @@
   }
 
   function emitLog(message, level, labels) {
-    try {
-      if (typeof GM_log === "function") {
-        GM_log(message, level, labels);
-        return;
-      }
-    } catch (e) {
-      /* 未授权 GM_log 时静默降级,ConsoleReporter 仍然有输出 */
+    if (typeof GM_log === "function") {
+      GM_log(message, level, labels);
     }
   }
 

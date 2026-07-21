@@ -333,6 +333,28 @@ vdescribe("LogReporter", () => {
     SCTest = await loadSCTest();
   });
 
+  vit("开始日志的 level 与 label 符合约定,cases 计入注册的用例总数", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({
+      name: "demo",
+      reporter: "log",
+      context: "background",
+    });
+    d("组一", () => {
+      i("a", () => e(1).toBe(1));
+      i("b", () => e(1).toBe(1));
+    });
+    d("组二", () => {
+      i("c", () => e(1).toBe(1));
+    });
+    await run();
+
+    const starts = calls.filter((c) => c.labels && c.labels.sctest === "run");
+    vexpect(starts.length).toBe(1);
+    vexpect(starts[0].level).toBe("info");
+    vexpect(starts[0].labels.context).toBe("background");
+    vexpect(starts[0].labels.cases).toBe(3);
+  });
+
   vit("每条用例发一条 GM_log,结果写进 label", async () => {
     const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "log" });
     d("存储", () => {
@@ -347,6 +369,17 @@ vdescribe("LogReporter", () => {
     vexpect(cases[0].labels.status).toBe("pass");
     vexpect(cases[1].level).toBe("error");
     vexpect(cases[1].labels.status).toBe("fail");
+  });
+
+  vit("跳过/人工用例发出 warn 级别日志,label 标记 status: skip", async () => {
+    const { describe: d, itManual: im, run } = SCTest.create({ name: "demo", reporter: "log" });
+    d("组", () => im("待人工确认的用例"));
+    await run();
+
+    const cases = calls.filter((c) => c.labels && c.labels.sctest === "case");
+    vexpect(cases.length).toBe(1);
+    vexpect(cases[0].level).toBe("warn");
+    vexpect(cases[0].labels.status).toBe("skip");
   });
 
   vit("汇总是单条日志,label 带 passed/failed", async () => {
