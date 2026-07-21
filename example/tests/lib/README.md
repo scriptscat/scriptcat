@@ -54,6 +54,21 @@ run();
 | `toMatch(pattern)` | 正则或子串 |
 | `toThrow(pattern?)` | 被测目标须为函数;可选校验异常消息 |
 
+## 主动跳过
+
+条件不满足时用 `SCTest.skip(reason)` 从用例体内退出,记为跳过而非失败,原因会出现在
+控制台、面板与 `GM_log` 里:
+
+```js
+it("需要浏览器原生下载", async () => {
+  const v = await awaitVerdict();
+  if (v.verdict === "skip") SCTest.skip(`${v.reason} (未落盘)`);
+  expect(v.ok).toBeTruthy();
+});
+```
+
+不要靠约定错误消息前缀来表达跳过 —— 消息碰巧同名的真实错误会被一并吞掉。
+
 ## 展示通道
 
 三个 reporter 可叠加,由 `SCTest.create({ reporter })` 控制,默认 `"auto"`:

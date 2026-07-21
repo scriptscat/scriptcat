@@ -255,6 +255,78 @@ vdescribe("sctest 框架内核", () => {
       vexpect(text).toMatch(/○ 无提示的人工用例 \(待人工确认\)/);
     });
   });
+
+  vdescribe("用例内主动跳过", () => {
+    vit("SCTest.skip 让用例记为跳过而不是失败,原因随结果带出", async () => {
+      const { describe: d, it: i, run } = SCTest.create({ name: "demo", reporter: "console" });
+      d("组", () => {
+        i("条件不满足", () => SCTest.skip("没有可用的下载目录"));
+      });
+
+      const summary = await run();
+
+      vexpect(summary.skipped).toBe(1);
+      vexpect(summary.failed).toBe(0);
+      vexpect(summary.suites[0].cases[0].status).toBe("skip");
+      vexpect(summary.suites[0].cases[0].error).toBe("没有可用的下载目录");
+    });
+
+    vit("跳过不影响同 suite 内后续用例执行", async () => {
+      const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "console" });
+      d("组", () => {
+        i("跳过的", () => SCTest.skip("环境不支持"));
+        i("仍然跑", () => e(1).toBe(1));
+      });
+
+      const summary = await run();
+
+      vexpect(summary.passed).toBe(1);
+      vexpect(summary.skipped).toBe(1);
+      vexpect(summary.failed).toBe(0);
+    });
+
+    // 迁移前的 gm_download_test 靠 message 的 "SKIP:" 前缀区分跳过,真实错误只要碰巧同名就会被吞掉。
+    vit("消息以 SKIP: 开头的普通 Error 仍然记为失败", async () => {
+      const { describe: d, it: i, run } = SCTest.create({ name: "demo", reporter: "console" });
+      d("组", () => {
+        i("真炸了", () => {
+          throw new Error("SKIP: 这其实是个真实错误");
+        });
+      });
+
+      const summary = await run();
+
+      vexpect(summary.failed).toBe(1);
+      vexpect(summary.skipped).toBe(0);
+    });
+
+    vit("ConsoleReporter 打印跳过原因", async () => {
+      const lines = [];
+      const orig = console.log;
+      console.log = (...args) => lines.push(args.map(String).join(" "));
+      try {
+        const { describe: d, it: i, run } = SCTest.create({ name: "demo", reporter: "console" });
+        d("组", () => i("条件不满足", () => SCTest.skip("需要人工先授权")));
+        await run();
+      } finally {
+        console.log = orig;
+      }
+      vexpect(lines.join("\n")).toMatch(/○ 条件不满足 \(跳过: 需要人工先授权\)/);
+    });
+
+    vit("LogReporter 把跳过原因写进日志正文", async () => {
+      const logged = [];
+      globalThis.GM_log = (msg, level, labels) => logged.push({ msg, level, labels });
+      try {
+        const reporter = SCTest.__createLogReporter();
+        reporter.onCase({ suite: "组", name: "条件不满足", status: "skip", error: "需要人工先授权", durationMs: 0 });
+      } finally {
+        delete globalThis.GM_log;
+      }
+      vexpect(logged[0].msg).toMatch(/○ 组 › 条件不满足 — 需要人工先授权/);
+      vexpect(logged[0].labels.status).toBe("skip");
+    });
+  });
 });
 
 vdescribe("PanelReporter", () => {
@@ -319,6 +391,15 @@ vdescribe("PanelReporter", () => {
     const root = document.getElementById("sctest-panel-host").shadowRoot;
     root.querySelector('[data-sctest="manual-pass"]').click();
     vexpect(root.querySelector('[data-sctest="summary-line"]').textContent).toMatch(/通过: 1/);
+  });
+
+  vit("跳过用例渲染出跳过原因", async () => {
+    const { describe: d, it: i, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("组", () => i("条件不满足", () => SCTest.skip("需要人工先授权")));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    vexpect(root.querySelector('[data-sctest="skip-reason"]').textContent).toMatch(/需要人工先授权/);
   });
 
   vit("auto:false 的 suite 渲染出运行按钮", async () => {

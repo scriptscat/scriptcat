@@ -165,7 +165,9 @@ const enableTool = true;
     {
       id: "gmdl-verdict-bar",
       style: {
-        position: "fixed", top: "12px", right: "12px",
+        // 靠左:sctest 面板固定在右下角(right:16px 起、最高 80vh),原来的 right:12px 会让
+        // 面板压住本条的按钮行——两者 z-index 同为最大值,面板挂载更晚所以吃掉点击。
+        position: "fixed", top: "12px", left: "12px",
         width: "360px", zIndex: 2147483647, display: "none",
         background: "#1a1408", color: "#f5f5f5",
         font: "13px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
@@ -731,7 +733,7 @@ const enableTool = true;
     });
     const v = await awaitVerdict("Save the file when the dialog appears, then click Mark Pass.", 180);
     URL.revokeObjectURL(blobUrl);
-    if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (events: ${events.map((e) => e[0]).join(", ") || "none"})`);
+    if (v.verdict === "skip") SCTest.skip(`${v.reason || "no reason"} (events: ${events.map((e) => e[0]).join(", ") || "none"})`);
     if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (events: ${events.map((e) => e[0]).join(", ") || "none"})`);
     // Pass — but if zero callbacks fired we want the human to see that too.
     if (events.length === 0) console.log(`note: no callbacks fired — Pass accepted but worth checking`);
@@ -757,7 +759,7 @@ const enableTool = true;
       180
     );
     URL.revokeObjectURL(blobUrl);
-    if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (sawOnload=${sawOnload}, sawOnerror=${sawOnerror})`);
+    if (v.verdict === "skip") SCTest.skip(`${v.reason || "no reason"} (sawOnload=${sawOnload}, sawOnerror=${sawOnerror})`);
     if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (sawOnload=${sawOnload}, sawOnerror=${sawOnerror})`);
     // Verdict was pass — sanity-check it against what we actually observed.
     if (sawOnerror) throw new Error("you marked Pass but onerror fired — that's the regression this test guards against");
@@ -810,7 +812,7 @@ const enableTool = true;
       300
     );
     const ctx = `aborted=${!!abortCalledAt}, sawOnload=${sawOnload}, sawOnerror=${sawOnerror}, lastProgress=${lastProgress ? `${lastProgress.loaded}/${lastProgress.total}` : "none"}`;
-    if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (${ctx})`);
+    if (v.verdict === "skip") SCTest.skip(`${v.reason || "no reason"} (${ctx})`);
     if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (${ctx})`);
     if (!abortCalledAt) console.log(`note: you marked Pass without clicking Abort — test was inconclusive`);
     // The strong invariant: no successful onload after the user asked for abort.
@@ -841,7 +843,7 @@ const enableTool = true;
       300
     );
     const ctx = `sawOnload=${sawOnload}, sawOnerror=${sawOnerror}, onloadData=${JSON.stringify(onloadData)}`;
-    if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (${ctx})`);
+    if (v.verdict === "skip") SCTest.skip(`${v.reason || "no reason"} (${ctx})`);
     if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (${ctx})`);
     // The exact regression this guards: onerror on user-cancel is the bug evaluated above.
     if (sawOnerror) throw new Error(`onerror fired on user-cancel — that's the save_cancelled regression (${ctx})`);
@@ -864,7 +866,7 @@ const enableTool = true;
     });
     const v = await awaitVerdict(`Open ${name} and confirm the contents match.`, 240);
     URL.revokeObjectURL(blobUrl);
-    if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (landed=${landed})`);
+    if (v.verdict === "skip") SCTest.skip(`${v.reason || "no reason"} (landed=${landed})`);
     if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (landed=${landed})`);
     if (!landed) console.log(`note: marked Pass but onload didn't fire — file presence is the source of truth here`);
   });

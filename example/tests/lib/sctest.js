@@ -36,6 +36,12 @@
     }
   }
 
+  // 用例体内主动跳过的信号。用独立类型而不是约定 message 前缀,是因为前缀嗅探会把
+  // 消息碰巧同名的真实错误一并吞成跳过。
+  function SkipSignal(reason) {
+    this.reason = reason || "";
+  }
+
   function AssertionError(message, expected, actual) {
     var err = new Error(message);
     err.name = "AssertionError";
@@ -212,10 +218,15 @@
           await c.fn();
           c.status = STATUS.PASS;
         } catch (e) {
-          c.status = STATUS.FAIL;
-          c.error = String((e && e.message) || e);
-          c.expected = (e && e.expected) || null;
-          c.actual = (e && e.actual) || null;
+          if (e instanceof SkipSignal) {
+            c.status = STATUS.SKIP;
+            c.error = e.reason;
+          } else {
+            c.status = STATUS.FAIL;
+            c.error = String((e && e.message) || e);
+            c.expected = (e && e.expected) || null;
+            c.actual = (e && e.actual) || null;
+          }
         }
         c.durationMs = Math.round(now() - started);
       }
@@ -338,7 +349,7 @@
           var hintSuffix = c.hint ? ":" + c.hint : "";
           console.log("%c○ " + c.name + " (待人工确认" + hintSuffix + ")", "color: #999;");
         } else {
-          console.log("%c○ " + c.name + " (跳过)", "color: #999;");
+          console.log("%c○ " + c.name + " (跳过" + (c.error ? ": " + c.error : "") + ")", "color: #999;");
         }
       },
       onEnd: function (summary) {
@@ -568,6 +579,11 @@
         detail.setAttribute("data-sctest", "failure-detail");
         node.row.parentNode.insertBefore(detail, node.row.nextSibling);
         node.detail = detail;
+      } else if (c.status === "skip" && c.error) {
+        var reason = el("div", "sc-detail", c.error);
+        reason.setAttribute("data-sctest", "skip-reason");
+        node.row.parentNode.insertBefore(reason, node.row.nextSibling);
+        node.detail = reason;
       }
     }
 
@@ -698,7 +714,10 @@
             suite: c.suite,
           });
         } else {
-          emitLog("○ " + c.suite + " › " + c.name, "warn", { sctest: "case", status: "skip" });
+          emitLog("○ " + c.suite + " › " + c.name + (c.error ? " — " + c.error : ""), "warn", {
+            sctest: "case",
+            status: "skip",
+          });
         }
       },
       onEnd: function (summary) {
@@ -723,6 +742,9 @@
 
   var api = {
     create: create,
+    skip: function (reason) {
+      throw new SkipSignal(reason);
+    },
     __detectContext: detectContext,
     __buildReporters: buildReporters,
     __createConsoleReporter: createConsoleReporter,
