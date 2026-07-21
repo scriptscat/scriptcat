@@ -9,29 +9,8 @@ body:
     attributes:
       value: |
         这个模板用于技术设计、重构、性能优化、存储结构、运行时架构等提案。
-        普通用户 bug 或功能请求请使用其他模板。
 
-  - type: dropdown
-    id: proposal-area
-    attributes:
-      label: 涉及模块
-      multiple: true
-      options:
-        - Service Worker
-        - offscreen
-        - sandbox / inject / content script
-        - script matching / registry
-        - GM/CAT API runtime
-        - storage / Dexie / IndexedDB / OPFS
-        - sync / backup / import/export
-        - resource loader / @require / @resource
-        - editor / Monaco / ESLint
-        - popup / options UI
-        - build / packaging / manifest
-        - tests / e2e / CI
-        - docs / i18n
-    validations:
-      required: true
+        普通用户 bug 或功能请求请使用其他模板。
 
   - type: textarea
     id: background
@@ -50,25 +29,13 @@ body:
       required: true
 
   - type: textarea
-    id: compatibility
+    id: impact
     attributes:
-      label: 兼容性 / 迁移影响
+      label: 兼容性 / 迁移 / 测试
       placeholder: |
         对旧版本数据的影响：
-        对 MV2/MV3 的影响：
-        对 Firefox/Chrome/Edge/移动端的影响：
+        对 MV2/MV3、Firefox/Chrome/Edge/移动端的影响：
         是否需要 migration：
-    validations:
-      required: true
-
-  - type: textarea
-    id: test-plan
-    attributes:
-      label: 测试计划
-      placeholder: |
-        单元测试：
-        e2e：
-        手动测试浏览器：
-        回归风险：
+        测试与回归风险：
     validations:
       required: false

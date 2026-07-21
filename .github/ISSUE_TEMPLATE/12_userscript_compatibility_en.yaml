@@ -10,13 +10,6 @@ body:
       value: |
         This template is specifically for **userscript compatibility issues**.
 
-        Please provide:
-        - Userscript URL
-        - Target website
-        - Metadata block
-        - Comparison with Tampermonkey / Violentmonkey / other managers
-        - Minimal reproduction script if possible
-
         If the issue is about ScriptCat UI, sync, backup, installation, or general extension behavior, please use the Bug Report template instead.
 
   - type: checkboxes
@@ -24,11 +17,7 @@ body:
     attributes:
       label: Pre-check
       options:
-        - label: I have searched existing issues.
-          required: true
-        - label: I confirm this issue is related to a userscript or userscript API compatibility.
-          required: true
-        - label: I have provided a userscript link or a minimal reproduction script where possible.
+        - label: I have searched existing issues, and confirmed this is related to a userscript or userscript API.
           required: true
 
   - type: input
@@ -42,30 +31,18 @@ body:
   - type: input
     id: target-url
     attributes:
-      label: Target Website
-      placeholder: "Example: <target website URL>"
+      label: Target Website Where the Issue Occurs
     validations:
       required: true
 
   - type: textarea
     id: problem
     attributes:
-      label: What Fails in ScriptCat?
+      label: Behavior and Comparison
+      description: What happens in ScriptCat, and what happens in other userscript managers? Please name the manager and version you compared against.
       placeholder: |
-        Example: Button does not appear / script does not run / GM_xmlhttpRequest fails / menu command does not work / page refreshes infinitely.
-    validations:
-      required: true
-
-  - type: textarea
-    id: comparison
-    attributes:
-      label: Comparison with Other Userscript Managers
-      description: Please describe the behavior in Tampermonkey, Violentmonkey, FireMonkey, Greasemonkey, etc.
-      placeholder: |
-        Tampermonkey version:
-        Violentmonkey version:
-        FireMonkey / Greasemonkey version:
-        Behavior in those managers:
+        In ScriptCat: button never appears / script does not run / GM_xmlhttpRequest throws / page reloads endlessly
+        In another manager (e.g. Tampermonkey 5.x): works fine
     validations:
       required: true
 
@@ -73,7 +50,7 @@ body:
     id: metadata
     attributes:
       label: Userscript Metadata
-      description: Please include relevant fields such as `@match`, `@grant`, `@connect`, `@require`, `@resource`, `@run-at`, `@inject-into`, etc.
+      description: Please include at least the relevant `@match`, `@grant`, `@connect`, `@require`, `@resource`, `@run-at`, and `@inject-into` entries.
       render: javascript
       placeholder: |
         // ==UserScript==
@@ -82,41 +59,6 @@ body:
         // @grant ...
         // @connect ...
         // ==/UserScript==
-    validations:
-      required: true
-
-  - type: textarea
-    id: minimal-reproduction
-    attributes:
-      label: Minimal Reproduction Script
-      description: If the original userscript is large, please try to reduce it to the smallest script that can reproduce the problem.
-      render: javascript
-      placeholder: |
-        // Please provide the smallest standalone script that reproduces the issue.
-    validations:
-      required: false
-
-  - type: dropdown
-    id: api-area
-    attributes:
-      label: Related API / Mechanism
-      multiple: true
-      options:
-        - GM_xmlhttpRequest / GM.xmlHttpRequest
-        - GM_getValue / GM.setValue / GM storage
-        - GM_registerMenuCommand
-        - GM_download
-        - GM_cookie / Cookie API
-        - "@match / @include / @exclude"
-        - "@connect"
-        - "@require / @resource"
-        - "@run-at"
-        - "@inject-into"
-        - sandbox / unsafeWindow / page context
-        - iframe / allFrames / noframes
-        - CSP / Trusted Types
-        - service worker / offscreen / background
-        - Not sure
     validations:
       required: true
 
@@ -131,19 +73,19 @@ body:
   - type: input
     id: browser
     attributes:
-      label: Operating System and Browser
-      placeholder: "Example: Windows 11 Chrome 143 / macOS Firefox 151 / Android WebLibre 0.20"
+      label: OS / Browser and Version
+      placeholder: "Example: Windows 11 + Chrome 143 / macOS + Firefox 151 / Android + WebLibre 0.20"
     validations:
       required: true
 
   - type: textarea
-    id: logs
+    id: details
     attributes:
-      label: Console Logs / Network Requests / Screenshots
-      description: Please mention the log source, such as page console, content script, service worker, offscreen, network panel, etc.
+      label: Minimal Reproduction Script / Logs / Screenshots
+      description: If the original script is large, please reduce it to a minimal reproduction. For logs, note where they came from — page console, content script, Service Worker, offscreen, network panel, etc.
       placeholder: |
-        Log source:
-        Error:
+        Minimal reproduction script:
+        Log source and error message:
         Screenshots / video:
     validations:
       required: false
