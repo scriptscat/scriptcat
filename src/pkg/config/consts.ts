@@ -14,4 +14,5 @@ export const STORAGE_LOCAL_KEYS: Set<string> = new Set([
   "mcp_url", // MCP 桥接 daemon 地址（设备相关）
   "mcp_write_policy", // MCP 写操作策略（设备相关）
   "mcp_pairing", // MCP 配对长期密钥 K + 客户端身份（含密钥，绝不跨设备同步）
+  "keep_ext_background_alive", // Chrome service worker 和 offscreen 保活开关
 ]);

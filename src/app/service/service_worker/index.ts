@@ -32,6 +32,7 @@ import { McpBridge, type McpWriteNotice } from "@App/app/service/service_worker/
 import { McpController } from "@App/app/service/service_worker/mcp/controller";
 import { McpUIService } from "@App/app/service/service_worker/mcp/service";
 import { McpConnectClient } from "@App/app/service/offscreen/client";
+import { hookFirefoxEventPageKeepAliveLoop, hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
 
 // "直接允许" 写策略下 MCP 无需人工确认即执行了写操作，发系统通知让用户知晓（决策 #12 的知情兜底）。
 function notifyMcpWrite(notice: McpWriteNotice): void {
@@ -76,10 +77,10 @@ export default class ServiceWorkerManager {
   initManager() {
     this.api.on("logger", this.logger.bind(this));
     this.api.on("getExtensionEnv", this.getExtensionEnv.bind(this));
-    this.api.on("preparationOffscreen", async () => {
+    this.api.on("preparationOffscreen", async (data: { verified: boolean }) => {
       // 准备好环境
       await this.offscreenSend.init();
-      this.mq.emit("preparationOffscreen", {});
+      this.mq.emit("preparationOffscreen", data);
     });
     this.offscreenSend.init();
 
@@ -91,6 +92,7 @@ export default class ServiceWorkerManager {
     const localStorageDAO = new LocalStorageDAO();
 
     const systemConfig = new SystemConfig(this.mq);
+    hookFirefoxEventPageKeepAliveLoop(systemConfig);
 
     initLocales(systemConfig);
 
@@ -144,6 +146,11 @@ export default class ServiceWorkerManager {
     system.init();
     const agent = new AgentService(this.api.group("agent"), this.offscreenSend, resource);
     agent.init();
+
+    const hasOffscreenDocument = typeof chrome.offscreen?.createDocument === "function";
+    if (hasOffscreenDocument) {
+      hookServiceWorkerKeepAliveLoop(systemConfig, this.mq, this.offscreenSend);
+    }
 
     // 注入 AgentService 到 GMApi，使 Agent API 走权限验证通道
     const gmApi = runtime.getGMApi();

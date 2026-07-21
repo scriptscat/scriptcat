@@ -35,8 +35,8 @@ export class ServiceWorkerClient extends Client {
     super(msgSender, "serviceWorker");
   }
 
-  preparationOffscreen() {
-    return this.do("preparationOffscreen");
+  preparationOffscreen(data: { verified: boolean }) {
+    return this.do("preparationOffscreen", data);
   }
 }
 

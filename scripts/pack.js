@@ -7,13 +7,12 @@ import manifest from "../src/manifest.json" with { type: "json" };
 import packageInfo from "../package.json" with { type: "json" };
 import semver from "semver";
 import { toChromeVersion } from "./version.js";
-import { resolveAgentEnabled, applyAgentManifest } from "./build-config.js";
+import { resolveAgentEnabled, createChromeManifest, createFirefoxManifest } from "./build-config.js";
 
 // ============================================================================
 
-// 目前 ScriptCat MV3 未正式支持 Firefox，
-// 测试人员可修改 PACK_FIREFOX 为 true 作个人测试用途
-const PACK_FIREFOX = false;
+// ScriptCat MV3 正式支持 Firefox
+const PACK_FIREFOX = true;
 
 // ============================================================================
 
@@ -66,49 +65,11 @@ execSync("pnpm run build", {
 
 // 处理firefox和chrome的zip压缩包
 
-// 浅拷贝防止后续修改
-const firefoxManifest = applyAgentManifest({ ...manifest, background: { ...manifest.background } }, agentEnabled);
-const chromeManifest = applyAgentManifest({ ...manifest, background: { ...manifest.background } }, agentEnabled);
-
-chromeManifest.optional_permissions = chromeManifest.optional_permissions.filter((val) => val !== "userScripts");
-delete chromeManifest.background.scripts;
-
-// Firefox MV3 不支持 "background" permission
-firefoxManifest.optional_permissions = firefoxManifest.optional_permissions.filter((val) => val !== "background");
-delete firefoxManifest.background.service_worker;
-delete firefoxManifest.sandbox;
-// Firefox 的扩展消息默认即为 structured clone，该键仅 Chromium 148+ 识别
-delete firefoxManifest.message_serialization;
-firefoxManifest.browser_specific_settings = {
-  gecko: {
-    id: `{${
-      version.prerelease.length ? "44ab8538-2642-46b0-8a57-3942dbc1a33b" : "8e515334-52b5-4cc5-b4e8-675d50af677d"
-    }}`,
-    // https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/userScripts#browser_compatibility
-    // Firefox 136 (Released 2025-03-04)
-    strict_min_version: "136.0",
-    data_collection_permissions: {
-      required: [
-        "none", // 没有必须传送至第三方的资料。安装转页没有记录用户何时何地安装了什么。
-      ],
-      optional: [
-        "authenticationInfo", // 使用 Cloud Backup / Import 时，有传送用户的资料至第三方作登入验证
-        "personallyIdentifyingInfo", // 使用 电邮 或 帐密 让第三方识别个人身份进行 Cloud Backup / Import
-      ],
-    },
-  },
-};
-
-// 为 Firefox 添加激活工具栏按钮的快捷键
-firefoxManifest.commands = {
-  // mv3 的工具栏快捷键为 `_execute_action`，mv2 则是 `_execute_browser_action`
-  _execute_action: {},
-};
-
-// 避免将 Chrome 特有权限添加到 Firefox 的 manifest
-firefoxManifest.permissions = firefoxManifest.permissions?.filter((permission) => permission !== "background");
-firefoxManifest.optional_permissions = firefoxManifest.optional_permissions?.filter(
-  (permission) => permission !== "background"
+const chromeManifest = createChromeManifest(manifest, agentEnabled);
+const firefoxManifest = createFirefoxManifest(
+  manifest,
+  agentEnabled,
+  `{${version.prerelease.length ? "44ab8538-2642-46b0-8a57-3942dbc1a33b" : "8e515334-52b5-4cc5-b4e8-675d50af677d"}}`
 );
 
 const chrome = new ZipWriter({ outputAs: "uint8array" });

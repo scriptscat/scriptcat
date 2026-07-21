@@ -725,12 +725,12 @@ export class ScriptService {
         updatetime: Date.now(),
       })
       .then(() => {
-        logger.info("enable success");
+        logger.info(enable ? "enable success" : "disable success");
         this.mq.publish<TEnableScript[]>("enableScripts", [{ uuid: uuid, enable: enable }]);
         return {};
       })
       .catch((e) => {
-        logger.error("enable error", Logger.E(e));
+        logger.error(enable ? "enable error" : "disable error", Logger.E(e));
         throw e;
       });
   }
@@ -756,7 +756,7 @@ export class ScriptService {
         updatetime: Date.now(),
       })
       .then(() => {
-        logger.info("enable success");
+        logger.info(enable ? "enable success" : "disable success");
         this.mq.publish<TEnableScript[]>(
           "enableScripts",
           uuids2.map((uuid) => ({ uuid, enable }))
@@ -764,7 +764,7 @@ export class ScriptService {
         return {};
       })
       .catch((e) => {
-        logger.error("enable error", Logger.E(e));
+        logger.error(enable ? "enable error" : "disable error", Logger.E(e));
         throw e;
       });
   }
