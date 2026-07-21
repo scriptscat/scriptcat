@@ -9,56 +9,15 @@
 // @noframes
 // ==/UserScript==
 
-(async function () {
-  "use strict";
+"use strict";
 
+(async ({ test, assert, assertTrue, printSummary }) => {
   console.log(
     "%c=== GM_xmlhttpRequest cookie 覆盖测试开始 ===",
     "color: blue; font-size: 16px; font-weight: bold;"
   );
 
   const MOCKHTTP = "https://mockhttp.org";
-
-  const testResults = {
-    passed: 0,
-    failed: 0,
-    total: 0,
-  };
-
-  async function test(name, fn) {
-    testResults.total++;
-
-    try {
-      await fn();
-      testResults.passed++;
-      console.log(`%c✓ ${name}`, "color: green;");
-      return true;
-    } catch (error) {
-      testResults.failed++;
-      console.error(`%c✗ ${name}`, "color: red;", error);
-      return false;
-    }
-  }
-
-  function assert(expected, actual, message) {
-    if (expected !== actual) {
-      const valueInfo =
-        `期望 ${JSON.stringify(expected)}, ` +
-        `实际 ${JSON.stringify(actual)}`;
-
-      throw new Error(
-        message
-          ? `${message} - ${valueInfo}`
-          : `断言失败: ${valueInfo}`
-      );
-    }
-  }
-
-  function assertTrue(condition, message) {
-    if (!condition) {
-      throw new Error(message || "断言失败: 期望条件为真");
-    }
-  }
 
   function gmRequest(details) {
     return new Promise((resolve, reject) => {
@@ -517,29 +476,76 @@
   }
 
   // ============ 输出测试结果 ============
-  console.log(
-    "\n%c=== 测试完成 ===",
-    "color: blue; font-size: 16px; font-weight: bold;"
-  );
+  printSummary();
+})((() => {
+  const testResults = {
+    passed: 0,
+    failed: 0,
+    total: 0,
+  };
 
-  console.log(
-    `%c总计: ${testResults.total} | ` +
-      `通过: ${testResults.passed} | ` +
-      `失败: ${testResults.failed}`,
-    testResults.failed === 0
-      ? "color: green; font-weight: bold;"
-      : "color: red; font-weight: bold;"
-  );
+  async function test(name, fn) {
+    testResults.total++;
 
-  if (testResults.failed === 0) {
-    console.log(
-      "%c🎉 所有测试通过!",
-      "color: green; font-size: 14px; font-weight: bold;"
-    );
-  } else {
-    console.log(
-      "%c⚠️ 部分测试失败，请检查上面的错误信息",
-      "color: red; font-size: 14px; font-weight: bold;"
-    );
+    try {
+      await fn();
+      testResults.passed++;
+      console.log(`%c✓ ${name}`, "color: green;");
+      return true;
+    } catch (error) {
+      testResults.failed++;
+      console.error(`%c✗ ${name}`, "color: red;", error);
+      return false;
+    }
   }
-})();
+
+  function assert(expected, actual, message) {
+    if (expected !== actual) {
+      const valueInfo =
+        `期望 ${JSON.stringify(expected)}, ` +
+        `实际 ${JSON.stringify(actual)}`;
+
+      throw new Error(
+        message
+          ? `${message} - ${valueInfo}`
+          : `断言失败: ${valueInfo}`
+      );
+    }
+  }
+
+  function assertTrue(condition, message) {
+    if (!condition) {
+      throw new Error(message || "断言失败: 期望条件为真");
+    }
+  }
+
+  function printSummary() {
+    console.log(
+      "\n%c=== 测试完成 ===",
+      "color: blue; font-size: 16px; font-weight: bold;"
+    );
+
+    console.log(
+      `%c总计: ${testResults.total} | ` +
+        `通过: ${testResults.passed} | ` +
+        `失败: ${testResults.failed}`,
+      testResults.failed === 0
+        ? "color: green; font-weight: bold;"
+        : "color: red; font-weight: bold;"
+    );
+
+    if (testResults.failed === 0) {
+      console.log(
+        "%c🎉 所有测试通过!",
+        "color: green; font-size: 14px; font-weight: bold;"
+      );
+    } else {
+      console.log(
+        "%c⚠️ 部分测试失败，请检查上面的错误信息",
+        "color: red; font-size: 14px; font-weight: bold;"
+      );
+    }
+  }
+
+  return { test, assert, assertTrue, printSummary };
+})());

@@ -11,7 +11,28 @@
 
 var __unwrap_e2e_global_var = "unwrap_success";
 
-(function () {
+(async ({ test, assert, printSummary }) => {
+  // ============ @unwrap 测试 ============
+  console.log("%c=== @unwrap E2E 测试开始 ===", "color: blue; font-size: 16px; font-weight: bold;");
+
+  // 测试1: GM API 在 unwrap 模式下为 undefined
+  test("GM 对象在 unwrap 模式下为 undefined", function () {
+    assert("undefined", typeof GM, "GM 应为 undefined");
+  });
+
+  test("GM_setValue 在 unwrap 模式下为 undefined", function () {
+    assert("undefined", typeof GM_setValue, "GM_setValue 应为 undefined");
+  });
+
+  // 测试2: 脚本代码在页面全局作用域执行
+  test("全局变量可在页面作用域访问", function () {
+    assert("unwrap_success", window.__unwrap_e2e_global_var, "全局变量应可访问");
+  });
+
+  // ============ 测试总结 ============
+  printSummary();
+})((() => {
+  // 跟测试对象无关的基础设施：计数器、test/assert 断言函数、结果汇总打印。
   "use strict";
 
   let testResults = {
@@ -42,26 +63,12 @@ var __unwrap_e2e_global_var = "unwrap_success";
     }
   }
 
-  // ============ @unwrap 测试 ============
-  console.log("%c=== @unwrap E2E 测试开始 ===", "color: blue; font-size: 16px; font-weight: bold;");
+  function printSummary() {
+    console.log("\n%c=== 测试结果总结 ===", "color: blue; font-size: 16px; font-weight: bold;");
+    console.log("总测试数: " + testResults.total);
+    console.log("%c通过: " + testResults.passed, "color: green; font-weight: bold;");
+    console.log("%c失败: " + testResults.failed, "color: red; font-weight: bold;");
+  }
 
-  // 测试1: GM API 在 unwrap 模式下为 undefined
-  test("GM 对象在 unwrap 模式下为 undefined", function () {
-    assert("undefined", typeof GM, "GM 应为 undefined");
-  });
-
-  test("GM_setValue 在 unwrap 模式下为 undefined", function () {
-    assert("undefined", typeof GM_setValue, "GM_setValue 应为 undefined");
-  });
-
-  // 测试2: 脚本代码在页面全局作用域执行
-  test("全局变量可在页面作用域访问", function () {
-    assert("unwrap_success", window.__unwrap_e2e_global_var, "全局变量应可访问");
-  });
-
-  // ============ 测试总结 ============
-  console.log("\n%c=== 测试结果总结 ===", "color: blue; font-size: 16px; font-weight: bold;");
-  console.log("总测试数: " + testResults.total);
-  console.log("%c通过: " + testResults.passed, "color: green; font-weight: bold;");
-  console.log("%c失败: " + testResults.failed, "color: red; font-weight: bold;");
-})();
+  return { test, assert, printSummary };
+})());

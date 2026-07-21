@@ -12,9 +12,9 @@
 // @run-at       document-idle
 // ==/UserScript==
 
-(function () {
-  'use strict';
+'use strict';
 
+(async ({ escHtml, nowTime, buildLogLine, buildKvCard }) => {
   if (!location.search.includes('testGMAddValueChangeListener')) return;
 
   document.documentElement.appendChild(document.createElement("style")).textContent=`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700,800&display=swap');`;
@@ -52,29 +52,6 @@
   const isMain = window.self === window.top;
   const frameId = new URLSearchParams(location.search).get('frameId')
     || (isMain ? 'main' : 'unknown');
-
-  /* ══════════════════════════════════════════════════════════
-     HELPERS
-  ══════════════════════════════════════════════════════════ */
-  function escHtml(s) {
-    return String(s).replace(/[&<>"']/g, ch => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;',
-    }[ch]));
-  }
-
-  function fmtVal(v) {
-    return v === undefined
-      ? '<i style="color:#94a3b8">not set</i>'
-      : escHtml(JSON.stringify(v));
-  }
-
-  function nowTime() {
-    return new Date().toLocaleTimeString('en-GB', { hour12: false });
-  }
 
   /* ══════════════════════════════════════════════════════════
      MSG BUS
@@ -205,14 +182,7 @@
       const logBox = iframeShadow.getElementById('iframe-log');
       if (!logBox) return;
 
-      const line = document.createElement('div');
-      line.className = 'log-line';
-      line.innerHTML = `
-        <span class="log-time">${escHtml(nowTime())}</span>
-        <span class="log-msg ${escHtml(type)}">${msg}</span>
-      `;
-
-      logBox.appendChild(line);
+      logBox.appendChild(buildLogLine(nowTime(), msg, type));
       logBox.scrollTop = logBox.scrollHeight;
     }
 
@@ -364,11 +334,22 @@
 
       const shell = document.createElement('div');
       shell.id = 'iframe-shell';
-      shell.innerHTML = `
-        <div class="iframe-title">${escHtml(LABEL[frameId])}</div>
-        <div class="iframe-subtitle">Controlled by main frame dashboard ↑</div>
-        <div id="iframe-log" class="log-box"></div>
-      `;
+
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'iframe-title';
+      titleDiv.textContent = LABEL[frameId];
+
+      const subtitleDiv = document.createElement('div');
+      subtitleDiv.className = 'iframe-subtitle';
+      subtitleDiv.textContent = 'Controlled by main frame dashboard ↑';
+
+      const logDiv = document.createElement('div');
+      logDiv.id = 'iframe-log';
+      logDiv.className = 'log-box';
+
+      shell.appendChild(titleDiv);
+      shell.appendChild(subtitleDiv);
+      shell.appendChild(logDiv);
 
       iframeShadow.appendChild(shell);
     }
@@ -720,7 +701,10 @@
 
   const topbar = document.createElement('div');
   topbar.id = 'topbar';
-  topbar.innerHTML = `<span id="topbar-title">⚙ GM_addValueChangeListener Test</span>`;
+  const topbarTitle = document.createElement('span');
+  topbarTitle.id = 'topbar-title';
+  topbarTitle.textContent = '⚙ GM_addValueChangeListener Test';
+  topbar.appendChild(topbarTitle);
 
   const closeBtn = document.createElement('button');
   closeBtn.className = 'danger';
@@ -866,7 +850,7 @@
     const clrB = makeBtn('✕ clear log', true);
     clrB.style.marginTop = '5px';
     clrB.onclick = () => {
-      logBox.innerHTML = '';
+      logBox.textContent = '';
       state.logs[id] = [];
     };
     card.appendChild(clrB);
@@ -917,39 +901,20 @@
     function mLog(msg, type = '') {
       const { logBox } = refs();
 
-      const line = document.createElement('div');
-      line.className = 'log-line';
-      line.innerHTML = `
-        <span class="log-time">${nowTime()}</span>
-        <span class="log-msg ${escHtml(type)}">${msg}</span>
-      `;
-
-      logBox.appendChild(line);
+      logBox.appendChild(buildLogLine(nowTime(), msg, type));
       logBox.scrollTop = logBox.scrollHeight;
     }
 
     async function mRefreshKV() {
       const { kvTable, myKey: mk, accent } = refs();
 
-      kvTable.innerHTML = '';
+      kvTable.textContent = '';
 
       for (const k of ALL_KEYS) {
         const v = await GM_getValue(k, undefined); // main frame
         const own = k === mk;
 
-        const card = document.createElement('div');
-        card.className = 'kv-card';
-
-        if (own) card.style.borderColor = accent + '88';
-
-        card.innerHTML = `
-          <div class="kv-key">${escHtml(k)}${own ? ' <i>(mine)</i>' : ''}</div>
-          <div class="kv-val" style="${own ? `color:${accent};font-weight:700` : ''}">
-            ${fmtVal(v)}
-          </div>
-        `;
-
-        kvTable.appendChild(card);
+        kvTable.appendChild(buildKvCard(k, v, own, accent));
       }
     }
 
@@ -1096,14 +1061,7 @@
 
     const { logBox } = refs;
 
-    const line = document.createElement('div');
-    line.className = 'log-line';
-    line.innerHTML = `
-      <span class="log-time">${escHtml(entry.t || nowTime())}</span>
-      <span class="log-msg ${escHtml(entry.type || '')}">${entry.msg || ''}</span>
-    `;
-
-    logBox.appendChild(line);
+    logBox.appendChild(buildLogLine(entry.t || nowTime(), entry.msg || '', entry.type || ''));
     logBox.scrollTop = logBox.scrollHeight;
   }
 
@@ -1113,25 +1071,13 @@
 
     const { kvTable, myKey, accent } = refs;
 
-    kvTable.innerHTML = '';
+    kvTable.textContent = '';
 
     for (const k of ALL_KEYS) {
       const v = kvMap[k];
       const own = k === myKey;
 
-      const card = document.createElement('div');
-      card.className = 'kv-card';
-
-      if (own) card.style.borderColor = accent + '88';
-
-      card.innerHTML = `
-        <div class="kv-key">${escHtml(k)}${own ? ' <i>(mine)</i>' : ''}</div>
-        <div class="kv-val" style="${own ? `color:${accent};font-weight:700` : ''}">
-          ${fmtVal(v)}
-        </div>
-      `;
-
-      kvTable.appendChild(card);
+      kvTable.appendChild(buildKvCard(k, v, own, accent));
     }
   }
 
@@ -1146,4 +1092,99 @@
       dot.className = 'dot' + (activeKeys.has(k) ? ' on' : '');
     }
   }
-})();
+})((() => {
+  // 跟测试对象无关的基础设施：HTML 转义、值格式化、日志行/KV 卡片的 DOM 构建。
+  // 用手写的极简标签渲染器（只认识 <b>/<i>/<small>，可带 style 属性）代替
+  // innerHTML，避免任何 HTML 字符串解析进入页面（注入脚本上下文下的 CSP 要求）。
+
+  function escHtml(s) {
+    return String(s).replace(/[&<>"']/g, ch => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[ch]));
+  }
+
+  const ENTITY_MAP = { amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" };
+  function decodeEntities(s) {
+    return s.replace(/&(#39|amp|lt|gt|quot);/g, (m, name) => ENTITY_MAP[name]);
+  }
+
+  function appendInline(container, markup) {
+    const re = /<(\/?)(b|i|small)(?:\s+style="([^"]*)")?>/g;
+    let last = 0, m;
+    const stack = [container];
+    while ((m = re.exec(markup))) {
+      const text = markup.slice(last, m.index);
+      if (text) stack[stack.length - 1].appendChild(document.createTextNode(decodeEntities(text)));
+      const [, closing, tagName, style] = m;
+      if (closing) {
+        if (stack.length > 1) stack.pop();
+      } else {
+        const el = document.createElement(tagName);
+        if (style) el.style.cssText = style;
+        stack[stack.length - 1].appendChild(el);
+        stack.push(el);
+      }
+      last = re.lastIndex;
+    }
+    const rest = markup.slice(last);
+    if (rest) stack[stack.length - 1].appendChild(document.createTextNode(decodeEntities(rest)));
+  }
+
+  function fmtVal(v) {
+    return v === undefined
+      ? '<i style="color:#94a3b8">not set</i>'
+      : escHtml(JSON.stringify(v));
+  }
+
+  function nowTime() {
+    return new Date().toLocaleTimeString('en-GB', { hour12: false });
+  }
+
+  function buildLogLine(time, msg, type) {
+    const line = document.createElement('div');
+    line.className = 'log-line';
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'log-time';
+    timeSpan.textContent = time;
+
+    const msgSpan = document.createElement('span');
+    msgSpan.className = `log-msg ${type || ''}`.trim();
+    appendInline(msgSpan, msg);
+
+    line.appendChild(timeSpan);
+    line.appendChild(msgSpan);
+    return line;
+  }
+
+  function buildKvCard(k, v, own, accent) {
+    const card = document.createElement('div');
+    card.className = 'kv-card';
+    if (own) card.style.borderColor = accent + '88';
+
+    const keyDiv = document.createElement('div');
+    keyDiv.className = 'kv-key';
+    keyDiv.appendChild(document.createTextNode(k));
+    if (own) {
+      keyDiv.appendChild(document.createTextNode(' '));
+      const mineTag = document.createElement('i');
+      mineTag.textContent = '(mine)';
+      keyDiv.appendChild(mineTag);
+    }
+
+    const valDiv = document.createElement('div');
+    valDiv.className = 'kv-val';
+    if (own) valDiv.style.cssText = `color:${accent};font-weight:700`;
+    appendInline(valDiv, fmtVal(v));
+
+    card.appendChild(keyDiv);
+    card.appendChild(valDiv);
+    return card;
+  }
+
+  return { escHtml, appendInline, nowTime, fmtVal, buildLogLine, buildKvCard };
+})());

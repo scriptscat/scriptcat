@@ -69,33 +69,13 @@
      Click "Set prefix" to change it. Click "Clear log" to reset counts.
 */
 
+"use strict";
+
 const enableTool = true;
-(function () {
-  "use strict";
+(async ({ h, escapeHtml, fmtMs, btnStyle, logLine, pass, fail, skip, setStatus, setQueue, showProgress, updateProgress, hideProgress, assert, assertTrue, withTimeout, awaitVerdict, showAwaitingAction, hideAwaiting, printSummary, showResultPanel }) => {
   if (!enableTool) return;
 
-  // ---------- Tiny DOM helper ----------
-  function h(tag, props = {}, ...children) {
-    const el = document.createElement(tag);
-    Object.entries(props).forEach(([k, v]) => {
-      if (k === "style" && typeof v === "object") Object.assign(el.style, v);
-      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
-      else el[k] = v;
-    });
-    for (const c of children) el.append(c && c.nodeType ? c : document.createTextNode(String(c)));
-    return el;
-  }
-
-  function escapeHtml(s) {
-    return String(s).replace(
-      /[&<>"']/g,
-      (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]
-    );
-  }
-
-  function fmtMs(ms) {
-    return ms < 1000 ? `${ms | 0}ms` : `${(ms / 1000).toFixed(2)}s`;
-  }
+  const { panel, $manualButtons, $prefix, $runTagLabel } = showResultPanel();
 
   // ---------- Settings (persisted) ----------
   // Prefix is the sub-folder under the user's Downloads dir. Trailing slash auto-appended.
@@ -139,141 +119,9 @@ const enableTool = true;
   // httpbun deterministic endpoint — returns N random bytes.
   const HB = "https://httpbun.com";
 
-  // ---------- Panel ----------
-  const panel = h(
-    "div",
-    {
-      id: "gmdl-test-panel",
-      style: {
-        position: "fixed", bottom: "12px", right: "12px",
-        width: "520px", maxHeight: "78vh", overflow: "auto",
-        zIndex: 2147483647,
-        background: "#111", color: "#f5f5f5",
-        font: "13px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-        borderRadius: "10px", boxShadow: "0 12px 30px rgba(0,0,0,.4)",
-        border: "1px solid #333",
-      },
-    },
-    h(
-      "div",
-      {
-        style: {
-          position: "sticky", top: 0, background: "#181818",
-          padding: "10px 12px", borderBottom: "1px solid #333",
-          display: "flex", alignItems: "center", gap: "8px",
-        },
-      },
-      h("div", { style: { flex: "1 1 auto" } },
-        h("div", { style: { fontWeight: "600" } },
-          `GM_download Test Harness ${(typeof GM_info === "object" && GM_info.script && GM_info.script.version) || ""}`
-        ),
-        h("div", { style: { display: "flex", flexDirection: "row", gap: "10px", marginTop: "2px", opacity: .85, flexWrap: "wrap" } },
-          h("div", { style: { fontWeight: "400" } },
-            `${(typeof GM_info === "object" && GM_info.scriptHandler) || "?"} ${(typeof GM_info === "object" && GM_info.version) || ""}`),
-          h("div", { id: "counts", style: { marginLeft: "auto" } }, "…")
-        )
-      ),
-      h("button", { id: "start", style: btnStyle() }, "Run Auto"),
-      h("button", { id: "clear", style: btnStyle("#444") }, "Clear log")
-    ),
-
-    h("div", { id: "status", style: { padding: "6px 12px", borderBottom: "1px solid #222", opacity: .9 } }, "Status: idle"),
-
-    // Settings strip.
-    h("div", { style: { padding: "6px 12px", borderBottom: "1px solid #222", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" } },
-      h("span", { style: { opacity: .8 } }, "Download prefix:"),
-      h("code", { id: "prefix", style: { background: "#222", padding: "2px 6px", borderRadius: "4px" } }, getPrefix()),
-      h("button", { id: "setPrefix", style: btnStyle("#444") }, "Set prefix"),
-      h("span", { style: { opacity: .6, marginLeft: "auto", fontSize: "11.5px" } }, `RunTag: ${RUN_TAG}`)
-    ),
-
-    // Manual section.
-    h("details",
-      { id: "manualWrap", open: false, style: { padding: "0 12px 8px", borderBottom: "1px solid #222" } },
-      h("summary", { style: { padding: "6px 0", cursor: "pointer", userSelect: "none" } }, "Manual tests (require human)"),
-      h("div", { id: "manualHint", style: { fontSize: "12px", opacity: .75, margin: "4px 0 6px" } },
-        "Each manual test waits for your verdict. Read the instructions in the log, perform the action, then click Mark Pass or Mark Fail. Skip ends the test without a verdict."
-      ),
-      h("div", { id: "manualButtons", style: { display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "4px" } })
-    ),
-
-    // Awaiting bar — shown only while a manual test is in flight.
-    h("div", { id: "awaitingWrap", style: { padding: "8px 12px", borderBottom: "1px solid #222", display: "none", background: "#1a1408" } },
-      h("div", { style: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" } },
-        h("div", { style: { flex: "1 1 auto" } },
-          h("div", { style: { fontWeight: "600", color: "#fbbf24" } }, "⏳ Awaiting your action"),
-          h("div", { id: "awaitingLabel", style: { fontSize: "12px", opacity: .85, marginTop: "2px" } }, "")
-        ),
-        h("div", { id: "awaitingTimer", style: { fontSize: "12px", opacity: .85, fontFamily: "ui-monospace, monospace" } }, ""),
-        // Optional in-flight action button (e.g. "🛑 Abort download"); tests register a handler via showAwaitingAction().
-        h("button", { id: "awaitingAction", style: { ...btnStyle("#0ea5e9"), display: "none" } }, ""),
-        h("button", { id: "awaitingPass", style: btnStyle("#16a34a") }, "✓ Mark Pass"),
-        h("button", { id: "awaitingFail", style: btnStyle("#dc2626") }, "✗ Mark Fail"),
-        h("button", { id: "awaitingSkip", style: btnStyle("#475569") }, "Skip")
-      )
-    ),
-
-    // Queue.
-    h("details", { id: "queueWrap", open: false, style: { padding: "0 12px 6px", borderBottom: "1px solid #222" } },
-      h("summary", { style: { padding: "6px 0", cursor: "pointer", userSelect: "none" } }, "Pending auto tests"),
-      h("div", {
-        id: "queue",
-        style: {
-          fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
-          whiteSpace: "pre-wrap", opacity: .8,
-        },
-      }, "(none)")
-    ),
-
-    // Live progress for currently running test.
-    h("div", { id: "progressWrap", style: { padding: "6px 12px", borderBottom: "1px solid #222", display: "none" } },
-      h("div", { id: "progressLabel", style: { fontSize: "12px", opacity: .8, marginBottom: "4px" } }, ""),
-      h("div", { style: { background: "#222", height: "6px", borderRadius: "3px", overflow: "hidden" } },
-        h("div", { id: "progressBar", style: { background: "#2a6df1", height: "100%", width: "0%", transition: "width .15s" } })
-      )
-    ),
-
-    h("div", { id: "log", style: { padding: "10px 12px" } })
-  );
-  document.documentElement.appendChild(panel);
-
-  function btnStyle(bg) {
-    return {
-      background: bg || "#2a6df1",
-      color: "white",
-      border: "0",
-      padding: "6px 10px",
-      borderRadius: "6px",
-      cursor: "pointer",
-      font: "inherit",
-    };
-  }
-
-  const $log = panel.querySelector("#log");
-  const $counts = panel.querySelector("#counts");
-  const $status = panel.querySelector("#status");
-  const $queue = panel.querySelector("#queue");
-  const $prefix = panel.querySelector("#prefix");
-  const $progressWrap = panel.querySelector("#progressWrap");
-  const $progressLabel = panel.querySelector("#progressLabel");
-  const $progressBar = panel.querySelector("#progressBar");
-  const $manualButtons = panel.querySelector("#manualButtons");
-  const $awaitingWrap = panel.querySelector("#awaitingWrap");
-  const $awaitingLabel = panel.querySelector("#awaitingLabel");
-  const $awaitingTimer = panel.querySelector("#awaitingTimer");
-  const $awaitingPass = panel.querySelector("#awaitingPass");
-  const $awaitingFail = panel.querySelector("#awaitingFail");
-  const $awaitingSkip = panel.querySelector("#awaitingSkip");
-  const $awaitingAction = panel.querySelector("#awaitingAction");
-
-  panel.querySelector("#clear").addEventListener("click", () => {
-    $log.textContent = "";
-    state.pass = state.fail = state.skip = 0;
-    setCounts();
-    setStatus("idle");
-    setQueue([]);
-    hideProgress();
-  });
+  // ---------- Panel wiring that depends on this suite's own settings/runner ----------
+  $prefix.textContent = getPrefix();
+  $runTagLabel.textContent = `RunTag: ${RUN_TAG}`;
   panel.querySelector("#start").addEventListener("click", () => runAuto());
   panel.querySelector("#setPrefix").addEventListener("click", () => {
     const cur = getPrefix();
@@ -283,150 +131,6 @@ const enableTool = true;
     $prefix.textContent = getPrefix();
     logLine(`Prefix set to <code>${escapeHtml(getPrefix())}</code>`);
   });
-
-  function logLine(html, cls = "") {
-    const line = h("div", { style: { padding: "6px 0", borderBottom: "1px dashed #2a2a2a" } });
-    line.innerHTML = html;
-    if (cls) line.className = cls;
-    $log.prepend(line);
-  }
-
-  // ---------- Counters & status ----------
-  const state = { pass: 0, fail: 0, skip: 0 };
-  function setCounts() {
-    $counts.textContent = `✅ ${state.pass}  ❌ ${state.fail}  ⏭️ ${state.skip}`;
-  }
-  setCounts();
-  function setStatus(text) { $status.textContent = `Status: ${text}`; }
-  function setQueue(items) {
-    $queue.textContent = items.length ? items.map((t, i) => `${i + 1}. ${t}`).join("\n") : "(none)";
-  }
-  function pass(msg) { state.pass++; setCounts(); logLine(`✅ ${escapeHtml(msg)}`); }
-  function fail(msg, extra) {
-    state.fail++; setCounts();
-    logLine(
-      `❌ ${escapeHtml(msg)}${extra ? `<pre style="white-space:pre-wrap;color:#bbb;margin:.5em 0 0">${escapeHtml(extra)}</pre>` : ""}`,
-      "fail"
-    );
-  }
-  function skip(msg) { state.skip++; setCounts(); logLine(`⏭️ ${escapeHtml(msg)}`); }
-
-  function showProgress(label) {
-    $progressWrap.style.display = "";
-    $progressLabel.textContent = label;
-    $progressBar.style.width = "0%";
-  }
-  function updateProgress(loaded, total) {
-    if (total > 0) {
-      $progressBar.style.width = Math.min(100, Math.round((loaded / total) * 100)) + "%";
-    } else {
-      // Unknown total — fake an indeterminate bar that creeps up.
-      const cur = parseFloat($progressBar.style.width) || 0;
-      $progressBar.style.width = Math.min(95, cur + 5) + "%";
-    }
-  }
-  function hideProgress() {
-    $progressWrap.style.display = "none";
-    $progressBar.style.width = "0%";
-  }
-
-  // ---------- Assertion helpers ----------
-  function assertEq(a, b, msg) {
-    if (a !== b) throw new Error(msg ? `${msg}: expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}` : `expected ${b}, got ${a}`);
-  }
-  function assertTrue(cond, msg) { if (!cond) throw new Error(msg || "assertTrue failed"); }
-  function withTimeout(p, ms, label) {
-    return new Promise((resolve, reject) => {
-      let done = false;
-      const t = setTimeout(() => {
-        if (done) return;
-        done = true;
-        reject(new Error(`timed out after ${ms}ms: ${label || ""}`));
-      }, ms);
-      p.then((v) => { if (done) return; done = true; clearTimeout(t); resolve(v); },
-             (e) => { if (done) return; done = true; clearTimeout(t); reject(e); });
-    });
-  }
-
-  // ---------- Awaiting bar (manual-test verdict UI) ----------
-  // The manual tests can't be "asserted" purely from JS — the contract often is
-  // "user sees a dialog, picks Cancel, the script doesn't crash". So we hand the
-  // verdict back to the human via Pass/Fail/Skip buttons. To avoid the runner
-  // hanging forever if the human disappears, every manual test runs under a
-  // countdown that auto-skips when it hits zero.
-  let _verdictResolve = null;
-  let _verdictTimerId = null;
-  let _verdictDeadline = 0;
-
-  function showAwaiting(label, deadlineSecs) {
-    $awaitingLabel.innerHTML = label; // caller controls HTML, we trust it
-    $awaitingWrap.style.display = "";
-    _verdictDeadline = performance.now() + deadlineSecs * 1000;
-    tickAwaitingTimer();
-    if (_verdictTimerId) clearInterval(_verdictTimerId);
-    _verdictTimerId = setInterval(tickAwaitingTimer, 250);
-  }
-  function tickAwaitingTimer() {
-    const remaining = Math.max(0, Math.ceil((_verdictDeadline - performance.now()) / 1000));
-    $awaitingTimer.textContent = `auto-skip in ${remaining}s`;
-    if (remaining === 0) {
-      // Time's up — auto-skip so the runner doesn't hang.
-      resolveVerdict({ verdict: "skip", reason: "timed out waiting for verdict" });
-    }
-  }
-  function hideAwaiting() {
-    $awaitingWrap.style.display = "none";
-    $awaitingLabel.innerHTML = "";
-    $awaitingTimer.textContent = "";
-    if (_verdictTimerId) { clearInterval(_verdictTimerId); _verdictTimerId = null; }
-    // Tear down any registered action button so it doesn't leak into the next test.
-    $awaitingAction.style.display = "none";
-    $awaitingAction.textContent = "";
-    $awaitingAction.onclick = null;
-  }
-  function resolveVerdict(v) {
-    if (!_verdictResolve) return;
-    const r = _verdictResolve;
-    _verdictResolve = null;
-    hideAwaiting();
-    r(v);
-  }
-  $awaitingPass.addEventListener("click", () => resolveVerdict({ verdict: "pass" }));
-  $awaitingFail.addEventListener("click", () => {
-    const reason = prompt("Why did this fail? (optional)", "") || "marked failed by user";
-    resolveVerdict({ verdict: "fail", reason });
-  });
-  $awaitingSkip.addEventListener("click", () => resolveVerdict({ verdict: "skip", reason: "skipped by user" }));
-
-  /**
-   * Wait for the human to give a verdict via the awaiting bar.
-   * @param {string} promptHtml  HTML shown in the awaiting bar (be careful — trusted source).
-   * @param {number} [deadlineSecs=120]  Auto-skip after this many seconds of no input.
-   * @returns {Promise<{verdict: "pass"|"fail"|"skip", reason?: string}>}
-   */
-  function awaitVerdict(promptHtml, deadlineSecs = 120) {
-    return new Promise((resolve) => {
-      _verdictResolve = resolve;
-      showAwaiting(promptHtml, deadlineSecs);
-    });
-  }
-
-  /**
-   * Register an in-flight action button on the awaiting bar.
-   * Use to expose things like "🛑 Abort download" while we wait for a verdict.
-   * The button auto-hides when the verdict resolves (or the next showAwaiting() is called).
-   * @param {string} label  Button text.
-   * @param {() => void} onClick  Click handler. Stays attached until the bar hides.
-   */
-  function showAwaitingAction(label, onClick) {
-    $awaitingAction.textContent = label;
-    $awaitingAction.style.display = "";
-    $awaitingAction.onclick = (ev) => {
-      ev.preventDefault();
-      try { onClick(); } catch (e) { console.error("awaiting action handler threw:", e); }
-    };
-  }
-
 
   // ---------- GM_download wrappers ----------
 
@@ -497,7 +201,7 @@ const enableTool = true;
 
   // 1) sanity: APIs exist
   autoTest("APIs exist (GM_download / GM.download)", async () => {
-    assertEq(typeof GM_download, "function", "GM_download must be a function");
+    assert(typeof GM_download, "function", "GM_download must be a function");
     assertTrue(typeof GM !== "undefined" && typeof GM.download === "function", "GM.download must exist");
   });
 
@@ -535,7 +239,7 @@ const enableTool = true;
         conflictAction: "uniquify",
       });
       const r = await withTimeout(promise, 10000, "blob: URL download");
-      assertEq(r.kind, "load", "onload should fire");
+      assert(r.kind, "load", "onload should fire");
     } finally {
       URL.revokeObjectURL(blobUrl);
     }
@@ -549,7 +253,7 @@ const enableTool = true;
       name,
     });
     const r = await withTimeout(promise, 10000, "Blob object download");
-    assertEq(r.kind, "load", "onload should fire");
+    assert(r.kind, "load", "onload should fire");
   });
 
   // 5) File object as url — File extends Blob, should also work
@@ -560,7 +264,7 @@ const enableTool = true;
       name,
     });
     const r = await withTimeout(promise, 10000, "File object download");
-    assertEq(r.kind, "load", "onload should fire");
+    assert(r.kind, "load", "onload should fire");
   });
 
   // 6) data: URL
@@ -572,7 +276,7 @@ const enableTool = true;
       name,
     });
     const r = await withTimeout(promise, 10000, "data: URL download");
-    assertEq(r.kind, "load", "onload should fire");
+    assert(r.kind, "load", "onload should fire");
   });
 
   // 7) GM.download promise form
@@ -733,7 +437,7 @@ const enableTool = true;
     h.abort();
     // Give the system 1.5s to (not) call any callbacks.
     await new Promise((r) => setTimeout(r, 1500));
-    assertEq(onloadCalled, false, "onload should not fire after immediate abort");
+    assert(onloadCalled, false, "onload should not fire after immediate abort");
     // Note: onerror may still fire in some impls — we accept either no-call or a
     // generic error. The important contract is: no successful onload.
     if (onerrorCalled) {
@@ -776,7 +480,7 @@ const enableTool = true;
       // Safety timeout
       setTimeout(resolve, 8000);
     });
-    assertEq(onloadCalled, false, "onload must NOT fire");
+    assert(onloadCalled, false, "onload must NOT fire");
     assertTrue(!!errSeen, "onerror should fire");
   });
 
@@ -795,7 +499,7 @@ const enableTool = true;
         setTimeout(resolve, 4000);
       });
     } catch (e) { threw = e; }
-    assertEq(onloadCalled, false, "onload must NOT fire on bad URL");
+    assert(onloadCalled, false, "onload must NOT fire on bad URL");
     assertTrue(errSeen != null || threw != null, "either onerror fires or it throws");
   });
 
@@ -814,7 +518,7 @@ const enableTool = true;
         setTimeout(resolve, 3000);
       });
     } catch (e) { threw = e; }
-    assertEq(onloadCalled, false, "onload must NOT fire on empty URL");
+    assert(onloadCalled, false, "onload must NOT fire on empty URL");
     assertTrue(errSeen != null || threw != null, "either onerror fires or it throws");
   });
 
@@ -1090,7 +794,7 @@ const enableTool = true;
         setQueue(names.slice(i + 1));
       }
       setStatus("done");
-      logLine(`<b>Done.</b> Summary — ✅ ${state.pass}  ❌ ${state.fail}  ⏭️ ${state.skip}`);
+      printSummary();
     } finally {
       running = false;
       setAllButtonsDisabled(false);
@@ -1123,4 +827,361 @@ const enableTool = true;
   setStatus("idle");
 
   // No auto-start: GM_download writes to disk, so we wait for explicit user action.
-})();
+})((() => {
+  // 跟测试对象无关的基础设施：DOM 构建、日志面板、计数器、断言函数、人工验收（awaiting bar）控制。
+
+  // ---------- Tiny DOM helper ----------
+  function h(tag, props = {}, ...children) {
+    const el = document.createElement(tag);
+    Object.entries(props).forEach(([k, v]) => {
+      if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else el[k] = v;
+    });
+    for (const c of children) el.append(c && c.nodeType ? c : document.createTextNode(String(c)));
+    return el;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(
+      /[&<>"']/g,
+      (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]
+    );
+  }
+
+  function fmtMs(ms) {
+    return ms < 1000 ? `${ms | 0}ms` : `${(ms / 1000).toFixed(2)}s`;
+  }
+
+  function btnStyle(bg) {
+    return {
+      background: bg || "#2a6df1",
+      color: "white",
+      border: "0",
+      padding: "6px 10px",
+      borderRadius: "6px",
+      cursor: "pointer",
+      font: "inherit",
+    };
+  }
+
+  // Renders the small, fixed vocabulary of inline markup this harness's log
+  // lines use (<b>, <i>, <code>, <pre style="...">, entities) into real DOM
+  // nodes — no innerHTML/insertAdjacentHTML/DOMParser, so no HTML-string
+  // parsing ever touches the page (CSP-safe in the injected-script context).
+  const ENTITY_MAP = { amp: "&", lt: "<", gt: ">", quot: '"', "#39": "'", nbsp: " " };
+  function decodeEntities(s) {
+    return s.replace(/&(#39|amp|lt|gt|quot|nbsp);/g, (m, name) => ENTITY_MAP[name]);
+  }
+  function renderMarkup(container, markup) {
+    container.textContent = "";
+    const re = /<(\/?)(b|i|code|pre)(?:\s+style="([^"]*)")?>/g;
+    let last = 0, m;
+    const stack = [container];
+    while ((m = re.exec(markup))) {
+      const text = markup.slice(last, m.index);
+      if (text) stack[stack.length - 1].appendChild(document.createTextNode(decodeEntities(text)));
+      const [, closing, tagName, style] = m;
+      if (closing) {
+        if (stack.length > 1) stack.pop();
+      } else {
+        const el = document.createElement(tagName);
+        if (style) el.style.cssText = style;
+        stack[stack.length - 1].appendChild(el);
+        stack.push(el);
+      }
+      last = re.lastIndex;
+    }
+    const rest = markup.slice(last);
+    if (rest) stack[stack.length - 1].appendChild(document.createTextNode(decodeEntities(rest)));
+  }
+
+  // ---------- Panel DOM refs (populated by showResultPanel()) ----------
+  let panel, $log, $counts, $status, $queue, $prefix, $runTagLabel, $progressWrap, $progressLabel, $progressBar,
+    $manualButtons, $awaitingWrap, $awaitingLabel, $awaitingTimer, $awaitingPass, $awaitingFail,
+    $awaitingSkip, $awaitingAction;
+
+  function logLine(html, cls = "") {
+    const line = document.createElement("div");
+    line.style.cssText = "padding:6px 0;border-bottom:1px dashed #2a2a2a";
+    renderMarkup(line, html);
+    if (cls) line.className = cls;
+    $log.prepend(line);
+  }
+
+  // ---------- Counters & status ----------
+  const state = { pass: 0, fail: 0, skip: 0 };
+  function setCounts() {
+    $counts.textContent = `✅ ${state.pass}  ❌ ${state.fail}  ⏭️ ${state.skip}`;
+  }
+  function setStatus(text) { $status.textContent = `Status: ${text}`; }
+  function setQueue(items) {
+    $queue.textContent = items.length ? items.map((t, i) => `${i + 1}. ${t}`).join("\n") : "(none)";
+  }
+  function pass(msg) { state.pass++; setCounts(); logLine(`✅ ${escapeHtml(msg)}`); }
+  function fail(msg, extra) {
+    state.fail++; setCounts();
+    logLine(
+      `❌ ${escapeHtml(msg)}${extra ? `<pre style="white-space:pre-wrap;color:#bbb;margin:.5em 0 0">${escapeHtml(extra)}</pre>` : ""}`,
+      "fail"
+    );
+  }
+  function skip(msg) { state.skip++; setCounts(); logLine(`⏭️ ${escapeHtml(msg)}`); }
+  function printSummary() {
+    logLine(`<b>Done.</b> Summary — ✅ ${state.pass}  ❌ ${state.fail}  ⏭️ ${state.skip}`);
+  }
+
+  function showProgress(label) {
+    $progressWrap.style.display = "";
+    $progressLabel.textContent = label;
+    $progressBar.style.width = "0%";
+  }
+  function updateProgress(loaded, total) {
+    if (total > 0) {
+      $progressBar.style.width = Math.min(100, Math.round((loaded / total) * 100)) + "%";
+    } else {
+      // Unknown total — fake an indeterminate bar that creeps up.
+      const cur = parseFloat($progressBar.style.width) || 0;
+      $progressBar.style.width = Math.min(95, cur + 5) + "%";
+    }
+  }
+  function hideProgress() {
+    $progressWrap.style.display = "none";
+    $progressBar.style.width = "0%";
+  }
+
+  // ---------- Assertion helpers ----------
+  function assert(a, b, msg) {
+    if (a !== b) throw new Error(msg ? `${msg}: expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}` : `expected ${b}, got ${a}`);
+  }
+  function assertTrue(cond, msg) { if (!cond) throw new Error(msg || "assertTrue failed"); }
+  function withTimeout(p, ms, label) {
+    return new Promise((resolve, reject) => {
+      let done = false;
+      const t = setTimeout(() => {
+        if (done) return;
+        done = true;
+        reject(new Error(`timed out after ${ms}ms: ${label || ""}`));
+      }, ms);
+      p.then((v) => { if (done) return; done = true; clearTimeout(t); resolve(v); },
+             (e) => { if (done) return; done = true; clearTimeout(t); reject(e); });
+    });
+  }
+
+  // ---------- Awaiting bar (manual-test verdict UI) ----------
+  // The manual tests can't be "asserted" purely from JS — the contract often is
+  // "user sees a dialog, picks Cancel, the script doesn't crash". So we hand the
+  // verdict back to the human via Pass/Fail/Skip buttons. To avoid the runner
+  // hanging forever if the human disappears, every manual test runs under a
+  // countdown that auto-skips when it hits zero.
+  let _verdictResolve = null;
+  let _verdictTimerId = null;
+  let _verdictDeadline = 0;
+
+  function showAwaiting(label, deadlineSecs) {
+    renderMarkup($awaitingLabel, label);
+    $awaitingWrap.style.display = "";
+    _verdictDeadline = performance.now() + deadlineSecs * 1000;
+    tickAwaitingTimer();
+    if (_verdictTimerId) clearInterval(_verdictTimerId);
+    _verdictTimerId = setInterval(tickAwaitingTimer, 250);
+  }
+  function tickAwaitingTimer() {
+    const remaining = Math.max(0, Math.ceil((_verdictDeadline - performance.now()) / 1000));
+    $awaitingTimer.textContent = `auto-skip in ${remaining}s`;
+    if (remaining === 0) {
+      // Time's up — auto-skip so the runner doesn't hang.
+      resolveVerdict({ verdict: "skip", reason: "timed out waiting for verdict" });
+    }
+  }
+  function hideAwaiting() {
+    $awaitingWrap.style.display = "none";
+    $awaitingLabel.textContent = "";
+    $awaitingTimer.textContent = "";
+    if (_verdictTimerId) { clearInterval(_verdictTimerId); _verdictTimerId = null; }
+    // Tear down any registered action button so it doesn't leak into the next test.
+    $awaitingAction.style.display = "none";
+    $awaitingAction.textContent = "";
+    $awaitingAction.onclick = null;
+  }
+  function resolveVerdict(v) {
+    if (!_verdictResolve) return;
+    const r = _verdictResolve;
+    _verdictResolve = null;
+    hideAwaiting();
+    r(v);
+  }
+
+  /**
+   * Wait for the human to give a verdict via the awaiting bar.
+   * @param {string} promptHtml  HTML shown in the awaiting bar (be careful — trusted source).
+   * @param {number} [deadlineSecs=120]  Auto-skip after this many seconds of no input.
+   * @returns {Promise<{verdict: "pass"|"fail"|"skip", reason?: string}>}
+   */
+  function awaitVerdict(promptHtml, deadlineSecs = 120) {
+    return new Promise((resolve) => {
+      _verdictResolve = resolve;
+      showAwaiting(promptHtml, deadlineSecs);
+    });
+  }
+
+  /**
+   * Register an in-flight action button on the awaiting bar.
+   * Use to expose things like "🛑 Abort download" while we wait for a verdict.
+   * The button auto-hides when the verdict resolves (or the next showAwaiting() is called).
+   * @param {string} label  Button text.
+   * @param {() => void} onClick  Click handler. Stays attached until the bar hides.
+   */
+  function showAwaitingAction(label, onClick) {
+    $awaitingAction.textContent = label;
+    $awaitingAction.style.display = "";
+    $awaitingAction.onclick = (ev) => {
+      ev.preventDefault();
+      try { onClick(); } catch (e) { console.error("awaiting action handler threw:", e); }
+    };
+  }
+
+  // ---------- Panel ----------
+  // Builds the whole test-runner panel DOM tree, injects it into the page,
+  // wires up the parts of the UI that don't depend on this file's specific
+  // test suite (clear log, verdict buttons), and returns the handles the
+  // suite-specific code needs (start/setPrefix button wiring lives with the
+  // suite, since it depends on suite-specific settings and the runner).
+  function showResultPanel() {
+    panel = h(
+      "div",
+      {
+        id: "gmdl-test-panel",
+        style: {
+          position: "fixed", bottom: "12px", right: "12px",
+          width: "520px", maxHeight: "78vh", overflow: "auto",
+          zIndex: 2147483647,
+          background: "#111", color: "#f5f5f5",
+          font: "13px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+          borderRadius: "10px", boxShadow: "0 12px 30px rgba(0,0,0,.4)",
+          border: "1px solid #333",
+        },
+      },
+      h(
+        "div",
+        {
+          style: {
+            position: "sticky", top: 0, background: "#181818",
+            padding: "10px 12px", borderBottom: "1px solid #333",
+            display: "flex", alignItems: "center", gap: "8px",
+          },
+        },
+        h("div", { style: { flex: "1 1 auto" } },
+          h("div", { style: { fontWeight: "600" } },
+            `GM_download Test Harness ${(typeof GM_info === "object" && GM_info.script && GM_info.script.version) || ""}`
+          ),
+          h("div", { style: { display: "flex", flexDirection: "row", gap: "10px", marginTop: "2px", opacity: .85, flexWrap: "wrap" } },
+            h("div", { style: { fontWeight: "400" } },
+              `${(typeof GM_info === "object" && GM_info.scriptHandler) || "?"} ${(typeof GM_info === "object" && GM_info.version) || ""}`),
+            h("div", { id: "counts", style: { marginLeft: "auto" } }, "…")
+          )
+        ),
+        h("button", { id: "start", style: btnStyle() }, "Run Auto"),
+        h("button", { id: "clear", style: btnStyle("#444") }, "Clear log")
+      ),
+
+      h("div", { id: "status", style: { padding: "6px 12px", borderBottom: "1px solid #222", opacity: .9 } }, "Status: idle"),
+
+      // Settings strip.
+      h("div", { style: { padding: "6px 12px", borderBottom: "1px solid #222", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" } },
+        h("span", { style: { opacity: .8 } }, "Download prefix:"),
+        h("code", { id: "prefix", style: { background: "#222", padding: "2px 6px", borderRadius: "4px" } }, ""),
+        h("button", { id: "setPrefix", style: btnStyle("#444") }, "Set prefix"),
+        h("span", { id: "runTagLabel", style: { opacity: .6, marginLeft: "auto", fontSize: "11.5px" } }, "")
+      ),
+
+      // Manual section.
+      h("details",
+        { id: "manualWrap", open: false, style: { padding: "0 12px 8px", borderBottom: "1px solid #222" } },
+        h("summary", { style: { padding: "6px 0", cursor: "pointer", userSelect: "none" } }, "Manual tests (require human)"),
+        h("div", { id: "manualHint", style: { fontSize: "12px", opacity: .75, margin: "4px 0 6px" } },
+          "Each manual test waits for your verdict. Read the instructions in the log, perform the action, then click Mark Pass or Mark Fail. Skip ends the test without a verdict."
+        ),
+        h("div", { id: "manualButtons", style: { display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "4px" } })
+      ),
+
+      // Awaiting bar — shown only while a manual test is in flight.
+      h("div", { id: "awaitingWrap", style: { padding: "8px 12px", borderBottom: "1px solid #222", display: "none", background: "#1a1408" } },
+        h("div", { style: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" } },
+          h("div", { style: { flex: "1 1 auto" } },
+            h("div", { style: { fontWeight: "600", color: "#fbbf24" } }, "⏳ Awaiting your action"),
+            h("div", { id: "awaitingLabel", style: { fontSize: "12px", opacity: .85, marginTop: "2px" } }, "")
+          ),
+          h("div", { id: "awaitingTimer", style: { fontSize: "12px", opacity: .85, fontFamily: "ui-monospace, monospace" } }, ""),
+          // Optional in-flight action button (e.g. "🛑 Abort download"); tests register a handler via showAwaitingAction().
+          h("button", { id: "awaitingAction", style: { ...btnStyle("#0ea5e9"), display: "none" } }, ""),
+          h("button", { id: "awaitingPass", style: btnStyle("#16a34a") }, "✓ Mark Pass"),
+          h("button", { id: "awaitingFail", style: btnStyle("#dc2626") }, "✗ Mark Fail"),
+          h("button", { id: "awaitingSkip", style: btnStyle("#475569") }, "Skip")
+        )
+      ),
+
+      // Queue.
+      h("details", { id: "queueWrap", open: false, style: { padding: "0 12px 6px", borderBottom: "1px solid #222" } },
+        h("summary", { style: { padding: "6px 0", cursor: "pointer", userSelect: "none" } }, "Pending auto tests"),
+        h("div", {
+          id: "queue",
+          style: {
+            fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
+            whiteSpace: "pre-wrap", opacity: .8,
+          },
+        }, "(none)")
+      ),
+
+      // Live progress for currently running test.
+      h("div", { id: "progressWrap", style: { padding: "6px 12px", borderBottom: "1px solid #222", display: "none" } },
+        h("div", { id: "progressLabel", style: { fontSize: "12px", opacity: .8, marginBottom: "4px" } }, ""),
+        h("div", { style: { background: "#222", height: "6px", borderRadius: "3px", overflow: "hidden" } },
+          h("div", { id: "progressBar", style: { background: "#2a6df1", height: "100%", width: "0%", transition: "width .15s" } })
+        )
+      ),
+
+      h("div", { id: "log", style: { padding: "10px 12px" } })
+    );
+    document.documentElement.appendChild(panel);
+
+    $log = panel.querySelector("#log");
+    $counts = panel.querySelector("#counts");
+    $status = panel.querySelector("#status");
+    $queue = panel.querySelector("#queue");
+    $prefix = panel.querySelector("#prefix");
+    $runTagLabel = panel.querySelector("#runTagLabel");
+    $progressWrap = panel.querySelector("#progressWrap");
+    $progressLabel = panel.querySelector("#progressLabel");
+    $progressBar = panel.querySelector("#progressBar");
+    $manualButtons = panel.querySelector("#manualButtons");
+    $awaitingWrap = panel.querySelector("#awaitingWrap");
+    $awaitingLabel = panel.querySelector("#awaitingLabel");
+    $awaitingTimer = panel.querySelector("#awaitingTimer");
+    $awaitingPass = panel.querySelector("#awaitingPass");
+    $awaitingFail = panel.querySelector("#awaitingFail");
+    $awaitingSkip = panel.querySelector("#awaitingSkip");
+    $awaitingAction = panel.querySelector("#awaitingAction");
+
+    panel.querySelector("#clear").addEventListener("click", () => {
+      $log.textContent = "";
+      state.pass = state.fail = state.skip = 0;
+      setCounts();
+      setStatus("idle");
+      setQueue([]);
+      hideProgress();
+    });
+    $awaitingPass.addEventListener("click", () => resolveVerdict({ verdict: "pass" }));
+    $awaitingFail.addEventListener("click", () => {
+      const reason = prompt("Why did this fail? (optional)", "") || "marked failed by user";
+      resolveVerdict({ verdict: "fail", reason });
+    });
+    $awaitingSkip.addEventListener("click", () => resolveVerdict({ verdict: "skip", reason: "skipped by user" }));
+
+    setCounts();
+
+    return { panel, $manualButtons, $prefix, $runTagLabel };
+  }
+
+  return { h, escapeHtml, fmtMs, btnStyle, logLine, pass, fail, skip, setStatus, setQueue, showProgress, updateProgress, hideProgress, assert, assertTrue, withTimeout, awaitVerdict, showAwaitingAction, hideAwaiting, printSummary, showResultPanel };
+})());

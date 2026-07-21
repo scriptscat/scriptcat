@@ -27,53 +27,17 @@ const mpt = document.body.appendChild(document.createElement("test-element-1002"
 mpt.id = "test-element-1002";
 mpt.name = "test-element-1002";
 
-(async function () {
+(async (helpers) => {
   "use strict";
 
+  const { test, assert, assertNotSame, assertTrue, section, printSummary } = helpers;
+
   const markerPrefix = `__scriptcat_sandbox_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  const testResults = {
-    passed: 0,
-    failed: 0,
-    total: 0,
-  };
 
   console.log(
     "%c=== 半沙盒环境测试开始 ===",
     "color: blue; font-size: 16px; font-weight: bold;",
   );
-
-  function formatValue(value) {
-    if (value === window) return "[sandbox window]";
-    if (value === unsafeWindow) return "[unsafeWindow]";
-    if (value === document) return "[document]";
-    if (value && value.nodeType) return `[node ${value.nodeName}]`;
-    if (typeof value === "function")
-      return `[function ${value.name || "anonymous"}]`;
-    if (typeof value === "symbol") return value.toString();
-    try {
-      return JSON.stringify(value);
-    } catch {
-      return String(value);
-    }
-  }
-
-  function assertSame(expected, actual, message) {
-    if (!Object.is(expected, actual)) {
-      throw new Error(
-        `${message} - 期望 ${formatValue(expected)}, 实际 ${formatValue(actual)}`,
-      );
-    }
-  }
-
-  function assertNotSame(unexpected, actual, message) {
-    if (Object.is(unexpected, actual)) {
-      throw new Error(`${message} - 不应等于 ${formatValue(unexpected)}`);
-    }
-  }
-
-  function assertTrue(condition, message) {
-    if (!condition) throw new Error(message || "断言失败: 条件不为真");
-  }
 
   function assertThrowsOrKeepsValue(assign, read, expected, message) {
     let threw = false;
@@ -82,29 +46,11 @@ mpt.name = "test-element-1002";
     } catch {
       threw = true;
     }
-    assertSame(
+    assert(
       expected,
       read(),
       `${message}${threw ? "（赋值抛出，值保持不变）" : ""}`,
     );
-  }
-
-  async function test(name, fn) {
-    testResults.total++;
-    try {
-      await fn();
-      testResults.passed++;
-      console.log(`%cPASS ${name}`, "color: green;");
-      return true;
-    } catch (error) {
-      testResults.failed++;
-      console.error(`%cFAIL ${name}`, "color: red;", error);
-      return false;
-    }
-  }
-
-  function section(name) {
-    console.log(`\n%c--- ${name} ---`, "color: orange; font-weight: bold;");
   }
 
   function waitForEventLoop() {
@@ -151,28 +97,28 @@ mpt.name = "test-element-1002";
   section("沙盒全局身份");
 
   await test("检测全局 testVar1001 会否跳出沙盒", () => {
-    assertSame(undefined, window["testVar1001"], "全局 testVar1001 不应跳出沙盒");
-    assertSame(undefined, unsafeWindow["testVar1001"], "全局 testVar1001 不应跳出沙盒");
+    assert(undefined, window["testVar1001"], "全局 testVar1001 不应跳出沙盒");
+    assert(undefined, unsafeWindow["testVar1001"], "全局 testVar1001 不应跳出沙盒");
   });
 
   await test("检测全局 test-element-1002", () => {
-    assertSame("test-element-1002", unsafeWindow["test-element-1002"]?.id, "全局 test-element-1002");
-    assertSame(undefined, window["test-element-1002"]?.id, "半沙盒无法检测 test-element-1002");
+    assert("test-element-1002", unsafeWindow["test-element-1002"]?.id, "全局 test-element-1002");
+    assert(undefined, window["test-element-1002"]?.id, "半沙盒无法检测 test-element-1002");
   });
 
   await test("window/self/globalThis/top/parent/frames 均指向沙盒对象", () => {
-    assertSame("object", typeof unsafeWindow, "unsafeWindow 应存在");
+    assert("object", typeof unsafeWindow, "unsafeWindow 应存在");
     assertNotSame(
       unsafeWindow,
       window,
       "默认 grant 环境下 window 不应是页面 window",
     );
-    assertSame(window, self, "self 应指向沙盒 window");
-    assertSame(window, globalThis, "globalThis 应指向沙盒 window");
-    assertSame(window, top, "top 应指向沙盒 window");
-    assertSame(window, parent, "parent 应指向沙盒 window");
-    assertSame(window, frames, "frames 应指向沙盒 window");
-    assertSame(
+    assert(window, self, "self 应指向沙盒 window");
+    assert(window, globalThis, "globalThis 应指向沙盒 window");
+    assert(window, top, "top 应指向沙盒 window");
+    assert(window, parent, "parent 应指向沙盒 window");
+    assert(window, frames, "frames 应指向沙盒 window");
+    assert(
       "[object Window]",
       Object.prototype.toString.call(window),
       "沙盒 window 应保持 Window 标记",
@@ -180,22 +126,22 @@ mpt.name = "test-element-1002";
   });
 
   await test("沙盒 window 使用空原型，但保留页面 Window 外观 (Issue #962)", () => {
-    assertSame(
+    assert(
       null,
       Object.getPrototypeOf(window),
       "沙盒 window 的原型应为空，避免 Object.prototype 污染穿透",
     );
-    assertSame(
+    assert(
       unsafeWindow.constructor,
       window.constructor,
       "constructor 应与页面 Window 构造器一致",
     );
-    assertSame(
+    assert(
       unsafeWindow.__proto__,
       window.__proto__,
       "__proto__ 应暴露页面 Window 原型用于兼容",
     );
-    assertSame(
+    assert(
       false,
       window instanceof unsafeWindow.constructor,
       "沙盒 window 不应是真实 Window 实例",
@@ -203,13 +149,13 @@ mpt.name = "test-element-1002";
   });
 
   await test("页面 DOM getter 返回真实页面对象", () => {
-    assertSame(unsafeWindow.document, document, "document 应是页面 document");
-    assertSame(
+    assert(unsafeWindow.document, document, "document 应是页面 document");
+    assert(
       unsafeWindow.location.href,
       location.href,
       "location 应读取页面地址",
     );
-    assertSame(
+    assert(
       unsafeWindow.document.documentElement,
       document.documentElement,
       "DOM 节点身份应与页面一致",
@@ -221,16 +167,16 @@ mpt.name = "test-element-1002";
       () => {
         const key = `${markerPrefix}_page_global`;
         unsafeWindow[key] = "page-value";
-        assertSame(
+        assert(
           "page-value",
           unsafeWindow[key],
           "页面变量应写入 unsafeWindow",
         );
-        assertSame(undefined, window[key], "页面变量不应出现在沙盒 window");
+        assert(undefined, window[key], "页面变量不应出现在沙盒 window");
 
         window[key] = "sandbox-value";
-        assertSame("sandbox-value", window[key], "沙盒变量应写入沙盒 window");
-        assertSame("page-value", unsafeWindow[key], "沙盒变量不应覆盖页面变量");
+        assert("sandbox-value", window[key], "沙盒变量应写入沙盒 window");
+        assert("page-value", unsafeWindow[key], "沙盒变量不应覆盖页面变量");
       },
       () => {
         delete window[`${markerPrefix}_page_global`];
@@ -246,12 +192,12 @@ mpt.name = "test-element-1002";
         div.id = id;
         document.body.appendChild(div);
 
-        assertSame(
+        assert(
           div,
           unsafeWindow[id],
           "页面 window 应可通过 named property 访问元素",
         );
-        assertSame(
+        assert(
           undefined,
           window[id],
           "沙盒 window 不应通过 named property 访问页面元素",
@@ -268,16 +214,16 @@ mpt.name = "test-element-1002";
         const key = `${markerPrefix}_delete_page_global`;
         unsafeWindow[key] = "page-value";
 
-        assertSame(undefined, window[key], "页面变量不应自动出现在沙盒 window");
+        assert(undefined, window[key], "页面变量不应自动出现在沙盒 window");
 
         window[key] = "sandbox-value";
-        assertSame("sandbox-value", window[key], "沙盒变量应存在");
-        assertSame("page-value", unsafeWindow[key], "页面变量应保持存在");
+        assert("sandbox-value", window[key], "沙盒变量应存在");
+        assert("page-value", unsafeWindow[key], "页面变量应保持存在");
 
         delete window[key];
 
-        assertSame(undefined, window[key], "删除后沙盒变量应消失");
-        assertSame(
+        assert(undefined, window[key], "删除后沙盒变量应消失");
+        assert(
           "page-value",
           unsafeWindow[key],
           "删除沙盒变量不应删除页面变量",
@@ -297,8 +243,8 @@ mpt.name = "test-element-1002";
         unsafeWindow[key] = "page-value";
         window[key] = "sandbox-value";
 
-        assertSame("sandbox-value", window[key], "裸变量应读取沙盒值");
-        assertSame("page-value", unsafeWindow[key], "页面变量应保持存在");
+        assert("sandbox-value", window[key], "裸变量应读取沙盒值");
+        assert("page-value", unsafeWindow[key], "页面变量应保持存在");
 
         try {
           Function(`return delete ${key};`)(); // 半沙盒在页面执行
@@ -307,8 +253,8 @@ mpt.name = "test-element-1002";
           delete unsafeWindow[key]; // fallback
         }
 
-        assertSame(undefined, unsafeWindow[key], "裸 delete 后页面变量应消失");
-        assertSame("sandbox-value", window[key], "裸 delete 后沙盒变量不应消失");
+        assert(undefined, unsafeWindow[key], "裸 delete 后页面变量应消失");
+        assert("sandbox-value", window[key], "裸 delete 后沙盒变量不应消失");
       },
       () => {
         window[`${markerPrefix}_delete_bare_page_global`] = undefined;
@@ -322,13 +268,13 @@ mpt.name = "test-element-1002";
       () => {
         const key = `${markerPrefix}_polluted`;
         Object.prototype[key] = "polluted-value";
-        assertSame("polluted-value", {}[key], "测试前应确认原型污染已生效");
-        assertSame(
+        assert("polluted-value", {}[key], "测试前应确认原型污染已生效");
+        assert(
           undefined,
           window[key],
           "沙盒 window 不应读取 Object.prototype 上的污染字段",
         );
-        assertSame(
+        assert(
           false,
           key in window,
           "污染字段不应出现在沙盒 window 的原型链",
@@ -349,9 +295,9 @@ mpt.name = "test-element-1002";
           }
         }
 
-        assertSame(undefined, window.define, "define 应被沙盒置为 undefined");
-        assertSame(undefined, window.module, "module 应被沙盒置为 undefined");
-        assertSame(undefined, window.exports, "exports 应被沙盒置为 undefined");
+        assert(undefined, window.define, "define 应被沙盒置为 undefined");
+        assert(undefined, window.module, "module 应被沙盒置为 undefined");
+        assert(undefined, window.exports, "exports 应被沙盒置为 undefined");
 
         for (const key of [
           "runFlag",
@@ -369,7 +315,7 @@ mpt.name = "test-element-1002";
           "setInvalidContext",
           "isInvalidContext",
         ]) {
-          assertSame(undefined, window[key], `${key} 不应暴露到沙盒 window`);
+          assert(undefined, window[key], `${key} 不应暴露到沙盒 window`);
         }
       },
       (() => {
@@ -384,8 +330,8 @@ mpt.name = "test-element-1002";
       console,
       "沙盒 console 应与页面 console 不是同一个对象",
     );
-    assertSame("function", typeof console.log, "console.log 应可调用");
-    assertSame("function", typeof console.error, "console.error 应可调用");
+    assert("function", typeof console.log, "console.log 应可调用");
+    assert("function", typeof console.error, "console.error 应可调用");
   });
 
   section("原生函数与事件代理");
@@ -401,7 +347,7 @@ mpt.name = "test-element-1002";
         resolve();
       }, 0);
     });
-    assertSame(true, called, "裸调用 setTimeout 应正常执行");
+    assert(true, called, "裸调用 setTimeout 应正常执行");
 
     let intervalCount = 0;
     await new Promise((resolve) => {
@@ -411,7 +357,7 @@ mpt.name = "test-element-1002";
         resolve();
       }, 0);
     });
-    assertSame(1, intervalCount, "裸调用 setInterval 应正常执行");
+    assert(1, intervalCount, "裸调用 setInterval 应正常执行");
 
     const rawAddEventListener = addEventListener;
     const rawRemoveEventListener = removeEventListener;
@@ -423,11 +369,11 @@ mpt.name = "test-element-1002";
     rawAddEventListener(eventName, handler);
     unsafeWindow.dispatchEvent(new Event(eventName));
     rawRemoveEventListener(eventName, handler);
-    assertSame(1, count, "裸调用 addEventListener 应绑定到页面 window");
+    assert(1, count, "裸调用 addEventListener 应绑定到页面 window");
 
     if (typeof fetch === "function") {
       const rawFetch = fetch;
-      assertSame("function", typeof rawFetch, "fetch 应可读取为裸函数");
+      assert("function", typeof rawFetch, "fetch 应可读取为裸函数");
     }
   });
 
@@ -446,7 +392,7 @@ mpt.name = "test-element-1002";
         unsafeWindow.dispatchEvent(new Event(eventName));
         rawRemoveEventListener(eventName, handler);
 
-        assertSame(
+        assert(
           1,
           count,
           "window.addEventListener 取出后调用应绑定到页面 window",
@@ -465,14 +411,14 @@ mpt.name = "test-element-1002";
       }, 0);
     });
 
-    assertSame(true, called, "Proxy 包装后的 setTimeout 应正常执行");
+    assert(true, called, "Proxy 包装后的 setTimeout 应正常执行");
   });
 
   await test("getter 返回页面 window 时会替换为沙盒 window (Issue #1427)", () => {
-    assertSame(window, self, "self getter 应返回沙盒 window");
-    assertSame(window, parent, "parent getter 应返回沙盒 window");
-    assertSame(window, top, "top getter 应返回沙盒 window");
-    assertSame(window, frames, "frames getter 应返回沙盒 window");
+    assert(window, self, "self getter 应返回沙盒 window");
+    assert(window, parent, "parent getter 应返回沙盒 window");
+    assert(window, top, "top getter 应返回沙盒 window");
+    assert(window, frames, "frames getter 应返回沙盒 window");
   });
 
   await test("onxxx 函数赋值由页面事件触发，event.target 为 unsafeWindow", () =>
@@ -487,18 +433,18 @@ mpt.name = "test-element-1002";
           count++;
           thisIsNotWindow = this !== unsafeWindow;
           eventTargetIsUnsafeWindow = event.target === unsafeWindow;
-          assertSame("resize", event.type, "事件对象应正常传入");
+          assert("resize", event.type, "事件对象应正常传入");
         };
 
         unsafeWindow.dispatchEvent(new Event("resize"));
-        assertSame(1, count, "页面 resize 应触发沙盒 onresize");
-        assertSame(true, thisIsNotWindow, "onresize 回调 this 不应为 unsafeWindow");
-        assertSame(true, eventTargetIsUnsafeWindow, "onresize 回调 event.target 应为 unsafeWindow");
+        assert(1, count, "页面 resize 应触发沙盒 onresize");
+        assert(true, thisIsNotWindow, "onresize 回调 this 不应为 unsafeWindow");
+        assert(true, eventTargetIsUnsafeWindow, "onresize 回调 event.target 应为 unsafeWindow");
 
         window.onresize = null;
         unsafeWindow.dispatchEvent(new Event("resize"));
         unsafeWindow.dispatchEvent(new Event(eventName));
-        assertSame(1, count, "清空 onresize 后不应继续触发");
+        assert(1, count, "清空 onresize 后不应继续触发");
       },
       () => {
         window.onresize = null;
@@ -515,10 +461,10 @@ mpt.name = "test-element-1002";
           },
         };
         window.onfocus = listenerObject;
-        assertSame(listenerObject, window.onfocus, "非 primitive 对象应被保存");
+        assert(listenerObject, window.onfocus, "非 primitive 对象应被保存");
         unsafeWindow.dispatchEvent(new Event("focus"));
         await waitForEventLoop();
-        assertSame(
+        assert(
           false,
           handled,
           "EventListenerObject 形式不应被 onxxx 代理注册",
@@ -526,10 +472,10 @@ mpt.name = "test-element-1002";
         handled = false;
         const func = function () { handled = true };
         window.onfocus = func;
-        assertSame(func, window.onfocus, "function 对象应被保存");
+        assert(func, window.onfocus, "function 对象应被保存");
         unsafeWindow.dispatchEvent(new Event("focus"));
         await waitForEventLoop();
-        assertSame(
+        assert(
           true,
           handled,
           "EventListener 形式应被 onxxx 代理注册",
@@ -539,7 +485,7 @@ mpt.name = "test-element-1002";
         assertNotSame(func, window.onfocus, "primitive 对象时注册能被移除 (1)");
         unsafeWindow.dispatchEvent(new Event("focus"));
         await waitForEventLoop();
-        assertSame(
+        assert(
           false,
           handled,
           "primitive 对象时注册能被移除 (2)",
@@ -564,8 +510,8 @@ mpt.name = "test-element-1002";
         };
 
         unsafeWindow.dispatchEvent(new Event("hashchange"));
-        assertSame(0, oldCount, "旧 onhashchange 不应再被调用");
-        assertSame(1, newCount, "新 onhashchange 应被调用一次");
+        assert(0, oldCount, "旧 onhashchange 不应再被调用");
+        assert(1, newCount, "新 onhashchange 应被调用一次");
       },
       () => {
         window.onhashchange = null;
@@ -595,43 +541,43 @@ mpt.name = "test-element-1002";
   await test("TM半沙盒：把祖先类别继承直接写在半沙盒上 (Issue #1462 PR #1463)", async () => {
     const trueWindow = unsafeWindow;
     const sandboxWindow = window;
-    assertSame(false, Object.hasOwn(trueWindow, "addEventListener"), "unsafeWindow 继承 Object.hasOwn");
-    assertSame(true, Reflect.has(trueWindow, "addEventListener"), "unsafeWindow 继承 Reflect.has");
-    assertSame(true, Object.hasOwn(sandboxWindow, "addEventListener"), "window 属性 Object.hasOwn");
-    assertSame(true, Reflect.has(sandboxWindow, "addEventListener"), "window 属性 Reflect.has");
+    assert(false, Object.hasOwn(trueWindow, "addEventListener"), "unsafeWindow 继承 Object.hasOwn");
+    assert(true, Reflect.has(trueWindow, "addEventListener"), "unsafeWindow 继承 Reflect.has");
+    assert(true, Object.hasOwn(sandboxWindow, "addEventListener"), "window 属性 Object.hasOwn");
+    assert(true, Reflect.has(sandboxWindow, "addEventListener"), "window 属性 Reflect.has");
   });
 
   section("GM API 注入与命名空间");
 
   await test("GM_info、GM.info 与 unsafeWindow 正确暴露", () => {
-    assertSame("object", typeof GM_info, "GM_info 应可用");
-    assertSame("object", typeof GM.info, "GM.info 应可用");
-    assertSame(JSON.stringify(GM_info), JSON.stringify(GM.info), "GM.info 应与 GM_info 一致 (JSON.stringify)");
-    assertSame(
+    assert("object", typeof GM_info, "GM_info 应可用");
+    assert("object", typeof GM.info, "GM.info 应可用");
+    assert(JSON.stringify(GM_info), JSON.stringify(GM.info), "GM.info 应与 GM_info 一致 (JSON.stringify)");
+    assert(
       unsafeWindow,
       window.unsafeWindow,
       "unsafeWindow 应指向页面 window",
     );
-    assertSame("object", typeof GM_info.script, "GM_info.script 应存在");
+    assert("object", typeof GM_info.script, "GM_info.script 应存在");
   });
 
   await test("GM_ 与 GM.* 双命名空间由 grant 自动补齐", () => {
-    assertSame("function", typeof GM_getValue, "GM_getValue 应可用");
-    assertSame(
+    assert("function", typeof GM_getValue, "GM_getValue 应可用");
+    assert(
       "function",
       typeof GM.getValue,
       "GM.getValue 应由 GM_getValue grant 补齐",
     );
-    assertSame("function", typeof GM_setValue, "GM_setValue 应可用");
-    assertSame("function", typeof GM.setValue, "GM.setValue 应可用");
-    assertSame("function", typeof GM_deleteValue, "GM_deleteValue 应可用");
-    assertSame(
+    assert("function", typeof GM_setValue, "GM_setValue 应可用");
+    assert("function", typeof GM.setValue, "GM.setValue 应可用");
+    assert("function", typeof GM_deleteValue, "GM_deleteValue 应可用");
+    assert(
       "function",
       typeof GM.deleteValue,
       "GM.deleteValue 应由 GM_deleteValue grant 补齐",
     );
-    assertSame("function", typeof GM_listValues, "GM_listValues 应可用");
-    assertSame(
+    assert("function", typeof GM_listValues, "GM_listValues 应可用");
+    assert(
       "function",
       typeof GM.listValues,
       "GM.listValues 应由 GM_listValues grant 补齐",
@@ -644,14 +590,14 @@ mpt.name = "test-element-1002";
         const key = `${markerPrefix}_value`;
         GM_setValue(key, { env: "sandbox", ok: true });
         const stored = GM_getValue(key);
-        assertSame("sandbox", stored.env, "GM_getValue 应读取同步写入对象");
-        assertSame(true, stored.ok, "对象值应保持属性");
+        assert("sandbox", stored.env, "GM_getValue 应读取同步写入对象");
+        assert(true, stored.ok, "对象值应保持属性");
         assertTrue(
           GM_listValues().includes(key),
           "GM_listValues 应包含写入的键",
         );
         GM_deleteValue(key);
-        assertSame(
+        assert(
           "fallback",
           GM_getValue(key, "fallback"),
           "GM_deleteValue 应删除值",
@@ -667,7 +613,7 @@ mpt.name = "test-element-1002";
       async () => {
         const key = `${markerPrefix}_async_value`;
         await withTimeout(GM.setValue(key, "async-value"), "GM.setValue");
-        assertSame(
+        assert(
           "async-value",
           await withTimeout(GM.getValue(key), "GM.getValue"),
           "GM.getValue 应读取 GM.setValue 写入值",
@@ -677,7 +623,7 @@ mpt.name = "test-element-1002";
           "GM.listValues 应包含异步写入的键",
         );
         await withTimeout(GM.deleteValue(key), "GM.deleteValue");
-        assertSame(
+        assert(
           "fallback",
           await withTimeout(
             GM.getValue(key, "fallback"),
@@ -700,9 +646,9 @@ mpt.name = "test-element-1002";
 
         GM_setValues({ [keyA]: "A", [keyB]: { deep: 1 } });
         const picked = GM_getValues([keyA, keyB, keyMissing]);
-        assertSame("A", picked[keyA], "GM_getValues 数组模式应返回已存在键");
-        assertSame(1, picked[keyB].deep, "GM_getValues 应返回对象值");
-        assertSame(
+        assert("A", picked[keyA], "GM_getValues 数组模式应返回已存在键");
+        assert(1, picked[keyB].deep, "GM_getValues 应返回对象值");
+        assert(
           false,
           Object.prototype.hasOwnProperty.call(picked, keyMissing),
           "数组模式不应包含缺失键",
@@ -712,8 +658,8 @@ mpt.name = "test-element-1002";
           [keyA]: "default-a",
           [keyMissing]: "default-missing",
         });
-        assertSame("A", defaults[keyA], "对象模式应优先返回已存在值");
-        assertSame(
+        assert("A", defaults[keyA], "对象模式应优先返回已存在值");
+        assert(
           "default-missing",
           defaults[keyMissing],
           "对象模式应为缺失键返回默认值",
@@ -723,7 +669,7 @@ mpt.name = "test-element-1002";
           GM.getValues({ [keyB]: null }),
           "GM.getValues",
         );
-        assertSame(
+        assert(
           1,
           asyncPicked[keyB].deep,
           "GM.getValues 应由 GM_getValues grant 依赖注入",
@@ -736,33 +682,33 @@ mpt.name = "test-element-1002";
     ));
 
   await test("GM_cookie grant 构建函数对象与多级命名空间", () => {
-    assertSame("function", typeof GM_cookie, "GM_cookie 应可用");
-    assertSame(
+    assert("function", typeof GM_cookie, "GM_cookie 应可用");
+    assert(
       "function",
       typeof GM_cookie.set,
       "GM_cookie.set 应由兼容命名空间注入",
     );
-    assertSame(
+    assert(
       "function",
       typeof GM_cookie.list,
       "GM_cookie.list 应由兼容命名空间注入",
     );
-    assertSame(
+    assert(
       "function",
       typeof GM_cookie.delete,
       "GM_cookie.delete 应由兼容命名空间注入",
     );
-    assertSame(
+    assert(
       "function",
       typeof GM.cookie.set,
       "GM.cookie.set 应由 GM.cookie 依赖注入",
     );
-    assertSame(
+    assert(
       "function",
       typeof GM.cookie.list,
       "GM.cookie.list 应由 GM.cookie 依赖注入",
     );
-    assertSame(
+    assert(
       "function",
       typeof GM.cookie.delete,
       "GM.cookie.delete 应由 GM.cookie 依赖注入",
@@ -776,8 +722,8 @@ mpt.name = "test-element-1002";
         const style = GM_addStyle(
           `.${className} { color: rgb(1, 2, 3) !important; }`,
         );
-        assertSame("STYLE", style.tagName, "GM_addStyle 应创建 style 标签");
-        assertSame(
+        assert("STYLE", style.tagName, "GM_addStyle 应创建 style 标签");
+        assert(
           document,
           style.ownerDocument,
           "GM_addStyle 返回元素应属于页面 document",
@@ -789,12 +735,12 @@ mpt.name = "test-element-1002";
           ),
           "GM.addStyle",
         );
-        assertSame(
+        assert(
           "STYLE",
           asyncStyle.tagName,
           "GM.addStyle 应 resolve style 标签",
         );
-        assertSame(
+        assert(
           document,
           asyncStyle.ownerDocument,
           "GM.addStyle 返回元素应属于页面 document",
@@ -819,13 +765,13 @@ mpt.name = "test-element-1002";
           textContent: "ScriptCat sandbox test",
           hidden: true,
         });
-        assertSame("DIV", div.tagName, "GM_addElement(tag, attrs) 应创建元素");
-        assertSame(
+        assert("DIV", div.tagName, "GM_addElement(tag, attrs) 应创建元素");
+        assert(
           document,
           div.ownerDocument,
           "默认创建元素应属于页面 document",
         );
-        assertSame(true, div.hidden, "boolean 应通过 property setter 设置");
+        assert(true, div.hidden, "boolean 应通过 property setter 设置");
 
         const child = await withTimeout(
           GM.addElement(div, "span", {
@@ -833,22 +779,22 @@ mpt.name = "test-element-1002";
           }),
           "GM.addElement",
         );
-        assertSame(
+        assert(
           "SPAN",
           child.tagName,
           "GM.addElement(parent, tag, attrs) 应创建子元素",
         );
-        assertSame(div, child.parentNode, "显式 parent 应生效");
+        assert(div, child.parentNode, "显式 parent 应生效");
 
         const script = GM_addElement("script", {
           textContent: `window["${key}"] = "from-gm-add-element";`,
         });
-        assertSame(
+        assert(
           "from-gm-add-element",
           unsafeWindow[key],
           "GM_addElement 插入 script 应在页面 window 执行",
         );
-        assertSame(
+        assert(
           undefined,
           window[key],
           "页面执行结果不应自动写回沙盒 window",
@@ -862,12 +808,12 @@ mpt.name = "test-element-1002";
     ));
 
   await test("window.close/window.focus grant 暴露为沙盒 window 方法", () => {
-    assertSame(
+    assert(
       "function",
       typeof window.close,
       "window.close grant 应暴露 close",
     );
-    assertSame(
+    assert(
       "function",
       typeof window.focus,
       "window.focus grant 应暴露 focus",
@@ -887,15 +833,15 @@ mpt.name = "test-element-1002";
   section("兼容行为");
 
   await test("Object 静态方法与 RegExp 静态状态保持可用", () => {
-    assertSame(
+    assert(
       true,
       Object.isFrozen(Object.freeze({})),
       "Object.freeze 应可裸用",
     );
 
     const match = "abc123".match(/(\d+)/);
-    assertSame("123", match && match[1], "RegExp match 应正常返回捕获组");
-    assertSame("123", RegExp.$1, "RegExp.$1 应保留页面原生静态状态行为");
+    assert("123", match && match[1], "RegExp match 应正常返回捕获组");
+    assert("123", RegExp.$1, "RegExp.$1 应保留页面原生静态状态行为");
   });
 
   await test("Symbol 属性只写入当前沙盒，不影响页面 window", () =>
@@ -903,12 +849,12 @@ mpt.name = "test-element-1002";
       () => {
         const symbolKey = Symbol(`${markerPrefix}_symbol`);
         window[symbolKey] = "sandbox-symbol";
-        assertSame(
+        assert(
           "sandbox-symbol",
           window[symbolKey],
           "沙盒应允许 Symbol 属性",
         );
-        assertSame(
+        assert(
           undefined,
           unsafeWindow[symbolKey],
           "Symbol 属性不应写入页面 window",
@@ -925,32 +871,95 @@ mpt.name = "test-element-1002";
     await test("eval 保持可用，并在当前沙盒内解析全局", () => {
       const key = `${markerPrefix}_eval`;
       eval(`window["${key}"] = "from-eval";`);
-      assertSame("from-eval", window[key], "eval 应能写入沙盒 window");
-      assertSame(undefined, unsafeWindow[key], "eval 写入不应穿透页面 window");
+      assert("from-eval", window[key], "eval 应能写入沙盒 window");
+      assert(undefined, unsafeWindow[key], "eval 写入不应穿透页面 window");
       delete window[key];
     });
   }
 
-  console.log(
-    "\n%c=== 测试完成 ===",
-    "color: blue; font-size: 16px; font-weight: bold;",
-  );
-  console.log(
-    `%c总计: ${testResults.total} | 通过: ${testResults.passed} | 失败: ${testResults.failed}`,
-    testResults.failed === 0
-      ? "color: green; font-weight: bold;"
-      : "color: red; font-weight: bold;",
-  );
+  printSummary();
+})((() => {
+  const testResults = {
+    passed: 0,
+    failed: 0,
+    total: 0,
+  };
 
-  if (testResults.failed === 0) {
-    console.log(
-      "%c所有测试通过",
-      "color: green; font-size: 14px; font-weight: bold;",
-    );
-  } else {
-    console.log(
-      "%c部分测试失败，请检查上面的错误信息",
-      "color: red; font-size: 14px; font-weight: bold;",
-    );
+  function formatValue(value) {
+    if (value === window) return "[sandbox window]";
+    if (value === unsafeWindow) return "[unsafeWindow]";
+    if (value === document) return "[document]";
+    if (value && value.nodeType) return `[node ${value.nodeName}]`;
+    if (typeof value === "function")
+      return `[function ${value.name || "anonymous"}]`;
+    if (typeof value === "symbol") return value.toString();
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
   }
-})();
+
+  function assert(expected, actual, message) {
+    if (!Object.is(expected, actual)) {
+      throw new Error(
+        `${message} - 期望 ${formatValue(expected)}, 实际 ${formatValue(actual)}`,
+      );
+    }
+  }
+
+  function assertNotSame(unexpected, actual, message) {
+    if (Object.is(unexpected, actual)) {
+      throw new Error(`${message} - 不应等于 ${formatValue(unexpected)}`);
+    }
+  }
+
+  function assertTrue(condition, message) {
+    if (!condition) throw new Error(message || "断言失败: 条件不为真");
+  }
+
+  function section(name) {
+    console.log(`\n%c--- ${name} ---`, "color: orange; font-weight: bold;");
+  }
+
+  async function test(name, fn) {
+    testResults.total++;
+    try {
+      await fn();
+      testResults.passed++;
+      console.log(`%cPASS ${name}`, "color: green;");
+      return true;
+    } catch (error) {
+      testResults.failed++;
+      console.error(`%cFAIL ${name}`, "color: red;", error);
+      return false;
+    }
+  }
+
+  function printSummary() {
+    console.log(
+      "\n%c=== 测试完成 ===",
+      "color: blue; font-size: 16px; font-weight: bold;",
+    );
+    console.log(
+      `%c总计: ${testResults.total} | 通过: ${testResults.passed} | 失败: ${testResults.failed}`,
+      testResults.failed === 0
+        ? "color: green; font-weight: bold;"
+        : "color: red; font-weight: bold;",
+    );
+
+    if (testResults.failed === 0) {
+      console.log(
+        "%c所有测试通过",
+        "color: green; font-size: 14px; font-weight: bold;",
+      );
+    } else {
+      console.log(
+        "%c部分测试失败，请检查上面的错误信息",
+        "color: red; font-size: 14px; font-weight: bold;",
+      );
+    }
+  }
+
+  return { test, assert, assertNotSame, assertTrue, section, printSummary };
+})());

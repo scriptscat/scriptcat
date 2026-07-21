@@ -33,54 +33,10 @@
 // @run-at       document-start
 // ==/UserScript==
 
-(async function () {
-  "use strict";
+"use strict";
 
+(async ({ test, testAsync, assert, printSummary, showResultPanel }) => {
   console.log("%c=== ScriptCat GM API 测试开始 ===", "color: blue; font-size: 16px; font-weight: bold;");
-
-  let testResults = {
-    passed: 0,
-    failed: 0,
-    total: 0,
-  };
-
-  // 测试辅助函数
-  function test(name, fn) {
-    testResults.total++;
-    try {
-      fn();
-      testResults.passed++;
-      console.log(`%c✓ ${name}`, "color: green;");
-      return true;
-    } catch (error) {
-      testResults.failed++;
-      console.error(`%c✗ ${name}`, "color: red;", error);
-      return false;
-    }
-  }
-
-  async function testAsync(name, fn) {
-    testResults.total++;
-    try {
-      await fn();
-      testResults.passed++;
-      console.log(`%c✓ ${name}`, "color: green;");
-      return true;
-    } catch (error) {
-      testResults.failed++;
-      console.error(`%c✗ ${name}`, "color: red;", error);
-      return false;
-    }
-  }
-
-  // assert(expected, actual, message) - 比较两个值是否相等
-  function assert(expected, actual, message) {
-    if (expected !== actual) {
-      const valueInfo = `期望 ${JSON.stringify(expected)}, 实际 ${JSON.stringify(actual)}`;
-      const error = message ? `${message} - ${valueInfo}` : `断言失败: ${valueInfo}`;
-      throw new Error(error);
-    }
-  }
 
   // ============ GM_info 测试 ============
   console.log("\n%c--- GM_info 测试 ---", "color: orange; font-weight: bold;");
@@ -588,13 +544,67 @@
     });
 
     // ============ 测试总结 ============
+    printSummary();
+
+    // 使用 GM_addElement 在页面上显示结果
+    showResultPanel();
+
+    console.log("%c=== ScriptCat GM API 测试完成 ===", "color: blue; font-size: 16px; font-weight: bold;");
+  })();
+})((() => {
+  const testResults = {
+    passed: 0,
+    failed: 0,
+    total: 0,
+  };
+
+  // 测试辅助函数
+  function test(name, fn) {
+    testResults.total++;
+    try {
+      fn();
+      testResults.passed++;
+      console.log(`%c✓ ${name}`, "color: green;");
+      return true;
+    } catch (error) {
+      testResults.failed++;
+      console.error(`%c✗ ${name}`, "color: red;", error);
+      return false;
+    }
+  }
+
+  async function testAsync(name, fn) {
+    testResults.total++;
+    try {
+      await fn();
+      testResults.passed++;
+      console.log(`%c✓ ${name}`, "color: green;");
+      return true;
+    } catch (error) {
+      testResults.failed++;
+      console.error(`%c✗ ${name}`, "color: red;", error);
+      return false;
+    }
+  }
+
+  // assert(expected, actual, message) - 比较两个值是否相等
+  function assert(expected, actual, message) {
+    if (expected !== actual) {
+      const valueInfo = `期望 ${JSON.stringify(expected)}, 实际 ${JSON.stringify(actual)}`;
+      const error = message ? `${message} - ${valueInfo}` : `断言失败: ${valueInfo}`;
+      throw new Error(error);
+    }
+  }
+
+  function printSummary() {
     console.log("\n%c=== 测试结果总结 ===", "color: blue; font-size: 16px; font-weight: bold;");
     console.log(`总测试数: ${testResults.total}`);
     console.log(`%c通过: ${testResults.passed}`, "color: green; font-weight: bold;");
     console.log(`%c失败: ${testResults.failed}`, "color: red; font-weight: bold;");
     console.log(`成功率: ${((testResults.passed / testResults.total) * 100).toFixed(2)}%`);
+  }
 
-    // 使用 GM_addElement 在页面上显示结果
+  function showResultPanel() {
     const successRate = ((testResults.passed / testResults.total) * 100).toFixed(2);
     const bgColor =
       testResults.failed === 0 ? "#d4edda" : testResults.failed < testResults.total / 2 ? "#fff3cd" : "#f8d7da";
@@ -754,7 +764,7 @@
       console.log("%c=== 完整测试报告 ===", "color: blue; font-size: 16px; font-weight: bold;");
       alert("请查看控制台中的详细测试日志");
     };
+  }
 
-    console.log("%c=== ScriptCat GM API 测试完成 ===", "color: blue; font-size: 16px; font-weight: bold;");
-  })();
-})();
+  return { test, testAsync, assert, printSummary, showResultPanel };
+})());

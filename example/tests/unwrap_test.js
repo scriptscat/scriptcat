@@ -17,7 +17,7 @@
 var test_global_injection = "success";
 // User can access the variable "test_global_injection" directly in DevTools
 
-(function () {
+(async ({ printSummary }) => {
     const results = {
         GM: {
             expected: "undefined",
@@ -33,34 +33,41 @@ var test_global_injection = "success";
         },
     };
 
-    console.group(
-        "%c@unwrap Test",
-        "color:#0aa;font-weight:bold"
-    );
+    printSummary(results);
+})((() => {
+    // 跟测试对象无关的基础设施：控制台分组/表格输出与汇总打印。
+    function printSummary(results) {
+        console.group(
+            "%c@unwrap Test",
+            "color:#0aa;font-weight:bold"
+        );
 
-    const table = {};
-    let allPass = true;
+        const table = {};
+        let allPass = true;
 
-    for (const key in results) {
-        const { expected, actual } = results[key];
-        const pass = expected === actual;
-        allPass &&= pass;
+        for (const key in results) {
+            const { expected, actual } = results[key];
+            const pass = expected === actual;
+            allPass &&= pass;
 
-        table[key] = {
-            Expected: expected,
-            Actual: actual,
-            Result: pass ? "✅ PASS" : "❌ FAIL",
-        };
+            table[key] = {
+                Expected: expected,
+                Actual: actual,
+                Result: pass ? "✅ PASS" : "❌ FAIL",
+            };
+        }
+
+        console.table(table);
+
+        console.log(
+            allPass
+                ? "%cAll tests passed ✔"
+                : "%cSome tests failed ✘",
+            `font-weight:bold;color:${allPass ? "green" : "red"}`
+        );
+
+        console.groupEnd();
     }
 
-    console.table(table);
-
-    console.log(
-        allPass
-            ? "%cAll tests passed ✔"
-            : "%cSome tests failed ✘",
-        `font-weight:bold;color:${allPass ? "green" : "red"}`
-    );
-
-    console.groupEnd();
-})();
+    return { printSummary };
+})());

@@ -8,39 +8,10 @@
 // @grant        GM_unregisterMenuCommand
 // ==/UserScript==
 
-(async function () {
-  'use strict';
-
+(async ({ waitActions, isInSubFrame, resolveNext }) => {
   const checkSubFrameIdSequence = false;
 
   const intervalChanging = false;
-
-  const skipClickCheck = false;
-
-  let myResolve = () => { };
-  const waitNext = async () => {
-    await new Promise((resolve) => {
-      myResolve = () => { setTimeout(resolve, 50) };
-    });
-  };
-
-  const waitActions = async (...messages) => {
-    if (skipClickCheck) return;
-    messages = messages.flat();
-    for (const message of messages) {
-      console.log(message);
-      await waitNext();
-    }
-  };
-
-  const isInSubFrame = () => {
-
-    try {
-      return window.top !== window;
-    } catch {
-      return true;
-    }
-  }
 
   if (intervalChanging) {
     // TM: 在打开菜单时，显示会不断改变
@@ -78,13 +49,13 @@
   const r01 = GM_registerMenuCommand("MenuReg abc-1", () => {
 
     console.log("abc-1");
-    myResolve();
+    resolveNext();
   }, obj1);
 
   const r02 = GM_registerMenuCommand("MenuReg abc-2", () => {
 
     console.log("abc-2");
-    myResolve();
+    resolveNext();
   }, obj1);
 
   console.log("abc-1 id === abc", r01 === "abc");
@@ -96,13 +67,13 @@
   GM_registerMenuCommand("MenuReg abc-1", () => {
 
     console.log("abc-1.abd");
-    myResolve();
+    resolveNext();
   }, { id: "abd" });
 
   GM_registerMenuCommand("MenuReg abc-2", () => {
 
     console.log("abc-2.abe");
-    myResolve();
+    resolveNext();
   }, { id: "abe" });
 
 
@@ -113,7 +84,7 @@
   GM_registerMenuCommand("MenuReg abc-2", () => {
 
     console.log("abc-2.abf");
-    myResolve();
+    resolveNext();
   }, { id: "abf", accessKey: "h" });
 
   // there shall be only "MenuReg abc-1" and "MenuReg abc-2" in the menu.
@@ -129,14 +100,14 @@
   const p10 = GM_registerMenuCommand("MenuReg D-23", () => {
 
     console.log(110);
-    myResolve();
+    resolveNext();
   }, "b");
 
 
   const p20 = GM_registerMenuCommand("MenuReg D-23", () => {
 
     console.log(120);
-    myResolve();
+    resolveNext();
   }, "b");
 
   console.log("p10 === 1", p10 === 1);
@@ -149,7 +120,7 @@
   const p30 = GM_registerMenuCommand("MenuReg D-26", () => {
 
     console.log(130);
-    myResolve();
+    resolveNext();
   }, { id: "2" });
   console.log("p30 === '2'", p30 === "2");
 
@@ -162,7 +133,7 @@
   const p32 = GM_registerMenuCommand("MenuReg D-26", () => {
 
     console.log(210);
-    myResolve();
+    resolveNext();
   }, { id: 2 });
   console.log("p32 === 2", p32 === 2);
 
@@ -175,7 +146,7 @@
   const p33 = GM_registerMenuCommand("MenuReg D-26", () => {
 
     console.log(220);
-    myResolve();
+    resolveNext();
   }, { id: 3 });
   console.log("p33 === 3", p33 === 3);
 
@@ -189,7 +160,7 @@
   const p34 = GM_registerMenuCommand("MenuReg D-26", () => {
 
     console.log(230);
-    myResolve();
+    resolveNext();
   }, { id: "4" });
   console.log("p34 === '4'", p34 === "4");
 
@@ -219,7 +190,40 @@
 
 
 
-})().finally(() => {
+})((() => {
+  // 跟测试对象无关的基础设施：交互式等待（点击菜单以继续）相关的辅助函数。
+  'use strict';
+
+  const skipClickCheck = false;
+
+  let myResolve = () => { };
+  const waitNext = async () => {
+    await new Promise((resolve) => {
+      myResolve = () => { setTimeout(resolve, 50) };
+    });
+  };
+
+  const waitActions = async (...messages) => {
+    if (skipClickCheck) return;
+    messages = messages.flat();
+    for (const message of messages) {
+      console.log(message);
+      await waitNext();
+    }
+  };
+
+  const isInSubFrame = () => {
+
+    try {
+      return window.top !== window;
+    } catch {
+      return true;
+    }
+  }
+
+  const resolveNext = () => { myResolve(); };
+
+  return { waitActions, isInSubFrame, resolveNext };
+})()).finally(() => {
   console.log("finish");
 });
-

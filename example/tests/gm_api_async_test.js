@@ -29,44 +29,14 @@
 // @run-at       document-start
 // ==/UserScript==
 
-(async function () {
-  "use strict";
+"use strict";
 
+(async ({ test, assert, printSummary, showResultPanel }) => {
   console.log("%c=== ScriptCat GM.* API 测试开始 ===", "color: blue; font-size: 16px; font-weight: bold;");
-
-  let testResults = {
-    passed: 0,
-    failed: 0,
-    total: 0,
-  };
-
-  // 测试辅助函数
-  async function testAsync(name, fn) {
-    testResults.total++;
-    try {
-      await fn();
-      testResults.passed++;
-      console.log(`%c✓ ${name}`, "color: green;");
-      return true;
-    } catch (error) {
-      testResults.failed++;
-      console.error(`%c✗ ${name}`, "color: red;", error);
-      return false;
-    }
-  }
-
-  // assert 函数
-  function assert(expected, actual, message) {
-    if (expected !== actual) {
-      const valueInfo = `期望 ${JSON.stringify(expected)}, 实际 ${JSON.stringify(actual)}`;
-      const error = message ? `${message} - ${valueInfo}` : `断言失败: ${valueInfo}`;
-      throw new Error(error);
-    }
-  }
 
   // ============ GM.info 测试 ============
   console.log("\n%c--- GM.info 测试 ---", "color: orange; font-weight: bold;");
-  await testAsync("GM.info 存在", async () => {
+  await test("GM.info 存在", async () => {
     assert("object", typeof GM.info, "GM.info 应该是一个对象");
     assert(true, !!GM.info.script, "GM.info.script 应该存在");
     assert(true, !!GM.info.scriptMetaStr, "GM.info.scriptMetaStr 应该存在");
@@ -76,25 +46,25 @@
   // ============ GM 存储 API 测试 ============
   console.log("\n%c--- GM 存储 API 测试 ---", "color: orange; font-weight: bold;");
 
-  await testAsync("GM.setValue - 字符串", async () => {
+  await test("GM.setValue - 字符串", async () => {
     await GM.setValue("test_string", "Hello ScriptCat Async");
     const value = await GM.getValue("test_string");
     assert("Hello ScriptCat Async", value, "GM.getValue 应该返回正确的字符串值");
   });
 
-  await testAsync("GM.setValue - 数字", async () => {
+  await test("GM.setValue - 数字", async () => {
     await GM.setValue("test_number", 42);
     const value = await GM.getValue("test_number");
     assert(42, value, "GM.getValue 应该返回正确的数字值");
   });
 
-  await testAsync("GM.setValue - 布尔值", async () => {
+  await test("GM.setValue - 布尔值", async () => {
     await GM.setValue("test_boolean", true);
     const value = await GM.getValue("test_boolean");
     assert(true, value, "GM.getValue 应该返回正确的布尔值");
   });
 
-  await testAsync("GM.setValue - 对象", async () => {
+  await test("GM.setValue - 对象", async () => {
     const obj = { name: "ScriptCat", version: "1.3.0", features: ["GM API", "Async"] };
     await GM.setValue("test_object", obj);
     const value = await GM.getValue("test_object");
@@ -104,7 +74,7 @@
     assert(JSON.stringify(obj.features), JSON.stringify(value.features), "features 数组应该相等");
   });
 
-  await testAsync("GM.setValue - 数组", async () => {
+  await test("GM.setValue - 数组", async () => {
     const arr = [1, 2, 3, "test", { key: "value" }];
     await GM.setValue("test_array", arr);
     const value = await GM.getValue("test_array");
@@ -115,19 +85,19 @@
     assert(arr[4].key, value[4].key, "对象元素的属性应该相等");
   });
 
-  await testAsync("GM.getValue - 默认值", async () => {
+  await test("GM.getValue - 默认值", async () => {
     const value = await GM.getValue("non_existent_key", "default_value");
     assert("default_value", value, "不存在的键应该返回默认值");
   });
 
-  await testAsync("GM.listValues", async () => {
+  await test("GM.listValues", async () => {
     const values = await GM.listValues();
     assert(true, Array.isArray(values), "GM.listValues 应该返回数组");
     assert(true, values.includes("test_string"), "应该包含已存储的键");
     console.log("存储的键:", values);
   });
 
-  await testAsync("GM.deleteValue", async () => {
+  await test("GM.deleteValue", async () => {
     await GM.setValue("test_delete", "to be deleted");
     assert("to be deleted", await GM.getValue("test_delete"), "值应该存在");
     await GM.deleteValue("test_delete");
@@ -137,7 +107,7 @@
   // ============ GM.addStyle 测试 ============
   console.log("\n%c--- GM 样式 API 测试 ---", "color: orange; font-weight: bold;");
 
-  await testAsync("GM.addStyle - CSS字符串", async () => {
+  await test("GM.addStyle - CSS字符串", async () => {
     const css = `
       .scriptcat-test-async {
         color: blue;
@@ -150,7 +120,7 @@
   });
 
   // ============ GM.addElement 测试 ============
-  await testAsync("GM.addElement - 创建元素", async () => {
+  await test("GM.addElement - 创建元素", async () => {
     assert("function", typeof GM.addElement, "GM.addElement 应该是函数");
 
     const div = await GM.addElement("div", {
@@ -167,7 +137,7 @@
   // ============ GM.getResourceText/Url 测试 ============
   console.log("\n%c--- GM 资源 API 测试 ---", "color: orange; font-weight: bold;");
 
-  await testAsync("GM.getResourceText", async () => {
+  await test("GM.getResourceText", async () => {
     assert("function", typeof GM.getResourceText, "GM.getResourceText 应该是函数");
 
     const css = await GM.getResourceText("testCSS");
@@ -176,7 +146,7 @@
     console.log("资源文本长度:", css.length);
   });
 
-  await testAsync("GM.getResourceUrl", async () => {
+  await test("GM.getResourceUrl", async () => {
     assert("function", typeof GM.getResourceUrl, "GM.getResourceUrl 应该是函数");
 
     const url = await GM.getResourceUrl("testCSS");
@@ -188,7 +158,7 @@
   // ============ GM.xmlHttpRequest 测试 ============
   console.log("\n%c--- GM 网络请求 API 测试 ---", "color: orange; font-weight: bold;");
 
-  await testAsync("GM.xmlHttpRequest - GET 请求", async () => {
+  await test("GM.xmlHttpRequest - GET 请求", async () => {
     return new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
         method: "GET",
@@ -217,7 +187,7 @@
     });
   });
 
-  await testAsync("GM.xmlHttpRequest - 返回控制对象", async () => {
+  await test("GM.xmlHttpRequest - 返回控制对象", async () => {
     const controller = GM.xmlHttpRequest({
       method: "GET",
       url: "https://httpbun.com/get",
@@ -234,7 +204,7 @@
   // ============ GM.notification 测试 ============
   console.log("\n%c--- GM 通知 API 测试 ---", "color: orange; font-weight: bold;");
 
-  await testAsync("GM.notification - Promise 版本", async () => {
+  await test("GM.notification - Promise 版本", async () => {
     assert("function", typeof GM.notification, "GM.notification 应该是函数");
 
     const notificationPromise = GM.notification({
@@ -258,7 +228,7 @@
   // ============ GM.setClipboard 测试 ============
   console.log("\n%c--- GM 剪贴板 API 测试 ---", "color: orange; font-weight: bold;");
 
-  await testAsync("GM.setClipboard", async () => {
+  await test("GM.setClipboard", async () => {
     assert("function", typeof GM.setClipboard, "GM.setClipboard 应该是函数");
 
     await GM.setClipboard("ScriptCat GM.* API 测试文本 - " + new Date().toLocaleString());
@@ -268,7 +238,7 @@
   // ============ GM.openInTab 测试 ============
   console.log("\n%c--- GM 标签页 API 测试 ---", "color: orange; font-weight: bold;");
 
-  await testAsync("GM.openInTab (不执行)", async () => {
+  await test("GM.openInTab (不执行)", async () => {
     // 不实际打开标签页，只测试函数是否存在
     assert("function", typeof GM.openInTab, "GM.openInTab 应该是函数");
     console.log("GM.openInTab 可用 (未实际打开标签页)");
@@ -277,7 +247,7 @@
   // ============ GM.registerMenuCommand 测试 ============
   console.log("\n%c--- GM 菜单 API 测试 ---", "color: orange; font-weight: bold;");
 
-  await testAsync("GM.registerMenuCommand", async () => {
+  await test("GM.registerMenuCommand", async () => {
     const menuId = await GM.registerMenuCommand("ScriptCat 异步测试菜单", () => {
       alert("异步测试菜单被点击！");
     });
@@ -288,12 +258,12 @@
   // ============ GM.cookie 测试 ============
   console.log("\n%c--- GM.cookie API 测试 ---", "color: orange; font-weight: bold;");
 
-  await testAsync("GM.cookie 函数存在", async () => {
+  await test("GM.cookie 函数存在", async () => {
     assert("function", typeof GM.cookie, "GM.cookie 应该是一个函数");
     console.log("GM.cookie API 可用");
   });
 
-  await testAsync("GM.cookie.set", async () => {
+  await test("GM.cookie.set", async () => {
     await GM.cookie.set({
       url: "http://example.com/cookie",
       name: "scriptcat_async_test1",
@@ -302,7 +272,7 @@
     console.log("Cookie 已设置: scriptcat_async_test1 @ example.com");
   });
 
-  await testAsync("GM.cookie.set (带 domain 和 path)", async () => {
+  await test("GM.cookie.set (带 domain 和 path)", async () => {
     await GM.cookie.set({
       url: "http://www.example.com/",
       domain: ".example.com",
@@ -313,7 +283,7 @@
     console.log("Cookie 已设置: scriptcat_async_test2 @ .example.com/path");
   });
 
-  await testAsync("GM.cookie.list (by domain)", async () => {
+  await test("GM.cookie.list (by domain)", async () => {
     const cookies = await GM.cookie.list({
       domain: "example.com",
     });
@@ -323,7 +293,7 @@
     console.log("示例 Cookie:", cookies[0]);
   });
 
-  await testAsync("GM.cookie.list (by url)", async () => {
+  await test("GM.cookie.list (by url)", async () => {
     const cookies = await GM.cookie.list({
       url: "http://example.com/cookie",
     });
@@ -331,7 +301,7 @@
     console.log("通过 URL 列出的 cookies:", cookies.length, "个");
   });
 
-  await testAsync("GM.cookie.delete", async () => {
+  await test("GM.cookie.delete", async () => {
     await GM.cookie.delete({
       url: "http://www.example.com/path",
       name: "scriptcat_async_test2",
@@ -339,7 +309,7 @@
     console.log("Cookie 已删除: scriptcat_async_test2");
   });
 
-  await testAsync("GM.cookie - 验证删除后", async () => {
+  await test("GM.cookie - 验证删除后", async () => {
     const cookies = await GM.cookie.list({
       domain: "example.com",
     });
@@ -349,7 +319,7 @@
   });
 
   // 清理所有测试 cookies
-  await testAsync("清理测试 cookies", async () => {
+  await test("清理测试 cookies", async () => {
     const cookies = await GM.cookie.list({ domain: "example.com" });
     const testCookies = cookies.filter((c) => c.name.startsWith("scriptcat_async_test"));
 
@@ -372,7 +342,7 @@
   // ============ unsafeWindow 测试 ============
   console.log("\n%c--- unsafeWindow 测试 ---", "color: orange; font-weight: bold;");
 
-  await testAsync("unsafeWindow", async () => {
+  await test("unsafeWindow", async () => {
     assert("object", typeof unsafeWindow, "unsafeWindow 应该存在");
     assert(document, unsafeWindow.document, "unsafeWindow.document 应该等于 document");
     console.log("unsafeWindow 可用");
@@ -381,28 +351,67 @@
   // ============ @require 测试 ============
   console.log("\n%c--- @require 测试 ---", "color: orange; font-weight: bold;");
 
-  await testAsync("jQuery 加载 (@require)", async () => {
+  await test("jQuery 加载 (@require)", async () => {
     assert("function", typeof jQuery, "jQuery 应该已加载");
     assert("function", typeof $, "$ 应该已加载");
     console.log("jQuery 版本:", jQuery.fn.jquery);
   });
 
   // ============ 测试总结 ============
-  console.log("\n%c=== 测试结果总结 ===", "color: blue; font-size: 16px; font-weight: bold;");
-  console.log(`总测试数: ${testResults.total}`);
-  console.log(`%c通过: ${testResults.passed}`, "color: green; font-weight: bold;");
-  console.log(`%c失败: ${testResults.failed}`, "color: red; font-weight: bold;");
-  console.log(`成功率: ${((testResults.passed / testResults.total) * 100).toFixed(2)}%`);
+  printSummary();
 
   // 使用 GM.addElement 在页面上显示结果
-  const successRate = ((testResults.passed / testResults.total) * 100).toFixed(2);
-  const bgColor =
-    testResults.failed === 0 ? "#e8f5e9" : testResults.failed < testResults.total / 2 ? "#fff9c4" : "#ffebee";
-  const borderColor =
-    testResults.failed === 0 ? "#4caf50" : testResults.failed < testResults.total / 2 ? "#ffc107" : "#f44336";
+  await showResultPanel();
 
-  const resultContainer = await GM.addElement(document.body, "div", {
-    style: `
+  console.log("%c=== ScriptCat GM.* API 测试完成 ===", "color: blue; font-size: 16px; font-weight: bold;");
+})((() => {
+  const testResults = {
+    passed: 0,
+    failed: 0,
+    total: 0,
+  };
+
+  // 测试辅助函数
+  async function test(name, fn) {
+    testResults.total++;
+    try {
+      await fn();
+      testResults.passed++;
+      console.log(`%c✓ ${name}`, "color: green;");
+      return true;
+    } catch (error) {
+      testResults.failed++;
+      console.error(`%c✗ ${name}`, "color: red;", error);
+      return false;
+    }
+  }
+
+  // assert 函数
+  function assert(expected, actual, message) {
+    if (expected !== actual) {
+      const valueInfo = `期望 ${JSON.stringify(expected)}, 实际 ${JSON.stringify(actual)}`;
+      const error = message ? `${message} - ${valueInfo}` : `断言失败: ${valueInfo}`;
+      throw new Error(error);
+    }
+  }
+
+  function printSummary() {
+    console.log("\n%c=== 测试结果总结 ===", "color: blue; font-size: 16px; font-weight: bold;");
+    console.log(`总测试数: ${testResults.total}`);
+    console.log(`%c通过: ${testResults.passed}`, "color: green; font-weight: bold;");
+    console.log(`%c失败: ${testResults.failed}`, "color: red; font-weight: bold;");
+    console.log(`成功率: ${((testResults.passed / testResults.total) * 100).toFixed(2)}%`);
+  }
+
+  async function showResultPanel() {
+    const successRate = ((testResults.passed / testResults.total) * 100).toFixed(2);
+    const bgColor =
+      testResults.failed === 0 ? "#e8f5e9" : testResults.failed < testResults.total / 2 ? "#fff9c4" : "#ffebee";
+    const borderColor =
+      testResults.failed === 0 ? "#4caf50" : testResults.failed < testResults.total / 2 ? "#ffc107" : "#f44336";
+
+    const resultContainer = await GM.addElement(document.body, "div", {
+      style: `
       position: fixed;
       bottom: 20px;
       right: 20px;
@@ -416,10 +425,10 @@
       min-width: 350px;
       animation: slideIn 0.5s ease-out;
     `,
-  });
+    });
 
-  // 添加动画样式
-  await GM.addStyle(`
+    // 添加动画样式
+    await GM.addStyle(`
     @keyframes slideIn {
       from {
         transform: translateX(400px);
@@ -432,67 +441,67 @@
     }
   `);
 
-  // 标题
-  await GM.addElement(resultContainer, "h3", {
-    textContent: "🐱 ScriptCat GM.* API 测试结果 (异步版本)",
-    style:
-      "margin: 0 0 15px 0; color: #333; font-size: 18px; font-weight: bold; border-bottom: 2px solid " +
-      borderColor +
-      "; padding-bottom: 10px;",
-  });
+    // 标题
+    await GM.addElement(resultContainer, "h3", {
+      textContent: "🐱 ScriptCat GM.* API 测试结果 (异步版本)",
+      style:
+        "margin: 0 0 15px 0; color: #333; font-size: 18px; font-weight: bold; border-bottom: 2px solid " +
+        borderColor +
+        "; padding-bottom: 10px;",
+    });
 
-  // 测试统计容器
-  const statsContainer = await GM.addElement(resultContainer, "div", {
-    style: "margin-bottom: 15px;",
-  });
+    // 测试统计容器
+    const statsContainer = await GM.addElement(resultContainer, "div", {
+      style: "margin-bottom: 15px;",
+    });
 
-  // 总测试数
-  const totalLine = await GM.addElement(statsContainer, "div", {
-    style: "margin: 8px 0; font-size: 14px; display: flex; justify-content: space-between;",
-  });
-  await GM.addElement(totalLine, "span", { textContent: "📊 总测试数:" });
-  await GM.addElement(totalLine, "strong", {
-    textContent: testResults.total,
-    style: "font-size: 16px;",
-  });
+    // 总测试数
+    const totalLine = await GM.addElement(statsContainer, "div", {
+      style: "margin: 8px 0; font-size: 14px; display: flex; justify-content: space-between;",
+    });
+    await GM.addElement(totalLine, "span", { textContent: "📊 总测试数:" });
+    await GM.addElement(totalLine, "strong", {
+      textContent: testResults.total,
+      style: "font-size: 16px;",
+    });
 
-  // 通过数
-  const passedLine = await GM.addElement(statsContainer, "div", {
-    style: "margin: 8px 0; font-size: 14px; display: flex; justify-content: space-between;",
-  });
-  await GM.addElement(passedLine, "span", { textContent: "✅ 通过:" });
-  await GM.addElement(passedLine, "strong", {
-    textContent: testResults.passed,
-    style: "color: #4caf50; font-size: 16px;",
-  });
+    // 通过数
+    const passedLine = await GM.addElement(statsContainer, "div", {
+      style: "margin: 8px 0; font-size: 14px; display: flex; justify-content: space-between;",
+    });
+    await GM.addElement(passedLine, "span", { textContent: "✅ 通过:" });
+    await GM.addElement(passedLine, "strong", {
+      textContent: testResults.passed,
+      style: "color: #4caf50; font-size: 16px;",
+    });
 
-  // 失败数
-  const failedLine = await GM.addElement(statsContainer, "div", {
-    style: "margin: 8px 0; font-size: 14px; display: flex; justify-content: space-between;",
-  });
-  await GM.addElement(failedLine, "span", { textContent: "❌ 失败:" });
-  await GM.addElement(failedLine, "strong", {
-    textContent: testResults.failed,
-    style: "color: #f44336; font-size: 16px;",
-  });
+    // 失败数
+    const failedLine = await GM.addElement(statsContainer, "div", {
+      style: "margin: 8px 0; font-size: 14px; display: flex; justify-content: space-between;",
+    });
+    await GM.addElement(failedLine, "span", { textContent: "❌ 失败:" });
+    await GM.addElement(failedLine, "strong", {
+      textContent: testResults.failed,
+      style: "color: #f44336; font-size: 16px;",
+    });
 
-  // 成功率
-  const rateLine = await GM.addElement(statsContainer, "div", {
-    style: "margin: 8px 0; font-size: 14px; display: flex; justify-content: space-between;",
-  });
-  await GM.addElement(rateLine, "span", { textContent: "📈 成功率:" });
-  await GM.addElement(rateLine, "strong", {
-    textContent: successRate + "%",
-    style:
-      "color: " + (successRate >= 90 ? "#4caf50" : successRate >= 70 ? "#ffc107" : "#f44336") + "; font-size: 16px;",
-  });
+    // 成功率
+    const rateLine = await GM.addElement(statsContainer, "div", {
+      style: "margin: 8px 0; font-size: 14px; display: flex; justify-content: space-between;",
+    });
+    await GM.addElement(rateLine, "span", { textContent: "📈 成功率:" });
+    await GM.addElement(rateLine, "strong", {
+      textContent: successRate + "%",
+      style:
+        "color: " + (successRate >= 90 ? "#4caf50" : successRate >= 70 ? "#ffc107" : "#f44336") + "; font-size: 16px;",
+    });
 
-  // 进度条
-  const progressBar = await GM.addElement(resultContainer, "div", {
-    style: "background: #e0e0e0; height: 20px; border-radius: 10px; overflow: hidden; margin: 15px 0;",
-  });
-  await GM.addElement(progressBar, "div", {
-    style: `
+    // 进度条
+    const progressBar = await GM.addElement(resultContainer, "div", {
+      style: "background: #e0e0e0; height: 20px; border-radius: 10px; overflow: hidden; margin: 15px 0;",
+    });
+    await GM.addElement(progressBar, "div", {
+      style: `
       background: linear-gradient(90deg, #4caf50, #81c784);
       height: 100%;
       width: ${successRate}%;
@@ -504,18 +513,18 @@
       font-size: 12px;
       font-weight: bold;
     `,
-    textContent: successRate + "%",
-  });
+      textContent: successRate + "%",
+    });
 
-  // 按钮容器
-  const buttonContainer = await GM.addElement(resultContainer, "div", {
-    style: "display: flex; gap: 10px; margin-top: 15px;",
-  });
+    // 按钮容器
+    const buttonContainer = await GM.addElement(resultContainer, "div", {
+      style: "display: flex; gap: 10px; margin-top: 15px;",
+    });
 
-  // 关闭按钮
-  const closeBtn = await GM.addElement(buttonContainer, "button", {
-    textContent: "关闭",
-    style: `
+    // 关闭按钮
+    const closeBtn = await GM.addElement(buttonContainer, "button", {
+      textContent: "关闭",
+      style: `
       flex: 1;
       padding: 8px 15px;
       cursor: pointer;
@@ -527,15 +536,15 @@
       font-weight: bold;
       transition: background 0.3s;
     `,
-  });
-  closeBtn.onmouseover = () => (closeBtn.style.background = "#616161");
-  closeBtn.onmouseout = () => (closeBtn.style.background = "#757575");
-  closeBtn.onclick = () => resultContainer.remove();
+    });
+    closeBtn.onmouseover = () => (closeBtn.style.background = "#616161");
+    closeBtn.onmouseout = () => (closeBtn.style.background = "#757575");
+    closeBtn.onclick = () => resultContainer.remove();
 
-  // 查看日志按钮
-  const logBtn = await GM.addElement(buttonContainer, "button", {
-    textContent: "查看详细日志",
-    style: `
+    // 查看日志按钮
+    const logBtn = await GM.addElement(buttonContainer, "button", {
+      textContent: "查看详细日志",
+      style: `
       flex: 1;
       padding: 8px 15px;
       cursor: pointer;
@@ -547,13 +556,14 @@
       font-weight: bold;
       transition: background 0.3s;
     `,
-  });
-  logBtn.onmouseover = () => (logBtn.style.background = "#1976d2");
-  logBtn.onmouseout = () => (logBtn.style.background = "#2196f3");
-  logBtn.onclick = () => {
-    console.log("%c=== 完整测试报告 ===", "color: blue; font-size: 16px; font-weight: bold;");
-    alert("请查看控制台中的详细测试日志");
-  };
+    });
+    logBtn.onmouseover = () => (logBtn.style.background = "#1976d2");
+    logBtn.onmouseout = () => (logBtn.style.background = "#2196f3");
+    logBtn.onclick = () => {
+      console.log("%c=== 完整测试报告 ===", "color: blue; font-size: 16px; font-weight: bold;");
+      alert("请查看控制台中的详细测试日志");
+    };
+  }
 
-  console.log("%c=== ScriptCat GM.* API 测试完成 ===", "color: blue; font-size: 16px; font-weight: bold;");
-})();
+  return { test, assert, printSummary, showResultPanel };
+})());
