@@ -17,47 +17,8 @@
 // @run-at       document-start
 // ==/UserScript==
 
-(async function () {
-  "use strict";
-
+(async ({ test, assert, assertTrue, printSummary }) => {
   console.log("%c=== Content环境 GM API 测试开始 ===", "color: blue; font-size: 16px; font-weight: bold;");
-
-  let testResults = {
-    passed: 0,
-    failed: 0,
-    total: 0,
-  };
-
-  // 测试辅助函数
-  async function test(name, fn) {
-    testResults.total++;
-    try {
-      await fn();
-      testResults.passed++;
-      console.log(`%c✓ ${name}`, "color: green;");
-      return true;
-    } catch (error) {
-      testResults.failed++;
-      console.error(`%c✗ ${name}`, "color: red;", error);
-      return false;
-    }
-  }
-
-  // assert(expected, actual, message) - 比较两个值是否相等
-  function assert(expected, actual, message) {
-    if (expected !== actual) {
-      const valueInfo = `期望 ${JSON.stringify(expected)}, 实际 ${JSON.stringify(actual)}`;
-      const error = message ? `${message} - ${valueInfo}` : `断言失败: ${valueInfo}`;
-      throw new Error(error);
-    }
-  }
-
-  // assertTrue(condition, message) - 断言条件为真
-  function assertTrue(condition, message) {
-    if (!condition) {
-      throw new Error(message || "断言失败: 期望条件为真");
-    }
-  }
 
   // ============ CSP绕过测试 ============
   console.log("\n%c--- CSP绕过测试 ---", "color: orange; font-weight: bold;");
@@ -157,15 +118,59 @@
   });
 
   // ============ 输出测试结果 ============
-  console.log("\n%c=== 测试完成 ===", "color: blue; font-size: 16px; font-weight: bold;");
-  console.log(
-    `%c总计: ${testResults.total} | 通过: ${testResults.passed} | 失败: ${testResults.failed}`,
-    testResults.failed === 0 ? "color: green; font-weight: bold;" : "color: red; font-weight: bold;"
-  );
+  printSummary();
+})((() => {
+  let testResults = {
+    passed: 0,
+    failed: 0,
+    total: 0,
+  };
 
-  if (testResults.failed === 0) {
-    console.log("%c🎉 所有测试通过!", "color: green; font-size: 14px; font-weight: bold;");
-  } else {
-    console.log("%c⚠️ 部分测试失败，请检查上面的错误信息", "color: red; font-size: 14px; font-weight: bold;");
+  // 测试辅助函数
+  async function test(name, fn) {
+    testResults.total++;
+    try {
+      await fn();
+      testResults.passed++;
+      console.log(`%c✓ ${name}`, "color: green;");
+      return true;
+    } catch (error) {
+      testResults.failed++;
+      console.error(`%c✗ ${name}`, "color: red;", error);
+      return false;
+    }
   }
-})();
+
+  // assert(expected, actual, message) - 比较两个值是否相等
+  function assert(expected, actual, message) {
+    if (expected !== actual) {
+      const valueInfo = `期望 ${JSON.stringify(expected)}, 实际 ${JSON.stringify(actual)}`;
+      const error = message ? `${message} - ${valueInfo}` : `断言失败: ${valueInfo}`;
+      throw new Error(error);
+    }
+  }
+
+  // assertTrue(condition, message) - 断言条件为真
+  function assertTrue(condition, message) {
+    if (!condition) {
+      throw new Error(message || "断言失败: 期望条件为真");
+    }
+  }
+
+  // printSummary() - 输出测试结果汇总
+  function printSummary() {
+    console.log("\n%c=== 测试完成 ===", "color: blue; font-size: 16px; font-weight: bold;");
+    console.log(
+      `%c总计: ${testResults.total} | 通过: ${testResults.passed} | 失败: ${testResults.failed}`,
+      testResults.failed === 0 ? "color: green; font-weight: bold;" : "color: red; font-weight: bold;"
+    );
+
+    if (testResults.failed === 0) {
+      console.log("%c🎉 所有测试通过!", "color: green; font-size: 14px; font-weight: bold;");
+    } else {
+      console.log("%c⚠️ 部分测试失败，请检查上面的错误信息", "color: red; font-size: 14px; font-weight: bold;");
+    }
+  }
+
+  return { test, assert, assertTrue, printSummary };
+})());

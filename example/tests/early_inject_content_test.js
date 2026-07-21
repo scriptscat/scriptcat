@@ -18,93 +18,40 @@
 // @run-at       document-start
 // ==/UserScript==
 
-// 测试辅助函数（支持同步和异步）
-async function test(name, fn) {
-  testResults.total++;
-  try {
-    await fn();
-    testResults.passed++;
-    console.log(`%c✓ ${name}`, "color: green;");
-    return true;
-  } catch (error) {
-    testResults.failed++;
-    console.error(`%c✗ ${name}`, "color: red;", error);
-    return false;
-  }
-}
+(async ({ test, testSync, assert, assertTrue, printSummary }) => {
+  console.log("%c=== Content环境 GM API 测试开始 ===", "color: blue; font-size: 16px; font-weight: bold;");
 
-function testSync(name, fn) {
-  testResults.total++;
-  try {
-    fn();
-    testResults.passed++;
-    console.log(`%c✓ ${name}`, "color: green;");
-    return true;
-  } catch (error) {
-    testResults.failed++;
-    console.error(`%c✗ ${name}`, "color: red;", error);
-    return false;
-  }
-}
+  // 同步测试
 
-// assert(expected, actual, message) - 比较两个值是否相等
-function assert(expected, actual, message) {
-  if (expected !== actual) {
-    const valueInfo = `期望 ${JSON.stringify(expected)}, 实际 ${JSON.stringify(actual)}`;
-    const error = message ? `${message} - ${valueInfo}` : `断言失败: ${valueInfo}`;
-    throw new Error(error);
-  }
-}
+  // ============ GM_addElement/GM_addStyle 测试 ============
+  console.log("\n%c--- DOM操作 API 测试 ---", "color: orange; font-weight: bold;");
 
-// assertTrue(condition, message) - 断言条件为真
-function assertTrue(condition, message) {
-  if (!condition) {
-    throw new Error(message || "断言失败: 期望条件为真");
-  }
-}
-
-console.log("%c=== Content环境 GM API 测试开始 ===", "color: blue; font-size: 16px; font-weight: bold;");
-
-let testResults = {
-  passed: 0,
-  failed: 0,
-  total: 0,
-};
-
-// 同步测试
-
-// ============ GM_addElement/GM_addStyle 测试 ============
-console.log("\n%c--- DOM操作 API 测试 ---", "color: orange; font-weight: bold;");
-
-testSync("GM_addElement", () => {
-  const element = GM_addElement("div", {
-    textContent: "GM_addElement测试元素",
-    style: "display:none;",
-    id: "gm-test-element",
+  testSync("GM_addElement", () => {
+    const element = GM_addElement("div", {
+      textContent: "GM_addElement测试元素",
+      style: "display:none;",
+      id: "gm-test-element",
+    });
+    assertTrue(element !== null && element !== undefined, "GM_addElement应该返回元素");
+    assert("gm-test-element", element.id, "元素ID应该正确");
+    assert("DIV", element.tagName, "元素标签应该是DIV");
+    console.log("返回元素:", element);
+    // 清理测试元素
+    element.parentNode.removeChild(element);
   });
-  assertTrue(element !== null && element !== undefined, "GM_addElement应该返回元素");
-  assert("gm-test-element", element.id, "元素ID应该正确");
-  assert("DIV", element.tagName, "元素标签应该是DIV");
-  console.log("返回元素:", element);
-  // 清理测试元素
-  element.parentNode.removeChild(element);
-});
 
-testSync("GM_addStyle", () => {
-  const styleElement = GM_addStyle(`
+  testSync("GM_addStyle", () => {
+    const styleElement = GM_addStyle(`
             .gm-style-test {
                 color: #10b981 !important;
             }
         `);
-  assertTrue(styleElement !== null && styleElement !== undefined, "GM_addStyle应该返回样式元素");
-  assertTrue(styleElement.tagName === "STYLE" || styleElement.sheet, "应该返回STYLE元素或样式对象");
-  console.log("返回样式元素:", styleElement);
-  // 清理测试样式
-  styleElement.parentNode.removeChild(styleElement);
-});
-
-(async function () {
-  "use strict";
+    assertTrue(styleElement !== null && styleElement !== undefined, "GM_addStyle应该返回样式元素");
+    assertTrue(styleElement.tagName === "STYLE" || styleElement.sheet, "应该返回STYLE元素或样式对象");
+    console.log("返回样式元素:", styleElement);
+    // 清理测试样式
+    styleElement.parentNode.removeChild(styleElement);
+  });
 
   // ============ 早期脚本环境检查 ============
   console.log("\n%c--- 早期脚本环境检查 ---", "color: orange; font-weight: bold;");
@@ -215,15 +162,73 @@ testSync("GM_addStyle", () => {
   });
 
   // ============ 输出测试结果 ============
-  console.log("\n%c=== 测试完成 ===", "color: blue; font-size: 16px; font-weight: bold;");
-  console.log(
-    `%c总计: ${testResults.total} | 通过: ${testResults.passed} | 失败: ${testResults.failed}`,
-    testResults.failed === 0 ? "color: green; font-weight: bold;" : "color: red; font-weight: bold;"
-  );
+  printSummary();
+})((() => {
+  let testResults = {
+    passed: 0,
+    failed: 0,
+    total: 0,
+  };
 
-  if (testResults.failed === 0) {
-    console.log("%c🎉 所有测试通过!", "color: green; font-size: 14px; font-weight: bold;");
-  } else {
-    console.log("%c⚠️ 部分测试失败，请检查上面的错误信息", "color: red; font-size: 14px; font-weight: bold;");
+  // 测试辅助函数（支持同步和异步）
+  async function test(name, fn) {
+    testResults.total++;
+    try {
+      await fn();
+      testResults.passed++;
+      console.log(`%c✓ ${name}`, "color: green;");
+      return true;
+    } catch (error) {
+      testResults.failed++;
+      console.error(`%c✗ ${name}`, "color: red;", error);
+      return false;
+    }
   }
-})();
+
+  function testSync(name, fn) {
+    testResults.total++;
+    try {
+      fn();
+      testResults.passed++;
+      console.log(`%c✓ ${name}`, "color: green;");
+      return true;
+    } catch (error) {
+      testResults.failed++;
+      console.error(`%c✗ ${name}`, "color: red;", error);
+      return false;
+    }
+  }
+
+  // assert(expected, actual, message) - 比较两个值是否相等
+  function assert(expected, actual, message) {
+    if (expected !== actual) {
+      const valueInfo = `期望 ${JSON.stringify(expected)}, 实际 ${JSON.stringify(actual)}`;
+      const error = message ? `${message} - ${valueInfo}` : `断言失败: ${valueInfo}`;
+      throw new Error(error);
+    }
+  }
+
+  // assertTrue(condition, message) - 断言条件为真
+  function assertTrue(condition, message) {
+    if (!condition) {
+      throw new Error(message || "断言失败: 期望条件为真");
+    }
+  }
+
+  // printSummary() - 输出测试结果汇总
+  function printSummary() {
+    console.log("\n%c=== 测试完成 ===", "color: blue; font-size: 16px; font-weight: bold;");
+    console.log(
+      `%c总计: ${testResults.total} | 通过: ${testResults.passed} | 失败: ${testResults.failed}`,
+      testResults.failed === 0 ? "color: green; font-weight: bold;" : "color: red; font-weight: bold;"
+    );
+
+    if (testResults.failed === 0) {
+      console.log("%c🎉 所有测试通过!", "color: green; font-size: 14px; font-weight: bold;");
+    } else {
+      console.log("%c⚠️ 部分测试失败，请检查上面的错误信息", "color: red; font-size: 14px; font-weight: bold;");
+    }
+  }
+
+  return { test, testSync, assert, assertTrue, printSummary };
+})());
