@@ -33,6 +33,9 @@ vi.mock("@App/app/service/service_worker/client", () => ({
     getBridgeStatus() {
       return Promise.resolve("disabled");
     }
+    getWriteSession() {
+      return Promise.resolve(false);
+    }
     getClients() {
       return Promise.resolve([]);
     }
