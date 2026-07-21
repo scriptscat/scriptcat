@@ -630,23 +630,26 @@ const enableTool = true;
     expect(errSeen != null || threw != null).toBeTruthy();
   });
 
-  // 18) empty URL — should be rejected
-  autoTest("empty URL — onerror or thrown", async () => {
+  // 18) empty URL — new URL("", location.href) resolves to the current page per RFC 3986
+  // (src/app/service/content/gm_api/gm_xhr.ts:230, shared by GM_download at :265), so an empty
+  // url downloads the current document rather than erroring.
+  autoTest("empty URL — resolves to the current page, succeeds (not an error)", async () => {
     const name = nameFor("empty-url", "bin");
     let onloadCalled = false, errSeen = null, threw = null;
     try {
-      await new Promise((resolve) => {
+      await new Promise((resolve, reject) => {
         GM_download({
           url: "",
           name,
           onload() { onloadCalled = true; resolve(); },
-          onerror(e) { errSeen = e || true; resolve(); },
+          onerror(e) { errSeen = e || true; reject(new Error(`unexpected onerror: ${JSON.stringify(e)}`)); },
         });
-        setTimeout(resolve, 3000);
+        setTimeout(() => reject(new Error("timed out waiting for onload")), 3000);
       });
     } catch (e) { threw = e; }
-    expect(onloadCalled).toBe(false);
-    expect(errSeen != null || threw != null).toBeTruthy();
+    expect(threw).toBe(null);
+    expect(onloadCalled).toBe(true);
+    expect(errSeen).toBe(null);
   });
 
   // 19) name with subdirectories — folder is created under Downloads/
