@@ -437,7 +437,7 @@ vdescribe("手动 suite 触发", () => {
     SCTest = await loadSCTest();
   });
 
-  vit("点击运行全部后手动 suite 真正执行并更新统计", async () => {
+  vit("点击运行全部后手动 suite 真正执行并更新统计,不重复渲染行且跳过数清零", async () => {
     const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
     d("手动组", { auto: false }, () => {
       i("会通过", () => e(1).toBe(1));
@@ -453,5 +453,68 @@ vdescribe("手动 suite 触发", () => {
     const line = root.querySelector('[data-sctest="summary-line"]').textContent;
     vexpect(line).toMatch(/通过: 1/);
     vexpect(line).toMatch(/失败: 1/);
+    // 跳过预渲染时两个用例都已各建一行;真正执行后不应再追加新行(否则总数 4 行也能匹配上面两条正则)。
+    vexpect(root.querySelectorAll('[data-sctest="case-row"]').length).toBe(2);
+    // 两个用例都已真正跑完,跳过数必须清零,而不是停留在预渲染时的 2。
+    vexpect(line).toMatch(/跳过: 0/);
+  });
+
+  vit("auto:false suite 用例首次真正执行失败时,面板暴露期望与实际的详情框", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("手动组", { auto: false }, () => {
+      i("会失败", () => e("b").toBe("a"));
+    });
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    // 跳过预渲染阶段不应该有详情框。
+    vexpect(root.querySelector('[data-sctest="failure-detail"]')).toBe(null);
+
+    root.querySelector('[data-sctest="run-all"]').click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const detail = root.querySelector('[data-sctest="failure-detail"]');
+    vexpect(detail).not.toBe(null);
+    vexpect(detail.textContent).toMatch(/"a"/);
+    vexpect(detail.textContent).toMatch(/"b"/);
+  });
+
+  vit("用例重跑:连续失败只保留一份最新详情,失败转通过后旧详情被清除", async () => {
+    let attempt = 0;
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("手动组", { auto: false }, () => {
+      i("先失败两次后通过", () => {
+        attempt++;
+        if (attempt === 1) e("b").toBe("a");
+        else if (attempt === 2) e("d").toBe("c");
+      });
+    });
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const runBtn = root.querySelector('[data-sctest="run-all"]');
+
+    runBtn.click();
+    await new Promise((r) => setTimeout(r, 0));
+    let details = root.querySelectorAll('[data-sctest="failure-detail"]');
+    vexpect(details.length).toBe(1);
+    vexpect(details[0].textContent).toMatch(/"a"/);
+    vexpect(details[0].textContent).toMatch(/"b"/);
+
+    // 面板按钮点一次后会被禁用,这里手动复位只为了在单个面板实例里驱动第二次真正执行,
+    // 验证的是 runManualSuites/onCase 状态机本身,而非模拟用户重复点击。
+    runBtn.disabled = false;
+    runBtn.click();
+    await new Promise((r) => setTimeout(r, 0));
+    details = root.querySelectorAll('[data-sctest="failure-detail"]');
+    vexpect(details.length).toBe(1);
+    vexpect(details[0].textContent).toMatch(/"c"/);
+    vexpect(details[0].textContent).toMatch(/"d"/);
+
+    runBtn.disabled = false;
+    runBtn.click();
+    await new Promise((r) => setTimeout(r, 0));
+    details = root.querySelectorAll('[data-sctest="failure-detail"]');
+    vexpect(details.length).toBe(0);
   });
 });

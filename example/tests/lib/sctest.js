@@ -542,6 +542,26 @@
       node.dur.textContent = c.status === "manual" ? "人工" : c.durationMs + "ms";
     }
 
+    // 渲染/清理失败详情框。挂在 node.detail 上以便重跑时能先移除旧的一份,
+    // 而不是无限追加——manual suite 的用例首次总是先以 SKIP 预渲染,
+    // 真正执行时都会走 onCase 的"更新"分支,所以两个分支都要能产生/替换详情框。
+    function renderDetail(node, c) {
+      if (node.detail) {
+        node.detail.remove();
+        node.detail = null;
+      }
+      if (c.status === "fail") {
+        var detail = el(
+          "div",
+          "sc-detail",
+          "期望  " + (c.expected == null ? "-" : c.expected) + "\n实际  " + (c.actual == null ? "-" : c.actual) + "\n" + c.error
+        );
+        detail.setAttribute("data-sctest", "failure-detail");
+        node.row.parentNode.insertBefore(detail, node.row.nextSibling);
+        node.detail = detail;
+      }
+    }
+
     return {
       panelRoot: root,
       onStart: function () {
@@ -558,8 +578,8 @@
           else if (existing.status === "pass") state.pass--;
           else if (existing.status === "fail") state.fail--;
           existing.status = c.status;
-          existing.icon.textContent = ICONS[c.status] || "○";
-          existing.dur.textContent = c.status === "manual" ? "人工" : c.durationMs + "ms";
+          applyStatus(c, existing);
+          renderDetail(existing, c);
           if (c.status === "pass") state.pass++;
           else if (c.status === "fail") state.fail++;
           else state.skip++;
@@ -576,22 +596,17 @@
         row.appendChild(label);
         row.appendChild(dur);
         suite.group.appendChild(row);
-        caseNodes[c.suite + "//" + c.name] = { row: row, icon: icon, dur: dur, status: c.status };
+        var node = { row: row, icon: icon, dur: dur, status: c.status, detail: null };
+        caseNodes[key] = node;
 
         if (c.status === "fail") {
           state.fail++;
-          var detail = el(
-            "div",
-            "sc-detail",
-            "期望  " + (c.expected == null ? "-" : c.expected) + "\n实际  " + (c.actual == null ? "-" : c.actual) + "\n" + c.error
-          );
-          detail.setAttribute("data-sctest", "failure-detail");
-          suite.group.appendChild(detail);
         } else if (c.status === "pass") {
           state.pass++;
         } else {
           state.skip++;
         }
+        renderDetail(node, c);
 
         if (c.status === "manual") {
           var pass = el("button", "sc-btn", "✓");
@@ -619,7 +634,7 @@
           if (c.hint) suite.group.appendChild(el("div", "sc-hint", c.hint));
         }
 
-        applyStatus(c, caseNodes[c.suite + "//" + c.name]);
+        applyStatus(c, node);
         recount();
       },
       onEnd: function (summary) {
