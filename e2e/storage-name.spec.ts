@@ -86,9 +86,10 @@ async function serveTargetPage(context: BrowserContext): Promise<void> {
   );
 }
 
-function createSharedScriptPair(): SharedScriptPair {
+function createSharedScriptPair(options: { storageName?: string; readerStorageName?: string } = {}): SharedScriptPair {
   const token = randomUUID().replaceAll("-", "");
-  const storageName = `scriptcat-e2e-storage-${token}`;
+  const storageName = options.storageName || `scriptcat-e2e-storage-${token}`;
+  const readerStorageName = options.readerStorageName || storageName;
   const syncKey = `sync-${token}`;
   const asyncKey = `async-${token}`;
   const syncValue = `sync-value-${token}`;
@@ -149,7 +150,7 @@ setWriterMarker(${JSON.stringify(writerReadyAttribute)}, "true");
 // @grant        GM_getValue
 // @grant        GM.getValue
 // @grant        GM_addValueChangeListener
-// @storageName  ${storageName}
+// @storageName  ${readerStorageName}
 // ==/UserScript==
 
 const setReaderMarker = (name, value) => {
@@ -409,21 +410,18 @@ async function readSharedValues(page: Page, pair: SharedScriptPair): Promise<Sha
   return waitForJsonAttribute<SharedReadResult>(page, pair.readerResultAttribute);
 }
 
-async function deleteAndPurgeScript(page: Page, uuid: string): Promise<void> {
-  // 使用 options 页产品代码调用的同一消息端点，覆盖真实 SW 删除链路且不依赖界面语言。
-  const results = await page.evaluate(async (scriptUuid) => {
-    const send = (action: string) =>
-      chrome.runtime.sendMessage({ action, data: [scriptUuid] }) as Promise<ScriptActionResponse<boolean>>;
-    return {
-      deleted: await send("serviceWorker/script/deletes"),
-      purged: await send("serviceWorker/script/purges"),
-    };
-  }, uuid);
-
-  expect(results.deleted.code || 0, results.deleted.message).toBe(0);
-  expect(results.deleted.data).toBe(true);
-  expect(results.purged.code || 0, results.purged.message).toBe(0);
-  expect(results.purged.data).toBe(true);
+async function runScriptAction<T>(page: Page, action: "deletes" | "purges" | "restores", uuids: string[]): Promise<T> {
+  // 使用 options 页产品代码调用的同一消息端点，专注验证 SW 中的存储生命周期。
+  const response = await page.evaluate(
+    async ({ scriptAction, scriptUuids }) =>
+      chrome.runtime.sendMessage({
+        action: `serviceWorker/script/${scriptAction}`,
+        data: scriptUuids,
+      }) as Promise<ScriptActionResponse<T>>,
+    { scriptAction: action, scriptUuids: uuids }
+  );
+  expect(response.code || 0, response.message).toBe(0);
+  return response.data as T;
 }
 
 test.describe("@storageName 真实浏览器共享存储", () => {
@@ -484,13 +482,36 @@ test.describe("@storageName 真实浏览器共享存储", () => {
     }
   });
 
-  test("彻底删除写入脚本后，另一个共享脚本应在新页面继续读取值", async ({ context, extensionId }) => {
+  test("不同 storageName 的脚本使用相同 key 时应严格隔离", async ({ context, extensionId }) => {
+    await serveTargetPage(context);
+    const pair = createSharedScriptPair({
+      readerStorageName: `scriptcat-e2e-isolated-${randomUUID().replaceAll("-", "")}`,
+    });
+    await installSharedScriptPair(context, extensionId, pair);
+
+    const page = await context.newPage();
+    try {
+      await page.goto(`${TARGET_ORIGIN}/page?isolated=${pair.token}`, { waitUntil: "domcontentloaded" });
+      await waitForReady(page, pair, true);
+      await triggerWrite(page, pair);
+      await expect(readSharedValues(page, pair)).resolves.toEqual({
+        ok: true,
+        asyncReadOfSyncWrite: "missing",
+        syncReadOfAsyncWrite: "missing",
+      });
+    } finally {
+      await page.close();
+    }
+  });
+
+  test("共享脚本仅剩回收站 owner 时，purge 其他脚本不得清理共享值", async ({ context, extensionId }) => {
     await serveTargetPage(context);
     const pair = createSharedScriptPair();
     const identities = await installSharedScriptPair(context, extensionId, pair);
     assertSharedMetadataUsesDifferentIdentities(identities, pair);
 
     const writer = identities.find((script) => script.name === pair.writerName)!;
+    const reader = identities.find((script) => script.name === pair.readerName)!;
     const initialPage = await context.newPage();
     try {
       await initialPage.goto(`${TARGET_ORIGIN}/page?before-purge=${pair.token}`, {
@@ -509,10 +530,16 @@ test.describe("@storageName 真实浏览器共享存储", () => {
 
     const optionsPage = await openOptionsPage(context, extensionId);
     try {
-      await deleteAndPurgeScript(optionsPage, writer.uuid);
+      expect(await runScriptAction<boolean>(optionsPage, "deletes", [writer.uuid, reader.uuid])).toBe(true);
+      expect(await runScriptAction<boolean>(optionsPage, "purges", [writer.uuid])).toBe(true);
+      await expect.poll(() => readScriptIdentities(optionsPage, [pair.writerName, pair.readerName])).toEqual([]);
+      const restore = await runScriptAction<{ restored: string[]; conflicts: unknown[] }>(optionsPage, "restores", [
+        reader.uuid,
+      ]);
+      expect(restore).toEqual({ restored: [reader.uuid], conflicts: [] });
       await expect
         .poll(() => readScriptIdentities(optionsPage, [pair.writerName, pair.readerName]))
-        .toEqual([expect.objectContaining({ name: pair.readerName, storageNames: [pair.storageName] })]);
+        .toEqual([expect.objectContaining({ name: pair.readerName })]);
     } finally {
       await optionsPage.close();
     }
@@ -530,6 +557,51 @@ test.describe("@storageName 真实浏览器共享存储", () => {
       });
     } finally {
       await reloadedPage.close();
+    }
+  });
+
+  test("最后一个 storageName owner 被 purge 后，后续安装的脚本不得读到旧值", async ({ context, extensionId }) => {
+    await serveTargetPage(context);
+    const pair = createSharedScriptPair();
+    const identities = await installSharedScriptPair(context, extensionId, pair);
+    assertSharedMetadataUsesDifferentIdentities(identities, pair);
+
+    const initialPage = await context.newPage();
+    try {
+      await initialPage.goto(`${TARGET_ORIGIN}/page?before-final-purge=${pair.token}`, {
+        waitUntil: "domcontentloaded",
+      });
+      await waitForReady(initialPage, pair, true);
+      await triggerWrite(initialPage, pair);
+    } finally {
+      await initialPage.close();
+    }
+
+    const optionsPage = await openOptionsPage(context, extensionId);
+    try {
+      const uuids = identities.map((script) => script.uuid);
+      expect(await runScriptAction<boolean>(optionsPage, "deletes", uuids)).toBe(true);
+      expect(await runScriptAction<boolean>(optionsPage, "purges", uuids)).toBe(true);
+      await expect.poll(() => readScriptIdentities(optionsPage, [pair.writerName, pair.readerName])).toEqual([]);
+    } finally {
+      await optionsPage.close();
+    }
+
+    await installScriptByCode(context, extensionId, pair.readerCode);
+    autoApprovePermissions(context);
+    const reinstalledPage = await context.newPage();
+    try {
+      await reinstalledPage.goto(`${TARGET_ORIGIN}/page?after-final-purge=${pair.token}`, {
+        waitUntil: "domcontentloaded",
+      });
+      await waitForReady(reinstalledPage, pair, false);
+      await expect(readSharedValues(reinstalledPage, pair)).resolves.toEqual({
+        ok: true,
+        asyncReadOfSyncWrite: "missing",
+        syncReadOfAsyncWrite: "missing",
+      });
+    } finally {
+      await reinstalledPage.close();
     }
   });
 });
