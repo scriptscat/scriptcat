@@ -212,7 +212,7 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   const url = new URL(targetUrl);
   const targetPattern = `${url.protocol}//${url.hostname}/*${url.search}`;
   return code.replace(
-    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test)$/gm,
+    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|early_inject_content|early_inject_page|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test)$/gm,
     `// @match        ${targetPattern}`
   );
 }
@@ -356,6 +356,34 @@ test.describe("GM API", () => {
     }
     expect(failed, "Some content inject tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("@early-start page world 脚本应在 CSP 页面的解析早期执行", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "early_inject_page_test.js",
+      `${gmApiMockServer.cspOrigin}/?early_inject_page`,
+      60_000
+    );
+
+    if (failed !== 0) console.log("[early_inject_page_test] logs:", logs.join("\n"));
+    expect(failed, "Some early page-world injection tests failed").toBe(0);
+    expect(passed, "No early page-world results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("@early-start content world 脚本应在 CSP 页面的解析早期执行", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "early_inject_content_test.js",
+      `${gmApiMockServer.cspOrigin}/?early_inject_content`,
+      60_000
+    );
+
+    if (failed !== 0) console.log("[early_inject_content_test] logs:", logs.join("\n"));
+    expect(failed, "Some early content-world injection tests failed").toBe(0);
+    expect(passed, "No early content-world results found - script may not have run").toBeGreaterThan(0);
   });
 
   test("Unwrap scriptlet tests (unwrap_e2e_test.js)", async ({ context, extensionId }) => {
