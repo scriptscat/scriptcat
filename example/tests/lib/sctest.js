@@ -257,11 +257,30 @@
       };
     }
 
+    async function runManualSuites(reporters, onlySuiteName) {
+      for (var i = 0; i < suites.length; i++) {
+        var suite = suites[i];
+        if (suite.auto) continue;
+        if (onlySuiteName && suite.name !== onlySuiteName) continue;
+        for (var j = 0; j < suite.cases.length; j++) {
+          var c = suite.cases[j];
+          if (c.kind === "manual") continue;
+          c.status = null;
+          c.error = null;
+          await runCase(c, reporters);
+        }
+      }
+    }
+
     async function run() {
-      var reporters = global.SCTest.__buildReporters(opts, context, { suites: suites, name: runName });
+      var runInfo = { name: runName, context: context, suites: suites, onRunManual: null };
+      var reporters = global.SCTest.__buildReporters(opts, context, runInfo);
+      runInfo.onRunManual = function (suiteName) {
+        return runManualSuites(reporters, suiteName);
+      };
       var startedAt = now();
       reporters.forEach(function (r) {
-        if (r.onStart) r.onStart({ name: runName, context: context, suites: suites });
+        if (r.onStart) r.onStart(runInfo);
       });
 
       for (var i = 0; i < suites.length; i++) {
@@ -532,6 +551,21 @@
         recount();
       },
       onCase: function (c) {
+        var key = c.suite + "//" + c.name;
+        var existing = caseNodes[key];
+        if (existing) {
+          if (existing.status === "skip") state.skip--;
+          else if (existing.status === "pass") state.pass--;
+          else if (existing.status === "fail") state.fail--;
+          existing.status = c.status;
+          existing.icon.textContent = ICONS[c.status] || "○";
+          existing.dur.textContent = c.status === "manual" ? "人工" : c.durationMs + "ms";
+          if (c.status === "pass") state.pass++;
+          else if (c.status === "fail") state.fail++;
+          else state.skip++;
+          recount();
+          return;
+        }
         var suite = ensureSuite(c.suite);
         var row = el("div", "sc-case" + (c.status === "manual" ? " sc-case-manual" : ""));
         row.setAttribute("data-sctest", "case-row");
@@ -542,7 +576,7 @@
         row.appendChild(label);
         row.appendChild(dur);
         suite.group.appendChild(row);
-        caseNodes[c.suite + "//" + c.name] = { row: row, icon: icon, dur: dur };
+        caseNodes[c.suite + "//" + c.name] = { row: row, icon: icon, dur: dur, status: c.status };
 
         if (c.status === "fail") {
           state.fail++;

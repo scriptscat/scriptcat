@@ -275,6 +275,15 @@ vdescribe("PanelReporter", () => {
     vexpect(host.shadowRoot).not.toBe(null);
   });
 
+  vit("面板头部副标题显示运行上下文,而非空白", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("组", () => i("a", () => e(1).toBe(1)));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    vexpect(root.querySelector(".sc-meta").textContent).toBe("page");
+  });
+
   vit("面板渲染出每条用例与汇总行", async () => {
     const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
     d("组一", () => {
@@ -417,5 +426,32 @@ vdescribe("LogReporter", () => {
     d("组", () => i("a", () => e(1).toBe(1)));
     await run();
     vexpect(calls.filter((c) => c.labels && c.labels.sctest === "summary").length).toBe(1);
+  });
+});
+
+vdescribe("手动 suite 触发", () => {
+  let SCTest;
+
+  beforeEach(async () => {
+    document.body.innerHTML = "";
+    SCTest = await loadSCTest();
+  });
+
+  vit("点击运行全部后手动 suite 真正执行并更新统计", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("手动组", { auto: false }, () => {
+      i("会通过", () => e(1).toBe(1));
+      i("会失败", () => e(1).toBe(2));
+    });
+    const summary = await run();
+    vexpect(summary.skipped).toBe(2);
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    root.querySelector('[data-sctest="run-all"]').click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const line = root.querySelector('[data-sctest="summary-line"]').textContent;
+    vexpect(line).toMatch(/通过: 1/);
+    vexpect(line).toMatch(/失败: 1/);
   });
 });
