@@ -3,7 +3,7 @@ import path from "path";
 import os from "os";
 import { createServer } from "http";
 import type { AddressInfo } from "net";
-import { test as base, expect, chromium, type BrowserContext } from "@playwright/test";
+import { test as base, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
 import { autoApprovePermissions, installScriptByCode } from "./utils";
 
 const MOCK_CONNECT_HOST = "127.0.0.1";
@@ -228,7 +228,7 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   const url = new URL(targetUrl);
   const targetPattern = `${url.protocol}//${url.hostname}/*${url.search}`;
   return code.replace(
-    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC)$/gm,
+    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC|GM_DOWNLOAD_TEST_SC)$/gm,
     `// @match        ${targetPattern}`
   );
 }
@@ -266,7 +266,19 @@ async function runTestScript(
   scriptFile: string,
   targetUrl: string,
   timeoutMs: number,
-  options?: { patchCode?: (code: string) => string; requireOrigin?: string }
+  options?: {
+    patchCode?: (code: string) => string;
+    requireOrigin?: string;
+    // B 类文件的 sctest 套件是 auto:false（真实下载副作用），页面加载不会自动跑。点击面板的
+    // 「运行」按钮触发 sctest.js 的 onRunManual → runManualSuites，但后者只逐条调用 onCase，
+    // 从不重新调用 onEnd——ConsoleReporter 的三行汇总因此永远停在首次加载时打印的
+    // "通过: 0 / 失败: 0"（那时所有 auto:false 套件的用例都被预置为 skip）。真实结果只反映在
+    // 面板 Shadow DOM 里，所以 beforeCollect 除了点击，还要等该 suite 分组下的用例行全部从初始
+    // 的 ○ 图标变成 ✓/✗，直接从面板读出 passed/failed 并返回，取代下面的 console 轮询。
+    // 返回 void 时退回默认的 console 轮询（现有 9 个用例走这条路径，未受影响）。
+    // Task 13 迁移 gm_xhr_test.js 时复用同一个钩子（该文件只有一个 auto:false suite）。
+    beforeCollect?: (page: Page) => Promise<{ passed: number; failed: number } | void>;
+  }
 ): Promise<{ passed: number; failed: number; logs: string[] }> {
   let code = fs.readFileSync(path.join(__dirname, `../example/tests/${scriptFile}`), "utf-8");
   code = patchScriptCode(code);
@@ -292,13 +304,65 @@ async function runTestScript(
   });
 
   await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-  await expect
-    .poll(() => passed >= 0 && failed >= 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
-    .toBe(true)
-    .catch(() => undefined);
+  const collected = options?.beforeCollect ? await options.beforeCollect(page) : undefined;
+  if (collected) {
+    passed = collected.passed;
+    failed = collected.failed;
+  } else {
+    await expect
+      .poll(() => passed >= 0 && failed >= 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+      .toBe(true)
+      .catch(() => undefined);
+  }
 
   await page.close();
   return { passed, failed, logs };
+}
+
+// 点击某个 auto:false suite 的面板运行按钮，等该 suite 分组下的所有用例行都从初始的 ○（skip）
+// 图标变成 ✓/✗ 后，直接从面板 DOM 数出 passed/failed。用作 runTestScript 的 beforeCollect：
+// 见上面 runTestScript 的注释——sctest.js 的 onRunManual 补跑不会重新触发 ConsoleReporter 的
+// 汇总行，面板 Shadow DOM 是这类 B 类文件唯一反映真实结果的地方。
+function runSuiteAndCollectFromPanel(suiteName: string, timeoutMs: number) {
+  return async (page: Page): Promise<{ passed: number; failed: number }> => {
+    const host = page.locator("#sctest-panel-host");
+    await host.waitFor({ state: "attached", timeout: 15_000 });
+    await host.evaluate((el: HTMLElement, name: string) => {
+      el.shadowRoot?.querySelector<HTMLButtonElement>(`[data-sctest-suite="${name}"]`)?.click();
+    }, suiteName);
+
+    await page.waitForFunction(
+      (name: string) => {
+        const root = document.getElementById("sctest-panel-host")?.shadowRoot;
+        if (!root) return false;
+        const suiteRow = Array.from(root.querySelectorAll('[data-sctest="suite-row"]')).find((r) =>
+          r.textContent?.startsWith(name)
+        );
+        const group = suiteRow?.nextElementSibling;
+        const rows = group ? Array.from(group.querySelectorAll('[data-sctest="case-row"]')) : [];
+        return rows.length > 0 && rows.every((r) => r.querySelector("b")?.textContent !== "○");
+      },
+      suiteName,
+      { timeout: timeoutMs }
+    );
+
+    return host.evaluate((el: HTMLElement, name: string) => {
+      const root = el.shadowRoot;
+      const suiteRow = Array.from(root?.querySelectorAll('[data-sctest="suite-row"]') || []).find((r) =>
+        r.textContent?.startsWith(name)
+      );
+      const group = suiteRow?.nextElementSibling;
+      const rows = group ? Array.from(group.querySelectorAll('[data-sctest="case-row"]')) : [];
+      let passedCount = 0;
+      let failedCount = 0;
+      for (const row of rows) {
+        const icon = row.querySelector("b")?.textContent;
+        if (icon === "✓") passedCount++;
+        else if (icon === "✗") failedCount++;
+      }
+      return { passed: passedCount, failed: failedCount };
+    }, suiteName);
+  };
 }
 
 test.describe("GM API", () => {
@@ -458,6 +522,29 @@ test.describe("GM API", () => {
       console.log("[gm_xhr_redirect_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some GM_xhr redirect tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("GM_download tests (gm_download_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "gm_download_test.js",
+      `${gmApiMockServer.origin}/?GM_DOWNLOAD_TEST_SC`,
+      120_000,
+      {
+        patchCode,
+        requireOrigin: gmApiMockServer.origin,
+        // 两个 suite 都是 auto:false，页面加载不会自动跑；只点自动套件的运行按钮，手动用例保持不跑。
+        beforeCollect: runSuiteAndCollectFromPanel("GM_download 自动套件", 110_000),
+      }
+    );
+
+    console.log(`[gm_download_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[gm_download_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some GM_download tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 });
