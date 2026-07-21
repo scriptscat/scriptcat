@@ -69,12 +69,15 @@ it as settled fact:
   (`bg-white`, `text-gray-500`, `dark:bg-gray-800`, `bg-[#fff]`); use design tokens (`bg-background`/
   `text-foreground`/…) so light & dark both work.
 
-Two conventions are enforced via built-in rules in `eslint.config.mjs`: `no-restricted-imports` bans
+Three conventions are enforced via built-in rules in `eslint.config.mjs`: `no-restricted-imports` bans
 `@radix-ui/react-*` single packages (use the merged `radix-ui`) and the `sonner` `toast` export (use `notify`);
-`no-restricted-syntax` bans `forwardRef` across `src/pages/**` (use React 19 `function` + ref-prop).
+`no-restricted-syntax` bans `forwardRef` across `src/pages/**` (use React 19 `function` + ref-prop); and a
+file-scoped `no-restricted-imports` on `tests/vitest.setup.ts` bans `./utils` / `@App/app/service*` /
+`@App/pages/store*` so global test setup stays lightweight (as a per-file rule replacement it also drops the
+sonner/radix restriction there — the file imports neither).
 `eslint-rules/harness.test.mjs` covers exactly four of these: `no-i18n-default-value`, `no-raw-color-classname`,
 the `radix-ui` pattern of `no-restricted-imports`, and `no-restricted-syntax` — not `require-last-error-check`,
-and not the `sonner` pattern of `no-restricted-imports`.
+not the `sonner` pattern of `no-restricted-imports`, and not the `tests/vitest.setup.ts` scope.
 
 `src/pages/components/ui/toast.ts` has an override that turns `no-restricted-imports` **entirely off** for that
 one file — not just the `sonner` half of it. Only the `sonner` exception is intentional: this is the one place
@@ -131,7 +134,7 @@ React 19 + shadcn/ui (Radix UI primitives, "new-york" style) + Tailwind CSS v4 +
 
 This project uses Vitest for unit tests and Playwright for end-to-end tests.
 
-> Mechanics, meaningful-test guidance, and Vitest performance hygiene live in [testing.md](./references/develop-testing.md). To verify a change end-to-end without growing the suite, see [verification.md](./verification.md).
+> Test design, meaningful-test & cleanup guidance, run mechanics, and Vitest performance hygiene live in [testing.md](./references/develop-testing.md). To verify a change end-to-end without growing the suite, see [verification.md](./verification.md).
 
 ## i18n
 
