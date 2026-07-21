@@ -7,6 +7,26 @@ This guide owns how contributors design, write, review, clean up, and run automa
 merely because it raises coverage: it must protect an observable contract, fail for a relevant regression, and
 cost less to understand and maintain than the confidence it provides.
 
+## Applicability gate — read this first
+
+Not every section below applies to every change. Before designing or reviewing tests, check which of these the
+**changed contract** actually touches. Skip a row silently if it doesn't apply — do not mark it "N/A" in a PR
+description or commit message; that's ceremony, not evidence.
+
+| Does the contract involve… | If yes, use |
+|---|---|
+| A threshold, count, size, or other boundary value | [Cover the behavior space](#cover-the-behavior-space-deliberately) — boundary cases |
+| An invalid input, rejected dependency, or failure path | [Cover the behavior space](#cover-the-behavior-space-deliberately) — invalid/failure cases |
+| State held across calls, async work, or lifecycle (mount/unmount, subscribe/dispose) | [Cover the behavior space](#cover-the-behavior-space-deliberately) — state transitions |
+| Ordering, concurrency, or overlapping operations | [Cover the behavior space](#cover-the-behavior-space-deliberately) — ordering/concurrency |
+| Legacy input forms, cross-browser behavior, untrusted input, or access scope | [Cover the behavior space](#cover-the-behavior-space-deliberately) — compatibility/security |
+| A real browser API, extension process boundary, or multiple components wired together | [Boundary selection](#choosing-a-test-boundary) — integration/E2E row |
+| A mechanical source-text convention (an import ban, a naming rule) | [Writing meaningful tests](#writing-meaningful-tests-what-to-clean-up--not-write) — file-content assertion |
+| A test that looks low-value but sits outside the files/behavior this task changes | [Scope & cleanup boundary](#scope--cleanup-boundary) |
+
+If none of these apply, a normal-case test plus the one or two boundaries the contract actually has is enough —
+don't manufacture coverage for inapplicable categories.
+
 ## Designing a test before writing it
 
 Start from behavior, not from the current implementation. Before writing assertions, state four things:
@@ -21,48 +41,44 @@ If the regression cannot be named, the proposed test is probably asserting an im
 tautology. For a reported bug, first reproduce and capture the failure as required by
 [verification.md](../verification.md); then make the smallest test that fails for that confirmed cause.
 
-Choose the narrowest test boundary that still observes the real contract:
+### Choosing a test boundary
 
-- Use a pure unit test for parsing, mapping, validation, selection, and state-transition logic.
-- Render a focused component when conditional UI, accessibility derivation, interaction, or variant-to-token
-  mapping is the contract.
-- Use a service or repository test when persistence, messages, retries, ordering, or lifecycle behavior crosses
-  an object boundary.
-- Use an integration or E2E test when the failure depends on a real browser API, extension context, build entry,
-  worker boundary, or several components being wired together. Do not force such work into a heavily mocked unit
-  test merely to make it cheap.
-- Use the throwaway workflow in [verification.md](../verification.md) when permanent automation is genuinely
-  infeasible or would cost more than the regression risk warrants.
+Choose the narrowest boundary that still observes the real contract:
+
+| Contract characteristic | Test boundary |
+|---|---|
+| Parsing, mapping, validation, selection, or state-transition logic | Pure unit test |
+| Conditional UI, accessibility derivation, interaction, or variant-to-token mapping | Focused component render |
+| Persistence, messages, retries, ordering, or lifecycle crossing an object boundary | Service or repository test |
+| A real browser API, extension context, build entry, worker boundary, or several components wired together | Integration or E2E test — do not force this into a heavily mocked unit test to make it cheap |
+| Permanent automation is genuinely infeasible or costs more than the regression risk warrants | [Throwaway verification](../verification.md) |
 
 ### Cover the behavior space deliberately
 
 A behavior-changing test set normally starts with the **normal case** and then adds the boundaries and failure
-paths that can change the outcome. Do not stop after proving one happy-path example, but do not mechanically
-enumerate inputs that all execute the same branch either.
+paths that can change the outcome, gated by the [applicability check](#applicability-gate--read-this-first) above.
+Do not stop after one happy-path example, and do not mechanically enumerate inputs that all execute the same
+branch.
 
-For each changed contract, consider:
+| Category | What to cover |
+|---|---|
+| Normal case | Representative valid input completes successfully and produces the intended observable result. |
+| Boundary cases | Empty and single-item inputs; first/last item; exact size, time, or count limit; values just below and above a threshold; missing optional fields; duplicate items; Unicode or special paths only when the code branches on them. |
+| Invalid/failure cases | Malformed input, rejected dependency, permission denial, timeout, cancellation, partial data, unavailable capability. Assert whether the contract rejects, reports, retries, rolls back, or preserves prior state. |
+| State transitions | Before/after state, repeated calls, idempotency, cleanup, unsubscribe/dispose, whether stale async work can overwrite newer work. |
+| Ordering/concurrency | Out-of-order completion, overlapping operations, deduplication, exactly-once effects — only when production code promises them. |
+| Compatibility/security | Legacy accepted forms, cross-browser branches, untrusted URLs or paths, access scope, payload limits — only when part of the contract. |
 
-- **Normal case** — representative valid input completes successfully and produces the intended observable
-  result.
-- **Boundary cases** — empty and single-item inputs; first/last item; exact size, time, or count limit; values just
-  below and above a threshold; missing optional fields; duplicate items; and Unicode or special paths when the
-  code treats them differently.
-- **Invalid and failure cases** — malformed input, rejected dependency, permission denial, timeout, cancellation,
-  partial data, or unavailable browser capability. Assert whether the contract rejects, reports, retries, rolls
-  back, or preserves prior state.
-- **State transitions** — before/after state, repeated calls, idempotency, cleanup, unsubscribe/dispose behavior,
-  and whether stale async work can overwrite newer work.
-- **Ordering and concurrency** — out-of-order completion, overlapping operations, deduplication, and exactly-once
-  effects when the production code promises them.
-- **Compatibility/security boundaries** — legacy accepted forms, cross-browser branches, untrusted URLs or paths,
-  access scope, and maximum payload limits when they are part of the contract.
+Select cases by distinct equivalence classes and branches, not by sample count:
 
-Select cases by distinct equivalence classes and branches. For example, if `value === limit`, `value < limit`, and
-`value > limit` follow three different outcomes, cover all three. If ten ordinary strings take the same path,
-one representative string is normally enough. An empty array is worth its own test only when emptiness changes
-behavior; it is redundant when it follows the exact same branch and assertion as a non-empty array.
+- If `value === limit`, `value < limit`, and `value > limit` produce three different outcomes, cover all three —
+  that's three distinct branches, not three samples of one.
+- If ten ordinary strings take the same path, one representative string is enough — that's one equivalence class,
+  however many inputs it has.
+- An empty array earns its own test only when emptiness changes behavior; it's redundant when it follows the exact
+  same branch and assertion as a non-empty array.
 
-For bug fixes, include a regression case that matches the confirmed failure conditions closely enough that
+For bug fixes, include a regression case matching the confirmed failure conditions closely enough that
 reintroducing the cause makes it fail. Also keep a normal-case assertion when the fix could accidentally narrow
 existing supported behavior.
 
@@ -72,15 +88,15 @@ Prefer assertions at the public boundary:
 
 - Assert returned domain values, persisted records, visible state, accessibility attributes, messages, or the
   minimum necessary collaborator call.
-- Assert collaborator calls when the call itself is the contract, such as “do not write before approval” or
-  “publish exactly once”; do not assert every internal call made along the way.
+- Assert a collaborator call when the call itself is the contract ("do not write before approval", "publish
+  exactly once"); do not assert every internal call made along the way.
 - Prefer exact assertions for structured output. Use broad `toContain`/truthiness assertions only when the
   omitted details are intentionally outside the contract.
 - A test name must describe what the body actually triggers and observes. Use BDD-style `describe`/`it` titles —
   Chinese and English are both fine; avoid vague names such as `works`, `test1`, or a bug label without the
   behavior.
-- One test may contain several related assertions for one behavior. Do not split every property into a separate
-  setup-heavy test, and do not combine unrelated contracts into one scenario.
+- One test may contain several related assertions for one behavior. Don't split every property into a separate
+  setup-heavy test, and don't combine unrelated contracts into one scenario.
 
 ### Mocks and fixtures
 
@@ -90,11 +106,11 @@ deterministic while preserving the production path under test.
 - Prefer the repository's shared mocks — `@Packages/chrome-extension-mock` (Chrome APIs), `MockMessage` from
   `@Packages/message/mock_message`, `@Tests/mocks/pageStores.ts` (page stores) — over hand-built partial objects.
 - Give a mock only the behavior needed by the scenario, but keep it structurally compatible with the narrow
-  interface consumed by the subject.
-- Do not render a page with many live child sections and then maintain unrelated client mocks just to assert a
-  static button count. Test the category generator, focused section behavior, or a real integration boundary.
+  interface the subject consumes.
+- Don't render a page with many live child sections and maintain unrelated client mocks just to assert a static
+  button count. Test the category generator, focused section behavior, or a real integration boundary.
 - Assert how our code transforms, routes, persists, or reacts to what a mock returns — never that the mock
-  returned what it was configured to return (that is testing the mock, a no-value category below).
+  returned what it was configured to return (that's testing the mock, a no-value category below).
 - Fixtures should be small enough that the meaningful difference is visible. Builders are useful when defaults
   are stable and scenarios override only relevant fields; avoid builders that hide the input responsible for a
   regression.
@@ -110,7 +126,7 @@ Two exceptions to the TDD/BDD-first principle, neither a blanket file/task categ
 
 **Two distinct situations — don't conflate them.** A test that fails because *its own asserted contract* is wrong (a stale fixture, an assertion that was incorrect from the start, a contract that legitimately changed) — fix the test and say why. A test that never carried value regardless of pass/fail (see below) — clean it up independent of whether it's currently failing. Neither is license to weaken a valid regression test just to make CI pass.
 
-A test earns its place by exercising **our own logic** and failing on a real regression. Don't write the "tests nothing" kinds below — and clean them up when you find them (delete the test; don't touch business logic):
+A test earns its place by exercising **our own logic** and failing on a real regression. Don't write the "tests nothing" kinds below — and clean them up when you find them inside the [cleanup boundary](#scope--cleanup-boundary) (delete the test; don't touch business logic):
 
 - **Tautology** — asserting a constant equals its own literal definition (source `const FOO = [Type.BAR]`, test `expect(FOO).toEqual([Type.BAR])`).
 - **Genuine duplicate** — a whole file/block near-verbatim identical to another, differing only by irrelevant suffixes.
@@ -127,29 +143,50 @@ Conversely, keep these — they look thin but carry real value:
 - `instanceof` / `name` guards on custom `Error` subclasses, security-blocklist completeness, and similar regression guards.
 - The **only** coverage of a component / sub-component — deleting it removes coverage, not noise.
 
+### Gray-area calls
+
+When a case doesn't obviously fall on one side, use these:
+
+| Question | Call it this way |
+|---|---|
+| Observable contract vs. implementation detail? | If a caller/user could notice the value changing, it's the contract. If only the source structure changed (variable name, internal helper split), it's implementation detail — not worth its own test. |
+| Distinct equivalence class vs. another sample? | Distinct only if a plausible bug would make this specific input produce a *different* outcome than the other cases already covered. Otherwise it's another sample of the same class. |
+| Minimum necessary collaborator call vs. internal call assertion? | Assert a collaborator call only when *not* calling it (or calling it wrong) is itself the bug the test guards against. Otherwise assert the outcome, not the call. |
+| Valuable thin test vs. pass-through test? | Thin but valuable if the component branches, maps, or derives something (see "keep" list above). Pass-through if it renders a prop with zero conditional logic in between. |
+
+### Scope & cleanup boundary
+
+`AGENTS.md`'s scope-discipline principle ("bug fix ≠ cleanup PR; touch only the files the task requires") governs
+test cleanup exactly as it governs production code. This section operationalizes it for tests — it does not carve
+out an exception.
+
+| Situation | Action |
+|---|---|
+| A no-value test (per the categories above) sits in a file this task is already changing, or directly covers the behavior this task changes | Clean it up as part of this PR — it's in scope. |
+| A no-value test sits in a file/behavior this task does *not* otherwise touch | Don't delete it in this PR. Record it as an out-of-scope finding (e.g. a follow-up issue or task) instead. |
+| You notice a repository-wide pattern (the same no-value shape recurring across many unrelated files) | Don't bulk-clean it here. Open a separate issue/PR scoped to that pattern. |
+| A cleanup you already started turns out to span many unrelated files | Split it into its own PR rather than growing the current one. |
+| A replacement lint/structural guard is the direct substitute for a Vitest test you're removing *in this task* | In scope — landing the guard is part of "replace before delete" for this test, not a repo-wide lint rollout. |
+| A replacement lint/structural guard would also need to cover other, currently-untested files | Out of scope for this task; note it as a follow-up. |
+
 ### Cleaning up tests safely
 
-Tests are production dependencies: stale or meaningless tests should be removed, but a failing or slow test is
-not automatically meaningless. Classify the problem before editing it:
+Tests are production dependencies: stale or meaningless tests should be removed, but a failing or slow test is not
+automatically meaningless. Classify before editing:
 
-- **Production regression** — the asserted contract is still valid and production code violates it. Fix the
-  production code.
-- **Wrong or obsolete contract** — requirements legitimately changed, or the assertion was incorrect. Update or
-  replace the test and record the contract change.
-- **Flaky test** — timing, leaked global state, nondeterministic ordering, or an uncontrolled dependency changes
-  the result. Reproduce the flake and fix its cause; do not add retries or a large timeout without evidence.
-- **Misclassified integration work** — real browser/process/I/O work exceeds a pure-unit budget under CI
-  contention. Put it in the appropriate project or give the specific case a measured budget; do not delete the
-  behavior or relax every test globally.
-- **No-value test** — it matches one of the categories above and removing it loses no distinct regression
-  detection. Delete it rather than preserving it for coverage numbers.
-- **Valuable constraint in the wrong mechanism** — a file-content assertion protecting a real rule: migrate it
-  per the category above, replacement guard first.
+| Symptom | Classification | Action |
+|---|---|---|
+| Asserted contract still valid; production violates it | Production regression | Fix the production code. |
+| Requirements legitimately changed, or the assertion was wrong from the start | Wrong/obsolete contract | Update or replace the test; record the contract change. |
+| Timing, leaked global state, nondeterministic ordering, or an uncontrolled dependency changes the result | Flaky test | Reproduce the flake and fix its cause; don't add retries or a large timeout without evidence. |
+| Real browser/process/I/O work exceeds a pure-unit budget under CI contention | Misclassified integration work | Move it to the appropriate project or give that case a measured budget; don't delete the behavior or relax every test globally. |
+| Matches a no-value category above; removing it loses no distinct regression detection | No-value test | Delete it (subject to the [scope boundary](#scope--cleanup-boundary) above) rather than preserving it for coverage numbers. |
+| A file-content assertion protects a real convention, just in the wrong mechanism | Valuable constraint, wrong mechanism | Migrate per the file-content-assertion rule above — replacement guard first. |
 
-Before deleting or consolidating a test, verify each against the source, one by one — judging in bulk from a
-scan over-flags heavily, and many "looks meaningless" tests actually exercise a real branch:
+Before deleting or consolidating a test, verify each against the source, one by one — judging in bulk from a scan
+over-flags heavily, and many "looks meaningless" tests actually exercise a real branch:
 
-1. Read the production path it claims to cover; do not judge from its name or line count.
+1. Read the production path it claims to cover; don't judge from its name or line count.
 2. Search for the same contract in nearby unit tests, caller tests, integration tests, E2E tests, lint rules, and
    structural harnesses.
 3. Identify the mutation/regression the test rejects. If another test would fail for the same regression, show
@@ -158,27 +195,39 @@ scan over-flags heavily, and many "looks meaningless" tests actually exercise a 
    browser variant, or historical regression.
 5. Delete or consolidate only the redundant signal, not assertions that cover distinct branches. Parameterize
    repeated setup when it makes the behavior matrix clearer.
-6. Run the focused remaining tests, then the relevant full suite. For timing or concurrency issues, reproduce
-   the CI combination — see [Vitest Performance Hygiene](#vitest-performance-hygiene).
+6. Run the focused remaining tests, then the relevant full suite. For timing or concurrency issues, reproduce the
+   CI combination — see [Vitest Performance Hygiene](#vitest-performance-hygiene).
 
-## Test author & review checklist
+## Author & reviewer checklists
 
-One checklist, used at two moments: self-check before handing off a behavior-changing implementation, and review
-of any new or changed test.
+Two short checklists, not one merged list — the author executes steps, the reviewer checks for evidence. Fill in
+the bracketed fields with the actual value; a checked box with no field filled in is not evidence.
 
-- [ ] Reproduced the reported bug or wrote the failing behavior test before production changes, and confirmed it
-      fails for the intended regression — a plausible broken implementation would trip it, not merely missing
-      mocks or unrelated setup.
-- [ ] Covered a representative normal case plus each outcome-changing boundary, invalid input, and failure path —
-      every case a distinct branch or equivalence class, not another sample of the same path.
-- [ ] Covered ordering, cleanup, cancellation, or repeated-call behavior when the contract involves state or
-      asynchronous work; the test is deterministic, isolated, and cleaned up after itself.
-- [ ] Assertions observe our contract at the public boundary — not React/Vitest/a third-party library, a
-      configured mock, or incidental structure — and the title matches the trigger and assertion.
-- [ ] Used the narrowest realistic boundary, with the fewest and most stable mocks available.
-- [ ] Removed no-value tests (per the categories above) instead of keeping them for coverage numbers; source-text
-      rules are enforced by lint or a structural harness, not a unit test.
-- [ ] Ran the focused test, `pnpm run lint`, and the relevant full suite; recorded only commands actually run.
+### Author
+
+- [ ] `Regression rejected:` — the plausible broken implementation this test would catch (not "missing mocks" or
+      unrelated setup).
+- [ ] `Distinct branch:` — for each case beyond the normal one, the outcome it changes vs. the cases already
+      covered.
+- [ ] `Selected boundary because:` — why this test boundary (pure unit / component / service / integration /
+      E2E / throwaway), per [Choosing a test boundary](#choosing-a-test-boundary).
+- [ ] `Existing coverage searched:` — where (nearby unit/caller/integration/E2E/lint) you looked before adding or
+      deleting a test.
+- [ ] `Replacement guard:` — if a test was removed per the file-content-assertion rule, the lint/structural rule
+      that now covers it, or "n/a".
+- [ ] `Out-of-scope findings recorded:` — any no-value test noticed outside this task's boundary, or "none".
+- [ ] `Focused/full suite actually run:` — the literal command(s) run, not "tests pass".
+
+### Reviewer
+
+- [ ] The named regression is real and the test would actually fail for it — not merely missing setup.
+- [ ] Each new case is a distinct branch/equivalence class, not another sample of one already covered.
+- [ ] The test boundary matches [Choosing a test boundary](#choosing-a-test-boundary); nothing browser/process-level
+      is forced into a mocked unit test, and nothing simple got a full integration/E2E render.
+- [ ] Any deleted test is in scope per [Scope & cleanup boundary](#scope--cleanup-boundary), and — if it protected
+      a mechanical convention — the replacement guard exists and is verified, not just proposed.
+- [ ] Assertions observe the contract at the public boundary, and the title matches the trigger and outcome.
+- [ ] Commands in "focused/full suite actually run" were actually run (spot-check by re-running one).
 
 ## Running tests
 
