@@ -323,13 +323,305 @@
     };
   }
 
+  // ---------- PanelReporter ----------
+  var PANEL_CSS = [
+    ":host{all:initial}",
+    ".sc-panel{position:fixed;right:16px;bottom:16px;width:440px;max-height:80vh;display:flex;",
+    "flex-direction:column;overflow:hidden;border-radius:12px;border:1px solid var(--sc-border);",
+    "background:var(--sc-card);color:var(--sc-fg);font-family:Inter,system-ui,sans-serif;font-size:12px;",
+    "box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:2147483647}",
+    ".sc-panel[data-min='1'] .sc-body,.sc-panel[data-min='1'] .sc-sum,",
+    ".sc-panel[data-min='1'] .sc-bar,.sc-panel[data-min='1'] .sc-foot{display:none}",
+    ".sc-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--sc-border)}",
+    ".sc-title{font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+    ".sc-meta{font-size:11px;color:var(--sc-muted);font-weight:400}",
+    ".sc-btn{cursor:pointer;border:1px solid var(--sc-border);background:var(--sc-card);color:var(--sc-fg);",
+    "border-radius:6px;padding:4px 9px;font-size:11px;font-family:inherit}",
+    ".sc-btn-primary{background:var(--sc-primary);border-color:var(--sc-primary);color:#fff}",
+    ".sc-sum{padding:12px 14px;border-bottom:1px solid var(--sc-border);background:var(--sc-bg);",
+    "display:flex;flex-direction:column;gap:10px}",
+    ".sc-chips{display:flex;gap:6px;align-items:center;flex-wrap:wrap}",
+    ".sc-chip{border-radius:9999px;padding:3px 9px;font-size:11px;font-weight:500}",
+    ".sc-chip-pass{background:var(--sc-success-bg);color:var(--sc-success-fg)}",
+    ".sc-chip-fail{background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
+    ".sc-chip-skip{background:var(--sc-muted-bg);color:var(--sc-muted)}",
+    ".sc-progress{height:6px;border-radius:9999px;background:var(--sc-muted-bg);overflow:hidden;display:flex}",
+    ".sc-progress i{display:block;height:6px}",
+    ".sc-body{overflow:auto;flex:1}",
+    ".sc-suite{display:flex;align-items:center;gap:7px;padding:7px 14px;background:var(--sc-bg);",
+    "border-top:1px solid var(--sc-border);font-weight:600;cursor:pointer}",
+    ".sc-suite span{flex:1}",
+    ".sc-case{display:flex;align-items:center;gap:8px;padding:6px 14px 6px 34px}",
+    ".sc-case span{flex:1}",
+    ".sc-case-manual{background:var(--sc-warning-bg)}",
+    ".sc-dur{font-size:11px;color:var(--sc-muted)}",
+    ".sc-detail{margin:0 14px 8px 34px;padding:8px 10px;border-radius:6px;border-left:2px solid var(--sc-destructive);",
+    "background:var(--sc-destructive-bg);color:var(--sc-destructive-fg);font-family:'JetBrains Mono',monospace;",
+    "font-size:11px;white-space:pre-wrap}",
+    ".sc-hint{margin:0 14px 8px 34px;padding:7px 10px;border-radius:6px;background:var(--sc-muted-bg);",
+    "color:var(--sc-muted);font-size:11px}",
+    ".sc-params{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--sc-border)}",
+    ".sc-params input{flex:1;border:1px solid var(--sc-border);border-radius:6px;padding:3px 8px;",
+    "background:var(--sc-card);color:var(--sc-fg);font-family:'JetBrains Mono',monospace;font-size:11px}",
+    ".sc-foot{display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid var(--sc-border);",
+    "background:var(--sc-bg)}",
+    ".sc-foot .sc-sumline{flex:1;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--sc-muted)}",
+    ":host{--sc-bg:#fafafa;--sc-card:#fff;--sc-fg:#1a1a1a;--sc-muted:#767676;--sc-muted-bg:#f0f0f0;",
+    "--sc-border:#e5e5e5;--sc-primary:#1296db;--sc-success-fg:#0c8833;--sc-success-bg:#e8f9ec;",
+    "--sc-destructive:#e7000b;--sc-destructive-fg:#c10007;--sc-destructive-bg:#fdecec;",
+    "--sc-warning-bg:#fff4e6}",
+    "@media (prefers-color-scheme: dark){:host{--sc-bg:#1e1e1e;--sc-card:#151515;--sc-fg:#e5e5e5;",
+    "--sc-muted:#8a8a8a;--sc-muted-bg:#2a2a2a;--sc-border:#2a2a2a;--sc-primary:#3aacef;",
+    "--sc-success-fg:#6fdd8a;--sc-success-bg:#1e3520;--sc-destructive:#ff6669;",
+    "--sc-destructive-fg:#ff9a9a;--sc-destructive-bg:#3a1a1c;--sc-warning-bg:#352c1e}}",
+  ].join("");
+
+  var ICONS = { pass: "✓", fail: "✗", skip: "○", manual: "✋" };
+
+  function createPanelReporter(runInfo) {
+    if (typeof document === "undefined" || !document.documentElement) return null;
+
+    var host = document.getElementById("sctest-panel-host");
+    if (host) host.remove();
+    host = document.createElement("div");
+    host.id = "sctest-panel-host";
+    document.documentElement.appendChild(host);
+
+    var root = host.attachShadow({ mode: "open" });
+    var style = document.createElement("style");
+    style.textContent = PANEL_CSS;
+    root.appendChild(style);
+
+    var panel = document.createElement("div");
+    panel.className = "sc-panel";
+    root.appendChild(panel);
+
+    var state = { pass: 0, fail: 0, skip: 0, total: 0, manualOverrides: {} };
+    var caseNodes = {};
+    var suiteNodes = {};
+
+    function el(tag, cls, text) {
+      var n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;
+      return n;
+    }
+
+    // 头部
+    var head = el("div", "sc-head");
+    var title = el("div", "sc-title", runInfo.name);
+    var meta = el("div", "sc-meta", runInfo.context);
+    title.appendChild(meta);
+    head.appendChild(title);
+    var minBtn = el("button", "sc-btn", "—");
+    minBtn.addEventListener("click", function () {
+      panel.dataset.min = panel.dataset.min === "1" ? "0" : "1";
+    });
+    head.appendChild(minBtn);
+    var closeBtn = el("button", "sc-btn", "×");
+    closeBtn.addEventListener("click", function () {
+      host.remove();
+    });
+    head.appendChild(closeBtn);
+    panel.appendChild(head);
+
+    // 概览
+    var sum = el("div", "sc-sum");
+    var chips = el("div", "sc-chips");
+    var chipPass = el("span", "sc-chip sc-chip-pass", "通过 0");
+    var chipFail = el("span", "sc-chip sc-chip-fail", "失败 0");
+    var chipSkip = el("span", "sc-chip sc-chip-skip", "跳过 0");
+    chips.appendChild(chipPass);
+    chips.appendChild(chipFail);
+    chips.appendChild(chipSkip);
+    var progress = el("div", "sc-progress");
+    var barPass = el("i");
+    barPass.style.background = "#34c759";
+    var barFail = el("i");
+    barFail.style.background = "#e7000b";
+    progress.appendChild(barPass);
+    progress.appendChild(barFail);
+    sum.appendChild(chips);
+    sum.appendChild(progress);
+    panel.appendChild(sum);
+
+    // 手动 suite 的运行控制与参数
+    var manualSuites = (runInfo.suites || []).filter(function (s) {
+      return !s.auto;
+    });
+    // 每个 auto:false 的 suite 各一个运行按钮 —— 见 gm_download_test.js:1083,
+    // 手动用例必须能与自动批次分开触发。
+    manualSuites.forEach(function (s) {
+      var ctl = el("div", "sc-params");
+      var runBtn = el("button", "sc-btn sc-btn-primary", "运行 " + s.name);
+      runBtn.setAttribute("data-sctest", "run-all");
+      runBtn.setAttribute("data-sctest-suite", s.name);
+      ctl.appendChild(runBtn);
+      Object.keys(s.params).forEach(function (key) {
+        var input = document.createElement("input");
+        input.value = s.params[key];
+        input.setAttribute("data-sctest", "param-" + key);
+        input.addEventListener("input", function () {
+          s.params[key] = input.value;
+        });
+        ctl.appendChild(el("span", null, key));
+        ctl.appendChild(input);
+      });
+      runBtn.addEventListener("click", function () {
+        runBtn.disabled = true;
+        if (typeof runInfo.onRunManual === "function") runInfo.onRunManual(s.name);
+      });
+      panel.appendChild(ctl);
+    });
+
+    var body = el("div", "sc-body");
+    panel.appendChild(body);
+
+    var foot = el("div", "sc-foot");
+    var sumLine = el("div", "sc-sumline", "");
+    sumLine.setAttribute("data-sctest", "summary-line");
+    foot.appendChild(sumLine);
+    var copyBtn = el("button", "sc-btn", "复制报告");
+    copyBtn.addEventListener("click", function () {
+      var text = sumLine.textContent + "\n" + JSON.stringify(state, null, 2);
+      if (navigator.clipboard) navigator.clipboard.writeText(text);
+    });
+    foot.appendChild(copyBtn);
+    panel.appendChild(foot);
+
+    function recount() {
+      chipPass.textContent = "通过 " + state.pass;
+      chipFail.textContent = "失败 " + state.fail;
+      chipSkip.textContent = "跳过 " + state.skip;
+      var total = state.total || 1;
+      barPass.style.width = (state.pass / total) * 100 + "%";
+      barFail.style.width = (state.fail / total) * 100 + "%";
+      sumLine.textContent =
+        "总测试数: " + state.total + "  通过: " + state.pass + "  失败: " + state.fail + "  跳过: " + state.skip;
+    }
+
+    function ensureSuite(name) {
+      if (suiteNodes[name]) return suiteNodes[name];
+      var row = el("div", "sc-suite");
+      row.setAttribute("data-sctest", "suite-row");
+      var label = el("span", null, name);
+      var stat = el("span", "sc-dur", "");
+      row.appendChild(label);
+      row.appendChild(stat);
+      body.appendChild(row);
+      var group = el("div");
+      body.appendChild(group);
+      row.addEventListener("click", function () {
+        group.style.display = group.style.display === "none" ? "" : "none";
+      });
+      suiteNodes[name] = { group: group, stat: stat, pass: 0, total: 0 };
+      return suiteNodes[name];
+    }
+
+    function applyStatus(c, node) {
+      node.icon.textContent = ICONS[c.status] || "○";
+      node.dur.textContent = c.status === "manual" ? "人工" : c.durationMs + "ms";
+    }
+
+    return {
+      panelRoot: root,
+      onStart: function () {
+        state.total = (runInfo.suites || []).reduce(function (n, s) {
+          return n + s.cases.length;
+        }, 0);
+        recount();
+      },
+      onCase: function (c) {
+        var suite = ensureSuite(c.suite);
+        var row = el("div", "sc-case" + (c.status === "manual" ? " sc-case-manual" : ""));
+        row.setAttribute("data-sctest", "case-row");
+        var icon = el("b", null, ICONS[c.status] || "○");
+        var label = el("span", null, c.name);
+        var dur = el("i", "sc-dur", c.status === "manual" ? "人工" : c.durationMs + "ms");
+        row.appendChild(icon);
+        row.appendChild(label);
+        row.appendChild(dur);
+        suite.group.appendChild(row);
+        caseNodes[c.suite + "//" + c.name] = { row: row, icon: icon, dur: dur };
+
+        if (c.status === "fail") {
+          state.fail++;
+          var detail = el(
+            "div",
+            "sc-detail",
+            "期望  " + (c.expected == null ? "-" : c.expected) + "\n实际  " + (c.actual == null ? "-" : c.actual) + "\n" + c.error
+          );
+          detail.setAttribute("data-sctest", "failure-detail");
+          suite.group.appendChild(detail);
+        } else if (c.status === "pass") {
+          state.pass++;
+        } else {
+          state.skip++;
+        }
+
+        if (c.status === "manual") {
+          var pass = el("button", "sc-btn", "✓");
+          pass.setAttribute("data-sctest", "manual-pass");
+          var fail = el("button", "sc-btn", "✗");
+          fail.setAttribute("data-sctest", "manual-fail");
+          function settle(ok) {
+            state.skip--;
+            if (ok) state.pass++;
+            else state.fail++;
+            state.manualOverrides[c.suite + "//" + c.name] = ok ? "pass" : "fail";
+            icon.textContent = ok ? ICONS.pass : ICONS.fail;
+            pass.remove();
+            fail.remove();
+            recount();
+          }
+          pass.addEventListener("click", function () {
+            settle(true);
+          });
+          fail.addEventListener("click", function () {
+            settle(false);
+          });
+          row.appendChild(pass);
+          row.appendChild(fail);
+          if (c.hint) suite.group.appendChild(el("div", "sc-hint", c.hint));
+        }
+
+        applyStatus(c, caseNodes[c.suite + "//" + c.name]);
+        recount();
+      },
+      onEnd: function (summary) {
+        state.total = summary.total;
+        recount();
+      },
+    };
+  }
+
+  function buildReporters(opts, context, runInfo) {
+    var mode = opts.reporter || "auto";
+    var reporters = [createConsoleReporter()];
+    if (mode === "console") return reporters;
+
+    var wantPanel = mode === "panel" || (mode === "auto" && context === "page");
+    var wantLog = mode === "log" || (mode === "auto" && context !== "page");
+
+    if (wantPanel) {
+      var panel = createPanelReporter(runInfo);
+      if (panel) reporters.push(panel);
+      else wantLog = true;
+    }
+    if (wantLog) reporters.push(createLogReporter());
+    return reporters;
+  }
+
+  function createLogReporter() {
+    return { onStart: function () {}, onCase: function () {}, onEnd: function () {} };
+  }
+
   var api = {
     create: create,
     __detectContext: detectContext,
-    __buildReporters: function () {
-      return [createConsoleReporter()];
-    },
+    __buildReporters: buildReporters,
     __createConsoleReporter: createConsoleReporter,
+    __createPanelReporter: createPanelReporter,
     STATUS: STATUS,
   };
 

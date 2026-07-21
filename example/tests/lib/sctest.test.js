@@ -256,3 +256,69 @@ vdescribe("sctest 框架内核", () => {
     });
   });
 });
+
+vdescribe("PanelReporter", () => {
+  let SCTest;
+
+  beforeEach(async () => {
+    document.body.innerHTML = "";
+    SCTest = await loadSCTest();
+  });
+
+  vit("page 上下文下会挂载 Shadow DOM 宿主", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("组", () => i("a", () => e(1).toBe(1)));
+    await run();
+
+    const host = document.getElementById("sctest-panel-host");
+    vexpect(host).not.toBe(null);
+    vexpect(host.shadowRoot).not.toBe(null);
+  });
+
+  vit("面板渲染出每条用例与汇总行", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("组一", () => {
+      i("通过的", () => e(1).toBe(1));
+      i("失败的", () => e(1).toBe(2));
+    });
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const rows = root.querySelectorAll('[data-sctest="case-row"]');
+    vexpect(rows.length).toBe(2);
+    vexpect(root.querySelector('[data-sctest="summary-line"]').textContent).toMatch(/通过: 1/);
+    vexpect(root.querySelector('[data-sctest="summary-line"]').textContent).toMatch(/失败: 1/);
+  });
+
+  vit("失败用例渲染出期望与实际", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("组", () => i("失败的", () => e("b").toBe("a")));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const detail = root.querySelector('[data-sctest="failure-detail"]');
+    vexpect(detail.textContent).toMatch(/"a"/);
+    vexpect(detail.textContent).toMatch(/"b"/);
+  });
+
+  vit("人工用例渲染判定按钮,点击后计入统计", async () => {
+    const { describe: d, itManual: im, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("组", () => im("点一下菜单", { hint: "打开扩展菜单" }));
+    const summary = await run();
+    vexpect(summary.skipped).toBe(1);
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    root.querySelector('[data-sctest="manual-pass"]').click();
+    vexpect(root.querySelector('[data-sctest="summary-line"]').textContent).toMatch(/通过: 1/);
+  });
+
+  vit("auto:false 的 suite 渲染出运行按钮", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("手动组", { auto: false, params: { prefix: "sc-test-" } }, () => i("a", () => e(1).toBe(1)));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    vexpect(root.querySelector('[data-sctest="run-all"]')).not.toBe(null);
+    vexpect(root.querySelector('[data-sctest="param-prefix"]').value).toBe("sc-test-");
+  });
+});
