@@ -269,15 +269,10 @@ async function runTestScript(
   options?: {
     patchCode?: (code: string) => string;
     requireOrigin?: string;
-    // B 类文件的 sctest 套件是 auto:false（真实下载副作用），页面加载不会自动跑。点击面板的
-    // 「运行」按钮触发 sctest.js 的 onRunManual → runManualSuites，但后者只逐条调用 onCase，
-    // 从不重新调用 onEnd——ConsoleReporter 的三行汇总因此永远停在首次加载时打印的
-    // "通过: 0 / 失败: 0"（那时所有 auto:false 套件的用例都被预置为 skip）。真实结果只反映在
-    // 面板 Shadow DOM 里，所以 beforeCollect 除了点击，还要等该 suite 分组下的用例行全部从初始
-    // 的 ○ 图标变成 ✓/✗，直接从面板读出 passed/failed 并返回，取代下面的 console 轮询。
-    // 返回 void 时退回默认的 console 轮询（现有 9 个用例走这条路径，未受影响）。
-    // Task 13 迁移 gm_xhr_test.js 时复用同一个钩子（该文件只有一个 auto:false suite）。
-    beforeCollect?: (page: Page) => Promise<{ passed: number; failed: number } | void>;
+    // B 类文件的 sctest 套件是 auto:false（真实下载副作用），页面加载不会自动跑，需要先点面板的
+    // 「运行」按钮。首次加载时 ConsoleReporter 已经打过一次汇总（那时用例全被预置为 skip，
+    // 即 "通过: 0 / 失败: 0"），所以点击后必须等**新的一次**汇总，不能沿用已有值。
+    beforeCollect?: (page: Page) => Promise<void>;
   }
 ): Promise<{ passed: number; failed: number; logs: string[] }> {
   let code = fs.readFileSync(path.join(__dirname, `../example/tests/${scriptFile}`), "utf-8");
@@ -294,20 +289,37 @@ async function runTestScript(
   let passed = -1;
   let failed = -1;
 
+  // 「失败:」是三行汇总里的最后一行，用它计数即可判定又打完了一整组汇总。
+  let summaryCount = 0;
+
   page.on("console", (msg) => {
     const text = msg.text();
     logs.push(text);
     const passMatch = text.match(/(通过|Passed)[:：]\s*(\d+)/);
     const failMatch = text.match(/(失败|Failed)[:：]\s*(\d+)/);
     if (passMatch) passed = parseInt(passMatch[2], 10);
-    if (failMatch) failed = parseInt(failMatch[2], 10);
+    if (failMatch) {
+      failed = parseInt(failMatch[2], 10);
+      summaryCount++;
+    }
   });
 
   await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-  const collected = options?.beforeCollect ? await options.beforeCollect(page) : undefined;
-  if (collected) {
-    passed = collected.passed;
-    failed = collected.failed;
+
+  if (options?.beforeCollect) {
+    // 顺序很重要：先等页面加载时那组汇总打完（那时 auto:false 的用例还全是 skip，
+    // 汇总是 "通过: 0 / 失败: 0"），再点按钮，最后等下一组汇总。
+    // 若在 goto 之后立刻取快照，首次汇总往往还没打，会让第二个轮询被它立即满足而读到 0/0。
+    await expect
+      .poll(() => summaryCount > 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+      .toBe(true)
+      .catch(() => undefined);
+    const seenBefore = summaryCount;
+    await options.beforeCollect(page);
+    await expect
+      .poll(() => summaryCount > seenBefore, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+      .toBe(true)
+      .catch(() => undefined);
   } else {
     await expect
       .poll(() => passed >= 0 && failed >= 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
@@ -319,48 +331,14 @@ async function runTestScript(
   return { passed, failed, logs };
 }
 
-// 点击某个 auto:false suite 的面板运行按钮，等该 suite 分组下的所有用例行都从初始的 ○（skip）
-// 图标变成 ✓/✗ 后，直接从面板 DOM 数出 passed/failed。用作 runTestScript 的 beforeCollect：
-// 见上面 runTestScript 的注释——sctest.js 的 onRunManual 补跑不会重新触发 ConsoleReporter 的
-// 汇总行，面板 Shadow DOM 是这类 B 类文件唯一反映真实结果的地方。
-function runSuiteAndCollectFromPanel(suiteName: string, timeoutMs: number) {
-  return async (page: Page): Promise<{ passed: number; failed: number }> => {
+// 点击某个 auto:false suite 的面板运行按钮。结果由 sctest.js 的 ConsoleReporter 在
+// runManualSuites 结束时重新打出一整组汇总，runTestScript 照常从 console 解析。
+function clickSuiteRunButton(suiteName: string) {
+  return async (page: Page): Promise<void> => {
     const host = page.locator("#sctest-panel-host");
     await host.waitFor({ state: "attached", timeout: 15_000 });
     await host.evaluate((el: HTMLElement, name: string) => {
       el.shadowRoot?.querySelector<HTMLButtonElement>(`[data-sctest-suite="${name}"]`)?.click();
-    }, suiteName);
-
-    await page.waitForFunction(
-      (name: string) => {
-        const root = document.getElementById("sctest-panel-host")?.shadowRoot;
-        if (!root) return false;
-        const suiteRow = Array.from(root.querySelectorAll('[data-sctest="suite-row"]')).find((r) =>
-          r.textContent?.startsWith(name)
-        );
-        const group = suiteRow?.nextElementSibling;
-        const rows = group ? Array.from(group.querySelectorAll('[data-sctest="case-row"]')) : [];
-        return rows.length > 0 && rows.every((r) => r.querySelector("b")?.textContent !== "○");
-      },
-      suiteName,
-      { timeout: timeoutMs }
-    );
-
-    return host.evaluate((el: HTMLElement, name: string) => {
-      const root = el.shadowRoot;
-      const suiteRow = Array.from(root?.querySelectorAll('[data-sctest="suite-row"]') || []).find((r) =>
-        r.textContent?.startsWith(name)
-      );
-      const group = suiteRow?.nextElementSibling;
-      const rows = group ? Array.from(group.querySelectorAll('[data-sctest="case-row"]')) : [];
-      let passedCount = 0;
-      let failedCount = 0;
-      for (const row of rows) {
-        const icon = row.querySelector("b")?.textContent;
-        if (icon === "✓") passedCount++;
-        else if (icon === "✗") failedCount++;
-      }
-      return { passed: passedCount, failed: failedCount };
     }, suiteName);
   };
 }
@@ -536,7 +514,7 @@ test.describe("GM API", () => {
         patchCode,
         requireOrigin: gmApiMockServer.origin,
         // 两个 suite 都是 auto:false，页面加载不会自动跑；只点自动套件的运行按钮，手动用例保持不跑。
-        beforeCollect: runSuiteAndCollectFromPanel("GM_download 自动套件", 110_000),
+        beforeCollect: clickSuiteRunButton("GM_download 自动套件"),
       }
     );
 

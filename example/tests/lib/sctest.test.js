@@ -518,3 +518,91 @@ vdescribe("手动 suite 触发", () => {
     vexpect(details.length).toBe(0);
   });
 });
+
+vdescribe("手动 suite 跑完后的 onEnd 契约", () => {
+  let SCTest;
+
+  beforeEach(async () => {
+    document.body.innerHTML = "";
+    delete globalThis.GM_log;
+    SCTest = await loadSCTest();
+  });
+
+  async function clickRunAll(suiteName) {
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const selector = suiteName ? `[data-sctest-suite="${suiteName}"]` : '[data-sctest="run-all"]';
+    root.querySelector(selector).click();
+    await new Promise((r) => setTimeout(r, 10));
+  }
+
+  vit("ConsoleReporter 在手动 suite 跑完后重新发出三行汇总", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("手动组", { auto: false }, () => {
+      i("会通过", () => e(1).toBe(1));
+      i("会失败", () => e(1).toBe(2));
+    });
+    await run();
+
+    const lines = [];
+    const orig = console.log;
+    console.log = (...args) => lines.push(args.map(String).join(" "));
+    try {
+      await clickRunAll();
+    } finally {
+      console.log = orig;
+    }
+
+    const text = lines.join("\n");
+    vexpect(text).toMatch(/总测试数: 2/);
+    vexpect(/(通过|Passed)[:：]\s*(\d+)/.exec(text)[2]).toBe("1");
+    vexpect(/(失败|Failed)[:：]\s*(\d+)/.exec(text)[2]).toBe("1");
+  });
+
+  vit("LogReporter 在手动 suite 跑完后重新发出汇总日志", async () => {
+    const calls = [];
+    globalThis.GM_log = (message, level, labels) => calls.push({ message, level, labels });
+    SCTest = await loadSCTest();
+
+    // reporter:"panel" 只会得到 console+panel，拿不到 LogReporter；用 __buildReporters
+    // 这个既有扩展点直接装配 LogReporter，并顺手捕获 runInfo 以触发手动运行。
+    let captured = null;
+    const logReporter = SCTest.__createLogReporter();
+    SCTest.__buildReporters = function (opts, context, runInfo) {
+      captured = runInfo;
+      return [logReporter];
+    };
+
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo" });
+    d("手动组", { auto: false }, () => i("会通过", () => e(1).toBe(1)));
+    await run();
+
+    calls.length = 0;
+    const summary = await captured.onRunManual("手动组");
+
+    const summaries = calls.filter((c) => c.labels && c.labels.sctest === "summary");
+    vexpect(summaries.length).toBe(1);
+    vexpect(summaries[0].labels.passed).toBe(1);
+    vexpect(summaries[0].labels.failed).toBe(0);
+    vexpect(summary.passed).toBe(1);
+    vexpect(summary.skipped).toBe(0);
+  });
+
+  vit("onRunManual 返回本次运行后的 summary", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("手动组", { auto: false }, () => {
+      i("会通过", () => e(1).toBe(1));
+      i("会失败", () => e(1).toBe(2));
+    });
+    const first = await run();
+    vexpect(first.skipped).toBe(2);
+    vexpect(first.passed).toBe(0);
+
+    await clickRunAll();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const line = root.querySelector('[data-sctest="summary-line"]').textContent;
+    vexpect(line).toMatch(/通过: 1/);
+    vexpect(line).toMatch(/失败: 1/);
+    vexpect(line).toMatch(/跳过: 0/);
+  });
+});

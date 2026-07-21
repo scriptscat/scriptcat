@@ -258,6 +258,7 @@
     }
 
     async function runManualSuites(reporters, onlySuiteName) {
+      var startedAt = now();
       for (var i = 0; i < suites.length; i++) {
         var suite = suites[i];
         if (suite.auto) continue;
@@ -270,6 +271,14 @@
           await runCase(c, reporters);
         }
       }
+      // 手动 suite 的用例在 run() 主流程里只被标记为 skip，真实结果只在这里产生，
+      // 所以必须重新发一次 onEnd —— 否则 ConsoleReporter 的三行汇总（e2e 的解析契约）
+      // 和 LogReporter 的汇总日志对全部 auto:false 的文件永远不会出现。
+      var summary = buildSummary(startedAt);
+      reporters.forEach(function (r) {
+        if (r.onEnd) r.onEnd(summary);
+      });
+      return summary;
     }
 
     async function run() {
