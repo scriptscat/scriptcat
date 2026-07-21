@@ -124,7 +124,9 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
       const args = Object.fromEntries(url.searchParams.entries());
       res.end(
         JSON.stringify({
-          url: `http://${req.headers.host}${url.pathname}`,
+          // Include the query string — gm_xhr_redirect_test.js asserts the reflected url matches
+          // the exact request URL it sent, search params included (mirrors real httpbun.com/get).
+          url: `http://${req.headers.host}${url.pathname}${url.search}`,
           args,
         })
       );
@@ -158,6 +160,13 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
       const source = fs.readFileSync(path.join(__dirname, "../example/tests/lib/sctest.js"), "utf-8");
       res.writeHead(200, { "Content-Type": "application/javascript; charset=utf-8" });
       res.end(source);
+      return;
+    }
+
+    if (url.pathname === "/redirect-to") {
+      const target = url.searchParams.get("url") || "/";
+      res.writeHead(302, { Location: target });
+      res.end();
       return;
     }
 
@@ -219,7 +228,7 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   const url = new URL(targetUrl);
   const targetPattern = `${url.protocol}//${url.hostname}/*${url.search}`;
   return code.replace(
-    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test)$/gm,
+    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC)$/gm,
     `// @match        ${targetPattern}`
   );
 }
@@ -234,16 +243,21 @@ function patchRequireCode(code: string, origin: string): string {
 
 function patchGMApiTestCode(code: string, mockOrigin: string): string {
   const mockHost = new URL(mockOrigin).host;
-  return code
-    .replace(/^\/\/\s*@connect\s+api\.github\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
-    .replace(/^\/\/\s*@connect\s+httpbun\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
-    .replace(/https:\/\/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockOrigin}/repos/scriptscat/scriptcat`)
-    .replace(/https:\/\/httpbun\.com\/get/g, `${mockOrigin}/get`)
-    .replace(/https:\/\/httpbun\.com\/bytes\/64/g, `${mockOrigin}/bytes/64`)
-    .replace(/https:\/\/httpbun\.com\/delay\/5/g, `${mockOrigin}/delay/5`)
-    .replace(/https:\/\/www\.tampermonkey\.net\/favicon\.ico/g, `${mockOrigin}/favicon.ico`)
-    .replace(/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockHost}/repos/scriptscat/scriptcat`)
-    .replace(/httpbun\.com\/get/g, `${mockHost}/get`);
+  return (
+    code
+      .replace(/^\/\/\s*@connect\s+api\.github\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
+      .replace(/^\/\/\s*@connect\s+httpbun\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
+      .replace(/https:\/\/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockOrigin}/repos/scriptscat/scriptcat`)
+      .replace(/https:\/\/httpbun\.com\/get/g, `${mockOrigin}/get`)
+      .replace(/https:\/\/httpbun\.com\/bytes\/64/g, `${mockOrigin}/bytes/64`)
+      .replace(/https:\/\/httpbun\.com\/delay\/5/g, `${mockOrigin}/delay/5`)
+      .replace(/https:\/\/www\.tampermonkey\.net\/favicon\.ico/g, `${mockOrigin}/favicon.ico`)
+      .replace(/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockHost}/repos/scriptscat/scriptcat`)
+      .replace(/httpbun\.com\/get/g, `${mockHost}/get`)
+      // gm_xhr_redirect_test.js / gm_download_test.js / gm_xhr_test.js build every request URL off
+      // this constant rather than writing literal https://httpbun.com/... URLs.
+      .replace(/const HB = "https:\/\/httpbun\.com";/, `const HB = "${mockOrigin}";`)
+  );
 }
 
 async function runTestScript(
@@ -426,6 +440,24 @@ test.describe("GM API", () => {
       console.log("[sandbox_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some sandbox tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("GM_xhr redirect tests (gm_xhr_redirect_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "gm_xhr_redirect_test.js",
+      `${gmApiMockServer.origin}/?GM_XHR_REDIRECT_TEST_SC`,
+      90_000,
+      { patchCode, requireOrigin: gmApiMockServer.origin }
+    );
+
+    console.log(`[gm_xhr_redirect_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[gm_xhr_redirect_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some GM_xhr redirect tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 });

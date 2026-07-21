@@ -6,87 +6,17 @@
 // @author       you
 // @match        *://*/*?GM_XHR_REDIRECT_TEST_SC
 // @grant        GM_xmlhttpRequest
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@main/example/tests/lib/sctest.js
 // @connect      httpbun.com
 // @noframes
 // ==/UserScript==
 
 const enableTool = true;
-(function () {
+(async function () {
   "use strict";
   if (!enableTool) return;
 
-  // ---------- Panel ----------
-
-  const panel = document.createElement("div");
-  panel.id = "gmxhr-test-panel";
-  panel.innerHTML = `
-    <style>
-      #gmxhr-test-panel {
-        position:fixed; bottom:12px; right:12px; width:460px; max-height:70vh;
-        overflow:auto; z-index:2147483647; background:#111; color:#f5f5f5;
-        font:13px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-        border-radius:10px; box-shadow:0 12px 30px rgba(0,0,0,.4); border:1px solid #333;
-      }
-      #gmxhr-test-panel .hdr {
-        position:sticky; top:0; background:#181818; padding:10px 12px;
-        border-bottom:1px solid #333; display:flex; align-items:center; gap:8px;
-      }
-      #gmxhr-test-panel .hdr-info { flex:1 }
-      #gmxhr-test-panel button {
-        background:#2a6df1; color:#fff; border:0; padding:6px 10px;
-        border-radius:6px; cursor:pointer;
-      }
-      #gmxhr-test-panel #status { padding:6px 12px; border-bottom:1px solid #222; opacity:.9 }
-      #gmxhr-test-panel #log { padding:10px 12px }
-      #gmxhr-test-panel #log > div { padding:6px 0; border-bottom:1px dashed #2a2a2a }
-      #gmxhr-test-panel pre { white-space:pre-wrap; color:#bbb; margin:.5em 0 0 }
-    </style>
-    <div class="hdr">
-      <div class="hdr-info">
-        <div style="font-weight:500">GM_xmlhttpRequest Test Harness <span id="ver"></span></div>
-        <div style="display:flex"><span id="handler"></span><span id="counts" style="margin-left:auto;opacity:.8">…</span></div>
-      </div>
-      <button id="start">Run</button>
-      <button id="clear">Clear</button>
-    </div>
-    <div id="status">Status: idle</div>
-    <div id="log"></div>
-  `;
-  document.documentElement.append(panel);
-
-  panel.querySelector("#ver").textContent = GM.info?.script?.version ?? "";
-  panel.querySelector("#handler").textContent = `${GM.info?.scriptHandler} ${GM.info?.version}`;
-
-  const $log     = panel.querySelector("#log");
-  const $counts  = panel.querySelector("#counts");
-  const $status  = panel.querySelector("#status");
-
-  panel.querySelector("#clear").addEventListener("click", () => {
-    $log.textContent = "";
-    setCounts(0, 0, 0);
-    $status.textContent = "Status: idle";
-  });
-  panel.querySelector("#start").addEventListener("click", runAll);
-
-  function logLine(html) {
-    const el = document.createElement("div");
-    el.innerHTML = html;
-    $log.prepend(el);
-  }
-
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, m =>
-      ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" })[m]);
-  }
-
-  const state = { pass: 0, fail: 0, skip: 0 };
-  function setCounts(p, f, s) { $counts.textContent = `✅ ${p}  ❌ ${f}  ⏳ ${s}`; }
-  function pass(msg) { state.pass++; setCounts(state.pass, state.fail, state.skip); logLine(`✅ ${escapeHtml(msg)}`); }
-  function fail(msg, extra) {
-    state.fail++; setCounts(state.pass, state.fail, state.skip);
-    logLine(`❌ ${escapeHtml(msg)}${extra ? `<pre>${escapeHtml(extra)}</pre>` : ""}`);
-  }
-  function skip(msg) { state.skip++; setCounts(state.pass, state.fail, state.skip); logLine(`⏭️ ${escapeHtml(msg)}`); }
+  const { describe, it, expect, run } = SCTest.create({ name: "GM_xhr 重定向测试" });
 
   // ---------- Request helper ----------
   function gmRequest(details, { abortAfterMs } = {}) {
@@ -105,11 +35,6 @@ const enableTool = true;
   }
 
   const HB = "https://httpbun.com";
-
-  // ---------- Assertion utils ----------
-  function assertEq(a, b, msg) {
-    if (a !== b) throw new Error(msg ? `${msg}: expected ${b}, got ${a}` : `expected ${b}, got ${a}`);
-  }
 
   function objectProps(o) {
     if (!o || typeof o !== "object") return "not an object";
@@ -130,22 +55,22 @@ const enableTool = true;
       name: 'GET basic with search params 1',
       async run(fetch) {
         const { res } = await gmRequest({ method: "GET", url: `${HB}/get?testing=234&abc=567`, responseType: "json", fetch });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.response?.args?.testing, "234", "response ok");
-        assertEq(res.response?.args?.abc, "567", "response ok");
-        assertEq(res.response?.url, `${HB}/get?testing=234&abc=567`, "response ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.response?.args?.testing).toBe("234");
+        expect(res.response?.args?.abc).toBe("567");
+        expect(res.response?.url).toBe(`${HB}/get?testing=234&abc=567`);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
       name: 'GET basic with search params 2',
       async run(fetch) {
         const { res } = await gmRequest({ method: "GET", url: `${HB}/get?abc=567&testing=234`, responseType: "json", fetch });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.response?.args?.testing, "234", "response ok");
-        assertEq(res.response?.args?.abc, "567", "response ok");
-        assertEq(res.response?.url, `${HB}/get?abc=567&testing=234`, "response ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.response?.args?.testing).toBe("234");
+        expect(res.response?.args?.abc).toBe("567");
+        expect(res.response?.url).toBe(`${HB}/get?abc=567&testing=234`);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -153,9 +78,9 @@ const enableTool = true;
       async run(fetch) {
         const target = `${HB}/get?z=92`;
         const { res } = await gmRequest({ method: "GET", url: `${HB}/redirect-to?url=${encodeURIComponent(target)}`, fetch });
-        assertEq(res.status, 200, "status after redirect is 200");
-        assertEq(res.finalUrl, target, "finalUrl is redirected target");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.finalUrl).toBe(target);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -163,9 +88,9 @@ const enableTool = true;
       async run(fetch) {
         const target = `${HB}/get?z=94`;
         const { res } = await gmRequest({ method: "GET", url: `${HB}/redirect-to?url=${encodeURIComponent(target)}`, redirect: "follow", fetch });
-        assertEq(res.status, 200, "status after redirect is 200");
-        assertEq(res.finalUrl, target, "finalUrl is redirected target");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.finalUrl).toBe(target);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -178,11 +103,11 @@ const enableTool = true;
           ]);
           throw new Error("Expected error, got load");
         } catch (e) {
-          assertEq(e?.kind, "error", "error ok");
-          assertEq(e?.res?.status, 408, "statusCode ok");
-          assertEq(!e?.res?.finalUrl, true, "!finalUrl ok");
-          assertEq(e?.res?.responseHeaders, "", "responseHeaders ok");
-          assertEq(objectProps(e?.res), "ok", "Object Props OK");
+          expect(e?.kind).toBe("error");
+          expect(e?.res?.status).toBe(408);
+          expect(!e?.res?.finalUrl).toBe(true);
+          expect(e?.res?.responseHeaders).toBe("");
+          expect(objectProps(e?.res)).toBe("ok");
         }
       },
     },
@@ -194,10 +119,10 @@ const enableTool = true;
           gmRequest({ method: "GET", url, redirect: "manual", fetch }),
           new Promise(resolve => setTimeout(resolve, 4000)),
         ]);
-        assertEq(res?.status, 301, "status is 301");
-        assertEq(res?.finalUrl, url, "finalUrl is original url");
-        assertEq(typeof res?.responseHeaders === "string" && res?.responseHeaders !== "", true, "responseHeaders ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res?.status).toBe(301);
+        expect(res?.finalUrl).toBe(url);
+        expect(typeof res?.responseHeaders === "string" && res?.responseHeaders !== "").toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
   ];
@@ -207,38 +132,12 @@ const enableTool = true;
     ...basicTests.map(t => ({ ...t, useFetch: true })),
   ];
 
-  // ---------- Runner ----------
-  function fmtMs(ms) { return ms < 1000 ? `${ms | 0}ms` : `${(ms / 1000).toFixed(2)}s`; }
-
-  async function runAll() {
-    state.pass = state.fail = state.skip = 0;
-    setCounts(0, 0, 0);
-    logLine(`<b>Starting GM_xmlhttpRequest test suite</b> — ${new Date().toLocaleString()}`);
-
-    for (let i = 0; i < tests.length; i++) {
-      const t = tests[i];
-      const tName = `${t.useFetch ? "[fetch]" : "[xhr]"} ${t.name}`;
-      $status.textContent = `Status: running (${i + 1}/${tests.length}): ${tName}`;
-      logLine(`▶️ <b>${escapeHtml(tName)}</b>`);
-      const t0 = performance.now();
-      try {
-        await t.run(t.useFetch ? true : false);
-        pass(`• ${tName}  (${fmtMs(performance.now() - t0)})`);
-      } catch (e) {
-        console.error(e);
-        const stack = e?.stack ? e.stack.split("\n").slice(0, 4).join("\n") : null;
-        fail(`• ${tName}  (${fmtMs(performance.now() - t0)})`, [e?.message, stack].filter(Boolean).join("\n"));
-      }
+  describe("GM_xmlhttpRequest 重定向", () => {
+    for (const t of tests) {
+      const label = `${t.useFetch ? "[fetch] " : "[xhr] "}${t.name}`;
+      it(label, () => t.run(t.useFetch ? true : false));
     }
+  });
 
-    $status.textContent = "Status: done";
-    logLine(`<b>Done.</b> ✅ ${state.pass}  ❌ ${state.fail}  ⏳ ${state.skip}`);
-  }
-
-  setTimeout(() => {
-    if (!window.__gmxhr_test_autorun__) {
-      window.__gmxhr_test_autorun__ = true;
-      runAll();
-    }
-  }, 600);
+  await run();
 })();
