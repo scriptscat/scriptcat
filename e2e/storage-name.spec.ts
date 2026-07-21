@@ -36,6 +36,26 @@ type WriterResult = {
   error?: string;
 };
 
+type CrossContextResult = {
+  ok: boolean;
+  backgroundValue?: string;
+  foregroundObservedRemote?: boolean;
+  backgroundObservedRemote?: boolean;
+  error?: string;
+};
+
+type CrossContextScriptPair = {
+  token: string;
+  storageName: string;
+  backgroundName: string;
+  foregroundName: string;
+  runEvent: string;
+  readyAttribute: string;
+  resultAttribute: string;
+  backgroundCode: string;
+  foregroundCode: string;
+};
+
 type SharedScriptPair = {
   token: string;
   storageName: string;
@@ -192,6 +212,96 @@ setReaderMarker(${JSON.stringify(readerReadyAttribute)}, "true");
   };
 }
 
+function createCrossContextScriptPair(): CrossContextScriptPair {
+  const token = randomUUID().replaceAll("-", "");
+  const storageName = `scriptcat-e2e-cross-context-${token}`;
+  const backgroundName = `E2E storageName background ${token}`;
+  const foregroundName = `E2E storageName foreground ${token}`;
+  const backgroundKey = `background-${token}`;
+  const requestKey = `request-${token}`;
+  const responseKey = `response-${token}`;
+  const backgroundValue = `background-value-${token}`;
+  const foregroundValue = `foreground-value-${token}`;
+  const runEvent = `scriptcat-e2e-${token}-cross-context`;
+  const readyAttribute = `data-sc-${token}-cross-ready`;
+  const resultAttribute = `data-sc-${token}-cross-result`;
+
+  const backgroundCode = `// ==UserScript==
+// @name         ${backgroundName}
+// @namespace    https://e2e.scriptcat.test/${token}/background
+// @version      1.0.0
+// @background
+// @grant        GM_setValue
+// @grant        GM_addValueChangeListener
+// @storageName  ${storageName}
+// ==/UserScript==
+
+return new Promise(() => {
+  GM_addValueChangeListener(${JSON.stringify(requestKey)}, (name, oldValue, newValue, remote) => {
+    GM_setValue(
+      ${JSON.stringify(responseKey)},
+      JSON.stringify({ requestValue: newValue, backgroundObservedRemote: remote }),
+    );
+  });
+  GM_setValue(${JSON.stringify(backgroundKey)}, ${JSON.stringify(backgroundValue)});
+});
+`;
+
+  const foregroundCode = `// ==UserScript==
+// @name         ${foregroundName}
+// @namespace    https://e2e.scriptcat.test/${token}/foreground
+// @version      1.0.0
+// @match        ${TARGET_ORIGIN}/*
+// @run-at       document-start
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_addValueChangeListener
+// @storageName  ${storageName}
+// ==/UserScript==
+
+const setMarker = (name, value) => {
+  const apply = () => document.documentElement?.setAttribute(name, value);
+  if (document.documentElement) apply();
+  else document.addEventListener("DOMContentLoaded", apply, { once: true });
+};
+
+document.addEventListener(${JSON.stringify(runEvent)}, () => {
+  try {
+    const sharedBackgroundValue = GM_getValue(${JSON.stringify(backgroundKey)}, "missing");
+    GM_addValueChangeListener(${JSON.stringify(responseKey)}, (name, oldValue, newValue, remote) => {
+      const response = JSON.parse(newValue);
+      setMarker(
+        ${JSON.stringify(resultAttribute)},
+        JSON.stringify({
+          ok: response.requestValue === ${JSON.stringify(foregroundValue)},
+          backgroundValue: sharedBackgroundValue,
+          foregroundObservedRemote: remote,
+          backgroundObservedRemote: response.backgroundObservedRemote,
+        }),
+      );
+    });
+    GM_setValue(${JSON.stringify(requestKey)}, ${JSON.stringify(foregroundValue)});
+  } catch (error) {
+    setMarker(${JSON.stringify(resultAttribute)}, JSON.stringify({ ok: false, error: String(error) }));
+  }
+});
+
+setMarker(${JSON.stringify(readyAttribute)}, "true");
+`;
+
+  return {
+    token,
+    storageName,
+    backgroundName,
+    foregroundName,
+    runEvent,
+    readyAttribute,
+    resultAttribute,
+    backgroundCode,
+    foregroundCode,
+  };
+}
+
 async function readScriptIdentities(page: Page, names: string[]): Promise<ScriptIdentity[]> {
   return page.evaluate(async (expectedNames) => {
     type InstalledScript = {
@@ -229,6 +339,33 @@ async function installSharedScriptPair(
   const optionsPage = await openOptionsPage(context, extensionId);
   try {
     return await readScriptIdentities(optionsPage, [pair.writerName, pair.readerName]);
+  } finally {
+    await optionsPage.close();
+  }
+}
+
+async function installCrossContextScriptPair(
+  context: BrowserContext,
+  extensionId: string,
+  pair: CrossContextScriptPair
+): Promise<ScriptIdentity[]> {
+  await installScriptByCode(context, extensionId, pair.backgroundCode);
+  await installScriptByCode(context, extensionId, pair.foregroundCode);
+  autoApprovePermissions(context);
+
+  const optionsPage = await openOptionsPage(context, extensionId);
+  try {
+    const identities = await readScriptIdentities(optionsPage, [pair.backgroundName, pair.foregroundName]);
+    const background = identities.find((script) => script.name === pair.backgroundName);
+    expect(background, "未找到 storageName 后台脚本").toBeDefined();
+    const response = await optionsPage.evaluate(async (uuid) => {
+      return chrome.runtime.sendMessage({
+        action: "serviceWorker/script/enable",
+        data: { uuid, enable: true },
+      }) as Promise<ScriptActionResponse<Record<string, never>>>;
+    }, background!.uuid);
+    expect(response.code || 0, response.message).toBe(0);
+    return identities;
   } finally {
     await optionsPage.close();
   }
@@ -315,6 +452,32 @@ test.describe("@storageName 真实浏览器共享存储", () => {
         ok: true,
         asyncReadOfSyncWrite: pair.syncValue,
         syncReadOfAsyncWrite: pair.asyncValue,
+      });
+    } finally {
+      await page.close();
+    }
+  });
+
+  test("后台脚本与前台脚本应跨运行环境双向共享值，并报告远程变更", async ({ context, extensionId }) => {
+    await serveTargetPage(context);
+    const pair = createCrossContextScriptPair();
+    const identities = await installCrossContextScriptPair(context, extensionId, pair);
+    expect(identities).toHaveLength(2);
+    expect(identities.map((script) => script.storageNames)).toEqual([[pair.storageName], [pair.storageName]]);
+    expect(new Set(identities.map((script) => script.uuid)).size).toBe(2);
+
+    const page = await context.newPage();
+    try {
+      await page.goto(`${TARGET_ORIGIN}/page?cross-context=${pair.token}`, { waitUntil: "domcontentloaded" });
+      const root = page.locator("html");
+      await expect(root).toHaveAttribute(pair.readyAttribute, "true", { timeout: 20_000 });
+      await page.evaluate((eventName) => document.dispatchEvent(new Event(eventName)), pair.runEvent);
+      const result = await waitForJsonAttribute<CrossContextResult>(page, pair.resultAttribute);
+      expect(result).toEqual({
+        ok: true,
+        backgroundValue: `background-value-${pair.token}`,
+        foregroundObservedRemote: true,
+        backgroundObservedRemote: true,
       });
     } finally {
       await page.close();
