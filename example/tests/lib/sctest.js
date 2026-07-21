@@ -612,8 +612,60 @@
     return reporters;
   }
 
+  function emitLog(message, level, labels) {
+    try {
+      if (typeof GM_log === "function") {
+        GM_log(message, level, labels);
+        return;
+      }
+    } catch (e) {
+      /* 未授权 GM_log 时静默降级,ConsoleReporter 仍然有输出 */
+    }
+  }
+
   function createLogReporter() {
-    return { onStart: function () {}, onCase: function () {}, onEnd: function () {} };
+    return {
+      onStart: function (info) {
+        var cases = (info.suites || []).reduce(function (n, s) {
+          return n + s.cases.length;
+        }, 0);
+        emitLog("▶ " + info.name, "info", { sctest: "run", context: info.context, cases: cases });
+      },
+      onCase: function (c) {
+        if (c.status === STATUS.PASS) {
+          emitLog("✓ " + c.suite + " › " + c.name, "info", {
+            sctest: "case",
+            status: "pass",
+            ms: c.durationMs,
+          });
+        } else if (c.status === STATUS.FAIL) {
+          emitLog("✗ " + c.suite + " › " + c.name + " — " + c.error, "error", {
+            sctest: "case",
+            status: "fail",
+            suite: c.suite,
+          });
+        } else {
+          emitLog("○ " + c.suite + " › " + c.name, "warn", { sctest: "case", status: "skip" });
+        }
+      },
+      onEnd: function (summary) {
+        emitLog(
+          "■ 总测试数: " +
+            summary.total +
+            "  通过: " +
+            summary.passed +
+            "  失败: " +
+            summary.failed +
+            "  跳过: " +
+            summary.skipped +
+            "  (" +
+            summary.durationMs +
+            "ms)",
+          "info",
+          { sctest: "summary", passed: summary.passed, failed: summary.failed }
+        );
+      },
+    };
   }
 
   var api = {
@@ -622,6 +674,7 @@
     __buildReporters: buildReporters,
     __createConsoleReporter: createConsoleReporter,
     __createPanelReporter: createPanelReporter,
+    __createLogReporter: createLogReporter,
     STATUS: STATUS,
   };
 

@@ -322,3 +322,67 @@ vdescribe("PanelReporter", () => {
     vexpect(root.querySelector('[data-sctest="param-prefix"]').value).toBe("sc-test-");
   });
 });
+
+vdescribe("LogReporter", () => {
+  let SCTest;
+  let calls;
+
+  beforeEach(async () => {
+    calls = [];
+    globalThis.GM_log = (message, level, labels) => calls.push({ message, level, labels });
+    SCTest = await loadSCTest();
+  });
+
+  vit("每条用例发一条 GM_log,结果写进 label", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "log" });
+    d("存储", () => {
+      i("写入", () => e(1).toBe(1));
+      i("读取", () => e(1).toBe(2));
+    });
+    await run();
+
+    const cases = calls.filter((c) => c.labels && c.labels.sctest === "case");
+    vexpect(cases.length).toBe(2);
+    vexpect(cases[0].level).toBe("info");
+    vexpect(cases[0].labels.status).toBe("pass");
+    vexpect(cases[1].level).toBe("error");
+    vexpect(cases[1].labels.status).toBe("fail");
+  });
+
+  vit("汇总是单条日志,label 带 passed/failed", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "log" });
+    d("组", () => i("a", () => e(1).toBe(1)));
+    await run();
+
+    const summaries = calls.filter((c) => c.labels && c.labels.sctest === "summary");
+    vexpect(summaries.length).toBe(1);
+    vexpect(summaries[0].labels.passed).toBe(1);
+    vexpect(summaries[0].labels.failed).toBe(0);
+    vexpect(summaries[0].message).toMatch(/总测试数: 1/);
+  });
+
+  vit("每条日志的 label 不超过 4 个键", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "log" });
+    d("组", () => i("a", () => e(1).toBe(1)));
+    await run();
+    calls.forEach((c) => vexpect(Object.keys(c.labels || {}).length).toBeLessThanOrEqual(4));
+  });
+
+  vit("GM_log 未授权时不抛异常", async () => {
+    delete globalThis.GM_log;
+    SCTest = await loadSCTest();
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "log" });
+    d("组", () => i("a", () => e(1).toBe(1)));
+    await vexpect(run()).resolves.toBeTruthy();
+  });
+
+  vit("auto 模式下 @crontab 脚本选用 LogReporter", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({
+      name: "demo",
+      context: "crontab",
+    });
+    d("组", () => i("a", () => e(1).toBe(1)));
+    await run();
+    vexpect(calls.filter((c) => c.labels && c.labels.sctest === "summary").length).toBe(1);
+  });
+});
