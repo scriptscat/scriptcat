@@ -154,6 +154,13 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
       return;
     }
 
+    if (url.pathname === "/lib/sctest.js") {
+      const source = fs.readFileSync(path.join(__dirname, "../example/tests/lib/sctest.js"), "utf-8");
+      res.writeHead(200, { "Content-Type": "application/javascript; charset=utf-8" });
+      res.end(source);
+      return;
+    }
+
     const bytesMatch = url.pathname.match(/^\/bytes\/(\d+)$/);
     if (bytesMatch) {
       const size = Number(bytesMatch[1]);
@@ -217,6 +224,14 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   );
 }
 
+// 把框架的 CDN @require 重写到本地 mock server：CI 不依赖外网，且始终测工作区版本而非 CDN 上的旧版。
+function patchRequireCode(code: string, origin: string): string {
+  return code.replace(
+    /https:\/\/cdn\.jsdelivr\.net\/gh\/scriptscat\/scriptcat@[^/]+\/example\/tests\/lib\/sctest\.js/g,
+    `${origin}/lib/sctest.js`
+  );
+}
+
 function patchGMApiTestCode(code: string, mockOrigin: string): string {
   const mockHost = new URL(mockOrigin).host;
   return code
@@ -237,10 +252,11 @@ async function runTestScript(
   scriptFile: string,
   targetUrl: string,
   timeoutMs: number,
-  options?: { patchCode?: (code: string) => string }
+  options?: { patchCode?: (code: string) => string; requireOrigin?: string }
 ): Promise<{ passed: number; failed: number; logs: string[] }> {
   let code = fs.readFileSync(path.join(__dirname, `../example/tests/${scriptFile}`), "utf-8");
   code = patchScriptCode(code);
+  if (options?.requireOrigin) code = patchRequireCode(code, options.requireOrigin);
   code = patchTargetMatchCode(code, targetUrl);
   code = options?.patchCode ? options.patchCode(code) : code;
 
@@ -312,7 +328,7 @@ test.describe("GM API", () => {
       "gm_api_sync_test.js",
       `${gmApiMockServer.cspOrigin}/?gm_api_sync`,
       90_000,
-      { patchCode }
+      { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
     console.log(`[gm_api_sync_test] passed=${passed}, failed=${failed}`);
@@ -330,7 +346,7 @@ test.describe("GM API", () => {
       "gm_api_async_test.js",
       `${gmApiMockServer.cspOrigin}/?gm_api_async`,
       90_000,
-      { patchCode }
+      { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
     console.log(`[gm_api_async_test] passed=${passed}, failed=${failed}`);
@@ -347,7 +363,8 @@ test.describe("GM API", () => {
       extensionId,
       "inject_content_test.js",
       `${gmApiMockServer.cspOrigin}/?inject_content`,
-      60_000
+      60_000,
+      { requireOrigin: gmApiMockServer.origin }
     );
 
     console.log(`[inject_content_test] passed=${passed}, failed=${failed}`);
@@ -364,7 +381,8 @@ test.describe("GM API", () => {
       extensionId,
       "unwrap_e2e_test.js",
       `${gmApiMockServer.cspOrigin}/?unwrap_e2e_test`,
-      60_000
+      60_000,
+      { requireOrigin: gmApiMockServer.origin }
     );
 
     console.log(`[unwrap_e2e_test] passed=${passed}, failed=${failed}`);
@@ -382,7 +400,7 @@ test.describe("GM API", () => {
       "window_message_test.js",
       `${gmApiMockServer.cspOrigin}/?WINDOW_MESSAGE_TEST_SC`,
       8_000,
-      { patchCode }
+      { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
     console.log(`[window_message_test] passed=${passed}, failed=${failed}`);
@@ -399,7 +417,8 @@ test.describe("GM API", () => {
       extensionId,
       "sandbox_test.js",
       `${gmApiMockServer.cspOrigin}/?SANDBOX_TEST_SC`,
-      8_000
+      8_000,
+      { requireOrigin: gmApiMockServer.origin }
     );
 
     console.log(`[sandbox_test] passed=${passed}, failed=${failed}`);
