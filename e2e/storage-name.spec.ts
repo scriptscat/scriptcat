@@ -273,6 +273,18 @@ const setMarker = (name, value) => {
   else document.addEventListener("DOMContentLoaded", apply, { once: true });
 };
 
+let backgroundReady = false;
+const markBackgroundReady = (value) => {
+  if (backgroundReady || value !== ${JSON.stringify(backgroundValue)}) return;
+  backgroundReady = true;
+  setMarker(${JSON.stringify(readyAttribute)}, "true");
+};
+
+GM_addValueChangeListener(${JSON.stringify(backgroundKey)}, (name, oldValue, newValue) => {
+  markBackgroundReady(newValue);
+});
+markBackgroundReady(GM_getValue(${JSON.stringify(backgroundKey)}, "missing"));
+
 document.addEventListener(${JSON.stringify(runEvent)}, () => {
   try {
     const sharedBackgroundValue = GM_getValue(${JSON.stringify(backgroundKey)}, "missing");
@@ -293,8 +305,6 @@ document.addEventListener(${JSON.stringify(runEvent)}, () => {
     setMarker(${JSON.stringify(resultAttribute)}, JSON.stringify({ ok: false, error: String(error) }));
   }
 });
-
-setMarker(${JSON.stringify(readyAttribute)}, "true");
 `;
 
   return {
