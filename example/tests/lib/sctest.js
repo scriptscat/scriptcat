@@ -54,6 +54,8 @@
   // NaN 与自身相等、值为 undefined 的键与缺失的键不同、对象键顺序不影响比较结果。
   // 通过 seen 记录比较路径中的 (a,b) 组合来避免循环引用导致的栈溢出,
   // 但不做真正的循环感知等价判断——只是让循环结构比较能有限终止,而非精确语义。
+  // 已知限制: Date/RegExp/Map/Set 按普通对象比较(自有可枚举键为空), 因此两个不同的 Date
+  // 会被判为相等。当前所有迁移用例的 toEqual 只比较纯对象/数组/基元, 未触及这些类型。
   function deepEqual(a, b, seen) {
     if (Object.is(a, b)) return true;
     if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
