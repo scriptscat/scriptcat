@@ -2,9 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { extensionEnv, getExtensionUserAgentData } from "./extension_env";
 
 describe("extensionEnv 常量", () => {
-  it("从 chrome.extension.inIncognitoContext 读取 incognito 状态", () => {
+  it("读取扩展上下文状态与 manifest 的 incognito 模式", () => {
     // mock 默认 inIncognitoContext = false
     expect(extensionEnv.inIncognitoContext).toBe(false);
+    expect(extensionEnv).toHaveProperty("incognitoMode");
+    expect(extensionEnv.incognitoMode).toBe(chrome.runtime.getManifest().incognito);
     // userAgentData 为可选字段，常量初始化时不应填充
     expect(extensionEnv.userAgentData).toBeUndefined();
   });

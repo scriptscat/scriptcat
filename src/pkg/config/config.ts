@@ -401,6 +401,14 @@ export class SystemConfig {
     this._set("vscode_reconnect", val);
   }
 
+  public getKeepExtBackgroundAlive() {
+    return this._get<boolean>("keep_ext_background_alive", false);
+  }
+
+  public setKeepExtBackgroundAlive(val: boolean) {
+    this._set("keep_ext_background_alive", val);
+  }
+
   defaultBackup(): Parameters<typeof this.setBackup>[0] {
     return {
       filesystem: "webdav" as FileSystemType,

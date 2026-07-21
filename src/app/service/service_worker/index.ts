@@ -26,6 +26,7 @@ import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_
 import { cleanupStaleTempStorageEntries } from "./temp";
 import RuntimeLogger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
+import { hookFirefoxEventPageKeepAliveLoop, hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -54,10 +55,10 @@ export default class ServiceWorkerManager {
   initManager() {
     this.api.on("logger", this.logger.bind(this));
     this.api.on("getExtensionEnv", this.getExtensionEnv.bind(this));
-    this.api.on("preparationOffscreen", async () => {
+    this.api.on("preparationOffscreen", async (data: { verified: boolean }) => {
       // 准备好环境
       await this.offscreenSend.init();
-      this.mq.emit("preparationOffscreen", {});
+      this.mq.emit("preparationOffscreen", data);
     });
     this.offscreenSend.init();
 
@@ -69,6 +70,7 @@ export default class ServiceWorkerManager {
     const localStorageDAO = new LocalStorageDAO();
 
     const systemConfig = new SystemConfig(this.mq);
+    hookFirefoxEventPageKeepAliveLoop(systemConfig);
 
     initLocales(systemConfig);
 
@@ -121,6 +123,11 @@ export default class ServiceWorkerManager {
     system.init();
     const agent = new AgentService(this.api.group("agent"), this.offscreenSend, resource);
     agent.init();
+
+    const hasOffscreenDocument = typeof chrome.offscreen?.createDocument === "function";
+    if (hasOffscreenDocument) {
+      hookServiceWorkerKeepAliveLoop(systemConfig, this.mq, this.offscreenSend);
+    }
 
     // 注入 AgentService 到 GMApi，使 Agent API 走权限验证通道
     const gmApi = runtime.getGMApi();

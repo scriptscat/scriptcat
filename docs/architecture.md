@@ -110,7 +110,7 @@ if (hasOffscreenDocument) {
   new ServiceWorkerManager(server, messageQueue, offscreen).initManager();
   setupOffscreenDocument();                          // chrome.offscreen.createDocument(...)
 } else {
-  const offscreen = new EventPageOffscreenManager(message); // Firefox MV3: event page IS the DOM env
+  const offscreen = new EventPageOffscreenManager(message, messageQueue); // Firefox MV3: event page IS the DOM env
   new ServiceWorkerManager(server, messageQueue, offscreen).initManager();
 }
 ```
@@ -126,8 +126,34 @@ already has DOM and plays the offscreen role directly.
   finds the offscreen client via `clients.matchAll()` and `postMessage`s it); Offscreen → SW replies over
   `ExtensionMessage` (`chrome.runtime`).
 - **Firefox:** [`EventPageOffscreenManager`](../src/app/service/offscreen/event_page_manager.ts) substitutes
-  for the offscreen document; `service_worker.ts` emits `preparationOffscreen` immediately because the DOM
-  environment is already live.
+  for the offscreen document; its sandbox iframe is a `sandbox` manifest page, which Firefox 154+ loads as a
+  cross-origin frame (`contentDocument` is `null`, `contentWindow.location` is unreadable). Only the sandbox
+  itself knows when it's actually ready, so the parent never polls or pings it: `SandboxManager`
+  ([`src/app/service/sandbox/index.ts`](../src/app/service/sandbox/index.ts)) proactively posts a
+  `preparationSandbox` message once its own `Server` is wired up (same mechanism on both platforms), and
+  [`BackgroundEnvManagerBase.preparationSandbox`](../src/app/service/offscreen/base.ts) immediately tells the
+  service worker `preparationOffscreen({ verified: true })` — no round trip, no waiting. The service worker
+  replays enabled background/scheduled scripts and the current language only for this verified signal, once.
+  Separately and non-blockingly, the
+  sandbox reuses its own in-flight `getExtensionEnv` request to self-check that the channel is genuinely
+  bidirectional, and reports the outcome via `reportSandboxChannelHealth`, which the parent logs (visible in
+  the parent's own console/log, since the sandbox iframe's console is far less discoverable). If the sandbox
+  never announces readiness at all (iframe failed to load, script error), a fallback timer in
+  `BackgroundEnvManagerBase` still tells the service worker `preparationOffscreen({ verified: false })` after
+  `SANDBOX_READY_FALLBACK_MS`, logging a clear error instead of hanging forever. That unverified notification
+  does not send initialization through an unavailable channel; if the real handshake arrives later, the
+  verified state replay still occurs exactly once.
+
+Firefox packages use `incognito: "spanning"`, so normal and private page scripts share one event page but retain
+their own `sender.tab.incognito` value for global-switch checks, `@run-in`, and `GM_info.isIncognito`. Background
+and scheduled scripts have no originating tab and run once in the shared event-page sandbox; tab-scoped
+`normal-tabs` / `incognito-tabs` values therefore do not create or imply separate background instances.
+
+Firefox packages always list `webRequestBlocking` in `optional_permissions` for the experimental event-page
+keep-alive loop. On Firefox with `scheduler.postTask`, users can enable that loop from the install prompt or
+runtime settings when they use Background Scripts or Scheduled Scripts. The loop starts only while
+`keep_ext_background_alive` is enabled and the optional permission is granted; permission add/remove events
+start or stop probing at runtime.
 
 Services never see this difference: they receive an `IOffscreenSend` and call `.init()`.
 
