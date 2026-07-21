@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { createServer } from "http";
+import { createServer, STATUS_CODES, type IncomingMessage, type ServerResponse } from "http";
 import type { AddressInfo } from "net";
 import { test as base, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
 import { autoApprovePermissions, installScriptByCode } from "./utils";
@@ -107,6 +107,65 @@ function patchScriptCode(code: string): string {
     .replace(/https:\/\/cdn\.jsdelivr\.net\/npm\//g, "https://unpkg.com/");
 }
 
+function parseCookies(req: IncomingMessage): Record<string, string> {
+  const jar: Record<string, string> = {};
+  for (const pair of (req.headers.cookie || "").split(";")) {
+    const idx = pair.indexOf("=");
+    if (idx <= 0) continue;
+    jar[pair.slice(0, idx).trim()] = pair.slice(idx + 1).trim();
+  }
+  return jar;
+}
+
+function streamInChunks(
+  res: ServerResponse,
+  body: Buffer,
+  contentType: string,
+  chunkCount: number,
+  gapMs: number,
+  delayMs: number
+): void {
+  res.writeHead(200, { "Content-Type": contentType });
+  const chunkSize = Math.ceil(body.length / chunkCount);
+  let sent = 0;
+  const tick = () => {
+    if (res.destroyed) return;
+    if (sent >= body.length) {
+      res.end();
+      return;
+    }
+    res.write(body.subarray(sent, sent + chunkSize));
+    sent += chunkSize;
+    setTimeout(tick, gapMs);
+  };
+  setTimeout(tick, delayMs);
+}
+
+// 大响应体：前段按 120ms 分块下发，保证 readyState 3 的 progress 事件；尾段一次灌完并立刻
+// 结束——Chrome XHR 的 progress 节流（50ms 内只派发一次，其余推迟）会把尾段最后一个 progress
+// 推迟到 readyState 已是 4 之后才派发，gm_xhr_test.js 的事件集合断言正依赖这个事件。
+function streamLargeBody(res: ServerResponse, body: Buffer, contentType: string): void {
+  res.writeHead(200, { "Content-Type": contentType });
+  const head = Math.floor(body.length / 6);
+  res.write(body.subarray(0, head));
+  setTimeout(() => {
+    if (res.destroyed) return;
+    res.write(body.subarray(head, head * 2));
+    setTimeout(() => {
+      if (res.destroyed) return;
+      res.end(body.subarray(head * 2));
+    }, 120);
+  }, 120);
+}
+
+function readBody(req: IncomingMessage): Promise<Buffer> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+}
+
 async function startGMApiMockServer(): Promise<GMApiMockServer> {
   const server = createServer((req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -128,6 +187,7 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
           // the exact request URL it sent, search params included (mirrors real httpbun.com/get).
           url: `http://${req.headers.host}${url.pathname}${url.search}`,
           args,
+          headers: req.headers,
         })
       );
       return;
@@ -170,6 +230,144 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
       return;
     }
 
+    // 以下路由复刻 httpbun.com 上 gm_xhr_test.js 用到的端点语义，让整套用例不依赖外网。
+    const base64Match = url.pathname.match(/^\/base64\/(.+)$/);
+    if (base64Match) {
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end(Buffer.from(base64Match[1], "base64"));
+      return;
+    }
+
+    const statusMatch = url.pathname.match(/^\/status\/(\d{3})$/);
+    if (statusMatch) {
+      const code = Number(statusMatch[1]);
+      res.writeHead(code, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ code, description: STATUS_CODES[code] || "" }, null, 2));
+      return;
+    }
+
+    if (url.pathname === "/ip") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ origin: req.socket.remoteAddress || MOCK_CONNECT_HOST }));
+      return;
+    }
+
+    if (url.pathname === "/headers") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ headers: req.headers }, null, 2));
+      return;
+    }
+
+    if (url.pathname === "/response-headers") {
+      const echoed = Object.fromEntries(url.searchParams.entries());
+      res.writeHead(200, { ...echoed, "Content-Type": "application/json" });
+      res.end(JSON.stringify(echoed, null, 2));
+      return;
+    }
+
+    const cookieSetMatch = url.pathname.match(/^\/cookies\/set\/([^/]+)\/([^/]+)$/);
+    if (cookieSetMatch) {
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Set-Cookie": `${cookieSetMatch[1]}=${cookieSetMatch[2]}; Path=/`,
+      });
+      res.end(JSON.stringify({ cookies: parseCookies(req) }));
+      return;
+    }
+
+    if (url.pathname === "/cookies/delete") {
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Set-Cookie": Object.keys(parseCookies(req)).map((name) => `${name}=; Path=/; Max-Age=0`),
+      });
+      res.end(JSON.stringify({ cookies: {} }));
+      return;
+    }
+
+    if (url.pathname === "/cookies") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ cookies: parseCookies(req) }));
+      return;
+    }
+
+    const basicAuthMatch = url.pathname.match(/^\/basic-auth\/([^/]+)\/([^/]+)$/);
+    if (basicAuthMatch) {
+      const expected = `Basic ${Buffer.from(`${basicAuthMatch[1]}:${basicAuthMatch[2]}`).toString("base64")}`;
+      if (req.headers.authorization !== expected) {
+        res.writeHead(401, {
+          "WWW-Authenticate": 'Basic realm="Fake Realm"',
+          "Content-Type": "application/json",
+        });
+        res.end(JSON.stringify({ authenticated: false }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ authenticated: true, user: basicAuthMatch[1] }));
+      return;
+    }
+
+    if (url.pathname === "/post" || url.pathname === "/delete") {
+      void readBody(req).then((raw) => {
+        if (res.destroyed) return;
+        const data = raw.toString("utf-8");
+        const contentType = `${req.headers["content-type"] || ""}`;
+        let form: Record<string, string> = {};
+        let json: unknown = null;
+        if (contentType.includes("application/x-www-form-urlencoded")) {
+          form = Object.fromEntries(new URLSearchParams(data).entries());
+        }
+        if (contentType.includes("application/json")) {
+          try {
+            json = JSON.parse(data);
+          } catch {
+            json = null;
+          }
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ method: req.method, args: Object.fromEntries(url.searchParams), data, form, json }));
+      });
+      return;
+    }
+
+    // httpbun /drip：延迟 delay 秒后，把 numbytes 字节分批写完，跨度 duration 秒。
+    // 用例断言至少 4 次 onprogress，所以必须真的分多块下发而不是一次性写完。
+    if (url.pathname === "/drip") {
+      const numbytes = Number(url.searchParams.get("numbytes") || 10);
+      const duration = Number(url.searchParams.get("duration") || 0) * 1000;
+      const delay = Number(url.searchParams.get("delay") || 0) * 1000;
+      streamInChunks(res, Buffer.alloc(numbytes, "a"), "application/octet-stream", 8, duration / 8, delay);
+      return;
+    }
+
+    // raw.githubusercontent.com 上的三个固定文件：用例只断言事件序列与响应体类型，
+    // 不断言文件内容，所以这里只需复刻「小文本 / 大非 JSON 文本 / 大 JSON」三种形态。
+    const rawMatch = url.pathname.match(/^\/raw\/(.+)$/);
+    if (rawMatch) {
+      if (rawMatch[1] === "large-file.json") {
+        const body = Buffer.from(JSON.stringify(Array.from({ length: 20_000 }, (_, i) => ({ id: i, name: `n${i}` }))));
+        streamLargeBody(res, body, "application/json");
+        return;
+      }
+      if (rawMatch[1] === "big.txt") {
+        streamLargeBody(res, Buffer.alloc(600_000, "the quick brown fox "), "text/plain");
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end("root = true\n\n[*]\nindent_style = space\nindent_size = 2\n");
+      return;
+    }
+
+    if (url.pathname === "/translate_a/single") {
+      // 复刻 translate.googleapis.com 的响应头，用例断言的正是这几个头字段透传是否正确。
+      res.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Reporting-Endpoints": 'default="/_/TranslateApiHttp/web-reports?context=eJzj4tDSz8ksLtHPTS3JSC0GAB6vBQA"',
+        "Cross-Origin-Opener-Policy": "same-origin",
+      });
+      res.end(JSON.stringify({ sentences: [{ trans: "来了！！", orig: "くる！！" }], src: "ja" }));
+      return;
+    }
+
     const bytesMatch = url.pathname.match(/^\/bytes\/(\d+)$/);
     if (bytesMatch) {
       const size = Number(bytesMatch[1]);
@@ -201,6 +399,16 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
     );
   });
 
+  // Node 的 HTTP 解析器只认标准方法，会把 gm_xhr_test.js 的 `method: "FOOBAR"` 直接判为协议错误。
+  // 真实 httpbun 对未知方法回 405，这里手写同样的响应，避免退化成连接被重置。
+  server.on("clientError", (err: NodeJS.ErrnoException, socket) => {
+    if (err.code === "HPE_INVALID_METHOD" && socket.writable) {
+      socket.end("HTTP/1.1 405 Method Not Allowed\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: 0\r\n\r\n");
+      return;
+    }
+    socket.destroy();
+  });
+
   await new Promise<void>((resolve, reject) => {
     const onError = (error: Error) => reject(error);
     server.once("error", onError);
@@ -228,7 +436,7 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   const url = new URL(targetUrl);
   const targetPattern = `${url.protocol}//${url.hostname}/*${url.search}`;
   return code.replace(
-    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC|GM_DOWNLOAD_TEST_SC)$/gm,
+    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC|GM_DOWNLOAD_TEST_SC|GM_XHR_TEST_SC)$/gm,
     `// @match        ${targetPattern}`
   );
 }
@@ -257,6 +465,11 @@ function patchGMApiTestCode(code: string, mockOrigin: string): string {
       // gm_xhr_redirect_test.js / gm_download_test.js / gm_xhr_test.js build every request URL off
       // this constant rather than writing literal https://httpbun.com/... URLs.
       .replace(/const HB = "https:\/\/httpbun\.com";/, `const HB = "${mockOrigin}";`)
+      // gm_xhr_test.js 拉三个固定的 raw.githubusercontent.com 文件，按文件名映射到本地 /raw/<file>。
+      // 这两个域的 @connect 行刻意保持原样：改写后会和 httpbun 那行一起变成重复的
+      // @connect 127.0.0.1，而重复的 @connect 值会让脚本完全不执行。
+      .replace(/https:\/\/raw\.githubusercontent\.com\/\S*?\/([\w.-]+)\?/g, `${mockOrigin}/raw/$1?`)
+      .replace(/https:\/\/translate\.googleapis\.com/g, mockOrigin)
   );
 }
 
@@ -523,6 +736,29 @@ test.describe("GM API", () => {
       console.log("[gm_download_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some GM_download tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("GM_xhr tests (gm_xhr_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "gm_xhr_test.js",
+      `${gmApiMockServer.origin}/?GM_XHR_TEST_SC`,
+      // 138 个用例（69 个基础用例 × xhr/fetch 两轮），其中含多个秒级的 delay/drip 端点。
+      180_000,
+      {
+        patchCode,
+        requireOrigin: gmApiMockServer.origin,
+        beforeCollect: clickSuiteRunButton("GM_xmlhttpRequest"),
+      }
+    );
+
+    console.log(`[gm_xhr_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[gm_xhr_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some GM_xhr tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 });

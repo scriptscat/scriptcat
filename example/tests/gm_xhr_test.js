@@ -6,6 +6,7 @@
 // @author       you
 // @match        *://*/*?GM_XHR_TEST_SC
 // @grant        GM_xmlhttpRequest
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@main/example/tests/lib/sctest.js
 // @connect      httpbun.com
 // @connect      nonexistent-domain-abcxyz.test
 // @connect      raw.githubusercontent.com
@@ -16,7 +17,6 @@
 /*
   WHAT THIS DOES
   --------------
-  - Builds an in-page test runner panel.
   - Runs a battery of tests probing GM_xmlhttpRequest options, callbacks, and edge/abnormal paths.
   - Uses httpbin.org endpoints for deterministic echo/response behavior.
   - Prints a summary and a detailed per-test log with assertions.
@@ -45,21 +45,11 @@
 */
 
 const enableTool = true;
-(function () {
+(async function () {
   "use strict";
   if (!enableTool) return;
 
-  // ---------- Small DOM helper ----------
-  function h(tag, props = {}, ...children) {
-    const el = document.createElement(tag);
-    Object.entries(props).forEach(([k, v]) => {
-      if (k === "style" && typeof v === "object") Object.assign(el.style, v);
-      else if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
-      else el[k] = v;
-    });
-    for (const c of children) el.append(c && c.nodeType ? c : document.createTextNode(String(c)));
-    return el;
-  }
+  const { describe, it, expect, run } = SCTest.create({ name: "GM_xmlhttpRequest 完整测试" });
 
   // value type helper
   const typing = (x) => {
@@ -87,335 +77,7 @@ const enableTool = true;
 
   const isFirefox = typeof mozInnerScreenX === "number";
 
-  // ---------- Test Panel ----------
-  const panel = h(
-    "div",
-    {
-      id: "gmxhr-test-panel",
-      style: {
-        position: "fixed",
-        bottom: "12px",
-        right: "12px",
-        width: "460px",
-        maxHeight: "70vh",
-        overflow: "auto",
-        zIndex: 2147483647,
-        background: "#111",
-        color: "#f5f5f5",
-        font: "13px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-        borderRadius: "10px",
-        boxShadow: "0 12px 30px rgba(0,0,0,.4)",
-        border: "1px solid #333",
-      },
-    },
-    h(
-      "div",
-      {
-        style: {
-          position: "sticky",
-          top: 0,
-          background: "#181818",
-          padding: "10px 12px",
-          borderBottom: "1px solid #333",
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-        },
-      },
-      h("div", {}, h("div", { style: { fontWeight: "500" } }, `GM_xmlhttpRequest Test Harness ${GM.info?.script?.version}`), h("div", { style: { display: "flex", flexDirection: "row" } }, h("div", { style: { fontWeight: "400" } }, `${GM.info?.scriptHandler} ${GM.info?.version}`), h("div", { id: "counts", style: { marginLeft: "auto", opacity: 0.8 } }, "…"))),
-      h("button", { id: "start", style: btn() }, "Run"),
-      h("button", { id: "clear", style: btn() }, "Clear")
-    ),
-    // Added: live status + pending queue (minimal UI)
-    h(
-      "div",
-      { id: "status", style: { padding: "6px 12px", borderBottom: "1px solid #222", opacity: 0.9 } },
-      "Status: idle"
-    ),
-    h(
-      "details",
-      { id: "queueWrap", open: false, style: { padding: "0 12px 6px", borderBottom: "1px solid #222" } },
-      h("summary", {}, "Pending tests"),
-      h(
-        "div",
-        {
-          id: "queue",
-          style: {
-            fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
-            whiteSpace: "pre-wrap",
-            opacity: 0.8,
-          },
-        },
-        "(none)"
-      )
-    ),
-    h("div", { id: "log", style: { padding: "10px 12px" } })
-  );
-  document.documentElement.append(panel);
-
-  function btn() {
-    return {
-      background: "#2a6df1",
-      color: "white",
-      border: "0",
-      padding: "6px 10px",
-      borderRadius: "6px",
-      cursor: "pointer",
-    };
-  }
-
-  const $log = panel.querySelector("#log");
-  const $counts = panel.querySelector("#counts");
-  const $status = panel.querySelector("#status");
-  const $queue = panel.querySelector("#queue");
-  panel.querySelector("#clear").addEventListener("click", () => {
-    $log.textContent = "";
-    setCounts(0, 0, 0);
-    setStatus("idle");
-    setQueue([]);
-  });
-  panel.querySelector("#start").addEventListener("click", runAll);
-
-  function logLine(html, cls = "") {
-    const line = h("div", { style: { padding: "6px 0", borderBottom: "1px dashed #2a2a2a" } });
-    line.innerHTML = html;
-    if (cls) line.className = cls;
-    $log.prepend(line);
-  }
-
-  function setCounts(p, f, s) {
-    $counts.textContent = `✅ ${p}  ❌ ${f}  ⏳ ${s}`;
-  }
-  function setStatus(text) {
-    $status.textContent = `Status: ${text}`;
-  }
-  function setQueue(items) {
-    $queue.textContent = items.length ? items.map((t, i) => `${i + 1}. ${t}`).join("\n") : "(none)";
-  }
-
-  // ---------- Pretty Stack -----------
-  function prettyStack(errorOrStack, options = {}) {
-    const {
-      stripQuery = true,
-      decode = true,
-      maxUrlLength = 90,
-      dropExtensionUuid = true,
-      pathSegments = 2,
-      indent = "  ",
-      minFnWidth = 8,
-      maxFnWidth = 48,
-      minLocWidth = 5,
-      maxLocWidth = 12,
-      maxLines = -1,
-    } = options;
-
-    const rawStack =
-      typeof errorOrStack === "string"
-        ? errorOrStack
-        : errorOrStack && errorOrStack.stack
-          ? errorOrStack.stack
-          : String(errorOrStack);
-
-    const lines = rawStack.split(/\r?\n/).filter(Boolean);
-
-    const frames = lines
-      .filter((line, j) => maxLines > 0 ? j < maxLines : true)
-      .map(parseStackLine)
-      .filter(Boolean)
-      .map(frame => ({
-        ...frame,
-        fn: cleanFunctionName(frame.fn),
-        file: cleanFileName(frame.file, {
-          stripQuery,
-          decode,
-          maxUrlLength,
-          dropExtensionUuid,
-          pathSegments,
-        }),
-      }));
-
-    if (!frames.length) return rawStack;
-
-    const fnWidth = clamp(
-      frames.reduce((max, f) => Math.max(max, f.fn.length), minFnWidth),
-      minFnWidth,
-      maxFnWidth
-    );
-
-    const locWidth = clamp(
-      frames.reduce((max, f) => {
-        return Math.max(max, `${f.line}:${f.col}`.length);
-      }, minLocWidth),
-      minLocWidth,
-      maxLocWidth
-    );
-
-    return frames
-      .map(f => {
-        const fn = padRight(truncateMiddle(f.fn, fnWidth), fnWidth);
-        const loc = padLeft(`${f.line}:${f.col}`, locWidth);
-        return `${indent}${fn}  ${loc}  ${f.file}`;
-      })
-      .join("\n");
-  }
-
-  function parseStackLine(line) {
-    const s = line.trim();
-
-    // Chrome / V8:
-    // at fn (file:line:col)
-    //
-    // Examples:
-    // at run (https://example.com/app.js:10:5)
-    // at async runAll (https://example.com/app.js:20:9)
-    // at new Foo (https://example.com/app.js:30:11)
-    let m = s.match(/^at\s+(.+?)\s+\((.+):(\d+):(\d+)\)$/);
-    if (m) {
-      return {
-        fn: m[1],
-        file: m[2],
-        line: Number(m[3]),
-        col: Number(m[4]),
-      };
-    }
-
-    // Chrome / V8 anonymous:
-    // at file:line:col
-    m = s.match(/^at\s+(.+):(\d+):(\d+)$/);
-    if (m) {
-      return {
-        fn: "<anonymous>",
-        file: m[1],
-        line: Number(m[2]),
-        col: Number(m[3]),
-      };
-    }
-
-    // Firefox:
-    // fn@file:line:col
-    // async*fn@file:line:col
-    // setTimeout handler*fn@file:line:col
-    //
-    // Use a greedy file capture so the last two numeric groups win.
-    m = s.match(/^(.*?)@(.+):(\d+):(\d+)$/);
-    if (m) {
-      return {
-        fn: m[1] || "<anonymous>",
-        file: m[2],
-        line: Number(m[3]),
-        col: Number(m[4]),
-      };
-    }
-
-    return null;
-  }
-
-  function cleanFunctionName(fn) {
-    let s = String(fn).trim();
-
-    if (!s) return "<anonymous>";
-    if (s === "<anonymous>") return s;
-
-    return s
-      .replace(/^async\*/, "async ")
-      .replace(/^setTimeout handler\*/, "timer ")
-      .replace(/^promise callback\*/, "promise ")
-      .replace(/\["#-[^"]+"\]/g, "[userscript]")
-      .replace(/\/</g, " › ")
-      .replace(/>+/g, "")
-      .replace(/\s+/g, " ")
-      .trim() || "<anonymous>";
-  }
-
-  function cleanFileName(file, options) {
-    let s = String(file);
-
-    if (options.stripQuery) {
-      s = s.replace(/[?#].*$/, "");
-    }
-
-    if (options.dropExtensionUuid) {
-      s = s.replace(
-        /^(?:moz|chrome)-extension:\/\/[^/]+\//,
-        "extension://"
-      );
-    }
-
-    let parts = s.split("/");
-
-    if (options.pathSegments > 0) {
-      parts = parts.slice(-options.pathSegments);
-    }
-
-    if (options.decode) {
-      parts = parts.map(part => {
-        try {
-          return decodeURIComponent(part);
-        } catch {
-          return part;
-        }
-      });
-    }
-
-    s = parts.join("/");
-
-    return truncateMiddle(s, options.maxUrlLength);
-  }
-
-  function truncateMiddle(value, max) {
-    const str = String(value);
-
-    if (!Number.isFinite(max) || max <= 0) return "";
-    if (str.length <= max) return str;
-    if (max <= 3) return str.slice(0, max);
-
-    const available = max - 1;
-    const left = Math.ceil(available / 2);
-    const right = Math.floor(available / 2);
-
-    return `${str.slice(0, left)}…${str.slice(-right)}`;
-  }
-
-  function padRight(value, width) {
-    return String(value).padEnd(width, " ");
-  }
-
-  function padLeft(value, width) {
-    return String(value).padStart(width, " ");
-  }
-
-  function clamp(value, min, max) {
-    return Math.min(Math.max(value, min), max);
-  }
-
-  // ---------- Assertion & request helpers ----------
-  const state = { pass: 0, fail: 0, skip: 0 };
-  function pass(msg) {
-    state.pass++;
-    setCounts(state.pass, state.fail, state.skip);
-    logLine(`✅ ${escapeHtml(msg)}`);
-  }
-  function fail(msg, extra) {
-    state.fail++;
-    setCounts(state.pass, state.fail, state.skip);
-    logLine(
-      `❌ ${escapeHtml(msg)}${extra ? `<pre style="white-space:pre-wrap;color:#bbb;margin:.5em 0 0">${escapeHtml(extra)}</pre>` : ""}`,
-      "fail"
-    );
-  }
-  function skip(msg) {
-    state.skip++;
-    setCounts(state.pass, state.fail, state.skip);
-    logLine(`⏭️ ${escapeHtml(msg)}`, "skip");
-  }
-
-  function escapeHtml(s) {
-    return String(s).replace(
-      /[&<>"']/g,
-      (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[m]
-    );
-  }
-
+  // ---------- Request helper ----------
   function gmRequest(details, { abortAfterMs } = {}) {
     return new Promise((resolve, reject) => {
       const t0 = performance.now();
@@ -465,11 +127,11 @@ const enableTool = true;
           url,
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText, decodedBase64, "responseText ok");
-        assertEq(res.response, decodedBase64, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText).toBe(decodedBase64);
+        expect(res.response).toBe(decodedBase64);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -482,11 +144,11 @@ const enableTool = true;
           responseType: "",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText, decodedBase64, "responseText ok");
-        assertEq(res.response, decodedBase64, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText).toBe(decodedBase64);
+        expect(res.response).toBe(decodedBase64);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -499,11 +161,11 @@ const enableTool = true;
           responseType: "text",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText, decodedBase64, "responseText ok");
-        assertEq(res.response, decodedBase64, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText).toBe(decodedBase64);
+        expect(res.response).toBe(decodedBase64);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
 
@@ -517,11 +179,11 @@ const enableTool = true;
           responseType: "json",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText, decodedBase64, "responseText ok");
-        assertEq(res.response, undefined, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText).toBe(decodedBase64);
+        expect(res.response).toBe(undefined);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -534,11 +196,11 @@ const enableTool = true;
           responseType: "document",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText, decodedBase64, "responseText ok");
-        assertEq(res.response instanceof XMLDocument, true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText).toBe(decodedBase64);
+        expect(res.response instanceof XMLDocument).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -551,11 +213,11 @@ const enableTool = true;
           responseType: "stream",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText, undefined, "responseText ok");
-        assertEq(res.response instanceof ReadableStream, true, "response ok");
-        assertEq(res.responseXML, undefined, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText).toBe(undefined);
+        expect(res.response instanceof ReadableStream).toBe(true);
+        expect(res.responseXML).toBe(undefined);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -568,11 +230,11 @@ const enableTool = true;
           responseType: "arraybuffer",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText, decodedBase64, "responseText ok");
-        assertEq(res.response instanceof ArrayBuffer, true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText).toBe(decodedBase64);
+        expect(res.response instanceof ArrayBuffer).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -585,11 +247,11 @@ const enableTool = true;
           responseType: "blob",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText, decodedBase64, "responseText ok");
-        assertEq(res.response instanceof Blob, true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText).toBe(decodedBase64);
+        expect(res.response instanceof Blob).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -601,11 +263,11 @@ const enableTool = true;
           url,
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(`${res.response}`.includes('"code": 200'), true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
+        expect(`${res.response}`.includes('"code": 200')).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -618,11 +280,11 @@ const enableTool = true;
           responseType: "",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(`${res.response}`.includes('"code": 200'), true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
+        expect(`${res.response}`.includes('"code": 200')).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -635,11 +297,11 @@ const enableTool = true;
           responseType: "text",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(`${res.response}`.includes('"code": 200'), true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
+        expect(`${res.response}`.includes('"code": 200')).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -652,11 +314,11 @@ const enableTool = true;
           responseType: "json",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
+        expect(typeof res.response === "object" && res.response?.code === 200).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -669,11 +331,11 @@ const enableTool = true;
           responseType: "document",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(res.response instanceof XMLDocument, true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
+        expect(res.response instanceof XMLDocument).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -686,11 +348,11 @@ const enableTool = true;
           responseType: "stream",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText, undefined, "responseText ok");
-        assertEq(res.response instanceof ReadableStream, true, "response ok");
-        assertEq(res.responseXML, undefined, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText).toBe(undefined);
+        expect(res.response instanceof ReadableStream).toBe(true);
+        expect(res.responseXML).toBe(undefined);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -703,11 +365,11 @@ const enableTool = true;
           responseType: "arraybuffer",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(res.response instanceof ArrayBuffer, true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
+        expect(res.response instanceof ArrayBuffer).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -720,11 +382,11 @@ const enableTool = true;
           responseType: "blob",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(res.response instanceof Blob, true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
+        expect(res.response instanceof Blob).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -736,11 +398,11 @@ const enableTool = true;
           url,
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
-        assertEq(res.response, res.responseText, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText?.length >= 8 && res.responseText?.length <= 32).toBe(true);
+        expect(res.response).toBe(res.responseText);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -753,11 +415,11 @@ const enableTool = true;
           responseType: "",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
-        assertEq(res.response, res.responseText, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText?.length >= 8 && res.responseText?.length <= 32).toBe(true);
+        expect(res.response).toBe(res.responseText);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -770,11 +432,11 @@ const enableTool = true;
           responseType: "text",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
-        assertEq(res.response, res.responseText, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText?.length >= 8 && res.responseText?.length <= 32).toBe(true);
+        expect(res.response).toBe(res.responseText);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -787,11 +449,11 @@ const enableTool = true;
           responseType: "json",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
-        assertEq(res.response, undefined, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText?.length >= 8 && res.responseText?.length <= 32).toBe(true);
+        expect(res.response).toBe(undefined);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -804,11 +466,11 @@ const enableTool = true;
           responseType: "document",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
-        assertEq(res.response instanceof XMLDocument, true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText?.length >= 8 && res.responseText?.length <= 32).toBe(true);
+        expect(res.response instanceof XMLDocument).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -821,11 +483,11 @@ const enableTool = true;
           responseType: "stream",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText, undefined, "responseText ok");
-        assertEq(res.response instanceof ReadableStream, true, "response ok");
-        assertEq(res.responseXML, undefined, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText).toBe(undefined);
+        expect(res.response instanceof ReadableStream).toBe(true);
+        expect(res.responseXML).toBe(undefined);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -838,11 +500,11 @@ const enableTool = true;
           responseType: "arraybuffer",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
-        assertEq(res.response instanceof ArrayBuffer, true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText?.length >= 8 && res.responseText?.length <= 32).toBe(true);
+        expect(res.response instanceof ArrayBuffer).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -855,11 +517,11 @@ const enableTool = true;
           responseType: "blob",
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(res.responseText?.length >= 8 && res.responseText?.length <= 32, true, "responseText ok");
-        assertEq(res.response instanceof Blob, true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText?.length >= 8 && res.responseText?.length <= 32).toBe(true);
+        expect(res.response instanceof Blob).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -873,13 +535,13 @@ const enableTool = true;
           fetch,
         });
         const body = JSON.parse(res.responseText);
-        assertEq(res.status, 200, "status 200");
+        expect(res.status).toBe(200);
         const q = getQueryObj(body);
-        assertEq(q.x, "1", "query args");
+        expect(q.x).toBe("1");
         const hdrs = body.headers || {};
-        assertEq(hdrs["X-Custom"] || hdrs["x-custom"], "Hello", "custom header echo");
-        assertEq(res.finalUrl, url, "finalUrl matches");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(hdrs["X-Custom"] || hdrs["x-custom"]).toBe("Hello");
+        expect(res.finalUrl).toBe(url);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -892,9 +554,9 @@ const enableTool = true;
           url,
           fetch,
         });
-        assertEq(res.status, 200, "status after redirect is 200");
-        assertEq(res.finalUrl, target, "finalUrl is redirected target");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.finalUrl).toBe(target);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -908,9 +570,9 @@ const enableTool = true;
           redirect: "follow",
           fetch,
         });
-        assertEq(res.status, 200, "status after redirect is 200");
-        assertEq(res.finalUrl, target, "finalUrl is redirected target");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.finalUrl).toBe(target);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -932,11 +594,11 @@ const enableTool = true;
           ]);
           throw new Error("Expected error, got load");
         } catch (e) {
-          assertEq(e?.kind, "error", "error ok");
-          assertEq(e?.res?.status, 408, "statusCode ok");
-          assertEq(!e?.res?.finalUrl, true, "!finalUrl ok");
-          assertEq(e?.res?.responseHeaders, "", "responseHeaders ok");
-          assertEq(objectProps(e?.res), "ok", "Object Props OK");
+          expect(e?.kind).toBe("error");
+          expect(e?.res?.status).toBe(408);
+          expect(!e?.res?.finalUrl).toBe(true);
+          expect(e?.res?.responseHeaders).toBe("");
+          expect(objectProps(e?.res)).toBe("ok");
         }
       },
     },
@@ -955,10 +617,10 @@ const enableTool = true;
           }),
           new Promise((resolve) => setTimeout(resolve, 4000)),
         ]);
-        assertEq(res?.status, 301, "status is 301");
-        assertEq(res?.finalUrl, url, "finalUrl is original url");
-        assertEq(typeof res?.responseHeaders === "string" && res?.responseHeaders !== "", true, "responseHeaders ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res?.status).toBe(301);
+        expect(res?.finalUrl).toBe(url);
+        expect(typeof res?.responseHeaders === "string" && res?.responseHeaders !== "").toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -973,10 +635,10 @@ const enableTool = true;
           fetch,
         });
         const body = JSON.parse(res.responseText);
-        assertEq(res.status, 200);
-        assertEq((body.form || {}).a, "1", "form a");
-        assertEq((body.form || {}).b, "two", "form b");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect((body.form || {}).a).toBe("1");
+        expect((body.form || {}).b).toBe("two");
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -991,9 +653,9 @@ const enableTool = true;
           fetch,
         });
         const body = JSON.parse(res.responseText);
-        assertEq(res.status, 200);
-        assertDeepEq(body.json, payload, "JSON echo matches");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(body.json).toEqual(payload);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1008,9 +670,9 @@ const enableTool = true;
           fetch,
         });
         const body = JSON.parse(res.responseText);
-        assertEq(res.status, 200);
-        assert(body.data && body.data.length > 0, "server received some data");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(body.data && body.data.length > 0).toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1027,11 +689,11 @@ const enableTool = true;
           },
           fetch,
         });
-        assertEq(res.status, 200);
-        assert(res.response instanceof ArrayBuffer, "arraybuffer present");
-        assertEq(res.response.byteLength, size, "byte length matches");
-        assert(progressCounter >= 1, "progressCounter >= 1");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.response instanceof ArrayBuffer).toBeTruthy();
+        expect(res.response.byteLength).toBe(size);
+        expect(progressCounter >= 1).toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1049,12 +711,12 @@ const enableTool = true;
           },
           fetch,
         });
-        assertEq(res.status, 200);
-        assert(res.response instanceof Blob, "blob present");
+        expect(res.status).toBe(200);
+        expect(res.response instanceof Blob).toBeTruthy();
         const buf = await res.response.arrayBuffer();
-        assertEq(buf.byteLength, size, "byte length matches");
-        assert(progressCounter >= 1, "progressCounter >= 1");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(buf.byteLength).toBe(size);
+        expect(progressCounter >= 1).toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
         // Do not assert image MIME; httpbun returns octet-stream here.
       },
     },
@@ -1068,10 +730,10 @@ const enableTool = true;
           responseType: "json",
           fetch,
         });
-        assertEq(res.status, 200);
-        assert(res.response && typeof res.response === "object", "parsed JSON object");
-        assert(res.response.origin, "has JSON fields");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.response && typeof res.response === "object").toBeTruthy();
+        expect(res.response.origin).toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1083,10 +745,10 @@ const enableTool = true;
           responseType: "document",
           fetch,
         });
-        assertEq(res.status, 200);
-        assert(res.response instanceof Document, "xml present");
-        assert(res.responseXML !== null, "xml OK");
-        assert(!!res.responseXML.querySelector("test-123"), "xml content ok");
+        expect(res.status).toBe(200);
+        expect(res.response instanceof Document).toBeTruthy();
+        expect(res.responseXML !== null).toBeTruthy();
+        expect(!!res.responseXML.querySelector("test-123")).toBeTruthy();
       },
     },
     {
@@ -1098,10 +760,10 @@ const enableTool = true;
           responseType: "document",
           fetch,
         });
-        assertEq(res.status, 200);
-        assert(res.response instanceof Document, "xml present");
-        assert(res.responseXML !== null, "xml OK");
-        assert(!!res.responseXML.querySelector("parsererror"), "xml content ok");
+        expect(res.status).toBe(200);
+        expect(res.response instanceof Document).toBeTruthy();
+        expect(res.responseXML !== null).toBeTruthy();
+        expect(!!res.responseXML.querySelector("parsererror")).toBeTruthy();
       },
     },
     {
@@ -1113,9 +775,9 @@ const enableTool = true;
           overrideMimeType: "text/plain;charset=utf-8",
           fetch,
         });
-        assertEq(res.status, 200);
-        assert(typeof res.responseText === "string" && res.responseText.length > 0, "responseText available");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(typeof res.responseText === "string" && res.responseText.length > 0).toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1130,7 +792,7 @@ const enableTool = true;
           });
           throw new Error("Expected timeout, got load");
         } catch (e) {
-          assertEq(e.kind, "timeout", "timeout path taken");
+          expect(e.kind).toBe("timeout");
         }
       },
     },
@@ -1176,14 +838,14 @@ const enableTool = true;
         const normal = await runCase({
           url: `${HB}/get`,
         });
-        assertDeepEq(normal.events, ["onload", "onloadend"], "normal fires onload then onloadend");
-        assertEq(normal.response.status, 200, "normal onloadend status 200");
+        expect(normal.events).toEqual(["onload", "onloadend"]);
+        expect(normal.response.status).toBe(200);
 
         const timeout = await runCase({
           url: `${HB}/delay/5`,
           timeout: 2000,
         });
-        assertDeepEq(timeout.events, ["ontimeout", "onloadend"], "timeout fires ontimeout then onloadend");
+        expect(timeout.events).toEqual(["ontimeout", "onloadend"]);
 
         const abort = await runCase(
           {
@@ -1191,7 +853,7 @@ const enableTool = true;
           },
           { abortAfterMs: 4000 }
         );
-        assertDeepEq(abort.events, ["onabort", "onloadend"], "abort fires onabort then onloadend");
+        expect(abort.events).toEqual(["onabort", "onloadend"]);
 
         const nwError1 = await runCase(
           {
@@ -1199,7 +861,7 @@ const enableTool = true;
           },
           { abortAfterMs: 500 }
         );
-        assertDeepEq(nwError1.events, ["onerror", "onloadend"], "abort fires onerror then onloadend");
+        expect(nwError1.events).toEqual(["onerror", "onloadend"]);
 
         const nwError2 = await runCase(
           {
@@ -1207,7 +869,7 @@ const enableTool = true;
           },
           { abortAfterMs: 500 }
         );
-        assertDeepEq(nwError2.events, ["onerror", "onloadend"], "abort fires onerror then onloadend");
+        expect(nwError2.events).toEqual(["onerror", "onloadend"]);
       },
     },
     {
@@ -1226,7 +888,6 @@ const enableTool = true;
             onprogress: (ev) => {
               progressEvents++;
               if (ev.loaded != null) lastLoaded = ev.loaded;
-              setStatus(`downloading: ${lastLoaded | 0} bytes…`);
               response = ev.response;
             },
             onload: (res) => resolve({ res, ms: performance.now() - start }),
@@ -1235,12 +896,12 @@ const enableTool = true;
             fetch,
           });
         });
-        assertEq(res.status, 200);
-        assert(progressEvents >= 4, "received at least 4 progress events");
+        expect(res.status).toBe(200);
+        expect(progressEvents >= 4).toBeTruthy();
         // `progress` is guaranteed to fire only in the Fetch API.
-        assert(fetch ? lastLoaded > 0 : lastLoaded >= 0, "progress loaded captured");
-        assert(!response, "no response");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(fetch ? lastLoaded > 0 : lastLoaded >= 0).toBeTruthy();
+        expect(!response).toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1266,7 +927,6 @@ const enableTool = true;
                     progressEvents++;
                     loaded += value.length;
                     if (loaded != null) lastLoaded = loaded;
-                    setStatus(`downloading: ${loaded | 0} bytes…`);
                     response = ev.response;
                   }
                   if (done) break;
@@ -1279,12 +939,12 @@ const enableTool = true;
             fetch,
           });
         });
-        assertEq(res.status, 200);
-        assert(progressEvents >= 4, "received at least 4 progress events");
+        expect(res.status).toBe(200);
+        expect(progressEvents >= 4).toBeTruthy();
         // `progress` is guaranteed to fire only in the Fetch API.
-        assert(fetch ? lastLoaded > 0 : lastLoaded >= 0, "progress loaded captured");
-        assert(response instanceof ReadableStream && typeof response.getReader === "function", "response");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(fetch ? lastLoaded > 0 : lastLoaded >= 0).toBeTruthy();
+        expect(response instanceof ReadableStream && typeof response.getReader === "function").toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1295,10 +955,10 @@ const enableTool = true;
           url: `${HB}/response-headers`,
           fetch,
         });
-        assertEq(res.status, 200);
-        assert((res.responseText || "")?.length > 0, "body for HEAD");
-        assert(typeof res.responseHeaders === "string", "response headers present");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect((res.responseText || "")?.length > 0).toBeTruthy();
+        expect(typeof res.responseHeaders === "string").toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1309,10 +969,10 @@ const enableTool = true;
           url: `${HB}/response-headers`,
           fetch,
         });
-        assertEq(res.status, 200);
-        assertEq(res.responseText || "", "", "no body for HEAD");
-        assert(typeof res.responseHeaders === "string", "response headers present");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(res.responseText || "").toBe("");
+        expect(typeof res.responseHeaders === "string").toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1324,8 +984,8 @@ const enableTool = true;
           fetch,
         });
         // httpbun commonly returns 200 for OPTIONS
-        assert(res.status === 200 || res.status === 204, "200/204 on OPTIONS");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status === 200 || res.status === 204).toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1336,10 +996,10 @@ const enableTool = true;
           url: `${HB}/delete`,
           fetch,
         });
-        assertEq(res.status, 200);
+        expect(res.status).toBe(200);
         const body = JSON.parse(res.responseText);
-        assertEq(body.method, "DELETE", "server saw DELETE");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(body.method).toBe("DELETE");
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1362,11 +1022,11 @@ const enableTool = true;
           url: `${HB}/cookies`,
           fetch,
         });
-        assertEq(res.status, 200);
+        expect(res.status).toBe(200);
         const body = JSON.parse(res.responseText);
         const cookieABC = body.cookies.abc;
-        assertEq(cookieABC, "123", "cookie abc=123");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(cookieABC).toBe("123");
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1381,8 +1041,8 @@ const enableTool = true;
         });
         const body = JSON.parse(res.responseText);
         const cookies = body.headers.Cookie || body.headers.cookie;
-        assert(!`${cookies}`.includes("abc=123"), "no Cookie header when anonymous");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(!`${cookies}`.includes("abc=123")).toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1396,8 +1056,8 @@ const enableTool = true;
         });
         const body = JSON.parse(res.responseText);
         const cookies = body.headers.Cookie || body.headers.cookie;
-        assert(`${cookies}`.includes("abc=123"), "Cookie header");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(`${cookies}`.includes("abc=123")).toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1436,8 +1096,8 @@ const enableTool = true;
         });
         const body = JSON.parse(res.responseText);
         const cookies = body.headers.Cookie || body.headers.cookie;
-        assert(!cookies, "no Cookie header when anonymous");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(!cookies).toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1464,11 +1124,11 @@ const enableTool = true;
           password: pass,
           fetch,
         });
-        assertEq(res.status, 200);
+        expect(res.status).toBe(200);
         const body = JSON.parse(res.responseText);
-        assertEq(body.authenticated, true, "authenticated true");
-        assertEq(body.user, "user", "user echoed");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(body.authenticated).toBe(true);
+        expect(body.user).toBe("user");
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1479,8 +1139,8 @@ const enableTool = true;
           url: `${HB}/status/418`,
           fetch,
         });
-        assertEq(res.status, 418, "418 I'm a teapot");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(418);
+        expect(objectProps(res)).toBe("ok");
         // Still triggers onload, not onerror
       },
     },
@@ -1493,8 +1153,8 @@ const enableTool = true;
           url: `${HB}/headers`,
           fetch,
         });
-        assert([200, 405].includes(res.status), "200 or 405 depending on server handling");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect([200, 405].includes(res.status)).toBeTruthy();
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1509,22 +1169,18 @@ const enableTool = true;
           });
           throw new Error("Expected onerror due to @connect, but got onload");
         } catch (e) {
-          assertEq(e.kind, "error", "onerror path taken");
-          assert(e.res, "e.res exists");
-          assertEq(e.res.status, 0, "status 0");
-          assertEq(e.res.statusText, "", 'statusText ""');
-          assertEq(e.res.finalUrl, undefined, "finalUrl undefined");
-          assertEq(e.res.readyState, 4, "readyState DONE");
-          assertEq(!e.res.response, true, "!response ok");
-          assertEq(e.res.responseText, "", 'responseText ""');
-          assertEq(e.res.responseXML, undefined, "responseXML undefined");
-          assertEq(typeof (e.res.error || undefined), "string", "error set");
-          assertEq(
-            `${e.res.error}`.includes(`Refused to connect to "https://example.org/": `),
-            true,
-            "Refused to connect to ..."
-          );
-          assertEq(objectProps(e.res), "ok", "Object Props OK");
+          expect(e.kind).toBe("error");
+          expect(e.res).toBeTruthy();
+          expect(e.res.status).toBe(0);
+          expect(e.res.statusText).toBe("");
+          expect(e.res.finalUrl).toBe(undefined);
+          expect(e.res.readyState).toBe(4);
+          expect(!e.res.response).toBe(true);
+          expect(e.res.responseText).toBe("");
+          expect(e.res.responseXML).toBe(undefined);
+          expect(typeof (e.res.error || undefined)).toBe("string");
+          expect(`${e.res.error}`.includes(`Refused to connect to "https://example.org/": `)).toBe(true);
+          expect(objectProps(e.res)).toBe("ok");
         }
       },
     },
@@ -1539,22 +1195,18 @@ const enableTool = true;
           });
           throw new Error("Expected error, got load");
         } catch (e) {
-          assertEq(e.kind, "error", "onerror path taken");
-          assert(e.res, "e.res exists");
-          assertEq(e.res.status, 0, "status 0");
-          assertEq(e.res.statusText, "", 'statusText ""');
-          assertEq(e.res.finalUrl, undefined, "finalUrl undefined");
-          assertEq(e.res.readyState, 4, "readyState DONE");
-          assertEq(!e.res.response, true, "!response ok");
-          assertEq(e.res.responseText, "", 'responseText ""');
-          assertEq(e.res.responseXML, undefined, "responseXML undefined");
-          assertEq(typeof (e.res.error || undefined), "string", "error set");
-          assertEq(
-            `${e.res.error}`.includes(`Refused to connect to "http://domain-abcxyz.test/": `),
-            true,
-            "Refused to connect to ..."
-          );
-          assertEq(objectProps(e.res), "ok", "Object Props OK");
+          expect(e.kind).toBe("error");
+          expect(e.res).toBeTruthy();
+          expect(e.res.status).toBe(0);
+          expect(e.res.statusText).toBe("");
+          expect(e.res.finalUrl).toBe(undefined);
+          expect(e.res.readyState).toBe(4);
+          expect(!e.res.response).toBe(true);
+          expect(e.res.responseText).toBe("");
+          expect(e.res.responseXML).toBe(undefined);
+          expect(typeof (e.res.error || undefined)).toBe("string");
+          expect(`${e.res.error}`.includes(`Refused to connect to "http://domain-abcxyz.test/": `)).toBe(true);
+          expect(objectProps(e.res)).toBe("ok");
         }
       },
     },
@@ -1569,13 +1221,13 @@ const enableTool = true;
           });
           throw new Error("Expected error, got load");
         } catch (e) {
-          assertEq(e.kind, "error", "onerror path taken");
-          assert(e.res, "e.res exists");
-          assertEq(!e.res.response, true, "!response ok");
-          assertEq(e.res.responseXML, undefined, "responseXML undefined");
-          assertEq(e.res.responseHeaders, "", 'responseHeaders ""');
-          assertEq(e.res.readyState, 4, "readyState 4");
-          assertEq(objectProps(e.res), "ok", "Object Props OK");
+          expect(e.kind).toBe("error");
+          expect(e.res).toBeTruthy();
+          expect(!e.res.response).toBe(true);
+          expect(e.res.responseXML).toBe(undefined);
+          expect(e.res.responseHeaders).toBe("");
+          expect(e.res.readyState).toBe(4);
+          expect(objectProps(e.res)).toBe("ok");
         }
       },
     },
@@ -1596,7 +1248,7 @@ const enableTool = true;
           ]);
           throw new Error("Expected abort, got load");
         } catch (e) {
-          assertEq(e.kind, "abort", "abort path taken");
+          expect(e.kind).toBe("abort");
         }
       },
     },
@@ -1611,11 +1263,11 @@ const enableTool = true;
           fetch,
           onprogress() {},
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
+        expect(typeof res.response === "object" && res.response?.code === 200).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1632,12 +1284,12 @@ const enableTool = true;
             readyStateList.push(resp.readyState);
           },
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(`${res.responseText}`.includes('"code": 200'), true, "responseText ok");
-        assertEq(typeof res.response === "object" && res.response?.code === 200, true, "response ok");
-        assertEq(res.responseXML instanceof XMLDocument, true, "responseXML ok");
-        assertDeepEq(readyStateList, fetch ? [2, 4] : [1, 2, 3, 4], "status 200");
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(res.status).toBe(200);
+        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
+        expect(typeof res.response === "object" && res.response?.code === 200).toBe(true);
+        expect(res.responseXML instanceof XMLDocument).toBe(true);
+        expect(readyStateList).toEqual(fetch ? [2, 4] : [1, 2, 3, 4]);
+        expect(objectProps(res)).toBe("ok");
       },
     },
     {
@@ -1666,29 +1318,21 @@ const enableTool = true;
           })
         );
         if (!fetch) {
-          assertDeepEq(
-            resultList,
-            [
-              "onreadystatechange 1.000;r=missing;t=missing;x=missing",
-              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-              "onreadystatechange 3.200;r=missing;t=missing;x=missing",
-              "onreadystatechange 4.200;r=string;t=string;x=XMLDocument",
-              "onload 4.200;r=string;t=string;x=XMLDocument",
-              "onloadend 4.200;r=string;t=string;x=XMLDocument",
-            ],
-            "standard-type GMXhr OK"
-          );
+          expect(resultList).toEqual([
+            "onreadystatechange 1.000;r=missing;t=missing;x=missing",
+            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+            "onreadystatechange 3.200;r=missing;t=missing;x=missing",
+            "onreadystatechange 4.200;r=string;t=string;x=XMLDocument",
+            "onload 4.200;r=string;t=string;x=XMLDocument",
+            "onloadend 4.200;r=string;t=string;x=XMLDocument",
+          ]);
         } else {
-          assertDeepEq(
-            resultList,
-            [
-              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-              "onreadystatechange 4.200;r=string;t=string;x=XMLDocument",
-              "onload 4.200;r=string;t=string;x=XMLDocument",
-              "onloadend 4.200;r=string;t=string;x=XMLDocument",
-            ],
-            "fetch-type GMXhr OK"
-          );
+          expect(resultList).toEqual([
+            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+            "onreadystatechange 4.200;r=string;t=string;x=XMLDocument",
+            "onload 4.200;r=string;t=string;x=XMLDocument",
+            "onloadend 4.200;r=string;t=string;x=XMLDocument",
+          ]);
         }
       },
     },
@@ -1725,34 +1369,26 @@ const enableTool = true;
         );
         const resultList = [...resultSet];
         if (!fetch) {
-          assertEq(progressCount >= 2, true, "progressCount ok");
-          assertDeepEq(
-            resultList,
-            [
-              "onreadystatechange 1.000;r=missing;t=missing;x=missing",
-              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-              "onreadystatechange 3.200;r=missing;t=missing;x=missing",
-              "onprogress 3.200;r=missing;t=missing;x=missing",
-              isFirefox ? "" : "onprogress 4.200;r=missing;t=missing;x=missing",
-              "onreadystatechange 4.200;r=<undefined>;t=string;x=XMLDocument",
-              "onload 4.200;r=<undefined>;t=string;x=XMLDocument",
-              "onloadend 4.200;r=<undefined>;t=string;x=XMLDocument",
-            ].filter(Boolean),
-            "standard-type GMXhr OK"
-          );
+          expect(progressCount >= 2).toBe(true);
+          expect(resultList).toEqual([
+            "onreadystatechange 1.000;r=missing;t=missing;x=missing",
+            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+            "onreadystatechange 3.200;r=missing;t=missing;x=missing",
+            "onprogress 3.200;r=missing;t=missing;x=missing",
+            isFirefox ? "" : "onprogress 4.200;r=missing;t=missing;x=missing",
+            "onreadystatechange 4.200;r=<undefined>;t=string;x=XMLDocument",
+            "onload 4.200;r=<undefined>;t=string;x=XMLDocument",
+            "onloadend 4.200;r=<undefined>;t=string;x=XMLDocument",
+          ].filter(Boolean));
         } else {
-          assertEq(progressCount >= 2, true, "progressCount ok");
-          assertDeepEq(
-            resultList,
-            [
-              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-              "onprogress 3.200;r=missing;t=missing;x=missing",
-              "onreadystatechange 4.200;r=<undefined>;t=string;x=XMLDocument",
-              "onload 4.200;r=<undefined>;t=string;x=XMLDocument",
-              "onloadend 4.200;r=<undefined>;t=string;x=XMLDocument",
-            ],
-            "fetch-type GMXhr OK"
-          );
+          expect(progressCount >= 2).toBe(true);
+          expect(resultList).toEqual([
+            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+            "onprogress 3.200;r=missing;t=missing;x=missing",
+            "onreadystatechange 4.200;r=<undefined>;t=string;x=XMLDocument",
+            "onload 4.200;r=<undefined>;t=string;x=XMLDocument",
+            "onloadend 4.200;r=<undefined>;t=string;x=XMLDocument",
+          ]);
         }
       },
     },
@@ -1789,34 +1425,26 @@ const enableTool = true;
         );
         const resultList = [...resultSet];
         if (!fetch) {
-          assertEq(progressCount >= 2, true, "progressCount ok");
-          assertDeepEq(
-            resultList,
-            [
-              "onreadystatechange 1.000;r=missing;t=missing;x=missing",
-              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-              "onreadystatechange 3.200;r=missing;t=missing;x=missing",
-              "onprogress 3.200;r=missing;t=missing;x=missing",
-              isFirefox ? "" : "onprogress 4.200;r=missing;t=missing;x=missing",
-              "onreadystatechange 4.200;r=object;t=string;x=XMLDocument",
-              "onload 4.200;r=object;t=string;x=XMLDocument",
-              "onloadend 4.200;r=object;t=string;x=XMLDocument",
-            ].filter(Boolean),
-            "standard-type GMXhr OK"
-          );
+          expect(progressCount >= 2).toBe(true);
+          expect(resultList).toEqual([
+            "onreadystatechange 1.000;r=missing;t=missing;x=missing",
+            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+            "onreadystatechange 3.200;r=missing;t=missing;x=missing",
+            "onprogress 3.200;r=missing;t=missing;x=missing",
+            isFirefox ? "" : "onprogress 4.200;r=missing;t=missing;x=missing",
+            "onreadystatechange 4.200;r=object;t=string;x=XMLDocument",
+            "onload 4.200;r=object;t=string;x=XMLDocument",
+            "onloadend 4.200;r=object;t=string;x=XMLDocument",
+          ].filter(Boolean));
         } else {
-          assertEq(progressCount >= 2, true, "progressCount ok");
-          assertDeepEq(
-            resultList,
-            [
-              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-              "onprogress 3.200;r=missing;t=missing;x=missing",
-              "onreadystatechange 4.200;r=object;t=string;x=XMLDocument",
-              "onload 4.200;r=object;t=string;x=XMLDocument",
-              "onloadend 4.200;r=object;t=string;x=XMLDocument",
-            ],
-            "fetch-type GMXhr OK"
-          );
+          expect(progressCount >= 2).toBe(true);
+          expect(resultList).toEqual([
+            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+            "onprogress 3.200;r=missing;t=missing;x=missing",
+            "onreadystatechange 4.200;r=object;t=string;x=XMLDocument",
+            "onload 4.200;r=object;t=string;x=XMLDocument",
+            "onloadend 4.200;r=object;t=string;x=XMLDocument",
+          ]);
         }
       },
     },
@@ -1851,14 +1479,10 @@ const enableTool = true;
           })
         );
         const headers = resultHeaders;
-        assertEq(headers.get("content-type"), "application/json; charset=utf-8", "content-type ok");
-        assertEq(
-          headers.get("reporting-endpoints").replace(/context=[-+\w]+/, "context=eJzj4tD"),
-          'default="/_/TranslateApiHttp/web-reports?context=eJzj4tD"',
-          "reporting-endpoints ok"
-        );
-        assertEq(headers.get("cross-origin-opener-policy"), "same-origin", "cross-origin-opener-policy ok");
-        assertEq(headers.get("content-encoding") !== "deflate", true, "content-encoding ok");
+        expect(headers.get("content-type")).toBe("application/json; charset=utf-8");
+        expect(headers.get("reporting-endpoints").replace(/context=[-+\w]+/, "context=eJzj4tD")).toBe('default="/_/TranslateApiHttp/web-reports?context=eJzj4tD"');
+        expect(headers.get("cross-origin-opener-policy")).toBe("same-origin");
+        expect(headers.get("content-encoding") !== "deflate").toBe(true);
       },
     },
     {
@@ -1894,18 +1518,10 @@ const enableTool = true;
           })
         );
         const headers = resultHeaders;
-        assertEq(headers.get("content-type"), "application/json; charset=utf-8", "content-type ok");
-        assertEq(
-          headers.get("reporting-endpoints").replace(/context=[-+\w]+/, "context=eJzj4tD"),
-          'default="/_/TranslateApiHttp/web-reports?context=eJzj4tD"',
-          "reporting-endpoints ok"
-        );
-        assertEq(headers.get("cross-origin-opener-policy"), "same-origin", "cross-origin-opener-policy ok");
-        assertEq(
-          headers.get("content-encoding") === "deflate" || headers.get("content-encoding") === null,
-          true,
-          "content-encoding ok"
-        );
+        expect(headers.get("content-type")).toBe("application/json; charset=utf-8");
+        expect(headers.get("reporting-endpoints").replace(/context=[-+\w]+/, "context=eJzj4tD")).toBe('default="/_/TranslateApiHttp/web-reports?context=eJzj4tD"');
+        expect(headers.get("cross-origin-opener-policy")).toBe("same-origin");
+        expect(headers.get("content-encoding") === "deflate" || headers.get("content-encoding") === null).toBe(true);
       },
     },
     {
@@ -1917,15 +1533,15 @@ const enableTool = true;
           url,
           fetch,
         });
-        assertEq(res.status, 200, "status 200");
-        assertEq(typeof res.responseHeaders, "string", "responseHeaders is string");
-        assertEq(res.responseHeaders.trim() === res.responseHeaders, true, "no extra space");
+        expect(res.status).toBe(200);
+        expect(typeof res.responseHeaders).toBe("string");
+        expect(res.responseHeaders.trim() === res.responseHeaders).toBe(true);
         // Each line should end with \r\n
         const lines = res.responseHeaders.split("\r\n");
         for (let i = 0; i < lines.length - 1; i++) {
-          assert(lines[i].length > 0, `header line ${i} present`);
+          expect(lines[i].length > 0).toBeTruthy();
         }
-        assertEq(objectProps(res), "ok", "Object Props OK");
+        expect(objectProps(res)).toBe("ok");
       },
     },
   ];
@@ -1937,18 +1553,6 @@ const enableTool = true;
     }),
   ];
 
-  // ---------- Assertion utils ----------
-  function assert(condition, msg) {
-    if (!condition) throw new Error(msg || "assertion failed");
-  }
-  function assertEq(a, b, msg) {
-    if (a !== b) throw new Error(msg ? `${msg}: expected ${b}, got ${a}` : `expected ${b}, got ${a}`);
-  }
-  function assertDeepEq(a, b, msg) {
-    const aj = JSON.stringify(a);
-    const bj = JSON.stringify(b);
-    if (aj !== bj) throw new Error(msg ? `${msg}: expected ${bj}, got ${aj}` : `deep equal failed`);
-  }
   function getHeader(headersStr, key) {
     const lines = (headersStr || "").split(/\r?\n/);
     const line = lines.find((l) => l.toLowerCase().startsWith(key.toLowerCase() + ":"));
@@ -1981,49 +1585,13 @@ const enableTool = true;
     return "ok";
   }
 
-  // ---------- Runner ----------
-  async function runAll() {
-    // reset counts
-    state.pass = state.fail = state.skip = 0;
-    setCounts(0, 0, 0);
-    const names = tests.map((t) => t.name);
-    setQueue(names.slice());
-    logLine(`<b>Starting GM_xmlhttpRequest test suite</b> — ${new Date().toLocaleString()}`);
-
-    for (let i = 0; i < tests.length; i++) {
-      const t = tests[i];
-      const tName = `${t.useFetch ? "[fetch]" : "[xhr]"} ${t.name}`;
-      const title = `• ${tName}`;
-      const t0 = performance.now();
-      setStatus(`running (${i + 1}/${tests.length}): ${tName}`);
-      try {
-        logLine(`▶️ <b>${escapeHtml(tName)}</b> (queued: ${tests.length - i - 1} remaining)`);
-        await t.run(t.useFetch ? true : false);
-        pass(`${title}  (${fmtMs(performance.now() - t0)})`);
-      } catch (e) {
-        console.error(e);
-        const extra = e && e.stack ? prettyStack(e, { maxLines: 4 }) : null;
-        fail(`${title}  (${fmtMs(performance.now() - t0)})`, [e?.message, extra].filter(Boolean).join("\n"));
-      } finally {
-        // update pending list
-        setQueue(names.slice(i + 1));
-      }
+  // 138 个用例都会真的发请求，还会设置/删除 cookie，一轮要跑几十秒，
+  // 所以不随页面加载自动开跑，由面板的运行按钮触发。
+  describe("GM_xmlhttpRequest", { auto: false }, () => {
+    for (const t of tests) {
+      it(`${t.useFetch ? "[fetch]" : "[xhr]"} ${t.name}`, () => t.run(t.useFetch ? true : false));
     }
+  });
 
-    setStatus("done");
-    logLine(`<b>Done.</b> Summary — ✅ ${state.pass}  ❌ ${state.fail}  ⏳ ${state.skip}`);
-  }
-
-  function fmtMs(ms) {
-    return ms < 1000 ? `${ms | 0}ms` : `${(ms / 1000).toFixed(2)}s`;
-  }
-
-  // Auto-run once after a short delay to let the page settle
-  setTimeout(() => {
-    // Only auto-run if not already run in this page session
-    if (!window.__gmxhr_test_autorun__) {
-      window.__gmxhr_test_autorun__ = true;
-      runAll();
-    }
-  }, 600);
+  await run();
 })();
