@@ -201,18 +201,27 @@ copy that file's inline fixture and helpers into your scratch script rather than
 ### The in-page self-test pattern
 
 The canonical way to verify GM APIs / injection is a userscript that **runs assertions in the page and prints a
-summary line**, which the harness parses from the console. The bundled scripts in
-[`example/tests/`](../example/tests/) (e.g. `gm_api_sync_test.js`, `gm_api_async_test.js`,
-`inject_content_test.js`, `sandbox_test.js`, `window_message_test.js`) do exactly this. The exact line varies by
-script — what matters is that each emits a `通过`/`Passed` and a `失败`/`Failed` count the harness can parse:
+summary the harness parses from the console**. The bundled scripts in [`example/tests/`](../example/tests/) all
+share one framework, [`example/tests/lib/sctest.js`](../example/tests/lib/sctest.js) (loaded via `@require`), and
+therefore all emit the same summary lines:
 
 ```
-总计: 12 | 通过: 12 | 失败: 0        # inject_content_test.js / sandbox_test.js (combined line)
-总测试数: 12 / 通过: 12 / 失败: 0     # gm_api_sync_test.js / gm_api_async_test.js (counts on separate lines)
-Total: 12 | Passed: 12 | Failed: 0   # window_message_test.js (English)
+总测试数: 12
+通过: 12
+失败: 0
+跳过: 0 (34ms)
 ```
 
-Collect and assert on it from your scratch script (the regex below matches all three layouts):
+Scripts that run in a background / crontab context have no visible page, so the same framework additionally emits
+one `GM_log` entry per case with structured labels (`sctest`, `status`), which show up as filterable chips on the
+运行日志 page. Cases that need a human action (e.g. clicking a menu item) are registered with `itManual` and count
+as skipped until confirmed on the panel.
+
+> The one exception is [`gm_value_test.js`](../example/tests/gm_value_test.js) — an interactive multi-frame
+> dashboard demo for `GM_addValueChangeListener` with no machine-checkable assertions. It is intentionally left
+> off the framework and prints no summary line.
+
+Collect and assert on the summary from your scratch script (the regex below matches the framework's summary lines):
 
 ```ts
 const logs: string[] = [];
