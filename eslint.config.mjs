@@ -98,6 +98,31 @@ export default [
     rules: { "no-restricted-imports": "off" },
   },
   {
+    // 全局测试 setup 每个测试文件都要加载，引入重型模块会拖慢整个套件
+    // （见 docs/references/develop-testing.md § Vitest Performance Hygiene）。
+    files: ["tests/vitest.setup.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "./utils",
+                "./utils/*",
+                "@App/app/service",
+                "@App/app/service/*",
+                "@App/pages/store",
+                "@App/pages/store/*",
+              ],
+              message: "全局 setup 只安装浏览器/chrome mock，重型 helper 放到按需 import 的测试工具里。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // new-ui 页面禁止 className 写原始颜色，必须走设计令牌以适配亮/暗主题。
     files: ["src/pages/**/*.tsx"],
     rules: { "scriptcat/no-raw-color-classname": "error" },
