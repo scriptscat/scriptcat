@@ -44,6 +44,43 @@
     return err;
   }
 
+  // 结构化深比较。刻意不同于部分用户脚本里基于 JSON.stringify 的 assertDeepEq:
+  // NaN 与自身相等、值为 undefined 的键与缺失的键不同、对象键顺序不影响比较结果。
+  // 通过 seen 记录比较路径中的 (a,b) 组合来避免循环引用导致的栈溢出,
+  // 但不做真正的循环感知等价判断——只是让循环结构比较能有限终止,而非精确语义。
+  function deepEqual(a, b, seen) {
+    if (Object.is(a, b)) return true;
+    if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+
+    var aIsArray = Array.isArray(a);
+    var bIsArray = Array.isArray(b);
+    if (aIsArray !== bIsArray) return false;
+
+    seen = seen || [];
+    for (var s = 0; s < seen.length; s++) {
+      if (seen[s][0] === a && seen[s][1] === b) return true;
+    }
+    seen.push([a, b]);
+
+    if (aIsArray) {
+      if (a.length !== b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (!deepEqual(a[i], b[i], seen)) return false;
+      }
+      return true;
+    }
+
+    var aKeys = Object.keys(a);
+    var bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) return false;
+    for (var k = 0; k < aKeys.length; k++) {
+      var key = aKeys[k];
+      if (!Object.prototype.hasOwnProperty.call(b, key)) return false;
+      if (!deepEqual(a[key], b[key], seen)) return false;
+    }
+    return true;
+  }
+
   function makeExpect() {
     return function expect(actual) {
       return {
@@ -57,9 +94,11 @@
           }
         },
         toEqual: function (expected) {
-          var a = stringify(actual);
-          var b = stringify(expected);
-          if (a !== b) throw AssertionError("期望 " + b + ",实际 " + a, b, a);
+          if (!deepEqual(actual, expected)) {
+            var b = stringify(expected);
+            var a = stringify(actual);
+            throw AssertionError("期望 " + b + ",实际 " + a, b, a);
+          }
         },
         toBeTruthy: function () {
           if (!actual) throw AssertionError("期望为真值,实际 " + stringify(actual), "truthy", stringify(actual));
@@ -268,7 +307,8 @@
         } else if (c.status === STATUS.FAIL) {
           console.error("%c✗ " + c.name, "color: red;", c.error);
         } else if (c.status === STATUS.MANUAL) {
-          console.log("%c○ " + c.name + " (待人工确认)", "color: #999;");
+          var hintSuffix = c.hint ? ":" + c.hint : "";
+          console.log("%c○ " + c.name + " (待人工确认" + hintSuffix + ")", "color: #999;");
         } else {
           console.log("%c○ " + c.name + " (跳过)", "color: #999;");
         }

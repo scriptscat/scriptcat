@@ -52,6 +52,79 @@ vdescribe("sctest 框架内核", () => {
       vexpect(() => e({ a: [1, 2] }).toEqual({ a: [2, 1] })).toThrow();
     });
 
+    vit("toEqual 对象键顺序不影响比较结果", () => {
+      const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
+      vexpect(() => e({ a: 1, b: 2 }).toEqual({ b: 2, a: 1 })).not.toThrow();
+    });
+
+    vit("toEqual 用 Object.is 语义,NaN 不等于 null", () => {
+      const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
+      vexpect(() => e(NaN).toEqual(null)).toThrow();
+    });
+
+    vit("toEqual 用 Object.is 语义,NaN 等于 NaN", () => {
+      const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
+      vexpect(() => e(NaN).toEqual(NaN)).not.toThrow();
+    });
+
+    vit("toEqual 显式 undefined 值的键与缺失键不同", () => {
+      const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
+      vexpect(() => e({ a: undefined }).toEqual({})).toThrow();
+    });
+
+    vit("toEqual 数组按元素与长度比较,且数组不等于普通对象", () => {
+      const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
+      vexpect(() => e([1, 2]).toEqual([1, 2])).not.toThrow();
+      vexpect(() => e([1, 2]).toEqual([1, 2, 3])).toThrow();
+      vexpect(() => e([1, 2]).toEqual({ 0: 1, 1: 2 })).toThrow();
+    });
+
+    vit("toEqual 正确处理 null 与对象的区分", () => {
+      const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
+      vexpect(() => e(null).toEqual({})).toThrow();
+      vexpect(() => e({}).toEqual(null)).toThrow();
+      vexpect(() => e(null).toEqual(null)).not.toThrow();
+    });
+
+    vit("toEqual 面对循环引用不会栈溢出", () => {
+      const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
+      const a = { name: "x" };
+      a.self = a;
+      const b = { name: "x" };
+      b.self = b;
+      vexpect(() => e(a).toEqual(b)).not.toThrow();
+    });
+
+    vit("toEqual 失败时抛出的错误带有 expected/actual 字段", () => {
+      const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
+      let caught;
+      try {
+        e({ a: 1 }).toEqual({ a: 2 });
+      } catch (err) {
+        caught = err;
+      }
+      vexpect(caught).toBeTruthy();
+      vexpect(caught.name).toBe("AssertionError");
+      vexpect(typeof caught.message).toBe("string");
+      vexpect(caught.expected).toBe('{"a":2}');
+      vexpect(caught.actual).toBe('{"a":1}');
+    });
+
+    vit("toBeTruthy 假值抛出异常", () => {
+      const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
+      vexpect(() => e(0).toBeTruthy()).toThrow();
+      vexpect(() => e("").toBeTruthy()).toThrow();
+      vexpect(() => e(null).toBeTruthy()).toThrow();
+      vexpect(() => e(undefined).toBeTruthy()).toThrow();
+    });
+
+    vit("toBeTruthy 真值不抛出异常", () => {
+      const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
+      vexpect(() => e(1).toBeTruthy()).not.toThrow();
+      vexpect(() => e("x").toBeTruthy()).not.toThrow();
+      vexpect(() => e({}).toBeTruthy()).not.toThrow();
+    });
+
     vit("toBeTypeOf 校验 typeof", () => {
       const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
       vexpect(() => e("s").toBeTypeOf("string")).not.toThrow();
@@ -146,6 +219,40 @@ vdescribe("sctest 框架内核", () => {
       vexpect(text).toMatch(/失败: 1/);
       vexpect(/(通过|Passed)[:：]\s*(\d+)/.exec(text)[2]).toBe("1");
       vexpect(/(失败|Failed)[:：]\s*(\d+)/.exec(text)[2]).toBe("1");
+    });
+
+    vit("人工用例携带 hint 时,onCase 输出保留提示内容", async () => {
+      const lines = [];
+      const orig = console.log;
+      console.log = (...args) => lines.push(args.map(String).join(" "));
+      try {
+        const { describe: d, itManual: im, run } = SCTest.create({ name: "demo", reporter: "console" });
+        d("组", () => {
+          im("需要人工点击", { hint: "点一下确认按钮" });
+        });
+        await run();
+      } finally {
+        console.log = orig;
+      }
+      const text = lines.join("\n");
+      vexpect(text).toMatch(/○ 需要人工点击 \(待人工确认:点一下确认按钮\)/);
+    });
+
+    vit("人工用例没有 hint 时,沿用原有 (待人工确认) 措辞", async () => {
+      const lines = [];
+      const orig = console.log;
+      console.log = (...args) => lines.push(args.map(String).join(" "));
+      try {
+        const { describe: d, itManual: im, run } = SCTest.create({ name: "demo", reporter: "console" });
+        d("组", () => {
+          im("无提示的人工用例");
+        });
+        await run();
+      } finally {
+        console.log = orig;
+      }
+      const text = lines.join("\n");
+      vexpect(text).toMatch(/○ 无提示的人工用例 \(待人工确认\)/);
     });
   });
 });
