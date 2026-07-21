@@ -35,8 +35,7 @@ async function installSubscription(context: BrowserContext, extensionId: string,
   });
   await expect(page.getByText(SUBSCRIBE_NAME).first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("install-primary")).toBeEnabled();
-  await page.getByTestId("install-primary").click();
-  await page.waitForEvent("close", { timeout: 10_000 });
+  await Promise.all([page.waitForEvent("close", { timeout: 10_000 }), page.getByTestId("install-primary").click()]);
 }
 
 async function openTarget(context: BrowserContext, origin: string, suffix: string): Promise<Page> {

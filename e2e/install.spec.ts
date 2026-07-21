@@ -32,8 +32,7 @@ async function openInstallPage(context: BrowserContext, extensionId: string): Pr
 }
 
 async function installFromPage(page: Page): Promise<void> {
-  await page.getByTestId("install-primary").click();
-  await page.waitForEvent("close", { timeout: 10_000 });
+  await Promise.all([page.waitForEvent("close", { timeout: 10_000 }), page.getByTestId("install-primary").click()]);
 }
 
 async function expectExecutedVersion(context: BrowserContext, version: string): Promise<void> {

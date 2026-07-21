@@ -8,7 +8,6 @@ const TARGET_ORIGIN = "http://storage-name.test";
 type ScriptIdentity = {
   name: string;
   uuid: string;
-  storageNames: string[];
 };
 
 type ScriptActionResponse<T> = {
@@ -46,14 +45,21 @@ type CrossContextResult = {
 
 type CrossContextScriptPair = {
   token: string;
-  storageName: string;
   backgroundName: string;
-  foregroundName: string;
   runEvent: string;
   readyAttribute: string;
   resultAttribute: string;
   backgroundCode: string;
   foregroundCode: string;
+};
+
+type StorageReaderScript = {
+  name: string;
+  readEvent: string;
+  readyAttribute: string;
+  resultAttribute: string;
+  remoteChangeAttribute: string;
+  code: string;
 };
 
 type SharedScriptPair = {
@@ -64,16 +70,11 @@ type SharedScriptPair = {
   syncValue: string;
   asyncValue: string;
   writerName: string;
-  readerName: string;
   writeEvent: string;
-  readEvent: string;
   writerReadyAttribute: string;
-  readerReadyAttribute: string;
   writerResultAttribute: string;
-  readerResultAttribute: string;
-  remoteChangeAttribute: string;
   writerCode: string;
-  readerCode: string;
+  reader: StorageReaderScript;
 };
 
 async function serveTargetPage(context: BrowserContext): Promise<void> {
@@ -86,23 +87,84 @@ async function serveTargetPage(context: BrowserContext): Promise<void> {
   );
 }
 
-function createSharedScriptPair(options: { storageName?: string; readerStorageName?: string } = {}): SharedScriptPair {
+function createStorageReaderScript(options: {
+  token: string;
+  role: "shared" | "isolated";
+  storageName: string;
+  syncKey: string;
+  asyncKey: string;
+}): StorageReaderScript {
+  const { token, role, storageName, syncKey, asyncKey } = options;
+  const name = `E2E storageName ${role} reader ${token}`;
+  const readEvent = `scriptcat-e2e-${token}-${role}-read`;
+  const readyAttribute = `data-sc-${token}-${role}-reader-ready`;
+  const resultAttribute = `data-sc-${token}-${role}-reader-result`;
+  const remoteChangeAttribute = `data-sc-${token}-${role}-remote-change`;
+  const code = `// ==UserScript==
+// @name         ${name}
+// @namespace    https://e2e.scriptcat.test/${token}/${role}-reader
+// @version      1.0.0
+// @match        ${TARGET_ORIGIN}/*
+// @run-at       document-start
+// @grant        GM_getValue
+// @grant        GM.getValue
+// @grant        GM_addValueChangeListener
+// @storageName  ${storageName}
+// ==/UserScript==
+
+const setReaderMarker = (name, value) => {
+  const apply = () => document.documentElement?.setAttribute(name, value);
+  if (document.documentElement) apply();
+  else document.addEventListener("DOMContentLoaded", apply, { once: true });
+};
+
+GM_addValueChangeListener(${JSON.stringify(asyncKey)}, (name, oldValue, newValue, remote) => {
+  setReaderMarker(
+    ${JSON.stringify(remoteChangeAttribute)},
+    JSON.stringify({
+      name,
+      oldValue: oldValue === undefined ? null : oldValue,
+      newValue,
+      remote,
+    }),
+  );
+});
+
+document.addEventListener(${JSON.stringify(readEvent)}, async () => {
+  try {
+    setReaderMarker(
+      ${JSON.stringify(resultAttribute)},
+      JSON.stringify({
+        ok: true,
+        asyncReadOfSyncWrite: await GM.getValue(${JSON.stringify(syncKey)}, "missing"),
+        syncReadOfAsyncWrite: GM_getValue(${JSON.stringify(asyncKey)}, "missing"),
+      }),
+    );
+  } catch (error) {
+    setReaderMarker(
+      ${JSON.stringify(resultAttribute)},
+      JSON.stringify({ ok: false, error: String(error) }),
+    );
+  }
+});
+
+setReaderMarker(${JSON.stringify(readyAttribute)}, "true");
+`;
+
+  return { name, readEvent, readyAttribute, resultAttribute, remoteChangeAttribute, code };
+}
+
+function createSharedScriptPair(): SharedScriptPair {
   const token = randomUUID().replaceAll("-", "");
-  const storageName = options.storageName || `scriptcat-e2e-storage-${token}`;
-  const readerStorageName = options.readerStorageName || storageName;
+  const storageName = `scriptcat-e2e-storage-${token}`;
   const syncKey = `sync-${token}`;
   const asyncKey = `async-${token}`;
   const syncValue = `sync-value-${token}`;
   const asyncValue = `async-value-${token}`;
   const writerName = `E2E storageName writer ${token}`;
-  const readerName = `E2E storageName reader ${token}`;
   const writeEvent = `scriptcat-e2e-${token}-write`;
-  const readEvent = `scriptcat-e2e-${token}-read`;
   const writerReadyAttribute = `data-sc-${token}-writer-ready`;
-  const readerReadyAttribute = `data-sc-${token}-reader-ready`;
   const writerResultAttribute = `data-sc-${token}-writer-result`;
-  const readerResultAttribute = `data-sc-${token}-reader-result`;
-  const remoteChangeAttribute = `data-sc-${token}-remote-change`;
 
   const writerCode = `// ==UserScript==
 // @name         ${writerName}
@@ -140,57 +202,7 @@ document.addEventListener(
 
 setWriterMarker(${JSON.stringify(writerReadyAttribute)}, "true");
 `;
-
-  const readerCode = `// ==UserScript==
-// @name         ${readerName}
-// @namespace    https://e2e.scriptcat.test/${token}/reader
-// @version      1.0.0
-// @match        ${TARGET_ORIGIN}/*
-// @run-at       document-start
-// @grant        GM_getValue
-// @grant        GM.getValue
-// @grant        GM_addValueChangeListener
-// @storageName  ${readerStorageName}
-// ==/UserScript==
-
-const setReaderMarker = (name, value) => {
-  const apply = () => document.documentElement?.setAttribute(name, value);
-  if (document.documentElement) apply();
-  else document.addEventListener("DOMContentLoaded", apply, { once: true });
-};
-
-GM_addValueChangeListener(${JSON.stringify(asyncKey)}, (name, oldValue, newValue, remote) => {
-  setReaderMarker(
-    ${JSON.stringify(remoteChangeAttribute)},
-    JSON.stringify({
-      name,
-      oldValue: oldValue === undefined ? null : oldValue,
-      newValue,
-      remote,
-    }),
-  );
-});
-
-document.addEventListener(${JSON.stringify(readEvent)}, async () => {
-  try {
-    setReaderMarker(
-      ${JSON.stringify(readerResultAttribute)},
-      JSON.stringify({
-        ok: true,
-        asyncReadOfSyncWrite: await GM.getValue(${JSON.stringify(syncKey)}, "missing"),
-        syncReadOfAsyncWrite: GM_getValue(${JSON.stringify(asyncKey)}, "missing"),
-      }),
-    );
-  } catch (error) {
-    setReaderMarker(
-      ${JSON.stringify(readerResultAttribute)},
-      JSON.stringify({ ok: false, error: String(error) }),
-    );
-  }
-});
-
-setReaderMarker(${JSON.stringify(readerReadyAttribute)}, "true");
-`;
+  const reader = createStorageReaderScript({ token, role: "shared", storageName, syncKey, asyncKey });
 
   return {
     token,
@@ -200,16 +212,11 @@ setReaderMarker(${JSON.stringify(readerReadyAttribute)}, "true");
     syncValue,
     asyncValue,
     writerName,
-    readerName,
     writeEvent,
-    readEvent,
     writerReadyAttribute,
-    readerReadyAttribute,
     writerResultAttribute,
-    readerResultAttribute,
-    remoteChangeAttribute,
     writerCode,
-    readerCode,
+    reader,
   };
 }
 
@@ -292,9 +299,7 @@ setMarker(${JSON.stringify(readyAttribute)}, "true");
 
   return {
     token,
-    storageName,
     backgroundName,
-    foregroundName,
     runEvent,
     readyAttribute,
     resultAttribute,
@@ -308,7 +313,6 @@ async function readScriptIdentities(page: Page, names: string[]): Promise<Script
     type InstalledScript = {
       name: string;
       uuid: string;
-      metadata?: { storagename?: string[] };
     };
 
     const response = (await chrome.runtime.sendMessage({
@@ -323,40 +327,33 @@ async function readScriptIdentities(page: Page, names: string[]): Promise<Script
       .map((script) => ({
         name: script.name,
         uuid: script.uuid,
-        storageNames: script.metadata?.storagename || [],
       }));
   }, names);
 }
 
-async function installSharedScriptPair(
+async function installSharedScripts(
   context: BrowserContext,
   extensionId: string,
-  pair: SharedScriptPair
-): Promise<ScriptIdentity[]> {
+  pair: SharedScriptPair,
+  readers: StorageReaderScript[] = [pair.reader]
+): Promise<void> {
   await installScriptByCode(context, extensionId, pair.writerCode);
-  await installScriptByCode(context, extensionId, pair.readerCode);
+  for (const reader of readers) await installScriptByCode(context, extensionId, reader.code);
   autoApprovePermissions(context);
-
-  const optionsPage = await openOptionsPage(context, extensionId);
-  try {
-    return await readScriptIdentities(optionsPage, [pair.writerName, pair.readerName]);
-  } finally {
-    await optionsPage.close();
-  }
 }
 
 async function installCrossContextScriptPair(
   context: BrowserContext,
   extensionId: string,
   pair: CrossContextScriptPair
-): Promise<ScriptIdentity[]> {
+): Promise<void> {
   await installScriptByCode(context, extensionId, pair.backgroundCode);
   await installScriptByCode(context, extensionId, pair.foregroundCode);
   autoApprovePermissions(context);
 
   const optionsPage = await openOptionsPage(context, extensionId);
   try {
-    const identities = await readScriptIdentities(optionsPage, [pair.backgroundName, pair.foregroundName]);
+    const identities = await readScriptIdentities(optionsPage, [pair.backgroundName]);
     const background = identities.find((script) => script.name === pair.backgroundName);
     expect(background, "未找到 storageName 后台脚本").toBeDefined();
     const response = await optionsPage.evaluate(async (uuid) => {
@@ -366,26 +363,21 @@ async function installCrossContextScriptPair(
       }) as Promise<ScriptActionResponse<Record<string, never>>>;
     }, background!.uuid);
     expect(response.code || 0, response.message).toBe(0);
-    return identities;
   } finally {
     await optionsPage.close();
   }
 }
 
-function assertSharedMetadataUsesDifferentIdentities(identities: ScriptIdentity[], pair: SharedScriptPair): void {
-  expect(identities).toHaveLength(2);
-  const writer = identities.find((script) => script.name === pair.writerName);
-  const reader = identities.find((script) => script.name === pair.readerName);
-  expect(writer, "未找到 storageName 写入脚本").toBeDefined();
-  expect(reader, "未找到 storageName 读取脚本").toBeDefined();
-  expect(writer!.storageNames).toEqual([pair.storageName]);
-  expect(reader!.storageNames).toEqual([pair.storageName]);
-  expect(writer!.uuid).not.toBe(reader!.uuid);
-}
-
-async function waitForReady(page: Page, pair: SharedScriptPair, includeWriter: boolean): Promise<void> {
+async function waitForReady(
+  page: Page,
+  pair: SharedScriptPair,
+  readers: StorageReaderScript[],
+  includeWriter: boolean
+): Promise<void> {
   const root = page.locator("html");
-  await expect(root).toHaveAttribute(pair.readerReadyAttribute, "true", { timeout: 20_000 });
+  for (const reader of readers) {
+    await expect(root).toHaveAttribute(reader.readyAttribute, "true", { timeout: 20_000 });
+  }
   if (includeWriter) {
     await expect(root).toHaveAttribute(pair.writerReadyAttribute, "true", { timeout: 20_000 });
   }
@@ -405,9 +397,9 @@ async function triggerWrite(page: Page, pair: SharedScriptPair): Promise<void> {
   expect(result).toEqual({ ok: true });
 }
 
-async function readSharedValues(page: Page, pair: SharedScriptPair): Promise<SharedReadResult> {
-  await page.evaluate((eventName) => document.dispatchEvent(new Event(eventName)), pair.readEvent);
-  return waitForJsonAttribute<SharedReadResult>(page, pair.readerResultAttribute);
+async function readStorageValues(page: Page, reader: StorageReaderScript): Promise<SharedReadResult> {
+  await page.evaluate((eventName) => document.dispatchEvent(new Event(eventName)), reader.readEvent);
+  return waitForJsonAttribute<SharedReadResult>(page, reader.resultAttribute);
 }
 
 async function runScriptAction<T>(page: Page, action: "deletes" | "purges" | "restores", uuids: string[]): Promise<T> {
@@ -427,29 +419,50 @@ async function runScriptAction<T>(page: Page, action: "deletes" | "purges" | "re
 test.describe("@storageName 真实浏览器共享存储", () => {
   test.setTimeout(180_000);
 
-  test("两个不同 UUID 的普通脚本应共享同步与异步值，并报告远程变更", async ({ context, extensionId }) => {
+  test("普通脚本应按 storageName 共享或隔离值与变更事件", async ({ context, extensionId }) => {
     await serveTargetPage(context);
     const pair = createSharedScriptPair();
-    const identities = await installSharedScriptPair(context, extensionId, pair);
-    assertSharedMetadataUsesDifferentIdentities(identities, pair);
+    const isolatedReader = createStorageReaderScript({
+      token: pair.token,
+      role: "isolated",
+      storageName: `scriptcat-e2e-isolated-${pair.token}`,
+      syncKey: pair.syncKey,
+      asyncKey: pair.asyncKey,
+    });
+    await installSharedScripts(context, extensionId, pair, [pair.reader, isolatedReader]);
 
     const page = await context.newPage();
     try {
-      await page.goto(`${TARGET_ORIGIN}/page?shared=${pair.token}`, { waitUntil: "domcontentloaded" });
-      await waitForReady(page, pair, true);
-      await triggerWrite(page, pair);
+      await page.goto(`${TARGET_ORIGIN}/page?shared-and-isolated=${pair.token}`, { waitUntil: "domcontentloaded" });
+      await waitForReady(page, pair, [pair.reader, isolatedReader], true);
 
-      const remoteChange = await waitForJsonAttribute<RemoteChangeResult>(page, pair.remoteChangeAttribute);
-      expect(remoteChange).toEqual({
-        name: pair.asyncKey,
-        oldValue: null,
-        newValue: pair.asyncValue,
-        remote: true,
+      await test.step("writer 一次写入同步与异步值", async () => {
+        await triggerWrite(page, pair);
       });
-      await expect(readSharedValues(page, pair)).resolves.toEqual({
-        ok: true,
-        asyncReadOfSyncWrite: pair.syncValue,
-        syncReadOfAsyncWrite: pair.asyncValue,
+
+      await test.step("相同 storageName reader 交叉读取并收到远程变更", async () => {
+        const remoteChange = await waitForJsonAttribute<RemoteChangeResult>(page, pair.reader.remoteChangeAttribute);
+        expect(remoteChange).toEqual({
+          name: pair.asyncKey,
+          oldValue: null,
+          newValue: pair.asyncValue,
+          remote: true,
+        });
+        await expect(readStorageValues(page, pair.reader)).resolves.toEqual({
+          ok: true,
+          asyncReadOfSyncWrite: pair.syncValue,
+          syncReadOfAsyncWrite: pair.asyncValue,
+        });
+      });
+
+      await test.step("不同 storageName reader 读取 missing 且不收到变更标记", async () => {
+        await expect(readStorageValues(page, isolatedReader)).resolves.toEqual({
+          ok: true,
+          asyncReadOfSyncWrite: "missing",
+          syncReadOfAsyncWrite: "missing",
+        });
+        // shared marker 与 isolated reader 的异步读取均已完成，无需用固定长等待证明隔离事件不存在。
+        expect(await page.locator("html").getAttribute(isolatedReader.remoteChangeAttribute)).toBeNull();
       });
     } finally {
       await page.close();
@@ -459,10 +472,7 @@ test.describe("@storageName 真实浏览器共享存储", () => {
   test("后台脚本与前台脚本应跨运行环境双向共享值，并报告远程变更", async ({ context, extensionId }) => {
     await serveTargetPage(context);
     const pair = createCrossContextScriptPair();
-    const identities = await installCrossContextScriptPair(context, extensionId, pair);
-    expect(identities).toHaveLength(2);
-    expect(identities.map((script) => script.storageNames)).toEqual([[pair.storageName], [pair.storageName]]);
-    expect(new Set(identities.map((script) => script.uuid)).size).toBe(2);
+    await installCrossContextScriptPair(context, extensionId, pair);
 
     const page = await context.newPage();
     try {
@@ -482,126 +492,102 @@ test.describe("@storageName 真实浏览器共享存储", () => {
     }
   });
 
-  test("不同 storageName 的脚本使用相同 key 时应严格隔离", async ({ context, extensionId }) => {
+  test("storageName owner 应在 2→1→0 生命周期中保留并最终清理共享值", async ({ context, extensionId }) => {
     await serveTargetPage(context);
-    const pair = createSharedScriptPair({
-      readerStorageName: `scriptcat-e2e-isolated-${randomUUID().replaceAll("-", "")}`,
+    const pair = createSharedScriptPair();
+
+    const owners = await test.step("seed：两个 owner 写入并读回共享值", async () => {
+      await installSharedScripts(context, extensionId, pair);
+
+      const optionsPage = await openOptionsPage(context, extensionId);
+      let identities: ScriptIdentity[];
+      try {
+        identities = await readScriptIdentities(optionsPage, [pair.writerName, pair.reader.name]);
+      } finally {
+        await optionsPage.close();
+      }
+      const writer = identities.find((script) => script.name === pair.writerName);
+      const reader = identities.find((script) => script.name === pair.reader.name);
+      expect(writer, "未找到 storageName 写入脚本").toBeDefined();
+      expect(reader, "未找到 storageName 读取脚本").toBeDefined();
+
+      const seedPage = await context.newPage();
+      try {
+        await seedPage.goto(`${TARGET_ORIGIN}/page?seed=${pair.token}`, { waitUntil: "domcontentloaded" });
+        await waitForReady(seedPage, pair, [pair.reader], true);
+        await triggerWrite(seedPage, pair);
+        await expect(readStorageValues(seedPage, pair.reader)).resolves.toEqual({
+          ok: true,
+          asyncReadOfSyncWrite: pair.syncValue,
+          syncReadOfAsyncWrite: pair.asyncValue,
+        });
+      } finally {
+        await seedPage.close();
+      }
+
+      return { writer: writer!, reader: reader! };
     });
-    await installSharedScriptPair(context, extensionId, pair);
 
-    const page = await context.newPage();
-    try {
-      await page.goto(`${TARGET_ORIGIN}/page?isolated=${pair.token}`, { waitUntil: "domcontentloaded" });
-      await waitForReady(page, pair, true);
-      await triggerWrite(page, pair);
-      await expect(readSharedValues(page, pair)).resolves.toEqual({
-        ok: true,
-        asyncReadOfSyncWrite: "missing",
-        syncReadOfAsyncWrite: "missing",
-      });
-    } finally {
-      await page.close();
-    }
-  });
+    await test.step("2→1 owner：purge writer 后 restore reader 仍保留旧值", async () => {
+      const optionsPage = await openOptionsPage(context, extensionId);
+      try {
+        expect(await runScriptAction<boolean>(optionsPage, "deletes", [owners.writer.uuid, owners.reader.uuid])).toBe(
+          true
+        );
+        expect(await runScriptAction<boolean>(optionsPage, "purges", [owners.writer.uuid])).toBe(true);
+        await expect.poll(() => readScriptIdentities(optionsPage, [pair.writerName, pair.reader.name])).toEqual([]);
+        const restore = await runScriptAction<{ restored: string[]; conflicts: unknown[] }>(optionsPage, "restores", [
+          owners.reader.uuid,
+        ]);
+        expect(restore).toEqual({ restored: [owners.reader.uuid], conflicts: [] });
+        await expect
+          .poll(() => readScriptIdentities(optionsPage, [pair.writerName, pair.reader.name]))
+          .toEqual([expect.objectContaining({ name: pair.reader.name })]);
+      } finally {
+        await optionsPage.close();
+      }
 
-  test("共享脚本仅剩回收站 owner 时，purge 其他脚本不得清理共享值", async ({ context, extensionId }) => {
-    await serveTargetPage(context);
-    const pair = createSharedScriptPair();
-    const identities = await installSharedScriptPair(context, extensionId, pair);
-    assertSharedMetadataUsesDifferentIdentities(identities, pair);
+      const restoredPage = await context.newPage();
+      try {
+        await restoredPage.goto(`${TARGET_ORIGIN}/page?one-owner=${pair.token}`, {
+          waitUntil: "domcontentloaded",
+        });
+        await waitForReady(restoredPage, pair, [pair.reader], false);
+        await expect(readStorageValues(restoredPage, pair.reader)).resolves.toEqual({
+          ok: true,
+          asyncReadOfSyncWrite: pair.syncValue,
+          syncReadOfAsyncWrite: pair.asyncValue,
+        });
+      } finally {
+        await restoredPage.close();
+      }
+    });
 
-    const writer = identities.find((script) => script.name === pair.writerName)!;
-    const reader = identities.find((script) => script.name === pair.readerName)!;
-    const initialPage = await context.newPage();
-    try {
-      await initialPage.goto(`${TARGET_ORIGIN}/page?before-purge=${pair.token}`, {
-        waitUntil: "domcontentloaded",
-      });
-      await waitForReady(initialPage, pair, true);
-      await triggerWrite(initialPage, pair);
-      await expect(readSharedValues(initialPage, pair)).resolves.toEqual({
-        ok: true,
-        asyncReadOfSyncWrite: pair.syncValue,
-        syncReadOfAsyncWrite: pair.asyncValue,
-      });
-    } finally {
-      await initialPage.close();
-    }
+    await test.step("1→0 owner：purge reader 后重装不得读到旧值", async () => {
+      const optionsPage = await openOptionsPage(context, extensionId);
+      try {
+        expect(await runScriptAction<boolean>(optionsPage, "deletes", [owners.reader.uuid])).toBe(true);
+        expect(await runScriptAction<boolean>(optionsPage, "purges", [owners.reader.uuid])).toBe(true);
+        await expect.poll(() => readScriptIdentities(optionsPage, [pair.writerName, pair.reader.name])).toEqual([]);
+      } finally {
+        await optionsPage.close();
+      }
 
-    const optionsPage = await openOptionsPage(context, extensionId);
-    try {
-      expect(await runScriptAction<boolean>(optionsPage, "deletes", [writer.uuid, reader.uuid])).toBe(true);
-      expect(await runScriptAction<boolean>(optionsPage, "purges", [writer.uuid])).toBe(true);
-      await expect.poll(() => readScriptIdentities(optionsPage, [pair.writerName, pair.readerName])).toEqual([]);
-      const restore = await runScriptAction<{ restored: string[]; conflicts: unknown[] }>(optionsPage, "restores", [
-        reader.uuid,
-      ]);
-      expect(restore).toEqual({ restored: [reader.uuid], conflicts: [] });
-      await expect
-        .poll(() => readScriptIdentities(optionsPage, [pair.writerName, pair.readerName]))
-        .toEqual([expect.objectContaining({ name: pair.readerName })]);
-    } finally {
-      await optionsPage.close();
-    }
-
-    const reloadedPage = await context.newPage();
-    try {
-      await reloadedPage.goto(`${TARGET_ORIGIN}/page?after-purge=${pair.token}`, {
-        waitUntil: "domcontentloaded",
-      });
-      await waitForReady(reloadedPage, pair, false);
-      await expect(readSharedValues(reloadedPage, pair)).resolves.toEqual({
-        ok: true,
-        asyncReadOfSyncWrite: pair.syncValue,
-        syncReadOfAsyncWrite: pair.asyncValue,
-      });
-    } finally {
-      await reloadedPage.close();
-    }
-  });
-
-  test("最后一个 storageName owner 被 purge 后，后续安装的脚本不得读到旧值", async ({ context, extensionId }) => {
-    await serveTargetPage(context);
-    const pair = createSharedScriptPair();
-    const identities = await installSharedScriptPair(context, extensionId, pair);
-    assertSharedMetadataUsesDifferentIdentities(identities, pair);
-
-    const initialPage = await context.newPage();
-    try {
-      await initialPage.goto(`${TARGET_ORIGIN}/page?before-final-purge=${pair.token}`, {
-        waitUntil: "domcontentloaded",
-      });
-      await waitForReady(initialPage, pair, true);
-      await triggerWrite(initialPage, pair);
-    } finally {
-      await initialPage.close();
-    }
-
-    const optionsPage = await openOptionsPage(context, extensionId);
-    try {
-      const uuids = identities.map((script) => script.uuid);
-      expect(await runScriptAction<boolean>(optionsPage, "deletes", uuids)).toBe(true);
-      expect(await runScriptAction<boolean>(optionsPage, "purges", uuids)).toBe(true);
-      await expect.poll(() => readScriptIdentities(optionsPage, [pair.writerName, pair.readerName])).toEqual([]);
-    } finally {
-      await optionsPage.close();
-    }
-
-    await installScriptByCode(context, extensionId, pair.readerCode);
-    autoApprovePermissions(context);
-    const reinstalledPage = await context.newPage();
-    try {
-      await reinstalledPage.goto(`${TARGET_ORIGIN}/page?after-final-purge=${pair.token}`, {
-        waitUntil: "domcontentloaded",
-      });
-      await waitForReady(reinstalledPage, pair, false);
-      await expect(readSharedValues(reinstalledPage, pair)).resolves.toEqual({
-        ok: true,
-        asyncReadOfSyncWrite: "missing",
-        syncReadOfAsyncWrite: "missing",
-      });
-    } finally {
-      await reinstalledPage.close();
-    }
+      await installScriptByCode(context, extensionId, pair.reader.code);
+      const reinstalledPage = await context.newPage();
+      try {
+        await reinstalledPage.goto(`${TARGET_ORIGIN}/page?zero-owners=${pair.token}`, {
+          waitUntil: "domcontentloaded",
+        });
+        await waitForReady(reinstalledPage, pair, [pair.reader], false);
+        await expect(readStorageValues(reinstalledPage, pair.reader)).resolves.toEqual({
+          ok: true,
+          asyncReadOfSyncWrite: "missing",
+          syncReadOfAsyncWrite: "missing",
+        });
+      } finally {
+        await reinstalledPage.close();
+      }
+    });
   });
 });
