@@ -113,6 +113,7 @@
 
         // 先设置初始值，然后再添加监听器
         await GM.setValue("test_listener", "initial");
+        console.log("已设置初始值: initial");
 
         // 使用 setTimeout 确保初始值已完全设置
         setTimeout(() => {
@@ -152,10 +153,12 @@
             reject(new Error(`监听器ID类型错误: 期望 number 或 string, 实际 ${idType}`));
             return;
           }
+          console.log("监听器已注册，ID:", listenerId);
 
           // 延迟后修改值触发监听器
           setTimeout(() => {
             GM_setValue("test_listener", "changed");
+            console.log("已修改值为: changed");
           }, 100);
         }, 50);
       });
@@ -184,6 +187,7 @@
         style: "position: fixed; top: 10px; right: 10px; background: yellow; padding: 10px; z-index: 9999;",
       });
       expect(div && div.tagName === "DIV").toBeTruthy();
+      console.log("添加的元素:", div);
 
       // 创建脚本元素测试
       const script = GM_addElement("script", {
@@ -191,6 +195,7 @@
       });
       expect(script && script.tagName === "SCRIPT").toBeTruthy();
       expect(unsafeWindow.foo).toBe("bar");
+      console.log("添加的脚本元素:", script);
 
       document.querySelector(".container").insertBefore(script, document.querySelector(".masthead"));
 
