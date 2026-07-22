@@ -12,24 +12,20 @@ export type ValueUpdateSender = {
 /**
  * key, value, oldValue
  */
-export type ValueUpdateDataEntry = [string, any, any];
 export type ValueUpdateDataREntry = [string, REncoded, REncoded];
 
-export type ValueUpdateData = {
+export type ValueUpdateDataEncoded = {
   id?: string;
-  entries: ValueUpdateDataEntry[];
+  valueChanges: ValueUpdateDataREntry[];
   uuid: string;
   storageName: string; // 储存name
   sender: ValueUpdateSender;
 };
 
-export type ValueUpdateDataEncoded = {
-  id?: string;
-  entries: ValueUpdateDataREntry[];
-  uuid: string;
-  storageName: string; // 储存name
-  sender: ValueUpdateSender;
-  valueUpdated: boolean;
+// 以 storageName 为单位的推送数据；storageChanges 以 uuid 分组，同组内按处理顺序排列
+export type ValueUpdateSendData = {
+  storageName: string;
+  storageChanges: Record<string, ValueUpdateDataEncoded[]>;
 };
 
 // gm_api.ts

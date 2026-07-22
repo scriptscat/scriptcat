@@ -6,6 +6,7 @@ import { compileScript, compileScriptCode } from "../utils";
 import type { Message } from "@Packages/message/types";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { getStorageName } from "@App/pkg/utils/utils";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
@@ -1115,14 +1116,15 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
-    exec.valueUpdate({
-      id: "id-1",
-      entries: [["param1", encodeRValue(123), encodeRValue(undefined)]],
-      uuid: script.uuid,
-      storageName: script.uuid,
-      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
-      valueUpdated: true,
-    });
+    exec.valueUpdate(getStorageName(script), script.uuid, [
+      {
+        id: "id-1",
+        valueChanges: [["param1", encodeRValue(123), encodeRValue(undefined)]],
+        uuid: script.uuid,
+        storageName: script.uuid,
+        sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+      },
+    ]);
     const ret = await retPromise;
     expect(ret).toEqual({ name: "param1", oldValue: undefined, newValue: 123, remote: false });
   });
@@ -1155,14 +1157,15 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
-    exec.valueUpdate({
-      id: "id-2",
-      entries: [["param2", encodeRValue(456), encodeRValue(undefined)]],
-      uuid: script.uuid,
-      storageName: "testStorage",
-      sender: { runFlag: "user", tabId: -2 },
-      valueUpdated: true,
-    });
+    exec.valueUpdate(getStorageName(script), script.uuid, [
+      {
+        id: "id-2",
+        valueChanges: [["param2", encodeRValue(456), encodeRValue(undefined)]],
+        uuid: script.uuid,
+        storageName: "testStorage",
+        sender: { runFlag: "user", tabId: -2 },
+      },
+    ]);
     const ret2 = await retPromise;
     expect(ret2).toEqual({ name: "param2", oldValue: undefined, newValue: 456, remote: true });
   });
@@ -1195,14 +1198,15 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(id).toBeTypeOf("string");
     expect(id.length).greaterThan(0);
     // 触发valueUpdate
-    exec.valueUpdate({
-      id: id,
-      entries: [["a", encodeRValue(123), encodeRValue(undefined)]],
-      uuid: script.uuid,
-      storageName: script.uuid,
-      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
-      valueUpdated: true,
-    });
+    exec.valueUpdate(getStorageName(script), script.uuid, [
+      {
+        id: id,
+        valueChanges: [["a", encodeRValue(123), encodeRValue(undefined)]],
+        uuid: script.uuid,
+        storageName: script.uuid,
+        sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+      },
+    ]);
 
     const ret = await retPromise;
     expect(ret).toEqual(123);
