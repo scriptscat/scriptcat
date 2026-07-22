@@ -128,6 +128,29 @@ const getMimeType = (contentType: string) => {
 
 const docParseTypes = new Set(["application/xhtml+xml", "application/xml", "image/svg+xml", "text/html", "text/xml"]);
 
+// 只有真正注册了至少一个 upload 回调时，后台才会为 xhr.upload 绑定监听器。
+// 原因：为 xhr.upload 注册任何监听器都会令浏览器对跨域请求触发 CORS 预检 (OPTIONS)，
+// 不应对未使用 upload 功能的脚本造成额外的预检开销/兼容性影响。
+// 只接受函数值：truthy 但非函数的值（如 { onprogress: true }）既不应启用 upload 监听，
+// 也不应在事件到达时被当作函数调用而抛出。
+const hasAnyUploadHandler = (upload: GMTypes.XHRUpload | undefined): boolean =>
+  !!upload &&
+  [
+    upload.onloadstart,
+    upload.onprogress,
+    upload.onload,
+    upload.onloadend,
+    upload.onerror,
+    upload.onabort,
+    upload.ontimeout,
+  ].some((fn) => typeof fn === "function");
+
+// 与 bg_gm_xhr.ts 的 useFetch 判断保持一致：这些条件下后台会改走 fetch 传输，不会绑定 xhr.upload
+const isFetchForcedTransport = (details: GMTypes.XHRDetails): boolean => {
+  const anonymous = details.anonymous ?? details.mozAnon ?? false;
+  return !!(details.fetch || details.redirect || anonymous || details.responseType === "stream");
+};
+
 const retStateFnMap = new WeakMap<ThisType<GMXHRResponseType>, RetStateFnRecord>();
 
 interface RetStateFnRecord {
@@ -172,6 +195,12 @@ export function GM_xmlhttpRequest(
   isDownload: boolean = false
 ) {
   let reqDone = false;
+  // 一旦 upload 阶段以 error/abort/timeout 结束，整个请求已注定以同样的结果结束（原生实现此时
+  // readyState 已为 DONE，再调用 abort() 不会产生新事件）。置位后，返回的 abort() 变为空操作，
+  // 让真实的主 onerror/ontimeout/onabort 消息自然到达，而不是被本地合成的 AbortError 抢先覆盖。
+  let suppressSyntheticAbort = false;
+  // details.upload 在请求生命周期内不会变化，只需计算一次，供下方 canHaveUploadLifecycle 与 abort() 共用
+  const uploadHasHandlers = hasAnyUploadHandler(details.upload);
   if (a.isInvalidContext()) {
     return {
       retPromise: requirePromise ? Promise.reject("GM_xmlhttpRequest: Invalid Context") : null,
@@ -215,6 +244,7 @@ export function GM_xmlhttpRequest(
     password: details.password,
     redirect: details.redirect,
     fetch: details.fetch,
+    // hasUpload 需等待请求体编码完成、确认方法/请求体真的会产生 upload 阶段后才能计算，见下方 IIFE
   };
   if (!param.headers) {
     param.headers = {};
@@ -230,6 +260,19 @@ export function GM_xmlhttpRequest(
     const u = new URL(urlResolved, window.location.href);
     param.url = u.href;
     param.data = dataResolved;
+
+    // 对齐 XHR 规范：GET/HEAD 的请求体会被忽略，无请求体时 upload complete flag 在发送前已置位，
+    // 均不会产生 upload 阶段。fetch 传输也不绑定 xhr.upload（见 bg_gm_xhr.ts）。
+    // 只有真正会产生原生 upload 生命周期时，才告知后台绑定监听器、才在本地为 abort() 补发 upload 事件。
+    const uploadMethod = details.method || "GET";
+    const hasRequestBody = dataResolved.type !== "undefined" && dataResolved.type !== "null";
+    const canHaveUploadLifecycle =
+      !isFetchForcedTransport(details) &&
+      uploadMethod !== "GET" &&
+      uploadMethod !== "HEAD" &&
+      hasRequestBody &&
+      uploadHasHandlers;
+    param.hasUpload = canHaveUploadLifecycle;
 
     // 处理返回数据
     const isStreamResponse = responseTypeOriginal === "stream";
@@ -500,7 +543,42 @@ export function GM_xmlhttpRequest(
       return makeResponseRet(retParam, addGetters, res.contentType);
     };
     let makeXHRCallbackParam: typeof makeXHRCallbackParam_ | null = makeXHRCallbackParam_;
+    // progress 事件均为 ProgressEvent (标准语义)，统一携带 loaded/total/lengthComputable；
+    // 主请求 onprogress 与 upload.* 事件共用同一套字段拼装逻辑
+    const makeProgressCallbackParam = (
+      progressData: TXhrCallBackArg & { lengthComputable?: boolean; loaded?: number; total?: number }
+    ) => ({
+      ...(makeXHRCallbackParam?.(progressData) ?? {}),
+      lengthComputable: progressData.lengthComputable as boolean,
+      loaded: progressData.loaded as number,
+      total: progressData.total as number,
+      done: progressData.loaded,
+      totalSize: progressData.total,
+    });
     let loadendCalled = false;
+    // uploadDone 只在 canHaveUploadLifecycle 为 true 时才会被读取（见下方 doAbort），
+    // 请求不会产生真实 upload 阶段时该标志天然不参与判断
+    let uploadDone = false;
+    let uploadLoadEndCalled = false;
+    // 记录最后一次真实 upload 进度数据：upload 成功完成后才调用 abort() 时，
+    // 兜底补发的 onloadend 应携带真实的已传输字节数，而非 abort() 合成响应对象里缺省的 undefined
+    let lastUploadEventData:
+      | (TXhrCallBackArg & {
+          lengthComputable?: boolean;
+          loaded?: number;
+          total?: number;
+        })
+      | null = null;
+    // 对齐 XHR 规范：upload 的 load/loadend/error/abort/timeout 到达前，upload complete flag 已置位，
+    // 所以 onloadend 需要去重——既可能由真实消息触发，也可能由 abort() 的同步补发触发。
+    const fireUploadLoadEnd = (
+      data: TXhrCallBackArg & { lengthComputable?: boolean; loaded?: number; total?: number }
+    ) => {
+      if (!uploadLoadEndCalled) {
+        uploadLoadEndCalled = true;
+        details.upload?.onloadend?.(makeProgressCallbackParam(data));
+      }
+    };
     const doLoadEnd = (data: TXhrCallBackArg) => {
       if (!loadendCalled) {
         loadendCalled = true;
@@ -521,6 +599,28 @@ export function GM_xmlhttpRequest(
     doAbort = (data: TXhrCallBackArg) => {
       if (!reqDone) {
         errorOccur = "AbortError";
+        // canHaveUploadLifecycle 为 false 时（GET/HEAD、无请求体、或走 fetch 传输）根本不存在原生
+        // upload 阶段，不应触发任何 upload.* 回调；只有真正可能产生 upload 阶段的请求才需要处理
+        if (canHaveUploadLifecycle) {
+          const uploadWasDone = uploadDone;
+          if (!uploadWasDone) {
+            // 对齐原生 XHR abort() 语义：upload 尚未完成时，先补发 upload 的 abort；
+            // 若已收到进度事件，则沿用最后一次真实进度数据
+            uploadDone = true;
+            const uploadEventData = {
+              ...data,
+              lengthComputable: lastUploadEventData?.lengthComputable ?? false,
+              loaded: lastUploadEventData?.loaded ?? 0,
+              total: lastUploadEventData?.total ?? 0,
+            };
+            details.upload?.onabort?.(makeProgressCallbackParam(uploadEventData));
+            fireUploadLoadEnd(uploadEventData);
+          } else {
+            // upload 已经成功完成：兜底补发的 onloadend 使用最后一次真实进度数据，
+            // 而非 abort() 合成的响应对象（缺少 loaded/total/lengthComputable）
+            fireUploadLoadEnd(lastUploadEventData ?? data);
+          }
+        }
         details.onabort?.(makeXHRCallbackParam?.(data) ?? {});
         reqDone = true;
         // 不要进行 refCleanup ！要等待最后的 onloadend
@@ -657,15 +757,7 @@ export function GM_xmlhttpRequest(
             break;
           case "onprogress": {
             if (details.onprogress) {
-              const res = {
-                ...(makeXHRCallbackParam?.(data) ?? {}),
-                lengthComputable: data.lengthComputable as boolean,
-                loaded: data.loaded as number,
-                total: data.total as number,
-                done: data.loaded,
-                totalSize: data.total,
-              };
-              details.onprogress?.(res);
+              details.onprogress?.(makeProgressCallbackParam(data));
             }
             break;
           }
@@ -703,6 +795,45 @@ export function GM_xmlhttpRequest(
           case "onabort":
             doAbort?.(data);
             break;
+          // upload 事件均为 ProgressEvent (标准语义)，统一携带 loaded/total/lengthComputable
+          case "onuploadloadstart":
+            lastUploadEventData = data;
+            details.upload?.onloadstart?.(makeProgressCallbackParam(data));
+            break;
+          case "onuploadprogress":
+            lastUploadEventData = data;
+            details.upload?.onprogress?.(makeProgressCallbackParam(data));
+            break;
+          case "onuploadload":
+            // 对齐规范：upload complete flag 在 load 派发前已置位，须先于回调设置，
+            // 否则回调内同步调用 abort() 会误判 upload 尚未完成
+            uploadDone = true;
+            // 记录真实进度数据：若回调内同步调用 abort()，兜底补发的 onloadend 需要这份数据，
+            // 而不是 abort() 合成响应对象里缺省的 undefined
+            lastUploadEventData = data;
+            details.upload?.onload?.(makeProgressCallbackParam(data));
+            break;
+          case "onuploadloadend":
+            uploadDone = true;
+            fireUploadLoadEnd(data);
+            break;
+          case "onuploaderror":
+          case "onuploadabort":
+          case "onuploadtimeout":
+            // 对齐规范：request error steps 在派发 upload 的 error/abort/timeout 前，
+            // 已将整个请求置为 DONE——此时再调用 abort() 不会产生新事件（原生行为即为空操作）。
+            // 让返回的 abort() 变为空操作，使真实的主 onerror/ontimeout/onabort 消息能够到达，
+            // 而不是被这里同步调用 abort() 时合成的 AbortError 抢先覆盖。
+            uploadDone = true;
+            suppressSyntheticAbort = true;
+            if (msgData.action === "onuploaderror") {
+              details.upload?.onerror?.(makeProgressCallbackParam(data));
+            } else if (msgData.action === "onuploadabort") {
+              details.upload?.onabort?.(makeProgressCallbackParam(data));
+            } else {
+              details.upload?.ontimeout?.(makeProgressCallbackParam(data));
+            }
+            break;
           // case "onstream":
           //   controller?.enqueue(new Uint8Array(data));
           //   break;
@@ -721,11 +852,16 @@ export function GM_xmlhttpRequest(
   return {
     retPromise,
     abort: () => {
+      if (suppressSyntheticAbort) {
+        // upload 阶段已以 error/abort/timeout 结束，整个请求已注定失败：保持通道开启，
+        // 让真实的主 onerror/ontimeout/onabort 消息自然到达并驱动正确的回调
+        return;
+      }
       if (connect) {
         connect.disconnect(true); // 断开连结(容忍已断开)
         connect = null;
       }
-      if (doAbort && details.onabort && !reqDone) {
+      if (doAbort && !reqDone && (details.onabort || uploadHasHandlers)) {
         // https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/abort
         // When a request is aborted, its readyState is changed to XMLHttpRequest.UNSENT (0) and the request's status code is set to 0.
         doAbort?.({

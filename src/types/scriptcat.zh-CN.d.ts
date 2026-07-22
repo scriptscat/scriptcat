@@ -661,6 +661,20 @@ declare namespace GMTypes {
 
   type GMXHRDataType = string | Blob | File | BufferSource | FormData | URLSearchParams;
 
+  /**
+   * 上传阶段的事件处理器，对齐 `XMLHttpRequestUpload`。
+   * 依照 XHR 规范，upload 的所有事件均为 progress event，因此各回调统一接收 `XHRProgress`。
+   */
+  interface XHRUpload {
+    onloadstart?: Listener<XHRProgress>;
+    onprogress?: Listener<XHRProgress>;
+    onload?: Listener<XHRProgress>;
+    onloadend?: Listener<XHRProgress>;
+    onerror?: Listener<XHRProgress>;
+    onabort?: Listener<XHRProgress>;
+    ontimeout?: Listener<XHRProgress>;
+  }
+
   interface XHRDetails {
     method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS";
     url: string | URL | File | Blob;
@@ -689,6 +703,12 @@ declare namespace GMTypes {
     redirect?: "follow" | "error" | "manual";
     /** 分区 Cookie 键，用于存储分区。 */
     cookiePartition?: Record<string, any> & { topLevelSite?: string };
+    /**
+     * 上传阶段的事件处理器，对齐 `XMLHttpRequestUpload`。
+     * 仅原生 XHR 策略支持：当请求改走 fetch()（`fetch: true`、设置了 `redirect`、`anonymous`/`mozAnon`，
+     * 或 `responseType: "stream"`）时不支持。
+     */
+    upload?: XHRUpload;
 
     onload?: Listener<XHRResponse>;
     onloadstart?: Listener<XHRResponse>;

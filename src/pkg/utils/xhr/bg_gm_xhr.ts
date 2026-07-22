@@ -83,6 +83,7 @@ const isProgressEvent = (e: XHREvent): e is ProgressEvent<EventTarget> & { type:
  * | `onreadystatechange(response)` | Called when the request’s `readyState` changes. |
  * | `ontimeout(response)` | Called if the request times out. |
  * | `onload(response)` | Called when the request successfully completes. |
+ * | `upload` | Object probed for `onloadstart`/`onprogress`/`onload`/`onloadend`/`onerror`/`onabort`/`ontimeout`, mirroring `XMLHttpRequestUpload`. Requires the native-XHR strategy; not supported whenever the request runs over `fetch()` (`fetch: true`, `redirect` set, `anonymous`/`mozAnon`, or `responseType: "stream"`). |
  *
  * ---
  * ### Response Object
@@ -392,6 +393,40 @@ export class BgGMXhr {
         baseXHR.ontimeout = callback;
         baseXHR.onreadystatechange = callback;
         baseXHR.onloadend = callback;
+
+        // upload 阶段事件：仅原生 XMLHttpRequest 提供 xhr.upload，fetch 模式不支持上传进度回调
+        // 只在调用方确实注册了 upload 回调 (details.hasUpload) 时才绑定：
+        // 为 xhr.upload 注册任何监听器都会令浏览器对跨域请求强制触发 CORS 预检 (OPTIONS)，
+        // 未使用 upload 功能的脚本不应承担这一额外开销/兼容性风险。
+        if (!(localThis instanceof FetchXHR) && details.hasUpload) {
+          const uploadCallback = (evt: ProgressEvent) => {
+            const xhr = localThis;
+            const eventType = `upload${evt.type}`;
+            this.callback({
+              useFetch: useFetch,
+              eventType,
+              ok: xhr.status >= 200 && xhr.status < 300,
+              contentType,
+              readyState: xhr.readyState as GMTypes.ReadyState,
+              status: xhr.status,
+              statusText: xhr.statusText,
+              responseHeaders,
+              responseURL: xhr.responseURL,
+              error: evt.type !== "error" ? undefined : "Unknown Error",
+              total: evt.total,
+              loaded: evt.loaded,
+              lengthComputable: evt.lengthComputable,
+            } satisfies BgGMXhrCallbackResult);
+          };
+          const upload = localThis.upload;
+          upload.onloadstart = uploadCallback;
+          upload.onprogress = uploadCallback;
+          upload.onload = uploadCallback;
+          upload.onloadend = uploadCallback;
+          upload.onerror = uploadCallback;
+          upload.onabort = uploadCallback;
+          upload.ontimeout = uploadCallback;
+        }
       }
 
       baseXHR.open(details.method ?? "GET", url, true, details.user, details.password);
