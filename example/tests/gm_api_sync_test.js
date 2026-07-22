@@ -29,7 +29,7 @@
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js#sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK
 // @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@main/example/tests/lib/sctest.js
 // @resource     testCSS https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css#sha256=62f74b1cf824a89f03554c638e719594c309b4d8a627a758928c0516fa7890ab
-// @connect      httpbun.com
+// @connect      httpbingo.org
 // @connect      example.com
 // @run-at       document-start
 // ==/UserScript==
@@ -246,7 +246,7 @@
       return new Promise((resolve, reject) => {
         GM_xmlhttpRequest({
           method: "GET",
-          url: "https://httpbun.com/get",
+          url: "https://httpbingo.org/get",
           timeout: 10000,
           onload: (response) => {
             try {
@@ -254,7 +254,7 @@
               expect(response.responseText).toBeTruthy();
               const data = JSON.parse(response.responseText);
               expect(data).toBeTypeOf("object");
-              expect(data.url).toBe("https://httpbun.com/get");
+              expect(data.url).toBe("https://httpbingo.org/get");
               resolve();
             } catch (error) {
               reject(error);

@@ -10,7 +10,7 @@
 // @grant        GM.setClipboard
 // @grant        unsafeWindow
 // @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@main/example/tests/lib/sctest.js
-// @connect      httpbun.com
+// @connect      httpbingo.org
 // @run-at       document-end
 // @noframes
 // ==/UserScript==
@@ -50,14 +50,14 @@
       const response = await withTimeout(
         GM.xmlHttpRequest({
           method: "GET",
-          url: `https://httpbun.com/get?marker=${encodeURIComponent(marker)}`,
+          url: `https://httpbingo.org/get?marker=${encodeURIComponent(marker)}`,
           responseType: "json",
         }),
         "GM.xmlHttpRequest",
       );
 
       expect(response.status).toBe(200);
-      expect(response.finalUrl.includes("httpbun.com/get")).toBeTruthy();
+      expect(response.finalUrl.includes("httpbingo.org/get")).toBeTruthy();
       expect(typeof response.responseHeaders === "string").toBeTruthy();
       expect(response.response && typeof response.response === "object").toBeTruthy();
 
@@ -66,7 +66,7 @@
         response.response.query ||
         response.response.params ||
         {};
-      expect(args.marker).toBe(marker);
+      expect(args.marker?.[0] ?? args.marker).toBe(marker);
     });
 
     it("GM_xmlhttpRequest forwards readyState events over the connect channel", async () => {
@@ -75,7 +75,7 @@
         new Promise((resolve, reject) => {
           GM_xmlhttpRequest({
             method: "GET",
-            url: "https://httpbun.com/bytes/64",
+            url: "https://httpbingo.org/bytes/64",
             onreadystatechange: (res) => {
               states.push(res.readyState);
             },
@@ -98,7 +98,7 @@
         new Promise((resolve, reject) => {
           const request = GM_xmlhttpRequest({
             method: "GET",
-            url: "https://httpbun.com/delay/5",
+            url: "https://httpbingo.org/delay/5",
             onload: () => reject(new Error("request loaded before abort")),
             onerror: reject,
             ontimeout: reject,

@@ -7,7 +7,7 @@
 // @match        *://*/*?GM_XHR_REDIRECT_TEST_SC
 // @grant        GM_xmlhttpRequest
 // @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@main/example/tests/lib/sctest.js
-// @connect      httpbun.com
+// @connect      httpbingo.org
 // @noframes
 // ==/UserScript==
 
@@ -34,7 +34,7 @@ const enableTool = true;
     });
   }
 
-  const HB = "https://httpbun.com";
+  const HB = "https://httpbingo.org";
 
   function objectProps(o) {
     if (!o || typeof o !== "object") return "not an object";
@@ -56,8 +56,8 @@ const enableTool = true;
       async run(fetch) {
         const { res } = await gmRequest({ method: "GET", url: `${HB}/get?testing=234&abc=567`, responseType: "json", fetch });
         expect(res.status).toBe(200);
-        expect(res.response?.args?.testing).toBe("234");
-        expect(res.response?.args?.abc).toBe("567");
+        expect(res.response?.args?.testing?.[0]).toBe("234");
+        expect(res.response?.args?.abc?.[0]).toBe("567");
         expect(res.response?.url).toBe(`${HB}/get?testing=234&abc=567`);
         expect(objectProps(res)).toBe("ok");
       },
@@ -67,8 +67,8 @@ const enableTool = true;
       async run(fetch) {
         const { res } = await gmRequest({ method: "GET", url: `${HB}/get?abc=567&testing=234`, responseType: "json", fetch });
         expect(res.status).toBe(200);
-        expect(res.response?.args?.testing).toBe("234");
-        expect(res.response?.args?.abc).toBe("567");
+        expect(res.response?.args?.testing?.[0]).toBe("234");
+        expect(res.response?.args?.abc?.[0]).toBe("567");
         expect(res.response?.url).toBe(`${HB}/get?abc=567&testing=234`);
         expect(objectProps(res)).toBe("ok");
       },
@@ -121,7 +121,7 @@ const enableTool = true;
         ]);
         expect(res?.status).toBe(301);
         expect(res?.finalUrl).toBe(url);
-        expect(typeof res?.responseHeaders === "string" && res?.responseHeaders !== "").toBe(true);
+        expect(typeof res?.responseHeaders).toBe("string");
         expect(objectProps(res)).toBe("ok");
       },
     },

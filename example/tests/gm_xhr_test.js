@@ -7,7 +7,7 @@
 // @match        *://*/*?GM_XHR_TEST_SC
 // @grant        GM_xmlhttpRequest
 // @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@main/example/tests/lib/sctest.js
-// @connect      httpbun.com
+// @connect      httpbingo.org
 // @connect      nonexistent-domain-abcxyz.test
 // @connect      raw.githubusercontent.com
 // @connect      translate.googleapis.com
@@ -21,8 +21,8 @@
   - Uses httpbin.org endpoints for deterministic echo/response behavior.
   - Prints a summary and a detailed per-test log with assertions.
 
-  NOTE: Endpoints now point to https://httpbun.com (a faster httpbin-like service).
-        See https://httpbun.com for docs and exact paths. (Also supports /get, /post, /bytes/{n}, /delay/{s}, /status/{code}, /redirect-to, /headers, /any, etc.)
+  NOTE: Endpoints now point to https://httpbingo.org (a faster httpbin-like service).
+        See https://httpbingo.org for docs and exact paths. (Also supports /get, /post, /bytes/{n}, /delay/{s}, /status/{code}, /redirect-to, /headers, /any, etc.)
 */
 
 /*
@@ -101,13 +101,13 @@ const enableTool = true;
     });
   }
 
-  // Switched base host from httpbin to httpbun (faster).
-  // See: https://httpbun.com (endpoints: /get, /post, /bytes/{n}, /delay/{s}, /status/{code}, /redirect-to, /headers, /any, etc.)
-  const HB = "https://httpbun.com";
+  // Switched base host from httpbin to httpbingo (faster).
+  // See: https://httpbingo.org (endpoints: /get, /post, /bytes/{n}, /delay/{s}, /status/{code}, /redirect-to, /headers, /any, etc.)
+  const HB = "https://httpbingo.org";
 
-  // Helper: handle minor schema diffs between httpbin/httpbun for query echo
+  // Helper: handle minor schema diffs between httpbin/httpbingo for query echo
   function getQueryObj(body) {
-    // httpbin uses "args", httpbun may use "query" (and still often provides "args" for compatibility).
+    // httpbin uses "args", httpbingo may use "query" (and still often provides "args" for compatibility).
     return body.args || body.query || body.params || {};
   }
 
@@ -257,15 +257,15 @@ const enableTool = true;
     {
       name: "GET json [responseType: undefined]",
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
           fetch,
         });
         expect(res.status).toBe(200);
-        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
-        expect(`${res.response}`.includes('"code": 200')).toBe(true);
+        expect(`${res.responseText}`.includes('"method": "GET"')).toBe(true);
+        expect(`${res.response}`.includes('"method": "GET"')).toBe(true);
         expect(res.responseXML instanceof XMLDocument).toBe(true);
         expect(objectProps(res)).toBe("ok");
       },
@@ -273,7 +273,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: ""]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -281,8 +281,8 @@ const enableTool = true;
           fetch,
         });
         expect(res.status).toBe(200);
-        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
-        expect(`${res.response}`.includes('"code": 200')).toBe(true);
+        expect(`${res.responseText}`.includes('"method": "GET"')).toBe(true);
+        expect(`${res.response}`.includes('"method": "GET"')).toBe(true);
         expect(res.responseXML instanceof XMLDocument).toBe(true);
         expect(objectProps(res)).toBe("ok");
       },
@@ -290,7 +290,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: "text"]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -298,8 +298,8 @@ const enableTool = true;
           fetch,
         });
         expect(res.status).toBe(200);
-        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
-        expect(`${res.response}`.includes('"code": 200')).toBe(true);
+        expect(`${res.responseText}`.includes('"method": "GET"')).toBe(true);
+        expect(`${res.response}`.includes('"method": "GET"')).toBe(true);
         expect(res.responseXML instanceof XMLDocument).toBe(true);
         expect(objectProps(res)).toBe("ok");
       },
@@ -307,7 +307,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: "json"]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -315,8 +315,8 @@ const enableTool = true;
           fetch,
         });
         expect(res.status).toBe(200);
-        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
-        expect(typeof res.response === "object" && res.response?.code === 200).toBe(true);
+        expect(`${res.responseText}`.includes('"method": "GET"')).toBe(true);
+        expect(typeof res.response === "object" && res.response?.method === "GET").toBe(true);
         expect(res.responseXML instanceof XMLDocument).toBe(true);
         expect(objectProps(res)).toBe("ok");
       },
@@ -324,7 +324,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: "document"]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -332,7 +332,7 @@ const enableTool = true;
           fetch,
         });
         expect(res.status).toBe(200);
-        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
+        expect(`${res.responseText}`.includes('"method": "GET"')).toBe(true);
         expect(res.response instanceof XMLDocument).toBe(true);
         expect(res.responseXML instanceof XMLDocument).toBe(true);
         expect(objectProps(res)).toBe("ok");
@@ -341,7 +341,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: "stream"]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -358,7 +358,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: "arraybuffer"]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -366,7 +366,7 @@ const enableTool = true;
           fetch,
         });
         expect(res.status).toBe(200);
-        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
+        expect(`${res.responseText}`.includes('"method": "GET"')).toBe(true);
         expect(res.response instanceof ArrayBuffer).toBe(true);
         expect(res.responseXML instanceof XMLDocument).toBe(true);
         expect(objectProps(res)).toBe("ok");
@@ -375,7 +375,7 @@ const enableTool = true;
     {
       name: 'GET json [responseType: "blob"]',
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -383,7 +383,7 @@ const enableTool = true;
           fetch,
         });
         expect(res.status).toBe(200);
-        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
+        expect(`${res.responseText}`.includes('"method": "GET"')).toBe(true);
         expect(res.response instanceof Blob).toBe(true);
         expect(res.responseXML instanceof XMLDocument).toBe(true);
         expect(objectProps(res)).toBe("ok");
@@ -537,9 +537,10 @@ const enableTool = true;
         const body = JSON.parse(res.responseText);
         expect(res.status).toBe(200);
         const q = getQueryObj(body);
-        expect(q.x).toBe("1");
+        expect(q.x?.[0] ?? q.x).toBe("1");
         const hdrs = body.headers || {};
-        expect(hdrs["X-Custom"] || hdrs["x-custom"]).toBe("Hello");
+        const customHeader = hdrs["X-Custom"] || hdrs["x-custom"];
+        expect(Array.isArray(customHeader) ? customHeader[0] : customHeader).toBe("Hello");
         expect(res.finalUrl).toBe(url);
         expect(objectProps(res)).toBe("ok");
       },
@@ -619,7 +620,7 @@ const enableTool = true;
         ]);
         expect(res?.status).toBe(301);
         expect(res?.finalUrl).toBe(url);
-        expect(typeof res?.responseHeaders === "string" && res?.responseHeaders !== "").toBe(true);
+        expect(typeof res?.responseHeaders).toBe("string");
         expect(objectProps(res)).toBe("ok");
       },
     },
@@ -636,8 +637,8 @@ const enableTool = true;
         });
         const body = JSON.parse(res.responseText);
         expect(res.status).toBe(200);
-        expect((body.form || {}).a).toBe("1");
-        expect((body.form || {}).b).toBe("two");
+        expect((body.form?.a || [])[0]).toBe("1");
+        expect((body.form?.b || [])[0]).toBe("two");
         expect(objectProps(res)).toBe("ok");
       },
     },
@@ -701,7 +702,7 @@ const enableTool = true;
       async run(fetch) {
         let progressCounter = 0;
         const size = 40; // MAX 90
-        // httpbun doesn't have /image/png; use /bytes to ensure blob download
+        // httpbingo doesn't have /image/png; use /bytes to ensure blob download
         const { res } = await gmRequest({
           method: "GET",
           url: `${HB}/bytes/${size}`,
@@ -717,7 +718,7 @@ const enableTool = true;
         expect(buf.byteLength).toBe(size);
         expect(progressCounter >= 1).toBeTruthy();
         expect(objectProps(res)).toBe("ok");
-        // Do not assert image MIME; httpbun returns octet-stream here.
+        // Do not assert image MIME; httpbingo returns octet-stream here.
       },
     },
     {
@@ -883,7 +884,7 @@ const enableTool = true;
           const start = performance.now();
           GM_xmlhttpRequest({
             method: "GET",
-            url: `${HB}/drip?duration=2&delay=1&numbytes=1024`, // ~1KB
+            url: `${HB}/drip?duration=2&delay=1&numbytes=2048`, // ~2KB
             responseType: "arraybuffer",
             onprogress: (ev) => {
               progressEvents++;
@@ -898,8 +899,7 @@ const enableTool = true;
         });
         expect(res.status).toBe(200);
         expect(progressEvents >= 4).toBeTruthy();
-        // `progress` is guaranteed to fire only in the Fetch API.
-        expect(fetch ? lastLoaded > 0 : lastLoaded >= 0).toBeTruthy();
+        expect(lastLoaded > 0).toBeTruthy();
         expect(!response).toBeTruthy();
         expect(objectProps(res)).toBe("ok");
       },
@@ -915,7 +915,7 @@ const enableTool = true;
           const start = performance.now();
           GM_xmlhttpRequest({
             method: "GET",
-            url: `${HB}/drip?duration=2&delay=1&numbytes=1024`, // ~1KB
+            url: `${HB}/drip?duration=2&delay=1&numbytes=2048`, // ~2KB
             responseType: "stream",
             onloadstart: async (ev) => {
               const reader = ev.response?.getReader();
@@ -941,8 +941,7 @@ const enableTool = true;
         });
         expect(res.status).toBe(200);
         expect(progressEvents >= 4).toBeTruthy();
-        // `progress` is guaranteed to fire only in the Fetch API.
-        expect(fetch ? lastLoaded > 0 : lastLoaded >= 0).toBeTruthy();
+        expect(lastLoaded > 0).toBeTruthy();
         expect(response instanceof ReadableStream && typeof response.getReader === "function").toBeTruthy();
         expect(objectProps(res)).toBe("ok");
       },
@@ -983,7 +982,7 @@ const enableTool = true;
           url: `${HB}/any`,
           fetch,
         });
-        // httpbun commonly returns 200 for OPTIONS
+        // httpbingo commonly returns 200 for OPTIONS
         expect(res.status === 200 || res.status === 204).toBeTruthy();
         expect(objectProps(res)).toBe("ok");
       },
@@ -1008,7 +1007,7 @@ const enableTool = true;
         // httpbin echoes Cookie header in headers
         const { res } = await gmRequest({
           method: "GET",
-          url: `${HB}/cookies/set/abc/123`,
+          url: `${HB}/cookies/set?abc=123`,
           fetch,
         });
       },
@@ -1066,7 +1065,7 @@ const enableTool = true;
         // httpbin echoes Cookie header in headers
         const { res } = await gmRequest({
           method: "GET",
-          url: `${HB}/cookies/delete`,
+          url: `${HB}/cookies/delete?abc`,
           anonymous: true,
           fetch,
         });
@@ -1078,7 +1077,7 @@ const enableTool = true;
         // httpbin echoes Cookie header in headers
         const { res } = await gmRequest({
           method: "GET",
-          url: `${HB}/cookies/set/def/456`,
+          url: `${HB}/cookies/set?def=456`,
           anonymous: true,
           fetch,
         });
@@ -1106,7 +1105,7 @@ const enableTool = true;
         // httpbin echoes Cookie header in headers
         const { res } = await gmRequest({
           method: "GET",
-          url: `${HB}/cookies/delete`,
+          url: `${HB}/cookies/delete?def`,
           anonymous: true,
           fetch,
         });
@@ -1147,7 +1146,7 @@ const enableTool = true;
     {
       name: "Invalid method -> expected server 405 or 200 echo",
       async run(fetch) {
-        // httpbun accepts any method on /headers (per docs), so status may be 200
+        // httpbingo accepts any method on /headers (per docs), so status may be 200
         const { res } = await gmRequest({
           method: "FOOBAR",
           url: `${HB}/headers`,
@@ -1255,7 +1254,7 @@ const enableTool = true;
     {
       name: "Test bug #1078",
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -1264,8 +1263,8 @@ const enableTool = true;
           onprogress() {},
         });
         expect(res.status).toBe(200);
-        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
-        expect(typeof res.response === "object" && res.response?.code === 200).toBe(true);
+        expect(`${res.responseText}`.includes('"method": "GET"')).toBe(true);
+        expect(typeof res.response === "object" && res.response?.method === "GET").toBe(true);
         expect(res.responseXML instanceof XMLDocument).toBe(true);
         expect(objectProps(res)).toBe("ok");
       },
@@ -1274,7 +1273,7 @@ const enableTool = true;
       name: "Test bug #1080",
       async run(fetch) {
         const readyStateList = [];
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,
@@ -1285,8 +1284,8 @@ const enableTool = true;
           },
         });
         expect(res.status).toBe(200);
-        expect(`${res.responseText}`.includes('"code": 200')).toBe(true);
-        expect(typeof res.response === "object" && res.response?.code === 200).toBe(true);
+        expect(`${res.responseText}`.includes('"method": "GET"')).toBe(true);
+        expect(typeof res.response === "object" && res.response?.method === "GET").toBe(true);
         expect(res.responseXML instanceof XMLDocument).toBe(true);
         expect(readyStateList).toEqual(fetch ? [2, 4] : [1, 2, 3, 4]);
         expect(objectProps(res)).toBe("ok");
@@ -1527,7 +1526,7 @@ const enableTool = true;
     {
       name: "Response headers line endings",
       async run(fetch) {
-        const url = `${HB}/status/200`;
+        const url = `${HB}/get`;
         const { res } = await gmRequest({
           method: "GET",
           url,

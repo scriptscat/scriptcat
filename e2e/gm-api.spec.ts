@@ -180,15 +180,20 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
 
     if (url.pathname === "/get") {
       res.writeHead(200, { "Content-Type": "application/json" });
-      const args = Object.fromEntries(url.searchParams.entries());
+      const args = Object.fromEntries([...url.searchParams].map(([name, value]) => [name, [value]]));
       res.end(
-        JSON.stringify({
-          // Include the query string — gm_xhr_redirect_test.js asserts the reflected url matches
-          // the exact request URL it sent, search params included (mirrors real httpbun.com/get).
-          url: `http://${req.headers.host}${url.pathname}${url.search}`,
-          args,
-          headers: req.headers,
-        })
+        JSON.stringify(
+          {
+            // Include the query string — gm_xhr_redirect_test.js asserts the reflected url matches
+            // the exact request URL it sent, search params included (mirrors real httpbingo.org/get).
+            url: `http://${req.headers.host}${url.pathname}${url.search}`,
+            method: req.method,
+            args,
+            headers: req.headers,
+          },
+          null,
+          2
+        )
       );
       return;
     }
@@ -230,7 +235,7 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
       return;
     }
 
-    // 以下路由复刻 httpbun.com 上 gm_xhr_test.js 用到的端点语义，让整套用例不依赖外网。
+    // 以下路由复刻 httpbingo.org 上 gm_xhr_test.js 用到的端点语义，让整套用例不依赖外网。
     const base64Match = url.pathname.match(/^\/base64\/(.+)$/);
     if (base64Match) {
       res.writeHead(200, { "Content-Type": "text/plain" });
@@ -265,11 +270,11 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
       return;
     }
 
-    const cookieSetMatch = url.pathname.match(/^\/cookies\/set\/([^/]+)\/([^/]+)$/);
-    if (cookieSetMatch) {
+    if (url.pathname === "/cookies/set" && url.searchParams.size > 0) {
+      const [name, value] = url.searchParams.entries().next().value as [string, string];
       res.writeHead(200, {
         "Content-Type": "application/json",
-        "Set-Cookie": `${cookieSetMatch[1]}=${cookieSetMatch[2]}; Path=/`,
+        "Set-Cookie": `${name}=${value}; Path=/`,
       });
       res.end(JSON.stringify({ cookies: parseCookies(req) }));
       return;
@@ -278,7 +283,7 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
     if (url.pathname === "/cookies/delete") {
       res.writeHead(200, {
         "Content-Type": "application/json",
-        "Set-Cookie": Object.keys(parseCookies(req)).map((name) => `${name}=; Path=/; Max-Age=0`),
+        "Set-Cookie": [...url.searchParams.keys()].map((name) => `${name}=; Path=/; Max-Age=0`),
       });
       res.end(JSON.stringify({ cookies: {} }));
       return;
@@ -311,10 +316,12 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
         if (res.destroyed) return;
         const data = raw.toString("utf-8");
         const contentType = `${req.headers["content-type"] || ""}`;
-        let form: Record<string, string> = {};
+        const form: Record<string, string[]> = {};
         let json: unknown = null;
         if (contentType.includes("application/x-www-form-urlencoded")) {
-          form = Object.fromEntries(new URLSearchParams(data).entries());
+          for (const [name, value] of new URLSearchParams(data)) {
+            (form[name] ??= []).push(value);
+          }
         }
         if (contentType.includes("application/json")) {
           try {
@@ -329,7 +336,7 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
       return;
     }
 
-    // httpbun /drip：延迟 delay 秒后，把 numbytes 字节分批写完，跨度 duration 秒。
+    // httpbingo /drip：延迟 delay 秒后，把 numbytes 字节分批写完，跨度 duration 秒。
     // 用例断言至少 4 次 onprogress，所以必须真的分多块下发而不是一次性写完。
     if (url.pathname === "/drip") {
       const numbytes = Number(url.searchParams.get("numbytes") || 10);
@@ -400,7 +407,7 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
   });
 
   // Node 的 HTTP 解析器只认标准方法，会把 gm_xhr_test.js 的 `method: "FOOBAR"` 直接判为协议错误。
-  // 真实 httpbun 对未知方法回 405，这里手写同样的响应，避免退化成连接被重置。
+  // 真实 httpbingo 对未知方法回 405，这里手写同样的响应，避免退化成连接被重置。
   server.on("clientError", (err: NodeJS.ErrnoException, socket) => {
     if (err.code === "HPE_INVALID_METHOD" && socket.writable) {
       socket.end("HTTP/1.1 405 Method Not Allowed\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: 0\r\n\r\n");
@@ -454,19 +461,19 @@ function patchGMApiTestCode(code: string, mockOrigin: string): string {
   return (
     code
       .replace(/^\/\/\s*@connect\s+api\.github\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
-      .replace(/^\/\/\s*@connect\s+httpbun\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
+      .replace(/^\/\/\s*@connect\s+httpbingo\.org$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
       .replace(/https:\/\/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockOrigin}/repos/scriptscat/scriptcat`)
-      .replace(/https:\/\/httpbun\.com\/get/g, `${mockOrigin}/get`)
-      .replace(/https:\/\/httpbun\.com\/bytes\/64/g, `${mockOrigin}/bytes/64`)
-      .replace(/https:\/\/httpbun\.com\/delay\/5/g, `${mockOrigin}/delay/5`)
+      .replace(/https:\/\/httpbingo\.org\/get/g, `${mockOrigin}/get`)
+      .replace(/https:\/\/httpbingo\.org\/bytes\/64/g, `${mockOrigin}/bytes/64`)
+      .replace(/https:\/\/httpbingo\.org\/delay\/5/g, `${mockOrigin}/delay/5`)
       .replace(/https:\/\/www\.tampermonkey\.net\/favicon\.ico/g, `${mockOrigin}/favicon.ico`)
       .replace(/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockHost}/repos/scriptscat/scriptcat`)
-      .replace(/httpbun\.com\/get/g, `${mockHost}/get`)
+      .replace(/httpbingo\.org\/get/g, `${mockHost}/get`)
       // gm_xhr_redirect_test.js / gm_download_test.js / gm_xhr_test.js build every request URL off
-      // this constant rather than writing literal https://httpbun.com/... URLs.
-      .replace(/const HB = "https:\/\/httpbun\.com";/, `const HB = "${mockOrigin}";`)
+      // this constant rather than writing literal https://httpbingo.org/... URLs.
+      .replace(/const HB = "https:\/\/httpbingo\.org";/, `const HB = "${mockOrigin}";`)
       // gm_xhr_test.js 拉三个固定的 raw.githubusercontent.com 文件，按文件名映射到本地 /raw/<file>。
-      // 这两个域的 @connect 行刻意保持原样：改写后会和 httpbun 那行一起变成重复的
+      // 这两个域的 @connect 行刻意保持原样：改写后会和 httpbingo 那行一起变成重复的
       // @connect 127.0.0.1，而重复的 @connect 值会让脚本完全不执行。
       .replace(/https:\/\/raw\.githubusercontent\.com\/\S*?\/([\w.-]+)\?/g, `${mockOrigin}/raw/$1?`)
       .replace(/https:\/\/translate\.googleapis\.com/g, mockOrigin)
