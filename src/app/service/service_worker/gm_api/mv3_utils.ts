@@ -14,8 +14,8 @@ type TbgMarkerMapEntry = {
 const bgMarkerMap = new Map<string, TbgMarkerMapEntry>();
 export const normalizeBackgroundRequestUrl = (url: string) => {
   const u = new URL(url);
-  // input "https://user:passwd@httpbun.com/basic-auth/user/passwd?q=1&r=2"
-  // output "https://httpbun.com/basic-auth/user/passwd?q=1&r=2"
+  // input "https://user:passwd@httpbingo.org/basic-auth/user/passwd?q=1&r=2"
+  // output "https://httpbingo.org/basic-auth/user/passwd?q=1&r=2"
   return `${u.origin}${u.pathname}${u.search}`;
 };
 
