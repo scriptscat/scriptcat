@@ -1,9 +1,9 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { createServer } from "http";
+import { createServer, STATUS_CODES, type IncomingMessage, type ServerResponse } from "http";
 import type { AddressInfo } from "net";
-import { test as base, expect, chromium, type BrowserContext } from "@playwright/test";
+import { test as base, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
 import { autoApprovePermissions, installScriptByCode } from "./utils";
 
 const MOCK_CONNECT_HOST = "127.0.0.1";
@@ -25,6 +25,16 @@ type GMApiMockServer = {
   origin: string;
   cspOrigin: string;
   close: () => Promise<void>;
+};
+
+type SCTestBrowserApi = {
+  skip(reason: string): never;
+  create(options: { name: string; reporter: string }): {
+    describe(name: string, register: () => void): void;
+    it(name: string, run: () => void): void;
+    expect(value: unknown): { toBe(expected: unknown): void };
+    run(): Promise<unknown>;
+  };
 };
 
 const test = base.extend<
@@ -107,6 +117,65 @@ function patchScriptCode(code: string): string {
     .replace(/https:\/\/cdn\.jsdelivr\.net\/npm\//g, "https://unpkg.com/");
 }
 
+function parseCookies(req: IncomingMessage): Record<string, string> {
+  const jar: Record<string, string> = {};
+  for (const pair of (req.headers.cookie || "").split(";")) {
+    const idx = pair.indexOf("=");
+    if (idx <= 0) continue;
+    jar[pair.slice(0, idx).trim()] = pair.slice(idx + 1).trim();
+  }
+  return jar;
+}
+
+function streamInChunks(
+  res: ServerResponse,
+  body: Buffer,
+  contentType: string,
+  chunkCount: number,
+  gapMs: number,
+  delayMs: number
+): void {
+  res.writeHead(200, { "Content-Type": contentType });
+  const chunkSize = Math.ceil(body.length / chunkCount);
+  let sent = 0;
+  const tick = () => {
+    if (res.destroyed) return;
+    if (sent >= body.length) {
+      res.end();
+      return;
+    }
+    res.write(body.subarray(sent, sent + chunkSize));
+    sent += chunkSize;
+    setTimeout(tick, gapMs);
+  };
+  setTimeout(tick, delayMs);
+}
+
+// 大响应体：前段按 120ms 分块下发，保证 readyState 3 的 progress 事件；尾段一次灌完并立刻
+// 结束——Chrome XHR 的 progress 节流（50ms 内只派发一次，其余推迟）会把尾段最后一个 progress
+// 推迟到 readyState 已是 4 之后才派发，gm_xhr_test.js 的事件集合断言正依赖这个事件。
+function streamLargeBody(res: ServerResponse, body: Buffer, contentType: string): void {
+  res.writeHead(200, { "Content-Type": contentType });
+  const head = Math.floor(body.length / 6);
+  res.write(body.subarray(0, head));
+  setTimeout(() => {
+    if (res.destroyed) return;
+    res.write(body.subarray(head, head * 2));
+    setTimeout(() => {
+      if (res.destroyed) return;
+      res.end(body.subarray(head * 2));
+    }, 120);
+  }, 120);
+}
+
+function readBody(req: IncomingMessage): Promise<Buffer> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+}
+
 async function startGMApiMockServer(): Promise<GMApiMockServer> {
   const server = createServer((req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -121,12 +190,20 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
 
     if (url.pathname === "/get") {
       res.writeHead(200, { "Content-Type": "application/json" });
-      const args = Object.fromEntries(url.searchParams.entries());
+      const args = Object.fromEntries([...url.searchParams].map(([name, value]) => [name, [value]]));
       res.end(
-        JSON.stringify({
-          url: `http://${req.headers.host}${url.pathname}`,
-          args,
-        })
+        JSON.stringify(
+          {
+            // Include the query string — gm_xhr_redirect_test.js asserts the reflected url matches
+            // the exact request URL it sent, search params included (mirrors real httpbingo.org/get).
+            url: `http://${req.headers.host}${url.pathname}${url.search}`,
+            method: req.method,
+            args,
+            headers: req.headers,
+          },
+          null,
+          2
+        )
       );
       return;
     }
@@ -151,6 +228,160 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
           "base64"
         )
       );
+      return;
+    }
+
+    if (url.pathname === "/lib/sctest.js") {
+      const source = fs.readFileSync(path.join(__dirname, "../example/tests/lib/sctest.js"), "utf-8");
+      res.writeHead(200, { "Content-Type": "application/javascript; charset=utf-8" });
+      res.end(source);
+      return;
+    }
+
+    if (url.pathname === "/redirect-to") {
+      const target = url.searchParams.get("url") || "/";
+      res.writeHead(302, { Location: target });
+      res.end();
+      return;
+    }
+
+    // 以下路由复刻 httpbingo.org 上 gm_xhr_test.js 用到的端点语义，让整套用例不依赖外网。
+    const base64Match = url.pathname.match(/^\/base64\/(.+)$/);
+    if (base64Match) {
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end(Buffer.from(base64Match[1], "base64"));
+      return;
+    }
+
+    const statusMatch = url.pathname.match(/^\/status\/(\d{3})$/);
+    if (statusMatch) {
+      const code = Number(statusMatch[1]);
+      res.writeHead(code, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ code, description: STATUS_CODES[code] || "" }, null, 2));
+      return;
+    }
+
+    if (url.pathname === "/ip") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ origin: req.socket.remoteAddress || MOCK_CONNECT_HOST }));
+      return;
+    }
+
+    if (url.pathname === "/headers") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ headers: req.headers }, null, 2));
+      return;
+    }
+
+    if (url.pathname === "/response-headers") {
+      const echoed = Object.fromEntries(url.searchParams.entries());
+      res.writeHead(200, { ...echoed, "Content-Type": "application/json" });
+      res.end(JSON.stringify(echoed, null, 2));
+      return;
+    }
+
+    if (url.pathname === "/cookies/set" && url.searchParams.size > 0) {
+      const [name, value] = url.searchParams.entries().next().value as [string, string];
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Set-Cookie": `${name}=${value}; Path=/`,
+      });
+      res.end(JSON.stringify({ cookies: parseCookies(req) }));
+      return;
+    }
+
+    if (url.pathname === "/cookies/delete") {
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Set-Cookie": [...url.searchParams.keys()].map((name) => `${name}=; Path=/; Max-Age=0`),
+      });
+      res.end(JSON.stringify({ cookies: {} }));
+      return;
+    }
+
+    if (url.pathname === "/cookies") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ cookies: parseCookies(req) }));
+      return;
+    }
+
+    const basicAuthMatch = url.pathname.match(/^\/basic-auth\/([^/]+)\/([^/]+)$/);
+    if (basicAuthMatch) {
+      const expected = `Basic ${Buffer.from(`${basicAuthMatch[1]}:${basicAuthMatch[2]}`).toString("base64")}`;
+      if (req.headers.authorization !== expected) {
+        res.writeHead(401, {
+          "WWW-Authenticate": 'Basic realm="Fake Realm"',
+          "Content-Type": "application/json",
+        });
+        res.end(JSON.stringify({ authenticated: false }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ authenticated: true, user: basicAuthMatch[1] }));
+      return;
+    }
+
+    if (url.pathname === "/post" || url.pathname === "/delete") {
+      void readBody(req).then((raw) => {
+        if (res.destroyed) return;
+        const data = raw.toString("utf-8");
+        const contentType = `${req.headers["content-type"] || ""}`;
+        const form: Record<string, string[]> = {};
+        let json: unknown = null;
+        if (contentType.includes("application/x-www-form-urlencoded")) {
+          for (const [name, value] of new URLSearchParams(data)) {
+            (form[name] ??= []).push(value);
+          }
+        }
+        if (contentType.includes("application/json")) {
+          try {
+            json = JSON.parse(data);
+          } catch {
+            json = null;
+          }
+        }
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ method: req.method, args: Object.fromEntries(url.searchParams), data, form, json }));
+      });
+      return;
+    }
+
+    // httpbingo /drip：延迟 delay 秒后，把 numbytes 字节分批写完，跨度 duration 秒。
+    // 用例断言至少 4 次 onprogress，所以必须真的分多块下发而不是一次性写完。
+    if (url.pathname === "/drip") {
+      const numbytes = Number(url.searchParams.get("numbytes") || 10);
+      const duration = Number(url.searchParams.get("duration") || 0) * 1000;
+      const delay = Number(url.searchParams.get("delay") || 0) * 1000;
+      streamInChunks(res, Buffer.alloc(numbytes, "a"), "application/octet-stream", 8, duration / 8, delay);
+      return;
+    }
+
+    // raw.githubusercontent.com 上的三个固定文件：用例只断言事件序列与响应体类型，
+    // 不断言文件内容，所以这里只需复刻「小文本 / 大非 JSON 文本 / 大 JSON」三种形态。
+    const rawMatch = url.pathname.match(/^\/raw\/(.+)$/);
+    if (rawMatch) {
+      if (rawMatch[1] === "large-file.json") {
+        const body = Buffer.from(JSON.stringify(Array.from({ length: 20_000 }, (_, i) => ({ id: i, name: `n${i}` }))));
+        streamLargeBody(res, body, "application/json");
+        return;
+      }
+      if (rawMatch[1] === "big.txt") {
+        streamLargeBody(res, Buffer.alloc(600_000, "the quick brown fox "), "text/plain");
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "text/plain" });
+      res.end("root = true\n\n[*]\nindent_style = space\nindent_size = 2\n");
+      return;
+    }
+
+    if (url.pathname === "/translate_a/single") {
+      // 复刻 translate.googleapis.com 的响应头，用例断言的正是这几个头字段透传是否正确。
+      res.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Reporting-Endpoints": 'default="/_/TranslateApiHttp/web-reports?context=eJzj4tDSz8ksLtHPTS3JSC0GAB6vBQA"',
+        "Cross-Origin-Opener-Policy": "same-origin",
+      });
+      res.end(JSON.stringify({ sentences: [{ trans: "来了！！", orig: "くる！！" }], src: "ja" }));
       return;
     }
 
@@ -185,6 +416,16 @@ async function startGMApiMockServer(): Promise<GMApiMockServer> {
     );
   });
 
+  // Node 的 HTTP 解析器只认标准方法，会把 gm_xhr_test.js 的 `method: "FOOBAR"` 直接判为协议错误。
+  // 真实 httpbingo 对未知方法回 405，这里手写同样的响应，避免退化成连接被重置。
+  server.on("clientError", (err: NodeJS.ErrnoException, socket) => {
+    if (err.code === "HPE_INVALID_METHOD" && socket.writable) {
+      socket.end("HTTP/1.1 405 Method Not Allowed\r\nAccess-Control-Allow-Origin: *\r\nContent-Length: 0\r\n\r\n");
+      return;
+    }
+    socket.destroy();
+  });
+
   await new Promise<void>((resolve, reject) => {
     const onError = (error: Error) => reject(error);
     server.once("error", onError);
@@ -212,23 +453,41 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   const url = new URL(targetUrl);
   const targetPattern = `${url.protocol}//${url.hostname}/*${url.search}`;
   return code.replace(
-    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|early_inject_content|early_inject_page|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test)$/gm,
+    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|early_inject_content|early_inject_page|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC|GM_DOWNLOAD_TEST_SC|GM_XHR_TEST_SC)$/gm,
     `// @match        ${targetPattern}`
+  );
+}
+
+// 把框架的 CDN @require 重写到本地 mock server：CI 不依赖外网，且始终测工作区版本而非 CDN 上的旧版。
+function patchRequireCode(code: string, origin: string): string {
+  return code.replace(
+    /https:\/\/cdn\.jsdelivr\.net\/gh\/scriptscat\/scriptcat@[^/]+\/example\/tests\/lib\/sctest\.js/g,
+    `${origin}/lib/sctest.js`
   );
 }
 
 function patchGMApiTestCode(code: string, mockOrigin: string): string {
   const mockHost = new URL(mockOrigin).host;
-  return code
-    .replace(/^\/\/\s*@connect\s+api\.github\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
-    .replace(/^\/\/\s*@connect\s+httpbingo\.org$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
-    .replace(/https:\/\/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockOrigin}/repos/scriptscat/scriptcat`)
-    .replace(/https:\/\/httpbingo\.org\/get/g, `${mockOrigin}/get`)
-    .replace(/https:\/\/httpbingo\.org\/bytes\/64/g, `${mockOrigin}/bytes/64`)
-    .replace(/https:\/\/httpbingo\.org\/delay\/5/g, `${mockOrigin}/delay/5`)
-    .replace(/https:\/\/www\.tampermonkey\.net\/favicon\.ico/g, `${mockOrigin}/favicon.ico`)
-    .replace(/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockHost}/repos/scriptscat/scriptcat`)
-    .replace(/httpbingo\.org\/get/g, `${mockHost}/get`);
+  return (
+    code
+      .replace(/^\/\/\s*@connect\s+api\.github\.com$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
+      .replace(/^\/\/\s*@connect\s+httpbingo\.org$/gm, `// @connect      ${MOCK_CONNECT_HOST}`)
+      .replace(/https:\/\/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockOrigin}/repos/scriptscat/scriptcat`)
+      .replace(/https:\/\/httpbingo\.org\/get/g, `${mockOrigin}/get`)
+      .replace(/https:\/\/httpbingo\.org\/bytes\/64/g, `${mockOrigin}/bytes/64`)
+      .replace(/https:\/\/httpbingo\.org\/delay\/5/g, `${mockOrigin}/delay/5`)
+      .replace(/https:\/\/www\.tampermonkey\.net\/favicon\.ico/g, `${mockOrigin}/favicon.ico`)
+      .replace(/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockHost}/repos/scriptscat/scriptcat`)
+      .replace(/httpbingo\.org\/get/g, `${mockHost}/get`)
+      // gm_xhr_redirect_test.js / gm_download_test.js / gm_xhr_test.js build every request URL off
+      // this constant rather than writing literal https://httpbingo.org/... URLs.
+      .replace(/const HB = "https:\/\/httpbingo\.org";/, `const HB = "${mockOrigin}";`)
+      // gm_xhr_test.js 拉三个固定的 raw.githubusercontent.com 文件，按文件名映射到本地 /raw/<file>。
+      // 这两个域的 @connect 行刻意保持原样：改写后会和 httpbingo 那行一起变成重复的
+      // @connect 127.0.0.1，而重复的 @connect 值会让脚本完全不执行。
+      .replace(/https:\/\/raw\.githubusercontent\.com\/\S*?\/([\w.-]+)\?/g, `${mockOrigin}/raw/$1?`)
+      .replace(/https:\/\/translate\.googleapis\.com/g, mockOrigin)
+  );
 }
 
 async function runTestScript(
@@ -237,10 +496,18 @@ async function runTestScript(
   scriptFile: string,
   targetUrl: string,
   timeoutMs: number,
-  options?: { patchCode?: (code: string) => string }
+  options?: {
+    patchCode?: (code: string) => string;
+    requireOrigin?: string;
+    // B 类文件的 sctest 套件是 auto:false（真实下载副作用），页面加载不会自动跑，需要先点面板的
+    // 「运行」按钮。首次加载时 ConsoleReporter 已经打过一次汇总（那时用例全被预置为 skip，
+    // 即 "通过: 0 / 失败: 0"），所以点击后必须等**新的一次**汇总，不能沿用已有值。
+    beforeCollect?: (page: Page) => Promise<void>;
+  }
 ): Promise<{ passed: number; failed: number; logs: string[] }> {
   let code = fs.readFileSync(path.join(__dirname, `../example/tests/${scriptFile}`), "utf-8");
   code = patchScriptCode(code);
+  if (options?.requireOrigin) code = patchRequireCode(code, options.requireOrigin);
   code = patchTargetMatchCode(code, targetUrl);
   code = options?.patchCode ? options.patchCode(code) : code;
 
@@ -252,23 +519,64 @@ async function runTestScript(
   let passed = -1;
   let failed = -1;
 
+  // 「失败:」是三行汇总里的最后一行，用它计数即可判定又打完了一整组汇总。
+  let summaryCount = 0;
+
   page.on("console", (msg) => {
     const text = msg.text();
     logs.push(text);
     const passMatch = text.match(/(通过|Passed)[:：]\s*(\d+)/);
     const failMatch = text.match(/(失败|Failed)[:：]\s*(\d+)/);
     if (passMatch) passed = parseInt(passMatch[2], 10);
-    if (failMatch) failed = parseInt(failMatch[2], 10);
+    if (failMatch) {
+      failed = parseInt(failMatch[2], 10);
+      summaryCount++;
+    }
   });
 
   await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-  await expect
-    .poll(() => passed >= 0 && failed >= 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
-    .toBe(true)
-    .catch(() => undefined);
+
+  if (options?.beforeCollect) {
+    // 顺序很重要：先等页面加载时那组汇总打完（那时 auto:false 的用例还全是 skip，
+    // 汇总是 "通过: 0 / 失败: 0"），再点按钮，最后等下一组汇总。
+    // 若在 goto 之后立刻取快照，首次汇总往往还没打，会让第二个轮询被它立即满足而读到 0/0。
+    await expect
+      .poll(() => summaryCount > 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+      .toBe(true)
+      .catch(() => undefined);
+    const seenBefore = summaryCount;
+    await options.beforeCollect(page);
+    await expect
+      .poll(() => summaryCount > seenBefore, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+      .toBe(true)
+      .catch(() => undefined);
+  } else {
+    await expect
+      .poll(() => passed >= 0 && failed >= 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+      .toBe(true)
+      .catch(() => undefined);
+  }
 
   await page.close();
   return { passed, failed, logs };
+}
+
+// 设计稿统一为“运行全部”入口；旧面板若仍提供 suite 专属按钮则优先使用。
+// 两条路径都只执行自动用例，itManual 保持待人工确认。
+function clickSuiteRunButton(suiteName: string) {
+  return async (page: Page): Promise<void> => {
+    const host = page.locator("#sctest-panel-host");
+    await host.waitFor({ state: "attached", timeout: 15_000 });
+    const clicked = await host.evaluate((el: HTMLElement, name: string) => {
+      const root = el.shadowRoot;
+      const button =
+        root?.querySelector<HTMLButtonElement>(`[data-sctest-suite="${name}"]`) ??
+        root?.querySelector<HTMLButtonElement>('[data-sctest="run-all"]');
+      button?.click();
+      return Boolean(button);
+    }, suiteName);
+    expect(clicked, `No panel run button found for suite: ${suiteName}`).toBe(true);
+  };
 }
 
 test.describe("GM API", () => {
@@ -305,6 +613,97 @@ test.describe("GM API", () => {
     expect(inlineRan, "The local target page must enforce script-src CSP").toBe(false);
   });
 
+  test("SCTest panel keeps its layout when the page blocks inline styles", async ({ context }) => {
+    const page = await context.newPage();
+    const violations: string[] = [];
+    page.on("console", (message) => {
+      if (message.text().includes("Content Security Policy")) violations.push(message.text());
+    });
+    await page.goto(`${gmApiMockServer.cspOrigin}/?sctest_panel_csp`, { waitUntil: "domcontentloaded" });
+    await page.evaluate(fs.readFileSync(path.resolve(__dirname, "../example/tests/lib/sctest.js"), "utf8"));
+
+    const result = await page.evaluate(async () => {
+      const testRun = (window as typeof window & { SCTest: SCTestBrowserApi }).SCTest.create({
+        name: "CSP panel",
+        reporter: "panel",
+      });
+      testRun.describe("suite", () => {
+        testRun.it("passing case", () => testRun.expect(1).toBe(1));
+        testRun.it("failing case", () => testRun.expect(1).toBe(2));
+        testRun.it("skipped case", () =>
+          (window as typeof window & { SCTest: SCTestBrowserApi }).SCTest.skip("unsupported")
+        );
+      });
+      await testRun.run();
+      const panel = document.getElementById("sctest-panel-host")?.shadowRoot?.querySelector<HTMLElement>(".sc-panel");
+      const styles = panel && getComputedStyle(panel);
+      return {
+        position: styles?.position,
+        width: styles?.width,
+        adoptedStyleSheets:
+          panel?.getRootNode() instanceof ShadowRoot ? panel.getRootNode().adoptedStyleSheets.length : 0,
+      };
+    });
+
+    expect(result).toEqual({ position: "fixed", width: "440px", adoptedStyleSheets: 1 });
+    expect(violations).toEqual([]);
+
+    const host = page.locator("#sctest-panel-host");
+    const visibleCases = () =>
+      host
+        .locator('[data-sctest="case-row"]')
+        .evaluateAll((rows) =>
+          rows.filter((row) => getComputedStyle(row).display !== "none").map((row) => row.textContent)
+        );
+    await host.locator('[data-sctest="filter-fail"]').click();
+    expect(await visibleCases()).toEqual([expect.stringContaining("failing case")]);
+    await host.locator('[data-sctest="filter-skip"]').click();
+    expect(await visibleCases()).toEqual([expect.stringContaining("skipped case")]);
+    await host.locator('[data-sctest="filter-all"]').click();
+    expect(await visibleCases()).toHaveLength(3);
+
+    const suiteGroupHidden = () =>
+      host.locator('[data-sctest="suite-row"]').evaluate((row) => (row.nextElementSibling as HTMLElement).hidden);
+    await host.locator('[data-sctest="collapse-all"]').click();
+    expect(await suiteGroupHidden()).toBe(true);
+    await host.locator('[data-sctest="collapse-all"]').click();
+    expect(await suiteGroupHidden()).toBe(false);
+
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          writeText: (text: string) => (
+            ((window as typeof window & { copiedJson?: string }).copiedJson = text),
+            Promise.resolve()
+          ),
+        },
+      });
+    });
+    await host.locator('[data-sctest="export-json"]').click();
+    const copiedReport = await page.evaluate(
+      () =>
+        JSON.parse((window as typeof window & { copiedJson: string }).copiedJson) as { name: string; cases: unknown[] }
+    );
+    expect(copiedReport.name).toBe("CSP panel");
+    expect(copiedReport.cases).toHaveLength(3);
+
+    const panel = host.locator(".sc-panel");
+    const grip = host.locator('[data-sctest="drag-handle"]');
+    const before = await panel.boundingBox();
+    const gripBox = await grip.boundingBox();
+    expect(before).not.toBeNull();
+    expect(gripBox).not.toBeNull();
+    await page.mouse.move(gripBox!.x + gripBox!.width / 2, gripBox!.y + gripBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(gripBox!.x - 40, gripBox!.y - 30, { steps: 4 });
+    await page.mouse.up();
+    const after = await panel.boundingBox();
+    expect(after!.x).toBeLessThan(before!.x);
+    expect(after!.y).toBeLessThan(before!.y);
+    await page.close();
+  });
+
   test("GM_ sync API tests (gm_api_sync_test.js)", async ({ context, extensionId }) => {
     const { passed, failed, logs } = await runTestScript(
       context,
@@ -312,7 +711,7 @@ test.describe("GM API", () => {
       "gm_api_sync_test.js",
       `${gmApiMockServer.cspOrigin}/?gm_api_sync`,
       90_000,
-      { patchCode }
+      { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
     console.log(`[gm_api_sync_test] passed=${passed}, failed=${failed}`);
@@ -330,7 +729,7 @@ test.describe("GM API", () => {
       "gm_api_async_test.js",
       `${gmApiMockServer.cspOrigin}/?gm_api_async`,
       90_000,
-      { patchCode }
+      { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
     console.log(`[gm_api_async_test] passed=${passed}, failed=${failed}`);
@@ -347,7 +746,8 @@ test.describe("GM API", () => {
       extensionId,
       "inject_content_test.js",
       `${gmApiMockServer.cspOrigin}/?inject_content`,
-      60_000
+      60_000,
+      { requireOrigin: gmApiMockServer.origin }
     );
 
     console.log(`[inject_content_test] passed=${passed}, failed=${failed}`);
@@ -364,7 +764,8 @@ test.describe("GM API", () => {
       extensionId,
       "early_inject_page_test.js",
       `${gmApiMockServer.cspOrigin}/?early_inject_page`,
-      60_000
+      60_000,
+      { requireOrigin: gmApiMockServer.origin }
     );
 
     if (failed !== 0) console.log("[early_inject_page_test] logs:", logs.join("\n"));
@@ -378,7 +779,8 @@ test.describe("GM API", () => {
       extensionId,
       "early_inject_content_test.js",
       `${gmApiMockServer.cspOrigin}/?early_inject_content`,
-      60_000
+      60_000,
+      { requireOrigin: gmApiMockServer.origin }
     );
 
     if (failed !== 0) console.log("[early_inject_content_test] logs:", logs.join("\n"));
@@ -392,7 +794,8 @@ test.describe("GM API", () => {
       extensionId,
       "unwrap_e2e_test.js",
       `${gmApiMockServer.cspOrigin}/?unwrap_e2e_test`,
-      60_000
+      60_000,
+      { requireOrigin: gmApiMockServer.origin }
     );
 
     console.log(`[unwrap_e2e_test] passed=${passed}, failed=${failed}`);
@@ -410,7 +813,7 @@ test.describe("GM API", () => {
       "window_message_test.js",
       `${gmApiMockServer.cspOrigin}/?WINDOW_MESSAGE_TEST_SC`,
       8_000,
-      { patchCode }
+      { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
     console.log(`[window_message_test] passed=${passed}, failed=${failed}`);
@@ -427,7 +830,8 @@ test.describe("GM API", () => {
       extensionId,
       "sandbox_test.js",
       `${gmApiMockServer.cspOrigin}/?SANDBOX_TEST_SC`,
-      8_000
+      8_000,
+      { requireOrigin: gmApiMockServer.origin }
     );
 
     console.log(`[sandbox_test] passed=${passed}, failed=${failed}`);
@@ -435,6 +839,70 @@ test.describe("GM API", () => {
       console.log("[sandbox_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some sandbox tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("GM_xhr redirect tests (gm_xhr_redirect_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "gm_xhr_redirect_test.js",
+      `${gmApiMockServer.origin}/?GM_XHR_REDIRECT_TEST_SC`,
+      90_000,
+      { patchCode, requireOrigin: gmApiMockServer.origin }
+    );
+
+    console.log(`[gm_xhr_redirect_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[gm_xhr_redirect_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some GM_xhr redirect tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("GM_download tests (gm_download_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "gm_download_test.js",
+      `${gmApiMockServer.origin}/?GM_DOWNLOAD_TEST_SC`,
+      120_000,
+      {
+        patchCode,
+        requireOrigin: gmApiMockServer.origin,
+        // 两个 suite 都是 auto:false；统一入口会执行自动用例，itManual 仍保持待人工确认。
+        beforeCollect: clickSuiteRunButton("GM_download 自动套件"),
+      }
+    );
+
+    console.log(`[gm_download_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[gm_download_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some GM_download tests failed").toBe(0);
+    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+  });
+
+  test("GM_xhr tests (gm_xhr_test.js)", async ({ context, extensionId }) => {
+    const { passed, failed, logs } = await runTestScript(
+      context,
+      extensionId,
+      "gm_xhr_test.js",
+      `${gmApiMockServer.origin}/?GM_XHR_TEST_SC`,
+      // 138 个用例（69 个基础用例 × xhr/fetch 两轮），其中含多个秒级的 delay/drip 端点。
+      180_000,
+      {
+        patchCode,
+        requireOrigin: gmApiMockServer.origin,
+        beforeCollect: clickSuiteRunButton("GM_xmlhttpRequest"),
+      }
+    );
+
+    console.log(`[gm_xhr_test] passed=${passed}, failed=${failed}`);
+    if (failed !== 0) {
+      console.log("[gm_xhr_test] logs:", logs.join("\n"));
+    }
+    expect(failed, "Some GM_xhr tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 });

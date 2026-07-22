@@ -5,6 +5,7 @@
 // @description  验证 GM_xmlhttpRequest 的 cookie 参数语义：脚本指定的名称完全覆盖，未指定的名称原样保留（含同名多值场景）
 // @match        https://mockhttp.org/*?GM_XHR_COOKIE_TEST_SC
 // @grant        GM_xmlhttpRequest
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@main/example/tests/lib/sctest.js
 // @connect      mockhttp.org
 // @noframes
 // ==/UserScript==
@@ -12,53 +13,9 @@
 (async function () {
   "use strict";
 
-  console.log(
-    "%c=== GM_xmlhttpRequest cookie 覆盖测试开始 ===",
-    "color: blue; font-size: 16px; font-weight: bold;"
-  );
+  const { describe, it, expect, run } = SCTest.create({ name: "GM_xmlhttpRequest cookie 覆盖测试" });
 
   const MOCKHTTP = "https://mockhttp.org";
-
-  const testResults = {
-    passed: 0,
-    failed: 0,
-    total: 0,
-  };
-
-  async function test(name, fn) {
-    testResults.total++;
-
-    try {
-      await fn();
-      testResults.passed++;
-      console.log(`%c✓ ${name}`, "color: green;");
-      return true;
-    } catch (error) {
-      testResults.failed++;
-      console.error(`%c✗ ${name}`, "color: red;", error);
-      return false;
-    }
-  }
-
-  function assert(expected, actual, message) {
-    if (expected !== actual) {
-      const valueInfo =
-        `期望 ${JSON.stringify(expected)}, ` +
-        `实际 ${JSON.stringify(actual)}`;
-
-      throw new Error(
-        message
-          ? `${message} - ${valueInfo}`
-          : `断言失败: ${valueInfo}`
-      );
-    }
-  }
-
-  function assertTrue(condition, message) {
-    if (!condition) {
-      throw new Error(message || "断言失败: 期望条件为真");
-    }
-  }
 
   function gmRequest(details) {
     return new Promise((resolve, reject) => {
@@ -215,11 +172,7 @@
     const actual = (map.get(name) || []).slice().sort();
     const expected = expectedValues.slice().sort();
 
-    assert(
-      JSON.stringify(expected),
-      JSON.stringify(actual),
-      message || `cookie "${name}" 的值集合`
-    );
+    expect(JSON.stringify(actual)).toBe(JSON.stringify(expected));
   }
 
   // ---------- Cookie 辅助函数 ----------
@@ -296,14 +249,13 @@
   resetCookies();
   setupCookies();
 
-  try {
-    // ============ TM #2754 复现 ============
-    console.log(
-      "\n%c--- TM #2754: 同名 cookie 应覆盖而非追加 ---",
-      "color: orange; font-weight: bold;"
-    );
+  let lastCookieMap = null;
+  // 复刻原 `if (matrixRequestPassed && lastCookieMap)` 门控：矩阵请求失败时，其依赖用例应跳过
+  // 而非各自级联失败（声明式框架无法条件注册用例，故用运行时 skip 表达同一依赖关系）。
+  let matrixOk = false;
 
-    await test(
+  describe("TM #2754: 同名 cookie 应覆盖而非追加", () => {
+    it(
       "document.cookie=data=1，GM_xhr cookie: data=2 时应只送出 data=2",
       async () => {
         setCookie("data", "1", ROOT);
@@ -331,14 +283,10 @@
         }
       }
     );
+  });
 
-    // ============ TM #2829 复现 ============
-    console.log(
-      "\n%c--- TM #2829: 多个不同名 cookie 不应被截断 ---",
-      "color: orange; font-weight: bold;"
-    );
-
-    await test(
+  describe("TM #2829: 多个不同名 cookie 不应被截断", () => {
+    it(
       'GM_xhr cookie: "data1=1; data2=2" 应两者都送出，而非只剩第一个',
       async () => {
         const response = await gmRequest({
@@ -367,179 +315,118 @@
         );
       }
     );
+  });
 
-    // ============ 完整矩阵 ============
-    console.log(
-      "\n%c--- 完整矩阵：浏览器已有(0/1/2) × 脚本指定(0/1/2) ---",
-      "color: orange; font-weight: bold;"
-    );
+  describe("完整矩阵：浏览器已有(0/1/2) × 脚本指定(0/1/2)", () => {
+    it("发送带完整矩阵 cookie 参数的请求", async () => {
+      const customCookie = [
+        "m01=new",
+        "m02=new1",
+        "m02=new2",
+        "m11=new",
+        "m12=new1",
+        "m12=new2",
+        "m21=new",
+        "m22=new1",
+        "m22=new2",
+      ].join("; ");
 
-    let lastCookieMap = null;
+      const response = await gmRequest({
+        method: "GET",
+        url: `${MOCKHTTP}/headers`,
+        cookie: customCookie,
+        timeout: 15000,
+      });
 
-    const matrixRequestPassed = await test(
-      "发送带完整矩阵 cookie 参数的请求",
-      async () => {
-        const customCookie = [
-          "m01=new",
-          "m02=new1",
-          "m02=new2",
-          "m11=new",
-          "m12=new1",
-          "m12=new2",
-          "m21=new",
-          "m22=new1",
-          "m22=new2",
-        ].join("; ");
+      const cookieHeader = getCookieHeader(response);
 
-        const response = await gmRequest({
-          method: "GET",
-          url: `${MOCKHTTP}/headers`,
-          cookie: customCookie,
-          timeout: 15000,
-        });
+      lastCookieMap =
+        parseCookieMultiMap(cookieHeader);
 
-        const cookieHeader = getCookieHeader(response);
+      expect(cookieHeader.length > 0).toBeTruthy();
 
-        lastCookieMap =
-          parseCookieMultiMap(cookieHeader);
+      expect(lastCookieMap.size > 0).toBeTruthy();
 
-        assertTrue(
-          cookieHeader.length > 0,
-          "应收到 Cookie header"
-        );
+      matrixOk = true;
+    });
 
-        assertTrue(
-          lastCookieMap.size > 0,
-          "Cookie header 应能成功解析"
-        );
-      }
-    );
+    it("m00：浏览器无、脚本未指定 → 不应出现", () => {
+      if (!matrixOk) SCTest.skip("矩阵请求未通过，跳过依赖断言");
+      assertCookieValues(lastCookieMap, "m00", []);
+    });
 
-    if (matrixRequestPassed && lastCookieMap) {
-      await test(
-        "m00：浏览器无、脚本未指定 → 不应出现",
-        () => {
-          assertCookieValues(lastCookieMap, "m00", []);
-        }
+    it("m01：浏览器无、脚本指定单值 → 应为脚本值", () => {
+      if (!matrixOk) SCTest.skip("矩阵请求未通过，跳过依赖断言");
+      assertCookieValues(
+        lastCookieMap,
+        "m01",
+        ["new"]
       );
+    });
 
-      await test(
-        "m01：浏览器无、脚本指定单值 → 应为脚本值",
-        () => {
-          assertCookieValues(
-            lastCookieMap,
-            "m01",
-            ["new"]
-          );
-        }
-      );
+    it("m02：浏览器无、脚本指定多值 → 应为脚本两个值", () => {
+      if (!matrixOk) SCTest.skip("矩阵请求未通过，跳过依赖断言");
+      assertCookieValues(lastCookieMap, "m02", [
+        "new1",
+        "new2",
+      ]);
+    });
 
-      await test(
-        "m02：浏览器无、脚本指定多值 → 应为脚本两个值",
-        () => {
-          assertCookieValues(lastCookieMap, "m02", [
-            "new1",
-            "new2",
-          ]);
-        }
+    it("m10：浏览器单值、脚本未指定 → 应保留浏览器原值", () => {
+      if (!matrixOk) SCTest.skip("矩阵请求未通过，跳过依赖断言");
+      assertCookieValues(
+        lastCookieMap,
+        "m10",
+        ["old"]
       );
+    });
 
-      await test(
-        "m10：浏览器单值、脚本未指定 → 应保留浏览器原值",
-        () => {
-          assertCookieValues(
-            lastCookieMap,
-            "m10",
-            ["old"]
-          );
-        }
+    it("m11：浏览器单值、脚本指定单值 → 应覆盖为脚本值", () => {
+      if (!matrixOk) SCTest.skip("矩阵请求未通过，跳过依赖断言");
+      assertCookieValues(
+        lastCookieMap,
+        "m11",
+        ["new"]
       );
+    });
 
-      await test(
-        "m11：浏览器单值、脚本指定单值 → 应覆盖为脚本值",
-        () => {
-          assertCookieValues(
-            lastCookieMap,
-            "m11",
-            ["new"]
-          );
-        }
-      );
+    it("m12：浏览器单值、脚本指定多值 → 应覆盖为脚本两个值", () => {
+      if (!matrixOk) SCTest.skip("矩阵请求未通过，跳过依赖断言");
+      assertCookieValues(lastCookieMap, "m12", [
+        "new1",
+        "new2",
+      ]);
+    });
 
-      await test(
-        "m12：浏览器单值、脚本指定多值 → 应覆盖为脚本两个值",
-        () => {
-          assertCookieValues(lastCookieMap, "m12", [
-            "new1",
-            "new2",
-          ]);
-        }
-      );
+    it("m20：浏览器多值(同名不同path)、脚本未指定 → 应保留浏览器全部值", () => {
+      if (!matrixOk) SCTest.skip("矩阵请求未通过，跳过依赖断言");
+      assertCookieValues(lastCookieMap, "m20", [
+        "old1",
+        "old2",
+      ]);
+    });
 
-      await test(
-        "m20：浏览器多值(同名不同path)、脚本未指定 → 应保留浏览器全部值",
-        () => {
-          assertCookieValues(lastCookieMap, "m20", [
-            "old1",
-            "old2",
-          ]);
-        }
+    it("m21：浏览器多值、脚本指定单值 → 应完全覆盖为脚本单一值", () => {
+      if (!matrixOk) SCTest.skip("矩阵请求未通过，跳过依赖断言");
+      assertCookieValues(
+        lastCookieMap,
+        "m21",
+        ["new"]
       );
+    });
 
-      await test(
-        "m21：浏览器多值、脚本指定单值 → 应完全覆盖为脚本单一值",
-        () => {
-          assertCookieValues(
-            lastCookieMap,
-            "m21",
-            ["new"]
-          );
-        }
-      );
+    it("m22：浏览器多值、脚本指定多值 → 应完全覆盖为脚本两个值", () => {
+      if (!matrixOk) SCTest.skip("矩阵请求未通过，跳过依赖断言");
+      assertCookieValues(lastCookieMap, "m22", [
+        "new1",
+        "new2",
+      ]);
+    });
+  });
 
-      await test(
-        "m22：浏览器多值、脚本指定多值 → 应完全覆盖为脚本两个值",
-        () => {
-          assertCookieValues(lastCookieMap, "m22", [
-            "new1",
-            "new2",
-          ]);
-        }
-      );
-    } else {
-      console.warn(
-        "%c完整矩阵请求失败，跳过依赖该请求结果的矩阵断言。",
-        "color: orange; font-weight: bold;"
-      );
-    }
+  try {
+    await run();
   } finally {
     resetCookies();
-  }
-
-  // ============ 输出测试结果 ============
-  console.log(
-    "\n%c=== 测试完成 ===",
-    "color: blue; font-size: 16px; font-weight: bold;"
-  );
-
-  console.log(
-    `%c总计: ${testResults.total} | ` +
-      `通过: ${testResults.passed} | ` +
-      `失败: ${testResults.failed}`,
-    testResults.failed === 0
-      ? "color: green; font-weight: bold;"
-      : "color: red; font-weight: bold;"
-  );
-
-  if (testResults.failed === 0) {
-    console.log(
-      "%c🎉 所有测试通过!",
-      "color: green; font-size: 14px; font-weight: bold;"
-    );
-  } else {
-    console.log(
-      "%c⚠️ 部分测试失败，请检查上面的错误信息",
-      "color: red; font-size: 14px; font-weight: bold;"
-    );
   }
 })();

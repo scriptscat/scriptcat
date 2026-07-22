@@ -8,6 +8,7 @@
 // @exclude      /test_\w+_excluded/
 // @grant        GM_setValue
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js#sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@main/example/tests/lib/sctest.js
 // @unwrap
 // ==/UserScript==
 
@@ -18,49 +19,13 @@ var test_global_injection = "success";
 // User can access the variable "test_global_injection" directly in DevTools
 
 (function () {
-    const results = {
-        GM: {
-            expected: "undefined",
-            actual: typeof GM,
-        },
-        GM_setValue: {
-            expected: "undefined",
-            actual: typeof GM_setValue,
-        },
-        jQuery: {
-            expected: "function",
-            actual: typeof jQuery,
-        },
-    };
+  const { describe, it, expect, run } = SCTest.create({ name: "@unwrap 测试" });
 
-    console.group(
-        "%c@unwrap Test",
-        "color:#0aa;font-weight:bold"
-    );
+  describe("@unwrap 环境", () => {
+    it("GM 不应暴露", () => expect(typeof GM).toBe("undefined"));
+    it("GM_setValue 不应暴露", () => expect(typeof GM_setValue).toBe("undefined"));
+    it("jQuery 应可用", () => expect(typeof jQuery).toBe("function"));
+  });
 
-    const table = {};
-    let allPass = true;
-
-    for (const key in results) {
-        const { expected, actual } = results[key];
-        const pass = expected === actual;
-        allPass &&= pass;
-
-        table[key] = {
-            Expected: expected,
-            Actual: actual,
-            Result: pass ? "✅ PASS" : "❌ FAIL",
-        };
-    }
-
-    console.table(table);
-
-    console.log(
-        allPass
-            ? "%cAll tests passed ✔"
-            : "%cSome tests failed ✘",
-        `font-weight:bold;color:${allPass ? "green" : "red"}`
-    );
-
-    console.groupEnd();
+  run();
 })();
