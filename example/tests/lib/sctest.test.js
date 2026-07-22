@@ -1,4 +1,4 @@
-import { beforeEach, describe as vdescribe, expect as vexpect, it as vit } from "vitest";
+import { beforeEach, describe as vdescribe, expect as vexpect, it as vit, vi } from "vitest";
 
 async function loadSCTest() {
   delete globalThis.SCTest;
@@ -347,6 +347,23 @@ vdescribe("PanelReporter", () => {
     vexpect(host.shadowRoot).not.toBe(null);
   });
 
+  vit("优先用 constructable stylesheet 注入样式,不依赖页面允许 inline style", () => {
+    const root = { adoptedStyleSheets: [] };
+    const replaceSync = vi.fn();
+    const OriginalCSSStyleSheet = globalThis.CSSStyleSheet;
+    globalThis.CSSStyleSheet = class {
+      replaceSync = replaceSync;
+    };
+    try {
+      SCTest.__installPanelStyles(root, ".panel{position:fixed}");
+    } finally {
+      globalThis.CSSStyleSheet = OriginalCSSStyleSheet;
+    }
+
+    vexpect(replaceSync).toHaveBeenCalledWith(".panel{position:fixed}");
+    vexpect(root.adoptedStyleSheets).toHaveLength(1);
+  });
+
   vit("面板头部副标题显示运行上下文,而非空白", async () => {
     const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
     d("组", () => i("a", () => e(1).toBe(1)));
@@ -410,6 +427,80 @@ vdescribe("PanelReporter", () => {
     const root = document.getElementById("sctest-panel-host").shadowRoot;
     vexpect(root.querySelector('[data-sctest="run-all"]')).not.toBe(null);
     vexpect(root.querySelector('[data-sctest="param-prefix"]').value).toBe("sc-test-");
+  });
+
+  vit("渲染设计稿中的状态、工具栏、参数区与页脚结构", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("自动组", () => i("通过", () => e(1).toBe(1)));
+    d("手动组", { auto: false, params: { prefix: "sc-test-" } }, () => i("待跑", () => e(1).toBe(1)));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    [
+      "status-pill",
+      "duration",
+      "total-chip",
+      "run-all",
+      "reset",
+      "queue-chip",
+      "filter-all",
+      "filter-fail",
+      "filter-skip",
+      "search",
+      "copy-report",
+      "collapse-all",
+      "params",
+      "footer",
+      "export-json",
+    ].forEach((slot) => vexpect(root.querySelector(`[data-sctest="${slot}"]`), slot).not.toBe(null));
+    vexpect(root.querySelector('[data-sctest="footer"] [data-icon="clipboard-copy"]')).not.toBe(null);
+    vexpect(root.querySelector('[data-sctest="export-json"] [data-icon="braces"]')).not.toBe(null);
+    vexpect(root.querySelector('[data-sctest="params"] [data-icon="sliders-horizontal"]')).not.toBe(null);
+    vexpect(root.querySelector('[data-sctest="search"] [data-icon="search"]')).not.toBe(null);
+  });
+
+  vit("进度条位于统计 chips 上方,图标使用 Lucide SVG 而不是字符", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("组", () => i("通过", () => e(1).toBe(1)));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const progress = root.querySelector('[data-sctest="progress"]');
+    const counters = root.querySelector('[data-sctest="counters"]');
+    vexpect(progress.compareDocumentPosition(counters) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    vexpect(root.querySelector('.sc-head [data-icon="rotate-cw"] svg')).not.toBe(null);
+    vexpect(root.querySelector('[data-sctest="total-chip"] [data-icon="hash"] svg')).not.toBe(null);
+  });
+
+  vit("suite badge 统计通过数与总数,进度条包含通过失败跳过三段", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("混合组", () => {
+      i("通过", () => e(1).toBe(1));
+      i("失败", () => e(1).toBe(2));
+      i("跳过", () => SCTest.skip("环境不支持"));
+    });
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    vexpect(root.querySelector('[data-sctest="suite-stat"]').textContent).toBe("1 / 3");
+    vexpect(root.querySelector('[data-sctest="progress-pass"]')).not.toBe(null);
+    vexpect(root.querySelector('[data-sctest="progress-fail"]')).not.toBe(null);
+    vexpect(root.querySelector('[data-sctest="progress-skip"]')).not.toBe(null);
+  });
+
+  vit("运行全部会重新执行自动 suite,完成后按钮恢复可用", async () => {
+    let attempts = 0;
+    const { describe: d, it: i, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("自动组", () => i("重复执行", () => attempts++));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const runAll = root.querySelector('[data-sctest="run-all"]');
+    runAll.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    vexpect(attempts).toBe(2);
+    vexpect(runAll.disabled).toBe(false);
   });
 });
 
@@ -582,9 +673,6 @@ vdescribe("手动 suite 触发", () => {
     vexpect(details[0].textContent).toMatch(/"a"/);
     vexpect(details[0].textContent).toMatch(/"b"/);
 
-    // 面板按钮点一次后会被禁用,这里手动复位只为了在单个面板实例里驱动第二次真正执行,
-    // 验证的是 runManualSuites/onCase 状态机本身,而非模拟用户重复点击。
-    runBtn.disabled = false;
     runBtn.click();
     await new Promise((r) => setTimeout(r, 0));
     details = root.querySelectorAll('[data-sctest="failure-detail"]');
@@ -592,7 +680,6 @@ vdescribe("手动 suite 触发", () => {
     vexpect(details[0].textContent).toMatch(/"c"/);
     vexpect(details[0].textContent).toMatch(/"d"/);
 
-    runBtn.disabled = false;
     runBtn.click();
     await new Promise((r) => setTimeout(r, 0));
     details = root.querySelectorAll('[data-sctest="failure-detail"]');

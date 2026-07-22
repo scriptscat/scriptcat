@@ -27,6 +27,15 @@ type GMApiMockServer = {
   close: () => Promise<void>;
 };
 
+type SCTestBrowserApi = {
+  create(options: { name: string; reporter: string }): {
+    describe(name: string, register: () => void): void;
+    it(name: string, run: () => void): void;
+    expect(value: unknown): { toBe(expected: unknown): void };
+    run(): Promise<unknown>;
+  };
+};
+
 const test = base.extend<
   {
     context: BrowserContext;
@@ -551,15 +560,21 @@ async function runTestScript(
   return { passed, failed, logs };
 }
 
-// 点击某个 auto:false suite 的面板运行按钮。结果由 sctest.js 的 ConsoleReporter 在
-// runManualSuites 结束时重新打出一整组汇总，runTestScript 照常从 console 解析。
+// 设计稿统一为“运行全部”入口；旧面板若仍提供 suite 专属按钮则优先使用。
+// 两条路径都只执行自动用例，itManual 保持待人工确认。
 function clickSuiteRunButton(suiteName: string) {
   return async (page: Page): Promise<void> => {
     const host = page.locator("#sctest-panel-host");
     await host.waitFor({ state: "attached", timeout: 15_000 });
-    await host.evaluate((el: HTMLElement, name: string) => {
-      el.shadowRoot?.querySelector<HTMLButtonElement>(`[data-sctest-suite="${name}"]`)?.click();
+    const clicked = await host.evaluate((el: HTMLElement, name: string) => {
+      const root = el.shadowRoot;
+      const button =
+        root?.querySelector<HTMLButtonElement>(`[data-sctest-suite="${name}"]`) ??
+        root?.querySelector<HTMLButtonElement>('[data-sctest="run-all"]');
+      button?.click();
+      return Boolean(button);
     }, suiteName);
+    expect(clicked, `No panel run button found for suite: ${suiteName}`).toBe(true);
   };
 }
 
@@ -595,6 +610,37 @@ test.describe("GM API", () => {
 
     await page.close();
     expect(inlineRan, "The local target page must enforce script-src CSP").toBe(false);
+  });
+
+  test("SCTest panel keeps its layout when the page blocks inline styles", async ({ context }) => {
+    const page = await context.newPage();
+    const violations: string[] = [];
+    page.on("console", (message) => {
+      if (message.text().includes("Content Security Policy")) violations.push(message.text());
+    });
+    await page.goto(`${gmApiMockServer.cspOrigin}/?sctest_panel_csp`, { waitUntil: "domcontentloaded" });
+    await page.evaluate(fs.readFileSync(path.resolve(__dirname, "../example/tests/lib/sctest.js"), "utf8"));
+
+    const result = await page.evaluate(async () => {
+      const testRun = (window as typeof window & { SCTest: SCTestBrowserApi }).SCTest.create({
+        name: "CSP panel",
+        reporter: "panel",
+      });
+      testRun.describe("suite", () => testRun.it("case", () => testRun.expect(1).toBe(1)));
+      await testRun.run();
+      const panel = document.getElementById("sctest-panel-host")?.shadowRoot?.querySelector<HTMLElement>(".sc-panel");
+      const styles = panel && getComputedStyle(panel);
+      return {
+        position: styles?.position,
+        width: styles?.width,
+        adoptedStyleSheets:
+          panel?.getRootNode() instanceof ShadowRoot ? panel.getRootNode().adoptedStyleSheets.length : 0,
+      };
+    });
+
+    expect(result).toEqual({ position: "fixed", width: "440px", adoptedStyleSheets: 1 });
+    expect(violations).toEqual([]);
+    await page.close();
   });
 
   test("GM_ sync API tests (gm_api_sync_test.js)", async ({ context, extensionId }) => {
@@ -763,7 +809,7 @@ test.describe("GM API", () => {
       {
         patchCode,
         requireOrigin: gmApiMockServer.origin,
-        // 两个 suite 都是 auto:false，页面加载不会自动跑；只点自动套件的运行按钮，手动用例保持不跑。
+        // 两个 suite 都是 auto:false；统一入口会执行自动用例，itManual 仍保持待人工确认。
         beforeCollect: clickSuiteRunButton("GM_download 自动套件"),
       }
     );

@@ -65,8 +65,8 @@
   1. Install in ScriptCat / Tampermonkey. Grant all listed permissions.
   2. Open any page whose URL matches *?GM_DOWNLOAD_TEST_SC
      (e.g. https://example.com/?GM_DOWNLOAD_TEST_SC)
-  3. The sctest panel appears bottom-right. Click "运行 GM_download 自动套件" for the automated
-     battery, or "运行 GM_download 手动用例" for the human-in-the-loop cases.
+  3. The sctest panel appears bottom-right. Click "运行全部" for the automated battery; the
+     human-in-the-loop cases remain available for individual confirmation in the panel.
   4. Files land in your downloads folder under the prefix shown on the panel's params row —
      edit that field before clicking "运行" to change it.
 */
@@ -873,7 +873,7 @@ const enableTool = true;
 
   // ---------- Suites ----------
   // manual: true 用例原本被 runAuto()(旧版 :1083)用 tests.filter((t) => !t.manual) 排除在批量
-  // 之外；迁移拆成两个 auto:false 的 suite，各自一个运行按钮，保持这个区分。
+  // 之外；迁移拆成两个 auto:false 的 suite，“运行全部”只执行自动用例，人工用例仍逐条确认。
   describe("GM_download 自动套件", { auto: false, params: autoParams }, () => {
     for (const t of tests.filter((t) => !t.manual)) {
       it(t.name, () => t.run());
