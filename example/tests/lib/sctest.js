@@ -374,6 +374,7 @@
     "flex-direction:column;overflow:hidden;border-radius:12px;border:1px solid var(--sc-border);",
     "background:var(--sc-card);color:var(--sc-fg);font-family:Inter,system-ui,sans-serif;font-size:12px;",
     "box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:2147483647}",
+    "[hidden]{display:none!important}",
     ".sc-panel[data-min='1'] .sc-body,.sc-panel[data-min='1'] .sc-sum,",
     ".sc-panel[data-min='1'] .sc-bar,.sc-panel[data-min='1'] .sc-foot{display:none}",
     ".sc-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--sc-border)}",
@@ -590,6 +591,7 @@
     var head = el("div", "sc-head");
     var grip = icon("grip-vertical", 14);
     grip.classList.add("sc-grip");
+    grip.setAttribute("data-sctest", "drag-handle");
     head.appendChild(grip);
     var titleWrap = el("div", "sc-title-wrap");
     var title = el("div", "sc-title", runInfo.name);
@@ -796,13 +798,31 @@
     copyBtn.addEventListener("click", copyReport);
     toolbarCopy.addEventListener("click", copyReport);
     jsonBtn.addEventListener("click", function () {
-      var blob = new Blob([JSON.stringify(reportJson(), null, 2)], { type: "application/json" });
-      var url = URL.createObjectURL(blob);
-      var link = document.createElement("a");
-      link.href = url;
-      link.download = "sctest-report.json";
-      link.click();
-      URL.revokeObjectURL(url);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(JSON.stringify(reportJson(), null, 2));
+      }
+    });
+
+    grip.addEventListener("mousedown", function (event) {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      var rect = panel.getBoundingClientRect();
+      var startX = event.clientX;
+      var startY = event.clientY;
+      function move(moveEvent) {
+        var left = Math.max(0, Math.min(window.innerWidth - rect.width, rect.left + moveEvent.clientX - startX));
+        var top = Math.max(0, Math.min(window.innerHeight - rect.height, rect.top + moveEvent.clientY - startY));
+        panel.style.left = left + "px";
+        panel.style.top = top + "px";
+        panel.style.right = "auto";
+        panel.style.bottom = "auto";
+      }
+      function stop() {
+        document.removeEventListener("mousemove", move);
+        document.removeEventListener("mouseup", stop);
+      }
+      document.addEventListener("mousemove", move);
+      document.addEventListener("mouseup", stop);
     });
 
     function applyFilters() {
@@ -813,6 +833,15 @@
         var textOk = !query || key.toLowerCase().indexOf(query) !== -1;
         node.row.hidden = !(statusOk && textOk);
         if (node.detail) node.detail.hidden = node.row.hidden;
+        if (node.hint) node.hint.hidden = node.row.hidden;
+      });
+      Object.keys(suiteNodes).forEach(function (name) {
+        var suiteNode = suiteNodes[name];
+        var hasVisibleCase = Object.keys(caseNodes).some(function (key) {
+          return caseNodes[key].suite === name && !caseNodes[key].row.hidden;
+        });
+        suiteNode.row.hidden = !hasVisibleCase;
+        suiteNode.group.hidden = suiteNode.collapsed || !hasVisibleCase;
       });
     }
 
@@ -822,25 +851,40 @@
         [filterAll, filterFail, filterSkip].forEach(function (button) {
           button.dataset.active = button === entry[0] ? "1" : "0";
         });
+        Object.keys(suiteNodes).forEach(function (name) {
+          suiteNodes[name].collapsed = false;
+        });
         applyFilters();
       });
     });
-    search.addEventListener("input", applyFilters);
-    collapseAll.addEventListener("click", function () {
+    search.addEventListener("input", function () {
       Object.keys(suiteNodes).forEach(function (name) {
-        suiteNodes[name].group.hidden = true;
-        suiteNodes[name].chevron.textContent = "";
-        suiteNodes[name].chevron.appendChild(icon("chevron-right", 13));
+        suiteNodes[name].collapsed = false;
       });
+      applyFilters();
+    });
+    collapseAll.addEventListener("click", function () {
+      var shouldCollapse = Object.keys(suiteNodes).some(function (name) {
+        return !suiteNodes[name].collapsed;
+      });
+      Object.keys(suiteNodes).forEach(function (name) {
+        suiteNodes[name].collapsed = shouldCollapse;
+        suiteNodes[name].group.hidden = shouldCollapse;
+        suiteNodes[name].chevron.textContent = "";
+        suiteNodes[name].chevron.appendChild(icon(shouldCollapse ? "chevron-right" : "chevron-down", 13));
+      });
+      collapseAll.title = shouldCollapse ? "全部展开" : "全部折叠";
+      applyFilters();
     });
     resetBtn.addEventListener("click", function () {
       search.value = "";
       filterAll.click();
       Object.keys(suiteNodes).forEach(function (name) {
-        suiteNodes[name].group.hidden = false;
+        suiteNodes[name].collapsed = false;
         suiteNodes[name].chevron.textContent = "";
         suiteNodes[name].chevron.appendChild(icon("chevron-down", 13));
       });
+      applyFilters();
     });
 
     function recount() {
@@ -916,11 +960,12 @@
       var group = el("div");
       body.appendChild(group);
       row.addEventListener("click", function () {
-        group.hidden = !group.hidden;
+        suiteNodes[name].collapsed = !suiteNodes[name].collapsed;
+        group.hidden = suiteNodes[name].collapsed;
         chevron.textContent = "";
         chevron.appendChild(icon(group.hidden ? "chevron-right" : "chevron-down", 13));
       });
-      suiteNodes[name] = { group: group, stat: stat, chevron: chevron, manualTotal: manualTotal };
+      suiteNodes[name] = { row: row, group: group, stat: stat, chevron: chevron, manualTotal: manualTotal, collapsed: false };
       return suiteNodes[name];
     }
 
@@ -990,7 +1035,7 @@
         row.appendChild(label);
         row.appendChild(dur);
         suite.group.appendChild(row);
-        var node = { row: row, icon: caseIcon, dur: dur, status: c.status, suite: c.suite, detail: null };
+        var node = { row: row, icon: caseIcon, dur: dur, status: c.status, suite: c.suite, detail: null, hint: null };
         caseNodes[key] = node;
 
         if (c.status === "fail") {
@@ -1014,6 +1059,8 @@
             if (ok) state.pass++;
             else state.fail++;
             state.manualOverrides[c.suite + "//" + c.name] = ok ? "pass" : "fail";
+            node.status = ok ? "pass" : "fail";
+            row.classList.remove("sc-case-manual");
             caseIcon.textContent = "";
             caseIcon.appendChild(icon(ok ? "check" : "x", 13));
             pass.remove();
@@ -1033,6 +1080,7 @@
             hint.appendChild(icon("info", 12));
             hint.appendChild(el("span", null, c.hint));
             suite.group.appendChild(hint);
+            node.hint = hint;
           }
         }
 

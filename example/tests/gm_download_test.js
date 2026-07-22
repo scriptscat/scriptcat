@@ -76,7 +76,7 @@ const enableTool = true;
   "use strict";
   if (!enableTool) return;
 
-  const { describe, it, expect, run } = SCTest.create({ name: "GM_download 测试" });
+  const { describe, it, itManual, expect, run } = SCTest.create({ name: "GM_download 测试" });
 
   // ---------- Tiny DOM helper (only used for the manual-verdict bar below) ----------
   function h(tag, props = {}, ...children) {
@@ -882,7 +882,7 @@ const enableTool = true;
 
   describe("GM_download 手动用例", { auto: false }, () => {
     for (const t of tests.filter((t) => t.manual)) {
-      it(t.name, () => t.run());
+      itManual(t.name, { hint: "按用例说明完成人工验证" });
     }
   });
 

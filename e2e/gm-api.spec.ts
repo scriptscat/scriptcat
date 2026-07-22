@@ -28,6 +28,7 @@ type GMApiMockServer = {
 };
 
 type SCTestBrowserApi = {
+  skip(reason: string): never;
   create(options: { name: string; reporter: string }): {
     describe(name: string, register: () => void): void;
     it(name: string, run: () => void): void;
@@ -626,7 +627,13 @@ test.describe("GM API", () => {
         name: "CSP panel",
         reporter: "panel",
       });
-      testRun.describe("suite", () => testRun.it("case", () => testRun.expect(1).toBe(1)));
+      testRun.describe("suite", () => {
+        testRun.it("passing case", () => testRun.expect(1).toBe(1));
+        testRun.it("failing case", () => testRun.expect(1).toBe(2));
+        testRun.it("skipped case", () =>
+          (window as typeof window & { SCTest: SCTestBrowserApi }).SCTest.skip("unsupported")
+        );
+      });
       await testRun.run();
       const panel = document.getElementById("sctest-panel-host")?.shadowRoot?.querySelector<HTMLElement>(".sc-panel");
       const styles = panel && getComputedStyle(panel);
@@ -640,6 +647,60 @@ test.describe("GM API", () => {
 
     expect(result).toEqual({ position: "fixed", width: "440px", adoptedStyleSheets: 1 });
     expect(violations).toEqual([]);
+
+    const host = page.locator("#sctest-panel-host");
+    const visibleCases = () =>
+      host
+        .locator('[data-sctest="case-row"]')
+        .evaluateAll((rows) =>
+          rows.filter((row) => getComputedStyle(row).display !== "none").map((row) => row.textContent)
+        );
+    await host.locator('[data-sctest="filter-fail"]').click();
+    expect(await visibleCases()).toEqual([expect.stringContaining("failing case")]);
+    await host.locator('[data-sctest="filter-skip"]').click();
+    expect(await visibleCases()).toEqual([expect.stringContaining("skipped case")]);
+    await host.locator('[data-sctest="filter-all"]').click();
+    expect(await visibleCases()).toHaveLength(3);
+
+    const suiteGroupHidden = () =>
+      host.locator('[data-sctest="suite-row"]').evaluate((row) => (row.nextElementSibling as HTMLElement).hidden);
+    await host.locator('[data-sctest="collapse-all"]').click();
+    expect(await suiteGroupHidden()).toBe(true);
+    await host.locator('[data-sctest="collapse-all"]').click();
+    expect(await suiteGroupHidden()).toBe(false);
+
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          writeText: (text: string) => (
+            ((window as typeof window & { copiedJson?: string }).copiedJson = text),
+            Promise.resolve()
+          ),
+        },
+      });
+    });
+    await host.locator('[data-sctest="export-json"]').click();
+    const copiedReport = await page.evaluate(
+      () =>
+        JSON.parse((window as typeof window & { copiedJson: string }).copiedJson) as { name: string; cases: unknown[] }
+    );
+    expect(copiedReport.name).toBe("CSP panel");
+    expect(copiedReport.cases).toHaveLength(3);
+
+    const panel = host.locator(".sc-panel");
+    const grip = host.locator('[data-sctest="drag-handle"]');
+    const before = await panel.boundingBox();
+    const gripBox = await grip.boundingBox();
+    expect(before).not.toBeNull();
+    expect(gripBox).not.toBeNull();
+    await page.mouse.move(gripBox!.x + gripBox!.width / 2, gripBox!.y + gripBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(gripBox!.x - 40, gripBox!.y - 30, { steps: 4 });
+    await page.mouse.up();
+    const after = await panel.boundingBox();
+    expect(after!.x).toBeLessThan(before!.x);
+    expect(after!.y).toBeLessThan(before!.y);
     await page.close();
   });
 

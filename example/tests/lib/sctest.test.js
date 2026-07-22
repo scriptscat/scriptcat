@@ -502,6 +502,107 @@ vdescribe("PanelReporter", () => {
     vexpect(attempts).toBe(2);
     vexpect(runAll.disabled).toBe(false);
   });
+
+  vit("全部、失败、跳过筛选会只显示匹配用例并允许切回全部", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("混合组", () => {
+      i("通过项", () => e(1).toBe(1));
+      i("失败项", () => e(1).toBe(2));
+      i("跳过项", () => SCTest.skip("环境不支持"));
+    });
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const visibleCases = () =>
+      [...root.querySelectorAll('[data-sctest="case-row"]')].filter((row) => !row.hidden).map((row) => row.textContent);
+    root.querySelector('[data-sctest="filter-fail"]').click();
+    vexpect(visibleCases()).toHaveLength(1);
+    vexpect(visibleCases()[0]).toContain("失败项");
+    root.querySelector('[data-sctest="filter-skip"]').click();
+    vexpect(visibleCases()).toHaveLength(1);
+    vexpect(visibleCases()[0]).toContain("跳过项");
+    root.querySelector('[data-sctest="filter-all"]').click();
+    vexpect(visibleCases()).toHaveLength(3);
+  });
+
+  vit("搜索会隐藏不匹配的 suite,清空会恢复所有用例", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("下载", () => i("保存文件", () => e(1).toBe(1)));
+    d("权限", () => i("请求授权", () => e(1).toBe(1)));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const search = root.querySelector('[data-sctest="search"] input');
+    search.value = "保存";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    vexpect([...root.querySelectorAll('[data-sctest="suite-row"]')].filter((row) => !row.hidden)).toHaveLength(1);
+    root.querySelector('[data-sctest="reset"]').click();
+    vexpect(search.value).toBe("");
+    vexpect([...root.querySelectorAll('[data-sctest="case-row"]')].filter((row) => !row.hidden)).toHaveLength(2);
+  });
+
+  vit("人工判定会更新筛选与 JSON 使用的真实状态,隐藏用例时提示同步隐藏", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const { describe: d, itManual: im, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("人工组", () => im("确认结果", { hint: "检查页面" }));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    root.querySelector('[data-sctest="manual-pass"]').click();
+    root.querySelector('[data-sctest="filter-fail"]').click();
+    vexpect(root.querySelector('[data-sctest="case-row"]').hidden).toBe(true);
+    vexpect(root.querySelector(".sc-hint").hidden).toBe(true);
+    root.querySelector('[data-sctest="export-json"]').click();
+    vexpect(JSON.parse(writeText.mock.calls[0][0]).cases[0].status).toBe("pass");
+  });
+
+  vit("单组和全部收缩都能再次点击展开", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("组", () => i("用例", () => e(1).toBe(1)));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const suite = root.querySelector('[data-sctest="suite-row"]');
+    const group = suite.nextElementSibling;
+    suite.click();
+    vexpect(group.hidden).toBe(true);
+    suite.click();
+    vexpect(group.hidden).toBe(false);
+    const collapseAll = root.querySelector('[data-sctest="collapse-all"]');
+    collapseAll.click();
+    vexpect(group.hidden).toBe(true);
+    collapseAll.click();
+    vexpect(group.hidden).toBe(false);
+  });
+
+  vit("JSON 按钮复制结构化报告而不是触发文件下载", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("组", () => i("通过项", () => e(1).toBe(1)));
+    await run();
+
+    document.getElementById("sctest-panel-host").shadowRoot.querySelector('[data-sctest="export-json"]').click();
+    vexpect(writeText).toHaveBeenCalledOnce();
+    vexpect(JSON.parse(writeText.mock.calls[0][0])).toMatchObject({ name: "demo", context: "page" });
+  });
+
+  vit("拖动手柄会更新面板固定位置", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("组", () => i("用例", () => e(1).toBe(1)));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const panel = root.querySelector(".sc-panel");
+    root.querySelector('[data-sctest="drag-handle"]').dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, button: 0, clientX: 10, clientY: 20 })
+    );
+    document.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 40, clientY: 60 }));
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    vexpect(panel.style.left).toBe("30px");
+    vexpect(panel.style.top).toBe("40px");
+  });
 });
 
 vdescribe("LogReporter", () => {
