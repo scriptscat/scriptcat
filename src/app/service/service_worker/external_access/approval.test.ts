@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { McpApprovalService, type McpScriptMutator, type SendBridgeResponse } from "./approval";
-import { McpOperationDAO } from "@App/app/repo/mcp";
+import { ExternalAccessApprovalService, type ExternalAccessScriptMutator, type SendBridgeResponse } from "./approval";
+import { ExternalAccessOperationDAO } from "@App/app/repo/external_access";
 import { SessionAllowStore } from "./session_allow";
 import {
   ScriptDAO,
@@ -22,14 +22,14 @@ console.log("hi");`;
 
 const TARGET_UUID = "22222222-2222-4222-8222-222222222222";
 
-describe("McpApprovalService（三档决策 + 会话授权）", () => {
-  let approval: McpApprovalService;
+describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () => {
+  let approval: ExternalAccessApprovalService;
   let scriptDAO: ScriptDAO;
   let scriptCodeDAO: ScriptCodeDAO;
-  let operationDAO: McpOperationDAO;
+  let operationDAO: ExternalAccessOperationDAO;
   let sessionAllow: SessionAllowStore;
   let responder: ReturnType<typeof vi.fn>;
-  let mutator: McpScriptMutator & {
+  let mutator: ExternalAccessScriptMutator & {
     installScript: ReturnType<typeof vi.fn>;
     enableScript: ReturnType<typeof vi.fn>;
     deleteScript: ReturnType<typeof vi.fn>;
@@ -42,14 +42,14 @@ describe("McpApprovalService（三档决策 + 会话授权）", () => {
     vi.spyOn(utilsModule, "openInCurrentTab").mockResolvedValue(undefined);
     scriptDAO = new ScriptDAO();
     scriptCodeDAO = new ScriptCodeDAO();
-    operationDAO = new McpOperationDAO();
+    operationDAO = new ExternalAccessOperationDAO();
     sessionAllow = new SessionAllowStore();
     mutator = {
       installScript: vi.fn().mockResolvedValue({ update: false, updatetime: Date.now() }),
       enableScript: vi.fn().mockResolvedValue(undefined),
       deleteScript: vi.fn().mockResolvedValue(undefined),
     };
-    approval = new McpApprovalService(
+    approval = new ExternalAccessApprovalService(
       mutator,
       scriptDAO,
       scriptCodeDAO,
@@ -135,7 +135,9 @@ describe("McpApprovalService（三档决策 + 会话授权）", () => {
     await seedScript(TARGET_UUID);
     const ref = await approval.requestDelete({ clientId: "c", uuid: TARGET_UUID, requestId: "r1" });
     await approval.present(ref.operationId);
-    expect(utilsModule.openInCurrentTab).toHaveBeenCalledWith(`/src/mcp_confirm.html?op=${ref.operationId}`);
+    expect(utilsModule.openInCurrentTab).toHaveBeenCalledWith(
+      `/src/external_access_confirm.html?op=${ref.operationId}`
+    );
     expect((await operationDAO.get(ref.operationId))?.status).toBe("awaiting_user");
   });
 

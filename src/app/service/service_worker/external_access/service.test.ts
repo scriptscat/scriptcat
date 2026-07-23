@@ -1,39 +1,46 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { McpUIService } from "./service";
-import { McpOperationDAO } from "@App/app/repo/mcp";
-import { McpApprovalService } from "./approval";
+import { ExternalAccessUIService } from "./service";
+import { ExternalAccessOperationDAO } from "@App/app/repo/external_access";
+import { ExternalAccessApprovalService } from "./approval";
 import { ScriptDAO, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { TempStorageDAO } from "@App/app/repo/tempStorage";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
 import type { SystemConfig } from "@App/pkg/config/config";
 
-describe("McpUIService（外部接入页端点）", () => {
-  let approval: McpApprovalService;
+describe("ExternalAccessUIService（外部接入页端点）", () => {
+  let approval: ExternalAccessApprovalService;
   let controller: {
     getStatus: ReturnType<typeof vi.fn>;
     enroll: ReturnType<typeof vi.fn>;
     stop: ReturnType<typeof vi.fn>;
   };
-  let systemConfig: { setMcpPairing: ReturnType<typeof vi.fn>; setMcpEnabled: ReturnType<typeof vi.fn> };
+  let systemConfig: {
+    setExternalAccessPairing: ReturnType<typeof vi.fn>;
+    setExternalAccessEnabled: ReturnType<typeof vi.fn>;
+  };
   let handlers: Record<string, (...args: any[]) => any>;
-  let service: McpUIService;
+  let service: ExternalAccessUIService;
 
   beforeEach(() => {
     chrome.storage.local.clear();
     createMockOPFS();
     const mutator = { installScript: vi.fn(), enableScript: vi.fn(), deleteScript: vi.fn() };
-    approval = new McpApprovalService(
+    approval = new ExternalAccessApprovalService(
       mutator,
       new ScriptDAO(),
       new ScriptCodeDAO(),
-      new McpOperationDAO(),
+      new ExternalAccessOperationDAO(),
       new TempStorageDAO()
     );
-    controller = { getStatus: vi.fn().mockReturnValue("connected"), enroll: vi.fn(), stop: vi.fn() };
-    systemConfig = { setMcpPairing: vi.fn(), setMcpEnabled: vi.fn() };
+    controller = {
+      getStatus: vi.fn().mockReturnValue({ status: "connected", daemonVersion: "1.0.0" }),
+      enroll: vi.fn(),
+      stop: vi.fn(),
+    };
+    systemConfig = { setExternalAccessPairing: vi.fn(), setExternalAccessEnabled: vi.fn() };
     handlers = {};
     const group = { on: (name: string, fn: (...args: any[]) => any) => (handlers[name] = fn) } as any;
-    service = new McpUIService(group, controller as any, approval, systemConfig as unknown as SystemConfig);
+    service = new ExternalAccessUIService(group, controller as any, approval, systemConfig as unknown as SystemConfig);
     service.init();
   });
 
@@ -51,8 +58,8 @@ describe("McpUIService（外部接入页端点）", () => {
     );
   });
 
-  it("status 返回控制器状态", () => {
-    expect(handlers["status"]()).toBe("connected");
+  it("status 返回控制器状态（含 sctl 版本）", () => {
+    expect(handlers["status"]()).toEqual({ status: "connected", daemonVersion: "1.0.0" });
   });
 
   it("enroll 转发配对码给控制器", () => {
@@ -71,9 +78,9 @@ describe("McpUIService（外部接入页端点）", () => {
   it("stopExternalAccess 废弃密钥 K、清本会话授权、停止并关闭开关", async () => {
     const clear = vi.spyOn(approval, "clearSessionAllow").mockResolvedValue(undefined);
     await handlers["stopExternalAccess"]();
-    expect(systemConfig.setMcpPairing).toHaveBeenCalledWith(undefined);
+    expect(systemConfig.setExternalAccessPairing).toHaveBeenCalledWith(undefined);
     expect(clear).toHaveBeenCalled();
     expect(controller.stop).toHaveBeenCalled();
-    expect(systemConfig.setMcpEnabled).toHaveBeenCalledWith(false);
+    expect(systemConfig.setExternalAccessEnabled).toHaveBeenCalledWith(false);
   });
 });

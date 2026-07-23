@@ -11,6 +11,6 @@ export function getToolsCategories(t: TFunction): SettingsCategory[] {
     { id: "data-migration", icon: Database, label: t("tools:data_migration") },
     { id: "dev-tools", icon: Terminal, label: t("tools:development_tool") },
     // 外部接入尚未在 Firefox MV3 上构建/验证,不在 Firefox 提供入口,避免未测试配置被静默启用。
-    ...(!isFirefox() ? [{ id: "external-access", icon: PlugZap, label: t("mcp:section_title") }] : []),
+    ...(!isFirefox() ? [{ id: "external-access", icon: PlugZap, label: t("external_access:section_title") }] : []),
   ];
 }

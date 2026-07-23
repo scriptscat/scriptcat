@@ -2,25 +2,26 @@ import semver from "semver";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { SystemConfig } from "@App/pkg/config/config";
 import type { IMessageQueue } from "@Packages/message/message_queue";
-import type { McpConnectClient } from "../../offscreen/client";
-import type { McpBridge } from "./bridge";
+import type { ExternalAccessConnectClient } from "../../offscreen/client";
+import type { ExternalAccessBridge } from "./bridge";
 import {
   MIN_DAEMON_VERSION,
   type HelloPayload,
-  type McpBridgeRequest,
-  type McpBridgeResponse,
-  type McpBridgeStatus,
+  type ExternalAccessBridgeRequest,
+  type ExternalAccessBridgeResponse,
+  type ExternalAccessBridgeStatus,
+  type ExternalAccessBridgeStatusInfo,
   type WSEnvelope,
 } from "./types";
 import type { Group } from "@Packages/message/server";
 
 // Broadcast on every status transition so the Tools settings page updates live.
-export const McpStatusChanged = "mcpStatusChanged";
+export const ExternalAccessStatusChanged = "mcpStatusChanged";
 
-// The subset of the offscreen WS driver McpController needs: open/close the socket and push
+// The subset of the offscreen WS driver ExternalAccessController needs: open/close the socket and push
 // outbound envelopes onto the wire. The socket itself, plus the auth handshake and reconnect
-// backoff, live in offscreen (src/app/service/offscreen/mcp-connect.ts).
-type ConnectDriver = Pick<McpConnectClient, "connect" | "disconnect" | "send">;
+// backoff, live in offscreen (src/app/service/offscreen/external-access-connect.ts).
+type ConnectDriver = Pick<ExternalAccessConnectClient, "connect" | "disconnect" | "send">;
 
 /**
  * SW-side coordinator for 外部接入 (External Access). Owns the status machine and drives the
@@ -34,13 +35,15 @@ type ConnectDriver = Pick<McpConnectClient, "connect" | "disconnect" | "send">;
  *  - enabled + key K       → session-mode connect; "connected" once the daemon's hello arrives (or
  *    "host_outdated" if it's below MIN_DAEMON_VERSION). Reconnect/backoff is delegated to offscreen.
  */
-export class McpController {
-  private status: McpBridgeStatus = "disabled";
+export class ExternalAccessController {
+  private status: ExternalAccessBridgeStatus = "disabled";
+  // The daemon version from the last hello; only surfaced while a live connection exists (see statusInfo).
+  private daemonVersion?: string;
   private active = false;
 
   constructor(
     private readonly systemConfig: SystemConfig,
-    private readonly bridge: Pick<McpBridge, "handle" | "cancel">,
+    private readonly bridge: Pick<ExternalAccessBridge, "handle" | "cancel">,
     private readonly mq: IMessageQueue,
     private readonly group: Group,
     private readonly connectClient: ConnectDriver
@@ -53,25 +56,25 @@ export class McpController {
     this.group.on("paired", (payload: { key: string }) => this.onEnrolled(payload.key));
     this.group.on("disconnected", () => this.onDisconnected());
 
-    this.systemConfig.addListener("mcp_enabled", (enabled) => {
+    this.systemConfig.addListener("external_access_enabled", (enabled) => {
       if (enabled) {
         void this.connect();
       } else {
         this.stop();
       }
     });
-    if (await this.systemConfig.getMcpEnabled()) {
+    if (await this.systemConfig.getExternalAccessEnabled()) {
       await this.connect();
     }
   }
 
   // Session-mode connect using the stored long-term key. No-op if already driving a connection.
-  // `active` is set synchronously before the first await so a re-fired mcp_enabled listener can't
+  // `active` is set synchronously before the first await so a re-fired external_access_enabled listener can't
   // race a second dial through the guard. Enabled-but-unenrolled parks in "pending_enrollment".
   private async connect(): Promise<void> {
     if (this.active) return;
     this.active = true;
-    const pairing = await this.systemConfig.getMcpPairing();
+    const pairing = await this.systemConfig.getExternalAccessPairing();
     if (!pairing.key) {
       // Enabled but never enrolled — nothing to authenticate with; release so a later enroll() dials.
       this.active = false;
@@ -79,7 +82,7 @@ export class McpController {
       return;
     }
     this.setStatus("connecting");
-    const url = await this.systemConfig.getMcpUrl();
+    const url = await this.systemConfig.getExternalAccessUrl();
     void this.connectClient.connect({ url, auth: { mode: "session", key: pairing.key } });
   }
 
@@ -90,7 +93,7 @@ export class McpController {
   async enroll(code: string): Promise<void> {
     this.active = true;
     this.setStatus("connecting");
-    const url = await this.systemConfig.getMcpUrl();
+    const url = await this.systemConfig.getExternalAccessUrl();
     void this.connectClient.connect({ url, auth: { mode: "pairing", code } });
   }
 
@@ -98,6 +101,7 @@ export class McpController {
     switch (envelope.type) {
       case "hello": {
         const { daemonVersion } = envelope.payload as HelloPayload;
+        this.daemonVersion = daemonVersion;
         this.setStatus(semver.lt(daemonVersion, MIN_DAEMON_VERSION) ? "host_outdated" : "connected");
         break;
       }
@@ -107,7 +111,7 @@ export class McpController {
           // requestId 只存在于 envelope 层（PROTOCOL §4）；payload 不带它，应答必须用 envelope
           // 的值回填，否则 daemon 匹配不到挂起的调用，调用方一直等到 TTL 超时。
           void this.dispatchBridgeRequest({
-            ...(envelope.payload as McpBridgeRequest),
+            ...(envelope.payload as ExternalAccessBridgeRequest),
             requestId: envelope.requestId,
           });
         }
@@ -128,8 +132,8 @@ export class McpController {
   // Enrollment succeeded: persist the daemon-minted long-term key alongside a stable local client
   // identity so future reconnects use session-mode auth.
   private async onEnrolled(key: string): Promise<void> {
-    const existing = await this.systemConfig.getMcpPairing();
-    this.systemConfig.setMcpPairing({ key, clientId: existing.clientId || uuidv4() });
+    const existing = await this.systemConfig.getExternalAccessPairing();
+    this.systemConfig.setExternalAccessPairing({ key, clientId: existing.clientId || uuidv4() });
   }
 
   private onDisconnected(): void {
@@ -137,7 +141,7 @@ export class McpController {
     this.setStatus("host_unreachable");
   }
 
-  private async dispatchBridgeRequest(request: McpBridgeRequest): Promise<void> {
+  private async dispatchBridgeRequest(request: ExternalAccessBridgeRequest): Promise<void> {
     const response = await this.bridge.handle(request);
     // null = the request suspended pending a human decision (write approval / source disclosure).
     // No response now; the decide/void event drives it later via sendBridgeResponse (design §5.1).
@@ -150,7 +154,7 @@ export class McpController {
   // index.ts) when a decide/void event resolves an op that suspended a write/disclosure request.
   // Kept off any SW-memory Promise: the op state lives in storage, offscreen keeps the socket
   // alive, and this call is reached by the message that woke the SW.
-  sendBridgeResponse(requestId: string, response: McpBridgeResponse): void {
+  sendBridgeResponse(requestId: string, response: ExternalAccessBridgeResponse): void {
     void this.connectClient.send({ v: 1, type: "bridge.response", requestId, payload: response });
   }
 
@@ -163,12 +167,19 @@ export class McpController {
     this.setStatus("disabled");
   }
 
-  getStatus(): McpBridgeStatus {
-    return this.status;
+  getStatus(): ExternalAccessBridgeStatusInfo {
+    return this.statusInfo();
   }
 
-  private setStatus(status: McpBridgeStatus): void {
+  // The daemon version is only meaningful while a connection is live; gating it on the connected
+  // states keeps a stale version from leaking through the status bar after a disconnect/stop.
+  private statusInfo(): ExternalAccessBridgeStatusInfo {
+    const live = this.status === "connected" || this.status === "host_outdated";
+    return { status: this.status, daemonVersion: live ? this.daemonVersion : undefined };
+  }
+
+  private setStatus(status: ExternalAccessBridgeStatus): void {
     this.status = status;
-    this.mq.publish(McpStatusChanged, { status });
+    this.mq.publish(ExternalAccessStatusChanged, this.statusInfo());
   }
 }

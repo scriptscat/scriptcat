@@ -27,8 +27,8 @@ import type { TrashScript } from "@App/app/repo/trash_script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 import type { LocalBackupExport } from "./synchronize";
-import type { McpUIService } from "./mcp/service";
-import type { WSEnvelope } from "./mcp/types";
+import type { ExternalAccessUIService } from "./external_access/service";
+import type { WSEnvelope } from "./external_access/types";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -505,15 +505,15 @@ export class AgentClient extends Client {
   }
 }
 
-// Page-facing client for the MCP native-messaging bridge (ScriptCat as an MCP *server* exposed
+// Page-facing client for the external-access bridge (ScriptCat as an MCP *server* exposed
 // to external AI clients) — unrelated to AgentClient.mcpApi above, which is the opposite
 // direction (ScriptCat's own agent acting as an MCP *client* of external servers).
-export class MCPClient extends Client {
+export class ExternalAccessClient extends Client {
   constructor(msgSender: MessageSend) {
-    super(msgSender, "serviceWorker/mcp");
+    super(msgSender, "serviceWorker/externalAccess");
   }
 
-  getBridgeStatus(): Promise<ReturnType<McpUIService["getStatus"]>> {
+  getBridgeStatus(): Promise<ReturnType<ExternalAccessUIService["getStatus"]>> {
     return this.doThrow("status");
   }
 
@@ -522,7 +522,7 @@ export class MCPClient extends Client {
     return this.do("enroll", code);
   }
 
-  getOperation(operationId: string): ReturnType<McpUIService["getOperation"]> {
+  getOperation(operationId: string): ReturnType<ExternalAccessUIService["getOperation"]> {
     return this.doThrow("operation", operationId);
   }
 
@@ -531,18 +531,18 @@ export class MCPClient extends Client {
     approved: boolean;
     enable?: boolean;
     rememberSession?: boolean;
-  }): ReturnType<McpUIService["decideOperation"]> {
+  }): ReturnType<ExternalAccessUIService["decideOperation"]> {
     return this.doThrow("operationDecision", param);
   }
 
   // Re-opens a still-pending op's confirm page (误关重开入口). The "待确认" reopen row calls this
   // after the user closed the confirm tab without deciding.
-  reopenOperation(operationId: string): ReturnType<McpUIService["reopenOperation"]> {
+  reopenOperation(operationId: string): ReturnType<ExternalAccessUIService["reopenOperation"]> {
     return this.doThrow("operationReopen", operationId);
   }
 
   // Still-pending ops for the "待确认" reopen list.
-  getPendingOperations(): ReturnType<McpUIService["getPendingOperations"]> {
+  getPendingOperations(): ReturnType<ExternalAccessUIService["getPendingOperations"]> {
     return this.doThrow("pendingOperations");
   }
 
@@ -552,13 +552,13 @@ export class MCPClient extends Client {
   }
 }
 
-// offscreen → SW relay for the MCP WS transport. The offscreen McpConnect owns the socket and the
+// offscreen → SW relay for the MCP WS transport. The offscreen ExternalAccessConnect owns the socket and the
 // auth handshake; once a connection is live it forwards decoded business envelopes (and the newly
-// paired long-term key) up to McpController here. Deliberately fire-and-forget: a blocking write
+// paired long-term key) up to ExternalAccessController here. Deliberately fire-and-forget: a blocking write
 // approval may keep a bridge.request pending for minutes, so the relay never awaits the dispatch.
-export class McpConnectRelayClient extends Client {
+export class ExternalAccessConnectRelayClient extends Client {
   constructor(msgSender: MessageSend) {
-    super(msgSender, "serviceWorker/mcpConnect");
+    super(msgSender, "serviceWorker/externalAccessConnect");
   }
 
   envelope(envelope: WSEnvelope): Promise<void> {

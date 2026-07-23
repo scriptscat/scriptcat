@@ -1,29 +1,29 @@
 import type { Group } from "@Packages/message/server";
 import type { SystemConfig } from "@App/pkg/config/config";
-import type { McpOperation } from "@App/app/repo/mcp";
-import type { McpApprovalService } from "./approval";
-import type { OperationStatusResult, McpBridgeStatus, PendingOperationSummary } from "./types";
+import type { ExternalAccessOperation } from "@App/app/repo/external_access";
+import type { ExternalAccessApprovalService } from "./approval";
+import type { OperationStatusResult, ExternalAccessBridgeStatusInfo, PendingOperationSummary } from "./types";
 
-// Narrow surface McpUIService needs from McpController — flat trust leaves only the status read and
-// the enrollment dial; the settings page reads/writes the two policies + mcp_enabled directly via
+// Narrow surface ExternalAccessUIService needs from ExternalAccessController — flat trust leaves only the status read and
+// the enrollment dial; the settings page reads/writes the two policies + external_access_enabled directly via
 // the generic SystemConfig plumbing.
-export interface McpControllerFacade {
-  getStatus(): McpBridgeStatus;
+export interface ExternalAccessControllerFacade {
+  getStatus(): ExternalAccessBridgeStatusInfo;
   enroll(code: string): void;
   stop(): void;
 }
 
 /**
- * Page-facing 外部接入 endpoints, registered under the `mcp` Group. Deliberately does NOT include
+ * Page-facing 外部接入 endpoints, registered under the `externalAccess` Group. Deliberately does NOT include
  * `setEnabled` or the two policies: those flow through the generic SystemConfig get/set plumbing
  * every other device-local setting uses. Audit is not served here either — it lives in the shared
  * logger and the card deep-links to the log page (design §4).
  */
-export class McpUIService {
+export class ExternalAccessUIService {
   constructor(
     private readonly group: Group,
-    private readonly controller: McpControllerFacade,
-    private readonly approval: McpApprovalService,
+    private readonly controller: ExternalAccessControllerFacade,
+    private readonly approval: ExternalAccessApprovalService,
     private readonly systemConfig: SystemConfig
   ) {}
 
@@ -44,11 +44,11 @@ export class McpUIService {
     this.controller.enroll(code);
   }
 
-  getStatus(): McpBridgeStatus {
+  getStatus(): ExternalAccessBridgeStatusInfo {
     return this.controller.getStatus();
   }
 
-  getOperation(operationId: string): Promise<McpOperation | undefined> {
+  getOperation(operationId: string): Promise<ExternalAccessOperation | undefined> {
     return this.approval.getOperationForUI(operationId);
   }
 
@@ -78,9 +78,9 @@ export class McpUIService {
   // "停止外部接入" kill switch (design §2.3): discard the long-term key K so a re-enrollment is
   // required, drop all 本会话允许 grants, stop the connection, and flip the feature off.
   async stopExternalAccess(): Promise<void> {
-    this.systemConfig.setMcpPairing(undefined);
+    this.systemConfig.setExternalAccessPairing(undefined);
     await this.approval.clearSessionAllow();
     this.controller.stop();
-    this.systemConfig.setMcpEnabled(false);
+    this.systemConfig.setExternalAccessEnabled(false);
   }
 }

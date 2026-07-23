@@ -89,17 +89,17 @@ describe("InstallActions 操作区", () => {
     expect(screen.getByTestId("action-bar-note")).toBeInTheDocument();
   });
 
-  it("未提供 onMcpReject 时不渲染拒绝按钮", () => {
+  it("未提供 onExternalAccessReject 时不渲染拒绝按钮", () => {
     render(<InstallActions {...baseProps()} />);
-    expect(screen.queryByTestId("mcp-reject")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("external-access-reject")).not.toBeInTheDocument();
   });
 
-  it("提供 onMcpReject 时渲染拒绝按钮，点击触发回调（MCP 请求安装流程）", () => {
-    const onMcpReject = vi.fn();
-    render(<InstallActions {...baseProps()} onMcpReject={onMcpReject} />);
-    const rejectButton = screen.getByTestId("mcp-reject");
+  it("提供 onExternalAccessReject 时渲染拒绝按钮，点击触发回调（MCP 请求安装流程）", () => {
+    const onExternalAccessReject = vi.fn();
+    render(<InstallActions {...baseProps()} onExternalAccessReject={onExternalAccessReject} />);
+    const rejectButton = screen.getByTestId("external-access-reject");
     expect(rejectButton).toBeInTheDocument();
     fireEvent.click(rejectButton);
-    expect(onMcpReject).toHaveBeenCalledTimes(1);
+    expect(onExternalAccessReject).toHaveBeenCalledTimes(1);
   });
 });

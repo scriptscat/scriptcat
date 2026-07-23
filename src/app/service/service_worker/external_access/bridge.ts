@@ -7,15 +7,15 @@ import {
   SCRIPT_TYPE_BACKGROUND,
   SCRIPT_STATUS_ENABLE,
 } from "@App/app/repo/scripts";
-import type { McpWritePolicy, McpSourceReadPolicy } from "@App/pkg/config/config";
-import type { McpApprovalService } from "./approval";
-import { McpBridgeError } from "./errors";
+import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
+import type { ExternalAccessApprovalService } from "./approval";
+import { ExternalAccessBridgeError } from "./errors";
 import { readScriptSource } from "./source";
-import { logLocalAccess, type LocalAccessAudit } from "./audit";
+import { logExternalAccess, type ExternalAccessAudit } from "./audit";
 import {
   type BridgeAction,
-  type McpBridgeRequest,
-  type McpBridgeResponse,
+  type ExternalAccessBridgeRequest,
+  type ExternalAccessBridgeResponse,
   type OperationKind,
   type ScriptSummary,
   type ScriptType,
@@ -27,10 +27,10 @@ export { MAX_SOURCE_BYTES } from "./source";
 // Sentinel dispatch returns when a request is suspended pending a human decision (write approval
 // or source read under the "approval" policy): no bridge.response is produced now — the decide/void
 // event pushes it back later through the approval responder (design §5.1, event-driven not SW-Promise).
-const DEFERRED = Symbol("mcp-deferred-response");
+const DEFERRED = Symbol("external-access-deferred-response");
 
 // Summary handed to the allow-policy write notification.
-export interface McpWriteNotice {
+export interface ExternalAccessWriteNotice {
   kind: OperationKind;
   name?: string;
 }
@@ -42,7 +42,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function assertKeys(input: Record<string, unknown>, allowed: string[]): void {
   for (const key of Object.keys(input)) {
     if (!allowed.includes(key)) {
-      throw new McpBridgeError("INVALID_REQUEST", `unexpected field: ${key}`);
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", `unexpected field: ${key}`);
     }
   }
 }
@@ -52,13 +52,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 function assertUuidField(input: Record<string, unknown>, field: string): string {
   const value = input[field];
   if (typeof value !== "string" || !UUID_RE.test(value)) {
-    throw new McpBridgeError("INVALID_REQUEST", `${field} must be a UUID`);
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", `${field} must be a UUID`);
   }
   return value;
 }
 
 // Best-effort target uuid for audit attribution (present on every action except list/install).
-function auditUuid(request: McpBridgeRequest): string | undefined {
+function auditUuid(request: ExternalAccessBridgeRequest): string | undefined {
   const input = request.input;
   return isPlainObject(input) && typeof input.uuid === "string" ? input.uuid : undefined;
 }
@@ -68,42 +68,42 @@ function auditUuid(request: McpBridgeRequest): string | undefined {
 // it accepts.
 const VALIDATORS: Record<BridgeAction, (input: unknown) => void> = {
   "scripts.list": (input) => {
-    if (!isPlainObject(input)) throw new McpBridgeError("INVALID_REQUEST", "input must be an object");
+    if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
     assertKeys(input, []);
   },
   "scripts.metadata.get": (input) => {
-    if (!isPlainObject(input)) throw new McpBridgeError("INVALID_REQUEST", "input must be an object");
+    if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
     assertKeys(input, ["uuid"]);
     assertUuidField(input, "uuid");
   },
   "scripts.source.get": (input) => {
-    if (!isPlainObject(input)) throw new McpBridgeError("INVALID_REQUEST", "input must be an object");
+    if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
     assertKeys(input, ["uuid"]);
     assertUuidField(input, "uuid");
   },
   "scripts.install.request": (input) => {
-    if (!isPlainObject(input)) throw new McpBridgeError("INVALID_REQUEST", "input must be an object");
+    if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
     assertKeys(input, ["url", "code"]);
     if (input.url !== undefined && typeof input.url !== "string") {
-      throw new McpBridgeError("INVALID_REQUEST", "url must be a string");
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "url must be a string");
     }
     if (input.code !== undefined && typeof input.code !== "string") {
-      throw new McpBridgeError("INVALID_REQUEST", "code must be a string");
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "code must be a string");
     }
     if (!!input.url === !!input.code) {
-      throw new McpBridgeError("INVALID_REQUEST", "exactly one of url or code is required");
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "exactly one of url or code is required");
     }
   },
   "scripts.toggle.request": (input) => {
-    if (!isPlainObject(input)) throw new McpBridgeError("INVALID_REQUEST", "input must be an object");
+    if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
     assertKeys(input, ["uuid", "enable"]);
     assertUuidField(input, "uuid");
     if (typeof input.enable !== "boolean") {
-      throw new McpBridgeError("INVALID_REQUEST", "enable must be a boolean");
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "enable must be a boolean");
     }
   },
   "scripts.delete.request": (input) => {
-    if (!isPlainObject(input)) throw new McpBridgeError("INVALID_REQUEST", "input must be an object");
+    if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
     assertKeys(input, ["uuid"]);
     assertUuidField(input, "uuid");
   },
@@ -132,7 +132,7 @@ function toSummary(script: Script): ScriptSummary {
 }
 
 /**
- * Routes an already-authenticated McpBridgeRequest to the extension's script/approval services.
+ * Routes an already-authenticated ExternalAccessBridgeRequest to the extension's script/approval services.
  *
  * Trust is flat (design §2.3): enrollment established the ext↔sctl channel key K, and every client
  * (CLI or MCP agent) that reaches sctl inherits that trust — there is no per-client scope or token.
@@ -145,18 +145,18 @@ function toSummary(script: Script): ScriptSummary {
  *  - Source reads (scripts.source.get) → the source-read policy, same two modes. Source is a privacy
  *    read, so it keeps its own gate and — unlike the old model — is no longer CLI-exempt (§2.3).
  *
- * The "本会话允许" third tier is applied inside McpApprovalService.present(): a session-allowed
+ * The "本会话允许" third tier is applied inside ExternalAccessApprovalService.present(): a session-allowed
  * (script, kind) auto-approves without opening a page. Writes exactly one audit event per request.
  */
-export class McpBridge {
+export class ExternalAccessBridge {
   constructor(
     private readonly scriptDAO: Pick<ScriptDAO, "all" | "get">,
     private readonly scriptCodeDAO: Pick<ScriptCodeDAO, "get">,
-    private readonly approval: McpApprovalService,
-    private getWritePolicy: () => Promise<McpWritePolicy> = async () => "approval",
-    private getSourceReadPolicy: () => Promise<McpSourceReadPolicy> = async () => "approval",
-    private readonly notifyWrite: (notice: McpWriteNotice) => void = () => {},
-    private readonly audit: LocalAccessAudit = logLocalAccess
+    private readonly approval: ExternalAccessApprovalService,
+    private getWritePolicy: () => Promise<ExternalAccessWritePolicy> = async () => "approval",
+    private getSourceReadPolicy: () => Promise<ExternalAccessSourceReadPolicy> = async () => "approval",
+    private readonly notifyWrite: (notice: ExternalAccessWriteNotice) => void = () => {},
+    private readonly audit: ExternalAccessAudit = logExternalAccess
   ) {}
 
   // daemon → bridge.cancel {requestId}: the requester (MCP client / CLI) timed out, Ctrl-C'd or
@@ -166,7 +166,7 @@ export class McpBridge {
     return this.approval.cancelByRequestId(requestId);
   }
 
-  async handle(request: McpBridgeRequest): Promise<McpBridgeResponse | null> {
+  async handle(request: ExternalAccessBridgeRequest): Promise<ExternalAccessBridgeResponse | null> {
     try {
       const result = await this.dispatch(request);
       if (result === DEFERRED) {
@@ -190,7 +190,8 @@ export class McpBridge {
       });
       return { requestId: request.requestId, ok: true, result };
     } catch (e) {
-      const bridgeError = e instanceof McpBridgeError ? e : new McpBridgeError("INTERNAL_ERROR", "internal error");
+      const bridgeError =
+        e instanceof ExternalAccessBridgeError ? e : new ExternalAccessBridgeError("INTERNAL_ERROR", "internal error");
       this.audit({
         client: request.clientId,
         action: request.action,
@@ -208,7 +209,7 @@ export class McpBridge {
     }
   }
 
-  private async dispatch(request: McpBridgeRequest): Promise<unknown> {
+  private async dispatch(request: ExternalAccessBridgeRequest): Promise<unknown> {
     VALIDATORS[request.action](request.input);
     const input = request.input as Record<string, unknown>;
 
@@ -219,7 +220,7 @@ export class McpBridge {
       }
       case "scripts.metadata.get": {
         const script = await this.scriptDAO.get(input.uuid as string);
-        if (!script) throw new McpBridgeError("NOT_FOUND", "script not found");
+        if (!script) throw new ExternalAccessBridgeError("NOT_FOUND", "script not found");
         return {
           ...toSummary(script),
           matches: script.metadata.match ?? [],
@@ -286,7 +287,7 @@ export class McpBridge {
   //  - "allow": execute immediately via decide(approved) and fire the notification; the op carries
   //    no requestId, so decide returns the result synchronously here instead of over the wire.
   private async dispatchWrite(
-    request: McpBridgeRequest,
+    request: ExternalAccessBridgeRequest,
     kind: OperationKind,
     createOp: (requestId?: string) => Promise<{ operationId: string }>,
     decideOptions: { enable?: boolean } = {}

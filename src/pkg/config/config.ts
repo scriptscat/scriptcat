@@ -41,12 +41,12 @@ export type FaviconService = "scriptcat" | "google" | "duckduckgo" | "icon-horse
 
 // 外部接入 · 每类操作的人机闸门策略：需人工审批（默认）/ 直接允许。写操作与源码读取各持一份，
 // 对 CLI 与 MCP 一视同仁（源码读取不再对 CLI 豁免）。
-export type McpWritePolicy = "approval" | "allow";
-export type McpSourceReadPolicy = "approval" | "allow";
+export type ExternalAccessWritePolicy = "approval" | "allow";
+export type ExternalAccessSourceReadPolicy = "approval" | "allow";
 
 // MCP 配对成功后落地的长期共享密钥 K（小写 hex）与本扩展实例的客户端身份。
 // key 为空串表示尚未配对。仅存 chrome.storage.local，绝不跨设备同步。
-export type McpPairing = {
+export type ExternalAccessPairing = {
   key: string;
   clientId: string;
 };
@@ -656,44 +656,44 @@ export class SystemConfig {
     return this._get<boolean>("enable_script_incognito", true);
   }
 
-  setMcpEnabled(enable: boolean) {
-    this._set("mcp_enabled", enable);
+  setExternalAccessEnabled(enable: boolean) {
+    this._set("external_access_enabled", enable);
   }
 
-  getMcpEnabled() {
-    return this._get<boolean>("mcp_enabled", false);
+  getExternalAccessEnabled() {
+    return this._get<boolean>("external_access_enabled", false);
   }
 
-  setMcpUrl(url: string) {
-    this._set("mcp_url", url);
+  setExternalAccessUrl(url: string) {
+    this._set("external_access_url", url);
   }
 
-  getMcpUrl() {
-    return this._get<string>("mcp_url", "ws://localhost:8643");
+  getExternalAccessUrl() {
+    return this._get<string>("external_access_url", "ws://localhost:8643");
   }
 
-  setMcpWritePolicy(policy: McpWritePolicy) {
-    this._set("mcp_write_policy", policy);
+  setExternalAccessWritePolicy(policy: ExternalAccessWritePolicy) {
+    this._set("external_access_write_policy", policy);
   }
 
-  getMcpWritePolicy() {
-    return this._get<McpWritePolicy>("mcp_write_policy", "approval");
+  getExternalAccessWritePolicy() {
+    return this._get<ExternalAccessWritePolicy>("external_access_write_policy", "approval");
   }
 
-  setMcpSourceReadPolicy(policy: McpSourceReadPolicy) {
-    this._set("mcp_source_read_policy", policy);
+  setExternalAccessSourceReadPolicy(policy: ExternalAccessSourceReadPolicy) {
+    this._set("external_access_source_read_policy", policy);
   }
 
-  getMcpSourceReadPolicy() {
-    return this._get<McpSourceReadPolicy>("mcp_source_read_policy", "approval");
+  getExternalAccessSourceReadPolicy() {
+    return this._get<ExternalAccessSourceReadPolicy>("external_access_source_read_policy", "approval");
   }
 
-  setMcpPairing(pairing: McpPairing | undefined) {
-    this._set("mcp_pairing", pairing);
+  setExternalAccessPairing(pairing: ExternalAccessPairing | undefined) {
+    this._set("external_access_pairing", pairing);
   }
 
-  getMcpPairing() {
-    return this._get<McpPairing>("mcp_pairing", { key: "", clientId: "" });
+  getExternalAccessPairing() {
+    return this._get<ExternalAccessPairing>("external_access_pairing", { key: "", clientId: "" });
   }
 
   setBlacklist(blacklist: string) {

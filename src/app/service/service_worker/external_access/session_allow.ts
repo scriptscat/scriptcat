@@ -11,7 +11,7 @@
  */
 import type { OperationKind } from "./types";
 
-const STORAGE_KEY = "mcp_session_allow";
+const STORAGE_KEY = "external_access_session_allow";
 
 // 安装/更新共用一个类别（同一张安装页面）；其余操作按各自类别独立授权。
 export function sessionAllowKey(kind: OperationKind, identity: string): string {

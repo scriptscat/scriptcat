@@ -3,8 +3,8 @@ import type { SCRIPT_RUN_STATUS, ScriptRunResource } from "@App/app/repo/scripts
 import { Client, sendMessage } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import { type VSCodeConnectParam } from "./vscode-connect";
-import { type McpConnectParam } from "./mcp-connect";
-import type { WSEnvelope } from "../service_worker/mcp/types";
+import { type ExternalAccessConnectParam } from "./external-access-connect";
+import type { WSEnvelope } from "../service_worker/external_access/types";
 
 export function preparationSandbox(windowMessage: WindowMessage) {
   return sendMessage(windowMessage, "offscreen/preparationSandbox");
@@ -120,15 +120,15 @@ export class VscodeConnectClient extends Client {
   }
 }
 
-// SW → offscreen driver for the MCP WS transport. McpController uses it to open/close the socket
-// and to hand the offscreen McpConnect outbound envelopes (bridge.response / pair.decision /
+// SW → offscreen driver for the MCP WS transport. ExternalAccessController uses it to open/close the socket
+// and to hand the offscreen ExternalAccessConnect outbound envelopes (bridge.response / pair.decision /
 // client.revoke / bridge.shutdown) to write onto the wire.
-export class McpConnectClient extends Client {
+export class ExternalAccessConnectClient extends Client {
   constructor(msgSender: MessageSend) {
-    super(msgSender, "offscreen/mcpConnect");
+    super(msgSender, "offscreen/externalAccessConnect");
   }
 
-  connect(params: McpConnectParam): Promise<void> {
+  connect(params: ExternalAccessConnectParam): Promise<void> {
     return this.do("connect", params);
   }
 

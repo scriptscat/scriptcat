@@ -22,7 +22,7 @@
 | 文档 | 说明 |
 | --- | --- |
 | [`external-access-guide.md`](./external-access-guide.md) | 使用指南:安装 sctl、启用外部接入、一次性接入(`sctl connect` 带外配对码)、写操作/源码读取两条策略、三档决策(拒绝/允许/本会话允许)的实操步骤,附 MCP 工具表、CLI 动词与真实用例。**想实际用起来先读这份。**中文版见 [`external-access-guide_zh-CN.md`](./external-access-guide_zh-CN.md)。 |
-| [`sctl` 仓库 `docs/protocol.md`](https://github.com/scriptscat/sctl/blob/main/docs/protocol.md) | 协议规范:扩展↔daemon WS 双向握手、接入握手、bridge action、错误码、写操作阻塞语义。常量单源 `protocol.json` 与本仓库 [`src/app/service/service_worker/mcp/protocol.json`](../src/app/service/service_worker/mcp/protocol.json) 逐字节镜像(由 `protocol.conformance.test.ts` 守护)。 |
+| [`sctl` 仓库 `docs/protocol.md`](https://github.com/scriptscat/sctl/blob/main/docs/protocol.md) | 协议规范:扩展↔daemon WS 双向握手、接入握手、bridge action、错误码、写操作阻塞语义。常量单源 `protocol.json` 与本仓库 [`src/app/service/service_worker/external_access/protocol.json`](../src/app/service/service_worker/external_access/protocol.json) 逐字节镜像(由 `protocol.conformance.test.ts` 守护)。 |
 | [`sctl` 仓库 `docs/threat-model.md`](https://github.com/scriptscat/sctl/blob/main/docs/threat-model.md) | 威胁模型:两个信任锚点(长期密钥 K + 0600 控制令牌)、扁平信任的取舍、Origin 白名单、攻击面与对策、写路径人工审批 + TOCTOU、落盘凭据一览。 |
 
 ## 翻译 / Translation

@@ -40,18 +40,18 @@ using it — including links already shipped in installed builds, which keep sen
 
 After `pnpm run dev`, load `dist/ext` as an unpacked extension. The browser hot-reloads page changes, but edits to `manifest.json`, `service_worker`, `offscreen`, or `sandbox` require reloading the extension.
 
-### External Access (internal: the `mcp/` subsystem)
+### External Access (`external_access/` subsystem)
 
-External Access — the user-facing "外部接入 / External Access" feature, whose code keeps the internal
-name `mcp/` (`src/app/service/service_worker/mcp/`) — is **built into every profile and gated only at
-runtime** by `mcp_enabled` (`SystemConfig`, device-local, off by default); there is no build-time flag
+External Access — the user-facing "外部接入 / External Access" feature
+(`src/app/service/service_worker/external_access/`) — is **built into every profile and gated only at
+runtime** by `external_access_enabled` (`SystemConfig`, device-local, off by default); there is no build-time flag
 and no `nativeMessaging` permission (both were removed when the transport moved to WebSocket). Trust is
 flat: a single enrollment establishes the long-term key K, and the CLI and every MCP agent inherit it
 (no per-client pairing/scope/revocation). It connects, from an offscreen WebSocket client
-(`src/app/service/offscreen/mcp-connect.ts`), to a local companion binary
+(`src/app/service/offscreen/external-access-connect.ts`), to a local companion binary
 [`sctl`](https://github.com/scriptscat/sctl) — a loopback-only WS daemon on `127.0.0.1:8643`; the
 extension never listens on a port itself. Protocol constants are single-sourced in
-[`mcp/protocol.json`](../src/app/service/service_worker/mcp/protocol.json), mirrored byte-for-byte with
+[`external_access/protocol.json`](../src/app/service/service_worker/external_access/protocol.json), mirrored byte-for-byte with
 the sctl repo and guarded by `protocol.conformance.test.ts`. See
 [`external-access-guide.md`](./external-access-guide.md) for usage, and the sctl repo's
 `docs/protocol.md` / `docs/threat-model.md` for the wire protocol and security design.

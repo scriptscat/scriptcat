@@ -1,6 +1,6 @@
 import { sha256OfText } from "@App/pkg/utils/crypto";
 import type { ScriptDAO, ScriptCodeDAO } from "@App/app/repo/scripts";
-import { McpBridgeError } from "./errors";
+import { ExternalAccessBridgeError } from "./errors";
 import type { ScriptSource } from "./types";
 
 // Chrome hard-caps native-messaging frames at 1 MiB host->browser; 2 MiB is the extension-local
@@ -18,11 +18,11 @@ export async function readScriptSource(
   uuid: string
 ): Promise<ScriptSource> {
   const script = await scriptDAO.get(uuid);
-  if (!script) throw new McpBridgeError("NOT_FOUND", "script not found");
+  if (!script) throw new ExternalAccessBridgeError("NOT_FOUND", "script not found");
   const scriptCode = await scriptCodeDAO.get(uuid);
-  if (!scriptCode) throw new McpBridgeError("NOT_FOUND", "script source not found");
+  if (!scriptCode) throw new ExternalAccessBridgeError("NOT_FOUND", "script source not found");
   if (new TextEncoder().encode(scriptCode.code).length > MAX_SOURCE_BYTES) {
-    throw new McpBridgeError("PAYLOAD_TOO_LARGE", "script source exceeds 2 MiB");
+    throw new ExternalAccessBridgeError("PAYLOAD_TOO_LARGE", "script source exceeds 2 MiB");
   }
   return {
     uuid: script.uuid,

@@ -1,12 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { McpBridge, type McpWriteNotice } from "./bridge";
-import { McpApprovalService, type McpScriptMutator } from "./approval";
-import { McpOperationDAO } from "@App/app/repo/mcp";
+import { ExternalAccessBridge, type ExternalAccessWriteNotice } from "./bridge";
+import { ExternalAccessApprovalService, type ExternalAccessScriptMutator } from "./approval";
+import { ExternalAccessOperationDAO } from "@App/app/repo/external_access";
 import { ScriptDAO, ScriptCodeDAO, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { TempStorageDAO } from "@App/app/repo/tempStorage";
-import { PROTOCOL_VERSION, type BridgeAction, type McpBridgeRequest, type McpBridgeResponse } from "./types";
-import type { McpWritePolicy, McpSourceReadPolicy } from "@App/pkg/config/config";
-import type { LocalAccessAuditEvent } from "./audit";
+import {
+  PROTOCOL_VERSION,
+  type BridgeAction,
+  type ExternalAccessBridgeRequest,
+  type ExternalAccessBridgeResponse,
+} from "./types";
+import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
+import type { ExternalAccessAuditEvent } from "./audit";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
 import * as utilsModule from "@App/pkg/utils/utils";
@@ -20,27 +25,27 @@ console.log("hi");`;
 
 const SRC_UUID = "11111111-1111-4111-8111-111111111111";
 
-function expectResponse(r: McpBridgeResponse | null): McpBridgeResponse {
+function expectResponse(r: ExternalAccessBridgeResponse | null): ExternalAccessBridgeResponse {
   expect(r).not.toBeNull();
-  return r as McpBridgeResponse;
+  return r as ExternalAccessBridgeResponse;
 }
 
 function makeRequest(
   action: BridgeAction,
   input: unknown,
-  overrides: Partial<McpBridgeRequest> = {}
-): McpBridgeRequest {
+  overrides: Partial<ExternalAccessBridgeRequest> = {}
+): ExternalAccessBridgeRequest {
   return { requestId: uuidv4(), protocolVersion: PROTOCOL_VERSION, clientId: "session-1", action, input, ...overrides };
 }
 
-describe("McpBridge（扁平信任 + 双策略）", () => {
-  let bridge: McpBridge;
+describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
+  let bridge: ExternalAccessBridge;
   let scriptDAO: ScriptDAO;
   let scriptCodeDAO: ScriptCodeDAO;
-  let operationDAO: McpOperationDAO;
-  let approval: McpApprovalService;
-  let writePolicy: McpWritePolicy;
-  let sourcePolicy: McpSourceReadPolicy;
+  let operationDAO: ExternalAccessOperationDAO;
+  let approval: ExternalAccessApprovalService;
+  let writePolicy: ExternalAccessWritePolicy;
+  let sourcePolicy: ExternalAccessSourceReadPolicy;
   let notifyWrite: ReturnType<typeof vi.fn>;
   let audit: ReturnType<typeof vi.fn>;
 
@@ -55,21 +60,21 @@ describe("McpBridge（扁平信任 + 双策略）", () => {
     audit = vi.fn();
     scriptDAO = new ScriptDAO();
     scriptCodeDAO = new ScriptCodeDAO();
-    operationDAO = new McpOperationDAO();
-    const mutator: McpScriptMutator = {
+    operationDAO = new ExternalAccessOperationDAO();
+    const mutator: ExternalAccessScriptMutator = {
       installScript: vi.fn().mockResolvedValue({ update: false, updatetime: Date.now() }),
       enableScript: vi.fn().mockResolvedValue(undefined),
       deleteScript: vi.fn().mockResolvedValue(undefined),
     };
-    approval = new McpApprovalService(mutator, scriptDAO, scriptCodeDAO, operationDAO, new TempStorageDAO());
-    bridge = new McpBridge(
+    approval = new ExternalAccessApprovalService(mutator, scriptDAO, scriptCodeDAO, operationDAO, new TempStorageDAO());
+    bridge = new ExternalAccessBridge(
       scriptDAO,
       scriptCodeDAO,
       approval,
       async () => writePolicy,
       async () => sourcePolicy,
-      notifyWrite as (n: McpWriteNotice) => void,
-      audit as (e: LocalAccessAuditEvent) => void
+      notifyWrite as (n: ExternalAccessWriteNotice) => void,
+      audit as (e: ExternalAccessAuditEvent) => void
     );
   });
 
@@ -169,7 +174,7 @@ describe("McpBridge（扁平信任 + 双策略）", () => {
 
     it("写策略=直接允许时安装立即执行且默认启用（即装即用）并发通知", async () => {
       writePolicy = "allow";
-      const mutator = (approval as unknown as { mutator: McpScriptMutator }).mutator;
+      const mutator = (approval as unknown as { mutator: ExternalAccessScriptMutator }).mutator;
       const response = expectResponse(
         await bridge.handle(makeRequest("scripts.install.request", { code: VALID_SCRIPT_CODE }))
       );
@@ -182,7 +187,7 @@ describe("McpBridge（扁平信任 + 双策略）", () => {
     it("写策略=直接允许时启用脚本立即执行", async () => {
       writePolicy = "allow";
       await seedScript(SRC_UUID);
-      const mutator = (approval as unknown as { mutator: McpScriptMutator }).mutator;
+      const mutator = (approval as unknown as { mutator: ExternalAccessScriptMutator }).mutator;
       const response = expectResponse(
         await bridge.handle(makeRequest("scripts.toggle.request", { uuid: SRC_UUID, enable: false }))
       );

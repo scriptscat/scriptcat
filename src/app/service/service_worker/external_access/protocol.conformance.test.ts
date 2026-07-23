@@ -18,8 +18,8 @@ describe("MCP 协议一致性 - types.ts 必须与 protocol.json 同步", () => 
     expect([...extTypes.WS_MESSAGE_TYPES].sort()).toEqual([...protocolJson.envelopeTypes].sort());
   });
 
-  it("MCP_SCOPES 与 protocol.json 的 scopes 完全一致", () => {
-    expect([...extTypes.MCP_SCOPES].sort()).toEqual([...protocolJson.scopes].sort());
+  it("EXTERNAL_ACCESS_SCOPES 与 protocol.json 的 scopes 完全一致", () => {
+    expect([...extTypes.EXTERNAL_ACCESS_SCOPES].sort()).toEqual([...protocolJson.scopes].sort());
   });
 
   it("BRIDGE_ACTIONS 与 protocol.json 的 actions 键完全一致", () => {

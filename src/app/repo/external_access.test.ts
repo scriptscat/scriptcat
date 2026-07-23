@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { McpOperationDAO } from "./mcp";
-import type { McpOperation } from "./mcp";
+import { ExternalAccessOperationDAO } from "./external_access";
+import type { ExternalAccessOperation } from "./external_access";
 
-function makeOperation(overrides: Partial<McpOperation> = {}): McpOperation {
+function makeOperation(overrides: Partial<ExternalAccessOperation> = {}): ExternalAccessOperation {
   const now = Date.now();
   return {
     operationId: "op-1",
@@ -16,12 +16,12 @@ function makeOperation(overrides: Partial<McpOperation> = {}): McpOperation {
   };
 }
 
-describe("McpOperationDAO", () => {
-  let dao: McpOperationDAO;
+describe("ExternalAccessOperationDAO", () => {
+  let dao: ExternalAccessOperationDAO;
 
   beforeEach(() => {
     chrome.storage.local.clear();
-    dao = new McpOperationDAO();
+    dao = new ExternalAccessOperationDAO();
   });
 
   it("save / get 往返读写一条待批操作", async () => {

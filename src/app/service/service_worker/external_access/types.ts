@@ -1,5 +1,5 @@
 /**
- * Extension-side mirror of the MCP bridge protocol.
+ * Extension-side mirror of the sctl bridge protocol.
  *
  * The wire constants live in protocol.json (this directory), which is the single source of truth
  * shared byte-for-byte with the sctl daemon repo. This module is the strongly-typed mirror; the
@@ -82,7 +82,7 @@ export interface HelloPayload {
 export interface PairRequestPayload {
   pairingId: string;
   clientName: string;
-  requestedScopes: McpScope[];
+  requestedScopes: ExternalAccessScope[];
   code: string;
 }
 
@@ -91,18 +91,18 @@ export interface PairRequestPayload {
 export interface PairDecisionPayload {
   pairingId: string;
   approved: boolean;
-  grantedScopes: McpScope[];
+  grantedScopes: ExternalAccessScope[];
 }
 
 // host->ext, full client list after any host-side change (new pairing, revoke, scope edit).
 // The host is the authority on tokenHash/scopes/revoked; the extension mirrors it verbatim.
-export type ClientSyncPayload = McpClientRecord[];
+export type ClientSyncPayload = ExternalAccessClientRecord[];
 
-export interface McpClientRecord {
+export interface ExternalAccessClientRecord {
   clientId: string;
   displayName: string;
   tokenHash: string;
-  scopes: McpScope[];
+  scopes: ExternalAccessScope[];
   createdAt: number;
   lastUsedAt: number;
   revoked: boolean;
@@ -112,7 +112,7 @@ export interface McpClientRecord {
 // Layer 1.5 — bridge actions
 // ---------------------------------------------------------------------------------------------
 
-export const MCP_SCOPES = [
+export const EXTERNAL_ACCESS_SCOPES = [
   "scripts:list",
   "scripts:metadata:read",
   "scripts:source:read",
@@ -121,7 +121,7 @@ export const MCP_SCOPES = [
   "scripts:delete:request",
 ] as const;
 
-export type McpScope = (typeof MCP_SCOPES)[number];
+export type ExternalAccessScope = (typeof EXTERNAL_ACCESS_SCOPES)[number];
 
 export const BRIDGE_ACTIONS = [
   "scripts.list",
@@ -159,8 +159,8 @@ export const OPERATION_STATUSES = ["awaiting_user", "approved", "rejected", "exp
 
 export type OperationStatus = (typeof OPERATION_STATUSES)[number];
 
-export interface McpBridgeRequest<TInput = unknown> {
-  // 线上 payload 不含此字段（PROTOCOL §4：requestId 属于 envelope 层）；由 McpController 从
+export interface ExternalAccessBridgeRequest<TInput = unknown> {
+  // 线上 payload 不含此字段（PROTOCOL §4：requestId 属于 envelope 层）；由 ExternalAccessController 从
   // envelope 注入，供下游关联挂起操作与回发应答。
   requestId: string;
   protocolVersion: typeof PROTOCOL_VERSION;
@@ -175,7 +175,7 @@ export interface BridgeError {
   operationId?: string;
 }
 
-export type McpBridgeResponse<TResult = unknown> =
+export type ExternalAccessBridgeResponse<TResult = unknown> =
   | { requestId: string; ok: true; result: TResult }
   | { requestId: string; ok: false; error: BridgeError };
 
@@ -242,7 +242,7 @@ export interface PendingOperationSummary {
   createdAt: number;
 }
 
-export const ACTION_REQUIRED_SCOPE: Record<BridgeAction, McpScope> = {
+export const ACTION_REQUIRED_SCOPE: Record<BridgeAction, ExternalAccessScope> = {
   "scripts.list": "scripts:list",
   "scripts.metadata.get": "scripts:metadata:read",
   "scripts.source.get": "scripts:source:read",
@@ -259,15 +259,23 @@ export const WRITE_ACTIONS: readonly BridgeAction[] = [
 
 // ---------------------------------------------------------------------------------------------
 // Extension-only types — not part of the wire protocol, just UI/controller state. Persisted
-// entities (McpClient, McpOperation, McpAuditEvent) live in src/app/repo/mcp.ts alongside their
+// entities (ExternalAccessClient, ExternalAccessOperation, ExternalAccessAuditEvent) live in src/app/repo/external_access.ts alongside their
 // DAOs (repo convention: entity + DAO in one file); this status enum stays here because it's
 // derived controller state, never written to storage.
 // ---------------------------------------------------------------------------------------------
 
-export type McpBridgeStatus =
+export type ExternalAccessBridgeStatus =
   | "disabled"
   | "pending_enrollment"
   | "connecting"
   | "connected"
   | "host_unreachable"
   | "host_outdated";
+
+// getStatus / ExternalAccessStatusChanged payload: the bare status plus the daemon version the hello
+// handshake reported. daemonVersion is only carried while a live connection exists (connected /
+// host_outdated); the status bar renders it as "sctl v{daemonVersion}".
+export interface ExternalAccessBridgeStatusInfo {
+  status: ExternalAccessBridgeStatus;
+  daemonVersion?: string;
+}

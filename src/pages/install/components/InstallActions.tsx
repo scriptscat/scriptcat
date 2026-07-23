@@ -24,9 +24,9 @@ export interface InstallActionsProps {
   onClose: (opts?: { noMoreUpdates?: boolean }) => void;
   onToggleWatch?: () => void;
   /** 仅「外部接入」触发的安装提供：显式拒绝（区别于「关闭」——关闭窗口本身不算决定，只有点击这个按钮才算拒绝） */
-  onMcpReject?: () => void;
+  onExternalAccessReject?: () => void;
   /** 仅「外部接入」触发的安装提供：本会话允许（安装并对该脚本本会话内免询问，设计 §3 第三档） */
-  onMcpSessionAllow?: () => void;
+  onExternalAccessSessionAllow?: () => void;
 }
 
 /**
@@ -81,10 +81,10 @@ export function InstallActions({
   onInstall,
   onClose,
   onToggleWatch,
-  onMcpReject,
-  onMcpSessionAllow,
+  onExternalAccessReject,
+  onExternalAccessSessionAllow,
 }: InstallActionsProps) {
-  const { t } = useTranslation(["install", "common", "editor", "mcp"]);
+  const { t } = useTranslation(["install", "common", "editor", "external_access"]);
 
   const primaryLabel = inTrash
     ? versionChanged
@@ -128,22 +128,22 @@ export function InstallActions({
           </Button>
         )}
 
-        {onMcpReject ? (
+        {onExternalAccessReject ? (
           // 「外部接入」触发：三档决策 拒绝 / 本会话允许 / 安装（设计 §3）。安装 = 下方 install-split
           // 主按钮；此处只补前两档，替换普通「关闭」——关闭窗口本身不算决定（op 挂起至 TTL/断开）。
           <>
-            <Button data-testid="mcp-reject" variant="outline" autoFocus onClick={onMcpReject}>
-              {t("mcp:decision_reject")}
+            <Button data-testid="external-access-reject" variant="outline" autoFocus onClick={onExternalAccessReject}>
+              {t("external_access:decision_reject")}
             </Button>
-            {onMcpSessionAllow && (
+            {onExternalAccessSessionAllow && (
               <Button
-                data-testid="mcp-session-allow"
+                data-testid="external-access-session-allow"
                 variant="secondary"
                 className="gap-1.5 font-medium text-primary"
-                onClick={onMcpSessionAllow}
+                onClick={onExternalAccessSessionAllow}
               >
                 <History className="size-4" />
-                {t("mcp:decision_session_allow")}
+                {t("external_access:decision_session_allow")}
               </Button>
             )}
           </>

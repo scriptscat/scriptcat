@@ -1,6 +1,6 @@
 import { initTestEnv } from "@Tests/utils";
 import {
-  McpConnect,
+  ExternalAccessConnect,
   bytesToHex,
   computeHandshakeHmac,
   constantTimeEqualHex,
@@ -10,14 +10,14 @@ import {
   normalizePairingCode,
   randomNonceHex,
   utf8Bytes,
-  type McpConnectParam,
-} from "./mcp-connect";
+  type ExternalAccessConnectParam,
+} from "./external-access-connect";
 import { vi, describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
 import { MockMessage } from "@Packages/message/mock_message";
 import { Server } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
 import { createCipheriv, createHmac, hkdfSync, randomBytes } from "node:crypto";
-import protocol from "../service_worker/mcp/protocol.json";
+import protocol from "../service_worker/external_access/protocol.json";
 
 initTestEnv();
 
@@ -125,12 +125,12 @@ function stubWebSocket() {
 
 // ────────────────────────────────────────────────
 
-describe("McpConnect", () => {
+describe("ExternalAccessConnect", () => {
   // 握手用例走真实 WebCrypto（HKDF/HMAC/AES-GCM），比纯逻辑用例重；在满载并行下会超出 fast
   // 项目默认的 340ms 预算，故为本文件放宽超时（真实互操作向量不宜用 mock 替换）。
   beforeAll(() => vi.setConfig({ testTimeout: 5000 }));
 
-  let mcpConnect: McpConnect;
+  let externalAccessConnect: ExternalAccessConnect;
   let relay: {
     envelope: ReturnType<typeof vi.fn>;
     paired: ReturnType<typeof vi.fn>;
@@ -144,16 +144,16 @@ describe("McpConnect", () => {
     const ee = new EventEmitter<string, any>();
     const mockMessage = new MockMessage(ee);
     const server = new Server("offscreen", mockMessage);
-    const group = server.group("mcpConnect");
+    const group = server.group("externalAccessConnect");
 
-    mcpConnect = new McpConnect(group, mockMessage);
+    externalAccessConnect = new ExternalAccessConnect(group, mockMessage);
     relay = {
       envelope: vi.fn().mockResolvedValue(undefined),
       paired: vi.fn().mockResolvedValue(undefined),
       disconnected: vi.fn().mockResolvedValue(undefined),
     };
-    (mcpConnect as any).relay = relay;
-    mcpConnect.init();
+    (externalAccessConnect as any).relay = relay;
+    externalAccessConnect.init();
   });
 
   afterEach(() => {
@@ -161,12 +161,12 @@ describe("McpConnect", () => {
     vi.useRealTimers();
   });
 
-  function triggerConnect(param: McpConnectParam): MockWebSocket {
-    (mcpConnect as any).startSession(param);
+  function triggerConnect(param: ExternalAccessConnectParam): MockWebSocket {
+    (externalAccessConnect as any).startSession(param);
     return wsInstances[wsInstances.length - 1];
   }
 
-  const sessionParam = (key: string): McpConnectParam => ({
+  const sessionParam = (key: string): ExternalAccessConnectParam => ({
     url: "ws://127.0.0.1:8643",
     auth: { mode: "session", key },
   });
@@ -237,7 +237,7 @@ describe("McpConnect", () => {
 
       const okHmac = nodeHmacHex(new Uint8Array(K), CTX.sessionDaemon, resp.payload.nonceE, nonceD);
       ws.simulateMessage({ v: 1, type: "auth.ok", requestId: "c1", payload: { hmac: okHmac } });
-      await vi.waitFor(() => expect((mcpConnect as any).handshakeComplete).toBe(true));
+      await vi.waitFor(() => expect((externalAccessConnect as any).handshakeComplete).toBe(true));
 
       ws.simulateMessage({
         v: 1,
@@ -264,7 +264,7 @@ describe("McpConnect", () => {
       const closeSpy = vi.spyOn(ws, "close");
       ws.simulateMessage({ v: 1, type: "auth.ok", requestId: "c1", payload: { hmac: "00".repeat(32) } });
       await vi.waitFor(() => expect(closeSpy).toHaveBeenCalled());
-      expect((mcpConnect as any).handshakeComplete).toBe(false);
+      expect((externalAccessConnect as any).handshakeComplete).toBe(false);
     });
 
     it("握手完成前收到业务消息立即断开", async () => {
@@ -310,9 +310,9 @@ describe("McpConnect", () => {
 
       await vi.waitFor(() => expect(relay.paired).toHaveBeenCalledTimes(1));
       expect(relay.paired.mock.calls[0][0]).toBe(K.toString("hex"));
-      expect((mcpConnect as any).handshakeComplete).toBe(true);
+      expect((externalAccessConnect as any).handshakeComplete).toBe(true);
       // 握手后内部凭据切到会话模式，供后续自动重连
-      expect((mcpConnect as any).currentParams.auth).toEqual({ mode: "session", key: K.toString("hex") });
+      expect((externalAccessConnect as any).currentParams.auth).toEqual({ mode: "session", key: K.toString("hex") });
     });
 
     it("配对 auth.ok 缺少 key 时断开、不上抛 paired", async () => {
@@ -345,7 +345,7 @@ describe("McpConnect", () => {
       const resp = ws.sent(0);
       const okHmac = nodeHmacHex(new Uint8Array(K), CTX.sessionDaemon, resp.payload.nonceE, nonceD);
       ws.simulateMessage({ v: 1, type: "auth.ok", requestId: "c1", payload: { hmac: okHmac } });
-      await vi.waitFor(() => expect((mcpConnect as any).handshakeComplete).toBe(true));
+      await vi.waitFor(() => expect((externalAccessConnect as any).handshakeComplete).toBe(true));
       return ws;
     }
 
@@ -381,14 +381,19 @@ describe("McpConnect", () => {
 
     it("SW 下发的出站信封在握手后写入 socket", async () => {
       const ws = await completeSessionHandshake();
-      (mcpConnect as any).sendEnvelope({ v: 1, type: "bridge.response", requestId: "r1", payload: { ok: true } });
+      (externalAccessConnect as any).sendEnvelope({
+        v: 1,
+        type: "bridge.response",
+        requestId: "r1",
+        payload: { ok: true },
+      });
       expect(ws.sent(1).type).toBe("bridge.response");
     });
 
     it("握手完成前的出站信封被丢弃", () => {
       const ws = triggerConnect(sessionParam(randomBytes(32).toString("hex")));
       ws.simulateOpen();
-      (mcpConnect as any).sendEnvelope({ v: 1, type: "bridge.response", requestId: "r1", payload: {} });
+      (externalAccessConnect as any).sendEnvelope({ v: 1, type: "bridge.response", requestId: "r1", payload: {} });
       expect(ws.sentMessages.length).toBe(0);
     });
   });
@@ -424,8 +429,8 @@ describe("McpConnect", () => {
     it("disconnect 指令后不再重连", () => {
       vi.useFakeTimers();
       const ws = triggerConnect(sessionParam("aa".repeat(32)));
-      (mcpConnect as any).currentParams = null;
-      (mcpConnect as any).dispose();
+      (externalAccessConnect as any).currentParams = null;
+      (externalAccessConnect as any).dispose();
       ws.simulateClose();
       vi.advanceTimersByTime(30_000);
       expect(wsInstances).toHaveLength(1);

@@ -2,22 +2,22 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import { type Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
-import { McpConnectRelayClient } from "../service_worker/client";
-import protocol from "../service_worker/mcp/protocol.json";
+import { ExternalAccessConnectRelayClient } from "../service_worker/client";
+import protocol from "../service_worker/external_access/protocol.json";
 import type {
   AuthChallengePayload,
   AuthMode,
   AuthOkPayload,
   AuthResponsePayload,
   WSEnvelope,
-} from "../service_worker/mcp/types";
+} from "../service_worker/external_access/types";
 
 /**
- * MCP 桥接 · offscreen WebSocket client
+ * 外部接入桥接 · offscreen WebSocket client
  *
  * offscreen 拥有到 sctl daemon 的 WS 连接：epoch 守卫的重连 + 指数退避（骨架取自
  * vscode-connect.ts），以及 PROTOCOL §3 的双向 HMAC 握手（WebCrypto）。握手/心跳在本层自持，
- * 业务信封经现有 Group 通道转发给 Service Worker 的 McpController。
+ * 业务信封经现有 Group 通道转发给 Service Worker 的 ExternalAccessController。
  *
  * 之所以放 offscreen 而非 SW：写操作审批可能挂起数分钟且期间无流量，MV3 会休眠空闲 SW；
  * offscreen 由这条连接保活，SW 被转发消息唤醒。
@@ -36,11 +36,11 @@ const NONCE_BYTES = CRYPTO.nonceBytes;
 const AUTH_TIMEOUT_MS = protocol.limits.authTimeoutMs;
 
 // 会话模式携带既有长期密钥 K（小写 hex）；配对模式携带 sctl 生成的一次性配对码。
-export type McpAuth = { mode: "session"; key: string } | { mode: "pairing"; code: string };
+export type ExternalAccessAuth = { mode: "session"; key: string } | { mode: "pairing"; code: string };
 
-export interface McpConnectParam {
+export interface ExternalAccessConnectParam {
   url: string;
-  auth: McpAuth;
+  auth: ExternalAccessAuth;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -149,7 +149,7 @@ export async function decryptLongTermKey(encKeyBytes: Bytes, ivB64: string, ciph
 
 // 收到 auth.challenge 后，按当前模式计算 auth.response 载荷，并把握手参数带出以便验证 auth.ok。
 async function buildAuthResponse(
-  auth: McpAuth,
+  auth: ExternalAccessAuth,
   nonceD: string
 ): Promise<{ payload: AuthResponsePayload; verifyKey: Bytes; nonceE: string; enc?: Bytes }> {
   const nonceE = randomNonceHex();
@@ -164,13 +164,13 @@ async function buildAuthResponse(
   return { payload: { mode, nonceE, hmac }, verifyKey: mac, nonceE, enc };
 }
 
-export class McpConnect {
-  private readonly logger = LoggerCore.logger().with({ service: "McpConnect" });
-  private readonly relay: McpConnectRelayClient;
+export class ExternalAccessConnect {
+  private readonly logger = LoggerCore.logger().with({ service: "ExternalAccessConnect" });
+  private readonly relay: ExternalAccessConnectRelayClient;
 
   private ws: WebSocket | null = null;
   private epoch = 0;
-  private currentParams: McpConnectParam | null = null;
+  private currentParams: ExternalAccessConnectParam | null = null;
   private handshakeComplete = false;
   // 已发出 auth.response、等待 auth.ok 校验期间保留的握手素材。
   private pendingVerify: { verifyKey: Bytes; nonceD: string; nonceE: string; mode: AuthMode; enc?: Bytes } | null =
@@ -185,11 +185,11 @@ export class McpConnect {
     private readonly messageGroup: Group,
     messageSender: MessageSend
   ) {
-    this.relay = new McpConnectRelayClient(messageSender);
+    this.relay = new ExternalAccessConnectRelayClient(messageSender);
   }
 
   init(): void {
-    this.messageGroup.on("connect", (params: McpConnectParam) => {
+    this.messageGroup.on("connect", (params: ExternalAccessConnectParam) => {
       this.reconnectDelay = CONFIG.BASE_RECONNECT_DELAY;
       this.startSession(params);
     });
@@ -202,7 +202,7 @@ export class McpConnect {
     });
   }
 
-  private startSession(params: McpConnectParam): void {
+  private startSession(params: ExternalAccessConnectParam): void {
     this.dispose();
     this.currentParams = params;
     this.epoch++;

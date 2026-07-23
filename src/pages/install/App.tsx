@@ -13,7 +13,7 @@ import { InstallActions } from "./components/InstallActions";
 import { InstallWarning } from "./components/InstallWarning";
 import { InstallLoading, InstallError } from "./components/InstallStates";
 import { WatchingBanner } from "./components/WatchingBanner";
-import { McpBanner } from "./components/McpBanner";
+import { ExternalAccessBanner } from "./components/ExternalAccessBanner";
 import { BackgroundPrompt, backgroundPromptShownKey, keepAlivePromptShownKey } from "./components/BackgroundPrompt";
 import { useInstallData } from "./useInstallData";
 
@@ -33,7 +33,7 @@ export default function App() {
     toggleWatch,
     install,
     close,
-    rejectMcp,
+    rejectExternalAccess,
     installSkill,
     cancelSkill,
     retry,
@@ -121,8 +121,8 @@ export default function App() {
             onInstall={install}
             onClose={close}
             onToggleWatch={toggleWatch}
-            onMcpReject={view.mcp ? rejectMcp : undefined}
-            onMcpSessionAllow={view.mcp ? () => install({ rememberSession: true }) : undefined}
+            onExternalAccessReject={view.externalAccess ? rejectExternalAccess : undefined}
+            onExternalAccessSessionAllow={view.externalAccess ? () => install({ rememberSession: true }) : undefined}
           />
         }
       >
@@ -139,7 +139,13 @@ export default function App() {
           enabled={enabled}
           onEnabledChange={setEnabled}
         />
-        {view.mcp && <McpBanner contentHash={view.mcp.contentHash} source={view.source} isUpdate={view.isUpdate} />}
+        {view.externalAccess && (
+          <ExternalAccessBanner
+            contentHash={view.externalAccess.contentHash}
+            source={view.source}
+            isUpdate={view.isUpdate}
+          />
+        )}
         {watching && <WatchingBanner fileName={watchFileName || ""} lastSync={lastSync} />}
         {view.inTrash && (
           <div

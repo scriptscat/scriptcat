@@ -247,9 +247,9 @@ This is the flow that hits the disclosure gate:
 ## Auditing what happened
 
 External Access records each operation through ScriptCat's existing **logger** under the
-`local-access` component — allowed or denied, with the client's self-reported label, the action, and
+`external-access` component — allowed or denied, with the client's self-reported label, the action, and
 the outcome. It never contains tokens or source. The card has a **View audit log** button that
-deep-links to the Logs page pre-filtered to `component = local-access`, where you get all the usual
+deep-links to the Logs page pre-filtered to `component = external-access`, where you get all the usual
 filters (level, time, text). The self-reported client name is recorded for forensics only; because
 it's unauthenticated and forgeable, it never appears on an approval screen.
 

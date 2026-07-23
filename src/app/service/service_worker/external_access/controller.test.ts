@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { McpController } from "./controller";
+import { ExternalAccessController } from "./controller";
 import { SystemConfig } from "@App/pkg/config/config";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { MIN_DAEMON_VERSION, type WSEnvelope } from "./types";
 
-// Captures the relay handlers McpController registers on its Group so tests can feed decoded
-// envelopes the way the offscreen McpConnect would over the wire.
+// Captures the relay handlers ExternalAccessController registers on its Group so tests can feed decoded
+// envelopes the way the offscreen ExternalAccessConnect would over the wire.
 function makeFakeGroup() {
   const handlers: Record<string, (params: any) => any> = {};
   return {
@@ -26,7 +26,7 @@ function makeConnectClient() {
 
 const DEFAULT_URL = "ws://localhost:8643";
 
-describe("McpController（外部接入 · 扁平信任）", () => {
+describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
   let systemConfig: SystemConfig;
   let mq: MessageQueue;
   let bridgeHandle: ReturnType<typeof vi.fn>;
@@ -54,7 +54,7 @@ describe("McpController（外部接入 · 扁平信任）", () => {
   });
 
   function makeController() {
-    return new McpController(
+    return new ExternalAccessController(
       systemConfig,
       { handle: bridgeHandle, cancel: bridgeCancel } as any,
       mq,
@@ -64,30 +64,30 @@ describe("McpController（外部接入 · 扁平信任）", () => {
   }
 
   async function initEnrolled(key = "deadbeef", clientId = "c-existing") {
-    systemConfig.setMcpPairing({ key, clientId });
+    systemConfig.setExternalAccessPairing({ key, clientId });
     const controller = makeController();
     await controller.initialize();
     return controller;
   }
 
-  it("mcp_enabled=false 时只注册监听，不建立连接", async () => {
+  it("external_access_enabled=false 时只注册监听，不建立连接", async () => {
     const controller = makeController();
     await controller.initialize();
     expect(connectClient.connect).not.toHaveBeenCalled();
-    expect(controller.getStatus()).toBe("disabled");
+    expect(controller.getStatus().status).toBe("disabled");
   });
 
   it("已启用但未接入时不拨号，状态为 pending_enrollment", async () => {
     const controller = makeController();
     await controller.initialize();
-    systemConfig.setMcpEnabled(true);
-    await vi.waitFor(() => expect(controller.getStatus()).toBe("pending_enrollment"));
+    systemConfig.setExternalAccessEnabled(true);
+    await vi.waitFor(() => expect(controller.getStatus().status).toBe("pending_enrollment"));
     expect(connectClient.connect).not.toHaveBeenCalled();
   });
 
-  it("已接入且 mcp_enabled 变为 true 时以会话模式拨号，携带 URL 与长期密钥", async () => {
+  it("已接入且 external_access_enabled 变为 true 时以会话模式拨号，携带 URL 与长期密钥", async () => {
     await initEnrolled("abc123", "cid");
-    systemConfig.setMcpEnabled(true);
+    systemConfig.setExternalAccessEnabled(true);
     await vi.waitFor(() => expect(connectClient.connect).toHaveBeenCalledTimes(1));
     expect(connectClient.connect).toHaveBeenCalledWith({ url: DEFAULT_URL, auth: { mode: "session", key: "abc123" } });
   });
@@ -100,17 +100,17 @@ describe("McpController（外部接入 · 扁平信任）", () => {
       url: DEFAULT_URL,
       auth: { mode: "pairing", code: "PAIR-CODE" },
     });
-    expect(controller.getStatus()).toBe("connecting");
+    expect(controller.getStatus().status).toBe("connecting");
   });
 
   it("接入成功（paired）时持久化长期密钥 K", async () => {
     const controller = makeController();
     await controller.initialize();
     fake.relayPaired("newkey");
-    await vi.waitFor(async () => expect((await systemConfig.getMcpPairing()).key).toBe("newkey"));
+    await vi.waitFor(async () => expect((await systemConfig.getExternalAccessPairing()).key).toBe("newkey"));
   });
 
-  it("hello 版本达标时状态 connected，过旧时 host_outdated 且不分发 bridge 调用", async () => {
+  it("hello 版本达标时 connected 并暴露 sctl 版本，过旧时 host_outdated 且不分发 bridge 调用", async () => {
     const controller = await initEnrolled();
     fake.relayEnvelope({
       v: 1,
@@ -118,7 +118,8 @@ describe("McpController（外部接入 · 扁平信任）", () => {
       requestId: "h",
       payload: { daemonVersion: MIN_DAEMON_VERSION, protocolVersion: 1 },
     });
-    expect(controller.getStatus()).toBe("connected");
+    // hello 携带 daemonVersion，状态条据此显示「sctl v{daemonVersion}」。
+    expect(controller.getStatus()).toEqual({ status: "connected", daemonVersion: MIN_DAEMON_VERSION });
 
     fake.relayEnvelope({
       v: 1,
@@ -126,7 +127,7 @@ describe("McpController（外部接入 · 扁平信任）", () => {
       requestId: "h",
       payload: { daemonVersion: "0.0.1", protocolVersion: 1 },
     });
-    expect(controller.getStatus()).toBe("host_outdated");
+    expect(controller.getStatus()).toEqual({ status: "host_outdated", daemonVersion: "0.0.1" });
     fake.relayEnvelope({
       v: 1,
       type: "bridge.request",
@@ -184,7 +185,7 @@ describe("McpController（外部接入 · 扁平信任）", () => {
     expect(bridgeCancel).toHaveBeenCalledWith("req-cancel");
   });
 
-  it("socket 断开时状态转为 host_unreachable", async () => {
+  it("socket 断开时状态转为 host_unreachable 并清除 sctl 版本", async () => {
     const controller = await initEnrolled();
     fake.relayEnvelope({
       v: 1,
@@ -193,7 +194,8 @@ describe("McpController（外部接入 · 扁平信任）", () => {
       payload: { daemonVersion: MIN_DAEMON_VERSION, protocolVersion: 1 },
     });
     fake.relayDisconnected();
-    expect(controller.getStatus()).toBe("host_unreachable");
+    // 断开后不再连接，之前 hello 报告的版本不应残留。
+    expect(controller.getStatus()).toEqual({ status: "host_unreachable", daemonVersion: undefined });
   });
 
   it("stop() 发送 shutdown、断开并置为 disabled", async () => {
@@ -201,6 +203,6 @@ describe("McpController（外部接入 · 扁平信任）", () => {
     controller.stop();
     expect(connectClient.send).toHaveBeenCalledWith(expect.objectContaining({ type: "bridge.shutdown" }));
     expect(connectClient.disconnect).toHaveBeenCalled();
-    expect(controller.getStatus()).toBe("disabled");
+    expect(controller.getStatus().status).toBe("disabled");
   });
 });

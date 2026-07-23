@@ -4,7 +4,7 @@ export { default as editor } from "./editor.json";
 export { default as guide } from "./guide.json";
 export { default as install } from "./install.json";
 export { default as logs } from "./logs.json";
-export { default as mcp } from "./mcp.json";
+export { default as external_access } from "./external_access.json";
 export { default as permission } from "./permission.json";
 export { default as popup } from "./popup.json";
 export { default as script } from "./script.json";

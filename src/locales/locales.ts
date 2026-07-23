@@ -39,7 +39,7 @@ const NS = [
   "guide",
   "tools",
   "permission",
-  "mcp",
+  "external_access",
 ] as const;
 
 export function initLanguage(lng: string = "en-US"): void {

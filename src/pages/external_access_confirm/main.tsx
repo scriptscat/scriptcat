@@ -11,10 +11,10 @@ import "@App/index.css";
 // 初始化日志组件
 const loggerCore = new LoggerCore({
   writer: MessageWriter.serviceWorker(message),
-  labels: { env: "mcp_confirm" },
+  labels: { env: "external_access_confirm" },
 });
 
-loggerCore.logger().debug("mcp_confirm page start");
+loggerCore.logger().debug("external_access_confirm page start");
 
 const Root = (
   <ThemeProvider>
