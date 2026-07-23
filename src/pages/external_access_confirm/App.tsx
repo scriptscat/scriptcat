@@ -7,6 +7,7 @@ import { notify } from "@App/pages/components/ui/toast";
 import { externalAccessClient, scriptClient } from "@App/pages/store/features/script";
 import type { Script } from "@App/app/repo/scripts";
 import { cn } from "@App/pkg/utils/cn";
+import { CountdownChip } from "./CountdownChip";
 
 type OperationView = Awaited<ReturnType<typeof externalAccessClient.getOperation>>;
 
@@ -22,14 +23,20 @@ function BrandMark() {
   );
 }
 
-function PageShell({ children }: { children: React.ReactNode }) {
+function PageShell({ topRight, children }: { topRight?: React.ReactNode; children: React.ReactNode }) {
+  const { t } = useTranslation("external_access");
   return (
-    <div
-      data-testid="external-access-confirm-shell"
-      className="flex min-h-screen flex-col items-center justify-center gap-6 bg-muted px-4 py-10"
-    >
-      <BrandMark />
-      {children}
+    <div data-testid="external-access-confirm-shell" className="flex min-h-screen flex-col bg-muted">
+      {/* 顶栏:品牌 + 「外部接入 · 操作确认」面包屑 + 右侧 TTL 倒计时(设计稿 Th6Hv) */}
+      <header className="flex items-center justify-between gap-3 border-b bg-card px-6 py-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <BrandMark />
+          <span aria-hidden className="h-4 w-px shrink-0 bg-border" />
+          <span className="truncate text-sm text-muted-foreground">{t("external_access:confirm_topbar")}</span>
+        </div>
+        {topRight}
+      </header>
+      <div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-10">{children}</div>
     </div>
   );
 }
@@ -112,7 +119,7 @@ export function ExternalAccessConfirmView({ operationId }: { operationId: string
   const author = script?.author;
 
   return (
-    <PageShell>
+    <PageShell topRight={<CountdownChip expiresAt={op.expiresAt} />}>
       <div data-testid="external-access-confirm-card" className={cardClass}>
         {/* Head: icon + title + channel-based subtitle + kind tag (设计 §3.0.1: 不显示客户端名) */}
         <div className="flex items-center justify-between gap-3 border-b px-6 py-5">

@@ -3,7 +3,9 @@ import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/re
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const { getBridgeStatus, enroll, stopExternalAccess } = vi.hoisted(() => ({
-  getBridgeStatus: vi.fn(() => Promise.resolve({ status: "connected" })),
+  getBridgeStatus: vi.fn(
+    (): Promise<{ status: string; daemonVersion?: string }> => Promise.resolve({ status: "connected" })
+  ),
   enroll: vi.fn(() => Promise.resolve()),
   stopExternalAccess: vi.fn(() => Promise.resolve()),
 }));
@@ -88,14 +90,21 @@ describe("ExternalAccessSection（外部接入单卡片）", () => {
     expect(screen.getByTestId("external_access_enroll_open")).toBeInTheDocument();
   });
 
-  it("接入对话框输入配对码并提交调用 externalAccessClient.enroll", async () => {
+  it("接入对话框粘贴配对码并提交调用 externalAccessClient.enroll", async () => {
     getBridgeStatus.mockResolvedValue({ status: "pending_enrollment" });
     await renderSection();
     fireEvent.click(await screen.findByTestId("external_access_enroll_open"));
-    const codeInput = await screen.findByTestId("external_access_enroll_code");
-    fireEvent.change(codeInput, { target: { value: "ABCD1234" } });
+    // 8 格 OTP 输入：粘贴整段配对码到第一格，一次填满
+    const cell0 = await screen.findByTestId("external_access_enroll_code-cell-0");
+    fireEvent.paste(cell0, { clipboardData: { getData: () => "ABCD1234" } });
     fireEvent.click(screen.getByTestId("external_access_enroll_submit"));
     await waitFor(() => expect(enroll).toHaveBeenCalledWith("ABCD1234"));
+  });
+
+  it("已接入状态在状态条显示 sctl 版本号", async () => {
+    getBridgeStatus.mockResolvedValue({ status: "connected", daemonVersion: "0.3.1" });
+    await renderSection();
+    expect(await screen.findByTestId("external_access_daemon_version")).toHaveTextContent("sctl v0.3.1");
   });
 
   it("写操作策略切到「直接允许」时写入配置并显示琥珀警示", async () => {

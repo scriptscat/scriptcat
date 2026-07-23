@@ -102,4 +102,9 @@ describe("InstallActions 操作区", () => {
     fireEvent.click(rejectButton);
     expect(onExternalAccessReject).toHaveBeenCalledTimes(1);
   });
+
+  it("外部接入触发时操作栏提示语切换为渠道说明（设计稿 ActionNote）", () => {
+    render(<InstallActions {...baseProps()} onExternalAccessReject={vi.fn()} />);
+    expect(screen.getByTestId("action-bar-note")).toHaveTextContent("由「外部接入」触发");
+  });
 });

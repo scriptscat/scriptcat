@@ -99,11 +99,14 @@ export function InstallActions({
 
   const note = watching
     ? t("install:action_note_watching")
-    : isUpdate
-      ? t("install:action_note_update")
-      : isSubscribe
-        ? t("install:action_note_subscribe")
-        : t("install:action_note_install");
+    : onExternalAccessReject
+      ? // 外部接入触发:提示这是可信渠道请求 + 安装即信任来源/作者(设计稿 ActionNote)
+        t("external_access:install_action_note")
+      : isUpdate
+        ? t("install:action_note_update")
+        : isSubscribe
+          ? t("install:action_note_subscribe")
+          : t("install:action_note_install");
 
   return (
     <div className="flex w-full flex-wrap items-center gap-3">

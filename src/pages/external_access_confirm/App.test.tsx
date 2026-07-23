@@ -19,6 +19,7 @@ const baseOp = (over: Record<string, unknown> = {}) => ({
   kind: "enable",
   status: "awaiting_user",
   targetUuid: "script-uuid-1",
+  expiresAt: Date.now() + 5 * 60_000,
   ...over,
 });
 
@@ -47,6 +48,17 @@ describe("外部接入 · 操作确认页（三档决策）", () => {
     expect(await screen.findByTestId("external-access-confirm-card")).toBeInTheDocument();
     expect(screen.getByText("自动签到脚本")).toBeInTheDocument();
     expect(screen.getByText(/通过外部接入触发/)).toBeInTheDocument();
+  });
+
+  it("顶栏展示「外部接入 · 操作确认」面包屑与由 expiresAt 计算的 TTL 倒计时", async () => {
+    getOperation.mockResolvedValue(baseOp({ expiresAt: Date.now() + 90_000 }));
+    render(<ExternalAccessConfirmView operationId="op-1" />);
+    await screen.findByTestId("external-access-confirm-card");
+    expect(screen.getByText("外部接入 · 操作确认")).toBeInTheDocument();
+    const chip = screen.getByTestId("external-access-confirm-countdown");
+    const secs = Number(chip.textContent!.match(/(\d+)s/)![1]);
+    expect(secs).toBeGreaterThan(85);
+    expect(secs).toBeLessThanOrEqual(90);
   });
 
   it("操作不存在或已过期时展示过期提示，而非确认卡片", async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, RefreshCw, Rss, HardDrive, RotateCcw } from "lucide-react";
+import { Download, RefreshCw, Rss, HardDrive, RotateCcw, PlugZap } from "lucide-react";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { isPermissionOk } from "@App/pkg/utils/utils";
 import { InstallLayout } from "./components/InstallLayout";
@@ -20,7 +20,7 @@ import { useInstallData } from "./useInstallData";
 type PromptPermission = "background" | "webRequestBlocking";
 
 export default function App() {
-  const { t } = useTranslation(["install", "common"]);
+  const { t } = useTranslation(["install", "common", "external_access"]);
   const isMobile = useIsMobile();
   const {
     state,
@@ -98,10 +98,24 @@ export default function App() {
     : view.isUpdate
       ? t("install:context_update")
       : t("install:context_install");
-  // 监听本地文件时,顶栏上下文 chip 切换为品牌蓝脉冲「监听中」(对照设计稿)
-  const title = watching ? t("install:watching_chip") : baseTitle;
+  // 顶栏上下文 chip:监听本地文件→品牌蓝脉冲「监听中」;外部接入触发→「外部接入 · 安装请求」(设计稿 QWHdI);
+  // 否则按安装/更新/订阅场景。
+  const externalAccess = !!view.externalAccess;
+  const title = watching
+    ? t("install:watching_chip")
+    : externalAccess
+      ? t("external_access:install_context_chip")
+      : baseTitle;
   const titleTone = watching ? "watching" : "default";
-  const titleIcon = view.isSubscribe ? Rss : view.isUpdate ? RefreshCw : localFile ? HardDrive : Download;
+  const titleIcon = externalAccess
+    ? PlugZap
+    : view.isSubscribe
+      ? Rss
+      : view.isUpdate
+        ? RefreshCw
+        : localFile
+          ? HardDrive
+          : Download;
 
   return (
     <>

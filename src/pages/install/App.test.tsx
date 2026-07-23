@@ -107,6 +107,19 @@ describe("Install App 状态分流", () => {
     expect(screen.getByText("脚本更新")).toBeInTheDocument();
   });
 
+  it("外部接入触发的安装：顶栏上下文 chip 显示「外部接入 · 安装请求」", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      rejectExternalAccess: vi.fn(),
+      state: {
+        status: "ready",
+        view: readyView({ externalAccess: { operationId: "op-1", contentHash: "abcdef123456" } }),
+      },
+    });
+    render(<App />);
+    expect(screen.getByText("外部接入 · 安装请求")).toBeInTheDocument();
+  });
+
   it("skill 状态渲染技能安装视图", () => {
     mockHook.mockReturnValue({
       ...baseHook(),

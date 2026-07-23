@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { BookOpen, ShieldAlert, ScrollText, Terminal, PlugZap, Check } from "lucide-react";
+import { BookOpen, ShieldAlert, ScrollText, Terminal, PlugZap, Check, Download, Eye, Power } from "lucide-react";
 import { SettingCard } from "../../../components/SettingCard";
 import { SettingRow } from "../../../components/SettingRow";
 import { Switch } from "@App/pages/components/ui/switch";
@@ -10,6 +10,7 @@ import { Input } from "@App/pages/components/ui/input";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { SegmentedControl } from "@App/pages/components/ui/segmented-control";
+import { PairingCodeInput } from "@App/pages/components/ui/pairing-code-input";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,10 @@ import {
 } from "@App/pages/components/ui/dialog";
 import { systemConfig, subscribeMessage } from "@App/pages/store/global";
 import { externalAccessClient } from "@App/pages/store/features/script";
-import type { ExternalAccessBridgeStatus } from "@App/app/service/service_worker/external_access/types";
+import type {
+  ExternalAccessBridgeStatus,
+  ExternalAccessBridgeStatusInfo,
+} from "@App/app/service/service_worker/external_access/types";
 import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
 import { notify } from "@App/pages/components/ui/toast";
 
@@ -57,10 +61,20 @@ function StatusPill({ status, t }: { status: ExternalAccessBridgeStatus; t: (key
   );
 }
 
-// 一行策略：需人工审批 | 直接允许 分段控件 + 提示；「直接允许」时下方补琥珀警示。
+// 接入步骤的编号圆点（primary-light 底 + primary 数字，设计稿 Steps num）。
+function StepNumber({ n }: { n: number }) {
+  return (
+    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-primary">
+      {n}
+    </span>
+  );
+}
+
+// 一行策略：前导图标 + 需人工审批 | 直接允许 分段控件 + 提示；「直接允许」时下方补琥珀警示。
 function PolicyRow({
   label,
   hint,
+  icon,
   value,
   onChange,
   testId,
@@ -68,6 +82,7 @@ function PolicyRow({
 }: {
   label: string;
   hint: string;
+  icon: React.ReactNode;
   value: Gate;
   onChange: (v: Gate) => void;
   testId: string;
@@ -75,7 +90,7 @@ function PolicyRow({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <SettingRow label={label} description={hint}>
+      <SettingRow label={label} description={hint} icon={icon}>
         <SegmentedControl<Gate>
           aria-label={label}
           value={value}
@@ -105,6 +120,7 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
   const navigate = useNavigate();
   const [enabled, setEnabled] = useState(false);
   const [status, setStatus] = useState<ExternalAccessBridgeStatus>("disabled");
+  const [daemonVersion, setDaemonVersion] = useState<string>();
   const [writePolicy, setWritePolicy] = useState<ExternalAccessWritePolicy>("approval");
   const [sourcePolicy, setSourcePolicy] = useState<ExternalAccessSourceReadPolicy>("approval");
   const [mcpUrl, setExternalAccessUrl] = useState("");
@@ -118,15 +134,19 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
     void systemConfig.getExternalAccessUrl().then(setExternalAccessUrl);
     void externalAccessClient
       .getBridgeStatus()
-      .then((info) => setStatus(info.status))
+      .then((info) => {
+        setStatus(info.status);
+        setDaemonVersion(info.daemonVersion);
+      })
       .catch(() => setStatus("disabled"));
   }, []);
 
   // ExternalAccessController 的状态机在 SW 里推进（接入完成、hello 到达、socket 断开），页面订阅广播以实时更新。
   useEffect(() => {
-    return subscribeMessage<{ status: ExternalAccessBridgeStatus }>("mcpStatusChanged", (data) =>
-      setStatus(data.status)
-    );
+    return subscribeMessage<ExternalAccessBridgeStatusInfo>("mcpStatusChanged", (data) => {
+      setStatus(data.status);
+      setDaemonVersion(data.daemonVersion);
+    });
   }, []);
 
   const handleEnableToggle = (checked: boolean) => {
@@ -166,12 +186,17 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
 
   const pending = status === "pending_enrollment";
 
-  const policies = (
+  // 权限策略两行：写操作 / 源码读取，各带前导图标 + 分段控件。headHint 仅待接入态给出「接入前可预设」。
+  const renderPolicies = (headHint?: string) => (
     <div className="flex flex-col gap-3.5">
-      <span className="text-[13px] font-semibold text-foreground">{t("external_access:policy_title")}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[13px] font-semibold text-foreground">{t("external_access:policy_title")}</span>
+        {headHint && <span className="text-xs text-muted-foreground">{headHint}</span>}
+      </div>
       <PolicyRow
         label={t("external_access:policy_write")}
         hint={t("external_access:policy_write_hint")}
+        icon={<Download className="size-[17px]" />}
         value={writePolicy}
         onChange={handleWritePolicy}
         testId="external_access_write_policy"
@@ -180,6 +205,7 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
       <PolicyRow
         label={t("external_access:policy_source")}
         hint={t("external_access:policy_source_hint")}
+        icon={<Eye className="size-[17px]" />}
         value={sourcePolicy}
         onChange={handleSourcePolicy}
         testId="external_access_source_policy"
@@ -191,6 +217,7 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
   return (
     <SettingCard
       id="external-access"
+      icon={PlugZap}
       title={t("external_access:section_title")}
       titleAction={
         <a
@@ -205,40 +232,52 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
         </a>
       }
       description={t("external_access:section_desc")}
-      register={register}
-    >
-      <SettingRow label={t("external_access:enable_switch")}>
-        {/* 已接入态的胶囊放在状态条里；待接入态没有状态条，才在表头显示胶囊，避免重复。 */}
-        {enabled && pending && <StatusPill status={status} t={t} />}
+      action={
         <Switch
           data-testid="external_access_enable_switch"
           aria-label={t("external_access:enable_switch")}
           checked={enabled}
           onCheckedChange={handleEnableToggle}
         />
-      </SettingRow>
-
+      }
+      register={register}
+    >
       {enabled && pending && (
         <>
-          <SettingRow label={t("external_access:address_label")}>
+          {/* 地址：标签在上 + 整行 mono 输入（接入前可编辑，设计稿 k7k3h） */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[13px] font-medium text-foreground">{t("external_access:address_label")}</span>
             <Input
               data-testid="external_access_url_input"
               aria-label={t("external_access:address_label")}
               value={mcpUrl}
               onChange={(e) => setExternalAccessUrl(e.target.value)}
               onBlur={handleSaveUrl}
-              className="w-60 max-w-full font-mono text-xs"
+              className="w-full font-mono text-xs"
             />
-          </SettingRow>
+          </div>
 
-          {policies}
+          {renderPolicies(t("external_access:policy_preset_hint"))}
 
+          {/* 待接入状态行：琥珀胶囊 + 中性提示（措辞不虚报「已检测到 sctl」） */}
+          <div className="flex items-center gap-2.5">
+            <StatusPill status={status} t={t} />
+            <span className="text-xs text-muted-foreground">{t("external_access:status_pending_hint")}</span>
+          </div>
+
+          {/* 一次性接入：两步带编号（设计稿 Steps） */}
           <div className="flex flex-col gap-3 rounded-md bg-muted p-4">
             <span className="text-[13px] font-semibold text-foreground">{t("external_access:enroll_steps_title")}</span>
-            <div className="flex items-center gap-2 text-xs text-foreground">
-              <Terminal className="size-4 shrink-0 text-muted-foreground" />
-              <span>{t("external_access:enroll_step_run")}</span>
-              <code className="rounded bg-card px-1.5 py-0.5 font-mono text-primary">{ENROLL_COMMAND}</code>
+            <div className="flex items-center gap-2.5 text-xs text-foreground">
+              <StepNumber n={1} />
+              <span className="flex flex-wrap items-center gap-1.5">
+                {t("external_access:enroll_step_run")}
+                <code className="rounded bg-card px-1.5 py-0.5 font-mono text-primary">{ENROLL_COMMAND}</code>
+              </span>
+            </div>
+            <div className="flex items-center gap-2.5 text-xs text-foreground">
+              <StepNumber n={2} />
+              <span>{t("external_access:enroll_step_open")}</span>
             </div>
           </div>
 
@@ -265,6 +304,14 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
             <div className="flex min-w-0 items-center gap-2.5">
               <StatusPill status={status} t={t} />
               <code className="truncate font-mono text-xs text-muted-foreground">{mcpUrl}</code>
+              {daemonVersion && (
+                <>
+                  <span aria-hidden className="size-1 shrink-0 rounded-full bg-muted-foreground/40" />
+                  <span data-testid="external_access_daemon_version" className="shrink-0 text-xs text-muted-foreground">
+                    {`sctl v${daemonVersion}`}
+                  </span>
+                </>
+              )}
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {status === "host_unreachable" && (
@@ -289,7 +336,7 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
             </div>
           </div>
 
-          {policies}
+          {renderPolicies()}
 
           <div className="flex items-center justify-between pt-1">
             <Button
@@ -303,7 +350,14 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
               {t("external_access:view_audit")}
             </Button>
             <Popconfirm description={t("external_access:stop_confirm")} destructive onConfirm={() => void handleStop()}>
-              <Button size="sm" variant="destructive" data-testid="external_access_stop">
+              {/* 危险动作用幽灵样式 + power 图标 + 红字（设计稿 DE9Pe），而非填充按钮 */}
+              <Button
+                size="sm"
+                variant="ghost"
+                data-testid="external_access_stop"
+                className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Power className="size-4" />
                 {t("external_access:stop")}
               </Button>
             </Popconfirm>
@@ -314,24 +368,30 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
       <Dialog open={showEnroll} onOpenChange={setShowEnroll}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("external_access:enroll_dialog_title")}</DialogTitle>
-            <DialogDescription>{t("external_access:enroll_dialog_desc")}</DialogDescription>
+            {/* 图标框 + 标题 + 副标题（设计稿 ZNgIM） */}
+            <div className="flex items-center gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-primary/10">
+                <PlugZap className="size-5 text-primary" />
+              </div>
+              <div className="flex flex-col gap-0.5 text-left">
+                <DialogTitle>{t("external_access:enroll_dialog_title")}</DialogTitle>
+                <DialogDescription>{t("external_access:enroll_dialog_desc")}</DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2.5">
               <div className="flex items-center gap-2 text-xs font-medium text-foreground">
                 <Terminal className="size-3.5 shrink-0" />
                 <span>{t("external_access:enroll_step_run")}</span>
                 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-primary">{ENROLL_COMMAND}</code>
               </div>
-              <Input
+              <PairingCodeInput
                 data-testid="external_access_enroll_code"
                 aria-label={t("external_access:enroll_dialog_title")}
                 value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder={t("external_access:enroll_code_placeholder")}
-                className="text-center font-mono tracking-[0.3em]"
+                onChange={setCode}
                 autoFocus
               />
             </div>
@@ -357,7 +417,7 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
             </Button>
             <Button
               data-testid="external_access_enroll_submit"
-              disabled={!code.trim()}
+              disabled={code.length < 8}
               onClick={() => void handleEnroll()}
             >
               {t("external_access:enroll_submit")}
