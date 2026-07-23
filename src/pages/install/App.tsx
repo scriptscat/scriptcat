@@ -13,7 +13,7 @@ import { InstallActions } from "./components/InstallActions";
 import { InstallWarning } from "./components/InstallWarning";
 import { InstallLoading, InstallError } from "./components/InstallStates";
 import { WatchingBanner } from "./components/WatchingBanner";
-import { BackgroundPrompt, backgroundPromptShownKey } from "./components/BackgroundPrompt";
+import { BackgroundPrompt, backgroundPromptShownKey, keepAlivePromptShownKey } from "./components/BackgroundPrompt";
 import { useInstallData } from "./useInstallData";
 
 const isMainFrame = () => {
@@ -24,6 +24,8 @@ const isMainFrame = () => {
     return false;
   }
 };
+
+type PromptPermission = "background" | "webRequestBlocking";
 
 export default function App() {
   const { t } = useTranslation(["install", "common"]);
@@ -43,19 +45,26 @@ export default function App() {
     cancelSkill,
     retry,
   } = useInstallData();
-  const [bgPrompt, setBgPrompt] = useState<{ scriptType: string } | null>(null);
+  const [bgPrompt, setBgPrompt] = useState<{ scriptType: string; permission: PromptPermission } | null>(null);
 
   // 后台/定时脚本首次安装时,提示开启后台运行(对照 v1.4 checkBackgroundPrompt)
   const ready = state.status === "ready" ? state.view : null;
   const schedule = ready?.schedule;
   useEffect(() => {
     if (!ready || ready.isSubscribe || !schedule) return;
-    if (localStorage.getItem(backgroundPromptShownKey) === "true") return;
     let cancelled = false;
-    void isPermissionOk("background").then((ok) => {
-      if (!cancelled && ok === false) {
+    void Promise.all([isPermissionOk("background"), isPermissionOk("webRequestBlocking")]).then(([bg, wrb]) => {
+      if (cancelled) return;
+      const scriptType = schedule.kind === "cron" ? t("install:scheduled_script") : t("install:background_script");
+      if (bg === false && localStorage.getItem(backgroundPromptShownKey) !== "true") {
         setBgPrompt({
-          scriptType: schedule.kind === "cron" ? t("install:scheduled_script") : t("install:background_script"),
+          scriptType,
+          permission: "background",
+        });
+      } else if (wrb === false && localStorage.getItem(keepAlivePromptShownKey) !== "true") {
+        setBgPrompt({
+          scriptType,
+          permission: "webRequestBlocking",
         });
       }
     });
@@ -167,7 +176,12 @@ export default function App() {
         />
         <CodePreview code={view.code} oldCode={view.oldCode} diffStat={view.diffStat} defaultCollapsed={isMobile} />
       </InstallLayout>
-      <BackgroundPrompt open={!!bgPrompt} scriptType={bgPrompt?.scriptType || ""} onResult={() => setBgPrompt(null)} />
+      <BackgroundPrompt
+        open={!!bgPrompt}
+        scriptType={bgPrompt?.scriptType || ""}
+        permission={bgPrompt?.permission}
+        onResult={() => setBgPrompt(null)}
+      />
     </>
   );
 }

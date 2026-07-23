@@ -13,15 +13,28 @@ import type { CATFileStorage } from "@App/pkg/config/config";
 
 const STORAGE_EXAMPLE_URL = "https://github.com/scriptscat/scriptcat/blob/main/example/cat_file_storage.js";
 
+const boolFirefox = isFirefox();
+
 export function RuntimeSection({ register }: { register: (id: string) => (el: HTMLElement | null) => void }) {
   const { t } = useTranslation();
   const [bg, setBg] = useState(false);
+  const [chromeKeepAlive, setChromeKeepAlive] = useState(false);
+  const [keepAlive, setKeepAlive] = useState<boolean | null>(null);
   const [storage, setStorage] = useState<CATFileStorage | undefined>(undefined);
 
   useEffect(() => {
-    if (!isFirefox()) {
+    if (!boolFirefox) {
       void isPermissionOk("background").then((r) => {
         if (r !== null) setBg(r);
+      });
+      void Promise.resolve(systemConfig.get("keep_ext_background_alive")).then((r) => setChromeKeepAlive(Boolean(r)));
+    }
+    if (boolFirefox) {
+      void Promise.all([
+        Promise.resolve(systemConfig.get("keep_ext_background_alive")),
+        isPermissionOk("webRequestBlocking"),
+      ]).then(([enabled, permission]) => {
+        setKeepAlive(permission === null ? null : Boolean(enabled) && permission);
       });
     }
     void Promise.resolve(systemConfig.get("cat_file_storage")).then((v) => setStorage(v as CATFileStorage));
@@ -35,6 +48,9 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
           return;
         }
         setBg(granted);
+        if (granted) {
+          notify.success(t("settings:enable_background.enable_success")!);
+        }
       });
     } else {
       chrome.permissions.remove({ permissions: ["background"] }, (removed) => {
@@ -44,11 +60,45 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
         }
         if (removed) {
           setBg(false);
+          notify.success(t("settings:enable_background.disable_success")!);
         } else {
           void isPermissionOk("background").then((r) => {
             if (r !== null) setBg(r);
           });
         }
+      });
+    }
+  };
+
+  const toggleChromeKeepAlive = (enable: boolean) => {
+    setChromeKeepAlive(enable);
+    systemConfig.set("keep_ext_background_alive", enable);
+  };
+
+  const toggleKeepAlive = (enable: boolean) => {
+    if (enable) {
+      chrome.permissions.request({ permissions: ["webRequestBlocking"] }, (granted) => {
+        if (chrome.runtime.lastError) {
+          notify.error(t("settings:keep_scripts_alive.enable_failed")!);
+          return;
+        }
+        if (granted) {
+          setKeepAlive(true);
+          systemConfig.set("keep_ext_background_alive", true);
+          notify.success(t("settings:keep_scripts_alive.enable_success")!);
+        } else {
+          setKeepAlive(false);
+        }
+      });
+    } else {
+      systemConfig.set("keep_ext_background_alive", false);
+      chrome.permissions.remove({ permissions: ["webRequestBlocking"] }, (removed) => {
+        if (chrome.runtime.lastError) {
+          notify.error(t("settings:keep_scripts_alive.disable_failed")!);
+          return;
+        }
+        setKeepAlive(false);
+        if (removed) notify.success(t("settings:keep_scripts_alive.disable_success")!);
       });
     }
   };
@@ -93,12 +143,29 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
 
   return (
     <SettingCard id="runtime" title={t("logs:runtime")} register={register}>
-      {!isFirefox() && (
+      {!boolFirefox && (
+        <>
+          <SettingRow
+            label={t("settings:enable_background.title")}
+            description={t("settings:enable_background.description")}
+          >
+            <Switch checked={bg} onCheckedChange={toggleBg} />
+          </SettingRow>
+          <SettingRow
+            label={t("settings:keep_scripts_alive.title")}
+            description={t("settings:keep_scripts_alive.description")}
+          >
+            <Switch checked={chromeKeepAlive} onCheckedChange={toggleChromeKeepAlive} />
+          </SettingRow>
+        </>
+      )}
+
+      {boolFirefox && keepAlive !== null && (
         <SettingRow
-          label={t("settings:enable_background.title")}
-          description={t("settings:enable_background.description")}
+          label={t("settings:keep_scripts_alive.title")}
+          description={t("settings:keep_scripts_alive.description")}
         >
-          <Switch checked={bg} onCheckedChange={toggleBg} />
+          <Switch checked={keepAlive} onCheckedChange={toggleKeepAlive} />
         </SettingRow>
       )}
 

@@ -1,7 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { type IGetSender } from "@Packages/message/server";
 import { type ExtMessageSender } from "@Packages/message/types";
-import GMApi, { ConnectMatch, getConnectMatched, getExtensionSiteAccessOriginPattern } from "./gm_api";
+import GMApi, {
+  ConnectMatch,
+  getConnectMatched,
+  getExtensionSiteAccessOriginPattern,
+  mergeCookieHeader,
+} from "./gm_api";
 import { PermissionVerifyApiGet, type ConfirmParam } from "../permission_verify";
 import type { GMApiRequest } from "../types";
 // 触发所有 GM API 装饰器注册（与 gm_api.ts 中的 import 保持同步）
@@ -138,6 +143,108 @@ describe("window.focus", () => {
     expect(windowsUpdate).toHaveBeenCalledWith(7, { focused: true });
     vi.stubGlobal("chrome", originalChrome);
   });
+});
+
+describe.concurrent("mergeCookieHeader（GM_xmlhttpRequest 非 anonymous 的 cookie 合并）", () => {
+  it.concurrent("同名 cookie 应以脚本自定义值覆盖已有 cookie，而非追加（TM #2754）", () => {
+    const result = mergeCookieHeader("data=2", [{ name: "data", value: "1" }]);
+    expect(result).toBe("data=2");
+  });
+
+  it.concurrent("不同名的已有 cookie 应全部保留，不因覆盖逻辑被截断（TM #2829）", () => {
+    const result = mergeCookieHeader(undefined, [
+      { name: "data1", value: "1" },
+      { name: "data2", value: "2" },
+    ]);
+    expect(result).toBe("data1=1; data2=2");
+  });
+
+  it.concurrent("同名覆盖与不同名保留应可同时生效", () => {
+    const result = mergeCookieHeader("data1=9", [
+      { name: "data1", value: "1" },
+      { name: "data2", value: "2" },
+    ]);
+    expect(result).toBe("data1=9; data2=2");
+  });
+
+  it.concurrent("脚本自定义多个 cookie 且无已有 cookie 时应原样透传", () => {
+    const result = mergeCookieHeader("data1=1; data2=2", []);
+    expect(result).toBe("data1=1; data2=2");
+  });
+
+  it.concurrent("无自定义 cookie 也无已有 cookie 时应回传空字符串", () => {
+    expect(mergeCookieHeader(undefined, [])).toBe("");
+    expect(mergeCookieHeader("", undefined)).toBe("");
+  });
+
+  it.concurrent("已有同名 cookie 存在多个值时（如不同 domain/path），只要脚本指定了该名称就应全部覆盖", () => {
+    // cookie 名称在规范上允许因 domain/path 不同而以多值形式共存，但只要脚本明确指定了该名称，
+    // 意图就是完全接管该名称，浏览器原有的全部同名值都应被丢弃
+    const result = mergeCookieHeader("attr1=new", [
+      { name: "attr1", value: "old1" },
+      { name: "attr1", value: "old2" },
+    ]);
+    expect(result).toBe("attr1=new");
+  });
+
+  it.concurrent("脚本指定的同名值本身也可以是多值，覆盖时应原样保留、不去重", () => {
+    const result = mergeCookieHeader("attr1=new1; attr1=new2", [
+      { name: "attr1", value: "old1" },
+      { name: "attr1", value: "old2" },
+    ]);
+    expect(result).toBe("attr1=new1; attr1=new2");
+  });
+
+  it.concurrent("未被脚本指定的 cookie 名称，无论浏览器原本是 0 个、1 个还是多个值都应保持不变", () => {
+    const result = mergeCookieHeader("other=x", [
+      { name: "attr1", value: "old1" },
+      { name: "attr1", value: "old2" },
+      { name: "single", value: "s" },
+    ]);
+    expect(result).toBe("other=x; attr1=old1; attr1=old2; single=s");
+  });
+});
+
+// 针对单一 cookie 名称 attr1：脚本是否指定（0/1/多个值）× 浏览器已有是否存在（0/1/多个值）共 3×3=9 种组合，
+// 规则固定为：脚本指定则完全覆盖该名称（不论脚本给几个值、浏览器原本有几个值）；
+// 脚本未指定则完全保留浏览器原样（不论浏览器原本有几个值）。
+describe.concurrent("mergeCookieHeader 完整组合矩阵：脚本指定状态 × 浏览器已有状态（3×3=9）", () => {
+  const scriptCases = [
+    { label: "脚本未指定 attr1", customCookie: undefined, expectedWhenNotOverridden: null },
+    { label: "脚本指定 attr1 单一值", customCookie: "attr1=new", expectedWhenOverridden: "attr1=new" },
+    {
+      label: "脚本指定 attr1 多个值",
+      customCookie: "attr1=new1; attr1=new2",
+      expectedWhenOverridden: "attr1=new1; attr1=new2",
+    },
+  ] as const;
+
+  const storedCases: { label: string; stored: { name: string; value: string }[]; expectedWhenKept: string }[] = [
+    { label: "浏览器无 attr1", stored: [], expectedWhenKept: "" },
+    {
+      label: "浏览器有 1 个 attr1",
+      stored: [{ name: "attr1", value: "old" }],
+      expectedWhenKept: "attr1=old",
+    },
+    {
+      label: "浏览器有 2 个 attr1（同名多值，如不同 domain/path）",
+      stored: [
+        { name: "attr1", value: "old1" },
+        { name: "attr1", value: "old2" },
+      ],
+      expectedWhenKept: "attr1=old1; attr1=old2",
+    },
+  ];
+
+  for (const script of scriptCases) {
+    for (const stored of storedCases) {
+      it.concurrent(`${script.label} × ${stored.label}`, () => {
+        const result = mergeCookieHeader(script.customCookie, stored.stored);
+        const expected = "expectedWhenOverridden" in script ? script.expectedWhenOverridden : stored.expectedWhenKept;
+        expect(result).toBe(expected);
+      });
+    }
+  }
 });
 
 describe.concurrent("getExtensionSiteAccessOriginPattern", () => {

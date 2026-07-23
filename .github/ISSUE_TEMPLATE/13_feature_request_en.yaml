@@ -10,11 +10,7 @@ body:
       value: |
         Please describe the real problem you want to solve, not just a button name or an API name.
 
-        If this is a GM/CAT API design request, please provide:
-        - Proposed API shape
-        - Compatibility target
-        - Security impact
-        - Possible abuse cases
+        If something is broken, or used to work and no longer does, please use the Bug Report template instead.
 
   - type: checkboxes
     id: precheck
@@ -23,38 +19,14 @@ body:
       options:
         - label: I have searched existing issues and confirmed this is not a duplicate feature request.
           required: true
-        - label: I confirm this is not a bug. If this is unexpected behavior, I should use the Bug Report template.
-          required: true
-
-  - type: dropdown
-    id: feature-area
-    attributes:
-      label: Feature Area
-      multiple: true
-      options:
-        - Userscript management / list / group / search
-        - Script installation / update / subscription
-        - Script matching / exclusion / permission management
-        - GM API / CAT API
-        - Background scripts / scheduled scripts
-        - Cloud Sync / backup / restore / migration
-        - Popup / Options / UI
-        - Built-in editor / Monaco / ESLint / VSCode extension
-        - Logs / debugging / developer experience
-        - Mobile support
-        - Internationalization / translation
-        - Performance / storage / security
-        - Other
-    validations:
-      required: true
 
   - type: textarea
     id: problem
     attributes:
-      label: Problem to Solve
-      description: What pain point do users or userscript authors experience without this feature?
+      label: The Problem You Want to Solve
+      description: What is painful for you or for script authors without this feature?
       placeholder: |
-        Example: I have many scheduled check-in scripts. Currently I must open logs one by one to confirm whether they ran successfully.
+        Example: I have many scheduled check-in scripts, and I currently have to open each script's log to find out whether it ran successfully.
     validations:
       required: true
 
@@ -63,40 +35,16 @@ body:
     attributes:
       label: Proposed Solution
       placeholder: |
-        Example: Add "Last Run Time" and "Last Result" columns to the script list. If a scheduled script fails, show the failure count on the extension icon.
+        Example: Add "last run time" and "last run result" columns to the script list, and show a failure count badge on the extension icon.
     validations:
       required: true
 
   - type: textarea
-    id: api-design
+    id: additional-info
     attributes:
-      label: API / UI Draft, if Applicable
-      description: If this involves GM/CAT APIs, configuration structure, sync format, or UI flow, please provide a draft.
+      label: Additional Information
+      description: Optionally add a proposed API shape, how other userscript managers handle this, screenshots, or reference links.
       placeholder: |
-        ```ts
-        // Proposed API
-        ```
-    validations:
-      required: false
-
-  - type: textarea
-    id: alternatives
-    attributes:
-      label: Alternatives
-      description: Is there any workaround? How do other extensions handle this?
-      placeholder: |
-        References from Tampermonkey / Violentmonkey / FireMonkey / Soulsign / Automa / others:
-    validations:
-      required: false
-
-  - type: textarea
-    id: compatibility
-    attributes:
-      label: Compatibility and Security Impact
-      description: Does this affect MV2/MV3, Firefox, mobile browsers, incognito mode, site permissions, or userscript permissions?
-      placeholder: |
-        Possible impact:
-        New permissions required:
-        Possible abuse cases:
+        API draft / reference implementation / screenshots:
     validations:
       required: false
