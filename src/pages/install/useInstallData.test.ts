@@ -508,12 +508,12 @@ describe("MCP 来源的安装请求", () => {
       userSubscribe: false,
       metadata: { name: ["MCP 脚本"], version: ["1.0.0"] },
       source: "mcp",
-      mcp: { operationId: "op-1", requestingClientName: "Test Client", contentHash: "abc123" },
+      mcp: { operationId: "op-1", contentHash: "abc123" },
       ...overrides,
     };
   }
 
-  it("view.mcp 携带请求方与内容哈希，供页面渲染横幅", async () => {
+  it("view.mcp 携带内容哈希，供页面渲染横幅（不含客户端名）", async () => {
     window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
     const info = mcpScriptInfo();
     (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
@@ -526,7 +526,7 @@ describe("MCP 来源的安装请求", () => {
     await waitFor(() => expect(result.current.state.status).toBe("ready"));
     const state = result.current.state;
     if (state.status !== "ready") throw new Error("not ready");
-    expect(state.view.mcp).toEqual({ operationId: "op-1", requestingClientName: "Test Client", contentHash: "abc123" });
+    expect(state.view.mcp).toEqual({ operationId: "op-1", contentHash: "abc123" });
   });
 
   it("install() 对 MCP 来源调用 mcpClient.decideOperation(approved:true)，从不调用 scriptClient.install", async () => {
@@ -543,7 +543,12 @@ describe("MCP 来源的安装请求", () => {
     await waitFor(() => expect(result.current.state.status).toBe("ready"));
 
     await act(async () => result.current.install({ closeAfterInstall: false }));
-    expect(mcpClient.decideOperation).toHaveBeenCalledWith({ operationId: "op-1", approved: true, enable: false });
+    expect(mcpClient.decideOperation).toHaveBeenCalledWith({
+      operationId: "op-1",
+      approved: true,
+      enable: false,
+      rememberSession: false,
+    });
     expect(scriptClient.install as Mock).not.toHaveBeenCalled();
   });
 
@@ -562,7 +567,31 @@ describe("MCP 来源的安装请求", () => {
 
     act(() => result.current.setEnabled(true));
     await act(async () => result.current.install({ closeAfterInstall: false }));
-    expect(mcpClient.decideOperation).toHaveBeenCalledWith({ operationId: "op-1", approved: true, enable: true });
+    expect(mcpClient.decideOperation).toHaveBeenCalledWith({
+      operationId: "op-1",
+      approved: true,
+      enable: true,
+      rememberSession: false,
+    });
+  });
+
+  it("install({ rememberSession: true }) 传递「本会话允许」标志", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
+    const info = mcpScriptInfo();
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// code");
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "MCP 脚本", metadata: info.metadata, status: 2 } as unknown as Script,
+    });
+    (mcpClient.decideOperation as Mock).mockResolvedValue({ operationId: "op-1", status: "approved" });
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+
+    await act(async () => result.current.install({ closeAfterInstall: false, rememberSession: true }));
+    expect(mcpClient.decideOperation).toHaveBeenCalledWith(
+      expect.objectContaining({ operationId: "op-1", approved: true, rememberSession: true })
+    );
   });
 
   it("rejectMcp() 调用 mcpClient.decideOperation(approved:false)", async () => {

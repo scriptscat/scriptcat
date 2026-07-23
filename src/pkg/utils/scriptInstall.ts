@@ -11,11 +11,10 @@ export type ScriptInfo = {
   metadata: SCMetadata;
   source: InstallSource;
   skillScript?: boolean;
-  // 由 McpApprovalService 在暂存时附加（source === "mcp" 时必存在），
-  // install.html 据此渲染 MCP 请求横幅。
+  // 由 McpApprovalService 在暂存时附加（source === "mcp" 时必存在），install.html 据此渲染
+  // 「外部接入」触发横幅 + 三档操作栏。不带客户端名——审批只做基于渠道的描述（设计 §3.0.1）。
   mcp?: {
     operationId: string;
-    requestingClientName: string;
     contentHash: string;
   };
 };

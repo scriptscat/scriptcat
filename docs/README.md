@@ -15,15 +15,15 @@
 | [`cloud-sync.md`](./cloud-sync.md) | 云同步实现说明:同步文件语义、主流程、状态合并、provider 差异、错误分类、retry 策略和维护注意事项。 |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | 文档维护与事实核对指南:组织规则、逐条核对清单、跨文档政策一致性核对、隐私清理、以及在 resolved final tree 上的复核方法,覆盖全部 tracked 的 agent/contributor Markdown(不止 `AGENTS.md` + `docs/*`,还包括 `.github/*.md`、package-local README)。**改/审文档前先读。** |
 
-## MCP 桥接 / MCP Bridge
+## 外部接入 / External Access
 
-内置于所有构建、**默认关闭**,从扩展设置开启;经本地伴随二进制 [`sctl`](https://github.com/scriptscat/sctl)(WebSocket daemon,仅回环 `127.0.0.1:8643`)通信,不新增浏览器权限、无 native-messaging 主机与安装器。
+内置于所有构建、**默认关闭**,从扩展设置开启;经本地伴随二进制 [`sctl`](https://github.com/scriptscat/sctl)(WebSocket daemon,仅回环 `127.0.0.1:8643`)通信,不新增浏览器权限、无 native-messaging 主机与安装器。信任扁平:接入(enrollment)一次建立长期密钥 K,CLI 与所有 MCP agent 都继承信任,不再逐客户端配对/scope/撤销。
 
 | 文档 | 说明 |
 | --- | --- |
-| [`mcp-bridge-guide.md`](./mcp-bridge-guide.md) | 使用指南:安装 sctl、启用桥接、两条配对(扩展↔daemon、MCP 客户端)、授权的实操步骤,附 6 个 MCP 工具、CLI 动词与真实用例(读取源码、请求安装、启停、删除脚本、撤销客户端)。**想实际用起来先读这份。**中文版见 [`mcp-bridge-guide_zh-CN.md`](./mcp-bridge-guide_zh-CN.md)。 |
-| [`sctl` 仓库 `PROTOCOL.md`](https://github.com/scriptscat/sctl/blob/main/PROTOCOL.md) | 协议规范:扩展↔daemon WS 双向握手、扩展/客户端配对、bridge action、错误码、写操作阻塞语义。常量单源 `protocol.json` 与本仓库 [`src/app/service/service_worker/mcp/protocol.json`](../src/app/service/service_worker/mcp/protocol.json) 逐字节镜像(由 `protocol.conformance.test.ts` 守护)。 |
-| [`sctl` 仓库 `THREAT-MODEL.md`](https://github.com/scriptscat/sctl/blob/main/THREAT-MODEL.md) | 威胁模型:两个信任锚点(长期密钥 K + 0600 控制令牌)、攻击面与对策、写路径人工审批 + TOCTOU、落盘凭据一览。 |
+| [`external-access-guide.md`](./external-access-guide.md) | 使用指南:安装 sctl、启用外部接入、一次性接入(`sctl connect` 带外配对码)、写操作/源码读取两条策略、三档决策(拒绝/允许/本会话允许)的实操步骤,附 MCP 工具表、CLI 动词与真实用例。**想实际用起来先读这份。**中文版见 [`external-access-guide_zh-CN.md`](./external-access-guide_zh-CN.md)。 |
+| [`sctl` 仓库 `docs/protocol.md`](https://github.com/scriptscat/sctl/blob/main/docs/protocol.md) | 协议规范:扩展↔daemon WS 双向握手、接入握手、bridge action、错误码、写操作阻塞语义。常量单源 `protocol.json` 与本仓库 [`src/app/service/service_worker/mcp/protocol.json`](../src/app/service/service_worker/mcp/protocol.json) 逐字节镜像(由 `protocol.conformance.test.ts` 守护)。 |
+| [`sctl` 仓库 `docs/threat-model.md`](https://github.com/scriptscat/sctl/blob/main/docs/threat-model.md) | 威胁模型:两个信任锚点(长期密钥 K + 0600 控制令牌)、扁平信任的取舍、Origin 白名单、攻击面与对策、写路径人工审批 + TOCTOU、落盘凭据一览。 |
 
 ## 翻译 / Translation
 

@@ -1,5 +1,5 @@
 {
-  "$comment": "ScriptCat bridge protocol constants — single source of truth. Extension conformance tests and sctl (Go) CI both diff against this file byte-for-byte. Phase 0 draft; final home: scriptcat repo, mirrored into scriptscat/sctl.",
+  "$comment": "ScriptCat bridge protocol constants — single source of truth. The ScriptCat extension repo holds the authoritative copy; scriptscat/sctl mirrors it byte-for-byte. Both sides' conformance tests diff against this file.",
   "protocolVersion": 1,
   "transport": {
     "defaultUrl": "ws://127.0.0.1:8643",

@@ -118,8 +118,8 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       expect(await config.getMcpEnabled()).toBe(false);
     });
 
-    it("mcp_url 默认 ws://127.0.0.1:8643 并写入 local storage", async () => {
-      expect(await config.getMcpUrl()).toBe("ws://127.0.0.1:8643");
+    it("mcp_url 默认 ws://localhost:8643 并写入 local storage", async () => {
+      expect(await config.getMcpUrl()).toBe("ws://localhost:8643");
       config.setMcpUrl("ws://127.0.0.1:9000");
       const localData = await chrome.storage.local.get("system_mcp_url");
       expect(localData["system_mcp_url"]).toBe("ws://127.0.0.1:9000");
@@ -135,6 +135,16 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       expect(localData["system_mcp_write_policy"]).toBe("allow");
       const syncData = await chrome.storage.sync.get("system_mcp_write_policy");
       expect(syncData["system_mcp_write_policy"]).toBeUndefined();
+    });
+
+    it("mcp_source_read_policy 默认 approval 并写入 local storage", async () => {
+      expect(await config.getMcpSourceReadPolicy()).toBe("approval");
+      config.setMcpSourceReadPolicy("allow");
+      expect(await config.getMcpSourceReadPolicy()).toBe("allow");
+      const localData = await chrome.storage.local.get("system_mcp_source_read_policy");
+      expect(localData["system_mcp_source_read_policy"]).toBe("allow");
+      const syncData = await chrome.storage.sync.get("system_mcp_source_read_policy");
+      expect(syncData["system_mcp_source_read_policy"]).toBeUndefined();
     });
 
     it("mcp_pairing 默认未配对，写入后落 local storage 且不入 sync", async () => {

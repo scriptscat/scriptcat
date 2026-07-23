@@ -1,19 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { TriangleAlert, CircleAlert } from "lucide-react";
+import { Power, PowerOff, Trash2, FileCode, CircleAlert, History, ShieldAlert } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@App/pages/components/ui/button";
 import { notify } from "@App/pages/components/ui/toast";
 import { mcpClient, scriptClient } from "@App/pages/store/features/script";
 import type { Script } from "@App/app/repo/scripts";
 import { cn } from "@App/pkg/utils/cn";
-import { usePendingPairing } from "./usePendingPairing";
-import { PairingCode, PairingCountdown, PairingFields } from "./PairingFields";
 
 type OperationView = Awaited<ReturnType<typeof mcpClient.getOperation>>;
 
+// install/update 走脚本安装页；这里只处理无代码的轻量确认（设计 §3.0）。
 type SupportedKind = "enable" | "disable" | "delete" | "source_disclosure";
-
-const HOLD_TO_CONFIRM_MS = 1500;
 
 function BrandMark() {
   return (
@@ -28,7 +26,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-testid="mcp-confirm-shell"
-      className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4 py-10"
+      className="flex min-h-screen flex-col items-center justify-center gap-6 bg-muted px-4 py-10"
     >
       <BrandMark />
       {children}
@@ -36,55 +34,14 @@ function PageShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-const cardClass = "flex w-full max-w-[480px] flex-col gap-5 rounded-2xl border bg-card p-7 shadow-lg";
+const cardClass = "flex w-full max-w-[520px] flex-col overflow-hidden rounded-2xl border bg-card shadow-lg";
 
-/** Press-and-hold button that fires onConfirm after HOLD_TO_CONFIRM_MS of continuous hold. */
-function HoldToConfirmButton({ onConfirm, label }: { onConfirm: () => void; label: string }) {
-  const [progress, setProgress] = useState(0);
-  const frameRef = useRef<number>(0);
-  const startRef = useRef<number>(0);
-
-  const start = () => {
-    startRef.current = Date.now();
-    const tick = () => {
-      const elapsed = Date.now() - startRef.current;
-      const pct = Math.min(1, elapsed / HOLD_TO_CONFIRM_MS);
-      setProgress(pct);
-      if (pct >= 1) {
-        onConfirm();
-        return;
-      }
-      frameRef.current = requestAnimationFrame(tick);
-    };
-    frameRef.current = requestAnimationFrame(tick);
-  };
-
-  const cancel = () => {
-    cancelAnimationFrame(frameRef.current);
-    setProgress(0);
-  };
-
-  useEffect(() => () => cancelAnimationFrame(frameRef.current), []);
-
-  return (
-    <Button
-      variant="destructive"
-      size="lg"
-      data-testid="mcp-confirm-hold"
-      className="relative w-full overflow-hidden font-semibold"
-      onPointerDown={start}
-      onPointerUp={cancel}
-      onPointerLeave={cancel}
-    >
-      <span
-        className="absolute inset-y-0 left-0 bg-destructive-foreground/25"
-        style={{ width: `${progress * 100}%` }}
-        aria-hidden="true"
-      />
-      <span className="relative">{label}</span>
-    </Button>
-  );
-}
+const KIND_META: Record<SupportedKind, { icon: LucideIcon; titleKey: string; source: boolean }> = {
+  enable: { icon: Power, titleKey: "mcp:confirm_enable_title", source: false },
+  disable: { icon: PowerOff, titleKey: "mcp:confirm_disable_title", source: false },
+  delete: { icon: Trash2, titleKey: "mcp:confirm_delete_title", source: false },
+  source_disclosure: { icon: FileCode, titleKey: "mcp:confirm_source_title", source: true },
+};
 
 export function McpConfirmView({ operationId }: { operationId: string }) {
   const { t } = useTranslation(["mcp", "common"]);
@@ -114,7 +71,7 @@ export function McpConfirmView({ operationId }: { operationId: string }) {
     };
   }, [operationId]);
 
-  const decide = async (approved: boolean, options: { enable?: boolean; rememberChoice?: "once" | "client" } = {}) => {
+  const decide = async (approved: boolean, options: { enable?: boolean; rememberSession?: boolean } = {}) => {
     if (decidedRef.current) return;
     decidedRef.current = true;
     try {
@@ -129,7 +86,7 @@ export function McpConfirmView({ operationId }: { operationId: string }) {
   if (loadError || !op) {
     return (
       <PageShell>
-        <div data-testid="mcp-confirm-expired" className={cn(cardClass, "items-center text-center")}>
+        <div data-testid="mcp-confirm-expired" className={cn(cardClass, "items-center gap-5 p-7 text-center")}>
           <div className="flex size-14 items-center justify-center rounded-full bg-destructive/10">
             <CircleAlert className="size-7 text-destructive" />
           </div>
@@ -143,178 +100,82 @@ export function McpConfirmView({ operationId }: { operationId: string }) {
   }
 
   const kind = op.kind as SupportedKind;
-  const title =
-    kind === "enable"
-      ? t("mcp:confirm_enable_title")
-      : kind === "disable"
-        ? t("mcp:confirm_disable_title")
-        : kind === "source_disclosure"
-          ? t("mcp:source_disclosure_title", {
-              clientName: op.requestingClientName ?? "",
-              scriptName: script?.name ?? op.targetUuid ?? "",
-            })
-          : t("mcp:confirm_delete_title");
+  const meta = KIND_META[kind] ?? KIND_META.enable;
+  const Icon = meta.icon;
+  const scriptName = script?.name ?? op.targetUuid ?? "";
+  const version = script?.metadata.version?.[0];
+  const author = script?.author;
 
   return (
     <PageShell>
       <div data-testid="mcp-confirm-card" className={cardClass}>
-        <div className="flex flex-col items-center gap-3">
-          <div className="flex size-14 items-center justify-center rounded-full bg-warning/10">
-            <TriangleAlert className="size-7 text-warning" />
-          </div>
-          <h1 className="text-center text-lg font-semibold text-foreground">{title}</h1>
-          {kind === "source_disclosure" && (
-            <p className="text-center text-[13px] text-muted-foreground">{t("mcp:source_disclosure_body")}</p>
-          )}
-          {kind !== "source_disclosure" && op.requestingClientName && (
-            <p className="text-center text-[13px] text-muted-foreground">
-              {`${t("mcp:approve_requested_by")}: ${op.requestingClientName}`}
-            </p>
-          )}
-        </div>
-
-        {kind !== "source_disclosure" && (
-          <div className="rounded-xl bg-secondary p-3 text-center">
-            <span className="text-sm font-semibold text-foreground">{script?.name ?? op.targetUuid}</span>
-          </div>
-        )}
-
-        {kind === "delete" ? (
-          <div className="flex flex-col gap-2.5 pt-1">
-            <p className="text-center text-xs text-muted-foreground">{t("mcp:confirm_delete_hold")}</p>
-            <HoldToConfirmButton label={t("mcp:confirm_delete_title")} onConfirm={() => void decide(true)} />
-            <Button
-              variant="ghost"
-              size="lg"
-              data-testid="mcp-confirm-reject"
-              autoFocus
-              className="w-full text-muted-foreground"
-              onClick={() => void decide(false)}
-            >
-              {t("mcp:pair_reject")}
-            </Button>
-          </div>
-        ) : kind === "source_disclosure" ? (
-          <div className="flex flex-col gap-2.5 pt-1">
-            <Button
-              size="lg"
-              data-testid="mcp-confirm-allow-client"
-              className="w-full font-semibold"
-              onClick={() => void decide(true, { rememberChoice: "client" })}
-            >
-              {t("mcp:source_allow_client")}
-            </Button>
-            <Button
-              variant="secondary"
-              size="lg"
-              data-testid="mcp-confirm-allow-once"
-              className="w-full border border-border font-semibold"
-              onClick={() => void decide(true, { rememberChoice: "once" })}
-            >
-              {t("mcp:source_allow_once")}
-            </Button>
-            <Button
-              variant="ghost"
-              size="lg"
-              data-testid="mcp-confirm-reject"
-              autoFocus
-              className="w-full text-muted-foreground"
-              onClick={() => void decide(false)}
-            >
-              {t("mcp:source_deny")}
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2.5 pt-1">
-            <div className="flex gap-3">
-              <Button
-                size="lg"
-                data-testid="mcp-confirm-approve"
-                className="flex-1 font-semibold"
-                onClick={() => void decide(true, { enable: kind === "enable" })}
-              >
-                {kind === "enable" ? t("mcp:confirm_enable_action") : t("mcp:confirm_disable_action")}
-              </Button>
-              <Button
-                variant="secondary"
-                size="lg"
-                data-testid="mcp-confirm-reject"
-                autoFocus
-                className="flex-1 border border-border font-semibold"
-                onClick={() => void decide(false)}
-              >
-                {t("mcp:pair_reject")}
-              </Button>
+        {/* Head: icon + title + channel-based subtitle + kind tag (设计 §3.0.1: 不显示客户端名) */}
+        <div className="flex items-center justify-between gap-3 border-b px-6 py-5">
+          <div className="flex items-center gap-3.5">
+            <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10">
+              <Icon className="size-[22px] text-primary" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <h1 className="text-lg font-semibold text-foreground">{t(meta.titleKey)}</h1>
+              <span className="text-[13px] text-muted-foreground">{t("mcp:confirm_via_external")}</span>
             </div>
           </div>
-        )}
-      </div>
-    </PageShell>
-  );
-}
-
-export function McpPairingView({ pairingId }: { pairingId: string }) {
-  const { t } = useTranslation(["mcp", "common"]);
-  const { pairing, loadError, selected, secondsLeft, decide, toggleScope } = usePendingPairing(pairingId, () =>
-    window.close()
-  );
-
-  if (loadError || !pairing) {
-    return (
-      <PageShell>
-        <div data-testid="mcp-pairing-expired" className={cn(cardClass, "items-center text-center")}>
-          <div className="flex size-14 items-center justify-center rounded-full bg-destructive/10">
-            <CircleAlert className="size-7 text-destructive" />
-          </div>
-          <p className="text-[13px] leading-relaxed text-muted-foreground">{t("mcp:err_operation_expired")}</p>
-          <Button variant="secondary" size="lg" className="w-full font-semibold" onClick={() => window.close()}>
-            {t("common:close")}
-          </Button>
-        </div>
-      </PageShell>
-    );
-  }
-
-  return (
-    <PageShell>
-      <div data-testid="mcp-pairing-card" className={cardClass}>
-        <div className="flex flex-col items-center gap-3">
-          <div className="flex size-14 items-center justify-center rounded-full bg-warning/10">
-            <TriangleAlert className="size-7 text-warning" />
-          </div>
-          <h1 className="text-center text-lg font-semibold text-foreground">{t("mcp:pair_title")}</h1>
-          <span
-            data-testid="mcp-pairing-client-name"
-            className="rounded-full bg-secondary px-3 py-1 text-sm font-medium text-foreground"
-          >
-            {`"${pairing.clientName}"`}
+          <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+            {meta.source ? t("mcp:tag_source") : t("mcp:tag_write")}
           </span>
         </div>
 
-        <PairingCode pairing={pairing} />
-        <PairingFields pairing={pairing} selected={selected} onToggleScope={toggleScope} />
-        <PairingCountdown secondsLeft={secondsLeft} />
+        {/* Body: script identity + (source) privacy hint */}
+        <div className="flex flex-col gap-4 px-6 py-6">
+          <div className="flex flex-col gap-1.5 rounded-xl bg-secondary p-3.5">
+            <div className="flex items-center gap-2">
+              <FileCode className="size-4 shrink-0 text-primary" />
+              <span className="truncate text-sm font-semibold text-foreground">{scriptName}</span>
+            </div>
+            {(author || version) && (
+              <span className="text-xs text-muted-foreground">
+                {t("mcp:confirm_script_meta", { author: author ?? t("common:unknown"), version: version ?? "-" })}
+              </span>
+            )}
+          </div>
+          {meta.source && (
+            <div className="flex items-start gap-2 rounded-md border border-warning bg-warning-bg px-3 py-2 text-xs text-warning-fg">
+              <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+              <span>{t("mcp:source_privacy_hint")}</span>
+            </div>
+          )}
+        </div>
 
-        <div className="flex gap-3 pt-1">
+        {/* Footer: 三档决策 拒绝 / 本会话允许 / 允许 (设计 §3) */}
+        <div className="flex items-center justify-between gap-3 border-t px-6 py-4">
           <Button
-            size="lg"
-            data-testid="mcp-pairing-approve"
-            className="flex-1 font-semibold"
-            disabled={selected.size === 0}
-            onClick={() => void decide(true)}
-          >
-            {t("mcp:pair_approve")}
-          </Button>
-          <Button
-            variant="secondary"
-            size="lg"
-            data-testid="mcp-pairing-reject"
-            autoFocus
-            className="flex-1 border border-border font-semibold"
+            variant="ghost"
+            data-testid="mcp-confirm-reject"
+            className="text-muted-foreground"
             onClick={() => void decide(false)}
           >
-            {t("mcp:pair_reject")}
+            {t("mcp:decision_reject")}
           </Button>
+          <div className="flex items-center gap-2.5">
+            <Button
+              variant="secondary"
+              data-testid="mcp-confirm-session-allow"
+              className="gap-1.5 font-medium text-primary"
+              onClick={() => void decide(true, { enable: kind === "enable", rememberSession: true })}
+            >
+              <History className="size-4" />
+              {t("mcp:decision_session_allow")}
+            </Button>
+            <Button
+              variant={kind === "delete" ? "destructive" : "default"}
+              data-testid="mcp-confirm-approve"
+              autoFocus
+              className="font-semibold"
+              onClick={() => void decide(true, { enable: kind === "enable" })}
+            >
+              {t("mcp:decision_allow")}
+            </Button>
+          </div>
         </div>
       </div>
     </PageShell>
@@ -323,8 +184,6 @@ export function McpPairingView({ pairingId }: { pairingId: string }) {
 
 export default function App() {
   const params = new URLSearchParams(location.search);
-  const pairingId = params.get("pairing");
-  if (pairingId) return <McpPairingView pairingId={pairingId} />;
   const operationId = params.get("op");
   if (!operationId) return null;
   return <McpConfirmView operationId={operationId} />;

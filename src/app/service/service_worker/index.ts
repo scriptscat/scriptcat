@@ -26,7 +26,6 @@ import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_
 import { cleanupStaleTempStorageEntries } from "./temp";
 import RuntimeLogger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
-import { McpClientDAO } from "@App/app/repo/mcp";
 import { McpApprovalService } from "@App/app/service/service_worker/mcp/approval";
 import { McpBridge, type McpWriteNotice } from "@App/app/service/service_worker/mcp/bridge";
 import { McpController } from "@App/app/service/service_worker/mcp/controller";
@@ -161,16 +160,13 @@ export default class ServiceWorkerManager {
     // MCP 桥接：运行期开关 mcp_enabled（由 McpController.initialize 内部监听），默认关闭，
     // 用户在设置里显式开启前不建立连接。Firefox 的 MV3 事件页生命周期未经验证/支持，显式排除。
     if (!isFirefox()) {
-      const mcpClientDAO = new McpClientDAO();
-      const mcpApproval = new McpApprovalService(script, scriptDAO, script.scriptCodeDAO, mcpClientDAO);
+      const mcpApproval = new McpApprovalService(script, scriptDAO, script.scriptCodeDAO);
       const mcpBridge = new McpBridge(
         scriptDAO,
         script.scriptCodeDAO,
-        mcpClientDAO,
         mcpApproval,
-        undefined,
-        undefined,
         () => systemConfig.getMcpWritePolicy(),
+        () => systemConfig.getMcpSourceReadPolicy(),
         notifyMcpWrite
       );
       const mcpController = new McpController(
@@ -178,16 +174,14 @@ export default class ServiceWorkerManager {
         mcpBridge,
         this.mq,
         this.api.group("mcpConnect"),
-        new McpConnectClient(this.offscreenSend),
-        mcpClientDAO
+        new McpConnectClient(this.offscreenSend)
       );
-      mcpBridge.setWriteSessionChecker(() => mcpController.isWriteSessionActive());
       // Deferred bridge.response for blocking ops (write approval / source disclosure): the decide
       // or bridge.cancel event resolves the persisted op and pushes the response back through the
       // controller's offscreen relay — never a Promise left hanging in the (suspendable) SW.
       mcpApproval.setResponder((requestId, response) => mcpController.sendBridgeResponse(requestId, response));
       mcpController.initialize();
-      const mcpUIService = new McpUIService(this.api.group("mcp"), mcpController, mcpApproval, mcpClientDAO);
+      const mcpUIService = new McpUIService(this.api.group("mcp"), mcpController, mcpApproval, systemConfig);
       mcpUIService.init();
     }
 

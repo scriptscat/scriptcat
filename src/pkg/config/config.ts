@@ -39,8 +39,10 @@ export const DEFAULT_CLOUD_SYNC_STATE: CloudSyncState = {
 
 export type FaviconService = "scriptcat" | "google" | "duckduckgo" | "icon-horse" | "local";
 
-// MCP 写操作策略：需人工审批（默认）/ 直接允许。
+// 外部接入 · 每类操作的人机闸门策略：需人工审批（默认）/ 直接允许。写操作与源码读取各持一份，
+// 对 CLI 与 MCP 一视同仁（源码读取不再对 CLI 豁免）。
 export type McpWritePolicy = "approval" | "allow";
+export type McpSourceReadPolicy = "approval" | "allow";
 
 // MCP 配对成功后落地的长期共享密钥 K（小写 hex）与本扩展实例的客户端身份。
 // key 为空串表示尚未配对。仅存 chrome.storage.local，绝不跨设备同步。
@@ -667,7 +669,7 @@ export class SystemConfig {
   }
 
   getMcpUrl() {
-    return this._get<string>("mcp_url", "ws://127.0.0.1:8643");
+    return this._get<string>("mcp_url", "ws://localhost:8643");
   }
 
   setMcpWritePolicy(policy: McpWritePolicy) {
@@ -676,6 +678,14 @@ export class SystemConfig {
 
   getMcpWritePolicy() {
     return this._get<McpWritePolicy>("mcp_write_policy", "approval");
+  }
+
+  setMcpSourceReadPolicy(policy: McpSourceReadPolicy) {
+    this._set("mcp_source_read_policy", policy);
+  }
+
+  getMcpSourceReadPolicy() {
+    return this._get<McpSourceReadPolicy>("mcp_source_read_policy", "approval");
   }
 
   setMcpPairing(pairing: McpPairing | undefined) {

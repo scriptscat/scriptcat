@@ -28,7 +28,7 @@ import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 import type { LocalBackupExport } from "./synchronize";
 import type { McpUIService } from "./mcp/service";
-import type { McpScope, WSEnvelope } from "./mcp/types";
+import type { WSEnvelope } from "./mcp/types";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -517,24 +517,9 @@ export class MCPClient extends Client {
     return this.doThrow("status");
   }
 
-  setWriteSession(active: boolean) {
-    return this.do("setWriteSession", active);
-  }
-
-  getWriteSession(): ReturnType<McpUIService["getWriteSession"]> {
-    return this.doThrow("writeSession");
-  }
-
-  getClients(): ReturnType<McpUIService["getClients"]> {
-    return this.doThrow("clients");
-  }
-
-  revokeClient(clientId: string) {
-    return this.do("revokeClient", clientId);
-  }
-
-  revokeAllAndStop() {
-    return this.do("revokeAllAndStop");
+  // Enrollment (接入): dial the daemon with the one-time code the user read from `sctl connect`.
+  enroll(code: string) {
+    return this.do("enroll", code);
   }
 
   getOperation(operationId: string): ReturnType<McpUIService["getOperation"]> {
@@ -545,41 +530,25 @@ export class MCPClient extends Client {
     operationId: string;
     approved: boolean;
     enable?: boolean;
-    rememberChoice?: "once" | "client";
+    rememberSession?: boolean;
   }): ReturnType<McpUIService["decideOperation"]> {
     return this.doThrow("operationDecision", param);
   }
 
-  // Re-opens a still-pending op's confirm page (误关重开入口). The popup/settings "待确认" row calls
-  // this after the user closed the confirm tab without deciding.
+  // Re-opens a still-pending op's confirm page (误关重开入口). The "待确认" reopen row calls this
+  // after the user closed the confirm tab without deciding.
   reopenOperation(operationId: string): ReturnType<McpUIService["reopenOperation"]> {
     return this.doThrow("operationReopen", operationId);
   }
 
-  // Still-pending ops for the popup/settings "待确认" list.
+  // Still-pending ops for the "待确认" reopen list.
   getPendingOperations(): ReturnType<McpUIService["getPendingOperations"]> {
     return this.doThrow("pendingOperations");
   }
 
-  getAudit(): ReturnType<McpUIService["getAudit"]> {
-    return this.doThrow("audit");
-  }
-
-  clearAudit() {
-    return this.do("auditClear");
-  }
-
-  getPendingPairing(): Promise<ReturnType<McpUIService["getPendingPairing"]>> {
-    return this.doThrow("pendingPairing");
-  }
-
-  decidePairing(param: { pairingId: string; approved: boolean; grantedScopes: McpScope[] }) {
-    return this.do("pairingDecision", param);
-  }
-
-  // Ext↔daemon pairing with the one-time code from `sctl pair` (user pastes it into settings).
-  pair(code: string) {
-    return this.do("pair", code);
+  // "停止外部接入" kill switch: discard key K + drop 本会话允许 grants + stop + disable.
+  stopExternalAccess() {
+    return this.do("stopExternalAccess");
   }
 }
 

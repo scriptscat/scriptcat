@@ -10,9 +10,10 @@ export const STORAGE_LOCAL_KEYS: Set<string> = new Set([
   "check_update", // 扩展更新通知及已读状态（各设备已读状态独立）
   "enable_script", // 全局脚本开关（设备独立）
   "enable_script_incognito", // 隐身模式开关（浏览器级别）
-  "mcp_enabled", // MCP 桥接开关（设备相关，绝不跨设备同步）
-  "mcp_url", // MCP 桥接 daemon 地址（设备相关）
-  "mcp_write_policy", // MCP 写操作策略（设备相关）
-  "mcp_pairing", // MCP 配对长期密钥 K + 客户端身份（含密钥，绝不跨设备同步）
+  "mcp_enabled", // 外部接入开关（设备相关，绝不跨设备同步）
+  "mcp_url", // 外部接入 sctl 地址（设备相关）
+  "mcp_write_policy", // 外部接入 · 写操作策略（设备相关）
+  "mcp_source_read_policy", // 外部接入 · 源码读取策略（设备相关）
+  "mcp_pairing", // 外部接入长期共享密钥 K + 客户端身份（含密钥，绝不跨设备同步）
   "keep_ext_background_alive", // Chrome service worker 和 offscreen 保活开关
 ]);

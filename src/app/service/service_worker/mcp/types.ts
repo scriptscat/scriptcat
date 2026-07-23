@@ -123,15 +123,6 @@ export const MCP_SCOPES = [
 
 export type McpScope = (typeof MCP_SCOPES)[number];
 
-// Built-in identity the sctl daemon forwards for every CLI-verb call (`sctl scripts list`,
-// `sctl install`, …) — it runs as the user's own process, not a paired MCP client, so it never
-// goes through pairing (design §3.1). The string MUST stay identical to the daemon's
-// control.CLIClientID. Treated as full-scope + source-disclosure-exempt (the human typed the
-// command), but writes still pass through the write policy + write-session gate and the confirm
-// page — the CLI cannot bypass human approval. It is non-revocable and never mirrored into the
-// paired-client list.
-export const SCTL_CLI_CLIENT_ID = "sctl-cli";
-
 export const BRIDGE_ACTIONS = [
   "scripts.list",
   "scripts.metadata.get",
@@ -243,12 +234,11 @@ export interface OperationStatusResult {
   errorCode?: BridgeErrorCode;
 }
 
-// Row shape for the popup/settings "待确认" list (§5.1 误关重开入口): the still-pending ops the
-// user can re-open a confirm page for. Enriched with the requesting client's display name.
+// Row shape for the "待确认" reopen entry (§5.1 误关重开入口): the still-pending ops the user can
+// re-open a confirm page for. No client name — approval is channel-based only (design §3.0.1).
 export interface PendingOperationSummary {
   operationId: string;
   kind: OperationKind;
-  requestingClientName?: string;
   createdAt: number;
 }
 
@@ -274,4 +264,10 @@ export const WRITE_ACTIONS: readonly BridgeAction[] = [
 // derived controller state, never written to storage.
 // ---------------------------------------------------------------------------------------------
 
-export type McpBridgeStatus = "disabled" | "connecting" | "connected" | "host_unreachable" | "host_outdated";
+export type McpBridgeStatus =
+  | "disabled"
+  | "pending_enrollment"
+  | "connecting"
+  | "connected"
+  | "host_unreachable"
+  | "host_outdated";

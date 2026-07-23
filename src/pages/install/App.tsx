@@ -122,6 +122,7 @@ export default function App() {
             onClose={close}
             onToggleWatch={toggleWatch}
             onMcpReject={view.mcp ? rejectMcp : undefined}
+            onMcpSessionAllow={view.mcp ? () => install({ rememberSession: true }) : undefined}
           />
         }
       >
@@ -138,13 +139,7 @@ export default function App() {
           enabled={enabled}
           onEnabledChange={setEnabled}
         />
-        {view.mcp && (
-          <McpBanner
-            requestingClientName={view.mcp.requestingClientName}
-            contentHash={view.mcp.contentHash}
-            source={view.source}
-          />
-        )}
+        {view.mcp && <McpBanner contentHash={view.mcp.contentHash} source={view.source} isUpdate={view.isUpdate} />}
         {watching && <WatchingBanner fileName={watchFileName || ""} lastSync={lastSync} />}
         {view.inTrash && (
           <div

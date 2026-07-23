@@ -145,7 +145,11 @@ export interface UseInstallData {
   /** 最后一次因文件变更自动重装的本地化时间(未发生过则为 undefined) */
   lastSync?: string;
   toggleWatch: () => void | Promise<void>;
-  install: (opts?: { closeAfterInstall?: boolean; noMoreUpdates?: boolean }) => Promise<void>;
+  install: (opts?: {
+    closeAfterInstall?: boolean;
+    noMoreUpdates?: boolean;
+    rememberSession?: boolean;
+  }) => Promise<void>;
   close: (opts?: { noMoreUpdates?: boolean }) => void;
   rejectMcp: () => Promise<void>;
   installSkill: () => Promise<void>;
@@ -315,20 +319,21 @@ export function useInstallData(): UseInstallData {
   }, []);
 
   const install = useCallback(
-    async (opts: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
-      const { closeAfterInstall = true, noMoreUpdates = false } = opts;
+    async (opts: { closeAfterInstall?: boolean; noMoreUpdates?: boolean; rememberSession?: boolean } = {}) => {
+      const { closeAfterInstall = true, noMoreUpdates = false, rememberSession = false } = opts;
       const action = actionRef.current;
       const info = infoRef.current;
       if (!action || !info) return;
       try {
         if (info.mcp) {
-          // MCP 请求的安装：页面只上报决定，实际安装由 McpApprovalService.decide 在服务端完成
+          // 外部接入请求的安装：页面只上报决定，实际安装由 McpApprovalService.decide 在服务端完成
           // （重新校验暂存代码哈希，防止请求与批准之间代码被篡改）——绝不在页面侧直接调用
-          // scriptClient.install(）。
+          // scriptClient.install()。rememberSession = 用户点了「本会话允许」（设计 §3 第三档）。
           await mcpClient.decideOperation({
             operationId: info.mcp.operationId,
             approved: true,
             enable: action.status === SCRIPT_STATUS_ENABLE,
+            rememberSession,
           });
           notify.success(t("install:success"));
         } else if (info.userSubscribe) {

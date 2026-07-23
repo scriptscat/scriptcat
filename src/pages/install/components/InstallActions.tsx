@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Download, Eye, EyeOff, Info, RefreshCw } from "lucide-react";
+import { ChevronDown, Download, Eye, EyeOff, History, Info, RefreshCw } from "lucide-react";
 import { Button } from "@App/pages/components/ui/button";
 import {
   DropdownMenu,
@@ -20,11 +20,13 @@ export interface InstallActionsProps {
   primaryDisabled?: boolean;
   localFile?: boolean;
   watching?: boolean;
-  onInstall: (opts?: { closeAfterInstall?: boolean; noMoreUpdates?: boolean }) => void;
+  onInstall: (opts?: { closeAfterInstall?: boolean; noMoreUpdates?: boolean; rememberSession?: boolean }) => void;
   onClose: (opts?: { noMoreUpdates?: boolean }) => void;
   onToggleWatch?: () => void;
-  /** 仅 MCP 客户端请求的安装提供：显式拒绝（区别于「关闭」——关闭窗口本身不算决定，只有点击这个按钮才算拒绝） */
+  /** 仅「外部接入」触发的安装提供：显式拒绝（区别于「关闭」——关闭窗口本身不算决定，只有点击这个按钮才算拒绝） */
   onMcpReject?: () => void;
+  /** 仅「外部接入」触发的安装提供：本会话允许（安装并对该脚本本会话内免询问，设计 §3 第三档） */
+  onMcpSessionAllow?: () => void;
 }
 
 /**
@@ -80,6 +82,7 @@ export function InstallActions({
   onClose,
   onToggleWatch,
   onMcpReject,
+  onMcpSessionAllow,
 }: InstallActionsProps) {
   const { t } = useTranslation(["install", "common", "editor", "mcp"]);
 
@@ -125,13 +128,26 @@ export function InstallActions({
           </Button>
         )}
 
-        {onMcpReject && (
-          <Button data-testid="mcp-reject" variant="outline" autoFocus onClick={onMcpReject}>
-            {t("mcp:pair_reject")}
-          </Button>
-        )}
-
-        {isUpdate ? (
+        {onMcpReject ? (
+          // 「外部接入」触发：三档决策 拒绝 / 本会话允许 / 安装（设计 §3）。安装 = 下方 install-split
+          // 主按钮；此处只补前两档，替换普通「关闭」——关闭窗口本身不算决定（op 挂起至 TTL/断开）。
+          <>
+            <Button data-testid="mcp-reject" variant="outline" autoFocus onClick={onMcpReject}>
+              {t("mcp:decision_reject")}
+            </Button>
+            {onMcpSessionAllow && (
+              <Button
+                data-testid="mcp-session-allow"
+                variant="secondary"
+                className="gap-1.5 font-medium text-primary"
+                onClick={onMcpSessionAllow}
+              >
+                <History className="size-4" />
+                {t("mcp:decision_session_allow")}
+              </Button>
+            )}
+          </>
+        ) : isUpdate ? (
           <div className="flex">
             <Button data-testid="close-primary" variant="outline" onClick={() => onClose()} className="rounded-r-none">
               {t("common:close")}
