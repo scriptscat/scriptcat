@@ -194,6 +194,8 @@
   "downloading_status_percent": "正在下载。已接收 {{bytes}} / {{total}}（{{percent}}%）。",
   "page_load_failed": "安装页面加载失败",
   "invalid_page": "无效页面",
+  "frame_blocked_title": "禁止内嵌访问",
+  "frame_blocked_desc": "出于安全考虑，安装页不允许在 iframe 中嵌入显示，请在浏览器标签页中直接打开。",
   "from_legitimate_sources_warning": "请从合法来源安装脚本！未知的脚本可能会侵犯您的隐私或者做出恶意的操作！",
   "referral_link_title": "推荐链接",
   "ads_title": "附带广告",

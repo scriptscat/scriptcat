@@ -194,6 +194,8 @@
   "downloading_status_percent": "İndiriliyor. {{bytes}} / {{total}} alındı ({{percent}}%).",
   "page_load_failed": "Yükleme Sayfası Yüklenemedi",
   "invalid_page": "Geçersiz Sayfa",
+  "frame_blocked_title": "Gömme Engellendi",
+  "frame_blocked_desc": "Güvenlik nedeniyle yükleme sayfası bir iframe içine gömülemez. Lütfen doğrudan bir tarayıcı sekmesinde açın.",
   "from_legitimate_sources_warning": "Lütfen betikleri meşru kaynaklardan yükleyin! Bilinmeyen betikler gizliliğinizi ihlal edebilir veya kötü amaçlı işlemler gerçekleştirebilir.",
   "referral_link_title": "Yönlendirme Bağlantısı",
   "ads_title": "Reklamlar",

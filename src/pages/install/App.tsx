@@ -16,6 +16,15 @@ import { WatchingBanner } from "./components/WatchingBanner";
 import { BackgroundPrompt, backgroundPromptShownKey, keepAlivePromptShownKey } from "./components/BackgroundPrompt";
 import { useInstallData } from "./useInstallData";
 
+const isMainFrame = () => {
+  try {
+    // 跨域 iframe 下访问 window.top.document 会抛 SecurityError，此时必然不是同源顶层窗口
+    return window.top?.document === window.document;
+  } catch {
+    return false;
+  }
+};
+
 type PromptPermission = "background" | "webRequestBlocking";
 
 export default function App() {
@@ -63,6 +72,17 @@ export default function App() {
       cancelled = true;
     };
   }, [ready, schedule, t]);
+
+  // 防点击劫持:安装页禁止被嵌入 iframe,须在 loading/skill/error 等所有状态渲染前拦截
+  if (!isMainFrame()) {
+    return (
+      <InstallError
+        title={t("install:frame_blocked_title")}
+        message={t("install:frame_blocked_desc")}
+        onClose={close}
+      />
+    );
+  }
 
   if (state.status === "loading") {
     return <InstallLoading source={state.source} bytesText={state.bytesText} percent={state.percent} />;
