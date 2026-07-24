@@ -278,8 +278,6 @@ export class ExternalAccessConnect {
       case "hello":
       case "bridge.request":
       case "bridge.cancel":
-      case "pair.request":
-      case "client.sync":
       case "bridge.shutdown":
         void this.relay.envelope(envelope);
         break;
@@ -354,8 +352,8 @@ export class ExternalAccessConnect {
     this.logger.info("Auth handshake complete");
   }
 
-  // 供 SW 通过 Group 下发的出站信封（bridge.response / pair.decision / client.revoke /
-  // bridge.shutdown）；握手完成前直接丢弃（连接尚不可用于业务消息）。
+  // 供 SW 通过 Group 下发的出站信封（bridge.response / bridge.shutdown）；握手完成前直接丢弃
+  // （连接尚不可用于业务消息）。
   private sendEnvelope(envelope: WSEnvelope): void {
     if (!this.handshakeComplete) {
       this.logger.warn("Dropped outbound envelope before handshake", { type: envelope.type });

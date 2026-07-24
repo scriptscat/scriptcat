@@ -15,27 +15,33 @@ export const PROTOCOL_VERSION = 1;
 export const MIN_DAEMON_VERSION = "0.1.0";
 
 // ---------------------------------------------------------------------------------------------
-// Layer 1 — ext <-> daemon envelope types (WS transport)
+// ext <-> daemon envelope types (WS transport) — two layers
 // ---------------------------------------------------------------------------------------------
 // Kept in sync with protocol.json (envelopeTypes) via protocol.conformance.test.ts. The offscreen
 // WS client owns the socket and relays decoded envelopes to/from the SW controller.
+//
+// SESSION (Layer 1) frames carry the crypto handshake, version/liveness and session lifecycle. This
+// layer is security-critical and stays custom — it's the half a standard RPC (JSON-RPC) can't
+// express. BRIDGE (Layer 2) frames are the capability RPC tunnelled over the channel;
+// bridge.request.payload is opaque to the session layer, which is what lets the two layers evolve
+// (and be serialized) independently.
+//
+// To extend: a new handshake/liveness/lifecycle frame goes in SESSION_MESSAGE_TYPES; a new
+// capability goes in BRIDGE_ACTIONS (below), never here — bridge.request already tunnels every action.
 
-export const WS_MESSAGE_TYPES = [
+export const SESSION_MESSAGE_TYPES = [
   "auth.challenge",
   "auth.response",
   "auth.ok",
   "hello",
-  "bridge.request",
-  "bridge.response",
-  "bridge.cancel",
-  "pair.request",
-  "pair.decision",
-  "client.revoke",
-  "client.sync",
   "ping",
   "pong",
   "bridge.shutdown",
 ] as const;
+
+export const BRIDGE_MESSAGE_TYPES = ["bridge.request", "bridge.response", "bridge.cancel"] as const;
+
+export const WS_MESSAGE_TYPES = [...SESSION_MESSAGE_TYPES, ...BRIDGE_MESSAGE_TYPES] as const;
 
 export type WSMessageType = (typeof WS_MESSAGE_TYPES)[number];
 
@@ -77,39 +83,8 @@ export interface HelloPayload {
   protocolVersion: typeof PROTOCOL_VERSION;
 }
 
-// host->ext, a new shim asked to pair. `code` is the 8-char verification string the user
-// cross-checks against the shim's own terminal output.
-export interface PairRequestPayload {
-  pairingId: string;
-  clientName: string;
-  requestedScopes: ExternalAccessScope[];
-  code: string;
-}
-
-// ext->host, the human's decision. On approval the host mints clientId/token and reports the
-// authoritative record back via a subsequent `client.sync` — this payload never carries a token.
-export interface PairDecisionPayload {
-  pairingId: string;
-  approved: boolean;
-  grantedScopes: ExternalAccessScope[];
-}
-
-// host->ext, full client list after any host-side change (new pairing, revoke, scope edit).
-// The host is the authority on tokenHash/scopes/revoked; the extension mirrors it verbatim.
-export type ClientSyncPayload = ExternalAccessClientRecord[];
-
-export interface ExternalAccessClientRecord {
-  clientId: string;
-  displayName: string;
-  tokenHash: string;
-  scopes: ExternalAccessScope[];
-  createdAt: number;
-  lastUsedAt: number;
-  revoked: boolean;
-}
-
 // ---------------------------------------------------------------------------------------------
-// Layer 1.5 — bridge actions
+// Layer 2 — bridge actions (capability RPC)
 // ---------------------------------------------------------------------------------------------
 
 export const EXTERNAL_ACCESS_SCOPES = [
@@ -123,6 +98,10 @@ export const EXTERNAL_ACCESS_SCOPES = [
 
 export type ExternalAccessScope = (typeof EXTERNAL_ACCESS_SCOPES)[number];
 
+// Adding a capability (paved path): add the action here + to protocol.json `actions`, map it in
+// ACTION_REQUIRED_SCOPE (and EXTERNAL_ACCESS_SCOPES / protocol.json `scopes` if it needs a new one),
+// list it in WRITE_ACTIONS if it mutates, then handle it in the bridge. protocol.conformance.test.ts
+// fails until both sides agree — no new envelope type is needed, bridge.request tunnels every action.
 export const BRIDGE_ACTIONS = [
   "scripts.list",
   "scripts.metadata.get",
@@ -258,10 +237,10 @@ export const WRITE_ACTIONS: readonly BridgeAction[] = [
 ] as const;
 
 // ---------------------------------------------------------------------------------------------
-// Extension-only types — not part of the wire protocol, just UI/controller state. Persisted
-// entities (ExternalAccessClient, ExternalAccessOperation, ExternalAccessAuditEvent) live in src/app/repo/external_access.ts alongside their
-// DAOs (repo convention: entity + DAO in one file); this status enum stays here because it's
-// derived controller state, never written to storage.
+// Extension-only types — not part of the wire protocol, just UI/controller state. The persisted
+// ExternalAccessOperation entity lives in src/app/repo/external_access.ts alongside its DAO (repo
+// convention: entity + DAO in one file), and the audit event type in ./audit.ts; this status enum
+// stays here because it's derived controller state, never written to storage.
 // ---------------------------------------------------------------------------------------------
 
 export type ExternalAccessBridgeStatus =

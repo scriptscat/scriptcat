@@ -349,17 +349,12 @@ describe("ExternalAccessConnect", () => {
       return ws;
     }
 
-    it("业务信封（bridge.request/pair.request/client.sync）转发给 SW", async () => {
+    it("业务信封（bridge.request/bridge.cancel）转发给 SW", async () => {
       const ws = await completeSessionHandshake();
       ws.simulateMessage({ v: 1, type: "bridge.request", requestId: "r1", payload: { action: "scripts.list" } });
-      ws.simulateMessage({ v: 1, type: "pair.request", requestId: "p1", payload: {} });
-      ws.simulateMessage({ v: 1, type: "client.sync", requestId: "s1", payload: [] });
-      await vi.waitFor(() => expect(relay.envelope).toHaveBeenCalledTimes(3));
-      expect(relay.envelope.mock.calls.map((c) => c[0].type)).toEqual([
-        "bridge.request",
-        "pair.request",
-        "client.sync",
-      ]);
+      ws.simulateMessage({ v: 1, type: "bridge.cancel", requestId: "r2", payload: {} });
+      await vi.waitFor(() => expect(relay.envelope).toHaveBeenCalledTimes(2));
+      expect(relay.envelope.mock.calls.map((c) => c[0].type)).toEqual(["bridge.request", "bridge.cancel"]);
     });
 
     it("收到 ping 回复 pong，不转发给 SW", async () => {

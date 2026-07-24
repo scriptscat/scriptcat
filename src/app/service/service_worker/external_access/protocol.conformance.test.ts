@@ -14,8 +14,18 @@ describe("MCP 协议一致性 - types.ts 必须与 protocol.json 同步", () => 
     expect(extTypes.MIN_DAEMON_VERSION).toBe(protocolJson.versions.minDaemonVersion);
   });
 
-  it("envelope 类型集合完全一致(顺序无关)", () => {
-    expect([...extTypes.WS_MESSAGE_TYPES].sort()).toEqual([...protocolJson.envelopeTypes].sort());
+  it("session envelope 类型集合完全一致(顺序无关)", () => {
+    expect([...extTypes.SESSION_MESSAGE_TYPES].sort()).toEqual([...protocolJson.envelopeTypes.session].sort());
+  });
+
+  it("bridge envelope 类型集合完全一致(顺序无关)", () => {
+    expect([...extTypes.BRIDGE_MESSAGE_TYPES].sort()).toEqual([...protocolJson.envelopeTypes.bridge].sort());
+  });
+
+  it("WS_MESSAGE_TYPES 是两层 envelope 的并集", () => {
+    expect([...extTypes.WS_MESSAGE_TYPES].sort()).toEqual(
+      [...protocolJson.envelopeTypes.session, ...protocolJson.envelopeTypes.bridge].sort()
+    );
   });
 
   it("EXTERNAL_ACCESS_SCOPES 与 protocol.json 的 scopes 完全一致", () => {

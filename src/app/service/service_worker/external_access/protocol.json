@@ -9,22 +9,11 @@
   "versions": {
     "minDaemonVersion": "0.1.0"
   },
-  "envelopeTypes": [
-    "auth.challenge",
-    "auth.response",
-    "auth.ok",
-    "hello",
-    "bridge.request",
-    "bridge.response",
-    "bridge.cancel",
-    "pair.request",
-    "pair.decision",
-    "client.revoke",
-    "client.sync",
-    "ping",
-    "pong",
-    "bridge.shutdown"
-  ],
+  "$comment.layering": "Two-layer protocol. session = Layer 1: the crypto handshake, version/liveness and session lifecycle — security-critical, stays custom, the half a standard RPC (JSON-RPC) cannot express. bridge = Layer 2: the capability RPC tunnelled over the channel; bridge.request.payload is opaque to the session layer, which lets the two layers evolve independently. Grouped by function, not name prefix — bridge.shutdown ends the whole session, so it lives under session.",
+  "envelopeTypes": {
+    "session": ["auth.challenge", "auth.response", "auth.ok", "hello", "ping", "pong", "bridge.shutdown"],
+    "bridge": ["bridge.request", "bridge.response", "bridge.cancel"]
+  },
   "scopes": [
     "scripts:list",
     "scripts:metadata:read",
