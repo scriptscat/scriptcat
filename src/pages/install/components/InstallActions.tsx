@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Download, Eye, EyeOff, Info, RefreshCw } from "lucide-react";
+import { ChevronDown, Download, Eye, EyeOff, History, Info, RefreshCw } from "lucide-react";
 import { Button } from "@App/pages/components/ui/button";
 import {
   DropdownMenu,
@@ -20,9 +20,13 @@ export interface InstallActionsProps {
   primaryDisabled?: boolean;
   localFile?: boolean;
   watching?: boolean;
-  onInstall: (opts?: { closeAfterInstall?: boolean; noMoreUpdates?: boolean }) => void;
+  onInstall: (opts?: { closeAfterInstall?: boolean; noMoreUpdates?: boolean; rememberSession?: boolean }) => void;
   onClose: (opts?: { noMoreUpdates?: boolean }) => void;
   onToggleWatch?: () => void;
+  /** 仅「外部接入」触发的安装提供：显式拒绝（区别于「关闭」——关闭窗口本身不算决定，只有点击这个按钮才算拒绝） */
+  onExternalAccessReject?: () => void;
+  /** 仅「外部接入」触发的安装提供：本会话允许（安装并对该脚本本会话内免询问，设计 §3 第三档） */
+  onExternalAccessSessionAllow?: () => void;
 }
 
 /**
@@ -77,8 +81,10 @@ export function InstallActions({
   onInstall,
   onClose,
   onToggleWatch,
+  onExternalAccessReject,
+  onExternalAccessSessionAllow,
 }: InstallActionsProps) {
-  const { t } = useTranslation(["install", "common", "editor"]);
+  const { t } = useTranslation(["install", "common", "editor", "external_access"]);
 
   const primaryLabel = inTrash
     ? versionChanged
@@ -93,11 +99,14 @@ export function InstallActions({
 
   const note = watching
     ? t("install:action_note_watching")
-    : isUpdate
-      ? t("install:action_note_update")
-      : isSubscribe
-        ? t("install:action_note_subscribe")
-        : t("install:action_note_install");
+    : onExternalAccessReject
+      ? // 外部接入触发:提示这是可信渠道请求 + 安装即信任来源/作者(设计稿 ActionNote)
+        t("external_access:install_action_note")
+      : isUpdate
+        ? t("install:action_note_update")
+        : isSubscribe
+          ? t("install:action_note_subscribe")
+          : t("install:action_note_install");
 
   return (
     <div className="flex w-full flex-wrap items-center gap-3">
@@ -122,7 +131,26 @@ export function InstallActions({
           </Button>
         )}
 
-        {isUpdate ? (
+        {onExternalAccessReject ? (
+          // 「外部接入」触发：三档决策 拒绝 / 本会话允许 / 安装（设计 §3）。安装 = 下方 install-split
+          // 主按钮；此处只补前两档，替换普通「关闭」——关闭窗口本身不算决定（op 挂起至 TTL/断开）。
+          <>
+            <Button data-testid="external-access-reject" variant="outline" autoFocus onClick={onExternalAccessReject}>
+              {t("external_access:decision_reject")}
+            </Button>
+            {onExternalAccessSessionAllow && (
+              <Button
+                data-testid="external-access-session-allow"
+                variant="secondary"
+                className="gap-1.5 font-medium text-primary"
+                onClick={onExternalAccessSessionAllow}
+              >
+                <History className="size-4" />
+                {t("external_access:decision_session_allow")}
+              </Button>
+            )}
+          </>
+        ) : isUpdate ? (
           <div className="flex">
             <Button data-testid="close-primary" variant="outline" onClick={() => onClose()} className="rounded-r-none">
               {t("common:close")}

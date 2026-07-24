@@ -3,7 +3,7 @@ import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { type IGetSender } from "@Packages/message/server";
 
 /** 脚本安装来源 */
-export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
+export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode" | "external_access";
 
 /** 搜索类型 */
 export type SearchType = "auto" | "name" | "script_code";

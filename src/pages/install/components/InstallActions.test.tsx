@@ -88,4 +88,23 @@ describe("InstallActions 操作区", () => {
     render(<InstallActions {...baseProps()} />);
     expect(screen.getByTestId("action-bar-note")).toBeInTheDocument();
   });
+
+  it("未提供 onExternalAccessReject 时不渲染拒绝按钮", () => {
+    render(<InstallActions {...baseProps()} />);
+    expect(screen.queryByTestId("external-access-reject")).not.toBeInTheDocument();
+  });
+
+  it("提供 onExternalAccessReject 时渲染拒绝按钮，点击触发回调（MCP 请求安装流程）", () => {
+    const onExternalAccessReject = vi.fn();
+    render(<InstallActions {...baseProps()} onExternalAccessReject={onExternalAccessReject} />);
+    const rejectButton = screen.getByTestId("external-access-reject");
+    expect(rejectButton).toBeInTheDocument();
+    fireEvent.click(rejectButton);
+    expect(onExternalAccessReject).toHaveBeenCalledTimes(1);
+  });
+
+  it("外部接入触发时操作栏提示语切换为渠道说明（设计稿 ActionNote）", () => {
+    render(<InstallActions {...baseProps()} onExternalAccessReject={vi.fn()} />);
+    expect(screen.getByTestId("action-bar-note")).toHaveTextContent("由「外部接入」触发");
+  });
 });

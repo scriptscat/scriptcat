@@ -15,7 +15,7 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 import { initLocales, initLocalesPromise, localePath, t, watchLanguageChange } from "@App/locales/locales";
-import { getCurrentTab } from "@App/pkg/utils/utils";
+import { getCurrentTab, isFirefox } from "@App/pkg/utils/utils";
 import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { FaviconDAO } from "@App/app/repo/favicon";
@@ -26,7 +26,31 @@ import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_
 import { cleanupStaleTempStorageEntries } from "./temp";
 import RuntimeLogger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
+import { ExternalAccessApprovalService } from "@App/app/service/service_worker/external_access/approval";
+import {
+  ExternalAccessBridge,
+  type ExternalAccessWriteNotice,
+} from "@App/app/service/service_worker/external_access/bridge";
+import { ExternalAccessController } from "@App/app/service/service_worker/external_access/controller";
+import { ExternalAccessUIService } from "@App/app/service/service_worker/external_access/service";
+import { ExternalAccessConnectClient } from "@App/app/service/offscreen/client";
 import { hookFirefoxEventPageKeepAliveLoop, hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
+
+// "直接允许" 写策略下 MCP 无需人工确认即执行了写操作，发系统通知让用户知晓（决策 #12 的知情兜底）。
+function notifyExternalAccessWrite(notice: ExternalAccessWriteNotice): void {
+  const name = notice.name ?? "";
+  const body =
+    notice.kind === "install"
+      ? t("external_access:allow_notify_install", { name })
+      : notice.kind === "enable"
+        ? t("external_access:allow_notify_enable", { name })
+        : notice.kind === "disable"
+          ? t("external_access:allow_notify_disable", { name })
+          : notice.kind === "delete"
+            ? t("external_access:allow_notify_delete", { name })
+            : t("external_access:allow_notify_generic", { name });
+  void InfoNotification(t("external_access:allow_notify_title"), body);
+}
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -82,6 +106,7 @@ export default class ServiceWorkerManager {
     const value = new ValueService(this.api.group("value"), this.mq);
     const script = new ScriptService(systemConfig, this.api.group("script"), this.mq, value, resource, scriptDAO);
     script.init();
+
     const runtime = new RuntimeService(
       systemConfig,
       this.api.group("runtime"),
@@ -133,6 +158,41 @@ export default class ServiceWorkerManager {
     const gmApi = runtime.getGMApi();
     if (gmApi) {
       gmApi.setAgentService(agent);
+    }
+
+    // 外部接入桥接：运行期开关 external_access_enabled（由 ExternalAccessController.initialize 内部监听），默认关闭，
+    // 用户在设置里显式开启前不建立连接。Firefox 的 MV3 事件页生命周期未经验证/支持，显式排除。
+    if (!isFirefox()) {
+      const externalAccessApproval = new ExternalAccessApprovalService(script, scriptDAO, script.scriptCodeDAO);
+      const externalAccessBridge = new ExternalAccessBridge(
+        scriptDAO,
+        script.scriptCodeDAO,
+        externalAccessApproval,
+        () => systemConfig.getExternalAccessWritePolicy(),
+        () => systemConfig.getExternalAccessSourceReadPolicy(),
+        notifyExternalAccessWrite
+      );
+      const externalAccessController = new ExternalAccessController(
+        systemConfig,
+        externalAccessBridge,
+        this.mq,
+        this.api.group("externalAccessConnect"),
+        new ExternalAccessConnectClient(this.offscreenSend)
+      );
+      // Deferred bridge.response for blocking ops (write approval / source disclosure): the decide
+      // or bridge.cancel event resolves the persisted op and pushes the response back through the
+      // controller's offscreen relay — never a Promise left hanging in the (suspendable) SW.
+      externalAccessApproval.setResponder((requestId, response) =>
+        externalAccessController.sendBridgeResponse(requestId, response)
+      );
+      externalAccessController.initialize();
+      const externalAccessUIService = new ExternalAccessUIService(
+        this.api.group("externalAccess"),
+        externalAccessController,
+        externalAccessApproval,
+        systemConfig
+      );
+      externalAccessUIService.init();
     }
 
     const regularScriptUpdateCheck = async () => {
