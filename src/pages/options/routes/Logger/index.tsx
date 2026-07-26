@@ -216,28 +216,37 @@ export default function Logger() {
       </div>
 
       {/* 范围 / 统计条 */}
-      <div className="flex items-center justify-between gap-2 min-h-[34px] px-4 py-1 md:py-0 shrink-0 border-b border-border bg-muted/40 text-xs">
-        <div className="flex items-center gap-2 min-w-0 text-fg-secondary">
+      <div
+        data-testid="logger-stats-bar"
+        className="flex flex-col gap-1 min-h-[34px] px-4 py-1.5 shrink-0 border-b border-border bg-muted/40 text-xs md:flex-row md:items-center md:justify-between md:gap-2 md:py-0"
+      >
+        <div
+          data-testid="logger-stats-summary"
+          className="flex w-full items-center gap-2 min-w-0 text-fg-secondary md:w-auto"
+        >
           <span className="truncate font-mono">
             {`${formatUnixTime(range.start / 1000)} → ${formatUnixTime(range.end / 1000)}`}
           </span>
           {isNow && (
-            <span className="rounded-full bg-primary-light px-1.5 py-0.5 text-[11px] font-medium text-primary">
+            <span className="shrink-0 whitespace-nowrap rounded-full bg-primary-light px-1.5 py-0.5 text-[11px] font-medium text-primary">
               {t("logs:now")}
             </span>
           )}
           {refreshInterval !== "off" && (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-success-bg px-1.5 py-0.5 text-[11px] font-medium text-success-fg">
+            <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-success-bg px-1.5 py-0.5 text-[11px] font-medium text-success-fg">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
               {`${t("logs:live")} · ${getIntervalLabel(refreshInterval, t)}`}
             </span>
           )}
           <span className="text-muted-foreground">{"·"}</span>
           <span className="shrink-0">
-            {`${t("logs:total_count", { count: logs.length })}，${t("logs:filtered_count", { count: filtered.length })}`}
+            {`${t("logs:total_count", { count: logs.length })} · ${t("logs:filtered_count", { count: filtered.length })}`}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 shrink-0 text-muted-foreground">
+        <div
+          data-testid="logger-clean-schedule"
+          className="flex w-full flex-wrap items-center gap-1.5 text-muted-foreground md:w-auto md:flex-nowrap md:shrink-0"
+        >
           <span>{t("logs:clean_schedule")}</span>
           <input
             type="number"
