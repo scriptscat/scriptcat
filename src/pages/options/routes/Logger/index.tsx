@@ -218,7 +218,7 @@ export default function Logger() {
       {/* 范围 / 统计条 */}
       <div
         data-testid="logger-stats-bar"
-        className="flex flex-col gap-1 min-h-[34px] px-4 py-1.5 shrink-0 border-b border-border bg-muted/40 text-xs md:flex-row md:items-center md:justify-between md:gap-2 md:py-0"
+        className="flex flex-col gap-1 min-h-[34px] px-4 py-1.5 shrink-0 border-b border-border bg-muted/40 text-xs md:flex-row md:flex-wrap md:items-center md:justify-between md:gap-x-2 md:gap-y-1 md:py-1"
       >
         <div
           data-testid="logger-stats-summary"
