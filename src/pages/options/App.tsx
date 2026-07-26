@@ -32,13 +32,13 @@ export function Layout() {
   if (isMobile) {
     if (isFullscreen) {
       return (
-        <div className="flex flex-col h-screen bg-background text-foreground">
+        <div className="flex flex-col h-dvh bg-background text-foreground">
           <Outlet />
         </div>
       );
     }
     return (
-      <div className="flex flex-col h-screen bg-background text-foreground">
+      <div className="flex flex-col h-dvh bg-background text-foreground">
         <MobileHeader />
         <main className="flex-1 min-w-0 overflow-auto scrollbar-custom">
           <Outlet />
@@ -50,7 +50,7 @@ export function Layout() {
   }
   return (
     <>
-      <div className="flex h-screen bg-background text-foreground">
+      <div className="flex h-dvh bg-background text-foreground">
         <Sidebar />
         <main className="flex-1 min-w-0 overflow-auto scrollbar-custom">
           <Outlet />

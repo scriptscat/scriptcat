@@ -188,7 +188,7 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
         .join(" · ");
 
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
+    <div className="flex h-dvh flex-col bg-background text-foreground">
       <header className="flex h-[62px] shrink-0 items-center gap-3 border-b border-border bg-card px-4">
         <PackageCheck className="size-[22px] shrink-0 text-primary" />
         <div className="flex min-w-0 flex-col">
