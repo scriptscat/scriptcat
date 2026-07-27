@@ -5,7 +5,7 @@
 ## 引入
 
 ```js
-// @require https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@main/example/tests/lib/sctest.js
+// @require https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@762f83e9c1091ab4ebbb605f4efc4709b36f6476/example/tests/lib/sctest.js
 ```
 
 e2e 运行时该 URL 会被自动重写到本地 mock server(见 `e2e/gm-api.spec.ts` 的 `patchRequireCode`),

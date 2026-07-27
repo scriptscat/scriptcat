@@ -9,7 +9,7 @@
 // @grant        GM.download
 // @grant        GM_xmlhttpRequest
 // @grant        GM_info
-// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@main/example/tests/lib/sctest.js
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@762f83e9c1091ab4ebbb605f4efc4709b36f6476/example/tests/lib/sctest.js
 // @connect      httpbingo.org
 // @connect      raw.githubusercontent.com
 // @connect      cdn.jsdelivr.net

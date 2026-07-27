@@ -1,4 +1,9 @@
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe as vdescribe, expect as vexpect, it as vit, vi } from "vitest";
+
+const SCTEST_REQUIRE_URL =
+  "https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@762f83e9c1091ab4ebbb605f4efc4709b36f6476/example/tests/lib/sctest.js";
 
 async function loadSCTest() {
   delete globalThis.SCTest;
@@ -326,6 +331,23 @@ vdescribe("sctest 框架内核", () => {
       vexpect(logged[0].msg).toMatch(/○ 组 › 条件不满足 — 需要人工先授权/);
       vexpect(logged[0].labels.status).toBe("skip");
     });
+  });
+});
+
+vdescribe("sctest 用户脚本引用", () => {
+  vit("固定到包含当前框架版本的提交", () => {
+    const testsDir = resolve(import.meta.dirname, "..");
+    const consumers = [
+      ...readdirSync(testsDir).filter((name) => name.endsWith(".js")),
+      "lib/README.md",
+    ];
+
+    for (const name of consumers) {
+      const source = readFileSync(resolve(testsDir, name), "utf8");
+      if (source.includes("/example/tests/lib/sctest.js")) {
+        vexpect(source, name).toMatch(new RegExp(`// @require\\s+${SCTEST_REQUIRE_URL.replaceAll(".", "\\.")}`));
+      }
+    }
   });
 });
 

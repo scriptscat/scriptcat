@@ -6,7 +6,7 @@
 // @author       you
 // @match        *://*/*?GM_XHR_TEST_SC
 // @grant        GM_xmlhttpRequest
-// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@main/example/tests/lib/sctest.js
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@762f83e9c1091ab4ebbb605f4efc4709b36f6476/example/tests/lib/sctest.js
 // @connect      httpbingo.org
 // @connect      nonexistent-domain-abcxyz.test
 // @connect      raw.githubusercontent.com

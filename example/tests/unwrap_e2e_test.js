@@ -6,7 +6,7 @@
 // @author       ScriptCat
 // @match        https://content-security-policy.com/?unwrap_e2e_test
 // @grant        GM_setValue
-// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@main/example/tests/lib/sctest.js
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@762f83e9c1091ab4ebbb605f4efc4709b36f6476/example/tests/lib/sctest.js
 // @unwrap
 // ==/UserScript==
 
