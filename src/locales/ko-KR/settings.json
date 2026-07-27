@@ -124,6 +124,7 @@
   },
   "favicon_service": "파비콘 서비스",
   "favicon_service_desc": "웹사이트 아이콘을 가져올 서비스를 선택하세요",
+  "favicon_service_none": "비활성화",
   "favicon_service_scriptcat": "ScriptCat",
   "favicon_service_google": "Google",
   "favicon_service_duckduckgo": "DuckDuckGo",
