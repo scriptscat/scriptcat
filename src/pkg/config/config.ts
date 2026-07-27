@@ -37,7 +37,8 @@ export const DEFAULT_CLOUD_SYNC_STATE: CloudSyncState = {
   counts: { total: 0, overwrite: 0, conflict: 0, failed: 0 },
 };
 
-export type FaviconService = "scriptcat" | "google" | "duckduckgo" | "icon-horse" | "local";
+// "none" 表示彻底关闭网站图标获取：不向任何图标服务或目标站点发起请求
+export type FaviconService = "none" | "scriptcat" | "google" | "duckduckgo" | "icon-horse" | "local";
 
 export type CATFileStorage = {
   filesystem: FileSystemType;

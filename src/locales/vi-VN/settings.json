@@ -124,6 +124,7 @@
   },
   "favicon_service": "Dịch vụ Favicon",
   "favicon_service_desc": "Chọn dịch vụ để lấy biểu tượng trang web",
+  "favicon_service_none": "Đã tắt",
   "favicon_service_scriptcat": "ScriptCat",
   "favicon_service_google": "Google",
   "favicon_service_duckduckgo": "DuckDuckGo",

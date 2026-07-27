@@ -77,6 +77,7 @@ export function InterfaceSection({ register }: { register: (id: string) => (el: 
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="none">{t("settings:favicon_service_none")}</SelectItem>
             <SelectItem value="scriptcat">{t("settings:favicon_service_scriptcat")}</SelectItem>
             <SelectItem value="google">{t("settings:favicon_service_google")}</SelectItem>
             <SelectItem value="duckduckgo">{t("settings:favicon_service_duckduckgo")}</SelectItem>

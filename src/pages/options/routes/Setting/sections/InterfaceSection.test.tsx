@@ -34,6 +34,13 @@ describe("界面分区-图标服务", () => {
     await screen.findByText("扩展图标徽标");
     expect(screen.getAllByText("扩展图标徽标")).toHaveLength(1);
   });
+
+  // 图标服务可整体关闭：选中 none 时下拉框需回显「禁用」，否则用户无从选择这一档
+  it("图标服务为 none 时下拉框回显禁用", async () => {
+    get.mockImplementation((key: string) => Promise.resolve(key === "favicon_service" ? "none" : ""));
+    render(<InterfaceSection register={() => () => {}} />);
+    expect(await screen.findByText("禁用")).toBeInTheDocument();
+  });
 });
 
 describe("界面分区-popup 布局", () => {
