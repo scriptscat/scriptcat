@@ -60,6 +60,8 @@
   "copy": "Copiar",
   "exclude_on": "Restaurar a execução de $0",
   "exclude_off": "Impedir a execução em $0",
+  "include_on": "Incluir a execução de $0",
+  "include_off": "Remover $0 dos sites permitidos",
   "confirm_error": "Falha na confirmação",
   "import": "Importar",
   "error": "Erro",

@@ -1,9 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   isBase64,
   parseUrlSRI,
   getCombinedMeta,
   selfMetadataUpdate,
+  isSiteAccessOptIn,
+  getSiteAccessPatterns,
+  isSiteAccessAllowed,
   getUserScriptRegister,
   compileInjectionCode,
   shouldAutoOpenChangelog,
@@ -164,6 +167,15 @@ describe.concurrent("getCombinedMeta", () => {
     expect(result.grant).toEqual([]);
     expect(result.exclude).toEqual(["https://admin.com/*"]);
   });
+
+  it.concurrent("应该合并 site-access 的脚本默认值与用户自定义值", () => {
+    const result = getCombinedMeta(
+      { "site-access": ["opt-in", "+https://script.com/*"] },
+      { "site-access": ["+https://user.com/*"] }
+    );
+
+    expect(result["site-access"]).toEqual(["opt-in", "+https://script.com/*", "+https://user.com/*"]);
+  });
 });
 
 describe.concurrent("selfMetadataUpdate", () => {
@@ -253,6 +265,38 @@ describe.concurrent("selfMetadataUpdate", () => {
   });
 });
 
+describe.concurrent("@site-access opt-in", () => {
+  it.concurrent("应识别 opt-in 声明而忽略其他 site-access 值", () => {
+    expect(isSiteAccessOptIn({ "site-access": ["opt-in"] })).toBe(true);
+    expect(isSiteAccessOptIn({ "site-access": ["opt-out"] })).toBe(false);
+    expect(isSiteAccessOptIn({ "site-access": ["+*://example.com/*"] })).toBe(false);
+  });
+
+  it.concurrent("应提取作者默认与用户自定义的加号站点规则", () => {
+    expect(getSiteAccessPatterns({ "site-access": ["opt-in", " +*://example.com/*", "invalid"] })).toEqual([
+      "+*://example.com/*",
+    ]);
+  });
+
+  it.concurrent("只有当前网址命中 site-access 加号规则时才允许 opt-in 脚本", () => {
+    const script = {
+      metadata: { "site-access": ["opt-in", "+*://example.com/*"] },
+      selfMetadata: { "site-access": ["+*://user.com/*"] },
+    };
+
+    expect(isSiteAccessAllowed(script, "https://example.com/page")).toBe(true);
+    expect(isSiteAccessAllowed(script, "https://user.com/page")).toBe(true);
+    expect(isSiteAccessAllowed(script, "https://other.com/page")).toBe(false);
+    expect(
+      isSiteAccessAllowed(
+        { metadata: { "site-access": ["opt-in", "+*example.com/tools*"] } },
+        "https://example.com/tools/a"
+      )
+    ).toBe(true);
+    expect(isSiteAccessAllowed({ metadata: { "site-access": ["opt-in"] } }, "https://example.com/page")).toBe(false);
+  });
+});
+
 describe.concurrent("getUserScriptRegister", () => {
   it.concurrent("should return a valid RegisteredUserScript object", () => {
     const mockScriptMatchInfo: ScriptMatchInfo = {
@@ -297,6 +341,31 @@ describe.concurrent("getUserScriptRegister", () => {
     expect(result.registerScript.allFrames).toBe(false);
     expect(result.registerScript.world).toBe("MAIN");
     expect(result.registerScript.runAt).toBe("document_end");
+  });
+
+  it.concurrent("opt-in 注册范围应先收窄到 site-access 规则", () => {
+    const mockScriptMatchInfo: ScriptMatchInfo = {
+      uuid: "opt-in-uuid",
+      name: "Opt-in Script",
+      metadata: {
+        match: ["*://*/*"],
+        "site-access": ["opt-in", "+https://allowed.com/*"],
+      },
+      scriptUrlPatterns: extractUrlPatterns(["@match *://*/*"]),
+      originalUrlPatterns: [],
+      namespace: "test",
+      type: SCRIPT_TYPE_NORMAL,
+      status: SCRIPT_STATUS_ENABLE,
+      sort: 0,
+      runStatus: SCRIPT_RUN_STATUS_COMPLETE,
+      createtime: Date.now(),
+      checktime: Date.now(),
+    };
+
+    const result = getUserScriptRegister(mockScriptMatchInfo);
+
+    expect(result.registerScript.matches).toEqual(["https://allowed.com/*"]);
+    expect(result.registerScript.includeGlobs).toEqual([]);
   });
 });
 
@@ -347,5 +416,70 @@ describe.concurrent("compileInjectionCode", () => {
     expect(result).toContain("return(async function(){");
     // 使用 compileInjectScript 包裹（window[flag] = function(){...}）
     expect(result).toContain("window['#-test-uuid']");
+  });
+
+  const createOptInScriptRes = (metadata: SCMetadata): ScriptRunResource =>
+    createMockScriptRes({
+      code: "void 0;",
+      metadata,
+    });
+
+  const executeInjection = (code: string, href: string) => {
+    const fakeWindow: Record<string, unknown> = {};
+    const fakePerformance = {
+      dispatchEvent: vi.fn(() => false),
+      addEventListener: vi.fn(),
+    };
+    class FakeCustomEvent {
+      constructor(
+        readonly type: string,
+        readonly init?: unknown
+      ) {}
+    }
+    new Function("window", "location", "performance", "CustomEvent", code)(
+      fakeWindow,
+      { href },
+      fakePerformance,
+      FakeCustomEvent
+    );
+    return fakeWindow;
+  };
+
+  it.concurrent("普通 opt-in 脚本在拒绝网址不应暴露可调用函数", () => {
+    const scriptRes = createOptInScriptRes({
+      match: ["*://*/*"],
+      "site-access": ["opt-in", "+https://allowed.com/*"],
+    });
+    const result = compileInjectionCode(scriptRes, scriptRes.code, extractUrlPatterns(["@match *://*/*"]));
+
+    expect(executeInjection(result, "https://denied.com/page")["#-test-uuid"]).toBeUndefined();
+    expect(typeof executeInjection(result, "https://allowed.com/page")["#-test-uuid"]).toBe("function");
+  });
+
+  it.concurrent("early-start opt-in 脚本在拒绝网址不应注册函数或发出加载事件", () => {
+    const scriptRes = createOptInScriptRes({
+      match: ["*://*/*"],
+      "site-access": ["opt-in", "+https://allowed.com/*"],
+      "early-start": [""],
+      "run-at": ["document-start"],
+    });
+    const result = compileInjectionCode(scriptRes, scriptRes.code, extractUrlPatterns(["@match *://*/*"]));
+
+    const deniedWindow = executeInjection(result, "https://denied.com/page");
+    const allowedWindow = executeInjection(result, "https://allowed.com/page");
+    expect(deniedWindow["#-test-uuid"]).toBeUndefined();
+    expect(typeof allowedWindow["#-test-uuid"]).toBe("function");
+  });
+
+  it.concurrent("unwrap opt-in 脚本在拒绝网址不应执行或注册标记函数", () => {
+    const scriptRes = createOptInScriptRes({
+      match: ["*://*/*"],
+      "site-access": ["opt-in", "+https://allowed.com/*"],
+      unwrap: [""],
+    });
+    const result = compileInjectionCode(scriptRes, scriptRes.code, extractUrlPatterns(["@match *://*/*"]));
+
+    expect(executeInjection(result, "https://denied.com/page")["#-test-uuid"]).toBeUndefined();
+    expect(typeof executeInjection(result, "https://allowed.com/page")["#-test-uuid"]).toBe("function");
   });
 });

@@ -78,7 +78,8 @@ export function getScriptRequire(scriptRes: ScriptRunResource): CompileScriptCod
 export function compileScriptletCode(
   scriptRes: ScriptRunResource,
   scriptCode: string,
-  scriptUrlPatterns: URLRuleEntry[]
+  scriptUrlPatterns: URLRuleEntry[],
+  executionCondition?: string
 ): string {
   scriptCode = scriptCode ?? scriptRes.code;
   const requireArray = getScriptRequire(scriptRes);
@@ -89,7 +90,8 @@ export function compileScriptletCode(
     ruleContent,
   })) satisfies EmbeddedURLRuleEntry[];
   const urlCondition = embeddedPatternCheckerString("location.href", JSON.stringify(reducedPatterns));
-  const codeBody = `if(${urlCondition}){\n${requireCode}\n${scriptCode}\nwindow['${scriptRes.flag}']=function(){};\n}`;
+  const condition = executionCondition ? `&&(${executionCondition})` : "";
+  const codeBody = `if(${urlCondition}${condition}){\n${requireCode}\n${scriptCode}\nwindow['${scriptRes.flag}']=function(){};\n}`;
   return `${codeBody}${sourceMapTo(`${scriptRes.name}.user.js`)}\n`;
 }
 
@@ -171,18 +173,21 @@ export function compileScript(code: string): ScriptFunc {
 export function compileInjectScript(
   script: ScriptRunResource,
   scriptCode: string,
-  autoDeleteMountFunction: boolean = false
+  autoDeleteMountFunction: boolean = false,
+  executionCondition?: string
 ): string {
-  return compileInjectScriptByFlag(script.flag, scriptCode, autoDeleteMountFunction);
+  return compileInjectScriptByFlag(script.flag, scriptCode, autoDeleteMountFunction, executionCondition);
 }
 
 export function compileInjectScriptByFlag(
   flag: string,
   scriptCode: string,
-  autoDeleteMountFunction: boolean = false
+  autoDeleteMountFunction: boolean = false,
+  executionCondition?: string
 ): string {
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
-  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
+  const code = `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
+  return executionCondition ? `if(${executionCondition}){${code}}` : code;
 }
 
 /**
@@ -224,7 +229,8 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
 export function compilePreInjectScript(
   script: ScriptLoadInfo,
   scriptCode: string,
-  autoDeleteMountFunction: boolean = false
+  autoDeleteMountFunction: boolean = false,
+  executionCondition?: string
 ): string {
   const scriptEnvTag = isInjectIntoContent(script.metadata) ? ScriptEnvTag.content : ScriptEnvTag.inject;
   const eventNamePrefix = `evt${process.env.SC_RANDOM_KEY}.${scriptEnvTag}`; // 仅用于early-start初始化
@@ -234,15 +240,15 @@ export function compilePreInjectScript(
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
   const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
   const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
-  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
+  const code = `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
 {
   let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
   c = typeof cloneInto === "function" ? cloneInto(o, performance) : o,
   f = () => performance.dispatchEvent(new CustomEvent('${evScriptLoad}', c)),
   needWait = f();
   if (needWait) performance.addEventListener('${evEnvLoad}', f, { once: true });
-}
-`;
+}`;
+  return executionCondition ? `if(${executionCondition}){\n${code}\n}\n` : `${code}\n`;
 }
 
 export function addStyle(css: string): HTMLStyleElement {

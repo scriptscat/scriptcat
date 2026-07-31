@@ -37,8 +37,18 @@ const sampleScript = () => ({
   downloadUrl: "https://example.com/a.user.js",
   updatetime: 1_700_000_000_000,
   createtime: 1_690_000_000_000,
-  metadata: { version: ["1.0.0"], match: ["*://script.com/*"], exclude: [], tag: ["alpha,beta"] },
-  selfMetadata: { match: ["*://script.com/*", "*://user.com/*"], exclude: ["*://exclude.com/*"] },
+  metadata: {
+    version: ["1.0.0"],
+    match: ["*://script.com/*"],
+    exclude: [],
+    "site-access": ["opt-in", "+*://script.com/*"],
+    tag: ["alpha,beta"],
+  },
+  selfMetadata: {
+    match: ["*://script.com/*", "*://user.com/*"],
+    exclude: ["*://exclude.com/*"],
+    "site-access": ["+*://user.com/*"],
+  },
 });
 
 const samplePermissions = () => [
@@ -209,9 +219,9 @@ describe("SettingsPane 网站匹配/排除", () => {
     expect(await screen.findByText("*://script.com/*")).toBeInTheDocument();
     expect(screen.getByText("*://user.com/*")).toBeInTheDocument();
     expect(screen.getByText("*://exclude.com/*")).toBeInTheDocument();
-    // script.com 来自脚本元数据(脚本)，user.com / exclude.com 为用户添加(用户)
-    expect(screen.getByText(t("editor:from_script"))).toBeInTheDocument();
-    expect(screen.getAllByText(t("editor:from_user")).length).toBe(2);
+    // script.com 来自脚本元数据(脚本)，user.com / exclude.com / site-access user.com 为用户添加(用户)
+    expect(screen.getAllByText(t("editor:from_script")).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText(t("editor:from_user")).length).toBe(3);
   });
 
   it("删除用户匹配应以剩余规则调用 resetMatch", async () => {
@@ -299,7 +309,7 @@ describe("SettingsPane 网站匹配/排除", () => {
     // 用户添加的 user.com 被清除，脚本自带的 script.com 应保留并标记为「脚本」
     expect(screen.getByText("*://script.com/*")).toBeInTheDocument();
     expect(screen.queryByText("*://user.com/*")).toBeNull();
-    expect(screen.getByText(t("editor:from_script"))).toBeInTheDocument();
+    expect(screen.getAllByText(t("editor:from_script")).length).toBeGreaterThanOrEqual(2);
   });
 
   it("重置排除后应恢复脚本自带规则而非清空列表", async () => {
@@ -330,6 +340,52 @@ describe("SettingsPane 网站匹配/排除", () => {
     expect(resetMatch).toHaveBeenCalledWith("u1", []);
     expect(screen.queryByText("*://script.com/*")).toBeNull();
     expect(screen.getByText(t("no_data"))).toBeInTheDocument();
+  });
+});
+
+describe("SettingsPane site-access", () => {
+  it("应展示作者默认与用户自定义的 opt-in 站点", async () => {
+    render(<SettingsPane uuid="u1" />);
+
+    expect(await screen.findByText("+*://script.com/*")).toBeInTheDocument();
+    expect(screen.getByText("+*://user.com/*")).toBeInTheDocument();
+    expect(screen.getAllByText(t("editor:from_script")).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText(t("editor:from_user")).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("删除用户自定义 site-access 应更新自定义元数据", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("+*://user.com/*");
+
+    fireEvent.click(screen.getByLabelText(`${t("delete")} +*://user.com/*`));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "site-access", undefined);
+  });
+
+  it("添加 site-access 应只写入用户自定义的加号规则", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("+*://user.com/*");
+
+    fireEvent.click(screen.getByText(t("editor:add_site_access"), { selector: "button" }));
+    fireEvent.change(screen.getByLabelText(t("editor:bulk_values")), {
+      target: { value: "https://new.example.com/*" },
+    });
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "site-access", ["+*://user.com/*", "+https://new.example.com/*"]);
+  });
+
+  it("重置 site-access 应恢复作者默认站点", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("+*://user.com/*");
+
+    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[2]);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "site-access", undefined);
+    expect(screen.getByText("+*://script.com/*")).toBeInTheDocument();
+    expect(screen.queryByText("+*://user.com/*")).toBeNull();
   });
 });
 
@@ -392,8 +448,8 @@ describe("SettingsPane 授权管理(CORS)", () => {
   it("重置授权应调用 resetPermission 并清空列表", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("a.com");
-    // 第三个重置按钮为授权管理
-    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[2]);
+    // 第四个重置按钮为授权管理
+    fireEvent.click(screen.getAllByText(t("reset"), { selector: "button" })[3]);
     await act(async () => fireEvent.click(screen.getByText(t("confirm"), { selector: "button" })));
     expect(resetPermission).toHaveBeenCalledWith("u1");
     expect(screen.queryByText("a.com")).toBeNull();

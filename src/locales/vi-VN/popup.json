@@ -1,6 +1,7 @@
 {
   "new_version_available": "Phiên bản mới có sẵn",
   "current_page_scripts": "Script đang chạy trên trang hiện tại",
+  "opt_in_scripts": "Script chỉ chạy trên trang được chọn",
   "enabled_background_scripts": "Script nền đã bật và đang chạy",
   "develop_mode_guide": "'Chế độ nhà phát triển' hiện chưa được bật, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉Nhấn để xem cách bật</a>",
   "lower_version_browser_guide": "Trình duyệt của bạn quá cũ, nên các script không thể hoạt động đúng cách. <a href=\"https://docs.scriptcat.org/en/docs/use/open-dev/\" target=\"black\">👉Nhấn để xem thêm</a>",

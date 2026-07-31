@@ -84,12 +84,13 @@ export function usePopupData() {
   const initialData = popupData.data;
   const [initialized, setInitialized] = useState(!!initialData);
   const [scriptList, setScriptList] = useState<ScriptMenu[]>(initialData?.scriptList ?? []);
+  const [optInScriptList, setOptInScriptList] = useState<ScriptMenu[]>(initialData?.optInScriptList ?? []);
   const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>(initialData?.backScriptList ?? []);
   const [isBlacklist, setIsBlacklist] = useState(initialData?.isBlacklist ?? false);
   const [currentUrl, setCurrentUrl] = useState(initialData?.url ?? "");
   const [currentTabId, setCurrentTabId] = useState(initialData?.tabId ?? -1);
   const [searchQuery, setSearchQuery] = useState("");
-  const [expandedSections, setExpandedSections] = useState({ current: false, background: false });
+  const [expandedSections, setExpandedSections] = useState({ current: false, optIn: false, background: false });
   const [isEnableScript, setIsEnableScript] = useState(initialData?.isEnableScript ?? true);
   const [errorMessage, setErrorMessage] = useState("");
   const [checkUpdate, setCheckUpdate] = useState<{ notice: string; version: string; isRead: boolean }>(
@@ -120,7 +121,9 @@ export function usePopupData() {
     try {
       const res = await popupClient.getPopupData({ tabId, url });
       res.scriptList.sort(scriptListSorter);
+      res.optInScriptList.sort(scriptListSorter);
       setScriptList(res.scriptList);
+      setOptInScriptList(res.optInScriptList);
       setBackScriptList(res.backScriptList);
       setIsBlacklist(res.isBlacklist);
     } catch (e) {
@@ -132,6 +135,7 @@ export function usePopupData() {
   // 在渲染期把快照一次性同步进本地 state（React 推荐的「渲染期同步外部数据」写法，避免 effect 级联渲染）。
   if (initialData && !initialized) {
     setScriptList(initialData.scriptList);
+    setOptInScriptList(initialData.optInScriptList);
     setBackScriptList(initialData.backScriptList);
     setIsBlacklist(initialData.isBlacklist);
     setCurrentUrl(initialData.url);
@@ -166,6 +170,7 @@ export function usePopupData() {
         const patch = (prev: ScriptMenu[]) =>
           prev.map((s) => (map.has(s.uuid) ? { ...s, enable: map.get(s.uuid)! } : s));
         setScriptList(patch);
+        setOptInScriptList(patch);
         setBackScriptList(patch);
       }),
       // 脚本被删除(= 移入回收站,广播 trashScripts);彻底删除时脚本早已不在列表里,无事可做
@@ -173,6 +178,7 @@ export function usePopupData() {
         if (!Array.isArray(data)) return;
         const uuids = new Set(data.map((d) => d.uuid));
         setScriptList((prev) => prev.filter((s) => !uuids.has(s.uuid)));
+        setOptInScriptList((prev) => prev.filter((s) => !uuids.has(s.uuid)));
         setBackScriptList((prev) => prev.filter((s) => !uuids.has(s.uuid)));
       }),
       // 后台脚本运行状态变更
@@ -224,6 +230,7 @@ export function usePopupData() {
     async (uuid: string, enable: boolean) => {
       const patch = (prev: ScriptMenu[]) => prev.map((s) => (s.uuid === uuid ? { ...s, enable } : s));
       setScriptList(patch);
+      setOptInScriptList(patch);
       setBackScriptList(patch);
       try {
         await scriptClient.enable(uuid, enable);
@@ -231,6 +238,7 @@ export function usePopupData() {
         // 回滚
         const revert = (prev: ScriptMenu[]) => prev.map((s) => (s.uuid === uuid ? { ...s, enable: !enable } : s));
         setScriptList(revert);
+        setOptInScriptList(revert);
         setBackScriptList(revert);
         showError(String(e));
       }
@@ -272,6 +280,41 @@ export function usePopupData() {
       console.error("Failed to toggle exclude:", e);
     }
   }, []);
+
+  const handleIncludeUrl = useCallback(
+    async (uuid: string) => {
+      const host = extractHost(stateRef.current.currentUrl);
+      if (!host) return;
+      try {
+        await scriptClient.includeUrl(uuid, `*://${host}/*`);
+        const tabId = stateRef.current.currentTabId;
+        if (tabId >= 0) {
+          await chrome.tabs.reload(tabId);
+        }
+      } catch (e) {
+        showError(String(e));
+      }
+    },
+    [showError]
+  );
+
+  const handleRemoveIncludeUrl = useCallback(
+    async (uuid: string) => {
+      const host = extractHost(stateRef.current.currentUrl);
+      if (!host) return;
+      try {
+        const changed = await scriptClient.excludeSiteAccessUrl(uuid, `*://${host}/*`);
+        if (!changed) return;
+        const tabId = stateRef.current.currentTabId;
+        if (tabId >= 0) {
+          await chrome.tabs.reload(tabId);
+        }
+      } catch (e) {
+        showError(String(e));
+      }
+    },
+    [showError]
+  );
 
   /** 调用方需从 script.menus 中按 groupKey 过滤出所有匹配项传入 */
   const handleMenuClick = useCallback(async (uuid: string, menus: ScriptMenuItem[], inputValue?: any) => {
@@ -351,7 +394,7 @@ export function usePopupData() {
     setSearchQuery(query);
   }, []);
 
-  const handleToggleExpand = useCallback((section: "current" | "background") => {
+  const handleToggleExpand = useCallback((section: "current" | "optIn" | "background") => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   }, []);
 
@@ -359,14 +402,21 @@ export function usePopupData() {
 
   const host = extractHost(currentUrl);
   const filteredScriptList = filterScripts(scriptList, searchQuery);
+  const filteredOptInScriptList = filterScripts(optInScriptList, searchQuery);
   const filteredBackScriptList = filterScripts(backScriptList, searchQuery);
-  const totalScriptCount = scriptList.length + backScriptList.length;
+  const totalScriptCount = scriptList.length + optInScriptList.length + backScriptList.length;
   const showSearch = totalScriptCount > EXPAND_LIMIT;
 
   const displayScriptList = expandedSections.current ? filteredScriptList : filteredScriptList.slice(0, EXPAND_LIMIT);
   const remainingCurrentCount = filteredScriptList.length - displayScriptList.length;
   // 超过展示上限即可展开/收起：折叠时显示「显示更多」，展开时显示「收起」
   const canExpandCurrent = filteredScriptList.length > EXPAND_LIMIT;
+
+  const displayOptInScriptList = expandedSections.optIn
+    ? filteredOptInScriptList
+    : filteredOptInScriptList.slice(0, EXPAND_LIMIT);
+  const remainingOptInCount = filteredOptInScriptList.length - displayOptInScriptList.length;
+  const canExpandOptIn = filteredOptInScriptList.length > EXPAND_LIMIT;
 
   const displayBackScriptList = expandedSections.background
     ? filteredBackScriptList
@@ -376,29 +426,39 @@ export function usePopupData() {
 
   const backRunningCount = backScriptList.filter((s) => s.runStatus === SCRIPT_RUN_STATUS_RUNNING).length;
   const enabledScriptCount = scriptList.filter((s) => s.enable).length;
+  const enabledOptInScriptCount = optInScriptList.filter((s) => s.enable).length;
   const enabledBackScriptCount = backScriptList.filter((s) => s.enable).length;
 
   // 全量脚本（未经搜索过滤/分段截断）：用于 accessKey 快捷键注册，确保对所有脚本生效
-  const allScripts = useMemo(() => [...scriptList, ...backScriptList], [scriptList, backScriptList]);
+  const allScripts = useMemo(
+    () => [...scriptList, ...optInScriptList, ...backScriptList],
+    [scriptList, optInScriptList, backScriptList]
+  );
 
   return {
     loading: !initialized && !popupData.isError,
     isBlacklist,
     host,
     scriptList: displayScriptList,
+    optInScriptList: displayOptInScriptList,
     backScriptList: displayBackScriptList,
     allScripts,
     fullScriptCount: filteredScriptList.length,
+    fullOptInScriptCount: filteredOptInScriptList.length,
     fullBackScriptCount: filteredBackScriptList.length,
     remainingCurrentCount,
+    remainingOptInCount,
     remainingBackCount,
     canExpandCurrent,
+    canExpandOptIn,
     canExpandBack,
     isCurrentExpanded: expandedSections.current,
+    isOptInExpanded: expandedSections.optIn,
     isBackExpanded: expandedSections.background,
     totalScriptCount,
     backRunningCount,
     enabledScriptCount,
+    enabledOptInScriptCount,
     enabledBackScriptCount,
     errorMessage,
     showSearch,
@@ -408,6 +468,8 @@ export function usePopupData() {
     handleOpenEditor,
     handleOpenUserConfig,
     handleExcludeUrl,
+    handleIncludeUrl,
+    handleRemoveIncludeUrl,
     handleMenuClick,
     handleRunScript,
     handleStopScript,

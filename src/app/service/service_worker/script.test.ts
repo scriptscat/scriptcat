@@ -611,6 +611,7 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
     mockGroup = server.group("script");
     mockMessageQueue = new MessageQueue();
     mockMessageQueue.publish = vi.fn();
+    mockMessageQueue.publishAndWait = vi.fn().mockResolvedValue(undefined);
 
     mockScriptDAO = {
       get: vi.fn(),
@@ -655,6 +656,78 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
       await scriptService.excludeUrl({ uuid: script.uuid, excludePattern: "*://user.com/*", remove: false });
 
       expect(savedSelfMetadata()).toEqual({ exclude: ["*://ads.script.com/*", "*://user.com/*"] });
+    });
+  });
+
+  describe("includeUrl - popup 加入 opt-in 白名单", () => {
+    it("应等待 installScript 处理器完成注册后才返回", async () => {
+      const script = createMockScript({
+        metadata: { match: ["*://script.com/*"], "site-access": ["opt-in"] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+      let resolveRegistration!: () => void;
+      const registration = new Promise<void>((resolve) => {
+        resolveRegistration = resolve;
+      });
+      vi.mocked(mockMessageQueue.publishAndWait).mockReturnValue(registration);
+
+      let settled = false;
+      const includePromise = scriptService.includeUrl({ uuid: script.uuid, includePattern: "*://user.com/*" });
+      void includePromise.then(() => {
+        settled = true;
+      });
+      await vi.waitFor(() => expect(mockMessageQueue.publishAndWait).toHaveBeenCalled());
+
+      expect(settled).toBe(false);
+      expect(mockMessageQueue.publishAndWait).toHaveBeenCalledWith(
+        "installScript",
+        expect.objectContaining({ script: expect.objectContaining({ uuid: script.uuid }), update: true })
+      );
+
+      resolveRegistration();
+      await expect(includePromise).resolves.toBe(true);
+      expect(settled).toBe(true);
+    });
+
+    it("应追加当前网址到用户自定义 site-access 覆盖中", async () => {
+      const script = createMockScript({
+        metadata: { match: ["*://script.com/*"], "site-access": ["opt-in", "+*://default.com/*"] },
+        selfMetadata: { "site-access": ["+*://existing.com/*"] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.includeUrl({ uuid: script.uuid, includePattern: "*://user.com/*" });
+
+      expect(savedSelfMetadata()).toEqual({ "site-access": ["+*://existing.com/*", "+*://user.com/*"] });
+      expect(mockMessageQueue.publishAndWait).toHaveBeenCalled();
+    });
+
+    it("移除不存在的精确用户规则时应返回 false 且不广播更新", async () => {
+      const script = createMockScript({
+        metadata: { match: ["*://script.com/*"], "site-access": ["opt-in"] },
+        selfMetadata: { "site-access": ["+*://*.example.com/*"] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await expect(
+        scriptService.excludeSiteAccessUrl({ uuid: script.uuid, includePattern: "*://example.com/*" })
+      ).resolves.toBe(false);
+
+      expect(mockScriptDAO.update).not.toHaveBeenCalled();
+      expect(mockMessageQueue.publishAndWait).not.toHaveBeenCalled();
+    });
+
+    it("应从用户自定义 site-access 覆盖中移除当前网址并保留作者默认值", async () => {
+      const script = makeScript({
+        metadata: { match: ["*://script.com/*"], "site-access": ["opt-in", "+*://default.com/*"] },
+        selfMetadata: { "site-access": ["+*://existing.com/*", "+*://user.com/*"] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.excludeSiteAccessUrl({ uuid: script.uuid, includePattern: "*://user.com/*" });
+
+      expect(savedSelfMetadata()).toEqual({ "site-access": ["+*://existing.com/*"] });
+      expect(mockMessageQueue.publishAndWait).toHaveBeenCalled();
     });
   });
 

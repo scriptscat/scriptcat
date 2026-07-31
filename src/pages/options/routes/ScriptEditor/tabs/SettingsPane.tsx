@@ -26,6 +26,7 @@ import {
 } from "@App/pages/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
 import { createPreloadableQuery } from "@App/pages/preloadable-query";
+import { getSiteAccessPatterns, isSiteAccessOptIn } from "@App/app/service/service_worker/utils";
 
 const RUN_IN_OPTIONS = ["default", "all", "normal-tabs", "incognito-tabs"];
 const RUN_AT_OPTIONS = ["default", "document-start", "document-body", "document-end", "document-idle", "early-start"];
@@ -173,7 +174,12 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
     return self.exclude ?? meta.exclude ?? [];
   });
   const [permissions, setPermissions] = useState<Permission[]>(data.permissions);
-  const [bulkMatchKind, setBulkMatchKind] = useState<"match" | "exclude" | null>(null);
+  const [siteAccess, setSiteAccess] = useState<string[]>(() => {
+    const meta = data.script.metadata || {};
+    const self = data.script.selfMetadata || {};
+    return [...new Set([...getSiteAccessPatterns(meta), ...getSiteAccessPatterns(self)])];
+  });
+  const [bulkMatchKind, setBulkMatchKind] = useState<"match" | "exclude" | "site-access" | null>(null);
   const [bulkMatchValue, setBulkMatchValue] = useState("");
   const [bulkPermOpen, setBulkPermOpen] = useState(false);
   const [bulkPermDraft, setBulkPermDraft] = useState<{ permission: string; allow: boolean; values: string }>({
@@ -186,6 +192,8 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
   const self = script.selfMetadata || {};
   const metaMatch = meta.match ?? [];
   const metaExclude = meta.exclude ?? [];
+  const metaSiteAccess = getSiteAccessPatterns(meta);
+  const selfSiteAccess = getSiteAccessPatterns(self);
 
   const runIn = self["run-in"]?.[0] ?? meta["run-in"]?.[0] ?? "default";
   const runAt = self["early-start"] ? "early-start" : (self["run-at"]?.[0] ?? meta["run-at"]?.[0] ?? "default");
@@ -260,18 +268,35 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
     }
     patchSelf({ [kind]: next });
   };
-  const openBulkMatch = (kind: "match" | "exclude") => {
+  const setSiteAccessList = (next: string[] | undefined) => {
+    const custom = next?.length ? [...new Set(next)] : undefined;
+    void scriptClient.updateMetadata(uuid, "site-access", custom);
+    setSiteAccess(custom ? [...new Set([...metaSiteAccess, ...custom])] : metaSiteAccess);
+    patchSelf({ "site-access": custom });
+  };
+  const openBulkMatch = (kind: "match" | "exclude" | "site-access") => {
     setBulkMatchValue("");
     setBulkMatchKind(kind);
   };
   const bulkMatchParsed = parseBulkValues(
     bulkMatchValue,
-    bulkMatchKind === "match" ? matches : bulkMatchKind === "exclude" ? excludes : []
+    bulkMatchKind === "match"
+      ? matches
+      : bulkMatchKind === "exclude"
+        ? excludes
+        : bulkMatchKind === "site-access"
+          ? siteAccess
+          : []
   );
   const submitBulkMatch = () => {
     if (!bulkMatchKind || bulkMatchParsed.entries.length === 0) return;
-    const list = bulkMatchKind === "match" ? matches : excludes;
-    setMatchList(bulkMatchKind, [...list, ...bulkMatchParsed.entries]);
+    if (bulkMatchKind === "site-access") {
+      const entries = bulkMatchParsed.entries.map((value) => (value.startsWith("+") ? value : `+${value}`));
+      setSiteAccessList([...selfSiteAccess, ...entries]);
+    } else {
+      const list = bulkMatchKind === "match" ? matches : excludes;
+      setMatchList(bulkMatchKind, [...list, ...bulkMatchParsed.entries]);
+    }
     setBulkMatchKind(null);
     setBulkMatchValue("");
   };
@@ -352,31 +377,46 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
     </div>
   );
 
-  const matchTable = (kind: "match" | "exclude") => {
-    const list = kind === "match" ? matches : excludes;
-    const metaList = kind === "match" ? metaMatch : metaExclude;
+  const matchTable = (kind: "match" | "exclude" | "site-access") => {
+    const isSiteAccess = kind === "site-access";
+    const list = kind === "match" ? matches : kind === "exclude" ? excludes : siteAccess;
+    const metaList = kind === "match" ? metaMatch : kind === "exclude" ? metaExclude : metaSiteAccess;
     return (
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center">
-          <SectionTitle>{t(kind === "match" ? "editor:website_match" : "editor:website_exclude")}</SectionTitle>
+          <SectionTitle>
+            {t(
+              kind === "match"
+                ? "editor:website_match"
+                : kind === "exclude"
+                  ? "editor:website_exclude"
+                  : "editor:website_site_access"
+            )}
+          </SectionTitle>
           <div className="flex-1" />
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => openBulkMatch(kind)}>
               <Plus className="size-3.5" />
-              {t(kind === "match" ? "editor:add_match" : "editor:add_exclude")}
+              {t(
+                kind === "match"
+                  ? "editor:add_match"
+                  : kind === "exclude"
+                    ? "editor:add_exclude"
+                    : "editor:add_site_access"
+              )}
             </Button>
             <Popconfirm
               description={t("editor:confirm_reset")}
               destructive
               confirmText={t("confirm")}
               cancelText={t("editor:cancel")}
-              onConfirm={() => setMatchList(kind, undefined)}
+              onConfirm={() => (isSiteAccess ? setSiteAccessList(undefined) : setMatchList(kind, undefined))}
             >
               <Button
                 size="sm"
                 variant="ghost"
                 className="text-warning hover:bg-warning/10 hover:text-warning"
-                disabled={list.length === 0}
+                disabled={isSiteAccess ? selfSiteAccess.length === 0 : list.length === 0}
               >
                 <RotateCcw className="size-3.5" />
                 {t("reset")}
@@ -386,12 +426,18 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
         </div>
 
         <p className="text-xs text-muted-foreground">
-          {t(kind === "match" ? "editor:after_deleting_match_item" : "editor:after_deleting_exclude_item")}
+          {t(
+            kind === "match"
+              ? "editor:after_deleting_match_item"
+              : kind === "exclude"
+                ? "editor:after_deleting_exclude_item"
+                : "editor:after_deleting_site_access_item"
+          )}
         </p>
 
         <Card>
           <DataPanelHeader>
-            <span className="min-w-0 flex-1">{t("editor:match")}</span>
+            <span className="min-w-0 flex-1">{t(isSiteAccess ? "editor:site_access" : "editor:match")}</span>
             <span className="w-24 shrink-0">{t("editor:source")}</span>
             <span className="w-16 shrink-0 text-right">{t("action")}</span>
           </DataPanelHeader>
@@ -411,28 +457,36 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
                     </span>
                   </span>
                   <div className="flex w-16 shrink-0 justify-end">
-                    <Popconfirm
-                      description={t(
-                        kind === "match" ? "editor:confirm_delete_match" : "editor:confirm_delete_exclude"
-                      )}
-                      destructive
-                      confirmText={t("confirm")}
-                      cancelText={t("editor:cancel")}
-                      onConfirm={() =>
-                        setMatchList(
-                          kind,
-                          list.filter((x) => x !== m)
-                        )
-                      }
-                    >
-                      <button
-                        type="button"
-                        aria-label={`${t("delete")} ${m}`}
-                        className={cn(iconBtn, "hover:text-destructive")}
+                    {(!isSiteAccess || byUser) && (
+                      <Popconfirm
+                        description={t(
+                          kind === "match"
+                            ? "editor:confirm_delete_match"
+                            : kind === "exclude"
+                              ? "editor:confirm_delete_exclude"
+                              : "editor:confirm_delete_site_access"
+                        )}
+                        destructive
+                        confirmText={t("confirm")}
+                        cancelText={t("editor:cancel")}
+                        onConfirm={() =>
+                          isSiteAccess
+                            ? setSiteAccessList(selfSiteAccess.filter((x) => x !== m))
+                            : setMatchList(
+                                kind,
+                                list.filter((x) => x !== m)
+                              )
+                        }
                       >
-                        <Trash2 className="size-3.5" />
-                      </button>
-                    </Popconfirm>
+                        <button
+                          type="button"
+                          aria-label={`${t("delete")} ${m}`}
+                          className={cn(iconBtn, "hover:text-destructive")}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </Popconfirm>
+                    )}
                   </div>
                 </DataPanelRow>
               );
@@ -550,6 +604,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
         {/* 网站匹配 / 网站排除 */}
         {matchTable("match")}
         {matchTable("exclude")}
+        {isSiteAccessOptIn(meta) && matchTable("site-access")}
 
         {/* 授权管理 */}
         <div className="flex flex-col gap-2.5">
@@ -635,12 +690,22 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
         </div>
       </div>
 
-      {/* 添加匹配 / 排除弹窗 */}
+      {/* 添加匹配 / 排除 / site-access 弹窗 */}
       <Dialog open={!!bulkMatchKind} onOpenChange={(open) => !open && setBulkMatchKind(null)}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{t(bulkMatchKind === "exclude" ? "editor:add_exclude" : "editor:add_match")}</DialogTitle>
-            <DialogDescription>{t("editor:bulk_match_desc")}</DialogDescription>
+            <DialogTitle>
+              {t(
+                bulkMatchKind === "exclude"
+                  ? "editor:add_exclude"
+                  : bulkMatchKind === "site-access"
+                    ? "editor:add_site_access"
+                    : "editor:add_match"
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {t(bulkMatchKind === "site-access" ? "editor:site_access_bulk_desc" : "editor:bulk_match_desc")}
+            </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3">
             <Textarea

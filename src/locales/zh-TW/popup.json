@@ -1,6 +1,7 @@
 {
   "new_version_available": "有新版本可用",
   "current_page_scripts": "目前頁面執行腳本",
+  "opt_in_scripts": "選擇啟用腳本",
   "enabled_background_scripts": "開啟和執行的背景腳本",
   "develop_mode_guide": "目前尚未啟用「開發者模式」，腳本無法正常執行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/?browser={{browser}}\" target=\"black\">👉點此查看啟用方式</a>",
   "lower_version_browser_guide": "您的瀏覽器版本過舊，腳本無法正常執行。<a href=\"https://docs.scriptcat.org/docs/use/open-dev/\" target=\"black\">👉點擊了解更多</a>",

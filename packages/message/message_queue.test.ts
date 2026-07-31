@@ -186,6 +186,51 @@ describe("MessageQueueGroup", () => {
   });
 
   describe("发布方法测试", () => {
+    it("publishAndWait 应等待本地异步订阅者完成", async () => {
+      const group = messageQueue.group("api-publishAndWait");
+      let resolveRegistration!: () => void;
+      const registration = new Promise<void>((resolve) => {
+        resolveRegistration = resolve;
+      });
+      const handler = vi.fn(async () => registration);
+      group.subscribe("test-await", handler);
+
+      let settled = false;
+      const publishPromise = group.publishAndWait("test-await", { data: "test-await" }).then(() => {
+        settled = true;
+      });
+
+      await nextTick();
+      expect(handler).toHaveBeenCalledWith({ data: "test-await" });
+      expect(settled).toBe(false);
+
+      resolveRegistration();
+      await publishPromise;
+      expect(settled).toBe(true);
+    });
+
+    it("publishAndWait 应等待带中间件的异步订阅者完成", async () => {
+      const group = messageQueue.group("api-publishAndWaitMiddleware", (_topic, _message, next) => next());
+      let resolveRegistration!: () => void;
+      const registration = new Promise<void>((resolve) => {
+        resolveRegistration = resolve;
+      });
+      group.subscribe("test-await", async () => registration);
+
+      const publishPromise = group.publishAndWait("test-await", { data: "test-await" });
+      await nextTick();
+      let settled = false;
+      void publishPromise.then(() => {
+        settled = true;
+      });
+      await nextTick();
+      expect(settled).toBe(false);
+
+      resolveRegistration();
+      await publishPromise;
+      expect(settled).toBe(true);
+    });
+
     it("publish 方法应该使用 chrome.runtime.sendMessage", () => {
       const group = messageQueue.group("api-sendChromeMessage");
 
