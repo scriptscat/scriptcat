@@ -182,7 +182,7 @@ export type ChatRequest = {
 export type AgentModelConfig = {
   id: string; // 唯一标识
   name: string; // 用户自定义名称（如 "GPT-4o", "Claude Sonnet"）
-  provider: "openai" | "anthropic" | "zhipu";
+  provider: "openai" | "anthropic" | "zhipu" | "orcarouter";
   apiBaseUrl: string;
   apiKey: string;
   model: string;

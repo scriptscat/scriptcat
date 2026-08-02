@@ -15,6 +15,11 @@ export function detectProvider(model: AgentModelConfig): ProviderInfo {
   const m = model.model.toLowerCase();
   const url = model.apiBaseUrl.toLowerCase();
 
+  // OrcaRouter 模型 ID 自带 provider 前缀（如 anthropic/claude-*、openai/gpt-*），
+  // 会撞上下面的模型名启发式，所以先按 API Base URL 判定。
+  if (url.includes("orcarouter.ai")) {
+    return { key: "orcarouter", label: "OrcaRouter", order: 14 };
+  }
   if (
     m.startsWith("gpt-") ||
     m.startsWith("o1") ||
@@ -67,6 +72,9 @@ export function detectProvider(model: AgentModelConfig): ProviderInfo {
   }
   if (model.provider === "zhipu") {
     return { key: "zhipu", label: "Zhipu", order: 12 };
+  }
+  if (model.provider === "orcarouter") {
+    return { key: "orcarouter", label: "OrcaRouter", order: 14 };
   }
   return { key: "other", label: "Other", order: 99 };
 }

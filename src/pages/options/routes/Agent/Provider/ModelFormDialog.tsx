@@ -29,7 +29,7 @@ const emptyModel: AgentModelConfig = {
   model: "",
 };
 
-const PROVIDERS: AgentModelConfig["provider"][] = ["openai", "anthropic", "zhipu"];
+const PROVIDERS: AgentModelConfig["provider"][] = ["openai", "anthropic", "zhipu", "orcarouter"];
 
 export function ModelFormDialog({
   open,

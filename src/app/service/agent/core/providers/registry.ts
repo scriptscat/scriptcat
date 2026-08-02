@@ -50,3 +50,20 @@ const zhipuProvider: LLMProvider = {
 };
 
 providerRegistry.register(zhipuProvider);
+
+/**
+ * OrcaRouter Provider —— OpenAI 兼容的多模型网关。
+ * 接口与 OpenAI 兼容，仅默认 apiBaseUrl 不同；复用 openai 的请求构建与流解析逻辑。
+ */
+const orcarouterProvider: LLMProvider = {
+  name: "orcarouter",
+  buildRequest: (input) =>
+    buildOpenAIRequest(
+      { ...input.model, apiBaseUrl: input.model.apiBaseUrl || "https://api.orcarouter.ai/v1" },
+      input.request,
+      input.resolver
+    ),
+  parseStream: (reader, onEvent, signal) => parseOpenAIStream(reader, onEvent, signal),
+};
+
+providerRegistry.register(orcarouterProvider);

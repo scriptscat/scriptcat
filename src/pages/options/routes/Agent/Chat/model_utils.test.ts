@@ -33,6 +33,15 @@ describe("detectProvider 推断供应商", () => {
     expect(detectProvider(makeModel("my-model", { provider: "anthropic" })).key).toBe("anthropic");
   });
 
+  it("orcarouter 网关按 baseUrl 识别，模型名前缀不混淆", () => {
+    expect(
+      detectProvider(
+        makeModel("anthropic/claude-sonnet-4.6", { provider: "orcarouter", apiBaseUrl: "https://api.orcarouter.ai/v1" })
+      ).key
+    ).toBe("orcarouter");
+    expect(detectProvider(makeModel("my-model", { provider: "orcarouter" })).key).toBe("orcarouter");
+  });
+
   it("完全无法识别时归入 other", () => {
     expect(detectProvider(makeModel("zzz-unknown-model")).key).toBe("other");
   });

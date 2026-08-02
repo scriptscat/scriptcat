@@ -27,6 +27,13 @@ describe("provider_api 直连 HTTP", () => {
   it("provider 缺省 baseUrl 时回退到默认地址", () => {
     expect(getDefaultBaseUrl("openai")).toBe("https://api.openai.com/v1");
     expect(getDefaultBaseUrl("zhipu")).toBe("https://open.bigmodel.cn/api/paas/v4");
+    expect(getDefaultBaseUrl("orcarouter")).toBe("https://api.orcarouter.ai/v1");
+  });
+
+  it("orcarouter 拼出网关 /models 与 Bearer 头", () => {
+    const { url, headers } = buildModelsRequest({ ...m, provider: "orcarouter", apiBaseUrl: "" });
+    expect(url).toBe("https://api.orcarouter.ai/v1/models");
+    expect(headers.Authorization).toBe("Bearer sk-x");
   });
 
   it("testConnection 成功返回 ok 且带延迟", async () => {

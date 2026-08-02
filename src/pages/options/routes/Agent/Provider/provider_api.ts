@@ -10,6 +10,8 @@ export function getDefaultBaseUrl(provider: Provider): string {
       return "https://api.anthropic.com";
     case "zhipu":
       return "https://open.bigmodel.cn/api/paas/v4";
+    case "orcarouter":
+      return "https://api.orcarouter.ai/v1";
     default:
       return "https://api.openai.com/v1";
   }
@@ -57,7 +59,12 @@ function buildChatRequest(m: AgentModelConfig): { url: string; headers: Record<s
     };
   }
   if (m.apiKey) headers["Authorization"] = `Bearer ${m.apiKey}`;
-  const defaultModel = m.provider === "zhipu" ? "glm-4-flash" : "gpt-4o-mini";
+  const defaultModel =
+    m.provider === "zhipu"
+      ? "glm-4-flash"
+      : m.provider === "orcarouter"
+        ? "anthropic/claude-sonnet-4.6"
+        : "gpt-4o-mini";
   return {
     url: `${baseUrl}/chat/completions`,
     headers,
