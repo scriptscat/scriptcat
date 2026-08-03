@@ -1,8 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+// @vitest-environment node
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MCPClient } from "./mcp_client";
 import type { MCPServerConfig } from "./types";
 
-// Mock fetch
+type JsonRpcRequest = {
+  id?: string | number;
+  method: string;
+  params?: Record<string, unknown>;
+};
+
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
@@ -18,90 +25,49 @@ function createConfig(overrides?: Partial<MCPServerConfig>): MCPServerConfig {
   };
 }
 
-function jsonResponse(result: unknown, headers?: Record<string, string>): Response {
-  const h = new Headers({ "Content-Type": "application/json", ...headers });
-  return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result }), {
+function jsonResponse(id: JsonRpcRequest["id"], result: unknown, headers?: HeadersInit): Response {
+  return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), {
     status: 200,
-    headers: h,
+    headers: { "Content-Type": "application/json", ...Object.fromEntries(new Headers(headers)) },
   });
 }
 
-function jsonErrorResponse(code: number, message: string): Response {
-  return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, error: { code, message } }), {
+function sseResponse(id: JsonRpcRequest["id"], result: unknown): Response {
+  return new Response(`event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", id, result })}\n\n`, {
     status: 200,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "text/event-stream" },
   });
 }
 
-function httpErrorResponse(status: number, body = ""): Response {
-  return new Response(body, { status, headers: { "Content-Type": "text/plain" } });
-}
+function installServer(overrides: Partial<Record<string, (request: JsonRpcRequest) => Response>> = {}): void {
+  mockFetch.mockImplementation(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "GET") {
+      return new Response(null, { status: 405 });
+    }
 
-describe("MCPClient", () => {
-  beforeEach(() => {
-    mockFetch.mockReset();
-  });
+    const request = JSON.parse(String(init?.body)) as JsonRpcRequest;
+    if (request.method === "notifications/initialized") {
+      return new Response(null, { status: 202 });
+    }
 
-  describe("initialize", () => {
-    it("应正确发送 initialize 和 initialized 请求", async () => {
-      const client = new MCPClient(createConfig());
+    const override = overrides[request.method];
+    if (override) {
+      return override(request);
+    }
 
-      // initialize response
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          protocolVersion: "2025-03-26",
-          capabilities: {},
-          serverInfo: { name: "TestServer", version: "1.0" },
-        })
-      );
-      // initialized notification response
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-
-      await client.initialize();
-
-      expect(mockFetch).toHaveBeenCalledTimes(2);
-
-      // 第一个请求是 initialize
-      const firstCall = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(firstCall.method).toBe("initialize");
-      expect(firstCall.id).toBeDefined();
-      expect(firstCall.params.protocolVersion).toBe("2025-03-26");
-
-      // 第二个请求是 initialized 通知（无 id）
-      const secondCall = JSON.parse(mockFetch.mock.calls[1][1].body);
-      expect(secondCall.method).toBe("notifications/initialized");
-      expect(secondCall.id).toBeUndefined();
-
-      expect(client.isInitialized()).toBe(true);
-    });
-
-    it("initialize 响应缺少 protocolVersion 时应抛出错误", async () => {
-      const client = new MCPClient(createConfig());
-      mockFetch.mockResolvedValueOnce(jsonResponse({}));
-
-      await expect(client.initialize()).rejects.toThrow("missing protocolVersion");
-    });
-
-    it("HTTP 错误时应抛出", async () => {
-      const client = new MCPClient(createConfig());
-      mockFetch.mockResolvedValueOnce(httpErrorResponse(500, "Internal Server Error"));
-
-      await expect(client.initialize()).rejects.toThrow("500");
-    });
-  });
-
-  describe("listTools", () => {
-    it("应正确解析 tools/list 响应", async () => {
-      const client = new MCPClient(createConfig());
-
-      // initialize
-      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-      await client.initialize();
-
-      // listTools
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
+    switch (request.method) {
+      case "initialize":
+        return jsonResponse(
+          request.id,
+          {
+            protocolVersion: "2025-03-26",
+            capabilities: {},
+            serverInfo: { name: "TestServer", version: "1.0.0" },
+          },
+          { "Mcp-Session-Id": "session-123" }
+        );
+      case "tools/list":
+        return jsonResponse(request.id, {
           tools: [
             {
               name: "search",
@@ -109,337 +75,154 @@ describe("MCPClient", () => {
               inputSchema: { type: "object", properties: { query: { type: "string" } } },
             },
           ],
-        })
-      );
-
-      const tools = await client.listTools();
-      expect(tools).toHaveLength(1);
-      expect(tools[0].name).toBe("search");
-      expect(tools[0].serverId).toBe("test-server");
-      expect(tools[0].description).toBe("Search the web");
-    });
-
-    it("未初始化时应抛出错误", async () => {
-      const client = new MCPClient(createConfig());
-      await expect(client.listTools()).rejects.toThrow("not initialized");
-    });
-  });
-
-  describe("callTool", () => {
-    async function initClient(): Promise<MCPClient> {
-      const client = new MCPClient(createConfig());
-      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-      await client.initialize();
-      return client;
+        });
+      case "tools/call":
+        return jsonResponse(request.id, { content: [{ type: "text", text: "Result from tool" }] });
+      case "resources/list":
+        return jsonResponse(request.id, {
+          resources: [{ uri: "file:///readme.md", name: "README", mimeType: "text/markdown" }],
+        });
+      case "resources/read":
+        return jsonResponse(request.id, {
+          contents: [{ uri: "file:///readme.md", text: "# Hello", mimeType: "text/markdown" }],
+        });
+      case "prompts/list":
+        return jsonResponse(request.id, {
+          prompts: [{ name: "summarize", description: "Summarize text", arguments: [{ name: "text" }] }],
+        });
+      case "prompts/get":
+        return jsonResponse(request.id, {
+          messages: [{ role: "user", content: { type: "text", text: "Summarize: hello" } }],
+        });
+      default:
+        throw new Error(`Unexpected MCP method: ${request.method}`);
     }
+  });
+}
 
-    it("应正确发送 tools/call 并返回文本结果", async () => {
-      const client = await initClient();
+function requests(): JsonRpcRequest[] {
+  return mockFetch.mock.calls
+    .filter(([, init]) => init?.body)
+    .map(([, init]) => JSON.parse(String(init.body)) as JsonRpcRequest);
+}
 
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          content: [{ type: "text", text: "Result from tool" }],
-        })
-      );
+describe("MCPClient", () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+    installServer();
+  });
 
-      const result = await client.callTool("search", { query: "hello" });
-      expect(result).toBe("Result from tool");
+  it("初始化后可发现工具并保留 ScriptCat 服务器标识", async () => {
+    const client = new MCPClient(createConfig());
+    await client.initialize();
 
-      const lastCall = JSON.parse(mockFetch.mock.lastCall![1].body);
-      expect(lastCall.method).toBe("tools/call");
-      expect(lastCall.params.name).toBe("search");
-      expect(lastCall.params.arguments).toEqual({ query: "hello" });
-    });
+    await expect(client.listTools()).resolves.toEqual([
+      {
+        serverId: "test-server",
+        name: "search",
+        description: "Search the web",
+        inputSchema: { type: "object", properties: { query: { type: "string" } } },
+      },
+    ]);
+    expect(client.isInitialized()).toBe(true);
+  });
 
-    it("isError 时应抛出错误", async () => {
-      const client = await initClient();
+  it("调用工具时透传参数并将单个文本内容归一化为字符串", async () => {
+    const client = new MCPClient(createConfig());
+    await client.initialize();
 
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          content: [{ type: "text", text: "Something went wrong" }],
-          isError: true,
-        })
-      );
-
-      await expect(client.callTool("search", { query: "fail" })).rejects.toThrow("Something went wrong");
-    });
-
-    it("多内容时应返回完整 content 数组", async () => {
-      const client = await initClient();
-
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          content: [
-            { type: "text", text: "Part 1" },
-            { type: "image", data: "base64data", mimeType: "image/png" },
-          ],
-        })
-      );
-
-      const result = await client.callTool("multi", {});
-      expect(Array.isArray(result)).toBe(true);
-      expect((result as any[]).length).toBe(2);
+    await expect(client.callTool("search", { query: "hello" })).resolves.toBe("Result from tool");
+    expect(requests().find((request) => request.method === "tools/call")?.params).toEqual({
+      name: "search",
+      arguments: { query: "hello" },
     });
   });
 
-  describe("listResources / readResource", () => {
-    async function initClient(): Promise<MCPClient> {
-      const client = new MCPClient(createConfig());
-      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-      await client.initialize();
-      return client;
+  it("服务器以 SSE 返回工具结果时仍应完成调用", async () => {
+    installServer({
+      "tools/call": (request) => sseResponse(request.id, { content: [{ type: "text", text: "Result from SSE" }] }),
+    });
+    const client = new MCPClient(createConfig());
+    await client.initialize();
+
+    await expect(client.callTool("search", { query: "hello" })).resolves.toBe("Result from SSE");
+  });
+
+  it("工具返回 isError 时向调用方抛出文本错误", async () => {
+    installServer({
+      "tools/call": (request) =>
+        jsonResponse(request.id, { content: [{ type: "text", text: "Tool failed" }], isError: true }),
+    });
+    const client = new MCPClient(createConfig());
+    await client.initialize();
+
+    await expect(client.callTool("search")).rejects.toThrow("Tool failed");
+  });
+
+  it("可列出和读取资源", async () => {
+    const client = new MCPClient(createConfig());
+    await client.initialize();
+
+    await expect(client.listResources()).resolves.toEqual([
+      {
+        serverId: "test-server",
+        uri: "file:///readme.md",
+        name: "README",
+        description: undefined,
+        mimeType: "text/markdown",
+      },
+    ]);
+    await expect(client.readResource("file:///readme.md")).resolves.toEqual({
+      contents: [{ uri: "file:///readme.md", text: "# Hello", mimeType: "text/markdown" }],
+    });
+  });
+
+  it("可列出提示词并获取提示词消息", async () => {
+    const client = new MCPClient(createConfig());
+    await client.initialize();
+
+    await expect(client.listPrompts()).resolves.toEqual([
+      {
+        serverId: "test-server",
+        name: "summarize",
+        description: "Summarize text",
+        arguments: [{ name: "text" }],
+      },
+    ]);
+    await expect(client.getPrompt("summarize", { text: "hello" })).resolves.toEqual([
+      { role: "user", content: { type: "text", text: "Summarize: hello" } },
+    ]);
+  });
+
+  it("所有请求都携带认证、自定义 header 和服务器 session", async () => {
+    const client = new MCPClient(createConfig({ apiKey: "secret", headers: { "X-Custom": "custom-value" } }));
+    await client.initialize();
+    await client.listTools();
+
+    const calls = mockFetch.mock.calls.filter(([, init]) => init?.method === "POST");
+    expect(calls).not.toHaveLength(0);
+    for (const [, init] of calls) {
+      const headers = new Headers(init.headers);
+      expect(headers.get("Authorization")).toBe("Bearer secret");
+      expect(headers.get("X-Custom")).toBe("custom-value");
     }
-
-    it("应正确解析 resources/list", async () => {
-      const client = await initClient();
-
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          resources: [{ uri: "file:///docs/readme.md", name: "README", mimeType: "text/markdown" }],
-        })
-      );
-
-      const resources = await client.listResources();
-      expect(resources).toHaveLength(1);
-      expect(resources[0].uri).toBe("file:///docs/readme.md");
-      expect(resources[0].serverId).toBe("test-server");
-    });
-
-    it("应正确读取资源", async () => {
-      const client = await initClient();
-
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          contents: [{ uri: "file:///docs/readme.md", text: "# Hello", mimeType: "text/markdown" }],
-        })
-      );
-
-      const result = await client.readResource("file:///docs/readme.md");
-      expect(result.contents).toHaveLength(1);
-      expect(result.contents[0].text).toBe("# Hello");
-    });
+    expect(new Headers(calls.at(-1)?.[1].headers).get("Mcp-Session-Id")).toBe("session-123");
   });
 
-  describe("listPrompts / getPrompt", () => {
-    async function initClient(): Promise<MCPClient> {
-      const client = new MCPClient(createConfig());
-      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-      await client.initialize();
-      return client;
-    }
+  it("关闭后拒绝后续调用", async () => {
+    const client = new MCPClient(createConfig());
+    await client.initialize();
+    await client.close();
 
-    it("应正确解析 prompts/list", async () => {
-      const client = await initClient();
-
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          prompts: [
-            {
-              name: "summarize",
-              description: "Summarize text",
-              arguments: [{ name: "text", required: true }],
-            },
-          ],
-        })
-      );
-
-      const prompts = await client.listPrompts();
-      expect(prompts).toHaveLength(1);
-      expect(prompts[0].name).toBe("summarize");
-      expect(prompts[0].arguments).toHaveLength(1);
-    });
-
-    it("应正确获取 prompt 消息", async () => {
-      const client = await initClient();
-
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          messages: [{ role: "user", content: { type: "text", text: "Summarize: hello world" } }],
-        })
-      );
-
-      const messages = await client.getPrompt("summarize", { text: "hello world" });
-      expect(messages).toHaveLength(1);
-      expect(messages[0].role).toBe("user");
-    });
+    expect(client.isInitialized()).toBe(false);
+    await expect(client.listTools()).rejects.toThrow("not initialized");
   });
 
-  describe("Session ID 管理", () => {
-    it("应存储并回传 Mcp-Session-Id", async () => {
-      const client = new MCPClient(createConfig());
+  it("初始化失败时保持未初始化", async () => {
+    installServer({ initialize: () => new Response("unavailable", { status: 503 }) });
+    const client = new MCPClient(createConfig());
 
-      // initialize 返回 session id
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }, { "Mcp-Session-Id": "session-123" })
-      );
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-      await client.initialize();
-
-      // 后续请求应包含 session id
-      mockFetch.mockResolvedValueOnce(jsonResponse({ tools: [] }));
-      await client.listTools();
-
-      const lastCallHeaders = mockFetch.mock.lastCall![1].headers;
-      expect(lastCallHeaders["Mcp-Session-Id"]).toBe("session-123");
-    });
-  });
-
-  describe("JSON-RPC 错误处理", () => {
-    it("应正确处理 JSON-RPC 错误", async () => {
-      const client = new MCPClient(createConfig());
-
-      // initialize 返回 JSON-RPC 错误
-      mockFetch.mockResolvedValueOnce(jsonErrorResponse(-32600, "Invalid Request"));
-
-      await expect(client.initialize()).rejects.toThrow("MCP error -32600: Invalid Request");
-    });
-  });
-
-  describe("认证头", () => {
-    it("应设置 Bearer token", async () => {
-      const client = new MCPClient(createConfig({ apiKey: "sk-test-key" }));
-
-      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-      await client.initialize();
-
-      const headers = mockFetch.mock.calls[0][1].headers;
-      expect(headers["Authorization"]).toBe("Bearer sk-test-key");
-    });
-
-    it("应设置自定义 headers", async () => {
-      const client = new MCPClient(createConfig({ headers: { "X-Custom": "custom-value" } }));
-
-      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-      await client.initialize();
-
-      const headers = mockFetch.mock.calls[0][1].headers;
-      expect(headers["X-Custom"]).toBe("custom-value");
-    });
-  });
-
-  describe("close", () => {
-    it("close 后应标记为未初始化", async () => {
-      const client = new MCPClient(createConfig());
-
-      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-      await client.initialize();
-
-      expect(client.isInitialized()).toBe(true);
-      client.close();
-      expect(client.isInitialized()).toBe(false);
-    });
-
-    it("close 后调用 listTools 应抛出 not initialized", async () => {
-      const client = new MCPClient(createConfig());
-
-      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-      await client.initialize();
-
-      client.close();
-      await expect(client.listTools()).rejects.toThrow("not initialized");
-    });
-
-    it("close 后调用 callTool 应抛出 not initialized", async () => {
-      const client = new MCPClient(createConfig());
-
-      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-      await client.initialize();
-
-      client.close();
-      await expect(client.callTool("search", { q: "test" })).rejects.toThrow("not initialized");
-    });
-  });
-
-  describe("callTool 边界场景", () => {
-    async function initClient(): Promise<MCPClient> {
-      const client = new MCPClient(createConfig());
-      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-      await client.initialize();
-      return client;
-    }
-
-    it("callTool 无参数调用：不传 args → 发送 arguments: {}", async () => {
-      const client = await initClient();
-
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          content: [{ type: "text", text: "no args result" }],
-        })
-      );
-
-      const result = await client.callTool("ping");
-      expect(result).toBe("no args result");
-
-      const lastCall = JSON.parse(mockFetch.mock.lastCall![1].body);
-      expect(lastCall.method).toBe("tools/call");
-      expect(lastCall.params.name).toBe("ping");
-      expect(lastCall.params.arguments).toEqual({});
-    });
-
-    it("callTool JSON-RPC 错误：返回 JSON-RPC error → 抛出 MCP error", async () => {
-      const client = await initClient();
-
-      mockFetch.mockResolvedValueOnce(jsonErrorResponse(-32601, "Method not found"));
-
-      await expect(client.callTool("unknown_tool", {})).rejects.toThrow("MCP error -32601: Method not found");
-    });
-
-    it("callTool 空 content：返回空 content 数组", async () => {
-      const client = await initClient();
-
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          content: [],
-        })
-      );
-
-      const result = await client.callTool("empty", {});
-      // 空 content，不是单个 text，返回整个 content 数组
-      expect(Array.isArray(result)).toBe(true);
-      expect((result as any[]).length).toBe(0);
-    });
-  });
-
-  describe("请求超时", () => {
-    it("sendRequest 应传递 AbortSignal.timeout(60s)", async () => {
-      const client = new MCPClient(createConfig());
-
-      mockFetch.mockResolvedValueOnce(jsonResponse({ protocolVersion: "2025-03-26", capabilities: {} }));
-      mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }));
-      await client.initialize();
-
-      // 检查 initialize 的 fetch 调用带了 signal
-      expect(mockFetch.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal);
-      // 检查 notification 的 fetch 调用也带了 signal
-      expect(mockFetch.mock.calls[1][1].signal).toBeInstanceOf(AbortSignal);
-    });
-  });
-
-  describe("sendNotification 失败", () => {
-    it("initialize 过程中通知失败应抛出", async () => {
-      const client = new MCPClient(createConfig());
-
-      // initialize 请求成功
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          protocolVersion: "2025-03-26",
-          capabilities: {},
-          serverInfo: { name: "TestServer", version: "1.0" },
-        })
-      );
-      // initialized 通知失败（HTTP error）
-      mockFetch.mockResolvedValueOnce(httpErrorResponse(503, "Service Unavailable"));
-
-      await expect(client.initialize()).rejects.toThrow("503");
-    });
+    await expect(client.initialize()).rejects.toThrow("Error POSTing to endpoint");
+    expect(client.isInitialized()).toBe(false);
   });
 });

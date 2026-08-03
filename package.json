@@ -34,6 +34,7 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "chardet": "^2.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -62,7 +63,8 @@
     "uuid": "^11.1.1",
     "web-jszipp": "^1.0.8",
     "webdav": "^5.9.0",
-    "yaml": "^2.8.3"
+    "yaml": "^2.8.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/compat": "^1.4.1",
