@@ -37,18 +37,21 @@ import { ExternalAccessConnectClient } from "@App/app/service/offscreen/client";
 import { hookFirefoxEventPageKeepAliveLoop, hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
 
 // "直接允许" 写策略下 MCP 无需人工确认即执行了写操作，发系统通知让用户知晓（决策 #12 的知情兜底）。
-function notifyExternalAccessWrite(notice: ExternalAccessWriteNotice): void {
+// kind=update 只由 scripts.edit.request 产生，故文案按「编辑」而非版本更新描述，避免被误读为例行升级。
+export function notifyExternalAccessWrite(notice: ExternalAccessWriteNotice): void {
   const name = notice.name ?? "";
   const body =
     notice.kind === "install"
       ? t("external_access:allow_notify_install", { name })
-      : notice.kind === "enable"
-        ? t("external_access:allow_notify_enable", { name })
-        : notice.kind === "disable"
-          ? t("external_access:allow_notify_disable", { name })
-          : notice.kind === "delete"
-            ? t("external_access:allow_notify_delete", { name })
-            : t("external_access:allow_notify_generic", { name });
+      : notice.kind === "update"
+        ? t("external_access:allow_notify_update", { name })
+        : notice.kind === "enable"
+          ? t("external_access:allow_notify_enable", { name })
+          : notice.kind === "disable"
+            ? t("external_access:allow_notify_disable", { name })
+            : notice.kind === "delete"
+              ? t("external_access:allow_notify_delete", { name })
+              : t("external_access:allow_notify_generic", { name });
   void InfoNotification(t("external_access:allow_notify_title"), body);
 }
 

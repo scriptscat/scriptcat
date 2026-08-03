@@ -118,13 +118,15 @@ export default function App() {
     : view.isUpdate
       ? t("install:context_update")
       : t("install:context_install");
-  // 顶栏上下文 chip:监听本地文件→品牌蓝脉冲「监听中」;外部接入触发→「外部接入 · 安装请求」(设计稿 QWHdI);
-  // 否则按安装/更新/订阅场景。
+  // 顶栏上下文 chip:监听本地文件→品牌蓝脉冲「监听中」;外部接入触发→「外部接入 · 安装/更新请求」(设计稿 QWHdI);
+  // 否则按安装/更新/订阅场景。外部接入的更新档既涵盖覆盖已装脚本的安装请求,也涵盖 scripts.edit.request。
   const externalAccess = !!view.externalAccess;
   const title = watching
     ? t("install:watching_chip")
     : externalAccess
-      ? t("external_access:install_context_chip")
+      ? view.isUpdate
+        ? t("external_access:update_context_chip")
+        : t("external_access:install_context_chip")
       : baseTitle;
   const titleTone = watching ? "watching" : "default";
   const titleIcon = externalAccess
