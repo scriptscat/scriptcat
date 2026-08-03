@@ -16,7 +16,7 @@ import type { InstallSource } from "@App/app/service/service_worker/types";
 import { openInCurrentTab } from "@App/pkg/utils/utils";
 import { validateInstallUrl, fetchInstallSourceWithPolicy, UrlPolicyViolation } from "./url_policy";
 import { ExternalAccessBridgeError } from "./errors";
-import { readScriptSource } from "./source";
+import { readScriptSource, grepScriptSource } from "./source";
 import { SessionAllowStore, sessionAllowKey } from "./session_allow";
 import type {
   BridgeErrorCode,
@@ -25,6 +25,8 @@ import type {
   PendingOperationRef,
   PendingOperationSummary,
   ScriptSource,
+  ScriptSourceGrepResult,
+  SourceDisclosureForm,
 } from "./types";
 
 // 5 分钟批准有效期，足够用户切换到弹出的确认窗口完成决定，又不至于让过期请求悬挂太久。
@@ -66,6 +68,26 @@ function toStatusResult(op: ExternalAccessOperation): OperationStatusResult {
 // 「本会话允许」自动批准时用什么选项执行：安装默认启用（即装即用，设计 §6），其余无附加选项。
 function autoApproveOptions(op: ExternalAccessOperation): { enable?: boolean } {
   return op.kind === "install" ? { enable: true } : {};
+}
+
+// grep 与整份读共用 kind === "source_disclosure"，去重必须再比一层「形态」（设计 §4.2「挂起态的区
+// 分」），否则不同参数的两次 grep、或一次 grep 与一次整份读会被合并成同一个操作，批准时只能产出其中
+// 一种结果。两侧形态不同，或形态相同但参数不同，都不算重复。
+function sameDisclosureForm(a: SourceDisclosureForm, b: SourceDisclosureForm): boolean {
+  if (a.form !== b.form) return false;
+  if (a.form === "full" && b.form === "full") {
+    return a.startLine === b.startLine && a.endLine === b.endLine;
+  }
+  if (a.form === "grep" && b.form === "grep") {
+    return (
+      a.query === b.query &&
+      a.mode === b.mode &&
+      a.ignoreCase === b.ignoreCase &&
+      a.contextLines === b.contextLines &&
+      a.maxMatches === b.maxMatches
+    );
+  }
+  return false;
 }
 
 /**
@@ -251,15 +273,26 @@ export class ExternalAccessApprovalService {
    * Source-read gate under the "approval" policy. Source may embed secrets, so it keeps its own
    * pending-op prompt (unlike list/metadata). Always returns a ref for the caller to present(); the
    * "本会话允许" fast path lives in present() like every other kind. Idempotent: won't stack a second
-   * prompt for the same script while one is already awaiting_user.
+   * prompt for the same script while one with the exact same disclosure form (full read, or grep +
+   * its params) is already awaiting_user (design §4.2) — `scripts.source.get` and
+   * `scripts.source.grep` both funnel through here and share this dedup.
    */
   async requestSourceDisclosure(params: {
     clientId: string;
     uuid: string;
     requestId?: string;
+    form?: SourceDisclosureForm;
   }): Promise<PendingOperationRef> {
+    const form: SourceDisclosureForm = params.form ?? { form: "full" };
+
     const awaiting = await this.operationDAO.awaitingUser();
-    const pending = awaiting.find((op) => op.kind === "source_disclosure" && op.targetUuid === params.uuid);
+    const pending = awaiting.find(
+      (op) =>
+        op.kind === "source_disclosure" &&
+        op.targetUuid === params.uuid &&
+        op.disclosure !== undefined &&
+        sameDisclosureForm(op.disclosure, form)
+    );
     if (pending) {
       return toRef(pending);
     }
@@ -280,6 +313,7 @@ export class ExternalAccessApprovalService {
       expiresAt: now + APPROVAL_TTL_MS,
       sessionKey: sessionAllowKey("source_disclosure", params.uuid),
       targetUuid: params.uuid,
+      disclosure: form,
       requestId: params.requestId,
     };
     await this.operationDAO.save(operation);
@@ -463,9 +497,15 @@ export class ExternalAccessApprovalService {
     }
   }
 
-  private async executeSourceDisclosure(op: ExternalAccessOperation): Promise<ScriptSource> {
-    // Blocking: the suspended scripts.source.get is answered here and now with the source itself.
-    return readScriptSource(this.scriptDAO, this.scriptCodeDAO, op.targetUuid!);
+  private async executeSourceDisclosure(op: ExternalAccessOperation): Promise<ScriptSource | ScriptSourceGrepResult> {
+    // Blocking: the suspended scripts.source.get / scripts.source.grep is answered here and now,
+    // branching on the form recorded at request time (design §4.2) — a grep op must never answer
+    // with the full source, nor vice versa.
+    const form = op.disclosure ?? { form: "full" as const };
+    if (form.form === "grep") {
+      return grepScriptSource(this.scriptDAO, this.scriptCodeDAO, op.targetUuid!, form.query, form);
+    }
+    return readScriptSource(this.scriptDAO, this.scriptCodeDAO, op.targetUuid!, form.startLine, form.endLine);
   }
 
   private async executeInstall(op: ExternalAccessOperation, options: { enable?: boolean }) {

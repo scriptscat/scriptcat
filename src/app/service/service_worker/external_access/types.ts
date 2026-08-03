@@ -106,6 +106,7 @@ export const BRIDGE_ACTIONS = [
   "scripts.list",
   "scripts.metadata.get",
   "scripts.source.get",
+  "scripts.source.grep",
   "scripts.install.request",
   "scripts.toggle.request",
   "scripts.delete.request",
@@ -196,7 +197,51 @@ export interface ScriptSource {
   code: string;
   sha256: string;
   contentTrust: "untrusted-user-script-source";
+  // Line window actually returned (design §4.1): defaults to the whole file ([1, totalLines]) when
+  // the request carried no startLine/endLine. sha256 above is always the whole-file hash, even for
+  // a window, so a client can tell the underlying script changed across paginated reads.
+  startLine: number;
+  endLine: number;
+  totalLines: number;
 }
+
+// One `scripts.source.grep` hit. before/after are context lines (design §4.2); each match's context
+// is computed independently, so overlapping windows around adjacent hits repeat lines on purpose.
+export interface ScriptSourceGrepMatch {
+  lineNumber: number;
+  line: string;
+  before: string[];
+  after: string[];
+}
+
+export interface ScriptSourceGrepResult {
+  uuid: string;
+  name: string;
+  version?: string;
+  matches: ScriptSourceGrepMatch[];
+  totalMatches: number;
+  truncated: boolean;
+  skippedLongLines: number;
+  totalLines: number;
+  sha256: string;
+  contentTrust: "untrusted-user-script-source";
+}
+
+// Which disclosure a pending `source_disclosure` operation will answer with (design §4.2 "挂起态的
+// 区分"): scripts.source.get and scripts.source.grep share one OperationKind, one scope and one
+// sessionAllowKey, so this is what the request-time dedup and the decide-time result-producing
+// branch key off of instead. Two pending requests only collapse into one operation when both the
+// form and its parameters match exactly.
+export type SourceDisclosureForm =
+  | { form: "full"; startLine?: number; endLine?: number }
+  | {
+      form: "grep";
+      query: string;
+      mode: "text" | "regex";
+      ignoreCase: boolean;
+      contextLines: number;
+      maxMatches: number;
+    };
 
 export interface PendingOperationRef {
   operationId: string;
@@ -225,6 +270,8 @@ export const ACTION_REQUIRED_SCOPE: Record<BridgeAction, ExternalAccessScope> = 
   "scripts.list": "scripts:list",
   "scripts.metadata.get": "scripts:metadata:read",
   "scripts.source.get": "scripts:source:read",
+  // grep is source disclosure too — same scope, same gate, no dedicated scope (design §3 决策 13).
+  "scripts.source.grep": "scripts:source:read",
   "scripts.install.request": "scripts:install:request",
   "scripts.toggle.request": "scripts:toggle:request",
   "scripts.delete.request": "scripts:delete:request",

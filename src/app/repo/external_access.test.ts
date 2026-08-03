@@ -43,4 +43,14 @@ describe("ExternalAccessOperationDAO", () => {
     const pending = await dao.awaitingUser();
     expect(pending.map((o) => o.operationId)).toEqual(["op-pending"]);
   });
+
+  it("save / get 往返读写一条携带 grep 披露形态的挂起操作，disclosure 字段逐字段保留", async () => {
+    const op = makeOperation({
+      kind: "source_disclosure",
+      targetUuid: "target-uuid",
+      disclosure: { form: "grep", query: "secret", mode: "regex", ignoreCase: true, contextLines: 2, maxMatches: 10 },
+    });
+    await dao.save(op);
+    expect((await dao.get(op.operationId))?.disclosure).toEqual(op.disclosure);
+  });
 });

@@ -167,6 +167,88 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
     );
   });
 
+  it("批准 grep 披露时回发匹配结果而非整份源码", async () => {
+    await seedScript(TARGET_UUID, "line1\nsecret line2\nline3");
+    const ref = await approval.requestSourceDisclosure({
+      clientId: "c",
+      uuid: TARGET_UUID,
+      requestId: "r1",
+      form: { form: "grep", query: "secret", mode: "text", ignoreCase: false, contextLines: 0, maxMatches: 50 },
+    });
+    await approval.decide(ref.operationId, true);
+    expect(responder).toHaveBeenCalledWith(
+      "r1",
+      expect.objectContaining({
+        ok: true,
+        result: expect.objectContaining({ matches: [expect.objectContaining({ lineNumber: 2 })] }),
+      })
+    );
+    const [, response] = responder.mock.calls[0];
+    expect(response.result).not.toHaveProperty("code");
+  });
+
+  it("同一脚本上整份读取与 grep 挂起态不合并，各自按其形态产出正确结果", async () => {
+    await seedScript(TARGET_UUID, "alpha\nbeta secret\ngamma");
+    const fullRef = await approval.requestSourceDisclosure({ clientId: "c", uuid: TARGET_UUID, requestId: "r-full" });
+    const grepRef = await approval.requestSourceDisclosure({
+      clientId: "c",
+      uuid: TARGET_UUID,
+      requestId: "r-grep",
+      form: { form: "grep", query: "secret", mode: "text", ignoreCase: false, contextLines: 0, maxMatches: 50 },
+    });
+    expect(grepRef.operationId).not.toBe(fullRef.operationId);
+    expect(await operationDAO.awaitingUser()).toHaveLength(2);
+
+    await approval.decide(fullRef.operationId, true);
+    await approval.decide(grepRef.operationId, true);
+
+    expect(responder).toHaveBeenCalledWith(
+      "r-full",
+      expect.objectContaining({ ok: true, result: expect.objectContaining({ code: "alpha\nbeta secret\ngamma" }) })
+    );
+    expect(responder).toHaveBeenCalledWith(
+      "r-grep",
+      expect.objectContaining({
+        ok: true,
+        result: expect.objectContaining({ matches: [expect.objectContaining({ lineNumber: 2 })] }),
+      })
+    );
+  });
+
+  it("形态与参数完全相同的 grep 请求按幂等去重合并为同一待批操作", async () => {
+    await seedScript(TARGET_UUID);
+    const form = {
+      form: "grep" as const,
+      query: "x",
+      mode: "text" as const,
+      ignoreCase: false,
+      contextLines: 0,
+      maxMatches: 50,
+    };
+    const ref1 = await approval.requestSourceDisclosure({ clientId: "c", uuid: TARGET_UUID, requestId: "r1", form });
+    const ref2 = await approval.requestSourceDisclosure({ clientId: "c", uuid: TARGET_UUID, requestId: "r2", form });
+    expect(ref2.operationId).toBe(ref1.operationId);
+    expect(await operationDAO.awaitingUser()).toHaveLength(1);
+  });
+
+  it("query 不同的 grep 请求不去重合并，各自是独立待批操作", async () => {
+    await seedScript(TARGET_UUID);
+    const ref1 = await approval.requestSourceDisclosure({
+      clientId: "c",
+      uuid: TARGET_UUID,
+      requestId: "r1",
+      form: { form: "grep", query: "x", mode: "text", ignoreCase: false, contextLines: 0, maxMatches: 50 },
+    });
+    const ref2 = await approval.requestSourceDisclosure({
+      clientId: "c",
+      uuid: TARGET_UUID,
+      requestId: "r2",
+      form: { form: "grep", query: "y", mode: "text", ignoreCase: false, contextLines: 0, maxMatches: 50 },
+    });
+    expect(ref2.operationId).not.toBe(ref1.operationId);
+    expect(await operationDAO.awaitingUser()).toHaveLength(2);
+  });
+
   it("clearSessionAllow 清空所有本会话授权", async () => {
     await seedScript(TARGET_UUID);
     const ref = await approval.requestToggle({ clientId: "c", uuid: TARGET_UUID, enable: true, requestId: "r1" });

@@ -160,6 +160,85 @@ describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
       expect(pending[0].kind).toBe("source_disclosure");
       expect(utilsModule.openInCurrentTab).toHaveBeenCalled();
     });
+
+    it("startLine/endLine 开窗读取：直接允许时立即返回切片与行窗字段，sha256 仍是全文哈希", async () => {
+      sourcePolicy = "allow";
+      await seedScript(SRC_UUID);
+      await scriptCodeDAO.save({ uuid: SRC_UUID, code: "l1\nl2\nl3\nl4" } as any);
+      const response = expectResponse(
+        await bridge.handle(makeRequest("scripts.source.get", { uuid: SRC_UUID, startLine: 2, endLine: 3 }))
+      );
+      expect(response.ok).toBe(true);
+      if (response.ok) {
+        const result = response.result as { code: string; startLine: number; endLine: number; totalLines: number };
+        expect(result.code).toBe("l2\nl3");
+        expect(result.startLine).toBe(2);
+        expect(result.endLine).toBe(3);
+        expect(result.totalLines).toBe(4);
+      }
+    });
+
+    it("startLine 越界（超出总行数）时返回 INVALID_REQUEST", async () => {
+      sourcePolicy = "allow";
+      await seedScript(SRC_UUID);
+      await scriptCodeDAO.save({ uuid: SRC_UUID, code: "l1\nl2" } as any);
+      const response = expectResponse(
+        await bridge.handle(makeRequest("scripts.source.get", { uuid: SRC_UUID, startLine: 10, endLine: 12 }))
+      );
+      expect(response.ok).toBe(false);
+      if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+    });
+  });
+
+  describe("scripts.source.grep 复用整份读取的披露闸门（同 scope、同会话允许 key）", () => {
+    it("源码策略=直接允许时立即返回命中行，无需确认", async () => {
+      sourcePolicy = "allow";
+      await seedScript(SRC_UUID);
+      await scriptCodeDAO.save({ uuid: SRC_UUID, code: "alpha\nsecret line\nomega" } as any);
+      const response = expectResponse(
+        await bridge.handle(makeRequest("scripts.source.grep", { uuid: SRC_UUID, query: "secret" }))
+      );
+      expect(response.ok).toBe(true);
+      if (response.ok) {
+        const result = response.result as { matches: Array<{ lineNumber: number }> };
+        expect(result.matches).toEqual([expect.objectContaining({ lineNumber: 2 })]);
+      }
+      expect(audit).toHaveBeenCalledWith(expect.objectContaining({ decision: "allowed" }));
+    });
+
+    it("源码策略=需人工审批时挂起并创建 kind=source_disclosure 的待批操作", async () => {
+      sourcePolicy = "approval";
+      await seedScript(SRC_UUID);
+      const result = await bridge.handle(makeRequest("scripts.source.grep", { uuid: SRC_UUID, query: "secret" }));
+      expect(result).toBeNull();
+      const pending = await operationDAO.awaitingUser();
+      expect(pending).toHaveLength(1);
+      expect(pending[0].kind).toBe("source_disclosure");
+      expect(utilsModule.openInCurrentTab).toHaveBeenCalled();
+    });
+
+    it("非法正则模式返回 INVALID_REQUEST", async () => {
+      sourcePolicy = "allow";
+      await seedScript(SRC_UUID);
+      const response = expectResponse(
+        await bridge.handle(
+          makeRequest("scripts.source.grep", { uuid: SRC_UUID, query: "(unterminated", mode: "regex" })
+        )
+      );
+      expect(response.ok).toBe(false);
+      if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+    });
+
+    it("同一脚本上并发的整份读取与 grep 挂起态不合并为一个操作", async () => {
+      sourcePolicy = "approval";
+      await seedScript(SRC_UUID);
+      const getResult = await bridge.handle(makeRequest("scripts.source.get", { uuid: SRC_UUID }));
+      const grepResult = await bridge.handle(makeRequest("scripts.source.grep", { uuid: SRC_UUID, query: "secret" }));
+      expect(getResult).toBeNull();
+      expect(grepResult).toBeNull();
+      const pending = await operationDAO.awaitingUser();
+      expect(pending).toHaveLength(2);
+    });
   });
 
   describe("写操作按写操作策略分流", () => {

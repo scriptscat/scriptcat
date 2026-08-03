@@ -10,7 +10,7 @@ import {
 import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
 import type { ExternalAccessApprovalService } from "./approval";
 import { ExternalAccessBridgeError } from "./errors";
-import { readScriptSource } from "./source";
+import { readScriptSource, grepScriptSource } from "./source";
 import { logExternalAccess, type ExternalAccessAudit } from "./audit";
 import {
   type BridgeAction,
@@ -78,8 +78,34 @@ const VALIDATORS: Record<BridgeAction, (input: unknown) => void> = {
   },
   "scripts.source.get": (input) => {
     if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
-    assertKeys(input, ["uuid"]);
+    assertKeys(input, ["uuid", "startLine", "endLine"]);
     assertUuidField(input, "uuid");
+    if (input.startLine !== undefined && typeof input.startLine !== "number") {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "startLine must be a number");
+    }
+    if (input.endLine !== undefined && typeof input.endLine !== "number") {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "endLine must be a number");
+    }
+  },
+  "scripts.source.grep": (input) => {
+    if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
+    assertKeys(input, ["uuid", "query", "mode", "ignoreCase", "contextLines", "maxMatches"]);
+    assertUuidField(input, "uuid");
+    if (typeof input.query !== "string") {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "query must be a string");
+    }
+    if (input.mode !== undefined && input.mode !== "text" && input.mode !== "regex") {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", 'mode must be "text" or "regex"');
+    }
+    if (input.ignoreCase !== undefined && typeof input.ignoreCase !== "boolean") {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "ignoreCase must be a boolean");
+    }
+    if (input.contextLines !== undefined && typeof input.contextLines !== "number") {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "contextLines must be a number");
+    }
+    if (input.maxMatches !== undefined && typeof input.maxMatches !== "number") {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "maxMatches must be a number");
+    }
   },
   "scripts.install.request": (input) => {
     if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
@@ -237,17 +263,46 @@ export class ExternalAccessBridge {
       }
       case "scripts.source.get": {
         const uuid = input.uuid as string;
+        const startLine = input.startLine as number | undefined;
+        const endLine = input.endLine as number | undefined;
         // Source may embed secrets, so it keeps its own gate independent of list/metadata reads.
         // "allow" reads immediately (for CLI and MCP alike — no exemption); "approval" suspends
         // behind a confirm page, and present() auto-approves it if this (script, source) pair was
         // marked "本会话允许" earlier this session.
         if ((await this.getSourceReadPolicy()) === "allow") {
-          return readScriptSource(this.scriptDAO, this.scriptCodeDAO, uuid);
+          return readScriptSource(this.scriptDAO, this.scriptCodeDAO, uuid, startLine, endLine);
         }
         const ref = await this.approval.requestSourceDisclosure({
           clientId: request.clientId,
           uuid,
           requestId: request.requestId,
+          form: startLine === undefined && endLine === undefined ? undefined : { form: "full", startLine, endLine },
+        });
+        await this.approval.present(ref.operationId);
+        return DEFERRED;
+      }
+      case "scripts.source.grep": {
+        const uuid = input.uuid as string;
+        const query = input.query as string;
+        const mode = (input.mode as "text" | "regex" | undefined) ?? "text";
+        const ignoreCase = (input.ignoreCase as boolean | undefined) ?? false;
+        const contextLines = (input.contextLines as number | undefined) ?? 0;
+        const maxMatches = (input.maxMatches as number | undefined) ?? 50;
+        // Grep discloses source content one match at a time, so it shares scripts.source.get's
+        // gate byte for byte: same scope, same policy, same sessionAllowKey (design §3 决策 13).
+        if ((await this.getSourceReadPolicy()) === "allow") {
+          return grepScriptSource(this.scriptDAO, this.scriptCodeDAO, uuid, query, {
+            mode,
+            ignoreCase,
+            contextLines,
+            maxMatches,
+          });
+        }
+        const ref = await this.approval.requestSourceDisclosure({
+          clientId: request.clientId,
+          uuid,
+          requestId: request.requestId,
+          form: { form: "grep", query, mode, ignoreCase, contextLines, maxMatches },
         });
         await this.approval.present(ref.operationId);
         return DEFERRED;

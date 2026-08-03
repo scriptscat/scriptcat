@@ -1,11 +1,51 @@
 import { sha256OfText } from "@App/pkg/utils/crypto";
 import type { ScriptDAO, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { ExternalAccessBridgeError } from "./errors";
-import type { ScriptSource } from "./types";
+import type { ScriptSource, ScriptSourceGrepMatch, ScriptSourceGrepResult } from "./types";
 
 // Chrome hard-caps native-messaging frames at 1 MiB host->browser; 2 MiB is the extension-local
-// cap on how much source a disclosure read will return in one call.
+// cap on how much source a disclosure read will return in one call. Measured against the returned
+// slice (design §4.1), not the underlying file, so a line window can be pulled out of an
+// oversized script while a full read keeps behaving exactly as before.
 export const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
+
+export interface SlicedLines {
+  code: string;
+  startLine: number;
+  endLine: number;
+  totalLines: number;
+}
+
+/**
+ * Pure line-window slicer for `scripts.source.get`'s optional startLine/endLine (design §4.1).
+ * Lines are defined as `code.split("\n")` — join("\n") round-trips exactly, so a CRLF file's `\r`
+ * stays at the end of its line. 1-based, inclusive, both-or-neither. No window at all returns the
+ * whole file as the [1, totalLines] window.
+ */
+export function sliceLines(code: string, startLine?: number, endLine?: number): SlicedLines {
+  const lines = code.split("\n");
+  const totalLines = lines.length;
+
+  if (startLine === undefined && endLine === undefined) {
+    return { code, startLine: 1, endLine: totalLines, totalLines };
+  }
+  if (startLine === undefined || endLine === undefined) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "startLine and endLine must be given together");
+  }
+  if (startLine < 1) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "startLine must be >= 1");
+  }
+  if (endLine < startLine) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "endLine must be >= startLine");
+  }
+  if (startLine > totalLines) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "startLine exceeds the script's total line count");
+  }
+  // endLine past the end truncates silently (design §4.1) — pagination clients don't have to know
+  // totalLines up front.
+  const clampedEnd = Math.min(endLine, totalLines);
+  return { code: lines.slice(startLine - 1, clampedEnd).join("\n"), startLine, endLine: clampedEnd, totalLines };
+}
 
 /**
  * Reads and formats a script's source for a disclosure response. Shared by the bridge's
@@ -15,20 +55,162 @@ export const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 export async function readScriptSource(
   scriptDAO: Pick<ScriptDAO, "get">,
   scriptCodeDAO: Pick<ScriptCodeDAO, "get">,
-  uuid: string
+  uuid: string,
+  startLine?: number,
+  endLine?: number
 ): Promise<ScriptSource> {
   const script = await scriptDAO.get(uuid);
   if (!script) throw new ExternalAccessBridgeError("NOT_FOUND", "script not found");
   const scriptCode = await scriptCodeDAO.get(uuid);
   if (!scriptCode) throw new ExternalAccessBridgeError("NOT_FOUND", "script source not found");
-  if (new TextEncoder().encode(scriptCode.code).length > MAX_SOURCE_BYTES) {
+  const sliced = sliceLines(scriptCode.code, startLine, endLine);
+  if (new TextEncoder().encode(sliced.code).length > MAX_SOURCE_BYTES) {
     throw new ExternalAccessBridgeError("PAYLOAD_TOO_LARGE", "script source exceeds 2 MiB");
   }
   return {
     uuid: script.uuid,
     name: script.name,
     version: script.metadata.version?.[0],
-    code: scriptCode.code,
+    code: sliced.code,
+    // Whole-file hash even for a window (design §4.1) — lets a client paginating through a script
+    // detect the underlying file changing across reads. It never covers the window's edit surface.
+    sha256: sha256OfText(scriptCode.code),
+    contentTrust: "untrusted-user-script-source",
+    startLine: sliced.startLine,
+    endLine: sliced.endLine,
+    totalLines: sliced.totalLines,
+  };
+}
+
+// Single-line length above which a line is skipped for matching rather than fed to the regex
+// engine (design §3 决策 14): bounds the worst case of a catastrophic-backtracking pattern to one
+// line's length instead of the whole (up to 2 MiB) script.
+export const MAX_GREP_LINE_LENGTH = 4096;
+
+// Regex execution budget (design §3 决策 14 / §4.2): re-checked every GREP_BUDGET_CHECK_LINES lines
+// against an injectable clock so a pathological pattern can't hang the service worker — the SW is
+// the whole extension's message bus — and so tests never depend on real elapsed time.
+const GREP_BUDGET_MS = 2000;
+const GREP_BUDGET_CHECK_LINES = 1000;
+
+export interface GrepOptions {
+  mode?: "text" | "regex";
+  ignoreCase?: boolean;
+  contextLines?: number;
+  maxMatches?: number;
+}
+
+export interface GrepLinesResult {
+  matches: ScriptSourceGrepMatch[];
+  totalMatches: number;
+  truncated: boolean;
+  skippedLongLines: number;
+  totalLines: number;
+}
+
+/**
+ * Pure line-by-line search for `scripts.source.grep` (design §4.2). Deliberately does not call
+ * `stringMatching` (src/pkg/utils/utils.ts) or share any code with the script-list page's search
+ * (design §3 决策 15): `text` mode is a plain literal substring test — none of `*`/`?`/`.` carry
+ * special meaning — and `regex` mode is a real RegExp, so the two searches no longer share any
+ * matching semantics to keep in sync.
+ *
+ * `clock` defaults to Date.now and is only ever overridden by tests, so the execution-budget abort
+ * path can be exercised without actually waiting out (or triggering) a slow match.
+ */
+export function grepLines(
+  code: string,
+  query: string,
+  options: GrepOptions = {},
+  clock: () => number = Date.now
+): GrepLinesResult {
+  const mode = options.mode ?? "text";
+  const ignoreCase = options.ignoreCase ?? false;
+  const contextLines = options.contextLines ?? 0;
+  const maxMatches = options.maxMatches ?? 50;
+
+  if (query.length < 1 || query.length > 1024) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "query must be 1-1024 characters");
+  }
+  if (contextLines < 0 || contextLines > 10) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "contextLines must be between 0 and 10");
+  }
+  if (maxMatches < 1 || maxMatches > 200) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "maxMatches must be between 1 and 200");
+  }
+
+  let pattern: RegExp | undefined;
+  if (mode === "regex") {
+    try {
+      pattern = new RegExp(query, ignoreCase ? "i" : "");
+    } catch {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "invalid regular expression");
+    }
+  }
+  const literalNeedle = ignoreCase ? query.toLowerCase() : query;
+
+  const lines = code.split("\n");
+  const totalLines = lines.length;
+  const matches: ScriptSourceGrepMatch[] = [];
+  let totalMatches = 0;
+  let skippedLongLines = 0;
+  const startedAt = clock();
+
+  for (let i = 0; i < totalLines; i++) {
+    if ((i + 1) % GREP_BUDGET_CHECK_LINES === 0 && clock() - startedAt > GREP_BUDGET_MS) {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "pattern too slow to execute, simplify it");
+    }
+
+    const line = lines[i];
+    if (line.length > MAX_GREP_LINE_LENGTH) {
+      skippedLongLines++;
+      continue;
+    }
+
+    const hit = pattern ? pattern.test(line) : (ignoreCase ? line.toLowerCase() : line).includes(literalNeedle);
+    if (!hit) continue;
+
+    totalMatches++;
+    if (matches.length < maxMatches) {
+      matches.push({
+        lineNumber: i + 1,
+        line,
+        before: lines.slice(Math.max(0, i - contextLines), i),
+        after: lines.slice(i + 1, i + 1 + contextLines),
+      });
+    }
+  }
+
+  return { matches, totalMatches, truncated: totalMatches > matches.length, skippedLongLines, totalLines };
+}
+
+/**
+ * Runs `grepLines` against a script's stored source and shapes the result as the
+ * `scripts.source.grep` wire response. Mirrors `readScriptSource`'s two callers (bridge's
+ * already-allowed fast path and the approval service's blocking-approval path).
+ */
+export async function grepScriptSource(
+  scriptDAO: Pick<ScriptDAO, "get">,
+  scriptCodeDAO: Pick<ScriptCodeDAO, "get">,
+  uuid: string,
+  query: string,
+  options: GrepOptions = {}
+): Promise<ScriptSourceGrepResult> {
+  const script = await scriptDAO.get(uuid);
+  if (!script) throw new ExternalAccessBridgeError("NOT_FOUND", "script not found");
+  const scriptCode = await scriptCodeDAO.get(uuid);
+  if (!scriptCode) throw new ExternalAccessBridgeError("NOT_FOUND", "script source not found");
+
+  const result = grepLines(scriptCode.code, query, options);
+  return {
+    uuid: script.uuid,
+    name: script.name,
+    version: script.metadata.version?.[0],
+    matches: result.matches,
+    totalMatches: result.totalMatches,
+    truncated: result.truncated,
+    skippedLongLines: result.skippedLongLines,
+    totalLines: result.totalLines,
     sha256: sha256OfText(scriptCode.code),
     contentTrust: "untrusted-user-script-source",
   };

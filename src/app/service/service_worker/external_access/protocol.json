@@ -26,6 +26,7 @@
     "scripts.list": { "scope": "scripts:list", "write": false },
     "scripts.metadata.get": { "scope": "scripts:metadata:read", "write": false },
     "scripts.source.get": { "scope": "scripts:source:read", "write": false, "blocking": "disclosure" },
+    "scripts.source.grep": { "scope": "scripts:source:read", "write": false, "blocking": "disclosure" },
     "scripts.install.request": { "scope": "scripts:install:request", "write": true, "blocking": "approval" },
     "scripts.toggle.request": { "scope": "scripts:toggle:request", "write": true, "blocking": "approval" },
     "scripts.delete.request": { "scope": "scripts:delete:request", "write": true, "blocking": "approval" }
