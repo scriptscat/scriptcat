@@ -141,12 +141,22 @@ describe("grepLines（scripts.source.grep 的逐行匹配，不复用 stringMatc
     expect(result.truncated).toBe(false);
   });
 
-  it("超过单行长度上限（4096）的行被跳过匹配，计入 skippedLongLines", () => {
+  it("regex 档下超过单行长度上限（4096）的行被跳过匹配，计入 skippedLongLines", () => {
+    // 长行跳过是为了给灾难性回溯的正则设上限（design §3 决策 14），只对 regex 档有意义。
     const longLine = "x".repeat(MAX_GREP_LINE_LENGTH + 1) + "hit";
     const multi = ["hit here", longLine, "hit again"].join("\n");
-    const result = grepLines(multi, "hit");
+    const result = grepLines(multi, "hit", { mode: "regex" });
     expect(result.skippedLongLines).toBe(1);
     expect(result.matches.map((m) => m.lineNumber)).toEqual([1, 3]);
+  });
+
+  it("text 档不跳过超长行：命中原样返回、不截断，skippedLongLines 恒为 0", () => {
+    // 压缩/打包后的用户脚本常整份代码挤在一行；text 档若跳过长行，字面量搜索对这类脚本永远零命中。
+    const longLine = "x".repeat(MAX_GREP_LINE_LENGTH + 1) + "hit";
+    const result = grepLines(longLine, "hit");
+    expect(result.skippedLongLines).toBe(0);
+    expect(result.matches).toHaveLength(1);
+    expect(result.matches[0].line).toBe(longLine);
   });
 
   it("零命中返回空 matches 且 totalMatches 为 0", () => {

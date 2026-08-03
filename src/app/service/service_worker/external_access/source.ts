@@ -193,15 +193,22 @@ export function grepLines(
   const startedAt = clock();
 
   for (let i = 0; i < totalLines; i++) {
-    if ((i + 1) % GREP_BUDGET_CHECK_LINES === 0 && clock() - startedAt > GREP_BUDGET_MS) {
-      throw new ExternalAccessBridgeError("INVALID_REQUEST", "pattern too slow to execute, simplify it");
+    // Long-line skip and the wall-clock budget bound regex's backtracking blast radius (design §3
+    // 决策 14 / §4.2). `text` is a linear `String.prototype.includes` scan with no backtracking risk,
+    // and skipping its long lines would make literal search permanently blind to minified/bundled
+    // userscripts that sit on a single line — so neither constraint applies outside `regex` mode.
+    if (mode === "regex") {
+      if ((i + 1) % GREP_BUDGET_CHECK_LINES === 0 && clock() - startedAt > GREP_BUDGET_MS) {
+        throw new ExternalAccessBridgeError("INVALID_REQUEST", "pattern too slow to execute, simplify it");
+      }
+
+      if (lines[i].length > MAX_GREP_LINE_LENGTH) {
+        skippedLongLines++;
+        continue;
+      }
     }
 
     const line = lines[i];
-    if (line.length > MAX_GREP_LINE_LENGTH) {
-      skippedLongLines++;
-      continue;
-    }
 
     const hit = pattern ? pattern.test(line) : (ignoreCase ? line.toLowerCase() : line).includes(literalNeedle);
     if (!hit) continue;
