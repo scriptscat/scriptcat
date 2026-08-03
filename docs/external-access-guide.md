@@ -31,14 +31,17 @@ Once connected, an AI agent (over MCP) **or** you (over the `sctl` CLI) can:
 
 - List your installed userscripts and read their metadata (matches, grants, enabled state) —
   read-only, no approval needed.
-- Read a script's full source — gated by the **source-read policy** (approval by default) because
-  source can contain secrets. This applies to the CLI too — reading source is a privacy decision, so
-  `sctl scripts source` is **not** exempt.
-- **Request** installing a new script, enabling/disabling one, or deleting one. Every one is a
-  *request*: the call blocks and nothing changes until you decide in a ScriptCat window that pops up
-  automatically. Installs and updates reuse ScriptCat's normal install page (with the identity,
-  permissions, code, and version diff you already know); the install page's own enable switch decides
-  the enabled state, so an approved install is usable immediately, just like a normal install.
+- Read a script's source — the whole file, a **line window**, or just the lines matching a
+  **search**. All three are gated by the **source-read policy** (approval by default), because
+  source is your content to disclose. This applies to the CLI too — reading source is a privacy
+  decision, so `sctl get <uuid> -o source` and `sctl grep` are **not** exempt.
+- **Request** installing a new script, **editing** one, enabling/disabling one, or deleting one.
+  Every one is a *request*: the call blocks and nothing changes until you decide in a ScriptCat
+  window that pops up automatically. Installs and edits reuse ScriptCat's normal install page (with
+  the identity, permissions, code, and version diff you already know); the page's own enable switch
+  decides the enabled state, so an approved install is usable immediately, just like a normal
+  install, while for an edit that switch starts where the script already is — an edit never quietly
+  turns a script off.
 
 There is no code path from an MCP or CLI request to a script mutation that skips your decision
 (unless you deliberately switch a policy to "allow directly" — see below).
@@ -125,14 +128,23 @@ configs with different names). If the extension isn't enrolled yet, tool calls r
 The `sctl` verbs drive the exact same channel with the same permissions:
 
 ```bash
-sctl scripts list                 # or --json for machine-readable output
-sctl scripts info <uuid>
-sctl scripts source <uuid>        # raw source to stdout; gated by the source-read policy
+sctl get                          # table of installed scripts; -o json for machine-readable output
+sctl get <uuid>                   # one-line table; -o json for the full metadata
+sctl get <uuid> -o source         # raw source to stdout; gated by the source-read policy
+sctl get <uuid> -o source --lines 40-80   # just that line window
+sctl grep <uuid> 'fetch('         # matching lines with line numbers; same source-read gate
 sctl install ./my-script.user.js  # or a URL; blocks until you decide in the browser
+sctl edit <uuid> --replace 'old code' --with 'new code'
 sctl enable <uuid>
 sctl disable <uuid>
-sctl rm <uuid>
+sctl delete <uuid>                # alias: sctl del
 ```
+
+`get`, `grep`, `edit`, `enable`, `disable` and `delete` also take an optional resource word before
+the uuid, so `sctl get sc <uuid>` reads the same as `kubectl get pods` habits would suggest.
+`sctl grep` matches a **literal substring** by default (`*`, `?` and `.` are ordinary characters) —
+add `-E` for a regular expression, plus `-i`, `-C N` and `-m N` as you'd expect from `grep`; finding
+nothing exits **0**, not 1.
 
 Write verbs block until you decide; **Ctrl-C** cancels the request (the browser confirm page is
 dismissed). Exit codes: **0** approved/ok, **1** you rejected, **2** voided (timeout / Ctrl-C /
@@ -168,9 +180,18 @@ and MCP at once).
 | `scripts_list` | nothing | No |
 | `scripts_metadata_get` | nothing | No |
 | `scripts_source_get` | a source-disclosure decision (unless the source-read policy is "allow directly") | No |
+| `scripts_source_grep` | the same source-disclosure decision — matching lines are source | No |
 | `scripts_install_request` | an install decision on the install page (unless the write policy is "allow directly") | Yes |
+| `scripts_edit_request` | an update decision on the install page, with a line-by-line diff (unless the write policy is "allow directly") | Yes |
 | `scripts_toggle_request` | a toggle decision (unless the write policy is "allow directly") | Yes |
 | `scripts_delete_request` | a hold-to-confirm delete decision (unless the write policy is "allow directly") | Yes |
+
+`scripts_source_get` takes an optional `startLine`/`endLine` window so an agent can page through a
+large script instead of spending its whole context on one read; `scripts_source_grep` finds the
+lines worth reading first. `scripts_edit_request` anchors on content (`oldText` → `newText`, matched
+literally and required to be unique unless `replaceAll` is set), so the agent never has to hold —
+or send back — the whole file to change one function. One request carries **at most 100 edits**;
+past that ScriptCat rejects it outright, since every edit rescans the whole script.
 
 Write tools are **blocking**: the call suspends until you decide (there is no operation-polling API —
 the result comes back on the same call). While it waits, the MCP server sends progress notifications
@@ -190,28 +211,49 @@ Read-only, works the moment you're enrolled:
 > **Agent:** "You have 12 scripts installed; 9 are enabled."
 
 No prompt appears — it's exactly as safe as looking at the Scripts list yourself. (The same answer
-from your terminal: `sctl scripts list`.)
+from your terminal: `sctl get`.)
 
 ### Case 2 — "Find and fix a bug in my auto-login script"
 
-This is the flow that hits the disclosure gate:
+This is the flow that hits both gates — the disclosure gate to read, then the write gate to change:
 
 > **You:** There's a bug in my "Auto Login" script — can you find and fix it?
-> **Agent:** *calls `scripts_list`*, finds the uuid, *calls `scripts_metadata_get`* to confirm,
-> then *calls `scripts_source_get`*.
-> **Result:** with the source-read policy on *Require approval*, the read blocks. ScriptCat pops up
-> a confirm page: *"External Access wants to read the source of `Auto Login`. Source may contain
-> secrets."* with **Reject**, **Allow this session**, **Allow**.
+> **Agent:** *calls `scripts_list`*, finds the uuid, *calls `scripts_metadata_get`* to confirm, then
+> *calls `scripts_source_grep`* with `{ uuid, query: "password", contextLines: 3 }` to locate the
+> login handler rather than pulling in a 2000-line file.
+> **Result:** with the source-read policy on *Require approval*, the search blocks. ScriptCat pops
+> up a confirm page — **Read script source**, with the script's name and *"Reading source exposes
+> the script’s content. Confirm you trust this request."* — offering **Reject**, **Allow this
+> session**, **Allow**.
 >
-> - **Allow** — this read succeeds; the *next* read prompts again.
-> - **Allow this session** — this and every future read of *this script* succeed with no further
->   prompt until the extension session ends.
+> - **Allow** — this search succeeds; the *next* read or search prompts again.
+> - **Allow this session** — this and every future read *or search* of *this script* succeeds with
+>   no further prompt until the extension session ends. Both share one gate, so one decision covers
+>   both.
 >
-> Say you pick "Allow." The call returns the source, the agent spots the bug and calls
-> `scripts_install_request` with the fix. ScriptCat's install page opens with a banner —
-> *"Requested via External Access"* — plus the source, an expandable content SHA-256, and the normal
-> permission/diff review. The enable switch behaves like a normal install; approve and the fixed
-> version is live.
+> Say you pick "Allow this session." The call returns the matching lines with their line numbers,
+> and the agent *calls `scripts_source_get`* with `{ uuid, startLine: 180, endLine: 240 }` to read
+> just that region — no second prompt this time.
+>
+> **The fix:** the agent *calls `scripts_edit_request`* with a single edit whose `oldText` is the
+> buggy two lines and whose `newText` is the corrected version. It never sends the file back, and it
+> never had to hold the whole file. ScriptCat's install page opens in its update mode with a banner
+> — *"Requested to update this script via External Access — your decision is required."* — showing a
+> line-by-line diff against your current code, the permission card (so a fix that adds a `@grant` or
+> a `@connect` is visible as a permission change, not buried in the diff), and an expandable content
+> SHA-256. The enable switch starts where the script already is. Approve and the fix is live.
+>
+> If the anchor doesn't match — the text isn't there, or appears at more than one position — the
+> call fails with `INVALID_REQUEST` **before** any page opens, and the agent adds surrounding lines
+> and retries. Nothing is staged and you are not interrupted.
+
+The same thing from your terminal:
+
+```bash
+sctl grep <uuid> password -C 3
+sctl get <uuid> -o source --lines 180-240
+sctl edit <uuid> --replace @old.txt --with @new.txt
+```
 
 ### Case 3 — "Turn off the script that's breaking this site while I debug it"
 
