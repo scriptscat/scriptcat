@@ -1,3 +1,4 @@
+// SDK 的 SSE 管线需要原生 Web Streams；happy-dom 下会超过 fast 项目的 340ms 预算。
 // @vitest-environment node
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
