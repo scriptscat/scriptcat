@@ -550,13 +550,22 @@ export class SystemConfig {
     return 5;
   }
 
-  // 展开菜单数
+  // 单个脚本行内展开的菜单项数量，0 表示展开脚本行后才显示菜单
   getMenuExpandNum() {
     return this._get<number>("menu_expand_num", this.defaultMenuExpandNum());
   }
 
   setMenuExpandNum(val: number) {
     this._set("menu_expand_num", val);
+  }
+
+  /** popup 每个分组展开显示的脚本数量，0 表示不折叠 */
+  getScriptListExpandNum() {
+    return this._get<number>("script_list_expand_num", 5);
+  }
+
+  setScriptListExpandNum(val: number) {
+    this._set("script_list_expand_num", val);
   }
 
   getPopupCompactLayout() {

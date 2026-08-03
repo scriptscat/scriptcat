@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 
 const popupInitialData = vi.hoisted(() => ({
@@ -7,6 +7,7 @@ const popupInitialData = vi.hoisted(() => ({
   isEnableScript: true,
   checkUpdate: { notice: "", version: "1.0.0", isRead: false },
   menuExpandNum: 5,
+  scriptListExpandNum: 5,
   defaultScriptProvider: "scriptcat" as const,
   isBlacklist: false,
   scriptList: [
@@ -19,7 +20,7 @@ const popupInitialData = vi.hoisted(() => ({
       updatetime: 0,
     },
   ],
-  backScriptList: [],
+  backScriptList: [] as unknown[],
 }));
 
 vi.mock("./preload", () => ({
@@ -96,5 +97,84 @@ describe("usePopupData 预加载数据", () => {
     expect(result.current.currentUrl).toBe("https://example.com/page");
     expect(result.current.fullScriptCount).toBe(1);
     expect(result.current.scriptList[0]?.name).toBe("Preloaded script");
+  });
+});
+
+describe("usePopupData 脚本列表展开数量", () => {
+  const snapshot = { scriptList: popupInitialData.scriptList, backScriptList: [], scriptListExpandNum: 5 };
+
+  const makeScripts = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      uuid: `script-${i}`,
+      name: `Script ${i}`,
+      enable: true,
+      menus: [],
+      runNum: 0,
+      updatetime: 0,
+    }));
+
+  afterEach(() => {
+    Object.assign(popupInitialData, snapshot);
+  });
+
+  it("默认只展开 5 条，其余折叠为「显示更多」", () => {
+    Object.assign(popupInitialData, { scriptList: makeScripts(8), scriptListExpandNum: 5 });
+
+    const { result } = renderHook(() => usePopupData());
+
+    expect(result.current.scriptList).toHaveLength(5);
+    expect(result.current.canExpandCurrent).toBe(true);
+    expect(result.current.remainingCurrentCount).toBe(3);
+  });
+
+  it("调大展开数量后应按设置展开而不是恒为 5", () => {
+    Object.assign(popupInitialData, { scriptList: makeScripts(8), scriptListExpandNum: 21 });
+
+    const { result } = renderHook(() => usePopupData());
+
+    expect(result.current.scriptList).toHaveLength(8);
+    expect(result.current.canExpandCurrent).toBe(false);
+  });
+
+  it("设为 0 表示不折叠，全部脚本直接显示", () => {
+    Object.assign(popupInitialData, { scriptList: makeScripts(30), scriptListExpandNum: 0 });
+
+    const { result } = renderHook(() => usePopupData());
+
+    expect(result.current.scriptList).toHaveLength(30);
+    expect(result.current.canExpandCurrent).toBe(false);
+    expect(result.current.remainingCurrentCount).toBe(0);
+    // 列表全展开时脚本可能很多，搜索框必须仍然可用
+    expect(result.current.showSearch).toBe(true);
+  });
+
+  it("后台脚本分组同样按该设置截断", () => {
+    Object.assign(popupInitialData, {
+      scriptList: [],
+      backScriptList: makeScripts(9),
+      scriptListExpandNum: 7,
+    });
+
+    const { result } = renderHook(() => usePopupData());
+
+    expect(result.current.backScriptList).toHaveLength(7);
+    expect(result.current.canExpandBack).toBe(true);
+    expect(result.current.remainingBackCount).toBe(2);
+  });
+
+  it("搜索框跟随该设置：脚本总数未超过展开数量时不显示", () => {
+    Object.assign(popupInitialData, { scriptList: makeScripts(8), scriptListExpandNum: 10 });
+
+    const { result } = renderHook(() => usePopupData());
+
+    expect(result.current.showSearch).toBe(false);
+  });
+
+  it("搜索框跟随该设置：脚本总数超过展开数量时显示", () => {
+    Object.assign(popupInitialData, { scriptList: makeScripts(11), scriptListExpandNum: 10 });
+
+    const { result } = renderHook(() => usePopupData());
+
+    expect(result.current.showSearch).toBe(true);
   });
 });
