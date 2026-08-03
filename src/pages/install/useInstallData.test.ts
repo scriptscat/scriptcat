@@ -249,8 +249,8 @@ describe("useInstallData 数据流编排", () => {
     expect(state.view.oldCode).toBe("// old code");
   });
 
-  describe("安装成功后离开安装页:独立新标签应关闭,同标签内被重定向而来应返回上一页", () => {
-    const setupReady = async () => {
+  describe("安装成功后离开安装页:独立新标签应关闭,网页链接接管的原标签应返回上一页", () => {
+    const setupReady = async (paramOptions: Record<string, unknown> = {}) => {
       window.history.replaceState({}, "", "/install.html?uuid=u1");
       const metadata = { name: ["示例脚本"], version: ["1.0.0"], match: ["https://e.com/*"] };
       const info: ScriptInfo = {
@@ -261,7 +261,7 @@ describe("useInstallData 数据流编排", () => {
         metadata,
         source: "user",
       };
-      (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+      (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, paramOptions]);
       (getTempCode as Mock).mockResolvedValue("// code");
       (prepareScriptByCode as Mock).mockResolvedValue({ script: makeAction(metadata) });
       (scriptClient.install as Mock).mockResolvedValue(undefined);
@@ -270,11 +270,11 @@ describe("useInstallData 数据流编排", () => {
       return result;
     };
 
-    it("history.length 为 1(以新标签打开)时应 window.close()", async () => {
+    it("独立新标签即使 history.length > 1 也应 window.close()", async () => {
       const result = await setupReady();
       const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
       const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
-      vi.spyOn(window.history, "length", "get").mockReturnValue(1);
+      vi.spyOn(window.history, "length", "get").mockReturnValue(2);
 
       await act(async () => {
         await result.current.install();
@@ -286,11 +286,11 @@ describe("useInstallData 数据流编排", () => {
       expect(backSpy).not.toHaveBeenCalled();
     });
 
-    it("history.length > 1(同一标签被就地重定向而来)时应 history.back() 而非关闭标签", async () => {
-      const result = await setupReady();
+    it("byWebRequest 入口即使 history.length 为 1 也应 history.back() 而非关闭标签", async () => {
+      const result = await setupReady({ byWebRequest: true });
       const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
       const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
-      vi.spyOn(window.history, "length", "get").mockReturnValue(2);
+      vi.spyOn(window.history, "length", "get").mockReturnValue(1);
 
       await act(async () => {
         await result.current.install();
