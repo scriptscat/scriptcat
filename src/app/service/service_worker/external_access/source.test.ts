@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sliceLines, grepLines, MAX_GREP_LINE_LENGTH } from "./source";
+import { sliceLines, grepLines, applyTextEdits, MAX_GREP_LINE_LENGTH } from "./source";
 import { ExternalAccessBridgeError } from "./errors";
 
 describe("sliceLines（scripts.source.get 的行开窗，1-based 闭区间）", () => {
@@ -245,5 +245,86 @@ describe("grepLines（scripts.source.grep 的逐行匹配，不复用 stringMatc
       const result = grepLines(fewLines, "line 10", { mode: "regex" }, clock);
       expect(result.matches).toHaveLength(1);
     });
+  });
+});
+
+// 断言抛出的是 INVALID_REQUEST 并把错误交回调用方，供「未找到」与「不唯一」两种消息的区分断言。
+function expectInvalidRequest(fn: () => unknown): ExternalAccessBridgeError {
+  try {
+    fn();
+  } catch (e) {
+    expect(e).toBeInstanceOf(ExternalAccessBridgeError);
+    expect((e as ExternalAccessBridgeError).code).toBe("INVALID_REQUEST");
+    return e as ExternalAccessBridgeError;
+  }
+  return expect.unreachable("should have thrown");
+}
+
+describe("applyTextEdits（scripts.edit.request 的内容锚定编辑）", () => {
+  const code = ["function login() {", "  return fetch('/api/login');", "}"].join("\n");
+
+  it("oldText 恰好命中一次时只替换该处，其余文本逐字节不变", () => {
+    expect(applyTextEdits(code, [{ oldText: "'/api/login'", newText: "'/api/v2/login'" }])).toBe(
+      ["function login() {", "  return fetch('/api/v2/login');", "}"].join("\n")
+    );
+  });
+
+  it("oldText 未命中时报 INVALID_REQUEST，消息说明未找到", () => {
+    const error = expectInvalidRequest(() => applyTextEdits(code, [{ oldText: "logout", newText: "x" }]));
+    expect(error.message).toContain("not found");
+  });
+
+  it("oldText 命中多处且未开 replaceAll 时报 INVALID_REQUEST，消息与「未找到」可区分并提示补充上下文", () => {
+    const error = expectInvalidRequest(() => applyTextEdits("a\nb\na", [{ oldText: "a", newText: "c" }]));
+    expect(error.message).not.toContain("not found");
+    expect(error.message).toContain("not unique");
+  });
+
+  it("replaceAll 为真时多处命中全部替换", () => {
+    expect(applyTextEdits("a\nb\na", [{ oldText: "a", newText: "c", replaceAll: true }])).toBe("c\nb\nc");
+  });
+
+  it("多个 edit 顺序应用：后一个作用于前一个的结果，而非原始快照", () => {
+    // 并行作用于原始快照的实现会在第二个 edit 上找不到 "b"（原文里没有）而报错。
+    expect(
+      applyTextEdits("a", [
+        { oldText: "a", newText: "b" },
+        { oldText: "b", newText: "c" },
+      ])
+    ).toBe("c");
+  });
+
+  it("唯一性按前一个 edit 的结果逐步重新校验：前一步制造出第二处命中即判为不唯一", () => {
+    const error = expectInvalidRequest(() =>
+      applyTextEdits("A\nB", [
+        { oldText: "A", newText: "B" },
+        { oldText: "B", newText: "C" },
+      ])
+    );
+    expect(error.message).toContain("not unique");
+  });
+
+  it("newText 为空串即删除命中的片段", () => {
+    expect(applyTextEdits("keep\ndrop me\nkeep2", [{ oldText: "\ndrop me", newText: "" }])).toBe("keep\nkeep2");
+  });
+
+  it("newText 里的 $& / $1 / $$ 按字面插入，不做替换模式展开", () => {
+    // String.prototype.replace(All) 即便 pattern 是字符串也仍会展开 $& 等替换模式，而 "$&" 在用户
+    // 脚本里是合法字面量——展开会静默写入与请求不同的代码。
+    expect(applyTextEdits("cost = 1", [{ oldText: "1", newText: "$& + $1 + $$" }])).toBe("cost = $& + $1 + $$");
+  });
+
+  it("oldText 为空串报 INVALID_REQUEST（空锚点在任意位置都成立，无法定位）", () => {
+    expectInvalidRequest(() => applyTextEdits(code, [{ oldText: "", newText: "x" }]));
+  });
+
+  it("全部 edit 应用后与原文逐字节相同时报 INVALID_REQUEST，不为空改动开确认页", () => {
+    expectInvalidRequest(() => applyTextEdits(code, [{ oldText: "login", newText: "login", replaceAll: true }]));
+    expectInvalidRequest(() =>
+      applyTextEdits("a", [
+        { oldText: "a", newText: "b" },
+        { oldText: "b", newText: "a" },
+      ])
+    );
   });
 });

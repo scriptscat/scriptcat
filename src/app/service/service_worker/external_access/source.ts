@@ -258,3 +258,67 @@ export async function grepScriptSource(
     contentTrust: "untrusted-user-script-source",
   };
 }
+
+export interface TextEdit {
+  oldText: string;
+  newText: string;
+  replaceAll?: boolean;
+}
+
+function countOccurrences(text: string, needle: string): number {
+  let count = 0;
+  for (let index = text.indexOf(needle); index !== -1; index = text.indexOf(needle, index + needle.length)) {
+    count++;
+  }
+  return count;
+}
+
+// Hand-rolled rather than String.prototype.replace(All): those expand `$&` / `$1` / `$$` in the
+// replacement even when the pattern is a plain string, and `$&` is an ordinary literal in a
+// userscript — expansion would silently store code the client never asked for.
+function replaceOccurrences(text: string, needle: string, replacement: string, all: boolean): string {
+  let result = "";
+  let from = 0;
+  while (true) {
+    const index = text.indexOf(needle, from);
+    if (index === -1) break;
+    result += text.slice(from, index) + replacement;
+    from = index + needle.length;
+    if (!all) break;
+  }
+  return result + text.slice(from);
+}
+
+/**
+ * Content-anchored editing for `scripts.edit.request` (design §5, 决策 1-4). Edits apply in order,
+ * each to the previous one's result, and uniqueness is re-checked against that intermediate text —
+ * so an anchor an earlier edit duplicated is caught rather than silently resolved to the first hit.
+ * `newText: ""` deletes; both fields are plain strings, never patterns.
+ *
+ * Throws INVALID_REQUEST — with distinguishable "not found" / "not unique" messages so an agent can
+ * tell a wrong anchor from one needing more context — instead of applying part of the batch:
+ * nothing here mutates anything, the result is what the human will later review on the install page.
+ */
+export function applyTextEdits(code: string, edits: TextEdit[]): string {
+  let text = code;
+  for (const [i, edit] of edits.entries()) {
+    if (edit.oldText.length === 0) {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", `edits[${i}].oldText must not be empty`);
+    }
+    const occurrences = countOccurrences(text, edit.oldText);
+    if (occurrences === 0) {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", `edits[${i}].oldText not found in the script`);
+    }
+    if (occurrences > 1 && edit.replaceAll !== true) {
+      throw new ExternalAccessBridgeError(
+        "INVALID_REQUEST",
+        `edits[${i}].oldText is not unique (${occurrences} occurrences), add surrounding context or set replaceAll`
+      );
+    }
+    text = replaceOccurrences(text, edit.oldText, edit.newText, edit.replaceAll === true);
+  }
+  if (text === code) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "edits produce no change to the script");
+  }
+  return text;
+}

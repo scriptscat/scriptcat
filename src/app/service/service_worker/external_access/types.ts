@@ -94,6 +94,7 @@ export const EXTERNAL_ACCESS_SCOPES = [
   "scripts:install:request",
   "scripts:toggle:request",
   "scripts:delete:request",
+  "scripts:edit:request",
 ] as const;
 
 export type ExternalAccessScope = (typeof EXTERNAL_ACCESS_SCOPES)[number];
@@ -110,6 +111,7 @@ export const BRIDGE_ACTIONS = [
   "scripts.install.request",
   "scripts.toggle.request",
   "scripts.delete.request",
+  "scripts.edit.request",
 ] as const;
 
 export type BridgeAction = (typeof BRIDGE_ACTIONS)[number];
@@ -275,12 +277,14 @@ export const ACTION_REQUIRED_SCOPE: Record<BridgeAction, ExternalAccessScope> = 
   "scripts.install.request": "scripts:install:request",
   "scripts.toggle.request": "scripts:toggle:request",
   "scripts.delete.request": "scripts:delete:request",
+  "scripts.edit.request": "scripts:edit:request",
 } as const;
 
 export const WRITE_ACTIONS: readonly BridgeAction[] = [
   "scripts.install.request",
   "scripts.toggle.request",
   "scripts.delete.request",
+  "scripts.edit.request",
 ] as const;
 
 // ---------------------------------------------------------------------------------------------

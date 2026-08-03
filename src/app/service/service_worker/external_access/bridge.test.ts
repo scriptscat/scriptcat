@@ -306,6 +306,106 @@ describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
     });
   });
 
+  describe("scripts.edit.request 内容锚定编辑", () => {
+    // 编辑要走 prepareScriptByCode 重新解析，目标脚本的代码必须带完整元数据块。
+    const EDITABLE_CODE = `// ==UserScript==
+// @name Existing Script
+// @namespace ns
+// @version 1.0.0
+// ==/UserScript==
+console.log('v1');`;
+    const EDITED_CODE = EDITABLE_CODE.replace("console.log('v1')", "console.log('v2')");
+    const editV1toV2 = [{ oldText: "console.log('v1')", newText: "console.log('v2')" }];
+
+    async function seedEditTarget(overrides: Record<string, unknown> = {}) {
+      await seedScript(SRC_UUID, { origin: "https://example.com/x.user.js", ...overrides });
+      await scriptCodeDAO.save({ uuid: SRC_UUID, code: EDITABLE_CODE });
+    }
+
+    it("写策略=需人工审批时挂起并创建 kind=update 的待批操作，确认页是安装页", async () => {
+      writePolicy = "approval";
+      await seedEditTarget();
+      const result = await bridge.handle(makeRequest("scripts.edit.request", { uuid: SRC_UUID, edits: editV1toV2 }));
+      expect(result).toBeNull();
+      const pending = await operationDAO.awaitingUser();
+      expect(pending).toHaveLength(1);
+      expect(pending[0].kind).toBe("update");
+      expect(utilsModule.openInCurrentTab).toHaveBeenCalledWith(`/src/install.html?uuid=${SRC_UUID}`);
+    });
+
+    it("写策略=直接允许时立即按新全文安装，并保留脚本原有的启用状态", async () => {
+      writePolicy = "allow";
+      await seedEditTarget({ status: SCRIPT_STATUS_ENABLE });
+      const mutator = (approval as unknown as { mutator: ExternalAccessScriptMutator }).mutator;
+      const response = expectResponse(
+        await bridge.handle(makeRequest("scripts.edit.request", { uuid: SRC_UUID, edits: editV1toV2 }))
+      );
+      expect(response.ok).toBe(true);
+      const installed = (mutator.installScript as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(installed.code).toBe(EDITED_CODE);
+      // 「直接允许」不经确认页，没有开关值可传；无条件按 enable 覆盖会把这个已启用的脚本静默关掉。
+      expect(installed.script.status).toBe(SCRIPT_STATUS_ENABLE);
+      expect(notifyWrite).toHaveBeenCalledWith(expect.objectContaining({ kind: "update" }));
+    });
+
+    it("锚点未命中与不唯一返回可区分的 INVALID_REQUEST，且不创建待批操作、不弹确认页", async () => {
+      writePolicy = "approval";
+      await seedEditTarget();
+      const notFound = expectResponse(
+        await bridge.handle(
+          makeRequest("scripts.edit.request", { uuid: SRC_UUID, edits: [{ oldText: "absent", newText: "x" }] })
+        )
+      );
+      expect(notFound.ok).toBe(false);
+      if (!notFound.ok) {
+        expect(notFound.error.code).toBe("INVALID_REQUEST");
+        expect(notFound.error.message).toContain("not found");
+      }
+      const notUnique = expectResponse(
+        await bridge.handle(
+          makeRequest("scripts.edit.request", { uuid: SRC_UUID, edits: [{ oldText: "// ", newText: "//" }] })
+        )
+      );
+      expect(notUnique.ok).toBe(false);
+      if (!notUnique.ok) {
+        expect(notUnique.error.code).toBe("INVALID_REQUEST");
+        expect(notUnique.error.message).toContain("not unique");
+      }
+      expect(await operationDAO.awaitingUser()).toHaveLength(0);
+      expect(utilsModule.openInCurrentTab).not.toHaveBeenCalled();
+    });
+
+    it("edits 的结构与字段类型在受理阶段严格校验", async () => {
+      writePolicy = "approval";
+      await seedEditTarget();
+      const invalid: Record<string, unknown>[] = [
+        { uuid: SRC_UUID },
+        { uuid: SRC_UUID, edits: [] },
+        { uuid: SRC_UUID, edits: {} },
+        { uuid: SRC_UUID, edits: [{ oldText: 1, newText: "x" }] },
+        { uuid: SRC_UUID, edits: [{ oldText: "a" }] },
+        { uuid: SRC_UUID, edits: [{ oldText: "a", newText: "b", replaceAll: "yes" }] },
+        { uuid: SRC_UUID, edits: [{ oldText: "a", newText: "b", where: 3 }] },
+        { uuid: SRC_UUID, edits: editV1toV2, unexpected: true },
+      ];
+      for (const input of invalid) {
+        const response = expectResponse(await bridge.handle(makeRequest("scripts.edit.request", input)));
+        expect(response.ok, JSON.stringify(input)).toBe(false);
+        if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+      }
+      expect(await operationDAO.awaitingUser()).toHaveLength(0);
+    });
+
+    it("目标脚本不存在返回 NOT_FOUND", async () => {
+      writePolicy = "approval";
+      const response = expectResponse(
+        await bridge.handle(makeRequest("scripts.edit.request", { uuid: SRC_UUID, edits: editV1toV2 }))
+      );
+      expect(response.ok).toBe(false);
+      if (!response.ok) expect(response.error.code).toBe("NOT_FOUND");
+    });
+  });
+
   it("bridge.request 中夹带的 clientId 字段被严格校验拒绝，审计记的是已认证 clientId", async () => {
     await bridge.handle(
       makeRequest("scripts.list", { clientId: "attacker" } as unknown as Record<string, never>, {

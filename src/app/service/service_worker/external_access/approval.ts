@@ -16,7 +16,7 @@ import type { InstallSource } from "@App/app/service/service_worker/types";
 import { openInCurrentTab } from "@App/pkg/utils/utils";
 import { validateInstallUrl, fetchInstallSourceWithPolicy, UrlPolicyViolation } from "./url_policy";
 import { ExternalAccessBridgeError } from "./errors";
-import { readScriptSource, grepScriptSource } from "./source";
+import { readScriptSource, grepScriptSource, applyTextEdits, MAX_SOURCE_BYTES, type TextEdit } from "./source";
 import { SessionAllowStore, sessionAllowKey } from "./session_allow";
 import type {
   BridgeErrorCode,
@@ -221,6 +221,100 @@ export class ExternalAccessApprovalService {
     return toRef(operation);
   }
 
+  /**
+   * Content-anchored edit gate for `scripts.edit.request` (design §5). Everything here runs before
+   * any confirm page opens and mutates nothing: the client's anchors are resolved against the
+   * script's current source, the assembled full text is size-checked, and only then does an
+   * operation exist. A request that can never be served therefore never costs the user a page.
+   *
+   * The client sends no hash (design 决策 5); the request→approval TOCTOU window is guarded by
+   * `existingCodeHash`, computed here from the very text the edits were anchored against and
+   * re-verified by `assertTargetUnchanged` at approval time.
+   */
+  async requestEdit(params: {
+    clientId: string;
+    uuid: string;
+    edits: TextEdit[];
+    requestId?: string;
+  }): Promise<PendingOperationRef> {
+    const target = await this.scriptDAO.get(params.uuid);
+    if (!target) {
+      throw new ExternalAccessBridgeError("NOT_FOUND", "script not found");
+    }
+    const existingCode = await this.scriptCodeDAO.get(params.uuid);
+    if (!existingCode) {
+      throw new ExternalAccessBridgeError("NOT_FOUND", "script source not found");
+    }
+
+    const editedCode = applyTextEdits(existingCode.code, params.edits);
+    // Deliberately MAX_SOURCE_BYTES, not install's INLINE_CODE_MAX_BYTES (design 决策 12): the 512 KiB
+    // cap limits how much code one request may *upload*, while an edit uploads only fragments and the
+    // full text is assembled here — so it's measured against what the extension will hold and
+    // disclose as source.
+    if (new TextEncoder().encode(editedCode).length > MAX_SOURCE_BYTES) {
+      throw new ExternalAccessBridgeError("PAYLOAD_TOO_LARGE", "edited source exceeds 2 MiB");
+    }
+    const contentHash = sha256OfText(editedCode);
+
+    // Same idempotency rule as prepareInstall: an identical result still awaiting_user reuses that
+    // operation instead of stacking a second confirm page.
+    const awaiting = await this.operationDAO.awaitingUser();
+    const duplicate = awaiting.find(
+      (op) => op.kind === "update" && op.targetUuid === params.uuid && op.contentHash === contentHash
+    );
+    if (duplicate) {
+      return toRef(duplicate);
+    }
+
+    // parseScriptFromCode derives downloadUrl/checkUpdateUrl from origin (src/pkg/utils/script.ts),
+    // and approval re-runs it with op.sourceUrl — passing the target's own origin is what keeps an
+    // edit from wiping the script's update address.
+    const origin = target.origin || "";
+    const { script } = await prepareScriptByCode(editedCode, origin, params.uuid, true);
+
+    const operationId = uuidv4();
+    const now = Date.now();
+    const operation: ExternalAccessOperation = {
+      operationId,
+      clientId: params.clientId,
+      kind: "update",
+      status: "awaiting_user",
+      createdAt: now,
+      expiresAt: now + APPROVAL_TTL_MS,
+      sessionKey: sessionAllowKey("update", params.uuid),
+      sourceUrl: origin,
+      contentHash,
+      // Edits target an existing script, so the staged code is keyed by that script's own uuid —
+      // the same key the browser's own update flow stages under (ScriptService.openUpdateOrInstallPage).
+      stagedUuid: params.uuid,
+      targetUuid: params.uuid,
+      existingCodeHash: sha256OfText(existingCode.code),
+      requestId: params.requestId,
+    };
+    await this.operationDAO.save(operation);
+
+    // `true` = update entry: install.html then takes its isKnownUpdate branch and renders the inline
+    // diff, version comparison and permission card against the script's current version.
+    const si = (await createTempCodeEntry(
+      true,
+      params.uuid,
+      editedCode,
+      origin,
+      "external_access",
+      script.metadata,
+      {}
+    )) as [boolean, ScriptInfo, Record<string, unknown>];
+    si[1].externalAccess = { operationId, contentHash };
+    await this.tempStorageDAO.save({
+      key: params.uuid,
+      value: si,
+      savedAt: now,
+      type: TempStorageItemType.tempCode,
+    });
+
+    return toRef(operation);
+  }
+
   async requestToggle(params: {
     clientId: string;
     uuid: string;
@@ -327,9 +421,11 @@ export class ExternalAccessApprovalService {
   // ---------------------------------------------------------------------------------------------
 
   private confirmUrl(op: ExternalAccessOperation): string {
-    // Installs are reviewed on the full install page (staged code is keyed by stagedUuid); every
-    // other kind uses the compact external_access_confirm page addressed by operationId.
-    return op.kind === "install"
+    // Installs and edits are reviewed on the full install page (staged code is keyed by stagedUuid)
+    // — an edit can touch @grant/@match/@connect, which is a permission change and has to land on
+    // the page that carries the permission card and the inline diff. Every other kind uses the
+    // compact external_access_confirm page addressed by operationId.
+    return op.kind === "install" || op.kind === "update"
       ? `/src/install.html?uuid=${op.stagedUuid}`
       : `/src/external_access_confirm.html?op=${op.operationId}`;
   }
@@ -479,6 +575,14 @@ export class ExternalAccessApprovalService {
         const summary = await this.executeInstall(op, options);
         return { summary, wire: summary };
       }
+      case "update": {
+        // An edit is anchored to the target's code as it stood at request time, so the target's own
+        // hash is re-verified on top of the staged-code check executeInstall already does —
+        // otherwise the edit would silently overwrite whatever changed in between.
+        await this.assertTargetUnchanged(op);
+        const summary = await this.executeInstall(op, options);
+        return { summary, wire: summary };
+      }
       case "enable":
       case "disable": {
         const summary = await this.executeToggle(op, op.kind === "enable");
@@ -524,8 +628,13 @@ export class ExternalAccessApprovalService {
 
     const { script } = await prepareScriptByCode(stagedCode, op.sourceUrl || "", stagedUuid, true);
     // Enabled state follows the decision (install page switch, or enable:true under direct allow) —
-    // there is no forced-disabled安全带 anymore (设计 §6：直接允许即装即用).
-    script.status = options.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
+    // there is no forced-disabled安全带 anymore (设计 §6：直接允许即装即用). Only when a decision was
+    // actually made, though: an edit approved without a page (直接允许 / 本会话允许) carries no switch
+    // value, and overwriting unconditionally would silently disable the script it just edited —
+    // prepareScriptByCode has already copied the existing script's status in that case.
+    if (options.enable !== undefined) {
+      script.status = options.enable ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
+    }
     await this.mutator.installScript({ script, code: stagedCode, upsertBy: "external_access" });
     return { uuid: script.uuid, name: script.name, enabled: script.status === SCRIPT_STATUS_ENABLE };
   }

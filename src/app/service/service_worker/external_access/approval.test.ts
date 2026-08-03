@@ -11,6 +11,8 @@ import {
 } from "@App/app/repo/scripts";
 import { TempStorageDAO } from "@App/app/repo/tempStorage";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
+import { sha256OfText } from "@App/pkg/utils/crypto";
+import { MAX_SOURCE_BYTES } from "./source";
 import * as utilsModule from "@App/pkg/utils/utils";
 
 const VALID_SCRIPT_CODE = `// ==UserScript==
@@ -19,6 +21,16 @@ const VALID_SCRIPT_CODE = `// ==UserScript==
 // @version 1.0.0
 // ==/UserScript==
 console.log("hi");`;
+
+// 编辑要走 prepareScriptByCode 重新解析，目标脚本的代码必须是带完整元数据块的真实脚本。
+const EDIT_TARGET_CODE = `// ==UserScript==
+// @name Seed
+// @namespace test-ns
+// @version 1.0.0
+// ==/UserScript==
+console.log("v1");`;
+
+const EDIT_ORIGIN = "https://example.com/seed.user.js";
 
 const TARGET_UUID = "22222222-2222-4222-8222-222222222222";
 
@@ -63,7 +75,7 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
 
   afterEach(() => vi.restoreAllMocks());
 
-  async function seedScript(uuid: string, code = "console.log('v1')") {
+  async function seedScript(uuid: string, code = "console.log('v1')", overrides: Record<string, unknown> = {}) {
     await scriptDAO.save({
       uuid,
       name: "Seed",
@@ -84,6 +96,7 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
       createtime: Date.now(),
       updatetime: Date.now(),
       checktime: Date.now(),
+      ...overrides,
     } as any);
     await scriptCodeDAO.save({ uuid, code } as any);
   }
@@ -263,5 +276,123 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
     await approval.decide(ref.operationId, true, { enable: false });
     expect(mutator.installScript.mock.calls[0][0].script.status).toBe(SCRIPT_STATUS_DISABLE);
     expect(responder).not.toHaveBeenCalled();
+  });
+
+  describe("requestEdit（scripts.edit.request 的 kind=update 操作）", () => {
+    const editV1toV2 = [{ oldText: 'console.log("v1")', newText: 'console.log("v2")' }];
+    const EDITED_CODE = EDIT_TARGET_CODE.replace('console.log("v1")', 'console.log("v2")');
+
+    async function seedEditTarget(overrides: Record<string, unknown> = {}) {
+      await seedScript(TARGET_UUID, EDIT_TARGET_CODE, { origin: EDIT_ORIGIN, ...overrides });
+    }
+
+    it("创建的操作带目标 origin、扩展自算的 existingCodeHash 与新全文 contentHash", async () => {
+      await seedEditTarget();
+      const ref = await approval.requestEdit({
+        clientId: "c",
+        uuid: TARGET_UUID,
+        edits: editV1toV2,
+        requestId: "r1",
+      });
+      const op = await operationDAO.get(ref.operationId);
+      expect(op?.kind).toBe("update");
+      expect(op?.targetUuid).toBe(TARGET_UUID);
+      expect(op?.stagedUuid).toBe(TARGET_UUID);
+      // origin 留空会让 parseScriptFromCode 把脚本的 downloadUrl/checkUpdateUrl 抹成空，从此收不到上游更新。
+      expect(op?.sourceUrl).toBe(EDIT_ORIGIN);
+      expect(op?.existingCodeHash).toBe(sha256OfText(EDIT_TARGET_CODE));
+      expect(op?.contentHash).toBe(sha256OfText(EDITED_CODE));
+      expect(op?.sessionKey).toBe(`install:${TARGET_UUID}`);
+    });
+
+    it("present 把编辑送到安装页而非紧凑确认页（安装页才有 diff 与权限卡）", async () => {
+      await seedEditTarget();
+      const ref = await approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2, requestId: "r1" });
+      await approval.present(ref.operationId);
+      expect(utilsModule.openInCurrentTab).toHaveBeenCalledWith(`/src/install.html?uuid=${TARGET_UUID}`);
+    });
+
+    it("批准后按新全文安装，未显式给 enable 时保留脚本原有的启用状态", async () => {
+      // 目标必须是「已启用」：未显式传 enable 时无条件覆盖会算出 DISABLE，从禁用态出发的断言看不出差别。
+      await seedEditTarget({ status: SCRIPT_STATUS_ENABLE });
+      const ref = await approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2, requestId: "r1" });
+      await approval.decide(ref.operationId, true);
+      const installed = mutator.installScript.mock.calls[0][0];
+      expect(installed.code).toBe(EDITED_CODE);
+      expect(installed.script.status).toBe(SCRIPT_STATUS_ENABLE);
+      expect(responder).toHaveBeenCalledWith("r1", expect.objectContaining({ ok: true }));
+    });
+
+    it("用户在安装页动了启用开关时以开关为准，覆盖脚本原有状态", async () => {
+      await seedEditTarget({ status: SCRIPT_STATUS_ENABLE });
+      const ref = await approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2 });
+      await approval.decide(ref.operationId, true, { enable: false });
+      expect(mutator.installScript.mock.calls[0][0].script.status).toBe(SCRIPT_STATUS_DISABLE);
+    });
+
+    it("「本会话允许」下的后续编辑免弹自动批准，同样不改变启用状态", async () => {
+      await seedEditTarget({ status: SCRIPT_STATUS_ENABLE });
+      const first = await approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2 });
+      await approval.decide(first.operationId, true, { rememberSession: true });
+
+      (utilsModule.openInCurrentTab as ReturnType<typeof vi.fn>).mockClear();
+      const second = await approval.requestEdit({
+        clientId: "c",
+        uuid: TARGET_UUID,
+        edits: [{ oldText: 'console.log("v1")', newText: 'console.log("v3")' }],
+        requestId: "r2",
+      });
+      await approval.present(second.operationId);
+      expect(utilsModule.openInCurrentTab).not.toHaveBeenCalled();
+      expect((await operationDAO.get(second.operationId))?.status).toBe("approved");
+      expect(mutator.installScript.mock.calls[1][0].script.status).toBe(SCRIPT_STATUS_ENABLE);
+    });
+
+    it("TOCTOU：受理后目标脚本代码被改动，批准时报 CONFLICT 且不写入", async () => {
+      await seedEditTarget();
+      const ref = await approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2, requestId: "r1" });
+      await scriptCodeDAO.save({ uuid: TARGET_UUID, code: `${EDIT_TARGET_CODE}\n// tampered` } as any);
+      await expect(approval.decide(ref.operationId, true)).rejects.toMatchObject({ code: "CONFLICT" });
+      expect(mutator.installScript).not.toHaveBeenCalled();
+    });
+
+    it("同 contentHash 的重复编辑请求合并为同一待批操作，不叠第二张确认页", async () => {
+      await seedEditTarget();
+      const ref1 = await approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2, requestId: "r1" });
+      const ref2 = await approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2, requestId: "r2" });
+      expect(ref2.operationId).toBe(ref1.operationId);
+      expect(await operationDAO.awaitingUser()).toHaveLength(1);
+    });
+
+    it("结果不同的编辑请求各自独立挂起，不被去重合并", async () => {
+      await seedEditTarget();
+      const ref1 = await approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2, requestId: "r1" });
+      const ref2 = await approval.requestEdit({
+        clientId: "c",
+        uuid: TARGET_UUID,
+        edits: [{ oldText: 'console.log("v1")', newText: 'console.log("v3")' }],
+        requestId: "r2",
+      });
+      expect(ref2.operationId).not.toBe(ref1.operationId);
+      expect(await operationDAO.awaitingUser()).toHaveLength(2);
+    });
+
+    it("拼出的新全文超过 2 MiB 报 PAYLOAD_TOO_LARGE，且不创建待批操作", async () => {
+      await seedEditTarget();
+      await expect(
+        approval.requestEdit({
+          clientId: "c",
+          uuid: TARGET_UUID,
+          edits: [{ oldText: '"v1"', newText: `"${"x".repeat(MAX_SOURCE_BYTES)}"` }],
+        })
+      ).rejects.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+      expect(await operationDAO.awaitingUser()).toHaveLength(0);
+    });
+
+    it("目标脚本不存在报 NOT_FOUND", async () => {
+      await expect(approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2 })).rejects.toMatchObject(
+        { code: "NOT_FOUND" }
+      );
+    });
   });
 });

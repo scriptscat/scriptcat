@@ -10,7 +10,7 @@ import {
 import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
 import type { ExternalAccessApprovalService } from "./approval";
 import { ExternalAccessBridgeError } from "./errors";
-import { readScriptSource, grepScriptSource, assertLineWindow, assertGrepParams } from "./source";
+import { readScriptSource, grepScriptSource, assertLineWindow, assertGrepParams, type TextEdit } from "./source";
 import { logExternalAccess, type ExternalAccessAudit } from "./audit";
 import {
   type BridgeAction,
@@ -139,6 +139,29 @@ const VALIDATORS: Record<BridgeAction, (input: unknown) => void> = {
     if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
     assertKeys(input, ["uuid"]);
     assertUuidField(input, "uuid");
+  },
+  "scripts.edit.request": (input) => {
+    if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
+    assertKeys(input, ["uuid", "edits"]);
+    assertUuidField(input, "uuid");
+    if (!Array.isArray(input.edits) || input.edits.length === 0) {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "edits must be a non-empty array");
+    }
+    // Only the wire shape here; anchoring (uniqueness, hit count, resulting size) needs the script
+    // itself and is judged in the approval service — still before any confirm page opens.
+    for (const edit of input.edits) {
+      if (!isPlainObject(edit)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "each edit must be an object");
+      assertKeys(edit, ["oldText", "newText", "replaceAll"]);
+      if (typeof edit.oldText !== "string") {
+        throw new ExternalAccessBridgeError("INVALID_REQUEST", "oldText must be a string");
+      }
+      if (typeof edit.newText !== "string") {
+        throw new ExternalAccessBridgeError("INVALID_REQUEST", "newText must be a string");
+      }
+      if (edit.replaceAll !== undefined && typeof edit.replaceAll !== "boolean") {
+        throw new ExternalAccessBridgeError("INVALID_REQUEST", "replaceAll must be a boolean");
+      }
+    }
   },
 };
 
@@ -338,6 +361,17 @@ export class ExternalAccessBridge {
       case "scripts.delete.request":
         return this.dispatchWrite(request, "delete", (requestId) =>
           this.approval.requestDelete({ clientId: request.clientId, uuid: input.uuid as string, requestId })
+        );
+      case "scripts.edit.request":
+        // No decideOptions: an edit carries no enable decision, so the script keeps whatever
+        // enabled state it already had (design §5「启用状态必须保留」).
+        return this.dispatchWrite(request, "update", (requestId) =>
+          this.approval.requestEdit({
+            clientId: request.clientId,
+            uuid: input.uuid as string,
+            edits: input.edits as TextEdit[],
+            requestId,
+          })
         );
     }
   }
