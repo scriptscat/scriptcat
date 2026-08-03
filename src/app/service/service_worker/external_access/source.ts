@@ -108,6 +108,13 @@ export const MAX_GREP_LINE_LENGTH = 4096;
 const GREP_BUDGET_MS = 2000;
 const GREP_BUDGET_CHECK_LINES = 1000;
 
+// Edit batch ceiling and execution budget, the write path's counterpart to the two constants above.
+// A batch is a multiplier on full-script scans, so an oversized one turns a few KiB of request into
+// minutes of synchronous service-worker time — and the MCP client is an LLM, the caller most likely
+// to send a large batch at once.
+export const MAX_TEXT_EDITS = 100;
+const EDIT_BUDGET_MS = 2000;
+
 export interface GrepOptions {
   mode?: "text" | "regex";
   ignoreCase?: boolean;
@@ -265,9 +272,14 @@ export interface TextEdit {
   replaceAll?: boolean;
 }
 
+// Counts candidate positions, not non-overlapping replacements: advancing by needle.length would
+// report `"aa"` in `"aaa"` as a single occurrence and let the uniqueness rule pass on an anchor that
+// matches at two offsets — silently editing the first one, which content anchoring exists to prevent.
+// Self-overlapping anchors are ordinary in source: a blank-line block ("\n\n"), an indent ("  "),
+// a run of brackets ("))").
 function countOccurrences(text: string, needle: string): number {
   let count = 0;
-  for (let index = text.indexOf(needle); index !== -1; index = text.indexOf(needle, index + needle.length)) {
+  for (let index = text.indexOf(needle); index !== -1; index = text.indexOf(needle, index + 1)) {
     count++;
   }
   return count;
@@ -299,9 +311,23 @@ function replaceOccurrences(text: string, needle: string, replacement: string, a
  * tell a wrong anchor from one needing more context — instead of applying part of the batch:
  * nothing here mutates anything, the result is what the human will later review on the install page.
  */
-export function applyTextEdits(code: string, edits: TextEdit[]): string {
+export function applyTextEdits(code: string, edits: TextEdit[], clock: () => number = Date.now): string {
+  if (edits.length > MAX_TEXT_EDITS) {
+    throw new ExternalAccessBridgeError(
+      "INVALID_REQUEST",
+      `too many edits (${edits.length}), at most ${MAX_TEXT_EDITS}`
+    );
+  }
   let text = code;
+  const startedAt = clock();
   for (const [i, edit] of edits.entries()) {
+    // Each edit scans and rebuilds the whole (up to 2 MiB) script, so cost is edits × length and a
+    // small payload buys a long stall — this runs synchronously in the service worker, the whole
+    // extension's message bus, at request-accept time under both write policies. Symmetric with the
+    // grep budget above; the clock is injectable for the same reason.
+    if (clock() - startedAt > EDIT_BUDGET_MS) {
+      throw new ExternalAccessBridgeError("INVALID_REQUEST", "edits too slow to apply, send fewer or smaller edits");
+    }
     if (edit.oldText.length === 0) {
       throw new ExternalAccessBridgeError("INVALID_REQUEST", `edits[${i}].oldText must not be empty`);
     }

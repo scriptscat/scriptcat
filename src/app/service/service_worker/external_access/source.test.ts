@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sliceLines, grepLines, applyTextEdits, MAX_GREP_LINE_LENGTH } from "./source";
+import { sliceLines, grepLines, applyTextEdits, MAX_GREP_LINE_LENGTH, MAX_TEXT_EDITS } from "./source";
 import { ExternalAccessBridgeError } from "./errors";
 
 describe("sliceLines（scripts.source.get 的行开窗，1-based 闭区间）", () => {
@@ -326,5 +326,69 @@ describe("applyTextEdits（scripts.edit.request 的内容锚定编辑）", () =>
         { oldText: "b", newText: "a" },
       ])
     );
+  });
+
+  it("自重叠的 oldText 按候选位置计数，不因非重叠推进而漏算成唯一命中", () => {
+    // "aa" 在 "aaa" 里下标 0 和 1 各成立一次。按非重叠推进只会数出 1 次，于是「恰好命中一次」
+    // 的保证静默失效、直接改掉第一处——正是内容锚定要杜绝的「悄悄改错地方」。
+    const error = expectInvalidRequest(() => applyTextEdits("aaa", [{ oldText: "aa", newText: "X" }]));
+    expect(error.message).toContain("not unique");
+    expect(error.message).toContain("2");
+  });
+
+  it("空行块、连续缩进这类自重叠锚点同样按候选位置计数", () => {
+    expectInvalidRequest(() => applyTextEdits("a\n\n\nb", [{ oldText: "\n\n", newText: "\n" }]));
+    expectInvalidRequest(() => applyTextEdits("x(((y", [{ oldText: "((", newText: "(" }]));
+  });
+
+  it("edits 条数超过上限时报 INVALID_REQUEST：逐条全量扫描重建，条数即耗时的乘数", () => {
+    const edits = Array.from({ length: MAX_TEXT_EDITS + 1 }, (_, i) => ({
+      oldText: `line${i}`,
+      newText: `LINE${i}`,
+    }));
+    const error = expectInvalidRequest(() => applyTextEdits(code, edits));
+    expect(error.message).toContain("too many edits");
+  });
+
+  it("上限之内的条数正常放行", () => {
+    // 行号补零对齐：不补零的话 line1 是 line10 / line11 的前缀，会先撞上唯一性校验而不是本用例要测的上限。
+    const name = (i: number) => `line${String(i).padStart(3, "0")}`;
+    const many = Array.from({ length: MAX_TEXT_EDITS }, (_, i) => name(i)).join("\n");
+    const edits = Array.from({ length: MAX_TEXT_EDITS }, (_, i) => ({
+      oldText: name(i),
+      newText: name(i).toUpperCase(),
+    }));
+    expect(applyTextEdits(many, edits)).toBe(edits.map((e) => e.newText).join("\n"));
+  });
+
+  it("应用耗时超出墙钟预算时中止，不把 service worker 拖在同步循环里", () => {
+    // 时钟每读一次跳一次：首读为 0 记起点，之后即超预算。用可注入时钟而非真等，测试才不依赖机器快慢。
+    let calls = 0;
+    const clock = () => (calls++ === 0 ? 0 : 2001);
+    const error = expectInvalidRequest(() =>
+      applyTextEdits(
+        "a\nb\nc",
+        [
+          { oldText: "a", newText: "x" },
+          { oldText: "b", newText: "y" },
+        ],
+        clock
+      )
+    );
+    expect(error.message).toContain("too slow");
+  });
+
+  it("预算未超支时不影响正常的多条编辑", () => {
+    const clock = () => 0; // 时钟恒定，"已耗时" 永远是 0，预算永不超支。
+    expect(
+      applyTextEdits(
+        "a\nb",
+        [
+          { oldText: "a", newText: "x" },
+          { oldText: "b", newText: "y" },
+        ],
+        clock
+      )
+    ).toBe("x\ny");
   });
 });
