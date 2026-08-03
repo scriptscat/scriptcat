@@ -27,6 +27,8 @@ import type {
 } from "@App/app/service/service_worker/external_access/types";
 import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
 import { notify } from "@App/pages/components/ui/toast";
+import { DocumentationSite } from "@App/app/const";
+import { localePath } from "@App/locales/locales";
 
 type Gate = "approval" | "allow";
 
@@ -44,6 +46,9 @@ const AUDIT_QUERY = encodeURIComponent(JSON.stringify([{ key: "component", value
 
 // `sctl connect` 打印一次性配对码，只在终端显示、绝不过线；用户读到后填入接入对话框。
 const ENROLL_COMMAND = "sctl connect";
+
+// 文档站只有中文与英文两版，localePath 按界面语言在两者间切换（同 agentDocUrl）。
+const docUrl = () => `${DocumentationSite}${localePath}/docs/use/external-access/`;
 
 function StatusPill({ status, t }: { status: ExternalAccessBridgeStatus; t: (key: string) => string }) {
   const labelKey: Record<ExternalAccessBridgeStatus, string> = {
@@ -175,7 +180,8 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
     await externalAccessClient.enroll(c);
     setCode("");
     setShowEnroll(false);
-    notify.success(t("external_access:enroll_started"));
+    // 此刻只是把配对码交给 daemon，握手成败未知（码错/sctl 未运行都会转「连接失败」），故是进行中而非成功。
+    notify.info(t("external_access:enroll_started"));
   };
 
   const handleStop = async () => {
@@ -221,7 +227,7 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
       title={t("external_access:section_title")}
       titleAction={
         <a
-          href="https://docs.scriptcat.org"
+          href={docUrl()}
           target="_blank"
           rel="noreferrer"
           data-testid="external_access_help"
@@ -287,7 +293,7 @@ export function ExternalAccessSection({ register }: { register: (id: string) => 
               {t("external_access:enroll_button")}
             </Button>
             <a
-              href="https://docs.scriptcat.org"
+              href={docUrl()}
               target="_blank"
               rel="noreferrer"
               className="text-[13px] font-medium text-primary hover:underline"

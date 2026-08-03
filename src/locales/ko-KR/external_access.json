@@ -44,7 +44,7 @@
   "enroll_perm_source": "스크립트 소스 읽기(소스 정책에 따라 확인)",
   "enroll_submit": "등록",
   "cancel": "취소",
-  "enroll_started": "등록을 시작했습니다. 터미널에서 페어링 코드를 확인하세요",
+  "enroll_started": "페어링 코드를 제출했습니다. sctl에 연결하는 중…",
   "confirm_via_external": "외부 접근으로 요청됨",
   "confirm_enable_title": "스크립트 사용",
   "confirm_disable_title": "스크립트 사용 안 함",

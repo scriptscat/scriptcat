@@ -44,7 +44,7 @@
   "enroll_perm_source": "讀取腳本原始碼（依原始碼原則確認）",
   "enroll_submit": "接入",
   "cancel": "取消",
-  "enroll_started": "已開始接入，請在終端機檢視配對碼",
+  "enroll_started": "已提交配對碼，正在接入 sctl…",
   "confirm_via_external": "透過外部接入觸發",
   "confirm_enable_title": "啟用腳本",
   "confirm_disable_title": "停用腳本",

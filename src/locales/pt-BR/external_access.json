@@ -44,7 +44,7 @@
   "enroll_perm_source": "Ler o código-fonte do script (confirmado pela política de código-fonte)",
   "enroll_submit": "Vincular",
   "cancel": "Cancelar",
-  "enroll_started": "Vinculação iniciada — veja o código de emparelhamento no terminal",
+  "enroll_started": "Código de emparelhamento enviado — conectando ao sctl…",
   "confirm_via_external": "Acionado via acesso externo",
   "confirm_enable_title": "Ativar script",
   "confirm_disable_title": "Desativar script",

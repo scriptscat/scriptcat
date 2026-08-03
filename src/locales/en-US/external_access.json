@@ -44,7 +44,7 @@
   "enroll_perm_source": "Read script source (confirmed per the source policy)",
   "enroll_submit": "Enroll",
   "cancel": "Cancel",
-  "enroll_started": "Enrollment started — check your terminal for the pairing code",
+  "enroll_started": "Pairing code submitted — connecting to sctl…",
   "confirm_via_external": "Triggered via External Access",
   "confirm_enable_title": "Enable script",
   "confirm_disable_title": "Disable script",

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, act } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const { getBridgeStatus, enroll, stopExternalAccess } = vi.hoisted(() => ({
@@ -15,6 +15,12 @@ vi.mock("@App/pages/store/features/script", () => ({
 
 const navigate = vi.hoisted(() => vi.fn());
 vi.mock("react-router-dom", () => ({ useNavigate: () => navigate }));
+
+const notify = vi.hoisted(() => ({
+  success: vi.fn(),
+  info: vi.fn(),
+}));
+vi.mock("@App/pages/components/ui/toast", () => ({ notify }));
 
 const {
   get,
@@ -90,15 +96,34 @@ describe("ExternalAccessSection（外部接入单卡片）", () => {
     expect(screen.getByTestId("external_access_enroll_open")).toBeInTheDocument();
   });
 
-  it("接入对话框粘贴配对码并提交调用 externalAccessClient.enroll", async () => {
+  it("提交配对码后调用 enroll 并显示进行中提示", async () => {
     getBridgeStatus.mockResolvedValue({ status: "pending_enrollment" });
     await renderSection();
     fireEvent.click(await screen.findByTestId("external_access_enroll_open"));
     // 8 格 OTP 输入：粘贴整段配对码到第一格，一次填满
     const cell0 = await screen.findByTestId("external_access_enroll_code-cell-0");
     fireEvent.paste(cell0, { clipboardData: { getData: () => "ABCD1234" } });
-    fireEvent.click(screen.getByTestId("external_access_enroll_submit"));
-    await waitFor(() => expect(enroll).toHaveBeenCalledWith("ABCD1234"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("external_access_enroll_submit"));
+    });
+    expect(enroll).toHaveBeenCalledWith("ABCD1234");
+    expect(notify.info).toHaveBeenCalledWith("已提交配对码，正在接入 sctl…");
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it("帮助入口与待接入文档入口深链到外部接入指南", async () => {
+    getBridgeStatus.mockResolvedValue({ status: "pending_enrollment" });
+    await renderSection();
+
+    const expectedDocUrl = /^https:\/\/docs\.scriptcat\.org(?:\/en)?\/docs\/use\/external-access\/$/;
+    expect(await screen.findByTestId("external_access_help")).toHaveAttribute(
+      "href",
+      expect.stringMatching(expectedDocUrl)
+    );
+    expect(screen.getByText("查看安装文档").closest("a")).toHaveAttribute(
+      "href",
+      expect.stringMatching(expectedDocUrl)
+    );
   });
 
   it("已接入状态在状态条显示 sctl 版本号", async () => {

@@ -44,7 +44,7 @@
   "enroll_perm_source": "Đọc mã nguồn tập lệnh (xác nhận theo chính sách mã nguồn)",
   "enroll_submit": "Ghép nối",
   "cancel": "Hủy",
-  "enroll_started": "Đã bắt đầu ghép nối — xem mã ghép nối trong terminal",
+  "enroll_started": "Đã gửi mã ghép nối — đang kết nối tới sctl…",
   "confirm_via_external": "Kích hoạt qua truy cập bên ngoài",
   "confirm_enable_title": "Bật tập lệnh",
   "confirm_disable_title": "Tắt tập lệnh",

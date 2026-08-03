@@ -44,7 +44,7 @@
   "enroll_perm_source": "Betik kaynak kodunu okuma (kaynak ilkesine göre onaylanır)",
   "enroll_submit": "Eşleştir",
   "cancel": "İptal",
-  "enroll_started": "Eşleştirme başladı — eşleştirme kodunu terminalde görün",
+  "enroll_started": "Eşleştirme kodu gönderildi — sctl'ye bağlanılıyor…",
   "confirm_via_external": "Harici Erişim ile tetiklendi",
   "confirm_enable_title": "Betiği etkinleştir",
   "confirm_disable_title": "Betiği devre dışı bırak",

@@ -44,7 +44,7 @@
   "enroll_perm_source": "Skript-Quelltext lesen (gemäß Quelltextrichtlinie bestätigt)",
   "enroll_submit": "Registrieren",
   "cancel": "Abbrechen",
-  "enroll_started": "Registrierung gestartet – prüfe den Kopplungscode im Terminal",
+  "enroll_started": "Kopplungscode gesendet – Verbindung zu sctl wird hergestellt …",
   "confirm_via_external": "Über externen Zugriff ausgelöst",
   "confirm_enable_title": "Skript aktivieren",
   "confirm_disable_title": "Skript deaktivieren",

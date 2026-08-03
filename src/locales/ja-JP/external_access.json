@@ -44,7 +44,7 @@
   "enroll_perm_source": "スクリプトソースの読み取り（ソースポリシーに従って確認）",
   "enroll_submit": "登録",
   "cancel": "キャンセル",
-  "enroll_started": "登録を開始しました。ターミナルでペアリングコードを確認してください",
+  "enroll_started": "ペアリングコードを送信しました。sctl に接続しています…",
   "confirm_via_external": "外部アクセスによる要求",
   "confirm_enable_title": "スクリプトを有効化",
   "confirm_disable_title": "スクリプトを無効化",
