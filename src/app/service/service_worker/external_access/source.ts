@@ -17,26 +17,41 @@ export interface SlicedLines {
 }
 
 /**
- * Pure line-window slicer for `scripts.source.get`'s optional startLine/endLine (design §4.1).
- * Lines are defined as `code.split("\n")` — join("\n") round-trips exactly, so a CRLF file's `\r`
- * stays at the end of its line. 1-based, inclusive, both-or-neither. No window at all returns the
- * whole file as the [1, totalLines] window.
+ * The half of the line-window validation that doesn't need the file. Split out of `sliceLines` so
+ * the bridge can reject a malformed window while accepting the request, instead of creating a
+ * pending operation and opening a confirm page for a request that can never be served.
  */
-export function sliceLines(code: string, startLine?: number, endLine?: number): SlicedLines {
-  const lines = code.split("\n");
-  const totalLines = lines.length;
-
-  if (startLine === undefined && endLine === undefined) {
-    return { code, startLine: 1, endLine: totalLines, totalLines };
-  }
+export function assertLineWindow(startLine?: number, endLine?: number): void {
+  if (startLine === undefined && endLine === undefined) return;
   if (startLine === undefined || endLine === undefined) {
     throw new ExternalAccessBridgeError("INVALID_REQUEST", "startLine and endLine must be given together");
+  }
+  // NaN slips through every comparison below and ends up in the reported window; a fraction makes
+  // the reported window disagree with the lines Array.slice actually returns.
+  if (!Number.isInteger(startLine) || !Number.isInteger(endLine)) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "startLine and endLine must be integers");
   }
   if (startLine < 1) {
     throw new ExternalAccessBridgeError("INVALID_REQUEST", "startLine must be >= 1");
   }
   if (endLine < startLine) {
     throw new ExternalAccessBridgeError("INVALID_REQUEST", "endLine must be >= startLine");
+  }
+}
+
+/**
+ * Pure line-window slicer for `scripts.source.get`'s optional startLine/endLine (design §4.1).
+ * Lines are defined as `code.split("\n")` — join("\n") round-trips exactly, so a CRLF file's `\r`
+ * stays at the end of its line. 1-based, inclusive, both-or-neither. No window at all returns the
+ * whole file as the [1, totalLines] window.
+ */
+export function sliceLines(code: string, startLine?: number, endLine?: number): SlicedLines {
+  assertLineWindow(startLine, endLine);
+  const lines = code.split("\n");
+  const totalLines = lines.length;
+
+  if (startLine === undefined || endLine === undefined) {
+    return { code, startLine: 1, endLine: totalLines, totalLines };
   }
   if (startLine > totalLines) {
     throw new ExternalAccessBridgeError("INVALID_REQUEST", "startLine exceeds the script's total line count");
@@ -108,6 +123,42 @@ export interface GrepLinesResult {
   totalLines: number;
 }
 
+// Compiling the user's pattern is itself a validation step, so acceptance-time checking and the
+// actual scan share it rather than each spelling out their own try/catch.
+function compileGrepPattern(query: string, mode: "text" | "regex", ignoreCase: boolean): RegExp | undefined {
+  if (mode !== "regex") return undefined;
+  try {
+    return new RegExp(query, ignoreCase ? "i" : "");
+  } catch {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "invalid regular expression");
+  }
+}
+
+/**
+ * Everything about a grep request that can be judged without reading the script, split out of
+ * `grepLines` for the same reason as `assertLineWindow`: under the "approval" source policy the
+ * scan only runs after a human decision, so a request that will always fail has to be rejected up
+ * front rather than after the user approves a disclosure. Out-of-range values error out, they are
+ * never clamped (design §4.2).
+ */
+export function assertGrepParams(query: string, options: GrepOptions = {}): void {
+  const contextLines = options.contextLines ?? 0;
+  const maxMatches = options.maxMatches ?? 50;
+  if (query.length < 1 || query.length > 1024) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "query must be 1-1024 characters");
+  }
+  // Integer check first: NaN compares false against both bounds, and would then turn the caps into
+  // their opposites — a NaN contextLines makes Array.slice hand back every line before the hit, a
+  // NaN maxMatches drops every match while still reporting truncated: true.
+  if (!Number.isInteger(contextLines) || contextLines < 0 || contextLines > 10) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "contextLines must be an integer between 0 and 10");
+  }
+  if (!Number.isInteger(maxMatches) || maxMatches < 1 || maxMatches > 200) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "maxMatches must be an integer between 1 and 200");
+  }
+  compileGrepPattern(query, options.mode ?? "text", options.ignoreCase ?? false);
+}
+
 /**
  * Pure line-by-line search for `scripts.source.grep` (design §4.2). Deliberately does not call
  * `stringMatching` (src/pkg/utils/utils.ts) or share any code with the script-list page's search
@@ -129,24 +180,9 @@ export function grepLines(
   const contextLines = options.contextLines ?? 0;
   const maxMatches = options.maxMatches ?? 50;
 
-  if (query.length < 1 || query.length > 1024) {
-    throw new ExternalAccessBridgeError("INVALID_REQUEST", "query must be 1-1024 characters");
-  }
-  if (contextLines < 0 || contextLines > 10) {
-    throw new ExternalAccessBridgeError("INVALID_REQUEST", "contextLines must be between 0 and 10");
-  }
-  if (maxMatches < 1 || maxMatches > 200) {
-    throw new ExternalAccessBridgeError("INVALID_REQUEST", "maxMatches must be between 1 and 200");
-  }
+  assertGrepParams(query, options);
 
-  let pattern: RegExp | undefined;
-  if (mode === "regex") {
-    try {
-      pattern = new RegExp(query, ignoreCase ? "i" : "");
-    } catch {
-      throw new ExternalAccessBridgeError("INVALID_REQUEST", "invalid regular expression");
-    }
-  }
+  const pattern = compileGrepPattern(query, mode, ignoreCase);
   const literalNeedle = ignoreCase ? query.toLowerCase() : query;
 
   const lines = code.split("\n");

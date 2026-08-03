@@ -10,7 +10,7 @@ import {
 import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
 import type { ExternalAccessApprovalService } from "./approval";
 import { ExternalAccessBridgeError } from "./errors";
-import { readScriptSource, grepScriptSource } from "./source";
+import { readScriptSource, grepScriptSource, assertLineWindow, assertGrepParams } from "./source";
 import { logExternalAccess, type ExternalAccessAudit } from "./audit";
 import {
   type BridgeAction,
@@ -86,6 +86,7 @@ const VALIDATORS: Record<BridgeAction, (input: unknown) => void> = {
     if (input.endLine !== undefined && typeof input.endLine !== "number") {
       throw new ExternalAccessBridgeError("INVALID_REQUEST", "endLine must be a number");
     }
+    assertLineWindow(input.startLine as number | undefined, input.endLine as number | undefined);
   },
   "scripts.source.grep": (input) => {
     if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
@@ -106,6 +107,12 @@ const VALIDATORS: Record<BridgeAction, (input: unknown) => void> = {
     if (input.maxMatches !== undefined && typeof input.maxMatches !== "number") {
       throw new ExternalAccessBridgeError("INVALID_REQUEST", "maxMatches must be a number");
     }
+    assertGrepParams(input.query as string, {
+      mode: input.mode as "text" | "regex" | undefined,
+      ignoreCase: input.ignoreCase as boolean | undefined,
+      contextLines: input.contextLines as number | undefined,
+      maxMatches: input.maxMatches as number | undefined,
+    });
   },
   "scripts.install.request": (input) => {
     if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");

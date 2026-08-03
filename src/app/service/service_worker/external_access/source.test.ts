@@ -54,6 +54,13 @@ describe("sliceLines（scripts.source.get 的行开窗，1-based 闭区间）", 
     }
   });
 
+  it("startLine/endLine 为 NaN 或非整数报 INVALID_REQUEST，不产出 NaN 行窗或与切片对不上的窗口", () => {
+    // NaN 会穿过所有 < / > 比较，Math.min(NaN, n) 也是 NaN，最终把 NaN 写进返回值的行窗字段
+    // （JSON 序列化后变成 null）；小数则让回报的 startLine 与实际切出的行对不上。
+    expect(() => sliceLines("a\nb\nc", Number.NaN, Number.NaN)).toThrow(ExternalAccessBridgeError);
+    expect(() => sliceLines("a\nb\nc\nd", 1.5, 3.5)).toThrow(ExternalAccessBridgeError);
+  });
+
   it("startLine > totalLines 报 INVALID_REQUEST", () => {
     try {
       sliceLines("a\nb\nc", 10, 12);
@@ -187,6 +194,21 @@ describe("grepLines（scripts.source.grep 的逐行匹配，不复用 stringMatc
       expect(e).toBeInstanceOf(ExternalAccessBridgeError);
       expect((e as ExternalAccessBridgeError).code).toBe("INVALID_REQUEST");
     }
+  });
+
+  it("maxMatches 为 NaN 或非整数报 INVALID_REQUEST，不静默吞掉全部命中", () => {
+    // matches.length < NaN 恒为假：不拦住的话所有命中都进不了 matches，却仍报 totalMatches > 0
+    // 与 truncated: true，调用方看到的是一份「命中被截断到 0 条」的结果。
+    expect(() => grepLines(code, "import", { maxMatches: Number.NaN })).toThrow(ExternalAccessBridgeError);
+    expect(() => grepLines(code, "import", { maxMatches: 2.5 })).toThrow(ExternalAccessBridgeError);
+  });
+
+  it("contextLines 为 NaN 或非整数报 INVALID_REQUEST，不绕过上下文行数上限", () => {
+    // slice(Math.max(0, i - NaN), i) 等价于 slice(0, i)：命中行之前的**全部**行都会被当作上下文
+    // 回传，远超 contextLines ≤ 10 的披露约定。
+    const many = Array.from({ length: 40 }, (_, i) => (i === 30 ? "needle" : `line ${i}`)).join("\n");
+    expect(() => grepLines(many, "needle", { contextLines: Number.NaN })).toThrow(ExternalAccessBridgeError);
+    expect(() => grepLines(many, "needle", { contextLines: 1.5 })).toThrow(ExternalAccessBridgeError);
   });
 
   describe("正则执行预算（可注入时钟驱动，不依赖真实耗时）", () => {

@@ -13,6 +13,7 @@ import {
 import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
 import type { ExternalAccessAuditEvent } from "./audit";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { sha256OfText } from "@App/pkg/utils/crypto";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
 import * as utilsModule from "@App/pkg/utils/utils";
 
@@ -170,11 +171,19 @@ describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
       );
       expect(response.ok).toBe(true);
       if (response.ok) {
-        const result = response.result as { code: string; startLine: number; endLine: number; totalLines: number };
+        const result = response.result as {
+          code: string;
+          sha256: string;
+          startLine: number;
+          endLine: number;
+          totalLines: number;
+        };
         expect(result.code).toBe("l2\nl3");
         expect(result.startLine).toBe(2);
         expect(result.endLine).toBe(3);
         expect(result.totalLines).toBe(4);
+        expect(result.sha256).toBe(sha256OfText("l1\nl2\nl3\nl4"));
+        expect(result.sha256).not.toBe(sha256OfText("l2\nl3"));
       }
     });
 
@@ -227,6 +236,28 @@ describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
       );
       expect(response.ok).toBe(false);
       if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+    });
+
+    it("参数越界/非法时在受理阶段就报 INVALID_REQUEST：不创建待批操作、不为注定失败的请求弹确认页", async () => {
+      sourcePolicy = "approval";
+      await seedScript(SRC_UUID);
+      const invalid: Array<[BridgeAction, Record<string, unknown>]> = [
+        ["scripts.source.grep", { uuid: SRC_UUID, query: "(unterminated", mode: "regex" }],
+        ["scripts.source.grep", { uuid: SRC_UUID, query: "" }],
+        ["scripts.source.grep", { uuid: SRC_UUID, query: "x".repeat(1025) }],
+        ["scripts.source.grep", { uuid: SRC_UUID, query: "x", contextLines: 11 }],
+        ["scripts.source.grep", { uuid: SRC_UUID, query: "x", maxMatches: 201 }],
+        ["scripts.source.get", { uuid: SRC_UUID, startLine: 0, endLine: 3 }],
+        ["scripts.source.get", { uuid: SRC_UUID, startLine: 3, endLine: 1 }],
+        ["scripts.source.get", { uuid: SRC_UUID, startLine: 1 }],
+      ];
+      for (const [action, input] of invalid) {
+        const response = expectResponse(await bridge.handle(makeRequest(action, input)));
+        expect(response.ok, `${action} ${JSON.stringify(input)}`).toBe(false);
+        if (!response.ok) expect(response.error.code).toBe("INVALID_REQUEST");
+      }
+      expect(await operationDAO.awaitingUser()).toHaveLength(0);
+      expect(utilsModule.openInCurrentTab).not.toHaveBeenCalled();
     });
 
     it("同一脚本上并发的整份读取与 grep 挂起态不合并为一个操作", async () => {
