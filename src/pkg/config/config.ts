@@ -567,6 +567,14 @@ export class SystemConfig {
     this._set("popup_compact_layout", val);
   }
 
+  getPopupSiteScopeActions() {
+    return this._get<boolean>("popup_site_scope_actions", false);
+  }
+
+  setPopupSiteScopeActions(val: boolean) {
+    this._set("popup_site_scope_actions", val);
+  }
+
   async getLanguage() {
     if (globalThis.localStorage) {
       const cachedLanguage = localStorage.getItem("language");

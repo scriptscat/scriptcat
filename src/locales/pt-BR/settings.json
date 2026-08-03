@@ -72,6 +72,8 @@
   "popup_layout": "Layout do popup",
   "compact_popup_layout": "Layout compacto do popup",
   "compact_popup_layout_desc": "Reduzir o espaçamento entre as seções do popup e as linhas de scripts",
+  "popup_site_scope_actions": "Ações de escopo do site",
+  "popup_site_scope_actions_desc": "Mostrar no popup ações rápidas para restringir ou permitir um script no site atual",
   "script_update_check_frequency": "Frequência de verificação de atualização de scripts",
   "script_auto_update_frequency": "Frequência de verificação automática de atualização de scripts",
   "control_script_update_behavior": "Controlar o comportamento de atualização de scripts",

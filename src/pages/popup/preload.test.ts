@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getCheckUpdate: vi.fn(async () => ({ notice: "notice", version: "2.0.0", isRead: false })),
   getMenuExpandNum: vi.fn(async () => 8),
   getPopupCompactLayout: vi.fn(async () => true),
+  getPopupSiteScopeActions: vi.fn(async () => true),
   getProvider: vi.fn(async () => "greasyfork"),
   getPopupData: vi.fn(),
 }));
@@ -19,6 +20,7 @@ vi.mock("../store/global", () => ({
     getCheckUpdate: mocks.getCheckUpdate,
     getMenuExpandNum: mocks.getMenuExpandNum,
     getPopupCompactLayout: mocks.getPopupCompactLayout,
+    getPopupSiteScopeActions: mocks.getPopupSiteScopeActions,
   },
 }));
 vi.mock("../store/features/script", () => ({ popupClient: { getPopupData: mocks.getPopupData } }));
@@ -53,5 +55,6 @@ describe("Popup 数据预加载", () => {
 
     expect(mocks.getPopupData).toHaveBeenCalledWith({ tabId: 7, url: "https://example.com/page" });
     expect(mocks.getPopupCompactLayout).toHaveBeenCalledOnce();
+    expect(mocks.getPopupSiteScopeActions).toHaveBeenCalledOnce();
   });
 });

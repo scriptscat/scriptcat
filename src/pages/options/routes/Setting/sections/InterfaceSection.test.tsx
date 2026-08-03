@@ -55,4 +55,15 @@ describe("界面分区-popup 布局", () => {
     fireEvent.click(compactSwitch);
     expect(set).toHaveBeenCalledWith("popup_compact_layout", false);
   });
+
+  it("站点范围快捷操作应默认关闭并保存开启结果", async () => {
+    get.mockResolvedValue(undefined);
+    render(<InterfaceSection register={() => () => {}} />);
+
+    const siteScopeSwitch = await screen.findByRole("switch", { name: "站点范围快捷操作" });
+    expect(siteScopeSwitch).not.toBeChecked();
+
+    fireEvent.click(siteScopeSwitch);
+    expect(set).toHaveBeenCalledWith("popup_site_scope_actions", true);
+  });
 });

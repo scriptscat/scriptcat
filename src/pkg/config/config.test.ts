@@ -139,6 +139,15 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       expect(localData["system_popup_compact_layout"]).toBeUndefined();
     });
 
+    it("popup 站点范围快捷操作应默认关闭并写入 sync storage", async () => {
+      await expect(config.getPopupSiteScopeActions()).resolves.toBe(false);
+      config.setPopupSiteScopeActions(true);
+      await expect(config.getPopupSiteScopeActions()).resolves.toBe(true);
+      await expect(chrome.storage.sync.get("system_popup_site_scope_actions")).resolves.toMatchObject({
+        system_popup_site_scope_actions: true,
+      });
+    });
+
     it("编辑器偏好应返回默认值并写入 sync storage", async () => {
       await expect(config.getEditorPreferences()).resolves.toEqual({
         version: 1,

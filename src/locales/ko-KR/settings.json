@@ -72,6 +72,8 @@
   "popup_layout": "팝업 레이아웃",
   "compact_popup_layout": "간격을 줄인 팝업 레이아웃",
   "compact_popup_layout_desc": "팝업 섹션과 스크립트 행 사이의 간격을 줄입니다",
+  "popup_site_scope_actions": "사이트 범위 작업",
+  "popup_site_scope_actions_desc": "현재 사이트에서 스크립트를 제한하거나 허용하는 빠른 작업을 팝업에 표시합니다",
   "script_update_check_frequency": "스크립트 업데이트 확인 주기",
   "script_auto_update_frequency": "스크립트 자동 업데이트 확인 주기",
   "control_script_update_behavior": "스크립트 업데이트 동작 제어",

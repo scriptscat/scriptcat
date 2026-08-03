@@ -16,6 +16,7 @@ export function InterfaceSection({ register }: { register: (id: string) => (el: 
   const [expandNum, setExpandNum] = useSystemConfig("menu_expand_num");
   const [favicon, setFavicon] = useSystemConfig("favicon_service");
   const [popupCompactLayout, setPopupCompactLayout] = useSystemConfig("popup_compact_layout");
+  const [popupSiteScopeActions, setPopupSiteScopeActions] = useSystemConfig("popup_site_scope_actions");
 
   return (
     <SettingCard id="interface" title={t("settings:interface_settings")} register={register}>
@@ -54,6 +55,16 @@ export function InterfaceSection({ register }: { register: (id: string) => (el: 
           aria-label={t("settings:compact_popup_layout")}
           checked={popupCompactLayout ?? false}
           onCheckedChange={setPopupCompactLayout}
+        />
+      </SettingRow>
+      <SettingRow
+        label={t("settings:popup_site_scope_actions")}
+        description={t("settings:popup_site_scope_actions_desc")}
+      >
+        <Switch
+          aria-label={t("settings:popup_site_scope_actions")}
+          checked={popupSiteScopeActions ?? false}
+          onCheckedChange={setPopupSiteScopeActions}
         />
       </SettingRow>
       <div className="text-[13px] font-semibold text-foreground pt-1">{t("settings:script_menu")}</div>

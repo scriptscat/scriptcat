@@ -98,6 +98,14 @@ export class ScriptClient extends Client {
     return this.do("excludeUrl", { uuid, excludePattern, remove });
   }
 
+  onlyRunOnUrl(uuid: string, matchPattern: string) {
+    return this.do("onlyRunOnUrl", { uuid, matchPattern });
+  }
+
+  allowUrl(uuid: string, matchPattern: string, excludePattern: string) {
+    return this.do("allowUrl", { uuid, matchPattern, excludePattern });
+  }
+
   // 重置匹配项
   resetMatch(uuid: string, match: string[] | undefined) {
     return this.do("resetMatch", { uuid, match });

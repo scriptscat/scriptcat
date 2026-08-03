@@ -72,6 +72,8 @@
   "popup_layout": "彈出視窗版面",
   "compact_popup_layout": "緊湊彈出視窗版面",
   "compact_popup_layout_desc": "縮小彈出視窗區段與腳本列的間距",
+  "popup_site_scope_actions": "站點範圍快速操作",
+  "popup_site_scope_actions_desc": "在彈出視窗中顯示僅在目前站點執行或允許目前站點執行的快速操作",
   "script_update_check_frequency": "腳本更新檢查頻率",
   "script_auto_update_frequency": "腳本自動檢查更新的頻率",
   "control_script_update_behavior": "控制腳本更新的行為",
