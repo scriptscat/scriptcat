@@ -124,6 +124,7 @@
   },
   "favicon_service": "Favicon-Dienst",
   "favicon_service_desc": "Dienst zum Abrufen von Website-Symbolen auswählen",
+  "favicon_service_none": "Deaktiviert",
   "favicon_service_scriptcat": "ScriptCat",
   "favicon_service_google": "Google",
   "favicon_service_duckduckgo": "DuckDuckGo",

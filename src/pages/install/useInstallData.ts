@@ -124,6 +124,26 @@ const buildScriptInfo = (uuid: string, code: string, url: string, metadata: SCMe
   source: "user",
 });
 
+// 安装页可能是专为安装打开的新标签(history.length === 1，关闭无损)，
+// 也可能是由 declarativeNetRequest 就地重定向而来的用户原浏览标签(history.length > 1)，
+// 后者若直接 window.close() 会连带关掉用户本来在看的页面，应改为返回上一页。
+// install()/close() 等可能在短时间内被重复触发(如用户连续点击、close 与 install 的
+// setTimeout 前后脚打到)，leaveInstallPageRunning 防止 back()/close() 被并发调用多次；
+// 推到 requestAnimationFrame 里执行，让触发它的那次交互(如按钮点击态)先完成一帧渲染。
+let leaveInstallPageRunning = false;
+const leaveInstallPage = () => {
+  if (leaveInstallPageRunning) return;
+  leaveInstallPageRunning = true;
+  requestAnimationFrame(() => {
+    leaveInstallPageRunning = false;
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.close();
+    }
+  });
+};
+
 let keepAliveTimer: ReturnType<typeof setInterval> | undefined;
 const startKeepAlive = (uuid: string) => {
   const tick = () => {
@@ -346,7 +366,7 @@ export function useInstallData(): UseInstallData {
           await scriptClient.install({ script, code: info.code });
           notify.success(t("install:success"));
         }
-        if (closeAfterInstall) setTimeout(() => window.close(), 300);
+        if (closeAfterInstall) setTimeout(() => leaveInstallPage(), 300);
       } catch (e) {
         notify.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
       }
@@ -370,7 +390,7 @@ export function useInstallData(): UseInstallData {
     if (opts?.noMoreUpdates && info && !info.userSubscribe) {
       void scriptClient.setCheckUpdateUrl(info.uuid, false);
     }
-    window.close();
+    leaveInstallPage();
   }, []);
 
   // 监听文件变更后自动重装,并刷新视图代码
@@ -427,7 +447,7 @@ export function useInstallData(): UseInstallData {
     try {
       await agentClient.completeSkillInstall(uuid);
       notify.success(t("install:success"));
-      setTimeout(() => window.close(), 300);
+      setTimeout(() => leaveInstallPage(), 300);
     } catch (e) {
       notify.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
     }
@@ -436,7 +456,7 @@ export function useInstallData(): UseInstallData {
   const cancelSkill = useCallback(() => {
     const uuid = skillUuidRef.current;
     if (uuid) void agentClient.cancelSkillInstall(uuid);
-    window.close();
+    leaveInstallPage();
   }, []);
 
   // 重新触发加载(供加载失败后的重试按钮)

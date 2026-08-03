@@ -124,6 +124,7 @@
   },
   "favicon_service": "图标服务",
   "favicon_service_desc": "选择获取网站图标的服务",
+  "favicon_service_none": "禁用",
   "favicon_service_scriptcat": "ScriptCat",
   "favicon_service_google": "Google",
   "favicon_service_duckduckgo": "DuckDuckGo",

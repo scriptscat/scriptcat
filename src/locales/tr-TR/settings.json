@@ -124,6 +124,7 @@
   },
   "favicon_service": "Favicon Hizmeti",
   "favicon_service_desc": "Web sitesi simgelerini almak için hizmeti seçin",
+  "favicon_service_none": "Devre Dışı",
   "favicon_service_scriptcat": "ScriptCat",
   "favicon_service_google": "Google",
   "favicon_service_duckduckgo": "DuckDuckGo",

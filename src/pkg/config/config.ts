@@ -37,7 +37,8 @@ export const DEFAULT_CLOUD_SYNC_STATE: CloudSyncState = {
   counts: { total: 0, overwrite: 0, conflict: 0, failed: 0 },
 };
 
-export type FaviconService = "scriptcat" | "google" | "duckduckgo" | "icon-horse" | "local";
+// "none" 表示彻底关闭网站图标获取：不向任何图标服务或目标站点发起请求
+export type FaviconService = "none" | "scriptcat" | "google" | "duckduckgo" | "icon-horse" | "local";
 
 // 外部接入 · 每类操作的人机闸门策略：需人工审批（默认）/ 直接允许。写操作与源码读取各持一份，
 // 对 CLI 与 MCP 一视同仁（源码读取不再对 CLI 豁免）。

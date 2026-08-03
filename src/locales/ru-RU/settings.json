@@ -124,6 +124,7 @@
   },
   "favicon_service": "Сервис Favicon",
   "favicon_service_desc": "Выберите сервис для получения значков сайтов",
+  "favicon_service_none": "Выключено",
   "favicon_service_scriptcat": "ScriptCat",
   "favicon_service_google": "Google",
   "favicon_service_duckduckgo": "DuckDuckGo",
