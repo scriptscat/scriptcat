@@ -94,6 +94,40 @@ function createMockWSServer(): Promise<{
 // ────────────────────────────────────────────────
 
 test.describe("VSCode 连接", () => {
+  test("Tools 页面应显示 VSCode 连接相关 UI 元素", async ({ context, extensionId }) => {
+    const page = await openToolsPage(context, extensionId);
+    const card = getDevCard(page);
+
+    // 卡片标题
+    await expect(card.getByText(/development tool|开发工具/i).first()).toBeVisible();
+
+    // VSCode URL 输入框（默认值含 ws://）
+    const urlInput = card.getByTestId("vscode_url_input");
+    await expect(urlInput).toBeVisible();
+    expect(await urlInput.inputValue()).toMatch(/^ws:\/\//);
+
+    // 自动连接复选框
+    await expect(card.getByTestId("vscode_reconnect")).toBeVisible();
+    await expect(card.getByText(/auto connect vscode|自动连接\s*vscode/i)).toBeVisible();
+
+    // 连接按钮
+    await expect(card.getByTestId("vscode_connect")).toBeVisible();
+  });
+
+  test("应能修改 VSCode URL 和切换自动连接", async ({ context, extensionId }) => {
+    const page = await openToolsPage(context, extensionId);
+    const card = getDevCard(page);
+
+    const urlInput = card.getByTestId("vscode_url_input");
+    await urlInput.fill("ws://localhost:9999");
+    await expect(urlInput).toHaveValue("ws://localhost:9999");
+
+    const checkbox = card.getByTestId("vscode_reconnect");
+    const initialChecked = await checkbox.getAttribute("aria-checked");
+    await checkbox.click();
+    await expect(checkbox).not.toHaveAttribute("aria-checked", initialChecked || "");
+  });
+
   test("点击连接按钮应发送连接命令并提示成功", async ({ context, extensionId }) => {
     const page = await openToolsPage(context, extensionId);
     const card = getDevCard(page);

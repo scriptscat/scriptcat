@@ -1,10 +1,16 @@
 import { test, expect } from "./fixtures";
 import { openAgentProviderPage } from "./utils";
 
-// new-ui Agent 模型服务页（shadcn）：添加按钮 "model-add"，对话框为 Radix Dialog(role=dialog)，
-// 表单字段 model-name/model-provider/model-base-url/model-api-key/model-id/model-test，
-// Provider 为 Radix Select(role=option)。
+// new-ui Agent 模型服务页（shadcn）：空状态 data-testid="empty-state"，添加按钮
+// "model-add"，对话框为 Radix Dialog(role=dialog)，表单字段 model-name/model-provider/
+// model-base-url/model-api-key/model-id/model-test，Provider 为 Radix Select(role=option)。
 test.describe("Agent 模型服务管理", () => {
+  test("未配置模型时应显示空状态", async ({ context, extensionId }) => {
+    const page = await openAgentProviderPage(context, extensionId);
+    await expect(page.getByTestId("empty-state")).toBeVisible({ timeout: 10_000 });
+    await page.close();
+  });
+
   test("应打开添加模型对话框且含正确表单字段", async ({ context, extensionId }) => {
     const page = await openAgentProviderPage(context, extensionId);
     await page.getByTestId("model-add").click();
