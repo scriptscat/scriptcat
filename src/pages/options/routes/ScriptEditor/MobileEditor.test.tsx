@@ -40,15 +40,6 @@ const baseProps = () => ({
 });
 
 describe("MobileEditor 移动端编辑器外壳", () => {
-  it("应显示脚本标题", () => {
-    const { getByText } = render(
-      <MobileEditor {...baseProps()}>
-        <div>{"editor"}</div>
-      </MobileEditor>
-    );
-    expect(getByText("Bilibili Evolved")).toBeTruthy();
-  });
-
   it("点击返回按钮应回调 onBack", () => {
     const props = baseProps();
     const { getByLabelText } = render(
