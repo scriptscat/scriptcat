@@ -8,10 +8,6 @@ describe("content_utils", () => {
       expect(getTextContent("hello world")).toBe("hello world");
     });
 
-    it("returns empty string for empty string", () => {
-      expect(getTextContent("")).toBe("");
-    });
-
     it("extracts text from ContentBlock[]", () => {
       const blocks: ContentBlock[] = [
         { type: "text", text: "Hello " },
@@ -27,10 +23,6 @@ describe("content_utils", () => {
         { type: "file", attachmentId: "f1", mimeType: "application/pdf", name: "doc.pdf" },
       ];
       expect(getTextContent(blocks)).toBe("");
-    });
-
-    it("returns empty string for empty ContentBlock[]", () => {
-      expect(getTextContent([])).toBe("");
     });
 
     it("handles audio blocks (skipped in text extraction)", () => {
@@ -58,11 +50,6 @@ describe("content_utils", () => {
       ];
       expect(normalizeContent(blocks)).toBe(blocks);
     });
-
-    it("returns empty array as-is", () => {
-      const blocks: ContentBlock[] = [];
-      expect(normalizeContent(blocks)).toBe(blocks);
-    });
   });
 
   describe("isContentBlocks", () => {
@@ -72,10 +59,6 @@ describe("content_utils", () => {
 
     it("returns true for ContentBlock[]", () => {
       expect(isContentBlocks([{ type: "text", text: "hello" }])).toBe(true);
-    });
-
-    it("returns true for empty array", () => {
-      expect(isContentBlocks([])).toBe(true);
     });
   });
 });

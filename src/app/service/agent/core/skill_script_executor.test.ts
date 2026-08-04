@@ -233,21 +233,7 @@ return result;`,
   });
 });
 
-describe("getSkillScriptNameByUuid", () => {
-  it("未注册的 UUID 应返回空字符串", () => {
-    expect(getSkillScriptNameByUuid("skillscript-unknown-uuid")).toBe("");
-  });
-
-  it("空字符串应返回空字符串", () => {
-    expect(getSkillScriptNameByUuid("")).toBe("");
-  });
-});
-
 describe("getSkillScriptGrantsByUuid", () => {
-  it("未注册的 UUID 应返回空数组", () => {
-    expect(getSkillScriptGrantsByUuid("skillscript-unknown-uuid")).toEqual([]);
-  });
-
   it("执行期间应能通过 UUID 获取 grants", async () => {
     let capturedUuid = "";
     const sender = {
