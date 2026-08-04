@@ -3,7 +3,8 @@ import Logger from "@App/app/logger/logger";
 import { type Group } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import { ExternalAccessConnectRelayClient } from "../service_worker/client";
-import protocol from "../service_worker/external_access/protocol.json";
+import { CRYPTO, LIMITS } from "../service_worker/external_access/generated/protocol.generated";
+import { decodeWireEnvelope } from "../service_worker/external_access/protocol-wire";
 import type {
   AuthChallengePayload,
   AuthMode,
@@ -22,18 +23,17 @@ import type {
  * 之所以放 offscreen 而非 SW：写操作审批可能挂起数分钟且期间无流量，MV3 会休眠空闲 SW；
  * offscreen 由这条连接保活，SW 被转发消息唤醒。
  *
- * @see PROTOCOL.md（sctl 仓库）/ protocol.json（本仓库权威常量）
+ * @see sctl/docs/protocol.md and sctl/internal/pkg/protocol/protocol.json
  */
 
 const CONFIG = {
   CONNECT_TIMEOUT: 30_000,
-  BASE_RECONNECT_DELAY: 1000,
-  MAX_RECONNECT_DELAY: 10_000,
+  BASE_RECONNECT_DELAY: 2000,
+  MAX_RECONNECT_DELAY: 30_000,
 } as const;
 
-const CRYPTO = protocol.crypto;
 const NONCE_BYTES = CRYPTO.nonceBytes;
-const AUTH_TIMEOUT_MS = protocol.limits.authTimeoutMs;
+const AUTH_TIMEOUT_MS = LIMITS.authTimeoutMs;
 
 // 会话模式携带既有长期密钥 K（小写 hex）；配对模式携带 sctl 生成的一次性配对码。
 export type ExternalAccessAuth = { mode: "session"; key: string } | { mode: "pairing"; code: string };
@@ -136,7 +136,7 @@ export async function derivePairingKeys(code: string): Promise<{ mac: Bytes; enc
   return { mac: await derive(CRYPTO.context.pairKdfInfoMac), enc: await derive(CRYPTO.context.pairKdfInfoEnc) };
 }
 
-// 用 Kp_enc 解密 auth.ok 下发的长期密钥 K（AES-256-GCM，ct||tag 拼接）→ 小写 hex。
+// 用 Kp_enc 解密 $session.authenticated 下发的长期密钥 K（AES-256-GCM，ct||tag 拼接）→ 小写 hex。
 export async function decryptLongTermKey(encKeyBytes: Bytes, ivB64: string, ciphertextB64: string): Promise<string> {
   const key = await globalThis.crypto.subtle.importKey("raw", encKeyBytes, { name: "AES-GCM" }, false, ["decrypt"]);
   const plain = await globalThis.crypto.subtle.decrypt(
@@ -147,7 +147,7 @@ export async function decryptLongTermKey(encKeyBytes: Bytes, ivB64: string, ciph
   return bytesToHex(new Uint8Array(plain));
 }
 
-// 收到 auth.challenge 后，按当前模式计算 auth.response 载荷，并把握手参数带出以便验证 auth.ok。
+// 收到 $session.authenticate 后，按当前模式计算响应，并带出握手参数以验证 $session.authenticated。
 async function buildAuthResponse(
   auth: ExternalAccessAuth,
   nonceD: string
@@ -172,7 +172,7 @@ export class ExternalAccessConnect {
   private epoch = 0;
   private currentParams: ExternalAccessConnectParam | null = null;
   private handshakeComplete = false;
-  // 已发出 auth.response、等待 auth.ok 校验期间保留的握手素材。
+  // 已发出认证响应、等待 $session.authenticated 校验期间保留的握手素材。
   private pendingVerify: { verifyKey: Bytes; nonceD: string; nonceE: string; mode: AuthMode; enc?: Bytes } | null =
     null;
 
@@ -235,7 +235,7 @@ export class ExternalAccessConnect {
 
   private handleOpen(sessionEpoch: number): void {
     if (sessionEpoch !== this.epoch) return;
-    this.logger.info("WebSocket connected, awaiting auth.challenge");
+    this.logger.info("WebSocket connected, awaiting $session.authenticate");
     this.clearTimer("connectTimeoutTimer");
     // 握手必须在 authTimeoutMs 内完成，否则断开重连（PROTOCOL §3）。
     this.authTimeoutTimer = setTimeout(() => {
@@ -244,7 +244,7 @@ export class ExternalAccessConnect {
         this.ws?.close();
       }
     }, AUTH_TIMEOUT_MS);
-    // daemon 先发 auth.challenge，扩展在此之前不主动发消息。
+    // daemon 先发 $session.authenticate，扩展在此之前不主动发消息。
   }
 
   private async handleMessage(ev: MessageEvent, sessionEpoch: number): Promise<void> {
@@ -252,14 +252,9 @@ export class ExternalAccessConnect {
 
     let envelope: WSEnvelope;
     try {
-      envelope = JSON.parse(ev.data as string) as WSEnvelope;
+      envelope = decodeWireEnvelope(ev.data as string);
     } catch (e) {
       this.logger.warn("Failed to parse message", Logger.E(e));
-      return;
-    }
-
-    if (envelope.v !== 1) {
-      this.logger.warn("Unsupported protocol version, closing", { v: envelope.v });
       this.ws?.close();
       return;
     }
@@ -269,34 +264,31 @@ export class ExternalAccessConnect {
       return;
     }
 
-    switch (envelope.type) {
-      case "ping":
-        this.rawSend({ v: 1, type: "pong", requestId: envelope.requestId, payload: {} });
+    switch (envelope.method) {
+      case "$session.ping":
+        if (envelope.id) this.rawSend({ jsonrpc: "2.0", id: envelope.id, result: {} });
         break;
-      case "pong":
-        break;
-      case "hello":
-      case "bridge.request":
-      case "bridge.cancel":
-      case "bridge.shutdown":
+      case "$session.hello":
+      case "$/cancelRequest":
+      case "$session.shutdown":
         void this.relay.envelope(envelope);
         break;
       default:
-        // 未知类型：忽略并记日志（前向兼容，PROTOCOL §2）。
-        this.logger.warn("Unknown envelope type", { type: envelope.type });
+        if (envelope.method?.startsWith("scripts.")) {
+          void this.relay.envelope(envelope);
+        }
     }
   }
 
-  // 握手期只接受 auth.challenge / auth.ok；其余任何类型立即断开（PROTOCOL §3）。
   private async handleHandshakeMessage(envelope: WSEnvelope, sessionEpoch: number): Promise<void> {
     const auth = this.currentParams?.auth;
     if (!auth) return;
 
-    if (envelope.type === "auth.challenge") {
-      const { nonceD } = envelope.payload as AuthChallengePayload;
+    if (envelope.method === "$session.authenticate" && envelope.id) {
+      const { nonceD } = envelope.params as AuthChallengePayload;
       const built = await buildAuthResponse(auth, nonceD);
       if (sessionEpoch !== this.epoch) return;
-      // 保存验证素材，供随后的 auth.ok 校验使用。
+      // 保存验证素材，供随后的 $session.authenticated 校验使用。
       this.pendingVerify = {
         verifyKey: built.verifyKey,
         nonceD,
@@ -304,16 +296,16 @@ export class ExternalAccessConnect {
         mode: auth.mode,
         enc: built.enc,
       };
-      this.rawSend({ v: 1, type: "auth.response", requestId: envelope.requestId, payload: built.payload });
+      this.rawSend({ jsonrpc: "2.0", id: envelope.id, result: built.payload });
       return;
     }
 
-    if (envelope.type === "auth.ok") {
-      await this.verifyAuthOk(envelope.payload as AuthOkPayload, sessionEpoch);
+    if (envelope.method === "$session.authenticated") {
+      await this.verifyAuthOk(envelope.params as AuthOkPayload, sessionEpoch);
       return;
     }
 
-    this.logger.warn("Unexpected message before handshake, closing", { type: envelope.type });
+    this.logger.warn("Unexpected JSON-RPC message before authentication, closing", { method: envelope.method });
     this.ws?.close();
   }
 
@@ -327,7 +319,7 @@ export class ExternalAccessConnect {
     const expected = await computeHandshakeHmac(pending.verifyKey, context, pending.nonceE, pending.nonceD);
     if (sessionEpoch !== this.epoch) return;
     if (!constantTimeEqualHex(expected, payload.hmac || "")) {
-      this.logger.warn("auth.ok HMAC mismatch, closing");
+      this.logger.warn("$session.authenticated HMAC mismatch, closing");
       this.ws?.close();
       return;
     }
@@ -335,7 +327,7 @@ export class ExternalAccessConnect {
     // 配对模式：解密 daemon 下发的长期密钥 K，持久化交给 SW，并把自身切到会话模式供后续重连。
     if (pending.mode === "pairing") {
       if (!pending.enc || !payload.key) {
-        this.logger.warn("pairing auth.ok missing key, closing");
+        this.logger.warn("pairing $session.authenticated missing key, closing");
         this.ws?.close();
         return;
       }
@@ -352,11 +344,11 @@ export class ExternalAccessConnect {
     this.logger.info("Auth handshake complete");
   }
 
-  // 供 SW 通过 Group 下发的出站信封（bridge.response / bridge.shutdown）；握手完成前直接丢弃
+  // 供 SW 通过 Group 下发的 JSON-RPC 响应和通知；握手完成前直接丢弃
   // （连接尚不可用于业务消息）。
   private sendEnvelope(envelope: WSEnvelope): void {
     if (!this.handshakeComplete) {
-      this.logger.warn("Dropped outbound envelope before handshake", { type: envelope.type });
+      this.logger.warn("Dropped outbound JSON-RPC message before handshake", { method: envelope.method });
       return;
     }
     this.rawSend(envelope);
@@ -396,7 +388,7 @@ export class ExternalAccessConnect {
     this.reconnectTimer = setTimeout(() => {
       if (sessionEpoch !== this.epoch) return;
       this.reconnectTimer = null;
-      this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, CONFIG.MAX_RECONNECT_DELAY);
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, CONFIG.MAX_RECONNECT_DELAY);
       this.connect(sessionEpoch);
     }, this.reconnectDelay);
   }

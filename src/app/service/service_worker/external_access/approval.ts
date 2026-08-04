@@ -34,7 +34,7 @@ export const APPROVAL_TTL_MS = 5 * 60_000;
 // 内联代码上限：单条 WS 文本帧下的合理上限，512 KiB 为信封开销预留余量。
 export const INLINE_CODE_MAX_BYTES = 512 * 1024;
 
-// 决策/作废事件驱动的 bridge.response 回发通道。ExternalAccessApprovalService 不直接持有 WS 传输——由
+// 决策/作废事件驱动的 JSON-RPC 响应回发通道。ExternalAccessApprovalService 不直接持有 WS 传输——由
 // ExternalAccessController 注入此回调（内部走 offscreen 的 connectClient.send），从而 SW 休眠也不会丢响应
 // （响应由持久化的 op.requestId 重建，而非悬挂在 SW 内存里的 Promise）。
 export type SendBridgeResponse = (requestId: string, response: ExternalAccessBridgeResponse) => void;
@@ -106,7 +106,7 @@ function sameDisclosureForm(a: SourceDisclosureForm, b: SourceDisclosureForm): b
  * is flat, `clientId` is an audit label only.
  *
  * Blocking semantics (design §5.1): a blocking op carries the originating request's requestId. The
- * wire `bridge.response` is produced by the decide/void *event* and pushed back through the injected
+ * JSON-RPC response is produced by the decide/void *event* and pushed back through the injected
  * responder — never by a Promise left hanging in the (suspendable) SW. A disconnect voids the op via
  * `cancelByRequestId`; decide and void arbitrate serially through the single `awaiting_user` guard
  * (first terminal wins, an already-dead request is never approved).
@@ -430,6 +430,13 @@ export class ExternalAccessApprovalService {
       : `/src/external_access_confirm.html?op=${op.operationId}`;
   }
 
+  private async openConfirmPage(op: ExternalAccessOperation): Promise<void> {
+    const tab = await openInCurrentTab(this.confirmUrl(op));
+    if (tab && Number.isFinite(tab.windowId) && tab.windowId >= 0) {
+      await chrome.windows.update(tab.windowId, { focused: true });
+    }
+  }
+
   // Opens the confirm surface for a pending op. First honours the third decision tier: a
   // session-allowed (kind, script) auto-approves without a page (design §3). Otherwise displays
   // serially — if another confirm is still awaiting a decision, this op queues and presentNext()
@@ -446,7 +453,7 @@ export class ExternalAccessApprovalService {
       if (current?.status === "awaiting_user") return;
     }
     this.presentedOperationId = operationId;
-    await openInCurrentTab(this.confirmUrl(op));
+    await this.openConfirmPage(op);
   }
 
   // 误关 ≠ 拒绝 (§5.1): closing the confirm page leaves the op pending. This is the addressable
@@ -458,7 +465,7 @@ export class ExternalAccessApprovalService {
       throw new ExternalAccessBridgeError("OPERATION_EXPIRED", "operation is no longer pending", operationId);
     }
     this.presentedOperationId = operationId;
-    await openInCurrentTab(this.confirmUrl(op));
+    await this.openConfirmPage(op);
   }
 
   // After a blocking op resolves, surface the next queued one so concurrent writes display one at
@@ -475,9 +482,9 @@ export class ExternalAccessApprovalService {
   }
 
   // ---------------------------------------------------------------------------------------------
-  // Disconnect voiding (decision #14). daemon → bridge.cancel {requestId} → here. Only an
+  // Disconnect voiding. daemon → $/cancelRequest {id} → here. Only an
   // awaiting_user op is voided (first-terminal-wins vs decide): if decide already resolved it,
-  // this is a no-op and never rolls a decided state back, and never emits a stale bridge.response
+  // this is a no-op and never rolls a decided state back, and never emits a stale response
   // (the requester is gone). If void wins, a later decide hits the awaiting_user guard and throws
   // OPERATION_EXPIRED — so an already-dead request is never approved.
   // ---------------------------------------------------------------------------------------------
@@ -493,7 +500,7 @@ export class ExternalAccessApprovalService {
    * user left the enable switch on install.html on. `options.rememberSession` records the third
    * decision tier — 「本会话允许」— persisting a (kind, script) key so this session skips the prompt
    * next time (applies to every kind). For a blocking op (has requestId) the terminal outcome is
-   * also pushed back as the deferred `bridge.response`.
+   * also pushed back as the deferred JSON-RPC response.
    */
   async decide(
     operationId: string,
@@ -545,7 +552,7 @@ export class ExternalAccessApprovalService {
     if (op.requestId) await this.presentNext(op.operationId);
   }
 
-  // Emit the deferred bridge.response for a blocking op. A no-op for allow-policy ops (no
+  // Emit the deferred JSON-RPC response for a blocking op. A no-op for allow-policy ops (no
   // requestId): those return their result synchronously through ExternalAccessBridge instead.
   private emitApproved(op: ExternalAccessOperation, result: unknown): void {
     if (op.requestId) {
@@ -564,7 +571,7 @@ export class ExternalAccessApprovalService {
   }
 
   // Returns { summary } for the confirm page (OperationStatusResult.resultSummary) and { wire }
-  // for the deferred bridge.response. They coincide for writes; source disclosure hands the full
+  // for the deferred JSON-RPC response. They coincide for writes; source disclosure hands the full
   // ScriptSource back over the wire while the page only needs the uuid/name summary.
   private async executeApproved(
     op: ExternalAccessOperation,

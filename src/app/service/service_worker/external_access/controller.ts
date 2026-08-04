@@ -14,6 +14,7 @@ import {
   type WSEnvelope,
 } from "./types";
 import type { Group } from "@Packages/message/server";
+import { RPC_METHODS, SCHEMA_VERSION } from "./generated/protocol.generated";
 
 // Broadcast on every status transition so the Tools settings page updates live.
 export const ExternalAccessStatusChanged = "mcpStatusChanged";
@@ -98,33 +99,37 @@ export class ExternalAccessController {
   }
 
   private onEnvelope(envelope: WSEnvelope): void {
-    switch (envelope.type) {
-      case "hello": {
-        const { daemonVersion } = envelope.payload as HelloPayload;
+    switch (envelope.method) {
+      case "$session.hello": {
+        const { daemonVersion } = envelope.params as HelloPayload;
         this.daemonVersion = daemonVersion;
         this.setStatus(semver.lt(daemonVersion, MIN_DAEMON_VERSION) ? "host_outdated" : "connected");
+        void this.connectClient.send({
+          jsonrpc: "2.0",
+          id: uuidv4(),
+          method: "$session.capabilities",
+          params: { schemaVersion: SCHEMA_VERSION, methods: Object.keys(RPC_METHODS) },
+        });
         break;
       }
-      case "bridge.request":
-        // A daemon below MIN_DAEMON_VERSION is never dispatched to — status alone communicates why.
-        if (this.status !== "host_outdated") {
-          // requestId 只存在于 envelope 层（PROTOCOL §4）；payload 不带它，应答必须用 envelope
-          // 的值回填，否则 daemon 匹配不到挂起的调用，调用方一直等到 TTL 超时。
+      case "$/cancelRequest": {
+        const params = envelope.params as { id: string };
+        void this.bridge.cancel(params.id);
+        break;
+      }
+      default:
+        if (envelope.method?.startsWith("scripts.") && envelope.id && this.status !== "host_outdated") {
+          const params = envelope.params as {
+            input: unknown;
+            clientId?: string;
+          };
           void this.dispatchBridgeRequest({
-            ...(envelope.payload as ExternalAccessBridgeRequest),
-            requestId: envelope.requestId,
+            requestId: envelope.id,
+            clientId: params.clientId ?? "sctl",
+            action: envelope.method as ExternalAccessBridgeRequest["action"],
+            input: params.input,
           });
         }
-        break;
-      case "bridge.cancel":
-        // Requester died (timeout / Ctrl-C / WS session gone) — void the matching pending op and
-        // invalidate its confirm page. Fire-and-forget: no bridge.response goes back for a cancel.
-        // 同 bridge.request：requestId 在 envelope 层，payload 是空对象（PROTOCOL §5）。
-        void this.bridge.cancel(envelope.requestId);
-        break;
-      default:
-        // Flat trust dropped per-client pairing/sync/revoke — any such legacy wire message is
-        // ignored. bridge.shutdown reconnect is driven by the socket close in offscreen.
         break;
     }
   }
@@ -150,19 +155,31 @@ export class ExternalAccessController {
     }
   }
 
-  // Deferred bridge.response for a blocking op — invoked by the approval responder (wired in
+  // Deferred JSON-RPC response for a blocking op — invoked by the approval responder (wired in
   // index.ts) when a decide/void event resolves an op that suspended a write/disclosure request.
   // Kept off any SW-memory Promise: the op state lives in storage, offscreen keeps the socket
   // alive, and this call is reached by the message that woke the SW.
   sendBridgeResponse(requestId: string, response: ExternalAccessBridgeResponse): void {
-    void this.connectClient.send({ v: 1, type: "bridge.response", requestId, payload: response });
+    if (response.ok) {
+      void this.connectClient.send({ jsonrpc: "2.0", id: requestId, result: response.result });
+      return;
+    }
+    void this.connectClient.send({
+      jsonrpc: "2.0",
+      id: requestId,
+      error: {
+        code: -32000,
+        message: response.error.message,
+        data: { code: response.error.code, operationId: response.error.operationId },
+      },
+    });
   }
 
   // User disable, or "停止外部接入" kill switch (the caller additionally discards K + clears the
   // session-allow store, forcing a re-enrollment).
   stop(): void {
     this.active = false;
-    void this.connectClient.send({ v: 1, type: "bridge.shutdown", requestId: uuidv4(), payload: {} });
+    void this.connectClient.send({ jsonrpc: "2.0", method: "$session.shutdown", params: {} });
     void this.connectClient.disconnect();
     this.setStatus("disabled");
   }

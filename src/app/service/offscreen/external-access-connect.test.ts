@@ -17,11 +17,11 @@ import { MockMessage } from "@Packages/message/mock_message";
 import { Server } from "@Packages/message/server";
 import EventEmitter from "eventemitter3";
 import { createCipheriv, createHmac, hkdfSync, randomBytes } from "node:crypto";
-import protocol from "../service_worker/external_access/protocol.json";
+import { CRYPTO, LIMITS } from "../service_worker/external_access/generated/protocol.generated";
 
 initTestEnv();
 
-const CTX = protocol.crypto.context;
+const CTX = CRYPTO.context;
 
 // ────────────────────────────────────────────────
 // 独立参照实现（node:crypto）——同时充当 daemon 模拟器，钉住线格式与 sctl 互操作
@@ -226,43 +226,42 @@ describe("ExternalAccessConnect", () => {
       ws.simulateOpen();
 
       const nonceD = randomBytes(32).toString("hex");
-      ws.simulateMessage({ v: 1, type: "auth.challenge", requestId: "c1", payload: { nonceD } });
+      ws.simulateMessage({ jsonrpc: "2.0", id: "c1", method: "$session.authenticate", params: { nonceD } });
 
       await vi.waitFor(() => expect(ws.sentMessages.length).toBe(1));
       const resp = ws.sent(0);
-      expect(resp.type).toBe("auth.response");
-      expect(resp.payload.mode).toBe("session");
+      expect(resp).toMatchObject({ jsonrpc: "2.0", id: "c1" });
+      expect(resp.result.mode).toBe("session");
       // 扩展侧 HMAC 用 sessionExt || nonceD || nonceE，参照实现逐字节复核
-      expect(resp.payload.hmac).toBe(nodeHmacHex(new Uint8Array(K), CTX.sessionExt, nonceD, resp.payload.nonceE));
+      expect(resp.result.hmac).toBe(nodeHmacHex(new Uint8Array(K), CTX.sessionExt, nonceD, resp.result.nonceE));
 
-      const okHmac = nodeHmacHex(new Uint8Array(K), CTX.sessionDaemon, resp.payload.nonceE, nonceD);
-      ws.simulateMessage({ v: 1, type: "auth.ok", requestId: "c1", payload: { hmac: okHmac } });
+      const okHmac = nodeHmacHex(new Uint8Array(K), CTX.sessionDaemon, resp.result.nonceE, nonceD);
+      ws.simulateMessage({ jsonrpc: "2.0", method: "$session.authenticated", params: { hmac: okHmac } });
       await vi.waitFor(() => expect((externalAccessConnect as any).handshakeComplete).toBe(true));
 
       ws.simulateMessage({
-        v: 1,
-        type: "hello",
-        requestId: "h1",
-        payload: { daemonVersion: "0.1.0", protocolVersion: 1 },
+        jsonrpc: "2.0",
+        method: "$session.hello",
+        params: { daemonVersion: "0.1.0" },
       });
       await vi.waitFor(() => expect(relay.envelope).toHaveBeenCalledTimes(1));
-      expect(relay.envelope.mock.calls[0][0].type).toBe("hello");
+      expect(relay.envelope.mock.calls[0][0].method).toBe("$session.hello");
     });
 
-    it("auth.ok 的 daemon HMAC 不匹配时断开连接、不完成握手", async () => {
+    it("$session.authenticated 的 daemon HMAC 不匹配时断开连接、不完成握手", async () => {
       const K = randomBytes(32);
       const ws = triggerConnect(sessionParam(K.toString("hex")));
       ws.simulateOpen();
       ws.simulateMessage({
-        v: 1,
-        type: "auth.challenge",
-        requestId: "c1",
-        payload: { nonceD: randomBytes(32).toString("hex") },
+        jsonrpc: "2.0",
+        id: "c1",
+        method: "$session.authenticate",
+        params: { nonceD: randomBytes(32).toString("hex") },
       });
       await vi.waitFor(() => expect(ws.sentMessages.length).toBe(1));
 
       const closeSpy = vi.spyOn(ws, "close");
-      ws.simulateMessage({ v: 1, type: "auth.ok", requestId: "c1", payload: { hmac: "00".repeat(32) } });
+      ws.simulateMessage({ jsonrpc: "2.0", method: "$session.authenticated", params: { hmac: "00".repeat(32) } });
       await vi.waitFor(() => expect(closeSpy).toHaveBeenCalled());
       expect((externalAccessConnect as any).handshakeComplete).toBe(false);
     });
@@ -271,16 +270,21 @@ describe("ExternalAccessConnect", () => {
       const ws = triggerConnect(sessionParam(randomBytes(32).toString("hex")));
       ws.simulateOpen();
       const closeSpy = vi.spyOn(ws, "close");
-      ws.simulateMessage({ v: 1, type: "bridge.request", requestId: "r1", payload: {} });
+      ws.simulateMessage({
+        jsonrpc: "2.0",
+        id: "r1",
+        method: "scripts.list",
+        params: { input: {} },
+      });
       await vi.waitFor(() => expect(closeSpy).toHaveBeenCalled());
       expect(relay.envelope).not.toHaveBeenCalled();
     });
 
-    it("v 不等于 1 的信封立即断开", async () => {
+    it("non JSON-RPC messages are rejected", async () => {
       const ws = triggerConnect(sessionParam(randomBytes(32).toString("hex")));
       ws.simulateOpen();
       const closeSpy = vi.spyOn(ws, "close");
-      ws.simulateMessage({ v: 2, type: "auth.challenge", requestId: "c1", payload: {} });
+      ws.simulateMessage({ jsonrpc: "1.0", id: "c1", method: "$session.authenticate", params: {} });
       await vi.waitFor(() => expect(closeSpy).toHaveBeenCalled());
     });
   });
@@ -296,17 +300,17 @@ describe("ExternalAccessConnect", () => {
       ws.simulateOpen();
 
       const nonceD = randomBytes(32).toString("hex");
-      ws.simulateMessage({ v: 1, type: "auth.challenge", requestId: "c1", payload: { nonceD } });
+      ws.simulateMessage({ jsonrpc: "2.0", id: "c1", method: "$session.authenticate", params: { nonceD } });
       await vi.waitFor(() => expect(ws.sentMessages.length).toBe(1));
       const resp = ws.sent(0);
-      expect(resp.payload.mode).toBe("pairing");
-      // 配对模式用 pairExt 上下文 + Kp_mac；且 auth.response 不含配对码本身
-      expect(resp.payload.hmac).toBe(nodeHmacHex(new Uint8Array(mac), CTX.pairExt, nonceD, resp.payload.nonceE));
-      expect(resp.payload.code).toBeUndefined();
+      expect(resp.result.mode).toBe("pairing");
+      // 配对模式用 pairExt 上下文 + Kp_mac；认证响应不含配对码本身
+      expect(resp.result.hmac).toBe(nodeHmacHex(new Uint8Array(mac), CTX.pairExt, nonceD, resp.result.nonceE));
+      expect(resp.result.code).toBeUndefined();
 
-      const okHmac = nodeHmacHex(new Uint8Array(mac), CTX.pairDaemon, resp.payload.nonceE, nonceD);
+      const okHmac = nodeHmacHex(new Uint8Array(mac), CTX.pairDaemon, resp.result.nonceE, nonceD);
       const key = nodeEncryptKey(enc, K);
-      ws.simulateMessage({ v: 1, type: "auth.ok", requestId: "c1", payload: { hmac: okHmac, key } });
+      ws.simulateMessage({ jsonrpc: "2.0", method: "$session.authenticated", params: { hmac: okHmac, key } });
 
       await vi.waitFor(() => expect(relay.paired).toHaveBeenCalledTimes(1));
       expect(relay.paired.mock.calls[0][0]).toBe(K.toString("hex"));
@@ -315,19 +319,19 @@ describe("ExternalAccessConnect", () => {
       expect((externalAccessConnect as any).currentParams.auth).toEqual({ mode: "session", key: K.toString("hex") });
     });
 
-    it("配对 auth.ok 缺少 key 时断开、不上抛 paired", async () => {
+    it("配对 $session.authenticated 缺少 key 时断开、不上抛 paired", async () => {
       const code = "MNBV-3456";
       const { mac } = nodePairingKeys(code);
       const ws = triggerConnect({ url: "ws://127.0.0.1:8643", auth: { mode: "pairing", code } });
       ws.simulateOpen();
       const nonceD = randomBytes(32).toString("hex");
-      ws.simulateMessage({ v: 1, type: "auth.challenge", requestId: "c1", payload: { nonceD } });
+      ws.simulateMessage({ jsonrpc: "2.0", id: "c1", method: "$session.authenticate", params: { nonceD } });
       await vi.waitFor(() => expect(ws.sentMessages.length).toBe(1));
       const resp = ws.sent(0);
-      const okHmac = nodeHmacHex(new Uint8Array(mac), CTX.pairDaemon, resp.payload.nonceE, nonceD);
+      const okHmac = nodeHmacHex(new Uint8Array(mac), CTX.pairDaemon, resp.result.nonceE, nonceD);
 
       const closeSpy = vi.spyOn(ws, "close");
-      ws.simulateMessage({ v: 1, type: "auth.ok", requestId: "c1", payload: { hmac: okHmac } });
+      ws.simulateMessage({ jsonrpc: "2.0", method: "$session.authenticated", params: { hmac: okHmac } });
       await vi.waitFor(() => expect(closeSpy).toHaveBeenCalled());
       expect(relay.paired).not.toHaveBeenCalled();
     });
@@ -340,35 +344,40 @@ describe("ExternalAccessConnect", () => {
       const ws = triggerConnect(sessionParam(K.toString("hex")));
       ws.simulateOpen();
       const nonceD = randomBytes(32).toString("hex");
-      ws.simulateMessage({ v: 1, type: "auth.challenge", requestId: "c1", payload: { nonceD } });
+      ws.simulateMessage({ jsonrpc: "2.0", id: "c1", method: "$session.authenticate", params: { nonceD } });
       await vi.waitFor(() => expect(ws.sentMessages.length).toBe(1));
       const resp = ws.sent(0);
-      const okHmac = nodeHmacHex(new Uint8Array(K), CTX.sessionDaemon, resp.payload.nonceE, nonceD);
-      ws.simulateMessage({ v: 1, type: "auth.ok", requestId: "c1", payload: { hmac: okHmac } });
+      const okHmac = nodeHmacHex(new Uint8Array(K), CTX.sessionDaemon, resp.result.nonceE, nonceD);
+      ws.simulateMessage({ jsonrpc: "2.0", method: "$session.authenticated", params: { hmac: okHmac } });
       await vi.waitFor(() => expect((externalAccessConnect as any).handshakeComplete).toBe(true));
       return ws;
     }
 
-    it("业务信封（bridge.request/bridge.cancel）转发给 SW", async () => {
+    it("业务请求和 $/cancelRequest 转发给 SW", async () => {
       const ws = await completeSessionHandshake();
-      ws.simulateMessage({ v: 1, type: "bridge.request", requestId: "r1", payload: { action: "scripts.list" } });
-      ws.simulateMessage({ v: 1, type: "bridge.cancel", requestId: "r2", payload: {} });
+      ws.simulateMessage({
+        jsonrpc: "2.0",
+        id: "r1",
+        method: "scripts.list",
+        params: { input: {} },
+      });
+      ws.simulateMessage({ jsonrpc: "2.0", method: "$/cancelRequest", params: { id: "r2" } });
       await vi.waitFor(() => expect(relay.envelope).toHaveBeenCalledTimes(2));
-      expect(relay.envelope.mock.calls.map((c) => c[0].type)).toEqual(["bridge.request", "bridge.cancel"]);
+      expect(relay.envelope.mock.calls.map((c) => c[0].method)).toEqual(["scripts.list", "$/cancelRequest"]);
     });
 
     it("收到 ping 回复 pong，不转发给 SW", async () => {
       const ws = await completeSessionHandshake();
-      ws.simulateMessage({ v: 1, type: "ping", requestId: "pg1", payload: {} });
+      ws.simulateMessage({ jsonrpc: "2.0", id: "pg1", method: "$session.ping", params: {} });
       await vi.waitFor(() => expect(ws.sentMessages.length).toBe(2));
-      expect(ws.sent(1)).toEqual({ v: 1, type: "pong", requestId: "pg1", payload: {} });
+      expect(ws.sent(1)).toEqual({ jsonrpc: "2.0", id: "pg1", result: {} });
       expect(relay.envelope).not.toHaveBeenCalled();
     });
 
     it("未知类型忽略且不断开、不转发", async () => {
       const ws = await completeSessionHandshake();
       const closeSpy = vi.spyOn(ws, "close");
-      ws.simulateMessage({ v: 1, type: "totally.unknown", requestId: "x1", payload: {} });
+      ws.simulateMessage({ jsonrpc: "2.0", method: "$session.unexpected", params: {} });
       await Promise.resolve();
       expect(closeSpy).not.toHaveBeenCalled();
       expect(relay.envelope).not.toHaveBeenCalled();
@@ -377,18 +386,17 @@ describe("ExternalAccessConnect", () => {
     it("SW 下发的出站信封在握手后写入 socket", async () => {
       const ws = await completeSessionHandshake();
       (externalAccessConnect as any).sendEnvelope({
-        v: 1,
-        type: "bridge.response",
-        requestId: "r1",
-        payload: { ok: true },
+        jsonrpc: "2.0",
+        id: "r1",
+        result: { ok: true },
       });
-      expect(ws.sent(1).type).toBe("bridge.response");
+      expect(ws.sent(1)).toMatchObject({ jsonrpc: "2.0", id: "r1", result: { ok: true } });
     });
 
     it("握手完成前的出站信封被丢弃", () => {
       const ws = triggerConnect(sessionParam(randomBytes(32).toString("hex")));
       ws.simulateOpen();
-      (externalAccessConnect as any).sendEnvelope({ v: 1, type: "bridge.response", requestId: "r1", payload: {} });
+      (externalAccessConnect as any).sendEnvelope({ jsonrpc: "2.0", id: "r1", result: {} });
       expect(ws.sentMessages.length).toBe(0);
     });
   });
@@ -408,7 +416,7 @@ describe("ExternalAccessConnect", () => {
       const ws = triggerConnect(sessionParam("aa".repeat(32)));
       ws.simulateOpen();
       const closeSpy = vi.spyOn(ws, "close");
-      vi.advanceTimersByTime(protocol.limits.authTimeoutMs);
+      vi.advanceTimersByTime(LIMITS.authTimeoutMs);
       expect(closeSpy).toHaveBeenCalled();
     });
 
@@ -417,7 +425,7 @@ describe("ExternalAccessConnect", () => {
       const ws = triggerConnect(sessionParam("aa".repeat(32)));
       ws.simulateClose();
       expect(relay.disconnected).toHaveBeenCalledTimes(1);
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(2000);
       expect(wsInstances).toHaveLength(2);
     });
 
@@ -431,15 +439,34 @@ describe("ExternalAccessConnect", () => {
       expect(wsInstances).toHaveLength(1);
     });
 
-    it("重连延迟指数递增（最大 10 秒）", () => {
+    it("重连延迟按 2 倍递增并限制在 30 秒", () => {
       vi.useFakeTimers();
       const ws1 = triggerConnect(sessionParam("aa".repeat(32)));
       ws1.simulateClose();
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(2000);
       expect(wsInstances).toHaveLength(2);
+
       wsInstances[1].simulateClose();
-      vi.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(3999);
+      expect(wsInstances).toHaveLength(2);
+      vi.advanceTimersByTime(1);
       expect(wsInstances).toHaveLength(3);
+
+      wsInstances[2].simulateClose();
+      vi.advanceTimersByTime(8000);
+      wsInstances[3].simulateClose();
+      vi.advanceTimersByTime(16_000);
+      wsInstances[4].simulateClose();
+      vi.advanceTimersByTime(30_000);
+      wsInstances[5].simulateClose();
+      vi.advanceTimersByTime(30_000);
+      expect(wsInstances).toHaveLength(7);
+
+      wsInstances[6].simulateClose();
+      vi.advanceTimersByTime(29_999);
+      expect(wsInstances).toHaveLength(7);
+      vi.advanceTimersByTime(1);
+      expect(wsInstances).toHaveLength(8);
     });
 
     it("error + close 不触发双重重连", () => {
@@ -447,7 +474,7 @@ describe("ExternalAccessConnect", () => {
       const ws = triggerConnect(sessionParam("aa".repeat(32)));
       ws.simulateError();
       ws.simulateClose();
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(2000);
       expect(wsInstances).toHaveLength(2);
     });
   });
@@ -462,10 +489,10 @@ describe("ExternalAccessConnect", () => {
 
       // 旧连接收到 challenge 不应产生响应
       ws1.simulateMessage({
-        v: 1,
-        type: "auth.challenge",
-        requestId: "c1",
-        payload: { nonceD: randomBytes(32).toString("hex") },
+        jsonrpc: "2.0",
+        id: "c1",
+        method: "$session.authenticate",
+        params: { nonceD: randomBytes(32).toString("hex") },
       });
       await Promise.resolve();
       expect(ws1.sentMessages.length).toBe(0);

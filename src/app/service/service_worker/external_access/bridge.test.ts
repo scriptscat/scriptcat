@@ -4,12 +4,7 @@ import { ExternalAccessApprovalService, type ExternalAccessScriptMutator } from 
 import { ExternalAccessOperationDAO } from "@App/app/repo/external_access";
 import { ScriptDAO, ScriptCodeDAO, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import { TempStorageDAO } from "@App/app/repo/tempStorage";
-import {
-  PROTOCOL_VERSION,
-  type BridgeAction,
-  type ExternalAccessBridgeRequest,
-  type ExternalAccessBridgeResponse,
-} from "./types";
+import { type BridgeAction, type ExternalAccessBridgeRequest, type ExternalAccessBridgeResponse } from "./types";
 import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
 import type { ExternalAccessAuditEvent } from "./audit";
 import { uuidv4 } from "@App/pkg/utils/uuid";
@@ -36,7 +31,7 @@ function makeRequest(
   input: unknown,
   overrides: Partial<ExternalAccessBridgeRequest> = {}
 ): ExternalAccessBridgeRequest {
-  return { requestId: uuidv4(), protocolVersion: PROTOCOL_VERSION, clientId: "session-1", action, input, ...overrides };
+  return { requestId: uuidv4(), clientId: "session-1", action, input, ...overrides };
 }
 
 describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
@@ -406,7 +401,7 @@ console.log('v1');`;
     });
   });
 
-  it("bridge.request 中夹带的 clientId 字段被严格校验拒绝，审计记的是已认证 clientId", async () => {
+  it("业务输入中夹带的 clientId 字段被严格校验拒绝，审计记的是已认证 clientId", async () => {
     await bridge.handle(
       makeRequest("scripts.list", { clientId: "attacker" } as unknown as Record<string, never>, {
         clientId: "session-1",

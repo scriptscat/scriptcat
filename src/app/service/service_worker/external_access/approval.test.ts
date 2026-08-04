@@ -110,7 +110,7 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
     expect(op?.stagedUuid).toBeTruthy();
   });
 
-  it("批准安装默认启用（enable:true 即装即用），回发 bridge.response", async () => {
+  it("批准安装默认启用（enable:true 即装即用），回发 JSON-RPC result", async () => {
     const ref = await approval.prepareInstall({ clientId: "c", code: VALID_SCRIPT_CODE, requestId: "r1" });
     await approval.decide(ref.operationId, true, { enable: true });
     expect(mutator.installScript).toHaveBeenCalled();
@@ -144,14 +144,27 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
     expect(responder).toHaveBeenCalledWith("r2", expect.objectContaining({ ok: true }));
   });
 
-  it("未命中会话授权时 present 打开确认页且操作保持待批", async () => {
+  it("未命中会话授权时 present 打开确认页、聚焦其浏览器窗口且操作保持待批", async () => {
     await seedScript(TARGET_UUID);
     const ref = await approval.requestDelete({ clientId: "c", uuid: TARGET_UUID, requestId: "r1" });
-    await approval.present(ref.operationId);
-    expect(utilsModule.openInCurrentTab).toHaveBeenCalledWith(
-      `/src/external_access_confirm.html?op=${ref.operationId}`
-    );
-    expect((await operationDAO.get(ref.operationId))?.status).toBe("awaiting_user");
+    const windowsUpdate = vi.fn().mockResolvedValue(undefined);
+    const originalChrome = globalThis.chrome;
+    (utilsModule.openInCurrentTab as ReturnType<typeof vi.fn>).mockResolvedValue({ windowId: 7 } as chrome.tabs.Tab);
+    vi.stubGlobal("chrome", {
+      ...originalChrome,
+      windows: { update: windowsUpdate },
+    });
+
+    try {
+      await approval.present(ref.operationId);
+      expect(utilsModule.openInCurrentTab).toHaveBeenCalledWith(
+        `/src/external_access_confirm.html?op=${ref.operationId}`
+      );
+      expect(windowsUpdate).toHaveBeenCalledWith(7, { focused: true });
+      expect((await operationDAO.get(ref.operationId))?.status).toBe("awaiting_user");
+    } finally {
+      vi.stubGlobal("chrome", originalChrome);
+    }
   });
 
   it("TOCTOU：批准前目标脚本代码变化则 enable 返回 CONFLICT", async () => {
@@ -271,7 +284,7 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
     expect(await sessionAllow.has(`enable:${TARGET_UUID}`)).toBe(false);
   });
 
-  it("直接允许路径（无 requestId）不回发 bridge.response", async () => {
+  it("直接允许路径（无 requestId）不回发 JSON-RPC result", async () => {
     const ref = await approval.prepareInstall({ clientId: "c", code: VALID_SCRIPT_CODE });
     await approval.decide(ref.operationId, true, { enable: false });
     expect(mutator.installScript.mock.calls[0][0].script.status).toBe(SCRIPT_STATUS_DISABLE);

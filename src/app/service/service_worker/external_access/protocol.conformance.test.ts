@@ -1,54 +1,46 @@
 import { describe, it, expect } from "vitest";
-import protocolJson from "./protocol.json";
+import { ERROR_CODES, JSONRPC_VERSION, RPC_METHODS, SESSION_METHODS, VERSIONS } from "./generated/protocol.generated";
 import * as extTypes from "./types";
 
-// protocol.json 是桥接协议常量的唯一权威(与 scriptscat/sctl 仓库逐字节同步);types.ts 是
+// sctl Schema 生成的 PROTOCOL 是桥接协议常量的唯一权威；types.ts 是
 // 扩展侧的强类型镜像。本测试是漂移守卫:任一侧改了协议而没同步另一侧,就在这里失败,而不是
 // 运行时才与 daemon 静默失配。
-describe("MCP 协议一致性 - types.ts 必须与 protocol.json 同步", () => {
-  it("PROTOCOL_VERSION 与 protocol.json 一致", () => {
-    expect(extTypes.PROTOCOL_VERSION).toBe(protocolJson.protocolVersion);
+describe("MCP 协议一致性 - types.ts 必须与生成协议同步", () => {
+  it("JSON-RPC version matches the generated contract", () => {
+    expect(extTypes.JSONRPC_VERSION).toBe(JSONRPC_VERSION);
   });
 
-  it("MIN_DAEMON_VERSION 与 protocol.json 的 minDaemonVersion 一致", () => {
-    expect(extTypes.MIN_DAEMON_VERSION).toBe(protocolJson.versions.minDaemonVersion);
+  it("MIN_DAEMON_VERSION 与生成协议的 minDaemonVersion 一致", () => {
+    expect(extTypes.MIN_DAEMON_VERSION).toBe(VERSIONS.minDaemonVersion);
   });
 
-  it("session envelope 类型集合完全一致(顺序无关)", () => {
-    expect([...extTypes.SESSION_MESSAGE_TYPES].sort()).toEqual([...protocolJson.envelopeTypes.session].sort());
-  });
-
-  it("bridge envelope 类型集合完全一致(顺序无关)", () => {
-    expect([...extTypes.BRIDGE_MESSAGE_TYPES].sort()).toEqual([...protocolJson.envelopeTypes.bridge].sort());
-  });
-
-  it("WS_MESSAGE_TYPES 是两层 envelope 的并集", () => {
-    expect([...extTypes.WS_MESSAGE_TYPES].sort()).toEqual(
-      [...protocolJson.envelopeTypes.session, ...protocolJson.envelopeTypes.bridge].sort()
-    );
+  it("session methods match the generated contract", () => {
+    expect([...extTypes.SESSION_METHODS].sort()).toEqual([...SESSION_METHODS].sort());
   });
 
   it("EXTERNAL_ACCESS_SCOPES 与 protocol.json 的 scopes 完全一致", () => {
-    expect([...extTypes.EXTERNAL_ACCESS_SCOPES].sort()).toEqual([...protocolJson.scopes].sort());
+    expect([...extTypes.EXTERNAL_ACCESS_SCOPES].sort()).toEqual(
+      [...new Set(Object.values(RPC_METHODS).map((method) => method.scope))].sort()
+    );
   });
 
   it("BRIDGE_ACTIONS 与 protocol.json 的 actions 键完全一致", () => {
-    expect([...extTypes.BRIDGE_ACTIONS].sort()).toEqual(Object.keys(protocolJson.actions).sort());
+    expect([...extTypes.BRIDGE_ACTIONS].sort()).toEqual(Object.keys(RPC_METHODS).sort());
   });
 
   it("BRIDGE_ERROR_CODES 与 protocol.json 的 errorCodes 完全一致", () => {
-    expect([...extTypes.BRIDGE_ERROR_CODES].sort()).toEqual([...protocolJson.errorCodes].sort());
+    expect([...extTypes.BRIDGE_ERROR_CODES].sort()).toEqual([...ERROR_CODES].sort());
   });
 
   it("每个 action 的 required scope 与 protocol.json 声明一致", () => {
-    for (const [action, meta] of Object.entries(protocolJson.actions)) {
+    for (const [action, meta] of Object.entries(RPC_METHODS)) {
       expect(extTypes.ACTION_REQUIRED_SCOPE[action as extTypes.BridgeAction]).toBe(meta.scope);
     }
   });
 
   it("WRITE_ACTIONS 与 protocol.json 中 write=true 的 action 完全一致", () => {
-    const writeActions = Object.entries(protocolJson.actions)
-      .filter(([, meta]) => meta.write)
+    const writeActions = Object.entries(RPC_METHODS)
+      .filter(([, meta]) => meta.effect === "write")
       .map(([action]) => action);
     expect([...extTypes.WRITE_ACTIONS].sort()).toEqual(writeActions.sort());
   });

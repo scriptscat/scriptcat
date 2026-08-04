@@ -25,7 +25,7 @@ import {
 export { MAX_SOURCE_BYTES } from "./source";
 
 // Sentinel dispatch returns when a request is suspended pending a human decision (write approval
-// or source read under the "approval" policy): no bridge.response is produced now — the decide/void
+// or source read under the "approval" policy): no JSON-RPC response is produced now — the decide/void
 // event pushes it back later through the approval responder (design §5.1, event-driven not SW-Promise).
 const DEFERRED = Symbol("external-access-deferred-response");
 
@@ -196,7 +196,7 @@ function toSummary(script: Script): ScriptSummary {
  * reported name), never an authorization key. The remaining human gates are the two global policies:
  *
  *  - Writes (install/toggle/delete) → the write policy. "approval" (default) suspends behind a
- *    confirm surface (design §5.1: `handle` returns `null`, the deferred bridge.response is emitted
+ *    confirm surface (design §5.1: `handle` returns `null`, the deferred JSON-RPC response is emitted
  *    by the decide/void event); "allow" executes immediately and fires a notification.
  *  - Source reads (scripts.source.get) → the source-read policy, same two modes. Source is a privacy
  *    read, so it keeps its own gate and — unlike the old model — is no longer CLI-exempt (§2.3).
@@ -215,7 +215,7 @@ export class ExternalAccessBridge {
     private readonly audit: ExternalAccessAudit = logExternalAccess
   ) {}
 
-  // daemon → bridge.cancel {requestId}: the requester (MCP client / CLI) timed out, Ctrl-C'd or
+  // daemon → $/cancelRequest {id}: the requester (MCP client / CLI) timed out, Ctrl-C'd or
   // its WS session died. Void the matching pending op; its confirm page's next decide then fails
   // cleanly. First-terminal-wins arbitration vs a concurrent decide lives in the approval service.
   cancel(requestId: string): Promise<void> {
@@ -378,7 +378,7 @@ export class ExternalAccessBridge {
 
   // Shared write dispatch: create the pending op, then branch on the write policy.
   //  - "approval" (default): open the confirm surface and suspend (return DEFERRED); the decide/void
-  //    event emits the bridge.response later, addressed by the op's requestId. present() short-
+  //    event emits the JSON-RPC response later, addressed by the operation's request ID. present() short-
   //    circuits to an auto-approval when the (script, kind) is session-allowed.
   //  - "allow": execute immediately via decide(approved) and fire the notification; the op carries
   //    no requestId, so decide returns the result synchronously here instead of over the wire.

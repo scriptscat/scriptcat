@@ -121,7 +121,7 @@ export class VscodeConnectClient extends Client {
 }
 
 // SW → offscreen driver for the MCP WS transport. ExternalAccessController uses it to open/close the socket
-// and to hand the offscreen ExternalAccessConnect outbound envelopes (bridge.response / bridge.shutdown)
+// and to hand the offscreen ExternalAccessConnect outbound JSON-RPC messages
 // to write onto the wire.
 export class ExternalAccessConnectClient extends Client {
   constructor(msgSender: MessageSend) {

@@ -1,58 +1,50 @@
 /**
  * Extension-side mirror of the sctl bridge protocol.
  *
- * The wire constants live in protocol.json (this directory), which is the single source of truth
+ * The protocol constants are generated from sctl/internal/pkg/protocol/protocol.json, the single source of truth
  * shared byte-for-byte with the sctl daemon repo. This module is the strongly-typed mirror; the
  * two are kept from drifting by protocol.conformance.test.ts.
  *
  * Full protocol spec: PROTOCOL.md in the sctl repo (mirrored under docs/superpowers/specs).
  */
 
-export const PROTOCOL_VERSION = 1;
+export const JSONRPC_VERSION = "2.0" as const;
 
 // Minimum sctl daemon version the extension will talk to; below this the controller reports
 // status "host_outdated" and refuses to dispatch bridge calls.
 export const MIN_DAEMON_VERSION = "0.1.0";
 
 // ---------------------------------------------------------------------------------------------
-// ext <-> daemon envelope types (WS transport) — two layers
+// JSON-RPC 2.0 messages carried by the extension-daemon WebSocket.
 // ---------------------------------------------------------------------------------------------
-// Kept in sync with protocol.json (envelopeTypes) via protocol.conformance.test.ts. The offscreen
-// WS client owns the socket and relays decoded envelopes to/from the SW controller.
-//
-// SESSION (Layer 1) frames carry the crypto handshake, version/liveness and session lifecycle. This
-// layer is security-critical and stays custom — it's the half a standard RPC (JSON-RPC) can't
-// express. BRIDGE (Layer 2) frames are the capability RPC tunnelled over the channel;
-// bridge.request.payload is opaque to the session layer, which is what lets the two layers evolve
-// (and be serialized) independently.
-//
-// To extend: a new handshake/liveness/lifecycle frame goes in SESSION_MESSAGE_TYPES; a new
-// capability goes in BRIDGE_ACTIONS (below), never here — bridge.request already tunnels every action.
+// The offscreen client owns the socket and relays decoded messages to/from the service worker.
 
-export const SESSION_MESSAGE_TYPES = [
-  "auth.challenge",
-  "auth.response",
-  "auth.ok",
-  "hello",
-  "ping",
-  "pong",
-  "bridge.shutdown",
+export const SESSION_METHODS = [
+  "$session.authenticate",
+  "$session.authenticated",
+  "$session.hello",
+  "$session.capabilities",
+  "$session.ping",
+  "$session.shutdown",
+  "$/cancelRequest",
 ] as const;
 
-export const BRIDGE_MESSAGE_TYPES = ["bridge.request", "bridge.response", "bridge.cancel"] as const;
-
-export const WS_MESSAGE_TYPES = [...SESSION_MESSAGE_TYPES, ...BRIDGE_MESSAGE_TYPES] as const;
-
-export type WSMessageType = (typeof WS_MESSAGE_TYPES)[number];
-
-export interface WSEnvelope<TPayload = unknown> {
-  v: 1;
-  type: WSMessageType;
-  requestId: string;
-  payload: TPayload;
+export interface JSONRPCError {
+  code: number;
+  message: string;
+  data?: { code: BridgeErrorCode; operationId?: string };
 }
 
-// The two auth modes carried by auth.response.mode (PROTOCOL §3.1 session / §3.2 pairing).
+export interface WSEnvelope<TParams = unknown, TResult = unknown> {
+  jsonrpc: typeof JSONRPC_VERSION;
+  id?: string;
+  method?: string;
+  params?: TParams;
+  result?: TResult;
+  error?: JSONRPCError;
+}
+
+// The two authentication modes returned from $session.authenticate.
 export type AuthMode = "session" | "pairing";
 
 // daemon->ext, opens every connection: nonceD is a 32-byte random challenge, lowercase hex.
@@ -80,7 +72,6 @@ export interface AuthOkPayload {
 // compare daemonVersion against MIN_DAEMON_VERSION before dispatching any bridge call.
 export interface HelloPayload {
   daemonVersion: string;
-  protocolVersion: typeof PROTOCOL_VERSION;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -99,10 +90,10 @@ export const EXTERNAL_ACCESS_SCOPES = [
 
 export type ExternalAccessScope = (typeof EXTERNAL_ACCESS_SCOPES)[number];
 
-// Adding a capability (paved path): add the action here + to protocol.json `actions`, map it in
-// ACTION_REQUIRED_SCOPE (and EXTERNAL_ACCESS_SCOPES / protocol.json `scopes` if it needs a new one),
+// Adding a capability: add the method to the sctl schema, then map it here and in
+// ACTION_REQUIRED_SCOPE (and EXTERNAL_ACCESS_SCOPES if it needs a new one),
 // list it in WRITE_ACTIONS if it mutates, then handle it in the bridge. protocol.conformance.test.ts
-// fails until both sides agree — no new envelope type is needed, bridge.request tunnels every action.
+// fails until both sides agree.
 export const BRIDGE_ACTIONS = [
   "scripts.list",
   "scripts.metadata.get",
@@ -118,10 +109,7 @@ export type BridgeAction = (typeof BRIDGE_ACTIONS)[number];
 
 export const BRIDGE_ERROR_CODES = [
   "INVALID_REQUEST",
-  "UNAUTHENTICATED",
-  "INSUFFICIENT_SCOPE",
-  "WRITE_MODE_DISABLED",
-  "USER_APPROVAL_REQUIRED",
+  "METHOD_NOT_FOUND",
   "USER_REJECTED",
   "OPERATION_EXPIRED",
   "CONFLICT",
@@ -142,10 +130,7 @@ export const OPERATION_STATUSES = ["awaiting_user", "approved", "rejected", "exp
 export type OperationStatus = (typeof OPERATION_STATUSES)[number];
 
 export interface ExternalAccessBridgeRequest<TInput = unknown> {
-  // 线上 payload 不含此字段（PROTOCOL §4：requestId 属于 envelope 层）；由 ExternalAccessController 从
-  // envelope 注入，供下游关联挂起操作与回发应答。
   requestId: string;
-  protocolVersion: typeof PROTOCOL_VERSION;
   clientId: string;
   action: BridgeAction;
   input: TInput;

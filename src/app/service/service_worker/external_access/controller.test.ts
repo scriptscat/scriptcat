@@ -113,85 +113,80 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
   it("hello 版本达标时 connected 并暴露 sctl 版本，过旧时 host_outdated 且不分发 bridge 调用", async () => {
     const controller = await initEnrolled();
     fake.relayEnvelope({
-      v: 1,
-      type: "hello",
-      requestId: "h",
-      payload: { daemonVersion: MIN_DAEMON_VERSION, protocolVersion: 1 },
+      jsonrpc: "2.0",
+      method: "$session.hello",
+      params: { daemonVersion: MIN_DAEMON_VERSION },
     });
     // hello 携带 daemonVersion，状态条据此显示「sctl v{daemonVersion}」。
     expect(controller.getStatus()).toEqual({ status: "connected", daemonVersion: MIN_DAEMON_VERSION });
 
     fake.relayEnvelope({
-      v: 1,
-      type: "hello",
-      requestId: "h",
-      payload: { daemonVersion: "0.0.1", protocolVersion: 1 },
+      jsonrpc: "2.0",
+      method: "$session.hello",
+      params: { daemonVersion: "0.0.1" },
     });
     expect(controller.getStatus()).toEqual({ status: "host_outdated", daemonVersion: "0.0.1" });
     fake.relayEnvelope({
-      v: 1,
-      type: "bridge.request",
-      requestId: "req",
-      payload: { action: "scripts.list", input: {}, clientId: "x", protocolVersion: 1 },
+      jsonrpc: "2.0",
+      id: "req",
+      method: "scripts.list",
+      params: { input: {}, clientId: "x" },
     });
     expect(bridgeHandle).not.toHaveBeenCalled();
   });
 
-  it("bridge.request 用 envelope 的 requestId 回填并回发 bridge.response", async () => {
+  it("JSON-RPC request uses id to correlate the response", async () => {
     await initEnrolled();
     fake.relayEnvelope({
-      v: 1,
-      type: "hello",
-      requestId: "h",
-      payload: { daemonVersion: MIN_DAEMON_VERSION, protocolVersion: 1 },
+      jsonrpc: "2.0",
+      method: "$session.hello",
+      params: { daemonVersion: MIN_DAEMON_VERSION },
     });
     fake.relayEnvelope({
-      v: 1,
-      type: "bridge.request",
-      requestId: "req-42",
-      payload: { action: "scripts.list", input: {}, clientId: "x", protocolVersion: 1 },
+      jsonrpc: "2.0",
+      id: "req-42",
+      method: "scripts.list",
+      params: { input: {}, clientId: "x" },
     });
     await vi.waitFor(() => expect(bridgeHandle).toHaveBeenCalled());
     expect(bridgeHandle.mock.calls[0][0].requestId).toBe("req-42");
     await vi.waitFor(() =>
       expect(connectClient.send).toHaveBeenCalledWith(
-        expect.objectContaining({ type: "bridge.response", requestId: "req-42" })
+        expect.objectContaining({ jsonrpc: "2.0", id: "req-42", result: {} })
       )
     );
   });
 
-  it("bridge.request 挂起（handle 返回 null）时不回发响应", async () => {
+  it("a suspended JSON-RPC request does not respond before the decision", async () => {
     bridgeHandle.mockResolvedValue(null);
     await initEnrolled();
     fake.relayEnvelope({
-      v: 1,
-      type: "hello",
-      requestId: "h",
-      payload: { daemonVersion: MIN_DAEMON_VERSION, protocolVersion: 1 },
+      jsonrpc: "2.0",
+      method: "$session.hello",
+      params: { daemonVersion: MIN_DAEMON_VERSION },
     });
     fake.relayEnvelope({
-      v: 1,
-      type: "bridge.request",
-      requestId: "req",
-      payload: { action: "scripts.install.request", input: { code: "x" }, clientId: "x", protocolVersion: 1 },
+      jsonrpc: "2.0",
+      id: "req",
+      method: "scripts.install.request",
+      params: { input: { code: "x" }, clientId: "x" },
     });
     await vi.waitFor(() => expect(bridgeHandle).toHaveBeenCalled());
-    expect(connectClient.send).not.toHaveBeenCalledWith(expect.objectContaining({ type: "bridge.response" }));
+    expect(connectClient.send).not.toHaveBeenCalledWith(expect.objectContaining({ id: "req" }));
   });
 
-  it("bridge.cancel 按 envelope 的 requestId 作废挂起操作", async () => {
+  it("$/cancelRequest cancels the referenced request id", async () => {
     await initEnrolled();
-    fake.relayEnvelope({ v: 1, type: "bridge.cancel", requestId: "req-cancel", payload: {} });
+    fake.relayEnvelope({ jsonrpc: "2.0", method: "$/cancelRequest", params: { id: "req-cancel" } });
     expect(bridgeCancel).toHaveBeenCalledWith("req-cancel");
   });
 
   it("socket 断开时状态转为 host_unreachable 并清除 sctl 版本", async () => {
     const controller = await initEnrolled();
     fake.relayEnvelope({
-      v: 1,
-      type: "hello",
-      requestId: "h",
-      payload: { daemonVersion: MIN_DAEMON_VERSION, protocolVersion: 1 },
+      jsonrpc: "2.0",
+      method: "$session.hello",
+      params: { daemonVersion: MIN_DAEMON_VERSION },
     });
     fake.relayDisconnected();
     // 断开后不再连接，之前 hello 报告的版本不应残留。
@@ -201,7 +196,9 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
   it("stop() 发送 shutdown、断开并置为 disabled", async () => {
     const controller = await initEnrolled();
     controller.stop();
-    expect(connectClient.send).toHaveBeenCalledWith(expect.objectContaining({ type: "bridge.shutdown" }));
+    expect(connectClient.send).toHaveBeenCalledWith(
+      expect.objectContaining({ jsonrpc: "2.0", method: "$session.shutdown" })
+    );
     expect(connectClient.disconnect).toHaveBeenCalled();
     expect(controller.getStatus().status).toBe("disabled");
   });
