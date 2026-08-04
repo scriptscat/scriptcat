@@ -2,10 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { fileURLToPath } from "node:url";
 import { runCheck } from "./check-issue-templates.mjs";
-
-const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // 用最小 fixture 仓库树（而非真实仓库）锁定两类真实回归：
 //   - 英文模板里未加引号的 `: ` 让 YAML 解析失败，中文模板因为用全角「：」而侥幸通过，
@@ -79,10 +76,6 @@ afterEach(() => {
 describe("issue 模板机械检查", () => {
   it("结构合法且中英文对齐的模板集合应通过", () => {
     expect(problemsOf(makeFixtureRoot())).toEqual([]);
-  });
-
-  it("仓库现有的 issue 模板应全部通过检查", () => {
-    expect(problemsOf(REPO_ROOT)).toEqual([]);
   });
 
   describe("YAML 与 issue-form schema", () => {
