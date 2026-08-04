@@ -14,4 +14,9 @@ describe("巡览步骤配置", () => {
     const allowed = new Set([...DESKTOP_STEPS.map((s) => s.id), "subscribe"]);
     for (const s of MOBILE_STEPS) expect(allowed.has(s.id)).toBe(true);
   });
+
+  it("桌面与移动端分别保留 6 步和 3 步巡览", () => {
+    expect(DESKTOP_STEPS).toHaveLength(6);
+    expect(MOBILE_STEPS).toHaveLength(3);
+  });
 });

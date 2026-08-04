@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { InstallLoading, InstallError } from "./InstallStates";
 
@@ -37,6 +37,21 @@ describe("InstallError 加载失败状态屏", () => {
     render(<InstallError message="Error: Fetch failed with status 404" onClose={() => {}} />);
     expect(screen.getByText("安装页面加载失败")).toBeInTheDocument();
     expect(screen.getByText("Error: Fetch failed with status 404")).toBeInTheDocument();
+  });
+
+  it("提供重试和自定义标题时可分别触发重试与关闭", () => {
+    const onRetry = vi.fn();
+    const onClose = vi.fn();
+    const { rerender } = render(<InstallError title="无效安装地址" message="x" onRetry={onRetry} onClose={onClose} />);
+
+    expect(screen.getByText("无效安装地址")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
+
+    rerender(<InstallError title="无效安装地址" message="x" onClose={onClose} />);
+    expect(screen.queryByRole("button", { name: "重试" })).not.toBeInTheDocument();
   });
 
   it("保留顶部品牌栏(对照设计稿,失败态不丢失外壳)", () => {

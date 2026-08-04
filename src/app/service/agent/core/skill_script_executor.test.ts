@@ -234,6 +234,13 @@ return result;`,
 });
 
 describe("getSkillScriptGrantsByUuid", () => {
+  it("未注册的 UUID 应返回空工具名和权限列表", () => {
+    for (const uuid of ["unregistered", ""]) {
+      expect(getSkillScriptNameByUuid(uuid)).toBe("");
+      expect(getSkillScriptGrantsByUuid(uuid)).toEqual([]);
+    }
+  });
+
   it("执行期间应能通过 UUID 获取 grants", async () => {
     let capturedUuid = "";
     const sender = {
