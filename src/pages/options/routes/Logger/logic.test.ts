@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  REFRESH_INTERVAL_MS,
   aggregateLabels,
   buildMonthGrid,
   countLevels,
@@ -274,6 +275,19 @@ describe("presetRange", () => {
     expect(presetRange(preset as TimePreset, nowMs)).toEqual({
       start: nowMs - durationMs,
       end: nowMs,
+    });
+  });
+});
+
+describe("REFRESH_INTERVAL_MS", () => {
+  it("映射全部自动刷新间隔到毫秒", () => {
+    expect(REFRESH_INTERVAL_MS).toEqual({
+      off: 0,
+      "5s": 5_000,
+      "10s": 10_000,
+      "30s": 30_000,
+      "1m": 60_000,
+      "5m": 5 * 60_000,
     });
   });
 });
