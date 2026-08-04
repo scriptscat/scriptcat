@@ -165,7 +165,7 @@ describe("SettingsPane 运行设置", () => {
     const trigger = screen.getAllByRole("combobox")[comboIndex];
     fireEvent.keyDown(trigger, { key: "Enter" });
     await act(() => Promise.resolve());
-    fireEvent.click(screen.getAllByRole("option").find((o) => o.textContent === optionText)!);
+    fireEvent.click(screen.getByRole("option", { name: optionText }));
     await act(() => Promise.resolve());
   };
 
@@ -178,6 +178,15 @@ describe("SettingsPane 运行设置", () => {
     expect(updateMetadata).toHaveBeenCalledWith("u1", "run-at", ["document-end"]);
     expect(screen.getAllByRole("combobox")[1]).toHaveTextContent("document-end");
     expect(screen.getAllByRole("combobox")[1]).not.toHaveTextContent("early-start");
+  });
+
+  it("运行时机应提供 context-menu 并保存为用户覆盖", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("alpha");
+    await pickOption(1, "context-menu");
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "early-start", undefined);
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "run-at", ["context-menu"]);
+    expect(screen.getAllByRole("combobox")[1]).toHaveTextContent("context-menu");
   });
 
   it("运行环境选「默认」应以 undefined 撤销覆盖而非写入空数组", async () => {
