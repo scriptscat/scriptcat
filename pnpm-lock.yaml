@@ -49,9 +49,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.29.0
         version: 1.29.0(zod@4.4.3)
-      ajv:
-        specifier: ^8.18.0
-        version: 8.18.0
       chardet:
         specifier: ^2.1.1
         version: 2.1.1

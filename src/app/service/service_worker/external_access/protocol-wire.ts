@@ -1,33 +1,20 @@
-import Ajv2020 from "ajv/dist/2020.js";
-import type { ValidateFunction } from "ajv";
-import { RPC_METHODS } from "./generated/protocol.generated";
-import { RPC_SCHEMAS } from "./generated/schema.generated";
+import { RPC_PARAM_VALIDATORS } from "./generated/validators.generated";
 import type { WSEnvelope } from "./types";
 
 interface BusinessParams {
   input: unknown;
 }
 
-const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false });
-const methodValidators = new Map<string, ValidateFunction>(
-  Object.entries(RPC_METHODS).map(([method, metadata]) => {
-    const schema = RPC_SCHEMAS[metadata.params as keyof typeof RPC_SCHEMAS];
-    return [method, ajv.compile(schema)];
-  })
-);
-
 export function decodeWireEnvelope(frame: string): WSEnvelope {
   const value: unknown = JSON.parse(frame);
   assertJSONRPCMessage(value);
   const message = value as WSEnvelope;
-  if (message.method && methodValidators.has(message.method)) {
+  if (message.method && Object.hasOwn(RPC_PARAM_VALIDATORS, message.method)) {
     const params = message.params as BusinessParams;
-    const validateParams = methodValidators.get(message.method);
-    if (!validateParams) {
-      throw new Error(`Unknown RPC method: ${message.method}`);
-    }
+    const method = message.method as keyof typeof RPC_PARAM_VALIDATORS;
+    const validateParams = RPC_PARAM_VALIDATORS[method];
     if (!validateParams(params.input)) {
-      throw new Error(`Invalid params for ${message.method}: ${ajv.errorsText(validateParams.errors)}`);
+      throw new Error(`Invalid params for ${message.method}`);
     }
   }
   return message;

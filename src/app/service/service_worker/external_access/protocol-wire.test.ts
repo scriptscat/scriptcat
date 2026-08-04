@@ -24,4 +24,36 @@ describe("Schema-driven RPC wire boundary", () => {
 
     expect(() => decodeWireEnvelope(frame)).toThrow(/scripts\.toggle\.request/);
   });
+
+  it("validates nested values, collection limits, and additional properties without runtime compilation", () => {
+    const request = {
+      jsonrpc: "2.0",
+      id: "r1",
+      method: "scripts.edit.request",
+      params: {
+        input: {
+          uuid: "26d146ee-6d26-4bf6-9fe8-1e86d1582811",
+          edits: [{ oldText: "before", newText: "after", replaceAll: true }],
+        },
+      },
+    };
+
+    expect(decodeWireEnvelope(JSON.stringify(request))).toMatchObject(request);
+    expect(() =>
+      decodeWireEnvelope(JSON.stringify({ ...request, params: { input: { ...request.params.input, edits: [] } } }))
+    ).toThrow(/scripts\.edit\.request/);
+    expect(() =>
+      decodeWireEnvelope(
+        JSON.stringify({
+          ...request,
+          params: {
+            input: {
+              ...request.params.input,
+              edits: [{ oldText: "before", newText: "after", unexpected: true }],
+            },
+          },
+        })
+      )
+    ).toThrow(/scripts\.edit\.request/);
+  });
 });
