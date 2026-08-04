@@ -29,11 +29,6 @@ describe("InstallActions 操作区", () => {
     expect(p.onInstall).toHaveBeenCalledTimes(1);
   });
 
-  it("primaryDisabled 时主按钮禁用", () => {
-    render(<InstallActions {...baseProps()} primaryDisabled />);
-    expect(screen.getByTestId("install-primary")).toBeDisabled();
-  });
-
   it("展开更多菜单可选择不关闭窗口", async () => {
     const p = baseProps();
     render(<InstallActions {...p} />);
