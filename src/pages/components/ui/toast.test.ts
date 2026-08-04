@@ -50,6 +50,14 @@ describe("notify 封装", () => {
     expect(mockedToast.error).toHaveBeenCalledWith("e", expect.objectContaining({ description: "d", id: "k" }));
   });
 
+  it("dismiss 与 promise 应透传", () => {
+    notify.dismiss("k");
+    expect(mockedToast.dismiss).toHaveBeenCalledWith("k");
+    const p = Promise.resolve(1);
+    notify.promise(p, { loading: "l", success: "s", error: "e" });
+    expect(mockedToast.promise).toHaveBeenCalledWith(p, expect.objectContaining({ loading: "l" }));
+  });
+
   describe("自动关闭进度条时长变量", () => {
     it("success 应注入 --sc-toast-duration=3000ms", () => {
       notify.success("done");

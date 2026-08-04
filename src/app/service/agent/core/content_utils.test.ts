@@ -60,5 +60,9 @@ describe("content_utils", () => {
     it("returns true for ContentBlock[]", () => {
       expect(isContentBlocks([{ type: "text", text: "hello" }])).toBe(true);
     });
+
+    it("returns true for empty array", () => {
+      expect(isContentBlocks([])).toBe(true);
+    });
   });
 });
