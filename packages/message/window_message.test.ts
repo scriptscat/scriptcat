@@ -109,6 +109,26 @@ describe("ServiceWorkerMessageSend", () => {
       expect(msgHandler).not.toHaveBeenCalled();
       expect(conHandler).not.toHaveBeenCalled();
     });
+
+    it("仍然正常处理 respMessage / disconnect / connectMessage", () => {
+      const swSend = new ServiceWorkerMessageSend();
+
+      const respHandler = vi.fn();
+      const disconnectHandler = vi.fn();
+      const connMsgHandler = vi.fn();
+
+      swSend.EE.addListener("response:resp-1", respHandler);
+      swSend.EE.addListener("disconnect:disc-1", disconnectHandler);
+      swSend.EE.addListener("connectMessage:cm-1", connMsgHandler);
+
+      swSend.messageHandle({ messageId: "resp-1", type: "respMessage", data: "r" });
+      swSend.messageHandle({ messageId: "disc-1", type: "disconnect", data: null });
+      swSend.messageHandle({ messageId: "cm-1", type: "connectMessage", data: "m" });
+
+      expect(respHandler).toHaveBeenCalled();
+      expect(disconnectHandler).toHaveBeenCalled();
+      expect(connMsgHandler).toHaveBeenCalledWith("m");
+    });
   });
 });
 
