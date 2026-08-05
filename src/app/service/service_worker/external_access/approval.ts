@@ -112,6 +112,7 @@ function sameDisclosureForm(a: SourceDisclosureForm, b: SourceDisclosureForm): b
  * (first terminal wins, an already-dead request is never approved).
  */
 export class ExternalAccessApprovalService {
+  private transitionTail: Promise<void> = Promise.resolve();
   // Best-effort "one confirm page focused at a time" pointer (design §5.1 serial display). In
   // memory only — an MV3 SW may drop it on suspend, degrading to opening an extra confirm page,
   // which the reopen entry and blocking backpressure make tolerable.
@@ -173,10 +174,16 @@ export class ExternalAccessApprovalService {
 
     const contentHash = sha256OfText(code);
 
-    // Idempotency: an identical contentHash still awaiting_user returns the existing operation
-    // instead of stacking a second prompt (flat trust — dedup by content, not by client).
+    // Only a retry carrying the same JSON-RPC id may reuse an operation. Different ids each need
+    // their own terminal response, even when their payloads are identical.
     const awaiting = await this.operationDAO.awaitingUser();
-    const duplicate = awaiting.find((op) => op.kind === "install" && op.contentHash === contentHash);
+    const duplicate = awaiting.find(
+      (op) =>
+        params.requestId !== undefined &&
+        op.requestId === params.requestId &&
+        op.kind === "install" &&
+        op.contentHash === contentHash
+    );
     if (duplicate) {
       return toRef(duplicate);
     }
@@ -256,11 +263,15 @@ export class ExternalAccessApprovalService {
     }
     const contentHash = sha256OfText(editedCode);
 
-    // Same idempotency rule as prepareInstall: an identical result still awaiting_user reuses that
-    // operation instead of stacking a second confirm page.
+    // Same-id retries reuse their operation; distinct JSON-RPC ids remain independently answerable.
     const awaiting = await this.operationDAO.awaitingUser();
     const duplicate = awaiting.find(
-      (op) => op.kind === "update" && op.targetUuid === params.uuid && op.contentHash === contentHash
+      (op) =>
+        params.requestId !== undefined &&
+        op.requestId === params.requestId &&
+        op.kind === "update" &&
+        op.targetUuid === params.uuid &&
+        op.contentHash === contentHash
     );
     if (duplicate) {
       return toRef(duplicate);
@@ -382,6 +393,8 @@ export class ExternalAccessApprovalService {
     const awaiting = await this.operationDAO.awaitingUser();
     const pending = awaiting.find(
       (op) =>
+        params.requestId !== undefined &&
+        op.requestId === params.requestId &&
         op.kind === "source_disclosure" &&
         op.targetUuid === params.uuid &&
         op.disclosure !== undefined &&
@@ -489,10 +502,36 @@ export class ExternalAccessApprovalService {
   // OPERATION_EXPIRED — so an already-dead request is never approved.
   // ---------------------------------------------------------------------------------------------
   async cancelByRequestId(requestId: string): Promise<void> {
-    const op = await this.operationDAO.byRequestId(requestId);
-    if (!op || op.status !== "awaiting_user") return;
-    await this.operationDAO.update(op.operationId, { status: "cancelled", decidedAt: Date.now() });
-    await this.presentNext(op.operationId);
+    await this.withTransitionLock(async () => {
+      const op = await this.operationDAO.byRequestId(requestId);
+      if (!op || op.status !== "awaiting_user") return;
+      await this.operationDAO.update(op.operationId, { status: "cancelled", decidedAt: Date.now() });
+      await this.presentNext(op.operationId);
+    });
+  }
+
+  async cancelAllPending(): Promise<void> {
+    await this.withTransitionLock(async () => {
+      const pending = await this.operationDAO.awaitingUser();
+      await Promise.all(
+        pending.map((op) => this.operationDAO.update(op.operationId, { status: "cancelled", decidedAt: Date.now() }))
+      );
+      this.presentedOperationId = undefined;
+    });
+  }
+
+  private async withTransitionLock<T>(task: () => Promise<T>): Promise<T> {
+    const previous = this.transitionTail;
+    let release!: () => void;
+    this.transitionTail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await task();
+    } finally {
+      release();
+    }
   }
 
   /**
@@ -507,6 +546,28 @@ export class ExternalAccessApprovalService {
     approved: boolean,
     options: { enable?: boolean; rememberSession?: boolean } = {}
   ): Promise<OperationStatusResult> {
+    const { status } = await this.decideInternal(operationId, approved, options);
+    return status;
+  }
+
+  async decideForBridge(operationId: string, options: { enable?: boolean } = {}): Promise<unknown> {
+    const { wire } = await this.decideInternal(operationId, true, options);
+    return wire;
+  }
+
+  private async decideInternal(
+    operationId: string,
+    approved: boolean,
+    options: { enable?: boolean; rememberSession?: boolean }
+  ): Promise<{ status: OperationStatusResult; wire?: unknown }> {
+    return this.withTransitionLock(() => this.decideInternalUnlocked(operationId, approved, options));
+  }
+
+  private async decideInternalUnlocked(
+    operationId: string,
+    approved: boolean,
+    options: { enable?: boolean; rememberSession?: boolean }
+  ): Promise<{ status: OperationStatusResult; wire?: unknown }> {
     const op = await this.sweepAndGet(operationId);
     if (!op) {
       throw new ExternalAccessBridgeError("NOT_FOUND", "operation not found", operationId);
@@ -522,20 +583,23 @@ export class ExternalAccessApprovalService {
       await this.operationDAO.update(op.operationId, { status: "rejected", decidedAt: Date.now() });
       this.emitError(op, "USER_REJECTED", "user rejected the request");
       await this.advanceQueue(op);
-      return toStatusResult({ ...op, status: "rejected" });
+      return { status: toStatusResult({ ...op, status: "rejected" }) };
     }
 
     try {
       const { summary, wire } = await this.executeApproved(op, options);
       // Only remember after a successful execution — a failed op must not silently auto-approve
       // the next identical request.
-      if (options.rememberSession) {
+      if (options.rememberSession && ["enable", "disable", "delete"].includes(op.kind)) {
         await this.sessionAllow.add(op.sessionKey);
       }
       await this.operationDAO.update(op.operationId, { status: "approved", decidedAt: Date.now() });
       this.emitApproved(op, wire);
       await this.advanceQueue(op);
-      return { operationId: op.operationId, kind: op.kind, status: "approved", resultSummary: summary };
+      return {
+        status: { operationId: op.operationId, kind: op.kind, status: "approved", resultSummary: summary },
+        wire,
+      };
     } catch (e) {
       const errorCode = e instanceof ExternalAccessBridgeError ? e.code : "INTERNAL_ERROR";
       const message = e instanceof Error ? e.message : "internal error";
@@ -597,7 +661,7 @@ export class ExternalAccessApprovalService {
       }
       case "delete": {
         const summary = await this.executeDelete(op);
-        return { summary, wire: summary };
+        return { summary, wire: { uuid: summary.uuid, deleted: true } };
       }
       case "source_disclosure": {
         const source = await this.executeSourceDisclosure(op);

@@ -158,7 +158,6 @@ export default function App() {
             onClose={close}
             onToggleWatch={toggleWatch}
             onExternalAccessReject={view.externalAccess ? rejectExternalAccess : undefined}
-            onExternalAccessSessionAllow={view.externalAccess ? () => install({ rememberSession: true }) : undefined}
           />
         }
       >

@@ -136,6 +136,20 @@ describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
     if (!response.ok) expect(response.error.code).toBe("NOT_FOUND");
   });
 
+  it("scripts.metadata.get 不返回 URL 中的凭据、查询参数或片段", async () => {
+    await seedScript(SRC_UUID, {
+      metadata: {
+        name: ["Existing Script"],
+        match: ["https://user:pass@example.com/path?token=secret#fragment"],
+        require: ["https://cdn.example.com/lib.js?sig=secret"],
+        resource: ["icon https://assets.example.com/icon.png?key=secret"],
+      },
+    });
+    const response = expectResponse(await bridge.handle(makeRequest("scripts.metadata.get", { uuid: SRC_UUID })));
+    expect(response.ok).toBe(true);
+    expect(JSON.stringify(response)).not.toMatch(/user:pass|token=secret|sig=secret|key=secret|#fragment/);
+  });
+
   describe("scripts.source.get 按源码读取策略分流（CLI 不再豁免）", () => {
     it("源码策略=直接允许时立即返回源码，无需确认", async () => {
       sourcePolicy = "allow";
@@ -297,7 +311,16 @@ describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
         await bridge.handle(makeRequest("scripts.toggle.request", { uuid: SRC_UUID, enable: false }))
       );
       expect(response.ok).toBe(true);
+      if (response.ok) expect(response.result).toEqual({ uuid: SRC_UUID, name: "Existing Script", enabled: false });
       expect(mutator.enableScript).toHaveBeenCalledWith({ uuid: SRC_UUID, enable: false });
+    });
+
+    it("写策略=直接允许时删除返回协议声明的删除结果", async () => {
+      writePolicy = "allow";
+      await seedScript(SRC_UUID);
+      const response = expectResponse(await bridge.handle(makeRequest("scripts.delete.request", { uuid: SRC_UUID })));
+      expect(response.ok).toBe(true);
+      if (response.ok) expect(response.result).toEqual({ uuid: SRC_UUID, deleted: true });
     });
   });
 

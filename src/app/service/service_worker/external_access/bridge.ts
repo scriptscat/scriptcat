@@ -63,6 +63,23 @@ function auditUuid(request: ExternalAccessBridgeRequest): string | undefined {
   return isPlainObject(input) && typeof input.uuid === "string" ? input.uuid : undefined;
 }
 
+function redactMetadataUrls(values: string[] | undefined): string[] {
+  return (values ?? []).map((value) =>
+    value.replace(/https?:\/\/[^\s]+/g, (rawUrl) => {
+      try {
+        const url = new URL(rawUrl);
+        url.username = "";
+        url.password = "";
+        url.search = "";
+        url.hash = "";
+        return url.toString();
+      } catch {
+        return rawUrl.replace(/[?#].*$/, "").replace(/\/\/[^/@\s]+@/, "//");
+      }
+    })
+  );
+}
+
 // Strict, manual allow-list validation per action — any field not explicitly named here is
 // rejected as INVALID_REQUEST. Every entry both rejects unexpected fields and asserts the ones
 // it accepts.
@@ -218,8 +235,8 @@ export class ExternalAccessBridge {
   // daemon → $/cancelRequest {id}: the requester (MCP client / CLI) timed out, Ctrl-C'd or
   // its WS session died. Void the matching pending op; its confirm page's next decide then fails
   // cleanly. First-terminal-wins arbitration vs a concurrent decide lives in the approval service.
-  cancel(requestId: string): Promise<void> {
-    return this.approval.cancelByRequestId(requestId);
+  cancel(requestId?: string): Promise<void> {
+    return requestId ? this.approval.cancelByRequestId(requestId) : this.approval.cancelAllPending();
   }
 
   async handle(request: ExternalAccessBridgeRequest): Promise<ExternalAccessBridgeResponse | null> {
@@ -279,13 +296,13 @@ export class ExternalAccessBridge {
         if (!script) throw new ExternalAccessBridgeError("NOT_FOUND", "script not found");
         return {
           ...toSummary(script),
-          matches: script.metadata.match ?? [],
-          includes: script.metadata.include ?? [],
-          excludes: script.metadata.exclude ?? [],
+          matches: redactMetadataUrls(script.metadata.match),
+          includes: redactMetadataUrls(script.metadata.include),
+          excludes: redactMetadataUrls(script.metadata.exclude),
           grants: script.metadata.grant ?? [],
-          connects: script.metadata.connect ?? [],
-          requires: script.metadata.require ?? [],
-          resources: script.metadata.resource ?? [],
+          connects: redactMetadataUrls(script.metadata.connect),
+          requires: redactMetadataUrls(script.metadata.require),
+          resources: redactMetadataUrls(script.metadata.resource),
           runAt: script.metadata["run-at"]?.[0],
           crontab: script.metadata.crontab?.[0],
           contentTrust: "untrusted-user-script-metadata",
@@ -390,8 +407,9 @@ export class ExternalAccessBridge {
   ): Promise<unknown> {
     if ((await this.getWritePolicy()) === "allow") {
       const ref = await createOp(undefined);
-      const result = await this.approval.decide(ref.operationId, true, decideOptions);
-      this.notifyWrite({ kind, name: result.resultSummary?.name });
+      const result = await this.approval.decideForBridge(ref.operationId, decideOptions);
+      const name = typeof result === "object" && result !== null && "name" in result ? String(result.name) : undefined;
+      this.notifyWrite({ kind, name });
       return result;
     }
     const ref = await createOp(request.requestId);

@@ -183,6 +183,17 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
     await expect(approval.decide(ref.operationId, true)).rejects.toMatchObject({ code: "OPERATION_EXPIRED" });
   });
 
+  it("连接断开会作废全部待批操作，旧确认页不能再写入", async () => {
+    await seedScript(TARGET_UUID);
+    const toggle = await approval.requestToggle({ clientId: "c", uuid: TARGET_UUID, enable: false, requestId: "r1" });
+    const removal = await approval.requestDelete({ clientId: "c", uuid: TARGET_UUID, requestId: "r2" });
+    await approval.cancelAllPending();
+    expect((await operationDAO.get(toggle.operationId))?.status).toBe("cancelled");
+    expect((await operationDAO.get(removal.operationId))?.status).toBe("cancelled");
+    await expect(approval.decide(removal.operationId, true)).rejects.toMatchObject({ code: "OPERATION_EXPIRED" });
+    expect(mutator.deleteScript).not.toHaveBeenCalled();
+  });
+
   it("批准源码读取时回发完整源码", async () => {
     await seedScript(TARGET_UUID, "console.log('secret')");
     const ref = await approval.requestSourceDisclosure({ clientId: "c", uuid: TARGET_UUID, requestId: "r1" });
@@ -241,7 +252,7 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
     );
   });
 
-  it("形态与参数完全相同的 grep 请求按幂等去重合并为同一待批操作", async () => {
+  it("形态与参数相同但 requestId 不同的 grep 请求分别保留终态响应", async () => {
     await seedScript(TARGET_UUID);
     const form = {
       form: "grep" as const,
@@ -253,8 +264,8 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
     };
     const ref1 = await approval.requestSourceDisclosure({ clientId: "c", uuid: TARGET_UUID, requestId: "r1", form });
     const ref2 = await approval.requestSourceDisclosure({ clientId: "c", uuid: TARGET_UUID, requestId: "r2", form });
-    expect(ref2.operationId).toBe(ref1.operationId);
-    expect(await operationDAO.awaitingUser()).toHaveLength(1);
+    expect(ref2.operationId).not.toBe(ref1.operationId);
+    expect(await operationDAO.awaitingUser()).toHaveLength(2);
   });
 
   it("query 不同的 grep 请求不去重合并，各自是独立待批操作", async () => {
@@ -343,7 +354,7 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
       expect(mutator.installScript.mock.calls[0][0].script.status).toBe(SCRIPT_STATUS_DISABLE);
     });
 
-    it("「本会话允许」下的后续编辑免弹自动批准，同样不改变启用状态", async () => {
+    it("编辑即使请求 rememberSession，后续不同代码仍必须重新确认", async () => {
       await seedEditTarget({ status: SCRIPT_STATUS_ENABLE });
       const first = await approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2 });
       await approval.decide(first.operationId, true, { rememberSession: true });
@@ -356,9 +367,9 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
         requestId: "r2",
       });
       await approval.present(second.operationId);
-      expect(utilsModule.openInCurrentTab).not.toHaveBeenCalled();
-      expect((await operationDAO.get(second.operationId))?.status).toBe("approved");
-      expect(mutator.installScript.mock.calls[1][0].script.status).toBe(SCRIPT_STATUS_ENABLE);
+      expect(utilsModule.openInCurrentTab).toHaveBeenCalledWith(`/src/install.html?uuid=${TARGET_UUID}`);
+      expect((await operationDAO.get(second.operationId))?.status).toBe("awaiting_user");
+      expect(mutator.installScript).toHaveBeenCalledTimes(1);
     });
 
     it("TOCTOU：受理后目标脚本代码被改动，批准时报 CONFLICT 且不写入", async () => {
@@ -369,12 +380,12 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
       expect(mutator.installScript).not.toHaveBeenCalled();
     });
 
-    it("同 contentHash 的重复编辑请求合并为同一待批操作，不叠第二张确认页", async () => {
+    it("不同 requestId 的相同编辑请求分别保留终态响应", async () => {
       await seedEditTarget();
       const ref1 = await approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2, requestId: "r1" });
       const ref2 = await approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2, requestId: "r2" });
-      expect(ref2.operationId).toBe(ref1.operationId);
-      expect(await operationDAO.awaitingUser()).toHaveLength(1);
+      expect(ref2.operationId).not.toBe(ref1.operationId);
+      expect(await operationDAO.awaitingUser()).toHaveLength(2);
     });
 
     it("结果不同的编辑请求各自独立挂起，不被去重合并", async () => {

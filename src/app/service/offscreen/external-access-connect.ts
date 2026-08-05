@@ -13,6 +13,24 @@ import type {
   WSEnvelope,
 } from "../service_worker/external_access/types";
 
+export function isV1LoopbackWebSocketUrl(rawUrl: string): boolean {
+  try {
+    const url = new URL(rawUrl);
+    const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "[::1]";
+    return (
+      url.protocol === "ws:" &&
+      loopback &&
+      !url.username &&
+      !url.password &&
+      url.pathname === "/" &&
+      !url.search &&
+      !url.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 外部接入桥接 · offscreen WebSocket client
  *
@@ -212,6 +230,12 @@ export class ExternalAccessConnect {
   private connect(sessionEpoch: number): void {
     const url = this.currentParams?.url;
     if (!url) return;
+
+    if (!isV1LoopbackWebSocketUrl(url)) {
+      this.logger.error("Rejected non-loopback v1 WebSocket URL");
+      this.currentParams = null;
+      return;
+    }
 
     try {
       this.logger.debug(`Attempting connection (Epoch: ${sessionEpoch})`, { url });

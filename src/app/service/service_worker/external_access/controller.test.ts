@@ -189,6 +189,7 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
       params: { daemonVersion: MIN_DAEMON_VERSION },
     });
     fake.relayDisconnected();
+    expect(bridgeCancel).toHaveBeenCalledWith();
     // 断开后不再连接，之前 hello 报告的版本不应残留。
     expect(controller.getStatus()).toEqual({ status: "host_unreachable", daemonVersion: undefined });
   });
@@ -196,6 +197,7 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
   it("stop() 发送 shutdown、断开并置为 disabled", async () => {
     const controller = await initEnrolled();
     controller.stop();
+    expect(bridgeCancel).toHaveBeenCalledWith();
     expect(connectClient.send).toHaveBeenCalledWith(
       expect.objectContaining({ jsonrpc: "2.0", method: "$session.shutdown" })
     );

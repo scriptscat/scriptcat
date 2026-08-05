@@ -143,6 +143,7 @@ export class ExternalAccessController {
 
   private onDisconnected(): void {
     if (this.status === "disabled") return; // user-initiated stop(), not a failure to recover from
+    void this.bridge.cancel();
     this.setStatus("host_unreachable");
   }
 
@@ -179,6 +180,7 @@ export class ExternalAccessController {
   // session-allow store, forcing a re-enrollment).
   stop(): void {
     this.active = false;
+    void this.bridge.cancel();
     void this.connectClient.send({ jsonrpc: "2.0", method: "$session.shutdown", params: {} });
     void this.connectClient.disconnect();
     this.setStatus("disabled");

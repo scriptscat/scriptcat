@@ -55,6 +55,7 @@ export function ExternalAccessConfirmView({ operationId }: { operationId: string
   const [op, setOp] = useState<OperationView>();
   const [script, setScript] = useState<Script | null | undefined>();
   const [loadError, setLoadError] = useState(false);
+  const [submitError, setSubmitError] = useState<string>();
   const decidedRef = useRef(false);
 
   useEffect(() => {
@@ -81,12 +82,15 @@ export function ExternalAccessConfirmView({ operationId }: { operationId: string
   const decide = async (approved: boolean, options: { enable?: boolean; rememberSession?: boolean } = {}) => {
     if (decidedRef.current) return;
     decidedRef.current = true;
+    setSubmitError(undefined);
     try {
       await externalAccessClient.decideOperation({ operationId, approved, ...options });
-    } catch (e) {
-      notify.error((e as Error)?.message || String(e));
-    } finally {
       window.close();
+    } catch (e) {
+      const message = (e as Error)?.message || String(e);
+      setSubmitError(message);
+      notify.error(message);
+      decidedRef.current = false;
     }
   };
 
@@ -172,19 +176,20 @@ export function ExternalAccessConfirmView({ operationId }: { operationId: string
             {t("external_access:decision_reject")}
           </Button>
           <div className="flex items-center gap-2.5">
-            <Button
-              variant="secondary"
-              data-testid="external-access-confirm-session-allow"
-              className="gap-1.5 font-medium text-primary"
-              onClick={() => void decide(true, { enable: kind === "enable", rememberSession: true })}
-            >
-              <History className="size-4" />
-              {t("external_access:decision_session_allow")}
-            </Button>
+            {!meta.source && (
+              <Button
+                variant="secondary"
+                data-testid="external-access-confirm-session-allow"
+                className="gap-1.5 font-medium text-primary"
+                onClick={() => void decide(true, { enable: kind === "enable", rememberSession: true })}
+              >
+                <History className="size-4" />
+                {t("external_access:decision_session_allow")}
+              </Button>
+            )}
             <Button
               variant={kind === "delete" ? "destructive" : "default"}
               data-testid="external-access-confirm-approve"
-              autoFocus
               className="font-semibold"
               onClick={() => void decide(true, { enable: kind === "enable" })}
             >
@@ -192,6 +197,11 @@ export function ExternalAccessConfirmView({ operationId }: { operationId: string
             </Button>
           </div>
         </div>
+        {submitError && (
+          <p role="alert" className="border-t px-6 py-3 text-sm text-destructive">
+            {submitError}
+          </p>
+        )}
       </div>
     </PageShell>
   );
