@@ -321,7 +321,7 @@ export class ScriptService {
         action: {
           type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
           redirect: {
-            regexSubstitution: `${installPageURL}?url=\\1`,
+            regexSubstitution: `${installPageURL}?byWebRequest=1&url=\\1`,
           },
         },
         condition: condition,
@@ -925,6 +925,33 @@ export class ScriptService {
       });
   }
 
+  async onlyRunOnUrl({ uuid, matchPattern }: { uuid: string; matchPattern: string }) {
+    return this.resetMatch({ uuid, match: [matchPattern] });
+  }
+
+  async allowUrl({
+    uuid,
+    matchPattern,
+    excludePattern,
+  }: {
+    uuid: string;
+    matchPattern: string;
+    excludePattern: string;
+  }) {
+    let script = await this.scriptDAO.get(uuid);
+    if (!script) throw new Error("script not found");
+    if (script.selfMetadata?.match !== undefined) {
+      script = selfMetadataUpdate(script, "match", new Set([...script.selfMetadata.match, matchPattern]));
+    }
+    const excludeSet = new Set(script.selfMetadata?.exclude || script.metadata?.exclude || []);
+    excludeSet.delete(excludePattern);
+    script = selfMetadataUpdate(script, "exclude", excludeSet);
+    return this.scriptDAO.update(uuid, script).then(() => {
+      this.publishInstallScript(script, { update: true });
+      return true;
+    });
+  }
+
   async resetExclude({ uuid, exclude }: { uuid: string; exclude: string[] | undefined }) {
     let script = await this.scriptDAO.get(uuid);
     if (!script) {
@@ -1449,6 +1476,10 @@ export class ScriptService {
     return scripts;
   }
 
+  async getScriptAndCode(uuid: string) {
+    return this.scriptDAO.getAndCode(uuid);
+  }
+
   // 脚本排序，after为排序后的uuid列表
   async sortScript({ after }: { before: string[]; after: string[] }) {
     const daoAll = await this.scriptDAO.all();
@@ -1668,6 +1699,8 @@ export class ScriptService {
     this.group.on("getFilterResult", this.getFilterResult.bind(this));
     this.group.on("getScriptRunResourceByUUID", this.getScriptRunResourceByUUID.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
+    this.group.on("onlyRunOnUrl", this.onlyRunOnUrl.bind(this));
+    this.group.on("allowUrl", this.allowUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
     this.group.on("resetExclude", this.resetExclude.bind(this));
     this.group.on("requestCheckUpdate", this.requestCheckUpdate.bind(this));

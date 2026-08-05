@@ -60,6 +60,8 @@
   "copy": "Copy",
   "exclude_on": "Reinstate $0's execution",
   "exclude_off": "Exclude $0's execution",
+  "only_on_site": "Run only on $0",
+  "allow_on_site": "Allow execution on $0",
   "confirm_error": "Confirmation Failed",
   "import": "Import",
   "error": "Error",

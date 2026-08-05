@@ -19,6 +19,8 @@ import {
   Bug,
   BookOpen,
   MessageCircle,
+  SlidersHorizontal,
+  CircleDot,
 } from "lucide-react";
 import { GithubIcon } from "../components/icons/GithubIcon";
 import { Switch } from "../components/ui/switch";
@@ -162,8 +164,12 @@ export default function App() {
                 onToggle={data.handleToggleScript}
                 onDelete={data.handleDeleteScript}
                 onOpenEditor={data.handleOpenEditor}
+                onOpenScriptSettings={data.handleOpenScriptSettings}
                 onOpenUserConfig={data.handleOpenUserConfig}
                 onExcludeUrl={data.handleExcludeUrl}
+                showSiteScopeActions={data.popupSiteScopeActions}
+                onOnlyRunOnUrl={data.handleOnlyRunOnUrl}
+                onAllowUrl={data.handleAllowUrl}
                 onMenuClick={data.handleMenuClick}
               />
             ))}
@@ -195,6 +201,7 @@ export default function App() {
                 onToggle={data.handleToggleScript}
                 onDelete={data.handleDeleteScript}
                 onOpenEditor={data.handleOpenEditor}
+                onOpenScriptSettings={data.handleOpenScriptSettings}
                 onOpenUserConfig={data.handleOpenUserConfig}
                 onMenuClick={data.handleMenuClick}
                 onRun={data.handleRunScript}
@@ -453,8 +460,12 @@ interface ScriptRowProps {
   onToggle: (uuid: string, enable: boolean) => void;
   onDelete: (uuid: string) => void;
   onOpenEditor: (uuid: string) => void;
+  onOpenScriptSettings: (uuid: string) => void;
   onOpenUserConfig: (uuid: string) => void;
   onExcludeUrl?: (uuid: string, isEffective: boolean) => void;
+  showSiteScopeActions?: boolean;
+  onOnlyRunOnUrl?: (uuid: string) => void;
+  onAllowUrl?: (uuid: string) => void;
   onMenuClick: (uuid: string, menus: ScriptMenuItem[], inputValue?: any) => void;
   onRun?: (uuid: string) => void;
   onStop?: (uuid: string) => void;
@@ -469,8 +480,12 @@ function ScriptRow({
   onToggle,
   onDelete,
   onOpenEditor,
+  onOpenScriptSettings,
   onOpenUserConfig,
   onExcludeUrl,
+  showSiteScopeActions = false,
+  onOnlyRunOnUrl,
+  onAllowUrl,
   onMenuClick,
   onRun,
   onStop,
@@ -548,17 +563,34 @@ function ScriptRow({
           <ActionItem icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => onOpenEditor(script.uuid)}>
             {t("edit")}
           </ActionItem>
-          {/* 排除/取消排除 host（无二次确认，与旧版一致） */}
-          {isPageScript && host && onExcludeUrl && script.isEffective !== null && (
+          <ActionItem
+            icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
+            onClick={() => onOpenScriptSettings(script.uuid)}
+          >
+            {t("editor:script_setting")}
+          </ActionItem>
+          {isPageScript && host && showSiteScopeActions && script.isEffective === false && onAllowUrl && (
+            <ActionItem icon={<PlusCircle className="w-3.5 h-3.5" />} primary onClick={() => onAllowUrl(script.uuid)}>
+              {t("allow_on_site").replace("$0", host)}
+            </ActionItem>
+          )}
+          {isPageScript && host && showSiteScopeActions && script.isEffective === true && onOnlyRunOnUrl && (
             <ActionItem
-              icon={
-                script.isEffective ? <MinusCircle className="w-3.5 h-3.5" /> : <PlusCircle className="w-3.5 h-3.5" />
-              }
-              warn={script.isEffective === true}
-              success={script.isEffective === false}
+              icon={<CircleDot className="w-3.5 h-3.5" />}
+              primary
+              onClick={() => onOnlyRunOnUrl(script.uuid)}
+            >
+              {t("only_on_site").replace("$0", host)}
+            </ActionItem>
+          )}
+          {/* 排除/取消排除 host（无二次确认，与旧版一致） */}
+          {isPageScript && host && onExcludeUrl && script.isEffective === true && (
+            <ActionItem
+              icon={<MinusCircle className="w-3.5 h-3.5" />}
+              warn
               onClick={() => onExcludeUrl(script.uuid, script.isEffective!)}
             >
-              {script.isEffective ? t("exclude_off").replace("$0", host) : t("exclude_on").replace("$0", host)}
+              {t("exclude_off").replace("$0", host)}
             </ActionItem>
           )}
           {/* 删除（AlertDialog 二次确认） */}
@@ -705,7 +737,7 @@ interface ActionItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
   icon: React.ReactNode;
   danger?: boolean;
   warn?: boolean;
-  success?: boolean;
+  primary?: boolean;
   muted?: boolean;
 }
 
@@ -715,7 +747,7 @@ const ActionItem = ({
   children,
   danger = false,
   warn = false,
-  success = false,
+  primary = false,
   muted = false,
   className,
   ref,
@@ -725,8 +757,8 @@ const ActionItem = ({
     ? "text-destructive hover:text-destructive"
     : warn
       ? "text-type-orange hover:text-type-orange"
-      : success
-        ? "text-type-green hover:text-type-green"
+      : primary
+        ? "text-primary hover:text-primary"
         : muted
           ? "text-muted-foreground"
           : "";

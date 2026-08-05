@@ -2,9 +2,20 @@ import { test, expect } from "./fixtures";
 import { openOptionsPage } from "./utils";
 import type { CDPSession } from "@playwright/test";
 
-const KEEP_ALIVE_LABEL = "Keep Background and Scheduled Scripts Alive";
 const SERVICE_WORKER_URL = "/service_worker.js";
 const HEARTBEAT_VALIDATION_WINDOW_MS = 31_000;
+
+const openRuntimeSettings = async (context: Parameters<typeof openOptionsPage>[0], extensionId: string) => {
+  const page = await openOptionsPage(context, extensionId);
+  await page
+    .getByTestId("view-toggle")
+    .or(page.getByTestId("mobile-search"))
+    .first()
+    .waitFor({ state: "visible", timeout: 30_000 });
+  await page.goto(`chrome-extension://${extensionId}/src/options.html#/settings`);
+  await expect(page.getByTestId("setting-page")).toBeVisible({ timeout: 20_000 });
+  return page;
+};
 
 type CdpTargetMessage = {
   sessionId: string;
@@ -53,17 +64,14 @@ const sendTargetCommand = async (
 
 test.describe("Chrome MV3 service worker keep-alive", () => {
   test("offscreen runtime heartbeat keeps the service worker active", async ({ context, extensionId }) => {
-    const optionsPage = await openOptionsPage(context, extensionId);
-    const cdp = await context.newCDPSession(optionsPage);
+    const optionsPage = await openRuntimeSettings(context, extensionId);
 
     try {
-      await optionsPage.goto(`chrome-extension://${extensionId}/src/options.html#/settings`);
-      const label = optionsPage.getByText(KEEP_ALIVE_LABEL, { exact: true });
-      await label.scrollIntoViewIfNeeded();
-
-      const keepAliveSwitch = label.locator("xpath=../..").getByRole("switch");
+      const keepAliveSwitch = optionsPage.getByTestId("keep-alive-switch");
+      await keepAliveSwitch.scrollIntoViewIfNeeded();
       await expect(keepAliveSwitch).toBeVisible();
       await expect(keepAliveSwitch).toHaveAttribute("aria-checked", "false");
+      const cdp = await context.newCDPSession(optionsPage);
 
       await expect
         .poll(
@@ -93,24 +101,22 @@ test.describe("Chrome MV3 service worker keep-alive", () => {
   });
 
   test("disabling the setting allows the service worker to become idle", async ({ context, extensionId }) => {
-    const optionsPage = await openOptionsPage(context, extensionId);
-    const cdp = await context.newCDPSession(optionsPage);
+    const optionsPage = await openRuntimeSettings(context, extensionId);
+    let cdp: CDPSession | undefined;
     let offscreenSessionId: string | undefined;
     let nextCommandId = 1;
 
     try {
-      await optionsPage.goto(`chrome-extension://${extensionId}/src/options.html#/settings`);
-      const label = optionsPage.getByText(KEEP_ALIVE_LABEL, { exact: true });
-      await label.scrollIntoViewIfNeeded();
-
-      const keepAliveSwitch = label.locator("xpath=../..").getByRole("switch");
+      const keepAliveSwitch = optionsPage.getByTestId("keep-alive-switch");
+      await keepAliveSwitch.scrollIntoViewIfNeeded();
       await expect(keepAliveSwitch).toBeVisible();
       await expect(keepAliveSwitch).toHaveAttribute("aria-checked", "false");
+      cdp = await context.newCDPSession(optionsPage);
 
       await expect
         .poll(
           async () => {
-            const { targetInfos } = await cdp.send("Target.getTargets");
+            const { targetInfos } = await cdp!.send("Target.getTargets");
             return targetInfos.some((target) => target.url.endsWith("/src/offscreen.html"));
           },
           { timeout: 15_000 }
@@ -168,7 +174,7 @@ test.describe("Chrome MV3 service worker keep-alive", () => {
         .toBe(true);
     } finally {
       if (offscreenSessionId) {
-        await cdp.send("Target.detachFromTarget", { sessionId: offscreenSessionId });
+        await cdp!.send("Target.detachFromTarget", { sessionId: offscreenSessionId });
       }
       if (!optionsPage.isClosed()) await optionsPage.close();
     }

@@ -28,11 +28,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createPreloadableQuery } from "@App/pages/preloadable-query";
 
 const RUN_IN_OPTIONS = ["default", "all", "normal-tabs", "incognito-tabs"];
-const RUN_AT_OPTIONS = ["default", "document-start", "document-body", "document-end", "document-idle", "early-start"];
+const RUN_AT_OPTIONS = [
+  "default",
+  "document-start",
+  "document-body",
+  "document-end",
+  "document-idle",
+  "context-menu",
+  "early-start",
+];
 const PERMISSION_TYPES = ["cors", "cookie"];
 const PERMISSION_LABEL: Record<string, string> = { cors: "CORS", cookie: "Cookie" };
 
-// 运行环境/运行时机下拉项的本地化文案；运行时机的 document-* / early-start 保持原始字面值（与 v1.4 一致）
+// 运行环境/运行时机下拉项的本地化文案；运行时机保持原始字面值（与 v1.4 一致）
 const runInLabel = (o: string, t: TFunction) =>
   o === "default" ? t("settings:script_setting.default") : t(`settings:script_run_env.${o}`);
 const runAtLabel = (o: string, t: TFunction) => (o === "default" ? t("settings:script_setting.default") : o);
