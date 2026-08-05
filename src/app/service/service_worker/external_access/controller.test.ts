@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ExternalAccessController } from "./controller";
 import { SystemConfig } from "@App/pkg/config/config";
 import { MessageQueue } from "@Packages/message/message_queue";
-import { MIN_DAEMON_VERSION, type WSEnvelope } from "./types";
+import type { WSEnvelope } from "./types";
 
 // Captures the relay handlers ExternalAccessController registers on its Group so tests can feed decoded
 // envelopes the way the offscreen ExternalAccessConnect would over the wire.
@@ -110,29 +110,29 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
     await vi.waitFor(async () => expect((await systemConfig.getExternalAccessPairing()).key).toBe("newkey"));
   });
 
-  it("hello 版本达标时 connected 并暴露 sctl 版本，过旧时 host_outdated 且不分发 bridge 调用", async () => {
+  it("hello 只展示 daemon 版本，不按产品版本阻断兼容的 bridge 调用", async () => {
     const controller = await initEnrolled();
     fake.relayEnvelope({
       jsonrpc: "2.0",
       method: "$session.hello",
-      params: { daemonVersion: MIN_DAEMON_VERSION },
+      params: { daemonVersion: "0.1.0" },
     });
     // hello 携带 daemonVersion，状态条据此显示「sctl v{daemonVersion}」。
-    expect(controller.getStatus()).toEqual({ status: "connected", daemonVersion: MIN_DAEMON_VERSION });
+    expect(controller.getStatus()).toEqual({ status: "connected", daemonVersion: "0.1.0" });
 
     fake.relayEnvelope({
       jsonrpc: "2.0",
       method: "$session.hello",
       params: { daemonVersion: "0.0.1" },
     });
-    expect(controller.getStatus()).toEqual({ status: "host_outdated", daemonVersion: "0.0.1" });
+    expect(controller.getStatus()).toEqual({ status: "connected", daemonVersion: "0.0.1" });
     fake.relayEnvelope({
       jsonrpc: "2.0",
       id: "req",
       method: "scripts.list",
       params: { input: {}, clientId: "x" },
     });
-    expect(bridgeHandle).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(bridgeHandle).toHaveBeenCalled());
   });
 
   it("JSON-RPC request uses id to correlate the response", async () => {
@@ -140,7 +140,7 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
     fake.relayEnvelope({
       jsonrpc: "2.0",
       method: "$session.hello",
-      params: { daemonVersion: MIN_DAEMON_VERSION },
+      params: { daemonVersion: "0.1.0" },
     });
     fake.relayEnvelope({
       jsonrpc: "2.0",
@@ -163,7 +163,7 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
     fake.relayEnvelope({
       jsonrpc: "2.0",
       method: "$session.hello",
-      params: { daemonVersion: MIN_DAEMON_VERSION },
+      params: { daemonVersion: "0.1.0" },
     });
     fake.relayEnvelope({
       jsonrpc: "2.0",
@@ -186,7 +186,7 @@ describe("ExternalAccessController（外部接入 · 扁平信任）", () => {
     fake.relayEnvelope({
       jsonrpc: "2.0",
       method: "$session.hello",
-      params: { daemonVersion: MIN_DAEMON_VERSION },
+      params: { daemonVersion: "0.1.0" },
     });
     fake.relayDisconnected();
     expect(bridgeCancel).toHaveBeenCalledWith();

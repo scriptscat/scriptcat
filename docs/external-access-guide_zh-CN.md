@@ -8,8 +8,8 @@
 [Model Context Protocol](https://modelcontextprotocol.io/) 客户端)——或者你自己的终端——接入你的
 ScriptCat 用户脚本,并配有你真正会遇到的流程范例。
 
-外部接入**内置于每个构建、但默认关闭**;你在扩展设置里主动开启。它对接一个很小的本地伴随二进制
-[`sctl`](https://github.com/scriptscat/sctl),后者在 `localhost:8643` 上运行一个 WebSocket daemon;
+外部接入**内置于每个构建、但默认关闭**;你在扩展设置里主动开启。它对接一个很小的伴随二进制
+[`sctl`](https://github.com/scriptscat/sctl),其 WebSocket daemon 默认运行在 `localhost:8643`;
 扩展从 offscreen 文档作为客户端连上它。不新增任何浏览器权限,也没有 native-messaging host 或安装器要注册。
 
 **信任是扁平的。** 你只需把扩展与 daemon **接入(enrollment)一次**(一个带外配对码:你从终端读到、
@@ -44,14 +44,10 @@ MCP 一视同仁。
   [`scriptscat/sctl`](https://github.com/scriptscat/sctl) 仓库构建:
 
   ```bash
-  go build -ldflags "-X github.com/scriptscat/sctl/internal/cli.Version=0.1.0" -o sctl ./cmd/sctl
+  go build -o sctl ./cmd/sctl
   ```
 
-  > **版本很关键。** 扩展会拒绝任何版本低于 `minDaemonVersion`(当前 `0.1.0`)的 daemon,并显示
-  > 「版本过旧」。普通 `go build` 会打上 `0.0.0-dev`,*低于*门槛——凡是真的要连的构建,务必用上面的
-  > `-ldflags`(或用发布产物)。
-
-- macOS、Linux 或 Windows——`sctl` 仅监听 loopback 且跨平台,无平台专属安装步骤。
+- macOS、Linux 或 Windows——`sctl` 跨平台,无平台专属安装步骤。
 
 ## 2. 启动 daemon
 
@@ -59,15 +55,15 @@ MCP 一视同仁。
 sctl serve
 ```
 
-这会在 `127.0.0.1:8643` 上绑定 WebSocket hub(仅 loopback——拒绝任何非本机地址),并写出一个 `0600`
-控制令牌文件供本机 `sctl` 前端使用。你也可以跳过这步:`sctl connect`、`sctl mcp` 与各 CLI 动词在未运行时
+默认会在 `127.0.0.1:8643` 上绑定 WebSocket hub,并写出一个 `0600` 控制令牌文件供 `sctl` 前端使用。
+可用 `--listen-address` 覆盖监听地址。你也可以跳过这步:`sctl connect`、`sctl mcp` 与各 CLI 动词在未运行时
 会自动拉起一个 detached 的 `serve`。
 
 ## 3. 在 ScriptCat 中开启外部接入
 
 打开扩展选项页 → **工具** → **外部接入**。拨动启用开关——会先弹一个对话框说明你正在开启什么(代理可自由
-列出脚本/读元数据;其余都需你决策)。连接地址默认 `ws://localhost:8643`;接入前你可以在卡片里编辑它(如果
-你移动了 daemon)。状态会停在「待接入」,直到你完成接入(下一步)。
+列出脚本/读元数据;其余都需你决策)。连接地址默认 `ws://localhost:8643`;你可以配置其他 `ws://` 或 `wss://`
+地址,ScriptCat 不限制主机或网络目标。状态会停在「待接入」,直到你完成接入(下一步)。
 
 ## 4. 将扩展与 daemon 接入(仅一次)
 
@@ -162,8 +158,7 @@ sctl delete <uuid>                # 别名:sctl del
 `scripts_source_get` 接受可选的 `startLine`/`endLine` 行窗口,让代理能对大脚本分页读、而不是把整个上下文
 花在一次读取上;`scripts_source_grep` 则先替它找出值得读的那几行。`scripts_edit_request` 按内容锚定
 (`oldText` → `newText`,逐字匹配,未开 `replaceAll` 时必须唯一命中),于是代理既不必持有、也不必回传整份
-文件就能改掉一个函数。单次请求**至多 100 条 edit**,超过即被 ScriptCat 直接拒绝——每条 edit 都要重新扫描
-整份脚本。
+文件就能改掉一个函数。edit 会按顺序应用,每一条都在前一条 edit 的结果上继续搜索。
 
 写工具是**阻塞**的:调用挂起至你决策(没有操作轮询 API——结果在同一次调用里返回)。等待期间 MCP server 会发
 progress 通知以防客户端超时;若客户端断开或超时,操作作废、其确认面失效。
@@ -252,7 +247,6 @@ sctl edit <uuid> --replace @old.txt --with @new.txt
 | 症状 | 可能原因 |
 |---|---|
 | 状态卡在「连接中…」然后「连接失败」 | daemon 没在运行,或在另一个地址上。启动 `sctl serve`(或跑任意 `sctl` 命令),并核对卡片里的连接地址一致。 |
-| 「版本过旧」 | daemon 报告的版本低于 `minDaemonVersion`(`0.1.0`)——几乎总是普通 `go build`(`0.0.0-dev`)。用第 1 步的 `-ldflags "…Version=0.1.0"` 重新构建,或用发布产物。 |
 | 接入始终不完成 | `sctl connect` 的码 2 分钟有效;外部接入必须已启用且 daemon 可达,ScriptCat 才能跑握手。从终端读到码并在它过期前输入对话框。 |
 | `sctl mcp` 工具调用返回「扩展未连接」 | 扩展尚未接入(或你停止了外部接入)。运行 `sctl connect` 完成接入后重试。 |
 | 批准后 `scripts_source_get` 又提示 | 你选了「允许」而代理又读了一次——符合预期;再批准一次,或改选「本会话允许」。 |
@@ -260,8 +254,8 @@ sctl edit <uuid> --replace @old.txt --with @new.txt
 
 ## 外部接入有意做与不做的事
 
-- 它**确实**开了一个 loopback WebSocket 监听(`127.0.0.1:8643`)——这是换取零新增浏览器权限、无安装器的
-  代价。**Origin 白名单**廉价地挡掉普通网页(浏览器盖章 Origin、页面 JS 无法伪造),但非浏览器进程能伪造任意
+- daemon **默认**监听 loopback (`127.0.0.1:8643`),但监听地址可配置,ScriptCat 也不强制连接目标必须是
+  loopback。**Origin 白名单**廉价地挡掉普通网页(浏览器盖章 Origin、页面 JS 无法伪造),但非浏览器进程能伪造任意
   Origin,因此每条连接在发送任何业务消息前仍须通过双向 HMAC 握手;未认证的 socket 在 5 秒后被丢弃、不泄露
   任何信息。握手才是真正的闸门。
 - 它把客户端自报的名字当作**审计标签**——扁平信任不认证客户端身份,故该名字既不 gate 任何东西、也不出现在

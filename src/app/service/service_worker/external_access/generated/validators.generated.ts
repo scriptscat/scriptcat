@@ -164,7 +164,6 @@ export function validateScriptsEditParams(value: unknown): value is Protocol.Scr
     hasOnlyKeys(value, ["edits", "uuid"]) &&
     Array.isArray(value["edits"]) &&
     value["edits"].length >= 1 &&
-    value["edits"].length <= 100 &&
     value["edits"].every(
       (item) =>
         isRecord(item) &&

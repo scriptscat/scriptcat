@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ERROR_CODES, JSONRPC_VERSION, RPC_METHODS, SESSION_METHODS, VERSIONS } from "./generated/protocol.generated";
+import { ERROR_CODES, JSONRPC_VERSION, RPC_METHODS, SESSION_METHODS } from "./generated/protocol.generated";
 import * as extTypes from "./types";
 
 // sctl Schema 生成的 PROTOCOL 是桥接协议常量的唯一权威；types.ts 是
@@ -8,10 +8,6 @@ import * as extTypes from "./types";
 describe("MCP 协议一致性 - types.ts 必须与生成协议同步", () => {
   it("JSON-RPC version matches the generated contract", () => {
     expect(extTypes.JSONRPC_VERSION).toBe(JSONRPC_VERSION);
-  });
-
-  it("MIN_DAEMON_VERSION 与生成协议的 minDaemonVersion 一致", () => {
-    expect(extTypes.MIN_DAEMON_VERSION).toBe(VERSIONS.minDaemonVersion);
   });
 
   it("session methods match the generated contract", () => {

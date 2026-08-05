@@ -7,7 +7,6 @@
   "status_connecting": "接続中",
   "status_connected": "接続済み",
   "status_host_unreachable": "接続失敗",
-  "status_host_outdated": "sctl のバージョンが古い",
   "retry": "再試行",
   "reenroll": "再登録",
   "address_label": "sctl アドレス",

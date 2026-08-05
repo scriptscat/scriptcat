@@ -7,7 +7,6 @@
   "status_connecting": "Verbinde …",
   "status_connected": "Verbunden",
   "status_host_unreachable": "Verbindung fehlgeschlagen",
-  "status_host_outdated": "sctl veraltet",
   "retry": "Erneut versuchen",
   "reenroll": "Neu registrieren",
   "address_label": "sctl-Adresse",

@@ -136,7 +136,7 @@ describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
     if (!response.ok) expect(response.error.code).toBe("NOT_FOUND");
   });
 
-  it("scripts.metadata.get 不返回 URL 中的凭据、查询参数或片段", async () => {
+  it("scripts.metadata.get 原样返回脚本 metadata URL", async () => {
     await seedScript(SRC_UUID, {
       metadata: {
         name: ["Existing Script"],
@@ -147,7 +147,13 @@ describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
     });
     const response = expectResponse(await bridge.handle(makeRequest("scripts.metadata.get", { uuid: SRC_UUID })));
     expect(response.ok).toBe(true);
-    expect(JSON.stringify(response)).not.toMatch(/user:pass|token=secret|sig=secret|key=secret|#fragment/);
+    if (response.ok) {
+      expect(response.result).toMatchObject({
+        matches: ["https://user:pass@example.com/path?token=secret#fragment"],
+        requires: ["https://cdn.example.com/lib.js?sig=secret"],
+        resources: ["icon https://assets.example.com/icon.png?key=secret"],
+      });
+    }
   });
 
   describe("scripts.source.get 按源码读取策略分流（CLI 不再豁免）", () => {
@@ -253,7 +259,6 @@ describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
       const invalid: Array<[BridgeAction, Record<string, unknown>]> = [
         ["scripts.source.grep", { uuid: SRC_UUID, query: "(unterminated", mode: "regex" }],
         ["scripts.source.grep", { uuid: SRC_UUID, query: "" }],
-        ["scripts.source.grep", { uuid: SRC_UUID, query: "x".repeat(1025) }],
         ["scripts.source.grep", { uuid: SRC_UUID, query: "x", contextLines: 11 }],
         ["scripts.source.grep", { uuid: SRC_UUID, query: "x", maxMatches: 201 }],
         ["scripts.source.get", { uuid: SRC_UUID, startLine: 0, endLine: 3 }],

@@ -7,7 +7,6 @@
   "status_connecting": "Đang kết nối",
   "status_connected": "Đã kết nối",
   "status_host_unreachable": "Kết nối thất bại",
-  "status_host_outdated": "sctl đã lỗi thời",
   "retry": "Thử lại",
   "reenroll": "Ghép nối lại",
   "address_label": "Địa chỉ sctl",

@@ -133,11 +133,11 @@ describe("外部接入 · 操作确认页（三档决策）", () => {
     await waitFor(() => expect(decideOperation).toHaveBeenCalledTimes(1));
   });
 
-  it("source_disclosure 展示隐私提示且不提供可复用会话授权", async () => {
+  it("source_disclosure 展示隐私提示并提供单脚本会话授权", async () => {
     getOperation.mockResolvedValue(baseOp({ kind: "source_disclosure" }));
     render(<ExternalAccessConfirmView operationId="op-1" />);
     expect(await screen.findByTestId("external-access-confirm-card")).toBeInTheDocument();
-    expect(screen.queryByTestId("external-access-confirm-session-allow")).not.toBeInTheDocument();
+    expect(screen.getByTestId("external-access-confirm-session-allow")).toBeInTheDocument();
     expect(screen.getByTestId("external-access-confirm-approve")).toBeInTheDocument();
     expect(screen.getByTestId("external-access-confirm-reject")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("external-access-confirm-approve"));

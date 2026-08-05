@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sliceLines, grepLines, applyTextEdits, MAX_GREP_LINE_LENGTH, MAX_TEXT_EDITS } from "./source";
+import { sliceLines, grepLines, applyTextEdits } from "./source";
 import { ExternalAccessBridgeError } from "./errors";
 
 describe("sliceLines（scripts.source.get 的行开窗，1-based 闭区间）", () => {
@@ -141,18 +141,18 @@ describe("grepLines（scripts.source.grep 的逐行匹配，不复用 stringMatc
     expect(result.truncated).toBe(false);
   });
 
-  it("regex 档下超过单行长度上限（4096）的行被跳过匹配，计入 skippedLongLines", () => {
-    // 长行跳过是为了给灾难性回溯的正则设上限（design §3 决策 14），只对 regex 档有意义。
-    const longLine = "x".repeat(MAX_GREP_LINE_LENGTH + 1) + "hit";
+  it("regex 档如实搜索超长行，不跳过匹配", () => {
+    const longLine = "x".repeat(5000) + "hit";
     const multi = ["hit here", longLine, "hit again"].join("\n");
     const result = grepLines(multi, "hit", { mode: "regex" });
-    expect(result.skippedLongLines).toBe(1);
-    expect(result.matches.map((m) => m.lineNumber)).toEqual([1, 3]);
+    expect(result.skippedLongLines).toBe(0);
+    expect(result.matches.map((m) => m.lineNumber)).toEqual([1, 2, 3]);
+    expect(result.matches[1].line).toBe(longLine);
   });
 
   it("text 档不跳过超长行：命中原样返回、不截断，skippedLongLines 恒为 0", () => {
     // 压缩/打包后的用户脚本常整份代码挤在一行；text 档若跳过长行，字面量搜索对这类脚本永远零命中。
-    const longLine = "x".repeat(MAX_GREP_LINE_LENGTH + 1) + "hit";
+    const longLine = "x".repeat(5000) + "hit";
     const result = grepLines(longLine, "hit");
     expect(result.skippedLongLines).toBe(0);
     expect(result.matches).toHaveLength(1);
@@ -176,14 +176,8 @@ describe("grepLines（scripts.source.grep 的逐行匹配，不复用 stringMatc
     }
   });
 
-  it("query 超过 1024 字符报 INVALID_REQUEST", () => {
-    try {
-      grepLines(code, "x".repeat(1025));
-      expect.unreachable("should have thrown");
-    } catch (e) {
-      expect(e).toBeInstanceOf(ExternalAccessBridgeError);
-      expect((e as ExternalAccessBridgeError).code).toBe("INVALID_REQUEST");
-    }
+  it("query 长度不设独立上限，由 WebSocket frame 边界统一约束", () => {
+    expect(grepLines(`${"x".repeat(2048)} needle`, `${"x".repeat(2048)} needle`).totalMatches).toBe(1);
   });
 
   it("contextLines 超过上限 10 报 INVALID_REQUEST（不静默截断）", () => {
@@ -341,20 +335,10 @@ describe("applyTextEdits（scripts.edit.request 的内容锚定编辑）", () =>
     expectInvalidRequest(() => applyTextEdits("x(((y", [{ oldText: "((", newText: "(" }]));
   });
 
-  it("edits 条数超过上限时报 INVALID_REQUEST：逐条全量扫描重建，条数即耗时的乘数", () => {
-    const edits = Array.from({ length: MAX_TEXT_EDITS + 1 }, (_, i) => ({
-      oldText: `line${i}`,
-      newText: `LINE${i}`,
-    }));
-    const error = expectInvalidRequest(() => applyTextEdits(code, edits));
-    expect(error.message).toContain("too many edits");
-  });
-
-  it("上限之内的条数正常放行", () => {
-    // 行号补零对齐：不补零的话 line1 是 line10 / line11 的前缀，会先撞上唯一性校验而不是本用例要测的上限。
+  it("edits 条数不设独立上限，仍受请求 frame 与执行预算约束", () => {
     const name = (i: number) => `line${String(i).padStart(3, "0")}`;
-    const many = Array.from({ length: MAX_TEXT_EDITS }, (_, i) => name(i)).join("\n");
-    const edits = Array.from({ length: MAX_TEXT_EDITS }, (_, i) => ({
+    const many = Array.from({ length: 101 }, (_, i) => name(i)).join("\n");
+    const edits = Array.from({ length: 101 }, (_, i) => ({
       oldText: name(i),
       newText: name(i).toUpperCase(),
     }));

@@ -7,7 +7,6 @@
   "status_connecting": "Conectando",
   "status_connected": "Conectado",
   "status_host_unreachable": "Falha na conexão",
-  "status_host_outdated": "sctl desatualizado",
   "retry": "Tentar novamente",
   "reenroll": "Vincular novamente",
   "address_label": "Endereço do sctl",

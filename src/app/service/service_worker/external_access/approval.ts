@@ -31,8 +31,6 @@ import type {
 
 // 5 分钟批准有效期，足够用户切换到弹出的确认窗口完成决定，又不至于让过期请求悬挂太久。
 export const APPROVAL_TTL_MS = 5 * 60_000;
-// 内联代码上限：单条 WS 文本帧下的合理上限，512 KiB 为信封开销预留余量。
-export const INLINE_CODE_MAX_BYTES = 512 * 1024;
 
 // 决策/作废事件驱动的 JSON-RPC 响应回发通道。ExternalAccessApprovalService 不直接持有 WS 传输——由
 // ExternalAccessController 注入此回调（内部走 offscreen 的 connectClient.send），从而 SW 休眠也不会丢响应
@@ -167,8 +165,8 @@ export class ExternalAccessApprovalService {
       sourceUrl = params.url;
     } else {
       code = params.code!;
-      if (new TextEncoder().encode(code).length > INLINE_CODE_MAX_BYTES) {
-        throw new ExternalAccessBridgeError("PAYLOAD_TOO_LARGE", "inline code exceeds 512 KiB");
+      if (new TextEncoder().encode(code).length > MAX_SOURCE_BYTES) {
+        throw new ExternalAccessBridgeError("PAYLOAD_TOO_LARGE", "inline code exceeds maxSourceBytes");
       }
     }
 
@@ -254,10 +252,7 @@ export class ExternalAccessApprovalService {
     }
 
     const editedCode = applyTextEdits(existingCode.code, params.edits);
-    // Deliberately MAX_SOURCE_BYTES, not install's INLINE_CODE_MAX_BYTES (design 决策 12): the 512 KiB
-    // cap limits how much code one request may *upload*, while an edit uploads only fragments and the
-    // full text is assembled here — so it's measured against what the extension will hold and
-    // disclose as source.
+    // Keep edited source within the same public source boundary used by install and source.get.
     if (new TextEncoder().encode(editedCode).length > MAX_SOURCE_BYTES) {
       throw new ExternalAccessBridgeError("PAYLOAD_TOO_LARGE", "edited source exceeds 2 MiB");
     }
@@ -590,7 +585,7 @@ export class ExternalAccessApprovalService {
       const { summary, wire } = await this.executeApproved(op, options);
       // Only remember after a successful execution — a failed op must not silently auto-approve
       // the next identical request.
-      if (options.rememberSession && ["enable", "disable", "delete"].includes(op.kind)) {
+      if (options.rememberSession && op.kind !== "install") {
         await this.sessionAllow.add(op.sessionKey);
       }
       await this.operationDAO.update(op.operationId, { status: "approved", decidedAt: Date.now() });

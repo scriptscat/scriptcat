@@ -7,7 +7,6 @@
   "status_connecting": "연결 중",
   "status_connected": "연결됨",
   "status_host_unreachable": "연결 실패",
-  "status_host_outdated": "sctl 버전이 오래됨",
   "retry": "다시 시도",
   "reenroll": "다시 등록",
   "address_label": "sctl 주소",

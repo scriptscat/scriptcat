@@ -63,23 +63,6 @@ function auditUuid(request: ExternalAccessBridgeRequest): string | undefined {
   return isPlainObject(input) && typeof input.uuid === "string" ? input.uuid : undefined;
 }
 
-function redactMetadataUrls(values: string[] | undefined): string[] {
-  return (values ?? []).map((value) =>
-    value.replace(/https?:\/\/[^\s]+/g, (rawUrl) => {
-      try {
-        const url = new URL(rawUrl);
-        url.username = "";
-        url.password = "";
-        url.search = "";
-        url.hash = "";
-        return url.toString();
-      } catch {
-        return rawUrl.replace(/[?#].*$/, "").replace(/\/\/[^/@\s]+@/, "//");
-      }
-    })
-  );
-}
-
 // Strict, manual allow-list validation per action — any field not explicitly named here is
 // rejected as INVALID_REQUEST. Every entry both rejects unexpected fields and asserts the ones
 // it accepts.
@@ -296,13 +279,13 @@ export class ExternalAccessBridge {
         if (!script) throw new ExternalAccessBridgeError("NOT_FOUND", "script not found");
         return {
           ...toSummary(script),
-          matches: redactMetadataUrls(script.metadata.match),
-          includes: redactMetadataUrls(script.metadata.include),
-          excludes: redactMetadataUrls(script.metadata.exclude),
+          matches: script.metadata.match ?? [],
+          includes: script.metadata.include ?? [],
+          excludes: script.metadata.exclude ?? [],
           grants: script.metadata.grant ?? [],
-          connects: redactMetadataUrls(script.metadata.connect),
-          requires: redactMetadataUrls(script.metadata.require),
-          resources: redactMetadataUrls(script.metadata.resource),
+          connects: script.metadata.connect ?? [],
+          requires: script.metadata.require ?? [],
+          resources: script.metadata.resource ?? [],
           runAt: script.metadata["run-at"]?.[0],
           crontab: script.metadata.crontab?.[0],
           contentTrust: "untrusted-user-script-metadata",

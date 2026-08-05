@@ -110,6 +110,13 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
     expect(op?.stagedUuid).toBeTruthy();
   });
 
+  it("内联安装代码不受 512 KiB 人为门槛限制", async () => {
+    const code = `${VALID_SCRIPT_CODE}\n// ${"x".repeat(600 * 1024)}`;
+    await expect(approval.prepareInstall({ clientId: "c", code, requestId: "r1" })).resolves.toEqual(
+      expect.objectContaining({ operationId: expect.any(String) })
+    );
+  });
+
   it("批准安装默认启用（enable:true 即装即用），回发 JSON-RPC result", async () => {
     const ref = await approval.prepareInstall({ clientId: "c", code: VALID_SCRIPT_CODE, requestId: "r1" });
     await approval.decide(ref.operationId, true, { enable: true });
@@ -222,6 +229,28 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
     );
     const [, response] = responder.mock.calls[0];
     expect(response.result).not.toHaveProperty("code");
+  });
+
+  it("源码读取的本会话授权按单个脚本复用，get 与 grep 共用授权", async () => {
+    await seedScript(TARGET_UUID, "line1\nsecret line2");
+    const first = await approval.requestSourceDisclosure({ clientId: "c", uuid: TARGET_UUID, requestId: "r1" });
+    await approval.decide(first.operationId, true, { rememberSession: true });
+    (utilsModule.openInCurrentTab as ReturnType<typeof vi.fn>).mockClear();
+
+    const second = await approval.requestSourceDisclosure({
+      clientId: "c",
+      uuid: TARGET_UUID,
+      requestId: "r2",
+      form: { form: "grep", query: "secret", mode: "text", ignoreCase: false, contextLines: 0, maxMatches: 50 },
+    });
+    await approval.present(second.operationId);
+
+    expect(utilsModule.openInCurrentTab).not.toHaveBeenCalled();
+    expect((await operationDAO.get(second.operationId))?.status).toBe("approved");
+    expect(responder).toHaveBeenCalledWith(
+      "r2",
+      expect.objectContaining({ ok: true, result: expect.objectContaining({ totalMatches: 1 }) })
+    );
   });
 
   it("同一脚本上整份读取与 grep 挂起态不合并，各自按其形态产出正确结果", async () => {
@@ -354,7 +383,7 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
       expect(mutator.installScript.mock.calls[0][0].script.status).toBe(SCRIPT_STATUS_DISABLE);
     });
 
-    it("编辑即使请求 rememberSession，后续不同代码仍必须重新确认", async () => {
+    it("编辑的本会话授权按单个脚本复用，后续不同代码免重复确认", async () => {
       await seedEditTarget({ status: SCRIPT_STATUS_ENABLE });
       const first = await approval.requestEdit({ clientId: "c", uuid: TARGET_UUID, edits: editV1toV2 });
       await approval.decide(first.operationId, true, { rememberSession: true });
@@ -367,9 +396,9 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
         requestId: "r2",
       });
       await approval.present(second.operationId);
-      expect(utilsModule.openInCurrentTab).toHaveBeenCalledWith(`/src/install.html?uuid=${TARGET_UUID}`);
-      expect((await operationDAO.get(second.operationId))?.status).toBe("awaiting_user");
-      expect(mutator.installScript).toHaveBeenCalledTimes(1);
+      expect(utilsModule.openInCurrentTab).not.toHaveBeenCalled();
+      expect((await operationDAO.get(second.operationId))?.status).toBe("approved");
+      expect(mutator.installScript).toHaveBeenCalledTimes(2);
     });
 
     it("TOCTOU：受理后目标脚本代码被改动，批准时报 CONFLICT 且不写入", async () => {

@@ -7,7 +7,6 @@
   "status_connecting": "Подключение…",
   "status_connected": "Подключено",
   "status_host_unreachable": "Не удалось подключиться",
-  "status_host_outdated": "sctl устарел",
   "retry": "Повторить",
   "reenroll": "Подключить заново",
   "address_label": "Адрес sctl",

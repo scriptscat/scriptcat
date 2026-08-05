@@ -10,10 +10,6 @@
 
 export const JSONRPC_VERSION = "2.0" as const;
 
-// Minimum sctl daemon version the extension will talk to; below this the controller reports
-// status "host_outdated" and refuses to dispatch bridge calls.
-export const MIN_DAEMON_VERSION = "0.1.0";
-
 // ---------------------------------------------------------------------------------------------
 // JSON-RPC 2.0 messages carried by the extension-daemon WebSocket.
 // ---------------------------------------------------------------------------------------------
@@ -68,8 +64,7 @@ export interface AuthOkPayload {
   key?: { ciphertext: string; iv: string };
 }
 
-// daemon->ext, sent once immediately after the auth handshake completes, so the extension can
-// compare daemonVersion against MIN_DAEMON_VERSION before dispatching any bridge call.
+// daemon->ext, sent once immediately after the auth handshake completes for diagnostics.
 export interface HelloPayload {
   daemonVersion: string;
 }
@@ -284,12 +279,11 @@ export type ExternalAccessBridgeStatus =
   | "pending_enrollment"
   | "connecting"
   | "connected"
-  | "host_unreachable"
-  | "host_outdated";
+  | "host_unreachable";
 
-// getStatus / ExternalAccessStatusChanged payload: the bare status plus the daemon version the hello
-// handshake reported. daemonVersion is only carried while a live connection exists (connected /
-// host_outdated); the status bar renders it as "sctl v{daemonVersion}".
+// getStatus / ExternalAccessStatusChanged payload: the bare status plus the daemon version reported
+// by the hello handshake. daemonVersion is only carried while connected; the status bar renders it
+// as "sctl v{daemonVersion}".
 export interface ExternalAccessBridgeStatusInfo {
   status: ExternalAccessBridgeStatus;
   daemonVersion?: string;

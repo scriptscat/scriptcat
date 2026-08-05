@@ -9,8 +9,8 @@ other [Model Context Protocol](https://modelcontextprotocol.io/) client) — or 
 to your ScriptCat userscripts, with worked examples of the flows you'll actually hit.
 
 External Access is **built into every build but ships turned off**; you opt in from the extension's
-settings. It talks to a small local companion binary, [`sctl`](https://github.com/scriptscat/sctl),
-which runs a WebSocket daemon on `localhost:8643`; the extension connects to it as a client from an
+settings. It talks to a small companion binary, [`sctl`](https://github.com/scriptscat/sctl),
+whose WebSocket daemon defaults to `localhost:8643`; the extension connects to it as a client from an
 offscreen document. No browser permission is added, and there is no native-messaging host or
 installer to register.
 
@@ -52,15 +52,10 @@ There is no code path from an MCP or CLI request to a script mutation that skips
   from the [`scriptscat/sctl`](https://github.com/scriptscat/sctl) repo:
 
   ```bash
-  go build -ldflags "-X github.com/scriptscat/sctl/internal/cli.Version=0.1.0" -o sctl ./cmd/sctl
+  go build -o sctl ./cmd/sctl
   ```
 
-  > **Version matters.** The extension refuses any daemon reporting a version below
-  > `minDaemonVersion` (currently `0.1.0`) and shows "version too old". A plain `go build` stamps
-  > `0.0.0-dev`, which is *below* the gate — always build with the `-ldflags` above (or use a
-  > release binary) for anything you intend to actually connect.
-
-- macOS, Linux, or Windows — `sctl` is loopback-only and cross-platform; there is no OS-specific
+- macOS, Linux, or Windows — `sctl` is cross-platform; there is no OS-specific
   installer step.
 
 ## 2. Start the daemon
@@ -69,8 +64,8 @@ There is no code path from an MCP or CLI request to a script mutation that skips
 sctl serve
 ```
 
-This binds the WebSocket hub on `127.0.0.1:8643` (loopback only — it refuses any non-loopback
-address) and writes a `0600` control-token file that local `sctl` front-ends use. You can also skip
+This binds the WebSocket hub on `127.0.0.1:8643` by default and writes a `0600` control-token file
+that `sctl` front-ends use. You can override the address with `--listen-address`. You can also skip
 this step: `sctl connect`, `sctl mcp`, and the CLI verbs auto-start a detached `serve` if one isn't
 already running.
 
@@ -78,8 +73,8 @@ already running.
 
 Open the extension's options page → **Tools** → **External Access**. Flip the enable switch — a
 dialog first explains what you're turning on (agents can list/read metadata freely; everything else
-needs your decision). The connection address defaults to `ws://localhost:8643`; you can edit it
-before enrolling if you moved the daemon. Status stays "Pending enrollment" until you enroll (next
+needs your decision). The connection address defaults to `ws://localhost:8643`; you can configure
+another `ws://` or `wss://` address without a host/network-target restriction. Status stays "Pending enrollment" until you enroll (next
 step).
 
 ## 4. Enroll the extension with the daemon (one time)
@@ -190,8 +185,8 @@ and MCP at once).
 large script instead of spending its whole context on one read; `scripts_source_grep` finds the
 lines worth reading first. `scripts_edit_request` anchors on content (`oldText` → `newText`, matched
 literally and required to be unique unless `replaceAll` is set), so the agent never has to hold —
-or send back — the whole file to change one function. One request carries **at most 100 edits**;
-past that ScriptCat rejects it outright, since every edit rescans the whole script.
+or send back — the whole file to change one function. Edits are applied in order, and each one
+searches the result of the preceding edit.
 
 Write tools are **blocking**: the call suspends until you decide (there is no operation-polling API —
 the result comes back on the same call). While it waits, the MCP server sends progress notifications
@@ -300,7 +295,6 @@ it's unauthenticated and forgeable, it never appears on an approval screen.
 | Symptom | Likely cause |
 |---|---|
 | Status stuck on "Connecting…" then "connection failed" | The daemon isn't running or is on a different address. Start `sctl serve` (or run any `sctl` command), and check the connection address in the card matches. |
-| "version too old" | The daemon reports a version below `minDaemonVersion` (`0.1.0`) — almost always a plain `go build` (`0.0.0-dev`). Rebuild with the `-ldflags "…Version=0.1.0"` from step 1, or use a release binary. |
 | Enrollment never completes | `sctl connect` codes last 2 minutes; External Access must be enabled and the daemon reachable so ScriptCat can run the handshake. Read the code from the terminal and type it into the dialog before it expires. |
 | `sctl mcp` tool calls return "extension not connected" | The extension isn't enrolled (or you stopped External Access). Run `sctl connect` and complete enrollment, then retry. |
 | `scripts_source_get` prompts again after you approved | You chose "Allow" and the agent made a second read — expected; approve again, or pick "Allow this session". |
@@ -308,8 +302,8 @@ it's unauthenticated and forgeable, it never appears on an approval screen.
 
 ## What External Access deliberately does and doesn't do
 
-- It **does** open a loopback WebSocket listener (`127.0.0.1:8643`) — that's the trade for zero new
-  browser permissions and no installer. An **Origin whitelist** cheaply rejects ordinary web pages
+- The daemon **defaults** to a loopback WebSocket listener (`127.0.0.1:8643`), but the address is
+  configurable and ScriptCat does not enforce a loopback-only target. An **Origin whitelist** cheaply rejects ordinary web pages
   (a browser stamps the Origin and page JS can't forge it), but a non-browser process can forge any
   Origin, so every connection must still pass a bidirectional HMAC handshake before any business
   message; an unauthenticated socket is dropped after 5 s with no information leaked. The handshake

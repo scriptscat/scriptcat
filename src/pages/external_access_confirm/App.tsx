@@ -176,17 +176,15 @@ export function ExternalAccessConfirmView({ operationId }: { operationId: string
             {t("external_access:decision_reject")}
           </Button>
           <div className="flex items-center gap-2.5">
-            {!meta.source && (
-              <Button
-                variant="secondary"
-                data-testid="external-access-confirm-session-allow"
-                className="gap-1.5 font-medium text-primary"
-                onClick={() => void decide(true, { enable: kind === "enable", rememberSession: true })}
-              >
-                <History className="size-4" />
-                {t("external_access:decision_session_allow")}
-              </Button>
-            )}
+            <Button
+              variant="secondary"
+              data-testid="external-access-confirm-session-allow"
+              className="gap-1.5 font-medium text-primary"
+              onClick={() => void decide(true, { enable: kind === "enable", rememberSession: true })}
+            >
+              <History className="size-4" />
+              {t("external_access:decision_session_allow")}
+            </Button>
             <Button
               variant={kind === "delete" ? "destructive" : "default"}
               data-testid="external-access-confirm-approve"

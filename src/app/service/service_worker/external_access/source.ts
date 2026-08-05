@@ -97,22 +97,12 @@ export async function readScriptSource(
   };
 }
 
-// Single-line length above which a line is skipped for matching rather than fed to the regex
-// engine (design §3 决策 14): bounds the worst case of a catastrophic-backtracking pattern to one
-// line's length instead of the whole (up to 2 MiB) script.
-export const MAX_GREP_LINE_LENGTH = 4096;
-
 // Regex execution budget (design §3 决策 14 / §4.2): re-checked every GREP_BUDGET_CHECK_LINES lines
 // against an injectable clock so a pathological pattern can't hang the service worker — the SW is
 // the whole extension's message bus — and so tests never depend on real elapsed time.
 const GREP_BUDGET_MS = 2000;
 const GREP_BUDGET_CHECK_LINES = 1000;
 
-// Edit batch ceiling and execution budget, the write path's counterpart to the two constants above.
-// A batch is a multiplier on full-script scans, so an oversized one turns a few KiB of request into
-// minutes of synchronous service-worker time — and the MCP client is an LLM, the caller most likely
-// to send a large batch at once.
-export const MAX_TEXT_EDITS = 100;
 const EDIT_BUDGET_MS = 2000;
 
 export interface GrepOptions {
@@ -151,8 +141,8 @@ function compileGrepPattern(query: string, mode: "text" | "regex", ignoreCase: b
 export function assertGrepParams(query: string, options: GrepOptions = {}): void {
   const contextLines = options.contextLines ?? 0;
   const maxMatches = options.maxMatches ?? 50;
-  if (query.length < 1 || query.length > 1024) {
-    throw new ExternalAccessBridgeError("INVALID_REQUEST", "query must be 1-1024 characters");
+  if (query.length < 1) {
+    throw new ExternalAccessBridgeError("INVALID_REQUEST", "query must not be empty");
   }
   // Integer check first: NaN compares false against both bounds, and would then turn the caps into
   // their opposites — a NaN contextLines makes Array.slice hand back every line before the hit, a
@@ -196,22 +186,13 @@ export function grepLines(
   const totalLines = lines.length;
   const matches: ScriptSourceGrepMatch[] = [];
   let totalMatches = 0;
-  let skippedLongLines = 0;
+  const skippedLongLines = 0;
   const startedAt = clock();
 
   for (let i = 0; i < totalLines; i++) {
-    // Long-line skip and the wall-clock budget bound regex's backtracking blast radius (design §3
-    // 决策 14 / §4.2). `text` is a linear `String.prototype.includes` scan with no backtracking risk,
-    // and skipping its long lines would make literal search permanently blind to minified/bundled
-    // userscripts that sit on a single line — so neither constraint applies outside `regex` mode.
     if (mode === "regex") {
       if ((i + 1) % GREP_BUDGET_CHECK_LINES === 0 && clock() - startedAt > GREP_BUDGET_MS) {
         throw new ExternalAccessBridgeError("INVALID_REQUEST", "pattern too slow to execute, simplify it");
-      }
-
-      if (lines[i].length > MAX_GREP_LINE_LENGTH) {
-        skippedLongLines++;
-        continue;
       }
     }
 
@@ -312,12 +293,6 @@ function replaceOccurrences(text: string, needle: string, replacement: string, a
  * nothing here mutates anything, the result is what the human will later review on the install page.
  */
 export function applyTextEdits(code: string, edits: TextEdit[], clock: () => number = Date.now): string {
-  if (edits.length > MAX_TEXT_EDITS) {
-    throw new ExternalAccessBridgeError(
-      "INVALID_REQUEST",
-      `too many edits (${edits.length}), at most ${MAX_TEXT_EDITS}`
-    );
-  }
   let text = code;
   const startedAt = clock();
   for (const [i, edit] of edits.entries()) {

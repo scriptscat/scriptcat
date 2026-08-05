@@ -17,7 +17,7 @@
 
 ## 外部接入 / External Access
 
-内置于所有构建、**默认关闭**,从扩展设置开启;经本地伴随二进制 [`sctl`](https://github.com/scriptscat/sctl)(WebSocket daemon,仅回环 `127.0.0.1:8643`)通信,不新增浏览器权限、无 native-messaging 主机与安装器。信任扁平:接入(enrollment)一次建立长期密钥 K,CLI 与所有 MCP agent 都继承信任,不再逐客户端配对/scope/撤销。
+内置于所有构建、**默认关闭**,从扩展设置开启;经伴随二进制 [`sctl`](https://github.com/scriptscat/sctl)(WebSocket daemon,默认 `127.0.0.1:8643`)通信,不新增浏览器权限、无 native-messaging 主机与安装器。信任扁平:接入(enrollment)一次建立长期密钥 K,CLI 与所有 MCP agent 都继承信任,不再逐客户端配对/scope/撤销。
 
 | 文档 | 说明 |
 | --- | --- |

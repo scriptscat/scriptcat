@@ -7,7 +7,6 @@ import {
   decryptLongTermKey,
   derivePairingKeys,
   hexToBytes,
-  isV1LoopbackWebSocketUrl,
   normalizePairingCode,
   randomNonceHex,
   utf8Bytes,
@@ -127,18 +126,6 @@ function stubWebSocket() {
 // ────────────────────────────────────────────────
 
 describe("ExternalAccessConnect", () => {
-  it.each([
-    ["ws://127.0.0.1:8643", true],
-    ["ws://localhost:8643", true],
-    ["ws://[::1]:8643", true],
-    ["wss://localhost:8643", false],
-    ["ws://example.com:8643", false],
-    ["ws://user:pass@localhost:8643", false],
-    ["ws://localhost:8643/path", false],
-    ["ws://localhost:8643?token=secret", false],
-  ])("v1 WebSocket 地址仅接受无凭据和附加路径的本机 ws: %s", (url, expected) => {
-    expect(isV1LoopbackWebSocketUrl(url)).toBe(expected);
-  });
   // 握手用例走真实 WebCrypto（HKDF/HMAC/AES-GCM），比纯逻辑用例重；在满载并行下会超出 fast
   // 项目默认的 340ms 预算，故为本文件放宽超时（真实互操作向量不宜用 mock 替换）。
   beforeAll(() => vi.setConfig({ testTimeout: 5000 }));
@@ -182,6 +169,12 @@ describe("ExternalAccessConnect", () => {
   const sessionParam = (key: string): ExternalAccessConnectParam => ({
     url: "ws://127.0.0.1:8643",
     auth: { mode: "session", key },
+  });
+
+  it("按配置原样连接 WebSocket URL，不限定回环地址或 ws 协议", () => {
+    const url = "wss://bridge.example.com/external-access?profile=team";
+    const ws = triggerConnect({ url, auth: { mode: "session", key: "aa".repeat(32) } });
+    expect(ws.url).toBe(url);
   });
 
   // ────────────────────────────────────────────────

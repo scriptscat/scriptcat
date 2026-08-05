@@ -6,9 +6,6 @@ export const TRANSPORT = {
   defaultPort: 8643,
   frame: "json-text",
 } as const;
-export const VERSIONS = {
-  minDaemonVersion: "0.1.0",
-} as const;
 export const SESSION_METHODS = [
   "$session.authenticate",
   "$session.authenticated",

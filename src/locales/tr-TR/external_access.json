@@ -7,7 +7,6 @@
   "status_connecting": "Bağlanıyor",
   "status_connected": "Bağlandı",
   "status_host_unreachable": "Bağlantı başarısız",
-  "status_host_outdated": "sctl güncel değil",
   "retry": "Yeniden dene",
   "reenroll": "Yeniden eşleştir",
   "address_label": "sctl adresi",

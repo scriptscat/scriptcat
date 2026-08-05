@@ -7,7 +7,6 @@
   "status_connecting": "Connecting",
   "status_connected": "Connected",
   "status_host_unreachable": "Connection failed",
-  "status_host_outdated": "sctl outdated",
   "retry": "Retry",
   "reenroll": "Re-enroll",
   "address_label": "sctl address",

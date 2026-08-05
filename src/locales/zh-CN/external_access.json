@@ -7,7 +7,6 @@
   "status_connecting": "连接中",
   "status_connected": "已接入",
   "status_host_unreachable": "连接失败",
-  "status_host_outdated": "sctl 版本过旧",
   "retry": "重试",
   "reenroll": "重新接入",
   "address_label": "sctl 地址",

@@ -49,7 +49,7 @@ and no `nativeMessaging` permission (both were removed when the transport moved 
 flat: a single enrollment establishes the long-term key K, and the CLI and every MCP agent inherit it
 (no per-client pairing/scope/revocation). It connects, from an offscreen WebSocket client
 (`src/app/service/offscreen/external-access-connect.ts`), to a local companion binary
-[`sctl`](https://github.com/scriptscat/sctl) — a loopback-only WS daemon on `127.0.0.1:8643`; the
+[`sctl`](https://github.com/scriptscat/sctl) — a WS daemon that defaults to `127.0.0.1:8643`; the
 extension never listens on a port itself. RPC schemas and generators are owned by the sctl repo's `protocol/`
 directory. ScriptCat consumes generated artifacts under
 [`external_access/generated/`](../src/app/service/service_worker/external_access/generated/), and

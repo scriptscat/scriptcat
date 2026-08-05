@@ -38,7 +38,6 @@ const STATUS_VARIANT: Record<ExternalAccessBridgeStatus, "secondary" | "success"
   connecting: "warning",
   connected: "success",
   host_unreachable: "destructive",
-  host_outdated: "destructive",
 };
 
 // 深链到日志页并以 component=external-access 预过滤（设计 §4，Logger 路由已支持 ?query=）。
@@ -57,7 +56,6 @@ function StatusPill({ status, t }: { status: ExternalAccessBridgeStatus; t: (key
     connecting: "external_access:status_connecting",
     connected: "external_access:status_connected",
     host_unreachable: "external_access:status_host_unreachable",
-    host_outdated: "external_access:status_host_outdated",
   };
   return (
     <Badge variant={STATUS_VARIANT[status]} data-testid="external_access_status_pill">

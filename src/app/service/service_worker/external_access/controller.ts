@@ -1,11 +1,9 @@
-import semver from "semver";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { SystemConfig } from "@App/pkg/config/config";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { ExternalAccessConnectClient } from "../../offscreen/client";
 import type { ExternalAccessBridge } from "./bridge";
 import {
-  MIN_DAEMON_VERSION,
   type HelloPayload,
   type ExternalAccessBridgeRequest,
   type ExternalAccessBridgeResponse,
@@ -34,7 +32,7 @@ type ConnectDriver = Pick<ExternalAccessConnectClient, "connect" | "disconnect" 
  *  - enabled + no key K   → "pending_enrollment" (待接入): the user must run `sctl connect` and type
  *    the one-time code into the enrollment dialog. `enroll()` drives that (pairing-mode handshake).
  *  - enabled + key K       → session-mode connect; "connected" once the daemon's hello arrives (or
- *    "host_outdated" if it's below MIN_DAEMON_VERSION). Reconnect/backoff is delegated to offscreen.
+ *    "connected" after the daemon hello. Reconnect/backoff is delegated to offscreen.
  */
 export class ExternalAccessController {
   private status: ExternalAccessBridgeStatus = "disabled";
@@ -103,7 +101,7 @@ export class ExternalAccessController {
       case "$session.hello": {
         const { daemonVersion } = envelope.params as HelloPayload;
         this.daemonVersion = daemonVersion;
-        this.setStatus(semver.lt(daemonVersion, MIN_DAEMON_VERSION) ? "host_outdated" : "connected");
+        this.setStatus("connected");
         void this.connectClient.send({
           jsonrpc: "2.0",
           id: uuidv4(),
@@ -118,7 +116,7 @@ export class ExternalAccessController {
         break;
       }
       default:
-        if (envelope.method?.startsWith("scripts.") && envelope.id && this.status !== "host_outdated") {
+        if (envelope.method?.startsWith("scripts.") && envelope.id) {
           const params = envelope.params as {
             input: unknown;
             clientId?: string;
@@ -193,7 +191,7 @@ export class ExternalAccessController {
   // The daemon version is only meaningful while a connection is live; gating it on the connected
   // states keeps a stale version from leaking through the status bar after a disconnect/stop.
   private statusInfo(): ExternalAccessBridgeStatusInfo {
-    const live = this.status === "connected" || this.status === "host_outdated";
+    const live = this.status === "connected";
     return { status: this.status, daemonVersion: live ? this.daemonVersion : undefined };
   }
 
