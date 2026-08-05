@@ -138,6 +138,7 @@ export interface ScriptsListResult {
 }
 export interface ScriptsSourceGetParams {
   endLine?: number;
+  maxBytes?: number;
   startLine?: number;
   uuid: string;
 }

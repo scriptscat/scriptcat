@@ -74,7 +74,7 @@ function autoApproveOptions(op: ExternalAccessOperation): { enable?: boolean } {
 function sameDisclosureForm(a: SourceDisclosureForm, b: SourceDisclosureForm): boolean {
   if (a.form !== b.form) return false;
   if (a.form === "full" && b.form === "full") {
-    return a.startLine === b.startLine && a.endLine === b.endLine;
+    return a.startLine === b.startLine && a.endLine === b.endLine && a.maxBytes === b.maxBytes;
   }
   if (a.form === "grep" && b.form === "grep") {
     return (
@@ -675,7 +675,14 @@ export class ExternalAccessApprovalService {
     if (form.form === "grep") {
       return grepScriptSource(this.scriptDAO, this.scriptCodeDAO, op.targetUuid!, form.query, form);
     }
-    return readScriptSource(this.scriptDAO, this.scriptCodeDAO, op.targetUuid!, form.startLine, form.endLine);
+    return readScriptSource(
+      this.scriptDAO,
+      this.scriptCodeDAO,
+      op.targetUuid!,
+      form.startLine,
+      form.endLine,
+      form.maxBytes
+    );
   }
 
   private async executeInstall(op: ExternalAccessOperation, options: { enable?: boolean }) {

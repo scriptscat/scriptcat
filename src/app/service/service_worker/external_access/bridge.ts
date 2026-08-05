@@ -10,7 +10,14 @@ import {
 import type { ExternalAccessWritePolicy, ExternalAccessSourceReadPolicy } from "@App/pkg/config/config";
 import type { ExternalAccessApprovalService } from "./approval";
 import { ExternalAccessBridgeError } from "./errors";
-import { readScriptSource, grepScriptSource, assertLineWindow, assertGrepParams, type TextEdit } from "./source";
+import {
+  readScriptSource,
+  grepScriptSource,
+  assertLineWindow,
+  assertGrepParams,
+  MAX_SOURCE_BYTES,
+  type TextEdit,
+} from "./source";
 import { logExternalAccess, type ExternalAccessAudit } from "./audit";
 import {
   type BridgeAction,
@@ -78,13 +85,24 @@ const VALIDATORS: Record<BridgeAction, (input: unknown) => void> = {
   },
   "scripts.source.get": (input) => {
     if (!isPlainObject(input)) throw new ExternalAccessBridgeError("INVALID_REQUEST", "input must be an object");
-    assertKeys(input, ["uuid", "startLine", "endLine"]);
+    assertKeys(input, ["uuid", "startLine", "endLine", "maxBytes"]);
     assertUuidField(input, "uuid");
     if (input.startLine !== undefined && typeof input.startLine !== "number") {
       throw new ExternalAccessBridgeError("INVALID_REQUEST", "startLine must be a number");
     }
     if (input.endLine !== undefined && typeof input.endLine !== "number") {
       throw new ExternalAccessBridgeError("INVALID_REQUEST", "endLine must be a number");
+    }
+    if (
+      input.maxBytes !== undefined &&
+      (!Number.isInteger(input.maxBytes) ||
+        (input.maxBytes as number) < 1 ||
+        (input.maxBytes as number) > MAX_SOURCE_BYTES)
+    ) {
+      throw new ExternalAccessBridgeError(
+        "INVALID_REQUEST",
+        `maxBytes must be an integer between 1 and ${MAX_SOURCE_BYTES}`
+      );
     }
     assertLineWindow(input.startLine as number | undefined, input.endLine as number | undefined);
   },
@@ -295,18 +313,19 @@ export class ExternalAccessBridge {
         const uuid = input.uuid as string;
         const startLine = input.startLine as number | undefined;
         const endLine = input.endLine as number | undefined;
+        const maxBytes = input.maxBytes as number | undefined;
         // Source may embed secrets, so it keeps its own gate independent of list/metadata reads.
         // "allow" reads immediately (for CLI and MCP alike — no exemption); "approval" suspends
         // behind a confirm page, and present() auto-approves it if this (script, source) pair was
         // marked "本会话允许" earlier this session.
         if ((await this.getSourceReadPolicy()) === "allow") {
-          return readScriptSource(this.scriptDAO, this.scriptCodeDAO, uuid, startLine, endLine);
+          return readScriptSource(this.scriptDAO, this.scriptCodeDAO, uuid, startLine, endLine, maxBytes);
         }
         const ref = await this.approval.requestSourceDisclosure({
           clientId: request.clientId,
           uuid,
           requestId: request.requestId,
-          form: startLine === undefined && endLine === undefined ? undefined : { form: "full", startLine, endLine },
+          form: { form: "full", startLine, endLine, maxBytes },
         });
         await this.approval.present(ref.operationId);
         return DEFERRED;

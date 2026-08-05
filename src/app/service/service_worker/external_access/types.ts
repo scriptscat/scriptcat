@@ -215,7 +215,7 @@ export interface ScriptSourceGrepResult {
 // branch key off of instead. Two pending requests only collapse into one operation when both the
 // form and its parameters match exactly.
 export type SourceDisclosureForm =
-  | { form: "full"; startLine?: number; endLine?: number }
+  | { form: "full"; startLine?: number; endLine?: number; maxBytes?: number }
   | {
       form: "grep";
       query: string;

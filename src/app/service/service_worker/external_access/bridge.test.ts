@@ -166,6 +166,28 @@ describe("ExternalAccessBridge（扁平信任 + 双策略）", () => {
       expect(audit).toHaveBeenCalledWith(expect.objectContaining({ decision: "allowed" }));
     });
 
+    it("全文读取在调用方预算边界成功，超过时拒绝并引导改用 grep 或行窗", async () => {
+      sourcePolicy = "allow";
+      await seedScript(SRC_UUID);
+      await scriptCodeDAO.save({ uuid: SRC_UUID, code: "0123456789abcdef" } as any);
+
+      const atLimit = expectResponse(
+        await bridge.handle(makeRequest("scripts.source.get", { uuid: SRC_UUID, maxBytes: 16 }))
+      );
+      expect(atLimit.ok).toBe(true);
+
+      const response = expectResponse(
+        await bridge.handle(makeRequest("scripts.source.get", { uuid: SRC_UUID, maxBytes: 8 }))
+      );
+
+      expect(response.ok).toBe(false);
+      if (!response.ok) {
+        expect(response.error.code).toBe("PAYLOAD_TOO_LARGE");
+        expect(response.error.message).toContain("grep");
+        expect(response.error.message).toContain("startLine/endLine");
+      }
+    });
+
     it("源码策略=需人工审批时挂起（返回 null）并创建待批操作", async () => {
       sourcePolicy = "approval";
       await seedScript(SRC_UUID);

@@ -72,15 +72,23 @@ export async function readScriptSource(
   scriptCodeDAO: Pick<ScriptCodeDAO, "get">,
   uuid: string,
   startLine?: number,
-  endLine?: number
+  endLine?: number,
+  maxBytes?: number
 ): Promise<ScriptSource> {
   const script = await scriptDAO.get(uuid);
   if (!script) throw new ExternalAccessBridgeError("NOT_FOUND", "script not found");
   const scriptCode = await scriptCodeDAO.get(uuid);
   if (!scriptCode) throw new ExternalAccessBridgeError("NOT_FOUND", "script source not found");
   const sliced = sliceLines(scriptCode.code, startLine, endLine);
-  if (new TextEncoder().encode(sliced.code).length > MAX_SOURCE_BYTES) {
+  const sourceBytes = new TextEncoder().encode(sliced.code).length;
+  if (sourceBytes > MAX_SOURCE_BYTES) {
     throw new ExternalAccessBridgeError("PAYLOAD_TOO_LARGE", "script source exceeds 2 MiB");
+  }
+  if (startLine === undefined && maxBytes !== undefined && sourceBytes > maxBytes) {
+    throw new ExternalAccessBridgeError(
+      "PAYLOAD_TOO_LARGE",
+      `complete source is ${sourceBytes} bytes, exceeding the MCP response budget of ${maxBytes} bytes; use grep to locate relevant code, then read it with startLine/endLine`
+    );
   }
   return {
     uuid: script.uuid,

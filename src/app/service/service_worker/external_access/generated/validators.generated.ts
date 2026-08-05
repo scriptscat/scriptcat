@@ -228,9 +228,11 @@ export function validateScriptsListResult(value: unknown): value is Protocol.Scr
 export function validateScriptsSourceGetParams(value: unknown): value is Protocol.ScriptsSourceGetParams {
   return (
     isRecord(value) &&
-    hasOnlyKeys(value, ["endLine", "startLine", "uuid"]) &&
+    hasOnlyKeys(value, ["endLine", "maxBytes", "startLine", "uuid"]) &&
     (value["endLine"] === undefined ||
       (typeof value["endLine"] === "number" && Number.isInteger(value["endLine"]) && value["endLine"] >= 1)) &&
+    (value["maxBytes"] === undefined ||
+      (typeof value["maxBytes"] === "number" && Number.isInteger(value["maxBytes"]) && value["maxBytes"] >= 1)) &&
     (value["startLine"] === undefined ||
       (typeof value["startLine"] === "number" && Number.isInteger(value["startLine"]) && value["startLine"] >= 1)) &&
     typeof value["uuid"] === "string" &&

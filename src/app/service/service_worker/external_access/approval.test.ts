@@ -211,6 +211,22 @@ describe("ExternalAccessApprovalService（三档决策 + 会话授权）", () =>
     );
   });
 
+  it("批准全文读取后仍执行请求时携带的响应预算", async () => {
+    await seedScript(TARGET_UUID, "0123456789abcdef");
+    const ref = await approval.requestSourceDisclosure({
+      clientId: "c",
+      uuid: TARGET_UUID,
+      requestId: "r1",
+      form: { form: "full", maxBytes: 8 },
+    });
+
+    await expect(approval.decide(ref.operationId, true)).rejects.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
+    expect(responder).toHaveBeenCalledWith(
+      "r1",
+      expect.objectContaining({ ok: false, error: expect.objectContaining({ code: "PAYLOAD_TOO_LARGE" }) })
+    );
+  });
+
   it("批准 grep 披露时回发匹配结果而非整份源码", async () => {
     await seedScript(TARGET_UUID, "line1\nsecret line2\nline3");
     const ref = await approval.requestSourceDisclosure({
