@@ -452,7 +452,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
   };
 
   return (
-    <div className="h-full overflow-y-auto scrollbar-custom px-8 py-6">
+    <div className="h-full overflow-y-auto scrollbar-custom px-4 py-4 md:px-8 md:py-6">
       <div className="flex flex-col gap-7">
         {/* 基本信息 */}
         <div className="flex flex-col gap-2.5">
@@ -494,7 +494,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addTag()}
                   placeholder={t("script:input_tags_placeholder")}
-                  className="h-7 w-40 text-xs"
+                  className="h-7 w-40 max-w-full text-xs"
                 />
               </div>
             </Row>
@@ -507,7 +507,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
           <Card>
             <Row label={t("editor:run_in")}>
               <Select value={runIn} onValueChange={onRunIn}>
-                <SelectTrigger className="h-8 w-52">
+                <SelectTrigger className="h-8 w-52 max-w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -521,7 +521,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
             </Row>
             <Row label={t("editor:run_at")}>
               <Select value={runAt} onValueChange={onRunAt}>
-                <SelectTrigger className="h-8 w-52">
+                <SelectTrigger className="h-8 w-52 max-w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
