@@ -118,13 +118,15 @@ export default function ScriptEditor() {
           return;
         }
         const code = await loadScriptCode(uuid);
-        dispatch({ type: "open", tab: { uuid, script, code, subView: "code", isChanged: false } });
+        const requestedView = searchParams.get("view");
+        const subView: SubView = requestedView === "setting" ? "setting" : "code";
+        dispatch({ type: "open", tab: { uuid, script, code, subView, isChanged: false } });
       } else {
         const tab = await emptyScript(template || "", target);
         dispatch({ type: "open", tab });
       }
     },
-    [t]
+    [searchParams, t]
   );
 
   // 初始化：列表就绪后根据 URL uuid 打开

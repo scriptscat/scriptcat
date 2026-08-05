@@ -98,6 +98,7 @@ export function usePopupData() {
   const [menuExpandNum, setMenuExpandNum] = useState(initialData?.menuExpandNum ?? 5);
   const [scriptListExpandNum, setScriptListExpandNum] = useState(initialData?.scriptListExpandNum ?? 5);
   const [popupCompactLayout, setPopupCompactLayout] = useState(initialData?.popupCompactLayout ?? false);
+  const [popupSiteScopeActions, setPopupSiteScopeActions] = useState(initialData?.popupSiteScopeActions ?? false);
   const [defaultScriptProvider, setDefaultScriptProvider] = useState<ScriptProvider>(
     initialData?.defaultScriptProvider ?? "scriptcat"
   );
@@ -140,6 +141,7 @@ export function usePopupData() {
     setMenuExpandNum(initialData.menuExpandNum);
     setScriptListExpandNum(initialData.scriptListExpandNum);
     setPopupCompactLayout(initialData.popupCompactLayout);
+    setPopupSiteScopeActions(initialData.popupSiteScopeActions);
     setDefaultScriptProvider(initialData.defaultScriptProvider);
     setInitialized(true);
   }
@@ -256,6 +258,11 @@ export function usePopupData() {
     window.close();
   }, []);
 
+  const handleOpenScriptSettings = useCallback(async (uuid: string) => {
+    await openInCurrentTab(`/src/options.html#/script/editor/${uuid}?view=setting`);
+    window.close();
+  }, []);
+
   const handleOpenUserConfig = useCallback(async (uuid: string) => {
     await openInCurrentTab(`/src/options.html#/?userConfig=${uuid}`);
     window.close();
@@ -272,6 +279,33 @@ export function usePopupData() {
       console.error("Failed to toggle exclude:", e);
     }
   }, []);
+
+  const handleOnlyRunOnUrl = useCallback(
+    async (uuid: string) => {
+      const host = extractHost(stateRef.current.currentUrl);
+      if (!host) return;
+      try {
+        await scriptClient.onlyRunOnUrl(uuid, `*://${host}/*`);
+      } catch (e) {
+        showError(String(e));
+      }
+    },
+    [showError]
+  );
+
+  const handleAllowUrl = useCallback(
+    async (uuid: string) => {
+      const host = extractHost(stateRef.current.currentUrl);
+      if (!host) return;
+      try {
+        await scriptClient.allowUrl(uuid, `*://${host}/*`, `*://${host}/*`);
+        setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: true } : s)));
+      } catch (e) {
+        showError(String(e));
+      }
+    },
+    [showError]
+  );
 
   /** 调用方需从 script.menus 中按 groupKey 过滤出所有匹配项传入 */
   const handleMenuClick = useCallback(async (uuid: string, menus: ScriptMenuItem[], inputValue?: any) => {
@@ -410,8 +444,11 @@ export function usePopupData() {
     handleToggleScript,
     handleDeleteScript,
     handleOpenEditor,
+    handleOpenScriptSettings,
     handleOpenUserConfig,
     handleExcludeUrl,
+    handleOnlyRunOnUrl,
+    handleAllowUrl,
     handleMenuClick,
     handleRunScript,
     handleStopScript,
@@ -430,6 +467,7 @@ export function usePopupData() {
     showAlert,
     menuExpandNum,
     popupCompactLayout,
+    popupSiteScopeActions,
     handleSearch,
     handleToggleExpand,
   };

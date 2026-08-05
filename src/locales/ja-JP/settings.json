@@ -72,6 +72,8 @@
   "popup_layout": "ポップアップレイアウト",
   "compact_popup_layout": "コンパクトなポップアップ",
   "compact_popup_layout_desc": "ポップアップのセクションとスクリプト行の間隔を狭くします",
+  "popup_site_scope_actions": "サイト範囲の操作",
+  "popup_site_scope_actions_desc": "現在のサイトでスクリプトの実行を制限または許可するクイック操作をポップアップに表示します",
   "script_list_expand_count": "スクリプト一覧の展開数",
   "script_list_expand_count_desc": "ポップアップの各セクションで展開表示するスクリプト数です。超えた分は折りたたまれ、0 の場合はすべて表示します",
   "script_update_check_frequency": "スクリプト更新の確認頻度",

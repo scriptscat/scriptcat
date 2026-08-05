@@ -8,6 +8,8 @@ const popupInitialData = vi.hoisted(() => ({
   checkUpdate: { notice: "", version: "1.0.0", isRead: false },
   menuExpandNum: 5,
   scriptListExpandNum: 5,
+  popupCompactLayout: false,
+  popupSiteScopeActions: false,
   defaultScriptProvider: "scriptcat" as const,
   isBlacklist: false,
   scriptList: [
@@ -86,6 +88,14 @@ describe("usePopupData 打开编辑器/用户配置", () => {
       await result.current.handleOpenUserConfig("uuid-2");
     });
     expect(openInCurrentTab).toHaveBeenCalledWith("/src/options.html#/?userConfig=uuid-2");
+  });
+
+  it("handleOpenScriptSettings 应直达该脚本的设置页", async () => {
+    const { result } = renderHook(() => usePopupData());
+    await act(async () => {
+      await result.current.handleOpenScriptSettings("uuid-3");
+    });
+    expect(openInCurrentTab).toHaveBeenCalledWith("/src/options.html#/script/editor/uuid-3?view=setting");
   });
 });
 

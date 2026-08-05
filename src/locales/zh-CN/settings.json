@@ -72,6 +72,8 @@
   "popup_layout": "弹窗布局",
   "compact_popup_layout": "紧凑弹窗布局",
   "compact_popup_layout_desc": "减少弹窗分组与脚本行之间的间距",
+  "popup_site_scope_actions": "站点范围快捷操作",
+  "popup_site_scope_actions_desc": "在弹窗中显示仅在当前站点执行或允许当前站点执行的快捷操作",
   "script_list_expand_count": "脚本列表展开数量",
   "script_list_expand_count_desc": "弹窗中每个分组展开显示的脚本数量，超出部分折叠；填 0 表示全部显示",
   "script_update_check_frequency": "脚本更新检查频率",

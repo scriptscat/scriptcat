@@ -55,6 +55,17 @@ describe("界面分区-popup 布局", () => {
     fireEvent.click(compactSwitch);
     expect(set).toHaveBeenCalledWith("popup_compact_layout", false);
   });
+
+  it("站点范围快捷操作应默认关闭并保存开启结果", async () => {
+    get.mockResolvedValue(undefined);
+    render(<InterfaceSection register={() => () => {}} />);
+
+    const siteScopeSwitch = await screen.findByRole("switch", { name: "站点范围快捷操作" });
+    expect(siteScopeSwitch).not.toBeChecked();
+
+    fireEvent.click(siteScopeSwitch);
+    expect(set).toHaveBeenCalledWith("popup_site_scope_actions", true);
+  });
 });
 
 // 两个展开数量此前共用「展开数量 / 超过此数量时自动折叠」文案，用户误以为它管脚本列表（#1558）
