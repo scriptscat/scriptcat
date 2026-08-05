@@ -146,6 +146,16 @@ describe("外部接入 · 操作确认页（三档决策）", () => {
     );
   });
 
+  // 100vh 是「大视口」，安卓上软键盘/可收起工具栏出现时外壳仍按最大高度撑开，
+  // 确认按钮被挤出可视区（issue #1555）；动态视口单位才跟随可见高度。
+  it("外壳高度使用动态视口单位而非 100vh", async () => {
+    getOperation.mockResolvedValue(baseOp({ kind: "enable" }));
+    render(<ExternalAccessConfirmView operationId="op-1" />);
+    const shell = await screen.findByTestId("external-access-confirm-shell");
+    expect(shell.className).toContain("min-h-dvh");
+    expect(shell.className).not.toContain("min-h-screen");
+  });
+
   it("提交失败时保留确认页、显示错误并允许重试", async () => {
     decideOperation.mockRejectedValueOnce(new Error("temporary failure")).mockResolvedValueOnce(undefined);
     getOperation.mockResolvedValue(baseOp({ kind: "enable" }));

@@ -26,7 +26,7 @@ function BrandMark() {
 function PageShell({ topRight, children }: { topRight?: React.ReactNode; children: React.ReactNode }) {
   const { t } = useTranslation("external_access");
   return (
-    <div data-testid="external-access-confirm-shell" className="flex min-h-screen flex-col bg-muted">
+    <div data-testid="external-access-confirm-shell" className="flex min-h-dvh flex-col bg-muted">
       {/* 顶栏:品牌 + 「外部接入 · 操作确认」面包屑 + 右侧 TTL 倒计时(设计稿 Th6Hv) */}
       <header className="flex items-center justify-between gap-3 border-b bg-card px-6 py-3">
         <div className="flex min-w-0 items-center gap-2.5">

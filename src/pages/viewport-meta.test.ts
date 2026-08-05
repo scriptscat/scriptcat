@@ -9,7 +9,14 @@ import path from "path";
 const pagesDir = path.join(process.cwd(), "src/pages");
 
 // 高度锁定视口(dvh 外壳)的整页入口；popup.html 是固定尺寸面板、页面可整体滚动，不在此列。
-const fullPages = ["options.html", "install.html", "import.html", "batchupdate.html", "confirm.html"];
+const fullPages = [
+  "options.html",
+  "install.html",
+  "import.html",
+  "batchupdate.html",
+  "confirm.html",
+  "external_access_confirm.html",
+];
 
 describe("整页入口的移动端视口声明（#1555）", () => {
   it.each(fullPages)("%s 的 viewport 应声明 interactive-widget=resizes-content", (page) => {
