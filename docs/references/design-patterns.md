@@ -87,7 +87,7 @@ both before treating it as settled if either changes.
 ### How to add motion that stays friendly
 
 - **Fast and light:** enter/leave in `150–250ms`, `ease-out`; the built-in collapse/progress animations use `200ms ease-out`.
-- **Hover/focus via CSS pseudo-classes, not React state** (`hover:bg-primary-background/90`, `focus-visible:ring-ring/50`) — a `DEVELOP.md` rule.
+- **Hover/focus via CSS pseudo-classes, not React state** (`hover:bg-primary-background/90`, `focus-visible:ring-ring/50`) — a [`develop.md` § UI](../develop.md#ui) rule.
 - **Enter/leave via Radix `data-state`** — don't hand-roll show/hide with `setTimeout`.
 - **Prefer `transition-colors` over `transition-all`:** animate only what should move, avoiding layout thrash and wasted work.
 - **Reuse existing utilities;** don't inline `@keyframes` in a component. New animation → add an `@utility` in `src/index.css` so it's globally reusable.

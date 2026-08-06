@@ -1,51 +1,24 @@
 # Repository Guidelines
 
 This file provides guidance to AI coding agents (Claude Code, etc.) when working with code in this repository.
+It holds only the engineering principles and the architecture quick-map; the concrete "how" belongs to the docs
+below. `CLAUDE.md` merely `@import`s this file — don't split guidance between the two. Link the owning doc
+instead of copying its content here.
 
-> **Note:** This is the single source of truth relative to `CLAUDE.md` — `CLAUDE.md` only contains `@AGENTS.md`
-> and re-imports this file; don't split guidance between the two, put it here. Detailed guidance beyond
-> engineering principles and the architecture map is owned by the docs linked below (see
-> [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md)'s ownership table) — cross-link them, don't duplicate
-> their content here.
+**Read before you act.** [`docs/README.md`](docs/README.md) indexes the full doc set.
 
-> **Before writing any code, read [`docs/develop.md`](docs/develop.md)** — the development spec (commands,
-> project structure, coding style, UI & theme rules, testing mechanics, i18n, and the commit/PR workflow). This
-> file keeps only the non-negotiable engineering principles and the architecture map; the concrete "how" lives
-> in that same guide, and deep internals in [`docs/architecture.md`](docs/architecture.md).
-
-> **To manually verify a feature actually works, read [`docs/verification.md`](docs/verification.md)** — drive
-> the real built extension end-to-end with one-shot throwaway scratch scripts (not the committed test suite).
-
-> **Before building or modifying any page, dialog, or block, read [`docs/design.md`](docs/design.md)** — the
-> design system: color tokens, component palette, layout/motion/state patterns, and the new-page recipe. Its
-> Core Constraints apply to every UI change, not just new ones.
-
-> **Before any translation/localization work, read [`docs/translation.md`](docs/translation.md)** —
-> the single source of truth for translation. Whenever you add or change localized content
-> (`src/locales/<locale>/*.json` namespace files, per-language docs, UI copy, or test snapshots), you must first
-> read that guide and follow the matching `docs/references/terminology-<locale>.md` if it exists.
-
-> **Before adding, editing, reorganizing, or reviewing any tracked agent/contributor Markdown — this file,
-> `docs/*`, `.github/*.md`, package-local READMEs, and source-local READMEs — read
-> [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md)** — keep the doc set organized (links resolve, index
-> current, no duplication, no cross-document policy conflicts) and every claim factually true against the current
-> branch (*if you can't grep it on this branch, don't claim it*). That guide owns the full checklist; don't copy
-> it into this always-loaded file.
-
-> **Before opening or updating a pull request, read [`docs/pull-request.md`](docs/pull-request.md)** — this
-> repo's PR description structure and evidence rules.
-
-> **Doc map:** [`docs/README.md`](docs/README.md) indexes every contributor doc (development, architecture,
-> translation, contributing, localized READMEs).
+| Before you… | Read |
+| --- | --- |
+| write any code | [`docs/develop.md`](docs/develop.md) |
+| build or modify any page, dialog, or block | [`docs/design.md`](docs/design.md) — its Core Constraints apply to *every* UI change, not only new pages |
+| add or change localized content | [`docs/translation.md`](docs/translation.md) — plus the matching `docs/references/terminology-<locale>.md` when one exists |
+| add, edit, reorganize, or review any tracked contributor Markdown (this file, `docs/*`, `.github/*.md`, package- and source-local READMEs) | [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md) — *if you can't grep it on this branch, don't claim it* |
+| open or update a pull request | [`docs/pull-request.md`](docs/pull-request.md) |
+| manually confirm a feature works | [`docs/verification.md`](docs/verification.md) — a throwaway scratch script against the built extension, not the committed suite |
 
 ## Project Overview
 
-ScriptCat — Manifest V3 browser extension that runs Tampermonkey-compatible user scripts. TypeScript + React 19 + Rspack. Package manager is **pnpm** (preinstall enforces).
-
-> **UI stack.** The presentation layer (`src/pages/`) is built with **shadcn/ui + Tailwind CSS v4** on
-> **React 19** (migrated from Arco Design + UnoCSS). The concrete UI/theme rules live in
-> [`docs/develop.md`](docs/develop.md); the design system (color tokens, components, layout/motion/state
-> patterns, new-page recipe) lives in [`docs/design.md`](docs/design.md).
+ScriptCat — Manifest V3 browser extension that runs Tampermonkey-compatible user scripts. TypeScript + React 19 + Rspack. Package manager is **pnpm** (preinstall enforces). The presentation layer (`src/pages/`) is **shadcn/ui + Tailwind CSS v4** (migrated from Arco Design + UnoCSS).
 
 ## Engineering Principles
 
@@ -63,9 +36,8 @@ isn't universal, that's called out in the item itself.
 
 ## Architecture
 
-> **Deep dive:** [`docs/architecture.md`](docs/architecture.md) — the human-facing internals guide for
-> contributors working on ScriptCat core: process model, message passing, service/data layers, GM API system,
-> script execution, and the build pipeline, with "how to extend" recipes. The section below is the quick map.
+Quick map only — the internals guide and its "how to extend" recipes are in
+[`docs/architecture.md`](docs/architecture.md).
 
 ### Multi-Process Model
 
@@ -107,7 +79,4 @@ Execution paths: page scripts → `chrome.userScripts`; background → SW → Of
 
 `message/` (with mocks), `filesystem/` (WebDAV, cloud drive providers, zip export — see [`docs/cloud-sync.md`](docs/cloud-sync.md)), `cloudscript/`, `eslint/` (userscript lint config — `eslint-plugin-userscripts`-based `defaultConfig` for the in-app editor), `chrome-extension-mock/`.
 
-> The project's own custom ESLint rules (`eslint-rules/` at the repo root, wired in `eslint.config.mjs` —
-> **not** `packages/eslint/`, which is the unrelated userscript lint config) are documented in
-> [`docs/develop.md`](docs/develop.md#eslint-custom-rules): exact rule names, scopes, and which are covered by
-> `eslint-rules/harness.test.mjs`.
+The project's *own* custom ESLint rules live in `eslint-rules/` at the repo root, **not** in `packages/eslint/`; both are documented in [`docs/develop.md`](docs/develop.md#eslint-custom-rules).
