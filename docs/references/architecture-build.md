@@ -13,8 +13,7 @@ UI pages (React): popup · options · install · batchupdate · confirm · impor
 workers         : editor.worker · ts.worker · json.worker (Monaco) · linter.worker
 ```
 
-For the exact current set, check [`rspack.config.ts`](../../rspack.config.ts)'s `entry` block directly — this
-list is a snapshot and can drift when an entry is added or removed.
+For the exact current set, read [`rspack.config.ts`](../../rspack.config.ts)'s `entry` block.
 
 Output goes to `dist/ext/src/[name].js` (cleaned each build). Notable behavior:
 
