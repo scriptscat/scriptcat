@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { notify } from "@App/pages/components/ui/toast";
-import { ChevronLeft, Download, PanelLeftClose, PanelLeftOpen, Sparkles, SquarePen } from "lucide-react";
+import { 
+  AlertCircle, 
+  ChevronLeft, 
+  Download, 
+  PanelLeftClose, 
+  PanelLeftOpen, 
+  Settings,
+  Sparkles, 
+  SquarePen 
+} from "lucide-react";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import { agentChatRepo } from "@App/app/repo/agent_chat";
 import { agentClient } from "@App/pages/store/features/script";
@@ -67,7 +76,6 @@ export default function AgentChat() {
   const [defaultModelId, setDefaultModelId] = useState("");
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  // 移动端在「列表」与「对话」两屏之间切换（窄屏放不下桌面三栏并排）
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
 
   useEffect(() => {
@@ -96,8 +104,6 @@ export default function AgentChat() {
   const [backgroundEnabled, setBackgroundEnabled] = useState<boolean>(false);
   const { runningIds } = useRunningConversations();
 
-  // 切换会话时，自动恢复该会话上次使用的模型。
-  // 通过渲染期比较上一次的 activeId / conversations 同步状态（取代 effect 中的 setState，避免级联渲染）。
   const [prevActiveId, setPrevActiveId] = useState(activeId);
   const [prevConversations, setPrevConversations] = useState(conversations);
   if (activeId !== prevActiveId || conversations !== prevConversations) {
@@ -118,7 +124,6 @@ export default function AgentChat() {
   const activeModelName = models.find((m) => m.id === effectiveModelId)?.name || "";
   const hasActiveConv = !!activeConv;
 
-  // 选中会话：移动端同时切到「对话」屏
   const openConversation = useCallback(
     (id: string) => {
       setActiveId(id);
@@ -137,7 +142,6 @@ export default function AgentChat() {
     void loadConversations();
   }, [loadConversations]);
 
-  // 导出会话为 Markdown
   const handleExport = useCallback(
     async (id: string) => {
       const conv = conversations.find((c) => c.id === id);
@@ -154,7 +158,6 @@ export default function AgentChat() {
     [conversations, t]
   );
 
-  // 桌面端面板头带折叠按钮；移动端列表屏无折叠(全局抽屉导航)。
   const renderConversationList = (collapsible: boolean) => (
     <ConversationList
       conversations={conversations}
@@ -169,7 +172,32 @@ export default function AgentChat() {
     />
   );
 
-  const chatArea = (
+  const noModelsConfigured = modelsLoaded && models.length === 0;
+
+  const chatArea = noModelsConfigured ? (
+    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-background">
+      <div className="max-w-md p-6 rounded-xl border border-destructive/30 bg-destructive/5 flex flex-col items-center gap-4 shadow-sm">
+        <div className="size-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive">
+          <AlertCircle className="size-6" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold text-foreground">
+            未配置模型，请先在模型服务中添加
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            在使用 AI 助手前，需要先配置至少一个 AI 模型服务。
+          </p>
+        </div>
+        <a
+          href="#/settings/model"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+        >
+          <Settings className="size-4" />
+          前往模型服务设置
+        </a>
+      </div>
+    </div>
+  ) : (
     <ChatArea
       conversationId={activeId}
       models={models}
@@ -188,9 +216,6 @@ export default function AgentChat() {
     />
   );
 
-  // 移动端：列表 / 对话 两屏切换。
-  // 全局 MobileHeader(汉堡+抽屉) 已由 App 外壳常驻；本页对话屏只补一条「返回+标题+模型胶囊+操作」的上下文栏，
-  // 列表屏不再叠加第二条标题栏(避免双头部)，由 ConversationList 自带的面板头承担新建/搜索。
   if (isMobile) {
     if (mobileView === "chat") {
       return (
@@ -222,7 +247,6 @@ export default function AgentChat() {
 
   return (
     <div className="flex h-full bg-background">
-      {/* 会话列表（可折叠） */}
       <div
         className={cn(
           "shrink-0 border-r border-border overflow-hidden transition-[width] duration-200",
@@ -232,9 +256,7 @@ export default function AgentChat() {
         {!collapsed && renderConversationList(true)}
       </div>
 
-      {/* 聊天列 */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* 头部：折叠钮 + (标题/模型胶囊) + 操作组(导出/新建) */}
         <header className="h-14 shrink-0 border-b border-border flex items-center justify-between gap-2 px-3 bg-card">
           <div className="flex items-center gap-2 min-w-0">
             <button
