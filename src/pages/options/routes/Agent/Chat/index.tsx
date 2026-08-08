@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { notify } from "@App/pages/components/ui/toast";
-import { 
-  AlertCircle, 
-  ChevronLeft, 
-  Download, 
-  PanelLeftClose, 
-  PanelLeftOpen, 
+import {
+  AlertCircle,
+  ChevronLeft,
+  Download,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings,
-  Sparkles, 
-  SquarePen 
+  Sparkles,
+  SquarePen,
 } from "lucide-react";
 import type { AgentModelConfig } from "@App/app/service/agent/core/types";
 import { agentChatRepo } from "@App/app/repo/agent_chat";
@@ -20,8 +20,8 @@ import ConversationList from "./ConversationList";
 import ChatArea from "./ChatArea";
 import { useConversations, useSkills, useRunningConversations } from "./hooks";
 import { exportToMarkdown, downloadMarkdown } from "./export_utils";
+import { Link } from "react-router-dom";
 
-// 当前模型胶囊：sparkles 图标 + 模型名，呈现在标题下方
 function ModelPill({ name }: { name: string }) {
   if (!name) return null;
   return (
@@ -38,7 +38,6 @@ function ModelPill({ name }: { name: string }) {
 const headerActionBtn =
   "size-8 flex items-center justify-center rounded-md bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
 
-// 头部操作组：导出当前会话、新建会话
 function HeaderActions({ onExport, onNew }: { onExport?: () => void; onNew: () => void }) {
   const { t } = useTranslation();
   return (
@@ -106,6 +105,7 @@ export default function AgentChat() {
 
   const [prevActiveId, setPrevActiveId] = useState(activeId);
   const [prevConversations, setPrevConversations] = useState(conversations);
+  
   if (activeId !== prevActiveId || conversations !== prevConversations) {
     setPrevActiveId(activeId);
     setPrevConversations(conversations);
@@ -113,9 +113,7 @@ export default function AgentChat() {
       setSelectedModelId("");
     } else {
       const conv = conversations.find((c) => c.id === activeId);
-      if (conv?.modelId) {
-        setSelectedModelId(conv.modelId);
-      }
+      setSelectedModelId(conv?.modelId || "");
     }
   }
 
@@ -176,25 +174,21 @@ export default function AgentChat() {
 
   const chatArea = noModelsConfigured ? (
     <div className="flex-1 flex flex-col items-center justify-center p-6 text-center bg-background">
-      <div className="max-w-md p-6 rounded-xl border border-destructive/30 bg-destructive/5 flex flex-col items-center gap-4 shadow-sm">
-        <div className="size-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive">
+      <div className="max-w-md p-6 rounded-xl border border-border bg-card flex flex-col items-center gap-4 shadow-sm">
+        <div className="size-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
           <AlertCircle className="size-6" />
         </div>
         <div className="space-y-1">
-          <h3 className="text-base font-semibold text-foreground">
-            未配置模型，请先在模型服务中添加
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            在使用 AI 助手前，需要先配置至少一个 AI 模型服务。
-          </p>
+          <h3 className="text-base font-semibold text-foreground">{t("agent:chat_no_model_title")}</h3>
+          <p className="text-sm text-muted-foreground">{t("agent:chat_no_model_desc")}</p>
         </div>
-        <a
-          href="#/settings/model"
+        <Link
+          to="/agent/provider"
           className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
         >
           <Settings className="size-4" />
-          前往模型服务设置
-        </a>
+          {t("agent:chat_go_to_model_settings")}
+        </Link>
       </div>
     </div>
   ) : (

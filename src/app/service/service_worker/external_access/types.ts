@@ -138,8 +138,7 @@ export interface BridgeError {
 }
 
 export type ExternalAccessBridgeResponse<TResult = unknown> =
-  | { requestId: string; ok: true; result: TResult }
-  | { requestId: string; ok: false; error: BridgeError };
+  { requestId: string; ok: true; result: TResult } | { requestId: string; ok: false; error: BridgeError };
 
 // ---------------------------------------------------------------------------------------------
 // Shared result/input shapes
@@ -275,11 +274,7 @@ export const WRITE_ACTIONS: readonly BridgeAction[] = [
 // ---------------------------------------------------------------------------------------------
 
 export type ExternalAccessBridgeStatus =
-  | "disabled"
-  | "pending_enrollment"
-  | "connecting"
-  | "connected"
-  | "host_unreachable";
+  "disabled" | "pending_enrollment" | "connecting" | "connected" | "host_unreachable";
 
 // getStatus / ExternalAccessStatusChanged payload: the bare status plus the daemon version reported
 // by the hello handshake. daemonVersion is only carried while connected; the status bar renders it

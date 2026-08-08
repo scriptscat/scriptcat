@@ -3,8 +3,8 @@ import { render, screen, fireEvent, cleanup, waitFor, act } from "@testing-libra
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const { getBridgeStatus, enroll, stopExternalAccess } = vi.hoisted(() => ({
-  getBridgeStatus: vi.fn(
-    (): Promise<{ status: string; daemonVersion?: string }> => Promise.resolve({ status: "connected" })
+  getBridgeStatus: vi.fn((): Promise<{ status: string; daemonVersion?: string }> =>
+    Promise.resolve({ status: "connected" })
   ),
   enroll: vi.fn(() => Promise.resolve()),
   stopExternalAccess: vi.fn(() => Promise.resolve()),

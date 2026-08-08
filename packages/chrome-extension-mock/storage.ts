@@ -86,15 +86,10 @@ class ChromeStorage<TSchema extends Schema = Schema> {
 
     // Normalize params to (keys, callback)
     const callback = (typeof arg1 === "function" ? arg1 : arg2) as
-      | Callback<Pick<TSchema, K>>
-      | Callback<Partial<TSchema>>;
+      Callback<Pick<TSchema, K>> | Callback<Partial<TSchema>>;
 
     const keys = (typeof arg1 === "function" ? null : arg1) as
-      | null
-      | undefined
-      | K
-      | K[]
-      | Partial<Record<K, TSchema[K]>>;
+      null | undefined | K | K[] | Partial<Record<K, TSchema[K]>>;
 
     // 1) null/undefined -> entire (partial) schema
     if (keys == null) {

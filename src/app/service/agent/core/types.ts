@@ -543,8 +543,7 @@ export type MCPPrompt = {
 export type MCPPromptMessage = {
   role: "user" | "assistant";
   content:
-    | { type: "text"; text: string }
-    | { type: "resource"; resource: { uri: string; text: string; mimeType?: string } };
+    { type: "text"; text: string } | { type: "resource"; resource: { uri: string; text: string; mimeType?: string } };
 };
 
 // CAT.agent.mcp API 请求

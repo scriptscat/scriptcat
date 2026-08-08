@@ -1,8 +1,7 @@
 import type { SCMetadata } from "@App/app/repo/metadata";
 
 export type VersionDisplay =
-  | { kind: "install"; version: string }
-  | { kind: "update"; oldVersion: string; newVersion: string; changed: boolean };
+  { kind: "install"; version: string } | { kind: "update"; oldVersion: string; newVersion: string; changed: boolean };
 
 /**
  * 派生版本徽章展示数据。
