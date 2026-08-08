@@ -1,20 +1,22 @@
 # Repository Guidelines
 
-This file provides guidance to AI coding agents (Claude Code, etc.) when working with code in this repository.
-It holds only the engineering principles and the architecture quick-map; the concrete "how" belongs to the docs
-below. `CLAUDE.md` merely `@import`s this file — don't split guidance between the two. Link the owning doc
-instead of copying its content here.
+This is the repo-wide contract for AI coding agents. It owns **engineering principles** and the **architecture quick-map** only. Concrete mechanics belong to the routed docs below. `CLAUDE.md` only imports this file, and `.github/copilot-instructions.md` may add Copilot-specific behavior but must not duplicate shared policy or architecture.
 
-**Read before you act.** [`docs/README.md`](docs/README.md) indexes the full doc set.
+Use [`docs/README.md`](docs/README.md) as the document index. When a routed document owns a concern, follow that document and link to it rather than copying its content here.
+
+## Route the task before acting
 
 | Before you… | Read |
 | --- | --- |
 | write any code | [`docs/develop.md`](docs/develop.md) |
+| change a process/message/service/persistence boundary or add a subsystem | [`docs/architecture.md`](docs/architecture.md) — plus the relevant `docs/references/architecture-*.md` deep-dive |
 | build or modify any page, dialog, or block | [`docs/design.md`](docs/design.md) — its Core Constraints apply to *every* UI change, not only new pages |
 | add or change localized content | [`docs/translation.md`](docs/translation.md) — plus the matching `docs/references/terminology-<locale>.md` when one exists |
 | add, edit, reorganize, or review any tracked contributor Markdown (this file, `docs/*`, `.github/*.md`, package- and source-local READMEs) | [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md) — *if you can't grep it on this branch, don't claim it* |
 | open or update a pull request | [`docs/pull-request.md`](docs/pull-request.md) |
 | manually confirm a feature works | [`docs/verification.md`](docs/verification.md) — a throwaway scratch script against the built extension, not the committed suite |
+
+For a task that spans several rows, read each applicable owner before performing that part of the task; do not front-load unrelated docs just because they might become relevant later. For a task that fits none of them cleanly, inspect `docs/README.md` and the nearby implementation/tests before inventing a new rule or abstraction.
 
 ## Project Overview
 
@@ -22,8 +24,7 @@ ScriptCat — Manifest V3 browser extension that runs Tampermonkey-compatible us
 
 ## Engineering Principles
 
-These are non-negotiable, regardless of what `docs/develop.md` says about mechanics — where a principle's scope
-isn't universal, that's called out in the item itself.
+These are the repo-wide defaults. When a principle links to a narrow, explicit exception in its owning document, that exception is part of the same contract; unrelated or unlinked downstream prose does not silently override the principle.
 
 - **Fix root causes, not symptoms — refactor over patch.** No `as any` / `// @ts-ignore` / try-catch swallow / defensive skips to make errors disappear (宁愿重构也不要打补丁). If a test fails, fix the code, not the test — the narrow exceptions (a wrong test contract; a test that never carried value) are in [`docs/references/develop-testing.md`](docs/references/develop-testing.md#writing-meaningful-tests-what-to-clean-up--not-write).
 - **Confirm before you fix.** Before touching a reported bug, reproduce it and confirm it actually exists — never fix from assumption. Capture the reproduction, then fix, **in that order** (确定 bug 存在 → 写测试或记录验证证据 → 修复); how to reproduce and what counts as capture are in [`docs/verification.md`](docs/verification.md) and the TDD entry below.
@@ -36,14 +37,13 @@ isn't universal, that's called out in the item itself.
 
 ## Architecture
 
-Quick map only — the internals guide and its "how to extend" recipes are in
-[`docs/architecture.md`](docs/architecture.md).
+This is an orientation map, not an implementation manual. Use [`docs/architecture.md`](docs/architecture.md) and its referenced deep-dives before changing a boundary or adding a subsystem.
 
 ### Multi-Process Model
 
 5 isolated contexts communicating via message passing:
 
-```
+```text
 Service Worker (src/service_worker.ts)
   ├── ExtensionMessage ──────────────→ Content Script (src/content.ts)
   │                                        └── CustomEventMessage ──→ Inject Script (src/inject.ts)
@@ -64,15 +64,18 @@ Service Worker (src/service_worker.ts)
 Execution paths: page scripts → `chrome.userScripts`; background → SW → Offscreen → Sandbox; scheduled → cron in Sandbox.
 
 ### Message Passing (`packages/message/`)
+
 `ExtensionMessage` (chrome.runtime — SW ↔ Content / Inject / Offscreen), `WindowMessage` (postMessage — Offscreen ↔ Sandbox), `ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage` — SW → Offscreen on Chrome), `CustomEventMessage` (CustomEvent — Content ↔ Inject), `MessageQueue` (cross-context broadcast).
 
 ### Service & Data Layers
+
 - Services live under `src/app/service/` as **context services** (`content/`, `offscreen/`, `sandbox/`, `service_worker/`) plus **cross-cutting subsystems** (`agent/`, `extension/`, `queue.ts`) — not one uniform shape. Details, inventory, "adding a service": [`docs/references/architecture-services.md`](docs/references/architecture-services.md).
 - Persistence is a backend taxonomy (`Repo<T>` / `DAO<T>` / `OPFSRepo` / custom), not one pattern. Details, inventory, "adding an entity": [`docs/references/architecture-data.md`](docs/references/architecture-data.md).
 - **GM API** split across content / SW / offscreen, each a `GMApi`; values via `ValueService`. Adding a new GM API: [`docs/references/architecture-gm-api.md`](docs/references/architecture-gm-api.md).
 - **Agent subsystem** (`src/app/service/agent/`) is an AI-agent layer spanning the existing five contexts, not a sixth. Full write-up: [`docs/references/architecture-agent.md`](docs/references/architecture-agent.md).
 
 ### Browser Extension APIs (MV3)
+
 `chrome.userScripts` (page injection), Offscreen API (DOM in background), Declarative Net Request (intercepts `.user.js` URLs to trigger install flow).
 
 ### Key Packages
@@ -80,3 +83,14 @@ Execution paths: page scripts → `chrome.userScripts`; background → SW → Of
 `message/` (with mocks), `filesystem/` (WebDAV, cloud drive providers, zip export — see [`docs/cloud-sync.md`](docs/cloud-sync.md)), `cloudscript/`, `eslint/` (userscript lint config — `eslint-plugin-userscripts`-based `defaultConfig` for the in-app editor), `chrome-extension-mock/`.
 
 The project's *own* custom ESLint rules live in `eslint-rules/` at the repo root, **not** in `packages/eslint/`; both are documented in [`docs/develop.md`](docs/develop.md#eslint-custom-rules).
+
+## Completion checksum
+
+Before claiming a task is complete, use the applicable owner docs above to verify the final state. This section is a handoff checklist, not a second copy of their mechanics; when a detail matters, the linked owner wins. If an item cannot be checked, report the limitation instead of upgrading the claim to “verified” or “all fixed.”
+
+- **Owners:** every part of the task was checked against its applicable routed owner; documentation work follows [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md).
+- **Evidence:** reproduction, tests, and manual evidence satisfy the applicable rules in [`docs/references/develop-testing.md`](docs/references/develop-testing.md) and [`docs/verification.md`](docs/verification.md), including any explicit exception used.
+- **Contract & scope:** the final diff still matches the requested/verified behavior and the scope-discipline principles above; no unrelated compatibility layer or cleanup slipped in.
+- **Extension point:** architecture-sensitive changes were checked against [`docs/architecture.md`](docs/architecture.md) and the relevant deep-dive instead of creating a parallel abstraction from memory.
+- **Facts:** changed documentation claims were checked using the branch-aware process in [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md), not memory or untracked files.
+- **Verification:** the checks required by the applicable owner docs were run, and any environment/tooling blocker is stated explicitly in the completion report or PR.
