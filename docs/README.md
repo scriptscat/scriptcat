@@ -6,7 +6,7 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [`../AGENTS.md`](../AGENTS.md) | 工程原则、架构速览、AI/贡献者约定的单一信息源 —— 但仅相对 `CLAUDE.md`(其仅导入它)成立;`.github/copilot-instructions.md` 是 Copilot 的独立入口,与本文件共享的事实需在两边都改动时做一致性核对(parity review)。 |
+| [`../AGENTS.md`](../AGENTS.md) | 工程原则、架构速览与 AI coding agent 的共享约定所有者；`CLAUDE.md` 仅导入它，`.github/copilot-instructions.md` 仅保留 Copilot 专属增量。 |
 | [`develop.md`](./develop.md) | 开发规范:命令、目录结构、编码风格、UI/主题、i18n、提交/PR 流程;测试设计/清理口径与运行机制(含 Vitest 性能)拆到 [`references/develop-testing.md`](./references/develop-testing.md)。**写代码前先读。** |
 | [`pull-request.md`](./pull-request.md) | PR 描述指南:代理与贡献者使用的详细章节、按变更类型取舍规则、验证与审查信息要求。 |
 | [`design.md`](./design.md) | 设计系统参考:主题机制、shadcn 组件选型、新建页面配方总览;令牌完整值拆到 [`references/design-tokens.md`](./references/design-tokens.md),组件清单拆到 [`references/design-components.md`](./references/design-components.md),布局/响应式/动效/状态/无障碍范式拆到 [`references/design-patterns.md`](./references/design-patterns.md)。**做页面/对话框/区块前先读。** |

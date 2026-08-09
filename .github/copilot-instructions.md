@@ -1,20 +1,16 @@
 # ScriptCat — Copilot Instructions
 
 > **Copilot-specific delta only.** Shared engineering principles and the architecture quick-map are owned by
-> [`../AGENTS.md`](../AGENTS.md); mechanics are owned by the docs it routes to. Read those sources before
-> reviewing or writing code. If this file disagrees with an owning document, the owning document wins and this
-> file should be corrected rather than expanded into a second source of truth.
+> [`../AGENTS.md`](../AGENTS.md); mechanics are owned by the docs it routes to. For code review, also read
+> [`../docs/develop.md`](../docs/develop.md). Read those sources before reviewing or writing code. If this file
+> disagrees with an owning document, the owning document wins and this file should be corrected rather than
+> expanded into a second source of truth.
 
 ## Code Review
 
 - Respond in Chinese when performing a code review (用中文回复代码审查意见).
-- Perform a **comprehensive, independent review of the entire current diff** every time:
-  - inspect every changed file, regardless of extension or whether it was reviewed previously;
-  - use PR descriptions, commit messages, and discussion only as context — conclusions must be grounded in the
-    current repository state and the actual diff;
-  - re-check affected code paths instead of assuming unchanged or previously reviewed code is safe.
-- Use the architecture map and routed subsystem docs from `AGENTS.md` when a finding depends on repository-specific
-  behavior. Do not recreate those facts here from memory.
+- Re-review the entire current diff independently every time; do not treat prior review results or comments as a
+  substitute for a fresh review.
 
 ### Finding gate
 
