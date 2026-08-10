@@ -9,6 +9,7 @@ Use [`docs/README.md`](docs/README.md) as the document index. When a routed docu
 | Before you… | Read |
 | --- | --- |
 | write any code | [`docs/develop.md`](docs/develop.md) |
+| review code or a pull request | [`docs/develop.md`](docs/develop.md) — plus [`docs/pull-request.md`](docs/pull-request.md) for PR-body rules |
 | change a process/message/service/persistence boundary or add a subsystem | [`docs/architecture.md`](docs/architecture.md) — plus the relevant `docs/references/architecture-*.md` deep-dive |
 | build or modify any page, dialog, or block | [`docs/design.md`](docs/design.md) — its Core Constraints apply to *every* UI change, not only new pages |
 | add or change localized content | [`docs/translation.md`](docs/translation.md) — plus the matching `docs/references/terminology-<locale>.md` when one exists |
