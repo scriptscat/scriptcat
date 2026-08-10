@@ -81,7 +81,8 @@ describe("issue 模板机械检查", () => {
     expect(problemsOf(makeFixtureRoot())).toEqual([]);
   });
 
-  it("仓库现有的 issue 模板应全部通过检查", () => {
+  // 该用例会读取整个 src 并解析 issues/new 链接，冷缓存或 worker 并发时可能超过 fast 项目的 340ms 预算。
+  it("仓库现有的 issue 模板应全部通过检查", { timeout: 850 }, () => {
     expect(problemsOf(REPO_ROOT)).toEqual([]);
   });
 
