@@ -8,6 +8,7 @@ import packageInfo from "../package.json" with { type: "json" };
 import semver from "semver";
 import { toChromeVersion } from "./version.js";
 import { resolveAgentEnabled, createChromeManifest, createFirefoxManifest } from "./build-config.js";
+import { addDirectoryFilesToZips } from "./pack-files.mjs";
 
 // ============================================================================
 
@@ -75,33 +76,10 @@ const firefoxManifest = createFirefoxManifest(
 const chrome = new ZipWriter({ outputAs: "uint8array" });
 const firefox = new ZipWriter({ outputAs: "uint8array" });
 
-async function addDir(zip, localDir, toDir, filters) {
-  const sub = async (localDir, toDir) => {
-    const files = await fs.readdir(localDir);
-    for (const file of files) {
-      if (filters?.includes(file)) {
-        continue;
-      }
-      const localPath = `${localDir}/${file}`;
-      const toPath = `${toDir}${file}`;
-      const stats = await fs.stat(localPath);
-      if (stats.isDirectory()) {
-        await sub(localPath, `${toPath}/`);
-      } else {
-        await addZipFile(zip, toPath, await fs.readFile(localPath));
-      }
-    }
-  };
-  await sub(localDir, toDir);
-}
-
 await addZipFile(chrome, "manifest.json", JSON.stringify(chromeManifest));
 await addZipFile(firefox, "manifest.json", JSON.stringify(firefoxManifest));
 
-await Promise.all([
-  addDir(chrome, "./dist/ext", "", ["manifest.json"]),
-  addDir(firefox, "./dist/ext", "", ["manifest.json"]),
-]);
+await addDirectoryFilesToZips([chrome, firefox], "./dist/ext", "", ["manifest.json"], addZipFile);
 
 // 导出zip包
 await fs.writeFile(`./dist/${packageInfo.name}-v${packageInfo.version}-chrome.zip`, await chrome.close());

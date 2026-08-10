@@ -88,20 +88,17 @@ function propName(nameNode, sourceFile) {
 }
 
 // Syntax errors don't make `ts.createSourceFile` throw — it silently recovers by emitting error
-// nodes, which the AST walkers below would then read as an ordinary (wrong) shape. Parse with
-// diagnostics first so a malformed file fails loudly instead of quietly mis-evaluating.
+// nodes, which the AST walkers below would then read as an ordinary (wrong) shape. Its parse
+// diagnostics provide the same fail-closed check without compiling each file before parsing it.
 function parseTsFile(filePath, relLabel) {
   const source = readFileSync(filePath, "utf8");
-  const { diagnostics } = ts.transpileModule(source, {
-    reportDiagnostics: true,
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.Latest },
-  });
-  const syntaxErrors = (diagnostics || []).filter((d) => d.category === ts.DiagnosticCategory.Error);
+  const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const syntaxErrors = sourceFile.parseDiagnostics.filter((d) => d.category === ts.DiagnosticCategory.Error);
   if (syntaxErrors.length > 0) {
     const messages = syntaxErrors.map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n"));
     throw new Error(`${relLabel} failed to parse:\n` + messages.map((m) => `    - ${m}`).join("\n"));
   }
-  return ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  return sourceFile;
 }
 
 function runCheck(root) {
@@ -416,6 +413,7 @@ function runCheck(root) {
       .sort();
 
     const otherLocales = localeDirs.filter((name) => name !== REFERENCE_LOCALE).sort();
+    const referenceKeyCache = new Map();
 
     for (const locale of otherLocales) {
       const localeDir = path.join(LOCALES_DIR, locale);
@@ -451,8 +449,11 @@ function runCheck(root) {
       }
 
       for (const file of namespaceFiles) {
-        const referenceJson = readJson(path.join(referenceDir, file));
-        const referenceKeys = flattenKeys(referenceJson);
+        let referenceKeys = referenceKeyCache.get(file);
+        if (!referenceKeys) {
+          referenceKeys = flattenKeys(readJson(path.join(referenceDir, file)));
+          referenceKeyCache.set(file, referenceKeys);
+        }
 
         const targetPath = path.join(localeDir, file);
         if (!existsSync(targetPath)) {
