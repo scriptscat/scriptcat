@@ -296,6 +296,14 @@ before assertions).
     which in `report.md`; never dress up a red run as green.
 - Never weaken an assertion or skip a check to make a scratch run "pass".
 
+### Evidence scope and negative claims
+
+Name the evidence type behind each material conclusion. Source or static reasoning proves only what follows from the inspected source and contract; an executed unit or fixture proves its scenario; browser runtime evidence proves the observed browser scenario; an external integration observation proves that integration run. Do not promote one evidence type into a broader claim without additional support.
+
+When claiming that something did **not** happen — such as a request, write, disclosure, duplicate event, or stale callback — either observe the forbidden channel through the relevant completion or closure window, or provide a causal proof that execution cannot reach that side effect. An error callback, missing success callback, final UI value, or final persisted value alone is insufficient.
+
+For a negative claim, `holds` requires that closure-window observation or causal proof. Otherwise report `not observed`, preserving the per-claim verdicts above; this rule does not replace them.
+
 ## Maintaining this guide
 
 When the workflow or the paths in it change, keep this doc true to the branch (see

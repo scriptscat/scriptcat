@@ -88,7 +88,7 @@ of sanitization patterns can otherwise look like matches — so don't rely on a 
 
 | Doc | Owns |
 | --- | --- |
-| [`../AGENTS.md`](../AGENTS.md) | Engineering principles + architecture quick-map. `CLAUDE.md` only `@import`s it. |
+| [`../AGENTS.md`](../AGENTS.md) | Engineering principles, architecture quick-map, and shared agent contract. `CLAUDE.md` and other compatibility entry points are symlink aliases; they do not own a separate policy. |
 | [`develop.md`](./develop.md) | The concrete "how": commands, structure, style, i18n, commit/PR. Testing → [`references/develop-testing.md`](./references/develop-testing.md). |
 | [`pull-request.md`](./pull-request.md) | The PR body: structure and evidence rules. The human-facing template stays lightweight. |
 | [`design.md`](./design.md) | The design system; tokens, component palette, and layout/motion/state/a11y patterns → the three `references/design-*.md`. |
@@ -99,7 +99,6 @@ of sanitization patterns can otherwise look like matches — so don't rely on a 
 | [`translation.md`](./translation.md) | Translation / localization single source of truth. |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: organization rules, fact-check / anti-drift discipline, policy-consistency checks — across every tracked contributor Markdown, not just `AGENTS.md` + `docs/*`. |
 | [`README.md`](./README.md) | The reader-facing index: what each doc contains and when to read it. |
-| `.github/copilot-instructions.md` | Copilot-specific entry point and genuine tool-specific differences only; shared facts route to the owning doc above instead of being copied. |
 | Package-local `README.md` (e.g. `packages/message/README.md`, `packages/filesystem/README.md`) | That package's purpose, boundaries, entry points, and local gotchas — not a duplicate of repo-wide architecture or coding policy. |
 
 This table records **ownership boundaries** — which doc a given fact belongs in. It is deliberately *not* the
@@ -177,7 +176,11 @@ git ls-files '*.md' | while IFS= read -r doc; do
   # references/verification-report-template.md's screenshot/resource examples, verification.md's
   # "Evidence location" spans) aren't false-flagged as broken
   sed '/^```/,/^```/d; /^~~~/,/^~~~/d' "$doc" | sed -E 's/`[^`]*`//g' | grep -oE '\]\(([^)]+)\)' | sed -E 's/^\]\(|\)$//g' | grep -vE '^(https?:|mailto:|#|app:)' | while IFS= read -r link; do
-    target="$(dirname "$doc")/${link%%#*}"
+    link_doc="$doc"
+    if [ -L "$doc" ]; then
+      link_doc="$(dirname "$doc")/$(readlink "$doc")"
+    fi
+    target="$(dirname "$link_doc")/${link%%#*}"
     [ -e "$target" ] && echo "ok     $doc → $link" || echo "BROKEN $doc → $link"
   done
 done
@@ -197,9 +200,13 @@ a heading — an external deep link into that heading breaks if you rename it wi
 
 ## When you find a discrepancy
 
-Fix the **doc** to match the code — the code on this branch is the source of truth. The exception: if the code
-itself is wrong (a real bug), fix the code and say so in the PR. Either way, never silently drop a check you
-couldn't satisfy — surface it in the PR description so a reviewer can confirm.
+Fix the **doc** to match the code for descriptive facts about the current branch — the code on this branch is
+the source of truth for names, paths, and current implementation shape. Normative intended behavior may instead
+be owned by a specification, compatibility contract, security policy, accepted test oracle, or maintainer
+decision. When those sources conflict with the current code, surface the conflict and resolve it with the owning
+authority; do not silently rewrite either side to make the patch easier. If the code itself is wrong, fix the code
+and say so in the PR. Either way, never silently drop a check you couldn't satisfy — surface it in the PR
+description so a reviewer can confirm.
 
 ## Honest completion claims
 

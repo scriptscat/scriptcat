@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-This is the repo-wide contract for AI coding agents. It owns **engineering principles** and the **architecture quick-map** only. Concrete mechanics belong to the routed docs below. `CLAUDE.md` only imports this file, and `.github/copilot-instructions.md` may add Copilot-specific behavior but must not duplicate shared policy or architecture.
+This is the repo-wide contract for AI coding agents. It owns **engineering principles** and the **architecture quick-map** only. Concrete mechanics belong to the routed docs below. Compatibility instruction entry points reuse this file and do not maintain a second contract.
 
 Use [`docs/README.md`](docs/README.md) as the document index. When a routed document owns a concern, follow that document and link to it rather than copying its content here.
 
@@ -34,6 +34,16 @@ These are the repo-wide defaults. When a principle links to a narrow, explicit e
 - **Scope discipline — stay in your lane.** Bug fix ≠ cleanup PR. Touch only the files the task requires; leave unrelated files untouched (不要动和任务不相干的文件). Don't add helpers, abstractions, validation, or backwards-compat shims you don't need today. Three similar lines beats a premature abstraction. Don't remove or narrow currently supported behavior just to simplify a fix — only do so when the task or an already-verified contract explicitly calls for that change. This rule also governs test cleanup — [`docs/references/develop-testing.md`](docs/references/develop-testing.md#scope--cleanup-boundary) operationalizes it for tests, it does not carve out an exception.
 - **No dead code or `// removed` markers** — git remembers. Delete unused code outright.
 - **Comments explain "why", not "what".** Do not use ephemeral review labels such as `finding N` or review-round identifiers in comments or test names. Permanent issue or PR references are allowed when useful, but must supplement—not replace—the explanation. Do not restate code, duplicate enclosing documentation, or leave stale comments after code changes. See [`docs/develop.md`](docs/develop.md#comment-discipline) for the full policy.
+
+## Decision and review discipline
+
+- **Evidence before conclusion.** A request or maintainer direction authorizes scoped work; it does not prove a reported bug, necessity, or correctness. Separate execution authority, stated context, observations, and the normative specification or accepted contract. State when a material claim is inferred, unverified, or contradicted.
+- **Rationale before implementation summary.** For a material change, connect the observable problem or requirement, affected scope and consequence, why action is justified, the selected remedy, acceptance evidence, and remaining limitation. The diff shows what changed; it does not prove why the change was necessary.
+- **Smallest justified semantic scope, not smallest diff.** A larger refactor is appropriate when it is the smallest sound root-cause repair. Do not call a solution minimal, best, or least risky without comparative support.
+- **Claim strength follows evidence.** Source reasoning, an executed test, browser runtime, and an external integration run prove different scopes. A negative claim requires observation of the relevant channel through its closure window or a causal proof that the side effect cannot occur.
+- **Agent readiness is bounded.** An agent must not present a material change as review-ready when acceptance fails, a critical contradiction or evidence gap remains, the scope is unjustified, or final-patch evidence is stale. An explicitly requested draft or investigation may proceed when labeled as such; report the blocker and the condition that would clear it.
+- **Review coverage is semantic as well as physical.** Inspect every changed file and follow affected paths. Map material semantic families to representatives, disposition, highest-risk seam, and residual risk; distinguish confidence in a finding from completeness of the declared scope. On re-review, bind the current head and reconcile findings as still present, resolved, narrowed, stale, or new.
+- **Findings need a witness and impact.** Report a finding only with a concrete trigger or proof path, a material consequence, a useful location, and an actionable contract to restore. Do not turn an unverified repository-specific assumption into a finding.
 
 ## Architecture
 
