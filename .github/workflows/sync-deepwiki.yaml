@@ -969,10 +969,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "📄 refresh DeepWiki snapshot"
-          git push origin HEAD:main
+          git push origin HEAD:test-sync-deepwiki
           {
             echo "## DeepWiki commit"
             echo
             echo "- Status: passed"
-            echo "- Refreshed snapshot committed and pushed to main."
+            echo "- Refreshed snapshot committed and pushed to test-sync-deepwiki."
           } >> "$GITHUB_STEP_SUMMARY"
