@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Outlet, Navigate, useLocation } from "react-router-dom";
+import { createHashRouter, Navigate, Outlet, RouterProvider, useLocation } from "react-router-dom";
 import Sidebar from "./layout/Sidebar";
 import ScriptList from "./routes/ScriptList";
 import SubscribeList from "./routes/SubscribeList";
@@ -32,13 +32,13 @@ export function Layout() {
   if (isMobile) {
     if (isFullscreen) {
       return (
-        <div className="flex flex-col h-screen bg-background text-foreground">
+        <div className="flex flex-col h-dvh bg-background text-foreground">
           <Outlet />
         </div>
       );
     }
     return (
-      <div className="flex flex-col h-screen bg-background text-foreground">
+      <div className="flex flex-col h-dvh bg-background text-foreground">
         <MobileHeader />
         <main className="flex-1 min-w-0 overflow-auto scrollbar-custom">
           <Outlet />
@@ -50,7 +50,7 @@ export function Layout() {
   }
   return (
     <>
-      <div className="flex h-screen bg-background text-foreground">
+      <div className="flex h-dvh bg-background text-foreground">
         <Sidebar />
         <main className="flex-1 min-w-0 overflow-auto scrollbar-custom">
           <Outlet />
@@ -63,34 +63,42 @@ export function Layout() {
 }
 
 export default function App() {
-  return (
-    <HashRouter>
-      <OnboardingProvider>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<ScriptList />} />
-            <Route path="subscribe" element={<SubscribeList />} />
-            {EnableAgent && (
-              <Route path="agent">
-                <Route index element={<Navigate to="/agent/chat" replace />} />
-                <Route path="chat" element={<AgentChat />} />
-                <Route path="provider" element={<AgentProvider />} />
-                <Route path="skills" element={<AgentSkills />} />
-                <Route path="mcp" element={<AgentMcp />} />
-                <Route path="tasks" element={<AgentTasks />} />
-                <Route path="opfs" element={<AgentOPFS />} />
-                <Route path="settings" element={<AgentSettings />} />
-              </Route>
-            )}
-            <Route path="logs" element={<Logger />} />
-            <Route path="logger" element={<Navigate to="/logs" replace />} />
-            <Route path="tools" element={<Tools />} />
-            <Route path="settings" element={<Setting />} />
-            <Route path="setting" element={<Navigate to="/settings" replace />} />
-            <Route path="script/editor/:uuid?" element={<ScriptEditor />} />
-          </Route>
-        </Routes>
-      </OnboardingProvider>
-    </HashRouter>
-  );
+  return <RouterProvider router={router} />;
 }
+
+const router = createHashRouter([
+  {
+    element: (
+      <OnboardingProvider>
+        <Layout />
+      </OnboardingProvider>
+    ),
+    children: [
+      { index: true, element: <ScriptList /> },
+      { path: "subscribe", element: <SubscribeList /> },
+      ...(EnableAgent
+        ? [
+            {
+              path: "agent",
+              children: [
+                { index: true, element: <Navigate to="/agent/chat" replace /> },
+                { path: "chat", element: <AgentChat /> },
+                { path: "provider", element: <AgentProvider /> },
+                { path: "skills", element: <AgentSkills /> },
+                { path: "mcp", element: <AgentMcp /> },
+                { path: "tasks", element: <AgentTasks /> },
+                { path: "opfs", element: <AgentOPFS /> },
+                { path: "settings", element: <AgentSettings /> },
+              ],
+            },
+          ]
+        : []),
+      { path: "logs", element: <Logger /> },
+      { path: "logger", element: <Navigate to="/logs" replace /> },
+      { path: "tools", element: <Tools /> },
+      { path: "settings", element: <Setting /> },
+      { path: "setting", element: <Navigate to="/settings" replace /> },
+      { path: "script/editor/:uuid?", element: <ScriptEditor /> },
+    ],
+  },
+]);

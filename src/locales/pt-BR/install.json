@@ -194,6 +194,8 @@
   "downloading_status_percent": "Baixando. Recebidos {{bytes}} / {{total}} ({{percent}}%).",
   "page_load_failed": "Falha ao carregar a página de instalação",
   "invalid_page": "Página inválida",
+  "frame_blocked_title": "Incorporação bloqueada",
+  "frame_blocked_desc": "Por motivos de segurança, a página de instalação não pode ser incorporada em um iframe. Abra-a diretamente em uma aba do navegador.",
   "from_legitimate_sources_warning": "Por favor, instale scripts de fontes legítimas! Scripts desconhecidos podem invadir sua privacidade ou realizar operações maliciosas.",
   "referral_link_title": "Link de indicação",
   "ads_title": "Anúncios",

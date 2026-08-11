@@ -194,6 +194,8 @@
   "downloading_status_percent": "Downloading. Received {{bytes}} / {{total}} ({{percent}}%).",
   "page_load_failed": "Failed to Load Installation Page",
   "invalid_page": "Invalid Page",
+  "frame_blocked_title": "Embedding Blocked",
+  "frame_blocked_desc": "For security reasons, the install page cannot be embedded in an iframe. Please open it directly in a browser tab.",
   "from_legitimate_sources_warning": "Please install scripts from legitimate sources! Unknown scripts may invade your privacy or conduct malicious operations.",
   "referral_link_title": "Referral Link",
   "ads_title": "Ads",

@@ -46,13 +46,17 @@ function makeData(overrides: Record<string, any> = {}) {
     showAlert: false,
     menuExpandNum: 5,
     popupCompactLayout: false,
+    popupSiteScopeActions: false,
     defaultScriptProvider: "scriptcat",
     currentUrl: "https://example.com",
     handleToggleScript: vi.fn(),
     handleDeleteScript: vi.fn(),
     handleOpenEditor: vi.fn(),
+    handleOpenScriptSettings: vi.fn(),
     handleOpenUserConfig: vi.fn(),
     handleExcludeUrl: vi.fn(),
+    handleOnlyRunOnUrl: vi.fn(),
+    handleAllowUrl: vi.fn(),
     handleMenuClick: vi.fn(),
     handleRunScript: vi.fn(),
     handleStopScript: vi.fn(),
@@ -153,6 +157,49 @@ describe("Popup 紧凑布局", () => {
 
     expect(screen.getByText(new RegExp(t("popup:current_page_scripts"))).closest("button")).toHaveClass("h-8", "px-3");
     expect(screen.getByText("Script A").closest("button")?.parentElement).toHaveClass("h-9", "px-3", "gap-2");
+  });
+});
+
+describe("Popup 脚本快捷设置与站点范围操作", () => {
+  it("展开脚本后始终显示脚本设置入口，并在开关关闭时隐藏站点范围操作", () => {
+    mockData = makeData({
+      scriptList: [makeScriptMenu({ isEffective: true })],
+      fullScriptCount: 1,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    expect(screen.getByRole("button", { name: "脚本设置" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "仅在 example.com 执行" })).not.toBeInTheDocument();
+  });
+
+  it("开关开启且本站生效时显示仅在与排除两个动作", () => {
+    mockData = makeData({
+      popupSiteScopeActions: true,
+      scriptList: [makeScriptMenu({ isEffective: true })],
+      fullScriptCount: 1,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    expect(screen.getByRole("button", { name: "仅在 example.com 执行" })).toHaveClass("text-primary");
+    expect(screen.getByRole("button", { name: "排除在 example.com 上执行" })).toBeInTheDocument();
+  });
+
+  it("本站不生效时只显示允许动作", () => {
+    mockData = makeData({
+      popupSiteScopeActions: true,
+      scriptList: [makeScriptMenu({ isEffective: false })],
+      fullScriptCount: 1,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    expect(screen.getByRole("button", { name: "允许在 example.com 执行" })).toHaveClass("text-primary");
+    expect(screen.queryByRole("button", { name: "排除在 example.com 上执行" })).not.toBeInTheDocument();
   });
 });
 

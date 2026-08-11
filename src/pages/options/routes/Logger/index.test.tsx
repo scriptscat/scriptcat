@@ -85,6 +85,14 @@ describe("日志页面", () => {
     expect(screen.getByTestId("log-detail-1")).toBeTruthy();
   });
 
+  it("范围/统计条允许换行，窄桌面宽度下自动清理设置整行下移而非被统计文字压字", () => {
+    renderPage();
+    const bar = screen.getByTestId("logger-stats-bar");
+    // 统计文字是 shrink-0,单行放不下时必然溢出压到相邻分组上(768~900px 带「实时」徽标即命中),
+    // 允许换行才能让自动清理分组整行下移
+    expect(bar.className).toContain("md:flex-wrap");
+  });
+
   it("点击清空日志先弹出确认，确认前不调用 clearLogs", async () => {
     renderPage();
     expect(mockLoggerData.clearLogs).not.toHaveBeenCalled();

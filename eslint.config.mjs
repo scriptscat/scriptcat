@@ -165,5 +165,24 @@ export default [
       "@typescript-eslint/await-thenable": "error",
     },
   },
-  { ignores: ["dist/", "example/", ".claude/", "playwright-report/", "test-results/", "coverage/"] },
+  {
+    // 全局忽略：构建产物、本地工具目录、一次性验证脚本。这些目录都已 gitignore，CI 的全新 checkout 里
+    // 根本不存在，只有本地跑 `pnpm lint` 时会被扫到——不排除掉会让本地 lint 报出上万条与源码无关的错误。
+    // 用 `**/dist/` 而不是 `dist/`：flat config 的 ignores 锚定在配置文件所在目录，`dist/` 只能匹配仓库根，
+    // 匹配不到 `.dev-kit/**/dist/` 这类嵌套构建产物。
+    ignores: [
+      "**/dist/",
+      "example/",
+      ".claude/",
+      ".codex/",
+      ".dev-kit/",
+      ".omc/",
+      ".superpowers/",
+      "e2e/scratch/",
+      "playwright-report/",
+      "test-results/",
+      ".vitest-reports/",
+      "coverage/",
+    ],
+  },
 ];

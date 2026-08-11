@@ -28,11 +28,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createPreloadableQuery } from "@App/pages/preloadable-query";
 
 const RUN_IN_OPTIONS = ["default", "all", "normal-tabs", "incognito-tabs"];
-const RUN_AT_OPTIONS = ["default", "document-start", "document-body", "document-end", "document-idle", "early-start"];
+const RUN_AT_OPTIONS = [
+  "default",
+  "document-start",
+  "document-body",
+  "document-end",
+  "document-idle",
+  "context-menu",
+  "early-start",
+];
 const PERMISSION_TYPES = ["cors", "cookie"];
 const PERMISSION_LABEL: Record<string, string> = { cors: "CORS", cookie: "Cookie" };
 
-// 运行环境/运行时机下拉项的本地化文案；运行时机的 document-* / early-start 保持原始字面值（与 v1.4 一致）
+// 运行环境/运行时机下拉项的本地化文案；运行时机保持原始字面值（与 v1.4 一致）
 const runInLabel = (o: string, t: TFunction) =>
   o === "default" ? t("settings:script_setting.default") : t(`settings:script_run_env.${o}`);
 const runAtLabel = (o: string, t: TFunction) => (o === "default" ? t("settings:script_setting.default") : o);
@@ -444,7 +452,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
   };
 
   return (
-    <div className="h-full overflow-y-auto scrollbar-custom px-8 py-6">
+    <div className="h-full overflow-y-auto scrollbar-custom px-4 py-4 md:px-8 md:py-6">
       <div className="flex flex-col gap-7">
         {/* 基本信息 */}
         <div className="flex flex-col gap-2.5">
@@ -486,7 +494,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addTag()}
                   placeholder={t("script:input_tags_placeholder")}
-                  className="h-7 w-40 text-xs"
+                  className="h-7 w-40 max-w-full text-xs"
                 />
               </div>
             </Row>
@@ -499,7 +507,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
           <Card>
             <Row label={t("editor:run_in")}>
               <Select value={runIn} onValueChange={onRunIn}>
-                <SelectTrigger className="h-8 w-52">
+                <SelectTrigger className="h-8 w-52 max-w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -513,7 +521,7 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
             </Row>
             <Row label={t("editor:run_at")}>
               <Select value={runAt} onValueChange={onRunAt}>
-                <SelectTrigger className="h-8 w-52">
+                <SelectTrigger className="h-8 w-52 max-w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

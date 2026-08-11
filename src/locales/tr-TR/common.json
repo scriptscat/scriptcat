@@ -60,6 +60,8 @@
   "copy": "Kopyala",
   "exclude_on": "$0 yürütmesini yeniden etkinleştir",
   "exclude_off": "$0 yürütmesini dışla",
+  "only_on_site": "Yalnızca $0 üzerinde çalıştır",
+  "allow_on_site": "$0 üzerinde çalışmasına izin ver",
   "confirm_error": "Onay başarısız",
   "import": "İçe Aktar",
   "error": "Hata",

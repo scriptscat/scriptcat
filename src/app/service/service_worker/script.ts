@@ -167,14 +167,20 @@ export class ScriptService {
               }
             );
           })
-          .finally(() => {
-            // 回退到到安装页
-            chrome.scripting.executeScript({
-              target: { tabId: req.tabId },
-              func: function () {
-                history.back();
-              },
-            });
+          .finally(async () => {
+            try {
+              // 直接用 chrome.tabs.goBack，不再走 content script 消息通道：
+              // content.js 依赖 chrome.userScripts 注册，未开发者模式/脚本被禁用/命中黑名单时不会被注入，
+              // 消息发不到会静默失败；goBack 只依赖已必需的 tabs 权限，不受这些条件影响。
+              const currentTab = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+              // 仅针对用户自行点击安装、且仍停留在该标签的场景；用户若已切到其他标签，不应把后台标签拉回历史记录
+              if (currentTab?.[0]?.id === req.tabId) {
+                // 回退到到安装页
+                await chrome.tabs.goBack(req.tabId);
+              }
+            } catch (e) {
+              console.error("chrome.tabs.goBack/query error:", e);
+            }
           });
       },
       {
@@ -315,7 +321,7 @@ export class ScriptService {
         action: {
           type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
           redirect: {
-            regexSubstitution: `${installPageURL}?url=\\1`,
+            regexSubstitution: `${installPageURL}?byWebRequest=1&url=\\1`,
           },
         },
         condition: condition,
@@ -919,6 +925,33 @@ export class ScriptService {
       });
   }
 
+  async onlyRunOnUrl({ uuid, matchPattern }: { uuid: string; matchPattern: string }) {
+    return this.resetMatch({ uuid, match: [matchPattern] });
+  }
+
+  async allowUrl({
+    uuid,
+    matchPattern,
+    excludePattern,
+  }: {
+    uuid: string;
+    matchPattern: string;
+    excludePattern: string;
+  }) {
+    let script = await this.scriptDAO.get(uuid);
+    if (!script) throw new Error("script not found");
+    if (script.selfMetadata?.match !== undefined) {
+      script = selfMetadataUpdate(script, "match", new Set([...script.selfMetadata.match, matchPattern]));
+    }
+    const excludeSet = new Set(script.selfMetadata?.exclude || script.metadata?.exclude || []);
+    excludeSet.delete(excludePattern);
+    script = selfMetadataUpdate(script, "exclude", excludeSet);
+    return this.scriptDAO.update(uuid, script).then(() => {
+      this.publishInstallScript(script, { update: true });
+      return true;
+    });
+  }
+
   async resetExclude({ uuid, exclude }: { uuid: string; exclude: string[] | undefined }) {
     let script = await this.scriptDAO.get(uuid);
     if (!script) {
@@ -1443,6 +1476,10 @@ export class ScriptService {
     return scripts;
   }
 
+  async getScriptAndCode(uuid: string) {
+    return this.scriptDAO.getAndCode(uuid);
+  }
+
   // 脚本排序，after为排序后的uuid列表
   async sortScript({ after }: { before: string[]; after: string[] }) {
     const daoAll = await this.scriptDAO.all();
@@ -1662,6 +1699,8 @@ export class ScriptService {
     this.group.on("getFilterResult", this.getFilterResult.bind(this));
     this.group.on("getScriptRunResourceByUUID", this.getScriptRunResourceByUUID.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
+    this.group.on("onlyRunOnUrl", this.onlyRunOnUrl.bind(this));
+    this.group.on("allowUrl", this.allowUrl.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
     this.group.on("resetExclude", this.resetExclude.bind(this));
     this.group.on("requestCheckUpdate", this.requestCheckUpdate.bind(this));

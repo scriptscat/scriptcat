@@ -20,6 +20,10 @@ export function md5OfText(text: string) {
   return MD5(text).toString();
 }
 
+export function sha256OfText(text: string) {
+  return crypto.SHA256(text).toString();
+}
+
 function calculateMD5FromArrayBuffer(a: ArrayBuffer) {
   const wordArray = crypto.lib.WordArray.create(a);
   return MD5(wordArray).toString();

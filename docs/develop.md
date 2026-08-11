@@ -40,6 +40,23 @@ using it — including links already shipped in installed builds, which keep sen
 
 After `pnpm run dev`, load `dist/ext` as an unpacked extension. The browser hot-reloads page changes, but edits to `manifest.json`, `service_worker`, `offscreen`, or `sandbox` require reloading the extension.
 
+### External Access (`external_access/` subsystem)
+
+External Access — the user-facing "外部接入 / External Access" feature
+(`src/app/service/service_worker/external_access/`) — is **built into every profile and gated only at
+runtime** by `external_access_enabled` (`SystemConfig`, device-local, off by default); there is no build-time flag
+and no `nativeMessaging` permission (both were removed when the transport moved to WebSocket). Trust is
+flat: a single enrollment establishes the long-term key K, and the CLI and every MCP agent inherit it
+(no per-client pairing/scope/revocation). It connects, from an offscreen WebSocket client
+(`src/app/service/offscreen/external-access-connect.ts`), to a local companion binary
+[`sctl`](https://github.com/scriptscat/sctl) — a WS daemon that defaults to `127.0.0.1:8643`; the
+extension never listens on a port itself. RPC schemas and generators are owned by the sctl repo's `protocol/`
+directory. ScriptCat consumes generated artifacts under
+[`external_access/generated/`](../src/app/service/service_worker/external_access/generated/), and
+`protocol.conformance.test.ts` guards its runtime types against them. See the
+[External Access user guide](https://docs.scriptcat.org/en/docs/use/external-access/) for usage, and the sctl repo's
+`docs/protocol.md` / `docs/threat-model.md` for the wire protocol and security design.
+
 ## Project Structure & Module Organization
 
 Core entry points live in `src` (`service_worker.ts`, `content.ts`, `inject.ts`, `offscreen.ts`, `sandbox.ts`). UI pages are in `src/pages`, with shared UI in `src/pages/components` and state in `src/pages/store`. Reusable domain code is in `src/pkg`; app services are in `src/app`; templates are in `src/template`; assets and translations are in `src/assets` and `src/locales`. Workspace packages live in `packages`, including browser mocks and filesystem adapters. Unit tests are colocated as `*.test.ts`/`*.test.tsx` or placed in `tests`; E2E specs are in `e2e`.
@@ -56,10 +73,9 @@ Use strict TypeScript, React JSX runtime, 2-space indentation, semicolons, doubl
 
 The project's own custom rules live in `eslint-rules/` at the repo root (wired in `eslint.config.mjs`, **not**
 `packages/eslint/`, which is the unrelated userscript lint config for the in-app editor) and act as a mechanical
-harness for conventions that would otherwise rely on memory. Lint enforces the rules themselves — code violating
-them fails CI — but this list of exactly which rule covers which scope, and which are covered by
-`eslint-rules/harness.test.mjs`, is hand-maintained prose; re-verify specifics with `grep` rather than trusting
-it as settled fact:
+harness for conventions that would otherwise rely on memory. Lint enforces the rules themselves — violating code
+fails CI; the scope and coverage notes below are hand-maintained prose, so check `eslint.config.mjs` when a
+detail matters:
 
 - `chrome-error/require-last-error-check` — enforces `chrome.runtime.lastError` handling. Not covered by
   `harness.test.mjs`.
@@ -79,16 +95,12 @@ sonner/radix restriction there — the file imports neither).
 the `radix-ui` pattern of `no-restricted-imports`, and `no-restricted-syntax` — not `require-last-error-check`,
 not the `sonner` pattern of `no-restricted-imports`, and not the `tests/vitest.setup.ts` scope.
 
-`src/pages/components/ui/toast.ts` has an override that turns `no-restricted-imports` **entirely off** for that
-one file — not just the `sonner` half of it. Only the `sonner` exception is intentional: this is the one place
-in `src/pages/**` allowed to import `sonner`'s `toast` directly (it's the wrapper `notify` is built on). The
-file happens to also lose the `@radix-ui/react-*` restriction as a side effect of the rule being off wholesale
-— it does not currently import from `@radix-ui/react-*` (or `radix-ui`) at all, and the merged-package
-convention still applies to it in spirit; `eslint-rules/harness.test.mjs`'s Radix case only exercises
-`dialog.tsx`, so a Radix-restricted import landing in `toast.ts` would not be caught by lint today. Don't read
-this override as "Radix single-package imports are permitted here" — treat it as a lint gap this file
-currently doesn't exploit, and prefer narrowing the override to the `sonner` import specifically (or adding a
-`toast.ts` case to the harness) over relying on the blanket `off`. Any other file still gets both restrictions.
+`src/pages/components/ui/toast.ts` turns `no-restricted-imports` **entirely off** (`eslint.config.mjs`), but
+only the `sonner` half of that is intentional: this is the one place in `src/pages/**` allowed to import
+`sonner`'s `toast` directly (it's what `notify` wraps). Also losing the `@radix-ui/react-*` restriction is an
+unintended side effect — the file imports no Radix today, and `harness.test.mjs`'s Radix case only exercises
+`dialog.tsx`, so lint would not catch one landing here. Treat it as a lint gap rather than permission: narrow
+the override to the `sonner` import if you touch this file. Every other file still gets both restrictions.
 
 Separately, type-aware rules run on `src/pages/**` (tests excluded) via `projectService` —
 `@typescript-eslint/no-floating-promises`, `no-misused-promises` (with `checksVoidReturn.attributes: false`, so

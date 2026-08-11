@@ -6,10 +6,11 @@
 > consultable record of what was verified or reproduced. This is deliberately **lightweight**: one-shot scratch
 > scripts and local-only evidence — kept out of Git and never deleted as part of a run; cleanup is the user's call.
 >
-> **What this is NOT.** It is *not* the test-suite reference. The mechanics of Vitest unit tests and the
-> permanent Playwright E2E suite live in [develop.md § Testing](./develop.md#testing); the TDD-first principle
-> and engineering rules live in [AGENTS.md § Engineering Principles](../AGENTS.md#engineering-principles). Read
-> those for writing committed tests.
+> **What this is NOT.** It is *not* the test-suite reference and *not* the harness manual. Vitest mechanics live
+> in [develop.md § Testing](./develop.md#testing); the E2E harness itself — fixtures, isolation, protocol mocks,
+> `E2E_*` environment variables, artifact locations — is owned by [`e2e/README.md`](../e2e/README.md); the
+> TDD-first principle and engineering rules live in
+> [AGENTS.md § Engineering Principles](../AGENTS.md#engineering-principles).
 
 ## When to skip this guide
 
@@ -38,16 +39,16 @@ you only want to *check that a feature works*, do not pay that cost and do not l
 - ✅ Write a **throwaway scratch script** under `e2e/scratch/` (git-ignored), run it, and keep any evidence local.
 
 Promoting a scenario into the permanent suite is a *separate, deliberate* decision — only when it deserves
-permanent regression coverage. That path is owned by [`DEVELOP.md`](./develop.md), not this guide.
+permanent regression coverage. The criteria live in
+[develop-testing.md § Choosing a test boundary](./references/develop-testing.md#choosing-a-test-boundary).
 
 **Reproducing a bug you intend to fix is *not* "casual verification."** A scratch reproduction is the *确定 bug
 存在* step in [`../AGENTS.md`](../AGENTS.md)'s TDD / Confirm-before-you-fix policy. In the general case it
 confirms the bug is real but is not itself the required test — promote it into a committed failing test before
-fixing. Under that policy's infeasible-automated-coverage exception (criteria in
-[`references/develop-testing.md`](./references/develop-testing.md#when-tdd-doesnt-apply)), this scratch
-reproduction — its `report.md`, screenshots, and observations — *is* the required evidence; no committed test
-is needed. `AGENTS.md` owns the governing principle; `references/develop-testing.md` owns the exception
-criteria — don't expect the exception boundary spelled out in `AGENTS.md` itself.
+fixing. Only under that policy's infeasible-automated-coverage exception (criteria in
+[develop-testing.md § When TDD doesn't apply](./references/develop-testing.md#when-tdd-doesnt-apply)) does the
+scratch reproduction — its `report.md`, screenshots, and observations — stand as the required evidence on its
+own.
 
 Choose the reproduction method by what the bug depends on: a failing unit test for pure logic/parser/utility
 bugs; this guide's scratch-script workflow (above) when it depends on the built extension, browser APIs, or
@@ -61,14 +62,9 @@ but scale which signals proportionally, not mechanically:
 ```bash
 pnpm run typecheck                        # tsc --noEmit — always
 pnpm test -- --run path/to/file.test.ts   # targeted unit test(s) for the change — the default
-pnpm test                                 # full Vitest suite — only when the change is broad/risky,
-                                           # touches shared code, or a repo gate/CI requires it
+pnpm test                                 # full Vitest suite — only when the blast radius isn't confirmed
+                                           # local (shared utils, config, public interfaces), or a gate requires it
 ```
-
-Typecheck plus the targeted relevant test is the default prerequisite — it is not a requirement to run the
-full Vitest suite before every scratch verification. Run the broader suite when the change's blast radius
-isn't confirmed to be local (shared utilities, config, public interfaces) or when project policy requires it
-for the change type.
 
 Green unit tests do **not** mean the feature works — they mean the units you tested behave. Cross-context wiring
 (Service Worker ↔ Content ↔ Inject ↔ Offscreen ↔ Sandbox) and real Chrome APIs only exercise in a loaded
@@ -81,35 +77,35 @@ pnpm run dev            # development build with source maps → writes dist/ext
 # or: pnpm run build    # production build, also → dist/ext
 ```
 
-Load `dist/ext` as an unpacked extension (the scratch scripts below do this for you via
-`--load-extension`). After a rebuild:
-
-- **Page-only edits** (React UI under `src/pages/`) hot-reload — just refresh the page.
-- **Edits to `manifest.json`, `service_worker`, `offscreen`, or `sandbox`** require **reloading the extension**
-  (and a fresh launch in the scratch flow, since each run loads `dist/ext` freshly).
+Every fixture loads `dist/ext`, so a stale build silently verifies old code — rebuild first. Setup details and
+what a rebuild does or doesn't require live in [`e2e/README.md § Setup`](../e2e/README.md#2-setup).
 
 ## Step 2 — Write a scratch verification script
 
-Scratch scripts live in **`e2e/scratch/`** and reuse the existing harness, so you write almost no boilerplate:
+Each verification gets its own scenario directory **`e2e/scratch/<scenario>/`** holding the script *and* every
+artifact it produces. The scripts reuse the committed harness, so you write almost no boilerplate — the
+fixtures, the page openers, the script installer, and the environment variables are catalogued in
+[`e2e/README.md`](../e2e/README.md). The short version:
 
-- `import { test, expect } from "../fixtures";` — gives you a `context` (with `dist/ext` loaded) and an
-  `extensionId`, with the first-use guide already dismissed. See [`e2e/fixtures.ts`](../e2e/fixtures.ts).
-- `import { ... } from "../utils";` — page openers and a script installer. See [`e2e/utils.ts`](../e2e/utils.ts):
-  `openOptionsPage`, `openPopupPage`, `openEditorPage`, `installScriptByCode`, `saveCurrentEditor`,
-  `autoApprovePermissions`, and `runInlineTestScript`.
+```ts
+import { test, expect } from "../../fixtures"; // context + extensionId, onboarding dismissed
+import { openOptionsPage } from "../../utils"; // page openers, installScriptByCode, …
+```
 
 ### Evidence location
 
-Keep all throwaway verification evidence under **`test-results/verify/<scenario>/`**:
+Keep the script and all of its throwaway evidence together under **`e2e/scratch/<scenario>/`**:
 
-- screenshots: `test-results/verify/<scenario>/screenshots/*.png`
-- videos: `test-results/verify/<scenario>/videos/*.webm`
-- logs / notes / short verification reports: `test-results/verify/<scenario>/*.md` or `*.log`
-- additional test resources: `test-results/verify/<scenario>/resources/`
+- the script itself: `e2e/scratch/<scenario>/*.spec.ts`
+- screenshots: `e2e/scratch/<scenario>/screenshots/*.png`
+- videos: `e2e/scratch/<scenario>/videos/*.webm`
+- logs / notes / short verification reports: `e2e/scratch/<scenario>/*.md` or `*.log`
+- additional test resources: `e2e/scratch/<scenario>/resources/`
 
-`test-results/` and `playwright-report/` are git-ignored, so these files are local evidence only and must not be
-committed. Do not put verification screenshots, videos, or notes under `docs/`, `e2e/`, or committed source
-directories unless you are deliberately adding permanent documentation assets.
+`e2e/scratch/` is git-ignored, so these files are local evidence only and must not be committed. Keep them out
+of `test-results/` as well: Playwright wipes that directory at the start of every run, so evidence parked there
+disappears the next time anyone runs the suite. Do not put verification screenshots, videos, or notes under
+`docs/` or committed source directories unless you are deliberately adding permanent documentation assets.
 
 Use `resources/` for any extra local inputs or outputs needed to understand or reproduce the run, for example:
 
@@ -130,17 +126,18 @@ item carries a short note explaining what it proves and how to read it.
 
 ### Create `report.md` before you run the browser
 
-Before running the browser, create `test-results/verify/<scenario>/report.md` following the Evidence Index
-shape in the [verification record template](./references/verification-report-template.md). Fill it in as you
-go — don't reconstruct the run from memory afterward.
+Before running the browser, create `e2e/scratch/<scenario>/report.md` from the
+[verification record template](./references/verification-report-template.md) — one `Verdict` row per claim you
+intend to check, and one `Acceptance Evidence` section per row. Fill both in as you go; don't reconstruct the
+run from memory afterward.
 
 ### Minimal template (drive a UI page)
 
-Save as e.g. `e2e/scratch/verify-options.spec.ts`:
+Save as e.g. `e2e/scratch/options-page/verify.spec.ts`:
 
 ```ts
-import { test, expect } from "../fixtures";
-import { openOptionsPage } from "../utils";
+import { test, expect } from "../../fixtures";
+import { openOptionsPage } from "../../utils";
 
 test("verify: options page opens and renders the script list area", async ({ context, extensionId }) => {
   const page = await openOptionsPage(context, extensionId);
@@ -151,15 +148,16 @@ test("verify: options page opens and renders the script list area", async ({ con
   console.log("[verify] options url =", page.url());
 
   // Keep evidence for review and debugging.
-  await page.screenshot({ path: "test-results/verify/options-page/screenshots/options.png", fullPage: true });
+  await page.screenshot({ path: "e2e/scratch/options-page/screenshots/options.png", fullPage: true });
 });
 ```
 
-If you need video evidence, enable it explicitly for the run. The shared fixture writes videos only when
-`E2E_RECORD_VIDEO_DIR` is set:
+Video is off by default; enable it per run by pointing `E2E_RECORD_VIDEO_DIR` at the scenario's `videos/`
+(the variable and its limits are documented in
+[`e2e/README.md § Environment variables`](../e2e/README.md#5-environment-variables)):
 
 ```bash
-E2E_RECORD_VIDEO_DIR=test-results/verify/options-page/videos \
+E2E_RECORD_VIDEO_DIR=e2e/scratch/options-page/videos \
   pnpm exec playwright test --config playwright.scratch.config.ts -g "options page"
 ```
 
@@ -167,11 +165,7 @@ Playwright finalizes `.webm` files when pages/contexts close at the end of the t
 produce multiple videos because the harness may open setup pages as well as the page under verification; keep all
 of them beside the screenshots for the same scenario.
 
-> Scratch copying the inline fixture won't read `E2E_RECORD_VIDEO_DIR` — see [gotchas](./references/verification-debugging.md#common-gotchas).
-
 ### Run only your scratch script
-
-A dedicated config keeps scratch scripts **out of the main suite/CI** while still letting you run them:
 
 ```bash
 # run every script in e2e/scratch/
@@ -181,22 +175,16 @@ pnpm exec playwright test --config playwright.scratch.config.ts
 pnpm exec playwright test --config playwright.scratch.config.ts -g "options page"
 ```
 
-Why two configs: [`playwright.config.ts`](../playwright.config.ts) sets `testIgnore: ["**/scratch/**"]`, so
-`pnpm run test:e2e` and CI **never** pick up scratch scripts; [`playwright.scratch.config.ts`](../playwright.scratch.config.ts)
-points `testDir` at `e2e/scratch/` so you can run them on demand. Scratch files are git-ignored.
+The two configs keep scratch scripts out of the main suite and CI, and keep the two runs' artifacts apart;
+[`e2e/README.md § Two tracks`](../e2e/README.md#1-two-tracks) explains the mechanics.
 
 ## Step 3 — Verify actual script *execution* (GM APIs, injection)
 
-The shared `e2e/fixtures.ts` is enough to drive extension pages, but to make a userscript **actually inject and
-run in a page** you need two extra things, both already solved in [`e2e/gm-api.spec.ts`](../e2e/gm-api.spec.ts) —
-copy that file's inline fixture and helpers into your scratch script rather than re-deriving them:
-
-1. **Enable the `userScripts` permission.** It is an *optional* MV3 permission (see `manifest.json`
-   `optional_permissions`). `gm-api.spec.ts` enables it with a **two-phase launch**: first launch toggles
-   `developerPrivate.updateExtensionConfiguration({ userScriptsAccess: true })`, then it relaunches the same
-   user-data dir with scripts enabled.
-2. **Auto-approve permission prompts.** GM APIs that need a grant open a `confirm.html` page;
-   `gm-api.spec.ts`'s `autoApprovePermissions(context)` listens for it and clicks "permanent allow".
+The default fixture is enough to drive extension pages. To make a userscript **actually inject and run in a
+page** you need the `userScripts` permission granted and permission prompts auto-approved — both already solved
+by `testWithUserScripts` and `autoApprovePermissions`, described in
+[`e2e/README.md § Harness chain`](../e2e/README.md#3-harness-chain). Import them; don't re-derive the launch
+dance. What remains is how you *observe* the result:
 
 ### The in-page self-test pattern
 
@@ -298,17 +286,19 @@ screenshot doesn't demonstrate the other renders correctly.
 Verification only counts if the result is reported as observed (this mirrors the engineering principle: evidence
 before assertions).
 
+- Record one verdict **per claim**, not one for the run, using the three labels the
+  [report template](./references/verification-report-template.md#verdicts-are-per-claim-and-there-are-three-of-them)
+  defines: `holds`, `does not hold`, `not observed`.
 - If it works, say so and state *what you ran* and *what you observed* (the summary line, the screenshot, the
   asserted value, and any video/report path).
-- If it fails or you could not verify a path, **say that plainly** with the console/output — do not soften it,
-  do not claim success you did not see.
+- If it fails, **say that plainly** with the console/output — do not soften it, do not claim success you did not
+  see. A check you never reached is `not observed`, never `holds`: a run that verified two of three claims is
+  reported as two of three, not as a pass.
 - If you were **reproducing a bug**, state plainly whether it reproduced. If it did, the failing observation
-  (error, assertion diff, error screenshot) *is* the evidence. In the general case, promote it into a committed
-  failing test before fixing (the failing-test → fix cycle). Under
-  [develop-testing.md § When TDD doesn't apply](./references/develop-testing.md#when-tdd-doesnt-apply)'s
-  infeasible-automated-coverage exception, keep this scratch reproduction as the evidence instead — fix the
-  code, then re-run the *same* reproduction script to confirm it now passes. If it did not reproduce, say so
-  and note what you tried, instead of implying the bug is gone.
+  (error, assertion diff, error screenshot) *is* the evidence; after fixing, re-run the *same* script and
+  report that it now passes. If it did not reproduce, say so and note what you tried, instead of implying the
+  bug is gone. (Whether that scratch must *also* become a committed failing test is settled above, under
+  *The one rule* — not here.)
   - Two honest framings for the scratch assertion: assert the **desired** behavior (the scratch stays *red* and
     directly shows the gap), or assert the **current buggy contract** (the scratch passes *green* while the bug
     is present, giving a deterministic re-runnable record) and note that the fix must flip it. Pick one and say
@@ -317,14 +307,14 @@ before assertions).
 
 ## Maintaining this guide
 
-When the harness, scripts, or paths change, keep this doc true to the branch (see
-[`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md)). Quick checks:
+When the workflow or the paths in it change, keep this doc true to the branch (see
+[`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md)). Harness facts are checked by
+[`e2e/README.md § Maintaining this file`](../e2e/README.md#maintaining-this-file) — don't duplicate those checks
+here. What this guide still owns:
 
 ```bash
-ls e2e/fixtures.ts e2e/utils.ts e2e/gm-api.spec.ts playwright.scratch.config.ts
-grep -n "testIgnore" playwright.config.ts
-grep -n "e2e/scratch/" .gitignore
-ls example/tests/
+grep -n "e2e/scratch/" .gitignore                      # evidence stays local
+ls example/tests/                                      # the in-page self-test scripts
 grep -n "lastFocusedWindow" src/pkg/utils/utils.ts     # getCurrentTab → standalone popup resolves its own tab
 grep -n "res.data" packages/message/client.ts          # SW reply envelope { code, data }
 ```
