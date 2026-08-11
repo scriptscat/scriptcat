@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deepMerge, deepDiff, mergeJsonConfig, diffJsonConfig } from "./json_overrides";
+import { decodeJsonConfig, deepMerge, deepDiff, mergeJsonConfig, diffJsonConfig } from "./json_overrides";
 
 describe("deepMerge 深度合并", () => {
   it("应以覆盖值优先合并嵌套对象", () => {
@@ -52,7 +52,11 @@ describe("JSON 配置字符串编解码", () => {
   it("diffJsonConfig 应只保留差异，无差异时返回 undefined", () => {
     expect(diffJsonConfig(defaultStr, defaultStr)).toBeUndefined();
     const user = JSON.stringify({ rules: { "no-debugger": ["warn"], "no-eval": ["warn"] } });
-    expect(JSON.parse(diffJsonConfig(defaultStr, user)!)).toEqual({ rules: { "no-debugger": ["warn"] } });
+    expect(JSON.parse(diffJsonConfig(defaultStr, user)!)).toEqual({
+      format: "scriptcat-json-overrides",
+      version: 1,
+      overrides: { rules: { "no-debugger": ["warn"] } },
+    });
   });
 
   it("mergeJsonConfig 应将用户差异合并到最新默认配置", () => {
@@ -66,5 +70,33 @@ describe("JSON 配置字符串编解码", () => {
     const user = JSON.stringify({ rules: { "no-debugger": ["off"], "custom/rule": ["error"], "no-eval": ["warn"] } });
     const diff = diffJsonConfig(defaultStr, user)!;
     expect(JSON.parse(mergeJsonConfig(defaultStr, diff))).toEqual(JSON.parse(user));
+  });
+
+  it("旧版全量配置迁移时应按旧默认值提取差异", () => {
+    const legacyDefault = JSON.stringify({ a: 1, b: 1 });
+    const currentDefault = JSON.stringify({ a: 3, b: 1 });
+    const legacyValue = JSON.stringify({ a: 1, b: 2 });
+
+    const decoded = decodeJsonConfig(currentDefault, legacyDefault, legacyValue);
+
+    expect(JSON.parse(decoded.value)).toEqual({ a: 3, b: 2 });
+    expect(JSON.parse(decoded.migration!.value!)).toEqual({
+      format: "scriptcat-json-overrides",
+      version: 1,
+      overrides: { b: 2 },
+    });
+  });
+
+  it("未知的稀疏格式版本应拒绝解码", () => {
+    expect(() =>
+      mergeJsonConfig(
+        defaultStr,
+        JSON.stringify({
+          format: "scriptcat-json-overrides",
+          version: 2,
+          overrides: {},
+        })
+      )
+    ).toThrow("Unsupported JSON config storage version: 2");
   });
 });

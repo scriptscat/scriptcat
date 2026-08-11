@@ -251,14 +251,20 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       await vi.waitFor(async () => {
         const syncData = await chrome.storage.sync.get("system_eslint_config");
         expect(JSON.parse(syncData["system_eslint_config"] as string)).toEqual({
-          rules: { "no-debugger": ["warn"], "custom/added-rule": ["error"] },
+          format: "scriptcat-json-overrides",
+          version: 1,
+          overrides: { rules: { "no-debugger": ["warn"], "custom/added-rule": ["error"] } },
         });
       });
     });
 
     it("读取时应将存储的差异合并到最新默认配置", async () => {
       await chrome.storage.sync.set({
-        system_eslint_config: JSON.stringify({ rules: { "no-debugger": ["warn"] } }),
+        system_eslint_config: JSON.stringify({
+          format: "scriptcat-json-overrides",
+          version: 1,
+          overrides: { rules: { "no-debugger": ["warn"] } },
+        }),
       });
 
       const result = JSON.parse(await new SystemConfig(new MessageQueue()).getEslintConfig());
@@ -279,6 +285,13 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       expect(result.rules["no-debugger"]).toEqual(["off"]);
       // 新增的默认规则应自动生效
       expect(result.rules["no-empty"]).toEqual(JSON.parse(eslintDefaultConfig).rules["no-empty"]);
+
+      const stored = await chrome.storage.sync.get("system_eslint_config");
+      expect(JSON.parse(stored["system_eslint_config"] as string)).toEqual({
+        format: "scriptcat-json-overrides",
+        version: 1,
+        overrides: { rules: { "no-debugger": ["off"] } },
+      });
     });
 
     it("保存与默认配置一致的内容时应清除存储", async () => {
@@ -311,7 +324,11 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
 
       await vi.waitFor(async () => {
         const syncData = await chrome.storage.sync.get("system_editor_config");
-        expect(JSON.parse(syncData["system_editor_config"] as string)).toEqual({ strict: false });
+        expect(JSON.parse(syncData["system_editor_config"] as string)).toEqual({
+          format: "scriptcat-json-overrides",
+          version: 1,
+          overrides: { strict: false },
+        });
       });
 
       const result = JSON.parse(await new SystemConfig(new MessageQueue()).getEditorConfig());

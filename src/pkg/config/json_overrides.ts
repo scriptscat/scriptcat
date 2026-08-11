@@ -6,6 +6,48 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+const JSON_CONFIG_STORAGE_FORMAT = "scriptcat-json-overrides";
+const JSON_CONFIG_STORAGE_VERSION = 1;
+
+type StoredJsonConfig = {
+  format: typeof JSON_CONFIG_STORAGE_FORMAT;
+  version: typeof JSON_CONFIG_STORAGE_VERSION;
+  overrides: unknown;
+};
+
+export type DecodedJsonConfig = {
+  value: string;
+  migration?: { value: string | undefined };
+};
+
+function isStoredJsonConfig(value: unknown): value is StoredJsonConfig {
+  return (
+    isPlainObject(value) &&
+    value.format === JSON_CONFIG_STORAGE_FORMAT &&
+    value.version === JSON_CONFIG_STORAGE_VERSION &&
+    "overrides" in value
+  );
+}
+
+function encodeOverrides(overrides: unknown): string {
+  return JSON.stringify({
+    format: JSON_CONFIG_STORAGE_FORMAT,
+    version: JSON_CONFIG_STORAGE_VERSION,
+    overrides,
+  });
+}
+
+function getStoredOverrides(stored: unknown): unknown {
+  if (isStoredJsonConfig(stored)) return stored.overrides;
+  if (isPlainObject(stored) && stored.format === JSON_CONFIG_STORAGE_FORMAT) {
+    if (stored.version !== JSON_CONFIG_STORAGE_VERSION || !("overrides" in stored)) {
+      throw new Error(`Unsupported JSON config storage version: ${String(stored.version)}`);
+    }
+    return stored.overrides;
+  }
+  return stored;
+}
+
 // 深度合并：defaults 打底，overrides 覆盖；仅递归普通对象，数组与标量整体替换
 export function deepMerge(defaults: unknown, overrides: unknown): unknown {
   if (!isPlainObject(defaults) || !isPlainObject(overrides)) return overrides;
@@ -47,11 +89,26 @@ export function deepDiff(value: unknown, defaults: unknown): unknown {
 
 // 读取解码：将存储的用户差异合并到最新默认配置，返回完整配置字符串
 export function mergeJsonConfig(defaultStr: string, storedStr: string): string {
-  return JSON.stringify(deepMerge(JSON.parse(defaultStr), JSON.parse(storedStr)), null, 2);
+  return JSON.stringify(deepMerge(JSON.parse(defaultStr), getStoredOverrides(JSON.parse(storedStr))), null, 2);
 }
 
 // 写入编码：只保留与默认配置的差异；与默认配置完全一致时返回 undefined（清除存储）
 export function diffJsonConfig(defaultStr: string, valueStr: string): string | undefined {
   const diff = deepDiff(JSON.parse(valueStr), JSON.parse(defaultStr));
-  return diff === undefined ? undefined : JSON.stringify(diff);
+  return diff === undefined ? undefined : encodeOverrides(diff);
+}
+
+// 兼容稀疏格式发布前的全量配置，并在首次读取时收敛为带版本的稀疏差异。
+export function decodeJsonConfig(defaultStr: string, legacyDefaultStr: string, storedStr: string): DecodedJsonConfig {
+  const stored = JSON.parse(storedStr);
+  if (isPlainObject(stored) && stored.format === JSON_CONFIG_STORAGE_FORMAT) {
+    return { value: mergeJsonConfig(defaultStr, storedStr) };
+  }
+
+  const legacyDiff = deepDiff(stored, JSON.parse(legacyDefaultStr));
+  return {
+    value:
+      legacyDiff === undefined ? defaultStr : JSON.stringify(deepMerge(JSON.parse(defaultStr), legacyDiff), null, 2),
+    migration: { value: legacyDiff === undefined ? undefined : encodeOverrides(legacyDiff) },
+  };
 }

@@ -9,7 +9,8 @@ import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
 import { toCamelCase } from "../utils/utils";
 import EventEmitter from "eventemitter3";
 import { STORAGE_LOCAL_KEYS } from "./consts";
-import { mergeJsonConfig, diffJsonConfig } from "./json_overrides";
+import { decodeJsonConfig, diffJsonConfig, type DecodedJsonConfig } from "./json_overrides";
+import { legacyJsonConfigDefaults } from "./json_config_legacy_defaults";
 
 export const SystemConfigChange = "systemConfigChange";
 
@@ -158,6 +159,11 @@ interface SystemConfigEntry {
   store?: unknown;
 }
 
+interface JsonConfigDefault {
+  current: string;
+  legacy: string;
+}
+
 type GetterFn<T extends SystemConfigKey> = (
   ...args: any[]
 ) => Promise<SystemConfigValueType<T>> | SystemConfigValueType<T>;
@@ -185,25 +191,25 @@ export class SystemConfig {
 
   // JSON 配置项的默认配置：storage 只保存与默认配置的稀疏差异，
   // 缓存与消息广播中始终是合并后的完整配置（#1517）
-  private readonly jsonConfigDefaults: Partial<Record<SystemConfigKey, string>> = {
-    eslint_config: defaultConfig,
-    editor_config: editorDefaultConfig,
+  private readonly jsonConfigDefaults: Partial<Record<SystemConfigKey, JsonConfigDefault>> = {
+    eslint_config: { current: defaultConfig, legacy: legacyJsonConfigDefaults.eslint_config },
+    editor_config: { current: editorDefaultConfig, legacy: legacyJsonConfigDefaults.editor_config },
   };
 
   // 读取解码：将存储的用户差异合并到最新默认配置
-  private decodeStored(key: SystemConfigKey, stored: unknown): unknown {
-    const defaultStr = this.jsonConfigDefaults[key];
-    if (defaultStr !== undefined && typeof stored === "string") {
-      return mergeJsonConfig(defaultStr, stored);
+  private decodeStored(key: SystemConfigKey, stored: unknown): DecodedJsonConfig | { value: unknown } {
+    const defaults = this.jsonConfigDefaults[key];
+    if (defaults !== undefined && typeof stored === "string") {
+      return decodeJsonConfig(defaults.current, defaults.legacy, stored);
     }
-    return stored;
+    return { value: stored };
   }
 
   // 写入编码：只保存与默认配置的差异，完全一致时返回 undefined（清除存储）
   private encodeForStorage(key: SystemConfigKey, value: unknown): unknown {
-    const defaultStr = this.jsonConfigDefaults[key];
-    if (defaultStr !== undefined && typeof value === "string") {
-      return diffJsonConfig(defaultStr, value);
+    const defaults = this.jsonConfigDefaults[key];
+    if (defaults !== undefined && typeof value === "string") {
+      return diffJsonConfig(defaults.current, value);
     }
     return value;
   }
@@ -299,6 +305,17 @@ export class SystemConfig {
     return syncVal as T;
   }
 
+  private migrateStored(key: SystemConfigKey, value: string | undefined): Promise<void> {
+    const entry = this.cacheEntry(key);
+    const storage = this.getStorage(key);
+    const persist = () => (value === undefined ? storage.remove(key) : storage.set(key, value));
+    const asyncOp = entry.pendingWrite ? entry.pendingWrite.then(persist, persist) : persist();
+    entry.pendingWrite = asyncOp;
+    return asyncOp.then(() => {
+      if (entry.pendingWrite === asyncOp) entry.pendingWrite = undefined;
+    });
+  }
+
   private _get<T extends string | number | boolean | object>(
     key: SystemConfigKey,
     defaultValue: WithAsyncValue<Exclude<T, undefined>>
@@ -310,15 +327,23 @@ export class SystemConfig {
     }
     const version = entry.version;
     const storage = this.getStorage(key);
-    return storage.get(key).then((val) => {
+    return storage.get(key).then(async (val) => {
       if (version !== entry.version) {
         return entry.hasValue && entry.value !== undefined ? (entry.value as T) : this.resolveDefault<T>(defaultValue);
       }
       if (val !== undefined) {
         const decoded = this.decodeStored(key, val);
+        if ("migration" in decoded && decoded.migration) {
+          await this.migrateStored(key, decoded.migration.value);
+          if (version !== entry.version) {
+            return entry.hasValue && entry.value !== undefined
+              ? (entry.value as T)
+              : this.resolveDefault<T>(defaultValue);
+          }
+        }
         entry.hasValue = true;
-        entry.value = decoded;
-        return decoded as T;
+        entry.value = decoded.value;
+        return decoded.value as T;
       }
       // 对 local key，回退读取 sync storage（兼容旧版本数据迁移）
       if (this.isLocalKey(key)) {
