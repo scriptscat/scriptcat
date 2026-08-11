@@ -288,6 +288,25 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     });
   });
 
+  it.concurrent("match 覆盖清空后不再保留此前的匹配规则", async () => {
+    const { runtime } = createRuntimeTestContext();
+    const script = createMockScript({
+      metadata: { match: ["https://www.example.com/*"] },
+      selfMetadata: { match: ["https://www.example.com/*"] },
+    });
+
+    await runtime.applyScriptMatchInfo(createScriptRunResource(script));
+    expect(runtime.getPageScriptMatchingResultByUrl("https://www.example.com/").has(script.uuid)).toBe(true);
+
+    const emptyMatchOverride = createScriptRunResource({
+      ...script,
+      selfMetadata: { match: [] },
+    });
+    expect(await runtime.applyScriptMatchInfo(emptyMatchOverride)).toBeUndefined();
+
+    expect(runtime.getPageScriptMatchingResultByUrl("https://www.example.com/", true).has(script.uuid)).toBe(false);
+  });
+
   describe.concurrent("includeDisabled 选项", () => {
     it.concurrent("当 includeDisabled=false 时不返回禁用脚本；当 includeDisabled=true 时返回禁用脚本", async () => {
       // Arrange

@@ -1692,6 +1692,10 @@ export class RuntimeService {
   async applyScriptMatchInfo(scriptRes: ScriptRunResource) {
     const o = scriptURLPatternResults(scriptRes);
     if (!o) {
+      const { uuid } = scriptRes;
+      this.scriptMatchEnable.clearRules(uuid);
+      this.scriptMatchEnable.clearRules(this.getOriginalMatchUuid(uuid));
+      this.cachedPatterns.delete(uuid);
       return undefined;
     }
     // 构建脚本匹配信息
