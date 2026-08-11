@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -62,20 +62,34 @@ export function parseWikiPages(contents) {
       .slice(start, end)
       .replace(/^\r?\n+/, "")
       .trim();
+    if (!body) throw new Error(`DeepWiki contents page is empty: ${title}`);
     return { title, body };
   });
 }
 
-function rewriteSourceReferences(line) {
+function resolveRepositoryPath(source, repositoryFiles) {
+  if (!repositoryFiles || repositoryFiles.has(source)) return source;
+
+  const candidates = [];
+  if (source.endsWith("/index.ts")) candidates.push(`${source.slice(0, -"/index.ts".length)}.ts`);
+  if (source.endsWith("/index.tsx")) candidates.push(`${source.slice(0, -"/index.tsx".length)}.tsx`);
+  if (source.endsWith(".tsx")) candidates.push(`${source.slice(0, -".tsx".length)}.ts`);
+  if (source.endsWith(".jsx")) candidates.push(`${source.slice(0, -".jsx".length)}.js`);
+
+  return candidates.find((candidate) => repositoryFiles.has(candidate)) ?? source;
+}
+
+function rewriteSourceReferences(line, repositoryFiles) {
   return line.replace(/\[\[?([^\]\n]+?)\]\]?\(\)/g, (match, rawLabel) => {
     const label = rawLabel.trim();
     const lineMatch = label.match(/^(.+?):([\d,\-\s]+)$/);
-    const source = (lineMatch?.[1] ?? label).trim();
+    const source = resolveRepositoryPath((lineMatch?.[1] ?? label).trim(), repositoryFiles);
     if (!REPOSITORY_PATH.test(source)) return match;
 
     const lineRange = lineMatch?.[2].trim();
     const fragment = lineRange && /^\d+(?:-\d+)?$/.test(lineRange) ? `#L${lineRange.replace("-", "-L")}` : "";
-    return `[${label}](../${source}${fragment})`;
+    const resolvedLabel = lineMatch ? `${source}:${lineRange}` : source;
+    return `[${resolvedLabel}](../${source}${fragment})`;
   });
 }
 
@@ -132,9 +146,9 @@ function mapMarkdownLines(markdown, transform) {
     .join("\n");
 }
 
-export function rewriteMarkdownLinks(markdown, pageByNumber, pageByTitle) {
+export function rewriteMarkdownLinks(markdown, pageByNumber, pageByTitle, repositoryFiles) {
   return mapMarkdownLines(markdown, (line) => {
-    const withSources = rewriteSourceReferences(line);
+    const withSources = rewriteSourceReferences(line, repositoryFiles);
     return withSources.replace(/\[([^\]\n]+)\]\(([^)\n]*)\)/g, (match, label, destination) => {
       if (!destination) {
         const pageTarget = pageTargetFromLabel(label, pageByNumber, pageByTitle);
@@ -203,7 +217,7 @@ export function validateSnapshot(files) {
   if (invalid.length > 0) throw new Error(`DeepWiki snapshot contains invalid links:\n${invalid.join("\n")}`);
 }
 
-export function buildSnapshot(structure, contents) {
+export function buildSnapshot(structure, contents, { repositoryFiles } = {}) {
   const entries = parseWikiStructure(structure);
   const pages = parseWikiPages(contents);
   const pageByTitle = new Map(pages.map((page) => [page.title, page]));
@@ -212,21 +226,31 @@ export function buildSnapshot(structure, contents) {
   const files = new Map();
 
   const unknownPages = pages.filter((page) => !entries.some((entry) => entry.title === page.title));
+  const missingPages = entries.filter((entry) => !pages.some((page) => page.title === entry.title));
+  const responseProblems = [];
   if (unknownPages.length > 0) {
-    throw new Error(
-      `DeepWiki contents has pages absent from structure: ${unknownPages.map((page) => page.title).join(", ")}`
-    );
+    responseProblems.push(`contents pages absent from structure: ${unknownPages.map((page) => page.title).join(", ")}`);
   }
   if (pages.length !== entries.length) {
-    throw new Error(
-      `DeepWiki structure/content page count mismatch: ${entries.length} structure entries, ${pages.length} contents pages`
+    responseProblems.push(
+      `structure/content page count mismatch: ${entries.length} structure entries, ${pages.length} contents pages`
     );
+  }
+  if (missingPages.length > 0) {
+    responseProblems.push(
+      `contents pages missing from structure: ${missingPages.map((page) => page.title).join(", ")}`
+    );
+  }
+  if (responseProblems.length > 0) {
+    throw new Error(`DeepWiki response validation failed:\n- ${responseProblems.join("\n- ")}`);
   }
 
   for (const entry of entries) {
     const page = pageByTitle.get(entry.title);
-    if (!page) throw new Error(`DeepWiki contents is missing structure page: ${entry.title}`);
-    files.set(entry.filename, `${rewriteMarkdownLinks(page.body, pageByNumber, pageFilenameByTitle).trim()}\n`);
+    files.set(
+      entry.filename,
+      `${rewriteMarkdownLinks(page.body, pageByNumber, pageFilenameByTitle, repositoryFiles).trim()}\n`
+    );
   }
 
   const index = [
@@ -281,8 +305,44 @@ export async function writeSnapshot(files, outputDirectory) {
   }
 }
 
+function snapshotReport(structure, contents, files, repository, endpoint) {
+  const entries = parseWikiStructure(structure);
+  const pages = parseWikiPages(contents);
+  const pageFiles = [...files.keys()].filter((filename) => filename !== "index.md");
+  const indexPageFiles = markdownLinks(files.get("index.md")).filter((target) => target.startsWith("./"));
+
+  return {
+    endpoint,
+    repository,
+    structureEntries: entries,
+    contentPageTitles: pages.map((page) => page.title),
+    writtenPageFiles: pageFiles,
+    indexPageFiles,
+  };
+}
+
+async function writeReport(report, reportPath) {
+  if (!reportPath) return;
+  const destination = path.resolve(reportPath);
+  await mkdir(path.dirname(destination), { recursive: true });
+  await writeFile(destination, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+}
+
+async function collectRepositoryFiles(directory, root = directory, files = new Set()) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if ([".deepwiki", ".git", "node_modules"].includes(entry.name)) continue;
+    const absolute = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      await collectRepositoryFiles(absolute, root, files);
+    } else if (entry.isFile()) {
+      files.add(path.relative(root, absolute).split(path.sep).join("/"));
+    }
+  }
+  return files;
+}
+
 export function parseArguments(argv) {
-  const args = { endpoint: DEFAULT_ENDPOINT, repository: DEFAULT_REPOSITORY, output: DEFAULT_OUTPUT };
+  const args = { endpoint: DEFAULT_ENDPOINT, repository: DEFAULT_REPOSITORY, output: DEFAULT_OUTPUT, report: null };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (!argument.startsWith("--") || index + 1 >= argv.length) throw new Error(`Invalid argument: ${argument}`);
@@ -348,6 +408,10 @@ async function mcpNotification(endpoint, notification, session) {
 }
 
 function resultText(result, toolName) {
+  if (result.isError) {
+    const detail = result.content?.find((item) => item.type === "text")?.text ?? "unknown tool error";
+    throw new Error(`${toolName} returned an MCP tool error: ${detail}`);
+  }
   const text = result.structuredContent?.result ?? result.content?.find((item) => item.type === "text")?.text;
   if (typeof text !== "string" || !text.trim()) throw new Error(`${toolName} returned empty content`);
   return text;
@@ -409,10 +473,12 @@ async function fetchWiki(endpoint, repository) {
 }
 
 export async function main(argv = process.argv.slice(2)) {
-  const { endpoint, repository, output } = parseArguments(argv);
+  const { endpoint, repository, output, report } = parseArguments(argv);
   const { structure, contents } = await fetchWiki(endpoint, repository);
-  const files = buildSnapshot(structure, contents);
+  const repositoryFiles = await collectRepositoryFiles(process.cwd());
+  const files = buildSnapshot(structure, contents, { repositoryFiles });
   await writeSnapshot(files, path.resolve(output));
+  await writeReport(snapshotReport(structure, contents, files, repository, endpoint), report);
   console.log(`DeepWiki snapshot written to ${output} (${files.size} files).`);
 }
 

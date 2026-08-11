@@ -28,9 +28,179 @@ jobs:
         run: |
           set -euo pipefail
 
+          report="$RUNNER_TEMP/deepwiki-report.json"
+          sync_log="$RUNNER_TEMP/deepwiki-sync.log"
+          set +e
           node ./scripts/sync-deepwiki.mjs \
-            --repository scriptscat/scriptcat \
-            --output .deepwiki
+            --repository "$GITHUB_REPOSITORY" \
+            --output .deepwiki \
+            --report "$report" >"$sync_log" 2>&1
+          sync_exit=$?
+          set -e
+          cat "$sync_log"
+          if [ "$sync_exit" -ne 0 ]; then
+            {
+              echo "## DeepWiki MCP sync"
+              echo
+              echo "- Problems found: sync helper exited with status $sync_exit"
+              echo
+              echo '```text'
+              cat "$sync_log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$sync_exit"
+          fi
+
+      - name: Validate DeepWiki MCP response and split
+        shell: bash
+        env:
+          DEEPWIKI_REPORT: ${{ runner.temp }}/deepwiki-report.json
+        run: |
+          set -euo pipefail
+
+          validation_log="$RUNNER_TEMP/deepwiki-validation.log"
+          set +e
+          node --input-type=module >"$validation_log" 2>&1 <<'NODE'
+          import { appendFile, readFile, readdir } from "node:fs/promises";
+          import path from "node:path";
+          import { markdownLinks, validateSnapshot } from "./scripts/sync-deepwiki.mjs";
+
+          const report = JSON.parse(await readFile(process.env.DEEPWIKI_REPORT, "utf8"));
+          const expectedEntries = report.structureEntries;
+          const expectedTitles = expectedEntries.map(({ title }) => title).sort();
+          const contentTitles = [...report.contentPageTitles].sort();
+          const expectedFiles = expectedEntries.map(({ filename }) => filename);
+          const expectedIndexTargets = expectedFiles.map((filename) => `./${filename}`);
+          const writtenFiles = report.writtenPageFiles;
+          const indexedFiles = report.indexPageFiles;
+          const problems = [];
+          const warnings = [];
+
+          const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+          const check = (name, passed) => {
+            if (!passed) problems.push(name);
+          };
+          check("MCP endpoint is present", typeof report.endpoint === "string" && report.endpoint.length > 0);
+          if (process.env.GITHUB_REPOSITORY) {
+            check("report repository matches workflow repository", report.repository === process.env.GITHUB_REPOSITORY);
+          }
+          check("MCP responses are non-empty", expectedEntries.length > 0 && report.contentPageTitles.length > 0);
+          check("structure titles match contents titles", same(expectedTitles, contentTitles));
+          check("structure entries are unique", new Set(expectedEntries.map(({ filename }) => filename)).size === expectedEntries.length);
+          check("content titles are unique", new Set(report.contentPageTitles).size === report.contentPageTitles.length);
+          check("structure entries match written page files", same(expectedFiles, writtenFiles));
+          check("structure entries match index page links", same(expectedIndexTargets, indexedFiles));
+          check("written page files are unique", new Set(writtenFiles).size === writtenFiles.length);
+
+          const files = new Map();
+          for (const filename of ["index.md", ...writtenFiles]) {
+            try {
+              files.set(filename, await readFile(path.join(".deepwiki", filename), "utf8"));
+            } catch (error) {
+              problems.push(`missing generated file .deepwiki/${filename}: ${error.message}`);
+            }
+          }
+          let generatedFiles = [];
+          try {
+            generatedFiles = (await readdir(".deepwiki")).filter((filename) => filename.endsWith(".md")).sort();
+          } catch (error) {
+            problems.push(`cannot read .deepwiki: ${error.message}`);
+          }
+          check("generated markdown files match the dynamic structure", same(generatedFiles, ["index.md", ...expectedFiles].sort()));
+
+          const expectedIndexLines = expectedEntries.map(({ number, title, filename }) => {
+            const depth = number.split(".").length - 1;
+            return `${"  ".repeat(depth)}- [${number} ${title}](./${filename})`;
+          });
+          const actualIndexLines = (files.get("index.md") ?? "")
+            .split(/\r?\n/)
+            .filter((line) => /^\s*- \[\d+(?:\.\d+)* .+\]\(\.\/[^)]+\)$/.test(line));
+          check("index labels and hierarchy match the structure", same(expectedIndexLines, actualIndexLines));
+
+          for (const entry of expectedEntries) {
+            const content = files.get(entry.filename);
+            const title = content?.match(/^# ([^\r\n]+)$/m)?.[1]?.trim();
+            if (!content) continue;
+            if (!title) problems.push(`${entry.filename}: missing page title heading`);
+            else if (title !== entry.title) problems.push(`${entry.filename}: title heading does not match structure`);
+          }
+
+          try {
+            validateSnapshot(files);
+          } catch (error) {
+            problems.push(...String(error.message ?? error).split("\n").filter(Boolean));
+          }
+
+          for (const [filename, content] of files) {
+            for (const target of markdownLinks(content)) {
+              if (target.startsWith("./")) {
+                const targetFile = target.slice(2).split(/[?#]/, 1)[0];
+                if (!files.has(targetFile)) problems.push(`${filename}: missing .deepwiki target ${target}`);
+              } else if (target.startsWith("../")) {
+                const targetPath = target.split(/[?#]/, 1)[0];
+                const resolved = path.resolve(path.dirname(path.join(".deepwiki", filename)), targetPath);
+                const relative = path.relative(process.cwd(), resolved);
+                if (relative.startsWith("..") || path.isAbsolute(relative)) {
+                  problems.push(`${filename}: repository target escapes the root ${target}`);
+                  continue;
+                }
+                try {
+                  const source = await readFile(resolved, "utf8");
+                  const fragment = target.match(/#L(\d+)(?:-L(\d+))?$/);
+                  if (fragment) {
+                    const start = Number(fragment[1]);
+                    const end = Number(fragment[2] ?? fragment[1]);
+                    const lineCount = source.split(/\r?\n/).length;
+                    if (start < 1 || end < start) {
+                      problems.push(`${filename}: repository line fragment is out of range ${target}`);
+                    } else if (end > lineCount) {
+                      warnings.push(`${filename}: repository line fragment exceeds current file length ${target}`);
+                    }
+                  }
+                } catch (error) {
+                  problems.push(`${filename}: missing repository target ${target}: ${error.message}`);
+                }
+              }
+            }
+          }
+
+          const summary = [
+            "## DeepWiki MCP validation",
+            "",
+            `- Structure pages received: ${expectedEntries.length}`,
+            `- Contents pages received: ${report.contentPageTitles.length}`,
+            `- Page files written: ${writtenFiles.length}`,
+            `- Problems found: ${problems.length}`,
+            `- Warnings found: ${warnings.length}`,
+          ];
+          if (warnings.length > 0) summary.push("", "### Warnings", "", ...warnings.map((warning) => `- ${warning}`));
+          if (problems.length > 0) {
+            summary.push("", "### Problems", "", ...problems.map((problem) => `- ${problem}`));
+          }
+          await appendFile(process.env.GITHUB_STEP_SUMMARY, `${summary.join("\n")}\n`);
+
+          if (problems.length > 0) {
+            throw new Error(`DeepWiki validation found ${problems.length} problem(s):\n- ${problems.join("\n- ")}`);
+          }
+          console.log(`DeepWiki validation passed for ${writtenFiles.length} pages.`);
+          NODE
+          validation_exit=$?
+          set -e
+          cat "$validation_log"
+          if [ "$validation_exit" -ne 0 ]; then
+            if ! grep -q '^## DeepWiki MCP validation$' "$GITHUB_STEP_SUMMARY" 2>/dev/null; then
+              {
+                echo "## DeepWiki MCP validation"
+                echo
+                echo "- Problems found before the validator could produce its normal summary"
+                echo
+                echo '```text'
+                cat "$validation_log"
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit "$validation_exit"
+          fi
 
       - name: Commit refreshed snapshot
         shell: bash
