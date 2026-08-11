@@ -19,6 +19,7 @@ import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { MessageSend } from "@Packages/message/types";
 import { ScriptClient } from "./client";
+import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 
 initTestEnv();
 
@@ -725,7 +726,11 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
 
       await scriptService.onlyRunOnUrl({ uuid: script.uuid, matchPattern: "*://current.example/*" });
 
-      expect(savedSelfMetadata()).toEqual({ match: ["*://current.example/*"], include: [] });
+      expect(savedSelfMetadata()).toEqual({
+        match: ["*://current.example/*"],
+        include: [],
+        [SELF_METADATA_ONLY_RUN_ON_URL]: ["*://current.example/*"],
+      });
     });
 
     it("并发站点范围操作应保留两个操作的覆盖变更", async () => {
@@ -974,7 +979,11 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
     it("重置时应同时撤销 onlyRunOnUrl 写入的 include 覆盖，恢复作者 include", async () => {
       const script = createMockScript({
         metadata: { include: ["*://included.example/*"] },
-        selfMetadata: { match: ["*://current.example/*"], include: [] },
+        selfMetadata: {
+          match: ["*://current.example/*"],
+          include: [],
+          [SELF_METADATA_ONLY_RUN_ON_URL]: ["*://current.example/*"],
+        },
       });
       vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
 
@@ -982,6 +991,15 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
 
       // match 与 include 覆盖是 onlyRunOnUrl 一并写入的 URL 范围单元，重置须一并撤销
       expect(savedSelfMetadata()).toBeUndefined();
+    });
+
+    it("重置 match 时应保留独立的 include 覆盖", async () => {
+      const script = createMockScript({ selfMetadata: { include: ["*://user.example/*"] } });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.resetMatch({ uuid: script.uuid, match: undefined });
+
+      expect(savedSelfMetadata()).toEqual({ include: ["*://user.example/*"] });
     });
 
     it("传入空数组(删除最后一项)时应保留 include 覆盖", async () => {
@@ -1031,6 +1049,24 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
       await scriptService.updateMetadata({ uuid: script.uuid, key: "run-in", value: undefined });
 
       expect(savedSelfMetadata()).toBeUndefined();
+    });
+
+    it("通用 metadata 更新可保存 include 覆盖并清除 onlyRunOnUrl provenance", async () => {
+      const script = createMockScript({
+        selfMetadata: {
+          match: ["*://current.example/*"],
+          include: [],
+          [SELF_METADATA_ONLY_RUN_ON_URL]: ["*://current.example/*"],
+        },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.updateMetadata({ uuid: script.uuid, key: "include", value: ["*://user.example/*"] });
+
+      expect(savedSelfMetadata()).toEqual({
+        match: ["*://current.example/*"],
+        include: ["*://user.example/*"],
+      });
     });
   });
 });

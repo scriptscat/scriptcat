@@ -19,6 +19,7 @@ import type {
   ScriptRunResource,
   ScriptSite,
 } from "@App/app/repo/scripts";
+import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type ScriptInfo, type InstallSource, createTempCodeEntry } from "@App/pkg/utils/scriptInstall";
@@ -933,6 +934,7 @@ export class ScriptService {
       if (!script) throw new Error("script not found");
       script = selfMetadataUpdate(script, "match", new Set([matchPattern]));
       script = selfMetadataUpdate(script, "include", new Set());
+      script = selfMetadataUpdate(script, SELF_METADATA_ONLY_RUN_ON_URL, new Set([matchPattern]));
       await this.scriptDAO.update(uuid, script);
       this.publishInstallScript(script, { update: true });
       return true;
@@ -953,6 +955,7 @@ export class ScriptService {
       if (!script) throw new Error("script not found");
       if (script.selfMetadata?.match !== undefined) {
         script = selfMetadataUpdate(script, "match", new Set([...script.selfMetadata.match, matchPattern]));
+        script = selfMetadataUpdate(script, SELF_METADATA_ONLY_RUN_ON_URL, undefined);
       }
       if (script.selfMetadata?.exclude !== undefined) {
         // 用户覆盖整体替换作者规则，因此移除当前项时把作者 @exclude 一并并入，避免丢作者规则
@@ -974,6 +977,7 @@ export class ScriptService {
         const matchSet = new Set(script.selfMetadata.match);
         matchSet.delete(matchPattern);
         script = selfMetadataUpdate(script, "match", matchSet);
+        script = selfMetadataUpdate(script, SELF_METADATA_ONLY_RUN_ON_URL, undefined);
       }
       // 用户覆盖整体替换作者规则，因此把作者 @exclude 一并并入用户覆盖，避免丢作者规则
       const excludeSet = new Set([...(script.metadata?.exclude || []), ...(script.selfMetadata?.exclude || [])]);
@@ -1017,12 +1021,11 @@ export class ScriptService {
       const matchSet = match === undefined ? undefined : new Set(match);
       // 更新 script.selfMetadata.match
       script = selfMetadataUpdate(script, "match", matchSet);
-      if (match === undefined) {
-        // match 与 include 覆盖是 onlyRunOnUrl 一并写入的 URL 范围单元：重置 match 必须同时撤销
-        // include 覆盖，否则 @include 型脚本「仅在本站」后从设置页重置会残留 include:[]，
-        // 有效 metadata 失去全部 URL 规则且无法从设置页恢复
+      if (script.selfMetadata?.[SELF_METADATA_ONLY_RUN_ON_URL] !== undefined && match === undefined) {
+        // onlyRunOnUrl owns the empty include override; an imported or explicit include override does not.
         script = selfMetadataUpdate(script, "include", undefined);
       }
+      script = selfMetadataUpdate(script, SELF_METADATA_ONLY_RUN_ON_URL, undefined);
       try {
         await this.scriptDAO.update(uuid, script);
         // 广播一下
@@ -1619,6 +1622,9 @@ export class ScriptService {
       }
       const valueSet = value === undefined ? undefined : new Set(value);
       script = selfMetadataUpdate(script, key, valueSet);
+      if (key === "match" || key === "include") {
+        script = selfMetadataUpdate(script, SELF_METADATA_ONLY_RUN_ON_URL, undefined);
+      }
       try {
         await this.scriptDAO.update(uuid, script);
         // 广播一下
