@@ -18,13 +18,6 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      DEEPWIKI_RAW_DIR: ${{ runner.temp }}/deepwiki-raw
-      DEEPWIKI_GENERATED_DIR: ${{ runner.temp }}/deepwiki-generated
-      DEEPWIKI_REPOSITORY_FILES: ${{ runner.temp }}/deepwiki-repository-files.json
-      DEEPWIKI_VALIDATION: ${{ runner.temp }}/deepwiki-validation.json
-      DEEPWIKI_DECISION: ${{ runner.temp }}/deepwiki-decision.json
-      DEEPWIKI_REPORT: ${{ runner.temp }}/deepwiki-report.json
     steps:
       - uses: actions/checkout@v6
         with:
@@ -34,6 +27,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          echo "DEEPWIKI_RAW_DIR=$RUNNER_TEMP/deepwiki-raw" >> "$GITHUB_ENV"
+          echo "DEEPWIKI_GENERATED_DIR=$RUNNER_TEMP/deepwiki-generated" >> "$GITHUB_ENV"
+          echo "DEEPWIKI_REPOSITORY_FILES=$RUNNER_TEMP/deepwiki-repository-files.json" >> "$GITHUB_ENV"
+          echo "DEEPWIKI_VALIDATION=$RUNNER_TEMP/deepwiki-validation.json" >> "$GITHUB_ENV"
+          echo "DEEPWIKI_DECISION=$RUNNER_TEMP/deepwiki-decision.json" >> "$GITHUB_ENV"
+          echo "DEEPWIKI_REPORT=$RUNNER_TEMP/deepwiki-report.json" >> "$GITHUB_ENV"
 
           program="$RUNNER_TEMP/deepwiki-sync.mjs"
           cat >"$program" <<'NODE'
