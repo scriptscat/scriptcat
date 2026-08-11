@@ -943,8 +943,27 @@ export class ScriptService {
     if (script.selfMetadata?.match !== undefined) {
       script = selfMetadataUpdate(script, "match", new Set([...script.selfMetadata.match, matchPattern]));
     }
-    const excludeSet = new Set(script.selfMetadata?.exclude || script.metadata?.exclude || []);
-    excludeSet.delete(excludePattern);
+    if (script.selfMetadata?.exclude !== undefined) {
+      const excludeSet = new Set(script.selfMetadata.exclude);
+      excludeSet.delete(excludePattern);
+      script = selfMetadataUpdate(script, "exclude", excludeSet);
+    }
+    return this.scriptDAO.update(uuid, script).then(() => {
+      this.publishInstallScript(script, { update: true });
+      return true;
+    });
+  }
+
+  async excludeFromMatch({ uuid, matchPattern }: { uuid: string; matchPattern: string }) {
+    let script = await this.scriptDAO.get(uuid);
+    if (!script) throw new Error("script not found");
+    if (script.selfMetadata?.match !== undefined) {
+      const matchSet = new Set(script.selfMetadata.match);
+      matchSet.delete(matchPattern);
+      script = selfMetadataUpdate(script, "match", matchSet);
+    }
+    const excludeSet = new Set(script.selfMetadata?.exclude || []);
+    excludeSet.add(matchPattern);
     script = selfMetadataUpdate(script, "exclude", excludeSet);
     return this.scriptDAO.update(uuid, script).then(() => {
       this.publishInstallScript(script, { update: true });
@@ -1701,6 +1720,7 @@ export class ScriptService {
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
     this.group.on("onlyRunOnUrl", this.onlyRunOnUrl.bind(this));
     this.group.on("allowUrl", this.allowUrl.bind(this));
+    this.group.on("excludeFromMatch", this.excludeFromMatch.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
     this.group.on("resetExclude", this.resetExclude.bind(this));
     this.group.on("requestCheckUpdate", this.requestCheckUpdate.bind(this));
