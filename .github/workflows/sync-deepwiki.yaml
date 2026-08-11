@@ -24,6 +24,7 @@ jobs:
           ref: main
 
       - name: Fetch, analyze, split, validate, and write DeepWiki snapshot
+        id: sync
         shell: bash
         env:
           DEEPWIKI_REPORT: ${{ runner.temp }}/deepwiki-report.json
@@ -443,12 +444,31 @@ jobs:
             return files;
           }
 
-          function snapshotReport(structure, contents, files, repository) {
-            const entries = parseWikiStructure(structure);
-            const pages = parseWikiPages(contents);
+          async function snapshotMatches(expectedFiles, outputDirectory) {
+            let directoryEntries;
+            try {
+              directoryEntries = await readdir(outputDirectory, { withFileTypes: true });
+            } catch (error) {
+              if (error.code === "ENOENT") return false;
+              throw error;
+            }
+            if (directoryEntries.some((entry) => !entry.isFile() || !entry.name.endsWith(".md"))) return false;
+
+            const currentNames = directoryEntries.map((entry) => entry.name).sort();
+            const expectedNames = [...expectedFiles.keys()].sort();
+            if (JSON.stringify(currentNames) !== JSON.stringify(expectedNames)) return false;
+
+            for (const [filename, expectedContent] of expectedFiles) {
+              if ((await readFile(path.join(outputDirectory, filename), "utf8")) !== expectedContent) return false;
+            }
+            return true;
+          }
+
+          function snapshotReport(entries, pages, files, repository, changed) {
             return {
               endpoint: ENDPOINT,
               repository,
+              changed,
               structureEntries: entries,
               contentPageTitles: pages.map((page) => page.title),
               writtenPageFiles: entries.map((entry) => entry.filename).filter((filename) => files.has(filename)),
@@ -461,6 +481,12 @@ jobs:
             if (!reportPath) return;
             await mkdir(path.dirname(path.resolve(reportPath)), { recursive: true });
             await writeFile(path.resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+          }
+
+          async function setOutput(name, value) {
+            const outputPath = process.env.GITHUB_OUTPUT;
+            if (!outputPath) return;
+            await appendFile(outputPath, `${name}=${value}\n`);
           }
 
           function parseRpcResponse(body) {
@@ -604,6 +630,24 @@ jobs:
               failWithProblems("DeepWiki snapshot validation failed", beforeWrite.problems);
             }
 
+            if (await snapshotMatches(files, OUTPUT)) {
+              const summary = [
+                `- Structure pages received: ${entries.length}`,
+                `- Contents pages received: ${pages.length}`,
+                `- Page files generated: ${beforeWrite.writtenFiles.length}`,
+                "- Snapshot changed: no",
+                "- Snapshot write, reread, commit, and push skipped.",
+                `- Problems found: ${beforeWrite.problems.length}`,
+                `- Warnings found: ${beforeWrite.warnings.length}`,
+              ];
+              if (beforeWrite.warnings.length > 0) summary.push("", "### Warnings", "", ...beforeWrite.warnings.map((warning) => `- ${warning}`));
+              await writeReport(snapshotReport(entries, pages, files, repository, false));
+              await appendSummary("## DeepWiki MCP validation", summary);
+              await setOutput("changed", "false");
+              console.log(`DeepWiki snapshot unchanged at ${OUTPUT}; downstream write and commit work skipped.`);
+              return;
+            }
+
             await writeSnapshot(files, OUTPUT);
             const writtenSnapshot = await readSnapshot(OUTPUT);
             const afterWrite = await inspectSnapshot(writtenSnapshot, entries, pages, repositoryFiles, repositoryRoot);
@@ -621,7 +665,8 @@ jobs:
             await appendSummary("## DeepWiki MCP validation", summary.slice(2));
             failWithProblems("DeepWiki written snapshot validation failed", afterWrite.problems);
 
-            await writeReport(snapshotReport(structure, contents, writtenSnapshot, repository));
+            await writeReport(snapshotReport(entries, pages, writtenSnapshot, repository, true));
+            await setOutput("changed", "true");
             console.log(`DeepWiki snapshot written to ${OUTPUT} (${writtenSnapshot.size} files).`);
           }
 
@@ -654,6 +699,7 @@ jobs:
           fi
 
       - name: Commit refreshed snapshot
+        if: steps.sync.outputs.changed == 'true'
         shell: bash
         run: |
           set -euo pipefail
