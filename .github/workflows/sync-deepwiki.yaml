@@ -18,22 +18,24 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      DEEPWIKI_RAW_DIR: ${{ runner.temp }}/deepwiki-raw
+      DEEPWIKI_GENERATED_DIR: ${{ runner.temp }}/deepwiki-generated
+      DEEPWIKI_VALIDATION: ${{ runner.temp }}/deepwiki-validation.json
+      DEEPWIKI_DECISION: ${{ runner.temp }}/deepwiki-decision.json
+      DEEPWIKI_REPORT: ${{ runner.temp }}/deepwiki-report.json
     steps:
       - uses: actions/checkout@v6
         with:
           ref: main
 
-      - name: Fetch, analyze, split, validate, and write DeepWiki snapshot
-        id: sync
+      - name: Prepare embedded DeepWiki implementation
         shell: bash
-        env:
-          DEEPWIKI_REPORT: ${{ runner.temp }}/deepwiki-report.json
         run: |
           set -euo pipefail
 
-          sync_log="$RUNNER_TEMP/deepwiki-sync.log"
-          set +e
-          node --input-type=module >"$sync_log" 2>&1 <<'NODE'
+          program="$RUNNER_TEMP/deepwiki-sync.mjs"
+          cat >"$program" <<'NODE'
           import { appendFile, mkdtemp, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
           import path from "node:path";
           import process from "node:process";
@@ -608,72 +610,154 @@ jobs:
             summaryWritten = true;
           }
 
-          async function run() {
+          const RAW_DIR = path.resolve(process.env.DEEPWIKI_RAW_DIR ?? ".deepwiki-raw");
+          const GENERATED_DIR = path.resolve(process.env.DEEPWIKI_GENERATED_DIR ?? ".deepwiki-generated");
+          const VALIDATION_FILE = path.resolve(process.env.DEEPWIKI_VALIDATION ?? ".deepwiki-validation.json");
+          const DECISION_FILE = path.resolve(process.env.DEEPWIKI_DECISION ?? ".deepwiki-decision.json");
+
+          function repositoryName() {
             const repository = process.env.GITHUB_REPOSITORY;
             if (!repository) throw new Error("GITHUB_REPOSITORY is missing");
+            return repository;
+          }
+
+          async function writeJson(filename, value) {
+            await mkdir(path.dirname(filename), { recursive: true });
+            await writeFile(filename, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+          }
+
+          async function fetchCommand() {
+            const repository = repositoryName();
+            const { structure, contents } = await loadWiki(repository);
+            await mkdir(RAW_DIR, { recursive: true });
+            await writeFile(path.join(RAW_DIR, "structure.md"), structure, "utf8");
+            await writeFile(path.join(RAW_DIR, "contents.md"), contents, "utf8");
+            await appendSummary("## DeepWiki fetch", [
+              "- Status: passed",
+              `- read_wiki_structure response bytes: ${Buffer.byteLength(structure, "utf8")}`,
+              `- read_wiki_contents response bytes: ${Buffer.byteLength(contents, "utf8")}`,
+              `- Raw responses saved under: ${RAW_DIR}`,
+            ]);
+            console.log(`DeepWiki responses saved to ${RAW_DIR}.`);
+          }
+
+          async function analyzeCommand() {
+            const repository = repositoryName();
+            const repositoryFiles = await collectRepositoryFiles(process.cwd());
+            const structure = await readFile(path.join(RAW_DIR, "structure.md"), "utf8");
+            const contents = await readFile(path.join(RAW_DIR, "contents.md"), "utf8");
+            const { entries, pages, files } = buildSnapshot(structure, contents, repositoryFiles);
+            await writeSnapshot(files, GENERATED_DIR);
+            await appendSummary("## DeepWiki analyze and split", [
+              "- Status: passed",
+              `- Structure pages: ${entries.length}`,
+              `- Contents pages: ${pages.length}`,
+              `- Generated Markdown files: ${files.size}`,
+              `- Generated snapshot staged at: ${GENERATED_DIR}`,
+            ]);
+            console.log(`DeepWiki response analyzed and split into ${files.size} files.`);
+          }
+
+          async function validateCommand() {
+            const repository = repositoryName();
             const repositoryRoot = process.cwd();
             const repositoryFiles = await collectRepositoryFiles(repositoryRoot);
-            const { structure, contents } = await loadWiki(repository);
-            const { entries, pages, files } = buildSnapshot(structure, contents, repositoryFiles);
-            const beforeWrite = await inspectSnapshot(files, entries, pages, repositoryFiles, repositoryRoot);
-            if (beforeWrite.problems.length > 0) {
-              await appendSummary("## DeepWiki MCP validation", [
-                `- Structure pages received: ${entries.length}`,
-                `- Contents pages received: ${pages.length}`,
-                `- Problems found: ${beforeWrite.problems.length}`,
-                `- Warnings found: ${beforeWrite.warnings.length}`,
-                "",
-                "### Problems",
-                "",
-                ...beforeWrite.problems.map((problem) => `- ${problem}`),
-              ]);
-              failWithProblems("DeepWiki snapshot validation failed", beforeWrite.problems);
-            }
+            const structure = await readFile(path.join(RAW_DIR, "structure.md"), "utf8");
+            const contents = await readFile(path.join(RAW_DIR, "contents.md"), "utf8");
+            const entries = parseWikiStructure(structure);
+            const pages = parseWikiPages(contents);
+            const files = await readSnapshot(GENERATED_DIR);
+            const validation = await inspectSnapshot(files, entries, pages, repositoryFiles, repositoryRoot);
+            await writeJson(VALIDATION_FILE, {
+              structureEntries: entries,
+              contentPageTitles: pages.map((page) => page.title),
+              writtenPageFiles: validation.writtenFiles,
+              indexPageFiles: validation.indexedFiles,
+              warnings: validation.warnings,
+              problems: validation.problems,
+            });
 
-            if (await snapshotMatches(files, OUTPUT)) {
-              const summary = [
-                `- Structure pages received: ${entries.length}`,
-                `- Contents pages received: ${pages.length}`,
-                `- Page files generated: ${beforeWrite.writtenFiles.length}`,
-                "- Snapshot changed: no",
-                "- Snapshot write, reread, commit, and push skipped.",
-                `- Problems found: ${beforeWrite.problems.length}`,
-                `- Warnings found: ${beforeWrite.warnings.length}`,
-              ];
-              if (beforeWrite.warnings.length > 0) summary.push("", "### Warnings", "", ...beforeWrite.warnings.map((warning) => `- ${warning}`));
-              await writeReport(snapshotReport(entries, pages, files, repository, false));
-              await appendSummary("## DeepWiki MCP validation", summary);
-              await setOutput("changed", "false");
-              console.log(`DeepWiki snapshot unchanged at ${OUTPUT}; downstream write and commit work skipped.`);
+            const summary = [
+              `- Status: ${validation.problems.length === 0 ? "passed" : "failed"}`,
+              `- Structure pages: ${entries.length}`,
+              `- Contents pages: ${pages.length}`,
+              `- Generated page files: ${validation.writtenFiles.length}`,
+              `- Problems found: ${validation.problems.length}`,
+              `- Warnings found: ${validation.warnings.length}`,
+            ];
+            if (validation.warnings.length > 0) summary.push("", "### Warnings", "", ...validation.warnings.map((warning) => `- ${warning}`));
+            if (validation.problems.length > 0) summary.push("", "### Problems", "", ...validation.problems.map((problem) => `- ${problem}`));
+            await appendSummary("## DeepWiki validate", summary);
+            failWithProblems("DeepWiki generated snapshot validation failed", validation.problems);
+            console.log(`DeepWiki generated snapshot validated with ${validation.warnings.length} warning(s).`);
+          }
+
+          async function compareCommand() {
+            const repository = repositoryName();
+            const validation = JSON.parse(await readFile(VALIDATION_FILE, "utf8"));
+            const files = await readSnapshot(GENERATED_DIR);
+            const changed = !(await snapshotMatches(files, OUTPUT));
+            const pages = validation.contentPageTitles.map((title) => ({ title }));
+            await writeJson(DECISION_FILE, { changed });
+            await writeReport(snapshotReport(validation.structureEntries, pages, files, repository, changed));
+            await setOutput("changed", String(changed));
+            await appendSummary("## DeepWiki compare", [
+              `- Candidate Markdown files: ${files.size}`,
+              `- Snapshot changed: ${changed ? "yes" : "no"}`,
+              changed ? "- Write and commit steps remain enabled." : "- Write, reread, commit, and push steps skipped.",
+            ]);
+            if (!changed) {
+              await appendSummary("## DeepWiki write", ["- Status: skipped; snapshot is unchanged."]);
+              await appendSummary("## DeepWiki commit", ["- Status: skipped; snapshot is unchanged."]);
+            }
+            console.log(`DeepWiki snapshot comparison: changed=${changed}.`);
+          }
+
+          async function writeCommand() {
+            const repository = repositoryName();
+            const decision = JSON.parse(await readFile(DECISION_FILE, "utf8"));
+            if (!decision.changed) {
+              await appendSummary("## DeepWiki write", ["- Status: skipped; snapshot is unchanged."]);
               return;
             }
 
+            const repositoryRoot = process.cwd();
+            const repositoryFiles = await collectRepositoryFiles(repositoryRoot);
+            const validation = JSON.parse(await readFile(VALIDATION_FILE, "utf8"));
+            const entries = validation.structureEntries;
+            const pages = validation.contentPageTitles.map((title) => ({ title }));
+            const files = await readSnapshot(GENERATED_DIR);
             await writeSnapshot(files, OUTPUT);
             const writtenSnapshot = await readSnapshot(OUTPUT);
             const afterWrite = await inspectSnapshot(writtenSnapshot, entries, pages, repositoryFiles, repositoryRoot);
             const summary = [
-              "## DeepWiki MCP validation",
-              "",
-              `- Structure pages received: ${entries.length}`,
-              `- Contents pages received: ${pages.length}`,
-              `- Page files written: ${beforeWrite.writtenFiles.length}`,
+              `- Status: ${afterWrite.problems.length === 0 ? "passed" : "failed"}`,
+              `- Files written: ${writtenSnapshot.size}`,
               `- Problems found: ${afterWrite.problems.length}`,
               `- Warnings found: ${afterWrite.warnings.length}`,
             ];
             if (afterWrite.warnings.length > 0) summary.push("", "### Warnings", "", ...afterWrite.warnings.map((warning) => `- ${warning}`));
             if (afterWrite.problems.length > 0) summary.push("", "### Problems", "", ...afterWrite.problems.map((problem) => `- ${problem}`));
-            await appendSummary("## DeepWiki MCP validation", summary.slice(2));
+            await appendSummary("## DeepWiki write", summary);
             failWithProblems("DeepWiki written snapshot validation failed", afterWrite.problems);
-
             await writeReport(snapshotReport(entries, pages, writtenSnapshot, repository, true));
-            await setOutput("changed", "true");
             console.log(`DeepWiki snapshot written to ${OUTPUT} (${writtenSnapshot.size} files).`);
           }
 
-          run().catch(async (error) => {
+          async function commandMain(command) {
+            if (command === "fetch") return fetchCommand();
+            if (command === "analyze") return analyzeCommand();
+            if (command === "validate") return validateCommand();
+            if (command === "compare") return compareCommand();
+            if (command === "write") return writeCommand();
+            throw new Error(`Unknown DeepWiki command: ${command}`);
+          }
+
+          const command = process.argv[2];
+          commandMain(command).catch(async (error) => {
             if (!summaryWritten) {
               try {
-                await appendSummary("## DeepWiki MCP sync failed", ["- Problems found before normal validation summary:", "", "```text", error.message ?? String(error), "```"]);
+                await appendSummary(`## DeepWiki ${command ?? "step"} failed`, ["- Problems found before normal step summary:", "", "```text", error.message ?? String(error), "```"]);
               } catch (summaryError) {
                 console.error(`Unable to write GitHub step summary: ${summaryError.message}`);
               }
@@ -682,24 +766,151 @@ jobs:
             process.exitCode = 1;
           });
           NODE
-          sync_exit=$?
+          check_log="$RUNNER_TEMP/deepwiki-prepare.log"
+          set +e
+          node --check "$program" >"$check_log" 2>&1
+          check_exit=$?
           set -e
-          cat "$sync_log"
-          if [ "$sync_exit" -ne 0 ]; then
+          cat "$check_log"
+          if [ "$check_exit" -ne 0 ]; then
             {
-              echo "## DeepWiki MCP sync"
+              echo "## DeepWiki prepare"
               echo
-              echo "- Problems found: embedded workflow implementation exited with status $sync_exit"
+              echo "- Status: failed (exit $check_exit)"
               echo
               echo '```text'
-              cat "$sync_log"
+              cat "$check_log"
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            exit "$sync_exit"
+            exit "$check_exit"
+          fi
+          {
+            echo "## DeepWiki prepare"
+            echo
+            echo "- Status: passed"
+            echo "- Embedded implementation: $program"
+            echo "- Execution is split into fetch, analyze/split, validate, compare, and write steps."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fetch DeepWiki MCP responses
+        shell: bash
+        run: |
+          set -euo pipefail
+          step_log="$RUNNER_TEMP/deepwiki-fetch.log"
+          set +e
+          node "$RUNNER_TEMP/deepwiki-sync.mjs" fetch >"$step_log" 2>&1
+          step_exit=$?
+          set -e
+          cat "$step_log"
+          if [ "$step_exit" -ne 0 ]; then
+            {
+              echo "## DeepWiki fetch"
+              echo
+              echo "- Status: failed (exit $step_exit)"
+              echo
+              echo '```text'
+              cat "$step_log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$step_exit"
+          fi
+
+      - name: Analyze and split DeepWiki response
+        shell: bash
+        run: |
+          set -euo pipefail
+          step_log="$RUNNER_TEMP/deepwiki-analyze.log"
+          set +e
+          node "$RUNNER_TEMP/deepwiki-sync.mjs" analyze >"$step_log" 2>&1
+          step_exit=$?
+          set -e
+          cat "$step_log"
+          if [ "$step_exit" -ne 0 ]; then
+            {
+              echo "## DeepWiki analyze and split"
+              echo
+              echo "- Status: failed (exit $step_exit)"
+              echo
+              echo '```text'
+              cat "$step_log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$step_exit"
+          fi
+
+      - name: Validate generated DeepWiki snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          step_log="$RUNNER_TEMP/deepwiki-validate.log"
+          set +e
+          node "$RUNNER_TEMP/deepwiki-sync.mjs" validate >"$step_log" 2>&1
+          step_exit=$?
+          set -e
+          cat "$step_log"
+          if [ "$step_exit" -ne 0 ]; then
+            {
+              echo "## DeepWiki validate"
+              echo
+              echo "- Status: failed (exit $step_exit)"
+              echo
+              echo '```text'
+              cat "$step_log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$step_exit"
+          fi
+
+      - name: Compare DeepWiki snapshot
+        id: compare
+        shell: bash
+        run: |
+          set -euo pipefail
+          step_log="$RUNNER_TEMP/deepwiki-compare.log"
+          set +e
+          node "$RUNNER_TEMP/deepwiki-sync.mjs" compare >"$step_log" 2>&1
+          step_exit=$?
+          set -e
+          cat "$step_log"
+          if [ "$step_exit" -ne 0 ]; then
+            {
+              echo "## DeepWiki compare"
+              echo
+              echo "- Status: failed (exit $step_exit)"
+              echo
+              echo '```text'
+              cat "$step_log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$step_exit"
+          fi
+
+      - name: Write changed DeepWiki snapshot
+        if: steps.compare.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          step_log="$RUNNER_TEMP/deepwiki-write.log"
+          set +e
+          node "$RUNNER_TEMP/deepwiki-sync.mjs" write >"$step_log" 2>&1
+          step_exit=$?
+          set -e
+          cat "$step_log"
+          if [ "$step_exit" -ne 0 ]; then
+            {
+              echo "## DeepWiki write"
+              echo
+              echo "- Status: failed (exit $step_exit)"
+              echo
+              echo '```text'
+              cat "$step_log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$step_exit"
           fi
 
       - name: Commit refreshed snapshot
-        if: steps.sync.outputs.changed == 'true'
+        if: steps.compare.outputs.changed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -707,6 +918,11 @@ jobs:
           git add -A -- .deepwiki
           if git diff --cached --quiet; then
             echo "DeepWiki snapshot is unchanged."
+            {
+              echo "## DeepWiki commit"
+              echo
+              echo "- Status: skipped; Git tree is unchanged."
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
@@ -714,3 +930,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "📄 refresh DeepWiki snapshot"
           git push origin HEAD:main
+          {
+            echo "## DeepWiki commit"
+            echo
+            echo "- Status: passed"
+            echo "- Refreshed snapshot committed and pushed to main."
+          } >> "$GITHUB_STEP_SUMMARY"
