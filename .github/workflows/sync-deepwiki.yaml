@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: main
+          ref: test-sync-deepwiki
 
       - name: Prepare embedded DeepWiki implementation
         shell: bash
