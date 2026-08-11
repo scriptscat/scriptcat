@@ -126,13 +126,15 @@
           if (typeof actual !== "function") {
             throw AssertionError("toThrow 的被测目标必须是函数,实际 " + typeof actual, "function", typeof actual);
           }
-          var thrown = null;
+          var didThrow = false;
+          var thrown;
           try {
             actual();
           } catch (e) {
+            didThrow = true;
             thrown = e;
           }
-          if (!thrown) throw AssertionError("期望抛出异常,实际未抛出", "throw", "no throw");
+          if (!didThrow) throw AssertionError("期望抛出异常,实际未抛出", "throw", "no throw");
           if (pattern) {
             var msg = String((thrown && thrown.message) || thrown);
             var ok = pattern instanceof RegExp ? pattern.test(msg) : msg.indexOf(String(pattern)) !== -1;
@@ -212,6 +214,9 @@
     }
 
     async function runCase(c, reporters) {
+      c.error = null;
+      c.expected = null;
+      c.actual = null;
       if (c.kind === "manual") {
         c.status = STATUS.MANUAL;
       } else {

@@ -143,6 +143,13 @@ vdescribe("sctest 框架内核", () => {
       vexpect(() => e(() => { throw new Error("boom"); }).toThrow(/boom/)).not.toThrow();
     });
 
+    vit("toThrow 接受抛出 falsy 值的函数", () => {
+      const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
+      [0, false, null, undefined].forEach((value) => {
+        vexpect(() => e(() => { throw value; }).toThrow()).not.toThrow();
+      });
+    });
+
     vit("toMatch 支持正则与子串", () => {
       const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
       vexpect(() => e("hello world").toMatch(/world/)).not.toThrow();
@@ -772,6 +779,34 @@ vdescribe("手动 suite 触发", () => {
     vexpect(detail).not.toBe(null);
     vexpect(detail.textContent).toMatch(/"a"/);
     vexpect(detail.textContent).toMatch(/"b"/);
+  });
+
+  vit("用例重跑通过后不保留上一次失败的断言详情", async () => {
+    let attempt = 0;
+    let runInfo;
+    const results = [];
+    SCTest.__buildReporters = function (opts, context, capturedRunInfo) {
+      runInfo = capturedRunInfo;
+      return [{ onCase: (result) => results.push(result) }];
+    };
+
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "console" });
+    d("手动组", { auto: false }, () => {
+      i("第一次失败后通过", () => {
+        attempt++;
+        if (attempt === 1) e("actual").toBe("expected");
+      });
+    });
+
+    await run();
+    await runInfo.onRerun();
+    await runInfo.onRerun();
+
+    const result = results.at(-1);
+    vexpect(result.status).toBe("pass");
+    vexpect(result.error).toBe(null);
+    vexpect(result.expected).toBe(null);
+    vexpect(result.actual).toBe(null);
   });
 
   vit("用例重跑:连续失败只保留一份最新详情,失败转通过后旧详情被清除", async () => {
