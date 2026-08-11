@@ -21,6 +21,7 @@ jobs:
     env:
       DEEPWIKI_RAW_DIR: ${{ runner.temp }}/deepwiki-raw
       DEEPWIKI_GENERATED_DIR: ${{ runner.temp }}/deepwiki-generated
+      DEEPWIKI_REPOSITORY_FILES: ${{ runner.temp }}/deepwiki-repository-files.json
       DEEPWIKI_VALIDATION: ${{ runner.temp }}/deepwiki-validation.json
       DEEPWIKI_DECISION: ${{ runner.temp }}/deepwiki-decision.json
       DEEPWIKI_REPORT: ${{ runner.temp }}/deepwiki-report.json
@@ -612,6 +613,7 @@ jobs:
 
           const RAW_DIR = path.resolve(process.env.DEEPWIKI_RAW_DIR ?? ".deepwiki-raw");
           const GENERATED_DIR = path.resolve(process.env.DEEPWIKI_GENERATED_DIR ?? ".deepwiki-generated");
+          const REPOSITORY_FILES = path.resolve(process.env.DEEPWIKI_REPOSITORY_FILES ?? ".deepwiki-repository-files.json");
           const VALIDATION_FILE = path.resolve(process.env.DEEPWIKI_VALIDATION ?? ".deepwiki-validation.json");
           const DECISION_FILE = path.resolve(process.env.DEEPWIKI_DECISION ?? ".deepwiki-decision.json");
 
@@ -624,6 +626,43 @@ jobs:
           async function writeJson(filename, value) {
             await mkdir(path.dirname(filename), { recursive: true });
             await writeFile(filename, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+          }
+
+          async function writeRepositoryFiles(files, repositoryRoot) {
+            await writeJson(REPOSITORY_FILES, {
+              version: 1,
+              root: path.resolve(repositoryRoot),
+              revision: process.env.GITHUB_SHA ?? null,
+              files: [...files],
+            });
+          }
+
+          async function loadRepositoryFiles(repositoryRoot) {
+            let inventory;
+            try {
+              inventory = JSON.parse(await readFile(REPOSITORY_FILES, "utf8"));
+            } catch (error) {
+              throw new Error(`cannot load repository file inventory ${REPOSITORY_FILES}: ${error.message}`);
+            }
+            if (
+              inventory?.version !== 1 ||
+              inventory.root !== path.resolve(repositoryRoot) ||
+              inventory.revision !== (process.env.GITHUB_SHA ?? null) ||
+              !Array.isArray(inventory.files) ||
+              new Set(inventory.files).size !== inventory.files.length ||
+              inventory.files.some(
+                (file) =>
+                  typeof file !== "string" ||
+                  !file ||
+                  path.isAbsolute(file) ||
+                  file === ".." ||
+                  file.startsWith("../") ||
+                  path.posix.normalize(file) !== file
+              )
+            ) {
+              throw new Error(`repository file inventory is malformed: ${REPOSITORY_FILES}`);
+            }
+            return new Set(inventory.files);
           }
 
           async function fetchCommand() {
@@ -643,7 +682,9 @@ jobs:
 
           async function analyzeCommand() {
             const repository = repositoryName();
-            const repositoryFiles = await collectRepositoryFiles(process.cwd());
+            const repositoryRoot = process.cwd();
+            const repositoryFiles = await collectRepositoryFiles(repositoryRoot);
+            await writeRepositoryFiles(repositoryFiles, repositoryRoot);
             const structure = await readFile(path.join(RAW_DIR, "structure.md"), "utf8");
             const contents = await readFile(path.join(RAW_DIR, "contents.md"), "utf8");
             const { entries, pages, files } = buildSnapshot(structure, contents, repositoryFiles);
@@ -653,6 +694,7 @@ jobs:
               `- Structure pages: ${entries.length}`,
               `- Contents pages: ${pages.length}`,
               `- Generated Markdown files: ${files.size}`,
+              `- Repository file inventory: ${repositoryFiles.size} files saved once for later steps`,
               `- Generated snapshot staged at: ${GENERATED_DIR}`,
             ]);
             console.log(`DeepWiki response analyzed and split into ${files.size} files.`);
@@ -661,7 +703,7 @@ jobs:
           async function validateCommand() {
             const repository = repositoryName();
             const repositoryRoot = process.cwd();
-            const repositoryFiles = await collectRepositoryFiles(repositoryRoot);
+            const repositoryFiles = await loadRepositoryFiles(repositoryRoot);
             const structure = await readFile(path.join(RAW_DIR, "structure.md"), "utf8");
             const contents = await readFile(path.join(RAW_DIR, "contents.md"), "utf8");
             const entries = parseWikiStructure(structure);
@@ -682,6 +724,7 @@ jobs:
               `- Structure pages: ${entries.length}`,
               `- Contents pages: ${pages.length}`,
               `- Generated page files: ${validation.writtenFiles.length}`,
+              `- Repository file inventory: ${repositoryFiles.size} files reused from ${REPOSITORY_FILES}`,
               `- Problems found: ${validation.problems.length}`,
               `- Warnings found: ${validation.warnings.length}`,
             ];
@@ -722,7 +765,7 @@ jobs:
             }
 
             const repositoryRoot = process.cwd();
-            const repositoryFiles = await collectRepositoryFiles(repositoryRoot);
+            const repositoryFiles = await loadRepositoryFiles(repositoryRoot);
             const validation = JSON.parse(await readFile(VALIDATION_FILE, "utf8"));
             const entries = validation.structureEntries;
             const pages = validation.contentPageTitles.map((title) => ({ title }));
