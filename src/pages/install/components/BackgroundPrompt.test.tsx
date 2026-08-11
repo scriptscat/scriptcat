@@ -1,13 +1,17 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { act, render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
-import { BackgroundPrompt, backgroundPromptShownKey } from "./BackgroundPrompt";
+import { BackgroundPrompt, backgroundPromptShownKey, keepAlivePromptShownKey } from "./BackgroundPrompt";
+
+const { set } = vi.hoisted(() => ({ set: vi.fn() }));
+vi.mock("@App/pages/store/global", () => ({ systemConfig: { set } }));
 
 beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  set.mockReset();
   vi.restoreAllMocks();
 });
 
@@ -27,6 +31,18 @@ describe("BackgroundPrompt 后台权限弹窗", () => {
     expect(onResult).toHaveBeenCalledWith(true);
     expect(req).toHaveBeenCalledWith({ permissions: ["background"] });
     expect(localStorage.getItem(backgroundPromptShownKey)).toBe("true");
+  });
+
+  it("传入 webRequestBlocking 时请求保活权限并使用独立展示标记", async () => {
+    const req = vi.spyOn(chrome.permissions, "request");
+    const onResult = vi.fn();
+    render(<BackgroundPrompt open scriptType="定时脚本" permission="webRequestBlocking" onResult={onResult} />);
+    await act(async () => fireEvent.click(screen.getByText("立即启用").closest("button")!));
+    expect(onResult).toHaveBeenCalledWith(true);
+    expect(req).toHaveBeenCalledWith({ permissions: ["webRequestBlocking"] });
+    expect(set).toHaveBeenCalledWith("keep_ext_background_alive", true);
+    expect(localStorage.getItem(keepAlivePromptShownKey)).toBe("true");
+    expect(localStorage.getItem(backgroundPromptShownKey)).toBeNull();
   });
 
   it("点击暂不启用回调 false 且记录已展示", () => {

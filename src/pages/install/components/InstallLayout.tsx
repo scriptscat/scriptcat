@@ -15,7 +15,7 @@ export interface InstallLayoutProps {
 
 export function InstallLayout({ title, titleIcon, titleTone = "default", actions, children }: InstallLayoutProps) {
   return (
-    <div data-testid="install-layout" className="flex h-screen flex-col bg-background">
+    <div data-testid="install-layout" className="flex h-dvh flex-col bg-background">
       <InstallTopBar title={title} titleIcon={titleIcon} titleTone={titleTone} />
 
       <main data-testid="content-area" className="min-h-0 flex-1 overflow-y-auto px-6 py-7">

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent, act } from "@testing-library/react";
 import fs from "fs";
 import path from "path";
 import { initTestLanguage } from "@Tests/initTestLanguage";
@@ -46,13 +46,17 @@ function makeData(overrides: Record<string, any> = {}) {
     showAlert: false,
     menuExpandNum: 5,
     popupCompactLayout: false,
+    popupSiteScopeActions: false,
     defaultScriptProvider: "scriptcat",
     currentUrl: "https://example.com",
     handleToggleScript: vi.fn(),
     handleDeleteScript: vi.fn(),
     handleOpenEditor: vi.fn(),
+    handleOpenScriptSettings: vi.fn(),
     handleOpenUserConfig: vi.fn(),
     handleExcludeUrl: vi.fn(),
+    handleOnlyRunOnUrl: vi.fn(),
+    handleAllowUrl: vi.fn(),
     handleMenuClick: vi.fn(),
     handleRunScript: vi.fn(),
     handleStopScript: vi.fn(),
@@ -104,6 +108,40 @@ describe("Popup 页头品牌标识", () => {
   });
 });
 
+describe("Popup 更多菜单焦点行为", () => {
+  it("Firefox 瞬时焦点移出时保持开启，Escape 和菜单项仍可关闭", async () => {
+    const handleCreateScript = vi.fn();
+    mockData = makeData({ handleCreateScript });
+    render(<App />);
+
+    const trigger = screen.getByRole("button", { name: t("more_menu") });
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    await act(async () => {
+      outside.focus();
+    });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(outside);
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: t("script:create_script") }));
+    expect(handleCreateScript).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    trigger.focus();
+    outside.remove();
+  });
+});
+
 describe("Popup 紧凑布局", () => {
   it("启用后应缩小分组标题与脚本行间距", () => {
     const script = makeScriptMenu();
@@ -119,6 +157,49 @@ describe("Popup 紧凑布局", () => {
 
     expect(screen.getByText(new RegExp(t("popup:current_page_scripts"))).closest("button")).toHaveClass("h-8", "px-3");
     expect(screen.getByText("Script A").closest("button")?.parentElement).toHaveClass("h-9", "px-3", "gap-2");
+  });
+});
+
+describe("Popup 脚本快捷设置与站点范围操作", () => {
+  it("展开脚本后始终显示脚本设置入口，并在开关关闭时隐藏站点范围操作", () => {
+    mockData = makeData({
+      scriptList: [makeScriptMenu({ isEffective: true })],
+      fullScriptCount: 1,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    expect(screen.getByRole("button", { name: "脚本设置" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "仅在 example.com 执行" })).not.toBeInTheDocument();
+  });
+
+  it("开关开启且本站生效时显示仅在与排除两个动作", () => {
+    mockData = makeData({
+      popupSiteScopeActions: true,
+      scriptList: [makeScriptMenu({ isEffective: true })],
+      fullScriptCount: 1,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    expect(screen.getByRole("button", { name: "仅在 example.com 执行" })).toHaveClass("text-primary");
+    expect(screen.getByRole("button", { name: "排除在 example.com 上执行" })).toBeInTheDocument();
+  });
+
+  it("本站不生效时只显示允许动作", () => {
+    mockData = makeData({
+      popupSiteScopeActions: true,
+      scriptList: [makeScriptMenu({ isEffective: false })],
+      fullScriptCount: 1,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    expect(screen.getByRole("button", { name: "允许在 example.com 执行" })).toHaveClass("text-primary");
+    expect(screen.queryByRole("button", { name: "排除在 example.com 上执行" })).not.toBeInTheDocument();
   });
 });
 

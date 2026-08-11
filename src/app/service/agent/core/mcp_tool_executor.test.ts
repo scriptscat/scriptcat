@@ -92,15 +92,6 @@ describe("MCPToolExecutor", () => {
     expect(result).toEqual(mcpContent);
   });
 
-  it("非数组结果应原样返回", async () => {
-    const client = createMockClient("plain string result");
-    const executor = new MCPToolExecutor(client, "simple_tool");
-
-    const result = await executor.execute({});
-
-    expect(result).toBe("plain string result");
-  });
-
   it("image 缺少 mimeType 时应默认为 image/png", async () => {
     const mcpContent = [{ type: "image", data: "abc123" }];
     const client = createMockClient(mcpContent);

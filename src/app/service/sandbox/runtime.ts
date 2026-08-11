@@ -179,7 +179,10 @@ export class Runtime {
     // 判断 run-in
     const runIn = script.metadata?.["run-in"]?.[0];
     const inIncognitoContext = extensionEnv?.inIncognitoContext;
-    if (runIn && runIn !== "all" && typeof inIncognitoContext === "boolean") {
+    // Firefox spanning 只有一个共享 event page / sandbox，没有按普通窗口与隐身窗口拆分的后台环境。
+    // 因此后台/定时脚本只能运行一次；tab 专属的 run-in 值在该共享环境中不做伪隔离。
+    const hasPerContextBackground = extensionEnv?.incognitoMode !== "spanning";
+    if (hasPerContextBackground && runIn && runIn !== "all" && typeof inIncognitoContext === "boolean") {
       // 判断插件运行环境
       const contextType = inIncognitoContext ? "incognito-tabs" : "normal-tabs";
       if (runIn !== contextType) {

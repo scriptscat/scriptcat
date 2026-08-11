@@ -88,21 +88,24 @@ of sanitization patterns can otherwise look like matches — so don't rely on a 
 
 | Doc | Owns |
 | --- | --- |
-| [`../AGENTS.md`](../AGENTS.md) | Engineering principles + architecture quick-map. Single source of truth; `CLAUDE.md` only `@import`s it. |
-| [`develop.md`](./develop.md) | The concrete "how": commands, structure, style, i18n, commit/PR; testing mechanics split to [`references/develop-testing.md`](./references/develop-testing.md). |
-| [`pull-request.md`](./pull-request.md) | Detailed PR description structure and guidance for agents and contributors; the human-facing template remains lightweight. |
-| [`design.md`](./design.md) | The design system: theme mechanism, shadcn component selection, new-page recipe; tokens split to [`references/design-tokens.md`](./references/design-tokens.md), component palette to [`references/design-components.md`](./references/design-components.md), layout/motion/state/a11y patterns to [`references/design-patterns.md`](./references/design-patterns.md). |
-| [`verification.md`](./verification.md) | Lightweight end-to-end functional verification — throwaway scratch scripts driving the real built extension; report template split to [`references/verification-report-template.md`](./references/verification-report-template.md), debugging FAQ to [`references/verification-debugging.md`](./references/verification-debugging.md). |
-| [`architecture.md`](./architecture.md) | Deep internals: process model, message passing; subsystem deep-dives split to [`references/architecture-services.md`](./references/architecture-services.md), [`references/architecture-data.md`](./references/architecture-data.md), [`references/architecture-gm-api.md`](./references/architecture-gm-api.md), [`references/architecture-execution.md`](./references/architecture-execution.md), [`references/architecture-build.md`](./references/architecture-build.md), [`references/architecture-agent.md`](./references/architecture-agent.md). |
+| [`../AGENTS.md`](../AGENTS.md) | Engineering principles + architecture quick-map. `CLAUDE.md` only `@import`s it. |
+| [`develop.md`](./develop.md) | The concrete "how": commands, structure, style, i18n, commit/PR. Testing → [`references/develop-testing.md`](./references/develop-testing.md). |
+| [`pull-request.md`](./pull-request.md) | The PR body: structure and evidence rules. The human-facing template stays lightweight. |
+| [`design.md`](./design.md) | The design system; tokens, component palette, and layout/motion/state/a11y patterns → the three `references/design-*.md`. |
+| [`verification.md`](./verification.md) | *When* to drive the real built extension, where its evidence goes, how to report honestly. Not the harness — link to `e2e/README.md`, don't restate fixtures/isolation/env vars. |
+| [`../e2e/README.md`](../e2e/README.md) | The harness itself: the two tracks and their configs, isolation, fixture/helper inventory, protocol mocks, `E2E_*` variables, artifact paths. |
+| [`architecture.md`](./architecture.md) | Deep internals; subsystem deep-dives → the six `references/architecture-*.md`. |
 | [`cloud-sync.md`](./cloud-sync.md) | Cloud sync internals: sync files, digest/status semantics, provider differences, error classification, retry policy. |
 | [`translation.md`](./translation.md) | Translation / localization single source of truth. |
-| [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: doc-set organization rules, fact-check / anti-drift discipline, and policy-consistency checks — for every tracked agent/contributor Markdown file, not just `AGENTS.md` + `docs/*`. |
-| [`README.md`](./README.md) | The index that points to all of the above. |
-| `.github/copilot-instructions.md` | Copilot-specific entry point and any genuine tool-specific differences; shared facts (architecture, commands, testing, design, translation, PR mechanics) route to the owning doc above instead of being copied. |
+| [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: organization rules, fact-check / anti-drift discipline, policy-consistency checks — across every tracked contributor Markdown, not just `AGENTS.md` + `docs/*`. |
+| [`README.md`](./README.md) | The reader-facing index: what each doc contains and when to read it. |
+| `.github/copilot-instructions.md` | Copilot-specific entry point and genuine tool-specific differences only; shared facts route to the owning doc above instead of being copied. |
 | Package-local `README.md` (e.g. `packages/message/README.md`, `packages/filesystem/README.md`) | That package's purpose, boundaries, entry points, and local gotchas — not a duplicate of repo-wide architecture or coding policy. |
 
-When you move a fact, move it to the doc that **owns** it and cross-link — never copy the same fact into two
-places, or they drift apart. To discover the current full set instead of relying on this table alone, run
+This table records **ownership boundaries** — which doc a given fact belongs in. It is deliberately *not* the
+index; [`README.md`](./README.md) holds the per-doc contents and "read before X" triggers, so don't restate one
+inside the other. When you move a fact, move it to the doc that owns it and cross-link — never copy it into two
+places, or they drift apart. To discover the current full set rather than relying on this table, run
 `git ls-files '*.md'`.
 
 ## Checklist 1 — Organization (every doc change)

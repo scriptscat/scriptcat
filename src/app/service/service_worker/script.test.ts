@@ -658,6 +658,48 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
     });
   });
 
+  describe("popup 站点范围快捷操作", () => {
+    it("仅在当前站点执行应以当前站点替换用户匹配列表", async () => {
+      const script = createMockScript({ selfMetadata: { match: ["*://old.example/*"] } });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.onlyRunOnUrl({ uuid: script.uuid, matchPattern: "*://current.example/*" });
+
+      expect(savedSelfMetadata()).toEqual({ match: ["*://current.example/*"] });
+    });
+
+    it("自定义匹配未覆盖当前站点时应把当前站点加入允许列表", async () => {
+      const script = createMockScript({
+        selfMetadata: { match: ["*://allowed.example/*"], exclude: ["*://current.example/*"] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.allowUrl({
+        uuid: script.uuid,
+        matchPattern: "*://current.example/*",
+        excludePattern: "*://current.example/*",
+      });
+
+      expect(savedSelfMetadata()).toEqual({
+        match: ["*://allowed.example/*", "*://current.example/*"],
+        exclude: [],
+      });
+    });
+
+    it("因排除规则不生效时应移除当前站点排除而不创建匹配覆盖", async () => {
+      const script = createMockScript({ selfMetadata: { exclude: ["*://current.example/*"] } });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.allowUrl({
+        uuid: script.uuid,
+        matchPattern: "*://current.example/*",
+        excludePattern: "*://current.example/*",
+      });
+
+      expect(savedSelfMetadata()).toEqual({ exclude: [] });
+    });
+  });
+
   describe("resetMatch / resetExclude - 编辑器匹配列表", () => {
     it("传入 undefined(重置)应删除用户覆盖", async () => {
       const script = createMockScript({ selfMetadata: { match: ["*://user.com/*"] } });

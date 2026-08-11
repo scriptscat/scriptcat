@@ -11,7 +11,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_info
-// @connect      httpbun.com
+// @connect      httpbingo.org
 // @connect      raw.githubusercontent.com
 // @connect      cdn.jsdelivr.net
 // @connect      ipv4.download.thinkbroadband.com
@@ -136,8 +136,8 @@ const enableTool = true;
   // File extends Blob; useful to verify the URL-object branch handles File too.
   const TEXT_FILE = new File([TEXT_BLOB], "ignored-by-api.txt", { type: "text/plain" });
 
-  // httpbun deterministic endpoint — returns N random bytes.
-  const HB = "https://httpbun.com";
+  // httpbingo deterministic endpoint — returns N random bytes.
+  const HB = "https://httpbingo.org";
 
   // ---------- Panel ----------
   const panel = h(
@@ -697,7 +697,7 @@ const enableTool = true;
     skip(`(visual check) you should see both uniquify-target.txt and uniquify-target (1).txt`);
   });
 
-  // 13) headers honored in native mode — httpbun /headers echoes request headers
+  // 13) headers honored in native mode — httpbingo /headers echoes request headers
   autoTest("headers passed to backend xhr (native mode)", async () => {
     // We can't easily inspect what hit the server because the response is
     // streamed to disk. So instead: ask /headers, which RESPONDS with the headers

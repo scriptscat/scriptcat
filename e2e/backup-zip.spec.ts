@@ -1,6 +1,6 @@
 import fs from "fs";
 import type { BrowserContext, Page } from "@playwright/test";
-import { test, expect } from "./fixtures";
+import { testWithUserScripts as test, expect } from "./fixtures";
 import { installScriptByCode, openOptionsPage } from "./utils";
 
 /**
@@ -18,17 +18,42 @@ import { installScriptByCode, openOptionsPage } from "./utils";
  */
 
 const SCRIPT_NAME = "Backup RoundTrip E2E";
+const TARGET_ORIGIN = "http://backup-roundtrip.test";
 const script = `// ==UserScript==
 // @name         ${SCRIPT_NAME}
 // @namespace    https://e2e.test
 // @version      1.0.0
 // @description  backup zip e2e
 // @author       E2E
-// @match        http://example.com/*
-// @grant        none
+// @match        ${TARGET_ORIGIN}/*
+// @grant        GM_getValue
+// @grant        GM_setValue
 // ==/UserScript==
-(function(){})();
+
+document.documentElement.setAttribute("data-restored-value", GM_getValue("backup-key", "missing"));
+GM_setValue("backup-key", "value-from-backup");
 `;
+
+async function purgeInstalledScript(page: Page): Promise<void> {
+  const result = await page.evaluate(async (name) => {
+    const all = await chrome.runtime.sendMessage({ action: "serviceWorker/script/getAllScripts" });
+    const script = all.data.find((item: { name: string }) => item.name === name) as { uuid: string } | undefined;
+    if (!script) throw new Error("导出后未找到待清理脚本");
+    const deleted = await chrome.runtime.sendMessage({
+      action: "serviceWorker/script/deletes",
+      data: [script.uuid],
+    });
+    const purged = await chrome.runtime.sendMessage({
+      action: "serviceWorker/script/purges",
+      data: [script.uuid],
+    });
+    return { deleted, purged };
+  }, SCRIPT_NAME);
+  expect(result.deleted.code || 0, result.deleted.message).toBe(0);
+  expect(result.deleted.data).toBe(true);
+  expect(result.purged.code || 0, result.purged.message).toBe(0);
+  expect(result.purged.data).toBe(true);
+}
 
 /** 轮询 SW 的 chrome.downloads，拿到刚导出的 blob 备份文件在磁盘上的路径 */
 async function waitForExportedZipPath(context: BrowserContext, timeoutMs = 15_000): Promise<string> {
@@ -57,8 +82,16 @@ async function waitForExportedZipPath(context: BrowserContext, timeoutMs = 15_00
 }
 
 test.describe("Backup zip export/import round-trip (#1479)", () => {
-  test("导出备份生成合法 zip，再导入能被 loadAsyncJSZip 解析并列出脚本", async ({ context, extensionId }) => {
+  test("导出后彻底删除原脚本，真正导入应恢复脚本与 GM Value", async ({ context, extensionId }) => {
+    await context.route(`${TARGET_ORIGIN}/**`, (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><html><body></body></html>" })
+    );
     await installScriptByCode(context, extensionId, script);
+
+    const seedPage = await context.newPage();
+    await seedPage.goto(`${TARGET_ORIGIN}/seed`, { waitUntil: "domcontentloaded" });
+    await expect(seedPage.locator("html")).toHaveAttribute("data-restored-value", "missing", { timeout: 20_000 });
+    await seedPage.close();
 
     const page = await openOptionsPage(context, extensionId);
     await page.goto(`chrome-extension://${extensionId}/src/options.html#/tools`);
@@ -75,6 +108,9 @@ test.describe("Backup zip export/import round-trip (#1479)", () => {
     expect(buf.length).toBeGreaterThan(0);
     expect(buf[0]).toBe(0x50); // 'P'
     expect(buf[1]).toBe(0x4b); // 'K'
+
+    // 导入前彻底删除原脚本和共享值，避免导入页只显示预览也造成假阳性。
+    await purgeInstalledScript(page);
 
     // 3) 导入：点击“导入文件”→ 触发隐藏 file input 的 click（filechooser），选中刚导出的 zip，
     //    openImportWindow 会把文件写入 cache 并经扩展 API 新开导入页标签，从该标签 URL 取 uuid。
@@ -109,6 +145,17 @@ test.describe("Backup zip export/import round-trip (#1479)", () => {
     await importPage.waitForLoadState("domcontentloaded");
     await expect(importPage.locator("body")).toContainText(SCRIPT_NAME, { timeout: 15_000 });
 
+    await expect(importPage.getByTestId("import-btn")).toBeEnabled({ timeout: 10_000 });
+    await importPage.getByTestId("import-btn").click();
+    await expect(importPage.getByTestId("import-complete")).toBeVisible({ timeout: 30_000 });
+
+    const restoredPage = await context.newPage();
+    await restoredPage.goto(`${TARGET_ORIGIN}/restored`, { waitUntil: "domcontentloaded" });
+    await expect(restoredPage.locator("html")).toHaveAttribute("data-restored-value", "value-from-backup", {
+      timeout: 20_000,
+    });
+
+    await restoredPage.close();
     await importPage.close();
     await page.close();
   });
