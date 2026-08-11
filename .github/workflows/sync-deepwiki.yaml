@@ -1,0 +1,72 @@
+name: sync DeepWiki
+
+on:
+  schedule:
+    - cron: "17 3 */3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-deepwiki
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync DeepWiki context
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Fetch DeepWiki as Markdown
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tool="${RUNNER_TEMP}/deepwiki-to-md"
+          output="${RUNNER_TEMP}/deepwiki-output"
+          generated="${output}/wiki/scriptscat/scriptcat"
+
+          curl --fail --location --retry 3 --retry-all-errors \
+            --output "$tool" \
+            https://raw.githubusercontent.com/suwa-sh/deepwiki-to-md/9d69c63c08e788b01210ff927dea836d57b2cf5f/bin/deepwiki-to-md
+          chmod +x "$tool"
+
+          rm -rf "$output"
+          mkdir -p "$output"
+          "$tool" wiki https://deepwiki.com/scriptscat/scriptcat/ -o "$output"
+          sudo chown -R "$(id -u):$(id -g)" "$output"
+
+          if [[ ! -s "$generated/index.md" ]]; then
+            echo "deepwiki-to-md did not generate a non-empty index.md" >&2
+            exit 1
+          fi
+
+          if ! find "$generated" -maxdepth 1 -type f -name '[0-9]*-*.md' -print -quit | grep -q .; then
+            echo "deepwiki-to-md did not generate any wiki page Markdown" >&2
+            exit 1
+          fi
+
+          rm -rf .deepwiki
+          mv "$generated" .deepwiki
+
+      - name: Commit refreshed snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git add -A -- .deepwiki
+          if git diff --cached --quiet; then
+            echo "DeepWiki snapshot is unchanged."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "📄 refresh DeepWiki snapshot"
+          git push origin HEAD:main
