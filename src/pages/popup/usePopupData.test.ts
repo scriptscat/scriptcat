@@ -23,6 +23,8 @@ const popupInitialData = vi.hoisted(() => ({
       menus: [],
       runNum: 0,
       updatetime: 0,
+      isEffective: true,
+      hasMatchOverride: false,
     },
   ],
   backScriptList: [] as unknown[],

@@ -395,6 +395,7 @@ export class PopupService {
         // 如果脚本已经存在，则不添加，更新信息
         run.enable = script.status === SCRIPT_STATUS_ENABLE;
         run.isEffective = o.effective!;
+        run.hasMatchOverride = script.selfMetadata?.match !== undefined;
         run.hasUserConfig = !!script.config;
       } else {
         // 由于目前没有在 Popup 显示 @match @include @exclude, 所以以下代码暂不需要

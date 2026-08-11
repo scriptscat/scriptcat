@@ -37,6 +37,7 @@ const createMenu = (uuid: string, overrides: Partial<ScriptMenu> = {}): ScriptMe
   runNumByIframe: 0,
   menus: [],
   isEffective: true,
+  hasMatchOverride: false,
   ...overrides,
 });
 
@@ -288,7 +289,7 @@ describe("PopupService getPopupData Popup 数据获取与合并", () => {
         isUrlBlacklist: vi.fn().mockReturnValue(false),
       },
       scriptDAO: {
-        gets: vi.fn().mockResolvedValue([createScript(uuid)]),
+        gets: vi.fn().mockResolvedValue([createScript(uuid, { selfMetadata: { match: ["*://example.com/*"] } })]),
       },
     });
 
@@ -298,7 +299,27 @@ describe("PopupService getPopupData Popup 数据获取与合并", () => {
     expect(result.scriptList[0].uuid).toBe(uuid);
     expect(result.scriptList[0].isEffective).toBe(true);
     expect(result.scriptList[0].enable).toBe(true);
+    expect(result.scriptList[0].hasMatchOverride).toBe(true);
     expect(result.isBlacklist).toBe(false);
+  });
+
+  it("无 match 覆盖的脚本（无运行缓存）hasMatchOverride 应为 false", async () => {
+    const uuid = "no-match-uuid";
+    const matchMap = new Map([[uuid, { uuid, effective: true }]]);
+
+    const { service } = createService({
+      runtime: {
+        getPopupPageScriptMatchingResultByUrl: vi.fn().mockResolvedValue(matchMap),
+        isUrlBlacklist: vi.fn().mockReturnValue(false),
+      },
+      scriptDAO: {
+        gets: vi.fn().mockResolvedValue([createScript(uuid)]),
+      },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: "https://example.com/" });
+
+    expect(result.scriptList[0].hasMatchOverride).toBe(false);
   });
 
   it("脚本同时在匹配结果与运行缓存中，应复用缓存记录（保留 runNum）并更新 enable/isEffective/hasUserConfig", async () => {
@@ -324,6 +345,28 @@ describe("PopupService getPopupData Popup 数据获取与合并", () => {
     expect(result.scriptList[0].enable).toBe(true); // 按脚本 status 更新
     expect(result.scriptList[0].isEffective).toBe(false); // 来自匹配结果
     expect(result.scriptList[0].hasUserConfig).toBe(true); // script.config 存在
+  });
+
+  it("合并 run 记录时应按当前脚本同步 hasMatchOverride（match 覆盖存在性）", async () => {
+    const uuid = "run-uuid-2";
+    const matchMap = new Map([[uuid, { uuid, effective: false }]]);
+    // 运行缓存中存有旧的 hasMatchOverride 记录（模拟缓存来自更早的一次合并）
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(uuid, { runNum: 3, hasMatchOverride: false })]);
+
+    const { service } = createService({
+      runtime: {
+        getPopupPageScriptMatchingResultByUrl: vi.fn().mockResolvedValue(matchMap),
+        isUrlBlacklist: vi.fn().mockReturnValue(false),
+      },
+      scriptDAO: {
+        gets: vi.fn().mockResolvedValue([createScript(uuid, { selfMetadata: { match: ["*://example.com/*"] } })]),
+      },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: "https://example.com/" });
+
+    expect(result.scriptList[0].runNum).toBe(3); // 保留缓存中的执行次数
+    expect(result.scriptList[0].hasMatchOverride).toBe(true); // 按当前脚本的 match 覆盖同步
   });
 
   it("URL 无任何匹配脚本时，scriptList 为空；后台脚本应出现在 backScriptList", async () => {

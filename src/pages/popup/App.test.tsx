@@ -90,6 +90,7 @@ function makeScriptMenu(overrides: Record<string, any> = {}) {
     runNumByIframe: 0,
     menus: [],
     isEffective: null,
+    hasMatchOverride: false,
     ...overrides,
   };
 }
