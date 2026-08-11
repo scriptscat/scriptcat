@@ -167,6 +167,7 @@ export default function App() {
                 onOpenScriptSettings={data.handleOpenScriptSettings}
                 onOpenUserConfig={data.handleOpenUserConfig}
                 onExcludeUrl={data.handleExcludeUrl}
+                onExcludeFromMatch={data.handleExcludeFromMatch}
                 showSiteScopeActions={data.popupSiteScopeActions}
                 onOnlyRunOnUrl={data.handleOnlyRunOnUrl}
                 onAllowUrl={data.handleAllowUrl}
@@ -463,6 +464,7 @@ interface ScriptRowProps {
   onOpenScriptSettings: (uuid: string) => void;
   onOpenUserConfig: (uuid: string) => void;
   onExcludeUrl?: (uuid: string, isEffective: boolean) => void;
+  onExcludeFromMatch?: (uuid: string) => void;
   showSiteScopeActions?: boolean;
   onOnlyRunOnUrl?: (uuid: string) => void;
   onAllowUrl?: (uuid: string) => void;
@@ -483,6 +485,7 @@ function ScriptRow({
   onOpenScriptSettings,
   onOpenUserConfig,
   onExcludeUrl,
+  onExcludeFromMatch,
   showSiteScopeActions = false,
   onOnlyRunOnUrl,
   onAllowUrl,
@@ -501,6 +504,14 @@ function ScriptRow({
     if (shouldTruncateMenus && !isMenuExpanded) return allVisibleMenus.slice(0, menuExpandNum);
     return allVisibleMenus;
   })();
+  const excludeSite =
+    showSiteScopeActions && script.hasMatchOverride
+      ? onExcludeFromMatch
+        ? () => onExcludeFromMatch(script.uuid)
+        : undefined
+      : onExcludeUrl
+        ? () => onExcludeUrl(script.uuid, true)
+        : undefined;
   const statusBadge = getStatusBadge(script, isPageScript, t);
   const displayName = script.name;
 
@@ -574,22 +585,21 @@ function ScriptRow({
               {t("allow_on_site").replace("$0", host)}
             </ActionItem>
           )}
-          {isPageScript && host && showSiteScopeActions && script.isEffective === true && onOnlyRunOnUrl && (
-            <ActionItem
-              icon={<CircleDot className="w-3.5 h-3.5" />}
-              primary
-              onClick={() => onOnlyRunOnUrl(script.uuid)}
-            >
-              {t("only_on_site").replace("$0", host)}
-            </ActionItem>
-          )}
-          {/* 排除/取消排除 host（无二次确认，与旧版一致） */}
-          {isPageScript && host && onExcludeUrl && script.isEffective === true && (
-            <ActionItem
-              icon={<MinusCircle className="w-3.5 h-3.5" />}
-              warn
-              onClick={() => onExcludeUrl(script.uuid, script.isEffective!)}
-            >
+          {isPageScript &&
+            host &&
+            showSiteScopeActions &&
+            script.isEffective === true &&
+            !script.hasMatchOverride &&
+            onOnlyRunOnUrl && (
+              <Popconfirm description={t("confirm_only_run_on_site")} onConfirm={() => onOnlyRunOnUrl(script.uuid)}>
+                <ActionItem icon={<CircleDot className="w-3.5 h-3.5" />} primary>
+                  {t("only_on_site").replace("$0", host)}
+                </ActionItem>
+              </Popconfirm>
+            )}
+          {/* 排除 host 无需确认；开启新语义时 S3 同步移出 match 覆盖，其他状态沿用黑名单。 */}
+          {isPageScript && host && script.isEffective === true && excludeSite && (
+            <ActionItem icon={<MinusCircle className="w-3.5 h-3.5" />} warn onClick={excludeSite}>
               {t("exclude_off").replace("$0", host)}
             </ActionItem>
           )}

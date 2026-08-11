@@ -55,6 +55,7 @@ function makeData(overrides: Record<string, any> = {}) {
     handleOpenScriptSettings: vi.fn(),
     handleOpenUserConfig: vi.fn(),
     handleExcludeUrl: vi.fn(),
+    handleExcludeFromMatch: vi.fn(),
     handleOnlyRunOnUrl: vi.fn(),
     handleAllowUrl: vi.fn(),
     handleMenuClick: vi.fn(),
@@ -162,44 +163,107 @@ describe("Popup 紧凑布局", () => {
 });
 
 describe("Popup 脚本快捷设置与站点范围操作", () => {
-  it("展开脚本后始终显示脚本设置入口，并在开关关闭时隐藏站点范围操作", () => {
+  it.each([false, true])(
+    "开关关闭时有效脚本始终保留排除并回落黑名单动作（hasMatchOverride=%s）",
+    (hasMatchOverride) => {
+      const handleExcludeUrl = vi.fn();
+      mockData = makeData({
+        scriptList: [makeScriptMenu({ isEffective: true, hasMatchOverride })],
+        fullScriptCount: 1,
+        handleExcludeUrl,
+      });
+      render(<App />);
+
+      fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+      expect(screen.getByRole("button", { name: "脚本设置" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "仅在 example.com 执行" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "允许在 example.com 执行" })).not.toBeInTheDocument();
+      const excludeButton = screen.getByRole("button", { name: "排除在 example.com 上执行" });
+      expect(excludeButton).toHaveClass("text-type-orange");
+      fireEvent.click(excludeButton);
+      expect(handleExcludeUrl).toHaveBeenCalledWith("u1", true);
+    }
+  );
+
+  it("S1 全局生效时显示带确认的仅运行在与黑名单排除", async () => {
+    const handleOnlyRunOnUrl = vi.fn();
+    const handleExcludeUrl = vi.fn();
     mockData = makeData({
-      scriptList: [makeScriptMenu({ isEffective: true })],
+      popupSiteScopeActions: true,
+      scriptList: [makeScriptMenu({ isEffective: true, hasMatchOverride: false })],
       fullScriptCount: 1,
+      handleOnlyRunOnUrl,
+      handleExcludeUrl,
     });
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
 
-    expect(screen.getByRole("button", { name: "脚本设置" })).toBeInTheDocument();
+    const onlyButton = screen.getByRole("button", { name: "仅在 example.com 执行" });
+    expect(onlyButton).toHaveClass("text-primary");
+    expect(screen.getByRole("button", { name: "排除在 example.com 上执行" })).toHaveClass("text-type-orange");
+
+    fireEvent.click(onlyButton);
+    expect(handleOnlyRunOnUrl).not.toHaveBeenCalled();
+    expect(await screen.findByText("将清空脚本原有的网站匹配规则，确认仅在此网站运行？")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("popconfirm-confirm"));
+    expect(handleOnlyRunOnUrl).toHaveBeenCalledWith("u1");
+
+    fireEvent.click(screen.getByRole("button", { name: "排除在 example.com 上执行" }));
+    expect(handleExcludeUrl).toHaveBeenCalledWith("u1", true);
+  });
+
+  it("S3 已包含时只显示排除并调用匹配覆盖操作", () => {
+    const handleExcludeFromMatch = vi.fn();
+    mockData = makeData({
+      popupSiteScopeActions: true,
+      scriptList: [makeScriptMenu({ isEffective: true, hasMatchOverride: true })],
+      fullScriptCount: 1,
+      handleExcludeFromMatch,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
     expect(screen.queryByRole("button", { name: "仅在 example.com 执行" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "允许在 example.com 执行" })).not.toBeInTheDocument();
+    const excludeButton = screen.getByRole("button", { name: "排除在 example.com 上执行" });
+    expect(excludeButton).toHaveClass("text-type-orange");
+    fireEvent.click(excludeButton);
+    expect(handleExcludeFromMatch).toHaveBeenCalledWith("u1");
   });
 
-  it("开关开启且本站生效时显示仅在与排除两个动作", () => {
+  it.each([false, true])("S2/S4 本站不生效时只显示包含动作（hasMatchOverride=%s）", (hasMatchOverride) => {
+    const handleAllowUrl = vi.fn();
     mockData = makeData({
       popupSiteScopeActions: true,
-      scriptList: [makeScriptMenu({ isEffective: true })],
+      scriptList: [makeScriptMenu({ isEffective: false, hasMatchOverride })],
+      fullScriptCount: 1,
+      handleAllowUrl,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    const allowButton = screen.getByRole("button", { name: "允许在 example.com 执行" });
+    expect(allowButton).toHaveClass("text-primary");
+    expect(screen.queryByRole("button", { name: "仅在 example.com 执行" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "排除在 example.com 上执行" })).not.toBeInTheDocument();
+    fireEvent.click(allowButton);
+    expect(handleAllowUrl).toHaveBeenCalledWith("u1");
+  });
+
+  it("开关关闭且本站不生效时隐藏包含与排除动作", () => {
+    mockData = makeData({
+      scriptList: [makeScriptMenu({ isEffective: false, hasMatchOverride: true })],
       fullScriptCount: 1,
     });
     render(<App />);
 
     fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
 
-    expect(screen.getByRole("button", { name: "仅在 example.com 执行" })).toHaveClass("text-primary");
-    expect(screen.getByRole("button", { name: "排除在 example.com 上执行" })).toBeInTheDocument();
-  });
-
-  it("本站不生效时只显示允许动作", () => {
-    mockData = makeData({
-      popupSiteScopeActions: true,
-      scriptList: [makeScriptMenu({ isEffective: false })],
-      fullScriptCount: 1,
-    });
-    render(<App />);
-
-    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
-
-    expect(screen.getByRole("button", { name: "允许在 example.com 执行" })).toHaveClass("text-primary");
+    expect(screen.queryByRole("button", { name: "允许在 example.com 执行" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "排除在 example.com 上执行" })).not.toBeInTheDocument();
   });
 });

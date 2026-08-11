@@ -289,8 +289,25 @@ export function usePopupData() {
       if (!host) return;
       try {
         await scriptClient.onlyRunOnUrl(uuid, `*://${host}/*`);
-        // 与 handleAllowUrl 一致：成功后乐观更新本地列表，并给出 toast 反馈（Toaster 已由 main.tsx 挂载）
-        setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: true } : s)));
+        // 收窄后已创建 match 覆盖，后续排除必须进入 S3 语义。
+        setScriptList((prev) =>
+          prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: true, hasMatchOverride: true } : s))
+        );
+        notify.success(t("update_success"));
+      } catch (e) {
+        showError(String(e));
+      }
+    },
+    [showError, t]
+  );
+
+  const handleExcludeFromMatch = useCallback(
+    async (uuid: string) => {
+      const host = extractHost(stateRef.current.currentUrl);
+      if (!host) return;
+      try {
+        await scriptClient.excludeFromMatch(uuid, `*://${host}/*`);
+        setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: false } : s)));
         notify.success(t("update_success"));
       } catch (e) {
         showError(String(e));
@@ -453,6 +470,7 @@ export function usePopupData() {
     handleOpenScriptSettings,
     handleOpenUserConfig,
     handleExcludeUrl,
+    handleExcludeFromMatch,
     handleOnlyRunOnUrl,
     handleAllowUrl,
     handleMenuClick,

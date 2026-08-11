@@ -61,6 +61,7 @@
   "exclude_on": "Reinstate $0's execution",
   "exclude_off": "Exclude $0's execution",
   "only_on_site": "Run only on $0",
+  "confirm_only_run_on_site": "This will clear the script's existing site match rules. Run only on this site?",
   "allow_on_site": "Allow execution on $0",
   "confirm_error": "Confirmation Failed",
   "import": "Import",

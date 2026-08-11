@@ -53,14 +53,18 @@ const toastMocks = vi.hoisted(() => ({
 
 vi.mock("@App/pages/components/ui/toast", () => ({ notify: toastMocks }));
 
-// 站点范围快捷操作走真实 ScriptClient 实例，仅替换 onlyRunOnUrl，其余实导出与方法保留
+// 站点范围快捷操作走真实 ScriptClient 实例，仅替换本任务直接断言的方法，其余实导出与方法保留
 const mockOnlyRunOnUrl = vi.hoisted(() => vi.fn(async () => true));
+const mockExcludeFromMatch = vi.hoisted(() => vi.fn(async () => true));
 
 vi.mock("../store/features/script", async (importOriginal) => {
   const actual = await importOriginal<typeof ScriptStore>();
   return {
     ...actual,
-    scriptClient: Object.assign(Object.create(actual.scriptClient), { onlyRunOnUrl: mockOnlyRunOnUrl }),
+    scriptClient: Object.assign(Object.create(actual.scriptClient), {
+      onlyRunOnUrl: mockOnlyRunOnUrl,
+      excludeFromMatch: mockExcludeFromMatch,
+    }),
   };
 });
 
@@ -223,9 +227,16 @@ describe("usePopupData 脚本列表展开数量", () => {
 });
 
 describe("usePopupData 站点范围快捷操作", () => {
+  const initialScriptList = popupInitialData.scriptList;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockOnlyRunOnUrl.mockResolvedValue(true);
+    mockExcludeFromMatch.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    popupInitialData.scriptList = initialScriptList;
   });
 
   it("仅在 xxx 执行：成功后乐观更新本地列表并弹出成功提示", async () => {
@@ -236,6 +247,7 @@ describe("usePopupData 站点范围快捷操作", () => {
 
     expect(mockOnlyRunOnUrl).toHaveBeenCalledWith("script-1", "*://example.com/*");
     expect(result.current.scriptList[0]?.isEffective).toBe(true);
+    expect(result.current.scriptList[0]?.hasMatchOverride).toBe(true);
     expect(notify.success).toHaveBeenCalledTimes(1);
     expect(notify.success).toHaveBeenCalledWith(t("update_success"));
   });
@@ -249,5 +261,31 @@ describe("usePopupData 站点范围快捷操作", () => {
 
     expect(notify.success).not.toHaveBeenCalled();
     expect(result.current.errorMessage).toBe("Error: mock failure");
+  });
+
+  it("S3 排除：成功后移出当前站并弹出成功提示", async () => {
+    popupInitialData.scriptList = [{ ...initialScriptList[0], hasMatchOverride: true }];
+    const { result } = renderHook(() => usePopupData());
+    await act(async () => {
+      await result.current.handleExcludeFromMatch("script-1");
+    });
+
+    expect(mockExcludeFromMatch).toHaveBeenCalledWith("script-1", "*://example.com/*");
+    expect(result.current.scriptList[0]?.isEffective).toBe(false);
+    expect(result.current.scriptList[0]?.hasMatchOverride).toBe(true);
+    expect(notify.success).toHaveBeenCalledWith(t("update_success"));
+  });
+
+  it("S3 排除：失败时保持原状态且不弹成功提示", async () => {
+    popupInitialData.scriptList = [{ ...initialScriptList[0], hasMatchOverride: true }];
+    mockExcludeFromMatch.mockRejectedValue(new Error("exclude failure"));
+    const { result } = renderHook(() => usePopupData());
+    await act(async () => {
+      await result.current.handleExcludeFromMatch("script-1");
+    });
+
+    expect(result.current.scriptList[0]?.isEffective).toBe(true);
+    expect(result.current.errorMessage).toBe("Error: exclude failure");
+    expect(notify.success).not.toHaveBeenCalled();
   });
 });
