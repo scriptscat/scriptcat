@@ -973,7 +973,7 @@ export class ScriptService {
         matchSet.delete(matchPattern);
         script = selfMetadataUpdate(script, "match", matchSet);
       }
-      const excludeSet = new Set(script.selfMetadata?.exclude || []);
+      const excludeSet = new Set(script.selfMetadata?.exclude || script.metadata?.exclude || []);
       excludeSet.add(matchPattern);
       script = selfMetadataUpdate(script, "exclude", excludeSet);
       await this.scriptDAO.update(uuid, script);

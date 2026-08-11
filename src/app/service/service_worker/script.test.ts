@@ -748,7 +748,7 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
       expect(stored.selfMetadata).toEqual({
         match: [],
         include: [],
-        exclude: ["*://current.example/*"],
+        exclude: ["*://ads.script.com/*", "*://current.example/*"],
       });
     });
 
@@ -824,7 +824,10 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
 
       await scriptService.excludeFromMatch({ uuid: script.uuid, matchPattern: "*://current.example/*" });
 
-      expect(savedSelfMetadata()).toEqual({ match: [], exclude: ["*://current.example/*"] });
+      expect(savedSelfMetadata()).toEqual({
+        match: [],
+        exclude: ["*://ads.script.com/*", "*://current.example/*"],
+      });
     });
 
     it("没有用户匹配覆盖时排除站点不应创建匹配覆盖", async () => {
@@ -833,7 +836,7 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
 
       await scriptService.excludeFromMatch({ uuid: script.uuid, matchPattern: "*://current.example/*" });
 
-      expect(savedSelfMetadata()).toEqual({ exclude: ["*://current.example/*"] });
+      expect(savedSelfMetadata()).toEqual({ exclude: ["*://ads.script.com/*", "*://current.example/*"] });
     });
 
     it("已有空匹配覆盖时排除站点应保留空覆盖", async () => {
@@ -842,7 +845,25 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
 
       await scriptService.excludeFromMatch({ uuid: script.uuid, matchPattern: "*://current.example/*" });
 
-      expect(savedSelfMetadata()).toEqual({ match: [], exclude: ["*://current.example/*"] });
+      expect(savedSelfMetadata()).toEqual({
+        match: [],
+        exclude: ["*://ads.script.com/*", "*://current.example/*"],
+      });
+    });
+
+    it("新增排除覆盖时应保留作者已有的排除规则", async () => {
+      const script = createMockScript({
+        metadata: { exclude: ["*://author-blocked.example/*"] },
+        selfMetadata: { match: ["*://current.example/*"] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.excludeFromMatch({ uuid: script.uuid, matchPattern: "*://current.example/*" });
+
+      expect(savedSelfMetadata()).toEqual({
+        match: [],
+        exclude: ["*://author-blocked.example/*", "*://current.example/*"],
+      });
     });
   });
 
