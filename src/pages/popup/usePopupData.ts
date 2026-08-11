@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type { ScriptMenu, ScriptMenuItem, TPopupScript } from "@App/app/service/service_worker/types";
 import type { TDeleteScript, TEnableScript, TScriptRunStatus } from "@App/app/service/queue";
 import { popupClient, scriptClient, runtimeClient, requestOpenBatchUpdatePage } from "../store/features/script";
@@ -8,6 +9,7 @@ import { ExtVersion, ExtServer } from "@App/app/const";
 import { sanitizeHTML } from "@App/pkg/utils/sanitize";
 import { openInCurrentTab } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
+import { notify } from "@App/pages/components/ui/toast";
 import { scriptListSorter, type ScriptProvider, usePopupDataQuery } from "./preload";
 export { ExtVersion } from "@App/app/const";
 export { VersionCompare, versionCompare } from "@App/pkg/utils/semver";
@@ -78,6 +80,7 @@ function filterScripts(list: ScriptMenu[], query: string): ScriptMenu[] {
 // ========== Hook ==========
 
 export function usePopupData() {
+  const { t } = useTranslation();
   const popupData = usePopupDataQuery();
   const initialData = popupData.data;
   const [initialized, setInitialized] = useState(!!initialData);
@@ -286,11 +289,14 @@ export function usePopupData() {
       if (!host) return;
       try {
         await scriptClient.onlyRunOnUrl(uuid, `*://${host}/*`);
+        // 与 handleAllowUrl 一致：成功后乐观更新本地列表，并给出 toast 反馈（Toaster 已由 main.tsx 挂载）
+        setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: true } : s)));
+        notify.success(t("update_success"));
       } catch (e) {
         showError(String(e));
       }
     },
-    [showError]
+    [showError, t]
   );
 
   const handleAllowUrl = useCallback(

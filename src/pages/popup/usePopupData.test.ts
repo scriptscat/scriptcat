@@ -1,5 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import { notify } from "@App/pages/components/ui/toast";
+import { t } from "@App/locales/locales";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const popupInitialData = vi.hoisted(() => ({
   tabId: 7,
@@ -35,8 +38,36 @@ vi.mock("@App/pkg/utils/utils", async (importOriginal) => {
   return { ...actual, openInCurrentTab: vi.fn(async () => undefined), getCurrentTab: vi.fn(async () => undefined) };
 });
 
+// toast 反馈打桩：仅验证「成功才调用 notify.success」的反馈逻辑
+const toastMocks = vi.hoisted(() => ({
+  success: vi.fn(),
+  info: vi.fn(),
+  warning: vi.fn(),
+  error: vi.fn(),
+  loading: vi.fn(),
+  promise: vi.fn(),
+  dismiss: vi.fn(),
+}));
+
+vi.mock("@App/pages/components/ui/toast", () => ({ notify: toastMocks }));
+
+// 站点范围快捷操作走真实 ScriptClient 实例，仅替换 onlyRunOnUrl，其余实导出与方法保留
+const mockOnlyRunOnUrl = vi.hoisted(() => vi.fn(async () => true));
+
+vi.mock("../store/features/script", async (importOriginal) => {
+  const actual = await importOriginal<typeof ScriptStore>();
+  return {
+    ...actual,
+    scriptClient: Object.assign(Object.create(actual.scriptClient), { onlyRunOnUrl: mockOnlyRunOnUrl }),
+  };
+});
+
 import { openInCurrentTab } from "@App/pkg/utils/utils";
 import { getMoreScriptUrl, usePopupData } from "./usePopupData";
+import type * as ScriptStore from "../store/features/script";
+
+// usePopupData 内部使用 useTranslation()，需先初始化 i18n 才能正确渲染与取本地化文案
+beforeAll(() => initTestLanguage("zh-CN"));
 
 describe("getMoreScriptUrl 获取更多脚本链接", () => {
   it("ScriptCat：有 host 时带 domain 参数", () => {
@@ -186,5 +217,35 @@ describe("usePopupData 脚本列表展开数量", () => {
     const { result } = renderHook(() => usePopupData());
 
     expect(result.current.showSearch).toBe(true);
+  });
+});
+
+describe("usePopupData 站点范围快捷操作", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOnlyRunOnUrl.mockResolvedValue(true);
+  });
+
+  it("仅在 xxx 执行：成功后乐观更新本地列表并弹出成功提示", async () => {
+    const { result } = renderHook(() => usePopupData());
+    await act(async () => {
+      await result.current.handleOnlyRunOnUrl("script-1");
+    });
+
+    expect(mockOnlyRunOnUrl).toHaveBeenCalledWith("script-1", "*://example.com/*");
+    expect(result.current.scriptList[0]?.isEffective).toBe(true);
+    expect(notify.success).toHaveBeenCalledTimes(1);
+    expect(notify.success).toHaveBeenCalledWith(t("update_success"));
+  });
+
+  it("仅在 xxx 执行：失败时不弹成功提示，并记录错误信息", async () => {
+    mockOnlyRunOnUrl.mockRejectedValue(new Error("mock failure"));
+    const { result } = renderHook(() => usePopupData());
+    await act(async () => {
+      await result.current.handleOnlyRunOnUrl("script-1");
+    });
+
+    expect(notify.success).not.toHaveBeenCalled();
+    expect(result.current.errorMessage).toBe("Error: mock failure");
   });
 });
