@@ -1,4 +1,4 @@
-import type { MCPClient } from "./mcp_client";
+import type { MCPClient, MCPToolCallResult } from "./mcp_client";
 import type { ToolExecutor } from "./tool_registry";
 import type { ToolResultWithAttachments } from "./types";
 
@@ -13,11 +13,19 @@ export class MCPToolExecutor implements ToolExecutor {
     const result = await this.client.callTool(this.toolName, args, signal);
 
     // 检测 MCP 返回的 content 数组是否包含 image 类型
-    if (Array.isArray(result)) {
+    const structuredResult =
+      !Array.isArray(result) &&
+      typeof result === "object" &&
+      result !== null &&
+      Array.isArray((result as { content?: unknown }).content)
+        ? (result as MCPToolCallResult)
+        : undefined;
+    const content = Array.isArray(result) ? result : structuredResult?.content;
+    if (content) {
       const textParts: string[] = [];
       const attachments: ToolResultWithAttachments["attachments"] = [];
 
-      for (const item of result) {
+      for (const item of content) {
         if (item.type === "text" && item.text) {
           textParts.push(item.text);
         } else if (item.type === "image" && item.data) {
@@ -32,8 +40,15 @@ export class MCPToolExecutor implements ToolExecutor {
 
       if (attachments.length > 0) {
         return {
-          content: textParts.join("\n") || "Tool completed.",
+          content:
+            textParts.join("\n") ||
+            (structuredResult?.structuredContent !== undefined
+              ? JSON.stringify(structuredResult.structuredContent)
+              : "Tool completed."),
           attachments,
+          ...(structuredResult?.structuredContent !== undefined
+            ? { structuredContent: structuredResult.structuredContent }
+            : {}),
         } as ToolResultWithAttachments;
       }
     }

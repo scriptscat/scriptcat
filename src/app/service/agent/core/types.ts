@@ -58,6 +58,7 @@ export type AttachmentData = {
 export type ToolResultWithAttachments = {
   content: string; // 文本结果（发给 LLM）
   attachments: AttachmentData[]; // 附件数据（仅存储+展示）
+  structuredContent?: unknown; // MCP 等工具提供的结构化结果（保留给后续处理）
 };
 
 // 子代理单轮消息（持久化用）

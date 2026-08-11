@@ -2,6 +2,13 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { MCPServerConfig, MCPTool, MCPResource, MCPPrompt, MCPPromptMessage } from "./types";
 
+type MCPContent = { type: string; text?: string; [key: string]: unknown };
+
+export type MCPToolCallResult = {
+  content: MCPContent[];
+  structuredContent?: unknown;
+};
+
 export class MCPClient {
   private readonly client: Client;
   private readonly transport: StreamableHTTPClientTransport;
@@ -41,21 +48,37 @@ export class MCPClient {
       { name, arguments: args ?? {} },
       undefined,
       signal ? { signal } : undefined
-    )) as {
-      content: Array<{ type: string; text?: string; [key: string]: unknown }>;
-      isError?: boolean;
-    };
+    )) as MCPToolCallResult & { isError?: boolean };
     const content = result.content;
 
     if (result.isError) {
-      const errorText = content.map((item) => (item.type === "text" ? item.text : "")).join("\n");
-      throw new Error(errorText || "Tool call failed");
+      const diagnostics = content
+        .map((item) => {
+          if (item.type === "text") return item.text || "";
+          try {
+            return JSON.stringify(item) || item.type;
+          } catch {
+            return item.type;
+          }
+        })
+        .filter(Boolean);
+      if (result.structuredContent !== undefined) {
+        try {
+          diagnostics.push(JSON.stringify(result.structuredContent) || String(result.structuredContent));
+        } catch {
+          diagnostics.push(String(result.structuredContent));
+        }
+      }
+      throw new Error(diagnostics.join("\n") || "Tool call failed");
     }
 
-    if (content.length === 1 && content[0].type === "text") {
+    if (content.length === 1 && content[0].type === "text" && result.structuredContent === undefined) {
       return content[0].text;
     }
-    return content;
+    return {
+      content,
+      ...(result.structuredContent !== undefined ? { structuredContent: result.structuredContent } : {}),
+    };
   }
 
   async listResources(): Promise<MCPResource[]> {

@@ -102,4 +102,22 @@ describe("MCPToolExecutor", () => {
     expect(result.attachments[0].mimeType).toBe("image/png");
     expect(result.attachments[0].data).toBe("data:image/png;base64,abc123");
   });
+
+  it("包含 structuredContent 的 image 结果应保留结构化诊断", async () => {
+    const client = createMockClient({
+      content: [{ type: "image", data: "abc123", mimeType: "image/png" }],
+      structuredContent: { caption: "chart" },
+    });
+    const executor = new MCPToolExecutor(client, "structured_image");
+
+    const result = (await executor.execute({})) as {
+      content: string;
+      attachments: unknown[];
+      structuredContent?: unknown;
+    };
+
+    expect(result.content).toBe('{"caption":"chart"}');
+    expect(result.attachments).toHaveLength(1);
+    expect(result.structuredContent).toEqual({ caption: "chart" });
+  });
 });

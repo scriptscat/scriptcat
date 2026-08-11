@@ -439,6 +439,24 @@ describe("ToolRegistry", () => {
       expect(mockRepo.saveAttachment).toHaveBeenCalledWith(expect.any(String), "data:image/jpeg;base64,/9j/abc");
     });
 
+    it("MCP 结构化结果经过附件保存后不应丢失", async () => {
+      const registry = new ToolRegistry();
+      const mockRepo = createMockChatRepo();
+      registry.setChatRepo(mockRepo);
+      registry.registerBuiltin(
+        weatherDef,
+        createExecutor(async () => ({
+          content: "Screenshot captured.",
+          attachments: [],
+          structuredContent: { caption: "chart" },
+        }))
+      );
+
+      const results = await registry.execute([{ id: "tc-structured", name: "get_weather", arguments: "{}" }]);
+
+      expect(results[0].structuredContent).toEqual({ caption: "chart" });
+    });
+
     it("附件写入期间被取消时，应回收本批已保存的附件并返回错误结果", async () => {
       const registry = new ToolRegistry();
       const mockRepo = createMockChatRepo();

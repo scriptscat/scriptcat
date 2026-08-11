@@ -43,6 +43,7 @@ export type ScriptToolCallback = (
 export type ToolExecuteResult = {
   id: string;
   result: string;
+  structuredContent?: unknown;
   error?: boolean;
   attachments?: Attachment[];
   subAgentDetails?: SubAgentDetails;
@@ -89,6 +90,7 @@ function isToolResultWithAttachments(value: unknown): value is ToolResultWithAtt
 function isStructuredToolResult(value: unknown): value is {
   content: string;
   attachments?: ToolResultWithAttachments["attachments"];
+  structuredContent?: unknown;
   subAgentDetails?: SubAgentDetails;
   ownedAttachmentIds?: string[];
   usage?: TokenUsage;
@@ -98,6 +100,7 @@ function isStructuredToolResult(value: unknown): value is {
   return (
     typeof obj.content === "string" &&
     (Array.isArray(obj.attachments) ||
+      obj.structuredContent !== undefined ||
       (typeof obj.subAgentDetails === "object" && obj.subAgentDetails !== null) ||
       typeof obj.usage === "object")
   );
@@ -297,6 +300,7 @@ export class ToolRegistry implements ToolExecutorLike {
               id: tc.id,
               result: rawResult.content,
               attachments: saved.attachments,
+              ...(rawResult.structuredContent !== undefined ? { structuredContent: rawResult.structuredContent } : {}),
               subAgentDetails: rawResult.subAgentDetails,
               ownedAttachmentIds: [...saved.ownedAttachmentIds, ...(rawResult.ownedAttachmentIds || [])],
               usage: rawResult.usage,
