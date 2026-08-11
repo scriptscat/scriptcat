@@ -16,6 +16,11 @@ instead of copying its content here.
 | open or update a pull request | [`docs/pull-request.md`](docs/pull-request.md) |
 | manually confirm a feature works | [`docs/verification.md`](docs/verification.md) — a throwaway scratch script against the built extension, not the committed suite |
 
+## DeepWiki Context
+
+For unfamiliar subsystems, when `.deepwiki/index.md` exists, start there and open only the relevant linked pages;
+don't bulk-load `.deepwiki/`. Treat it as background only: current code and the owning docs above are authoritative.
+
 ## Project Overview
 
 ScriptCat — Manifest V3 browser extension that runs Tampermonkey-compatible user scripts. TypeScript + React 19 + Rspack. Package manager is **pnpm** (preinstall enforces). The presentation layer (`src/pages/`) is **shadcn/ui + Tailwind CSS v4** (migrated from Arco Design + UnoCSS).
