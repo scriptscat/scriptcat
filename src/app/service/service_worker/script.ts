@@ -46,6 +46,7 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck, watchRegularUpdateCheck } from "./regular_updatecheck";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 import { EnableAgent } from "@App/app/const";
 import { TrashScriptDAO } from "@App/app/repo/trash_script";
@@ -926,11 +927,12 @@ export class ScriptService {
   }
 
   async onlyRunOnUrl({ uuid, matchPattern }: { uuid: string; matchPattern: string }) {
-    let script = await this.scriptDAO.get(uuid);
-    if (!script) throw new Error("script not found");
-    script = selfMetadataUpdate(script, "match", new Set([matchPattern]));
-    script = selfMetadataUpdate(script, "include", new Set());
-    return this.scriptDAO.update(uuid, script).then(() => {
+    return stackAsyncTask("script-site-scope", async () => {
+      let script = await this.scriptDAO.get(uuid);
+      if (!script) throw new Error("script not found");
+      script = selfMetadataUpdate(script, "match", new Set([matchPattern]));
+      script = selfMetadataUpdate(script, "include", new Set());
+      await this.scriptDAO.update(uuid, script);
       this.publishInstallScript(script, { update: true });
       return true;
     });
@@ -945,34 +947,36 @@ export class ScriptService {
     matchPattern: string;
     excludePattern: string;
   }) {
-    let script = await this.scriptDAO.get(uuid);
-    if (!script) throw new Error("script not found");
-    if (script.selfMetadata?.match !== undefined) {
-      script = selfMetadataUpdate(script, "match", new Set([...script.selfMetadata.match, matchPattern]));
-    }
-    if (script.selfMetadata?.exclude !== undefined) {
-      const excludeSet = new Set(script.selfMetadata.exclude);
-      excludeSet.delete(excludePattern);
-      script = selfMetadataUpdate(script, "exclude", excludeSet);
-    }
-    return this.scriptDAO.update(uuid, script).then(() => {
+    return stackAsyncTask("script-site-scope", async () => {
+      let script = await this.scriptDAO.get(uuid);
+      if (!script) throw new Error("script not found");
+      if (script.selfMetadata?.match !== undefined) {
+        script = selfMetadataUpdate(script, "match", new Set([...script.selfMetadata.match, matchPattern]));
+      }
+      if (script.selfMetadata?.exclude !== undefined) {
+        const excludeSet = new Set(script.selfMetadata.exclude);
+        excludeSet.delete(excludePattern);
+        script = selfMetadataUpdate(script, "exclude", excludeSet);
+      }
+      await this.scriptDAO.update(uuid, script);
       this.publishInstallScript(script, { update: true });
       return true;
     });
   }
 
   async excludeFromMatch({ uuid, matchPattern }: { uuid: string; matchPattern: string }) {
-    let script = await this.scriptDAO.get(uuid);
-    if (!script) throw new Error("script not found");
-    if (script.selfMetadata?.match !== undefined) {
-      const matchSet = new Set(script.selfMetadata.match);
-      matchSet.delete(matchPattern);
-      script = selfMetadataUpdate(script, "match", matchSet);
-    }
-    const excludeSet = new Set(script.selfMetadata?.exclude || []);
-    excludeSet.add(matchPattern);
-    script = selfMetadataUpdate(script, "exclude", excludeSet);
-    return this.scriptDAO.update(uuid, script).then(() => {
+    return stackAsyncTask("script-site-scope", async () => {
+      let script = await this.scriptDAO.get(uuid);
+      if (!script) throw new Error("script not found");
+      if (script.selfMetadata?.match !== undefined) {
+        const matchSet = new Set(script.selfMetadata.match);
+        matchSet.delete(matchPattern);
+        script = selfMetadataUpdate(script, "match", matchSet);
+      }
+      const excludeSet = new Set(script.selfMetadata?.exclude || []);
+      excludeSet.add(matchPattern);
+      script = selfMetadataUpdate(script, "exclude", excludeSet);
+      await this.scriptDAO.update(uuid, script);
       this.publishInstallScript(script, { update: true });
       return true;
     });

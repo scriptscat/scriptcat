@@ -715,6 +715,43 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
       expect(savedSelfMetadata()).toEqual({ match: ["*://current.example/*"], include: [] });
     });
 
+    it("并发站点范围操作应保留两个操作的覆盖变更", async () => {
+      let stored = createMockScript();
+      let signalFirstUpdate!: () => void;
+      let releaseFirstUpdate!: () => void;
+      const firstUpdateStarted = new Promise<void>((resolve) => {
+        signalFirstUpdate = resolve;
+      });
+      const firstUpdateRelease = new Promise<void>((resolve) => {
+        releaseFirstUpdate = resolve;
+      });
+      let updateCount = 0;
+      vi.mocked(mockScriptDAO.get).mockImplementation(async () => stored);
+      vi.mocked(mockScriptDAO.update).mockImplementation(async (_uuid, next) => {
+        updateCount += 1;
+        if (updateCount === 1) {
+          signalFirstUpdate();
+          await firstUpdateRelease;
+        }
+        stored = { ...stored, ...next };
+        return stored;
+      });
+
+      const onlyRun = scriptService.onlyRunOnUrl({ uuid: stored.uuid, matchPattern: "*://current.example/*" });
+      await firstUpdateStarted;
+      const exclude = scriptService.excludeFromMatch({ uuid: stored.uuid, matchPattern: "*://current.example/*" });
+      await Promise.resolve();
+      await Promise.resolve();
+      releaseFirstUpdate();
+      await Promise.all([onlyRun, exclude]);
+
+      expect(stored.selfMetadata).toEqual({
+        match: [],
+        include: [],
+        exclude: ["*://current.example/*"],
+      });
+    });
+
     it("自定义匹配未覆盖当前站点时应把当前站点加入允许列表", async () => {
       const script = createMockScript({
         selfMetadata: { match: ["*://allowed.example/*"], exclude: ["*://current.example/*"] },
