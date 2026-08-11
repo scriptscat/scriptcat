@@ -41,6 +41,10 @@ function isDir(p) {
   return existsSync(p) && statSync(p).isDirectory();
 }
 
+function isDirectoryEntry(parent, entry) {
+  return entry.isDirectory() || (entry.isSymbolicLink() && isDir(path.join(parent, entry.name)));
+}
+
 function readJson(p) {
   return JSON.parse(readFileSync(p, "utf8"));
 }
@@ -277,7 +281,9 @@ function runCheck(root) {
   }
 
   const localeDirs = isDir(LOCALES_DIR)
-    ? readdirSync(LOCALES_DIR).filter((name) => isDir(path.join(LOCALES_DIR, name)))
+    ? readdirSync(LOCALES_DIR, { withFileTypes: true })
+        .filter((entry) => isDirectoryEntry(LOCALES_DIR, entry))
+        .map((entry) => entry.name)
     : [];
 
   // --- 0: src/locales/locales.ts — every locale directory must be registered ---
@@ -489,9 +495,9 @@ function runCheck(root) {
       reportError(`Reference file ${rel(chromeReferencePath)} not found.`);
     } else {
       const chromeReferenceKeys = flattenKeys(readJson(chromeReferencePath));
-      const actualChromeDirs = readdirSync(CHROME_LOCALES_DIR).filter((name) =>
-        isDir(path.join(CHROME_LOCALES_DIR, name))
-      );
+      const actualChromeDirs = readdirSync(CHROME_LOCALES_DIR, { withFileTypes: true })
+        .filter((entry) => isDirectoryEntry(CHROME_LOCALES_DIR, entry))
+        .map((entry) => entry.name);
 
       for (const locale of localeDirs) {
         if (locale === REFERENCE_LOCALE) continue;

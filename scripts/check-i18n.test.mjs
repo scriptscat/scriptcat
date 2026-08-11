@@ -108,6 +108,15 @@ describe("check-i18n 机械完整性检查", () => {
   });
 
   describe("0. src/locales/locales.ts 与磁盘目录的双向一致性", () => {
+    it("符号链接到 locale 目录时仍应参与一致性检查", () => {
+      const root = makeFixtureRoot();
+      symlinkSync(path.join(root, "src/locales/zh-CN"), path.join(root, "src/locales/linked-locale"), "dir");
+
+      const { hasError, problems } = runCheck(root);
+      expect(hasError).toBe(true);
+      expect(messages(problems).some((m) => m.includes('import * as X from "./linked-locale"'))).toBe(true);
+    });
+
     it("存在完整 locale 目录但未在 locales.ts 中 import，应报错而非放行", () => {
       const root = makeFixtureRoot();
       mkdirSync(path.join(root, "src/locales/ja-JP"), { recursive: true });

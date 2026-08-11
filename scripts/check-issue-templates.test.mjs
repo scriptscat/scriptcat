@@ -211,6 +211,15 @@ describe("issue 模板机械检查", () => {
       expect(problemsOf(makeFixtureRoot({ source })).join("\n")).toMatch(/prefills "nonexistent-field="/);
     });
 
+    it("URL 标记出现在模板字面量尾部时仍应检查预填参数", () => {
+      const source = `
+        const issueUrl =
+          \`https://github.com/scriptscat/scriptcat/\${prefix}issues/new?template=01_bug_report.yaml&\` +
+          \`nonexistent-field=\${value}\`;
+      `;
+      expect(problemsOf(makeFixtureRoot({ source })).join("\n")).toMatch(/prefills "nonexistent-field="/);
+    });
+
     it("无法静态解析出模板名时应报错而不是放行", () => {
       const source = `
         const issueUrl = \`https://github.com/scriptscat/scriptcat/issues/new?template=\${pickTemplate()}&browser=\${ua}\`;

@@ -6,12 +6,13 @@ export async function collectDirectoryFiles(localDir, toDir = "", filters = []) 
   const files = [];
 
   async function collect(currentDir, currentToDir) {
-    for (const file of await fs.readdir(currentDir)) {
-      if (excluded.has(file)) continue;
+    for (const entry of await fs.readdir(currentDir, { withFileTypes: true })) {
+      if (excluded.has(entry.name)) continue;
 
-      const localPath = path.join(currentDir, file);
-      const toPath = `${currentToDir}${file}`;
-      if ((await fs.stat(localPath)).isDirectory()) {
+      const localPath = path.join(currentDir, entry.name);
+      const toPath = `${currentToDir}${entry.name}`;
+      const isDirectory = entry.isDirectory() || (entry.isSymbolicLink() && (await fs.stat(localPath)).isDirectory());
+      if (isDirectory) {
         await collect(localPath, `${toPath}/`);
       } else {
         files.push({ localPath, toPath });
