@@ -105,23 +105,17 @@ describe("PopupService 删除脚本后 Popup 菜单残留清理", () => {
     await cacheInstance.clear();
   });
 
-  it("getPopupData 读取 Popup 数据时，应过滤掉 runScripts 缓存里已删除脚本的残留记录", async () => {
+  it("getPopupData 读取 Popup 数据时，不应显示 runScripts 缓存中的未匹配脚本", async () => {
     const deletedUuid = "deleted-script";
     const liveUuid = "live-script";
     await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(deletedUuid), createMenu(liveUuid)]);
 
-    const { service, scriptDAO } = createService({
-      scriptDAO: {
-        gets: vi.fn(async (uuids: string[]) =>
-          uuids.map((uuid) => (uuid === liveUuid ? createScript(uuid) : undefined))
-        ),
-      },
-    });
+    const { service, scriptDAO } = createService();
 
     const result = await service.getPopupData({ tabId: 1, url: "https://example.com/" });
 
-    expect(result.scriptList.map((script) => script.uuid)).toEqual([liveUuid]);
-    expect(scriptDAO.gets).toHaveBeenCalledWith([deletedUuid, liveUuid]);
+    expect(result.scriptList).toEqual([]);
+    expect(scriptDAO.gets).toHaveBeenCalledWith([]);
   });
 
   it("updateRegisterMenuCommand 应忽略已删除脚本发来的迟到 GM_registerMenuCommand", async () => {

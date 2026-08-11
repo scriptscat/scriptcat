@@ -186,15 +186,15 @@ describe("Popup 脚本快捷设置与站点范围操作", () => {
     }
   );
 
-  it("S1 全局生效时显示带确认的仅运行在与黑名单排除", async () => {
+  it("S1 全局生效时显示带确认的仅运行在与互斥排除", async () => {
     const handleOnlyRunOnUrl = vi.fn();
-    const handleExcludeUrl = vi.fn();
+    const handleExcludeFromMatch = vi.fn();
     mockData = makeData({
       popupSiteScopeActions: true,
       scriptList: [makeScriptMenu({ isEffective: true, hasMatchOverride: false })],
       fullScriptCount: 1,
       handleOnlyRunOnUrl,
-      handleExcludeUrl,
+      handleExcludeFromMatch,
     });
     render(<App />);
 
@@ -211,7 +211,7 @@ describe("Popup 脚本快捷设置与站点范围操作", () => {
     expect(handleOnlyRunOnUrl).toHaveBeenCalledWith("u1");
 
     fireEvent.click(screen.getByRole("button", { name: "排除在 example.com 上执行" }));
-    expect(handleExcludeUrl).toHaveBeenCalledWith("u1", true);
+    expect(handleExcludeFromMatch).toHaveBeenCalledWith("u1");
   });
 
   it("S3 已包含时只显示排除并调用匹配覆盖操作", () => {

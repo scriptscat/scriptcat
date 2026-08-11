@@ -323,11 +323,12 @@ export function usePopupData() {
       try {
         await scriptClient.allowUrl(uuid, `*://${host}/*`, `*://${host}/*`);
         setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: true } : s)));
+        notify.success(t("update_success"));
       } catch (e) {
         showError(String(e));
       }
     },
-    [showError]
+    [showError, t]
   );
 
   /** 调用方需从 script.menus 中按 groupKey 过滤出所有匹配项传入 */

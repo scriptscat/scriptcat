@@ -504,14 +504,13 @@ function ScriptRow({
     if (shouldTruncateMenus && !isMenuExpanded) return allVisibleMenus.slice(0, menuExpandNum);
     return allVisibleMenus;
   })();
-  const excludeSite =
-    showSiteScopeActions && script.hasMatchOverride
-      ? onExcludeFromMatch
-        ? () => onExcludeFromMatch(script.uuid)
-        : undefined
-      : onExcludeUrl
-        ? () => onExcludeUrl(script.uuid, true)
-        : undefined;
+  const excludeSite = showSiteScopeActions
+    ? onExcludeFromMatch
+      ? () => onExcludeFromMatch(script.uuid)
+      : undefined
+    : onExcludeUrl
+      ? () => onExcludeUrl(script.uuid, true)
+      : undefined;
   const statusBadge = getStatusBadge(script, isPageScript, t);
   const displayName = script.name;
 
@@ -597,7 +596,7 @@ function ScriptRow({
                 </ActionItem>
               </Popconfirm>
             )}
-          {/* 排除 host 无需确认；开启新语义时 S3 同步移出 match 覆盖，其他状态沿用黑名单。 */}
+          {/* 排除 host 无需确认；站点范围操作开启时同步维护 match 与 exclude 覆盖。 */}
           {isPageScript && host && script.isEffective === true && excludeSite && (
             <ActionItem icon={<MinusCircle className="w-3.5 h-3.5" />} warn onClick={excludeSite}>
               {t("exclude_off").replace("$0", host)}

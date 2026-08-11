@@ -926,7 +926,14 @@ export class ScriptService {
   }
 
   async onlyRunOnUrl({ uuid, matchPattern }: { uuid: string; matchPattern: string }) {
-    return this.resetMatch({ uuid, match: [matchPattern] });
+    let script = await this.scriptDAO.get(uuid);
+    if (!script) throw new Error("script not found");
+    script = selfMetadataUpdate(script, "match", new Set([matchPattern]));
+    script = selfMetadataUpdate(script, "include", new Set());
+    return this.scriptDAO.update(uuid, script).then(() => {
+      this.publishInstallScript(script, { update: true });
+      return true;
+    });
   }
 
   async allowUrl({

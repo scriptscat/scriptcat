@@ -703,13 +703,16 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
       }
     });
 
-    it("仅在当前站点执行应以当前站点替换用户匹配列表", async () => {
-      const script = createMockScript({ selfMetadata: { match: ["*://old.example/*"] } });
+    it("仅在当前站点执行应以当前站点替换匹配列表并清空作者 include", async () => {
+      const script = createMockScript({
+        metadata: { include: ["*://included.example/*"] },
+        selfMetadata: { match: ["*://old.example/*"] },
+      });
       vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
 
       await scriptService.onlyRunOnUrl({ uuid: script.uuid, matchPattern: "*://current.example/*" });
 
-      expect(savedSelfMetadata()).toEqual({ match: ["*://current.example/*"] });
+      expect(savedSelfMetadata()).toEqual({ match: ["*://current.example/*"], include: [] });
     });
 
     it("自定义匹配未覆盖当前站点时应把当前站点加入允许列表", async () => {

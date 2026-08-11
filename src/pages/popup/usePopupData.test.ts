@@ -56,6 +56,7 @@ vi.mock("@App/pages/components/ui/toast", () => ({ notify: toastMocks }));
 // 站点范围快捷操作走真实 ScriptClient 实例，仅替换本任务直接断言的方法，其余实导出与方法保留
 const mockOnlyRunOnUrl = vi.hoisted(() => vi.fn(async () => true));
 const mockExcludeFromMatch = vi.hoisted(() => vi.fn(async () => true));
+const mockAllowUrl = vi.hoisted(() => vi.fn(async () => true));
 
 vi.mock("../store/features/script", async (importOriginal) => {
   const actual = await importOriginal<typeof ScriptStore>();
@@ -64,6 +65,7 @@ vi.mock("../store/features/script", async (importOriginal) => {
     scriptClient: Object.assign(Object.create(actual.scriptClient), {
       onlyRunOnUrl: mockOnlyRunOnUrl,
       excludeFromMatch: mockExcludeFromMatch,
+      allowUrl: mockAllowUrl,
     }),
   };
 });
@@ -233,6 +235,7 @@ describe("usePopupData 站点范围快捷操作", () => {
     vi.clearAllMocks();
     mockOnlyRunOnUrl.mockResolvedValue(true);
     mockExcludeFromMatch.mockResolvedValue(true);
+    mockAllowUrl.mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -262,6 +265,21 @@ describe("usePopupData 站点范围快捷操作", () => {
     expect(notify.success).not.toHaveBeenCalled();
     expect(result.current.errorMessage).toBe("Error: mock failure");
   });
+
+  it.each([false, true])(
+    "S2/S4 包含：成功后恢复当前站并弹出成功提示（hasMatchOverride=%s）",
+    async (hasMatchOverride) => {
+      popupInitialData.scriptList = [{ ...initialScriptList[0], isEffective: false, hasMatchOverride }];
+      const { result } = renderHook(() => usePopupData());
+      await act(async () => {
+        await result.current.handleAllowUrl("script-1");
+      });
+
+      expect(mockAllowUrl).toHaveBeenCalledWith("script-1", "*://example.com/*", "*://example.com/*");
+      expect(result.current.scriptList[0]?.isEffective).toBe(true);
+      expect(notify.success).toHaveBeenCalledWith(t("update_success"));
+    }
+  );
 
   it("S3 排除：成功后移出当前站并弹出成功提示", async () => {
     popupInitialData.scriptList = [{ ...initialScriptList[0], hasMatchOverride: true }];
