@@ -157,6 +157,13 @@ describe("classifyErrorCode", () => {
     expect(classifyErrorCode(e)).toBe("tool_timeout");
   });
 
+  it("已标注的 context_too_large 应保留结构化错误码", () => {
+    const e = Object.assign(new Error("Conversation history is too large to compact"), {
+      errorCode: "context_too_large",
+    });
+    expect(classifyErrorCode(e)).toBe("context_too_large");
+  });
+
   it("其他错误应分类为 api_error", () => {
     expect(classifyErrorCode(new Error("500 Internal Server Error"))).toBe("api_error");
     expect(classifyErrorCode(new Error("Unknown error"))).toBe("api_error");

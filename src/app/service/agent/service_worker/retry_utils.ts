@@ -51,15 +51,20 @@ export async function withRetry<T>(
 const CONTEXT_LENGTH_ERROR_PATTERN =
   /context.{0,20}(length|window|too long|exceed)|exceed.{0,20}context|maximum context length|too many tokens|prompt is too long|input is too long/i;
 
+const STRUCTURED_ERROR_CODES = new Set(["context_too_large", "persist_indeterminate", "tool_timeout"]);
+
 // 将 Error 分类为 errorCode 字符串
 export function classifyErrorCode(e: Error): string {
-  // 抛出方已经明确标注过（如 persist_indeterminate）：这类自定义 code 携带的语义比消息
-  // 文本匹配更精确，直接透传，不应被下面的启发式规则重新归类为笼统的 api_error。
-  if ((e as any).errorCode === "persist_indeterminate") return "persist_indeterminate";
+  // 受信任的内部错误码比错误文案更精确；未知值不能直接透传，避免把外部错误对象的任意字段
+  // 当作对外协议错误码。
+  const structuredErrorCode = (e as Error & { errorCode?: unknown }).errorCode;
+  if (typeof structuredErrorCode === "string" && STRUCTURED_ERROR_CODES.has(structuredErrorCode)) {
+    return structuredErrorCode;
+  }
   const msg = e.message;
   if (CONTEXT_LENGTH_ERROR_PATTERN.test(msg)) return "context_too_large";
   if (/429/.test(msg)) return "rate_limit";
   if (/401|403/.test(msg)) return "auth";
-  if (/timed out/.test(msg) || (e as any).errorCode === "tool_timeout") return "tool_timeout";
+  if (/timed out/.test(msg)) return "tool_timeout";
   return "api_error";
 }
