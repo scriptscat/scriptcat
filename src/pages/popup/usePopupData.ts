@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useTranslation } from "react-i18next";
 import type { ScriptMenu, ScriptMenuItem, TPopupScript } from "@App/app/service/service_worker/types";
 import type { TDeleteScript, TEnableScript, TScriptRunStatus } from "@App/app/service/queue";
 import { popupClient, scriptClient, runtimeClient, requestOpenBatchUpdatePage } from "../store/features/script";
@@ -9,7 +8,6 @@ import { ExtVersion, ExtServer } from "@App/app/const";
 import { sanitizeHTML } from "@App/pkg/utils/sanitize";
 import { openInCurrentTab } from "@App/pkg/utils/utils";
 import { cacheInstance } from "@App/app/cache";
-import { notify } from "@App/pages/components/ui/toast";
 import { scriptListSorter, type ScriptProvider, usePopupDataQuery } from "./preload";
 export { ExtVersion } from "@App/app/const";
 export { VersionCompare, versionCompare } from "@App/pkg/utils/semver";
@@ -80,7 +78,6 @@ function filterScripts(list: ScriptMenu[], query: string): ScriptMenu[] {
 // ========== Hook ==========
 
 export function usePopupData() {
-  const { t } = useTranslation();
   const popupData = usePopupDataQuery();
   const initialData = popupData.data;
   const [initialized, setInitialized] = useState(!!initialData);
@@ -293,12 +290,11 @@ export function usePopupData() {
         setScriptList((prev) =>
           prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: true, hasMatchOverride: true } : s))
         );
-        notify.success(t("update_success"));
       } catch (e) {
         showError(String(e));
       }
     },
-    [showError, t]
+    [showError]
   );
 
   const handleExcludeFromMatch = useCallback(
@@ -308,12 +304,11 @@ export function usePopupData() {
       try {
         await scriptClient.excludeFromMatch(uuid, `*://${host}/*`);
         setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: false } : s)));
-        notify.success(t("update_success"));
       } catch (e) {
         showError(String(e));
       }
     },
-    [showError, t]
+    [showError]
   );
 
   const handleAllowUrl = useCallback(
@@ -323,12 +318,11 @@ export function usePopupData() {
       try {
         await scriptClient.allowUrl(uuid, `*://${host}/*`, `*://${host}/*`);
         setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: true } : s)));
-        notify.success(t("update_success"));
       } catch (e) {
         showError(String(e));
       }
     },
-    [showError, t]
+    [showError]
   );
 
   /** 调用方需从 script.menus 中按 groupKey 过滤出所有匹配项传入 */

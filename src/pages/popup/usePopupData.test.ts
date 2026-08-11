@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { notify } from "@App/pages/components/ui/toast";
-import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const popupInitialData = vi.hoisted(() => ({
@@ -40,7 +39,7 @@ vi.mock("@App/pkg/utils/utils", async (importOriginal) => {
   return { ...actual, openInCurrentTab: vi.fn(async () => undefined), getCurrentTab: vi.fn(async () => undefined) };
 });
 
-// toast 反馈打桩：仅验证「成功才调用 notify.success」的反馈逻辑
+// notify 打桩：断言站点操作成功/失败均不弹成功 toast
 const toastMocks = vi.hoisted(() => ({
   success: vi.fn(),
   info: vi.fn(),
@@ -242,7 +241,7 @@ describe("usePopupData 站点范围快捷操作", () => {
     popupInitialData.scriptList = initialScriptList;
   });
 
-  it("仅在 xxx 执行：成功后乐观更新本地列表并弹出成功提示", async () => {
+  it("仅在 xxx 执行：成功后乐观更新本地列表且不弹成功提示", async () => {
     const { result } = renderHook(() => usePopupData());
     await act(async () => {
       await result.current.handleOnlyRunOnUrl("script-1");
@@ -251,8 +250,7 @@ describe("usePopupData 站点范围快捷操作", () => {
     expect(mockOnlyRunOnUrl).toHaveBeenCalledWith("script-1", "*://example.com/*");
     expect(result.current.scriptList[0]?.isEffective).toBe(true);
     expect(result.current.scriptList[0]?.hasMatchOverride).toBe(true);
-    expect(notify.success).toHaveBeenCalledTimes(1);
-    expect(notify.success).toHaveBeenCalledWith(t("update_success"));
+    expect(notify.success).not.toHaveBeenCalled();
   });
 
   it("仅在 xxx 执行：失败时不弹成功提示，并记录错误信息", async () => {
@@ -267,7 +265,7 @@ describe("usePopupData 站点范围快捷操作", () => {
   });
 
   it.each([false, true])(
-    "S2/S4 包含：成功后恢复当前站并弹出成功提示（hasMatchOverride=%s）",
+    "S2/S4 包含：成功后恢复当前站且不弹成功提示（hasMatchOverride=%s）",
     async (hasMatchOverride) => {
       popupInitialData.scriptList = [{ ...initialScriptList[0], isEffective: false, hasMatchOverride }];
       const { result } = renderHook(() => usePopupData());
@@ -277,11 +275,11 @@ describe("usePopupData 站点范围快捷操作", () => {
 
       expect(mockAllowUrl).toHaveBeenCalledWith("script-1", "*://example.com/*", "*://example.com/*");
       expect(result.current.scriptList[0]?.isEffective).toBe(true);
-      expect(notify.success).toHaveBeenCalledWith(t("update_success"));
+      expect(notify.success).not.toHaveBeenCalled();
     }
   );
 
-  it("S3 排除：成功后移出当前站并弹出成功提示", async () => {
+  it("S3 排除：成功后移出当前站且不弹成功提示", async () => {
     popupInitialData.scriptList = [{ ...initialScriptList[0], hasMatchOverride: true }];
     const { result } = renderHook(() => usePopupData());
     await act(async () => {
@@ -291,7 +289,7 @@ describe("usePopupData 站点范围快捷操作", () => {
     expect(mockExcludeFromMatch).toHaveBeenCalledWith("script-1", "*://example.com/*");
     expect(result.current.scriptList[0]?.isEffective).toBe(false);
     expect(result.current.scriptList[0]?.hasMatchOverride).toBe(true);
-    expect(notify.success).toHaveBeenCalledWith(t("update_success"));
+    expect(notify.success).not.toHaveBeenCalled();
   });
 
   it("S3 排除：失败时保持原状态且不弹成功提示", async () => {
