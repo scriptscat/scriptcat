@@ -901,8 +901,9 @@ export class ScriptService {
     if (!script) {
       throw new Error("script not found");
     }
-    // 建立Set去掉重复（如有）
-    const excludeSet = new Set(script.selfMetadata?.exclude || script.metadata?.exclude || []);
+    // 建立Set去掉重复（如有）；用户覆盖整体替换作者规则，因此须把作者 @exclude 一并并入，
+    // 否则用户已有排除覆盖时会丢作者规则
+    const excludeSet = new Set([...(script.metadata?.exclude || []), ...(script.selfMetadata?.exclude || [])]);
     if (remove) {
       const deleted = excludeSet.delete(excludePattern);
       if (!deleted) {
@@ -973,7 +974,8 @@ export class ScriptService {
         matchSet.delete(matchPattern);
         script = selfMetadataUpdate(script, "match", matchSet);
       }
-      const excludeSet = new Set(script.selfMetadata?.exclude || script.metadata?.exclude || []);
+      // 用户覆盖整体替换作者规则，因此把作者 @exclude 一并并入用户覆盖，避免丢作者规则
+      const excludeSet = new Set([...(script.metadata?.exclude || []), ...(script.selfMetadata?.exclude || [])]);
       excludeSet.add(matchPattern);
       script = selfMetadataUpdate(script, "exclude", excludeSet);
       await this.scriptDAO.update(uuid, script);
@@ -1013,6 +1015,12 @@ export class ScriptService {
     const matchSet = match === undefined ? undefined : new Set(match);
     // 更新 script.selfMetadata.match
     script = selfMetadataUpdate(script, "match", matchSet);
+    if (match === undefined) {
+      // match 与 include 覆盖是 onlyRunOnUrl 一并写入的 URL 范围单元：重置 match 必须同时撤销
+      // include 覆盖，否则 @include 型脚本「仅在本站」后从设置页重置会残留 include:[]，
+      // 有效 metadata 失去全部 URL 规则且无法从设置页恢复
+      script = selfMetadataUpdate(script, "include", undefined);
+    }
     return this.scriptDAO
       .update(uuid, script)
       .then(() => {

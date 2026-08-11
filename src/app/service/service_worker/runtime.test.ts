@@ -307,6 +307,26 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     expect(runtime.getPageScriptMatchingResultByUrl("https://www.example.com/", true).has(script.uuid)).toBe(false);
   });
 
+  it.concurrent("空匹配覆盖时应删除持久化 CompiledResource 并注销旧注册", async () => {
+    const { runtime, mockScriptService } = createRuntimeTestContext();
+    const script = createMockScript({
+      metadata: { match: ["https://www.example.com/*"] },
+      selfMetadata: { match: [] },
+      status: SCRIPT_STATUS_ENABLE,
+    });
+    const scriptRunResource = createScriptRunResource(script);
+    mockScriptService.buildScriptRunResource.mockResolvedValue(scriptRunResource);
+
+    const deleteSpy = vi.spyOn(runtime.compiledResourceDAO, "delete").mockResolvedValue(undefined);
+    const unregisterSpy = vi.spyOn(runtime, "unregistryPageScripts").mockResolvedValue(undefined);
+
+    await runtime.updateResourceOnScriptChange(script);
+
+    // 空覆盖 = 全站不匹配：旧 CompiledResource 与浏览器注册必须被清掉，否则 SW 重启后旧范围复活
+    expect(deleteSpy).toHaveBeenCalledWith(script.uuid);
+    expect(unregisterSpy).toHaveBeenCalledWith([script.uuid]);
+  });
+
   describe.concurrent("includeDisabled 选项", () => {
     it.concurrent("当 includeDisabled=false 时不返回禁用脚本；当 includeDisabled=true 时返回禁用脚本", async () => {
       // Arrange

@@ -677,6 +677,19 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
 
       expect(savedSelfMetadata()).toEqual({ exclude: ["*://ads.script.com/*", "*://user.com/*"] });
     });
+
+    it("已有用户排除覆盖时新增排除应同时保留作者与用户规则", async () => {
+      const script = createMockScript({
+        selfMetadata: { exclude: ["*://user-blocked.example/*"] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.excludeUrl({ uuid: script.uuid, excludePattern: "*://new.example/*", remove: false });
+
+      expect(savedSelfMetadata()).toEqual({
+        exclude: ["*://ads.script.com/*", "*://user-blocked.example/*", "*://new.example/*"],
+      });
+    });
   });
 
   describe("popup 站点范围快捷操作", () => {
@@ -812,9 +825,10 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
 
       await scriptService.excludeFromMatch({ uuid: script.uuid, matchPattern: "*://current.example/*" });
 
+      // 作者 @exclude（ads.script.com）并入用户覆盖，避免用户覆盖整体替换作者规则
       expect(savedSelfMetadata()).toEqual({
         match: ["*://allowed.example/*"],
-        exclude: ["*://blocked.example/*", "*://current.example/*"],
+        exclude: ["*://ads.script.com/*", "*://blocked.example/*", "*://current.example/*"],
       });
     });
 
@@ -865,6 +879,21 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
         exclude: ["*://author-blocked.example/*", "*://current.example/*"],
       });
     });
+
+    it("已有用户排除覆盖时排除站点应同时保留作者与用户排除规则", async () => {
+      const script = createMockScript({
+        metadata: { exclude: ["*://author-blocked.example/*"] },
+        selfMetadata: { match: ["*://current.example/*"], exclude: ["*://user-blocked.example/*"] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.excludeFromMatch({ uuid: script.uuid, matchPattern: "*://current.example/*" });
+
+      expect(savedSelfMetadata()).toEqual({
+        match: [],
+        exclude: ["*://author-blocked.example/*", "*://user-blocked.example/*", "*://current.example/*"],
+      });
+    });
   });
 
   describe("resetMatch / resetExclude - 编辑器匹配列表", () => {
@@ -884,6 +913,30 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
       await scriptService.resetMatch({ uuid: script.uuid, match: [] });
 
       expect(savedSelfMetadata()).toEqual({ match: [] });
+    });
+
+    it("重置时应同时撤销 onlyRunOnUrl 写入的 include 覆盖，恢复作者 include", async () => {
+      const script = createMockScript({
+        metadata: { include: ["*://included.example/*"] },
+        selfMetadata: { match: ["*://current.example/*"], include: [] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.resetMatch({ uuid: script.uuid, match: undefined });
+
+      // match 与 include 覆盖是 onlyRunOnUrl 一并写入的 URL 范围单元，重置须一并撤销
+      expect(savedSelfMetadata()).toBeUndefined();
+    });
+
+    it("传入空数组(删除最后一项)时应保留 include 覆盖", async () => {
+      const script = createMockScript({
+        selfMetadata: { match: ["*://current.example/*"], include: [] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.resetMatch({ uuid: script.uuid, match: [] });
+
+      expect(savedSelfMetadata()).toEqual({ match: [], include: [] });
     });
 
     it("resetExclude 传入 undefined(重置)应删除用户覆盖", async () => {
