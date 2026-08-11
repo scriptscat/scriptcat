@@ -16,6 +16,7 @@ const repoMock = vi.hoisted(() => ({
   deleteAttachment: vi.fn().mockResolvedValue(undefined),
   getAttachment: vi.fn().mockResolvedValue(null),
   getMessages: vi.fn().mockResolvedValue([]),
+  getTaskSnapshot: vi.fn().mockResolvedValue({ generation: "test-generation", revision: 0, tasks: [] }),
   saveTasks: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -174,7 +175,7 @@ describe("聊天主区域 ChatArea", () => {
 
     fireEvent.click(screen.getByTestId("toolbar-delete-direct"));
 
-    await waitFor(() => expect(repoMock.saveTasks).toHaveBeenCalledWith("c1", []));
+    await waitFor(() => expect(repoMock.saveTasks).toHaveBeenCalledWith("c1", [], undefined, "test-generation", 0));
   });
 
   it("新的 ask_user 请求应重置上一个请求的已提交状态", () => {

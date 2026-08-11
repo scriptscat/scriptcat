@@ -310,7 +310,14 @@ export class ChatService {
             generation: snapshot.generation,
             expectedRevision: snapshot.revision,
           });
-          await this.chatRepo.saveTasks(params.conversationId, [], undefined, snapshot.generation);
+          const taskSnapshot = await this.chatRepo.getTaskSnapshot(params.conversationId, snapshot.generation);
+          await this.chatRepo.saveTasks(
+            params.conversationId,
+            [],
+            undefined,
+            snapshot.generation,
+            taskSnapshot.revision
+          );
           return true;
         });
       case "deleteMessages":
@@ -927,6 +934,7 @@ export class ChatService {
     sendEvent: (event: ChatStreamEvent) => void,
     abortController: AbortController
   ): Promise<void> {
+    const startTime = Date.now();
     const conv = await this.getConversation(params.conversationId);
     if (!conv) {
       sendEvent({ type: "error", message: "Conversation not found" });
@@ -1001,7 +1009,7 @@ export class ChatService {
     const compactError = (message: string, cause?: unknown) =>
       Object.assign(new Error(message), {
         usage: result.usage,
-        durationMs: undefined,
+        durationMs: Date.now() - startTime,
         cause,
       });
 
@@ -1038,7 +1046,7 @@ export class ChatService {
     }
 
     sendEvent({ type: "compact_done", summary, originalCount });
-    sendEvent({ type: "done", usage: result.usage });
+    sendEvent({ type: "done", usage: result.usage, durationMs: Date.now() - startTime });
   }
 
   /**
@@ -1075,10 +1083,12 @@ export class ChatService {
       }
 
       // Task tools（从持久化加载，变更时保存并推送事件到 UI）
-      const initialTasks = await this.chatRepo.getTasks(params.conversationId, conv.generation);
+      const taskSnapshot = await this.chatRepo.getTaskSnapshot(params.conversationId, conv.generation);
       const { tools: taskToolDefs } = createTaskTools({
-        initialTasks,
-        onSave: (tasks, signal) => this.chatRepo.saveTasks(params.conversationId, tasks, signal, conv.generation),
+        initialTasks: taskSnapshot.tasks,
+        initialRevision: taskSnapshot.revision,
+        onSave: (tasks, signal, expectedRevision) =>
+          this.chatRepo.saveTasks(params.conversationId, tasks, signal, conv.generation, expectedRevision),
         sendEvent,
       });
       for (const t of taskToolDefs) {

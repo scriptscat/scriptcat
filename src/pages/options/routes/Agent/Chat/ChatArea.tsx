@@ -106,7 +106,7 @@ export default function ChatArea({
     respondToAskUser,
     attachToConversation,
   } = useStreamingChat();
-  const { tasks, setTasks, handleTaskUpdate, loadTasks } = useConversationTasks(conversationId);
+  const { tasks, setTasks, handleTaskUpdate, loadTasks } = useConversationTasks(conversationId, conversationGeneration);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingMsgRef = useRef<ChatMessage | null>(null);
   // "继续对话"按钮的点击去重：isStreaming 是异步 state，两次点击可能在同一渲染帧内都读到
@@ -655,9 +655,10 @@ export default function ChatArea({
   );
 
   const clearTasks = useCallback(async () => {
-    await agentChatRepo.saveTasks(conversationId, []);
+    const snapshot = await agentChatRepo.getTaskSnapshot(conversationId, conversationGeneration);
+    await agentChatRepo.saveTasks(conversationId, [], undefined, snapshot.generation, snapshot.revision);
     setTasks([]);
-  }, [conversationId, setTasks]);
+  }, [conversationGeneration, conversationId, setTasks]);
 
   const handleRegenerate = useCallback(
     async (groups: MessageGroup[], groupIndex: number) => {

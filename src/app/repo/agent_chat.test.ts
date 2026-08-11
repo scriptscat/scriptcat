@@ -298,6 +298,104 @@ describe("AgentChatRepo 附件存储", () => {
     expect(await repo.getAttachment("att-borrowed")).not.toBeNull();
   });
 
+  it("删除一个会话时不应删除其它会话借用的附件", async () => {
+    const owner = await repo.createConversation({
+      id: "conv-attachment-owner",
+      title: "Owner",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    const borrower = await repo.createConversation({
+      id: "conv-attachment-borrower",
+      title: "Borrower",
+      modelId: "m1",
+      createtime: 2,
+      updatetime: 2,
+    });
+    await repo.saveMessages(
+      owner.id,
+      [
+        {
+          id: "owner-message",
+          conversationId: owner.id,
+          role: "user",
+          content: [{ type: "image", attachmentId: "shared.png", mimeType: "image/png" }],
+          ownedAttachmentIds: ["shared.png"],
+          createtime: 1,
+        },
+      ],
+      undefined,
+      { generation: owner.generation! }
+    );
+    await repo.saveMessages(
+      borrower.id,
+      [
+        {
+          id: "borrower-message",
+          conversationId: borrower.id,
+          role: "user",
+          content: [{ type: "image", attachmentId: "shared.png", mimeType: "image/png" }],
+          createtime: 2,
+        },
+      ],
+      undefined,
+      { generation: borrower.generation! }
+    );
+    await repo.saveAttachment("shared.png", new Blob(["shared"]));
+
+    await repo.deleteConversation(owner.id, {
+      generation: owner.generation!,
+      expectedRevision: owner.revision,
+    });
+
+    expect(await repo.getAttachment("shared.png")).not.toBeNull();
+  });
+
+  it("同一会话的新快照借用旧附件时不应在所有权转移期间误删", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-same-conversation-borrow",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    await repo.saveMessages(
+      conversation.id,
+      [
+        {
+          id: "owner-message",
+          conversationId: conversation.id,
+          role: "user",
+          content: [{ type: "image", attachmentId: "same.png", mimeType: "image/png" }],
+          ownedAttachmentIds: ["same.png"],
+          createtime: 1,
+        },
+      ],
+      undefined,
+      { generation: conversation.generation! }
+    );
+    await repo.saveAttachment("same.png", new Blob(["image"]));
+    const previous = await repo.getMessageSnapshot(conversation.id, conversation.generation);
+
+    await repo.saveMessages(
+      conversation.id,
+      [
+        {
+          id: "borrower-message",
+          conversationId: conversation.id,
+          role: "user",
+          content: [{ type: "image", attachmentId: "same.png", mimeType: "image/png" }],
+          createtime: 2,
+        },
+      ],
+      undefined,
+      { generation: conversation.generation!, expectedRevision: previous.revision }
+    );
+
+    expect(await repo.getAttachment("same.png")).not.toBeNull();
+  });
+
   it("替换历史时应递归清理被移除的子代理附件并保留仍被引用的附件", async () => {
     const conversation = await repo.createConversation({
       id: "conv-nested-attachments",
@@ -543,6 +641,23 @@ describe("AgentChatRepo 跨上下文读-改-写安全", () => {
 
     await expect(repo.saveTasks(conversation.id, tasks, undefined, conversation.generation)).resolves.toBeUndefined();
     await expect(repo.getTasks(conversation.id, conversation.generation)).resolves.toEqual(tasks);
+  });
+
+  it("saveTasks 应拒绝覆盖读取快照后已经变更的任务", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-task-cas",
+      title: "Test",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    const currentTasks = [{ id: "1", subject: "current", status: "pending" as const }];
+    await repo.saveTasks(conversation.id, currentTasks, undefined, conversation.generation);
+
+    await expect(repo.saveTasks(conversation.id, [], undefined, conversation.generation, 0)).rejects.toThrow(
+      'Tasks for conversation "conv-task-cas" changed'
+    );
+    await expect(repo.getTasks(conversation.id, conversation.generation)).resolves.toEqual(currentTasks);
   });
 
   it("saveMessages close 已提交后报错时仍应继续清理被移除附件", async () => {
@@ -822,6 +937,33 @@ describe("AgentChatRepo 跨上下文读-改-写安全", () => {
     // 新一代会话读取任务时不应看到残留的旧一代任务，而应得到空列表
     const tasks = await repo.getTasks(recreated.id, recreated.generation);
     expect(tasks).toEqual([]);
+  });
+
+  it("会话 ID 复用且残留原始 Task 数组时，getTasks 不应复活上一代任务", async () => {
+    const original = await repo.createConversation({
+      id: "conv-raw-task-reused",
+      title: "Old",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    const tasksDir = navigateDir(rootStore, "agents", "conversations", "tasks");
+    tasksDir.set(`${original.id}.json`, JSON.stringify([{ id: "task-raw", title: "旧原始任务", status: "pending" }]));
+    vi.spyOn(repo as any, "deleteFile").mockRejectedValue(new Error("disk error"));
+    await repo.deleteConversation(original.id, {
+      generation: original.generation!,
+      expectedRevision: original.revision,
+    });
+
+    const recreated = await repo.createConversation({
+      id: original.id,
+      title: "New",
+      modelId: "m1",
+      createtime: 2,
+      updatetime: 2,
+    });
+
+    await expect(repo.getTasks(recreated.id, recreated.generation)).resolves.toEqual([]);
   });
 
   it("saveMessages 提交新快照后附件 GC 失败不应报告 clear/compact 失败", async () => {

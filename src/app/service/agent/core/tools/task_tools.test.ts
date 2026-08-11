@@ -47,6 +47,19 @@ describe("task_tools", () => {
     expect(onSave).toHaveBeenCalledWith(expect.any(Array), controller.signal);
   });
 
+  it("带初始 revision 时每次保存都应透传 CAS 版本", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const { tools } = createTaskTools({ onSave, initialRevision: 7 });
+    const create = tools.find((tool) => tool.definition.name === "create_task")!;
+    const update = tools.find((tool) => tool.definition.name === "update_task")!;
+
+    await create.executor.execute({ subject: "任务" });
+    await update.executor.execute({ task_id: "1", status: "completed" });
+
+    expect(onSave).toHaveBeenNthCalledWith(1, [{ id: "1", subject: "任务", status: "pending" }], undefined, 7);
+    expect(onSave).toHaveBeenNthCalledWith(2, [{ id: "1", subject: "任务", status: "completed" }], undefined, 8);
+  });
+
   it("create_task 持久化失败时不应把未提交任务留在内存或消耗 ID", async () => {
     const onSave = vi.fn().mockRejectedValueOnce(new Error("disk full")).mockResolvedValue(undefined);
     const { tools, tasks } = createTaskTools({ onSave });

@@ -1051,6 +1051,10 @@ declare namespace CATAgent {
     toolCallId?: string;
     /** 错误信息（当轮次出错时）。 */
     error?: string;
+    /** 错误分类码（例如 `context_too_large`）。 */
+    errorCode?: string;
+    /** 与此消息关联的非致命警告。 */
+    warning?: string;
     /** 生成此消息使用的模型 ID。 */
     modelId?: string;
     /** 此消息的 Token 用量。 */
@@ -1380,6 +1384,8 @@ declare namespace CATAgentTask {
     modelId?: string;
     /** 要续接的已有对话 ID。 */
     conversationId?: string;
+    /** 任务绑定对话时记录的会话 generation。 */
+    conversationGeneration?: string;
     /** 加载的 Skill。 */
     skills?: "auto" | string[];
     /** 工具调用最大迭代次数（默认 10）。 */
@@ -1552,7 +1558,7 @@ declare namespace CATAgentModel {
     /** 用户自定义显示名称（如 "GPT-4o"、"Claude Sonnet"）。 */
     name: string;
     /** LLM 提供商。 */
-    provider: "openai" | "anthropic";
+    provider: "openai" | "anthropic" | "zhipu";
     /** API 基础 URL。 */
     apiBaseUrl: string;
     /** 发送给提供商 API 的模型标识符。 */

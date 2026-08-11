@@ -100,6 +100,25 @@ export function collectMessageAttachmentIds(messages: ChatMessage[], legacy = fa
   return result;
 }
 
+// GC 引用扫描需要包含借用附件；与所有权收集不同，这里记录消息内容和工具结果中的全部引用。
+function collectMessageAttachmentReferences(messages: ChatMessage[], legacy = false): Set<string> {
+  const result = collectMessageAttachmentIds(messages, legacy);
+  const collectToolCalls = (toolCalls: NonNullable<ChatMessage["toolCalls"]>) => {
+    for (const toolCall of toolCalls) {
+      for (const attachment of toolCall.attachments || []) result.add(attachment.id);
+      for (const subMessage of toolCall.subAgentDetails?.messages || []) {
+        for (const attachmentId of contentBlockAttachmentIds(subMessage.content)) result.add(attachmentId);
+        collectToolCalls(subMessage.toolCalls);
+      }
+    }
+  };
+  for (const message of messages) {
+    for (const attachmentId of contentBlockAttachmentIds(message.content)) result.add(attachmentId);
+    collectToolCalls(message.toolCalls || []);
+  }
+  return result;
+}
+
 function containsCompleteToolRound(
   messages: ChatMessage[],
   assistantMessage: ChatMessage,
@@ -244,9 +263,10 @@ export class AgentChatRepo extends OPFSRepo {
       try {
         const messagesDir = await this.getChildDir(MESSAGES_DIR);
         const stored = await this.readMessageSnapshot(id, deleted.generation!, messagesDir);
-        await this.deleteAttachments([
-          ...collectMessageAttachmentIds(stored.messages, isLegacyGeneration(deleted.generation)),
-        ]);
+        await this.deleteUnreferencedAttachments(
+          [...collectMessageAttachmentIds(stored.messages, isLegacyGeneration(deleted.generation))],
+          id
+        );
         await this.deleteFile(`${id}.json`, messagesDir);
         const tasksDir = await this.getChildDir(TASKS_DIR);
         await this.deleteFile(`${id}.json`, tasksDir);
@@ -390,7 +410,11 @@ export class AgentChatRepo extends OPFSRepo {
         // 新快照已经提交在上面；删除不再被引用的旧附件属于 GC，失败不能让 clear/compact/deleteMessages
         // 报告失败——历史其实已经替换成功了。
         try {
-          await this.deleteAttachments(removedAttachments);
+          await this.deleteUnreferencedAttachments(
+            removedAttachments,
+            conversationId,
+            collectMessageAttachmentReferences(messages, legacy)
+          );
         } catch {
           // best-effort cleanup of attachments no longer referenced by the saved history
         }
@@ -425,9 +449,12 @@ export class AgentChatRepo extends OPFSRepo {
     tasksDir: FileSystemDirectoryHandle
   ): Promise<TaskSnapshot> {
     const stored = await this.readJsonFile<Task[] | TaskSnapshot>(`${conversationId}.json`, [], tasksDir);
-    // 旧格式（未打 generation 标签的原始 Task[]）视为迁移前的历史数据，直接接受，
-    // 与 readMessageSnapshot 对旧版 ChatMessage[] 的兼容处理保持一致。
-    if (!isTaskSnapshot(stored)) return { generation, revision: 0, tasks: stored };
+    // 旧格式只有在 legacy 会话中才属于当前会话；新 generation 不得复活同 ID 的旧文件。
+    if (!isTaskSnapshot(stored)) {
+      return isLegacyGeneration(generation)
+        ? { generation, revision: 0, tasks: stored }
+        : { generation, revision: 0, tasks: [] };
+    }
     if (stored.generation !== generation) return { generation, revision: 0, tasks: [] };
     return stored;
   }
@@ -499,27 +526,69 @@ export class AgentChatRepo extends OPFSRepo {
     }
   }
 
+  // 附件存储在全局 workspace 中；删除前必须确认其它会话没有借用这些附件。
+  private async deleteUnreferencedAttachments(
+    ids: string[],
+    excludedConversationId: string,
+    protectedReferences: Set<string> = new Set()
+  ): Promise<void> {
+    if (ids.length === 0) return;
+    const candidates = new Set(ids);
+    const referenced = new Set([...protectedReferences].filter((id) => candidates.has(id)));
+    try {
+      for (const conversation of await this.listConversations()) {
+        if (conversation.id === excludedConversationId) continue;
+        const snapshot = await this.getMessageSnapshot(conversation.id, conversation.generation);
+        for (const id of collectMessageAttachmentReferences(
+          snapshot.messages,
+          isLegacyGeneration(conversation.generation)
+        )) {
+          if (candidates.has(id)) referenced.add(id);
+        }
+        if (referenced.size === candidates.size) return;
+      }
+    } catch {
+      // 无法完整确认引用关系时安全地保留附件，避免误删其它会话仍在使用的数据。
+      return;
+    }
+    await this.deleteAttachments(ids.filter((id) => !referenced.has(id)));
+  }
+
   // ---- 任务 (task_tools) 存储 ----
 
   // 获取会话关联的任务列表
   async getTasks(conversationId: string, generation?: string): Promise<Task[]> {
+    return (await this.getTaskSnapshot(conversationId, generation)).tasks;
+  }
+
+  // 获取会话关联的任务快照（含 revision，供跨上下文写入做 CAS）
+  async getTaskSnapshot(conversationId: string, generation?: string): Promise<TaskSnapshot> {
     return this.withFileLock(`lifecycle:${conversationId}`, async () => {
       const current = await this.requireConversation(conversationId, generation);
       const tasksDir = await this.getChildDir(TASKS_DIR);
       // generation 不匹配（例如会话 ID 被复用、旧任务文件清理失败残留）时返回空快照，
       // 而不是把上一代会话的任务列表当作当前会话的任务，与 readMessageSnapshot 的语义一致。
       const snapshot = await this.readTaskSnapshot(conversationId, current.generation!, tasksDir);
-      return snapshot.tasks;
+      return snapshot;
     });
   }
 
   // 保存会话关联的任务列表
-  async saveTasks(conversationId: string, tasks: Task[], signal?: AbortSignal, generation?: string): Promise<void> {
+  async saveTasks(
+    conversationId: string,
+    tasks: Task[],
+    signal?: AbortSignal,
+    generation?: string,
+    expectedRevision?: number
+  ): Promise<void> {
     await this.withFileLock(`lifecycle:${conversationId}`, async () => {
       const current = await this.requireConversation(conversationId, generation);
       await this.withFileLock(`tasks:${conversationId}`, async () => {
         const tasksDir = await this.getChildDir(TASKS_DIR);
         const previous = await this.readTaskSnapshot(conversationId, current.generation!, tasksDir);
+        if (expectedRevision !== undefined && previous.revision !== expectedRevision) {
+          throw new RevisionConflictError(`Tasks for conversation "${conversationId}" changed`);
+        }
         const saved: TaskSnapshot = { generation: current.generation!, revision: previous.revision + 1, tasks };
         await this.writeJsonFileConfirmed(
           `${conversationId}.json`,

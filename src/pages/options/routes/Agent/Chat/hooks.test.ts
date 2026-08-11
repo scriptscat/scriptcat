@@ -14,7 +14,7 @@ const repoMock = vi.hoisted(() => ({
   getMessages: vi.fn<(id: string) => Promise<ChatMessage[]>>(() => Promise.resolve([])),
   saveMessages: vi.fn<(id: string, m: ChatMessage[]) => Promise<void>>(() => Promise.resolve()),
   saveTasks: vi.fn<(id: string, t: unknown[]) => Promise<void>>(() => Promise.resolve()),
-  getTasks: vi.fn<(id: string) => Promise<unknown[]>>(() => Promise.resolve([])),
+  getTasks: vi.fn<(id: string, generation?: string) => Promise<unknown[]>>(() => Promise.resolve([])),
   deleteAttachment: vi.fn<(id: string) => Promise<void>>(() => Promise.resolve()),
 }));
 
@@ -55,7 +55,20 @@ vi.mock("@Packages/message/client", () => ({
   sendMessage: mockSendMessage,
 }));
 
-import { useConversations, deleteMessages, clearMessages, useStreamingChat } from "./hooks";
+import { useConversations, deleteMessages, clearMessages, useConversationTasks, useStreamingChat } from "./hooks";
+
+describe("useConversationTasks：会话代际隔离", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("加载任务时应透传 conversation generation", async () => {
+    const { result } = renderHook(() => useConversationTasks("c1", "gen-c1"));
+
+    await waitFor(() => expect(repoMock.getTasks).toHaveBeenCalledWith("c1", "gen-c1"));
+    expect(result.current.tasks).toEqual([]);
+  });
+});
 
 describe("useStreamingChat：stop 后仍需放行终态事件", () => {
   it("应把本次 UI 新上传附件的所有权发送给 Service Worker", async () => {

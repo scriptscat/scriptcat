@@ -1044,6 +1044,10 @@ declare namespace CATAgent {
     toolCallId?: string;
     /** Error message (if the turn errored). */
     error?: string;
+    /** Error classification code (for example, `context_too_large`). */
+    errorCode?: string;
+    /** Non-fatal warning associated with this message. */
+    warning?: string;
     /** Model ID used for this message. */
     modelId?: string;
     /** Token usage for this message. */
@@ -1373,6 +1377,8 @@ declare namespace CATAgentTask {
     modelId?: string;
     /** Existing conversation ID to continue. */
     conversationId?: string;
+    /** Conversation generation captured when this task was bound to a conversation. */
+    conversationGeneration?: string;
     /** Skills to load. */
     skills?: "auto" | string[];
     /** Max tool-calling iterations (default: 10). */
@@ -1546,7 +1552,7 @@ declare namespace CATAgentModel {
     /** User-defined display name (e.g. "GPT-4o", "Claude Sonnet"). */
     name: string;
     /** LLM provider. */
-    provider: "openai" | "anthropic";
+    provider: "openai" | "anthropic" | "zhipu";
     /** API base URL. */
     apiBaseUrl: string;
     /** Model identifier sent to the provider API. */

@@ -411,7 +411,7 @@ export async function clearMessages(conversationId: string, generation?: string)
 }
 
 // 会话任务列表 hook
-export function useConversationTasks(conversationId: string) {
+export function useConversationTasks(conversationId: string, generation?: string) {
   const [tasks, setTasks] = useState<Task[]>([]);
 
   const loadTasks = useCallback(async () => {
@@ -419,9 +419,9 @@ export function useConversationTasks(conversationId: string) {
       setTasks([]);
       return;
     }
-    const loaded = await agentChatRepo.getTasks(conversationId);
+    const loaded = await agentChatRepo.getTasks(conversationId, generation);
     setTasks(loaded);
-  }, [conversationId]);
+  }, [conversationId, generation]);
 
   useEffect(() => {
     void (async () => {

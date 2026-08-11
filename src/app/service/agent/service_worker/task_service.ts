@@ -216,6 +216,8 @@ export class AgentTaskService {
         rehydratedHistory: Boolean(task.conversationId),
         throwOnTerminalError: true,
       });
+      // 工具循环在取消时可能正常 return；定时任务必须把这个状态转成失败/取消，避免误记成功。
+      throwIfAborted(signal);
 
       // 通知
       if (task.notify) {

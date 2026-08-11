@@ -87,6 +87,22 @@ describe("AgentTaskService 定时任务与会话锁", () => {
     );
   });
 
+  it("工具循环取消后正常返回时定时任务仍应报告取消", async () => {
+    const { service, orchestrator } = createService();
+    const controller = new AbortController();
+    orchestrator.callLLMWithToolLoop.mockImplementationOnce(async () => {
+      controller.abort();
+    });
+    const task = {
+      id: "task-cancel-after-loop",
+      name: "可取消任务",
+      mode: "internal",
+      prompt: "hello",
+    } as unknown as InternalAgentTask;
+
+    await expect(service.executeInternalTask(task, controller.signal)).rejects.toThrow("Aborted");
+  });
+
   it("任务绑定的会话已被删除重建（generation 不一致）时应拒绝续接，而不是静默写入无关会话", async () => {
     const { service, repo, orchestrator } = createService();
     // 存储里 conv-lock 当前的 generation 是 "gen-b"（被删除重建过）

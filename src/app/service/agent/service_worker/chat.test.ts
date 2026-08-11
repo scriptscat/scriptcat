@@ -1386,6 +1386,26 @@ describe("会话队列的连接感知与重入策略", () => {
     expect(mockRepo.deleteAttachment).toHaveBeenCalledWith("manual-orphan.png");
   });
 
+  it("手动 compact 成功时应发送耗时", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([conv("conv-compact-duration")]);
+    mockRepo.getMessages.mockResolvedValue([
+      { id: "m1", conversationId: "conv-compact-duration", role: "user", content: "history", createtime: 1 },
+    ]);
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("摘要"));
+
+    const connection = createMockSender();
+    await (service as any).handleConversationChat(
+      { conversationId: "conv-compact-duration", message: "", compact: true },
+      connection.sender
+    );
+
+    const done = connection.sentMessages
+      .map((message: any) => message.data)
+      .find((event: any) => event.type === "done");
+    expect(done).toEqual(expect.objectContaining({ type: "done", durationMs: expect.any(Number) }));
+  });
+
   it("子代理终态不应吞掉父对话自己的终态", async () => {
     const { service, mockRepo } = createTestService();
     mockRepo.listConversations.mockResolvedValue([conv("conv-sub-terminal")]);

@@ -88,6 +88,7 @@ export function createTestService() {
       messagesByConv.set(assistant.conversationId, list);
     }),
     getTasks: vi.fn().mockResolvedValue([]),
+    getTaskSnapshot: vi.fn().mockResolvedValue({ generation: "test-generation", revision: 0, tasks: [] }),
     saveTasks: vi.fn().mockResolvedValue(undefined),
     getAttachment: vi.fn().mockResolvedValue(null),
     saveAttachment: vi.fn().mockResolvedValue(0),

@@ -60,8 +60,10 @@ const LIST_TASKS_DEFINITION: ToolDefinition = {
 export type TaskToolsOptions = {
   // 初始任务列表（从持久化加载）
   initialTasks?: Task[];
+  // 初始任务快照 revision；提供时 onSave 会携带 expectedRevision 做 CAS
+  initialRevision?: number;
   // 任务变更时的持久化回调；signal 透传到底层写入，Stop 后不再提交任务快照
-  onSave?: (tasks: Task[], signal?: AbortSignal) => Promise<void>;
+  onSave?: (tasks: Task[], signal?: AbortSignal, expectedRevision?: number) => Promise<void>;
   // 任务变更时的事件推送回调（推送到 UI）
   sendEvent?: (event: ChatStreamEvent) => void;
 };
@@ -72,6 +74,7 @@ export function createTaskTools(options?: TaskToolsOptions): {
 } {
   const tasks = new Map<string, Task>();
   let nextId = 1;
+  let revision = options?.initialRevision;
   let mutationQueue = Promise.resolve();
 
   // 从持久化数据恢复
@@ -115,7 +118,12 @@ export function createTaskTools(options?: TaskToolsOptions): {
     const taskList = Array.from(candidate.values(), (task) => ({ ...task }));
     throwIfAborted(signal);
     if (options?.onSave) {
-      await options.onSave(taskList, signal);
+      if (revision === undefined) {
+        await options.onSave(taskList, signal);
+      } else {
+        await options.onSave(taskList, signal, revision);
+        revision++;
+      }
     }
     // onSave resolve 表示候选快照已经提交。即使 signal 恰好在 close() 落定后 abort，
     // 内存也必须接受同一份快照，不能制造“磁盘已提交、内存仍回滚”的分叉状态。
