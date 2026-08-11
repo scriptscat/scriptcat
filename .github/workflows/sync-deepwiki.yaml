@@ -1,4 +1,4 @@
-name: sync DeepWiki
+name: Sync_DeepWiki
 
 on:
   schedule:
