@@ -155,7 +155,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
             label={t("settings:keep_scripts_alive.title")}
             description={t("settings:keep_scripts_alive.description")}
           >
-            <Switch checked={chromeKeepAlive} onCheckedChange={toggleChromeKeepAlive} />
+            <Switch data-testid="keep-alive-switch" checked={chromeKeepAlive} onCheckedChange={toggleChromeKeepAlive} />
           </SettingRow>
         </>
       )}
@@ -165,7 +165,7 @@ export function RuntimeSection({ register }: { register: (id: string) => (el: HT
           label={t("settings:keep_scripts_alive.title")}
           description={t("settings:keep_scripts_alive.description")}
         >
-          <Switch checked={keepAlive} onCheckedChange={toggleKeepAlive} />
+          <Switch data-testid="keep-alive-switch" checked={keepAlive} onCheckedChange={toggleKeepAlive} />
         </SettingRow>
       )}
 
