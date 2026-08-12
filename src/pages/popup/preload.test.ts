@@ -41,6 +41,7 @@ function script(uuid: string, enable: boolean): ScriptMenu {
     updatetime: 0,
     hasUserConfig: false,
     isEffective: true,
+    hasMatchOverride: false,
   };
 }
 

@@ -380,11 +380,13 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
               cancelText={t("editor:cancel")}
               onConfirm={() => setMatchList(kind, undefined)}
             >
+              {/* 重置即撤销用户覆盖（回落脚本自带 metadata）；无覆盖时禁用，而非按列表为空判断——
+                  用户删空匹配/排除后是显式空覆盖，仍应能重置恢复自带规则 */}
               <Button
                 size="sm"
                 variant="ghost"
                 className="text-warning hover:bg-warning/10 hover:text-warning"
-                disabled={list.length === 0}
+                disabled={self[kind] === undefined}
               >
                 <RotateCcw className="size-3.5" />
                 {t("reset")}

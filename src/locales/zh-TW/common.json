@@ -61,6 +61,7 @@
   "exclude_on": "恢復 $0 的執行",
   "exclude_off": "排除 $0 的執行",
   "only_on_site": "僅在 $0 執行",
+  "confirm_only_run_on_site": "這將清除腳本原有的網站匹配規則，確定只在此網站執行嗎？",
   "allow_on_site": "允許在 $0 執行",
   "confirm_error": "確認失敗",
   "import": "匯入",
