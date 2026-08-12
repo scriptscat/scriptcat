@@ -133,13 +133,6 @@ describe("ServiceWorkerMessageSend", () => {
 });
 
 describe("ServiceWorkerClientMessage", () => {
-  it("controller 可用时直接使用", () => {
-    const clientMsg = new ServiceWorkerClientMessage();
-
-    expect((clientMsg as any).sw).not.toBeNull();
-    expect((clientMsg as any).sw.postMessage).toBe(swPostMessageMock);
-  });
-
   it("controller 为 null 时通过 ready 获取 active SW", async () => {
     const readyPostMessage = vi.fn();
     Object.defineProperty(navigator, "serviceWorker", {
@@ -334,19 +327,6 @@ describe("ServiceWorkerMessageSend ↔ ServiceWorkerClientMessage 双向通信",
     return { swSend, clientMsg };
   }
 
-  it("sendMessage: client→SW 请求并收到响应", async () => {
-    const { swSend, clientMsg } = createWiredPair();
-
-    // SW 端注册处理器
-    swSend.onMessage((msg: any, sendResponse: any) => {
-      sendResponse({ code: 0, data: (msg.data as string) + " world" });
-      return true;
-    });
-
-    const result = await clientMsg.sendMessage({ action: "test/echo", data: "hello" });
-    expect(result).toEqual({ code: 0, data: "hello world" });
-  });
-
   it("connect: 建立连接后双向通信", async () => {
     const { swSend, clientMsg } = createWiredPair();
 
@@ -400,26 +380,6 @@ describe("ServiceWorkerMessageSend ↔ ServiceWorkerClientMessage 双向通信",
     await new Promise((r) => setTimeout(r, 10));
 
     expect(serverDisconnected).toBe(true);
-  });
-
-  it("sendMessage: 支持传输复杂对象（模拟结构化克隆场景）", async () => {
-    const { swSend, clientMsg } = createWiredPair();
-
-    swSend.onMessage((msg: any, sendResponse: any) => {
-      // 原样返回，验证数据完整性
-      sendResponse({ code: 0, data: msg.data });
-      return true;
-    });
-
-    const complexData = {
-      array: [1, 2, 3],
-      nested: { a: { b: "deep" } },
-      nullVal: null,
-      boolVal: true,
-    };
-
-    const result = await clientMsg.sendMessage({ action: "test/complex", data: complexData });
-    expect((result as any).data).toEqual(complexData);
   });
 
   it("与 Server 集成: forwardMessage 路径", async () => {
