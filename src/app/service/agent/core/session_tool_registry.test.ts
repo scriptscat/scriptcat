@@ -259,6 +259,28 @@ describe("SessionToolRegistry", () => {
       expect(resA[0].result).toBe("fetched");
       expect(resB[0].result).toBe("fetched");
     });
+
+    it("session 释放（GC）后 parent 不受影响", () => {
+      const parent = new ToolRegistry();
+      parent.registerBuiltin(
+        builtinDef,
+        createExecutor(async () => "")
+      );
+
+      // 创建临时 session 并让其超出作用域
+      {
+        const session = new SessionToolRegistry(parent);
+        session.register(
+          "session",
+          taskDef,
+          createExecutor(async () => "")
+        );
+        expect(session.listSessionTools()).toHaveLength(1);
+      }
+
+      // parent 无任何 session 工具痕迹
+      expect(parent.getDefinitions().map((d) => d.name)).toEqual(["web_fetch"]);
+    });
   });
 
   describe("脚本工具 miss-then-callback", () => {

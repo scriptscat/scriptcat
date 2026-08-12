@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { MessageQueue, type IMessageQueue } from "./message_queue";
+import { MessageQueue, MessageQueueGroup, type IMessageQueue } from "./message_queue";
 
 const nextTick = () => Promise.resolve().then(() => {});
 
@@ -16,6 +16,11 @@ describe("MessageQueueGroup", () => {
   });
 
   describe("基本功能测试", () => {
+    it.concurrent("应该能够创建分组", () => {
+      const group = messageQueue.group("api-group");
+      expect(group).toBeInstanceOf(MessageQueueGroup);
+    });
+
     it.concurrent("应该能够在分组中订阅和发布消息", () => {
       const group = messageQueue.group("api-sendBasic");
       const handler = vi.fn();
@@ -262,6 +267,38 @@ describe("MessageQueueGroup", () => {
       // 再次发布消息，不应该收到
       group.emit("test-unsubscribe", { data: "test2" });
       expect(handler).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("边界情况测试", () => {
+    it.concurrent("没有中间件的分组应该正常工作", () => {
+      const group = messageQueue.group("api-groupNoMiddleware");
+      const handler = vi.fn();
+
+      group.subscribe("test-groupNoMiddleware", handler);
+      group.emit("test-groupNoMiddleware", { data: "test-groupNoMiddleware" });
+
+      expect(handler).toHaveBeenCalledWith({ data: "test-groupNoMiddleware" });
+    });
+
+    it.concurrent("应该能够处理复杂的数据类型", () => {
+      const group = messageQueue.group("api-complexPayload");
+      const handler = vi.fn();
+
+      const complexData = {
+        array: [1, 2, 3],
+        object: { nested: true },
+        number: 42,
+        string: "test-complexPayload",
+        boolean: true,
+        null: null,
+        undefined: undefined,
+      };
+
+      group.subscribe("test-complexPayload", handler);
+      group.emit("test-complexPayload", complexData);
+
+      expect(handler).toHaveBeenCalledWith(complexData);
     });
   });
 });

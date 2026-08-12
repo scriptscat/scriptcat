@@ -18,6 +18,11 @@ const msg = (over: Partial<ChatMessage> & Pick<ChatMessage, "role" | "content">)
 });
 
 describe("用户消息 UserMessageItem", () => {
+  it("展示用户文本气泡", () => {
+    render(<UserMessageItem message={msg({ role: "user", content: "你好世界" })} />);
+    expect(screen.getByText("你好世界")).toBeInTheDocument();
+  });
+
   it("编辑后保存触发 onEdit 携带新文本", () => {
     const onEdit = vi.fn();
     render(<UserMessageItem message={msg({ role: "user", content: "原文" })} onEdit={onEdit} />);

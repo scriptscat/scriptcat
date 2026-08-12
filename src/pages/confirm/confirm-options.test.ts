@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { resolveConfirmType, availableDurations, canApplyToAll, isHighSensitive } from "./confirm-options";
+import {
+  resolveConfirmType,
+  availableDurations,
+  canApplyToAll,
+  isSiteAccess,
+  isHighSensitive,
+} from "./confirm-options";
 import type { ConfirmParam } from "@App/app/service/service_worker/permission_verify";
 
 const cp = (over: Partial<ConfirmParam> = {}): ConfirmParam => ({ permission: "cors", ...over });
@@ -47,5 +53,14 @@ describe("授权选项 · 高敏感权限警示", () => {
   it("cors/文件存储等不标记为高敏感", () => {
     expect(isHighSensitive(cp({ permission: "cors" }))).toBe(false);
     expect(isHighSensitive(cp({ permission: "file_storage" }))).toBe(false);
+  });
+});
+
+describe("授权选项 · 站点访问识别", () => {
+  it("extension-site-access 应识别为站点访问（单按钮变体）", () => {
+    expect(isSiteAccess(cp({ permission: "extension-site-access" }))).toBe(true);
+  });
+  it("其它权限不是站点访问", () => {
+    expect(isSiteAccess(cp({ permission: "cors" }))).toBe(false);
   });
 });

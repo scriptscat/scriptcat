@@ -39,23 +39,32 @@ describe("InstallError 加载失败状态屏", () => {
     expect(screen.getByText("Error: Fetch failed with status 404")).toBeInTheDocument();
   });
 
-  it("提供重试和自定义标题时可分别触发重试与关闭", () => {
-    const onRetry = vi.fn();
-    const onClose = vi.fn();
-    const { rerender } = render(<InstallError title="无效安装地址" message="x" onRetry={onRetry} onClose={onClose} />);
-
-    expect(screen.getByText("无效安装地址")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "重试" }));
-    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
-    expect(onRetry).toHaveBeenCalledOnce();
-    expect(onClose).toHaveBeenCalledOnce();
-
-    rerender(<InstallError title="无效安装地址" message="x" onClose={onClose} />);
-    expect(screen.queryByRole("button", { name: "重试" })).not.toBeInTheDocument();
-  });
-
   it("保留顶部品牌栏(对照设计稿,失败态不丢失外壳)", () => {
     render(<InstallError message="x" onClose={() => {}} />);
     expect(screen.getByTestId("install-top-bar")).toBeInTheDocument();
+  });
+
+  it("提供 onRetry 时渲染重试按钮并可点击", () => {
+    const onRetry = vi.fn();
+    render(<InstallError message="x" onRetry={onRetry} onClose={() => {}} />);
+    fireEvent.click(screen.getByText("重试").closest("button")!);
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("未提供 onRetry 时不渲染重试按钮", () => {
+    render(<InstallError message="x" onClose={() => {}} />);
+    expect(screen.queryByText("重试")).not.toBeInTheDocument();
+  });
+
+  it("点击关闭触发 onClose", () => {
+    const onClose = vi.fn();
+    render(<InstallError message="x" onClose={onClose} />);
+    fireEvent.click(screen.getByText("关闭").closest("button")!);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("可自定义标题(用于无效页面)", () => {
+    render(<InstallError title="无效页面" message="缺少参数" onClose={() => {}} />);
+    expect(screen.getByText("无效页面")).toBeInTheDocument();
   });
 });

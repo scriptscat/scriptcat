@@ -123,6 +123,21 @@ describe("S3FileSystem", () => {
 
   // ---- open ----
   describe("open", () => {
+    it("应当返回 S3FileReader", async () => {
+      const fileInfo: FileInfo = {
+        name: "test.txt",
+        path: "/docs",
+        size: 100,
+        digest: "abc",
+        createtime: 1000,
+        updatetime: 2000,
+      };
+      const reader = await fs.open(fileInfo);
+
+      expect(reader).toBeDefined();
+      expect(reader.read).toBeTypeOf("function");
+    });
+
     it("S3FileReader.read 应调用 client.request GET", async () => {
       const fileInfo: FileInfo = {
         name: "hello.txt",
@@ -190,6 +205,13 @@ describe("S3FileSystem", () => {
 
   // ---- create ----
   describe("create", () => {
+    it("应当返回 S3FileWriter", async () => {
+      const writer = await fs.create("test.txt");
+
+      expect(writer).toBeDefined();
+      expect(writer.write).toBeTypeOf("function");
+    });
+
     it("S3FileWriter.write 应调用 client.request PUT", async () => {
       (mockClient.request as ReturnType<typeof vi.fn>).mockResolvedValue(createMockResponse({ ok: true }));
 

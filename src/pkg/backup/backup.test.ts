@@ -114,6 +114,75 @@ describe.concurrent("backup", () => {
     expect(resp).toEqual(data);
   });
 
+  it.concurrent("export and import script - name and version only", async () => {
+    const zipFile = createJSZip();
+    const fs = new ZipFileSystem(zipFile);
+    const data: BackupData = {
+      script: [
+        {
+          code: `// ==UserScript==
+          // @name         New Userscript
+          // @version      1
+          // ==/UserScript==
+          
+          console.log('hello world')`,
+          options: {
+            options: {},
+            meta: {
+              name: "test",
+              modified: 1,
+              file_url: "",
+            },
+            settings: {
+              enabled: true,
+              position: 1,
+            },
+          },
+          resources: [
+            {
+              meta: { name: "test1", mimetype: "text/plain" },
+              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          requires: [
+            {
+              meta: { name: "test2", mimetype: "text/plain" },
+              base64: "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          requiresCss: [
+            {
+              meta: { name: "test3", mimetype: "application/javascript" },
+              base64: "data:application/javascript;base64,aGVsbG8gd29ybGQ=",
+              source: "hello world",
+            },
+          ],
+          storage: {
+            ts: ts0 + 2,
+            data: {
+              num: 1,
+              str: "data",
+              bool: false,
+            },
+          },
+          lastModificationDate: expect.any(Number),
+        },
+      ],
+      subscribe: [],
+    } as unknown as BackupData;
+    await new BackupExport(fs).export(data);
+    expect(data.script[0].storage.data.num).toEqual("n1");
+    expect(data.script[0].storage.data.str).toEqual("sdata");
+    expect(data.script[0].storage.data.bool).toEqual("bfalse");
+    const resp = await parseBackupZipFile(zipFile);
+    data.script[0].storage.data.num = 1;
+    data.script[0].storage.data.str = "data";
+    data.script[0].storage.data.bool = false;
+    expect(resp).toEqual(data);
+  });
+
   it.concurrent("export and import script - 2 scripts", async () => {
     const zipFile = createJSZip();
     const fs = new ZipFileSystem(zipFile);

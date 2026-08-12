@@ -7,6 +7,11 @@ beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
 
 describe("用户提问块 AskUserBlock", () => {
+  it("展示问题文本", () => {
+    render(<AskUserBlock id="q1" question="选择一个颜色" onRespond={vi.fn()} />);
+    expect(screen.getByText("选择一个颜色")).toBeInTheDocument();
+  });
+
   it("单选点击选项后立即提交该选项", () => {
     const onRespond = vi.fn();
     render(<AskUserBlock id="q1" question="颜色?" options={["红", "蓝"]} onRespond={onRespond} />);

@@ -205,6 +205,9 @@ describe.concurrent("UrlMatch-google", () => {
     expect(url.urlMatch("https://www.google.com/foo/baz/bar")).toEqual(["ok1", "ok2", "ok3"]);
     expect(url.urlMatch("https://docs.google.com/foobar")).toEqual(["ok1", "ok2", "ok3"]);
   });
+  it.concurrent("match4", () => {
+    expect(url.urlMatch("https://example.org/foo/bar.html")).toEqual(["ok1", "ok2", "ok4"]);
+  });
   it.concurrent("match5", () => {
     expect(url.urlMatch("http://127.0.0.1/")).toEqual(["ok5"]);
     expect(url.urlMatch("http://127.0.0.1/foo/bar.html")).toEqual(["ok5"]);

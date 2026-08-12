@@ -36,6 +36,11 @@ const subLabels = () => [
 ];
 
 describe("Sidebar 侧边栏 AI Agent 菜单", () => {
+  it("渲染 AI Agent 子菜单入口", () => {
+    const { getByText } = renderSidebar();
+    expect(getByText(t("agent:title"))).toBeInTheDocument();
+  });
+
   it("默认折叠,点击 AI Agent 后展开显示 7 个子项", () => {
     const { getByText, queryByTestId, getByTestId } = renderSidebar();
     expect(queryByTestId("sidebar-agent-submenu")).toBeNull();

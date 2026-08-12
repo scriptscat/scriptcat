@@ -10,4 +10,11 @@ describe("agentDocUrl 文档深链", () => {
     expect(agentDocUrl("opfs")).toBe("https://docs.scriptcat.org/docs/dev/agent/agent-opfs");
     expect(agentDocUrl("settings")).toBe("https://docs.scriptcat.org/docs/dev/agent/agent");
   });
+
+  it("文档链接均不是站点根(确保深链)", () => {
+    for (const page of ["provider", "skills", "mcp", "tasks", "opfs", "settings"] as const) {
+      expect(agentDocUrl(page)).not.toBe("https://docs.scriptcat.org");
+      expect(agentDocUrl(page)).toContain("/docs/dev/agent/");
+    }
+  });
 });

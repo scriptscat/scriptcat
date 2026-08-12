@@ -120,4 +120,17 @@ describe.concurrent("i18nDescription", () => {
     const result = i18nDescription(script);
     expect(result).toBe("");
   });
+
+  it("description 字段为空数组时返回 空字串", () => {
+    i18n.language = "en-US";
+
+    const script = {
+      metadata: {
+        description: [],
+      } as SCMetadata,
+    };
+
+    const result = i18nDescription(script);
+    expect(result).toBe("");
+  });
 });

@@ -1,9 +1,14 @@
 import { test, expect } from "./fixtures";
 import { openPopupPage } from "./utils";
 
-// new-ui popup（shadcn）：全局 Radix Switch、Radix Accordion 分组、图标按钮（aria-label 设置/更多菜单）、
-// Radix DropdownMenu（role=menuitem）。
+// new-ui popup（shadcn）：标题 h1、全局 Radix Switch、Radix Accordion 分组、
+// 图标按钮（aria-label 设置/更多菜单）、Radix DropdownMenu（role=menuitem）。
 test.describe("Popup 页面", () => {
+  test("应加载并显示 ScriptCat 标题", async ({ context, extensionId }) => {
+    const page = await openPopupPage(context, extensionId);
+    await expect(page.getByText("ScriptCat", { exact: true })).toBeVisible({ timeout: 10_000 });
+  });
+
   test("应显示全局脚本启用/禁用开关", async ({ context, extensionId }) => {
     const page = await openPopupPage(context, extensionId);
     // 顶部全局开关为 Radix Switch（role=switch）

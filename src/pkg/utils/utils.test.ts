@@ -572,6 +572,10 @@ describe.concurrent("normalizeResponseHeaders", () => {
     expect(normalizeResponseHeaders("")).toBe("");
   });
 
+  it.concurrent("returns empty string for falsy-like empty string (only case possible with string type)", () => {
+    expect(normalizeResponseHeaders(String(""))).toBe("");
+  });
+
   it.concurrent("keeps valid header lines and outputs name:value joined with CRLF", () => {
     const input = "Content-Type: text/plain\nX-Test: abc\n";
     expect(normalizeResponseHeaders(input)).toBe("Content-Type:text/plain\r\nX-Test:abc");
@@ -595,6 +599,11 @@ describe.concurrent("normalizeResponseHeaders", () => {
   it.concurrent("works with non-ASCII characters", () => {
     const input = "X-名前: 値\n";
     expect(normalizeResponseHeaders(input)).toBe("X-名前:値");
+  });
+
+  it.concurrent("does not include a trailing CRLF at the end of output", () => {
+    const input = "A: 1\nB: 2\n";
+    expect(normalizeResponseHeaders(input).endsWith("\r\n")).toBe(false);
   });
 
   it.concurrent("standard test", () => {

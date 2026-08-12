@@ -19,6 +19,11 @@ const state = (over?: Partial<SubAgentState>): SubAgentState => ({
 });
 
 describe("子代理块 SubAgentBlock", () => {
+  it("展示子代理描述", () => {
+    render(<SubAgentBlock state={state()} />);
+    expect(screen.getByText("搜索资料")).toBeInTheDocument();
+  });
+
   it("依据 isRunning 标注运行/完成状态", () => {
     const { rerender } = render(<SubAgentBlock state={state({ isRunning: true })} />);
     expect(screen.getByTestId("subagent-status").dataset.running).toBe("true");

@@ -386,6 +386,41 @@ console.log('Hello World');
     expect(result?.author).toEqual([""]);
   });
 
+  it.concurrent("正確解析元数据(空version)", () => {
+    const code = `
+// ==UserScript==
+// @name         测试脚本
+// @namespace    http://tampermonkey.net/
+// @match        https://example.org/*
+// @match        https://test.com/*
+// @match        https://demo.com/*
+// @description  
+// @early-start  
+// @author       
+// @match        https://example.com/*
+// @grant    
+    GM_setValue
+// @grant        GM_getValue
+// ==/UserScript==
+console.log('Hello World');
+`;
+
+    const result = parseMetadata(code);
+    expect(result).not.toBeNull();
+    expect(result?.name).toEqual(["测试脚本"]);
+    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
+    expect(result?.match).toEqual([
+      "https://example.org/*",
+      "https://test.com/*",
+      "https://demo.com/*",
+      "https://example.com/*",
+    ]);
+    expect(result?.["early-start"]).toEqual([""]);
+    expect(result?.grant).toEqual(["", "GM_getValue"]);
+    expect(result?.description).toEqual([""]);
+    expect(result?.author).toEqual([""]);
+  });
+
   it.concurrent("正確解析元数据(換行空白1)", () => {
     const code = `
 // ==UserScript==

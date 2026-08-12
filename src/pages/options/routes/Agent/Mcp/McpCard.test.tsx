@@ -18,6 +18,12 @@ const server = {
 function noop() {}
 
 describe("McpCard MCP 服务器卡片", () => {
+  it("展示名称与 URL", () => {
+    render(<McpCard server={server} onEdit={noop} onDelete={noop} onTest={noop} onToggle={noop} onDetail={noop} />);
+    expect(screen.getByText("本地工具")).toBeInTheDocument();
+    expect(screen.getByText("http://localhost:8080/mcp")).toBeInTheDocument();
+  });
+
   it("点击开关触发 onToggle", () => {
     const onToggle = vi.fn();
     render(<McpCard server={server} onEdit={noop} onDelete={noop} onTest={noop} onToggle={onToggle} onDetail={noop} />);
