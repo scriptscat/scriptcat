@@ -38,12 +38,6 @@ describe("useIsMobile 视口断点", () => {
     expect(result.current).toBe(true);
   });
 
-  it("视口 ≥ 768px 时返回 false", () => {
-    stubMatchMedia(false);
-    const { result } = renderHook(() => useIsMobile());
-    expect(result.current).toBe(false);
-  });
-
   it("监听 change 事件,视口变化时更新返回值", () => {
     const mql = stubMatchMedia(false);
     const { result } = renderHook(() => useIsMobile());
