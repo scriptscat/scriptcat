@@ -199,7 +199,7 @@ node e2e/drive.mjs --scenario <scenario> <command> # 多会话时必须指名
 | `storage [key]` | Read `chrome.storage.local` from an extension page |
 | `install <file.user.js>` | Install a userscript through the Service Worker |
 | `pages` / `use <i>` / `close` | Page management; `→` marks the current page |
-| `console [n]` | Last `n` lines the session recorded |
+| `console [n]` | Last `n` lines the session recorded, across all contexts (see below) |
 
 The current page is tracked by URL, not by index — the extension opens pages of its own, and indices shift.
 
@@ -213,7 +213,7 @@ work in `click`/`fill`/`wait`, so `text="设置"` and CSS can be mixed freely.
 | File | Written by | Holds |
 | --- | --- | --- |
 | `.session.json` | `session.mjs` | port, extension id, profile, pid — removed on `stop` |
-| `console.log` | the session, continuously | every page `console` and `pageerror` for the session's whole life |
+| `console.log` | the session, continuously | `console`, uncaught exceptions and log entries from **every** context, tagged with their origin |
 | `actions.log` | every `drive.mjs` call | the driving record, which `report.md` quotes |
 | `daemon.log` | the daemon | launch failures; read it when `start` reports failure |
 | `shots/` | `drive.mjs shot` | screenshots |
@@ -229,8 +229,34 @@ globally contended resource and nothing hardcodes it.
 
 No protocol mocks and no `.test` hostname mapping: §4's mock servers belong to the fixtures, so a verification
 that needs one is a scratch-spec case. `sw` runs inside the Service Worker, so `chrome.runtime.sendMessage`
-there cannot reach the extension — send those from an extension page via `eval`. Service Worker `console` output
-is not captured; observe SW state with `sw` instead.
+there cannot reach the extension — send those from an extension page via `eval`.
+
+The collector holds an open debugger session on every target for the session's whole life. That is what makes
+the capture complete, but it also means a session is the wrong tool for verifying Service Worker eviction or
+idle-termination behaviour — use the committed `keep-alive.spec.ts` track for that.
+
+### Capturing console across contexts
+
+Userscript self-tests and background scripts assert by printing to `console`, and those prints happen in
+contexts Playwright does not expose as pages. The session therefore attaches over CDP at the browser level and
+auto-attaches to every target, so all four contexts land in one `console.log`:
+
+```text
+[log] (src/service_worker.js) …     Service Worker
+[log] (src/offscreen.html) …        Offscreen document
+[log] (src/sandbox.html) …          Sandbox — where @background / @crontab scripts run
+[log] (src/options.html) …          extension pages, content scripts and ordinary web pages
+```
+
+Object arguments are rendered from their preview (`{passed: 29, failed: 0}`), not flattened to `Object`, so a
+self-test's summary line survives into the log. Attachment happens before a new target runs its first line, so
+`document-start` output is not missed. Filter with ordinary shell tools:
+
+```bash
+node e2e/drive.mjs console 200 | grep -E "通过|失败|Passed|Failed"
+```
+
+Note that installing a `@background` script leaves it disabled (`status: 2`); enable it before expecting output.
 
 ## Maintaining this file
 

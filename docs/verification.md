@@ -63,9 +63,11 @@ verdict:
 - **Observe from a path the driven surface does not share.** `drive.mjs storage` reads `chrome.storage.local`
   from an extension page, and `drive.mjs sw` evaluates inside the Service Worker — neither goes through the UI
   you just clicked.
-- **The session records continuously.** Page `console` and `pageerror` land in `console.log` for the whole
-  session lifetime, including output produced before you thought to look. Every `drive.mjs` command appends to
-  `actions.log`.
+- **The session records continuously, from every context.** `console`, uncaught exceptions and log entries from
+  the Service Worker, the Offscreen document, the Sandbox (where `@background` / `@crontab` scripts run) and
+  every page all land in `console.log`, tagged with their origin — including output produced before you thought
+  to look. That is what makes a console-asserting userscript self-test observable without authoring a spec. Every
+  `drive.mjs` command appends to `actions.log`.
 - **Screenshots are captured while the run is alive**, into `<scenario>/shots/`, numbered in capture order.
 - **`sw` runs *inside* the Service Worker**, so `chrome.runtime.sendMessage` there does not reach the extension
   — send those from an extension page with `drive.mjs eval`.

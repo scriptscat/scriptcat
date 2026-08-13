@@ -27,7 +27,13 @@ A userscript runs assertions in the page and prints a summary line the harness p
 Total: 12 | Passed: 12 | Failed: 0   # window_message_test.js (English)
 ```
 
-Collect and assert on it — this regex matches all three layouts:
+In a session there is nothing to wire up — the collector already recorded the line, whichever context printed it (a `@background` script prints from `src/sandbox.html`, not from a page):
+
+```bash
+node e2e/drive.mjs console 200 | grep -E "(通过|Passed)[:：] *[0-9]+"
+```
+
+In a spec, collect and assert on it — this regex matches all three layouts:
 
 ```ts
 const logs: string[] = [];

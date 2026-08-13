@@ -97,6 +97,98 @@ function dismissOnboarding() {
   }
 }
 
+function renderRemoteObject(arg) {
+  if ("value" in arg) return typeof arg.value === "string" ? arg.value : JSON.stringify(arg.value);
+  if (arg.unserializableValue) return arg.unserializableValue;
+  // 对象参数不会带 value，只有 preview；断言常常就打在这上面，渲染成 Object 等于没记
+  const { preview } = arg;
+  if (preview?.properties) {
+    const isArray = preview.subtype === "array";
+    const parts = preview.properties.map((p) => (isArray ? (p.value ?? p.type) : `${p.name}: ${p.value ?? p.type}`));
+    if (preview.overflow) parts.push("…");
+    return isArray ? `[${parts.join(", ")}]` : `{${parts.join(", ")}}`;
+  }
+  return arg.description ?? arg.type;
+}
+
+/**
+ * 收集**所有**执行上下文的 console，而不只是页面。
+ *
+ * 扩展 Service Worker、Offscreen 文档、Offscreen 里的 Sandbox iframe 各自是独立的 CDP
+ * target，后台脚本与脚本自测的断言恰恰打在这些地方；Playwright 只暴露页面的 console 事件，
+ * 所以这里直接连浏览器级 CDP 端点，用 Target.setAutoAttach 递归挂到每个 target 上。
+ *
+ * `waitForDebuggerOnStart` 让新 target 在跑第一行代码前就被挂上，document-start 的日志
+ * 才不会漏；代价是每个 target 都必须收到 runIfWaitingForDebugger，否则会被永久挂起。
+ */
+async function attachConsoleCollector(port, append) {
+  const version = await fetch(`http://127.0.0.1:${port}/json/version`).then((res) => res.json());
+  const socket = new WebSocket(version.webSocketDebuggerUrl);
+  const targetOf = new Map(); // sessionId -> targetId
+  const infoOf = new Map(); // targetId -> targetInfo（URL 会随导航变，必须持续更新）
+  const listening = new Set(); // 已经 Runtime.enable 过的 sessionId
+  let nextId = 1;
+  const send = (method, params, sessionId) =>
+    socket.send(JSON.stringify({ id: nextId++, method, params: params ?? {}, ...(sessionId ? { sessionId } : {}) }));
+  const autoAttach = { autoAttach: true, waitForDebuggerOnStart: true, flatten: true };
+
+  await new Promise((resolve, reject) => {
+    socket.addEventListener("open", resolve, { once: true });
+    socket.addEventListener("error", reject, { once: true });
+  });
+  send("Target.setAutoAttach", autoAttach);
+  // 没有 discovery 就收不到 targetInfoChanged，页面导航后 URL 会一直停在附着那一刻的值
+  send("Target.setDiscoverTargets", { discover: true });
+
+  const where = (sessionId) => {
+    const info = infoOf.get(targetOf.get(sessionId));
+    return info ? info.url.replace(/^chrome-extension:\/\/[a-p]+\//, "") || info.type : "?";
+  };
+
+  socket.addEventListener("message", (event) => {
+    const message = JSON.parse(event.data);
+    if (message.method === "Target.attachedToTarget") {
+      const { sessionId, targetInfo } = message.params;
+      targetOf.set(sessionId, targetInfo.targetId);
+      // 子 target（Offscreen 里的 Sandbox iframe）只能从它的父 session 再挂一层
+      send("Target.setAutoAttach", autoAttach, sessionId);
+      // 同一个 target 可能被多个父 session 各挂一次，而 Runtime.enable 会把该上下文
+      // 已有的 console 历史重放一遍 —— 每个 target 只开一次，否则日志成倍重复。
+      if (!infoOf.has(targetInfo.targetId)) {
+        infoOf.set(targetInfo.targetId, targetInfo);
+        listening.add(sessionId);
+        send("Runtime.enable", {}, sessionId);
+        send("Log.enable", {}, sessionId);
+      }
+      // 无论是否监听都要放行，否则 waitForDebuggerOnStart 会把这个 target 永久挂起
+      send("Runtime.runIfWaitingForDebugger", {}, sessionId);
+      return;
+    }
+    if (message.method === "Target.targetInfoChanged") {
+      const { targetInfo } = message.params;
+      if (infoOf.has(targetInfo.targetId)) infoOf.set(targetInfo.targetId, targetInfo);
+      return;
+    }
+    if (message.method === "Target.detachedFromTarget") {
+      targetOf.delete(message.params.sessionId);
+      listening.delete(message.params.sessionId);
+      return;
+    }
+    if (!listening.has(message.sessionId)) return;
+    const origin = where(message.sessionId);
+    if (message.method === "Runtime.consoleAPICalled") {
+      append(`[${message.params.type}] (${origin}) ${message.params.args.map(renderRemoteObject).join(" ")}`);
+    } else if (message.method === "Runtime.exceptionThrown") {
+      const details = message.params.exceptionDetails;
+      append(`[exception] (${origin}) ${details.exception?.description ?? details.text}`);
+    } else if (message.method === "Log.entryAdded") {
+      append(`[${message.params.entry.level}] (${origin}) ${message.params.entry.text}`);
+    }
+  });
+
+  return socket;
+}
+
 /**
  * 常驻进程本体：持有浏览器直到收到 SIGTERM。
  */
@@ -162,19 +254,7 @@ async function serve(scenario, { headed }) {
   await new Promise((resolve) => setTimeout(resolve, 2_500));
   await sweepStrayTabs();
 
-  // 会话全程记录 console/pageerror：drive.mjs 每条命令都是新进程，事后附着看不到历史输出。
-  const watch = (page) => {
-    const where = () => {
-      const url = page.url();
-      return url.startsWith(`chrome-extension://${extensionId}/`)
-        ? url.slice(`chrome-extension://${extensionId}/`.length)
-        : url;
-    };
-    page.on("console", (msg) => appendConsole(`[${msg.type()}] (${where()}) ${msg.text()}`));
-    page.on("pageerror", (err) => appendConsole(`[pageerror] (${where()}) ${err.message}`));
-  };
-  context.pages().forEach(watch);
-  context.on("page", watch);
+  const collector = await attachConsoleCollector(port, appendConsole);
 
   const session = {
     scenario,
@@ -195,6 +275,7 @@ async function serve(scenario, { headed }) {
     closing = true;
     appendConsole("[session] stopping");
     try {
+      collector.close();
       await context.close();
     } catch {
       // 浏览器可能已被外部关闭
