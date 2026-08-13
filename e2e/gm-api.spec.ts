@@ -4,6 +4,7 @@ import os from "os";
 import { createServer } from "http";
 import type { AddressInfo } from "net";
 import { test as base, expect, chromium, type BrowserContext } from "@playwright/test";
+import { headlessArgs } from "./fixtures";
 import { autoApprovePermissions, installScriptByCode } from "./utils";
 
 const MOCK_CONNECT_HOST = "127.0.0.1";
@@ -45,7 +46,7 @@ const test = base.extend<
 
       const ctx1 = await chromium.launchPersistentContext(userDataDir, {
         headless: false,
-        args: ["--headless=new", ...chromeArgs],
+        args: [...headlessArgs(), ...chromeArgs],
         timeout: 60_000,
         chromiumSandbox,
       });
@@ -78,7 +79,7 @@ const test = base.extend<
 
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
-      args: ["--headless=new", ...chromeArgs],
+      args: [...headlessArgs(), ...chromeArgs],
       timeout: 60_000,
       chromiumSandbox,
     });
