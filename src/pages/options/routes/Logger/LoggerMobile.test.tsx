@@ -84,6 +84,15 @@ describe("日志页面 - 移动端", () => {
     expect(msg.className).not.toContain("truncate");
   });
 
+  it("移动端范围/统计条竖向堆叠，统计与自动清理各自独占整行", () => {
+    renderPage();
+    const bar = screen.getByTestId("logger-stats-bar");
+    expect(bar.className).toContain("flex-col");
+    // 两组必须撑满整行:否则长文本会溢出自身盒子压到相邻分组上(窄屏文字重叠)
+    expect(screen.getByTestId("logger-stats-summary").className).toContain("w-full");
+    expect(screen.getByTestId("logger-clean-schedule").className).toContain("w-full");
+  });
+
   it("仍渲染全部日志且筛选交互可用", () => {
     renderPage();
     expect(screen.getByText("retry timeout reached")).toBeTruthy();

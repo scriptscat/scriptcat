@@ -165,7 +165,7 @@ describe("SettingsPane 运行设置", () => {
     const trigger = screen.getAllByRole("combobox")[comboIndex];
     fireEvent.keyDown(trigger, { key: "Enter" });
     await act(() => Promise.resolve());
-    fireEvent.click(screen.getAllByRole("option").find((o) => o.textContent === optionText)!);
+    fireEvent.click(screen.getByRole("option", { name: optionText }));
     await act(() => Promise.resolve());
   };
 
@@ -178,6 +178,13 @@ describe("SettingsPane 运行设置", () => {
     expect(updateMetadata).toHaveBeenCalledWith("u1", "run-at", ["document-end"]);
     expect(screen.getAllByRole("combobox")[1]).toHaveTextContent("document-end");
     expect(screen.getAllByRole("combobox")[1]).not.toHaveTextContent("early-start");
+  });
+
+  it("运行时机应提供 context-menu 并保存为用户覆盖", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("alpha");
+    await pickOption(1, "context-menu");
+    expect(updateMetadata).toHaveBeenCalledWith("u1", "run-at", ["context-menu"]);
   });
 
   it("运行环境选「默认」应以 undefined 撤销覆盖而非写入空数组", async () => {
@@ -315,6 +322,27 @@ describe("SettingsPane 网站匹配/排除", () => {
     // 用户添加的 exclude.com 被清除，脚本自带的 ads.script.com 应保留
     expect(screen.getByText("*://ads.script.com/*")).toBeInTheDocument();
     expect(screen.queryByText("*://exclude.com/*")).toBeNull();
+  });
+
+  it("清空匹配规则后重置按钮应可用并可恢复脚本自带规则", async () => {
+    // 脚本自带 @match 但无用户覆盖；删除最后一项后是显式空覆盖，重置应可撤销它并恢复自带规则
+    fetchScript.mockResolvedValue({
+      ...sampleScript(),
+      selfMetadata: { exclude: ["*://exclude.com/*"] },
+    });
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://script.com/*");
+    fireEvent.click(screen.getByLabelText(`${t("delete")} *://script.com/*`));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    expect(screen.queryByText("*://script.com/*")).toBeNull();
+    // 存在可撤销的空覆盖，重置按钮不应被禁用
+    const resetBtn = screen.getAllByText(t("reset"), { selector: "button" })[0];
+    expect(resetBtn).not.toBeDisabled();
+    // 点击重置应撤销空覆盖、恢复脚本自带规则
+    fireEvent.click(resetBtn);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    expect(resetMatch).toHaveBeenCalledWith("u1", undefined);
+    expect(screen.getByText("*://script.com/*")).toBeInTheDocument();
   });
 
   it("删除最后一项匹配应显式清空覆盖而非复活脚本自带规则", async () => {

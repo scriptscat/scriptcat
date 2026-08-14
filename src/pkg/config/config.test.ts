@@ -105,6 +105,59 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
       const syncData = await chrome.storage.sync.get("system_enable_script");
       expect(syncData["system_enable_script"]).toBeUndefined();
     });
+
+    it("external_access_enabled 应写入 local storage 而非 sync", async () => {
+      config.setExternalAccessEnabled(true);
+
+      const localData = await chrome.storage.local.get("system_external_access_enabled");
+      expect(localData["system_external_access_enabled"]).toBe(true);
+
+      const syncData = await chrome.storage.sync.get("system_external_access_enabled");
+      expect(syncData["system_external_access_enabled"]).toBeUndefined();
+    });
+
+    it("external_access_enabled 默认值为 false", async () => {
+      expect(await config.getExternalAccessEnabled()).toBe(false);
+    });
+
+    it("external_access_url 默认 ws://localhost:8643 并写入 local storage", async () => {
+      expect(await config.getExternalAccessUrl()).toBe("ws://localhost:8643");
+      config.setExternalAccessUrl("ws://127.0.0.1:9000");
+      const localData = await chrome.storage.local.get("system_external_access_url");
+      expect(localData["system_external_access_url"]).toBe("ws://127.0.0.1:9000");
+      const syncData = await chrome.storage.sync.get("system_external_access_url");
+      expect(syncData["system_external_access_url"]).toBeUndefined();
+    });
+
+    it("external_access_write_policy 默认 approval 并写入 local storage", async () => {
+      expect(await config.getExternalAccessWritePolicy()).toBe("approval");
+      config.setExternalAccessWritePolicy("allow");
+      expect(await config.getExternalAccessWritePolicy()).toBe("allow");
+      const localData = await chrome.storage.local.get("system_external_access_write_policy");
+      expect(localData["system_external_access_write_policy"]).toBe("allow");
+      const syncData = await chrome.storage.sync.get("system_external_access_write_policy");
+      expect(syncData["system_external_access_write_policy"]).toBeUndefined();
+    });
+
+    it("external_access_source_read_policy 默认 approval 并写入 local storage", async () => {
+      expect(await config.getExternalAccessSourceReadPolicy()).toBe("approval");
+      config.setExternalAccessSourceReadPolicy("allow");
+      expect(await config.getExternalAccessSourceReadPolicy()).toBe("allow");
+      const localData = await chrome.storage.local.get("system_external_access_source_read_policy");
+      expect(localData["system_external_access_source_read_policy"]).toBe("allow");
+      const syncData = await chrome.storage.sync.get("system_external_access_source_read_policy");
+      expect(syncData["system_external_access_source_read_policy"]).toBeUndefined();
+    });
+
+    it("external_access_pairing 默认未配对，写入后落 local storage 且不入 sync", async () => {
+      expect(await config.getExternalAccessPairing()).toEqual({ key: "", clientId: "" });
+      config.setExternalAccessPairing({ key: "deadbeef", clientId: "cid-1" });
+      expect(await config.getExternalAccessPairing()).toEqual({ key: "deadbeef", clientId: "cid-1" });
+      const localData = await chrome.storage.local.get("system_external_access_pairing");
+      expect(localData["system_external_access_pairing"]).toEqual({ key: "deadbeef", clientId: "cid-1" });
+      const syncData = await chrome.storage.sync.get("system_external_access_pairing");
+      expect(syncData["system_external_access_pairing"]).toBeUndefined();
+    });
   });
 
   describe("sync key 读写", () => {
@@ -139,6 +192,15 @@ describe("SystemConfig 双 storage 与懒迁移", () => {
 
       const localData = await chrome.storage.local.get("system_popup_compact_layout");
       expect(localData["system_popup_compact_layout"]).toBeUndefined();
+    });
+
+    it("popup 站点范围快捷操作应默认关闭并写入 sync storage", async () => {
+      await expect(config.getPopupSiteScopeActions()).resolves.toBe(false);
+      config.setPopupSiteScopeActions(true);
+      await expect(config.getPopupSiteScopeActions()).resolves.toBe(true);
+      await expect(chrome.storage.sync.get("system_popup_site_scope_actions")).resolves.toMatchObject({
+        system_popup_site_scope_actions: true,
+      });
     });
 
     it("编辑器偏好应返回默认值并写入 sync storage", async () => {

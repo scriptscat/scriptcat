@@ -6,7 +6,7 @@ import { ExtensionMessage } from "@Packages/message/extension_message";
 import { Server } from "@Packages/message/server";
 import { MessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerMessageSend } from "@Packages/message/window_message";
-import { EventPageOffscreenManager } from "./app/service/offscreen/event_page_manager";
+import { EventPageOffscreenManager, InProcessMessage } from "./app/service/offscreen/event_page_manager";
 import migrate, { migrateChromeStorage } from "./app/migrate";
 import { cleanInvalidKeys } from "./app/repo/resource";
 
@@ -28,7 +28,7 @@ async function hasDocument() {
 
 async function setupOffscreenDocument() {
   if (typeof chrome.offscreen?.createDocument !== "function") {
-    // Firefox does not support offscreen
+    // Firefox 不支持 offscreen document。
     console.error("Your browser does not support chrome.offscreen.createDocument");
     return;
   }
@@ -71,26 +71,30 @@ function main() {
   });
   loggerCore.logger().debug("service worker start");
   const swMessage = new ServiceWorkerMessageSend();
-  // 同时接收ExtensionMessage(chrome.runtime)和ServiceWorkerMessageSend(postMessage)的消息
-  const server = new Server("serviceWorker", [message, swMessage]);
   const messageQueue = new MessageQueue();
   const hasOffscreenDocument = typeof chrome.offscreen?.createDocument === "function";
-  // Chrome needs a real offscreen document. Firefox MV3 uses EventPageOffscreenManager instead.
   if (hasOffscreenDocument) {
     const offscreen = new ServiceWorkerMessageSend();
+    // 同时接收ExtensionMessage(chrome.runtime)和ServiceWorkerMessageSend(postMessage)的消息
+    const server = new Server("serviceWorker", [message, swMessage]);
     const manager = new ServiceWorkerManager(server, messageQueue, offscreen);
     manager.initManager();
-    setupOffscreenDocument();
-  } else {
-    const offscreen = new EventPageOffscreenManager(message);
+    void setupOffscreenDocument()
+      .then(() => messageQueue.emit("offscreenDocumentReady", {}))
+      .catch((error) => console.error("Failed to setup offscreen document:", error));
+  }
+  // Chrome 使用真实 offscreen document；Firefox MV3 改用 event page。
+  else {
+    // Firefox 的 event page 与 SW 共用同一上下文，runtime 消息不会回送发送者所在 frame；
+    // offscreen → SW 因此必须使用进程内桥接，Chrome 的独立 offscreen 文档仍走原通道。
+    const offscreenToSw = new InProcessMessage();
+    const server = new Server("serviceWorker", [message, swMessage, offscreenToSw]);
+    // 同一个 messageQueue 实例同时用于 SW 和 offscreen 两个角色：见 BackgroundEnvManagerBase
+    // 构造函数中 messageQueue 参数的说明 - chrome.runtime.sendMessage 广播不会送达发送方自己
+    // 所在的 frame，各自新建 MessageQueue 会导致 mq.publish() 广播互相收不到。
+    const offscreen = new EventPageOffscreenManager(offscreenToSw, messageQueue);
     const manager = new ServiceWorkerManager(server, messageQueue, offscreen);
     manager.initManager();
-    // ServiceWorkerManager installs its preparationOffscreen subscribers after .initManager().
-    // In Firefox MV3 there is no real offscreen document, so the background event page
-    // itself is already the DOM-capable offscreen environment.
-    setTimeout(() => {
-      messageQueue.emit("preparationOffscreen", {});
-    }, 0);
   }
 }
 

@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
 import { notify } from "@App/pages/components/ui/toast";
 import { NameAvatar } from "@App/pages/components/NameAvatar";
+import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import { Globe, RefreshCw, Rss, Trash2, CircleArrowUp, Check, Loader2, Link } from "lucide-react";
 
 // ========== SubscribeIcon ==========
@@ -45,12 +46,12 @@ SubscribeEnableSwitch.displayName = "SubscribeEnableSwitch";
 
 // ========== PermissionFavicons ==========
 // @connect 域名以站点 favicon 呈现，加载失败回退到地球图标
-function DomainFavicon({ domain }: { domain: string }) {
+function DomainFavicon({ domain, showIcon }: { domain: string; showIcon: boolean }) {
   const [imgError, setImgError] = useState(false);
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        {imgError ? (
+        {!showIcon || imgError ? (
           <Globe className="w-3.5 h-3.5 text-muted-foreground/50" />
         ) : (
           <img
@@ -67,13 +68,16 @@ function DomainFavicon({ domain }: { domain: string }) {
 }
 
 export const PermissionFavicons = React.memo(({ connect, maxShow = 5 }: { connect?: string[]; maxShow?: number }) => {
+  const [faviconService] = useSystemConfig("favicon_service");
+  // 配置读取完成前一律先显示占位：<img> 一旦挂载请求就已发出，关闭图标获取后再撤下已经晚了
+  const showIcon = !!faviconService && faviconService !== "none";
   if (!connect || connect.length === 0) return <span className="text-xs text-muted-foreground/50">{"-"}</span>;
   const visible = connect.slice(0, maxShow);
   const extra = connect.length - maxShow;
   return (
     <div className="flex items-center gap-1.5">
       {visible.map((domain) => (
-        <DomainFavicon key={domain} domain={domain} />
+        <DomainFavicon key={domain} domain={domain} showIcon={showIcon} />
       ))}
       {extra > 0 && <span className="text-[10px] text-muted-foreground ml-0.5">{`+${extra}`}</span>}
     </div>

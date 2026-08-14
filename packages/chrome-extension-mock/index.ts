@@ -28,6 +28,8 @@ const chromeMock = {
   action: new Action(),
   init() {
     this.downloads.reset();
+    this.permissions.reset();
+    this.webRequest.reset();
   },
 };
 
