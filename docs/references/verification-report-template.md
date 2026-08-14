@@ -1,12 +1,16 @@
 # Verification record template
 
 Before running the browser, create a short verification record in the scenario directory, for example
-`test-results/verify/<scenario>/report.md`. Keep the reusable template headings in English, but write the actual
+`e2e/scratch/<scenario>/report.md`. Keep the reusable template headings in English, but write the actual
 record content in the user's language. Update it as the run proceeds instead of filling it in only at the end.
 
-**The snippet below is a filled *example* of the `## Evidence Index` shape** — it shows what a completed one
-looks like, not a second section to add. The full template further down has its own `## Evidence Index`
-heading; use that one heading and fill it following this example's shape.
+**The snippet below is a filled *example* of the `## Acceptance Evidence` shape** — it shows what a completed
+one looks like, not a second section to add. The full template further down has its own heading; use that one
+and fill it following this example.
+
+Evidence is organized **one `###` section per `Verdict` row**, not by artifact type. A reader arrives from a
+`V2` row and finds every screenshot, log line, and fixture that decides `V2` in one place, in the order they
+were observed. Verdict labels stay in the `Verdict` table and are not repeated here.
 
 This record exists so a reader can judge whether the implementation is correct, so **evidence is embedded, not
 linked**: scrolling `report.md` top to bottom should show the pixels and the deciding log lines without opening
@@ -14,55 +18,54 @@ a single side file. A bare link is the fallback for artifacts that genuinely can
 binaries, multi-megabyte logs), and it carries a note saying what it holds.
 
 ~~~md
-## Evidence Index
+## Acceptance Evidence
 
-### Screenshots
+### V1 · The `/` route mounts and lists installed scripts
 
-![Options root](screenshots/options-root.png)
-The script list page rendered and the view toggle is visible, proving the `/` route mounted successfully.
+![Options root](screenshots/v1-options-root.png)
+The script list rendered with the view toggle visible — the route mounted, rather than falling through to a
+blank shell.
+
+```text
+[verify] options url = chrome-extension://<id>/src/options.html#/
+```
+
+### V2 · `/settings` renders correctly in light and dark
 
 | Light | Dark |
 | --- | --- |
-| ![Settings light](screenshots/settings-light.png) | ![Settings dark](screenshots/settings-dark.png) |
+| ![Settings light](screenshots/v2-settings-light.png) | ![Settings dark](screenshots/v2-settings-dark.png) |
 
-The settings shell renders in both themes with readable contrast, proving `/settings` mounted and picked up the
-theme tokens rather than falling back to one palette.
+Readable contrast in both themes — the shell picked up the theme tokens instead of falling back to one palette.
+One theme's screenshot alone would not show this.
 
-### Videos
+<video src="videos/v2-navigation.webm" controls width="720"></video>
 
-<video src="videos/page@abc.webm" controls width="720"></video>
+The full navigation from the script list to the settings page. The decisive frames, because a video is neither
+skimmable nor playable in every viewer:
 
-Full page-viewport recording from the script list to the settings page; watch it for the navigation and the
-final stable state.
+![Before navigation](screenshots/v2-nav-01-list.png)
+The settings entry, enabled, before the click.
 
-Same run, decisive moments as stills — a video is neither skimmable nor playable in every viewer:
+![After navigation](screenshots/v2-nav-02-settings.png)
+The route changed and the content painted, after the click.
 
-![Before navigation](screenshots/nav-01-list.png)
-The script list before the click; the settings entry is enabled.
+### V3 · Importing a backup restores every script in it
 
-![After navigation](screenshots/nav-02-settings.png)
-The settings page after the click; the route changed and the content painted.
-
-### Logs
-
-The lines the verdict rests on:
-
-```text
-[verify] options url = chrome-extension://<id>/src/options.html#/settings
-[verify] script count after import = 3
-```
-
-Full capture: [console.log](console.log) — no unexpected errors appeared during the run.
-
-### Resources
-
-`resources/import.yaml` — the input the import verification consumed:
+`resources/import.yaml` — the input this run consumed:
 
 ```yaml
 scripts:
   - name: demo-script
     source: https://example.com/demo.user.js
 ```
+
+```text
+[verify] script count after import = 3
+```
+
+Three scripts in the file, three in the list. Full capture: [console.log](console.log) — no unexpected errors
+during the run.
 ~~~
 
 Use this shape:
@@ -94,7 +97,7 @@ Use this shape:
 - [ ] Built and loaded the real extension
 - [ ] Opened target page and confirmed stable anchor
 - [ ] Saved screenshots, videos, and logs
-- [ ] Recorded the verdict in Result
+- [ ] Every Verdict row filled
 
 ## Execution Log
 
@@ -102,10 +105,14 @@ Use this shape:
 | --- | --- | --- | --- |
 | Open options page | Pending | - | - |
 
-## Result
+## Verdict
 
-- **Verdict:** PASS / FAIL — (verify) does the behavior hold? (reproduce) did it reproduce?
-- **Observed:** the summary line / asserted value / screenshot that backs the verdict
+| # | Claim under verification | Verdict | How observed | Check it yourself |
+| --- | --- | --- | --- | --- |
+| V1 | <one behavior or bug claim, stated so it can only be true or false> | holds / does not hold / not observed | <the runtime observation that decides it> | `<command that re-runs this check>` |
+
+Summary: <what holds; the deciding observation; every `does not hold` / `not observed` row and what it blocks>
+
 - (reproduce) Scratch asserts the **desired** behavior (stays red) or the **current buggy** contract
   (passes green; the fix must flip it) — say which
 
@@ -113,17 +120,65 @@ Use this shape:
 
 - None
 
+## Acceptance Evidence
+
+### V1 · <the claim from the Verdict row, restated>
+
+<the commands, output, screenshots, and fixtures that decide this row, in the order observed — see the
+example above. No verdict labels here; they live in the Verdict table.>
+
+## Persistent Data Changes
+
+| Change | Forward | Backward / backup | Before-after check |
+| --- | --- | --- | --- |
+| <what was written, and how far it reaches> | <command / exit> | <command / exit, or "irreversible" + the plan> | <the query or observation proving it> |
+
+## Integrity & Cleanup
+
+- HEAD at start / end: `<sha>` / `<sha>`
+- `git status --porcelain` at end: `<output>`
+- Artifacts, processes, and external data created — and how each was cleaned up: `<inventory>`
+- Redaction performed before saving: `<what was removed>`
+
 ## Evidence Index
 
-Embed every artifact inline and annotate what it proves — see the shape above.
+- Screenshots / video: <paths, and which V row each backs>
+- Logs: <deciding lines are inline above; link the full captures here>
+- Resources / data snapshots: <paths and what each proves>
 ```
 
-Fill `Result` at the end — the honest verdict, per *Step 4 — Report honestly* in [`verification.md`](../verification.md).
-Execution Log `Status` moves `Pending` → `Pass` / `Fail` / `Blocked`.
+Fill `Verdict` last — the honest result, per *Step 4 — Report honestly* in
+[`verification.md`](../verification.md). Execution Log `Status` moves `Pending` → `Pass` / `Fail` / `Blocked`.
 
-In `verify-change` mode, drop the `Reproduction Steps` / `Minimal Reproduction` sections. In `reproduce-bug`
-mode, fill `Expected`/`Actual` and keep those sections so the record stands on its own — a later reader or AI
-should understand and re-trigger the bug from `report.md` alone, without reading the code.
+### Verdicts are per claim, and there are three of them
+
+One row per claim you set out to verify — split a compound claim rather than averaging it into one row. The
+three labels are not interchangeable:
+
+| Label | Use it when | Requires |
+| --- | --- | --- |
+| `holds` | you observed the behavior at runtime | the deciding observation *and* a command a reader can re-run |
+| `does not hold` | you observed it failing, or observed the bug reproducing | the failing output, assertion diff, or error screenshot |
+| `not observed` | you never reached the check — blocked, out of scope, environment missing | a `Blockers` entry saying what stopped it |
+
+`not observed` is the one that keeps a report honest: an unreached check is **never** `holds`. A run where two
+claims held and one was never exercised is reported as exactly that, not as a pass. When the cause was an
+unconfigured environment, name the service and the *variable names* that were missing — never their values.
+
+The `Check it yourself` column exists so a reviewer can reproduce a row without reconstructing the run; if a row
+has no such command, say why in `How observed` rather than leaving it blank.
+
+### Sections to drop when they don't apply
+
+- `verify-change` mode: drop `Reproduction Steps` and `Minimal Reproduction`. In `reproduce-bug` mode fill
+  `Expected`/`Actual` and keep them, so a later reader or AI can re-trigger the bug from `report.md` alone
+  without reading the code.
+- `Persistent Data Changes`: keep only when the run wrote data that outlives it — a real cloud-sync provider, an
+  imported backup, an OPFS/IndexedDB migration. An ephemeral browser profile that the harness deletes is not a
+  persistent change. Note the blast radius honestly: "only this test profile" is a valid, useful entry.
+- `Integrity & Cleanup`: keep whenever the run touched a real external target or left anything behind. It is
+  what lets a reviewer confirm the verification didn't quietly modify the working tree or leave a live process
+  or real remote data around.
 
 Keep the checklist factual:
 
@@ -131,6 +186,19 @@ Keep the checklist factual:
 - Check items only after the corresponding command/assertion has actually passed.
 - If a step is blocked, leave its checkbox unchecked and add a concrete entry under `Blockers`: what failed,
   where it failed, and what evidence was captured.
+
+### Inside an Acceptance Evidence section
+
+One `###` per `Verdict` row, headed `V<n> · <the claim>`, holding everything that decides that row — commands,
+output, screenshots, fixtures — in the order you observed them. Rules that follow from that:
+
+- A claim with no evidence section is `not observed`, not `holds`. If a row genuinely needs no artifact beyond
+  its `Check it yourself` command, say so in one line rather than omitting the section.
+- One artifact can back two rows; put it under the row it decides and reference it from the other rather than
+  pasting it twice.
+- Don't restate the verdict word here — the `Verdict` table owns it, and two copies drift apart.
+- `Evidence Index` at the end is a **pointer list**, not a second copy: paths, and which row each backs. The
+  pixels and the deciding lines stay inline in the V sections.
 
 Keep the evidence embedded:
 

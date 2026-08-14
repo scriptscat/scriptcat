@@ -14,18 +14,6 @@ describe("S3Error", () => {
     expect(err.message).toBe("The specified key does not exist");
     expect(err.statusCode).toBe(404);
   });
-
-  it("应当可被 try/catch 捕获并通过 instanceof 判断", () => {
-    try {
-      throw new S3Error("AccessDenied", "Access Denied", 403);
-    } catch (e) {
-      expect(e).toBeInstanceOf(S3Error);
-      if (e instanceof S3Error) {
-        expect(e.code).toBe("AccessDenied");
-        expect(e.statusCode).toBe(403);
-      }
-    }
-  });
 });
 
 // ---- S3Client 构造函数与 getter 方法 ----

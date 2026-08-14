@@ -325,17 +325,17 @@ export function getBrowserType() {
 }
 
 export const isPermissionOk = async (
-  manifestPermission: chrome.runtime.ManifestOptionalPermissions & chrome.runtime.ManifestPermissions
+  manifestPermission: chrome.runtime.ManifestOptionalPermissions | chrome.runtime.ManifestPermissions
 ): Promise<boolean | null> => {
   // 兼容 Firefox - 避免因为检查 permission 时，该permission不存在于 optional permission 而报错
   const manifest = chrome.runtime.getManifest();
-  if (manifest.optional_permissions?.includes(manifestPermission)) {
+  if ((manifest.optional_permissions as readonly string[] | undefined)?.includes(manifestPermission)) {
     try {
       return await chrome.permissions.contains({ permissions: [manifestPermission] });
     } catch {
       // ignored
     }
-  } else if (manifest.permissions?.includes(manifestPermission)) {
+  } else if ((manifest.permissions as readonly string[] | undefined)?.includes(manifestPermission)) {
     // mainfest 而列明有该permission, 不用检查
     return true;
   }
