@@ -1386,6 +1386,16 @@ describe.concurrent("GM_cookie 参数校验（firstPartyDomain）", () => {
     expect(a.sendMessage).not.toHaveBeenCalled();
   });
 
+  it.concurrent("firstPartyDomain 显式为 null 时应回传 Invalid Argument Type 错误", async () => {
+    const a = makeA();
+    const done = vi.fn();
+    (GMApi as any)._GM_cookie(a, "list", { url: "https://example.com", firstPartyDomain: null }, done);
+    await Promise.resolve();
+    expect(done).toHaveBeenCalledWith(undefined, expect.any(Error));
+    expect(done.mock.calls[0][1].message).toEqual("Invalid Argument Type");
+    expect(a.sendMessage).not.toHaveBeenCalled();
+  });
+
   it.concurrent("firstPartyDomain 为合法字符串时应正常透传给 sendMessage", async () => {
     const a = makeA();
     const done = vi.fn();
