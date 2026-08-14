@@ -102,6 +102,38 @@ describe("Service Worker GM_audio", () => {
     expect(removeListener).toHaveBeenCalledWith(onUpdated);
   });
 
+  it("转发状态失败时应清理监听器且不向 tabs.onUpdated 冒泡异常", async () => {
+    let onUpdated: ((tabId: number, changeInfo: chrome.tabs.OnUpdatedInfo) => void) | undefined;
+    const addListener = vi.fn((listener: typeof onUpdated) => {
+      onUpdated = listener;
+    });
+    const removeListener = vi.fn();
+    const connection: MessageConnect = {
+      onMessage: vi.fn(),
+      sendMessage: vi
+        .fn()
+        .mockImplementationOnce(() => {})
+        .mockImplementationOnce(() => {
+          throw new Error("port closed");
+        }),
+      disconnect: vi.fn(),
+      onDisconnect: vi.fn(),
+    };
+    vi.stubGlobal("chrome", {
+      ...chromeMock,
+      tabs: {
+        ...chromeMock.tabs,
+        onUpdated: { addListener, removeListener },
+      },
+    });
+    const api = Object.create(GMApi.prototype) as GMApi;
+
+    await api.GM_audio(createRequest(["addStateChangeListener"]), createSender(7, connection));
+
+    expect(() => onUpdated?.(7, { audible: true })).not.toThrow();
+    expect(removeListener).toHaveBeenCalledWith(onUpdated);
+  });
+
   it("拒绝后台上下文、无效参数和非长连接监听注册", async () => {
     const api = Object.create(GMApi.prototype) as GMApi;
 

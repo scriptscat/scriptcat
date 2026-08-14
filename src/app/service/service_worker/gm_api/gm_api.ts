@@ -1314,7 +1314,12 @@ export default class GMApi {
           }
           if (typeof changeInfo.audible === "boolean") stateChange.audible = changeInfo.audible;
           if (stateChange.muted === undefined && stateChange.audible === undefined) return;
-          connection.sendMessage({ action: "stateChange", data: stateChange });
+          try {
+            connection.sendMessage({ action: "stateChange", data: stateChange });
+          } catch (error) {
+            cleanup();
+            console.error(error);
+          }
         };
         const cleanup = () => {
           if (!connected) return;
