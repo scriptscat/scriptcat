@@ -8,8 +8,8 @@
 // @require https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@762f83e9c1091ab4ebbb605f4efc4709b36f6476/example/tests/lib/sctest.js
 ```
 
-e2e 运行时该 URL 会被自动重写到本地 mock server(见 `e2e/gm-api.spec.ts` 的 `patchRequireCode`),
-因此 CI 无需外网,且测的永远是工作区版本。
+e2e 运行时该框架 URL 会被自动重写到本地 mock server(见 `e2e/gm-api.spec.ts` 的 `patchRequireCode`),
+因此框架本身始终使用工作区版本;脚本声明的其他 `@require`/`@resource` 依赖仍按各自 URL 加载。
 
 ## 用法
 
