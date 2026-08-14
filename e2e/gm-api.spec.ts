@@ -511,8 +511,8 @@ async function runTestScript(
   code = patchTargetMatchCode(code, targetUrl);
   code = options?.patchCode ? options.patchCode(code) : code;
 
-  await installScriptByCode(context, extensionId, code);
   autoApprovePermissions(context);
+  await installScriptByCode(context, extensionId, code);
 
   const page = await context.newPage();
   const logs: string[] = [];
