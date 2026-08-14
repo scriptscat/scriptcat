@@ -52,7 +52,10 @@ export const createContext = (
     setInvalidContext() {
       if (invalid) return;
       invalid = true;
-      this.audioStateChange?.connection?.disconnect(true);
+      const audioState = this.audioStateChange;
+      audioState?.settleRegistration?.();
+      audioState?.connection?.disconnect(true);
+      audioState?.listeners.clear();
       this.audioStateChange = undefined;
       this.valueChangeListener.clear();
       this.EE.removeAllListeners();

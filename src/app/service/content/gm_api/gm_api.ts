@@ -259,7 +259,10 @@ export default class GMApi extends GM_Base {
         setInvalidContext() {
           if (invalid) return;
           invalid = true;
-          this.audioStateChange?.connection?.disconnect(true);
+          const audioState = this.audioStateChange;
+          audioState?.settleRegistration?.();
+          audioState?.connection?.disconnect(true);
+          audioState?.listeners.clear();
           this.audioStateChange = undefined;
           this.valueChangeListener.clear();
           this.EE.removeAllListeners();
@@ -761,49 +764,64 @@ export default class GMApi extends GM_Base {
           }
 
           let registered = false;
-          state.connection = connection;
-          connection.onMessage((message) => {
-            if (message.code) {
-              giveUp(message.message);
-              return;
-            }
-            if (message.action === "registered") {
-              registered = true;
-              state.everRegistered = true;
-              state.retryDelay = undefined;
-              resolveEpisode();
-              return;
-            }
-            if (message.action === "stateChange") {
-              for (const stateListener of state.listeners) {
-                try {
-                  stateListener(message.data as GMTypes.AudioStateChangeInfo);
-                } catch (error) {
-                  console.error(error);
+          try {
+            state.connection = connection;
+            connection.onMessage((message) => {
+              if (message.code) {
+                giveUp(message.message);
+                return;
+              }
+              if (message.action === "registered") {
+                registered = true;
+                state.everRegistered = true;
+                state.retryDelay = undefined;
+                resolveEpisode();
+                return;
+              }
+              if (message.action === "stateChange") {
+                for (const stateListener of state.listeners) {
+                  try {
+                    stateListener(message.data as GMTypes.AudioStateChangeInfo);
+                  } catch (error) {
+                    console.error(error);
+                  }
                 }
               }
-            }
-          });
-          connection.onDisconnect((isSelfDisconnected) => {
-            if (state.connection !== connection) return;
-            state.connection = undefined;
-            // 曾经成功收到过 registered（无论是本次连接还是更早的连接）时，此后任何非本端
-            // 主动触发的断线——包括恢复期间尚未收到 registered 就又断线的重连尝试——都应视为
-            // 暂时性故障并保留监听器重试，而非当作注册失败而放弃
-            if (!isSelfDisconnected && isCurrentAttempt() && state.everRegistered && state.listeners.size) {
-              if (registered) {
-                // 已确认过的连接意外断线：本轮 episode 早已 resolve，开启新的一轮
-                // episode——重新 connect() 本身即可唤醒被回收的 service worker
-                GMApi._GM_audioConnect(a, state).catch(() => {});
-              } else {
-                // 本轮 episode 内的重连尝试在收到 registered 前又断线：退避后在同一轮
-                // episode 内重试，避免持续故障时的忙等，也避免每次重试都新建 Promise
-                scheduleRetry();
+            });
+            connection.onDisconnect((isSelfDisconnected) => {
+              if (state.connection !== connection) return;
+              state.connection = undefined;
+              // 曾经成功收到过 registered（无论是本次连接还是更早的连接）时，此后任何非本端
+              // 主动触发的断线——包括恢复期间尚未收到 registered 就又断线的重连尝试——都应视为
+              // 暂时性故障并保留监听器重试，而非当作注册失败而放弃
+              if (!isSelfDisconnected && isCurrentAttempt() && state.everRegistered && state.listeners.size) {
+                if (registered) {
+                  // 已确认过的连接意外断线：本轮 episode 早已 resolve，开启新的一轮
+                  // episode——重新 connect() 本身即可唤醒被回收的 service worker
+                  GMApi._GM_audioConnect(a, state).catch(() => {});
+                } else {
+                  // 本轮 episode 内的重连尝试在收到 registered 前又断线：退避后在同一轮
+                  // episode 内重试，避免持续故障时的忙等，也避免每次重试都新建 Promise
+                  scheduleRetry();
+                }
+                return;
               }
-              return;
+              giveUp(registered ? undefined : "GM_audio.addStateChangeListener: Connection disconnected");
+            });
+          } catch (error) {
+            state.connection = undefined;
+            try {
+              connection.disconnect(true);
+            } catch (cleanupError) {
+              console.error(cleanupError);
             }
-            giveUp(registered ? undefined : "GM_audio.addStateChangeListener: Connection disconnected");
-          });
+            if (isCurrentAttempt() && state.everRegistered && state.listeners.size) {
+              scheduleRetry();
+            } else {
+              giveUp("GM_audio.addStateChangeListener: Connection disconnected");
+            }
+            console.error(error);
+          }
         },
         (error) => {
           if (isCurrentAttempt() && state.everRegistered && state.listeners.size) {

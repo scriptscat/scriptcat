@@ -194,6 +194,33 @@ describe.concurrent("createContext", () => {
     });
     expect(listener).toHaveBeenCalledTimes(1);
   });
+
+  it.concurrent("音频注册尚未返回连接时上下文失效也应立即结算注册", async () => {
+    let resolveConnection!: (connection: unknown) => void;
+    const message = {
+      connect: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            resolveConnection = resolve;
+          })
+      ),
+    } as any;
+    const context = createContext(createScriptInfo(), {}, "vitest", message, message, new Set(["GM.audio"]));
+    const registration = context.GM.audio.addStateChangeListener(vi.fn());
+
+    context.setInvalidContext();
+    await expect(
+      Promise.race([
+        registration.then(
+          () => "resolved",
+          (error: unknown) => `rejected:${String(error)}`
+        ),
+        new Promise<string>((resolve) => setTimeout(() => resolve("timeout"), 0)),
+      ])
+    ).resolves.toBe("resolved");
+
+    resolveConnection({ disconnect: vi.fn() });
+  });
 });
 
 describe.concurrent("createProxyContext", () => {
