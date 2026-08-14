@@ -22,10 +22,10 @@ export type ValueUpdateDataEncoded = {
   sender: ValueUpdateSender;
 };
 
-// 以 storageName 为单位的推送数据；storageChanges 以 uuid 分组，同组内按处理顺序排列
+// 以 storageName 为单位的推送数据；storageChanges 保留跨 uuid 的处理顺序
 export type ValueUpdateSendData = {
   storageName: string;
-  storageChanges: Record<string, ValueUpdateDataEncoded[]>;
+  storageChanges: ValueUpdateDataEncoded[];
 };
 
 // gm_api.ts

@@ -104,7 +104,7 @@ export class ValueService {
     // 同步取走整批任务；之后入队的任务会建立新列表，由其对应的队列调用处理
     this.valueUpdateTasks.delete(storageName);
     let valueModel: Value | undefined = await this.valueDAO.get(storageName);
-    const storageChanges: Record<string, ValueUpdateDataEncoded[]> = {};
+    const storageChanges: ValueUpdateDataEncoded[] = [];
     // 有实际值变更的脚本（uuid 去重），供 early-start 脚本重新注册使用
     const updatedScripts = new Map<string, Script>();
     let valueModelUpdated = false;
@@ -170,8 +170,7 @@ export class ValueService {
       if (entries.length > 0 && !updatedScripts.has(uuid)) {
         updatedScripts.set(uuid, script);
       }
-      const list = storageChanges[uuid] || (storageChanges[uuid] = []);
-      list.push({
+      storageChanges.push({
         id,
         valueChanges: entries,
         uuid,
@@ -211,8 +210,10 @@ export class ValueService {
       }
       taskList.push({ script, id, keyValuePairs, valueSender, isReplace, ts });
     });
-    // valueDAO 读写以 storageName 为单位串行
-    await stackAsyncTask<void>(`${CACHE_KEY_SET_VALUE}${storageName}`, () => this.setValuesByStorageName(storageName));
+    // 处理任务也进入全局队列：先让当前调用批次完成入队，再按调用顺序完成各 storageName 的写入与推送
+    await stackAsyncTask<void>("valueChangeOnSequence", () =>
+      stackAsyncTask<void>(`${CACHE_KEY_SET_VALUE}${storageName}`, () => this.setValuesByStorageName(storageName))
+    );
   }
 
   setScriptValues(params: Pick<TSetValuesParams, "uuid" | "keyValuePairs" | "isReplace" | "ts">, _sender: IGetSender) {

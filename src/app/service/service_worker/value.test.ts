@@ -151,9 +151,7 @@ describe("ValueService - setValues 方法测试", () => {
       [mockScript],
       expect.objectContaining({
         storageName: getStorageName(mockScript),
-        storageChanges: {
-          [mockScript.uuid]: [expectResponse("testId-4021", mockScript, 1)],
-        },
+        storageChanges: [expectResponse("testId-4021", mockScript, 1)],
       })
     );
 
@@ -198,9 +196,7 @@ describe("ValueService - setValues 方法测试", () => {
       [mockScript],
       expect.objectContaining({
         storageName: getStorageName(mockScript),
-        storageChanges: {
-          [mockScript.uuid]: [expectResponse("testId-4022", mockScript, 1)],
-        },
+        storageChanges: [expectResponse("testId-4022", mockScript, 1)],
       })
     );
 
@@ -254,9 +250,7 @@ describe("ValueService - setValues 方法测试", () => {
       [mockScript],
       expect.objectContaining({
         storageName: getStorageName(mockScript),
-        storageChanges: {
-          [mockScript.uuid]: [expectResponse("testId-4023", mockScript, 1)],
-        },
+        storageChanges: [expectResponse("testId-4023", mockScript, 1)],
       })
     );
 
@@ -306,9 +300,7 @@ describe("ValueService - setValues 方法测试", () => {
       [], // 没有实际变更的脚本
       expect.objectContaining({
         storageName: getStorageName(mockScript),
-        storageChanges: {
-          [mockScript.uuid]: [expectResponse("testId-4024", mockScript, 0)],
-        },
+        storageChanges: [expectResponse("testId-4024", mockScript, 0)],
       })
     ); // 值未改变
   });
@@ -449,12 +441,7 @@ describe("ValueService - setValues 方法测试", () => {
       [mockScript],
       expect.objectContaining({
         storageName: getStorageName(mockScript),
-        storageChanges: {
-          [mockScript.uuid]: [
-            expectResponse("testId-4041", mockScript, 1),
-            expectResponse("testId-4042", mockScript, 1),
-          ],
-        },
+        storageChanges: [expectResponse("testId-4041", mockScript, 1), expectResponse("testId-4042", mockScript, 1)],
       })
     );
 
@@ -463,6 +450,134 @@ describe("ValueService - setValues 方法测试", () => {
     const savedValue = saveCall[1];
     expect(savedValue.data[key1]).toBe(value1);
     expect(savedValue.data[key2]).toBe(value2);
+  });
+
+  it("普通并发 setValues 应在首个异步读期间合并为一次读写与一次推送", async () => {
+    const mockScript = createMockScript();
+    const mockSender = createMockValueSender();
+    const valueGet = deferred<Value | undefined>();
+
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockImplementation(() => valueGet.promise);
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+
+    const first = valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "testId-4043",
+      keyValuePairs: [["first", encodeRValue("value1")]] satisfies TKeyValuePair[],
+      valueSender: mockSender,
+      isReplace: false,
+    });
+    const second = valueService.setValues({
+      uuid: mockScript.uuid,
+      id: "testId-4044",
+      keyValuePairs: [["second", encodeRValue("value2")]] satisfies TKeyValuePair[],
+      valueSender: mockSender,
+      isReplace: false,
+    });
+    await nextMacroTask();
+
+    expect(mockValueDAO.get).toHaveBeenCalledTimes(1);
+    valueGet.resolve(undefined);
+    await Promise.all([first, second]);
+
+    expect(mockValueDAO.get).toHaveBeenCalledTimes(1);
+    expect(mockValueDAO.save).toHaveBeenCalledTimes(1);
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("不同 storageName 的并发 setValues 也应按调用顺序完成写入与推送", async () => {
+    const firstScript = createMockScript();
+    const secondScript = createMockScript();
+    const mockSender = createMockValueSender();
+    const firstValueGet = deferred<Value | undefined>();
+    const pushOrder: string[] = [];
+    const firstStorageName = getStorageName(firstScript);
+    const secondStorageName = getStorageName(secondScript);
+
+    vi.mocked(mockScriptDAO.get).mockImplementation(async (uuid) =>
+      uuid === firstScript.uuid ? firstScript : secondScript
+    );
+    vi.mocked(mockValueDAO.get).mockImplementation((storageName) =>
+      storageName === firstStorageName ? firstValueGet.promise : Promise.resolve(undefined)
+    );
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+    vi.mocked(valueService.pushValueUpdate).mockImplementation(async (_scripts, sendData) => {
+      pushOrder.push(sendData.storageName);
+    });
+
+    const first = valueService.setValues({
+      uuid: firstScript.uuid,
+      id: "testId-4045",
+      keyValuePairs: [["first", encodeRValue("value1")]] satisfies TKeyValuePair[],
+      valueSender: mockSender,
+      isReplace: false,
+    });
+    const second = valueService.setValues({
+      uuid: secondScript.uuid,
+      id: "testId-4046",
+      keyValuePairs: [["second", encodeRValue("value2")]] satisfies TKeyValuePair[],
+      valueSender: mockSender,
+      isReplace: false,
+    });
+    await nextMacroTask();
+
+    expect(mockValueDAO.get).toHaveBeenCalledTimes(1);
+    expect(pushOrder).toEqual([]);
+    firstValueGet.resolve(undefined);
+    await Promise.all([first, second]);
+
+    expect(pushOrder).toEqual([firstStorageName, secondStorageName]);
+  });
+
+  it("共享 storageName 的跨脚本更新应保留交错响应顺序", async () => {
+    const firstScript = createMockScript({ metadata: { storagename: ["shared-storage"] } });
+    const secondScript = createMockScript({ metadata: { storagename: ["shared-storage"] } });
+    const mockSender = createMockValueSender();
+    const existingValueModel: Value = {
+      uuid: firstScript.uuid,
+      storageName: "shared-storage",
+      data: { key: "initial" },
+      createtime: Date.now() - 1000,
+      updatetime: Date.now() - 1000,
+    };
+
+    vi.mocked(mockScriptDAO.get).mockImplementation(async (uuid) =>
+      uuid === firstScript.uuid ? firstScript : secondScript
+    );
+    vi.mocked(mockValueDAO.get).mockResolvedValue(existingValueModel);
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+
+    await Promise.all([
+      valueService.setValues({
+        uuid: firstScript.uuid,
+        id: "testId-4047",
+        keyValuePairs: [["key", encodeRValue("a1")]] satisfies TKeyValuePair[],
+        valueSender: mockSender,
+        isReplace: false,
+      }),
+      valueService.setValues({
+        uuid: secondScript.uuid,
+        id: "testId-4048",
+        keyValuePairs: [["key", encodeRValue("b1")]] satisfies TKeyValuePair[],
+        valueSender: mockSender,
+        isReplace: false,
+      }),
+      valueService.setValues({
+        uuid: firstScript.uuid,
+        id: "testId-4049",
+        keyValuePairs: [["key", encodeRValue("a2")]] satisfies TKeyValuePair[],
+        valueSender: mockSender,
+        isReplace: false,
+      }),
+    ]);
+
+    const sendData = vi.mocked(valueService.pushValueUpdate).mock.calls[0][1];
+    expect(sendData.storageChanges.map((item) => [item.uuid, item.id])).toEqual([
+      [firstScript.uuid, "testId-4047"],
+      [secondScript.uuid, "testId-4048"],
+      [firstScript.uuid, "testId-4049"],
+    ]);
   });
 
   it("setValues 的处理顺序应与调用顺序一致", async () => {
@@ -508,7 +623,7 @@ describe("ValueService - setValues 方法测试", () => {
     // 推送的响应顺序也与调用顺序一致
     expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
     const sendData = vi.mocked(valueService.pushValueUpdate).mock.calls[0][1];
-    expect(sendData.storageChanges[mockScript.uuid].map((r) => r.id)).toEqual(["testId-4051", "testId-4052"]);
+    expect(sendData.storageChanges.map((r) => r.id)).toEqual(["testId-4051", "testId-4052"]);
   });
 
   it("值变更时 updatetime 应严格递增", async () => {

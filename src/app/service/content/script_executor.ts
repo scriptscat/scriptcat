@@ -48,9 +48,9 @@ export class ScriptExecutor {
   valueUpdate(sendData: ValueUpdateSendData) {
     // runtime/valueUpdate
     const { storageName, storageChanges } = sendData;
-    for (const [uuid, responses] of Object.entries(storageChanges)) {
+    for (const response of storageChanges) {
       for (const execScript of this.execScriptMap.values()) {
-        execScript.valueUpdate(storageName, uuid, responses);
+        execScript.valueUpdate(storageName, response.uuid, [response]);
       }
     }
   }

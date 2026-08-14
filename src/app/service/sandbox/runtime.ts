@@ -343,23 +343,21 @@ export class Runtime {
   valueUpdate(sendData: ValueUpdateSendData) {
     // runtime/valueUpdate
     const { storageName, storageChanges } = sendData;
-    for (const [uuid, responses] of Object.entries(storageChanges)) {
+    for (const response of storageChanges) {
       // 转发给脚本
       for (const execScript of this.execScriptMap.values()) {
-        execScript.valueUpdate(storageName, uuid, responses);
+        execScript.valueUpdate(storageName, response.uuid, [response]);
       }
       // 更新crontabScripts中的脚本值
       for (const script of this.crontabSripts) {
-        if (script.uuid === uuid || getStorageName(script) === storageName) {
+        if (script.uuid === response.uuid || getStorageName(script) === storageName) {
           const valueStore = script.value;
-          for (const { valueChanges } of responses) {
-            for (const [key, rTyped1, _rTyped2] of valueChanges) {
-              const value = decodeRValue(rTyped1);
-              if (value !== undefined) {
-                valueStore[key] = value;
-              } else if (valueStore[key] !== undefined) {
-                delete valueStore[key];
-              }
+          for (const [key, rTyped1, _rTyped2] of response.valueChanges) {
+            const value = decodeRValue(rTyped1);
+            if (value !== undefined) {
+              valueStore[key] = value;
+            } else if (valueStore[key] !== undefined) {
+              delete valueStore[key];
             }
           }
         }
