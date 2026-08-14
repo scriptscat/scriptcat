@@ -976,6 +976,7 @@ export default class GMApi extends GM_Base {
       : null;
     const urlPromiseLike = typeof details.url === "object" ? convObjectToURL(details.url) : details.url;
     let aborted = false;
+    let terminal = false;
     let connect: MessageConnect;
     let nativeAbort: (() => any) | null = null;
     const contentContext = details.context;
@@ -1021,9 +1022,11 @@ export default class GMApi extends GM_Base {
     // browser 与 native 两条路径最终都经由后台 GM_download 回传同一组消息（onload/save_cancelled/
     // onerror），此处共用同一份处理逻辑；releaseResources 仅 native 路径需要，browser 路径不传。
     const handleDownloadMessage = (data: { action?: string; data?: any }, releaseResources?: () => void) => {
+      if (terminal) return;
       switch (data.action) {
         case "onload":
         case "save_cancelled": // saveAs cancelled by user，TM 视为下载成功
+          terminal = true;
           withLoadEnd(
             () => details.onload?.(makeCallbackParam({ ...data.data })),
             { ...data.data },
@@ -1035,9 +1038,9 @@ export default class GMApi extends GM_Base {
           break;
         case "onprogress":
           details.onprogress?.(makeCallbackParam({ ...data.data, mode: "browser" }));
-          retPromiseReject?.(new Error("Timeout ERROR"));
           break;
         case "ontimeout":
+          terminal = true;
           withLoadEnd(
             () => details.ontimeout?.(makeCallbackParam({})),
             {},
@@ -1048,6 +1051,7 @@ export default class GMApi extends GM_Base {
           );
           break;
         case "onerror":
+          terminal = true;
           withLoadEnd(
             () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
             { error: "unknown" },
@@ -1058,6 +1062,7 @@ export default class GMApi extends GM_Base {
           );
           break;
         default:
+          terminal = true;
           LoggerCore.logger().warn("GM_download resp is error", { data });
           withLoadEnd(
             () => {},
@@ -1076,8 +1081,12 @@ export default class GMApi extends GM_Base {
         // TM 对空 url 会同步报错/触发 onerror，而非发起请求；
         // new URL("", base) 不会抛错而是解析为当前页面地址，因此需在此显式拦截，避免误下载当前页面。
         if (!aborted) {
-          details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
-          retPromiseReject?.(new Error("GM_download: url is empty"));
+          terminal = true;
+          withLoadEnd(
+            () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
+            { error: "unknown" },
+            () => retPromiseReject?.(new Error("GM_download: url is empty"))
+          );
         }
         return;
       }
@@ -1115,6 +1124,7 @@ export default class GMApi extends GM_Base {
           // 后台连接失败：通过 onerror / reject 通知调用方，行为与 “onMessage 收到 onerror” 一致，
           // 否则 GM.download 的 promise 会永远 pending（issue: 无 native XHR 后备路径可兜底）。
           if (!aborted) {
+            terminal = true;
             withLoadEnd(
               () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
               { error: "unknown" },
@@ -1123,9 +1133,21 @@ export default class GMApi extends GM_Base {
           }
           return;
         }
-        if (aborted) return;
+        if (aborted) {
+          try {
+            con.disconnect(true);
+          } catch {
+            // ignored
+          }
+          return;
+        }
         connect = con;
         connect.onMessage((data) => handleDownloadMessage(data));
+        connect.onDisconnect(() => {
+          if (!aborted) {
+            handleDownloadMessage({ action: "onerror" });
+          }
+        });
       } else {
         // native
         // xhr 已因 ontimeout/onerror 失败：即使失败前已收到部分数据，底层 XHR 实现仍会在其
@@ -1139,7 +1161,10 @@ export default class GMApi extends GM_Base {
           onloadend: async (res) => {
             if (aborted || xhrFailed) return;
             const response = res.response;
-            if (!(response instanceof Blob)) return;
+            if (!(response instanceof Blob)) {
+              handleDownloadMessage({ action: "onerror" });
+              return;
+            }
 
             // 1. 先创建 blob URL，并立即就地准备好释放函数 + 标志位。
             //    这样后续任何抛错/aborted/disconnect 路径都能复用同一处释放逻辑，
@@ -1176,6 +1201,7 @@ export default class GMApi extends GM_Base {
               // 行为与 “onMessage 收到 onerror” 一致，保持外层 contract 不变。
               releaseResources();
               if (!aborted) {
+                terminal = true;
                 withLoadEnd(
                   () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
                   { error: "unknown" },
@@ -1202,7 +1228,11 @@ export default class GMApi extends GM_Base {
             // 后台主动断连（例如 SW 重启、扩展更新）也释放 URL，避免长尾泄漏。
             // releaseResources 通过 released 标志位幂等，与 onMessage 内部的释放调用顺序无关。
             connect.onDisconnect(() => {
-              releaseResources();
+              if (aborted) {
+                releaseResources();
+                return;
+              }
+              handleDownloadMessage({ action: "onerror" }, releaseResources);
             });
           },
           onload: () => {
@@ -1213,6 +1243,7 @@ export default class GMApi extends GM_Base {
           },
           ontimeout: () => {
             xhrFailed = true;
+            terminal = true;
             // XHR 阶段已终结：清空 nativeAbort，避免使用者在 onloadend 内呼叫
             // download.abort() 时经由 nativeAbort() 强制断开内部 XHR 的消息连线
             // （其 abort() 会无条件 disconnect），导致内部 XHR 收不到自己真正的
@@ -1235,6 +1266,7 @@ export default class GMApi extends GM_Base {
           },
           onerror: () => {
             xhrFailed = true;
+            terminal = true;
             nativeAbort = null;
             withLoadEnd(
               () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
@@ -1268,6 +1300,7 @@ export default class GMApi extends GM_Base {
           xhrParams.password = details.password || "";
         }
         // -- 其他参数 --
+        if (aborted) return;
         const { retPromise, abort } = GM_xmlhttpRequest(a, xhrParams, true, true);
         retPromise?.catch(() => {
           if (aborted) return;
