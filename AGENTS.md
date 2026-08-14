@@ -22,6 +22,11 @@ For tasks matching multiple rows, read every applicable owner before that work; 
 docs. For tasks matching none, inspect `docs/README.md` and nearby implementation/tests before inventing a rule
 or abstraction.
 
+## DeepWiki Context
+
+For unfamiliar subsystems, when `.deepwiki/index.md` exists, start there and open only the relevant linked pages;
+don't bulk-load `.deepwiki/`. Treat it as background only: current code and the owning docs above are authoritative.
+
 ## Project Overview
 
 ScriptCat is a Manifest V3 browser extension for Tampermonkey-compatible user scripts, built with TypeScript,

@@ -200,6 +200,7 @@ export type ScriptMenu = {
   runNumByIframe: number; // iframe运行次数
   menus: ScriptMenuItem[]; // 脚本菜单
   isEffective: boolean | null; // 是否在当前网址启动
+  hasMatchOverride: boolean; // 是否存在 match 覆盖（selfMetadata.match !== undefined），用于区分 S1/S3 与 S2/S4
 };
 
 /** 批量更新记录 */

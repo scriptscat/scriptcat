@@ -286,6 +286,24 @@ export function usePopupData() {
       if (!host) return;
       try {
         await scriptClient.onlyRunOnUrl(uuid, `*://${host}/*`);
+        // 收窄后已创建 match 覆盖，后续排除必须进入 S3 语义。
+        setScriptList((prev) =>
+          prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: true, hasMatchOverride: true } : s))
+        );
+      } catch (e) {
+        showError(String(e));
+      }
+    },
+    [showError]
+  );
+
+  const handleExcludeFromMatch = useCallback(
+    async (uuid: string) => {
+      const host = extractHost(stateRef.current.currentUrl);
+      if (!host) return;
+      try {
+        await scriptClient.excludeFromMatch(uuid, `*://${host}/*`);
+        setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: false } : s)));
       } catch (e) {
         showError(String(e));
       }
@@ -447,6 +465,7 @@ export function usePopupData() {
     handleOpenScriptSettings,
     handleOpenUserConfig,
     handleExcludeUrl,
+    handleExcludeFromMatch,
     handleOnlyRunOnUrl,
     handleAllowUrl,
     handleMenuClick,

@@ -324,6 +324,27 @@ describe("SettingsPane 网站匹配/排除", () => {
     expect(screen.queryByText("*://exclude.com/*")).toBeNull();
   });
 
+  it("清空匹配规则后重置按钮应可用并可恢复脚本自带规则", async () => {
+    // 脚本自带 @match 但无用户覆盖；删除最后一项后是显式空覆盖，重置应可撤销它并恢复自带规则
+    fetchScript.mockResolvedValue({
+      ...sampleScript(),
+      selfMetadata: { exclude: ["*://exclude.com/*"] },
+    });
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://script.com/*");
+    fireEvent.click(screen.getByLabelText(`${t("delete")} *://script.com/*`));
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    expect(screen.queryByText("*://script.com/*")).toBeNull();
+    // 存在可撤销的空覆盖，重置按钮不应被禁用
+    const resetBtn = screen.getAllByText(t("reset"), { selector: "button" })[0];
+    expect(resetBtn).not.toBeDisabled();
+    // 点击重置应撤销空覆盖、恢复脚本自带规则
+    fireEvent.click(resetBtn);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+    expect(resetMatch).toHaveBeenCalledWith("u1", undefined);
+    expect(screen.getByText("*://script.com/*")).toBeInTheDocument();
+  });
+
   it("删除最后一项匹配应显式清空覆盖而非复活脚本自带规则", async () => {
     fetchScript.mockResolvedValue({
       ...sampleScript(),
