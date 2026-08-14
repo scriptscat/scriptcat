@@ -13,6 +13,7 @@
  * profile 走 mkdtemp，evidence 走各自的 scenario 目录，两者天然隔离。
  */
 import process from "node:process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -31,15 +32,34 @@ const SCRATCH_DIR = path.join(E2E_DIR, "scratch");
 const EXTENSION_DIR = path.join(REPO_ROOT, "dist", "ext");
 
 const SESSION_FILE = ".session.json";
+const LOCK_FILE = ".session.lock";
 const CONSOLE_LOG = "console.log";
 const DAEMON_LOG = "daemon.log";
 
+const SCENARIO_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+export function validateScenario(scenario) {
+  if (typeof scenario !== "string" || !SCENARIO_PATTERN.test(scenario)) {
+    throw new Error(`scenario 必须是单层名称（字母、数字、点、下划线或连字符）：${scenario}`);
+  }
+  return scenario;
+}
+
 export function scenarioDir(scenario) {
+  validateScenario(scenario);
   return path.join(SCRATCH_DIR, scenario);
 }
 
+function sessionFile(scenario) {
+  return path.join(scenarioDir(scenario), SESSION_FILE);
+}
+
+function lockFile(scenario) {
+  return path.join(scenarioDir(scenario), LOCK_FILE);
+}
+
 export function readSession(scenario) {
-  const file = path.join(scenarioDir(scenario), SESSION_FILE);
+  const file = sessionFile(scenario);
   if (!fs.existsSync(file)) return null;
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -64,9 +84,75 @@ export function liveSessions() {
   if (!fs.existsSync(SCRATCH_DIR)) return [];
   return fs
     .readdirSync(SCRATCH_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
+    .filter((entry) => entry.isDirectory() && SCENARIO_PATTERN.test(entry.name))
     .map((entry) => readSession(entry.name))
     .filter((session) => session && isAlive(session));
+}
+
+function allSessionScenarios() {
+  if (!fs.existsSync(SCRATCH_DIR)) return [];
+  return fs
+    .readdirSync(SCRATCH_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && SCENARIO_PATTERN.test(entry.name))
+    .filter((entry) => fs.existsSync(sessionFile(entry.name)) || fs.existsSync(lockFile(entry.name)))
+    .map((entry) => entry.name);
+}
+
+function readJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeLock(scenario, lock) {
+  fs.writeFileSync(lockFile(scenario), `${JSON.stringify(lock)}\n`, { flag: "w" });
+}
+
+function removeLock(scenario, token) {
+  const file = lockFile(scenario);
+  const lock = readJson(file);
+  if (!token || lock?.token === token) fs.rmSync(file, { force: true });
+}
+
+function acquireLock(scenario) {
+  const token = randomUUID();
+  const file = lockFile(scenario);
+  fs.mkdirSync(scenarioDir(scenario), { recursive: true });
+
+  for (;;) {
+    try {
+      const fd = fs.openSync(file, "wx");
+      fs.writeFileSync(fd, `${JSON.stringify({ pid: process.pid, token })}\n`);
+      fs.closeSync(fd);
+      return token;
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      const existing = readJson(file);
+      if (existing?.pid && isAlive(existing)) {
+        throw new Error(`会话正在启动：${scenario}`);
+      }
+      fs.rmSync(file, { force: true });
+    }
+  }
+}
+
+function claimLock(scenario, token) {
+  const lock = readJson(lockFile(scenario));
+  if (!lock || lock.token !== token) throw new Error(`无法取得会话锁：${scenario}`);
+  writeLock(scenario, { pid: process.pid, token });
+}
+
+function isManagedProfile(profile) {
+  if (typeof profile !== "string") return false;
+  const resolved = path.resolve(profile);
+  return path.dirname(resolved) === path.resolve(os.tmpdir()) && path.basename(resolved).startsWith("sc-verify-");
+}
+
+function removeSessionArtifacts(scenario, session) {
+  fs.rmSync(sessionFile(scenario), { force: true });
+  if (isManagedProfile(session?.profile)) fs.rmSync(session.profile, { recursive: true, force: true });
 }
 
 async function freePort() {
@@ -192,163 +278,220 @@ async function attachConsoleCollector(port, append) {
 /**
  * 常驻进程本体：持有浏览器直到收到 SIGTERM。
  */
-async function serve(scenario, { headed }) {
+async function serve(scenario, { headed, lockToken }) {
   requireBuiltExtension();
+  claimLock(scenario, lockToken);
 
   const dir = scenarioDir(scenario);
   fs.mkdirSync(dir, { recursive: true });
   const consolePath = path.join(dir, CONSOLE_LOG);
   const appendConsole = (line) => fs.appendFileSync(consolePath, `${new Date().toISOString()} ${line}\n`);
 
-  const port = await freePort();
-  const profile = fs.mkdtempSync(path.join(os.tmpdir(), `sc-verify-${scenario}-`));
+  let profile;
+  let context;
+  let collector;
+  try {
+    const port = await freePort();
+    profile = fs.mkdtempSync(path.join(os.tmpdir(), `sc-verify-${scenario}-`));
 
-  const launch = (extraArgs) =>
-    chromium.launchPersistentContext(profile, {
-      headless: false,
-      args: [
-        `--disable-extensions-except=${EXTENSION_DIR}`,
-        `--load-extension=${EXTENSION_DIR}`,
-        "--disable-gpu",
-        ...(headed ? [] : ["--headless=new"]),
-        ...extraArgs,
-      ],
-      timeout: 60_000,
-    });
+    const launch = (extraArgs) =>
+      chromium.launchPersistentContext(profile, {
+        headless: false,
+        args: [
+          `--disable-extensions-except=${EXTENSION_DIR}`,
+          `--load-extension=${EXTENSION_DIR}`,
+          "--disable-gpu",
+          ...(headed ? [] : ["--headless=new"]),
+          ...extraArgs,
+        ],
+        timeout: 60_000,
+      });
 
-  // 阶段一：授权 userScripts 后立刻关掉。userScripts 是可选权限，不授权则页面脚本
-  // 永远不会注入；而 updateExtensionConfiguration 会重载扩展，重载期间它自己的页面
-  // 会 ERR_BLOCKED_BY_CLIENT。授权落在 profile 里，所以重启一次即可干净接管。
-  {
-    const setup = await launch([]);
-    let [bg] = setup.serviceWorkers();
-    if (!bg) bg = await setup.waitForEvent("serviceworker", { timeout: 30_000 });
-    const id = bg.url().split("/")[2];
-    const grantPage = await setup.newPage();
-    await grantPage.goto("chrome://extensions/");
-    await grantPage.waitForLoadState("domcontentloaded");
-    await grantPage.waitForFunction(() => !!chrome.developerPrivate, { timeout: 10_000 });
-    await grantPage.evaluate(async (extId) => {
-      await chrome.developerPrivate.updateExtensionConfiguration({ extensionId: extId, userScriptsAccess: true });
-    }, id);
-    await setup.close();
-  }
-
-  // 阶段二：真正对外提供服务的实例，带 CDP 端口
-  const context = await launch([`--remote-debugging-port=${port}`]);
-  await context.addInitScript(dismissOnboarding);
-
-  let [worker] = context.serviceWorkers();
-  if (!worker) worker = await context.waitForEvent("serviceworker", { timeout: 30_000 });
-  const extensionId = worker.url().split("/")[2];
-
-  // 扩展安装后会自己弹引导页，且是在 SW 起来之后异步开的；不清掉的话 drive.mjs pages
-  // 里全是噪声。等一小会儿再扫一次，覆盖这个时间差。
-  // 必须在写会话文件之前扫干净：会话一旦对外可见，drive.mjs 打开的页面就不能再被误关。
-  const sweepStrayTabs = async () => {
-    for (const page of context.pages()) {
-      if (!page.url().startsWith("about:blank")) await page.close().catch(() => {});
-    }
-  };
-  await sweepStrayTabs();
-  await new Promise((resolve) => setTimeout(resolve, 2_500));
-  await sweepStrayTabs();
-
-  const collector = await attachConsoleCollector(port, appendConsole);
-
-  const session = {
-    scenario,
-    port,
-    extensionId,
-    profile,
-    headed: !!headed,
-    pid: process.pid,
-    startedAt: new Date().toISOString(),
-    cdp: `http://127.0.0.1:${port}`,
-  };
-  fs.writeFileSync(path.join(dir, SESSION_FILE), `${JSON.stringify(session, null, 2)}\n`);
-  appendConsole(`[session] started ${headed ? "headed" : "headless"} on port ${port}, extension ${extensionId}`);
-
-  let closing = false;
-  const shutdown = async () => {
-    if (closing) return;
-    closing = true;
-    appendConsole("[session] stopping");
+    // 阶段一：授权 userScripts 后立刻关掉。userScripts 是可选权限，不授权则页面脚本
+    // 永远不会注入；而 updateExtensionConfiguration 会重载扩展，重载期间它自己的页面
+    // 会 ERR_BLOCKED_BY_CLIENT。授权落在 profile 里，所以重启一次即可干净接管。
+    let setup;
     try {
-      collector.close();
-      await context.close();
-    } catch {
-      // 浏览器可能已被外部关闭
+      setup = await launch([]);
+      let [bg] = setup.serviceWorkers();
+      if (!bg) bg = await setup.waitForEvent("serviceworker", { timeout: 30_000 });
+      const id = bg.url().split("/")[2];
+      const grantPage = await setup.newPage();
+      await grantPage.goto("chrome://extensions/");
+      await grantPage.waitForLoadState("domcontentloaded");
+      await grantPage.waitForFunction(() => !!chrome.developerPrivate, { timeout: 10_000 });
+      await grantPage.evaluate(async (extId) => {
+        await chrome.developerPrivate.updateExtensionConfiguration({ extensionId: extId, userScriptsAccess: true });
+      }, id);
+    } finally {
+      await setup?.close().catch(() => {});
     }
-    fs.rmSync(profile, { recursive: true, force: true });
-    fs.rmSync(path.join(dir, SESSION_FILE), { force: true });
-    process.exit(0);
-  };
-  process.on("SIGTERM", shutdown);
-  process.on("SIGINT", shutdown);
-  // 人工关掉 headed 窗口时，进程也应随之退出，不留下悬空的会话文件
-  context.on("close", shutdown);
+
+    // 阶段二：真正对外提供服务的实例，带 CDP 端口
+    context = await launch([`--remote-debugging-port=${port}`]);
+    await context.addInitScript(dismissOnboarding);
+
+    let [worker] = context.serviceWorkers();
+    if (!worker) worker = await context.waitForEvent("serviceworker", { timeout: 30_000 });
+    const extensionId = worker.url().split("/")[2];
+
+    // 扩展安装后会自己弹引导页，且是在 SW 起来之后异步开的；不清掉的话 drive.mjs pages
+    // 里全是噪声。等一小会儿再扫一次，覆盖这个时间差。
+    // 必须在写会话文件之前扫干净：会话一旦对外可见，drive.mjs 打开的页面就不能再被误关。
+    const sweepStrayTabs = async () => {
+      for (const page of context.pages()) {
+        if (!page.url().startsWith("about:blank")) await page.close().catch(() => {});
+      }
+    };
+    await sweepStrayTabs();
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+    await sweepStrayTabs();
+
+    collector = await attachConsoleCollector(port, appendConsole);
+
+    const session = {
+      scenario,
+      port,
+      extensionId,
+      profile,
+      token: lockToken,
+      headed: !!headed,
+      pid: process.pid,
+      startedAt: new Date().toISOString(),
+      cdp: `http://127.0.0.1:${port}`,
+    };
+    fs.writeFileSync(sessionFile(scenario), `${JSON.stringify(session, null, 2)}\n`);
+    appendConsole(`[session] started ${headed ? "headed" : "headless"} on port ${port}, extension ${extensionId}`);
+
+    let closing = false;
+    const shutdown = async () => {
+      if (closing) return;
+      closing = true;
+      appendConsole("[session] stopping");
+      try {
+        collector?.close();
+        await context.close();
+      } catch {
+        // 浏览器可能已被外部关闭
+      }
+      removeSessionArtifacts(scenario, session);
+      removeLock(scenario, lockToken);
+      process.exit(0);
+    };
+    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", shutdown);
+    // 人工关掉 headed 窗口时，进程也应随之退出，不留下悬空的会话文件
+    context.on("close", shutdown);
+  } catch (error) {
+    collector?.close();
+    await context?.close().catch(() => {});
+    if (profile) {
+      if (isManagedProfile(profile)) fs.rmSync(profile, { recursive: true, force: true });
+    }
+    removeSessionArtifacts(scenario, null);
+    removeLock(scenario, lockToken);
+    throw error;
+  }
 }
 
 async function start(scenario, { headed }) {
   requireBuiltExtension();
+  validateScenario(scenario);
 
-  const existing = readSession(scenario);
-  if (existing && isAlive(existing)) {
-    console.log(`会话已在运行：${scenario} (pid ${existing.pid}, port ${existing.port})`);
-    return;
-  }
-
-  const dir = scenarioDir(scenario);
-  fs.mkdirSync(dir, { recursive: true });
-  fs.rmSync(path.join(dir, SESSION_FILE), { force: true });
-
-  const logFd = fs.openSync(path.join(dir, DAEMON_LOG), "a");
-  const child = spawn(process.execPath, [__filename, "__serve", scenario, ...(headed ? ["--headed"] : [])], {
-    detached: true,
-    stdio: ["ignore", logFd, logFd],
-  });
-  child.unref();
-
-  const deadline = Date.now() + 90_000;
-  while (Date.now() < deadline) {
-    const session = readSession(scenario);
-    if (session) {
-      console.log(`✓ 会话已启动：${scenario}`);
-      console.log(`  模式        ${session.headed ? "headed（可见）" : "headless（不可见）"}`);
-      console.log(`  CDP         ${session.cdp}`);
-      console.log(`  扩展 ID     ${session.extensionId}`);
-      console.log(`  证据目录    ${path.relative(REPO_ROOT, dir)}/`);
-      console.log(`  下一步      node e2e/drive.mjs open options`);
+  const lockToken = acquireLock(scenario);
+  let child;
+  try {
+    const existing = readSession(scenario);
+    if (existing && isAlive(existing)) {
+      removeLock(scenario, lockToken);
+      console.log(`会话已在运行：${scenario} (pid ${existing.pid}, port ${existing.port})`);
       return;
     }
-    if (child.exitCode !== null) break;
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    if (existing) removeSessionArtifacts(scenario, existing);
+
+    const dir = scenarioDir(scenario);
+    const logFd = fs.openSync(path.join(dir, DAEMON_LOG), "a");
+    try {
+      child = spawn(
+        process.execPath,
+        [__filename, "__serve", scenario, `--lock-token=${lockToken}`, ...(headed ? ["--headed"] : [])],
+        {
+          detached: true,
+          stdio: ["ignore", logFd, logFd],
+        }
+      );
+    } finally {
+      fs.closeSync(logFd);
+    }
+    child.unref();
+
+    const deadline = Date.now() + 90_000;
+    while (Date.now() < deadline) {
+      const session = readSession(scenario);
+      if (session) {
+        console.log(`✓ 会话已启动：${scenario}`);
+        console.log(`  模式        ${session.headed ? "headed（可见）" : "headless（不可见）"}`);
+        console.log(`  CDP         ${session.cdp}`);
+        console.log(`  扩展 ID     ${session.extensionId}`);
+        console.log(`  证据目录    ${path.relative(REPO_ROOT, dir)}/`);
+        console.log(`  下一步      node e2e/drive.mjs open options`);
+        return;
+      }
+      if (child.exitCode !== null) break;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    throw new Error(`会话启动失败，看 ${path.relative(REPO_ROOT, path.join(dir, DAEMON_LOG))}`);
+  } catch (error) {
+    let childStopped = true;
+    if (child?.pid) {
+      try {
+        process.kill(child.pid, "SIGTERM");
+      } catch {
+        // 子进程可能已经退出
+      }
+      const deadline = Date.now() + 20_000;
+      while (Date.now() < deadline && isAlive({ pid: child.pid })) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+      childStopped = !isAlive({ pid: child.pid });
+    }
+    if (childStopped) {
+      removeSessionArtifacts(scenario, readSession(scenario));
+      removeLock(scenario, lockToken);
+    }
+    console.error(`✗ ${error.message}`);
+    if (!childStopped) console.error("✗ 子进程仍在运行，保留 session/profile 以避免破坏活动会话");
+    process.exit(1);
   }
-  console.error(`✗ 会话启动失败，看 ${path.relative(REPO_ROOT, path.join(dir, DAEMON_LOG))}`);
-  process.exit(1);
 }
 
 async function stop(scenario) {
+  validateScenario(scenario);
   const session = readSession(scenario);
   if (!session) {
+    const lock = readJson(lockFile(scenario));
+    if (lock && !isAlive(lock)) removeLock(scenario, lock.token);
     console.log(`没有会话：${scenario}`);
     return;
   }
   if (!isAlive(session)) {
-    fs.rmSync(path.join(scenarioDir(scenario), SESSION_FILE), { force: true });
-    fs.rmSync(session.profile, { recursive: true, force: true });
+    removeSessionArtifacts(scenario, session);
+    removeLock(scenario, session.token);
     console.log(`清理了残留会话文件：${scenario}`);
     return;
   }
-  process.kill(session.pid, "SIGTERM");
+  try {
+    process.kill(session.pid, "SIGTERM");
+  } catch (error) {
+    if (error?.code !== "ESRCH") throw error;
+  }
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline && isAlive(session)) {
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  // 守护进程负责清理 profile 与会话文件；它没做完就兜底，避免留下几百 MB 的 profile
-  fs.rmSync(path.join(scenarioDir(scenario), SESSION_FILE), { force: true });
-  fs.rmSync(session.profile, { recursive: true, force: true });
+  if (isAlive(session)) throw new Error(`会话未能在 20 秒内停止：${scenario}`);
+  removeSessionArtifacts(scenario, session);
+  removeLock(scenario, session.token);
   console.log(`✓ 已停止：${scenario}`);
 }
 
@@ -388,7 +531,7 @@ async function main() {
 
   switch (command) {
     case "__serve":
-      await serve(scenario, { headed });
+      await serve(scenario, { headed, lockToken: argv.find((arg) => arg.startsWith("--lock-token="))?.slice(13) });
       break;
     case "start":
       if (!scenario) {
@@ -399,7 +542,7 @@ async function main() {
       break;
     case "stop":
       if (argv.includes("--all")) {
-        for (const session of liveSessions()) await stop(session.scenario);
+        for (const scenarioName of allSessionScenarios()) await stop(scenarioName);
       } else if (!scenario) {
         console.error("✗ 需要 scenario 名，或用 --all");
         process.exit(1);
