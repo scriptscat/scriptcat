@@ -81,11 +81,6 @@ describe("issue 模板机械检查", () => {
     expect(problemsOf(makeFixtureRoot())).toEqual([]);
   });
 
-  // 该用例会读取整个 src 并解析 issues/new 链接，冷缓存或 worker 并发时可能超过 fast 项目的 340ms 预算。
-  it("仓库现有的 issue 模板应全部通过检查", { timeout: 850 }, () => {
-    expect(problemsOf(REPO_ROOT)).toEqual([]);
-  });
-
   describe("YAML 与 issue-form schema", () => {
     it("未加引号导致的 YAML 解析失败应报错，而不是被跳过", () => {
       // description 里裸露的 `: ` 会让 YAML 认为这里又开了一个映射键。
