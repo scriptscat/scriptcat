@@ -1420,6 +1420,17 @@ export default class GMApi {
     const fileName = cleanFileName(params.name);
     // blob本地文件或显示指定downloadMode为"browser"则直接下载
     const blobURL = params.url;
+    const cancelDisconnectedDownload = () => {
+      if (typeof cDownloadId !== "number" || cDownloadId <= 0 || reqCompleteWith) return;
+      reqCompleteWith = "disconnected";
+      chrome.downloads.cancel(cDownloadId, () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.downloads.cancel:", lastError);
+        }
+      });
+      detachDownloadCallback(cDownloadId);
+    };
     const downloadCallback = (o: DownloadCallback) => {
       if (o.state === "complete") {
         if (!isConnDisconnected && !reqCompleteWith) {
@@ -1451,16 +1462,7 @@ export default class GMApi {
     msgConn.onDisconnect(() => {
       if (isConnDisconnected) return;
       isConnDisconnected = true;
-      if (typeof cDownloadId === "number" && cDownloadId > 0 && !reqCompleteWith) {
-        reqCompleteWith = "disconnected";
-        chrome.downloads.cancel(cDownloadId, () => {
-          const lastError = chrome.runtime.lastError;
-          if (lastError) {
-            console.error("chrome.runtime.lastError in chrome.downloads.cancel:", lastError);
-          }
-        });
-        detachDownloadCallback(cDownloadId);
-      }
+      cancelDisconnectedDownload();
     });
     if (!blobURL) {
       if (!isConnDisconnected && !reqCompleteWith) {
@@ -1486,6 +1488,11 @@ export default class GMApi {
       downloadAPIOptions.conflictAction = params.conflictAction;
     }
     cDownloadId = await startDownload(downloadAPIOptions, downloadCallback);
+    // 连接可能在 startDownload 尚未返回 ID 时断开；此时 onDisconnect 无法立即取消，
+    // 拿到迟到的 ID 后必须补做取消，否则会留下无法回报结果的浏览器下载。
+    if (isConnDisconnected) {
+      cancelDisconnectedDownload();
+    }
     if (cDownloadId === undefined) {
       if (!isConnDisconnected && !reqCompleteWith) {
         reqCompleteWith = "error:download_api_error";
