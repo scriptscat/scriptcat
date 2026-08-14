@@ -240,6 +240,7 @@ export function GM_xmlhttpRequest(
     responseType: details.responseType,
     overrideMimeType: details.overrideMimeType,
     anonymous: details.anonymous,
+    mozAnon: details.mozAnon,
     user: details.user,
     password: details.password,
     redirect: details.redirect,
@@ -265,7 +266,9 @@ export function GM_xmlhttpRequest(
     // 均不会产生 upload 阶段。fetch 传输也不绑定 xhr.upload（见 bg_gm_xhr.ts）。
     // 只有真正会产生原生 upload 生命周期时，才告知后台绑定监听器、才在本地为 abort() 补发 upload 事件。
     const uploadMethod = details.method || "GET";
-    const hasRequestBody = dataResolved.type !== "undefined" && dataResolved.type !== "null";
+    // background 会将解码后的普通 object 归一化为无 body，因此不能把它当作 upload 阶段的依据。
+    const hasRequestBody =
+      dataResolved.type !== "undefined" && dataResolved.type !== "null" && dataResolved.type !== "object";
     const canHaveUploadLifecycle =
       !isFetchForcedTransport(details) &&
       uploadMethod !== "GET" &&
@@ -555,6 +558,11 @@ export function GM_xmlhttpRequest(
       done: progressData.loaded,
       totalSize: progressData.total,
     });
+    const invokeUploadHandler = (handler: unknown, data: ReturnType<typeof makeProgressCallbackParam>) => {
+      if (typeof handler === "function") {
+        handler(data);
+      }
+    };
     let loadendCalled = false;
     // uploadDone 只在 canHaveUploadLifecycle 为 true 时才会被读取（见下方 doAbort），
     // 请求不会产生真实 upload 阶段时该标志天然不参与判断
@@ -576,7 +584,7 @@ export function GM_xmlhttpRequest(
     ) => {
       if (!uploadLoadEndCalled) {
         uploadLoadEndCalled = true;
-        details.upload?.onloadend?.(makeProgressCallbackParam(data));
+        invokeUploadHandler(details.upload?.onloadend, makeProgressCallbackParam(data));
       }
     };
     const doLoadEnd = (data: TXhrCallBackArg) => {
@@ -613,7 +621,7 @@ export function GM_xmlhttpRequest(
               loaded: lastUploadEventData?.loaded ?? 0,
               total: lastUploadEventData?.total ?? 0,
             };
-            details.upload?.onabort?.(makeProgressCallbackParam(uploadEventData));
+            invokeUploadHandler(details.upload?.onabort, makeProgressCallbackParam(uploadEventData));
             fireUploadLoadEnd(uploadEventData);
           } else {
             // upload 已经成功完成：兜底补发的 onloadend 使用最后一次真实进度数据，
@@ -630,6 +638,45 @@ export function GM_xmlhttpRequest(
       }
       doAbort = null;
     };
+
+    connect.onDisconnect((isSelfDisconnected) => {
+      if (isSelfDisconnected || reqDone) return;
+
+      const data: TXhrCallBackArg = {
+        finalUrl: "",
+        readyState: ReadyStateCode.DONE,
+        status: 0,
+        statusText: "",
+        responseHeaders: "",
+        error: "Connection disconnected",
+        useFetch: false,
+        eventType: "error",
+        ok: false,
+        contentType: "",
+      };
+      errorOccur = data.error ?? "Connection disconnected";
+
+      if (canHaveUploadLifecycle) {
+        const uploadEventData = {
+          ...data,
+          lengthComputable: lastUploadEventData?.lengthComputable ?? false,
+          loaded: lastUploadEventData?.loaded ?? 0,
+          total: lastUploadEventData?.total ?? 0,
+        };
+        if (!uploadDone) {
+          uploadDone = true;
+          invokeUploadHandler(details.upload?.onabort, makeProgressCallbackParam(uploadEventData));
+        }
+        fireUploadLoadEnd(uploadEventData);
+      }
+
+      details.onerror?.({
+        ...(makeXHRCallbackParam?.(data) ?? {}),
+        error: errorOccur,
+      } as GMXHRResponseTypeWithError);
+      reqDone = true;
+      Promise.resolve({ ...data, type: "loadend" }).then(doLoadEnd);
+    });
 
     let onMessageHandler: ((data: TMessage<any>) => void) | null = (msgData: TMessage<any>) => {
       stackAsyncTask(asyncTaskId, async () => {
@@ -798,11 +845,11 @@ export function GM_xmlhttpRequest(
           // upload 事件均为 ProgressEvent (标准语义)，统一携带 loaded/total/lengthComputable
           case "onuploadloadstart":
             lastUploadEventData = data;
-            details.upload?.onloadstart?.(makeProgressCallbackParam(data));
+            invokeUploadHandler(details.upload?.onloadstart, makeProgressCallbackParam(data));
             break;
           case "onuploadprogress":
             lastUploadEventData = data;
-            details.upload?.onprogress?.(makeProgressCallbackParam(data));
+            invokeUploadHandler(details.upload?.onprogress, makeProgressCallbackParam(data));
             break;
           case "onuploadload":
             // 对齐规范：upload complete flag 在 load 派发前已置位，须先于回调设置，
@@ -811,7 +858,7 @@ export function GM_xmlhttpRequest(
             // 记录真实进度数据：若回调内同步调用 abort()，兜底补发的 onloadend 需要这份数据，
             // 而不是 abort() 合成响应对象里缺省的 undefined
             lastUploadEventData = data;
-            details.upload?.onload?.(makeProgressCallbackParam(data));
+            invokeUploadHandler(details.upload?.onload, makeProgressCallbackParam(data));
             break;
           case "onuploadloadend":
             uploadDone = true;
@@ -827,11 +874,11 @@ export function GM_xmlhttpRequest(
             uploadDone = true;
             suppressSyntheticAbort = true;
             if (msgData.action === "onuploaderror") {
-              details.upload?.onerror?.(makeProgressCallbackParam(data));
+              invokeUploadHandler(details.upload?.onerror, makeProgressCallbackParam(data));
             } else if (msgData.action === "onuploadabort") {
-              details.upload?.onabort?.(makeProgressCallbackParam(data));
+              invokeUploadHandler(details.upload?.onabort, makeProgressCallbackParam(data));
             } else {
-              details.upload?.ontimeout?.(makeProgressCallbackParam(data));
+              invokeUploadHandler(details.upload?.ontimeout, makeProgressCallbackParam(data));
             }
             break;
           // case "onstream":

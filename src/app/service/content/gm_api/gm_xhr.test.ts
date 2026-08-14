@@ -9,22 +9,33 @@ const waitTick = async (times = 3) => {
   }
 };
 
-function createFakeApi(): { api: GMApi; getMessageHandler: () => ((data: TMessage) => void) | undefined } {
+function createFakeApi(): {
+  api: GMApi;
+  getMessageHandler: () => ((data: TMessage) => void) | undefined;
+  getDisconnectHandler: () => ((isSelfDisconnected: boolean) => void) | undefined;
+} {
   let messageHandler: ((data: TMessage) => void) | undefined;
+  let disconnectHandler: ((isSelfDisconnected: boolean) => void) | undefined;
   const fakeConnect: MessageConnect = {
     onMessage: (cb) => {
       messageHandler = cb;
     },
     sendMessage: vi.fn(),
     disconnect: vi.fn(),
-    onDisconnect: vi.fn(),
+    onDisconnect: (cb) => {
+      disconnectHandler = cb;
+    },
   };
   const api = {
     isInvalidContext: () => false,
     connect: vi.fn().mockResolvedValue(fakeConnect),
     sendMessage: vi.fn(),
   } as unknown as GMApi;
-  return { api, getMessageHandler: () => messageHandler };
+  return {
+    api,
+    getMessageHandler: () => messageHandler,
+    getDisconnectHandler: () => disconnectHandler,
+  };
 }
 
 describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
@@ -76,6 +87,42 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
       url: "https://example.com/upload",
       ...extra,
       upload: { onabort: vi.fn(), onloadend: vi.fn() },
+    } as unknown as GMTypes.XHRDetails;
+
+    GM_xmlhttpRequest(api, details, false);
+    await waitTick();
+
+    const connectMock = api.connect as unknown as ReturnType<typeof vi.fn>;
+    const [, params] = connectMock.mock.calls[0];
+    expect(params[0].hasUpload).toBe(false);
+  });
+
+  it("mozAnon: true 时，应把匿名传输选项传递给后台并禁用 native upload 生命周期", async () => {
+    const { api } = createFakeApi();
+    const details = {
+      url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
+      mozAnon: true,
+      upload: { onprogress: vi.fn() },
+    } as unknown as GMTypes.XHRDetails;
+
+    GM_xmlhttpRequest(api, details, false);
+    await waitTick();
+
+    const connectMock = api.connect as unknown as ReturnType<typeof vi.fn>;
+    const [, params] = connectMock.mock.calls[0];
+    expect(params[0].mozAnon).toBe(true);
+    expect(params[0].hasUpload).toBe(false);
+  });
+
+  it("后台会丢弃的 object 请求体不应被误判为真实 upload 生命周期", async () => {
+    const { api } = createFakeApi();
+    const details = {
+      url: "https://example.com/upload",
+      method: "POST",
+      data: { payload: "value" },
+      upload: { onprogress: vi.fn() },
     } as unknown as GMTypes.XHRDetails;
 
     GM_xmlhttpRequest(api, details, false);
@@ -173,6 +220,94 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
       expect(arg.lengthComputable).toBe(true);
     }
   );
+
+  it("upload handler 为非函数值时，收到消息不应抛错或阻断其他合法 handler", async () => {
+    const { api, getMessageHandler } = createFakeApi();
+    const onload = vi.fn();
+    const details = {
+      url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
+      upload: {
+        onprogress: true as unknown as GMTypes.Listener<GMTypes.XHRProgress>,
+        onload,
+      },
+    } as unknown as GMTypes.XHRDetails;
+
+    GM_xmlhttpRequest(api, details, false);
+    await waitTick();
+    const messageHandler = getMessageHandler();
+    expect(messageHandler).toBeTypeOf("function");
+
+    messageHandler!({
+      action: "onuploadprogress",
+      data: {
+        finalUrl: "",
+        readyState: 1,
+        status: 0,
+        statusText: "",
+        responseHeaders: "",
+        useFetch: false,
+        eventType: "uploadprogress",
+        ok: false,
+        contentType: "",
+        loaded: 10,
+        total: 20,
+        lengthComputable: true,
+      },
+    });
+    messageHandler!({
+      action: "onuploadload",
+      data: {
+        finalUrl: "",
+        readyState: 1,
+        status: 0,
+        statusText: "",
+        responseHeaders: "",
+        useFetch: false,
+        eventType: "uploadload",
+        ok: false,
+        contentType: "",
+        loaded: 20,
+        total: 20,
+        lengthComputable: true,
+      },
+    });
+    await waitTick();
+
+    expect(onload).toHaveBeenCalledTimes(1);
+  });
+
+  it("远端连接在终态消息前断开时，应以错误结算请求并结束 upload 生命周期", async () => {
+    const { api, getDisconnectHandler } = createFakeApi();
+    const onerror = vi.fn();
+    const onloadend = vi.fn();
+    const onUploadAbort = vi.fn();
+    const onUploadLoadEnd = vi.fn();
+    const details = {
+      url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
+      onerror,
+      onloadend,
+      upload: { onabort: onUploadAbort, onloadend: onUploadLoadEnd },
+    } as unknown as GMTypes.XHRDetails;
+
+    const { retPromise } = GM_xmlhttpRequest(api, details, true);
+    const rejection = retPromise!.catch((reason) => reason);
+    await waitTick();
+    const disconnectHandler = getDisconnectHandler();
+    expect(disconnectHandler).toBeTypeOf("function");
+
+    disconnectHandler!(false);
+    await waitTick();
+
+    expect(onerror).toHaveBeenCalledTimes(1);
+    expect(onloadend).toHaveBeenCalledTimes(1);
+    expect(onUploadAbort).toHaveBeenCalledTimes(1);
+    expect(onUploadLoadEnd).toHaveBeenCalledTimes(1);
+    await expect(rejection).resolves.toBe("Connection disconnected");
+  });
 
   it("调用返回的 abort() 时，若 upload 阶段尚未完成（POST 带请求体），应先补发 details.upload.onabort 与 onloadend", async () => {
     const { api } = createFakeApi();
