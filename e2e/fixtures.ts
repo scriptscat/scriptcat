@@ -32,8 +32,9 @@ const chromeArgs = [
  * 必须作为启动参数下发：`--headless=new` 会覆盖 Playwright 的 `headless` 选项，
  * 所以单独把 `headless` 设成 false（含 `--debug`/PWDEBUG）并不会开出窗口。
  */
-export function headlessArgs(): string[] {
-  return process.env.E2E_HEADED ? [] : ["--headless=new"];
+export function headlessArgs(value = process.env.E2E_HEADED): string[] {
+  const headed = /^(1|true|yes)$/i.test(value?.trim() ?? "");
+  return headed ? [] : ["--headless=new"];
 }
 
 // CI（GitHub Actions）跑在非 root 用户下不会自动应用 --no-sandbox，关掉沙箱能省下每次

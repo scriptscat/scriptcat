@@ -77,7 +77,7 @@ From a session the same call is one command, since `eval` already runs on an ext
 
 ```bash
 node e2e/drive.mjs open options
-node e2e/drive.mjs eval "const r = await chrome.runtime.sendMessage({action:'serviceWorker/popup/getPopupData', data:{tabId, url}}); return r.data.scriptList"
+node e2e/drive.mjs eval "const [tab] = await chrome.tabs.query({active:true,lastFocusedWindow:true}); if (!tab?.id || !tab.url) throw new Error('no active tab'); const r = await chrome.runtime.sendMessage({action:'serviceWorker/popup/getPopupData', data:{tabId:tab.id, url:tab.url}}); return r.data.scriptList"
 ```
 
 This drives the real SW → content → sandbox → callback path, behaviourally identical to the popup button, which discards the DOM event and calls the same message. It is a substitution: the verdict row names it and says the popup's own click path was not covered.
