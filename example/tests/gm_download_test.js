@@ -600,7 +600,7 @@ const enableTool = true;
     let errSeen = null;
     await new Promise((resolve) => {
       GM_download({
-        url: "https://blocked-host-not-in-connect.example/",
+        url: "http://127.0.0.1:1/",
         name,
         downloadMode: "native",
         onload() { onloadCalled = true; resolve(); },
