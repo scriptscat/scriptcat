@@ -6,6 +6,19 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function setOwn(value: Record<string, unknown>, key: string, next: unknown): void {
+  Object.defineProperty(value, key, {
+    configurable: true,
+    enumerable: true,
+    value: next,
+    writable: true,
+  });
+}
+
 const JSON_CONFIG_STORAGE_FORMAT = "scriptcat-json-overrides";
 const JSON_CONFIG_STORAGE_VERSION = 1;
 
@@ -23,9 +36,21 @@ export type DecodedJsonConfig = {
 function isStoredJsonConfig(value: unknown): value is StoredJsonConfig {
   return (
     isPlainObject(value) &&
+    hasOwn(value, "format") &&
     value.format === JSON_CONFIG_STORAGE_FORMAT &&
+    hasOwn(value, "version") &&
     value.version === JSON_CONFIG_STORAGE_VERSION &&
-    "overrides" in value
+    hasOwn(value, "overrides")
+  );
+}
+
+function isJsonConfigEnvelope(value: unknown): value is Record<string, unknown> {
+  return (
+    isPlainObject(value) &&
+    hasOwn(value, "format") &&
+    value.format === JSON_CONFIG_STORAGE_FORMAT &&
+    hasOwn(value, "version") &&
+    hasOwn(value, "overrides")
   );
 }
 
@@ -39,8 +64,8 @@ function encodeOverrides(overrides: unknown): string {
 
 function getStoredOverrides(stored: unknown): unknown {
   if (isStoredJsonConfig(stored)) return stored.overrides;
-  if (isPlainObject(stored) && stored.format === JSON_CONFIG_STORAGE_FORMAT) {
-    if (stored.version !== JSON_CONFIG_STORAGE_VERSION || !("overrides" in stored)) {
+  if (isJsonConfigEnvelope(stored)) {
+    if (stored.version !== JSON_CONFIG_STORAGE_VERSION) {
       throw new Error(`Unsupported JSON config storage version: ${String(stored.version)}`);
     }
     return stored.overrides;
@@ -53,7 +78,7 @@ export function deepMerge(defaults: unknown, overrides: unknown): unknown {
   if (!isPlainObject(defaults) || !isPlainObject(overrides)) return overrides;
   const result: Record<string, unknown> = { ...defaults };
   for (const [key, value] of Object.entries(overrides)) {
-    result[key] = key in defaults ? deepMerge(defaults[key], value) : value;
+    setOwn(result, key, hasOwn(defaults, key) ? deepMerge(defaults[key], value) : value);
   }
   return result;
 }
@@ -65,7 +90,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
   }
   if (isPlainObject(a) && isPlainObject(b)) {
     const keysA = Object.keys(a);
-    return keysA.length === Object.keys(b).length && keysA.every((k) => k in b && deepEqual(a[k], b[k]));
+    return keysA.length === Object.keys(b).length && keysA.every((k) => hasOwn(b, k) && deepEqual(a[k], b[k]));
   }
   return false;
 }
@@ -77,11 +102,11 @@ export function deepDiff(value: unknown, defaults: unknown): unknown {
   if (!isPlainObject(value) || !isPlainObject(defaults)) return value;
   const result: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(value)) {
-    if (key in defaults) {
+    if (hasOwn(defaults, key)) {
       const diff = deepDiff(val, defaults[key]);
-      if (diff !== undefined) result[key] = diff;
+      if (diff !== undefined) setOwn(result, key, diff);
     } else {
-      result[key] = val;
+      setOwn(result, key, val);
     }
   }
   return Object.keys(result).length === 0 ? undefined : result;
@@ -101,7 +126,7 @@ export function diffJsonConfig(defaultStr: string, valueStr: string): string | u
 // 兼容稀疏格式发布前的全量配置，并在首次读取时收敛为带版本的稀疏差异。
 export function decodeJsonConfig(defaultStr: string, legacyDefaultStr: string, storedStr: string): DecodedJsonConfig {
   const stored = JSON.parse(storedStr);
-  if (isPlainObject(stored) && stored.format === JSON_CONFIG_STORAGE_FORMAT) {
+  if (isJsonConfigEnvelope(stored)) {
     return { value: mergeJsonConfig(defaultStr, storedStr) };
   }
 

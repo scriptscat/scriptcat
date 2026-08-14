@@ -44,6 +44,13 @@ describe("deepDiff 稀疏差异", () => {
   it("用户新增的键应保留", () => {
     expect(deepDiff({ a: 1, custom: "x" }, { a: 1 })).toEqual({ custom: "x" });
   });
+
+  it("__proto__ 键应作为普通 JSON 属性参与差异计算", () => {
+    const value = JSON.parse('{"__proto__":{"polluted":true}}');
+
+    expect(deepDiff(value, {})).toEqual(value);
+    expect(deepMerge({}, value)).toEqual(value);
+  });
 });
 
 describe("JSON 配置字符串编解码", () => {
@@ -85,6 +92,16 @@ describe("JSON 配置字符串编解码", () => {
       version: 1,
       overrides: { b: 2 },
     });
+  });
+
+  it("旧版配置中的 format 键不应被当作稀疏存储 envelope", () => {
+    const decoded = decodeJsonConfig(
+      JSON.stringify({ a: 2 }),
+      JSON.stringify({ a: 1 }),
+      JSON.stringify({ a: 1, format: "scriptcat-json-overrides" })
+    );
+
+    expect(JSON.parse(decoded.value)).toEqual({ a: 2, format: "scriptcat-json-overrides" });
   });
 
   it("未知的稀疏格式版本应拒绝解码", () => {
