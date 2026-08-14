@@ -37,7 +37,20 @@ export const DEFAULT_CLOUD_SYNC_STATE: CloudSyncState = {
   counts: { total: 0, overwrite: 0, conflict: 0, failed: 0 },
 };
 
-export type FaviconService = "scriptcat" | "google" | "duckduckgo" | "icon-horse" | "local";
+// "none" 表示彻底关闭网站图标获取：不向任何图标服务或目标站点发起请求
+export type FaviconService = "none" | "scriptcat" | "google" | "duckduckgo" | "icon-horse" | "local";
+
+// 外部接入 · 每类操作的人机闸门策略：需人工审批（默认）/ 直接允许。写操作与源码读取各持一份，
+// 对 CLI 与 MCP 一视同仁（源码读取不再对 CLI 豁免）。
+export type ExternalAccessWritePolicy = "approval" | "allow";
+export type ExternalAccessSourceReadPolicy = "approval" | "allow";
+
+// MCP 配对成功后落地的长期共享密钥 K（小写 hex）与本扩展实例的客户端身份。
+// key 为空串表示尚未配对。仅存 chrome.storage.local，绝不跨设备同步。
+export type ExternalAccessPairing = {
+  key: string;
+  clientId: string;
+};
 
 export type CATFileStorage = {
   filesystem: FileSystemType;
@@ -401,6 +414,14 @@ export class SystemConfig {
     this._set("vscode_reconnect", val);
   }
 
+  public getKeepExtBackgroundAlive() {
+    return this._get<boolean>("keep_ext_background_alive", false);
+  }
+
+  public setKeepExtBackgroundAlive(val: boolean) {
+    this._set("keep_ext_background_alive", val);
+  }
+
   defaultBackup(): Parameters<typeof this.setBackup>[0] {
     return {
       filesystem: "webdav" as FileSystemType,
@@ -541,7 +562,7 @@ export class SystemConfig {
     return 5;
   }
 
-  // 展开菜单数
+  // 单个脚本行内展开的菜单项数量，0 表示展开脚本行后才显示菜单
   getMenuExpandNum() {
     return this._get<number>("menu_expand_num", this.defaultMenuExpandNum());
   }
@@ -550,12 +571,29 @@ export class SystemConfig {
     this._set("menu_expand_num", val);
   }
 
+  /** popup 每个分组展开显示的脚本数量，0 表示不折叠 */
+  getScriptListExpandNum() {
+    return this._get<number>("script_list_expand_num", 5);
+  }
+
+  setScriptListExpandNum(val: number) {
+    this._set("script_list_expand_num", val);
+  }
+
   getPopupCompactLayout() {
     return this._get<boolean>("popup_compact_layout", false);
   }
 
   setPopupCompactLayout(val: boolean) {
     this._set("popup_compact_layout", val);
+  }
+
+  getPopupSiteScopeActions() {
+    return this._get<boolean>("popup_site_scope_actions", false);
+  }
+
+  setPopupSiteScopeActions(val: boolean) {
+    this._set("popup_site_scope_actions", val);
   }
 
   async getLanguage() {
@@ -634,6 +672,46 @@ export class SystemConfig {
 
   async getEnableScriptIncognito() {
     return this._get<boolean>("enable_script_incognito", true);
+  }
+
+  setExternalAccessEnabled(enable: boolean) {
+    this._set("external_access_enabled", enable);
+  }
+
+  getExternalAccessEnabled() {
+    return this._get<boolean>("external_access_enabled", false);
+  }
+
+  setExternalAccessUrl(url: string) {
+    this._set("external_access_url", url);
+  }
+
+  getExternalAccessUrl() {
+    return this._get<string>("external_access_url", "ws://localhost:8643");
+  }
+
+  setExternalAccessWritePolicy(policy: ExternalAccessWritePolicy) {
+    this._set("external_access_write_policy", policy);
+  }
+
+  getExternalAccessWritePolicy() {
+    return this._get<ExternalAccessWritePolicy>("external_access_write_policy", "approval");
+  }
+
+  setExternalAccessSourceReadPolicy(policy: ExternalAccessSourceReadPolicy) {
+    this._set("external_access_source_read_policy", policy);
+  }
+
+  getExternalAccessSourceReadPolicy() {
+    return this._get<ExternalAccessSourceReadPolicy>("external_access_source_read_policy", "approval");
+  }
+
+  setExternalAccessPairing(pairing: ExternalAccessPairing | undefined) {
+    this._set("external_access_pairing", pairing);
+  }
+
+  getExternalAccessPairing() {
+    return this._get<ExternalAccessPairing>("external_access_pairing", { key: "", clientId: "" });
   }
 
   setBlacklist(blacklist: string) {

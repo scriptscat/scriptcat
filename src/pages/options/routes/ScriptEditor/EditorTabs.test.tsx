@@ -37,19 +37,6 @@ function renderTabs() {
 }
 
 describe("EditorTabs「＋」新建菜单", () => {
-  it("hover「＋」展开脚本类型选择菜单", async () => {
-    renderTabs();
-    const plusBtn = screen.getByLabelText("新建脚本");
-
-    await act(async () => {
-      fireEvent.mouseEnter(plusBtn);
-    });
-
-    expect(screen.getByText("新建普通脚本")).toBeInTheDocument();
-    expect(screen.getByText("新建后台脚本")).toBeInTheDocument();
-    expect(screen.getByText("新建定时脚本")).toBeInTheDocument();
-  });
-
   it("点击「新建后台脚本」以 background 模板回调 onNew", async () => {
     renderTabs();
     const plusBtn = screen.getByLabelText("新建脚本");

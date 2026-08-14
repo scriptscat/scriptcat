@@ -1,7 +1,6 @@
 import type {
   Message,
   MessageConnect,
-  MessageSend,
   OnConnectCallback,
   OnMessageCallback,
   RuntimeMessageSender,
@@ -36,17 +35,36 @@ export type WindowMessageBody<T = any> = {
 export class WindowMessage implements Message {
   EE = new EventEmitter<string, any>();
 
+  private readonly getTarget: () => Window;
+
   // source: Window 消息来源
-  // target: Window 消息目标
+  // target: 消息目标。可传入 Window，也可传入一个惰性求值的函数。
+  // 后者用于类似 Firefox sandbox iframe 的场景：iframe 刚创建时 contentWindow 指向初始的
+  // about:blank 文档，若在此刻就缓存这个引用，后续导航到真正的 sandbox 页面后，
+  // 该引用是否仍与事件的 e.source 全等取决于浏览器实现，不可依赖。传入函数可在每次
+  // 发送/比对时都重新读取 iframe.contentWindow，天然避免这类过早缓存的问题。
   constructor(
     private source: Window,
-    private target: Window,
+    target: Window | (() => Window),
     private serviceWorker?: boolean
   ) {
+    this.getTarget = typeof target === "function" ? target : () => target;
     // 监听消息
     this.source.addEventListener("message", (e) => {
-      if (e.source === this.target || e.source === this.source) {
-        this.messageHandle(e.data, new WindowPostMessage(this.target));
+      // target 可能是惰性求值的，解析可能失败(例如 Firefox sandbox iframe 已从 DOM 移除)。
+      // 用 try/catch 包住，避免这次失败连累了 e.source === this.source 的判断——
+      // 两者应是互相独立的匹配条件，前者解析失败不代表后者也不成立。
+      let target: Window | undefined;
+      try {
+        target = this.getTarget();
+      } catch {
+        target = undefined;
+      }
+      if (target === undefined) {
+        return; // 无法确定回应目标，放弃处理这条消息，而不是让异常冒出事件回调
+      }
+      if (e.source === target || e.source === this.source) {
+        this.messageHandle(e.data, new WindowPostMessage(target));
       }
     });
     // 是否监听serviceWorker消息
@@ -99,10 +117,11 @@ export class WindowMessage implements Message {
         type: "connect",
         data,
       };
-      this.target.postMessage(body, "*");
+      const target = this.getTarget();
+      target.postMessage(body, "*");
       // 使用 WindowPostMessage 包装，确保后续 sendMessage 也带 "*" targetOrigin
       // 否则沙箱（origin: null）→ offscreen（origin: chrome-extension://）的消息会被丢弃
-      resolve(new WindowMessageConnect(body.messageId, this.EE, new WindowPostMessage(this.target)));
+      resolve(new WindowMessageConnect(body.messageId, this.EE, new WindowPostMessage(target)));
     });
   }
 
@@ -127,7 +146,7 @@ export class WindowMessage implements Message {
         resolve!(body.data as T);
         resolve = null; // 设为 null 提醒JS引擎可以GC
       });
-      this.target.postMessage(body, "*");
+      this.getTarget().postMessage(body, "*");
     });
   }
 }
@@ -316,7 +335,7 @@ export class ServiceWorkerMessageSend implements Message {
 // 与ServiceWorkerMessageSend配对使用,实现Offscreen→SW的postMessage通道
 // 注意: 扩展offscreen页面的navigator.serviceWorker.controller通常为null,
 // 需要通过navigator.serviceWorker.ready获取registration.active
-export class ServiceWorkerClientMessage implements MessageSend {
+export class ServiceWorkerClientMessage implements Message {
   EE = new EventEmitter<string, any>();
 
   private sw: ServiceWorker | null = null;
@@ -324,7 +343,7 @@ export class ServiceWorkerClientMessage implements MessageSend {
 
   constructor() {
     navigator.serviceWorker.addEventListener("message", (e) => {
-      this.messageHandle(e.data);
+      this.messageHandle(e.data, e.source as PostMessage);
     });
     // controller在扩展offscreen页面中通常为null,通过ready获取active
     this.sw = navigator.serviceWorker.controller;
@@ -338,15 +357,32 @@ export class ServiceWorkerClientMessage implements MessageSend {
     }
   }
 
-  messageHandle(data: WindowMessageBody) {
+  messageHandle(data: WindowMessageBody, source?: PostMessage) {
     // 只处理响应类消息,请求类消息由WindowMessage处理
-    if (data.type === "respMessage") {
+    if (data.type === "sendMessage" && source) {
+      this.EE.emit(
+        "message",
+        data.data,
+        (resp: any) => source.postMessage({ messageId: data.messageId, type: "respMessage", data: resp }),
+        {} as RuntimeMessageSender
+      );
+    } else if (data.type === "connect" && source) {
+      this.EE.emit("connect", data.data, new WindowMessageConnect(data.messageId, this.EE, source));
+    } else if (data.type === "respMessage") {
       this.EE.emit(`response:${data.messageId}`, data);
     } else if (data.type === "disconnect") {
       this.EE.emit(`disconnect:${data.messageId}`);
     } else if (data.type === "connectMessage") {
       this.EE.emit(`connectMessage:${data.messageId}`, data.data);
     }
+  }
+
+  onMessage(callback: OnMessageCallback): void {
+    this.EE.addListener("message", callback);
+  }
+
+  onConnect(callback: OnConnectCallback): void {
+    this.EE.addListener("connect", callback);
   }
 
   private postToServiceWorker(message: any) {

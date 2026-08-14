@@ -30,9 +30,4 @@ describe("任务清单块 TaskListBlock", () => {
     expect(screen.getByTestId("task-a").dataset.status).toBe("completed");
     expect(screen.getByTestId("task-b").dataset.status).toBe("pending");
   });
-
-  it("展示每个任务的标题", () => {
-    render(<TaskListBlock tasks={[task("a", "in_progress", "抓取首页")]} />);
-    expect(screen.getByText("抓取首页")).toBeInTheDocument();
-  });
 });

@@ -194,6 +194,8 @@
   "downloading_status_percent": "Wird heruntergeladen. {{bytes}} / {{total}} ({{percent}}%) empfangen.",
   "page_load_failed": "Installationsseite konnte nicht geladen werden",
   "invalid_page": "Ungültige Seite",
+  "frame_blocked_title": "Einbettung blockiert",
+  "frame_blocked_desc": "Aus Sicherheitsgründen kann die Installationsseite nicht in einem iframe eingebettet werden. Bitte öffnen Sie sie direkt in einem Browser-Tab.",
   "from_legitimate_sources_warning": "Bitte installieren Sie Skripte aus legitimen Quellen! Unbekannte Skripte können Ihre Privatsphäre verletzen oder bösartige Operationen durchführen!",
   "referral_link_title": "Empfehlungslink",
   "ads_title": "Mit Werbung",

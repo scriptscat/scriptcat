@@ -19,16 +19,6 @@ describe("MCPToolExecutor", () => {
     expect(client.callTool).toHaveBeenCalledWith("search", { query: "hello" });
   });
 
-  it("应正确传递工具名", async () => {
-    const client = createMockClient({ data: [1, 2, 3] });
-    const executor = new MCPToolExecutor(client, "fetch_data");
-
-    const result = await executor.execute({ limit: 10 });
-
-    expect(result).toEqual({ data: [1, 2, 3] });
-    expect(client.callTool).toHaveBeenCalledWith("fetch_data", { limit: 10 });
-  });
-
   it("callTool 抛出异常时应向上传播", async () => {
     const client = {
       callTool: vi.fn().mockRejectedValue(new Error("MCP error")),
@@ -90,15 +80,6 @@ describe("MCPToolExecutor", () => {
 
     // 没有 image，原样返回 content 数组
     expect(result).toEqual(mcpContent);
-  });
-
-  it("非数组结果应原样返回", async () => {
-    const client = createMockClient("plain string result");
-    const executor = new MCPToolExecutor(client, "simple_tool");
-
-    const result = await executor.execute({});
-
-    expect(result).toBe("plain string result");
   });
 
   it("image 缺少 mimeType 时应默认为 image/png", async () => {

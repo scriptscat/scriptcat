@@ -201,6 +201,41 @@ export const checkHasUnsafeHeaders = (key: string) => {
   return false;
 };
 
+/**
+ * 合并脚本自定义 cookie 与网站本身存储的 cookie，供 GM_xmlhttpRequest 非 anonymous 请求使用。
+ * TM兼容:
+ * - 某个 cookie 名称若未被脚本指定，保留浏览器该名称下原本的全部值（无论是 0 个、1 个还是多个，均不改动）。
+ * - 某个 cookie 名称若被脚本指定，则完全以脚本指定的值覆盖该名称浏览器已有的全部值；
+ *   脚本指定的值本身也可以是同名多值，一并保留、不做去重。
+ * @link https://github.com/Tampermonkey/tampermonkey/issues/2754 自定义 cookie 应覆盖同名的已有 cookie
+ * @link https://github.com/Tampermonkey/tampermonkey/issues/2829 覆盖逻辑不应截断其余的 cookie
+ */
+export const mergeCookieHeader = (
+  customCookie: string | undefined,
+  storedCookies: { name: string; value: string }[] | undefined
+): string => {
+  const customNames = new Set<string>();
+  const parts: string[] = [];
+  if (customCookie) {
+    for (const rawPart of customCookie.split(";")) {
+      const part = rawPart.trim();
+      if (!part) continue;
+      const name = part.split("=", 1)[0].trim();
+      if (!name) continue;
+      customNames.add(name);
+      parts.push(part);
+    }
+  }
+  if (storedCookies?.length) {
+    for (const { name, value } of storedCookies) {
+      if (!customNames.has(name)) {
+        parts.push(`${name}=${value}`);
+      }
+    }
+  }
+  return parts.join("; ");
+};
+
 export enum ConnectMatch {
   NONE = 0, // 没有匹配
   ALL = 1, // 遇到 "*" 通配符
@@ -726,12 +761,7 @@ export default class GMApi {
         });
       }
     } else {
-      if (cookie) {
-        // 否则正常携带cookie header
-        headers["cookie"] = cookie;
-      }
-
-      // 追加该网站本身存储的cookie
+      // 该网站本身存储的cookie
       const tabId = sender.getExtMessageSender().tabId;
       let storeId: string | undefined;
       if (tabId !== -1 && typeof tabId === "number") {
@@ -749,11 +779,10 @@ export default class GMApi {
           partitionKey: stripUndefined(params.cookiePartition),
         })
       );
-      // 追加cookie
-      if (cookies?.length) {
-        const v = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-        const u = `${headers["cookie"] || ""}`.trim();
-        headers["cookie"] = u ? `${u}${!u.endsWith(";") ? "; " : " "}${v}` : v;
+      // 合并cookie：脚本自定义的cookie覆盖同名的已有cookie，不同名的cookie全部保留
+      const merged = mergeCookieHeader(cookie, cookies);
+      if (merged) {
+        headers["cookie"] = merged;
       }
     }
 

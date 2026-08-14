@@ -27,14 +27,16 @@ import type { TrashScript } from "@App/app/repo/trash_script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 import type { LocalBackupExport } from "./synchronize";
+import type { ExternalAccessUIService } from "./external_access/service";
+import type { WSEnvelope } from "./external_access/types";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
     super(msgSender, "serviceWorker");
   }
 
-  preparationOffscreen() {
-    return this.do("preparationOffscreen");
+  preparationOffscreen(data: { verified: boolean }) {
+    return this.do("preparationOffscreen", data);
   }
 }
 
@@ -96,6 +98,18 @@ export class ScriptClient extends Client {
 
   excludeUrl(uuid: string, excludePattern: string, remove: boolean) {
     return this.do("excludeUrl", { uuid, excludePattern, remove });
+  }
+
+  onlyRunOnUrl(uuid: string, matchPattern: string) {
+    return this.do("onlyRunOnUrl", { uuid, matchPattern });
+  }
+
+  allowUrl(uuid: string, matchPattern: string, excludePattern: string) {
+    return this.do("allowUrl", { uuid, matchPattern, excludePattern });
+  }
+
+  excludeFromMatch(uuid: string, matchPattern: string) {
+    return this.do("excludeFromMatch", { uuid, matchPattern });
   }
 
   // 重置匹配项
@@ -500,5 +514,74 @@ export class AgentClient extends Client {
   // MCP API
   mcpApi(request: MCPApiRequest): Promise<unknown> {
     return this.doThrow("mcpApi", request);
+  }
+}
+
+// Page-facing client for the external-access bridge (ScriptCat as an MCP *server* exposed
+// to external AI clients) — unrelated to AgentClient.mcpApi above, which is the opposite
+// direction (ScriptCat's own agent acting as an MCP *client* of external servers).
+export class ExternalAccessClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/externalAccess");
+  }
+
+  getBridgeStatus(): Promise<ReturnType<ExternalAccessUIService["getStatus"]>> {
+    return this.doThrow("status");
+  }
+
+  // Enrollment (接入): dial the daemon with the one-time code the user read from `sctl connect`.
+  enroll(code: string) {
+    return this.do("enroll", code);
+  }
+
+  getOperation(operationId: string): ReturnType<ExternalAccessUIService["getOperation"]> {
+    return this.doThrow("operation", operationId);
+  }
+
+  decideOperation(param: {
+    operationId: string;
+    approved: boolean;
+    enable?: boolean;
+    rememberSession?: boolean;
+  }): ReturnType<ExternalAccessUIService["decideOperation"]> {
+    return this.doThrow("operationDecision", param);
+  }
+
+  // Re-opens a still-pending op's confirm page (误关重开入口). The "待确认" reopen row calls this
+  // after the user closed the confirm tab without deciding.
+  reopenOperation(operationId: string): ReturnType<ExternalAccessUIService["reopenOperation"]> {
+    return this.doThrow("operationReopen", operationId);
+  }
+
+  // Still-pending ops for the "待确认" reopen list.
+  getPendingOperations(): ReturnType<ExternalAccessUIService["getPendingOperations"]> {
+    return this.doThrow("pendingOperations");
+  }
+
+  // "停止外部接入" kill switch: discard key K + drop 本会话允许 grants + stop + disable.
+  stopExternalAccess() {
+    return this.do("stopExternalAccess");
+  }
+}
+
+// offscreen → SW relay for the MCP WS transport. The offscreen ExternalAccessConnect owns the socket and the
+// auth handshake; once a connection is live it forwards decoded business envelopes (and the newly
+// paired long-term key) up to ExternalAccessController here. Deliberately fire-and-forget: a blocking write
+// approval may keep a bridge.request pending for minutes, so the relay never awaits the dispatch.
+export class ExternalAccessConnectRelayClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/externalAccessConnect");
+  }
+
+  envelope(envelope: WSEnvelope): Promise<void> {
+    return this.do("envelope", envelope);
+  }
+
+  paired(key: string): Promise<void> {
+    return this.do("paired", { key });
+  }
+
+  disconnected(): Promise<void> {
+    return this.do("disconnected");
   }
 }
