@@ -194,6 +194,8 @@
   "downloading_status_percent": "ダウンロード中。{{bytes}} / {{total}}（{{percent}}%）を受信しました。",
   "page_load_failed": "インストールページの読み込みに失敗しました",
   "invalid_page": "無効なページ",
+  "frame_blocked_title": "埋め込みがブロックされました",
+  "frame_blocked_desc": "セキュリティ上の理由により、インストールページを iframe に埋め込むことはできません。ブラウザのタブで直接開いてください。",
   "from_legitimate_sources_warning": "正当なソースからスクリプトをインストールしてください！不明なスクリプトはプライバシーを侵害したり、悪意のある操作を行う可能性があります！",
   "referral_link_title": "紹介リンク",
   "ads_title": "広告付き",

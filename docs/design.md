@@ -1,6 +1,6 @@
 # ScriptCat Design System
 
-> **A reuse-oriented design reference.** It consolidates the visual language that lives in `src/index.css` and the shadcn component layer into one place you can copy from: **color tokens (full light/dark values), the theming mechanism, the component palette, layout & responsive patterns, motion, state patterns, and an end-to-end new-page recipe.** Read this before building or modifying any page, dialog, or block so it stays visually and behaviorally consistent with the rest of the app.
+> **A reuse-oriented design reference.** It consolidates the visual language that lives in `src/index.css` and the shadcn component layer into one place you can copy from. Read this before building or modifying any page, dialog, or block so it stays visually and behaviorally consistent with the rest of the app.
 
 > **Stack in one line:** React 19 + shadcn/ui (Radix primitives, `new-york` style) + Tailwind CSS v4 + React Router. Colors and motion are defined in the `@theme inline` block of `src/index.css`. **There is no `tailwind.config.js`** (Tailwind v4); PostCSS runs through `@tailwindcss/postcss` (`postcss.config.mjs`); **class names have no prefix** (`bg-background`, not `tw-bg-background`).
 
@@ -8,14 +8,16 @@
 
 ## What this doc owns
 
-| Owned here | Owned elsewhere |
-| --- | --- |
-| Color-token values, semantics, usage → [`tokens.md`](./references/design-tokens.md) | The hard rules that mandate them (no hard-coded colors, hover via pseudo-classes, `cn()` / CVA / `lucide`) → [`DEVELOP.md` UI section](./develop.md#ui) |
-| Theming mechanism, `dark:` usage | Commands, structure, coding style, testing, i18n, commit/PR → [`DEVELOP.md`](./develop.md) |
-| Component palette, variants, selection guidance → [`components.md`](./references/design-components.md) | Process model, message passing, service layers, internals → [`ARCHITECTURE.md`](./architecture.md) |
-| Layout shell, responsive patterns, **layering (z-index)**, motion, state patterns, **accessibility** → [`patterns.md`](./references/design-patterns.md); **elevation (shadows)** → [`tokens.md`](./references/design-tokens.md#elevation-shadows); page recipe (this doc) | — |
+- **This file** — the theming mechanism and `dark:` usage, typography & radius, and the new-page recipe.
+- [`references/design-tokens.md`](./references/design-tokens.md) — color-token values, semantics, usage, and
+  the [elevation (shadow) ladder](./references/design-tokens.md#elevation-shadows).
+- [`references/design-components.md`](./references/design-components.md) — component palette, variants,
+  selection guidance.
+- [`references/design-patterns.md`](./references/design-patterns.md) — layout shell, responsive patterns,
+  layering (z-index), motion, state patterns, accessibility.
 
-This doc restates the `DEVELOP.md` hard rules only where needed, then links back — it does not duplicate them.
+The hard rules behind all of it (no hard-coded colors, hover via pseudo-classes, `cn()` / CVA / `lucide`) are
+owned by [`develop.md` § UI](./develop.md#ui) — linked from here, never restated.
 
 ---
 
@@ -75,7 +77,7 @@ setTheme("auto"); // "auto" follows the system theme and updates on change
 // ✅ dark: variant only for a dark-specific tweak
 <div className="bg-input/30 dark:bg-input/50">…</div>
 
-// ❌ Hard-coded colors — break in dark and violate the DEVELOP.md rule
+// ❌ Hard-coded colors — break in dark and violate the develop.md rule
 <div className="bg-white text-[#1a1a1a] border-[#e5e5e5]">…</div>
 ```
 
@@ -130,7 +132,7 @@ When building a new page or dialog, run this checklist to stay consistent:
 - [ ] **Motion** restrained (`150–250ms`, `ease-out`), hover/focus via pseudo-classes, enter/leave via `data-state`, reuse existing utilities ([motion](./references/design-patterns.md#motion)).
 - [ ] **Depth** uses the elevation ladder (resting/raised/overlay, [elevation](./references/design-tokens.md#elevation-shadows)) and the z-index ladder (`z-10` chrome / `z-50` floating, [layering](./references/design-patterns.md#layering-z-index)) — no `shadow-2xl`, no magic `z-[…]`.
 - [ ] **Accessibility:** AA contrast on both themes; meaning never color-only; custom controls keyboard-reachable with a visible focus ring; `aria-label` on icon buttons; ≥ ~44px mobile tap targets; reduced-motion-safe ([accessibility](./references/design-patterns.md#accessibility)).
-- [ ] **Copy** defaults to sentence-case English + i18n; verbs on buttons; specific errors ([writing & microcopy](./references/design-patterns.md#writing--microcopy)), and flexes for long locales ([layout & responsive](./references/design-patterns.md#layout--responsive)); see [`DEVELOP.md`](./develop.md) and [`translation.md`](./translation.md).
+- [ ] **Copy** defaults to sentence-case English + i18n; verbs on buttons; specific errors ([writing & microcopy](./references/design-patterns.md#writing--microcopy)), and flexes for long locales ([layout & responsive](./references/design-patterns.md#layout--responsive)); see [`develop.md`](./develop.md) and [`translation.md`](./translation.md).
 
 Page skeleton (tokens + existing primitives + the shell pattern):
 
@@ -175,7 +177,5 @@ export default function ExamplePage() {
 - Theming → [`src/pages/components/theme-provider.tsx`](../src/pages/components/theme-provider.tsx) + [`src/pages/common.ts`](../src/pages/common.ts)
 - Component primitives → [`src/pages/components/ui/`](../src/pages/components/ui/); shadcn config → [`components.json`](../components.json)
 - `cn()` → [`src/pkg/utils/cn.ts`](../src/pkg/utils/cn.ts); breakpoint → [`src/pages/components/use-is-mobile.ts`](../src/pages/components/use-is-mobile.ts)
-
-**Related docs:** UI hard rules and commit flow → [`DEVELOP.md`](./develop.md); internals → [`ARCHITECTURE.md`](./architecture.md); doc maintenance and fact-checking → [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md).
 
 > When editing this doc, follow [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md): token values, component names, and variant names track the current branch's `src/` code (if you can't `git grep` it, don't claim it); enumerate counts and lists rather than trusting memory.

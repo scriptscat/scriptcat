@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, RefreshCw, Rss, HardDrive, RotateCcw } from "lucide-react";
+import { Download, RefreshCw, Rss, HardDrive, RotateCcw, PlugZap } from "lucide-react";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { isPermissionOk } from "@App/pkg/utils/utils";
 import { InstallLayout } from "./components/InstallLayout";
@@ -13,11 +13,23 @@ import { InstallActions } from "./components/InstallActions";
 import { InstallWarning } from "./components/InstallWarning";
 import { InstallLoading, InstallError } from "./components/InstallStates";
 import { WatchingBanner } from "./components/WatchingBanner";
-import { BackgroundPrompt, backgroundPromptShownKey } from "./components/BackgroundPrompt";
+import { ExternalAccessBanner } from "./components/ExternalAccessBanner";
+import { BackgroundPrompt, backgroundPromptShownKey, keepAlivePromptShownKey } from "./components/BackgroundPrompt";
 import { useInstallData } from "./useInstallData";
 
+const isMainFrame = () => {
+  try {
+    // 跨域 iframe 下访问 window.top.document 会抛 SecurityError，此时必然不是同源顶层窗口
+    return window.top?.document === window.document;
+  } catch {
+    return false;
+  }
+};
+
+type PromptPermission = "background" | "webRequestBlocking";
+
 export default function App() {
-  const { t } = useTranslation(["install", "common"]);
+  const { t } = useTranslation(["install", "common", "external_access"]);
   const isMobile = useIsMobile();
   const {
     state,
@@ -30,23 +42,31 @@ export default function App() {
     toggleWatch,
     install,
     close,
+    rejectExternalAccess,
     installSkill,
     cancelSkill,
     retry,
   } = useInstallData();
-  const [bgPrompt, setBgPrompt] = useState<{ scriptType: string } | null>(null);
+  const [bgPrompt, setBgPrompt] = useState<{ scriptType: string; permission: PromptPermission } | null>(null);
 
   // 后台/定时脚本首次安装时,提示开启后台运行(对照 v1.4 checkBackgroundPrompt)
   const ready = state.status === "ready" ? state.view : null;
   const schedule = ready?.schedule;
   useEffect(() => {
     if (!ready || ready.isSubscribe || !schedule) return;
-    if (localStorage.getItem(backgroundPromptShownKey) === "true") return;
     let cancelled = false;
-    void isPermissionOk("background").then((ok) => {
-      if (!cancelled && ok === false) {
+    void Promise.all([isPermissionOk("background"), isPermissionOk("webRequestBlocking")]).then(([bg, wrb]) => {
+      if (cancelled) return;
+      const scriptType = schedule.kind === "cron" ? t("install:scheduled_script") : t("install:background_script");
+      if (bg === false && localStorage.getItem(backgroundPromptShownKey) !== "true") {
         setBgPrompt({
-          scriptType: schedule.kind === "cron" ? t("install:scheduled_script") : t("install:background_script"),
+          scriptType,
+          permission: "background",
+        });
+      } else if (wrb === false && localStorage.getItem(keepAlivePromptShownKey) !== "true") {
+        setBgPrompt({
+          scriptType,
+          permission: "webRequestBlocking",
         });
       }
     });
@@ -54,6 +74,17 @@ export default function App() {
       cancelled = true;
     };
   }, [ready, schedule, t]);
+
+  // 防点击劫持:安装页禁止被嵌入 iframe,须在 loading/skill/error 等所有状态渲染前拦截
+  if (!isMainFrame()) {
+    return (
+      <InstallError
+        title={t("install:frame_blocked_title")}
+        message={t("install:frame_blocked_desc")}
+        onClose={close}
+      />
+    );
+  }
 
   if (state.status === "loading") {
     return <InstallLoading source={state.source} bytesText={state.bytesText} percent={state.percent} />;
@@ -87,10 +118,26 @@ export default function App() {
     : view.isUpdate
       ? t("install:context_update")
       : t("install:context_install");
-  // 监听本地文件时,顶栏上下文 chip 切换为品牌蓝脉冲「监听中」(对照设计稿)
-  const title = watching ? t("install:watching_chip") : baseTitle;
+  // 顶栏上下文 chip:监听本地文件→品牌蓝脉冲「监听中」;外部接入触发→「外部接入 · 安装/更新请求」(设计稿 QWHdI);
+  // 否则按安装/更新/订阅场景。外部接入的更新档既涵盖覆盖已装脚本的安装请求,也涵盖 scripts.edit.request。
+  const externalAccess = !!view.externalAccess;
+  const title = watching
+    ? t("install:watching_chip")
+    : externalAccess
+      ? view.isUpdate
+        ? t("external_access:update_context_chip")
+        : t("external_access:install_context_chip")
+      : baseTitle;
   const titleTone = watching ? "watching" : "default";
-  const titleIcon = view.isSubscribe ? Rss : view.isUpdate ? RefreshCw : localFile ? HardDrive : Download;
+  const titleIcon = externalAccess
+    ? PlugZap
+    : view.isSubscribe
+      ? Rss
+      : view.isUpdate
+        ? RefreshCw
+        : localFile
+          ? HardDrive
+          : Download;
 
   return (
     <>
@@ -110,6 +157,10 @@ export default function App() {
             onInstall={install}
             onClose={close}
             onToggleWatch={toggleWatch}
+            onExternalAccessReject={view.externalAccess ? rejectExternalAccess : undefined}
+            onExternalAccessSessionAllow={
+              view.externalAccess && view.isUpdate ? () => install({ rememberSession: true }) : undefined
+            }
           />
         }
       >
@@ -126,6 +177,13 @@ export default function App() {
           enabled={enabled}
           onEnabledChange={setEnabled}
         />
+        {view.externalAccess && (
+          <ExternalAccessBanner
+            contentHash={view.externalAccess.contentHash}
+            source={view.source}
+            isUpdate={view.isUpdate}
+          />
+        )}
         {watching && <WatchingBanner fileName={watchFileName || ""} lastSync={lastSync} />}
         {view.inTrash && (
           <div
@@ -147,7 +205,12 @@ export default function App() {
         />
         <CodePreview code={view.code} oldCode={view.oldCode} diffStat={view.diffStat} defaultCollapsed={isMobile} />
       </InstallLayout>
-      <BackgroundPrompt open={!!bgPrompt} scriptType={bgPrompt?.scriptType || ""} onResult={() => setBgPrompt(null)} />
+      <BackgroundPrompt
+        open={!!bgPrompt}
+        scriptType={bgPrompt?.scriptType || ""}
+        permission={bgPrompt?.permission}
+        onResult={() => setBgPrompt(null)}
+      />
     </>
   );
 }

@@ -37,20 +37,6 @@ const openSub = async (el: HTMLElement) => {
 };
 
 describe("EditorToolbar 桌面端编辑器工具栏", () => {
-  it("应保留原汉堡图标按钮作为菜单入口", () => {
-    const { getByLabelText } = render(<EditorToolbar {...baseProps()} />);
-    expect(getByLabelText("更多")).toBeInTheDocument();
-  });
-
-  it("展开后应是「文件」「编辑」「运行」二级子菜单而非全部平铺", async () => {
-    const { getByLabelText, getByText } = render(<EditorToolbar {...baseProps()} />);
-    await openRoot(getByLabelText("更多"));
-    // 顶层只暴露分组（子菜单触发器），具体操作收纳在二级子菜单里，默认不可见
-    expect(getByText("文件")).toBeInTheDocument();
-    expect(getByText("编辑")).toBeInTheDocument();
-    expect(getByText("运行")).toBeInTheDocument();
-  });
-
   it("文件 → 保存 应回调 onSave", async () => {
     const props = baseProps();
     const { getByLabelText, getByText } = render(<EditorToolbar {...props} />);

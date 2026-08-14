@@ -50,6 +50,38 @@ beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(cleanup);
 
+describe("Install App 防点击劫持:禁止在 iframe 中嵌入", () => {
+  const originalTop = window.top;
+  afterEach(() => {
+    Object.defineProperty(window, "top", { value: originalTop, configurable: true });
+  });
+
+  it("非顶层 frame 时渲染拦截提示,即使当前状态是 loading 也不渲染原状态", () => {
+    Object.defineProperty(window, "top", { value: { document: {} }, configurable: true });
+    mockHook.mockReturnValue({ ...baseHook(), state: { status: "loading" } });
+    render(<App />);
+    expect(screen.getByText("禁止内嵌访问")).toBeInTheDocument();
+    expect(screen.queryByText("正在加载脚本")).not.toBeInTheDocument();
+  });
+
+  it("非顶层 frame 时点击关闭按钮应调用 close", () => {
+    Object.defineProperty(window, "top", { value: { document: {} }, configurable: true });
+    const close = vi.fn();
+    mockHook.mockReturnValue({ ...baseHook(), close, state: { status: "ready", view: readyView() } });
+    render(<App />);
+    fireEvent.click(screen.getByText("关闭"));
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("顶层 frame 时正常渲染 ready 状态,不触发拦截", () => {
+    Object.defineProperty(window, "top", { value: window, configurable: true });
+    mockHook.mockReturnValue({ ...baseHook(), state: { status: "ready", view: readyView() } });
+    render(<App />);
+    expect(screen.queryByText("禁止内嵌访问")).not.toBeInTheDocument();
+    expect(screen.getByText("全网每日签到助手")).toBeInTheDocument();
+  });
+});
+
 describe("Install App 状态分流", () => {
   it("loading 状态渲染加载屏", () => {
     mockHook.mockReturnValue({ ...baseHook(), state: { status: "loading" } });
@@ -105,6 +137,37 @@ describe("Install App 状态分流", () => {
     });
     render(<App />);
     expect(screen.getByText("脚本更新")).toBeInTheDocument();
+  });
+
+  it("外部接入触发的安装：顶栏上下文 chip 显示「外部接入 · 安装请求」", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      rejectExternalAccess: vi.fn(),
+      state: {
+        status: "ready",
+        view: readyView({ externalAccess: { operationId: "op-1", contentHash: "abcdef123456" } }),
+      },
+    });
+    render(<App />);
+    expect(screen.getByText("外部接入 · 安装请求")).toBeInTheDocument();
+  });
+
+  it("外部接入触发的更新：顶栏上下文 chip 显示「外部接入 · 更新请求」", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      rejectExternalAccess: vi.fn(),
+      state: {
+        status: "ready",
+        view: readyView({
+          isUpdate: true,
+          version: { kind: "update", oldVersion: "2.3.1", newVersion: "2.3.1", changed: false },
+          externalAccess: { operationId: "op-2", contentHash: "abcdef123456" },
+        }),
+      },
+    });
+    render(<App />);
+    expect(screen.getByText("外部接入 · 更新请求")).toBeInTheDocument();
+    expect(screen.queryByText("外部接入 · 安装请求")).not.toBeInTheDocument();
   });
 
   it("skill 状态渲染技能安装视图", () => {
