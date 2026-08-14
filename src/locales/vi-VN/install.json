@@ -194,6 +194,8 @@
   "downloading_status_percent": "Đang tải xuống. Đã nhận {{bytes}} / {{total}} ({{percent}}%).",
   "page_load_failed": "Tải trang cài đặt thất bại",
   "invalid_page": "Trang không hợp lệ",
+  "frame_blocked_title": "Nhúng trang bị chặn",
+  "frame_blocked_desc": "Vì lý do bảo mật, trang cài đặt không thể được nhúng trong iframe. Vui lòng mở trực tiếp trong một tab trình duyệt.",
   "from_legitimate_sources_warning": "Vui lòng cài đặt script từ các nguồn hợp pháp! Script không rõ nguồn gốc có thể xâm phạm quyền riêng tư của bạn hoặc thực hiện các hoạt động độc hại.",
   "referral_link_title": "Liên kết giới thiệu",
   "ads_title": "Quảng cáo",

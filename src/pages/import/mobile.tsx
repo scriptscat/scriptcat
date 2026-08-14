@@ -57,7 +57,7 @@ function MobileHeader({ onClose }: { onClose?: () => void }) {
 /** 移动端状态屏外壳:头部 + 居中正文(复用桌面的居中状态组件) */
 function MobileStateShell({ onClose, children }: { onClose?: () => void; children: ReactNode }) {
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
+    <div className="flex h-dvh flex-col bg-background text-foreground">
       <MobileHeader onClose={onClose} />
       <div className="flex flex-1 items-center justify-center overflow-auto px-5">{children}</div>
     </div>
@@ -367,7 +367,7 @@ export function MobileView({ view }: { view: ImportView }) {
 
   const importing = view.phase === "importing";
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
+    <div className="flex h-dvh flex-col bg-background text-foreground">
       <MobileHeader onClose={importing ? undefined : view.onClose} />
       {importing && <TopProgressBar done={view.doneCount} total={view.totalCount} />}
       {importing ? <MobileImportingBar view={view} /> : <MobileToolbar view={view} />}
