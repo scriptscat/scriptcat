@@ -211,6 +211,15 @@ export async function moveEntry(
   const sourceDir = await getDirHandle(root, sourcePath);
   const destinationDir = await getDirHandle(root, destinationPath);
   await ensureDestinationAvailable(destinationDir, destinationName);
-  await copyEntry(sourceDir, name, destinationDir, destinationName);
-  await sourceDir.removeEntry(name, { recursive: true });
+  try {
+    await copyEntry(sourceDir, name, destinationDir, destinationName);
+    await sourceDir.removeEntry(name, { recursive: true });
+  } catch (error) {
+    try {
+      await destinationDir.removeEntry(destinationName, { recursive: true });
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], "Failed to roll back a move");
+    }
+    throw error;
+  }
 }

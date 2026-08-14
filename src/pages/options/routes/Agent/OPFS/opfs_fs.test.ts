@@ -203,6 +203,31 @@ describe("opfs_fs 文件系统封装", () => {
     expect(workspace._children.target._children["new.txt"]).toBeDefined();
   });
 
+  it("移动复制失败时不应留下部分目标条目", async () => {
+    const brokenFile = {
+      kind: "file",
+      name: "broken.txt",
+      async getFile() {
+        throw new Error("read failure");
+      },
+    };
+    const workspace = mutableDirectory("workspace", {
+      source: mutableDirectory("source", {
+        "ok.txt": mutableFile("ok.txt", "data"),
+        "broken.txt": brokenFile,
+      }),
+    });
+    const root = mutableDirectory("root", {
+      agents: mutableDirectory("agents", { workspace }),
+    });
+
+    await expect(moveEntry(root, ["agents", "workspace"], "source", ["agents", "workspace"], "moved")).rejects.toThrow(
+      "read failure"
+    );
+    expect(workspace._children.source).toBeDefined();
+    expect(workspace._children.moved).toBeUndefined();
+  });
+
   it("formatSize 按量级格式化", () => {
     expect(formatSize(500)).toBe("500 B");
     expect(formatSize(2048)).toBe("2.0 KB");

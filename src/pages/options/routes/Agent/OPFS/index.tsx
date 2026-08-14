@@ -86,23 +86,36 @@ export default function AgentOPFS() {
   const [path, setPath] = useState<string[]>([]);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [entryDialog, setEntryDialog] = useState<EntryDialogState | null>(null);
+  const [entryActionPending, setEntryActionPending] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const entryActionPendingRef = useRef(false);
+
+  const getRoot = useCallback(() => navigator.storage.getDirectory(), []);
+  const handleRootError = useCallback((error: unknown) => {
+    setRoot(null);
+    setEntries([]);
+    setLoadError(error instanceof Error ? error.message : String(error));
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    void navigator.storage.getDirectory().then(setRoot);
-  }, []);
+    void getRoot().then(setRoot).catch(handleRootError);
+  }, [getRoot, handleRootError]);
 
   const load = useCallback(async () => {
     if (!root) return;
     setLoading(true);
+    setLoadError(null);
     try {
       setEntries(await listDir(root, path));
-    } catch {
+    } catch (error) {
       setEntries([]);
+      setLoadError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
@@ -178,7 +191,9 @@ export default function AgentOPFS() {
   };
 
   const handleEntryDialogSubmit = async () => {
-    if (!root || !entryDialog) return;
+    if (!root || !entryDialog || entryActionPendingRef.current) return;
+    entryActionPendingRef.current = true;
+    setEntryActionPending(true);
     try {
       if (entryDialog.action === "rename") {
         await renameEntry(root, path, entryDialog.entry.name, entryDialog.value.trim());
@@ -191,6 +206,9 @@ export default function AgentOPFS() {
       await load();
     } catch (error) {
       notify.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      entryActionPendingRef.current = false;
+      setEntryActionPending(false);
     }
   };
 
@@ -348,7 +366,33 @@ export default function AgentOPFS() {
           )}
         </div>
 
-        {!loading && entries.length === 0 ? (
+        {loading ? (
+          <div
+            data-testid="opfs-loading"
+            className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-10 text-sm text-muted-foreground"
+          >
+            <Loader2 className="size-4 animate-spin" />
+            {t("common:loading")}
+          </div>
+        ) : loadError ? (
+          <div
+            data-testid="opfs-load-error"
+            className="flex flex-col items-center gap-3 rounded-xl border border-destructive/30 bg-card px-4 py-10 text-center text-sm text-muted-foreground"
+          >
+            <span>{`${t("common:error")}: ${loadError}`}</span>
+            <Button
+              variant="outline"
+              data-testid="opfs-load-retry"
+              onClick={() => {
+                setLoading(true);
+                setLoadError(null);
+                void (root ? load() : getRoot().then(setRoot).catch(handleRootError));
+              }}
+            >
+              {t("agent:opfs_refresh")}
+            </Button>
+          </div>
+        ) : entries.length === 0 ? (
           <AgentEmptyState icon={Folder} title={t("agent:opfs_empty")} description={t("agent:opfs_empty_desc")} />
         ) : isMobile ? (
           <div className="flex flex-col gap-2">
@@ -359,6 +403,15 @@ export default function AgentOPFS() {
                 ...(entry.kind === "file" && entry.size != null ? [formatSize(entry.size)] : []),
                 ...(entry.lastModified ? [dayFormat(new Date(entry.lastModified), "MM-DD HH:mm")] : []),
               ].join(" · ");
+              const items = menuItems(entry, {
+                openEntry,
+                handleDownload,
+                handleDelete,
+                openRenameDialog,
+                openMoveDialog,
+                t,
+                editable,
+              });
               return (
                 <div
                   key={entry.name}
@@ -383,17 +436,7 @@ export default function AgentOPFS() {
                     </span>
                     <span className="truncate text-[11px] text-muted-foreground">{sub}</span>
                   </button>
-                  <AgentCardMenu
-                    items={menuItems(entry, {
-                      openEntry,
-                      handleDownload,
-                      handleDelete,
-                      openRenameDialog,
-                      openMoveDialog,
-                      t,
-                      editable,
-                    })}
-                  />
+                  {items.length > 0 && <AgentCardMenu items={items} />}
                 </div>
               );
             })}
@@ -479,7 +522,7 @@ export default function AgentOPFS() {
         />
       )}
 
-      <Dialog open={!!entryDialog} onOpenChange={(open) => !open && setEntryDialog(null)}>
+      <Dialog open={!!entryDialog} onOpenChange={(open) => !open && !entryActionPending && setEntryDialog(null)}>
         <DialogContent aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>
@@ -490,6 +533,7 @@ export default function AgentOPFS() {
           <Input
             data-testid="opfs-entry-edit-input"
             autoFocus
+            disabled={entryActionPending}
             value={entryDialog?.value ?? ""}
             placeholder={
               entryDialog?.action === "rename"
@@ -504,11 +548,16 @@ export default function AgentOPFS() {
             }}
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEntryDialog(null)}>
+            <Button variant="outline" disabled={entryActionPending} onClick={() => setEntryDialog(null)}>
               {t("common:cancel")}
             </Button>
-            <Button data-testid="opfs-entry-edit-submit" onClick={() => void handleEntryDialogSubmit()}>
-              {t("common:save")}
+            <Button
+              data-testid="opfs-entry-edit-submit"
+              disabled={entryActionPending}
+              onClick={() => void handleEntryDialogSubmit()}
+            >
+              {entryActionPending && <Loader2 className="size-4 animate-spin" />}
+              {entryActionPending ? t("common:loading") : t("common:save")}
             </Button>
           </DialogFooter>
         </DialogContent>

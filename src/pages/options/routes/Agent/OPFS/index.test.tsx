@@ -185,6 +185,58 @@ describe("AgentOPFS 页面", () => {
     expect(desc).not.toBe(title);
   });
 
+  it("加载失败显示错误并可重试,不应伪装成空目录", async () => {
+    const getDirectory = vi.fn().mockRejectedValueOnce(new Error("permission denied")).mockResolvedValueOnce(root);
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: { getDirectory },
+    });
+    render(<AgentOPFS />);
+    expect(await screen.findByTestId("opfs-load-error")).toHaveTextContent("permission denied");
+    expect(screen.queryByTestId("empty-state")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("opfs-load-retry"));
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
+  });
+
+  it("重命名进行中禁用重复提交并显示忙碌状态", async () => {
+    let releaseLookup!: () => void;
+    const lookupGate = new Promise<void>((resolve) => {
+      releaseLookup = resolve;
+    });
+    const oldFile = fileHandle("old.txt", "data");
+    oldFile.createWritable = async () => writableFor("new.txt", {});
+    const workspace = dirHandle("workspace", { "old.txt": oldFile });
+    const originalGetFileHandle = workspace.getFileHandle;
+    const originalGetDirectoryHandle = workspace.getDirectoryHandle;
+    workspace.getFileHandle = async (name: string, opts?: { create?: boolean }) => {
+      if (name === "new.txt" && !opts?.create) {
+        await lookupGate;
+        throw new DOMException("Not found", "NotFoundError");
+      }
+      return originalGetFileHandle(name, opts);
+    };
+    workspace.getDirectoryHandle = async (name: string) => {
+      if (name === "new.txt") throw new DOMException("Not found", "NotFoundError");
+      return originalGetDirectoryHandle(name);
+    };
+    root = dirHandle("root", { agents: dirHandle("agents", { workspace }) });
+    (navigator.storage.getDirectory as any).mockResolvedValue(root);
+
+    render(<AgentOPFS />);
+    fireEvent.click(await screen.findByTestId("entry-agents"));
+    fireEvent.click(await screen.findByTestId("entry-workspace"));
+    fireEvent.click(await screen.findByTestId("rename-old.txt"));
+    fireEvent.change(await screen.findByTestId("opfs-entry-edit-input"), { target: { value: "new.txt" } });
+    const submit = screen.getByTestId("opfs-entry-edit-submit");
+    fireEvent.click(submit);
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveTextContent("加载中...");
+
+    releaseLookup();
+    await waitFor(() => expect(screen.queryByTestId("opfs-entry-edit-input")).not.toBeInTheDocument());
+  });
+
   it("移动端:页内工具行为图标按钮(无可见文案标签)+ 标题作为页内标题", async () => {
     mockedUseIsMobile.mockReturnValue(true);
     render(<AgentOPFS />);
@@ -194,6 +246,15 @@ describe("AgentOPFS 页面", () => {
     expect(screen.queryByTestId("opfs-upload")).not.toBeInTheDocument();
     // 页内标题存在(以 test-id 断言,不耦合译文)
     expect(screen.getByTestId("opfs-mobile-title")).toBeInTheDocument();
+  });
+
+  it("移动端只读目录没有可用操作时不显示空菜单", async () => {
+    mockedUseIsMobile.mockReturnValue(true);
+    root = dirHandle("root", { subdir: dirHandle("subdir") });
+    (navigator.storage.getDirectory as any).mockResolvedValue(root);
+    render(<AgentOPFS />);
+    expect(await screen.findByTestId("entry-subdir")).toBeInTheDocument();
+    expect(screen.queryByTestId("card-menu")).not.toBeInTheDocument();
   });
 
   it("移动端抑制 64px 桌面页头(避免与全局 MobileHeader 双层堆叠)", async () => {
