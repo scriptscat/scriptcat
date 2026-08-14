@@ -9,7 +9,7 @@ import { InstallTopBar } from "./InstallTopBar";
 function StateShell({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation(["install", "common"]);
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex h-dvh flex-col bg-background">
       <InstallTopBar title={t("install:context_install")} titleIcon={Download} />
       <main className="flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-6 text-center">
         {children}

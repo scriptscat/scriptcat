@@ -111,6 +111,7 @@ export type TTabInfo = {
   url: string;
   tabId: number | undefined;
   frameId: number | undefined;
+  incognito?: boolean;
 };
 
 export type TScriptsForTab = {
@@ -142,6 +143,7 @@ export class RuntimeService {
   private sorter: Record<string, number> = {};
   private readonly codeCacheMap = new Map<string, TCodeCache>();
   private readonly pageLoadCaches = new Map<string, TPageLoadScriptCache>();
+  private sandboxInitializationReplayed = false;
   private readonly cachedPatterns = new Map<
     string,
     { scriptUrlPatterns: URLRuleEntry[]; originalUrlPatterns: URLRuleEntry[] }
@@ -453,7 +455,14 @@ export class RuntimeService {
     }
     // 安装，启用，或earlyStartScript的value更新
     const ret = await this.buildAndSaveCompiledResourceFromScript(script, true);
-    if (!ret) return;
+    if (!ret) {
+      // 空匹配覆盖（match 与 include 均为空）时脚本不再匹配任何站点。
+      // 内存 matcher 已由 applyScriptMatchInfo 清空，这里再清掉持久化的 CompiledResource
+      // 并注销浏览器旧注册，否则 SW 重启后 waitInit 会信任旧资源、让旧范围复活。
+      await this.compiledResourceDAO.delete(script.uuid);
+      await this.unregistryPageScripts([script.uuid]);
+      return;
+    }
     const { apiScript } = ret;
     await this.loadPageScript(script, apiScript!);
   }
@@ -624,31 +633,8 @@ export class RuntimeService {
       });
     });
 
-    // 监听offscreen环境初始化, 初始化完成后, 再将后台脚本运行起来
-    this.mq.subscribe("preparationOffscreen", () => {
-      this.scriptDAO.all().then((list) => {
-        const res = [];
-        for (const script of list) {
-          if (script.type === SCRIPT_TYPE_NORMAL) {
-            continue;
-          }
-          bgScriptStorageNames.add(getStorageName(script));
-          res.push({
-            uuid: script.uuid,
-            enable: script.status === SCRIPT_STATUS_ENABLE,
-          });
-        }
-        if (res.length > 0) {
-          this.mq.publish<TEnableScript[]>("enableScripts", res);
-        }
-      });
-      this.systemConfig.getLanguage().then((lng: string) => {
-        this.mq.publish("setSandboxLanguage", lng);
-      });
-      this.systemConfig.addListener("language", (lng) => {
-        this.mq.publish("setSandboxLanguage", lng);
-      });
-    });
+    // 只有 sandbox 自己确认通道已就绪后才发送初始化状态；fallback 仅解除父层等待，不能承载消息。
+    this.mq.subscribe("preparationOffscreen", this.handlePreparationOffscreen.bind(this));
 
     if (chrome.extension.inIncognitoContext) {
       this.systemConfig.addListener("enable_script_incognito", async (enable) => {
@@ -1273,7 +1259,8 @@ export class RuntimeService {
     }
     const tabId = chromeSender.tab?.id || -1;
     const frameId = chromeSender.frameId;
-    const res = await this.getScriptsForTab({ url, tabId, frameId });
+    const incognito = chromeSender.tab?.incognito ?? false;
+    const res = await this.getScriptsForTab({ url, tabId, frameId, incognito });
 
     this.mq.emit<TPopupPageLoadInfo>("popupPageLoadUpdate", {
       tabId: tabId,
@@ -1294,7 +1281,11 @@ export class RuntimeService {
       return { ok: false };
     }
   }
-  private shouldSkipPageLoadScript(scriptRes: ScriptRunResource, frameId: number | undefined) {
+  private shouldSkipPageLoadScript(
+    scriptRes: ScriptRunResource,
+    frameId: number | undefined,
+    incognito: boolean = false
+  ) {
     // 判断脚本是否开启
     if (scriptRes.status === SCRIPT_STATUS_DISABLE) {
       return true;
@@ -1304,7 +1295,7 @@ export class RuntimeService {
       const runIn = scriptRes.metadata["run-in"][0];
       if (runIn !== "all") {
         // 判断插件运行环境
-        const contextType = chrome.extension.inIncognitoContext ? "incognito-tabs" : "normal-tabs";
+        const contextType = incognito ? "incognito-tabs" : "normal-tabs";
         if (runIn !== contextType) {
           return true;
         }
@@ -1480,8 +1471,12 @@ export class RuntimeService {
     return scriptsWithUpdatedResources;
   }
 
-  async getScriptsForTab({ url, frameId }: TTabInfo): Promise<TScriptsForTab> {
+  async getScriptsForTab({ url, frameId, incognito = false }: TTabInfo): Promise<TScriptsForTab> {
     if (!this.isLoadScripts) {
+      return null;
+    }
+    // Firefox spanning 的 event page 是共享的，必须使用消息发送方的 tab.incognito 额外执行隐身总开关。
+    if (incognito && !(await this.systemConfig.getEnableScriptIncognito())) {
       return null;
     }
 
@@ -1513,7 +1508,7 @@ export class RuntimeService {
       const script = scripts[idx];
       if (!script) continue;
       const scriptRes = buildScriptRunResourceBasic(script);
-      if (this.shouldSkipPageLoadScript(scriptRes, frameId)) continue;
+      if (this.shouldSkipPageLoadScript(scriptRes, frameId, incognito)) continue;
 
       const scriptCacheKey = this.getPageLoadScriptCacheKey(scriptRes);
       const cached = this.pageLoadCaches.get(script.uuid);
@@ -1624,11 +1619,34 @@ export class RuntimeService {
       contentScriptList: contentScriptList,
       envInfo: {
         sandboxMode: "raw",
-        isIncognito: chrome.extension?.inIncognitoContext ?? undefined,
+        isIncognito: incognito,
         userAgentData: this.userAgentData ?? undefined,
       } as GMInfoEnv,
       scriptmenus,
     } satisfies TScriptsForTab;
+  }
+
+  private async handlePreparationOffscreen(data: { verified: boolean }) {
+    if (!data.verified || this.sandboxInitializationReplayed) return;
+    this.sandboxInitializationReplayed = true;
+
+    const [list, language] = await Promise.all([this.scriptDAO.all(), this.systemConfig.getLanguage()]);
+    const scripts: TEnableScript[] = [];
+    for (const script of list) {
+      if (script.type === SCRIPT_TYPE_NORMAL) continue;
+      bgScriptStorageNames.add(getStorageName(script));
+      scripts.push({
+        uuid: script.uuid,
+        enable: script.status === SCRIPT_STATUS_ENABLE,
+      });
+    }
+    if (scripts.length > 0) {
+      this.mq.publish<TEnableScript[]>("enableScripts", scripts);
+    }
+    this.mq.publish("setSandboxLanguage", language);
+    this.systemConfig.addListener("language", (lng) => {
+      this.mq.publish("setSandboxLanguage", lng);
+    });
   }
 
   // 停止脚本
@@ -1681,6 +1699,10 @@ export class RuntimeService {
   async applyScriptMatchInfo(scriptRes: ScriptRunResource) {
     const o = scriptURLPatternResults(scriptRes);
     if (!o) {
+      const { uuid } = scriptRes;
+      this.scriptMatchEnable.clearRules(uuid);
+      this.scriptMatchEnable.clearRules(this.getOriginalMatchUuid(uuid));
+      this.cachedPatterns.delete(uuid);
       return undefined;
     }
     // 构建脚本匹配信息

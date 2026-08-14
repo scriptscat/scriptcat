@@ -23,6 +23,7 @@ export const scriptToMenu = (script: Script): ScriptMenu => {
     runNumByIframe: 0,
     menus: [],
     isEffective: null,
+    hasMatchOverride: script.selfMetadata?.match !== undefined,
   };
 };
 

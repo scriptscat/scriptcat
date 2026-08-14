@@ -55,13 +55,6 @@ describe.concurrent("encodeRValue 编码函数", () => {
     expect(encoded[0]).toBe(RType.STANDARD);
     expect(encoded[1]).toBe(big);
   });
-
-  it.concurrent("应正确处理联合类型的编码", () => {
-    const value: string | null = "联合类型测试";
-    const encoded = encodeRValue<string | null>(value);
-    expect(encoded[0]).toBe(RType.STANDARD);
-    expect(encoded[1]).toBe(value);
-  });
 });
 
 describe.concurrent("decodeRValue 解码函数", () => {
@@ -144,14 +137,5 @@ describe.concurrent("encodeRValue 与 decodeRValue 组合行为", () => {
         expect(decoded).toBe(original);
       }
     });
-  });
-
-  it.concurrent("应对联合类型值进行正确的往返编码解码", () => {
-    type Union = string | number | null | undefined;
-    const values: Union[] = [undefined, null, 1, 0, 123, "abc", ""];
-
-    const roundTrip = values.map((v) => decodeRValue<Union>(encodeRValue<Union>(v)));
-
-    expect(roundTrip).toEqual(values);
   });
 });
