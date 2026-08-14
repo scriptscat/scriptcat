@@ -1,4 +1,4 @@
-import { expect, type BrowserContext, type Page } from "@playwright/test";
+import { expect, type BrowserContext, type Frame, type Page } from "@playwright/test";
 
 /**
  * Auto-approve permission confirm dialogs opened by the extension.
@@ -8,27 +8,40 @@ import { expect, type BrowserContext, type Page } from "@playwright/test";
  */
 export function autoApprovePermissions(context: BrowserContext): void {
   context.on("page", async (page) => {
-    const url = page.url();
-    if (!url.includes("confirm.html")) return;
-
     try {
-      await page.waitForLoadState("domcontentloaded");
-      const request = page.getByTestId("confirm-request");
-      const allow = page.getByTestId("confirm-allow");
-      await allow.or(request).first().waitFor({ timeout: 5_000 });
-      if (await request.count()) {
-        await request.first().click();
-      } else {
-        // 尽量永久授权，避免同一测试内重复弹窗
-        const permanent = page.getByTestId("confirm-duration-permanent");
-        if (await permanent.count())
-          await permanent
-            .first()
-            .click()
-            .catch(() => {});
-        await allow.first().click();
+      const approve = async () => {
+        await page.waitForLoadState("domcontentloaded");
+        const request = page.getByTestId("confirm-request");
+        const allow = page.getByTestId("confirm-allow");
+        await allow.or(request).first().waitFor({ timeout: 5_000 });
+        if (await request.count()) {
+          await request.first().click();
+        } else {
+          // 尽量永久授权，避免同一测试内重复弹窗
+          const permanent = page.getByTestId("confirm-duration-permanent");
+          if (await permanent.count())
+            await permanent
+              .first()
+              .click()
+              .catch(() => {});
+          await allow.first().click();
+        }
+        console.log("[autoApprove] Permission approved on confirm page");
+      };
+
+      if (page.url().includes("confirm.html")) {
+        await approve();
+        return;
       }
-      console.log("[autoApprove] Permission approved on confirm page");
+
+      const handleNavigation = (frame: Frame) => {
+        if (frame !== page.mainFrame() || !frame.url().includes("confirm.html")) return;
+        page.off("framenavigated", handleNavigation);
+        void approve().catch((error) => {
+          console.log("[autoApprove] Failed to approve:", error);
+        });
+      };
+      page.on("framenavigated", handleNavigation);
     } catch (e) {
       console.log("[autoApprove] Failed to approve:", e);
     }
