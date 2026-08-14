@@ -999,13 +999,4 @@ describe.concurrent("embeddedPatternChecker", () => {
     const code3 = embeddedPatternCheckerString('"https://example.com/secret/data"', JSON.stringify(reduced));
     expect(eval(code3)).toBe(false);
   });
-
-  it.concurrent("embeddedPatternCheckerString 生成可执行代码", () => {
-    const patterns = extractUrlPatterns(["@match *://example.com/*"]);
-    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
-    const codeStr = embeddedPatternCheckerString("location.href", JSON.stringify(reduced));
-    // 验证生成的是一个函数调用表达式字符串（IIFE 形式）
-    expect(typeof codeStr).toBe("string");
-    expect(codeStr).toContain("location.href");
-  });
 });

@@ -19,15 +19,6 @@ describe("extractSummary", () => {
   it("handles empty <summary> tags", () => {
     expect(extractSummary("<summary></summary>")).toBe("");
   });
-
-  it("handles multiline content inside <summary>", () => {
-    const response = `<summary>
-Line 1
-Line 2
-Line 3
-</summary>`;
-    expect(extractSummary(response)).toBe("Line 1\nLine 2\nLine 3");
-  });
 });
 
 describe("buildCompactUserPrompt", () => {

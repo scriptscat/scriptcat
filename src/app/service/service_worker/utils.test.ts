@@ -9,6 +9,7 @@ import {
   shouldAutoOpenChangelog,
 } from "./utils";
 import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
+import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 import type { ScriptMatchInfo } from "./types";
 import { extractUrlPatterns } from "@App/pkg/utils/url_matcher";
@@ -163,6 +164,14 @@ describe.concurrent("getCombinedMeta", () => {
     expect(result.match).toBeUndefined();
     expect(result.grant).toEqual([]);
     expect(result.exclude).toEqual(["https://admin.com/*"]);
+  });
+
+  it.concurrent("不应把 onlyRunOnUrl provenance 合并为有效 metadata", () => {
+    const result = getCombinedMeta(baseMetadata, {
+      [SELF_METADATA_ONLY_RUN_ON_URL]: ["*://current.example/*"],
+    });
+
+    expect(result).toEqual(baseMetadata);
   });
 });
 
