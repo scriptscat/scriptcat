@@ -554,6 +554,16 @@ vdescribe("PanelReporter", () => {
     vexpect(visibleCases()).toHaveLength(3);
   });
 
+  vit("跳过筛选包含待人工确认用例", async () => {
+    const { describe: d, itManual: im, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("人工组", () => im("待确认"));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    root.querySelector('[data-sctest="filter-skip"]').click();
+    vexpect(root.querySelector('[data-sctest="case-row"]').hidden).toBe(false);
+  });
+
   vit("搜索会隐藏不匹配的 suite,清空会恢复所有用例", async () => {
     const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
     d("下载", () => i("保存文件", () => e(1).toBe(1)));

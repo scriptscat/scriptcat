@@ -834,7 +834,10 @@
       var query = search.value.trim().toLowerCase();
       Object.keys(caseNodes).forEach(function (key) {
         var node = caseNodes[key];
-        var statusOk = activeFilter === "all" || node.status === activeFilter;
+        var statusOk =
+          activeFilter === "all" ||
+          (activeFilter === "skip" && (node.status === "skip" || node.status === "manual")) ||
+          node.status === activeFilter;
         var textOk = !query || key.toLowerCase().indexOf(query) !== -1;
         node.row.hidden = !(statusOk && textOk);
         if (node.detail) node.detail.hidden = node.row.hidden;
