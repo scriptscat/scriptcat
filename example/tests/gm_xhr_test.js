@@ -859,16 +859,14 @@ const enableTool = true;
         const nwError1 = await runCase(
           {
             url: `https://nonexistent-domain-abcxyz.test/abc.html`, // allowed domain
-          },
-          { abortAfterMs: 500 }
+          }
         );
         expect(nwError1.events).toEqual(["onerror", "onloadend"]);
 
         const nwError2 = await runCase(
           {
             url: `https://nonexistent-domain-abcxyz.reject/abc.html`, // disallowed domain
-          },
-          { abortAfterMs: 500 }
+          }
         );
         expect(nwError2.events).toEqual(["onerror", "onloadend"]);
       },
