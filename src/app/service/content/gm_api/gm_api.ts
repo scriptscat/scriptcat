@@ -200,6 +200,9 @@ class GM_Base implements IGM_Base {
           fn();
         }
       }
+      if (updatetime !== undefined && this.valueDaoUpdatetime !== undefined && updatetime <= this.valueDaoUpdatetime) {
+        return;
+      }
       if (valueUpdated) {
         const valueChanges = entries;
         for (const [key, rTyped1, rTyped2] of valueChanges) {
@@ -216,7 +219,7 @@ class GM_Base implements IGM_Base {
           this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
         }
       }
-      if (updatetime && !(this.valueDaoUpdatetime! >= updatetime)) {
+      if (updatetime !== undefined) {
         this.valueDaoUpdatetime = updatetime;
         const readFreshes = this.readFreshes;
         if (readFreshes) {
@@ -275,6 +278,13 @@ export default class GMApi extends GM_Base {
           this.scriptRes = null;
           this.valueChangeListener = null;
           this.EE = null;
+          const readFreshes = this.readFreshes;
+          if (readFreshes) {
+            for (const [updatetime, d] of readFreshes) {
+              readFreshes.delete(updatetime);
+              d.resolve(this.valueDaoUpdatetime ?? 0);
+            }
+          }
         },
         isInvalidContext() {
           return invalid;
@@ -293,23 +303,18 @@ export default class GMApi extends GM_Base {
   static async waitForFreshValueState(a: GMApi): Promise<void> {
     if (!a.scriptRes || !a.message) return;
     let id = "";
-    let d: Deferred<void> | null = null;
-    if (!a.valueDaoUpdatetime) {
+    if (a.valueDaoUpdatetime === undefined) {
       id = generateValChangeId();
-      d = deferred();
-      valueChangePromiseMap.set(id, d.resolve);
     }
     const updatetime = await a.sendMessage("internalApiWaitForFreshValueState", [id]);
     if (updatetime === undefined) {
       // message 通道失效（如 extension context invalidated）时不会再有 valueUpdate 推送，
       // 放弃等待，直接读取本地缓存
-      if (id) valueChangePromiseMap.delete(id);
       return;
     }
-    if (d) {
-      await d.promise;
-    }
-    if (updatetime && a.valueDaoUpdatetime && a.valueDaoUpdatetime < updatetime) {
+    if (a.isInvalidContext()) return;
+    if (a.valueDaoUpdatetime !== undefined && a.valueDaoUpdatetime >= updatetime) return;
+    if (updatetime !== undefined) {
       // 该 updatetime 对应的 valueUpdate 尚未到达本环境，等待推送同步本地缓存
       const readFreshes = (a.readFreshes ||= new Map<number, Deferred<number>>());
       let dd = readFreshes.get(updatetime);

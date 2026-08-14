@@ -319,6 +319,94 @@ describe.concurrent("GM Api", () => {
     expect(ret).toEqual("ok!");
   });
 
+  it("收到较旧的 valueUpdate 时不应回滚本地缓存", () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.value = { key: "initial" };
+    script.metadata.grant = ["GM.getValue"];
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+
+    exec.valueUpdate({
+      id: "",
+      entries: [["key", encodeRValue("new"), encodeRValue("initial")]],
+      uuid: script.uuid,
+      storageName: getStorageName(script),
+      sender: { runFlag: "other-run-flag", tabId: 7 },
+      valueUpdated: true,
+      updatetime: 200,
+    });
+    exec.valueUpdate({
+      id: "",
+      entries: [["key", encodeRValue("old"), encodeRValue("new")]],
+      uuid: script.uuid,
+      storageName: getStorageName(script),
+      sender: { runFlag: "other-run-flag", tabId: 7 },
+      valueUpdated: true,
+      updatetime: 100,
+    });
+
+    expect(script.value.key).toBe("new");
+  });
+
+  it("较新的 valueUpdate 即使缺少初始 id 也应放行读取", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.value = { key: "old" };
+    script.metadata.grant = ["GM.getValue"];
+    script.code = `return GM.getValue("key");`;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0, data: 200 });
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: { sendMessage: mockSendMessage } as unknown as Message,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const retPromise = exec.exec();
+    await vi.waitFor(() => expect(mockSendMessage).toHaveBeenCalled());
+
+    exec.valueUpdate({
+      id: "",
+      entries: [["key", encodeRValue("new"), encodeRValue("old")]],
+      uuid: script.uuid,
+      storageName: getStorageName(script),
+      sender: { runFlag: "other-run-flag", tabId: 7 },
+      valueUpdated: true,
+      updatetime: 200,
+    });
+
+    const ret = await Promise.race([retPromise, new Promise((resolve) => setTimeout(() => resolve("timeout"), 50))]);
+    expect(ret).toBe("new");
+  });
+
+  it("context invalidated 时不应让异步读取永久等待", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.value = { key: "old" };
+    script.metadata.grant = ["GM.getValue"];
+    script.code = `return GM.getValue("key");`;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0, data: 200 });
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: { sendMessage: mockSendMessage } as unknown as Message,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const retPromise = exec.exec().then(() => "settled");
+    await vi.waitFor(() => expect(mockSendMessage).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    exec.sandboxContext!.setInvalidContext();
+
+    const ret = await Promise.race([retPromise, new Promise((resolve) => setTimeout(() => resolve("timeout"), 50))]);
+    expect(ret).toBe("settled");
+  });
+
   it.concurrent("GM_listValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.value = { test1: "23", test2: "45", test3: "67" };
