@@ -1,13 +1,18 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { Inbox } from "lucide-react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { EmptyState } from "./empty-state";
 
-describe("基础空状态组件", () => {
-  it("渲染图标、标题与说明", () => {
-    render(<EmptyState icon={Inbox} title="暂无数据" description="稍后再试" />);
+afterEach(cleanup);
 
-    expect(screen.getByText("暂无数据")).toBeInTheDocument();
+describe("基础空状态组件", () => {
+  it("非紧凑模式渲染大图标、加粗标题与说明", () => {
+    render(<EmptyState icon={Inbox} title="暂无数据" description="稍后再试" data-testid="empty" />);
+
+    const root = screen.getByTestId("empty");
+    expect(root).toHaveClass("gap-3");
+    expect(root.querySelector("svg")).toHaveClass("size-10");
+    expect(screen.getByText("暂无数据")).toHaveClass("font-medium");
     expect(screen.getByText("稍后再试")).toBeInTheDocument();
   });
 

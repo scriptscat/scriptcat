@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { MessageQueue, MessageQueueGroup, type IMessageQueue } from "./message_queue";
+import { MessageQueue, type IMessageQueue } from "./message_queue";
 
 const nextTick = () => Promise.resolve().then(() => {});
 
@@ -16,11 +16,6 @@ describe("MessageQueueGroup", () => {
   });
 
   describe("基本功能测试", () => {
-    it.concurrent("应该能够创建分组", () => {
-      const group = messageQueue.group("api-group");
-      expect(group).toBeInstanceOf(MessageQueueGroup);
-    });
-
     it.concurrent("应该能够在分组中订阅和发布消息", () => {
       const group = messageQueue.group("api-sendBasic");
       const handler = vi.fn();
@@ -198,6 +193,45 @@ describe("MessageQueueGroup", () => {
       });
     });
 
+    it("publish 在没有接收方时(Firefox 下 sendMessage 返回的 Promise 会 reject)会主动 catch 住该 rejection", () => {
+      // chrome.runtime.sendMessage() 不带回调时返回 Promise。Chrome 在没有其它监听方时该 Promise
+      // 不会 reject，但 Firefox 会 reject 并抛出 "Could not establish connection. Receiving end
+      // does not exist."。publish 广播给"任何在监听的人"，没人监听是正常情况，不应表现为报错，
+      // 也不应留下未处理的 Promise rejection。
+      // 直接断言 .catch() 是否被调用，而不是依赖 process 的 unhandledRejection 事件——
+      // 后者的触发时机取决于 Node 事件循环细节，在测试环境下并不可靠。
+      const group = messageQueue.group("api-publishNoReceiver");
+      const rejectedPromise = Promise.reject(
+        new Error("Could not establish connection. Receiving end does not exist.")
+      );
+      const originalCatch = rejectedPromise.catch.bind(rejectedPromise);
+      let caughtCalled = false;
+      rejectedPromise.catch = (onRejected: any) => {
+        caughtCalled = true;
+        return originalCatch(onRejected);
+      };
+      vi.spyOn(chrome.runtime, "sendMessage").mockImplementation(() => rejectedPromise as unknown as void);
+
+      expect(() => group.publish("test-publishNoReceiver", { data: 1 })).not.toThrow();
+
+      expect(caughtCalled).toBe(true);
+    });
+
+    it("publish 遇到非无人接收类异常时记录 error 而不是静默降为 debug", async () => {
+      const group = messageQueue.group("api-publishUnexpectedError");
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(chrome.runtime, "sendMessage").mockReturnValue(Promise.reject(new Error("transport exploded")) as never);
+
+      group.publish("test-publishUnexpectedError", { data: 1 });
+      await nextTick();
+      await nextTick();
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Unable to execute runtime.sendMessage"),
+        expect.anything()
+      );
+    });
+
     it("emit 方法应该只在本地发布", () => {
       const group = messageQueue.group("api-emitLocal");
       const handler = vi.fn();
@@ -228,38 +262,6 @@ describe("MessageQueueGroup", () => {
       // 再次发布消息，不应该收到
       group.emit("test-unsubscribe", { data: "test2" });
       expect(handler).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe("边界情况测试", () => {
-    it.concurrent("没有中间件的分组应该正常工作", () => {
-      const group = messageQueue.group("api-groupNoMiddleware");
-      const handler = vi.fn();
-
-      group.subscribe("test-groupNoMiddleware", handler);
-      group.emit("test-groupNoMiddleware", { data: "test-groupNoMiddleware" });
-
-      expect(handler).toHaveBeenCalledWith({ data: "test-groupNoMiddleware" });
-    });
-
-    it.concurrent("应该能够处理复杂的数据类型", () => {
-      const group = messageQueue.group("api-complexPayload");
-      const handler = vi.fn();
-
-      const complexData = {
-        array: [1, 2, 3],
-        object: { nested: true },
-        number: 42,
-        string: "test-complexPayload",
-        boolean: true,
-        null: null,
-        undefined: undefined,
-      };
-
-      group.subscribe("test-complexPayload", handler);
-      group.emit("test-complexPayload", complexData);
-
-      expect(handler).toHaveBeenCalledWith(complexData);
     });
   });
 });

@@ -1,54 +1,72 @@
-import type { BrowserContext } from "@playwright/test";
-import { test, expect } from "./fixtures";
+import type { BrowserContext, Page } from "@playwright/test";
+import { testWithUserScripts as test, expect } from "./fixtures";
 
-// new-ui 安装页（shadcn，data-testid 丰富）：?url= 触发页面级 fetch 拉取脚本，
-// 用 page.route 拦截避免真实网络抖动；脚本元信息渲染后 content-area 可见、
-// 主操作按钮(install-primary)可用、脚本名出现在 h1。
-const SCRIPT_URL = "https://e2e.test/install-test.user.js";
-const SCRIPT_NAME = "E2E Install Test";
-const SCRIPT_BODY = `// ==UserScript==
+const SCRIPT_URL = "https://e2e.test/install-update.user.js";
+const TARGET_ORIGIN = "http://install-update.test";
+const SCRIPT_NAME = "E2E Install Update";
+
+function scriptBody(version: string): string {
+  return `// ==UserScript==
 // @name         ${SCRIPT_NAME}
-// @namespace    https://e2e.test
-// @version      1.0.0
-// @description  install page e2e
-// @author       E2E
-// @match        https://example.com/*
+// @namespace    https://e2e.test/install-update
+// @version      ${version}
+// @description  install and update e2e
+// @match        ${TARGET_ORIGIN}/*
+// @updateURL    ${SCRIPT_URL}
+// @downloadURL  ${SCRIPT_URL}
+// @grant        none
 // ==/UserScript==
 
-console.log("install e2e");
+document.documentElement.setAttribute("data-install-update-version", ${JSON.stringify(version)});
 `;
+}
 
-async function openMockedInstallPage(context: BrowserContext, extensionId: string) {
+async function openInstallPage(context: BrowserContext, extensionId: string): Promise<Page> {
   const page = await context.newPage();
-  // 必须在 goto 之前注册路由，安装页挂载即发起 fetch
-  await page.route("**/install-test.user.js", (route) =>
-    route.fulfill({
-      status: 200,
-      headers: { "Content-Type": "application/javascript; charset=utf-8" },
-      body: SCRIPT_BODY,
-    })
-  );
-  // 安装页按原始子串读取 url=（location.search.slice），不做 decode，故此处不能 encodeURIComponent
   await page.goto(`chrome-extension://${extensionId}/src/install.html?url=${SCRIPT_URL}`, {
     waitUntil: "domcontentloaded",
   });
+  await expect(page.getByText(SCRIPT_NAME).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("install-primary")).toBeEnabled({ timeout: 10_000 });
   return page;
 }
 
-test.describe("Install 安装页", () => {
-  test("应通过 URL 参数打开安装页且标题为 ScriptCat", async ({ context, extensionId }) => {
-    const page = await openMockedInstallPage(context, extensionId);
-    await expect(page).toHaveTitle(/ScriptCat/i);
-  });
+async function installFromPage(page: Page): Promise<void> {
+  await Promise.all([page.waitForEvent("close", { timeout: 10_000 }), page.getByTestId("install-primary").click()]);
+}
 
-  test("加载脚本后应展示脚本元信息并可安装", async ({ context, extensionId }) => {
-    const page = await openMockedInstallPage(context, extensionId);
+async function expectExecutedVersion(context: BrowserContext, version: string): Promise<void> {
+  const page = await context.newPage();
+  try {
+    await page.goto(`${TARGET_ORIGIN}/?version=${version}`, { waitUntil: "domcontentloaded" });
+    await expect(page.locator("html")).toHaveAttribute("data-install-update-version", version, { timeout: 20_000 });
+  } finally {
+    await page.close();
+  }
+}
 
-    // 脚本名渲染（元信息加载完成的可见信号）
-    await expect(page.getByText(SCRIPT_NAME).first()).toBeVisible({ timeout: 15_000 });
-    // 内容区已填充
-    await expect(page.getByTestId("content-area")).toBeVisible({ timeout: 10_000 });
-    // 主操作按钮可用（非 disabled）
-    await expect(page.getByTestId("install-primary")).toBeEnabled({ timeout: 10_000 });
+test.describe("安装与更新真实执行链路", () => {
+  test("从安装页安装 v1 后应执行，并可从同一来源更新到 v2", async ({ context, extensionId }) => {
+    let version = "1.0.0";
+    await context.route(SCRIPT_URL, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/javascript; charset=utf-8",
+        body: scriptBody(version),
+      })
+    );
+    await context.route(`${TARGET_ORIGIN}/**`, (route) =>
+      route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><html><body></body></html>" })
+    );
+
+    await installFromPage(await openInstallPage(context, extensionId));
+    await expectExecutedVersion(context, "1.0.0");
+
+    version = "2.0.0";
+    const updatePage = await openInstallPage(context, extensionId);
+    await expect(updatePage.getByTestId("version-old")).toHaveText("v1.0.0");
+    await expect(updatePage.getByTestId("version-new")).toHaveText("v2.0.0");
+    await installFromPage(updatePage);
+    await expectExecutedVersion(context, "2.0.0");
   });
 });

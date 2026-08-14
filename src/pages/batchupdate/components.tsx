@@ -444,7 +444,7 @@ export function DesktopView({ view }: { view: BatchUpdateViewProps }) {
   const { t } = useTranslation();
   const empty = view.updates.length === 0 && view.ignored.length === 0;
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
+    <div className="flex h-dvh flex-col bg-background text-foreground">
       <header className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-card px-6">
         <div className="flex min-w-0 items-center gap-3">
           <PackageCheck className="size-[22px] shrink-0 text-primary" />

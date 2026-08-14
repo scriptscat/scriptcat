@@ -140,7 +140,7 @@ export class MCPService {
         prompts: prompts.length,
       };
     } finally {
-      client.close();
+      await client.close();
     }
   }
 

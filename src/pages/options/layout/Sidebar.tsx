@@ -71,7 +71,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-[width] duration-200 ${collapsed ? "w-14" : "w-[200px]"}`}
+      className={`flex flex-col h-dvh bg-sidebar border-r border-sidebar-border transition-[width] duration-200 ${collapsed ? "w-14" : "w-[200px]"}`}
     >
       {/* Logo（点击回到首页） */}
       <NavLink

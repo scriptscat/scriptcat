@@ -14,6 +14,7 @@ vi.mock("@App/pages/store/features/script", () => ({
     cancelSkillInstall: vi.fn(),
     prepareSkillFromUrl: vi.fn(),
   },
+  externalAccessClient: { decideOperation: vi.fn() },
 }));
 vi.mock("@App/pkg/utils/scriptInstall", async (io) => ({
   ...(await io<Record<string, unknown>>()),
@@ -47,7 +48,7 @@ vi.mock("@App/app/repo/tempStorage", () => ({
   TempStorageItemType: { tempCode: "tempCode" },
 }));
 
-import { scriptClient, agentClient } from "@App/pages/store/features/script";
+import { scriptClient, agentClient, externalAccessClient } from "@App/pages/store/features/script";
 import { getTempCode } from "@App/pkg/utils/scriptInstall";
 import { prepareScriptByCode, fetchScriptBody, parseMetadata } from "@App/pkg/utils/script";
 import { loadHandle } from "@App/pkg/utils/filehandle-db";
@@ -246,6 +247,60 @@ describe("useInstallData 数据流编排", () => {
     if (state.status !== "ready") throw new Error("not ready");
     expect(state.view.isUpdate).toBe(true);
     expect(state.view.oldCode).toBe("// old code");
+  });
+
+  describe("安装成功后离开安装页:独立新标签应关闭,网页链接接管的原标签应返回上一页", () => {
+    const setupReady = async (paramOptions: Record<string, unknown> = {}) => {
+      window.history.replaceState({}, "", "/install.html?uuid=u1");
+      const metadata = { name: ["示例脚本"], version: ["1.0.0"], match: ["https://e.com/*"] };
+      const info: ScriptInfo = {
+        url: "https://e.com/x.user.js",
+        code: "",
+        uuid: "u1",
+        userSubscribe: false,
+        metadata,
+        source: "user",
+      };
+      (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, paramOptions]);
+      (getTempCode as Mock).mockResolvedValue("// code");
+      (prepareScriptByCode as Mock).mockResolvedValue({ script: makeAction(metadata) });
+      (scriptClient.install as Mock).mockResolvedValue(undefined);
+      const { result } = renderHook(() => useInstallData());
+      await waitFor(() => expect(result.current.state.status).toBe("ready"));
+      return result;
+    };
+
+    it("独立新标签即使 history.length > 1 也应 window.close()", async () => {
+      const result = await setupReady();
+      const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+      const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
+      vi.spyOn(window.history, "length", "get").mockReturnValue(2);
+
+      await act(async () => {
+        await result.current.install();
+        // leaveInstallPage 延后到 install() 里 300ms 的 setTimeout 再叠一帧 rAF 才真正执行，多等一点确保已触发
+        await new Promise((r) => setTimeout(r, 320));
+      });
+
+      expect(closeSpy).toHaveBeenCalledOnce();
+      expect(backSpy).not.toHaveBeenCalled();
+    });
+
+    it("byWebRequest 入口即使 history.length 为 1 也应 history.back() 而非关闭标签", async () => {
+      const result = await setupReady({ byWebRequest: true });
+      const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+      const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
+      vi.spyOn(window.history, "length", "get").mockReturnValue(1);
+
+      await act(async () => {
+        await result.current.install();
+        // leaveInstallPage 延后到 install() 里 300ms 的 setTimeout 再叠一帧 rAF 才真正执行，多等一点确保已触发
+        await new Promise((r) => setTimeout(r, 320));
+      });
+
+      expect(backSpy).toHaveBeenCalledOnce();
+      expect(closeSpy).not.toHaveBeenCalled();
+    });
   });
 
   it("?skill= 时读取技能数据进入 skill 状态", async () => {
@@ -487,5 +542,152 @@ describe("useInstallData 数据流编排", () => {
     await act(async () => result.current.toggleWatch());
     expect(result.current.watching).toBe(false);
     expect(startFileTrack as Mock).not.toHaveBeenCalled();
+  });
+});
+
+describe("MCP 来源的安装请求", () => {
+  beforeAll(async () => {
+    await initTestLanguage();
+  });
+  afterEach(() => {
+    vi.clearAllMocks();
+    window.history.replaceState({}, "", "/install.html");
+  });
+
+  function mcpScriptInfo(overrides: Partial<ScriptInfo> = {}): ScriptInfo {
+    return {
+      url: "",
+      code: "",
+      uuid: "u-mcp",
+      userSubscribe: false,
+      metadata: { name: ["MCP 脚本"], version: ["1.0.0"] },
+      source: "external_access",
+      externalAccess: { operationId: "op-1", contentHash: "abc123" },
+      ...overrides,
+    };
+  }
+
+  it("view.externalAccess 携带内容哈希，供页面渲染横幅（不含客户端名）", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
+    const info = mcpScriptInfo();
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// code");
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "MCP 脚本", metadata: info.metadata, status: 2 } as unknown as Script,
+    });
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+    const state = result.current.state;
+    if (state.status !== "ready") throw new Error("not ready");
+    expect(state.view.externalAccess).toEqual({ operationId: "op-1", contentHash: "abc123" });
+  });
+
+  it("install() 对 MCP 来源调用 externalAccessClient.decideOperation(approved:true)，从不调用 scriptClient.install", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
+    const info = mcpScriptInfo();
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// code");
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "MCP 脚本", metadata: info.metadata, status: 2 } as unknown as Script,
+    });
+    (externalAccessClient.decideOperation as Mock).mockResolvedValue({ operationId: "op-1", status: "approved" });
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+
+    await act(async () => result.current.install({ closeAfterInstall: false }));
+    expect(externalAccessClient.decideOperation).toHaveBeenCalledWith({
+      operationId: "op-1",
+      approved: true,
+      enable: false,
+      rememberSession: false,
+    });
+    expect(scriptClient.install as Mock).not.toHaveBeenCalled();
+  });
+
+  it("install() 对 MCP 来源在用户显式启用后传 enable:true", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
+    const info = mcpScriptInfo();
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// code");
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "MCP 脚本", metadata: info.metadata, status: 2 } as unknown as Script,
+    });
+    (externalAccessClient.decideOperation as Mock).mockResolvedValue({ operationId: "op-1", status: "approved" });
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+
+    act(() => result.current.setEnabled(true));
+    await act(async () => result.current.install({ closeAfterInstall: false }));
+    expect(externalAccessClient.decideOperation).toHaveBeenCalledWith({
+      operationId: "op-1",
+      approved: true,
+      enable: true,
+      rememberSession: false,
+    });
+  });
+
+  it("install({ rememberSession: true }) 传递「本会话允许」标志", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
+    const info = mcpScriptInfo();
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// code");
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "MCP 脚本", metadata: info.metadata, status: 2 } as unknown as Script,
+    });
+    (externalAccessClient.decideOperation as Mock).mockResolvedValue({ operationId: "op-1", status: "approved" });
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+
+    await act(async () => result.current.install({ closeAfterInstall: false, rememberSession: true }));
+    expect(externalAccessClient.decideOperation).toHaveBeenCalledWith(
+      expect.objectContaining({ operationId: "op-1", approved: true, rememberSession: true })
+    );
+  });
+
+  it("rejectExternalAccess() 调用 externalAccessClient.decideOperation(approved:false)", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
+    const info = mcpScriptInfo();
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// code");
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "MCP 脚本", metadata: info.metadata, status: 2 } as unknown as Script,
+    });
+    (externalAccessClient.decideOperation as Mock).mockResolvedValue({ operationId: "op-1", status: "rejected" });
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+
+    await act(async () => result.current.rejectExternalAccess());
+    expect(externalAccessClient.decideOperation).toHaveBeenCalledWith({ operationId: "op-1", approved: false });
+  });
+
+  it("非 MCP 来源的安装不受影响：install() 仍调用 scriptClient.install，不调用 externalAccessClient", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u1");
+    const metadata = { name: ["普通脚本"], version: ["1.0.0"] };
+    const info: ScriptInfo = {
+      url: "https://e.com/x.user.js",
+      code: "",
+      uuid: "u1",
+      userSubscribe: false,
+      metadata,
+      source: "user",
+    };
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// code");
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "普通脚本", metadata, status: SCRIPT_STATUS_ENABLE, uuid: "u1" } as unknown as Script,
+    });
+    (scriptClient.install as Mock).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+
+    await act(async () => result.current.install({ closeAfterInstall: false }));
+    expect(scriptClient.install).toHaveBeenCalled();
+    expect(externalAccessClient.decideOperation).not.toHaveBeenCalled();
   });
 });

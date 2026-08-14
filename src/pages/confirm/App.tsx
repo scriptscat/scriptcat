@@ -54,7 +54,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-testid="confirm-shell"
-      className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4 py-10"
+      className="flex min-h-dvh flex-col items-center justify-center gap-6 bg-background px-4 py-10"
     >
       <BrandMark />
       {children}
