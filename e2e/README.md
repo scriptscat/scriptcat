@@ -123,7 +123,7 @@ None are required; each one only switches on when set. `.env` is **not** loaded 
 | `E2E_PROXY` | [`fixtures.ts`](./fixtures.ts), [`agent-fixtures.ts`](./agent-fixtures.ts) | Chromium proxy for the launched context. Falls back to `https_proxy` / `http_proxy` / `HTTPS_PROXY` / `HTTP_PROXY`. Needed for the non-hermetic specs above on a restricted network. |
 | `E2E_RECORD_VIDEO_DIR` | [`fixtures.ts`](./fixtures.ts) **only** | Records video into that directory. Off by default. Point it at your scenario directory, e.g. `e2e/scratch/<scenario>/videos`. `server-fixtures.ts` / `agent-fixtures.ts`, and any spec that copies a fixture inline instead of importing it, do **not** honour this. |
 | `E2E_ONEDRIVE_TOKEN_FILE` | local scratch scripts only — **not referenced by any committed file** | Path to a OneDrive token JSON for real-provider cloud-sync verification, conventionally defaulting to `~/.config/scriptcat/e2e-onedrive-token.json`. Real account, real side effects — only with authorization. Recorded here because nothing in-tree can tell you it exists. |
-| `E2E_HEADED` | `headlessArgs()` in [`fixtures.ts`](./fixtures.ts), imported by every other fixture | Launches a **visible** window instead of the default `--headless=new`. For watching a run by eye; leave it unset otherwise. `session.mjs --headed` does the same for a session. |
+| `E2E_HEADED` | `headlessArgs()` in [`fixtures.ts`](./fixtures.ts), imported by every other fixture | Set to `1`, `true`, or `yes` to launch a **visible** window instead of the default `--headless=new`; unset it (or use `0`/`false`) otherwise. `session.mjs --headed` does the same for a session. |
 | `CI` | every fixture, plus [`playwright.config.ts`](../playwright.config.ts) | Disables the Chromium sandbox, and switches Playwright to 1 retry / 2 workers / HTML reporter / `forbidOnly`. Set by GitHub Actions; don't set it by hand. |
 
 Secrets never belong in a committed spec or in `report.md` — see the redaction rules in
@@ -177,7 +177,7 @@ node e2e/session.mjs stop <scenario> | --all       # 停止并清理 profile
 and then relaunches from the same profile, because `updateExtensionConfiguration` reloads the extension and its
 own pages answer `ERR_BLOCKED_BY_CLIENT` while that happens. It also sweeps the onboarding tabs the extension
 opens on install, so `pages` starts clean — one that arrives later simply stays, which is why the current page
-is tracked by URL rather than by index.
+is tracked by CDP target identity rather than by index; URL remains a fallback for old evidence files.
 
 ### Driving it
 
@@ -201,7 +201,7 @@ node e2e/drive.mjs --scenario <scenario> <command> # 多会话时必须指名
 | `pages` / `use <i>` / `close` | Page management; `→` marks the current page |
 | `console [n]` | Last `n` lines the session recorded, across all contexts (see below) |
 
-The current page is tracked by URL, not by index — the extension opens pages of its own, and indices shift.
+The current page is tracked by CDP target identity, not by index — the extension opens pages of its own, and indices shift.
 
 Clicking starts from `snapshot`, because the UI is Tailwind-classed and reading class strings tells you nothing
 about what is clickable. It prefers `data-testid`, falls back to `#id`, then to `text="…"`, and marks disabled

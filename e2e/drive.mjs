@@ -44,14 +44,37 @@ function activeFile(session) {
 
 function readActive(session) {
   try {
-    return fs.readFileSync(activeFile(session), "utf8").trim();
+    const value = fs.readFileSync(activeFile(session), "utf8").trim();
+    if (!value) return null;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return { url: value };
+    }
   } catch {
-    return "";
+    return null;
   }
 }
 
-function writeActive(session, url) {
-  fs.writeFileSync(activeFile(session), url);
+function clearActive(session) {
+  fs.rmSync(activeFile(session), { force: true });
+}
+
+async function pageTargetId(context, page) {
+  const cdp = await context.newCDPSession(page);
+  try {
+    const { targetInfo } = await cdp.send("Target.getTargetInfo");
+    return targetInfo.targetId;
+  } finally {
+    await cdp.detach().catch(() => {});
+  }
+}
+
+async function writeActive(context, session, page) {
+  fs.writeFileSync(
+    activeFile(session),
+    `${JSON.stringify({ targetId: await pageTargetId(context, page), url: page.url() })}\n`
+  );
 }
 
 function logAction(session, line) {
@@ -72,17 +95,22 @@ async function anyExtensionPage(context, session) {
 }
 
 /**
- * 按 URL 而不是下标定位当前页：扩展自己会开引导页，下标随时会错位。
- * 依次退让到「同源同路径」（hash 路由跳转）和最后一个页面。
+ * 按 CDP targetId 而不是下标定位当前页：扩展自己会开引导页，下标随时会错位。
+ * 旧的 URL 标记仍可读取，并依次退让到「同源同路径」（hash 路由跳转）和最后一个页面。
  */
-function activePage(context, session) {
+async function activePage(context, session) {
   const pages = context.pages();
   if (!pages.length) fail("会话里没有打开的页面，先 open 或 goto");
   const wanted = readActive(session);
   if (!wanted) return pages[pages.length - 1];
-  const exact = pages.filter((page) => page.url() === wanted).pop();
+  if (wanted.targetId) {
+    for (const page of pages) {
+      if ((await pageTargetId(context, page)) === wanted.targetId) return page;
+    }
+  }
+  const exact = pages.filter((page) => page.url() === wanted.url).pop();
   if (exact) return exact;
-  const base = wanted.split("#")[0];
+  const base = wanted.url.split("#")[0];
   const sameDocument = pages.filter((page) => page.url().split("#")[0] === base).pop();
   return sameDocument ?? pages[pages.length - 1];
 }
@@ -129,9 +157,10 @@ async function run() {
   // console 只读会话记录的日志文件，不必附着浏览器
   if (command === "console") {
     const file = path.join(dir, "console.log");
+    const count = parseInt(args[0], 10) || 50;
+    logAction(session, `console ${count}`);
     if (!fs.existsSync(file)) return console.log("（还没有 console 输出）");
     const lines = fs.readFileSync(file, "utf8").trimEnd().split("\n");
-    const count = parseInt(args[0], 10) || 50;
     return console.log(lines.slice(-count).join("\n"));
   }
 
@@ -146,43 +175,43 @@ async function run() {
         const url = `chrome-extension://${session.extensionId}/${suffix}`;
         const page = await context.newPage();
         await page.goto(url, { waitUntil: "domcontentloaded" });
-        writeActive(session, page.url());
+        await writeActive(context, session, page);
         logAction(session, `open ${target} → ${url}`);
         console.log(`✓ ${await page.title()} — ${url}`);
         break;
       }
       case "goto": {
         if (!args[0]) fail("goto 需要一个 URL");
-        const page = activePage(context, session);
+        const page = await activePage(context, session);
         await page.goto(args[0], { waitUntil: "domcontentloaded" });
-        writeActive(session, page.url());
+        await writeActive(context, session, page);
         logAction(session, `goto ${args[0]}`);
         console.log(`✓ ${await page.title()} — ${page.url()}`);
         break;
       }
       case "click": {
-        const page = activePage(context, session);
+        const page = await activePage(context, session);
         await page.locator(args[0]).first().click({ timeout: 10_000 });
         logAction(session, `click ${args[0]}`);
         console.log(`✓ clicked ${args[0]}`);
         break;
       }
       case "fill": {
-        const page = activePage(context, session);
+        const page = await activePage(context, session);
         await page.locator(args[0]).first().fill(args.slice(1).join(" "), { timeout: 10_000 });
         logAction(session, `fill ${args[0]}`);
         console.log(`✓ filled ${args[0]}`);
         break;
       }
       case "press": {
-        const page = activePage(context, session);
+        const page = await activePage(context, session);
         await page.keyboard.press(args[0]);
         logAction(session, `press ${args[0]}`);
         console.log(`✓ pressed ${args[0]}`);
         break;
       }
       case "wait": {
-        const page = activePage(context, session);
+        const page = await activePage(context, session);
         await page
           .locator(args[0])
           .first()
@@ -192,7 +221,7 @@ async function run() {
         break;
       }
       case "text": {
-        const page = activePage(context, session);
+        const page = await activePage(context, session);
         const text = await page
           .locator(args[0] ?? "body")
           .first()
@@ -202,7 +231,7 @@ async function run() {
         break;
       }
       case "shot": {
-        const page = activePage(context, session);
+        const page = await activePage(context, session);
         const shots = path.join(dir, "shots");
         fs.mkdirSync(shots, { recursive: true });
         const seq = String(fs.readdirSync(shots).filter((f) => f.endsWith(".png")).length + 1).padStart(2, "0");
@@ -213,7 +242,7 @@ async function run() {
         break;
       }
       case "eval": {
-        const page = activePage(context, session);
+        const page = await activePage(context, session);
         const result = await page.evaluate(wrapEvalSource(args.join(" ")));
         logAction(session, `eval ${args.join(" ").slice(0, 80)}`);
         print(result);
@@ -253,7 +282,7 @@ async function run() {
         break;
       }
       case "snapshot": {
-        const page = activePage(context, session);
+        const page = await activePage(context, session);
         const items = await page.evaluate((scopeSelector) => {
           const root = document.querySelector(scopeSelector) ?? document.body;
           const INTERACTIVE =
@@ -302,22 +331,24 @@ async function run() {
         break;
       }
       case "pages": {
-        const current = activePage(context, session);
+        const current = await activePage(context, session);
         context.pages().forEach((page, i) => console.log(`${page === current ? "→" : " "} ${i}  ${page.url()}`));
+        logAction(session, "pages");
         break;
       }
       case "use": {
         const index = parseInt(args[0], 10);
         const target = context.pages()[index];
         if (Number.isNaN(index) || !target) fail(`没有第 ${args[0]} 个页面，先看 pages`);
-        writeActive(session, target.url());
+        await writeActive(context, session, target);
+        logAction(session, `use ${index}`);
         console.log(`✓ 当前页 ${index} — ${target.url()}`);
         break;
       }
       case "close": {
-        const page = activePage(context, session);
+        const page = await activePage(context, session);
         await page.close();
-        writeActive(session, "");
+        clearActive(session);
         logAction(session, "close");
         console.log("✓ closed");
         break;
