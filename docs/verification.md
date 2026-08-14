@@ -274,8 +274,8 @@ screenshot doesn't demonstrate the other renders correctly.
 
 ## Step 4 — Report honestly
 
-Verification only counts if the result is reported as observed (this mirrors the engineering principle: evidence
-before assertions).
+Verification only counts if the result is reported with the required evidence (runtime observation, or a causal
+proof where this section allows one; this mirrors the engineering principle: evidence before assertions).
 
 - Record one verdict **per claim**, not one for the run, using the three labels the
   [report template](./references/verification-report-template.md#verdicts-are-per-claim-and-there-are-three-of-them)

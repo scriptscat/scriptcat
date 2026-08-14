@@ -1,9 +1,10 @@
 # Repository Guidelines
 
 This is the repo-wide contract for AI coding agents. It owns only engineering principles and the architecture
-quick-map; concrete mechanics belong to the routed docs. Compatibility entry points reuse this file and have
-no separate contract. Use [`docs/README.md`](docs/README.md) as the index and follow the owning doc instead of
-duplicating its rules.
+quick-map; concrete mechanics belong to the routed docs. `CLAUDE.md` imports this file, while
+`.github/copilot-instructions.md` keeps only Copilot-specific routing and behavior; neither duplicates the shared
+contract. Use [`docs/README.md`](docs/README.md) as the index and follow the owning doc instead of duplicating its
+rules.
 
 ## Route the task before acting
 

@@ -157,13 +157,17 @@ three labels are not interchangeable:
 
 | Label | Use it when | Requires |
 | --- | --- | --- |
-| `holds` | you observed the behavior at runtime | the deciding observation *and* a command a reader can re-run |
+| `holds` | you observed the behavior at runtime, or a negative claim has a closure-window observation or causal proof | the deciding observation/proof *and* a command or source locator a reader can re-run/inspect |
 | `does not hold` | you observed it failing, or observed the bug reproducing | the failing output, assertion diff, or error screenshot |
 | `not observed` | you never reached the check — blocked, out of scope, environment missing | a `Blockers` entry saying what stopped it |
 
 `not observed` is the one that keeps a report honest: an unreached check is **never** `holds`. A run where two
 claims held and one was never exercised is reported as exactly that, not as a pass. When the cause was an
 unconfigured environment, name the service and the *variable names* that were missing — never their values.
+
+For a negative claim, a causal proof is valid only when it shows that execution cannot reach the forbidden side
+effect; record the proof's source/contract locator in `How observed`. If neither that proof nor a closure-window
+observation exists, use `not observed`.
 
 The `Check it yourself` column exists so a reviewer can reproduce a row without reconstructing the run; if a row
 has no such command, say why in `How observed` rather than leaving it blank.
