@@ -570,6 +570,66 @@ describe("ValueService - updatetime 与 waitForFreshValueState", () => {
     );
   });
 
+  it("valueUpdate 投递失败时 setValues 应报告失败", async () => {
+    const mockScript = createMockScript();
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(undefined);
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+    valueService.pushValueUpdate = vi.fn().mockRejectedValue(new Error("delivery failed"));
+
+    await expect(
+      valueService.setValues({
+        uuid: mockScript.uuid,
+        id: "testId-5003",
+        keyValuePairs: [["testKey", encodeRValue("value")]],
+        valueSender: createMockValueSender(),
+        isReplace: false,
+      })
+    ).rejects.toThrow("delivery failed");
+  });
+
+  it("同一 storageName 的写入和 valueUpdate 投递应串行", async () => {
+    const mockScript = createMockScript();
+    const existingValueModel: Value = {
+      uuid: mockScript.uuid,
+      storageName: getStorageName(mockScript),
+      data: {},
+      createtime: 1,
+      updatetime: 1,
+    };
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(existingValueModel);
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+    let releaseFirst!: (value: boolean) => void;
+    const firstPush = new Promise<boolean>((resolve) => {
+      releaseFirst = resolve;
+    });
+    valueService.pushValueUpdate = vi
+      .fn()
+      .mockImplementationOnce(() => firstPush)
+      .mockResolvedValue(true);
+
+    const first = valueService.setValues({
+      uuid: mockScript.uuid,
+      keyValuePairs: [["first", encodeRValue("value")]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+    await vi.waitFor(() => expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1));
+    const second = valueService.setValues({
+      uuid: mockScript.uuid,
+      keyValuePairs: [["second", encodeRValue("value")]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(1);
+
+    releaseFirst(true);
+    await Promise.all([first, second]);
+    expect(valueService.pushValueUpdate).toHaveBeenCalledTimes(2);
+  });
+
   it("waitForFreshValueState 不带 id 时应直接返回 valueDAO 的 updatetime", async () => {
     const mockScript = createMockScript();
     const updatetime = Date.now() - 5000;

@@ -94,14 +94,14 @@ export class ValueService {
     if (!script) {
       throw new Error("script not found");
     }
-    // 查询老的值
+    // 查询老的值并按 storageName 串行完成写入与投递
     const storageName = getStorageName(script);
-    let oldValueRecord: ValueStore = {};
     const cacheKey = `${CACHE_KEY_SET_VALUE}${storageName}`;
-    const entries = [] as ValueUpdateDataREntry[];
-    let updatetime = 0;
-    const _flag = await stackAsyncTask<boolean>(cacheKey, async () => {
+    await stackAsyncTask<void>(cacheKey, async () => {
+      const entries = [] as ValueUpdateDataREntry[];
+      let updatetime = 0;
       let valueModel: Value | undefined = await this.valueDAO.get(storageName);
+      let shouldSave = true;
       if (!valueModel) {
         const now = aNow();
         const dataModel: ValueStore = {};
@@ -123,7 +123,8 @@ export class ValueService {
         };
       } else {
         let changed = false;
-        let dataModel = (oldValueRecord = valueModel.data);
+        const oldValueRecord = valueModel.data;
+        let dataModel = oldValueRecord;
         dataModel = { ...dataModel }; // 每次储存使用新参考
         const containedKeys = new Set<string>();
         for (const [key, rTyped1] of keyValuePairs) {
@@ -154,27 +155,30 @@ export class ValueService {
         }
         if (!changed) {
           updatetime = valueModel.updatetime;
-          return false;
+          shouldSave = false;
+        } else {
+          valueModel.data = dataModel; // 每次储存使用新参考
+          valueModel.updatetime = aNow(); // 保证严格递增，供读取端判断新鲜度
         }
-        valueModel.data = dataModel; // 每次储存使用新参考
-        valueModel.updatetime = aNow(); // 保证严格递增，供读取端判断新鲜度
       }
       updatetime = valueModel.updatetime;
-      await this.valueDAO.save(storageName, valueModel);
-      return true;
+      if (shouldSave) {
+        await this.valueDAO.save(storageName, valueModel);
+      }
+      const sendData = {
+        id,
+        entries,
+        uuid,
+        storageName,
+        sender: valueSender,
+        valueUpdated: entries.length > 0,
+        updatetime,
+      } as ValueUpdateDataEncoded;
+      const delivered = await this.pushValueUpdate(script, sendData);
+      if (delivered === false) {
+        throw new Error("value update delivery failed");
+      }
     });
-    // 推送到所有加载了本脚本的tab中
-    const valueUpdated = entries.length > 0;
-    const sendData = {
-      id,
-      entries: entries,
-      uuid,
-      storageName,
-      sender: valueSender,
-      valueUpdated,
-      updatetime,
-    } as ValueUpdateDataEncoded;
-    this.pushValueUpdate(script, sendData);
   }
 
   /**
