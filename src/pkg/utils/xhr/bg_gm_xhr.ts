@@ -492,7 +492,7 @@ export class BgGMXhr {
         rawData instanceof Blob ||
         rawData instanceof FormData ||
         rawData instanceof ArrayBuffer ||
-        rawData instanceof Uint8Array;
+        ArrayBuffer.isView(rawData);
       // 其他标准以外的物件类型则尝试 JSON 转换
       if (!isStandardRequestBody && typeof rawData === "object") {
         if ((baseXHR.getResponseHeader("Content-Type") || "application/json") !== "application/json") {

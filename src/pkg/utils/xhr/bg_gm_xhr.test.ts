@@ -85,11 +85,12 @@ describe("BgGMXhr 的 upload 事件转发", () => {
     global.XMLHttpRequest = originalXHR;
   });
 
-  const createXhr = async (hasUpload = true) => {
+  const createXhr = async (hasUpload = true, data?: GMSend.XHRDetails["data"]) => {
     const details = {
       method: "POST",
       url: "https://example.com/upload",
       hasUpload,
+      data,
     } as unknown as GMSend.XHRDetails;
     const bgGmXhr = new BgGMXhr(
       details,
@@ -104,6 +105,15 @@ describe("BgGMXhr 的 upload 事件转发", () => {
     expect(xhr).toBeDefined();
     return xhr;
   };
+
+  it.each([
+    ["DataView", { type: "DataView", m: "AQI=" }],
+    ["Int16Array", { type: "Int16Array", m: "AQI=" }],
+  ])("%s 请求体应作为原生 XMLHttpRequest body 发送", async (_label, data) => {
+    const xhr = await createXhr(false, data as GMSend.XHRDetails["data"]);
+
+    expect(ArrayBuffer.isView(xhr.sentData)).toBe(true);
+  });
 
   it("details.hasUpload 为假时，不应为 xhr.upload 绑定任何事件监听器（避免为未使用该功能的请求触发 CORS 预检）", async () => {
     const xhr = await createXhr(false);
