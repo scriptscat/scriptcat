@@ -395,6 +395,7 @@ export class PopupService {
         // 如果脚本已经存在，则不添加，更新信息
         run.enable = script.status === SCRIPT_STATUS_ENABLE;
         run.isEffective = o.effective!;
+        run.hasMatchOverride = script.selfMetadata?.match !== undefined;
         run.hasUserConfig = !!script.config;
       } else {
         // 由于目前没有在 Popup 显示 @match @include @exclude, 所以以下代码暂不需要
@@ -407,19 +408,6 @@ export class PopupService {
       scriptMenuMap.set(uuid, run);
     }
 
-    // 将未匹配当前 url 但仍在运行的脚本，附加到清单末端，避免使用者找不到其菜单。
-    // 这些记录来自 tabScript:<tabId> session cache；脚本删除事件与 Popup 读取可能交错，
-    // 因此这里必须用 DAO 结果做读侧防护，避免已删除脚本残留在 Popup 清单。
-    const unmatchedRunScripts = runScripts.filter((script) => !scriptMenuMap.has(script.uuid));
-    if (unmatchedRunScripts.length) {
-      const existingRunScripts = await this.scriptDAO.gets(unmatchedRunScripts.map((script) => script.uuid));
-      for (let idx = 0, l = unmatchedRunScripts.length; idx < l; idx++) {
-        const script = unmatchedRunScripts[idx];
-        if (existingRunScripts[idx]) {
-          scriptMenuMap.set(script.uuid, script);
-        }
-      }
-    }
     const scriptMenu = [...scriptMenuMap.values()];
     // 检查是否在黑名单中
     const isBlacklist = this.runtime.isUrlBlacklist(url);
