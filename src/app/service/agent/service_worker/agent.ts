@@ -44,6 +44,7 @@ import { AgentOPFSService } from "./opfs_service";
 import { executeSkillScript } from "@App/app/service/offscreen/client";
 import { createTabTools } from "@App/app/service/agent/core/tools/tab_tools";
 import { ChatService } from "./chat_service";
+import { PromptOptimizerService } from "./prompt_optimizer_service";
 
 // 保留对外 API（测试文件直接从 "./agent" import 这三个函数）
 export { isRetryableError, withRetry, classifyErrorCode } from "./retry_utils";
@@ -78,6 +79,7 @@ export class AgentService {
   private toolLoopOrchestrator!: ToolLoopOrchestrator;
   // 主聊天入口及会话 CRUD 委托给 ChatService
   private chatService!: ChatService;
+  private promptOptimizerService: PromptOptimizerService;
 
   constructor(
     private group: Group,
@@ -88,6 +90,7 @@ export class AgentService {
     this.modelService = new AgentModelService(group);
     this.opfsService = new AgentOPFSService(sender);
     this.llmClient = new LLMClient(agentChatRepo);
+    this.promptOptimizerService = new PromptOptimizerService(this.modelService, this.llmClient);
     this.compactService = new CompactService(
       this.modelService,
       {
@@ -155,6 +158,12 @@ export class AgentService {
     this.group.on("attachToConversation", this.handleAttachToConversation.bind(this));
     // 获取正在运行的会话 ID 列表
     this.group.on("getRunningConversationIds", () => this.getRunningConversationIds());
+    this.group.on("optimizePrompt", (params: { requestId: string; prompt: string; modelId?: string }) =>
+      this.promptOptimizerService.optimizePrompt(params)
+    );
+    this.group.on("cancelPromptOptimization", (requestId: string) =>
+      this.promptOptimizerService.cancelOptimization(requestId)
+    );
     // Skill 管理（供 Options UI 调用）
     this.group.on(
       "installSkill",
