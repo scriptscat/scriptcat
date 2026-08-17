@@ -1694,16 +1694,28 @@ export class ScriptService {
       const set = new Set(uuids);
       for (const entry of list) {
         if (set.has(entry.uuid)) {
-          if (!entry.newCode) continue;
+          if (!entry.checkUpdate || !entry.script || !entry.newCode) continue;
           data.set(entry.uuid, entry);
         }
       }
+      const currentScripts = await Promise.all(uuids.map((uuid) => this.scriptDAO.get(uuid)));
+      const cacheExpired = uuids.some((uuid, index) => {
+        const entry = data.get(uuid);
+        const current = currentScripts[index];
+        return (
+          !entry ||
+          !current ||
+          current.uuid !== uuid ||
+          current.metadata.version?.[0] !== entry.script?.metadata.version?.[0]
+        );
+      });
+      if (cacheExpired) return { ok: false, reason: "record_expired", items: [] } satisfies TBatchUpdateResult;
       const res: TBatchUpdateItemResult[] = [];
       const updated = new Set();
       for (const uuid of set) {
         const entry = data.get(uuid);
         try {
-          await this.installByCode({ uuid, code: entry?.newCode, upsertBy: "user" });
+          await this.installByCode({ uuid, code: entry!.newCode, upsertBy: "user" });
           res.push({
             uuid,
             success: true,

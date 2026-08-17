@@ -1139,6 +1139,60 @@ describe("ScriptService.batchUpdateListAction —— 更新动作的执行结果
     expect(res).toEqual({ ok: true, items: [{ uuid: "u-bad", success: false, error: "下载新版本失败" }] });
     expect(service["scriptUpdateCheck"].cacheFull?.list?.some((e) => e.uuid === "u-bad")).toBe(true);
   });
+
+  it("缓存仍在但请求的脚本记录已不存在时应视为缓存过期", async () => {
+    const { service } = buildService();
+    primeCache(service, [{ uuid: "cached", newCode: userscript("2.0.0") }]);
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.UPDATE,
+      actionPayload: [{ uuid: "missing" }],
+    });
+
+    expect(res).toEqual({ ok: false, reason: "record_expired", items: [] });
+  });
+
+  it("当前脚本版本高于缓存版本时应拒绝更新而不发生降级", async () => {
+    const { service, scriptDAO, codeDAO } = buildService();
+    await scriptDAO.save(
+      makeScript({
+        uuid: "u-stale",
+        name: "批量更新目标",
+        namespace: "scriptcat-test",
+        metadata: { name: ["批量更新目标"], namespace: ["scriptcat-test"], version: ["3.0.0"] },
+      })
+    );
+    await codeDAO.save({ uuid: "u-stale", code: userscript("3.0.0") });
+    service["scriptUpdateCheck"].setCacheFull({
+      checktime: Date.now(),
+      list: [
+        {
+          uuid: "u-stale",
+          checkUpdate: true,
+          oldCode: userscript("1.0.0"),
+          newCode: userscript("2.0.0"),
+          newMeta: { version: ["2.0.0"], connect: [] },
+          script: makeScript({
+            uuid: "u-stale",
+            name: "批量更新目标",
+            namespace: "scriptcat-test",
+            metadata: { name: ["批量更新目标"], namespace: ["scriptcat-test"], version: ["1.0.0"] },
+          }),
+          codeSimilarity: 0.9,
+          sites: [],
+          withNewConnect: false,
+        },
+      ],
+    });
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.UPDATE,
+      actionPayload: [{ uuid: "u-stale" }],
+    });
+
+    expect(res).toEqual({ ok: false, reason: "record_expired", items: [] });
+    expect((await scriptDAO.get("u-stale"))?.metadata.version).toEqual(["3.0.0"]);
+  });
 });
 
 describe("ScriptService._checkScriptUpdate —— 检查期间脚本被更新", () => {
@@ -1212,5 +1266,47 @@ describe("ScriptService._checkScriptUpdate —— 检查期间脚本被更新", 
     await service.checkScriptUpdate({ checkType: "user" });
 
     expect(entryOf(service)?.checkUpdate).not.toBe(true);
+  });
+
+  it("部分脚本在检查期间变更时,无脚本的退化记录也不应导致缓存排序崩溃", async () => {
+    const { service, scriptDAO } = buildService();
+    const stableUrl = "https://example.test/stable.user.js";
+    await scriptDAO.save(
+      makeScript({
+        uuid: "u-changed",
+        name: "变更目标",
+        namespace: "scriptcat-test",
+        sort: 0,
+        metadata: { name: ["变更目标"], namespace: ["scriptcat-test"], version: ["1.0.0"] },
+        downloadUrl: URL,
+        checkUpdateUrl: URL,
+        checkUpdate: true,
+      })
+    );
+    await scriptDAO.save(
+      makeScript({
+        uuid: "u-stable",
+        name: "稳定目标",
+        namespace: "scriptcat-test",
+        sort: 1,
+        metadata: { name: ["稳定目标"], namespace: ["scriptcat-test"], version: ["1.0.0"] },
+        downloadUrl: stableUrl,
+        checkUpdateUrl: stableUrl,
+        checkUpdate: true,
+      })
+    );
+    await service.scriptCodeDAO.save({ uuid: "u-changed", code: userscript("1.0.0") });
+    await service.scriptCodeDAO.save({ uuid: "u-stable", code: userscript("1.0.0") });
+    vi.spyOn(service, "checkUpdatesAvailable").mockImplementation(async () => {
+      await service.installByCode({ uuid: "u-changed", code: userscript("2.0.0"), upsertBy: "user" });
+      return [
+        { updateAvailable: true as const, code: userscript("2.0.0"), metadata: { version: ["2.0.0"] } },
+        { updateAvailable: true as const, code: userscript("2.0.0"), metadata: { version: ["2.0.0"] } },
+      ];
+    });
+
+    await expect(service.checkScriptUpdate({ checkType: "user" })).resolves.toMatchObject({ ok: true });
+    expect(service["scriptUpdateCheck"].cacheFull?.list?.find((e) => e.uuid === "u-changed")?.checkUpdate).toBe(false);
+    expect(service["scriptUpdateCheck"].cacheFull?.list?.find((e) => e.uuid === "u-stable")?.checkUpdate).toBe(true);
   });
 });
