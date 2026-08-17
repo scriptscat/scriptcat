@@ -14,7 +14,7 @@ instead of copying its content here.
 | add or change localized content | [`docs/translation.md`](docs/translation.md) — plus the matching `docs/references/terminology-<locale>.md` when one exists |
 | add, edit, reorganize, or review any tracked contributor Markdown (this file, `docs/*`, `.github/*.md`, package- and source-local READMEs) | [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md) — *if you can't grep it on this branch, don't claim it* |
 | open or update a pull request | [`docs/pull-request.md`](docs/pull-request.md) |
-| manually confirm a feature works | [`docs/verification.md`](docs/verification.md) — a throwaway scratch script against the built extension, not the committed suite |
+| manually confirm a feature works | [`docs/verification.md`](docs/verification.md) — drive a throwaway session against the built extension, not the committed suite |
 
 ## DeepWiki Context
 
