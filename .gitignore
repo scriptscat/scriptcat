@@ -38,6 +38,7 @@ yarn.lock
 .claude
 .codex
 .omc
+.opskat/
 # 不带尾斜杠：linked worktree 里的 .dev-kit 是符号链接，`.dev-kit/` 只匹配真目录会漏掉它
 .dev-kit
 .superpowers/
