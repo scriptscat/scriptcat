@@ -57,8 +57,10 @@ pnpm exec playwright test --config playwright.scratch.config.ts -g "<test title>
 
 ## Driving the session
 
-[`../e2e/README.md`](../e2e/README.md#8-verification-sessions) owns the command reference. What matters for a
-verdict:
+[`../e2e/README.md`](../e2e/README.md#8-verification-sessions) owns the command reference, and
+[`references/verification-methods.md`](references/verification-methods.md) the patterns for behaviour the UI does
+not expose directly — the `example/tests/` in-page self-tests, Service Worker messages, themes. What matters for
+a verdict:
 
 - **Observe from a path the driven surface does not share.** `drive.mjs storage` reads `chrome.storage.local`
   from an extension page, and `drive.mjs sw` evaluates inside the Service Worker — neither goes through the UI
@@ -74,56 +76,6 @@ verdict:
 
 Sessions are headless: verification must not steal desktop focus, and several worktrees verify at once. Add
 `--headed` only to watch by eye.
-
-### In-page self-test scripts (`example/tests/`)
-
-The bundled userscripts in [`example/tests/`](../example/tests/) assert GM APIs / injection inside the page and
-print a summary that the session's console log (captured from every context) makes observable. Most share one
-framework, [`example/tests/lib/sctest.js`](../example/tests/lib/sctest.js) (loaded via `@require`), and all of
-those emit the same summary lines:
-
-```
-总测试数: 12
-通过: 12
-失败: 0
-跳过: 0 (34ms)
-```
-
-Scripts that run in a background / crontab context have no visible page, so the framework additionally emits one
-`GM_log` entry per case with structured labels (`sctest`, `status`), which show up as filterable chips on the
-运行日志 page. Cases that need a human action (e.g. clicking a menu item) are registered with `itManual` and
-count as skipped until confirmed on the panel.
-
-Exceptions that print no unified summary:
-
-- [`gm_download_test.js`](../example/tests/gm_download_test.js) and
-  [`gm_menu_test.js`](../example/tests/gm_menu_test.js) — self-contained runners with their own panel and
-  human-confirmation flow (no `@require`);
-- [`gm_value_test.js`](../example/tests/gm_value_test.js) — an interactive multi-frame dashboard demo for
-  `GM_addValueChangeListener` with no machine-checkable assertions.
-
-Collect and assert on the summary from a scratch spec (the regex matches the framework's summary lines):
-
-```ts
-const logs: string[] = [];
-let passed = -1;
-let failed = -1;
-page.on("console", (msg) => {
-  const text = msg.text();
-  logs.push(text);
-  const pass = text.match(/(通过|Passed)[:：]\s*(\d+)/);
-  const fail = text.match(/(失败|Failed)[:：]\s*(\d+)/);
-  if (pass) passed = parseInt(pass[2], 10);
-  if (fail) failed = parseInt(fail[2], 10);
-});
-// ...navigate to the target page, then:
-expect(failed, logs.join("\n")).toBe(0);
-expect(passed).toBeGreaterThan(0);
-```
-
-To verify a *new* GM API or behavior, write a small self-test userscript in the same style (assert in-page,
-print `通过`/`失败` counts) and install it with `installScriptByCode`. Keep the userscript inside your scratch
-script or a git-ignored file — it is verification scaffolding, not a committed example.
 
 ## Running more than one at a time
 

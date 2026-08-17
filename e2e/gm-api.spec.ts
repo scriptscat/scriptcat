@@ -500,9 +500,9 @@ async function runTestScript(
   options?: {
     patchCode?: (code: string) => string;
     requireOrigin?: string;
-    // B 类文件的 sctest 套件是 auto:false（真实下载副作用），页面加载不会自动跑，需要先点面板的
-    // 「运行」按钮。首次加载时 ConsoleReporter 已经打过一次汇总（那时用例全被预置为 skip，
-    // 即 "通过: 0 / 失败: 0"），所以点击后必须等**新的一次**汇总，不能沿用已有值。
+    // 声明为 auto:false 的 sctest 套件不随页面加载开跑，要先点面板的「运行」按钮。首次加载时
+    // ConsoleReporter 已经打过一次汇总（那时用例全被预置为 skip，即 "通过: 0 / 失败: 0"），
+    // 所以点击后必须等**新的一次**汇总，不能沿用已有值。
     beforeCollect?: (page: Page) => Promise<void>;
   }
 ): Promise<{ passed: number; failed: number; logs: string[] }> {
@@ -520,7 +520,7 @@ async function runTestScript(
   let passed = -1;
   let failed = -1;
 
-  // 「失败:」是三行汇总里的最后一行，用它计数即可判定又打完了一整组汇总。
+  // 「失败:」是汇总里最后一个被这里读取的计数行，用它计数即可判定又打完了一整组汇总。
   let summaryCount = 0;
 
   page.on("console", (msg) => {
