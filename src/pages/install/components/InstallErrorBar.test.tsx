@@ -22,6 +22,11 @@ describe("InstallErrorBar 安装失败错误条", () => {
     expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
+  it("没有可重放的动作时不展示重试按钮", () => {
+    render(<InstallErrorBar message="操作已过期" />);
+    expect(screen.queryByTestId("install-error-retry")).toBeNull();
+  });
+
   it("以 alert 角色暴露,读屏用户能立刻收到失败", () => {
     render(<InstallErrorBar message="网络中断" onRetry={vi.fn()} />);
     expect(screen.getByRole("alert")).toBe(screen.getByTestId("install-error-bar"));

@@ -53,8 +53,11 @@ export default function App() {
   } = useInstallData();
   const [bgPrompt, setBgPrompt] = useState<{ scriptType: string; permission: PromptPermission } | null>(null);
   const installed = outcome.phase === "installed" ? outcome.result : null;
+  const externalAccessFailure = state.status === "ready" && !!state.view.externalAccess;
   const errorBar =
-    outcome.phase === "failed" ? <InstallErrorBar message={outcome.message} onRetry={retryInstall} /> : undefined;
+    outcome.phase === "failed" ? (
+      <InstallErrorBar message={outcome.message} onRetry={externalAccessFailure ? undefined : retryInstall} />
+    ) : undefined;
 
   // 后台/定时脚本首次安装时,提示开启后台运行(对照 v1.4 checkBackgroundPrompt)
   const ready = state.status === "ready" ? state.view : null;

@@ -4,7 +4,7 @@ import { Button } from "@App/pages/components/ui/button";
 
 export interface InstallErrorBarProps {
   message: string;
-  onRetry: () => void;
+  onRetry?: () => void;
 }
 
 /**
@@ -27,9 +27,11 @@ export function InstallErrorBar({ message, onRetry }: InstallErrorBarProps) {
           {message}
         </span>
       </div>
-      <Button data-testid="install-error-retry" size="sm" variant="destructive" onClick={onRetry}>
-        {t("install:error_retry")}
-      </Button>
+      {onRetry && (
+        <Button data-testid="install-error-retry" size="sm" variant="destructive" onClick={onRetry}>
+          {t("install:error_retry")}
+        </Button>
+      )}
     </div>
   );
 }

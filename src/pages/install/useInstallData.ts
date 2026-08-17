@@ -461,11 +461,11 @@ export function useInstallData(): UseInstallData {
   const onWatchedCodeChanged = useCallback(async (newCode: string) => {
     const info = infoRef.current;
     if (!info) return;
-    info.code = newCode;
     try {
       const { script } = await prepareScriptByCode(newCode, info.url, (actionRef.current as Script)?.uuid, false);
-      actionRef.current = script;
       await scriptClient.install({ script, code: newCode });
+      info.code = newCode;
+      actionRef.current = script;
       setLastSync(new Date().toLocaleTimeString());
       setOutcome({ phase: "idle" });
       setState((s) => (s.status === "ready" ? { status: "ready", view: { ...s.view, code: newCode } } : s));
@@ -541,6 +541,7 @@ export function useInstallData(): UseInstallData {
   // 重试要重放「刚才失败的那次动作」本身：沿用同一组安装选项，否则用户点重试会得到
   // 与他原本意图不同的结果(例如把「不关闭窗口」「不再检查更新」丢掉)。
   const retryInstall = useCallback(() => {
+    if (infoRef.current?.externalAccess) return;
     if (skillUuidRef.current) {
       void installSkill();
       return;

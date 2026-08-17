@@ -546,6 +546,31 @@ describe("useInstallData 数据流编排", () => {
     expect(unmountFileTrack as Mock).toHaveBeenCalled();
   });
 
+  it("本地文件变更解析失败时,重试不应把无效代码与旧脚本动作配对", async () => {
+    window.history.replaceState({}, "", "/install.html?file=fid1");
+    const metadata = { name: ["本地脚本"], version: ["1.0.0"] };
+    (loadHandle as Mock).mockResolvedValue({
+      name: "x.user.js",
+      getFile: async () => ({ text: async () => "// old code", name: "x.user.js" }),
+    });
+    (parseMetadata as Mock).mockReturnValue(metadata);
+    const oldScript = { ...makeAction(metadata), uuid: "u9" };
+    (prepareScriptByCode as Mock).mockResolvedValue({ script: oldScript });
+    (scriptClient.install as Mock).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+    await act(async () => result.current.toggleWatch());
+
+    const setCode = (startFileTrack as Mock).mock.calls[0][1].setCode as (code: string) => void;
+    (prepareScriptByCode as Mock).mockRejectedValueOnce(new Error("脚本语法错误"));
+    await act(async () => setCode("// invalid code"));
+    expect(result.current.outcome).toMatchObject({ phase: "failed", message: "脚本语法错误" });
+
+    await act(async () => result.current.retryInstall());
+    expect(scriptClient.install).toHaveBeenLastCalledWith({ script: oldScript, code: "// old code" });
+  });
+
   it("开启监听时预装失败则不进入监听也不追踪文件", async () => {
     window.history.replaceState({}, "", "/install.html?file=fid1");
     const metadata = { name: ["本地脚本"], version: ["1.0.0"] };
@@ -955,6 +980,25 @@ describe("MCP 来源的安装请求", () => {
     expect(outcome.result.closing).toBe(false);
     expect(outcome.result.name).toBe("MCP 脚本");
     expect(closeSpy).not.toHaveBeenCalled();
+  });
+
+  it("外部接入批准失败后,重试不应再次提交已经结束的操作", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
+    const info = mcpScriptInfo();
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// code");
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "MCP 脚本", metadata: info.metadata, status: 2 } as unknown as Script,
+    });
+    (externalAccessClient.decideOperation as Mock).mockRejectedValue(new Error("操作已过期"));
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+    await act(async () => result.current.install({ closeAfterInstall: false }));
+    expect(result.current.outcome).toMatchObject({ phase: "failed", message: "操作已过期" });
+
+    await act(async () => result.current.retryInstall());
+    expect(externalAccessClient.decideOperation).toHaveBeenCalledOnce();
   });
 
   it("非 MCP 来源的安装不受影响：install() 仍调用 scriptClient.install，不调用 externalAccessClient", async () => {
