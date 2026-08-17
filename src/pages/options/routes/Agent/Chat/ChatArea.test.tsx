@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { ChatMessage, AgentModelConfig } from "@App/app/service/agent/core/types";
+
+const navigate = vi.hoisted(() => vi.fn());
+vi.mock("react-router-dom", () => ({ useNavigate: () => navigate }));
 
 // 通过模块级状态控制被 mock 的 hooks 返回值，从而单独验证 ChatArea 的组合渲染逻辑。
 const hookState = vi.hoisted(() => ({
@@ -58,6 +61,7 @@ beforeEach(() => {
   hookState.isStreaming = false;
   hookState.tasks = [];
   hookState.askUserPending = null;
+  navigate.mockClear();
 });
 afterEach(() => cleanup());
 
@@ -82,8 +86,33 @@ describe("聊天主区域 ChatArea", () => {
     expect(screen.queryByTestId("welcome-screen")).toBeNull();
   });
 
-  it("模型已加载但无可用模型时展示提示", () => {
-    render(<ChatArea {...baseProps} models={[]} />);
-    expect(screen.getByTestId("no-model-hint")).toBeInTheDocument();
+  it("有可用模型时不展示未配置模型的引导与提示条", () => {
+    render(<ChatArea {...baseProps} />);
+    expect(screen.getByTestId("welcome-screen")).toBeInTheDocument();
+    expect(screen.queryByTestId("no-model-guide")).toBeNull();
+    expect(screen.queryByTestId("no-model-hint")).toBeNull();
+  });
+
+  describe("模型已加载但无可用模型", () => {
+    const noModelProps = { ...baseProps, models: [] };
+
+    it("用引导态替换欢迎界面", () => {
+      render(<ChatArea {...noModelProps} />);
+      expect(screen.getByTestId("no-model-guide")).toBeInTheDocument();
+      expect(screen.queryByTestId("welcome-screen")).toBeNull();
+    });
+
+    it("引导态主按钮跳转到模型服务页", () => {
+      render(<ChatArea {...noModelProps} />);
+      fireEvent.click(screen.getByTestId("no-model-guide-action"));
+      expect(navigate).toHaveBeenCalledWith("/agent/provider");
+    });
+
+    it("输入区上方的提示条可点击跳转到模型服务页", () => {
+      render(<ChatArea {...noModelProps} />);
+      expect(screen.getByTestId("no-model-hint")).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("no-model-configure"));
+      expect(navigate).toHaveBeenCalledWith("/agent/provider");
+    });
   });
 });
