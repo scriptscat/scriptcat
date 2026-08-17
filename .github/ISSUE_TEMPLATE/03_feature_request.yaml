@@ -39,6 +39,15 @@ body:
     validations:
       required: true
 
+  - type: input
+    id: scriptcat-version
+    attributes:
+      label: ScriptCat 版本
+      description: 从扩展内的反馈入口进入时会自动填充，与版本无关可留空。
+      placeholder: "例如：v1.4.0 / v1.4.0-beta"
+    validations:
+      required: false
+
   - type: textarea
     id: additional-info
     attributes:

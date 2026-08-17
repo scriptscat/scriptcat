@@ -20,7 +20,10 @@
 //      it — including links baked into already-installed extension builds, which keep sending
 //      the old param forever. Every such URL built in src/ is parsed from the TypeScript AST
 //      (not string-matched) and each of its params must resolve to a real id in every template
-//      the URL can select.
+//      the URL can select. `issues/new/choose` picks no template up front, so there each param
+//      only has to exist in at least one template; being ignored by the rest is the point.
+//      Either way the param names must be spelled out in the URL literal — a query assembled at
+//      runtime (`?${new URLSearchParams(...)}`) hides them from this check and is rejected.
 //
 // Run with `--root=<path>` to check a tree other than this file's repo checkout.
 
@@ -278,7 +281,32 @@ function checkPrefillContract(root, templates, problems) {
       }
 
       const params = [...url.matchAll(/[?&\0]([a-zA-Z][\w-]*)=/g)].map((m) => m[1]).filter((p) => p !== "template");
-      if (params.length === 0) continue;
+      if (params.length === 0) {
+        // A query built at runtime (`?${new URLSearchParams(...)}`) keeps its param names out of
+        // the literal, so nothing here can be verified. Fail closed rather than pass vacuously —
+        // a link whose params silently stop matching any field id looks identical in review.
+        if (url.includes("?") && url.slice(url.indexOf("?") + 1).includes("\0")) {
+          problems.push(
+            `${relative}: issues/new URL assembles its query at runtime, so no prefill param name is visible. ` +
+              `Spell the param names out in the URL literal, or extend scripts/check-issue-templates.mjs.`
+          );
+        }
+        continue;
+      }
+
+      // The chooser deliberately targets no single template — the user picks one. A param is
+      // correct as long as some template declares it; the templates that don't simply ignore it.
+      if (url.includes("issues/new/choose")) {
+        for (const param of params) {
+          if (!Object.values(ids).some((templateIds) => templateIds.has(param))) {
+            problems.push(
+              `${relative}: chooser URL prefills "${param}=", but no template in ${TEMPLATE_DIR} declares that id. ` +
+                `GitHub silently drops unknown prefill params, and installed builds keep sending the old name.`
+            );
+          }
+        }
+        continue;
+      }
 
       // `template=` is either spelled out inline (`template=01_bug_report.yaml&...`, so the name
       // sits in the surrounding literal text) or chosen at runtime between locale variants

@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { t } from "@App/locales/locales";
+import { ExtVersion } from "@App/app/const";
 
 // 警告区依赖 chrome.action / permissions，与本测试无关，置空以隔离
 vi.mock("./PopupWarnings", () => ({ default: () => null }));
@@ -504,6 +505,80 @@ describe("Popup 页脚版本号可达性", () => {
 
     fireEvent.click(btn);
     expect(handleVersionClick).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Popup 反馈问题链接", () => {
+  async function openFeedback(userAgent: string, highEntropy?: Record<string, unknown>) {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    const uaSpy = vi.spyOn(navigator, "userAgent", "get").mockReturnValue(userAgent);
+    if (highEntropy) {
+      Object.defineProperty(navigator, "userAgentData", {
+        value: { getHighEntropyValues: () => Promise.resolve(highEntropy) },
+        configurable: true,
+      });
+    }
+    mockData = makeData();
+    // client hints 是挂载后异步取的，要等这次微任务落地才反映到链接上
+    await act(async () => {
+      render(<App />);
+    });
+
+    const trigger = screen.getByRole("button", { name: t("more_menu") });
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: t("report_issue") }));
+
+    const href = open.mock.calls[0][0] as string;
+    open.mockRestore();
+    uaSpy.mockRestore();
+    if (highEntropy) Reflect.deleteProperty(navigator, "userAgentData");
+    return new URL(href);
+  }
+
+  const CHROME_MAC =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
+
+  it("落到模板选择页，而不是替用户选定某个模板", async () => {
+    const url = await openFeedback(CHROME_MAC);
+
+    expect(url.origin + url.pathname).toBe("https://github.com/scriptscat/scriptcat/issues/new/choose");
+    // 不再按界面语言分叉到 01_bug_report / 11_bug_report_en：模板由用户在 choose 页自己挑
+    expect(url.searchParams.get("template")).toBeNull();
+    expect(url.search).not.toMatch(/bug_report/);
+  });
+
+  it("带上模板能认的参数名，且 browser 是人话而不是整条 UA", async () => {
+    const url = await openFeedback(CHROME_MAC);
+
+    // 参数名必须与 .github/ISSUE_TEMPLATE 里的字段 id 一致，对不上 GitHub 会静默丢弃
+    expect(url.searchParams.get("scriptcat-version")).toBe(ExtVersion);
+    expect(url.searchParams.get("browser")).toBe("macOS + Chrome 143");
+  });
+
+  it("认不出的 UA 原样带上，不丢信息", async () => {
+    const url = await openFeedback("SomeBrandNewAgent/1.0");
+
+    expect(url.searchParams.get("browser")).toBe("SomeBrandNewAgent/1.0");
+  });
+
+  it("能拿到 client hints 时补出真实系统版本、构建号与架构", async () => {
+    // Chromium 的 UA 被 UA reduction 冻结，这些细节只有 client hints 有
+    const url = await openFeedback(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+      {
+        platform: "Windows",
+        platformVersion: "15.0.0",
+        fullVersionList: [
+          { brand: "Not(A:Brand", version: "99.0.0.0" },
+          { brand: "Google Chrome", version: "143.0.7499.96" },
+        ],
+        architecture: "arm",
+        bitness: "64",
+      }
+    );
+
+    expect(url.searchParams.get("browser")).toBe("Windows 11 + Chrome 143.0.7499.96 (arm64)");
   });
 });
 

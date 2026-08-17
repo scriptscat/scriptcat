@@ -219,6 +219,41 @@ describe("issue 模板机械检查", () => {
       expect(problemsOf(makeFixtureRoot({ source }))).toEqual([]);
     });
   });
+
+  // issues/new/choose 不指定模板，由用户在选择页自己挑，因此没有单一预填目标可解析：
+  // 参数只要在任意一个模板里有对应字段就会生效，在其余模板上被 GitHub 忽略属于预期。
+  describe("issues/new/choose 选择页预填契约", () => {
+    const chooserSource = (query) =>
+      `const url = \`https://github.com/scriptscat/scriptcat/issues/new/choose?${query}\`;`;
+
+    it("参数能对应到任意一个模板的字段 id 时应通过（不要求每个模板都有）", () => {
+      // 只有 01/11 声明 browser，另一对模板没有 —— 选择页场景下这不算错。
+      const zh = template({ name: "Bug 反馈", fields: DEFAULT_FIELDS });
+      const en = template({ name: "Bug Report", fields: DEFAULT_FIELDS });
+      const source = chooserSource("scriptcat-version=${ExtVersion}&browser=${encodeURIComponent(ua)}");
+      expect(problemsOf(makeFixtureRoot({ zh, en, source }))).toEqual([]);
+    });
+
+    it("参数在所有模板里都找不到对应字段时应报错", () => {
+      const source = chooserSource("scriptcat-version=${ExtVersion}&nonexistent-field=${x}");
+      const problems = problemsOf(makeFixtureRoot({ source }));
+      expect(problems.join("\n")).toMatch(/prefills "nonexistent-field="/);
+      expect(problems.join("\n")).toMatch(/no template .* declares that id/);
+    });
+
+    it("选择页链接不应再要求解析出模板文件名", () => {
+      const source = chooserSource("scriptcat-version=${ExtVersion}");
+      expect(problemsOf(makeFixtureRoot({ source })).join("\n")).not.toMatch(/prefill target is unverifiable/);
+    });
+
+    it("参数名藏在运行时表达式里（如 URLSearchParams）导致看不见时应报错而不是静默放行", () => {
+      // 这样写参数名不在字面量里，检查器扫不到任何 name=，契约会变成没人看守。
+      const source = chooserSource("${params}");
+      const problems = problemsOf(makeFixtureRoot({ source })).join("\n");
+      expect(problems).toMatch(/no prefill param name is visible/);
+      expect(problems).toMatch(/Spell the param names out in the URL literal/);
+    });
+  });
 });
 
 // 真实仓库模板检查是 I/O 密集的集成检查，不是微单元测试：它要读取全部 12 个模板并做 YAML 解析，
