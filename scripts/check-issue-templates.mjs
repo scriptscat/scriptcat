@@ -10,8 +10,7 @@
 // Checks:
 //   1. Every template parses as YAML and satisfies GitHub's issue-form schema: known top-level
 //      keys, `name`/`description`/`body` present, known element types, unique non-empty ids,
-//      `markdown` blocks carry neither id nor validations, dropdown/checkboxes have options,
-//      and checkboxes use per-option `required` rather than `validations.required`.
+//      `markdown` blocks carry neither id nor validations, and dropdown/checkboxes have options.
 //   2. zh/en parity — templates pair by numeric prefix (0N ↔ 1N). The pair must expose the same
 //      element sequence (type, id, required, render, multiple) and the same title/type/labels,
 //      so a field added to one language cannot silently go missing in the other.
@@ -38,7 +37,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const TEMPLATE_DIR = ".github/ISSUE_TEMPLATE";
 const TOP_LEVEL_KEYS = new Set(["name", "description", "title", "labels", "assignees", "body", "type", "projects"]);
-const ELEMENT_TYPES = new Set(["markdown", "textarea", "input", "dropdown", "checkboxes"]);
+const ELEMENT_TYPES = new Set(["markdown", "textarea", "input", "dropdown", "checkboxes", "upload"]);
 
 function walkFiles(dir, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -168,9 +167,6 @@ function checkSchema(file, doc, problems) {
       if (!Array.isArray(attributes.options) || attributes.options.length === 0) {
         problems.push(`${at}: ${element.type} must declare a non-empty options list.`);
       }
-    }
-    if (element.type === "checkboxes" && element.validations) {
-      problems.push(`${at}: checkboxes mark required per option, not via validations.`);
     }
   });
 }

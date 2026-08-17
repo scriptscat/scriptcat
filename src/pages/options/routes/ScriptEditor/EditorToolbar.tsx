@@ -51,6 +51,7 @@ function EditorToolbar(props: EditorToolbarProps) {
       const primary = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey;
       if (!primary) return;
       e.preventDefault();
+      if (e.repeat) return;
       onToggleScriptList();
     };
     window.addEventListener("keydown", onKeyDown, true);

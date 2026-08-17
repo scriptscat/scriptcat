@@ -203,6 +203,14 @@ describe("EditorToolbar 桌面端编辑器工具栏", () => {
     expect(props.onToggleScriptList).toHaveBeenCalledOnce();
   });
 
+  it("按住 Ctrl+B 时重复的 keydown 不应重复切换脚本列表", () => {
+    const props = baseProps();
+    render(<EditorToolbar {...props} />);
+    fireEvent.keyDown(window, { key: "b", ctrlKey: true, repeat: false });
+    fireEvent.keyDown(window, { key: "b", ctrlKey: true, repeat: true });
+    expect(props.onToggleScriptList).toHaveBeenCalledOnce();
+  });
+
   it("Mac 下应认 ⌘B 而非 ⌃B（⌃B 在 macOS 文本编辑中是光标左移）", () => {
     vi.stubGlobal("navigator", { userAgentData: { platform: "macOS" }, userAgent: "" });
     const props = baseProps();

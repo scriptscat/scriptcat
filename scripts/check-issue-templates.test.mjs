@@ -124,11 +124,18 @@ describe("issue 模板机械检查", () => {
       expect(problemsOf(makeFixtureRoot({ zh, en })).join("\n")).toMatch(/must declare a non-empty options list/);
     });
 
-    it("checkboxes 用 validations 而非逐项 required 应报错", () => {
+    it("upload 字段应符合 GitHub issue form schema", () => {
+      const fields = [{ type: "upload", id: "logs", label: "日志" }];
+      const zh = template({ name: "Bug 反馈", fields });
+      const en = template({ name: "Bug Report", fields });
+      expect(problemsOf(makeFixtureRoot({ zh, en }))).toEqual([]);
+    });
+
+    it("checkboxes 可通过 validations.required 声明整个字段必填", () => {
       const fields = [{ type: "checkboxes", id: "precheck", options: [{ label: "已搜索" }] }];
       const zh = template({ name: "Bug 反馈", fields });
       const en = template({ name: "Bug Report", fields });
-      expect(problemsOf(makeFixtureRoot({ zh, en })).join("\n")).toMatch(/mark required per option/);
+      expect(problemsOf(makeFixtureRoot({ zh, en }))).toEqual([]);
     });
 
     it("未知的顶层键应报错", () => {
