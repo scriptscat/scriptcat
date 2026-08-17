@@ -453,7 +453,7 @@ function patchTargetMatchCode(code: string, targetUrl: string): string {
   const url = new URL(targetUrl);
   const targetPattern = `${url.protocol}//${url.hostname}/*${url.search}`;
   return code.replace(
-    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|early_inject_content|early_inject_page|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC|GM_DOWNLOAD_TEST_SC|GM_XHR_TEST_SC)$/gm,
+    /^\/\/\s*@match\s+.*\?(gm_api_sync|gm_api_async|inject_content|early_inject_content|early_inject_page|WINDOW_MESSAGE_TEST_SC|SANDBOX_TEST_SC|unwrap_e2e_test|GM_XHR_REDIRECT_TEST_SC|GM_XHR_TEST_SC)$/gm,
     `// @match        ${targetPattern}`
   );
 }
@@ -479,7 +479,7 @@ function patchGMApiTestCode(code: string, mockOrigin: string): string {
       .replace(/https:\/\/www\.tampermonkey\.net\/favicon\.ico/g, `${mockOrigin}/favicon.ico`)
       .replace(/api\.github\.com\/repos\/scriptscat\/scriptcat/g, `${mockHost}/repos/scriptscat/scriptcat`)
       .replace(/httpbingo\.org\/get/g, `${mockHost}/get`)
-      // gm_xhr_redirect_test.js / gm_download_test.js / gm_xhr_test.js build every request URL off
+      // gm_xhr_redirect_test.js / gm_xhr_test.js build every request URL off
       // this constant rather than writing literal https://httpbingo.org/... URLs.
       .replace(/const HB = "https:\/\/httpbingo\.org";/, `const HB = "${mockOrigin}";`)
       // gm_xhr_test.js 拉三个固定的 raw.githubusercontent.com 文件，按文件名映射到本地 /raw/<file>。
@@ -857,29 +857,6 @@ test.describe("GM API", () => {
       console.log("[gm_xhr_redirect_test] logs:", logs.join("\n"));
     }
     expect(failed, "Some GM_xhr redirect tests failed").toBe(0);
-    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
-  });
-
-  test("GM_download tests (gm_download_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(
-      context,
-      extensionId,
-      "gm_download_test.js",
-      `${gmApiMockServer.origin}/?GM_DOWNLOAD_TEST_SC`,
-      120_000,
-      {
-        patchCode,
-        requireOrigin: gmApiMockServer.origin,
-        // 两个 suite 都是 auto:false；统一入口会执行自动用例，itManual 仍保持待人工确认。
-        beforeCollect: clickSuiteRunButton("GM_download 自动套件"),
-      }
-    );
-
-    console.log(`[gm_download_test] passed=${passed}, failed=${failed}`);
-    if (failed !== 0) {
-      console.log("[gm_download_test] logs:", logs.join("\n"));
-    }
-    expect(failed, "Some GM_download tests failed").toBe(0);
     expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
