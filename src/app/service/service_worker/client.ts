@@ -52,7 +52,7 @@ export class ScriptClient extends Client {
 
   // 获取安装信息
   getInstallInfo(uuid: string) {
-    return this.do<[boolean, ScriptInfo, { byWebRequest?: boolean }]>("getInstallInfo", uuid);
+    return this.do<[boolean, ScriptInfo, { byWebRequest?: boolean; openedInNewTab?: boolean }]>("getInstallInfo", uuid);
   }
 
   install(params: TScriptInstallParam): Promise<TScriptInstallReturn> {

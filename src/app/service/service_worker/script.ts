@@ -74,6 +74,12 @@ export type TScriptInstallReturn = {
   updatetime: number | undefined; // 实际生效的更新时间（时间戳，毫秒）
 };
 
+type InstallPageOptions = {
+  source: InstallSource;
+  byWebRequest?: boolean;
+  openedInNewTab?: boolean;
+};
+
 export type TRestoreResult = {
   restored: string[];
   conflicts: { uuid: string; name: string }[];
@@ -137,7 +143,7 @@ export class ScriptService {
         // 读取脚本url内容, 进行安装
         const logger = this.logger.with({ url: targetUrl });
         logger.debug("install script");
-        this.openInstallPageByUrl(targetUrl, { source: "user", byWebRequest: true })
+        this.openInstallPageByUrl(targetUrl, { source: "user", byWebRequest: true, openedInNewTab: true })
           .catch((e) => {
             logger.error("install script error", Logger.E(e));
             // 不再重定向当前url
@@ -361,7 +367,7 @@ export class ScriptService {
 
   public async openInstallPageByUrl(
     url: string,
-    options: { source: InstallSource; byWebRequest?: boolean }
+    options: InstallPageOptions
   ): Promise<{ success: boolean; msg: string }> {
     try {
       const installPageUrl = await this.getInstallPageUrl(url, options);
@@ -374,10 +380,7 @@ export class ScriptService {
     }
   }
 
-  public async getInstallPageUrl(
-    url: string,
-    options: { source: InstallSource; byWebRequest?: boolean }
-  ): Promise<string> {
+  public async getInstallPageUrl(url: string, options: InstallPageOptions): Promise<string> {
     const uuid = uuidv4();
     try {
       await this.openUpdateOrInstallPage(uuid, url, options, false);
@@ -1166,7 +1169,7 @@ export class ScriptService {
   async openUpdateOrInstallPage(
     uuid: string,
     url: string,
-    options: { source: InstallSource; byWebRequest?: boolean },
+    options: InstallPageOptions,
     update: boolean,
     logger?: Logger
   ) {
