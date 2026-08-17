@@ -25,6 +25,18 @@ const chromeArgs = [
   "--disable-gpu",
 ];
 
+/**
+ * 无头是默认：跑用例不该抢占桌面焦点，也才能让多个 worktree 同时跑。
+ * `E2E_HEADED=1` 开出可见窗口，只为人工旁观用。
+ *
+ * 必须作为启动参数下发：`--headless=new` 会覆盖 Playwright 的 `headless` 选项，
+ * 所以单独把 `headless` 设成 false（含 `--debug`/PWDEBUG）并不会开出窗口。
+ */
+export function headlessArgs(value = process.env.E2E_HEADED): string[] {
+  const headed = /^(1|true|yes)$/i.test(value?.trim() ?? "");
+  return headed ? [] : ["--headless=new"];
+}
+
 // CI（GitHub Actions）跑在非 root 用户下不会自动应用 --no-sandbox，关掉沙箱能省下每次
 // launchPersistentContext 的 sandbox/fork 开销；本地开发机上仍保留沙箱隔离。
 const chromiumSandbox = !process.env.CI;
@@ -50,7 +62,7 @@ export const test = base.extend<{
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext("", {
       headless: false,
-      args: ["--headless=new", ...chromeArgs],
+      args: [...headlessArgs(), ...chromeArgs],
       timeout: 60_000,
       chromiumSandbox,
       ...getProxyOptions(),
@@ -96,7 +108,7 @@ export const testWithUserScripts = base.extend<
 
       const ctx1 = await chromium.launchPersistentContext(userDataDir, {
         headless: false,
-        args: ["--headless=new", ...chromeArgs],
+        args: [...headlessArgs(), ...chromeArgs],
         timeout: 60_000,
         chromiumSandbox,
       });
@@ -129,7 +141,7 @@ export const testWithUserScripts = base.extend<
 
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
-      args: ["--headless=new", ...chromeArgs],
+      args: [...headlessArgs(), ...chromeArgs],
       timeout: 60_000,
       chromiumSandbox,
       ...getProxyOptions(),
