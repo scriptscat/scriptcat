@@ -207,8 +207,8 @@ function renderRemoteObject(arg) {
  * `waitForDebuggerOnStart` 让新 target 在跑第一行代码前就被挂上，document-start 的日志
  * 才不会漏；代价是每个 target 都必须收到 runIfWaitingForDebugger，否则会被永久挂起。
  */
-async function attachConsoleCollector(port, append) {
-  const version = await fetch(`http://127.0.0.1:${port}/json/version`).then((res) => res.json());
+export async function attachConsoleCollector(port, append, onDisconnect = () => {}, fetchVersion = fetch) {
+  const version = await fetchVersion(`http://127.0.0.1:${port}/json/version`).then((res) => res.json());
   const socket = new WebSocket(version.webSocketDebuggerUrl);
   const targetOf = new Map(); // sessionId -> targetId
   const infoOf = new Map(); // targetId -> targetInfo（URL 会随导航变，必须持续更新）
@@ -222,6 +222,7 @@ async function attachConsoleCollector(port, append) {
     socket.addEventListener("open", resolve, { once: true });
     socket.addEventListener("error", reject, { once: true });
   });
+  socket.addEventListener("close", onDisconnect, { once: true });
   send("Target.setAutoAttach", autoAttach);
   // 没有 discovery 就收不到 targetInfoChanged，页面导航后 URL 会一直停在附着那一刻的值
   send("Target.setDiscoverTargets", { discover: true });
@@ -290,6 +291,23 @@ async function serve(scenario, { headed, lockToken }) {
   let profile;
   let context;
   let collector;
+  let session;
+  let closing = false;
+  const shutdown = async () => {
+    if (closing) return;
+    closing = true;
+    appendConsole("[session] stopping");
+    fs.rmSync(sessionFile(scenario), { force: true });
+    try {
+      collector?.close();
+      await context?.close();
+    } catch {
+      // 浏览器可能已被外部关闭
+    }
+    removeSessionArtifacts(scenario, session);
+    removeLock(scenario, lockToken);
+    process.exit(0);
+  };
   try {
     const port = await freePort();
     profile = fs.mkdtempSync(path.join(os.tmpdir(), `sc-verify-${scenario}-`));
@@ -347,9 +365,13 @@ async function serve(scenario, { headed, lockToken }) {
     await new Promise((resolve) => setTimeout(resolve, 2_500));
     await sweepStrayTabs();
 
-    collector = await attachConsoleCollector(port, appendConsole);
+    collector = await attachConsoleCollector(port, appendConsole, () => {
+      if (closing) return;
+      appendConsole("[error] console collector disconnected");
+      void shutdown();
+    });
 
-    const session = {
+    session = {
       scenario,
       port,
       extensionId,
@@ -363,21 +385,6 @@ async function serve(scenario, { headed, lockToken }) {
     fs.writeFileSync(sessionFile(scenario), `${JSON.stringify(session, null, 2)}\n`);
     appendConsole(`[session] started ${headed ? "headed" : "headless"} on port ${port}, extension ${extensionId}`);
 
-    let closing = false;
-    const shutdown = async () => {
-      if (closing) return;
-      closing = true;
-      appendConsole("[session] stopping");
-      try {
-        collector?.close();
-        await context.close();
-      } catch {
-        // 浏览器可能已被外部关闭
-      }
-      removeSessionArtifacts(scenario, session);
-      removeLock(scenario, lockToken);
-      process.exit(0);
-    };
     process.on("SIGTERM", shutdown);
     process.on("SIGINT", shutdown);
     // 人工关掉 headed 窗口时，进程也应随之退出，不留下悬空的会话文件
@@ -470,7 +477,17 @@ async function stop(scenario) {
   const session = readSession(scenario);
   if (!session) {
     const lock = readJson(lockFile(scenario));
-    if (lock && !isAlive(lock)) removeLock(scenario, lock.token);
+    if (lock && isAlive(lock)) {
+      try {
+        process.kill(lock.pid, "SIGTERM");
+      } catch (error) {
+        if (error?.code !== "ESRCH") throw error;
+      }
+      removeLock(scenario, lock.token);
+      console.log(`✓ 已停止正在启动的会话：${scenario}`);
+      return;
+    }
+    if (lock) removeLock(scenario, lock.token);
     console.log(`没有会话：${scenario}`);
     return;
   }

@@ -98,7 +98,7 @@ async function anyExtensionPage(context, session) {
  * 按 CDP targetId 而不是下标定位当前页：扩展自己会开引导页，下标随时会错位。
  * 旧的 URL 标记仍可读取，并依次退让到「同源同路径」（hash 路由跳转）和最后一个页面。
  */
-async function activePage(context, session) {
+export async function activePage(context, session) {
   const pages = context.pages();
   if (!pages.length) fail("会话里没有打开的页面，先 open 或 goto");
   const wanted = readActive(session);
@@ -383,7 +383,9 @@ function usage() {
   console [n]                    会话记录的最近 n 行 console/pageerror`);
 }
 
-run().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (process.argv[1] === __filename) {
+  run().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
