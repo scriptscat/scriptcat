@@ -323,7 +323,7 @@ export class ScriptService {
         action: {
           type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
           redirect: {
-            regexSubstitution: `${installPageURL}?byWebRequest=1&url=\\1`,
+            regexSubstitution: `${installPageURL}?url=\\1`,
           },
         },
         condition: condition,
