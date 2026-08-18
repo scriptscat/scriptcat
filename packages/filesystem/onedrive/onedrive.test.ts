@@ -219,6 +219,17 @@ describe("OneDriveFileSystem", () => {
     expect(approotLookups).toHaveLength(1);
   });
 
+  it("createDir should reject a malformed approot response before building a child URL", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+
+    await expect(fs.createDir("A")).rejects.toMatchObject({
+      provider: "onedrive",
+      code: "invalidResponse",
+    });
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("createDir should continue when an intermediate directory already exists", async () => {
     const fs = new OneDriveFileSystem("/", "token");
     const requestSpy = vi

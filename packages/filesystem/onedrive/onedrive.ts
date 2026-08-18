@@ -82,7 +82,15 @@ export default class OneDriveFileSystem implements FileSystem {
       return this.approotId;
     }
     const data = await this.request("https://graph.microsoft.com/v1.0/me/drive/special/approot");
-    const id: string = data.id;
+    const id = data && typeof data === "object" && "id" in data ? data.id : undefined;
+    if (typeof id !== "string" || id.length === 0) {
+      throw new FileSystemError({
+        provider: "onedrive",
+        message: "OneDrive approot response is missing an item id",
+        code: "invalidResponse",
+        raw: data,
+      });
+    }
     this.approotId = id;
     return id;
   }
