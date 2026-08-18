@@ -108,6 +108,12 @@ with real side effects — and before substituting anything for a real dependenc
 Worker message in place of the UI that sends it. The verdict row then names what stood in and what it does not
 cover.
 
+When claiming that something did **not** happen — such as a request, write, disclosure, duplicate event, or stale
+callback — either observe the forbidden channel through the relevant completion or closure window, or provide a
+causal proof that execution cannot reach that side effect. A final UI value, persisted value, or absence of errors
+alone is insufficient. For a negative claim, `holds` requires that closure-window observation or causal proof;
+otherwise report `not observed`.
+
 ## Maintaining this route
 
 Harness facts are checked by [`../e2e/README.md`](../e2e/README.md#maintaining-this-file). Follow
