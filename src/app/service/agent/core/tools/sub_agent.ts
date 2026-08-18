@@ -21,6 +21,9 @@ export type SubAgentRunResult = {
 // 在模块加载时固化一次可用 type 列表，供 provider 做 JSON Schema 强校验
 // 后续若把 SUB_AGENT_TYPES 改为运行时 registry（#9），这里改为动态构建
 const SUB_AGENT_TYPE_NAMES = Object.keys(SUB_AGENT_TYPES);
+const SUB_AGENT_TYPE_DESCRIPTION = Object.values(SUB_AGENT_TYPES)
+  .map((config) => `'${config.name}' (${config.description})`)
+  .join(", ");
 
 export const SUB_AGENT_DEFINITION: ToolDefinition = {
   name: "agent",
@@ -40,8 +43,7 @@ export const SUB_AGENT_DEFINITION: ToolDefinition = {
       type: {
         type: "string",
         enum: SUB_AGENT_TYPE_NAMES,
-        description:
-          "Sub-agent type. 'researcher' (web search/fetch, page reading — read-only, no DOM interaction), 'page_operator' (browser tab interaction, DOM manipulation, page automation), 'general' (all tools, default). Choose the most specific type for better results.",
+        description: `Sub-agent type. ${SUB_AGENT_TYPE_DESCRIPTION}. Choose the most specific type for better results.`,
       },
       tab_id: {
         type: "number",
