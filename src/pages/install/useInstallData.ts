@@ -304,9 +304,7 @@ export function useInstallData(): UseInstallData {
           });
           const metadata = parseMetadata(code);
           if (!metadata) throw new Error(t("install:script_info_load_failed"));
-          await loadFromInfo(buildScriptInfo(uuidv4(), code, parsed.href, metadata), false, {
-            byWebRequest: byWebRequestRef.current,
-          });
+          await loadFromInfo(buildScriptInfo(uuidv4(), code, parsed.href, metadata), false, {});
         } else if (fid) {
           const handle = await loadHandle(fid);
           if (!handle) throw new Error(t("install:script_info_load_failed"));

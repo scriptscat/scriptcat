@@ -440,28 +440,6 @@ describe("useInstallData 数据流编排", () => {
     expect(result.current.localFile).toBe(false);
   });
 
-  it("?url= 且 byWebRequest=1 时应把入口标记传给脚本准备流程", async () => {
-    window.history.replaceState({}, "", "/install.html?byWebRequest=1&url=https://e.com/x.user.js");
-    const metadata = { name: ["URL脚本"], version: ["1.0.0"] };
-    (fetchScriptBody as Mock).mockResolvedValue("// url code");
-    (parseMetadata as Mock).mockReturnValue(metadata);
-    (prepareScriptByCode as Mock).mockResolvedValue({
-      script: { name: "URL脚本", metadata, status: SCRIPT_STATUS_ENABLE } as unknown as Script,
-    });
-
-    const { result } = renderHook(() => useInstallData());
-    await waitFor(() => expect(result.current.state.status).toBe("ready"));
-
-    expect(prepareScriptByCode).toHaveBeenCalledWith(
-      "// url code",
-      "https://e.com/x.user.js",
-      undefined,
-      false,
-      undefined,
-      { byWebRequest: true }
-    );
-  });
-
   it("?url= 下载过程中在 loading 状态展示已接收字节与百分比", async () => {
     window.history.replaceState({}, "", "/install.html?url=https://e.com/x.user.js");
     const metadata = { name: ["URL脚本"], version: ["1.0.0"] };
