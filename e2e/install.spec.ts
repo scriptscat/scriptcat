@@ -1,5 +1,6 @@
 import type { BrowserContext, Page } from "@playwright/test";
 import { testWithUserScripts as test, expect } from "./fixtures";
+import { openInstallPageInNewTab } from "./utils";
 
 const SCRIPT_URL = "https://e2e.test/install-update.user.js";
 const TARGET_ORIGIN = "http://install-update.test";
@@ -22,10 +23,7 @@ document.documentElement.setAttribute("data-install-update-version", ${JSON.stri
 }
 
 async function openInstallPage(context: BrowserContext, extensionId: string): Promise<Page> {
-  const page = await context.newPage();
-  await page.goto(`chrome-extension://${extensionId}/src/install.html?url=${SCRIPT_URL}`, {
-    waitUntil: "domcontentloaded",
-  });
+  const page = await openInstallPageInNewTab(context, extensionId, SCRIPT_URL);
   await expect(page.getByText(SCRIPT_NAME).first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("install-primary")).toBeEnabled({ timeout: 10_000 });
   return page;

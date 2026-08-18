@@ -104,6 +104,30 @@ export async function openPopupPage(context: BrowserContext, extensionId: string
   return page;
 }
 
+/**
+ * 以扩展新建独立标签的方式打开安装页(生产路径:ScriptService.openInstallPageByUrl → chrome.tabs.create)。
+ *
+ * 不能用 context.newPage() + goto:那会先停在 about:blank 再导航,给标签留下两条历史。
+ * 安装页靠 history.length 区分「独立新标签(关闭自己)」与「被 DNR 接管的用户标签(返回上一页)」,
+ * 于是安装完成后走 history.back() 退回 about:blank,标签永远不关,等 close 事件的用例只能超时。
+ */
+export async function openInstallPageInNewTab(
+  context: BrowserContext,
+  extensionId: string,
+  targetUrl: string
+): Promise<Page> {
+  let [sw] = context.serviceWorkers();
+  if (!sw) sw = await context.waitForEvent("serviceworker", { timeout: 14_000 });
+  const opened = context.waitForEvent("page");
+  await sw.evaluate(
+    (url) => chrome.tabs.create({ url }),
+    `chrome-extension://${extensionId}/src/install.html?url=${targetUrl}`
+  );
+  const page = await opened;
+  await page.waitForLoadState("domcontentloaded");
+  return page;
+}
+
 /** Open the script editor page */
 export async function openEditorPage(context: BrowserContext, extensionId: string, params?: string): Promise<Page> {
   const page = await context.newPage();
