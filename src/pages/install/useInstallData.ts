@@ -301,6 +301,8 @@ export function useInstallData(): UseInstallData {
           });
           const metadata = parseMetadata(code);
           if (!metadata) throw new Error(t("install:script_info_load_failed"));
+          // 直接 URL 入口保持普通脚本准备参数；网页来源身份匹配只由 UUID 暂存选项传递，
+          // 安装页离开方式统一由 history.length 决定，不要为此重新添加 query 标记。
           await loadFromInfo(buildScriptInfo(uuidv4(), code, parsed.href, metadata), false, {});
         } else if (fid) {
           const handle = await loadHandle(fid);

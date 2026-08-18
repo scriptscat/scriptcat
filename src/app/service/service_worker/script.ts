@@ -323,6 +323,8 @@ export class ScriptService {
         action: {
           type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
           redirect: {
+            // 直接 URL 入口不经过 UUID 暂存；byWebRequest 只在暂存链路中用于脚本身份匹配，
+            // 不能再作为安装页 history.back()/window.close() 的来源标记。
             regexSubstitution: `${installPageURL}?url=\\1`,
           },
         },
