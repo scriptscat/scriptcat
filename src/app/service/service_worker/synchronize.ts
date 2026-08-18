@@ -1304,7 +1304,7 @@ export class SynchronizeService {
       if (lastError) {
         console.error("chrome.runtime.lastError in chrome.alarms.get:", lastError);
       }
-      if (!alarm) {
+      if (!alarm || alarm.periodInMinutes !== 30) {
         chrome.alarms.create(
           "cloudSync",
           {

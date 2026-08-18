@@ -2498,6 +2498,18 @@ console.log("ok");`
       expect(alarmCreate).toHaveBeenCalledWith("cloudSync", { periodInMinutes: 30 }, expect.any(Function));
     });
 
+    it("启动时已有旧周期的云同步闹钟会更新为 30 分钟", async () => {
+      alarmGet.mockImplementationOnce((_name, callback) =>
+        callback({ name: "cloudSync", periodInMinutes: 60 } as chrome.alarms.Alarm)
+      );
+      const { service } = createService();
+
+      service.cloudSyncConfigChange(syncConfig, undefined);
+      await flushMicrotasks();
+
+      expect(alarmCreate).toHaveBeenCalledWith("cloudSync", { periodInMinutes: 30 }, expect.any(Function));
+    });
+
     it("从关闭到启用会同步一次并确保定时闹钟存在", async () => {
       const { service, buildFileSystem, syncOnce } = createService();
       const disabled = { ...syncConfig, enable: false };
