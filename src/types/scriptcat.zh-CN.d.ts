@@ -543,6 +543,13 @@ declare namespace GMTypes {
     httpOnly?: boolean;
     expirationDate?: number;
     partitionKey?: CookieDetailsPartitionKeyType;
+    /**
+     * 仅 Firefox 支持：First-Party Isolation 隔离键（`privacy.firstparty.isolate`）。Chrome 不支持。
+     * `list` 即使 FPI 开启也不需要提供（会跨所有 first-party 分区匹配）；
+     * `set`/`delete` 在 FPI 开启时必须显式提供，否则浏览器会拒绝调用。
+     * @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+     */
+    firstPartyDomain?: string;
   }
 
   interface Cookie {
@@ -556,6 +563,11 @@ declare namespace GMTypes {
     httpOnly: boolean;
     secure: boolean;
     sameSite: "unspecified" | "no_restriction" | "lax" | "strict";
+    /**
+     * 仅 Firefox 支持：First-Party Isolation 隔离键。若该 cookie 是在 First-Party Isolation 关闭时创建的，则为空字符串。
+     * @link https://developer.mozilla.org/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+     */
+    firstPartyDomain?: string;
   }
 
   /** 值变化监听器。`tabid` 仅在后台脚本监听器中可用。 */
