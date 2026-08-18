@@ -54,6 +54,7 @@ import { isChineseUser, localePath } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@App/pkg/utils/cn";
+import { collectUserAgentHints, describeUserAgent, type UserAgentHints } from "@App/pkg/utils/user_agent";
 import { usePreventEvent } from "../components/ui/use-prevent-event";
 
 export default function App() {
@@ -302,6 +303,18 @@ function MoreMenu({
 }) {
   const { t } = useTranslation();
   const preventEvent = usePreventEvent();
+  // client hints 只能异步取，而反馈按钮点击后要同步 window.open（await 之后再开会被弹窗拦截），
+  // 所以挂载时先取好；取不到时 describeUserAgent 会退回纯 UA 解析。
+  const [uaHints, setUaHints] = useState<UserAgentHints>();
+  useEffect(() => {
+    let cancelled = false;
+    void collectUserAgentHints().then((hints) => {
+      if (!cancelled) setUaHints(hints);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -342,11 +355,13 @@ function MoreMenu({
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
-            const browserInfo = navigator.userAgent;
+            // 落到模板选择页而非直接开某个模板：让用户自己挑（也顺带看一眼有没有重复的 issue）。
+            // 参数名必须与 .github/ISSUE_TEMPLATE 里的字段 id 一致，对不上 GitHub 会静默丢弃；
+            // 且必须写成字面量，scripts/check-issue-templates.mjs 靠 AST 读它们来守这条契约。
             const issueUrl =
-              `https://github.com/scriptscat/scriptcat/issues/new?` +
-              `template=${isChineseUser() ? "01_bug_report" : "11_bug_report_en"}.yaml&scriptcat-version=${ExtVersion}&` +
-              `browser=${encodeURIComponent(browserInfo)}`;
+              `https://github.com/scriptscat/scriptcat/issues/new/choose` +
+              `?scriptcat-version=${encodeURIComponent(ExtVersion)}` +
+              `&browser=${encodeURIComponent(describeUserAgent(navigator.userAgent, uaHints))}`;
             window.open(issueUrl, "_blank");
           }}
         >

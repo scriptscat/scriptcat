@@ -20,6 +20,7 @@ import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { MessageSend } from "@Packages/message/types";
 import { ScriptClient } from "./client";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
+import { BatchUpdateListActionCode } from "./types";
 
 initTestEnv();
 
@@ -1068,5 +1069,244 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
         include: ["*://user.example/*"],
       });
     });
+  });
+});
+
+describe("ScriptService.batchUpdateListAction —— 更新动作的执行结果", () => {
+  const userscript = (version: string) =>
+    [
+      "// ==UserScript==",
+      "// @name        批量更新目标",
+      "// @namespace   scriptcat-test",
+      `// @version     ${version}`,
+      "// ==/UserScript==",
+      "console.log(1);",
+    ].join("\n");
+
+  /** 构造一条「有更新」的检查记录并写进 ScriptUpdateCheck 的内存缓存 */
+  const primeCache = (service: ScriptService, entries: { uuid: string; newCode?: string }[]) => {
+    const list = entries.map(({ uuid, newCode }) => ({
+      uuid,
+      checkUpdate: true as const,
+      oldCode: userscript("1.0.0"),
+      newCode: newCode as string,
+      newMeta: { version: ["2.0.0"], connect: [] },
+      script: makeScript({ uuid, name: "批量更新目标", namespace: "scriptcat-test" }),
+      codeSimilarity: 0.9,
+      sites: [],
+      withNewConnect: false,
+    }));
+    service["scriptUpdateCheck"].setCacheFull({ checktime: Date.now(), list });
+  };
+
+  it("Service Worker 检查结果缓存丢失时应返回明确的失败原因而非静默 undefined", async () => {
+    const { service } = buildService();
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.UPDATE,
+      actionPayload: [{ uuid: "gone" }],
+    });
+
+    expect(res).toEqual({ ok: false, reason: "record_expired", items: [] });
+  });
+
+  it("安装成功时应逐条返回 success 并把该条目移出缓存", async () => {
+    const { service, scriptDAO, codeDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "u-ok", name: "批量更新目标", namespace: "scriptcat-test" }));
+    await codeDAO.save({ uuid: "u-ok", code: userscript("1.0.0") });
+    primeCache(service, [{ uuid: "u-ok", newCode: userscript("2.0.0") }]);
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.UPDATE,
+      actionPayload: [{ uuid: "u-ok" }],
+    });
+
+    expect(res).toEqual({ ok: true, items: [{ uuid: "u-ok", success: true }] });
+    expect(service["scriptUpdateCheck"].cacheFull?.list?.some((e) => e.uuid === "u-ok")).toBe(false);
+  });
+
+  it("安装抛错时应把失败原因透传给调用方而不是吞掉", async () => {
+    const { service, scriptDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "u-bad", name: "批量更新目标", namespace: "scriptcat-test" }));
+    primeCache(service, [{ uuid: "u-bad", newCode: userscript("2.0.0") }]);
+    vi.spyOn(service, "installByCode").mockRejectedValue(new Error("下载新版本失败"));
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.UPDATE,
+      actionPayload: [{ uuid: "u-bad" }],
+    });
+
+    expect(res).toEqual({ ok: true, items: [{ uuid: "u-bad", success: false, error: "下载新版本失败" }] });
+    expect(service["scriptUpdateCheck"].cacheFull?.list?.some((e) => e.uuid === "u-bad")).toBe(true);
+  });
+
+  it("缓存仍在但请求的脚本记录已不存在时应视为缓存过期", async () => {
+    const { service } = buildService();
+    primeCache(service, [{ uuid: "cached", newCode: userscript("2.0.0") }]);
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.UPDATE,
+      actionPayload: [{ uuid: "missing" }],
+    });
+
+    expect(res).toEqual({ ok: false, reason: "record_expired", items: [] });
+  });
+
+  it("当前脚本版本高于缓存版本时应拒绝更新而不发生降级", async () => {
+    const { service, scriptDAO, codeDAO } = buildService();
+    await scriptDAO.save(
+      makeScript({
+        uuid: "u-stale",
+        name: "批量更新目标",
+        namespace: "scriptcat-test",
+        metadata: { name: ["批量更新目标"], namespace: ["scriptcat-test"], version: ["3.0.0"] },
+      })
+    );
+    await codeDAO.save({ uuid: "u-stale", code: userscript("3.0.0") });
+    service["scriptUpdateCheck"].setCacheFull({
+      checktime: Date.now(),
+      list: [
+        {
+          uuid: "u-stale",
+          checkUpdate: true,
+          oldCode: userscript("1.0.0"),
+          newCode: userscript("2.0.0"),
+          newMeta: { version: ["2.0.0"], connect: [] },
+          script: makeScript({
+            uuid: "u-stale",
+            name: "批量更新目标",
+            namespace: "scriptcat-test",
+            metadata: { name: ["批量更新目标"], namespace: ["scriptcat-test"], version: ["1.0.0"] },
+          }),
+          codeSimilarity: 0.9,
+          sites: [],
+          withNewConnect: false,
+        },
+      ],
+    });
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.UPDATE,
+      actionPayload: [{ uuid: "u-stale" }],
+    });
+
+    expect(res).toEqual({ ok: false, reason: "record_expired", items: [] });
+    expect((await scriptDAO.get("u-stale"))?.metadata.version).toEqual(["3.0.0"]);
+  });
+});
+
+describe("ScriptService._checkScriptUpdate —— 检查期间脚本被更新", () => {
+  const userscript = (version: string) =>
+    [
+      "// ==UserScript==",
+      "// @name        竞态目标",
+      "// @namespace   scriptcat-test",
+      `// @version     ${version}`,
+      "// ==/UserScript==",
+      "console.log(1);",
+    ].join("\n");
+
+  const URL = "https://example.test/race.user.js";
+
+  /** 保存一个「可检查更新」的 v1.0.0 脚本 */
+  const saveCheckable = async (service: ScriptService, scriptDAO: ScriptDAO) => {
+    await scriptDAO.save(
+      makeScript({
+        uuid: "u-race",
+        name: "竞态目标",
+        namespace: "scriptcat-test",
+        metadata: { name: ["竞态目标"], namespace: ["scriptcat-test"], version: ["1.0.0"] },
+        // downloadUrl 与 checkUpdateUrl 相同：检查结果里的 code 直接复用，不发第二次网络请求
+        downloadUrl: URL,
+        checkUpdateUrl: URL,
+        checkUpdate: true,
+      })
+    );
+    await service.scriptCodeDAO.save({ uuid: "u-race", code: userscript("1.0.0") });
+  };
+
+  const entryOf = (service: ScriptService) =>
+    service["scriptUpdateCheck"].cacheFull?.list?.find((e) => e.uuid === "u-race");
+
+  it("检查期间该脚本已装上新版本时,检查结束不应把它重新列为待更新", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveCheckable(service, scriptDAO);
+    // 检查是个耗时过程（每条 250~1600ms 的节流延迟）。用户在这段窗口里从更新页把这条更新装上了。
+    vi.spyOn(service, "checkUpdatesAvailable").mockImplementation(async () => {
+      await service.installByCode({ uuid: "u-race", code: userscript("2.0.0"), upsertBy: "user" });
+      return [{ updateAvailable: true as const, code: userscript("2.0.0"), metadata: { version: ["2.0.0"] } }];
+    });
+
+    await service.checkScriptUpdate({ checkType: "user" });
+
+    expect(entryOf(service)?.checkUpdate).not.toBe(true);
+  });
+
+  it("检查期间该脚本未被改动时,仍应正常列为待更新", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveCheckable(service, scriptDAO);
+    vi.spyOn(service, "checkUpdatesAvailable").mockResolvedValue([
+      { updateAvailable: true as const, code: userscript("2.0.0"), metadata: { version: ["2.0.0"] } },
+    ]);
+
+    await service.checkScriptUpdate({ checkType: "user" });
+
+    expect(entryOf(service)?.checkUpdate).toBe(true);
+    expect(entryOf(service)?.newMeta?.version).toEqual(["2.0.0"]);
+  });
+
+  it("检查期间该脚本被删除时,检查结束不应把它留在记录里", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveCheckable(service, scriptDAO);
+    vi.spyOn(service, "checkUpdatesAvailable").mockImplementation(async () => {
+      await scriptDAO.delete("u-race");
+      return [{ updateAvailable: true as const, code: userscript("2.0.0"), metadata: { version: ["2.0.0"] } }];
+    });
+
+    await service.checkScriptUpdate({ checkType: "user" });
+
+    expect(entryOf(service)?.checkUpdate).not.toBe(true);
+  });
+
+  it("部分脚本在检查期间变更时,无脚本的退化记录也不应导致缓存排序崩溃", async () => {
+    const { service, scriptDAO } = buildService();
+    const stableUrl = "https://example.test/stable.user.js";
+    await scriptDAO.save(
+      makeScript({
+        uuid: "u-changed",
+        name: "变更目标",
+        namespace: "scriptcat-test",
+        sort: 0,
+        metadata: { name: ["变更目标"], namespace: ["scriptcat-test"], version: ["1.0.0"] },
+        downloadUrl: URL,
+        checkUpdateUrl: URL,
+        checkUpdate: true,
+      })
+    );
+    await scriptDAO.save(
+      makeScript({
+        uuid: "u-stable",
+        name: "稳定目标",
+        namespace: "scriptcat-test",
+        sort: 1,
+        metadata: { name: ["稳定目标"], namespace: ["scriptcat-test"], version: ["1.0.0"] },
+        downloadUrl: stableUrl,
+        checkUpdateUrl: stableUrl,
+        checkUpdate: true,
+      })
+    );
+    await service.scriptCodeDAO.save({ uuid: "u-changed", code: userscript("1.0.0") });
+    await service.scriptCodeDAO.save({ uuid: "u-stable", code: userscript("1.0.0") });
+    vi.spyOn(service, "checkUpdatesAvailable").mockImplementation(async () => {
+      await service.installByCode({ uuid: "u-changed", code: userscript("2.0.0"), upsertBy: "user" });
+      return [
+        { updateAvailable: true as const, code: userscript("2.0.0"), metadata: { version: ["2.0.0"] } },
+        { updateAvailable: true as const, code: userscript("2.0.0"), metadata: { version: ["2.0.0"] } },
+      ];
+    });
+
+    await expect(service.checkScriptUpdate({ checkType: "user" })).resolves.toMatchObject({ ok: true });
+    expect(service["scriptUpdateCheck"].cacheFull?.list?.find((e) => e.uuid === "u-changed")?.checkUpdate).toBe(false);
+    expect(service["scriptUpdateCheck"].cacheFull?.list?.find((e) => e.uuid === "u-stable")?.checkUpdate).toBe(true);
   });
 });

@@ -34,8 +34,17 @@ body:
       label: Compatibility / Migration / Testing
       placeholder: |
         Impact on existing data:
-        Impact on MV2/MV3 and Firefox / Chrome / Edge / mobile:
+        Impact on Firefox / Chrome / Edge / mobile:
         Migration required:
         Test plan and regression risks:
+    validations:
+      required: false
+
+  - type: input
+    id: scriptcat-version
+    attributes:
+      label: ScriptCat Version
+      description: Auto-filled when you open this form from inside the extension. Leave it empty if the proposal is not version-specific.
+      placeholder: "Example: v1.4.0 / v1.4.0-beta"
     validations:
       required: false

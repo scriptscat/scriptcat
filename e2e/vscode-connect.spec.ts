@@ -102,9 +102,11 @@ test.describe("VSCode 连接", () => {
     await expect(card.getByText(/development tool|开发工具/i).first()).toBeVisible();
 
     // VSCode URL 输入框（默认值含 ws://）
+    // 输入框先以空值渲染，配置要等一次 service worker 往返才回填；
+    // inputValue() 是一次性读取，CI 慢机上会读到那段空窗，必须用会重试的 toHaveValue。
     const urlInput = card.getByTestId("vscode_url_input");
     await expect(urlInput).toBeVisible();
-    expect(await urlInput.inputValue()).toMatch(/^ws:\/\//);
+    await expect(urlInput).toHaveValue(/^ws:\/\//);
 
     // 自动连接复选框
     await expect(card.getByTestId("vscode_reconnect")).toBeVisible();
