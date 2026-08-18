@@ -125,18 +125,18 @@ const buildScriptInfo = (uuid: string, code: string, url: string, metadata: SCMe
 });
 
 // 安装页可能是专为安装打开的新标签，也可能由 declarativeNetRequest 接管用户原标签。
-// webNavigation 入口同样带有 byWebRequest 标记，但它通过 chrome.tabs.create() 打开独立标签，
-// 因此必须额外保留 openedInNewTab 来源；只有真正接管用户原标签且确实有历史可退时才返回。
+// 独立新标签可能继承多条历史，DNR 入口也可能没有上一页，因此必须同时检查入口与历史栈：
+// 仅在 DNR 接管且确实有历史可退时返回，否则关闭当前独立安装标签。
 // install()/close() 等可能在短时间内被重复触发(如用户连续点击、close 与 install 的
 // setTimeout 前后脚打到)，leaveInstallPageRunning 防止 back()/close() 被并发调用多次；
 // 推到 requestAnimationFrame 里执行，让触发它的那次交互(如按钮点击态)先完成一帧渲染。
 let leaveInstallPageRunning = false;
-const leaveInstallPage = (byWebRequest: boolean, openedInNewTab: boolean) => {
+const leaveInstallPage = (byWebRequest: boolean) => {
   if (leaveInstallPageRunning) return;
   leaveInstallPageRunning = true;
   requestAnimationFrame(() => {
     leaveInstallPageRunning = false;
-    if (byWebRequest && !openedInNewTab && window.history.length > 1) {
+    if (byWebRequest && window.history.length > 1) {
       window.history.back();
     } else {
       window.close();
@@ -191,7 +191,6 @@ export function useInstallData(): UseInstallData {
   const handleRef = useRef<FileSystemFileHandle | null>(null);
   const skillUuidRef = useRef<string | null>(null);
   const byWebRequestRef = useRef(false);
-  const openedInNewTabRef = useRef(false);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -202,7 +201,6 @@ export function useInstallData(): UseInstallData {
     const urlIdx = location.search.indexOf("url=");
     const rawUrl = !uuid && urlIdx !== -1 ? location.search.slice(urlIdx + 4) : null;
     byWebRequestRef.current = params.get("byWebRequest") === "1";
-    openedInNewTabRef.current = false;
     let cancelled = false;
 
     const failed = (e: unknown) => {
@@ -269,7 +267,6 @@ export function useInstallData(): UseInstallData {
           if (code === undefined) throw new Error(t("install:script_info_load_failed"));
           info.code = code;
           byWebRequestRef.current = cached?.[2]?.byWebRequest === true;
-          openedInNewTabRef.current = cached?.[2]?.openedInNewTab === true;
           await loadFromInfo(info, !!cached?.[0], cached?.[2] || {});
         } else if (rawUrl) {
           // .cat.md URL → Skill 安装流程(DNR 把 *.cat.md 重定向到安装页),不走脚本解析;仅 agent 启用时
@@ -374,8 +371,7 @@ export function useInstallData(): UseInstallData {
           await scriptClient.install({ script, code: info.code });
           notify.success(t("install:success"));
         }
-        if (closeAfterInstall)
-          setTimeout(() => leaveInstallPage(byWebRequestRef.current, openedInNewTabRef.current), 300);
+        if (closeAfterInstall) setTimeout(() => leaveInstallPage(byWebRequestRef.current), 300);
       } catch (e) {
         notify.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
       }
@@ -399,7 +395,7 @@ export function useInstallData(): UseInstallData {
     if (opts?.noMoreUpdates && info && !info.userSubscribe) {
       void scriptClient.setCheckUpdateUrl(info.uuid, false);
     }
-    leaveInstallPage(byWebRequestRef.current, openedInNewTabRef.current);
+    leaveInstallPage(byWebRequestRef.current);
   }, []);
 
   // 监听文件变更后自动重装,并刷新视图代码
@@ -456,7 +452,7 @@ export function useInstallData(): UseInstallData {
     try {
       await agentClient.completeSkillInstall(uuid);
       notify.success(t("install:success"));
-      setTimeout(() => leaveInstallPage(byWebRequestRef.current, openedInNewTabRef.current), 300);
+      setTimeout(() => leaveInstallPage(byWebRequestRef.current), 300);
     } catch (e) {
       notify.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
     }
@@ -465,7 +461,7 @@ export function useInstallData(): UseInstallData {
   const cancelSkill = useCallback(() => {
     const uuid = skillUuidRef.current;
     if (uuid) void agentClient.cancelSkillInstall(uuid);
-    leaveInstallPage(byWebRequestRef.current, openedInNewTabRef.current);
+    leaveInstallPage(byWebRequestRef.current);
   }, []);
 
   // 重新触发加载(供加载失败后的重试按钮)

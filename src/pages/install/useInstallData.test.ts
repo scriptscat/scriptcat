@@ -304,21 +304,6 @@ describe("useInstallData 数据流编排", () => {
       expect(closeSpy).not.toHaveBeenCalled();
     });
 
-    it("webNavigation 新开标签即使带 byWebRequest 且 history.length > 1 也应关闭", async () => {
-      const result = await setupReady({ byWebRequest: true, openedInNewTab: true });
-      const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
-      const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
-      vi.spyOn(window.history, "length", "get").mockReturnValue(2);
-
-      await act(async () => {
-        await result.current.install();
-        await new Promise((r) => setTimeout(r, 320));
-      });
-
-      expect(closeSpy).toHaveBeenCalledOnce();
-      expect(backSpy).not.toHaveBeenCalled();
-    });
-
     it("byWebRequest 但 history.length 为 1 时应关闭无处可退的标签", async () => {
       const result = await setupReady({ byWebRequest: true });
       const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
