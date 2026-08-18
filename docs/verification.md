@@ -57,8 +57,10 @@ pnpm exec playwright test --config playwright.scratch.config.ts -g "<test title>
 
 ## Driving the session
 
-[`../e2e/README.md`](../e2e/README.md#8-verification-sessions) owns the command reference. What matters for a
-verdict:
+[`../e2e/README.md`](../e2e/README.md#8-verification-sessions) owns the command reference, and
+[`references/verification-methods.md`](references/verification-methods.md) the patterns for behaviour the UI does
+not expose directly — the `example/tests/` in-page self-tests, Service Worker messages, themes. What matters for
+a verdict:
 
 - **Observe from a path the driven surface does not share.** `drive.mjs storage` reads `chrome.storage.local`
   from an extension page, and `drive.mjs sw` evaluates inside the Service Worker — neither goes through the UI

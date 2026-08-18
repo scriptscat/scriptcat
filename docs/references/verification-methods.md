@@ -19,21 +19,26 @@ In a spec, `testWithUserScripts` and `autoApprovePermissions` solve both ([`../.
 
 ### The in-page self-test pattern
 
-A userscript runs assertions in the page and prints a summary line the harness parses from the console. The bundled scripts in [`../../example/tests/`](../../example/tests/) do this; the line varies by script, and each emits a `通过`/`Passed` and a `失败`/`Failed` count:
+A userscript runs assertions in the page and prints a summary the harness parses from the console. The bundled scripts in [`../../example/tests/`](../../example/tests/) do this. Most share one framework, [`../../example/tests/lib/sctest.js`](../../example/tests/lib/sctest.js) (loaded via `@require` and rewritten to a local mock server under E2E), so all of those emit the same four lines:
 
 ```
-总计: 12 | 通过: 12 | 失败: 0        # inject_content_test.js / sandbox_test.js (combined line)
-总测试数: 12 / 通过: 12 / 失败: 0     # gm_api_sync_test.js / gm_api_async_test.js (counts on separate lines)
-Total: 12 | Passed: 12 | Failed: 0   # window_message_test.js (English)
+总测试数: 12
+通过: 12
+失败: 0
+跳过: 0 (34ms)
 ```
 
-In a session there is nothing to wire up — the collector already recorded the line, whichever context printed it (a `@background` script prints from `src/sandbox.html`, not from a page):
+A script running in a background / crontab context has no visible page, so the framework additionally emits one `GM_log` entry per case with structured labels (`sctest`, `status`) — filterable chips on the 运行日志 page. Cases that need a human action (e.g. clicking a menu item) are registered with `itManual` and count as skipped until confirmed on the panel. Writing cases against the framework is [`../../example/tests/lib/README.md`](../../example/tests/lib/README.md)'s.
+
+Three scripts print no unified summary and have to be read on their own terms: [`gm_download_test.js`](../../example/tests/gm_download_test.js) and [`gm_menu_test.js`](../../example/tests/gm_menu_test.js) are self-contained runners carrying their own panel and human-confirmation flow (no `@require`), and [`gm_value_test.js`](../../example/tests/gm_value_test.js) is an interactive multi-frame dashboard demo for `GM_addValueChangeListener` with no machine-checkable assertions.
+
+In a session there is nothing to wire up — the collector already recorded the lines, whichever context printed them (a `@background` script prints from `src/sandbox.html`, not from a page):
 
 ```bash
 node e2e/drive.mjs console 200 | grep -E "(通过|Passed)[:：] *[0-9]+"
 ```
 
-In a spec, collect and assert on it — this regex matches all three layouts:
+In a spec, collect and assert on them — same parse as the committed `gm-api.spec.ts` harness:
 
 ```ts
 const logs: string[] = [];
@@ -52,7 +57,7 @@ expect(failed, logs.join("\n")).toBe(0);
 expect(passed).toBeGreaterThan(0);
 ```
 
-For a new GM API, write a small self-test userscript in the same style. In a session, `node e2e/drive.mjs install <file.user.js>` installs it through the Service Worker and `node e2e/drive.mjs console` shows the summary line the script printed; in a spec, use `installScriptByCode`. Keep the script inside the scenario directory — it is verification scaffolding, not a committed example.
+For a new GM API, write a small self-test userscript in the same style. In a session, `node e2e/drive.mjs install <file.user.js>` installs it through the Service Worker and `node e2e/drive.mjs console` shows the summary the script printed; in a spec, use `installScriptByCode`. Keep the script inside the scenario directory — it is verification scaffolding, not a committed example.
 
 ## Behaviour fired from extension UI
 
