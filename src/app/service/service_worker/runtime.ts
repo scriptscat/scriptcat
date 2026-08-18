@@ -491,12 +491,14 @@ export class RuntimeService {
           await this.updateResourceOnScriptChange(script);
         }
       }
+      return true;
     } catch (e) {
       this.logger.error(
         "push value update failed",
         { uuid: script.uuid, storageName: sendData.storageName },
         Logger.E(e)
       );
+      return false;
     }
   }
 

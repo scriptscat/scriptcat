@@ -584,6 +584,20 @@ export default class GMApi {
     return true;
   }
 
+  // 异步 GM.getValue/getValues/listValues 读取前的内部同步调用，不对应任何 @grant
+  @PermissionVerify.API({ default: true })
+  async internalApiWaitForFreshValueState(request: GMApiRequest<[string]>, sender: IGetSender) {
+    if (!request.params || request.params.length !== 1) {
+      throw new Error("param is failed");
+    }
+    const [id] = request.params;
+    const valueSender = {
+      runFlag: request.runFlag,
+      tabId: sender.getSender()?.tab?.id || -1,
+    };
+    return await this.value.waitForFreshValueState(request.script.uuid, id, valueSender);
+  }
+
   @PermissionVerify.API({ link: ["GM_deleteValue", "GM_deleteValues"] })
   async GM_setValue(request: GMApiRequest<[string, string, any?]>, sender: IGetSender) {
     if (!request.params || request.params.length < 2) {
