@@ -185,6 +185,7 @@ describe("assembleInstallView 组装安装视图", () => {
 
 describe("useInstallData 数据流编排", () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     window.history.replaceState({}, "", "/install.html");
   });
