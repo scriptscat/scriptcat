@@ -242,12 +242,11 @@ export default class ServiceWorkerManager {
           regularScriptUpdateCheck();
           break;
         case "cloudSync":
-          // 进行一次云同步
-          systemConfig.getCloudSync().then((config) => {
-            synchronize.buildFileSystem(config).then((fs) => {
-              synchronize.syncOnce(config, fs);
-            });
-          });
+          // 闹钟是启用之后唯一的周期性同步入口（冷启动不再同步），cloudSyncOnce 自带启用校验
+          // 与失败状态写入；连接失败必须在这里收住，否则每轮闹钟都留下一个未捕获 rejection
+          synchronize
+            .cloudSyncOnce()
+            .catch((e) => this.serviceLogger.error("cloud sync alarm failed", RuntimeLogger.E(e)));
           break;
         case "checkUpdate":
           // 检查扩展更新
