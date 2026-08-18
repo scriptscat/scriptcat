@@ -185,6 +185,7 @@ describe("assembleInstallView 组装安装视图", () => {
 
 describe("useInstallData 数据流编排", () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     window.history.replaceState({}, "", "/install.html");
   });
@@ -250,7 +251,7 @@ describe("useInstallData 数据流编排", () => {
   });
 
   describe("安装成功后离开安装页:独立新标签应关闭,网页链接接管的原标签应返回上一页", () => {
-    const setupReady = async (paramOptions: Record<string, unknown> = {}) => {
+    const setupReady = async () => {
       window.history.replaceState({}, "", "/install.html?uuid=u1");
       const metadata = { name: ["示例脚本"], version: ["1.0.0"], match: ["https://e.com/*"] };
       const info: ScriptInfo = {
@@ -261,7 +262,7 @@ describe("useInstallData 数据流编排", () => {
         metadata,
         source: "user",
       };
-      (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, paramOptions]);
+      (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
       (getTempCode as Mock).mockResolvedValue("// code");
       (prepareScriptByCode as Mock).mockResolvedValue({ script: makeAction(metadata) });
       (scriptClient.install as Mock).mockResolvedValue(undefined);
@@ -270,7 +271,25 @@ describe("useInstallData 数据流编排", () => {
       return result;
     };
 
-    it("独立新标签即使 history.length > 1 也应 window.close()", async () => {
+    it("独立新标签 history.length 为 1 时应使用 window.close() 关闭", async () => {
+      const result = await setupReady();
+      const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+      const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
+      const removeSpy = vi.spyOn(chrome.tabs, "remove").mockResolvedValue();
+      vi.spyOn(window.history, "length", "get").mockReturnValue(1);
+
+      await act(async () => {
+        await result.current.install();
+        // leaveInstallPage 延后到 install() 里 300ms 的 setTimeout 再叠一帧 rAF 才真正执行，多等一点确保已触发
+        await new Promise((r) => setTimeout(r, 320));
+      });
+
+      expect(closeSpy).toHaveBeenCalledOnce();
+      expect(removeSpy).not.toHaveBeenCalled();
+      expect(backSpy).not.toHaveBeenCalled();
+    });
+
+    it("history.length > 1 时应返回上一页而非关闭用户标签", async () => {
       const result = await setupReady();
       const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
       const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
@@ -282,24 +301,23 @@ describe("useInstallData 数据流编排", () => {
         await new Promise((r) => setTimeout(r, 320));
       });
 
-      expect(closeSpy).toHaveBeenCalledOnce();
-      expect(backSpy).not.toHaveBeenCalled();
+      expect(backSpy).toHaveBeenCalledOnce();
+      expect(closeSpy).not.toHaveBeenCalled();
     });
 
-    it("byWebRequest 入口即使 history.length 为 1 也应 history.back() 而非关闭标签", async () => {
-      const result = await setupReady({ byWebRequest: true });
+    it("history.length 为 1 时应关闭无处可退的标签", async () => {
+      const result = await setupReady();
       const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
       const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
       vi.spyOn(window.history, "length", "get").mockReturnValue(1);
 
       await act(async () => {
         await result.current.install();
-        // leaveInstallPage 延后到 install() 里 300ms 的 setTimeout 再叠一帧 rAF 才真正执行，多等一点确保已触发
         await new Promise((r) => setTimeout(r, 320));
       });
 
-      expect(backSpy).toHaveBeenCalledOnce();
-      expect(closeSpy).not.toHaveBeenCalled();
+      expect(closeSpy).toHaveBeenCalledOnce();
+      expect(backSpy).not.toHaveBeenCalled();
     });
   });
 
