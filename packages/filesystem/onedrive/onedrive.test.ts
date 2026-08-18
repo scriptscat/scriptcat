@@ -186,29 +186,44 @@ describe("OneDriveFileSystem", () => {
     );
   });
 
-  it("createDir should create nested directories from root", async () => {
+  it("createDir should create nested directories through the resolved approot item id", async () => {
     const fs = new OneDriveFileSystem("/", "token");
-    const requestSpy = vi.spyOn(fs, "request").mockResolvedValue({});
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValueOnce({ id: "APPROOT!1" }).mockResolvedValue({});
 
     await expect(fs.createDir("A/B/C")).resolves.toBeUndefined();
 
-    expect(requestSpy).toHaveBeenCalledTimes(3);
-    expect(requestSpy.mock.calls[0][0]).toBe("https://graph.microsoft.com/v1.0/me/drive/special/approot/children");
-    expect(requestSpy.mock.calls[1][0]).toBe("https://graph.microsoft.com/v1.0/me/drive/special/approot:/A:/children");
-    expect(requestSpy.mock.calls[2][0]).toBe(
-      "https://graph.microsoft.com/v1.0/me/drive/special/approot:/A/B:/children"
+    expect(requestSpy).toHaveBeenCalledTimes(4);
+    expect(requestSpy.mock.calls[0][0]).toBe("https://graph.microsoft.com/v1.0/me/drive/special/approot");
+    expect(requestSpy.mock.calls[1][0]).toBe("https://graph.microsoft.com/v1.0/me/drive/items/APPROOT!1/children");
+    expect(requestSpy.mock.calls[2][0]).toBe("https://graph.microsoft.com/v1.0/me/drive/items/APPROOT!1:/A:/children");
+    expect(requestSpy.mock.calls[3][0]).toBe(
+      "https://graph.microsoft.com/v1.0/me/drive/items/APPROOT!1:/A/B:/children"
     );
-    expect(JSON.parse((requestSpy.mock.calls[2][1] as RequestInit).body as string)).toMatchObject({
+    expect(JSON.parse((requestSpy.mock.calls[3][1] as RequestInit).body as string)).toMatchObject({
       name: "C",
       folder: {},
       "@microsoft.graph.conflictBehavior": "fail",
     });
   });
 
+  it("createDir should resolve the approot item id only once per instance", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi.spyOn(fs, "request").mockResolvedValueOnce({ id: "APPROOT!1" }).mockResolvedValue({});
+
+    await fs.createDir("A");
+    await fs.createDir("B");
+
+    const approotLookups = requestSpy.mock.calls.filter(
+      (call) => call[0] === "https://graph.microsoft.com/v1.0/me/drive/special/approot"
+    );
+    expect(approotLookups).toHaveLength(1);
+  });
+
   it("createDir should continue when an intermediate directory already exists", async () => {
     const fs = new OneDriveFileSystem("/", "token");
     const requestSpy = vi
       .spyOn(fs, "request")
+      .mockResolvedValueOnce({ id: "APPROOT!1" })
       .mockRejectedValueOnce(
         new FileSystemError({
           provider: "onedrive",
@@ -223,10 +238,35 @@ describe("OneDriveFileSystem", () => {
 
     await expect(fs.createDir("A/B")).resolves.toBeUndefined();
 
-    expect(requestSpy).toHaveBeenCalledTimes(2);
-    expect(JSON.parse((requestSpy.mock.calls[1][1] as RequestInit).body as string)).toMatchObject({
+    expect(requestSpy).toHaveBeenCalledTimes(3);
+    expect(JSON.parse((requestSpy.mock.calls[2][1] as RequestInit).body as string)).toMatchObject({
       name: "B",
     });
+  });
+
+  // Graph 个人版对 special/ 寻址的 POST children 一律返回 400 invalidRequest，
+  // 该错误码不属于冲突码，会让已存在的同步目录把整条同步流程打断
+  it("createDir should not address approot children through the special/ alias", async () => {
+    const fs = new OneDriveFileSystem("/", "token");
+    const requestSpy = vi
+      .spyOn(fs, "request")
+      .mockResolvedValueOnce({ id: "APPROOT!1" })
+      .mockRejectedValue(
+        new FileSystemError({
+          provider: "onedrive",
+          message: "Invalid request",
+          status: 400,
+          code: "invalidRequest",
+          raw: { error: { code: "invalidRequest" } },
+        })
+      );
+
+    await expect(fs.createDir("ScriptCat/sync")).rejects.toBeInstanceOf(FileSystemError);
+
+    for (const call of requestSpy.mock.calls) {
+      expect(call[0]).not.toContain("special/approot/children");
+      expect(call[0]).not.toContain("special/approot:");
+    }
   });
 
   it("request should throw auth error when retry still gets 401", async () => {
