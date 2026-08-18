@@ -88,7 +88,7 @@ of sanitization patterns can otherwise look like matches — so don't rely on a 
 
 | Doc | Owns |
 | --- | --- |
-| [`../AGENTS.md`](../AGENTS.md) | Engineering principles, architecture quick-map, and shared agent contract. `CLAUDE.md` imports it; `.github/copilot-instructions.md` is a Copilot-specific router that points to it without duplicating shared policy. |
+| [`../AGENTS.md`](../AGENTS.md) | Engineering principles, architecture quick-map, and shared agent contract. `CLAUDE.md` and other compatibility entry points are symlink aliases; they do not own a separate policy. |
 | [`develop.md`](./develop.md) | The concrete "how": commands, structure, style, i18n, commit/PR. Testing → [`references/develop-testing.md`](./references/develop-testing.md). |
 | [`pull-request.md`](./pull-request.md) | The PR body: structure and evidence rules. The human-facing template stays lightweight. |
 | [`design.md`](./design.md) | The design system; tokens, component palette, and layout/motion/state/a11y patterns → the three `references/design-*.md`. |
@@ -99,7 +99,6 @@ of sanitization patterns can otherwise look like matches — so don't rely on a 
 | [`translation.md`](./translation.md) | Translation / localization single source of truth. |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: organization rules, fact-check / anti-drift discipline, policy-consistency checks — across every tracked contributor Markdown, not just `AGENTS.md` + `docs/*`. |
 | [`README.md`](./README.md) | The reader-facing index: what each doc contains and when to read it. |
-| [`.github/copilot-instructions.md`](../.github/copilot-instructions.md) | Copilot-specific entry point and tool-specific behavior/router only; shared facts route to `AGENTS.md` instead of being copied. |
 | Package-local `README.md` (e.g. `packages/message/README.md`, `packages/filesystem/README.md`) | That package's purpose, boundaries, entry points, and local gotchas — not a duplicate of repo-wide architecture or coding policy. |
 
 This table records **ownership boundaries** — which doc a given fact belongs in. It is deliberately *not* the

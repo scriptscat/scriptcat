@@ -17,7 +17,7 @@ rules.
 | add or change localized content | [`docs/translation.md`](docs/translation.md) + matching `docs/references/terminology-<locale>.md` when present |
 | add, edit, reorganize, or review tracked contributor Markdown (`AGENTS.md`, `docs/*`, `.github/*.md`, package/source-local READMEs) | [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md) — if you can't grep it on this branch, don't claim it |
 | open or update a pull request | [`docs/pull-request.md`](docs/pull-request.md) |
-| manually confirm a feature works | [`docs/verification.md`](docs/verification.md) — use a throwaway scratch script against the built extension, not the committed suite |
+| manually confirm a feature works | [`docs/verification.md`](docs/verification.md) — drive a throwaway session against the built extension, not the committed suite |
 
 For tasks matching multiple rows, read every applicable owner before that work; do not front-load unrelated
 docs. For tasks matching none, inspect `docs/README.md` and nearby implementation/tests before inventing a rule
