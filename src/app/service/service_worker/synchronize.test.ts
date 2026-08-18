@@ -2484,19 +2484,21 @@ console.log("ok");`
       });
     });
 
-    it("启动时配置已启用会同步一次并确保小时闹钟存在", async () => {
+    // MV3 的 SW 空闲即被回收，每次冷启动都会重跑 init 并用当前配置回调一次 watch。
+    // 若在这里同步，同步频率就退化成 SW 冷启动频率（#1670：实测每分钟一轮全量同步）。
+    it("启动时配置已启用只确保定时闹钟，不立即同步", async () => {
       const { service, buildFileSystem, syncOnce } = createService();
 
       service.cloudSyncConfigChange(syncConfig, undefined);
       await flushMicrotasks();
 
-      expect(buildFileSystem).toHaveBeenCalledTimes(1);
-      expect(syncOnce).toHaveBeenCalledTimes(1);
+      expect(buildFileSystem).not.toHaveBeenCalled();
+      expect(syncOnce).not.toHaveBeenCalled();
       expect(alarmGet).toHaveBeenCalledWith("cloudSync", expect.any(Function));
-      expect(alarmCreate).toHaveBeenCalledWith("cloudSync", { periodInMinutes: 60 }, expect.any(Function));
+      expect(alarmCreate).toHaveBeenCalledWith("cloudSync", { periodInMinutes: 30 }, expect.any(Function));
     });
 
-    it("从关闭到启用会同步一次并确保小时闹钟存在", async () => {
+    it("从关闭到启用会同步一次并确保定时闹钟存在", async () => {
       const { service, buildFileSystem, syncOnce } = createService();
       const disabled = { ...syncConfig, enable: false };
 
@@ -2508,7 +2510,7 @@ console.log("ok");`
       expect(alarmGet).toHaveBeenCalledTimes(1);
     });
 
-    it("从启用到关闭只清除小时闹钟", async () => {
+    it("从启用到关闭只清除定时闹钟", async () => {
       const { service, buildFileSystem, syncOnce } = createService();
 
       service.cloudSyncConfigChange({ ...syncConfig, enable: false }, syncConfig);
@@ -2601,7 +2603,8 @@ console.log("ok");`
     process.on("unhandledRejection", unhandled);
 
     try {
-      service.cloudSyncConfigChange({ ...syncConfig, enable: true });
+      // 冷启动（无 previous）只建闹钟不同步，须由「关→开」这条仍会立即同步的路径触发 buildFileSystem
+      service.cloudSyncConfigChange({ ...syncConfig, enable: true }, { ...syncConfig, enable: false });
       await flushMicrotasks();
 
       expect(errorSpy).toHaveBeenCalledWith("cloud sync config change error", expect.anything());

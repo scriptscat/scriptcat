@@ -152,7 +152,7 @@ type PendingSyncOp = { op: "delete"; syncDelete: boolean } | { op: "push" };
 `SynchronizeService` 使用 `SYNC_SERVICE_TASK_KEY = "cloud_sync_queue"` 串行化同步任务。以下入口都会进入同一队列：
 
 - 配置启用后触发的 `syncOnce()`。
-- 定时同步，Chrome alarm 名称为 `cloudSync`，周期为 60 分钟。
+- 定时同步，Chrome alarm 名称为 `cloudSync`，周期为 30 分钟。启用后闹钟是唯一的周期性入口：SW 冷启动只确保闹钟存在，不触发同步（否则同步频率会退化成 SW 冷启动频率，见 #1670）。
 - 非 sync 来源安装脚本后的 `scriptInstall()`。push 失败时按 `PushScriptPartialError` 只保留失败文件的旧 digest，已成功文件推进到云端最新值；部分成功还会登记 `pending_sync_ops` 的 push 意图（见上）。
 - 非 sync 来源删除脚本后的 `scriptsDelete()`。执行前写前登记删除意图，成功后清除。
 

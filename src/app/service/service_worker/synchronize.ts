@@ -1308,7 +1308,7 @@ export class SynchronizeService {
         chrome.alarms.create(
           "cloudSync",
           {
-            periodInMinutes: 60,
+            periodInMinutes: 30,
           },
           () => {
             const lastError = chrome.runtime.lastError;
@@ -1341,10 +1341,11 @@ export class SynchronizeService {
     this.lastCloudSyncConfig = value;
     if (knownPrevious && isCloudSyncConfigEquivalent(value, knownPrevious)) return;
 
-    // 启动时首次处理配置：按当前值恢复运行状态，避免 SW 重启后漏掉同步或小时闹钟。
+    // 启动时首次处理配置：只恢复闹钟，不同步。MV3 的 SW 空闲即被回收，每次冷启动都会重跑 init
+    // 并用当前配置回调一次 watch；在这里同步会让实际频率退化成 SW 冷启动频率（#1670）。
     if (!knownPrevious) {
       if (value.enable) {
-        this.startCloudSync(value);
+        this.ensureCloudSyncAlarm();
       } else {
         this.clearCloudSyncAlarm();
       }
