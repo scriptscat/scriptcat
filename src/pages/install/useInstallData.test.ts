@@ -81,7 +81,7 @@ const makeAction = (metadata: Record<string, string[]>): Script =>
   ({ name: "示例脚本", metadata, status: SCRIPT_STATUS_ENABLE }) as unknown as Script;
 
 /** 把 hook 推到「?uuid= 全新安装、脚本已就绪」的起点，供安装动作相关用例共用 */
-const setupReady = async (paramOptions: Record<string, unknown> = {}) => {
+const setupReady = async () => {
   window.history.replaceState({}, "", "/install.html?uuid=u1");
   const metadata = { name: ["示例脚本"], version: ["1.0.0"], match: ["https://e.com/*"] };
   const info: ScriptInfo = {
@@ -92,7 +92,7 @@ const setupReady = async (paramOptions: Record<string, unknown> = {}) => {
     metadata,
     source: "user",
   };
-  (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, paramOptions]);
+  (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
   (getTempCode as Mock).mockResolvedValue("// code");
   (prepareScriptByCode as Mock).mockResolvedValue({ script: { ...makeAction(metadata), uuid: "s-uuid" } });
   (scriptClient.install as Mock).mockResolvedValue(undefined);
@@ -219,6 +219,7 @@ describe("assembleInstallView 组装安装视图", () => {
 
 describe("useInstallData 数据流编排", () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     window.history.replaceState({}, "", "/install.html");
   });
@@ -284,11 +285,12 @@ describe("useInstallData 数据流编排", () => {
   });
 
   describe("安装成功后离开安装页:独立新标签应关闭,网页链接接管的原标签应返回上一页", () => {
-    it("独立新标签即使 history.length > 1 也应 window.close()", async () => {
+    it("独立新标签 history.length 为 1 时应使用 window.close() 关闭", async () => {
       const result = await setupReady();
       const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
       const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
-      vi.spyOn(window.history, "length", "get").mockReturnValue(2);
+      const removeSpy = vi.spyOn(chrome.tabs, "remove").mockResolvedValue();
+      vi.spyOn(window.history, "length", "get").mockReturnValue(1);
 
       vi.useFakeTimers();
       try {
@@ -302,11 +304,32 @@ describe("useInstallData 数据流编排", () => {
       }
 
       expect(closeSpy).toHaveBeenCalledOnce();
+      expect(removeSpy).not.toHaveBeenCalled();
       expect(backSpy).not.toHaveBeenCalled();
     });
 
-    it("byWebRequest 入口即使 history.length 为 1 也应 history.back() 而非关闭标签", async () => {
-      const result = await setupReady({ byWebRequest: true });
+    it("history.length > 1 时应返回上一页而非关闭用户标签", async () => {
+      const result = await setupReady();
+      const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+      const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
+      vi.spyOn(window.history, "length", "get").mockReturnValue(2);
+
+      vi.useFakeTimers();
+      try {
+        await act(async () => {
+          await result.current.install();
+          await vi.advanceTimersByTimeAsync(800);
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(backSpy).toHaveBeenCalledOnce();
+      expect(closeSpy).not.toHaveBeenCalled();
+    });
+
+    it("history.length 为 1 时应关闭无处可退的标签", async () => {
+      const result = await setupReady();
       const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
       const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
       vi.spyOn(window.history, "length", "get").mockReturnValue(1);
@@ -321,8 +344,8 @@ describe("useInstallData 数据流编排", () => {
         vi.useRealTimers();
       }
 
-      expect(backSpy).toHaveBeenCalledOnce();
-      expect(closeSpy).not.toHaveBeenCalled();
+      expect(closeSpy).toHaveBeenCalledOnce();
+      expect(backSpy).not.toHaveBeenCalled();
     });
   });
 

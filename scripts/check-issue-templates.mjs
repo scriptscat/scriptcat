@@ -27,6 +27,7 @@
 // Run with `--root=<path>` to check a tree other than this file's repo checkout.
 
 import process from "node:process";
+import { Buffer } from "node:buffer";
 import { readdirSync, readFileSync, existsSync, statSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,6 +39,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_DIR = ".github/ISSUE_TEMPLATE";
 const TOP_LEVEL_KEYS = new Set(["name", "description", "title", "labels", "assignees", "body", "type", "projects"]);
 const ELEMENT_TYPES = new Set(["markdown", "textarea", "input", "dropdown", "checkboxes", "upload"]);
+const ISSUE_URL_MARKER = "issues/new";
+const ISSUE_URL_MARKER_BYTES = Buffer.from(ISSUE_URL_MARKER);
 
 function walkFiles(dir, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -67,6 +70,17 @@ function staticText(node) {
   }
   if (ts.isParenthesizedExpression(node)) return staticText(node.expression);
   return null;
+}
+
+function containsIssueUrlMarker(node) {
+  if (ts.isStringLiteralLike(node)) return node.text.includes(ISSUE_URL_MARKER);
+  if (ts.isTemplateExpression(node)) {
+    return (
+      node.head.text.includes(ISSUE_URL_MARKER) ||
+      node.templateSpans.some((span) => span.literal.text.includes(ISSUE_URL_MARKER))
+    );
+  }
+  return false;
 }
 
 // ts.forEachChild aborts as soon as its callback returns a truthy value, so the visitor must
@@ -248,18 +262,16 @@ function checkPrefillContract(root, templates, problems) {
   );
 
   for (const file of walkFiles(srcDir)) {
-    const source = readFileSync(file, "utf8");
-    if (!source.includes("issues/new")) continue;
+    const source = readFileSync(file);
+    if (!source.includes(ISSUE_URL_MARKER_BYTES)) continue;
+    const sourceText = source.toString("utf8");
 
     const relative = path.relative(root, file);
-    const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+    const sourceFile = ts.createSourceFile(file, sourceText, ts.ScriptTarget.Latest, true);
     const expressions = new Set();
 
     const visit = (node) => {
-      if (
-        (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateExpression(node)) &&
-        (staticText(node) ?? "").includes("issues/new")
-      ) {
+      if ((ts.isStringLiteralLike(node) || ts.isTemplateExpression(node)) && containsIssueUrlMarker(node)) {
         expressions.add(outermostConcat(node));
       }
       node.forEachChild(visit);

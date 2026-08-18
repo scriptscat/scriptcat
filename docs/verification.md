@@ -57,8 +57,10 @@ pnpm exec playwright test --config playwright.scratch.config.ts -g "<test title>
 
 ## Driving the session
 
-[`../e2e/README.md`](../e2e/README.md#8-verification-sessions) owns the command reference. What matters for a
-verdict:
+[`../e2e/README.md`](../e2e/README.md#8-verification-sessions) owns the command reference, and
+[`references/verification-methods.md`](references/verification-methods.md) the patterns for behaviour the UI does
+not expose directly — the `example/tests/` in-page self-tests, Service Worker messages, themes. What matters for
+a verdict:
 
 - **Observe from a path the driven surface does not share.** `drive.mjs storage` reads `chrome.storage.local`
   from an extension page, and `drive.mjs sw` evaluates inside the Service Worker — neither goes through the UI
@@ -107,6 +109,12 @@ destructive or external side effects — a real cloud provider through `E2E_ONED
 with real side effects — and before substituting anything for a real dependency, including driving a Service
 Worker message in place of the UI that sends it. The verdict row then names what stood in and what it does not
 cover.
+
+When claiming that something did **not** happen — such as a request, write, disclosure, duplicate event, or stale
+callback — either observe the forbidden channel through the relevant completion or closure window, or provide a
+causal proof that execution cannot reach that side effect. A final UI value, persisted value, or absence of errors
+alone is insufficient. For a negative claim, `holds` requires that closure-window observation or causal proof;
+otherwise report `not observed`.
 
 ## Maintaining this route
 

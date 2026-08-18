@@ -156,19 +156,19 @@ const buildScriptInfo = (uuid: string, code: string, url: string, metadata: SCMe
 // 旧值 300ms 短于一次视觉确认所需，用户只会看到一道残影（#1669）。
 const LEAVE_DELAY_MS = 700;
 
-// 安装页可能是专为安装打开的新标签，也可能由网页脚本链接接管用户原标签。
-// history.length 无法区分两者：扩展新标签也可能继承多条历史，因此必须使用入口携带的
-// byWebRequest 信号；后者若直接 window.close() 会连带关掉用户本来在看的页面。
+// 安装页可能是 ScriptCat 新建的独立标签，也可能由 declarativeNetRequest 接管用户原标签。
+// 前者由 chrome.tabs.create 创建且没有可返回的安装历史，后者才可能有上一页；
+// 因此只需用 history.length 区分返回与关闭，不要让入口标记承担第二种语义。
 // install()/close() 等可能在短时间内被重复触发(如用户连续点击、close 与 install 的
 // setTimeout 前后脚打到)，leaveInstallPageRunning 防止 back()/close() 被并发调用多次；
 // 推到 requestAnimationFrame 里执行，让触发它的那次交互(如按钮点击态)先完成一帧渲染。
 let leaveInstallPageRunning = false;
-const leaveInstallPage = (byWebRequest: boolean) => {
+const leaveInstallPage = () => {
   if (leaveInstallPageRunning) return;
   leaveInstallPageRunning = true;
   requestAnimationFrame(() => {
     leaveInstallPageRunning = false;
-    if (byWebRequest) {
+    if (window.history.length > 1) {
       window.history.back();
     } else {
       window.close();
@@ -225,7 +225,6 @@ export function useInstallData(): UseInstallData {
   const skillUuidRef = useRef<string | null>(null);
   const skillDataRef = useRef<SkillInstallData | null>(null);
   const isUpdateRef = useRef(false);
-  const byWebRequestRef = useRef(false);
   const lastInstallOptsRef = useRef<InstallOptions>({});
 
   useEffect(() => {
@@ -236,7 +235,6 @@ export function useInstallData(): UseInstallData {
     const fid = params.get("file");
     const urlIdx = location.search.indexOf("url=");
     const rawUrl = !uuid && urlIdx !== -1 ? location.search.slice(urlIdx + 4) : null;
-    byWebRequestRef.current = params.get("byWebRequest") === "1";
     let cancelled = false;
 
     const failed = (e: unknown) => {
@@ -308,7 +306,6 @@ export function useInstallData(): UseInstallData {
           const code = await getTempCode(uuid);
           if (code === undefined) throw new Error(t("install:script_info_load_failed"));
           info.code = code;
-          byWebRequestRef.current = cached?.[2]?.byWebRequest === true;
           await loadFromInfo(info, !!cached?.[0], cached?.[2] || {});
         } else if (rawUrl) {
           // .cat.md URL → Skill 安装流程(DNR 把 *.cat.md 重定向到安装页),不走脚本解析;仅 agent 启用时
@@ -346,6 +343,8 @@ export function useInstallData(): UseInstallData {
           });
           const metadata = parseMetadata(code);
           if (!metadata) throw new Error(t("install:script_info_load_failed"));
+          // 直接 URL 入口保持普通脚本准备参数；网页来源身份匹配只由 UUID 暂存选项传递，
+          // 安装页离开方式统一由 history.length 决定，不要为此重新添加 query 标记。
           await loadFromInfo(buildScriptInfo(uuidv4(), code, parsed.href, metadata), false, {});
         } else if (fid) {
           const handle = await loadHandle(fid);
@@ -432,7 +431,7 @@ export function useInstallData(): UseInstallData {
           },
         });
       }
-      if (closeAfterInstall) setTimeout(() => leaveInstallPage(byWebRequestRef.current), LEAVE_DELAY_MS);
+      if (closeAfterInstall) setTimeout(() => leaveInstallPage(), LEAVE_DELAY_MS);
     } catch (e) {
       setOutcome({ phase: "failed", message: (e as Error)?.message || String(e) });
     }
@@ -454,7 +453,7 @@ export function useInstallData(): UseInstallData {
     if (opts?.noMoreUpdates && info && !info.userSubscribe) {
       void scriptClient.setCheckUpdateUrl(info.uuid, false);
     }
-    leaveInstallPage(byWebRequestRef.current);
+    leaveInstallPage();
   }, []);
 
   // 监听文件变更后自动重装,并刷新视图代码
@@ -520,7 +519,7 @@ export function useInstallData(): UseInstallData {
           closing: true,
         },
       });
-      setTimeout(() => leaveInstallPage(byWebRequestRef.current), LEAVE_DELAY_MS);
+      setTimeout(() => leaveInstallPage(), LEAVE_DELAY_MS);
     } catch (e) {
       setOutcome({ phase: "failed", message: (e as Error)?.message || String(e) });
     }
@@ -529,7 +528,7 @@ export function useInstallData(): UseInstallData {
   const cancelSkill = useCallback(() => {
     const uuid = skillUuidRef.current;
     if (uuid) void agentClient.cancelSkillInstall(uuid);
-    leaveInstallPage(byWebRequestRef.current);
+    leaveInstallPage();
   }, []);
 
   // 重新触发加载(供加载失败后的重试按钮)

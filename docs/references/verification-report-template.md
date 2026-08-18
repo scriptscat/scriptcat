@@ -16,17 +16,20 @@
 
 | # | Requirement / bug claim | Verdict | Real / substituted | How observed | Check it yourself |
 |---|---|---|---|---|---|
-| V1 | `<one behaviour or bug claim, stated so it can only be true or false>` | holds / does not hold / not observed | real, or `substituted: <what stood in> — <what it does not cover>` | `<the runtime observation that decides it>` | `<command that re-runs this check>` |
+| V1 | `<one behaviour or bug claim, stated so it can only be true or false>` | holds / does not hold / not observed | real, or `substituted: <what stood in> — <what it does not cover>` | `<the deciding evidence; for a negative claim, its closure-window observation or causal proof>` | `<command that re-runs this check>` |
 
 Summary: <what holds, the deciding observation, every not-observed/failed item and shipping implication>.
 
 | Label | Use it when | Requires |
 |---|---|---|
-| `holds` | you observed the behaviour at runtime | the deciding observation, and how a reader reaches it |
+| `holds` | the required evidence establishes the claim | the deciding runtime observation, or for a negative claim the closure-window observation/causal proof, and how a reader reaches it |
 | `does not hold` | you observed it failing, or the bug reproducing | the failing output, assertion diff or error screenshot |
 | `not observed` | you never reached the check | what stopped it |
 
 An unreached check is never `holds`; a run that verified two of three claims is reported as two of three.
+
+For a negative claim supported by causal proof, `How observed` may cite the relevant source or contract locator
+instead of a runtime observation, but it must explain why execution cannot reach the forbidden side effect.
 
 ## Authorization
 

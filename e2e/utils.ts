@@ -1,4 +1,4 @@
-import { expect, type BrowserContext, type Page } from "@playwright/test";
+import { expect, type BrowserContext, type Frame, type Page } from "@playwright/test";
 
 /**
  * Auto-approve permission confirm dialogs opened by the extension.
@@ -7,11 +7,12 @@ import { expect, type BrowserContext, type Page } from "@playwright/test";
  * then click "allow". Selectors are data-testid based, so they are language-agnostic.
  */
 export function autoApprovePermissions(context: BrowserContext): void {
-  context.on("page", async (page) => {
-    const url = page.url();
-    if (!url.includes("confirm.html")) return;
+  const attachedPages = new WeakSet<Page>();
+  const attach = (page: Page) => {
+    if (attachedPages.has(page)) return;
+    attachedPages.add(page);
 
-    try {
+    const approve = async () => {
       await page.waitForLoadState("domcontentloaded");
       const request = page.getByTestId("confirm-request");
       const allow = page.getByTestId("confirm-allow");
@@ -29,10 +30,27 @@ export function autoApprovePermissions(context: BrowserContext): void {
         await allow.first().click();
       }
       console.log("[autoApprove] Permission approved on confirm page");
-    } catch (e) {
-      console.log("[autoApprove] Failed to approve:", e);
+    };
+
+    const handleApprovalError = (error: unknown) => {
+      console.log("[autoApprove] Failed to approve:", error);
+    };
+
+    const handleNavigation = (frame: Frame) => {
+      if (frame !== page.mainFrame() || !frame.url().includes("confirm.html")) return;
+      page.off("framenavigated", handleNavigation);
+      void approve().catch(handleApprovalError);
+    };
+
+    page.on("framenavigated", handleNavigation);
+    if (page.url().includes("confirm.html")) {
+      page.off("framenavigated", handleNavigation);
+      void approve().catch(handleApprovalError);
     }
-  });
+  };
+
+  for (const page of context.pages()) attach(page);
+  context.on("page", attach);
 }
 
 /** Run inline script code on the target page and collect console results */
