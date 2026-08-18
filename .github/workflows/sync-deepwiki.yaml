@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: sync-deepwiki
@@ -952,30 +953,42 @@ jobs:
             exit "$step_exit"
           fi
 
-      - name: Commit refreshed snapshot
+      - name: Create DeepWiki refresh pull request
+        id: pull-request
         if: steps.compare.outputs.changed == 'true'
-        shell: bash
+        uses: peter-evans/create-pull-request@v8
+        with:
+          add-paths: .deepwiki
+          branch: automation/deepwiki-sync
+          delete-branch: true
+          commit-message: "📄 refresh DeepWiki snapshot"
+          title: "📄 refresh DeepWiki snapshot"
+          body: |
+            ## Checklist / 检查清单
+
+            - [x] Fixes mentioned issues / 修复已提及的问题
+            - [ ] Code reviewed by human / 代码通过人工检查
+            - [x] Changes tested / 已完成测试
+
+            ## Description / 描述
+
+            Refresh the generated DeepWiki context snapshot.
+
+            ## 验证
+
+            The workflow validates the fetched structure, generated pages, links, and the written snapshot before opening or updating this pull request.
+
+      - name: Report DeepWiki pull request
+        if: steps.pull-request.outputs.pull-request-operation != ''
+        env:
+          PR_HEAD_SHA: ${{ steps.pull-request.outputs.pull-request-head-sha }}
+          PR_OPERATION: ${{ steps.pull-request.outputs.pull-request-operation }}
+          PR_URL: ${{ steps.pull-request.outputs.pull-request-url }}
         run: |
-          set -euo pipefail
-
-          git add -A -- .deepwiki
-          if git diff --cached --quiet; then
-            echo "DeepWiki snapshot is unchanged."
-            {
-              echo "## DeepWiki commit"
-              echo
-              echo "- Status: skipped; Git tree is unchanged."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "📄 refresh DeepWiki snapshot"
-          git push origin HEAD:main
           {
-            echo "## DeepWiki commit"
+            echo "## DeepWiki pull request"
             echo
-            echo "- Status: passed"
-            echo "- Refreshed snapshot committed and pushed to main."
+            echo "- Operation: $PR_OPERATION"
+            echo "- URL: $PR_URL"
+            echo "- Head: $PR_HEAD_SHA"
           } >> "$GITHUB_STEP_SUMMARY"
