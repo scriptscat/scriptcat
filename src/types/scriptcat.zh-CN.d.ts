@@ -868,8 +868,6 @@ declare namespace CATAgent {
     system?: string;
     /** 模型 ID，省略则使用默认模型。 */
     model?: string;
-    /** 工具调用循环最大迭代次数（默认 20）。 */
-    maxIterations?: number;
     /** 加载的 Skill：`"auto"` 加载全部已安装 Skill，或指定名称数组。 */
     skills?: "auto" | string[];
     /** 带内联处理函数的工具，在此对话生命周期内可用。 */
@@ -994,7 +992,7 @@ declare namespace CATAgent {
     durationMs?: number;
     /** 错误信息（用于 error）。 */
     error?: string;
-    /** 错误分类码：`"rate_limit"` | `"auth"` | `"tool_timeout"` | `"max_iterations"` | `"api_error"` */
+    /** 错误分类码：`"rate_limit"` | `"auth"` | `"tool_timeout"` | `"context_too_large"` | `"api_error"` */
     errorCode?: string;
     /** 当数据块由命令处理器产生时为 `true`。 */
     command?: boolean;
@@ -1388,8 +1386,6 @@ declare namespace CATAgentTask {
     conversationGeneration?: string;
     /** 加载的 Skill。 */
     skills?: "auto" | string[];
-    /** 工具调用最大迭代次数（默认 10）。 */
-    maxIterations?: number;
 
     // --- event 模式字段 ---
     /** 创建此任务的脚本 UUID。 */

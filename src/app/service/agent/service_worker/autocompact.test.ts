@@ -168,8 +168,8 @@ describe("Compact 功能", () => {
       conversationId: "conv-1",
       role: "assistant",
       content: "",
-      error: "max iterations",
-      errorCode: "max_iterations",
+      error: "Reply was generated but failed to save",
+      errorCode: "persist_failed",
       createtime: 99,
     });
     mockRepo.getMessages.mockResolvedValue(messages);

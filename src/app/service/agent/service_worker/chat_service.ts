@@ -14,8 +14,6 @@ import type {
 import type { ScriptToolCallback, ToolExecutor } from "@App/app/service/agent/core/tool_registry";
 import type { ToolCall } from "@App/app/service/agent/core/types";
 import type { AgentChatRepo } from "@App/app/repo/agent_chat";
-import type { AgentConfigRepo } from "@App/app/service/agent/core/agent_config";
-import { normalizeChatMaxIterations } from "@App/app/service/agent/core/agent_config";
 import type { ToolRegistry } from "@App/app/service/agent/core/tool_registry";
 import { SessionToolRegistry } from "@App/app/service/agent/core/session_tool_registry";
 import type { SkillService } from "./skill_service";
@@ -82,7 +80,6 @@ type ConversationChatParams = {
   message: MessageContent;
   ownedAttachmentIds?: string[];
   tools?: ToolDefinition[];
-  maxIterations?: number;
   scriptUuid?: string;
   modelId?: string;
   enableTools?: boolean; // 是否携带 tools，undefined 表示不覆盖
@@ -244,8 +241,7 @@ export class ChatService {
     private subAgentService: SubAgentService,
     private executeScriptDeps: ChatServiceExecuteScriptDeps,
     private llmDeps: ChatServiceLLMDeps,
-    private chatRepo: AgentChatRepo,
-    private agentConfigRepo: AgentConfigRepo
+    private chatRepo: AgentChatRepo
   ) {}
 
   private admitChat(conversationId: string, abortController: AbortController) {
@@ -777,8 +773,6 @@ export class ChatService {
       }
 
       const model = await this.modelService.getModel(conv.modelId);
-      // UI 未显式传入 maxIterations 时，使用用户在设置页配置的对话最大循环次数
-      const agentConfig = await this.agentConfigRepo.getConfig();
 
       // 构建 session 级工具注册表
       const { sessionRegistry, promptSuffix, enableTools, metaTools } = await this.buildSessionToolRegistry({
@@ -817,10 +811,6 @@ export class ChatService {
           model,
           messages,
           tools: enableTools ? params.tools : undefined,
-          // ?? 而非 || ：显式传入 0 不应被当作"未传入"而回退到配置值；
-          // 无论来自配置还是直接传参，最终值都经 normalizeChatMaxIterations 兜底截断，
-          // 避免非法值（如负数）导致循环立即失败或无限运行
-          maxIterations: normalizeChatMaxIterations(params.maxIterations ?? agentConfig.chatMaxIterations),
           sendEvent,
           signal: abortController.signal,
           scriptToolCallback: enableTools && params.tools && params.tools.length > 0 ? scriptToolCallback : null,
@@ -917,7 +907,6 @@ export class ChatService {
       model,
       messages,
       tools: params.tools,
-      maxIterations: normalizeChatMaxIterations(params.maxIterations ?? 20),
       sendEvent,
       signal: abortController.signal,
       scriptToolCallback: params.tools && params.tools.length > 0 ? scriptToolCallback : null,
@@ -1224,9 +1213,8 @@ export class ChatService {
     });
     messages.push({ role: "system", content: systemContent });
 
-    // 添加历史消息（跳过 system；跳过错误占位消息 —— 如超过 max_iterations 时持久化的空 content
-    // assistant 消息，仅用于 UI 展示"继续对话"操作，重放给 LLM 会产生空 content 的无意义消息，
-    // 部分 provider（如 Anthropic）甚至会因空 content 拒绝请求）
+    // 添加历史消息（跳过 system；跳过错误占位消息 —— 错误占位仅用于 UI 展示，重放给 LLM
+    // 会产生空 content 的无意义消息，部分 provider（如 Anthropic）甚至会因空 content 拒绝请求）
     messages.push(...toLLMMessages(existingMessages).filter((msg) => msg.role !== "system"));
 
     if (!params.skipSaveUserMessage) {

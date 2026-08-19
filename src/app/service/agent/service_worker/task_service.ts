@@ -22,7 +22,6 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 import { nextTimeInfo } from "@App/pkg/utils/cron";
 import { InfoNotification } from "@App/app/service/service_worker/utils";
 import { sendMessage } from "@Packages/message/client";
-import { normalizeChatMaxIterations } from "@App/app/service/agent/core/agent_config";
 import { toLLMMessages } from "@App/app/service/agent/core/persisted_messages";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { conversationChatLockKey } from "./chat_service";
@@ -35,7 +34,6 @@ export interface TaskOrchestrator {
     toolRegistry: ToolExecutorLike;
     model: AgentModelConfig;
     messages: ChatRequest["messages"];
-    maxIterations: number;
     sendEvent: (event: ChatStreamEvent) => void;
     signal: AbortSignal;
     scriptToolCallback: ScriptToolCallback | null;
@@ -207,7 +205,6 @@ export class AgentTaskService {
         toolRegistry: sessionRegistry,
         model,
         messages,
-        maxIterations: normalizeChatMaxIterations(task.maxIterations ?? 10),
         sendEvent,
         signal,
         scriptToolCallback: null,

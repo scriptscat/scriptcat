@@ -579,73 +579,12 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     registry.unregisterBuiltin("counter");
   });
 
-  it("超过 maxIterations：sendEvent 收到 max_iterations 错误", async () => {
-    const { service, mockRepo } = createTestService();
-    const { sender, sentMessages } = createMockSender();
-
-    const registry = (service as any).toolRegistry;
-    registry.registerBuiltin(
-      { name: "loop", description: "Loop", parameters: { type: "object", properties: {} } },
-      { execute: async () => "ok" }
-    );
-
-    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
-    mockRepo.getMessages.mockResolvedValue([]);
-
-    // maxIterations=1 但 LLM 一直返回 tool_call
-    fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "c1", name: "loop", arguments: "{}" }]));
-
-    await (service as any).handleConversationChat(
-      { conversationId: "conv-1", message: "test", maxIterations: 1 },
-      sender
-    );
-
-    const events = sentMessages.map((m) => m.data);
-    const errorEvents = events.filter((e: any) => e.type === "error");
-    expect(errorEvents).toHaveLength(1);
-    expect(errorEvents[0].message).toContain("maximum iterations");
-    expect(errorEvents[0].errorCode).toBe("max_iterations");
-    expect(errorEvents[0].usage).toEqual(expect.objectContaining({ inputTokens: 10, outputTokens: 5 }));
-    expect(errorEvents[0].durationMs).toEqual(expect.any(Number));
-    const persistedError = mockRepo.appendMessage.mock.calls
-      .map((call: any[]) => call[0])
-      .find((message: any) => message.errorCode === "max_iterations");
-    expect(persistedError.usage).toEqual(expect.objectContaining({ inputTokens: 10, outputTokens: 5 }));
-    expect(persistedError.durationMs).toEqual(expect.any(Number));
-
-    // fetch 只调用 1 次（maxIterations=1）
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-
-    registry.unregisterBuiltin("loop");
-  });
-
-  it("显式传入非法 maxIterations（如负数）时应被兜底截断，而非直接导致循环立即失败", async () => {
-    const { service, mockRepo } = createTestService();
-    const { sender, sentMessages } = createMockSender();
-
-    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
-    mockRepo.getMessages.mockResolvedValue([]);
-
-    fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
-
-    await (service as any).handleConversationChat(
-      { conversationId: "conv-1", message: "test", maxIterations: -5 },
-      sender
-    );
-
-    // 不应立即触发 max_iterations 错误：兜底截断为下限后循环至少能执行 1 次
-    const events = sentMessages.map((m) => m.data);
-    const errorEvents = events.filter((e: any) => e.type === "error");
-    expect(errorEvents).toHaveLength(0);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it("点击继续对话后，历史中的 max_iterations 错误占位消息不应被重放给 LLM", async () => {
+  it("上下文历史中的错误占位消息不应被重放给 LLM", async () => {
     const { service, mockRepo } = createTestService();
     const { sender } = createMockSender();
 
     mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
-    // 历史中包含一条超过 max_iterations 时持久化的错误占位消息（content 为空字符串）
+    // 历史中包含一条持久化的错误占位消息（content 为空字符串）
     mockRepo.getMessages.mockResolvedValue([
       { id: "u1", conversationId: "conv-1", role: "user", content: "第一条消息", createtime: 1 },
       {
@@ -653,8 +592,8 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
         conversationId: "conv-1",
         role: "assistant",
         content: "",
-        error: "Tool calling loop exceeded maximum iterations (50)",
-        errorCode: "max_iterations",
+        error: "Reply was generated but failed to save",
+        errorCode: "persist_failed",
         createtime: 2,
       },
     ]);

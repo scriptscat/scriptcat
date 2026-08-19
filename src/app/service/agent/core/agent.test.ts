@@ -639,7 +639,6 @@ describe("callLLMWithToolLoop", () => {
       toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "你好" }],
-      maxIterations: 5,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: null,
@@ -690,7 +689,6 @@ describe("callLLMWithToolLoop", () => {
       model: openaiConfig,
       messages,
       tools: [{ name: "get_weather", description: "获取天气", parameters: {} }],
-      maxIterations: 5,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: null,
@@ -747,7 +745,6 @@ describe("callLLMWithToolLoop", () => {
       model: openaiConfig,
       messages,
       tools: [{ name: "search", description: "搜索", parameters: {} }],
-      maxIterations: 10,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: null,
@@ -758,41 +755,6 @@ describe("callLLMWithToolLoop", () => {
     // user + assistant+tool + assistant+tool = 5 条消息
     expect(messages.length).toBe(5);
     expect(events.find((e) => e.type === "done")).toBeDefined();
-  });
-
-  it("超过 maxIterations 限制", async () => {
-    const { service, toolRegistry } = createTestService();
-    const events: ChatStreamEvent[] = [];
-
-    toolRegistry.registerBuiltin(
-      { name: "loop_tool", description: "循环工具", parameters: { type: "object", properties: {} } },
-      { execute: vi.fn().mockResolvedValue("ok") }
-    );
-
-    // 每次都返回 tool_call
-    fetchSpy.mockImplementation(() => Promise.resolve(buildSSEResponse(makeToolCallSSE("call_x", "loop_tool", "{}"))));
-
-    await (service as any).callLLMWithToolLoop({
-      toolRegistry: (service as any).toolRegistry,
-      model: openaiConfig,
-      messages: [{ role: "user", content: "test" }],
-      tools: [{ name: "loop_tool", description: "循环工具", parameters: {} }],
-      maxIterations: 3,
-      sendEvent: (e: ChatStreamEvent) => events.push(e),
-      signal: new AbortController().signal,
-      scriptToolCallback: null,
-    });
-
-    // fetch 应被调用 3 次（maxIterations）
-    expect(fetchSpy).toHaveBeenCalledTimes(3);
-
-    // 应收到 error 事件
-    const errorEvent = events.find((e) => e.type === "error");
-    expect(errorEvent).toBeDefined();
-    if (errorEvent?.type === "error") {
-      expect(errorEvent.message).toContain("maximum iterations");
-      expect(errorEvent.message).toContain("3");
-    }
   });
 
   it("signal 中止后应提前退出", async () => {
@@ -811,7 +773,6 @@ describe("callLLMWithToolLoop", () => {
       toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
-      maxIterations: 5,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: abortController.signal,
       scriptToolCallback: null,
@@ -838,7 +799,6 @@ describe("callLLMWithToolLoop", () => {
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
       tools: [{ name: "script_tool", description: "脚本工具", parameters: {} }],
-      maxIterations: 5,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: scriptCallback,
@@ -864,7 +824,6 @@ describe("callLLMWithToolLoop", () => {
       toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "问题" }],
-      maxIterations: 5,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: null,
@@ -893,7 +852,6 @@ describe("callLLMWithToolLoop", () => {
       toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "问题" }],
-      maxIterations: 5,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: null,
@@ -922,7 +880,6 @@ describe("callLLMWithToolLoop", () => {
       model: openaiConfig,
       messages: [{ role: "user", content: "问题" }],
       tools: [{ name: "my_tool", description: "工具", parameters: {} }],
-      maxIterations: 5,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: null,
@@ -965,7 +922,6 @@ describe("callLLMWithToolLoop", () => {
         toolRegistry: (service as any).toolRegistry,
         model: openaiConfig,
         messages: [{ role: "user", content: "test" }],
-        maxIterations: 5,
         sendEvent: (e: ChatStreamEvent) => events.push(e),
         signal: new AbortController().signal,
         scriptToolCallback: null,
@@ -987,7 +943,6 @@ describe("callLLMWithToolLoop", () => {
         toolRegistry: (service as any).toolRegistry,
         model: openaiConfig,
         messages: [{ role: "user", content: "test" }],
-        maxIterations: 5,
         sendEvent: () => {},
         signal: new AbortController().signal,
         scriptToolCallback: null,
@@ -1007,7 +962,6 @@ describe("callLLMWithToolLoop", () => {
         toolRegistry: (service as any).toolRegistry,
         model: openaiConfig,
         messages: [{ role: "user", content: "test" }],
-        maxIterations: 5,
         sendEvent: () => {},
         signal: new AbortController().signal,
         scriptToolCallback: null,
@@ -1028,7 +982,6 @@ describe("callLLMWithToolLoop", () => {
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
       // 不传 tools，allToolDefs 为空
-      maxIterations: 5,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: null,
@@ -1052,7 +1005,6 @@ describe("callLLMWithToolLoop", () => {
       toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
-      maxIterations: 5,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: null,
@@ -1111,7 +1063,6 @@ describe("callLLMWithToolLoop", () => {
         { name: "tool_a", description: "工具A", parameters: {} },
         { name: "tool_b", description: "工具B", parameters: {} },
       ],
-      maxIterations: 5,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: null,
@@ -1176,7 +1127,6 @@ describe("callLLMWithToolLoop", () => {
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
       tools: scriptTools,
-      maxIterations: 5,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: null,
@@ -1214,7 +1164,6 @@ describe("callLLMWithToolLoop", () => {
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
       // 不传 tools
-      maxIterations: 5,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: null,
@@ -1258,7 +1207,6 @@ describe("callLLMWithToolLoop", () => {
       toolRegistry: (service as any).toolRegistry,
       model: openaiConfig,
       messages: [{ role: "user", content: "test" }],
-      maxIterations: 10,
       sendEvent: (e: ChatStreamEvent) => events.push(e),
       signal: new AbortController().signal,
       scriptToolCallback: null,

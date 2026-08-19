@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import CATAgentApi, { ConversationInstance } from "./cat_agent";
+import { ConversationInstance } from "./cat_agent";
 import type { Conversation, StreamChunk } from "@App/app/service/agent/core/types";
 import type { MessageConnect } from "@Packages/message/types";
 
@@ -57,7 +57,6 @@ function createInstance(
     gmSendMessage,
     gmConnect,
     "test-script-uuid",
-    20,
     undefined, // initialTools
     commands
   );
@@ -214,7 +213,6 @@ function createEphemeralInstance(options?: {
     gmSendMessage,
     gmConnect,
     "test-script-uuid",
-    20,
     options?.tools,
     undefined, // commands
     true, // ephemeral
@@ -441,7 +439,6 @@ describe("ConversationInstance tool_call_complete / new_message 重建历史", (
       gmSendMessage,
       gmConnect,
       "test-script-uuid",
-      20,
       [{ name: "my_tool", description: "d", parameters: { type: "object", properties: {} }, handler }],
       undefined,
       true // ephemeral
@@ -474,7 +471,6 @@ describe("ConversationInstance tool_call_complete / new_message 重建历史", (
       gmSendMessage,
       gmConnect,
       "test-script-uuid",
-      20,
       [{ name: "my_tool", description: "d", parameters: { type: "object", properties: {} }, handler }],
       undefined,
       true // ephemeral
@@ -514,7 +510,6 @@ describe("ConversationInstance tool_call_complete / new_message 重建历史", (
       gmSendMessage,
       gmConnect,
       "test-script-uuid",
-      20,
       [],
       undefined,
       true // ephemeral
@@ -578,7 +573,6 @@ describe("executeTools：连接 settle 后不应继续执行剩余 handler", () 
       gmSendMessage,
       gmConnect,
       "test-script-uuid",
-      20,
       [
         { name: "tool_a", description: "d", parameters: { type: "object", properties: {} }, handler: handlerA },
         { name: "tool_b", description: "d", parameters: { type: "object", properties: {} }, handler: handlerB },
@@ -639,7 +633,6 @@ describe("executeTools：批次级取消", () => {
       gmSendMessage,
       gmConnect,
       "test-script-uuid",
-      20,
       [
         { name: "tool_a", description: "d", parameters: { type: "object", properties: {} }, handler: handlerA },
         { name: "tool_b", description: "d", parameters: { type: "object", properties: {} }, handler: handlerB },
@@ -689,7 +682,6 @@ describe("executeTools：批次级取消", () => {
       vi.fn().mockResolvedValue(undefined),
       vi.fn().mockResolvedValue(conn),
       "test-script-uuid",
-      20,
       [
         {
           name: "tool_active",
@@ -706,28 +698,6 @@ describe("executeTools：批次级取消", () => {
 
     expect(handlerSignal).toBeInstanceOf(AbortSignal);
     expect(handlerSignal?.aborted).toBe(true);
-  });
-});
-
-describe("conversation.create maxIterations 归一化入口", () => {
-  it("显式传入 0 时应原样送往服务端，由统一归一化逻辑钳位为 1", async () => {
-    const connect = vi.fn().mockResolvedValue(mockConnect());
-    const apiThis = {
-      sendMessage: vi.fn().mockResolvedValue(undefined),
-      connect,
-      scriptRes: { uuid: "script-1" },
-    };
-
-    const instance = await CATAgentApi.prototype["CAT.agent.conversation.create"].call(apiThis, {
-      ephemeral: true,
-      maxIterations: 0,
-    });
-    await instance.chat("hello");
-
-    expect(connect).toHaveBeenCalledWith(
-      "CAT_agentConversationChat",
-      expect.arrayContaining([expect.objectContaining({ maxIterations: 0 })])
-    );
   });
 });
 
@@ -767,8 +737,7 @@ describe("errorCode 透传：chat()", () => {
       mockConversation(),
       vi.fn().mockResolvedValue(undefined),
       gmConnect,
-      "uuid",
-      20
+      "uuid"
     );
 
     const err = await instance.chat("你好").catch((e) => e);
@@ -787,8 +756,7 @@ describe("errorCode 透传：chat()", () => {
       mockConversation(),
       vi.fn().mockResolvedValue(undefined),
       gmConnect,
-      "uuid",
-      20
+      "uuid"
     );
 
     const err = await instance.chat("你好").catch((e) => e);
@@ -797,7 +765,7 @@ describe("errorCode 透传：chat()", () => {
   });
 
   it("各种 errorCode 值均能正确透传", async () => {
-    const codes = ["rate_limit", "auth", "tool_timeout", "max_iterations", "api_error"];
+    const codes = ["rate_limit", "auth", "tool_timeout", "context_too_large", "api_error"];
 
     for (const code of codes) {
       const gmConnect = vi
@@ -808,8 +776,7 @@ describe("errorCode 透传：chat()", () => {
         mockConversation(),
         vi.fn().mockResolvedValue(undefined),
         gmConnect,
-        "uuid",
-        20
+        "uuid"
       );
 
       const err = await instance.chat("test").catch((e) => e);
@@ -837,8 +804,7 @@ describe("errorCode 透传：chatStream()", () => {
       mockConversation(),
       vi.fn().mockResolvedValue(undefined),
       gmConnect,
-      "uuid",
-      20
+      "uuid"
     );
 
     const stream = await instance.chatStream("你好");
@@ -863,8 +829,7 @@ describe("errorCode 透传：chatStream()", () => {
       mockConversation(),
       vi.fn().mockResolvedValue(undefined),
       gmConnect,
-      "uuid",
-      20
+      "uuid"
     );
 
     const stream = await instance.chatStream("你好");
@@ -879,7 +844,7 @@ describe("errorCode 透传：chatStream()", () => {
   });
 
   it("各种 errorCode 均能正确在 chunk 中透传", async () => {
-    const codes = ["rate_limit", "auth", "tool_timeout", "max_iterations", "api_error"];
+    const codes = ["rate_limit", "auth", "tool_timeout", "context_too_large", "api_error"];
 
     for (const code of codes) {
       const gmConnect = vi
@@ -890,8 +855,7 @@ describe("errorCode 透传：chatStream()", () => {
         mockConversation(),
         vi.fn().mockResolvedValue(undefined),
         gmConnect,
-        "uuid",
-        20
+        "uuid"
       );
 
       const stream = await instance.chatStream("test");

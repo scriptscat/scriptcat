@@ -861,8 +861,6 @@ declare namespace CATAgent {
     system?: string;
     /** Model ID; uses the default model if omitted. */
     model?: string;
-    /** Max tool-calling loop iterations (default: 20). */
-    maxIterations?: number;
     /** Skills to load: `"auto"` loads all installed skills, or specify names. */
     skills?: "auto" | string[];
     /** Tools with inline handlers, available for the lifetime of this conversation. */
@@ -987,7 +985,7 @@ declare namespace CATAgent {
     durationMs?: number;
     /** Error message (for error). */
     error?: string;
-    /** Error classification: `"rate_limit"` | `"auth"` | `"tool_timeout"` | `"max_iterations"` | `"api_error"` */
+    /** Error classification: `"rate_limit"` | `"auth"` | `"tool_timeout"` | `"context_too_large"` | `"api_error"` */
     errorCode?: string;
     /** `true` when the chunk was produced by a command handler. */
     command?: boolean;
@@ -1381,8 +1379,6 @@ declare namespace CATAgentTask {
     conversationGeneration?: string;
     /** Skills to load. */
     skills?: "auto" | string[];
-    /** Max tool-calling iterations (default: 10). */
-    maxIterations?: number;
 
     // --- event mode fields ---
     /** UUID of the script that created this task. */

@@ -107,7 +107,7 @@ export type ChatMessage = {
   // tool 角色的消息需要关联到对应的 tool_call
   toolCallId?: string;
   error?: string;
-  // 错误分类码，如 "max_iterations"；用于 UI 判断是否展示针对性操作（如"继续对话"）
+  // 错误分类码，用于 UI 判断错误类型并展示针对性操作
   errorCode?: string;
   warning?: string;
   modelId?: string;
@@ -269,7 +269,6 @@ export type ConversationCreateOptions = {
   id?: string;
   system?: string;
   model?: string; // modelId，不传则使用默认模型
-  maxIterations?: number; // tool calling 最大循环次数，默认 20
   skills?: "auto" | string[]; // 加载的 Skill，"auto" 加载全部，数组指定名称
   tools?: Array<ToolDefinition & { handler: (args: Record<string, unknown>, signal: AbortSignal) => Promise<unknown> }>;
   commands?: Record<string, CommandHandler>; // 自定义命令处理器，以 / 开头
@@ -323,7 +322,7 @@ export type StreamChunk = {
   };
   durationMs?: number;
   error?: string;
-  /** 错误分类码："rate_limit" | "auth" | "tool_timeout" | "max_iterations" | "api_error" */
+  /** 错误分类码："rate_limit" | "auth" | "tool_timeout" | "context_too_large" | "api_error" */
   errorCode?: string;
   command?: boolean; // 标识该 chunk 来自命令处理
   /** type 为 "system_warning" 时携带的警告文本；type 为 "done" 时携带本轮累计警告 */
@@ -667,7 +666,6 @@ export type InternalAgentTask = AgentTaskBase & {
   /** conversationId 指向对话被绑定时的 generation；执行时若当前 generation 不一致（会话已被删除重建）则拒绝续接 */
   conversationGeneration?: string;
   skills?: "auto" | string[];
-  maxIterations?: number; // 工具循环上限，默认 10
 };
 
 /** 事件模式：通知用户脚本处理 */

@@ -70,13 +70,13 @@ describe("SubAgentService", () => {
     expect(orchestrator.callLLMWithToolLoop).toHaveBeenCalledOnce();
   });
 
-  it("max_iterations 错误事件也累计 usage", async () => {
+  it("终态错误事件也累计 usage", async () => {
     const subOrchestrator = makeMockOrchestrator();
     (subOrchestrator.callLLMWithToolLoop as ReturnType<typeof vi.fn>).mockImplementationOnce(async ({ sendEvent }) => {
       sendEvent({
         type: "error",
-        message: "达到上限",
-        errorCode: "max_iterations",
+        message: "请求失败",
+        errorCode: "api_error",
         usage: { inputTokens: 12, outputTokens: 4 },
       });
     });
@@ -99,8 +99,8 @@ describe("SubAgentService", () => {
     const subOrchestrator = makeMockOrchestrator();
     (subOrchestrator.callLLMWithToolLoop as ReturnType<typeof vi.fn>).mockImplementationOnce(async ({ sendEvent }) => {
       sendEvent({ type: "content_delta", delta: "部分结果" });
-      throw Object.assign(new Error("达到上限"), {
-        errorCode: "max_iterations",
+      throw Object.assign(new Error("请求失败"), {
+        errorCode: "api_error",
         usage: { inputTokens: 20, outputTokens: 6 },
       });
     });
@@ -152,11 +152,11 @@ describe("SubAgentService", () => {
     expect(errorEvents[0].message).toBe("网络错误");
   });
 
-  it("已通过 sendEvent 上报终态（如 max_iterations）的异常不应重复补发 error 事件", async () => {
+  it("已通过 sendEvent 上报终态错误的异常不应重复补发 error 事件", async () => {
     const subOrchestrator = makeMockOrchestrator();
     (subOrchestrator.callLLMWithToolLoop as ReturnType<typeof vi.fn>).mockImplementationOnce(async ({ sendEvent }) => {
-      sendEvent({ type: "error", message: "达到上限", errorCode: "max_iterations" });
-      throw Object.assign(new Error("达到上限"), { errorCode: "max_iterations" });
+      sendEvent({ type: "error", message: "请求失败", errorCode: "api_error" });
+      throw Object.assign(new Error("请求失败"), { errorCode: "api_error" });
     });
     service = new SubAgentService(subOrchestrator);
 
@@ -170,7 +170,7 @@ describe("SubAgentService", () => {
         sendEvent,
         signal,
       })
-    ).rejects.toThrow("达到上限");
+    ).rejects.toThrow("请求失败");
 
     const errorEvents = (sendEvent as ReturnType<typeof vi.fn>).mock.calls
       .map((c) => c[0])

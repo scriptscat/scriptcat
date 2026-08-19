@@ -18,7 +18,6 @@ export interface SubAgentOrchestrator {
     toolRegistry: ToolExecutorLike;
     model: AgentModelConfig;
     messages: ChatRequest["messages"];
-    maxIterations: number;
     sendEvent: (event: ChatStreamEvent) => void;
     signal: AbortSignal;
     scriptToolCallback: null;
@@ -77,7 +76,6 @@ export class SubAgentService {
         messages,
         model,
         excludeTools,
-        maxIterations: typeConfig.maxIterations,
         sendEvent,
         signal,
       });
@@ -123,7 +121,6 @@ export class SubAgentService {
     messages: ChatRequest["messages"];
     model: AgentModelConfig;
     excludeTools: string[];
-    maxIterations: number;
     sendEvent: (event: ChatStreamEvent) => void;
     signal: AbortSignal;
   }): Promise<{
@@ -257,7 +254,6 @@ export class SubAgentService {
         toolRegistry: params.toolRegistry,
         model: params.model,
         messages: params.messages,
-        maxIterations: params.maxIterations,
         sendEvent: subSendEvent,
         signal: params.signal,
         scriptToolCallback: null,

@@ -69,7 +69,6 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
       toolRegistry,
       model: MODEL,
       messages: [{ role: "user", content: "开始" }] as ChatRequest["messages"],
-      maxIterations: 10,
       sendEvent: sendEvent as (event: ChatStreamEvent) => void,
       signal: new AbortController().signal,
       scriptToolCallback: null,
@@ -699,7 +698,6 @@ describe("ToolLoopOrchestrator 请求前预算检查（防止 tool 结果把下�
       // 这里放宽窗口，同时仍远小于下面 hugeResult 折算后的 token 数，保留"预算检查触发裁剪"场景
       model: { ...MODEL, contextWindow: 20000 },
       messages: [{ role: "user", content: "开始" }] as ChatRequest["messages"],
-      maxIterations: 10,
       sendEvent: sendEvent as (event: ChatStreamEvent) => void,
       signal: new AbortController().signal,
       scriptToolCallback: null,

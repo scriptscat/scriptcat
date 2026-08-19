@@ -102,7 +102,6 @@ export class ConversationInstance {
     private gmSendMessage: (api: string, params: any[]) => Promise<any>,
     private gmConnect: (api: string, params: any[]) => Promise<MessageConnect>,
     private scriptUuid: string,
-    private maxIterations: number,
     initialTools?: ConversationCreateOptions["tools"],
     commands?: Record<string, CommandHandler>,
     ephemeral?: boolean,
@@ -167,7 +166,6 @@ export class ConversationInstance {
       generation: this.conv.generation,
       message: content,
       tools: toolDefs.length > 0 ? toolDefs : undefined,
-      maxIterations: this.maxIterations,
       scriptUuid: this.scriptUuid,
     };
 
@@ -234,7 +232,6 @@ export class ConversationInstance {
       generation: this.conv.generation,
       message: content,
       tools: toolDefs.length > 0 ? toolDefs : undefined,
-      maxIterations: this.maxIterations,
       scriptUuid: this.scriptUuid,
     };
 
@@ -901,7 +898,6 @@ function buildInstance(
     ctx.sendMessage.bind(ctx),
     ctx.connect.bind(ctx),
     ctx.scriptRes?.uuid || "",
-    options?.maxIterations ?? 20,
     options?.tools,
     options?.commands,
     options?.ephemeral,

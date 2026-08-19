@@ -281,7 +281,6 @@ export class ToolLoopOrchestrator {
     inputTokenBudget?: number;
     messages: ChatRequest["messages"];
     tools?: ToolDefinition[];
-    maxIterations: number;
     sendEvent: (event: ChatStreamEvent) => void;
     signal: AbortSignal;
     // 脚本自定义工具的回调，null 表示只用内置工具
@@ -301,7 +300,7 @@ export class ToolLoopOrchestrator {
     // 循环检测连续命中达到 GUARD_ESCALATION_STRIKES 次时调用，暂停循环询问用户是否继续。
     // 仅由 UI 对话（含后台会话）传入；定时任务、子代理不传，保持原有的仅告警不暂停行为。
     askUserForGuard?: AskUserForGuard;
-    // 定时任务和子代理需要将 max_iterations 作为失败抛给调用方。
+    // 定时任务和子代理需要将终态错误（如 context_too_large）作为失败抛给调用方。
     throwOnTerminalError?: boolean;
   }): Promise<void> {
     const {
@@ -309,7 +308,6 @@ export class ToolLoopOrchestrator {
       model,
       messages: inputMessages,
       tools,
-      maxIterations,
       sendEvent,
       signal,
       scriptToolCallback,
@@ -380,7 +378,7 @@ export class ToolLoopOrchestrator {
     // 循环检测命中次数，达到 GUARD_ESCALATION_STRIKES 后暂停询问用户
     let guardStrikeCount = 0;
 
-    while (iterations < maxIterations) {
+    while (true) {
       iterations++;
       if (iterations > 1) {
         attachmentSnapshot = await prepareAttachmentSnapshot(
@@ -940,51 +938,6 @@ export class ToolLoopOrchestrator {
 
       sendEvent({ type: "done", usage: totalUsage, durationMs });
       return;
-    }
-
-    // 超过最大迭代次数
-    const durationMs = Date.now() - startTime;
-    const maxIterMsg = `Tool calling loop exceeded maximum iterations (${maxIterations})`;
-    if (conversationId) {
-      try {
-        await this.chatRepo.appendMessage(
-          {
-            id: uuidv4(),
-            conversationId,
-            role: "assistant",
-            content: "",
-            error: maxIterMsg,
-            errorCode: "max_iterations",
-            usage: totalUsage,
-            durationMs,
-            createtime: Date.now(),
-          },
-          conversationGeneration
-        );
-      } catch {
-        // 持久化失败不阻塞终态事件发送
-      }
-    }
-    // 持久化期间也可能已被 Stop：取消优先于 max_iterations
-    if (signal.aborted) {
-      await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
-      return;
-    }
-    const terminalError = {
-      type: "error",
-      message: maxIterMsg,
-      errorCode: "max_iterations",
-      usage: totalUsage,
-      durationMs,
-    } as const;
-    sendEvent(terminalError);
-    if (throwOnTerminalError) {
-      throw Object.assign(new Error(maxIterMsg), {
-        errorCode: terminalError.errorCode,
-        usage: totalUsage,
-        durationMs,
-        conversationId,
-      });
     }
   }
 }

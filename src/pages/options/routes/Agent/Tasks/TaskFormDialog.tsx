@@ -47,7 +47,6 @@ export function TaskFormDialog({
   const [enabled, setEnabled] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [modelId, setModelId] = useState("");
-  const [maxIterations, setMaxIterations] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 弹窗打开（或打开期间 value 变化）时，依据传入的 value 重置/同步各字段。
@@ -65,11 +64,9 @@ export function TaskFormDialog({
     if (value?.mode === "internal") {
       setPrompt(value.prompt ?? "");
       setModelId(value.modelId ?? "");
-      setMaxIterations(value.maxIterations != null ? String(value.maxIterations) : "");
     } else {
       setPrompt("");
       setModelId("");
-      setMaxIterations("");
     }
   } else if (open !== prevOpen || value !== prevValue) {
     // 弹窗关闭或 value 在关闭状态下变化：仅记录最新值，不触碰表单字段（与原 `if (!open) return` 一致）
@@ -94,7 +91,6 @@ export function TaskFormDialog({
             mode: "internal",
             prompt,
             modelId: modelId || undefined,
-            maxIterations: maxIterations ? Number(maxIterations) : undefined,
           }
         : {
             ...base,
@@ -185,15 +181,6 @@ export function TaskFormDialog({
                       ))}
                     </SelectContent>
                   </Select>
-                </FormField>
-                <FormField label={t("agent:tasks_max_iterations")} htmlFor="task-max-iter">
-                  <Input
-                    id="task-max-iter"
-                    data-testid="task-max-iter"
-                    type="number"
-                    value={maxIterations}
-                    onChange={(e) => setMaxIterations(e.target.value)}
-                  />
                 </FormField>
               </div>
             </>
