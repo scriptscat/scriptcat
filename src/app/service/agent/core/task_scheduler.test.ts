@@ -242,7 +242,7 @@ describe("AgentTaskScheduler", () => {
 
   it("执行失败时保留已累计的 usage", async () => {
     internalExecutor.mockRejectedValue(
-      Object.assign(new Error("超过最大迭代次数"), {
+      Object.assign(new Error("请求失败"), {
         usage: { inputTokens: 120, outputTokens: 40 },
         conversationId: "conv-failed",
       })
