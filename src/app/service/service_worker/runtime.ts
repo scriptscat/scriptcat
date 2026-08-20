@@ -455,7 +455,14 @@ export class RuntimeService {
     }
     // 安装，启用，或earlyStartScript的value更新
     const ret = await this.buildAndSaveCompiledResourceFromScript(script, true);
-    if (!ret) return;
+    if (!ret) {
+      // 空匹配覆盖（match 与 include 均为空）时脚本不再匹配任何站点。
+      // 内存 matcher 已由 applyScriptMatchInfo 清空，这里再清掉持久化的 CompiledResource
+      // 并注销浏览器旧注册，否则 SW 重启后 waitInit 会信任旧资源、让旧范围复活。
+      await this.compiledResourceDAO.delete(script.uuid);
+      await this.unregistryPageScripts([script.uuid]);
+      return;
+    }
     const { apiScript } = ret;
     await this.loadPageScript(script, apiScript!);
   }
@@ -1692,6 +1699,10 @@ export class RuntimeService {
   async applyScriptMatchInfo(scriptRes: ScriptRunResource) {
     const o = scriptURLPatternResults(scriptRes);
     if (!o) {
+      const { uuid } = scriptRes;
+      this.scriptMatchEnable.clearRules(uuid);
+      this.scriptMatchEnable.clearRules(this.getOriginalMatchUuid(uuid));
+      this.cachedPatterns.delete(uuid);
       return undefined;
     }
     // 构建脚本匹配信息

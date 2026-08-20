@@ -1,5 +1,6 @@
 export const BrowserNoSupport = new Error("browserNoSupport");
 import type { SCMetadata, Script, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
+import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { ScriptMatchInfo } from "./types";
 import {
@@ -142,6 +143,9 @@ export function getCombinedMeta(metaBase: SCMetadata, metaCustom: SCMetadata): S
     return metaRet;
   }
   for (const key of Object.keys(metaCustom)) {
+    if (key === SELF_METADATA_ONLY_RUN_ON_URL) {
+      continue;
+    }
     const v = metaCustom[key];
     metaRet[key] = v ? [...v] : undefined;
   }

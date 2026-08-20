@@ -200,6 +200,7 @@ export type ScriptMenu = {
   runNumByIframe: number; // iframe运行次数
   menus: ScriptMenuItem[]; // 脚本菜单
   isEffective: boolean | null; // 是否在当前网址启动
+  hasMatchOverride: boolean; // 是否存在 match 覆盖（selfMetadata.match !== undefined），用于区分 S1/S3 与 S2/S4
 };
 
 /** 批量更新记录 */
@@ -263,5 +264,24 @@ export type TBatchUpdateListAction =
         ignoreVersion: string;
       }[];
     };
+
+/** 批量更新单条脚本的安装结果 */
+export type TBatchUpdateItemResult = {
+  uuid: string;
+  success: boolean;
+  /** 安装失败的原因；success 为 true 时不带 */
+  error?: string;
+};
+
+/**
+ * UPDATE 动作的执行结果。
+ * ok 为 false 表示整批根本没有执行：Service Worker 的检查结果只存在于内存（ScriptUpdateCheck.cacheFull），
+ * MV3 回收 Service Worker 后即丢失，此时必须让调用方能与「逐条安装失败」区分开，提示用户重新检查更新。
+ */
+export type TBatchUpdateResult = {
+  ok: boolean;
+  reason?: "record_expired";
+  items: TBatchUpdateItemResult[];
+};
 
 export type TPopupScript = { tabId: number; uuids: string[] };

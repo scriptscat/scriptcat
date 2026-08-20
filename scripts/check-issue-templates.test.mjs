@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -81,10 +81,6 @@ describe("issue 模板机械检查", () => {
     expect(problemsOf(makeFixtureRoot())).toEqual([]);
   });
 
-  it("仓库现有的 issue 模板应全部通过检查", () => {
-    expect(problemsOf(REPO_ROOT)).toEqual([]);
-  });
-
   describe("YAML 与 issue-form schema", () => {
     it("未加引号导致的 YAML 解析失败应报错，而不是被跳过", () => {
       // description 里裸露的 `: ` 会让 YAML 认为这里又开了一个映射键。
@@ -128,11 +124,18 @@ describe("issue 模板机械检查", () => {
       expect(problemsOf(makeFixtureRoot({ zh, en })).join("\n")).toMatch(/must declare a non-empty options list/);
     });
 
-    it("checkboxes 用 validations 而非逐项 required 应报错", () => {
+    it("upload 字段应符合 GitHub issue form schema", () => {
+      const fields = [{ type: "upload", id: "logs", label: "日志" }];
+      const zh = template({ name: "Bug 反馈", fields });
+      const en = template({ name: "Bug Report", fields });
+      expect(problemsOf(makeFixtureRoot({ zh, en }))).toEqual([]);
+    });
+
+    it("checkboxes 可通过 validations.required 声明整个字段必填", () => {
       const fields = [{ type: "checkboxes", id: "precheck", options: [{ label: "已搜索" }] }];
       const zh = template({ name: "Bug 反馈", fields });
       const en = template({ name: "Bug Report", fields });
-      expect(problemsOf(makeFixtureRoot({ zh, en })).join("\n")).toMatch(/mark required per option/);
+      expect(problemsOf(makeFixtureRoot({ zh, en }))).toEqual([]);
     });
 
     it("未知的顶层键应报错", () => {
@@ -211,6 +214,15 @@ describe("issue 模板机械检查", () => {
       expect(problemsOf(makeFixtureRoot({ source })).join("\n")).toMatch(/prefills "nonexistent-field="/);
     });
 
+    it("URL 标记出现在模板字面量尾部时仍应检查预填参数", () => {
+      const source = `
+        const issueUrl =
+          \`https://github.com/scriptscat/scriptcat/\${prefix}issues/new?template=01_bug_report.yaml&\` +
+          \`nonexistent-field=\${value}\`;
+      `;
+      expect(problemsOf(makeFixtureRoot({ source })).join("\n")).toMatch(/prefills "nonexistent-field="/);
+    });
+
     it("无法静态解析出模板名时应报错而不是放行", () => {
       const source = `
         const issueUrl = \`https://github.com/scriptscat/scriptcat/issues/new?template=\${pickTemplate()}&browser=\${ua}\`;
@@ -222,5 +234,59 @@ describe("issue 模板机械检查", () => {
       const source = `const url = "https://github.com/scriptscat/scriptcat/issues/new";`;
       expect(problemsOf(makeFixtureRoot({ source }))).toEqual([]);
     });
+  });
+
+  // issues/new/choose 不指定模板，由用户在选择页自己挑，因此没有单一预填目标可解析：
+  // 参数只要在任意一个模板里有对应字段就会生效，在其余模板上被 GitHub 忽略属于预期。
+  describe("issues/new/choose 选择页预填契约", () => {
+    const chooserSource = (query) =>
+      `const url = \`https://github.com/scriptscat/scriptcat/issues/new/choose?${query}\`;`;
+
+    it("参数能对应到任意一个模板的字段 id 时应通过（不要求每个模板都有）", () => {
+      // 只有 01/11 声明 browser，另一对模板没有 —— 选择页场景下这不算错。
+      const zh = template({ name: "Bug 反馈", fields: DEFAULT_FIELDS });
+      const en = template({ name: "Bug Report", fields: DEFAULT_FIELDS });
+      const source = chooserSource("scriptcat-version=${ExtVersion}&browser=${encodeURIComponent(ua)}");
+      expect(problemsOf(makeFixtureRoot({ zh, en, source }))).toEqual([]);
+    });
+
+    it("参数在所有模板里都找不到对应字段时应报错", () => {
+      const source = chooserSource("scriptcat-version=${ExtVersion}&nonexistent-field=${x}");
+      const problems = problemsOf(makeFixtureRoot({ source }));
+      expect(problems.join("\n")).toMatch(/prefills "nonexistent-field="/);
+      expect(problems.join("\n")).toMatch(/no template .* declares that id/);
+    });
+
+    it("选择页链接不应再要求解析出模板文件名", () => {
+      const source = chooserSource("scriptcat-version=${ExtVersion}");
+      expect(problemsOf(makeFixtureRoot({ source })).join("\n")).not.toMatch(/prefill target is unverifiable/);
+    });
+
+    it("参数名藏在运行时表达式里（如 URLSearchParams）导致看不见时应报错而不是静默放行", () => {
+      // 这样写参数名不在字面量里，检查器扫不到任何 name=，契约会变成没人看守。
+      const source = chooserSource("${params}");
+      const problems = problemsOf(makeFixtureRoot({ source })).join("\n");
+      expect(problems).toMatch(/no prefill param name is visible/);
+      expect(problems).toMatch(/Spell the param names out in the URL literal/);
+    });
+  });
+});
+
+// 真实仓库模板检查是 I/O 密集的集成检查，不是微单元测试：它要读取全部 12 个模板并做 YAML 解析，
+// 再对全量 src 做 issues/new 预填契约的 TS AST 扫描，还要加载 yaml / typescript 两个重型依赖
+// （冷启动实测 ~200ms，CI 并行负载下还会成倍放大）。它不该套用 fast 项目的 340ms 单元预算——
+// 那正是它偶发超时（CI 偶发 Test timed out in 340ms）的根因，与上面的 fixture 测试成本不同。
+//
+// 因此把「计算」放进 beforeAll：vitest 的 hook 走默认 10s 预算，与 testTimeout 无关，只算一次
+// 并缓存；「断言」阶段的 it 只对已算好的结果做快照校验，微秒级完成，也不会把仓库扫描重复执行。
+// 以后若要加更多真实仓库断言，直接读下面的缓存即可。
+describe("仓库现有模板（集成检查）", () => {
+  let repoCheck;
+  beforeAll(() => {
+    repoCheck = runCheck(REPO_ROOT);
+  });
+
+  it("全部通过机械检查", () => {
+    expect(repoCheck.problems).toEqual([]);
   });
 });

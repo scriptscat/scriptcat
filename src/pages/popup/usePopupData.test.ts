@@ -1,5 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll } from "vitest";
 import { renderHook, act } from "@testing-library/react";
+import { notify } from "@App/pages/components/ui/toast";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const popupInitialData = vi.hoisted(() => ({
   tabId: 7,
@@ -20,6 +22,8 @@ const popupInitialData = vi.hoisted(() => ({
       menus: [],
       runNum: 0,
       updatetime: 0,
+      isEffective: true,
+      hasMatchOverride: false,
     },
   ],
   backScriptList: [] as unknown[],
@@ -35,8 +39,42 @@ vi.mock("@App/pkg/utils/utils", async (importOriginal) => {
   return { ...actual, openInCurrentTab: vi.fn(async () => undefined), getCurrentTab: vi.fn(async () => undefined) };
 });
 
+// notify 打桩：断言站点操作成功/失败均不弹成功 toast
+const toastMocks = vi.hoisted(() => ({
+  success: vi.fn(),
+  info: vi.fn(),
+  warning: vi.fn(),
+  error: vi.fn(),
+  loading: vi.fn(),
+  promise: vi.fn(),
+  dismiss: vi.fn(),
+}));
+
+vi.mock("@App/pages/components/ui/toast", () => ({ notify: toastMocks }));
+
+// 站点范围快捷操作走真实 ScriptClient 实例，仅替换本任务直接断言的方法，其余实导出与方法保留
+const mockOnlyRunOnUrl = vi.hoisted(() => vi.fn(async () => true));
+const mockExcludeFromMatch = vi.hoisted(() => vi.fn(async () => true));
+const mockAllowUrl = vi.hoisted(() => vi.fn(async () => true));
+
+vi.mock("../store/features/script", async (importOriginal) => {
+  const actual = await importOriginal<typeof ScriptStore>();
+  return {
+    ...actual,
+    scriptClient: Object.assign(Object.create(actual.scriptClient), {
+      onlyRunOnUrl: mockOnlyRunOnUrl,
+      excludeFromMatch: mockExcludeFromMatch,
+      allowUrl: mockAllowUrl,
+    }),
+  };
+});
+
 import { openInCurrentTab } from "@App/pkg/utils/utils";
 import { getMoreScriptUrl, usePopupData } from "./usePopupData";
+import type * as ScriptStore from "../store/features/script";
+
+// usePopupData 内部使用 useTranslation()，需先初始化 i18n 才能正确渲染与取本地化文案
+beforeAll(() => initTestLanguage("zh-CN"));
 
 describe("getMoreScriptUrl 获取更多脚本链接", () => {
   it("ScriptCat：有 host 时带 domain 参数", () => {
@@ -186,5 +224,84 @@ describe("usePopupData 脚本列表展开数量", () => {
     const { result } = renderHook(() => usePopupData());
 
     expect(result.current.showSearch).toBe(true);
+  });
+});
+
+describe("usePopupData 站点范围快捷操作", () => {
+  const initialScriptList = popupInitialData.scriptList;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockOnlyRunOnUrl.mockResolvedValue(true);
+    mockExcludeFromMatch.mockResolvedValue(true);
+    mockAllowUrl.mockResolvedValue(true);
+  });
+
+  afterEach(() => {
+    popupInitialData.scriptList = initialScriptList;
+  });
+
+  it("仅在 xxx 执行：成功后乐观更新本地列表且不弹成功提示", async () => {
+    const { result } = renderHook(() => usePopupData());
+    await act(async () => {
+      await result.current.handleOnlyRunOnUrl("script-1");
+    });
+
+    expect(mockOnlyRunOnUrl).toHaveBeenCalledWith("script-1", "*://example.com/*");
+    expect(result.current.scriptList[0]?.isEffective).toBe(true);
+    expect(result.current.scriptList[0]?.hasMatchOverride).toBe(true);
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it("仅在 xxx 执行：失败时不弹成功提示，并记录错误信息", async () => {
+    mockOnlyRunOnUrl.mockRejectedValue(new Error("mock failure"));
+    const { result } = renderHook(() => usePopupData());
+    await act(async () => {
+      await result.current.handleOnlyRunOnUrl("script-1");
+    });
+
+    expect(notify.success).not.toHaveBeenCalled();
+    expect(result.current.errorMessage).toBe("Error: mock failure");
+  });
+
+  it.each([false, true])(
+    "S2/S4 包含：成功后恢复当前站且不弹成功提示（hasMatchOverride=%s）",
+    async (hasMatchOverride) => {
+      popupInitialData.scriptList = [{ ...initialScriptList[0], isEffective: false, hasMatchOverride }];
+      const { result } = renderHook(() => usePopupData());
+      await act(async () => {
+        await result.current.handleAllowUrl("script-1");
+      });
+
+      expect(mockAllowUrl).toHaveBeenCalledWith("script-1", "*://example.com/*", "*://example.com/*");
+      expect(result.current.scriptList[0]?.isEffective).toBe(true);
+      expect(notify.success).not.toHaveBeenCalled();
+    }
+  );
+
+  it("S3 排除：成功后移出当前站且不弹成功提示", async () => {
+    popupInitialData.scriptList = [{ ...initialScriptList[0], hasMatchOverride: true }];
+    const { result } = renderHook(() => usePopupData());
+    await act(async () => {
+      await result.current.handleExcludeFromMatch("script-1");
+    });
+
+    expect(mockExcludeFromMatch).toHaveBeenCalledWith("script-1", "*://example.com/*");
+    expect(result.current.scriptList[0]?.isEffective).toBe(false);
+    expect(result.current.scriptList[0]?.hasMatchOverride).toBe(true);
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it("S3 排除：失败时保持原状态且不弹成功提示", async () => {
+    popupInitialData.scriptList = [{ ...initialScriptList[0], hasMatchOverride: true }];
+    mockExcludeFromMatch.mockRejectedValue(new Error("exclude failure"));
+    const { result } = renderHook(() => usePopupData());
+    await act(async () => {
+      await result.current.handleExcludeFromMatch("script-1");
+    });
+
+    expect(result.current.scriptList[0]?.isEffective).toBe(true);
+    expect(result.current.errorMessage).toBe("Error: exclude failure");
+    expect(notify.success).not.toHaveBeenCalled();
   });
 });

@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { notify } from "@App/pages/components/ui/toast";
-import { Bot } from "lucide-react";
+import { BookOpen, Bot, Server, ServerOff, TriangleAlert } from "lucide-react";
+import { Button } from "@App/pages/components/ui/button";
+import { StateScreen } from "@App/pages/components/ui/state-screen";
+import { agentDocUrl } from "../components/agentDocs";
 import type {
   AgentModelConfig,
   SkillSummary,
@@ -59,6 +63,55 @@ function WelcomeScreen({ hasConversation }: { hasConversation: boolean }) {
   );
 }
 
+// 未配置模型：输入框此时是禁用的，故占据欢迎界面的位置解释原因并给出直达模型服务页的出口。
+// 用 warning 而非 destructive —— 这是尚未完成配置，不是运行出错。
+function NoModelGuide({ onConfigure }: { onConfigure: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <StateScreen
+      data-testid="no-model-guide"
+      icon={ServerOff}
+      tone="warning"
+      className="h-full"
+      title={t("agent:chat_no_model_title")}
+      description={t("agent:chat_no_model_desc")}
+      action={
+        <div className="flex flex-wrap items-center justify-center gap-2.5">
+          <Button data-testid="no-model-guide-action" onClick={onConfigure}>
+            <Server className="size-4" />
+            {t("agent:chat_no_model_action")}
+          </Button>
+          <Button variant="outline" asChild>
+            <a data-testid="no-model-guide-docs" href={agentDocUrl("provider")} target="_blank" rel="noreferrer">
+              <BookOpen className="size-4" />
+              {t("agent:chat_no_model_docs")}
+            </a>
+          </Button>
+        </div>
+      }
+    />
+  );
+}
+
+// 输入区上方的提示条：兜住「直接盯着输入框打字」的用户，与引导态共用同一个跳转
+function NoModelBar({ onConfigure }: { onConfigure: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="px-4 pt-2 bg-background">
+      <div
+        data-testid="no-model-hint"
+        className="max-w-3xl mx-auto flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-warning-bg px-3 py-2 text-warning-fg"
+      >
+        <TriangleAlert className="size-4 shrink-0" />
+        <span className="flex-1 min-w-0 text-xs">{t("agent:chat_no_model")}</span>
+        <Button data-testid="no-model-configure" size="sm" className="shrink-0 max-md:h-11" onClick={onConfigure}>
+          {t("agent:chat_no_model_cta")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatArea({
   conversationId,
   conversationGeneration,
@@ -95,6 +148,7 @@ export default function ChatArea({
   onBackgroundEnabledChange?: (enabled: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { messages, setMessages, loadMessages } = useMessages(conversationId);
   const {
     isStreaming,
@@ -794,6 +848,8 @@ export default function ChatArea({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isStreaming]);
 
+  const goToProvider = useCallback(() => navigate("/agent/provider"), [navigate]);
+
   const noModel = modelsLoaded === true && models.length === 0;
   const showWelcome = !conversationId || (messages.length === 0 && !isStreaming);
   const mergedMessages = mergeToolResults(messages, !isStreaming && !runningIds?.has(conversationId));
@@ -805,7 +861,11 @@ export default function ChatArea({
       <div className="flex-1 overflow-y-auto px-4">
         <div className="max-w-3xl mx-auto">
           {showWelcome ? (
-            <WelcomeScreen hasConversation={!!conversationId} />
+            noModel ? (
+              <NoModelGuide onConfigure={goToProvider} />
+            ) : (
+              <WelcomeScreen hasConversation={!!conversationId} />
+            )
           ) : (
             messageGroups.map((group, groupIndex) =>
               group.type === "user" ? (
@@ -854,6 +914,8 @@ export default function ChatArea({
         </div>
       </div>
 
+      {noModel && <NoModelBar onConfigure={goToProvider} />}
+
       {/* 输入区域 */}
       <ChatInput
         models={models}
@@ -872,11 +934,6 @@ export default function ChatArea({
         onBackgroundEnabledChange={onBackgroundEnabledChange}
         hasPendingMessage={pendingMessageId !== null}
       />
-      {noModel && (
-        <div data-testid="no-model-hint" className="text-center text-xs text-muted-foreground pb-2">
-          {t("agent:chat_no_model")}
-        </div>
-      )}
     </div>
   );
 }
