@@ -135,31 +135,8 @@ describe("execute_script 工具", () => {
     });
   });
 
-  describe("超大返回值截断", () => {
-    it.concurrent("原始结果刚好低于限制但最终 JSON 信封超限时仍应截断", async () => {
-      const nearLimit = "x".repeat(29_970);
-      const deps = makeDeps({ executeInSandbox: vi.fn().mockResolvedValue(nearLimit) });
-      const { executor } = createExecuteScriptTool(deps);
-
-      const result = (await executor.execute({ code: "return nearLimit", target: "sandbox" })) as string;
-      const parsed = JSON.parse(result);
-
-      expect(result.length).toBeLessThanOrEqual(30_000);
-      expect(parsed.truncated).toBe(true);
-    });
-
-    it.concurrent("最终 JSON 信封包含大量引号和反斜杠时仍不超过限制", async () => {
-      const escaped = '"\\'.repeat(40_000);
-      const deps = makeDeps({ executeInSandbox: vi.fn().mockResolvedValue(escaped) });
-      const { executor } = createExecuteScriptTool(deps);
-
-      const result = (await executor.execute({ code: "return escaped", target: "sandbox" })) as string;
-
-      expect(result.length).toBeLessThanOrEqual(30_000);
-      expect(JSON.parse(result).truncated).toBe(true);
-    });
-
-    it.concurrent("page 模式返回值过大时应截断并标注 truncated", async () => {
+  describe("返回值序列化", () => {
+    it.concurrent("page 模式应完整保留大型返回值", async () => {
       const bigString = "x".repeat(50_000);
       const mockExecuteInPage = vi.fn().mockResolvedValue({ result: bigString, tabId: 1 });
       const deps = makeDeps({ executeInPage: mockExecuteInPage });
@@ -168,14 +145,10 @@ describe("execute_script 工具", () => {
       const result = await executor.execute({ code: "return bigString", target: "page" });
       const parsed = JSON.parse(result as string);
 
-      expect(parsed.truncated).toBe(true);
-      expect(typeof parsed.result).toBe("string");
-      expect(parsed.result.length).toBeLessThan(bigString.length);
-      expect(parsed.result).toContain("truncated");
-      expect(parsed.original_length).toBeGreaterThan(50_000);
+      expect(parsed).toEqual({ result: bigString, target: "page", tab_id: 1 });
     });
 
-    it.concurrent("sandbox 模式返回值过大时应截断并标注 truncated", async () => {
+    it.concurrent("sandbox 模式应完整保留大型结构化返回值", async () => {
       const bigArray = Array.from({ length: 10_000 }, (_, i) => i);
       const mockExecuteInSandbox = vi.fn().mockResolvedValue(bigArray);
       const deps = makeDeps({ executeInSandbox: mockExecuteInSandbox });
@@ -184,11 +157,10 @@ describe("execute_script 工具", () => {
       const result = await executor.execute({ code: "return bigArray", target: "sandbox" });
       const parsed = JSON.parse(result as string);
 
-      expect(parsed.truncated).toBe(true);
-      expect(typeof parsed.result).toBe("string");
+      expect(parsed).toEqual({ result: bigArray, target: "sandbox" });
     });
 
-    it.concurrent("正常大小的返回值不应被截断或添加 truncated 字段", async () => {
+    it.concurrent("正常大小的返回值保持原有 envelope", async () => {
       const mockExecuteInPage = vi.fn().mockResolvedValue({ result: { count: 5 }, tabId: 1 });
       const deps = makeDeps({ executeInPage: mockExecuteInPage });
       const { executor } = createExecuteScriptTool(deps);
@@ -197,7 +169,6 @@ describe("execute_script 工具", () => {
       const parsed = JSON.parse(result as string);
 
       expect(parsed).toEqual({ result: { count: 5 }, target: "page", tab_id: 1 });
-      expect(parsed.truncated).toBeUndefined();
     });
   });
 

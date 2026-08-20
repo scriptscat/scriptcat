@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ToolLoopOrchestrator, type ToolLoopDeps } from "./tool_loop_orchestrator";
 import type { ToolExecutorLike, ToolExecuteResult } from "@App/app/service/agent/core/tool_registry";
 import type { ToolCall, AgentModelConfig, ChatRequest, ChatStreamEvent } from "@App/app/service/agent/core/types";
-import { estimateRequestTokens } from "@App/app/service/agent/core/context_elision";
-import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
 import type { LLMCallResult } from "./llm_client";
 
 const MODEL: AgentModelConfig = {
@@ -121,22 +119,20 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
   });
 
   it("auto compact 失败时抛出包含累计 usage 与 conversationId 的结构化错误", async () => {
-    callLLM.mockResolvedValue({ content: "继续", usage: { inputTokens: 9000, outputTokens: 5 } });
+    callLLM.mockResolvedValue({ content: "继续", usage: { inputTokens: 13000, outputTokens: 5 } });
     autoCompact.mockRejectedValue(
       Object.assign(new Error("compact failed"), { usage: { inputTokens: 120, outputTokens: 15 } })
     );
 
     await expect(
       orchestrator.callLLMWithToolLoop(
-        // 16000：未显式配置 maxTokens 时默认输出预留为 min(16384, 窗口/4)（见 model_context.ts），
-        // 输入预算 = 16000 - 4000(输出预留) - 1600(10% 安全边际) = 10400，
-        // 9000/10400 ≈ 0.87 ≥ 0.8，保留测试原本要验证的 autoCompact 触发场景
+        // 13000/16000 > 80%，按完整上下文窗口触发自动压缩。
         baseParams({ model: { ...MODEL, contextWindow: 16000 }, messages: [{ role: "user", content: "开始" }] })
       )
     ).rejects.toMatchObject({
       message: "compact failed",
       conversationId: "conv-1",
-      usage: { inputTokens: 9120, outputTokens: 20 },
+      usage: { inputTokens: 13120, outputTokens: 20 },
     });
   });
 
@@ -491,7 +487,7 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
   });
 
   it("触发 autoCompact 时应保留原始模型，而不是把 contextWindow 预先缩小", async () => {
-    callLLM.mockResolvedValue({ content: "done", usage: { inputTokens: 6000, outputTokens: 5 } });
+    callLLM.mockResolvedValue({ content: "done", usage: { inputTokens: 8500, outputTokens: 5 } });
 
     await orchestrator.callLLMWithToolLoop(
       baseParams({ model: { ...MODEL, contextWindow: 10_000, maxTokens: 2_000 } })
@@ -503,8 +499,18 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     expect(autoCompact.mock.calls[0][2]).toMatchObject({ contextWindow: 10_000, maxTokens: 2_000 });
   });
 
-  it("自动压缩的 token 用量应计入最终 done 事件", async () => {
+  it("输入占用未达到完整上下文窗口 80% 时不应提前自动压缩", async () => {
     callLLM.mockResolvedValue({ content: "done", usage: { inputTokens: 6000, outputTokens: 5 } });
+
+    await orchestrator.callLLMWithToolLoop(
+      baseParams({ model: { ...MODEL, contextWindow: 10_000, maxTokens: 2_000 } })
+    );
+
+    expect(autoCompact).not.toHaveBeenCalled();
+  });
+
+  it("自动压缩的 token 用量应计入最终 done 事件", async () => {
+    callLLM.mockResolvedValue({ content: "done", usage: { inputTokens: 8500, outputTokens: 5 } });
     autoCompact.mockResolvedValue({
       inputTokens: 120,
       outputTokens: 30,
@@ -518,11 +524,11 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
 
     const doneEvent = sendEvent.mock.calls.find((call) => call[0].type === "done")?.[0];
     expect(doneEvent).toMatchObject({
-      usage: { inputTokens: 6120, outputTokens: 35, cacheCreationInputTokens: 10, cacheReadInputTokens: 5 },
+      usage: { inputTokens: 8620, outputTokens: 35, cacheCreationInputTokens: 10, cacheReadInputTokens: 5 },
     });
   });
 
-  it("续接长历史时，首个 LLM 请求使用裁剪后的副本且不修改原始历史", async () => {
+  it("续接长历史时应完整透传旧工具结果且不修改原始历史", async () => {
     const oldToolResult = "完整工具结果".repeat(100);
     const messages: ChatRequest["messages"] = [];
     for (let i = 0; i < 6; i++) {
@@ -534,69 +540,12 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
       messages.push({ role: "tool", content: oldToolResult, toolCallId: `tc${i}` });
     }
     callLLM.mockImplementation(async (_model, request) => {
-      expect(request.messages[1].content).toBe(
-        "[tool result elided to save context — re-run the tool if you need this data again]"
-      );
+      expect(request.messages[1].content).toBe(oldToolResult);
       expect(messages[1].content).toBe(oldToolResult);
       return finalTextResult("done");
     });
 
     await orchestrator.callLLMWithToolLoop(baseParams({ messages, model: { ...MODEL, contextWindow: 1000 } }));
-  });
-
-  it("续接短历史时，估算上下文未达到 40% 不应预先裁剪工具结果", async () => {
-    const messages: ChatRequest["messages"] = [];
-    for (let i = 0; i < 6; i++) {
-      messages.push({
-        role: "assistant",
-        content: "",
-        toolCalls: [{ id: `short${i}`, name: "dup", arguments: "{}" }],
-      });
-      messages.push({ role: "tool", content: "短结果", toolCallId: `short${i}` });
-    }
-    callLLM.mockImplementation(async (_model, request) => {
-      expect(request.messages[1].content).toBe("短结果");
-      return finalTextResult("done");
-    });
-
-    await orchestrator.callLLMWithToolLoop(baseParams({ messages }));
-  });
-
-  it("裁剪到底后估算仍超预算但未达到启发式硬拒绝倍数时，不应本地拒绝，而是放行给 provider 判定", async () => {
-    // estimateRequestTokens 按固定 2 字节/token 换算，30000 字节 ≈ 15000 token；
-    // contextWindow 16000 时预算 ≈ 10400（见下方模型注释），15000/10400 ≈ 1.44 倍，
-    // 未达到 HEURISTIC_HARD_REJECT_RATIO(2) 的硬拒绝阈值——单条 user 消息无可裁剪的旧 tool
-    // 结果，elideUntilWithinBudget 必然裁剪失败，但不应因此本地拒绝
-    const bigContent = "x".repeat(30000);
-    callLLM.mockResolvedValueOnce(finalTextResult("done"));
-
-    await orchestrator.callLLMWithToolLoop(
-      baseParams({
-        model: { ...MODEL, contextWindow: 16000 },
-        messages: [{ role: "user", content: bigContent }],
-      })
-    );
-
-    expect(callLLM).toHaveBeenCalledTimes(1);
-    const errorEvents = sendEvent.mock.calls.map((c) => c[0]).filter((e: any) => e.type === "error");
-    expect(errorEvents.find((e: any) => e.errorCode === "context_too_large")).toBeUndefined();
-  });
-
-  it("裁剪到底后估算仍达到预算 2 倍以上时应本地拒绝为 context_too_large，不再调用 provider", async () => {
-    // 120000 字节 ≈ 60000 token，远超 10400 预算的 2 倍，属于启发式估算也几乎不可能有误差的
-    // 极端超限场景，此时才值得省下一次必然失败的 provider 调用
-    const hugeContent = "x".repeat(120000);
-
-    await orchestrator.callLLMWithToolLoop(
-      baseParams({
-        model: { ...MODEL, contextWindow: 16000 },
-        messages: [{ role: "user", content: hugeContent }],
-      })
-    );
-
-    expect(callLLM).not.toHaveBeenCalled();
-    const errorEvents = sendEvent.mock.calls.map((c) => c[0]).filter((e: any) => e.type === "error");
-    expect(errorEvents[0]?.errorCode).toBe("context_too_large");
   });
 
   it("第 2 次触发告警时应暂停并询问用户；回答非 Stop 时应继续循环", async () => {
@@ -671,7 +620,7 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
   });
 });
 
-describe("ToolLoopOrchestrator 请求前预算检查（防止 tool 结果把下一次请求撑爆）", () => {
+describe("ToolLoopOrchestrator 工具结果透传", () => {
   let chatRepo: ReturnType<typeof makeFakeChatRepo>;
   let toolRegistry: ToolExecutorLike;
   let callLLM: ReturnType<typeof vi.fn<ToolLoopDeps["callLLM"]>>;
@@ -693,9 +642,6 @@ describe("ToolLoopOrchestrator 请求前预算检查（防止 tool 结果把下�
   function baseParams(overrides: Record<string, unknown> = {}) {
     return {
       toolRegistry,
-      // 20000：getReservedOutputTokens 现在对未显式配置 maxTokens 的模型也预留非零默认输出额度
-      // （见 model_context.ts），1000 的窗口扣除后输入预算会塌缩到 0，
-      // 这里放宽窗口，同时仍远小于下面 hugeResult 折算后的 token 数，保留"预算检查触发裁剪"场景
       model: { ...MODEL, contextWindow: 20000 },
       messages: [{ role: "user", content: "开始" }] as ChatRequest["messages"],
       sendEvent: sendEvent as (event: ChatStreamEvent) => void,
@@ -706,9 +652,7 @@ describe("ToolLoopOrchestrator 请求前预算检查（防止 tool 结果把下�
     };
   }
 
-  it("上一轮 tool 结果把下一次请求撑爆时，应在发送前裁剪，而不是等 usage 反馈后再处理", async () => {
-    // 第 1 轮：无 usage 反馈（模拟未携带 usage 的响应），但工具返回一段远超上下文窗口的巨大结果。
-    // 若没有“发送前预算检查”，第 2 轮请求会直接带着这段巨大文本发出去。
+  it("大型工具结果应完整传给下一轮模型调用", async () => {
     const hugeResult = "巨大的工具结果".repeat(2000);
     toolRegistry = {
       getDefinitions: () => [{ name: "dup", description: "dup", parameters: { type: "object", properties: {} } }],
@@ -721,38 +665,13 @@ describe("ToolLoopOrchestrator 请求前预算检查（防止 tool 结果把下�
     callLLM
       .mockResolvedValueOnce({ content: "", toolCalls: [{ id: "c1", name: "dup", arguments: "{}" }] } as LLMCallResult)
       .mockImplementationOnce(async (_model, request) => {
-        // 第 2 次请求发出前应已裁剪掉巨大的 tool 结果
         const toolMsg = request.messages.find((m) => m.role === "tool");
-        expect(toolMsg?.content).not.toBe(hugeResult);
+        expect(toolMsg?.content).toBe(hugeResult);
         return finalTextResult("done");
       });
 
     await orchestrator.callLLMWithToolLoop(baseParams({ toolRegistry }));
 
     expect(callLLM).toHaveBeenCalledTimes(2);
-  });
-
-  it("已计算的输入预算不应再被额外保留 10%", async () => {
-    const model = { ...MODEL, contextWindow: 10_000, maxTokens: 2_000 };
-    const inputBudget = getInputTokenBudget(model);
-    const tools = toolRegistry.getDefinitions();
-    let low = 0;
-    let high = 40_000;
-    while (low < high) {
-      const middle = Math.floor((low + high) / 2);
-      const estimate = estimateRequestTokens([{ role: "user", content: "x".repeat(middle) }], tools, undefined, model);
-      if (estimate < inputBudget * 0.95) low = middle + 1;
-      else high = middle;
-    }
-    const messages: ChatRequest["messages"] = [{ role: "user", content: "x".repeat(low) }];
-    const estimatedTokens = estimateRequestTokens(messages, tools, undefined, model);
-    expect(estimatedTokens).toBeGreaterThan(inputBudget * 0.9);
-    expect(estimatedTokens).toBeLessThanOrEqual(inputBudget);
-    callLLM.mockResolvedValue(finalTextResult("done"));
-
-    await orchestrator.callLLMWithToolLoop(baseParams({ model, messages }));
-
-    expect(callLLM).toHaveBeenCalledOnce();
-    expect(sendEvent.mock.calls.some((call) => call[0].type === "error")).toBe(false);
   });
 });

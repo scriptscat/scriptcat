@@ -34,9 +34,6 @@ export const EXECUTE_SCRIPT_DEFINITION: ToolDefinition = {
 
 const EXECUTE_SCRIPT_TIMEOUT_MS = 30_000;
 
-// 返回值过大时（如 DOM dump、模块映射）截断，避免其在后续每轮 tool loop 中被完整重复计费
-const MAX_RESULT_CHARS = 30_000;
-
 function executeSandboxWithTimeout<T>(
   execute: (signal: AbortSignal) => Promise<T>,
   parentSignal: AbortSignal | undefined,
@@ -88,44 +85,6 @@ function executeSandboxWithTimeout<T>(
   });
 }
 
-// 截断边界落在 UTF-16 代理对中间时向内收缩一位，避免把 emoji 等非 BMP 字符切成半个乱码字符
-function safeHeadEnd(str: string, end: number): number {
-  return end > 0 && end < str.length && str.charCodeAt(end - 1) >= 0xd800 && str.charCodeAt(end - 1) <= 0xdbff
-    ? end - 1
-    : end;
-}
-function safeTailStart(str: string, start: number): number {
-  return start > 0 && start < str.length && str.charCodeAt(start) >= 0xdc00 && str.charCodeAt(start) <= 0xdfff
-    ? start + 1
-    : start;
-}
-
-/** 将 result 序列化，超过阈值时截断为首尾各一部分并标注 truncated */
-function buildResultPayload(result: unknown, extra: Record<string, unknown>): string {
-  const rawResult = result ?? null;
-  const resultStr = JSON.stringify(rawResult);
-  const normalPayload = JSON.stringify({ result: rawResult, ...extra });
-  if (normalPayload.length <= MAX_RESULT_CHARS) return normalPayload;
-  const makePayload = (keptLength: number) => {
-    const headLength = safeHeadEnd(resultStr, Math.ceil(keptLength / 2));
-    const tailStart = safeTailStart(resultStr, resultStr.length - (keptLength - Math.ceil(keptLength / 2)));
-    const omitted = tailStart - headLength;
-    const truncatedText =
-      resultStr.slice(0, headLength) +
-      `\n…[truncated ${omitted} chars — return a smaller value or write large data to OPFS via opfs_write]…\n` +
-      resultStr.slice(tailStart);
-    return JSON.stringify({ result: truncatedText, ...extra, truncated: true, original_length: resultStr.length });
-  };
-  let low = 0;
-  let high = Math.min(MAX_RESULT_CHARS, resultStr.length);
-  while (low < high) {
-    const middle = Math.ceil((low + high) / 2);
-    if (makePayload(middle).length <= MAX_RESULT_CHARS) low = middle;
-    else high = middle - 1;
-  }
-  return makePayload(low);
-}
-
 export type ExecuteScriptDeps = {
   executeInPage: (code: string, options?: { tabId?: number }) => Promise<{ result: unknown; tabId: number }>;
   executeInSandbox: (code: string, signal?: AbortSignal) => Promise<unknown>;
@@ -163,7 +122,7 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
             ),
           signal
         );
-        return buildResultPayload(result, { target: "page", tab_id: actualTabId });
+        return JSON.stringify({ result: result ?? null, target: "page", tab_id: actualTabId });
       }
 
       // sandbox
@@ -172,7 +131,7 @@ export function createExecuteScriptTool(deps: ExecuteScriptDeps): {
         signal,
         timeoutMs
       );
-      return buildResultPayload(result, { target: "sandbox" });
+      return JSON.stringify({ result: result ?? null, target: "sandbox" });
     },
   };
 

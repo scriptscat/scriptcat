@@ -14,30 +14,14 @@ import type {
   TokenUsage,
 } from "@App/app/service/agent/core/types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
-import { getInputTokenBudget } from "@App/app/service/agent/core/model_context";
+import { getContextWindow } from "@App/app/service/agent/core/model_context";
 import { detectToolCallIssues, type ToolCallRecord } from "@App/app/service/agent/core/tool_call_guard";
-import {
-  elideOldToolResults,
-  elideUntilWithinBudget,
-  estimateRequestTokens,
-} from "@App/app/service/agent/core/context_elision";
 import type { LLMCallResult } from "./llm_client";
 import { t } from "@App/locales/locales";
 import { prepareAttachmentSnapshot, type AttachmentSnapshot } from "@App/app/service/agent/core/attachment_resolver";
 
-// 上下文占用达到这些比例时，分批裁剪保留窗口外的旧 tool 结果（早于 autoCompact 的 80% 阈值）。
-// 按阈值分批触发，并在 60% 以上每新增一个保留窗口重新裁剪，兼顾真正的滑动窗口与 prompt cache 稳定性。
-const ELISION_THRESHOLDS = [0.4, 0.6];
-// 发送前预算检查的安全阈值：估算的下一次请求体积达到该比例时才触发裁剪/拒绝，避免与 0.9 的硬预算基准脱节
-const PREFLIGHT_BUDGET_RATIO = 0.9;
-// estimateRequestTokens 是固定 2 字节/token 的启发式估算，不是真实 tokenizer，对高熵文本/CJK 等
-// 可能明显低估或高估。裁剪到底后估算值仍未达到原始预算窗口的这个倍数时，才在本地硬拒绝——
-// 否则只把估算当作触发裁剪的信号，仍把（已尽量裁剪过的）请求交给 provider 自己判定是否能放下；
-// provider 的真实拒绝会经由 classifyErrorCode 的 CONTEXT_LENGTH_ERROR_PATTERN 识别为
-// context_too_large，走同一套恢复路径，不会退化成不透明的 api_error。
+// Compact 路径使用启发式估算时的硬拒绝阈值；正常 Tool Loop 不再按估算主动裁剪上下文。
 export const HEURISTIC_HARD_REJECT_RATIO = 2;
-// 保留最近几轮 assistant(带 toolCalls) 及其 tool 结果的完整原文，更早的轮次被裁剪为占位文本
-const ELISION_KEEP_LAST_ASSISTANT_TURNS = 5;
 
 // 循环检测（tool_call_guard）连续命中达到此次数时，暂停并询问用户是否继续（仅当调用方提供 askUserForGuard 时生效）
 const GUARD_ESCALATION_STRIKES = 2;
@@ -118,69 +102,6 @@ export class ToolLoopOrchestrator {
     private deps: ToolLoopDeps,
     private chatRepo: AgentChatRepo
   ) {}
-
-  /** 上下文即使裁剪到底也无法容纳下一次请求时，落库 + 通知 UI + （可选）抛出结构化错误。
-   * 落库失败不能阻塞事件发送（事件投递不应依赖持久化成功）；
-   * 若此时已被 Stop，取消优先于 context_too_large，改走统一的取消终态化路径。 */
-  private async emitContextTooLarge(
-    conversationId: string | undefined,
-    conversationGeneration: string | undefined,
-    totalUsage: {
-      inputTokens: number;
-      outputTokens: number;
-      cacheCreationInputTokens: number;
-      cacheReadInputTokens: number;
-    },
-    startTime: number,
-    sendEvent: (event: ChatStreamEvent) => void,
-    signal: AbortSignal,
-    throwOnTerminalError?: boolean
-  ): Promise<void> {
-    if (signal.aborted) {
-      await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
-      return;
-    }
-    const error = Object.assign(new Error("Conversation history exceeds the model context window"), {
-      errorCode: "context_too_large",
-      usage: totalUsage,
-      durationMs: Date.now() - startTime,
-      conversationId,
-    });
-    if (conversationId) {
-      try {
-        await this.chatRepo.appendMessage(
-          {
-            id: uuidv4(),
-            conversationId,
-            role: "assistant",
-            content: "",
-            error: error.message,
-            errorCode: error.errorCode,
-            usage: totalUsage,
-            durationMs: error.durationMs,
-            createtime: Date.now(),
-          },
-          conversationGeneration
-        );
-      } catch {
-        // 持久化失败不阻塞终态事件发送
-      }
-    }
-    // 持久化期间也可能已被 Stop：取消优先于 context_too_large，不能在 Stop 之后仍对外报告/
-    // 抛出 context_too_large
-    if (signal.aborted) {
-      await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
-      return;
-    }
-    sendEvent({
-      type: "error",
-      message: error.message,
-      errorCode: error.errorCode,
-      usage: error.usage,
-      durationMs: error.durationMs,
-    });
-    if (throwOnTerminalError) throw error;
-  }
 
   /** 生成的附件（如模型产出的图片）在被 assistant 消息持久化引用之前只是"本轮租约"：
    * 任何不会把引用消息落库的退出路径（取消、持久化失败、落库异常）都必须删除这些文件，
@@ -277,8 +198,6 @@ export class ToolLoopOrchestrator {
     // 本次调用使用的工具注册表（SessionToolRegistry 或 ToolRegistry）
     toolRegistry: ToolExecutorLike;
     model: AgentModelConfig;
-    // 输入 token 预算；未传入时按模型推导（getInputTokenBudget：窗口 - 输出预留 - 安全边际）
-    inputTokenBudget?: number;
     messages: ChatRequest["messages"];
     tools?: ToolDefinition[];
     sendEvent: (event: ChatStreamEvent) => void;
@@ -295,7 +214,7 @@ export class ToolLoopOrchestrator {
     excludeTools?: string[];
     // 是否启用 prompt caching，默认 true
     cache?: boolean;
-    // 消息来自持久化历史时，先在独立副本上裁剪旧 tool 结果。
+    // 消息来自持久化历史时使用独立副本，避免 Tool Loop 修改持久化历史对象。
     rehydratedHistory?: boolean;
     // 循环检测连续命中达到 GUARD_ESCALATION_STRIKES 次时调用，暂停循环询问用户是否继续。
     // 仅由 UI 对话（含后台会话）传入；定时任务、子代理不传，保持原有的仅告警不暂停行为。
@@ -314,7 +233,6 @@ export class ToolLoopOrchestrator {
       conversationId,
       conversationGeneration,
       rehydratedHistory,
-      throwOnTerminalError,
     } = params;
     const startTime = Date.now();
     const totalUsage = {
@@ -329,52 +247,12 @@ export class ToolLoopOrchestrator {
       (id) => this.chatRepo.getAttachment(id),
       signal
     );
-    let attachmentSizes = attachmentSnapshot.sizes;
-    const budgetWindow = params.inputTokenBudget ?? getInputTokenBudget(model);
-    const preflightBudgetWindow = Math.max(1, budgetWindow / PREFLIGHT_BUDGET_RATIO);
-
-    // 持久化历史保留完整结果供 UI 展示；LLM 只使用独立副本，续接时首个请求也先裁剪旧结果。
+    // 持久化历史使用独立副本；正常 Tool Loop 保持消息前缀和工具结果完整。
     const messages = rehydratedHistory ? inputMessages.map((message) => ({ ...message })) : inputMessages;
-    if (rehydratedHistory) {
-      const initialTools = params.skipBuiltinTools ? tools || [] : toolRegistry.getDefinitions(tools);
-      const estimatedInputTokens = estimateRequestTokens(messages, initialTools, attachmentSizes, model);
-      const estimatedUsageRatio = estimatedInputTokens / preflightBudgetWindow;
-      if (estimatedUsageRatio >= ELISION_THRESHOLDS[0]) {
-        const withinBudget = elideUntilWithinBudget(
-          messages,
-          preflightBudgetWindow,
-          initialTools,
-          PREFLIGHT_BUDGET_RATIO,
-          attachmentSizes,
-          model
-        );
-        if (!withinBudget) {
-          const elidedTokens = estimateRequestTokens(messages, initialTools, attachmentSizes, model);
-          if (elidedTokens >= budgetWindow * HEURISTIC_HARD_REJECT_RATIO) {
-            await this.emitContextTooLarge(
-              conversationId,
-              conversationGeneration,
-              totalUsage,
-              startTime,
-              sendEvent,
-              signal,
-              throwOnTerminalError
-            );
-            return;
-          }
-          // 估算值仍在启发式的合理误差范围内：不把本地估算当作最终定论，放行给 provider 自行判定
-        }
-      }
-    }
 
     let iterations = 0;
     const toolCallHistory: ToolCallRecord[] = [];
     let guardStartIndex = 0;
-    // 已触发过的裁剪阈值下标（-1 表示尚未触发过），避免同一阈值区间内每轮重复裁剪
-    let lastElisionThresholdIndex = -1;
-    // 60% 以上按“每新增一个保留窗口”重新裁剪，避免窗口在第二个阈值后停止滑动
-    let assistantToolTurns = 0;
-    let lastElisionAssistantTurn = 0;
     // 循环检测命中次数，达到 GUARD_ESCALATION_STRIKES 后暂停询问用户
     let guardStrikeCount = 0;
 
@@ -387,7 +265,6 @@ export class ToolLoopOrchestrator {
           (id) => this.chatRepo.getAttachment(id),
           signal
         );
-        attachmentSizes = attachmentSnapshot.sizes;
       }
 
       // 每轮重新获取工具定义（load_skill 可能动态注册了新工具）
@@ -395,37 +272,6 @@ export class ToolLoopOrchestrator {
       if (params.excludeTools && params.excludeTools.length > 0) {
         const excludeSet = new Set(params.excludeTools);
         allToolDefs = allToolDefs.filter((t) => !excludeSet.has(t.name));
-      }
-
-      // 发送前预算检查：用上一轮真实 usage 判断是否需要裁剪只在响应之后生效，
-      // 无法覆盖“上一轮新追加的 tool 结果单独撑爆下一次请求”的情况，必须在这里对
-      // 即将发出的完整请求（messages + 当前工具定义）做一次独立估算。
-      const preflightTokens = estimateRequestTokens(messages, allToolDefs, attachmentSizes, model);
-      if (preflightTokens / preflightBudgetWindow >= PREFLIGHT_BUDGET_RATIO) {
-        const withinBudget = elideUntilWithinBudget(
-          messages,
-          preflightBudgetWindow,
-          allToolDefs,
-          PREFLIGHT_BUDGET_RATIO,
-          attachmentSizes,
-          model
-        );
-        if (!withinBudget) {
-          const elidedTokens = estimateRequestTokens(messages, allToolDefs, attachmentSizes, model);
-          if (elidedTokens >= budgetWindow * HEURISTIC_HARD_REJECT_RATIO) {
-            await this.emitContextTooLarge(
-              conversationId,
-              conversationGeneration,
-              totalUsage,
-              startTime,
-              sendEvent,
-              signal,
-              throwOnTerminalError
-            );
-            return;
-          }
-          // 估算值仍在启发式的合理误差范围内：不把本地估算当作最终定论，放行给 provider 自行判定
-        }
       }
 
       // 重试由 llm_client 内部处理
@@ -481,11 +327,9 @@ export class ToolLoopOrchestrator {
         return;
       }
 
-      // 自动 compact：当上下文占用超过 80% 时触发；否则按阈值分批裁剪旧 tool 结果（见下方 pendingElision）
-      let pendingElision = false;
-      let contextUsageRatio: number | null = null;
+      // 自动 compact：按模型完整上下文窗口计算，避免因输出预留和安全边际把“80%”提前触发。
       if (result.usage && conversationId) {
-        contextUsageRatio = getContextInputTokens(model, result.usage) / budgetWindow;
+        const contextUsageRatio = getContextInputTokens(model, result.usage) / getContextWindow(model);
 
         if (contextUsageRatio >= 0.8) {
           try {
@@ -529,13 +373,6 @@ export class ToolLoopOrchestrator {
             await this.releaseGeneratedAttachments(result);
             await this.emitCancelled(conversationId, conversationGeneration, totalUsage, startTime, sendEvent);
             return;
-          }
-        } else {
-          for (let i = 0; i < ELISION_THRESHOLDS.length; i++) {
-            if (i > lastElisionThresholdIndex && contextUsageRatio >= ELISION_THRESHOLDS[i]) {
-              pendingElision = true;
-              lastElisionThresholdIndex = i;
-            }
           }
         }
       }
@@ -834,23 +671,6 @@ export class ToolLoopOrchestrator {
             // 用户选择继续：重置命中计数，避免此后每一次告警都重新弹出询问
             guardStrikeCount = 0;
           }
-        }
-
-        assistantToolTurns++;
-        // 60% 以上每新增一个完整保留窗口再裁剪一次，既保持窗口滑动，也避免每轮破坏缓存前缀。
-        if (
-          !pendingElision &&
-          contextUsageRatio !== null &&
-          contextUsageRatio >= ELISION_THRESHOLDS[ELISION_THRESHOLDS.length - 1] &&
-          assistantToolTurns - lastElisionAssistantTurn >= ELISION_KEEP_LAST_ASSISTANT_TURNS
-        ) {
-          pendingElision = true;
-        }
-
-        // 分批裁剪：待本轮 assistant/tool 消息入列后再裁剪，让本轮内容计入"最近 K 轮"窗口
-        if (pendingElision) {
-          elideOldToolResults(messages, ELISION_KEEP_LAST_ASSISTANT_TURNS);
-          lastElisionAssistantTurn = assistantToolTurns;
         }
 
         // 通知 UI 即将开始新一轮 LLM 调用，创建新的 assistant 消息

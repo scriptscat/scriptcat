@@ -616,15 +616,11 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     expect(userMsgs.map((m: any) => m.content)).toEqual(["第一条消息", "请继续。"]);
   });
 
-  it("上下文占用跨过裁剪阈值时应分批裁剪窗口外的旧 tool 结果，窗口内轮次保持原文", async () => {
+  it("上下文占用跨过旧裁剪阈值时仍应完整保留全部 tool 结果", async () => {
     const { service, mockRepo, mockModelRepo } = createTestService();
     const { sender } = createMockSender();
 
-    // 使用较小的 contextWindow，便于用少量 prompt_tokens 触发裁剪阈值。
-    // 120000：getReservedOutputTokens 现在对未显式配置 maxTokens 的模型也预留非零默认输出额度
-    // （见 model_context.ts），输入预算公式变成 0.9*contextWindow-16384；
-    // 调大窗口使输入预算重新接近原先按 0.9*contextWindow 设计时的量级（约 90000），
-    // 保持下面按 usages 数组设计的"第 5 轮跨 0.4、第 6 轮跨 0.6 但不到 0.8（不触发 autoCompact）"场景
+    // 最后一轮保持在完整上下文窗口的 80% 以下，避免自动 Compact 干扰工具结果透传断言。
     mockModelRepo.getModel.mockResolvedValue({
       id: "test-openai",
       name: "Test",
@@ -655,8 +651,7 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
     mockRepo.getMessages.mockResolvedValue([]);
 
-    // 前 4 轮占用较低；第 5 轮跨过 0.4 阈值（此时恰好 5 轮，保留窗口内不裁剪）；
-    // 第 6 轮跨过 0.6 阈值，触发第二次裁剪，第 1 轮此时已超出保留窗口
+    // 覆盖此前会触发 40%/60% 滑动裁剪的输入占用区间。
     const usages = [10000, 10000, 10000, 10000, 50000, 70000];
     for (let i = 0; i < usages.length; i++) {
       const toolName = i % 2 === 0 ? "counterA" : "counterB";
@@ -672,16 +667,20 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(7);
 
-    // 最后一次 fetch（第 7 轮）请求体中，第 1 轮的 tool 结果应已被裁剪为占位文本，
-    // 而保留窗口内（第 2~6 轮）应保持原文
+    // 最后一次请求必须保持 append-only 前缀，所有工具结果均按原值发送。
     const lastCall = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];
     const lastBody = JSON.parse((lastCall[1] as RequestInit).body as string);
     const toolMessages = lastBody.messages.filter((m: any) => m.role === "tool");
 
     expect(toolMessages).toHaveLength(6);
-    expect(toolMessages[0].content).toContain("elided");
-    expect(toolMessages[1].content).toBe("count=2");
-    expect(toolMessages[toolMessages.length - 1].content).toBe("count=6");
+    expect(toolMessages.map((message: any) => message.content)).toEqual([
+      "count=1",
+      "count=2",
+      "count=3",
+      "count=4",
+      "count=5",
+      "count=6",
+    ]);
 
     registry.unregisterBuiltin("counterA");
     registry.unregisterBuiltin("counterB");
