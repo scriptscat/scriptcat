@@ -6,8 +6,21 @@ separate contract. Use [`docs/README.md`](docs/README.md) as the index and follo
 duplicating its rules.
 
 ## Local Coding Environment
-* Run `pnpm install` if dependencies are absent, invalid or stale.
-* Run `pnpm exec playwright install chromium` if playwright chromium is absent, invalid or stale.
+
+Before running project commands, make sure the local prerequisites are ready. Treat these as environment
+setup steps, not as reasons to change product code:
+
+1. If `node_modules` is missing or dependencies are invalid or stale, run `pnpm install`. Use the package
+   manager declared by this repository; do not switch to npm/yarn or manually add packages to repair a local
+   setup.
+2. If an end-to-end test reports that the Playwright browser is missing or unusable, run
+   `pnpm run test:e2e:install` after dependency installation. This is a separate prerequisite from
+   `pnpm install` and is safe to rerun.
+3. Retry the original command after setup. If setup is blocked by network, permission, or tool availability,
+   report the setup command and relevant error as an environment blocker; do not alter the lockfile or hide the
+   failure with a workaround.
+
+The complete command list and test mechanics are owned by [`docs/develop.md`](docs/develop.md).
 
 ## Route the task before acting
 
