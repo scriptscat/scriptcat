@@ -40,6 +40,24 @@ using it — including links already shipped in installed builds, which keep sen
 
 After `pnpm run dev`, load `dist/ext` as an unpacked extension. The browser hot-reloads page changes, but edits to `manifest.json`, `service_worker`, `offscreen`, or `sandbox` require reloading the extension.
 
+### Environment Setup and Recovery
+
+Dependency installation and Playwright browser installation are separate prerequisites, not reasons to change
+product code:
+
+- If `pnpm` is unavailable, use the repository-declared package manager through Corepack when `corepack` is
+  available: run `corepack enable`, then `corepack install`, and verify with `pnpm --version`. If Corepack is also
+  unavailable or setup fails, report the command and error as an environment blocker; do not switch to npm/yarn.
+- Use `pnpm install` for missing, invalid, or stale Node dependencies. Follow the package manager declared by
+  this repository; do not switch to npm/yarn or manually add packages to repair a local setup. If `pnpm install`
+  changes `pnpm-lock.yaml`, stop and report the mismatch; do not commit that lockfile change as environment
+  recovery.
+- After dependencies are installed, use `pnpm run test:e2e:install` when an end-to-end test reports that
+  Playwright Chromium is missing or unusable. The command is safe to rerun.
+- Retry the original command after setup. If network, permission, or tool availability blocks setup, report the
+  exact command and relevant error as an environment blocker; do not alter the lockfile or hide the failure with
+  a workaround.
+
 ### External Access (`external_access/` subsystem)
 
 External Access — the user-facing "外部接入 / External Access" feature
