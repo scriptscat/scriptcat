@@ -5,22 +5,17 @@ quick-map; concrete mechanics belong to the routed docs. Compatibility entry poi
 separate contract. Use [`docs/README.md`](docs/README.md) as the index and follow the owning doc instead of
 duplicating its rules.
 
-## Local Coding Environment
+## Environment Setup and Recovery
 
-Before running project commands, make sure the local prerequisites are ready. Treat these as environment
-setup steps, not as reasons to change product code:
+Before running project commands, resolve missing prerequisites:
 
-1. If `node_modules` is missing or dependencies are invalid or stale, run `pnpm install`. Use the package
-   manager declared by this repository; do not switch to npm/yarn or manually add packages to repair a local
-   setup.
-2. If an end-to-end test reports that the Playwright browser is missing or unusable, run
-   `pnpm run test:e2e:install` after dependency installation. This is a separate prerequisite from
-   `pnpm install` and is safe to rerun.
-3. Retry the original command after setup. If setup is blocked by network, permission, or tool availability,
-   report the setup command and relevant error as an environment blocker; do not alter the lockfile or hide the
-   failure with a workaround.
+1. Missing, invalid, or stale dependencies: run `pnpm install`.
+2. Missing or unusable Playwright Chromium: after dependency installation, run `pnpm run test:e2e:install`.
+3. Retry the original command. If setup is blocked by network, permission, or tool availability, report it as
+   an environment blocker instead of changing product code.
 
-The complete command list and test mechanics are owned by [`docs/develop.md`](docs/develop.md).
+See [`docs/develop.md#environment-setup-and-recovery`](docs/develop.md#environment-setup-and-recovery) for the
+package-manager, lockfile, and failure-handling boundaries.
 
 ## Route the task before acting
 
