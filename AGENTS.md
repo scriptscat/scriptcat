@@ -7,7 +7,7 @@ duplicating its rules.
 
 ## Local Coding Environment
 * Run `pnpm install` if dependencies are absent, invalid or stale.
-* Run `pnpm exec playwright install chromium` if playwright chromium is absent, invalid or stale.
+* Run `pnpm run test:e2e:install` if Playwright Chromium is absent or stale.
 
 ## Route the task before acting
 
