@@ -40,6 +40,12 @@ describe("CustomEventMessage relatedTarget lifecycle", () => {
     try {
       expect(receiver.relatedTarget.get(senderTargetId)).toBe(senderTarget);
       expect(sender.relatedTarget.get(receiverTargetId)).toBe(receiverTarget);
+      expect(sender.relatedTarget.get(senderTargetId)).toBeUndefined();
+      expect(receiver.relatedTarget.get(receiverTargetId)).toBeUndefined();
+      expect(sender.getAndDelRelatedTarget(senderTargetId)).toBeUndefined();
+      expect(receiver.getAndDelRelatedTarget(receiverTargetId)).toBeUndefined();
+      expect(receiver.getAndDelRelatedTarget(senderTargetId)).toBe(senderTarget);
+      expect(sender.getAndDelRelatedTarget(receiverTargetId)).toBe(receiverTarget);
       expect(sender.relatedTarget.has(senderTargetId)).toBe(false);
       expect(receiver.relatedTarget.has(receiverTargetId)).toBe(false);
     } finally {
