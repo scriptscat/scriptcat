@@ -201,7 +201,9 @@ branch, bind the artifact, revision, and scope to the current remote state:
    branch ancestry, intention, and an earlier local check are insufficient.
 5. Before publication, require `git status --short --branch`, a named non-detached branch, and `git rev-parse
    HEAD`; re-read the remote head immediately before pushing. Push normally only when the expected head is
-   unchanged, never force-push or overwrite unreviewed remote commits, and verify the remote ref after pushing.
+   unchanged. Never overwrite an unexpected or unreviewed remote commit. If the user explicitly authorizes a
+   rewrite, bind the current remote head, use a lease-protected force update against that exact SHA, and verify
+   the remote ref after pushing.
 6. Before reporting results or changing pull-request metadata, re-read the live pull request and bind every claim
    to its returned head SHA. Any new commit, force-push, rebase, base change, conflict resolution, or scope-claim
    edit invalidates earlier evidence; rerun the affected review, checks, and final-diff audit.
