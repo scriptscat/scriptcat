@@ -34,6 +34,9 @@ pnpm run check:issue-templates   # .github/ISSUE_TEMPLATE schema, zh/en parity, 
 Dependency installation and Playwright browser installation are separate prerequisites, not reasons to change
 product code:
 
+- If `pnpm` is unavailable, use the repository-declared package manager through Corepack when `corepack` is
+  available: run `corepack enable`, then `corepack install`, and verify with `pnpm --version`. If Corepack is also
+  unavailable or setup fails, report the command and error as an environment blocker; do not switch to npm/yarn.
 - Use `pnpm install` for missing, invalid, or stale Node dependencies. Follow the package manager declared by
   this repository; do not switch to npm/yarn or manually add packages to repair a local setup.
 - After dependencies are installed, use `pnpm run test:e2e:install` when an end-to-end test reports that
