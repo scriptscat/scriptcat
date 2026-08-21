@@ -7,8 +7,9 @@ import {
   isScriptletUnwrap,
   addStyle,
   addStyleSheet,
+  trimScriptInfo,
 } from "./utils";
-import type { ScriptRunResource } from "@App/app/repo/scripts";
+import type { SCMetadata, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import { RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
@@ -216,6 +217,84 @@ describe("utils", () => {
       expect(result).toContain(
         `GM_registerMenuCommand(("ScriptCat's demo for \\"context-menu\\""), ()=>{let GM_registerMenuCommand=window.GM_registerMenuCommand=GM.registerMenuCommand=undefined;\nconsole.log(567); // testing\n}, {nested:false});\n`
       );
+    });
+  });
+
+  describe("trimScriptInfo resource selection", () => {
+    const resource = (url: string, content: string) => ({
+      url,
+      content,
+      base64: "",
+      hash: { md5: "test", sha1: "test", sha256: "test", sha384: "test", sha512: "test" },
+      type: "resource" as const,
+      link: {},
+      contentType: "text/plain",
+      createtime: Date.now(),
+    });
+
+    const createScript = (metadata: SCMetadata) =>
+      ({
+        uuid: "trim-test-uuid",
+        name: "Trim test",
+        namespace: "trim.test",
+        type: 1,
+        status: 1,
+        sort: 0,
+        runStatus: "complete",
+        createtime: Date.now(),
+        checktime: Date.now(),
+        code: "",
+        value: {},
+        flag: "trim-test-flag",
+        resource: {
+          asset: resource("asset", "asset content"),
+          library: resource("library", "library content"),
+          style: resource("style", "body { color: red; }"),
+        },
+        metadata,
+        originalMetadata: {},
+      }) as unknown as ScriptLoadInfo;
+
+    it.each([
+      {
+        name: "drops @resource without a resource grant",
+        metadata: { resource: ["asset"] },
+        expected: [],
+      },
+      {
+        name: "keeps @resource for GM_getResourceText",
+        metadata: { grant: ["GM_getResourceText"], resource: ["asset"] },
+        expected: ["asset"],
+      },
+      {
+        name: "keeps @resource for GM_getResourceURL",
+        metadata: { grant: ["GM_getResourceURL"], resource: ["asset"] },
+        expected: ["asset"],
+      },
+      {
+        name: "keeps @require independently of resource grants",
+        metadata: { require: ["library"] },
+        expected: ["library"],
+      },
+      {
+        name: "keeps @require-css independently of resource grants",
+        metadata: { "require-css": ["style"] },
+        expected: ["style"],
+      },
+      {
+        name: "keeps all resources when each consumer is present",
+        metadata: {
+          grant: ["GM_getResourceText"],
+          resource: ["asset"],
+          require: ["library"],
+          "require-css": ["style"],
+        },
+        expected: ["asset", "library", "style"],
+      },
+    ])("$name", ({ metadata, expected }) => {
+      const trimmed = trimScriptInfo(createScript(metadata));
+
+      expect(Object.keys(trimmed.resource)).toEqual(expected);
     });
   });
 
