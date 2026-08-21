@@ -5,6 +5,10 @@ quick-map; concrete mechanics belong to the routed docs. Compatibility entry poi
 separate contract. Use [`docs/README.md`](docs/README.md) as the index and follow the owning doc instead of
 duplicating its rules.
 
+## Local Coding Environment
+* Run `pnpm install` if dependencies are absent, invalid or stale.
+* Run `pnpm exec playwright install chromium` if playwright chromium is absent, invalid or stale.
+
 ## Route the task before acting
 
 | Before you… | Read |
