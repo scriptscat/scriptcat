@@ -29,6 +29,17 @@ pnpm run check:i18n              # translation key parity (see docs/translation.
 pnpm run check:issue-templates   # .github/ISSUE_TEMPLATE schema, zh/en parity, issues/new prefill ids
 ```
 
+No standalone `format` script — formatting is part of `lint-fix` and runs through `prettier --write`. Husky
+pre-commit runs `prettier --check` and `pnpm run typecheck` plus ESLint for staged JS/TS files, runs
+`check:i18n` when locale files are staged and `check:issue-templates` when issue templates or `src/` TypeScript
+are staged, and also runs `pnpm run test:ci` when committing on `main` or `release/*`.
+
+`check:issue-templates` guards a contract that is invisible in review: GitHub prefills an issue form from
+`issues/new?...` query params keyed by **field id**, so renaming or deleting an id silently breaks every link
+using it — including links already shipped in installed builds, which keep sending the old param name.
+
+After `pnpm run dev`, load `dist/ext` as an unpacked extension. The browser hot-reloads page changes, but edits to `manifest.json`, `service_worker`, `offscreen`, or `sandbox` require reloading the extension.
+
 ### Environment Setup and Recovery
 
 Dependency installation and Playwright browser installation are separate prerequisites, not reasons to change
@@ -44,17 +55,6 @@ product code:
 - Retry the original command after setup. If network, permission, or tool availability blocks setup, report the
   exact command and relevant error as an environment blocker; do not alter the lockfile or hide the failure with
   a workaround.
-
-No standalone `format` script — formatting is part of `lint-fix` and runs through `prettier --write`. Husky
-pre-commit runs `prettier --check` and `pnpm run typecheck` plus ESLint for staged JS/TS files, runs
-`check:i18n` when locale files are staged and `check:issue-templates` when issue templates or `src/` TypeScript
-are staged, and also runs `pnpm run test:ci` when committing on `main` or `release/*`.
-
-`check:issue-templates` guards a contract that is invisible in review: GitHub prefills an issue form from
-`issues/new?...` query params keyed by **field id**, so renaming or deleting an id silently breaks every link
-using it — including links already shipped in installed builds, which keep sending the old param name.
-
-After `pnpm run dev`, load `dist/ext` as an unpacked extension. The browser hot-reloads page changes, but edits to `manifest.json`, `service_worker`, `offscreen`, or `sandbox` require reloading the extension.
 
 ### External Access (`external_access/` subsystem)
 
