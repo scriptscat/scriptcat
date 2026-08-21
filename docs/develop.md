@@ -49,7 +49,9 @@ product code:
   available: run `corepack enable`, then `corepack install`, and verify with `pnpm --version`. If Corepack is also
   unavailable or setup fails, report the command and error as an environment blocker; do not switch to npm/yarn.
 - Use `pnpm install` for missing, invalid, or stale Node dependencies. Follow the package manager declared by
-  this repository; do not switch to npm/yarn or manually add packages to repair a local setup.
+  this repository; do not switch to npm/yarn or manually add packages to repair a local setup. If `pnpm install`
+  changes `pnpm-lock.yaml`, stop and report the mismatch; do not commit that lockfile change as environment
+  recovery.
 - After dependencies are installed, use `pnpm run test:e2e:install` when an end-to-end test reports that
   Playwright Chromium is missing or unusable. The command is safe to rerun.
 - Retry the original command after setup. If network, permission, or tool availability blocks setup, report the
