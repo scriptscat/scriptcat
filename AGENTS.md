@@ -5,23 +5,12 @@ quick-map; concrete mechanics belong to the routed docs. Compatibility entry poi
 separate contract. Use [`docs/README.md`](docs/README.md) as the index and follow the owning doc instead of
 duplicating its rules.
 
-## Environment Setup and Recovery
-
-Before running project commands, resolve missing prerequisites:
-
-1. Missing, invalid, or stale dependencies: run `pnpm install`.
-2. Missing or unusable Playwright Chromium: after dependency installation, run `pnpm run test:e2e:install`.
-3. Retry the original command. If setup is blocked by network, permission, or tool availability, report it as
-   an environment blocker instead of changing product code.
-
-See [`docs/develop.md#environment-setup-and-recovery`](docs/develop.md#environment-setup-and-recovery) for the
-package-manager, lockfile, and failure-handling boundaries.
-
 ## Route the task before acting
 
 | Before you… | Read |
 | --- | --- |
 | write code | [`docs/develop.md`](docs/develop.md) |
+| recover from missing dependencies or Playwright browser errors | [`docs/develop.md#environment-setup-and-recovery`](docs/develop.md#environment-setup-and-recovery) |
 | review code or a pull request | [`docs/develop.md`](docs/develop.md) + [`docs/pull-request.md`](docs/pull-request.md) for PR-body rules |
 | change a process/message/service/persistence boundary or add a subsystem | [`docs/architecture.md`](docs/architecture.md) + the relevant `docs/references/architecture-*.md` |
 | build or modify a page, dialog, or block | [`docs/design.md`](docs/design.md) — Core Constraints apply to every UI change |
