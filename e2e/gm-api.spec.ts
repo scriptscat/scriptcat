@@ -4,7 +4,7 @@ import os from "os";
 import { createServer, STATUS_CODES, type IncomingMessage, type ServerResponse } from "http";
 import type { AddressInfo } from "net";
 import { test as base, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
-import { headlessArgs } from "./fixtures";
+import { headlessArgs } from "./launch-args";
 import { autoApprovePermissions, installScriptByCode } from "./utils";
 
 const MOCK_CONNECT_HOST = "127.0.0.1";

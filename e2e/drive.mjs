@@ -15,7 +15,6 @@ import { createRequire } from "node:module";
 import { liveSessions, readSession, isAlive, scenarioDir } from "./session.mjs";
 
 const require = createRequire(import.meta.url);
-const { chromium } = require("@playwright/test");
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(path.dirname(__filename), "..");
@@ -164,6 +163,8 @@ async function run() {
     return console.log(lines.slice(-count).join("\n"));
   }
 
+  // 同 session.mjs：驱动延后到真正要附着浏览器时才加载，上面的 console 命令因此也不必付这份代价。
+  const { chromium } = require("@playwright/test");
   const browser = await chromium.connectOverCDP(session.cdp);
   const context = browser.contexts()[0];
 

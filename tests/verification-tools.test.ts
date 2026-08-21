@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { headlessArgs } from "../e2e/fixtures";
+import { headlessArgs } from "../e2e/launch-args";
 
 describe("headlessArgs", () => {
   it.each([undefined, "", "0", "false", "no"])("keeps %j headless", (value) => {

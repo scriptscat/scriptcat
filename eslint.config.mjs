@@ -98,6 +98,32 @@ export default [
     rules: { "no-restricted-imports": "off" },
   },
   {
+    // 单测和 @playwright/test 跑在同一个进程里，而它有进程级单例守卫（被求值两次直接抛错）。
+    // e2e fixture 在模块顶层加载驱动，被单测引入后整个 vitest 套件会随 worker 线程调度随机崩
+    // （2026-08-21 v1.5.0-beta.2 打包即因此失败）。纯逻辑请放到不依赖驱动的模块再引，
+    // 例如 e2e/launch-args.ts。
+    files: ["tests/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@playwright/test",
+              message: "单测不能加载浏览器驱动，它是进程级单例；需要浏览器请写 e2e spec。",
+            },
+          ],
+          patterns: [
+            {
+              group: ["**/e2e/fixtures", "**/e2e/*-fixtures", "**/e2e/utils"],
+              message: "这些 e2e 模块在顶层加载 @playwright/test；把要测的纯逻辑抽到不依赖驱动的模块再引。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // 全局测试 setup 每个测试文件都要加载，引入重型模块会拖慢整个套件
     // （见 docs/references/develop-testing.md § Vitest Performance Hygiene）。
     files: ["tests/vitest.setup.ts"],

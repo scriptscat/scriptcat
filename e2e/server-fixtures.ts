@@ -4,7 +4,7 @@ import path from "path";
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from "http";
 import type { AddressInfo } from "net";
 import { test as base, expect, chromium, type BrowserContext } from "@playwright/test";
-import { headlessArgs } from "./fixtures";
+import { headlessArgs } from "./launch-args";
 
 /**
  * 共享网络测试 fixture。

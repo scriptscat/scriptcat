@@ -32,6 +32,28 @@ afterEach(() => {
 });
 
 describe("verification session paths", () => {
+  // @playwright/test 有进程级单例守卫（第二次求值直接抛错），而单测和它同进程：
+  // 一旦 session/drive 在模块顶层加载浏览器驱动，整个 vitest 套件就会随 worker 线程调度随机崩。
+  it("importing the session tools does not load the browser driver", async () => {
+    const probe = ['await import("./e2e/drive.mjs");', 'if (process["__pw_initiator__"]) process.exit(1);'].join("\n");
+    // 用异步 spawn 而不是 spawnSync：fast 项目 isolate:false，同 worker 线程上还有别的用例在跑，
+    // 同步阻塞会把它们挤出 340ms 预算。
+    const child = spawn(process.execPath, ["--input-type=module", "-e", probe], {
+      cwd: process.cwd(),
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk) => (stderr += chunk));
+    const code = await new Promise((resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", resolve);
+    });
+
+    expect(stderr).toBe("");
+    expect(code).toBe(0);
+  }, 10_000);
+
   it("rejects scenario names that escape the scratch directory", () => {
     expect(() => scenarioDir("../outside")).toThrow(/scenario/i);
   });

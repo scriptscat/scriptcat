@@ -2,7 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { test as base, expect, chromium, type BrowserContext, type Route } from "@playwright/test";
-import { headlessArgs } from "./fixtures";
+import { headlessArgs } from "./launch-args";
 export { expect };
 
 const pathToExtension = path.resolve(__dirname, "../dist/ext");

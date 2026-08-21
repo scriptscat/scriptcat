@@ -23,7 +23,6 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { chromium } = require("@playwright/test");
 
 const __filename = fileURLToPath(import.meta.url);
 const E2E_DIR = path.dirname(__filename);
@@ -280,6 +279,10 @@ export async function attachConsoleCollector(port, append, onDisconnect = () => 
  * 常驻进程本体：持有浏览器直到收到 SIGTERM。
  */
 async function serve(scenario, { headed, lockToken }) {
+  // 浏览器驱动只在真正要开浏览器时才加载：@playwright/test 是进程级单例，被求值两次会直接抛错，
+  // 而本模块的纯逻辑（scenarioDir、attachConsoleCollector）要能被 vitest 单测同进程引用。
+  const { chromium } = require("@playwright/test");
+
   requireBuiltExtension();
   claimLock(scenario, lockToken);
 
