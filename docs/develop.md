@@ -180,4 +180,27 @@ Work from a feature branch or fork and open PRs against `main`. Chinese PR title
 
 Use `.github/pull_request_template.md` as the starting point. It is intentionally lightweight for human-authored PRs; agents should preserve its checklist and expand `Description / 描述` only when useful. The detailed structure is defined in [`pull-request.md`](./pull-request.md). Keep exact commands and results in `验证`, describe UI evidence when the change is visual, and do not claim checks or evidence that did not happen.
 
+### Publication preflight and head binding
+
+Before creating or updating a pull request, or pushing its branch, bind the revision being reviewed to the
+current remote state:
+
+1. Confirm the worktree is clean, the branch is named, and `HEAD` is not detached with
+   `git status --short --branch`, `git symbolic-ref --short HEAD`, and `git rev-parse HEAD`.
+2. Fetch the current base and relevant head refs before choosing the parent or diff. For a new pull request,
+   fetch `origin/main` and branch from that ref. For an existing pull request, read its live metadata and record
+   the repository, base branch, head branch, and head SHA before fetching the relevant head ref. If the target
+   pull request or head repository cannot be identified, stop and label the evidence local-only; do not call it
+   final pull-request evidence.
+3. Compare the local SHA used for review with the live branch/PR head using `git rev-parse HEAD`,
+   `git ls-remote <head-remote> refs/heads/<head-branch>` when a remote head exists, and the live pull-request
+   metadata. A local `HEAD` or tracking ref is not evidence of the pull-request head. If any bound identity
+   differs, stop, rebind the worktree and diff, and rerun the review against the new head before continuing.
+4. Re-read the remote head immediately before pushing. Push normally only when the expected head is unchanged;
+   never force-push or overwrite remote commits that were not part of the bound review. After pushing, verify
+   that the remote ref equals the published SHA.
+5. Before reporting review or verification results, or changing pull-request metadata, re-read the live pull
+   request and bind every claim to its returned head SHA. If code or decision-relevant description changed after
+   a check, rerun the affected checks and review; do not relabel evidence from an older SHA as final evidence.
+
 **Review policy**: review **all** modified files (including `.md`/`.json`); PR description is context only — judge from the diff. Verify every code path touched.
