@@ -1,6 +1,8 @@
 // OPFS 工作区公共辅助函数
 // 供 opfs_tools、agent_dom 等模块复用
 
+import { throwIfAborted } from "./abort_utils";
+
 export const WORKSPACE_ROOT = "agents/workspace";
 
 /** Strip leading `/`, reject `..` segments */
@@ -19,20 +21,24 @@ export function sanitizePath(raw: string): string {
 export async function getDirectory(
   root: FileSystemDirectoryHandle,
   path: string,
-  create = false
+  create = false,
+  signal?: AbortSignal
 ): Promise<FileSystemDirectoryHandle> {
   const segments = path.split("/").filter(Boolean);
   let dir = root;
   for (const seg of segments) {
+    throwIfAborted(signal);
     dir = await dir.getDirectoryHandle(seg, { create });
   }
   return dir;
 }
 
 /** Get the workspace root directory handle */
-export async function getWorkspaceRoot(create = false): Promise<FileSystemDirectoryHandle> {
+export async function getWorkspaceRoot(create = false, signal?: AbortSignal): Promise<FileSystemDirectoryHandle> {
+  throwIfAborted(signal);
   const opfsRoot = await navigator.storage.getDirectory();
-  return getDirectory(opfsRoot, WORKSPACE_ROOT, create);
+  throwIfAborted(signal);
+  return getDirectory(opfsRoot, WORKSPACE_ROOT, create, signal);
 }
 
 /** Split a sanitized path into parent directory path and filename */
@@ -71,8 +77,10 @@ export function isDataUrl(str: string): boolean {
 /** 将二进制数据写入 OPFS workspace 指定路径 */
 export async function writeWorkspaceFile(
   path: string,
-  data: Uint8Array | Blob | string
+  data: Uint8Array | Blob | string,
+  signal?: AbortSignal
 ): Promise<{ path: string; size: number }> {
+  throwIfAborted(signal);
   const safePath = sanitizePath(path);
   if (!safePath) throw new Error("path is required");
 
@@ -82,21 +90,33 @@ export async function writeWorkspaceFile(
     data = decoded.data;
   }
 
-  const workspace = await getWorkspaceRoot(true);
+  const workspace = await getWorkspaceRoot(true, signal);
   const { dirPath, fileName } = splitPath(safePath);
-  const dir = dirPath ? await getDirectory(workspace, dirPath, true) : workspace;
+  const dir = dirPath ? await getDirectory(workspace, dirPath, true, signal) : workspace;
+  throwIfAborted(signal);
   const fileHandle = await dir.getFileHandle(fileName, { create: true });
+  throwIfAborted(signal);
   const writable = await fileHandle.createWritable();
-
-  if (data instanceof Blob) {
-    await writable.write(data);
-  } else if (data instanceof Uint8Array) {
-    // 精确截取视图对应的字节段，避免切片视图写入整个底层 buffer
-    await writable.write((data.buffer as ArrayBuffer).slice(data.byteOffset, data.byteOffset + data.byteLength));
-  } else {
-    await writable.write(data);
+  try {
+    throwIfAborted(signal);
+    if (data instanceof Blob) {
+      await writable.write(data);
+    } else if (data instanceof Uint8Array) {
+      // 精确截取视图对应的字节段，避免切片视图写入整个底层 buffer
+      await writable.write((data.buffer as ArrayBuffer).slice(data.byteOffset, data.byteOffset + data.byteLength));
+    } else {
+      await writable.write(data);
+    }
+    throwIfAborted(signal);
+    await writable.close();
+  } catch (error) {
+    try {
+      await writable.abort();
+    } catch {
+      // 写入流已经关闭或终止时无需额外处理
+    }
+    throw error;
   }
-  await writable.close();
 
   let size: number;
   if (data instanceof Blob) {

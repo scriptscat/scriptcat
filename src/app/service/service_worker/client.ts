@@ -13,7 +13,12 @@ import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type ConfigBundle } from "@App/pkg/backup/config_bundle";
 import { type VSCodeConnectParam } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
-import type { AgentModelConfig, MCPApiRequest, SkillConfigField } from "@App/app/service/agent/core/types";
+import type {
+  AgentModelConfig,
+  AgentTaskApiRequest,
+  MCPApiRequest,
+  SkillConfigField,
+} from "@App/app/service/agent/core/types";
 import type { SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
 import type {
   ScriptService,
@@ -509,6 +514,10 @@ export class AgentClient extends Client {
 
   saveSearchConfig(config: SearchEngineConfig) {
     return this.do("saveSearchConfig", config);
+  }
+
+  agentTask(request: AgentTaskApiRequest): Promise<unknown> {
+    return this.doThrow("agentTask", request);
   }
 
   // MCP API

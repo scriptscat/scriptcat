@@ -16,7 +16,9 @@ vi.mock("@App/pages/options/hooks/useScrollSpy", () => ({
   }),
 }));
 
-const { getSearchConfigMock } = vi.hoisted(() => ({ getSearchConfigMock: vi.fn() }));
+const { getSearchConfigMock } = vi.hoisted(() => ({
+  getSearchConfigMock: vi.fn(),
+}));
 vi.mock("@App/pages/store/features/script", () => ({
   agentClient: {
     listModels: vi.fn(async () => [

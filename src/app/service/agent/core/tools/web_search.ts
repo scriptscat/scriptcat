@@ -5,6 +5,7 @@ import type { SearchConfigRepo } from "./search_config";
 import { extractSearchResults, extractBingResults, extractBaiduResults } from "@App/app/service/offscreen/client";
 import { withTimeout } from "@App/pkg/utils/with_timeout";
 import { requireString, optionalNumber } from "./param_utils";
+import { throwIfAborted } from "../abort_utils";
 
 // Agent User-Agent 字符串
 const AGENT_USER_AGENT = "Mozilla/5.0 (compatible; ScriptCat Agent)";
@@ -49,7 +50,7 @@ export class WebSearchExecutor implements ToolExecutor {
     private configRepo: SearchConfigRepo
   ) {}
 
-  async execute(args: Record<string, unknown>): Promise<string> {
+  async execute(args: Record<string, unknown>, signal?: AbortSignal): Promise<string> {
     const query = requireString(args, "query");
     const maxResults = Math.min(optionalNumber(args, "max_results") ?? 5, 10);
 
@@ -57,14 +58,14 @@ export class WebSearchExecutor implements ToolExecutor {
 
     switch (config.engine) {
       case "google_custom":
-        return this.searchGoogle(query, maxResults, config.googleApiKey || "", config.googleCseId || "");
+        return this.searchGoogle(query, maxResults, config.googleApiKey || "", config.googleCseId || "", signal);
       case "duckduckgo":
-        return this.searchDuckDuckGo(query, maxResults);
+        return this.searchDuckDuckGo(query, maxResults, signal);
       case "baidu":
-        return this.searchBaidu(query, maxResults);
+        return this.searchBaidu(query, maxResults, signal);
       case "bing":
       default:
-        return this.searchBing(query, maxResults);
+        return this.searchBing(query, maxResults, signal);
     }
   }
 
@@ -79,49 +80,74 @@ export class WebSearchExecutor implements ToolExecutor {
     url: string,
     extractFn: (html: string) => Promise<SearchResult[]>,
     engineName: string,
-    maxResults: number
+    maxResults: number,
+    signal?: AbortSignal
   ): Promise<string> {
+    throwIfAborted(signal);
+
     const response = await fetch(url, {
       headers: { "User-Agent": AGENT_USER_AGENT },
-      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(SEARCH_TIMEOUT_MS)])
+        : AbortSignal.timeout(SEARCH_TIMEOUT_MS),
     });
     if (!response.ok) {
       throw new Error(`${engineName} search failed: HTTP ${response.status}`);
     }
     const html = await response.text();
+    throwIfAborted(signal);
     let results: SearchResult[] = [];
     let extractionFailed = false;
     try {
       // 提取函数走 Offscreen 通道，加 10s 超时防卡死
-      results = await withTimeout(extractFn(html), 10_000, () => new Error("extract timeout"));
-    } catch {
+      results = await withTimeout(extractFn(html), 10_000, () => new Error("extract timeout"), signal);
+    } catch (error) {
+      if (error instanceof Error && error.message === "Aborted") {
+        throw error;
+      }
       extractionFailed = true;
     }
     return formatSearchResults(results.slice(0, maxResults), extractionFailed, engineName);
   }
 
-  private async searchDuckDuckGo(query: string, maxResults: number): Promise<string> {
+  private async searchDuckDuckGo(query: string, maxResults: number, signal?: AbortSignal): Promise<string> {
     const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-    return this.fetchAndExtract(url, (html) => extractSearchResults(this.sender, html), "DuckDuckGo", maxResults);
+    return this.fetchAndExtract(
+      url,
+      (html) => extractSearchResults(this.sender, html),
+      "DuckDuckGo",
+      maxResults,
+      signal
+    );
   }
 
-  private async searchBing(query: string, maxResults: number): Promise<string> {
+  private async searchBing(query: string, maxResults: number, signal?: AbortSignal): Promise<string> {
     const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}`;
-    return this.fetchAndExtract(url, (html) => extractBingResults(this.sender, html), "Bing", maxResults);
+    return this.fetchAndExtract(url, (html) => extractBingResults(this.sender, html), "Bing", maxResults, signal);
   }
 
-  private async searchBaidu(query: string, maxResults: number): Promise<string> {
+  private async searchBaidu(query: string, maxResults: number, signal?: AbortSignal): Promise<string> {
     const url = `https://www.baidu.com/s?wd=${encodeURIComponent(query)}&rn=${maxResults}`;
-    return this.fetchAndExtract(url, (html) => extractBaiduResults(this.sender, html), "Baidu", maxResults);
+    return this.fetchAndExtract(url, (html) => extractBaiduResults(this.sender, html), "Baidu", maxResults, signal);
   }
 
-  private async searchGoogle(query: string, maxResults: number, apiKey: string, cseId: string): Promise<string> {
+  private async searchGoogle(
+    query: string,
+    maxResults: number,
+    apiKey: string,
+    cseId: string,
+    signal?: AbortSignal
+  ): Promise<string> {
     if (!apiKey || !cseId) {
       throw new Error("Google Custom Search requires API Key and CSE ID. Configure them in Agent Tool Settings.");
     }
 
     const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cseId)}&q=${encodeURIComponent(query)}&num=${maxResults}`;
-    const response = await fetch(url, { signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS) });
+    const response = await fetch(url, {
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(SEARCH_TIMEOUT_MS)])
+        : AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+    });
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");

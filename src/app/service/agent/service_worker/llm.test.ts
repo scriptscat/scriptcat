@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createTestService, makeSSEResponse, makeTextResponse } from "./test-helpers";
+import { LLMClient } from "./llm_client";
 
 // ---- callLLM 相关测试（通过 callLLMWithToolLoop 间接测试） ----
 
@@ -69,7 +70,7 @@ describe("callLLM 流式响应解析", () => {
     fetchSpy.mockResolvedValueOnce(
       makeSSEResponse([
         `data: {"choices":[{"delta":{"content":"你好"}}]}\n\n`,
-        `data: {"choices":[{"delta":{"content":"世界"}}]}\n\n`,
+        `data: {"choices":[{"delta":{"content":"世界"},"finish_reason":"stop"}]}\n\n`,
         `data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`,
       ])
     );
@@ -195,7 +196,7 @@ describe("callLLM 流式响应解析", () => {
     } as unknown as Response);
     fetchSpy.mockResolvedValueOnce(
       makeSSEResponse([
-        `data: {"choices":[{"delta":{"content":"重试成功"}}]}\n\n`,
+        `data: {"choices":[{"delta":{"content":"重试成功"},"finish_reason":"stop"}]}\n\n`,
         `data: {"usage":{"prompt_tokens":5,"completion_tokens":2}}\n\n`,
       ])
     );
@@ -241,7 +242,7 @@ describe("callLLM 流式响应解析", () => {
     // 第二次成功
     fetchSpy.mockResolvedValueOnce(
       makeSSEResponse([
-        `data: {"choices":[{"delta":{"content":"恢复了"}}]}\n\n`,
+        `data: {"choices":[{"delta":{"content":"恢复了"},"finish_reason":"stop"}]}\n\n`,
         `data: {"usage":{"prompt_tokens":10,"completion_tokens":3}}\n\n`,
       ])
     );
@@ -333,6 +334,96 @@ describe("callLLM 流式响应解析", () => {
     const doneEvents = events.filter((e: any) => e.type === "done");
     expect(doneEvents).toHaveLength(0);
   });
+
+  it("图片落盘期间取消时应保留已知 usage 并清理稍后完成的孤儿附件", async () => {
+    const controller = new AbortController();
+    let finishSave!: () => void;
+    const savePending = new Promise<void>((resolve) => {
+      finishSave = resolve;
+    });
+    const repo = {
+      getAttachment: vi.fn().mockResolvedValue(null),
+      saveAttachment: vi.fn().mockImplementation(() => savePending),
+      deleteAttachment: vi.fn().mockResolvedValue(undefined),
+    } as any;
+    const client = new LLMClient(repo);
+    fetchSpy.mockResolvedValueOnce(
+      makeAnthropicSSEResponse([
+        { event: "message_start", data: { message: { usage: { input_tokens: 15 } } } },
+        {
+          event: "content_block_start",
+          data: { index: 0, content_block: { type: "image", source: { type: "base64", media_type: "image/png" } } },
+        },
+        { event: "content_block_delta", data: { index: 0, delta: { type: "image_delta", data: "AAAA" } } },
+        { event: "content_block_stop", data: { index: 0 } },
+        { event: "message_delta", data: { usage: { output_tokens: 4 } } },
+      ])
+    );
+
+    const call = client.callLLM(
+      {
+        id: "anthropic-image",
+        name: "Anthropic image",
+        provider: "anthropic",
+        apiBaseUrl: "https://api.anthropic.com",
+        apiKey: "test",
+        model: "claude-test",
+      },
+      { messages: [{ role: "user", content: "draw" }] },
+      vi.fn(),
+      controller.signal
+    );
+    await vi.waitFor(() => expect(repo.saveAttachment).toHaveBeenCalledOnce());
+    const attachmentId = repo.saveAttachment.mock.calls[0][0];
+    controller.abort();
+
+    await expect(call).rejects.toMatchObject({
+      message: "Aborted",
+      usage: { inputTokens: 15, outputTokens: 4 },
+    });
+    finishSave();
+    await vi.waitFor(() => expect(repo.deleteAttachment).toHaveBeenCalledWith(attachmentId));
+  });
+
+  it("生成图片保存失败时应在结果里携带可见 warning，而不是静默丢弃", async () => {
+    const repo = {
+      getAttachment: vi.fn().mockResolvedValue(null),
+      saveAttachment: vi.fn().mockRejectedValue(new Error("disk full")),
+      deleteAttachment: vi.fn().mockResolvedValue(undefined),
+    } as any;
+    const client = new LLMClient(repo);
+    fetchSpy.mockResolvedValueOnce(
+      makeAnthropicSSEResponse([
+        { event: "message_start", data: { message: { usage: { input_tokens: 15 } } } },
+        {
+          event: "content_block_start",
+          data: { index: 0, content_block: { type: "image", source: { type: "base64", media_type: "image/png" } } },
+        },
+        { event: "content_block_delta", data: { index: 0, delta: { type: "image_delta", data: "AAAA" } } },
+        { event: "content_block_stop", data: { index: 0 } },
+        { event: "message_delta", data: { usage: { output_tokens: 4 } } },
+      ])
+    );
+
+    const result = await client.callLLM(
+      {
+        id: "anthropic-image",
+        name: "Anthropic image",
+        provider: "anthropic",
+        apiBaseUrl: "https://api.anthropic.com",
+        apiKey: "test",
+        model: "claude-test",
+      },
+      { messages: [{ role: "user", content: "draw" }] },
+      vi.fn(),
+      new AbortController().signal
+    );
+
+    // usage 不能因为图片保存失败而丢失，结果里必须携带可见 warning
+    expect(result.usage).toMatchObject({ inputTokens: 15, outputTokens: 4 });
+    expect(result.contentBlocks).toBeUndefined();
+    expect(result.warning).toMatch(/failed to save/i);
+  });
 });
 
 // ---- callLLMWithToolLoop 场景补充 ----
@@ -350,15 +441,35 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
 
   function makeToolCallResponse(toolCalls: Array<{ id: string; name: string; arguments: string }>): Response {
     const chunks: string[] = [];
-    for (const tc of toolCalls) {
+    toolCalls.forEach((tc, i) => {
       chunks.push(
         `data: {"choices":[{"delta":{"tool_calls":[{"id":"${tc.id}","function":{"name":"${tc.name}","arguments":""}}]}}]}\n\n`
       );
+      const isLast = i === toolCalls.length - 1;
       chunks.push(
-        `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}}]}\n\n`
+        `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}${isLast ? ', "finish_reason":"tool_calls"' : ""}}]}\n\n`
       );
-    }
+    });
     chunks.push(`data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n`);
+    return makeSSEResponse(chunks);
+  }
+
+  // 与 makeToolCallResponse 相同，但 prompt_tokens 可自定义，用于驱动 usageRatio 跨越裁剪阈值
+  function makeToolCallResponseWithUsage(
+    toolCalls: Array<{ id: string; name: string; arguments: string }>,
+    promptTokens: number
+  ): Response {
+    const chunks: string[] = [];
+    toolCalls.forEach((tc, i) => {
+      chunks.push(
+        `data: {"choices":[{"delta":{"tool_calls":[{"id":"${tc.id}","function":{"name":"${tc.name}","arguments":""}}]}}]}\n\n`
+      );
+      const isLast = i === toolCalls.length - 1;
+      chunks.push(
+        `data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":${JSON.stringify(tc.arguments)}}}]}${isLast ? ', "finish_reason":"tool_calls"' : ""}}]}\n\n`
+      );
+    });
+    chunks.push(`data: {"usage":{"prompt_tokens":${promptTokens},"completion_tokens":5}}\n\n`);
     return makeSSEResponse(chunks);
   }
 
@@ -416,10 +527,10 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     expect(events.some((e: any) => e.type === "new_message")).toBe(true);
     expect(events.some((e: any) => e.type === "done")).toBe(true);
 
-    // assistant 消息应持久化（tool_calls 和最终文本各一条）
-    const appendCalls = mockRepo.appendMessage.mock.calls;
-    const assistantCalls = appendCalls.filter((c: any) => c[0].role === "assistant");
-    expect(assistantCalls).toHaveLength(2); // tool_call + final text
+    // 工具 assistant 与结果原子提交，最终文本单独追加。
+    expect(mockRepo.commitToolRound).toHaveBeenCalledTimes(1);
+    expect(mockRepo.commitToolRound.mock.calls[0][0]).toMatchObject({ role: "assistant" });
+    expect(mockRepo.appendMessage.mock.calls.filter((c: any) => c[0].role === "assistant")).toHaveLength(1);
 
     // fetch 应调用 2 次
     expect(fetchSpy).toHaveBeenCalledTimes(2);
@@ -468,37 +579,111 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     registry.unregisterBuiltin("counter");
   });
 
-  it("超过 maxIterations：sendEvent 收到 max_iterations 错误", async () => {
+  it("上下文历史中的错误占位消息不应被重放给 LLM", async () => {
     const { service, mockRepo } = createTestService();
-    const { sender, sentMessages } = createMockSender();
+    const { sender } = createMockSender();
 
+    mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+    // 历史中包含一条持久化的错误占位消息（content 为空字符串）
+    mockRepo.getMessages.mockResolvedValue([
+      { id: "u1", conversationId: "conv-1", role: "user", content: "第一条消息", createtime: 1 },
+      {
+        id: "a1",
+        conversationId: "conv-1",
+        role: "assistant",
+        content: "",
+        error: "Reply was generated but failed to save",
+        errorCode: "persist_failed",
+        createtime: 2,
+      },
+    ]);
+
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("好的，继续"));
+
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "请继续。" }, sender);
+
+    const reqInit = fetchSpy.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(reqInit.body as string);
+
+    // 出站请求中不应包含空 content 且无 tool_calls 的 assistant 消息（即错误占位消息）
+    const emptyAssistantMsgs = body.messages.filter(
+      (m: any) => m.role === "assistant" && m.content === "" && !m.tool_calls
+    );
+    expect(emptyAssistantMsgs).toHaveLength(0);
+
+    // 正常的历史用户消息与新消息应仍然存在
+    const userMsgs = body.messages.filter((m: any) => m.role === "user");
+    expect(userMsgs.map((m: any) => m.content)).toEqual(["第一条消息", "请继续。"]);
+  });
+
+  it("上下文占用跨过旧裁剪阈值时仍应完整保留全部 tool 结果", async () => {
+    const { service, mockRepo, mockModelRepo } = createTestService();
+    const { sender } = createMockSender();
+
+    // 最后一轮保持在完整上下文窗口的 80% 以下，避免自动 Compact 干扰工具结果透传断言。
+    mockModelRepo.getModel.mockResolvedValue({
+      id: "test-openai",
+      name: "Test",
+      provider: "openai",
+      apiBaseUrl: "",
+      apiKey: "",
+      model: "gpt-4o",
+      contextWindow: 120000,
+    });
+
+    // 使用两个不同名称的工具交替调用，避免触发 tool_call_guard 的重复调用检测
+    // （相同工具名连续出现会命中循环检测，暂停询问用户，与本测试无关）
     const registry = (service as any).toolRegistry;
+    let callCount = 0;
+    const execute = async () => {
+      callCount++;
+      return `count=${callCount}`;
+    };
     registry.registerBuiltin(
-      { name: "loop", description: "Loop", parameters: { type: "object", properties: {} } },
-      { execute: async () => "ok" }
+      { name: "counterA", description: "Count A", parameters: { type: "object", properties: {} } },
+      { execute }
+    );
+    registry.registerBuiltin(
+      { name: "counterB", description: "Count B", parameters: { type: "object", properties: {} } },
+      { execute }
     );
 
     mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
     mockRepo.getMessages.mockResolvedValue([]);
 
-    // maxIterations=1 但 LLM 一直返回 tool_call
-    fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "c1", name: "loop", arguments: "{}" }]));
+    // 覆盖此前会触发 40%/60% 滑动裁剪的输入占用区间。
+    const usages = [10000, 10000, 10000, 10000, 50000, 70000];
+    for (let i = 0; i < usages.length; i++) {
+      const toolName = i % 2 === 0 ? "counterA" : "counterB";
+      // 每轮参数不同，避免触发 tool_call_guard 的“相同参数重复调用”检测
+      fetchSpy.mockResolvedValueOnce(
+        makeToolCallResponseWithUsage([{ id: `c${i + 1}`, name: toolName, arguments: `{"round":${i}}` }], usages[i])
+      );
+    }
+    // 第 7 轮：最终文本，结束循环
+    fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
 
-    await (service as any).handleConversationChat(
-      { conversationId: "conv-1", message: "test", maxIterations: 1 },
-      sender
-    );
+    await (service as any).handleConversationChat({ conversationId: "conv-1", message: "test" }, sender);
 
-    const events = sentMessages.map((m) => m.data);
-    const errorEvents = events.filter((e: any) => e.type === "error");
-    expect(errorEvents).toHaveLength(1);
-    expect(errorEvents[0].message).toContain("maximum iterations");
-    expect(errorEvents[0].errorCode).toBe("max_iterations");
+    expect(fetchSpy).toHaveBeenCalledTimes(7);
 
-    // fetch 只调用 1 次（maxIterations=1）
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    // 最后一次请求必须保持 append-only 前缀，所有工具结果均按原值发送。
+    const lastCall = fetchSpy.mock.calls[fetchSpy.mock.calls.length - 1];
+    const lastBody = JSON.parse((lastCall[1] as RequestInit).body as string);
+    const toolMessages = lastBody.messages.filter((m: any) => m.role === "tool");
 
-    registry.unregisterBuiltin("loop");
+    expect(toolMessages).toHaveLength(6);
+    expect(toolMessages.map((message: any) => message.content)).toEqual([
+      "count=1",
+      "count=2",
+      "count=3",
+      "count=4",
+      "count=5",
+      "count=6",
+    ]);
+
+    registry.unregisterBuiltin("counterA");
+    registry.unregisterBuiltin("counterB");
   });
 
   it("工具执行后附件回写：toolCalls 被更新", async () => {
@@ -570,6 +755,13 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
       storedMessages.length = 0;
       storedMessages.push(...msgs.map((m) => structuredClone(m)));
     });
+    mockRepo.updateMessage.mockImplementation(async (msg: any) => {
+      const index = storedMessages.findIndex((m) => m.id === msg.id);
+      if (index >= 0) storedMessages[index] = structuredClone(msg);
+    });
+    mockRepo.commitToolRound.mockImplementation(async (assistant: any, toolMessages: any[]) => {
+      storedMessages.push(structuredClone(assistant), ...toolMessages.map((message) => structuredClone(message)));
+    });
 
     fetchSpy.mockResolvedValueOnce(makeToolCallResponse([{ id: "call_1", name: "echo", arguments: '{"msg":"hi"}' }]));
     fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
@@ -637,19 +829,53 @@ describe("callLLMWithToolLoop 工具调用循环", () => {
     // 应有两个 tool_call_complete
     const completeEvents = events.filter((e: any) => e.type === "tool_call_complete");
     expect(completeEvents).toHaveLength(2);
+    expect(completeEvents.every((event: any) => event.status === "completed")).toBe(true);
     expect(completeEvents.find((e: any) => e.id === "call_a").result).toBe("a: hello");
     expect(completeEvents.find((e: any) => e.id === "call_b").result).toBe("b: world");
 
-    // 持久化的 assistant 消息应包含两个 toolCalls
-    const assistantMsgs = mockRepo.appendMessage.mock.calls
-      .map((c: any) => c[0])
-      .filter((m: any) => m.role === "assistant" && m.toolCalls);
-    expect(assistantMsgs).toHaveLength(1);
-    expect(assistantMsgs[0].toolCalls).toHaveLength(2);
+    // 原子提交的 assistant 消息应包含两个 toolCalls。
+    expect(mockRepo.commitToolRound).toHaveBeenCalledTimes(1);
+    expect(mockRepo.commitToolRound.mock.calls[0][0].toolCalls).toHaveLength(2);
+    expect(mockRepo.commitToolRound.mock.calls[0][1]).toHaveLength(2);
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
 
     registry.unregisterBuiltin("tool_a");
     registry.unregisterBuiltin("tool_b");
+  });
+
+  it("最终回复持久化多次重试仍失败时应报结构化错误而不是假装 done", async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, mockRepo } = createTestService();
+      const { sender, sentMessages } = createMockSender();
+
+      mockRepo.listConversations.mockResolvedValue([BASE_CONV]);
+      mockRepo.getMessages.mockResolvedValue([]);
+      // 只让最终 assistant 消息持久化失败（模拟 OPFS 写入故障），user 消息正常落库，
+      // 这样才能验证的是"最终成功回复的落库失败处理"而不是更早的用户消息落库失败
+      mockRepo.appendMessage.mockImplementation(async (msg: any) => {
+        if (msg.role === "assistant") throw new Error("disk write failed");
+      });
+
+      fetchSpy.mockResolvedValueOnce(makeTextResponse("done"));
+
+      const chatPromise = (service as any).handleConversationChat(
+        { conversationId: "conv-1", message: "test" },
+        sender
+      );
+      // 有限重试之间有退避延迟（200ms/400ms），推进假定时器让它们落定
+      await vi.advanceTimersByTimeAsync(1000);
+      await chatPromise;
+
+      const events = sentMessages.map((m) => m.data);
+      // 不应报告 done：持久化最终失败，不能对外承诺"回复已保存"
+      expect(events.some((e: any) => e.type === "done")).toBe(false);
+      const errorEvent = events.find((e: any) => e.type === "error");
+      expect(errorEvent).toBeDefined();
+      expect(errorEvent.errorCode).toBe("persist_failed");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

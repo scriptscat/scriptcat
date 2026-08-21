@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, Check, ChevronDown, Loader2 } from "lucide-react";
-import type { SubAgentMessage } from "@App/app/service/agent/core/types";
+import type { ContentBlock, SubAgentMessage } from "@App/app/service/agent/core/types";
 import { cn } from "@App/pkg/utils/cn";
 import type { SubAgentState } from "./types";
 import ToolCallBlock from "./ToolCallBlock";
@@ -27,10 +27,23 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
 
   // 合并所有消息（已完成 + 当前）
   const allMessages: SubAgentMessage[] = [...state.completedMessages];
-  if (state.currentContent || state.currentThinking || state.currentToolCalls.length > 0) {
+  if (
+    state.currentContent ||
+    state.currentBlocks?.length ||
+    state.currentThinking ||
+    state.currentWarning ||
+    state.currentToolCalls.length > 0
+  ) {
+    const content: SubAgentMessage["content"] = state.currentBlocks?.length
+      ? [
+          ...(state.currentContent ? [{ type: "text" as const, text: state.currentContent }] : []),
+          ...(state.currentBlocks as ContentBlock[]),
+        ]
+      : state.currentContent;
     allMessages.push({
-      content: state.currentContent,
+      content,
       thinking: state.currentThinking,
+      warning: state.currentWarning,
       toolCalls: state.currentToolCalls,
     });
   }
@@ -99,6 +112,12 @@ export default function SubAgentBlock({ state }: { state: SubAgentState }) {
               {msg.toolCalls.map((tc) => (
                 <ToolCallBlock key={tc.id} toolCall={tc} />
               ))}
+              {msg.warning && (
+                <div className="flex items-start gap-2 mt-2 px-3 py-2 rounded-lg text-xs bg-warning-bg text-warning-fg">
+                  <AlertCircle className="size-3.5 shrink-0 mt-0.5" />
+                  <span className="min-w-0 break-words">{msg.warning}</span>
+                </div>
+              )}
             </div>
           ))}
 

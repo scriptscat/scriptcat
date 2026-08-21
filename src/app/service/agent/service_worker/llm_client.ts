@@ -8,7 +8,7 @@ import type {
   ToolDefinition,
 } from "@App/app/service/agent/core/types";
 import { providerRegistry } from "@App/app/service/agent/core/providers";
-import { resolveAttachments } from "@App/app/service/agent/core/attachment_resolver";
+import { prepareAttachmentSnapshot, type AttachmentSnapshot } from "@App/app/service/agent/core/attachment_resolver";
 import { generateAttachmentId } from "@App/app/service/agent/core/providers/content_utils";
 
 export interface LLMCallResult {
@@ -22,6 +22,10 @@ export interface LLMCallResult {
     cacheReadInputTokens?: number;
   };
   contentBlocks?: ContentBlock[];
+  /** Non-fatal issue surfaced alongside an otherwise-successful result, e.g. a generated image that
+   * failed to persist. The round still resolves so accumulated usage/text aren't discarded, but callers
+   * should show this to the user and persist it onto the assistant message. */
+  warning?: string;
 }
 
 export class LLMClient {
@@ -32,7 +36,12 @@ export class LLMClient {
    */
   async callLLM(
     model: AgentModelConfig,
-    params: { messages: ChatRequest["messages"]; tools?: ToolDefinition[]; cache?: boolean },
+    params: {
+      messages: ChatRequest["messages"];
+      tools?: ToolDefinition[];
+      cache?: boolean;
+      attachmentSnapshot?: AttachmentSnapshot;
+    },
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
   ): Promise<LLMCallResult> {
@@ -45,9 +54,9 @@ export class LLMClient {
     };
 
     // 预解析消息中 ContentBlock 引用的 attachmentId → base64
-    const attachmentResolver = await resolveAttachments(params.messages, model, (id) =>
-      this.chatRepo.getAttachment(id)
-    );
+    const attachmentSnapshot =
+      params.attachmentSnapshot ||
+      (await prepareAttachmentSnapshot(params.messages, model, (id) => this.chatRepo.getAttachment(id), signal));
 
     const provider = providerRegistry.get(model.provider);
     if (!provider) {
@@ -56,7 +65,7 @@ export class LLMClient {
     const { url, init } = await provider.buildRequest({
       model,
       request: chatRequest,
-      resolver: attachmentResolver,
+      resolver: attachmentSnapshot.resolver,
     });
 
     // 带重试的 LLM 调用，最多重试 5 次，间隔递增：10s, 10s, 20s, 20s, 30s
@@ -135,6 +144,26 @@ export class LLMClient {
     const pendingImageSaves: Array<{ block: ContentBlock & { type: "image" }; data: string }> = [];
 
     return new Promise((resolve, reject) => {
+      // 最后一道保险：即使 provider parser 出现未预见的静默完成路径，也不能让这个 Promise 永远挂起
+      let settled = false;
+      const settleOnce = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener("abort", onAbortSafeguard);
+        fn();
+      };
+      // parseStream 自身在 abort 时会 reject，并可能携带这一轮已知的部分 usage（见 openai.ts/
+      // anthropic.ts）。这里的 signal 监听只是最后一道保险，不能抢在 parseStream 的 reject 之前
+      // 立即 settle——那样会用一个不带 usage 的裸 Error 抢占更有信息量的那个 reject。
+      // 延迟到下一个宏任务，给 parseStream 的 reject 一个先落定的机会，本身仍然是安全网，
+      // 不依赖它必定生效。
+      const onAbortSafeguard = () => {
+        setTimeout(() => settleOnce(() => reject(Object.assign(new Error("Aborted"), { usage }))), 0);
+      };
+      signal.addEventListener("abort", onAbortSafeguard, { once: true });
+      const resolveOnce: typeof resolve = (value) => settleOnce(() => resolve(value));
+      const rejectOnce: typeof reject = (reason) => settleOnce(() => reject(reason));
+
       const onEvent = (event: ChatStreamEvent) => {
         // 只转发流式内容事件，done 和 error 由 callLLMWithToolLoop 统一管理
         // 避免在 tool calling 循环中提前发送 done 导致客户端过早 resolve
@@ -188,17 +217,33 @@ export class LLMClient {
               usage = event.usage;
             }
 
-            // 保存模型生成的图片到 OPFS，然后转发事件
+            // 保存模型生成的图片到 OPFS，然后转发事件。
+            // abort 安全：settled 一旦为 true（外层 Promise 已因 abort 落定），后续保存产生的
+            // 附件不会再被任何持久化的 assistant 消息引用，是孤儿文件；已发出的 content_block_complete
+            // 也会晚于终态事件到达客户端。因此每一步都先检查 settled，中途发现已 settle 就
+            // 停止继续保存/发送，并清理这一轮已经落盘但用不上的附件。
             const finalize = async () => {
               const savedBlocks: ContentBlock[] = [];
+              // 本轮所有成功落盘的附件 id（不止是取消时正在保存的那一个）：一旦 settled，
+              // finalize() 的返回值不会再被使用（resolveOnce/rejectOnce 已是 no-op），
+              // 这一轮已经保存的所有附件都变成孤儿文件，必须全部清理，不能只删除取消时
+              // 正在保存的那一个而漏掉更早已经保存成功的
+              const allSavedIds: string[] = [];
+              // 保存失败的图片没有 markdown 原文可回退：之前静默丢弃，用户会拿到一个成功、
+              // 计费的回复但缺图（甚至纯图回复时 content 为空）。记录数量，随结果一起报告
+              // 给调用方持久化/展示，而不是假装什么都没发生
+              let failedImageSaves = 0;
               for (const pending of pendingImageSaves) {
+                if (settled) break;
                 try {
                   await this.chatRepo.saveAttachment(pending.block.attachmentId, pending.data);
+                  allSavedIds.push(pending.block.attachmentId);
+                  if (settled) break;
                   savedBlocks.push(pending.block);
                   // 转发不含 data 的 content_block_complete 事件给 UI
                   sendEvent({ type: "content_block_complete", block: pending.block });
                 } catch {
-                  // 保存失败忽略
+                  failedImageSaves++;
                 }
               }
 
@@ -206,13 +251,15 @@ export class LLMClient {
               const imgRegex = /!\[([^\]]*)\]\((data:image\/([^;]+);base64,[A-Za-z0-9+/=\s]+)\)/g;
               let match;
               let cleanedContent = content;
-              while ((match = imgRegex.exec(content)) !== null) {
+              while (!settled && (match = imgRegex.exec(content)) !== null) {
                 const [fullMatch, alt, dataUrl, subtype] = match;
                 const mimeType = `image/${subtype}`;
                 const ext = subtype || "png";
                 const blockId = generateAttachmentId(ext);
                 try {
                   await this.chatRepo.saveAttachment(blockId, dataUrl);
+                  allSavedIds.push(blockId);
+                  if (settled) break;
                   const block: ContentBlock = {
                     type: "image",
                     attachmentId: blockId,
@@ -231,29 +278,47 @@ export class LLMClient {
                 content = cleanedContent.replace(/\n{3,}/g, "\n\n").trim();
               }
 
-              return savedBlocks.length > 0 ? savedBlocks : undefined;
+              if (settled && allSavedIds.length > 0) {
+                await Promise.all(allSavedIds.map((id) => this.chatRepo.deleteAttachment(id).catch(() => {})));
+              }
+
+              return {
+                contentBlocks: savedBlocks.length > 0 ? savedBlocks : undefined,
+                warning:
+                  failedImageSaves > 0
+                    ? `${failedImageSaves} generated image(s) failed to save and were lost.`
+                    : undefined,
+              };
             };
 
             finalize()
-              .then((contentBlocks) => {
-                resolve({
+              .then(({ contentBlocks, warning }) => {
+                resolveOnce({
                   content,
                   thinking: thinking || undefined,
                   toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
                   usage,
                   contentBlocks,
+                  warning,
                 });
               })
-              .catch(reject);
+              .catch(rejectOnce);
             break;
           }
           case "error":
-            reject(new Error(event.message));
+            // 保留 usage/errorCode/durationMs 等字段，不能转成裸 Error 丢掉这些信息
+            rejectOnce(
+              Object.assign(new Error(event.message), {
+                errorCode: event.errorCode,
+                usage: event.usage,
+                durationMs: event.durationMs,
+              })
+            );
             break;
         }
       };
 
-      parseStream(reader, onEvent, signal).catch(reject);
+      parseStream(reader, onEvent, signal).catch(rejectOnce);
     });
   }
 }

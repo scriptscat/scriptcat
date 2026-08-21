@@ -32,6 +32,7 @@ import { SkillService } from "./skill_service";
 import { AgentTaskService } from "./task_service";
 import { AgentModelService } from "./model_service";
 import { AgentTaskRepo, AgentTaskRunRepo } from "@App/app/repo/agent_task";
+import { ScriptDAO } from "@App/app/repo/scripts";
 import { AgentTaskScheduler } from "@App/app/service/agent/core/task_scheduler";
 import { WEB_FETCH_DEFINITION, WebFetchExecutor } from "@App/app/service/agent/core/tools/web_fetch";
 import { WEB_SEARCH_DEFINITION, WebSearchExecutor } from "@App/app/service/agent/core/tools/web_search";
@@ -39,11 +40,12 @@ import { SearchConfigRepo, type SearchEngineConfig } from "@App/app/service/agen
 import { SubAgentService } from "./sub_agent_service";
 import { BackgroundSessionManager } from "./background_session_manager";
 import { createOPFSTools, setCreateBlobUrlFn } from "@App/app/service/agent/core/tools/opfs_tools";
-import { createObjectURL } from "@App/app/service/offscreen/client";
 import { AgentOPFSService } from "./opfs_service";
-import { executeSkillScript } from "@App/app/service/offscreen/client";
+import { createObjectURL, executeSkillScript, stopScript } from "@App/app/service/offscreen/client";
 import { createTabTools } from "@App/app/service/agent/core/tools/tab_tools";
+import type { AttachmentSnapshot } from "@App/app/service/agent/core/attachment_resolver";
 import { ChatService } from "./chat_service";
+import { createAbortError, throwIfAborted } from "@App/app/service/agent/core/abort_utils";
 
 // 保留对外 API（测试文件直接从 "./agent" import 这三个函数）
 export { isRetryableError, withRetry, classifyErrorCode } from "./retry_utils";
@@ -62,6 +64,7 @@ export class AgentService {
   private opfsService!: AgentOPFSService;
   private taskRepo = new AgentTaskRepo();
   private taskRunRepo = new AgentTaskRunRepo();
+  private scriptDAO = new ScriptDAO();
   private taskScheduler!: AgentTaskScheduler;
   // 定时任务逻辑委托给 AgentTaskService
   private agentTaskService!: AgentTaskService;
@@ -101,8 +104,8 @@ export class AgentService {
       {
         // callLLM 通过 lambda 注入，确保测试 spy 可以拦截 service.callLLM
         callLLM: (model, params, sendEvent, signal) => this.callLLM(model, params, sendEvent, signal),
-        autoCompact: (convId, model, msgs, sendEvent, signal) =>
-          this.compactService.autoCompact(convId, model, msgs, sendEvent, signal),
+        autoCompact: (convId, generation, model, msgs, sendEvent, signal) =>
+          this.compactService.autoCompact(convId, generation, model, msgs, sendEvent, signal),
       },
       agentChatRepo
     );
@@ -118,14 +121,31 @@ export class AgentService {
       this.subAgentService,
       {
         executeInPage: (code, options) => this.domService.executeScript(code, options),
-        executeInSandbox: (code) => {
+        executeInSandbox: (code: string, signal?: AbortSignal) => {
+          throwIfAborted(signal);
           const uuid = SKILL_SCRIPT_UUID_PREFIX + uuidv4();
-          return executeSkillScript(this.sender, {
+          const execPromise = executeSkillScript(this.sender, {
             uuid,
             code,
             args: {},
             grants: [],
             name: "execute_script",
+          });
+          if (!signal) return execPromise;
+          return new Promise<unknown>((resolve, reject) => {
+            let aborted = false;
+            const onAbort = () => {
+              if (aborted) return;
+              aborted = true;
+              void stopScript(this.sender, uuid);
+              reject(createAbortError());
+            };
+            signal.addEventListener("abort", onAbort, { once: true });
+            if (signal.aborted) {
+              onAbort();
+              return;
+            }
+            execPromise.then(resolve, reject).finally(() => signal.removeEventListener("abort", onAbort));
           });
         },
       },
@@ -199,16 +219,19 @@ export class AgentService {
         callLLMWithToolLoop: (params) => this.callLLMWithToolLoop(params),
       },
       this.taskRepo,
-      this.taskRunRepo
+      this.taskRunRepo,
+      this.scriptDAO
     );
     // 初始化定时任务调度器
     this.taskScheduler = new AgentTaskScheduler(
       this.taskRepo,
       this.taskRunRepo,
-      (task) => this.agentTaskService.executeInternalTask(task),
-      (task) => this.agentTaskService.emitTaskEvent(task)
+      (task, signal) => this.agentTaskService.executeInternalTask(task, signal),
+      (task, signal) => this.agentTaskService.emitTaskEvent(task, signal)
     );
-    this.taskScheduler.init();
+    void this.taskScheduler
+      .init()
+      .catch((error) => console.error("[AgentTaskScheduler] initialization failed:", error));
     // 注入 scheduler 到 AgentTaskService（解决循环依赖）
     this.agentTaskService.setScheduler(this.taskScheduler);
     // 搜索配置 API（供 Options UI 调用）
@@ -218,7 +241,7 @@ export class AgentService {
     this.toolRegistry.registerBuiltin(
       WEB_FETCH_DEFINITION,
       new WebFetchExecutor(this.sender, {
-        summarize: (content, prompt) => this.summarizeContent(content, prompt),
+        summarize: (content, prompt, signal) => this.summarizeContent(content, prompt, signal),
       })
     );
     this.toolRegistry.registerBuiltin(WEB_SEARCH_DEFINITION, new WebSearchExecutor(this.sender, this.searchConfigRepo));
@@ -235,7 +258,7 @@ export class AgentService {
     // 注册 Tab 操作工具
     const tabTools = createTabTools({
       sender: this.sender,
-      summarize: (content, prompt) => this.summarizeContent(content, prompt),
+      summarize: (content, prompt, signal) => this.summarizeContent(content, prompt, signal),
     });
     for (const t of tabTools.tools) {
       this.toolRegistry.registerBuiltin(t.definition, t.executor);
@@ -344,9 +367,9 @@ export class AgentService {
   async handleConversationChatFromGmApi(
     params: {
       conversationId: string;
+      generation?: string;
       message: MessageContent;
       tools?: ToolDefinition[];
-      maxIterations?: number;
       scriptUuid: string;
       // ephemeral 会话专用字段
       ephemeral?: boolean;
@@ -362,7 +385,10 @@ export class AgentService {
   }
 
   // 附加到后台运行会话，供 GMApi 调用
-  async handleAttachToConversationFromGmApi(params: { conversationId: string }, sender: IGetSender) {
+  async handleAttachToConversationFromGmApi(
+    params: { conversationId: string; generation?: string },
+    sender: IGetSender
+  ) {
     return this.handleAttachToConversation(params, sender);
   }
 
@@ -372,7 +398,10 @@ export class AgentService {
   }
 
   // 附加到后台运行中的会话（委托给 BackgroundSessionManager）
-  private async handleAttachToConversation(params: { conversationId: string }, sender: IGetSender) {
+  private async handleAttachToConversation(
+    params: { conversationId: string; generation?: string },
+    sender: IGetSender
+  ) {
     return this.bgSessionManager.handleAttach(params, sender);
   }
 
@@ -396,14 +425,19 @@ export class AgentService {
 
   // 对内容做摘要/提取（供 tab 工具使用）
   // 优先使用摘要模型，fallback 到默认模型
-  private async summarizeContent(content: string, prompt: string): Promise<string> {
-    return this.compactService.summarizeContent(content, prompt);
+  private async summarizeContent(content: string, prompt: string, signal?: AbortSignal) {
+    return this.compactService.summarizeContent(content, prompt, signal);
   }
 
   // 调用 LLM 并收集完整响应（委托给 LLMClient）
   private async callLLM(
     model: AgentModelConfig,
-    params: { messages: ChatRequest["messages"]; tools?: ToolDefinition[]; cache?: boolean },
+    params: {
+      messages: ChatRequest["messages"];
+      tools?: ToolDefinition[];
+      cache?: boolean;
+      attachmentSnapshot?: AttachmentSnapshot;
+    },
     sendEvent: (event: ChatStreamEvent) => void,
     signal: AbortSignal
   ) {
