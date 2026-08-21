@@ -100,7 +100,7 @@ export function createFirefoxManifest(manifest, agentEnabled, firefoxId) {
         browser_specific_settings: {
           gecko: {
             id: firefoxId,
-            strict_min_version: "153",
+            strict_min_version: "154.0",
             data_collection_permissions: {
               required: ["none"],
               optional: ["authenticationInfo", "personallyIdentifyingInfo"],
