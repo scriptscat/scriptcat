@@ -10,12 +10,11 @@ duplicating its rules.
 | Before you… | Read |
 | --- | --- |
 | write code | [`docs/develop.md`](docs/develop.md) |
-| review code or a pull request | [`docs/develop.md`](docs/develop.md) + [`docs/pull-request.md`](docs/pull-request.md) for PR-body rules |
+| review or report a branch/PR, or create/update a PR or publish its branch | [`docs/develop.md#revision-scope-and-publication-binding`](docs/develop.md#revision-scope-and-publication-binding) + [`docs/pull-request.md`](docs/pull-request.md) |
 | change a process/message/service/persistence boundary or add a subsystem | [`docs/architecture.md`](docs/architecture.md) + the relevant `docs/references/architecture-*.md` |
 | build or modify a page, dialog, or block | [`docs/design.md`](docs/design.md) — Core Constraints apply to every UI change |
 | add or change localized content | [`docs/translation.md`](docs/translation.md) + matching `docs/references/terminology-<locale>.md` when present |
 | add, edit, reorganize, or review tracked contributor Markdown (`AGENTS.md`, `docs/*`, `.github/*.md`, package/source-local READMEs) | [`docs/DOC-MAINTENANCE.md`](docs/DOC-MAINTENANCE.md) — if you can't grep it on this branch, don't claim it |
-| create or update a pull request or publish its branch | [`docs/develop.md#publication-preflight-and-head-binding`](docs/develop.md#publication-preflight-and-head-binding) + [`docs/pull-request.md`](docs/pull-request.md) |
 | manually confirm a feature works | [`docs/verification.md`](docs/verification.md) — drive a throwaway session against the built extension, not the committed suite |
 
 For tasks matching multiple rows, read every applicable owner before that work; do not front-load unrelated
