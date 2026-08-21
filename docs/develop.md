@@ -202,5 +202,8 @@ current remote state:
 5. Before reporting review or verification results, or changing pull-request metadata, re-read the live pull
    request and bind every claim to its returned head SHA. If code or decision-relevant description changed after
    a check, rerun the affected checks and review; do not relabel evidence from an older SHA as final evidence.
+   For PR-body scope claims, apply the final-diff rule in
+   [`pull-request.md#scope-claims-and-final-diff-evidence`](./pull-request.md#scope-claims-and-final-diff-evidence);
+   intention or an earlier local check is insufficient.
 
 **Review policy**: review **all** modified files (including `.md`/`.json`); PR description is context only — judge from the diff. Verify every code path touched.
