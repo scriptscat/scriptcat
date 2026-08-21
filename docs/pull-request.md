@@ -91,6 +91,22 @@ An agent must not present a change as review-ready when a material acceptance co
 
 Verification claims bind to a revision or clearly identified worktree. If code, configuration, generated artifacts, or a decision-relevant description changes after a check, rerun every affected check before claiming readiness. A final commit SHA is sufficient identity for ordinary GitHub work; a cryptographic evidence ledger is not required by default.
 
+### Scope claims and final-diff evidence
+
+Claims that a pull request includes only a named scope or excludes another change are evidence-bearing. Before
+writing or retaining one:
+
+1. Bind the live pull request base and head SHAs.
+2. Inspect `git diff <base-sha>...<head-sha>`, including changed paths and patch content, against the stated
+   inclusion or exclusion set. Branch ancestry, commit intention, and an earlier local checkout do not prove
+   the claim.
+3. Record the exact base/head pair and the check in `验证`. If no observable diff can prove the claim, omit it or
+   label it unverified.
+
+Any new commit, force-push, rebase, base change, conflict resolution, or scope-claim edit invalidates earlier
+scope evidence. Recompute the final diff and re-read the live pull request before publishing or reporting the
+claim.
+
 ## Evidence triggered by changed contract
 
 Activate only the rows touched by the actual change; mixed changes use their union.
