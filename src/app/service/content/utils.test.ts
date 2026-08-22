@@ -225,6 +225,7 @@ describe("utils", () => {
     const assetDeclaration = `${assetName} https://example.com/asset.bin`;
     const libraryUrl = "https://example.com/library.js";
     const styleUrl = "https://example.com/style.css";
+    const resourceGrants = ["GM_getResourceText", "GM_getResourceURL", "GM.getResourceText", "GM.getResourceUrl"];
 
     const resource = (url: string, content: string) => ({
       url,
@@ -272,18 +273,6 @@ describe("utils", () => {
         expected: [],
       },
       {
-        name: "keeps @resource for GM_getResourceText",
-        metadata: { grant: ["GM_getResourceText"], resource: [assetDeclaration] },
-        resourceKeys: [assetName],
-        expected: [assetName],
-      },
-      {
-        name: "keeps @resource for GM_getResourceURL",
-        metadata: { grant: ["GM_getResourceURL"], resource: [assetDeclaration] },
-        resourceKeys: [assetName],
-        expected: [assetName],
-      },
-      {
         name: "does not forward @require after Service Worker compilation",
         metadata: { require: [libraryUrl] },
         resourceKeys: [libraryUrl],
@@ -320,6 +309,56 @@ describe("utils", () => {
       const trimmed = trimScriptInfo(createScript(metadata, resourceKeys));
 
       expect(Object.keys(trimmed.resource).sort()).toEqual(expected.sort());
+    });
+
+    it.each(resourceGrants)("keeps @resource for %s", (grant) => {
+      const trimmed = trimScriptInfo(createScript({ grant: [grant], resource: [assetDeclaration] }, [assetName]));
+
+      expect(Object.keys(trimmed.resource)).toEqual([assetName]);
+    });
+
+    it("keeps a resource grant in context-menu scripts after removing none", () => {
+      const trimmed = trimScriptInfo(
+        createScript(
+          {
+            grant: ["none", "GM_getResourceText"],
+            resource: [assetDeclaration],
+            "run-at": ["context-menu"],
+          },
+          [assetName]
+        )
+      );
+
+      expect(Object.keys(trimmed.resource)).toEqual([assetName]);
+    });
+
+    it("does not expose malformed @resource declarations", () => {
+      const script = createScript(
+        {
+          grant: ["GM_getResourceText"],
+          resource: [assetName, `${assetName} https://example.com/asset.bin extra`],
+        },
+        [assetName]
+      );
+
+      expect(Object.keys(trimScriptInfo(script).resource)).toEqual([]);
+    });
+
+    it("does not mutate the full resource map while trimming", () => {
+      const script = createScript(
+        {
+          grant: ["GM_getResourceText"],
+          resource: [assetDeclaration],
+          require: [libraryUrl],
+          "require-css": [styleUrl],
+        },
+        [assetName, libraryUrl, styleUrl]
+      );
+      const originalResourceKeys = Object.keys(script.resource);
+
+      trimScriptInfo(script);
+
+      expect(Object.keys(script.resource)).toEqual(originalResourceKeys);
     });
   });
 
