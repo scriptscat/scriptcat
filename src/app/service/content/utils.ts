@@ -192,9 +192,17 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   // --- 处理 resource ---
   // 由于不需要 complie code, resource 只用在 GM_getResourceURL 和 GM_getResourceText
   const resource = {} as Record<string, { base64?: string; content: string; contentType: string }>;
+  const resourceNames = new Set(script.metadata["require-css"] || []);
+  if (hasResourceGrant(script.metadata)) {
+    for (const name of getDeclaredResourceNames(script.metadata)) {
+      resourceNames.add(name);
+    }
+  }
   if (script.resource) {
     for (const [url, { base64, content, contentType }] of Object.entries(script.resource || {})) {
-      resource[url] = { base64, content, contentType };
+      if (resourceNames.has(url)) {
+        resource[url] = { base64, content, contentType };
+      }
     }
   }
   // --- 处理 resource ---
@@ -284,6 +292,35 @@ export function isScriptletUnwrap(metadata: SCMetadata): boolean {
 export function isInjectIntoContent(metadata: SCMetadata): boolean {
   return metadata["inject-into"]?.[0] === "content";
 }
+
+const resourceGrantNames = new Set([
+  "GM_getResourceText",
+  "GM_getResourceURL",
+  "GM.getResourceText",
+  "GM.getResourceUrl",
+]);
+
+const getDeclaredResourceNames = (metadata: SCMetadata): Set<string> => {
+  const names = new Set<string>();
+  for (const value of metadata.resource || []) {
+    const split = value.split(/\s+/);
+    if (split.length === 2 && split[0] && split[1].trim()) {
+      names.add(split[0]);
+    }
+  }
+  return names;
+};
+
+const hasResourceGrant = (metadata: SCMetadata): boolean => {
+  const grants = new Set(metadata.grant || []);
+  if (grants.has("none") && !isContextMenuScript(metadata)) {
+    return false;
+  }
+  if (isContextMenuScript(metadata)) {
+    grants.delete("none");
+  }
+  return [...grants].some((grant) => resourceGrantNames.has(grant));
+};
 
 export const getScriptFlag = (uuid: string) => {
   // scriptFlag 对同一脚本永远一致。重新开启浏览器也不会变。
