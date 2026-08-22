@@ -372,6 +372,44 @@ describe("ResourceService - getResourceByTypes", () => {
     expect(updateSpy).toHaveBeenCalledWith("script-1", expect.objectContaining({ url }), "resource", oldResource);
     expect(res.data).toBe(freshResource);
   });
+
+  it.each(["data", "data https://example.com/data.txt extra", " data https://example.com/data.txt"])(
+    "非法 @resource 声明 %j 不应产生资源或下载",
+    async (metadataValue) => {
+      const updateSpy = vi.spyOn(service, "updateResource");
+
+      const [res] = await service.getResourceByTypes(normalScript("script-invalid", { resource: [metadataValue] }), [
+        "resource",
+      ]);
+
+      expect(res).toEqual({});
+      expect(updateSpy).not.toHaveBeenCalled();
+    }
+  );
+
+  it("按资源类别保留相同 key 的独立来源", async () => {
+    const sharedKey = "https://example.com/shared";
+    const requireResource = resourceModel(sharedKey, "library content");
+    const cssResource = resourceModel(sharedKey, "body { color: red; }");
+    const namedResource = resourceModel("https://example.com/data.txt", "resource content");
+    vi.spyOn(service, "getResourceByTypes").mockResolvedValue([
+      { [sharedKey]: requireResource },
+      { [sharedKey]: cssResource },
+      { [sharedKey]: namedResource },
+    ]);
+
+    const resourceByType = await service.getScriptResourceValueByType(
+      normalScript("script-collision", {
+        require: [sharedKey],
+        "require-css": [sharedKey],
+        resource: [`${sharedKey} https://example.com/data.txt`],
+      })
+    );
+
+    expect(resourceByType.require[sharedKey]).toBe(requireResource);
+    expect(resourceByType["require-css"][sharedKey]).toBe(cssResource);
+    expect(resourceByType.resource[sharedKey]).toBe(namedResource);
+  });
 });
 
 describe("ResourceService - importResource", () => {

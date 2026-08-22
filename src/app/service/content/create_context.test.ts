@@ -237,4 +237,19 @@ describe.concurrent("createProxyContext", () => {
     const sandbox = createProxyContext(createTestContext([]));
     expect(Object.hasOwn(sandbox, "addEventListener")).toBe(true);
   });
+
+  it.concurrent("多个沙盒之间不共享自有属性，且各自保留原生事件方法", () => {
+    const first = createProxyContext(createTestContext([]));
+    const second = createProxyContext(createTestContext([]));
+
+    first.sandboxOnly = "first";
+    second.sandboxOnly = "second";
+
+    expect(first.sandboxOnly).toBe("first");
+    expect(second.sandboxOnly).toBe("second");
+    expect(Object.hasOwn(first, "addEventListener")).toBe(true);
+    expect(Object.hasOwn(second, "addEventListener")).toBe(true);
+    expect(first.window).toBe(first);
+    expect(second.window).toBe(second);
+  });
 });

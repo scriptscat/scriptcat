@@ -79,6 +79,7 @@ type TCodeCache = {
 };
 
 type TRuntimeResource = { base64?: string } & Omit<Resource, "base64">;
+type TRuntimeResourceByType = Record<ResourceType, Record<string, TRuntimeResource>>;
 
 type TLocalResourceCache = {
   resourceKey: string;
@@ -95,7 +96,7 @@ type TPageLoadScriptCache = {
   metadataStr: string;
   userConfigStr: string;
   userConfig: UserConfig | undefined;
-  resource: Record<string, TRuntimeResource>;
+  resourceByType: TRuntimeResourceByType;
   localResources: TLocalResourceCache[];
 };
 
@@ -850,7 +851,9 @@ export class RuntimeService {
 
   async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
     const scriptRes = withCode ? await this.script.buildScriptRunResource(script) : buildScriptRunResourceBasic(script);
-    const resources = withCode ? scriptRes.resource : await this.resource.getScriptResourceValue(scriptRes);
+    const resources = withCode
+      ? scriptRes.resourceByType?.require || scriptRes.resource
+      : (await this.resource.getScriptResourceValueByType(scriptRes)).require;
     const resourceUrls = (script.metadata["require"] || []).map((res) => resources[res]?.url).filter((res) => res);
     const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
     if (!scriptMatchInfo) return undefined;
@@ -1348,16 +1351,34 @@ export class RuntimeService {
     return ret;
   }
 
-  private getLocalResourceCacheList(resource: Record<string, TRuntimeResource>) {
+  private cloneRuntimeResourceByType(resourceByType: TRuntimeResourceByType): TRuntimeResourceByType {
+    return {
+      require: this.cloneRuntimeResource(resourceByType.require),
+      "require-css": this.cloneRuntimeResource(resourceByType["require-css"]),
+      resource: this.cloneRuntimeResource(resourceByType.resource),
+    };
+  }
+
+  private mergeRuntimeResourceByType(resourceByType: TRuntimeResourceByType) {
+    return {
+      ...resourceByType.require,
+      ...resourceByType["require-css"],
+      ...resourceByType.resource,
+    };
+  }
+
+  private getLocalResourceCacheList(resourceByType: TRuntimeResourceByType) {
     const localResources: TLocalResourceCache[] = [];
-    for (const [resourceKey, res] of Object.entries(resource)) {
-      if (res.url.startsWith("file:///")) {
-        localResources.push({
-          resourceKey,
-          url: res.url,
-          type: res.type,
-          sha512: res.hash?.sha512,
-        });
+    for (const type of ["require", "require-css", "resource"] as const) {
+      for (const [resourceKey, res] of Object.entries(resourceByType[type])) {
+        if (res.url.startsWith("file:///")) {
+          localResources.push({
+            resourceKey,
+            url: res.url,
+            type,
+            sha512: res.hash?.sha512,
+          });
+        }
       }
     }
     return localResources;
@@ -1368,8 +1389,8 @@ export class RuntimeService {
     compiledResource: CompiledResource,
     scriptCacheKey: string
   ): Promise<TPageLoadScriptCache | undefined> {
-    const [resource, codeInfo] = await Promise.all([
-      this.resource.getScriptResourceValue(scriptRes) as Promise<Record<string, TRuntimeResource>>,
+    const [resourceByType, codeInfo] = await Promise.all([
+      this.resource.getScriptResourceValueByType(scriptRes) as Promise<TRuntimeResourceByType>,
       this.getScriptInfoForCode(scriptRes),
     ]);
     if (!codeInfo) return undefined;
@@ -1387,19 +1408,21 @@ export class RuntimeService {
       metadataStr: codeInfo.metadataStr,
       userConfigStr: codeInfo.userConfigStr,
       userConfig: codeInfo.userConfig,
-      resource: this.cloneRuntimeResource(resource),
-      localResources: this.getLocalResourceCacheList(resource),
+      resourceByType: this.cloneRuntimeResourceByType(resourceByType),
+      localResources: this.getLocalResourceCacheList(resourceByType),
     };
   }
 
   private createPageLoadScriptInfo(scriptRes: ScriptRunResource, cache: TPageLoadScriptCache) {
+    const resourceByType = this.cloneRuntimeResourceByType(cache.resourceByType);
     return {
       ...scriptRes,
       scriptUrlPatterns: cache.scriptUrlPatterns,
       originalUrlPatterns: cache.originalUrlPatterns === null ? cache.scriptUrlPatterns : cache.originalUrlPatterns,
       code: cache.code,
       value: {},
-      resource: this.cloneRuntimeResource(cache.resource),
+      resource: this.mergeRuntimeResourceByType(resourceByType),
+      resourceByType,
       metadataStr: cache.metadataStr,
       userConfigStr: cache.userConfigStr,
       userConfig: cache.userConfig,
@@ -1420,7 +1443,7 @@ export class RuntimeService {
   }
 
   // 每次页面加载都重新拉取 file:/// 本地资源；sha512 未变则跳过。
-  // 注意：发现变化时会就地更新共享的 pageLoadCaches 缓存对象（cache.resource / localResource.sha512），
+  // 注意：发现变化时会就地更新共享的 pageLoadCaches 缓存对象（cache.resourceByType / localResource.sha512），
   // 使后续加载直接复用最新内容。重复写入的是同一次拉取的结果，幂等。
   private async refreshLocalResourcesForPageLoad(
     enableScriptList: (ScriptLoadInfo & { scriptUrlPatterns: URLRuleEntry[] })[],
@@ -1450,7 +1473,10 @@ export class RuntimeService {
                 nextResource.base64 = undefined;
               }
               localResource.sha512 = updatedResource.hash?.sha512;
-              cache.resource[localResource.resourceKey] = nextResource;
+              cache.resourceByType[localResource.type][localResource.resourceKey] = nextResource;
+              if (scriptRes.resourceByType) {
+                scriptRes.resourceByType[localResource.type][localResource.resourceKey] = { ...nextResource };
+              }
               scriptRes.resource[localResource.resourceKey] = { ...nextResource };
               resourceUpdated = true;
             } catch (e) {

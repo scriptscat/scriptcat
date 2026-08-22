@@ -517,6 +517,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
 
       const mockResourceService = {
         getScriptResourceValue: vi.fn().mockResolvedValue({}),
+        getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
       };
 
       const mockValueService = {
@@ -855,7 +856,10 @@ describe("getScriptsForTab 附加边界场景", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     const mockScriptCodeDAO = { get: vi.fn().mockResolvedValue({ code: "// test" }) };
-    const mockResourceService = { getScriptResourceValue: vi.fn().mockResolvedValue({}) };
+    const mockResourceService = {
+      getScriptResourceValue: vi.fn().mockResolvedValue({}),
+      getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
+    };
     const mockValueService = { getScriptValue: vi.fn().mockResolvedValue({}) };
 
     (mockScriptDAO as any).gets = vi.fn().mockResolvedValue([script]);
