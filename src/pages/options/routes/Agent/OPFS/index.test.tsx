@@ -83,6 +83,14 @@ describe("AgentOPFS 页面", () => {
     expect(screen.getByText("subdir")).toBeInTheDocument();
   });
 
+  it("系统目录浏览时只提供读取和下载，不提供修改操作", async () => {
+    render(<AgentOPFS />);
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
+    expect(screen.queryByTestId("opfs-upload")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("delete-file1.txt")).not.toBeInTheDocument();
+    expect(screen.getByTestId("opfs-read-only-notice")).toBeInTheDocument();
+  });
+
   it("点击目录进入并更新面包屑", async () => {
     render(<AgentOPFS />);
     expect(await screen.findByTestId("entry-subdir")).toBeInTheDocument();
@@ -109,8 +117,12 @@ describe("AgentOPFS 页面", () => {
   });
 
   it("选择文件后写入当前目录并刷新展示", async () => {
+    const workspace = dirHandle("workspace");
+    root = dirHandle("root", { agents: dirHandle("agents", { workspace }) });
+    (navigator.storage.getDirectory as any).mockResolvedValue(root);
     render(<AgentOPFS />);
-    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
+    fireEvent.click(await screen.findByTestId("entry-agents"));
+    fireEvent.click(await screen.findByTestId("entry-workspace"));
     const input = screen.getByTestId("opfs-upload-input") as HTMLInputElement;
     const file = new File(["uploaded-content"], "report.json", { type: "application/json" });
     fireEvent.change(input, { target: { files: [file] } });
@@ -123,8 +135,8 @@ describe("AgentOPFS 页面", () => {
     const closeGate = new Promise<void>((resolve) => {
       releaseClose = resolve;
     });
-    root = dirHandle("root", { "file1.txt": fileHandle("file1.txt", "hi") });
-    root.getFileHandle = async (n: string) => ({
+    const workspace = dirHandle("workspace", { "file1.txt": fileHandle("file1.txt", "hi") });
+    workspace.getFileHandle = async (n: string) => ({
       kind: "file",
       name: n,
       async createWritable() {
@@ -136,9 +148,12 @@ describe("AgentOPFS 页面", () => {
         };
       },
     });
+    root = dirHandle("root", { agents: dirHandle("agents", { workspace }) });
     (navigator.storage.getDirectory as any).mockResolvedValue(root);
 
     render(<AgentOPFS />);
+    fireEvent.click(await screen.findByTestId("entry-agents"));
+    fireEvent.click(await screen.findByTestId("entry-workspace"));
     expect(await screen.findByText("file1.txt")).toBeInTheDocument();
 
     const upload = screen.getByTestId("opfs-upload");
@@ -170,18 +185,76 @@ describe("AgentOPFS 页面", () => {
     expect(desc).not.toBe(title);
   });
 
+  it("加载失败显示错误并可重试,不应伪装成空目录", async () => {
+    const getDirectory = vi.fn().mockRejectedValueOnce(new Error("permission denied")).mockResolvedValueOnce(root);
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: { getDirectory },
+    });
+    render(<AgentOPFS />);
+    expect(await screen.findByTestId("opfs-load-error")).toHaveTextContent("permission denied");
+    expect(screen.queryByTestId("empty-state")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("opfs-load-retry"));
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
+  });
+
+  it("重命名进行中禁用重复提交并显示忙碌状态", async () => {
+    let releaseLookup!: () => void;
+    const lookupGate = new Promise<void>((resolve) => {
+      releaseLookup = resolve;
+    });
+    const oldFile = fileHandle("old.txt", "data");
+    oldFile.createWritable = async () => writableFor("new.txt", {});
+    const workspace = dirHandle("workspace", { "old.txt": oldFile });
+    const originalGetFileHandle = workspace.getFileHandle;
+    const originalGetDirectoryHandle = workspace.getDirectoryHandle;
+    workspace.getFileHandle = async (name: string, opts?: { create?: boolean }) => {
+      if (name === "new.txt" && !opts?.create) {
+        await lookupGate;
+        throw new DOMException("Not found", "NotFoundError");
+      }
+      return originalGetFileHandle(name, opts);
+    };
+    workspace.getDirectoryHandle = async (name: string) => {
+      if (name === "new.txt") throw new DOMException("Not found", "NotFoundError");
+      return originalGetDirectoryHandle(name);
+    };
+    root = dirHandle("root", { agents: dirHandle("agents", { workspace }) });
+    (navigator.storage.getDirectory as any).mockResolvedValue(root);
+
+    render(<AgentOPFS />);
+    fireEvent.click(await screen.findByTestId("entry-agents"));
+    fireEvent.click(await screen.findByTestId("entry-workspace"));
+    fireEvent.click(await screen.findByTestId("rename-old.txt"));
+    fireEvent.change(await screen.findByTestId("opfs-entry-edit-input"), { target: { value: "new.txt" } });
+    const submit = screen.getByTestId("opfs-entry-edit-submit");
+    fireEvent.click(submit);
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveTextContent("加载中...");
+
+    releaseLookup();
+    await waitFor(() => expect(screen.queryByTestId("opfs-entry-edit-input")).not.toBeInTheDocument());
+  });
+
   it("移动端:页内工具行为图标按钮(无可见文案标签)+ 标题作为页内标题", async () => {
     mockedUseIsMobile.mockReturnValue(true);
     render(<AgentOPFS />);
     expect(await screen.findByText("file1.txt")).toBeInTheDocument();
-    const upload = screen.getByTestId("opfs-upload");
     const refresh = screen.getByTestId("opfs-refresh");
-    // 图标按钮:有可访问名,但没有可见文本节点
-    expect(upload).toHaveAccessibleName();
-    expect(upload.textContent).toBe("");
     expect(refresh.textContent).toBe("");
+    expect(screen.queryByTestId("opfs-upload")).not.toBeInTheDocument();
     // 页内标题存在(以 test-id 断言,不耦合译文)
     expect(screen.getByTestId("opfs-mobile-title")).toBeInTheDocument();
+  });
+
+  it("移动端只读目录没有可用操作时不显示空菜单", async () => {
+    mockedUseIsMobile.mockReturnValue(true);
+    root = dirHandle("root", { subdir: dirHandle("subdir") });
+    (navigator.storage.getDirectory as any).mockResolvedValue(root);
+    render(<AgentOPFS />);
+    expect(await screen.findByTestId("entry-subdir")).toBeInTheDocument();
+    expect(screen.queryByTestId("card-menu")).not.toBeInTheDocument();
   });
 
   it("移动端抑制 64px 桌面页头(避免与全局 MobileHeader 双层堆叠)", async () => {
@@ -191,15 +264,15 @@ describe("AgentOPFS 页面", () => {
     // AgentPageHeader 的副标题与带文案的桌面按钮均不应出现:说明 64px 页头未渲染
     expect(screen.queryByText("Origin Private File System · Agent 私有存储")).not.toBeInTheDocument();
     expect(screen.queryByTestId("opfs-refresh")?.textContent).not.toContain("刷新");
-    expect(screen.queryByTestId("opfs-upload")?.textContent).not.toContain("上传");
+    expect(screen.queryByTestId("opfs-upload")).not.toBeInTheDocument();
   });
 
-  it("桌面端渲染 64px 页头(含副标题与带文案的刷新/上传按钮)", async () => {
+  it("桌面端渲染 64px 页头并在系统目录隐藏上传按钮", async () => {
     mockedUseIsMobile.mockReturnValue(false);
     render(<AgentOPFS />);
     expect(await screen.findByText("file1.txt")).toBeInTheDocument();
     expect(screen.getByText("Origin Private File System · Agent 私有存储")).toBeInTheDocument();
     expect(screen.getByTestId("opfs-refresh")).toHaveTextContent("刷新");
-    expect(screen.getByTestId("opfs-upload")).toHaveTextContent("上传");
+    expect(screen.queryByTestId("opfs-upload")).not.toBeInTheDocument();
   });
 });
