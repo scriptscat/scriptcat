@@ -5,6 +5,7 @@ import { DefinedFlags } from "../service_worker/runtime.consts";
 import { sourceMapTo } from "@App/pkg/utils/utils";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { embeddedPatternCheckerString, type EmbeddedURLRuleEntry, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
+import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -57,9 +58,10 @@ export const waitBody = (callback: () => void) => {
 // 根据ScriptRunResource获取require的资源
 export function getScriptRequire(scriptRes: ScriptRunResource): CompileScriptCodeResource["require"] {
   const resourceArray = new Array<{ url: string; content: string }>();
+  const resource = scriptRes.resourceByType?.require || scriptRes.resource;
   if (Array.isArray(scriptRes.metadata.require)) {
     for (const val of scriptRes.metadata.require) {
-      const res = scriptRes.resource[val];
+      const res = resource[val];
       if (res) {
         resourceArray.push({ url: res.url, content: res.content });
       }
@@ -192,22 +194,27 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   // --- 处理 resource ---
   // 由于不需要 complie code, resource 只用在 GM_getResourceURL 和 GM_getResourceText
   const resource = {} as Record<string, { base64?: string; content: string; contentType: string }>;
-  const resourceNames = new Set(script.metadata["require-css"] || []);
-  if (hasResourceGrant(script.metadata)) {
-    for (const name of getDeclaredResourceNames(script.metadata)) {
-      resourceNames.add(name);
+  const requireCssResource = {} as Record<string, { base64?: string; content: string; contentType: string }>;
+  const resourceByType = script.resourceByType;
+  const resourceResources = resourceByType?.resource || script.resource;
+  const requireCssResources = resourceByType?.["require-css"] || script.resource;
+  for (const name of script.metadata["require-css"] || []) {
+    const res = requireCssResources[name];
+    if (res) {
+      requireCssResource[name] = { base64: res.base64, content: res.content, contentType: res.contentType };
     }
   }
-  if (script.resource) {
-    for (const [url, { base64, content, contentType }] of Object.entries(script.resource || {})) {
-      if (resourceNames.has(url)) {
-        resource[url] = { base64, content, contentType };
+  if (hasResourceGrant(script.metadata)) {
+    for (const name of getDeclaredResourceNames(script.metadata)) {
+      const res = resourceResources[name];
+      if (res) {
+        resource[name] = { base64: res.base64, content: res.content, contentType: res.contentType };
       }
     }
   }
   // --- 处理 resource ---
   // --- 处理 scriptInfo ---
-  const scriptInfo = { ...script, resource, code: "" } as TScriptInfo;
+  const scriptInfo = { ...script, resource, requireCssResource, code: "" } as TScriptInfo;
   // 删除其他不需要注入的 script 信息
   delete scriptInfo.originalMetadata;
   delete scriptInfo.selfMetadata;
@@ -216,6 +223,7 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   delete scriptInfo.ignoreVersion; // UserScript 里面不需要知道用户有没有在更新时忽略
   delete scriptInfo.sort; // UserScript 里面不需要知道用户如何 sort
   delete scriptInfo.error;
+  delete scriptInfo.resourceByType;
   delete scriptInfo.subscribeUrl; // UserScript 里面不需要知道用户从何处订阅
   delete scriptInfo.originDomain; // 脚本来源域名
   delete scriptInfo.origin; // 脚本来源
@@ -303,9 +311,9 @@ const resourceGrantNames = new Set([
 const getDeclaredResourceNames = (metadata: SCMetadata): Set<string> => {
   const names = new Set<string>();
   for (const value of metadata.resource || []) {
-    const split = value.split(/\s+/);
-    if (split.length === 2 && split[0] && split[1].trim()) {
-      names.add(split[0]);
+    const declaration = parseResourceDeclaration(value);
+    if (declaration) {
+      names.add(declaration.name);
     }
   }
   return names;
