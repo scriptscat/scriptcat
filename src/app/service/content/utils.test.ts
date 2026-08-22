@@ -221,6 +221,11 @@ describe("utils", () => {
   });
 
   describe("trimScriptInfo resource selection", () => {
+    const assetName = "asset";
+    const assetDeclaration = `${assetName} https://example.com/asset.bin`;
+    const libraryUrl = "https://example.com/library.js";
+    const styleUrl = "https://example.com/style.css";
+
     const resource = (url: string, content: string) => ({
       url,
       content,
@@ -232,7 +237,7 @@ describe("utils", () => {
       createtime: Date.now(),
     });
 
-    const createScript = (metadata: SCMetadata) =>
+    const createScript = (metadata: SCMetadata, resourceKeys: string[]) =>
       ({
         uuid: "trim-test-uuid",
         name: "Trim test",
@@ -246,11 +251,15 @@ describe("utils", () => {
         code: "",
         value: {},
         flag: "trim-test-flag",
-        resource: {
-          asset: resource("asset", "asset content"),
-          library: resource("library", "library content"),
-          style: resource("style", "body { color: red; }"),
-        },
+        resource: Object.fromEntries(
+          resourceKeys.map((key) => [
+            key,
+            resource(
+              key === assetName ? "https://example.com/asset.bin" : key,
+              key === libraryUrl ? "library content" : key === styleUrl ? "body { color: red; }" : "asset content"
+            ),
+          ])
+        ),
         metadata,
         originalMetadata: {},
       }) as unknown as ScriptLoadInfo;
@@ -258,43 +267,59 @@ describe("utils", () => {
     it.each([
       {
         name: "drops @resource without a resource grant",
-        metadata: { resource: ["asset"] },
+        metadata: { resource: [assetDeclaration] },
+        resourceKeys: [assetName],
         expected: [],
       },
       {
         name: "keeps @resource for GM_getResourceText",
-        metadata: { grant: ["GM_getResourceText"], resource: ["asset"] },
-        expected: ["asset"],
+        metadata: { grant: ["GM_getResourceText"], resource: [assetDeclaration] },
+        resourceKeys: [assetName],
+        expected: [assetName],
       },
       {
         name: "keeps @resource for GM_getResourceURL",
-        metadata: { grant: ["GM_getResourceURL"], resource: ["asset"] },
-        expected: ["asset"],
+        metadata: { grant: ["GM_getResourceURL"], resource: [assetDeclaration] },
+        resourceKeys: [assetName],
+        expected: [assetName],
       },
       {
-        name: "keeps @require independently of resource grants",
-        metadata: { require: ["library"] },
-        expected: ["library"],
+        name: "does not forward @require after Service Worker compilation",
+        metadata: { require: [libraryUrl] },
+        resourceKeys: [libraryUrl],
+        expected: [],
       },
       {
         name: "keeps @require-css independently of resource grants",
-        metadata: { "require-css": ["style"] },
-        expected: ["style"],
+        metadata: { "require-css": [styleUrl] },
+        resourceKeys: [styleUrl],
+        expected: [styleUrl],
       },
       {
-        name: "keeps all resources when each consumer is present",
+        name: "keeps CSS and granted @resource but not compiled @require",
         metadata: {
           grant: ["GM_getResourceText"],
-          resource: ["asset"],
-          require: ["library"],
-          "require-css": ["style"],
+          resource: [assetDeclaration],
+          require: [libraryUrl],
+          "require-css": [styleUrl],
         },
-        expected: ["asset", "library", "style"],
+        resourceKeys: [assetName, libraryUrl, styleUrl],
+        expected: [assetName, styleUrl],
       },
-    ])("$name", ({ metadata, expected }) => {
-      const trimmed = trimScriptInfo(createScript(metadata));
+      {
+        name: "keeps CSS when @grant none disables resource APIs",
+        metadata: {
+          grant: ["none", "GM_getResourceText"],
+          resource: [assetDeclaration],
+          "require-css": [styleUrl],
+        },
+        resourceKeys: [assetName, styleUrl],
+        expected: [styleUrl],
+      },
+    ])("$name", ({ metadata, resourceKeys, expected }) => {
+      const trimmed = trimScriptInfo(createScript(metadata, resourceKeys));
 
-      expect(Object.keys(trimmed.resource)).toEqual(expected);
+      expect(Object.keys(trimmed.resource).sort()).toEqual(expected.sort());
     });
   });
 
