@@ -9,8 +9,18 @@ import GMApi, {
 } from "./gm_api";
 import { PermissionVerifyApiGet, type ConfirmParam } from "../permission_verify";
 import type { GMApiRequest } from "../types";
+import { detachDownloadCallback, startDownload } from "../download";
 // 触发所有 GM API 装饰器注册（与 gm_api.ts 中的 import 保持同步）
 import "./gm_api";
+
+vi.mock("../download", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    detachDownloadCallback: vi.fn(),
+    startDownload: vi.fn(),
+  };
+});
 
 // 小工具：建立假的 IGetSender
 const makeSender = (url?: string): IGetSender => ({
@@ -336,5 +346,37 @@ describe.concurrent("native GM_download 的 @connect 校验（verifyXhrConnect �
     // 与 native GM_download 的软确认形成对比，锁定 softConnect 分叉
     const req = makeReq({ url: "https://not-connected.com/api", connect: ["example.com"] });
     await expect(xhrConfirm(req, makeConnSender(), makeGmApi())).rejects.toThrow(/not a part of the @connect list/);
+  });
+});
+
+describe("browser GM_download 的连接竞态", () => {
+  it("后台连接在 startDownload 返回 ID 前断开时，应取消迟到的浏览器下载", async () => {
+    let disconnectHandler: (() => void) | undefined;
+    const conn = {
+      onDisconnect(handler: () => void) {
+        disconnectHandler = handler;
+      },
+      sendMessage: vi.fn(),
+      disconnect: vi.fn(),
+    };
+    const sender = {
+      getSender: () => ({}),
+      getType: () => 0,
+      isType: () => true,
+      getExtMessageSender: () => null,
+      getConnect: () => conn,
+    } as unknown as IGetSender;
+    const request = makeReq({ url: "blob:https://scriptcat.test/late", downloadMode: "browser" });
+    const cancel = vi.spyOn(chrome.downloads, "cancel");
+    vi.mocked(startDownload).mockImplementationOnce(async () => {
+      disconnectHandler?.();
+      return 42;
+    });
+
+    await GMApi.prototype.GM_download(request, sender);
+
+    expect(cancel).toHaveBeenCalledWith(42, expect.any(Function));
+    expect(detachDownloadCallback).toHaveBeenCalledWith(42);
+    cancel.mockRestore();
   });
 });
