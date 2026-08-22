@@ -2,6 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { test as base, chromium, type BrowserContext } from "@playwright/test";
+import { headlessArgs } from "./launch-args";
 
 const pathToExtension = path.resolve(__dirname, "../dist/ext");
 
@@ -50,7 +51,7 @@ export const test = base.extend<{
   context: async ({}, use) => {
     const context = await chromium.launchPersistentContext("", {
       headless: false,
-      args: ["--headless=new", ...chromeArgs],
+      args: [...headlessArgs(), ...chromeArgs],
       timeout: 60_000,
       chromiumSandbox,
       ...getProxyOptions(),
@@ -96,7 +97,7 @@ export const testWithUserScripts = base.extend<
 
       const ctx1 = await chromium.launchPersistentContext(userDataDir, {
         headless: false,
-        args: ["--headless=new", ...chromeArgs],
+        args: [...headlessArgs(), ...chromeArgs],
         timeout: 60_000,
         chromiumSandbox,
       });
@@ -129,7 +130,7 @@ export const testWithUserScripts = base.extend<
 
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
-      args: ["--headless=new", ...chromeArgs],
+      args: [...headlessArgs(), ...chromeArgs],
       timeout: 60_000,
       chromiumSandbox,
       ...getProxyOptions(),

@@ -1,218 +1,100 @@
-# Verification record template
+<!-- Copy into the scenario directory as report.md before running. Headings stay English; write the record in the user's language. Delete unused sections and this comment. -->
 
-Before running the browser, create a short verification record in the scenario directory, for example
-`e2e/scratch/<scenario>/report.md`. Keep the reusable template headings in English, but write the actual
-record content in the user's language. Update it as the run proceeds instead of filling it in only at the end.
-
-**The snippet below is a filled *example* of the `## Acceptance Evidence` shape** — it shows what a completed
-one looks like, not a second section to add. The full template further down has its own heading; use that one
-and fill it following this example.
-
-Evidence is organized **one `###` section per `Verdict` row**, not by artifact type. A reader arrives from a
-`V2` row and finds every screenshot, log line, and fixture that decides `V2` in one place, in the order they
-were observed. Verdict labels stay in the `Verdict` table and are not repeated here.
-
-This record exists so a reader can judge whether the implementation is correct, so **evidence is embedded, not
-linked**: scrolling `report.md` top to bottom should show the pixels and the deciding log lines without opening
-a single side file. A bare link is the fallback for artifacts that genuinely cannot render inline (archives,
-binaries, multi-megabyte logs), and it carries a note saying what it holds.
-
-~~~md
-## Acceptance Evidence
-
-### V1 · The `/` route mounts and lists installed scripts
-
-![Options root](screenshots/v1-options-root.png)
-The script list rendered with the view toggle visible — the route mounted, rather than falling through to a
-blank shell.
-
-```text
-[verify] options url = chrome-extension://<id>/src/options.html#/
-```
-
-### V2 · `/settings` renders correctly in light and dark
-
-| Light | Dark |
-| --- | --- |
-| ![Settings light](screenshots/v2-settings-light.png) | ![Settings dark](screenshots/v2-settings-dark.png) |
-
-Readable contrast in both themes — the shell picked up the theme tokens instead of falling back to one palette.
-One theme's screenshot alone would not show this.
-
-<video src="videos/v2-navigation.webm" controls width="720"></video>
-
-The full navigation from the script list to the settings page. The decisive frames, because a video is neither
-skimmable nor playable in every viewer:
-
-![Before navigation](screenshots/v2-nav-01-list.png)
-The settings entry, enabled, before the click.
-
-![After navigation](screenshots/v2-nav-02-settings.png)
-The route changed and the content painted, after the click.
-
-### V3 · Importing a backup restores every script in it
-
-`resources/import.yaml` — the input this run consumed:
-
-```yaml
-scripts:
-  - name: demo-script
-    source: https://example.com/demo.user.js
-```
-
-```text
-[verify] script count after import = 3
-```
-
-Three scripts in the file, three in the list. Full capture: [console.log](console.log) — no unexpected errors
-during the run.
-~~~
-
-Use this shape:
-
-```md
-# Local E2E Verification Record: <scenario>
+# Local verification: <scenario>
 
 ## Mode
 
-`verify-change` | `reproduce-bug`
+`verifying a change` | `reproducing a bug`
 
-## Goals / Problem
+## Goal / problem
 
-- (verify)    What behavior should hold, and why it might not
-- (reproduce) **Expected:** … **Actual:** …
-
-## Reproduction Steps
-
-1. …
-2. …
-
-## Minimal Reproduction
-
-- Smallest script/page/steps that trigger it (link `resources/…`)
-
-## Task List
-
-- [ ] Prerequisite checks passed
-- [ ] Built and loaded the real extension
-- [ ] Opened target page and confirmed stable anchor
-- [ ] Saved screenshots, videos, and logs
-- [ ] Every Verdict row filled
-
-## Execution Log
-
-| Step | Status | Evidence | Notes |
-| --- | --- | --- | --- |
-| Open options page | Pending | - | - |
+<Expected observable behaviour and risk, or Expected/Actual bug statement>.
 
 ## Verdict
 
-| # | Claim under verification | Verdict | How observed | Check it yourself |
-| --- | --- | --- | --- | --- |
-| V1 | <one behavior or bug claim, stated so it can only be true or false> | holds / does not hold / not observed | <the runtime observation that decides it> | `<command that re-runs this check>` |
+<!-- Fill last. Keep verdicts only here. One row per claim — split a compound claim rather than averaging it. Where `not observed` came from unconfigured environment, "How observed" names the service and the absent variable names, never values. -->
 
-Summary: <what holds; the deciding observation; every `does not hold` / `not observed` row and what it blocks>
+| # | Requirement / bug claim | Verdict | Real / substituted | How observed | Check it yourself |
+|---|---|---|---|---|---|
+| V1 | `<one behaviour or bug claim, stated so it can only be true or false>` | holds / does not hold / not observed | real, or `substituted: <what stood in> — <what it does not cover>` | `<the deciding evidence; for a negative claim, its closure-window observation or causal proof>` | `<command that re-runs this check>` |
 
-- (reproduce) Scratch asserts the **desired** behavior (stays red) or the **current buggy** contract
-  (passes green; the fix must flip it) — say which
-
-## Blockers
-
-- None
-
-## Acceptance Evidence
-
-### V1 · <the claim from the Verdict row, restated>
-
-<the commands, output, screenshots, and fixtures that decide this row, in the order observed — see the
-example above. No verdict labels here; they live in the Verdict table.>
-
-## Persistent Data Changes
-
-| Change | Forward | Backward / backup | Before-after check |
-| --- | --- | --- | --- |
-| <what was written, and how far it reaches> | <command / exit> | <command / exit, or "irreversible" + the plan> | <the query or observation proving it> |
-
-## Integrity & Cleanup
-
-- HEAD at start / end: `<sha>` / `<sha>`
-- `git status --porcelain` at end: `<output>`
-- Artifacts, processes, and external data created — and how each was cleaned up: `<inventory>`
-- Redaction performed before saving: `<what was removed>`
-
-## Evidence Index
-
-- Screenshots / video: <paths, and which V row each backs>
-- Logs: <deciding lines are inline above; link the full captures here>
-- Resources / data snapshots: <paths and what each proves>
-```
-
-Fill `Verdict` last — the honest result, per *Step 4 — Report honestly* in
-[`verification.md`](../verification.md). Execution Log `Status` moves `Pending` → `Pass` / `Fail` / `Blocked`.
-
-### Verdicts are per claim, and there are three of them
-
-One row per claim you set out to verify — split a compound claim rather than averaging it into one row. The
-three labels are not interchangeable:
+Summary: <what holds, the deciding observation, every not-observed/failed item and shipping implication>.
 
 | Label | Use it when | Requires |
-| --- | --- | --- |
-| `holds` | you observed the behavior at runtime | the deciding observation *and* a command a reader can re-run |
-| `does not hold` | you observed it failing, or observed the bug reproducing | the failing output, assertion diff, or error screenshot |
-| `not observed` | you never reached the check — blocked, out of scope, environment missing | a `Blockers` entry saying what stopped it |
+|---|---|---|
+| `holds` | the required evidence establishes the claim | the deciding runtime observation, or for a negative claim the closure-window observation/causal proof, and how a reader reaches it |
+| `does not hold` | you observed it failing, or the bug reproducing | the failing output, assertion diff or error screenshot |
+| `not observed` | you never reached the check | what stopped it |
 
-`not observed` is the one that keeps a report honest: an unreached check is **never** `holds`. A run where two
-claims held and one was never exercised is reported as exactly that, not as a pass. When the cause was an
-unconfigured environment, name the service and the *variable names* that were missing — never their values.
+An unreached check is never `holds`; a run that verified two of three claims is reported as two of three.
 
-The `Check it yourself` column exists so a reviewer can reproduce a row without reconstructing the run; if a row
-has no such command, say why in `How observed` rather than leaving it blank.
+For a negative claim supported by causal proof, `How observed` may cite the relevant source or contract locator
+instead of a runtime observation, but it must explain why execution cannot reach the forbidden side effect.
 
-### Sections to drop when they don't apply
+## Authorization
 
-- `verify-change` mode: drop `Reproduction Steps` and `Minimal Reproduction`. In `reproduce-bug` mode fill
-  `Expected`/`Actual` and keep them, so a later reader or AI can re-trigger the bug from `report.md` alone
-  without reading the code.
-- `Persistent Data Changes`: keep only when the run wrote data that outlives it — a real cloud-sync provider, an
-  imported backup, an OPFS/IndexedDB migration. An ephemeral browser profile that the harness deletes is not a
-  persistent change. Note the blast radius honestly: "only this test profile" is a valid, useful entry.
-- `Integrity & Cleanup`: keep whenever the run touched a real external target or left anything behind. It is
-  what lets a reviewer confirm the verification didn't quietly modify the working tree or leave a live process
-  or real remote data around.
+<!-- Keep only when a real dependency was substituted or an external effect was authorized. Driving a Service Worker message in place of the UI that sends it is a substitution. -->
 
-Keep the checklist factual:
+| # | Substitute or effect | The user's authorization, verbatim |
+|---|---|---|
+| V1 | `<what stood in for what, or the effect and what it touches>` | `<sentence>` |
 
-- Start with unchecked tasks that describe what you intend to verify.
-- Check items only after the corresponding command/assertion has actually passed.
-- If a step is blocked, leave its checkbox unchecked and add a concrete entry under `Blockers`: what failed,
-  where it failed, and what evidence was captured.
+## Reproduction steps
 
-### Inside an Acceptance Evidence section
+<!-- Keep for bug reproduction; state whether the assertion encodes the desired behaviour (stays red) or the current buggy contract (green until the fix flips it). -->
 
-One `###` per `Verdict` row, headed `V<n> · <the claim>`, holding everything that decides that row — commands,
-output, screenshots, fixtures — in the order you observed them. Rules that follow from that:
+1. `<clean-checkout-to-observation steps>`
 
-- A claim with no evidence section is `not observed`, not `holds`. If a row genuinely needs no artifact beyond
-  its `Check it yourself` command, say so in one line rather than omitting the section.
-- One artifact can back two rows; put it under the row it decides and reference it from the other rather than
-  pasting it twice.
-- Don't restate the verdict word here — the `Verdict` table owns it, and two copies drift apart.
-- `Evidence Index` at the end is a **pointer list**, not a second copy: paths, and which row each backs. The
-  pixels and the deciding lines stay inline in the V sections.
+## Acceptance evidence
 
-Keep the evidence embedded:
+<!-- One `###` per verdict row, holding everything that decides it in the order observed. No verdict labels here. A row with no section is `not observed`. -->
 
-- **Screenshots** — `![alt](screenshots/….png)` plus a caption line stating what it proves. Put paired shots
-  (before/after, light/dark) in a two-column table so the comparison is one glance, not two scrolls.
-- **Videos** — `<video src="videos/….webm" controls width="720"></video>`. This renders as a player only in
-  viewers that allow inline HTML, and a recording is slow to review either way, so capture the deciding moments
-  as `page.screenshot()` calls *during* the run and embed those stills next to the video. The stills, not the
-  recording, are what carries the verdict.
-- **Logs** — paste the lines the verdict rests on into a fenced block, then link the full capture for the rest.
-  A link alone forces the reader to reconstruct which line mattered.
-- **Resources** — paste short text fixtures (YAML/JSON/userscript) inline in a fenced block. Link only what is
-  large or binary, and say what it contains.
-- Sanitize tokens, cookies, and real credentials *before* pasting log or resource content inline — embedding
-  puts it in front of every reader.
-- Keep every path relative to `report.md`. The scenario directory, not `report.md` alone, is the unit you hand
-  to a reviewer; moving the file out of it breaks every embed.
+### V1 · `<the claim, restated>`
+
+```text
+[verify] <the console or command line the verdict rests on>
+```
+
+<What this proves>. Full capture: `<console.log>`.
+
+| Light | Dark |
+|---|---|
+| `![Settings light](screenshots/v1-light.png)` | `![Settings dark](screenshots/v1-dark.png)` |
+
+<!-- Pair before/after and light/dark in one table so the comparison is one glance. For a sequence, embed `<video src="videos/….webm" controls width="720"></video>` plus the stills captured during the run — the stills carry the verdict. -->
+
+## Evidence index
+
+- Screenshots/video: `<paths, and which row each backs>`
+- Logs: `<deciding lines are inline above; link full captures here>`
+- Resources: `<inline userscripts, mock payloads, import/export files, before/after snapshots — and what each proves>`
+
+## Persistent data changes
+
+<!-- Keep only when the run wrote data that outlives it — a real cloud provider, an imported backup, an OPFS/IndexedDB migration. An ephemeral profile the harness deletes is not one. -->
+
+| Change | Forward | Backward/backup | Before/after query |
+|---|---|---|---|
+| `<scope/blast radius>` | `<command/exit>` | `<command/exit or irreversible plan>` | `<evidence>` |
+
+## Execution record
+
+| Step | Status | Evidence/blocker |
+|---|---|---|
+| `<step>` | pending / passed / failed / blocked | `<path or observation>` |
+
+## Integrity and cleanup
+
+- Initial/final HEAD: `<sha>` / `<sha>`
+- Final `git status --porcelain=v1`: `<output>`
+- Created artifacts/processes/external data and cleanup: `<inventory>`
+- Redaction performed: `<what was removed>`
+
+## Evidence rules
+
+- Every `holds` names how the target was driven — command, or launch plus steps — and the deciding observation. A session already wrote that record to `actions.log`; quote it rather than reconstructing it from memory.
+- Where a claim changes state beyond the driven surface, that observation is an independent read: extension storage from an extension page, or the page console.
+- Embed decisive text and images inline; scrolling this file should reach a verdict without opening a side file. Link only archives, binaries and full captures, each with a note on what it holds.
+- One artifact can back two rows: put it under the row it decides and reference it from the other.
+- Keep failed and unchecked steps visible. Redact tokens, cookies and real credentials before saving, and again before embedding.
+- Keep every path relative to this file; the scenario directory, not `report.md` alone, is what you hand to a reviewer.

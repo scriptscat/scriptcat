@@ -159,6 +159,16 @@ describe("MobileEditor 更多菜单（与桌面端共用同一份二级菜单）
     }
   });
 
+  it("不应出现「视图」分组：移动端没有脚本列表面板，那条命令在这里无从执行", async () => {
+    const { getByLabelText } = render(
+      <MobileEditor {...baseProps()}>
+        <div />
+      </MobileEditor>
+    );
+    await openMore(getByLabelText("更多"));
+    expect(queryMenuItem("视图")).toBeNull();
+  });
+
   it("普通脚本（canRun=false）展开更多菜单时应隐藏「运行」分组", async () => {
     const { getByLabelText } = render(
       <MobileEditor {...baseProps()} canRun={false}>

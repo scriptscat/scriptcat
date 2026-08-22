@@ -7,12 +7,18 @@ import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@App/pages/components/ui/collapsible";
 import { Surface } from "@App/pages/components/ui/surface";
-import type { UpdateItem } from "./logic";
+import type { RowState, UpdateItem } from "./logic";
 import {
   AutoCloseChip,
+  BatchSummary,
   ConnectBadge,
   EmptyState,
+  RecordExpiredNotice,
+  RestoreAllAction,
   RiskBadge,
+  RowStatus,
+  RowWorkingBar,
+  rowPhaseClass,
   ScriptAvatar,
   ScriptName,
   SkeletonBar,
@@ -49,6 +55,7 @@ function SkeletonCards() {
 /** 移动端单卡（待更新或已忽略） */
 function MobileCard({
   item,
+  state,
   selected,
   onToggle,
   onOpen,
@@ -58,6 +65,7 @@ function MobileCard({
   ignoredCard,
 }: {
   item: UpdateItem;
+  state?: RowState;
   selected?: boolean;
   onToggle?: (uuid: string) => void;
   onOpen: (uuid: string) => void;
@@ -68,11 +76,12 @@ function MobileCard({
 }) {
   const { t } = useTranslation();
   const dim = item.enabled ? "" : "opacity-55";
+  const primaryAction = () => (ignoredCard ? onRestore?.(item) : onUpdate?.(item));
   return (
     <Surface
       data-testid={ignoredCard ? "ignored-update-card" : "update-card"}
       padding="compact"
-      className="gap-2.5 shadow-sm"
+      className={cn("relative gap-2.5 shadow-sm", rowPhaseClass(state))}
     >
       <div className="flex items-center gap-2.5">
         {ignoredCard ? (
@@ -99,35 +108,38 @@ function MobileCard({
           <SourceCell source={item.source} />
         </span>
         <div className="flex-1" />
-        {ignoredCard ? (
-          <button
-            type="button"
-            onClick={() => onRestore?.(item)}
-            className="flex items-center gap-1 text-[13px] font-medium text-primary hover:underline"
-          >
-            <RotateCcw className="size-3.5" />
-            {t("install:updatepage.restore")}
-          </button>
-        ) : (
-          <div className="flex items-center gap-2">
+        <RowStatus item={item} state={state} onRetry={primaryAction}>
+          {ignoredCard ? (
             <button
               type="button"
-              onClick={() => onUpdate?.(item)}
-              className="text-[13px] font-medium text-primary hover:underline"
+              onClick={() => onRestore?.(item)}
+              className="flex items-center gap-1 text-[13px] font-medium text-primary hover:underline"
             >
-              {t("install:updatepage.update")}
+              <RotateCcw className="size-3.5" />
+              {t("install:updatepage.restore")}
             </button>
-            <span className="h-3 w-px bg-border" />
-            <button
-              type="button"
-              onClick={() => onIgnore?.(item)}
-              className="text-[13px] text-muted-foreground hover:underline"
-            >
-              {t("install:updatepage.ignore")}
-            </button>
-          </div>
-        )}
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => onUpdate?.(item)}
+                className="text-[13px] font-medium text-primary hover:underline"
+              >
+                {t("install:updatepage.update")}
+              </button>
+              <span className="h-3 w-px bg-border" />
+              <button
+                type="button"
+                onClick={() => onIgnore?.(item)}
+                className="text-[13px] text-muted-foreground hover:underline"
+              >
+                {t("install:updatepage.ignore")}
+              </button>
+            </>
+          )}
+        </RowStatus>
       </div>
+      {state?.phase === "working" && <RowWorkingBar />}
     </Surface>
   );
 }
@@ -146,14 +158,7 @@ function MobileIgnored({ view }: { view: BatchUpdateViewProps }) {
           </span>
         </CollapsibleTrigger>
         {open ? (
-          <button
-            type="button"
-            data-testid="ignored-restore-all"
-            onClick={view.onRestoreAll}
-            className="text-[13px] font-medium text-primary hover:underline"
-          >
-            {t("install:updatepage.restore_all")}
-          </button>
+          <RestoreAllAction view={view} />
         ) : (
           <span data-testid="ignored-expand-hint" className="text-xs text-muted-foreground">
             {t("install:updatepage.tap_to_expand")}
@@ -162,7 +167,14 @@ function MobileIgnored({ view }: { view: BatchUpdateViewProps }) {
       </div>
       <CollapsibleContent className="flex flex-col gap-2.5 pt-2.5">
         {view.ignored.map((item) => (
-          <MobileCard key={item.uuid} item={item} ignoredCard onOpen={view.onOpen} onRestore={view.onRestore} />
+          <MobileCard
+            key={item.uuid}
+            item={item}
+            state={view.rowStates[item.uuid]}
+            ignoredCard
+            onOpen={view.onOpen}
+            onRestore={view.onRestore}
+          />
         ))}
       </CollapsibleContent>
     </Collapsible>
@@ -197,7 +209,7 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
         </div>
         <div className="flex-1" />
         <Button
-          variant="outline"
+          variant={view.recordExpired ? "default" : "outline"}
           size="icon-sm"
           disabled={view.checking}
           aria-label={t("install:updatepage.main_header")}
@@ -217,6 +229,10 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
       </header>
 
       {view.checking && <TopProgressBar />}
+      {view.recordExpired && <RecordExpiredNotice className="px-4" />}
+      {view.batchProgress && (
+        <BatchSummary progress={view.batchProgress} onOpenScriptList={view.onOpenScriptList} className="px-4" />
+      )}
 
       {!empty && view.updates.length > 0 && (
         <div className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-card px-4">
@@ -226,8 +242,12 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
               {t("install:updatepage.selected_count", { selected: selectedCount, total: view.updates.length })}
             </span>
           </div>
-          {view.autoClose !== null ? (
-            <AutoCloseChip seconds={view.autoClose} />
+          {view.autoClose !== null || view.autoCloseCancelled ? (
+            <AutoCloseChip
+              seconds={view.autoClose}
+              cancelled={view.autoCloseCancelled}
+              onCancel={view.onCancelAutoClose}
+            />
           ) : (
             view.ignored.length > 0 && (
               <span className="text-xs text-muted-foreground">
@@ -249,6 +269,7 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
               <MobileCard
                 key={item.uuid}
                 item={item}
+                state={view.rowStates[item.uuid]}
                 selected={view.selected.has(item.uuid)}
                 onToggle={view.onToggle}
                 onOpen={view.onOpen}

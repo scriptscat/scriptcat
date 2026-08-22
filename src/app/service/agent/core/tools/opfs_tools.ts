@@ -8,6 +8,7 @@ import {
   writeWorkspaceFile,
 } from "@App/app/service/agent/core/opfs_helpers";
 import { isText } from "@App/pkg/utils/istextorbinary";
+import { throwIfAborted } from "../abort_utils";
 import { requireString } from "./param_utils";
 
 // re-export sanitizePath 供外部使用
@@ -134,25 +135,30 @@ export function createOPFSTools(): {
   tools: Array<{ definition: ToolDefinition; executor: ToolExecutor }>;
 } {
   const writeExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       const path = requireString(args, "path");
-      const result = await writeWorkspaceFile(path, args.content as string | Blob);
+      const result = await writeWorkspaceFile(path, args.content as string | Blob, signal);
+      throwIfAborted(signal);
       return JSON.stringify(result);
     },
   };
 
   const readExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       const safePath = sanitizePath(requireString(args, "path"));
       if (!safePath) throw new Error("path is required");
 
-      const workspace = await getWorkspaceRoot();
+      const workspace = await getWorkspaceRoot(false, signal);
       const { dirPath, fileName } = splitPath(safePath);
-      const dir = dirPath ? await getDirectory(workspace, dirPath) : workspace;
+      const dir = dirPath ? await getDirectory(workspace, dirPath, false, signal) : workspace;
+      throwIfAborted(signal);
       const fileHandle = await dir.getFileHandle(fileName);
       const file = await fileHandle.getFile();
       const mimeType = guessMimeType(safePath);
       const arrayBuffer = await file.arrayBuffer();
+      throwIfAborted(signal);
 
       // 确定返回模式：auto 通过内容字节检测文本/二进制
       const mode = (args.mode as string) || "auto";
@@ -163,7 +169,9 @@ export function createOPFSTools(): {
         if (!createBlobUrlFn) {
           throw new Error("Blob URL creation not available (Offscreen not initialized)");
         }
+        throwIfAborted(signal);
         const blobUrl = await createBlobUrlFn(arrayBuffer, mimeType);
+        throwIfAborted(signal);
         return JSON.stringify({ path: safePath, blobUrl, size: file.size, mimeType, type: "binary" });
       }
 
@@ -201,17 +209,20 @@ export function createOPFSTools(): {
   };
 
   const listExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       const rawPath = (args.path as string) || "";
       const safePath = sanitizePath(rawPath);
 
-      const workspace = await getWorkspaceRoot(true);
-      const dir = safePath ? await getDirectory(workspace, safePath) : workspace;
+      const workspace = await getWorkspaceRoot(true, signal);
+      const dir = safePath ? await getDirectory(workspace, safePath, false, signal) : workspace;
 
       const entries: Array<{ name: string; type: "file" | "directory"; size?: number }> = [];
       for await (const [name, handle] of dir as unknown as AsyncIterable<[string, FileSystemHandle]>) {
+        throwIfAborted(signal);
         if (handle.kind === "file") {
           const f = await (handle as FileSystemFileHandle).getFile();
+          throwIfAborted(signal);
           entries.push({ name, type: "file", size: f.size });
         } else {
           entries.push({ name, type: "directory" });
@@ -223,13 +234,15 @@ export function createOPFSTools(): {
   };
 
   const deleteExecutor: ToolExecutor = {
-    execute: async (args: Record<string, unknown>) => {
+    execute: async (args: Record<string, unknown>, signal?: AbortSignal) => {
+      throwIfAborted(signal);
       const safePath = sanitizePath(requireString(args, "path"));
       if (!safePath) throw new Error("path is required");
 
-      const workspace = await getWorkspaceRoot();
+      const workspace = await getWorkspaceRoot(false, signal);
       const { dirPath, fileName } = splitPath(safePath);
-      const dir = dirPath ? await getDirectory(workspace, dirPath) : workspace;
+      const dir = dirPath ? await getDirectory(workspace, dirPath, false, signal) : workspace;
+      throwIfAborted(signal);
       await dir.removeEntry(fileName, { recursive: true });
 
       return JSON.stringify({ success: true });

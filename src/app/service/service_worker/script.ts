@@ -41,6 +41,8 @@ import {
   type TBatchUpdateListAction,
   UpdateStatusCode,
   type TBatchUpdateRecord,
+  type TBatchUpdateItemResult,
+  type TBatchUpdateResult,
 } from "./types";
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
@@ -323,7 +325,9 @@ export class ScriptService {
         action: {
           type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
           redirect: {
-            regexSubstitution: `${installPageURL}?byWebRequest=1&url=\\1`,
+            // 直接 URL 入口不经过 UUID 暂存；byWebRequest 只在暂存链路中用于脚本身份匹配，
+            // 不能再作为安装页 history.back()/window.close() 的来源标记。
+            regexSubstitution: `${installPageURL}?url=\\1`,
           },
         },
         condition: condition,
@@ -1394,19 +1398,31 @@ export class ScriptService {
 
     const currentSites: ScriptSite = (await this.localStorageDAO.getValue<ScriptSite>("sites")) || ({} as ScriptSite);
 
-    const batchUpdateRecord = checkResults.map((entry, i) => {
+    // 一次检查要跑完逐条节流 + 网络往返，耗时可达数分钟。下面用到的 script / oldCode 都是检查开始时的
+    // 快照，期间脚本可能已被装上新版本（用户在更新页点了更新、或从别的入口装过一次）。据当前库内状态复核，
+    // 否则失真的「旧版 → 新版」会被写回记录，让刚更新过的那一行重新冒出来。
+    const currentScripts = await this.scriptDAO.gets(checkResults.map((entry) => entry.uuid));
+
+    const batchUpdateRecord: TBatchUpdateRecord[] = [];
+    for (let i = 0, l = checkResults.length; i < l; i++) {
+      const entry = checkResults[i];
       const script = entry.script;
       const result = entry.result;
-      if (!result || !script.downloadUrl) {
-        return {
+      const current = currentScripts[i];
+      // 检查期间被删掉的脚本没有任何可展示的东西，连「已检查」都不该再算它一份
+      if (!current || current.uuid !== script.uuid) continue;
+      const versionChanged = current.metadata.version?.[0] !== script.metadata.version?.[0];
+      if (!result || !script.downloadUrl || versionChanged) {
+        batchUpdateRecord.push({
           uuid: script.uuid,
           checkUpdate: false,
-        } as TBatchUpdateRecord;
+        } as TBatchUpdateRecord);
+        continue;
       }
       let oldCode: any = checkScriptsOldCode[i];
       if (typeof oldCode === "object" && typeof oldCode.code === "string") oldCode = oldCode.code;
       const newCode = checkScriptsNewCode[i];
-      return {
+      batchUpdateRecord.push({
         uuid: script.uuid,
         checkUpdate: true,
         oldCode: oldCode,
@@ -1418,8 +1434,8 @@ export class ScriptService {
         script: script,
         sites: currentSites[script.uuid] || ([] as string[]),
         withNewConnect: entry.withNewConnect,
-      } as TBatchUpdateRecord;
-    });
+      } as TBatchUpdateRecord);
+    }
 
     this.scriptUpdateCheck.setCacheFull({
       checktime: Date.now(),
@@ -1674,21 +1690,34 @@ export class ScriptService {
     } else if (action.actionCode === BatchUpdateListActionCode.UPDATE) {
       const uuids = action.actionPayload.map((entry) => entry.uuid);
       const list = this.scriptUpdateCheck.cacheFull?.list;
-      if (!list) return;
+      // 缓存已随 Service Worker 回收而消失：整批无从执行，回报明确原因让页面提示重新检查更新
+      if (!list) return { ok: false, reason: "record_expired", items: [] } satisfies TBatchUpdateResult;
       const data = new Map<string, TBatchUpdateRecord>();
       const set = new Set(uuids);
       for (const entry of list) {
         if (set.has(entry.uuid)) {
-          if (!entry.newCode) continue;
+          if (!entry.checkUpdate || !entry.script || !entry.newCode) continue;
           data.set(entry.uuid, entry);
         }
       }
-      const res = [];
+      const currentScripts = await Promise.all(uuids.map((uuid) => this.scriptDAO.get(uuid)));
+      const cacheExpired = uuids.some((uuid, index) => {
+        const entry = data.get(uuid);
+        const current = currentScripts[index];
+        return (
+          !entry ||
+          !current ||
+          current.uuid !== uuid ||
+          current.metadata.version?.[0] !== entry.script?.metadata.version?.[0]
+        );
+      });
+      if (cacheExpired) return { ok: false, reason: "record_expired", items: [] } satisfies TBatchUpdateResult;
+      const res: TBatchUpdateItemResult[] = [];
       const updated = new Set();
       for (const uuid of set) {
         const entry = data.get(uuid);
         try {
-          await this.installByCode({ uuid, code: entry?.newCode, upsertBy: "user" });
+          await this.installByCode({ uuid, code: entry!.newCode, upsertBy: "user" });
           res.push({
             uuid,
             success: true,
@@ -1699,6 +1728,7 @@ export class ScriptService {
           res.push({
             uuid,
             success: false,
+            error: e instanceof Error ? e.message : String(e),
           });
         }
       }
@@ -1712,7 +1742,7 @@ export class ScriptService {
         this.scriptUpdateCheck.setCacheFull(this.scriptUpdateCheck.cacheFull);
         this.scriptUpdateCheck.announceMessage({ refreshRecord: true });
       }
-      return res;
+      return { ok: true, items: res } satisfies TBatchUpdateResult;
     }
   }
 

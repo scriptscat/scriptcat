@@ -67,7 +67,7 @@ permissions, and keeps `sandbox` (its sandbox iframe is a real manifest sandbox 
 [architecture.md § Chrome vs Firefox: the offscreen split](../architecture.md#chrome-vs-firefox-the-offscreen-split)),
 adds `webRequestBlocking` to `optional_permissions` (for the experimental keep-alive loop), sets
 `incognito: "spanning"` (Firefox has no `"split"` mode), adds `browser_specific_settings` (Gecko ID, min
-Firefox 154.0a1 — Nightly, for `sandbox`-manifest support), and filters Chrome-only permissions. By default it
+Firefox 154.0, where `sandbox`-manifest support shipped to release), and filters Chrome-only permissions. By default it
 writes the Chrome zip and a `.crx` signed with `dist/scriptcat.pem` (which you must supply locally); ScriptCat
 MV3 officially supports Firefox, so `PACK_FIREFOX` is `true` by default and the Firefox zip is built too.
 

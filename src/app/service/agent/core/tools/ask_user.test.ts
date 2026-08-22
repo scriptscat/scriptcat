@@ -27,6 +27,7 @@ describe("ask_user", () => {
     const result = await resultPromise;
     expect(JSON.parse(result as string)).toEqual({ answer: "Blue" });
     expect(resolvers.size).toBe(0);
+    expect(events.filter((event) => event.type === "ask_user_resolved")).toHaveLength(1);
   });
 
   it("should throw if question is missing", async () => {
@@ -51,8 +52,23 @@ describe("ask_user", () => {
     const result = JSON.parse((await resultPromise) as string);
     expect(result).toEqual({ answer: null, reason: "timeout" });
     expect(resolvers.size).toBe(0);
+    expect(sendEvent).toHaveBeenLastCalledWith(expect.objectContaining({ type: "ask_user_expired" }));
 
     vi.useRealTimers();
+  });
+
+  it("should settle and emit expiration when aborted", async () => {
+    const controller = new AbortController();
+    const sendEvent = vi.fn();
+    const resolvers = new Map<string, (answer: string) => void>();
+    const { executor } = createAskUserTool(sendEvent, resolvers, controller.signal);
+
+    const resultPromise = executor.execute({ question: "Waiting..." });
+    controller.abort();
+
+    expect(JSON.parse((await resultPromise) as string)).toEqual({ answer: null, reason: "aborted" });
+    expect(resolvers.size).toBe(0);
+    expect(sendEvent).toHaveBeenLastCalledWith(expect.objectContaining({ type: "ask_user_expired" }));
   });
 
   it("should generate unique ask IDs", async () => {

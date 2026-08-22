@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, vi } from "vitest";
 import { AgentTaskRepo, AgentTaskRunRepo } from "./agent_task";
 import type { AgentTask, AgentTaskRun } from "@App/app/service/agent/core/types";
 import { createMockOPFS } from "./test-helpers";
@@ -74,6 +74,91 @@ describe("AgentTaskRepo", () => {
     const runs = await runRepo.listRuns(taskId);
     expect(runs).toHaveLength(0);
   });
+
+  it("任务已删除但 runs 清理失败时重试仍应完成孤儿历史清理", async () => {
+    const taskId = "t-clean-retry";
+    await repo.saveTask(makeTask({ id: taskId }));
+    const runRepo = new AgentTaskRunRepo();
+    await runRepo.appendRun(makeRun({ id: "retry-run", taskId }));
+    const originalClearRuns = AgentTaskRunRepo.prototype.clearRuns;
+    const clearRuns = vi
+      .spyOn(AgentTaskRunRepo.prototype, "clearRuns")
+      .mockRejectedValueOnce(new Error("temporary OPFS failure"))
+      .mockImplementation(function (this: AgentTaskRunRepo, id: string) {
+        return originalClearRuns.call(this, id);
+      });
+
+    await expect(repo.removeTask(taskId)).rejects.toThrow("temporary OPFS failure");
+    expect(await repo.getTask(taskId)).toBeUndefined();
+    await repo.removeTask(taskId);
+
+    expect(await runRepo.listRuns(taskId)).toHaveLength(0);
+    expect(clearRuns).toHaveBeenCalledTimes(2);
+  });
+
+  it("删除后旧 generation 的完成写入不应复活任务", async () => {
+    const task = await repo.saveTask(makeTask({ id: "stale-task" }));
+    await repo.removeTask(task.id, task.generation, task.revision);
+
+    task.lastRunStatus = "success";
+    await expect(repo.saveTask(task)).rejects.toThrow("deleted");
+    await expect(
+      repo.updateRunState(task.id, task.generation!, {
+        lastruntime: Date.now(),
+        lastRunStatus: "success",
+        lastRunError: undefined,
+      })
+    ).rejects.toThrow("deleted");
+    expect(await repo.getTask(task.id)).toBeUndefined();
+  });
+
+  it("旧 revision 不应覆盖用户刚保存的新配置", async () => {
+    const task = await repo.saveTask(makeTask({ id: "cas-task" }));
+    const stale = { ...task } as AgentTask;
+    task.name = "新配置";
+    await repo.saveTask(task);
+
+    stale.name = "旧配置";
+    await expect(repo.saveTask(stale)).rejects.toThrow("changed");
+    expect((await repo.getTask(task.id))?.name).toBe("新配置");
+  });
+
+  it("支持 Web Locks 时任务生命周期写操作应使用跨上下文排它锁", async () => {
+    const request = vi.fn(async (_name: string, _opts: unknown, fn: () => Promise<unknown>) => fn());
+    Object.defineProperty(navigator, "locks", {
+      value: { request },
+      configurable: true,
+      writable: true,
+    });
+    try {
+      const task = await repo.createTask(makeTask({ id: "cross-context-lock" }));
+      task.name = "已更新";
+      await repo.saveTask(task);
+
+      expect(request).toHaveBeenCalledWith(
+        expect.stringContaining("cross-context-lock"),
+        expect.objectContaining({ mode: "exclusive" }),
+        expect.any(Function)
+      );
+    } finally {
+      // @ts-expect-error 清理测试注入的 locks
+      delete navigator.locks;
+    }
+  });
+
+  it("从备份导入时应忽略外部 generation 并以本机版本覆盖同 ID 任务", async () => {
+    const local = await repo.saveTask(makeTask({ id: "import-task", name: "本机" }));
+
+    const imported = await repo.importTask(
+      makeTask({ id: "import-task", name: "备份", generation: "foreign-generation", revision: 99 })
+    );
+
+    expect(imported).toMatchObject({
+      name: "备份",
+      generation: local.generation,
+      revision: local.revision! + 1,
+    });
+  });
 });
 
 describe("AgentTaskRunRepo", () => {
@@ -137,6 +222,27 @@ describe("AgentTaskRunRepo", () => {
     const runs = await repo.listRuns("t-miss");
     expect(runs).toHaveLength(1);
     expect(runs[0].status).toBe("running");
+  });
+
+  it("写入已提交但 close 报错时应以 durable read-back 确认 append/update/remove", async () => {
+    const taskId = "ambiguous-run-write";
+    const originalWrite = (repo as any).writeJsonFile.bind(repo);
+    const failAfterCommit = () =>
+      vi.spyOn(repo as any, "writeJsonFile").mockImplementationOnce(async (...args: unknown[]) => {
+        await originalWrite(...args);
+        throw new Error("close failed after commit");
+      });
+
+    failAfterCommit();
+    await expect(repo.appendRun(makeRun({ id: "ambiguous-run", taskId }))).resolves.toBe(true);
+
+    failAfterCommit();
+    await expect(repo.updateRun(taskId, "ambiguous-run", { status: "success" })).resolves.toBeUndefined();
+    expect((await repo.listRuns(taskId))[0].status).toBe("success");
+
+    failAfterCommit();
+    await expect(repo.removeRun(taskId, "ambiguous-run")).resolves.toBeUndefined();
+    expect(await repo.listRuns(taskId)).toHaveLength(0);
   });
 
   it("appendRun 超过 MAX_RUNS_PER_TASK 时裁剪最老记录", async () => {

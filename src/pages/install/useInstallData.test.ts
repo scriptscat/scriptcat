@@ -47,12 +47,25 @@ vi.mock("@App/app/repo/tempStorage", () => ({
   },
   TempStorageItemType: { tempCode: "tempCode" },
 }));
+// 安装页的成功/失败反馈必须长在页面里(按钮状态机 / 成功条 / 错误条)，不再走会自动消失的飘窗。
+vi.mock("@App/pages/components/ui/toast", () => ({
+  notify: {
+    success: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    error: vi.fn(),
+    loading: vi.fn(),
+    promise: vi.fn(),
+    dismiss: vi.fn(),
+  },
+}));
 
-import { scriptClient, agentClient, externalAccessClient } from "@App/pages/store/features/script";
+import { scriptClient, subscribeClient, agentClient, externalAccessClient } from "@App/pages/store/features/script";
 import { getTempCode } from "@App/pkg/utils/scriptInstall";
-import { prepareScriptByCode, fetchScriptBody, parseMetadata } from "@App/pkg/utils/script";
+import { prepareScriptByCode, prepareSubscribeByCode, fetchScriptBody, parseMetadata } from "@App/pkg/utils/script";
 import { loadHandle } from "@App/pkg/utils/filehandle-db";
 import { startFileTrack, unmountFileTrack } from "@App/pkg/utils/file-tracker";
+import { notify } from "@App/pages/components/ui/toast";
 import { assembleInstallView, useInstallData } from "./useInstallData";
 
 const makeScriptInfo = (metadata: Record<string, string[]>, url = "https://example.com/x.user.js"): ScriptInfo => ({
@@ -66,6 +79,27 @@ const makeScriptInfo = (metadata: Record<string, string[]>, url = "https://examp
 
 const makeAction = (metadata: Record<string, string[]>): Script =>
   ({ name: "示例脚本", metadata, status: SCRIPT_STATUS_ENABLE }) as unknown as Script;
+
+/** 把 hook 推到「?uuid= 全新安装、脚本已就绪」的起点，供安装动作相关用例共用 */
+const setupReady = async () => {
+  window.history.replaceState({}, "", "/install.html?uuid=u1");
+  const metadata = { name: ["示例脚本"], version: ["1.0.0"], match: ["https://e.com/*"] };
+  const info: ScriptInfo = {
+    url: "https://e.com/x.user.js",
+    code: "",
+    uuid: "u1",
+    userSubscribe: false,
+    metadata,
+    source: "user",
+  };
+  (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+  (getTempCode as Mock).mockResolvedValue("// code");
+  (prepareScriptByCode as Mock).mockResolvedValue({ script: { ...makeAction(metadata), uuid: "s-uuid" } });
+  (scriptClient.install as Mock).mockResolvedValue(undefined);
+  const { result } = renderHook(() => useInstallData());
+  await waitFor(() => expect(result.current.state.status).toBe("ready"));
+  return result;
+};
 
 beforeAll(() => initTestLanguage("zh-CN"));
 
@@ -185,6 +219,7 @@ describe("assembleInstallView 组装安装视图", () => {
 
 describe("useInstallData 数据流编排", () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
     window.history.replaceState({}, "", "/install.html");
   });
@@ -250,56 +285,67 @@ describe("useInstallData 数据流编排", () => {
   });
 
   describe("安装成功后离开安装页:独立新标签应关闭,网页链接接管的原标签应返回上一页", () => {
-    const setupReady = async (paramOptions: Record<string, unknown> = {}) => {
-      window.history.replaceState({}, "", "/install.html?uuid=u1");
-      const metadata = { name: ["示例脚本"], version: ["1.0.0"], match: ["https://e.com/*"] };
-      const info: ScriptInfo = {
-        url: "https://e.com/x.user.js",
-        code: "",
-        uuid: "u1",
-        userSubscribe: false,
-        metadata,
-        source: "user",
-      };
-      (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, paramOptions]);
-      (getTempCode as Mock).mockResolvedValue("// code");
-      (prepareScriptByCode as Mock).mockResolvedValue({ script: makeAction(metadata) });
-      (scriptClient.install as Mock).mockResolvedValue(undefined);
-      const { result } = renderHook(() => useInstallData());
-      await waitFor(() => expect(result.current.state.status).toBe("ready"));
-      return result;
-    };
+    it("独立新标签 history.length 为 1 时应使用 window.close() 关闭", async () => {
+      const result = await setupReady();
+      const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+      const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
+      const removeSpy = vi.spyOn(chrome.tabs, "remove").mockResolvedValue();
+      vi.spyOn(window.history, "length", "get").mockReturnValue(1);
 
-    it("独立新标签即使 history.length > 1 也应 window.close()", async () => {
+      vi.useFakeTimers();
+      try {
+        await act(async () => {
+          await result.current.install();
+          // leaveInstallPage 延后到 install() 里的关闭定时器再叠一帧 rAF 才真正执行
+          await vi.advanceTimersByTimeAsync(800);
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(closeSpy).toHaveBeenCalledOnce();
+      expect(removeSpy).not.toHaveBeenCalled();
+      expect(backSpy).not.toHaveBeenCalled();
+    });
+
+    it("history.length > 1 时应返回上一页而非关闭用户标签", async () => {
       const result = await setupReady();
       const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
       const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
       vi.spyOn(window.history, "length", "get").mockReturnValue(2);
 
-      await act(async () => {
-        await result.current.install();
-        // leaveInstallPage 延后到 install() 里 300ms 的 setTimeout 再叠一帧 rAF 才真正执行，多等一点确保已触发
-        await new Promise((r) => setTimeout(r, 320));
-      });
+      vi.useFakeTimers();
+      try {
+        await act(async () => {
+          await result.current.install();
+          await vi.advanceTimersByTimeAsync(800);
+        });
+      } finally {
+        vi.useRealTimers();
+      }
 
-      expect(closeSpy).toHaveBeenCalledOnce();
-      expect(backSpy).not.toHaveBeenCalled();
+      expect(backSpy).toHaveBeenCalledOnce();
+      expect(closeSpy).not.toHaveBeenCalled();
     });
 
-    it("byWebRequest 入口即使 history.length 为 1 也应 history.back() 而非关闭标签", async () => {
-      const result = await setupReady({ byWebRequest: true });
+    it("history.length 为 1 时应关闭无处可退的标签", async () => {
+      const result = await setupReady();
       const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
       const backSpy = vi.spyOn(window.history, "back").mockImplementation(() => {});
       vi.spyOn(window.history, "length", "get").mockReturnValue(1);
 
-      await act(async () => {
-        await result.current.install();
-        // leaveInstallPage 延后到 install() 里 300ms 的 setTimeout 再叠一帧 rAF 才真正执行，多等一点确保已触发
-        await new Promise((r) => setTimeout(r, 320));
-      });
+      vi.useFakeTimers();
+      try {
+        await act(async () => {
+          await result.current.install();
+          await vi.advanceTimersByTimeAsync(800);
+        });
+      } finally {
+        vi.useRealTimers();
+      }
 
-      expect(backSpy).toHaveBeenCalledOnce();
-      expect(closeSpy).not.toHaveBeenCalled();
+      expect(closeSpy).toHaveBeenCalledOnce();
+      expect(backSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -523,6 +569,31 @@ describe("useInstallData 数据流编排", () => {
     expect(unmountFileTrack as Mock).toHaveBeenCalled();
   });
 
+  it("本地文件变更解析失败时,重试不应把无效代码与旧脚本动作配对", async () => {
+    window.history.replaceState({}, "", "/install.html?file=fid1");
+    const metadata = { name: ["本地脚本"], version: ["1.0.0"] };
+    (loadHandle as Mock).mockResolvedValue({
+      name: "x.user.js",
+      getFile: async () => ({ text: async () => "// old code", name: "x.user.js" }),
+    });
+    (parseMetadata as Mock).mockReturnValue(metadata);
+    const oldScript = { ...makeAction(metadata), uuid: "u9" };
+    (prepareScriptByCode as Mock).mockResolvedValue({ script: oldScript });
+    (scriptClient.install as Mock).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+    await act(async () => result.current.toggleWatch());
+
+    const setCode = (startFileTrack as Mock).mock.calls[0][1].setCode as (code: string) => void;
+    (prepareScriptByCode as Mock).mockRejectedValueOnce(new Error("脚本语法错误"));
+    await act(async () => setCode("// invalid code"));
+    expect(result.current.outcome).toMatchObject({ phase: "failed", message: "脚本语法错误" });
+
+    await act(async () => result.current.retryInstall());
+    expect(scriptClient.install).toHaveBeenLastCalledWith({ script: oldScript, code: "// old code" });
+  });
+
   it("开启监听时预装失败则不进入监听也不追踪文件", async () => {
     window.history.replaceState({}, "", "/install.html?file=fid1");
     const metadata = { name: ["本地脚本"], version: ["1.0.0"] };
@@ -542,6 +613,244 @@ describe("useInstallData 数据流编排", () => {
     await act(async () => result.current.toggleWatch());
     expect(result.current.watching).toBe(false);
     expect(startFileTrack as Mock).not.toHaveBeenCalled();
+  });
+});
+
+describe("安装反馈:主按钮就地状态机 + 常驻成功条/错误条", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    window.history.replaceState({}, "", "/install.html");
+  });
+
+  it("装完就关的默认路径不再弹飘窗提示", async () => {
+    const result = await setupReady();
+    await act(async () => {
+      await result.current.install({ closeAfterInstall: false });
+    });
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it("默认路径依次经过 安装中 → 已安装 两个阶段", async () => {
+    const result = await setupReady();
+    let finishInstall!: () => void;
+    (scriptClient.install as Mock).mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishInstall = resolve;
+        })
+    );
+
+    expect(result.current.outcome.phase).toBe("idle");
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = result.current.install();
+    });
+    expect(result.current.outcome.phase).toBe("installing");
+
+    await act(async () => {
+      finishInstall();
+      await pending;
+    });
+    expect(result.current.outcome.phase).toBe("installed");
+  });
+
+  it("默认路径把「✓ 已安装」留够 700ms 才离开安装页", async () => {
+    const result = await setupReady();
+    const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await result.current.install();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(690);
+      });
+      expect(closeSpy).not.toHaveBeenCalled();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(110);
+      });
+      expect(closeSpy).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("默认路径标记 closing,供页面淡出并隐藏常驻成功条", async () => {
+    const result = await setupReady();
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(window, "close").mockImplementation(() => {});
+      await act(async () => {
+        await result.current.install();
+      });
+      const outcome = result.current.outcome;
+      if (outcome.phase !== "installed") throw new Error("not installed");
+      expect(outcome.result.closing).toBe(true);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("「不关闭窗口」路径给出常驻成功条内容,且不排关闭定时器", async () => {
+    const result = await setupReady();
+    const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await result.current.install({ closeAfterInstall: false });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(closeSpy).not.toHaveBeenCalled();
+    const outcome = result.current.outcome;
+    if (outcome.phase !== "installed") throw new Error("not installed");
+    expect(outcome.result).toMatchObject({
+      name: "示例脚本",
+      version: "1.0.0",
+      kind: "install",
+      enabled: true,
+      editorUuid: "s-uuid",
+      closing: false,
+    });
+  });
+
+  it("订阅安装成功后成功条标为订阅,且不给出编辑器入口", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u-sub");
+    const metadata = { name: ["示例订阅"], version: ["1.2.0"], usersubscribe: [""] };
+    const info: ScriptInfo = {
+      url: "https://e.com/x.user.sub.js",
+      code: "",
+      uuid: "u-sub",
+      userSubscribe: true,
+      metadata,
+      source: "user",
+    };
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// code");
+    (prepareSubscribeByCode as Mock).mockResolvedValue({ subscribe: { name: "示例订阅", metadata, status: 1 } });
+    (subscribeClient.install as Mock).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+
+    await act(async () => {
+      await result.current.install({ closeAfterInstall: false });
+    });
+    const outcome = result.current.outcome;
+    if (outcome.phase !== "installed") throw new Error("not installed");
+    expect(outcome.result.kind).toBe("subscribe");
+    expect(outcome.result.editorUuid).toBeUndefined();
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it("安装失败进入 failed 并带上原因,重试后可恢复成功", async () => {
+    const result = await setupReady();
+    (scriptClient.install as Mock).mockRejectedValueOnce(new Error("装不上"));
+
+    await act(async () => {
+      await result.current.install({ closeAfterInstall: false });
+    });
+    const failed = result.current.outcome;
+    if (failed.phase !== "failed") throw new Error("not failed");
+    expect(failed.message).toContain("装不上");
+    expect(notify.error).not.toHaveBeenCalled();
+
+    (scriptClient.install as Mock).mockResolvedValue(undefined);
+    await act(async () => {
+      result.current.retryInstall();
+    });
+    await waitFor(() => expect(result.current.outcome.phase).toBe("installed"));
+  });
+
+  it("重试重放上一次的安装选项,不退化成默认的装完就关", async () => {
+    const result = await setupReady();
+    const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+    (scriptClient.install as Mock).mockRejectedValueOnce(new Error("装不上"));
+
+    await act(async () => {
+      await result.current.install({ closeAfterInstall: false, noMoreUpdates: true });
+    });
+    (scriptClient.install as Mock).mockResolvedValue(undefined);
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        result.current.retryInstall();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(result.current.outcome.phase).toBe("installed");
+    expect(closeSpy).not.toHaveBeenCalled();
+  });
+
+  it("监听本地文件预装失败时也走错误条而非飘窗", async () => {
+    window.history.replaceState({}, "", "/install.html?file=fid1");
+    const metadata = { name: ["本地脚本"], version: ["1.0.0"] };
+    (loadHandle as Mock).mockResolvedValue({
+      name: "x.user.js",
+      getFile: async () => ({ text: async () => "// file code", name: "x.user.js" }),
+    });
+    (parseMetadata as Mock).mockReturnValue(metadata);
+    (prepareScriptByCode as Mock).mockResolvedValue({ script: { ...makeAction(metadata), uuid: "u9" } });
+    (scriptClient.install as Mock).mockRejectedValue(new Error("装不上"));
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+
+    await act(async () => result.current.toggleWatch());
+    const outcome = result.current.outcome;
+    if (outcome.phase !== "failed") throw new Error("not failed");
+    expect(outcome.message).toContain("装不上");
+    expect(notify.error).not.toHaveBeenCalled();
+  });
+
+  it("技能安装成功后同样走按钮状态机与延时关闭", async () => {
+    window.history.replaceState({}, "", "/install.html?skill=sk1");
+    (agentClient.getSkillInstallData as Mock).mockResolvedValue({
+      skillMd: "# skill",
+      metadata: { name: "技能X", description: "desc", version: "0.3.0" },
+      prompt: "提示词",
+      scripts: [],
+      references: [],
+      isUpdate: false,
+    });
+    (agentClient.completeSkillInstall as Mock).mockResolvedValue(undefined);
+    const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("skill"));
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        await result.current.installSkill();
+      });
+      const outcome = result.current.outcome;
+      if (outcome.phase !== "installed") throw new Error("not installed");
+      expect(outcome.result).toMatchObject({ name: "技能X", version: "0.3.0", closing: true });
+      expect(notify.success).not.toHaveBeenCalled();
+      expect(closeSpy).not.toHaveBeenCalled();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(800);
+      });
+      expect(closeSpy).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -663,6 +972,56 @@ describe("MCP 来源的安装请求", () => {
 
     await act(async () => result.current.rejectExternalAccess());
     expect(externalAccessClient.decideOperation).toHaveBeenCalledWith({ operationId: "op-1", approved: false });
+  });
+
+  it("外部接入批准后保留常驻成功条,不自动关闭页面(用户可能是被动被唤起)", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
+    const info = mcpScriptInfo();
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// code");
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "MCP 脚本", metadata: info.metadata, status: 2 } as unknown as Script,
+    });
+    (externalAccessClient.decideOperation as Mock).mockResolvedValue({ operationId: "op-1", status: "approved" });
+    const closeSpy = vi.spyOn(window, "close").mockImplementation(() => {});
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => result.current.install());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const outcome = result.current.outcome;
+    if (outcome.phase !== "installed") throw new Error("not installed");
+    expect(outcome.result.closing).toBe(false);
+    expect(outcome.result.name).toBe("MCP 脚本");
+    expect(closeSpy).not.toHaveBeenCalled();
+  });
+
+  it("外部接入批准失败后,重试不应再次提交已经结束的操作", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
+    const info = mcpScriptInfo();
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// code");
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "MCP 脚本", metadata: info.metadata, status: 2 } as unknown as Script,
+    });
+    (externalAccessClient.decideOperation as Mock).mockRejectedValue(new Error("操作已过期"));
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+    await act(async () => result.current.install({ closeAfterInstall: false }));
+    expect(result.current.outcome).toMatchObject({ phase: "failed", message: "操作已过期" });
+
+    await act(async () => result.current.retryInstall());
+    expect(externalAccessClient.decideOperation).toHaveBeenCalledOnce();
   });
 
   it("非 MCP 来源的安装不受影响：install() 仍调用 scriptClient.install，不调用 externalAccessClient", async () => {

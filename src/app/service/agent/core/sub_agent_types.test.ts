@@ -100,7 +100,7 @@ describe("Sub-Agent 类型系统", () => {
     });
 
     it.concurrent("allowedTools 和 excludeTools 都未指定时返回空数组", () => {
-      const config: any = { name: "empty", maxIterations: 10, timeoutMs: 60000, systemPromptAddition: "" };
+      const config: any = { name: "empty", timeoutMs: 60000, systemPromptAddition: "" };
       const excluded = getExcludeToolsForType(config, allTools);
       expect(excluded).toEqual([]);
     });
@@ -110,7 +110,6 @@ describe("Sub-Agent 类型系统", () => {
         name: "test",
         allowedTools: ["web_fetch"],
         excludeTools: ["web_search"],
-        maxIterations: 10,
         timeoutMs: 60000,
         systemPromptAddition: "",
       };
