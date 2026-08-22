@@ -118,6 +118,59 @@ describe("utils", () => {
 
       expect(result).toContain("// Library 1 content");
       expect(result).toContain("// Library 2 content");
+      expect(result.indexOf("// Library 1 content")).toBeLessThan(result.indexOf("// Library 2 content"));
+    });
+
+    it.concurrent("应该从 category-specific resource map 编译冲突 key 的 require", () => {
+      const sharedUrl = "https://example.com/shared.js";
+      const scriptRes = createMockScriptRes({
+        metadata: { require: [sharedUrl] },
+        resource: {
+          [sharedUrl]: {
+            url: "https://example.com/wrong-resource.txt",
+            content: "wrong resource content",
+            base64: "",
+            hash: {
+              md5: "test",
+              sha1: "test",
+              sha256: "test",
+              sha384: "test",
+              sha512: "test",
+            },
+            type: "resource",
+            link: {},
+            contentType: "text/plain",
+            createtime: Date.now(),
+          },
+        },
+        resourceByType: {
+          require: {
+            [sharedUrl]: {
+              url: sharedUrl,
+              content: "correct library content",
+              base64: "",
+              hash: {
+                md5: "test",
+                sha1: "test",
+                sha256: "test",
+                sha384: "test",
+                sha512: "test",
+              },
+              type: "require",
+              link: {},
+              contentType: "text/javascript",
+              createtime: Date.now(),
+            },
+          },
+          "require-css": {},
+          resource: {},
+        },
+      });
+
+      const result = compileScriptCode(scriptRes);
+
+      expect(result).toContain("correct library content");
+      expect(result).not.toContain("wrong resource content");
     });
 
     it.concurrent("应该忽略不存在的 require 资源", () => {
@@ -273,6 +326,12 @@ describe("utils", () => {
         expected: [],
       },
       {
+        name: "drops @resource for ordinary @grant none",
+        metadata: { grant: ["none"], resource: [assetDeclaration] },
+        resourceKeys: [assetName],
+        expected: [],
+      },
+      {
         name: "does not forward @require after Service Worker compilation",
         metadata: { require: [libraryUrl] },
         resourceKeys: [libraryUrl],
@@ -282,7 +341,8 @@ describe("utils", () => {
         name: "keeps @require-css independently of resource grants",
         metadata: { "require-css": [styleUrl] },
         resourceKeys: [styleUrl],
-        expected: [styleUrl],
+        expected: [],
+        expectedCss: [styleUrl],
       },
       {
         name: "keeps CSS and granted @resource but not compiled @require",
@@ -293,7 +353,8 @@ describe("utils", () => {
           "require-css": [styleUrl],
         },
         resourceKeys: [assetName, libraryUrl, styleUrl],
-        expected: [assetName, styleUrl],
+        expected: [assetName],
+        expectedCss: [styleUrl],
       },
       {
         name: "keeps CSS when @grant none disables resource APIs",
@@ -303,12 +364,14 @@ describe("utils", () => {
           "require-css": [styleUrl],
         },
         resourceKeys: [assetName, styleUrl],
-        expected: [styleUrl],
+        expected: [],
+        expectedCss: [styleUrl],
       },
-    ])("$name", ({ metadata, resourceKeys, expected }) => {
+    ])("$name", ({ metadata, resourceKeys, expected, expectedCss }) => {
       const trimmed = trimScriptInfo(createScript(metadata, resourceKeys));
 
       expect(Object.keys(trimmed.resource).sort()).toEqual(expected.sort());
+      expect(Object.keys(trimmed.requireCssResource || {}).sort()).toEqual((expectedCss || []).sort());
     });
 
     it.each(resourceGrants)("keeps @resource for %s", (grant) => {
@@ -330,6 +393,28 @@ describe("utils", () => {
       );
 
       expect(Object.keys(trimmed.resource)).toEqual([assetName]);
+    });
+
+    it("keeps category-specific values when resource keys collide", () => {
+      const sharedKey = "https://example.com/shared";
+      const script = createScript(
+        {
+          grant: ["GM_getResourceText"],
+          resource: [`${sharedKey} https://example.com/data.txt`],
+          "require-css": [sharedKey],
+        },
+        [sharedKey]
+      );
+      script.resourceByType = {
+        require: { [sharedKey]: resource(sharedKey, "library content") },
+        "require-css": { [sharedKey]: resource(sharedKey, "body { color: red; }") },
+        resource: { [sharedKey]: resource("https://example.com/data.txt", "resource content") },
+      };
+
+      const trimmed = trimScriptInfo(script);
+
+      expect(trimmed.resource[sharedKey]?.content).toBe("resource content");
+      expect(trimmed.requireCssResource?.[sharedKey]?.content).toBe("body { color: red; }");
     });
 
     it("does not expose malformed @resource declarations", () => {
@@ -356,9 +441,14 @@ describe("utils", () => {
       );
       const originalResourceKeys = Object.keys(script.resource);
 
-      trimScriptInfo(script);
+      const trimmed = trimScriptInfo(script);
 
       expect(Object.keys(script.resource)).toEqual(originalResourceKeys);
+      expect(trimmed.resource[assetName]).toEqual({
+        base64: "",
+        content: "asset content",
+        contentType: "text/plain",
+      });
     });
   });
 
