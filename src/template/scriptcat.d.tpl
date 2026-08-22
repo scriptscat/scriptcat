@@ -616,6 +616,16 @@ declare namespace GMTypes {
 
   type GMXHRDataType = string | Blob | File | BufferSource | FormData | URLSearchParams;
 
+  interface XHRUpload {
+    onloadstart?: Listener<XHRProgress>;
+    onprogress?: Listener<XHRProgress>;
+    onload?: Listener<XHRProgress>;
+    onloadend?: Listener<XHRProgress>;
+    onerror?: Listener<XHRProgress>;
+    onabort?: Listener<XHRProgress>;
+    ontimeout?: Listener<XHRProgress>;
+  }
+
   interface XHRDetails {
     method?: "GET" | "HEAD" | "POST" | "PUT" | "DELETE" | "PATCH" | "OPTIONS";
     url: string | URL | File | Blob;
@@ -638,6 +648,7 @@ declare namespace GMTypes {
     cookiePartition?: Record<string, any> & {
       topLevelSite?: string; // 表示分区 cookie 的顶部帧站点
     }; // 包含用于发送和接收的分区 cookie 的分区键 https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies#storage_partitioning
+    upload?: XHRUpload;
     context?: any; // 自定义值，传递给响应的 response.context 属性
 
     onload?: Listener<XHRResponse>;
