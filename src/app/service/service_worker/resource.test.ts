@@ -412,6 +412,29 @@ describe("ResourceService - getResourceByTypes", () => {
   });
 });
 
+describe("ResourceService - updateResourceByTypes", () => {
+  let service: ResourceService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new ResourceService({} as Group, {} as IMessageQueue);
+  });
+
+  it.each([" https://example.com/payload", "data", "data https://example.com/data.txt extra"])(
+    "非法 @resource 声明 %j 不应触发安装下载",
+    async (metadataValue) => {
+      const updateSpy = vi.spyOn(service, "updateResource");
+
+      await service.updateResourceByTypes(normalScript("invalid-install-resource", { resource: [metadataValue] }), [
+        "resource",
+      ]);
+
+      expect(updateSpy).not.toHaveBeenCalled();
+      expect(mockFetch).not.toHaveBeenCalled();
+    }
+  );
+});
+
 describe("ResourceService - importResource", () => {
   let service: ResourceService;
 
