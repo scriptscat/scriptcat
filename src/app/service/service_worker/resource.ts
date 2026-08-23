@@ -196,15 +196,12 @@ export class ResourceService {
     const uuid = script.uuid;
     const metadata = script.metadata;
     const promises = types.map((type) => {
-      const promises = metadata[type]?.map(async (u) => {
+      const promises = metadata[type]?.map(async (value) => {
         let url = "";
         if (type === "resource") {
-          const split = u.split(/\s+/);
-          if (split.length === 2) {
-            url = split[1];
-          }
+          url = parseResourceDeclaration(value)?.url || "";
         } else {
-          url = u;
+          url = value;
         }
         if (url) {
           // 检查资源是否存在,如果不存在则重新加载
