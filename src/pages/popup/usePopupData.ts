@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import type { ScriptMenu, ScriptMenuItem, TPopupScript } from "@App/app/service/service_worker/types";
+import type { ScriptMenu, ScriptMenuItem, TPopupPageStatus, TPopupScript } from "@App/app/service/service_worker/types";
 import type { TDeleteScript, TEnableScript, TScriptRunStatus } from "@App/app/service/queue";
 import { popupClient, scriptClient, runtimeClient, requestOpenBatchUpdatePage } from "../store/features/script";
 import { subscribeMessage, systemConfig } from "../store/global";
@@ -83,7 +83,7 @@ export function usePopupData() {
   const [initialized, setInitialized] = useState(!!initialData);
   const [scriptList, setScriptList] = useState<ScriptMenu[]>(initialData?.scriptList ?? []);
   const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>(initialData?.backScriptList ?? []);
-  const [isBlacklist, setIsBlacklist] = useState(initialData?.isBlacklist ?? false);
+  const [pageStatus, setPageStatus] = useState<TPopupPageStatus>(initialData?.pageStatus ?? "ok");
   const [currentUrl, setCurrentUrl] = useState(initialData?.url ?? "");
   const [currentTabId, setCurrentTabId] = useState(initialData?.tabId ?? -1);
   const [searchQuery, setSearchQuery] = useState("");
@@ -122,7 +122,7 @@ export function usePopupData() {
       res.scriptList.sort(scriptListSorter);
       setScriptList(res.scriptList);
       setBackScriptList(res.backScriptList);
-      setIsBlacklist(res.isBlacklist);
+      setPageStatus(res.pageStatus);
     } catch (e) {
       console.error("Failed to fetch popup data:", e);
     }
@@ -133,7 +133,7 @@ export function usePopupData() {
   if (initialData && !initialized) {
     setScriptList(initialData.scriptList);
     setBackScriptList(initialData.backScriptList);
-    setIsBlacklist(initialData.isBlacklist);
+    setPageStatus(initialData.pageStatus);
     setCurrentUrl(initialData.url);
     setCurrentTabId(initialData.tabId);
     setIsEnableScript(initialData.isEnableScript);
@@ -439,7 +439,7 @@ export function usePopupData() {
 
   return {
     loading: !initialized && !popupData.isError,
-    isBlacklist,
+    pageStatus,
     host,
     scriptList: displayScriptList,
     backScriptList: displayBackScriptList,

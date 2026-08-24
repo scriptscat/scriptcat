@@ -1,4 +1,4 @@
-import { test, expect } from "./fixtures";
+import { test, expect, startMockServer, type MockServer } from "./server-fixtures";
 import { installScriptByCode } from "./utils";
 import type { Page } from "@playwright/test";
 
@@ -7,19 +7,19 @@ function scriptCode(name: string, rule: "match" | "include") {
 // @name         ${name}
 // @namespace    issue-1591-e2e
 // @version      1.0.0
-// @${rule}        https://example.com/*
+// @${rule}        http://sitea.test/*
 // @grant        none
 // ==/UserScript==
 console.log("${name}");`;
 }
 
-async function getTargetTab(extensionPage: Page) {
-  return extensionPage.evaluate(async () => {
+async function getTargetTab(extensionPage: Page, targetUrl: string) {
+  return extensionPage.evaluate(async (targetUrl) => {
     const tabs = await chrome.tabs.query({});
-    const tab = tabs.find((item) => item.url?.startsWith("https://example.com/"));
+    const tab = tabs.find((item) => item.url === targetUrl);
     if (!tab?.id || !tab.url) throw new Error("target tab not found");
     return { tabId: tab.id, url: tab.url };
-  });
+  }, targetUrl);
 }
 
 async function verifyExcludeRoundTrip(
@@ -41,7 +41,7 @@ async function verifyExcludeRoundTrip(
 
       const exclude = await chrome.runtime.sendMessage({
         action: "serviceWorker/script/excludeUrl",
-        data: { uuid: script.uuid, excludePattern: "*://example.com/*", remove: false },
+        data: { uuid: script.uuid, excludePattern: "*://sitea.test/*", remove: false },
       });
       if (exclude.code) throw new Error(`exclude failed: ${JSON.stringify(exclude)}`);
 
@@ -51,7 +51,7 @@ async function verifyExcludeRoundTrip(
 
       const unexclude = await chrome.runtime.sendMessage({
         action: "serviceWorker/script/excludeUrl",
-        data: { uuid: script.uuid, excludePattern: "*://example.com/*", remove: true },
+        data: { uuid: script.uuid, excludePattern: "*://sitea.test/*", remove: true },
       });
       if (unexclude.code) throw new Error(`unexclude failed: ${JSON.stringify(unexclude)}`);
 
@@ -66,6 +66,18 @@ async function verifyExcludeRoundTrip(
 }
 
 test.describe("Issue 1591: Popup exclusion regression", () => {
+  let server: MockServer;
+  let targetUrl: string;
+
+  test.beforeEach(async () => {
+    server = await startMockServer();
+    targetUrl = server.url("sitea.test", "/page");
+  });
+
+  test.afterEach(async () => {
+    await server.close();
+  });
+
   test("@match script remains visible and reversible after excluding the current site", async ({
     context,
     extensionId,
@@ -75,9 +87,9 @@ test.describe("Issue 1591: Popup exclusion regression", () => {
     const target = await context.newPage();
     const extensionPage = await context.newPage();
     try {
-      await target.goto("https://example.com/", { waitUntil: "domcontentloaded" });
+      await target.goto(targetUrl, { waitUntil: "domcontentloaded" });
       await extensionPage.goto(`chrome-extension://${extensionId}/src/options.html`);
-      const result = await verifyExcludeRoundTrip(extensionPage, await getTargetTab(extensionPage), name);
+      const result = await verifyExcludeRoundTrip(extensionPage, await getTargetTab(extensionPage, targetUrl), name);
       expect(result).toEqual({ excludedIsEffective: false, restoredIsEffective: true });
     } finally {
       await extensionPage.close();
@@ -94,9 +106,9 @@ test.describe("Issue 1591: Popup exclusion regression", () => {
     const target = await context.newPage();
     const extensionPage = await context.newPage();
     try {
-      await target.goto("https://example.com/", { waitUntil: "domcontentloaded" });
+      await target.goto(targetUrl, { waitUntil: "domcontentloaded" });
       await extensionPage.goto(`chrome-extension://${extensionId}/src/options.html`);
-      const result = await verifyExcludeRoundTrip(extensionPage, await getTargetTab(extensionPage), name);
+      const result = await verifyExcludeRoundTrip(extensionPage, await getTargetTab(extensionPage, targetUrl), name);
       expect(result).toEqual({ excludedIsEffective: false, restoredIsEffective: true });
     } finally {
       await extensionPage.close();
@@ -117,9 +129,9 @@ test.describe("Issue 1591: Popup exclusion regression", () => {
     const target = await context.newPage();
     const extensionPage = await context.newPage();
     try {
-      await target.goto("https://example.com/", { waitUntil: "domcontentloaded" });
+      await target.goto(targetUrl, { waitUntil: "domcontentloaded" });
       await extensionPage.goto(`chrome-extension://${extensionId}/src/options.html`);
-      const targetTab = await getTargetTab(extensionPage);
+      const targetTab = await getTargetTab(extensionPage, targetUrl);
       const popupData = await extensionPage.evaluate(
         ({ tabId, url }) =>
           chrome.runtime.sendMessage({ action: "serviceWorker/popup/getPopupData", data: { tabId, url } }),

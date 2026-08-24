@@ -21,7 +21,7 @@ import App from "./App";
 function makeData(overrides: Record<string, any> = {}) {
   return {
     loading: false,
-    isBlacklist: false,
+    pageStatus: "ok",
     host: "example.com",
     scriptList: [],
     backScriptList: [],
@@ -163,6 +163,27 @@ describe("Popup 紧凑布局", () => {
   });
 });
 
+describe("Popup 当前页状态提示（脚本猫触及不到的页面）", () => {
+  it.each([
+    ["restricted", "浏览器不允许扩展在此页面运行脚本"],
+    ["blacklist", "当前页面在黑名单中，无法使用脚本"],
+    ["file-access-denied", "要在本地文件上运行脚本，请在扩展详情页开启「允许访问文件网址」"],
+    ["not-injected", "脚本尚未在此页面运行，刷新页面后生效"],
+  ])("pageStatus=%s 时说明本页不运行脚本的原因", (pageStatus, message) => {
+    mockData = makeData({ pageStatus, scriptList: [], fullScriptCount: 0 });
+    render(<App />);
+
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it("pageStatus=ok 时不显示任何状态提示", () => {
+    mockData = makeData({ scriptList: [makeScriptMenu()], fullScriptCount: 1 });
+    render(<App />);
+
+    expect(screen.queryByText(/浏览器不允许|黑名单|允许访问文件网址|刷新页面后生效/)).not.toBeInTheDocument();
+  });
+});
+
 describe("Popup 脚本快捷设置与站点范围操作", () => {
   it.each([false, true])(
     "开关关闭时有效脚本始终保留排除并回落黑名单动作（hasMatchOverride=%s）",
@@ -253,6 +274,22 @@ describe("Popup 脚本快捷设置与站点范围操作", () => {
     expect(screen.queryByRole("button", { name: "排除在 example.com 上执行" })).not.toBeInTheDocument();
     fireEvent.click(allowButton);
     expect(handleAllowUrl).toHaveBeenCalledWith("u1");
+  });
+
+  it("只匹配到 iframe 的脚本隐藏站点范围动作（规则按顶层 host 生成，对它不成立）", () => {
+    mockData = makeData({
+      popupSiteScopeActions: true,
+      scriptList: [makeScriptMenu({ isEffective: true, hasMatchOverride: false, matchesTopFrame: false })],
+      fullScriptCount: 1,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    expect(screen.getByRole("button", { name: "脚本设置" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "仅在 example.com 执行" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "允许在 example.com 执行" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "排除在 example.com 上执行" })).not.toBeInTheDocument();
   });
 
   it("开关关闭且本站不生效时隐藏包含与排除动作", () => {
