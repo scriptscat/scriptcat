@@ -21,8 +21,11 @@ import type { SystemConfig } from "@App/pkg/config/config";
 import type { TDeleteScript, TEnableScript, TInstallScript, TScriptRunStatus } from "../queue";
 import type WebNavigationMock from "@Packages/chrome-extension-mock/web_navigation";
 import type ExtensionMock from "@Packages/chrome-extension-mock/extension";
+import type TabMock from "@Packages/chrome-extension-mock/tab";
 
 initTestEnv();
+
+const tabsMock = chrome.tabs as unknown as TabMock;
 
 // ── 公共测试辅助（跨 describe 复用） ──────────────────────────────────────────
 
@@ -282,7 +285,7 @@ describe("PopupService getPopupData Popup 数据获取与合并", () => {
     await cacheInstance.set(`${CACHE_KEY_TAB_LOADED}${1}`, "https://example.com");
   });
 
-  it("URL 匹配的脚本（无运行缓存）应出现在 scriptList，isEffective 与 enable 按脚本状态设置", async () => {
+  it("仅命中 URL pattern 但没有实际运行记录的脚本不应出现在 scriptList", async () => {
     const uuid = "match-uuid";
     const matchMap = new Map([[uuid, { uuid, effective: true }]]);
 
@@ -298,17 +301,14 @@ describe("PopupService getPopupData Popup 数据获取与合并", () => {
 
     const result = await service.getPopupData({ tabId: 1, url: "https://example.com/" });
 
-    expect(result.scriptList).toHaveLength(1);
-    expect(result.scriptList[0].uuid).toBe(uuid);
-    expect(result.scriptList[0].isEffective).toBe(true);
-    expect(result.scriptList[0].enable).toBe(true);
-    expect(result.scriptList[0].hasMatchOverride).toBe(true);
+    expect(result.scriptList).toEqual([]);
     expect(result.pageStatus).toBe("ok");
   });
 
-  it("无 match 覆盖的脚本（无运行缓存）hasMatchOverride 应为 false", async () => {
+  it("实际运行脚本无 match 覆盖时 hasMatchOverride 应为 false", async () => {
     const uuid = "no-match-uuid";
     const matchMap = new Map([[uuid, { uuid, effective: true }]]);
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(uuid)]);
 
     const { service } = createService({
       runtime: {
@@ -421,8 +421,11 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
   const matchOne = (uuid: string) => vi.fn().mockResolvedValue(new Map([[uuid, { uuid, effective: true }]]));
 
   /** 模拟 content script 报到：顶层 frame 载入事件 */
-  const firePageLoad = (service: PopupService, tabId: number, url: string) =>
-    service.markTabInjected({ tabId, frameId: 0, url, scriptmenus: [] });
+  const firePageLoad = async (service: PopupService, tabId: number, url: string, scriptmenus: ScriptMenu[] = []) => {
+    vi.spyOn(tabsMock, "get").mockResolvedValue({ id: tabId, url } as chrome.tabs.Tab);
+    await service.markTabInjected({ tabId, frameId: 0, url, scriptmenus });
+    await service.addScriptRunNumber({ tabId, frameId: 0, url, scriptmenus });
+  };
 
   beforeEach(async () => {
     await cacheInstance.clear();
@@ -463,7 +466,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
       },
       scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
     });
-    await firePageLoad(service, 1, WEB_URL);
+    await firePageLoad(service, 1, WEB_URL, [createMenu(uuid)]);
 
     const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
 
@@ -477,7 +480,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
       runtime: { getPopupPageScriptMatchingResultByUrl: matchOne(uuid) },
       scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
     });
-    await firePageLoad(service, 1, WEB_URL);
+    await firePageLoad(service, 1, WEB_URL, [createMenu(uuid)]);
 
     const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
 
@@ -516,6 +519,20 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     expect(result.pageStatus).toBe("not-injected");
   });
 
+  it("旧页面的迟到报到不能覆盖当前 tab 的新 origin", async () => {
+    const { service } = createService();
+    const getTab = vi
+      .spyOn(tabsMock, "get")
+      .mockResolvedValue({ id: 1, url: "https://new.example.com/page" } as chrome.tabs.Tab);
+
+    await service.markTabInjected({ tabId: 1, frameId: 0, url: "https://old.example.com/page", scriptmenus: [] });
+    await expect(cacheInstance.get(`${CACHE_KEY_TAB_LOADED}${1}`)).resolves.toBeUndefined();
+
+    await service.markTabInjected({ tabId: 1, frameId: 0, url: "https://new.example.com/page", scriptmenus: [] });
+    await expect(cacheInstance.get(`${CACHE_KEY_TAB_LOADED}${1}`)).resolves.toBe("https://new.example.com");
+    expect(getTab).toHaveBeenCalledTimes(2);
+  });
+
   it("扩展商店页未注入时报 restricted（浏览器保护自家商店）", async () => {
     const { service } = createService();
 
@@ -534,7 +551,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
       runtime: { getPopupPageScriptMatchingResultByUrl: matchOne(uuid) },
       scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
     });
-    await firePageLoad(service, 1, storeUrl);
+    await firePageLoad(service, 1, storeUrl, [createMenu(uuid)]);
 
     const result = await service.getPopupData({ tabId: 1, url: storeUrl });
 
@@ -554,7 +571,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
   it("file:// 页已实际注入时按 ok 处理，不因权限查询结果误报", async () => {
     vi.spyOn(extensionMock, "isAllowedFileSchemeAccess").mockResolvedValue(false);
     const { service } = createService();
-    await firePageLoad(service, 1, "file:///tmp/a.html");
+    await firePageLoad(service, 1, "file:///tmp/a.html", [createMenu("file-script")]);
 
     const result = await service.getPopupData({ tabId: 1, url: "file:///tmp/a.html" });
 
@@ -611,7 +628,10 @@ describe("PopupService getPopupData 子 frame（iframe）内运行的脚本", ()
   it("仅匹配 iframe 的脚本应标记 matchesTopFrame = false，顶层匹配的脚本为 true", async () => {
     const topUuid = "top-script";
     const frameUuid = "iframe-script";
-    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(frameUuid, { runNumByIframe: 1 })]);
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [
+      createMenu(topUuid),
+      createMenu(frameUuid, { runNumByIframe: 1 }),
+    ]);
     mockFrames([FRAME_URL]);
 
     const { service } = createService({
@@ -667,7 +687,10 @@ describe("PopupService getPopupData 子 frame（iframe）内运行的脚本", ()
   it("getAllFrames 失败（标签页已关闭等）时降级为只看顶层匹配，不影响顶层脚本列表", async () => {
     const topUuid = "top-script";
     const frameUuid = "iframe-script";
-    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(frameUuid, { runNumByIframe: 1 })]);
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [
+      createMenu(topUuid),
+      createMenu(frameUuid, { runNumByIframe: 1 }),
+    ]);
     vi.spyOn(webNavigationMock, "getAllFrames").mockRejectedValue(new Error("No tab with id"));
 
     const { service } = createService({

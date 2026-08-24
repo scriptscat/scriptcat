@@ -386,13 +386,12 @@ export class PopupService {
       this.getScriptMenu(-1),
     ]);
 
-    const uuids = [...matchingResult.keys()];
-
-    const scripts = await this.scriptDAO.gets(uuids);
-
     // 与运行时脚本进行合并
     // 以已运行脚本建立快取（uuid→ScriptMenu），供后续合并与覆盖状态。
     const runMap = new Map<string, ScriptMenu>(runScripts.map((script) => [script.uuid, script]));
+    // Popup 展示实际已注入的脚本；仅命中 URL pattern 但没有本次 tab 运行记录的脚本不应出现。
+    const uuids = [...matchingResult.keys()].filter((uuid) => runMap.has(uuid));
+    const scripts = await this.scriptDAO.gets(uuids);
     // 合并后结果
     const scriptMenuMap = new Map<string, ScriptMenu>();
     // 合并数据
@@ -401,23 +400,14 @@ export class PopupService {
       const script = scripts[idx];
       const o = matchingResult.get(uuid);
 
-      if (!script || !o) continue;
+      const run = runMap.get(uuid);
+      if (!script || !o || !run) continue;
 
-      let run = runMap.get(uuid);
-      if (run) {
-        // 如果脚本已经存在，则不添加，更新信息
-        run.enable = script.status === SCRIPT_STATUS_ENABLE;
-        run.isEffective = o.effective!;
-        run.hasMatchOverride = script.selfMetadata?.match !== undefined;
-        run.hasUserConfig = !!script.config;
-      } else {
-        // 由于目前没有在 Popup 显示 @match @include @exclude, 所以以下代码暂不需要
-        // if (script.selfMetadata) {
-        //   script.metadata = getCombinedMeta(script.metadata, script.selfMetadata);
-        // }
-        run = scriptToMenu(script);
-        run.isEffective = o.effective!;
-      }
+      // 如果脚本已经存在，则不添加，更新信息
+      run.enable = script.status === SCRIPT_STATUS_ENABLE;
+      run.isEffective = o.effective!;
+      run.hasMatchOverride = script.selfMetadata?.match !== undefined;
+      run.hasUserConfig = !!script.config;
       run.matchesTopFrame = true;
       scriptMenuMap.set(uuid, run);
     }
@@ -598,7 +588,16 @@ export class PopupService {
   async markTabInjected({ tabId, frameId, url }: TPopupPageLoadInfo) {
     if (frameId || tabId <= 0) return;
     const origin = toOrigin(url);
-    if (origin) await cacheInstance.set(`${CACHE_KEY_TAB_LOADED}${tabId}`, origin);
+    if (!origin) return;
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      // pageLoad 的 service-worker 处理可能晚于下一次导航；只接受仍属于当前 origin 的报到。
+      if (toOrigin(tab.url || "") !== origin) return;
+    } catch (e) {
+      LoggerCore.logger().warn("Ignoring page-load update for unavailable tab", { tabId }, Logger.E(e));
+      return;
+    }
+    await cacheInstance.set(`${CACHE_KEY_TAB_LOADED}${tabId}`, origin);
   }
 
   async addScriptRunNumber(o: TPopupPageLoadInfo) {
