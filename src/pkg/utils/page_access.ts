@@ -4,12 +4,6 @@ export type TPageAccessKind = "web" | "file" | "restricted";
 // 浏览器强制保留、任何扩展都注入不了的页面。about:blank 也在内：它没有内容可注入。
 const INJECTABLE_PROTOCOLS = new Set(["http:", "https:"]);
 
-// 商店页由浏览器单独保护，scheme 是 https 但同样注入不了。
-const isExtensionStore = (url: URL) =>
-  url.hostname === "chromewebstore.google.com" ||
-  url.hostname === "addons.mozilla.org" ||
-  (url.hostname === "chrome.google.com" && url.pathname.startsWith("/webstore"));
-
 export const getPageAccessKind = (url: string): TPageAccessKind => {
   let parsed: URL;
   try {
@@ -18,8 +12,28 @@ export const getPageAccessKind = (url: string): TPageAccessKind => {
     return "restricted";
   }
   if (parsed.protocol === "file:") return "file";
-  if (!INJECTABLE_PROTOCOLS.has(parsed.protocol)) return "restricted";
-  return isExtensionStore(parsed) ? "restricted" : "web";
+  return INJECTABLE_PROTOCOLS.has(parsed.protocol) ? "web" : "restricted";
+};
+
+/**
+ * 是否为扩展商店页。各浏览器只保护「自家」商店：Edge 商店在 Chrome 里就是普通网页，
+ * 反之亦然。因此调用方只能拿它给「已确认没注入」的页面一个更准确的原因，
+ * 不能反过来断定注入不了——否则会误伤在别家浏览器里正常运行的脚本。
+ */
+export const isExtensionStoreUrl = (url: string): boolean => {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  const { hostname, pathname } = parsed;
+  return (
+    hostname === "chromewebstore.google.com" ||
+    hostname === "addons.mozilla.org" ||
+    (hostname === "chrome.google.com" && pathname.startsWith("/webstore")) ||
+    (hostname === "microsoftedge.microsoft.com" && pathname.startsWith("/addons"))
+  );
 };
 
 /**

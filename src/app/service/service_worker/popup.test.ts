@@ -516,6 +516,32 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     expect(result.pageStatus).toBe("not-injected");
   });
 
+  it("扩展商店页未注入时报 restricted（浏览器保护自家商店）", async () => {
+    const { service } = createService();
+
+    const result = await service.getPopupData({
+      tabId: 1,
+      url: "https://microsoftedge.microsoft.com/addons/detail/abcdefgh",
+    });
+
+    expect(result.pageStatus).toBe("restricted");
+  });
+
+  it("扩展商店页若实际已注入则按 ok 处理：各浏览器只保护自家商店，别家商店在本浏览器是普通网页", async () => {
+    const uuid = "allsite";
+    const storeUrl = "https://microsoftedge.microsoft.com/addons/detail/abcdefgh";
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matchOne(uuid) },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+    await firePageLoad(service, 1, storeUrl);
+
+    const result = await service.getPopupData({ tabId: 1, url: storeUrl });
+
+    expect(result.pageStatus).toBe("ok");
+    expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
+  });
+
   it("file:// 页未授权文件访问时应返回 file-access-denied", async () => {
     vi.spyOn(extensionMock, "isAllowedFileSchemeAccess").mockResolvedValue(false);
     const { service } = createService();

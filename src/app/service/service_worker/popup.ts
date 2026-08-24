@@ -20,7 +20,7 @@ import { type SystemConfig } from "@App/pkg/config/config";
 import { CACHE_KEY_TAB_LOADED, CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
 import { timeoutExecution } from "@App/pkg/utils/timer";
 import { v5 as uuidv5 } from "uuid";
-import { getPageAccessKind, toOrigin } from "@App/pkg/utils/page_access";
+import { getPageAccessKind, isExtensionStoreUrl, toOrigin } from "@App/pkg/utils/page_access";
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 
@@ -448,6 +448,10 @@ export class PopupService {
     if (kind === "restricted") return "restricted";
     if (this.runtime.isUrlBlacklist(url)) return "blacklist";
     if (await this.isTabInjected(tabId, url)) return "ok";
+    // 以下都是「确认没注入」，只为给出更准确的原因：两项判据都与浏览器有关
+    // （Edge 商店在 Chrome 里是普通网页；Firefox 的文件访问开关语义也不同），
+    // 放在注入证据之后才不会误伤实际能运行的页面。
+    if (isExtensionStoreUrl(url)) return "restricted";
     if (kind === "file" && !(await chrome.extension.isAllowedFileSchemeAccess())) return "file-access-denied";
     return "not-injected";
   }

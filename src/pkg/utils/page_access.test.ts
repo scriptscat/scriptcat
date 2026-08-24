@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getPageAccessKind, toOrigin } from "./page_access";
+import { getPageAccessKind, isExtensionStoreUrl, toOrigin } from "./page_access";
 
 describe("getPageAccessKind 页面可注入性分类", () => {
   it.each([
@@ -16,16 +16,8 @@ describe("getPageAccessKind 页面可注入性分类", () => {
     expect(getPageAccessKind(url)).toBe("restricted");
   });
 
-  it.each([
-    "https://chromewebstore.google.com/detail/abc",
-    "https://chrome.google.com/webstore/detail/abc",
-    "https://addons.mozilla.org/zh-CN/firefox/addon/abc/",
-  ])("扩展商店页浏览器不允许注入：%s", (url) => {
-    expect(getPageAccessKind(url)).toBe("restricted");
-  });
-
-  it("chrome.google.com 上非商店路径仍是普通网页", () => {
-    expect(getPageAccessKind("https://chrome.google.com/intl/zh-CN/chrome/")).toBe("web");
+  it("商店页在协议层面仍是普通 https 网页——是否注入得了由浏览器决定，不在此判定", () => {
+    expect(getPageAccessKind("https://chromewebstore.google.com/detail/abc")).toBe("web");
   });
 
   it.each(["https://example.com/", "http://example.com/a?b=1", "https://xn--fiq228c.tld/"])(
@@ -41,6 +33,31 @@ describe("getPageAccessKind 页面可注入性分类", () => {
 
   it.each(["", "not a url", "about:blank"])("无法解析或无内容的地址按不可注入处理：%s", (url) => {
     expect(getPageAccessKind(url)).toBe("restricted");
+  });
+});
+
+describe("isExtensionStoreUrl 扩展商店页识别", () => {
+  it.each([
+    "https://chromewebstore.google.com/detail/abc",
+    "https://chrome.google.com/webstore/detail/abc",
+    "https://addons.mozilla.org/zh-CN/firefox/addon/abc/",
+    "https://microsoftedge.microsoft.com/addons/detail/abcdefgh",
+    "https://microsoftedge.microsoft.com/addons/Microsoft-Edge-Extensions-Home",
+  ])("各浏览器的扩展商店：%s", (url) => {
+    expect(isExtensionStoreUrl(url)).toBe(true);
+  });
+
+  it.each([
+    "https://chrome.google.com/intl/zh-CN/chrome/",
+    "https://microsoftedge.microsoft.com/",
+    "https://www.microsoft.com/edge",
+    "https://example.com/addons/detail",
+  ])("同域下的非商店路径与同名路径不算商店：%s", (url) => {
+    expect(isExtensionStoreUrl(url)).toBe(false);
+  });
+
+  it("无法解析的地址不算商店", () => {
+    expect(isExtensionStoreUrl("not a url")).toBe(false);
   });
 });
 
