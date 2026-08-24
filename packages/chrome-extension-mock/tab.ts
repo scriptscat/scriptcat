@@ -3,6 +3,12 @@ import EventEmitter from "eventemitter3";
 export default class MockTab {
   hook = new EventEmitter<string, any>();
 
+  get(tabId: number, callback?: (tab: chrome.tabs.Tab) => void) {
+    const tab = { id: tabId, url: "https://example.com/" } as chrome.tabs.Tab;
+    callback?.(tab);
+    return Promise.resolve(tab);
+  }
+
   query(queryInfo?: chrome.tabs.QueryInfo, callback?: (tabs: chrome.tabs.Tab[]) => void) {
     const mockTab = {
       id: 1,
