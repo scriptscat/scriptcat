@@ -22,7 +22,7 @@ export type TInstallScript = { script: TInstallScriptParams; update: boolean; up
 
 export type TDeleteScript = { uuid: string; storageName: string; type: SCRIPT_TYPE; deleteBy?: InstallSource };
 
-export type TSortedScript = { uuid: string; sort: number };
+export type TSortedScript = { uuid: string; sort: number; sortUpdatetime?: number };
 
 export type TInstallSubscribe = { subscribe: Subscribe };
 

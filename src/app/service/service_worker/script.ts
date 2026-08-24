@@ -1525,11 +1525,22 @@ export class ScriptService {
     // 获取数据并排序
     const scripts = await this.scriptDAO.all();
     scripts.sort((a, b) => a.sort - b.sort);
+    const batchUpdate: Record<string, Partial<Script>> = {};
+    const changed = new Set<string>();
     for (let i = 0; i < scripts.length; i += 1) {
       if (scripts[i].sort !== i) {
-        this.scriptDAO.update(scripts[i].uuid, { sort: i });
+        batchUpdate[scripts[i].uuid] = { sort: i };
         scripts[i].sort = i;
+        changed.add(scripts[i].uuid);
       }
+    }
+    if (changed.size) {
+      await this.scriptDAO.updates(batchUpdate);
+      const sortUpdatetime = Date.now();
+      this.mq.publish<TSortedScript[]>(
+        "sortedScripts",
+        scripts.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
+      );
     }
     return scripts;
   }
@@ -1546,6 +1557,8 @@ export class ScriptService {
 
     // 排序 scripts 并更新 sort 字段
     const batchUpdate: Record<string, Partial<Script>> = {};
+    const sortUpdatetime = Date.now();
+    const changed = new Set<string>();
 
     const newList = (
       await Promise.all(
@@ -1554,6 +1567,7 @@ export class ScriptService {
           if (newSort !== undefined && script.sort !== newSort) {
             batchUpdate[script.uuid] = { sort: newSort };
             script.sort = newSort;
+            changed.add(script.uuid);
           }
           return script;
         })
@@ -1564,7 +1578,7 @@ export class ScriptService {
 
     this.mq.publish<TSortedScript[]>(
       "sortedScripts",
-      newList.map(({ uuid, sort }) => ({ uuid, sort }))
+      newList.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
     );
   }
 
@@ -1589,6 +1603,8 @@ export class ScriptService {
     });
 
     const batchUpdate: Record<string, Partial<Script>> = {};
+    const sortUpdatetime = Date.now();
+    const changed = new Set<string>();
 
     const newList = await Promise.all(
       scripts.map(async (script, index) => {
@@ -1596,6 +1612,7 @@ export class ScriptService {
         if (script.sort !== newSort) {
           batchUpdate[script.uuid] = { sort: newSort };
           script.sort = newSort;
+          changed.add(script.uuid);
         }
         return script;
       })
@@ -1604,7 +1621,7 @@ export class ScriptService {
 
     this.mq.publish<TSortedScript[]>(
       "sortedScripts",
-      newList.map(({ uuid, sort }) => ({ uuid, sort }))
+      newList.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
     );
   }
 

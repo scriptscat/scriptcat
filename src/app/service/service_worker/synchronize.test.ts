@@ -624,6 +624,76 @@ describe("SynchronizeService", () => {
     expect(written.status.scripts["status-uuid"]).toEqual(localStatus);
   });
 
+  it("排序待同步状态应独立覆盖旧排序且保留远端较新的启用状态", async () => {
+    const cloudStatus = { enable: false, sort: 8, updatetime: 300, sortUpdatetime: 100 };
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const syncFile = {
+      name: "scriptcat-sync.json",
+      path: "scriptcat-sync.json",
+      size: 1,
+      digest: "sync-digest",
+      createtime: 1,
+      updatetime: 1,
+    };
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([syncFile]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockResolvedValue(JSON.stringify({ version: "1.0.0", status: { scripts: { u1: cloudStatus } } })),
+      }),
+      create: vi.fn().mockResolvedValue({ write: writeMock }),
+    });
+    const scriptDAO = {
+      scriptCodeDAO: {},
+      all: vi
+        .fn()
+        .mockResolvedValue([
+          { uuid: "u1", name: "t", updatetime: 200, createtime: 1, status: 1, sort: 1, metadata: {} },
+        ]),
+      get: vi.fn().mockResolvedValue(undefined),
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+    const recordingService = new SynchronizeService(
+      {} as any,
+      {} as any,
+      { enableScript: vi.fn().mockResolvedValue(undefined) } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      scriptDAO as any
+    );
+    const now = vi.spyOn(Date, "now").mockReturnValue(200);
+    try {
+      await recordingService.scriptsSorted([{ uuid: "u1", sort: 1, sortUpdatetime: 200 }]);
+    } finally {
+      now.mockRestore();
+    }
+
+    // 用新实例模拟 MV3 Service Worker 被回收后重新启动。
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      { enableScript: vi.fn().mockResolvedValue(undefined) } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      scriptDAO as any
+    );
+    vi.spyOn(service, "pushScript").mockResolvedValue({});
+
+    await service.syncOnce(syncConfig, fs);
+
+    const written = JSON.parse(writeMock.mock.calls[0][0] as string);
+    expect(written.status.scripts.u1).toEqual({
+      enable: false,
+      sort: 1,
+      updatetime: 300,
+      sortUpdatetime: 200,
+    });
+    await expect((service as any).storage.get("pending_sort_status")).resolves.toEqual({});
+  });
+
   it("写回 scriptcat-sync.json 时远端已删除的 uuid 不应被复活", async () => {
     const initialStatus = { enable: true, sort: 1, updatetime: 100 };
     const writeMock = vi.fn().mockResolvedValue(undefined);

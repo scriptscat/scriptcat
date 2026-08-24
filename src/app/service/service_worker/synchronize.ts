@@ -46,6 +46,7 @@ import { InfoNotification } from "./utils";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { md5OfText } from "@App/pkg/utils/crypto";
 import { startDownload } from "./download";
+import type { TSortedScript } from "../queue";
 
 // type SynchronizeTarget = "local";
 
@@ -75,7 +76,10 @@ type ScriptcatSyncStatus = {
   enable: boolean;
   sort: number;
   updatetime: number; // 更新时间
+  sortUpdatetime?: number;
 };
+
+type PendingSortStatus = { [uuid: string]: { sort: number; sortUpdatetime: number } | undefined };
 
 type PushScriptParam = TInstallScriptParams & Partial<Pick<Script, "createtime" | "updatetime">>;
 
@@ -134,6 +138,7 @@ type PendingSyncOps = { [uuid: string]: PendingSyncOp };
 
 const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 const PENDING_SYNC_OPS_KEY = "pending_sync_ops";
+const PENDING_SORT_STATUS_KEY = "pending_sort_status";
 const LAST_NOTIFIED_CONFLICT_KEY = "last_notified_sync_conflicts";
 
 function isEquivalentConfigValue(left: unknown, right: unknown): boolean {
@@ -513,6 +518,7 @@ export class SynchronizeService {
     // 重放上一轮未完成的操作（半途失败的删除、欠写的 .meta.json）。
     // 必须在主流程对账前先落地，否则「本地无脚本 + 云端有 .user.js」会把删到一半的脚本拉回本地
     const pendingOps = await this.getPendingSyncOps();
+    const pendingSortStatus = await this.getPendingSortStatus();
     const pendingFailedUuids = new Set<string>();
     {
       const pendingUuids = Object.keys(pendingOps);
@@ -873,6 +879,9 @@ export class SynchronizeService {
                 enable: script.status === SCRIPT_STATUS_ENABLE,
                 sort: script.sort,
                 updatetime: updatetime,
+                ...(pendingSortStatus[script.uuid]
+                  ? { sortUpdatetime: pendingSortStatus[script.uuid]!.sortUpdatetime }
+                  : {}),
               };
             } else {
               if (updateScript.has(script.uuid)) {
@@ -880,26 +889,29 @@ export class SynchronizeService {
                 scriptcatSync.status.scripts[script.uuid] = status;
                 return;
               }
-              // 判断时间
-              // 如果云端状态的更新时间小于本地状态的更新时间,则更新云端状态
-              if (status.updatetime < updatetime) {
-                scriptcatSync.status.scripts[script.uuid] = {
-                  enable: script.status === SCRIPT_STATUS_ENABLE,
-                  sort: script.sort,
-                  updatetime: updatetime,
-                };
-                return;
-              }
-              // 否则采用云端状态
-              scriptcatSync.status.scripts[script.uuid] = status;
-              // 脚本顺序
-              if (status.sort !== script.sort) {
+              const localEnableWins = status.updatetime < updatetime;
+              const pendingSort = pendingSortStatus[script.uuid];
+              const cloudSortUpdatetime = status.sortUpdatetime ?? status.updatetime;
+              const localSortWins = pendingSort
+                ? pendingSort.sortUpdatetime >= cloudSortUpdatetime
+                : status.sortUpdatetime === undefined && status.updatetime < updatetime;
+              const nextStatus: ScriptcatSyncStatus = {
+                enable: localEnableWins ? script.status === SCRIPT_STATUS_ENABLE : status.enable,
+                sort: localSortWins ? script.sort : status.sort,
+                updatetime: localEnableWins ? updatetime : status.updatetime,
+                ...(localSortWins && pendingSort
+                  ? { sortUpdatetime: pendingSort.sortUpdatetime }
+                  : status.sortUpdatetime !== undefined
+                    ? { sortUpdatetime: status.sortUpdatetime }
+                    : {}),
+              };
+              scriptcatSync.status.scripts[script.uuid] = nextStatus;
+              if (!localSortWins && status.sort !== script.sort) {
                 await this.scriptDAO.update(script.uuid, {
                   sort: status.sort,
                 });
               }
-              // 脚本状态
-              if (status.enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
+              if (!localEnableWins && status.enable !== (script.status === SCRIPT_STATUS_ENABLE)) {
                 // 开启脚本
                 await this.script.enableScript({
                   uuid: script.uuid,
@@ -928,6 +940,16 @@ export class SynchronizeService {
         const modifiedDate = Date.now();
         const syncFile = await fs.create("scriptcat-sync.json", { modifiedDate });
         await syncFile.write(JSON.stringify(scriptcatSync, null, 2));
+        const remainingPendingSortStatus: PendingSortStatus = {};
+        for (const [uuid, pending] of Object.entries(pendingSortStatus)) {
+          if (!pending) continue;
+          const writtenStatus = scriptcatSync.status.scripts[uuid];
+          const writtenSortTime = writtenStatus?.sortUpdatetime ?? writtenStatus?.updatetime ?? 0;
+          if (writtenSortTime < pending.sortUpdatetime) {
+            remainingPendingSortStatus[uuid] = pending;
+          }
+        }
+        await this.setPendingSortStatus(remainingPendingSortStatus);
         this.logger.info("sync scriptcat-sync.json file success");
       } catch (e) {
         this.logger.warn("sync scriptcat-sync.json file failed", Logger.E(e));
@@ -997,7 +1019,8 @@ export class SynchronizeService {
         initial &&
         candidate.enable === initial.enable &&
         candidate.sort === initial.sort &&
-        candidate.updatetime === initial.updatetime;
+        candidate.updatetime === initial.updatetime &&
+        candidate.sortUpdatetime === initial.sortUpdatetime;
       if (candidateOnlyPreservedInitial) {
         // Defer to remote: if another device deleted this uuid, respect the deletion
         if (latest !== undefined) {
@@ -1005,9 +1028,26 @@ export class SynchronizeService {
         }
         continue;
       }
-      if (!latest || candidate.updatetime >= latest.updatetime) {
+      if (!latest) {
         merged[uuid] = candidate;
+        continue;
       }
+      if (candidate.sortUpdatetime === undefined && latest.sortUpdatetime === undefined) {
+        if (candidate.updatetime >= latest.updatetime) {
+          merged[uuid] = candidate;
+        }
+        continue;
+      }
+      const enableWinner = candidate.updatetime >= latest.updatetime ? candidate : latest;
+      const candidateSortTime = candidate.sortUpdatetime ?? candidate.updatetime;
+      const latestSortTime = latest.sortUpdatetime ?? latest.updatetime;
+      const sortWinner = candidateSortTime >= latestSortTime ? candidate : latest;
+      merged[uuid] = {
+        enable: enableWinner.enable,
+        sort: sortWinner.sort,
+        updatetime: enableWinner.updatetime,
+        ...(sortWinner.sortUpdatetime !== undefined ? { sortUpdatetime: sortWinner.sortUpdatetime } : {}),
+      };
     }
     return merged;
   }
@@ -1095,6 +1135,33 @@ export class SynchronizeService {
 
   private async setPendingSyncOps(ops: PendingSyncOps) {
     await this.storage.set(PENDING_SYNC_OPS_KEY, ops);
+  }
+
+  private async getPendingSortStatus(): Promise<PendingSortStatus> {
+    return ((await this.storage.get(PENDING_SORT_STATUS_KEY)) as PendingSortStatus) || {};
+  }
+
+  private async setPendingSortStatus(status: PendingSortStatus) {
+    await this.storage.set(PENDING_SORT_STATUS_KEY, status);
+  }
+
+  async scriptsSorted(items: TSortedScript[]) {
+    const changed = items.filter(
+      (item): item is TSortedScript & { sortUpdatetime: number } => item.sortUpdatetime !== undefined
+    );
+    if (!changed.length) return;
+    await stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
+      const pending = await this.getPendingSortStatus();
+      const latest = Math.max(
+        Date.now(),
+        ...Object.values(pending).map((item) => (item?.sortUpdatetime || 0) + 1),
+        ...changed.map((item) => item.sortUpdatetime)
+      );
+      for (const item of changed) {
+        pending[item.uuid] = { sort: item.sort, sortUpdatetime: latest };
+      }
+      await this.setPendingSortStatus(pending);
+    });
   }
 
   // 删除云端脚本数据
@@ -1483,5 +1550,6 @@ export class SynchronizeService {
     // 监听脚本变化, 进行同步
     this.mq.subscribe<TInstallScript>("installScript", this.scriptInstall.bind(this));
     this.mq.subscribe<TDeleteScript[]>("trashScripts", this.scriptsDelete.bind(this));
+    this.mq.subscribe<TSortedScript[]>("sortedScripts", this.scriptsSorted.bind(this));
   }
 }
