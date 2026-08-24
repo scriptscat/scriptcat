@@ -93,7 +93,7 @@ const createService = (overrides: { runtime?: Partial<RuntimeService>; scriptDAO
     getBadgeBackgroundColor: vi.fn().mockResolvedValue("#000000"),
     getBadgeTextColor: vi.fn().mockResolvedValue("#ffffff"),
   } as unknown as SystemConfig;
-  const service = new PopupService({} as Group, mq, runtime, scriptDAO, systemConfig);
+  const service = new PopupService({ on: vi.fn() } as unknown as Group, mq, runtime, scriptDAO, systemConfig);
   return { service, subscriptions, runtime, scriptDAO };
 };
 
@@ -418,6 +418,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
   const WEB_URL = "https://example.com/";
   // 与 webNavigation 同理：@types/chrome 的 callback 重载会让 vi.spyOn 取到返回 void 的那一个
   const extensionMock = chrome.extension as unknown as ExtensionMock;
+  const webNavigationMock = chrome.webNavigation as unknown as WebNavigationMock;
   const matchOne = (uuid: string) => vi.fn().mockResolvedValue(new Map([[uuid, { uuid, effective: true }]]));
 
   /** 模拟 content script 报到：顶层 frame 载入事件 */
@@ -517,6 +518,60 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     const result = await service.getPopupData({ tabId: 1, url: "https://other.com/a" });
 
     expect(result.pageStatus).toBe("not-injected");
+  });
+
+  it("全局关闭脚本后，即使旧的注入标记仍在，也不应显示页面脚本", async () => {
+    const uuid = "disabled-script";
+    const { service } = createService({
+      runtime: {
+        isLoadScripts: false,
+        getPopupPageScriptMatchingResultByUrl: matchOne(uuid),
+      },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+    await firePageLoad(service, 1, WEB_URL, [createMenu(uuid)]);
+
+    const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
+
+    expect(result.pageStatus).toBe("not-injected");
+    expect(result.scriptList).toEqual([]);
+  });
+
+  it("被判定为迟到的旧页面报到不应重新写入当前 tab 的运行缓存", async () => {
+    const { service } = createService();
+    const getTab = vi
+      .spyOn(tabsMock, "get")
+      .mockResolvedValue({ id: 1, url: "https://new.example.com/page" } as chrome.tabs.Tab);
+
+    await (service as any).handlePageLoadUpdate({
+      tabId: 1,
+      frameId: 0,
+      url: "https://old.example.com/page",
+      scriptmenus: [createMenu("old-script")],
+    });
+    await flushAsync(1);
+
+    expect(getTab).toHaveBeenCalledWith(1);
+    await expect(cacheInstance.get(`${CACHE_KEY_TAB_SCRIPT}${1}`)).resolves.toBeUndefined();
+  });
+
+  it("同 origin 的新 document 也不能接受旧 document 的报到", async () => {
+    const { service } = createService();
+    vi.spyOn(tabsMock, "get").mockResolvedValue({ id: 1, url: "https://example.com/page" } as chrome.tabs.Tab);
+    vi.spyOn(webNavigationMock, "getAllFrames").mockResolvedValue([
+      { frameId: 0, url: "https://example.com/page", documentId: "new-document" },
+    ] as chrome.webNavigation.GetAllFrameResultDetails[]);
+
+    await expect(
+      service.markTabInjected({
+        tabId: 1,
+        frameId: 0,
+        documentId: "old-document",
+        url: "https://example.com/page",
+        scriptmenus: [],
+      })
+    ).resolves.toBe(false);
+    await expect(cacheInstance.get(`${CACHE_KEY_TAB_LOADED}${1}`)).resolves.toBeUndefined();
   });
 
   it("旧页面的迟到报到不能覆盖当前 tab 的新 origin", async () => {
@@ -661,6 +716,21 @@ describe("PopupService getPopupData 子 frame（iframe）内运行的脚本", ()
 
     const { service } = createService({
       runtime: { getPopupPageScriptMatchingResultByUrl: matcherFor(uuid, []) },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: TOP_URL });
+
+    expect(result.scriptList).toHaveLength(0);
+  });
+
+  it("当前 iframe 已不再生效时，旧的 iframe 运行记录不应保留在列表", async () => {
+    const uuid = "iframe-disabled";
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(uuid, { runNumByIframe: 1 })]);
+    mockFrames([FRAME_URL]);
+
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matcherFor(uuid, [FRAME_URL], false) },
       scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
     });
 
