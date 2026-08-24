@@ -1265,7 +1265,6 @@ export class RuntimeService {
     this.mq.emit<TPopupPageLoadInfo>("popupPageLoadUpdate", {
       tabId: tabId,
       frameId: frameId,
-      documentId: chromeSender.documentId,
       url: url,
       scriptmenus: res?.scriptmenus || [], // 对于 popup, resources那些不需要
     });

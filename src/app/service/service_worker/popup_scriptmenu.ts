@@ -4,13 +4,7 @@ import type { Script } from "@App/app/repo/scripts";
 import { getIcon, getStorageName } from "@App/pkg/utils/utils";
 import { i18nName } from "@App/locales/locales";
 
-export type TPopupPageLoadInfo = {
-  tabId: number;
-  frameId?: number;
-  documentId?: string;
-  url: string;
-  scriptmenus: ScriptMenu[];
-};
+export type TPopupPageLoadInfo = { tabId: number; frameId?: number; url: string; scriptmenus: ScriptMenu[] };
 
 // 将 Script 转为 ScriptMenu 并初始化其在该 tab 的菜单暂存（menus 空阵列、计数归零）。
 export const scriptToMenu = (script: Script): ScriptMenu => {

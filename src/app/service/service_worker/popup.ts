@@ -437,7 +437,6 @@ export class PopupService {
     const kind = getPageAccessKind(url);
     if (kind === "restricted") return "restricted";
     if (this.runtime.isUrlBlacklist(url)) return "blacklist";
-    if (this.runtime.isLoadScripts === false) return "not-injected";
     if (await this.isTabInjected(tabId, url)) return "ok";
     // 以下都是「确认没注入」，只为给出更准确的原因：两项判据都与浏览器有关
     // （Edge 商店在 Chrome 里是普通网页；Firefox 的文件访问开关语义也不同），
@@ -477,7 +476,7 @@ export class PopupService {
     for (const frameUrl of frameUrls) {
       const matchingResult = await this.runtime.getPopupPageScriptMatchingResultByUrl(frameUrl);
       for (const [uuid, o] of matchingResult) {
-        if (o.effective) frameMatching.set(uuid, true);
+        frameMatching.set(uuid, frameMatching.get(uuid) || o.effective);
       }
     }
 
@@ -586,26 +585,19 @@ export class PopupService {
 
   // popupPageLoadUpdate 的处理之一：顶层 frame 报到即说明本页扩展触及得到。
   // 记 origin 而非完整网址，SPA 换页不会失效，跳到另一个 origin 则自然失效。
-  async markTabInjected({ tabId, frameId, documentId, url }: TPopupPageLoadInfo): Promise<boolean> {
-    if (tabId <= 0) return false;
+  async markTabInjected({ tabId, frameId, url }: TPopupPageLoadInfo) {
+    if (frameId || tabId <= 0) return;
     const origin = toOrigin(url);
-    if (!origin) return false;
+    if (!origin) return;
     try {
       const tab = await chrome.tabs.get(tabId);
       // pageLoad 的 service-worker 处理可能晚于下一次导航；只接受仍属于当前 origin 的报到。
-      if (!frameId && toOrigin(tab.url || "") !== origin) return false;
-      if (frameId || documentId) {
-        const frames = await chrome.webNavigation.getAllFrames({ tabId });
-        const currentFrame = frames?.find((frame) => frame.frameId === (frameId || 0));
-        if (!currentFrame || currentFrame.url !== url) return false;
-        if (documentId && currentFrame.documentId !== documentId) return false;
-      }
+      if (toOrigin(tab.url || "") !== origin) return;
     } catch (e) {
       LoggerCore.logger().warn("Ignoring page-load update for unavailable tab", { tabId }, Logger.E(e));
-      return false;
+      return;
     }
-    if (!frameId) await cacheInstance.set(`${CACHE_KEY_TAB_LOADED}${tabId}`, origin);
-    return true;
+    await cacheInstance.set(`${CACHE_KEY_TAB_LOADED}${tabId}`, origin);
   }
 
   async addScriptRunNumber(o: TPopupPageLoadInfo) {
@@ -929,15 +921,13 @@ export class PopupService {
 
     // 监听运行次数
     // 监听页面载入事件以更新脚本执行计数；若为当前活动 tab，同步刷新 badge。
-    this.mq.subscribe<TPopupPageLoadInfo>("popupPageLoadUpdate", this.handlePageLoadUpdate.bind(this));
-  }
-
-  private async handlePageLoadUpdate(o: TPopupPageLoadInfo) {
-    if (!(await this.markTabInjected(o))) return;
-    await this.addScriptRunNumber(o);
-    // 设置角标 (chrome.tabs.onActivated 切换后)
-    if (o.tabId === lastActiveTabId) {
-      await this.updateBadgeIcon();
-    }
+    this.mq.subscribe<TPopupPageLoadInfo>("popupPageLoadUpdate", async (o) => {
+      await this.markTabInjected(o);
+      await this.addScriptRunNumber(o);
+      // 设置角标 (chrome.tabs.onActivated 切换后)
+      if (o.tabId === lastActiveTabId) {
+        await this.updateBadgeIcon();
+      }
+    });
   }
 }
