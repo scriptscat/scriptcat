@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SynchronizeService } from "./synchronize";
 import { initTestEnv } from "@Tests/utils";
 import type FileSystem from "@Packages/filesystem/filesystem";
+import type { FileInfo } from "@Packages/filesystem/filesystem";
 import { FileSystemError } from "@Packages/filesystem/error";
 import type { CloudSyncConfig, SystemConfig } from "@App/pkg/config/config";
 import type { ScriptDAO } from "@App/app/repo/scripts";
@@ -692,6 +693,109 @@ describe("SynchronizeService", () => {
       sortUpdatetime: 200,
     });
     await expect((service as any).storage.get("pending_sort_status")).resolves.toEqual({});
+  });
+
+  it("脚本删除后不应永久保留无主的排序待同步状态", async () => {
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const syncFile = {
+      name: "scriptcat-sync.json",
+      path: "scriptcat-sync.json",
+      size: 1,
+      digest: "sync-digest",
+      createtime: 1,
+      updatetime: 1,
+    };
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([syncFile]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockResolvedValue(JSON.stringify({ version: "1.0.0", status: { scripts: {} } })),
+      }),
+      create: vi.fn().mockResolvedValue({ write: writeMock }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    await service.scriptsSorted([{ uuid: "deleted", sort: 0, sortUpdatetime: 200 }]);
+    await service.syncOnce(syncConfig, fs);
+
+    await expect((service as any).storage.get("pending_sort_status")).resolves.toEqual({});
+  });
+
+  it("失败脚本的同钟不同排序不得误清除排序待同步状态", async () => {
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const syncFile = {
+      name: "scriptcat-sync.json",
+      path: "scriptcat-sync.json",
+      size: 1,
+      digest: "sync-digest",
+      createtime: 1,
+      updatetime: 1,
+    };
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "u1.meta.json",
+          path: "u1.meta.json",
+          size: 1,
+          digest: "meta-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+        syncFile,
+      ]),
+      open: vi.fn().mockImplementation(async (file: FileInfo) => ({
+        read: vi.fn().mockResolvedValue(
+          file.name === "u1.meta.json"
+            ? JSON.stringify({ uuid: "u1" })
+            : JSON.stringify({
+                version: "1.0.0",
+                status: { scripts: { u1: { enable: true, sort: 8, updatetime: 300, sortUpdatetime: 200 } } },
+              })
+        ),
+      })),
+      create: vi.fn().mockResolvedValue({ write: writeMock }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi
+          .fn()
+          .mockResolvedValue([
+            { uuid: "u1", name: "t", updatetime: 300, createtime: 1, status: 1, sort: 1, metadata: {} },
+          ]),
+      } as any
+    );
+    vi.spyOn(service, "pushScript").mockRejectedValue(new Error("push failed"));
+    const now = vi.spyOn(Date, "now").mockReturnValue(200);
+
+    try {
+      await service.scriptsSorted([{ uuid: "u1", sort: 1, sortUpdatetime: 200 }]);
+      await service.syncOnce(syncConfig, fs);
+    } finally {
+      now.mockRestore();
+    }
+
+    await expect((service as any).storage.get("pending_sort_status")).resolves.toEqual({
+      u1: { sort: 1, sortUpdatetime: 200 },
+    });
   });
 
   it("写回 scriptcat-sync.json 时远端已删除的 uuid 不应被复活", async () => {

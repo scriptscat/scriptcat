@@ -35,6 +35,7 @@ import type {
   TSortedScript,
   TInstallScriptParams,
 } from "../queue";
+import { CLOUD_SYNC_QUEUE_KEY } from "../queue";
 import { buildScriptRunResourceBasic, selfMetadataUpdate } from "./utils";
 import {
   BatchUpdateListActionCode,
@@ -1522,27 +1523,29 @@ export class ScriptService {
   }
 
   async getAllScripts() {
-    // 获取数据并排序
-    const scripts = await this.scriptDAO.all();
-    scripts.sort((a, b) => a.sort - b.sort);
-    const batchUpdate: Record<string, Partial<Script>> = {};
-    const changed = new Set<string>();
-    for (let i = 0; i < scripts.length; i += 1) {
-      if (scripts[i].sort !== i) {
-        batchUpdate[scripts[i].uuid] = { sort: i };
-        scripts[i].sort = i;
-        changed.add(scripts[i].uuid);
+    return stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
+      // 获取数据并排序
+      const scripts = await this.scriptDAO.all();
+      scripts.sort((a, b) => a.sort - b.sort);
+      const batchUpdate: Record<string, Partial<Script>> = {};
+      const changed = new Set<string>();
+      for (let i = 0; i < scripts.length; i += 1) {
+        if (scripts[i].sort !== i) {
+          batchUpdate[scripts[i].uuid] = { sort: i };
+          scripts[i].sort = i;
+          changed.add(scripts[i].uuid);
+        }
       }
-    }
-    if (changed.size) {
-      await this.scriptDAO.updates(batchUpdate);
-      const sortUpdatetime = Date.now();
-      this.mq.publish<TSortedScript[]>(
-        "sortedScripts",
-        scripts.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
-      );
-    }
-    return scripts;
+      if (changed.size) {
+        await this.scriptDAO.updates(batchUpdate);
+        const sortUpdatetime = Date.now();
+        this.mq.publish<TSortedScript[]>(
+          "sortedScripts",
+          scripts.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
+        );
+      }
+      return scripts;
+    });
   }
 
   async getScriptAndCode(uuid: string) {
@@ -1551,78 +1554,82 @@ export class ScriptService {
 
   // 脚本排序，after为排序后的uuid列表
   async sortScript({ after }: { before: string[]; after: string[] }) {
-    const daoAll = await this.scriptDAO.all();
-    const scripts = daoAll.sort((a, b) => a.sort - b.sort);
-    const sortingMap: Map<string, number> = new Map(after.map((uuid, index) => [uuid, index]));
+    return stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
+      const daoAll = await this.scriptDAO.all();
+      const scripts = daoAll.sort((a, b) => a.sort - b.sort);
+      const sortingMap: Map<string, number> = new Map(after.map((uuid, index) => [uuid, index]));
 
-    // 排序 scripts 并更新 sort 字段
-    const batchUpdate: Record<string, Partial<Script>> = {};
-    const sortUpdatetime = Date.now();
-    const changed = new Set<string>();
+      // 排序 scripts 并更新 sort 字段
+      const batchUpdate: Record<string, Partial<Script>> = {};
+      const sortUpdatetime = Date.now();
+      const changed = new Set<string>();
 
-    const newList = (
-      await Promise.all(
-        scripts.map(async (script) => {
-          const newSort = sortingMap.get(script.uuid);
-          if (newSort !== undefined && script.sort !== newSort) {
+      const newList = (
+        await Promise.all(
+          scripts.map(async (script) => {
+            const newSort = sortingMap.get(script.uuid);
+            if (newSort !== undefined && script.sort !== newSort) {
+              batchUpdate[script.uuid] = { sort: newSort };
+              script.sort = newSort;
+              changed.add(script.uuid);
+            }
+            return script;
+          })
+        )
+      ).sort((a, b) => a.sort - b.sort);
+
+      await this.scriptDAO.updates(batchUpdate);
+
+      this.mq.publish<TSortedScript[]>(
+        "sortedScripts",
+        newList.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
+      );
+    });
+  }
+
+  // 将指定 uuid 列表的脚本置顶，其他脚本排序不变
+  async pinToTop(uuids: string[]) {
+    return stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
+      const daoAll = await this.scriptDAO.all();
+      const sortingMap: Map<string, number> = new Map(uuids.map((uuid, index) => [uuid, index]));
+      // 排序 scripts 并更新 sort 字段
+      const scripts = daoAll.sort((a, b) => {
+        // 将 sortingMap 中有的 uuid 放在前面，其他的放在后面，且保持原有顺序
+        const aIndex = sortingMap.get(a.uuid);
+        const bIndex = sortingMap.get(b.uuid);
+        if (aIndex !== undefined && bIndex !== undefined) {
+          return aIndex - bIndex;
+        } else if (aIndex !== undefined) {
+          return -1;
+        } else if (bIndex !== undefined) {
+          return 1;
+        } else {
+          return a.sort - b.sort;
+        }
+      });
+
+      const batchUpdate: Record<string, Partial<Script>> = {};
+      const sortUpdatetime = Date.now();
+      const changed = new Set<string>();
+
+      const newList = await Promise.all(
+        scripts.map(async (script, index) => {
+          const newSort = index;
+          if (script.sort !== newSort) {
             batchUpdate[script.uuid] = { sort: newSort };
             script.sort = newSort;
             changed.add(script.uuid);
           }
           return script;
         })
-      )
-    ).sort((a, b) => a.sort - b.sort);
+      );
+      await this.scriptDAO.updates(batchUpdate);
 
-    await this.scriptDAO.updates(batchUpdate);
-
-    this.mq.publish<TSortedScript[]>(
-      "sortedScripts",
-      newList.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
-    );
-  }
-
-  // 将指定 uuid 列表的脚本置顶，其他脚本排序不变
-  async pinToTop(uuids: string[]) {
-    const daoAll = await this.scriptDAO.all();
-    const sortingMap: Map<string, number> = new Map(uuids.map((uuid, index) => [uuid, index]));
-    // 排序 scripts 并更新 sort 字段
-    const scripts = daoAll.sort((a, b) => {
-      // 将 sortingMap 中有的 uuid 放在前面，其他的放在后面，且保持原有顺序
-      const aIndex = sortingMap.get(a.uuid);
-      const bIndex = sortingMap.get(b.uuid);
-      if (aIndex !== undefined && bIndex !== undefined) {
-        return aIndex - bIndex;
-      } else if (aIndex !== undefined) {
-        return -1;
-      } else if (bIndex !== undefined) {
-        return 1;
-      } else {
-        return a.sort - b.sort;
-      }
+      this.mq.publish<TSortedScript[]>(
+        "sortedScripts",
+        newList.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
+      );
     });
-
-    const batchUpdate: Record<string, Partial<Script>> = {};
-    const sortUpdatetime = Date.now();
-    const changed = new Set<string>();
-
-    const newList = await Promise.all(
-      scripts.map(async (script, index) => {
-        const newSort = index;
-        if (script.sort !== newSort) {
-          batchUpdate[script.uuid] = { sort: newSort };
-          script.sort = newSort;
-          changed.add(script.uuid);
-        }
-        return script;
-      })
-    );
-    await this.scriptDAO.updates(batchUpdate);
-
-    this.mq.publish<TSortedScript[]>(
-      "sortedScripts",
-      newList.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
-    );
   }
 
   importByUrl(url: string) {

@@ -14,6 +14,7 @@ import EventEmitter from "eventemitter3";
 import type { ValueService } from "./value";
 import type { ResourceService } from "./resource";
 import type { TDeleteScript, TInstallScript, TSortedScript } from "@App/app/service/queue";
+import { CLOUD_SYNC_QUEUE_KEY } from "@App/app/service/queue";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
 import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
@@ -21,6 +22,7 @@ import type { MessageSend } from "@Packages/message/types";
 import { ScriptClient } from "./client";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { BatchUpdateListActionCode } from "./types";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 
 initTestEnv();
 
@@ -155,6 +157,31 @@ describe("ScriptService.sortScript", () => {
     await expect(scriptDAO.get("script-0")).resolves.toMatchObject({ sort: 1, updatetime: 100 });
     await expect(scriptDAO.get("script-2")).resolves.toMatchObject({ sort: 2, updatetime: 102 });
     await expect(scriptDAO.get("script-3")).resolves.toMatchObject({ sort: 3, updatetime: 103 });
+  });
+
+  it("全量同步进行时排序 mutation 不应穿插执行", async () => {
+    const { service, scriptDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "first", sort: 0 }));
+    await scriptDAO.save(makeScript({ uuid: "second", sort: 1 }));
+    const allSpy = vi.spyOn(scriptDAO, "all");
+    let releaseSync!: () => void;
+    const syncGate = new Promise<void>((resolve) => {
+      releaseSync = resolve;
+    });
+    const syncPromise = stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, () => syncGate);
+    let sortResolved = false;
+    const sortPromise = service.sortScript({ before: ["first", "second"], after: ["second", "first"] }).then(() => {
+      sortResolved = true;
+    });
+
+    await Promise.resolve();
+    expect(allSpy).not.toHaveBeenCalled();
+    expect(sortResolved).toBe(false);
+
+    releaseSync();
+    await Promise.all([syncPromise, sortPromise]);
+    expect(allSpy).toHaveBeenCalledTimes(1);
+    await expect(scriptDAO.get("second")).resolves.toMatchObject({ sort: 0 });
   });
 });
 

@@ -29,7 +29,7 @@ import {
   CLOUD_SYNC_STATE_KEY,
   DEFAULT_CLOUD_SYNC_STATE,
 } from "@App/pkg/config/config";
-import type { TDeleteScript, TInstallScript, TInstallScriptParams } from "../queue";
+import { CLOUD_SYNC_QUEUE_KEY, type TDeleteScript, type TInstallScript, type TInstallScriptParams } from "../queue";
 import { errorMsg, makeBlobURL } from "@App/pkg/utils/utils";
 import { t } from "i18next";
 import ChromeStorage from "@App/pkg/config/chrome_storage";
@@ -136,7 +136,6 @@ class SyncBothChangedConflictError extends Error {
 type PendingSyncOp = { op: "delete"; syncDelete: boolean } | { op: "push" };
 type PendingSyncOps = { [uuid: string]: PendingSyncOp };
 
-const SYNC_SERVICE_TASK_KEY = "cloud_sync_queue";
 const PENDING_SYNC_OPS_KEY = "pending_sync_ops";
 const PENDING_SORT_STATUS_KEY = "pending_sort_status";
 const LAST_NOTIFIED_CONFLICT_KEY = "last_notified_sync_conflicts";
@@ -489,7 +488,7 @@ export class SynchronizeService {
 
   // 同步一次
   async syncOnce(syncConfig: CloudSyncConfig, fs: FileSystem) {
-    return stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
+    return stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
       // 设备本地同步状态：开始置 syncing，结束写入计数/时间或错误，供设置页状态条展示。
       // 读旧值与写 syncing 不能 await 在 syncOnceInternal 之前，否则存储 I/O 会推迟内部起始时序（见测试的微任务门控）。
       const prevStatePromise = this.storage.get(CLOUD_SYNC_STATE_KEY).then(async (prev) => {
@@ -865,6 +864,7 @@ export class SynchronizeService {
     if (syncConfig.syncStatus && canWriteScriptcatSync) {
       try {
         const scriptlist = await this.scriptDAO.all();
+        const activeScriptUuids = new Set(scriptlist.map((script) => script.uuid));
         await Promise.allSettled(
           scriptlist.map(async (script) => {
             if (failedSyncUuids.has(script.uuid)) {
@@ -943,9 +943,13 @@ export class SynchronizeService {
         const remainingPendingSortStatus: PendingSortStatus = {};
         for (const [uuid, pending] of Object.entries(pendingSortStatus)) {
           if (!pending) continue;
+          if (!activeScriptUuids.has(uuid)) continue;
           const writtenStatus = scriptcatSync.status.scripts[uuid];
           const writtenSortTime = writtenStatus?.sortUpdatetime ?? writtenStatus?.updatetime ?? 0;
-          if (writtenSortTime < pending.sortUpdatetime) {
+          const sortWasWritten =
+            writtenSortTime > pending.sortUpdatetime ||
+            (writtenSortTime === pending.sortUpdatetime && writtenStatus?.sort === pending.sort);
+          if (!sortWasWritten) {
             remainingPendingSortStatus[uuid] = pending;
           }
         }
@@ -1150,7 +1154,7 @@ export class SynchronizeService {
       (item): item is TSortedScript & { sortUpdatetime: number } => item.sortUpdatetime !== undefined
     );
     if (!changed.length) return;
-    await stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
+    await stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
       const pending = await this.getPendingSortStatus();
       const latest = Math.max(
         Date.now(),
@@ -1441,7 +1445,7 @@ export class SynchronizeService {
     // 判断是否开启了同步
     const config = await this.systemConfig.getCloudSync();
     if (config.enable) {
-      stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
+      stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
         const fs = await this.buildFileSystem(config);
         const script = params.script;
         try {
@@ -1484,7 +1488,7 @@ export class SynchronizeService {
     // 判断是否开启了同步
     const config = await this.systemConfig.getCloudSync();
     if (config.enable) {
-      stackAsyncTask(SYNC_SERVICE_TASK_KEY, async () => {
+      stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
         const fs = await this.buildFileSystem(config);
         // 写前登记删除意图：两步删除（删 .user.js + 写 tombstone/删 .meta.json）中途失败
         // 或 SW 中途重启后，由 syncOnce 开头按登记重放，全部步骤成功才清除
