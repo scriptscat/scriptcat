@@ -503,6 +503,26 @@ describe("Popup 菜单展开数量为 0 时的菜单位置", () => {
     expect(settingIndex).toBeGreaterThanOrEqual(0);
     expect(menuIndex).toBeGreaterThan(settingIndex);
   });
+
+  it("负数菜单展开数量：保留原有行为显示全部菜单", () => {
+    const menus = [
+      { key: "k1", name: "菜单命令 1", groupKey: "g1" },
+      { key: "k2", name: "菜单命令 2", groupKey: "g2" },
+    ];
+    const script = makeScriptMenu({ uuid: "u1", menus });
+    mockData = makeData({
+      scriptList: [script],
+      allScripts: [script],
+      fullScriptCount: 1,
+      enabledScriptCount: 1,
+      menuExpandNum: -1,
+    });
+
+    render(<App />);
+
+    expect(screen.getByText("菜单命令 1")).toBeInTheDocument();
+    expect(screen.getByText("菜单命令 2")).toBeInTheDocument();
+  });
 });
 
 describe("Popup 移动端宽度适配 (#686 Edge Android)", () => {

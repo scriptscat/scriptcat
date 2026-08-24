@@ -514,7 +514,7 @@ function ScriptRow({
   const [isMenuExpanded, setIsMenuExpanded] = useState(false);
   // menuExpandNum=0 时菜单移入折叠面板并排在编辑等操作项之前（菜单比操作项更常用）；>0 时常驻行下方并按数量截断
   const menusInCollapsible = menuExpandNum === 0;
-  const shouldTruncateMenus = !menusInCollapsible && allVisibleMenus.length > menuExpandNum;
+  const shouldTruncateMenus = menuExpandNum > 0 && allVisibleMenus.length > menuExpandNum;
   const visibleMenus =
     shouldTruncateMenus && !isMenuExpanded ? allVisibleMenus.slice(0, menuExpandNum) : allVisibleMenus;
   const excludeSite = showSiteScopeActions
