@@ -450,6 +450,61 @@ describe("Popup 输入型 GM 菜单（对齐 v1.4：菜单名按钮即提交）"
   });
 });
 
+describe("Popup 菜单展开数量为 0 时的菜单位置", () => {
+  const menu = { key: "k1", name: "菜单命令", groupKey: "g1" };
+
+  function buttonTexts() {
+    return Array.from(document.querySelectorAll("button")).map((b) => b.textContent || "");
+  }
+
+  it("菜单展开数量为 0：展开脚本后，菜单排在「编辑」「脚本设置」之前", () => {
+    const script = makeScriptMenu({ uuid: "u1", menus: [menu] });
+    mockData = makeData({
+      scriptList: [script],
+      allScripts: [script],
+      fullScriptCount: 1,
+      enabledScriptCount: 1,
+      menuExpandNum: 0,
+    });
+
+    render(<App />);
+    // 未展开时不显示菜单
+    expect(screen.queryByText("菜单命令")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Script A").closest("button")!);
+
+    const texts = buttonTexts();
+    const menuIndex = texts.findIndex((s) => s.includes("菜单命令"));
+    const editIndex = texts.findIndex((s) => s.includes(t("edit")));
+    const settingIndex = texts.findIndex((s) => s.includes(t("editor:script_setting")));
+    expect(menuIndex).toBeGreaterThanOrEqual(0);
+    expect(menuIndex).toBeLessThan(editIndex);
+    expect(menuIndex).toBeLessThan(settingIndex);
+  });
+
+  it("菜单展开数量大于 0：菜单仍常驻在折叠区之外，位于「编辑」「脚本设置」之后", () => {
+    const script = makeScriptMenu({ uuid: "u1", menus: [menu] });
+    mockData = makeData({
+      scriptList: [script],
+      allScripts: [script],
+      fullScriptCount: 1,
+      enabledScriptCount: 1,
+      menuExpandNum: 5,
+    });
+
+    render(<App />);
+    expect(screen.getByText("菜单命令")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Script A").closest("button")!);
+
+    const texts = buttonTexts();
+    const menuIndex = texts.findIndex((s) => s.includes("菜单命令"));
+    const settingIndex = texts.findIndex((s) => s.includes(t("editor:script_setting")));
+    expect(settingIndex).toBeGreaterThanOrEqual(0);
+    expect(menuIndex).toBeGreaterThan(settingIndex);
+  });
+});
+
 describe("Popup 移动端宽度适配 (#686 Edge Android)", () => {
   it("popup.html 通过媒体查询在移动端（视口 >360px）将宽度切换为 100%", () => {
     const html = fs.readFileSync(path.join(process.cwd(), "src/pages/popup.html"), "utf8");

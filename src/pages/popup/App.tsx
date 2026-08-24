@@ -512,13 +512,11 @@ function ScriptRow({
   const allVisibleMenus = getVisibleMenuItems(script.menus);
   const [isActive, setIsActive] = useState(false);
   const [isMenuExpanded, setIsMenuExpanded] = useState(false);
-  // menuExpandNum=0 时跟随折叠面板状态；>0 时按数量截断
-  const shouldTruncateMenus = menuExpandNum > 0 && allVisibleMenus.length > menuExpandNum;
-  const visibleMenus = (() => {
-    if (menuExpandNum === 0) return isActive ? allVisibleMenus : [];
-    if (shouldTruncateMenus && !isMenuExpanded) return allVisibleMenus.slice(0, menuExpandNum);
-    return allVisibleMenus;
-  })();
+  // menuExpandNum=0 时菜单移入折叠面板并排在编辑等操作项之前（菜单比操作项更常用）；>0 时常驻行下方并按数量截断
+  const menusInCollapsible = menuExpandNum === 0;
+  const shouldTruncateMenus = !menusInCollapsible && allVisibleMenus.length > menuExpandNum;
+  const visibleMenus =
+    shouldTruncateMenus && !isMenuExpanded ? allVisibleMenus.slice(0, menuExpandNum) : allVisibleMenus;
   const excludeSite = showSiteScopeActions
     ? onExcludeFromMatch
       ? () => onExcludeFromMatch(script.uuid)
@@ -528,6 +526,35 @@ function ScriptRow({
       : undefined;
   const statusBadge = getStatusBadge(script, isPageScript, t);
   const displayName = script.name;
+
+  const menuNodes = visibleMenus.map((menuItem) =>
+    menuItem.options?.inputType ? (
+      <InputMenuItem
+        key={menuItem.groupKey}
+        menuItem={menuItem}
+        allMenus={script.menus}
+        uuid={script.uuid}
+        onMenuClick={onMenuClick}
+      />
+    ) : (
+      <ActionItem
+        key={menuItem.groupKey}
+        icon={<MenuIcon className="w-3.5 h-3.5" />}
+        title={menuItem.options?.title}
+        onClick={() => {
+          const sameGroup = script.menus.filter((m) => m.groupKey === menuItem.groupKey && !m.options?.inputType);
+          onMenuClick(script.uuid, sameGroup);
+        }}
+      >
+        {menuItem.name}
+        {menuItem.options?.accessKey && (
+          <span className="ml-auto text-[10px] text-muted-foreground">
+            {`(${menuItem.options.accessKey.toUpperCase()})`}
+          </span>
+        )}
+      </ActionItem>
+    )
+  );
 
   // 运行次数 tooltip
   const runTitle = !script.enable
@@ -570,6 +597,7 @@ function ScriptRow({
       {/* 折叠区域：操作按钮（点击展开） */}
       <CollapsiblePrimitive.Content className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
         <div className={cn("flex flex-col gap-0.5", compact ? "pl-9 pr-3 pt-0.5 pb-1" : "pl-11 pr-4 pt-1 pb-2")}>
+          {menusInCollapsible && menuNodes}
           {/* 运行/停止（仅后台脚本） */}
           {!isPageScript && onRun && onStop && (
             <>
@@ -632,38 +660,9 @@ function ScriptRow({
       </CollapsiblePrimitive.Content>
 
       {/* 始终可见区域：GM 菜单、用户配置（与旧版一致，不在折叠内） */}
-      {(visibleMenus.length > 0 || script.hasUserConfig) && (
+      {((!menusInCollapsible && visibleMenus.length > 0) || script.hasUserConfig) && (
         <div className={cn("flex flex-col gap-0.5", compact ? "pl-9 pr-3 pb-0.5" : "pl-11 pr-4 pb-1")}>
-          {visibleMenus.map((menuItem) =>
-            menuItem.options?.inputType ? (
-              <InputMenuItem
-                key={menuItem.groupKey}
-                menuItem={menuItem}
-                allMenus={script.menus}
-                uuid={script.uuid}
-                onMenuClick={onMenuClick}
-              />
-            ) : (
-              <ActionItem
-                key={menuItem.groupKey}
-                icon={<MenuIcon className="w-3.5 h-3.5" />}
-                title={menuItem.options?.title}
-                onClick={() => {
-                  const sameGroup = script.menus.filter(
-                    (m) => m.groupKey === menuItem.groupKey && !m.options?.inputType
-                  );
-                  onMenuClick(script.uuid, sameGroup);
-                }}
-              >
-                {menuItem.name}
-                {menuItem.options?.accessKey && (
-                  <span className="ml-auto text-[10px] text-muted-foreground">
-                    {`(${menuItem.options.accessKey.toUpperCase()})`}
-                  </span>
-                )}
-              </ActionItem>
-            )
-          )}
+          {!menusInCollapsible && menuNodes}
           {/* 菜单展开/收起 */}
           {shouldTruncateMenus && (
             <button
