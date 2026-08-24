@@ -15,10 +15,19 @@ import { ReadyWrap } from "@App/pkg/utils/ready-wrap";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 
 // 避免页面载入后改动 Map.prototype 导致消息传递失败
-const relatedTargetMap = new Map<number, EventTarget>();
-relatedTargetMap.set = Map.prototype.set;
-relatedTargetMap.get = Map.prototype.get;
-relatedTargetMap.delete = Map.prototype.delete;
+const relatedTargetMapMethods = {
+  set: Map.prototype.set,
+  get: Map.prototype.get,
+  delete: Map.prototype.delete,
+};
+
+function createRelatedTargetMap() {
+  const map = new Map<number, EventTarget>();
+  map.set = relatedTargetMapMethods.set;
+  map.get = relatedTargetMapMethods.get;
+  map.delete = relatedTargetMapMethods.delete;
+  return map;
+}
 
 let relateId = 0;
 const maxInteger = Number.MAX_SAFE_INTEGER;
@@ -38,7 +47,7 @@ export class CustomEventMessage implements Message {
   readonly sendFlag: string;
 
   // 关联dom目标
-  relatedTarget: Map<number, EventTarget> = new Map();
+  relatedTarget: Map<number, EventTarget> = createRelatedTargetMap();
   readyWrap: ReadyWrap = new ReadyWrap();
 
   constructor(
@@ -55,7 +64,7 @@ export class CustomEventMessage implements Message {
         this.readyWrap.setReady(); // 两端已准备好，则 setReady()
       } else if (event instanceof MouseEventClone && event.movementX && event.relatedTarget) {
         if (event.cancelable) event.preventDefault(); // 告知另一端
-        relatedTargetMap.set(event.movementX, event.relatedTarget);
+        this.relatedTarget.set(event.movementX, event.relatedTarget);
       } else if (event instanceof CustomEventClone) {
         this.messageHandle(event.detail, new CustomEventPostMessage(this));
       }
@@ -185,8 +194,8 @@ export class CustomEventMessage implements Message {
   }
 
   getAndDelRelatedTarget(id: number) {
-    const target = relatedTargetMap.get(id);
-    relatedTargetMap.delete(id);
+    const target = this.relatedTarget.get(id);
+    this.relatedTarget.delete(id);
     return target;
   }
 }
