@@ -13,7 +13,8 @@ import { SystemConfig } from "@App/pkg/config/config";
 import EventEmitter from "eventemitter3";
 import type { ValueService } from "./value";
 import type { ResourceService } from "./resource";
-import type { TDeleteScript, TInstallScript } from "@App/app/service/queue";
+import type { TDeleteScript, TInstallScript, TSortedScript } from "@App/app/service/queue";
+import { CLOUD_SYNC_QUEUE_KEY } from "@App/app/service/queue";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
 import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
@@ -21,6 +22,7 @@ import type { MessageSend } from "@Packages/message/types";
 import { ScriptClient } from "./client";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { BatchUpdateListActionCode } from "./types";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 
 initTestEnv();
 
@@ -105,6 +107,140 @@ describe("ScriptService.purgeScripts —— 彻底删除", () => {
   it("回收站中不存在该脚本时应抛错", async () => {
     const { service } = buildService();
     await expect(service.purgeScripts(["nope"])).rejects.toThrow("trash scripts not found");
+  });
+});
+
+describe("ScriptService.sortScript", () => {
+  beforeEach(async () => {
+    await resetActiveScriptData();
+  });
+
+  it("拖动排序只更新位置变化的脚本并发布排序更新时间", async () => {
+    const { service, scriptDAO, mq } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "first", sort: 0, updatetime: 100 }));
+    await scriptDAO.save(makeScript({ uuid: "second", sort: 1, updatetime: 1_000 }));
+    const sorted: TSortedScript[][] = [];
+    mq.subscribe<TSortedScript[]>("sortedScripts", (value) => void sorted.push(value));
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+
+    try {
+      await service.sortScript({ before: ["first", "second"], after: ["second", "first"] });
+    } finally {
+      now.mockRestore();
+    }
+
+    await expect(scriptDAO.get("first")).resolves.toMatchObject({ sort: 1, updatetime: 100 });
+    await expect(scriptDAO.get("second")).resolves.toMatchObject({ sort: 0, updatetime: 1_000 });
+    expect(sorted[0]).toEqual([
+      { uuid: "second", sort: 0, sortUpdatetime: 1_000 },
+      { uuid: "first", sort: 1, sortUpdatetime: 1_000 },
+    ]);
+  });
+
+  it("拖动部分列表时不写入位置未变化的脚本", async () => {
+    const { service, scriptDAO } = buildService();
+    for (let index = 0; index < 4; index += 1) {
+      await scriptDAO.save(makeScript({ uuid: `script-${index}`, sort: index, updatetime: 100 + index }));
+    }
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+
+    try {
+      await service.sortScript({
+        before: ["script-0", "script-1", "script-2", "script-3"],
+        after: ["script-1", "script-0", "script-2", "script-3"],
+      });
+    } finally {
+      now.mockRestore();
+    }
+
+    await expect(scriptDAO.get("script-1")).resolves.toMatchObject({ sort: 0, updatetime: 101 });
+    await expect(scriptDAO.get("script-0")).resolves.toMatchObject({ sort: 1, updatetime: 100 });
+    await expect(scriptDAO.get("script-2")).resolves.toMatchObject({ sort: 2, updatetime: 102 });
+    await expect(scriptDAO.get("script-3")).resolves.toMatchObject({ sort: 3, updatetime: 103 });
+  });
+
+  it("全量同步进行时排序 mutation 不应穿插执行", async () => {
+    const { service, scriptDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "first", sort: 0 }));
+    await scriptDAO.save(makeScript({ uuid: "second", sort: 1 }));
+    const allSpy = vi.spyOn(scriptDAO, "all");
+    let releaseSync!: () => void;
+    const syncGate = new Promise<void>((resolve) => {
+      releaseSync = resolve;
+    });
+    const syncPromise = stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, () => syncGate);
+    let sortResolved = false;
+    const sortPromise = service.sortScript({ before: ["first", "second"], after: ["second", "first"] }).then(() => {
+      sortResolved = true;
+    });
+
+    await Promise.resolve();
+    expect(allSpy).not.toHaveBeenCalled();
+    expect(sortResolved).toBe(false);
+
+    releaseSync();
+    await Promise.all([syncPromise, sortPromise]);
+    expect(allSpy).toHaveBeenCalledTimes(1);
+    await expect(scriptDAO.get("second")).resolves.toMatchObject({ sort: 0 });
+  });
+});
+
+describe("ScriptService.getAllScripts", () => {
+  beforeEach(async () => {
+    await resetActiveScriptData();
+  });
+
+  it("规范化旧排序时只登记位置变化的脚本", async () => {
+    const { service, scriptDAO, mq } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "first", sort: -1, updatetime: 100 }));
+    await scriptDAO.save(makeScript({ uuid: "second", sort: 1, updatetime: 200 }));
+    const sorted: TSortedScript[][] = [];
+    mq.subscribe<TSortedScript[]>("sortedScripts", (value) => void sorted.push(value));
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+
+    try {
+      await service.getAllScripts();
+    } finally {
+      now.mockRestore();
+    }
+
+    await expect(scriptDAO.get("first")).resolves.toMatchObject({ sort: 0, updatetime: 100 });
+    await expect(scriptDAO.get("second")).resolves.toMatchObject({ sort: 1, updatetime: 200 });
+    expect(sorted[0]).toEqual([
+      { uuid: "first", sort: 0, sortUpdatetime: 1_000 },
+      { uuid: "second", sort: 1 },
+    ]);
+  });
+});
+
+describe("ScriptService.pinToTop", () => {
+  beforeEach(async () => {
+    await resetActiveScriptData();
+  });
+
+  it("置顶只更新位置变化的脚本并发布同一个排序更新时间", async () => {
+    const { service, scriptDAO, mq } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "first", sort: 0, updatetime: 100 }));
+    await scriptDAO.save(makeScript({ uuid: "second", sort: 1, updatetime: 200 }));
+    await scriptDAO.save(makeScript({ uuid: "third", sort: 2, updatetime: 300 }));
+    const sorted: TSortedScript[][] = [];
+    mq.subscribe<TSortedScript[]>("sortedScripts", (value) => void sorted.push(value));
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+
+    try {
+      await service.pinToTop(["second"]);
+    } finally {
+      now.mockRestore();
+    }
+
+    await expect(scriptDAO.get("first")).resolves.toMatchObject({ sort: 1, updatetime: 100 });
+    await expect(scriptDAO.get("second")).resolves.toMatchObject({ sort: 0, updatetime: 200 });
+    await expect(scriptDAO.get("third")).resolves.toMatchObject({ sort: 2, updatetime: 300 });
+    expect(sorted[0]).toEqual([
+      { uuid: "second", sort: 0, sortUpdatetime: 1_000 },
+      { uuid: "first", sort: 1, sortUpdatetime: 1_000 },
+      { uuid: "third", sort: 2 },
+    ]);
   });
 });
 
