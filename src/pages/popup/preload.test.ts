@@ -48,7 +48,7 @@ function script(uuid: string, enable: boolean): ScriptMenu {
 describe("Popup 数据预加载", () => {
   it("应在 React 挂载前并行读取配置并查询当前标签页脚本", async () => {
     mocks.getPopupData.mockResolvedValue({
-      isBlacklist: true,
+      pageStatus: "ok",
       scriptList: [script("disabled", false), script("enabled", true)],
       backScriptList: [],
     });

@@ -674,7 +674,7 @@ const _createRuntimeContext = () => {
     use: vi.fn().mockReturnThis(),
     emit: vi.fn(),
     publish: vi.fn(),
-  } as unknown as Group;
+  };
   const mockSender = {
     async init() {},
     messageHandle(_data: WindowMessageBody) {},
@@ -689,7 +689,7 @@ const _createRuntimeContext = () => {
   const mockScriptDAO = { all: vi.fn().mockResolvedValue([]), gets: vi.fn().mockResolvedValue([]) };
   const runtime = new RuntimeService(
     mockSystemConfig as unknown as SystemConfig,
-    mockGroup,
+    mockGroup as unknown as Group,
     mockSender,
     mockMQ,
     {} as ValueService,
@@ -698,7 +698,7 @@ const _createRuntimeContext = () => {
     mockScriptDAO as unknown as ScriptDAO,
     new LocalStorageDAO()
   );
-  return { runtime, mockSystemConfig, mockScriptService, mockScriptDAO };
+  return { runtime, mockSystemConfig, mockScriptService, mockScriptDAO, mockGroup };
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1028,6 +1028,22 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
       tabId: incognito ? 22 : 11,
       frameId: 0,
       incognito,
+    });
+  });
+
+  // bfcache 还原不会重新注入 content script，页面里的脚本却还活着；
+  // 这条上报只用来重新确认「本页扩展触及得到」，绝不能顺带重放脚本。
+  it("bfcache 还原上报只广播 popupPageRestored，不重新下发脚本", async () => {
+    const { runtime, mockGroup } = _createRuntimeContext();
+    const getScriptsForTab = vi.spyOn(runtime, "getScriptsForTab");
+
+    await runtime.pageShow(undefined, new SenderRuntime(createSender(false)));
+
+    expect(getScriptsForTab).not.toHaveBeenCalled();
+    expect(mockGroup.emit).toHaveBeenCalledWith("popupPageRestored", {
+      tabId: 11,
+      frameId: 0,
+      url: "https://www.example.com/page",
     });
   });
 });

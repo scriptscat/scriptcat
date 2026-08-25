@@ -45,7 +45,7 @@ import {
   versionCompare,
   type ScriptProvider,
 } from "./usePopupData";
-import type { ScriptMenu, ScriptMenuItem } from "@App/app/service/service_worker/types";
+import type { ScriptMenu, ScriptMenuItem, TPopupPageStatus } from "@App/app/service/service_worker/types";
 import { ScriptIcon } from "@App/pages/options/routes/ScriptList/components";
 import PopupWarnings from "./PopupWarnings";
 import { SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_ERROR } from "@App/app/repo/scripts";
@@ -107,10 +107,10 @@ export default function App() {
       <div className="shrink-0">
         {/* 顶部警告区：UserScripts API 不可用引导 / 申请权限 / Edge 移动端二维码 / 黑名单 */}
         <PopupWarnings />
-        {/* 黑名单警告 */}
-        {data.isBlacklist && (
+        {/* 本页不会运行脚本时说明原因，取代「列出一堆并没有在跑的脚本」 */}
+        {data.pageStatus !== "ok" && (
           <div className="px-4 py-2 bg-warning-bg text-warning-fg text-xs font-medium border-b border-border">
-            {t("popup:page_in_blacklist")}
+            {getPageStatusMessage(data.pageStatus, t)}
           </div>
         )}
         <Header
@@ -524,6 +524,8 @@ function ScriptRow({
     : onExcludeUrl
       ? () => onExcludeUrl(script.uuid, true)
       : undefined;
+  // 只匹配到子 frame（iframe）的脚本：站点范围操作按顶层 host 生成规则，对它不成立，故不显示
+  const siteHost = isPageScript && script.matchesTopFrame !== false ? host : undefined;
   const statusBadge = getStatusBadge(script, isPageScript, t);
   const displayName = script.name;
 
@@ -622,27 +624,26 @@ function ScriptRow({
           >
             {t("editor:script_setting")}
           </ActionItem>
-          {isPageScript && host && showSiteScopeActions && script.isEffective === false && onAllowUrl && (
+          {siteHost && showSiteScopeActions && script.isEffective === false && onAllowUrl && (
             <ActionItem icon={<PlusCircle className="w-3.5 h-3.5" />} primary onClick={() => onAllowUrl(script.uuid)}>
-              {t("allow_on_site").replace("$0", host)}
+              {t("allow_on_site").replace("$0", siteHost)}
             </ActionItem>
           )}
-          {isPageScript &&
-            host &&
+          {siteHost &&
             showSiteScopeActions &&
             script.isEffective === true &&
             !script.hasMatchOverride &&
             onOnlyRunOnUrl && (
               <Popconfirm description={t("confirm_only_run_on_site")} onConfirm={() => onOnlyRunOnUrl(script.uuid)}>
                 <ActionItem icon={<CircleDot className="w-3.5 h-3.5" />} primary>
-                  {t("only_on_site").replace("$0", host)}
+                  {t("only_on_site").replace("$0", siteHost)}
                 </ActionItem>
               </Popconfirm>
             )}
           {/* 排除 host 无需确认；站点范围操作开启时同步维护 match 与 exclude 覆盖。 */}
-          {isPageScript && host && script.isEffective === true && excludeSite && (
+          {siteHost && script.isEffective === true && excludeSite && (
             <ActionItem icon={<MinusCircle className="w-3.5 h-3.5" />} warn onClick={excludeSite}>
-              {t("exclude_off").replace("$0", host)}
+              {t("exclude_off").replace("$0", siteHost)}
             </ActionItem>
           )}
           {/* 删除（AlertDialog 二次确认） */}
@@ -688,6 +689,26 @@ function ScriptRow({
       )}
     </CollapsiblePrimitive.Root>
   );
+}
+
+/** 当前页不运行脚本的原因说明；`ok` 不显示提示。 */
+function getPageStatusMessage(pageStatus: TPopupPageStatus, t: TFunction): string {
+  switch (pageStatus) {
+    case "blacklist":
+      return t("popup:page_in_blacklist");
+    case "restricted":
+      return t("popup:page_restricted");
+    case "file-access-denied":
+      return t("popup:page_file_access_denied");
+    case "userscripts-unavailable":
+      return t("popup:page_userscripts_unavailable");
+    case "scripts-disabled":
+      return t("popup:page_scripts_disabled");
+    case "not-injected":
+      return t("popup:page_not_injected");
+    case "ok":
+      return "";
+  }
 }
 
 function getStatusBadge(script: ScriptMenu, isPageScript: boolean, t: TFunction): React.ReactNode {

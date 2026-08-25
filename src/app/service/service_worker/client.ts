@@ -3,7 +3,7 @@ import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Logger } from "@App/app/repo/logger";
 import { type Permission } from "@App/app/repo/permission";
-import type { InstallSource, ScriptMenu, ScriptMenuItem, TBatchUpdateListAction } from "./types";
+import type { InstallSource, ScriptMenu, ScriptMenuItem, TBatchUpdateListAction, TPopupPageStatus } from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
@@ -234,6 +234,11 @@ export class RuntimeClient extends Client {
     return this.doThrow("pageLoad");
   }
 
+  /** bfcache 还原上报：只告知本页仍在运行，不请求脚本 */
+  pageShow() {
+    return this.do("pageShow");
+  }
+
   scriptLoad(flag: string, uuid: string) {
     return this.do("scriptLoad", { flag, uuid });
   }
@@ -245,8 +250,8 @@ export type GetPopupDataReq = {
 };
 
 export type GetPopupDataRes = {
-  // 在黑名单
-  isBlacklist: boolean;
+  // 当前页状态：非 ok 时 scriptList 为空，由 Popup 说明原因
+  pageStatus: TPopupPageStatus;
   scriptList: ScriptMenu[];
   backScriptList: ScriptMenu[];
 };
