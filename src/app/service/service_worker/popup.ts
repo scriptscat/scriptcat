@@ -5,7 +5,12 @@ import type { ScriptMenu, TPopupPageStatus, TPopupScript } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes, MenuClickParams } from "./client";
 import { cacheInstance } from "@App/app/cache";
 import type { ScriptDAO } from "@App/app/repo/scripts";
-import { applyScriptDisplayInfo, scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
+import {
+  applyScriptDisplayInfo,
+  scriptToMenu,
+  type TPopupPageLoadInfo,
+  type TPopupPageRestoreInfo,
+} from "./popup_scriptmenu";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import type {
   TDeleteScript,
@@ -448,8 +453,13 @@ export class PopupService {
     if (kind === "restricted") return "restricted";
     if (this.runtime.isUrlBlacklist(url)) return "blacklist";
     if (await this.isTabInjected(tabId, url)) return "ok";
-    // 以下都是「确认没注入」，只为给出更准确的原因：两项判据都与浏览器有关
-    // （Edge 商店在 Chrome 里是普通网页；Firefox 的文件访问开关语义也不同），
+    // 以下都是「确认没注入」，只为给出更准确的原因。
+    // 脚本功能整体没开时 content script 根本没注册（registerUserscripts 直接 return），
+    // 此时说「刷新页面后生效」是错的——刷新永远不会生效，得先开开关/开发者模式。
+    // 同样放在注入证据之后：关掉开关不会杀死已注入页面上正在跑的脚本。
+    if (!this.runtime.isUserScriptsAvailable) return "userscripts-unavailable";
+    if (!this.runtime.isLoadScripts) return "scripts-disabled";
+    // 两项判据都与浏览器有关（Edge 商店在 Chrome 里是普通网页；Firefox 的文件访问开关语义也不同），
     // 放在注入证据之后才不会误伤实际能运行的页面。
     if (isExtensionStoreUrl(url)) return "restricted";
     if (kind === "file" && !(await chrome.extension.isAllowedFileSchemeAccess())) return "file-access-denied";
@@ -593,9 +603,10 @@ export class PopupService {
     return changed;
   }
 
-  // popupPageLoadUpdate 的处理之一：顶层 frame 报到即说明本页扩展触及得到。
-  // 记 origin 而非完整网址，SPA 换页不会失效，跳到另一个 origin 则自然失效。
-  async markTabInjected({ tabId, frameId, url }: TPopupPageLoadInfo) {
+  // 顶层 frame 报到即说明本页扩展触及得到，来源有二：页面载入（popupPageLoadUpdate）
+  // 与 bfcache 还原（popupPageRestored）。记 origin 而非完整网址，SPA 换页不会失效，
+  // 跳到另一个 origin 则自然失效。
+  async markTabInjected({ tabId, frameId, url }: TPopupPageRestoreInfo) {
     if (frameId || tabId <= 0) return;
     const origin = toOrigin(url);
     if (origin) await cacheInstance.set(`${CACHE_KEY_TAB_LOADED}${tabId}`, origin);
@@ -922,6 +933,9 @@ export class PopupService {
 
     // 监听运行次数
     // 监听页面载入事件以更新脚本执行计数；若为当前活动 tab，同步刷新 badge。
+    // bfcache 还原不会重新注入 content script，因此不会再有 popupPageLoadUpdate，
+    // 但页面里的脚本连同它注册的菜单都还活着。少了这条，后退回上一页就会被误判成「没在运行」。
+    this.mq.subscribe<TPopupPageRestoreInfo>("popupPageRestored", this.markTabInjected.bind(this));
     this.mq.subscribe<TPopupPageLoadInfo>("popupPageLoadUpdate", async (o) => {
       await this.markTabInjected(o);
       await this.addScriptRunNumber(o);

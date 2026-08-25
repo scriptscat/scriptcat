@@ -234,6 +234,11 @@ export class RuntimeClient extends Client {
     return this.doThrow("pageLoad");
   }
 
+  /** bfcache 还原上报：只告知本页仍在运行，不请求脚本 */
+  pageShow() {
+    return this.do("pageShow");
+  }
+
   scriptLoad(flag: string, uuid: string) {
     return this.do("scriptLoad", { flag, uuid });
   }

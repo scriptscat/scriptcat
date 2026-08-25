@@ -13,7 +13,7 @@ const popupInitialData = vi.hoisted(() => ({
   popupCompactLayout: false,
   popupSiteScopeActions: false,
   defaultScriptProvider: "scriptcat" as const,
-  isBlacklist: false,
+  pageStatus: "ok" as const,
   scriptList: [
     {
       uuid: "script-1",

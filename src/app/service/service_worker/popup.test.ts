@@ -77,6 +77,8 @@ const createService = (overrides: { runtime?: Partial<RuntimeService>; scriptDAO
     getPopupPageScriptMatchingResultByUrl: vi.fn().mockResolvedValue(new Map()),
     isUrlBlacklist: vi.fn().mockReturnValue(false),
     emitEventToTab: vi.fn(),
+    isLoadScripts: true,
+    isUserScriptsAvailable: true,
     ...overrides.runtime,
   } as unknown as RuntimeService;
   const scriptDAO = {
@@ -422,7 +424,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
 
   /** 模拟 content script 报到：顶层 frame 载入事件 */
   const firePageLoad = (service: PopupService, tabId: number, url: string) =>
-    service.markTabInjected({ tabId, frameId: 0, url, scriptmenus: [] });
+    service.markTabInjected({ tabId, frameId: 0, url });
 
   beforeEach(async () => {
     await cacheInstance.clear();
@@ -549,6 +551,36 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     const result = await service.getPopupData({ tabId: 1, url: "file:///tmp/a.html" });
 
     expect(result.pageStatus).toBe("file-access-denied");
+  });
+
+  it("未注入且全局脚本开关已关闭时应指出开关，而不是让用户白刷新", async () => {
+    const { service } = createService({ runtime: { isLoadScripts: false } });
+
+    const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
+
+    expect(result.pageStatus).toBe("scripts-disabled");
+  });
+
+  it("未注入且 UserScripts API 不可用时应指出浏览器设置，而不是让用户白刷新", async () => {
+    const { service } = createService({ runtime: { isUserScriptsAvailable: false } });
+
+    const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
+
+    expect(result.pageStatus).toBe("userscripts-unavailable");
+  });
+
+  it("关掉开关不会杀死已注入页面上正在跑的脚本，该页仍应为 ok", async () => {
+    const uuid = "allsite";
+    const { service } = createService({
+      runtime: { isLoadScripts: false, getPopupPageScriptMatchingResultByUrl: matchOne(uuid) },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+    await firePageLoad(service, 1, WEB_URL);
+
+    const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
+
+    expect(result.pageStatus).toBe("ok");
+    expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
   });
 
   it("file:// 页已实际注入时按 ok 处理，不因权限查询结果误报", async () => {

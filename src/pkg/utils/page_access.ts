@@ -1,7 +1,8 @@
 /** 页面对扩展的可注入性分类。`file` 单独成类：浏览器另有「允许访问文件网址」开关。 */
 export type TPageAccessKind = "web" | "file" | "restricted";
 
-// 浏览器强制保留、任何扩展都注入不了的页面。about:blank 也在内：它没有内容可注入。
+// 白名单而非黑名单：其余协议（chrome:// / 扩展页 / about: / devtools: / view-source: …）
+// 一律按浏览器保留页处理。顶层 about:blank 同理——没有内容可注入。
 const INJECTABLE_PROTOCOLS = new Set(["http:", "https:"]);
 
 export const getPageAccessKind = (url: string): TPageAccessKind => {

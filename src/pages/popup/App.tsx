@@ -701,6 +701,10 @@ function getPageStatusMessage(pageStatus: TPopupPageStatus, t: TFunction): strin
       return t("popup:page_restricted");
     case "file-access-denied":
       return t("popup:page_file_access_denied");
+    case "userscripts-unavailable":
+      return t("popup:page_userscripts_unavailable");
+    case "scripts-disabled":
+      return t("popup:page_scripts_disabled");
     case "not-injected":
       return t("popup:page_not_injected");
     case "ok":

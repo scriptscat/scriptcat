@@ -9,6 +9,8 @@
   "page_restricted": "Trình duyệt không cho phép tiện ích chạy script trên trang này",
   "page_file_access_denied": "Để chạy script trên tệp cục bộ, hãy bật “Cho phép truy cập URL tệp” trong trang chi tiết tiện ích",
   "page_not_injected": "Chưa có script nào chạy trên trang này — hãy tải lại trang",
+  "page_userscripts_unavailable": "Tính năng user script của trình duyệt chưa được bật nên script không thể chạy trên trang này",
+  "page_scripts_disabled": "Script đã bị tắt toàn cục; hãy bật công tắc phía trên và tải lại trang",
   "ext_update_notification": "Tiện ích scriptcat đã cập nhật",
   "ext_update_notification_desc": "Phiên bản hiện tại: {{version}}, vui lòng xem nhật ký cập nhật để biết chi tiết",
   "script_menu_display": "Menu đã đăng ký script",

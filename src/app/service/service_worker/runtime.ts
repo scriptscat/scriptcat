@@ -57,7 +57,7 @@ import { parseUserConfig } from "@App/pkg/utils/yaml";
 import type { CompiledResource, Resource, ResourceType } from "@App/app/repo/resource";
 import { CompiledResourceDAO, CompiledResourceNamespace } from "@App/app/repo/resource";
 import { setOnTabURLChanged } from "./url_monitor";
-import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
+import { scriptToMenu, type TPopupPageLoadInfo, type TPopupPageRestoreInfo } from "./popup_scriptmenu";
 import { getExtensionUserAgentData } from "../extension/extension_env";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
@@ -530,6 +530,7 @@ export class RuntimeService {
     this.group.on("stopScript", this.stopScript.bind(this));
     this.group.on("runScript", this.runScript.bind(this));
     this.group.on("pageLoad", this.pageLoad.bind(this));
+    this.group.on("pageShow", this.pageShow.bind(this));
 
     // 监听脚本开启
     this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
@@ -1282,6 +1283,22 @@ export class RuntimeService {
       return { ok: false };
     }
   }
+  /**
+   * bfcache 还原：文档连同里面已注入的脚本被整体恢复，content script 不会重新执行，
+   * 因此不会再走 pageLoad。这里只重新广播一次「本页扩展触及得到」，
+   * 绝不能顺带重放脚本——脚本本来就还在页面里跑着。
+   */
+  async pageShow(_: any, sender: IGetSender) {
+    const chromeSender = sender.getSender();
+    const url = chromeSender?.url;
+    if (!url) return;
+    this.mq.emit<TPopupPageRestoreInfo>("popupPageRestored", {
+      tabId: chromeSender.tab?.id || -1,
+      frameId: chromeSender.frameId,
+      url,
+    });
+  }
+
   private shouldSkipPageLoadScript(
     scriptRes: ScriptRunResource,
     frameId: number | undefined,

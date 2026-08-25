@@ -9,6 +9,8 @@
   "page_restricted": "Tarayıcı, uzantıların bu sayfada betik çalıştırmasına izin vermiyor",
   "page_file_access_denied": "Yerel dosyalarda betik çalıştırmak için uzantı ayrıntıları sayfasında “Dosya URL’lerine erişime izin ver” seçeneğini açın",
   "page_not_injected": "Bu sayfada henüz betik çalışmıyor — sayfayı yenileyin",
+  "page_userscripts_unavailable": "Tarayıcının kullanıcı betiği özelliği etkin değil, bu nedenle bu sayfada betikler çalışamaz",
+  "page_scripts_disabled": "Betikler genel olarak kapalı; yukarıdaki anahtarı açıp sayfayı yeniden yükleyin",
   "ext_update_notification": "ScriptCat uzantısı güncellendi",
   "ext_update_notification_desc": "Geçerli sürüm: {{version}}, ayrıntılar için güncelleme günlüğüne bakın",
   "script_menu_display": "Betik Menüsü",

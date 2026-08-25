@@ -9,6 +9,8 @@
   "page_restricted": "The browser does not allow extensions to run scripts on this page",
   "page_file_access_denied": "To run scripts on local files, enable “Allow access to file URLs” on the extension details page",
   "page_not_injected": "No script is running on this page yet — reload the page to take effect",
+  "page_userscripts_unavailable": "The browser's user script feature is not enabled, so scripts cannot run on this page",
+  "page_scripts_disabled": "Scripts are turned off globally; turn on the switch above and reload the page",
   "ext_update_notification": "Scriptcat extension updated",
   "ext_update_notification_desc": "Current version: {{version}}, please see the update log for details",
   "script_menu_display": "Script Registered Menu",

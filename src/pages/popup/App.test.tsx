@@ -169,6 +169,8 @@ describe("Popup 当前页状态提示（脚本猫触及不到的页面）", () =
     ["blacklist", "当前页面在黑名单中，无法使用脚本"],
     ["file-access-denied", "要在本地文件上运行脚本，请在扩展详情页开启「允许访问文件网址」"],
     ["not-injected", "脚本尚未在此页面运行，刷新页面后生效"],
+    ["scripts-disabled", "脚本已全局关闭，开启上方开关并刷新页面后生效"],
+    ["userscripts-unavailable", "浏览器的用户脚本功能未启用，脚本无法在此页面运行"],
   ])("pageStatus=%s 时说明本页不运行脚本的原因", (pageStatus, message) => {
     mockData = makeData({ pageStatus, scriptList: [], fullScriptCount: 0 });
     render(<App />);

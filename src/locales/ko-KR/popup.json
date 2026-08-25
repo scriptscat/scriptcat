@@ -9,6 +9,8 @@
   "page_restricted": "브라우저가 이 페이지에서 확장 프로그램의 스크립트 실행을 허용하지 않습니다",
   "page_file_access_denied": "로컬 파일에서 스크립트를 실행하려면 확장 프로그램 세부정보 페이지에서 '파일 URL에 대한 액세스 허용'을 켜세요",
   "page_not_injected": "이 페이지에서는 아직 스크립트가 실행되지 않았습니다. 페이지를 새로 고치세요",
+  "page_userscripts_unavailable": "브라우저의 사용자 스크립트 기능이 활성화되지 않아 이 페이지에서 스크립트를 실행할 수 없습니다",
+  "page_scripts_disabled": "스크립트가 전체적으로 꺼져 있습니다. 위 스위치를 켜고 페이지를 새로고침하세요",
   "ext_update_notification": "ScriptCat 확장 프로그램이 업데이트되었습니다",
   "ext_update_notification_desc": "현재 버전: {{version}}, 자세한 내용은 업데이트 로그를 확인하세요",
   "script_menu_display": "스크립트가 등록한 메뉴",

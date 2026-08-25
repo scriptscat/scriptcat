@@ -9,6 +9,8 @@
   "page_restricted": "O navegador não permite que extensões executem scripts nesta página",
   "page_file_access_denied": "Para executar scripts em arquivos locais, ative “Permitir acesso a URLs de arquivo” na página de detalhes da extensão",
   "page_not_injected": "Nenhum script está em execução nesta página — recarregue a página para aplicar",
+  "page_userscripts_unavailable": "O recurso de user scripts do navegador não está ativado, então os scripts não podem ser executados nesta página",
+  "page_scripts_disabled": "Os scripts estão desativados globalmente; ative o botão acima e recarregue a página",
   "ext_update_notification": "Extensão ScriptCat atualizada",
   "ext_update_notification_desc": "Versão atual: {{version}}, por favor, veja o log de atualizações para mais detalhes",
   "script_menu_display": "Menu criado do script",
