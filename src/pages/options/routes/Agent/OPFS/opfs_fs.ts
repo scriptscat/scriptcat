@@ -1,4 +1,7 @@
 import { isImageFileName } from "@App/app/service/agent/core/content_utils";
+import { isWorkspacePath, sanitizePath, WORKSPACE_PATH } from "@App/app/service/agent/core/opfs_helpers";
+
+export const EDITABLE_PATH = WORKSPACE_PATH;
 
 export interface FileEntry {
   name: string;
@@ -26,7 +29,30 @@ export function fileKind(name: string): FileKind {
   return "bin";
 }
 
-async function getDirHandle(root: FileSystemDirectoryHandle, path: string[]): Promise<FileSystemDirectoryHandle> {
+export function isEditablePath(path: readonly string[]): boolean {
+  return isWorkspacePath(path);
+}
+
+function assertEditablePath(path: readonly string[]): void {
+  if (!isEditablePath(path)) {
+    throw new Error("This directory is read-only");
+  }
+}
+
+function assertEntryName(name: string): void {
+  if (!name.trim() || name === "." || name === ".." || /[\\/]/.test(name)) {
+    throw new Error("Invalid file name");
+  }
+}
+
+export function parsePath(rawPath: string): string[] {
+  return sanitizePath(rawPath).split("/").filter(Boolean);
+}
+
+export async function getDirHandle(
+  root: FileSystemDirectoryHandle,
+  path: string[]
+): Promise<FileSystemDirectoryHandle> {
   let dir = root;
   for (const part of path) {
     dir = await dir.getDirectoryHandle(part);
@@ -64,6 +90,8 @@ export async function removeEntry(
   name: string,
   kind: "file" | "directory"
 ): Promise<void> {
+  assertEditablePath(path);
+  assertEntryName(name);
   const dir = await getDirHandle(root, path);
   await dir.removeEntry(name, { recursive: kind === "directory" });
 }
@@ -88,9 +116,140 @@ export async function writeFile(
   name: string,
   data: Blob
 ): Promise<void> {
+  assertEditablePath(path);
+  assertEntryName(name);
   const dir = await getDirHandle(root, path);
   const handle = await dir.getFileHandle(name, { create: true });
   const writable = await handle.createWritable();
   await writable.write(data);
   await writable.close();
+}
+
+async function ensureDestinationAvailable(dir: FileSystemDirectoryHandle, name: string): Promise<void> {
+  let exists = false;
+  try {
+    await dir.getFileHandle(name);
+    exists = true;
+  } catch {
+    // The entry may be a directory.
+  }
+  if (!exists) {
+    try {
+      await dir.getDirectoryHandle(name);
+      exists = true;
+    } catch {
+      // The destination is available.
+    }
+  }
+  if (exists) {
+    throw new Error(`An entry named "${name}" already exists`);
+  }
+}
+
+async function copyEntry(
+  sourceDir: FileSystemDirectoryHandle,
+  sourceName: string,
+  destinationDir: FileSystemDirectoryHandle,
+  destinationName: string
+): Promise<void> {
+  let sourceFile: FileSystemFileHandle | undefined;
+  try {
+    sourceFile = await sourceDir.getFileHandle(sourceName);
+  } catch {
+    // The source may be a directory.
+  }
+
+  if (sourceFile) {
+    const source = await sourceFile.getFile();
+    const target = await destinationDir.getFileHandle(destinationName, { create: true });
+    const writable = await target.createWritable();
+    await writable.write(source);
+    await writable.close();
+    return;
+  }
+
+  const sourceDirectory = await sourceDir.getDirectoryHandle(sourceName);
+  const destinationDirectory = await destinationDir.getDirectoryHandle(destinationName, { create: true });
+  for await (const [name] of sourceDirectory as unknown as AsyncIterable<[string, FileSystemHandle]>) {
+    await copyEntry(sourceDirectory, name, destinationDirectory, name);
+  }
+}
+
+export async function renameEntry(
+  root: FileSystemDirectoryHandle,
+  path: string[],
+  name: string,
+  newName: string
+): Promise<void> {
+  assertEditablePath(path);
+  assertEntryName(name);
+  assertEntryName(newName);
+  if (name === newName) return;
+  await moveEntry(root, path, name, path, newName);
+}
+
+export async function moveEntry(
+  root: FileSystemDirectoryHandle,
+  sourcePath: string[],
+  name: string,
+  destinationPath: string[],
+  destinationName = name
+): Promise<void> {
+  assertEditablePath(sourcePath);
+  assertEditablePath(destinationPath);
+  assertEntryName(name);
+  assertEntryName(destinationName);
+
+  const sourceEntryPath = [...sourcePath, name];
+  const destinationEntryPath = [...destinationPath, destinationName];
+  if (destinationEntryPath.join("/") === sourceEntryPath.join("/")) return;
+  const destinationIsInsideSource = sourceEntryPath.every((part, index) => destinationPath[index] === part);
+  if (destinationIsInsideSource) {
+    throw new Error("Cannot move an entry into itself");
+  }
+
+  const sourceDir = await getDirHandle(root, sourcePath);
+  const destinationDir = await getDirHandle(root, destinationPath);
+  await ensureDestinationAvailable(destinationDir, destinationName);
+  try {
+    await copyEntry(sourceDir, name, destinationDir, destinationName);
+    await sourceDir.removeEntry(name, { recursive: true });
+  } catch (error) {
+    try {
+      await destinationDir.removeEntry(destinationName, { recursive: true });
+    } catch (cleanupError) {
+      // 复制可能在创建目标之前就失败（例如源文件不可读），此时目标不存在不算回滚失败，
+      // 不能用它掩盖真正的错误原因。
+      if ((cleanupError as { name?: string })?.name !== "NotFoundError") {
+        throw new AggregateError([error, cleanupError], "Failed to roll back a move");
+      }
+    }
+    throw error;
+  }
+}
+
+/** 列出 workspace 下可作为移动目标的目录：排除条目所在目录、条目自身及其子目录 */
+export async function listMoveDestinations(
+  root: FileSystemDirectoryHandle,
+  sourcePath: string[],
+  entry: Pick<FileEntry, "name" | "kind">
+): Promise<string[][]> {
+  const excludedSubtree = entry.kind === "directory" ? [...sourcePath, entry.name].join("/") : null;
+  const destinations: string[][] = [];
+
+  const walk = async (dir: FileSystemDirectoryHandle, path: string[]) => {
+    const joined = path.join("/");
+    if (excludedSubtree && (joined === excludedSubtree || joined.startsWith(`${excludedSubtree}/`))) return;
+    if (joined !== sourcePath.join("/")) destinations.push(path);
+    const children: [string, FileSystemDirectoryHandle][] = [];
+    for await (const [name, handle] of dir as unknown as AsyncIterable<[string, FileSystemHandle]>) {
+      if (handle.kind === "directory") children.push([name, handle as FileSystemDirectoryHandle]);
+    }
+    children.sort((a, b) => a[0].localeCompare(b[0]));
+    for (const [name, handle] of children) await walk(handle, [...path, name]);
+  };
+
+  const workspacePath = [...WORKSPACE_PATH];
+  await walk(await getDirHandle(root, workspacePath), workspacePath);
+  return destinations;
 }
