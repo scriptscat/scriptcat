@@ -236,7 +236,7 @@ export class SubscribeService {
       }
       return { updateAvailable: true, code, metadata };
     } catch (e) {
-      logger.error("check update failed", Logger.E(e));
+      logger.error("check update failed", { ...Logger.E(e), subscribe_url: url });
       return false;
     }
   }
@@ -281,7 +281,7 @@ export class SubscribeService {
         }
         return true;
       } catch (e) {
-        logger.error("check update failed", Logger.E(e));
+        logger.error("check update failed", { ...Logger.E(e), subscribe_url: url });
         return false;
       }
     }
