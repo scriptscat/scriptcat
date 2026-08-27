@@ -244,7 +244,7 @@ collectPropertyDescriptors(global);
 // 第二趟 window：同一个 sandbox 的原型链在 Xray window 处截断，够不到 EventTarget.prototype，
 // addEventListener / removeEventListener / dispatchEvent 只能由真实 window 的原型链补齐。
 // descsCache 先到先得，第一趟收下的键不会被覆盖；Chrome 下 window === globalThis，此趟全部跳过。
-collectPropertyDescriptors(window);
+window !== global && collectPropertyDescriptors(window);
 descsCache.clear(); // 内存释放
 
 // sharedInitCopy: 完全继承Window.prototype 及 自定义 OwnPropertyDescriptor
