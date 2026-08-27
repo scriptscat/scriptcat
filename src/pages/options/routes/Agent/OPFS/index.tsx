@@ -28,6 +28,7 @@ import { Button } from "@App/pages/components/ui/button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { Progress } from "@App/pages/components/ui/progress";
 import { Input } from "@App/pages/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,7 @@ import {
   writeFile,
   renameEntry,
   moveEntry,
+  listMoveDestinations,
   isEditablePath,
   parsePath,
   formatSize,
@@ -61,7 +63,9 @@ import {
 
 type PreviewState = { open: boolean; name: string; kind: FileKind; text?: string; imageUrl?: string };
 type SortKey = "name" | "size" | "time";
-type EntryDialogState = { action: "rename" | "move"; entry: FileEntry; value: string };
+type EntryDialogState =
+  | { action: "rename"; entry: FileEntry; value: string }
+  | { action: "move"; entry: FileEntry; value: string; destinations: string[][] };
 
 const PREVIEWABLE: FileKind[] = ["json", "md", "text", "img"];
 
@@ -186,8 +190,18 @@ export default function AgentOPFS() {
     setEntryDialog({ action: "rename", entry, value: entry.name });
   };
 
-  const openMoveDialog = (entry: FileEntry) => {
-    setEntryDialog({ action: "move", entry, value: path.join("/") });
+  const openMoveDialog = async (entry: FileEntry) => {
+    if (!root) return;
+    try {
+      const destinations = await listMoveDestinations(root, path, entry);
+      if (destinations.length === 0) {
+        notify.error(t("agent:opfs_move_no_destination"));
+        return;
+      }
+      setEntryDialog({ action: "move", entry, value: destinations[0].join("/"), destinations });
+    } catch (error) {
+      notify.error(error instanceof Error ? error.message : String(error));
+    }
   };
 
   const handleEntryDialogSubmit = async () => {
@@ -196,7 +210,12 @@ export default function AgentOPFS() {
     setEntryActionPending(true);
     try {
       if (entryDialog.action === "rename") {
-        await renameEntry(root, path, entryDialog.entry.name, entryDialog.value.trim());
+        const newName = entryDialog.value.trim();
+        if (newName === entryDialog.entry.name) {
+          setEntryDialog(null);
+          return;
+        }
+        await renameEntry(root, path, entryDialog.entry.name, newName);
         notify.success(t("agent:opfs_rename_success"));
       } else {
         await moveEntry(root, path, entryDialog.entry.name, parsePath(entryDialog.value));
@@ -366,7 +385,7 @@ export default function AgentOPFS() {
           )}
         </div>
 
-        {loading ? (
+        {loading && entries.length === 0 ? (
           <div
             data-testid="opfs-loading"
             className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-10 text-sm text-muted-foreground"
@@ -530,23 +549,47 @@ export default function AgentOPFS() {
             </DialogTitle>
             <DialogDescription className="truncate font-mono">{entryDialog?.entry.name}</DialogDescription>
           </DialogHeader>
-          <Input
-            data-testid="opfs-entry-edit-input"
-            autoFocus
-            disabled={entryActionPending}
-            value={entryDialog?.value ?? ""}
-            placeholder={
-              entryDialog?.action === "rename"
-                ? t("agent:opfs_rename_placeholder")
-                : t("agent:opfs_move_destination_placeholder")
-            }
-            onChange={(event) =>
-              setEntryDialog((current) => (current ? { ...current, value: event.target.value } : current))
-            }
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void handleEntryDialogSubmit();
-            }}
-          />
+          {entryDialog?.action === "move" ? (
+            <Select
+              value={entryDialog.value}
+              disabled={entryActionPending}
+              onValueChange={(value) =>
+                setEntryDialog((current) => (current?.action === "move" ? { ...current, value } : current))
+              }
+            >
+              <SelectTrigger
+                data-testid="opfs-move-destination"
+                aria-label={t("agent:opfs_move_destination")}
+                className="w-full font-mono"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {entryDialog.destinations.map((destination) => {
+                  const value = destination.join("/");
+                  return (
+                    <SelectItem key={value} value={value} className="font-mono">
+                      {value}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              data-testid="opfs-entry-edit-input"
+              autoFocus
+              disabled={entryActionPending}
+              value={entryDialog?.value ?? ""}
+              placeholder={t("agent:opfs_rename_placeholder")}
+              onChange={(event) =>
+                setEntryDialog((current) => (current ? { ...current, value: event.target.value } : current))
+              }
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void handleEntryDialogSubmit();
+              }}
+            />
+          )}
           <DialogFooter>
             <Button variant="outline" disabled={entryActionPending} onClick={() => setEntryDialog(null)}>
               {t("common:cancel")}
@@ -610,7 +653,7 @@ function menuItems(
     handleDownload: (e: FileEntry) => void | Promise<void>;
     handleDelete: (e: FileEntry) => void | Promise<void>;
     openRenameDialog: (e: FileEntry) => void;
-    openMoveDialog: (e: FileEntry) => void;
+    openMoveDialog: (e: FileEntry) => void | Promise<void>;
     t: (k: string) => string;
     editable: boolean;
   }
@@ -639,7 +682,7 @@ function menuItems(
         key: "move",
         label: t("agent:opfs_move"),
         icon: FolderInput,
-        onSelect: () => openMoveDialog(entry),
+        onSelect: () => void openMoveDialog(entry),
       },
       {
         key: "delete",
@@ -668,7 +711,7 @@ function RowActions({
   onDownload: (e: FileEntry) => void;
   onDelete: (e: FileEntry) => void;
   onRename: (e: FileEntry) => void;
-  onMove: (e: FileEntry) => void;
+  onMove: (e: FileEntry) => void | Promise<void>;
   editable: boolean;
   t: (k: string) => string;
 }) {
@@ -714,7 +757,7 @@ function RowActions({
             data-testid={`move-${entry.name}`}
             title={t("agent:opfs_move")}
             aria-label={t("agent:opfs_move")}
-            onClick={() => onMove(entry)}
+            onClick={() => void onMove(entry)}
             className="flex size-[30px] items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
           >
             <FolderInput className="size-[15px]" />

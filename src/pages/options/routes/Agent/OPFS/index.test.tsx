@@ -4,6 +4,8 @@ import { initTestLanguage } from "@Tests/initTestLanguage";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
+const notify = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }));
+vi.mock("@App/pages/components/ui/toast", () => ({ notify }));
 
 import AgentOPFS from "./index";
 
@@ -26,10 +28,12 @@ function dirHandle(name: string, children: Record<string, any> = {}): any {
       for (const [n, h] of Object.entries(children)) yield [n, h];
     },
     async getDirectoryHandle(n: string) {
+      if (!children[n]) throw new DOMException("Not found", "NotFoundError");
       return children[n];
     },
     async getFileHandle(n: string, opts?: { create?: boolean }) {
-      if (!children[n] && opts?.create) {
+      if (!children[n]) {
+        if (!opts?.create) throw new DOMException("Not found", "NotFoundError");
         children[n] = { ...fileHandle(n, ""), createWritable: async () => writableFor(n, children) };
       }
       return children[n];
@@ -61,6 +65,19 @@ function writableFor(name: string, children: Record<string, any>): any {
 
 let root: any;
 
+// agents/workspace 是唯一可修改目录，涉及写操作的用例都要先进到这里
+function useWorkspace(children: Record<string, any> = {}) {
+  const workspace = dirHandle("workspace", children);
+  root = dirHandle("root", { agents: dirHandle("agents", { workspace }) });
+  (navigator.storage.getDirectory as any).mockResolvedValue(root);
+  return workspace;
+}
+
+async function enterWorkspace() {
+  fireEvent.click(await screen.findByTestId("entry-agents"));
+  fireEvent.click(await screen.findByTestId("entry-workspace"));
+}
+
 beforeAll(() => initTestLanguage("zh-CN"));
 
 beforeEach(() => {
@@ -74,7 +91,11 @@ beforeEach(() => {
     value: { getDirectory: vi.fn(async () => root) },
   });
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  notify.success.mockClear();
+  notify.error.mockClear();
+});
 
 describe("AgentOPFS 页面", () => {
   it("挂载后展示文件与目录", async () => {
@@ -235,6 +256,82 @@ describe("AgentOPFS 页面", () => {
 
     releaseLookup();
     await waitFor(() => expect(screen.queryByTestId("opfs-entry-edit-input")).not.toBeInTheDocument());
+  });
+
+  it("workspace 内桌面端上传按钮带文案", async () => {
+    useWorkspace({ "file1.txt": fileHandle("file1.txt", "hi") });
+    render(<AgentOPFS />);
+    await enterWorkspace();
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
+    expect(screen.getByTestId("opfs-upload")).toHaveTextContent("上传");
+  });
+
+  it("workspace 内移动端上传按钮为图标按钮(有可访问名,无可见文案)", async () => {
+    mockedUseIsMobile.mockReturnValue(true);
+    useWorkspace({ "file1.txt": fileHandle("file1.txt", "hi") });
+    render(<AgentOPFS />);
+    await enterWorkspace();
+    const upload = await screen.findByTestId("opfs-upload");
+    expect(upload).toHaveAccessibleName();
+    expect(upload.textContent).toBe("");
+  });
+
+  it("重命名未修改名称时直接关闭且不提示成功", async () => {
+    useWorkspace({ "old.txt": fileHandle("old.txt", "data") });
+    render(<AgentOPFS />);
+    await enterWorkspace();
+    fireEvent.click(await screen.findByTestId("rename-old.txt"));
+    fireEvent.click(screen.getByTestId("opfs-entry-edit-submit"));
+    await waitFor(() => expect(screen.queryByTestId("opfs-entry-edit-input")).not.toBeInTheDocument());
+    expect(notify.success).not.toHaveBeenCalled();
+  });
+
+  it("移动对话框用目录选择器给出 workspace 下的可选目标", async () => {
+    useWorkspace({ "old.txt": fileHandle("old.txt", "data"), target: dirHandle("target") });
+    render(<AgentOPFS />);
+    await enterWorkspace();
+    fireEvent.click(await screen.findByTestId("move-old.txt"));
+    const destination = await screen.findByTestId("opfs-move-destination");
+    expect(destination).toHaveTextContent("agents/workspace/target");
+    fireEvent.click(screen.getByTestId("opfs-entry-edit-submit"));
+    await waitFor(() => expect(screen.queryByText("old.txt")).not.toBeInTheDocument());
+    expect(notify.success).toHaveBeenCalled();
+  });
+
+  it("workspace 下没有其他目录时移动给出提示而不是打开空选择器", async () => {
+    useWorkspace({ "old.txt": fileHandle("old.txt", "data") });
+    render(<AgentOPFS />);
+    await enterWorkspace();
+    fireEvent.click(await screen.findByTestId("move-old.txt"));
+    await waitFor(() => expect(notify.error).toHaveBeenCalled());
+    expect(screen.queryByTestId("opfs-move-destination")).not.toBeInTheDocument();
+  });
+
+  it("刷新时保留已加载列表,不整块换成加载态", async () => {
+    let releaseSecondList!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseSecondList = resolve;
+    });
+    let listCount = 0;
+    const children = { "file1.txt": fileHandle("file1.txt", "hi") };
+    root = {
+      kind: "directory",
+      name: "root",
+      async *[Symbol.asyncIterator]() {
+        listCount += 1;
+        if (listCount === 2) await gate;
+        for (const [n, h] of Object.entries(children)) yield [n, h];
+      },
+    };
+    (navigator.storage.getDirectory as any).mockResolvedValue(root);
+
+    render(<AgentOPFS />);
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("opfs-refresh"));
+    expect(screen.queryByTestId("opfs-loading")).not.toBeInTheDocument();
+    expect(screen.getByText("file1.txt")).toBeInTheDocument();
+    releaseSecondList();
+    await waitFor(() => expect(screen.getByText("file1.txt")).toBeInTheDocument());
   });
 
   it("移动端:页内工具行为图标按钮(无可见文案标签)+ 标题作为页内标题", async () => {

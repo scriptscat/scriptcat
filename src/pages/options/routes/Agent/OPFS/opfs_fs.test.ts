@@ -9,6 +9,7 @@ import {
   isEditablePath,
   renameEntry,
   moveEntry,
+  listMoveDestinations,
 } from "./opfs_fs";
 
 // ---- 内存版 FileSystemDirectoryHandle mock ----
@@ -226,6 +227,54 @@ describe("opfs_fs 文件系统封装", () => {
     );
     expect(workspace._children.source).toBeDefined();
     expect(workspace._children.moved).toBeUndefined();
+  });
+
+  it("移动在目标创建之前失败时保留原始错误", async () => {
+    const workspace = mutableDirectory("workspace", {
+      "broken.txt": {
+        kind: "file",
+        name: "broken.txt",
+        async getFile() {
+          throw new Error("read failure");
+        },
+      },
+      target: mutableDirectory("target"),
+    });
+    const root = mutableDirectory("root", {
+      agents: mutableDirectory("agents", { workspace }),
+    });
+
+    await expect(
+      moveEntry(root, ["agents", "workspace"], "broken.txt", ["agents", "workspace", "target"])
+    ).rejects.toThrow("read failure");
+    expect(workspace._children["broken.txt"]).toBeDefined();
+    expect(workspace._children.target._children["broken.txt"]).toBeUndefined();
+  });
+
+  it("列出移动目标时排除当前目录、条目自身及其子目录", async () => {
+    const workspace = mutableDirectory("workspace", {
+      src: mutableDirectory("src", { child: mutableDirectory("child"), "a.txt": mutableFile("a.txt", "") }),
+      target: mutableDirectory("target"),
+    });
+    const root = mutableDirectory("root", {
+      agents: mutableDirectory("agents", { workspace }),
+    });
+
+    const forDirectory = await listMoveDestinations(root, ["agents", "workspace"], {
+      name: "src",
+      kind: "directory",
+    });
+    expect(forDirectory.map((p) => p.join("/"))).toEqual(["agents/workspace/target"]);
+
+    const forFile = await listMoveDestinations(root, ["agents", "workspace", "src"], {
+      name: "a.txt",
+      kind: "file",
+    });
+    expect(forFile.map((p) => p.join("/"))).toEqual([
+      "agents/workspace",
+      "agents/workspace/src/child",
+      "agents/workspace/target",
+    ]);
   });
 
   it("formatSize 按量级格式化", () => {

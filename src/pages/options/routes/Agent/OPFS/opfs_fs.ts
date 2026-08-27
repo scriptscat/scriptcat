@@ -170,8 +170,8 @@ async function copyEntry(
 
   const sourceDirectory = await sourceDir.getDirectoryHandle(sourceName);
   const destinationDirectory = await destinationDir.getDirectoryHandle(destinationName, { create: true });
-  for await (const [name, handle] of sourceDirectory as unknown as AsyncIterable<[string, FileSystemHandle]>) {
-    await copyEntry(sourceDirectory, name, destinationDirectory, handle.name || name);
+  for await (const [name] of sourceDirectory as unknown as AsyncIterable<[string, FileSystemHandle]>) {
+    await copyEntry(sourceDirectory, name, destinationDirectory, name);
   }
 }
 
@@ -218,8 +218,38 @@ export async function moveEntry(
     try {
       await destinationDir.removeEntry(destinationName, { recursive: true });
     } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], "Failed to roll back a move");
+      // 复制可能在创建目标之前就失败（例如源文件不可读），此时目标不存在不算回滚失败，
+      // 不能用它掩盖真正的错误原因。
+      if ((cleanupError as { name?: string })?.name !== "NotFoundError") {
+        throw new AggregateError([error, cleanupError], "Failed to roll back a move");
+      }
     }
     throw error;
   }
+}
+
+/** 列出 workspace 下可作为移动目标的目录：排除条目所在目录、条目自身及其子目录 */
+export async function listMoveDestinations(
+  root: FileSystemDirectoryHandle,
+  sourcePath: string[],
+  entry: Pick<FileEntry, "name" | "kind">
+): Promise<string[][]> {
+  const excludedSubtree = entry.kind === "directory" ? [...sourcePath, entry.name].join("/") : null;
+  const destinations: string[][] = [];
+
+  const walk = async (dir: FileSystemDirectoryHandle, path: string[]) => {
+    const joined = path.join("/");
+    if (excludedSubtree && (joined === excludedSubtree || joined.startsWith(`${excludedSubtree}/`))) return;
+    if (joined !== sourcePath.join("/")) destinations.push(path);
+    const children: [string, FileSystemDirectoryHandle][] = [];
+    for await (const [name, handle] of dir as unknown as AsyncIterable<[string, FileSystemHandle]>) {
+      if (handle.kind === "directory") children.push([name, handle as FileSystemDirectoryHandle]);
+    }
+    children.sort((a, b) => a[0].localeCompare(b[0]));
+    for (const [name, handle] of children) await walk(handle, [...path, name]);
+  };
+
+  const workspacePath = [...WORKSPACE_PATH];
+  await walk(await getDirHandle(root, workspacePath), workspacePath);
+  return destinations;
 }
