@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent, act } from "@testing-library/react";
 import fs from "fs";
 import path from "path";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { t } from "@App/locales/locales";
+import { ExtVersion } from "@App/app/const";
 
 // 警告区依赖 chrome.action / permissions，与本测试无关，置空以隔离
 vi.mock("./PopupWarnings", () => ({ default: () => null }));
@@ -20,7 +21,7 @@ import App from "./App";
 function makeData(overrides: Record<string, any> = {}) {
   return {
     loading: false,
-    isBlacklist: false,
+    pageStatus: "ok",
     host: "example.com",
     scriptList: [],
     backScriptList: [],
@@ -46,13 +47,18 @@ function makeData(overrides: Record<string, any> = {}) {
     showAlert: false,
     menuExpandNum: 5,
     popupCompactLayout: false,
+    popupSiteScopeActions: false,
     defaultScriptProvider: "scriptcat",
     currentUrl: "https://example.com",
     handleToggleScript: vi.fn(),
     handleDeleteScript: vi.fn(),
     handleOpenEditor: vi.fn(),
+    handleOpenScriptSettings: vi.fn(),
     handleOpenUserConfig: vi.fn(),
     handleExcludeUrl: vi.fn(),
+    handleExcludeFromMatch: vi.fn(),
+    handleOnlyRunOnUrl: vi.fn(),
+    handleAllowUrl: vi.fn(),
     handleMenuClick: vi.fn(),
     handleRunScript: vi.fn(),
     handleStopScript: vi.fn(),
@@ -86,6 +92,7 @@ function makeScriptMenu(overrides: Record<string, any> = {}) {
     runNumByIframe: 0,
     menus: [],
     isEffective: null,
+    hasMatchOverride: false,
     ...overrides,
   };
 }
@@ -104,6 +111,40 @@ describe("Popup 页头品牌标识", () => {
   });
 });
 
+describe("Popup 更多菜单焦点行为", () => {
+  it("Firefox 瞬时焦点移出时保持开启，Escape 和菜单项仍可关闭", async () => {
+    const handleCreateScript = vi.fn();
+    mockData = makeData({ handleCreateScript });
+    render(<App />);
+
+    const trigger = screen.getByRole("button", { name: t("more_menu") });
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+    await act(async () => {
+      outside.focus();
+    });
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(outside);
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: t("script:create_script") }));
+    expect(handleCreateScript).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    trigger.focus();
+    outside.remove();
+  });
+});
+
 describe("Popup 紧凑布局", () => {
   it("启用后应缩小分组标题与脚本行间距", () => {
     const script = makeScriptMenu();
@@ -119,6 +160,151 @@ describe("Popup 紧凑布局", () => {
 
     expect(screen.getByText(new RegExp(t("popup:current_page_scripts"))).closest("button")).toHaveClass("h-8", "px-3");
     expect(screen.getByText("Script A").closest("button")?.parentElement).toHaveClass("h-9", "px-3", "gap-2");
+  });
+});
+
+describe("Popup 当前页状态提示（脚本猫触及不到的页面）", () => {
+  it.each([
+    ["restricted", "浏览器不允许扩展在此页面运行脚本"],
+    ["blacklist", "当前页面在黑名单中，无法使用脚本"],
+    ["file-access-denied", "要在本地文件上运行脚本，请在扩展详情页开启「允许访问文件网址」"],
+    ["not-injected", "脚本尚未在此页面运行，刷新页面后生效"],
+    ["scripts-disabled", "脚本已全局关闭，开启上方开关并刷新页面后生效"],
+    ["userscripts-unavailable", "浏览器的用户脚本功能未启用，脚本无法在此页面运行"],
+  ])("pageStatus=%s 时说明本页不运行脚本的原因", (pageStatus, message) => {
+    mockData = makeData({ pageStatus, scriptList: [], fullScriptCount: 0 });
+    render(<App />);
+
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  it("pageStatus=ok 时不显示任何状态提示", () => {
+    mockData = makeData({ scriptList: [makeScriptMenu()], fullScriptCount: 1 });
+    render(<App />);
+
+    expect(screen.queryByText(/浏览器不允许|黑名单|允许访问文件网址|刷新页面后生效/)).not.toBeInTheDocument();
+  });
+});
+
+describe("Popup 脚本快捷设置与站点范围操作", () => {
+  it.each([false, true])(
+    "开关关闭时有效脚本始终保留排除并回落黑名单动作（hasMatchOverride=%s）",
+    (hasMatchOverride) => {
+      const handleExcludeUrl = vi.fn();
+      mockData = makeData({
+        scriptList: [makeScriptMenu({ isEffective: true, hasMatchOverride })],
+        fullScriptCount: 1,
+        handleExcludeUrl,
+      });
+      render(<App />);
+
+      fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+      expect(screen.getByRole("button", { name: "脚本设置" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "仅在 example.com 执行" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "允许在 example.com 执行" })).not.toBeInTheDocument();
+      const excludeButton = screen.getByRole("button", { name: "排除在 example.com 上执行" });
+      expect(excludeButton).toHaveClass("text-type-orange");
+      fireEvent.click(excludeButton);
+      expect(handleExcludeUrl).toHaveBeenCalledWith("u1", true);
+    }
+  );
+
+  it("S1 全局生效时显示带确认的仅运行在与互斥排除", async () => {
+    const handleOnlyRunOnUrl = vi.fn();
+    const handleExcludeFromMatch = vi.fn();
+    mockData = makeData({
+      popupSiteScopeActions: true,
+      scriptList: [makeScriptMenu({ isEffective: true, hasMatchOverride: false })],
+      fullScriptCount: 1,
+      handleOnlyRunOnUrl,
+      handleExcludeFromMatch,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    const onlyButton = screen.getByRole("button", { name: "仅在 example.com 执行" });
+    expect(onlyButton).toHaveClass("text-primary");
+    expect(screen.getByRole("button", { name: "排除在 example.com 上执行" })).toHaveClass("text-type-orange");
+
+    fireEvent.click(onlyButton);
+    expect(handleOnlyRunOnUrl).not.toHaveBeenCalled();
+    expect(await screen.findByText("将清空脚本原有的网站匹配规则，确认仅在此网站运行？")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("popconfirm-confirm"));
+    expect(handleOnlyRunOnUrl).toHaveBeenCalledWith("u1");
+
+    fireEvent.click(screen.getByRole("button", { name: "排除在 example.com 上执行" }));
+    expect(handleExcludeFromMatch).toHaveBeenCalledWith("u1");
+  });
+
+  it("S3 已包含时只显示排除并调用匹配覆盖操作", () => {
+    const handleExcludeFromMatch = vi.fn();
+    mockData = makeData({
+      popupSiteScopeActions: true,
+      scriptList: [makeScriptMenu({ isEffective: true, hasMatchOverride: true })],
+      fullScriptCount: 1,
+      handleExcludeFromMatch,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    expect(screen.queryByRole("button", { name: "仅在 example.com 执行" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "允许在 example.com 执行" })).not.toBeInTheDocument();
+    const excludeButton = screen.getByRole("button", { name: "排除在 example.com 上执行" });
+    expect(excludeButton).toHaveClass("text-type-orange");
+    fireEvent.click(excludeButton);
+    expect(handleExcludeFromMatch).toHaveBeenCalledWith("u1");
+  });
+
+  it.each([false, true])("S2/S4 本站不生效时只显示包含动作（hasMatchOverride=%s）", (hasMatchOverride) => {
+    const handleAllowUrl = vi.fn();
+    mockData = makeData({
+      popupSiteScopeActions: true,
+      scriptList: [makeScriptMenu({ isEffective: false, hasMatchOverride })],
+      fullScriptCount: 1,
+      handleAllowUrl,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    const allowButton = screen.getByRole("button", { name: "允许在 example.com 执行" });
+    expect(allowButton).toHaveClass("text-primary");
+    expect(screen.queryByRole("button", { name: "仅在 example.com 执行" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "排除在 example.com 上执行" })).not.toBeInTheDocument();
+    fireEvent.click(allowButton);
+    expect(handleAllowUrl).toHaveBeenCalledWith("u1");
+  });
+
+  it("只匹配到 iframe 的脚本隐藏站点范围动作（规则按顶层 host 生成，对它不成立）", () => {
+    mockData = makeData({
+      popupSiteScopeActions: true,
+      scriptList: [makeScriptMenu({ isEffective: true, hasMatchOverride: false, matchesTopFrame: false })],
+      fullScriptCount: 1,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    expect(screen.getByRole("button", { name: "脚本设置" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "仅在 example.com 执行" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "允许在 example.com 执行" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "排除在 example.com 上执行" })).not.toBeInTheDocument();
+  });
+
+  it("开关关闭且本站不生效时隐藏包含与排除动作", () => {
+    mockData = makeData({
+      scriptList: [makeScriptMenu({ isEffective: false, hasMatchOverride: true })],
+      fullScriptCount: 1,
+    });
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Script A/ }));
+
+    expect(screen.queryByRole("button", { name: "允许在 example.com 执行" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "排除在 example.com 上执行" })).not.toBeInTheDocument();
   });
 });
 
@@ -303,6 +489,81 @@ describe("Popup 输入型 GM 菜单（对齐 v1.4：菜单名按钮即提交）"
   });
 });
 
+describe("Popup 菜单展开数量为 0 时的菜单位置", () => {
+  const menu = { key: "k1", name: "菜单命令", groupKey: "g1" };
+
+  function buttonTexts() {
+    return Array.from(document.querySelectorAll("button")).map((b) => b.textContent || "");
+  }
+
+  it("菜单展开数量为 0：展开脚本后，菜单排在「编辑」「脚本设置」之前", () => {
+    const script = makeScriptMenu({ uuid: "u1", menus: [menu] });
+    mockData = makeData({
+      scriptList: [script],
+      allScripts: [script],
+      fullScriptCount: 1,
+      enabledScriptCount: 1,
+      menuExpandNum: 0,
+    });
+
+    render(<App />);
+    // 未展开时不显示菜单
+    expect(screen.queryByText("菜单命令")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Script A").closest("button")!);
+
+    const texts = buttonTexts();
+    const menuIndex = texts.findIndex((s) => s.includes("菜单命令"));
+    const editIndex = texts.findIndex((s) => s.includes(t("edit")));
+    const settingIndex = texts.findIndex((s) => s.includes(t("editor:script_setting")));
+    expect(menuIndex).toBeGreaterThanOrEqual(0);
+    expect(menuIndex).toBeLessThan(editIndex);
+    expect(menuIndex).toBeLessThan(settingIndex);
+  });
+
+  it("菜单展开数量大于 0：菜单仍常驻在折叠区之外，位于「编辑」「脚本设置」之后", () => {
+    const script = makeScriptMenu({ uuid: "u1", menus: [menu] });
+    mockData = makeData({
+      scriptList: [script],
+      allScripts: [script],
+      fullScriptCount: 1,
+      enabledScriptCount: 1,
+      menuExpandNum: 5,
+    });
+
+    render(<App />);
+    expect(screen.getByText("菜单命令")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Script A").closest("button")!);
+
+    const texts = buttonTexts();
+    const menuIndex = texts.findIndex((s) => s.includes("菜单命令"));
+    const settingIndex = texts.findIndex((s) => s.includes(t("editor:script_setting")));
+    expect(settingIndex).toBeGreaterThanOrEqual(0);
+    expect(menuIndex).toBeGreaterThan(settingIndex);
+  });
+
+  it("负数菜单展开数量：保留原有行为显示全部菜单", () => {
+    const menus = [
+      { key: "k1", name: "菜单命令 1", groupKey: "g1" },
+      { key: "k2", name: "菜单命令 2", groupKey: "g2" },
+    ];
+    const script = makeScriptMenu({ uuid: "u1", menus });
+    mockData = makeData({
+      scriptList: [script],
+      allScripts: [script],
+      fullScriptCount: 1,
+      enabledScriptCount: 1,
+      menuExpandNum: -1,
+    });
+
+    render(<App />);
+
+    expect(screen.getByText("菜单命令 1")).toBeInTheDocument();
+    expect(screen.getByText("菜单命令 2")).toBeInTheDocument();
+  });
+});
+
 describe("Popup 移动端宽度适配 (#686 Edge Android)", () => {
   it("popup.html 通过媒体查询在移动端（视口 >360px）将宽度切换为 100%", () => {
     const html = fs.readFileSync(path.join(process.cwd(), "src/pages/popup.html"), "utf8");
@@ -358,6 +619,80 @@ describe("Popup 页脚版本号可达性", () => {
 
     fireEvent.click(btn);
     expect(handleVersionClick).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Popup 反馈问题链接", () => {
+  async function openFeedback(userAgent: string, highEntropy?: Record<string, unknown>) {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    const uaSpy = vi.spyOn(navigator, "userAgent", "get").mockReturnValue(userAgent);
+    if (highEntropy) {
+      Object.defineProperty(navigator, "userAgentData", {
+        value: { getHighEntropyValues: () => Promise.resolve(highEntropy) },
+        configurable: true,
+      });
+    }
+    mockData = makeData();
+    // client hints 是挂载后异步取的，要等这次微任务落地才反映到链接上
+    await act(async () => {
+      render(<App />);
+    });
+
+    const trigger = screen.getByRole("button", { name: t("more_menu") });
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("menuitem", { name: t("report_issue") }));
+
+    const href = open.mock.calls[0][0] as string;
+    open.mockRestore();
+    uaSpy.mockRestore();
+    if (highEntropy) Reflect.deleteProperty(navigator, "userAgentData");
+    return new URL(href);
+  }
+
+  const CHROME_MAC =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
+
+  it("落到模板选择页，而不是替用户选定某个模板", async () => {
+    const url = await openFeedback(CHROME_MAC);
+
+    expect(url.origin + url.pathname).toBe("https://github.com/scriptscat/scriptcat/issues/new/choose");
+    // 不再按界面语言分叉到 01_bug_report / 11_bug_report_en：模板由用户在 choose 页自己挑
+    expect(url.searchParams.get("template")).toBeNull();
+    expect(url.search).not.toMatch(/bug_report/);
+  });
+
+  it("带上模板能认的参数名，且 browser 是人话而不是整条 UA", async () => {
+    const url = await openFeedback(CHROME_MAC);
+
+    // 参数名必须与 .github/ISSUE_TEMPLATE 里的字段 id 一致，对不上 GitHub 会静默丢弃
+    expect(url.searchParams.get("scriptcat-version")).toBe(ExtVersion);
+    expect(url.searchParams.get("browser")).toBe("macOS + Chrome 143");
+  });
+
+  it("认不出的 UA 原样带上，不丢信息", async () => {
+    const url = await openFeedback("SomeBrandNewAgent/1.0");
+
+    expect(url.searchParams.get("browser")).toBe("SomeBrandNewAgent/1.0");
+  });
+
+  it("能拿到 client hints 时补出真实系统版本、构建号与架构", async () => {
+    // Chromium 的 UA 被 UA reduction 冻结，这些细节只有 client hints 有
+    const url = await openFeedback(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+      {
+        platform: "Windows",
+        platformVersion: "15.0.0",
+        fullVersionList: [
+          { brand: "Not(A:Brand", version: "99.0.0.0" },
+          { brand: "Google Chrome", version: "143.0.7499.96" },
+        ],
+        architecture: "arm",
+        bitness: "64",
+      }
+    );
+
+    expect(url.searchParams.get("browser")).toBe("Windows 11 + Chrome 143.0.7499.96 (arm64)");
   });
 });
 

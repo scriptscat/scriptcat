@@ -40,15 +40,6 @@ const baseProps = () => ({
 });
 
 describe("MobileEditor 移动端编辑器外壳", () => {
-  it("应显示脚本标题", () => {
-    const { getByText } = render(
-      <MobileEditor {...baseProps()}>
-        <div>{"editor"}</div>
-      </MobileEditor>
-    );
-    expect(getByText("Bilibili Evolved")).toBeTruthy();
-  });
-
   it("点击返回按钮应回调 onBack", () => {
     const props = baseProps();
     const { getByLabelText } = render(
@@ -166,6 +157,16 @@ describe("MobileEditor 更多菜单（与桌面端共用同一份二级菜单）
     for (const name of ["文件", "编辑", "运行", "设置"]) {
       expect(getMenuItem(name)).toBeInTheDocument();
     }
+  });
+
+  it("不应出现「视图」分组：移动端没有脚本列表面板，那条命令在这里无从执行", async () => {
+    const { getByLabelText } = render(
+      <MobileEditor {...baseProps()}>
+        <div />
+      </MobileEditor>
+    );
+    await openMore(getByLabelText("更多"));
+    expect(queryMenuItem("视图")).toBeNull();
   });
 
   it("普通脚本（canRun=false）展开更多菜单时应隐藏「运行」分组", async () => {

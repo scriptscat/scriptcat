@@ -1,7 +1,7 @@
 import { initTestEnv } from "@Tests/utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cacheInstance } from "@App/app/cache";
-import { CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
+import { CACHE_KEY_TAB_LOADED, CACHE_KEY_TAB_SCRIPT } from "@App/app/cache_key";
 import { PopupService } from "./popup";
 import type { ScriptMenu } from "./types";
 import type { RuntimeService } from "./runtime";
@@ -19,6 +19,8 @@ import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { Group } from "@Packages/message/server";
 import type { SystemConfig } from "@App/pkg/config/config";
 import type { TDeleteScript, TEnableScript, TInstallScript, TScriptRunStatus } from "../queue";
+import type WebNavigationMock from "@Packages/chrome-extension-mock/web_navigation";
+import type ExtensionMock from "@Packages/chrome-extension-mock/extension";
 
 initTestEnv();
 
@@ -37,6 +39,7 @@ const createMenu = (uuid: string, overrides: Partial<ScriptMenu> = {}): ScriptMe
   runNumByIframe: 0,
   menus: [],
   isEffective: true,
+  hasMatchOverride: false,
   ...overrides,
 });
 
@@ -74,6 +77,8 @@ const createService = (overrides: { runtime?: Partial<RuntimeService>; scriptDAO
     getPopupPageScriptMatchingResultByUrl: vi.fn().mockResolvedValue(new Map()),
     isUrlBlacklist: vi.fn().mockReturnValue(false),
     emitEventToTab: vi.fn(),
+    isLoadScripts: true,
+    isUserScriptsAvailable: true,
     ...overrides.runtime,
   } as unknown as RuntimeService;
   const scriptDAO = {
@@ -102,25 +107,20 @@ const flushAsync = (tabId: number = -1) => cacheInstance.tx(`${CACHE_KEY_TAB_SCR
 describe("PopupService 删除脚本后 Popup 菜单残留清理", () => {
   beforeEach(async () => {
     await cacheInstance.clear();
+    await cacheInstance.set(`${CACHE_KEY_TAB_LOADED}${1}`, "https://example.com");
   });
 
-  it("getPopupData 读取 Popup 数据时，应过滤掉 runScripts 缓存里已删除脚本的残留记录", async () => {
+  it("getPopupData 读取 Popup 数据时，不应显示 runScripts 缓存中的未匹配脚本", async () => {
     const deletedUuid = "deleted-script";
     const liveUuid = "live-script";
     await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(deletedUuid), createMenu(liveUuid)]);
 
-    const { service, scriptDAO } = createService({
-      scriptDAO: {
-        gets: vi.fn(async (uuids: string[]) =>
-          uuids.map((uuid) => (uuid === liveUuid ? createScript(uuid) : undefined))
-        ),
-      },
-    });
+    const { service, scriptDAO } = createService();
 
     const result = await service.getPopupData({ tabId: 1, url: "https://example.com/" });
 
-    expect(result.scriptList.map((script) => script.uuid)).toEqual([liveUuid]);
-    expect(scriptDAO.gets).toHaveBeenCalledWith([deletedUuid, liveUuid]);
+    expect(result.scriptList).toEqual([]);
+    expect(scriptDAO.gets).toHaveBeenCalledWith([]);
   });
 
   it("updateRegisterMenuCommand 应忽略已删除脚本发来的迟到 GM_registerMenuCommand", async () => {
@@ -196,6 +196,7 @@ describe("PopupService addScriptRunNumber 页面脚本执行计数", () => {
     await service.addScriptRunNumber({
       tabId: 1,
       frameId: 0,
+      url: "https://example.com/",
       scriptmenus: [createMenu(newUuid, { runNum: 0 })],
     });
 
@@ -213,6 +214,7 @@ describe("PopupService addScriptRunNumber 页面脚本执行计数", () => {
     await service.addScriptRunNumber({
       tabId: 1,
       frameId: 10, // subframe id
+      url: "https://frame.example.com/",
       scriptmenus: [createMenu(uuid, { runNum: 0 })],
     });
 
@@ -228,6 +230,7 @@ describe("PopupService addScriptRunNumber 页面脚本执行计数", () => {
     await service.addScriptRunNumber({
       tabId: 1,
       frameId: 0,
+      url: "https://example.com/",
       scriptmenus: [createMenu(uuid, { runNum: 0, isEffective: true })],
     });
 
@@ -241,7 +244,7 @@ describe("PopupService addScriptRunNumber 页面脚本执行计数", () => {
   it("scriptmenus 为空且缓存也为空时，不应写入 session 缓存（避免无谓的 storage 写入）", async () => {
     const { service } = createService();
 
-    await service.addScriptRunNumber({ tabId: 1, frameId: 0, scriptmenus: [] });
+    await service.addScriptRunNumber({ tabId: 1, frameId: 0, url: "https://example.com/", scriptmenus: [] });
 
     // 不应产生任何缓存记录
     await expect(service.getScriptMenu(1)).resolves.toEqual([]);
@@ -260,6 +263,7 @@ describe("PopupService addScriptRunNumber 页面脚本执行计数", () => {
     await service.addScriptRunNumber({
       tabId: 1,
       frameId: 5, // subframe，非 0 → 保留旧缓存叠加
+      url: "https://frame.example.com/",
       scriptmenus: [createMenu(uuidA, { runNum: 0 }), createMenu(uuidB, { runNum: 0 })],
     });
 
@@ -276,10 +280,36 @@ describe("PopupService addScriptRunNumber 页面脚本执行计数", () => {
 describe("PopupService getPopupData Popup 数据获取与合并", () => {
   beforeEach(async () => {
     await cacheInstance.clear();
+    // 这些用例只关心「匹配结果如何合并」，统一预置为「本页 content script 已报到」
+    await cacheInstance.set(`${CACHE_KEY_TAB_LOADED}${1}`, "https://example.com");
   });
 
   it("URL 匹配的脚本（无运行缓存）应出现在 scriptList，isEffective 与 enable 按脚本状态设置", async () => {
     const uuid = "match-uuid";
+    const matchMap = new Map([[uuid, { uuid, effective: true }]]);
+
+    const { service } = createService({
+      runtime: {
+        getPopupPageScriptMatchingResultByUrl: vi.fn().mockResolvedValue(matchMap),
+        isUrlBlacklist: vi.fn().mockReturnValue(false),
+      },
+      scriptDAO: {
+        gets: vi.fn().mockResolvedValue([createScript(uuid, { selfMetadata: { match: ["*://example.com/*"] } })]),
+      },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: "https://example.com/" });
+
+    expect(result.scriptList).toHaveLength(1);
+    expect(result.scriptList[0].uuid).toBe(uuid);
+    expect(result.scriptList[0].isEffective).toBe(true);
+    expect(result.scriptList[0].enable).toBe(true);
+    expect(result.scriptList[0].hasMatchOverride).toBe(true);
+    expect(result.pageStatus).toBe("ok");
+  });
+
+  it("无 match 覆盖的脚本（无运行缓存）hasMatchOverride 应为 false", async () => {
+    const uuid = "no-match-uuid";
     const matchMap = new Map([[uuid, { uuid, effective: true }]]);
 
     const { service } = createService({
@@ -294,11 +324,7 @@ describe("PopupService getPopupData Popup 数据获取与合并", () => {
 
     const result = await service.getPopupData({ tabId: 1, url: "https://example.com/" });
 
-    expect(result.scriptList).toHaveLength(1);
-    expect(result.scriptList[0].uuid).toBe(uuid);
-    expect(result.scriptList[0].isEffective).toBe(true);
-    expect(result.scriptList[0].enable).toBe(true);
-    expect(result.isBlacklist).toBe(false);
+    expect(result.scriptList[0].hasMatchOverride).toBe(false);
   });
 
   it("脚本同时在匹配结果与运行缓存中，应复用缓存记录（保留 runNum）并更新 enable/isEffective/hasUserConfig", async () => {
@@ -326,6 +352,28 @@ describe("PopupService getPopupData Popup 数据获取与合并", () => {
     expect(result.scriptList[0].hasUserConfig).toBe(true); // script.config 存在
   });
 
+  it("合并 run 记录时应按当前脚本同步 hasMatchOverride（match 覆盖存在性）", async () => {
+    const uuid = "run-uuid-2";
+    const matchMap = new Map([[uuid, { uuid, effective: false }]]);
+    // 运行缓存中存有旧的 hasMatchOverride 记录（模拟缓存来自更早的一次合并）
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(uuid, { runNum: 3, hasMatchOverride: false })]);
+
+    const { service } = createService({
+      runtime: {
+        getPopupPageScriptMatchingResultByUrl: vi.fn().mockResolvedValue(matchMap),
+        isUrlBlacklist: vi.fn().mockReturnValue(false),
+      },
+      scriptDAO: {
+        gets: vi.fn().mockResolvedValue([createScript(uuid, { selfMetadata: { match: ["*://example.com/*"] } })]),
+      },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: "https://example.com/" });
+
+    expect(result.scriptList[0].runNum).toBe(3); // 保留缓存中的执行次数
+    expect(result.scriptList[0].hasMatchOverride).toBe(true); // 按当前脚本的 match 覆盖同步
+  });
+
   it("URL 无任何匹配脚本时，scriptList 为空；后台脚本应出现在 backScriptList", async () => {
     const bgUuid = "bg-uuid";
     // 预置后台菜单缓存（tabId = -1）
@@ -343,19 +391,6 @@ describe("PopupService getPopupData Popup 数据获取与合并", () => {
     expect(result.scriptList).toHaveLength(0);
     expect(result.backScriptList).toHaveLength(1);
     expect(result.backScriptList[0].uuid).toBe(bgUuid);
-  });
-
-  it("isBlacklist 由 runtime.isUrlBlacklist 决定，黑名单 URL 应返回 true", async () => {
-    const { service } = createService({
-      runtime: {
-        getPopupPageScriptMatchingResultByUrl: vi.fn().mockResolvedValue(new Map()),
-        isUrlBlacklist: vi.fn().mockReturnValue(true),
-      },
-    });
-
-    const result = await service.getPopupData({ tabId: 1, url: "https://blocked.com/" });
-
-    expect(result.isBlacklist).toBe(true);
   });
 
   it("未匹配当前 URL 但仍在运行的脚本，若脚本在 DAO 中已被删除，不应出现在 scriptList", async () => {
@@ -376,6 +411,320 @@ describe("PopupService getPopupData Popup 数据获取与合并", () => {
     const result = await service.getPopupData({ tabId: 1, url: "https://example.com/" });
 
     expect(result.scriptList.map((s) => s.uuid)).not.toContain(deletedUuid);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("PopupService getPopupData 页面可达性（脚本猫无法触及的页面）", () => {
+  const WEB_URL = "https://example.com/";
+  // 与 webNavigation 同理：@types/chrome 的 callback 重载会让 vi.spyOn 取到返回 void 的那一个
+  const extensionMock = chrome.extension as unknown as ExtensionMock;
+  const matchOne = (uuid: string) => vi.fn().mockResolvedValue(new Map([[uuid, { uuid, effective: true }]]));
+
+  /** 模拟 content script 报到：顶层 frame 载入事件 */
+  const firePageLoad = (service: PopupService, tabId: number, url: string) =>
+    service.markTabInjected({ tabId, frameId: 0, url });
+
+  beforeEach(async () => {
+    await cacheInstance.clear();
+    vi.restoreAllMocks();
+  });
+
+  it("浏览器内部页应返回 restricted，且不列出仅 pattern 命中的脚本", async () => {
+    const uuid = "allsite";
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matchOne(uuid) },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: "chrome://settings/" });
+
+    expect(result.pageStatus).toBe("restricted");
+    expect(result.scriptList).toEqual([]);
+  });
+
+  it("受限页仍应返回后台脚本清单（后台脚本与当前页无关）", async () => {
+    const bgUuid = "bg";
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${-1}`, [createMenu(bgUuid)]);
+    const { service } = createService({
+      scriptDAO: { gets: vi.fn(async (uuids: string[]) => uuids.map((uuid) => createScript(uuid))) },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: "chrome://settings/" });
+
+    expect(result.backScriptList.map((s) => s.uuid)).toEqual([bgUuid]);
+  });
+
+  it("黑名单页应返回 blacklist，且不列出脚本（黑名单页同样不会注入）", async () => {
+    const uuid = "allsite";
+    const { service } = createService({
+      runtime: {
+        getPopupPageScriptMatchingResultByUrl: matchOne(uuid),
+        isUrlBlacklist: vi.fn().mockReturnValue(true),
+      },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+    await firePageLoad(service, 1, WEB_URL);
+
+    const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
+
+    expect(result.pageStatus).toBe("blacklist");
+    expect(result.scriptList).toEqual([]);
+  });
+
+  it("可注入页收到 content script 报到后返回 ok，正常列出脚本", async () => {
+    const uuid = "allsite";
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matchOne(uuid) },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+    await firePageLoad(service, 1, WEB_URL);
+
+    const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
+
+    expect(result.pageStatus).toBe("ok");
+    expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
+  });
+
+  it("可注入页但从未收到报到（页面比扩展旧 / 被策略拦下）应返回 not-injected", async () => {
+    const uuid = "allsite";
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matchOne(uuid) },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
+
+    expect(result.pageStatus).toBe("not-injected");
+    expect(result.scriptList).toEqual([]);
+  });
+
+  it("同 origin 内的后续导航（SPA 换页）仍算已注入", async () => {
+    const { service } = createService();
+    await firePageLoad(service, 1, "https://example.com/a");
+
+    const result = await service.getPopupData({ tabId: 1, url: "https://example.com/b?c=1" });
+
+    expect(result.pageStatus).toBe("ok");
+  });
+
+  it("跳到另一个 origin 后，旧报到记录不应让新页面被判为已注入", async () => {
+    const { service } = createService();
+    await firePageLoad(service, 1, "https://example.com/a");
+
+    const result = await service.getPopupData({ tabId: 1, url: "https://other.com/a" });
+
+    expect(result.pageStatus).toBe("not-injected");
+  });
+
+  it("扩展商店页未注入时报 restricted（浏览器保护自家商店）", async () => {
+    const { service } = createService();
+
+    const result = await service.getPopupData({
+      tabId: 1,
+      url: "https://microsoftedge.microsoft.com/addons/detail/abcdefgh",
+    });
+
+    expect(result.pageStatus).toBe("restricted");
+  });
+
+  it("扩展商店页若实际已注入则按 ok 处理：各浏览器只保护自家商店，别家商店在本浏览器是普通网页", async () => {
+    const uuid = "allsite";
+    const storeUrl = "https://microsoftedge.microsoft.com/addons/detail/abcdefgh";
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matchOne(uuid) },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+    await firePageLoad(service, 1, storeUrl);
+
+    const result = await service.getPopupData({ tabId: 1, url: storeUrl });
+
+    expect(result.pageStatus).toBe("ok");
+    expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
+  });
+
+  it("file:// 页未授权文件访问时应返回 file-access-denied", async () => {
+    vi.spyOn(extensionMock, "isAllowedFileSchemeAccess").mockResolvedValue(false);
+    const { service } = createService();
+
+    const result = await service.getPopupData({ tabId: 1, url: "file:///tmp/a.html" });
+
+    expect(result.pageStatus).toBe("file-access-denied");
+  });
+
+  it("未注入且全局脚本开关已关闭时应指出开关，而不是让用户白刷新", async () => {
+    const { service } = createService({ runtime: { isLoadScripts: false } });
+
+    const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
+
+    expect(result.pageStatus).toBe("scripts-disabled");
+  });
+
+  it("未注入且 UserScripts API 不可用时应指出浏览器设置，而不是让用户白刷新", async () => {
+    const { service } = createService({ runtime: { isUserScriptsAvailable: false } });
+
+    const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
+
+    expect(result.pageStatus).toBe("userscripts-unavailable");
+  });
+
+  it("关掉开关不会杀死已注入页面上正在跑的脚本，该页仍应为 ok", async () => {
+    const uuid = "allsite";
+    const { service } = createService({
+      runtime: { isLoadScripts: false, getPopupPageScriptMatchingResultByUrl: matchOne(uuid) },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+    await firePageLoad(service, 1, WEB_URL);
+
+    const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
+
+    expect(result.pageStatus).toBe("ok");
+    expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
+  });
+
+  it("file:// 页已实际注入时按 ok 处理，不因权限查询结果误报", async () => {
+    vi.spyOn(extensionMock, "isAllowedFileSchemeAccess").mockResolvedValue(false);
+    const { service } = createService();
+    await firePageLoad(service, 1, "file:///tmp/a.html");
+
+    const result = await service.getPopupData({ tabId: 1, url: "file:///tmp/a.html" });
+
+    expect(result.pageStatus).toBe("ok");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("PopupService getPopupData 子 frame（iframe）内运行的脚本", () => {
+  const TOP_URL = "https://top.example.com/";
+  const FRAME_URL = "https://embed.example.org/player";
+
+  // @types/chrome 的 getAllFrames 以 callback 重载收尾，vi.spyOn 会取到返回 void 的那一个，
+  // 因此改用 mock 实作的类型来 spy。
+  const webNavigationMock = chrome.webNavigation as unknown as WebNavigationMock;
+
+  /** 让 chrome.webNavigation.getAllFrames 返回指定的子 frame 网址（frameId 从 1 起） */
+  const mockFrames = (urls: string[]) =>
+    vi
+      .spyOn(webNavigationMock, "getAllFrames")
+      .mockResolvedValue([
+        { frameId: 0, url: TOP_URL },
+        ...urls.map((url, i) => ({ frameId: i + 1, url })),
+      ] as chrome.webNavigation.GetAllFrameResultDetails[]);
+
+  /** 匹配器：只有 matchedUrls 里的网址会命中 uuid */
+  const matcherFor = (uuid: string, matchedUrls: string[], effective = true) =>
+    vi.fn(async (url: string) => (matchedUrls.includes(url) ? new Map([[uuid, { uuid, effective }]]) : new Map()));
+
+  beforeEach(async () => {
+    await cacheInstance.clear();
+    await cacheInstance.set(`${CACHE_KEY_TAB_LOADED}${1}`, "https://top.example.com");
+    vi.restoreAllMocks();
+  });
+
+  it("只匹配 iframe 网址并已在该 frame 运行过的脚本，应出现在当前页脚本列表", async () => {
+    const uuid = "iframe-only";
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(uuid, { runNum: 1, runNumByIframe: 1 })]);
+    mockFrames([FRAME_URL]);
+
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matcherFor(uuid, [FRAME_URL]) },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: TOP_URL });
+
+    expect(result.scriptList.map((s) => s.uuid)).toContain(uuid);
+    expect(result.scriptList[0].runNumByIframe).toBe(1);
+    expect(result.scriptList[0].isEffective).toBe(true);
+  });
+
+  it("仅匹配 iframe 的脚本应标记 matchesTopFrame = false，顶层匹配的脚本为 true", async () => {
+    const topUuid = "top-script";
+    const frameUuid = "iframe-script";
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(frameUuid, { runNumByIframe: 1 })]);
+    mockFrames([FRAME_URL]);
+
+    const { service } = createService({
+      runtime: {
+        getPopupPageScriptMatchingResultByUrl: vi.fn(async (url: string) =>
+          url === TOP_URL
+            ? new Map([[topUuid, { uuid: topUuid, effective: true }]])
+            : new Map([[frameUuid, { uuid: frameUuid, effective: true }]])
+        ),
+      },
+      scriptDAO: {
+        gets: vi.fn(async (uuids: string[]) => uuids.map((uuid) => createScript(uuid))),
+      },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: TOP_URL });
+
+    const byUuid = new Map(result.scriptList.map((s) => [s.uuid, s]));
+    expect(byUuid.get(topUuid)?.matchesTopFrame).toBe(true);
+    expect(byUuid.get(frameUuid)?.matchesTopFrame).toBe(false);
+  });
+
+  it("运行过但已不匹配任何 frame 的脚本（例如刚被排除本站），不应出现在列表", async () => {
+    const uuid = "just-excluded";
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(uuid, { runNum: 1 })]);
+    mockFrames([FRAME_URL]);
+
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matcherFor(uuid, []) },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: TOP_URL });
+
+    expect(result.scriptList).toHaveLength(0);
+  });
+
+  it("匹配 iframe 但已从 DAO 删除的脚本，不应出现在列表", async () => {
+    const uuid = "deleted-iframe-script";
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(uuid, { runNumByIframe: 1 })]);
+    mockFrames([FRAME_URL]);
+
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matcherFor(uuid, [FRAME_URL]) },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([undefined]) },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: TOP_URL });
+
+    expect(result.scriptList).toHaveLength(0);
+  });
+
+  it("getAllFrames 失败（标签页已关闭等）时降级为只看顶层匹配，不影响顶层脚本列表", async () => {
+    const topUuid = "top-script";
+    const frameUuid = "iframe-script";
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(frameUuid, { runNumByIframe: 1 })]);
+    vi.spyOn(webNavigationMock, "getAllFrames").mockRejectedValue(new Error("No tab with id"));
+
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matcherFor(topUuid, [TOP_URL]) },
+      scriptDAO: { gets: vi.fn(async (uuids: string[]) => uuids.map((uuid) => createScript(uuid))) },
+    });
+
+    const result = await service.getPopupData({ tabId: 1, url: TOP_URL });
+
+    expect(result.scriptList.map((s) => s.uuid)).toEqual([topUuid]);
+  });
+
+  it("顶层匹配已覆盖的脚本不应触发 getAllFrames 查询", async () => {
+    const uuid = "top-script";
+    await cacheInstance.set(`${CACHE_KEY_TAB_SCRIPT}${1}`, [createMenu(uuid)]);
+    const getAllFrames = mockFrames([FRAME_URL]);
+
+    const { service } = createService({
+      runtime: { getPopupPageScriptMatchingResultByUrl: matcherFor(uuid, [TOP_URL]) },
+      scriptDAO: { gets: vi.fn().mockResolvedValue([createScript(uuid)]) },
+    });
+
+    await service.getPopupData({ tabId: 1, url: TOP_URL });
+
+    expect(getAllFrames).not.toHaveBeenCalled();
   });
 });
 

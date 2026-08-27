@@ -10,6 +10,8 @@ export default class OneDriveFileSystem implements FileSystem {
 
   path: string;
 
+  private approotId?: string;
+
   constructor(path?: string, accessToken?: string) {
     this.path = path || "/";
     this.accessToken = accessToken;
@@ -47,6 +49,7 @@ export default class OneDriveFileSystem implements FileSystem {
       return;
     }
     const dirs = joinPath(this.path, dir).split("/").filter(Boolean);
+    const approotId = await this.getApprootId();
     const myHeaders = new Headers();
     myHeaders.append("Content-Type", "application/json");
 
@@ -54,7 +57,7 @@ export default class OneDriveFileSystem implements FileSystem {
       const parentPath = dirs.slice(0, i).join("/");
       const parent = parentPath ? `:/${parentPath}:` : "";
       try {
-        await this.request(`https://graph.microsoft.com/v1.0/me/drive/special/approot${parent}/children`, {
+        await this.request(`https://graph.microsoft.com/v1.0/me/drive/items/${approotId}${parent}/children`, {
           method: "POST",
           headers: myHeaders,
           body: JSON.stringify({
@@ -70,6 +73,26 @@ export default class OneDriveFileSystem implements FileSystem {
         throw error;
       }
     }
+  }
+
+  // Graph 个人版对 special/ 寻址的 POST children 一律回 400 invalidRequest，
+  // 建目录必须先把 approot 解析成 item id 再寻址；读取与上传不受影响
+  private async getApprootId(): Promise<string> {
+    if (this.approotId) {
+      return this.approotId;
+    }
+    const data = await this.request("https://graph.microsoft.com/v1.0/me/drive/special/approot");
+    const id = data && typeof data === "object" && "id" in data ? data.id : undefined;
+    if (typeof id !== "string" || id.length === 0) {
+      throw new FileSystemError({
+        provider: "onedrive",
+        message: "OneDrive approot response is missing an item id",
+        code: "invalidResponse",
+        raw: data,
+      });
+    }
+    this.approotId = id;
+    return id;
   }
 
   private isDirectoryAlreadyExistsError(error: unknown): boolean {

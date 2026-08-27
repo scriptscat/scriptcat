@@ -15,7 +15,7 @@ import { ScriptDAO } from "@App/app/repo/scripts";
 import { SystemService } from "./system";
 import { type Logger, LoggerDAO } from "@App/app/repo/logger";
 import { initLocales, initLocalesPromise, localePath, t, watchLanguageChange } from "@App/locales/locales";
-import { getCurrentTab } from "@App/pkg/utils/utils";
+import { getCurrentTab, isFirefox } from "@App/pkg/utils/utils";
 import { onTabRemoved, onUrlNavigated, setOnUserActionDomainChanged } from "./url_monitor";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { FaviconDAO } from "@App/app/repo/favicon";
@@ -26,9 +26,37 @@ import { extensionEnv, getExtensionUserAgentData } from "../extension/extension_
 import { cleanupStaleTempStorageEntries } from "./temp";
 import RuntimeLogger from "@App/app/logger/logger";
 import LoggerCore from "@App/app/logger/core";
+import { ExternalAccessApprovalService } from "@App/app/service/service_worker/external_access/approval";
+import {
+  ExternalAccessBridge,
+  type ExternalAccessWriteNotice,
+} from "@App/app/service/service_worker/external_access/bridge";
+import { ExternalAccessController } from "@App/app/service/service_worker/external_access/controller";
+import { ExternalAccessUIService } from "@App/app/service/service_worker/external_access/service";
+import { ExternalAccessConnectClient } from "@App/app/service/offscreen/client";
+import { hookFirefoxEventPageKeepAliveLoop, hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
 import { CspRuleStateDAO } from "@App/app/repo/csp_rule";
 import { CspRuleService, isCspRuleOwner } from "./csp_rule";
 import { DeclarativeNetRequestCspApplier, compileCspRules } from "./csp_rule_compiler";
+
+// "直接允许" 写策略下 MCP 无需人工确认即执行了写操作，发系统通知让用户知晓（决策 #12 的知情兜底）。
+// kind=update 只由 scripts.edit.request 产生，故文案按「编辑」而非版本更新描述，避免被误读为例行升级。
+export function notifyExternalAccessWrite(notice: ExternalAccessWriteNotice): void {
+  const name = notice.name ?? "";
+  const body =
+    notice.kind === "install"
+      ? t("external_access:allow_notify_install", { name })
+      : notice.kind === "update"
+        ? t("external_access:allow_notify_update", { name })
+        : notice.kind === "enable"
+          ? t("external_access:allow_notify_enable", { name })
+          : notice.kind === "disable"
+            ? t("external_access:allow_notify_disable", { name })
+            : notice.kind === "delete"
+              ? t("external_access:allow_notify_delete", { name })
+              : t("external_access:allow_notify_generic", { name });
+  void InfoNotification(t("external_access:allow_notify_title"), body);
+}
 
 // service worker的管理器
 export default class ServiceWorkerManager {
@@ -57,10 +85,10 @@ export default class ServiceWorkerManager {
   initManager() {
     this.api.on("logger", this.logger.bind(this));
     this.api.on("getExtensionEnv", this.getExtensionEnv.bind(this));
-    this.api.on("preparationOffscreen", async () => {
+    this.api.on("preparationOffscreen", async (data: { verified: boolean }) => {
       // 准备好环境
       await this.offscreenSend.init();
-      this.mq.emit("preparationOffscreen", {});
+      this.mq.emit("preparationOffscreen", data);
     });
     this.offscreenSend.init();
 
@@ -72,6 +100,7 @@ export default class ServiceWorkerManager {
     const localStorageDAO = new LocalStorageDAO();
 
     const systemConfig = new SystemConfig(this.mq);
+    hookFirefoxEventPageKeepAliveLoop(systemConfig);
 
     initLocales(systemConfig);
 
@@ -83,6 +112,7 @@ export default class ServiceWorkerManager {
     const value = new ValueService(this.api.group("value"), this.mq);
     const script = new ScriptService(systemConfig, this.api.group("script"), this.mq, value, resource, scriptDAO);
     script.init();
+
     const runtime = new RuntimeService(
       systemConfig,
       this.api.group("runtime"),
@@ -137,10 +167,50 @@ export default class ServiceWorkerManager {
     const agent = new AgentService(this.api.group("agent"), this.offscreenSend, resource);
     agent.init();
 
+    const hasOffscreenDocument = typeof chrome.offscreen?.createDocument === "function";
+    if (hasOffscreenDocument) {
+      hookServiceWorkerKeepAliveLoop(systemConfig, this.mq, this.offscreenSend);
+    }
+
     // 注入 AgentService 到 GMApi，使 Agent API 走权限验证通道
     const gmApi = runtime.getGMApi();
     if (gmApi) {
       gmApi.setAgentService(agent);
+    }
+
+    // 外部接入桥接：运行期开关 external_access_enabled（由 ExternalAccessController.initialize 内部监听），默认关闭，
+    // 用户在设置里显式开启前不建立连接。Firefox 的 MV3 事件页生命周期未经验证/支持，显式排除。
+    if (!isFirefox()) {
+      const externalAccessApproval = new ExternalAccessApprovalService(script, scriptDAO, script.scriptCodeDAO);
+      const externalAccessBridge = new ExternalAccessBridge(
+        scriptDAO,
+        script.scriptCodeDAO,
+        externalAccessApproval,
+        () => systemConfig.getExternalAccessWritePolicy(),
+        () => systemConfig.getExternalAccessSourceReadPolicy(),
+        notifyExternalAccessWrite
+      );
+      const externalAccessController = new ExternalAccessController(
+        systemConfig,
+        externalAccessBridge,
+        this.mq,
+        this.api.group("externalAccessConnect"),
+        new ExternalAccessConnectClient(this.offscreenSend)
+      );
+      // Deferred bridge.response for blocking ops (write approval / source disclosure): the decide
+      // or bridge.cancel event resolves the persisted op and pushes the response back through the
+      // controller's offscreen relay — never a Promise left hanging in the (suspendable) SW.
+      externalAccessApproval.setResponder((requestId, response) =>
+        externalAccessController.sendBridgeResponse(requestId, response)
+      );
+      externalAccessController.initialize();
+      const externalAccessUIService = new ExternalAccessUIService(
+        this.api.group("externalAccess"),
+        externalAccessController,
+        externalAccessApproval,
+        systemConfig
+      );
+      externalAccessUIService.init();
     }
 
     const regularScriptUpdateCheck = async () => {
@@ -187,12 +257,11 @@ export default class ServiceWorkerManager {
           regularScriptUpdateCheck();
           break;
         case "cloudSync":
-          // 进行一次云同步
-          systemConfig.getCloudSync().then((config) => {
-            synchronize.buildFileSystem(config).then((fs) => {
-              synchronize.syncOnce(config, fs);
-            });
-          });
+          // 闹钟是启用之后唯一的周期性同步入口（冷启动不再同步），cloudSyncOnce 自带启用校验
+          // 与失败状态写入；连接失败必须在这里收住，否则每轮闹钟都留下一个未捕获 rejection
+          synchronize
+            .cloudSyncOnce()
+            .catch((e) => this.serviceLogger.error("cloud sync alarm failed", RuntimeLogger.E(e)));
           break;
         case "checkUpdate":
           // 检查扩展更新

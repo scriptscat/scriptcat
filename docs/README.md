@@ -6,15 +6,24 @@
 
 | 文档 | 说明 |
 | --- | --- |
-| [`../AGENTS.md`](../AGENTS.md) | 工程原则、架构速览、AI/贡献者约定的单一信息源 —— 但仅相对 `CLAUDE.md`(其仅导入它)成立;`.github/copilot-instructions.md` 是 Copilot 的独立入口,与本文件共享的事实需在两边都改动时做一致性核对(parity review)。 |
-| [`develop.md`](./develop.md) | 开发规范:命令、目录结构、编码风格、UI/主题、i18n、提交/PR 流程;测试机制(含 Vitest 性能)拆到 [`references/develop-testing.md`](./references/develop-testing.md)。**写代码前先读。** |
+| [`../AGENTS.md`](../AGENTS.md) | 工程原则、架构速览与 AI coding agent 的共享约定所有者；`CLAUDE.md` 与 `.github/copilot-instructions.md` 均通过符号链接复用它，不维护独立契约。 |
+| [`develop.md`](./develop.md) | 开发规范:命令、目录结构、编码风格、UI/主题、i18n、提交/PR 流程;测试设计/清理口径与运行机制(含 Vitest 性能)拆到 [`references/develop-testing.md`](./references/develop-testing.md)。**写代码前先读。** |
 | [`pull-request.md`](./pull-request.md) | PR 描述指南:代理与贡献者使用的详细章节、按变更类型取舍规则、验证与审查信息要求。 |
 | [`design.md`](./design.md) | 设计系统参考:主题机制、shadcn 组件选型、新建页面配方总览;令牌完整值拆到 [`references/design-tokens.md`](./references/design-tokens.md),组件清单拆到 [`references/design-components.md`](./references/design-components.md),布局/响应式/动效/状态/无障碍范式拆到 [`references/design-patterns.md`](./references/design-patterns.md)。**做页面/对话框/区块前先读。** |
-| [`verification.md`](./verification.md) | 功能验证指南:用一次性 scratch 脚本驱动真实扩展做端到端验证(不跑全量 E2E、不加永久用例);报告模板拆到 [`references/verification-report-template.md`](./references/verification-report-template.md),调试 FAQ 拆到 [`references/verification-debugging.md`](./references/verification-debugging.md)。**验证改动是否真正跑通时读。** |
+| [`../e2e/README.md`](../e2e/README.md) | E2E 测试台手册:两条赛道(committed smoke / gitignored scratch)、浏览器与 profile 隔离、fixtures 与 helper 清单、协议 mock、`E2E_*` 环境变量、产物与失败排查路径。**跑 / 写 E2E 或一次性验证脚本前先读。** |
+| [`verification.md`](./verification.md) | 功能验证指南:启一个常驻会话(默认无头、可多 worktree 并发)逐条命令驱动真实扩展,只在需要复现顺序/时序时才写 spec,不跑全量 E2E、不加永久用例;驱动方法(GM API in-page self-test、SW 消息、主题)拆到 [`references/verification-methods.md`](./references/verification-methods.md),报告模板拆到 [`references/verification-report-template.md`](./references/verification-report-template.md),调试 FAQ 拆到 [`references/verification-debugging.md`](./references/verification-debugging.md)。**验证改动是否真正跑通时读。** |
 | [`architecture.md`](./architecture.md) | 内部原理总览:多进程模型、消息传递;各子系统深入拆到 [`references/architecture-services.md`](./references/architecture-services.md)(服务层)、[`references/architecture-data.md`](./references/architecture-data.md)(数据层)、[`references/architecture-gm-api.md`](./references/architecture-gm-api.md)(GM API)、[`references/architecture-execution.md`](./references/architecture-execution.md)(脚本执行)、[`references/architecture-build.md`](./references/architecture-build.md)(构建管线)、[`references/architecture-agent.md`](./references/architecture-agent.md)(Agent 子系统)。 |
 | [`specs/csp-rule-management.md`](./specs/csp-rule-management.md) | CSP 规则管理目标规格:讨论取舍、产品边界、目标 UI/UX 交互、域名语义、DNR 技术合同、验收与实施顺序。**实现前先读。** |
 | [`cloud-sync.md`](./cloud-sync.md) | 云同步实现说明:同步文件语义、主流程、状态合并、provider 差异、错误分类、retry 策略和维护注意事项。 |
 | [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | 文档维护与事实核对指南:组织规则、逐条核对清单、跨文档政策一致性核对、隐私清理、以及在 resolved final tree 上的复核方法,覆盖全部 tracked 的 agent/contributor Markdown(不止 `AGENTS.md` + `docs/*`,还包括 `.github/*.md`、package-local README)。**改/审文档前先读。** |
+
+## 外部接入 / External Access
+
+| 文档 | 说明 |
+| --- | --- |
+| [官网外部接入指南](https://docs.scriptcat.org/docs/use/external-access/) | 面向用户的安装、接入、权限、命令行、MCP、审计和排障指南；由 `scriptcat.org` 统一维护中文、英文和俄文版本。 |
+| [`sctl` 仓库 `docs/protocol.md`](https://github.com/scriptscat/sctl/blob/main/docs/protocol.md) | 扩展↔daemon 的 JSON-RPC 2.0、握手、能力协商、错误码和阻塞语义。权威 schema 与生成器位于 sctl；本仓库只消费 [`external_access/generated/`](../src/app/service/service_worker/external_access/generated/) 产物。 |
+| [`sctl` 仓库 `docs/threat-model.md`](https://github.com/scriptscat/sctl/blob/main/docs/threat-model.md) | 威胁模型:两个信任锚点(长期密钥 K + 0600 控制令牌)、扁平信任的取舍、Origin 白名单、攻击面与对策、写路径人工审批 + TOCTOU、落盘凭据一览。 |
 
 ## 翻译 / Translation
 

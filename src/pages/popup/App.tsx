@@ -19,6 +19,8 @@ import {
   Bug,
   BookOpen,
   MessageCircle,
+  SlidersHorizontal,
+  CircleDot,
 } from "lucide-react";
 import { GithubIcon } from "../components/icons/GithubIcon";
 import { Switch } from "../components/ui/switch";
@@ -43,7 +45,7 @@ import {
   versionCompare,
   type ScriptProvider,
 } from "./usePopupData";
-import type { ScriptMenu, ScriptMenuItem } from "@App/app/service/service_worker/types";
+import type { ScriptMenu, ScriptMenuItem, TPopupPageStatus } from "@App/app/service/service_worker/types";
 import { ScriptIcon } from "@App/pages/options/routes/ScriptList/components";
 import PopupWarnings from "./PopupWarnings";
 import { SCRIPT_RUN_STATUS_RUNNING, SCRIPT_RUN_STATUS_ERROR } from "@App/app/repo/scripts";
@@ -52,6 +54,8 @@ import { isChineseUser, localePath } from "@App/locales/locales";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@App/pkg/utils/cn";
+import { collectUserAgentHints, describeUserAgent, type UserAgentHints } from "@App/pkg/utils/user_agent";
+import { usePreventEvent } from "../components/ui/use-prevent-event";
 
 export default function App() {
   const { t } = useTranslation();
@@ -103,10 +107,10 @@ export default function App() {
       <div className="shrink-0">
         {/* 顶部警告区：UserScripts API 不可用引导 / 申请权限 / Edge 移动端二维码 / 黑名单 */}
         <PopupWarnings />
-        {/* 黑名单警告 */}
-        {data.isBlacklist && (
+        {/* 本页不会运行脚本时说明原因，取代「列出一堆并没有在跑的脚本」 */}
+        {data.pageStatus !== "ok" && (
           <div className="px-4 py-2 bg-warning-bg text-warning-fg text-xs font-medium border-b border-border">
-            {t("popup:page_in_blacklist")}
+            {getPageStatusMessage(data.pageStatus, t)}
           </div>
         )}
         <Header
@@ -161,8 +165,13 @@ export default function App() {
                 onToggle={data.handleToggleScript}
                 onDelete={data.handleDeleteScript}
                 onOpenEditor={data.handleOpenEditor}
+                onOpenScriptSettings={data.handleOpenScriptSettings}
                 onOpenUserConfig={data.handleOpenUserConfig}
                 onExcludeUrl={data.handleExcludeUrl}
+                onExcludeFromMatch={data.handleExcludeFromMatch}
+                showSiteScopeActions={data.popupSiteScopeActions}
+                onOnlyRunOnUrl={data.handleOnlyRunOnUrl}
+                onAllowUrl={data.handleAllowUrl}
                 onMenuClick={data.handleMenuClick}
               />
             ))}
@@ -194,6 +203,7 @@ export default function App() {
                 onToggle={data.handleToggleScript}
                 onDelete={data.handleDeleteScript}
                 onOpenEditor={data.handleOpenEditor}
+                onOpenScriptSettings={data.handleOpenScriptSettings}
                 onOpenUserConfig={data.handleOpenUserConfig}
                 onMenuClick={data.handleMenuClick}
                 onRun={data.handleRunScript}
@@ -292,6 +302,19 @@ function MoreMenu({
   onGetMoreScript: (provider?: ScriptProvider) => void;
 }) {
   const { t } = useTranslation();
+  const preventEvent = usePreventEvent();
+  // client hints 只能异步取，而反馈按钮点击后要同步 window.open（await 之后再开会被弹窗拦截），
+  // 所以挂载时先取好；取不到时 describeUserAgent 会退回纯 UA 解析。
+  const [uaHints, setUaHints] = useState<UserAgentHints>();
+  useEffect(() => {
+    let cancelled = false;
+    void collectUserAgentHints().then((hints) => {
+      if (!cancelled) setUaHints(hints);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -303,7 +326,7 @@ function MoreMenu({
           <MoreVertical className="w-4 h-4" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="w-48" onFocusOutside={preventEvent}>
         <DropdownMenuItem onClick={onCreateScript}>
           <Plus className="w-4 h-4" />
           {t("script:create_script")}
@@ -332,11 +355,13 @@ function MoreMenu({
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
-            const browserInfo = navigator.userAgent;
+            // 落到模板选择页而非直接开某个模板：让用户自己挑（也顺带看一眼有没有重复的 issue）。
+            // 参数名必须与 .github/ISSUE_TEMPLATE 里的字段 id 一致，对不上 GitHub 会静默丢弃；
+            // 且必须写成字面量，scripts/check-issue-templates.mjs 靠 AST 读它们来守这条契约。
             const issueUrl =
-              `https://github.com/scriptscat/scriptcat/issues/new?` +
-              `template=${isChineseUser() ? "01_bug_report" : "11_bug_report_en"}.yaml&scriptcat-version=${ExtVersion}&` +
-              `browser=${encodeURIComponent(browserInfo)}`;
+              `https://github.com/scriptscat/scriptcat/issues/new/choose` +
+              `?scriptcat-version=${encodeURIComponent(ExtVersion)}` +
+              `&browser=${encodeURIComponent(describeUserAgent(navigator.userAgent, uaHints))}`;
             window.open(issueUrl, "_blank");
           }}
         >
@@ -451,8 +476,13 @@ interface ScriptRowProps {
   onToggle: (uuid: string, enable: boolean) => void;
   onDelete: (uuid: string) => void;
   onOpenEditor: (uuid: string) => void;
+  onOpenScriptSettings: (uuid: string) => void;
   onOpenUserConfig: (uuid: string) => void;
   onExcludeUrl?: (uuid: string, isEffective: boolean) => void;
+  onExcludeFromMatch?: (uuid: string) => void;
+  showSiteScopeActions?: boolean;
+  onOnlyRunOnUrl?: (uuid: string) => void;
+  onAllowUrl?: (uuid: string) => void;
   onMenuClick: (uuid: string, menus: ScriptMenuItem[], inputValue?: any) => void;
   onRun?: (uuid: string) => void;
   onStop?: (uuid: string) => void;
@@ -467,8 +497,13 @@ function ScriptRow({
   onToggle,
   onDelete,
   onOpenEditor,
+  onOpenScriptSettings,
   onOpenUserConfig,
   onExcludeUrl,
+  onExcludeFromMatch,
+  showSiteScopeActions = false,
+  onOnlyRunOnUrl,
+  onAllowUrl,
   onMenuClick,
   onRun,
   onStop,
@@ -477,15 +512,51 @@ function ScriptRow({
   const allVisibleMenus = getVisibleMenuItems(script.menus);
   const [isActive, setIsActive] = useState(false);
   const [isMenuExpanded, setIsMenuExpanded] = useState(false);
-  // menuExpandNum=0 时跟随折叠面板状态；>0 时按数量截断
+  // menuExpandNum=0 时菜单移入折叠面板并排在编辑等操作项之前（菜单比操作项更常用）；>0 时常驻行下方并按数量截断
+  const menusInCollapsible = menuExpandNum === 0;
   const shouldTruncateMenus = menuExpandNum > 0 && allVisibleMenus.length > menuExpandNum;
-  const visibleMenus = (() => {
-    if (menuExpandNum === 0) return isActive ? allVisibleMenus : [];
-    if (shouldTruncateMenus && !isMenuExpanded) return allVisibleMenus.slice(0, menuExpandNum);
-    return allVisibleMenus;
-  })();
+  const visibleMenus =
+    shouldTruncateMenus && !isMenuExpanded ? allVisibleMenus.slice(0, menuExpandNum) : allVisibleMenus;
+  const excludeSite = showSiteScopeActions
+    ? onExcludeFromMatch
+      ? () => onExcludeFromMatch(script.uuid)
+      : undefined
+    : onExcludeUrl
+      ? () => onExcludeUrl(script.uuid, true)
+      : undefined;
+  // 只匹配到子 frame（iframe）的脚本：站点范围操作按顶层 host 生成规则，对它不成立，故不显示
+  const siteHost = isPageScript && script.matchesTopFrame !== false ? host : undefined;
   const statusBadge = getStatusBadge(script, isPageScript, t);
   const displayName = script.name;
+
+  const menuNodes = visibleMenus.map((menuItem) =>
+    menuItem.options?.inputType ? (
+      <InputMenuItem
+        key={menuItem.groupKey}
+        menuItem={menuItem}
+        allMenus={script.menus}
+        uuid={script.uuid}
+        onMenuClick={onMenuClick}
+      />
+    ) : (
+      <ActionItem
+        key={menuItem.groupKey}
+        icon={<MenuIcon className="w-3.5 h-3.5" />}
+        title={menuItem.options?.title}
+        onClick={() => {
+          const sameGroup = script.menus.filter((m) => m.groupKey === menuItem.groupKey && !m.options?.inputType);
+          onMenuClick(script.uuid, sameGroup);
+        }}
+      >
+        {menuItem.name}
+        {menuItem.options?.accessKey && (
+          <span className="ml-auto text-[10px] text-muted-foreground">
+            {`(${menuItem.options.accessKey.toUpperCase()})`}
+          </span>
+        )}
+      </ActionItem>
+    )
+  );
 
   // 运行次数 tooltip
   const runTitle = !script.enable
@@ -528,6 +599,7 @@ function ScriptRow({
       {/* 折叠区域：操作按钮（点击展开） */}
       <CollapsiblePrimitive.Content className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
         <div className={cn("flex flex-col gap-0.5", compact ? "pl-9 pr-3 pt-0.5 pb-1" : "pl-11 pr-4 pt-1 pb-2")}>
+          {menusInCollapsible && menuNodes}
           {/* 运行/停止（仅后台脚本） */}
           {!isPageScript && onRun && onStop && (
             <>
@@ -546,17 +618,32 @@ function ScriptRow({
           <ActionItem icon={<Pencil className="w-3.5 h-3.5" />} onClick={() => onOpenEditor(script.uuid)}>
             {t("edit")}
           </ActionItem>
-          {/* 排除/取消排除 host（无二次确认，与旧版一致） */}
-          {isPageScript && host && onExcludeUrl && script.isEffective !== null && (
-            <ActionItem
-              icon={
-                script.isEffective ? <MinusCircle className="w-3.5 h-3.5" /> : <PlusCircle className="w-3.5 h-3.5" />
-              }
-              warn={script.isEffective === true}
-              success={script.isEffective === false}
-              onClick={() => onExcludeUrl(script.uuid, script.isEffective!)}
-            >
-              {script.isEffective ? t("exclude_off").replace("$0", host) : t("exclude_on").replace("$0", host)}
+          <ActionItem
+            icon={<SlidersHorizontal className="w-3.5 h-3.5" />}
+            onClick={() => onOpenScriptSettings(script.uuid)}
+          >
+            {t("editor:script_setting")}
+          </ActionItem>
+          {siteHost && showSiteScopeActions && script.isEffective === false && onAllowUrl && (
+            <ActionItem icon={<PlusCircle className="w-3.5 h-3.5" />} primary onClick={() => onAllowUrl(script.uuid)}>
+              {t("allow_on_site").replace("$0", siteHost)}
+            </ActionItem>
+          )}
+          {siteHost &&
+            showSiteScopeActions &&
+            script.isEffective === true &&
+            !script.hasMatchOverride &&
+            onOnlyRunOnUrl && (
+              <Popconfirm description={t("confirm_only_run_on_site")} onConfirm={() => onOnlyRunOnUrl(script.uuid)}>
+                <ActionItem icon={<CircleDot className="w-3.5 h-3.5" />} primary>
+                  {t("only_on_site").replace("$0", siteHost)}
+                </ActionItem>
+              </Popconfirm>
+            )}
+          {/* 排除 host 无需确认；站点范围操作开启时同步维护 match 与 exclude 覆盖。 */}
+          {siteHost && script.isEffective === true && excludeSite && (
+            <ActionItem icon={<MinusCircle className="w-3.5 h-3.5" />} warn onClick={excludeSite}>
+              {t("exclude_off").replace("$0", siteHost)}
             </ActionItem>
           )}
           {/* 删除（AlertDialog 二次确认） */}
@@ -574,38 +661,9 @@ function ScriptRow({
       </CollapsiblePrimitive.Content>
 
       {/* 始终可见区域：GM 菜单、用户配置（与旧版一致，不在折叠内） */}
-      {(visibleMenus.length > 0 || script.hasUserConfig) && (
+      {((!menusInCollapsible && visibleMenus.length > 0) || script.hasUserConfig) && (
         <div className={cn("flex flex-col gap-0.5", compact ? "pl-9 pr-3 pb-0.5" : "pl-11 pr-4 pb-1")}>
-          {visibleMenus.map((menuItem) =>
-            menuItem.options?.inputType ? (
-              <InputMenuItem
-                key={menuItem.groupKey}
-                menuItem={menuItem}
-                allMenus={script.menus}
-                uuid={script.uuid}
-                onMenuClick={onMenuClick}
-              />
-            ) : (
-              <ActionItem
-                key={menuItem.groupKey}
-                icon={<MenuIcon className="w-3.5 h-3.5" />}
-                title={menuItem.options?.title}
-                onClick={() => {
-                  const sameGroup = script.menus.filter(
-                    (m) => m.groupKey === menuItem.groupKey && !m.options?.inputType
-                  );
-                  onMenuClick(script.uuid, sameGroup);
-                }}
-              >
-                {menuItem.name}
-                {menuItem.options?.accessKey && (
-                  <span className="ml-auto text-[10px] text-muted-foreground">
-                    {`(${menuItem.options.accessKey.toUpperCase()})`}
-                  </span>
-                )}
-              </ActionItem>
-            )
-          )}
+          {!menusInCollapsible && menuNodes}
           {/* 菜单展开/收起 */}
           {shouldTruncateMenus && (
             <button
@@ -631,6 +689,26 @@ function ScriptRow({
       )}
     </CollapsiblePrimitive.Root>
   );
+}
+
+/** 当前页不运行脚本的原因说明；`ok` 不显示提示。 */
+function getPageStatusMessage(pageStatus: TPopupPageStatus, t: TFunction): string {
+  switch (pageStatus) {
+    case "blacklist":
+      return t("popup:page_in_blacklist");
+    case "restricted":
+      return t("popup:page_restricted");
+    case "file-access-denied":
+      return t("popup:page_file_access_denied");
+    case "userscripts-unavailable":
+      return t("popup:page_userscripts_unavailable");
+    case "scripts-disabled":
+      return t("popup:page_scripts_disabled");
+    case "not-injected":
+      return t("popup:page_not_injected");
+    case "ok":
+      return "";
+  }
 }
 
 function getStatusBadge(script: ScriptMenu, isPageScript: boolean, t: TFunction): React.ReactNode {
@@ -703,7 +781,7 @@ interface ActionItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
   icon: React.ReactNode;
   danger?: boolean;
   warn?: boolean;
-  success?: boolean;
+  primary?: boolean;
   muted?: boolean;
 }
 
@@ -713,7 +791,7 @@ const ActionItem = ({
   children,
   danger = false,
   warn = false,
-  success = false,
+  primary = false,
   muted = false,
   className,
   ref,
@@ -723,8 +801,8 @@ const ActionItem = ({
     ? "text-destructive hover:text-destructive"
     : warn
       ? "text-type-orange hover:text-type-orange"
-      : success
-        ? "text-type-green hover:text-type-green"
+      : primary
+        ? "text-primary hover:text-primary"
         : muted
           ? "text-muted-foreground"
           : "";

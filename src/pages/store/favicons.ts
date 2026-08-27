@@ -187,6 +187,10 @@ export async function fetchIconByDomain(domain: string): Promise<string[]> {
  */
 export async function fetchIconByService(domain: string, service: FaviconService): Promise<string[]> {
   switch (service) {
+    case "none":
+      // 用户关闭了图标获取，不产生任何外部请求
+      return [];
+
     case "scriptcat":
       /**
        * ScriptCat 图标服务
@@ -382,6 +386,8 @@ type TFaviconStack = { chunkResults: FavIconResult[]; pendingCount: number };
 
 // 处理favicon加载，以批次方式处理
 export const loadScriptFavicons = async function* (scripts: Script[], service: FaviconService = "scriptcat") {
+  // 关闭图标获取时直接结束：不读写 favicon 缓存，也不发起任何请求
+  if (service === "none") return;
   const stack: TFaviconStack[] = [];
   const asyncWaiter: { promise?: any; resolve?: any } = {};
   const createPromise = () => {

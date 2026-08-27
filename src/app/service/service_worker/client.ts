@@ -3,7 +3,7 @@ import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Logger } from "@App/app/repo/logger";
 import { type Permission } from "@App/app/repo/permission";
-import type { InstallSource, ScriptMenu, ScriptMenuItem, TBatchUpdateListAction } from "./types";
+import type { InstallSource, ScriptMenu, ScriptMenuItem, TBatchUpdateListAction, TPopupPageStatus } from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
@@ -13,7 +13,12 @@ import { type ResourceBackup } from "@App/pkg/backup/struct";
 import { type ConfigBundle } from "@App/pkg/backup/config_bundle";
 import { type VSCodeConnectParam } from "../offscreen/vscode-connect";
 import { type ScriptInfo } from "@App/pkg/utils/scriptInstall";
-import type { AgentModelConfig, MCPApiRequest, SkillConfigField } from "@App/app/service/agent/core/types";
+import type {
+  AgentModelConfig,
+  AgentTaskApiRequest,
+  MCPApiRequest,
+  SkillConfigField,
+} from "@App/app/service/agent/core/types";
 import type { SearchEngineConfig } from "@App/app/service/agent/core/tools/search_config";
 import type {
   ScriptService,
@@ -27,6 +32,8 @@ import type { TrashScript } from "@App/app/repo/trash_script";
 import { encodeRValue, type TKeyValuePair } from "@App/pkg/utils/message_value";
 import { type TSetValuesParams } from "./value";
 import type { LocalBackupExport } from "./synchronize";
+import type { ExternalAccessUIService } from "./external_access/service";
+import type { WSEnvelope } from "./external_access/types";
 import type {
   CspMutationResult,
   CspRuleCreateInput,
@@ -45,8 +52,8 @@ export class ServiceWorkerClient extends Client {
     super(msgSender, "serviceWorker");
   }
 
-  preparationOffscreen() {
-    return this.do("preparationOffscreen");
+  preparationOffscreen(data: { verified: boolean }) {
+    return this.do("preparationOffscreen", data);
   }
 }
 
@@ -198,6 +205,18 @@ export class ScriptClient extends Client {
     return this.do("excludeUrl", { uuid, excludePattern, remove });
   }
 
+  onlyRunOnUrl(uuid: string, matchPattern: string) {
+    return this.do("onlyRunOnUrl", { uuid, matchPattern });
+  }
+
+  allowUrl(uuid: string, matchPattern: string, excludePattern: string) {
+    return this.do("allowUrl", { uuid, matchPattern, excludePattern });
+  }
+
+  excludeFromMatch(uuid: string, matchPattern: string) {
+    return this.do("excludeFromMatch", { uuid, matchPattern });
+  }
+
   // 重置匹配项
   resetMatch(uuid: string, match: string[] | undefined) {
     return this.do("resetMatch", { uuid, match });
@@ -315,6 +334,11 @@ export class RuntimeClient extends Client {
     return this.doThrow("pageLoad");
   }
 
+  /** bfcache 还原上报：只告知本页仍在运行，不请求脚本 */
+  pageShow() {
+    return this.do("pageShow");
+  }
+
   scriptLoad(flag: string, uuid: string) {
     return this.do("scriptLoad", { flag, uuid });
   }
@@ -326,8 +350,8 @@ export type GetPopupDataReq = {
 };
 
 export type GetPopupDataRes = {
-  // 在黑名单
-  isBlacklist: boolean;
+  // 当前页状态：非 ok 时 scriptList 为空，由 Popup 说明原因
+  pageStatus: TPopupPageStatus;
   scriptList: ScriptMenu[];
   backScriptList: ScriptMenu[];
 };
@@ -597,8 +621,81 @@ export class AgentClient extends Client {
     return this.do("saveSearchConfig", config);
   }
 
+  agentTask(request: AgentTaskApiRequest): Promise<unknown> {
+    return this.doThrow("agentTask", request);
+  }
+
   // MCP API
   mcpApi(request: MCPApiRequest): Promise<unknown> {
     return this.doThrow("mcpApi", request);
+  }
+}
+
+// Page-facing client for the external-access bridge (ScriptCat as an MCP *server* exposed
+// to external AI clients) — unrelated to AgentClient.mcpApi above, which is the opposite
+// direction (ScriptCat's own agent acting as an MCP *client* of external servers).
+export class ExternalAccessClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/externalAccess");
+  }
+
+  getBridgeStatus(): Promise<ReturnType<ExternalAccessUIService["getStatus"]>> {
+    return this.doThrow("status");
+  }
+
+  // Enrollment (接入): dial the daemon with the one-time code the user read from `sctl connect`.
+  enroll(code: string) {
+    return this.do("enroll", code);
+  }
+
+  getOperation(operationId: string): ReturnType<ExternalAccessUIService["getOperation"]> {
+    return this.doThrow("operation", operationId);
+  }
+
+  decideOperation(param: {
+    operationId: string;
+    approved: boolean;
+    enable?: boolean;
+    rememberSession?: boolean;
+  }): ReturnType<ExternalAccessUIService["decideOperation"]> {
+    return this.doThrow("operationDecision", param);
+  }
+
+  // Re-opens a still-pending op's confirm page (误关重开入口). The "待确认" reopen row calls this
+  // after the user closed the confirm tab without deciding.
+  reopenOperation(operationId: string): ReturnType<ExternalAccessUIService["reopenOperation"]> {
+    return this.doThrow("operationReopen", operationId);
+  }
+
+  // Still-pending ops for the "待确认" reopen list.
+  getPendingOperations(): ReturnType<ExternalAccessUIService["getPendingOperations"]> {
+    return this.doThrow("pendingOperations");
+  }
+
+  // "停止外部接入" kill switch: discard key K + drop 本会话允许 grants + stop + disable.
+  stopExternalAccess() {
+    return this.do("stopExternalAccess");
+  }
+}
+
+// offscreen → SW relay for the MCP WS transport. The offscreen ExternalAccessConnect owns the socket and the
+// auth handshake; once a connection is live it forwards decoded business envelopes (and the newly
+// paired long-term key) up to ExternalAccessController here. Deliberately fire-and-forget: a blocking write
+// approval may keep a bridge.request pending for minutes, so the relay never awaits the dispatch.
+export class ExternalAccessConnectRelayClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/externalAccessConnect");
+  }
+
+  envelope(envelope: WSEnvelope): Promise<void> {
+    return this.do("envelope", envelope);
+  }
+
+  paired(key: string): Promise<void> {
+    return this.do("paired", { key });
+  }
+
+  disconnected(): Promise<void> {
+    return this.do("disconnected");
   }
 }

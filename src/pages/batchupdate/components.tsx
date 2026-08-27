@@ -2,14 +2,17 @@ import { useState, type ReactElement, type ReactNode } from "react";
 import {
   ArrowRight,
   BellOff,
+  Check,
   ChevronDown,
   CircleCheckBig,
   Download,
   Globe,
+  Loader2,
   PackageCheck,
   RefreshCw,
   ShieldAlert,
   Timer,
+  TriangleAlert,
   X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -23,7 +26,8 @@ import { Skeleton } from "@App/pages/components/ui/skeleton";
 import { StateScreen } from "@App/pages/components/ui/state-screen";
 import { DataPanel } from "@App/pages/components/ui/data-panel";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
-import type { UpdateItem, UpdateRisk } from "./logic";
+import { Popconfirm } from "@App/pages/components/ui/popconfirm";
+import type { BatchProgress, RowState, UpdateItem, UpdateRisk } from "./logic";
 
 /** 批量更新视图（桌面/移动共用）所需的数据与回调 */
 export interface BatchUpdateViewProps {
@@ -35,8 +39,16 @@ export interface BatchUpdateViewProps {
   checking: boolean;
   loading: boolean;
   selected: Set<string>;
-  /** 自动关闭剩余秒数；为 null 表示不自动关闭 */
+  /** 自动关闭剩余秒数；为 null 表示不再倒计时 */
   autoClose: number | null;
+  /** 倒计时曾存在但已被取消（显式点击或隐式操作都算）；用于把药丸切成「已取消」而不是直接消失 */
+  autoCloseCancelled: boolean;
+  /** 按 uuid 索引的行内更新状态；不在表内即为初始态 */
+  rowStates: Record<string, RowState>;
+  /** 批量操作进度；为 null 表示当前没有批量操作 */
+  batchProgress: BatchProgress | null;
+  /** 服务端检查结果已失效，需重新检查更新 */
+  recordExpired: boolean;
   onToggle: (uuid: string) => void;
   onToggleAll: () => void;
   onUpdate: (item: UpdateItem) => void;
@@ -46,8 +58,11 @@ export interface BatchUpdateViewProps {
   onIgnoreSelected: () => void;
   onRestoreAll: () => void;
   onCheckNow: () => void;
+  onCancelAutoClose: () => void;
   /** 打开单个脚本的更新详情页 */
   onOpen: (uuid: string) => void;
+  /** 打开 options 脚本列表，便于事后核对刚更新了哪些脚本 */
+  onOpenScriptList: () => void;
 }
 
 /** 悬停 tooltip：用于展示过长被截断的内容（脚本名、来源）或附加信息（相似度、新增连接） */
@@ -184,16 +199,214 @@ function LinkAction({ label, onClick, muted }: { label: string; onClick: () => v
   );
 }
 
+/**
+ * 行内更新状态区：进行中/成功/失败时接管操作区，初始态才让位给常规操作按钮。
+ * 桌面与移动共用，保证两套视图的状态语义完全一致。
+ */
+export function RowStatus({
+  item,
+  state,
+  onRetry,
+  children,
+}: {
+  item: UpdateItem;
+  state: RowState | undefined;
+  onRetry: () => void;
+  children: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const testId = `row-status-${item.uuid}`;
+  const wrap = (phase: string, content: ReactNode) => (
+    <span data-testid={testId} data-phase={phase} className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+      {content}
+    </span>
+  );
+  switch (state?.phase) {
+    case "queued":
+      return wrap(
+        "queued",
+        <span className="text-[13px] text-muted-foreground">{t("install:updatepage.row_queued")}</span>
+      );
+    case "working":
+      return wrap(
+        "working",
+        <>
+          <Loader2 className="size-3.5 animate-spin text-primary" />
+          <span className="text-[13px] font-medium text-primary">{t("install:updatepage.row_updating")}</span>
+        </>
+      );
+    case "success":
+    case "exiting":
+      return wrap(
+        state.phase,
+        <>
+          <Check className="size-3.5 text-success-fg animate-in zoom-in-50 duration-300 ease-out" />
+          <span className="text-[13px] font-medium text-success-fg">
+            {t("install:updatepage.row_updated", { version: item.newVersion })}
+          </span>
+        </>
+      );
+    case "fail":
+      return wrap(
+        "fail",
+        <>
+          <HoverTip content={state.error || t("install:updatepage.unknown_error")}>
+            <span className="cursor-default text-[13px] font-medium text-destructive">
+              {t("install:updatepage.row_failed")}
+            </span>
+          </HoverTip>
+          <span className="text-muted-foreground">{"·"}</span>
+          <button
+            type="button"
+            data-testid={`row-retry-${item.uuid}`}
+            onClick={onRetry}
+            className="text-[13px] font-medium text-primary hover:underline"
+          >
+            {t("install:updatepage.retry")}
+          </button>
+        </>
+      );
+    default:
+      return wrap("idle", children);
+  }
+}
+
+/** 行底 2px 扫光条：更新中的持续信号，复用全局不确定进度条动画 */
+export function RowWorkingBar() {
+  const { t } = useTranslation();
+  return (
+    <Progress
+      variant="top"
+      indeterminate
+      className="absolute inset-x-0 bottom-0"
+      aria-label={t("install:updatepage.row_updating")}
+    />
+  );
+}
+
+/** 行容器随状态变化的底色与退场动画 */
+export function rowPhaseClass(state: RowState | undefined): string {
+  switch (state?.phase) {
+    case "queued":
+    case "working":
+      // overflow-hidden：把行底扫光条裁进圆角（移动端卡片是圆角承载面）
+      return "bg-primary/5 overflow-hidden";
+    case "success":
+      return "bg-success-bg/70";
+    case "exiting":
+      return "bg-success-bg/70 overflow-hidden translate-x-6 transition-transform duration-200 ease-out animate-collapse-bar";
+    case "fail":
+      return "bg-destructive/10";
+    default:
+      return "";
+  }
+}
+
+/** 已忽略分组的「全部恢复并更新」：批量安装且不可撤销，必须先确认后果 */
+export function RestoreAllAction({ view, className }: { view: BatchUpdateViewProps; className?: string }) {
+  const { t } = useTranslation();
+  const connectCount = view.ignored.filter((item) => item.withNewConnect).length;
+  const description = [
+    t("install:updatepage.restore_all_confirm", { count: view.ignored.length }),
+    connectCount > 0 ? t("install:updatepage.restore_all_confirm_connect", { count: connectCount }) : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <Popconfirm description={description} onConfirm={view.onRestoreAll} side="bottom" align="end">
+      <Button
+        variant="link"
+        size="sm"
+        data-testid="ignored-restore-all"
+        className={cn("h-auto p-0 text-[13px]", className)}
+      >
+        {t("install:updatepage.restore_all")}
+      </Button>
+    </Popconfirm>
+  );
+}
+
+/** 批量进度与收尾汇总：确定性进度条 + 一条汇总文案 + 事后核对入口 */
+export function BatchSummary({
+  progress,
+  onOpenScriptList,
+  className,
+}: {
+  progress: BatchProgress;
+  onOpenScriptList: () => void;
+  className?: string;
+}) {
+  const { t } = useTranslation();
+  const { done, total, failed, finished } = progress;
+  const updated = done - failed;
+  const succeeded = finished && failed === 0;
+  const text = !finished
+    ? t("install:updatepage.batch_progress", { done, total })
+    : failed > 0
+      ? t("install:updatepage.batch_done_partial", { updated, failed })
+      : t("install:updatepage.batch_done", { count: updated });
+  return (
+    <div data-testid="batch-summary" className="shrink-0 border-b border-border bg-card">
+      <Progress
+        variant="top"
+        value={done}
+        max={total}
+        aria-label={text}
+        indicatorClassName={succeeded ? "bg-success" : failed > 0 ? "bg-warning" : undefined}
+      />
+      <div className={cn("flex items-center justify-between gap-3 py-1.5", className)}>
+        <span
+          className={cn(
+            "truncate text-[13px]",
+            succeeded ? "text-success-fg" : failed > 0 && finished ? "text-warning-fg" : "text-fg-secondary"
+          )}
+        >
+          {text}
+        </span>
+        {finished && updated > 0 && (
+          <button
+            type="button"
+            data-testid="batch-open-scripts"
+            onClick={onOpenScriptList}
+            className="shrink-0 text-[13px] font-medium text-primary hover:underline"
+          >
+            {t("install:updatepage.view_updated_scripts")}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 检查结果已随 Service Worker 回收失效：点更新不会有任何效果，必须显式告知 */
+export function RecordExpiredNotice({ className }: { className?: string }) {
+  const { t } = useTranslation();
+  return (
+    <div
+      data-testid="record-expired"
+      className={cn(
+        "flex shrink-0 items-center gap-2 border-b border-border bg-warning-bg py-2 text-[13px] text-warning-fg",
+        className
+      )}
+    >
+      <TriangleAlert className="size-4 shrink-0" />
+      <span>{t("install:updatepage.record_expired")}</span>
+    </div>
+  );
+}
+
 const COL = {
   version: "w-[170px] shrink-0",
   change: "w-[230px] shrink-0",
   source: "w-[160px] shrink-0",
-  action: "w-[110px] shrink-0",
+  // 需容纳最宽的行内状态（「更新失败 · 重试」/ 各语言的「已更新 vX.Y.Z」），不能按初始态的两个按钮取宽
+  action: "w-[180px] shrink-0",
 };
 
 /** 桌面端单行（待更新或已忽略） */
 function DesktopRow({
   item,
+  state,
   selected,
   onToggle,
   onOpen,
@@ -203,6 +416,7 @@ function DesktopRow({
   ignoredRow,
 }: {
   item: UpdateItem;
+  state?: RowState;
   selected?: boolean;
   onToggle?: (uuid: string) => void;
   onOpen: (uuid: string) => void;
@@ -213,8 +427,14 @@ function DesktopRow({
 }) {
   const { t } = useTranslation();
   const dim = item.enabled ? "" : "opacity-55";
+  const primaryAction = () => (ignoredRow ? onRestore?.(item) : onUpdate?.(item));
   return (
-    <div className="flex h-14 items-center px-4 border-b border-border last:border-b-0 hover:bg-accent/40 transition-colors">
+    <div
+      className={cn(
+        "relative flex h-14 items-center px-4 border-b border-border last:border-b-0 hover:bg-accent/40 transition-colors",
+        rowPhaseClass(state)
+      )}
+    >
       <div className="flex w-9 shrink-0 items-center">
         {ignoredRow ? (
           <BellOff className="size-3.5 text-muted-foreground" />
@@ -238,16 +458,19 @@ function DesktopRow({
         <SourceCell source={item.source} />
       </div>
       <div className={cn(COL.action, "flex items-center justify-end gap-2")}>
-        {ignoredRow ? (
-          <LinkAction label={t("install:updatepage.restore")} onClick={() => onRestore?.(item)} />
-        ) : (
-          <>
-            <LinkAction label={t("install:updatepage.update")} onClick={() => onUpdate?.(item)} />
-            <span className="h-3 w-px bg-border" />
-            <LinkAction label={t("install:updatepage.ignore")} onClick={() => onIgnore?.(item)} muted />
-          </>
-        )}
+        <RowStatus item={item} state={state} onRetry={primaryAction}>
+          {ignoredRow ? (
+            <LinkAction label={t("install:updatepage.restore")} onClick={() => onRestore?.(item)} />
+          ) : (
+            <>
+              <LinkAction label={t("install:updatepage.update")} onClick={() => onUpdate?.(item)} />
+              <span className="h-3 w-px bg-border" />
+              <LinkAction label={t("install:updatepage.ignore")} onClick={() => onIgnore?.(item)} muted />
+            </>
+          )}
+        </RowStatus>
       </div>
+      {state?.phase === "working" && <RowWorkingBar />}
     </div>
   );
 }
@@ -268,6 +491,7 @@ function DesktopTable({ view }: { view: BatchUpdateViewProps }) {
         <DesktopRow
           key={item.uuid}
           item={item}
+          state={view.rowStates[item.uuid]}
           selected={view.selected.has(item.uuid)}
           onToggle={view.onToggle}
           onOpen={view.onOpen}
@@ -292,11 +516,18 @@ function DesktopIgnored({ view }: { view: BatchUpdateViewProps }) {
               {view.ignored.length}
             </span>
           </CollapsibleTrigger>
-          <LinkAction label={t("install:updatepage.restore_all")} onClick={view.onRestoreAll} />
+          <RestoreAllAction view={view} />
         </div>
         <CollapsibleContent>
           {view.ignored.map((item) => (
-            <DesktopRow key={item.uuid} item={item} ignoredRow onOpen={view.onOpen} onRestore={view.onRestore} />
+            <DesktopRow
+              key={item.uuid}
+              item={item}
+              state={view.rowStates[item.uuid]}
+              ignoredRow
+              onOpen={view.onOpen}
+              onRestore={view.onRestore}
+            />
           ))}
         </CollapsibleContent>
       </DataPanel>
@@ -428,14 +659,49 @@ function HeaderStatus({ view }: { view: BatchUpdateViewProps }) {
   );
 }
 
-/** 自动关闭倒计时小药丸 */
-export function AutoCloseChip({ seconds }: { seconds: number }) {
+const CHIP = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs";
+
+/**
+ * 自动关闭倒计时小药丸：可点击刹车。
+ * 倒计时结束前的最后几秒转警示色并轻微脉冲，避免"一晃神页面没了"；
+ * 隐式取消（勾选/更新/忽略等）也会走到已取消态，不让取消这件事无声发生。
+ */
+export function AutoCloseChip({
+  seconds,
+  cancelled,
+  onCancel,
+}: {
+  seconds: number | null;
+  cancelled: boolean;
+  onCancel: () => void;
+}) {
   const { t } = useTranslation();
+  if (seconds === null) {
+    if (!cancelled) return null;
+    return (
+      <span data-testid="auto-close-chip" data-state="cancelled" className={cn(CHIP, "bg-muted text-muted-foreground")}>
+        <Timer className="size-3.5" />
+        {t("install:updatepage.auto_close_cancelled")}
+      </span>
+    );
+  }
+  const urgent = seconds <= 3;
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+    <button
+      type="button"
+      data-testid="auto-close-chip"
+      data-state="counting"
+      onClick={onCancel}
+      className={cn(
+        CHIP,
+        "group hover:bg-accent hover:text-accent-foreground",
+        urgent ? "bg-warning-bg text-warning-fg animate-pulse" : "bg-muted text-muted-foreground"
+      )}
+    >
       <Timer className="size-3.5" />
-      {t("install:updatepage.auto_close", { count: seconds })}
-    </span>
+      <span className="group-hover:hidden">{t("install:updatepage.auto_close", { count: seconds })}</span>
+      <span className="hidden group-hover:inline">{t("install:updatepage.auto_close_cancel_hint")}</span>
+    </button>
   );
 }
 
@@ -444,7 +710,7 @@ export function DesktopView({ view }: { view: BatchUpdateViewProps }) {
   const { t } = useTranslation();
   const empty = view.updates.length === 0 && view.ignored.length === 0;
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
+    <div className="flex h-dvh flex-col bg-background text-foreground">
       <header className="flex h-[60px] shrink-0 items-center justify-between border-b border-border bg-card px-6">
         <div className="flex min-w-0 items-center gap-3">
           <PackageCheck className="size-[22px] shrink-0 text-primary" />
@@ -452,11 +718,20 @@ export function DesktopView({ view }: { view: BatchUpdateViewProps }) {
           <HeaderStatus view={view} />
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <Button variant="outline" size="sm" disabled={view.checking} onClick={view.onCheckNow}>
+          <Button
+            variant={view.recordExpired ? "default" : "outline"}
+            size="sm"
+            disabled={view.checking}
+            onClick={view.onCheckNow}
+          >
             <RefreshCw className={cn(view.checking && "animate-spin")} />
             {t("install:updatepage.main_header")}
           </Button>
-          {view.autoClose !== null && <AutoCloseChip seconds={view.autoClose} />}
+          <AutoCloseChip
+            seconds={view.autoClose}
+            cancelled={view.autoCloseCancelled}
+            onCancel={view.onCancelAutoClose}
+          />
           <Button
             variant="ghost"
             size="icon-sm"
@@ -469,6 +744,10 @@ export function DesktopView({ view }: { view: BatchUpdateViewProps }) {
         </div>
       </header>
       {view.checking && <TopProgressBar />}
+      {view.recordExpired && <RecordExpiredNotice className="px-6" />}
+      {view.batchProgress && (
+        <BatchSummary progress={view.batchProgress} onOpenScriptList={view.onOpenScriptList} className="px-6" />
+      )}
       <div className="flex-1 overflow-auto scrollbar-custom">
         <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 px-6 py-6">
           {view.loading || (view.checking && empty) ? (

@@ -19,6 +19,7 @@ import type {
   ScriptRunResource,
   ScriptSite,
 } from "@App/app/repo/scripts";
+import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, ScriptCodeDAO } from "@App/app/repo/scripts";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type ScriptInfo, type InstallSource, createTempCodeEntry } from "@App/pkg/utils/scriptInstall";
@@ -34,18 +35,22 @@ import type {
   TSortedScript,
   TInstallScriptParams,
 } from "../queue";
+import { CLOUD_SYNC_QUEUE_KEY } from "../queue";
 import { buildScriptRunResourceBasic, selfMetadataUpdate } from "./utils";
 import {
   BatchUpdateListActionCode,
   type TBatchUpdateListAction,
   UpdateStatusCode,
   type TBatchUpdateRecord,
+  type TBatchUpdateItemResult,
+  type TBatchUpdateResult,
 } from "./types";
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import { CompiledResourceDAO } from "@App/app/repo/resource";
 import { initRegularUpdateCheck, watchRegularUpdateCheck } from "./regular_updatecheck";
 import { parseSkillScriptMetadata } from "@App/pkg/utils/skill_script";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { TempStorageDAO, TempStorageItemType } from "@App/app/repo/tempStorage";
 import { EnableAgent } from "@App/app/const";
 import { TrashScriptDAO } from "@App/app/repo/trash_script";
@@ -167,14 +172,20 @@ export class ScriptService {
               }
             );
           })
-          .finally(() => {
-            // 回退到到安装页
-            chrome.scripting.executeScript({
-              target: { tabId: req.tabId },
-              func: function () {
-                history.back();
-              },
-            });
+          .finally(async () => {
+            try {
+              // 直接用 chrome.tabs.goBack，不再走 content script 消息通道：
+              // content.js 依赖 chrome.userScripts 注册，未开发者模式/脚本被禁用/命中黑名单时不会被注入，
+              // 消息发不到会静默失败；goBack 只依赖已必需的 tabs 权限，不受这些条件影响。
+              const currentTab = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+              // 仅针对用户自行点击安装、且仍停留在该标签的场景；用户若已切到其他标签，不应把后台标签拉回历史记录
+              if (currentTab?.[0]?.id === req.tabId) {
+                // 回退到到安装页
+                await chrome.tabs.goBack(req.tabId);
+              }
+            } catch (e) {
+              console.error("chrome.tabs.goBack/query error:", e);
+            }
           });
       },
       {
@@ -315,6 +326,8 @@ export class ScriptService {
         action: {
           type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
           redirect: {
+            // 直接 URL 入口不经过 UUID 暂存；byWebRequest 只在暂存链路中用于脚本身份匹配，
+            // 不能再作为安装页 history.back()/window.close() 的来源标记。
             regexSubstitution: `${installPageURL}?url=\\1`,
           },
         },
@@ -725,12 +738,12 @@ export class ScriptService {
         updatetime: Date.now(),
       })
       .then(() => {
-        logger.info("enable success");
+        logger.info(enable ? "enable success" : "disable success");
         this.mq.publish<TEnableScript[]>("enableScripts", [{ uuid: uuid, enable: enable }]);
         return {};
       })
       .catch((e) => {
-        logger.error("enable error", Logger.E(e));
+        logger.error(enable ? "enable error" : "disable error", Logger.E(e));
         throw e;
       });
   }
@@ -756,7 +769,7 @@ export class ScriptService {
         updatetime: Date.now(),
       })
       .then(() => {
-        logger.info("enable success");
+        logger.info(enable ? "enable success" : "disable success");
         this.mq.publish<TEnableScript[]>(
           "enableScripts",
           uuids2.map((uuid) => ({ uuid, enable }))
@@ -764,7 +777,7 @@ export class ScriptService {
         return {};
       })
       .catch((e) => {
-        logger.error("enable error", Logger.E(e));
+        logger.error(enable ? "enable error" : "disable error", Logger.E(e));
         throw e;
       });
   }
@@ -890,77 +903,144 @@ export class ScriptService {
 
   // ScriptMenuList 的 excludeUrl - 排除或回复
   async excludeUrl({ uuid, excludePattern, remove }: { uuid: string; excludePattern: string; remove: boolean }) {
-    let script = await this.scriptDAO.get(uuid);
-    if (!script) {
-      throw new Error("script not found");
-    }
-    // 建立Set去掉重复（如有）
-    const excludeSet = new Set(script.selfMetadata?.exclude || script.metadata?.exclude || []);
-    if (remove) {
-      const deleted = excludeSet.delete(excludePattern);
-      if (!deleted) {
-        return; // scriptDAO 不用更新
+    return stackAsyncTask("script-site-scope", async () => {
+      let script = await this.scriptDAO.get(uuid);
+      if (!script) {
+        throw new Error("script not found");
       }
-    } else {
-      excludeSet.add(excludePattern);
-    }
-    // 更新 script.selfMetadata.exclude
-    script = selfMetadataUpdate(script, "exclude", excludeSet);
-    return this.scriptDAO
-      .update(uuid, script)
-      .then(() => {
+      // 建立Set去掉重复（如有）；用户覆盖整体替换作者规则，因此须把作者 @exclude 一并并入，
+      // 否则用户已有排除覆盖时会丢作者规则
+      const excludeSet = new Set([...(script.metadata?.exclude || []), ...(script.selfMetadata?.exclude || [])]);
+      if (remove) {
+        const deleted = excludeSet.delete(excludePattern);
+        if (!deleted) {
+          return; // scriptDAO 不用更新
+        }
+      } else {
+        excludeSet.add(excludePattern);
+      }
+      // 更新 script.selfMetadata.exclude
+      script = selfMetadataUpdate(script, "exclude", excludeSet);
+      try {
+        await this.scriptDAO.update(uuid, script);
         // 广播一下
         this.publishInstallScript(script, { update: true });
         return true;
-      })
-      .catch((e) => {
+      } catch (e) {
         this.logger.error("exclude url error", Logger.E(e));
         throw e;
-      });
+      }
+    });
+  }
+
+  async onlyRunOnUrl({ uuid, matchPattern }: { uuid: string; matchPattern: string }) {
+    return stackAsyncTask("script-site-scope", async () => {
+      let script = await this.scriptDAO.get(uuid);
+      if (!script) throw new Error("script not found");
+      script = selfMetadataUpdate(script, "match", new Set([matchPattern]));
+      script = selfMetadataUpdate(script, "include", new Set());
+      script = selfMetadataUpdate(script, SELF_METADATA_ONLY_RUN_ON_URL, new Set([matchPattern]));
+      await this.scriptDAO.update(uuid, script);
+      this.publishInstallScript(script, { update: true });
+      return true;
+    });
+  }
+
+  async allowUrl({
+    uuid,
+    matchPattern,
+    excludePattern,
+  }: {
+    uuid: string;
+    matchPattern: string;
+    excludePattern: string;
+  }) {
+    return stackAsyncTask("script-site-scope", async () => {
+      let script = await this.scriptDAO.get(uuid);
+      if (!script) throw new Error("script not found");
+      if (script.selfMetadata?.match !== undefined) {
+        script = selfMetadataUpdate(script, "match", new Set([...script.selfMetadata.match, matchPattern]));
+        script = selfMetadataUpdate(script, SELF_METADATA_ONLY_RUN_ON_URL, undefined);
+      }
+      if (script.selfMetadata?.exclude !== undefined) {
+        // 用户覆盖整体替换作者规则，因此移除当前项时把作者 @exclude 一并并入，避免丢作者规则
+        const excludeSet = new Set([...(script.metadata?.exclude || []), ...script.selfMetadata.exclude]);
+        excludeSet.delete(excludePattern);
+        script = selfMetadataUpdate(script, "exclude", excludeSet);
+      }
+      await this.scriptDAO.update(uuid, script);
+      this.publishInstallScript(script, { update: true });
+      return true;
+    });
+  }
+
+  async excludeFromMatch({ uuid, matchPattern }: { uuid: string; matchPattern: string }) {
+    return stackAsyncTask("script-site-scope", async () => {
+      let script = await this.scriptDAO.get(uuid);
+      if (!script) throw new Error("script not found");
+      if (script.selfMetadata?.match !== undefined) {
+        const matchSet = new Set(script.selfMetadata.match);
+        matchSet.delete(matchPattern);
+        script = selfMetadataUpdate(script, "match", matchSet);
+        script = selfMetadataUpdate(script, SELF_METADATA_ONLY_RUN_ON_URL, undefined);
+      }
+      // 用户覆盖整体替换作者规则，因此把作者 @exclude 一并并入用户覆盖，避免丢作者规则
+      const excludeSet = new Set([...(script.metadata?.exclude || []), ...(script.selfMetadata?.exclude || [])]);
+      excludeSet.add(matchPattern);
+      script = selfMetadataUpdate(script, "exclude", excludeSet);
+      await this.scriptDAO.update(uuid, script);
+      this.publishInstallScript(script, { update: true });
+      return true;
+    });
   }
 
   async resetExclude({ uuid, exclude }: { uuid: string; exclude: string[] | undefined }) {
-    let script = await this.scriptDAO.get(uuid);
-    if (!script) {
-      throw new Error("script not found");
-    }
-    // 建立Set去掉重复（如有）；exclude 为 undefined 表示重置，即撤销用户覆盖
-    const excludeSet = exclude === undefined ? undefined : new Set(exclude);
-    // 更新 script.selfMetadata.exclude
-    script = selfMetadataUpdate(script, "exclude", excludeSet);
-    return this.scriptDAO
-      .update(uuid, script)
-      .then(() => {
+    return stackAsyncTask("script-site-scope", async () => {
+      let script = await this.scriptDAO.get(uuid);
+      if (!script) {
+        throw new Error("script not found");
+      }
+      // 建立Set去掉重复（如有）；exclude 为 undefined 表示重置，即撤销用户覆盖
+      const excludeSet = exclude === undefined ? undefined : new Set(exclude);
+      // 更新 script.selfMetadata.exclude
+      script = selfMetadataUpdate(script, "exclude", excludeSet);
+      try {
+        await this.scriptDAO.update(uuid, script);
         // 广播一下
         this.publishInstallScript(script, { update: true });
         return true;
-      })
-      .catch((e) => {
+      } catch (e) {
         this.logger.error("reset exclude error", Logger.E(e));
         throw e;
-      });
+      }
+    });
   }
 
   async resetMatch({ uuid, match }: { uuid: string; match: string[] | undefined }) {
-    let script = await this.scriptDAO.get(uuid);
-    if (!script) {
-      throw new Error("script not found");
-    }
-    // 建立Set去掉重复（如有）；match 为 undefined 表示重置，即撤销用户覆盖
-    const matchSet = match === undefined ? undefined : new Set(match);
-    // 更新 script.selfMetadata.match
-    script = selfMetadataUpdate(script, "match", matchSet);
-    return this.scriptDAO
-      .update(uuid, script)
-      .then(() => {
+    return stackAsyncTask("script-site-scope", async () => {
+      let script = await this.scriptDAO.get(uuid);
+      if (!script) {
+        throw new Error("script not found");
+      }
+      // 建立Set去掉重复（如有）；match 为 undefined 表示重置，即撤销用户覆盖
+      const matchSet = match === undefined ? undefined : new Set(match);
+      // 更新 script.selfMetadata.match
+      script = selfMetadataUpdate(script, "match", matchSet);
+      if (script.selfMetadata?.[SELF_METADATA_ONLY_RUN_ON_URL] !== undefined && match === undefined) {
+        // onlyRunOnUrl owns the empty include override; an imported or explicit include override does not.
+        script = selfMetadataUpdate(script, "include", undefined);
+      }
+      script = selfMetadataUpdate(script, SELF_METADATA_ONLY_RUN_ON_URL, undefined);
+      try {
+        await this.scriptDAO.update(uuid, script);
         // 广播一下
         this.publishInstallScript(script, { update: true });
         return true;
-      })
-      .catch((e) => {
+      } catch (e) {
         this.logger.error("reset match error", Logger.E(e));
         throw e;
-      });
+      }
+    });
   }
 
   async checkUpdatesAvailable(
@@ -1319,19 +1399,31 @@ export class ScriptService {
 
     const currentSites: ScriptSite = (await this.localStorageDAO.getValue<ScriptSite>("sites")) || ({} as ScriptSite);
 
-    const batchUpdateRecord = checkResults.map((entry, i) => {
+    // 一次检查要跑完逐条节流 + 网络往返，耗时可达数分钟。下面用到的 script / oldCode 都是检查开始时的
+    // 快照，期间脚本可能已被装上新版本（用户在更新页点了更新、或从别的入口装过一次）。据当前库内状态复核，
+    // 否则失真的「旧版 → 新版」会被写回记录，让刚更新过的那一行重新冒出来。
+    const currentScripts = await this.scriptDAO.gets(checkResults.map((entry) => entry.uuid));
+
+    const batchUpdateRecord: TBatchUpdateRecord[] = [];
+    for (let i = 0, l = checkResults.length; i < l; i++) {
+      const entry = checkResults[i];
       const script = entry.script;
       const result = entry.result;
-      if (!result || !script.downloadUrl) {
-        return {
+      const current = currentScripts[i];
+      // 检查期间被删掉的脚本没有任何可展示的东西，连「已检查」都不该再算它一份
+      if (!current || current.uuid !== script.uuid) continue;
+      const versionChanged = current.metadata.version?.[0] !== script.metadata.version?.[0];
+      if (!result || !script.downloadUrl || versionChanged) {
+        batchUpdateRecord.push({
           uuid: script.uuid,
           checkUpdate: false,
-        } as TBatchUpdateRecord;
+        } as TBatchUpdateRecord);
+        continue;
       }
       let oldCode: any = checkScriptsOldCode[i];
       if (typeof oldCode === "object" && typeof oldCode.code === "string") oldCode = oldCode.code;
       const newCode = checkScriptsNewCode[i];
-      return {
+      batchUpdateRecord.push({
         uuid: script.uuid,
         checkUpdate: true,
         oldCode: oldCode,
@@ -1343,8 +1435,8 @@ export class ScriptService {
         script: script,
         sites: currentSites[script.uuid] || ([] as string[]),
         withNewConnect: entry.withNewConnect,
-      } as TBatchUpdateRecord;
-    });
+      } as TBatchUpdateRecord);
+    }
 
     this.scriptUpdateCheck.setCacheFull({
       checktime: Date.now(),
@@ -1431,86 +1523,113 @@ export class ScriptService {
   }
 
   async getAllScripts() {
-    // 获取数据并排序
-    const scripts = await this.scriptDAO.all();
-    scripts.sort((a, b) => a.sort - b.sort);
-    for (let i = 0; i < scripts.length; i += 1) {
-      if (scripts[i].sort !== i) {
-        this.scriptDAO.update(scripts[i].uuid, { sort: i });
-        scripts[i].sort = i;
+    return stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
+      // 获取数据并排序
+      const scripts = await this.scriptDAO.all();
+      scripts.sort((a, b) => a.sort - b.sort);
+      const batchUpdate: Record<string, Partial<Script>> = {};
+      const changed = new Set<string>();
+      for (let i = 0; i < scripts.length; i += 1) {
+        if (scripts[i].sort !== i) {
+          batchUpdate[scripts[i].uuid] = { sort: i };
+          scripts[i].sort = i;
+          changed.add(scripts[i].uuid);
+        }
       }
-    }
-    return scripts;
+      if (changed.size) {
+        await this.scriptDAO.updates(batchUpdate);
+        const sortUpdatetime = Date.now();
+        this.mq.publish<TSortedScript[]>(
+          "sortedScripts",
+          scripts.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
+        );
+      }
+      return scripts;
+    });
+  }
+
+  async getScriptAndCode(uuid: string) {
+    return this.scriptDAO.getAndCode(uuid);
   }
 
   // 脚本排序，after为排序后的uuid列表
   async sortScript({ after }: { before: string[]; after: string[] }) {
-    const daoAll = await this.scriptDAO.all();
-    const scripts = daoAll.sort((a, b) => a.sort - b.sort);
-    const sortingMap: Map<string, number> = new Map(after.map((uuid, index) => [uuid, index]));
+    return stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
+      const daoAll = await this.scriptDAO.all();
+      const scripts = daoAll.sort((a, b) => a.sort - b.sort);
+      const sortingMap: Map<string, number> = new Map(after.map((uuid, index) => [uuid, index]));
 
-    // 排序 scripts 并更新 sort 字段
-    const batchUpdate: Record<string, Partial<Script>> = {};
+      // 排序 scripts 并更新 sort 字段
+      const batchUpdate: Record<string, Partial<Script>> = {};
+      const sortUpdatetime = Date.now();
+      const changed = new Set<string>();
 
-    const newList = (
-      await Promise.all(
-        scripts.map(async (script) => {
-          const newSort = sortingMap.get(script.uuid);
-          if (newSort !== undefined && script.sort !== newSort) {
-            batchUpdate[script.uuid] = { sort: newSort };
-            script.sort = newSort;
-          }
-          return script;
-        })
-      )
-    ).sort((a, b) => a.sort - b.sort);
+      const newList = (
+        await Promise.all(
+          scripts.map(async (script) => {
+            const newSort = sortingMap.get(script.uuid);
+            if (newSort !== undefined && script.sort !== newSort) {
+              batchUpdate[script.uuid] = { sort: newSort };
+              script.sort = newSort;
+              changed.add(script.uuid);
+            }
+            return script;
+          })
+        )
+      ).sort((a, b) => a.sort - b.sort);
 
-    await this.scriptDAO.updates(batchUpdate);
+      await this.scriptDAO.updates(batchUpdate);
 
-    this.mq.publish<TSortedScript[]>(
-      "sortedScripts",
-      newList.map(({ uuid, sort }) => ({ uuid, sort }))
-    );
+      this.mq.publish<TSortedScript[]>(
+        "sortedScripts",
+        newList.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
+      );
+    });
   }
 
   // 将指定 uuid 列表的脚本置顶，其他脚本排序不变
   async pinToTop(uuids: string[]) {
-    const daoAll = await this.scriptDAO.all();
-    const sortingMap: Map<string, number> = new Map(uuids.map((uuid, index) => [uuid, index]));
-    // 排序 scripts 并更新 sort 字段
-    const scripts = daoAll.sort((a, b) => {
-      // 将 sortingMap 中有的 uuid 放在前面，其他的放在后面，且保持原有顺序
-      const aIndex = sortingMap.get(a.uuid);
-      const bIndex = sortingMap.get(b.uuid);
-      if (aIndex !== undefined && bIndex !== undefined) {
-        return aIndex - bIndex;
-      } else if (aIndex !== undefined) {
-        return -1;
-      } else if (bIndex !== undefined) {
-        return 1;
-      } else {
-        return a.sort - b.sort;
-      }
-    });
-
-    const batchUpdate: Record<string, Partial<Script>> = {};
-
-    const newList = await Promise.all(
-      scripts.map(async (script, index) => {
-        const newSort = index;
-        if (script.sort !== newSort) {
-          batchUpdate[script.uuid] = { sort: newSort };
-          script.sort = newSort;
+    return stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
+      const daoAll = await this.scriptDAO.all();
+      const sortingMap: Map<string, number> = new Map(uuids.map((uuid, index) => [uuid, index]));
+      // 排序 scripts 并更新 sort 字段
+      const scripts = daoAll.sort((a, b) => {
+        // 将 sortingMap 中有的 uuid 放在前面，其他的放在后面，且保持原有顺序
+        const aIndex = sortingMap.get(a.uuid);
+        const bIndex = sortingMap.get(b.uuid);
+        if (aIndex !== undefined && bIndex !== undefined) {
+          return aIndex - bIndex;
+        } else if (aIndex !== undefined) {
+          return -1;
+        } else if (bIndex !== undefined) {
+          return 1;
+        } else {
+          return a.sort - b.sort;
         }
-        return script;
-      })
-    );
-    await this.scriptDAO.updates(batchUpdate);
+      });
 
-    this.mq.publish<TSortedScript[]>(
-      "sortedScripts",
-      newList.map(({ uuid, sort }) => ({ uuid, sort }))
-    );
+      const batchUpdate: Record<string, Partial<Script>> = {};
+      const sortUpdatetime = Date.now();
+      const changed = new Set<string>();
+
+      const newList = await Promise.all(
+        scripts.map(async (script, index) => {
+          const newSort = index;
+          if (script.sort !== newSort) {
+            batchUpdate[script.uuid] = { sort: newSort };
+            script.sort = newSort;
+            changed.add(script.uuid);
+          }
+          return script;
+        })
+      );
+      await this.scriptDAO.updates(batchUpdate);
+
+      this.mq.publish<TSortedScript[]>(
+        "sortedScripts",
+        newList.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
+      );
+    });
   }
 
   importByUrl(url: string) {
@@ -1536,23 +1655,26 @@ export class ScriptService {
 
   // 更新脚本元数据；value 为 undefined 表示撤销用户覆盖，生效值回落脚本自带 metadata
   async updateMetadata({ uuid, key, value }: { uuid: string; key: string; value: string[] | undefined }) {
-    let script = await this.scriptDAO.get(uuid);
-    if (!script) {
-      throw new Error("script not found");
-    }
-    const valueSet = value === undefined ? undefined : new Set(value);
-    script = selfMetadataUpdate(script, key, valueSet);
-    return this.scriptDAO
-      .update(uuid, script)
-      .then(() => {
+    return stackAsyncTask("script-site-scope", async () => {
+      let script = await this.scriptDAO.get(uuid);
+      if (!script) {
+        throw new Error("script not found");
+      }
+      const valueSet = value === undefined ? undefined : new Set(value);
+      script = selfMetadataUpdate(script, key, valueSet);
+      if (key === "match" || key === "include") {
+        script = selfMetadataUpdate(script, SELF_METADATA_ONLY_RUN_ON_URL, undefined);
+      }
+      try {
+        await this.scriptDAO.update(uuid, script);
         // 广播一下
         this.mq.publish<TInstallScript>("installScript", { script, update: true });
         return true;
-      })
-      .catch((e) => {
+      } catch (e) {
         this.logger.error("reset exclude error", Logger.E(e));
         throw e;
-      });
+      }
+    });
   }
 
   async getBatchUpdateRecordLite(i: number) {
@@ -1592,21 +1714,34 @@ export class ScriptService {
     } else if (action.actionCode === BatchUpdateListActionCode.UPDATE) {
       const uuids = action.actionPayload.map((entry) => entry.uuid);
       const list = this.scriptUpdateCheck.cacheFull?.list;
-      if (!list) return;
+      // 缓存已随 Service Worker 回收而消失：整批无从执行，回报明确原因让页面提示重新检查更新
+      if (!list) return { ok: false, reason: "record_expired", items: [] } satisfies TBatchUpdateResult;
       const data = new Map<string, TBatchUpdateRecord>();
       const set = new Set(uuids);
       for (const entry of list) {
         if (set.has(entry.uuid)) {
-          if (!entry.newCode) continue;
+          if (!entry.checkUpdate || !entry.script || !entry.newCode) continue;
           data.set(entry.uuid, entry);
         }
       }
-      const res = [];
+      const currentScripts = await Promise.all(uuids.map((uuid) => this.scriptDAO.get(uuid)));
+      const cacheExpired = uuids.some((uuid, index) => {
+        const entry = data.get(uuid);
+        const current = currentScripts[index];
+        return (
+          !entry ||
+          !current ||
+          current.uuid !== uuid ||
+          current.metadata.version?.[0] !== entry.script?.metadata.version?.[0]
+        );
+      });
+      if (cacheExpired) return { ok: false, reason: "record_expired", items: [] } satisfies TBatchUpdateResult;
+      const res: TBatchUpdateItemResult[] = [];
       const updated = new Set();
       for (const uuid of set) {
         const entry = data.get(uuid);
         try {
-          await this.installByCode({ uuid, code: entry?.newCode, upsertBy: "user" });
+          await this.installByCode({ uuid, code: entry!.newCode, upsertBy: "user" });
           res.push({
             uuid,
             success: true,
@@ -1617,6 +1752,7 @@ export class ScriptService {
           res.push({
             uuid,
             success: false,
+            error: e instanceof Error ? e.message : String(e),
           });
         }
       }
@@ -1630,7 +1766,7 @@ export class ScriptService {
         this.scriptUpdateCheck.setCacheFull(this.scriptUpdateCheck.cacheFull);
         this.scriptUpdateCheck.announceMessage({ refreshRecord: true });
       }
-      return res;
+      return { ok: true, items: res } satisfies TBatchUpdateResult;
     }
   }
 
@@ -1662,6 +1798,9 @@ export class ScriptService {
     this.group.on("getFilterResult", this.getFilterResult.bind(this));
     this.group.on("getScriptRunResourceByUUID", this.getScriptRunResourceByUUID.bind(this));
     this.group.on("excludeUrl", this.excludeUrl.bind(this));
+    this.group.on("onlyRunOnUrl", this.onlyRunOnUrl.bind(this));
+    this.group.on("allowUrl", this.allowUrl.bind(this));
+    this.group.on("excludeFromMatch", this.excludeFromMatch.bind(this));
     this.group.on("resetMatch", this.resetMatch.bind(this));
     this.group.on("resetExclude", this.resetExclude.bind(this));
     this.group.on("requestCheckUpdate", this.requestCheckUpdate.bind(this));

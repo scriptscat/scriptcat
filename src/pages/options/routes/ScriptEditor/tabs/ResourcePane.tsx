@@ -123,44 +123,45 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
   }, []);
 
   return (
-    <div className="h-full overflow-y-auto scrollbar-custom px-8 py-5">
+    <div className="h-full overflow-y-auto scrollbar-custom px-4 py-4 md:px-8 md:py-5">
       <div className="flex flex-col gap-4">
-        {/* 工具栏：搜索 + 计数 + 清空 */}
-        <div className="flex items-center gap-2.5">
+        {/* 工具栏：搜索 + 计数 + 清空（移动端搜索独占一行） */}
+        <div className="flex flex-col gap-2.5 md:flex-row md:items-center">
           <SearchInput
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder={t("editor:search_resource")}
             aria-label={t("editor:search_resource")}
-            className="h-8 w-64"
+            className="h-8 w-full md:w-64"
             inputClassName="text-xs"
           />
-          <div className="flex-1" />
-          <span className="text-xs text-muted-foreground">
-            {t("editor:resource_count", { count: list.length, size: formatBytes(totalBytes) })}
-          </span>
-          <Popconfirm
-            description={t("confirm_clear_resource")}
-            destructive
-            confirmText={t("confirm")}
-            cancelText={t("editor:cancel")}
-            onConfirm={onClear}
-          >
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              disabled={list.length === 0}
+          <div className="flex flex-wrap items-center gap-2.5 md:ml-auto">
+            <span className="text-xs text-muted-foreground">
+              {t("editor:resource_count", { count: list.length, size: formatBytes(totalBytes) })}
+            </span>
+            <Popconfirm
+              description={t("confirm_clear_resource")}
+              destructive
+              confirmText={t("confirm")}
+              cancelText={t("editor:cancel")}
+              onConfirm={onClear}
             >
-              <Trash2 className="size-3.5" />
-              {t("clear")}
-            </Button>
-          </Popconfirm>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={list.length === 0}
+              >
+                <Trash2 className="size-3.5" />
+                {t("clear")}
+              </Button>
+            </Popconfirm>
+          </div>
         </div>
 
-        {/* 表格 */}
+        {/* 表格：移动端每行竖排成卡片（列宽固定的表头在窄屏会互相重叠，故隐藏） */}
         <DataPanel>
-          <DataPanelHeader>
+          <DataPanelHeader className="hidden md:flex">
             <span className="min-w-0 flex-1">{t("editor:resource")}</span>
             <span className="w-52 shrink-0">{t("type")}</span>
             <span className="w-20 shrink-0">{t("size")}</span>
@@ -171,7 +172,7 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
             <DataPanelEmpty>{t("no_data")}</DataPanelEmpty>
           ) : (
             filtered.map((r) => (
-              <DataPanelRow key={r.key}>
+              <DataPanelRow key={r.key} className="flex-col items-stretch gap-1.5 md:flex-row md:items-center md:gap-3">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <span className="truncate text-foreground" title={r.key}>
                     {fileName(r.key)}
@@ -180,29 +181,35 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
                     {TYPE_BADGE[r.type] ?? r.type}
                   </Badge>
                 </div>
-                <span className="w-52 shrink-0 truncate font-mono text-muted-foreground" title={r.contentType}>
+                <span
+                  className="min-w-0 truncate font-mono text-muted-foreground md:w-52 md:shrink-0"
+                  title={r.contentType}
+                >
                   {r.contentType || "-"}
                 </span>
-                <span className="w-20 shrink-0 font-mono text-muted-foreground">
-                  {formatBytes(resourceByteSize(r))}
-                </span>
-                <div className="flex w-16 shrink-0 items-center justify-end gap-1">
-                  <TooltipIconButton
-                    label={t("download")}
-                    icon={Download}
-                    size="icon-xs"
-                    onClick={() => onDownload(r)}
-                  />
-                  <Popconfirm
-                    description={t("confirm_delete_resource")}
-                    destructive
-                    confirmText={t("delete")}
-                    cancelText={t("editor:cancel")}
-                    side="left"
-                    onConfirm={() => onDelete(r.key)}
-                  >
-                    <TooltipIconButton label={t("delete")} icon={Trash2} size="icon-xs" destructive />
-                  </Popconfirm>
+                {/* md:contents 让大小/操作在桌面端回到与表头对齐的独立列 */}
+                <div className="flex items-center justify-between gap-2 md:contents">
+                  <span className="font-mono text-muted-foreground md:w-20 md:shrink-0">
+                    {formatBytes(resourceByteSize(r))}
+                  </span>
+                  <div className="flex items-center justify-end gap-1 md:w-16 md:shrink-0">
+                    <TooltipIconButton
+                      label={t("download")}
+                      icon={Download}
+                      size="icon-xs"
+                      onClick={() => onDownload(r)}
+                    />
+                    <Popconfirm
+                      description={t("confirm_delete_resource")}
+                      destructive
+                      confirmText={t("delete")}
+                      cancelText={t("editor:cancel")}
+                      side="left"
+                      onConfirm={() => onDelete(r.key)}
+                    >
+                      <TooltipIconButton label={t("delete")} icon={Trash2} size="icon-xs" destructive />
+                    </Popconfirm>
+                  </div>
                 </div>
               </DataPanelRow>
             ))

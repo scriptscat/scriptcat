@@ -3,10 +3,15 @@ import { RuntimeService } from "./runtime";
 import { vi, describe, it, expect, beforeEach, type MockedFunction } from "vitest";
 import { randomUUID } from "crypto";
 import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
-import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
+import {
+  SCRIPT_STATUS_DISABLE,
+  SCRIPT_STATUS_ENABLE,
+  SCRIPT_TYPE_BACKGROUND,
+  SCRIPT_TYPE_NORMAL,
+} from "@App/app/repo/scripts";
 import { buildScriptRunResourceBasic, getCombinedMeta, scriptURLPatternResults } from "./utils";
 import type { SystemConfig } from "@App/pkg/config/config";
-import type { Group } from "@Packages/message/server";
+import { SenderRuntime, type Group } from "@Packages/message/server";
 import type { ServiceWorkerMessageSend, WindowMessageBody } from "@Packages/message/window_message";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { ValueService } from "./value";
@@ -281,6 +286,45 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       // Assert
       expect(result.has(script.uuid)).toBe(false);
     });
+  });
+
+  it.concurrent("match 覆盖清空后不再保留此前的匹配规则", async () => {
+    const { runtime } = createRuntimeTestContext();
+    const script = createMockScript({
+      metadata: { match: ["https://www.example.com/*"] },
+      selfMetadata: { match: ["https://www.example.com/*"] },
+    });
+
+    await runtime.applyScriptMatchInfo(createScriptRunResource(script));
+    expect(runtime.getPageScriptMatchingResultByUrl("https://www.example.com/").has(script.uuid)).toBe(true);
+
+    const emptyMatchOverride = createScriptRunResource({
+      ...script,
+      selfMetadata: { match: [] },
+    });
+    expect(await runtime.applyScriptMatchInfo(emptyMatchOverride)).toBeUndefined();
+
+    expect(runtime.getPageScriptMatchingResultByUrl("https://www.example.com/", true).has(script.uuid)).toBe(false);
+  });
+
+  it.concurrent("空匹配覆盖时应删除持久化 CompiledResource 并注销旧注册", async () => {
+    const { runtime, mockScriptService } = createRuntimeTestContext();
+    const script = createMockScript({
+      metadata: { match: ["https://www.example.com/*"] },
+      selfMetadata: { match: [] },
+      status: SCRIPT_STATUS_ENABLE,
+    });
+    const scriptRunResource = createScriptRunResource(script);
+    mockScriptService.buildScriptRunResource.mockResolvedValue(scriptRunResource);
+
+    const deleteSpy = vi.spyOn(runtime.compiledResourceDAO, "delete").mockResolvedValue(undefined);
+    const unregisterSpy = vi.spyOn(runtime, "unregistryPageScripts").mockResolvedValue(undefined);
+
+    await runtime.updateResourceOnScriptChange(script);
+
+    // 空覆盖 = 全站不匹配：旧 CompiledResource 与浏览器注册必须被清掉，否则 SW 重启后旧范围复活
+    expect(deleteSpy).toHaveBeenCalledWith(script.uuid);
+    expect(unregisterSpy).toHaveBeenCalledWith([script.uuid]);
   });
 
   describe.concurrent("includeDisabled 选项", () => {
@@ -619,9 +663,18 @@ const _createScriptRunResource = (script: Script): ScriptRunResource => {
 };
 
 const _createRuntimeContext = () => {
-  const mockSystemConfig = { getBlacklist: vi.fn().mockReturnValue("") };
+  const mockSystemConfig = {
+    getBlacklist: vi.fn().mockReturnValue(""),
+    getEnableScriptIncognito: vi.fn().mockResolvedValue(true),
+    getLanguage: vi.fn().mockResolvedValue("zh-CN"),
+    addListener: vi.fn(),
+  };
   const mockScriptService = { buildScriptRunResource: vi.fn() };
-  const mockGroup = { use: vi.fn().mockReturnThis() } as unknown as Group;
+  const mockGroup = {
+    use: vi.fn().mockReturnThis(),
+    emit: vi.fn(),
+    publish: vi.fn(),
+  };
   const mockSender = {
     async init() {},
     messageHandle(_data: WindowMessageBody) {},
@@ -636,7 +689,7 @@ const _createRuntimeContext = () => {
   const mockScriptDAO = { all: vi.fn().mockResolvedValue([]), gets: vi.fn().mockResolvedValue([]) };
   const runtime = new RuntimeService(
     mockSystemConfig as unknown as SystemConfig,
-    mockGroup,
+    mockGroup as unknown as Group,
     mockSender,
     mockMQ,
     {} as ValueService,
@@ -645,7 +698,7 @@ const _createRuntimeContext = () => {
     mockScriptDAO as unknown as ScriptDAO,
     new LocalStorageDAO()
   );
-  return { runtime, mockSystemConfig, mockScriptService, mockScriptDAO };
+  return { runtime, mockSystemConfig, mockScriptService, mockScriptDAO, mockGroup };
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -694,6 +747,24 @@ describe("shouldSkipPageLoadScript 页面脚本加载过滤规则", () => {
       _createMockScript({ metadata: { match: ["https://example.com/*"], "run-in": ["incognito-tabs"] } })
     );
     expect((runtime as any).shouldSkipPageLoadScript(scriptRes, undefined)).toBe(true);
+  });
+
+  it("run-in: incognito-tabs 在真实隐身标签页中匹配，不跳过", () => {
+    const { runtime } = _createRuntimeContext();
+    const scriptRes = _createScriptRunResource(
+      _createMockScript({ metadata: { match: ["https://example.com/*"], "run-in": ["incognito-tabs"] } })
+    );
+
+    expect((runtime as any).shouldSkipPageLoadScript(scriptRes, undefined, true)).toBe(false);
+  });
+
+  it("run-in: normal-tabs 在真实隐身标签页中不匹配，跳过", () => {
+    const { runtime } = _createRuntimeContext();
+    const scriptRes = _createScriptRunResource(
+      _createMockScript({ metadata: { match: ["https://example.com/*"], "run-in": ["normal-tabs"] } })
+    );
+
+    expect((runtime as any).shouldSkipPageLoadScript(scriptRes, undefined, true)).toBe(true);
   });
 
   it("run-in: all → 任意环境均不跳过", () => {
@@ -750,7 +821,7 @@ describe("getScriptsForTab 附加边界场景", () => {
 
   /** 带完整 mock 的测试上下文，可按需覆盖各层依赖 */
   const createFullContext = (scriptOverrides: Partial<Script> = {}) => {
-    const { runtime, mockScriptDAO } = _createRuntimeContext();
+    const { runtime, mockScriptDAO, mockSystemConfig } = _createRuntimeContext();
 
     const script = _createMockScript({
       metadata: { match: ["https://www.example.com/*"] },
@@ -793,7 +864,16 @@ describe("getScriptsForTab 附加边界场景", () => {
     (runtime as any).resource = mockResourceService;
     (runtime as any).value = mockValueService;
 
-    return { runtime, script, scriptRes, compiledResource, mockCompiledResourceDAO, mockScriptDAO, mockScriptCodeDAO };
+    return {
+      runtime,
+      script,
+      scriptRes,
+      compiledResource,
+      mockCompiledResourceDAO,
+      mockScriptDAO,
+      mockScriptCodeDAO,
+      mockSystemConfig,
+    };
   };
 
   it("isLoadScripts 为 false 时直接返回 null，不查匹配器", async () => {
@@ -802,6 +882,21 @@ describe("getScriptsForTab 附加边界场景", () => {
     runtime.isLoadScripts = false;
 
     const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+    expect(result).toBeNull();
+  });
+
+  it("隐身标签页关闭隐身脚本总开关时直接返回 null", async () => {
+    const { runtime, scriptRes, mockSystemConfig } = createFullContext();
+    await runtime.applyScriptMatchInfo(scriptRes);
+    mockSystemConfig.getEnableScriptIncognito.mockResolvedValue(false);
+
+    const result = await runtime.getScriptsForTab({
+      url: pageUrl,
+      tabId: 12,
+      frameId: 0,
+      incognito: true,
+    });
+
     expect(result).toBeNull();
   });
 
@@ -865,6 +960,21 @@ describe("getScriptsForTab 附加边界场景", () => {
     expect(result!.injectScriptList.length + result!.contentScriptList.length).toBe(1);
   });
 
+  it("隐身标签页返回的 GM_info 环境标记为隐身", async () => {
+    const { runtime, script, scriptRes, mockScriptDAO } = createFullContext();
+    await runtime.applyScriptMatchInfo(scriptRes);
+    (mockScriptDAO as any).gets = vi.fn().mockResolvedValue([script]);
+
+    const result = await runtime.getScriptsForTab({
+      url: pageUrl,
+      tabId: 12,
+      frameId: 0,
+      incognito: true,
+    });
+
+    expect(result?.envInfo.isIncognito).toBe(true);
+  });
+
   it("compiledResource 不存在时应调用 buildAndSaveCompiledResourceFromScript 重新构建", async () => {
     const { runtime, scriptRes, compiledResource, mockCompiledResourceDAO } = createFullContext();
     await runtime.applyScriptMatchInfo(scriptRes);
@@ -879,6 +989,90 @@ describe("getScriptsForTab 附加边界场景", () => {
 
     expect(buildSpy).toHaveBeenCalledTimes(1);
     expect(result).not.toBeNull();
+  });
+});
+
+describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
+  const createSender = (incognito: boolean): chrome.runtime.MessageSender => ({
+    id: "scriptcat-test",
+    url: "https://www.example.com/page",
+    frameId: 0,
+    tab: {
+      id: incognito ? 22 : 11,
+      index: 0,
+      windowId: incognito ? 2 : 1,
+      active: true,
+      highlighted: true,
+      selected: true,
+      pinned: false,
+      incognito,
+      discarded: false,
+      frozen: false,
+      autoDiscardable: true,
+      groupId: -1,
+      url: "https://www.example.com/page",
+    },
+  });
+
+  it.each([
+    ["普通", false],
+    ["隐身", true],
+  ] as const)("真实 RuntimeMessageSender 的%s标签页状态会传给脚本匹配", async (_label, incognito) => {
+    const { runtime } = _createRuntimeContext();
+    const getScriptsForTab = vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue(null);
+
+    await runtime.pageLoad(undefined, new SenderRuntime(createSender(incognito)));
+
+    expect(getScriptsForTab).toHaveBeenCalledWith({
+      url: "https://www.example.com/page",
+      tabId: incognito ? 22 : 11,
+      frameId: 0,
+      incognito,
+    });
+  });
+
+  // bfcache 还原不会重新注入 content script，页面里的脚本却还活着；
+  // 这条上报只用来重新确认「本页扩展触及得到」，绝不能顺带重放脚本。
+  it("bfcache 还原上报只广播 popupPageRestored，不重新下发脚本", async () => {
+    const { runtime, mockGroup } = _createRuntimeContext();
+    const getScriptsForTab = vi.spyOn(runtime, "getScriptsForTab");
+
+    await runtime.pageShow(undefined, new SenderRuntime(createSender(false)));
+
+    expect(getScriptsForTab).not.toHaveBeenCalled();
+    expect(mockGroup.emit).toHaveBeenCalledWith("popupPageRestored", {
+      tabId: 11,
+      frameId: 0,
+      url: "https://www.example.com/page",
+    });
+  });
+});
+
+describe("sandbox verified 初始化重放", () => {
+  it("忽略 fallback 通知，并且真实握手与重复握手只初始化一次脚本和语言监听", async () => {
+    const { runtime, mockSystemConfig, mockScriptDAO } = _createRuntimeContext();
+    mockScriptDAO.all.mockResolvedValue([
+      _createMockScript({ uuid: "background-script", type: SCRIPT_TYPE_BACKGROUND, status: SCRIPT_STATUS_ENABLE }),
+    ]);
+    const handlePreparationOffscreen = (
+      runtime as unknown as { handlePreparationOffscreen(data: { verified: boolean }): Promise<void> }
+    ).handlePreparationOffscreen.bind(runtime);
+
+    await handlePreparationOffscreen({ verified: false });
+    await handlePreparationOffscreen({ verified: true });
+    await handlePreparationOffscreen({ verified: true });
+
+    expect(mockScriptDAO.all).toHaveBeenCalledTimes(1);
+    expect((runtime.mq as unknown as { publish: ReturnType<typeof vi.fn> }).publish).toHaveBeenCalledWith(
+      "enableScripts",
+      [{ uuid: "background-script", enable: true }]
+    );
+    expect((runtime.mq as unknown as { publish: ReturnType<typeof vi.fn> }).publish).toHaveBeenCalledWith(
+      "setSandboxLanguage",
+      "zh-CN"
+    );
+    expect(mockSystemConfig.addListener).toHaveBeenCalledTimes(1);
+    expect(mockSystemConfig.addListener).toHaveBeenCalledWith("language", expect.any(Function));
   });
 });
 

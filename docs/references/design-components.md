@@ -2,7 +2,7 @@
 
 ## Component palette & usage
 
-The shadcn primitives live in [`src/pages/components/ui/`](../../src/pages/components/ui/) — `new-york` style, CSS variables enabled, no class prefix (`components.json`). Icons are always `lucide-react`; class merging is always `cn()` ([`src/pkg/utils/cn.ts`](../../src/pkg/utils/cn.ts)); variants are always CVA — these are the [`DEVELOP.md` UI section](../develop.md#ui) hard rules, not repeated here. This section is "what exists and how to choose."
+The shadcn primitives live in [`src/pages/components/ui/`](../../src/pages/components/ui/) — `new-york` style, CSS variables enabled, no class prefix (`components.json`). Icons are always `lucide-react`; class merging is always `cn()` ([`src/pkg/utils/cn.ts`](../../src/pkg/utils/cn.ts)); variants are always CVA — these are the [`develop.md` § UI](../develop.md#ui) hard rules, not repeated here. This section is "what exists and how to choose."
 
 ### Primitives & shared composites
 
@@ -90,6 +90,8 @@ import { Badge } from "@App/pages/components/ui/badge";
 
 The container [`sonner.tsx`](../../src/pages/components/ui/sonner.tsx) is theme-aware, **bottom-right on desktop / top-center on mobile** (switched by `useIsMobile()`), with a neutral `popover` surface, a semantic-colored icon + left accent bar, a close button, and at most 3 stacked; mount it once per page entry.
 
+**Decision pages must mount it as `<Toaster placement="decision" />`** — that moves it to top-center on desktop too. A page whose footer is a `sticky bottom-0` action bar with right-aligned buttons (install, confirm, external-access confirm) would otherwise have every toast land squarely on top of its own buttons; on the external-access page those buttons are a security decision. Declare the page's kind at the mount site rather than hand-tuning `offset` per page.
+
 Business code **always uses `notify`** ([`toast.ts`](../../src/pages/components/ui/toast.ts)) — never `import { toast } from "sonner"` directly (an eslint rule enforces this):
 
 ```tsx
@@ -108,3 +110,4 @@ Durations by level: success/info/warning 3s / error 4s / with action 5s / loadin
 - **Confirm vs. act-immediately:** a modal confirm interrupts *every* time, so reserve it for the genuinely irreversible or wide-blast (delete N scripts + their stored values, reset settings). For easily reversible actions, prefer acting immediately over a blocking dialog — fewer interruptions. (`notify` exposes an `action` button if a one-tap undo/retry is genuinely worth offering, but don't add it reflexively.) State the blast radius in the confirm copy ("Delete 3 scripts and their stored values? This cannot be undone.").
 - **Transient panels:** mobile nav / side detail → `Sheet`; small anchored layer → `Popover` / `DropdownMenu`.
 - **Feedback:** transient → `toast`; persistent / in-page → see [state patterns](./design-patterns.md#state-patterns).
+- **Don't toast what the user just did.** A toast reports an event the user *wasn't watching*; it's the wrong shape for confirming a synchronous action they just triggered. Confirm those on the control itself (button → spinner → ✓ done) or in a persistent in-page bar. The install page is the worked example: its primary button walks `安装 → 安装中… → 已安装`, the keep-open path lands a success ribbon under the top bar, and failure inlines an error bar with a retry directly above the action row — the page raises no toast at all, because on a page this narrow every outcome has somewhere better to live.

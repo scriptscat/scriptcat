@@ -7,13 +7,17 @@ export default function AskUserBlock({
   id,
   question,
   options,
+  optionValues,
   multiple,
+  allowCustom = true,
   onRespond,
 }: {
   id: string;
   question: string;
   options?: string[];
+  optionValues?: string[];
   multiple?: boolean;
+  allowCustom?: boolean;
   onRespond: (id: string, answer: string) => void;
 }) {
   const { t } = useTranslation();
@@ -58,6 +62,14 @@ export default function AskUserBlock({
 
   const displayAnswer = (() => {
     if (!answer) return "";
+    if (selectedOptions.length > 0) {
+      return selectedOptions
+        .map((value) => {
+          const index = optionValues?.indexOf(value) ?? -1;
+          return index >= 0 ? options?.[index] || value : value;
+        })
+        .join(", ");
+    }
     if (multiple) {
       try {
         const arr = JSON.parse(answer);
@@ -70,6 +82,7 @@ export default function AskUserBlock({
   })();
 
   const hasOptions = options && options.length > 0;
+  const getOptionValue = (index: number, label: string) => optionValues?.[index] ?? label;
 
   // 已提交：紧凑的完成状态
   if (submitted) {
@@ -104,14 +117,15 @@ export default function AskUserBlock({
           {/* 选项 */}
           {hasOptions && (
             <div className="flex flex-wrap gap-2 mb-4">
-              {options.map((opt) => {
-                const isSelected = selectedOptions.includes(opt);
+              {options.map((opt, index) => {
+                const value = getOptionValue(index, opt);
+                const isSelected = selectedOptions.includes(value);
                 return (
                   <button
-                    key={opt}
+                    key={index}
                     type="button"
-                    data-testid={`ask-option-${opt}`}
-                    onClick={() => (multiple ? handleMultiToggle(opt) : handleSingleSelect(opt))}
+                    data-testid={`ask-option-${value}`}
+                    onClick={() => (multiple ? handleMultiToggle(value) : handleSingleSelect(value))}
                     className={cn(
                       "inline-flex cursor-pointer select-none items-center gap-1.5 rounded-lg border px-3.5 py-2 text-sm transition-colors",
                       isSelected
@@ -153,32 +167,34 @@ export default function AskUserBlock({
           )}
 
           {/* 文本输入 */}
-          <div className="flex items-center gap-2 rounded-xl bg-muted/50 pl-3.5 pr-1.5 py-1.5 border border-border focus-within:border-primary transition-colors">
-            <input
-              ref={inputRef}
-              data-testid="ask-input"
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-              placeholder={t("agent:chat_input_placeholder")}
-              className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground min-w-0"
-            />
-            <button
-              type="button"
-              data-testid="ask-send"
-              aria-label={t("agent:chat_send")}
-              onClick={handleSubmit}
-              disabled={!answer.trim()}
-              className={cn(
-                "flex size-7 shrink-0 items-center justify-center rounded-full border-none transition-opacity",
-                answer.trim()
-                  ? "bg-primary-background text-primary-foreground cursor-pointer hover:opacity-80 shadow-sm"
-                  : "bg-muted text-muted-foreground cursor-not-allowed"
-              )}
-            >
-              <Send className="size-3.5" />
-            </button>
-          </div>
+          {allowCustom && (
+            <div className="flex items-center gap-2 rounded-xl bg-muted/50 pl-3.5 pr-1.5 py-1.5 border border-border focus-within:border-primary transition-colors">
+              <input
+                ref={inputRef}
+                data-testid="ask-input"
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                placeholder={t("agent:chat_input_placeholder")}
+                className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground min-w-0"
+              />
+              <button
+                type="button"
+                data-testid="ask-send"
+                aria-label={t("agent:chat_send")}
+                onClick={handleSubmit}
+                disabled={!answer.trim()}
+                className={cn(
+                  "flex size-7 shrink-0 items-center justify-center rounded-full border-none transition-opacity",
+                  answer.trim()
+                    ? "bg-primary-background text-primary-foreground cursor-pointer hover:opacity-80 shadow-sm"
+                    : "bg-muted text-muted-foreground cursor-not-allowed"
+                )}
+              >
+                <Send className="size-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

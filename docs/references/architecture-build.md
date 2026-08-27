@@ -13,8 +13,7 @@ UI pages (React): popup · options · install · batchupdate · confirm · impor
 workers         : editor.worker · ts.worker · json.worker (Monaco) · linter.worker
 ```
 
-For the exact current set, check [`rspack.config.ts`](../../rspack.config.ts)'s `entry` block directly — this
-list is a snapshot and can drift when an entry is added or removed.
+For the exact current set, read [`rspack.config.ts`](../../rspack.config.ts)'s `entry` block.
 
 Output goes to `dist/ext/src/[name].js` (cleaned each build). Notable behavior:
 
@@ -50,19 +49,28 @@ dist/ext/
 - `background.service_worker` (Chrome) **and** `background.scripts` (Firefox fallback) point at the same bundle.
 - `permissions` include `userScripts`, `declarativeNetRequest`, `offscreen`, `scripting`, `cookies`,
   `webRequest`, `unlimitedStorage`, …; `optional_permissions` hold `background` + `userScripts`.
-- `host_permissions: ["<all_urls>"]`, `incognito: "split"`.
+- `host_permissions: ["<all_urls>"]`, `incognito: "split"` (Chrome; the Firefox variant overrides this to
+  `"spanning"` — see below).
 - CSP rule state is owned only by the regular service worker; the incognito service worker does not register CSP rule handlers.
-- `sandbox.pages` declares `src/sandbox.html`; `web_accessible_resources` exposes `install.html` so a
+- `sandbox.pages` declares `src/sandbox.html`. The Firefox package adds that page's
+  `content_security_policy.sandbox` during browser-specific manifest generation; the shared source manifest and
+  Chrome package do not contain this Firefox-only CSP. `web_accessible_resources` exposes `install.html` so a
   `.user.js` page can hand off to the install flow.
 
 ### Packaging — `pnpm run pack`
 
 [`scripts/pack.js`](../../scripts/pack.js) drives release packaging: it derives the version (special-casing
 alpha/beta into internal version codes), runs the production build, then **emits browser-specific manifests** —
-the Chrome variant strips the Firefox `scripts`/CSP bits, while the Firefox variant drops `service_worker` and
-`sandbox`, adds `browser_specific_settings` (Gecko ID, min Firefox 136), and filters Chrome-only permissions.
-By default it writes the Chrome zip and a `.crx` signed with `dist/scriptcat.pem` (which you must supply
-locally); the Firefox zip is gated behind the `PACK_FIREFOX` flag (`false` by default — testers flip it locally).
+the Chrome variant removes the Firefox `background.scripts` fallback and removes `userScripts` from
+`optional_permissions` while retaining it in required `permissions`; the Firefox variant adds its sandbox CSP,
+makes `userScripts` optional-only, drops `service_worker` and the Chrome-only `debugger` / `offscreen`
+permissions, and keeps `sandbox` (its sandbox iframe is a real manifest sandbox page there — see
+[architecture.md § Chrome vs Firefox: the offscreen split](../architecture.md#chrome-vs-firefox-the-offscreen-split)),
+adds `webRequestBlocking` to `optional_permissions` (for the experimental keep-alive loop), sets
+`incognito: "spanning"` (Firefox has no `"split"` mode), adds `browser_specific_settings` (Gecko ID, min
+Firefox 154.0, where `sandbox`-manifest support shipped to release), and filters Chrome-only permissions. By default it
+writes the Chrome zip and a `.crx` signed with `dist/scriptcat.pem` (which you must supply locally); ScriptCat
+MV3 officially supports Firefox, so `PACK_FIREFOX` is `true` by default and the Firefox zip is built too.
 
 ## Workspace Packages
 

@@ -3,11 +3,7 @@
     "incremental": true,
     "tsBuildInfoFile": "node_modules/.cache/tsc/.tsbuildinfo",
     "target": "ES2022",
-    "lib": [
-      "DOM",
-      "ES2022",
-      "WebWorker"
-    ],
+    "lib": ["DOM", "ES2022", "WebWorker"],
     "module": "nodenext",
     "jsx": "react-jsx",
     "strict": true,
@@ -32,9 +28,5 @@
       ]
     }
   },
-  "include": [
-    "src",
-    "packages",
-    "tests"
-  ]
+  "include": ["src", "packages", "tests"]
 }

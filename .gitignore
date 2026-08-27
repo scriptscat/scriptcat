@@ -34,17 +34,20 @@ CHANGELOG.md
 package-lock.json
 yarn.lock
 
+# AI 工具本地工作目录(会话状态、计划、worktree、构建产物副本，体积可达 GB 级)
 .claude
-
 .codex
-
 .omc
+.opskat/
+# 不带尾斜杠：linked worktree 里的 .dev-kit 是符号链接，`.dev-kit/` 只匹配真目录会漏掉它
+.dev-kit
+.superpowers/
+docs/superpowers/
+docs/specs/
 
 test-results
 playwright-report
+.vitest-reports/
 
 # 一次性功能验证脚本(见 docs/verification.md)，不提交、不进 CI
 e2e/scratch/
-
-superpowers
-.omc

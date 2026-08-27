@@ -3,7 +3,7 @@ import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { type IGetSender } from "@Packages/message/server";
 
 /** 脚本安装来源 */
-export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode";
+export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode" | "external_access";
 
 /** 搜索类型 */
 export type SearchType = "auto" | "name" | "script_code";
@@ -183,6 +183,24 @@ export type GMRegisterMenuCommandParam = [TScriptMenuItemKey, TScriptMenuItemNam
  */
 export type GMUnRegisterMenuCommandParam = [TScriptMenuItemKey];
 
+/**
+ * Popup 当前页的状态。除 `ok` 外都代表「脚本不会在此页面运行」，Popup 据此改为说明原因而不是列脚本：
+ * - restricted: 浏览器保留页（chrome:// / 扩展页 / 扩展商店等），任何扩展都注入不了
+ * - blacklist: 命中用户配置的网址黑名单
+ * - file-access-denied: 本地文件页，但未开启「允许访问文件网址」
+ * - userscripts-unavailable: 浏览器的 UserScripts API 不可用（未开开发者模式 / 未授权 / 版本过低）
+ * - scripts-disabled: 用户关闭了全局「启用脚本」开关
+ * - not-injected: 可注入但本 tab 没有 content script 报到（页面比扩展旧、被企业策略拦下等），刷新即可
+ */
+export type TPopupPageStatus =
+  | "ok"
+  | "restricted"
+  | "blacklist"
+  | "file-access-denied"
+  | "userscripts-unavailable"
+  | "scripts-disabled"
+  | "not-injected";
+
 /** 脚本菜单的完整信息 */
 export type ScriptMenu = {
   uuid: string; // 脚本uuid
@@ -200,6 +218,10 @@ export type ScriptMenu = {
   runNumByIframe: number; // iframe运行次数
   menus: ScriptMenuItem[]; // 脚本菜单
   isEffective: boolean | null; // 是否在当前网址启动
+  hasMatchOverride: boolean; // 是否存在 match 覆盖（selfMetadata.match !== undefined），用于区分 S1/S3 与 S2/S4
+  // 是否匹配顶层页面网址。false 代表只匹配到某个子 frame（iframe），此时 Popup 的站点范围操作
+  // （以顶层 host 生成规则）对该脚本无意义，不应显示。由 getPopupData 即时计算，不写回 session 缓存。
+  matchesTopFrame?: boolean;
 };
 
 /** 批量更新记录 */
@@ -263,5 +285,24 @@ export type TBatchUpdateListAction =
         ignoreVersion: string;
       }[];
     };
+
+/** 批量更新单条脚本的安装结果 */
+export type TBatchUpdateItemResult = {
+  uuid: string;
+  success: boolean;
+  /** 安装失败的原因；success 为 true 时不带 */
+  error?: string;
+};
+
+/**
+ * UPDATE 动作的执行结果。
+ * ok 为 false 表示整批根本没有执行：Service Worker 的检查结果只存在于内存（ScriptUpdateCheck.cacheFull），
+ * MV3 回收 Service Worker 后即丢失，此时必须让调用方能与「逐条安装失败」区分开，提示用户重新检查更新。
+ */
+export type TBatchUpdateResult = {
+  ok: boolean;
+  reason?: "record_expired";
+  items: TBatchUpdateItemResult[];
+};
 
 export type TPopupScript = { tabId: number; uuids: string[] };

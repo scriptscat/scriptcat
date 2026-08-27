@@ -2,6 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { test as base, expect, chromium, type BrowserContext, type Route } from "@playwright/test";
+import { headlessArgs } from "./launch-args";
 export { expect };
 
 const pathToExtension = path.resolve(__dirname, "../dist/ext");
@@ -113,7 +114,7 @@ export const test = base.extend<AgentFixtures, { agentProfileDir: string }>({
       // Phase 1: 启用 userScripts + 写入 mock model 配置
       const ctx1 = await chromium.launchPersistentContext(userDataDir, {
         headless: false,
-        args: ["--headless=new", ...chromeArgs],
+        args: [...headlessArgs(), ...chromeArgs],
         timeout: 60_000,
         chromiumSandbox,
       });
@@ -174,7 +175,7 @@ export const test = base.extend<AgentFixtures, { agentProfileDir: string }>({
     // 每个测试使用独立的 profile，避免脚本和路由泄漏到后续测试。
     const context = await chromium.launchPersistentContext(userDataDir, {
       headless: false,
-      args: ["--headless=new", ...chromeArgs],
+      args: [...headlessArgs(), ...chromeArgs],
       timeout: 60_000,
       chromiumSandbox,
       ...getProxyOptions(),

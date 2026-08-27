@@ -6,6 +6,8 @@ import { AutoBackupSection } from "./sections/AutoBackupSection";
 import { MigrationSection } from "./sections/MigrationSection";
 import { DevToolsSection } from "./sections/DevToolsSection";
 import { CspRulesSection } from "./sections/CspRulesSection";
+import { ExternalAccessSection } from "./sections/ExternalAccessSection";
+import { isFirefox } from "@App/pkg/utils/utils";
 import { useTranslation } from "react-i18next";
 
 export default function Tools() {
@@ -20,6 +22,7 @@ export default function Tools() {
           <MigrationSection register={register} />
           <CspRulesSection register={register} />
           <DevToolsSection register={register} />
+          {!isFirefox() && <ExternalAccessSection register={register} />}
         </>
       )}
     </SettingsLayout>

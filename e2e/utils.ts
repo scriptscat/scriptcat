@@ -1,4 +1,4 @@
-import { expect, type BrowserContext, type Page } from "@playwright/test";
+import { expect, type BrowserContext, type Frame, type Page } from "@playwright/test";
 
 /**
  * Auto-approve permission confirm dialogs opened by the extension.
@@ -7,11 +7,12 @@ import { expect, type BrowserContext, type Page } from "@playwright/test";
  * then click "allow". Selectors are data-testid based, so they are language-agnostic.
  */
 export function autoApprovePermissions(context: BrowserContext): void {
-  context.on("page", async (page) => {
-    const url = page.url();
-    if (!url.includes("confirm.html")) return;
+  const attachedPages = new WeakSet<Page>();
+  const attach = (page: Page) => {
+    if (attachedPages.has(page)) return;
+    attachedPages.add(page);
 
-    try {
+    const approve = async () => {
       await page.waitForLoadState("domcontentloaded");
       const request = page.getByTestId("confirm-request");
       const allow = page.getByTestId("confirm-allow");
@@ -29,10 +30,27 @@ export function autoApprovePermissions(context: BrowserContext): void {
         await allow.first().click();
       }
       console.log("[autoApprove] Permission approved on confirm page");
-    } catch (e) {
-      console.log("[autoApprove] Failed to approve:", e);
+    };
+
+    const handleApprovalError = (error: unknown) => {
+      console.log("[autoApprove] Failed to approve:", error);
+    };
+
+    const handleNavigation = (frame: Frame) => {
+      if (frame !== page.mainFrame() || !frame.url().includes("confirm.html")) return;
+      page.off("framenavigated", handleNavigation);
+      void approve().catch(handleApprovalError);
+    };
+
+    page.on("framenavigated", handleNavigation);
+    if (page.url().includes("confirm.html")) {
+      page.off("framenavigated", handleNavigation);
+      void approve().catch(handleApprovalError);
     }
-  });
+  };
+
+  for (const page of context.pages()) attach(page);
+  context.on("page", attach);
 }
 
 /** Run inline script code on the target page and collect console results */
@@ -82,6 +100,30 @@ export async function openOptionsPage(context: BrowserContext, extensionId: stri
 export async function openPopupPage(context: BrowserContext, extensionId: string): Promise<Page> {
   const page = await context.newPage();
   await page.goto(`chrome-extension://${extensionId}/src/popup.html`);
+  await page.waitForLoadState("domcontentloaded");
+  return page;
+}
+
+/**
+ * 以扩展新建独立标签的方式打开安装页(生产路径:ScriptService.openInstallPageByUrl → chrome.tabs.create)。
+ *
+ * 不能用 context.newPage() + goto:那会先停在 about:blank 再导航,给标签留下两条历史。
+ * 安装页靠 history.length 区分「独立新标签(关闭自己)」与「被 DNR 接管的用户标签(返回上一页)」,
+ * 于是安装完成后走 history.back() 退回 about:blank,标签永远不关,等 close 事件的用例只能超时。
+ */
+export async function openInstallPageInNewTab(
+  context: BrowserContext,
+  extensionId: string,
+  targetUrl: string
+): Promise<Page> {
+  let [sw] = context.serviceWorkers();
+  if (!sw) sw = await context.waitForEvent("serviceworker", { timeout: 14_000 });
+  const opened = context.waitForEvent("page");
+  await sw.evaluate(
+    (url) => chrome.tabs.create({ url }),
+    `chrome-extension://${extensionId}/src/install.html?url=${targetUrl}`
+  );
+  const page = await opened;
   await page.waitForLoadState("domcontentloaded");
   return page;
 }

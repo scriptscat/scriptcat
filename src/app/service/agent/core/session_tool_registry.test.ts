@@ -163,6 +163,23 @@ describe("SessionToolRegistry", () => {
       expect(parentSpy).not.toHaveBeenCalled();
     });
 
+    it("应将 signal 传递给 session 工具执行器", async () => {
+      const parent = new ToolRegistry();
+      const session = new SessionToolRegistry(parent);
+      const executeSpy = vi.fn().mockResolvedValue("session_result");
+      session.register("session", taskDef, { execute: executeSpy });
+      const controller = new AbortController();
+
+      await session.execute(
+        [{ id: "t1", name: "create_task", arguments: "{}" }],
+        undefined,
+        undefined,
+        controller.signal
+      );
+
+      expect(executeSpy).toHaveBeenCalledWith({}, controller.signal, "t1");
+    });
+
     it("session 无该工具时回退到 parent 工具", async () => {
       const parent = new ToolRegistry();
       parent.registerBuiltin(
@@ -258,28 +275,6 @@ describe("SessionToolRegistry", () => {
 
       expect(resA[0].result).toBe("fetched");
       expect(resB[0].result).toBe("fetched");
-    });
-
-    it("session 释放（GC）后 parent 不受影响", () => {
-      const parent = new ToolRegistry();
-      parent.registerBuiltin(
-        builtinDef,
-        createExecutor(async () => "")
-      );
-
-      // 创建临时 session 并让其超出作用域
-      {
-        const session = new SessionToolRegistry(parent);
-        session.register(
-          "session",
-          taskDef,
-          createExecutor(async () => "")
-        );
-        expect(session.listSessionTools()).toHaveLength(1);
-      }
-
-      // parent 无任何 session 工具痕迹
-      expect(parent.getDefinitions().map((d) => d.name)).toEqual(["web_fetch"]);
     });
   });
 

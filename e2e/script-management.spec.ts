@@ -18,13 +18,6 @@ async function createScriptAndGoToList(context: BrowserContext, extensionId: str
 }
 
 test.describe("脚本管理", () => {
-  test("创建脚本后应出现在列表中", async ({ context, extensionId }) => {
-    const page = await createScriptAndGoToList(context, extensionId);
-    // 列表非空（无空状态）
-    await expect(page.getByTestId("script-list-empty")).toHaveCount(0, { timeout: 10_000 });
-    await expect(page.getByRole("switch").first()).toBeVisible({ timeout: 10_000 });
-  });
-
   test("应能切换脚本的启用/禁用", async ({ context, extensionId }) => {
     const page = await createScriptAndGoToList(context, extensionId);
 

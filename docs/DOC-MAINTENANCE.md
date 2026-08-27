@@ -88,22 +88,24 @@ of sanitization patterns can otherwise look like matches — so don't rely on a 
 
 | Doc | Owns |
 | --- | --- |
-| [`../AGENTS.md`](../AGENTS.md) | Engineering principles + architecture quick-map. Single source of truth; `CLAUDE.md` only `@import`s it. |
-| [`develop.md`](./develop.md) | The concrete "how": commands, structure, style, i18n, commit/PR; testing mechanics split to [`references/develop-testing.md`](./references/develop-testing.md). |
-| [`pull-request.md`](./pull-request.md) | Detailed PR description structure and guidance for agents and contributors; the human-facing template remains lightweight. |
-| [`design.md`](./design.md) | The design system: theme mechanism, shadcn component selection, new-page recipe; tokens split to [`references/design-tokens.md`](./references/design-tokens.md), component palette to [`references/design-components.md`](./references/design-components.md), layout/motion/state/a11y patterns to [`references/design-patterns.md`](./references/design-patterns.md). |
-| [`verification.md`](./verification.md) | Lightweight end-to-end functional verification — throwaway scratch scripts driving the real built extension; report template split to [`references/verification-report-template.md`](./references/verification-report-template.md), debugging FAQ to [`references/verification-debugging.md`](./references/verification-debugging.md). |
-| [`architecture.md`](./architecture.md) | Deep internals: process model, message passing; subsystem deep-dives split to [`references/architecture-services.md`](./references/architecture-services.md), [`references/architecture-data.md`](./references/architecture-data.md), [`references/architecture-gm-api.md`](./references/architecture-gm-api.md), [`references/architecture-execution.md`](./references/architecture-execution.md), [`references/architecture-build.md`](./references/architecture-build.md), [`references/architecture-agent.md`](./references/architecture-agent.md). |
+| [`../AGENTS.md`](../AGENTS.md) | Engineering principles, architecture quick-map, and shared agent contract. `CLAUDE.md` and other compatibility entry points are symlink aliases; they do not own a separate policy. |
+| [`develop.md`](./develop.md) | The concrete "how": commands, structure, style, i18n, commit/PR. Testing → [`references/develop-testing.md`](./references/develop-testing.md). |
+| [`pull-request.md`](./pull-request.md) | The PR body: structure and evidence rules. The human-facing template stays lightweight. |
+| [`design.md`](./design.md) | The design system; tokens, component palette, and layout/motion/state/a11y patterns → the three `references/design-*.md`. |
+| [`verification.md`](./verification.md) | *When* to drive the real built extension, where its evidence goes, how to report honestly. Not the harness — link to `e2e/README.md`, don't restate fixtures/isolation/env vars. |
+| [`../e2e/README.md`](../e2e/README.md) | The harness itself: the two tracks and their configs, isolation, fixture/helper inventory, protocol mocks, `E2E_*` variables, artifact paths. |
+| [`architecture.md`](./architecture.md) | Deep internals; subsystem deep-dives → the six `references/architecture-*.md`. |
 | [`specs/csp-rule-management.md`](./specs/csp-rule-management.md) | Planned CSP rule-management product, UX, technical, acceptance, and decision contract; implementation mechanics stay in `develop.md`. |
 | [`cloud-sync.md`](./cloud-sync.md) | Cloud sync internals: sync files, digest/status semantics, provider differences, error classification, retry policy. |
 | [`translation.md`](./translation.md) | Translation / localization single source of truth. |
-| [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: doc-set organization rules, fact-check / anti-drift discipline, and policy-consistency checks — for every tracked agent/contributor Markdown file, not just `AGENTS.md` + `docs/*`. |
-| [`README.md`](./README.md) | The index that points to all of the above. |
-| `.github/copilot-instructions.md` | Copilot-specific entry point and any genuine tool-specific differences; shared facts (architecture, commands, testing, design, translation, PR mechanics) route to the owning doc above instead of being copied. |
+| [`DOC-MAINTENANCE.md`](./DOC-MAINTENANCE.md) | This guide: organization rules, fact-check / anti-drift discipline, policy-consistency checks — across every tracked contributor Markdown, not just `AGENTS.md` + `docs/*`. |
+| [`README.md`](./README.md) | The reader-facing index: what each doc contains and when to read it. |
 | Package-local `README.md` (e.g. `packages/message/README.md`, `packages/filesystem/README.md`) | That package's purpose, boundaries, entry points, and local gotchas — not a duplicate of repo-wide architecture or coding policy. |
 
-When you move a fact, move it to the doc that **owns** it and cross-link — never copy the same fact into two
-places, or they drift apart. To discover the current full set instead of relying on this table alone, run
+This table records **ownership boundaries** — which doc a given fact belongs in. It is deliberately *not* the
+index; [`README.md`](./README.md) holds the per-doc contents and "read before X" triggers, so don't restate one
+inside the other. When you move a fact, move it to the doc that owns it and cross-link — never copy it into two
+places, or they drift apart. To discover the current full set rather than relying on this table, run
 `git ls-files '*.md'`.
 
 ## Checklist 1 — Organization (every doc change)
@@ -164,19 +166,55 @@ echo "== eslint (project rule in eslint-rules/ vs userscript config in packages/
 git ls-files eslint-rules/; git grep -l "require-last-error-check" -- eslint.config.mjs; git ls-files packages/eslint/linter-config.ts
 ```
 
-Link integrity — confirm every relative markdown link resolves, across **every tracked Markdown file**
-(`git ls-files '*.md'`), not a fixed list that silently misses new files (`.github/*.md`, package/source
-READMEs, a newly added `docs/references/*.md`):
+Link integrity — confirm every relative Markdown link resolves against a committed tree, across **every tracked
+Markdown file** (`git ls-tree -r --name-only <tree> | grep -E '\.md$'`), not a fixed list that silently misses new files
+(`.github/*.md`, package/source READMEs, a newly added `docs/references/*.md`). Pass the final commit as the first
+argument when checking a specific revision; it defaults to `HEAD`:
 
 ```bash
-git ls-files '*.md' | while IFS= read -r doc; do
+tree="${1:-HEAD}"
+
+normalize_repo_path() {
+  printf '%s\n' "$1" | awk -F/ '{
+    count = 0
+    for (i = 1; i <= NF; i++) {
+      if ($i == "" || $i == ".") continue
+      if ($i == "..") {
+        if (count == 0) exit 1
+        count--
+        continue
+      }
+      parts[++count] = $i
+    }
+    if (count == 0) {
+      print "."
+      next
+    }
+    result = parts[1]
+    for (i = 2; i <= count; i++) result = result "/" parts[i]
+    print result
+  }'
+}
+
+git ls-tree -r --name-only "$tree" | grep -E '\.md$' | while IFS= read -r doc; do
   # the sed pipeline drops fenced code blocks (``` and ~~~) and inline code spans first, so illustrative
   # sample links inside ```md/~~~md snippets or `single-backtick` text (e.g.
   # references/verification-report-template.md's screenshot/resource examples, verification.md's
   # "Evidence location" spans) aren't false-flagged as broken
-  sed '/^```/,/^```/d; /^~~~/,/^~~~/d' "$doc" | sed -E 's/`[^`]*`//g' | grep -oE '\]\(([^)]+)\)' | sed -E 's/^\]\(|\)$//g' | grep -vE '^(https?:|mailto:|#|app:)' | while IFS= read -r link; do
-    target="$(dirname "$doc")/${link%%#*}"
-    [ -e "$target" ] && echo "ok     $doc → $link" || echo "BROKEN $doc → $link"
+  entry="$(git ls-tree -r "$tree" -- "$doc")"
+  mode="${entry%% *}"
+  source_doc="$doc"
+  if [ "$mode" = 120000 ]; then
+    link_target="$(git show "$tree:$doc")"
+    source_doc="$(normalize_repo_path "$(dirname "$doc")/$link_target")"
+  fi
+  source="$(git show "$tree:$source_doc")" || {
+    echo "BROKEN $doc → symlink target $source_doc"
+    continue
+  }
+  printf '%s\n' "$source" | sed '/^```/,/^```/d; /^~~~/,/^~~~/d' | sed -E 's/`[^`]*`//g' | grep -oE '\]\(([^)]+)\)' | sed -E 's/^\]\(|\)$//g' | grep -vE '^(https?:|mailto:|#|app:)' | while IFS= read -r link; do
+    target="$(normalize_repo_path "$(dirname "$source_doc")/${link%%#*}")"
+    git cat-file -e "$tree:$target" 2>/dev/null && echo "ok     $doc → $link" || echo "BROKEN $doc → $link"
   done
 done
 ```
@@ -195,9 +233,13 @@ a heading — an external deep link into that heading breaks if you rename it wi
 
 ## When you find a discrepancy
 
-Fix the **doc** to match the code — the code on this branch is the source of truth. The exception: if the code
-itself is wrong (a real bug), fix the code and say so in the PR. Either way, never silently drop a check you
-couldn't satisfy — surface it in the PR description so a reviewer can confirm.
+Fix the **doc** to match the code for descriptive facts about the current branch — the code on this branch is
+the source of truth for names, paths, and current implementation shape. Normative intended behavior may instead
+be owned by a specification, compatibility contract, security policy, accepted test oracle, or maintainer
+decision. When those sources conflict with the current code, surface the conflict and resolve it with the owning
+authority; do not silently rewrite either side to make the patch easier. If the code itself is wrong, fix the code
+and say so in the PR. Either way, never silently drop a check you couldn't satisfy — surface it in the PR
+description so a reviewer can confirm.
 
 ## Honest completion claims
 

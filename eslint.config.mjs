@@ -98,6 +98,57 @@ export default [
     rules: { "no-restricted-imports": "off" },
   },
   {
+    // 单测和 @playwright/test 跑在同一个进程里，而它有进程级单例守卫（被求值两次直接抛错）。
+    // e2e fixture 在模块顶层加载驱动，被单测引入后整个 vitest 套件会随 worker 线程调度随机崩
+    // （2026-08-21 v1.5.0-beta.2 打包即因此失败）。纯逻辑请放到不依赖驱动的模块再引，
+    // 例如 e2e/launch-args.ts。
+    files: ["tests/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@playwright/test",
+              message: "单测不能加载浏览器驱动，它是进程级单例；需要浏览器请写 e2e spec。",
+            },
+          ],
+          patterns: [
+            {
+              group: ["**/e2e/fixtures", "**/e2e/*-fixtures", "**/e2e/utils"],
+              message: "这些 e2e 模块在顶层加载 @playwright/test；把要测的纯逻辑抽到不依赖驱动的模块再引。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // 全局测试 setup 每个测试文件都要加载，引入重型模块会拖慢整个套件
+    // （见 docs/references/develop-testing.md § Vitest Performance Hygiene）。
+    files: ["tests/vitest.setup.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "./utils",
+                "./utils/*",
+                "@App/app/service",
+                "@App/app/service/*",
+                "@App/pages/store",
+                "@App/pages/store/*",
+              ],
+              message: "全局 setup 只安装浏览器/chrome mock，重型 helper 放到按需 import 的测试工具里。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // new-ui 页面禁止 className 写原始颜色，必须走设计令牌以适配亮/暗主题。
     files: ["src/pages/**/*.tsx"],
     rules: { "scriptcat/no-raw-color-classname": "error" },
@@ -140,5 +191,24 @@ export default [
       "@typescript-eslint/await-thenable": "error",
     },
   },
-  { ignores: ["dist/", "example/", ".claude/", "playwright-report/", "test-results/", "coverage/"] },
+  {
+    // 全局忽略：构建产物、本地工具目录、一次性验证脚本。这些目录都已 gitignore，CI 的全新 checkout 里
+    // 根本不存在，只有本地跑 `pnpm lint` 时会被扫到——不排除掉会让本地 lint 报出上万条与源码无关的错误。
+    // 用 `**/dist/` 而不是 `dist/`：flat config 的 ignores 锚定在配置文件所在目录，`dist/` 只能匹配仓库根，
+    // 匹配不到 `.dev-kit/**/dist/` 这类嵌套构建产物。
+    ignores: [
+      "**/dist/",
+      "example/",
+      ".claude/",
+      ".codex/",
+      ".dev-kit/",
+      ".omc/",
+      ".superpowers/",
+      "e2e/scratch/",
+      "playwright-report/",
+      "test-results/",
+      ".vitest-reports/",
+      "coverage/",
+    ],
+  },
 ];
