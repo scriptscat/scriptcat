@@ -9,6 +9,7 @@ import { CspRulesSection } from "./CspRulesSection";
 beforeAll(() => initTestLanguage("en-US"));
 afterEach(() => {
   extensionEnv.inIncognitoContext = false;
+  extensionEnv.incognitoMode = "split";
   cleanup();
 });
 
@@ -43,6 +44,16 @@ describe("CSP 规则工具卡", () => {
       )
     ).toBeInTheDocument();
     expect(client.getState).not.toHaveBeenCalled();
+  });
+
+  it("Firefox spanning 只有一个共享后台，隐身窗口照常管理 CSP 规则", async () => {
+    extensionEnv.inIncognitoContext = true;
+    extensionEnv.incognitoMode = "spanning";
+    const client = clientFor(snapshot());
+    render(<CspRulesSection register={() => () => {}} client={client} />);
+
+    expect(await screen.findByText("No CSP rules")).toBeInTheDocument();
+    expect(client.getState).toHaveBeenCalled();
   });
 
   it("空状态显示新增入口并能打开表单", async () => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, HelpCircle, Loader2, MoreHorizontal, ShieldOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { MAX_CSP_RULES, type CspRule, type CspRuleState } from "@App/app/repo/csp_rule";
+import { MAX_CSP_RULES, isCspRuleOwner, type CspRule, type CspRuleState } from "@App/app/repo/csp_rule";
 import {
   CspRuleAmbiguousResponseError,
   CspRuleClient,
@@ -70,7 +70,7 @@ function mutationErrorText(t: (key: string) => string, error: CspRuleServiceErro
 export function CspRulesSection({ register, client: injectedClient }: CspRulesSectionProps) {
   const { t } = useTranslation();
   const client = useMemo(() => injectedClient ?? new CspRuleClient(message), [injectedClient]);
-  const cspRuleOwner = !extensionEnv.inIncognitoContext;
+  const cspRuleOwner = isCspRuleOwner(extensionEnv);
   const [snapshot, setSnapshot] = useState<CspRuleSnapshot>();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<CspRuleServiceError>();

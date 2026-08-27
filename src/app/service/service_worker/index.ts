@@ -35,8 +35,8 @@ import { ExternalAccessController } from "@App/app/service/service_worker/extern
 import { ExternalAccessUIService } from "@App/app/service/service_worker/external_access/service";
 import { ExternalAccessConnectClient } from "@App/app/service/offscreen/client";
 import { hookFirefoxEventPageKeepAliveLoop, hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
-import { CspRuleStateDAO } from "@App/app/repo/csp_rule";
-import { CspRuleService, isCspRuleOwner } from "./csp_rule";
+import { CspRuleStateDAO, isCspRuleOwner } from "@App/app/repo/csp_rule";
+import { CspRuleService } from "./csp_rule";
 import { DeclarativeNetRequestCspApplier, compileCspRules } from "./csp_rule_compiler";
 
 // "直接允许" 写策略下 MCP 无需人工确认即执行了写操作，发系统通知让用户知晓（决策 #12 的知情兜底）。
@@ -153,7 +153,7 @@ export default class ServiceWorkerManager {
     );
     system.init();
 
-    if (isCspRuleOwner(extensionEnv.inIncognitoContext)) {
+    if (isCspRuleOwner(extensionEnv)) {
       const cspRule = new CspRuleService(
         this.api.group("cspRule"),
         this.mq,

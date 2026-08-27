@@ -62,10 +62,6 @@ export type CspRuleServiceError = {
   snapshot?: CspRuleSnapshot;
 };
 
-export function isCspRuleOwner(inIncognitoContext: boolean): boolean {
-  return !inIncognitoContext;
-}
-
 function serviceError(
   code: CspRuleServiceErrorCode,
   details: Omit<CspRuleServiceError, "code"> = {}

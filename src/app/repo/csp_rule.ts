@@ -1,10 +1,17 @@
 import { normalizeCspDomain } from "@App/pkg/utils/csp_domain";
 import { Repo } from "./repo";
+import type { TExtensionEnv } from "@App/app/service/extension/extension_env";
 
 export const CSP_RULE_SCHEMA_VERSION = 1 as const;
 export const MAX_CSP_RULES = 100;
 export const MAX_CSP_DOMAINS_PER_RULE = 100;
 export const MAX_CSP_UNIQUE_DOMAINS = 1000;
+
+// Chrome split 下普通窗口与隐身窗口各有一个 service worker，CSP 状态必须只归普通那个，否则两个后台会互相覆盖；
+// Firefox spanning 只有一个共享 event page，隐身上下文并没有第二个后台可争，该唯一实例即持有者。
+export function isCspRuleOwner(env: Pick<TExtensionEnv, "inIncognitoContext" | "incognitoMode">): boolean {
+  return env.incognitoMode === "spanning" || !env.inIncognitoContext;
+}
 
 export type CspRuleTarget = { type: "domains"; domains: string[] } | { type: "allSites" };
 
