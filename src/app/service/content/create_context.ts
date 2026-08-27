@@ -183,57 +183,68 @@ const protoBaseDescs: Record<string, PropertyDescriptor> = Object.create(null);
 
 // 包含物件本身及所有父类(不包含Object)的PropertyDescriptor
 // 主要是找出哪些 function值， setter/getter 需要替换 global window
-getAllPropertyDescriptors(global, ([key, desc]) => {
-  if (!desc || descsCache.has(key) || typeof key !== "string") return;
+// bind 目标跟随该轮的根物件 root，因为两个根分属不同 realm，互相绑定会触发 brand check 失败
+const collectPropertyDescriptors = (root: any) =>
+  getAllPropertyDescriptors(root, ([key, desc]) => {
+    if (!desc || descsCache.has(key) || typeof key !== "string") return;
 
-  if (desc.writable) {
-    // 属性 value
+    if (desc.writable) {
+      // 属性 value
 
-    const value = desc.value;
+      const value = desc.value;
 
-    // 替换 function 的 this 为 实际的 global window
-    // 例：父类的 addEventListener
-    // 对于构造函数和类（有 prototype 属性），shouldFnBind 会返回 false，跳过绑定
-    // 因此被封装的属性，会略过封装层，继续向父类寻找原生属性
-    if (shouldFnBind(value)) {
-      const boundValue = value.bind(global);
-      overridedDescs[key] = {
-        ...desc,
-        value: boundValue,
-      };
-      descsCache.add(key); // 必须：子类属性覆盖父类属性
-    } else if (!(key in initOwnDescs) && !Object.hasOwn(global, key)) {
-      if (!protoBaseDescs[key]) {
-        if (typeof value === "function") {
-          const boundValue = value.bind(global);
-          protoBaseDescs[key] = {
+      // 替换 function 的 this 为 实际的 global window
+      // 例：父类的 addEventListener
+      // 对于构造函数和类（有 prototype 属性），shouldFnBind 会返回 false，跳过绑定
+      // 因此被封装的属性，会略过封装层，继续向父类寻找原生属性
+      if (shouldFnBind(value)) {
+        const boundValue = value.bind(root);
+        overridedDescs[key] = {
+          ...desc,
+          value: boundValue,
+        };
+        descsCache.add(key); // 必须：子类属性覆盖父类属性
+      } else if (!(key in initOwnDescs) && !Object.hasOwn(root, key)) {
+        if (!protoBaseDescs[key]) {
+          if (typeof value === "function") {
+            const boundValue = value.bind(root);
+            protoBaseDescs[key] = {
+              ...desc,
+              value: boundValue,
+            };
+          } else {
+            protoBaseDescs[key] = { ...desc };
+          }
+        }
+      }
+    } else {
+      if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
+        // 替换 onxxxxx 事件赋值操作
+        // 例：(window.)onload, (window.)onerror
+        eventDescs[key] = desc;
+      } else {
+        if (desc.get || desc.set) {
+          // 替换 getter setter 的 this 为 实际的 global window
+          // 例：(window.)location, (window.)document
+          overridedDescs[key] = {
             ...desc,
-            value: boundValue,
+            get: desc?.get?.bind(root),
+            set: desc?.set?.bind(root),
           };
-        } else {
-          protoBaseDescs[key] = { ...desc };
+          descsCache.add(key); // 必须：子类属性覆盖父类属性
         }
       }
     }
-  } else {
-    if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
-      // 替换 onxxxxx 事件赋值操作
-      // 例：(window.)onload, (window.)onerror
-      eventDescs[key] = desc;
-    } else {
-      if (desc.get || desc.set) {
-        // 替换 getter setter 的 this 为 实际的 global window
-        // 例：(window.)location, (window.)document
-        overridedDescs[key] = {
-          ...desc,
-          get: desc?.get?.bind(global),
-          set: desc?.set?.bind(global),
-        };
-        descsCache.add(key); // 必须：子类属性覆盖父类属性
-      }
-    }
-  }
-});
+  });
+
+// 第一趟 globalThis：Firefox 的 content / USER_SCRIPT world 是独立 realm，JS 内置物件只有在这里
+// 才完整；经 Xray 看页面 window 的内置物件会被剥到只剩 length / name / prototype（Number.isNaN、
+// Math 的全部静态成员都会消失）。
+collectPropertyDescriptors(global);
+// 第二趟 window：同一个 sandbox 的原型链在 Xray window 处截断，够不到 EventTarget.prototype，
+// addEventListener / removeEventListener / dispatchEvent 只能由真实 window 的原型链补齐。
+// descsCache 先到先得，第一趟收下的键不会被覆盖；Chrome 下 window === globalThis，此趟全部跳过。
+collectPropertyDescriptors(window);
 descsCache.clear(); // 内存释放
 
 // sharedInitCopy: 完全继承Window.prototype 及 自定义 OwnPropertyDescriptor
