@@ -376,11 +376,9 @@ export class PopupService {
   async getPopupData(req: GetPopupDataReq): Promise<GetPopupDataRes> {
     const { url, tabId } = req;
     const pageStatus = await this.getPageStatus(tabId, url);
-    if (pageStatus === "restricted") {
-      // 浏览器保留页与自家扩展商店上脚本猫永远触及不到，列出「匹配到的」脚本只会让人以为
-      // 它们在跑（#1687）。其余状态的抑制原因都可以解除——开开关、开开发者模式、移出黑名单、
-      // 给文件访问权限、刷新页面——照常列出匹配脚本，用户才知道解除后哪些会生效；顶部提示
-      // 已经说明了它们现在为什么没跑。后台脚本与当前页无关，照常返回。
+    if (pageStatus !== "ok") {
+      // 页面上不会有任何脚本运行，列出「匹配到的」脚本只会让人以为它们在跑（#1687）；
+      // 后台脚本与当前页无关，照常返回。
       return {
         pageStatus,
         scriptList: [],
