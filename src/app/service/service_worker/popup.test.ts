@@ -456,7 +456,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     expect(result.backScriptList.map((s) => s.uuid)).toEqual([bgUuid]);
   });
 
-  it("黑名单页应返回 blacklist，且不列出脚本（黑名单页同样不会注入）", async () => {
+  it("黑名单页应返回 blacklist，并列出匹配脚本（移出黑名单后它们就会跑）", async () => {
     const uuid = "allsite";
     const { service } = createService({
       runtime: {
@@ -470,7 +470,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
 
     expect(result.pageStatus).toBe("blacklist");
-    expect(result.scriptList).toEqual([]);
+    expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
   });
 
   it("可注入页收到 content script 报到后返回 ok，正常列出脚本", async () => {
@@ -487,7 +487,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
   });
 
-  it("可注入页但从未收到报到（页面比扩展旧 / 被策略拦下）应返回 not-injected", async () => {
+  it("可注入页但从未收到报到（页面比扩展旧 / 被策略拦下）应返回 not-injected，并列出匹配脚本", async () => {
     const uuid = "allsite";
     const { service } = createService({
       runtime: { getPopupPageScriptMatchingResultByUrl: matchOne(uuid) },
@@ -497,7 +497,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
 
     expect(result.pageStatus).toBe("not-injected");
-    expect(result.scriptList).toEqual([]);
+    expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
   });
 
   it("同 origin 内的后续导航（SPA 换页）仍算已注入", async () => {
@@ -544,7 +544,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
   });
 
-  it("file:// 页未授权文件访问时应返回 file-access-denied", async () => {
+  it("file:// 页未授权文件访问时应返回 file-access-denied，并列出匹配脚本", async () => {
     vi.spyOn(extensionMock, "isAllowedFileSchemeAccess").mockResolvedValue(false);
     const uuid = "allsite";
     const { service } = createService({
@@ -555,7 +555,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     const result = await service.getPopupData({ tabId: 1, url: "file:///tmp/a.html" });
 
     expect(result.pageStatus).toBe("file-access-denied");
-    expect(result.scriptList).toEqual([]);
+    expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
   });
 
   it("未注入且全局脚本开关已关闭时应指出开关，而不是让用户白刷新", async () => {
@@ -564,7 +564,6 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
 
     expect(result.pageStatus).toBe("scripts-disabled");
-    expect(result.scriptList).toEqual([]);
   });
 
   it("未注入且 UserScripts API 不可用时应指出浏览器设置，而不是让用户白刷新", async () => {
@@ -573,7 +572,6 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
 
     expect(result.pageStatus).toBe("userscripts-unavailable");
-    expect(result.scriptList).toEqual([]);
   });
 
   it("全局开关已关闭时，本 tab 报到过也应报 scripts-disabled：提示不能取决于标签页新旧", async () => {
@@ -587,10 +585,10 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
 
     expect(result.pageStatus).toBe("scripts-disabled");
-    expect(result.scriptList).toEqual([]);
+    expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
   });
 
-  it("全局开关已关闭的新标签页仍应隐藏当前页脚本列表", async () => {
+  it("全局开关已关闭的新标签页仍应列出按网址匹配的脚本", async () => {
     const uuid = "allsite";
     const { service } = createService({
       runtime: { isLoadScripts: false, getPopupPageScriptMatchingResultByUrl: matchOne(uuid) },
@@ -600,10 +598,10 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
 
     expect(result.pageStatus).toBe("scripts-disabled");
-    expect(result.scriptList).toEqual([]);
+    expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
   });
 
-  it("UserScripts API 不可用时同样隐藏当前页脚本列表", async () => {
+  it("UserScripts API 不可用时同样列出匹配脚本：解除后这些脚本就会生效", async () => {
     const uuid = "allsite";
     const { service } = createService({
       runtime: { isUserScriptsAvailable: false, getPopupPageScriptMatchingResultByUrl: matchOne(uuid) },
@@ -613,7 +611,7 @@ describe("PopupService getPopupData 页面可达性（脚本猫无法触及的�
     const result = await service.getPopupData({ tabId: 1, url: WEB_URL });
 
     expect(result.pageStatus).toBe("userscripts-unavailable");
-    expect(result.scriptList).toEqual([]);
+    expect(result.scriptList.map((s) => s.uuid)).toEqual([uuid]);
   });
 
   it("file:// 页已实际注入时按 ok 处理，不因权限查询结果误报", async () => {
