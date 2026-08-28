@@ -1151,7 +1151,7 @@ export class ScriptService {
       }
       return { updateAvailable: true, code, metadata };
     } catch (e) {
-      logger.error("check update failed", Logger.E(e));
+      logger.error("check update failed", { ...Logger.E(e), check_update_url: checkUpdateUrl });
       return false;
     }
   }
