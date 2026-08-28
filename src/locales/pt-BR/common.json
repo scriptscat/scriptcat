@@ -58,7 +58,6 @@
   "stop": "Parar",
   "edit": "Editar",
   "copy": "Copiar",
-  "exclude_on": "Restaurar a execução de $0",
   "exclude_off": "Impedir a execução em $0",
   "only_on_site": "Executar somente em $0",
   "confirm_only_run_on_site": "Isso limpará as regras de correspondência de sites existentes do script. Executar somente neste site?",

@@ -15,7 +15,6 @@ const APPEARANCE_KEYS = new Set([
   "badge_text_color",
   "favicon_service",
   "popup_compact_layout",
-  "popup_site_scope_actions",
 ]);
 const UPDATE_KEYS = new Set([
   "check_script_update_cycle",

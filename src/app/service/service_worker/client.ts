@@ -101,10 +101,6 @@ export class ScriptClient extends Client {
     return this.doThrow("getScriptRunResourceByUUID", uuid);
   }
 
-  excludeUrl(uuid: string, excludePattern: string, remove: boolean) {
-    return this.do("excludeUrl", { uuid, excludePattern, remove });
-  }
-
   onlyRunOnUrl(uuid: string, matchPattern: string) {
     return this.do("onlyRunOnUrl", { uuid, matchPattern });
   }
@@ -113,8 +109,8 @@ export class ScriptClient extends Client {
     return this.do("allowUrl", { uuid, matchPattern, excludePattern });
   }
 
-  excludeFromMatch(uuid: string, matchPattern: string) {
-    return this.do("excludeFromMatch", { uuid, matchPattern });
+  excludeFromMatch(uuid: string, host: string, url: string) {
+    return this.do("excludeFromMatch", { uuid, host, url });
   }
 
   // 重置匹配项
