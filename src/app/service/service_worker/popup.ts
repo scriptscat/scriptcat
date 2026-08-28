@@ -376,9 +376,11 @@ export class PopupService {
   async getPopupData(req: GetPopupDataReq): Promise<GetPopupDataRes> {
     const { url, tabId } = req;
     const pageStatus = await this.getPageStatus(tabId, url);
-    if (pageStatus !== "ok") {
-      // 页面上不会有任何脚本运行，列出「匹配到的」脚本只会让人以为它们在跑（#1687）；
-      // 后台脚本与当前页无关，照常返回。
+    if (pageStatus === "restricted") {
+      // 浏览器保留页与自家扩展商店上脚本猫永远触及不到，列出「匹配到的」脚本只会让人以为
+      // 它们在跑（#1687）。其余状态的抑制原因都可以解除——开开关、开开发者模式、移出黑名单、
+      // 给文件访问权限、刷新页面——照常列出匹配脚本，用户才知道解除后哪些会生效；顶部提示
+      // 已经说明了它们现在为什么没跑。后台脚本与当前页无关，照常返回。
       return {
         pageStatus,
         scriptList: [],
@@ -443,6 +445,9 @@ export class PopupService {
    * 判断当前页脚本猫是否触及得到。
    *
    * 顺序有意为之：浏览器保留页与黑名单是「无论如何都不会注入」的确定结论，先判；
+   * 接着是扩展整体没跑起来的两种情况（全局开关关闭、UserScripts API 不可用），它们与具体
+   * 标签页无关，必须先于注入证据 —— 注入证据只是「本 tab 曾经报到过」，页面刷新与关开关都
+   * 不会让它失效，用它去否定全局状态会使同一开关状态下老标签页没提示、新标签页有提示。
    * 其余情况以「本 tab 有没有 content script 报到」为准 —— 它是运行时证据，
    * 比协议白名单准（企业策略、扩展商店等都拦不住白名单）。file:// 的权限查询只用来
    * 给未注入的情况一个更准确的原因，不能反过来否定已经注入成功的事实（Firefox 上该
@@ -452,13 +457,12 @@ export class PopupService {
     const kind = getPageAccessKind(url);
     if (kind === "restricted") return "restricted";
     if (this.runtime.isUrlBlacklist(url)) return "blacklist";
-    if (await this.isTabInjected(tabId, url)) return "ok";
-    // 以下都是「确认没注入」，只为给出更准确的原因。
     // 脚本功能整体没开时 content script 根本没注册（registerUserscripts 直接 return），
     // 此时说「刷新页面后生效」是错的——刷新永远不会生效，得先开开关/开发者模式。
-    // 同样放在注入证据之后：关掉开关不会杀死已注入页面上正在跑的脚本。
     if (!this.runtime.isUserScriptsAvailable) return "userscripts-unavailable";
     if (!this.runtime.isLoadScripts) return "scripts-disabled";
+    if (await this.isTabInjected(tabId, url)) return "ok";
+    // 以下都是「确认没注入」，只为给出更准确的原因。
     // 两项判据都与浏览器有关（Edge 商店在 Chrome 里是普通网页；Firefox 的文件访问开关语义也不同），
     // 放在注入证据之后才不会误伤实际能运行的页面。
     if (isExtensionStoreUrl(url)) return "restricted";
