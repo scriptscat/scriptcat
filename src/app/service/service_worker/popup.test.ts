@@ -179,6 +179,39 @@ describe("PopupService 删除脚本后 Popup 菜单残留清理", () => {
   });
 });
 
+describe("PopupService 菜单点击分发", () => {
+  it("同一 document 重复注册的同组菜单只触发最新监听，跨 document 仍分别触发", async () => {
+    const { service, runtime } = createService();
+    const menu = {
+      groupKey: "translate-group",
+      name: "翻译网页/显示原文",
+      options: {},
+      tabId: 1,
+      frameId: 0,
+      documentId: "main-document",
+    };
+
+    await service.menuClick({
+      uuid: "immersive-translate",
+      menus: [
+        { ...menu, key: "main-1" },
+        { ...menu, key: "main-2" },
+        { ...menu, key: "frame-1", frameId: 2, documentId: "frame-document" },
+      ],
+    });
+
+    expect(runtime.emitEventToTab).toHaveBeenCalledTimes(2);
+    expect(runtime.emitEventToTab).toHaveBeenCalledWith(
+      expect.objectContaining({ documentId: "main-document" }),
+      expect.objectContaining({ eventId: "main-2" })
+    );
+    expect(runtime.emitEventToTab).toHaveBeenCalledWith(
+      expect.objectContaining({ documentId: "frame-document" }),
+      expect.objectContaining({ eventId: "frame-1" })
+    );
+  });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("PopupService addScriptRunNumber 页面脚本执行计数", () => {

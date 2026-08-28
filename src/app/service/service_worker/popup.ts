@@ -1,7 +1,7 @@
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import { type RuntimeService } from "./runtime";
-import type { ScriptMenu, TPopupPageStatus, TPopupScript } from "./types";
+import type { ScriptMenu, ScriptMenuItem, TPopupPageStatus, TPopupScript } from "./types";
 import type { GetPopupDataReq, GetPopupDataRes, MenuClickParams } from "./client";
 import { cacheInstance } from "@App/app/cache";
 import type { ScriptDAO } from "@App/app/repo/scripts";
@@ -740,8 +740,13 @@ export class PopupService {
 
   // 触发目标 tab/frame 的「menuClick」事件；key 为菜单唯一键以定位对应 listener。
   async menuClick({ uuid, menus, inputValue }: MenuClickParams) {
+    const targets = new Map<string, ScriptMenuItem>();
+    for (const menu of menus) {
+      const documentKey = menu.documentId || `frame:${menu.frameId || 0}`;
+      targets.set(`${menu.tabId}:${documentKey}:${menu.groupKey}`, menu);
+    }
     await Promise.allSettled(
-      menus.map((menu) =>
+      [...targets.values()].map((menu) =>
         this.runtime.emitEventToTab(
           {
             tabId: menu.tabId,
