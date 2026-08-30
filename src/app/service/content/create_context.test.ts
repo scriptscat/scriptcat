@@ -37,6 +37,10 @@ const createSplitRealmRoots = (): RealmRoots => {
   const hostWindow = Object.create(null) as Record<PropertyKey, any>;
   const eventTarget = new EventTarget();
 
+  // Firefox USER_SCRIPT 的 realm global 會以 host window 作為原型；測試必須保留這個拓撲，
+  // 才能確認 realm descriptor 收集不會意外把 host own properties 帶入 sandbox。
+  Object.setPrototypeOf(realmGlobal, hostWindow);
+
   realmGlobal.Node = class RealmNode {};
   realmGlobal.XMLHttpRequest = class RealmXMLHttpRequest {};
   realmGlobal.realmOnly = "realm-value";
@@ -52,6 +56,7 @@ const createSplitRealmRoots = (): RealmRoots => {
   hostWindow.EventTarget = EventTarget;
   hostWindow.Node = Node;
   hostWindow.NodeFilter = NodeFilter;
+  hostWindow.HTMLBodyElement = class HostHTMLBodyElement {};
   hostWindow.Event = Event;
   hostWindow.XMLHttpRequest = class HostXMLHttpRequest {
     static DONE = 4;
@@ -394,12 +399,59 @@ describe.concurrent("createProxyContext", () => {
   });
 
   describe.concurrent("split-global materialization", () => {
+    it.concurrent("keeps GM APIs and writes on every global alias in the script sandbox", () => {
+      const roots = createSplitRealmRoots();
+      const sandbox = createProxyContext(createTestContext(["GM_getValue"]), roots);
+
+      const getValue = Reflect.get(sandbox.window, "GM_getValue") as (key: string) => unknown;
+      expect(getValue("foo")).toBe("bar");
+
+      Reflect.set(sandbox.self, "__split_global_alias_value", "sandbox-value");
+
+      expect(Reflect.get(sandbox.window, "__split_global_alias_value")).toBe("sandbox-value");
+      expect(Reflect.get(sandbox.globalThis, "__split_global_alias_value")).toBe("sandbox-value");
+      expect(Reflect.get(roots.hostWindow, "__split_global_alias_value")).toBeUndefined();
+    });
+
+    it.concurrent("keeps JavaScript intrinsics from realmGlobal when hostWindow is a different root", () => {
+      const roots = createSplitRealmRoots();
+      const realmMath = { max: () => "realm" };
+      const hostMath = { max: () => "host" };
+      roots.realmGlobal.Math = realmMath;
+      roots.hostWindow.Math = hostMath;
+
+      const sandbox = createProxyContext(createTestContext([]), roots);
+
+      expect(sandbox.Math).toBe(realmMath);
+      expect(sandbox.Math).not.toBe(hostMath);
+    });
+
+    it.concurrent("preserves non-self top, parent, and frames references from an iframe realm", () => {
+      const roots = createSplitRealmRoots();
+      const parentWindow = Object.create(null);
+      const topWindow = Object.create(null);
+      const frames = Object.create(null);
+      roots.hostWindow.parent = parentWindow;
+      roots.hostWindow.top = topWindow;
+      roots.hostWindow.frames = frames;
+
+      const sandbox = createProxyContext(createTestContext([]), roots);
+
+      expect(sandbox.parent).toBe(parentWindow);
+      expect(sandbox.top).toBe(topWindow);
+      expect(sandbox.frames).toBe(frames);
+    });
+
     it.concurrent("materializes separate realm and host roots through the eager snapshot", () => {
       const roots = createSplitRealmRoots();
       const sandbox = createProxyContext(createTestContext([]), roots);
 
       expect(sandbox.Node).toBe(roots.hostWindow.Node);
       expect(sandbox.Node.prototype).toBe(roots.hostWindow.Node.prototype);
+      expect(sandbox.NodeFilter).toBe(roots.hostWindow.NodeFilter);
+      expect(sandbox.NodeFilter.SHOW_TEXT).toBe(roots.hostWindow.NodeFilter.SHOW_TEXT);
+      expect(sandbox.HTMLBodyElement).toBe(roots.hostWindow.HTMLBodyElement);
+      expect(sandbox.HTMLBodyElement.prototype).toBe(roots.hostWindow.HTMLBodyElement.prototype);
       expect(sandbox.XMLHttpRequest).toBe(roots.hostWindow.XMLHttpRequest);
       expect(sandbox.XMLHttpRequest.DONE).toBe(4);
       expect(sandbox.EventTarget).toBe(roots.hostWindow.EventTarget);
@@ -429,7 +481,11 @@ describe.concurrent("createProxyContext", () => {
     });
 
     it.concurrent("keeps all self-referential window names inside the sandbox", () => {
-      const sandbox = createProxyContext(createTestContext([]));
+      const roots = createSplitRealmRoots();
+      roots.hostWindow.top = roots.hostWindow;
+      roots.hostWindow.parent = roots.hostWindow;
+      roots.hostWindow.frames = roots.hostWindow;
+      const sandbox = createProxyContext(createTestContext([]), roots);
 
       expect(sandbox.window).toBe(sandbox);
       expect(sandbox.self).toBe(sandbox);
@@ -509,6 +565,28 @@ describe.concurrent("createProxyContext", () => {
       expect(handler).toHaveBeenCalledTimes(1);
     });
 
+    it.concurrent("removes a function listener before storing an object handler, then accepts a new function", () => {
+      const sandbox = createProxyContext(createTestContext([]));
+      const oldHandler = vi.fn();
+      const objectHandler = { handleEvent: vi.fn() };
+      const newHandler = vi.fn();
+
+      try {
+        sandbox.onblur = oldHandler;
+        Reflect.set(sandbox, "onblur", objectHandler);
+        window.dispatchEvent(new Event("blur"));
+
+        expect(oldHandler).not.toHaveBeenCalled();
+        expect(objectHandler.handleEvent).not.toHaveBeenCalled();
+
+        sandbox.onblur = newHandler;
+        window.dispatchEvent(new Event("blur"));
+        expect(newHandler).toHaveBeenCalledTimes(1);
+      } finally {
+        sandbox.onblur = null;
+      }
+    });
+
     it.concurrent("replaces an on-property listener without retaining the previous callback", () => {
       const sandbox = createProxyContext(createTestContext([]));
       const oldHandler = vi.fn();
@@ -543,5 +621,50 @@ describe.concurrent("createProxyContext", () => {
       expect(sandbox).not.toBe(window);
       expect(sandbox.unsafeWindow).toBe(window);
     });
+
+    it.concurrent(
+      "uses hostWindow as the receiver for host prototype accessors and keeps the nearest descriptor",
+      () => {
+        const roots = createSplitRealmRoots();
+        const parentPrototype = Object.create(null);
+        const hostPrototype = Object.create(parentPrototype);
+        let hostValue = "unset";
+
+        Object.defineProperty(parentPrototype, "precedenceAccessor", {
+          configurable: true,
+          enumerable: true,
+          get: () => "parent",
+          set: () => undefined,
+        });
+        Object.defineProperty(hostPrototype, "precedenceAccessor", {
+          configurable: true,
+          enumerable: true,
+          get() {
+            return this === roots.hostWindow ? "host" : "wrong-receiver";
+          },
+          set(value: string) {
+            hostValue = this === roots.hostWindow ? value : "wrong-receiver";
+          },
+        });
+        Object.defineProperty(hostPrototype, "hostAccessor", {
+          configurable: true,
+          enumerable: true,
+          get() {
+            return this === roots.hostWindow ? "host" : "wrong-receiver";
+          },
+          set(value: string) {
+            hostValue = this === roots.hostWindow ? value : "wrong-receiver";
+          },
+        });
+        Object.setPrototypeOf(roots.hostWindow, hostPrototype);
+
+        const sandbox = createProxyContext(createTestContext([]), roots);
+
+        expect(sandbox.precedenceAccessor).toBe("host");
+        expect(sandbox.hostAccessor).toBe("host");
+        sandbox.hostAccessor = "updated";
+        expect(hostValue).toBe("updated");
+      }
+    );
   });
 });

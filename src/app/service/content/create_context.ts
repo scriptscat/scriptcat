@@ -237,6 +237,7 @@ const hostWindowConstructors = new Set([
   "Node",
   "Element",
   "HTMLElement",
+  "HTMLBodyElement",
   "Document",
   "DocumentFragment",
   "ShadowRoot",
@@ -306,9 +307,11 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
   };
 
   const collectRealmDescriptors = () => {
-    // 包含物件本身及所有父类(不包含Object)的PropertyDescriptor。
-    // 主要是找出哪些 function 值、setter/getter 需要替换 global window。
-    getAllPropertyDescriptors(realmGlobal, ([key, desc]) => {
+    // 只读取 realmGlobal own descriptors，避免沿 Firefox 的 hostWindow 原型链混合两个 realm。
+    // 主要是找出哪些 function 值、setter/getter 需要替换 host window。
+    const descriptors = Object.getOwnPropertyDescriptors(realmGlobal);
+    Reflect.ownKeys(descriptors).forEach((key) => {
+      const desc = descriptors[key as keyof typeof descriptors];
       if (!desc || descsCache.has(key) || typeof key !== "string") return;
 
       if (desc.writable) {
@@ -547,7 +550,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
   }
 
   // split realm 下 hostWindow 可能经由 realmGlobal.window 暴露；这些别名必须始终留在当前 sandbox 内。
-  for (const key of ["window", "self", "globalThis", "top", "parent", "frames"]) {
+  for (const key of ["window", "self", "globalThis"]) {
     ownDescs[key] = {
       configurable: true,
       enumerable: true,
@@ -555,6 +558,24 @@ export const createProxyContext = <const Context extends GMWorldContext>(
         return mySandbox;
       },
     };
+  }
+  for (const key of ["top", "parent", "frames"]) {
+    const descriptor = ownDescs[key];
+    const hostValue = Reflect.get(roots.hostWindow, key, roots.hostWindow);
+    if (hostValue === undefined && !descriptor) continue;
+
+    ownDescs[key] = {
+      ...descriptor,
+      configurable: true,
+      enumerable: descriptor?.enumerable ?? true,
+      get() {
+        const value = Reflect.get(roots.hostWindow, key, roots.hostWindow);
+        return value === roots.hostWindow || value === roots.realmGlobal ? mySandbox : value;
+      },
+      set: undefined,
+    };
+    delete ownDescs[key].value;
+    delete ownDescs[key].writable;
   }
   if (noEval) {
     if (ownDescs?.eval?.value) {
