@@ -113,6 +113,7 @@
   "trash_undo_success": "Restaurado",
   "trash_undo_failed": "Falha ao restaurar",
   "sort_by": "Ordenar",
+  "sort_create_time": "Data de adição",
   "sort_default": "Padrão",
   "sort_ascending": "Crescente",
   "sort_descending": "Decrescente",

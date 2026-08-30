@@ -113,6 +113,7 @@
   "trash_undo_success": "已还原",
   "trash_undo_failed": "还原失败",
   "sort_by": "排序",
+  "sort_create_time": "添加时间",
   "sort_default": "默认",
   "sort_ascending": "升序",
   "sort_descending": "降序",

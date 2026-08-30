@@ -113,6 +113,7 @@
   "trash_undo_success": "Đã khôi phục",
   "trash_undo_failed": "Khôi phục thất bại",
   "sort_by": "Sắp xếp",
+  "sort_create_time": "Thời gian thêm",
   "sort_default": "Mặc định",
   "sort_ascending": "Tăng dần",
   "sort_descending": "Giảm dần",

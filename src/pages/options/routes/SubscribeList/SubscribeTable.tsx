@@ -1,5 +1,5 @@
 import React, { useCallback } from "react";
-import { ChevronUp, ChevronDown, ChevronsUpDown, ListFilter, Check, Inbox } from "lucide-react";
+import { ChevronDown, ListFilter, Check, Inbox } from "lucide-react";
 import { SubscribeStatusType } from "@App/app/repo/subscribe";
 import { requestEnableSubscribe, type SubscribeLoading } from "@App/pages/store/features/subscribe";
 import { cn } from "@App/pkg/utils/cn";
@@ -10,11 +10,19 @@ import { LoadingState } from "@App/pages/components/ui/loading-state";
 import { SearchInput } from "@App/pages/components/ui/search-input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import {
+  ListRow,
+  ListRowActions,
+  ListRowLeading,
+  ListRowMain,
+  ListRowTrailing,
+} from "@App/pages/components/ui/list-row";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@App/pages/components/ui/dropdown-menu";
+import { SortMenu } from "../ScriptList/SortMenu";
 import type { SubscribeSort, SubscribeSortField } from "./filter";
 import {
   SubscribeIcon,
@@ -35,42 +43,13 @@ export interface SubscribeTableProps {
   setSearchKeyword: (kw: string) => void;
   totalCount: number;
   sort: SubscribeSort | null;
-  onSort: (field: SubscribeSortField) => void;
+  setSort: (sort: SubscribeSort | null) => void;
   statusFilter: SubscribeStatusType | null;
   setStatusFilter: (v: SubscribeStatusType | null) => void;
 }
 
-// ========== 可排序表头 ==========
-function SortHeader({
-  label,
-  field,
-  sort,
-  onSort,
-}: {
-  label: string;
-  field: SubscribeSortField;
-  sort: SubscribeSort | null;
-  onSort: (field: SubscribeSortField) => void;
-}) {
-  const active = sort?.field === field;
-  const Icon = active ? (sort!.order === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown;
-  return (
-    <button
-      type="button"
-      onClick={() => onSort(field)}
-      className={cn(
-        "inline-flex items-center gap-1 transition-colors hover:text-foreground",
-        active && "text-foreground"
-      )}
-    >
-      <span>{label}</span>
-      <Icon className={cn("w-3 h-3", !active && "opacity-40")} />
-    </button>
-  );
-}
-
-// ========== 状态筛选表头 ==========
-function StatusFilterHeader({
+// ========== 状态筛选 ==========
+function StatusFilterMenu({
   statusFilter,
   setStatusFilter,
 }: {
@@ -83,21 +62,24 @@ function StatusFilterHeader({
     { value: SubscribeStatusType.enable, label: t("enable") },
     { value: SubscribeStatusType.disable, label: t("disable") },
   ];
+  const active = options.find((o) => o.value === statusFilter) ?? options[0];
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          data-testid="subscribe-status-filter"
           className={cn(
-            "inline-flex items-center gap-1 transition-colors hover:text-foreground",
-            statusFilter !== null && "text-primary"
+            "flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px]",
+            statusFilter === null ? "text-foreground" : "text-primary"
           )}
         >
-          <span>{t("script:script_list.sidebar.status")}</span>
-          <ListFilter className="w-3 h-3" />
+          <ListFilter className="h-3.5 w-3.5 text-muted-foreground" />
+          <span>{`${t("script:script_list.sidebar.status")}：${active.label}`}</span>
+          <ChevronDown className="h-3 w-3 text-muted-foreground" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="center" className="w-32">
+      <DropdownMenuContent align="end" className="w-32">
         {options.map((o) => (
           <DropdownMenuItem
             key={String(o.value)}
@@ -122,7 +104,7 @@ export default function SubscribeTable({
   setSearchKeyword,
   totalCount,
   sort,
-  onSort,
+  setSort,
   statusFilter,
   setStatusFilter,
 }: SubscribeTableProps) {
@@ -148,7 +130,7 @@ export default function SubscribeTable({
 
   return (
     <div data-testid="subscribe-page" className="flex flex-col h-full">
-      {/* 顶栏：标题 + 数量 + 搜索 */}
+      {/* 顶栏：标题 + 数量 + 搜索 + 状态筛选 + 排序（后两者由表头迁入） */}
       <div className="flex items-center gap-4 h-14 px-6 shrink-0 border-b border-border bg-card">
         <div className="flex items-center gap-2 shrink-0">
           <h1 className="text-base font-semibold">{t("script:subscribe")}</h1>
@@ -164,30 +146,20 @@ export default function SubscribeTable({
           value={searchKeyword}
           onChange={(e) => setSearchKeyword(e.target.value)}
         />
+        <StatusFilterMenu statusFilter={statusFilter} setStatusFilter={setStatusFilter} />
+        <SortMenu
+          options={[
+            { key: "createtime" as SubscribeSortField, label: t("script:sort_create_time") },
+            { key: "name" as SubscribeSortField, label: t("name") },
+            { key: "updatetime" as SubscribeSortField, label: t("logs:last_updated") },
+          ]}
+          value={{ key: sort?.field ?? null, order: sort?.order ?? "asc" }}
+          onChange={(next) => setSort(next.key === null ? null : { field: next.key, order: next.order })}
+        />
       </div>
 
-      {/* 表格 */}
-      <div className="flex-1 overflow-auto scrollbar-custom px-6 pb-6">
-        {/* 表头 */}
-        <div className="flex items-center h-10 px-3 text-xs font-medium text-muted-foreground border-b border-border sticky top-0 bg-background z-10 min-w-[820px]">
-          <div className="w-10 flex justify-center">
-            <SortHeader label="#" field="createtime" sort={sort} onSort={onSort} />
-          </div>
-          <div className="w-16 flex justify-center">
-            <StatusFilterHeader statusFilter={statusFilter} setStatusFilter={setStatusFilter} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <SortHeader label={t("name")} field="name" sort={sort} onSort={onSort} />
-          </div>
-          <div className="w-[110px] text-center">{t("version")}</div>
-          <div className="w-[140px] text-center">{t("permission:permission")}</div>
-          <div className="w-[110px] text-center">{t("source")}</div>
-          <div className="w-[150px] flex justify-center">
-            <SortHeader label={t("logs:last_updated")} field="updatetime" sort={sort} onSort={onSort} />
-          </div>
-          <div className="w-[80px] text-right">{t("action")}</div>
-        </div>
-
+      {/* 列表 */}
+      <div className="flex-1 overflow-auto scrollbar-custom px-6 py-3">
         {/* 加载状态 */}
         {loadingList && <LoadingState label={t("loading")} />}
 
@@ -228,70 +200,59 @@ interface SubscribeRowProps {
 
 function SubscribeRowInner({ index, subscribe, onEnable, onDelete }: SubscribeRowProps) {
   const { t } = useTranslation();
-  const isDisabled = subscribe.status === SubscribeStatusType.disable;
   const version = subscribe.metadata.version?.[0] || "0.0";
   const scriptCount = Object.keys(subscribe.scripts || {}).length;
-  const subtitle = [t("script:subscribe_scripts_count", { count: scriptCount }), subscribe.author]
+  const subtitle = [
+    versionDisplay(version),
+    t("script:subscribe_scripts_count", { count: scriptCount }),
+    subscribe.author,
+  ]
     .filter(Boolean)
     .join(" · ");
 
   return (
-    <div
-      className={cn(
-        "group/row flex items-center h-[52px] px-3 rounded-lg transition-colors hover:bg-primary/[0.08] min-w-[820px]",
-        isDisabled && "opacity-60"
-      )}
-    >
-      {/* 序号 */}
-      <div className="w-10 flex justify-center text-xs text-muted-foreground tabular-nums">{index + 1}</div>
+    <ListRow disabled={subscribe.status === SubscribeStatusType.disable}>
+      <ListRowLeading>
+        <span className="flex w-10 justify-center text-xs text-muted-foreground tabular-nums">{index + 1}</span>
+        <span className="flex w-16 justify-center">
+          <SubscribeEnableSwitch
+            status={subscribe.status}
+            enableLoading={subscribe.enableLoading}
+            onCheckedChange={(checked) => onEnable(subscribe, checked)}
+          />
+        </span>
+      </ListRowLeading>
 
-      {/* 开关 */}
-      <div className="w-16 flex justify-center">
-        <SubscribeEnableSwitch
-          status={subscribe.status}
-          enableLoading={subscribe.enableLoading}
-          onCheckedChange={(checked) => onEnable(subscribe, checked)}
-        />
-      </div>
-
-      {/* 名称 + 元信息 */}
-      <div className="flex-1 min-w-0 flex items-center gap-2.5">
+      <ListRowMain>
         <SubscribeIcon name={subscribe.name} />
-        <div className="min-w-0 flex flex-col gap-px">
+        <div className="flex min-w-0 flex-col gap-px">
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="text-sm font-medium truncate">{subscribe.name}</span>
             </TooltipTrigger>
             <TooltipContent>{subscribe.name}</TooltipContent>
           </Tooltip>
-          <span className="text-[11px] text-muted-foreground truncate">{subtitle}</span>
+          {/* 版本与来源由原来的固定列降级为元信息行 */}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-[11px] text-muted-foreground">{subtitle}</span>
+            <SubscribeSourceTag url={subscribe.url} />
+          </span>
         </div>
-      </div>
+      </ListRowMain>
 
-      {/* 版本 */}
-      <div className="w-[110px] flex justify-center text-xs font-mono text-fg-secondary">{versionDisplay(version)}</div>
+      <ListRowTrailing className="gap-3">
+        <div className="flex w-[140px] justify-center">
+          <PermissionFavicons connect={subscribe.metadata.connect} />
+        </div>
+        <div className="w-[150px]">
+          <SubscribeUpdateTimeCell url={subscribe.url} updatetime={subscribe.updatetime} />
+        </div>
+      </ListRowTrailing>
 
-      {/* 权限 */}
-      <div className="w-[140px] flex justify-center">
-        <PermissionFavicons connect={subscribe.metadata.connect} />
-      </div>
-
-      {/* 来源 */}
-      <div className="w-[110px] flex justify-center">
-        <SubscribeSourceTag url={subscribe.url} />
-      </div>
-
-      {/* 最后更新 */}
-      <div className="w-[150px] flex justify-center">
-        <SubscribeUpdateTimeCell url={subscribe.url} updatetime={subscribe.updatetime} />
-      </div>
-
-      {/* 操作 */}
-      <SubscribeRowActions
-        onDelete={() => onDelete(subscribe)}
-        className="w-[80px] justify-end opacity-[0.55] group-hover/row:opacity-100"
-      />
-    </div>
+      <ListRowActions>
+        <SubscribeRowActions onDelete={() => onDelete(subscribe)} />
+      </ListRowActions>
+    </ListRow>
   );
 }
 

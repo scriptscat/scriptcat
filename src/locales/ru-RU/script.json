@@ -113,6 +113,7 @@
   "trash_undo_success": "Восстановлено",
   "trash_undo_failed": "Не удалось восстановить",
   "sort_by": "Сортировка",
+  "sort_create_time": "Время добавления",
   "sort_default": "По умолчанию",
   "sort_ascending": "По возрастанию",
   "sort_descending": "По убыванию",

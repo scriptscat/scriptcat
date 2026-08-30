@@ -113,6 +113,7 @@
   "trash_undo_success": "Restored",
   "trash_undo_failed": "Restore failed",
   "sort_by": "Sort",
+  "sort_create_time": "Added time",
   "sort_default": "Default",
   "sort_ascending": "Ascending",
   "sort_descending": "Descending",

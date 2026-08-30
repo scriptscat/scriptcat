@@ -113,6 +113,7 @@
   "trash_undo_success": "Wiederhergestellt",
   "trash_undo_failed": "Wiederherstellen fehlgeschlagen",
   "sort_by": "Sortieren",
+  "sort_create_time": "Hinzugefügt am",
   "sort_default": "Standard",
   "sort_ascending": "Aufsteigend",
   "sort_descending": "Absteigend",

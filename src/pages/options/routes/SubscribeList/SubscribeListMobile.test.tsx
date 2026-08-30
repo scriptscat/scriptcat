@@ -77,12 +77,12 @@ afterEach(() => cleanup());
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe("订阅列表移动端卡片外壳", () => {
-  it("移动端渲染订阅卡片而非横向滚动的宽表格", () => {
+  it("移动端渲染订阅卡片而非桌面列表行", () => {
     const { container, queryByTestId } = renderWithRouterTooltip(<SubscribeList />);
     // 出现卡片
     expect(queryByTestId("subscribe-card")).toBeInTheDocument();
-    // 不再出现需要横向滚动的宽表格
-    expect(container.querySelector(".min-w-\\[820px\\]")).toBeNull();
+    // 不落到桌面分支
+    expect(container.querySelector('[data-slot="list-row"]')).toBeNull();
   });
 
   it("卡片内保留各列数据：名称、版本、来源徽章、更新时间、启用开关与删除按钮", () => {
@@ -104,10 +104,10 @@ describe("订阅列表移动端卡片外壳", () => {
     expect(card.querySelector(`[aria-label="${t("check_update")}"]`)).not.toBeNull();
   });
 
-  it("桌面端仍渲染含横向滚动宽表格的表格视图", () => {
+  it("桌面端渲染统一列表行而非卡片", () => {
     mockedUseIsMobile.mockReturnValue(false);
     const { container, queryByTestId } = renderWithRouterTooltip(<SubscribeList />);
     expect(queryByTestId("subscribe-card")).toBeNull();
-    expect(container.querySelector(".min-w-\\[820px\\]")).not.toBeNull();
+    expect(container.querySelector('[data-slot="list-row"]')).not.toBeNull();
   });
 });

@@ -113,6 +113,7 @@
   "trash_undo_success": "복원되었습니다",
   "trash_undo_failed": "복원에 실패했습니다",
   "sort_by": "정렬",
+  "sort_create_time": "추가 시간",
   "sort_default": "기본",
   "sort_ascending": "오름차순",
   "sort_descending": "내림차순",
