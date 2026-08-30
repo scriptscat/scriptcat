@@ -36,15 +36,16 @@ import { Skeleton } from "@App/pages/components/ui/skeleton";
 import { Switch } from "@App/pages/components/ui/switch";
 import { notify } from "@App/pages/components/ui/toast";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
-import { isAllSitesCondition } from "../sections/CspRuleSheet";
 import { useActionLabels } from "./RuleParts";
 import RuleCards from "./RuleCards";
+import RuleSheet, { type NetworkRuleFormValue, type NetworkRuleSaveResult } from "./RuleSheet";
 import RuleTable from "./RuleTable";
 import {
   ACTION_FILTER_OPTIONS,
   enabledCount,
   filterRules,
   filtersActive,
+  isAllSitesCondition,
   moveRuleTo,
   NETWORK_RULES_PAGE_SIZE,
   orderedRules,
@@ -73,6 +74,9 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
   const [pendingOrder, setPendingOrder] = useState<string[]>();
   const [movingRule, setMovingRule] = useState<NetworkRule>();
   const [confirmAllSites, setConfirmAllSites] = useState<NetworkRule>();
+  const [confirmDelete, setConfirmDelete] = useState<NetworkRule>();
+  const [editingRule, setEditingRule] = useState<NetworkRule>();
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
     if (!isOwner) return;
@@ -210,6 +214,61 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
     }
   };
 
+  const openSheet = (rule?: NetworkRule) => {
+    setEditingRule(rule);
+    setSheetOpen(true);
+  };
+
+  // 抽屉自己展示保存失败的原因，所以这里不走 mutate 的 toast，只把服务端错误原样回传。
+  const saveRule = async (value: NetworkRuleFormValue): Promise<NetworkRuleSaveResult> => {
+    if (!state) return false;
+    const baseRevision = state.revision;
+    setBusy("sheet");
+    try {
+      const result = editingRule
+        ? await client.updateRule({
+            baseRevision,
+            id: editingRule.id,
+            patch: { name: value.name, condition: value.condition, action: value.action },
+          })
+        : await client.createRule({
+            baseRevision,
+            enabled: true,
+            name: value.name,
+            condition: value.condition,
+            action: value.action,
+          });
+      applyResult(result);
+      if (result.outcome === "applied" && result.apply.state === "applied") {
+        notify.success(t("tools:network_rules_rule_saved"));
+      }
+      setSheetOpen(false);
+      return true;
+    } catch (error) {
+      if (error instanceof NetworkRuleAmbiguousResponseError) {
+        if (await settleAmbiguous(baseRevision)) {
+          setSheetOpen(false);
+          return true;
+        }
+        return false;
+      }
+      const parsed = parseNetworkRuleError(error);
+      if (parsed.snapshot) setSnapshot(parsed.snapshot);
+      return parsed;
+    } finally {
+      setBusy(undefined);
+    }
+  };
+
+  const deleteRule = async (rule: NetworkRule) => {
+    const ok = await mutate(
+      rule.id,
+      (baseRevision) => client.deleteRule({ baseRevision, id: rule.id }),
+      t("tools:network_rules_storage_error")
+    );
+    if (ok) notify.success(t("tools:network_rules_rule_deleted"));
+  };
+
   const toggleSelect = (id: string, checked: boolean) =>
     setSelected((current) => {
       const next = new Set(current);
@@ -235,6 +294,8 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
     busy: busy !== undefined,
     onToggleEnabled: toggleEnabled,
     onDragEnd: handleDragEnd,
+    onEdit: (rule: NetworkRule) => openSheet(rule),
+    onDelete: (rule: NetworkRule) => setConfirmDelete(rule),
     onMoveTop: (rule: NetworkRule) => moveTo(rule, 0),
     onMoveBottom: (rule: NetworkRule) => moveTo(rule, order.length - 1),
     onMoveTo: (rule: NetworkRule) => setMovingRule(rule),
@@ -323,7 +384,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
               <Button variant="outline" size="sm" disabled>
                 {t("tools:network_rules_test_match")}
               </Button>
-              <Button size="sm" disabled>
+              <Button size="sm" disabled={loading || !state} onClick={() => openSheet()}>
                 {t("tools:network_rules_new_rule")}
               </Button>
             </div>
@@ -446,6 +507,43 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
           if (rule) moveTo(rule, position - 1);
         }}
       />
+
+      <RuleSheet
+        key={`${editingRule?.id ?? "new"}-${sheetOpen ? "open" : "closed"}`}
+        open={sheetOpen}
+        rule={editingRule}
+        saving={busy === "sheet"}
+        onOpenChange={(next) => {
+          if (busy === "sheet") return;
+          setSheetOpen(next);
+          if (!next) setEditingRule(undefined);
+        }}
+        onSave={saveRule}
+      />
+
+      <AlertDialog open={confirmDelete !== undefined} onOpenChange={(open) => !open && setConfirmDelete(undefined)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("tools:network_rules_confirm_delete_title")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("tools:network_rules_confirm_delete_description")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmDelete(undefined)}>
+              {t("tools:network_rules_cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                const rule = confirmDelete;
+                setConfirmDelete(undefined);
+                if (rule) void deleteRule(rule);
+              }}
+            >
+              {t("tools:network_rules_confirm_delete_action")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmAllSites !== undefined} onOpenChange={(open) => !open && setConfirmAllSites(undefined)}>
         <AlertDialogContent>

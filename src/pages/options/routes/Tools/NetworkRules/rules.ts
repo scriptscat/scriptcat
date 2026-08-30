@@ -1,4 +1,9 @@
-import type { NetworkRule, NetworkRuleActionType, NetworkRuleState } from "@App/app/repo/network_rule";
+import type {
+  NetworkRule,
+  NetworkRuleActionType,
+  NetworkRuleCondition,
+  NetworkRuleState,
+} from "@App/app/repo/network_rule";
 
 export const NETWORK_RULES_PAGE_SIZE = 20;
 
@@ -55,4 +60,41 @@ export function moveRuleTo(order: string[], id: string, targetIndex: number): st
 
 export function enabledCount(state: NetworkRuleState): number {
   return state.rules.filter((rule) => rule.enabled).length;
+}
+
+/** 「所有网站」在条件里只有这一种写法，列表、编辑与高危确认都以它判定。 */
+export const ALL_SITES_URL_FILTER = "*";
+
+export function isAllSitesCondition(condition: NetworkRuleCondition): boolean {
+  return condition.urlFilter === ALL_SITES_URL_FILTER;
+}
+
+export type RuleUrlMatch = "match" | "no-match" | "invalid";
+
+function hostMatchesDomain(hostname: string, domain: string): boolean {
+  return hostname === domain || hostname.endsWith(`.${domain}`);
+}
+
+/**
+ * 保存前自查用的本地匹配，只覆盖本表单能产出的条件（域名列表 / 「所有网站」）。
+ * 遇到别处写入的 urlFilter 退化为子串比较，与浏览器的 DNR 匹配不完全等价。
+ */
+export function matchRuleUrl(condition: NetworkRuleCondition, input: string): RuleUrlMatch {
+  let url: URL;
+  try {
+    url = new URL(input.trim());
+  } catch {
+    return "invalid";
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") return "invalid";
+  const hostname = url.hostname.toLowerCase();
+  if (condition.excludedRequestDomains?.some((domain) => hostMatchesDomain(hostname, domain))) return "no-match";
+  if (condition.requestDomains && !condition.requestDomains.some((domain) => hostMatchesDomain(hostname, domain))) {
+    return "no-match";
+  }
+  const { urlFilter } = condition;
+  if (urlFilter && urlFilter !== ALL_SITES_URL_FILTER && !url.href.includes(urlFilter.replaceAll("*", ""))) {
+    return "no-match";
+  }
+  return "match";
 }

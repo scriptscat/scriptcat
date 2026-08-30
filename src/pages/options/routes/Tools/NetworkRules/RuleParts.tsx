@@ -7,11 +7,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@App/pages/components/ui/dropdown-menu";
 import { semTime } from "@App/locales/relative-date";
-import { isAllSitesCondition } from "../sections/CspRuleSheet";
-import { ruleDomains } from "./rules";
+import { isAllSitesCondition, ruleDomains } from "./rules";
 
 const VISIBLE_DOMAINS = 2;
 
@@ -72,7 +72,9 @@ export function RuleName({ rule }: { rule: NetworkRule }) {
   );
 }
 
-export type RuleMoveHandlers = {
+export type RuleRowActions = {
+  onEdit: (rule: NetworkRule) => void;
+  onDelete: (rule: NetworkRule) => void;
   onMoveTop: (rule: NetworkRule) => void;
   onMoveBottom: (rule: NetworkRule) => void;
   onMoveTo: (rule: NetworkRule) => void;
@@ -83,10 +85,12 @@ export function RuleRowMenu({
   position,
   total,
   disabled,
+  onEdit,
+  onDelete,
   onMoveTop,
   onMoveBottom,
   onMoveTo,
-}: RuleMoveHandlers & { rule: NetworkRule; position: number; total: number; disabled: boolean }) {
+}: RuleRowActions & { rule: NetworkRule; position: number; total: number; disabled: boolean }) {
   const { t } = useTranslation();
   return (
     <DropdownMenu>
@@ -96,6 +100,7 @@ export function RuleRowMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => onEdit(rule)}>{t("tools:network_rules_edit")}</DropdownMenuItem>
         <DropdownMenuItem disabled={position === 1} onSelect={() => onMoveTop(rule)}>
           {t("tools:network_rules_move_top")}
         </DropdownMenuItem>
@@ -104,6 +109,10 @@ export function RuleRowMenu({
         </DropdownMenuItem>
         <DropdownMenuItem disabled={total < 2} onSelect={() => onMoveTo(rule)}>
           {t("tools:network_rules_move_to")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => onDelete(rule)}>
+          {t("tools:network_rules_delete")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

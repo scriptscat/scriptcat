@@ -13,12 +13,12 @@ import { CSS } from "@dnd-kit/utilities";
 import type { NetworkRule } from "@App/app/repo/network_rule";
 import { Switch } from "@App/pages/components/ui/switch";
 import { cn } from "@App/pkg/utils/cn";
-import { ActionBadge, RuleName, RuleRowMenu, ScopeChips, type RuleMoveHandlers } from "./RuleParts";
+import { ActionBadge, RuleName, RuleRowMenu, ScopeChips, type RuleRowActions } from "./RuleParts";
 
 // 移动端没有常驻手柄，长按整张卡片进入拖拽；delay 之内的移动仍按滚动处理。
 const LONG_PRESS = { delay: 300, tolerance: 8 };
 
-export type RuleCardsProps = RuleMoveHandlers & {
+export type RuleCardsProps = RuleRowActions & {
   rules: NetworkRule[];
   positionOf: (rule: NetworkRule) => number;
   total: number;
@@ -85,7 +85,7 @@ function SortableRuleCard({
   busy,
   onToggleEnabled,
   ...moveHandlers
-}: RuleMoveHandlers & {
+}: RuleRowActions & {
   rule: NetworkRule;
   position: number;
   total: number;

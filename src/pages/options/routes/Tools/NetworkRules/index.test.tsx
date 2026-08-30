@@ -44,11 +44,16 @@ function snapshot(rules: NetworkRule[], order = rules.map((r) => r.id)): Network
 }
 
 function clientFor(current: NetworkRuleSnapshot, overrides: Partial<NetworkRuleClient> = {}): NetworkRuleClient {
+  const mutated = {
+    state: { ...current.state, revision: current.state.revision + 1 },
+    apply: { state: "applied" as const, revision: current.state.revision + 1, appliedAt: 2 },
+    outcome: "applied" as const,
+  };
   return {
     getState: vi.fn().mockResolvedValue(current),
-    createRule: vi.fn(),
-    updateRule: vi.fn(),
-    deleteRule: vi.fn(),
+    createRule: vi.fn().mockResolvedValue(mutated),
+    updateRule: vi.fn().mockResolvedValue(mutated),
+    deleteRule: vi.fn().mockResolvedValue(mutated),
     setRuleEnabled: vi.fn(),
     setMasterEnabled: vi.fn(),
     // 服务端会带着新顺序回包，mock 必须还原这一点，否则页面无从判断保存是否生效。
@@ -247,5 +252,166 @@ describe("网络规则列表页", () => {
     fireEvent.click(screen.getByRole("button", { name: "重试" }));
     await flush();
     expect(client.retryApply).toHaveBeenCalled();
+  });
+});
+
+const TEMPLATE_NAMES = [
+  "移除 CSP",
+  "修改 User-Agent",
+  "修改 Referer",
+  "修改响应头",
+  "屏蔽请求",
+  "重定向请求",
+  "自定义",
+];
+
+async function openCreateSheet() {
+  fireEvent.click(screen.getByRole("button", { name: "新建规则" }));
+  await flush();
+}
+
+async function pickTemplate(name: string) {
+  fireEvent.click(await screen.findByRole("button", { name: new RegExp(name) }));
+  await flush();
+}
+
+async function pickOption(comboboxName: string, optionText: string) {
+  fireEvent.keyDown(screen.getByRole("combobox", { name: comboboxName }), { key: "Enter" });
+  await flush();
+  fireEvent.click(await screen.findByRole("option", { name: optionText }));
+  await flush();
+}
+
+async function openRowAction(row: HTMLElement, item: string) {
+  await openRowMenu(row);
+  fireEvent.click(await screen.findByRole("menuitem", { name: item }));
+  await flush();
+}
+
+describe("网络规则编辑抽屉", () => {
+  it("新建规则先展示七个场景模板", async () => {
+    renderPage(clientFor(snapshot([])));
+    expect(await screen.findByText("还没有网络规则")).toBeInTheDocument();
+
+    await openCreateSheet();
+
+    for (const name of TEMPLATE_NAMES) {
+      expect(screen.getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
+    }
+  });
+
+  it("改写 Cookie 请求头在输入阶段就被拦下，保存不会发出任何请求", async () => {
+    const client = clientFor(snapshot([]));
+    renderPage(client);
+    expect(await screen.findByText("还没有网络规则")).toBeInTheDocument();
+
+    await openCreateSheet();
+    await pickTemplate("自定义");
+    await pickOption("动作类型", "改请求头");
+    fireEvent.change(screen.getByLabelText("应用范围"), { target: { value: "example.com" } });
+    fireEvent.change(screen.getAllByLabelText("头名称")[0], { target: { value: "Cookie" } });
+
+    expect(screen.getByText(/不允许改写/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await flush();
+    expect(client.createRule).not.toHaveBeenCalled();
+  });
+
+  it("移除 CSP 模板预填四个 CSP 响应头，X-Frame-Options 可选附带", async () => {
+    const client = clientFor(snapshot([]));
+    renderPage(client);
+    expect(await screen.findByText("还没有网络规则")).toBeInTheDocument();
+
+    await openCreateSheet();
+    await pickTemplate("移除 CSP");
+    for (const header of [
+      "content-security-policy",
+      "content-security-policy-report-only",
+      "x-content-security-policy",
+      "x-webkit-csp",
+    ]) {
+      expect(screen.getByText(header)).toBeInTheDocument();
+    }
+    expect(screen.queryByText("x-frame-options")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "同时移除 X-Frame-Options" }));
+    fireEvent.change(screen.getByLabelText("应用范围"), { target: { value: "github.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await flush();
+
+    expect(client.createRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        condition: expect.objectContaining({ requestDomains: ["github.com"] }),
+        action: {
+          type: "removeResponseHeaders",
+          headers: [
+            "content-security-policy",
+            "content-security-policy-report-only",
+            "x-content-security-policy",
+            "x-webkit-csp",
+            "x-frame-options",
+          ],
+        },
+      })
+    );
+  });
+
+  it("编辑既有规则直接进入第二步，更换类型退回第一步并保留应用范围", async () => {
+    const client = clientFor(snapshot([rule(1)]));
+    renderPage(client);
+    expect(await screen.findByText("规则 1")).toBeInTheDocument();
+
+    await openRowAction(screen.getAllByTestId("network-rule-row")[0], "编辑");
+    expect(screen.getByLabelText("应用范围")).toHaveValue("s1.example.com");
+    expect(screen.queryByRole("button", { name: /屏蔽请求/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "更换类型" }));
+    await flush();
+    for (const name of TEMPLATE_NAMES) {
+      expect(screen.getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
+    }
+
+    await pickTemplate("屏蔽请求");
+    expect(screen.getByLabelText("应用范围")).toHaveValue("s1.example.com");
+
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await flush();
+    expect(client.updateRule).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "r1", patch: expect.objectContaining({ action: { type: "block" } }) })
+    );
+  });
+
+  it("保存「所有网站」规则前必须二次确认", async () => {
+    const client = clientFor(snapshot([]));
+    renderPage(client);
+    expect(await screen.findByText("还没有网络规则")).toBeInTheDocument();
+
+    await openCreateSheet();
+    await pickTemplate("屏蔽请求");
+    fireEvent.click(screen.getByRole("checkbox", { name: /所有网站/ }));
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await flush();
+
+    expect(client.createRule).not.toHaveBeenCalled();
+    expect(screen.getByText("影响所有网站？")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "继续" }));
+    await flush();
+    expect(client.createRule).toHaveBeenCalledWith(
+      expect.objectContaining({ condition: expect.objectContaining({ urlFilter: "*" }) })
+    );
+  });
+
+  it("删除规则需确认，并提示可以改用停用", async () => {
+    const client = clientFor(snapshot([rule(1)]));
+    renderPage(client);
+    expect(await screen.findByText("规则 1")).toBeInTheDocument();
+
+    await openRowAction(screen.getAllByTestId("network-rule-row")[0], "删除");
+    expect(client.deleteRule).not.toHaveBeenCalled();
+    expect(screen.getByText(/停用/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "删除规则" }));
+    await flush();
+    expect(client.deleteRule).toHaveBeenCalledWith({ baseRevision: 3, id: "r1" });
   });
 });

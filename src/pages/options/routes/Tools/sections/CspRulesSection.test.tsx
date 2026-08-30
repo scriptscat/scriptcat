@@ -63,7 +63,7 @@ describe("CSP 规则工具卡", () => {
     render(<CspRulesSection register={() => () => {}} client={client} />);
     expect(await screen.findByText("No CSP rules")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add rule" }));
-    expect(await screen.findByRole("heading", { name: "Add CSP rule" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "New rule" })).toBeInTheDocument();
   });
 
   it("第 21 条规则起按每批 20 条显示", async () => {
@@ -187,14 +187,15 @@ describe("CSP 规则工具卡", () => {
     render(<CspRulesSection register={() => () => {}} client={client} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Add rule" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Remove CSP/ }));
     fireEvent.change(await screen.findByRole("textbox", { name: "Websites" }), {
       target: { value: "example.com" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save rule" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(await screen.findAllByText("example.com")).not.toHaveLength(0);
-    expect(screen.queryByText("The rule could not be saved. Your form entries were kept.")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Add CSP rule" })).not.toBeInTheDocument();
+    expect(screen.queryByText("The change could not be saved.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "New rule" })).not.toBeInTheDocument();
   });
 
   it("保存响应丢失且服务端实际未生效时，仍提示保存失败", async () => {
@@ -205,12 +206,13 @@ describe("CSP 规则工具卡", () => {
     render(<CspRulesSection register={() => () => {}} client={client} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Add rule" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Remove CSP/ }));
     fireEvent.change(await screen.findByRole("textbox", { name: "Websites" }), {
       target: { value: "example.com" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save rule" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(await screen.findByText("The rule could not be saved. Your form entries were kept.")).toBeInTheDocument();
+    expect(await screen.findByText("The change could not be saved.")).toBeInTheDocument();
   });
 
   it("删除确认弹窗使用独立的 AlertDialog，而不是嵌套在下拉菜单内的气泡", async () => {

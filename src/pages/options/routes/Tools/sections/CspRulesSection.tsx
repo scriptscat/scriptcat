@@ -36,12 +36,8 @@ import { SettingRow } from "@App/pages/options/components/SettingRow";
 import { Skeleton } from "@App/pages/components/ui/skeleton";
 import { Switch } from "@App/pages/components/ui/switch";
 import { notify } from "@App/pages/components/ui/toast";
-import {
-  CspRuleSheet,
-  isAllSitesCondition,
-  type NetworkRuleFormValue,
-  type NetworkRuleSaveResult,
-} from "./CspRuleSheet";
+import RuleSheet, { type NetworkRuleFormValue, type NetworkRuleSaveResult } from "../NetworkRules/RuleSheet";
+import { isAllSitesCondition } from "../NetworkRules/rules";
 
 type CspRulesSectionProps = {
   register: (id: string) => (el: HTMLElement | null) => void;
@@ -152,8 +148,9 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
     return false;
   };
 
-  const saveRule = async (value: NetworkRuleFormValue, baseRevision: number): Promise<NetworkRuleSaveResult> => {
+  const saveRule = async (value: NetworkRuleFormValue): Promise<NetworkRuleSaveResult> => {
     if (!snapshot) return { code: "storage_read_failed" };
+    const baseRevision = snapshot.state.revision;
     setBusy("sheet");
     const domains = value.condition.requestDomains ?? [];
     const name =
@@ -171,7 +168,7 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
         : await client.createRule({
             baseRevision,
             name,
-            enabled: value.enabled,
+            enabled: true,
             condition: value.condition,
             action: value.action,
           });
@@ -503,12 +500,10 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
       )}
 
       {cspRuleOwner && <p className="text-xs text-muted-foreground">{t("tools:csp_rules_reload")}</p>}
-      <CspRuleSheet
+      <RuleSheet
         key={`${editingRule?.id ?? "new"}-${sheetOpen ? "open" : "closed"}`}
         open={sheetOpen}
         rule={editingRule}
-        baseRevision={snapshot?.state.revision ?? 0}
-        existingRules={snapshot?.state.rules ?? []}
         saving={busy === "sheet"}
         onOpenChange={(open) => {
           if (busy === "sheet") return;
