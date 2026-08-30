@@ -396,8 +396,12 @@ export function ScriptRowActionSlots({
 
   return (
     <>
-      {/* 宽窗口摊开全部操作；窄窗口它们会把脚本名挤没（#1698），故 1000px 以下换成下面的紧凑排布 */}
-      <span data-testid="row-actions-wide" className="hidden items-center gap-1 min-[1000px]:flex">
+      {/* 宽窗口摊开全部操作；窄窗口它们会把脚本名挤没（#1698），故 1000px 以下换成下面的紧凑排布。
+          min-w 取满配 7 个按钮的宽度：条件按钮的有无会改变本区宽度，进而把左侧的更新时间列推得逐行参差 */}
+      <span
+        data-testid="row-actions-wide"
+        className="hidden min-w-[220px] items-center justify-end gap-1 min-[1000px]:flex"
+      >
         {home && (
           <ActionButton label={t("script:homepage")} onClick={() => openExternalUrl(home)}>
             <House className="w-3.5 h-3.5" />
