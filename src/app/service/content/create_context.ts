@@ -2,8 +2,7 @@ import type { TScriptInfo } from "@App/app/repo/scripts";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { Message } from "@Packages/message/types";
 import EventEmitter from "eventemitter3";
-import { GMContextApiGet } from "./gm_api/gm_context";
-import { protect } from "./gm_api/gm_context";
+import { GMContextApiGet, protect } from "./gm_api/gm_context";
 import { isEarlyStartScript } from "./utils";
 import { ListenerManager } from "./listener_manager";
 import { createGMBase } from "./gm_api/gm_api";
@@ -164,6 +163,8 @@ type TrackedDescriptor = {
   isConstructor: boolean;
 };
 
+type DescriptorMap = Record<string, PropertyDescriptor>;
+
 const getAllPropertyDescriptors = (obj: DescriptorOwner, callback: (value: DescriptorEntry) => void) => {
   while (obj && obj !== Object) {
     const descs = Object.getOwnPropertyDescriptors(obj);
@@ -176,8 +177,13 @@ const getAllPropertyDescriptors = (obj: DescriptorOwner, callback: (value: Descr
 const isConstructorOrInterface = (value: unknown): value is Function =>
   typeof value === "function" && ("prototype" in value || /^[A-Z]/.test(String(Reflect.get(value, "name"))));
 
-const materializeDescriptor = (tracked: TrackedDescriptor): PropertyDescriptor => {
-  const { descriptor, receiver, isConstructor } = tracked;
+const trackDescriptor = (descriptor: PropertyDescriptor, receiver: DescriptorOwner): TrackedDescriptor => ({
+  descriptor,
+  receiver,
+  isConstructor: isConstructorOrInterface(descriptor.value),
+});
+
+const materializeDescriptor = ({ descriptor, receiver, isConstructor }: TrackedDescriptor): PropertyDescriptor => {
   if ("value" in descriptor) {
     if (typeof descriptor.value !== "function" || isConstructor) return { ...descriptor };
     return {
@@ -194,7 +200,7 @@ const materializeDescriptor = (tracked: TrackedDescriptor): PropertyDescriptor =
 
 // Firefox 的 content / USER_SCRIPT world 将 JavaScript global 与页面 window 拆成两个 realm。
 // 这里只读取 hostWindow 的原型链，并转发确定需要页面 brand 的成员，避免把页面全局 own properties 带入沙盒。
-const hostWindowAccessors = [
+const hostWindowAccessors = new Set([
   "document",
   "location",
   "navigator",
@@ -210,8 +216,8 @@ const hostWindowAccessors = [
   "scrollX",
   "scrollY",
   "devicePixelRatio",
-];
-const hostWindowMethods = [
+]);
+const hostWindowMethods = new Set([
   "addEventListener",
   "removeEventListener",
   "dispatchEvent",
@@ -223,8 +229,8 @@ const hostWindowMethods = [
   "scrollTo",
   "scrollBy",
   "blur",
-];
-const hostWindowConstructors = [
+]);
+const hostWindowConstructors = new Set([
   "Window",
   "EventTarget",
   "Node",
@@ -264,12 +270,12 @@ const hostWindowConstructors = [
   "Request",
   "Response",
   "XMLHttpRequest",
-];
+]);
 const hostWindowKeys = new Set([...hostWindowAccessors, ...hostWindowMethods, ...hostWindowConstructors]);
 
 type GlobalSnapshot = {
   sharedInitCopy: typeof globalThis & Record<PropertyKey, any>;
-  eventDescs: Record<string, PropertyDescriptor>;
+  eventKeys: Set<string>;
 };
 
 export type RealmRoots = {
@@ -280,9 +286,10 @@ export type RealmRoots = {
 const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSnapshot => {
   const descsCache: Set<string | symbol> = new Set(["eval", "window", "self", "globalThis", "top", "parent"]);
   const initOwnDescs = Object.getOwnPropertyDescriptors(realmGlobal);
-  const overridedDescs: Record<string, PropertyDescriptor> = Object.create(null);
-  const eventDescs: Record<string, PropertyDescriptor> = Object.create(null);
-  const protoBaseDescs: Record<string, PropertyDescriptor> = Object.create(null);
+  const overriddenDescs: DescriptorMap = Object.create(null);
+  const eventKeys = new Set<string>();
+  const hostEventKeys = new Set<string>();
+  const protoBaseDescs: DescriptorMap = Object.create(null);
 
   const getHostWindowDescriptor = (key: string): PropertyDescriptor | undefined => {
     let owner: DescriptorOwner | null = hostWindow;
@@ -294,103 +301,82 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
     return undefined;
   };
 
-  // 包含物件本身及所有父类(不包含Object)的PropertyDescriptor
-  // 主要是找出哪些 function值， setter/getter 需要替换 global window
-  getAllPropertyDescriptors(realmGlobal, ([key, desc]) => {
-    if (!desc || descsCache.has(key) || typeof key !== "string") return;
+  const collectRealmDescriptors = () => {
+    // 包含物件本身及所有父类(不包含Object)的PropertyDescriptor。
+    // 主要是找出哪些 function 值、setter/getter 需要替换 global window。
+    getAllPropertyDescriptors(realmGlobal, ([key, desc]) => {
+      if (!desc || descsCache.has(key) || typeof key !== "string") return;
 
-    const tracked = {
-      descriptor: desc,
-      receiver: realmGlobal,
-      isConstructor: isConstructorOrInterface(desc.value),
-    };
-
-    if (desc.writable) {
-      // 属性 value
-
-      const value = desc.value;
-
-      // 替换 function 的 this 为 实际的 global window
-      // 例：父类的 addEventListener
-      // 对于构造函数和类（有 prototype 属性），shouldFnBind 会返回 false，跳过绑定
-      // 因此被封装的属性，会略过封装层，继续向父类寻找原生属性
-      if (shouldFnBind(value)) {
-        overridedDescs[key] = materializeDescriptor(tracked);
-        descsCache.add(key); // 必须：子类属性覆盖父类属性
-      } else if (!(key in initOwnDescs) && !Object.hasOwn(realmGlobal, key)) {
-        if (!protoBaseDescs[key]) {
-          protoBaseDescs[key] = materializeDescriptor(tracked);
-        }
-      }
-    } else {
-      if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
-        // 替换 onxxxxx 事件赋值操作
-        // 例：(window.)onload, (window.)onerror
-        eventDescs[key] = desc;
-      } else {
-        if (desc.get || desc.set) {
-          // 替换 getter setter 的 this 为 实际的 global window
-          // 例：(window.)location, (window.)document
-          overridedDescs[key] = materializeDescriptor(tracked);
+      if (desc.writable) {
+        // 替换 function 的 this 为实际的 global window。被封装的属性会继续向父类寻找原生属性。
+        if (shouldFnBind(desc.value)) {
+          overriddenDescs[key] = materializeDescriptor(trackDescriptor(desc, realmGlobal));
           descsCache.add(key); // 必须：子类属性覆盖父类属性
+        } else if (!(key in initOwnDescs) && !Object.hasOwn(realmGlobal, key) && !protoBaseDescs[key]) {
+          protoBaseDescs[key] = materializeDescriptor(trackDescriptor(desc, realmGlobal));
         }
+        return;
       }
-    }
-  });
-  const hostEventKeys = new Set<string>();
-  const hostWindowPrototype = Object.getPrototypeOf(hostWindow);
-  if (hostWindowPrototype) {
+
+      if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
+        // 替换 onxxxxx 事件赋值操作，例如 (window.)onload、(window.)onerror。
+        eventKeys.add(key);
+      } else if (desc.get || desc.set) {
+        // 替换 getter/setter 的 this 为实际的 global window，例如 (window.)location、(window.)document。
+        overriddenDescs[key] = materializeDescriptor(trackDescriptor(desc, realmGlobal));
+        descsCache.add(key); // 必须：子类属性覆盖父类属性
+      }
+    });
+  };
+
+  const collectHostWindowPrototypeDescriptors = () => {
+    const hostWindowPrototype = Object.getPrototypeOf(hostWindow);
+    if (!hostWindowPrototype) return;
+
     getAllPropertyDescriptors(hostWindowPrototype, ([key, desc]) => {
       if (!desc || descsCache.has(key) || typeof key !== "string") return;
 
       if (desc.configurable && desc.get && desc.set && key.startsWith("on")) {
-        eventDescs[key] = desc;
+        eventKeys.add(key);
         hostEventKeys.add(key);
         return;
       }
 
-      const tracked = {
-        descriptor: desc,
-        receiver: hostWindow,
-        isConstructor: isConstructorOrInterface(desc.value),
-      };
-
       if (desc.writable) {
         if (shouldFnBind(desc.value)) {
-          overridedDescs[key] = materializeDescriptor(tracked);
+          overriddenDescs[key] = materializeDescriptor(trackDescriptor(desc, hostWindow));
           descsCache.add(key);
         } else if (!(key in initOwnDescs) && !Object.hasOwn(realmGlobal, key) && !protoBaseDescs[key]) {
-          protoBaseDescs[key] = materializeDescriptor(tracked);
+          protoBaseDescs[key] = materializeDescriptor(trackDescriptor(desc, hostWindow));
         }
       } else if (desc.get || desc.set) {
-        overridedDescs[key] = materializeDescriptor(tracked);
+        overriddenDescs[key] = materializeDescriptor(trackDescriptor(desc, hostWindow));
         descsCache.add(key);
       }
     });
-  }
+  };
 
-  descsCache.clear(); // 内存释放
-
-  getAllPropertyDescriptors(hostWindow, ([key, desc]) => {
-    if (
-      typeof key !== "string" ||
-      hostEventKeys.has(key) ||
-      !key.startsWith("on") ||
-      !desc.configurable ||
-      !desc.get ||
-      !desc.set
-    ) {
-      return;
-    }
-    eventDescs[key] = desc;
-    hostEventKeys.add(key);
-  });
+  const collectHostWindowEventDescriptors = () => {
+    getAllPropertyDescriptors(hostWindow, ([key, desc]) => {
+      if (
+        typeof key !== "string" ||
+        hostEventKeys.has(key) ||
+        !key.startsWith("on") ||
+        !desc.configurable ||
+        !desc.get ||
+        !desc.set
+      ) {
+        return;
+      }
+      eventKeys.add(key);
+    });
+  };
 
   const addHostWindowForwarding = (key: string) => {
     if (!(key in hostWindow)) return;
     const hostDescriptor = getHostWindowDescriptor(key);
-    if (hostWindowAccessors.includes(key)) {
-      overridedDescs[key] = {
+    if (hostWindowAccessors.has(key)) {
+      overriddenDescs[key] = {
         configurable: true,
         enumerable: true,
         get: () => Reflect.get(hostWindow, key, hostWindow),
@@ -402,16 +388,16 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
             }
           : {}),
       };
-    } else if (hostWindowMethods.includes(key)) {
+    } else if (hostWindowMethods.has(key)) {
       const method = Reflect.get(hostWindow, key, hostWindow);
-      overridedDescs[key] = {
+      overriddenDescs[key] = {
         configurable: true,
         enumerable: true,
         writable: true,
         value: typeof method === "function" ? Function.prototype.bind.call(method, hostWindow) : method,
       };
-    } else {
-      overridedDescs[key] = {
+    } else if (hostWindowConstructors.has(key)) {
+      overriddenDescs[key] = {
         configurable: true,
         enumerable: true,
         writable: true,
@@ -419,6 +405,11 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
       };
     }
   };
+
+  collectRealmDescriptors();
+  collectHostWindowPrototypeDescriptors();
+  descsCache.clear(); // 内存释放
+  collectHostWindowEventDescriptors();
 
   for (const key of hostWindowKeys) addHostWindowForwarding(key);
 
@@ -457,14 +448,14 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
         ...protoBaseDescs, // 较快的 @unwrap 注入时有机会改变 EventTarget.prototype
         ...Object.getOwnPropertyDescriptors(PseudoWindowPrototype),
         ...initOwnDescs,
-        ...overridedDescs,
+        ...overriddenDescs,
       })
     : Object.create(Object.getPrototypeOf(realmGlobal), {
         ...initOwnDescs,
-        ...overridedDescs,
+        ...overriddenDescs,
       });
 
-  return { sharedInitCopy, eventDescs };
+  return { sharedInitCopy, eventKeys };
 };
 
 const defaultGlobalSnapshot = createGlobalSnapshot({ realmGlobal: global, hostWindow: window });
@@ -485,7 +476,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
   // let withContext: Context | undefined | { [key: string]: any } = undefined;
   // 为避免做成混乱。 ScriptCat脚本中 self, globalThis, parent 为固定值不能修改
 
-  const { sharedInitCopy, eventDescs } =
+  const { sharedInitCopy, eventKeys } =
     roots.realmGlobal === global && roots.hostWindow === window ? defaultGlobalSnapshot : createGlobalSnapshot(roots);
   const ownDescs = Object.getOwnPropertyDescriptors(sharedInitCopy);
 
@@ -539,7 +530,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
     };
   };
 
-  for (const key of Object.keys(eventDescs)) {
+  for (const key of eventKeys) {
     const eventSetterGetter = createEventProp(key);
     ownDescs[key] = {
       ...ownDescs[key],
