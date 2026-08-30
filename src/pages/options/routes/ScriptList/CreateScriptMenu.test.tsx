@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterEach, beforeEach } from "vite
 import { render, cleanup, screen, fireEvent, act } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
+import { mockMatchMedia } from "@Tests/mockMatchMedia";
 import { CreateScriptMenu } from "./CreateScriptMenu";
 import * as filePicker from "./filePicker";
 
@@ -12,6 +13,8 @@ afterEach(cleanup);
 beforeAll(() => initTestLanguage("zh-CN"));
 beforeEach(() => {
   vi.clearAllMocks();
+  // 默认桌面：具备 hover 能力
+  mockMatchMedia((query) => query === "(hover: hover)");
 });
 
 function LocationProbe() {
@@ -93,7 +96,7 @@ describe("CreateScriptMenu 下拉菜单", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/script/editor");
     });
 
-    it("未 hover 时直接点击（触摸屏无 hover）同样应新建用户脚本", async () => {
+    it("未 hover 时直接点击同样应新建用户脚本", async () => {
       const { container } = renderMenu();
       const trigger = container.querySelector("button")!;
 
@@ -118,6 +121,42 @@ describe("CreateScriptMenu 下拉菜单", () => {
         fireEvent.keyDown(trigger, { key: "Enter" });
       });
       expect(screen.getByTestId("location")).toHaveTextContent("/script/editor");
+    });
+  });
+
+  describe("触摸设备（无 hover 能力）", () => {
+    beforeEach(() => {
+      mockMatchMedia(false);
+    });
+
+    it("点击按钮应展开菜单，而不是直接进编辑器（否则菜单在触摸屏上够不着）", async () => {
+      const { container } = renderMenu();
+      const trigger = container.querySelector("button")!;
+
+      await act(async () => {
+        fireEvent.pointerDown(trigger, { button: 0 });
+        fireEvent.click(trigger);
+      });
+
+      expect(screen.getByText("导入本地脚本")).toBeInTheDocument();
+      expect(screen.getByTestId("location")).toHaveTextContent("/");
+      expect(screen.getByTestId("location")).not.toHaveTextContent("/script/editor");
+    });
+
+    it("展开后按 Esc 应能关闭（不被 hover 菜单的 dismiss 拦截而卡住）", async () => {
+      const { container } = renderMenu();
+      const trigger = container.querySelector("button")!;
+
+      await act(async () => {
+        fireEvent.pointerDown(trigger, { button: 0 });
+        fireEvent.click(trigger);
+      });
+      expect(screen.getByText("导入本地脚本")).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.keyDown(document.activeElement || document.body, { key: "Escape" });
+      });
+      expect(screen.queryByText("导入本地脚本")).toBeNull();
     });
   });
 
