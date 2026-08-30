@@ -20,7 +20,11 @@ vi.mock("@App/pages/store/features/script", async () => {
 });
 vi.mock("./Toolbar", () => ({ Toolbar: () => null }));
 vi.mock("./FilterBar", () => ({ default: () => null }));
-vi.mock("./BatchActionsBar", () => ({ default: () => null }));
+vi.mock("./BatchActionsBar", () => ({
+  default: ({ allSelected, onToggleSelectAll }: { allSelected: boolean; onToggleSelectAll: () => void }) => (
+    <button data-testid="batch-bar-select-all" data-all-selected={allSelected} onClick={onToggleSelectAll} />
+  ),
+}));
 
 import ScriptTable from "./ScriptTable";
 
@@ -44,10 +48,12 @@ const TableHarness = ({
   scriptList,
   initialSortState = { key: null, order: "asc" },
   toggleSelectAll = noop,
+  selectedUuids = new Set<string>(),
 }: {
   scriptList: ScriptLoading[];
   initialSortState?: SortState;
   toggleSelectAll?: () => void;
+  selectedUuids?: Set<string>;
 }) => {
   const [sortState, setSortState] = useState<SortState>(initialSortState);
   return (
@@ -64,7 +70,7 @@ const TableHarness = ({
       filterItems={{ statusItems: [], typeItems: [], tagItems: [], sourceItems: [] }}
       selectedFilters={{ status: null, type: null, tags: null, source: null }}
       setSelectedFilters={noop}
-      selectedUuids={new Set()}
+      selectedUuids={selectedUuids}
       toggleSelect={noop}
       toggleSelectAll={toggleSelectAll}
       clearSelection={noop}
@@ -128,16 +134,35 @@ describe("ScriptTable 按排序状态渲染", () => {
 });
 
 describe("ScriptTable 全选入口", () => {
-  it("表头移除后全选仍可达：工具栏提供三态全选复选框", () => {
+  const twoScripts = [mk("a", "Apple", 10), mk("b", "Banana", 20)];
+
+  it("列表顶部没有独立全选行，可见复选框只有每行一个", () => {
+    initTestLanguage("zh-CN");
+    // BatchActionsBar 已被替身取代，故此处若还出现全选框，就只可能来自列表自己渲染的独立全选行
+    renderWithRouterTooltip(<TableHarness scriptList={twoScripts} />);
+
+    expect(screen.queryByLabelText(t("script:select_all"))).toBeNull();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(twoScripts.length);
+  });
+
+  it("全选状态与回调交给批量操作条", () => {
     initTestLanguage("zh-CN");
     const onToggleAll = vi.fn();
+    renderWithRouterTooltip(<TableHarness scriptList={twoScripts} toggleSelectAll={onToggleAll} />);
+
+    const slot = screen.getByTestId("batch-bar-select-all");
+    expect(slot).toHaveAttribute("data-all-selected", "false");
+    fireEvent.click(slot);
+    expect(onToggleAll).toHaveBeenCalled();
+  });
+
+  it("全部脚本被选中时批量操作条收到全选态", () => {
+    initTestLanguage("zh-CN");
     renderWithRouterTooltip(
-      <TableHarness scriptList={[mk("a", "Apple", 10), mk("b", "Banana", 20)]} toggleSelectAll={onToggleAll} />
+      <TableHarness scriptList={twoScripts} selectedUuids={new Set(twoScripts.map((s) => s.uuid))} />
     );
 
-    const selectAll = screen.getByLabelText(t("script:select_all"));
-    fireEvent.click(selectAll);
-    expect(onToggleAll).toHaveBeenCalled();
+    expect(screen.getByTestId("batch-bar-select-all")).toHaveAttribute("data-all-selected", "true");
   });
 });
 

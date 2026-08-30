@@ -107,6 +107,16 @@ describe("桌面回收站批量操作槽位", () => {
     expect(within(bar).getByRole("button", { name: "还原" })).toBeInTheDocument();
   });
 
+  it("全选框挂在批量操作栏内，列表顶部没有独立全选行", async () => {
+    const checkboxes = await renderWithOneTrashed();
+    expect(checkboxes).toHaveLength(2); // 批量栏的全选 + 唯一一行
+
+    const bar = screen.getByText("已选择 0 项").parentElement!;
+    fireEvent.click(within(bar).getByLabelText("全选"));
+
+    expect(checkboxes[1]).toBeChecked();
+  });
+
   it("点击批量操作栏的关闭按钮清空选择", async () => {
     const checkboxes = await renderWithOneTrashed();
     fireEvent.click(checkboxes[1]);

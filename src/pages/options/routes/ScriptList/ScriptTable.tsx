@@ -181,7 +181,6 @@ export default function ScriptTable({
   const a11y = useMemo(() => ({ container: document.body }), []);
 
   const isAllSelected = scriptList.length > 0 && selectedUuids.size === scriptList.length;
-  const isIndeterminate = selectedUuids.size > 0 && selectedUuids.size < scriptList.length;
 
   return (
     <div className="flex flex-col h-full">
@@ -199,6 +198,8 @@ export default function ScriptTable({
         {/* 批量操作栏 */}
         <BatchActionsBar
           selectedCount={selectedUuids.size}
+          allSelected={isAllSelected}
+          onToggleSelectAll={toggleSelectAll}
           onBatchEnable={onBatchEnable}
           onBatchDisable={onBatchDisable}
           onBatchExport={onBatchExport}
@@ -217,19 +218,6 @@ export default function ScriptTable({
 
       {/* 列表 */}
       <div className="flex-1 overflow-auto scrollbar-custom px-6 pb-6 divide-y divide-border">
-        {/* 全选：表头随列表化移除后，它是全选的唯一入口，故常驻而非只在已选中时出现 */}
-        {!loadingList && scriptList.length > 0 && (
-          <div className="flex h-9 items-center px-3">
-            <span className="flex w-8 justify-center">
-              <Checkbox
-                aria-label={t("script:select_all")}
-                checked={isAllSelected ? true : isIndeterminate ? "indeterminate" : false}
-                onCheckedChange={toggleSelectAll}
-              />
-            </span>
-          </div>
-        )}
-
         {/* 加载状态 */}
         {loadingList && <LoadingState label={t("loading")} />}
 

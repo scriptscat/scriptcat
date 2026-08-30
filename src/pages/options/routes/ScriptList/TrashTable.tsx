@@ -209,7 +209,12 @@ export default function TrashTable({
 
       {/* 批量操作栏撑开时把筛选行顶出这个 h-11 窗口（与已安装列表同构） */}
       <div className="h-11 shrink-0 overflow-hidden contain-layout">
-        <SelectionBar selectedCount={selected.size} onClose={() => setSelected(new Set())}>
+        <SelectionBar
+          selectedCount={selected.size}
+          allSelected={allSelected}
+          onToggleSelectAll={() => setSelected(allSelected ? new Set() : new Set(visible.map((i) => i.uuid)))}
+          onClose={() => setSelected(new Set())}
+        >
           <SelectionBarButton color="primary" onClick={() => void onRestore([...selected])}>
             <RotateCcw className="w-3 h-3" />
             {t("script:trash_restore")}
@@ -283,18 +288,6 @@ export default function TrashTable({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-        {list.length > 0 && (
-          <div className="flex h-9 items-center px-3">
-            <span className="flex w-8 justify-center">
-              <Checkbox
-                aria-label={t("script:select_all")}
-                checked={allSelected ? true : selected.size > 0 ? "indeterminate" : false}
-                onCheckedChange={(checked) => setSelected(checked ? new Set(visible.map((i) => i.uuid)) : new Set())}
-              />
-            </span>
-          </div>
-        )}
 
         <div className="flex-1 overflow-y-auto divide-y divide-border">
           {!list.length ? (
