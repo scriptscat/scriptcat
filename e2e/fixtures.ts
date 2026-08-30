@@ -20,10 +20,18 @@ function getRecordVideoOptions() {
   return process.env.E2E_RECORD_VIDEO_DIR ? { recordVideo: { dir: process.env.E2E_RECORD_VIDEO_DIR } } : {};
 }
 
+// 无头 Linux（CI）检测不到任何输入设备，会把 (hover: hover) / (pointer: fine) 报成 false，
+// 而无头 macOS 报 true —— 同一套用例在两个平台跑出不同的媒体查询结果。显式声明「有鼠标」，
+// 让默认环境稳定对应真实桌面；需要触摸语义的用例自行启动上下文覆盖（见 options.spec.ts）。
+// 取值为 Blink 枚举：HoverType hover=2，PointerType fine=4。
+const POINTER_ARGS =
+  "--blink-settings=availableHoverTypes=2,primaryHoverType=2,availablePointerTypes=4,primaryPointerType=4";
+
 const chromeArgs = [
   `--disable-extensions-except=${pathToExtension}`,
   `--load-extension=${pathToExtension}`,
   "--disable-gpu",
+  POINTER_ARGS,
 ];
 
 // CI（GitHub Actions）跑在非 root 用户下不会自动应用 --no-sandbox，关掉沙箱能省下每次
