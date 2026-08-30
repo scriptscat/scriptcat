@@ -193,7 +193,7 @@ const materializeDescriptor = (tracked: TrackedDescriptor): PropertyDescriptor =
 };
 
 // Firefox 的 content / USER_SCRIPT world 将 JavaScript global 与页面 window 拆成两个 realm。
-// 这里仅转发确定需要页面 brand 的成员；不遍历第二个根，避免把页面全局快照带入沙盒。
+// 这里只读取 hostWindow 的原型链，并转发确定需要页面 brand 的成员，避免把页面全局 own properties 带入沙盒。
 const hostWindowAccessors = [
   "document",
   "location",
@@ -337,9 +337,40 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
       }
     }
   });
+  const hostEventKeys = new Set<string>();
+  const hostWindowPrototype = Object.getPrototypeOf(hostWindow);
+  if (hostWindowPrototype) {
+    getAllPropertyDescriptors(hostWindowPrototype, ([key, desc]) => {
+      if (!desc || descsCache.has(key) || typeof key !== "string") return;
+
+      if (desc.configurable && desc.get && desc.set && key.startsWith("on")) {
+        eventDescs[key] = desc;
+        hostEventKeys.add(key);
+        return;
+      }
+
+      const tracked = {
+        descriptor: desc,
+        receiver: hostWindow,
+        isConstructor: isConstructorOrInterface(desc.value),
+      };
+
+      if (desc.writable) {
+        if (shouldFnBind(desc.value)) {
+          overridedDescs[key] = materializeDescriptor(tracked);
+          descsCache.add(key);
+        } else if (!(key in initOwnDescs) && !Object.hasOwn(realmGlobal, key) && !protoBaseDescs[key]) {
+          protoBaseDescs[key] = materializeDescriptor(tracked);
+        }
+      } else if (desc.get || desc.set) {
+        overridedDescs[key] = materializeDescriptor(tracked);
+        descsCache.add(key);
+      }
+    });
+  }
+
   descsCache.clear(); // 内存释放
 
-  const hostEventKeys = new Set<string>();
   getAllPropertyDescriptors(hostWindow, ([key, desc]) => {
     if (
       typeof key !== "string" ||

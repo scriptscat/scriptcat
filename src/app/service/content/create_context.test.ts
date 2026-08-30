@@ -288,7 +288,16 @@ describe.concurrent("createProxyContext", () => {
   // Firefox 的 content / USER_SCRIPT world 全局是 Cu.Sandbox：globalThis 与 window 分属两个 realm，
   // 沙盒的原型链在 Xray window 处截断，EventTarget.prototype 上的成员只能经 window 取得。
   // happy-dom 里 globalThis === window，只能用一个「仅存在于 window 原型链上」的成员模拟该拓扑。
-  describe("Firefox content world：globalThis 与 window 分属不同 realm", () => {
+  describe.sequential("Firefox content world：globalThis 与 window 分属不同 realm", () => {
+    const createFakeWindow = (prototype: object | null) => {
+      const eventTarget = new EventTarget();
+      return Object.assign(Object.create(prototype), {
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+        dispatchEvent: eventTarget.dispatchEvent.bind(eventTarget),
+      });
+    };
+
     afterEach(() => {
       vi.unstubAllGlobals();
       vi.resetModules();
@@ -302,7 +311,7 @@ describe.concurrent("createProxyContext", () => {
           return this;
         },
       }.onlyReachableViaWindow;
-      const fakeWindow = Object.create(windowProto);
+      const fakeWindow = createFakeWindow(windowProto);
       vi.stubGlobal("window", fakeWindow);
       vi.resetModules();
 
@@ -336,7 +345,7 @@ describe.concurrent("createProxyContext", () => {
       (FilterLike as any).SHOW_TEXT = 4;
       windowProto.FilterLike = FilterLike;
 
-      const fakeWindow = Object.create(windowProto);
+      const fakeWindow = createFakeWindow(windowProto);
       vi.stubGlobal("window", fakeWindow);
       vi.resetModules();
 
@@ -361,7 +370,7 @@ describe.concurrent("createProxyContext", () => {
       // Firefox 下 globalThis.window 是页面 Window 的 Xray 包装，不等于 global；
       // 只按 global 判定自引用会让沙盒里的 window / self 指回页面，
       // 脚本写在 self 上的东西（例如沉浸式翻译的 GM_fetch）就落到了页面而不是沙盒。
-      const pageWindow: Record<string, any> = Object.create(null);
+      const pageWindow: Record<string, any> = createFakeWindow(null);
       pageWindow.window = pageWindow;
       pageWindow.self = pageWindow;
       vi.stubGlobal("window", pageWindow);
