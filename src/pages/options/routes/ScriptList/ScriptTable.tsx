@@ -343,7 +343,7 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
             <FaviconDots favorites={script.favorite} />
           )}
         </div>
-        <div className="flex w-[76px] justify-end">
+        <div className="flex w-[92px] justify-end whitespace-nowrap">
           <UpdateTimeCell script={script} />
         </div>
       </ListRowTrailing>

@@ -112,6 +112,19 @@ describe("左滑操作", () => {
     });
   });
 
+  it("关闭态操作区被内容层盖住，不会漏在行右侧遮挡开关", () => {
+    const { container } = render(
+      <MobileSwipeRow actions={<button type="button">{"删除"}</button>}>
+        <MobileListRow>{"行"}</MobileListRow>
+      </MobileSwipeRow>
+    );
+
+    // 操作区是 absolute，内容层必须自己定位才能盖住它（普通流元素会被 absolute 元素压住）
+    const content = container.querySelector('[data-slot="mobile-swipe-content"]')!;
+    expect(content.className).toContain("relative");
+    expect(content.className).toContain("bg-background");
+  });
+
   it("透传的触摸回调仍然被调用，长按与左滑可挂在同一行上", () => {
     const onTouchStart = vi.fn();
     const { container } = render(

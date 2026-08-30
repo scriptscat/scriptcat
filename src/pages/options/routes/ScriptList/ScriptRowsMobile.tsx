@@ -311,10 +311,15 @@ const ScriptRowMobile = React.memo(
 
           <MobileListRowMain onClick={() => (selectionMode ? onToggleSelect(script.uuid) : onOpenActions(script.uuid))}>
             <span className="w-full truncate text-sm font-medium">{name}</span>
-            <span className="flex w-full min-w-0 items-center gap-1.5">
+            {/* 窄屏放不下时按顺序裁切而不是折行：行高固定，折行会把次行挤出行外 */}
+            <span className="flex w-full min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
               <span className="truncate text-[11px] text-muted-foreground">{meta}</span>
-              {isBackground && <RunStatusBadge runStatus={script.runStatus} />}
-              <ScheduleNextRun script={script} />
+              {isBackground && (
+                <span className="shrink-0">
+                  <RunStatusBadge runStatus={script.runStatus} />
+                </span>
+              )}
+              <ScheduleNextRun script={script} className="shrink-0" />
             </span>
           </MobileListRowMain>
 

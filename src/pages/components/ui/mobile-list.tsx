@@ -111,7 +111,9 @@ function MobileSwipeRow({ actions, children, className, onTouchStart, onTouchEnd
       </div>
       <div
         data-slot="mobile-swipe-content"
-        className="bg-background transition-transform"
+        // relative 不可省：操作区是 absolute，普通流的内容层会被它压住，
+        // 未滑动时操作块就会盖在行右侧（挡住开关）
+        className="relative bg-background transition-transform"
         style={{ transform: open ? `translateX(-${offset}px)` : undefined }}
       >
         {children}
@@ -246,7 +248,7 @@ function MobileActionSheet({ open, onOpenChange, title, description, icon, child
             )}
           </span>
         </SheetHeader>
-        <div className="flex flex-col py-1 pb-[env(safe-area-inset-bottom)]">
+        <div className="flex flex-col py-1 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
           <MobileActionSheetCloseCtx.Provider value={close}>{children}</MobileActionSheetCloseCtx.Provider>
         </div>
       </SheetContent>

@@ -369,7 +369,7 @@ export function ScriptRowActionSlots({
           {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
         </ActionButton>
       ) : (
-        <span aria-hidden className="size-8 shrink-0" />
+        <span aria-hidden className="size-7 shrink-0" />
       )}
 
       <DropdownMenu>
