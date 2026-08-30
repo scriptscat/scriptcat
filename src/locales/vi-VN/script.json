@@ -111,5 +111,11 @@
   "trash_moved_batch": "Đã chuyển {{count}} script vào thùng rác",
   "trash_undo": "Hoàn tác",
   "trash_undo_success": "Đã khôi phục",
-  "trash_undo_failed": "Khôi phục thất bại"
+  "trash_undo_failed": "Khôi phục thất bại",
+  "sort_by": "Sắp xếp",
+  "sort_default": "Mặc định",
+  "sort_ascending": "Tăng dần",
+  "sort_descending": "Giảm dần",
+  "more_actions": "Thao tác khác",
+  "select_all": "Chọn tất cả"
 }

@@ -32,8 +32,25 @@ import {
   CircleArrowUp,
   Check,
   Clock,
+  Ellipsis,
 } from "lucide-react";
 import { preloadCloudScriptPlan } from "@App/pages/components/CloudScriptPlan";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@App/pages/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@App/pages/components/ui/alert-dialog";
 import { preloadUserConfig } from "./preload";
 import { nextTimeDisplay } from "@App/pkg/utils/cron";
 import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
@@ -406,6 +423,107 @@ export function ScriptRowActions({
         </ActionButton>
       </Popconfirm>
     </div>
+  );
+}
+
+/**
+ * 列表行的固定三槽操作：编辑 / 运行·停止 / 更多。
+ * 槽位数与脚本类型无关——普通脚本的运行槽渲染为等宽占位，使各行右缘始终对齐；
+ * 条件性操作（主页、用户配置、云端上传、删除）收进「更多」，删除进二级菜单亦降低误触。
+ */
+export function ScriptRowActionSlots({
+  script,
+  navigate,
+  onDelete,
+  onRunStop,
+}: {
+  script: ScriptLoading;
+  navigate: (to: string) => void;
+  onDelete: (script: ScriptLoading) => void;
+  onRunStop: (script: ScriptLoading) => void;
+}) {
+  const { t } = useTranslation();
+  const [trashEnabled] = useSystemConfig("trash_enabled");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const home = getScriptHomePage(script.metadata);
+  const isBackground = script.type !== SCRIPT_TYPE_NORMAL;
+  const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
+  const preloadUserConfigValues = () => void preloadUserConfig(script).catch(() => undefined);
+  const preloadCloudPlan = () => void preloadCloudScriptPlan(script).catch(() => undefined);
+
+  return (
+    <>
+      <ActionButton label={t("edit")} onClick={() => navigate(`/script/editor/${script.uuid}`)}>
+        <Pencil className="w-3.5 h-3.5" />
+      </ActionButton>
+
+      {isBackground ? (
+        <ActionButton
+          label={isRunning ? t("stop") : t("editor:run")}
+          onClick={() => onRunStop(script)}
+          disabled={script.actionLoading}
+        >
+          {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+        </ActionButton>
+      ) : (
+        <span aria-hidden className="size-8 shrink-0" />
+      )}
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <ActionButton label={t("script:more_actions")}>
+            <Ellipsis className="w-3.5 h-3.5" />
+          </ActionButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          {home && <DropdownMenuItem onClick={() => openExternalUrl(home)}>{t("script:homepage")}</DropdownMenuItem>}
+          {script.config && (
+            <DropdownMenuItem
+              onPointerEnter={preloadUserConfigValues}
+              onClick={() => {
+                preloadUserConfigValues();
+                navigate(`/?userConfig=${script.uuid}`);
+              }}
+            >
+              {t("editor:user_config")}
+            </DropdownMenuItem>
+          )}
+          {script.metadata?.cloudcat && (
+            <DropdownMenuItem
+              onPointerEnter={preloadCloudPlan}
+              onClick={() => {
+                preloadCloudPlan();
+                navigate(`/?cloud=${script.uuid}`);
+              }}
+            >
+              {t("editor:upload_to_cloud")}
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setConfirmDelete(true)}>
+            {t("delete")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("delete")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(trashEnabled ?? true)
+                ? t("script:confirm_delete_script_trash_content", { name: i18nName(script) })
+                : t("script:confirm_delete_script_content", { name: i18nName(script) })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("editor:cancel")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => onDelete(script)}>
+              {t("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

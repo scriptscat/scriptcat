@@ -78,9 +78,6 @@ vi.mock("./ScriptTable", () => ({
     <div data-testid="view-toggle">{leading ?? <span data-testid="default-installed-title" />}</div>
   ),
 }));
-vi.mock("./ScriptCard", () => ({
-  default: () => null,
-}));
 vi.mock("./ScriptCardGrid", () => ({
   default: () => <div data-testid="script-card-grid" />,
 }));

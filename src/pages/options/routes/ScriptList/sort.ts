@@ -7,9 +7,13 @@ export type SortOrder = "asc" | "desc";
 export type SortState = { key: SortKey | null; order: SortOrder };
 
 /**
- * 点击表头时计算下一个排序状态：未激活列 → 升序；升序 → 降序；降序 → 关闭（回到自然顺序）。
+ * 计算下一个排序状态：未激活项 → 升序；升序 → 降序；降序 → 关闭（回到自然顺序）。
+ * 键类型放宽为泛型，好让回收站等排序维度不同的页面共用同一套三态规则。
  */
-export function nextSortState(current: SortState, key: SortKey): SortState {
+export function nextSortState<K extends string>(
+  current: { key: K | null; order: SortOrder },
+  key: K
+): { key: K | null; order: SortOrder } {
   if (current.key !== key) return { key, order: "asc" };
   if (current.order === "asc") return { key, order: "desc" };
   return { key: null, order: "asc" };

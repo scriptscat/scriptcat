@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronDown, ChevronUp, ChevronsUpDown, GripVertical } from "lucide-react";
+import { GripVertical } from "lucide-react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import {
@@ -19,6 +19,13 @@ import { parseTags } from "@App/app/repo/metadata";
 import { getCombinedMeta } from "@App/app/service/service_worker/utils";
 import type { SCMetadata } from "@App/app/repo/scripts";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
+import {
+  ListRow,
+  ListRowActions,
+  ListRowLeading,
+  ListRowMain,
+  ListRowTrailing,
+} from "@App/pages/components/ui/list-row";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import { EmptyState } from "@App/pages/components/ui/empty-state";
 import { LoadingState } from "@App/pages/components/ui/loading-state";
@@ -35,11 +42,11 @@ import {
   SourceTag,
   scriptTypeLabel,
   getTagColor,
-  ScriptRowActions,
+  ScriptRowActionSlots,
 } from "./components";
 import type { SearchFilterRequest } from "./SearchFilter";
-import { nextSortState, sortScriptList } from "./sort";
-import type { SortKey, SortState } from "./sort";
+import { sortScriptList } from "./sort";
+import type { SortState } from "./sort";
 import FilterBar from "./FilterBar";
 import type { FilterBarProps } from "./FilterBar";
 import BatchActionsBar from "./BatchActionsBar";
@@ -83,50 +90,6 @@ function RowDragHandle() {
   return handle ?? <GripVertical className="w-4 h-4 text-muted-foreground collapse" />;
 }
 
-// ========== 可排序表头 ==========
-function SortHeader({
-  label,
-  sortKey,
-  sortState,
-  onSort,
-  className,
-  leftPad,
-}: {
-  label: string;
-  sortKey: SortKey;
-  sortState: SortState;
-  onSort: (key: SortKey) => void;
-  className?: string;
-  leftPad?: boolean;
-}) {
-  const active = sortState.key === sortKey;
-  return (
-    <button
-      type="button"
-      onClick={() => onSort(sortKey)}
-      className={cn(
-        "flex items-center gap-1 max-w-full hover:text-foreground transition-colors",
-        active && "text-foreground",
-        className
-      )}
-    >
-      {leftPad && <span className="inline-flex w-3">{/*fixed-width*/}</span>}
-      <span className="truncate">{label}</span>
-      <span className="inline-flex w-3">
-        {active ? (
-          sortState.order === "asc" ? (
-            <ChevronUp className="w-3.5 h-3.5 shrink-0" />
-          ) : (
-            <ChevronDown className="w-3.5 h-3.5 shrink-0" />
-          )
-        ) : (
-          <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 opacity-30" />
-        )}
-      </span>
-    </button>
-  );
-}
-
 export interface ScriptTableProps extends FilterBarProps {
   /** 顶栏最左侧内容（tabs），透传给 Toolbar 取代标题槽位 */
   leading?: React.ReactNode;
@@ -135,7 +98,6 @@ export interface ScriptTableProps extends FilterBarProps {
   updateScripts: (uuids: string[], data: Partial<ScriptLoading>) => void;
   handleDelete: (script: ScriptLoading) => void;
   handleRunStop: (script: ScriptLoading) => void;
-  setViewMode: (mode: "table" | "card") => void;
   searchRequest: SearchFilterRequest;
   setSearchRequest: (req: SearchFilterRequest) => void;
   totalCount: number;
@@ -161,7 +123,6 @@ export default function ScriptTable({
   updateScripts,
   handleDelete,
   handleRunStop,
-  setViewMode,
   searchRequest,
   setSearchRequest,
   totalCount,
@@ -200,8 +161,7 @@ export default function ScriptTable({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // 列头点击排序；激活时禁用手动拖拽，状态由脚本列表偏好持久化。
-  const handleSort = useCallback((key: SortKey) => setSortState((s) => nextSortState(s, key)), [setSortState]);
+  // 排序激活时禁用手动拖拽，状态由脚本列表偏好持久化。
   const isSorted = sortState.key !== null;
   const displayList = useMemo(() => sortScriptList(scriptList, sortState), [scriptList, sortState]);
 
@@ -229,8 +189,8 @@ export default function ScriptTable({
       <Toolbar
         leading={leading}
         totalCount={totalCount}
-        viewMode="table"
-        setViewMode={setViewMode}
+        sortState={sortState}
+        setSortState={setSortState}
         searchRequest={searchRequest}
         setSearchRequest={setSearchRequest}
       />
@@ -255,47 +215,20 @@ export default function ScriptTable({
         />
       </div>
 
-      {/* 表格 */}
+      {/* 列表 */}
       <div className="flex-1 overflow-auto scrollbar-custom px-6 pb-6">
-        {/* 表头 */}
-        <div className="flex items-center h-10 px-3 text-xs font-medium text-muted-foreground border-b border-border sticky top-0 bg-background z-10">
-          <div className="w-8 flex justify-center">
-            <Checkbox
-              checked={isAllSelected ? true : isIndeterminate ? "indeterminate" : false}
-              onCheckedChange={toggleSelectAll}
-            />
+        {/* 全选：表头随列表化移除后，它是全选的唯一入口，故常驻而非只在已选中时出现 */}
+        {!loadingList && scriptList.length > 0 && (
+          <div className="flex h-9 items-center px-3">
+            <span className="flex w-8 justify-center">
+              <Checkbox
+                aria-label={t("script:select_all")}
+                checked={isAllSelected ? true : isIndeterminate ? "indeterminate" : false}
+                onCheckedChange={toggleSelectAll}
+              />
+            </span>
           </div>
-          <div className="w-8" />
-          <div className="w-16 text-center" data-tour="col-enable">
-            <SortHeader
-              label={t("script:script_list.sidebar.status")}
-              sortKey="status"
-              sortState={sortState}
-              onSort={handleSort}
-              className="justify-center"
-            />
-          </div>
-          <div className="flex-1 min-w-0" data-tour="col-sort">
-            <SortHeader label={t("name")} sortKey="name" sortState={sortState} onSort={handleSort} />
-          </div>
-          <div className="w-[76px]">{t("source")}</div>
-          <div className="w-[100px]">{t("script:tags")}</div>
-          <div className="w-[140px]" data-tour="col-apply-status">
-            {t("script:apply_to_run_status")}
-          </div>
-          <div className="w-[132px] justify-items-center" data-tour="col-update">
-            <SortHeader
-              label={t("logs:last_updated")}
-              sortKey="updatetime"
-              sortState={sortState}
-              onSort={handleSort}
-              leftPad={true}
-            />
-          </div>
-          <div className="w-[192px] text-right" data-tour="col-action">
-            {t("action")}
-          </div>
-        </div>
+        )}
 
         {/* 加载状态 */}
         {loadingList && <LoadingState label={t("loading")} />}
@@ -358,87 +291,68 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
   const name = i18nName(script);
 
   return (
-    <div
-      className={cn(
-        "group/row flex items-center h-[52px] px-3 rounded-lg transition-colors hover:bg-primary/[0.08]",
-        isDisabled && "opacity-60"
-      )}
-    >
-      {/* 复选框 */}
-      <div className="w-8 flex justify-center">
-        <Checkbox checked={selected} onCheckedChange={() => onSelect(script.uuid)} />
-      </div>
+    <ListRow disabled={isDisabled} selected={selected}>
+      <ListRowLeading className="w-28">
+        <span className="flex w-8 justify-center">
+          <Checkbox checked={selected} onCheckedChange={() => onSelect(script.uuid)} />
+        </span>
+        <span className="flex w-8 justify-center">
+          <RowDragHandle />
+        </span>
+        <span className="flex w-12" data-tour="row-enable">
+          <EnableSwitch
+            status={script.status}
+            enableLoading={script.enableLoading}
+            onCheckedChange={(checked) => onEnable(script, checked)}
+          />
+        </span>
+      </ListRowLeading>
 
-      {/* 拖拽手柄 */}
-      <div className="w-8 flex justify-center">
-        <RowDragHandle />
-      </div>
-
-      {/* 开关 */}
-      <div className="w-16 flex">
-        <EnableSwitch
-          status={script.status}
-          enableLoading={script.enableLoading}
-          onCheckedChange={(checked) => onEnable(script, checked)}
-        />
-      </div>
-
-      {/* 脚本名称 + 元信息 */}
-      <div className="flex-1 min-w-0 flex items-center gap-2.5">
+      <ListRowMain>
         <ScriptIcon name={name} metadata={script.metadata} />
-        <div className="min-w-0 flex flex-col gap-px">
-          <Link to={`/script/editor/${script.uuid}`} className="text-sm font-medium truncate hover:underline">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <Link to={`/script/editor/${script.uuid}`} className="truncate text-sm font-medium hover:underline">
             {name}
           </Link>
-          <span className="text-[11px] text-muted-foreground truncate">
-            {[versionDisplay(version), scriptTypeLabel(script.type, t), author].filter(Boolean).join(" · ")}
+          {/* 来源与标签降级为元信息行的行内徽章：原来的两个固定列在多数脚本上半空，占着名称列的宽度 */}
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-[11px] text-muted-foreground">
+              {[versionDisplay(version), scriptTypeLabel(script.type, t), author].filter(Boolean).join(" · ")}
+            </span>
+            <SourceTag script={script} />
+            <TagBadges metadata={script.metadata} selfMetadata={script.selfMetadata} />
           </span>
         </div>
-      </div>
+      </ListRowMain>
 
-      {/* 来源 */}
-      <div className="w-[76px]">
-        <SourceTag script={script} />
-      </div>
+      <ListRowTrailing className="gap-3">
+        <div className="w-[104px] min-w-0">
+          {isBackground ? (
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="w-fit">
+                    <RunStatusBadge runStatus={script.runStatus} />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{typeTooltip}</TooltipContent>
+              </Tooltip>
+              <ScheduleNextRun script={script} />
+            </div>
+          ) : (
+            <FaviconDots favorites={script.favorite} />
+          )}
+        </div>
+        <div className="flex w-[76px] justify-end">
+          <UpdateTimeCell script={script} />
+        </div>
+      </ListRowTrailing>
 
-      {/* 标签 */}
-      <div className="w-[100px]">
-        <TagBadges metadata={script.metadata} selfMetadata={script.selfMetadata} />
-      </div>
-
-      {/* 应用至 / 运行状态 */}
-      <div className="w-[140px] min-w-0">
-        {isBackground ? (
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="w-fit">
-                  <RunStatusBadge runStatus={script.runStatus} />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>{typeTooltip}</TooltipContent>
-            </Tooltip>
-            <ScheduleNextRun script={script} />
-          </div>
-        ) : (
-          <FaviconDots favorites={script.favorite} />
-        )}
-      </div>
-
-      {/* 最后更新 */}
-      <div className="w-[132px] justify-items-center">
-        <UpdateTimeCell script={script} />
-      </div>
-
-      {/* 操作（行内图标按钮，已去掉 ⋯ 更多菜单） */}
-      <ScriptRowActions
-        script={script}
-        navigate={navigate}
-        onDelete={onDelete}
-        onRunStop={onRunStop}
-        className="w-[192px] justify-end opacity-[0.55] group-hover/row:opacity-100"
-      />
-    </div>
+      {/* 槽位数固定为三，宽度随之恒定，右缘不再随脚本类型参差 */}
+      <ListRowActions data-tour="row-action">
+        <ScriptRowActionSlots script={script} navigate={navigate} onDelete={onDelete} onRunStop={onRunStop} />
+      </ListRowActions>
+    </ListRow>
   );
 }
 

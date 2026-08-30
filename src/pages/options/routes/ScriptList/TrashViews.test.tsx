@@ -252,3 +252,56 @@ describe("空回收站文案与保留时间联动", () => {
     expect(screen.getAllByText("回收站已关闭 · 新删除的脚本将直接彻底删除").length).toBeGreaterThan(0);
   });
 });
+
+describe("回收站桌面端列表化", () => {
+  const mkTrash = (uuid: string, name: string, deleteTime: number) => ({
+    uuid,
+    name,
+    namespace: "example.com",
+    metadata: { version: ["1.0.0"] },
+    deleteBy: "user",
+    deleteTime,
+  });
+
+  // 主段第一个 span 是无图标脚本的兜底头像，脚本名取带 text-sm 的那个
+  const trashOrder = () =>
+    Array.from(document.querySelectorAll('[data-slot="list-row-main"] .text-sm')).map((el) => el.textContent);
+
+  const sortBy = (label: string) => {
+    const trigger = screen.getByTestId("sort-menu");
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByText(label));
+  };
+
+  beforeEach(() => {
+    requestTrashScripts.mockResolvedValue([
+      mkTrash("b", "Banana", 30),
+      mkTrash("a", "Apple", 10),
+      mkTrash("c", "Cherry", 20),
+    ]);
+  });
+
+  it("行改用共享的列表行骨架，不再渲染固定列表头", async () => {
+    renderWithRouter(<TrashTable />);
+
+    await waitFor(() => expect(document.querySelectorAll('[data-slot="list-row"]').length).toBe(3));
+    expect(screen.queryByText("删除来源")).toBeNull();
+    expect(screen.queryByText("自动清理")).toBeNull();
+  });
+
+  it("默认按删除时间倒序，最近删除的排在最前", async () => {
+    renderWithRouter(<TrashTable />);
+
+    await waitFor(() => expect(trashOrder()).toEqual(["Banana", "Cherry", "Apple"]));
+  });
+
+  it("工具栏排序下拉可改按名称排序", async () => {
+    renderWithRouter(<TrashTable />);
+    await waitFor(() => expect(document.querySelectorAll('[data-slot="list-row"]').length).toBe(3));
+
+    sortBy("名称");
+
+    await waitFor(() => expect(trashOrder()).toEqual(["Apple", "Banana", "Cherry"]));
+  });
+});

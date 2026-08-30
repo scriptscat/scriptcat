@@ -111,5 +111,11 @@
   "trash_moved_batch": "Moved {{count}} scripts to Trash",
   "trash_undo": "Undo",
   "trash_undo_success": "Restored",
-  "trash_undo_failed": "Restore failed"
+  "trash_undo_failed": "Restore failed",
+  "sort_by": "Sort",
+  "sort_default": "Default",
+  "sort_ascending": "Ascending",
+  "sort_descending": "Descending",
+  "more_actions": "More actions",
+  "select_all": "Select all"
 }
