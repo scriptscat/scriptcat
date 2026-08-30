@@ -156,42 +156,37 @@ export const shouldFnBind = (f: any) => {
 
 // 取物件本身及所有父类(不包含Object)的PropertyDescriptor
 type DescriptorOwner = Record<PropertyKey, any>;
-type DescriptorEntry = [string | symbol, PropertyDescriptor];
-type TrackedDescriptor = {
-  descriptor: PropertyDescriptor;
-  receiver: DescriptorOwner;
-  isConstructor: boolean;
-};
 
 type DescriptorMap = Record<string, PropertyDescriptor>;
 
-const getAllPropertyDescriptors = (obj: DescriptorOwner, callback: (value: DescriptorEntry) => void) => {
+const getAllPropertyDescriptors = (
+  obj: DescriptorOwner,
+  callback: (key: string | symbol, descriptor: PropertyDescriptor) => void
+) => {
   while (obj && obj !== Object) {
     const descs = Object.getOwnPropertyDescriptors(obj);
-    Reflect.ownKeys(descs).forEach((key) => callback([key, descs[key as keyof typeof descs]]));
+    Reflect.ownKeys(descs).forEach((key) => callback(key, descs[key as keyof typeof descs]));
     obj = Object.getPrototypeOf(obj);
   }
 };
 
 // constructor/interface 不可绑定，否则 bind 会丢失 prototype 和静态成员。
-// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-const isConstructorOrInterface = (value: unknown): value is Function =>
-  typeof value === "function" && ("prototype" in value || /^[A-Z]/.test(String(Reflect.get(value, "name"))));
+const isConstructorOrInterface = (value: unknown) => {
+  if (typeof value !== "function") return false;
+  if ("prototype" in value) return true;
+  const firstChar = (value as { name: string }).name.charCodeAt(0);
+  return firstChar >= 65 && firstChar <= 90;
+};
 
-const trackDescriptor = (descriptor: PropertyDescriptor, receiver: DescriptorOwner): TrackedDescriptor => ({
-  descriptor,
-  receiver,
-  isConstructor: isConstructorOrInterface(descriptor.value),
-});
-
-const materializeDescriptor = ({ descriptor, receiver, isConstructor }: TrackedDescriptor): PropertyDescriptor => {
+const materializeDescriptor = (descriptor: PropertyDescriptor, receiver: DescriptorOwner): PropertyDescriptor => {
   if ("value" in descriptor) {
-    if (typeof descriptor.value !== "function" || isConstructor) return { ...descriptor };
+    if (typeof descriptor.value !== "function" || isConstructorOrInterface(descriptor.value)) return descriptor;
     return {
       ...descriptor,
       value: Function.prototype.bind.call(descriptor.value, receiver),
     };
   }
+  if (!descriptor.get && !descriptor.set) return descriptor;
   return {
     ...descriptor,
     get: descriptor.get?.bind(receiver),
@@ -317,10 +312,10 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
       if (desc.writable) {
         // 替换 function 的 this 为实际的 global window。被封装的属性会继续向父类寻找原生属性；constructor/interface 则保留原值。
         if (shouldFnBind(desc.value)) {
-          overriddenDescs[key] = materializeDescriptor(trackDescriptor(desc, realmGlobal));
+          overriddenDescs[key] = materializeDescriptor(desc, realmGlobal);
           descsCache.add(key); // 必须：子类属性覆盖父类属性
         } else if (!(key in initOwnDescs) && !Object.hasOwn(realmGlobal, key) && !protoBaseDescs[key]) {
-          protoBaseDescs[key] = materializeDescriptor(trackDescriptor(desc, realmGlobal));
+          protoBaseDescs[key] = materializeDescriptor(desc, realmGlobal);
         }
         return;
       }
@@ -330,7 +325,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
         eventKeys.add(key);
       } else if (desc.get || desc.set) {
         // 替换 getter/setter 的 this 为实际的 global window，例如 (window.)location、(window.)document。
-        overriddenDescs[key] = materializeDescriptor(trackDescriptor(desc, realmGlobal));
+        overriddenDescs[key] = materializeDescriptor(desc, realmGlobal);
         descsCache.add(key); // 必须：子类属性覆盖父类属性
       }
     });
@@ -340,7 +335,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
     const hostWindowPrototype = Object.getPrototypeOf(hostWindow);
     if (!hostWindowPrototype) return;
 
-    getAllPropertyDescriptors(hostWindowPrototype, ([key, desc]) => {
+    getAllPropertyDescriptors(hostWindowPrototype, (key, desc) => {
       if (!desc || descsCache.has(key) || typeof key !== "string") return;
 
       if (desc.configurable && desc.get && desc.set && key.startsWith("on")) {
@@ -351,20 +346,20 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
 
       if (desc.writable) {
         if (shouldFnBind(desc.value)) {
-          overriddenDescs[key] = materializeDescriptor(trackDescriptor(desc, hostWindow));
+          overriddenDescs[key] = materializeDescriptor(desc, hostWindow);
           descsCache.add(key);
         } else if (!(key in initOwnDescs) && !Object.hasOwn(realmGlobal, key) && !protoBaseDescs[key]) {
-          protoBaseDescs[key] = materializeDescriptor(trackDescriptor(desc, hostWindow));
+          protoBaseDescs[key] = materializeDescriptor(desc, hostWindow);
         }
       } else if (desc.get || desc.set) {
-        overriddenDescs[key] = materializeDescriptor(trackDescriptor(desc, hostWindow));
+        overriddenDescs[key] = materializeDescriptor(desc, hostWindow);
         descsCache.add(key);
       }
     });
   };
 
   const collectHostWindowEventDescriptors = () => {
-    getAllPropertyDescriptors(hostWindow, ([key, desc]) => {
+    getAllPropertyDescriptors(hostWindow, (key, desc) => {
       if (
         typeof key !== "string" ||
         hostEventKeys.has(key) ||
