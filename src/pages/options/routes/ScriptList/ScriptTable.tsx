@@ -303,7 +303,7 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
             {name}
           </Link>
           {/* 来源与标签降级为元信息行的行内徽章：原来的两个固定列在多数脚本上半空，占着名称列的宽度 */}
-          <span className="flex min-w-0 items-center gap-1.5">
+          <span className="flex min-w-0 items-center gap-1.5 overflow-hidden">
             <span className="truncate text-[11px] text-muted-foreground">
               {[versionDisplay(version), scriptTypeLabel(script.type, t), author].filter(Boolean).join(" · ")}
             </span>
@@ -357,7 +357,7 @@ function TagBadges({ metadata, selfMetadata }: { metadata: SCMetadata; selfMetad
   const tags = parseTags(meta);
   if (tags.length === 0) return null;
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="flex shrink-0 gap-1">
       {tags.slice(0, 2).map((tag) => {
         const color = getTagColor(tag);
         return (

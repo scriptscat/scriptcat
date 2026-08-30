@@ -233,7 +233,7 @@ function SubscribeRowInner({ index, subscribe, onEnable, onDelete }: SubscribeRo
             <TooltipContent>{subscribe.name}</TooltipContent>
           </Tooltip>
           {/* 版本与来源由原来的固定列降级为元信息行 */}
-          <span className="flex min-w-0 items-center gap-1.5">
+          <span className="flex min-w-0 items-center gap-1.5 overflow-hidden">
             <span className="truncate text-[11px] text-muted-foreground">{subtitle}</span>
             <SubscribeSourceTag url={subscribe.url} />
           </span>

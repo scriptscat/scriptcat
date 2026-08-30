@@ -459,7 +459,7 @@ export const SourceTag = React.memo(
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="warning" className="text-[10px] px-1.5 py-0 cursor-default">
+            <Badge variant="warning" className="shrink-0 text-[10px] px-1.5 py-0 cursor-default">
               {t("script:source_subscribe_link")}
             </Badge>
           </TooltipTrigger>
@@ -469,7 +469,7 @@ export const SourceTag = React.memo(
     }
     if (!script.origin) {
       return (
-        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 cursor-default">
+        <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0 cursor-default">
           {t("script:source_local_script")}
         </Badge>
       );
@@ -477,7 +477,7 @@ export const SourceTag = React.memo(
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="success" className="text-[10px] px-1.5 py-0 cursor-default">
+          <Badge variant="success" className="shrink-0 text-[10px] px-1.5 py-0 cursor-default">
             {t("script:source_script_link")}
           </Badge>
         </TooltipTrigger>
