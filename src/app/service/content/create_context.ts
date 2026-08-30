@@ -173,6 +173,7 @@ const getAllPropertyDescriptors = (obj: DescriptorOwner, callback: (value: Descr
   }
 };
 
+// constructor/interface 不可绑定，否则 bind 会丢失 prototype 和静态成员。
 // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 const isConstructorOrInterface = (value: unknown): value is Function =>
   typeof value === "function" && ("prototype" in value || /^[A-Z]/.test(String(Reflect.get(value, "name"))));
@@ -284,10 +285,13 @@ export type RealmRoots = {
 };
 
 const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSnapshot => {
+  // descsCache 记录已处理的属性；先处理的 realm/子类 descriptor 不会被后续父类覆盖。
   const descsCache: Set<string | symbol> = new Set(["eval", "window", "self", "globalThis", "top", "parent"]);
   const initOwnDescs = Object.getOwnPropertyDescriptors(realmGlobal);
+  // overriddenDescs 会以 sandbox own descriptor 覆盖原有定义；eventKeys 只记录需要模拟的 on* 属性。
   const overriddenDescs: DescriptorMap = Object.create(null);
   const eventKeys = new Set<string>();
+  // hostEventKeys 用于区分 host 原型事件，避免第二次遍历 hostWindow 时重复处理。
   const hostEventKeys = new Set<string>();
   const protoBaseDescs: DescriptorMap = Object.create(null);
 
@@ -308,7 +312,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
       if (!desc || descsCache.has(key) || typeof key !== "string") return;
 
       if (desc.writable) {
-        // 替换 function 的 this 为实际的 global window。被封装的属性会继续向父类寻找原生属性。
+        // 替换 function 的 this 为实际的 global window。被封装的属性会继续向父类寻找原生属性；constructor/interface 则保留原值。
         if (shouldFnBind(desc.value)) {
           overriddenDescs[key] = materializeDescriptor(trackDescriptor(desc, realmGlobal));
           descsCache.add(key); // 必须：子类属性覆盖父类属性
@@ -406,7 +410,10 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
     }
   };
 
+  // 第一趟 realmGlobal：Firefox 的 content / USER_SCRIPT world 在这里保留完整的 JavaScript 内置对象。
   collectRealmDescriptors();
+  // 第二趟 hostWindow 原型链：补齐 Xray window 无法取得的 DOM/EventTarget 成员。
+  // 一般的 hostWindow own properties 不应带入沙盒，只有事件属性和下面的白名单会被转发。
   collectHostWindowPrototypeDescriptors();
   descsCache.clear(); // 内存释放
   collectHostWindowEventDescriptors();
@@ -418,6 +425,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
   //  + 覆盖定义 (document, location, setTimeout, setInterval, addEventListener 等)
   // sharedInitCopy: ScriptCat脚本共通使用
 
+  // PseudoWindow 没有真实 Window.prototype，因此祖先成员必须先手动复制到 sandbox own descriptors。
   const USE_PSEUDO_WINDOW = true; // 日后或能设置使 ScriptCat的沙盒 window 能以 name / id 存取页面元素
 
   class PseudoWindow {}
@@ -538,6 +546,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
     };
   }
 
+  // split realm 下 hostWindow 可能经由 realmGlobal.window 暴露；这些别名必须始终留在当前 sandbox 内。
   for (const key of ["window", "self", "globalThis", "top", "parent", "frames"]) {
     ownDescs[key] = {
       configurable: true,
