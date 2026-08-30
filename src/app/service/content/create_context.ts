@@ -155,38 +155,165 @@ export const shouldFnBind = (f: any) => {
   return false;
 };
 
-type ForEachCallback<T> = (value: T, index: number, array: T[]) => void;
-
 // 取物件本身及所有父类(不包含Object)的PropertyDescriptor
-const getAllPropertyDescriptors = (obj: any, callback: ForEachCallback<[string | symbol, PropertyDescriptor]>) => {
+type DescriptorOwner = Record<PropertyKey, any>;
+type DescriptorEntry = [string | symbol, PropertyDescriptor, DescriptorOwner];
+type TrackedDescriptor = {
+  descriptor: PropertyDescriptor;
+  owner: DescriptorOwner;
+  receiver: DescriptorOwner;
+  isConstructor: boolean;
+};
+
+const getAllPropertyDescriptors = (obj: DescriptorOwner, callback: (value: DescriptorEntry) => void) => {
   while (obj && obj !== Object) {
     const descs = Object.getOwnPropertyDescriptors(obj);
-    Object.entries(descs).forEach(callback);
+    Reflect.ownKeys(descs).forEach((key) => callback([key, descs[key as keyof typeof descs], obj]));
     obj = Object.getPrototypeOf(obj);
   }
 };
 
-// 在 CacheSet 加入的propKeys将会在 mySandbox 实装阶段时设置
-const descsCache: Set<string | symbol> = new Set(["eval", "window", "self", "globalThis", "top", "parent"]);
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+const isConstructorOrInterface = (value: unknown): value is Function =>
+  typeof value === "function" && ("prototype" in value || /^[A-Z]/.test(String(Reflect.get(value, "name"))));
 
-const initOwnDescs = Object.getOwnPropertyDescriptors(global);
+const materializeDescriptor = (key: string, tracked: TrackedDescriptor): PropertyDescriptor => {
+  const { descriptor, owner, receiver, isConstructor } = tracked;
+  if ("value" in descriptor) {
+    if (typeof descriptor.value !== "function" || isConstructor) return { ...descriptor };
+    return {
+      ...descriptor,
+      value: function (this: any, ...args: any[]) {
+        return Reflect.apply(descriptor.value, receiver, args);
+      },
+    };
+  }
+  return {
+    ...descriptor,
+    get: descriptor.get ? () => Reflect.get(owner, key, receiver) : undefined,
+    set: descriptor.set
+      ? (value: any) => {
+          Reflect.set(owner, key, value, receiver);
+        }
+      : undefined,
+  };
+};
 
-// overridedDescs将以物件OwnPropertyDescriptor方式进行物件属性修改
-// 覆盖原有的 OwnPropertyDescriptor定义 或 父类的PropertyDescriptor定义
-const overridedDescs: Record<string, PropertyDescriptor> = Object.create(null);
+// Firefox 的 content / USER_SCRIPT world 将 JavaScript global 与页面 window 拆成两个 realm。
+// 这里仅转发确定需要页面 brand 的成员；不遍历第二个根，避免把页面全局快照带入沙盒。
+const hostWindowAccessors = [
+  "document",
+  "location",
+  "navigator",
+  "history",
+  "screen",
+  "performance",
+  "crypto",
+  "localStorage",
+  "sessionStorage",
+  "visualViewport",
+  "innerWidth",
+  "innerHeight",
+  "scrollX",
+  "scrollY",
+  "devicePixelRatio",
+];
+const hostWindowMethods = [
+  "addEventListener",
+  "removeEventListener",
+  "dispatchEvent",
+  "getComputedStyle",
+  "matchMedia",
+  "requestAnimationFrame",
+  "cancelAnimationFrame",
+  "scroll",
+  "scrollTo",
+  "scrollBy",
+  "blur",
+];
+const hostWindowConstructors = [
+  "Window",
+  "EventTarget",
+  "Node",
+  "Element",
+  "HTMLElement",
+  "Document",
+  "DocumentFragment",
+  "ShadowRoot",
+  "Text",
+  "Range",
+  "MutationObserver",
+  "NodeFilter",
+  "TreeWalker",
+  "Event",
+  "CustomEvent",
+  "MouseEvent",
+  "KeyboardEvent",
+  "PointerEvent",
+  "InputEvent",
+  "FocusEvent",
+  "ErrorEvent",
+  "ProgressEvent",
+  "MessageEvent",
+  "StorageEvent",
+  "WheelEvent",
+  "DragEvent",
+  "ClipboardEvent",
+  "DOMParser",
+  "XMLSerializer",
+  "FormData",
+  "File",
+  "FileList",
+  "Blob",
+  "URL",
+  "URLSearchParams",
+  "Headers",
+  "Request",
+  "Response",
+  "XMLHttpRequest",
+];
+const hostWindowEventProperties = ["onload", "onerror", "onresize", "onfocus", "onblur", "onhashchange"];
 
-// 记录原生 onxxxxx 的 PropertyDescriptor
-const eventDescs: Record<string, PropertyDescriptor> = Object.create(null);
+const hostWindowKeys = new Set([...hostWindowAccessors, ...hostWindowMethods, ...hostWindowConstructors]);
 
-// 在 USE_PSEUDO_WINDOW 情况下，由于没有 类的prototype, 父类的成员要手动传下去
-const protoBaseDescs: Record<string, PropertyDescriptor> = Object.create(null);
+type GlobalSnapshot = {
+  sharedInitCopy: typeof globalThis & Record<PropertyKey, any>;
+  eventDescs: Record<string, PropertyDescriptor>;
+};
 
-// 包含物件本身及所有父类(不包含Object)的PropertyDescriptor
-// 主要是找出哪些 function值， setter/getter 需要替换 global window
-// bind 目标跟随该轮的根物件 root，因为两个根分属不同 realm，互相绑定会触发 brand check 失败
-const collectPropertyDescriptors = (root: any) =>
-  getAllPropertyDescriptors(root, ([key, desc]) => {
+export type RealmRoots = {
+  realmGlobal: DescriptorOwner;
+  hostWindow: DescriptorOwner;
+};
+
+const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSnapshot => {
+  const descsCache: Set<string | symbol> = new Set(["eval", "window", "self", "globalThis", "top", "parent"]);
+  const initOwnDescs = Object.getOwnPropertyDescriptors(realmGlobal);
+  const overridedDescs: Record<string, PropertyDescriptor> = Object.create(null);
+  const eventDescs: Record<string, PropertyDescriptor> = Object.create(null);
+  const protoBaseDescs: Record<string, PropertyDescriptor> = Object.create(null);
+
+  const getHostWindowDescriptor = (key: string): PropertyDescriptor | undefined => {
+    let owner: DescriptorOwner | null = hostWindow;
+    while (owner) {
+      const descriptor = Object.getOwnPropertyDescriptor(owner, key);
+      if (descriptor) return descriptor;
+      owner = Object.getPrototypeOf(owner);
+    }
+    return undefined;
+  };
+
+  // 包含物件本身及所有父类(不包含Object)的PropertyDescriptor
+  // 主要是找出哪些 function值， setter/getter 需要替换 global window
+  getAllPropertyDescriptors(realmGlobal, ([key, desc, owner]) => {
     if (!desc || descsCache.has(key) || typeof key !== "string") return;
+
+    const tracked = {
+      descriptor: desc,
+      owner,
+      receiver: realmGlobal,
+      isConstructor: isConstructorOrInterface(desc.value),
+    };
 
     if (desc.writable) {
       // 属性 value
@@ -198,23 +325,11 @@ const collectPropertyDescriptors = (root: any) =>
       // 对于构造函数和类（有 prototype 属性），shouldFnBind 会返回 false，跳过绑定
       // 因此被封装的属性，会略过封装层，继续向父类寻找原生属性
       if (shouldFnBind(value)) {
-        const boundValue = value.bind(root);
-        overridedDescs[key] = {
-          ...desc,
-          value: boundValue,
-        };
+        overridedDescs[key] = materializeDescriptor(key, tracked);
         descsCache.add(key); // 必须：子类属性覆盖父类属性
-      } else if (!(key in initOwnDescs) && !Object.hasOwn(root, key)) {
+      } else if (!(key in initOwnDescs) && !Object.hasOwn(realmGlobal, key)) {
         if (!protoBaseDescs[key]) {
-          if (typeof value === "function") {
-            const boundValue = value.bind(root);
-            protoBaseDescs[key] = {
-              ...desc,
-              value: boundValue,
-            };
-          } else {
-            protoBaseDescs[key] = { ...desc };
-          }
+          protoBaseDescs[key] = materializeDescriptor(key, tracked);
         }
       }
     } else {
@@ -226,68 +341,101 @@ const collectPropertyDescriptors = (root: any) =>
         if (desc.get || desc.set) {
           // 替换 getter setter 的 this 为 实际的 global window
           // 例：(window.)location, (window.)document
-          overridedDescs[key] = {
-            ...desc,
-            get: desc?.get?.bind(root),
-            set: desc?.set?.bind(root),
-          };
+          overridedDescs[key] = materializeDescriptor(key, tracked);
           descsCache.add(key); // 必须：子类属性覆盖父类属性
         }
       }
     }
   });
+  descsCache.clear(); // 内存释放
 
-// 第一趟 globalThis：Firefox 的 content / USER_SCRIPT world 是独立 realm，JS 内置物件只有在这里
-// 才完整；经 Xray 看页面 window 的内置物件会被剥到只剩 length / name / prototype（Number.isNaN、
-// Math 的全部静态成员都会消失）。
-collectPropertyDescriptors(global);
-// 第二趟 window：同一个 sandbox 的原型链在 Xray window 处截断，够不到 EventTarget.prototype，
-// addEventListener / removeEventListener / dispatchEvent 只能由真实 window 的原型链补齐。
-// descsCache 先到先得，第一趟收下的键不会被覆盖；Chrome 下 window === globalThis，此趟全部跳过。
-window !== global && collectPropertyDescriptors(window);
-descsCache.clear(); // 内存释放
+  const addHostWindowForwarding = (key: string) => {
+    if (!(key in hostWindow)) return;
+    const hostDescriptor = getHostWindowDescriptor(key);
+    if (hostWindowAccessors.includes(key)) {
+      overridedDescs[key] = {
+        configurable: true,
+        enumerable: true,
+        get: () => Reflect.get(hostWindow, key, hostWindow),
+        ...(hostDescriptor?.set
+          ? {
+              set: (value: any) => {
+                Reflect.set(hostWindow, key, value, hostWindow);
+              },
+            }
+          : {}),
+      };
+    } else if (hostWindowMethods.includes(key)) {
+      overridedDescs[key] = {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: function (...args: any[]) {
+          const method = Reflect.get(hostWindow, key, hostWindow);
+          return Reflect.apply(method, hostWindow, args);
+        },
+      };
+    } else {
+      overridedDescs[key] = {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: Reflect.get(hostWindow, key, hostWindow),
+      };
+    }
+  };
 
-// sharedInitCopy: 完全继承Window.prototype 及 自定义 OwnPropertyDescriptor
-// OwnPropertyDescriptor定义 为 原OwnPropertyDescriptor定义 (DragEvent, MouseEvent, RegExp, EventTarget, JSON等)
-//  + 覆盖定义 (document, location, setTimeout, setInterval, addEventListener 等)
-// sharedInitCopy: ScriptCat脚本共通使用
+  for (const key of hostWindowKeys) addHostWindowForwarding(key);
+  for (const key of hostWindowEventProperties) {
+    if (key in hostWindow && !eventDescs[key]) eventDescs[key] = { configurable: true, enumerable: true };
+  }
 
-const USE_PSEUDO_WINDOW = true; // 日后或能设置使 ScriptCat的沙盒 window 能以 name / id 存取页面元素
+  // sharedInitCopy: 完全继承Window.prototype 及 自定义 OwnPropertyDescriptor
+  // OwnPropertyDescriptor定义 为 原OwnPropertyDescriptor定义 (DragEvent, MouseEvent, RegExp, EventTarget, JSON等)
+  //  + 覆盖定义 (document, location, setTimeout, setInterval, addEventListener 等)
+  // sharedInitCopy: ScriptCat脚本共通使用
 
-class PseudoWindow {}
-const PseudoWindowPrototype = PseudoWindow.prototype;
-Object.defineProperty(PseudoWindowPrototype, Symbol.toStringTag, {
-  //@ts-ignore
-  value: global[Symbol.toStringTag],
-  writable: false,
-  enumerable: false,
-  configurable: true,
-});
-Object.defineProperty(PseudoWindowPrototype, "constructor", {
-  value: global.constructor,
-  writable: false,
-  enumerable: false,
-  configurable: true,
-});
-Object.defineProperty(PseudoWindowPrototype, "__proto__", {
-  //@ts-ignore
-  value: global.__proto__,
-  writable: false,
-  enumerable: false,
-  configurable: true,
-});
+  const USE_PSEUDO_WINDOW = true; // 日后或能设置使 ScriptCat的沙盒 window 能以 name / id 存取页面元素
 
-const sharedInitCopy = USE_PSEUDO_WINDOW
-  ? Object.create(null, {
-      ...protoBaseDescs, // 较快的 @unwrap 注入时有机会改变 EventTarget.prototype
-      ...Object.getOwnPropertyDescriptors(PseudoWindowPrototype),
-      ...initOwnDescs,
-      ...overridedDescs,
-    })
-  : Object.create(Object.getPrototypeOf(global), {
-      ...initOwnDescs,
-      ...overridedDescs,
-    });
+  class PseudoWindow {}
+  const PseudoWindowPrototype = PseudoWindow.prototype;
+  Object.defineProperty(PseudoWindowPrototype, Symbol.toStringTag, {
+    //@ts-ignore
+    value: hostWindow[Symbol.toStringTag],
+    writable: false,
+    enumerable: false,
+    configurable: true,
+  });
+  Object.defineProperty(PseudoWindowPrototype, "constructor", {
+    value: hostWindow.constructor,
+    writable: false,
+    enumerable: false,
+    configurable: true,
+  });
+  Object.defineProperty(PseudoWindowPrototype, "__proto__", {
+    //@ts-ignore
+    value: hostWindow.__proto__,
+    writable: false,
+    enumerable: false,
+    configurable: true,
+  });
+
+  const sharedInitCopy = USE_PSEUDO_WINDOW
+    ? Object.create(null, {
+        ...protoBaseDescs, // 较快的 @unwrap 注入时有机会改变 EventTarget.prototype
+        ...Object.getOwnPropertyDescriptors(PseudoWindowPrototype),
+        ...initOwnDescs,
+        ...overridedDescs,
+      })
+    : Object.create(Object.getPrototypeOf(realmGlobal), {
+        ...initOwnDescs,
+        ...overridedDescs,
+      });
+
+  return { sharedInitCopy, eventDescs };
+};
+
+const defaultGlobalSnapshot = createGlobalSnapshot({ realmGlobal: global, hostWindow: window });
 
 // 把沙盒的 console 和网页的 console 隔离
 const initConsoleDescs = Object.getOwnPropertyDescriptors(console);
@@ -298,22 +446,21 @@ type GMWorldContext = typeof globalThis & Record<PropertyKey, any>;
 const isPrimitive = (x: any) => x !== Object(x);
 
 // 拦截上下文
-export const createProxyContext = <const Context extends GMWorldContext>(context: any): Context => {
+export const createProxyContext = <const Context extends GMWorldContext>(
+  context: any,
+  roots: RealmRoots = { realmGlobal: global, hostWindow: window }
+): Context => {
   // let withContext: Context | undefined | { [key: string]: any } = undefined;
   // 为避免做成混乱。 ScriptCat脚本中 self, globalThis, parent 为固定值不能修改
 
+  const { sharedInitCopy, eventDescs } =
+    roots.realmGlobal === global && roots.hostWindow === window ? defaultGlobalSnapshot : createGlobalSnapshot(roots);
   const ownDescs = Object.getOwnPropertyDescriptors(sharedInitCopy);
 
   // mySandbox: ScriptCat各脚本独自使用
   let mySandbox: typeof sharedInitCopy | undefined = undefined;
-
-  const createFuncWrapper = (f: () => any) => {
-    return function (this: any) {
-      const ret = f.call(global);
-      if (ret === global) return mySandbox;
-      return ret;
-    };
-  };
+  const hostAddEventListener = roots.hostWindow.addEventListener.bind(roots.hostWindow);
+  const hostRemoveEventListener = roots.hostWindow.removeEventListener.bind(roots.hostWindow);
 
   // 用 eventHandling 机制模拟 onxxxxxxx 事件设置
   // 监听事件实际上的方法是eventObject.handleEvent
@@ -323,9 +470,9 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     const eventObject: EventListenerObject & { fn: any } = {
       fn: null,
       handleEvent(event) {
-        const fn = mySandbox[key];
+        const fn = mySandbox![key];
         if (!fn || fn !== this.fn) {
-          global.removeEventListener(eventName, eventObject);
+          hostRemoveEventListener(eventName, eventObject);
           this.fn = null;
         } else {
           fn.call(mySandbox, event);
@@ -347,11 +494,11 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
             // function <-> function 时无需重新监听
             if (typeof fn === "function") {
               // 停止当前事件监听
-              global.removeEventListener(eventName, eventObject);
+              hostRemoveEventListener(eventName, eventObject);
             } else if (typeof newVal === "function") {
               // 非primitive types 的话，只考虑 function type
               // Symbol, Object (包括 EventListenerObject ) 等只会保存而不进行事件监听
-              global.addEventListener(eventName, eventObject);
+              hostAddEventListener(eventName, eventObject);
             }
           }
           eventObject.fn = newVal;
@@ -369,24 +516,13 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
   }
 
   for (const key of ["window", "self", "globalThis", "top", "parent", "frames"]) {
-    const desc = ownDescs[key];
-    if (desc?.value === global) {
-      // globalThis
-      // 避免 self referencing, 改以 getter 形式
-      desc.get = function () {
+    ownDescs[key] = {
+      configurable: true,
+      enumerable: true,
+      get() {
         return mySandbox;
-      };
-      desc.set = undefined;
-      // 为了 value 转 getter/setter，必须删除 writable 和 value
-      delete desc.writable;
-      delete desc.value;
-    } else if (desc?.get) {
-      // 真实的 window 物件中部份属性(self, parent) 存在setter. 意义不明
-      // 为避免做成混乱，ScriptCat脚本的沙盒不提供setter（即不能修改）
-      // (像window.document, 能写 window.document = null 不会报错但赋值不变)
-      desc.get = createFuncWrapper(desc.get);
-      desc.set = undefined;
-    }
+      },
+    };
   }
   if (noEval) {
     if (ownDescs?.eval?.value) {
@@ -422,7 +558,8 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
   }
 
   // 把初始Copy加上特殊变量后，生成一份新Copy
-  mySandbox = Object.create(Object.getPrototypeOf(sharedInitCopy), ownDescs);
+  mySandbox = Object.create(Object.getPrototypeOf(sharedInitCopy), ownDescs) as typeof globalThis &
+    Record<PropertyKey, any>;
 
   // 处理特殊关键字，不能穿越出沙盒，也不能被外部修改
   for (const key of ["define", "module", "exports"]) {
@@ -457,7 +594,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
     const handle = function (this: Window & Record<string, any>, e: UrlChangeEvent) {
       this.onurlchange?.(e);
     } as EventListener;
-    (<EventTarget>window).addEventListener("urlchange", handle.bind(mySandbox), false);
+    (<EventTarget>roots.hostWindow).addEventListener("urlchange", handle.bind(mySandbox), false);
   }
 
   // 从网页 console 隔离出来的沙盒 console

@@ -1,7 +1,7 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import { encodeRValue } from "@App/pkg/utils/message_value";
-import { createContext, createProxyContext, shouldFnBind } from "./create_context";
+import { createContext, createProxyContext, shouldFnBind, type RealmRoots } from "./create_context";
 
 const createScriptInfo = (metadata: Record<string, string[]> = {}): TScriptInfo =>
   ({
@@ -31,6 +31,45 @@ const createTestContext = (grants: string[], metadata: Record<string, string[]> 
     undefined as any,
     new Set(grants)
   );
+
+const createSplitRealmRoots = (): RealmRoots => {
+  const realmGlobal = Object.create(null) as Record<PropertyKey, any>;
+  const hostWindow = Object.create(null) as Record<PropertyKey, any>;
+  const eventTarget = new EventTarget();
+
+  realmGlobal.Node = class RealmNode {};
+  realmGlobal.XMLHttpRequest = class RealmXMLHttpRequest {};
+  realmGlobal.realmOnly = "realm-value";
+  Object.defineProperty(realmGlobal, "realmAccessor", {
+    configurable: true,
+    enumerable: true,
+    get() {
+      return this === realmGlobal ? "realm-receiver" : "wrong-receiver";
+    },
+  });
+
+  hostWindow.constructor = window.constructor;
+  hostWindow.EventTarget = EventTarget;
+  hostWindow.Node = Node;
+  hostWindow.NodeFilter = NodeFilter;
+  hostWindow.Event = Event;
+  hostWindow.XMLHttpRequest = class HostXMLHttpRequest {
+    static DONE = 4;
+  };
+  hostWindow.document = document;
+  hostWindow.hostOnly = "host-value";
+  hostWindow.addEventListener = eventTarget.addEventListener.bind(eventTarget);
+  hostWindow.removeEventListener = eventTarget.removeEventListener.bind(eventTarget);
+  hostWindow.dispatchEvent = eventTarget.dispatchEvent.bind(eventTarget);
+  Object.defineProperty(hostWindow, "onload", {
+    configurable: true,
+    enumerable: true,
+    get: () => null,
+    set: () => undefined,
+  });
+
+  return { realmGlobal, hostWindow };
+};
 
 describe.concurrent("shouldFnBind", () => {
   it.concurrent("不处理非原生函数", () => {
@@ -236,5 +275,151 @@ describe.concurrent("createProxyContext", () => {
   it.concurrent("TM半沙盒：把祖先类别继承直接写在半沙盒上 ( #1462 #1463 )", () => {
     const sandbox = createProxyContext(createTestContext([]));
     expect(Object.hasOwn(sandbox, "addEventListener")).toBe(true);
+  });
+
+  describe.concurrent("split-global materialization", () => {
+    it.concurrent("materializes separate realm and host roots through the eager snapshot", () => {
+      const roots = createSplitRealmRoots();
+      const sandbox = createProxyContext(createTestContext([]), roots);
+
+      expect(sandbox.Node).toBe(roots.hostWindow.Node);
+      expect(sandbox.Node.prototype).toBe(roots.hostWindow.Node.prototype);
+      expect(sandbox.XMLHttpRequest).toBe(roots.hostWindow.XMLHttpRequest);
+      expect(sandbox.XMLHttpRequest.DONE).toBe(4);
+      expect(sandbox.EventTarget).toBe(roots.hostWindow.EventTarget);
+      expect(sandbox.document).toBe(document);
+      expect(sandbox.realmOnly).toBe("realm-value");
+      expect(sandbox.realmAccessor).toBe("realm-receiver");
+      expect(sandbox.hostOnly).toBeUndefined();
+
+      const listener = vi.fn();
+      sandbox.addEventListener("split-root", listener);
+      roots.hostWindow.dispatchEvent(new Event("split-root"));
+      expect(listener).toHaveBeenCalledTimes(1);
+      sandbox.removeEventListener("split-root", listener);
+
+      const onload = vi.fn();
+      Reflect.set(sandbox, "onload", onload);
+      roots.hostWindow.dispatchEvent(new Event("load"));
+      Reflect.set(sandbox, "onload", null);
+      roots.hostWindow.dispatchEvent(new Event("load"));
+      expect(onload).toHaveBeenCalledTimes(1);
+    });
+
+    it.concurrent("keeps all self-referential window names inside the sandbox", () => {
+      const sandbox = createProxyContext(createTestContext([]));
+
+      expect(sandbox.window).toBe(sandbox);
+      expect(sandbox.self).toBe(sandbox);
+      expect(sandbox.globalThis).toBe(sandbox);
+      expect(sandbox.top).toBe(sandbox);
+      expect(sandbox.parent).toBe(sandbox);
+      expect(sandbox.frames).toBe(sandbox);
+    });
+
+    it.concurrent("forwards live host accessors without leaking page globals", () => {
+      const sandbox = createProxyContext(createTestContext([]));
+      const pageKey = "__scriptcat_split_global_page_value";
+
+      Reflect.set(window, pageKey, "page-value");
+      try {
+        expect(sandbox.document).toBe(window.document);
+        expect(sandbox.location).toBe(window.location);
+        expect(sandbox[pageKey]).toBeUndefined();
+      } finally {
+        Reflect.deleteProperty(window, pageKey);
+      }
+    });
+
+    it.concurrent("preserves host constructor static constants and prototype identity", () => {
+      const sandbox = createProxyContext(createTestContext([]));
+
+      expect(sandbox.Node).toBe(window.Node);
+      expect(sandbox.Node.ELEMENT_NODE).toBe(window.Node.ELEMENT_NODE);
+      expect(sandbox.Node.prototype).toBe(window.Node.prototype);
+      expect(sandbox.Event).toBe(window.Event);
+      expect(sandbox.Event.prototype).toBe(window.Event.prototype);
+    });
+
+    it.concurrent("keeps JavaScript built-in static methods available", () => {
+      const sandbox = createProxyContext(createTestContext([]));
+
+      expect(sandbox.Number.isNaN).toBe(Number.isNaN);
+      expect(sandbox.Math.max(2, 7)).toBe(7);
+      expect(sandbox.Object.isFrozen(Object.freeze({}))).toBe(true);
+    });
+
+    it.concurrent("forwards extracted host methods with the host receiver", () => {
+      const sandbox = createProxyContext(createTestContext([]));
+      const add = sandbox.addEventListener;
+      const remove = sandbox.removeEventListener;
+      const dispatch = sandbox.dispatchEvent;
+      const eventName = "__scriptcat_split_global_event";
+      const listener = vi.fn();
+
+      add(eventName, listener);
+      dispatch(new Event(eventName));
+      remove(eventName, listener);
+
+      expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it.concurrent("does not register an event listener for an object handler", () => {
+      const sandbox = createProxyContext(createTestContext([]));
+      const listenerObject = { handleEvent: vi.fn() };
+
+      Reflect.set(sandbox, "onfocus", listenerObject);
+      window.dispatchEvent(new Event("focus"));
+
+      expect(listenerObject.handleEvent).not.toHaveBeenCalled();
+      sandbox.onfocus = null;
+    });
+
+    it.concurrent("removes the old event listener when an on-property is cleared", () => {
+      const sandbox = createProxyContext(createTestContext([]));
+      const handler = vi.fn();
+
+      sandbox.onresize = handler;
+      window.dispatchEvent(new Event("resize"));
+      sandbox.onresize = null;
+      window.dispatchEvent(new Event("resize"));
+
+      expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it.concurrent("replaces an on-property listener without retaining the previous callback", () => {
+      const sandbox = createProxyContext(createTestContext([]));
+      const oldHandler = vi.fn();
+      const newHandler = vi.fn();
+
+      try {
+        sandbox.onhashchange = oldHandler;
+        sandbox.onhashchange = newHandler;
+        window.dispatchEvent(new Event("hashchange"));
+
+        expect(oldHandler).not.toHaveBeenCalled();
+        expect(newHandler).toHaveBeenCalledTimes(1);
+      } finally {
+        sandbox.onhashchange = null;
+      }
+    });
+
+    it.concurrent("isolates writes between split-global sandboxes", () => {
+      const first = createProxyContext(createTestContext([]));
+      const second = createProxyContext(createTestContext([]));
+
+      first.__split_global_local_value = "first";
+
+      expect(first.__split_global_local_value).toBe("first");
+      expect(second.__split_global_local_value).toBeUndefined();
+      expect(Reflect.get(window, "__split_global_local_value")).toBeUndefined();
+    });
+
+    it.concurrent("keeps the page window identity separate from the sandbox identity", () => {
+      const sandbox = createProxyContext(createTestContext([]));
+
+      expect(sandbox).not.toBe(window);
+      expect(sandbox.unsafeWindow).toBe(window);
+    });
   });
 });
