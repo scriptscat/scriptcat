@@ -2,8 +2,8 @@ import { test, expect } from "./fixtures";
 import { openOptionsPage } from "./utils";
 
 // new-ui 选项页（shadcn）：侧边栏为 React Router NavLink（HashRouter → a[href="#/..."]），
-// 主题切换为循环按钮(data-testid="theme-toggle")，新建脚本为 Radix 下拉
-// (data-testid="create-script")，脚本列表空状态 data-testid="script-list-empty"。
+// 主题切换为循环按钮(data-testid="theme-toggle")，新建脚本按钮(data-testid="create-script")
+// 点击直接新建用户脚本、hover 才展开 Radix 下拉，脚本列表空状态 data-testid="script-list-empty"。
 test.describe("Options 选项页", () => {
   test("应加载并显示 ScriptCat 标题和 Logo", async ({ context, extensionId }) => {
     const page = await openOptionsPage(context, extensionId);
@@ -44,13 +44,20 @@ test.describe("Options 选项页", () => {
     await expect.poll(() => themeBtn.locator("svg").getAttribute("class"), { timeout: 5_000 }).not.toBe(before);
   });
 
-  test("新建脚本按钮应展开下拉菜单", async ({ context, extensionId }) => {
+  test("新建脚本按钮 hover 应展开下拉菜单", async ({ context, extensionId }) => {
     const page = await openOptionsPage(context, extensionId);
-    await page.getByTestId("create-script").click();
+    await page.getByTestId("create-script").hover();
 
     const menuItems = page.locator('[role="menuitem"]');
     await expect(menuItems.first()).toBeVisible({ timeout: 10_000 });
     expect(await menuItems.count()).toBeGreaterThanOrEqual(3);
+  });
+
+  test("新建脚本按钮点击应直接进入编辑器", async ({ context, extensionId }) => {
+    const page = await openOptionsPage(context, extensionId);
+    await page.getByTestId("create-script").click();
+
+    await expect.poll(() => page.url(), { timeout: 10_000 }).toContain("#/script/editor");
   });
 
   test("脚本列表为空时应显示空状态", async ({ context, extensionId }) => {

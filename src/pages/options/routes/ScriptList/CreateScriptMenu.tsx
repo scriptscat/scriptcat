@@ -1,3 +1,4 @@
+import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, ChevronDown } from "lucide-react";
@@ -17,8 +18,9 @@ import { handleImportFiles, handleImportUrls } from "./importHandler";
 import { LinkImportDialog } from "./LinkImportDialog";
 
 /**
- * 新建脚本下拉(hover 触发)。Toolbar 用带文字按钮(variant="default"),
- * 移动 header 用 32×32 图标按钮(variant="icon")。含导入分组:本地/链接/Skill。
+ * 新建脚本入口。Toolbar 用带文字按钮(variant="default"):点击直接新建用户脚本,
+ * 菜单由 hover / ArrowDown 展开;移动 header 用 32×32 图标按钮(variant="icon"),点击展开菜单。
+ * 含导入分组:本地/链接/Skill。
  */
 export function CreateScriptMenu({ variant = "default" }: { variant?: "default" | "icon" }) {
   const { t } = useTranslation();
@@ -32,6 +34,17 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
   const handleCreate = (path: string) => {
     close();
     void navigate(path);
+  };
+  const createUserScript = () => handleCreate("/script/editor");
+  // Radix Trigger 用 composeEventHandlers 挂载「切换菜单」,遇到 defaultPrevented 会跳过。
+  // 桌面按钮的激活语义归「新建用户脚本」,因此在这里拦掉:否则 hover 已展开时点击只会把菜单收起,
+  // 看起来像点了没反应(#1699)。ArrowDown 不拦,留给 Radix 展开菜单。
+  const suppressTriggerToggle = (e: { preventDefault: () => void }) => e.preventDefault();
+  const handleTriggerKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      createUserScript();
+    }
   };
   const importLocal = async () => {
     close();
@@ -65,6 +78,9 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
               data-tour="install-entry"
               className="gap-1.5 h-[34px] px-4"
               {...hoverProps}
+              onPointerDown={suppressTriggerToggle}
+              onClick={createUserScript}
+              onKeyDown={handleTriggerKeyDown}
             >
               <Plus className="w-4 h-4" />
               <span className="text-[13px] font-medium">{t("script:create_script")}</span>
@@ -76,9 +92,7 @@ export function CreateScriptMenu({ variant = "default" }: { variant?: "default" 
           <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">
             {t("script:create_group")}
           </DropdownMenuLabel>
-          <DropdownMenuItem onClick={() => handleCreate("/script/editor")}>
-            {t("script:create_user_script")}
-          </DropdownMenuItem>
+          <DropdownMenuItem onClick={createUserScript}>{t("script:create_user_script")}</DropdownMenuItem>
           <DropdownMenuItem onClick={() => handleCreate("/script/editor?template=background")}>
             {t("script:create_background_script")}
           </DropdownMenuItem>

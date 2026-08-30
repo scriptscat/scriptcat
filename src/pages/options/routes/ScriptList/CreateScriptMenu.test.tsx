@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeAll, afterEach, beforeEach } from "vitest";
 import { render, cleanup, screen, fireEvent, act } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { CreateScriptMenu } from "./CreateScriptMenu";
 import * as filePicker from "./filePicker";
@@ -14,10 +14,16 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+function LocationProbe() {
+  const { pathname, search } = useLocation();
+  return <div data-testid="location">{pathname + search}</div>;
+}
+
 function renderMenu(variant: "default" | "icon" = "default") {
   return render(
     <MemoryRouter>
       <CreateScriptMenu variant={variant} />
+      <LocationProbe />
     </MemoryRouter>
   );
 }
@@ -67,6 +73,52 @@ describe("CreateScriptMenu 下拉菜单", () => {
 
     // Dialog 应出现
     expect(screen.getByTestId("link-import-textarea")).toBeInTheDocument();
+  });
+
+  describe("桌面按钮（variant=default）", () => {
+    it("hover 展开后点击按钮应新建用户脚本，而不是把菜单点掉", async () => {
+      const { container } = renderMenu();
+      const trigger = container.querySelector("button")!;
+
+      await act(async () => {
+        fireEvent.mouseEnter(trigger);
+      });
+      expect(screen.getByText("导入本地脚本")).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.pointerDown(trigger, { button: 0 });
+        fireEvent.click(trigger);
+      });
+
+      expect(screen.getByTestId("location")).toHaveTextContent("/script/editor");
+    });
+
+    it("未 hover 时直接点击（触摸屏无 hover）同样应新建用户脚本", async () => {
+      const { container } = renderMenu();
+      const trigger = container.querySelector("button")!;
+
+      await act(async () => {
+        fireEvent.pointerDown(trigger, { button: 0 });
+        fireEvent.click(trigger);
+      });
+
+      expect(screen.getByTestId("location")).toHaveTextContent("/script/editor");
+    });
+
+    it("键盘 Enter 应新建用户脚本，ArrowDown 才展开菜单", async () => {
+      const { container } = renderMenu();
+      const trigger = container.querySelector("button")!;
+
+      await act(async () => {
+        fireEvent.keyDown(trigger, { key: "ArrowDown" });
+      });
+      expect(screen.getByText("导入本地脚本")).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.keyDown(trigger, { key: "Enter" });
+      });
+      expect(screen.getByTestId("location")).toHaveTextContent("/script/editor");
+    });
   });
 
   describe("移动端图标菜单（variant=icon）", () => {
