@@ -50,6 +50,9 @@ test.describe("Options 选项页", () => {
 
   test("新建脚本按钮 hover 应展开下拉菜单", async ({ context, extensionId }) => {
     const page = await openOptionsPage(context, extensionId);
+    // 前置条件：菜单只在指针可 hover 时走 hover 展开。断言一下，环境若报成无指针
+    // （无头 Linux 的默认行为）能直接看出是环境问题而非功能回归。
+    expect(await page.evaluate(() => matchMedia("(hover: hover)").matches)).toBe(true);
     await page.getByTestId("create-script").hover();
 
     const menuItems = page.locator('[role="menuitem"]');
