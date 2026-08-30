@@ -176,7 +176,8 @@ export default function TrashListMobile({
     });
   }, []);
 
-  if (selectionMode) {
+  // 同上：条目在多选期间被别的窗口清空时退回普通视图
+  if (selectionMode && visible.length > 0) {
     return (
       <div className="flex flex-col flex-1 min-h-0">
         <MobileSelectionHeader

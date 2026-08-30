@@ -85,7 +85,8 @@ function ScriptListMobile({
     if (!showTrashTab && activeTab === "trash") setActiveTab("installed");
   }
 
-  if (selectionMode && !isTrash) {
+  // 列表在多选期间被清空（删除完/筛选变化）时退回普通视图，否则只剩一条批量操作条悬在空屏上
+  if (selectionMode && !isTrash && scriptList.length > 0) {
     return (
       <div className="flex flex-col h-full">
         <MobileSelectionHeader

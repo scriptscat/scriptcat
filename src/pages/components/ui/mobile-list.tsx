@@ -66,7 +66,9 @@ export interface MobileSwipeRowProps extends React.ComponentProps<"div"> {
 
 function MobileSwipeRow({ actions, children, className, onTouchStart, onTouchEnd, ...props }: MobileSwipeRowProps) {
   const [open, setOpen] = useState(false);
+  const [offset, setOffset] = useState(0);
   const startX = useRef<number | null>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
 
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     startX.current = e.touches[0]?.clientX ?? null;
@@ -79,8 +81,13 @@ function MobileSwipeRow({ actions, children, className, onTouchStart, onTouchEnd
     const to = e.changedTouches[0]?.clientX;
     if (from !== null && to !== undefined) {
       const delta = to - from;
-      if (delta <= -SWIPE_THRESHOLD) setOpen(true);
-      else if (delta >= SWIPE_THRESHOLD) setOpen(false);
+      if (delta <= -SWIPE_THRESHOLD) {
+        // 位移量取操作区实际宽度：各页操作块数量不同，写死距离会在少一块时滑出空白
+        setOffset(actionsRef.current?.offsetWidth ?? 0);
+        setOpen(true);
+      } else if (delta >= SWIPE_THRESHOLD) {
+        setOpen(false);
+      }
     }
     onTouchEnd?.(e);
   };
@@ -94,6 +101,7 @@ function MobileSwipeRow({ actions, children, className, onTouchStart, onTouchEnd
       {...props}
     >
       <div
+        ref={actionsRef}
         data-slot="mobile-swipe-actions"
         data-state={open ? "open" : "closed"}
         aria-hidden={!open}
@@ -101,7 +109,13 @@ function MobileSwipeRow({ actions, children, className, onTouchStart, onTouchEnd
       >
         {actions}
       </div>
-      <div className={cn("bg-background transition-transform", open && "-translate-x-32")}>{children}</div>
+      <div
+        data-slot="mobile-swipe-content"
+        className="bg-background transition-transform"
+        style={{ transform: open ? `translateX(-${offset}px)` : undefined }}
+      >
+        {children}
+      </div>
     </div>
   );
 }

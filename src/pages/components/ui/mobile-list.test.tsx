@@ -96,6 +96,22 @@ describe("左滑操作", () => {
     expect(container.querySelector('[data-slot="mobile-swipe-actions"]')).toHaveAttribute("data-state", "closed");
   });
 
+  it("内容位移取操作区实际宽度，操作块数量不同的页面不会滑出空白", () => {
+    const { container } = render(
+      <MobileSwipeRow actions={<button type="button">{"删除"}</button>}>
+        <MobileListRow>{"行"}</MobileListRow>
+      </MobileSwipeRow>
+    );
+    const actions = container.querySelector('[data-slot="mobile-swipe-actions"]') as HTMLElement;
+    Object.defineProperty(actions, "offsetWidth", { configurable: true, value: 64 });
+
+    swipe(200, 120);
+
+    expect(container.querySelector('[data-slot="mobile-swipe-content"]')).toHaveStyle({
+      transform: "translateX(-64px)",
+    });
+  });
+
   it("透传的触摸回调仍然被调用，长按与左滑可挂在同一行上", () => {
     const onTouchStart = vi.fn();
     const { container } = render(

@@ -328,6 +328,17 @@ describe("移动端多选模式", () => {
     expect(document.querySelector('[data-slot="mobile-batch-bar"]')).toBeNull();
   });
 
+  it("列表在多选期间被清空时退回普通视图，不留下悬空的批量操作条", () => {
+    const { rerender } = renderWithRouter(<ScriptListMobile {...props} scriptList={oneScript} />);
+    fireEvent.click(screen.getByRole("button", { name: t("script:multi_select") }));
+    expect(document.querySelector('[data-slot="mobile-batch-bar"]')).not.toBeNull();
+
+    rerender(<ScriptListMobile {...props} scriptList={[]} />);
+
+    expect(document.querySelector('[data-slot="mobile-batch-bar"]')).toBeNull();
+    expect(screen.getByTestId("mobile-search")).toBeInTheDocument();
+  });
+
   it("空列表时多选入口不可用", () => {
     renderWithRouter(<ScriptListMobile {...props} />);
 
