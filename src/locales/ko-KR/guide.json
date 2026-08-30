@@ -5,7 +5,7 @@
   "script_list_enable_title": "스크립트 활성화",
   "script_list_enable_content": "스크립트는 활성화해야 사용할 수 있습니다. 페이지 스크립트는 설치 시 기본적으로 활성화되며, 백그라운드 스크립트는 기본적으로 비활성화됩니다.",
   "script_list_action_title": "작업",
-  "script_list_action_content": "작업 바에서는 스크립트 편집, 실행 제어 및 중지(백그라운드 스크립트), 설정(<Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link> 참고)에 접근할 수 있습니다. 오른쪽 버튼으로는 고급 필터링과 보기 모드 전환을 사용할 수 있습니다.",
+  "script_list_action_content": "작업 영역에서 스크립트 편집, 백그라운드 스크립트와 예약 스크립트의 실행 및 중지, <Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link> 설정, 내보내기와 삭제를 할 수 있습니다. 창이 좁으면 이러한 작업은 ‘추가 작업’ 메뉴로 모입니다.",
   "tools_backup_title": "백업",
   "tools_backup_content": "백업을 이용하면 스크립트를 저장해 유실을 막을 수 있습니다. 스크립트 파일을 로컬로 내보내거나 로컬에서 불러올 수 있으며, 클라우드에 백업하면 더욱 편리합니다. 다른 매니저에서 이전하려면 <Link href=\"https://docs.scriptcat.org/en/docs/use/from-other/migrate-from-tampermonkey/\">마이그레이션 가이드</Link>를 참고하세요.",
   "setting_sync_title": "업데이트 및 동기화",

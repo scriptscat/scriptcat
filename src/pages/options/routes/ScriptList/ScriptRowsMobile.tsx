@@ -171,7 +171,7 @@ export default function ScriptRowsMobile({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto" data-tour="m-card-list">
+    <div className="flex-1 overflow-y-auto" data-tour="m-script-list">
       <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
         <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
           {scriptList.map((script) => (

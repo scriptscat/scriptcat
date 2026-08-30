@@ -54,7 +54,7 @@ export const DESKTOP_STEPS: TourStep[] = [
 export const MOBILE_STEPS: TourStep[] = [
   {
     id: "installed",
-    target: "m-card-list",
+    target: "m-script-list",
     titleKey: "guide:installed_scripts_title",
     contentKey: "guide:installed_scripts",
     placement: "bottom",
