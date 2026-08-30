@@ -19,7 +19,22 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
 import { getNameAvatarTone, NameAvatar } from "@App/pages/components/NameAvatar";
-import { Globe, RefreshCw, Pencil, Play, Square, CircleArrowUp, Check, Clock, Ellipsis } from "lucide-react";
+import {
+  Globe,
+  RefreshCw,
+  Play,
+  Square,
+  CircleArrowUp,
+  Check,
+  Clock,
+  Ellipsis,
+  House,
+  Settings2,
+  UploadCloud,
+  Pencil,
+  Download,
+  Trash2,
+} from "lucide-react";
 import { preloadCloudScriptPlan } from "@App/pages/components/CloudScriptPlan";
 import {
   DropdownMenu,
@@ -354,69 +369,95 @@ export function ScriptRowActionSlots({
   const preloadUserConfigValues = () => void preloadUserConfig(script).catch(() => undefined);
   const preloadCloudPlan = () => void preloadCloudScriptPlan(script).catch(() => undefined);
 
+  const openEditor = () => navigate(`/script/editor/${script.uuid}`);
+  const openUserConfig = () => {
+    preloadUserConfigValues();
+    navigate(`/?userConfig=${script.uuid}`);
+  };
+  const openCloud = () => {
+    preloadCloudPlan();
+    navigate(`/?cloud=${script.uuid}`);
+  };
+  const exportSelf = () => {
+    const id = notify.loading(t("editor:exporting"));
+    void synchronizeClient.export([script.uuid]).then(() => notify.success(t("settings:export_success"), { id }));
+  };
+
+  // 运行槽在两套排布里都出现，故只写一次
+  const runButton = (
+    <ActionButton
+      label={isRunning ? t("stop") : t("editor:run")}
+      onClick={() => onRunStop(script)}
+      disabled={script.actionLoading}
+    >
+      {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+    </ActionButton>
+  );
+
   return (
     <>
-      <ActionButton label={t("edit")} onClick={() => navigate(`/script/editor/${script.uuid}`)}>
-        <Pencil className="w-3.5 h-3.5" />
-      </ActionButton>
-
-      {isBackground ? (
-        <ActionButton
-          label={isRunning ? t("stop") : t("editor:run")}
-          onClick={() => onRunStop(script)}
-          disabled={script.actionLoading}
-        >
-          {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-        </ActionButton>
-      ) : (
-        <span aria-hidden className="size-7 shrink-0" />
-      )}
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <ActionButton label={t("script:more_actions")}>
-            <Ellipsis className="w-3.5 h-3.5" />
+      {/* 宽窗口摊开全部操作；窄窗口它们会把脚本名挤没（#1698），故 1000px 以下换成下面的紧凑排布 */}
+      <span data-testid="row-actions-wide" className="hidden items-center gap-1 min-[1000px]:flex">
+        {home && (
+          <ActionButton label={t("script:homepage")} onClick={() => openExternalUrl(home)}>
+            <House className="w-3.5 h-3.5" />
           </ActionButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
-          {home && <DropdownMenuItem onClick={() => openExternalUrl(home)}>{t("script:homepage")}</DropdownMenuItem>}
-          {script.config && (
+        )}
+        {script.config && (
+          <ActionButton label={t("editor:user_config")} onPreload={preloadUserConfigValues} onClick={openUserConfig}>
+            <Settings2 className="w-3.5 h-3.5" />
+          </ActionButton>
+        )}
+        {script.metadata?.cloudcat && (
+          <ActionButton label={t("editor:upload_to_cloud")} onPreload={preloadCloudPlan} onClick={openCloud}>
+            <UploadCloud className="w-3.5 h-3.5" />
+          </ActionButton>
+        )}
+        {isBackground && runButton}
+        <ActionButton label={t("edit")} onClick={openEditor}>
+          <Pencil className="w-3.5 h-3.5" />
+        </ActionButton>
+        <ActionButton label={t("export")} onClick={exportSelf}>
+          <Download className="w-3.5 h-3.5" />
+        </ActionButton>
+        <ActionButton label={t("delete")} destructive onClick={() => setConfirmDelete(true)}>
+          <Trash2 className="w-3.5 h-3.5" />
+        </ActionButton>
+      </span>
+
+      <span data-testid="row-actions-compact" className="flex items-center gap-1 min-[1000px]:hidden">
+        {/* 普通脚本没有运行按钮，留等宽占位让更多按钮在所有行对齐同一横坐标 */}
+        {isBackground ? runButton : <span aria-hidden className="size-7 shrink-0" />}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <ActionButton label={t("script:more_actions")}>
+              <Ellipsis className="w-3.5 h-3.5" />
+            </ActionButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={openEditor}>{t("edit")}</DropdownMenuItem>
+            {home && <DropdownMenuItem onClick={() => openExternalUrl(home)}>{t("script:homepage")}</DropdownMenuItem>}
+            {script.config && (
+              <DropdownMenuItem onPointerEnter={preloadUserConfigValues} onClick={openUserConfig}>
+                {t("editor:user_config")}
+              </DropdownMenuItem>
+            )}
+            {script.metadata?.cloudcat && (
+              <DropdownMenuItem onPointerEnter={preloadCloudPlan} onClick={openCloud}>
+                {t("editor:upload_to_cloud")}
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={exportSelf}>{t("export")}</DropdownMenuItem>
             <DropdownMenuItem
-              onPointerEnter={preloadUserConfigValues}
-              onClick={() => {
-                preloadUserConfigValues();
-                navigate(`/?userConfig=${script.uuid}`);
-              }}
+              className="text-destructive focus:text-destructive"
+              onSelect={() => setConfirmDelete(true)}
             >
-              {t("editor:user_config")}
+              {t("delete")}
             </DropdownMenuItem>
-          )}
-          {script.metadata?.cloudcat && (
-            <DropdownMenuItem
-              onPointerEnter={preloadCloudPlan}
-              onClick={() => {
-                preloadCloudPlan();
-                navigate(`/?cloud=${script.uuid}`);
-              }}
-            >
-              {t("editor:upload_to_cloud")}
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuItem
-            onClick={() => {
-              const id = notify.loading(t("editor:exporting"));
-              void synchronizeClient
-                .export([script.uuid])
-                .then(() => notify.success(t("settings:export_success"), { id }));
-            }}
-          >
-            {t("export")}
-          </DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setConfirmDelete(true)}>
-            {t("delete")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </span>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>

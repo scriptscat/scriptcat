@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { act, cleanup, render, screen, fireEvent } from "@testing-library/react";
+import { act, cleanup, render, screen, fireEvent, within } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithTooltip } from "@Tests/renderWithTooltip";
@@ -119,7 +119,7 @@ describe("标签配色 getTagColor", () => {
   });
 });
 
-describe("ScriptRowActionSlots 固定三槽操作", () => {
+describe("ScriptRowActionSlots 宽窄两套排布", () => {
   const makeScript = (over: Record<string, unknown> = {}) =>
     ({
       uuid: "u1",
@@ -149,19 +149,40 @@ describe("ScriptRowActionSlots 固定三槽操作", () => {
 
   // Radix 下拉需要 pointerDown 才会展开（同 FilterBar.test.tsx 的既有写法）
   const openMore = () => {
-    const trigger = screen.getByLabelText(t("script:more_actions"));
+    const trigger = within(screen.getByTestId("row-actions-compact")).getByLabelText(t("script:more_actions"));
     fireEvent.pointerDown(trigger);
     fireEvent.click(trigger);
   };
 
-  it("普通脚本渲染编辑与更多两个按钮，运行槽只留等宽占位以对齐右缘", () => {
+  const wide = () => within(screen.getByTestId("row-actions-wide"));
+  const compact = () => within(screen.getByTestId("row-actions-compact"));
+
+  it("宽排布把编辑、导出、删除摊成常驻按钮，不出现更多菜单", () => {
     const { navigate } = renderSlots();
 
-    expect(screen.getByLabelText(t("edit"))).toBeInTheDocument();
-    expect(screen.getByLabelText(t("script:more_actions"))).toBeInTheDocument();
-    expect(screen.queryByLabelText(t("editor:run"))).toBeNull();
+    expect(wide().getByLabelText(t("edit"))).toBeInTheDocument();
+    expect(wide().getByLabelText(t("export"))).toBeInTheDocument();
+    expect(wide().getByLabelText(t("delete"))).toBeInTheDocument();
+    expect(wide().queryByLabelText(t("script:more_actions"))).toBeNull();
 
-    fireEvent.click(screen.getByLabelText(t("edit")));
+    fireEvent.click(wide().getByLabelText(t("edit")));
+    expect(navigate).toHaveBeenCalledWith("/script/editor/u1");
+  });
+
+  it("窄排布只留运行槽与更多按钮，普通脚本的运行槽是等宽占位", () => {
+    renderSlots();
+
+    expect(compact().getByLabelText(t("script:more_actions"))).toBeInTheDocument();
+    expect(compact().queryByLabelText(t("edit"))).toBeNull();
+    expect(compact().queryByLabelText(t("editor:run"))).toBeNull();
+  });
+
+  it("窄排布的更多菜单里有编辑，点击导航到编辑器", () => {
+    const { navigate } = renderSlots();
+    openMore();
+
+    fireEvent.click(screen.getByText(t("edit")));
+
     expect(navigate).toHaveBeenCalledWith("/script/editor/u1");
   });
 
@@ -225,7 +246,7 @@ describe("ScriptRowActionSlots 固定三槽操作", () => {
     const onRunStop = vi.fn();
     const { script } = renderSlots({ type: SCRIPT_TYPE_BACKGROUND }, { onRunStop });
 
-    fireEvent.click(screen.getByLabelText(t("editor:run")));
+    fireEvent.click(compact().getByLabelText(t("editor:run")));
 
     expect(onRunStop).toHaveBeenCalledWith(script);
   });
