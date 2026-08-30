@@ -176,14 +176,8 @@ export default function SubscribeTable({
         {/* 订阅行 */}
         {!loadingList &&
           subscribeList.length > 0 &&
-          subscribeList.map((subscribe, index) => (
-            <SubscribeRow
-              key={subscribe.url}
-              index={index}
-              subscribe={subscribe}
-              onEnable={handleEnable}
-              onDelete={handleDelete}
-            />
+          subscribeList.map((subscribe) => (
+            <SubscribeRow key={subscribe.url} subscribe={subscribe} onEnable={handleEnable} onDelete={handleDelete} />
           ))}
       </div>
     </div>
@@ -192,13 +186,12 @@ export default function SubscribeTable({
 
 // ========== 订阅行 ==========
 interface SubscribeRowProps {
-  index: number;
   subscribe: SubscribeLoading;
   onEnable: (subscribe: SubscribeLoading, checked: boolean) => void;
   onDelete: (subscribe: SubscribeLoading) => void;
 }
 
-function SubscribeRowInner({ index, subscribe, onEnable, onDelete }: SubscribeRowProps) {
+function SubscribeRowInner({ subscribe, onEnable, onDelete }: SubscribeRowProps) {
   const { t } = useTranslation();
   const version = subscribe.metadata.version?.[0] || "0.0";
   const scriptCount = Object.keys(subscribe.scripts || {}).length;
@@ -213,7 +206,6 @@ function SubscribeRowInner({ index, subscribe, onEnable, onDelete }: SubscribeRo
   return (
     <ListRow disabled={subscribe.status === SubscribeStatusType.disable}>
       <ListRowLeading>
-        <span className="flex w-10 justify-center text-xs text-muted-foreground tabular-nums">{index + 1}</span>
         <span className="flex w-16 justify-center">
           <SubscribeEnableSwitch
             status={subscribe.status}
@@ -259,7 +251,6 @@ function SubscribeRowInner({ index, subscribe, onEnable, onDelete }: SubscribeRo
 
 const SubscribeRow = React.memo(SubscribeRowInner, (prev, next) => {
   return (
-    prev.index === next.index &&
     prev.subscribe.url === next.subscribe.url &&
     prev.subscribe.status === next.subscribe.status &&
     prev.subscribe.enableLoading === next.subscribe.enableLoading &&

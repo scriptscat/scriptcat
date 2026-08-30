@@ -93,12 +93,13 @@ describe("桌面订阅列表行", () => {
     expect(main.textContent).toContain("tester");
   });
 
-  it("序号与开关留在左锚区，权限站点与更新时间留在右锚区，删除是唯一操作槽", () => {
+  it("左锚区只有开关，权限站点与更新时间留在右锚区，删除是唯一操作槽", () => {
     const { container } = renderWithRouterTooltip(<Harness list={[mk("https://a.example/s.user.sub.js", "订阅甲")]} />);
 
     const leading = container.querySelector('[data-slot="list-row-leading"]')!;
-    expect(leading.textContent).toContain("1");
     expect(leading.querySelector('[role="switch"]')).not.toBeNull();
+    // 行号随排序重新编号、且 Subscribe 没有持久顺序字段，故不再渲染
+    expect(leading.textContent).not.toMatch(/\d/);
 
     const trailing = container.querySelector('[data-slot="list-row-trailing"]')!;
     expect(trailing.querySelector(`[aria-label="${t("check_update")}"]`)).not.toBeNull();
@@ -145,7 +146,7 @@ describe("桌面订阅工具栏", () => {
     expect(screen.getByTestId("status-state")).toHaveTextContent(String(SubscribeStatusType.disable));
   });
 
-  it("按传入顺序渲染，序号跟随当前顺序", () => {
+  it("按传入顺序渲染", () => {
     const { container } = renderWithRouterTooltip(
       <Harness
         list={[mk("https://b.example/s.user.sub.js", "订阅乙"), mk("https://a.example/s.user.sub.js", "订阅甲")]}
@@ -154,7 +155,5 @@ describe("桌面订阅工具栏", () => {
 
     const names = [...container.querySelectorAll('[data-slot="list-row-main"] .text-sm')].map((n) => n.textContent);
     expect(names).toEqual(["订阅乙", "订阅甲"]);
-    const indexes = [...container.querySelectorAll('[data-slot="list-row-leading"]')].map((n) => n.textContent?.trim());
-    expect(indexes).toEqual(["1", "2"]);
   });
 });
