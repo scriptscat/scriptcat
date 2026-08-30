@@ -118,5 +118,7 @@
   "sort_ascending": "Aufsteigend",
   "sort_descending": "Absteigend",
   "more_actions": "Weitere Aktionen",
+  "multi_select": "Mehrfachauswahl",
+  "site_count": "{{count}} Website(s)",
   "select_all": "Alle auswählen"
 }

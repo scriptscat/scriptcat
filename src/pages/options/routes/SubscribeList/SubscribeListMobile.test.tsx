@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, beforeAll, beforeEach, vi } from "vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
 import { renderWithRouterTooltip } from "@Tests/renderWithTooltip";
@@ -76,38 +76,40 @@ afterEach(() => cleanup());
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
-describe("订阅列表移动端卡片外壳", () => {
-  it("移动端渲染订阅卡片而非桌面列表行", () => {
-    const { container, queryByTestId } = renderWithRouterTooltip(<SubscribeList />);
-    // 出现卡片
-    expect(queryByTestId("subscribe-card")).toBeInTheDocument();
-    // 不落到桌面分支
+describe("订阅列表移动端列表行", () => {
+  it("移动端渲染移动端列表行而非桌面列表行", () => {
+    const { container } = renderWithRouterTooltip(<SubscribeList />);
+
+    expect(container.querySelector('[data-slot="mobile-list-row"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="list-row"]')).toBeNull();
   });
 
-  it("卡片内保留各列数据：名称、版本、来源徽章、更新时间、启用开关与删除按钮", () => {
-    const { getByTestId } = renderWithRouterTooltip(<SubscribeList />);
-    const card = getByTestId("subscribe-card");
+  it("行上保留名称、版本与启用开关，删除与检查更新落在左滑与操作面板里", () => {
+    const { container } = renderWithRouterTooltip(<SubscribeList />);
+    const row = container.querySelector('[data-slot="mobile-list-row"]')!;
 
-    expect(card).toHaveAttribute("data-slot", "surface");
-    // 名称（标识）
-    expect(card.textContent).toContain("我的订阅");
-    // 版本
-    expect(card.textContent).toContain("1.2.3");
-    // 来源徽章（订阅地址）
-    expect(card.textContent).toContain(t("script:subscribe_url"));
-    // 启用开关（role=switch）
-    expect(card.querySelector('[role="switch"]')).not.toBeNull();
-    // 删除按钮（aria-label=删除）
-    expect(card.querySelector(`[aria-label="${t("delete")}"]`)).not.toBeNull();
-    // 检查更新入口（更新时间单元格内）
-    expect(card.querySelector(`[aria-label="${t("check_update")}"]`)).not.toBeNull();
+    expect(row.textContent).toContain("我的订阅");
+    expect(row.textContent).toContain("1.2.3");
+    expect(row.querySelector('[role="switch"]')).not.toBeNull();
+
+    // 左滑露出删除
+    const swipe = container.querySelector('[data-slot="mobile-swipe-row"]')!;
+    fireEvent.touchStart(swipe, { touches: [{ clientX: 200 }] });
+    fireEvent.touchEnd(swipe, { changedTouches: [{ clientX: 100 }] });
+    expect(container.querySelector('[data-slot="mobile-swipe-actions"]')!.textContent).toContain(t("delete"));
+
+    // 整行点击打开操作面板，来源徽章、更新时间与检查更新入口都在面板里
+    fireEvent.click(container.querySelector('[data-slot="mobile-list-row-main"]')!);
+    const sheet = document.querySelector('[data-slot="mobile-action-sheet"]')!;
+    expect(sheet.textContent).toContain(t("script:subscribe_url"));
+    expect(sheet.querySelector(`[aria-label="${t("check_update")}"]`)).not.toBeNull();
+    expect(sheet.textContent).toContain(t("delete"));
   });
 
-  it("桌面端渲染统一列表行而非卡片", () => {
+  it("桌面端渲染桌面列表行而非移动端行", () => {
     mockedUseIsMobile.mockReturnValue(false);
-    const { container, queryByTestId } = renderWithRouterTooltip(<SubscribeList />);
-    expect(queryByTestId("subscribe-card")).toBeNull();
+    const { container } = renderWithRouterTooltip(<SubscribeList />);
+    expect(container.querySelector('[data-slot="mobile-list-row"]')).toBeNull();
     expect(container.querySelector('[data-slot="list-row"]')).not.toBeNull();
   });
 });

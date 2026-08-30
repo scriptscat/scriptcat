@@ -118,5 +118,7 @@
   "sort_ascending": "升序",
   "sort_descending": "降序",
   "more_actions": "更多操作",
+  "multi_select": "多選",
+  "site_count": "{{count}} 個站點",
   "select_all": "全選"
 }

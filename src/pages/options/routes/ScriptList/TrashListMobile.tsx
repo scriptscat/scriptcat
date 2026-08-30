@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { RotateCcw, Settings2, Trash2, TriangleAlert } from "lucide-react";
+import { CheckSquare, Settings2, Trash2, TriangleAlert } from "lucide-react";
 import type { TrashScript } from "@App/app/repo/trash_script";
 import type { InstallSource } from "@App/app/service/service_worker/types";
 import { requestTrashScripts, requestRestoreScripts, requestPurgeScripts } from "@App/pages/store/features/script";
@@ -9,7 +9,18 @@ import { notify } from "@App/pages/components/ui/toast";
 import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { EmptyState } from "@App/pages/components/ui/empty-state";
-import { Surface } from "@App/pages/components/ui/surface";
+import { Checkbox } from "@App/pages/components/ui/checkbox";
+import {
+  MobileBatchBar,
+  MobileBatchBarButton,
+  MobileListRow,
+  MobileListRowLeading,
+  MobileListRowMain,
+  MobileListRowTrailing,
+  MobileSelectionHeader,
+  MobileSwipeRow,
+  useLongPress,
+} from "@App/pages/components/ui/mobile-list";
 import { semTime } from "@App/locales/relative-date";
 import { versionDisplay } from "@App/pages/utils";
 import { subscribeMessage } from "@App/pages/store/global";
@@ -46,7 +57,7 @@ const FILTERS: { value: SourceFilter; key: string }[] = [
   { value: "subscribe", key: "script:trash_source_subscribe" },
 ];
 
-export default function TrashCardGrid({
+export default function TrashListMobile({
   keyword = "",
   onCountChange,
 }: {
@@ -59,6 +70,8 @@ export default function TrashCardGrid({
   const [list, setList] = useState<TrashScript[]>([]);
   const [purgeAllOpen, setPurgeAllOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [retentionDays] = useSystemConfig("trash_retention_days");
   const [trashEnabled] = useSystemConfig("trash_enabled");
 
@@ -142,6 +155,77 @@ export default function TrashCardGrid({
     );
   }, [list, sourceFilter, keyword]);
 
+  const allSelected = visible.length > 0 && visible.every((item) => selected.has(item.uuid));
+
+  const exitSelection = useCallback(() => {
+    setSelectionMode(false);
+    setSelected(new Set());
+  }, []);
+
+  const enterSelection = useCallback((uuid: string) => {
+    setSelectionMode(true);
+    setSelected(new Set([uuid]));
+  }, []);
+
+  const toggleSelect = useCallback((uuid: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(uuid)) next.delete(uuid);
+      else next.add(uuid);
+      return next;
+    });
+  }, []);
+
+  if (selectionMode) {
+    return (
+      <div className="flex flex-col flex-1 min-h-0">
+        <MobileSelectionHeader
+          selectedCount={selected.size}
+          allSelected={allSelected}
+          onCancel={exitSelection}
+          onToggleSelectAll={() => setSelected(allSelected ? new Set() : new Set(visible.map((item) => item.uuid)))}
+        />
+        <div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
+          {visible.map((item) => (
+            <TrashRowMobile
+              key={item.uuid}
+              item={item}
+              daysLeft={daysLeftOf(item)}
+              selectionMode
+              selected={selected.has(item.uuid)}
+              onToggleSelect={toggleSelect}
+              onEnterSelection={enterSelection}
+              onRestore={onRestore}
+              onPurge={onPurge}
+            />
+          ))}
+        </div>
+        <MobileBatchBar>
+          <MobileBatchBarButton
+            onClick={() => {
+              void onRestore([...selected]);
+              exitSelection();
+            }}
+          >
+            {t("script:trash_restore")}
+          </MobileBatchBarButton>
+          <Popconfirm
+            description={t("script:trash_purge_confirm_body", { count: selected.size })}
+            destructive
+            confirmText={t("script:trash_purge")}
+            cancelText={t("editor:cancel")}
+            onConfirm={() => {
+              void onPurge([...selected]);
+              exitSelection();
+            }}
+          >
+            <MobileBatchBarButton destructive>{t("script:trash_purge")}</MobileBatchBarButton>
+          </Popconfirm>
+        </MobileBatchBar>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex items-center gap-2 px-4 py-1.5 overflow-x-auto shrink-0">
@@ -178,6 +262,15 @@ export default function TrashCardGrid({
         </button>
         <div className="flex-1" />
         <button
+          type="button"
+          className="flex shrink-0 items-center gap-1 whitespace-nowrap px-2.5 py-1 text-xs border rounded-sm border-border text-muted-foreground disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={!visible.length}
+          onClick={() => setSelectionMode(true)}
+        >
+          <CheckSquare className="w-3 h-3" />
+          {t("script:multi_select")}
+        </button>
+        <button
           className="flex shrink-0 items-center gap-1 whitespace-nowrap px-2.5 py-1 text-xs border rounded-sm border-destructive text-destructive disabled:cursor-not-allowed disabled:opacity-40"
           disabled={!list.length}
           onClick={() => setPurgeAllOpen(true)}
@@ -208,64 +301,118 @@ export default function TrashCardGrid({
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="flex flex-col flex-1 min-h-0 gap-2.5 px-4 pb-4 overflow-y-auto">
+      <div className="flex flex-col flex-1 min-h-0 overflow-y-auto">
         {!list.length ? (
           <EmptyState icon={Trash2} title={t("script:trash_empty_title")} description={emptyDesc} />
         ) : (
-          visible.map((item) => {
-            const left = daysLeftOf(item);
-            const urgent = left !== null && left <= 3;
-            return (
-              <Surface key={item.uuid} className="flex flex-col gap-2 p-3.5">
-                <div className="flex items-center gap-2">
-                  <ScriptIcon name={item.name} metadata={item.metadata} size={20} />
-                  <span className="text-sm font-medium truncate text-muted-foreground">{item.name}</span>
-                  <div className="flex-1" />
-                  <span className="px-2 py-0.5 text-[10px] font-medium rounded-full shrink-0 bg-muted text-muted-foreground">
-                    {t(sourceKeyOf(item.deleteBy))}
-                  </span>
-                </div>
-                <span className="truncate text-[11px] text-muted-foreground">
-                  {[item.namespace, versionDisplay(item.metadata?.version?.[0])].filter(Boolean).join(" · ")}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-muted-foreground">{semTime(new Date(item.deleteTime))}</span>
-                  <span className="text-[11px] text-muted-foreground">{"·"}</span>
-                  {urgent && <TriangleAlert className="w-3 h-3 shrink-0 text-destructive" />}
-                  <span
-                    className={`text-[11px] ${urgent ? "font-semibold text-destructive" : "text-muted-foreground"}`}
-                  >
-                    {left === null
-                      ? t("script:trash_hint_never")
-                      : left <= 0
-                        ? t("script:trash_expire_today")
-                        : t("script:trash_expire_in", { days: left })}
-                  </span>
-                  <div className="flex-1" />
-                  <button
-                    className="flex items-center gap-1 px-2.5 py-1 text-[11px] border rounded-sm border-primary text-primary"
-                    onClick={() => void onRestore([item.uuid])}
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    {t("script:trash_restore")}
-                  </button>
-                  <Popconfirm
-                    description={t("script:trash_purge_one_confirm", { name: item.name })}
-                    destructive
-                    confirmText={t("script:trash_purge")}
-                    cancelText={t("editor:cancel")}
-                    onConfirm={() => void onPurge([item.uuid])}
-                  >
-                    <button className="p-1.5 rounded-sm" title={t("script:trash_purge")}>
-                      <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                    </button>
-                  </Popconfirm>
-                </div>
-              </Surface>
-            );
-          })
+          visible.map((item) => (
+            <TrashRowMobile
+              key={item.uuid}
+              item={item}
+              daysLeft={daysLeftOf(item)}
+              selectionMode={false}
+              selected={false}
+              onToggleSelect={toggleSelect}
+              onEnterSelection={enterSelection}
+              onRestore={onRestore}
+              onPurge={onPurge}
+            />
+          ))
         )}
       </div>
     </div>
+  );
+}
+
+// ========== 单行 ==========
+function TrashRowMobile({
+  item,
+  daysLeft,
+  selectionMode,
+  selected,
+  onToggleSelect,
+  onEnterSelection,
+  onRestore,
+  onPurge,
+}: {
+  item: TrashScript;
+  daysLeft: number | null;
+  selectionMode: boolean;
+  selected: boolean;
+  onToggleSelect: (uuid: string) => void;
+  onEnterSelection: (uuid: string) => void;
+  onRestore: (uuids: string[]) => Promise<void>;
+  onPurge: (uuids: string[]) => Promise<void>;
+}) {
+  const { t } = useTranslation();
+  const urgent = daysLeft !== null && daysLeft <= 3;
+  const longPress = useLongPress(useCallback(() => onEnterSelection(item.uuid), [onEnterSelection, item.uuid]));
+
+  return (
+    <MobileSwipeRow
+      {...(selectionMode ? {} : longPress)}
+      actions={
+        <>
+          <button
+            type="button"
+            onClick={() => void onRestore([item.uuid])}
+            className="flex w-16 items-center justify-center bg-primary text-xs font-medium text-primary-foreground"
+          >
+            {t("script:trash_restore")}
+          </button>
+          <Popconfirm
+            description={t("script:trash_purge_one_confirm", { name: item.name })}
+            destructive
+            confirmText={t("script:trash_purge")}
+            cancelText={t("editor:cancel")}
+            onConfirm={() => void onPurge([item.uuid])}
+          >
+            <button
+              type="button"
+              className="flex w-16 items-center justify-center bg-destructive text-xs font-medium text-destructive-foreground"
+            >
+              {t("script:trash_purge")}
+            </button>
+          </Popconfirm>
+        </>
+      }
+    >
+      <MobileListRow selected={selected}>
+        <MobileListRowLeading className="gap-2">
+          {selectionMode ? (
+            <Checkbox aria-label={item.name} checked={selected} onCheckedChange={() => onToggleSelect(item.uuid)} />
+          ) : (
+            <ScriptIcon name={item.name} metadata={item.metadata} />
+          )}
+        </MobileListRowLeading>
+
+        <MobileListRowMain onClick={() => selectionMode && onToggleSelect(item.uuid)}>
+          <span className="w-full truncate text-sm font-medium text-muted-foreground">{item.name}</span>
+          <span className="flex w-full min-w-0 items-center gap-1.5">
+            <span className="truncate text-[11px] text-muted-foreground">
+              {[item.namespace, versionDisplay(item.metadata?.version?.[0])].filter(Boolean).join(" · ")}
+            </span>
+            <span className="shrink-0 text-[11px] text-muted-foreground">{semTime(new Date(item.deleteTime))}</span>
+            <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {t(sourceKeyOf(item.deleteBy))}
+            </span>
+          </span>
+        </MobileListRowMain>
+
+        {/* 右锚区放过期倒计时而非开关：回收站条目没有启用态，倒计时才是这里唯一的紧迫信息 */}
+        <MobileListRowTrailing>
+          {daysLeft === null ? (
+            <span className="text-[11px] text-muted-foreground">{"—"}</span>
+          ) : (
+            <span
+              className={`flex items-center gap-1 text-[11px] ${urgent ? "font-semibold text-destructive" : "text-muted-foreground"}`}
+            >
+              {urgent && <TriangleAlert className="w-3 h-3 shrink-0" />}
+              {daysLeft <= 0 ? t("script:trash_expire_today") : t("script:trash_expire_in", { days: daysLeft })}
+            </span>
+          )}
+        </MobileListRowTrailing>
+      </MobileListRow>
+    </MobileSwipeRow>
   );
 }

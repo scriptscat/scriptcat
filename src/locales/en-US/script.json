@@ -118,5 +118,7 @@
   "sort_ascending": "Ascending",
   "sort_descending": "Descending",
   "more_actions": "More actions",
+  "multi_select": "Select multiple",
+  "site_count": "{{count}} site(s)",
   "select_all": "Select all"
 }

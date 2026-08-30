@@ -439,6 +439,14 @@ export default function ScriptList() {
           filterItems={filterItems}
           selectedFilters={selectedFilters}
           setSelectedFilters={handleSetSelectedFilters}
+          selectedUuids={selectedUuids}
+          toggleSelect={toggleSelect}
+          toggleSelectAll={toggleSelectAll}
+          clearSelection={clearSelection}
+          onBatchEnable={handleBatchEnable}
+          onBatchDisable={handleBatchDisable}
+          onBatchExport={handleBatchExport}
+          onBatchDelete={handleBatchDelete}
         />
         {userConfigDialog}
         {cloudDialog}

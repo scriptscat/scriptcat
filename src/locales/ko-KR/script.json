@@ -118,5 +118,7 @@
   "sort_ascending": "오름차순",
   "sort_descending": "내림차순",
   "more_actions": "추가 작업",
+  "multi_select": "다중 선택",
+  "site_count": "{{count}}개 사이트",
   "select_all": "전체 선택"
 }

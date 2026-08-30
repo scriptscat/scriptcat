@@ -5,6 +5,7 @@ import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithTooltip } from "@Tests/renderWithTooltip";
 import { TooltipProvider } from "@App/pages/components/ui/tooltip";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB } from "@App/app/repo/scripts";
+import type { ScriptLoading } from "@App/pages/store/features/script";
 
 // requestCheckUpdate 走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
 const { requestCheckUpdate, preloadUserConfig, preloadCloudScriptPlan, get } = vi.hoisted(() => ({
@@ -36,7 +37,7 @@ import {
   getScriptHomePage,
   getTagColor,
   ScheduleNextRun,
-  ScriptRowActions,
+  ScriptRowActionSlots,
   scriptTypeLabel,
   UpdateTimeCell,
 } from "./components";
@@ -116,7 +117,7 @@ describe("标签配色 getTagColor", () => {
   });
 });
 
-describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
+describe("ScriptRowActionSlots 固定三槽操作", () => {
   const makeScript = (over: Record<string, unknown> = {}) =>
     ({
       uuid: "u1",
@@ -126,151 +127,152 @@ describe("ScriptRowActions 行内操作（替代 ⋯ 更多菜单）", () => {
       ...over,
     }) as never;
 
-  it("普通脚本始终显示『编辑』『删除』，且不渲染更多菜单按钮", () => {
+  const renderSlots = (
+    over: Record<string, unknown> = {},
+    handlers: Partial<{
+      navigate: (to: string) => void;
+      onDelete: (script: ScriptLoading) => void;
+      onRunStop: (script: ScriptLoading) => void;
+    }> = {}
+  ) => {
+    const script = makeScript(over);
+    const navigate = handlers.navigate ?? vi.fn();
+    const onDelete = handlers.onDelete ?? vi.fn();
+    const onRunStop = handlers.onRunStop ?? vi.fn();
     renderWithTooltip(
-      <ScriptRowActions script={makeScript()} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />
+      <ScriptRowActionSlots script={script} navigate={navigate} onDelete={onDelete} onRunStop={onRunStop} />
     );
+    return { script, navigate, onDelete, onRunStop };
+  };
+
+  // Radix 下拉需要 pointerDown 才会展开（同 FilterBar.test.tsx 的既有写法）
+  const openMore = () => {
+    const trigger = screen.getByLabelText(t("script:more_actions"));
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+  };
+
+  it("普通脚本渲染编辑与更多两个按钮，运行槽只留等宽占位以对齐右缘", () => {
+    const { navigate } = renderSlots();
+
     expect(screen.getByLabelText(t("edit"))).toBeInTheDocument();
-    expect(screen.getByLabelText(t("delete"))).toBeInTheDocument();
-    // 不应再有「更多」菜单
-    expect(screen.queryByLabelText(t("more"))).toBeNull();
+    expect(screen.getByLabelText(t("script:more_actions"))).toBeInTheDocument();
+    expect(screen.queryByLabelText(t("editor:run"))).toBeNull();
+
+    fireEvent.click(screen.getByLabelText(t("edit")));
+    expect(navigate).toHaveBeenCalledWith("/script/editor/u1");
   });
 
-  it("无主页/配置/云端时不显示对应按钮", () => {
-    renderWithTooltip(
-      <ScriptRowActions script={makeScript()} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />
-    );
-    expect(screen.queryByLabelText(t("script:homepage"))).toBeNull();
-    expect(screen.queryByLabelText(t("editor:user_config"))).toBeNull();
-    expect(screen.queryByLabelText(t("editor:upload_to_cloud"))).toBeNull();
+  it("无主页/配置/云端时更多菜单里不出现对应项", () => {
+    renderSlots();
+    openMore();
+
+    expect(screen.queryByText(t("script:homepage"))).toBeNull();
+    expect(screen.queryByText(t("editor:user_config"))).toBeNull();
+    expect(screen.queryByText(t("editor:upload_to_cloud"))).toBeNull();
   });
 
-  it("含主页字段时显示主页按钮，点击打开新标签", () => {
+  it("含主页字段时菜单出现主页项，点击打开新标签", () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
-    renderWithTooltip(
-      <ScriptRowActions
-        script={makeScript({ metadata: { homepage: ["https://home"] } })}
-        navigate={vi.fn()}
-        onDelete={vi.fn()}
-        onRunStop={vi.fn()}
-      />
-    );
-    fireEvent.click(screen.getByLabelText(t("script:homepage")));
+    renderSlots({ metadata: { homepage: ["https://home"] } });
+    openMore();
+
+    fireEvent.click(screen.getByText(t("script:homepage")));
+
     expect(openSpy).toHaveBeenCalledWith("https://home", "_blank");
     openSpy.mockRestore();
   });
 
-  it("含 config 时显示用户配置按钮，导航到 ?userConfig=", () => {
-    const navigate = vi.fn();
-    renderWithTooltip(
-      <ScriptRowActions
-        script={makeScript({ config: { group: {} } })}
-        navigate={navigate}
-        onDelete={vi.fn()}
-        onRunStop={vi.fn()}
-      />
-    );
-    fireEvent.click(screen.getByLabelText(t("editor:user_config")));
+  it("含 config 时菜单出现用户配置项，导航到 ?userConfig=", () => {
+    const { navigate } = renderSlots({ config: { group: {} } });
+    openMore();
+
+    fireEvent.click(screen.getByText(t("editor:user_config")));
+
     expect(navigate).toHaveBeenCalledWith("/?userConfig=u1");
   });
 
-  it("聚焦用户配置按钮时应预加载当前脚本值", () => {
-    const script = makeScript({ config: { group: {} } });
-    renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />);
+  it("指针移到用户配置项时预加载当前脚本值", () => {
+    const { script } = renderSlots({ config: { group: {} } });
+    openMore();
 
-    fireEvent.focus(screen.getByLabelText(t("editor:user_config")));
+    fireEvent.pointerEnter(screen.getByText(t("editor:user_config")));
 
     expect(preloadUserConfig).toHaveBeenCalledWith(script);
   });
 
-  it("含 cloudcat 时显示云端按钮，导航到 ?cloud=（而非 cloudSync）", () => {
-    const navigate = vi.fn();
-    renderWithTooltip(
-      <ScriptRowActions
-        script={makeScript({ metadata: { cloudcat: ["true"] } })}
-        navigate={navigate}
-        onDelete={vi.fn()}
-        onRunStop={vi.fn()}
-      />
-    );
-    fireEvent.click(screen.getByLabelText(t("editor:upload_to_cloud")));
+  it("含 cloudcat 时菜单出现云端项，导航到 ?cloud=（而非 cloudSync）", () => {
+    const { navigate } = renderSlots({ metadata: { cloudcat: ["true"] } });
+    openMore();
+
+    fireEvent.click(screen.getByText(t("editor:upload_to_cloud")));
+
     expect(navigate).toHaveBeenCalledWith("/?cloud=u1");
   });
 
-  it("悬浮云端按钮时应预加载当前脚本的导出计划", () => {
-    const script = makeScript({ metadata: { cloudcat: ["true"] } });
-    renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />);
+  it("指针移到云端项时预加载当前脚本的导出计划", () => {
+    const { script } = renderSlots({ metadata: { cloudcat: ["true"] } });
+    openMore();
 
-    fireEvent.pointerEnter(screen.getByLabelText(t("editor:upload_to_cloud")));
+    fireEvent.pointerEnter(screen.getByText(t("editor:upload_to_cloud")));
 
     expect(preloadCloudScriptPlan).toHaveBeenCalledWith(script);
   });
 
-  it("后台脚本显示运行按钮（标签为「运行」而非进度提示），点击触发 onRunStop", () => {
+  it("后台脚本的运行槽渲染为真实按钮，点击触发 onRunStop", () => {
     const onRunStop = vi.fn();
-    const script = makeScript({ type: SCRIPT_TYPE_BACKGROUND });
-    renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={onRunStop} />);
+    const { script } = renderSlots({ type: SCRIPT_TYPE_BACKGROUND }, { onRunStop });
+
     fireEvent.click(screen.getByLabelText(t("editor:run")));
+
     expect(onRunStop).toHaveBeenCalledWith(script);
   });
 
-  it("删除触发器为带 aria-haspopup 的真实按钮（Popconfirm 的 trigger 属性透传到 ActionButton 内层按钮）", () => {
-    renderWithTooltip(
-      <ScriptRowActions script={makeScript()} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />
-    );
-    const trigger = screen.getByLabelText(t("delete"));
-    expect(trigger.tagName).toBe("BUTTON");
-    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
-  });
-
-  it("点击删除先弹出 Popconfirm 气泡确认，确认前不调用 onDelete（回收站默认开启，文案说可还原）", async () => {
+  it("删除收进更多菜单，点击后先弹确认框，确认前不调用 onDelete（回收站默认开启，文案说可还原）", async () => {
     const onDelete = vi.fn();
-    const script = makeScript();
-    renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={onDelete} onRunStop={vi.fn()} />);
+    renderSlots({}, { onDelete });
+    openMore();
 
-    const trigger = screen.getByLabelText(t("delete"));
-    fireEvent.click(trigger);
+    fireEvent.click(screen.getByText(t("delete")));
 
-    // 气泡里展示含脚本名的确认文案，但尚未真正删除
     expect(
       await screen.findByText(t("script:confirm_delete_script_trash_content", { name: "脚本A" }))
     ).toBeInTheDocument();
     expect(onDelete).not.toHaveBeenCalled();
   });
 
-  it("在 Popconfirm 中点击确认后才触发 onDelete", async () => {
+  it("确认框中点击删除后才触发 onDelete", async () => {
     const onDelete = vi.fn();
-    const script = makeScript();
-    renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={onDelete} onRunStop={vi.fn()} />);
-
-    const trigger = screen.getByLabelText(t("delete"));
-    fireEvent.click(trigger);
+    const { script } = renderSlots({}, { onDelete });
+    openMore();
+    fireEvent.click(screen.getByText(t("delete")));
     await screen.findByText(t("script:confirm_delete_script_trash_content", { name: "脚本A" }));
 
-    // 气泡内确认按钮与触发按钮同名（删除），取非触发的那一个
-    const confirmBtn = screen.getByText(t("delete"), { selector: "button" });
-    fireEvent.click(confirmBtn);
+    // 菜单项与确认按钮同名（删除），确认按钮是最后出现的那个
+    const buttons = screen.getAllByText(t("delete"), { selector: "button" });
+    fireEvent.click(buttons[buttons.length - 1]);
+
     expect(onDelete).toHaveBeenCalledWith(script);
   });
 
-  it("在 Popconfirm 中点击取消不触发 onDelete", async () => {
+  it("确认框中点击取消不触发 onDelete", async () => {
     const onDelete = vi.fn();
-    const script = makeScript();
-    renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={onDelete} onRunStop={vi.fn()} />);
-
-    fireEvent.click(screen.getByLabelText(t("delete")));
+    renderSlots({}, { onDelete });
+    openMore();
+    fireEvent.click(screen.getByText(t("delete")));
     await screen.findByText(t("script:confirm_delete_script_trash_content", { name: "脚本A" }));
 
-    fireEvent.click(screen.getByText(t("editor:cancel"), { selector: "button" }));
+    await act(async () => fireEvent.click(screen.getByText(t("editor:cancel"), { selector: "button" })));
+
     expect(onDelete).not.toHaveBeenCalled();
   });
 
-  it("回收站关闭时，确认文案改回「此操作无法撤销」（既有 bug：开启态曾误用此文案）", async () => {
+  it("回收站关闭时，确认文案改回「此操作无法撤销」", async () => {
     get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? false : 30));
-    const script = makeScript();
-    renderWithTooltip(<ScriptRowActions script={script} navigate={vi.fn()} onDelete={vi.fn()} onRunStop={vi.fn()} />);
+    renderSlots();
+    openMore();
 
-    fireEvent.click(screen.getByLabelText(t("delete")));
+    fireEvent.click(screen.getByText(t("delete")));
 
     expect(await screen.findByText(t("script:confirm_delete_script_content", { name: "脚本A" }))).toBeInTheDocument();
     expect(

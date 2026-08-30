@@ -12,28 +12,13 @@ import { Switch } from "@App/pages/components/ui/switch";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import { Button } from "@App/pages/components/ui/button";
-import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { semTime } from "@App/locales/relative-date";
 import { i18nName } from "@App/locales/locales";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
 import { getNameAvatarTone, NameAvatar } from "@App/pages/components/NameAvatar";
-import {
-  Globe,
-  RefreshCw,
-  House,
-  Settings2,
-  UploadCloud,
-  Pencil,
-  Play,
-  Square,
-  Trash2,
-  CircleArrowUp,
-  Check,
-  Clock,
-  Ellipsis,
-} from "lucide-react";
+import { Globe, RefreshCw, Pencil, Play, Square, CircleArrowUp, Check, Clock, Ellipsis } from "lucide-react";
 import { preloadCloudScriptPlan } from "@App/pages/components/CloudScriptPlan";
 import {
   DropdownMenu,
@@ -144,7 +129,7 @@ function isSafeHttpUrl(url: string | undefined): boolean {
 }
 
 // 打开外部链接（仅限 http/https）。脚本主页/站点图标等 URL 均来自脚本 metadata，不可信。
-function openExternalUrl(url: string | undefined) {
+export function openExternalUrl(url: string | undefined) {
   if (isSafeHttpUrl(url)) window.open(url, "_blank");
 }
 
@@ -302,15 +287,14 @@ export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading })
 UpdateTimeCell.displayName = "UpdateTimeCell";
 
 // ========== 行内操作 ==========
-// 取代原 ⋯ 更多菜单：主页 / 用户配置 / 云端 / 运行·停止 / 编辑 / 删除，均按条件出现，右对齐。
-// 表格与卡片复用同一套，确保行为一致。检查更新不在此处（见 UpdateTimeCell）。
+// 操作槽内的统一按钮外观。检查更新不在这里（见 UpdateTimeCell）。
 type ActionButtonProps = React.ComponentPropsWithoutRef<typeof Button> & {
   label: string;
   destructive?: boolean;
   onPreload?: () => void;
 };
 
-// 透传 props + ref：使其可直接作为 Popconfirm（Radix asChild）的 trigger，
+// 透传 props + ref：使其可直接作为 Radix asChild 的 trigger（更多菜单即如此用），
 // 让 trigger 语义/焦点/aria 落在真实按钮上，无需外包 div。
 const ActionButton = ({
   label,
@@ -343,88 +327,6 @@ const ActionButton = ({
     <TooltipContent>{label}</TooltipContent>
   </Tooltip>
 );
-
-export function ScriptRowActions({
-  script,
-  navigate,
-  onDelete,
-  onRunStop,
-  className,
-}: {
-  script: ScriptLoading;
-  navigate: (to: string) => void;
-  onDelete: (script: ScriptLoading) => void;
-  onRunStop: (script: ScriptLoading) => void;
-  className?: string;
-}) {
-  const { t } = useTranslation();
-  const [trashEnabled] = useSystemConfig("trash_enabled");
-  const home = getScriptHomePage(script.metadata);
-  const isBackground = script.type !== SCRIPT_TYPE_NORMAL;
-  const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
-  const preloadUserConfigValues = () => void preloadUserConfig(script).catch(() => undefined);
-  const preloadCloudPlan = () => void preloadCloudScriptPlan(script).catch(() => undefined);
-  return (
-    <div className={cn("flex items-center gap-1", className)}>
-      {home && (
-        <ActionButton label={t("script:homepage")} onClick={() => openExternalUrl(home)}>
-          <House className="w-3.5 h-3.5" />
-        </ActionButton>
-      )}
-      {script.config && (
-        <ActionButton
-          label={t("editor:user_config")}
-          onPreload={preloadUserConfigValues}
-          onClick={() => {
-            preloadUserConfigValues();
-            navigate(`/?userConfig=${script.uuid}`);
-          }}
-        >
-          <Settings2 className="w-3.5 h-3.5" />
-        </ActionButton>
-      )}
-      {script.metadata?.cloudcat && (
-        <ActionButton
-          label={t("editor:upload_to_cloud")}
-          onPreload={preloadCloudPlan}
-          onClick={() => {
-            preloadCloudPlan();
-            navigate(`/?cloud=${script.uuid}`);
-          }}
-        >
-          <UploadCloud className="w-3.5 h-3.5" />
-        </ActionButton>
-      )}
-      {isBackground && (
-        <ActionButton
-          label={isRunning ? t("stop") : t("editor:run")}
-          onClick={() => onRunStop(script)}
-          disabled={script.actionLoading}
-        >
-          {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-        </ActionButton>
-      )}
-      <ActionButton label={t("edit")} onClick={() => navigate(`/script/editor/${script.uuid}`)}>
-        <Pencil className="w-3.5 h-3.5" />
-      </ActionButton>
-      <Popconfirm
-        description={
-          (trashEnabled ?? true)
-            ? t("script:confirm_delete_script_trash_content", { name: i18nName(script) })
-            : t("script:confirm_delete_script_content", { name: i18nName(script) })
-        }
-        destructive
-        confirmText={t("delete")}
-        cancelText={t("editor:cancel")}
-        onConfirm={() => onDelete(script)}
-      >
-        <ActionButton label={t("delete")} destructive>
-          <Trash2 className="w-3.5 h-3.5" />
-        </ActionButton>
-      </Popconfirm>
-    </div>
-  );
-}
 
 /**
  * 列表行的固定三槽操作：编辑 / 运行·停止 / 更多。

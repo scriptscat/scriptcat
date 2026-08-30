@@ -39,7 +39,7 @@ vi.mock("@App/pages/store/global", async () => {
   };
 });
 
-import TrashCardGrid from "./TrashCardGrid";
+import TrashListMobile from "./TrashListMobile";
 import TrashTable from "./TrashTable";
 import { notify } from "@App/pages/components/ui/toast";
 
@@ -56,7 +56,7 @@ afterEach(cleanup);
 describe("多窗口回收站实时同步", () => {
   it.each([
     ["桌面端", <TrashTable key="desktop" />],
-    ["移动端", <TrashCardGrid key="mobile" />],
+    ["移动端", <TrashListMobile key="mobile" />],
   ])("%s 收到回收站内容事件时应重新拉取列表", async (_name, view) => {
     renderWithRouter(view);
     await waitFor(() => expect(requestTrashScripts).toHaveBeenCalledTimes(1));
@@ -80,7 +80,7 @@ describe("空回收站的固定控制区", () => {
   });
 
   it("移动端保留来源筛选和清理时间设置，仅卡片内容显示空状态", () => {
-    renderWithRouter(<TrashCardGrid />);
+    renderWithRouter(<TrashListMobile />);
 
     expect(screen.getByRole("button", { name: "全部" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "设置" })).toBeInTheDocument();
@@ -130,7 +130,7 @@ describe("回收站脚本元信息样式", () => {
 
   it.each([
     ["桌面端", <TrashTable key="desktop" />],
-    ["移动端", <TrashCardGrid key="mobile" />],
+    ["移动端", <TrashListMobile key="mobile" />],
   ])("%s 与脚本列表一致显示图标、11px 版本和语义化时间", async (_name, view) => {
     requestTrashScripts.mockResolvedValue([trashed]);
     renderWithRouter(view);
@@ -168,7 +168,7 @@ describe("回收站关闭时的提示与倒计时", () => {
   });
 
   it("移动端：提示改为「回收站已关闭」，过期条目不再显示「今天」", async () => {
-    renderWithRouter(<TrashCardGrid />);
+    renderWithRouter(<TrashListMobile />);
 
     expect(await screen.findByText("关闭态脚本")).toBeInTheDocument();
     expect(screen.getByText("回收站已关闭 · 新删除的脚本将直接彻底删除")).toBeInTheDocument();
@@ -221,9 +221,13 @@ describe("还原/彻底删除失败时的反馈", () => {
 
   it("移动端：还原请求失败时提示错误并重新拉取列表", async () => {
     requestRestoreScripts.mockRejectedValue(new Error("trash scripts not found"));
-    renderWithRouter(<TrashCardGrid />);
+    const { container } = renderWithRouter(<TrashListMobile />);
     await screen.findByText("陈旧条目");
 
+    // 移动端还原挂在左滑露出的操作块上，未滑出时它对无障碍树不可见
+    const swipe = container.querySelector('[data-slot="mobile-swipe-row"]')!;
+    fireEvent.touchStart(swipe, { touches: [{ clientX: 200 }] });
+    fireEvent.touchEnd(swipe, { changedTouches: [{ clientX: 100 }] });
     fireEvent.click(screen.getByRole("button", { name: "还原" }));
 
     await waitFor(() => expect(notify.error).toHaveBeenCalledWith("还原失败"));
@@ -244,7 +248,7 @@ describe("空回收站文案与保留时间联动", () => {
 
   it("回收站关闭时空状态说明改用关闭态提示", async () => {
     get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? false : 30));
-    renderWithRouter(<TrashCardGrid />);
+    renderWithRouter(<TrashListMobile />);
 
     expect(await screen.findByText("回收站是空的")).toBeInTheDocument();
     expect(screen.queryByText(/0 天/)).not.toBeInTheDocument();
@@ -303,5 +307,42 @@ describe("回收站桌面端列表化", () => {
     sortBy("名称");
 
     await waitFor(() => expect(trashOrder()).toEqual(["Apple", "Banana", "Cherry"]));
+  });
+});
+
+describe("回收站移动端多选", () => {
+  const trashed = {
+    uuid: "trash-1",
+    name: "待还原脚本",
+    namespace: "verify",
+    deleteBy: "user",
+    deleteTime: Date.now(),
+  };
+
+  it("顶栏入口进入多选，底部批量操作条提供还原与彻底删除", async () => {
+    requestTrashScripts.mockResolvedValue([trashed]);
+    renderWithRouter(<TrashListMobile />);
+    await screen.findByText("待还原脚本");
+
+    fireEvent.click(screen.getByRole("button", { name: "多选" }));
+
+    expect(screen.getByText("已选择 0 项")).toBeInTheDocument();
+    const bar = document.querySelector('[data-slot="mobile-batch-bar"]')!;
+    expect(bar.textContent).toContain("还原");
+    expect(bar.textContent).toContain("彻底删除");
+  });
+
+  it("勾选后批量还原按选中项发起请求，并退出多选", async () => {
+    requestTrashScripts.mockResolvedValue([trashed]);
+    requestRestoreScripts.mockResolvedValue({ restored: ["trash-1"], conflicts: [] });
+    renderWithRouter(<TrashListMobile />);
+    await screen.findByText("待还原脚本");
+    fireEvent.click(screen.getByRole("button", { name: "多选" }));
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "待还原脚本" }));
+    fireEvent.click(within(document.querySelector('[data-slot="mobile-batch-bar"]')!).getByText("还原"));
+
+    await waitFor(() => expect(requestRestoreScripts).toHaveBeenCalledWith(["trash-1"]));
+    expect(document.querySelector('[data-slot="mobile-batch-bar"]')).toBeNull();
   });
 });

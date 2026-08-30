@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, beforeAll, beforeEach, vi } from "vite
 import type { ReactNode } from "react";
 import { cleanup, screen, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
+import { t } from "@App/locales/locales";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
 import { renderWithRouter } from "@Tests/renderWithThemeRouter";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
@@ -78,8 +79,8 @@ vi.mock("./ScriptTable", () => ({
     <div data-testid="view-toggle">{leading ?? <span data-testid="default-installed-title" />}</div>
   ),
 }));
-vi.mock("./ScriptCardGrid", () => ({
-  default: () => <div data-testid="script-card-grid" />,
+vi.mock("./ScriptRowsMobile", () => ({
+  default: () => <div data-testid="script-rows-mobile" />,
 }));
 vi.mock("./FilterBar", () => ({
   default: () => null,
@@ -112,9 +113,9 @@ vi.mock("./TrashTable", () => ({
     </div>
   ),
 }));
-vi.mock("./TrashCardGrid", () => ({
+vi.mock("./TrashListMobile", () => ({
   default: ({ onCountChange, keyword }: { onCountChange?: (n: number) => void; keyword?: string }) => (
-    <div data-testid="trash-card-grid" data-keyword={keyword}>
+    <div data-testid="trash-list-mobile" data-keyword={keyword}>
       <button data-testid="purge-all" onClick={() => onCountChange?.(0)} />
     </div>
   ),
@@ -150,6 +151,14 @@ const props = {
   filterItems: stableFilterItems,
   selectedFilters: { status: null, type: null, tags: null, source: null },
   setSelectedFilters: vi.fn(),
+  selectedUuids: new Set<string>(),
+  toggleSelect: vi.fn(),
+  toggleSelectAll: vi.fn(),
+  clearSelection: vi.fn(),
+  onBatchEnable: vi.fn(),
+  onBatchDisable: vi.fn(),
+  onBatchExport: vi.fn(),
+  onBatchDelete: vi.fn(),
 };
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -171,7 +180,7 @@ describe("ScriptListMobile 移动版", () => {
     expect(screen.getByTestId("mobile-search")).toHaveAttribute("data-keyword", "");
 
     fireEvent.click(screen.getByTestId("mobile-search"));
-    expect(screen.getByTestId("trash-card-grid")).toHaveAttribute("data-keyword", "回收站关键词");
+    expect(screen.getByTestId("trash-list-mobile")).toHaveAttribute("data-keyword", "回收站关键词");
 
     fireEvent.click(screen.getByRole("button", { name: /已安装/ }));
     expect(screen.getByTestId("mobile-search")).toHaveAttribute("data-keyword", "已安装关键词");
@@ -278,12 +287,50 @@ describe("回收站 tab 消失时回落到已安装", () => {
     renderWithRouter(<ScriptList />);
 
     fireEvent.click(await screen.findByRole("button", { name: /回收站/ }));
-    expect(screen.getByTestId("trash-card-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("trash-list-mobile")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("purge-all"));
 
     expect(screen.queryByRole("button", { name: /回收站/ })).not.toBeInTheDocument();
-    expect(screen.queryByTestId("trash-card-grid")).not.toBeInTheDocument();
-    expect(screen.getByTestId("script-card-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("trash-list-mobile")).not.toBeInTheDocument();
+    expect(screen.getByTestId("script-rows-mobile")).toBeInTheDocument();
+  });
+});
+
+describe("移动端多选模式", () => {
+  const oneScript = [{ uuid: "u1", name: "示例脚本" }] as never;
+
+  it("顶栏入口进入多选：顶栏换成取消/已选数/全选，底部出现批量操作条", () => {
+    renderWithRouter(<ScriptListMobile {...props} scriptList={oneScript} />);
+
+    fireEvent.click(screen.getByRole("button", { name: t("script:multi_select") }));
+
+    expect(screen.getByText(t("batch_selected", { count: 0 }))).toBeInTheDocument();
+    expect(screen.getByLabelText(t("script:select_all"))).toBeInTheDocument();
+    expect(screen.getByLabelText(t("editor:cancel"))).toBeInTheDocument();
+
+    const bar = document.querySelector('[data-slot="mobile-batch-bar"]')!;
+    expect(bar.textContent).toContain(t("enable"));
+    expect(bar.textContent).toContain(t("disable"));
+    expect(bar.textContent).toContain(t("export"));
+    expect(bar.textContent).toContain(t("delete"));
+  });
+
+  it("退出多选恢复原搜索栏并清空选择", () => {
+    const clearSelection = vi.fn();
+    renderWithRouter(<ScriptListMobile {...props} scriptList={oneScript} clearSelection={clearSelection} />);
+
+    fireEvent.click(screen.getByRole("button", { name: t("script:multi_select") }));
+    fireEvent.click(screen.getByLabelText(t("editor:cancel")));
+
+    expect(clearSelection).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("mobile-search")).toBeInTheDocument();
+    expect(document.querySelector('[data-slot="mobile-batch-bar"]')).toBeNull();
+  });
+
+  it("空列表时多选入口不可用", () => {
+    renderWithRouter(<ScriptListMobile {...props} />);
+
+    expect(screen.getByRole("button", { name: t("script:multi_select") })).toBeDisabled();
   });
 });

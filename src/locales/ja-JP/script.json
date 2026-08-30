@@ -118,5 +118,7 @@
   "sort_ascending": "昇順",
   "sort_descending": "降順",
   "more_actions": "その他の操作",
+  "multi_select": "複数選択",
+  "site_count": "{{count}} サイト",
   "select_all": "すべて選択"
 }

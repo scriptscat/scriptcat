@@ -60,4 +60,4 @@ function ListRowActions({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-export { ListRow, ListRowLeading, ListRowMain, ListRowTrailing, ListRowActions, listRowVariants };
+export { ListRow, ListRowLeading, ListRowMain, ListRowTrailing, ListRowActions };

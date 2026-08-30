@@ -118,5 +118,7 @@
   "sort_ascending": "По возрастанию",
   "sort_descending": "По убыванию",
   "more_actions": "Другие действия",
+  "multi_select": "Выбрать несколько",
+  "site_count": "{{count}} сайт(ов)",
   "select_all": "Выбрать все"
 }

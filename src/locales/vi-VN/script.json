@@ -118,5 +118,7 @@
   "sort_ascending": "Tăng dần",
   "sort_descending": "Giảm dần",
   "more_actions": "Thao tác khác",
+  "multi_select": "Chọn nhiều",
+  "site_count": "{{count}} trang",
   "select_all": "Chọn tất cả"
 }
