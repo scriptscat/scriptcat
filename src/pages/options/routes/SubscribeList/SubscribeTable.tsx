@@ -241,7 +241,8 @@ function SubscribeRowInner({ index, subscribe, onEnable, onDelete }: SubscribeRo
       </ListRowMain>
 
       <ListRowTrailing className="gap-3">
-        <div className="flex w-[140px] justify-center">
+        {/* 与脚本列表同一断点：窄窗口下站点图标让位给订阅名 */}
+        <div className="hidden w-[140px] justify-center min-[900px]:flex">
           <PermissionFavicons connect={subscribe.metadata.connect} />
         </div>
         <div className="w-[150px]">

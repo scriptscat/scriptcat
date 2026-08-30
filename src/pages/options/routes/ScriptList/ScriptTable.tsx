@@ -314,7 +314,9 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
       </ListRowMain>
 
       <ListRowTrailing className="gap-3">
-        <div className="w-[104px] min-w-0">
+        {/* 窄窗口下整槽让位给名称：运行状态仍可从操作区的运行/停止图标读出，
+            这里只在 900px 以下藏掉站点点与下次运行时间。整槽同进同退，右缘对齐不受影响。 */}
+        <div className="hidden w-[104px] min-w-0 min-[900px]:block">
           {isBackground ? (
             <div className="flex min-w-0 flex-col gap-0.5">
               <Tooltip>
