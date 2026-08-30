@@ -275,6 +275,55 @@ describe("utils", () => {
     });
   });
 
+  describe("@run-at context-menu 执行时机", () => {
+    it("页面加载时只注册菜单，点击后才执行脚本正文", async () => {
+      let menuListener: (() => void) | undefined;
+      const GM_registerMenuCommand = vi.fn((_name: string, listener: () => void) => {
+        menuListener = listener;
+      });
+      const GM_openInTab = vi.fn();
+      const context = {
+        GM: { registerMenuCommand: GM_registerMenuCommand },
+        GM_openInTab,
+        GM_registerMenuCommand,
+        window: { GM_registerMenuCommand },
+      };
+      const script = compileScript(
+        compileScriptCode({
+          uuid: "issue-1691",
+          name: "Go to Website.Net",
+          namespace: "http://tampermonkey.net/",
+          type: 1,
+          status: 1,
+          sort: 0,
+          runStatus: "complete",
+          createtime: Date.now(),
+          checktime: Date.now(),
+          code: 'GM_openInTab("https://website.net");',
+          value: {},
+          flag: "issue-1691-flag",
+          resource: {},
+          metadata: {
+            include: ["*"],
+            grant: ["GM_openInTab"],
+            "run-at": ["context-menu"],
+          },
+          originalMetadata: {},
+        })
+      );
+
+      await script(context, "Go to Website.Net");
+
+      expect(GM_registerMenuCommand).toHaveBeenCalledWith("Go to Website.Net", expect.any(Function), { nested: false });
+      expect(GM_openInTab).not.toHaveBeenCalled();
+
+      menuListener?.();
+
+      expect(GM_openInTab).toHaveBeenCalledOnce();
+      expect(GM_openInTab).toHaveBeenCalledWith("https://website.net");
+    });
+  });
+
   describe("compileInjectScript", () => {
     const createMockScript = (overrides: Partial<ScriptRunResource> = {}): ScriptRunResource => ({
       uuid: "inject-test-uuid",
