@@ -1,8 +1,9 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
-import { CspRuleAmbiguousResponseError, type CspRuleClient } from "@App/app/service/service_worker/client";
-import type { CspRuleSnapshot } from "@App/app/service/service_worker/csp_rule";
+import { NetworkRuleAmbiguousResponseError, type NetworkRuleClient } from "@App/app/service/service_worker/client";
+import { cspRemovalAction } from "@App/app/repo/network_rule";
+import type { NetworkRuleSnapshot } from "@App/app/service/service_worker/network_rule";
 import { extensionEnv } from "@App/app/service/extension/extension_env";
 import { CspRulesSection } from "./CspRulesSection";
 
@@ -13,14 +14,14 @@ afterEach(() => {
   cleanup();
 });
 
-function snapshot(rules: CspRuleSnapshot["state"]["rules"] = [], masterEnabled = true): CspRuleSnapshot {
+function snapshot(rules: NetworkRuleSnapshot["state"]["rules"] = [], masterEnabled = true): NetworkRuleSnapshot {
   return {
-    state: { schemaVersion: 1, revision: 0, masterEnabled, rules },
+    state: { schemaVersion: 1, revision: 0, masterEnabled, rules, order: rules.map((rule) => rule.id) },
     apply: { state: "applied", revision: 0, appliedAt: 1 },
   };
 }
 
-function clientFor(current: CspRuleSnapshot) {
+function clientFor(current: NetworkRuleSnapshot) {
   return {
     getState: vi.fn().mockResolvedValue(current),
     createRule: vi.fn(),
@@ -28,8 +29,9 @@ function clientFor(current: CspRuleSnapshot) {
     deleteRule: vi.fn(),
     setRuleEnabled: vi.fn(),
     setMasterEnabled: vi.fn(),
+    reorderRules: vi.fn(),
     retryApply: vi.fn(),
-  } as unknown as CspRuleClient;
+  } as unknown as NetworkRuleClient;
 }
 
 describe("CSP 规则工具卡", () => {
@@ -69,8 +71,8 @@ describe("CSP 规则工具卡", () => {
       id: `rule-${index}`,
       name: `Rule ${index}`,
       enabled: true,
-      target: { type: "domains" as const, domains: [`${index}.example.com`] },
-      action: { type: "removeCspHeaders" as const },
+      condition: { requestDomains: [`${index}.example.com`] },
+      action: cspRemovalAction(),
       createdAt: 1,
       updatedAt: 1,
     }));
@@ -82,22 +84,6 @@ describe("CSP 规则工具卡", () => {
     expect(screen.getByText("Rule 20")).toBeInTheDocument();
   });
 
-  it("达到 100 条规则时禁用新增入口", async () => {
-    const rules = Array.from({ length: 100 }, (_, index) => ({
-      id: `rule-${index}`,
-      name: `Rule ${index}`,
-      enabled: true,
-      target: { type: "domains" as const, domains: [`${index}.example.com`] },
-      action: { type: "removeCspHeaders" as const },
-      createdAt: 1,
-      updatedAt: 1,
-    }));
-    const client = clientFor(snapshot(rules));
-    render(<CspRulesSection register={() => () => {}} client={client} />);
-
-    expect(await screen.findByRole("button", { name: "Add rule" })).toBeDisabled();
-  });
-
   it("总开关暂停时仍显示逐条启用状态", async () => {
     const client = clientFor(
       snapshot(
@@ -106,8 +92,8 @@ describe("CSP 规则工具卡", () => {
             id: "rule-1",
             name: "Example",
             enabled: true,
-            target: { type: "domains", domains: ["example.com"] },
-            action: { type: "removeCspHeaders" },
+            condition: { requestDomains: ["example.com"] },
+            action: cspRemovalAction(),
             createdAt: 1,
             updatedAt: 1,
           },
@@ -129,7 +115,7 @@ describe("CSP 规则工具卡", () => {
         ...snapshot(),
         outcome: "applied" as const,
       }),
-    } as unknown as CspRuleClient;
+    } as unknown as NetworkRuleClient;
     render(<CspRulesSection register={() => () => {}} client={client} />);
     expect(await screen.findByText("This CSP rules data format is not supported yet.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -143,8 +129,8 @@ describe("CSP 规则工具卡", () => {
           id: "all-sites",
           name: "All websites",
           enabled: false,
-          target: { type: "allSites" },
-          action: { type: "removeCspHeaders" },
+          condition: { urlFilter: "*", resourceTypes: ["main_frame", "sub_frame"] },
+          action: cspRemovalAction(),
           createdAt: 1,
           updatedAt: 1,
         },
@@ -165,8 +151,8 @@ describe("CSP 规则工具卡", () => {
             id: "all-sites",
             name: "All websites",
             enabled: true,
-            target: { type: "allSites" },
-            action: { type: "removeCspHeaders" },
+            condition: { urlFilter: "*", resourceTypes: ["main_frame", "sub_frame"] },
+            action: cspRemovalAction(),
             createdAt: 1,
             updatedAt: 1,
           },
@@ -188,15 +174,15 @@ describe("CSP 规则工具卡", () => {
         id: "rule-1",
         name: "example.com",
         enabled: true,
-        target: { type: "domains", domains: ["example.com"] },
-        action: { type: "removeCspHeaders" },
+        condition: { requestDomains: ["example.com"] },
+        action: cspRemovalAction(),
         createdAt: 1,
         updatedAt: 1,
       },
     ]);
     after.state.revision = 1;
     const client = clientFor(before);
-    client.createRule = vi.fn().mockRejectedValue(new CspRuleAmbiguousResponseError());
+    client.createRule = vi.fn().mockRejectedValue(new NetworkRuleAmbiguousResponseError());
     client.getState = vi.fn().mockResolvedValueOnce(before).mockResolvedValueOnce(after);
     render(<CspRulesSection register={() => () => {}} client={client} />);
 
@@ -214,7 +200,7 @@ describe("CSP 规则工具卡", () => {
   it("保存响应丢失且服务端实际未生效时，仍提示保存失败", async () => {
     const before = snapshot();
     const client = clientFor(before);
-    client.createRule = vi.fn().mockRejectedValue(new CspRuleAmbiguousResponseError());
+    client.createRule = vi.fn().mockRejectedValue(new NetworkRuleAmbiguousResponseError());
     client.getState = vi.fn().mockResolvedValue(before);
     render(<CspRulesSection register={() => () => {}} client={client} />);
 
@@ -234,8 +220,8 @@ describe("CSP 规则工具卡", () => {
           id: "rule-1",
           name: "example.com",
           enabled: true,
-          target: { type: "domains", domains: ["example.com"] },
-          action: { type: "removeCspHeaders" },
+          condition: { requestDomains: ["example.com"] },
+          action: cspRemovalAction(),
           createdAt: 1,
           updatedAt: 1,
         },

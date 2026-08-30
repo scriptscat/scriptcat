@@ -51,8 +51,6 @@ dist/ext/
   `webRequest`, `unlimitedStorage`, …; `optional_permissions` hold `background` + `userScripts`.
 - `host_permissions: ["<all_urls>"]`, `incognito: "split"` (Chrome; the Firefox variant overrides this to
   `"spanning"` — see below).
-- CSP rule state is owned by a single background context: under Chrome `split` only the regular service worker
-  registers CSP rule handlers, while the Firefox `spanning` event page is the sole context and always owns it.
 - `sandbox.pages` declares `src/sandbox.html`. The Firefox package adds that page's
   `content_security_policy.sandbox` during browser-specific manifest generation; the shared source manifest and
   Chrome package do not contain this Firefox-only CSP. `web_accessible_resources` exposes `install.html` so a

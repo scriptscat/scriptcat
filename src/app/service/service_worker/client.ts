@@ -35,17 +35,18 @@ import type { LocalBackupExport } from "./synchronize";
 import type { ExternalAccessUIService } from "./external_access/service";
 import type { WSEnvelope } from "./external_access/types";
 import type {
-  CspMutationResult,
-  CspRuleCreateInput,
-  CspRuleDeleteInput,
-  CspRuleEnabledInput,
-  CspRuleMasterEnabledInput,
-  CspRuleServiceError,
-  CspRuleSnapshot,
-  CspRuleUpdateInput,
-} from "./csp_rule";
+  NetworkRuleMutationResult,
+  NetworkRuleCreateInput,
+  NetworkRuleDeleteInput,
+  NetworkRuleEnabledInput,
+  NetworkRuleMasterEnabledInput,
+  NetworkRuleReorderInput,
+  NetworkRuleServiceError,
+  NetworkRuleSnapshot,
+  NetworkRuleUpdateInput,
+} from "./network_rule";
 
-export type { CspRuleServiceError } from "./csp_rule";
+export type { NetworkRuleServiceError } from "./network_rule";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -57,7 +58,7 @@ export class ServiceWorkerClient extends Client {
   }
 }
 
-export function parseCspRuleError(error: unknown): CspRuleServiceError {
+export function parseNetworkRuleError(error: unknown): NetworkRuleServiceError {
   const payload =
     typeof error === "string"
       ? (() => {
@@ -78,7 +79,7 @@ export function parseCspRuleError(error: unknown): CspRuleServiceError {
       code === "storage_write_failed" ||
       code === "unsupported_schema"
     ) {
-      return payload as CspRuleServiceError;
+      return payload as NetworkRuleServiceError;
     }
   }
   return { code: "storage_write_failed" };
@@ -90,16 +91,16 @@ export function parseCspRuleError(error: unknown): CspRuleServiceError {
  * 只是响应没能送达，与服务端明确返回的失败无法用同一错误区分，因此单独抛出，交由调用方
  * 通过重新拉取 state 来判断该次操作究竟是否已生效。
  */
-export class CspRuleAmbiguousResponseError extends Error {
+export class NetworkRuleAmbiguousResponseError extends Error {
   constructor() {
-    super("csp rule response lost in transit");
-    this.name = "CspRuleAmbiguousResponseError";
+    super("network rule response lost in transit");
+    this.name = "NetworkRuleAmbiguousResponseError";
   }
 }
 
-export class CspRuleClient extends Client {
+export class NetworkRuleClient extends Client {
   constructor(msgSender: MessageSend) {
-    super(msgSender, "serviceWorker/cspRule");
+    super(msgSender, "serviceWorker/networkRule");
   }
 
   private async request<T>(action: string, data?: unknown): Promise<T> {
@@ -107,41 +108,45 @@ export class CspRuleClient extends Client {
     try {
       result = await this.do<T>(action, data);
     } catch (error) {
-      throw parseCspRuleError(error);
+      throw parseNetworkRuleError(error);
     }
     if (result === undefined) {
-      if (action === "getState") throw parseCspRuleError(undefined);
-      throw new CspRuleAmbiguousResponseError();
+      if (action === "getState") throw parseNetworkRuleError(undefined);
+      throw new NetworkRuleAmbiguousResponseError();
     }
     return result;
   }
 
-  getState(): Promise<CspRuleSnapshot> {
-    return this.request<CspRuleSnapshot>("getState");
+  getState(): Promise<NetworkRuleSnapshot> {
+    return this.request<NetworkRuleSnapshot>("getState");
   }
 
-  createRule(input: CspRuleCreateInput): Promise<CspMutationResult> {
-    return this.request<CspMutationResult>("createRule", input);
+  createRule(input: NetworkRuleCreateInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("createRule", input);
   }
 
-  updateRule(input: CspRuleUpdateInput): Promise<CspMutationResult> {
-    return this.request<CspMutationResult>("updateRule", input);
+  updateRule(input: NetworkRuleUpdateInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("updateRule", input);
   }
 
-  deleteRule(input: CspRuleDeleteInput): Promise<CspMutationResult> {
-    return this.request<CspMutationResult>("deleteRule", input);
+  deleteRule(input: NetworkRuleDeleteInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("deleteRule", input);
   }
 
-  setRuleEnabled(input: CspRuleEnabledInput): Promise<CspMutationResult> {
-    return this.request<CspMutationResult>("setRuleEnabled", input);
+  setRuleEnabled(input: NetworkRuleEnabledInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("setRuleEnabled", input);
   }
 
-  setMasterEnabled(input: CspRuleMasterEnabledInput): Promise<CspMutationResult> {
-    return this.request<CspMutationResult>("setMasterEnabled", input);
+  setMasterEnabled(input: NetworkRuleMasterEnabledInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("setMasterEnabled", input);
   }
 
-  retryApply(): Promise<CspMutationResult> {
-    return this.request<CspMutationResult>("retryApply");
+  reorderRules(input: NetworkRuleReorderInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("reorderRules", input);
+  }
+
+  retryApply(): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("retryApply");
   }
 }
 

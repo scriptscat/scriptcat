@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, HelpCircle, Loader2, MoreHorizontal, ShieldOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { MAX_CSP_RULES, isCspRuleOwner, type CspRule, type CspRuleState } from "@App/app/repo/csp_rule";
+import { isNetworkRuleOwner, type NetworkRule, type NetworkRuleState } from "@App/app/repo/network_rule";
+import { MAX_USER_RULES } from "@App/app/service/service_worker/dnr_rule_ids";
 import {
-  CspRuleAmbiguousResponseError,
-  CspRuleClient,
-  parseCspRuleError,
-  type CspRuleServiceError,
+  NetworkRuleAmbiguousResponseError,
+  parseNetworkRuleError,
+  type NetworkRuleClient,
+  type NetworkRuleServiceError,
 } from "@App/app/service/service_worker/client";
-import type { CspMutationResult, CspRuleSnapshot } from "@App/app/service/service_worker/csp_rule";
+import type { NetworkRuleMutationResult, NetworkRuleSnapshot } from "@App/app/service/service_worker/network_rule";
 import { extensionEnv } from "@App/app/service/extension/extension_env";
-import { message, subscribeMessage } from "@App/pages/store/global";
+import { networkRuleClient } from "@App/pages/store/features/script";
+import { subscribeMessage } from "@App/pages/store/global";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,11 +36,16 @@ import { SettingRow } from "@App/pages/options/components/SettingRow";
 import { Skeleton } from "@App/pages/components/ui/skeleton";
 import { Switch } from "@App/pages/components/ui/switch";
 import { notify } from "@App/pages/components/ui/toast";
-import { CspRuleSheet, type CspRuleFormValue, type CspRuleSaveResult } from "./CspRuleSheet";
+import {
+  CspRuleSheet,
+  isAllSitesCondition,
+  type NetworkRuleFormValue,
+  type NetworkRuleSaveResult,
+} from "./CspRuleSheet";
 
 type CspRulesSectionProps = {
   register: (id: string) => (el: HTMLElement | null) => void;
-  client?: CspRuleClient;
+  client?: NetworkRuleClient;
 };
 
 type Confirmation = {
@@ -49,19 +56,24 @@ type Confirmation = {
   run: () => Promise<void>;
 };
 
-function activeDomainCount(state: CspRuleState): number {
-  return new Set(
-    state.rules
-      .filter((rule) => rule.enabled)
-      .flatMap((rule) => (rule.target.type === "domains" ? rule.target.domains : []))
-  ).size;
+function orderedRules(state: NetworkRuleState): NetworkRule[] {
+  const byId = new Map(state.rules.map((rule) => [rule.id, rule]));
+  return state.order.flatMap((id) => {
+    const rule = byId.get(id);
+    return rule ? [rule] : [];
+  });
 }
 
-function outcomeIsApplied(result: CspMutationResult): boolean {
+function activeDomainCount(state: NetworkRuleState): number {
+  return new Set(state.rules.filter((rule) => rule.enabled).flatMap((rule) => rule.condition.requestDomains ?? []))
+    .size;
+}
+
+function outcomeIsApplied(result: NetworkRuleMutationResult): boolean {
   return result.outcome === "applied" && result.apply.state === "applied";
 }
 
-function mutationErrorText(t: (key: string) => string, error: CspRuleServiceError): string {
+function mutationErrorText(t: (key: string) => string, error: NetworkRuleServiceError): string {
   if (error.code === "revision_conflict") return t("tools:csp_revision_conflict");
   if (error.messageKey) return t(`tools:csp_error_${error.messageKey}`);
   return t("tools:csp_storage_error");
@@ -69,15 +81,15 @@ function mutationErrorText(t: (key: string) => string, error: CspRuleServiceErro
 
 export function CspRulesSection({ register, client: injectedClient }: CspRulesSectionProps) {
   const { t } = useTranslation();
-  const client = useMemo(() => injectedClient ?? new CspRuleClient(message), [injectedClient]);
-  const cspRuleOwner = isCspRuleOwner(extensionEnv);
-  const [snapshot, setSnapshot] = useState<CspRuleSnapshot>();
+  const client = useMemo(() => injectedClient ?? networkRuleClient, [injectedClient]);
+  const cspRuleOwner = isNetworkRuleOwner(extensionEnv);
+  const [snapshot, setSnapshot] = useState<NetworkRuleSnapshot>();
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<CspRuleServiceError>();
+  const [loadError, setLoadError] = useState<NetworkRuleServiceError>();
   const [busy, setBusy] = useState<string>();
   const [visibleCount, setVisibleCount] = useState(20);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [editingRule, setEditingRule] = useState<CspRule>();
+  const [editingRule, setEditingRule] = useState<NetworkRule>();
   const [confirmation, setConfirmation] = useState<Confirmation>();
 
   useEffect(() => {
@@ -91,12 +103,12 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
         setVisibleCount(20);
       })
       .catch((error: unknown) => {
-        if (active) setLoadError(parseCspRuleError(error));
+        if (active) setLoadError(parseNetworkRuleError(error));
       })
       .finally(() => {
         if (active) setLoading(false);
       });
-    const unsubscribe = subscribeMessage<CspRuleSnapshot>("cspRule/stateChanged", (next) => {
+    const unsubscribe = subscribeMessage<NetworkRuleSnapshot>("networkRule/stateChanged", (next) => {
       setSnapshot((current) => (current && next.state.revision < current.state.revision ? current : next));
     });
     return () => {
@@ -106,17 +118,17 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
   }, [client, cspRuleOwner]);
 
   const openCreate = () => {
-    if (!snapshot || snapshot.state.rules.length >= MAX_CSP_RULES) return;
+    if (!snapshot || snapshot.state.rules.length >= MAX_USER_RULES) return;
     setEditingRule(undefined);
     setSheetOpen(true);
   };
 
-  const openEdit = (rule: CspRule) => {
+  const openEdit = (rule: NetworkRule) => {
     setEditingRule(rule);
     setSheetOpen(true);
   };
 
-  const finishMutation = (result: CspMutationResult) => {
+  const finishMutation = (result: NetworkRuleMutationResult) => {
     setSnapshot(result);
     if (outcomeIsApplied(result)) notify.success(t("tools:csp_rule_saved"));
     else notify.error(t("tools:csp_rule_saved_apply_failed"));
@@ -140,32 +152,34 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
     return false;
   };
 
-  const saveRule = async (value: CspRuleFormValue, baseRevision: number): Promise<CspRuleSaveResult> => {
+  const saveRule = async (value: NetworkRuleFormValue, baseRevision: number): Promise<NetworkRuleSaveResult> => {
     if (!snapshot) return { code: "storage_read_failed" };
     setBusy("sheet");
+    const domains = value.condition.requestDomains ?? [];
     const name =
       value.name.trim() ||
-      (value.target.type === "allSites"
+      (isAllSitesCondition(value.condition)
         ? t("tools:csp_all_websites")
-        : `${value.target.domains[0]}${value.target.domains.length > 1 ? ` + ${value.target.domains.length - 1}` : ""}`);
+        : `${domains[0]}${domains.length > 1 ? ` + ${domains.length - 1}` : ""}`);
     try {
       const result = editingRule
         ? await client.updateRule({
             baseRevision,
             id: editingRule.id,
-            patch: { name, target: value.target },
+            patch: { name, condition: value.condition, action: value.action },
           })
         : await client.createRule({
             baseRevision,
             name,
             enabled: value.enabled,
-            target: value.target,
+            condition: value.condition,
+            action: value.action,
           });
       finishMutation(result);
       setSheetOpen(false);
       return true;
     } catch (error) {
-      if (error instanceof CspRuleAmbiguousResponseError) {
+      if (error instanceof NetworkRuleAmbiguousResponseError) {
         if (await reconcileAfterAmbiguousResponse(baseRevision)) {
           setSheetOpen(false);
           return true;
@@ -173,7 +187,7 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
         notify.error(t("tools:csp_storage_error"));
         return false;
       }
-      const parsed = parseCspRuleError(error);
+      const parsed = parseNetworkRuleError(error);
       if (parsed.snapshot) setSnapshot(parsed.snapshot);
       notify.error(mutationErrorText(t, parsed));
       if (parsed.code === "revision_conflict") {
@@ -186,18 +200,18 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
     }
   };
 
-  const setRuleEnabled = async (rule: CspRule, enabled: boolean) => {
+  const setRuleEnabled = async (rule: NetworkRule, enabled: boolean) => {
     if (!snapshot) return;
     setBusy(rule.id);
     try {
       finishMutation(await client.setRuleEnabled({ baseRevision: snapshot.state.revision, id: rule.id, enabled }));
     } catch (error) {
-      if (error instanceof CspRuleAmbiguousResponseError) {
+      if (error instanceof NetworkRuleAmbiguousResponseError) {
         if (!(await reconcileAfterAmbiguousResponse(snapshot.state.revision)))
           notify.error(t("tools:csp_storage_error"));
         return;
       }
-      const parsed = parseCspRuleError(error);
+      const parsed = parseNetworkRuleError(error);
       if (parsed.snapshot) setSnapshot(parsed.snapshot);
       notify.error(t(`tools:csp_${parsed.code === "revision_conflict" ? "revision_conflict" : "storage_error"}`));
     } finally {
@@ -205,19 +219,19 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
     }
   };
 
-  const deleteRule = async (rule: CspRule) => {
+  const deleteRule = async (rule: NetworkRule) => {
     if (!snapshot) return;
     setBusy(rule.id);
     try {
       finishMutation(await client.deleteRule({ baseRevision: snapshot.state.revision, id: rule.id }));
       setVisibleCount((current) => Math.min(current, Math.max(20, (snapshot.state.rules.length || 1) - 1)));
     } catch (error) {
-      if (error instanceof CspRuleAmbiguousResponseError) {
+      if (error instanceof NetworkRuleAmbiguousResponseError) {
         if (!(await reconcileAfterAmbiguousResponse(snapshot.state.revision)))
           notify.error(t("tools:csp_storage_error"));
         return;
       }
-      const parsed = parseCspRuleError(error);
+      const parsed = parseNetworkRuleError(error);
       if (parsed.snapshot) setSnapshot(parsed.snapshot);
       notify.error(t(`tools:csp_${parsed.code === "revision_conflict" ? "revision_conflict" : "storage_error"}`));
     } finally {
@@ -231,12 +245,12 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
     try {
       finishMutation(await client.setMasterEnabled({ baseRevision: snapshot.state.revision, enabled }));
     } catch (error) {
-      if (error instanceof CspRuleAmbiguousResponseError) {
+      if (error instanceof NetworkRuleAmbiguousResponseError) {
         if (!(await reconcileAfterAmbiguousResponse(snapshot.state.revision)))
           notify.error(t("tools:csp_storage_error"));
         return;
       }
-      const parsed = parseCspRuleError(error);
+      const parsed = parseNetworkRuleError(error);
       if (parsed.snapshot) setSnapshot(parsed.snapshot);
       notify.error(t(`tools:csp_${parsed.code === "revision_conflict" ? "revision_conflict" : "storage_error"}`));
     } finally {
@@ -250,7 +264,7 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
       finishMutation(await client.retryApply());
       setLoadError(undefined);
     } catch (error) {
-      setLoadError(parseCspRuleError(error));
+      setLoadError(parseNetworkRuleError(error));
     } finally {
       setBusy(undefined);
     }
@@ -258,7 +272,7 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
 
   const state = snapshot?.state;
   const activeRules = state?.rules.filter((rule) => rule.enabled).length ?? 0;
-  const hasAllSites = state?.rules.some((rule) => rule.enabled && rule.target.type === "allSites") ?? false;
+  const hasAllSites = state?.rules.some((rule) => rule.enabled && isAllSitesCondition(rule.condition)) ?? false;
   const viewState = snapshot?.apply.state === "error" ? "error" : !state?.masterEnabled ? "paused" : "applied";
 
   return (
@@ -295,7 +309,9 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
             aria-label={t("tools:csp_run_rules")}
             onCheckedChange={(checked) => {
               if (!state) return;
-              const hasEnabledAllSites = state.rules.some((rule) => rule.enabled && rule.target.type === "allSites");
+              const hasEnabledAllSites = state.rules.some(
+                (rule) => rule.enabled && isAllSitesCondition(rule.condition)
+              );
               if (checked && hasEnabledAllSites) {
                 setConfirmation({
                   title: t("tools:csp_confirm_all_sites_title"),
@@ -352,7 +368,7 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
               <Button
                 size="sm"
                 onClick={openCreate}
-                disabled={Boolean(busy) || snapshot.state.rules.length >= MAX_CSP_RULES}
+                disabled={Boolean(busy) || snapshot.state.rules.length >= MAX_USER_RULES}
               >
                 {t("tools:csp_add_rule")}
               </Button>
@@ -387,93 +403,95 @@ export function CspRulesSection({ register, client: injectedClient }: CspRulesSe
             </div>
           ) : (
             <div className="space-y-2">
-              {snapshot.state.rules.slice(0, visibleCount).map((rule) => {
-                const isBusy = busy === rule.id;
-                const domains = rule.target.type === "domains" ? rule.target.domains : [];
-                return (
-                  <div
-                    key={rule.id}
-                    className="flex flex-col gap-3 rounded-md border border-border p-3 md:flex-row md:items-center md:justify-between"
-                  >
-                    <div className="min-w-0 space-y-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <p className="truncate text-sm font-medium text-foreground">{rule.name}</p>
-                        <Badge variant="outline">{t("tools:csp_remove_csp")}</Badge>
+              {orderedRules(snapshot.state)
+                .slice(0, visibleCount)
+                .map((rule) => {
+                  const isBusy = busy === rule.id;
+                  const domains = rule.condition.requestDomains ?? [];
+                  return (
+                    <div
+                      key={rule.id}
+                      className="flex flex-col gap-3 rounded-md border border-border p-3 md:flex-row md:items-center md:justify-between"
+                    >
+                      <div className="min-w-0 space-y-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <p className="truncate text-sm font-medium text-foreground">{rule.name}</p>
+                          <Badge variant="outline">{t("tools:csp_remove_csp")}</Badge>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {isAllSitesCondition(rule.condition) ? (
+                            <Badge variant="warning">{t("tools:csp_all_websites")}</Badge>
+                          ) : (
+                            <>
+                              {domains.slice(0, 3).map((domain) => (
+                                <Badge key={domain} variant="secondary">
+                                  {domain}
+                                </Badge>
+                              ))}
+                              {domains.length > 3 && (
+                                <Badge variant="secondary">
+                                  {"+"}
+                                  {domains.length - 3}
+                                </Badge>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {rule.target.type === "allSites" ? (
-                          <Badge variant="warning">{t("tools:csp_all_websites")}</Badge>
-                        ) : (
-                          <>
-                            {domains.slice(0, 3).map((domain) => (
-                              <Badge key={domain} variant="secondary">
-                                {domain}
-                              </Badge>
-                            ))}
-                            {domains.length > 3 && (
-                              <Badge variant="secondary">
-                                {"+"}
-                                {domains.length - 3}
-                              </Badge>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between gap-3 md:shrink-0">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Switch
-                          checked={rule.enabled}
-                          disabled={Boolean(busy)}
-                          aria-label={`${rule.name} ${t("tools:csp_enabled_field")}`}
-                          onCheckedChange={(checked) => {
-                            if (checked && rule.target.type === "allSites") {
-                              setConfirmation({
-                                title: t("tools:csp_confirm_all_sites_title"),
-                                description: t("tools:csp_confirm_all_sites_description"),
-                                run: () => setRuleEnabled(rule, true),
-                              });
-                            } else {
-                              void setRuleEnabled(rule, checked);
-                            }
-                          }}
-                        />
-                        <span>{rule.enabled ? t("tools:csp_enabled") : t("tools:csp_disabled")}</span>
-                        {isBusy && <Loader2 className="size-4 animate-spin" />}
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            size="icon-sm"
-                            variant="ghost"
+                      <div className="flex items-center justify-between gap-3 md:shrink-0">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Switch
+                            checked={rule.enabled}
                             disabled={Boolean(busy)}
-                            aria-label={t("tools:csp_more_actions")}
-                          >
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onSelect={() => openEdit(rule)}>{t("tools:csp_edit")}</DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onSelect={() =>
-                              setConfirmation({
-                                title: t("tools:csp_delete"),
-                                description: t("tools:csp_delete_description"),
-                                confirmText: t("tools:csp_delete"),
-                                destructive: true,
-                                run: () => deleteRule(rule),
-                              })
-                            }
-                          >
-                            {t("tools:csp_delete")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            aria-label={`${rule.name} ${t("tools:csp_enabled_field")}`}
+                            onCheckedChange={(checked) => {
+                              if (checked && isAllSitesCondition(rule.condition)) {
+                                setConfirmation({
+                                  title: t("tools:csp_confirm_all_sites_title"),
+                                  description: t("tools:csp_confirm_all_sites_description"),
+                                  run: () => setRuleEnabled(rule, true),
+                                });
+                              } else {
+                                void setRuleEnabled(rule, checked);
+                              }
+                            }}
+                          />
+                          <span>{rule.enabled ? t("tools:csp_enabled") : t("tools:csp_disabled")}</span>
+                          {isBusy && <Loader2 className="size-4 animate-spin" />}
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              disabled={Boolean(busy)}
+                              aria-label={t("tools:csp_more_actions")}
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => openEdit(rule)}>{t("tools:csp_edit")}</DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onSelect={() =>
+                                setConfirmation({
+                                  title: t("tools:csp_delete"),
+                                  description: t("tools:csp_delete_description"),
+                                  confirmText: t("tools:csp_delete"),
+                                  destructive: true,
+                                  run: () => deleteRule(rule),
+                                })
+                              }
+                            >
+                              {t("tools:csp_delete")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
               {visibleCount < snapshot.state.rules.length && (
                 <Button variant="outline" className="w-full" onClick={() => setVisibleCount((current) => current + 20)}>
                   {t("tools:csp_show_more")}

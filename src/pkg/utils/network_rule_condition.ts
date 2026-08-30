@@ -1,4 +1,4 @@
-export type CspDomainMessageKey =
+export type RuleDomainMessageKey =
   | "domain_required"
   | "domain_invalid"
   | "domain_credentials"
@@ -7,29 +7,29 @@ export type CspDomainMessageKey =
   | "domain_too_long"
   | "domain_count_invalid";
 
-export class CspDomainError extends Error {
-  constructor(public readonly messageKey: CspDomainMessageKey) {
+export class RuleDomainError extends Error {
+  constructor(public readonly messageKey: RuleDomainMessageKey) {
     super(messageKey);
-    this.name = "CspDomainError";
+    this.name = "RuleDomainError";
   }
 }
 
-export type CspDomainIssue = {
+export type RuleDomainIssue = {
   tokenIndex: number;
   input: string;
-  messageKey: CspDomainMessageKey;
+  messageKey: RuleDomainMessageKey;
 };
 
-export type CspDomainParseResult = {
+export type RuleDomainParseResult = {
   domains: string[];
-  errors: CspDomainIssue[];
+  errors: RuleDomainIssue[];
 };
 
 const HTTP_URL_PATTERN = /^https?:\/\//i;
 const IPV6_PATTERN = /^\[[0-9a-fA-F:.]+\]$/;
 
-function fail(messageKey: CspDomainMessageKey): never {
-  throw new CspDomainError(messageKey);
+function fail(messageKey: RuleDomainMessageKey): never {
+  throw new RuleDomainError(messageKey);
 }
 
 function normalizeHostname(hostname: string): string {
@@ -42,7 +42,7 @@ function normalizeHostname(hostname: string): string {
 }
 
 /** 只接受由用户明确配置的 HTTP(S) 域名，避免把路径语法带入 DNR。 */
-export function normalizeCspDomain(input: string): string {
+export function normalizeRuleDomain(input: string): string {
   if (typeof input !== "string") fail("domain_invalid");
   const token = input.trim();
   if (!token) fail("domain_required");
@@ -86,19 +86,19 @@ export function normalizeCspDomain(input: string): string {
   return normalizeHostname(url.hostname);
 }
 
-export function parseCspDomains(input: string): CspDomainParseResult {
+export function parseRuleDomains(input: string): RuleDomainParseResult {
   const tokens = input.split(/[\n,]/);
   const domains: string[] = [];
-  const errors: CspDomainIssue[] = [];
+  const errors: RuleDomainIssue[] = [];
 
   for (const [tokenIndex, rawToken] of tokens.entries()) {
     const token = rawToken.trim();
     if (!token) continue;
     try {
-      const domain = normalizeCspDomain(token);
+      const domain = normalizeRuleDomain(token);
       if (!domains.includes(domain)) domains.push(domain);
     } catch (error) {
-      const messageKey = error instanceof CspDomainError ? error.messageKey : "domain_invalid";
+      const messageKey = error instanceof RuleDomainError ? error.messageKey : "domain_invalid";
       errors.push({ tokenIndex, input: token, messageKey });
     }
   }
@@ -108,3 +108,39 @@ export function parseCspDomains(input: string): CspDomainParseResult {
   }
   return { domains, errors };
 }
+
+/**
+ * DNR `RuleCondition` 中开放给用户配置的资源类型与请求方法。
+ * 独立枚举而不是直接复用 chrome 类型，是为了让校验层有一个明确的输入白名单。
+ */
+export const NETWORK_RULE_RESOURCE_TYPES = [
+  "main_frame",
+  "sub_frame",
+  "stylesheet",
+  "script",
+  "image",
+  "font",
+  "object",
+  "xmlhttprequest",
+  "ping",
+  "csp_report",
+  "media",
+  "websocket",
+  "other",
+] as const;
+
+export type NetworkRuleResourceType = (typeof NETWORK_RULE_RESOURCE_TYPES)[number];
+
+export const NETWORK_RULE_REQUEST_METHODS = [
+  "connect",
+  "delete",
+  "get",
+  "head",
+  "options",
+  "patch",
+  "post",
+  "put",
+  "other",
+] as const;
+
+export type NetworkRuleRequestMethod = (typeof NETWORK_RULE_REQUEST_METHODS)[number];

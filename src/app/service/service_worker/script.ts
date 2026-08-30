@@ -56,6 +56,7 @@ import { EnableAgent } from "@App/app/const";
 import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import type { TrashScript } from "@App/app/repo/trash_script";
 import { SubscribeDAO } from "@App/app/repo/subscribe";
+import { INTERNAL_DNR_PRIORITY } from "./dnr_rule_ids";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -150,7 +151,7 @@ export class ScriptService {
                 addRules: [
                   {
                     id: 2,
-                    priority: 1,
+                    priority: INTERNAL_DNR_PRIORITY,
                     action: {
                       type: "allow" as chrome.declarativeNetRequest.RuleActionType,
                     },
@@ -322,7 +323,7 @@ export class ScriptService {
       }
       return {
         id: 1000 + idx,
-        priority: 1,
+        priority: INTERNAL_DNR_PRIORITY,
         action: {
           type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
           redirect: {

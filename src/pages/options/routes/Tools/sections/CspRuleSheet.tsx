@@ -1,9 +1,19 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { CspRule, CspRuleTarget } from "@App/app/repo/csp_rule";
-import type { CspRuleServiceError } from "@App/app/service/service_worker/client";
-import { parseCspDomains, type CspDomainParseResult } from "@App/pkg/utils/csp_domain";
+import {
+  cspRemovalAction,
+  MAX_RULE_DOMAINS,
+  type NetworkRule,
+  type NetworkRuleAction,
+  type NetworkRuleCondition,
+} from "@App/app/repo/network_rule";
+import type { NetworkRuleServiceError } from "@App/app/service/service_worker/client";
+import {
+  parseRuleDomains,
+  type NetworkRuleResourceType,
+  type RuleDomainParseResult,
+} from "@App/pkg/utils/network_rule_condition";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,29 +34,38 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Switch } from "@App/pages/components/ui/switch";
 import { Textarea } from "@App/pages/components/ui/textarea";
 
-export type CspRuleFormValue = {
+/** 「移除 CSP」预设只作用于文档请求，页面内子资源不携带 CSP 响应头。 */
+const CSP_RULE_RESOURCE_TYPES: NetworkRuleResourceType[] = ["main_frame", "sub_frame"];
+const ALL_SITES_URL_FILTER = "*";
+
+export function isAllSitesCondition(condition: NetworkRuleCondition): boolean {
+  return condition.urlFilter === ALL_SITES_URL_FILTER;
+}
+
+export type NetworkRuleFormValue = {
   name: string;
   enabled: boolean;
-  target: CspRuleTarget;
+  condition: NetworkRuleCondition;
+  action: NetworkRuleAction;
 };
 
-export type CspRuleSaveResult = true | false | CspRuleServiceError;
+export type NetworkRuleSaveResult = true | false | NetworkRuleServiceError;
 
 type CspRuleSheetProps = {
   open: boolean;
-  rule: CspRule | undefined;
+  rule: NetworkRule | undefined;
   baseRevision: number;
-  existingRules: CspRule[];
+  existingRules: NetworkRule[];
   saving: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (value: CspRuleFormValue, baseRevision: number) => Promise<CspRuleSaveResult>;
+  onSave: (value: NetworkRuleFormValue, baseRevision: number) => Promise<NetworkRuleSaveResult>;
 };
 
 function errorText(t: (key: string) => string, messageKey: string): string {
   return t(`tools:csp_error_${messageKey}`);
 }
 
-function saveErrorText(t: (key: string) => string, error: Exclude<CspRuleSaveResult, true>): string {
+function saveErrorText(t: (key: string) => string, error: Exclude<NetworkRuleSaveResult, true>): string {
   if (error === false) return t("tools:csp_storage_error");
   if (error.code === "revision_conflict") return t("tools:csp_revision_conflict");
   if (error.messageKey) return errorText(t, error.messageKey);
@@ -64,38 +83,37 @@ export function CspRuleSheet({
 }: CspRuleSheetProps) {
   const { t } = useTranslation();
   const [formBaseRevision] = useState(baseRevision);
-  const initialTarget = rule?.target;
-  const initialDomainTarget = initialTarget && initialTarget.type === "domains" ? initialTarget : undefined;
-  const [websites, setWebsites] = useState(() => initialDomainTarget?.domains.join("\n") ?? "");
+  const initialCondition = rule?.condition;
+  const initialAllSites = initialCondition !== undefined && isAllSitesCondition(initialCondition);
+  const initialDomains = initialAllSites ? undefined : initialCondition?.requestDomains;
+  const [websites, setWebsites] = useState(() => initialDomains?.join("\n") ?? "");
   const [name, setName] = useState(() => rule?.name ?? "");
   const [enabled, setEnabled] = useState(() => rule?.enabled ?? true);
-  const [allSites, setAllSites] = useState(() => initialTarget?.type === "allSites");
-  const [scopeOpen, setScopeOpen] = useState(() => initialTarget?.type === "allSites");
-  const [domainResult, setDomainResult] = useState<CspDomainParseResult>(() => ({
-    domains: initialDomainTarget?.domains ?? [],
+  const [allSites, setAllSites] = useState(initialAllSites);
+  const [scopeOpen, setScopeOpen] = useState(initialAllSites);
+  const [domainResult, setDomainResult] = useState<RuleDomainParseResult>(() => ({
+    domains: initialDomains ?? [],
     errors: [],
   }));
   const [touched, setTouched] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [pendingAllSites, setPendingAllSites] = useState<CspRuleFormValue | undefined>();
+  const [pendingAllSites, setPendingAllSites] = useState<NetworkRuleFormValue | undefined>();
 
   const duplicateDomains = useMemo(() => {
     if (allSites || domainResult.domains.length === 0) return [];
     const existing = new Set(
-      existingRules
-        .filter((item) => item.id !== rule?.id)
-        .flatMap((item) => (item.target.type === "domains" ? item.target.domains : []))
+      existingRules.filter((item) => item.id !== rule?.id).flatMap((item) => item.condition.requestDomains ?? [])
     );
     return domainResult.domains.filter((domain) => existing.has(domain));
   }, [allSites, domainResult.domains, existingRules, rule?.id]);
 
   const validateDomains = (value: string) => {
-    const result = parseCspDomains(value);
+    const result = parseRuleDomains(value);
     setDomainResult(result);
     return result;
   };
 
-  const submit = async (value: CspRuleFormValue) => {
+  const submit = async (value: NetworkRuleFormValue) => {
     const saved = await onSave(value, formBaseRevision);
     if (saved !== true) setSubmitError(saveErrorText(t, saved));
   };
@@ -106,19 +124,22 @@ export function CspRuleSheet({
     setSubmitError("");
     const result = allSites ? { domains: [], errors: [] } : validateDomains(websites);
     if (!allSites && result.errors.length > 0) return;
-    if (!allSites && result.domains.length > 100) {
+    if (!allSites && result.domains.length > MAX_RULE_DOMAINS) {
       setDomainResult({
         domains: result.domains,
         errors: [{ tokenIndex: 0, input: websites, messageKey: "domain_count_invalid" }],
       });
       return;
     }
-    const value: CspRuleFormValue = {
+    const value: NetworkRuleFormValue = {
       name,
       enabled,
-      target: allSites ? { type: "allSites" } : { type: "domains", domains: result.domains },
+      condition: allSites
+        ? { urlFilter: ALL_SITES_URL_FILTER, resourceTypes: [...CSP_RULE_RESOURCE_TYPES] }
+        : { requestDomains: result.domains, resourceTypes: [...CSP_RULE_RESOURCE_TYPES] },
+      action: cspRemovalAction(),
     };
-    if (value.target.type === "allSites" && value.enabled) {
+    if (allSites && value.enabled) {
       setPendingAllSites(value);
       return;
     }

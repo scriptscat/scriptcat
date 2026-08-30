@@ -1,13 +1,14 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
+import { cspRemovalAction } from "@App/app/repo/network_rule";
 import { CspRuleSheet } from "./CspRuleSheet";
 
 beforeAll(() => initTestLanguage("en-US"));
 afterEach(cleanup);
 
 describe("CSP 规则表单", () => {
-  it("粘贴完整 URL 后显示规范化域名并提交域名 target", async () => {
+  it("粘贴完整 URL 后显示规范化域名并提交域名条件", async () => {
     const onSave = vi.fn().mockResolvedValue(true);
     const view = render(
       <CspRuleSheet
@@ -43,7 +44,8 @@ describe("CSP 规则表单", () => {
       {
         name: "",
         enabled: true,
-        target: { type: "domains", domains: ["example.com"] },
+        condition: { requestDomains: ["example.com"], resourceTypes: ["main_frame", "sub_frame"] },
+        action: cspRemovalAction(),
       },
       4
     );
@@ -133,8 +135,8 @@ describe("CSP 规则表单", () => {
       id: "rule-1",
       name: "Example",
       enabled: true,
-      target: { type: "domains" as const, domains: ["example.com"] },
-      action: { type: "removeCspHeaders" as const },
+      condition: { requestDomains: ["example.com"] },
+      action: cspRemovalAction(),
       createdAt: 1,
       updatedAt: 1,
     };
