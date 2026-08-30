@@ -1,4 +1,4 @@
-import { ArrowUpDown, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
 import {
@@ -47,6 +47,14 @@ export function SortMenu<K extends string>({ options, value, onChange, className
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40">
+        {/* 三态循环要点两次才回得到自然顺序，给它一个一步可达的入口 */}
+        <DropdownMenuItem
+          onClick={() => onChange({ key: null, order: "asc" })}
+          className="flex items-center justify-between gap-2"
+        >
+          <span>{t("script:sort_default")}</span>
+          {value.key === null && <Check className="h-3.5 w-3.5 shrink-0" />}
+        </DropdownMenuItem>
         {options.map((o) => {
           const isActive = o.key === value.key;
           return (

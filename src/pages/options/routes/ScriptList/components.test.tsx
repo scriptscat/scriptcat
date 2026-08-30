@@ -8,14 +8,16 @@ import { SCRIPT_TYPE_NORMAL, SCRIPT_TYPE_BACKGROUND, SCRIPT_TYPE_CRONTAB } from 
 import type { ScriptLoading } from "@App/pages/store/features/script";
 
 // requestCheckUpdate 走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
-const { requestCheckUpdate, preloadUserConfig, preloadCloudScriptPlan, get } = vi.hoisted(() => ({
+const { requestCheckUpdate, exportScripts, preloadUserConfig, preloadCloudScriptPlan, get } = vi.hoisted(() => ({
   requestCheckUpdate: vi.fn(),
+  exportScripts: vi.fn(() => Promise.resolve()),
   preloadUserConfig: vi.fn(() => Promise.resolve()),
   preloadCloudScriptPlan: vi.fn(() => Promise.resolve()),
   get: vi.fn(),
 }));
 vi.mock("@App/pages/store/features/script", () => ({
   scriptClient: { requestCheckUpdate },
+  synchronizeClient: { export: exportScripts },
 }));
 vi.mock("./preload", () => ({ preloadUserConfig }));
 vi.mock("@App/pages/components/CloudScriptPlan", () => ({ preloadCloudScriptPlan }));
@@ -265,6 +267,15 @@ describe("ScriptRowActionSlots 固定三槽操作", () => {
     await act(async () => fireEvent.click(screen.getByText(t("editor:cancel"), { selector: "button" })));
 
     expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("更多菜单里的导出按单个脚本导出", async () => {
+    renderSlots();
+    openMore();
+
+    fireEvent.click(screen.getByText(t("export")));
+
+    expect(exportScripts).toHaveBeenCalledWith(["u1"]);
   });
 
   it("回收站关闭时，确认文案改回「此操作无法撤销」", async () => {

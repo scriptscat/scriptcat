@@ -57,4 +57,14 @@ describe("SortMenu 排序下拉", () => {
     fireEvent.click(screen.getByText("状态"));
     expect(onChange).toHaveBeenLastCalledWith({ key: null, order: "asc" });
   });
+
+  it("菜单里有「默认」项，一步回到自然顺序（拖拽顺序）", () => {
+    const onChange = vi.fn();
+    render(<SortMenu options={[...options]} value={{ key: "name", order: "desc" }} onChange={onChange} />);
+
+    openMenu();
+    fireEvent.click(screen.getByText("默认"));
+
+    expect(onChange).toHaveBeenCalledWith({ key: null, order: "asc" });
+  });
 });

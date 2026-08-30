@@ -7,7 +7,8 @@ import {
   SCRIPT_TYPE_NORMAL,
   SCRIPT_TYPE_CRONTAB,
 } from "@App/app/repo/scripts";
-import { scriptClient, type ScriptLoading } from "@App/pages/store/features/script";
+import { scriptClient, synchronizeClient, type ScriptLoading } from "@App/pages/store/features/script";
+import { notify } from "@App/pages/components/ui/toast";
 import { Switch } from "@App/pages/components/ui/switch";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
@@ -401,6 +402,16 @@ export function ScriptRowActionSlots({
               {t("editor:upload_to_cloud")}
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem
+            onClick={() => {
+              const id = notify.loading(t("editor:exporting"));
+              void synchronizeClient
+                .export([script.uuid])
+                .then(() => notify.success(t("settings:export_success"), { id }));
+            }}
+          >
+            {t("export")}
+          </DropdownMenuItem>
           <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setConfirmDelete(true)}>
             {t("delete")}
           </DropdownMenuItem>
