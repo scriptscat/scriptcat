@@ -67,6 +67,12 @@ const createSplitRealmRoots = (): RealmRoots => {
     get: () => null,
     set: () => undefined,
   });
+  Object.defineProperty(hostWindow, "oncustomcompat", {
+    configurable: true,
+    enumerable: true,
+    get: () => null,
+    set: () => undefined,
+  });
 
   return { realmGlobal, hostWindow };
 };
@@ -250,6 +256,8 @@ describe.concurrent("createProxyContext", () => {
     const sandbox = createProxyContext(createTestContext([]));
     const setTimeoutForTest1 = sandbox.setTimeoutForTest1;
 
+    expect(setTimeoutForTest1.name).toBe("bound setTimeoutForTest1");
+    expect("prototype" in setTimeoutForTest1).toBe(false);
     expect(() => setTimeoutForTest1(() => undefined, 0)).not.toThrow();
   });
 
@@ -304,6 +312,12 @@ describe.concurrent("createProxyContext", () => {
       Reflect.set(sandbox, "onload", null);
       roots.hostWindow.dispatchEvent(new Event("load"));
       expect(onload).toHaveBeenCalledTimes(1);
+
+      const customCompatHandler = vi.fn();
+      Reflect.set(sandbox, "oncustomcompat", customCompatHandler);
+      roots.hostWindow.dispatchEvent(new Event("customcompat"));
+      Reflect.set(sandbox, "oncustomcompat", null);
+      expect(customCompatHandler).toHaveBeenCalledTimes(1);
     });
 
     it.concurrent("keeps all self-referential window names inside the sandbox", () => {

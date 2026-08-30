@@ -157,10 +157,9 @@ export const shouldFnBind = (f: any) => {
 
 // 取物件本身及所有父类(不包含Object)的PropertyDescriptor
 type DescriptorOwner = Record<PropertyKey, any>;
-type DescriptorEntry = [string | symbol, PropertyDescriptor, DescriptorOwner];
+type DescriptorEntry = [string | symbol, PropertyDescriptor];
 type TrackedDescriptor = {
   descriptor: PropertyDescriptor;
-  owner: DescriptorOwner;
   receiver: DescriptorOwner;
   isConstructor: boolean;
 };
@@ -168,7 +167,7 @@ type TrackedDescriptor = {
 const getAllPropertyDescriptors = (obj: DescriptorOwner, callback: (value: DescriptorEntry) => void) => {
   while (obj && obj !== Object) {
     const descs = Object.getOwnPropertyDescriptors(obj);
-    Reflect.ownKeys(descs).forEach((key) => callback([key, descs[key as keyof typeof descs], obj]));
+    Reflect.ownKeys(descs).forEach((key) => callback([key, descs[key as keyof typeof descs]]));
     obj = Object.getPrototypeOf(obj);
   }
 };
@@ -177,25 +176,19 @@ const getAllPropertyDescriptors = (obj: DescriptorOwner, callback: (value: Descr
 const isConstructorOrInterface = (value: unknown): value is Function =>
   typeof value === "function" && ("prototype" in value || /^[A-Z]/.test(String(Reflect.get(value, "name"))));
 
-const materializeDescriptor = (key: string, tracked: TrackedDescriptor): PropertyDescriptor => {
-  const { descriptor, owner, receiver, isConstructor } = tracked;
+const materializeDescriptor = (tracked: TrackedDescriptor): PropertyDescriptor => {
+  const { descriptor, receiver, isConstructor } = tracked;
   if ("value" in descriptor) {
     if (typeof descriptor.value !== "function" || isConstructor) return { ...descriptor };
     return {
       ...descriptor,
-      value: function (this: any, ...args: any[]) {
-        return Reflect.apply(descriptor.value, receiver, args);
-      },
+      value: Function.prototype.bind.call(descriptor.value, receiver),
     };
   }
   return {
     ...descriptor,
-    get: descriptor.get ? () => Reflect.get(owner, key, receiver) : undefined,
-    set: descriptor.set
-      ? (value: any) => {
-          Reflect.set(owner, key, value, receiver);
-        }
-      : undefined,
+    get: descriptor.get?.bind(receiver),
+    set: descriptor.set?.bind(receiver),
   };
 };
 
@@ -272,8 +265,6 @@ const hostWindowConstructors = [
   "Response",
   "XMLHttpRequest",
 ];
-const hostWindowEventProperties = ["onload", "onerror", "onresize", "onfocus", "onblur", "onhashchange"];
-
 const hostWindowKeys = new Set([...hostWindowAccessors, ...hostWindowMethods, ...hostWindowConstructors]);
 
 type GlobalSnapshot = {
@@ -305,12 +296,11 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
 
   // 包含物件本身及所有父类(不包含Object)的PropertyDescriptor
   // 主要是找出哪些 function值， setter/getter 需要替换 global window
-  getAllPropertyDescriptors(realmGlobal, ([key, desc, owner]) => {
+  getAllPropertyDescriptors(realmGlobal, ([key, desc]) => {
     if (!desc || descsCache.has(key) || typeof key !== "string") return;
 
     const tracked = {
       descriptor: desc,
-      owner,
       receiver: realmGlobal,
       isConstructor: isConstructorOrInterface(desc.value),
     };
@@ -325,11 +315,11 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
       // 对于构造函数和类（有 prototype 属性），shouldFnBind 会返回 false，跳过绑定
       // 因此被封装的属性，会略过封装层，继续向父类寻找原生属性
       if (shouldFnBind(value)) {
-        overridedDescs[key] = materializeDescriptor(key, tracked);
+        overridedDescs[key] = materializeDescriptor(tracked);
         descsCache.add(key); // 必须：子类属性覆盖父类属性
       } else if (!(key in initOwnDescs) && !Object.hasOwn(realmGlobal, key)) {
         if (!protoBaseDescs[key]) {
-          protoBaseDescs[key] = materializeDescriptor(key, tracked);
+          protoBaseDescs[key] = materializeDescriptor(tracked);
         }
       }
     } else {
@@ -341,13 +331,29 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
         if (desc.get || desc.set) {
           // 替换 getter setter 的 this 为 实际的 global window
           // 例：(window.)location, (window.)document
-          overridedDescs[key] = materializeDescriptor(key, tracked);
+          overridedDescs[key] = materializeDescriptor(tracked);
           descsCache.add(key); // 必须：子类属性覆盖父类属性
         }
       }
     }
   });
   descsCache.clear(); // 内存释放
+
+  const hostEventKeys = new Set<string>();
+  getAllPropertyDescriptors(hostWindow, ([key, desc]) => {
+    if (
+      typeof key !== "string" ||
+      hostEventKeys.has(key) ||
+      !key.startsWith("on") ||
+      !desc.configurable ||
+      !desc.get ||
+      !desc.set
+    ) {
+      return;
+    }
+    eventDescs[key] = desc;
+    hostEventKeys.add(key);
+  });
 
   const addHostWindowForwarding = (key: string) => {
     if (!(key in hostWindow)) return;
@@ -366,14 +372,12 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
           : {}),
       };
     } else if (hostWindowMethods.includes(key)) {
+      const method = Reflect.get(hostWindow, key, hostWindow);
       overridedDescs[key] = {
         configurable: true,
         enumerable: true,
         writable: true,
-        value: function (...args: any[]) {
-          const method = Reflect.get(hostWindow, key, hostWindow);
-          return Reflect.apply(method, hostWindow, args);
-        },
+        value: typeof method === "function" ? Function.prototype.bind.call(method, hostWindow) : method,
       };
     } else {
       overridedDescs[key] = {
@@ -386,9 +390,6 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
   };
 
   for (const key of hostWindowKeys) addHostWindowForwarding(key);
-  for (const key of hostWindowEventProperties) {
-    if (key in hostWindow && !eventDescs[key]) eventDescs[key] = { configurable: true, enumerable: true };
-  }
 
   // sharedInitCopy: 完全继承Window.prototype 及 自定义 OwnPropertyDescriptor
   // OwnPropertyDescriptor定义 为 原OwnPropertyDescriptor定义 (DragEvent, MouseEvent, RegExp, EventTarget, JSON等)
