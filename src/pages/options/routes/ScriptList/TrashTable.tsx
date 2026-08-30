@@ -296,7 +296,7 @@ export default function TrashTable({
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto divide-y divide-border">
           {!list.length ? (
             <div className="flex h-full flex-col items-center justify-center gap-4">
               <div className="flex size-16 items-center justify-center rounded-full bg-muted">
