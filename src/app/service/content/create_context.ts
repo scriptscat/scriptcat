@@ -218,13 +218,13 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
   const collectRealmDescriptors = () => {
     // 只读取 realmGlobal own descriptors，避免混合 Firefox 的两个 realm。
     const descriptors = Object.getOwnPropertyDescriptors(realmGlobal);
-    for (const key of Reflect.ownKeys(descriptors)) {
-      const desc = descriptors[key as keyof typeof descriptors];
-      if (!desc || descsCache.has(key) || typeof key !== "string") continue;
+    for (const key of Object.keys(descriptors)) {
+      const desc = descriptors[key];
+      if (descsCache.has(key)) continue;
 
-      if (desc.writable) {
+      if ("value" in desc) {
         // 原生 function 绑定到所属 root；constructor/interface 保留原值。
-        if (shouldFnBind(desc.value)) {
+        if (desc.writable && shouldFnBind(desc.value)) {
           overriddenDescs[key] = materializeDescriptor(desc, realmGlobal);
           descsCache.add(key); // 必须：子类属性覆盖父类属性
         }
@@ -234,7 +234,9 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
       if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
         // 替换 onxxxxx 事件赋值操作。
         eventKeys.add(key);
-      } else if (desc.get || desc.set) {
+        continue;
+      }
+      if (desc.get || desc.set) {
         // 替换 getter/setter 的 this 为实际的 global window。
         overriddenDescs[key] = materializeDescriptor(desc, realmGlobal);
         descsCache.add(key); // 必须：子类属性覆盖父类属性
@@ -259,7 +261,9 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
         } else if (!(key in initOwnDescs) && !Object.hasOwn(realmGlobal, key) && !protoBaseDescs[key]) {
           protoBaseDescs[key] = materializeDescriptor(desc, hostWindow);
         }
-      } else if (desc.get || desc.set) {
+        return;
+      }
+      if (desc.get || desc.set) {
         overriddenDescs[key] = materializeDescriptor(desc, hostWindow);
         descsCache.add(key);
       }
