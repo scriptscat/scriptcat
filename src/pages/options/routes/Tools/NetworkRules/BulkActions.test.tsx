@@ -10,6 +10,7 @@ import type { NetworkRuleClient } from "@App/app/service/service_worker/client";
 import type { NetworkRuleMutationResult } from "@App/app/service/service_worker/network_rule";
 
 import NetworkRules from ".";
+import { NETWORK_RULES_PAGE_SIZE } from "./rules";
 import { stubNotify } from "./test-helpers";
 
 beforeAll(() => initTestLanguage("zh-CN"));
@@ -192,20 +193,30 @@ describe("网络规则批量操作", () => {
     expect(notify.success).not.toHaveBeenCalled();
   });
 
-  it("翻页或改筛选会清空选择，操作栏随之消失", async () => {
-    const client = clientFor(Array.from({ length: 25 }, (_, index) => rule(index)));
+  it("翻页会清空选择，操作栏随之消失", async () => {
+    // 刚好多出一条即可翻到第二页，多余的行只会让整表重渲染更贵。
+    const client = clientFor(Array.from({ length: NETWORK_RULES_PAGE_SIZE + 1 }, (_, index) => rule(index)));
     renderPage(client);
     expect(await screen.findByText("规则 0")).toBeInTheDocument();
 
     selectRow("规则 0");
     expect(bulkBar()).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "下一页" }));
     expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "上一页" }));
-    selectRow("规则 0");
+  it("改筛选会清空选择，操作栏随之消失", async () => {
+    const client = clientFor([rule(1), rule(2), rule(3)]);
+    renderPage(client);
+    expect(await screen.findByText("规则 1")).toBeInTheDocument();
+
+    selectRow("规则 1");
     expect(bulkBar()).toBeInTheDocument();
+
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规则 1" } });
+    // 选中的那行仍在筛选结果里，操作栏照样消失，说明清空来自筛选变化而不是该行被过滤掉。
+    expect(screen.getByText("规则 1")).toBeInTheDocument();
     expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
   });
 });
