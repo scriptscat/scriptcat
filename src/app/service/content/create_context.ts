@@ -196,82 +196,6 @@ const materializeDescriptor = (descriptor: PropertyDescriptor, receiver: Descrip
   };
 };
 
-// Firefox 的 content / USER_SCRIPT world 将 JavaScript global 与页面 window 拆成两个 realm。
-// 这里只读取 hostWindow 的原型链，并转发确定需要页面 brand 的成员，避免把页面全局 own properties 带入沙盒。
-const hostWindowAccessors = new Set([
-  "document",
-  "location",
-  "navigator",
-  "history",
-  "screen",
-  "performance",
-  "crypto",
-  "localStorage",
-  "sessionStorage",
-  "visualViewport",
-  "innerWidth",
-  "innerHeight",
-  "scrollX",
-  "scrollY",
-  "devicePixelRatio",
-]);
-const hostWindowMethods = new Set([
-  "addEventListener",
-  "removeEventListener",
-  "dispatchEvent",
-  "getComputedStyle",
-  "matchMedia",
-  "requestAnimationFrame",
-  "cancelAnimationFrame",
-  "scroll",
-  "scrollTo",
-  "scrollBy",
-  "blur",
-]);
-const hostWindowConstructors = new Set([
-  "Window",
-  "EventTarget",
-  "Node",
-  "Element",
-  "HTMLElement",
-  "HTMLBodyElement",
-  "Document",
-  "DocumentFragment",
-  "ShadowRoot",
-  "Text",
-  "Range",
-  "MutationObserver",
-  "NodeFilter",
-  "TreeWalker",
-  "Event",
-  "CustomEvent",
-  "MouseEvent",
-  "KeyboardEvent",
-  "PointerEvent",
-  "InputEvent",
-  "FocusEvent",
-  "ErrorEvent",
-  "ProgressEvent",
-  "MessageEvent",
-  "StorageEvent",
-  "WheelEvent",
-  "DragEvent",
-  "ClipboardEvent",
-  "DOMParser",
-  "XMLSerializer",
-  "FormData",
-  "File",
-  "FileList",
-  "Blob",
-  "URL",
-  "URLSearchParams",
-  "Headers",
-  "Request",
-  "Response",
-  "XMLHttpRequest",
-]);
-const hostWindowKeys = new Set([...hostWindowAccessors, ...hostWindowMethods, ...hostWindowConstructors]);
-
 type GlobalSnapshot = {
   sharedInitCopy: typeof globalThis & Record<PropertyKey, any>;
   eventKeys: Set<string>;
@@ -290,16 +214,6 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
   const overriddenDescs: DescriptorMap = Object.create(null);
   const eventKeys = new Set<string>();
   const protoBaseDescs: DescriptorMap = Object.create(null);
-
-  const getHostWindowDescriptor = (key: string): PropertyDescriptor | undefined => {
-    let owner: DescriptorOwner | null = hostWindow;
-    while (owner) {
-      const descriptor = Object.getOwnPropertyDescriptor(owner, key);
-      if (descriptor) return descriptor;
-      owner = Object.getPrototypeOf(owner);
-    }
-    return undefined;
-  };
 
   const collectRealmDescriptors = () => {
     // 只读取 realmGlobal own descriptors，避免混合 Firefox 的两个 realm。
@@ -328,19 +242,17 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
     }
   };
 
-  const collectHostWindowPrototypeDescriptors = () => {
-    const hostWindowPrototype = Object.getPrototypeOf(hostWindow);
-    if (!hostWindowPrototype) return;
-
-    getAllPropertyDescriptors(hostWindowPrototype, (key, desc) => {
-      if (!desc || descsCache.has(key) || typeof key !== "string") return;
+  const collectHostWindowDescriptors = () => {
+    getAllPropertyDescriptors(hostWindow, (key, desc) => {
+      if (!desc || typeof key !== "string") return;
 
       if (desc.configurable && desc.get && desc.set && key.startsWith("on")) {
         eventKeys.add(key);
         return;
       }
+      if (descsCache.has(key)) return;
 
-      if (desc.writable) {
+      if ("value" in desc) {
         if (shouldFnBind(desc.value)) {
           overriddenDescs[key] = materializeDescriptor(desc, hostWindow);
           descsCache.add(key);
@@ -354,58 +266,11 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
     });
   };
 
-  const collectHostWindowEventDescriptors = () => {
-    getAllPropertyDescriptors(hostWindow, (key, desc) => {
-      if (typeof key !== "string" || !key.startsWith("on") || !desc.configurable || !desc.get || !desc.set) {
-        return;
-      }
-      eventKeys.add(key);
-    });
-  };
-
-  const addHostWindowForwarding = (key: string) => {
-    if (!(key in hostWindow)) return;
-    const hostDescriptor = getHostWindowDescriptor(key);
-    if (hostWindowAccessors.has(key)) {
-      overriddenDescs[key] = {
-        configurable: true,
-        enumerable: true,
-        get: () => Reflect.get(hostWindow, key, hostWindow),
-        ...(hostDescriptor?.set
-          ? {
-              set: (value: any) => {
-                Reflect.set(hostWindow, key, value, hostWindow);
-              },
-            }
-          : {}),
-      };
-    } else if (hostWindowMethods.has(key)) {
-      const method = Reflect.get(hostWindow, key, hostWindow);
-      overriddenDescs[key] = {
-        configurable: true,
-        enumerable: true,
-        writable: true,
-        value: typeof method === "function" ? Function.prototype.bind.call(method, hostWindow) : method,
-      };
-    } else if (hostWindowConstructors.has(key)) {
-      overriddenDescs[key] = {
-        configurable: true,
-        enumerable: true,
-        writable: true,
-        value: Reflect.get(hostWindow, key, hostWindow),
-      };
-    }
-  };
-
   // 第一趟 realmGlobal：保留 JavaScript 内置对象。
   collectRealmDescriptors();
-  // 第二趟 hostWindow 原型链：补齐 Xray 截断的 DOM/EventTarget 成员。
-  // hostWindow own properties 仅由事件属性和白名单转发。
-  collectHostWindowPrototypeDescriptors();
+  // 第二趟 hostWindow：补齐 Firefox split-realm 的 host 成员。
+  collectHostWindowDescriptors();
   descsCache.clear(); // 内存释放
-  collectHostWindowEventDescriptors();
-
-  for (const key of hostWindowKeys) addHostWindowForwarding(key);
 
   // sharedInitCopy: 完全继承Window.prototype 及 自定义 OwnPropertyDescriptor
   // OwnPropertyDescriptor定义 为 原OwnPropertyDescriptor定义 (DragEvent, MouseEvent, RegExp, EventTarget, JSON等)

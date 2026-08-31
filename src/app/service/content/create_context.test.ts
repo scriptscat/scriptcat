@@ -35,14 +35,13 @@ const createTestContext = (grants: string[], metadata: Record<string, string[]> 
 const createSplitRealmRoots = (): RealmRoots => {
   const realmGlobal = Object.create(null) as Record<PropertyKey, any>;
   const hostWindow = Object.create(null) as Record<PropertyKey, any>;
+  const hostWindowPrototype = Object.create(null) as Record<PropertyKey, any>;
   const eventTarget = new EventTarget();
 
-  // Firefox USER_SCRIPT 的 realm global 會以 host window 作為原型；測試必須保留這個拓撲，
-  // 才能確認 realm descriptor 收集不會意外把 host own properties 帶入 sandbox。
+  // Firefox USER_SCRIPT 的 realm global 會以 host window 作為原型。
   Object.setPrototypeOf(realmGlobal, hostWindow);
+  Object.setPrototypeOf(hostWindow, hostWindowPrototype);
 
-  realmGlobal.Node = class RealmNode {};
-  realmGlobal.XMLHttpRequest = class RealmXMLHttpRequest {};
   realmGlobal.realmOnly = "realm-value";
   Object.defineProperty(realmGlobal, "realmAccessor", {
     configurable: true,
@@ -62,10 +61,33 @@ const createSplitRealmRoots = (): RealmRoots => {
     static DONE = 4;
   };
   hostWindow.document = document;
-  hostWindow.hostOnly = "host-value";
   hostWindow.addEventListener = eventTarget.addEventListener.bind(eventTarget);
   hostWindow.removeEventListener = eventTarget.removeEventListener.bind(eventTarget);
   hostWindow.dispatchEvent = eventTarget.dispatchEvent.bind(eventTarget);
+  hostWindow.dynamicHostMethod = {
+    dynamicHostMethod(this: unknown) {
+      return this;
+    },
+  }.dynamicHostMethod;
+  let dynamicHostValue = "host-value";
+  Object.defineProperty(hostWindow, "dynamicHostAccessor", {
+    configurable: true,
+    enumerable: true,
+    get() {
+      return this === hostWindow ? dynamicHostValue : "wrong-receiver";
+    },
+    set(value) {
+      dynamicHostValue = value;
+    },
+  });
+  const DynamicInterface = function DynamicInterface() {};
+  (DynamicInterface as any).staticValue = "static-value";
+  hostWindow.DynamicInterface = DynamicInterface;
+  hostWindowPrototype.dynamicPrototypeMethod = {
+    dynamicPrototypeMethod(this: unknown) {
+      return this;
+    },
+  }.dynamicPrototypeMethod;
   Object.defineProperty(hostWindow, "onload", {
     configurable: true,
     enumerable: true,
@@ -426,6 +448,20 @@ describe.concurrent("createProxyContext", () => {
       expect(sandbox.Math).not.toBe(hostMath);
     });
 
+    it.concurrent("collects dynamic host own and prototype descriptors", () => {
+      const roots = createSplitRealmRoots();
+      const sandbox = createProxyContext(createTestContext([]), roots);
+
+      expect(sandbox.dynamicHostMethod()).toBe(roots.hostWindow);
+      expect(sandbox.dynamicHostAccessor).toBe("host-value");
+      expect(sandbox.dynamicPrototypeMethod()).toBe(roots.hostWindow);
+      expect(sandbox.DynamicInterface.staticValue).toBe("static-value");
+      expect(sandbox.DynamicInterface.prototype).toBe(roots.hostWindow.DynamicInterface.prototype);
+
+      sandbox.dynamicHostAccessor = "updated-value";
+      expect(sandbox.dynamicHostAccessor).toBe("updated-value");
+    });
+
     it.concurrent("preserves non-self top, parent, and frames references from an iframe realm", () => {
       const roots = createSplitRealmRoots();
       const parentWindow = Object.create(null);
@@ -458,7 +494,6 @@ describe.concurrent("createProxyContext", () => {
       expect(sandbox.document).toBe(document);
       expect(sandbox.realmOnly).toBe("realm-value");
       expect(sandbox.realmAccessor).toBe("realm-receiver");
-      expect(sandbox.hostOnly).toBeUndefined();
 
       const listener = vi.fn();
       sandbox.addEventListener("split-root", listener);
@@ -493,20 +528,6 @@ describe.concurrent("createProxyContext", () => {
       expect(sandbox.top).toBe(sandbox);
       expect(sandbox.parent).toBe(sandbox);
       expect(sandbox.frames).toBe(sandbox);
-    });
-
-    it.concurrent("forwards live host accessors without leaking page globals", () => {
-      const sandbox = createProxyContext(createTestContext([]));
-      const pageKey = "__scriptcat_split_global_page_value";
-
-      Reflect.set(window, pageKey, "page-value");
-      try {
-        expect(sandbox.document).toBe(window.document);
-        expect(sandbox.location).toBe(window.location);
-        expect(sandbox[pageKey]).toBeUndefined();
-      } finally {
-        Reflect.deleteProperty(window, pageKey);
-      }
     });
 
     it.concurrent("preserves host constructor static constants and prototype identity", () => {
