@@ -70,6 +70,8 @@
   "network_rules_load_error": "네트워크 규칙을 불러오지 못했습니다. 다시 시도하세요.",
   "network_rules_unsupported_schema": "이 네트워크 규칙 데이터 형식은 아직 지원되지 않습니다.",
   "network_rules_footer_total": "총 {{count}}개 · {{enabled}}개 사용 중",
+  "network_rules_quota_total": "동적 규칙 할당량 {{used}}/{{limit}}",
+  "network_rules_quota_unsafe": "헤더 수정 / 리디렉션 / 허용 {{used}}/{{limit}}",
   "network_rules_prev_page": "이전 페이지",
   "network_rules_next_page": "다음 페이지",
   "network_rules_reorder_failed": "순서를 저장하지 못해 원래 순서로 되돌렸습니다.",

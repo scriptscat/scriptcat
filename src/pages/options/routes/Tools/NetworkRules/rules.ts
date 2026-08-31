@@ -68,3 +68,40 @@ export const ALL_SITES_URL_FILTER = "*";
 export function isAllSitesCondition(condition: NetworkRuleCondition): boolean {
   return condition.urlFilter === ALL_SITES_URL_FILTER;
 }
+
+/**
+ * DNR 把 modifyHeaders / redirect / allow 归为 unsafe 规则，它们的配额池比 block 所在的总池小得多，
+ * 所以数量提示必须按动作类型分别算。三种改头动作都编译成 modifyHeaders，同属 unsafe。
+ */
+const UNSAFE_ACTION_TYPES: NetworkRuleActionType[] = [
+  "removeResponseHeaders",
+  "modifyRequestHeaders",
+  "modifyResponseHeaders",
+  "redirect",
+  "allow",
+];
+
+export type NetworkRuleQuotaUsage = { total: number; unsafe: number };
+
+/** 只有启用的规则会被编译成 DNR 规则，停用的不占配额。 */
+export function quotaUsage(rules: NetworkRule[]): NetworkRuleQuotaUsage {
+  const active = rules.filter((rule) => rule.enabled);
+  return {
+    total: active.length,
+    unsafe: active.filter((rule) => UNSAFE_ACTION_TYPES.includes(rule.action.type)).length,
+  };
+}
+
+export type NetworkRuleQuotaLimits = { total?: number; unsafe?: number };
+
+/**
+ * 配额上限只从运行时常量读，不写死数字：Chrome 的总池与 unsafe 池是两个常量，
+ * Firefox 不区分 unsafe，只暴露动态与会话规则共用的那一个。
+ */
+export function quotaLimits(): NetworkRuleQuotaLimits {
+  const dnr: Partial<typeof chrome.declarativeNetRequest> = chrome.declarativeNetRequest;
+  return {
+    total: dnr.MAX_NUMBER_OF_DYNAMIC_RULES ?? dnr.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES,
+    unsafe: dnr.MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES,
+  };
+}

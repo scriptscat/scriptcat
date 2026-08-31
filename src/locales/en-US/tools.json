@@ -70,6 +70,8 @@
   "network_rules_load_error": "Network rules could not be loaded. Please try again.",
   "network_rules_unsupported_schema": "This network rules data format is not supported yet.",
   "network_rules_footer_total": "{{count}} rules · {{enabled}} enabled",
+  "network_rules_quota_total": "Dynamic rule quota {{used}}/{{limit}}",
+  "network_rules_quota_unsafe": "Header rewrite / redirect / allow {{used}}/{{limit}}",
   "network_rules_prev_page": "Previous page",
   "network_rules_next_page": "Next page",
   "network_rules_reorder_failed": "The order could not be saved and was restored.",

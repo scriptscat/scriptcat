@@ -70,6 +70,8 @@
   "network_rules_load_error": "Не удалось загрузить сетевые правила. Повторите попытку.",
   "network_rules_unsupported_schema": "Этот формат данных сетевых правил пока не поддерживается.",
   "network_rules_footer_total": "Всего правил: {{count}} · включено: {{enabled}}",
+  "network_rules_quota_total": "Квота динамических правил {{used}}/{{limit}}",
+  "network_rules_quota_unsafe": "Изменение заголовков / перенаправление / разрешение {{used}}/{{limit}}",
   "network_rules_prev_page": "Предыдущая страница",
   "network_rules_next_page": "Следующая страница",
   "network_rules_reorder_failed": "Не удалось сохранить порядок, он восстановлен.",

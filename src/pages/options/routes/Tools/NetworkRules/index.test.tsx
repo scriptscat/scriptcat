@@ -415,3 +415,41 @@ describe("网络规则编辑抽屉", () => {
     expect(client.deleteRule).toHaveBeenCalledWith({ baseRevision: 3, id: "r1" });
   });
 });
+
+describe("网络规则配额提示", () => {
+  const mixedRules = [
+    rule(1, { action: { type: "block" } }),
+    rule(2, { action: { type: "redirect", url: "https://example.com/x.js" } }),
+    rule(3, { action: { type: "allow" } }),
+    rule(4, { action: cspRemovalAction() }),
+    rule(5, { action: { type: "block" }, enabled: false }),
+  ];
+
+  it("按动作类型分别提示占用：block 走总池，改头/重定向/放行另占 unsafe 池", async () => {
+    renderPage(clientFor(snapshot(mixedRules)));
+    const quota = await screen.findByTestId("network-rules-quota");
+
+    // 停用的规则不会被编译成 DNR 规则，因此不占配额：总池 4 条，其中 3 条是 unsafe。
+    expect(quota).toHaveTextContent(`4/${chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_RULES}`);
+    expect(quota).toHaveTextContent(`3/${chrome.declarativeNetRequest.MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES}`);
+  });
+
+  it("浏览器不区分 unsafe 池时只提示总池，且数字仍取自运行时常量", async () => {
+    // Firefox 不实现 safe/unsafe 分池，两个 Chrome 专属常量在那里根本不存在。
+    const absent = ["MAX_NUMBER_OF_DYNAMIC_RULES", "MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES"] as const;
+    const saved = absent.map((name) => chrome.declarativeNetRequest[name]);
+    for (const name of absent) {
+      Object.defineProperty(chrome.declarativeNetRequest, name, { value: undefined, configurable: true });
+    }
+    try {
+      renderPage(clientFor(snapshot(mixedRules)));
+      const quota = await screen.findByTestId("network-rules-quota");
+      expect(quota).toHaveTextContent(`4/${chrome.declarativeNetRequest.MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES}`);
+      expect(quota.textContent).not.toContain("3/");
+    } finally {
+      absent.forEach((name, index) =>
+        Object.defineProperty(chrome.declarativeNetRequest, name, { value: saved[index], configurable: true })
+      );
+    }
+  });
+});

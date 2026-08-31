@@ -70,6 +70,8 @@
   "network_rules_load_error": "Não foi possível carregar as regras de rede. Tente novamente.",
   "network_rules_unsupported_schema": "Este formato de dados de regras de rede ainda não é suportado.",
   "network_rules_footer_total": "{{count}} regras · {{enabled}} ativadas",
+  "network_rules_quota_total": "Cota de regras dinâmicas {{used}}/{{limit}}",
+  "network_rules_quota_unsafe": "Reescrita de cabeçalho / redirecionamento / permissão {{used}}/{{limit}}",
   "network_rules_prev_page": "Página anterior",
   "network_rules_next_page": "Próxima página",
   "network_rules_reorder_failed": "Não foi possível salvar a ordem; ela foi restaurada.",

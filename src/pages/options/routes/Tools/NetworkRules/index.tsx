@@ -51,6 +51,8 @@ import {
   moveRuleTo,
   NETWORK_RULES_PAGE_SIZE,
   orderedRules,
+  quotaLimits,
+  quotaUsage,
   type ActionFilter,
   type StatusFilter,
 } from "./rules";
@@ -112,6 +114,8 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
   const currentPage = Math.min(page, pageCount);
   const pageRules = visible.slice((currentPage - 1) * NETWORK_RULES_PAGE_SIZE, currentPage * NETWORK_RULES_PAGE_SIZE);
   const positionOf = (rule: NetworkRule) => order.indexOf(rule.id) + 1;
+  const quota = useMemo(() => quotaUsage(rules), [rules]);
+  const limits = useMemo(() => quotaLimits(), []);
   // 勾选以当前页为范围，所以翻页与改筛选都会清空选择，批量操作永远只作用于看得见的行。
   const selectedRules = pageRules.filter((rule) => selected.has(rule.id));
   const clearSelection = () => setSelected(new Set());
@@ -591,12 +595,21 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
                   <RuleTable {...listProps} selected={selected} onSelect={toggleSelect} onSelectPage={selectPage} />
                 )}
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    {t("tools:network_rules_footer_total", {
-                      count: rules.length,
-                      enabled: state ? enabledCount(state) : 0,
-                    })}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                    <span>
+                      {t("tools:network_rules_footer_total", {
+                        count: rules.length,
+                        enabled: state ? enabledCount(state) : 0,
+                      })}
+                    </span>
+                    {limits.total !== undefined && (
+                      <span data-testid="network-rules-quota">
+                        {t("tools:network_rules_quota_total", { used: quota.total, limit: limits.total })}
+                        {limits.unsafe !== undefined &&
+                          ` · ${t("tools:network_rules_quota_unsafe", { used: quota.unsafe, limit: limits.unsafe })}`}
+                      </span>
+                    )}
+                  </div>
                   {pageCount > 1 && (
                     <Pagination
                       page={currentPage}

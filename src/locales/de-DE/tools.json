@@ -70,6 +70,8 @@
   "network_rules_load_error": "Netzwerkregeln konnten nicht geladen werden. Bitte erneut versuchen.",
   "network_rules_unsupported_schema": "Dieses Datenformat für Netzwerkregeln wird noch nicht unterstützt.",
   "network_rules_footer_total": "{{count}} Regeln · {{enabled}} aktiv",
+  "network_rules_quota_total": "Kontingent dynamischer Regeln {{used}}/{{limit}}",
+  "network_rules_quota_unsafe": "Header ändern / Umleiten / Zulassen {{used}}/{{limit}}",
   "network_rules_prev_page": "Vorherige Seite",
   "network_rules_next_page": "Nächste Seite",
   "network_rules_reorder_failed": "Die Reihenfolge konnte nicht gespeichert werden und wurde zurückgesetzt.",

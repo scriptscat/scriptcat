@@ -70,6 +70,8 @@
   "network_rules_load_error": "網路規則未能載入，請重試。",
   "network_rules_unsupported_schema": "暫不支援此網路規則資料格式。",
   "network_rules_footer_total": "共 {{count}} 條規則 · {{enabled}} 條啟用中",
+  "network_rules_quota_total": "動態規則配額 {{used}}/{{limit}}",
+  "network_rules_quota_unsafe": "改寫標頭 / 重新導向 / 放行 {{used}}/{{limit}}",
   "network_rules_prev_page": "上一頁",
   "network_rules_next_page": "下一頁",
   "network_rules_reorder_failed": "順序未能儲存，已還原原順序。",

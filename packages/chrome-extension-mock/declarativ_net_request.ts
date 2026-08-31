@@ -1,5 +1,8 @@
 export default class DeclarativeNetRequest {
   MAX_NUMBER_OF_SESSION_RULES = 5000;
+  MAX_NUMBER_OF_DYNAMIC_RULES = 30000;
+  MAX_NUMBER_OF_UNSAFE_DYNAMIC_RULES = 5000;
+  MAX_NUMBER_OF_DYNAMIC_AND_SESSION_RULES = 5000;
 
   private _sessionRules: chrome.declarativeNetRequest.Rule[] = [];
   private _dynamicRules: chrome.declarativeNetRequest.Rule[] = [];

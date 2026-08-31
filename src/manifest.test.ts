@@ -14,3 +14,11 @@ describe("扩展隐私上下文配置", () => {
     expect(isNetworkRuleOwner({ inIncognitoContext: false, incognitoMode: "spanning" })).toBe(true);
   });
 });
+
+describe("网络规则所需权限", () => {
+  it("匹配测试是纯前端模拟，不申请 declarativeNetRequestFeedback", () => {
+    const permissions: string[] = [...manifest.permissions, ...manifest.optional_permissions];
+    expect(permissions).toContain("declarativeNetRequest");
+    expect(permissions).not.toContain("declarativeNetRequestFeedback");
+  });
+});

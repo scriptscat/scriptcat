@@ -70,6 +70,8 @@
   "network_rules_load_error": "Ağ kuralları yüklenemedi. Lütfen yeniden deneyin.",
   "network_rules_unsupported_schema": "Bu ağ kuralı veri biçimi henüz desteklenmiyor.",
   "network_rules_footer_total": "{{count}} kural · {{enabled}} etkin",
+  "network_rules_quota_total": "Dinamik kural kotası {{used}}/{{limit}}",
+  "network_rules_quota_unsafe": "Başlık değiştirme / yönlendirme / izin verme {{used}}/{{limit}}",
   "network_rules_prev_page": "Önceki sayfa",
   "network_rules_next_page": "Sonraki sayfa",
   "network_rules_reorder_failed": "Sıra kaydedilemedi, eski sırasına geri alındı.",

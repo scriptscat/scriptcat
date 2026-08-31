@@ -70,6 +70,8 @@
   "network_rules_load_error": "网络规则未能加载，请重试。",
   "network_rules_unsupported_schema": "暂不支持此网络规则数据格式。",
   "network_rules_footer_total": "共 {{count}} 条规则 · {{enabled}} 条启用中",
+  "network_rules_quota_total": "动态规则配额 {{used}}/{{limit}}",
+  "network_rules_quota_unsafe": "改写头 / 重定向 / 放行 {{used}}/{{limit}}",
   "network_rules_prev_page": "上一页",
   "network_rules_next_page": "下一页",
   "network_rules_reorder_failed": "顺序未能保存，已恢复原顺序。",

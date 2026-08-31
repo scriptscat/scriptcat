@@ -70,6 +70,8 @@
   "network_rules_load_error": "ネットワークルールを読み込めませんでした。再試行してください。",
   "network_rules_unsupported_schema": "このネットワークルールのデータ形式にはまだ対応していません。",
   "network_rules_footer_total": "全 {{count}} 件 · {{enabled}} 件有効",
+  "network_rules_quota_total": "動的ルールの上限 {{used}}/{{limit}}",
+  "network_rules_quota_unsafe": "ヘッダー変更 / リダイレクト / 許可 {{used}}/{{limit}}",
   "network_rules_prev_page": "前のページ",
   "network_rules_next_page": "次のページ",
   "network_rules_reorder_failed": "順序を保存できませんでした。元の順序に戻しました。",

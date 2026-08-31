@@ -70,6 +70,8 @@
   "network_rules_load_error": "Không tải được quy tắc mạng, vui lòng thử lại.",
   "network_rules_unsupported_schema": "Định dạng dữ liệu quy tắc mạng này chưa được hỗ trợ.",
   "network_rules_footer_total": "{{count}} quy tắc · {{enabled}} đang bật",
+  "network_rules_quota_total": "Hạn mức quy tắc động {{used}}/{{limit}}",
+  "network_rules_quota_unsafe": "Sửa header / chuyển hướng / cho phép {{used}}/{{limit}}",
   "network_rules_prev_page": "Trang trước",
   "network_rules_next_page": "Trang sau",
   "network_rules_reorder_failed": "Không lưu được thứ tự, đã khôi phục thứ tự cũ.",
