@@ -59,13 +59,27 @@ function MobileListRowTrailing({ className, ...props }: React.ComponentProps<"di
 // 小于该位移的触摸当作点击，不当作滑动
 const SWIPE_THRESHOLD = 40;
 
+// 长按期间允许的手指抖动量，超过即认为是滑动/拖拽
+const LONG_PRESS_MOVE_TOLERANCE = 10;
+
 export interface MobileSwipeRowProps extends React.ComponentProps<"div"> {
   /** 左滑后露出的操作块 */
   actions: React.ReactNode;
+  /** 开合受控于列表：同一时刻只允许一行滑开，否则多行会同时挂着破坏性操作块 */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-function MobileSwipeRow({ actions, children, className, onTouchStart, onTouchEnd, ...props }: MobileSwipeRowProps) {
-  const [open, setOpen] = useState(false);
+function MobileSwipeRow({
+  actions,
+  open,
+  onOpenChange,
+  children,
+  className,
+  onTouchStart,
+  onTouchEnd,
+  ...props
+}: MobileSwipeRowProps) {
   const [offset, setOffset] = useState(0);
   const startX = useRef<number | null>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
@@ -84,9 +98,9 @@ function MobileSwipeRow({ actions, children, className, onTouchStart, onTouchEnd
       if (delta <= -SWIPE_THRESHOLD) {
         // 位移量取操作区实际宽度：各页操作块数量不同，写死距离会在少一块时滑出空白
         setOffset(actionsRef.current?.offsetWidth ?? 0);
-        setOpen(true);
+        onOpenChange(true);
       } else if (delta >= SWIPE_THRESHOLD) {
-        setOpen(false);
+        onOpenChange(false);
       }
     }
     onTouchEnd?.(e);
@@ -105,6 +119,9 @@ function MobileSwipeRow({ actions, children, className, onTouchStart, onTouchEnd
         data-slot="mobile-swipe-actions"
         data-state={open ? "open" : "closed"}
         aria-hidden={!open}
+        // inert 与 aria-hidden 必须同进退：pointer-events-none 只挡指针，
+        // 键盘仍能 Tab 进这棵不播报的子树并触发「删除」
+        inert={!open}
         className={cn("absolute inset-y-0 right-0 flex items-stretch", !open && "pointer-events-none")}
       >
         {actions}
@@ -115,6 +132,14 @@ function MobileSwipeRow({ actions, children, className, onTouchStart, onTouchEnd
         // 未滑动时操作块就会盖在行右侧（挡住开关）
         className="relative bg-background transition-transform"
         style={{ transform: open ? `translateX(-${offset}px)` : undefined }}
+        // 已滑开时点内容层收起而非透传为行点击：与移动端通行心智一致，
+        // 也避免紧挨着删除块的误触
+        onClickCapture={(e) => {
+          if (!open) return;
+          e.preventDefault();
+          e.stopPropagation();
+          onOpenChange(false);
+        }}
       >
         {children}
       </div>
@@ -125,25 +150,44 @@ function MobileSwipeRow({ actions, children, className, onTouchStart, onTouchEnd
 /** 长按手势。返回的处理器整体透传给行元素即可，与左滑外壳的触摸处理可以叠加。 */
 function useLongPress(onLongPress: () => void, delay = 500) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const origin = useRef<{ x: number; y: number } | null>(null);
 
   const clear = useCallback(() => {
     if (timer.current !== null) {
       clearTimeout(timer.current);
       timer.current = null;
     }
+    origin.current = null;
   }, []);
 
-  const onTouchStart = useCallback(() => {
-    clear();
-    timer.current = setTimeout(() => {
-      timer.current = null;
-      onLongPress();
-    }, delay);
-  }, [clear, onLongPress, delay]);
+  const onTouchStart = useCallback(
+    (e: React.TouchEvent<HTMLElement>) => {
+      clear();
+      const touch = e.touches[0];
+      origin.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        onLongPress();
+      }, delay);
+    },
+    [clear, onLongPress, delay]
+  );
+
+  // 手指按住时的自然抖动有几像素，无条件取消会让长按在真机上频繁失败；
+  // 超过容差才认为用户是在滑动或拖拽，把手势让出去
+  const onTouchMove = useCallback(
+    (e: React.TouchEvent<HTMLElement>) => {
+      const from = origin.current;
+      const touch = e.touches[0];
+      if (!from || !touch) return;
+      if (Math.hypot(touch.clientX - from.x, touch.clientY - from.y) > LONG_PRESS_MOVE_TOLERANCE) clear();
+    },
+    [clear]
+  );
 
   return useMemo(
-    () => ({ onTouchStart, onTouchEnd: clear, onTouchMove: clear, onTouchCancel: clear }),
-    [onTouchStart, clear]
+    () => ({ onTouchStart, onTouchMove, onTouchEnd: clear, onTouchCancel: clear }),
+    [onTouchStart, onTouchMove, clear]
   );
 }
 

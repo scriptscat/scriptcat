@@ -54,6 +54,13 @@ export default function SubscribeRowsMobile({
     [updateSubscribes, t]
   );
 
+  // 同时只允许一行滑开：否则多行会各自挂着「删除」块
+  const [swipeOpenUrl, setSwipeOpenUrl] = useState<string | null>(null);
+  const handleSwipeOpenChange = useCallback(
+    (url: string, open: boolean) => setSwipeOpenUrl((prev) => (open ? url : prev === url ? null : prev)),
+    []
+  );
+
   if (loadingList) {
     return (
       <div className="flex-1 overflow-y-auto">
@@ -78,6 +85,8 @@ export default function SubscribeRowsMobile({
         <SubscribeRowMobile
           key={subscribe.url}
           subscribe={subscribe}
+          swipeOpen={swipeOpenUrl === subscribe.url}
+          onSwipeOpenChange={handleSwipeOpenChange}
           onEnable={handleEnable}
           onOpenActions={setSheetUrl}
           onDelete={handleDelete}
@@ -119,16 +128,20 @@ function subtitleOf(subscribe: SubscribeLoading, t: TFunction) {
 
 interface SubscribeRowMobileProps {
   subscribe: SubscribeLoading;
+  swipeOpen: boolean;
+  onSwipeOpenChange: (url: string, open: boolean) => void;
   onEnable: (subscribe: SubscribeLoading, checked: boolean) => void;
   onOpenActions: (url: string) => void;
   onDelete: (subscribe: SubscribeLoading) => void;
 }
 
 const SubscribeRowMobile = React.memo(
-  ({ subscribe, onEnable, onOpenActions, onDelete }: SubscribeRowMobileProps) => {
+  ({ subscribe, swipeOpen, onSwipeOpenChange, onEnable, onOpenActions, onDelete }: SubscribeRowMobileProps) => {
     const { t } = useTranslation();
     return (
       <MobileSwipeRow
+        open={swipeOpen}
+        onOpenChange={(open) => onSwipeOpenChange(subscribe.url, open)}
         actions={
           <button
             type="button"

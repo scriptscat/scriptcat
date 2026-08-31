@@ -11,6 +11,8 @@ import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { EmptyState } from "@App/pages/components/ui/empty-state";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import {
+  MobileActionSheet,
+  MobileActionSheetItem,
   MobileBatchBar,
   MobileBatchBarButton,
   MobileListRow,
@@ -157,6 +159,18 @@ export default function TrashListMobile({
 
   const allSelected = visible.length > 0 && visible.every((item) => selected.has(item.uuid));
 
+  // 左滑是隐藏手势，单条还原/彻底删除还需要一条可见入口（与脚本、订阅两页一致）
+  const [sheetUuid, setSheetUuid] = useState<string | null>(null);
+  const [pendingPurge, setPendingPurge] = useState<TrashScript | null>(null);
+  const sheetItem = sheetUuid ? (visible.find((i) => i.uuid === sheetUuid) ?? null) : null;
+
+  // 同时只允许一行滑开：否则多行会各自挂着「彻底删除」块
+  const [swipeOpenUuid, setSwipeOpenUuid] = useState<string | null>(null);
+  const handleSwipeOpenChange = useCallback(
+    (uuid: string, open: boolean) => setSwipeOpenUuid((prev) => (open ? uuid : prev === uuid ? null : prev)),
+    []
+  );
+
   const exitSelection = useCallback(() => {
     setSelectionMode(false);
     setSelected(new Set());
@@ -192,6 +206,9 @@ export default function TrashListMobile({
               key={item.uuid}
               item={item}
               daysLeft={daysLeftOf(item)}
+              swipeOpen={swipeOpenUuid === item.uuid}
+              onSwipeOpenChange={handleSwipeOpenChange}
+              onOpenActions={setSheetUuid}
               selectionMode
               selected={selected.has(item.uuid)}
               onToggleSelect={toggleSelect}
@@ -311,6 +328,9 @@ export default function TrashListMobile({
               key={item.uuid}
               item={item}
               daysLeft={daysLeftOf(item)}
+              swipeOpen={swipeOpenUuid === item.uuid}
+              onSwipeOpenChange={handleSwipeOpenChange}
+              onOpenActions={setSheetUuid}
               selectionMode={false}
               selected={false}
               onToggleSelect={toggleSelect}
@@ -321,6 +341,43 @@ export default function TrashListMobile({
           ))
         )}
       </div>
+
+      {sheetItem && (
+        <MobileActionSheet
+          open
+          onOpenChange={(open) => !open && setSheetUuid(null)}
+          title={sheetItem.name}
+          description={[sheetItem.namespace, versionDisplay(sheetItem.metadata?.version?.[0])]
+            .filter(Boolean)
+            .join(" · ")}
+          icon={<ScriptIcon name={sheetItem.name} metadata={sheetItem.metadata} />}
+        >
+          <MobileActionSheetItem onSelect={() => void onRestore([sheetItem.uuid])}>
+            {t("script:trash_restore")}
+          </MobileActionSheetItem>
+          {/* 面板关闭会连带销毁挂在面板项上的气泡确认，故彻底删除走列表级的模态 */}
+          <MobileActionSheetItem destructive onSelect={() => setPendingPurge(sheetItem)}>
+            {t("script:trash_purge")}
+          </MobileActionSheetItem>
+        </MobileActionSheet>
+      )}
+
+      <AlertDialog open={pendingPurge !== null} onOpenChange={(open) => !open && setPendingPurge(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("script:trash_purge")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingPurge && t("script:trash_purge_one_confirm", { name: pendingPurge.name })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("editor:cancel")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => pendingPurge && void onPurge([pendingPurge.uuid])}>
+              {t("script:trash_purge")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -329,6 +386,9 @@ export default function TrashListMobile({
 function TrashRowMobile({
   item,
   daysLeft,
+  swipeOpen,
+  onSwipeOpenChange,
+  onOpenActions,
   selectionMode,
   selected,
   onToggleSelect,
@@ -338,6 +398,9 @@ function TrashRowMobile({
 }: {
   item: TrashScript;
   daysLeft: number | null;
+  swipeOpen: boolean;
+  onSwipeOpenChange: (uuid: string, open: boolean) => void;
+  onOpenActions: (uuid: string) => void;
   selectionMode: boolean;
   selected: boolean;
   onToggleSelect: (uuid: string) => void;
@@ -351,6 +414,8 @@ function TrashRowMobile({
 
   return (
     <MobileSwipeRow
+      open={swipeOpen}
+      onOpenChange={(open) => onSwipeOpenChange(item.uuid, open)}
       {...(selectionMode ? {} : longPress)}
       actions={
         <>
@@ -387,7 +452,7 @@ function TrashRowMobile({
           )}
         </MobileListRowLeading>
 
-        <MobileListRowMain onClick={() => selectionMode && onToggleSelect(item.uuid)}>
+        <MobileListRowMain onClick={() => (selectionMode ? onToggleSelect(item.uuid) : onOpenActions(item.uuid))}>
           <span className="w-full truncate text-sm font-medium text-muted-foreground">{item.name}</span>
           <span className="flex w-full min-w-0 items-center gap-1.5">
             <span className="truncate text-[11px] text-muted-foreground">

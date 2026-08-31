@@ -396,11 +396,13 @@ export function ScriptRowActionSlots({
 
   return (
     <>
-      {/* 宽窗口摊开全部操作；窄窗口它们会把脚本名挤没（#1698），故 1000px 以下换成下面的紧凑排布。
-          min-w 取满配 7 个按钮的宽度：条件按钮的有无会改变本区宽度，进而把左侧的更新时间列推得逐行参差 */}
+      {/* 宽窗口摊开全部操作；窄窗口它们会把脚本名挤没（#1698），故窄于断点时换成下面的紧凑排布。
+          min-w 取满配 7 个按钮的宽度：条件按钮的有无会改变本区宽度，进而把左侧的更新时间列推得逐行参差。
+          断点取 1160 而非 1000：摊开态比紧凑态多占 160px，实测 1000px 处名称会从 253px 直接掉到 150px，
+          即「窗口拉宽反而更窄」；1160px 起摊开态才不会让名称比紧凑态更窄。 */}
       <span
         data-testid="row-actions-wide"
-        className="hidden min-w-[220px] items-center justify-end gap-1 min-[1000px]:flex"
+        className="hidden min-w-[220px] items-center justify-end gap-1 min-[1160px]:flex"
       >
         {home && (
           <ActionButton label={t("script:homepage")} onClick={() => openExternalUrl(home)}>
@@ -429,7 +431,7 @@ export function ScriptRowActionSlots({
         </ActionButton>
       </span>
 
-      <span data-testid="row-actions-compact" className="flex items-center gap-1 min-[1000px]:hidden">
+      <span data-testid="row-actions-compact" className="flex items-center gap-1 min-[1160px]:hidden">
         {/* 普通脚本没有运行按钮，留等宽占位让更多按钮在所有行对齐同一横坐标 */}
         {isBackground ? runButton : <span aria-hidden className="size-7 shrink-0" />}
 

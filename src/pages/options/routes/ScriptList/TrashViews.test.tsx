@@ -320,6 +320,42 @@ describe("回收站桌面端列表化", () => {
   });
 });
 
+describe("回收站移动端单条操作", () => {
+  const trashed = {
+    uuid: "trash-1",
+    name: "待还原脚本",
+    namespace: "verify",
+    deleteBy: "user",
+    deleteTime: Date.now(),
+  };
+
+  // 左滑是隐藏手势，不能是单条还原的唯一入口——脚本列表与订阅列表都有「点整行开面板」这条可见退路
+  it("点整行打开操作面板，面板里有还原与彻底删除", async () => {
+    requestTrashScripts.mockResolvedValue([trashed]);
+    renderWithRouter(<TrashListMobile />);
+    await screen.findByText("待还原脚本");
+
+    fireEvent.click(document.querySelector('[data-slot="mobile-list-row-main"]')!);
+
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).getByText("还原")).toBeInTheDocument();
+    expect(within(sheet).getByText("彻底删除")).toBeInTheDocument();
+  });
+
+  it("面板中的还原按该条发起请求", async () => {
+    requestTrashScripts.mockResolvedValue([trashed]);
+    requestRestoreScripts.mockResolvedValue({ restored: ["trash-1"], conflicts: [] });
+    renderWithRouter(<TrashListMobile />);
+    await screen.findByText("待还原脚本");
+    fireEvent.click(document.querySelector('[data-slot="mobile-list-row-main"]')!);
+
+    const sheet = await screen.findByRole("dialog");
+    fireEvent.click(within(sheet).getByText("还原"));
+
+    await waitFor(() => expect(requestRestoreScripts).toHaveBeenCalledWith(["trash-1"]));
+  });
+});
+
 describe("回收站移动端多选", () => {
   const trashed = {
     uuid: "trash-1",

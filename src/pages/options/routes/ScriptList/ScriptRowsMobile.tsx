@@ -50,6 +50,7 @@ import {
 
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -123,6 +124,8 @@ export default function ScriptRowsMobile({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [sheetUuid, setSheetUuid] = useState<string | null>(null);
+  // 同时只允许一行滑开：否则多行会各自挂着「删除」块，误触面积成倍增加
+  const [swipeOpenUuid, setSwipeOpenUuid] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ScriptLoading | null>(null);
   const [trashEnabled] = useSystemConfig("trash_enabled");
 
@@ -132,6 +135,11 @@ export default function ScriptRowsMobile({
   );
 
   const sortableIds = useMemo(() => scriptList.map((s) => s.uuid), [scriptList]);
+  const a11y = useMemo(() => ({ container: document.body }), []);
+  const handleSwipeOpenChange = useCallback(
+    (uuid: string, open: boolean) => setSwipeOpenUuid((prev) => (open ? uuid : prev === uuid ? null : prev)),
+    []
+  );
 
   const handleDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
@@ -172,12 +180,20 @@ export default function ScriptRowsMobile({
 
   return (
     <div className="flex-1 overflow-y-auto" data-tour="m-script-list">
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd} collisionDetection={closestCenter}>
+      <DndContext
+        sensors={sensors}
+        onDragEnd={handleDragEnd}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToVerticalAxis]}
+        accessibility={a11y}
+      >
         <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
           {scriptList.map((script) => (
             <DraggableRow key={script.uuid} id={script.uuid}>
               <ScriptRowMobile
                 script={script}
+                swipeOpen={swipeOpenUuid === script.uuid}
+                onSwipeOpenChange={handleSwipeOpenChange}
                 selectionMode={selectionMode}
                 selected={selectedUuids.has(script.uuid)}
                 onEnable={handleEnable}
@@ -234,6 +250,8 @@ export default function ScriptRowsMobile({
 // ========== 单行 ==========
 interface ScriptRowMobileProps {
   script: ScriptLoading;
+  swipeOpen: boolean;
+  onSwipeOpenChange: (uuid: string, open: boolean) => void;
   selectionMode: boolean;
   selected: boolean;
   onEnable: (script: ScriptLoading, checked: boolean) => void;
@@ -247,6 +265,8 @@ interface ScriptRowMobileProps {
 const ScriptRowMobile = React.memo(
   ({
     script,
+    swipeOpen,
+    onSwipeOpenChange,
     selectionMode,
     selected,
     onEnable,
@@ -274,6 +294,8 @@ const ScriptRowMobile = React.memo(
 
     return (
       <MobileSwipeRow
+        open={swipeOpen}
+        onOpenChange={(open) => onSwipeOpenChange(script.uuid, open)}
         {...(selectionMode ? {} : longPress)}
         actions={
           <>
@@ -336,16 +358,13 @@ const ScriptRowMobile = React.memo(
       </MobileSwipeRow>
     );
   },
+  // 与桌面行同理（见 ScriptTable.tsx 的 ScriptRow）：store 对任一字段变更都会为该行生成新对象引用，
+  // 逐字段比较会漏掉 name/metadata/selfMetadata 等，导致行显示过期的名称或版本。
   (prev, next) =>
-    prev.script.uuid === next.script.uuid &&
-    prev.script.status === next.script.status &&
-    prev.script.enableLoading === next.script.enableLoading &&
-    prev.script.actionLoading === next.script.actionLoading &&
-    prev.script.runStatus === next.script.runStatus &&
-    prev.script.updatetime === next.script.updatetime &&
-    prev.script.favorite === next.script.favorite &&
+    prev.script === next.script &&
     prev.selectionMode === next.selectionMode &&
-    prev.selected === next.selected
+    prev.selected === next.selected &&
+    prev.swipeOpen === next.swipeOpen
 );
 ScriptRowMobile.displayName = "ScriptRowMobile";
 
