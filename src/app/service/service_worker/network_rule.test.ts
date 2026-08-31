@@ -3,11 +3,11 @@ import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import {
   MAX_RULE_NAME_LENGTH,
+  NetworkRuleStateDAO,
   NetworkRuleStorageReadError,
   DEFAULT_NETWORK_RULE_STATE,
   cspRemovalAction,
   type NetworkRuleState,
-  type NetworkRuleStateDAO,
 } from "@App/app/repo/network_rule";
 import { NetworkRuleService, type NetworkRuleApplier } from "./network_rule";
 import { compileNetworkRules } from "./network_rule_compiler";
@@ -327,14 +327,41 @@ describe("NetworkRuleService", () => {
     expect(order).toEqual(["apply-start", "apply-end", "apply-start", "apply-end"]);
   });
 
-  it("写后重新读取不一致时返回 storage error 且不调用 DNR", async () => {
-    const { handlers, dao, applier } = createHarness();
-    const initial = (await handlers.get("getState")!()) as { state: NetworkRuleState };
-    vi.mocked(dao.saveState).mockResolvedValueOnce({ ...initial.state, revision: 99 });
+  it("经真实 DAO 与 chrome.storage 往返创建规则不会误报写入失败", async () => {
+    await chrome.storage.local.clear();
+    const handlers = new Map<string, Handler>();
+    const group = {
+      on: vi.fn((name: string, handler: Handler) => handlers.set(name, handler)),
+    } as unknown as Group;
+    const queue = { publish: vi.fn() } as unknown as IMessageQueue;
+    const dao = new NetworkRuleStateDAO();
+    const applier = { apply: vi.fn(async () => {}) } as Mocked<NetworkRuleApplier>;
+    new NetworkRuleService(group, queue, dao, compileNetworkRules, applier).init();
+
+    const created = (await handlers.get("createRule")!({ ...cspRule, baseRevision: 0, name: "Example" })) as {
+      outcome: string;
+      state: NetworkRuleState;
+    };
+
+    expect(created.outcome).toBe("applied");
+    expect(created.state.rules).toHaveLength(1);
+    expect((await dao.getState())!.rules).toHaveLength(1);
+  });
+
+  it("初始化读取抛出非预期错误时报 storage_read_failed", async () => {
+    const { handlers } = createHarness(undefined, new Error("storage backend unavailable"));
+
+    await expect(handlers.get("getState")!()).rejects.toMatchObject({ code: "storage_read_failed" });
+  });
+
+  it("mutation 前置读取抛出非预期错误时报 storage_read_failed", async () => {
+    const { handlers, dao } = createHarness();
+    await handlers.get("getState")!();
+    vi.mocked(dao.getState).mockRejectedValueOnce(new Error("storage backend unavailable"));
 
     await expect(handlers.get("createRule")!({ ...cspRule, baseRevision: 0 })).rejects.toMatchObject({
-      code: "storage_write_failed",
+      code: "storage_read_failed",
     });
-    expect(applier.apply).toHaveBeenCalledOnce();
+    expect(dao.saveState).not.toHaveBeenCalled();
   });
 });

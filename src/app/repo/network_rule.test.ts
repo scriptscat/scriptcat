@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_USER_RULES } from "@App/app/service/service_worker/dnr_rule_ids";
 import {
   NetworkRuleStateDAO,
+  NetworkRuleStorageError,
   NetworkRuleStorageReadError,
   NetworkRuleValidationError,
   DEFAULT_NETWORK_RULE_STATE,
@@ -63,8 +64,34 @@ describe("NetworkRuleStateDAO", () => {
   it("保存后重新读取完整 state 并完成 round-trip", async () => {
     const dao = new NetworkRuleStateDAO();
     const saved = state([rule("one")], { revision: 1 });
-    expect(await dao.saveState(saved)).toEqual(saved);
+    await dao.saveState(saved);
     expect(await dao.getState()).toEqual(saved);
+  });
+
+  it("storage 往返重排对象键序时保存仍算成功", async () => {
+    const dao = new NetworkRuleStateDAO();
+    const saved = state([rule("one")], { revision: 1 });
+
+    await expect(dao.saveState(saved)).resolves.toBeUndefined();
+
+    const readBack = await dao.getState();
+    expect(readBack).toEqual(saved);
+    // 真实 chrome.storage.local 会重排键序；mock 若退回保序，本用例会退化成同义反复，故在此钉住。
+    expect(Object.keys(readBack!.rules[0])).toEqual([...Object.keys(saved.rules[0])].sort());
+    expect(Object.keys(saved.rules[0])).not.toEqual([...Object.keys(saved.rules[0])].sort());
+  });
+
+  it("storage set 报告 runtime.lastError 时保存失败", async () => {
+    vi.spyOn(chrome.storage.local, "set").mockImplementationOnce(((_items: unknown, callback: () => void) => {
+      const lastError = { message: "QUOTA_BYTES quota exceeded" };
+      Object.defineProperty(chrome.runtime, "lastError", { configurable: true, value: lastError });
+      callback();
+      delete (chrome.runtime as unknown as Record<string, unknown>).lastError;
+    }) as never);
+
+    await expect(new NetworkRuleStateDAO().saveState(state([rule("one")], { revision: 1 }))).rejects.toBeInstanceOf(
+      NetworkRuleStorageError
+    );
   });
 });
 

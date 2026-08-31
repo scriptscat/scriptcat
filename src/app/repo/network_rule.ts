@@ -352,15 +352,14 @@ export class NetworkRuleStateDAO extends Repo<NetworkRuleState> {
     return next;
   }
 
-  async saveState(state: NetworkRuleState): Promise<NetworkRuleState> {
+  // 不做写后回读自证：chrome.storage.local 的真实失败（配额、IO）都经 runtime.lastError 变成 _save 的
+  // 拒绝，而回读只能看到序列化后的等价副本——真实浏览器里它的键序与写入时不同，回读比较反而把成功的
+  // 写入判成失败（见 PR #1598 继承的 csp_rule.ts）。
+  async saveState(state: NetworkRuleState): Promise<void> {
     validateNetworkRuleState(state);
     try {
       await this._save("state", state);
-      const saved = await this.getState();
-      if (!saved || JSON.stringify(saved) !== JSON.stringify(state)) throw new NetworkRuleStorageError();
-      return saved;
-    } catch (error) {
-      if (error instanceof NetworkRuleStorageError) throw error;
+    } catch {
       throw new NetworkRuleStorageError();
     }
   }

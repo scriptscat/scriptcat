@@ -5,8 +5,6 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 import {
   HEADER_OPERATIONS,
   MAX_RULE_NAME_LENGTH,
-  NetworkRuleStorageError,
-  NetworkRuleStorageReadError,
   NetworkRuleValidationError,
   DEFAULT_NETWORK_RULE_STATE,
   isDeniedRequestHeader,
@@ -323,10 +321,9 @@ export class NetworkRuleService {
           path: error.path,
           messageKey: error.messageKey,
         });
-      } else if (error instanceof NetworkRuleStorageReadError) {
-        this.initializationError = serviceError("storage_read_failed");
       } else {
-        this.initializationError = serviceError("storage_write_failed");
+        // getState 是纯读取路径，非预期异常同样属于读失败。
+        this.initializationError = serviceError("storage_read_failed");
       }
       return;
     }
@@ -392,8 +389,7 @@ export class NetworkRuleService {
       if (error instanceof NetworkRuleValidationError) {
         throw serviceError("unsupported_schema", { path: error.path, messageKey: error.messageKey });
       }
-      if (error instanceof NetworkRuleStorageReadError) throw serviceError("storage_read_failed");
-      throw serviceError("storage_write_failed");
+      throw serviceError("storage_read_failed");
     }
     if (persisted) this.confirmedState = persisted;
     const current = this.confirmedState!;
@@ -404,19 +400,16 @@ export class NetworkRuleService {
   }
 
   private async saveAndApply(state: NetworkRuleState): Promise<NetworkRuleMutationResult> {
-    let saved: NetworkRuleState;
     try {
-      saved = await this.stateDAO.saveState(state);
-      validateNetworkRuleState(saved);
-      if (JSON.stringify(saved) !== JSON.stringify(state)) throw new NetworkRuleStorageError();
+      await this.stateDAO.saveState(state);
     } catch (error) {
       if (error instanceof NetworkRuleValidationError) {
         throw serviceError("storage_write_failed", { path: error.path, messageKey: error.messageKey });
       }
       throw serviceError("storage_write_failed");
     }
-    this.confirmedState = saved;
-    const apply = await this.reconcile(saved);
+    this.confirmedState = state;
+    const apply = await this.reconcile(state);
     const snapshot = this.snapshot();
     this.publishStateChanged(snapshot);
     return { ...snapshot, outcome: apply.state === "applied" ? "applied" : "apply-error" };
