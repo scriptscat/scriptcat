@@ -8,10 +8,8 @@ import { cspRemovalAction, type NetworkRule } from "@App/app/repo/network_rule";
 import type { NetworkRuleClient } from "@App/app/service/service_worker/client";
 import type { NetworkRuleSnapshot } from "@App/app/service/service_worker/network_rule";
 
-const notify = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }));
-vi.mock("@App/pages/components/ui/toast", () => ({ notify }));
-
 import NetworkRules from ".";
+import { stubNotify } from "./test-helpers";
 
 const PAGE_ROWS = 20;
 
@@ -21,6 +19,7 @@ beforeAll(() => initTestLanguage("zh-CN"));
 beforeEach(() => {
   mockMatchMedia();
   vi.clearAllMocks();
+  stubNotify();
   reads.count = 0;
 });
 afterEach(() => {

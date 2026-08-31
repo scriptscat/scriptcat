@@ -8,15 +8,14 @@ import { cspRemovalAction, type NetworkRule, type NetworkRuleState } from "@App/
 import type { NetworkRuleClient } from "@App/app/service/service_worker/client";
 import type { NetworkRuleMutationResult } from "@App/app/service/service_worker/network_rule";
 
-const notify = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }));
-vi.mock("@App/pages/components/ui/toast", () => ({ notify }));
-
 import NetworkRules from ".";
+import { stubNotify } from "./test-helpers";
 
 beforeAll(() => initTestLanguage("zh-CN"));
 beforeEach(() => {
   mockMatchMedia();
   vi.clearAllMocks();
+  stubNotify();
   Object.assign(chrome.tabs, { query: vi.fn().mockResolvedValue([]), reload: vi.fn().mockResolvedValue(undefined) });
 });
 afterEach(() => {

@@ -4,24 +4,25 @@ import { Route, Routes } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
 import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
+import { notify } from "@App/pages/components/ui/toast";
 import { cspRemovalAction, type NetworkRule } from "@App/app/repo/network_rule";
 import type { NetworkRuleClient } from "@App/app/service/service_worker/client";
 import type { NetworkRuleMutationResult, NetworkRuleSnapshot } from "@App/app/service/service_worker/network_rule";
 import { extensionEnv } from "@App/app/service/extension/extension_env";
 
-const notify = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }));
-vi.mock("@App/pages/components/ui/toast", () => ({ notify }));
-
 import NetworkRules from ".";
+import { stubNotify } from "./test-helpers";
 
 beforeAll(() => initTestLanguage("zh-CN"));
 beforeEach(() => {
   mockMatchMedia();
   vi.clearAllMocks();
+  stubNotify();
 });
 afterEach(() => {
   extensionEnv.inIncognitoContext = false;
   extensionEnv.incognitoMode = "split";
+  vi.restoreAllMocks();
   cleanup();
 });
 
