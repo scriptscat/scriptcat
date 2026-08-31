@@ -17,6 +17,7 @@ import {
   type RuleDomainMessageKey,
   type RuleDomainParseResult,
 } from "@App/pkg/utils/network_rule_condition";
+import { matchRuleUrl } from "@App/pkg/utils/network_rule_match";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Button } from "@App/pages/components/ui/button";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
@@ -27,7 +28,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@App/pages/components/ui/textarea";
 import { cn } from "@App/pkg/utils/cn";
 import { useActionLabels } from "./RuleParts";
-import { matchRuleUrl } from "./rules";
 import {
   editsHeaderList,
   editsRequestHeaders,

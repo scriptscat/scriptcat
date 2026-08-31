@@ -36,10 +36,12 @@ import { Skeleton } from "@App/pages/components/ui/skeleton";
 import { Switch } from "@App/pages/components/ui/switch";
 import { notify } from "@App/pages/components/ui/toast";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
+import MatchTestDialog from "./MatchTestDialog";
 import { useActionLabels } from "./RuleParts";
 import RuleCards from "./RuleCards";
 import RuleSheet, { type NetworkRuleFormValue, type NetworkRuleSaveResult } from "./RuleSheet";
 import RuleTable from "./RuleTable";
+import { reloadVisibleWebTabs } from "./tabs";
 import {
   ACTION_FILTER_OPTIONS,
   enabledCount,
@@ -77,6 +79,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
   const [confirmDelete, setConfirmDelete] = useState<NetworkRule>();
   const [editingRule, setEditingRule] = useState<NetworkRule>();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [matchTestOpen, setMatchTestOpen] = useState(false);
 
   useEffect(() => {
     if (!isOwner) return;
@@ -123,6 +126,12 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
     }
   };
 
+  const notifyApplied = (title: string) =>
+    notify.success(title, {
+      description: t("tools:network_rules_reload_hint"),
+      action: { label: t("tools:network_rules_reload_tabs"), onClick: () => void reloadVisibleWebTabs() },
+    });
+
   // service worker 挂起时响应可能丢失，但请求已在后台生效：重新拉取权威 state 判断是否推进了 revision。
   const settleAmbiguous = async (baseRevision: number): Promise<boolean> => {
     try {
@@ -168,7 +177,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
       t("tools:network_rules_reorder_failed")
     );
     setPendingOrder(undefined);
-    if (ok) notify.success(t("tools:network_rules_rule_saved"));
+    if (ok) notifyApplied(t("tools:network_rules_rule_saved"));
   };
 
   const handleDragEnd = (activeId: string, overId: string) => {
@@ -240,7 +249,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
           });
       applyResult(result);
       if (result.outcome === "applied" && result.apply.state === "applied") {
-        notify.success(t("tools:network_rules_rule_saved"));
+        notifyApplied(t("tools:network_rules_rule_saved"));
       }
       setSheetOpen(false);
       return true;
@@ -266,7 +275,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
       (baseRevision) => client.deleteRule({ baseRevision, id: rule.id }),
       t("tools:network_rules_storage_error")
     );
-    if (ok) notify.success(t("tools:network_rules_rule_deleted"));
+    if (ok) notifyApplied(t("tools:network_rules_rule_deleted"));
   };
 
   const toggleSelect = (id: string, checked: boolean) =>
@@ -381,7 +390,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
                   <SelectItem value="disabled">{t("tools:network_rules_status_disabled")}</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="sm" disabled>
+              <Button variant="outline" size="sm" onClick={() => setMatchTestOpen(true)}>
                 {t("tools:network_rules_test_match")}
               </Button>
               <Button size="sm" disabled={loading || !state} onClick={() => openSheet()}>
@@ -506,6 +515,13 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
           setMovingRule(undefined);
           if (rule) moveTo(rule, position - 1);
         }}
+      />
+
+      <MatchTestDialog
+        key={matchTestOpen ? "match-open" : "match-closed"}
+        open={matchTestOpen}
+        rules={state?.masterEnabled ? rules : []}
+        onOpenChange={setMatchTestOpen}
       />
 
       <RuleSheet
