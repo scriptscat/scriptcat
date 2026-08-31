@@ -165,7 +165,9 @@ const getAllPropertyDescriptors = (
 ) => {
   while (obj && obj !== Object) {
     const descs = Object.getOwnPropertyDescriptors(obj);
-    Reflect.ownKeys(descs).forEach((key) => callback(key, descs[key as keyof typeof descs]));
+    for (const key of Reflect.ownKeys(descs)) {
+      callback(key, descs[key as keyof typeof descs]);
+    }
     obj = Object.getPrototypeOf(obj);
   }
 };
@@ -305,9 +307,9 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
     // 只读取 realmGlobal own descriptors，避免沿 Firefox 的 hostWindow 原型链混合两个 realm。
     // 主要是找出哪些 function 值、setter/getter 需要替换 host window。
     const descriptors = Object.getOwnPropertyDescriptors(realmGlobal);
-    Reflect.ownKeys(descriptors).forEach((key) => {
+    for (const key of Reflect.ownKeys(descriptors)) {
       const desc = descriptors[key as keyof typeof descriptors];
-      if (!desc || descsCache.has(key) || typeof key !== "string") return;
+      if (!desc || descsCache.has(key) || typeof key !== "string") continue;
 
       if (desc.writable) {
         // 替换 function 的 this 为实际的 global window。被封装的属性会继续向父类寻找原生属性；constructor/interface 则保留原值。
@@ -317,7 +319,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
         } else if (!(key in initOwnDescs) && !Object.hasOwn(realmGlobal, key) && !protoBaseDescs[key]) {
           protoBaseDescs[key] = materializeDescriptor(desc, realmGlobal);
         }
-        return;
+        continue;
       }
 
       if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
@@ -328,7 +330,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
         overriddenDescs[key] = materializeDescriptor(desc, realmGlobal);
         descsCache.add(key); // 必须：子类属性覆盖父类属性
       }
-    });
+    }
   };
 
   const collectHostWindowPrototypeDescriptors = () => {
