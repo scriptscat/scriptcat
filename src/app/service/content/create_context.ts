@@ -283,14 +283,12 @@ export type RealmRoots = {
 };
 
 const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSnapshot => {
-  // descsCache 记录已处理的属性；先处理的 realm/子类 descriptor 不会被后续父类覆盖。
+  // descsCache 记录已处理的属性；先处理的 descriptor 覆盖后续父类。
   const descsCache: Set<string | symbol> = new Set(["eval", "window", "self", "globalThis", "top", "parent"]);
   const initOwnDescs = Object.getOwnPropertyDescriptors(realmGlobal);
   // overriddenDescs 会以 sandbox own descriptor 覆盖原有定义；eventKeys 只记录需要模拟的 on* 属性。
   const overriddenDescs: DescriptorMap = Object.create(null);
   const eventKeys = new Set<string>();
-  // hostEventKeys 用于区分 host 原型事件，避免第二次遍历 hostWindow 时重复处理。
-  const hostEventKeys = new Set<string>();
   const protoBaseDescs: DescriptorMap = Object.create(null);
 
   const getHostWindowDescriptor = (key: string): PropertyDescriptor | undefined => {
@@ -304,29 +302,26 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
   };
 
   const collectRealmDescriptors = () => {
-    // 只读取 realmGlobal own descriptors，避免沿 Firefox 的 hostWindow 原型链混合两个 realm。
-    // 主要是找出哪些 function 值、setter/getter 需要替换 host window。
+    // 只读取 realmGlobal own descriptors，避免混合 Firefox 的两个 realm。
     const descriptors = Object.getOwnPropertyDescriptors(realmGlobal);
     for (const key of Reflect.ownKeys(descriptors)) {
       const desc = descriptors[key as keyof typeof descriptors];
       if (!desc || descsCache.has(key) || typeof key !== "string") continue;
 
       if (desc.writable) {
-        // 替换 function 的 this 为实际的 global window。被封装的属性会继续向父类寻找原生属性；constructor/interface 则保留原值。
+        // 原生 function 绑定到所属 root；constructor/interface 保留原值。
         if (shouldFnBind(desc.value)) {
           overriddenDescs[key] = materializeDescriptor(desc, realmGlobal);
           descsCache.add(key); // 必须：子类属性覆盖父类属性
-        } else if (!(key in initOwnDescs) && !Object.hasOwn(realmGlobal, key) && !protoBaseDescs[key]) {
-          protoBaseDescs[key] = materializeDescriptor(desc, realmGlobal);
         }
         continue;
       }
 
       if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
-        // 替换 onxxxxx 事件赋值操作，例如 (window.)onload、(window.)onerror。
+        // 替换 onxxxxx 事件赋值操作。
         eventKeys.add(key);
       } else if (desc.get || desc.set) {
-        // 替换 getter/setter 的 this 为实际的 global window，例如 (window.)location、(window.)document。
+        // 替换 getter/setter 的 this 为实际的 global window。
         overriddenDescs[key] = materializeDescriptor(desc, realmGlobal);
         descsCache.add(key); // 必须：子类属性覆盖父类属性
       }
@@ -342,7 +337,6 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
 
       if (desc.configurable && desc.get && desc.set && key.startsWith("on")) {
         eventKeys.add(key);
-        hostEventKeys.add(key);
         return;
       }
 
@@ -362,14 +356,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
 
   const collectHostWindowEventDescriptors = () => {
     getAllPropertyDescriptors(hostWindow, (key, desc) => {
-      if (
-        typeof key !== "string" ||
-        hostEventKeys.has(key) ||
-        !key.startsWith("on") ||
-        !desc.configurable ||
-        !desc.get ||
-        !desc.set
-      ) {
+      if (typeof key !== "string" || !key.startsWith("on") || !desc.configurable || !desc.get || !desc.set) {
         return;
       }
       eventKeys.add(key);
@@ -410,10 +397,10 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
     }
   };
 
-  // 第一趟 realmGlobal：Firefox 的 content / USER_SCRIPT world 在这里保留完整的 JavaScript 内置对象。
+  // 第一趟 realmGlobal：保留 JavaScript 内置对象。
   collectRealmDescriptors();
-  // 第二趟 hostWindow 原型链：补齐 Xray window 无法取得的 DOM/EventTarget 成员。
-  // 一般的 hostWindow own properties 不应带入沙盒，只有事件属性和下面的白名单会被转发。
+  // 第二趟 hostWindow 原型链：补齐 Xray 截断的 DOM/EventTarget 成员。
+  // hostWindow own properties 仅由事件属性和白名单转发。
   collectHostWindowPrototypeDescriptors();
   descsCache.clear(); // 内存释放
   collectHostWindowEventDescriptors();
