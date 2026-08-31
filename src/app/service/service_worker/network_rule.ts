@@ -41,8 +41,8 @@ export type NetworkRuleUpdateInput = {
   id: string;
   patch: Partial<Pick<NetworkRule, "name" | "condition" | "action">>;
 };
-export type NetworkRuleEnabledInput = { baseRevision: number; id: string; enabled: boolean };
-export type NetworkRuleDeleteInput = { baseRevision: number; id: string };
+export type NetworkRuleEnabledInput = { baseRevision: number; ids: string[]; enabled: boolean };
+export type NetworkRuleDeleteInput = { baseRevision: number; ids: string[] };
 export type NetworkRuleMasterEnabledInput = { baseRevision: number; enabled: boolean };
 export type NetworkRuleReorderInput = { baseRevision: number; order: string[] };
 
@@ -265,6 +265,25 @@ function normalizeAction(action: unknown, path: string): NetworkRuleAction {
   }
 }
 
+/** 批量操作是全体或全不：任何一个 ID 不成立都在写入前整批拒绝。 */
+function resolveRuleIds(current: NetworkRuleState, value: unknown): Set<string> {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw serviceError("invalid_input", { path: "ids", messageKey: "rule_ids_invalid" });
+  }
+  const known = new Set(current.rules.map((rule) => rule.id));
+  const ids = new Set<string>();
+  for (const [index, id] of value.entries()) {
+    if (typeof id !== "string") {
+      throw serviceError("invalid_input", { path: `ids[${index}]`, messageKey: "rule_ids_invalid" });
+    }
+    if (!known.has(id)) {
+      throw serviceError("not_found", { path: `ids[${index}]`, messageKey: "rule_not_found" });
+    }
+    ids.add(id);
+  }
+  return ids;
+}
+
 function validateBaseRevision(value: unknown): asserts value is number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
     throw serviceError("invalid_input", { path: "baseRevision", messageKey: "revision_invalid" });
@@ -297,8 +316,8 @@ export class NetworkRuleService {
     this.group.on("getState", () => this.getState());
     this.group.on("createRule", (input: NetworkRuleCreateInput) => this.createRule(input));
     this.group.on("updateRule", (input: NetworkRuleUpdateInput) => this.updateRule(input));
-    this.group.on("deleteRule", (input: NetworkRuleDeleteInput) => this.deleteRule(input));
-    this.group.on("setRuleEnabled", (input: NetworkRuleEnabledInput) => this.setRuleEnabled(input));
+    this.group.on("deleteRules", (input: NetworkRuleDeleteInput) => this.deleteRules(input));
+    this.group.on("setRulesEnabled", (input: NetworkRuleEnabledInput) => this.setRulesEnabled(input));
     this.group.on("setMasterEnabled", (input: NetworkRuleMasterEnabledInput) => this.setMasterEnabled(input));
     this.group.on("reorderRules", (input: NetworkRuleReorderInput) => this.reorderRules(input));
     this.group.on("retryApply", () => this.retryApply());
@@ -495,32 +514,34 @@ export class NetworkRuleService {
     });
   }
 
-  private async deleteRule(input: NetworkRuleDeleteInput): Promise<NetworkRuleMutationResult> {
+  private async deleteRules(input: NetworkRuleDeleteInput): Promise<NetworkRuleMutationResult> {
     return this.enqueue(async () => {
       const current = await this.currentForMutation(input?.baseRevision);
-      if (!current.rules.some((rule) => rule.id === input?.id)) {
-        throw serviceError("not_found", { path: "id", messageKey: "rule_not_found" });
-      }
+      const ids = resolveRuleIds(current, input?.ids);
+      // 顺序数组与规则集在同一次写入里裁剪，删完不会留下指向已删规则的顺序项。
       return this.saveAndApply({
         ...current,
         revision: current.revision + 1,
-        rules: current.rules.filter((rule) => rule.id !== input.id),
-        order: current.order.filter((id) => id !== input.id),
+        rules: current.rules.filter((rule) => !ids.has(rule.id)),
+        order: current.order.filter((id) => !ids.has(id)),
       });
     });
   }
 
-  private async setRuleEnabled(input: NetworkRuleEnabledInput): Promise<NetworkRuleMutationResult> {
+  private async setRulesEnabled(input: NetworkRuleEnabledInput): Promise<NetworkRuleMutationResult> {
     return this.enqueue(async () => {
       const current = await this.currentForMutation(input?.baseRevision);
-      const index = current.rules.findIndex((rule) => rule.id === input?.id);
-      if (index < 0) throw serviceError("not_found", { path: "id", messageKey: "rule_not_found" });
+      const ids = resolveRuleIds(current, input?.ids);
       if (typeof input.enabled !== "boolean") {
         throw serviceError("invalid_input", { path: "enabled", messageKey: "boolean_invalid" });
       }
-      if (current.rules[index].enabled === input.enabled) return this.unchanged();
-      const rules = [...current.rules];
-      rules[index] = { ...rules[index], enabled: input.enabled, updatedAt: Date.now() };
+      const changing = current.rules.filter((rule) => ids.has(rule.id) && rule.enabled !== input.enabled);
+      if (changing.length === 0) return this.unchanged();
+      const changed = new Set(changing.map((rule) => rule.id));
+      const updatedAt = Date.now();
+      const rules = current.rules.map((rule) =>
+        changed.has(rule.id) ? { ...rule, enabled: input.enabled, updatedAt } : rule
+      );
       return this.saveAndApply({ ...current, revision: current.revision + 1, rules });
     });
   }

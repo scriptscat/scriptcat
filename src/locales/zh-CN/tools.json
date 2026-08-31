@@ -40,8 +40,6 @@
   "network_rules_select_all": "选择本页规则",
   "network_rules_bulk_actions": "批量操作",
   "network_rules_selected_count": "已选 {{count}} 条",
-  "network_rules_bulk_progress": "处理中 {{done}} / {{total}}",
-  "network_rules_bulk_partial": "已完成 {{done}} 条，共 {{total}} 条；其余未改动。",
   "network_rules_bulk_enable": "启用",
   "network_rules_bulk_disable": "停用",
   "network_rules_bulk_delete": "删除",

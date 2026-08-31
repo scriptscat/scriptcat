@@ -40,8 +40,6 @@
   "network_rules_select_all": "Select rules on this page",
   "network_rules_bulk_actions": "Bulk actions",
   "network_rules_selected_count": "{{count}} selected",
-  "network_rules_bulk_progress": "Working {{done}} / {{total}}",
-  "network_rules_bulk_partial": "{{done}} of {{total}} done; the rest were left unchanged.",
   "network_rules_bulk_enable": "Enable",
   "network_rules_bulk_disable": "Disable",
   "network_rules_bulk_delete": "Delete",

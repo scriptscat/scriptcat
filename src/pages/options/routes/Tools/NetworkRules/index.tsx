@@ -75,8 +75,6 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
 
   const { snapshot, setSnapshot, loading, loadError, setLoadError } = useNetworkRuleSnapshot(client, isOwner);
   const [busy, setBusy] = useState<string>();
-  // 批量操作逐条往返，没有进度用户只看得到整页被禁用。
-  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number }>();
   const [query, setQuery] = useState("");
   const [actionFilter, setActionFilter] = useState<ActionFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -190,62 +188,6 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
     [state, applyResult, settleAmbiguous, setSnapshot, t]
   );
 
-  // 每条改动都会推进 revision，一批规则只能串行执行并把上一步返回的 revision 接力给下一步。
-  const runBulk = useCallback(
-    async (
-      key: string,
-      rules: NetworkRule[],
-      call: (rule: NetworkRule, baseRevision: number) => Promise<NetworkRuleMutationResult>
-    ): Promise<boolean> => {
-      if (!state) return false;
-      const total = rules.length;
-      setBusy(key);
-      setBulkProgress({ done: 0, total });
-      let revision = state.revision;
-      let done = 0;
-      let failure: string | undefined;
-      let applyFailed = false;
-      for (const rule of rules) {
-        try {
-          const result = await call(rule, revision);
-          revision = result.state.revision;
-          setSnapshot(result);
-          if (result.outcome !== "applied" || result.apply.state !== "applied") applyFailed = true;
-        } catch (error) {
-          if (error instanceof NetworkRuleAmbiguousResponseError) {
-            const settled = await settleAmbiguous(revision);
-            if (settled !== undefined) {
-              revision = settled;
-              done += 1;
-              setBulkProgress({ done, total });
-              continue;
-            }
-            failure = t("tools:network_rules_storage_error");
-          } else {
-            const parsed = parseNetworkRuleError(error);
-            if (parsed.snapshot) setSnapshot(parsed.snapshot);
-            failure =
-              parsed.code === "revision_conflict"
-                ? t("tools:network_rules_revision_conflict")
-                : t("tools:network_rules_storage_error");
-          }
-          break;
-        }
-        done += 1;
-        setBulkProgress({ done, total });
-      }
-      setBusy(undefined);
-      setBulkProgress(undefined);
-      // 中断前已经落地的那几条不会回滚，只报一句「未能保存」会让用户以为什么都没变。
-      if (failure && done > 0)
-        notify.error(failure, { description: t("tools:network_rules_bulk_partial", { done, total }) });
-      else if (failure) notify.error(failure);
-      else if (applyFailed) notify.error(t("tools:network_rules_rule_saved_apply_failed"));
-      return failure === undefined && !applyFailed;
-    },
-    [state, settleAmbiguous, setSnapshot, t]
-  );
-
   const persistOrder = useCallback(
     async (nextOrder: string[]) => {
       setPendingOrder(nextOrder);
@@ -284,7 +226,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
     (rule: NetworkRule, enabled: boolean) =>
       mutate(
         rule.id,
-        (baseRevision) => client.setRuleEnabled({ baseRevision, id: rule.id, enabled }),
+        (baseRevision) => client.setRulesEnabled({ baseRevision, ids: [rule.id], enabled }),
         t("tools:network_rules_storage_error")
       ),
     [client, mutate, t]
@@ -304,10 +246,17 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
   const setSelectedEnabled = (enabled: boolean) => {
     const targets = selectedRules.filter((rule) => rule.enabled !== enabled);
     const run = async () => {
-      await runBulk("bulk", targets, (rule, baseRevision) =>
-        client.setRuleEnabled({ baseRevision, id: rule.id, enabled })
+      if (targets.length === 0) {
+        clearSelection();
+        return;
+      }
+      const ok = await mutate(
+        "bulk",
+        (baseRevision) => client.setRulesEnabled({ baseRevision, ids: targets.map((rule) => rule.id), enabled }),
+        t("tools:network_rules_storage_error")
       );
-      clearSelection();
+      // 整批要么全落地要么全被拒，失败时保留选中项，用户可以直接重试。
+      if (ok) clearSelection();
     };
     if (enabled && targets.some((rule) => isAllSitesCondition(rule.condition))) {
       setConfirmAllSites({ run: () => void run() });
@@ -380,10 +329,17 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
   };
 
   const deleteRules = async (rules: NetworkRule[]) => {
-    const conditions = rules.map((rule) => rule.condition);
-    const ok = await runBulk("bulk", rules, (rule, baseRevision) => client.deleteRule({ baseRevision, id: rule.id }));
+    const ok = await mutate(
+      "bulk",
+      (baseRevision) => client.deleteRules({ baseRevision, ids: rules.map((rule) => rule.id) }),
+      t("tools:network_rules_storage_error")
+    );
+    if (!ok) return;
     clearSelection();
-    if (ok) notifyApplied(t("tools:network_rules_rule_deleted"), conditions);
+    notifyApplied(
+      t("tools:network_rules_rule_deleted"),
+      rules.map((rule) => rule.condition)
+    );
   };
 
   const toggleSelect = useCallback(
@@ -635,7 +591,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
               />
             )}
 
-            {(selectedRules.length > 0 || bulkProgress !== undefined) && (
+            {selectedRules.length > 0 && (
               <div
                 role="toolbar"
                 aria-label={t("tools:network_rules_bulk_actions")}
@@ -648,9 +604,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
                   <Minus className="size-3 text-primary-foreground" />
                 </span>
                 <span className="flex-1 text-sm font-semibold text-primary" aria-live="polite">
-                  {bulkProgress
-                    ? t("tools:network_rules_bulk_progress", bulkProgress)
-                    : t("tools:network_rules_selected_count", { count: selectedRules.length })}
+                  {t("tools:network_rules_selected_count", { count: selectedRules.length })}
                 </span>
                 <Button
                   variant="outline"
@@ -679,11 +633,9 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
                   <Trash2 />
                   {t("tools:network_rules_bulk_delete")}
                 </Button>
-                {bulkProgress === undefined && (
-                  <Button variant="link" size="xs" className="h-auto p-0" onClick={clearSelection}>
-                    {t("tools:network_rules_clear_selection")}
-                  </Button>
-                )}
+                <Button variant="link" size="xs" className="h-auto p-0" onClick={clearSelection}>
+                  {t("tools:network_rules_clear_selection")}
+                </Button>
               </div>
             )}
             {!loading && !loadError && pageRules.length > 0 && (

@@ -40,8 +40,6 @@
   "network_rules_select_all": "Chọn các quy tắc trên trang này",
   "network_rules_bulk_actions": "Thao tác hàng loạt",
   "network_rules_selected_count": "Đã chọn {{count}}",
-  "network_rules_bulk_progress": "Đang xử lý {{done}} / {{total}}",
-  "network_rules_bulk_partial": "Đã xong {{done}} trên {{total}}; phần còn lại không thay đổi.",
   "network_rules_bulk_enable": "Bật",
   "network_rules_bulk_disable": "Tắt",
   "network_rules_bulk_delete": "Xóa",

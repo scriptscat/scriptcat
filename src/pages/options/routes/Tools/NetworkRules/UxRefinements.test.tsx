@@ -57,11 +57,14 @@ function clientFor(rules: NetworkRule[], overrides: Partial<NetworkRuleClient> =
     setMasterEnabled: vi.fn(),
     reorderRules: vi.fn(),
     retryApply: vi.fn(),
-    setRuleEnabled: vi.fn(async ({ id, enabled }: { id: string; enabled: boolean }) =>
-      commit({ rules: state.rules.map((r) => (r.id === id ? { ...r, enabled } : r)) })
+    setRulesEnabled: vi.fn(async ({ ids, enabled }: { ids: string[]; enabled: boolean }) =>
+      commit({ rules: state.rules.map((r) => (ids.includes(r.id) ? { ...r, enabled } : r)) })
     ),
-    deleteRule: vi.fn(async ({ id }: { id: string }) =>
-      commit({ rules: state.rules.filter((r) => r.id !== id), order: state.order.filter((o) => o !== id) })
+    deleteRules: vi.fn(async ({ ids }: { ids: string[] }) =>
+      commit({
+        rules: state.rules.filter((r) => !ids.includes(r.id)),
+        order: state.order.filter((o) => !ids.includes(o)),
+      })
     ),
     ...overrides,
   } as unknown as NetworkRuleClient;
@@ -81,73 +84,6 @@ async function flush() {
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
-
-describe("网络规则批量操作的进度与部分失败", () => {
-  it("逐条推进时显示进度，全部成功后进度消失", async () => {
-    const rules = [rule(1), rule(2), rule(3)];
-    const gates: Array<() => void> = [];
-    const client = clientFor(rules, {
-      // 每次调用挂起，由测试逐个放行，才能在中途读到进度。
-      setRuleEnabled: vi.fn(
-        () =>
-          new Promise<NetworkRuleMutationResult>((resolve) => {
-            const revision = 3 + gates.length + 1;
-            gates.push(() =>
-              resolve({
-                state: { schemaVersion: 1, revision, masterEnabled: true, rules, order: rules.map((r) => r.id) },
-                apply: { state: "applied", revision, appliedAt: 1 },
-                outcome: "applied",
-              } as NetworkRuleMutationResult)
-            );
-          })
-      ),
-    });
-    renderPage(client);
-    expect(await screen.findByText("规则 1")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("checkbox", { name: "选择 规则 1" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "选择 规则 2" }));
-    fireEvent.click(within(screen.getByRole("toolbar")).getByRole("button", { name: "停用" }));
-    await flush();
-
-    expect(screen.getByText("处理中 0 / 2")).toBeInTheDocument();
-    await act(async () => gates[0]());
-    expect(screen.getByText("处理中 1 / 2")).toBeInTheDocument();
-    await act(async () => gates[1]());
-    await flush();
-    expect(screen.queryByText(/处理中/)).not.toBeInTheDocument();
-  });
-
-  it("中途失败时说清已改了几条、其余未动，而不是只报一句失败", async () => {
-    let calls = 0;
-    const client = clientFor([rule(1), rule(2), rule(3)], {
-      deleteRule: vi.fn(async () => {
-        calls += 1;
-        if (calls === 2) throw new Error("boom");
-        return {
-          state: { schemaVersion: 1, revision: 3 + calls, masterEnabled: true, rules: [], order: [] },
-          apply: { state: "applied", revision: 3 + calls, appliedAt: 1 },
-          outcome: "applied",
-        } as NetworkRuleMutationResult;
-      }),
-    });
-    renderPage(client);
-    expect(await screen.findByText("规则 1")).toBeInTheDocument();
-
-    for (const name of ["规则 1", "规则 2", "规则 3"]) {
-      fireEvent.click(screen.getByRole("checkbox", { name: `选择 ${name}` }));
-    }
-    fireEvent.click(within(screen.getByRole("toolbar")).getByRole("button", { name: "删除" }));
-    await flush();
-    fireEvent.click(screen.getByRole("button", { name: "删除规则" }));
-    await flush();
-
-    expect(notify.error).toHaveBeenCalledWith(expect.any(String), {
-      description: "已完成 1 条，共 3 条；其余未改动。",
-    });
-    expect(notify.success).not.toHaveBeenCalled();
-  });
-});
 
 describe("网络规则空态", () => {
   it("给出常用场景入口，点一下直接进到该场景的表单", async () => {

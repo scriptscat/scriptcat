@@ -40,8 +40,6 @@
   "network_rules_select_all": "このページのルールを選択",
   "network_rules_bulk_actions": "一括操作",
   "network_rules_selected_count": "{{count}} 件を選択中",
-  "network_rules_bulk_progress": "処理中 {{done}} / {{total}}",
-  "network_rules_bulk_partial": "{{total}} 件中 {{done}} 件を完了しました。残りは変更していません。",
   "network_rules_bulk_enable": "有効化",
   "network_rules_bulk_disable": "無効化",
   "network_rules_bulk_delete": "削除",

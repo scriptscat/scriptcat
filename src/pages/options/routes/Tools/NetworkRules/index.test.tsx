@@ -53,8 +53,8 @@ function clientFor(current: NetworkRuleSnapshot, overrides: Partial<NetworkRuleC
     getState: vi.fn().mockResolvedValue(current),
     createRule: vi.fn().mockResolvedValue(mutated),
     updateRule: vi.fn().mockResolvedValue(mutated),
-    deleteRule: vi.fn().mockResolvedValue(mutated),
-    setRuleEnabled: vi.fn(),
+    deleteRules: vi.fn().mockResolvedValue(mutated),
+    setRulesEnabled: vi.fn(),
     setMasterEnabled: vi.fn(),
     // 服务端会带着新顺序回包，mock 必须还原这一点，否则页面无从判断保存是否生效。
     reorderRules: vi.fn(async ({ order }: { order: string[] }) => ({
@@ -427,12 +427,12 @@ describe("网络规则编辑抽屉", () => {
     expect(await screen.findByText("规则 1")).toBeInTheDocument();
 
     await openRowAction(screen.getAllByTestId("network-rule-row")[0], "删除");
-    expect(client.deleteRule).not.toHaveBeenCalled();
+    expect(client.deleteRules).not.toHaveBeenCalled();
     expect(screen.getByText(/停用/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "删除规则" }));
     await flush();
-    expect(client.deleteRule).toHaveBeenCalledWith({ baseRevision: 3, id: "r1" });
+    expect(client.deleteRules).toHaveBeenCalledWith({ baseRevision: 3, ids: ["r1"] });
   });
 });
 

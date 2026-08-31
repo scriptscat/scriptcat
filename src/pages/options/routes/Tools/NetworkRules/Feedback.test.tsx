@@ -64,8 +64,8 @@ function clientFor(current: NetworkRuleSnapshot, overrides: Partial<NetworkRuleC
     getState: vi.fn().mockResolvedValue(current),
     createRule: vi.fn(),
     updateRule: vi.fn(),
-    deleteRule: vi.fn(),
-    setRuleEnabled: vi.fn(),
+    deleteRules: vi.fn(),
+    setRulesEnabled: vi.fn(),
     setMasterEnabled: vi.fn(),
     reorderRules: vi.fn(),
     retryApply: vi.fn(),
@@ -116,7 +116,7 @@ describe("网络规则的成败反馈", () => {
   it("删除保存成功但浏览器未接受时只报失败，不同时弹成功", async () => {
     const current = snapshot([rule(1)]);
     const client = clientFor(current, {
-      deleteRule: vi.fn().mockResolvedValue(applyFailed(current)),
+      deleteRules: vi.fn().mockResolvedValue(applyFailed(current)),
     } as unknown as Partial<NetworkRuleClient>);
     renderPage(client);
     expect(await screen.findByText("规则 1")).toBeInTheDocument();
@@ -127,7 +127,7 @@ describe("网络规则的成败反馈", () => {
     fireEvent.click(screen.getByRole("button", { name: "删除规则" }));
     await flush();
 
-    expect(client.deleteRule).toHaveBeenCalled();
+    expect(client.deleteRules).toHaveBeenCalled();
     expect(notify.error).toHaveBeenCalledWith("规则已保存，但浏览器规则未能更新。");
     expect(notify.success).not.toHaveBeenCalled();
   });

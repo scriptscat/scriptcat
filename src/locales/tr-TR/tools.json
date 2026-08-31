@@ -40,8 +40,6 @@
   "network_rules_select_all": "Bu sayfadaki kuralları seç",
   "network_rules_bulk_actions": "Toplu işlemler",
   "network_rules_selected_count": "{{count}} seçildi",
-  "network_rules_bulk_progress": "İşleniyor {{done}} / {{total}}",
-  "network_rules_bulk_partial": "{{total}} kuraldan {{done}} tanesi tamamlandı; kalanlar değişmedi.",
   "network_rules_bulk_enable": "Etkinleştir",
   "network_rules_bulk_disable": "Devre dışı bırak",
   "network_rules_bulk_delete": "Sil",

@@ -40,8 +40,6 @@
   "network_rules_select_all": "이 페이지의 규칙 선택",
   "network_rules_bulk_actions": "일괄 작업",
   "network_rules_selected_count": "{{count}}개 선택됨",
-  "network_rules_bulk_progress": "처리 중 {{done}} / {{total}}",
-  "network_rules_bulk_partial": "{{total}}개 중 {{done}}개를 완료했습니다. 나머지는 변경되지 않았습니다.",
   "network_rules_bulk_enable": "사용",
   "network_rules_bulk_disable": "사용 안 함",
   "network_rules_bulk_delete": "삭제",

@@ -40,8 +40,6 @@
   "network_rules_select_all": "Выбрать правила на этой странице",
   "network_rules_bulk_actions": "Массовые действия",
   "network_rules_selected_count": "Выбрано: {{count}}",
-  "network_rules_bulk_progress": "Обработка {{done}} / {{total}}",
-  "network_rules_bulk_partial": "Выполнено {{done}} из {{total}}; остальные не изменены.",
   "network_rules_bulk_enable": "Включить",
   "network_rules_bulk_disable": "Отключить",
   "network_rules_bulk_delete": "Удалить",

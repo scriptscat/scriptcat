@@ -129,12 +129,12 @@ export class NetworkRuleClient extends Client {
     return this.request<NetworkRuleMutationResult>("updateRule", input);
   }
 
-  deleteRule(input: NetworkRuleDeleteInput): Promise<NetworkRuleMutationResult> {
-    return this.request<NetworkRuleMutationResult>("deleteRule", input);
+  deleteRules(input: NetworkRuleDeleteInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("deleteRules", input);
   }
 
-  setRuleEnabled(input: NetworkRuleEnabledInput): Promise<NetworkRuleMutationResult> {
-    return this.request<NetworkRuleMutationResult>("setRuleEnabled", input);
+  setRulesEnabled(input: NetworkRuleEnabledInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("setRulesEnabled", input);
   }
 
   setMasterEnabled(input: NetworkRuleMasterEnabledInput): Promise<NetworkRuleMutationResult> {

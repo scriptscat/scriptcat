@@ -36,8 +36,8 @@ function rule(index: number, over: Partial<NetworkRule> = {}): NetworkRule {
   };
 }
 
-/** mock 真实地推进 revision 与规则集，批量操作才会暴露「用陈旧 revision 接力」这类错误。 */
-function clientFor(rules: NetworkRule[]): NetworkRuleClient {
+/** mock 真实地推进 revision 与规则集，批量操作才会暴露「用陈旧 revision」这类错误。 */
+function clientFor(rules: NetworkRule[], overrides: Partial<NetworkRuleClient> = {}): NetworkRuleClient {
   let state: NetworkRuleState = {
     schemaVersion: 1,
     revision: 3,
@@ -57,12 +57,16 @@ function clientFor(rules: NetworkRule[]): NetworkRuleClient {
     setMasterEnabled: vi.fn(),
     reorderRules: vi.fn(),
     retryApply: vi.fn(),
-    setRuleEnabled: vi.fn(async ({ id, enabled }: { id: string; enabled: boolean }) =>
-      commit({ rules: state.rules.map((r) => (r.id === id ? { ...r, enabled } : r)) })
+    setRulesEnabled: vi.fn(async ({ ids, enabled }: { ids: string[]; enabled: boolean }) =>
+      commit({ rules: state.rules.map((r) => (ids.includes(r.id) ? { ...r, enabled } : r)) })
     ),
-    deleteRule: vi.fn(async ({ id }: { id: string }) =>
-      commit({ rules: state.rules.filter((r) => r.id !== id), order: state.order.filter((o) => o !== id) })
+    deleteRules: vi.fn(async ({ ids }: { ids: string[] }) =>
+      commit({
+        rules: state.rules.filter((r) => !ids.includes(r.id)),
+        order: state.order.filter((o) => !ids.includes(o)),
+      })
     ),
+    ...overrides,
   } as unknown as NetworkRuleClient;
 }
 
@@ -95,7 +99,7 @@ function clickBulk(label: string) {
 
 function argsOf(mock: unknown) {
   return vi
-    .mocked(mock as (input: { baseRevision: number; id: string; enabled?: boolean }) => unknown)
+    .mocked(mock as (input: { baseRevision: number; ids: string[]; enabled?: boolean }) => unknown)
     .mock.calls.map((call) => call[0]);
 }
 
@@ -113,11 +117,8 @@ describe("网络规则批量操作", () => {
     clickBulk("停用");
     await flush();
 
-    // 每条改动都会推进 revision，串行接力才不会撞上冲突。
-    expect(argsOf(client.setRuleEnabled)).toEqual([
-      { baseRevision: 3, id: "r1", enabled: false },
-      { baseRevision: 4, id: "r3", enabled: false },
-    ]);
+    // 一次用户操作只发一次请求：服务端在同一次写入里改完这两条。
+    expect(argsOf(client.setRulesEnabled)).toEqual([{ baseRevision: 3, ids: ["r1", "r3"], enabled: false }]);
     expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
   });
 
@@ -131,7 +132,7 @@ describe("网络规则批量操作", () => {
     clickBulk("删除");
     await flush();
 
-    expect(client.deleteRule).not.toHaveBeenCalled();
+    expect(client.deleteRules).not.toHaveBeenCalled();
     const dialog = screen.getByRole("alertdialog");
     expect(within(dialog).getByText("删除选中的 2 条规则？")).toBeInTheDocument();
     expect(within(dialog).getByText(/停用/)).toBeInTheDocument();
@@ -139,10 +140,7 @@ describe("网络规则批量操作", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "删除规则" }));
     await flush();
 
-    expect(argsOf(client.deleteRule)).toEqual([
-      { baseRevision: 3, id: "r1" },
-      { baseRevision: 4, id: "r3" },
-    ]);
+    expect(argsOf(client.deleteRules)).toEqual([{ baseRevision: 3, ids: ["r1", "r3"] }]);
     expect(screen.queryByText("规则 1")).not.toBeInTheDocument();
     expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
   });
@@ -162,14 +160,36 @@ describe("网络规则批量操作", () => {
     clickBulk("启用");
     await flush();
 
-    expect(client.setRuleEnabled).not.toHaveBeenCalled();
+    expect(client.setRulesEnabled).not.toHaveBeenCalled();
     fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "继续" }));
     await flush();
 
-    expect(argsOf(client.setRuleEnabled)).toEqual([
-      { baseRevision: 3, id: "r2", enabled: true },
-      { baseRevision: 4, id: "r3", enabled: true },
-    ]);
+    expect(argsOf(client.setRulesEnabled)).toEqual([{ baseRevision: 3, ids: ["r2", "r3"], enabled: true }]);
+  });
+
+  it("批量删除被拒绝时一条都没删，列表与选中项原样保留", async () => {
+    const client = clientFor([rule(1), rule(2), rule(3)], {
+      deleteRules: vi.fn().mockRejectedValue({ code: "revision_conflict" }),
+    } as unknown as Partial<NetworkRuleClient>);
+    renderPage(client);
+    expect(await screen.findByText("规则 1")).toBeInTheDocument();
+
+    selectRow("规则 1");
+    selectRow("规则 2");
+    selectRow("规则 3");
+    clickBulk("删除");
+    await flush();
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "删除规则" }));
+    await flush();
+
+    // 全体或全不：整批被拒绝时不能有任何一条已经消失。
+    expect(client.deleteRules).toHaveBeenCalledTimes(1);
+    for (const name of ["规则 1", "规则 2", "规则 3"]) {
+      expect(screen.getByText(name)).toBeInTheDocument();
+    }
+    expect(within(bulkBar()).getByText("已选 3 条")).toBeInTheDocument();
+    expect(notify.error).toHaveBeenCalledTimes(1);
+    expect(notify.success).not.toHaveBeenCalled();
   });
 
   it("翻页或改筛选会清空选择，操作栏随之消失", async () => {

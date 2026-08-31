@@ -40,8 +40,6 @@
   "network_rules_select_all": "Regeln auf dieser Seite auswählen",
   "network_rules_bulk_actions": "Massenaktionen",
   "network_rules_selected_count": "{{count}} ausgewählt",
-  "network_rules_bulk_progress": "In Arbeit {{done}} / {{total}}",
-  "network_rules_bulk_partial": "{{done}} von {{total}} erledigt; der Rest blieb unverändert.",
   "network_rules_bulk_enable": "Aktivieren",
   "network_rules_bulk_disable": "Deaktivieren",
   "network_rules_bulk_delete": "Löschen",

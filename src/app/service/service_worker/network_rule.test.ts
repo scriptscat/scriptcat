@@ -10,13 +10,17 @@ import {
   type NetworkRuleState,
 } from "@App/app/repo/network_rule";
 import { NetworkRuleService, type NetworkRuleApplier } from "./network_rule";
-import { compileNetworkRules } from "./network_rule_compiler";
+import { compileNetworkRules, DeclarativeNetRequestUserRuleApplier } from "./network_rule_compiler";
 
 type Handler = (params?: unknown) => Promise<unknown>;
 
 const cspRule = { enabled: true, condition: { requestDomains: ["example.com"] }, action: cspRemovalAction() };
 
-function createHarness(initialState?: NetworkRuleState, getStateError?: unknown) {
+function createHarness<A extends NetworkRuleApplier = Mocked<NetworkRuleApplier>>(
+  initialState?: NetworkRuleState,
+  getStateError?: unknown,
+  applier: A = { apply: vi.fn(async () => {}) } as unknown as A
+) {
   const handlers = new Map<string, Handler>();
   const group = {
     on: vi.fn((name: string, handler: Handler) => handlers.set(name, handler)),
@@ -46,12 +50,25 @@ function createHarness(initialState?: NetworkRuleState, getStateError?: unknown)
     );
     return next;
   };
-  const applier = {
-    apply: vi.fn(async () => {}),
-  } as Mocked<NetworkRuleApplier>;
   const service = new NetworkRuleService(group, queue, dao, compileNetworkRules, applier);
   service.init();
   return { service, handlers, group, queue, dao, applier };
+}
+
+/** 批量用例都需要一批真实创建出来的规则：createRule 每次推进 revision，接力返回最新值。 */
+async function seedRules(handlers: Map<string, Handler>, count: number) {
+  let revision = 0;
+  const ids: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const created = (await handlers.get("createRule")!({
+      ...cspRule,
+      baseRevision: revision,
+      condition: { requestDomains: [`s${index}.example.com`] },
+    })) as { state: NetworkRuleState };
+    revision = created.state.revision;
+    ids.push(created.state.rules.at(-1)!.id);
+  }
+  return { revision, ids };
 }
 
 describe("NetworkRuleService", () => {
@@ -149,15 +166,64 @@ describe("NetworkRuleService", () => {
     expect(compiled[0].priority).toBeGreaterThan(compiled[1].priority!);
   });
 
-  it("删除规则会同时移出顺序数组", async () => {
-    const { handlers } = createHarness();
-    const created = (await handlers.get("createRule")!({ ...cspRule, baseRevision: 0 })) as { state: NetworkRuleState };
-    const id = created.state.rules[0].id;
-    const deleted = (await handlers.get("deleteRule")!({ baseRevision: created.state.revision, id })) as {
+  it("批量删除三条只写一次 state、只更新一次动态规则，并同步移出顺序数组", async () => {
+    const dnr = chrome.declarativeNetRequest as typeof chrome.declarativeNetRequest & { resetMock(): void };
+    dnr.resetMock();
+    const { handlers, dao } = createHarness(undefined, undefined, new DeclarativeNetRequestUserRuleApplier());
+    const { revision, ids } = await seedRules(handlers, 3);
+    const update = vi.spyOn(chrome.declarativeNetRequest, "updateDynamicRules");
+    const writesBefore = vi.mocked(dao.saveState).mock.calls.length;
+
+    const deleted = (await handlers.get("deleteRules")!({ baseRevision: revision, ids: [ids[0], ids[2]] })) as {
       state: NetworkRuleState;
     };
-    expect(deleted.state.rules).toEqual([]);
-    expect(deleted.state.order).toEqual([]);
+
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(dao.saveState).mock.calls.length - writesBefore).toBe(1);
+    expect(deleted.state.rules.map((rule) => rule.id)).toEqual([ids[1]]);
+    expect(deleted.state.order).toEqual([ids[1]]);
+    expect(deleted.state.revision).toBe(revision + 1);
+  });
+
+  it("批量删除被拒绝时一条都不删除，顺序数组保持原样", async () => {
+    const { handlers, dao, applier } = createHarness();
+    const { revision, ids } = await seedRules(handlers, 3);
+    const before = dao.state;
+    const applies = applier.apply.mock.calls.length;
+
+    await expect(handlers.get("deleteRules")!({ baseRevision: revision - 1, ids })).rejects.toMatchObject({
+      code: "revision_conflict",
+    });
+    await expect(
+      handlers.get("deleteRules")!({ baseRevision: revision, ids: [ids[0], "missing"] })
+    ).rejects.toMatchObject({ code: "not_found" });
+
+    expect(dao.state).toBe(before);
+    expect(dao.state!.rules.map((rule) => rule.id)).toEqual(ids);
+    expect(dao.state!.order).toEqual(ids);
+    expect(applier.apply.mock.calls.length).toBe(applies);
+  });
+
+  it("批量启用只写入需要改变的规则，全部已是目标状态时不写入", async () => {
+    const { handlers, dao } = createHarness();
+    const { revision, ids } = await seedRules(handlers, 3);
+    const writesBefore = vi.mocked(dao.saveState).mock.calls.length;
+
+    const disabled = (await handlers.get("setRulesEnabled")!({
+      baseRevision: revision,
+      ids: [ids[0], ids[1]],
+      enabled: false,
+    })) as { state: NetworkRuleState };
+    expect(disabled.state.rules.map((rule) => rule.enabled)).toEqual([false, false, true]);
+    expect(vi.mocked(dao.saveState).mock.calls.length - writesBefore).toBe(1);
+
+    const again = (await handlers.get("setRulesEnabled")!({
+      baseRevision: disabled.state.revision,
+      ids: [ids[0], ids[1]],
+      enabled: false,
+    })) as { state: NetworkRuleState };
+    expect(again.state.revision).toBe(disabled.state.revision);
+    expect(vi.mocked(dao.saveState).mock.calls.length - writesBefore).toBe(1);
   });
 
   it("状态广播失败时仍返回已保存的 mutation 结果", async () => {
@@ -175,7 +241,7 @@ describe("NetworkRuleService", () => {
     const { handlers, dao, applier } = createHarness();
     await handlers.get("createRule")!({ ...cspRule, baseRevision: 0 });
     const before = dao.state;
-    await expect(handlers.get("deleteRule")!({ baseRevision: 0, id: before!.rules[0].id })).rejects.toMatchObject({
+    await expect(handlers.get("deleteRules")!({ baseRevision: 0, ids: [before!.rules[0].id] })).rejects.toMatchObject({
       code: "revision_conflict",
     });
     expect(dao.state).toBe(before);
