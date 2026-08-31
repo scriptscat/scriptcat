@@ -4,6 +4,7 @@ import type {
   NetworkRuleCondition,
   NetworkRuleState,
 } from "@App/app/repo/network_rule";
+import { NETWORK_RULE_RESOURCE_TYPES } from "@App/pkg/utils/network_rule_condition";
 import { USER_RULE_ID_MIN, isUserRuleId } from "./dnr_rule_ids";
 
 function compileCondition(condition: NetworkRuleCondition): chrome.declarativeNetRequest.RuleCondition {
@@ -13,8 +14,12 @@ function compileCondition(condition: NetworkRuleCondition): chrome.declarativeNe
   if (condition.excludedRequestDomains) compiled.excludedRequestDomains = [...condition.excludedRequestDomains];
   if (condition.initiatorDomains) compiled.initiatorDomains = [...condition.initiatorDomains];
   if (condition.excludedInitiatorDomains) compiled.excludedInitiatorDomains = [...condition.excludedInitiatorDomains];
-  if (condition.resourceTypes)
-    compiled.resourceTypes = [...condition.resourceTypes] as chrome.declarativeNetRequest.ResourceType[];
+  // DNR 自身的默认是「除 main_frame 外的全部资源类型」，会让「移除 CSP」「屏蔽请求」这类面向页面
+  // 本身的规则对导航无效（运行时验证已观察到）。资源类型又位于默认折叠的高级区，因此未显式选择时
+  // 在这里把受控集合列全：用户选了什么就编译成什么，没选则连主文档一起覆盖。
+  compiled.resourceTypes = [
+    ...(condition.resourceTypes ?? NETWORK_RULE_RESOURCE_TYPES),
+  ] as chrome.declarativeNetRequest.ResourceType[];
   if (condition.requestMethods)
     compiled.requestMethods = [...condition.requestMethods] as chrome.declarativeNetRequest.RequestMethod[];
   return compiled;

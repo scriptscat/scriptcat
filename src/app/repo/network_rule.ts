@@ -27,6 +27,7 @@ export type NetworkRuleCondition = {
   excludedRequestDomains?: string[];
   initiatorDomains?: string[];
   excludedInitiatorDomains?: string[];
+  /** 留空表示不限资源类型；编译时展开为含 main_frame 的全部类型，而不是沿用 DNR「除主文档外」的默认。 */
   resourceTypes?: NetworkRuleResourceType[];
   requestMethods?: NetworkRuleRequestMethod[];
 };
