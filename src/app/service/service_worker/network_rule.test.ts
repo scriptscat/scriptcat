@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi, type Mocked } from "vitest";
 import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import {
+  MAX_RULE_NAME_LENGTH,
   NetworkRuleStorageReadError,
   DEFAULT_NETWORK_RULE_STATE,
   cspRemovalAction,
@@ -208,6 +209,46 @@ describe("NetworkRuleService", () => {
 
     await expect(handlers.get("getState")!()).rejects.toMatchObject({ code: "storage_read_failed" });
     expect(applier.apply).not.toHaveBeenCalled();
+  });
+
+  it("未命名规则的默认名取自匹配式，超长时截断到名称上限而不是连带拒绝整条规则", async () => {
+    const { handlers } = createHarness();
+    const urlFilter = `https://example.com/${"a".repeat(200)}`;
+    const created = (await handlers.get("createRule")!({
+      baseRevision: 0,
+      enabled: true,
+      condition: { urlFilter },
+      action: { type: "block" },
+    })) as { state: NetworkRuleState };
+
+    expect(created.state.rules[0].name).toBe(urlFilter.slice(0, MAX_RULE_NAME_LENGTH));
+  });
+
+  it("retryApply 重新初始化期间的 getState 等待恢复结果，不会看到「既无错误也无 state」的中间态", async () => {
+    const { handlers, dao, applier } = createHarness({ schemaVersion: 2 } as unknown as NetworkRuleState);
+    await expect(handlers.get("getState")!()).rejects.toMatchObject({ code: "unsupported_schema" });
+
+    dao.state = undefined;
+    let release!: () => void;
+    const reconciling = new Promise<void>((entered) => {
+      applier.apply.mockImplementationOnce(() => {
+        entered();
+        return new Promise<void>((done) => (release = done));
+      });
+    });
+
+    const retried = handlers.get("retryApply")!();
+    await reconciling;
+    // 恢复仍卡在 reconcile：排空 microtask 后 getState 必须仍未 settle，而不是拿着半成品状态返回。
+    const concurrent = Promise.allSettled([handlers.get("getState")!()]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    release();
+
+    expect((await concurrent)[0]).toMatchObject({
+      status: "fulfilled",
+      value: { apply: { state: "applied" } },
+    });
+    await expect(retried).resolves.toMatchObject({ outcome: "applied" });
   });
 
   it("启动清理失败后可通过 retryApply 恢复，不会被失败的 ready 永久阻塞", async () => {

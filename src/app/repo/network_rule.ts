@@ -1,4 +1,5 @@
 import {
+  MAX_RULE_DOMAINS,
   NETWORK_RULE_REQUEST_METHODS,
   NETWORK_RULE_RESOURCE_TYPES,
   normalizeRuleDomain,
@@ -10,7 +11,6 @@ import { Repo } from "./repo";
 import type { TExtensionEnv } from "@App/app/service/extension/extension_env";
 
 export const NETWORK_RULE_SCHEMA_VERSION = 1 as const;
-export const MAX_RULE_DOMAINS = 100;
 export const MAX_RULE_HEADERS = 32;
 export const MAX_RULE_NAME_LENGTH = 80;
 

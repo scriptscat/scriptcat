@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, ArrowLeft, CircleCheck, CircleSlash, Loader2, Minus, Network, Trash2 } from "lucide-react";
@@ -8,12 +8,10 @@ import {
   NetworkRuleAmbiguousResponseError,
   parseNetworkRuleError,
   type NetworkRuleClient,
-  type NetworkRuleServiceError,
 } from "@App/app/service/service_worker/client";
-import type { NetworkRuleMutationResult, NetworkRuleSnapshot } from "@App/app/service/service_worker/network_rule";
+import type { NetworkRuleMutationResult } from "@App/app/service/service_worker/network_rule";
 import { extensionEnv } from "@App/app/service/extension/extension_env";
 import { networkRuleClient } from "@App/pages/store/features/script";
-import { subscribeMessage } from "@App/pages/store/global";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,6 +40,7 @@ import RuleCards from "./RuleCards";
 import RuleSheet, { type NetworkRuleFormValue, type NetworkRuleSaveResult } from "./RuleSheet";
 import RuleTable from "./RuleTable";
 import { reloadVisibleWebTabs } from "./tabs";
+import { useNetworkRuleSnapshot } from "./useNetworkRuleSnapshot";
 import {
   ACTION_FILTER_OPTIONS,
   enabledCount,
@@ -65,9 +64,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
   const isOwner = isNetworkRuleOwner(extensionEnv);
   const actionLabels = useActionLabels();
 
-  const [snapshot, setSnapshot] = useState<NetworkRuleSnapshot>();
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<NetworkRuleServiceError>();
+  const { snapshot, setSnapshot, loading, loadError, setLoadError } = useNetworkRuleSnapshot(client, isOwner);
   const [busy, setBusy] = useState<string>();
   const [query, setQuery] = useState("");
   const [actionFilter, setActionFilter] = useState<ActionFilter>("all");
@@ -83,23 +80,6 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
   const [editingRule, setEditingRule] = useState<NetworkRule>();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [matchTestOpen, setMatchTestOpen] = useState(false);
-
-  useEffect(() => {
-    if (!isOwner) return;
-    let active = true;
-    void client
-      .getState()
-      .then((next) => active && setSnapshot(next))
-      .catch((error: unknown) => active && setLoadError(parseNetworkRuleError(error)))
-      .finally(() => active && setLoading(false));
-    const unsubscribe = subscribeMessage<NetworkRuleSnapshot>("networkRule/stateChanged", (next) => {
-      setSnapshot((current) => (current && next.state.revision < current.state.revision ? current : next));
-    });
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [client, isOwner]);
 
   const state = snapshot?.state;
   const order = useMemo(() => pendingOrder ?? state?.order ?? [], [pendingOrder, state?.order]);

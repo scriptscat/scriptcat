@@ -93,6 +93,25 @@ describe("simulateNetworkRules", () => {
     expect(result.redirectUrl).toBe("https://example.com/");
   });
 
+  it("请求被 redirect 之后，顺序更靠后的改头规则同样不执行", () => {
+    const headers = {
+      type: "modifyResponseHeaders" as const,
+      headers: [{ header: "x-a", operation: "remove" as const }],
+    };
+    const rules = [
+      rule("before", allSites, headers),
+      rule("redirect", github, { type: "redirect", url: "https://example.com/" }),
+      rule("after", allSites, headers),
+    ];
+    const result = simulateNetworkRules(rules, { url: "https://github.com/a", resourceType: "main_frame" });
+    expect(result.outcome).toBe("redirected");
+    expect(hits(result)).toEqual([
+      [1, "before", "applied", undefined],
+      [2, "redirect", "applied", undefined],
+      [3, "after", "overridden", 2],
+    ]);
+  });
+
   it("未指定 resourceTypes 的规则不匹配主框架请求", () => {
     const rules = [rule("b", { requestDomains: ["github.com"] }, { type: "block" })];
     expect(simulateNetworkRules(rules, { url: "https://github.com/a", resourceType: "main_frame" }).hits).toHaveLength(

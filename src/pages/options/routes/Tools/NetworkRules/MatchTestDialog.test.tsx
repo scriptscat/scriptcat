@@ -62,11 +62,17 @@ describe("测试匹配对话框", () => {
   });
 
   it("完全是前端模拟，不读取浏览器的实际命中记录", () => {
+    // ui project 用 isolate: false，chrome mock 由同一 worker 内的所有测试文件共享，用完必须摘掉。
     const getMatchedRules = vi.fn();
-    Object.assign(chrome.declarativeNetRequest, { getMatchedRules });
-    open([rule("屏蔽全部", mainFrameAll, { type: "block" })]);
-    expect(screen.getAllByTestId("match-test-hit")).toHaveLength(1);
-    expect(getMatchedRules).not.toHaveBeenCalled();
+    const dnr = chrome.declarativeNetRequest as unknown as Record<string, unknown>;
+    dnr.getMatchedRules = getMatchedRules;
+    try {
+      open([rule("屏蔽全部", mainFrameAll, { type: "block" })]);
+      expect(screen.getAllByTestId("match-test-hit")).toHaveLength(1);
+      expect(getMatchedRules).not.toHaveBeenCalled();
+    } finally {
+      delete dnr.getMatchedRules;
+    }
   });
 
   it("地址不合法时提示补全 http(s) 地址且不给结果", () => {

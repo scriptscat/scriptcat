@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Info, Loader2, Network, PauseCircle } from "lucide-react";
@@ -7,12 +7,10 @@ import {
   NetworkRuleAmbiguousResponseError,
   parseNetworkRuleError,
   type NetworkRuleClient,
-  type NetworkRuleServiceError,
 } from "@App/app/service/service_worker/client";
-import type { NetworkRuleMutationResult, NetworkRuleSnapshot } from "@App/app/service/service_worker/network_rule";
+import type { NetworkRuleMutationResult } from "@App/app/service/service_worker/network_rule";
 import { extensionEnv } from "@App/app/service/extension/extension_env";
 import { networkRuleClient } from "@App/pages/store/features/script";
-import { subscribeMessage } from "@App/pages/store/global";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Button } from "@App/pages/components/ui/button";
 import { SettingCard } from "@App/pages/options/components/SettingCard";
@@ -23,6 +21,7 @@ import { cn } from "@App/pkg/utils/cn";
 import MatchTestDialog from "../NetworkRules/MatchTestDialog";
 import { useActionLabels } from "../NetworkRules/RuleParts";
 import { enabledCount, isAllSitesCondition, orderedRules, ruleDomains } from "../NetworkRules/rules";
+import { useNetworkRuleSnapshot } from "../NetworkRules/useNetworkRuleSnapshot";
 
 /** 预览恒为两条：卡片高度必须与规则数无关，滚动监听的固定触发线才准。 */
 const PREVIEW_LIMIT = 2;
@@ -92,28 +91,9 @@ export function NetworkRulesSection({ register, client: injectedClient }: Networ
   const navigate = useNavigate();
   const client = useMemo(() => injectedClient ?? networkRuleClient, [injectedClient]);
   const isOwner = isNetworkRuleOwner(extensionEnv);
-  const [snapshot, setSnapshot] = useState<NetworkRuleSnapshot>();
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<NetworkRuleServiceError>();
+  const { snapshot, setSnapshot, loading, loadError, setLoadError } = useNetworkRuleSnapshot(client, isOwner);
   const [busy, setBusy] = useState<string>();
   const [matchTestOpen, setMatchTestOpen] = useState(false);
-
-  useEffect(() => {
-    if (!isOwner) return;
-    let active = true;
-    void client
-      .getState()
-      .then((next) => active && setSnapshot(next))
-      .catch((error: unknown) => active && setLoadError(parseNetworkRuleError(error)))
-      .finally(() => active && setLoading(false));
-    const unsubscribe = subscribeMessage<NetworkRuleSnapshot>("networkRule/stateChanged", (next) => {
-      setSnapshot((current) => (current && next.state.revision < current.state.revision ? current : next));
-    });
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [client, isOwner]);
 
   const state = snapshot?.state;
   const total = state?.rules.length ?? 0;

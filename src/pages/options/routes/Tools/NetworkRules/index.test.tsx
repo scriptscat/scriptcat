@@ -381,6 +381,25 @@ describe("网络规则编辑抽屉", () => {
     );
   });
 
+  it("排除域名超过单条规则上限时挡下保存并说明原因", async () => {
+    const client = clientFor(snapshot([]));
+    renderPage(client);
+    expect(await screen.findByText("还没有网络规则")).toBeInTheDocument();
+
+    await openCreateSheet();
+    await pickTemplate("屏蔽请求");
+    fireEvent.change(screen.getByLabelText("应用范围"), { target: { value: "example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "高级选项" }));
+    fireEvent.change(await screen.findByLabelText("排除域名"), {
+      target: { value: Array.from({ length: 101 }, (_, index) => `d${index}.example.com`).join("\n") },
+    });
+
+    expect(screen.getByText("每条规则请输入 1 至 100 个域名。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    await flush();
+    expect(client.createRule).not.toHaveBeenCalled();
+  });
+
   it("保存「所有网站」规则前必须二次确认", async () => {
     const client = clientFor(snapshot([]));
     renderPage(client);

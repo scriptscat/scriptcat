@@ -2,12 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Ban, CornerUpRight, FileText, Globe, Link2, ShieldOff, Smartphone } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import {
-  MAX_RULE_DOMAINS,
-  type NetworkRule,
-  type NetworkRuleAction,
-  type NetworkRuleCondition,
-} from "@App/app/repo/network_rule";
+import { type NetworkRule, type NetworkRuleAction, type NetworkRuleCondition } from "@App/app/repo/network_rule";
 import type { NetworkRuleServiceError } from "@App/app/service/service_worker/client";
 import { parseRuleDomains } from "@App/pkg/utils/network_rule_condition";
 import {
@@ -115,8 +110,7 @@ export default function RuleSheet({ open, rule, saving, onOpenChange, onSave }: 
   const excluded = useMemo(() => parseRuleDomains(state.excludedWebsites), [state.excludedWebsites]);
   const actionErrors = useMemo(() => validateActionDraft(template, state.draft), [template, state.draft]);
 
-  const scopeInvalid =
-    !state.allSites && (scope.errors.length > 0 || scope.domains.length > MAX_RULE_DOMAINS || !state.websites.trim());
+  const scopeInvalid = !state.allSites && (scope.errors.length > 0 || !state.websites.trim());
   const excludedInvalid = state.excludedWebsites.trim() !== "" && excluded.errors.length > 0;
   const canSave = !scopeInvalid && !excludedInvalid && !hasActionDraftError(actionErrors);
 

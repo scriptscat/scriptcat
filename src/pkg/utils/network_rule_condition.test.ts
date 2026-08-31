@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RuleDomainError, normalizeRuleDomain, parseRuleDomains } from "./network_rule_condition";
+import { MAX_RULE_DOMAINS, RuleDomainError, normalizeRuleDomain, parseRuleDomains } from "./network_rule_condition";
 
 describe("网络规则域名规范化", () => {
   it("输入完整网址时只保存规范化 hostname", () => {
@@ -31,6 +31,15 @@ describe("网络规则域名规范化", () => {
       domains: ["example.com", "docs.example.com"],
       errors: [],
     });
+  });
+
+  it("域名条数超过单条规则上限时给出可展示的错误，而不是静默接受", () => {
+    const tooMany = Array.from({ length: MAX_RULE_DOMAINS + 1 }, (_, index) => `d${index}.example.com`).join("\n");
+    expect(parseRuleDomains(tooMany).errors).toEqual([
+      { tokenIndex: MAX_RULE_DOMAINS, input: `d${MAX_RULE_DOMAINS}.example.com`, messageKey: "domain_count_invalid" },
+    ]);
+    const atLimit = Array.from({ length: MAX_RULE_DOMAINS }, (_, index) => `d${index}.example.com`).join("\n");
+    expect(parseRuleDomains(atLimit).errors).toEqual([]);
   });
 
   it("规范化失败的 token 保留位置并提示输入根域名", () => {

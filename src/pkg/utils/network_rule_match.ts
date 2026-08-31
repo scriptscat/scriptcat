@@ -148,9 +148,10 @@ export function simulateNetworkRules(rules: NetworkRule[], request: SimulatedReq
     // block 短路整个请求，连位次更靠前的改头规则都不会执行。
     if (winnerAction === "block") return { rule, position, status: "blocked", causedBy: winner.position };
     if (isCompeting(rule.action.type)) return { rule, position, status: "overridden", causedBy: winner.position };
-    // allow 只跳过优先级低于它的改头规则，靠前的照常叠加。
-    if (winnerAction === "allow" && position > winner.position) {
-      return { rule, position, status: "allowed", causedBy: winner.position };
+    // allow 与 redirect 都只跳过优先级低于自己的改头规则，靠前的照常叠加。
+    if (position > winner.position) {
+      const status = winnerAction === "allow" ? "allowed" : "overridden";
+      return { rule, position, status, causedBy: winner.position };
     }
     return { rule, position, status: "applied" };
   });

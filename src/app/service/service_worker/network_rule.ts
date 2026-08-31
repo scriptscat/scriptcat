@@ -4,6 +4,7 @@ import LoggerCore from "@App/app/logger/core";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import {
   HEADER_OPERATIONS,
+  MAX_RULE_NAME_LENGTH,
   NetworkRuleStorageError,
   NetworkRuleStorageReadError,
   NetworkRuleValidationError,
@@ -86,15 +87,18 @@ function sameValue(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+/** 派生名同样要落在名称上限内，否则一条没填名字的长匹配式规则会在结构校验处被整条拒绝。 */
 function defaultRuleName(condition: NetworkRuleCondition): string {
   const domains = condition.requestDomains;
-  if (domains?.length) return `${domains[0]}${domains.length > 1 ? ` + ${domains.length - 1}` : ""}`;
-  return condition.urlFilter!;
+  const derived = domains?.length
+    ? `${domains[0]}${domains.length > 1 ? ` + ${domains.length - 1}` : ""}`
+    : condition.urlFilter!;
+  return Array.from(derived).slice(0, MAX_RULE_NAME_LENGTH).join("");
 }
 
 function normalizeRuleName(name: unknown, condition: NetworkRuleCondition, path: string): string {
   if (name === undefined || (typeof name === "string" && name.trim() === "")) return defaultRuleName(condition);
-  if (typeof name !== "string" || Array.from(name.trim()).length > 80) {
+  if (typeof name !== "string" || Array.from(name.trim()).length > MAX_RULE_NAME_LENGTH) {
     throw serviceError("invalid_input", { path, messageKey: "rule_name_invalid" });
   }
   return name.trim();
@@ -304,7 +308,6 @@ export class NetworkRuleService {
   }
 
   private async initialize(): Promise<void> {
-    this.initializationError = undefined;
     let state: NetworkRuleState;
     try {
       state = (await this.stateDAO.getState()) ?? { ...DEFAULT_NETWORK_RULE_STATE, rules: [], order: [] };
@@ -329,6 +332,9 @@ export class NetworkRuleService {
     }
     this.confirmedState = state;
     await this.reconcile(state);
+    // 放在最后清空：恢复期间 confirmedState / applyStatus 尚未双双就绪，此时并发的 getState
+    // 应当继续看到上一次的失败原因，而不是「无错误也无快照」的中间态。
+    this.initializationError = undefined;
   }
 
   private async waitUntilReady(): Promise<void> {
@@ -560,12 +566,9 @@ export class NetworkRuleService {
   private async retryApply(): Promise<NetworkRuleMutationResult> {
     return this.enqueue(async () => {
       const recoveringInitialization = this.initializationError !== undefined;
-      if (recoveringInitialization) {
-        await this.initialize();
-        await this.waitUntilReady();
-      } else {
-        await this.waitUntilReady();
-      }
+      // 重新初始化必须换掉 ready，否则并发的 getState 会越过一个早已 settle 的旧 ready。
+      if (recoveringInitialization) this.ready = this.initialize();
+      await this.waitUntilReady();
       const state = this.confirmedState!;
       const apply = recoveringInitialization ? this.applyStatus! : await this.reconcile(state);
       const snapshot = this.snapshot();

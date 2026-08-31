@@ -1,3 +1,6 @@
+/** 单条规则的域名条数上限，DNR 条件与表单共用同一个界。 */
+export const MAX_RULE_DOMAINS = 100;
+
 export type RuleDomainMessageKey =
   | "domain_required"
   | "domain_invalid"
@@ -96,7 +99,12 @@ export function parseRuleDomains(input: string): RuleDomainParseResult {
     if (!token) continue;
     try {
       const domain = normalizeRuleDomain(token);
-      if (!domains.includes(domain)) domains.push(domain);
+      if (domains.includes(domain)) continue;
+      if (domains.length === MAX_RULE_DOMAINS) {
+        errors.push({ tokenIndex, input: token, messageKey: "domain_count_invalid" });
+        break;
+      }
+      domains.push(domain);
     } catch (error) {
       const messageKey = error instanceof RuleDomainError ? error.messageKey : "domain_invalid";
       errors.push({ tokenIndex, input: token, messageKey });
