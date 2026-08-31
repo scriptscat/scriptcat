@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
@@ -161,9 +161,23 @@ describe("Tools 网络规则摘要卡", () => {
     extensionEnv.inIncognitoContext = true;
     const client = clientFor(snapshot([]));
     renderCard(client);
-    expect(await screen.findByText("请在普通窗口中管理网络规则，隐私窗口暂不支持。")).toBeInTheDocument();
+    expect(await screen.findByText("请在普通窗口中管理网络规则；已启用的规则在隐身窗口同样生效。")).toBeInTheDocument();
     expect(client.getState).not.toHaveBeenCalled();
     expect(screen.queryByRole("switch")).toBeNull();
+  });
+
+  it("总开关关闭时测试匹配照常给出命中，并说明规则被暂停", async () => {
+    const paused = snapshot(manyRules(3));
+    paused.state.masterEnabled = false;
+    renderCard(clientFor(paused));
+    await screen.findByTestId("network-rules-summary");
+
+    fireEvent.click(screen.getByRole("button", { name: "测试匹配" }));
+    fireEvent.change(await screen.findByLabelText("网址"), { target: { value: "https://s1.example.com/page" } });
+
+    expect(screen.getAllByTestId("match-test-hit")).toHaveLength(1);
+    expect(screen.getByTestId("match-test-outcome")).not.toHaveTextContent("无命中");
+    expect(within(screen.getByRole("dialog")).getByText(/总开关已关闭/)).toBeInTheDocument();
   });
 
   it("总开关写入失败时提示且不改动本地状态", async () => {

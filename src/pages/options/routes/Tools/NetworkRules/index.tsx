@@ -22,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@App/pages/components/ui/alert-dialog";
+import { Badge } from "@App/pages/components/ui/badge";
 import { Button } from "@App/pages/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@App/pages/components/ui/dialog";
 import { EmptyState } from "@App/pages/components/ui/empty-state";
@@ -82,6 +83,8 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
   const [matchTestOpen, setMatchTestOpen] = useState(false);
 
   const state = snapshot?.state;
+  const paused = state !== undefined && !state.masterEnabled;
+  const applyErrored = snapshot?.apply.state === "error";
   const order = useMemo(() => pendingOrder ?? state?.order ?? [], [pendingOrder, state?.order]);
   const rules = useMemo(() => orderedRules(state?.rules ?? [], order), [state?.rules, order]);
   const filters = useMemo(
@@ -108,11 +111,14 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
     clearSelection();
   };
 
-  const applyResult = (result: NetworkRuleMutationResult) => {
+  /** 返回是否真的落到了浏览器：写入成功但 DNR 没接受时只报失败，调用方不得再报成功。 */
+  const applyResult = (result: NetworkRuleMutationResult): boolean => {
     setSnapshot(result);
     if (result.outcome !== "applied" || result.apply.state !== "applied") {
       notify.error(t("tools:network_rules_rule_saved_apply_failed"));
+      return false;
     }
+    return true;
   };
 
   const notifyApplied = (title: string) =>
@@ -141,8 +147,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
     const baseRevision = state.revision;
     setBusy(key);
     try {
-      applyResult(await run(baseRevision));
-      return true;
+      return applyResult(await run(baseRevision));
     } catch (error) {
       if (error instanceof NetworkRuleAmbiguousResponseError) {
         if ((await settleAmbiguous(baseRevision)) !== undefined) return true;
@@ -197,7 +202,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
     setBusy(undefined);
     if (failure) notify.error(failure);
     else if (applyFailed) notify.error(t("tools:network_rules_rule_saved_apply_failed"));
-    return failure === undefined;
+    return failure === undefined && !applyFailed;
   };
 
   const persistOrder = async (nextOrder: string[]) => {
@@ -293,10 +298,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
             condition: value.condition,
             action: value.action,
           });
-      applyResult(result);
-      if (result.outcome === "applied" && result.apply.state === "applied") {
-        notifyApplied(t("tools:network_rules_rule_saved"));
-      }
+      if (applyResult(result)) notifyApplied(t("tools:network_rules_rule_saved"));
       setSheetOpen(false);
       return true;
     } catch (error) {
@@ -367,6 +369,16 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
         <h1 className="text-base font-semibold text-foreground md:text-lg">{t("tools:network_rules_title")}</h1>
         {isOwner && (
           <div className="ml-auto flex items-center gap-2">
+            {state && (
+              <Badge variant={applyErrored ? "destructive" : paused ? "warning" : "success"} className="gap-1.5">
+                <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
+                {applyErrored
+                  ? t("tools:network_rules_state_failed")
+                  : paused
+                    ? t("tools:network_rules_state_paused")
+                    : t("tools:network_rules_state_active")}
+              </Badge>
+            )}
             <span className="text-sm text-muted-foreground">{t("tools:network_rules_master_switch")}</span>
             <Switch
               checked={state?.masterEnabled ?? true}
@@ -625,7 +637,8 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
       <MatchTestDialog
         key={matchTestOpen ? "match-open" : "match-closed"}
         open={matchTestOpen}
-        rules={state?.masterEnabled ? rules : []}
+        rules={rules}
+        paused={paused}
         onOpenChange={setMatchTestOpen}
       />
 

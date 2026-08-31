@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Info } from "lucide-react";
+import { Info, PauseCircle } from "lucide-react";
 import type { NetworkRule } from "@App/app/repo/network_rule";
 import { NETWORK_RULE_RESOURCE_TYPES, type NetworkRuleResourceType } from "@App/pkg/utils/network_rule_condition";
 import { simulateNetworkRules, type NetworkRuleHit, type NetworkRuleOutcome } from "@App/pkg/utils/network_rule_match";
@@ -61,11 +61,14 @@ function scopeText(rule: NetworkRule, allSitesLabel: string): string {
 export default function MatchTestDialog({
   open,
   rules,
+  paused,
   onOpenChange,
 }: {
   open: boolean;
   /** 完整的有序规则列表：结果里的 #N 就是列表页的位次。 */
   rules: NetworkRule[];
+  /** 总开关关闭时仍照常模拟：否则「无命中」会把暂停误报成规则写错。 */
+  paused?: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
@@ -105,6 +108,16 @@ export default function MatchTestDialog({
           <DialogTitle>{t("tools:network_rules_test_match")}</DialogTitle>
         </DialogHeader>
         <p className="text-xs text-muted-foreground">{t("tools:network_rules_match_description")}</p>
+
+        {paused && (
+          <div
+            role="status"
+            className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2.5 text-xs text-warning-fg"
+          >
+            <PauseCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+            {t("tools:network_rules_match_paused")}
+          </div>
+        )}
 
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">

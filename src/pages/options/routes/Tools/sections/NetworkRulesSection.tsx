@@ -270,7 +270,8 @@ export function NetworkRulesSection({ register, client: injectedClient }: Networ
       <MatchTestDialog
         key={matchTestOpen ? "open" : "closed"}
         open={matchTestOpen}
-        rules={state && state.masterEnabled ? orderedRules(state.rules, state.order) : []}
+        rules={state ? orderedRules(state.rules, state.order) : []}
+        paused={paused}
         onOpenChange={setMatchTestOpen}
       />
     </SettingCard>

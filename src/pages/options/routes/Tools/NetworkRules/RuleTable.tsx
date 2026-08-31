@@ -16,6 +16,7 @@ import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { Switch } from "@App/pages/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@App/pages/components/ui/table";
 import { cn } from "@App/pkg/utils/cn";
+import { useDragAccessibility } from "./dragAccessibility";
 import { ActionBadge, RuleName, RuleRowMenu, ScopeChips, type RuleRowActions } from "./RuleParts";
 
 // 列宽 = 设计稿的内容宽 + 12px 列间距（单元格左右各 6px 内边距）。
@@ -61,7 +62,7 @@ export default function RuleTable({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
   const ids = useMemo(() => rules.map((rule) => rule.id), [rules]);
-  const a11y = useMemo(() => ({ container: document.body }), []);
+  const a11y = useDragAccessibility(rules, positionOf, total);
   const allSelected = rules.length > 0 && rules.every((rule) => selected.has(rule.id));
   const someSelected = rules.some((rule) => selected.has(rule.id));
 
@@ -152,7 +153,6 @@ function SortableRuleRow({
       data-state={selected ? "selected" : undefined}
       style={{ transform: CSS.Transform.toString(transform) ?? undefined, transition }}
       className={cn(isDragging && "relative z-10 opacity-50", !rule.enabled && "opacity-60")}
-      {...attributes}
     >
       <TableCell className={COL.grip}>
         <button
@@ -160,7 +160,8 @@ function SortableRuleRow({
           ref={setActivatorNodeRef}
           disabled={dragDisabled}
           aria-label={t("tools:network_rules_drag_handle", { name: rule.name })}
-          className="flex cursor-grab items-center rounded-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex cursor-grab touch-none items-center rounded-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
+          {...attributes}
           {...listeners}
         >
           <GripVertical className="size-4" />
