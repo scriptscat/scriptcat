@@ -89,7 +89,7 @@
   "network_rules_storage_error": "Não foi possível salvar a alteração.",
   "network_rules_confirm_all_sites_title": "Afetar todos os sites?",
   "network_rules_confirm_all_sites_description": "Isso enfraquece a proteção integrada de todos os sites correspondentes. Continuar?",
-  "network_rules_incognito_unavailable": "Gerencie as regras de rede em uma janela normal; as regras ativadas também valem em janelas anônimas.",
+  "network_rules_incognito_unavailable": "Gerencie as regras de rede em uma janela normal. As regras não têm efeito em janelas anônimas enquanto você não ativar “Permitir no modo de navegação anônima” para o ScriptCat em chrome://extensions.",
   "network_rule_template_csp": "Remover CSP",
   "network_rule_template_csp_desc": "Permite executar scripts bloqueados pela CSP do site.",
   "network_rule_template_user_agent": "Alterar User-Agent",

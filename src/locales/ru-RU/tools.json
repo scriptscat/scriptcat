@@ -89,7 +89,7 @@
   "network_rules_storage_error": "Не удалось сохранить изменение.",
   "network_rules_confirm_all_sites_title": "Затронуть все сайты?",
   "network_rules_confirm_all_sites_description": "Это ослабит встроенную защиту всех подходящих сайтов. Продолжить?",
-  "network_rules_incognito_unavailable": "Управляйте сетевыми правилами в обычном окне: включённые правила действуют и в режиме инкогнито.",
+  "network_rules_incognito_unavailable": "Управляйте сетевыми правилами в обычном окне. Пока в chrome://extensions не включён параметр «Разрешить работу в режиме инкогнито» для ScriptCat, правила не действуют в окнах инкогнито.",
   "network_rule_template_csp": "Удалить CSP",
   "network_rule_template_csp_desc": "Позволяет работать скриптам, которые блокирует CSP сайта.",
   "network_rule_template_user_agent": "Изменить User-Agent",

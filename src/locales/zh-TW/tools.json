@@ -89,7 +89,7 @@
   "network_rules_storage_error": "操作未能儲存。",
   "network_rules_confirm_all_sites_title": "影響所有網站？",
   "network_rules_confirm_all_sites_description": "這會削弱所有符合網站的內建保護。是否繼續？",
-  "network_rules_incognito_unavailable": "請在一般視窗中管理網路規則；已啟用的規則在無痕視窗同樣生效。",
+  "network_rules_incognito_unavailable": "請在一般視窗中管理網路規則。未在 chrome://extensions 為腳本貓開啟「允許在無痕視窗中執行」時，規則不會影響無痕視窗。",
   "network_rule_template_csp": "移除 CSP",
   "network_rule_template_csp_desc": "讓被網站 CSP 擋下的腳本能正常執行",
   "network_rule_template_user_agent": "修改 User-Agent",

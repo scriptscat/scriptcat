@@ -89,7 +89,7 @@
   "network_rules_storage_error": "The change could not be saved.",
   "network_rules_confirm_all_sites_title": "Affect all websites?",
   "network_rules_confirm_all_sites_description": "This weakens the built-in protection of every matching website. Continue?",
-  "network_rules_incognito_unavailable": "Manage network rules from a normal window; rules you have enabled also apply in incognito windows.",
+  "network_rules_incognito_unavailable": "Manage network rules from a normal window. Rules have no effect in incognito windows unless you turn on “Allow in Incognito” for ScriptCat on chrome://extensions.",
   "network_rule_template_csp": "Remove CSP",
   "network_rule_template_csp_desc": "Let scripts blocked by a site's CSP run.",
   "network_rule_template_user_agent": "Change User-Agent",

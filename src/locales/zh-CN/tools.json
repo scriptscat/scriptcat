@@ -89,7 +89,7 @@
   "network_rules_storage_error": "操作未能保存。",
   "network_rules_confirm_all_sites_title": "影响所有网站？",
   "network_rules_confirm_all_sites_description": "这会削弱所有匹配网站的内置保护。是否继续？",
-  "network_rules_incognito_unavailable": "请在普通窗口中管理网络规则；已启用的规则在隐身窗口同样生效。",
+  "network_rules_incognito_unavailable": "请在普通窗口中管理网络规则。未在 chrome://extensions 为脚本猫开启「允许在无痕模式下运行」时，规则不会影响隐身窗口。",
   "network_rule_template_csp": "移除 CSP",
   "network_rule_template_csp_desc": "让被站点 CSP 拦下的脚本能正常运行",
   "network_rule_template_user_agent": "修改 User-Agent",

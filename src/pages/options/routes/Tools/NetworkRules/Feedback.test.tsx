@@ -155,10 +155,13 @@ describe("网络规则列表页的状态指示", () => {
     expect(screen.getByText("已生效")).toBeInTheDocument();
   });
 
-  it("隐身窗口的提示说明已启用的规则在隐身窗口同样生效", async () => {
+  it("隐身窗口的提示不承诺规则在隐身窗口生效，只指出需自行授予隐身权限", async () => {
     extensionEnv.inIncognitoContext = true;
     renderPage(clientFor(snapshot([rule(1)])));
-    expect(await screen.findByText(/隐身窗口同样生效/)).toBeInTheDocument();
+    const notice = await screen.findByRole("status");
+    expect(notice).not.toHaveTextContent(/隐身窗口[^。]*生效|生效[^。]*隐身窗口/);
+    expect(notice).toHaveTextContent("chrome://extensions");
+    expect(notice).toHaveTextContent("允许在无痕模式下运行");
   });
 });
 

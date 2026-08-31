@@ -157,11 +157,15 @@ describe("Tools 网络规则摘要卡", () => {
     expect(screen.getAllByTestId("network-rules-preview-row")).toHaveLength(2);
   });
 
-  it("隐身窗口提示由普通窗口管理且不读取状态", async () => {
+  it("隐身窗口提示由普通窗口管理、不承诺隐身生效且不读取状态", async () => {
     extensionEnv.inIncognitoContext = true;
     const client = clientFor(snapshot([]));
     renderCard(client);
-    expect(await screen.findByText("请在普通窗口中管理网络规则；已启用的规则在隐身窗口同样生效。")).toBeInTheDocument();
+    const notice = await screen.findByRole("status");
+    expect(notice).toHaveTextContent("请在普通窗口中管理网络规则");
+    expect(notice).not.toHaveTextContent(/隐身窗口[^。]*生效|生效[^。]*隐身窗口/);
+    expect(notice).toHaveTextContent("chrome://extensions");
+    expect(notice).toHaveTextContent("允许在无痕模式下运行");
     expect(client.getState).not.toHaveBeenCalled();
     expect(screen.queryByRole("switch")).toBeNull();
   });
