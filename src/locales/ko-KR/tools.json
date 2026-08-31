@@ -87,7 +87,6 @@
   "network_rules_storage_error": "변경 사항을 저장하지 못했습니다.",
   "network_rules_confirm_all_sites_title": "모든 웹사이트에 적용할까요?",
   "network_rules_confirm_all_sites_description": "일치하는 모든 웹사이트의 기본 보호가 약해집니다. 계속할까요?",
-  "network_rules_incognito_unavailable": "네트워크 규칙은 일반 창에서 관리하세요. chrome://extensions에서 ScriptCat의 「시크릿 모드에서 허용」을 켜지 않으면 규칙이 시크릿 창에 영향을 주지 않습니다.",
   "network_rule_template_csp": "CSP 제거",
   "network_rule_template_csp_desc": "사이트 CSP에 막힌 스크립트를 실행되게 합니다.",
   "network_rule_template_user_agent": "User-Agent 변경",

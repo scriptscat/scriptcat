@@ -87,7 +87,6 @@
   "network_rules_storage_error": "Die Änderung konnte nicht gespeichert werden.",
   "network_rules_confirm_all_sites_title": "Alle Websites betreffen?",
   "network_rules_confirm_all_sites_description": "Das schwächt den eingebauten Schutz jeder passenden Website. Fortfahren?",
-  "network_rules_incognito_unavailable": "Verwalte Netzwerkregeln in einem normalen Fenster. Ohne die für ScriptCat aktivierte Option „Im Inkognitomodus zulassen“ unter chrome://extensions haben Regeln keine Wirkung in Inkognito-Fenstern.",
   "network_rule_template_csp": "CSP entfernen",
   "network_rule_template_csp_desc": "Lässt Skripte laufen, die von der CSP einer Website blockiert werden.",
   "network_rule_template_user_agent": "User-Agent ändern",

@@ -3,14 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, ArrowLeft, CircleCheck, CircleSlash, Loader2, Minus, Network, Trash2 } from "lucide-react";
 import { arrayMove } from "@dnd-kit/sortable";
-import { isNetworkRuleOwner, type NetworkRule, type NetworkRuleCondition } from "@App/app/repo/network_rule";
+import type { NetworkRule, NetworkRuleCondition } from "@App/app/repo/network_rule";
 import {
   NetworkRuleAmbiguousResponseError,
   parseNetworkRuleError,
   type NetworkRuleClient,
 } from "@App/app/service/service_worker/client";
 import type { NetworkRuleMutationResult } from "@App/app/service/service_worker/network_rule";
-import { extensionEnv } from "@App/app/service/extension/extension_env";
 import { networkRuleClient } from "@App/pages/store/features/script";
 import {
   AlertDialog,
@@ -69,11 +68,10 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const client = useMemo(() => injectedClient ?? networkRuleClient, [injectedClient]);
-  const isOwner = isNetworkRuleOwner(extensionEnv);
   const actionLabels = useActionLabels();
   const templateLabels = useTemplateLabels();
 
-  const { snapshot, setSnapshot, loading, loadError, setLoadError } = useNetworkRuleSnapshot(client, isOwner);
+  const { snapshot, setSnapshot, loading, loadError, setLoadError } = useNetworkRuleSnapshot(client);
   const [busy, setBusy] = useState<string>();
   const [query, setQuery] = useState("");
   const [actionFilter, setActionFilter] = useState<ActionFilter>("all");
@@ -415,267 +413,245 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
           <ArrowLeft className="size-4" />
         </Button>
         <h1 className="text-base font-semibold text-foreground md:text-lg">{t("tools:network_rules_title")}</h1>
-        {isOwner && (
-          <div className="ml-auto flex items-center gap-2">
-            {state && (
-              <Badge variant={applyErrored ? "destructive" : paused ? "warning" : "success"} className="gap-1.5">
-                <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
-                {applyErrored
-                  ? t("tools:network_rules_state_failed")
-                  : paused
-                    ? t("tools:network_rules_state_paused")
-                    : t("tools:network_rules_state_active")}
-              </Badge>
-            )}
-            <span className="text-sm text-muted-foreground">{t("tools:network_rules_master_switch")}</span>
-            <Switch
-              checked={state?.masterEnabled ?? true}
-              disabled={loading || busy !== undefined || !state}
-              aria-label={t("tools:network_rules_master_switch")}
-              onCheckedChange={setMasterEnabled}
-            />
-          </div>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {state && (
+            <Badge variant={applyErrored ? "destructive" : paused ? "warning" : "success"} className="gap-1.5">
+              <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
+              {applyErrored
+                ? t("tools:network_rules_state_failed")
+                : paused
+                  ? t("tools:network_rules_state_paused")
+                  : t("tools:network_rules_state_active")}
+            </Badge>
+          )}
+          <span className="text-sm text-muted-foreground">{t("tools:network_rules_master_switch")}</span>
+          <Switch
+            checked={state?.masterEnabled ?? true}
+            disabled={loading || busy !== undefined || !state}
+            aria-label={t("tools:network_rules_master_switch")}
+            onCheckedChange={setMasterEnabled}
+          />
+        </div>
       </header>
 
       <div className="flex flex-1 flex-col gap-4 overflow-auto scrollbar-custom px-4 py-4 md:px-6">
-        {!isOwner && (
-          <div className="rounded-md border border-border bg-muted p-4 text-sm text-muted-foreground" role="status">
-            {t("tools:network_rules_incognito_unavailable")}
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchInput
+            className="min-w-[200px] flex-1"
+            placeholder={t("tools:network_rules_search_placeholder")}
+            aria-label={t("tools:network_rules_search_placeholder")}
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(1);
+              clearSelection();
+            }}
+          />
+          <Select
+            value={actionFilter}
+            onValueChange={(value: ActionFilter) => {
+              setActionFilter(value);
+              setPage(1);
+              clearSelection();
+            }}
+          >
+            <SelectTrigger className="w-[136px]" aria-label={t("tools:network_rules_filter_action")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("tools:network_rules_filter_all_actions")}</SelectItem>
+              {ACTION_FILTER_OPTIONS.map((action) => (
+                <SelectItem key={action} value={action}>
+                  {actionLabels[action]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={statusFilter}
+            onValueChange={(value: StatusFilter) => {
+              setStatusFilter(value);
+              setPage(1);
+              clearSelection();
+            }}
+          >
+            <SelectTrigger className="w-[120px]" aria-label={t("tools:network_rules_filter_status")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("tools:network_rules_filter_all_statuses")}</SelectItem>
+              <SelectItem value="enabled">{t("tools:network_rules_status_enabled")}</SelectItem>
+              <SelectItem value="disabled">{t("tools:network_rules_status_disabled")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={() => setMatchTestOpen(true)}>
+            {t("tools:network_rules_test_match")}
+          </Button>
+          <Button size="sm" disabled={loading || !state} onClick={() => openSheet()}>
+            {t("tools:network_rules_new_rule")}
+          </Button>
+        </div>
+
+        {isFiltered && rules.length > 0 && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground"
+          >
+            <span>{t("tools:network_rules_filter_active", { matched: visible.length, total: rules.length })}</span>
+            {/* 手柄灰掉是筛选的后果而不是又一次复述按钮，不说明用户无从得知为什么不能拖。 */}
+            <span>{t("tools:network_rules_filter_drag_paused")}</span>
+            <Button variant="link" size="xs" className="h-auto p-0" onClick={clearFilters}>
+              {t("tools:network_rules_clear_filters")}
+            </Button>
           </div>
         )}
 
-        {isOwner && (
-          <>
-            <div className="flex flex-wrap items-center gap-2">
-              <SearchInput
-                className="min-w-[200px] flex-1"
-                placeholder={t("tools:network_rules_search_placeholder")}
-                aria-label={t("tools:network_rules_search_placeholder")}
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                  setPage(1);
-                  clearSelection();
-                }}
-              />
-              <Select
-                value={actionFilter}
-                onValueChange={(value: ActionFilter) => {
-                  setActionFilter(value);
-                  setPage(1);
-                  clearSelection();
-                }}
-              >
-                <SelectTrigger className="w-[136px]" aria-label={t("tools:network_rules_filter_action")}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("tools:network_rules_filter_all_actions")}</SelectItem>
-                  {ACTION_FILTER_OPTIONS.map((action) => (
-                    <SelectItem key={action} value={action}>
-                      {actionLabels[action]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={statusFilter}
-                onValueChange={(value: StatusFilter) => {
-                  setStatusFilter(value);
-                  setPage(1);
-                  clearSelection();
-                }}
-              >
-                <SelectTrigger className="w-[120px]" aria-label={t("tools:network_rules_filter_status")}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("tools:network_rules_filter_all_statuses")}</SelectItem>
-                  <SelectItem value="enabled">{t("tools:network_rules_status_enabled")}</SelectItem>
-                  <SelectItem value="disabled">{t("tools:network_rules_status_disabled")}</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="sm" onClick={() => setMatchTestOpen(true)}>
-                {t("tools:network_rules_test_match")}
-              </Button>
-              <Button size="sm" disabled={loading || !state} onClick={() => openSheet()}>
-                {t("tools:network_rules_new_rule")}
-              </Button>
+        {snapshot?.apply.state === "error" && (
+          <div
+            className="flex flex-wrap items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3"
+            role="alert"
+          >
+            <AlertTriangle className="size-4 shrink-0 text-destructive" aria-hidden="true" />
+            <div className="min-w-0 flex-1 space-y-1 text-sm">
+              <p className="text-destructive">{t("tools:network_rules_apply_error_title")}</p>
+              <p className="break-words text-xs text-muted-foreground">
+                {t("tools:network_rules_apply_error_detail")} {snapshot.apply.message}
+              </p>
             </div>
+            <Button size="sm" variant="outline" disabled={busy === "retry"} onClick={() => void retry()}>
+              {busy === "retry" && <Loader2 className="size-4 animate-spin" />}
+              {t("tools:network_rules_retry")}
+            </Button>
+          </div>
+        )}
 
-            {isFiltered && rules.length > 0 && (
-              <div
-                role="status"
-                className="flex flex-wrap items-center gap-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground"
-              >
-                <span>{t("tools:network_rules_filter_active", { matched: visible.length, total: rules.length })}</span>
-                {/* 手柄灰掉是筛选的后果而不是又一次复述按钮，不说明用户无从得知为什么不能拖。 */}
-                <span>{t("tools:network_rules_filter_drag_paused")}</span>
-                <Button variant="link" size="xs" className="h-auto p-0" onClick={clearFilters}>
-                  {t("tools:network_rules_clear_filters")}
-                </Button>
-              </div>
-            )}
+        {loading && (
+          <div className="space-y-2" aria-busy="true" aria-label={t("loading")}>
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        )}
 
-            {snapshot?.apply.state === "error" && (
-              <div
-                className="flex flex-wrap items-start gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3"
-                role="alert"
-              >
-                <AlertTriangle className="size-4 shrink-0 text-destructive" aria-hidden="true" />
-                <div className="min-w-0 flex-1 space-y-1 text-sm">
-                  <p className="text-destructive">{t("tools:network_rules_apply_error_title")}</p>
-                  <p className="break-words text-xs text-muted-foreground">
-                    {t("tools:network_rules_apply_error_detail")} {snapshot.apply.message}
-                  </p>
-                </div>
-                <Button size="sm" variant="outline" disabled={busy === "retry"} onClick={() => void retry()}>
-                  {busy === "retry" && <Loader2 className="size-4 animate-spin" />}
-                  {t("tools:network_rules_retry")}
-                </Button>
-              </div>
-            )}
+        {!loading && loadError && (
+          <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-4" role="alert">
+            <p className="text-sm text-destructive">
+              {t(
+                loadError.code === "unsupported_schema"
+                  ? "tools:network_rules_unsupported_schema"
+                  : "tools:network_rules_load_error"
+              )}
+            </p>
+            <Button size="sm" variant="outline" disabled={busy === "retry"} onClick={() => void retry()}>
+              {busy === "retry" && <Loader2 className="size-4 animate-spin" />}
+              {t("tools:network_rules_retry")}
+            </Button>
+          </div>
+        )}
 
-            {loading && (
-              <div className="space-y-2" aria-busy="true" aria-label={t("loading")}>
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-14 w-full" />
-                <Skeleton className="h-14 w-full" />
-              </div>
-            )}
-
-            {!loading && loadError && (
-              <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-4" role="alert">
-                <p className="text-sm text-destructive">
-                  {t(
-                    loadError.code === "unsupported_schema"
-                      ? "tools:network_rules_unsupported_schema"
-                      : "tools:network_rules_load_error"
-                  )}
-                </p>
-                <Button size="sm" variant="outline" disabled={busy === "retry"} onClick={() => void retry()}>
-                  {busy === "retry" && <Loader2 className="size-4 animate-spin" />}
-                  {t("tools:network_rules_retry")}
-                </Button>
-              </div>
-            )}
-
-            {!loading && !loadError && rules.length === 0 && (
-              <EmptyState
-                icon={Network}
-                title={t("tools:network_rules_empty_title")}
-                description={t("tools:network_rules_empty_description")}
-                action={
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    {EMPTY_STATE_TEMPLATES.map((id) => (
-                      <Button key={id} variant="outline" size="sm" onClick={() => openSheet(undefined, id)}>
-                        {templateLabels[id].title}
-                      </Button>
-                    ))}
-                  </div>
-                }
-              />
-            )}
-
-            {!loading && !loadError && rules.length > 0 && visible.length === 0 && (
-              <EmptyState
-                icon={Network}
-                title={t("tools:network_rules_no_results_title")}
-                description={t("tools:network_rules_no_results_description")}
-                action={
-                  <Button variant="outline" size="sm" onClick={clearFilters}>
-                    {t("tools:network_rules_clear_filters")}
+        {!loading && !loadError && rules.length === 0 && (
+          <EmptyState
+            icon={Network}
+            title={t("tools:network_rules_empty_title")}
+            description={t("tools:network_rules_empty_description")}
+            action={
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {EMPTY_STATE_TEMPLATES.map((id) => (
+                  <Button key={id} variant="outline" size="sm" onClick={() => openSheet(undefined, id)}>
+                    {templateLabels[id].title}
                   </Button>
-                }
-              />
-            )}
-
-            {selectedRules.length > 0 && (
-              <div
-                role="toolbar"
-                aria-label={t("tools:network_rules_bulk_actions")}
-                className="flex flex-wrap items-center gap-3 rounded-md bg-primary-light px-3.5 py-2"
-              >
-                <span
-                  className="flex size-4 items-center justify-center rounded-sm bg-primary-background"
-                  aria-hidden="true"
-                >
-                  <Minus className="size-3 text-primary-foreground" />
-                </span>
-                <span className="flex-1 text-sm font-semibold text-primary" aria-live="polite">
-                  {t("tools:network_rules_selected_count", { count: selectedRules.length })}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busy !== undefined}
-                  onClick={() => setSelectedEnabled(true)}
-                >
-                  <CircleCheck />
-                  {t("tools:network_rules_bulk_enable")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busy !== undefined}
-                  onClick={() => setSelectedEnabled(false)}
-                >
-                  <CircleSlash />
-                  {t("tools:network_rules_bulk_disable")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busy !== undefined}
-                  onClick={() => setConfirmDelete(selectedRules)}
-                >
-                  <Trash2 />
-                  {t("tools:network_rules_bulk_delete")}
-                </Button>
-                <Button variant="link" size="xs" className="h-auto p-0" onClick={clearSelection}>
-                  {t("tools:network_rules_clear_selection")}
-                </Button>
+                ))}
               </div>
+            }
+          />
+        )}
+
+        {!loading && !loadError && rules.length > 0 && visible.length === 0 && (
+          <EmptyState
+            icon={Network}
+            title={t("tools:network_rules_no_results_title")}
+            description={t("tools:network_rules_no_results_description")}
+            action={
+              <Button variant="outline" size="sm" onClick={clearFilters}>
+                {t("tools:network_rules_clear_filters")}
+              </Button>
+            }
+          />
+        )}
+
+        {selectedRules.length > 0 && (
+          <div
+            role="toolbar"
+            aria-label={t("tools:network_rules_bulk_actions")}
+            className="flex flex-wrap items-center gap-3 rounded-md bg-primary-light px-3.5 py-2"
+          >
+            <span
+              className="flex size-4 items-center justify-center rounded-sm bg-primary-background"
+              aria-hidden="true"
+            >
+              <Minus className="size-3 text-primary-foreground" />
+            </span>
+            <span className="flex-1 text-sm font-semibold text-primary" aria-live="polite">
+              {t("tools:network_rules_selected_count", { count: selectedRules.length })}
+            </span>
+            <Button variant="outline" size="sm" disabled={busy !== undefined} onClick={() => setSelectedEnabled(true)}>
+              <CircleCheck />
+              {t("tools:network_rules_bulk_enable")}
+            </Button>
+            <Button variant="outline" size="sm" disabled={busy !== undefined} onClick={() => setSelectedEnabled(false)}>
+              <CircleSlash />
+              {t("tools:network_rules_bulk_disable")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy !== undefined}
+              onClick={() => setConfirmDelete(selectedRules)}
+            >
+              <Trash2 />
+              {t("tools:network_rules_bulk_delete")}
+            </Button>
+            <Button variant="link" size="xs" className="h-auto p-0" onClick={clearSelection}>
+              {t("tools:network_rules_clear_selection")}
+            </Button>
+          </div>
+        )}
+        {!loading && !loadError && pageRules.length > 0 && (
+          <>
+            {isMobile ? (
+              <RuleCards {...listProps} />
+            ) : (
+              <RuleTable {...listProps} selected={selected} onSelect={toggleSelect} onSelectPage={selectPage} />
             )}
-            {!loading && !loadError && pageRules.length > 0 && (
-              <>
-                {isMobile ? (
-                  <RuleCards {...listProps} />
-                ) : (
-                  <RuleTable {...listProps} selected={selected} onSelect={toggleSelect} onSelectPage={selectPage} />
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                <span>
+                  {t("tools:network_rules_footer_total", {
+                    count: rules.length,
+                    enabled: state ? enabledCount(state) : 0,
+                  })}
+                </span>
+                {limits.total !== undefined && (
+                  <span data-testid="network-rules-quota">
+                    {t("tools:network_rules_quota_total", { used: quota.total, limit: limits.total })}
+                    {limits.unsafe !== undefined &&
+                      ` · ${t("tools:network_rules_quota_unsafe", { used: quota.unsafe, limit: limits.unsafe })}`}
+                  </span>
                 )}
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                    <span>
-                      {t("tools:network_rules_footer_total", {
-                        count: rules.length,
-                        enabled: state ? enabledCount(state) : 0,
-                      })}
-                    </span>
-                    {limits.total !== undefined && (
-                      <span data-testid="network-rules-quota">
-                        {t("tools:network_rules_quota_total", { used: quota.total, limit: limits.total })}
-                        {limits.unsafe !== undefined &&
-                          ` · ${t("tools:network_rules_quota_unsafe", { used: quota.unsafe, limit: limits.unsafe })}`}
-                      </span>
-                    )}
-                  </div>
-                  {pageCount > 1 && (
-                    <Pagination
-                      page={currentPage}
-                      pageCount={pageCount}
-                      onPageChange={(next) => {
-                        setPage(next);
-                        clearSelection();
-                      }}
-                      previousLabel={t("tools:network_rules_prev_page")}
-                      nextLabel={t("tools:network_rules_next_page")}
-                    />
-                  )}
-                </div>
-              </>
-            )}
+              </div>
+              {pageCount > 1 && (
+                <Pagination
+                  page={currentPage}
+                  pageCount={pageCount}
+                  onPageChange={(next) => {
+                    setPage(next);
+                    clearSelection();
+                  }}
+                  previousLabel={t("tools:network_rules_prev_page")}
+                  nextLabel={t("tools:network_rules_next_page")}
+                />
+              )}
+            </div>
           </>
         )}
       </div>

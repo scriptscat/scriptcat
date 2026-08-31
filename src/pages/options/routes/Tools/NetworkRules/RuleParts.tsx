@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, MoreHorizontal } from "lucide-react";
 import type { NetworkRule, NetworkRuleActionType } from "@App/app/repo/network_rule";
+import type { NetworkRuleResourceType } from "@App/pkg/utils/network_rule_condition";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Button } from "@App/pages/components/ui/button";
 import {
@@ -27,6 +28,32 @@ export function useActionLabels(): Record<NetworkRuleActionType, string> {
       block: t("tools:network_rule_action_block"),
       redirect: t("tools:network_rule_action_redirect"),
       allow: t("tools:network_rule_action_allow"),
+    }),
+    [t]
+  );
+}
+
+/**
+ * 资源类型的译名：编辑抽屉的高级区与匹配测试对话框读同一份，避免一处显示译名、另一处显示
+ * DNR 标识符。每个类型都用字面量 key 调用 t()，i18n-usage 的静态校验才能覆盖到。
+ */
+export function useResourceTypeLabels(): Record<NetworkRuleResourceType, string> {
+  const { t } = useTranslation();
+  return useMemo(
+    () => ({
+      main_frame: t("tools:network_rule_resource_main_frame"),
+      sub_frame: t("tools:network_rule_resource_sub_frame"),
+      stylesheet: t("tools:network_rule_resource_stylesheet"),
+      script: t("tools:network_rule_resource_script"),
+      image: t("tools:network_rule_resource_image"),
+      font: t("tools:network_rule_resource_font"),
+      object: t("tools:network_rule_resource_object"),
+      xmlhttprequest: t("tools:network_rule_resource_xmlhttprequest"),
+      ping: t("tools:network_rule_resource_ping"),
+      csp_report: t("tools:network_rule_resource_csp_report"),
+      media: t("tools:network_rule_resource_media"),
+      websocket: t("tools:network_rule_resource_websocket"),
+      other: t("tools:network_rule_resource_other"),
     }),
     [t]
   );

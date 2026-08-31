@@ -143,7 +143,7 @@ describe("网络规则编辑抽屉的「试一试」", () => {
     fireEvent.change(screen.getByLabelText("应用范围"), { target: { value: "example.com" } });
     fireEvent.click(within(sheet).getByRole("button", { name: "高级选项" }));
     await flush();
-    fireEvent.click(within(sheet).getByRole("checkbox", { name: "image" }));
+    fireEvent.click(within(sheet).getByRole("checkbox", { name: "图片" }));
     fireEvent.change(screen.getByLabelText("试一试"), { target: { value: "https://example.com/page" } });
 
     expect(

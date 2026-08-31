@@ -1,15 +1,14 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, Info, Loader2, Network, PauseCircle } from "lucide-react";
-import { isNetworkRuleOwner, type NetworkRule } from "@App/app/repo/network_rule";
+import { AlertTriangle, Loader2, Network, PauseCircle } from "lucide-react";
+import type { NetworkRule } from "@App/app/repo/network_rule";
 import {
   NetworkRuleAmbiguousResponseError,
   parseNetworkRuleError,
   type NetworkRuleClient,
 } from "@App/app/service/service_worker/client";
 import type { NetworkRuleMutationResult } from "@App/app/service/service_worker/network_rule";
-import { extensionEnv } from "@App/app/service/extension/extension_env";
 import { networkRuleClient } from "@App/pages/store/features/script";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Button } from "@App/pages/components/ui/button";
@@ -90,8 +89,7 @@ export function NetworkRulesSection({ register, client: injectedClient }: Networ
   const { t } = useTranslation();
   const navigate = useNavigate();
   const client = useMemo(() => injectedClient ?? networkRuleClient, [injectedClient]);
-  const isOwner = isNetworkRuleOwner(extensionEnv);
-  const { snapshot, setSnapshot, loading, loadError, setLoadError } = useNetworkRuleSnapshot(client, isOwner);
+  const { snapshot, setSnapshot, loading, loadError, setLoadError } = useNetworkRuleSnapshot(client);
   const [busy, setBusy] = useState<string>();
   const [matchTestOpen, setMatchTestOpen] = useState(false);
 
@@ -176,26 +174,22 @@ export function NetworkRulesSection({ register, client: injectedClient }: Networ
       description={t("tools:network_rules_card_description")}
       register={register}
       action={
-        isOwner && (
-          <Switch
-            checked={state?.masterEnabled ?? true}
-            disabled={loading || busy !== undefined || !state}
-            aria-label={t("tools:network_rules_master_switch")}
-            onCheckedChange={(checked) => void setMasterEnabled(checked)}
-          />
-        )
+        <Switch
+          checked={state?.masterEnabled ?? true}
+          disabled={loading || busy !== undefined || !state}
+          aria-label={t("tools:network_rules_master_switch")}
+          onCheckedChange={(checked) => void setMasterEnabled(checked)}
+        />
       }
     >
-      {!isOwner && <Banner tone="warning" icon={Info} title={t("tools:network_rules_incognito_unavailable")} />}
-
-      {isOwner && loading && (
+      {loading && (
         <div className="space-y-2" data-testid="network-rules-loading" aria-busy="true" aria-label={t("loading")}>
           <Skeleton className="h-5 w-48" />
           <Skeleton className="h-9 w-full" />
         </div>
       )}
 
-      {isOwner && !loading && loadError && (
+      {!loading && loadError && (
         <Banner
           tone="destructive"
           icon={AlertTriangle}
@@ -208,7 +202,7 @@ export function NetworkRulesSection({ register, client: injectedClient }: Networ
         />
       )}
 
-      {isOwner && !loading && !loadError && snapshot && (
+      {!loading && !loadError && snapshot && (
         <div data-testid="network-rules-summary" className="space-y-3.5">
           <div className="flex flex-wrap items-center gap-2" role="status">
             <Badge variant={applyFailed ? "destructive" : paused ? "warning" : "success"}>{stateLabel}</Badge>

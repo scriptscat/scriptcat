@@ -87,7 +87,6 @@
   "network_rules_storage_error": "Không lưu được thay đổi.",
   "network_rules_confirm_all_sites_title": "Ảnh hưởng mọi trang web?",
   "network_rules_confirm_all_sites_description": "Việc này làm suy yếu bảo vệ sẵn có của mọi trang web khớp. Tiếp tục?",
-  "network_rules_incognito_unavailable": "Hãy quản lý quy tắc mạng trong cửa sổ thường. Quy tắc không có tác dụng trong cửa sổ ẩn danh trừ khi bạn bật “Cho phép ở chế độ ẩn danh” cho ScriptCat tại chrome://extensions.",
   "network_rule_template_csp": "Xóa CSP",
   "network_rule_template_csp_desc": "Cho phép script bị CSP của trang chặn vẫn chạy được.",
   "network_rule_template_user_agent": "Đổi User-Agent",

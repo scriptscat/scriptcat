@@ -28,7 +28,7 @@ import { Label } from "@App/pages/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
 import { Textarea } from "@App/pages/components/ui/textarea";
 import { cn } from "@App/pkg/utils/cn";
-import { useActionLabels } from "./RuleParts";
+import { useActionLabels, useResourceTypeLabels } from "./RuleParts";
 import {
   buildAction,
   editsHeaderList,
@@ -150,6 +150,7 @@ export default function RuleForm({
   const { t } = useTranslation();
   const domainErrors = useDomainErrorLabels();
   const draftErrors = useDraftErrorLabels();
+  const resourceTypeLabels = useResourceTypeLabels();
   const showScopeErrors = touched && !state.allSites && state.websites.trim() !== "";
   const match = useMemo(
     () => (state.tryUrl.trim() ? matchRuleUrl(condition, state.tryUrl) : undefined),
@@ -272,6 +273,7 @@ export default function RuleForm({
             <CheckboxGrid
               label={t("tools:network_rules_field_resource_types")}
               options={NETWORK_RULE_RESOURCE_TYPES}
+              optionLabel={(type) => resourceTypeLabels[type]}
               selected={state.resourceTypes}
               disabled={saving}
               onToggle={(value, checked) =>
@@ -285,6 +287,7 @@ export default function RuleForm({
             <CheckboxGrid
               label={t("tools:network_rules_field_request_methods")}
               options={NETWORK_RULE_REQUEST_METHODS}
+              optionLabel={(method) => method.toUpperCase()}
               selected={state.requestMethods}
               disabled={saving}
               onToggle={(value, checked) =>
@@ -336,12 +339,14 @@ export default function RuleForm({
 function CheckboxGrid<T extends string>({
   label,
   options,
+  optionLabel,
   selected,
   disabled,
   onToggle,
 }: {
   label: string;
   options: readonly T[];
+  optionLabel: (option: T) => string;
   selected: T[];
   disabled: boolean;
   onToggle: (value: T, checked: boolean) => void;
@@ -355,10 +360,10 @@ function CheckboxGrid<T extends string>({
             <Checkbox
               checked={selected.includes(option)}
               disabled={disabled}
-              aria-label={option}
+              aria-label={optionLabel(option)}
               onCheckedChange={(checked) => onToggle(option, checked === true)}
             />
-            <span className="font-mono">{option}</span>
+            <span>{optionLabel(option)}</span>
           </label>
         ))}
       </div>

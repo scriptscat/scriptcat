@@ -35,7 +35,7 @@ import { ExternalAccessController } from "@App/app/service/service_worker/extern
 import { ExternalAccessUIService } from "@App/app/service/service_worker/external_access/service";
 import { ExternalAccessConnectClient } from "@App/app/service/offscreen/client";
 import { hookFirefoxEventPageKeepAliveLoop, hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
-import { NetworkRuleStateDAO, isNetworkRuleOwner } from "@App/app/repo/network_rule";
+import { NetworkRuleStateDAO } from "@App/app/repo/network_rule";
 import { NetworkRuleService } from "./network_rule";
 import { DeclarativeNetRequestUserRuleApplier, compileNetworkRules } from "./network_rule_compiler";
 
@@ -153,16 +153,14 @@ export default class ServiceWorkerManager {
     );
     system.init();
 
-    if (isNetworkRuleOwner(extensionEnv)) {
-      const networkRule = new NetworkRuleService(
-        this.api.group("networkRule"),
-        this.mq,
-        new NetworkRuleStateDAO(),
-        compileNetworkRules,
-        new DeclarativeNetRequestUserRuleApplier()
-      );
-      networkRule.init();
-    }
+    const networkRule = new NetworkRuleService(
+      this.api.group("networkRule"),
+      this.mq,
+      new NetworkRuleStateDAO(),
+      compileNetworkRules,
+      new DeclarativeNetRequestUserRuleApplier()
+    );
+    networkRule.init();
 
     const agent = new AgentService(this.api.group("agent"), this.offscreenSend, resource);
     agent.init();

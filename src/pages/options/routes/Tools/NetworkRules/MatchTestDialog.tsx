@@ -11,28 +11,8 @@ import { Input } from "@App/pages/components/ui/input";
 import { Label } from "@App/pages/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
 import { cn } from "@App/pkg/utils/cn";
-import { useActionLabels } from "./RuleParts";
+import { useActionLabels, useResourceTypeLabels } from "./RuleParts";
 import { ruleDomains, isAllSitesCondition } from "./rules";
-
-/** 每个资源类型都用字面量 key 调用 t()，i18n-usage 的静态校验才能覆盖到。 */
-function useResourceTypeLabels(): Record<NetworkRuleResourceType, string> {
-  const { t } = useTranslation();
-  return {
-    main_frame: t("tools:network_rule_resource_main_frame"),
-    sub_frame: t("tools:network_rule_resource_sub_frame"),
-    stylesheet: t("tools:network_rule_resource_stylesheet"),
-    script: t("tools:network_rule_resource_script"),
-    image: t("tools:network_rule_resource_image"),
-    font: t("tools:network_rule_resource_font"),
-    object: t("tools:network_rule_resource_object"),
-    xmlhttprequest: t("tools:network_rule_resource_xmlhttprequest"),
-    ping: t("tools:network_rule_resource_ping"),
-    csp_report: t("tools:network_rule_resource_csp_report"),
-    media: t("tools:network_rule_resource_media"),
-    websocket: t("tools:network_rule_resource_websocket"),
-    other: t("tools:network_rule_resource_other"),
-  };
-}
 
 function useOutcomeLabels(): Record<NetworkRuleOutcome, string> {
   const { t } = useTranslation();

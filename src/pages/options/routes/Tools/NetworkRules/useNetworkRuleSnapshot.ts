@@ -17,15 +17,14 @@ export type NetworkRuleSnapshotState = {
 
 /**
  * 列表页与 Tools 摘要卡读的是同一份权威状态：首次拉取 + 订阅 service worker 的广播。
- * 广播可能乱序到达，revision 更旧的一律丢弃；非持有者上下文（隐身窗口）不读取状态。
+ * 广播可能乱序到达，revision 更旧的一律丢弃。
  */
-export function useNetworkRuleSnapshot(client: NetworkRuleClient, isOwner: boolean): NetworkRuleSnapshotState {
+export function useNetworkRuleSnapshot(client: NetworkRuleClient): NetworkRuleSnapshotState {
   const [snapshot, setSnapshot] = useState<NetworkRuleSnapshot>();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<NetworkRuleServiceError>();
 
   useEffect(() => {
-    if (!isOwner) return;
     let active = true;
     void client
       .getState()
@@ -39,7 +38,7 @@ export function useNetworkRuleSnapshot(client: NetworkRuleClient, isOwner: boole
       active = false;
       unsubscribe();
     };
-  }, [client, isOwner]);
+  }, [client]);
 
   return { snapshot, setSnapshot, loading, loadError, setLoadError };
 }

@@ -155,13 +155,12 @@ describe("网络规则列表页的状态指示", () => {
     expect(screen.getByText("已生效")).toBeInTheDocument();
   });
 
-  it("隐身窗口的提示不承诺规则在隐身窗口生效，只指出需自行授予隐身权限", async () => {
+  it("隐身上下文照常渲染规则列表与总开关，且没有隐身提示", async () => {
     extensionEnv.inIncognitoContext = true;
     renderPage(clientFor(snapshot([rule(1)])));
-    const notice = await screen.findByRole("status");
-    expect(notice).not.toHaveTextContent(/隐身窗口[^。]*生效|生效[^。]*隐身窗口/);
-    expect(notice).toHaveTextContent("chrome://extensions");
-    expect(notice).toHaveTextContent("允许在无痕模式下运行");
+    expect(await screen.findByText("规则 1")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "总开关" })).toBeInTheDocument();
+    expect(screen.queryByText(/请在普通窗口中管理网络规则/)).toBeNull();
   });
 });
 

@@ -8,17 +8,10 @@ import {
 } from "@App/pkg/utils/network_rule_condition";
 import { MAX_USER_RULES } from "@App/app/service/service_worker/dnr_rule_ids";
 import { Repo } from "./repo";
-import type { TExtensionEnv } from "@App/app/service/extension/extension_env";
 
 export const NETWORK_RULE_SCHEMA_VERSION = 1 as const;
 export const MAX_RULE_HEADERS = 32;
 export const MAX_RULE_NAME_LENGTH = 80;
-
-// Chrome split 下普通窗口与隐身窗口各有一个 service worker，规则状态必须只归普通那个，否则两个后台会互相覆盖；
-// Firefox spanning 只有一个共享 event page，隐身上下文并没有第二个后台可争，该唯一实例即持有者。
-export function isNetworkRuleOwner(env: Pick<TExtensionEnv, "inIncognitoContext" | "incognitoMode">): boolean {
-  return env.incognitoMode === "spanning" || !env.inIncognitoContext;
-}
 
 /** DNR `RuleCondition` 的受控子集：匹配式（域名列表或 URL 匹配式）、排除项、资源类型、请求方法、发起方域名。 */
 export type NetworkRuleCondition = {

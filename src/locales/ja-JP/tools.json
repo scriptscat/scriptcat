@@ -87,7 +87,6 @@
   "network_rules_storage_error": "変更を保存できませんでした。",
   "network_rules_confirm_all_sites_title": "すべてのサイトに影響しますか？",
   "network_rules_confirm_all_sites_description": "一致するすべてのサイトの保護が弱まります。続行しますか？",
-  "network_rules_incognito_unavailable": "ネットワークルールは通常のウィンドウで管理してください。chrome://extensions でスクリプトキャットの「シークレット モードでの実行を許可する」を有効にしていない限り、ルールはシークレット ウィンドウに影響しません。",
   "network_rule_template_csp": "CSP を削除",
   "network_rule_template_csp_desc": "サイトの CSP にブロックされたスクリプトを動かします。",
   "network_rule_template_user_agent": "User-Agent を変更",

@@ -157,17 +157,14 @@ describe("Tools 网络规则摘要卡", () => {
     expect(screen.getAllByTestId("network-rules-preview-row")).toHaveLength(2);
   });
 
-  it("隐身窗口提示由普通窗口管理、不承诺隐身生效且不读取状态", async () => {
+  it("隐身上下文与普通窗口一视同仁：照常读取状态、可管理，且没有隐身提示", async () => {
     extensionEnv.inIncognitoContext = true;
-    const client = clientFor(snapshot([]));
+    const client = clientFor(snapshot(manyRules(3)));
     renderCard(client);
-    const notice = await screen.findByRole("status");
-    expect(notice).toHaveTextContent("请在普通窗口中管理网络规则");
-    expect(notice).not.toHaveTextContent(/隐身窗口[^。]*生效|生效[^。]*隐身窗口/);
-    expect(notice).toHaveTextContent("chrome://extensions");
-    expect(notice).toHaveTextContent("允许在无痕模式下运行");
-    expect(client.getState).not.toHaveBeenCalled();
-    expect(screen.queryByRole("switch")).toBeNull();
+    expect(await screen.findByTestId("network-rules-summary")).toBeInTheDocument();
+    expect(client.getState).toHaveBeenCalled();
+    expect(screen.getByRole("switch", { name: "总开关" })).toBeInTheDocument();
+    expect(screen.queryByText(/请在普通窗口中管理网络规则/)).toBeNull();
   });
 
   it("总开关关闭时测试匹配照常给出命中，并说明规则被暂停", async () => {
