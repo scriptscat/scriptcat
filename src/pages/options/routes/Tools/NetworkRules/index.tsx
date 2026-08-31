@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ArrowLeft, Loader2, Network } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CircleCheck, CircleSlash, Loader2, Minus, Network, Trash2 } from "lucide-react";
 import { arrayMove } from "@dnd-kit/sortable";
 import { isNetworkRuleOwner, type NetworkRule } from "@App/app/repo/network_rule";
 import {
@@ -75,8 +75,9 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
   // 拖拽/移动期间先按新顺序渲染，保存失败时清空即回滚到服务端顺序。
   const [pendingOrder, setPendingOrder] = useState<string[]>();
   const [movingRule, setMovingRule] = useState<NetworkRule>();
-  const [confirmAllSites, setConfirmAllSites] = useState<NetworkRule>();
-  const [confirmDelete, setConfirmDelete] = useState<NetworkRule>();
+  // 高危确认与删除确认都可能由单条或一批规则触发，所以存待执行的动作而不是某一条规则。
+  const [confirmAllSites, setConfirmAllSites] = useState<{ run: () => void }>();
+  const [confirmDelete, setConfirmDelete] = useState<NetworkRule[]>();
   const [editingRule, setEditingRule] = useState<NetworkRule>();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [matchTestOpen, setMatchTestOpen] = useState(false);
@@ -111,12 +112,16 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
   const currentPage = Math.min(page, pageCount);
   const pageRules = visible.slice((currentPage - 1) * NETWORK_RULES_PAGE_SIZE, currentPage * NETWORK_RULES_PAGE_SIZE);
   const positionOf = (rule: NetworkRule) => order.indexOf(rule.id) + 1;
+  // 勾选以当前页为范围，所以翻页与改筛选都会清空选择，批量操作永远只作用于看得见的行。
+  const selectedRules = pageRules.filter((rule) => selected.has(rule.id));
+  const clearSelection = () => setSelected(new Set());
 
   const clearFilters = () => {
     setQuery("");
     setActionFilter("all");
     setStatusFilter("all");
     setPage(1);
+    clearSelection();
   };
 
   const applyResult = (result: NetworkRuleMutationResult) => {
@@ -133,13 +138,13 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
     });
 
   // service worker 挂起时响应可能丢失，但请求已在后台生效：重新拉取权威 state 判断是否推进了 revision。
-  const settleAmbiguous = async (baseRevision: number): Promise<boolean> => {
+  const settleAmbiguous = async (baseRevision: number): Promise<number | undefined> => {
     try {
       const latest = await client.getState();
       setSnapshot(latest);
-      return latest.state.revision > baseRevision;
+      return latest.state.revision > baseRevision ? latest.state.revision : undefined;
     } catch {
-      return false;
+      return undefined;
     }
   };
 
@@ -156,7 +161,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
       return true;
     } catch (error) {
       if (error instanceof NetworkRuleAmbiguousResponseError) {
-        if (await settleAmbiguous(baseRevision)) return true;
+        if ((await settleAmbiguous(baseRevision)) !== undefined) return true;
         notify.error(failureText);
         return false;
       }
@@ -167,6 +172,48 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
     } finally {
       setBusy(undefined);
     }
+  };
+
+  // 每条改动都会推进 revision，一批规则只能串行执行并把上一步返回的 revision 接力给下一步。
+  const runBulk = async (
+    key: string,
+    rules: NetworkRule[],
+    call: (rule: NetworkRule, baseRevision: number) => Promise<NetworkRuleMutationResult>
+  ): Promise<boolean> => {
+    if (!state) return false;
+    setBusy(key);
+    let revision = state.revision;
+    let failure: string | undefined;
+    let applyFailed = false;
+    for (const rule of rules) {
+      try {
+        const result = await call(rule, revision);
+        revision = result.state.revision;
+        setSnapshot(result);
+        if (result.outcome !== "applied" || result.apply.state !== "applied") applyFailed = true;
+      } catch (error) {
+        if (error instanceof NetworkRuleAmbiguousResponseError) {
+          const settled = await settleAmbiguous(revision);
+          if (settled !== undefined) {
+            revision = settled;
+            continue;
+          }
+          failure = t("tools:network_rules_storage_error");
+        } else {
+          const parsed = parseNetworkRuleError(error);
+          if (parsed.snapshot) setSnapshot(parsed.snapshot);
+          failure =
+            parsed.code === "revision_conflict"
+              ? t("tools:network_rules_revision_conflict")
+              : t("tools:network_rules_storage_error");
+        }
+        break;
+      }
+    }
+    setBusy(undefined);
+    if (failure) notify.error(failure);
+    else if (applyFailed) notify.error(t("tools:network_rules_rule_saved_apply_failed"));
+    return failure === undefined;
   };
 
   const persistOrder = async (nextOrder: string[]) => {
@@ -191,7 +238,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
 
   const toggleEnabled = (rule: NetworkRule, enabled: boolean) => {
     if (enabled && isAllSitesCondition(rule.condition)) {
-      setConfirmAllSites(rule);
+      setConfirmAllSites({ run: () => void setRuleEnabled(rule, enabled) });
       return;
     }
     void setRuleEnabled(rule, enabled);
@@ -203,6 +250,21 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
       (baseRevision) => client.setRuleEnabled({ baseRevision, id: rule.id, enabled }),
       t("tools:network_rules_storage_error")
     );
+
+  const setSelectedEnabled = (enabled: boolean) => {
+    const targets = selectedRules.filter((rule) => rule.enabled !== enabled);
+    const run = async () => {
+      await runBulk("bulk", targets, (rule, baseRevision) =>
+        client.setRuleEnabled({ baseRevision, id: rule.id, enabled })
+      );
+      clearSelection();
+    };
+    if (enabled && targets.some((rule) => isAllSitesCondition(rule.condition))) {
+      setConfirmAllSites({ run: () => void run() });
+      return;
+    }
+    void run();
+  };
 
   const setMasterEnabled = (enabled: boolean) =>
     void mutate(
@@ -255,7 +317,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
       return true;
     } catch (error) {
       if (error instanceof NetworkRuleAmbiguousResponseError) {
-        if (await settleAmbiguous(baseRevision)) {
+        if ((await settleAmbiguous(baseRevision)) !== undefined) {
           setSheetOpen(false);
           return true;
         }
@@ -269,12 +331,9 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
     }
   };
 
-  const deleteRule = async (rule: NetworkRule) => {
-    const ok = await mutate(
-      rule.id,
-      (baseRevision) => client.deleteRule({ baseRevision, id: rule.id }),
-      t("tools:network_rules_storage_error")
-    );
+  const deleteRules = async (rules: NetworkRule[]) => {
+    const ok = await runBulk("bulk", rules, (rule, baseRevision) => client.deleteRule({ baseRevision, id: rule.id }));
+    clearSelection();
     if (ok) notifyApplied(t("tools:network_rules_rule_deleted"));
   };
 
@@ -304,7 +363,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
     onToggleEnabled: toggleEnabled,
     onDragEnd: handleDragEnd,
     onEdit: (rule: NetworkRule) => openSheet(rule),
-    onDelete: (rule: NetworkRule) => setConfirmDelete(rule),
+    onDelete: (rule: NetworkRule) => setConfirmDelete([rule]),
     onMoveTop: (rule: NetworkRule) => moveTo(rule, 0),
     onMoveBottom: (rule: NetworkRule) => moveTo(rule, order.length - 1),
     onMoveTo: (rule: NetworkRule) => setMovingRule(rule),
@@ -353,6 +412,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
                 onChange={(event) => {
                   setQuery(event.target.value);
                   setPage(1);
+                  clearSelection();
                 }}
               />
               <Select
@@ -360,6 +420,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
                 onValueChange={(value: ActionFilter) => {
                   setActionFilter(value);
                   setPage(1);
+                  clearSelection();
                 }}
               >
                 <SelectTrigger className="w-[136px]" aria-label={t("tools:network_rules_filter_action")}>
@@ -379,6 +440,7 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
                 onValueChange={(value: StatusFilter) => {
                   setStatusFilter(value);
                   setPage(1);
+                  clearSelection();
                 }}
               >
                 <SelectTrigger className="w-[120px]" aria-label={t("tools:network_rules_filter_status")}>
@@ -476,6 +538,53 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
 
             {!loading && !loadError && pageRules.length > 0 && (
               <>
+                {selectedRules.length > 0 && (
+                  <div
+                    role="toolbar"
+                    aria-label={t("tools:network_rules_bulk_actions")}
+                    className="flex flex-wrap items-center gap-3 rounded-md bg-primary-light px-3.5 py-2"
+                  >
+                    <span
+                      className="flex size-4 items-center justify-center rounded-sm bg-primary-background"
+                      aria-hidden="true"
+                    >
+                      <Minus className="size-3 text-primary-foreground" />
+                    </span>
+                    <span className="flex-1 text-sm font-semibold text-primary">
+                      {t("tools:network_rules_selected_count", { count: selectedRules.length })}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy !== undefined}
+                      onClick={() => setSelectedEnabled(true)}
+                    >
+                      <CircleCheck />
+                      {t("tools:network_rules_bulk_enable")}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy !== undefined}
+                      onClick={() => setSelectedEnabled(false)}
+                    >
+                      <CircleSlash />
+                      {t("tools:network_rules_bulk_disable")}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy !== undefined}
+                      onClick={() => setConfirmDelete(selectedRules)}
+                    >
+                      <Trash2 />
+                      {t("tools:network_rules_bulk_delete")}
+                    </Button>
+                    <Button variant="link" size="xs" className="h-auto p-0" onClick={clearSelection}>
+                      {t("tools:network_rules_clear_selection")}
+                    </Button>
+                  </div>
+                )}
                 {isMobile ? (
                   <RuleCards {...listProps} />
                 ) : (
@@ -492,7 +601,10 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
                     <Pagination
                       page={currentPage}
                       pageCount={pageCount}
-                      onPageChange={setPage}
+                      onPageChange={(next) => {
+                        setPage(next);
+                        clearSelection();
+                      }}
                       previousLabel={t("tools:network_rules_prev_page")}
                       nextLabel={t("tools:network_rules_next_page")}
                     />
@@ -540,7 +652,11 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
       <AlertDialog open={confirmDelete !== undefined} onOpenChange={(open) => !open && setConfirmDelete(undefined)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("tools:network_rules_confirm_delete_title")}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {confirmDelete && confirmDelete.length > 1
+                ? t("tools:network_rules_confirm_bulk_delete_title", { count: confirmDelete.length })
+                : t("tools:network_rules_confirm_delete_title")}
+            </AlertDialogTitle>
             <AlertDialogDescription>{t("tools:network_rules_confirm_delete_description")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -550,9 +666,9 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
             <AlertDialogAction
               variant="destructive"
               onClick={() => {
-                const rule = confirmDelete;
+                const rules = confirmDelete;
                 setConfirmDelete(undefined);
-                if (rule) void deleteRule(rule);
+                if (rules) void deleteRules(rules);
               }}
             >
               {t("tools:network_rules_confirm_delete_action")}
@@ -573,9 +689,9 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                const rule = confirmAllSites;
+                const pending = confirmAllSites;
                 setConfirmAllSites(undefined);
-                if (rule) void setRuleEnabled(rule, true);
+                pending?.run();
               }}
             >
               {t("tools:network_rules_confirm")}

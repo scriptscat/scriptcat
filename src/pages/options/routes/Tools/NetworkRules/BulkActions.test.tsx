@@ -1,0 +1,191 @@
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { Route, Routes } from "react-router-dom";
+import { initTestLanguage } from "@Tests/initTestLanguage";
+import { mockMatchMedia } from "@Tests/mockMatchMedia";
+import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
+import { cspRemovalAction, type NetworkRule, type NetworkRuleState } from "@App/app/repo/network_rule";
+import type { NetworkRuleClient } from "@App/app/service/service_worker/client";
+import type { NetworkRuleMutationResult } from "@App/app/service/service_worker/network_rule";
+
+const notify = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() }));
+vi.mock("@App/pages/components/ui/toast", () => ({ notify }));
+
+import NetworkRules from ".";
+
+beforeAll(() => initTestLanguage("zh-CN"));
+beforeEach(() => {
+  mockMatchMedia();
+  vi.clearAllMocks();
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+  cleanup();
+});
+
+function rule(index: number, over: Partial<NetworkRule> = {}): NetworkRule {
+  return {
+    id: `r${index}`,
+    name: `规则 ${index}`,
+    enabled: true,
+    condition: { requestDomains: [`s${index}.example.com`] },
+    action: cspRemovalAction(),
+    createdAt: 1,
+    updatedAt: 1,
+    ...over,
+  };
+}
+
+/** mock 真实地推进 revision 与规则集，批量操作才会暴露「用陈旧 revision 接力」这类错误。 */
+function clientFor(rules: NetworkRule[]): NetworkRuleClient {
+  let state: NetworkRuleState = {
+    schemaVersion: 1,
+    revision: 3,
+    masterEnabled: true,
+    rules,
+    order: rules.map((r) => r.id),
+  };
+  const snapshot = () => ({ state, apply: { state: "applied" as const, revision: state.revision, appliedAt: 1 } });
+  const commit = (next: Partial<NetworkRuleState>): NetworkRuleMutationResult => {
+    state = { ...state, ...next, revision: state.revision + 1 };
+    return { ...snapshot(), outcome: "applied" as const };
+  };
+  return {
+    getState: vi.fn(async () => snapshot()),
+    createRule: vi.fn(),
+    updateRule: vi.fn(),
+    setMasterEnabled: vi.fn(),
+    reorderRules: vi.fn(),
+    retryApply: vi.fn(),
+    setRuleEnabled: vi.fn(async ({ id, enabled }: { id: string; enabled: boolean }) =>
+      commit({ rules: state.rules.map((r) => (r.id === id ? { ...r, enabled } : r)) })
+    ),
+    deleteRule: vi.fn(async ({ id }: { id: string }) =>
+      commit({ rules: state.rules.filter((r) => r.id !== id), order: state.order.filter((o) => o !== id) })
+    ),
+  } as unknown as NetworkRuleClient;
+}
+
+function renderPage(client: NetworkRuleClient) {
+  return renderWithThemeRouter(
+    <Routes>
+      <Route path="/tools/network-rules" element={<NetworkRules client={client} />} />
+    </Routes>,
+    { initialEntries: ["/tools/network-rules"] }
+  );
+}
+
+async function flush() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+function selectRow(name: string) {
+  fireEvent.click(screen.getByRole("checkbox", { name: `选择 ${name}` }));
+}
+
+function bulkBar() {
+  return screen.getByRole("toolbar", { name: "批量操作" });
+}
+
+function clickBulk(label: string) {
+  fireEvent.click(within(bulkBar()).getByRole("button", { name: label }));
+}
+
+function argsOf(mock: unknown) {
+  return vi
+    .mocked(mock as (input: { baseRevision: number; id: string; enabled?: boolean }) => unknown)
+    .mock.calls.map((call) => call[0]);
+}
+
+describe("网络规则批量操作", () => {
+  it("未选中时没有操作栏，选中两行后批量停用只对这两条发出请求", async () => {
+    const client = clientFor([rule(1), rule(2), rule(3)]);
+    renderPage(client);
+    expect(await screen.findByText("规则 1")).toBeInTheDocument();
+    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+
+    selectRow("规则 1");
+    selectRow("规则 3");
+    expect(within(bulkBar()).getByText("已选 2 条")).toBeInTheDocument();
+
+    clickBulk("停用");
+    await flush();
+
+    // 每条改动都会推进 revision，串行接力才不会撞上冲突。
+    expect(argsOf(client.setRuleEnabled)).toEqual([
+      { baseRevision: 3, id: "r1", enabled: false },
+      { baseRevision: 4, id: "r3", enabled: false },
+    ]);
+    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+  });
+
+  it("批量删除在确认前不动手，确认框提示可以改用停用", async () => {
+    const client = clientFor([rule(1), rule(2), rule(3)]);
+    renderPage(client);
+    expect(await screen.findByText("规则 1")).toBeInTheDocument();
+
+    selectRow("规则 1");
+    selectRow("规则 3");
+    clickBulk("删除");
+    await flush();
+
+    expect(client.deleteRule).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("alertdialog");
+    expect(within(dialog).getByText("删除选中的 2 条规则？")).toBeInTheDocument();
+    expect(within(dialog).getByText(/停用/)).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "删除规则" }));
+    await flush();
+
+    expect(argsOf(client.deleteRule)).toEqual([
+      { baseRevision: 3, id: "r1" },
+      { baseRevision: 4, id: "r3" },
+    ]);
+    expect(screen.queryByText("规则 1")).not.toBeInTheDocument();
+    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+  });
+
+  it("批量启用只处理当前停用的规则，含「所有网站」时仍需二次确认", async () => {
+    const client = clientFor([
+      rule(1),
+      rule(2, { enabled: false, condition: { urlFilter: "*" } }),
+      rule(3, { enabled: false }),
+    ]);
+    renderPage(client);
+    expect(await screen.findByText("规则 1")).toBeInTheDocument();
+
+    selectRow("规则 1");
+    selectRow("规则 2");
+    selectRow("规则 3");
+    clickBulk("启用");
+    await flush();
+
+    expect(client.setRuleEnabled).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "继续" }));
+    await flush();
+
+    expect(argsOf(client.setRuleEnabled)).toEqual([
+      { baseRevision: 3, id: "r2", enabled: true },
+      { baseRevision: 4, id: "r3", enabled: true },
+    ]);
+  });
+
+  it("翻页或改筛选会清空选择，操作栏随之消失", async () => {
+    const client = clientFor(Array.from({ length: 25 }, (_, index) => rule(index)));
+    renderPage(client);
+    expect(await screen.findByText("规则 0")).toBeInTheDocument();
+
+    selectRow("规则 0");
+    expect(bulkBar()).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "上一页" }));
+    selectRow("规则 0");
+    expect(bulkBar()).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规则 1" } });
+    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+  });
+});
