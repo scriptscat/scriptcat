@@ -5,22 +5,25 @@ import { cn } from "@App/pkg/utils/cn";
 // 列表行骨架：只固化行的几何与状态外观（行高、内边距、圆角、悬停/选中/禁用、操作槽的常驻半透明），
 // 不认识任何业务字段。左右锚区宽度由消费者给出——脚本列表左锚有勾选/拖拽/开关，回收站只有勾选，
 // 两者宽度本就不同，骨架预设宽度会立刻退化成带消费者判别参数的适配器。
-const listRowVariants = cva("group/row flex items-center h-14 px-3 transition-colors hover:bg-primary/[0.08]", {
-  variants: {
-    selected: {
-      true: "bg-primary/10",
-      false: "",
+const listRowVariants = cva(
+  "group/row flex items-center h-14 px-3 rounded-md transition-colors hover:bg-primary/[0.08]",
+  {
+    variants: {
+      selected: {
+        true: "bg-primary/10",
+        false: "",
+      },
+      disabled: {
+        true: "opacity-60",
+        false: "",
+      },
     },
-    disabled: {
-      true: "opacity-60",
-      false: "",
+    defaultVariants: {
+      selected: false,
+      disabled: false,
     },
-  },
-  defaultVariants: {
-    selected: false,
-    disabled: false,
-  },
-});
+  }
+);
 
 type ListRowProps = React.ComponentProps<"div"> & VariantProps<typeof listRowVariants>;
 

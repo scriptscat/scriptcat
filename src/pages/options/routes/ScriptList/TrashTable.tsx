@@ -179,7 +179,7 @@ export default function TrashTable({
   return (
     <div className="flex flex-col h-full">
       {/* 顶栏：tabs + 搜索 + 清空回收站（与已安装 tab 共用同一条 h-14 顶栏的形状） */}
-      <div className="flex items-center gap-4 h-14 px-6 shrink-0 border-b border-border bg-card">
+      <div className="flex items-center gap-4 h-14 px-6 shrink-0 bg-card">
         {leading}
         <SearchInput
           className="flex-1 rounded-lg"
@@ -234,7 +234,7 @@ export default function TrashTable({
         </SelectionBar>
 
         {/* 筛选行：来源 chips + 右侧保留提示 */}
-        <div className="flex h-11 shrink-0 items-center gap-2 px-6 border-b border-border">
+        <div className="flex h-11 shrink-0 items-center gap-2 px-6 border-b border-border bg-card">
           {FILTERS.map((f) => (
             <button
               key={f.value}
@@ -289,7 +289,7 @@ export default function TrashTable({
           </AlertDialogContent>
         </AlertDialog>
 
-        <div className="flex-1 overflow-y-auto divide-y divide-border">
+        <div className="flex-1 overflow-y-auto">
           {!list.length ? (
             <div className="flex h-full flex-col items-center justify-center gap-4">
               <div className="flex size-16 items-center justify-center rounded-full bg-muted">

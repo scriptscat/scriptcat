@@ -159,7 +159,7 @@ export default function SubscribeTable({
       </div>
 
       {/* 列表 */}
-      <div className="flex-1 overflow-auto scrollbar-custom px-6 py-3 divide-y divide-border">
+      <div className="flex-1 overflow-auto scrollbar-custom px-6 py-3">
         {/* 加载状态 */}
         {loadingList && <LoadingState label={t("loading")} />}
 

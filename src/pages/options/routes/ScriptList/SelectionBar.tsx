@@ -38,7 +38,10 @@ export default function SelectionBar({
   return (
     <div
       className={cn(
-        "flex items-center overflow-hidden gap-3 px-6 shrink-0 bg-primary/[0.08] border-b border-primary/20",
+        "flex items-center overflow-hidden gap-3 px-6 shrink-0 bg-primary/[0.08]",
+        // 收起态不能带边框：本组件与筛选行同处一个 h-11 overflow-hidden 容器，
+        // 这 1px 会把筛选行整体下推 1px，使筛选行自己的底部分隔线被容器裁掉。
+        mounted && "border-b border-primary/20",
         !mounted ? "h-0" : isOpen ? "h-11 animate-expand-bar" : "h-11 animate-collapse-bar",
         mounted ? "visible" : "collapse"
       )}

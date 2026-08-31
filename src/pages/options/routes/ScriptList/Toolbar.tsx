@@ -59,7 +59,7 @@ export function Toolbar({
     { key: "updatetime", label: t("logs:last_updated") },
   ];
   return (
-    <div className="flex items-center gap-4 h-14 px-6 shrink-0 border-b border-border bg-card">
+    <div className="flex items-center gap-4 h-14 px-6 shrink-0 bg-card">
       {leading ?? (
         // 标题 + 数量
         <div className="flex items-center gap-2 shrink-0">

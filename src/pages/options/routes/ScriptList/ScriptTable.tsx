@@ -217,7 +217,7 @@ export default function ScriptTable({
       </div>
 
       {/* 列表 */}
-      <div className="flex-1 overflow-auto scrollbar-custom px-6 pb-6 divide-y divide-border">
+      <div className="flex-1 overflow-auto scrollbar-custom px-6 pb-6">
         {/* 加载状态 */}
         {loadingList && <LoadingState label={t("loading")} />}
 
