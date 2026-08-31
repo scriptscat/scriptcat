@@ -1,5 +1,4 @@
-import { useMemo } from "react";
-import { useTranslation } from "react-i18next";
+import { memo, useMemo } from "react";
 import { GripVertical } from "lucide-react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -15,7 +14,15 @@ import type { NetworkRule } from "@App/app/repo/network_rule";
 import { Switch } from "@App/pages/components/ui/switch";
 import { cn } from "@App/pkg/utils/cn";
 import { useDragAccessibility } from "./dragAccessibility";
-import { ActionBadge, RuleName, RuleRowMenu, ScopeChips, type RuleRowActions } from "./RuleParts";
+import {
+  ActionBadge,
+  RuleName,
+  RuleRowMenu,
+  ScopeChips,
+  useRuleRowLabels,
+  type RuleRowActions,
+  type RuleRowLabels,
+} from "./RuleParts";
 
 // 长按手柄进入拖拽；delay 之内的移动仍按滚动处理。
 const LONG_PRESS = { delay: 300, tolerance: 8 };
@@ -45,6 +52,7 @@ export default function RuleCards({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
   const ids = useMemo(() => rules.map((rule) => rule.id), [rules]);
+  const labels = useRuleRowLabels();
   const a11y = useDragAccessibility(rules, positionOf, total);
 
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
@@ -69,6 +77,7 @@ export default function RuleCards({
               total={total}
               dragDisabled={dragDisabled}
               busy={busy}
+              labels={labels}
               onToggleEnabled={onToggleEnabled}
               {...moveHandlers}
             />
@@ -79,23 +88,18 @@ export default function RuleCards({
   );
 }
 
-function SortableRuleCard({
-  rule,
-  position,
-  total,
-  dragDisabled,
-  busy,
-  onToggleEnabled,
-  ...moveHandlers
-}: RuleRowActions & {
+type RuleCardProps = RuleRowActions & {
   rule: NetworkRule;
   position: number;
   total: number;
   dragDisabled: boolean;
   busy: boolean;
+  labels: RuleRowLabels;
   onToggleEnabled: (rule: NetworkRule, enabled: boolean) => void;
-}) {
-  const { t } = useTranslation();
+};
+
+/** 与 RuleTable 的行同理：只有拖拽接线留在外层，花钱的部分放进 memo 边界内。 */
+function SortableRuleCard({ rule, dragDisabled, labels, ...bodyProps }: RuleCardProps) {
   const { setNodeRef, setActivatorNodeRef, listeners, attributes, transform, transition, isDragging } = useSortable({
     id: rule.id,
     disabled: dragDisabled,
@@ -117,32 +121,46 @@ function SortableRuleCard({
         type="button"
         ref={setActivatorNodeRef}
         disabled={dragDisabled}
-        aria-label={t("tools:network_rules_drag_handle", { name: rule.name })}
+        aria-label={labels.dragHandle(rule.name)}
         className="flex cursor-grab touch-none items-center py-1 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
         {...attributes}
         {...listeners}
       >
         <GripVertical className="size-4" />
       </button>
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <Switch
-            checked={rule.enabled}
-            disabled={busy}
-            aria-label={t("tools:network_rules_enable_rule", { name: rule.name })}
-            onCheckedChange={(checked) => onToggleEnabled(rule, checked)}
-          />
-          <div className="min-w-0 flex-1">
-            <RuleName rule={rule} />
-          </div>
-          <span className="text-xs tabular-nums text-muted-foreground">{position}</span>
-          <RuleRowMenu rule={rule} position={position} total={total} disabled={busy} {...moveHandlers} />
-        </div>
-        <div className="flex flex-wrap items-center gap-2 pl-12">
-          <ActionBadge rule={rule} />
-          <ScopeChips rule={rule} />
-        </div>
-      </div>
+      <RuleCardBody rule={rule} labels={labels} {...bodyProps} />
     </div>
   );
 }
+
+const RuleCardBody = memo(function RuleCardBody({
+  rule,
+  position,
+  total,
+  busy,
+  labels,
+  onToggleEnabled,
+  ...moveHandlers
+}: Omit<RuleCardProps, "dragDisabled">) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-2">
+      <div className="flex items-center gap-3">
+        <Switch
+          checked={rule.enabled}
+          disabled={busy}
+          aria-label={labels.enableRule(rule.name)}
+          onCheckedChange={(checked) => onToggleEnabled(rule, checked)}
+        />
+        <div className="min-w-0 flex-1">
+          <RuleName rule={rule} labels={labels} />
+        </div>
+        <span className="text-xs tabular-nums text-muted-foreground">{position}</span>
+        <RuleRowMenu rule={rule} position={position} total={total} disabled={busy} labels={labels} {...moveHandlers} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 pl-12">
+        <ActionBadge label={labels.actions[rule.action.type]} />
+        <ScopeChips rule={rule} allSitesLabel={labels.allWebsites} />
+      </div>
+    </div>
+  );
+});

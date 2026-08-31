@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, MoreHorizontal } from "lucide-react";
 import type { NetworkRule, NetworkRuleActionType } from "@App/app/repo/network_rule";
@@ -18,28 +19,71 @@ const VISIBLE_DOMAINS = 2;
 /** 每个动作名都用字面量 key 调用 t()，i18n-usage 的静态校验才能覆盖到。 */
 export function useActionLabels(): Record<NetworkRuleActionType, string> {
   const { t } = useTranslation();
-  return {
-    removeResponseHeaders: t("tools:network_rule_action_remove_response_headers"),
-    modifyRequestHeaders: t("tools:network_rule_action_modify_request_headers"),
-    modifyResponseHeaders: t("tools:network_rule_action_modify_response_headers"),
-    block: t("tools:network_rule_action_block"),
-    redirect: t("tools:network_rule_action_redirect"),
-    allow: t("tools:network_rule_action_allow"),
-  };
+  return useMemo(
+    () => ({
+      removeResponseHeaders: t("tools:network_rule_action_remove_response_headers"),
+      modifyRequestHeaders: t("tools:network_rule_action_modify_request_headers"),
+      modifyResponseHeaders: t("tools:network_rule_action_modify_response_headers"),
+      block: t("tools:network_rule_action_block"),
+      redirect: t("tools:network_rule_action_redirect"),
+      allow: t("tools:network_rule_action_allow"),
+    }),
+    [t]
+  );
 }
 
-export function ActionBadge({ rule }: { rule: NetworkRule }) {
-  const labels = useActionLabels();
-  return <Badge variant="secondary">{labels[rule.action.type]}</Badge>;
-}
+/**
+ * 与规则无关的行内文案在表格级取一次就够：每行各自 useTranslation 会让 20 行的一次渲染
+ * 跑上百次 t()，而这些字串对所有行都一样。带规则名的几条做成函数，标识同样稳定，
+ * 于是行内容可以整块 memo 掉。切换语言时 t 换标识，整个对象随之失效。
+ */
+export type RuleRowLabels = {
+  actions: Record<NetworkRuleActionType, string>;
+  allWebsites: string;
+  menu: string;
+  edit: string;
+  moveTop: string;
+  moveBottom: string;
+  moveTo: string;
+  remove: string;
+  modifiedAt: (time: string) => string;
+  dragHandle: (name: string) => string;
+  selectRule: (name: string) => string;
+  enableRule: (name: string) => string;
+};
 
-export function ScopeChips({ rule }: { rule: NetworkRule }) {
+export function useRuleRowLabels(): RuleRowLabels {
   const { t } = useTranslation();
+  const actions = useActionLabels();
+  return useMemo(
+    () => ({
+      actions,
+      allWebsites: t("tools:network_rules_all_websites"),
+      menu: t("tools:network_rules_row_menu"),
+      edit: t("tools:network_rules_edit"),
+      moveTop: t("tools:network_rules_move_top"),
+      moveBottom: t("tools:network_rules_move_bottom"),
+      moveTo: t("tools:network_rules_move_to"),
+      remove: t("tools:network_rules_delete"),
+      modifiedAt: (time: string) => t("tools:network_rules_modified_at", { time }),
+      dragHandle: (name: string) => t("tools:network_rules_drag_handle", { name }),
+      selectRule: (name: string) => t("tools:network_rules_select_rule", { name }),
+      enableRule: (name: string) => t("tools:network_rules_enable_rule", { name }),
+    }),
+    [t, actions]
+  );
+}
+
+export function ActionBadge({ label }: { label: string }) {
+  return <Badge variant="secondary">{label}</Badge>;
+}
+
+export function ScopeChips({ rule, allSitesLabel }: { rule: NetworkRule; allSitesLabel: string }) {
   if (isAllSitesCondition(rule.condition)) {
     return (
       <Badge variant="warning" className="gap-1">
         <AlertTriangle className="size-3" aria-hidden="true" />
-        {t("tools:network_rules_all_websites")}
+        {allSitesLabel}
       </Badge>
     );
   }
@@ -58,15 +102,14 @@ export function ScopeChips({ rule }: { rule: NetworkRule }) {
   );
 }
 
-export function RuleName({ rule }: { rule: NetworkRule }) {
-  const { t } = useTranslation();
+export function RuleName({ rule, labels }: { rule: NetworkRule; labels: RuleRowLabels }) {
   return (
     <div className="flex min-w-0 flex-col gap-px">
       <span data-testid="network-rule-name" className="truncate text-sm font-medium text-foreground">
         {rule.name}
       </span>
       <span className="truncate text-[11px] text-muted-foreground">
-        {t("tools:network_rules_modified_at", { time: semTime(new Date(rule.updatedAt)) })}
+        {labels.modifiedAt(semTime(new Date(rule.updatedAt)))}
       </span>
     </div>
   );
@@ -85,34 +128,40 @@ export function RuleRowMenu({
   position,
   total,
   disabled,
+  labels,
   onEdit,
   onDelete,
   onMoveTop,
   onMoveBottom,
   onMoveTo,
-}: RuleRowActions & { rule: NetworkRule; position: number; total: number; disabled: boolean }) {
-  const { t } = useTranslation();
+}: RuleRowActions & {
+  rule: NetworkRule;
+  position: number;
+  total: number;
+  disabled: boolean;
+  labels: RuleRowLabels;
+}) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="icon-sm" variant="ghost" disabled={disabled} aria-label={t("tools:network_rules_row_menu")}>
+        <Button size="icon-sm" variant="ghost" disabled={disabled} aria-label={labels.menu}>
           <MoreHorizontal className="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={() => onEdit(rule)}>{t("tools:network_rules_edit")}</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onEdit(rule)}>{labels.edit}</DropdownMenuItem>
         <DropdownMenuItem disabled={position === 1} onSelect={() => onMoveTop(rule)}>
-          {t("tools:network_rules_move_top")}
+          {labels.moveTop}
         </DropdownMenuItem>
         <DropdownMenuItem disabled={position === total} onSelect={() => onMoveBottom(rule)}>
-          {t("tools:network_rules_move_bottom")}
+          {labels.moveBottom}
         </DropdownMenuItem>
         <DropdownMenuItem disabled={total < 2} onSelect={() => onMoveTo(rule)}>
-          {t("tools:network_rules_move_to")}
+          {labels.moveTo}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => onDelete(rule)}>
-          {t("tools:network_rules_delete")}
+          {labels.remove}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

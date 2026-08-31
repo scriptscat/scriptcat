@@ -1,4 +1,5 @@
 import type { NetworkRule, NetworkRuleActionType, NetworkRuleCondition } from "@App/app/repo/network_rule";
+import { NETWORK_RULE_RESOURCE_TYPES } from "./network_rule_condition";
 import type { NetworkRuleRequestMethod, NetworkRuleResourceType } from "./network_rule_condition";
 
 /**
@@ -9,7 +10,8 @@ import type { NetworkRuleRequestMethod, NetworkRuleResourceType } from "./networ
  * 无从判定——当前编辑界面也产生不了这两个字段。
  */
 
-export type RuleUrlMatch = "match" | "no-match" | "invalid";
+/** `scope-only`：网址落在规则范围内，但这次请求被资源类型或请求方法排除。 */
+export type RuleUrlMatch = "match" | "scope-only" | "no-match" | "invalid";
 
 export type SimulatedRequest = {
   url: string;
@@ -105,23 +107,25 @@ function matchesUrl(condition: NetworkRuleCondition, url: URL): boolean {
 
 function matchesRequest(condition: NetworkRuleCondition, url: URL, request: Required<SimulatedRequest>): boolean {
   if (!matchesUrl(condition, url)) return false;
-  // DNR：resourceTypes 与 excludedResourceTypes 都不写时，匹配除 main_frame 以外的全部资源类型。
-  const resourceMatches = condition.resourceTypes
-    ? condition.resourceTypes.includes(request.resourceType)
-    : request.resourceType !== "main_frame";
-  if (!resourceMatches) return false;
+  // DNR 自身的默认是「除 main_frame 外的全部资源类型」，但编译器在未显式指定时会把受控集合列全
+  // （network_rule_compiler.ts 的 compileCondition），模拟必须复述编译结果而不是 DNR 的默认。
+  const resourceTypes = condition.resourceTypes ?? NETWORK_RULE_RESOURCE_TYPES;
+  if (!resourceTypes.includes(request.resourceType)) return false;
   if (condition.requestMethods && !condition.requestMethods.includes(request.method)) return false;
   return true;
 }
 
 /**
- * 保存前自查用的范围匹配：只回答「这个地址落在规则的匹配式里吗」，
- * 不掺入资源类型与请求方法——表单那一栏问的是范围，不是某一次具体请求。
+ * 保存前自查：把输入当作一次主文档 GET 导航，与模拟器共用 matchesRequest 这一个谓词。
+ * 若只掺入 URL 范围，用户在高级区显式选了资源类型后就会被告知「匹配」，
+ * 而编译出的条件根本不会作用于这次请求——所以这一档单独报 scope-only。
  */
 export function matchRuleUrl(condition: NetworkRuleCondition, input: string): RuleUrlMatch {
   const url = parseHttpUrl(input);
   if (!url) return "invalid";
-  return matchesUrl(condition, url) ? "match" : "no-match";
+  if (!matchesUrl(condition, url)) return "no-match";
+  const request: Required<SimulatedRequest> = { url: input, resourceType: "main_frame", method: "get" };
+  return matchesRequest(condition, url, request) ? "match" : "scope-only";
 }
 
 /**

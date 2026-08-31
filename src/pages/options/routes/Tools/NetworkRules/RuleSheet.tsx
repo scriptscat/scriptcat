@@ -37,6 +37,8 @@ export type NetworkRuleSaveResult = true | false | NetworkRuleServiceError;
 type RuleSheetProps = {
   open: boolean;
   rule?: NetworkRule;
+  /** 从空态的场景入口进来时直接落到第二步，跳过选模板。 */
+  initialTemplate?: RuleTemplateId;
   saving: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (value: NetworkRuleFormValue) => Promise<NetworkRuleSaveResult>;
@@ -53,7 +55,7 @@ const TEMPLATE_ICONS: Record<RuleTemplateId, LucideIcon> = {
 };
 
 /** 每个模板名都用字面量 key 调用 t()，i18n-usage 的静态校验才能覆盖到。 */
-function useTemplateLabels(): Record<RuleTemplateId, { title: string; description: string }> {
+export function useTemplateLabels(): Record<RuleTemplateId, { title: string; description: string }> {
   const { t } = useTranslation();
   return {
     csp: { title: t("tools:network_rule_template_csp"), description: t("tools:network_rule_template_csp_desc") },
@@ -81,27 +83,30 @@ function useTemplateLabels(): Record<RuleTemplateId, { title: string; descriptio
   };
 }
 
-function initialState(rule: NetworkRule | undefined): RuleFormState {
+function initialState(rule: NetworkRule | undefined, template: RuleTemplateId): RuleFormState {
   const condition = rule?.condition;
   const allSites = condition !== undefined && isAllSitesCondition(condition);
+  // 编辑既有规则时资源类型一律照搬原值；只有新建才套模板预设，与 chooseTemplate 保持一致。
+  const presetResourceTypes = template === "csp" ? [...CSP_RESOURCE_TYPES] : [];
   return {
     websites: (allSites ? undefined : condition?.requestDomains)?.join("\n") ?? "",
     allSites,
     name: rule?.name ?? "",
-    draft: rule ? actionDraftFrom(rule.action) : emptyActionDraft("csp"),
-    resourceTypes: condition?.resourceTypes ?? [],
+    draft: rule ? actionDraftFrom(rule.action) : emptyActionDraft(template),
+    resourceTypes: rule ? (condition?.resourceTypes ?? []) : presetResourceTypes,
     requestMethods: condition?.requestMethods ?? [],
     excludedWebsites: condition?.excludedRequestDomains?.join("\n") ?? "",
     tryUrl: "",
   };
 }
 
-export default function RuleSheet({ open, rule, saving, onOpenChange, onSave }: RuleSheetProps) {
+export default function RuleSheet({ open, rule, initialTemplate, saving, onOpenChange, onSave }: RuleSheetProps) {
   const { t } = useTranslation();
   const templateLabels = useTemplateLabels();
-  const [step, setStep] = useState<"template" | "form">(rule ? "form" : "template");
-  const [template, setTemplate] = useState<RuleTemplateId>(rule ? detectTemplate(rule.action) : "csp");
-  const [state, setState] = useState<RuleFormState>(() => initialState(rule));
+  const initial = rule ? detectTemplate(rule.action) : (initialTemplate ?? "csp");
+  const [step, setStep] = useState<"template" | "form">(rule || initialTemplate ? "form" : "template");
+  const [template, setTemplate] = useState<RuleTemplateId>(initial);
+  const [state, setState] = useState<RuleFormState>(() => initialState(rule, initial));
   const [touched, setTouched] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [pendingValue, setPendingValue] = useState<NetworkRuleFormValue>();

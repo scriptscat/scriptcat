@@ -311,7 +311,8 @@ describe("网络规则编辑抽屉", () => {
     fireEvent.change(screen.getByLabelText("应用范围"), { target: { value: "example.com" } });
     fireEvent.change(screen.getAllByLabelText("头名称")[0], { target: { value: "Cookie" } });
 
-    expect(screen.getByText(/不允许改写/)).toBeInTheDocument();
+    // 黑名单说明常驻在这一栏，所以这里要认的是报错本身，而不是页面上出现了这几个字。
+    expect(screen.getByRole("alert")).toHaveTextContent("会暴露或伪造调用者身份");
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await flush();
     expect(client.createRule).not.toHaveBeenCalled();

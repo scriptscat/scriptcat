@@ -112,10 +112,12 @@ describe("simulateNetworkRules", () => {
     ]);
   });
 
-  it("未指定 resourceTypes 的规则不匹配主框架请求", () => {
+  // 编译器（network_rule_compiler.ts）在未显式指定时会把受控集合列全，含 main_frame，
+  // 模拟必须跟着编译结果走，而不是跟着 DNR 自身「默认排除主文档」的语义走。
+  it("未指定 resourceTypes 的规则与编译结果一致，主文档同样命中", () => {
     const rules = [rule("b", { requestDomains: ["github.com"] }, { type: "block" })];
     expect(simulateNetworkRules(rules, { url: "https://github.com/a", resourceType: "main_frame" }).hits).toHaveLength(
-      0
+      1
     );
     expect(simulateNetworkRules(rules, { url: "https://github.com/a", resourceType: "script" }).hits).toHaveLength(1);
   });
@@ -186,5 +188,25 @@ describe("matchRuleUrl", () => {
   it("与模拟器共用匹配核心：urlFilter 通配符不退化为子串比较", () => {
     expect(matchRuleUrl({ urlFilter: "/ads/*.js" }, "https://a.com/ads/x.js")).toBe("match");
     expect(matchRuleUrl({ urlFilter: "/ads/*.js" }, "https://a.com/adsjs")).toBe("no-match");
+  });
+
+  it("按主文档 GET 判定：未指定 resourceTypes 时与编译结果一致地命中", () => {
+    expect(matchRuleUrl({ requestDomains: ["github.com"] }, "https://github.com/a")).toBe("match");
+    expect(
+      matchRuleUrl({ requestDomains: ["github.com"], resourceTypes: ["main_frame"] }, "https://github.com/a")
+    ).toBe("match");
+  });
+
+  it("高级区限定的资源类型或请求方法排除这次请求时报 scope-only，而不是谎报匹配", () => {
+    expect(matchRuleUrl({ requestDomains: ["github.com"], resourceTypes: ["image"] }, "https://github.com/a")).toBe(
+      "scope-only"
+    );
+    expect(matchRuleUrl({ requestDomains: ["github.com"], requestMethods: ["post"] }, "https://github.com/a")).toBe(
+      "scope-only"
+    );
+    // 范围之外仍然是 no-match：资源类型不该把「域名都不对」说成「只是类型不对」。
+    expect(matchRuleUrl({ requestDomains: ["github.com"], resourceTypes: ["image"] }, "https://other.com/a")).toBe(
+      "no-match"
+    );
   });
 });

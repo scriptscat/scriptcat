@@ -6,6 +6,7 @@ import {
   MAX_RULE_HEADERS,
   X_FRAME_OPTIONS_HEADER,
   MAX_RULE_NAME_LENGTH,
+  type NetworkRuleAction,
   type NetworkRuleActionType,
   type NetworkRuleCondition,
 } from "@App/app/repo/network_rule";
@@ -29,6 +30,7 @@ import { Textarea } from "@App/pages/components/ui/textarea";
 import { cn } from "@App/pkg/utils/cn";
 import { useActionLabels } from "./RuleParts";
 import {
+  buildAction,
   editsHeaderList,
   editsRequestHeaders,
   USER_AGENT_PRESETS,
@@ -96,6 +98,28 @@ function useDraftErrorLabels(): Record<DraftErrorKey, string> {
   };
 }
 
+/**
+ * 「试一试」只回答匹配与否，用户还是不知道匹配之后会发生什么——而那正是这一栏要确认的。
+ * 文案由 buildAction 的结果生成，与保存下去的动作是同一份数据。
+ */
+function useActionEffectLabel(action: NetworkRuleAction): string {
+  const { t } = useTranslation();
+  switch (action.type) {
+    case "removeResponseHeaders":
+      return t("tools:network_rules_try_effect_remove_response_headers", { count: action.headers.length });
+    case "modifyRequestHeaders":
+      return t("tools:network_rules_try_effect_modify_request_headers", { count: action.headers.length });
+    case "modifyResponseHeaders":
+      return t("tools:network_rules_try_effect_modify_response_headers", { count: action.headers.length });
+    case "block":
+      return t("tools:network_rules_try_effect_block");
+    case "redirect":
+      return t("tools:network_rules_try_effect_redirect", { url: action.url });
+    case "allow":
+      return t("tools:network_rules_try_effect_allow");
+  }
+}
+
 function useHeaderOperationLabels(): Record<(typeof HEADER_OPERATION_ORDER)[number], string> {
   const { t } = useTranslation();
   return {
@@ -131,6 +155,8 @@ export default function RuleForm({
     () => (state.tryUrl.trim() ? matchRuleUrl(condition, state.tryUrl) : undefined),
     [condition, state.tryUrl]
   );
+  const action = useMemo(() => buildAction(template, state.draft), [template, state.draft]);
+  const effect = useActionEffectLabel(action);
 
   return (
     <form
@@ -227,7 +253,8 @@ export default function RuleForm({
           />
           {match && (
             <p role="status" className={cn("text-xs", match === "match" ? "text-success-fg" : "text-muted-foreground")}>
-              {match === "match" && t("tools:network_rules_try_match")}
+              {match === "match" && t("tools:network_rules_try_match_effect", { effect })}
+              {match === "scope-only" && t("tools:network_rules_try_scope_only")}
               {match === "no-match" && t("tools:network_rules_try_no_match")}
               {match === "invalid" && t("tools:network_rules_try_invalid")}
             </p>
@@ -546,6 +573,10 @@ function HeaderRows({
             ? t("tools:network_rules_field_request_headers")
             : t("tools:network_rules_field_response_headers")}
       </Label>
+      {/* 黑名单是这一栏的固有约束，等用户敲完再报错等于让他白填一次。 */}
+      {editsRequestHeaders(actionType) && (
+        <p className="text-xs text-muted-foreground">{t("tools:network_rules_header_denied_note")}</p>
+      )}
       {headers.map((row, index) => {
         const error = errors[index];
         const message = error ? errorLabels[error] : "";
