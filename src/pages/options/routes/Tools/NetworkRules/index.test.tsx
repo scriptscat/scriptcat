@@ -10,6 +10,7 @@ import type { NetworkRuleClient } from "@App/app/service/service_worker/client";
 import type { NetworkRuleSnapshot } from "@App/app/service/service_worker/network_rule";
 
 import NetworkRules from ".";
+import { NETWORK_RULES_PAGE_SIZE } from "./rules";
 import { stubNotify } from "./test-helpers";
 
 beforeAll(() => initTestLanguage("zh-CN"));
@@ -166,56 +167,58 @@ describe("网络规则列表页", () => {
   });
 
   it("搜索时手柄置灰，但行菜单的置顶仍能跨页移动规则", async () => {
-    const rules = Array.from({ length: 25 }, (_, index) => rule(index));
+    // 只有第二页存在时「跨页」才成立，刚好多出一条即可；多余的行只会让整页渲染更贵。
+    const total = NETWORK_RULES_PAGE_SIZE + 1;
+    const offPage = total - 1;
+    const rules = Array.from({ length: total }, (_, index) => rule(index));
     const client = clientFor(snapshot(rules));
     renderPage(client);
     expect(await screen.findByText("规则 0")).toBeInTheDocument();
-    expect(screen.getAllByTestId("network-rule-row")).toHaveLength(20);
+    expect(screen.getAllByTestId("network-rule-row")).toHaveLength(NETWORK_RULES_PAGE_SIZE);
 
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规则 22" } });
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: `规则 ${offPage}` } });
     const row = screen.getAllByTestId("network-rule-row")[0];
-    expect(rowNames()).toEqual(["规则 22"]);
-    expect(within(row).getByRole("button", { name: /规则 22/ })).toBeDisabled();
+    expect(rowNames()).toEqual([`规则 ${offPage}`]);
+    expect(within(row).getByRole("button", { name: new RegExp(`规则 ${offPage}`) })).toBeDisabled();
 
     await openRowMenu(row);
     fireEvent.click(await screen.findByRole("menuitem", { name: "置顶" }));
     await flush();
 
     const order = vi.mocked(client.reorderRules).mock.calls[0][0].order;
-    expect(order).toHaveLength(25);
-    expect(order[0]).toBe("r22");
+    expect(order).toHaveLength(total);
+    expect(order[0]).toBe(`r${offPage}`);
   });
 
   it("清除筛选后恢复完整列表，手柄重新可用", async () => {
-    const rules = Array.from({ length: 25 }, (_, index) => rule(index));
-    renderPage(clientFor(snapshot(rules)));
-    expect(await screen.findByText("规则 0")).toBeInTheDocument();
+    // 筛掉一部分再清掉筛选就足以验证恢复，不需要凑满一整页。
+    renderPage(clientFor(snapshot([rule(1), rule(2), rule(3)])));
+    expect(await screen.findByText("规则 1")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规则 22" } });
-    expect(rowNames()).toEqual(["规则 22"]);
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规则 2" } });
+    expect(rowNames()).toEqual(["规则 2"]);
 
     fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
-    expect(screen.getAllByTestId("network-rule-row")).toHaveLength(20);
+    expect(rowNames()).toEqual(["规则 1", "规则 2", "规则 3"]);
     expect(
-      within(screen.getAllByTestId("network-rule-row")[0]).getByRole("button", { name: /规则 0/ })
+      within(screen.getAllByTestId("network-rule-row")[0]).getByRole("button", { name: /规则 1/ })
     ).not.toBeDisabled();
   });
 
   it("行菜单可以把规则移到指定位置", async () => {
-    const rules = Array.from({ length: 25 }, (_, index) => rule(index));
-    const client = clientFor(snapshot(rules));
+    // 目标位次落在中间，才和「置顶／置底」区分开；四行就够摆出这样一个位次。
+    const client = clientFor(snapshot([rule(1), rule(2), rule(3), rule(4)]));
     renderPage(client);
-    expect(await screen.findByText("规则 0")).toBeInTheDocument();
+    expect(await screen.findByText("规则 1")).toBeInTheDocument();
 
     await openRowMenu(screen.getAllByTestId("network-rule-row")[0]);
     fireEvent.click(await screen.findByRole("menuitem", { name: "移到…" }));
-    fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "25" } });
+    fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "3" } });
     fireEvent.click(screen.getByRole("button", { name: "移动" }));
     await flush();
 
     const order = vi.mocked(client.reorderRules).mock.calls[0][0].order;
-    expect(order[24]).toBe("r0");
-    expect(order).toHaveLength(25);
+    expect(order).toEqual(["r2", "r3", "r1", "r4"]);
   });
 
   it("没有规则时展示空态", async () => {
