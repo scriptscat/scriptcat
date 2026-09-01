@@ -58,6 +58,7 @@ import { EnableAgent } from "@App/app/const";
 import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import type { TrashScript } from "@App/app/repo/trash_script";
 import { SubscribeDAO } from "@App/app/repo/subscribe";
+import { INSTALL_REDIRECT_RULE_ID_MIN, INTERNAL_DNR_PRIORITY, buildInstallGuardRules } from "./dnr_rule_ids";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -152,7 +153,7 @@ export class ScriptService {
                 addRules: [
                   {
                     id: 2,
-                    priority: 1,
+                    priority: INTERNAL_DNR_PRIORITY,
                     action: {
                       type: "allow" as chrome.declarativeNetRequest.RuleActionType,
                     },
@@ -300,10 +301,14 @@ export class ScriptService {
         : []),
     ];
     const installPageURL = chrome.runtime.getURL("src/install.html");
-    const rules = conditions.map((condition, idx) => {
+    for (const condition of conditions) {
       Object.assign(condition, {
         excludedTabIds: [chrome.tabs.TAB_ID_NONE],
       });
+    }
+    // 必须在附加 responseHeaders 之前取条件：守卫要留在请求阶段，才能在用户的 block 短路请求之前放行。
+    const guardRules = buildInstallGuardRules(conditions);
+    const rules = conditions.map((condition, idx) => {
       if (addResponseHeaders) {
         Object.assign(condition, {
           responseHeaders: [
@@ -323,8 +328,8 @@ export class ScriptService {
         });
       }
       return {
-        id: 1000 + idx,
-        priority: 1,
+        id: INSTALL_REDIRECT_RULE_ID_MIN + idx,
+        priority: INTERNAL_DNR_PRIORITY,
         action: {
           type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
           redirect: {
@@ -352,8 +357,8 @@ export class ScriptService {
     );
     chrome.declarativeNetRequest.updateSessionRules(
       {
-        removeRuleIds: [...rules.map((rule) => rule.id)],
-        addRules: rules,
+        removeRuleIds: [...guardRules.map((rule) => rule.id), ...rules.map((rule) => rule.id)],
+        addRules: [...guardRules, ...rules],
       },
       () => {
         if (chrome.runtime.lastError) {

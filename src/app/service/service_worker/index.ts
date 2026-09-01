@@ -35,6 +35,9 @@ import { ExternalAccessController } from "@App/app/service/service_worker/extern
 import { ExternalAccessUIService } from "@App/app/service/service_worker/external_access/service";
 import { ExternalAccessConnectClient } from "@App/app/service/offscreen/client";
 import { hookFirefoxEventPageKeepAliveLoop, hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
+import { NetworkRuleStateDAO } from "@App/app/repo/network_rule";
+import { NetworkRuleService } from "./network_rule";
+import { DeclarativeNetRequestUserRuleApplier, compileNetworkRules } from "./network_rule_compiler";
 
 // "直接允许" 写策略下 MCP 无需人工确认即执行了写操作，发系统通知让用户知晓（决策 #12 的知情兜底）。
 // kind=update 只由 scripts.edit.request 产生，故文案按「编辑」而非版本更新描述，避免被误读为例行升级。
@@ -149,6 +152,16 @@ export default class ServiceWorkerManager {
       faviconDAO
     );
     system.init();
+
+    const networkRule = new NetworkRuleService(
+      this.api.group("networkRule"),
+      this.mq,
+      new NetworkRuleStateDAO(),
+      compileNetworkRules,
+      new DeclarativeNetRequestUserRuleApplier()
+    );
+    networkRule.init();
+
     const agent = new AgentService(this.api.group("agent"), this.offscreenSend, resource);
     agent.init();
 
