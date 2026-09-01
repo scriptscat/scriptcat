@@ -581,6 +581,17 @@ describe.concurrent("createProxyContext", () => {
       expect(sandbox.Event.prototype).toBe(window.Event.prototype);
     });
 
+    it.concurrent("uses the host window identity for pseudo-window descriptors", () => {
+      const roots = createSplitRealmRoots();
+      roots.hostWindow[Symbol.toStringTag] = "Window";
+      const sandbox = createProxyContext(createTestContext([]), roots);
+
+      expect(Object.prototype.toString.call(sandbox)).toBe("[object Window]");
+      expect(sandbox.constructor).toBe(roots.hostWindow.constructor);
+      expect(sandbox.__proto__).toBe(roots.hostWindow.__proto__);
+      expect(Object.getPrototypeOf(sandbox)).toBeNull();
+    });
+
     it.concurrent("keeps JavaScript built-in static methods available", () => {
       const sandbox = createProxyContext(createTestContext([]));
 
