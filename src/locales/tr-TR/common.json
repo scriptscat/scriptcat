@@ -58,7 +58,6 @@
   "stop": "Durdur",
   "edit": "Düzenle",
   "copy": "Kopyala",
-  "exclude_on": "$0 yürütmesini yeniden etkinleştir",
   "exclude_off": "$0 yürütmesini dışla",
   "only_on_site": "Yalnızca $0 üzerinde çalıştır",
   "confirm_only_run_on_site": "Betiğin mevcut site eşleştirme kuralları temizlenecek. Yalnızca bu sitede çalıştırılsın mı?",

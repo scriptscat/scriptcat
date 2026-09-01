@@ -115,6 +115,9 @@ places, or they drift apart. To discover the current full set rather than relyin
 - [ ] No content that only exists on a feature branch is presented as current `main` — removed, or explicitly
       marked "planned (branch `X`)".
 - [ ] No fact is duplicated across docs; the owning doc holds it, the others link to it.
+- [ ] New sections are inserted at owner-appropriate boundaries. Preserve existing logical blocks and their
+      adjacent explanations; after insertion, recheck the surrounding order and links. Do not split a code block
+      from its following explanation unless that boundary change is intentional and documented.
 
 ## Checklist 2 — Fact-check (when a doc states something concrete)
 

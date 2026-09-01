@@ -52,7 +52,7 @@
 | 目前詞彙 | 建議判斷 | 目前受影響 key |
 | --- | --- | --- |
 | `目錄` | 指 filesystem directory 的介面動作用 `資料夾`；文章或文件的內容目錄仍用 `目錄`。 | `open_backup_dir`, `open_directory`, `script_operation_description`, `get_backup_dir_url_failed` |
-| `恢復` | restore settings/default values 用 `還原`；resume operation 或 recover 依語意使用 `恢復` / `復原`。 | `exclude_on`, `restore_default_values` |
+| `恢復` | restore settings/default values 用 `還原`；resume operation 或 recover 依語意使用 `恢復` / `復原`。 | `restore_default_values` |
 | `拉取` | Git pull 可用 `拉取`；從雲端取得備份或資料的 UI 動作用 `下載` / `擷取` / `同步取得`。 | `pulling_data_from_cloud`, `pull_failed` |
 | `保存` / `儲存` | UI 的 save 動作用 `儲存`；保存期限、保存證據或一般敘述仍可使用 `保存`。 | `tools_backup_content` |
 | `設備` / `裝置` | 使用者持有、同步或連線的 device 介面用 `裝置`；equipment 或設備管理等語境仍可使用 `設備`。 | `setting_sync_content` |

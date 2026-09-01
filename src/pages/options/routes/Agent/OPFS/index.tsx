@@ -19,11 +19,24 @@ import {
   Eye,
   Download,
   Trash2,
+  Pencil,
+  FolderInput,
+  LockKeyhole,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@App/pages/components/ui/button";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { Progress } from "@App/pages/components/ui/progress";
+import { Input } from "@App/pages/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@App/pages/components/ui/dialog";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { dayFormat } from "@App/pkg/utils/day_format";
 import { cn } from "@App/pkg/utils/cn";
@@ -37,6 +50,11 @@ import {
   readFileText,
   getFileBlob,
   writeFile,
+  renameEntry,
+  moveEntry,
+  listMoveDestinations,
+  isEditablePath,
+  parsePath,
   formatSize,
   fileKind,
   type FileEntry,
@@ -45,6 +63,9 @@ import {
 
 type PreviewState = { open: boolean; name: string; kind: FileKind; text?: string; imageUrl?: string };
 type SortKey = "name" | "size" | "time";
+type EntryDialogState =
+  | { action: "rename"; entry: FileEntry; value: string }
+  | { action: "move"; entry: FileEntry; value: string; destinations: string[][] };
 
 const PREVIEWABLE: FileKind[] = ["json", "md", "text", "img"];
 
@@ -69,22 +90,36 @@ export default function AgentOPFS() {
   const [path, setPath] = useState<string[]>([]);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [entryDialog, setEntryDialog] = useState<EntryDialogState | null>(null);
+  const [entryActionPending, setEntryActionPending] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const entryActionPendingRef = useRef(false);
+
+  const getRoot = useCallback(() => navigator.storage.getDirectory(), []);
+  const handleRootError = useCallback((error: unknown) => {
+    setRoot(null);
+    setEntries([]);
+    setLoadError(error instanceof Error ? error.message : String(error));
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    void navigator.storage.getDirectory().then(setRoot);
-  }, []);
+    void getRoot().then(setRoot).catch(handleRootError);
+  }, [getRoot, handleRootError]);
 
   const load = useCallback(async () => {
     if (!root) return;
     setLoading(true);
+    setLoadError(null);
     try {
       setEntries(await listDir(root, path));
-    } catch {
+    } catch (error) {
       setEntries([]);
+      setLoadError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
@@ -111,6 +146,7 @@ export default function AgentOPFS() {
   }, [entries, sort]);
 
   const totalSize = useMemo(() => entries.reduce((sum, e) => sum + (e.size ?? 0), 0), [entries]);
+  const editable = isEditablePath(path);
 
   const toggleSort = (key: SortKey) =>
     setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
@@ -148,6 +184,51 @@ export default function AgentOPFS() {
     await removeEntry(root, path, entry.name, entry.kind);
     notify.success(t("agent:opfs_delete_success"));
     await load();
+  };
+
+  const openRenameDialog = (entry: FileEntry) => {
+    setEntryDialog({ action: "rename", entry, value: entry.name });
+  };
+
+  const openMoveDialog = async (entry: FileEntry) => {
+    if (!root) return;
+    try {
+      const destinations = await listMoveDestinations(root, path, entry);
+      if (destinations.length === 0) {
+        notify.error(t("agent:opfs_move_no_destination"));
+        return;
+      }
+      setEntryDialog({ action: "move", entry, value: destinations[0].join("/"), destinations });
+    } catch (error) {
+      notify.error(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const handleEntryDialogSubmit = async () => {
+    if (!root || !entryDialog || entryActionPendingRef.current) return;
+    entryActionPendingRef.current = true;
+    setEntryActionPending(true);
+    try {
+      if (entryDialog.action === "rename") {
+        const newName = entryDialog.value.trim();
+        if (newName === entryDialog.entry.name) {
+          setEntryDialog(null);
+          return;
+        }
+        await renameEntry(root, path, entryDialog.entry.name, newName);
+        notify.success(t("agent:opfs_rename_success"));
+      } else {
+        await moveEntry(root, path, entryDialog.entry.name, parsePath(entryDialog.value));
+        notify.success(t("agent:opfs_move_success"));
+      }
+      setEntryDialog(null);
+      await load();
+    } catch (error) {
+      notify.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      entryActionPendingRef.current = false;
+      setEntryActionPending(false);
+    }
   };
 
   const handleUpload = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -226,10 +307,12 @@ export default function AgentOPFS() {
                 <RefreshCw className="size-4" />
                 {t("agent:opfs_refresh")}
               </Button>
-              <Button data-testid="opfs-upload" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
-                {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-                {uploading ? t("agent:opfs_uploading") : t("agent:opfs_upload")}
-              </Button>
+              {editable && (
+                <Button data-testid="opfs-upload" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+                  {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+                  {uploading ? t("agent:opfs_uploading") : t("agent:opfs_upload")}
+                </Button>
+              )}
             </>
           }
         />
@@ -251,15 +334,27 @@ export default function AgentOPFS() {
             >
               <RefreshCw className="size-4" />
             </Button>
-            <Button
-              size="icon"
-              data-testid="opfs-upload"
-              disabled={uploading}
-              aria-label={uploading ? t("agent:opfs_uploading") : t("agent:opfs_upload")}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-            </Button>
+            {editable && (
+              <Button
+                size="icon"
+                data-testid="opfs-upload"
+                disabled={uploading}
+                aria-label={uploading ? t("agent:opfs_uploading") : t("agent:opfs_upload")}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {!editable && (
+          <div
+            data-testid="opfs-read-only-notice"
+            className="flex items-start gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2.5 text-xs text-muted-foreground"
+          >
+            <LockKeyhole className="mt-0.5 size-4 shrink-0" />
+            <span>{t("agent:opfs_read_only")}</span>
           </div>
         )}
 
@@ -290,7 +385,33 @@ export default function AgentOPFS() {
           )}
         </div>
 
-        {!loading && entries.length === 0 ? (
+        {loading && entries.length === 0 ? (
+          <div
+            data-testid="opfs-loading"
+            className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-10 text-sm text-muted-foreground"
+          >
+            <Loader2 className="size-4 animate-spin" />
+            {t("common:loading")}
+          </div>
+        ) : loadError ? (
+          <div
+            data-testid="opfs-load-error"
+            className="flex flex-col items-center gap-3 rounded-xl border border-destructive/30 bg-card px-4 py-10 text-center text-sm text-muted-foreground"
+          >
+            <span>{`${t("common:error")}: ${loadError}`}</span>
+            <Button
+              variant="outline"
+              data-testid="opfs-load-retry"
+              onClick={() => {
+                setLoading(true);
+                setLoadError(null);
+                void (root ? load() : getRoot().then(setRoot).catch(handleRootError));
+              }}
+            >
+              {t("agent:opfs_refresh")}
+            </Button>
+          </div>
+        ) : entries.length === 0 ? (
           <AgentEmptyState icon={Folder} title={t("agent:opfs_empty")} description={t("agent:opfs_empty_desc")} />
         ) : isMobile ? (
           <div className="flex flex-col gap-2">
@@ -301,6 +422,15 @@ export default function AgentOPFS() {
                 ...(entry.kind === "file" && entry.size != null ? [formatSize(entry.size)] : []),
                 ...(entry.lastModified ? [dayFormat(new Date(entry.lastModified), "MM-DD HH:mm")] : []),
               ].join(" · ");
+              const items = menuItems(entry, {
+                openEntry,
+                handleDownload,
+                handleDelete,
+                openRenameDialog,
+                openMoveDialog,
+                t,
+                editable,
+              });
               return (
                 <div
                   key={entry.name}
@@ -325,7 +455,7 @@ export default function AgentOPFS() {
                     </span>
                     <span className="truncate text-[11px] text-muted-foreground">{sub}</span>
                   </button>
-                  <AgentCardMenu items={menuItems(entry, { openEntry, handleDownload, handleDelete, t })} />
+                  {items.length > 0 && <AgentCardMenu items={items} />}
                 </div>
               );
             })}
@@ -349,7 +479,7 @@ export default function AgentOPFS() {
                 dir={sort.dir}
                 onClick={() => toggleSort("time")}
               />
-              <span className="w-[140px] px-3.5 py-2.5">{t("agent:opfs_actions")}</span>
+              <span className="w-[180px] px-3.5 py-2.5">{t("agent:opfs_actions")}</span>
             </div>
             {sorted.map((entry) => {
               const meta = entryMeta(entry);
@@ -381,12 +511,15 @@ export default function AgentOPFS() {
                   <span className="w-[190px] px-3.5 font-mono text-xs text-muted-foreground">
                     {entry.lastModified ? dayFormat(new Date(entry.lastModified), "YYYY-MM-DD HH:mm") : "—"}
                   </span>
-                  <div className="flex w-[140px] items-center justify-end gap-0.5 px-3.5">
+                  <div className="flex w-[180px] items-center justify-end gap-0.5 px-3.5">
                     <RowActions
                       entry={entry}
                       onPreview={openEntry}
                       onDownload={handleDownload}
                       onDelete={handleDelete}
+                      onRename={openRenameDialog}
+                      onMove={openMoveDialog}
+                      editable={editable}
                       t={t}
                     />
                   </div>
@@ -407,6 +540,71 @@ export default function AgentOPFS() {
           onOpenChange={(v) => (v ? undefined : closePreview())}
         />
       )}
+
+      <Dialog open={!!entryDialog} onOpenChange={(open) => !open && !entryActionPending && setEntryDialog(null)}>
+        <DialogContent aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>
+              {entryDialog?.action === "rename" ? t("agent:opfs_rename") : t("agent:opfs_move")}
+            </DialogTitle>
+            <DialogDescription className="truncate font-mono">{entryDialog?.entry.name}</DialogDescription>
+          </DialogHeader>
+          {entryDialog?.action === "move" ? (
+            <Select
+              value={entryDialog.value}
+              disabled={entryActionPending}
+              onValueChange={(value) =>
+                setEntryDialog((current) => (current?.action === "move" ? { ...current, value } : current))
+              }
+            >
+              <SelectTrigger
+                data-testid="opfs-move-destination"
+                aria-label={t("agent:opfs_move_destination")}
+                className="w-full font-mono"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {entryDialog.destinations.map((destination) => {
+                  const value = destination.join("/");
+                  return (
+                    <SelectItem key={value} value={value} className="font-mono">
+                      {value}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              data-testid="opfs-entry-edit-input"
+              autoFocus
+              disabled={entryActionPending}
+              value={entryDialog?.value ?? ""}
+              placeholder={t("agent:opfs_rename_placeholder")}
+              onChange={(event) =>
+                setEntryDialog((current) => (current ? { ...current, value: event.target.value } : current))
+              }
+              onKeyDown={(event) => {
+                if (event.key === "Enter") void handleEntryDialogSubmit();
+              }}
+            />
+          )}
+          <DialogFooter>
+            <Button variant="outline" disabled={entryActionPending} onClick={() => setEntryDialog(null)}>
+              {t("common:cancel")}
+            </Button>
+            <Button
+              data-testid="opfs-entry-edit-submit"
+              disabled={entryActionPending}
+              onClick={() => void handleEntryDialogSubmit()}
+            >
+              {entryActionPending && <Loader2 className="size-4 animate-spin" />}
+              {entryActionPending ? t("common:loading") : t("common:save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -439,19 +637,25 @@ function SortHeader({
   );
 }
 
-// 移动端 kebab 菜单项:按类型给出 预览 / 下载 / 删除
+// 移动端 kebab 菜单项:按权限给出 预览 / 下载 / 重命名 / 移动 / 删除
 function menuItems(
   entry: FileEntry,
   {
     openEntry,
     handleDownload,
     handleDelete,
+    openRenameDialog,
+    openMoveDialog,
     t,
+    editable,
   }: {
     openEntry: (e: FileEntry) => void | Promise<void>;
     handleDownload: (e: FileEntry) => void | Promise<void>;
     handleDelete: (e: FileEntry) => void | Promise<void>;
+    openRenameDialog: (e: FileEntry) => void;
+    openMoveDialog: (e: FileEntry) => void | Promise<void>;
     t: (k: string) => string;
+    editable: boolean;
   }
 ): AgentCardMenuItem[] {
   const items: AgentCardMenuItem[] = [];
@@ -466,13 +670,29 @@ function menuItems(
       onSelect: () => void handleDownload(entry),
     });
   }
-  items.push({
-    key: "delete",
-    label: t("common:delete"),
-    icon: Trash2,
-    danger: true,
-    onSelect: () => void handleDelete(entry),
-  });
+  if (editable) {
+    items.push(
+      {
+        key: "rename",
+        label: t("agent:opfs_rename"),
+        icon: Pencil,
+        onSelect: () => openRenameDialog(entry),
+      },
+      {
+        key: "move",
+        label: t("agent:opfs_move"),
+        icon: FolderInput,
+        onSelect: () => void openMoveDialog(entry),
+      },
+      {
+        key: "delete",
+        label: t("common:delete"),
+        icon: Trash2,
+        danger: true,
+        onSelect: () => void handleDelete(entry),
+      }
+    );
+  }
   return items;
 }
 
@@ -481,12 +701,18 @@ function RowActions({
   onPreview,
   onDownload,
   onDelete,
+  onRename,
+  onMove,
+  editable,
   t,
 }: {
   entry: FileEntry;
   onPreview: (e: FileEntry) => void;
   onDownload: (e: FileEntry) => void;
   onDelete: (e: FileEntry) => void;
+  onRename: (e: FileEntry) => void;
+  onMove: (e: FileEntry) => void | Promise<void>;
+  editable: boolean;
   t: (k: string) => string;
 }) {
   const canPreview = entry.kind === "file" && PREVIEWABLE.includes(fileKind(entry.name));
@@ -514,22 +740,46 @@ function RowActions({
           <Download className="size-[15px]" />
         </button>
       )}
-      <Popconfirm
-        description={t("agent:opfs_delete_confirm")}
-        onConfirm={() => onDelete(entry)}
-        destructive
-        align="end"
-      >
-        <button
-          type="button"
-          data-testid={`delete-${entry.name}`}
-          title={t("common:delete")}
-          aria-label={t("common:delete")}
-          className="flex size-[30px] items-center justify-center rounded-md text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
-        >
-          <Trash2 className="size-[15px]" />
-        </button>
-      </Popconfirm>
+      {editable && (
+        <>
+          <button
+            type="button"
+            data-testid={`rename-${entry.name}`}
+            title={t("agent:opfs_rename")}
+            aria-label={t("agent:opfs_rename")}
+            onClick={() => onRename(entry)}
+            className="flex size-[30px] items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <Pencil className="size-[15px]" />
+          </button>
+          <button
+            type="button"
+            data-testid={`move-${entry.name}`}
+            title={t("agent:opfs_move")}
+            aria-label={t("agent:opfs_move")}
+            onClick={() => void onMove(entry)}
+            className="flex size-[30px] items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+          >
+            <FolderInput className="size-[15px]" />
+          </button>
+          <Popconfirm
+            description={t("agent:opfs_delete_confirm")}
+            onConfirm={() => onDelete(entry)}
+            destructive
+            align="end"
+          >
+            <button
+              type="button"
+              data-testid={`delete-${entry.name}`}
+              title={t("common:delete")}
+              aria-label={t("common:delete")}
+              className="flex size-[30px] items-center justify-center rounded-md text-destructive hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+            >
+              <Trash2 className="size-[15px]" />
+            </button>
+          </Popconfirm>
+        </>
+      )}
     </>
   );
 }

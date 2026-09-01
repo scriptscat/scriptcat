@@ -11,7 +11,6 @@ const popupInitialData = vi.hoisted(() => ({
   menuExpandNum: 5,
   scriptListExpandNum: 5,
   popupCompactLayout: false,
-  popupSiteScopeActions: false,
   defaultScriptProvider: "scriptcat" as const,
   pageStatus: "ok" as const,
   scriptList: [
@@ -286,7 +285,8 @@ describe("usePopupData 站点范围快捷操作", () => {
       await result.current.handleExcludeFromMatch("script-1");
     });
 
-    expect(mockExcludeFromMatch).toHaveBeenCalledWith("script-1", "*://example.com/*");
+    // SW 需要 host 与完整网址：host 用于定位要移出的匹配，网址用于判断移出后是否还得补排除
+    expect(mockExcludeFromMatch).toHaveBeenCalledWith("script-1", "example.com", "https://example.com/page");
     expect(result.current.scriptList[0]?.isEffective).toBe(false);
     expect(result.current.scriptList[0]?.hasMatchOverride).toBe(true);
     expect(notify.success).not.toHaveBeenCalled();

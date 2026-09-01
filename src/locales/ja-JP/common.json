@@ -58,7 +58,6 @@
   "stop": "中止",
   "edit": "編集",
   "copy": "コピー",
-  "exclude_on": "$0の実行を復元",
   "exclude_off": "$0の実行を除外",
   "only_on_site": "$0 でのみ実行",
   "confirm_only_run_on_site": "スクリプトの既存のサイト対象ルールが消去されます。このサイトでのみ実行しますか？",
