@@ -180,12 +180,15 @@ const isConstructorOrInterface = (value: unknown) => {
   return firstChar >= 65 && firstChar <= 90;
 };
 
+// 避免 host/Xray function 的 .bind lookup 不可靠
+const bindFn = Function.prototype.bind;
+
 const materializeDescriptor = (descriptor: PropertyDescriptor, receiver: DescriptorOwner): PropertyDescriptor => {
   if ("value" in descriptor) {
     if (typeof descriptor.value !== "function" || isConstructorOrInterface(descriptor.value)) return descriptor;
     return {
       ...descriptor,
-      value: Function.prototype.bind.call(descriptor.value, receiver),
+      value: bindFn.call(descriptor.value, receiver),
     };
   }
   if (!descriptor.get && !descriptor.set) return descriptor;
