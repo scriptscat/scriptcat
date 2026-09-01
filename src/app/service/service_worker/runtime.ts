@@ -52,7 +52,7 @@ import Logger from "@App/app/logger/logger";
 import type { GMInfoEnv, ValueUpdateDataEncoded } from "../content/types";
 import { initLocalesPromise, localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
-import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
+import { extractUrlPatterns, RuleType, RuleTypeBit, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 import type { CompiledResource, Resource, ResourceType } from "@App/app/repo/resource";
 import { CompiledResourceDAO, CompiledResourceNamespace } from "@App/app/repo/resource";
@@ -456,9 +456,9 @@ export class RuntimeService {
     // 安装，启用，或earlyStartScript的value更新
     const ret = await this.buildAndSaveCompiledResourceFromScript(script, true);
     if (!ret) {
-      // 空匹配覆盖（match 与 include 均为空）时脚本不再匹配任何站点。
-      // 内存 matcher 已由 applyScriptMatchInfo 清空，这里再清掉持久化的 CompiledResource
-      // 并注销浏览器旧注册，否则 SW 重启后 waitInit 会信任旧资源、让旧范围复活。
+      // 空匹配覆盖（match 与 include 均为空）时脚本不再匹配任何站点。内存 matcher 里只剩
+      // 供 Popup 恢复用的原始规则，这里再清掉持久化的 CompiledResource 并注销浏览器旧注册，
+      // 否则 SW 重启后 waitInit 会信任旧资源、让旧范围复活。
       await this.compiledResourceDAO.delete(script.uuid);
       await this.unregistryPageScripts([script.uuid]);
       return;
@@ -855,6 +855,9 @@ export class RuntimeService {
     const resourceUrls = (script.metadata["require"] || []).map((res) => resources[res]?.url).filter((res) => res);
     const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
     if (!scriptMatchInfo) return undefined;
+    // 生效规则一条 inclusion 都不剩（用户把当前站点从匹配中移除后可能如此）时不能注册：
+    // getApiMatchesAndGlobs 对没有 match pattern 的规则集会退回 *://*/*，注册出去等于全站运行。
+    if (!scriptMatchInfo.scriptUrlPatterns.some((rule) => rule.ruleType & RuleTypeBit.INCLUSION)) return undefined;
 
     const res = getUserScriptRegister(scriptMatchInfo);
     const registerScript = res.registerScript;

@@ -98,7 +98,6 @@ export function usePopupData() {
   const [menuExpandNum, setMenuExpandNum] = useState(initialData?.menuExpandNum ?? 5);
   const [scriptListExpandNum, setScriptListExpandNum] = useState(initialData?.scriptListExpandNum ?? 5);
   const [popupCompactLayout, setPopupCompactLayout] = useState(initialData?.popupCompactLayout ?? false);
-  const [popupSiteScopeActions, setPopupSiteScopeActions] = useState(initialData?.popupSiteScopeActions ?? false);
   const [defaultScriptProvider, setDefaultScriptProvider] = useState<ScriptProvider>(
     initialData?.defaultScriptProvider ?? "scriptcat"
   );
@@ -141,7 +140,6 @@ export function usePopupData() {
     setMenuExpandNum(initialData.menuExpandNum);
     setScriptListExpandNum(initialData.scriptListExpandNum);
     setPopupCompactLayout(initialData.popupCompactLayout);
-    setPopupSiteScopeActions(initialData.popupSiteScopeActions);
     setDefaultScriptProvider(initialData.defaultScriptProvider);
     setInitialized(true);
   }
@@ -268,18 +266,6 @@ export function usePopupData() {
     window.close();
   }, []);
 
-  const handleExcludeUrl = useCallback(async (uuid: string, isEffective: boolean) => {
-    const host = extractHost(stateRef.current.currentUrl);
-    if (!host) return;
-    try {
-      // isEffective=true → 排除（remove=false）; isEffective=false → 取消排除（remove=true）
-      await scriptClient.excludeUrl(uuid, `*://${host}/*`, !isEffective);
-      setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: !isEffective } : s)));
-    } catch (e) {
-      console.error("Failed to toggle exclude:", e);
-    }
-  }, []);
-
   const handleOnlyRunOnUrl = useCallback(
     async (uuid: string) => {
       const host = extractHost(stateRef.current.currentUrl);
@@ -299,10 +285,11 @@ export function usePopupData() {
 
   const handleExcludeFromMatch = useCallback(
     async (uuid: string) => {
-      const host = extractHost(stateRef.current.currentUrl);
+      const { currentUrl } = stateRef.current;
+      const host = extractHost(currentUrl);
       if (!host) return;
       try {
-        await scriptClient.excludeFromMatch(uuid, `*://${host}/*`);
+        await scriptClient.excludeFromMatch(uuid, host, currentUrl);
         setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: false } : s)));
       } catch (e) {
         showError(String(e));
@@ -464,7 +451,6 @@ export function usePopupData() {
     handleOpenEditor,
     handleOpenScriptSettings,
     handleOpenUserConfig,
-    handleExcludeUrl,
     handleExcludeFromMatch,
     handleOnlyRunOnUrl,
     handleAllowUrl,
@@ -486,7 +472,6 @@ export function usePopupData() {
     showAlert,
     menuExpandNum,
     popupCompactLayout,
-    popupSiteScopeActions,
     handleSearch,
     handleToggleExpand,
   };

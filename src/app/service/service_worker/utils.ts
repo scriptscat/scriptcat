@@ -273,7 +273,13 @@ export function scriptURLPatternResults(scriptRes: {
   const metaMatch = metadata.match;
   const metaInclude = metadata.include;
   const metaExclude = metadata.exclude;
-  if ((metaMatch?.length ?? 0) + (metaInclude?.length ?? 0) === 0) {
+  // 生效规则为空时仍要解析原始规则：用户把当前站点从匹配中移除后可能一条不剩，
+  // 此时脚本不匹配任何站点，但 Popup 要靠原始规则继续列出它（未生效），用户才有恢复入口。
+  // 只有连原始规则都没有的脚本才真的无从匹配。
+  if (
+    (metaMatch?.length ?? 0) + (metaInclude?.length ?? 0) === 0 &&
+    (originalMetadata.match?.length ?? 0) + (originalMetadata.include?.length ?? 0) === 0
+  ) {
     return null;
   }
 
