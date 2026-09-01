@@ -64,6 +64,7 @@ const createSplitRealmRoots = (): RealmRoots => {
   hostWindow.addEventListener = eventTarget.addEventListener.bind(eventTarget);
   hostWindow.removeEventListener = eventTarget.removeEventListener.bind(eventTarget);
   hostWindow.dispatchEvent = eventTarget.dispatchEvent.bind(eventTarget);
+  hostWindow.dynamicHostValue = { source: "host" };
   hostWindow.dynamicHostMethod = {
     dynamicHostMethod(this: unknown) {
       return this;
@@ -88,6 +89,12 @@ const createSplitRealmRoots = (): RealmRoots => {
       return this;
     },
   }.dynamicPrototypeMethod;
+  Object.defineProperty(hostWindowPrototype, "dynamicPrototypeValue", {
+    configurable: true,
+    enumerable: true,
+    value: { source: "prototype" },
+    writable: false,
+  });
   Object.defineProperty(hostWindow, "onload", {
     configurable: true,
     enumerable: true,
@@ -453,13 +460,48 @@ describe.concurrent("createProxyContext", () => {
       const sandbox = createProxyContext(createTestContext([]), roots);
 
       expect(sandbox.dynamicHostMethod()).toBe(roots.hostWindow);
+      expect(sandbox.dynamicHostValue).toBe(roots.hostWindow.dynamicHostValue);
       expect(sandbox.dynamicHostAccessor).toBe("host-value");
       expect(sandbox.dynamicPrototypeMethod()).toBe(roots.hostWindow);
+      expect(sandbox.dynamicPrototypeValue).toBe(roots.hostWindow.dynamicPrototypeValue);
+      expect(Object.getOwnPropertyDescriptor(sandbox, "dynamicPrototypeValue")).toMatchObject({
+        value: roots.hostWindow.dynamicPrototypeValue,
+        writable: false,
+        enumerable: true,
+        configurable: true,
+      });
       expect(sandbox.DynamicInterface.staticValue).toBe("static-value");
       expect(sandbox.DynamicInterface.prototype).toBe(roots.hostWindow.DynamicInterface.prototype);
 
       sandbox.dynamicHostAccessor = "updated-value";
       expect(sandbox.dynamicHostAccessor).toBe("updated-value");
+    });
+
+    it.concurrent("keeps host events when a realm accessor uses the same property name", () => {
+      const roots = createSplitRealmRoots();
+      Object.defineProperty(roots.realmGlobal, "oncollectorcollision", {
+        configurable: false,
+        enumerable: true,
+        get() {
+          return "realm-accessor";
+        },
+      });
+      Object.defineProperty(roots.hostWindow, "oncollectorcollision", {
+        configurable: true,
+        enumerable: true,
+        get: () => null,
+        set: () => undefined,
+      });
+
+      const sandbox = createProxyContext(createTestContext([]), roots);
+      const handler = vi.fn();
+
+      sandbox.oncollectorcollision = handler;
+      expect(sandbox.oncollectorcollision).toBe(handler);
+      roots.hostWindow.dispatchEvent(new Event("collectorcollision"));
+      sandbox.oncollectorcollision = null;
+
+      expect(handler).toHaveBeenCalledTimes(1);
     });
 
     it.concurrent("keeps Chrome's shared global/window prototype descriptors", () => {
