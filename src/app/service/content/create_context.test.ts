@@ -462,6 +462,47 @@ describe.concurrent("createProxyContext", () => {
       expect(sandbox.dynamicHostAccessor).toBe("updated-value");
     });
 
+    it.concurrent("keeps Chrome's shared global/window prototype descriptors", () => {
+      const prototype = Object.create(null);
+      const prototypeValue = { source: "prototype" };
+      prototype.chromePrototypeMethod = {
+        chromePrototypeMethod(this: unknown) {
+          return this;
+        },
+      }.chromePrototypeMethod;
+      prototype.chromePrototypeValue = prototypeValue;
+      let accessorValue = "initial";
+      Object.defineProperty(prototype, "chromePrototypeAccessor", {
+        configurable: true,
+        enumerable: true,
+        get() {
+          return this === chromeWindow ? accessorValue : "wrong-receiver";
+        },
+        set(value: string) {
+          accessorValue = this === chromeWindow ? value : "wrong-receiver";
+        },
+      });
+
+      const eventTarget = new EventTarget();
+      const chromeWindow = Object.assign(Object.create(prototype), {
+        addEventListener: eventTarget.addEventListener.bind(eventTarget),
+        removeEventListener: eventTarget.removeEventListener.bind(eventTarget),
+      });
+      const sandbox = createProxyContext(createTestContext([]), {
+        realmGlobal: chromeWindow,
+        hostWindow: chromeWindow,
+      });
+
+      expect(sandbox.chromePrototypeMethod()).toBe(chromeWindow);
+      expect(sandbox.chromePrototypeValue).toBe(prototypeValue);
+      expect(sandbox.chromePrototypeAccessor).toBe("initial");
+      sandbox.chromePrototypeAccessor = "updated";
+      expect(sandbox.chromePrototypeAccessor).toBe("updated");
+      expect(sandbox.window).toBe(sandbox);
+      expect(sandbox.self).toBe(sandbox);
+      expect(sandbox.globalThis).toBe(sandbox);
+    });
+
     it.concurrent("preserves non-self top, parent, and frames references from an iframe realm", () => {
       const roots = createSplitRealmRoots();
       const parentWindow = Object.create(null);
