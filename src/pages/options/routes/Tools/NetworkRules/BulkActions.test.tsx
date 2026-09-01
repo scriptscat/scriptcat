@@ -107,7 +107,10 @@ function argsOf(mock: unknown) {
 }
 
 describe("网络规则批量操作", () => {
-  it("未选中时没有操作栏，选中两行后批量停用只对这两条发出请求", async () => {
+  // 整页挂载 + 两次勾选 + 一次批量往返：本地 solo 覆盖率下 320ms，而 GitHub runner 约慢 2.5 倍，
+  // 本文件首例还要多付一次冷启动，850ms 的 ui 预算在 CI 上连挂两轮。给这一条单独放宽，
+  // 预算对其余用例保持不变。
+  it("未选中时没有操作栏，选中两行后批量停用只对这两条发出请求", { timeout: 1500 }, async () => {
     const client = clientFor([rule(1), rule(2), rule(3)]);
     renderPage(client);
     expect(await screen.findByText("规则 1")).toBeInTheDocument();
