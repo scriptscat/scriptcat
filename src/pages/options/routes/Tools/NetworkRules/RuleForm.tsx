@@ -28,8 +28,9 @@ import { Label } from "@App/pages/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@App/pages/components/ui/select";
 import { Textarea } from "@App/pages/components/ui/textarea";
 import { cn } from "@App/pkg/utils/cn";
-import { useActionLabels, useResourceTypeLabels } from "./RuleParts";
+import { ACTION_TONES, useActionLabels, useResourceTypeLabels } from "./RuleParts";
 import {
+  ACTION_TYPE_BY_TEMPLATE,
   buildAction,
   editsHeaderList,
   editsRequestHeaders,
@@ -169,7 +170,9 @@ export default function RuleForm({
     >
       <div className="flex-1 space-y-5 overflow-y-auto scrollbar-custom px-6 py-5">
         <div className="flex items-center gap-3">
-          <Badge variant="secondary">{templateLabel}</Badge>
+          <Badge variant="secondary" className={ACTION_TONES[action.type]}>
+            {templateLabel}
+          </Badge>
           <Button type="button" variant="link" size="xs" className="h-auto p-0" onClick={onChangeTemplate}>
             {t("tools:network_rules_change_template")}
           </Button>
@@ -393,17 +396,18 @@ function ActionFields({
   const actionError = errors.action && errorLabels[errors.action];
 
   if (template === "csp") {
+    const cspTone = ACTION_TONES[ACTION_TYPE_BY_TEMPLATE.csp];
     return (
       <div className="space-y-2">
         <Label>{t("tools:network_rules_field_removed_headers")}</Label>
         <div className="flex flex-wrap gap-1.5">
           {CSP_RESPONSE_HEADERS.map((header) => (
-            <Badge key={header} variant="secondary" className="font-mono font-normal">
+            <Badge key={header} variant="secondary" className={cn("font-mono font-normal", cspTone)}>
               {header}
             </Badge>
           ))}
           {draft.includeXFrameOptions && (
-            <Badge variant="secondary" className="font-mono font-normal">
+            <Badge variant="secondary" className={cn("font-mono font-normal", cspTone)}>
               {X_FRAME_OPTIONS_HEADER}
             </Badge>
           )}

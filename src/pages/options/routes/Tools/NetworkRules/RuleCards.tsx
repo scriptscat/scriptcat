@@ -158,7 +158,7 @@ const RuleCardBody = memo(function RuleCardBody({
         <RuleRowMenu rule={rule} position={position} total={total} disabled={busy} labels={labels} {...moveHandlers} />
       </div>
       <div className="flex flex-wrap items-center gap-2 pl-12">
-        <ActionBadge label={labels.actions[rule.action.type]} />
+        <ActionBadge action={rule.action.type} label={labels.actions[rule.action.type]} />
         <ScopeChips rule={rule} allSitesLabel={labels.allWebsites} />
       </div>
     </div>

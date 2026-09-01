@@ -18,7 +18,7 @@ import { Switch } from "@App/pages/components/ui/switch";
 import { notify } from "@App/pages/components/ui/toast";
 import { cn } from "@App/pkg/utils/cn";
 import MatchTestDialog from "../NetworkRules/MatchTestDialog";
-import { useActionLabels } from "../NetworkRules/RuleParts";
+import { ActionBadge, useActionLabels } from "../NetworkRules/RuleParts";
 import { enabledCount, isAllSitesCondition, orderedRules, ruleDomains } from "../NetworkRules/rules";
 import { useNetworkRuleSnapshot } from "../NetworkRules/useNetworkRuleSnapshot";
 
@@ -41,9 +41,7 @@ function PreviewRow({ rule }: { rule: NetworkRule }) {
   return (
     <div data-testid="network-rules-preview-row" className="flex min-w-0 items-center gap-2">
       <span className="max-w-[40%] truncate text-sm text-foreground">{rule.name}</span>
-      <Badge variant="secondary" className="shrink-0">
-        {actionLabels[rule.action.type]}
-      </Badge>
+      <ActionBadge action={rule.action.type} label={actionLabels[rule.action.type]} className="shrink-0" />
       <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
         {isAllSitesCondition(rule.condition) ? t("tools:network_rules_all_websites") : domains.join(" · ")}
       </span>

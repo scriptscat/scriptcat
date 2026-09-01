@@ -211,7 +211,7 @@ const RuleRowCells = memo(function RuleRowCells({
         <RuleName rule={rule} labels={labels} />
       </TableCell>
       <TableCell className={COL.action}>
-        <ActionBadge label={labels.actions[rule.action.type]} />
+        <ActionBadge action={rule.action.type} label={labels.actions[rule.action.type]} />
       </TableCell>
       <TableCell className={COL.scope}>
         <ScopeChips rule={rule} allSitesLabel={labels.allWebsites} />

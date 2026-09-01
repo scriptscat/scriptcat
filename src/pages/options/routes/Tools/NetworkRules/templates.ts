@@ -61,7 +61,7 @@ export type ActionDraftErrors = { headers: (DraftErrorKey | undefined)[]; action
 
 const EMPTY_HEADER: HeaderDraft = { header: "", operation: "set", value: "" };
 
-const ACTION_TYPE_BY_TEMPLATE: Record<Exclude<RuleTemplateId, "custom">, NetworkRuleActionType> = {
+export const ACTION_TYPE_BY_TEMPLATE: Record<Exclude<RuleTemplateId, "custom">, NetworkRuleActionType> = {
   csp: "removeResponseHeaders",
   userAgent: "modifyRequestHeaders",
   referer: "modifyRequestHeaders",

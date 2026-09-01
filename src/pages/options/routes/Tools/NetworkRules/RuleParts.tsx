@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@App/pages/components/ui/dropdown-menu";
 import { semTime } from "@App/locales/relative-date";
+import { cn } from "@App/pkg/utils/cn";
 import { isAllSitesCondition, ruleDomains } from "./rules";
 
 const VISIBLE_DOMAINS = 2;
@@ -101,8 +102,35 @@ export function useRuleRowLabels(): RuleRowLabels {
   );
 }
 
-export function ActionBadge({ label }: { label: string }) {
-  return <Badge variant="secondary">{label}</Badge>;
+/**
+ * 动作类型的固定色相，取自 `--label-*` 令牌族（明暗自动切换，见 docs/references/design-tokens.md）。
+ * 与 NameAvatar 的名称哈希不同，这里是一一对应的分类色：同一条规则的动作徽标、模板卡图标与表单里
+ * 的动作字段读同一份映射，列表与编辑两处才不会给同一个动作两种颜色。
+ * 留出 purple 不用：设计稿把它留给「规则由脚本创建」的来源标记。
+ */
+export const ACTION_TONES: Record<NetworkRuleActionType, string> = {
+  removeResponseHeaders: "bg-label-amber-bg text-label-amber-fg",
+  modifyRequestHeaders: "bg-label-teal-bg text-label-teal-fg",
+  modifyResponseHeaders: "bg-label-indigo-bg text-label-indigo-fg",
+  block: "bg-label-rose-bg text-label-rose-fg",
+  redirect: "bg-label-blue-bg text-label-blue-fg",
+  allow: "bg-label-green-bg text-label-green-fg",
+};
+
+export function ActionBadge({
+  action,
+  label,
+  className,
+}: {
+  action: NetworkRuleActionType;
+  label: string;
+  className?: string;
+}) {
+  return (
+    <Badge variant="secondary" className={cn(ACTION_TONES[action], className)}>
+      {label}
+    </Badge>
+  );
 }
 
 export function ScopeChips({ rule, allSitesLabel }: { rule: NetworkRule; allSitesLabel: string }) {

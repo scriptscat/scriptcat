@@ -18,9 +18,11 @@ import {
 import { Button } from "@App/pages/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@App/pages/components/ui/sheet";
 import { cn } from "@App/pkg/utils/cn";
+import { ACTION_TONES } from "./RuleParts";
 import RuleForm, { type RuleFormState } from "./RuleForm";
 import { ALL_SITES_URL_FILTER, isAllSitesCondition } from "./rules";
 import {
+  ACTION_TYPE_BY_TEMPLATE,
   actionDraftFrom,
   buildAction,
   CSP_RESOURCE_TYPES,
@@ -271,6 +273,8 @@ function TemplateCard({
   onSelect: (id: RuleTemplateId) => void;
 }) {
   const Icon = TEMPLATE_ICONS[id];
+  // 「自定义」不绑定动作，动作要到表单里才选出来，所以它没有动作色。
+  const tone = id === "custom" ? "bg-muted text-muted-foreground" : ACTION_TONES[ACTION_TYPE_BY_TEMPLATE[id]];
   return (
     <button
       type="button"
@@ -280,7 +284,7 @@ function TemplateCard({
         className
       )}
     >
-      <span className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
+      <span className={cn("flex size-8 items-center justify-center rounded-md", tone)}>
         <Icon className="size-4" aria-hidden="true" />
       </span>
       <span className="text-sm font-medium text-foreground">{labels.title}</span>
