@@ -111,5 +111,14 @@
   "trash_moved_batch": "{{count}} betik çöp kutusuna taşındı",
   "trash_undo": "Geri Al",
   "trash_undo_success": "Geri yüklendi",
-  "trash_undo_failed": "Geri yükleme başarısız"
+  "trash_undo_failed": "Geri yükleme başarısız",
+  "sort_by": "Sırala",
+  "sort_create_time": "Eklenme zamanı",
+  "sort_default": "Varsayılan",
+  "sort_ascending": "Artan",
+  "sort_descending": "Azalan",
+  "more_actions": "Diğer işlemler",
+  "multi_select": "Çoklu seçim",
+  "site_count": "{{count}} site",
+  "select_all": "Tümünü seç"
 }

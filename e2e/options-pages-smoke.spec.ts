@@ -6,7 +6,7 @@ import type { Locator, Page } from "@playwright/test";
 // 这能廉价地兜住「页面挂载即抛错」一类缺陷(例如 getDefaultModelId 在全新安装无默认模型
 // 时用 doThrow 抛错导致模型服务/会话页卡死的回归)。
 const ROUTES: Array<{ path: string; name: string; anchor: (page: Page) => Locator }> = [
-  { path: "/", name: "脚本列表", anchor: (page) => page.getByTestId("view-toggle") },
+  { path: "/", name: "脚本列表", anchor: (page) => page.getByTestId("script-search") },
   { path: "/subscribe", name: "订阅列表", anchor: (page) => page.getByTestId("subscribe-page") },
   { path: "/logs", name: "日志页", anchor: (page) => page.getByTestId("level-chip-bar") },
   { path: "/tools", name: "工具页", anchor: (page) => page.getByTestId("tools_export") },

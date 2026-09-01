@@ -92,7 +92,7 @@ export const SubscribeSourceTag = React.memo(({ url }: { url: string }) => {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Badge variant="success" className="gap-1 px-2 py-0.5 text-[11px] cursor-default">
+        <Badge variant="success" className="shrink-0 gap-1 px-2 py-0.5 text-[11px] cursor-default">
           <Link className="w-3 h-3" />
           {t("script:subscribe_url")}
         </Badge>

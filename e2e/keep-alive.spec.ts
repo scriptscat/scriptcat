@@ -8,7 +8,7 @@ const HEARTBEAT_VALIDATION_WINDOW_MS = 31_000;
 const openRuntimeSettings = async (context: Parameters<typeof openOptionsPage>[0], extensionId: string) => {
   const page = await openOptionsPage(context, extensionId);
   await page
-    .getByTestId("view-toggle")
+    .getByTestId("script-search")
     .or(page.getByTestId("mobile-search"))
     .first()
     .waitFor({ state: "visible", timeout: 30_000 });

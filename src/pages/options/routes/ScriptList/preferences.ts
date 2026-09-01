@@ -3,20 +3,15 @@ import type { SortKey, SortState } from "./sort";
 import type { TSelectFilter } from "./hooks";
 import type { SearchFilterRequest } from "./SearchFilter";
 
-export const SCRIPT_LIST_VIEW_MODE_KEY = "script-list-view-mode";
 export const SCRIPT_LIST_PREFERENCES_KEY = "script-list-preferences";
 
-export type ScriptListViewMode = "table" | "card";
-
 export type ScriptListPreferences = {
-  viewMode: ScriptListViewMode;
   selectedFilters: TSelectFilter;
   searchRequest: SearchFilterRequest;
   sortState: SortState;
 };
 
 export const DEFAULT_SCRIPT_LIST_PREFERENCES: ScriptListPreferences = {
-  viewMode: "table",
   selectedFilters: { status: null, type: null, tags: null, source: null },
   searchRequest: { keyword: "", type: "auto" },
   sortState: { key: null, order: "asc" },
@@ -24,10 +19,6 @@ export const DEFAULT_SCRIPT_LIST_PREFERENCES: ScriptListPreferences = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function parseViewMode(value: unknown): ScriptListViewMode | null {
-  return value === "table" || value === "card" ? value : null;
 }
 
 function parseFilterValue(value: unknown): string | number | null {
@@ -68,35 +59,26 @@ function parseSortState(value: unknown): SortState {
   };
 }
 
-export function parseScriptListPreferences(raw: string | null, legacyViewMode?: string | null): ScriptListPreferences {
-  const legacy = parseViewMode(legacyViewMode);
-  if (!raw) {
-    return { ...DEFAULT_SCRIPT_LIST_PREFERENCES, viewMode: legacy ?? DEFAULT_SCRIPT_LIST_PREFERENCES.viewMode };
-  }
+/** 旧版存过的 viewMode 会被直接忽略：列表已是唯一视图，同一份偏好里的其它设置照常读出。 */
+export function parseScriptListPreferences(raw: string | null): ScriptListPreferences {
+  if (!raw) return DEFAULT_SCRIPT_LIST_PREFERENCES;
   try {
     const value: unknown = JSON.parse(raw);
-    if (!isRecord(value)) {
-      return { ...DEFAULT_SCRIPT_LIST_PREFERENCES, viewMode: legacy ?? DEFAULT_SCRIPT_LIST_PREFERENCES.viewMode };
-    }
+    if (!isRecord(value)) return DEFAULT_SCRIPT_LIST_PREFERENCES;
     return {
-      viewMode: parseViewMode(value.viewMode) ?? legacy ?? DEFAULT_SCRIPT_LIST_PREFERENCES.viewMode,
       selectedFilters: parseSelectedFilters(value.selectedFilters),
       searchRequest: parseSearchRequest(value.searchRequest),
       sortState: parseSortState(value.sortState),
     };
   } catch {
-    return { ...DEFAULT_SCRIPT_LIST_PREFERENCES, viewMode: legacy ?? DEFAULT_SCRIPT_LIST_PREFERENCES.viewMode };
+    return DEFAULT_SCRIPT_LIST_PREFERENCES;
   }
 }
 
 export function readScriptListPreferences(): ScriptListPreferences {
-  return parseScriptListPreferences(
-    localStorage.getItem(SCRIPT_LIST_PREFERENCES_KEY),
-    localStorage.getItem(SCRIPT_LIST_VIEW_MODE_KEY)
-  );
+  return parseScriptListPreferences(localStorage.getItem(SCRIPT_LIST_PREFERENCES_KEY));
 }
 
 export function writeScriptListPreferences(preferences: ScriptListPreferences): void {
   localStorage.setItem(SCRIPT_LIST_PREFERENCES_KEY, JSON.stringify(preferences));
-  localStorage.setItem(SCRIPT_LIST_VIEW_MODE_KEY, preferences.viewMode);
 }

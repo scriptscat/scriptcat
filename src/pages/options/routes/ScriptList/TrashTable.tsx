@@ -10,6 +10,15 @@ import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
 import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { Checkbox } from "@App/pages/components/ui/checkbox";
 import { SearchInput } from "@App/pages/components/ui/search-input";
+import {
+  ListRow,
+  ListRowActions,
+  ListRowLeading,
+  ListRowMain,
+  ListRowTrailing,
+} from "@App/pages/components/ui/list-row";
+import { SortMenu } from "./SortMenu";
+import type { SortOrder } from "./sort";
 import { semTime } from "@App/locales/relative-date";
 import { versionDisplay } from "@App/pages/utils";
 import { subscribeMessage } from "@App/pages/store/global";
@@ -38,6 +47,13 @@ const SOURCE_KEY: Record<string, string> = {
 
 const sourceKeyOf = (deleteBy: InstallSource) => SOURCE_KEY[deleteBy] ?? "script:trash_source_other";
 
+type TrashSortKey = "deleteTime" | "name";
+
+const TRASH_COMPARATORS: Record<TrashSortKey, (a: TrashScript, b: TrashScript) => number> = {
+  deleteTime: (a, b) => a.deleteTime - b.deleteTime,
+  name: (a, b) => a.name.localeCompare(b.name),
+};
+
 type SourceFilter = "all" | "user" | "sync" | "subscribe";
 
 const FILTERS: { value: SourceFilter; key: string }[] = [
@@ -62,6 +78,11 @@ export default function TrashTable({
   const [purgeAllOpen, setPurgeAllOpen] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [keyword, setKeyword] = useState("");
+  // 回收站默认按删除时间倒序：最近删掉的最可能是误删，应当最先看到
+  const [sortState, setSortState] = useState<{ key: TrashSortKey | null; order: SortOrder }>({
+    key: "deleteTime",
+    order: "desc",
+  });
   const [retentionDays] = useSystemConfig("trash_retention_days");
   const [trashEnabled] = useSystemConfig("trash_enabled");
 
@@ -139,12 +160,16 @@ export default function TrashTable({
 
   const visible = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
-    return list.filter(
+    const filtered = list.filter(
       (item) =>
         (sourceFilter === "all" || item.deleteBy === sourceFilter) &&
         (!kw || item.name.toLowerCase().includes(kw) || item.namespace.toLowerCase().includes(kw))
     );
-  }, [list, sourceFilter, keyword]);
+    if (sortState.key === null) return filtered;
+    const cmp = TRASH_COMPARATORS[sortState.key];
+    const dir = sortState.order === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => dir * cmp(a, b));
+  }, [list, sourceFilter, keyword, sortState]);
 
   const allSelected = useMemo(
     () => visible.length > 0 && visible.every((item) => selected.has(item.uuid)),
@@ -154,7 +179,7 @@ export default function TrashTable({
   return (
     <div className="flex flex-col h-full">
       {/* 顶栏：tabs + 搜索 + 清空回收站（与已安装 tab 共用同一条 h-14 顶栏的形状） */}
-      <div className="flex items-center gap-4 h-14 px-6 shrink-0 border-b border-border bg-card">
+      <div className="flex items-center gap-4 h-14 px-6 shrink-0 bg-card">
         {leading}
         <SearchInput
           className="flex-1 rounded-lg"
@@ -163,6 +188,14 @@ export default function TrashTable({
           placeholder={t("script:trash_search_placeholder")}
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
+        />
+        <SortMenu
+          options={[
+            { key: "deleteTime" as TrashSortKey, label: t("script:trash_col_time") },
+            { key: "name" as TrashSortKey, label: t("name") },
+          ]}
+          value={sortState}
+          onChange={setSortState}
         />
         <button
           className="flex items-center gap-1.5 h-8 px-4 text-[13px] font-medium border rounded-md shrink-0 border-destructive text-destructive disabled:cursor-not-allowed disabled:opacity-40"
@@ -176,7 +209,12 @@ export default function TrashTable({
 
       {/* 批量操作栏撑开时把筛选行顶出这个 h-11 窗口（与已安装列表同构） */}
       <div className="h-11 shrink-0 overflow-hidden contain-layout">
-        <SelectionBar selectedCount={selected.size} onClose={() => setSelected(new Set())}>
+        <SelectionBar
+          selectedCount={selected.size}
+          allSelected={allSelected}
+          onToggleSelectAll={() => setSelected(allSelected ? new Set() : new Set(visible.map((i) => i.uuid)))}
+          onClose={() => setSelected(new Set())}
+        >
           <SelectionBarButton color="primary" onClick={() => void onRestore([...selected])}>
             <RotateCcw className="w-3 h-3" />
             {t("script:trash_restore")}
@@ -196,7 +234,7 @@ export default function TrashTable({
         </SelectionBar>
 
         {/* 筛选行：来源 chips + 右侧保留提示 */}
-        <div className="flex h-11 shrink-0 items-center gap-2 px-6 border-b border-border">
+        <div className="flex h-11 shrink-0 items-center gap-2 px-6 border-b border-border bg-card">
           {FILTERS.map((f) => (
             <button
               key={f.value}
@@ -251,20 +289,6 @@ export default function TrashTable({
           </AlertDialogContent>
         </AlertDialog>
 
-        <div className="flex items-center h-10 px-3 border-b border-border text-xs font-medium text-muted-foreground">
-          <div className="flex justify-center w-8">
-            <Checkbox
-              checked={allSelected ? true : selected.size > 0 ? "indeterminate" : false}
-              onCheckedChange={(checked) => setSelected(checked ? new Set(visible.map((i) => i.uuid)) : new Set())}
-            />
-          </div>
-          <div className="flex-1">{t("script:trash_col_name")}</div>
-          <div className="w-[120px]">{t("script:trash_col_source")}</div>
-          <div className="w-[150px]">{t("script:trash_col_time")}</div>
-          <div className="w-[110px]">{t("script:trash_col_expire")}</div>
-          <div className="w-24 text-right">{t("script:trash_col_actions")}</div>
-        </div>
-
         <div className="flex-1 overflow-y-auto">
           {!list.length ? (
             <div className="flex h-full flex-col items-center justify-center gap-4">
@@ -281,8 +305,8 @@ export default function TrashTable({
               const left = daysLeftOf(item);
               const urgent = left !== null && left <= 3;
               return (
-                <div key={item.uuid} className="flex items-center h-13 px-3 rounded-md hover:bg-accent">
-                  <div className="flex justify-center w-8">
+                <ListRow key={item.uuid} selected={selected.has(item.uuid)}>
+                  <ListRowLeading className="w-8 justify-center">
                     <Checkbox
                       checked={selected.has(item.uuid)}
                       onCheckedChange={(checked) => {
@@ -295,37 +319,45 @@ export default function TrashTable({
                         setSelected(next);
                       }}
                     />
-                  </div>
-                  <div className="flex flex-1 min-w-0 items-center gap-2.5">
+                  </ListRowLeading>
+
+                  <ListRowMain>
                     <ScriptIcon name={item.name} metadata={item.metadata} />
-                    <div className="flex min-w-0 flex-col gap-px">
+                    <div className="flex min-w-0 flex-col gap-0.5">
                       <span className="truncate text-sm font-medium text-muted-foreground">{item.name}</span>
-                      <span className="truncate text-[11px] text-muted-foreground">
-                        {[item.namespace, versionDisplay(item.metadata?.version?.[0])].filter(Boolean).join(" · ")}
+                      {/* 删除来源由原来的固定列降级为元信息行的行内徽章 */}
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-[11px] text-muted-foreground">
+                          {[item.namespace, versionDisplay(item.metadata?.version?.[0])].filter(Boolean).join(" · ")}
+                        </span>
+                        <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {t(sourceKeyOf(item.deleteBy))}
+                        </span>
                       </span>
                     </div>
-                  </div>
-                  <div className="w-[120px]">
-                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-muted text-muted-foreground">
-                      {t(sourceKeyOf(item.deleteBy))}
-                    </span>
-                  </div>
-                  <div className="w-[150px] text-xs text-muted-foreground">{semTime(new Date(item.deleteTime))}</div>
-                  <div className="w-[110px] flex items-center gap-1.5">
-                    {left === null ? (
-                      <span className="text-xs text-muted-foreground">{"—"}</span>
-                    ) : (
-                      <>
-                        {urgent && <TriangleAlert className="w-3 h-3 text-destructive" />}
-                        <span
-                          className={`text-xs ${urgent ? "font-medium text-destructive" : "text-muted-foreground"}`}
-                        >
-                          {left <= 0 ? t("script:trash_expire_today") : t("script:trash_expire_in", { days: left })}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                  <div className="flex justify-end w-24 gap-1">
+                  </ListRowMain>
+
+                  <ListRowTrailing className="gap-3">
+                    <div className="flex w-[104px] items-center gap-1.5">
+                      {left === null ? (
+                        <span className="text-xs text-muted-foreground">{"—"}</span>
+                      ) : (
+                        <>
+                          {urgent && <TriangleAlert className="w-3 h-3 text-destructive" />}
+                          <span
+                            className={`text-xs ${urgent ? "font-medium text-destructive" : "text-muted-foreground"}`}
+                          >
+                            {left <= 0 ? t("script:trash_expire_today") : t("script:trash_expire_in", { days: left })}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex w-[120px] justify-end text-xs text-muted-foreground">
+                      {semTime(new Date(item.deleteTime))}
+                    </div>
+                  </ListRowTrailing>
+
+                  <ListRowActions>
                     <button
                       className="p-1.5 rounded-sm hover:bg-accent"
                       title={t("script:trash_restore")}
@@ -344,8 +376,8 @@ export default function TrashTable({
                         <Trash2 className="w-3.5 h-3.5 text-destructive" />
                       </button>
                     </Popconfirm>
-                  </div>
-                </div>
+                  </ListRowActions>
+                </ListRow>
               );
             })
           )}
