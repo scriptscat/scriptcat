@@ -78,6 +78,7 @@ import { nextSessionRuleId, removeSessionRuleIdEntry } from "./dnr_id_controller
 import type { DownloadCallback } from "../download";
 import { detachDownloadCallback, startDownload } from "../download";
 import { isRequestInitiatorOriginMatched, gmXhrRequestLinker, type IWebRequestDetails } from "./mv3_utils";
+import { INTERNAL_DNR_PRIORITY } from "../dnr_rule_ids";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -818,7 +819,7 @@ export default class GMApi {
           type: "modifyHeaders",
           requestHeaders: modifyReqHeaders,
         },
-        priority: 1,
+        priority: INTERNAL_DNR_PRIORITY,
         condition: {
           resourceTypes: ["xmlhttprequest"],
           urlFilter: params.url,

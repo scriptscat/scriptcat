@@ -37,6 +37,8 @@ import type {
 } from "../queue";
 import { CLOUD_SYNC_QUEUE_KEY } from "../queue";
 import { buildScriptRunResourceBasic, selfMetadataUpdate } from "./utils";
+import { extractUrlPatterns, getMatchPatternHost } from "@App/pkg/utils/url_matcher";
+import { isUrlIncluded } from "@App/pkg/utils/match";
 import {
   BatchUpdateListActionCode,
   type TBatchUpdateListAction,
@@ -56,6 +58,7 @@ import { EnableAgent } from "@App/app/const";
 import { TrashScriptDAO } from "@App/app/repo/trash_script";
 import type { TrashScript } from "@App/app/repo/trash_script";
 import { SubscribeDAO } from "@App/app/repo/subscribe";
+import { INSTALL_REDIRECT_RULE_ID_MIN, INTERNAL_DNR_PRIORITY, buildInstallGuardRules } from "./dnr_rule_ids";
 
 export type TCheckScriptUpdateOption = Partial<
   { checkType: "user"; noUpdateCheck?: number } | ({ checkType: "system" } & Record<string, any>)
@@ -150,7 +153,7 @@ export class ScriptService {
                 addRules: [
                   {
                     id: 2,
-                    priority: 1,
+                    priority: INTERNAL_DNR_PRIORITY,
                     action: {
                       type: "allow" as chrome.declarativeNetRequest.RuleActionType,
                     },
@@ -298,10 +301,14 @@ export class ScriptService {
         : []),
     ];
     const installPageURL = chrome.runtime.getURL("src/install.html");
-    const rules = conditions.map((condition, idx) => {
+    for (const condition of conditions) {
       Object.assign(condition, {
         excludedTabIds: [chrome.tabs.TAB_ID_NONE],
       });
+    }
+    // 必须在附加 responseHeaders 之前取条件：守卫要留在请求阶段，才能在用户的 block 短路请求之前放行。
+    const guardRules = buildInstallGuardRules(conditions);
+    const rules = conditions.map((condition, idx) => {
       if (addResponseHeaders) {
         Object.assign(condition, {
           responseHeaders: [
@@ -321,8 +328,8 @@ export class ScriptService {
         });
       }
       return {
-        id: 1000 + idx,
-        priority: 1,
+        id: INSTALL_REDIRECT_RULE_ID_MIN + idx,
+        priority: INTERNAL_DNR_PRIORITY,
         action: {
           type: "redirect" as chrome.declarativeNetRequest.RuleActionType,
           redirect: {
@@ -350,8 +357,8 @@ export class ScriptService {
     );
     chrome.declarativeNetRequest.updateSessionRules(
       {
-        removeRuleIds: [...rules.map((rule) => rule.id)],
-        addRules: rules,
+        removeRuleIds: [...guardRules.map((rule) => rule.id), ...rules.map((rule) => rule.id)],
+        addRules: [...guardRules, ...rules],
       },
       () => {
         if (chrome.runtime.lastError) {
@@ -901,38 +908,6 @@ export class ScriptService {
     });
   }
 
-  // ScriptMenuList 的 excludeUrl - 排除或回复
-  async excludeUrl({ uuid, excludePattern, remove }: { uuid: string; excludePattern: string; remove: boolean }) {
-    return stackAsyncTask("script-site-scope", async () => {
-      let script = await this.scriptDAO.get(uuid);
-      if (!script) {
-        throw new Error("script not found");
-      }
-      // 建立Set去掉重复（如有）；用户覆盖整体替换作者规则，因此须把作者 @exclude 一并并入，
-      // 否则用户已有排除覆盖时会丢作者规则
-      const excludeSet = new Set([...(script.metadata?.exclude || []), ...(script.selfMetadata?.exclude || [])]);
-      if (remove) {
-        const deleted = excludeSet.delete(excludePattern);
-        if (!deleted) {
-          return; // scriptDAO 不用更新
-        }
-      } else {
-        excludeSet.add(excludePattern);
-      }
-      // 更新 script.selfMetadata.exclude
-      script = selfMetadataUpdate(script, "exclude", excludeSet);
-      try {
-        await this.scriptDAO.update(uuid, script);
-        // 广播一下
-        this.publishInstallScript(script, { update: true });
-        return true;
-      } catch (e) {
-        this.logger.error("exclude url error", Logger.E(e));
-        throw e;
-      }
-    });
-  }
-
   async onlyRunOnUrl({ uuid, matchPattern }: { uuid: string; matchPattern: string }) {
     return stackAsyncTask("script-site-scope", async () => {
       let script = await this.scriptDAO.get(uuid);
@@ -974,20 +949,39 @@ export class ScriptService {
     });
   }
 
-  async excludeFromMatch({ uuid, matchPattern }: { uuid: string; matchPattern: string }) {
+  /**
+   * 关掉脚本在 host 上的执行：优先把只服务于该站点的 @match 移出匹配列表，只有在移完仍会命中
+   * 当前网址时（通配 @match、@include、正则等移不动的规则）才追加 @exclude。排除会冻结作者的
+   * @exclude 并让匹配与排除自相矛盾，因此只在删不掉的情况下使用。
+   */
+  async excludeFromMatch({ uuid, host, url }: { uuid: string; host: string; url: string }) {
     return stackAsyncTask("script-site-scope", async () => {
       let script = await this.scriptDAO.get(uuid);
       if (!script) throw new Error("script not found");
-      if (script.selfMetadata?.match !== undefined) {
-        const matchSet = new Set(script.selfMetadata.match);
-        matchSet.delete(matchPattern);
-        script = selfMetadataUpdate(script, "match", matchSet);
+      // 用户覆盖存在时整体替换作者规则，生效值须按项取
+      const match = script.selfMetadata?.match ?? script.metadata?.match ?? [];
+      const include = script.selfMetadata?.include ?? script.metadata?.include ?? [];
+      const exclude = script.selfMetadata?.exclude ?? script.metadata?.exclude ?? [];
+      // 通配网域（`*://*/*`、`*://*.example.com/*`）不只服务于当前站点，移除会连带关掉其他站点
+      const keptMatch = match.filter((pattern) => getMatchPatternHost(pattern) !== host);
+      const removedFromMatch = keptMatch.length !== match.length;
+      if (removedFromMatch) {
+        script = selfMetadataUpdate(script, "match", new Set(keptMatch));
         script = selfMetadataUpdate(script, SELF_METADATA_ONLY_RUN_ON_URL, undefined);
       }
-      // 用户覆盖整体替换作者规则，因此把作者 @exclude 一并并入用户覆盖，避免丢作者规则
-      const excludeSet = new Set([...(script.metadata?.exclude || []), ...(script.selfMetadata?.exclude || [])]);
-      excludeSet.add(matchPattern);
-      script = selfMetadataUpdate(script, "exclude", excludeSet);
+      const rules = extractUrlPatterns([
+        ...keptMatch.map((e) => `@match ${e}`),
+        ...include.map((e) => `@include ${e}`),
+        ...exclude.map((e) => `@exclude ${e}`),
+      ]);
+      if (isUrlIncluded(url, rules)) {
+        // 用户覆盖整体替换作者规则，因此把作者 @exclude 一并并入用户覆盖，避免丢作者规则
+        const excludeSet = new Set([...(script.metadata?.exclude || []), ...(script.selfMetadata?.exclude || [])]);
+        excludeSet.add(`*://${host}/*`);
+        script = selfMetadataUpdate(script, "exclude", excludeSet);
+      } else if (!removedFromMatch) {
+        return; // 当前站点本就不在匹配范围内，没有要改的覆盖
+      }
       await this.scriptDAO.update(uuid, script);
       this.publishInstallScript(script, { update: true });
       return true;
@@ -1797,7 +1791,6 @@ export class ScriptService {
     this.group.on("updateRunStatus", this.updateRunStatus.bind(this));
     this.group.on("getFilterResult", this.getFilterResult.bind(this));
     this.group.on("getScriptRunResourceByUUID", this.getScriptRunResourceByUUID.bind(this));
-    this.group.on("excludeUrl", this.excludeUrl.bind(this));
     this.group.on("onlyRunOnUrl", this.onlyRunOnUrl.bind(this));
     this.group.on("allowUrl", this.allowUrl.bind(this));
     this.group.on("excludeFromMatch", this.excludeFromMatch.bind(this));

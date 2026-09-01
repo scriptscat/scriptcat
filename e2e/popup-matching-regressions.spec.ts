@@ -39,9 +39,10 @@ async function verifyExcludeRoundTrip(
       const script = initial.data.scriptList.find((item: { name: string }) => item.name === scriptName);
       if (!script) throw new Error(`script missing initially: ${JSON.stringify(initial.data.scriptList)}`);
 
+      const host = new URL(url).host;
       const exclude = await chrome.runtime.sendMessage({
-        action: "serviceWorker/script/excludeUrl",
-        data: { uuid: script.uuid, excludePattern: "*://sitea.test/*", remove: false },
+        action: "serviceWorker/script/excludeFromMatch",
+        data: { uuid: script.uuid, host, url },
       });
       if (exclude.code) throw new Error(`exclude failed: ${JSON.stringify(exclude)}`);
 
@@ -50,8 +51,8 @@ async function verifyExcludeRoundTrip(
       if (!excluded) throw new Error("script disappeared from Popup after exclusion");
 
       const unexclude = await chrome.runtime.sendMessage({
-        action: "serviceWorker/script/excludeUrl",
-        data: { uuid: script.uuid, excludePattern: "*://sitea.test/*", remove: true },
+        action: "serviceWorker/script/allowUrl",
+        data: { uuid: script.uuid, matchPattern: `*://${host}/*`, excludePattern: `*://${host}/*` },
       });
       if (unexclude.code) throw new Error(`unexclude failed: ${JSON.stringify(unexclude)}`);
 

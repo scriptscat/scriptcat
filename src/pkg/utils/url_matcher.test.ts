@@ -7,6 +7,7 @@ import {
   extractMatchPatternsFromGlobs,
   extractSchemesOfGlobs,
   embeddedPatternCheckerString,
+  getMatchPatternHost,
 } from "./url_matcher";
 
 describe.concurrent("extractMatchPatternsFromGlobs", () => {
@@ -911,6 +912,25 @@ describe.concurrent("getApiMatchesAndGlobs-3 （全面性测试）", () => {
         "file:///myfile/*",
       ].sort()
     );
+  });
+});
+
+describe.concurrent("getMatchPatternHost", () => {
+  it.concurrent("应取出 match pattern 绑定的具体网域", () => {
+    expect(getMatchPatternHost("*://www.example.com/*")).toBe("www.example.com");
+    expect(getMatchPatternHost("https://www.example.com/path/*")).toBe("www.example.com");
+    // 无 scheme 的 TM 兼容写法
+    expect(getMatchPatternHost("www.example.com/*")).toBe("www.example.com");
+  });
+
+  it.concurrent("通配网域不绑定到任何具体网域", () => {
+    // ".example.com" 覆盖全部子域，"" 覆盖全部网域，都不等于任何单一 host
+    expect(getMatchPatternHost("*://*.example.com/*")).toBe(".example.com");
+    expect(getMatchPatternHost("*://*/*")).toBe("");
+  });
+
+  it.concurrent("非 match pattern 应返回 null", () => {
+    expect(getMatchPatternHost("/^https:\\/\\/example\\.com/")).toBeNull();
   });
 });
 
