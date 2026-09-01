@@ -86,8 +86,10 @@ async function flush() {
   });
 }
 
+// 行勾选框与翻页按钮都按 aria-label 取：整页 role 扫描要给每个同角色元素算一遍可访问名，
+// 20 行的表上单次 *ByRole 就要 20~70ms，够把这一文件顶出 ui 项目 850ms 的预算。
 function selectRow(name: string) {
-  fireEvent.click(screen.getByRole("checkbox", { name: `选择 ${name}` }));
+  fireEvent.click(screen.getByLabelText(`选择 ${name}`));
 }
 
 function bulkBar() {
@@ -202,7 +204,7 @@ describe("网络规则批量操作", () => {
     selectRow("规则 0");
     expect(bulkBar()).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+    fireEvent.click(screen.getByLabelText("下一页"));
     expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
   });
 

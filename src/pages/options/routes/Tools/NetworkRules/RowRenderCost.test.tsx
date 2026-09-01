@@ -107,7 +107,8 @@ describe("网络规则列表页的行渲染开销", () => {
     await renderRows();
     reads.count = 0;
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "选择 规则 7" }));
+    // 按 aria-label 取：20 行的表上整页 role 扫描要给 21 个复选框各算一遍可访问名，约 46ms。
+    fireEvent.click(screen.getByLabelText("选择 规则 7"));
 
     expect(reads.count).toBe(1);
   });
