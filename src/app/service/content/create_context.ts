@@ -210,12 +210,21 @@ export type RealmRoots = {
 };
 
 const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSnapshot => {
-  // descsCache 记录已处理的属性；先处理的 descriptor 覆盖后续父类。
+  // 在 CacheSet 加入的 propKeys 将会在 mySandbox 实装阶段时设置。
+  // 先处理的 descriptor 覆盖后续父类。
   const descsCache: Set<string | symbol> = new Set(["eval", "window", "self", "globalThis", "top", "parent"]);
+
+  // realmGlobal own descriptor 优先，hostWindow descriptor 只补足 host 成员。
   const initOwnDescs = Object.getOwnPropertyDescriptors(realmGlobal);
-  // overriddenDescs 会以 sandbox own descriptor 覆盖原有定义；eventKeys 只记录需要模拟的 on* 属性。
+
+  // overriddenDescs 将以物件 OwnPropertyDescriptor 方式进行物件属性修改。
+  // 覆盖原有的 OwnPropertyDescriptor 定义或父类的 PropertyDescriptor 定义。
   const overriddenDescs: DescriptorMap = Object.create(null);
+
+  // 记录原生 onxxxxx 的 property key。
   const eventKeys = new Set<string>();
+
+  // 在 USE_PSEUDO_WINDOW 情况下，由于没有类的 prototype，父类的成员要手动传下去。
   const protoBaseDescs: DescriptorMap = Object.create(null);
 
   const collectRealmDescriptors = () => {
@@ -226,7 +235,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
       if (descsCache.has(key)) continue;
 
       if ("value" in desc) {
-        // 原生 function 绑定到所属 root；constructor/interface 保留原值。
+        // 替换 function 的 this 为实际的 realm global。
         if (desc.writable && shouldFnBind(desc.value)) {
           overriddenDescs[key] = materializeDescriptor(desc, realmGlobal);
           descsCache.add(key); // 必须：子类属性覆盖父类属性
@@ -236,11 +245,13 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
 
       if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
         // 替换 onxxxxx 事件赋值操作。
+        // 例：(window.)onload, (window.)onerror。
         eventKeys.add(key);
         continue;
       }
       if (desc.get || desc.set) {
-        // 替换 getter/setter 的 this 为实际的 global window。
+        // 替换 getter setter 的 this 为实际的 realm global。
+        // 例：(window.)location, (window.)document。
         overriddenDescs[key] = materializeDescriptor(desc, realmGlobal);
         descsCache.add(key); // 必须：子类属性覆盖父类属性
       }
@@ -248,16 +259,21 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
   };
 
   const collectHostWindowDescriptors = () => {
+    // 取物件本身及所有父类(不包含Object)的PropertyDescriptor。
+    // 主要是找出哪些 function 值、setter/getter 需要替换 host window。
     getAllPropertyDescriptors(hostWindow, (key, desc) => {
       if (!desc || typeof key !== "string") return;
 
       if (desc.configurable && desc.get && desc.set && key.startsWith("on")) {
+        // 替换 onxxxxx 事件赋值操作。
+        // 例：(window.)onload, (window.)onerror。
         eventKeys.add(key);
         return;
       }
       if (descsCache.has(key)) return;
 
       if ("value" in desc) {
+        // 替换 function 的 this 为实际的 host window。
         if (shouldFnBind(desc.value)) {
           overriddenDescs[key] = materializeDescriptor(desc, hostWindow);
           descsCache.add(key);
@@ -267,6 +283,8 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
         return;
       }
       if (desc.get || desc.set) {
+        // 替换 getter setter 的 this 为实际的 host window。
+        // 例：(window.)location, (window.)document。
         overriddenDescs[key] = materializeDescriptor(desc, hostWindow);
         descsCache.add(key);
       }
