@@ -111,5 +111,14 @@
   "trash_moved_batch": "Scripts movidos para a lixeira: {{count}}",
   "trash_undo": "Desfazer",
   "trash_undo_success": "Restaurado",
-  "trash_undo_failed": "Falha ao restaurar"
+  "trash_undo_failed": "Falha ao restaurar",
+  "sort_by": "Ordenar",
+  "sort_create_time": "Data de adição",
+  "sort_default": "Padrão",
+  "sort_ascending": "Crescente",
+  "sort_descending": "Decrescente",
+  "more_actions": "Mais ações",
+  "multi_select": "Selecionar vários",
+  "site_count": "{{count}} site(s)",
+  "select_all": "Selecionar tudo"
 }

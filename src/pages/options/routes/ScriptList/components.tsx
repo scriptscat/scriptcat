@@ -7,12 +7,12 @@ import {
   SCRIPT_TYPE_NORMAL,
   SCRIPT_TYPE_CRONTAB,
 } from "@App/app/repo/scripts";
-import { scriptClient, type ScriptLoading } from "@App/pages/store/features/script";
+import { scriptClient, synchronizeClient, type ScriptLoading } from "@App/pages/store/features/script";
+import { notify } from "@App/pages/components/ui/toast";
 import { Switch } from "@App/pages/components/ui/switch";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@App/pages/components/ui/tooltip";
 import { Button } from "@App/pages/components/ui/button";
-import { Popconfirm } from "@App/pages/components/ui/popconfirm";
 import { semTime } from "@App/locales/relative-date";
 import { i18nName } from "@App/locales/locales";
 import type { TFunction } from "i18next";
@@ -22,18 +22,36 @@ import { getNameAvatarTone, NameAvatar } from "@App/pages/components/NameAvatar"
 import {
   Globe,
   RefreshCw,
+  Play,
+  Square,
+  CircleArrowUp,
+  Check,
+  Clock,
+  Ellipsis,
   House,
   Settings2,
   UploadCloud,
   Pencil,
-  Play,
-  Square,
+  Download,
   Trash2,
-  CircleArrowUp,
-  Check,
-  Clock,
 } from "lucide-react";
 import { preloadCloudScriptPlan } from "@App/pages/components/CloudScriptPlan";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@App/pages/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@App/pages/components/ui/alert-dialog";
 import { preloadUserConfig } from "./preload";
 import { nextTimeDisplay } from "@App/pkg/utils/cron";
 import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
@@ -127,7 +145,7 @@ function isSafeHttpUrl(url: string | undefined): boolean {
 }
 
 // 打开外部链接（仅限 http/https）。脚本主页/站点图标等 URL 均来自脚本 metadata，不可信。
-function openExternalUrl(url: string | undefined) {
+export function openExternalUrl(url: string | undefined) {
   if (isSafeHttpUrl(url)) window.open(url, "_blank");
 }
 
@@ -285,15 +303,14 @@ export const UpdateTimeCell = React.memo(({ script }: { script: ScriptLoading })
 UpdateTimeCell.displayName = "UpdateTimeCell";
 
 // ========== 行内操作 ==========
-// 取代原 ⋯ 更多菜单：主页 / 用户配置 / 云端 / 运行·停止 / 编辑 / 删除，均按条件出现，右对齐。
-// 表格与卡片复用同一套，确保行为一致。检查更新不在此处（见 UpdateTimeCell）。
+// 操作槽内的统一按钮外观。检查更新不在这里（见 UpdateTimeCell）。
 type ActionButtonProps = React.ComponentPropsWithoutRef<typeof Button> & {
   label: string;
   destructive?: boolean;
   onPreload?: () => void;
 };
 
-// 透传 props + ref：使其可直接作为 Popconfirm（Radix asChild）的 trigger，
+// 透传 props + ref：使其可直接作为 Radix asChild 的 trigger（更多菜单即如此用），
 // 让 trigger 语义/焦点/aria 落在真实按钮上，无需外包 div。
 const ActionButton = ({
   label,
@@ -327,85 +344,146 @@ const ActionButton = ({
   </Tooltip>
 );
 
-export function ScriptRowActions({
+/**
+ * 列表行的固定三槽操作：编辑 / 运行·停止 / 更多。
+ * 槽位数与脚本类型无关——普通脚本的运行槽渲染为等宽占位，使各行右缘始终对齐；
+ * 条件性操作（主页、用户配置、云端上传、删除）收进「更多」，删除进二级菜单亦降低误触。
+ */
+export function ScriptRowActionSlots({
   script,
   navigate,
   onDelete,
   onRunStop,
-  className,
 }: {
   script: ScriptLoading;
   navigate: (to: string) => void;
   onDelete: (script: ScriptLoading) => void;
   onRunStop: (script: ScriptLoading) => void;
-  className?: string;
 }) {
   const { t } = useTranslation();
   const [trashEnabled] = useSystemConfig("trash_enabled");
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const home = getScriptHomePage(script.metadata);
   const isBackground = script.type !== SCRIPT_TYPE_NORMAL;
   const isRunning = script.runStatus === SCRIPT_RUN_STATUS_RUNNING;
   const preloadUserConfigValues = () => void preloadUserConfig(script).catch(() => undefined);
   const preloadCloudPlan = () => void preloadCloudScriptPlan(script).catch(() => undefined);
+
+  const openEditor = () => navigate(`/script/editor/${script.uuid}`);
+  const openUserConfig = () => {
+    preloadUserConfigValues();
+    navigate(`/?userConfig=${script.uuid}`);
+  };
+  const openCloud = () => {
+    preloadCloudPlan();
+    navigate(`/?cloud=${script.uuid}`);
+  };
+  const exportSelf = () => {
+    const id = notify.loading(t("editor:exporting"));
+    void synchronizeClient.export([script.uuid]).then(() => notify.success(t("settings:export_success"), { id }));
+  };
+
+  // 运行槽在两套排布里都出现，故只写一次
+  const runButton = (
+    <ActionButton
+      label={isRunning ? t("stop") : t("editor:run")}
+      onClick={() => onRunStop(script)}
+      disabled={script.actionLoading}
+    >
+      {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+    </ActionButton>
+  );
+
   return (
-    <div className={cn("flex items-center gap-1", className)}>
-      {home && (
-        <ActionButton label={t("script:homepage")} onClick={() => openExternalUrl(home)}>
-          <House className="w-3.5 h-3.5" />
-        </ActionButton>
-      )}
-      {script.config && (
-        <ActionButton
-          label={t("editor:user_config")}
-          onPreload={preloadUserConfigValues}
-          onClick={() => {
-            preloadUserConfigValues();
-            navigate(`/?userConfig=${script.uuid}`);
-          }}
-        >
-          <Settings2 className="w-3.5 h-3.5" />
-        </ActionButton>
-      )}
-      {script.metadata?.cloudcat && (
-        <ActionButton
-          label={t("editor:upload_to_cloud")}
-          onPreload={preloadCloudPlan}
-          onClick={() => {
-            preloadCloudPlan();
-            navigate(`/?cloud=${script.uuid}`);
-          }}
-        >
-          <UploadCloud className="w-3.5 h-3.5" />
-        </ActionButton>
-      )}
-      {isBackground && (
-        <ActionButton
-          label={isRunning ? t("stop") : t("editor:run")}
-          onClick={() => onRunStop(script)}
-          disabled={script.actionLoading}
-        >
-          {isRunning ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-        </ActionButton>
-      )}
-      <ActionButton label={t("edit")} onClick={() => navigate(`/script/editor/${script.uuid}`)}>
-        <Pencil className="w-3.5 h-3.5" />
-      </ActionButton>
-      <Popconfirm
-        description={
-          (trashEnabled ?? true)
-            ? t("script:confirm_delete_script_trash_content", { name: i18nName(script) })
-            : t("script:confirm_delete_script_content", { name: i18nName(script) })
-        }
-        destructive
-        confirmText={t("delete")}
-        cancelText={t("editor:cancel")}
-        onConfirm={() => onDelete(script)}
+    <>
+      {/* 宽窗口摊开全部操作；窄窗口它们会把脚本名挤没（#1698），故窄于断点时换成下面的紧凑排布。
+          min-w 取满配 7 个按钮的宽度：条件按钮的有无会改变本区宽度，进而把左侧的更新时间列推得逐行参差。
+          断点取 1160 而非 1000：摊开态比紧凑态多占 160px，实测 1000px 处名称会从 253px 直接掉到 150px，
+          即「窗口拉宽反而更窄」；1160px 起摊开态才不会让名称比紧凑态更窄。 */}
+      <span
+        data-testid="row-actions-wide"
+        className="hidden min-w-[220px] items-center justify-end gap-1 min-[1160px]:flex"
       >
-        <ActionButton label={t("delete")} destructive>
+        {home && (
+          <ActionButton label={t("script:homepage")} onClick={() => openExternalUrl(home)}>
+            <House className="w-3.5 h-3.5" />
+          </ActionButton>
+        )}
+        {script.config && (
+          <ActionButton label={t("editor:user_config")} onPreload={preloadUserConfigValues} onClick={openUserConfig}>
+            <Settings2 className="w-3.5 h-3.5" />
+          </ActionButton>
+        )}
+        {script.metadata?.cloudcat && (
+          <ActionButton label={t("editor:upload_to_cloud")} onPreload={preloadCloudPlan} onClick={openCloud}>
+            <UploadCloud className="w-3.5 h-3.5" />
+          </ActionButton>
+        )}
+        {isBackground && runButton}
+        <ActionButton label={t("edit")} onClick={openEditor}>
+          <Pencil className="w-3.5 h-3.5" />
+        </ActionButton>
+        <ActionButton label={t("export")} onClick={exportSelf}>
+          <Download className="w-3.5 h-3.5" />
+        </ActionButton>
+        <ActionButton label={t("delete")} destructive onClick={() => setConfirmDelete(true)}>
           <Trash2 className="w-3.5 h-3.5" />
         </ActionButton>
-      </Popconfirm>
-    </div>
+      </span>
+
+      <span data-testid="row-actions-compact" className="flex items-center gap-1 min-[1160px]:hidden">
+        {/* 普通脚本没有运行按钮，留等宽占位让更多按钮在所有行对齐同一横坐标 */}
+        {isBackground ? runButton : <span aria-hidden className="size-7 shrink-0" />}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <ActionButton label={t("script:more_actions")}>
+              <Ellipsis className="w-3.5 h-3.5" />
+            </ActionButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem onClick={openEditor}>{t("edit")}</DropdownMenuItem>
+            {home && <DropdownMenuItem onClick={() => openExternalUrl(home)}>{t("script:homepage")}</DropdownMenuItem>}
+            {script.config && (
+              <DropdownMenuItem onPointerEnter={preloadUserConfigValues} onClick={openUserConfig}>
+                {t("editor:user_config")}
+              </DropdownMenuItem>
+            )}
+            {script.metadata?.cloudcat && (
+              <DropdownMenuItem onPointerEnter={preloadCloudPlan} onClick={openCloud}>
+                {t("editor:upload_to_cloud")}
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={exportSelf}>{t("export")}</DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onSelect={() => setConfirmDelete(true)}
+            >
+              {t("delete")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </span>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("delete")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(trashEnabled ?? true)
+                ? t("script:confirm_delete_script_trash_content", { name: i18nName(script) })
+                : t("script:confirm_delete_script_content", { name: i18nName(script) })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("editor:cancel")}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => onDelete(script)}>
+              {t("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
@@ -428,7 +506,7 @@ export const SourceTag = React.memo(
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="warning" className="text-[10px] px-1.5 py-0 cursor-default">
+            <Badge variant="warning" className="shrink-0 text-[10px] px-1.5 py-0 cursor-default">
               {t("script:source_subscribe_link")}
             </Badge>
           </TooltipTrigger>
@@ -438,7 +516,7 @@ export const SourceTag = React.memo(
     }
     if (!script.origin) {
       return (
-        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 cursor-default">
+        <Badge variant="secondary" className="shrink-0 text-[10px] px-1.5 py-0 cursor-default">
           {t("script:source_local_script")}
         </Badge>
       );
@@ -446,7 +524,7 @@ export const SourceTag = React.memo(
     return (
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="success" className="text-[10px] px-1.5 py-0 cursor-default">
+          <Badge variant="success" className="shrink-0 text-[10px] px-1.5 py-0 cursor-default">
             {t("script:source_script_link")}
           </Badge>
         </TooltipTrigger>

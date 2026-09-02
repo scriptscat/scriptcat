@@ -72,8 +72,6 @@
   "popup_layout": "Açılır Pencere Düzeni",
   "compact_popup_layout": "Kompakt Açılır Pencere Düzeni",
   "compact_popup_layout_desc": "Açılır penceredeki bölümler ve betik satırları arasındaki boşluğu azaltır",
-  "popup_site_scope_actions": "Site kapsamı işlemleri",
-  "popup_site_scope_actions_desc": "Geçerli sitede bir betiği kısıtlamak veya çalışmasına izin vermek için açılır pencerede hızlı işlemler gösterir",
   "script_list_expand_count": "Listede Gösterilen Betik Sayısı",
   "script_list_expand_count_desc": "Açılır penceredeki her bölümde genişletilerek gösterilecek betik sayısıdır; fazlası daraltılır. 0 olduğunda tümü gösterilir",
   "script_update_check_frequency": "Betik Güncelleme Denetimi Sıklığı",

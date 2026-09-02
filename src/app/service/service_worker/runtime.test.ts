@@ -288,7 +288,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     });
   });
 
-  it.concurrent("match 覆盖清空后不再保留此前的匹配规则", async () => {
+  it.concurrent("match 覆盖清空后此前的匹配规则不再生效，但仍以未生效列出", async () => {
     const { runtime } = createRuntimeTestContext();
     const script = createMockScript({
       metadata: { match: ["https://www.example.com/*"] },
@@ -302,9 +302,24 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       ...script,
       selfMetadata: { match: [] },
     });
-    expect(await runtime.applyScriptMatchInfo(emptyMatchOverride)).toBeUndefined();
+    await runtime.applyScriptMatchInfo(emptyMatchOverride);
 
-    expect(runtime.getPageScriptMatchingResultByUrl("https://www.example.com/", true).has(script.uuid)).toBe(false);
+    expect(runtime.getPageScriptMatchingResultByUrl("https://www.example.com/").has(script.uuid)).toBe(false);
+    // 原始规则仍在匹配器内，Popup 才能把它列为未生效并给出「允许在此执行」的恢复入口
+    expect(runtime.getPageScriptMatchingResultByUrl("https://www.example.com/", true).get(script.uuid)?.effective).toBe(
+      false
+    );
+  });
+
+  it.concurrent("match 覆盖清空的脚本不应被注册（空规则会被 UserScripts API 退回成全站匹配）", async () => {
+    const { runtime } = createRuntimeTestContext();
+    (runtime as any).resource = { getScriptResourceValue: vi.fn().mockResolvedValue({}) };
+    const script = createMockScript({
+      metadata: { match: ["https://www.example.com/*"] },
+      selfMetadata: { match: [] },
+    });
+
+    expect(await runtime.buildAndSaveCompiledResourceFromScript(script)).toBeUndefined();
   });
 
   it.concurrent("空匹配覆盖时应删除持久化 CompiledResource 并注销旧注册", async () => {

@@ -36,7 +36,7 @@ export default function FilterBar({ filterItems, selectedFilters, setSelectedFil
   };
 
   return (
-    <div className="flex items-center gap-2 h-11 px-6 border-b border-border shrink-0">
+    <div className="flex items-center gap-2 h-11 px-6 border-b border-border shrink-0 bg-card">
       <div className="flex-1 min-w-0 flex items-center gap-2 overflow-x-auto scrollbar-custom">
         <FilterChip
           group="status"

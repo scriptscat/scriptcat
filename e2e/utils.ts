@@ -147,9 +147,9 @@ async function focusMonacoEditor(page: Page): Promise<void> {
 async function waitForSavedScriptInList(context: BrowserContext, extensionId: string): Promise<void> {
   const listPage = await openOptionsPage(context, extensionId);
   try {
-    // new-ui 列表页加载完成的稳定信号（桌面工具栏 view-toggle / 移动搜索栏）
+    // new-ui 列表页加载完成的稳定信号（桌面工具栏搜索框 / 移动搜索栏）
     await listPage
-      .getByTestId("view-toggle")
+      .getByTestId("script-search")
       .or(listPage.getByTestId("mobile-search"))
       .first()
       .waitFor({ state: "visible", timeout: 30_000 });

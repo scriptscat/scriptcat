@@ -167,9 +167,7 @@ export default function App() {
                 onOpenEditor={data.handleOpenEditor}
                 onOpenScriptSettings={data.handleOpenScriptSettings}
                 onOpenUserConfig={data.handleOpenUserConfig}
-                onExcludeUrl={data.handleExcludeUrl}
                 onExcludeFromMatch={data.handleExcludeFromMatch}
-                showSiteScopeActions={data.popupSiteScopeActions}
                 onOnlyRunOnUrl={data.handleOnlyRunOnUrl}
                 onAllowUrl={data.handleAllowUrl}
                 onMenuClick={data.handleMenuClick}
@@ -478,9 +476,7 @@ interface ScriptRowProps {
   onOpenEditor: (uuid: string) => void;
   onOpenScriptSettings: (uuid: string) => void;
   onOpenUserConfig: (uuid: string) => void;
-  onExcludeUrl?: (uuid: string, isEffective: boolean) => void;
   onExcludeFromMatch?: (uuid: string) => void;
-  showSiteScopeActions?: boolean;
   onOnlyRunOnUrl?: (uuid: string) => void;
   onAllowUrl?: (uuid: string) => void;
   onMenuClick: (uuid: string, menus: ScriptMenuItem[], inputValue?: any) => void;
@@ -499,9 +495,7 @@ function ScriptRow({
   onOpenEditor,
   onOpenScriptSettings,
   onOpenUserConfig,
-  onExcludeUrl,
   onExcludeFromMatch,
-  showSiteScopeActions = false,
   onOnlyRunOnUrl,
   onAllowUrl,
   onMenuClick,
@@ -517,13 +511,6 @@ function ScriptRow({
   const shouldTruncateMenus = menuExpandNum > 0 && allVisibleMenus.length > menuExpandNum;
   const visibleMenus =
     shouldTruncateMenus && !isMenuExpanded ? allVisibleMenus.slice(0, menuExpandNum) : allVisibleMenus;
-  const excludeSite = showSiteScopeActions
-    ? onExcludeFromMatch
-      ? () => onExcludeFromMatch(script.uuid)
-      : undefined
-    : onExcludeUrl
-      ? () => onExcludeUrl(script.uuid, true)
-      : undefined;
   // 只匹配到子 frame（iframe）的脚本：站点范围操作按顶层 host 生成规则，对它不成立，故不显示
   const siteHost = isPageScript && script.matchesTopFrame !== false ? host : undefined;
   const statusBadge = getStatusBadge(script, isPageScript, t);
@@ -624,25 +611,25 @@ function ScriptRow({
           >
             {t("editor:script_setting")}
           </ActionItem>
-          {siteHost && showSiteScopeActions && script.isEffective === false && onAllowUrl && (
+          {siteHost && script.isEffective === false && onAllowUrl && (
             <ActionItem icon={<PlusCircle className="w-3.5 h-3.5" />} primary onClick={() => onAllowUrl(script.uuid)}>
               {t("allow_on_site").replace("$0", siteHost)}
             </ActionItem>
           )}
-          {siteHost &&
-            showSiteScopeActions &&
-            script.isEffective === true &&
-            !script.hasMatchOverride &&
-            onOnlyRunOnUrl && (
-              <Popconfirm description={t("confirm_only_run_on_site")} onConfirm={() => onOnlyRunOnUrl(script.uuid)}>
-                <ActionItem icon={<CircleDot className="w-3.5 h-3.5" />} primary>
-                  {t("only_on_site").replace("$0", siteHost)}
-                </ActionItem>
-              </Popconfirm>
-            )}
-          {/* 排除 host 无需确认；站点范围操作开启时同步维护 match 与 exclude 覆盖。 */}
-          {siteHost && script.isEffective === true && excludeSite && (
-            <ActionItem icon={<MinusCircle className="w-3.5 h-3.5" />} warn onClick={excludeSite}>
+          {siteHost && script.isEffective === true && !script.hasMatchOverride && onOnlyRunOnUrl && (
+            <Popconfirm description={t("confirm_only_run_on_site")} onConfirm={() => onOnlyRunOnUrl(script.uuid)}>
+              <ActionItem icon={<CircleDot className="w-3.5 h-3.5" />} primary>
+                {t("only_on_site").replace("$0", siteHost)}
+              </ActionItem>
+            </Popconfirm>
+          )}
+          {/* 关掉本站执行无需确认：优先从匹配移除，SW 判断移不掉时才写排除 */}
+          {siteHost && script.isEffective === true && onExcludeFromMatch && (
+            <ActionItem
+              icon={<MinusCircle className="w-3.5 h-3.5" />}
+              warn
+              onClick={() => onExcludeFromMatch(script.uuid)}
+            >
               {t("exclude_off").replace("$0", siteHost)}
             </ActionItem>
           )}

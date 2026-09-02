@@ -58,7 +58,6 @@
   "stop": "Dừng",
   "edit": "Sửa",
   "copy": "Sao chép",
-  "exclude_on": "Cho phép chạy lại $0",
   "exclude_off": "Loại trừ chạy $0",
   "only_on_site": "Chỉ chạy trên $0",
   "confirm_only_run_on_site": "Thao tác này sẽ xóa các quy tắc khớp trang web hiện có của script. Chỉ chạy trên trang web này?",
