@@ -194,8 +194,8 @@ const materializeDescriptor = (descriptor: PropertyDescriptor, receiver: Descrip
   if (!descriptor.get && !descriptor.set) return descriptor;
   return {
     ...descriptor,
-    get: descriptor.get?.bind(receiver),
-    set: descriptor.set?.bind(receiver),
+    get: descriptor.get ? bindFn.call(descriptor.get, receiver) : undefined,
+    set: descriptor.set ? bindFn.call(descriptor.set, receiver) : undefined,
   };
 };
 
@@ -233,12 +233,12 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
     for (const key of Object.keys(descriptors)) {
       const desc = descriptors[key];
       if (descsCache.has(key)) continue;
+      descsCache.add(key); // realm own descriptors take precedence over host descriptors
 
       if ("value" in desc) {
         // 替换 function 的 this 为实际的 realm global。
         if (desc.writable && shouldFnBind(desc.value)) {
           overriddenDescs[key] = materializeDescriptor(desc, realmGlobal);
-          descsCache.add(key); // 必须：子类属性覆盖父类属性
         }
         continue;
       }
@@ -253,7 +253,6 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
         // 替换 getter setter 的 this 为实际的 realm global。
         // 例：(window.)location, (window.)document。
         overriddenDescs[key] = materializeDescriptor(desc, realmGlobal);
-        descsCache.add(key); // 必须：子类属性覆盖父类属性
       }
     }
   };
