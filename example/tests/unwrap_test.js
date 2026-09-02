@@ -8,7 +8,7 @@
 // @exclude      /test_\w+_excluded/
 // @grant        GM_setValue
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js#sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK
-// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@5319f4e9fc453b1bdd322b9b3478b6a027f53433/example/tests/lib/sctest.js
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@f53e18b6ec0251ab73e17a2f99d5ab6237d5d0e6/example/tests/lib/sctest.js
 // @unwrap
 // ==/UserScript==
 
