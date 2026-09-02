@@ -42,6 +42,14 @@ type SCTestSummary = {
   manual: number;
   counts: Record<SCTestStatus, number>;
   overall: SCTestStatus;
+  environment: {
+    tool: string;
+    version: string;
+    time: string;
+    context: string;
+    url?: string;
+    manager?: string;
+  };
   suites: Array<{
     cases: Array<{
       name: string;
@@ -71,7 +79,13 @@ type SCTestBrowserApi = {
       expected: unknown,
       actual: unknown,
       detail: string,
-      options?: { onFail?: SCTestStatus; onError?: SCTestStatus; required?: boolean }
+      options?: {
+        onFail?: SCTestStatus;
+        onError?: SCTestStatus;
+        failDetail?: string;
+        errorDetail?: string;
+        required?: boolean;
+      }
     ): void;
     note(category: string, name: string, expected: unknown, actual: unknown, detail: string): void;
     it(name: string, run: () => void): void;
@@ -687,7 +701,7 @@ test.describe("GM API", () => {
         );
         testRun.itManual("manual case", { hint: "确认人工可操作路径后裁决" });
       });
-      await testRun.run();
+      const summary = await testRun.run();
       const panel = document.getElementById("sctest-panel-host")?.shadowRoot?.querySelector<HTMLElement>(".sc-panel");
       const styles = panel && getComputedStyle(panel);
       const panelRoot = panel?.getRootNode();
@@ -699,16 +713,37 @@ test.describe("GM API", () => {
           panelRoot instanceof ShadowRoot && Boolean(panelRoot.querySelector('[data-sctest="diagnostic-table"]')),
         adoptedStyleSheets:
           panel?.getRootNode() instanceof ShadowRoot ? panel.getRootNode().adoptedStyleSheets.length : 0,
+        summary,
       };
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       position: "fixed",
       width: "920px",
       top: "12px",
       diagnosticTable: true,
       adoptedStyleSheets: 1,
     });
+    expect(result.summary).toMatchObject({
+      protocol: "sctest/v1",
+      total: 6,
+      counts: { PASS: 1, FAIL: 1, WARN: 1, INFO: 1, SKIP: 1, MANUAL: 1 },
+      overall: "FAIL",
+      environment: { tool: "sctest", version: "1", context: "page" },
+    });
+    expect(result.summary.suites[0].cases).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "warning case", status: "WARN", expected: true, actual: false }),
+        expect.objectContaining({
+          name: "info case",
+          status: "INFO",
+          expected: "页面可见",
+          actual: "页面已加载",
+          detail: "记录环境观察，不产生自动断言",
+        }),
+        expect.objectContaining({ name: "manual case", status: "MANUAL" }),
+      ])
+    );
     expect(violations).toEqual([]);
 
     const host = page.locator("#sctest-panel-host");
@@ -750,6 +785,7 @@ test.describe("GM API", () => {
       });
     });
     await host.locator('[data-sctest="export-json"]').click();
+    await expect(host.locator('[data-sctest="export-json"]')).toContainText("已复制");
     const copiedReport = await page.evaluate(
       () =>
         JSON.parse((window as typeof window & { copiedJson: string }).copiedJson) as {

@@ -58,17 +58,39 @@ run();
 
 `check(category, name, predicate, expected, actual, detail, options)` 支持异步 predicate。predicate 显式返回 `false` 为
 `FAIL`，其他正常返回值（包括旧断言体常见的 `undefined`）为
-`PASS`；异常也会记录到结果，而不是静默吞掉。`expected`、`actual`、`detail` 可传值或在用例执行后求值的函数。`options`
-支持：
+`PASS`；异常也会记录到结果，而不是静默吞掉。`expected`、`actual`、`detail` 以及失败/异常说明都可传值、同步函数或
+Promise-returning 函数。`options` 支持：
 
 - `onFail: "WARN"`：predicate 为假时记为 `WARN`；
 - `onError: "WARN"`：predicate 抛异常时记为 `WARN`；
+- `failDetail`：只在 predicate 返回 `false` 时显示的说明；
+- `errorDetail`：只在 predicate 抛异常时显示的说明；
 - `required: false`：把结果标为非必需观察项，仍保留原始状态和诊断字段。
 
 如果旧式用例没有传 `expected`、`actual` 或 `detail`，框架会记录用例内部每个 `expect`
 matcher 的预期/实际值，并根据用例名称生成说明；没有内部 matcher 的用例则明确显示“执行不抛出异常”或 predicate 的布尔结果。这样迁移不会因为保留旧断言体而丢失诊断信息，也不会把环境观察误写成自动通过。
 
 `note(category, name, expected, actual, detail)` 只登记一条 `INFO` 观察记录，不伪造自动断言。
+
+访问可能不存在、被权限拦截或跨 realm 的宿主对象时，优先使用共享的安全探针：
+
+```js
+const { safe, read, UNAVAILABLE, formatValue } = SCTest;
+const value = read(() => unsafeWindow.someOptionalApi);
+check(
+  "宿主能力",
+  "可选 API 可读",
+  () => value !== UNAVAILABLE,
+  "可读取的 API",
+  formatValue(value),
+  "读取失败时保留不可用状态，不把异常伪装成通过",
+  { onFail: "WARN", onError: "WARN", required: false }
+);
+```
+
+`safe(fn)` 返回 `{ ok, value }` 或 `{ ok: false, error }`，`read(fn)` 在异常时返回稳定的
+`UNAVAILABLE` 哨兵。`formatValue` 可安全显示 realm、函数、循环引用和不可用值；它适合放进 `actual` 或 `detail`，避免诊断
+代码自身因读取异常中断。
 
 建议把 `category` 写成能力或行为分组，把 `name` 写成可独立判断的断言，把 `expected` 和 `actual` 写成同一维度的值，再用
 `detail` 说明为什么检查以及失败后如何解释。旧脚本传入的 `"自动断言"` 会自动归入当前 `describe`
@@ -120,7 +142,12 @@ Console 的机器可读行以 `[SCTEST_RESULT] ` 开头，后面是 `protocol: "
 `WARN`、`INFO`、`SKIP` 和尚未裁决的 `MANUAL` 必须保留并展示。
 
 Panel 保留原有
-`sctest-panel-host`、CSP 防护、拖动、折叠、重跑和参数选择器，并提供状态 chips、分类分组、状态筛选、搜索、复制文本和复制 JSON。early-start 脚本应使用
+`sctest-panel-host`、CSP 防护、拖动、折叠、重跑和参数选择器，并提供状态 chips、expected/actual/detail 诊断列、分类分组、状态筛选、搜索、复制文本和复制 JSON。复制优先使用 Clipboard API，失败时回退到 textarea，并在按钮上显示“已复制”或“复制失败”。
+面板提示按 FAIL → WARN → INFO/SKIP → MANUAL 给出阅读顺序；MANUAL 使用独立的琥珀色状态和人工确认按钮，确认后同步更新面板、Console、`GM_log` 和 JSON。early-start 脚本应使用
 `{ reporter: "console" }`，避免 document-start 的 DOM 断言被面板初始化改变。
+JSON marker 与面板导出会安全处理不可用值、realm 对象、函数、`BigInt` 和循环引用，不让诊断输出反过来遮蔽原始结果。
+
+每份 summary 的 `environment` 记录 `tool`、协议版本、生成时间、运行上下文，并在可读取时附上页面 URL 与脚本管理器版本。
+Console 末尾的 `[SCTEST_RESULT] ` marker 是唯一稳定的机器读取入口；其前面的逐条文本与 `console.table` 供 DevTools 人类排查。
 
 后台脚本若要使用 `GM_log`，必须声明 `@grant GM_log`；Console reporter 不依赖该权限。

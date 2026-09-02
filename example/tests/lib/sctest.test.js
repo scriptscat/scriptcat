@@ -40,6 +40,59 @@ vdescribe("sctest 框架内核", () => {
     });
   });
 
+  vdescribe("安全诊断工具", () => {
+    vit("safe/read 能把危险读取转换为可判断的结果并保留不可用哨兵", () => {
+      const safeResult = SCTest.safe(() => 42);
+      const thrownResult = SCTest.safe(() => {
+        throw new Error("读取失败");
+      });
+
+      vexpect(safeResult).toEqual({ ok: true, value: 42 });
+      vexpect(thrownResult.ok).toBe(false);
+      vexpect(thrownResult.error.message).toBe("读取失败");
+      vexpect(SCTest.read(() => 42)).toBe(42);
+      vexpect(
+        SCTest.read(() => {
+          throw new Error("不可用");
+        })
+      ).toBe(SCTest.UNAVAILABLE);
+      vexpect(SCTest.formatValue(SCTest.UNAVAILABLE)).toBe("<不可用>");
+      const circular = {};
+      circular.self = circular;
+      vexpect(SCTest.formatValue({ circular })).toMatch(/circular/);
+    });
+
+    vit("formatValue 能标识当前 sandbox realm 且不会因危险值中断诊断", () => {
+      vexpect(SCTest.formatValue(window)).toMatch(/sandbox window/);
+      const throwingValue = new Proxy(
+        {},
+        {
+          get() {
+            throw new Error("getter failed");
+          },
+        }
+      );
+      vexpect(() => SCTest.formatValue(throwingValue)).not.toThrow();
+    });
+
+    vit("环境摘要优先读取现代 GM.info", async () => {
+      const previousGM = globalThis.GM;
+      const previousGMInfo = globalThis.GM_info;
+      globalThis.GM = { info: { scriptHandler: "Test Manager", version: "2.0" } };
+      delete globalThis.GM_info;
+      try {
+        const { run } = SCTest.create({ name: "environment", reporter: "console" });
+        const summary = await run();
+        vexpect(summary.environment.manager).toBe("Test Manager 2.0");
+      } finally {
+        if (previousGM === undefined) delete globalThis.GM;
+        else globalThis.GM = previousGM;
+        if (previousGMInfo === undefined) delete globalThis.GM_info;
+        else globalThis.GM_info = previousGMInfo;
+      }
+    });
+  });
+
   vdescribe("expect 断言", () => {
     vit("toBe 相等时不抛异常", () => {
       const { expect: e } = SCTest.create({ name: "t", reporter: "console" });
@@ -254,6 +307,53 @@ vdescribe("sctest 框架内核", () => {
       vexpect(/(失败|Failed)[:：]\s*(\d+)/.exec(text)[2]).toBe("1");
     });
 
+    vit("每条 Console 结果和 console.table 都携带诊断字段", async () => {
+      const lines = [];
+      const tables = [];
+      const originalLog = console.log;
+      const originalTable = console.table;
+      console.log = (...args) => lines.push(args.map(String).join(" "));
+      console.table = (value) => tables.push(value);
+      try {
+        const { describe: d, check, run } = SCTest.create({ name: "console diagnostics", reporter: "console" });
+        d("能力", () =>
+          check("能力", "检查值", () => true, "expected-value", "actual-value", "为什么要检查")
+        );
+        await run();
+      } finally {
+        console.log = originalLog;
+        console.table = originalTable;
+      }
+
+      vexpect(lines.join("\n")).toMatch(/expected-value/);
+      vexpect(lines.join("\n")).toMatch(/actual-value/);
+      vexpect(tables).toHaveLength(1);
+      vexpect(tables[0][0]).toMatchObject({ category: "能力", name: "检查值", status: "PASS" });
+      vexpect(tables[0][0].expected).toBe("expected-value");
+      vexpect(tables[0][0].actual).toBe("actual-value");
+    });
+
+    vit("JSON marker 能安全序列化循环引用和 BigInt", async () => {
+      const lines = [];
+      const originalLog = console.log;
+      console.log = (...args) => lines.push(args.map(String).join(" "));
+      const circular = {};
+      circular.self = circular;
+      try {
+        const { describe: d, check, run } = SCTest.create({ name: "safe report", reporter: "console" });
+        d("安全序列化", () => check("安全序列化", "危险值", () => true, circular, 1n, "必须保留报告"));
+        await run();
+      } finally {
+        console.log = originalLog;
+      }
+
+      const marker = lines.find((line) => line.startsWith("[SCTEST_RESULT] "));
+      vexpect(marker).toBeDefined();
+      const report = JSON.parse(marker.slice("[SCTEST_RESULT] ".length));
+      vexpect(report.suites[0].cases[0].expected).toEqual({ self: "[Circular]" });
+      vexpect(report.suites[0].cases[0].actual).toBe("1");
+    });
+
     vit("人工用例携带 hint 时,onCase 输出保留提示内容", async () => {
       const lines = [];
       const orig = console.log;
@@ -424,6 +524,51 @@ vdescribe("sctest 框架内核", () => {
       vexpect(summary.suites[0].cases[1].required).toBe(false);
     });
 
+    vit("失败与异常可以分别提供诊断说明,且延迟字段支持异步值", async () => {
+      const { describe: d, check, run } = SCTest.create({ name: "diagnostic details", reporter: "console" });
+      d("能力", () => {
+        check(
+          "能力",
+          "返回 false 的探针",
+          async () => false,
+          () => Promise.resolve("应该存在"),
+          () => Promise.resolve("当前缺失"),
+          "正常时应提供能力",
+          { failDetail: "当前浏览器没有提供该能力", onFail: "WARN", required: false }
+        );
+        check(
+          "能力",
+          "抛异常的探针",
+          () => {
+            throw new Error("boom");
+          },
+          "不抛出异常",
+          () => "异常",
+          "正常时不应抛出异常",
+          { errorDetail: "读取宿主能力时发生异常", onError: "WARN", required: false }
+        );
+      });
+
+      const summary = await run();
+      const [failedProbe, errorProbe] = summary.suites[0].cases;
+      vexpect(failedProbe.status).toBe("WARN");
+      vexpect(failedProbe.expected).toBe("应该存在");
+      vexpect(failedProbe.actual).toBe("当前缺失");
+      vexpect(failedProbe.detail).toBe("当前浏览器没有提供该能力");
+      vexpect(errorProbe.detail).toBe("读取宿主能力时发生异常");
+      vexpect(errorProbe.actual).toBe("异常");
+      vexpect(errorProbe.error).toBe("boom");
+    });
+
+    vit("待人工结果不会被汇总成自动 PASS", async () => {
+      const { describe: d, itManual: im, run } = SCTest.create({ name: "manual status", reporter: "console" });
+      d("人工操作", () => im("确认页面变化", { hint: "完成操作后再裁决" }));
+
+      const summary = await run();
+      vexpect(summary.overall).toBe("MANUAL");
+      vexpect(summary.counts).toEqual({ PASS: 0, FAIL: 0, WARN: 0, INFO: 0, SKIP: 0, MANUAL: 1 });
+    });
+
     vit("createReportSession 可记录并更新人工结果,最终汇总使用同一条记录", () => {
       const session = SCTest.createReportSession({ name: "session", reporter: "console" });
       const pending = session.manual("操作", "点击菜单", "用户看到菜单", "等待操作", "需要人工确认");
@@ -436,6 +581,46 @@ vdescribe("sctest 框架内核", () => {
       vexpect(summary.passed).toBe(1);
       vexpect(summary.info).toBe(1);
       vexpect(summary.suites[0].cases[0].manualVerdict).toBe("PASS");
+    });
+
+    vit("createReportSession.check 与标准 check 一样解析异步字段并保留异常", async () => {
+      const session = SCTest.createReportSession({ name: "session diagnostics", reporter: "console" });
+      await session.check(
+        "能力",
+        "异步探针",
+        async () => false,
+        () => Promise.resolve("应该存在"),
+        () => Promise.resolve("当前缺失"),
+        "正常时应提供能力",
+        { onFail: "WARN", required: false, failDetail: "可选能力缺失" }
+      );
+      await session.check(
+        "能力",
+        "异常探针",
+        () => {
+          throw new Error("session boom");
+        },
+        "不抛出异常",
+        "调用方 actual",
+        "正常时不应抛出异常",
+        { onError: "WARN", required: false, errorDetail: "宿主能力读取异常" }
+      );
+
+      const summary = session.finish();
+      const [asyncCase, errorCase] = summary.suites[0].cases;
+      vexpect(asyncCase).toMatchObject({
+        status: "WARN",
+        expected: "应该存在",
+        actual: "当前缺失",
+        detail: "可选能力缺失",
+      });
+      vexpect(errorCase).toMatchObject({
+        status: "WARN",
+        expected: "不抛出异常",
+        actual: "调用方 actual",
+        error: "session boom",
+        detail: "宿主能力读取异常",
+      });
     });
 
     vit("check 兼容不返回值的旧断言体", async () => {
@@ -553,7 +738,33 @@ vdescribe("PanelReporter", () => {
     await run();
 
     const root = document.getElementById("sctest-panel-host").shadowRoot;
-    vexpect(root.querySelector(".sc-meta").textContent).toBe("page");
+    vexpect(root.querySelector(".sc-meta").textContent).toContain("page");
+    vexpect(root.querySelector(".sc-meta").textContent).toContain("http://localhost:3000/");
+  });
+
+  vit("自定义 report session 更新人工结果后移除裁决按钮并刷新同一条记录", () => {
+    const session = SCTest.createReportSession({ name: "session panel", reporter: "panel" });
+    session.start();
+    const pending = session.manual("操作", "点击菜单", "菜单出现", "待点击", "需要人工操作");
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+
+    vexpect(root.querySelectorAll('[data-sctest="manual-pass"]')).toHaveLength(1);
+    vexpect(root.querySelectorAll('[data-sctest="manual-fail"]')).toHaveLength(1);
+    session.update(pending, "PASS", { actual: "菜单出现", detail: "人工确认通过", manualVerdict: "PASS" });
+
+    vexpect(root.querySelector('[data-sctest="case-row"]').classList.contains("sc-case-manual")).toBe(false);
+    vexpect(root.querySelectorAll('[data-sctest="manual-pass"]')).toHaveLength(0);
+    vexpect(root.querySelectorAll('[data-sctest="manual-fail"]')).toHaveLength(0);
+    vexpect(root.querySelector('[data-sctest="case-row"]').textContent).toContain("PASS");
+  });
+
+  vit("没有重跑回调的自定义 report session 不显示无效的运行全部按钮", () => {
+    const session = SCTest.createReportSession({ name: "session panel", reporter: "panel" });
+    session.start();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    vexpect(root.querySelector('[data-sctest="run-all"]').hidden).toBe(true);
+    vexpect(root.querySelector('[data-sctest="queue-chip"]').hidden).toBe(true);
   });
 
   vit("面板渲染出每条用例与汇总行", async () => {
@@ -661,6 +872,18 @@ vdescribe("PanelReporter", () => {
     vexpect(root.querySelector('[data-sctest="export-json"] [data-icon="braces"]')).not.toBe(null);
     vexpect(root.querySelector('[data-sctest="params"] [data-icon="sliders-horizontal"]')).not.toBe(null);
     vexpect(root.querySelector('[data-sctest="search"] [data-icon="search"]')).not.toBe(null);
+  });
+
+  vit("诊断提示说明状态优先级,页脚说明结果来源,人工按钮具备可访问名称", async () => {
+    const { describe: d, itManual: im, run } = SCTest.create({ name: "diagnostic UX", reporter: "panel" });
+    d("人工操作", () => im("确认页面变化", { hint: "完成页面操作后裁决" }));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    vexpect(root.querySelector('[data-sctest="diagnostic-hint"]').textContent).toMatch(/先看 FAIL/);
+    vexpect(root.querySelector('[data-sctest="footer-note"]').textContent).toMatch(/expected.*actual/i);
+    vexpect(root.querySelector('[data-sctest="manual-pass"]').getAttribute("aria-label")).toBe("人工确认通过");
+    vexpect(root.querySelector('[data-sctest="manual-fail"]').getAttribute("aria-label")).toBe("人工确认失败");
   });
 
   vit("进度条位于统计 chips 上方,图标使用 Lucide SVG 而不是字符", async () => {

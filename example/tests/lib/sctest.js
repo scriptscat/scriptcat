@@ -14,6 +14,7 @@
     MANUAL: "MANUAL",
   };
   var SCTEST_MARKER = "[SCTEST_RESULT]";
+  var UNAVAILABLE = Object.create(null);
 
   // GM_info.script 不含 background/crontab 字段(见 src/app/service/content/gm_api/gm_info.ts),
   // 只能从 metadata 原文判断运行上下文。
@@ -34,13 +35,109 @@
     return "";
   }
 
+  function safe(fn) {
+    try {
+      return { ok: true, value: fn() };
+    } catch (error) {
+      return { ok: false, error: error };
+    }
+  }
+
+  function read(fn) {
+    var result = safe(fn);
+    return result.ok ? result.value : UNAVAILABLE;
+  }
+
+  function formatError(error) {
+    if (error === UNAVAILABLE) return "不可用";
+    try {
+      if (error && error.name && error.message) return error.name + ": " + error.message;
+      return String(error);
+    } catch (e) {
+      return "未知异常";
+    }
+  }
+
+  function realmLabel(value) {
+    var currentWindow = read(function () {
+      return typeof window === "undefined" ? UNAVAILABLE : window;
+    });
+    if (currentWindow !== UNAVAILABLE && value === currentWindow) return "sandbox window";
+    var currentGlobal = read(function () {
+      return typeof globalThis === "undefined" ? UNAVAILABLE : globalThis;
+    });
+    if (currentGlobal !== UNAVAILABLE && value === currentGlobal) return "sandbox globalThis";
+    var currentSelf = read(function () {
+      return typeof self === "undefined" ? UNAVAILABLE : self;
+    });
+    if (currentSelf !== UNAVAILABLE && value === currentSelf) return "sandbox self";
+    var pageWindow = read(function () {
+      return typeof unsafeWindow === "undefined" ? UNAVAILABLE : unsafeWindow;
+    });
+    if (pageWindow !== UNAVAILABLE && value === pageWindow) return "page unsafeWindow";
+    return "";
+  }
+
   function stringify(value) {
+    if (value === UNAVAILABLE) return "<不可用>";
+    var realm = realmLabel(value);
+    if (realm) return realm;
     if (typeof value === "function") return "[Function " + (value.name || "anonymous") + "]";
     try {
-      var out = JSON.stringify(value);
+      var seen = [];
+      var out = JSON.stringify(value, function (key, current) {
+        if (current && typeof current === "object") {
+          if (seen.indexOf(current) !== -1) return "[Circular]";
+          seen.push(current);
+        }
+        return current;
+      });
       return out === undefined ? String(value) : out;
     } catch (e) {
-      return String(value);
+      try {
+        return String(value);
+      } catch (stringError) {
+        return "<无法显示的值>";
+      }
+    }
+  }
+
+  function formatValue(value) {
+    if (value === UNAVAILABLE) return "<不可用>";
+    var realm = realmLabel(value);
+    if (realm) return realm;
+    if (value === undefined) return "undefined";
+    if (value === null) return "null";
+    if (typeof value === "function") return "function " + (value.name || "(anonymous)");
+    if (typeof value === "string") return JSON.stringify(value);
+    if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return String(value);
+    if (typeof value === "symbol") return String(value);
+    return stringify(value);
+  }
+
+  function stringifyReport(value, space) {
+    var ancestors = [];
+    try {
+      return JSON.stringify(
+        value,
+        function (key, current) {
+          while (ancestors.length && ancestors[ancestors.length - 1] !== this) ancestors.pop();
+          if (current === UNAVAILABLE) return "<不可用>";
+          var realm = realmLabel(current);
+          if (realm) return realm;
+          if (typeof current === "bigint") return String(current);
+          if (typeof current === "function") return formatValue(current);
+          if (typeof current === "symbol") return String(current);
+          if (current && typeof current === "object") {
+            if (ancestors.indexOf(current) !== -1) return "[Circular]";
+            ancestors.push(current);
+          }
+          return current;
+        },
+        space
+      );
+    } catch (error) {
+      return JSON.stringify({ protocol: "sctest/v1", error: "报告序列化失败: " + formatError(error) }, null, space);
     }
   }
 
@@ -184,7 +281,39 @@
     return typeof value === "function" ? value() : value;
   }
 
-  function createSummary(name, context, suites, startedAt) {
+  async function resolveValueAsync(value) {
+    return await resolveValue(value);
+  }
+
+  function overallStatus(counts) {
+    return counts.FAIL ? STATUS.FAIL : counts.WARN ? STATUS.WARN : counts.MANUAL ? STATUS.MANUAL : STATUS.PASS;
+  }
+
+  function createEnvironment(context) {
+    var environment = {
+      tool: "sctest",
+      version: "1",
+      time: new Date().toISOString(),
+      context: context,
+    };
+    var url = read(function () {
+      return typeof location === "undefined" ? UNAVAILABLE : location.href;
+    });
+    if (url !== UNAVAILABLE) environment.url = String(url);
+    var info = read(function () {
+      if (typeof GM !== "undefined" && GM && GM.info) return GM.info;
+      return typeof GM_info === "undefined" ? UNAVAILABLE : GM_info;
+    });
+    if (info !== UNAVAILABLE && info) {
+      var manager = read(function () {
+        return info.scriptHandler ? info.scriptHandler + (info.version ? " " + info.version : "") : UNAVAILABLE;
+      });
+      if (manager !== UNAVAILABLE) environment.manager = String(manager);
+    }
+    return environment;
+  }
+
+  function createSummary(name, context, suites, startedAt, environment) {
     var counts = { PASS: 0, FAIL: 0, WARN: 0, INFO: 0, SKIP: 0, MANUAL: 0 };
     var total = 0;
     var outSuites = suites.map(function (s) {
@@ -224,9 +353,10 @@
       skipped: counts.SKIP,
       manual: counts.MANUAL,
       counts: counts,
-      overall: counts.FAIL ? STATUS.FAIL : counts.WARN ? STATUS.WARN : STATUS.PASS,
+      overall: overallStatus(counts),
       durationMs: Math.round(now() - startedAt),
       suites: outSuites,
+      environment: environment || createEnvironment(context),
     };
   }
 
@@ -239,6 +369,7 @@
     var lastStartedAt = 0;
     var runInfo = null;
     var activeCase = null;
+    var environment = createEnvironment(context);
 
     function describe(name, optsOrFn, maybeFn) {
       var suiteOpts = typeof optsOrFn === "function" ? {} : optsOrFn || {};
@@ -276,6 +407,8 @@
         requiredSource: data.required !== false,
         onFail: data.onFail,
         onError: data.onError,
+        failDetailSource: data.failDetail == null ? null : data.failDetail,
+        errorDetailSource: data.errorDetail == null ? null : data.errorDetail,
         manualVerdict: null,
         observations: [],
       });
@@ -299,6 +432,8 @@
         required: !options || options.required !== false,
         onFail: options && options.onFail,
         onError: options && options.onError,
+        failDetail: options && options.failDetail,
+        errorDetail: options && options.errorDetail,
       });
     }
 
@@ -370,8 +505,10 @@
         : { expected: "执行不抛出异常", actual: "未抛出异常" };
     }
 
-    function resolveDetail(c, status) {
-      var detail = resolveValue(c.detailSource);
+    async function resolveDetail(c, status, isError) {
+      var specificDetail = await resolveValueAsync(isError ? c.errorDetailSource : c.failDetailSource);
+      if (specificDetail) return specificDetail;
+      var detail = await resolveValueAsync(c.detailSource);
       if (detail && detail !== "保留原有断言体") return detail;
       if (status === STATUS.FAIL) return "检查「" + c.name + "」失败；请对照错误、期望值和实际值定位原因。";
       if (status === STATUS.WARN) return "检查「" + c.name + "」未满足，但按可选诊断记录为警告。";
@@ -392,7 +529,7 @@
       }
       if (c.kind === "manual") {
         c.status = STATUS.MANUAL;
-        c.detail = resolveDetail(c, c.status);
+        c.detail = await resolveDetail(c, c.status, false);
       } else if (c.kind === "note") {
         c.status = STATUS.INFO;
       } else {
@@ -400,8 +537,8 @@
         try {
           activeCase = c;
           var passed = await c.fn();
-          c.expected = resolveValue(c.expectedSource);
-          c.actual = resolveValue(c.actualSource);
+          c.expected = await resolveValueAsync(c.expectedSource);
+          c.actual = await resolveValueAsync(c.actualSource);
           var passFields = fallbackFields(c, passed, null);
           if (c.expected == null) c.expected = passFields.expected;
           if (c.actual == null) c.actual = passFields.actual;
@@ -409,24 +546,25 @@
           // an explicit false as a predicate failure so those bodies can migrate one-for-one.
           var matched = passed !== false;
           c.status = matched ? STATUS.PASS : normalizeStatus(c.onFail || STATUS.FAIL);
-          c.detail = resolveDetail(c, c.status);
+          c.detail = await resolveDetail(c, c.status, false);
         } catch (e) {
           if (e instanceof SkipSignal) {
             c.status = STATUS.SKIP;
             c.error = e.reason;
             c.required = false;
             var skipFields = fallbackFields(c, null, null);
-            c.expected = resolveValue(c.expectedSource) || skipFields.expected;
-            c.actual = resolveValue(c.actualSource) || "当前环境未提供";
-            c.detail = resolveDetail(c, c.status);
+            c.expected = (await resolveValueAsync(c.expectedSource)) || skipFields.expected;
+            c.actual = (await resolveValueAsync(c.actualSource)) || "当前环境未提供";
+            c.detail = await resolveDetail(c, c.status, false);
           } else {
             c.status = normalizeStatus(c.onError || c.onFail || STATUS.FAIL);
             c.error = String((e && e.message) || e);
             var errorFields = fallbackFields(c, null, c.error);
             if (c.expected == null)
-              c.expected = resolveValue(c.expectedSource) || (e && e.expected) || errorFields.expected;
-            if (c.actual == null) c.actual = resolveValue(c.actualSource) || (e && e.actual) || errorFields.actual;
-            c.detail = resolveDetail(c, c.status);
+              c.expected = (await resolveValueAsync(c.expectedSource)) || (e && e.expected) || errorFields.expected;
+            if (c.actual == null)
+              c.actual = (await resolveValueAsync(c.actualSource)) || (e && e.actual) || errorFields.actual;
+            c.detail = await resolveDetail(c, c.status, true);
           }
         }
         activeCase = null;
@@ -438,7 +576,7 @@
     }
 
     function buildSummary(startedAt) {
-      return createSummary(runName, context, suites, startedAt);
+      return createSummary(runName, context, suites, startedAt, environment);
     }
 
     function emitEnd(reporters, summary) {
@@ -467,7 +605,15 @@
     }
 
     async function run() {
-      runInfo = { name: runName, context: context, suites: suites, onRunManual: null, onManualVerdict: null };
+      runInfo = {
+        name: runName,
+        context: context,
+        suites: suites,
+        environment: environment,
+        runnable: true,
+        onRunManual: null,
+        onManualVerdict: null,
+      };
       var reporters = global.SCTest.__buildReporters(opts, context, runInfo);
       runInfo.onRunManual = function (suiteName) {
         return rerunSuites(reporters, suiteName, false);
@@ -504,9 +650,9 @@
           if (!suite.auto && c.kind !== "manual") {
             c.status = STATUS.SKIP;
             c.required = false;
-            c.expected = resolveValue(c.expectedSource) || "点击运行后执行此检查";
-            c.actual = resolveValue(c.actualSource) || "尚未运行";
-            c.detail = resolveDetail(c, c.status);
+            c.expected = (await resolveValueAsync(c.expectedSource)) || "点击运行后执行此检查";
+            c.actual = (await resolveValueAsync(c.actualSource)) || "尚未运行";
+            c.detail = await resolveDetail(c, c.status, false);
             emitCase(reporters, toResult(c));
             continue;
           }
@@ -536,10 +682,13 @@
     var opts = options || {};
     var name = opts.name || "未命名报告";
     var context = opts.context || detectContext(currentMetaStr());
+    var environment = createEnvironment(context);
     var reporters = global.SCTest.__buildReporters({ reporter: opts.reporter || "console" }, context, {
       name: name,
       context: context,
       suites: [],
+      environment: environment,
+      runnable: false,
     });
     var cases = [];
     var startedAt = now();
@@ -547,7 +696,13 @@
     var finished = false;
 
     function emitSummary() {
-      var summary = createSummary(name, context, [{ name: "报告", auto: true, params: {}, cases: cases }], startedAt);
+      var summary = createSummary(
+        name,
+        context,
+        [{ name: "报告", auto: true, params: {}, cases: cases }],
+        startedAt,
+        environment
+      );
       reporters.forEach(function (r) {
         if (r.onEnd) r.onEnd(summary);
       });
@@ -557,7 +712,7 @@
       if (started) return;
       started = true;
       reporters.forEach(function (r) {
-        if (r.onStart) r.onStart({ name: name, context: context, suites: [] });
+        if (r.onStart) r.onStart({ name: name, context: context, suites: [], environment: environment });
       });
     }
 
@@ -605,13 +760,18 @@
       var checkOptions = options || {};
       try {
         var passed = await predicate();
+        var resolvedExpected = await resolveValueAsync(expected);
+        var resolvedActual = await resolveValueAsync(actual);
         return record({
           category: category,
           name: caseName,
           status: passed !== false ? STATUS.PASS : normalizeStatus(checkOptions.onFail || STATUS.FAIL),
-          expected: resolveValue(expected),
-          actual: resolveValue(actual),
-          detail: resolveValue(detail) || (passed ? "符合预期" : "不符合预期"),
+          expected: resolvedExpected,
+          actual: resolvedActual,
+          detail:
+            (await resolveValueAsync(passed ? detail : checkOptions.failDetail)) ||
+            (await resolveValueAsync(detail)) ||
+            (passed ? "符合预期" : "不符合预期"),
           required: checkOptions.required !== false,
           durationMs: Math.round(now() - startedAtForCase),
         });
@@ -627,13 +787,19 @@
             durationMs: Math.round(now() - startedAtForCase),
           });
         }
+        var resolvedExpectedOnError = await resolveValueAsync(expected);
+        var resolvedActualOnError = await resolveValueAsync(actual);
         return record({
           category: category,
           name: caseName,
           status: normalizeStatus(checkOptions.onError || checkOptions.onFail || STATUS.FAIL),
-          expected: expected,
-          actual: "抛出 " + String((e && e.message) || e),
-          detail: checkOptions.errorDetail || resolveValue(detail) || "检测过程抛出异常",
+          error: String((e && e.message) || e),
+          expected: resolvedExpectedOnError,
+          actual: resolvedActualOnError == null ? "抛出 " + formatError(e) : resolvedActualOnError,
+          detail:
+            (await resolveValueAsync(checkOptions.errorDetail)) ||
+            (await resolveValueAsync(detail)) ||
+            "检测过程抛出异常",
           required: checkOptions.required !== false,
           durationMs: Math.round(now() - startedAtForCase),
         });
@@ -643,7 +809,7 @@
     function finish() {
       start();
       var suite = { name: "报告", auto: true, params: {}, cases: cases };
-      var summary = createSummary(name, context, [suite], startedAt);
+      var summary = createSummary(name, context, [suite], startedAt, environment);
       finished = true;
       reporters.forEach(function (r) {
         if (r.onEnd) r.onEnd(summary);
@@ -707,13 +873,12 @@
           console.log("\n%c--- " + c.suite + " ---", "color: orange; font-weight: bold;");
         }
         var icon = ICONS[c.status] || "○";
-        var detail = c.detail ? " — " + c.detail : "";
-        var reason = c.error ? " — " + c.error : "";
         var fields = { expected: c.expected, actual: c.actual, detail: c.detail, required: c.required };
-        var line = icon + " [" + c.status + "] " + c.name + " (" + c.durationMs + "ms)" + detail + reason;
+        var line = icon + " [" + c.status + "] " + c.name + " (" + c.durationMs + "ms)" + formatDetails(c);
         if (c.status === STATUS.FAIL) console.error("%c" + line, "color: red;", fields);
         else if (c.status === STATUS.WARN) console.warn("%c" + line, "color: #c46c00;", fields);
         else if (c.status === STATUS.INFO) console.info("%c" + line, "color: #477;", fields);
+        else if (c.status === STATUS.MANUAL) console.log("%c" + line, "color: #8a6d1d;", fields);
         else console.log("%c" + line, c.status === STATUS.PASS ? "color: green;" : "color: #777;", fields);
       },
       onEnd: function (summary) {
@@ -725,7 +890,27 @@
         console.log("信息: " + summary.info);
         console.log("跳过: " + summary.skipped);
         console.log("人工: " + summary.manual + " (" + summary.durationMs + "ms)");
-        console.log(SCTEST_MARKER + " " + JSON.stringify(summary));
+        if (typeof console.table === "function") {
+          var rows = [];
+          summary.suites.forEach(function (suite) {
+            suite.cases.forEach(function (c) {
+              rows.push({
+                category: c.category,
+                name: c.name,
+                status: c.status,
+                expected: c.expected,
+                actual: c.actual,
+                detail: c.detail,
+              });
+            });
+          });
+          try {
+            console.table(rows);
+          } catch (e) {
+            /* 某些宿主 console.table 只接受原生数组 */
+          }
+        }
+        console.log(SCTEST_MARKER + " " + stringifyReport(summary));
       },
     };
   }
@@ -735,7 +920,8 @@
     ":host{all:initial;--sc-bg:#0b1821;--sc-card:#102632;--sc-fg:#eaf3f8;--sc-muted:#8ea9b8;",
     "--sc-muted-bg:#0e202b;--sc-border:#315264;--sc-primary:#72daf9;--sc-success:#65e6ad;",
     "--sc-success-fg:#071c12;--sc-success-bg:#65e6ad;--sc-destructive:#ff7888;",
-    "--sc-destructive-fg:#2a060b;--sc-destructive-bg:#ff7888;--sc-warning-bg:#ffc766;--sc-warning-fg:#291700}",
+    "--sc-destructive-fg:#2a060b;--sc-destructive-bg:#ff7888;--sc-warning-bg:#ffc766;--sc-warning-fg:#291700;",
+    "--sc-manual-bg:#6b4b1f;--sc-manual-fg:#ffe0a0}",
     ".sc-panel{position:fixed;top:12px;right:12px;bottom:auto;width:min(920px,calc(100vw - 24px));",
     "max-height:calc(100vh - 24px);display:flex;flex-direction:column;overflow:hidden;",
     "border:1px solid var(--sc-border);border-radius:12px;background:var(--sc-bg);color:var(--sc-fg);",
@@ -751,6 +937,7 @@
     ".sc-btn{display:inline-flex;cursor:pointer;align-items:center;justify-content:center;gap:5px;border:1px solid #426579;background:#142f3e;color:var(--sc-fg);",
     "border-radius:7px;padding:6px 9px;font-size:11px;font-family:inherit}",
     ".sc-btn:hover{background:#1d4558}",
+    ".sc-btn:focus-visible,.sc-segment:focus-visible,.sc-search input:focus-visible{outline:2px solid var(--sc-primary);outline-offset:2px}",
     ".sc-icon-btn{display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border:0;padding:0}",
     ".sc-btn:disabled{cursor:wait;opacity:.55}",
     ".sc-icon{display:inline-flex;flex:none;align-items:center;justify-content:center;line-height:0}",
@@ -764,12 +951,14 @@
     ".sc-status-pass{background:var(--sc-success-bg);color:var(--sc-success-fg)}",
     ".sc-status-fail{background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
     ".sc-status-warn{background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
-    ".sc-status-info,.sc-status-skip,.sc-status-manual{background:#315264;color:#d9e6ec}",
+    ".sc-status-info,.sc-status-skip{background:#315264;color:#d9e6ec}",
+    ".sc-status-manual{background:var(--sc-manual-bg);color:var(--sc-manual-fg)}",
     ".sc-chip{display:inline-flex;align-items:center;gap:4px;border-radius:9999px;padding:3px 9px;font-size:11px;font-weight:500}",
     ".sc-chip-pass{background:var(--sc-success-bg);color:var(--sc-success-fg)}",
     ".sc-chip-fail{background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
     ".sc-chip-warn{background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
-    ".sc-chip-info,.sc-chip-skip,.sc-chip-manual{background:#315264;color:#d9e6ec}",
+    ".sc-chip-info,.sc-chip-skip{background:#315264;color:#d9e6ec}",
+    ".sc-chip-manual{background:var(--sc-manual-bg);color:var(--sc-manual-fg)}",
     ".sc-progress{height:6px;border-radius:9999px;background:#315264;overflow:hidden;display:flex}",
     ".sc-progress i{display:block;height:6px}",
     ".sc-diagnostic-hint{padding:9px 14px;color:#a9c0cc;background:#0e202b;border-bottom:1px solid #203d4c;font-size:11px}",
@@ -781,7 +970,7 @@
     ".sc-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--sc-fg);font:inherit;font-size:11px}",
     ".sc-body{max-height:calc(100vh - 265px);overflow:auto;flex:1;background:var(--sc-bg)}",
     ".sc-table-head{display:grid;grid-template-columns:58px minmax(0,23%) minmax(0,17%) minmax(0,17%) minmax(0,1fr);",
-    "padding:8px 9px;color:var(--sc-primary);background:var(--sc-card);border-bottom:1px solid #203d4c;font-size:11px;font-weight:700}",
+    "position:sticky;top:0;z-index:2;padding:8px 9px;color:var(--sc-primary);background:var(--sc-card);border-bottom:1px solid #203d4c;font-size:11px;font-weight:700}",
     ".sc-table-head span{min-width:0;overflow-wrap:anywhere}",
     ".sc-suite{display:flex;align-items:center;gap:7px;padding:9px 14px;background:var(--sc-muted-bg);",
     "border-top:1px solid #203d4c;color:var(--sc-primary);font-weight:750;cursor:pointer}",
@@ -811,7 +1000,8 @@
     "background:#142f3e;color:var(--sc-fg);font-family:'JetBrains Mono',monospace;font-size:11px}",
     ".sc-foot{display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid #203d4c;background:var(--sc-muted-bg)}",
     ".sc-foot .sc-sumline{flex:1;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--sc-muted)}",
-    "@media (max-width:720px){.sc-panel{top:8px;right:8px;width:calc(100vw - 16px);max-height:calc(100vh - 16px)}.sc-toolbar{flex-wrap:wrap}.sc-search{flex-basis:100%}.sc-table-head{grid-template-columns:48px minmax(0,1fr) minmax(0,1fr)}}",
+    ".sc-foot-note{color:var(--sc-muted);font-size:10px;white-space:nowrap}",
+    "@media (max-width:720px){.sc-panel{top:8px;right:8px;width:calc(100vw - 16px);max-height:calc(100vh - 16px)}.sc-toolbar{flex-wrap:wrap}.sc-search{flex-basis:100%}.sc-table-head{grid-template-columns:48px minmax(0,1fr) minmax(0,1fr)}.sc-foot-note{display:none}}",
   ].join("");
 
   // Constructable stylesheet 通过 CSSOM 安装到 Shadow Root，不属于页面的 inline <style>，
@@ -853,6 +1043,7 @@
     var caseNodes = {};
     var suiteNodes = {};
     var activeFilter = "all";
+    var latestSummary = null;
 
     function el(tag, cls, text) {
       var n = document.createElement(tag);
@@ -963,10 +1154,16 @@
     var grip = icon("grip-vertical", 14);
     grip.classList.add("sc-grip");
     grip.setAttribute("data-sctest", "drag-handle");
+    grip.title = "拖动面板";
+    grip.setAttribute("aria-label", "拖动面板");
     head.appendChild(grip);
     var titleWrap = el("div", "sc-title-wrap");
     var title = el("div", "sc-title", runInfo.name);
-    var meta = el("div", "sc-meta", runInfo.context);
+    var environment = runInfo.environment || {};
+    var metaParts = [runInfo.context];
+    if (environment.manager) metaParts.push(environment.manager);
+    if (environment.url) metaParts.push(environment.url);
+    var meta = el("div", "sc-meta", metaParts.join(" · "));
     titleWrap.appendChild(title);
     titleWrap.appendChild(meta);
     head.appendChild(titleWrap);
@@ -1002,6 +1199,8 @@
     var statusRow = el("div", "sc-status-row");
     var statusPill = el("span", "sc-status sc-status-pass", "等待运行");
     statusPill.setAttribute("data-sctest", "status-pill");
+    statusPill.setAttribute("role", "status");
+    statusPill.setAttribute("aria-live", "polite");
     var duration = el("span", "sc-dur", "0ms");
     duration.setAttribute("data-sctest", "duration");
     statusRow.appendChild(statusPill);
@@ -1069,7 +1268,7 @@
     var diagnosticHint = el(
       "div",
       "sc-diagnostic-hint",
-      "FAIL 表示断言未满足；WARN 表示可选或环境差异；SKIP 表示当前环境不提供；MANUAL 必须由人类操作后裁决。"
+      "先看 FAIL：表示断言未满足；再看 WARN：表示可选能力或环境差异；INFO 是环境观察；SKIP 表示当前环境不提供；MANUAL 必须由人类操作后裁决。"
     );
     diagnosticHint.setAttribute("data-sctest", "diagnostic-hint");
     panel.appendChild(diagnosticHint);
@@ -1084,12 +1283,18 @@
     // 既有 e2e 通过 run-all 选择器触发 auto:false suite；统一入口后继续保留该稳定契约。
     runAllBtn.setAttribute("data-sctest", "run-all");
     if (manualSuites.length === 1) runAllBtn.setAttribute("data-sctest-suite", manualSuites[0].name);
-    var resetBtn = el("button", "sc-btn", "清空");
+    var resetBtn = el("button", "sc-btn", "重置视图");
     resetBtn.insertBefore(icon("rotate-ccw", 12), resetBtn.firstChild);
     resetBtn.setAttribute("data-sctest", "reset");
+    resetBtn.title = "重置筛选和折叠状态";
+    resetBtn.setAttribute("aria-label", "重置筛选和折叠状态");
     var queueChip = el("span", "sc-chip sc-chip-skip", "待跑 " + manualSuites.length);
     queueChip.insertBefore(icon("list-todo", 11), queueChip.firstChild);
     queueChip.setAttribute("data-sctest", "queue-chip");
+    if (runInfo.runnable === false) {
+      runAllBtn.hidden = true;
+      queueChip.hidden = true;
+    }
     runRow.appendChild(runAllBtn);
     runRow.appendChild(resetBtn);
     runRow.appendChild(el("span", "sc-spacer"));
@@ -1135,6 +1340,17 @@
     var filterSkip = el("button", "sc-segment", "跳过");
     var filterManual = el("button", "sc-segment", "人工");
     filterAll.dataset.active = "1";
+    [
+      [filterAll, "显示全部结果"],
+      [filterFail, "只显示失败结果"],
+      [filterWarn, "只显示警告结果"],
+      [filterInfo, "只显示信息结果"],
+      [filterSkip, "只显示跳过结果"],
+      [filterManual, "只显示待人工结果"],
+    ].forEach(function (entry) {
+      entry[0].setAttribute("aria-label", entry[1]);
+      entry[0].setAttribute("aria-pressed", entry[0] === filterAll ? "true" : "false");
+    });
     filterAll.setAttribute("data-sctest", "filter-all");
     filterFail.setAttribute("data-sctest", "filter-fail");
     filterWarn.setAttribute("data-sctest", "filter-warn");
@@ -1170,11 +1386,12 @@
     var body = el("div", "sc-body");
     var diagnosticTable = el("div", "sc-table-head");
     diagnosticTable.setAttribute("data-sctest", "diagnostic-table");
-    diagnosticTable.appendChild(el("span", null, "状态"));
-    diagnosticTable.appendChild(el("span", null, "检查"));
-    diagnosticTable.appendChild(el("span", null, "实际"));
-    diagnosticTable.appendChild(el("span", null, "预期"));
-    diagnosticTable.appendChild(el("span", null, "说明"));
+    diagnosticTable.setAttribute("role", "row");
+    ["状态", "检查", "实际", "预期", "说明"].forEach(function (label) {
+      var column = el("span", null, label);
+      column.setAttribute("role", "columnheader");
+      diagnosticTable.appendChild(column);
+    });
     body.appendChild(diagnosticTable);
     panel.appendChild(body);
 
@@ -1183,6 +1400,10 @@
     var sumLine = el("div", "sc-sumline", "");
     sumLine.setAttribute("data-sctest", "summary-line");
     foot.appendChild(sumLine);
+    var footerNote = el("span", "sc-foot-note", "expected / actual / detail 来自同一份 sctest/v1 结果协议");
+    footerNote.setAttribute("data-sctest", "footer-note");
+    footerNote.title = "Console、Shadow DOM Panel、GM_log 和 JSON 使用同一份结果记录";
+    foot.appendChild(footerNote);
     var copyBtn = el("button", "sc-btn", "复制报告");
     copyBtn.insertBefore(icon("clipboard-copy", 12), copyBtn.firstChild);
     copyBtn.setAttribute("data-sctest", "footer-copy-report");
@@ -1203,7 +1424,7 @@
             node.status +
             "] " +
             key.replace("//", " › ") +
-            (node.result && node.result.detail ? " — " + node.result.detail : "")
+            (node.result ? formatDetails(node.result) : "")
         );
       });
       return lines.join("\n");
@@ -1218,6 +1439,7 @@
         protocol: "sctest/v1",
         name: runInfo.name,
         context: runInfo.context,
+        environment: runInfo.environment || (latestSummary && latestSummary.environment) || createEnvironment(runInfo.context),
         summary: {
           total: state.total,
           passed: state.pass,
@@ -1234,24 +1456,74 @@
             SKIP: state.skip,
             MANUAL: state.manual,
           },
-          overall: state.fail ? STATUS.FAIL : state.warn ? STATUS.WARN : STATUS.PASS,
+          overall: overallStatus(state),
           durationMs: state.durationMs,
         },
         cases: cases,
       };
     }
 
-    function copyReport() {
-      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(reportText());
-      return Promise.resolve();
+    function fallbackCopy(text) {
+      var textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "-9999px";
+      document.documentElement.appendChild(textarea);
+      textarea.select();
+      var result = safe(function () {
+        return document.execCommand("copy");
+      });
+      textarea.remove();
+      return result.ok && result.value !== false;
     }
 
-    copyBtn.addEventListener("click", copyReport);
-    toolbarCopy.addEventListener("click", copyReport);
-    jsonBtn.addEventListener("click", function () {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        return navigator.clipboard.writeText(JSON.stringify(reportJson(), null, 2));
+    function copyText(text) {
+      var clipboard = safe(function () {
+        return navigator.clipboard;
+      });
+      if (clipboard.ok && clipboard.value && typeof clipboard.value.writeText === "function") {
+        var write = safe(function () {
+          return clipboard.value.writeText(text);
+        });
+        if (write.ok) {
+          return Promise.resolve(write.value).then(
+            function () {
+              return true;
+            },
+            function () {
+              return fallbackCopy(text);
+            }
+          );
+        }
       }
+      return Promise.resolve(fallbackCopy(text));
+    }
+
+    function copyWithFeedback(button, text, iconName, label) {
+      button.disabled = true;
+      return copyText(text)
+        .then(function (copied) {
+          setIconLabel(button, copied ? "check" : "x", copied ? "已复制" : "复制失败", 12);
+          setTimeout(function () {
+            setIconLabel(button, iconName, label, 12);
+          }, 1200);
+          return copied;
+        })
+        .finally(function () {
+          button.disabled = false;
+        });
+    }
+
+    copyBtn.addEventListener("click", function () {
+      return copyWithFeedback(copyBtn, reportText(), "clipboard-copy", "复制报告");
+    });
+    toolbarCopy.addEventListener("click", function () {
+      return copyWithFeedback(toolbarCopy, stringifyReport(reportJson(), 2), "copy", "复制 JSON");
+    });
+    jsonBtn.addEventListener("click", function () {
+      return copyWithFeedback(jsonBtn, stringifyReport(reportJson(), 2), "braces", "JSON");
     });
 
     grip.addEventListener("mousedown", function (event) {
@@ -1312,6 +1584,7 @@
         activeFilter = entry[1];
         [filterAll, filterFail, filterWarn, filterInfo, filterSkip, filterManual].forEach(function (button) {
           button.dataset.active = button === entry[0] ? "1" : "0";
+          button.setAttribute("aria-pressed", button === entry[0] ? "true" : "false");
         });
         Object.keys(suiteNodes).forEach(function (name) {
           suiteNodes[name].collapsed = false;
@@ -1365,17 +1638,26 @@
       barSkip.style.width = (state.skip / total) * 100 + "%";
       barManual.style.width = (state.manual / total) * 100 + "%";
       statusPill.className =
-        "sc-status " + (state.fail ? "sc-status-fail" : state.warn ? "sc-status-warn" : "sc-status-pass");
+        "sc-status " +
+        (state.fail
+          ? "sc-status-fail"
+          : state.warn
+            ? "sc-status-warn"
+            : state.manual
+              ? "sc-status-manual"
+              : "sc-status-pass");
       setIconLabel(
         statusPill,
-        state.fail ? "circle-x" : state.warn ? "info" : "check",
+        state.fail ? "circle-x" : state.warn ? "info" : state.manual ? "hand" : "check",
         state.fail
           ? state.fail + " 项失败"
           : state.warn
             ? state.warn + " 项警告"
-            : state.total && !state.skip && !state.manual
-              ? "全部通过"
-              : "运行中",
+            : state.manual
+              ? state.manual + " 项待人工确认"
+              : state.total && !state.skip && !state.manual
+                ? "全部通过"
+                : "运行中",
         13
       );
       duration.textContent = state.durationMs + "ms";
@@ -1517,6 +1799,66 @@
       node.detail = detail;
     }
 
+    function removeManualControls(node) {
+      if (node.manualPass) node.manualPass.remove();
+      if (node.manualFail) node.manualFail.remove();
+      node.manualPass = null;
+      node.manualFail = null;
+    }
+
+    function attachManualControls(node, c) {
+      if (node.manualPass) return;
+      var pass = el("button", "sc-btn sc-icon-btn sc-manual-pass");
+      pass.appendChild(icon("check", 12));
+      pass.title = "人工确认通过";
+      pass.setAttribute("aria-label", "人工确认通过");
+      pass.setAttribute("data-sctest", "manual-pass");
+      var fail = el("button", "sc-btn sc-icon-btn sc-manual-fail");
+      fail.appendChild(icon("x", 12));
+      fail.title = "人工确认失败";
+      fail.setAttribute("aria-label", "人工确认失败");
+      fail.setAttribute("data-sctest", "manual-fail");
+
+      function settle(ok) {
+        removeManualControls(node);
+        if (typeof runInfo.onManualVerdict === "function") {
+          runInfo.onManualVerdict(
+            c.suite,
+            c.name,
+            ok ? STATUS.PASS : STATUS.FAIL,
+            ok ? "人工确认通过" : "人工确认失败"
+          );
+        } else {
+          node.status = ok ? STATUS.PASS : STATUS.FAIL;
+          c.status = node.status;
+          c.manualVerdict = node.status;
+          c.detail = ok ? "人工确认通过" : "人工确认失败";
+          applyStatus(c, node);
+          recount();
+        }
+      }
+      pass.addEventListener("click", function () {
+        settle(true);
+      });
+      fail.addEventListener("click", function () {
+        settle(false);
+      });
+      node.row.appendChild(pass);
+      node.row.appendChild(fail);
+      node.manualPass = pass;
+      node.manualFail = fail;
+    }
+
+    function syncManualControls(node, c) {
+      if (c.status === STATUS.MANUAL) {
+        node.row.classList.add("sc-case-manual");
+        attachManualControls(node, c);
+      } else {
+        node.row.classList.remove("sc-case-manual");
+        removeManualControls(node);
+      }
+    }
+
     return {
       panelRoot: root,
       onStart: function () {
@@ -1539,6 +1881,7 @@
           existing.result = c;
           applyStatus(c, existing);
           renderDetail(existing, c);
+          syncManualControls(existing, c);
           if (c.status === STATUS.PASS) state.pass++;
           else if (c.status === STATUS.FAIL) state.fail++;
           else if (c.status === STATUS.WARN) state.warn++;
@@ -1572,6 +1915,8 @@
           result: c,
           detail: null,
           hint: null,
+          manualPass: null,
+          manualFail: null,
         };
         caseNodes[key] = node;
 
@@ -1591,40 +1936,7 @@
         renderDetail(node, c);
 
         if (c.status === STATUS.MANUAL) {
-          var pass = el("button", "sc-btn sc-icon-btn sc-manual-pass");
-          pass.appendChild(icon("check", 12));
-          pass.setAttribute("data-sctest", "manual-pass");
-          var fail = el("button", "sc-btn sc-icon-btn sc-manual-fail");
-          fail.appendChild(icon("x", 12));
-          fail.setAttribute("data-sctest", "manual-fail");
-          function settle(ok) {
-            row.classList.remove("sc-case-manual");
-            pass.remove();
-            fail.remove();
-            if (typeof runInfo.onManualVerdict === "function") {
-              runInfo.onManualVerdict(
-                c.suite,
-                c.name,
-                ok ? STATUS.PASS : STATUS.FAIL,
-                ok ? "人工确认通过" : "人工确认失败"
-              );
-            } else {
-              node.status = ok ? STATUS.PASS : STATUS.FAIL;
-              c.status = node.status;
-              c.manualVerdict = node.status;
-              c.detail = ok ? "人工确认通过" : "人工确认失败";
-              applyStatus(c, node);
-              recount();
-            }
-          }
-          pass.addEventListener("click", function () {
-            settle(true);
-          });
-          fail.addEventListener("click", function () {
-            settle(false);
-          });
-          row.appendChild(pass);
-          row.appendChild(fail);
+          syncManualControls(node, c);
           if (c.hint) {
             var hint = el("div", "sc-hint");
             hint.appendChild(icon("info", 12));
@@ -1638,6 +1950,7 @@
         recount();
       },
       onEnd: function (summary) {
+        latestSummary = summary;
         state.total = summary.total;
         state.durationMs = summary.durationMs;
         recount();
@@ -1725,17 +2038,25 @@
   }
 
   function formatDetails(c) {
+    function display(value) {
+      return typeof value === "string" ? value : formatValue(value);
+    }
     var details = [];
-    if (c.error) details.push("error=" + c.error);
+    if (c.error) details.push("error=" + display(c.error));
     if (c.expected != null) details.push("expected=" + stringify(c.expected));
     if (c.actual != null) details.push("actual=" + stringify(c.actual));
-    if (c.detail) details.push("detail=" + c.detail);
+    if (c.detail) details.push("detail=" + display(c.detail));
     return details.length ? " — " + details.join("; ") : "";
   }
 
   var api = {
     create: create,
     createReportSession: createReportSession,
+    safe: safe,
+    read: read,
+    formatValue: formatValue,
+    formatError: formatError,
+    UNAVAILABLE: UNAVAILABLE,
     skip: function (reason) {
       throw new SkipSignal(reason);
     },
