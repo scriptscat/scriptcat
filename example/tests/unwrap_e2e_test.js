@@ -15,20 +15,41 @@ var __unwrap_e2e_global_var = "unwrap_success";
 (function () {
   "use strict";
 
-  const { describe, it, expect, run } = SCTest.create({ name: "@unwrap E2E 测试" });
+  const { describe, check, expect, run } = SCTest.create({ name: "@unwrap E2E 测试" });
 
   describe("@unwrap 环境", () => {
-    it("GM 对象在 unwrap 模式下为 undefined", () => {
-      expect(typeof GM).toBe("undefined");
-    });
+    check(
+      "自动断言",
+      "GM 对象在 unwrap 模式下为 undefined",
+      () => {
+        expect(typeof GM).toBe("undefined");
+      },
+      null,
+      null,
+      "保留原有断言体"
+    );
 
-    it("GM_setValue 在 unwrap 模式下为 undefined", () => {
-      expect(typeof GM_setValue).toBe("undefined");
-    });
+    check(
+      "自动断言",
+      "GM_setValue 在 unwrap 模式下为 undefined",
+      () => {
+        expect(typeof GM_setValue).toBe("undefined");
+      },
+      null,
+      null,
+      "保留原有断言体"
+    );
 
-    it("全局变量可在页面作用域访问", () => {
-      expect(window.__unwrap_e2e_global_var).toBe("unwrap_success");
-    });
+    check(
+      "自动断言",
+      "全局变量可在页面作用域访问",
+      () => {
+        expect(window.__unwrap_e2e_global_var).toBe("unwrap_success");
+      },
+      null,
+      null,
+      "保留原有断言体"
+    );
   });
 
   run();

@@ -5,7 +5,15 @@
 (function (global) {
   "use strict";
 
-  var STATUS = { PASS: "pass", FAIL: "fail", SKIP: "skip", MANUAL: "manual" };
+  var STATUS = {
+    PASS: "PASS",
+    FAIL: "FAIL",
+    WARN: "WARN",
+    INFO: "INFO",
+    SKIP: "SKIP",
+    MANUAL: "MANUAL",
+  };
+  var SCTEST_MARKER = "[SCTEST_RESULT]";
 
   // GM_info.script 不含 background/crontab 字段(见 src/app/service/content/gm_api/gm_info.ts),
   // 只能从 metadata 原文判断运行上下文。
@@ -151,22 +159,74 @@
     return typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
   }
 
+  function normalizeStatus(status) {
+    var normalized = String(status || "").toUpperCase();
+    return STATUS[normalized] || STATUS.FAIL;
+  }
+
+  function resolveValue(value) {
+    return typeof value === "function" ? value() : value;
+  }
+
+  function createSummary(name, context, suites, startedAt) {
+    var counts = { PASS: 0, FAIL: 0, WARN: 0, INFO: 0, SKIP: 0, MANUAL: 0 };
+    var total = 0;
+    var outSuites = suites.map(function (s) {
+      return {
+        name: s.name,
+        auto: s.auto,
+        params: s.params,
+        cases: s.cases.map(function (c) {
+          total++;
+          counts[c.status] = (counts[c.status] || 0) + 1;
+          return {
+            name: c.name,
+            suite: c.suite,
+            category: c.category,
+            status: c.status,
+            durationMs: c.durationMs,
+            error: c.error,
+            expected: c.expected,
+            actual: c.actual,
+            detail: c.detail,
+            hint: c.hint,
+            required: c.required,
+            manualVerdict: c.manualVerdict || null,
+          };
+        }),
+      };
+    });
+    return {
+      protocol: "sctest/v1",
+      name: name,
+      context: context,
+      total: total,
+      passed: counts.PASS,
+      failed: counts.FAIL,
+      warned: counts.WARN,
+      info: counts.INFO,
+      skipped: counts.SKIP,
+      manual: counts.MANUAL,
+      counts: counts,
+      overall: counts.FAIL ? STATUS.FAIL : counts.WARN ? STATUS.WARN : STATUS.PASS,
+      durationMs: Math.round(now() - startedAt),
+      suites: outSuites,
+    };
+  }
+
   function create(options) {
     var opts = options || {};
     var runName = opts.name || "未命名测试";
     var context = opts.context || detectContext(currentMetaStr());
     var suites = [];
     var currentSuite = null;
+    var lastStartedAt = 0;
+    var runInfo = null;
 
     function describe(name, optsOrFn, maybeFn) {
       var suiteOpts = typeof optsOrFn === "function" ? {} : optsOrFn || {};
       var fn = typeof optsOrFn === "function" ? optsOrFn : maybeFn;
-      var suite = {
-        name: name,
-        auto: suiteOpts.auto !== false,
-        params: suiteOpts.params || {},
-        cases: [],
-      };
+      var suite = { name: name, auto: suiteOpts.auto !== false, params: suiteOpts.params || {}, cases: [] };
       suites.push(suite);
       currentSuite = suite;
       try {
@@ -176,103 +236,148 @@
       }
     }
 
-    function pushCase(name, fn, kind, hint) {
-      if (!currentSuite) throw new Error("it/itManual 必须写在 describe 内部:" + name);
+    function pushCase(category, name, fn, kind, fields) {
+      if (!currentSuite) throw new Error("check/it/itManual 必须写在 describe 内部:" + name);
+      var data = fields || {};
       currentSuite.cases.push({
         name: name,
         suite: currentSuite.name,
+        category: category || currentSuite.name,
         fn: fn,
         kind: kind,
-        hint: hint || "",
+        hint: data.hint || "",
         status: null,
         durationMs: 0,
         error: null,
-        expected: null,
-        actual: null,
+        expected: data.expected == null ? null : data.expected,
+        actual: data.actual == null ? null : data.actual,
+        detail: data.detail || "",
+        expectedSource: data.expected == null ? null : data.expected,
+        actualSource: data.actual == null ? null : data.actual,
+        detailSource: data.detail || "",
+        required: data.required !== false,
+        requiredSource: data.required !== false,
+        onFail: data.onFail,
+        onError: data.onError,
+        manualVerdict: null,
+      });
+    }
+
+    function check(category, name, predicate, expected, actual, detail, options) {
+      if (typeof name === "function") {
+        options = {};
+        detail = "保留原有断言体";
+        actual = null;
+        expected = null;
+        predicate = name;
+        name = category;
+        category = currentSuite ? currentSuite.name : "自动断言";
+      }
+      pushCase(category, name, predicate, "check", {
+        expected: expected,
+        actual: actual,
+        detail: detail,
+        required: !options || options.required !== false,
+        onFail: options && options.onFail,
+        onError: options && options.onError,
+      });
+    }
+
+    function note(category, name, expected, actual, detail) {
+      pushCase(category, name, null, "note", {
+        expected: expected,
+        actual: actual,
+        detail: detail,
+        required: false,
       });
     }
 
     function it(name, fn) {
-      pushCase(name, fn, "auto", "");
+      check(name, fn);
     }
 
     function itManual(name, manualOpts) {
-      pushCase(name, null, "manual", (manualOpts || {}).hint);
+      pushCase(currentSuite ? currentSuite.name : "人工验证", name, null, "manual", {
+        hint: (manualOpts || {}).hint,
+        required: false,
+      });
     }
 
     function toResult(c) {
       return {
         name: c.name,
         suite: c.suite,
+        category: c.category,
         status: c.status,
         durationMs: c.durationMs,
         error: c.error,
         expected: c.expected,
         actual: c.actual,
+        detail: c.detail,
         hint: c.hint,
+        required: c.required,
+        manualVerdict: c.manualVerdict || null,
       };
+    }
+
+    function emitCase(reporters, result) {
+      reporters.forEach(function (r) {
+        if (r.onCase) r.onCase(result);
+      });
     }
 
     async function runCase(c, reporters) {
       c.error = null;
-      c.expected = null;
-      c.actual = null;
+      if (c.kind === "check") {
+        c.required = c.requiredSource;
+        c.expected = null;
+        c.actual = null;
+        c.detail = "";
+      }
       if (c.kind === "manual") {
         c.status = STATUS.MANUAL;
+      } else if (c.kind === "note") {
+        c.status = STATUS.INFO;
       } else {
         var started = now();
         try {
-          await c.fn();
-          c.status = STATUS.PASS;
+          var passed = await c.fn();
+          c.expected = resolveValue(c.expectedSource);
+          c.actual = resolveValue(c.actualSource);
+          // Existing assertion bodies return undefined after their expect() calls. Treat only
+          // an explicit false as a predicate failure so those bodies can migrate one-for-one.
+          var matched = passed !== false;
+          c.detail = resolveValue(c.detailSource) || (matched ? "符合预期" : "不符合预期");
+          c.status = matched ? STATUS.PASS : normalizeStatus(c.onFail || STATUS.FAIL);
         } catch (e) {
           if (e instanceof SkipSignal) {
             c.status = STATUS.SKIP;
             c.error = e.reason;
+            c.required = false;
+            c.detail = c.detail || "当前环境未提供该检查";
           } else {
-            c.status = STATUS.FAIL;
+            c.status = normalizeStatus(c.onError || c.onFail || STATUS.FAIL);
             c.error = String((e && e.message) || e);
-            c.expected = (e && e.expected) || null;
-            c.actual = (e && e.actual) || null;
+            if (c.expected == null) c.expected = resolveValue(c.expectedSource) || (e && e.expected) || null;
+            if (c.actual == null) c.actual = resolveValue(c.actualSource) || (e && e.actual) || null;
+            c.detail = resolveValue(c.detailSource) || "检测过程抛出异常";
           }
         }
         c.durationMs = Math.round(now() - started);
       }
       var result = toResult(c);
-      reporters.forEach(function (r) {
-        if (r.onCase) r.onCase(result);
-      });
+      emitCase(reporters, result);
       return result;
     }
 
     function buildSummary(startedAt) {
-      var total = 0;
-      var passed = 0;
-      var failed = 0;
-      var skipped = 0;
-      var outSuites = suites.map(function (s) {
-        return {
-          name: s.name,
-          auto: s.auto,
-          params: s.params,
-          cases: s.cases.map(function (c) {
-            total++;
-            if (c.status === STATUS.PASS) passed++;
-            else if (c.status === STATUS.FAIL) failed++;
-            else skipped++;
-            return toResult(c);
-          }),
-        };
+      return createSummary(runName, context, suites, startedAt);
+    }
+
+    function emitEnd(reporters, summary) {
+      reporters.forEach(function (r) {
+        if (r.onEnd) r.onEnd(summary);
       });
-      return {
-        name: runName,
-        context: context,
-        total: total,
-        passed: passed,
-        failed: failed,
-        skipped: skipped,
-        durationMs: Math.round(now() - startedAt),
-        suites: outSuites,
-      };
     }
 
     async function rerunSuites(reporters, onlySuiteName, includeAutoSuites) {
@@ -289,18 +394,13 @@
           await runCase(c, reporters);
         }
       }
-      // 手动 suite 的用例在 run() 主流程里只被标记为 skip，真实结果只在这里产生，
-      // 所以必须重新发一次 onEnd —— 否则 ConsoleReporter 的三行汇总（e2e 的解析契约）
-      // 和 LogReporter 的汇总日志对全部 auto:false 的文件永远不会出现。
       var summary = buildSummary(startedAt);
-      reporters.forEach(function (r) {
-        if (r.onEnd) r.onEnd(summary);
-      });
+      emitEnd(reporters, summary);
       return summary;
     }
 
     async function run() {
-      var runInfo = { name: runName, context: context, suites: suites, onRunManual: null };
+      runInfo = { name: runName, context: context, suites: suites, onRunManual: null, onManualVerdict: null };
       var reporters = global.SCTest.__buildReporters(opts, context, runInfo);
       runInfo.onRunManual = function (suiteName) {
         return rerunSuites(reporters, suiteName, false);
@@ -308,7 +408,24 @@
       runInfo.onRerun = function () {
         return rerunSuites(reporters, null, true);
       };
-      var startedAt = now();
+      runInfo.onManualVerdict = function (suiteName, caseName, status, detail) {
+        var target = null;
+        suites.forEach(function (suite) {
+          suite.cases.forEach(function (c) {
+            if (c.suite === suiteName && c.name === caseName) target = c;
+          });
+        });
+        if (!target || target.kind !== "manual") return buildSummary(lastStartedAt || now());
+        target.status = normalizeStatus(status);
+        target.manualVerdict = target.status;
+        target.error = target.status === STATUS.FAIL ? detail || "人工确认失败" : null;
+        target.detail = detail || target.detail || "人工确认完成";
+        emitCase(reporters, toResult(target));
+        var summary = buildSummary(lastStartedAt || now());
+        emitEnd(reporters, summary);
+        return summary;
+      };
+      lastStartedAt = now();
       reporters.forEach(function (r) {
         if (r.onStart) r.onStart(runInfo);
       });
@@ -319,24 +436,190 @@
           var c = suite.cases[j];
           if (!suite.auto && c.kind !== "manual") {
             c.status = STATUS.SKIP;
-            var skippedResult = toResult(c);
-            reporters.forEach(function (r) {
-              if (r.onCase) r.onCase(skippedResult);
-            });
+            c.required = false;
+            emitCase(reporters, toResult(c));
             continue;
           }
           await runCase(c, reporters);
         }
       }
 
-      var summary = buildSummary(startedAt);
+      var summary = buildSummary(lastStartedAt);
+      emitEnd(reporters, summary);
+      return summary;
+    }
+
+    return {
+      describe: describe,
+      check: check,
+      note: note,
+      it: it,
+      itManual: itManual,
+      expect: makeExpect(),
+      run: run,
+    };
+  }
+
+  function createReportSession(options) {
+    var opts = options || {};
+    var name = opts.name || "未命名报告";
+    var context = opts.context || detectContext(currentMetaStr());
+    var reporters = global.SCTest.__buildReporters({ reporter: opts.reporter || "console" }, context, {
+      name: name,
+      context: context,
+      suites: [],
+    });
+    var cases = [];
+    var startedAt = now();
+    var started = false;
+    var finished = false;
+
+    function emitSummary() {
+      var summary = createSummary(name, context, [{ name: "报告", auto: true, params: {}, cases: cases }], startedAt);
+      reporters.forEach(function (r) {
+        if (r.onEnd) r.onEnd(summary);
+      });
+    }
+
+    function start() {
+      if (started) return;
+      started = true;
+      reporters.forEach(function (r) {
+        if (r.onStart) r.onStart({ name: name, context: context, suites: [] });
+      });
+    }
+
+    function record(input) {
+      start();
+      var result = {
+        category: input.category || "运行观察",
+        name: input.name || "未命名结果",
+        suite: input.suite || input.category || "运行观察",
+        status: normalizeStatus(input.status),
+        durationMs: input.durationMs || 0,
+        error: input.error || null,
+        expected: input.expected == null ? null : input.expected,
+        actual: input.actual == null ? null : input.actual,
+        detail: input.detail || "",
+        hint: input.hint || "",
+        required: input.required !== false,
+        manualVerdict: input.manualVerdict || null,
+      };
+      cases.push(result);
+      reporters.forEach(function (r) {
+        if (r.onCase) r.onCase(result);
+      });
+      if (finished) emitSummary();
+      return result;
+    }
+
+    function update(result, status, fields) {
+      var index = cases.indexOf(result);
+      if (index < 0) throw new Error("报告结果不属于当前 session");
+      var next = fields || {};
+      result.status = normalizeStatus(status);
+      Object.keys(next).forEach(function (key) {
+        result[key] = next[key];
+      });
+      reporters.forEach(function (r) {
+        if (r.onCase) r.onCase(result);
+      });
+      if (finished) emitSummary();
+      return result;
+    }
+
+    async function checkSession(category, caseName, predicate, expected, actual, detail, options) {
+      var startedAtForCase = now();
+      var checkOptions = options || {};
+      try {
+        var passed = await predicate();
+        return record({
+          category: category,
+          name: caseName,
+          status: passed !== false ? STATUS.PASS : normalizeStatus(checkOptions.onFail || STATUS.FAIL),
+          expected: resolveValue(expected),
+          actual: resolveValue(actual),
+          detail: resolveValue(detail) || (passed ? "符合预期" : "不符合预期"),
+          required: checkOptions.required !== false,
+          durationMs: Math.round(now() - startedAtForCase),
+        });
+      } catch (e) {
+        if (e instanceof SkipSignal) {
+          return record({
+            category: category,
+            name: caseName,
+            status: STATUS.SKIP,
+            actual: "当前环境未提供",
+            detail: e.reason,
+            required: false,
+            durationMs: Math.round(now() - startedAtForCase),
+          });
+        }
+        return record({
+          category: category,
+          name: caseName,
+          status: normalizeStatus(checkOptions.onError || checkOptions.onFail || STATUS.FAIL),
+          expected: expected,
+          actual: "抛出 " + String((e && e.message) || e),
+          detail: checkOptions.errorDetail || resolveValue(detail) || "检测过程抛出异常",
+          required: checkOptions.required !== false,
+          durationMs: Math.round(now() - startedAtForCase),
+        });
+      }
+    }
+
+    function finish() {
+      start();
+      var suite = { name: "报告", auto: true, params: {}, cases: cases };
+      var summary = createSummary(name, context, [suite], startedAt);
+      finished = true;
       reporters.forEach(function (r) {
         if (r.onEnd) r.onEnd(summary);
       });
       return summary;
     }
 
-    return { describe: describe, it: it, itManual: itManual, expect: makeExpect(), run: run };
+    return {
+      start: start,
+      record: record,
+      update: update,
+      check: checkSession,
+      note: function (category, caseName, expected, actual, detail) {
+        return record({
+          category: category,
+          name: caseName,
+          status: STATUS.INFO,
+          expected: expected,
+          actual: actual,
+          detail: detail,
+          required: false,
+        });
+      },
+      skip: function (category, caseName, expected, actual, detail) {
+        return record({
+          category: category,
+          name: caseName,
+          status: STATUS.SKIP,
+          expected: expected,
+          actual: actual,
+          detail: detail,
+          required: false,
+        });
+      },
+      manual: function (category, caseName, expected, actual, detail) {
+        return record({
+          category: category,
+          name: caseName,
+          status: STATUS.MANUAL,
+          expected: expected,
+          actual: actual,
+          detail: detail,
+          required: false,
+        });
+      },
+      finish: finish,
+      summary: finish,
+    };
   }
 
   // ---------- ConsoleReporter ----------
@@ -351,23 +634,26 @@
           lastSuite = c.suite;
           console.log("\n%c--- " + c.suite + " ---", "color: orange; font-weight: bold;");
         }
-        if (c.status === STATUS.PASS) {
-          console.log("%c✓ " + c.name + " (" + c.durationMs + "ms)", "color: green;");
-        } else if (c.status === STATUS.FAIL) {
-          console.error("%c✗ " + c.name, "color: red;", c.error);
-        } else if (c.status === STATUS.MANUAL) {
-          var hintSuffix = c.hint ? ":" + c.hint : "";
-          console.log("%c○ " + c.name + " (待人工确认" + hintSuffix + ")", "color: #999;");
-        } else {
-          console.log("%c○ " + c.name + " (跳过" + (c.error ? ": " + c.error : "") + ")", "color: #999;");
-        }
+        var icon = ICONS[c.status] || "○";
+        var detail = c.detail ? " — " + c.detail : "";
+        var reason = c.error ? " — " + c.error : "";
+        var fields = { expected: c.expected, actual: c.actual, detail: c.detail, required: c.required };
+        var line = icon + " [" + c.status + "] " + c.name + " (" + c.durationMs + "ms)" + detail + reason;
+        if (c.status === STATUS.FAIL) console.error("%c" + line, "color: red;", fields);
+        else if (c.status === STATUS.WARN) console.warn("%c" + line, "color: #c46c00;", fields);
+        else if (c.status === STATUS.INFO) console.info("%c" + line, "color: #477;", fields);
+        else console.log("%c" + line, c.status === STATUS.PASS ? "color: green;" : "color: #777;", fields);
       },
       onEnd: function (summary) {
         console.log("\n%c=== 测试完成 ===", "color: blue; font-weight: bold;");
         console.log("总测试数: " + summary.total);
         console.log("%c通过: " + summary.passed, "color: green; font-weight: bold;");
         console.log("%c失败: " + summary.failed, "color: red; font-weight: bold;");
-        console.log("跳过: " + summary.skipped + " (" + summary.durationMs + "ms)");
+        console.log("%c警告: " + summary.warned, "color: #c46c00; font-weight: bold;");
+        console.log("信息: " + summary.info);
+        console.log("跳过: " + summary.skipped);
+        console.log("人工: " + summary.manual + " (" + summary.durationMs + "ms)");
+        console.log(SCTEST_MARKER + " " + JSON.stringify(summary));
       },
     };
   }
@@ -401,10 +687,13 @@
     ".sc-status{display:inline-flex;align-items:center;gap:5px;border-radius:9999px;padding:3px 10px;font-weight:600}",
     ".sc-status-pass{background:var(--sc-success-bg);color:var(--sc-success-fg)}",
     ".sc-status-fail{background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
+    ".sc-status-warn{background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
+    ".sc-status-info,.sc-status-skip,.sc-status-manual{background:var(--sc-muted-bg);color:var(--sc-muted)}",
     ".sc-chip{display:inline-flex;align-items:center;gap:4px;border-radius:9999px;padding:3px 9px;font-size:11px;font-weight:500}",
     ".sc-chip-pass{background:var(--sc-success-bg);color:var(--sc-success-fg)}",
     ".sc-chip-fail{background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
-    ".sc-chip-skip{background:var(--sc-muted-bg);color:var(--sc-muted)}",
+    ".sc-chip-warn{background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
+    ".sc-chip-info,.sc-chip-skip,.sc-chip-manual{background:var(--sc-muted-bg);color:var(--sc-muted)}",
     ".sc-progress{height:6px;border-radius:9999px;background:var(--sc-muted-bg);overflow:hidden;display:flex}",
     ".sc-progress i{display:block;height:6px}",
     ".sc-toolbar{padding:8px 14px;border-bottom:1px solid var(--sc-border)}",
@@ -422,12 +711,15 @@
     ".sc-suite-stat[data-manual='1']{display:inline-flex;align-items:center;gap:4px;background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
     ".sc-case{display:flex;align-items:center;gap:8px;padding:6px 14px 6px 34px}",
     ".sc-case span{flex:1}",
+    ".sc-case-label{min-width:0;display:flex;flex-direction:column;gap:2px}",
+    ".sc-case-category{color:var(--sc-muted);font-size:10px;font-weight:400}",
+    ".sc-case-status{font-size:10px;font-style:normal;font-weight:700}",
     ".sc-case-manual{background:var(--sc-warning-bg)}",
     ".sc-manual-pass{width:22px;height:22px;padding:0;border-color:var(--sc-success-fg);background:var(--sc-success-bg);color:var(--sc-success-fg)}",
     ".sc-manual-fail{width:22px;height:22px;padding:0;border-color:var(--sc-destructive-fg);background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
     ".sc-dur{font-size:11px;color:var(--sc-muted)}",
-    ".sc-detail{margin:0 14px 8px 34px;padding:8px 10px;border-radius:6px;border-left:2px solid var(--sc-destructive);",
-    "background:var(--sc-destructive-bg);color:var(--sc-destructive-fg);font-family:'JetBrains Mono',monospace;",
+    ".sc-detail{margin:0 14px 8px 34px;padding:8px 10px;border-radius:6px;border-left:2px solid var(--sc-border);",
+    "background:var(--sc-muted-bg);color:var(--sc-fg);font-family:'JetBrains Mono',monospace;",
     "font-size:11px;white-space:pre-wrap}",
     ".sc-hint{display:flex;gap:6px;margin:0 14px 8px 34px;padding:7px 10px;border-radius:6px;background:var(--sc-muted-bg);",
     "color:var(--sc-muted);font-size:11px}",
@@ -467,7 +759,7 @@
     root.appendChild(style);
   }
 
-  var ICONS = { pass: "✓", fail: "✗", skip: "○", manual: "✋" };
+  var ICONS = { PASS: "✓", FAIL: "✗", WARN: "△", INFO: "ⓘ", SKIP: "○", MANUAL: "✋" };
 
   function createPanelReporter(runInfo) {
     if (typeof document === "undefined" || !document.documentElement) return null;
@@ -485,7 +777,7 @@
     panel.className = "sc-panel";
     root.appendChild(panel);
 
-    var state = { pass: 0, fail: 0, skip: 0, total: 0, durationMs: 0, manualOverrides: {} };
+    var state = { pass: 0, fail: 0, warn: 0, info: 0, skip: 0, manual: 0, total: 0, durationMs: 0 };
     var caseNodes = {};
     var suiteNodes = {};
     var activeFilter = "all";
@@ -517,8 +809,10 @@
       "chevron-right": "m9 18 6-6-6-6",
       hand: "M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v7M10 10V5a2 2 0 0 0-4 0v9l-2-2a2 2 0 0 0-3 3l5 5a5 5 0 0 0 4 2h3a7 7 0 0 0 7-7v-3a2 2 0 0 0-4 0v-1",
       info: "M12 16v-4M12 8h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
-      "clipboard-copy": "M9 5h6M9 3h6v4H9zM15 11h5v5M20 11l-7 7M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2M16 3h2a2 2 0 0 1 2 2v3",
-      braces: "M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1",
+      "clipboard-copy":
+        "M9 5h6M9 3h6v4H9zM15 11h5v5M20 11l-7 7M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2M16 3h2a2 2 0 0 1 2 2v3",
+      braces:
+        "M8 3H7a2 2 0 0 0-2 2v4a2 2 0 0 1-2 2 2 2 0 0 1 2 2v4a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 1 2 2v4a2 2 0 0 0 2 2 2 2 0 0 0-2 2v4a2 2 0 0 1-2 2h-1",
     };
 
     var ICON_NODES = {
@@ -643,15 +937,21 @@
     statusRow.appendChild(duration);
     sum.appendChild(statusRow);
     var chips = el("div", "sc-chips");
-    var chipPass = el("span", "sc-chip sc-chip-pass", "通过 0");
-    var chipFail = el("span", "sc-chip sc-chip-fail", "失败 0");
-    var chipSkip = el("span", "sc-chip sc-chip-skip", "跳过 0");
+    var chipPass = el("span", "sc-chip sc-chip-pass", "PASS 0");
+    var chipFail = el("span", "sc-chip sc-chip-fail", "FAIL 0");
+    var chipWarn = el("span", "sc-chip sc-chip-warn", "WARN 0");
+    var chipInfo = el("span", "sc-chip sc-chip-info", "INFO 0");
+    var chipSkip = el("span", "sc-chip sc-chip-skip", "SKIP 0");
+    var chipManual = el("span", "sc-chip sc-chip-manual", "MANUAL 0");
     var chipTotal = el("span", "sc-chip sc-chip-skip", "共 0");
     chipTotal.setAttribute("data-sctest", "total-chip");
     [
       [chipPass, "check"],
       [chipFail, "x"],
+      [chipWarn, "info"],
+      [chipInfo, "info"],
       [chipSkip, "minus"],
+      [chipManual, "hand"],
       [chipTotal, "hash"],
     ].forEach(function (entry) {
       entry[0].insertBefore(icon(entry[1], 11), entry[0].firstChild);
@@ -659,7 +959,10 @@
     chips.setAttribute("data-sctest", "counters");
     chips.appendChild(chipPass);
     chips.appendChild(chipFail);
+    chips.appendChild(chipWarn);
+    chips.appendChild(chipInfo);
     chips.appendChild(chipSkip);
+    chips.appendChild(chipManual);
     chips.appendChild(chipTotal);
     var progress = el("div", "sc-progress");
     progress.setAttribute("data-sctest", "progress");
@@ -669,12 +972,24 @@
     var barFail = el("i");
     barFail.style.background = "var(--sc-destructive)";
     barFail.setAttribute("data-sctest", "progress-fail");
+    var barWarn = el("i");
+    barWarn.style.background = "var(--sc-warning-fg)";
+    barWarn.setAttribute("data-sctest", "progress-warn");
+    var barInfo = el("i");
+    barInfo.style.background = "var(--sc-primary)";
+    barInfo.setAttribute("data-sctest", "progress-info");
     var barSkip = el("i");
     barSkip.style.background = "var(--sc-muted)";
     barSkip.setAttribute("data-sctest", "progress-skip");
+    var barManual = el("i");
+    barManual.style.background = "var(--sc-warning-bg)";
+    barManual.setAttribute("data-sctest", "progress-manual");
     progress.appendChild(barPass);
     progress.appendChild(barFail);
+    progress.appendChild(barWarn);
+    progress.appendChild(barInfo);
     progress.appendChild(barSkip);
+    progress.appendChild(barManual);
     sum.appendChild(progress);
     sum.appendChild(chips);
     panel.appendChild(sum);
@@ -714,7 +1029,10 @@
       ctl.appendChild(el("span", "sc-params-label", "参数"));
       var paramKeys = Object.keys(s.params);
       paramKeys.forEach(function (key, index) {
-        var field = el("label", "sc-field" + (index === paramKeys.length - 1 && paramKeys.length > 1 ? " sc-field-compact" : ""));
+        var field = el(
+          "label",
+          "sc-field" + (index === paramKeys.length - 1 && paramKeys.length > 1 ? " sc-field-compact" : "")
+        );
         var input = document.createElement("input");
         input.value = s.params[key];
         input.setAttribute("data-sctest", "param-" + key);
@@ -732,14 +1050,23 @@
     var segments = el("div", "sc-segments");
     var filterAll = el("button", "sc-segment", "全部");
     var filterFail = el("button", "sc-segment", "失败");
+    var filterWarn = el("button", "sc-segment", "警告");
+    var filterInfo = el("button", "sc-segment", "信息");
     var filterSkip = el("button", "sc-segment", "跳过");
+    var filterManual = el("button", "sc-segment", "人工");
     filterAll.dataset.active = "1";
     filterAll.setAttribute("data-sctest", "filter-all");
     filterFail.setAttribute("data-sctest", "filter-fail");
+    filterWarn.setAttribute("data-sctest", "filter-warn");
+    filterInfo.setAttribute("data-sctest", "filter-info");
     filterSkip.setAttribute("data-sctest", "filter-skip");
+    filterManual.setAttribute("data-sctest", "filter-manual");
     segments.appendChild(filterAll);
     segments.appendChild(filterFail);
+    segments.appendChild(filterWarn);
+    segments.appendChild(filterInfo);
     segments.appendChild(filterSkip);
+    segments.appendChild(filterManual);
     var searchWrap = el("label", "sc-search");
     searchWrap.setAttribute("data-sctest", "search");
     searchWrap.appendChild(icon("search", 12));
@@ -782,7 +1109,14 @@
       var lines = [sumLine.textContent];
       Object.keys(caseNodes).forEach(function (key) {
         var node = caseNodes[key];
-        lines.push((ICONS[node.status] || "○") + " " + key.replace("//", " › "));
+        lines.push(
+          (ICONS[node.status] || "○") +
+            " [" +
+            node.status +
+            "] " +
+            key.replace("//", " › ") +
+            (node.result && node.result.detail ? " — " + node.result.detail : "")
+        );
       });
       return lines.join("\n");
     }
@@ -790,9 +1124,33 @@
     function reportJson() {
       var cases = Object.keys(caseNodes).map(function (key) {
         var node = caseNodes[key];
-        return { suite: node.suite, name: key.slice(key.indexOf("//") + 2), status: node.status };
+        return node.result || { suite: node.suite, name: key.slice(key.indexOf("//") + 2), status: node.status };
       });
-      return { name: runInfo.name, context: runInfo.context, summary: state, cases: cases };
+      return {
+        protocol: "sctest/v1",
+        name: runInfo.name,
+        context: runInfo.context,
+        summary: {
+          total: state.total,
+          passed: state.pass,
+          failed: state.fail,
+          warned: state.warn,
+          info: state.info,
+          skipped: state.skip,
+          manual: state.manual,
+          counts: {
+            PASS: state.pass,
+            FAIL: state.fail,
+            WARN: state.warn,
+            INFO: state.info,
+            SKIP: state.skip,
+            MANUAL: state.manual,
+          },
+          overall: state.fail ? STATUS.FAIL : state.warn ? STATUS.WARN : STATUS.PASS,
+          durationMs: state.durationMs,
+        },
+        cases: cases,
+      };
     }
 
     function copyReport() {
@@ -836,8 +1194,9 @@
         var node = caseNodes[key];
         var statusOk =
           activeFilter === "all" ||
-          (activeFilter === "skip" && (node.status === "skip" || node.status === "manual")) ||
-          node.status === activeFilter;
+          node.status === activeFilter ||
+          (activeFilter === "skip" && node.status === STATUS.SKIP) ||
+          (activeFilter === "manual" && node.status === STATUS.MANUAL);
         var textOk = !query || key.toLowerCase().indexOf(query) !== -1;
         node.row.hidden = !(statusOk && textOk);
         if (node.detail) node.detail.hidden = node.row.hidden;
@@ -853,10 +1212,17 @@
       });
     }
 
-    [[filterAll, "all"], [filterFail, "fail"], [filterSkip, "skip"]].forEach(function (entry) {
+    [
+      [filterAll, "all"],
+      [filterFail, STATUS.FAIL],
+      [filterWarn, STATUS.WARN],
+      [filterInfo, STATUS.INFO],
+      [filterSkip, STATUS.SKIP],
+      [filterManual, STATUS.MANUAL],
+    ].forEach(function (entry) {
       entry[0].addEventListener("click", function () {
         activeFilter = entry[1];
-        [filterAll, filterFail, filterSkip].forEach(function (button) {
+        [filterAll, filterFail, filterWarn, filterInfo, filterSkip, filterManual].forEach(function (button) {
           button.dataset.active = button === entry[0] ? "1" : "0";
         });
         Object.keys(suiteNodes).forEach(function (name) {
@@ -896,25 +1262,57 @@
     });
 
     function recount() {
-      setIconLabel(chipPass, "check", "通过 " + state.pass, 11);
-      setIconLabel(chipFail, "x", "失败 " + state.fail, 11);
-      setIconLabel(chipSkip, "minus", "跳过 " + state.skip, 11);
+      setIconLabel(chipPass, "check", "PASS " + state.pass, 11);
+      setIconLabel(chipFail, "x", "FAIL " + state.fail, 11);
+      setIconLabel(chipWarn, "info", "WARN " + state.warn, 11);
+      setIconLabel(chipInfo, "info", "INFO " + state.info, 11);
+      setIconLabel(chipSkip, "minus", "SKIP " + state.skip, 11);
+      setIconLabel(chipManual, "hand", "MANUAL " + state.manual, 11);
       setIconLabel(chipTotal, "hash", "共 " + state.total, 11);
       var total = state.total || 1;
       barPass.style.width = (state.pass / total) * 100 + "%";
       barFail.style.width = (state.fail / total) * 100 + "%";
+      barWarn.style.width = (state.warn / total) * 100 + "%";
+      barInfo.style.width = (state.info / total) * 100 + "%";
       barSkip.style.width = (state.skip / total) * 100 + "%";
-      statusPill.className = "sc-status " + (state.fail ? "sc-status-fail" : "sc-status-pass");
+      barManual.style.width = (state.manual / total) * 100 + "%";
+      statusPill.className =
+        "sc-status " + (state.fail ? "sc-status-fail" : state.warn ? "sc-status-warn" : "sc-status-pass");
       setIconLabel(
         statusPill,
-        state.fail ? "circle-x" : "check",
-        state.fail ? state.fail + " 项失败" : state.total && !state.skip ? "全部通过" : "运行中",
+        state.fail ? "circle-x" : state.warn ? "info" : "check",
+        state.fail
+          ? state.fail + " 项失败"
+          : state.warn
+            ? state.warn + " 项警告"
+            : state.total && !state.skip && !state.manual
+              ? "全部通过"
+              : "运行中",
         13
       );
       duration.textContent = state.durationMs + "ms";
       setIconLabel(queueChip, "list-todo", "待跑 " + state.skip, 11);
       sumLine.textContent =
-        "总测试数: " + state.total + "  通过: " + state.pass + "  失败: " + state.fail + "  跳过: " + state.skip;
+        "总测试数: " +
+        state.total +
+        "  PASS: " +
+        state.pass +
+        "  通过: " +
+        state.pass +
+        "  FAIL: " +
+        state.fail +
+        "  失败: " +
+        state.fail +
+        "  WARN: " +
+        state.warn +
+        "  INFO: " +
+        state.info +
+        "  SKIP: " +
+        state.skip +
+        "  跳过: " +
+        state.skip +
+        "  MANUAL: " +
+        state.manual;
       Object.keys(suiteNodes).forEach(function (name) {
         var suiteNode = suiteNodes[name];
         var passed = 0;
@@ -924,14 +1322,14 @@
           var node = caseNodes[key];
           if (node.suite !== name) return;
           suiteTotal++;
-          if (node.status === "pass") passed++;
-          if (node.status === "fail") failed++;
+          if (node.status === STATUS.PASS) passed++;
+          if (node.status === STATUS.FAIL) failed++;
         });
         if (suiteNode.manualTotal) {
-          var manualDone = Object.keys(state.manualOverrides).filter(function (key) {
-            return key.indexOf(name + "//") === 0;
+          var manualPending = Object.keys(caseNodes).filter(function (key) {
+            return caseNodes[key].suite === name && caseNodes[key].status === STATUS.MANUAL;
           }).length;
-          setIconLabel(suiteNode.stat, "hand", "人工 " + manualDone + " / " + suiteNode.manualTotal, 10);
+          setIconLabel(suiteNode.stat, "hand", "人工待确认 " + manualPending + " / " + suiteNode.manualTotal, 10);
         } else {
           suiteNode.stat.textContent = passed + " / " + suiteTotal;
           suiteNode.stat.dataset.failed = failed ? "1" : "0";
@@ -973,15 +1371,31 @@
         chevron.textContent = "";
         chevron.appendChild(icon(group.hidden ? "chevron-right" : "chevron-down", 13));
       });
-      suiteNodes[name] = { row: row, group: group, stat: stat, chevron: chevron, manualTotal: manualTotal, collapsed: false };
+      suiteNodes[name] = {
+        row: row,
+        group: group,
+        stat: stat,
+        chevron: chevron,
+        manualTotal: manualTotal,
+        collapsed: false,
+      };
       return suiteNodes[name];
     }
 
     function applyStatus(c, node) {
-      var statusIcon = c.status === "pass" ? "check" : c.status === "fail" ? "x" : c.status === "manual" ? "hand" : "minus";
+      var statusIcon =
+        c.status === STATUS.PASS
+          ? "check"
+          : c.status === STATUS.FAIL
+            ? "x"
+            : c.status === STATUS.MANUAL
+              ? "hand"
+              : "info";
       node.icon.textContent = "";
       node.icon.appendChild(icon(statusIcon, 13));
-      node.dur.textContent = c.status === "manual" ? "人工" : c.durationMs + "ms";
+      node.statusLabel.textContent = c.status;
+      node.statusLabel.className = "sc-case-status sc-status-" + c.status.toLowerCase();
+      node.dur.textContent = c.status === STATUS.MANUAL ? "人工" : c.durationMs + "ms";
     }
 
     // 渲染/清理失败详情框。挂在 node.detail 上以便重跑时能先移除旧的一份,
@@ -992,20 +1406,31 @@
         node.detail.remove();
         node.detail = null;
       }
-      if (c.status === "fail") {
+      if (
+        c.status === STATUS.FAIL ||
+        c.status === STATUS.WARN ||
+        c.status === STATUS.INFO ||
+        c.status === STATUS.SKIP
+      ) {
         var detail = el(
           "div",
           "sc-detail",
-          "期望  " + (c.expected == null ? "-" : c.expected) + "\n实际  " + (c.actual == null ? "-" : c.actual) + "\n" + c.error
+          "状态  " +
+            c.status +
+            "\n期望  " +
+            (c.expected == null ? "-" : c.expected) +
+            "\n实际  " +
+            (c.actual == null ? "-" : c.actual) +
+            "\n" +
+            (c.detail || "") +
+            (c.error ? "\n" + c.error : "")
         );
-        detail.setAttribute("data-sctest", "failure-detail");
+        detail.setAttribute(
+          "data-sctest",
+          c.status === STATUS.FAIL ? "failure-detail" : c.status === STATUS.SKIP ? "skip-reason" : "diagnostic-detail"
+        );
         node.row.parentNode.insertBefore(detail, node.row.nextSibling);
         node.detail = detail;
-      } else if (c.status === "skip" && c.error) {
-        var reason = el("div", "sc-detail", c.error);
-        reason.setAttribute("data-sctest", "skip-reason");
-        node.row.parentNode.insertBefore(reason, node.row.nextSibling);
-        node.detail = reason;
       }
     }
 
@@ -1021,41 +1446,68 @@
         var key = c.suite + "//" + c.name;
         var existing = caseNodes[key];
         if (existing) {
-          if (existing.status === "skip") state.skip--;
-          else if (existing.status === "pass") state.pass--;
-          else if (existing.status === "fail") state.fail--;
+          if (existing.status === STATUS.PASS) state.pass--;
+          else if (existing.status === STATUS.FAIL) state.fail--;
+          else if (existing.status === STATUS.WARN) state.warn--;
+          else if (existing.status === STATUS.INFO) state.info--;
+          else if (existing.status === STATUS.SKIP) state.skip--;
+          else if (existing.status === STATUS.MANUAL) state.manual--;
           existing.status = c.status;
+          existing.result = c;
           applyStatus(c, existing);
           renderDetail(existing, c);
-          if (c.status === "pass") state.pass++;
-          else if (c.status === "fail") state.fail++;
-          else state.skip++;
+          if (c.status === STATUS.PASS) state.pass++;
+          else if (c.status === STATUS.FAIL) state.fail++;
+          else if (c.status === STATUS.WARN) state.warn++;
+          else if (c.status === STATUS.INFO) state.info++;
+          else if (c.status === STATUS.SKIP) state.skip++;
+          else if (c.status === STATUS.MANUAL) state.manual++;
           recount();
           return;
         }
         var suite = ensureSuite(c.suite);
-        var row = el("div", "sc-case" + (c.status === "manual" ? " sc-case-manual" : ""));
+        var row = el("div", "sc-case" + (c.status === STATUS.MANUAL ? " sc-case-manual" : ""));
         row.setAttribute("data-sctest", "case-row");
         var caseIcon = el("b", null, ICONS[c.status] || "○");
-        var label = el("span", null, c.name);
-        var dur = el("i", "sc-dur", c.status === "manual" ? "人工" : c.durationMs + "ms");
+        var label = el("span", "sc-case-label");
+        label.appendChild(el("span", null, c.name));
+        label.appendChild(el("small", "sc-case-category", c.category || c.suite));
+        var statusLabel = el("strong", "sc-case-status", c.status);
+        var dur = el("i", "sc-dur", c.status === STATUS.MANUAL ? "人工" : c.durationMs + "ms");
         row.appendChild(caseIcon);
         row.appendChild(label);
+        row.appendChild(statusLabel);
         row.appendChild(dur);
         suite.group.appendChild(row);
-        var node = { row: row, icon: caseIcon, dur: dur, status: c.status, suite: c.suite, detail: null, hint: null };
+        var node = {
+          row: row,
+          icon: caseIcon,
+          statusLabel: statusLabel,
+          dur: dur,
+          status: c.status,
+          suite: c.suite,
+          result: c,
+          detail: null,
+          hint: null,
+        };
         caseNodes[key] = node;
 
-        if (c.status === "fail") {
+        if (c.status === STATUS.FAIL) {
           state.fail++;
-        } else if (c.status === "pass") {
+        } else if (c.status === STATUS.PASS) {
           state.pass++;
-        } else {
+        } else if (c.status === STATUS.WARN) {
+          state.warn++;
+        } else if (c.status === STATUS.INFO) {
+          state.info++;
+        } else if (c.status === STATUS.SKIP) {
           state.skip++;
+        } else if (c.status === STATUS.MANUAL) {
+          state.manual++;
         }
         renderDetail(node, c);
 
-        if (c.status === "manual") {
+        if (c.status === STATUS.MANUAL) {
           var pass = el("button", "sc-btn sc-icon-btn sc-manual-pass");
           pass.appendChild(icon("check", 12));
           pass.setAttribute("data-sctest", "manual-pass");
@@ -1063,17 +1515,24 @@
           fail.appendChild(icon("x", 12));
           fail.setAttribute("data-sctest", "manual-fail");
           function settle(ok) {
-            state.skip--;
-            if (ok) state.pass++;
-            else state.fail++;
-            state.manualOverrides[c.suite + "//" + c.name] = ok ? "pass" : "fail";
-            node.status = ok ? "pass" : "fail";
             row.classList.remove("sc-case-manual");
-            caseIcon.textContent = "";
-            caseIcon.appendChild(icon(ok ? "check" : "x", 13));
             pass.remove();
             fail.remove();
-            recount();
+            if (typeof runInfo.onManualVerdict === "function") {
+              runInfo.onManualVerdict(
+                c.suite,
+                c.name,
+                ok ? STATUS.PASS : STATUS.FAIL,
+                ok ? "人工确认通过" : "人工确认失败"
+              );
+            } else {
+              node.status = ok ? STATUS.PASS : STATUS.FAIL;
+              c.status = node.status;
+              c.manualVerdict = node.status;
+              c.detail = ok ? "人工确认通过" : "人工确认失败";
+              applyStatus(c, node);
+              recount();
+            }
           }
           pass.addEventListener("click", function () {
             settle(true);
@@ -1135,22 +1594,24 @@
         emitLog("▶ " + info.name, "info", { sctest: "run", context: info.context, cases: cases });
       },
       onCase: function (c) {
-        if (c.status === STATUS.PASS) {
-          emitLog("✓ " + c.suite + " › " + c.name, "info", {
+        var status = normalizeStatus(c.status);
+        if (status === STATUS.PASS) {
+          emitLog("✓ [PASS] " + c.suite + " › " + c.name + formatDetails(c), "info", {
             sctest: "case",
-            status: "pass",
+            status: status,
             ms: c.durationMs,
           });
-        } else if (c.status === STATUS.FAIL) {
-          emitLog("✗ " + c.suite + " › " + c.name + " — " + c.error, "error", {
+        } else if (status === STATUS.FAIL) {
+          emitLog("✗ [FAIL] " + c.suite + " › " + c.name + formatDetails(c), "error", {
             sctest: "case",
-            status: "fail",
+            status: status,
             suite: c.suite,
           });
         } else {
-          emitLog("○ " + c.suite + " › " + c.name + (c.error ? " — " + c.error : ""), "warn", {
+          var level = status === STATUS.INFO ? "info" : status === STATUS.WARN ? "warn" : "warn";
+          emitLog("○ [" + status + "] " + c.suite + " › " + c.name + formatDetails(c), level, {
             sctest: "case",
-            status: "skip",
+            status: status,
           });
         }
       },
@@ -1158,34 +1619,51 @@
         emitLog(
           "■ 总测试数: " +
             summary.total +
-            "  通过: " +
+            "  PASS: " +
             summary.passed +
-            "  失败: " +
+            "  FAIL: " +
             summary.failed +
-            "  跳过: " +
+            "  WARN: " +
+            summary.warned +
+            "  INFO: " +
+            summary.info +
+            "  SKIP: " +
             summary.skipped +
+            "  MANUAL: " +
+            summary.manual +
             "  (" +
             summary.durationMs +
             "ms)",
           "info",
-          { sctest: "summary", passed: summary.passed, failed: summary.failed }
+          { sctest: "summary", passed: summary.passed, failed: summary.failed, status: summary.overall }
         );
       },
     };
   }
 
+  function formatDetails(c) {
+    var details = [];
+    if (c.error) details.push("error=" + c.error);
+    if (c.expected != null) details.push("expected=" + stringify(c.expected));
+    if (c.actual != null) details.push("actual=" + stringify(c.actual));
+    if (c.detail) details.push("detail=" + c.detail);
+    return details.length ? " — " + details.join("; ") : "";
+  }
+
   var api = {
     create: create,
+    createReportSession: createReportSession,
     skip: function (reason) {
       throw new SkipSignal(reason);
     },
+    STATUS: STATUS,
+    MARKER: SCTEST_MARKER,
     __detectContext: detectContext,
     __buildReporters: buildReporters,
     __createConsoleReporter: createConsoleReporter,
     __createPanelReporter: createPanelReporter,
     __createLogReporter: createLogReporter,
     __installPanelStyles: installPanelStyles,
-    STATUS: STATUS,
   };
 
   global.SCTest = api;

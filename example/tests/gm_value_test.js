@@ -9,97 +9,100 @@
 // @grant        GM_deleteValue
 // @grant        GM_addValueChangeListener
 // @grant        GM_removeValueChangeListener
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@762f83e9c1091ab4ebbb605f4efc4709b36f6476/example/tests/lib/sctest.js
 // @run-at       document-idle
 // ==/UserScript==
 
 (function () {
-  'use strict';
+  "use strict";
 
-  if (!location.search.includes('testGMAddValueChangeListener')) return;
+  if (!location.search.includes("testGMAddValueChangeListener")) return;
 
-  document.documentElement.appendChild(document.createElement("style")).textContent=`@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700,800&display=swap');`;
+  document.documentElement.appendChild(document.createElement("style")).textContent =
+    `@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700,800&display=swap');`;
 
   /* ══════════════════════════════════════════════════════════
      SHARED CONSTANTS
   ══════════════════════════════════════════════════════════ */
-  const FRAME_IDS = ['main', 'iframe1', 'iframe2', 'iframe3'];
+  const FRAME_IDS = ["main", "iframe1", "iframe2", "iframe3"];
 
   const WRITE_KEY = {
-    main: 'key_from_main',
-    iframe1: 'key_from_iframe1',
-    iframe2: 'key_from_iframe2',
-    iframe3: 'key_from_iframe3',
+    main: "key_from_main",
+    iframe1: "key_from_iframe1",
+    iframe2: "key_from_iframe2",
+    iframe3: "key_from_iframe3",
   };
   const ALL_KEYS = Object.values(WRITE_KEY);
 
   const ACCENT = {
-    main: '#0369a1',
-    iframe1: '#b91c1c',
-    iframe2: '#15803d',
-    iframe3: '#a16207',
+    main: "#0369a1",
+    iframe1: "#b91c1c",
+    iframe2: "#15803d",
+    iframe3: "#a16207",
   };
 
   const LABEL = {
-    main: '🖥  Main Frame',
-    iframe1: '📦  iFrame #1',
-    iframe2: '📦  iFrame #2',
-    iframe3: '📦  iFrame #3',
+    main: "🖥  Main Frame",
+    iframe1: "📦  iFrame #1",
+    iframe2: "📦  iFrame #2",
+    iframe3: "📦  iFrame #3",
   };
 
   /* ══════════════════════════════════════════════════════════
      CONTEXT DETECTION
   ══════════════════════════════════════════════════════════ */
   const isMain = window.self === window.top;
-  const frameId = new URLSearchParams(location.search).get('frameId')
-    || (isMain ? 'main' : 'unknown');
+  const frameId = new URLSearchParams(location.search).get("frameId") || (isMain ? "main" : "unknown");
 
   /* ══════════════════════════════════════════════════════════
      HELPERS
   ══════════════════════════════════════════════════════════ */
   function escHtml(s) {
-    return String(s).replace(/[&<>"']/g, ch => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;',
-    }[ch]));
+    return String(s).replace(
+      /[&<>"']/g,
+      (ch) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[ch]
+    );
   }
 
   function fmtVal(v) {
-    return v === undefined
-      ? '<i style="color:#94a3b8">not set</i>'
-      : escHtml(JSON.stringify(v));
+    return v === undefined ? '<i style="color:#94a3b8">not set</i>' : escHtml(JSON.stringify(v));
   }
 
   function nowTime() {
-    return new Date().toLocaleTimeString('en-GB', { hour12: false });
+    return new Date().toLocaleTimeString("en-GB", { hour12: false });
   }
 
   /* ══════════════════════════════════════════════════════════
      MSG BUS
   ══════════════════════════════════════════════════════════ */
-  const MSG_NS = 'GMTEST_';
+  const MSG_NS = "GMTEST_";
   const TARGET_ORIGIN = location.origin;
 
   function reportLog(entry) {
-    top.postMessage({ t: MSG_NS + 'LOG', frameId, entry }, TARGET_ORIGIN);
+    top.postMessage({ t: MSG_NS + "LOG", frameId, entry }, TARGET_ORIGIN);
   }
 
   function reportKV(kvMap) {
-    top.postMessage({ t: MSG_NS + 'KV', frameId, kvMap }, TARGET_ORIGIN);
+    top.postMessage({ t: MSG_NS + "KV", frameId, kvMap }, TARGET_ORIGIN);
   }
 
   function reportReady() {
-    top.postMessage({ t: MSG_NS + 'READY', frameId }, TARGET_ORIGIN);
+    top.postMessage({ t: MSG_NS + "READY", frameId }, TARGET_ORIGIN);
   }
 
   function reportListeners(ids) {
-    top.postMessage({ t: MSG_NS + 'LISTENERS', frameId, ids }, TARGET_ORIGIN);
+    top.postMessage({ t: MSG_NS + "LISTENERS", frameId, ids }, TARGET_ORIGIN);
   }
 
   function sendCmd(win, cmd, data = {}) {
-    win.postMessage({ t: MSG_NS + 'CMD', cmd, ...data }, TARGET_ORIGIN);
+    win.postMessage({ t: MSG_NS + "CMD", cmd, ...data }, TARGET_ORIGIN);
   }
 
   /* ══════════════════════════════════════════════════════════
@@ -119,25 +122,25 @@
     pushKV();
     reportReady();
 
-    window.addEventListener('message', async (e) => {
+    window.addEventListener("message", async (e) => {
       if (e.origin !== location.origin) return;
       if (!e.data || !e.data.t) return;
-      if (e.data.t !== MSG_NS + 'CMD') return;
+      if (e.data.t !== MSG_NS + "CMD") return;
 
       const { cmd, value } = e.data;
 
-      if (cmd === 'SET_STRING') await doSet(`hello_${Date.now()}`);
-      if (cmd === 'SET_NUMBER') await doSet(Math.floor(Math.random() * 99999));
-      if (cmd === 'SET_OBJECT') await doSet({ ts: Date.now(), from: frameId });
-      if (cmd === 'SET_NULL') await doSet(null);
-      if (cmd === 'SET_CUSTOM') await doSet(value);
-      if (cmd === 'DELETE') await doDel();
+      if (cmd === "SET_STRING") await doSet(`hello_${Date.now()}`);
+      if (cmd === "SET_NUMBER") await doSet(Math.floor(Math.random() * 99999));
+      if (cmd === "SET_OBJECT") await doSet({ ts: Date.now(), from: frameId });
+      if (cmd === "SET_NULL") await doSet(null);
+      if (cmd === "SET_CUSTOM") await doSet(value);
+      if (cmd === "DELETE") await doDel();
 
-      if (cmd === 'REMOVE_LISTENERS') {
+      if (cmd === "REMOVE_LISTENERS") {
         removeAllListeners();
       }
 
-      if (cmd === 'REREGISTER_LISTENERS') {
+      if (cmd === "REREGISTER_LISTENERS") {
         removeAllListeners();
         registerAllListeners();
       }
@@ -145,13 +148,13 @@
 
     async function doSet(v) {
       await GM_setValue(myKey, v);
-      iLog(`✏️ Set <b>${escHtml(myKey)}</b> = <b>${escHtml(JSON.stringify(v))}</b>`, 'info');
+      iLog(`✏️ Set <b>${escHtml(myKey)}</b> = <b>${escHtml(JSON.stringify(v))}</b>`, "info");
       await pushKV();
     }
 
     async function doDel() {
       await GM_deleteValue(myKey);
-      iLog(`🗑 Deleted <b>${escHtml(myKey)}</b>`, 'warn');
+      iLog(`🗑 Deleted <b>${escHtml(myKey)}</b>`, "warn");
       await pushKV();
     }
 
@@ -160,18 +163,18 @@
         if (listenerIds[key] != null) continue;
 
         const id = GM_addValueChangeListener(key, async (name, oldVal, newVal, remote) => {
-          const tag = remote ? '🌐 remote' : '📍 local';
+          const tag = remote ? "🌐 remote" : "📍 local";
 
           iLog(
             `${tag} <b>${escHtml(name)}</b>: ${escHtml(JSON.stringify(oldVal))} → <b>${escHtml(JSON.stringify(newVal))}</b>`,
-            remote ? 'good' : 'warn'
+            remote ? "good" : "warn"
           );
 
           await pushKV();
         });
 
         listenerIds[key] = id;
-        iLog(`👂 Listener on <b>${escHtml(key)}</b> <small>(id=${escHtml(id)})</small>`, 'info');
+        iLog(`👂 Listener on <b>${escHtml(key)}</b> <small>(id=${escHtml(id)})</small>`, "info");
       }
 
       reportListeners(Object.entries(listenerIds).map(([k, id]) => ({ key: k, id })));
@@ -181,11 +184,11 @@
       for (const [key, id] of Object.entries(listenerIds)) {
         try {
           GM_removeValueChangeListener(id);
-        } catch (_) { }
+        } catch (_) {}
         delete listenerIds[key];
       }
 
-      iLog('🔇 All listeners removed', 'warn');
+      iLog("🔇 All listeners removed", "warn");
       reportListeners([]);
     }
 
@@ -197,16 +200,16 @@
       reportKV(kvMap);
     }
 
-    function iLog(msg, type = '') {
+    function iLog(msg, type = "") {
       reportLog({ msg, type, t: nowTime() });
 
       if (!iframeShadow) return;
 
-      const logBox = iframeShadow.getElementById('iframe-log');
+      const logBox = iframeShadow.getElementById("iframe-log");
       if (!logBox) return;
 
-      const line = document.createElement('div');
-      line.className = 'log-line';
+      const line = document.createElement("div");
+      line.className = "log-line";
       line.innerHTML = `
         <span class="log-time">${escHtml(nowTime())}</span>
         <span class="log-msg ${escHtml(type)}">${msg}</span>
@@ -217,7 +220,7 @@
     }
 
     function buildIframeBody() {
-      const accent = ACCENT[frameId] || '#334155';
+      const accent = ACCENT[frameId] || "#334155";
 
       document.documentElement.style.cssText = `
         margin:0;
@@ -236,9 +239,9 @@
         overflow:hidden;
       `;
 
-      document.body.textContent = '';
+      document.body.textContent = "";
 
-      const host = document.createElement('div');
+      const host = document.createElement("div");
       host.style.cssText = `
         all:initial;
         display:block;
@@ -247,7 +250,7 @@
       `;
       document.body.appendChild(host);
 
-      iframeShadow = host.attachShadow({ mode: 'open' });
+      iframeShadow = host.attachShadow({ mode: "open" });
 
       const sty = new CSSStyleSheet();
       sty.replaceSync(`
@@ -361,9 +364,8 @@
       // スタイルシートを適用
       iframeShadow.adoptedStyleSheets = [sty];
 
-
-      const shell = document.createElement('div');
-      shell.id = 'iframe-shell';
+      const shell = document.createElement("div");
+      shell.id = "iframe-shell";
       shell.innerHTML = `
         <div class="iframe-title">${escHtml(LABEL[frameId])}</div>
         <div class="iframe-subtitle">Controlled by main frame dashboard ↑</div>
@@ -379,13 +381,23 @@
   /* ══════════════════════════════════════════════════════════
      MAIN FRAME LOGIC
   ══════════════════════════════════════════════════════════ */
+  const report = SCTest.createReportSession({ name: "GM_addValueChangeListener dashboard", reporter: "console" });
+  report.start();
+  report.note(
+    "启动观察",
+    "跨 iframe dashboard",
+    "页面与 3 个真实 iframe 均可见",
+    "已创建交互界面",
+    "这是操作型演示；具体同步结果请结合 dashboard 的日志与值表人工确认。"
+  );
+
   const state = {
     kv: {},
     logs: {},
     listenerSummary: {},
   };
 
-  FRAME_IDS.forEach(id => {
+  FRAME_IDS.forEach((id) => {
     state.kv[id] = {};
     state.logs[id] = [];
     state.listenerSummary[id] = [];
@@ -394,20 +406,20 @@
   const iframeWindows = {};
 
   /* ── Shadow DOM setup ─────────────────────────────────── */
-  const host = document.createElement('div');
+  const host = document.createElement("div");
   host.style.cssText = [
-    'all:initial',
-    'position:fixed',
-    'inset:0',
-    'width:100vw',
-    'height:100vh',
-    'z-index:2147483647',
-    'pointer-events:none',
-  ].join(';');
+    "all:initial",
+    "position:fixed",
+    "inset:0",
+    "width:100vw",
+    "height:100vh",
+    "z-index:2147483647",
+    "pointer-events:none",
+  ].join(";");
 
   document.body.appendChild(host);
 
-  const shadow = host.attachShadow({ mode: 'open' });
+  const shadow = host.attachShadow({ mode: "open" });
 
   /* ── Styles ─────────────────────────────────────────────── */
   const sty = new CSSStyleSheet();
@@ -709,77 +721,78 @@
   shadow.adoptedStyleSheets = [sty];
 
   /* ── Shell ─────────────────────────────────────────────── */
-  const shell = document.createElement('div');
-  shell.id = 'shell';
+  const shell = document.createElement("div");
+  shell.id = "shell";
   shadow.appendChild(shell);
 
   /* ── Left dashboard ─────────────────────────────────────── */
-  const dashboard = document.createElement('div');
-  dashboard.id = 'dashboard';
+  const dashboard = document.createElement("div");
+  dashboard.id = "dashboard";
   shell.appendChild(dashboard);
 
-  const topbar = document.createElement('div');
-  topbar.id = 'topbar';
+  const topbar = document.createElement("div");
+  topbar.id = "topbar";
   topbar.innerHTML = `<span id="topbar-title">⚙ GM_addValueChangeListener Test</span>`;
 
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'danger';
-  closeBtn.textContent = '✕ close';
-  closeBtn.onclick = () => host.remove();
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "danger";
+  closeBtn.textContent = "✕ close";
+  closeBtn.onclick = () => {
+    report.finish();
+    host.remove();
+  };
   topbar.appendChild(closeBtn);
   dashboard.appendChild(topbar);
 
   /* ── Panel cards ───────────────────────────────────────── */
   const panelRefs = {};
 
-  FRAME_IDS.forEach(id => {
+  FRAME_IDS.forEach((id) => {
     const accent = ACCENT[id];
 
-    const card = document.createElement('div');
-    card.className = 'p-card';
-    card.style.borderColor = accent + '55';
+    const card = document.createElement("div");
+    card.className = "p-card";
+    card.style.borderColor = accent + "55";
 
-    const title = document.createElement('div');
-    title.className = 'p-title';
+    const title = document.createElement("div");
+    title.className = "p-title";
     title.style.color = accent;
     title.textContent = LABEL[id];
     card.appendChild(title);
 
-    const subtitle = document.createElement('div');
-    subtitle.className = 'p-subtitle';
-    subtitle.textContent = id === 'main'
-      ? 'runs in this window'
-      : 'runs in real iframe on the right →';
+    const subtitle = document.createElement("div");
+    subtitle.className = "p-subtitle";
+    subtitle.textContent = id === "main" ? "runs in this window" : "runs in real iframe on the right →";
     card.appendChild(subtitle);
 
-    const wLabel = document.createElement('div');
-    wLabel.className = 'sec-label';
-    wLabel.textContent = 'Write value';
+    const wLabel = document.createElement("div");
+    wLabel.className = "sec-label";
+    wLabel.textContent = "Write value";
     card.appendChild(wLabel);
 
-    const writeRow = document.createElement('div');
-    writeRow.className = 'btn-row';
+    const writeRow = document.createElement("div");
+    writeRow.className = "btn-row";
 
     function makeBtn(text, danger) {
-      const b = document.createElement('button');
+      const b = document.createElement("button");
       b.textContent = text;
 
       if (danger) {
-        b.className = 'danger';
+        b.className = "danger";
       } else {
         b.style.color = accent;
-        b.style.borderColor = accent + '66';
-        b.style.background = '#ffffff';
+        b.style.borderColor = accent + "66";
+        b.style.background = "#ffffff";
       }
 
       return b;
     }
 
     const cmdMap = [
-      ['string', 'SET_STRING'],
-      ['number', 'SET_NUMBER'],
-      ['object', 'SET_OBJECT'],
-      ['null', 'SET_NULL'],
+      ["string", "SET_STRING"],
+      ["number", "SET_NUMBER"],
+      ["object", "SET_OBJECT"],
+      ["null", "SET_NULL"],
     ];
 
     cmdMap.forEach(([label2, cmd]) => {
@@ -788,58 +801,58 @@
       writeRow.appendChild(b);
     });
 
-    const delB = makeBtn('delete', true);
-    delB.onclick = () => dispatchCmd(id, 'DELETE');
+    const delB = makeBtn("delete", true);
+    delB.onclick = () => dispatchCmd(id, "DELETE");
     writeRow.appendChild(delB);
     card.appendChild(writeRow);
 
-    const hr1 = document.createElement('div');
-    hr1.className = 'hr';
+    const hr1 = document.createElement("div");
+    hr1.className = "hr";
     card.appendChild(hr1);
 
-    const kvLabel = document.createElement('div');
-    kvLabel.className = 'sec-label';
-    kvLabel.textContent = 'GM Values';
+    const kvLabel = document.createElement("div");
+    kvLabel.className = "sec-label";
+    kvLabel.textContent = "GM Values";
     card.appendChild(kvLabel);
 
-    const kvTable = document.createElement('div');
-    kvTable.className = 'kv-table';
+    const kvTable = document.createElement("div");
+    kvTable.className = "kv-table";
     card.appendChild(kvTable);
 
-    const hr2 = document.createElement('div');
-    hr2.className = 'hr';
+    const hr2 = document.createElement("div");
+    hr2.className = "hr";
     card.appendChild(hr2);
 
-    const lcLabel = document.createElement('div');
-    lcLabel.className = 'sec-label';
-    lcLabel.textContent = 'Listener control';
+    const lcLabel = document.createElement("div");
+    lcLabel.className = "sec-label";
+    lcLabel.textContent = "Listener control";
     card.appendChild(lcLabel);
 
-    const lcRow = document.createElement('div');
-    lcRow.className = 'btn-row';
+    const lcRow = document.createElement("div");
+    lcRow.className = "btn-row";
 
-    const rmB = makeBtn('🔇 remove all', true);
-    rmB.onclick = () => dispatchCmd(id, 'REMOVE_LISTENERS');
+    const rmB = makeBtn("🔇 remove all", true);
+    rmB.onclick = () => dispatchCmd(id, "REMOVE_LISTENERS");
 
-    const reB = makeBtn('🔊 re-register');
-    reB.onclick = () => dispatchCmd(id, 'REREGISTER_LISTENERS');
+    const reB = makeBtn("🔊 re-register");
+    reB.onclick = () => dispatchCmd(id, "REREGISTER_LISTENERS");
 
     lcRow.appendChild(rmB);
     lcRow.appendChild(reB);
 
-    const dotWrap = document.createElement('div');
-    dotWrap.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:7px;flex-wrap:wrap;';
+    const dotWrap = document.createElement("div");
+    dotWrap.style.cssText = "display:flex;gap:6px;align-items:center;margin-top:7px;flex-wrap:wrap;";
 
     const dotMap = {};
 
-    ALL_KEYS.forEach(k => {
-      const dot = document.createElement('span');
-      dot.className = 'dot';
+    ALL_KEYS.forEach((k) => {
+      const dot = document.createElement("span");
+      dot.className = "dot";
       dot.title = k;
 
-      const lbl2 = document.createElement('span');
-      lbl2.style.cssText = 'font-size:10px;color:#475569;';
-      lbl2.textContent = k.replace('key_from_', '');
+      const lbl2 = document.createElement("span");
+      lbl2.style.cssText = "font-size:10px;color:#475569;";
+      lbl2.textContent = k.replace("key_from_", "");
 
       dotWrap.appendChild(dot);
       dotWrap.appendChild(lbl2);
@@ -850,23 +863,23 @@
     card.appendChild(lcRow);
     card.appendChild(dotWrap);
 
-    const hr3 = document.createElement('div');
-    hr3.className = 'hr';
+    const hr3 = document.createElement("div");
+    hr3.className = "hr";
     card.appendChild(hr3);
 
-    const logLabel = document.createElement('div');
-    logLabel.className = 'sec-label';
-    logLabel.textContent = 'Event log';
+    const logLabel = document.createElement("div");
+    logLabel.className = "sec-label";
+    logLabel.textContent = "Event log";
     card.appendChild(logLabel);
 
-    const logBox = document.createElement('div');
-    logBox.className = 'log-box';
+    const logBox = document.createElement("div");
+    logBox.className = "log-box";
     card.appendChild(logBox);
 
-    const clrB = makeBtn('✕ clear log', true);
-    clrB.style.marginTop = '5px';
+    const clrB = makeBtn("✕ clear log", true);
+    clrB.style.marginTop = "5px";
     clrB.onclick = () => {
-      logBox.innerHTML = '';
+      logBox.innerHTML = "";
       state.logs[id] = [];
     };
     card.appendChild(clrB);
@@ -883,17 +896,17 @@
   });
 
   /* ── Right iframe strip ─────────────────────────────────── */
-  const strip = document.createElement('div');
-  strip.id = 'iframe-strip';
+  const strip = document.createElement("div");
+  strip.id = "iframe-strip";
   shell.appendChild(strip);
 
-  const BASE_URL = location.href.split('?')[0];
+  const BASE_URL = location.href.split("?")[0];
 
-  ['iframe1', 'iframe2', 'iframe3'].forEach(fid => {
-    const wrap = document.createElement('div');
-    wrap.className = 'iframe-wrap';
+  ["iframe1", "iframe2", "iframe3"].forEach((fid) => {
+    const wrap = document.createElement("div");
+    wrap.className = "iframe-wrap";
 
-    const iframe = document.createElement('iframe');
+    const iframe = document.createElement("iframe");
     iframe.src = `${BASE_URL}?testGMAddValueChangeListener&frameId=${encodeURIComponent(fid)}`;
     iframe.title = fid;
 
@@ -914,11 +927,18 @@
 
     const listenerIds = {};
 
-    function mLog(msg, type = '') {
+    function mLog(msg, type = "") {
       const { logBox } = refs();
+      report.note(
+        "主 frame 观察",
+        msg.replace(/<[^>]+>/g, ""),
+        "收到 GM 值/监听器事件",
+        type || "info",
+        "dashboard 的可视日志是此演示的主要观察面。"
+      );
 
-      const line = document.createElement('div');
-      line.className = 'log-line';
+      const line = document.createElement("div");
+      line.className = "log-line";
       line.innerHTML = `
         <span class="log-time">${nowTime()}</span>
         <span class="log-msg ${escHtml(type)}">${msg}</span>
@@ -931,20 +951,20 @@
     async function mRefreshKV() {
       const { kvTable, myKey: mk, accent } = refs();
 
-      kvTable.innerHTML = '';
+      kvTable.innerHTML = "";
 
       for (const k of ALL_KEYS) {
         const v = await GM_getValue(k, undefined); // main frame
         const own = k === mk;
 
-        const card = document.createElement('div');
-        card.className = 'kv-card';
+        const card = document.createElement("div");
+        card.className = "kv-card";
 
-        if (own) card.style.borderColor = accent + '88';
+        if (own) card.style.borderColor = accent + "88";
 
         card.innerHTML = `
-          <div class="kv-key">${escHtml(k)}${own ? ' <i>(mine)</i>' : ''}</div>
-          <div class="kv-val" style="${own ? `color:${accent};font-weight:700` : ''}">
+          <div class="kv-key">${escHtml(k)}${own ? " <i>(mine)</i>" : ""}</div>
+          <div class="kv-val" style="${own ? `color:${accent};font-weight:700` : ""}">
             ${fmtVal(v)}
           </div>
         `;
@@ -958,77 +978,83 @@
         if (listenerIds[key] != null) continue;
 
         const id = GM_addValueChangeListener(key, async (name, oldVal, newVal, remote) => {
-          const tag = remote ? '🌐 remote' : '📍 local';
+          const tag = remote ? "🌐 remote" : "📍 local";
 
           mLog(
             `${tag} <b>${escHtml(name)}</b>: ${escHtml(JSON.stringify(oldVal))} → <b>${escHtml(JSON.stringify(newVal))}</b>`,
-            remote ? 'good' : 'warn'
+            remote ? "good" : "warn"
           );
 
           await mRefreshKV();
-          updateDots('main', Object.entries(listenerIds).map(([k, i]) => ({ key: k, id: i })));
+          updateDots(
+            "main",
+            Object.entries(listenerIds).map(([k, i]) => ({ key: k, id: i }))
+          );
         });
 
         listenerIds[key] = id;
 
         mLog(
-          `${isReregister ? '👂 Re-registered' : '👂 Listener on'} <b>${escHtml(key)}</b> <small>(id=${escHtml(id)})</small>`,
-          'info'
+          `${isReregister ? "👂 Re-registered" : "👂 Listener on"} <b>${escHtml(key)}</b> <small>(id=${escHtml(id)})</small>`,
+          "info"
         );
       }
 
-      updateDots('main', Object.entries(listenerIds).map(([k, i]) => ({ key: k, id: i })));
+      updateDots(
+        "main",
+        Object.entries(listenerIds).map(([k, i]) => ({ key: k, id: i }))
+      );
     }
 
     function removeMainListeners() {
       for (const [k, i] of Object.entries(listenerIds)) {
         try {
           GM_removeValueChangeListener(i);
-        } catch (_) { }
+        } catch (_) {}
         delete listenerIds[k];
       }
 
-      mLog('🔇 All listeners removed', 'warn');
-      updateDots('main', []);
+      mLog("🔇 All listeners removed", "warn");
+      updateDots("main", []);
     }
 
     registerMainListeners(false);
     mRefreshKV();
 
     window._gmtest_mainDispatch = async (cmd) => {
-      if (cmd === 'SET_STRING') {
+      if (cmd === "SET_STRING") {
         const v = `hello_${Date.now()}`;
         await GM_setValue(myKey, v);
-        mLog(`✏️ Set <b>${escHtml(myKey)}</b> = <b>${escHtml(JSON.stringify(v))}</b>`, 'info');
+        mLog(`✏️ Set <b>${escHtml(myKey)}</b> = <b>${escHtml(JSON.stringify(v))}</b>`, "info");
       }
 
-      if (cmd === 'SET_NUMBER') {
+      if (cmd === "SET_NUMBER") {
         const v = Math.floor(Math.random() * 99999);
         await GM_setValue(myKey, v);
-        mLog(`✏️ Set <b>${escHtml(myKey)}</b> = <b>${escHtml(JSON.stringify(v))}</b>`, 'info');
+        mLog(`✏️ Set <b>${escHtml(myKey)}</b> = <b>${escHtml(JSON.stringify(v))}</b>`, "info");
       }
 
-      if (cmd === 'SET_OBJECT') {
-        const v = { ts: Date.now(), from: 'main' };
+      if (cmd === "SET_OBJECT") {
+        const v = { ts: Date.now(), from: "main" };
         await GM_setValue(myKey, v);
-        mLog(`✏️ Set <b>${escHtml(myKey)}</b> = <b>${escHtml(JSON.stringify(v))}</b>`, 'info');
+        mLog(`✏️ Set <b>${escHtml(myKey)}</b> = <b>${escHtml(JSON.stringify(v))}</b>`, "info");
       }
 
-      if (cmd === 'SET_NULL') {
+      if (cmd === "SET_NULL") {
         await GM_setValue(myKey, null);
-        mLog(`✏️ Set <b>${escHtml(myKey)}</b> = <b>null</b>`, 'info');
+        mLog(`✏️ Set <b>${escHtml(myKey)}</b> = <b>null</b>`, "info");
       }
 
-      if (cmd === 'DELETE') {
+      if (cmd === "DELETE") {
         await GM_deleteValue(myKey);
-        mLog(`🗑 Deleted <b>${escHtml(myKey)}</b>`, 'warn');
+        mLog(`🗑 Deleted <b>${escHtml(myKey)}</b>`, "warn");
       }
 
-      if (cmd === 'REMOVE_LISTENERS') {
+      if (cmd === "REMOVE_LISTENERS") {
         removeMainListeners();
       }
 
-      if (cmd === 'REREGISTER_LISTENERS') {
+      if (cmd === "REREGISTER_LISTENERS") {
         removeMainListeners();
         registerMainListeners(true);
       }
@@ -1038,7 +1064,7 @@
   })();
 
   /* ── postMessage handler ───────────────────────────────── */
-  window.addEventListener('message', (e) => {
+  window.addEventListener("message", (e) => {
     if (e.origin !== location.origin) return;
     if (!e.data || !e.data.t) return;
 
@@ -1046,33 +1072,46 @@
 
     if (!FRAME_IDS.includes(fid)) return;
 
-    if (fid !== 'main' && iframeWindows[fid] && e.source !== iframeWindows[fid]) return;
+    if (fid !== "main" && iframeWindows[fid] && e.source !== iframeWindows[fid]) return;
 
-    if (t === MSG_NS + 'LOG') {
+    if (t === MSG_NS + "LOG") {
       appendLog(fid, entry);
     }
 
-    if (t === MSG_NS + 'KV') {
+    if (t === MSG_NS + "KV") {
       renderKV(fid, kvMap);
     }
 
-    if (t === MSG_NS + 'READY') {
+    if (t === MSG_NS + "READY") {
       appendLog(fid, {
         t: nowTime(),
-        msg: '🚀 iframe ready',
-        type: 'info',
+        msg: "🚀 iframe ready",
+        type: "info",
       });
     }
 
-    if (t === MSG_NS + 'LISTENERS') {
+    if (t === MSG_NS + "LISTENERS") {
       updateDots(fid, ids);
     }
   });
 
   /* ── dispatchCmd ───────────────────────────────────────── */
   function dispatchCmd(targetId, cmd) {
-    if (targetId === 'main') {
-      window._gmtest_mainDispatch(cmd);
+    const pending = report.manual(
+      "跨 iframe 操作",
+      `${targetId}: ${cmd}`,
+      "dashboard 与目标 frame 都显示预期值/事件",
+      "等待人工观察",
+      "操作不会自动判定通过；请检查右侧 frame、值表和事件日志。"
+    );
+    if (targetId === "main") {
+      window._gmtest_mainDispatch(cmd).then(() => {
+        report.update(pending, "MANUAL", {
+          actual: "操作已发送并完成本地处理",
+          detail: "请继续人工检查 dashboard 的跨 frame 变化。",
+        });
+        report.finish();
+      });
       return;
     }
 
@@ -1080,12 +1119,18 @@
 
     if (win) {
       sendCmd(win, cmd, {});
+      report.finish();
     } else {
       appendLog(targetId, {
         t: nowTime(),
-        msg: '⚠️ iframe not ready yet — try again',
-        type: 'warn',
+        msg: "⚠️ iframe not ready yet — try again",
+        type: "warn",
       });
+      report.update(pending, "WARN", {
+        actual: "目标 iframe 尚未就绪",
+        detail: "操作未发出，请等待 iframe ready 后重试。",
+      });
+      report.finish();
     }
   }
 
@@ -1096,15 +1141,22 @@
 
     const { logBox } = refs;
 
-    const line = document.createElement('div');
-    line.className = 'log-line';
+    const line = document.createElement("div");
+    line.className = "log-line";
     line.innerHTML = `
       <span class="log-time">${escHtml(entry.t || nowTime())}</span>
-      <span class="log-msg ${escHtml(entry.type || '')}">${entry.msg || ''}</span>
+      <span class="log-msg ${escHtml(entry.type || "")}">${entry.msg || ""}</span>
     `;
 
     logBox.appendChild(line);
     logBox.scrollTop = logBox.scrollHeight;
+    report.note(
+      "跨 iframe 观察",
+      `${fid}: ${entry.msg || "(empty)"}`,
+      "消息被主 frame 接收",
+      entry.type || "info",
+      "仅记录消息链路；值是否正确仍需人工确认。"
+    );
   }
 
   function renderKV(fid, kvMap) {
@@ -1113,20 +1165,20 @@
 
     const { kvTable, myKey, accent } = refs;
 
-    kvTable.innerHTML = '';
+    kvTable.innerHTML = "";
 
     for (const k of ALL_KEYS) {
       const v = kvMap[k];
       const own = k === myKey;
 
-      const card = document.createElement('div');
-      card.className = 'kv-card';
+      const card = document.createElement("div");
+      card.className = "kv-card";
 
-      if (own) card.style.borderColor = accent + '88';
+      if (own) card.style.borderColor = accent + "88";
 
       card.innerHTML = `
-        <div class="kv-key">${escHtml(k)}${own ? ' <i>(mine)</i>' : ''}</div>
-        <div class="kv-val" style="${own ? `color:${accent};font-weight:700` : ''}">
+        <div class="kv-key">${escHtml(k)}${own ? " <i>(mine)</i>" : ""}</div>
+        <div class="kv-val" style="${own ? `color:${accent};font-weight:700` : ""}">
           ${fmtVal(v)}
         </div>
       `;
@@ -1140,10 +1192,11 @@
     if (!refs) return;
 
     const { dotMap } = refs;
-    const activeKeys = new Set((ids || []).map(x => x.key));
+    const activeKeys = new Set((ids || []).map((x) => x.key));
 
     for (const [k, dot] of Object.entries(dotMap)) {
-      dot.className = 'dot' + (activeKeys.has(k) ? ' on' : '');
+      dot.className = "dot" + (activeKeys.has(k) ? " on" : "");
     }
   }
+  report.finish();
 })();

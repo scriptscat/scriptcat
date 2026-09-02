@@ -19,12 +19,19 @@ var test_global_injection = "success";
 // User can access the variable "test_global_injection" directly in DevTools
 
 (function () {
-  const { describe, it, expect, run } = SCTest.create({ name: "@unwrap 测试" });
+  const { describe, check, expect, run } = SCTest.create({ name: "@unwrap 测试" });
 
   describe("@unwrap 环境", () => {
-    it("GM 不应暴露", () => expect(typeof GM).toBe("undefined"));
-    it("GM_setValue 不应暴露", () => expect(typeof GM_setValue).toBe("undefined"));
-    it("jQuery 应可用", () => expect(typeof jQuery).toBe("function"));
+    check("自动断言", "GM 不应暴露", () => expect(typeof GM).toBe("undefined"), null, null, "保留原有断言体");
+    check(
+      "自动断言",
+      "GM_setValue 不应暴露",
+      () => expect(typeof GM_setValue).toBe("undefined"),
+      null,
+      null,
+      "保留原有断言体"
+    );
+    check("自动断言", "jQuery 应可用", () => expect(typeof jQuery).toBe("function"), null, null, "保留原有断言体");
   });
 
   run();
