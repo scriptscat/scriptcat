@@ -839,6 +839,7 @@
     if (host) host.remove();
     host = document.createElement("div");
     host.id = "sctest-panel-host";
+    host.style.all = "unset";
     document.documentElement.appendChild(host);
 
     var root = host.attachShadow({ mode: "open" });
