@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { beforeEach, describe as vdescribe, expect as vexpect, it as vit, vi } from "vitest";
 
 const SCTEST_REQUIRE_URL =
-  "https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@f53e18b6ec0251ab73e17a2f99d5ab6237d5d0e6/example/tests/lib/sctest.js";
+  "https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@9e0b465196d1b87786a8cb4d5a0c42fed148b735/example/tests/lib/sctest.js";
 
 async function loadSCTest() {
   delete globalThis.SCTest;
