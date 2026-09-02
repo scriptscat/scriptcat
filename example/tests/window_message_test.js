@@ -9,7 +9,7 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM.setClipboard
 // @grant        unsafeWindow
-// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@762f83e9c1091ab4ebbb605f4efc4709b36f6476/example/tests/lib/sctest.js
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@5319f4e9fc453b1bdd322b9b3478b6a027f53433/example/tests/lib/sctest.js
 // @connect      httpbingo.org
 // @run-at       document-end
 // @noframes
