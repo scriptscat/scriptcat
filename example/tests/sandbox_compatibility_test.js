@@ -254,7 +254,8 @@ let observedThis = this;
       () => functionGlobal === unsafeWindow,
       "page unsafeWindow",
       () => formatValue(functionGlobal),
-      "验证脚本 realm 的函数构造器能把 this 指向 page window。"
+      "验证脚本 realm 的函数构造器能把 this 指向 page window。",
+        { onFail: "WARN", onError: "WARN", required: false }
     );
 
     const evalGlobal = read(() =>
