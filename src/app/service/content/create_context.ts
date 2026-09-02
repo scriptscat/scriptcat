@@ -103,6 +103,10 @@ export const createContext = (
       g = g[part] || (g[part] = grantedAPIs[s] || Object.create(null));
     }
   }
+  if (!Object.hasOwn(window, "globalThis")) {
+    //@ts-ignore
+    window["globalThis"] = window;
+  }
   context.unsafeWindow = window;
   if (scriptGrants.has("window.onurlchange") && context.onurlchange === undefined) {
     context.onurlchange = null;
