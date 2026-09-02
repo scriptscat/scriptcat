@@ -20,7 +20,7 @@ const { describe, check, note, itManual, run } = SCTest.create({ name: "GM API �
 
 describe("GM 存储 API", () => {
   check(
-    "自动断言",
+    "GM 存储 API",
     "GM_setValue 写入字符串",
     () => {
       GM_setValue("k", "v");
@@ -32,7 +32,7 @@ describe("GM 存储 API", () => {
   );
 
   check(
-    "异步断言",
+    "GM 存储 API",
     "GM.getValue 读取字符串",
     async () => (await GM.getValue("k")) === "v",
     "v",
@@ -65,7 +65,14 @@ run();
 - `onError: "WARN"`：predicate 抛异常时记为 `WARN`；
 - `required: false`：把结果标为非必需观察项，仍保留原始状态和诊断字段。
 
+如果旧式用例没有传 `expected`、`actual` 或 `detail`，框架会记录用例内部每个 `expect`
+matcher 的预期/实际值，并根据用例名称生成说明；没有内部 matcher 的用例则明确显示“执行不抛出异常”或 predicate 的布尔结果。这样迁移不会因为保留旧断言体而丢失诊断信息，也不会把环境观察误写成自动通过。
+
 `note(category, name, expected, actual, detail)` 只登记一条 `INFO` 观察记录，不伪造自动断言。
+
+建议把 `category` 写成能力或行为分组，把 `name` 写成可独立判断的断言，把 `expected` 和 `actual` 写成同一维度的值，再用
+`detail` 说明为什么检查以及失败后如何解释。旧脚本传入的 `"自动断言"` 会自动归入当前 `describe`
+名称，避免诊断表中出现没有语义的分类。
 
 ## 结果状态与兼容入口
 
@@ -82,10 +89,11 @@ run();
 
 ## 自定义运行器
 
-需要保留专用操作面板的脚本可使用 `SCTest.createReportSession()`，不必把下载、菜单或跨 iframe 操作 UI 改写成标准面板：
+需要保留专用操作面板的脚本可使用 `SCTest.createReportSession()`；将 reporter 设为 `"panel"`
+可在保留操作 UI 的同时显示统一诊断面板：
 
 ```js
-const report = SCTest.createReportSession({ name: "GM_download", reporter: "console" });
+const report = SCTest.createReportSession({ name: "GM_download", reporter: "panel" });
 report.start();
 const pending = report.manual("人工操作", "确认下载内容", "内容正确", "待检查", "打开文件并核对内容");
 // 操作完成后：
@@ -103,7 +111,7 @@ session 提供 `start()`、`record()`、`update()`、异步 `check()`、`note()`
 | reporter | 启用条件                            | 说明                                                                    |
 | -------- | ----------------------------------- | ----------------------------------------------------------------------- |
 | Console  | 恒定开启                            | DevTools 逐条输出状态、expected/actual/detail，末尾输出稳定 JSON marker |
-| Panel    | `page` 运行上下文                   | Shadow DOM 浮层面板，宿主 id `sctest-panel-host`                        |
+| Panel    | `page` 运行上下文                   | Shadow DOM 深色诊断表，宿主 id `sctest-panel-host`                      |
 | Log      | `background` / `crontab` 运行上下文 | `GM_log` 逐条输出，落到「运行日志」页                                   |
 
 Console 的机器可读行以 `[SCTEST_RESULT] ` 开头，后面是 `protocol: "sctest/v1"` 的 JSON。summary 包含

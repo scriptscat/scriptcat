@@ -45,7 +45,8 @@ Three scripts keep specialized operation UIs and have to be read on their own te
 [`gm_download_test.js`](../../example/tests/gm_download_test.js) retains its download panel and human-confirmation flow,
 while [`gm_menu_test.js`](../../example/tests/gm_menu_test.js) and
 [`gm_value_test.js`](../../example/tests/gm_value_test.js) retain their menu and multi-frame dashboard UIs. They use
-`SCTest.createReportSession()` for the same console/JSON protocol; operation observations are `INFO`, pending human
+`SCTest.createReportSession({ reporter: "panel" })` for the same deep-colored diagnostic panel, console and JSON
+protocol; their specialized operation UIs remain alongside it. Operation observations are `INFO`, pending human
 decisions are `MANUAL`, and no manual action is promoted to `PASS` without an explicit verdict.
 
 In a session there is nothing to wire up — the collector already recorded the lines, whichever context printed them (a

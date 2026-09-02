@@ -97,10 +97,21 @@
     return true;
   }
 
-  function makeExpect() {
+  function makeExpect(onObserve) {
+    function observe(matcher, expected, actual) {
+      if (onObserve) {
+        onObserve({
+          matcher: matcher,
+          expected: stringify(expected),
+          actual: stringify(actual),
+        });
+      }
+    }
+
     return function expect(actual) {
       return {
         toBe: function (expected) {
+          observe("toBe", expected, actual);
           if (actual !== expected) {
             throw AssertionError(
               "期望 " + stringify(expected) + ",实际 " + stringify(actual),
@@ -110,6 +121,7 @@
           }
         },
         toEqual: function (expected) {
+          observe("toEqual", expected, actual);
           if (!deepEqual(actual, expected)) {
             var b = stringify(expected);
             var a = stringify(actual);
@@ -117,14 +129,17 @@
           }
         },
         toBeTruthy: function () {
+          observe("toBeTruthy", "truthy", actual);
           if (!actual) throw AssertionError("期望为真值,实际 " + stringify(actual), "truthy", stringify(actual));
         },
         toBeTypeOf: function (expected) {
           var t = typeof actual;
+          observe("toBeTypeOf", expected, t);
           if (t !== expected) throw AssertionError("期望类型 " + expected + ",实际 " + t, expected, t);
         },
         toMatch: function (pattern) {
           var text = String(actual);
+          observe("toMatch", String(pattern), text);
           var ok = pattern instanceof RegExp ? pattern.test(text) : text.indexOf(String(pattern)) !== -1;
           if (!ok) {
             throw AssertionError("期望匹配 " + String(pattern) + ",实际 " + stringify(text), String(pattern), text);
@@ -142,6 +157,7 @@
             didThrow = true;
             thrown = e;
           }
+          observe("toThrow", pattern ? "throw " + String(pattern) : "throw", didThrow ? "throw" : "no throw");
           if (!didThrow) throw AssertionError("期望抛出异常,实际未抛出", "throw", "no throw");
           if (pattern) {
             var msg = String((thrown && thrown.message) || thrown);
@@ -222,6 +238,7 @@
     var currentSuite = null;
     var lastStartedAt = 0;
     var runInfo = null;
+    var activeCase = null;
 
     function describe(name, optsOrFn, maybeFn) {
       var suiteOpts = typeof optsOrFn === "function" ? {} : optsOrFn || {};
@@ -260,20 +277,22 @@
         onFail: data.onFail,
         onError: data.onError,
         manualVerdict: null,
+        observations: [],
       });
     }
 
     function check(category, name, predicate, expected, actual, detail, options) {
       if (typeof name === "function") {
         options = {};
-        detail = "保留原有断言体";
+        detail = null;
         actual = null;
         expected = null;
         predicate = name;
         name = category;
         category = currentSuite ? currentSuite.name : "自动断言";
       }
-      pushCase(category, name, predicate, "check", {
+      var resolvedCategory = category === "自动断言" && currentSuite ? currentSuite.name : category;
+      pushCase(resolvedCategory, name, predicate, "check", {
         expected: expected,
         actual: actual,
         detail: detail,
@@ -326,6 +345,42 @@
       });
     }
 
+    function inferAssertionFields(c) {
+      if (!c.observations.length) return null;
+      return {
+        expected: c.observations
+          .map(function (observation) {
+            return observation.matcher + ": " + observation.expected;
+          })
+          .join("\n"),
+        actual: c.observations
+          .map(function (observation) {
+            return observation.matcher + ": " + observation.actual;
+          })
+          .join("\n"),
+      };
+    }
+
+    function fallbackFields(c, passed, error) {
+      var inferred = inferAssertionFields(c);
+      if (inferred) return inferred;
+      if (error) return { expected: "不抛出异常", actual: "抛出 " + error };
+      return passed === false
+        ? { expected: "true", actual: "false" }
+        : { expected: "执行不抛出异常", actual: "未抛出异常" };
+    }
+
+    function resolveDetail(c, status) {
+      var detail = resolveValue(c.detailSource);
+      if (detail && detail !== "保留原有断言体") return detail;
+      if (status === STATUS.FAIL) return "检查「" + c.name + "」失败；请对照错误、期望值和实际值定位原因。";
+      if (status === STATUS.WARN) return "检查「" + c.name + "」未满足，但按可选诊断记录为警告。";
+      if (status === STATUS.SKIP) return "检查「" + c.name + "」未执行：当前环境不提供所需条件。";
+      if (status === STATUS.MANUAL) return "检查「" + c.name + "」需要人工操作后裁决。";
+      if (status === STATUS.INFO) return "记录「" + c.name + "」的环境观察，不产生自动断言。";
+      return "检查「" + c.name + "」的内部断言；所有断言均满足。";
+    }
+
     async function runCase(c, reporters) {
       c.error = null;
       if (c.kind === "check") {
@@ -333,36 +388,48 @@
         c.expected = null;
         c.actual = null;
         c.detail = "";
+        c.observations = [];
       }
       if (c.kind === "manual") {
         c.status = STATUS.MANUAL;
+        c.detail = resolveDetail(c, c.status);
       } else if (c.kind === "note") {
         c.status = STATUS.INFO;
       } else {
         var started = now();
         try {
+          activeCase = c;
           var passed = await c.fn();
           c.expected = resolveValue(c.expectedSource);
           c.actual = resolveValue(c.actualSource);
+          var passFields = fallbackFields(c, passed, null);
+          if (c.expected == null) c.expected = passFields.expected;
+          if (c.actual == null) c.actual = passFields.actual;
           // Existing assertion bodies return undefined after their expect() calls. Treat only
           // an explicit false as a predicate failure so those bodies can migrate one-for-one.
           var matched = passed !== false;
-          c.detail = resolveValue(c.detailSource) || (matched ? "符合预期" : "不符合预期");
           c.status = matched ? STATUS.PASS : normalizeStatus(c.onFail || STATUS.FAIL);
+          c.detail = resolveDetail(c, c.status);
         } catch (e) {
           if (e instanceof SkipSignal) {
             c.status = STATUS.SKIP;
             c.error = e.reason;
             c.required = false;
-            c.detail = c.detail || "当前环境未提供该检查";
+            var skipFields = fallbackFields(c, null, null);
+            c.expected = resolveValue(c.expectedSource) || skipFields.expected;
+            c.actual = resolveValue(c.actualSource) || "当前环境未提供";
+            c.detail = resolveDetail(c, c.status);
           } else {
             c.status = normalizeStatus(c.onError || c.onFail || STATUS.FAIL);
             c.error = String((e && e.message) || e);
-            if (c.expected == null) c.expected = resolveValue(c.expectedSource) || (e && e.expected) || null;
-            if (c.actual == null) c.actual = resolveValue(c.actualSource) || (e && e.actual) || null;
-            c.detail = resolveValue(c.detailSource) || "检测过程抛出异常";
+            var errorFields = fallbackFields(c, null, c.error);
+            if (c.expected == null)
+              c.expected = resolveValue(c.expectedSource) || (e && e.expected) || errorFields.expected;
+            if (c.actual == null) c.actual = resolveValue(c.actualSource) || (e && e.actual) || errorFields.actual;
+            c.detail = resolveDetail(c, c.status);
           }
         }
+        activeCase = null;
         c.durationMs = Math.round(now() - started);
       }
       var result = toResult(c);
@@ -437,6 +504,9 @@
           if (!suite.auto && c.kind !== "manual") {
             c.status = STATUS.SKIP;
             c.required = false;
+            c.expected = resolveValue(c.expectedSource) || "点击运行后执行此检查";
+            c.actual = resolveValue(c.actualSource) || "尚未运行";
+            c.detail = resolveDetail(c, c.status);
             emitCase(reporters, toResult(c));
             continue;
           }
@@ -455,7 +525,9 @@
       note: note,
       it: it,
       itManual: itManual,
-      expect: makeExpect(),
+      expect: makeExpect(function (observation) {
+        if (activeCase) activeCase.observations.push(observation);
+      }),
       run: run,
     };
   }
@@ -660,26 +732,30 @@
 
   // ---------- PanelReporter ----------
   var PANEL_CSS = [
-    ":host{all:initial}",
-    ".sc-panel{position:fixed;right:16px;bottom:16px;width:440px;max-height:80vh;display:flex;",
-    "flex-direction:column;overflow:hidden;border-radius:12px;border:1px solid var(--sc-border);",
-    "background:var(--sc-card);color:var(--sc-fg);font-family:Inter,system-ui,sans-serif;font-size:12px;",
-    "box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:2147483647}",
+    ":host{all:initial;--sc-bg:#0b1821;--sc-card:#102632;--sc-fg:#eaf3f8;--sc-muted:#8ea9b8;",
+    "--sc-muted-bg:#0e202b;--sc-border:#315264;--sc-primary:#72daf9;--sc-success:#65e6ad;",
+    "--sc-success-fg:#071c12;--sc-success-bg:#65e6ad;--sc-destructive:#ff7888;",
+    "--sc-destructive-fg:#2a060b;--sc-destructive-bg:#ff7888;--sc-warning-bg:#ffc766;--sc-warning-fg:#291700}",
+    ".sc-panel{position:fixed;top:12px;right:12px;bottom:auto;width:min(920px,calc(100vw - 24px));",
+    "max-height:calc(100vh - 24px);display:flex;flex-direction:column;overflow:hidden;",
+    "border:1px solid var(--sc-border);border-radius:12px;background:var(--sc-bg);color:var(--sc-fg);",
+    'box-shadow:0 18px 60px rgba(0,0,0,.42);font:13px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;z-index:2147483647}',
     "[hidden]{display:none!important}",
     ".sc-panel[data-min='1'] .sc-body,.sc-panel[data-min='1'] .sc-sum,",
     ".sc-panel[data-min='1'] .sc-bar,.sc-panel[data-min='1'] .sc-foot{display:none}",
-    ".sc-head{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--sc-border)}",
+    ".sc-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--sc-border);background:var(--sc-card)}",
     ".sc-grip{color:var(--sc-muted);font-size:14px;cursor:move;user-select:none}",
     ".sc-title-wrap{display:flex;min-width:0;flex:1;flex-direction:column;gap:2px}",
-    ".sc-title{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-    ".sc-meta{font-size:11px;color:var(--sc-muted);font-weight:400}",
-    ".sc-btn{display:inline-flex;cursor:pointer;align-items:center;justify-content:center;gap:5px;border:1px solid var(--sc-border);background:var(--sc-card);color:var(--sc-fg);",
-    "border-radius:6px;padding:4px 9px;font-size:11px;font-family:inherit}",
+    ".sc-title{font-weight:750;letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+    ".sc-meta{font-size:11px;color:var(--sc-muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
+    ".sc-btn{display:inline-flex;cursor:pointer;align-items:center;justify-content:center;gap:5px;border:1px solid #426579;background:#142f3e;color:var(--sc-fg);",
+    "border-radius:7px;padding:6px 9px;font-size:11px;font-family:inherit}",
+    ".sc-btn:hover{background:#1d4558}",
     ".sc-icon-btn{display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border:0;padding:0}",
     ".sc-btn:disabled{cursor:wait;opacity:.55}",
     ".sc-icon{display:inline-flex;flex:none;align-items:center;justify-content:center;line-height:0}",
-    ".sc-btn-primary{background:var(--sc-primary);border-color:var(--sc-primary);color:#fff}",
-    ".sc-sum{padding:12px 14px;border-bottom:1px solid var(--sc-border);background:var(--sc-bg);",
+    ".sc-btn-primary{background:#1d637d;border-color:#72daf9;color:#eaf3f8}",
+    ".sc-sum{padding:11px 14px;border-bottom:1px solid #203d4c;background:var(--sc-bg);",
     "display:flex;flex-direction:column;gap:10px}",
     ".sc-chips{display:flex;gap:6px;align-items:center;flex-wrap:wrap}",
     ".sc-status-row,.sc-run-row,.sc-toolbar{display:flex;align-items:center;gap:8px}",
@@ -688,59 +764,54 @@
     ".sc-status-pass{background:var(--sc-success-bg);color:var(--sc-success-fg)}",
     ".sc-status-fail{background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
     ".sc-status-warn{background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
-    ".sc-status-info,.sc-status-skip,.sc-status-manual{background:var(--sc-muted-bg);color:var(--sc-muted)}",
+    ".sc-status-info,.sc-status-skip,.sc-status-manual{background:#315264;color:#d9e6ec}",
     ".sc-chip{display:inline-flex;align-items:center;gap:4px;border-radius:9999px;padding:3px 9px;font-size:11px;font-weight:500}",
     ".sc-chip-pass{background:var(--sc-success-bg);color:var(--sc-success-fg)}",
     ".sc-chip-fail{background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
     ".sc-chip-warn{background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
-    ".sc-chip-info,.sc-chip-skip,.sc-chip-manual{background:var(--sc-muted-bg);color:var(--sc-muted)}",
-    ".sc-progress{height:6px;border-radius:9999px;background:var(--sc-muted-bg);overflow:hidden;display:flex}",
+    ".sc-chip-info,.sc-chip-skip,.sc-chip-manual{background:#315264;color:#d9e6ec}",
+    ".sc-progress{height:6px;border-radius:9999px;background:#315264;overflow:hidden;display:flex}",
     ".sc-progress i{display:block;height:6px}",
-    ".sc-toolbar{padding:8px 14px;border-bottom:1px solid var(--sc-border)}",
-    ".sc-segments{display:flex;gap:2px;padding:2px;border-radius:6px;background:var(--sc-muted-bg)}",
-    ".sc-segment{cursor:pointer;border:0;border-radius:4px;padding:3px 10px;background:transparent;color:var(--sc-muted);font:inherit;font-size:11px}",
-    ".sc-segment[data-active='1']{background:var(--sc-card);color:var(--sc-fg);font-weight:600}",
-    ".sc-search{display:flex;min-width:0;flex:1;align-items:center;gap:6px;border:1px solid var(--sc-border);border-radius:6px;padding:4px 8px;background:var(--sc-card);color:var(--sc-muted)}",
+    ".sc-diagnostic-hint{padding:9px 14px;color:#a9c0cc;background:#0e202b;border-bottom:1px solid #203d4c;font-size:11px}",
+    ".sc-toolbar{padding:8px 14px;border-bottom:1px solid #203d4c;background:var(--sc-bg)}",
+    ".sc-segments{display:flex;gap:2px;padding:2px;border-radius:6px;background:#0e202b;overflow:auto}",
+    ".sc-segment{cursor:pointer;border:0;border-radius:4px;padding:3px 10px;background:transparent;color:var(--sc-muted);font:inherit;font-size:11px;white-space:nowrap}",
+    ".sc-segment[data-active='1']{background:#142f3e;color:var(--sc-fg);font-weight:600}",
+    ".sc-search{display:flex;min-width:0;flex:1;align-items:center;gap:6px;border:1px solid #426579;border-radius:7px;padding:4px 8px;background:#142f3e;color:var(--sc-muted)}",
     ".sc-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--sc-fg);font:inherit;font-size:11px}",
-    ".sc-body{overflow:auto;flex:1}",
-    ".sc-suite{display:flex;align-items:center;gap:7px;padding:7px 14px;background:var(--sc-bg);",
-    "border-top:1px solid var(--sc-border);font-weight:600;cursor:pointer}",
+    ".sc-body{max-height:calc(100vh - 265px);overflow:auto;flex:1;background:var(--sc-bg)}",
+    ".sc-table-head{display:grid;grid-template-columns:58px minmax(0,23%) minmax(0,17%) minmax(0,17%) minmax(0,1fr);",
+    "padding:8px 9px;color:var(--sc-primary);background:var(--sc-card);border-bottom:1px solid #203d4c;font-size:11px;font-weight:700}",
+    ".sc-table-head span{min-width:0;overflow-wrap:anywhere}",
+    ".sc-suite{display:flex;align-items:center;gap:7px;padding:9px 14px;background:var(--sc-muted-bg);",
+    "border-top:1px solid #203d4c;color:var(--sc-primary);font-weight:750;cursor:pointer}",
     ".sc-suite .sc-suite-name{flex:1}",
     ".sc-suite-stat{border-radius:9999px;padding:2px 8px;background:var(--sc-success-bg);color:var(--sc-success-fg);font-size:11px;font-weight:500}",
     ".sc-suite-stat[data-failed='1']{background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
     ".sc-suite-stat[data-manual='1']{display:inline-flex;align-items:center;gap:4px;background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
-    ".sc-case{display:flex;align-items:center;gap:8px;padding:6px 14px 6px 34px}",
+    ".sc-case{display:flex;align-items:center;gap:8px;padding:8px 14px 6px 34px;background:var(--sc-bg)}",
     ".sc-case span{flex:1}",
     ".sc-case-label{min-width:0;display:flex;flex-direction:column;gap:2px}",
     ".sc-case-category{color:var(--sc-muted);font-size:10px;font-weight:400}",
     ".sc-case-status{font-size:10px;font-style:normal;font-weight:700}",
-    ".sc-case-manual{background:var(--sc-warning-bg)}",
-    ".sc-manual-pass{width:22px;height:22px;padding:0;border-color:var(--sc-success-fg);background:var(--sc-success-bg);color:var(--sc-success-fg)}",
-    ".sc-manual-fail{width:22px;height:22px;padding:0;border-color:var(--sc-destructive-fg);background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
+    ".sc-case-manual{background:#352c1e}",
+    ".sc-manual-pass{width:22px;height:22px;padding:0;border-color:#65e6ad;background:#1d4938;color:#65e6ad}",
+    ".sc-manual-fail{width:22px;height:22px;padding:0;border-color:#ff7888;background:#54252c;color:#ff7888}",
     ".sc-dur{font-size:11px;color:var(--sc-muted)}",
-    ".sc-detail{margin:0 14px 8px 34px;padding:8px 10px;border-radius:6px;border-left:2px solid var(--sc-border);",
-    "background:var(--sc-muted-bg);color:var(--sc-fg);font-family:'JetBrains Mono',monospace;",
-    "font-size:11px;white-space:pre-wrap}",
-    ".sc-hint{display:flex;gap:6px;margin:0 14px 8px 34px;padding:7px 10px;border-radius:6px;background:var(--sc-muted-bg);",
+    ".sc-detail{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content minmax(0,1fr);gap:5px 10px;margin:0 14px 8px 34px;padding:8px 10px;border-radius:6px;border-left:2px solid var(--sc-border);",
+    "background:var(--sc-muted-bg);color:#c3d6df;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;overflow-wrap:anywhere}",
+    ".sc-detail-field{display:contents}.sc-detail-key{color:var(--sc-primary);font-family:system-ui,sans-serif;font-weight:700}.sc-detail-value{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere}",
+    ".sc-detail-wide{grid-column:1/-1}.sc-hint{display:flex;gap:6px;margin:0 14px 8px 34px;padding:7px 10px;border-radius:6px;background:var(--sc-muted-bg);",
     "color:var(--sc-muted);font-size:11px}",
-    ".sc-params{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--sc-border)}",
+    ".sc-params{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid #203d4c}",
     ".sc-params-label{font-weight:600}",
     ".sc-field{display:flex;min-width:0;flex:1;align-items:center;gap:6px;color:var(--sc-muted);white-space:nowrap}",
     ".sc-field-compact{flex:0 0 108px}",
     ".sc-params input{min-width:0;flex:1;border:1px solid var(--sc-border);border-radius:6px;padding:3px 8px;",
-    "background:var(--sc-card);color:var(--sc-fg);font-family:'JetBrains Mono',monospace;font-size:11px}",
-    ".sc-foot{display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid var(--sc-border);",
-    "background:var(--sc-bg)}",
+    "background:#142f3e;color:var(--sc-fg);font-family:'JetBrains Mono',monospace;font-size:11px}",
+    ".sc-foot{display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid #203d4c;background:var(--sc-muted-bg)}",
     ".sc-foot .sc-sumline{flex:1;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--sc-muted)}",
-    "@media (max-width:520px){.sc-panel{right:8px;bottom:8px;width:calc(100vw - 16px);max-height:calc(100vh - 16px)}.sc-toolbar{flex-wrap:wrap}.sc-search{flex-basis:100%}}",
-    ":host{--sc-bg:#fafafa;--sc-card:#fff;--sc-fg:#1a1a1a;--sc-muted:#767676;--sc-muted-bg:#f0f0f0;",
-    "--sc-border:#e5e5e5;--sc-primary:#1296db;--sc-success:#34c759;--sc-success-fg:#0c8833;--sc-success-bg:#e8f9ec;",
-    "--sc-destructive:#e7000b;--sc-destructive-fg:#c10007;--sc-destructive-bg:#fdecec;",
-    "--sc-warning-bg:#fff4e6;--sc-warning-fg:#c46c00}",
-    "@media (prefers-color-scheme: dark){:host{--sc-bg:#1e1e1e;--sc-card:#151515;--sc-fg:#e5e5e5;",
-    "--sc-muted:#8a8a8a;--sc-muted-bg:#2a2a2a;--sc-border:#2a2a2a;--sc-primary:#3aacef;",
-    "--sc-success-fg:#6fdd8a;--sc-success-bg:#1e3520;--sc-destructive:#ff6669;",
-    "--sc-destructive-fg:#ff9a9a;--sc-destructive-bg:#3a1a1c;--sc-warning-bg:#352c1e;--sc-warning-fg:#ffb84d}}",
+    "@media (max-width:720px){.sc-panel{top:8px;right:8px;width:calc(100vw - 16px);max-height:calc(100vh - 16px)}.sc-toolbar{flex-wrap:wrap}.sc-search{flex-basis:100%}.sc-table-head{grid-template-columns:48px minmax(0,1fr) minmax(0,1fr)}}",
   ].join("");
 
   // Constructable stylesheet 通过 CSSOM 安装到 Shadow Root，不属于页面的 inline <style>，
@@ -898,20 +969,21 @@
     titleWrap.appendChild(title);
     titleWrap.appendChild(meta);
     head.appendChild(titleWrap);
-    var rerunBtn = el("button", "sc-btn sc-icon-btn");
-    rerunBtn.appendChild(icon("rotate-cw", 14));
+    var rerunBtn = el("button", "sc-btn");
+    setIconLabel(rerunBtn, "rotate-cw", "重跑", 13);
     rerunBtn.title = "重新运行";
     rerunBtn.setAttribute("aria-label", "重新运行");
     rerunBtn.addEventListener("click", function () {
       if (typeof runInfo.onRerun === "function") runInfo.onRerun();
     });
     head.appendChild(rerunBtn);
-    var minBtn = el("button", "sc-btn sc-icon-btn");
-    minBtn.appendChild(icon("minus", 14));
+    var minBtn = el("button", "sc-btn");
+    setIconLabel(minBtn, "minus", "收起", 13);
     minBtn.title = "最小化";
     minBtn.setAttribute("aria-label", "最小化");
     minBtn.addEventListener("click", function () {
       panel.dataset.min = panel.dataset.min === "1" ? "0" : "1";
+      setIconLabel(minBtn, "minus", panel.dataset.min === "1" ? "展开" : "收起", 13);
     });
     head.appendChild(minBtn);
     var closeBtn = el("button", "sc-btn sc-icon-btn");
@@ -993,6 +1065,13 @@
     sum.appendChild(progress);
     sum.appendChild(chips);
     panel.appendChild(sum);
+    var diagnosticHint = el(
+      "div",
+      "sc-diagnostic-hint",
+      "FAIL 表示断言未满足；WARN 表示可选或环境差异；SKIP 表示当前环境不提供；MANUAL 必须由人类操作后裁决。"
+    );
+    diagnosticHint.setAttribute("data-sctest", "diagnostic-hint");
+    panel.appendChild(diagnosticHint);
 
     // 手动 suite 的运行控制与参数
     var manualSuites = (runInfo.suites || []).filter(function (s) {
@@ -1073,8 +1152,8 @@
     var search = document.createElement("input");
     search.placeholder = "筛选用例…";
     searchWrap.appendChild(search);
-    var toolbarCopy = el("button", "sc-btn sc-icon-btn");
-    toolbarCopy.appendChild(icon("copy", 13));
+    var toolbarCopy = el("button", "sc-btn");
+    setIconLabel(toolbarCopy, "copy", "复制 JSON", 13);
     toolbarCopy.title = "复制报告";
     toolbarCopy.setAttribute("data-sctest", "copy-report");
     var collapseAll = el("button", "sc-btn sc-icon-btn");
@@ -1088,6 +1167,14 @@
     panel.appendChild(toolbar);
 
     var body = el("div", "sc-body");
+    var diagnosticTable = el("div", "sc-table-head");
+    diagnosticTable.setAttribute("data-sctest", "diagnostic-table");
+    diagnosticTable.appendChild(el("span", null, "状态"));
+    diagnosticTable.appendChild(el("span", null, "检查"));
+    diagnosticTable.appendChild(el("span", null, "实际"));
+    diagnosticTable.appendChild(el("span", null, "预期"));
+    diagnosticTable.appendChild(el("span", null, "说明"));
+    body.appendChild(diagnosticTable);
     panel.appendChild(body);
 
     var foot = el("div", "sc-foot");
@@ -1398,40 +1485,35 @@
       node.dur.textContent = c.status === STATUS.MANUAL ? "人工" : c.durationMs + "ms";
     }
 
-    // 渲染/清理失败详情框。挂在 node.detail 上以便重跑时能先移除旧的一份,
-    // 而不是无限追加——manual suite 的用例首次总是先以 SKIP 预渲染,
-    // 真正执行时都会走 onCase 的"更新"分支,所以两个分支都要能产生/替换详情框。
+    // 每条结果都显示诊断字段，保持附件中的“实际/预期/说明”阅读顺序；
+    // 挂在 node.detail 上以便重跑时替换旧结果，而不是无限追加。
     function renderDetail(node, c) {
       if (node.detail) {
         node.detail.remove();
         node.detail = null;
       }
-      if (
-        c.status === STATUS.FAIL ||
-        c.status === STATUS.WARN ||
-        c.status === STATUS.INFO ||
-        c.status === STATUS.SKIP
-      ) {
-        var detail = el(
-          "div",
-          "sc-detail",
-          "状态  " +
-            c.status +
-            "\n期望  " +
-            (c.expected == null ? "-" : c.expected) +
-            "\n实际  " +
-            (c.actual == null ? "-" : c.actual) +
-            "\n" +
-            (c.detail || "") +
-            (c.error ? "\n" + c.error : "")
-        );
-        detail.setAttribute(
-          "data-sctest",
-          c.status === STATUS.FAIL ? "failure-detail" : c.status === STATUS.SKIP ? "skip-reason" : "diagnostic-detail"
-        );
-        node.row.parentNode.insertBefore(detail, node.row.nextSibling);
-        node.detail = detail;
+      var detail = el("div", "sc-detail");
+      detail.setAttribute(
+        "data-sctest",
+        c.status === STATUS.FAIL ? "failure-detail" : c.status === STATUS.SKIP ? "skip-reason" : "diagnostic-detail"
+      );
+
+      function addField(label, value, dataName, wide) {
+        var field = el("span", "sc-detail-field" + (wide ? " sc-detail-wide" : ""));
+        field.appendChild(el("span", "sc-detail-key", label));
+        var displayValue = value == null || value === "" ? "-" : typeof value === "string" ? value : stringify(value);
+        var valueNode = el("span", "sc-detail-value", displayValue);
+        if (dataName) valueNode.setAttribute("data-sctest", dataName);
+        field.appendChild(valueNode);
+        detail.appendChild(field);
       }
+
+      addField("实际", c.actual, "actual-value", false);
+      addField("预期", c.expected, "expected-value", false);
+      addField("说明", c.detail, "detail-value", true);
+      if (c.error) addField("错误", c.error, "error-value", true);
+      node.row.parentNode.insertBefore(detail, node.row.nextSibling);
+      node.detail = detail;
     }
 
     return {

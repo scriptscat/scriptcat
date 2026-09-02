@@ -41,7 +41,7 @@ describe("DOM操作 API 测试", () => {
     },
     null,
     null,
-    "保留原有断言体"
+    null
   );
 
   check(
@@ -60,7 +60,7 @@ describe("DOM操作 API 测试", () => {
     },
     null,
     null,
-    "保留原有断言体"
+    null
   );
 });
 
@@ -79,7 +79,7 @@ describe("DOM操作 API 测试", () => {
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -93,7 +93,7 @@ describe("DOM操作 API 测试", () => {
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -108,7 +108,7 @@ describe("DOM操作 API 测试", () => {
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -160,7 +160,7 @@ describe("DOM操作 API 测试", () => {
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -175,7 +175,7 @@ describe("DOM操作 API 测试", () => {
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -190,7 +190,7 @@ describe("DOM操作 API 测试", () => {
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -205,7 +205,7 @@ describe("DOM操作 API 测试", () => {
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -218,7 +218,7 @@ describe("DOM操作 API 测试", () => {
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -233,7 +233,7 @@ describe("DOM操作 API 测试", () => {
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -245,7 +245,7 @@ describe("DOM操作 API 测试", () => {
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -258,7 +258,7 @@ describe("DOM操作 API 测试", () => {
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -272,7 +272,7 @@ describe("DOM操作 API 测试", () => {
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 

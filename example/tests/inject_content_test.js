@@ -35,7 +35,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -55,7 +55,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -72,7 +72,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -87,7 +87,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -102,7 +102,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -117,7 +117,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -130,7 +130,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -145,7 +145,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -157,7 +157,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -170,7 +170,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -184,7 +184,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 

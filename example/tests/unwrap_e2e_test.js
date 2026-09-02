@@ -26,7 +26,7 @@ var __unwrap_e2e_global_var = "unwrap_success";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -37,7 +37,7 @@ var __unwrap_e2e_global_var = "unwrap_success";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -48,7 +48,7 @@ var __unwrap_e2e_global_var = "unwrap_success";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 

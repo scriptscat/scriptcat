@@ -17,7 +17,7 @@
   const intervalChanging = false;
 
   const skipClickCheck = false;
-  const report = SCTest.createReportSession({ name: "GM_registerMenuCommand", reporter: "console" });
+  const report = SCTest.createReportSession({ name: "GM_registerMenuCommand", reporter: "panel" });
   report.start();
   const reportInfo = (name, actual, detail) => report.note("菜单观察", name, "观察记录", actual, detail);
 

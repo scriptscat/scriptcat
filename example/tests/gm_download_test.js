@@ -410,7 +410,7 @@ const enableTool = true;
   }
 
   function newReportSession() {
-    return SCTest.createReportSession({ name: "GM_download / GM.download", reporter: "console" });
+    return SCTest.createReportSession({ name: "GM_download / GM.download", reporter: "panel" });
   }
 
   function reportVerdict(session, result, status, detail, name) {

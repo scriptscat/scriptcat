@@ -363,6 +363,24 @@ vdescribe("sctest 框架内核", () => {
   });
 
   vdescribe("诊断式 check/note 协议", () => {
+    vit("没有显式期望与实际时,从内部 expect 断言生成诊断字段", async () => {
+      const { describe: d, check, expect: e, run } = SCTest.create({ name: "diagnostics", reporter: "console" });
+      d("存储", () => {
+        check("自动断言", "读取已写入的字符串", () => {
+          e("hello").toBe("hello");
+        });
+      });
+
+      const summary = await run();
+      const result = summary.suites[0].cases[0];
+
+      vexpect(result.status).toBe("PASS");
+      vexpect(result.category).toBe("存储");
+      vexpect(result.expected).toContain('toBe: "hello"');
+      vexpect(result.actual).toContain('toBe: "hello"');
+      vexpect(result.detail).toContain("读取已写入的字符串");
+    });
+
     vit("支持异步 predicate、WARN/INFO/SKIP 与 required 字段", async () => {
       const { describe: d, check, note, run } = SCTest.create({ name: "diagnostics", reporter: "console" });
       d("诊断", () => {
@@ -551,6 +569,26 @@ vdescribe("PanelReporter", () => {
     vexpect(rows.length).toBe(2);
     vexpect(root.querySelector('[data-sctest="summary-line"]').textContent).toMatch(/通过: 1/);
     vexpect(root.querySelector('[data-sctest="summary-line"]').textContent).toMatch(/失败: 1/);
+  });
+
+  vit("面板使用附件式诊断表头并显示状态/检查/实际/预期/说明", async () => {
+    const { describe: d, check, run } = SCTest.create({ name: "demo", reporter: "panel" });
+    d("存储", () => {
+      check("自动断言", "读取字符串", () => true, '"hello"', '"hello"', "验证读回值与写入值一致");
+    });
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const table = root.querySelector('[data-sctest="diagnostic-table"]');
+    vexpect(table).not.toBe(null);
+    vexpect(table.textContent).toMatch(/状态/);
+    vexpect(table.textContent).toMatch(/检查/);
+    vexpect(table.textContent).toMatch(/实际/);
+    vexpect(table.textContent).toMatch(/预期/);
+    vexpect(table.textContent).toMatch(/说明/);
+    vexpect(root.querySelector('[data-sctest="expected-value"]').textContent).toContain('"hello"');
+    vexpect(root.querySelector('[data-sctest="actual-value"]').textContent).toContain('"hello"');
+    vexpect(root.querySelector('[data-sctest="detail-value"]').textContent).toContain("验证读回值");
   });
 
   vit("失败用例渲染出期望与实际", async () => {
@@ -962,8 +1000,8 @@ vdescribe("手动 suite 触发", () => {
     const result = results.at(-1);
     vexpect(result.status).toBe("PASS");
     vexpect(result.error).toBe(null);
-    vexpect(result.expected).toBe(null);
-    vexpect(result.actual).toBe(null);
+    vexpect(result.expected).toBe("执行不抛出异常");
+    vexpect(result.actual).toBe("未抛出异常");
   });
 
   vit("用例重跑:连续失败只保留一份最新详情,失败转通过后旧详情被清除", async () => {

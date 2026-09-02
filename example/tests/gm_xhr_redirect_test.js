@@ -173,7 +173,7 @@ const enableTool = true;
   describe("GM_xmlhttpRequest 重定向", () => {
     for (const t of tests) {
       const label = `${t.useFetch ? "[fetch] " : "[xhr] "}${t.name}`;
-      check("自动断言", label, () => t.run(t.useFetch ? true : false), null, null, "保留原有断言体");
+      check("自动断言", label, () => t.run(t.useFetch ? true : false), null, null, null);
     }
   });
 

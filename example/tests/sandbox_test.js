@@ -124,7 +124,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -136,7 +136,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -154,7 +154,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -168,7 +168,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -181,7 +181,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -206,7 +206,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -229,7 +229,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -260,7 +260,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -294,7 +294,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -315,7 +315,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -361,7 +361,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -374,7 +374,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -424,7 +424,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -451,7 +451,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -471,7 +471,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -485,7 +485,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -522,7 +522,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -565,7 +565,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -593,7 +593,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     // 测试对象仅限于 window 和 top
@@ -620,7 +620,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -636,7 +636,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -653,7 +653,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -671,7 +671,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -695,7 +695,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -717,7 +717,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -753,7 +753,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -770,7 +770,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -800,7 +800,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -842,7 +842,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -856,7 +856,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -873,7 +873,7 @@ mpt.name = "test-element-1002";
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -891,7 +891,7 @@ mpt.name = "test-element-1002";
         ),
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     if (location.origin.includes("content-security-policy")) {
@@ -911,7 +911,7 @@ mpt.name = "test-element-1002";
         },
         null,
         null,
-        "保留原有断言体"
+        null
       );
     }
   });

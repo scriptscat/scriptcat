@@ -381,7 +381,7 @@
   /* ══════════════════════════════════════════════════════════
      MAIN FRAME LOGIC
   ══════════════════════════════════════════════════════════ */
-  const report = SCTest.createReportSession({ name: "GM_addValueChangeListener dashboard", reporter: "console" });
+  const report = SCTest.createReportSession({ name: "GM_addValueChangeListener dashboard", reporter: "panel" });
   report.start();
   report.note(
     "启动观察",

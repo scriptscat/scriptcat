@@ -1596,7 +1596,7 @@ const enableTool = true;
         () => t.run(t.useFetch ? true : false),
         null,
         null,
-        "保留原有断言体"
+        null
       );
     }
   });

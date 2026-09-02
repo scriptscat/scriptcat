@@ -690,15 +690,25 @@ test.describe("GM API", () => {
       await testRun.run();
       const panel = document.getElementById("sctest-panel-host")?.shadowRoot?.querySelector<HTMLElement>(".sc-panel");
       const styles = panel && getComputedStyle(panel);
+      const panelRoot = panel?.getRootNode();
       return {
         position: styles?.position,
         width: styles?.width,
+        top: styles?.top,
+        diagnosticTable:
+          panelRoot instanceof ShadowRoot && Boolean(panelRoot.querySelector('[data-sctest="diagnostic-table"]')),
         adoptedStyleSheets:
           panel?.getRootNode() instanceof ShadowRoot ? panel.getRootNode().adoptedStyleSheets.length : 0,
       };
     });
 
-    expect(result).toEqual({ position: "fixed", width: "440px", adoptedStyleSheets: 1 });
+    expect(result).toEqual({
+      position: "fixed",
+      width: "920px",
+      top: "12px",
+      diagnosticTable: true,
+      adoptedStyleSheets: 1,
+    });
     expect(violations).toEqual([]);
 
     const host = page.locator("#sctest-panel-host");

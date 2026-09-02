@@ -50,7 +50,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -65,7 +65,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -78,7 +78,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -91,7 +91,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -105,7 +105,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -119,7 +119,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -131,7 +131,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -144,7 +144,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -158,7 +158,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -231,7 +231,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -251,7 +251,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -303,7 +303,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -320,7 +320,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -335,7 +335,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -372,7 +372,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -395,7 +395,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -411,7 +411,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -425,7 +425,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -441,7 +441,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -454,7 +454,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     // 测试 GM_cookie(action, details, callback)
@@ -482,7 +482,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -511,7 +511,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -542,7 +542,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -572,7 +572,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -598,7 +598,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     check(
@@ -629,7 +629,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
 
     // 清理所有测试 cookies
@@ -675,7 +675,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -689,7 +689,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
@@ -703,7 +703,7 @@
       },
       null,
       null,
-      "保留原有断言体"
+      null
     );
   });
 
