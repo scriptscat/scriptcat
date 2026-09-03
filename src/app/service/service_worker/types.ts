@@ -295,7 +295,7 @@ export type TBatchUpdateItemResult = {
 };
 
 /**
- * UPDATE 动作的执行结果。
+ * UPDATE / IGNORE 动作的执行结果。
  * ok 为 false 表示整批根本没有执行：Service Worker 的检查结果只存在于内存（ScriptUpdateCheck.cacheFull），
  * MV3 回收 Service Worker 后即丢失，此时必须让调用方能与「逐条安装失败」区分开，提示用户重新检查更新。
  */
@@ -304,5 +304,26 @@ export type TBatchUpdateResult = {
   reason?: "record_expired";
   items: TBatchUpdateItemResult[];
 };
+
+/** 检查更新的结果 */
+export type TCheckScriptUpdateResult =
+  | {
+      ok: true;
+      targetSites: string[];
+      /** false 表示上次结果仍够新、本次并没有真的重新检查 */
+      fresh: boolean;
+      checktime: number;
+      err?: undefined;
+    }
+  | {
+      ok: false;
+      /** busy 区分「已有检查在跑」与真正的失败，二者对用户是不同的话 */
+      reason?: "busy";
+      targetSites?: undefined;
+      err?: string | Error;
+    };
+
+/** 打开更新详情的结果：opened=已开出安装页，silent=已静默更新完成，failed=没能处理 */
+export type TOpenUpdatePageResult = "opened" | "silent" | "failed";
 
 export type TPopupScript = { tabId: number; uuids: string[] };

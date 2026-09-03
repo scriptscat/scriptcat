@@ -3,7 +3,15 @@ import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Logger } from "@App/app/repo/logger";
 import { type Permission } from "@App/app/repo/permission";
-import type { InstallSource, ScriptMenu, ScriptMenuItem, TBatchUpdateListAction, TPopupPageStatus } from "./types";
+import type {
+  InstallSource,
+  ScriptMenu,
+  ScriptMenuItem,
+  TBatchUpdateListAction,
+  TCheckScriptUpdateResult,
+  TOpenUpdatePageResult,
+  TPopupPageStatus,
+} from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
@@ -273,7 +281,7 @@ export class ScriptClient extends Client {
   }
 
   async openUpdatePageByUUID(uuid: string) {
-    return this.do<boolean>("openUpdatePageByUUID", uuid);
+    return this.do<TOpenUpdatePageResult>("openUpdatePageByUUID", uuid);
   }
 
   async openBatchUpdatePage(opts: TOpenBatchUpdatePageOption) {
@@ -281,7 +289,7 @@ export class ScriptClient extends Client {
   }
 
   async checkScriptUpdate(opts: TCheckScriptUpdateOption) {
-    return this.do<void>("checkScriptUpdate", opts);
+    return this.do<TCheckScriptUpdateResult>("checkScriptUpdate", opts);
   }
 }
 

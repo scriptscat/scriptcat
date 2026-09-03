@@ -1508,7 +1508,7 @@ describe("ScriptService.openUpdatePageByUUID —— 打开单条更新详情", (
     await saveTarget(service, scriptDAO);
     primeCache(service, userscript("2.0.0"));
 
-    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe(true);
+    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe("opened");
 
     expect(h.fetchScriptBody).not.toHaveBeenCalled();
     expect(h.openInCurrentTab).toHaveBeenCalledWith("/src/install.html?uuid=u-open");
@@ -1519,27 +1519,92 @@ describe("ScriptService.openUpdatePageByUUID —— 打开单条更新详情", (
     await saveTarget(service, scriptDAO);
     h.fetchScriptBody.mockResolvedValue(userscript("2.0.0"));
 
-    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe(true);
+    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe("opened");
 
     expect(h.fetchScriptBody).toHaveBeenCalledWith(URL);
     expect(h.openInCurrentTab).toHaveBeenCalledWith("/src/install.html?uuid=u-open");
   });
 
-  it("拉取失败时回报 false,让更新页能给出失败反馈而不是一直转圈", async () => {
+  it("拉取失败时回报 failed,让更新页能给出失败反馈而不是一直转圈", async () => {
     const { service, scriptDAO } = buildService();
     await saveTarget(service, scriptDAO);
     h.fetchScriptBody.mockRejectedValue(new Error("network error"));
 
-    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe(false);
+    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe("failed");
 
     expect(h.openInCurrentTab).not.toHaveBeenCalled();
   });
 
-  it("脚本已不存在时回报 false 而不是静默无反应", async () => {
+  it("脚本已不存在时回报 failed 而不是静默无反应", async () => {
     const { service } = buildService();
 
-    await expect(service.openUpdatePageByUUID("missing")).resolves.toBe(false);
+    await expect(service.openUpdatePageByUUID("missing")).resolves.toBe("failed");
 
     expect(h.openInCurrentTab).not.toHaveBeenCalled();
+  });
+
+  it("命中静默更新时回报 silent:不开安装页,由调用方补一条反馈", async () => {
+    const { service, scriptDAO, systemConfig } = buildService();
+    await saveTarget(service, scriptDAO);
+    systemConfig.setSilenceUpdateScript(true);
+    primeCache(service, userscript("2.0.0"));
+
+    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe("silent");
+
+    // 静默更新是真的装了,只是页面上什么都不会发生
+    expect(h.openInCurrentTab).not.toHaveBeenCalled();
+    expect((await scriptDAO.get("u-open"))?.metadata.version?.[0]).toBe("2.0.0");
+  });
+});
+
+describe("ScriptService.batchUpdateListAction —— 忽略更新", () => {
+  const saveIgnoreTarget = (scriptDAO: ScriptDAO) =>
+    scriptDAO.save(
+      makeScript({
+        uuid: "u-ignore",
+        name: "忽略目标",
+        namespace: "scriptcat-test",
+        metadata: { name: ["忽略目标"], namespace: ["scriptcat-test"], version: ["1.0.0"] },
+      })
+    );
+
+  it("逐条回报忽略结果,页面据此收起该行", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveIgnoreTarget(scriptDAO);
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.IGNORE,
+      actionPayload: [{ uuid: "u-ignore", ignoreVersion: "2.0.0" }],
+    });
+
+    expect(res).toEqual({ ok: true, items: [{ uuid: "u-ignore", success: true }] });
+    expect((await scriptDAO.get("u-ignore"))?.ignoreVersion).toBe("2.0.0");
+  });
+
+  it("检查缓存已随 Service Worker 回收时,忽略照样生效并照常回报", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveIgnoreTarget(scriptDAO);
+    // 忽略写的是脚本自身的 ignoreVersion,与检查缓存无关
+    expect(service["scriptUpdateCheck"].cacheFull).toBeFalsy();
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.IGNORE,
+      actionPayload: [{ uuid: "u-ignore", ignoreVersion: "2.0.0" }],
+    });
+
+    expect(res).toEqual({ ok: true, items: [{ uuid: "u-ignore", success: true }] });
+    expect((await scriptDAO.get("u-ignore"))?.ignoreVersion).toBe("2.0.0");
+  });
+
+  it("脚本已不存在时该条回报失败,而不是静默当作成功", async () => {
+    const { service } = buildService();
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.IGNORE,
+      actionPayload: [{ uuid: "missing", ignoreVersion: "2.0.0" }],
+    });
+
+    expect(res?.ok).toBe(true);
+    expect(res?.items[0]).toMatchObject({ uuid: "missing", success: false });
   });
 });
