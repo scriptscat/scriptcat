@@ -489,6 +489,12 @@ describe("Server", () => {
       expect(extSender.documentId).toBe("doc-123");
     });
 
+    it.concurrent("应该保留合法的 tabId 0，而不是当作后台上下文", async () => {
+      const sender = new SenderRuntime({ tab: { id: 0, windowId: 0 } } as RuntimeMessageSender);
+
+      expect(sender.getExtMessageSender()).toMatchObject({ tabId: 0, windowId: 0 });
+    });
+
     it.concurrent("应该为没有 tab 的 sender 返回 -1 tabId", async () => {
       let capturedSender: IGetSender;
 
