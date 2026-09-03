@@ -214,8 +214,26 @@ describe("utils", () => {
 
       expect(result).toBeDefined();
       expect(result).toContain(
-        `GM_registerMenuCommand(("ScriptCat's demo for \\"context-menu\\""), ()=>{let GM_registerMenuCommand=window.GM_registerMenuCommand=GM.registerMenuCommand=undefined;\nconsole.log(567); // testing\n}, {nested:false});\n`
+        `GM_registerMenuCommand(("ScriptCat's demo for \\"context-menu\\""), ()=>{\nconsole.log(567); // testing\n}, {nested:false});\n`
       );
+    });
+
+    it.concurrent("@run-at context-menu 的包装不得屏蔽脚本体自己的 GM_registerMenuCommand", () => {
+      const scriptRes = createMockScriptRes({
+        name: "menu registering script",
+        code: 'GM_registerMenuCommand("Own Item", () => {});',
+        metadata: {
+          "run-at": ["context-menu"],
+        },
+      });
+
+      const result = compileScriptCode(scriptRes);
+
+      // 曾经在回调开头把 GM_registerMenuCommand 连同 window./GM. 上的引用一起置为 undefined，
+      // 于是任何在脚本体里注册菜单的脚本一点菜单就 TypeError 中断，自己的菜单项也永远注册不上
+      expect(result).not.toContain("GM_registerMenuCommand=undefined");
+      expect(result).not.toContain("window.GM_registerMenuCommand");
+      expect(result).not.toContain("GM.registerMenuCommand");
     });
   });
 
