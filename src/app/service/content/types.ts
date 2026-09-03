@@ -30,6 +30,7 @@ export type ValueUpdateDataEncoded = {
   storageName: string; // 储存name
   sender: ValueUpdateSender;
   valueUpdated: boolean;
+  updatetime: number; // valueDAO 该 storageName 当前的 updatetime，用于异步读取的新鲜度判断
 };
 
 // gm_api.ts
