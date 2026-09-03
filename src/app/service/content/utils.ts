@@ -141,7 +141,8 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   // 在UserScripts API中，由于执行不是在物件导向里呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
 
   if (resource.isContextMenu) {
-    code = `GM_registerMenuCommand((${JSON.stringify(resource.name)}), ()=>{let GM_registerMenuCommand=window.GM_registerMenuCommand=GM.registerMenuCommand=undefined;\n${code}\n}, {nested:false});\n`;
+    // 脚本体整体延后到菜单回调里执行，它自己的 GM_registerMenuCommand 也随之推迟到点击后才注册
+    code = `GM_registerMenuCommand((${JSON.stringify(resource.name)}), ()=>{\n${code}\n}, {nested:false});\n`;
   }
 
   const joinedCode = [
