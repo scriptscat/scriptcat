@@ -141,7 +141,7 @@ describe.concurrent("createContext", () => {
     expect((context as any).loadScriptResolve).toBeUndefined();
   });
 
-  it.concurrent("setInvalidContext 会释放监听器且后续 valueUpdate 不再触发", () => {
+  it.concurrent("setInvalidContext 会释放监听器且后续 valueStoreUpdate 不再触发", async () => {
     const script = createScriptInfo();
     const context = createContext(
       script,
@@ -154,28 +154,34 @@ describe.concurrent("createContext", () => {
     const listener = vi.fn();
     context.GM_addValueChangeListener("foo", listener);
 
-    context.valueUpdate({
-      id: "remote-1",
-      uuid: script.uuid,
-      storageName: "",
-      sender: { runFlag: "other-run-flag", tabId: 7 },
-      entries: [["foo", encodeRValue("next"), encodeRValue("bar")]],
-      valueUpdated: true,
-    });
+    context.valueStoreUpdate(script.value, [
+      {
+        id: "remote-1",
+        uuid: script.uuid,
+        storageName: "",
+        sender: { runFlag: "other-run-flag", tabId: 7 },
+        valueChanges: [["foo", encodeRValue("next"), encodeRValue("bar")]],
+      },
+    ]);
+    // 监听器回调延后到下一个 microTask 执行
+    expect(listener).not.toHaveBeenCalled();
+    await Promise.resolve();
     expect(listener).toHaveBeenCalledWith("foo", "bar", "next", true, 7);
 
     context.setInvalidContext();
     context.setInvalidContext();
     expect(context.isInvalidContext()).toBe(true);
 
-    context.valueUpdate({
-      id: "remote-2",
-      uuid: script.uuid,
-      storageName: "",
-      sender: { runFlag: "other-run-flag", tabId: 8 },
-      entries: [["foo", encodeRValue("again"), encodeRValue("next")]],
-      valueUpdated: true,
-    });
+    context.valueStoreUpdate(script.value, [
+      {
+        id: "remote-2",
+        uuid: script.uuid,
+        storageName: "",
+        sender: { runFlag: "other-run-flag", tabId: 8 },
+        valueChanges: [["foo", encodeRValue("again"), encodeRValue("next")]],
+      },
+    ]);
+    await Promise.resolve();
     expect(listener).toHaveBeenCalledTimes(1);
   });
 });
