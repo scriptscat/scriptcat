@@ -36,7 +36,7 @@ import type {
 } from "../types";
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
 import type { NotificationOptionCache } from "../utils";
-import { BrowserNoSupport, notificationsUpdate } from "../utils";
+import { BrowserNoSupport, getCombinedMeta, notificationsUpdate } from "../utils";
 import {
   getSkillScriptGrantsByUuid,
   getSkillScriptNameByUuid,
@@ -415,6 +415,10 @@ export default class GMApi {
       script = await this.scriptDAO.get(data.uuid);
       if (!script) {
         throw new Error("script is not found");
+      }
+      // 设置面板改的运行时机等只写 selfMetadata，GM API 校验要看合并后的生效值（#1649）
+      if (script.selfMetadata) {
+        script = { ...script, metadata: getCombinedMeta(script.metadata, script.selfMetadata) };
       }
     }
     // 订阅脚本的 connect 使用订阅声明的 connect 覆盖脚本自身的
