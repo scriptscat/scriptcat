@@ -6,7 +6,7 @@
 ## 引入
 
 ```js
-// @require https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@9e0b465196d1b87786a8cb4d5a0c42fed148b735/example/tests/lib/sctest.js
+// @require https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@3c3ded1030b21182c1bdbfa20544bb8bf202f3a1/example/tests/lib/sctest.js
 ```
 
 E2E 运行时会把该框架 URL 重写到本地 mock server（见 `e2e/gm-api.spec.ts` 的
