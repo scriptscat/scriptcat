@@ -13,6 +13,7 @@ import { runScript, stopScript } from "../offscreen/client";
 import {
   buildScriptRunResourceBasic,
   compileInjectionCode,
+  getCombinedMeta,
   getUserScriptRegister,
   parseUrlSRI,
   scriptURLPatternResults,
@@ -485,7 +486,10 @@ export class RuntimeService {
 
       // valueUpdate 消息用于 early script 的处理
       if (sendData.valueUpdated) {
-        if (script.status === SCRIPT_STATUS_ENABLE && isEarlyStartScript(script.metadata)) {
+        if (
+          script.status === SCRIPT_STATUS_ENABLE &&
+          isEarlyStartScript(getCombinedMeta(script.metadata, script.selfMetadata))
+        ) {
           // 如果是预加载脚本，需要更新脚本代码重新注册
           // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
           await this.updateResourceOnScriptChange(script);
@@ -902,15 +906,19 @@ export class RuntimeService {
 
   // 从CompiledResource中还原脚本代码
   async restoreJSCodeFromCompiledResource(script: Script, result: CompiledResource) {
+    // 用户在设置面板改运行时机只写 selfMetadata，脚本自带 metadata 不变，
+    // 所以编译分支必须按合并后的生效 metadata 选，否则重新注册会丢掉覆写（#1649）
+    const metadata = getCombinedMeta(script.metadata, script.selfMetadata);
+
     // 如果是 Scriptlet (unwrap) 脚本，需要另外的处理方式
-    if (isScriptletUnwrap(script.metadata)) {
+    if (isScriptletUnwrap(metadata)) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
       return compileScriptletCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
     }
 
     // 如果是预加载脚本，需要另外的处理方式
-    if (isEarlyStartScript(script.metadata)) {
+    if (isEarlyStartScript(metadata)) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
       return compileInjectionCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
@@ -931,7 +939,7 @@ export class RuntimeService {
         name: result.name,
         code: originalCode?.code || "",
         require,
-        isContextMenu: isContextMenuScript(script.metadata),
+        isContextMenu: isContextMenuScript(metadata),
       })
     );
   }

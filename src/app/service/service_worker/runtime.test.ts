@@ -1192,3 +1192,83 @@ describe("MQ 事件处理效果（enableScripts / deleteScripts / sortedScripts�
     expect((runtime as any).cachedPatterns.has(uuid)).toBe(false);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("restoreJSCodeFromCompiledResource 还原代码时的生效 metadata", () => {
+  // 设置面板改运行时机只写 selfMetadata，脚本自带 metadata 原封不动；
+  // 还原路径若只看自带 metadata，重新注册后用户覆写就会静默失效（#1649）。
+  const createContext = (script: Script) => {
+    const { runtime, mockScriptService } = _createRuntimeContext();
+    const scriptRes = _createScriptRunResource(script);
+    const compiledResource: CompiledResource = {
+      name: script.name,
+      flag: `#-${script.uuid}`,
+      uuid: script.uuid,
+      require: [],
+      matches: ["https://www.example.com/*"],
+      includeGlobs: [],
+      excludeMatches: [],
+      excludeGlobs: [],
+      allFrames: false,
+      world: "MAIN",
+      runAt: "document_idle",
+      scriptUrlPatterns: scriptURLPatternResults(scriptRes)!.scriptUrlPatterns,
+      originalUrlPatterns: null,
+    };
+    mockScriptService.buildScriptRunResource.mockResolvedValue(scriptRes);
+    (runtime as any).script = {
+      ...mockScriptService,
+      scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "console.log(1);" }) },
+    };
+    (runtime as any).resource = { resourceDAO: { get: vi.fn().mockResolvedValue(undefined) } };
+    return { runtime, compiledResource };
+  };
+
+  it("selfMetadata 覆写 run-at=context-menu 时，还原的代码应包裹 GM_registerMenuCommand", async () => {
+    const script = _createMockScript({
+      metadata: { match: ["https://www.example.com/*"], "run-at": ["document-idle"] },
+      selfMetadata: { "run-at": ["context-menu"] },
+    });
+    const { runtime, compiledResource } = createContext(script);
+
+    const code = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
+
+    expect(code).toContain("GM_registerMenuCommand");
+  });
+
+  it("selfMetadata 覆写为 early-start 时，还原的代码应走预注入编译", async () => {
+    const script = _createMockScript({
+      metadata: { match: ["https://www.example.com/*"], "run-at": ["document-idle"] },
+      selfMetadata: { "early-start": [""], "run-at": ["document-start"] },
+    });
+    const { runtime, compiledResource } = createContext(script);
+
+    const code = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
+
+    expect(code).toContain("performance.dispatchEvent");
+  });
+});
+
+describe("pushValueUpdate 判断是否需要为 early-start 脚本重新编译", () => {
+  // early-start 会把 GM 值编进预注入代码，值变了必须重编；
+  // 该脚本的 early-start 可能来自用户覆写，不能只看脚本自带 metadata。
+  it("selfMetadata 覆写为 early-start 的脚本，值更新后应重新编译注册", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createMockScript({
+      metadata: { match: ["https://www.example.com/*"], "run-at": ["document-idle"] },
+      selfMetadata: { "early-start": [""], "run-at": ["document-start"] },
+    });
+    const updateSpy = vi.spyOn(runtime, "updateResourceOnScriptChange").mockResolvedValue(undefined);
+
+    await runtime.pushValueUpdate(script, {
+      entries: [],
+      uuid: script.uuid,
+      storageName: "test-storage",
+      sender: { runFlag: "", tabId: -1 },
+      valueUpdated: true,
+    });
+
+    expect(updateSpy).toHaveBeenCalledWith(script);
+  });
+});
