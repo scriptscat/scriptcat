@@ -38,6 +38,10 @@ export interface BatchUpdateViewProps {
   checktime: number;
   checking: boolean;
   loading: boolean;
+  /** 记录取数失败的原因；非 null 时整页落到错误终态 */
+  loadError: string | null;
+  /** 批量正在进行：期间禁止勾选与再次发起批量，避免两条进度互相覆盖 */
+  batchBusy: boolean;
   selected: Set<string>;
   /** 自动关闭剩余秒数；为 null 表示不再倒计时 */
   autoClose: number | null;
@@ -60,6 +64,8 @@ export interface BatchUpdateViewProps {
   onIgnoreSelected: () => void;
   onRestoreAll: () => void;
   onCheckNow: () => void;
+  /** 重新拉取更新记录（加载失败后的出口） */
+  onRetryLoad: () => void;
   onCancelAutoClose: () => void;
   /** 打开单个脚本的更新详情页 */
   onOpen: (uuid: string) => void;
@@ -170,20 +176,42 @@ export function SourceCell({ source }: { source: string }) {
   );
 }
 
-/** 可点击跳转更新详情页的脚本名（过长时 tooltip 显示全名）；loading 期间转圈并拒绝再次点击 */
-export function ScriptName({ name, loading, onClick }: { name: string; loading?: boolean; onClick: () => void }) {
+/**
+ * 可点击跳转更新详情页的脚本名（过长时 tooltip 显示全名）；loading 期间转圈并拒绝再次点击。
+ * 用 aria-disabled 而不是 disabled：浏览器不向 disabled 控件派发指针事件，
+ * 那样会在名字被截断、最需要看全名的时候把 tooltip 一起关掉，键盘触发后焦点也会掉到 body。
+ * 转圈位常驻等宽空槽，避免 spinner 出现时把名字挤窄造成二次截断。
+ */
+export function ScriptName({
+  name,
+  loading,
+  uuid,
+  onClick,
+}: {
+  name: string;
+  loading?: boolean;
+  uuid: string;
+  onClick: () => void;
+}) {
   return (
     <HoverTip content={name}>
       <button
         type="button"
-        onClick={onClick}
-        disabled={loading}
+        onClick={() => {
+          if (!loading) onClick();
+        }}
+        aria-disabled={loading}
         aria-busy={loading}
-        data-testid="script-name"
-        className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-medium text-foreground hover:text-primary hover:underline disabled:cursor-progress"
+        data-testid={`script-name-${uuid}`}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-medium text-foreground hover:text-primary hover:underline",
+          loading && "cursor-progress"
+        )}
       >
         <span className="truncate">{name}</span>
-        {loading && <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" />}
+        <span className="flex size-3.5 shrink-0 items-center justify-center">
+          {loading && <Loader2 className="size-3.5 animate-spin text-primary" />}
+        </span>
       </button>
     </HoverTip>
   );
@@ -222,8 +250,14 @@ export function RowStatus({
 }) {
   const { t } = useTranslation();
   const testId = `row-status-${item.uuid}`;
+  const ignoring = state?.kind === "ignore";
   const wrap = (phase: string, content: ReactNode) => (
-    <span data-testid={testId} data-phase={phase} className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+    <span
+      data-testid={testId}
+      data-phase={phase}
+      data-kind={state?.kind ?? "update"}
+      className="flex items-center justify-end gap-1.5 whitespace-nowrap"
+    >
       {content}
     </span>
   );
@@ -238,7 +272,9 @@ export function RowStatus({
         "working",
         <>
           <Loader2 className="size-3.5 animate-spin text-primary" />
-          <span className="text-[13px] font-medium text-primary">{t("install:updatepage.row_updating")}</span>
+          <span className="text-[13px] font-medium text-primary">
+            {ignoring ? t("install:updatepage.row_ignoring") : t("install:updatepage.row_updating")}
+          </span>
         </>
       );
     case "success":
@@ -248,7 +284,9 @@ export function RowStatus({
         <>
           <Check className="size-3.5 text-success-fg animate-in zoom-in-50 duration-300 ease-out" />
           <span className="text-[13px] font-medium text-success-fg">
-            {t("install:updatepage.row_updated", { version: item.newVersion })}
+            {ignoring
+              ? t("install:updatepage.row_ignored", { version: item.newVersion })
+              : t("install:updatepage.row_updated", { version: item.newVersion })}
           </span>
         </>
       );
@@ -258,7 +296,7 @@ export function RowStatus({
         <>
           <HoverTip content={state.error || t("install:updatepage.unknown_error")}>
             <span className="cursor-default text-[13px] font-medium text-destructive">
-              {t("install:updatepage.row_failed")}
+              {ignoring ? t("install:updatepage.row_ignore_failed") : t("install:updatepage.row_failed")}
             </span>
           </HoverTip>
           <span className="text-muted-foreground">{"·"}</span>
@@ -324,6 +362,7 @@ export function RestoreAllAction({ view, className }: { view: BatchUpdateViewPro
         variant="link"
         size="sm"
         data-testid="ignored-restore-all"
+        disabled={view.batchBusy}
         className={cn("h-auto p-0 text-[13px]", className)}
       >
         {t("install:updatepage.restore_all")}
@@ -343,14 +382,16 @@ export function BatchSummary({
   className?: string;
 }) {
   const { t } = useTranslation();
-  const { done, total, failed, finished } = progress;
+  const { done, total, failed, finished, interrupted } = progress;
   const updated = done - failed;
-  const succeeded = finished && failed === 0;
+  const succeeded = finished && failed === 0 && !interrupted;
   const text = !finished
     ? t("install:updatepage.batch_progress", { done, total })
-    : failed > 0
-      ? t("install:updatepage.batch_done_partial", { updated, failed })
-      : t("install:updatepage.batch_done", { count: updated });
+    : interrupted
+      ? t("install:updatepage.batch_interrupted", { count: updated })
+      : failed > 0
+        ? t("install:updatepage.batch_done_partial", { updated, failed })
+        : t("install:updatepage.batch_done", { count: updated });
   return (
     <div data-testid="batch-summary" className="shrink-0 border-b border-border bg-card">
       <Progress
@@ -358,13 +399,17 @@ export function BatchSummary({
         value={done}
         max={total}
         aria-label={text}
-        indicatorClassName={succeeded ? "bg-success" : failed > 0 ? "bg-warning" : undefined}
+        indicatorClassName={succeeded ? "bg-success" : failed > 0 || interrupted ? "bg-warning" : undefined}
       />
       <div className={cn("flex items-center justify-between gap-3 py-1.5", className)}>
         <span
           className={cn(
             "truncate text-[13px]",
-            succeeded ? "text-success-fg" : failed > 0 && finished ? "text-warning-fg" : "text-fg-secondary"
+            succeeded
+              ? "text-success-fg"
+              : finished && (failed > 0 || interrupted)
+                ? "text-warning-fg"
+                : "text-fg-secondary"
           )}
         >
           {text}
@@ -384,21 +429,41 @@ export function BatchSummary({
   );
 }
 
-/** 检查结果已随 Service Worker 回收失效：点更新不会有任何效果，必须显式告知 */
-export function RecordExpiredNotice({ className }: { className?: string }) {
+/**
+ * 检查结果已随 Service Worker 回收失效：点更新不会有任何效果，必须显式告知。
+ * 自带重新检查入口——移动端顶栏那个按钮只有图标，让用户自己找不合理。
+ */
+export function RecordExpiredNotice({ onCheckNow, className }: { onCheckNow: () => void; className?: string }) {
   const { t } = useTranslation();
   return (
     <div
       data-testid="record-expired"
+      role="alert"
       className={cn(
         "flex shrink-0 items-center gap-2 border-b border-border bg-warning-bg py-2 text-[13px] text-warning-fg",
         className
       )}
     >
       <TriangleAlert className="size-4 shrink-0" />
-      <span>{t("install:updatepage.record_expired")}</span>
+      <span className="flex-1">{t("install:updatepage.record_expired")}</span>
+      <button
+        type="button"
+        data-testid="record-expired-recheck"
+        onClick={onCheckNow}
+        className="shrink-0 font-medium underline underline-offset-2"
+      >
+        {t("install:updatepage.recheck")}
+      </button>
     </div>
   );
+}
+
+/**
+ * 是否展示骨架。首屏取数期间必然要；此外只有「从未检查过、这次是第一次」才用骨架，
+ * 已经给出过空态之后再点检查，保留空态 + 顶部进度条即可，不要整页闪回骨架再闪回来。
+ */
+export function showSkeleton(view: BatchUpdateViewProps, empty: boolean): boolean {
+  return view.loading || (view.checking && empty && view.checktime === 0);
 }
 
 const COL = {
@@ -415,6 +480,7 @@ function DesktopRow({
   state,
   selected,
   opening,
+  batchBusy,
   onToggle,
   onOpen,
   onUpdate,
@@ -426,6 +492,7 @@ function DesktopRow({
   state?: RowState;
   selected?: boolean;
   opening?: boolean;
+  batchBusy?: boolean;
   onToggle?: (uuid: string) => void;
   onOpen: (uuid: string) => void;
   onUpdate?: (item: UpdateItem) => void;
@@ -435,7 +502,9 @@ function DesktopRow({
 }) {
   const { t } = useTranslation();
   const dim = item.enabled ? "" : "opacity-55";
-  const primaryAction = () => (ignoredRow ? onRestore?.(item) : onUpdate?.(item));
+  // 重试要重放失败的那个动作本身，忽略失败后再点「重试」不该改成安装
+  const primaryAction = () =>
+    state?.kind === "ignore" ? onIgnore?.(item) : ignoredRow ? onRestore?.(item) : onUpdate?.(item);
   return (
     <div
       className={cn(
@@ -447,12 +516,12 @@ function DesktopRow({
         {ignoredRow ? (
           <BellOff className="size-3.5 text-muted-foreground" />
         ) : (
-          <Checkbox checked={!!selected} onCheckedChange={() => onToggle?.(item.uuid)} />
+          <Checkbox checked={!!selected} disabled={batchBusy} onCheckedChange={() => onToggle?.(item.uuid)} />
         )}
       </div>
       <div className={cn("flex flex-1 items-center gap-2.5 min-w-0", dim)}>
         <ScriptAvatar name={item.name} iconUrl={item.iconUrl} />
-        <ScriptName name={item.name} loading={opening} onClick={() => onOpen(item.uuid)} />
+        <ScriptName name={item.name} uuid={item.uuid} loading={opening} onClick={() => onOpen(item.uuid)} />
         <StatusBadge enabled={item.enabled} />
       </div>
       <div className={cn(COL.version, dim)}>
@@ -502,6 +571,7 @@ function DesktopTable({ view }: { view: BatchUpdateViewProps }) {
           state={view.rowStates[item.uuid]}
           selected={view.selected.has(item.uuid)}
           opening={view.opening.has(item.uuid)}
+          batchBusy={view.batchBusy}
           onToggle={view.onToggle}
           onOpen={view.onOpen}
           onUpdate={view.onUpdate}
@@ -535,6 +605,7 @@ function DesktopIgnored({ view }: { view: BatchUpdateViewProps }) {
               state={view.rowStates[item.uuid]}
               ignoredRow
               opening={view.opening.has(item.uuid)}
+              batchBusy={view.batchBusy}
               onOpen={view.onOpen}
               onRestore={view.onRestore}
             />
@@ -552,7 +623,7 @@ function DesktopToolbar({ view }: { view: BatchUpdateViewProps }) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <Checkbox checked={allSelected} onCheckedChange={view.onToggleAll} />
+        <Checkbox checked={allSelected} disabled={view.batchBusy} onCheckedChange={view.onToggleAll} />
         <span className="text-sm font-medium text-foreground">
           {t("install:updatepage.selected_count", { selected: selectedCount, total: view.updates.length })}
         </span>
@@ -566,11 +637,16 @@ function DesktopToolbar({ view }: { view: BatchUpdateViewProps }) {
         )}
       </div>
       <div className="flex items-center gap-2.5">
-        <Button variant="outline" size="sm" disabled={selectedCount === 0} onClick={view.onIgnoreSelected}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={selectedCount === 0 || view.batchBusy}
+          onClick={view.onIgnoreSelected}
+        >
           <BellOff />
           {t("install:updatepage.ignore_selected")}
         </Button>
-        <Button size="sm" disabled={selectedCount === 0} onClick={view.onUpdateSelected}>
+        <Button size="sm" disabled={selectedCount === 0 || view.batchBusy} onClick={view.onUpdateSelected}>
           <Download />
           {t("install:updatepage.update_selected", { count: selectedCount })}
         </Button>
@@ -590,8 +666,30 @@ export function SkeletonBar({ className }: { className?: string }) {
   return <Skeleton className={className} />;
 }
 
-/** 桌面端检查中的骨架表格：保留表头 + 占位行，取代冻结的空状态/大转圈 */
+/**
+ * 桌面端检查中的骨架：保留表头 + 占位行，取代冻结的空状态/大转圈。
+ * 工具条也要占位——真实态里它在表格上方，缺了这一块数据到达时整张表会向下跳一截。
+ */
 function SkeletonTable() {
+  const { t } = useTranslation();
+  return (
+    <div role="status" aria-busy="true" aria-label={t("install:updatepage.loading_list")} className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <SkeletonBar className="size-4 rounded-md" />
+          <SkeletonBar className="h-4 w-28" />
+        </div>
+        <div className="flex items-center gap-2.5">
+          <SkeletonBar className="h-8 w-24 rounded-md" />
+          <SkeletonBar className="h-8 w-28 rounded-md" />
+        </div>
+      </div>
+      <SkeletonRows />
+    </div>
+  );
+}
+
+function SkeletonRows() {
   const { t } = useTranslation();
   return (
     <DataPanel data-testid="update-skeleton">
@@ -630,8 +728,16 @@ function SkeletonTable() {
   );
 }
 
-/** 空状态：所有脚本均为最新 */
-export function EmptyState({ totalChecked, onCheckNow }: { totalChecked: number; onCheckNow: () => void }) {
+/** 空状态：所有脚本均为最新。重新检查时原地保留，只让按钮转圈，不整页闪回骨架 */
+export function EmptyState({
+  totalChecked,
+  checking,
+  onCheckNow,
+}: {
+  totalChecked: number;
+  checking: boolean;
+  onCheckNow: () => void;
+}) {
   const { t } = useTranslation();
   return (
     <StateScreen
@@ -643,10 +749,50 @@ export function EmptyState({ totalChecked, onCheckNow }: { totalChecked: number;
       title={t("install:updatepage.empty_title")}
       description={t("install:updatepage.empty_desc", { count: totalChecked })}
       action={
-        <Button data-testid="empty-recheck" onClick={onCheckNow}>
-          <RefreshCw />
+        <Button data-testid="empty-recheck" disabled={checking} onClick={onCheckNow}>
+          <RefreshCw className={cn(checking && "animate-spin")} />
           {t("install:updatepage.recheck")}
         </Button>
+      }
+    />
+  );
+}
+
+/**
+ * 更新记录取数失败的终态。没有这一屏时，空记录会被渲染成「所有脚本均为最新」，
+ * 把一次加载失败说成了检查成功。
+ */
+export function LoadErrorScreen({
+  error,
+  onRetry,
+  onOpenScriptList,
+}: {
+  error: string;
+  onRetry: () => void;
+  onOpenScriptList: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <StateScreen
+      data-testid="update-load-error"
+      icon={TriangleAlert}
+      tone="error"
+      compact
+      className="py-24"
+      title={t("install:updatepage.load_failed_title")}
+      description={t("install:updatepage.load_failed_desc")}
+      detail={error || undefined}
+      detailTestId="update-load-error-detail"
+      action={
+        <div className="flex gap-2.5">
+          <Button data-testid="load-error-retry" onClick={onRetry}>
+            <RefreshCw />
+            {t("install:updatepage.retry")}
+          </Button>
+          <Button variant="outline" onClick={onOpenScriptList}>
+            {t("install:updatepage.script_list")}
+          </Button>
+        </div>
       }
     />
   );
@@ -754,16 +900,22 @@ export function DesktopView({ view }: { view: BatchUpdateViewProps }) {
         </div>
       </header>
       {view.checking && <TopProgressBar />}
-      {view.recordExpired && <RecordExpiredNotice className="px-6" />}
+      {view.recordExpired && <RecordExpiredNotice onCheckNow={view.onCheckNow} className="px-6" />}
       {view.batchProgress && (
         <BatchSummary progress={view.batchProgress} onOpenScriptList={view.onOpenScriptList} className="px-6" />
       )}
       <div className="flex-1 overflow-auto scrollbar-custom">
         <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 px-6 py-6">
-          {view.loading || (view.checking && empty) ? (
+          {view.loadError !== null ? (
+            <LoadErrorScreen
+              error={view.loadError}
+              onRetry={view.onRetryLoad}
+              onOpenScriptList={view.onOpenScriptList}
+            />
+          ) : showSkeleton(view, empty) ? (
             <SkeletonTable />
           ) : empty ? (
-            <EmptyState totalChecked={view.totalChecked} onCheckNow={view.onCheckNow} />
+            <EmptyState totalChecked={view.totalChecked} checking={view.checking} onCheckNow={view.onCheckNow} />
           ) : (
             <>
               {view.updates.length > 0 && (

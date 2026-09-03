@@ -414,12 +414,27 @@ describe("useInstallData 数据流编排", () => {
     expect(state.skill.metadata.name).toBe("查询串技能");
   });
 
-  it("getInstallInfo 无数据时进入 error 状态", async () => {
+  it("getInstallInfo 无数据时落到「代码已过期」而不是笼统的加载失败", async () => {
     window.history.replaceState({}, "", "/install.html?uuid=u1");
     (scriptClient.getInstallInfo as Mock).mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useInstallData());
-    await waitFor(() => expect(result.current.state.status).toBe("error"));
+    // 这条入口的失败几乎只有一个原因:暂存条目被定时清理回收,重试同一段取数不可能成功
+    await waitFor(() => expect(result.current.state.status).toBe("expired"));
+  });
+
+  it("暂存代码已被清理时同样落到「代码已过期」", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u1");
+    const metadata = { name: ["示例脚本"], version: ["1.0.0"] };
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([
+      true,
+      { url: "https://e.com/x.user.js", code: "", uuid: "u1", userSubscribe: false, metadata, source: "user" },
+      {},
+    ]);
+    (getTempCode as Mock).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("expired"));
   });
 
   it("加载失败后调用 retry 重新加载并进入 ready", async () => {
@@ -445,7 +460,7 @@ describe("useInstallData 数据流编排", () => {
     });
 
     const { result } = renderHook(() => useInstallData());
-    await waitFor(() => expect(result.current.state.status).toBe("error"));
+    await waitFor(() => expect(result.current.state.status).toBe("expired"));
 
     allowSuccess = true;
     await act(async () => result.current.retry());
@@ -957,6 +972,32 @@ describe("MCP 来源的安装请求", () => {
     );
   });
 
+  it("拒绝外部接入同样置忙态,连点只发一次决定", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
+    const info = mcpScriptInfo();
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([false, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// code");
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "MCP 脚本", metadata: info.metadata, status: 2 } as unknown as Script,
+    });
+    vi.spyOn(window, "close").mockImplementation(() => {});
+    (externalAccessClient.decideOperation as Mock).mockImplementation(() => new Promise<void>(() => {}));
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+
+    await act(async () => {
+      void result.current.rejectExternalAccess();
+    });
+    expect(result.current.outcome.phase).toBe("installing");
+
+    await act(async () => {
+      void result.current.rejectExternalAccess();
+    });
+    expect(externalAccessClient.decideOperation as Mock).toHaveBeenCalledTimes(1);
+  });
+
+
   it("rejectExternalAccess() 调用 externalAccessClient.decideOperation(approved:false)", async () => {
     window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
     const info = mcpScriptInfo();
@@ -1048,5 +1089,66 @@ describe("MCP 来源的安装请求", () => {
     await act(async () => result.current.install({ closeAfterInstall: false }));
     expect(scriptClient.install).toHaveBeenCalled();
     expect(externalAccessClient.decideOperation).not.toHaveBeenCalled();
+  });
+});
+
+describe("useInstallData 提交中的忙态与防重入", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    window.history.replaceState({}, "", "/install.html");
+  });
+
+  it("开启监听会先真的装一次,这期间置忙态并挡住重复点击", async () => {
+    window.history.replaceState({}, "", "/install.html?file=fid1");
+    const metadata = { name: ["本地脚本"], version: ["1.0.0"] };
+    (loadHandle as Mock).mockResolvedValue({
+      name: "x.user.js",
+      getFile: async () => ({ text: async () => "// file code", name: "x.user.js" }),
+    });
+    (parseMetadata as Mock).mockReturnValue(metadata);
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "本地脚本", metadata, status: SCRIPT_STATUS_ENABLE, uuid: "u9" } as unknown as Script,
+    });
+    let finishInstall!: () => void;
+    (scriptClient.install as Mock).mockImplementation(
+      () => new Promise<void>((resolve) => (finishInstall = resolve as () => void))
+    );
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+
+    await act(async () => {
+      void result.current.toggleWatch();
+    });
+    expect(result.current.outcome.phase).toBe("installing");
+
+    // 忙态期间再点：不能再发一次安装
+    await act(async () => {
+      void result.current.toggleWatch();
+    });
+    expect(scriptClient.install as Mock).toHaveBeenCalledTimes(1);
+
+    await act(async () => finishInstall());
+    expect(result.current.watching).toBe(true);
+  });
+
+  it("安装在飞行中时再次调用 install 不会重复提交", async () => {
+    const result = await setupReady();
+    let finishInstall!: () => void;
+    (scriptClient.install as Mock).mockImplementation(
+      () => new Promise<void>((resolve) => (finishInstall = resolve as () => void))
+    );
+
+    await act(async () => {
+      void result.current.install({ closeAfterInstall: false });
+    });
+    await act(async () => {
+      void result.current.install({ closeAfterInstall: false });
+    });
+
+    expect(scriptClient.install as Mock).toHaveBeenCalledTimes(1);
+    await act(async () => finishInstall());
+    expect(result.current.outcome.phase).toBe("installed");
   });
 });

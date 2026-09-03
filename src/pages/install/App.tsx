@@ -11,7 +11,7 @@ import { SkillInstallView } from "./components/SkillInstallView";
 import { CodePreview } from "./components/CodePreview";
 import { InstallActions } from "./components/InstallActions";
 import { InstallWarning } from "./components/InstallWarning";
-import { InstallLoading, InstallError } from "./components/InstallStates";
+import { InstallLoading, InstallError, InstallExpired } from "./components/InstallStates";
 import { WatchingBanner } from "./components/WatchingBanner";
 import { ExternalAccessBanner } from "./components/ExternalAccessBanner";
 import { InstallSuccessRibbon } from "./components/InstallSuccessRibbon";
@@ -49,6 +49,7 @@ export default function App() {
     installSkill,
     cancelSkill,
     retry,
+    recheck,
     retryInstall,
   } = useInstallData();
   const [bgPrompt, setBgPrompt] = useState<{ scriptType: string; permission: PromptPermission } | null>(null);
@@ -97,7 +98,17 @@ export default function App() {
   }
 
   if (state.status === "loading") {
-    return <InstallLoading source={state.source} bytesText={state.bytesText} percent={state.percent} />;
+    return (
+      <InstallLoading
+        source={state.source}
+        bytesText={state.bytesText}
+        percent={state.percent}
+        mode={state.mode}
+      />
+    );
+  }
+  if (state.status === "expired") {
+    return <InstallExpired onRecheck={recheck} onClose={close} />;
   }
   if (state.status === "invalid") {
     return <InstallError title={t("install:invalid_page")} message={t("install:error_invalid_desc")} onClose={close} />;

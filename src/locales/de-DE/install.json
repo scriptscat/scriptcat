@@ -35,6 +35,9 @@
   "code_expand": "Ausklappen",
   "loading_title": "Skript wird geladen",
   "loading_desc": "Skriptinhalt wird von der Quelle heruntergeladen und ausgewertet",
+  "loading_title_update": "Update-Details werden vorbereitet",
+  "loading_desc_prepare": "Der vorbereitete Skriptinhalt wird gelesen",
+  "loading_desc_prepare_update": "Die heruntergeladene neue Version wird gelesen und mit der aktuellen verglichen",
   "error_retry": "Erneut versuchen",
   "error_invalid_desc": "Es fehlt ein gültiger Installationsquellen-Parameter, das Skript kann nicht geladen werden.",
   "context_install": "Skript installieren",
@@ -129,7 +132,19 @@
     "batch_done_partial": "{{updated}} aktualisiert, {{failed}} fehlgeschlagen",
     "view_updated_scripts": "Aktualisierte Skripte anzeigen",
     "record_expired": "Die Update-Daten sind abgelaufen. Bitte erneut nach Updates suchen.",
-    "open_failed": "Update-Details konnten nicht geöffnet werden. Bitte erneut versuchen."
+    "open_failed": "Update-Details konnten nicht geöffnet werden. Bitte erneut versuchen.",
+    "loading_list": "Update-Liste wird geladen",
+    "load_failed_title": "Update-Datensätze konnten nicht geladen werden",
+    "load_failed_desc": "Das Prüfergebnis konnte nicht aus dem Hintergrund gelesen werden. Bitte erneut versuchen.",
+    "script_list": "Skriptliste",
+    "check_busy": "Es läuft bereits eine Update-Prüfung",
+    "check_skipped": "Ergebnisse sind noch aktuell, es wurde nicht erneut geprüft",
+    "check_failed": "Update-Prüfung fehlgeschlagen, bitte später erneut versuchen",
+    "row_ignoring": "Wird ignoriert…",
+    "row_ignored": "v{{version}} ignoriert",
+    "row_ignore_failed": "Ignorieren fehlgeschlagen",
+    "batch_interrupted": "{{count}} aktualisiert, der Rest wurde abgebrochen, da das Prüfergebnis abgelaufen ist",
+    "silent_updated": "Automatisch auf v{{version}} aktualisiert, keine Bestätigung nötig"
   },
   "importpage": {
     "title": "Datenimport",
@@ -234,5 +249,9 @@
   "script_info_load_failed": "Skript-Informationen laden fehlgeschlagen!",
   "btn_restore": "Wiederherstellen",
   "btn_restore_update": "Wiederherstellen und aktualisieren",
-  "in_trash_hint": "Dieses Skript befindet sich im Papierkorb. Die Installation stellt es wieder her und behält die vorhandenen Daten."
+  "in_trash_hint": "Dieses Skript befindet sich im Papierkorb. Die Installation stellt es wieder her und behält die vorhandenen Daten.",
+  "expired_title": "Update-Inhalt ist abgelaufen",
+  "expired_desc": "Der für dieses Update vorbereitete Code wurde bereinigt. Bitte erneut nach Updates suchen.",
+  "expired_recheck": "Erneut nach Updates suchen",
+  "code_loading": "Code wird geladen"
 }
