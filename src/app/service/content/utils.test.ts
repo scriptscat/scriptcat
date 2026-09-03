@@ -7,8 +7,9 @@ import {
   isScriptletUnwrap,
   addStyle,
   addStyleSheet,
+  trimScriptInfo,
 } from "./utils";
-import type { ScriptRunResource } from "@App/app/repo/scripts";
+import type { SCMetadata, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import { RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
@@ -117,6 +118,59 @@ describe("utils", () => {
 
       expect(result).toContain("// Library 1 content");
       expect(result).toContain("// Library 2 content");
+      expect(result.indexOf("// Library 1 content")).toBeLessThan(result.indexOf("// Library 2 content"));
+    });
+
+    it.concurrent("应该从 category-specific resource map 编译冲突 key 的 require", () => {
+      const sharedUrl = "https://example.com/shared.js";
+      const scriptRes = createMockScriptRes({
+        metadata: { require: [sharedUrl] },
+        resource: {
+          [sharedUrl]: {
+            url: "https://example.com/wrong-resource.txt",
+            content: "wrong resource content",
+            base64: "",
+            hash: {
+              md5: "test",
+              sha1: "test",
+              sha256: "test",
+              sha384: "test",
+              sha512: "test",
+            },
+            type: "resource",
+            link: {},
+            contentType: "text/plain",
+            createtime: Date.now(),
+          },
+        },
+        resourceByType: {
+          require: {
+            [sharedUrl]: {
+              url: sharedUrl,
+              content: "correct library content",
+              base64: "",
+              hash: {
+                md5: "test",
+                sha1: "test",
+                sha256: "test",
+                sha384: "test",
+                sha512: "test",
+              },
+              type: "require",
+              link: {},
+              contentType: "text/javascript",
+              createtime: Date.now(),
+            },
+          },
+          "require-css": {},
+          resource: {},
+        },
+      });
+
+      const result = compileScriptCode(scriptRes);
+
+      expect(result).toContain("correct library content");
+      expect(result).not.toContain("wrong resource content");
     });
 
     it.concurrent("应该忽略不存在的 require 资源", () => {
@@ -216,6 +270,185 @@ describe("utils", () => {
       expect(result).toContain(
         `GM_registerMenuCommand(("ScriptCat's demo for \\"context-menu\\""), ()=>{let GM_registerMenuCommand=window.GM_registerMenuCommand=GM.registerMenuCommand=undefined;\nconsole.log(567); // testing\n}, {nested:false});\n`
       );
+    });
+  });
+
+  describe("trimScriptInfo resource selection", () => {
+    const assetName = "asset";
+    const assetDeclaration = `${assetName} https://example.com/asset.bin`;
+    const libraryUrl = "https://example.com/library.js";
+    const styleUrl = "https://example.com/style.css";
+    const resourceGrants = ["GM_getResourceText", "GM_getResourceURL", "GM.getResourceText", "GM.getResourceUrl"];
+
+    const resource = (url: string, content: string) => ({
+      url,
+      content,
+      base64: "",
+      hash: { md5: "test", sha1: "test", sha256: "test", sha384: "test", sha512: "test" },
+      type: "resource" as const,
+      link: {},
+      contentType: "text/plain",
+      createtime: Date.now(),
+    });
+
+    const createScript = (metadata: SCMetadata, resourceKeys: string[]) =>
+      ({
+        uuid: "trim-test-uuid",
+        name: "Trim test",
+        namespace: "trim.test",
+        type: 1,
+        status: 1,
+        sort: 0,
+        runStatus: "complete",
+        createtime: Date.now(),
+        checktime: Date.now(),
+        code: "",
+        value: {},
+        flag: "trim-test-flag",
+        resource: Object.fromEntries(
+          resourceKeys.map((key) => [
+            key,
+            resource(
+              key === assetName ? "https://example.com/asset.bin" : key,
+              key === libraryUrl ? "library content" : key === styleUrl ? "body { color: red; }" : "asset content"
+            ),
+          ])
+        ),
+        metadata,
+        originalMetadata: {},
+      }) as unknown as ScriptLoadInfo;
+
+    it.each([
+      {
+        name: "drops @resource without a resource grant",
+        metadata: { resource: [assetDeclaration] },
+        resourceKeys: [assetName],
+        expected: [],
+      },
+      {
+        name: "drops @resource for ordinary @grant none",
+        metadata: { grant: ["none"], resource: [assetDeclaration] },
+        resourceKeys: [assetName],
+        expected: [],
+      },
+      {
+        name: "does not forward @require after Service Worker compilation",
+        metadata: { require: [libraryUrl] },
+        resourceKeys: [libraryUrl],
+        expected: [],
+      },
+      {
+        name: "keeps @require-css independently of resource grants",
+        metadata: { "require-css": [styleUrl] },
+        resourceKeys: [styleUrl],
+        expected: [],
+        expectedCss: [styleUrl],
+      },
+      {
+        name: "keeps CSS and granted @resource but not compiled @require",
+        metadata: {
+          grant: ["GM_getResourceText"],
+          resource: [assetDeclaration],
+          require: [libraryUrl],
+          "require-css": [styleUrl],
+        },
+        resourceKeys: [assetName, libraryUrl, styleUrl],
+        expected: [assetName],
+        expectedCss: [styleUrl],
+      },
+      {
+        name: "keeps CSS when @grant none disables resource APIs",
+        metadata: {
+          grant: ["none", "GM_getResourceText"],
+          resource: [assetDeclaration],
+          "require-css": [styleUrl],
+        },
+        resourceKeys: [assetName, styleUrl],
+        expected: [],
+        expectedCss: [styleUrl],
+      },
+    ])("$name", ({ metadata, resourceKeys, expected, expectedCss }) => {
+      const trimmed = trimScriptInfo(createScript(metadata, resourceKeys));
+
+      expect(Object.keys(trimmed.resource).sort()).toEqual(expected.sort());
+      expect(Object.keys(trimmed.requireCssResource || {}).sort()).toEqual((expectedCss || []).sort());
+    });
+
+    it.each(resourceGrants)("keeps @resource for %s", (grant) => {
+      const trimmed = trimScriptInfo(createScript({ grant: [grant], resource: [assetDeclaration] }, [assetName]));
+
+      expect(Object.keys(trimmed.resource)).toEqual([assetName]);
+    });
+
+    it("keeps a resource grant in context-menu scripts after removing none", () => {
+      const trimmed = trimScriptInfo(
+        createScript(
+          {
+            grant: ["none", "GM_getResourceText"],
+            resource: [assetDeclaration],
+            "run-at": ["context-menu"],
+          },
+          [assetName]
+        )
+      );
+
+      expect(Object.keys(trimmed.resource)).toEqual([assetName]);
+    });
+
+    it("keeps category-specific values when resource keys collide", () => {
+      const sharedKey = "https://example.com/shared";
+      const script = createScript(
+        {
+          grant: ["GM_getResourceText"],
+          resource: [`${sharedKey} https://example.com/data.txt`],
+          "require-css": [sharedKey],
+        },
+        [sharedKey]
+      );
+      script.resourceByType = {
+        require: { [sharedKey]: resource(sharedKey, "library content") },
+        "require-css": { [sharedKey]: resource(sharedKey, "body { color: red; }") },
+        resource: { [sharedKey]: resource("https://example.com/data.txt", "resource content") },
+      };
+
+      const trimmed = trimScriptInfo(script);
+
+      expect(trimmed.resource[sharedKey]?.content).toBe("resource content");
+      expect(trimmed.requireCssResource?.[sharedKey]?.content).toBe("body { color: red; }");
+    });
+
+    it("does not expose malformed @resource declarations", () => {
+      const script = createScript(
+        {
+          grant: ["GM_getResourceText"],
+          resource: [assetName, `${assetName} https://example.com/asset.bin extra`],
+        },
+        [assetName]
+      );
+
+      expect(Object.keys(trimScriptInfo(script).resource)).toEqual([]);
+    });
+
+    it("does not mutate the full resource map while trimming", () => {
+      const script = createScript(
+        {
+          grant: ["GM_getResourceText"],
+          resource: [assetDeclaration],
+          require: [libraryUrl],
+          "require-css": [styleUrl],
+        },
+        [assetName, libraryUrl, styleUrl]
+      );
+      const originalResourceKeys = Object.keys(script.resource);
+
+      const trimmed = trimScriptInfo(script);
+
+      expect(Object.keys(script.resource)).toEqual(originalResourceKeys);
+      expect(trimmed.resource[assetName]).toEqual({
+        base64: "",
+        content: "asset content",
+        contentType: "text/plain",
+      });
     });
   });
 

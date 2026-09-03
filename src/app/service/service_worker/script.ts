@@ -895,14 +895,19 @@ export class ScriptService {
     const ret = buildScriptRunResourceBasic(script);
     return Promise.all([
       this.valueService.getScriptValue(ret),
-      this.resourceService.getScriptResourceValue(ret),
+      this.resourceService.getScriptResourceValueByType(ret),
       this.scriptCodeDAO.get(script.uuid),
-    ]).then(([value, resource, code]) => {
+    ]).then(([value, resourceByType, code]) => {
       if (!code) {
         throw new Error("code is null");
       }
       ret.value = value;
-      ret.resource = resource;
+      ret.resourceByType = resourceByType;
+      ret.resource = {
+        ...resourceByType.require,
+        ...resourceByType["require-css"],
+        ...resourceByType.resource,
+      };
       ret.code = code.code;
       return ret;
     });

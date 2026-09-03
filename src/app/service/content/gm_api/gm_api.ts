@@ -1557,7 +1557,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public GM_getResourceText(name: string): string | undefined {
-    const r = this.scriptRes?.resource?.[name];
+    const r = (this.scriptRes?.resourceByType?.resource ?? this.scriptRes?.resource)?.[name];
     if (r) {
       return r.content;
     }
@@ -1575,7 +1575,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public GM_getResourceURL(name: string, isBlobUrl?: boolean): string | undefined {
-    const r = this.scriptRes?.resource?.[name];
+    const r = (this.scriptRes?.resourceByType?.resource ?? this.scriptRes?.resource)?.[name];
     if (r) {
       let base64 = r.base64;
       if (!base64) {

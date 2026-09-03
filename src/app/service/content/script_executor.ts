@@ -152,7 +152,7 @@ export class ScriptExecutor {
     });
     this.execScriptMap.set(scriptLoadInfo.uuid, execScript);
     const metadata = scriptLoadInfo.metadata || {};
-    const resource = scriptLoadInfo.resource;
+    const resource = scriptLoadInfo.requireCssResource ?? scriptLoadInfo.resource;
     // 注入css
     if (metadata["require-css"] && resource) {
       for (const val of metadata["require-css"]) {
