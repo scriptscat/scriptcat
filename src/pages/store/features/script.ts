@@ -83,7 +83,7 @@ export const requestOpenUpdatePageByUUID = async (uuid: string) => {
 
 export const requestOpenBatchUpdatePage = async (domain: string) => {
   return await scriptClient.openBatchUpdatePage({
-    q: `autoclose=-1${domain ? `&site=${domain}` : ""}`,
+    q: domain ? `site=${domain}` : "",
     dontCheckNow: false,
   } as TOpenBatchUpdatePageOption);
 };

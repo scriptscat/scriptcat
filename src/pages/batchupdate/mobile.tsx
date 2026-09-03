@@ -9,7 +9,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@App/pages/
 import { Surface } from "@App/pages/components/ui/surface";
 import type { RowState, UpdateItem } from "./logic";
 import {
-  AutoCloseChip,
   BatchSummary,
   ConnectBadge,
   EmptyState,
@@ -242,18 +241,10 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
               {t("install:updatepage.selected_count", { selected: selectedCount, total: view.updates.length })}
             </span>
           </div>
-          {view.autoClose !== null || view.autoCloseCancelled ? (
-            <AutoCloseChip
-              seconds={view.autoClose}
-              cancelled={view.autoCloseCancelled}
-              onCancel={view.onCancelAutoClose}
-            />
-          ) : (
-            view.ignored.length > 0 && (
-              <span className="text-xs text-muted-foreground">
-                {t("install:updatepage.ignored_count", { count: view.ignored.length })}
-              </span>
-            )
+          {view.ignored.length > 0 && (
+            <span className="text-xs text-muted-foreground">
+              {t("install:updatepage.ignored_count", { count: view.ignored.length })}
+            </span>
           )}
         </div>
       )}

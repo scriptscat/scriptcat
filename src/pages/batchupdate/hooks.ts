@@ -31,16 +31,6 @@ const SUMMARY_LINGER_MS = 5000;
 /** options 页脚本列表；脚本列表的排序状态存在 localStorage 里，URL 无法表达，因此只跳转不带排序 */
 const SCRIPT_LIST_URL = "/src/options.html#/";
 
-/** 自动关闭倒计时；cancelled 与「URL 未要求自动关闭」必须区分开，后者不应显示药丸 */
-type AutoCloseState = { seconds: number | null; cancelled: boolean };
-
-/** 解析 URL 上的 autoclose 参数；> 0 时返回秒数，否则返回 null（不自动关闭） */
-function parseAutoClose(): number | null {
-  const raw = new URLSearchParams(window.location.search).get("autoclose");
-  const n = raw === null ? NaN : parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
 /** 解析 URL 上的 site 参数（触发更新页的当前网址域名）；命中该站点的更新会优先靠前 */
 function parseSite(): string {
   return new URLSearchParams(window.location.search).get("site") || "";
@@ -54,10 +44,6 @@ export function useBatchUpdate(): BatchUpdateViewProps {
   const [checking, setChecking] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [autoCloseState, setAutoCloseState] = useState<AutoCloseState>(() => ({
-    seconds: parseAutoClose(),
-    cancelled: false,
-  }));
   // 触发本次更新页的当前网址：命中该站点的更新在列表中优先靠前。整页生命周期内不变。
   const [site] = useState(parseSite);
 
@@ -167,21 +153,6 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     };
   }, []);
 
-  // 自动关闭倒计时：每秒递减一次（标签页不可见或已取消时不动）
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setAutoCloseState((s) => (s.seconds === null || document.hidden ? s : { ...s, seconds: s.seconds - 1 }));
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, []);
-  useEffect(() => {
-    if (autoCloseState.seconds !== null && autoCloseState.seconds <= 0) window.close();
-  }, [autoCloseState.seconds]);
-
-  const cancelAutoClose = useCallback(() => {
-    setAutoCloseState((s) => (s.seconds === null ? s : { seconds: null, cancelled: true }));
-  }, []);
-
   const { updates, ignored } = useMemo(() => {
     const grouped = categorize(records, site);
     if (dismissed.size === 0) return grouped;
@@ -209,6 +180,23 @@ export function useBatchUpdate(): BatchUpdateViewProps {
   );
 
   /**
+   * 服务端的检查结果只存在 Service Worker 内存里，SW 被回收、或脚本在别处被装过，
+   * 整批更新就会以 record_expired 失败——页面开着不动很容易撞上。
+   * 因此先自动重查一次，再把仍然有更新的条目接着做完；重查后已是最新的条目直接出队，不算失败。
+   */
+  const refreshPending = useCallback(
+    async (pending: UpdateItem[]): Promise<UpdateItem[]> => {
+      await requestCheckScriptUpdate({ checkType: "user" });
+      const list = await loadRecord();
+      // list 为 null 表示这次刷新被并发的加载挡掉了，无从判断谁还需要更新，整批照原样重试
+      if (!list) return pending;
+      const alive = new Set(list.filter((record) => record.checkUpdate).map((record) => record.uuid));
+      return pending.filter((item) => alive.has(item.uuid));
+    },
+    [loadRecord]
+  );
+
+  /**
    * 逐条发起更新：页面自己串行推进，进度即「已回报条数 / 目标条数」。
    * 之所以不让服务端广播增量进度：广播是全局的，多个更新页会互相看到对方的进度，
    * 而单条请求的返回值天然只属于发起它的这一行。
@@ -217,7 +205,6 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     async (items: UpdateItem[], batch: boolean) => {
       const targets = items.filter((item) => !isRowInFlight(rowStatesRef.current[item.uuid]));
       if (targets.length === 0) return;
-      cancelAutoClose();
       setRecordExpired(false);
       commitRows((draft) => {
         for (const item of targets) draft[item.uuid] = { phase: batch ? "queued" : "working" };
@@ -225,8 +212,12 @@ export function useBatchUpdate(): BatchUpdateViewProps {
       if (batch) setBatchProgress({ done: 0, total: targets.length, failed: 0, finished: false });
 
       let failed = 0;
-      for (let i = 0; i < targets.length; i++) {
-        const item = targets[i];
+      // 重查会改变待办条目，队列与下标因此是可变的：失效重来时下标停在原地，队列换成重查后的剩余项
+      let queue = targets;
+      let index = 0;
+      let rechecked = false;
+      while (index < queue.length) {
+        const item = queue[index];
         commitRows((draft) => {
           draft[item.uuid] = { phase: "working" };
         });
@@ -235,14 +226,26 @@ export function useBatchUpdate(): BatchUpdateViewProps {
           actionPayload: [{ uuid: item.uuid }],
         });
         if (res && !res.ok) {
-          // 服务端的检查结果已失效，余下的条目连尝试的意义都没有：回到初始态，等用户重新检查
+          if (rechecked) {
+            // 重查过一次仍然失效，问题不在缓存新鲜度上：回到初始态，把决定权交回用户
+            commitRows((draft) => {
+              for (const rest of queue.slice(index)) delete draft[rest.uuid];
+            });
+            setRecordExpired(true);
+            setBatchProgress(null);
+            flushDeferredReload();
+            return;
+          }
+          rechecked = true;
+          const pending = queue.slice(index);
+          const alive = await refreshPending(pending);
+          const aliveUuids = new Set(alive.map((entry) => entry.uuid));
           commitRows((draft) => {
-            for (let rest = i; rest < targets.length; rest++) delete draft[targets[rest].uuid];
+            for (const entry of pending) if (!aliveUuids.has(entry.uuid)) delete draft[entry.uuid];
           });
-          setRecordExpired(true);
-          setBatchProgress(null);
-          flushDeferredReload();
-          return;
+          queue = [...queue.slice(0, index), ...alive];
+          if (batch) setBatchProgress({ done: index, total: queue.length, failed, finished: false });
+          continue;
         }
         const result = res?.items.find((entry) => entry.uuid === item.uuid);
         if (result?.success) {
@@ -256,26 +259,32 @@ export function useBatchUpdate(): BatchUpdateViewProps {
             draft[item.uuid] = { phase: "fail", error: result?.error ?? "" };
           });
         }
+        index += 1;
         if (batch) {
-          setBatchProgress({ done: i + 1, total: targets.length, failed, finished: i + 1 === targets.length });
+          setBatchProgress({ done: index, total: queue.length, failed, finished: index === queue.length });
         }
       }
 
       if (batch) {
-        const updated = targets.length - failed;
-        // 汇总条驻留几秒后自动收起；按对象身份比对，避免收掉的是下一批的进度
-        const summary: BatchProgress = { done: targets.length, total: targets.length, failed, finished: true };
-        setBatchProgress(summary);
-        setTimer(() => setBatchProgress((p) => (p === summary ? null : p)), SUMMARY_LINGER_MS);
-        if (failed > 0) {
-          notify.warning(t("install:updatepage.batch_done_partial", { updated, failed }));
+        if (queue.length === 0) {
+          // 重查后整批都已是最新，一条都没动过，没有可汇报的结果
+          setBatchProgress(null);
         } else {
-          notify.success(t("install:updatepage.batch_done", { count: updated }));
+          const updated = queue.length - failed;
+          // 汇总条驻留几秒后自动收起；按对象身份比对，避免收掉的是下一批的进度
+          const summary: BatchProgress = { done: queue.length, total: queue.length, failed, finished: true };
+          setBatchProgress(summary);
+          setTimer(() => setBatchProgress((p) => (p === summary ? null : p)), SUMMARY_LINGER_MS);
+          if (failed > 0) {
+            notify.warning(t("install:updatepage.batch_done_partial", { updated, failed }));
+          } else {
+            notify.success(t("install:updatepage.batch_done", { count: updated }));
+          }
         }
       }
       flushDeferredReload();
     },
-    [cancelAutoClose, commitRows, flushDeferredReload, scheduleRowExit, setTimer, t]
+    [commitRows, flushDeferredReload, refreshPending, scheduleRowExit, setTimer, t]
   );
 
   const onUpdate = useCallback(
@@ -285,16 +294,12 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     [runUpdates]
   );
 
-  const onIgnore = useCallback(
-    (item: UpdateItem) => {
-      cancelAutoClose();
-      void requestBatchUpdateListAction({
-        actionCode: BatchUpdateListActionCode.IGNORE,
-        actionPayload: [{ uuid: item.uuid, ignoreVersion: item.newVersion }],
-      });
-    },
-    [cancelAutoClose]
-  );
+  const onIgnore = useCallback((item: UpdateItem) => {
+    void requestBatchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.IGNORE,
+      actionPayload: [{ uuid: item.uuid, ignoreVersion: item.newVersion }],
+    });
+  }, []);
 
   const onUpdateSelected = useCallback(() => {
     const targets = updates.filter((u) => selected.has(u.uuid));
@@ -303,7 +308,6 @@ export function useBatchUpdate(): BatchUpdateViewProps {
   }, [updates, selected, runUpdates]);
 
   const onIgnoreSelected = useCallback(() => {
-    cancelAutoClose();
     const payload = updates
       .filter((u) => selected.has(u.uuid))
       .map((u) => ({ uuid: u.uuid, ignoreVersion: u.newVersion }));
@@ -311,39 +315,33 @@ export function useBatchUpdate(): BatchUpdateViewProps {
       void requestBatchUpdateListAction({ actionCode: BatchUpdateListActionCode.IGNORE, actionPayload: payload });
     }
     setSelected(new Set());
-  }, [updates, selected, cancelAutoClose]);
+  }, [updates, selected]);
 
   const onRestoreAll = useCallback(() => {
     void runUpdates(ignored, true);
   }, [ignored, runUpdates]);
 
   const onCheckNow = useCallback(() => {
-    cancelAutoClose();
     setRecordExpired(false);
     userCheckPendingRef.current = true;
     void requestCheckScriptUpdate({ checkType: "user" });
-  }, [cancelAutoClose]);
+  }, []);
 
-  const onToggle = useCallback(
-    (uuid: string) => {
-      cancelAutoClose();
-      setSelected((prev) => {
-        const next = new Set(prev);
-        if (next.has(uuid)) next.delete(uuid);
-        else next.add(uuid);
-        return next;
-      });
-    },
-    [cancelAutoClose]
-  );
+  const onToggle = useCallback((uuid: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(uuid)) next.delete(uuid);
+      else next.add(uuid);
+      return next;
+    });
+  }, []);
 
   const onToggleAll = useCallback(() => {
-    cancelAutoClose();
     setSelected((prev) => {
       if (updates.length > 0 && updates.every((u) => prev.has(u.uuid))) return new Set();
       return new Set(updates.map((u) => u.uuid));
     });
-  }, [updates, cancelAutoClose]);
+  }, [updates]);
 
   const onOpen = useCallback((uuid: string) => {
     void requestOpenUpdatePageByUUID(uuid);
@@ -361,8 +359,6 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     checking,
     loading,
     selected,
-    autoClose: autoCloseState.seconds,
-    autoCloseCancelled: autoCloseState.cancelled,
     rowStates,
     batchProgress,
     recordExpired,
@@ -375,7 +371,6 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     onIgnoreSelected,
     onRestoreAll,
     onCheckNow,
-    onCancelAutoClose: cancelAutoClose,
     onOpen,
     onOpenScriptList,
   };
