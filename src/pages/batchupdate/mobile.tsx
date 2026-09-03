@@ -57,6 +57,7 @@ function MobileCard({
   item,
   state,
   selected,
+  opening,
   onToggle,
   onOpen,
   onUpdate,
@@ -67,6 +68,7 @@ function MobileCard({
   item: UpdateItem;
   state?: RowState;
   selected?: boolean;
+  opening?: boolean;
   onToggle?: (uuid: string) => void;
   onOpen: (uuid: string) => void;
   onUpdate?: (item: UpdateItem) => void;
@@ -91,7 +93,7 @@ function MobileCard({
         )}
         <span className={cn("flex min-w-0 flex-1 items-center gap-2.5", dim)}>
           <ScriptAvatar name={item.name} iconUrl={item.iconUrl} />
-          <ScriptName name={item.name} onClick={() => onOpen(item.uuid)} />
+          <ScriptName name={item.name} loading={opening} onClick={() => onOpen(item.uuid)} />
         </span>
         <StatusBadge enabled={item.enabled} />
       </div>
@@ -172,6 +174,7 @@ function MobileIgnored({ view }: { view: BatchUpdateViewProps }) {
             item={item}
             state={view.rowStates[item.uuid]}
             ignoredCard
+            opening={view.opening.has(item.uuid)}
             onOpen={view.onOpen}
             onRestore={view.onRestore}
           />
@@ -271,6 +274,7 @@ export function MobileView({ view }: { view: BatchUpdateViewProps }) {
                 item={item}
                 state={view.rowStates[item.uuid]}
                 selected={view.selected.has(item.uuid)}
+                opening={view.opening.has(item.uuid)}
                 onToggle={view.onToggle}
                 onOpen={view.onOpen}
                 onUpdate={view.onUpdate}

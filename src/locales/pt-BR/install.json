@@ -128,7 +128,8 @@
     "batch_done": "{{count}} scripts atualizados",
     "batch_done_partial": "{{updated}} atualizados, {{failed}} com falha",
     "view_updated_scripts": "Ver scripts atualizados",
-    "record_expired": "Os dados de atualização expiraram. Verifique as atualizações novamente."
+    "record_expired": "Os dados de atualização expiraram. Verifique as atualizações novamente.",
+    "open_failed": "Falha ao abrir os detalhes da atualização. Tente novamente."
   },
   "importpage": {
     "title": "Importação de dados",

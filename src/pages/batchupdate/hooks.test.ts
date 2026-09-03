@@ -19,9 +19,10 @@ const h = vi.hoisted(() => ({
   sendUpdatePageOpened: vi.fn(() => Promise.resolve()),
   requestCheckScriptUpdate: vi.fn(() => Promise.resolve()),
   requestBatchUpdateListAction: vi.fn((): Promise<TBatchUpdateResult | undefined> => Promise.resolve(undefined)),
-  requestOpenUpdatePageByUUID: vi.fn(() => Promise.resolve()),
+  requestOpenUpdatePageByUUID: vi.fn(() => Promise.resolve(true)),
   toastSuccess: vi.fn(),
   toastWarning: vi.fn(),
+  toastError: vi.fn(),
   openInCurrentTab: vi.fn(() => Promise.resolve()),
 }));
 
@@ -50,7 +51,7 @@ vi.mock("@App/pages/store/global", () => ({
 vi.mock("@App/pages/components/ui/toast", () => ({
   notify: {
     success: h.toastSuccess,
-    error: vi.fn(),
+    error: h.toastError,
     info: vi.fn(),
     warning: h.toastWarning,
     loading: vi.fn(),
@@ -371,5 +372,61 @@ describe("批量更新 Hook useBatchUpdate 查看更新的脚本", () => {
     act(() => result.current.onOpenScriptList());
 
     expect(h.openInCurrentTab).toHaveBeenCalledWith("/src/options.html#/");
+  });
+});
+
+describe("批量更新 Hook useBatchUpdate 打开更新详情", () => {
+  it("打开过程中标记该行为进行中，重复点击不再重复发起", async () => {
+    let resolveOpen!: (value: boolean) => void;
+    h.requestOpenUpdatePageByUUID.mockImplementationOnce(
+      () => new Promise<boolean>((resolve) => (resolveOpen = resolve))
+    );
+    const { result } = await setup([mkRecord("a")]);
+
+    await act(async () => {
+      void result.current.onOpen("a");
+    });
+    expect(result.current.opening.has("a")).toBe(true);
+
+    await act(async () => {
+      void result.current.onOpen("a");
+    });
+    expect(h.requestOpenUpdatePageByUUID).toHaveBeenCalledTimes(1);
+
+    await act(async () => resolveOpen(true));
+
+    expect(result.current.opening.has("a")).toBe(false);
+  });
+
+  it("打开失败时提示用户并解除进行中标记", async () => {
+    h.requestOpenUpdatePageByUUID.mockResolvedValueOnce(false);
+    const { result } = await setup([mkRecord("a")]);
+
+    await act(async () => result.current.onOpen("a"));
+
+    expect(h.toastError).toHaveBeenCalledWith(t("install:updatepage.open_failed"));
+    expect(result.current.opening.has("a")).toBe(false);
+  });
+
+  it("请求本身报错时同样给出失败反馈而不是一直转圈", async () => {
+    h.requestOpenUpdatePageByUUID.mockRejectedValueOnce(new Error("boom"));
+    const { result } = await setup([mkRecord("a")]);
+
+    await act(async () => result.current.onOpen("a"));
+
+    expect(h.toastError).toHaveBeenCalledWith(expect.stringContaining(t("install:updatepage.open_failed")));
+    expect(h.toastError.mock.calls[0][0]).toContain("boom");
+    expect(result.current.opening.has("a")).toBe(false);
+  });
+
+  it("点开更新详情算显式操作，停掉自动关闭倒计时", async () => {
+    window.history.replaceState({}, "", "/?autoclose=30");
+    const { result } = await setup([mkRecord("a")]);
+
+    await act(async () => result.current.onOpen("a"));
+
+    expect(result.current.autoClose).toBeNull();
+    expect(result.current.autoCloseCancelled).toBe(true);
+    window.history.replaceState({}, "", "/");
   });
 });

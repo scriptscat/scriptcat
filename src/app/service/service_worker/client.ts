@@ -273,7 +273,7 @@ export class ScriptClient extends Client {
   }
 
   async openUpdatePageByUUID(uuid: string) {
-    return this.do<void>("openUpdatePageByUUID", uuid);
+    return this.do<boolean>("openUpdatePageByUUID", uuid);
   }
 
   async openBatchUpdatePage(opts: TOpenBatchUpdatePageOption) {

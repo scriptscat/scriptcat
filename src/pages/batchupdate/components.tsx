@@ -45,6 +45,8 @@ export interface BatchUpdateViewProps {
   autoCloseCancelled: boolean;
   /** 按 uuid 索引的行内更新状态；不在表内即为初始态 */
   rowStates: Record<string, RowState>;
+  /** 正在打开更新详情页的脚本 uuid：服务端备代码期间行内转圈并挡住重复点击 */
+  opening: Set<string>;
   /** 批量操作进度；为 null 表示当前没有批量操作 */
   batchProgress: BatchProgress | null;
   /** 服务端检查结果已失效，需重新检查更新 */
@@ -168,16 +170,20 @@ export function SourceCell({ source }: { source: string }) {
   );
 }
 
-/** 可点击跳转更新详情页的脚本名（过长时 tooltip 显示全名） */
-export function ScriptName({ name, onClick }: { name: string; onClick: () => void }) {
+/** 可点击跳转更新详情页的脚本名（过长时 tooltip 显示全名）；loading 期间转圈并拒绝再次点击 */
+export function ScriptName({ name, loading, onClick }: { name: string; loading?: boolean; onClick: () => void }) {
   return (
     <HoverTip content={name}>
       <button
         type="button"
         onClick={onClick}
-        className="min-w-0 flex-1 truncate text-left text-sm font-medium text-foreground hover:text-primary hover:underline"
+        disabled={loading}
+        aria-busy={loading}
+        data-testid="script-name"
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-sm font-medium text-foreground hover:text-primary hover:underline disabled:cursor-progress"
       >
-        {name}
+        <span className="truncate">{name}</span>
+        {loading && <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" />}
       </button>
     </HoverTip>
   );
@@ -408,6 +414,7 @@ function DesktopRow({
   item,
   state,
   selected,
+  opening,
   onToggle,
   onOpen,
   onUpdate,
@@ -418,6 +425,7 @@ function DesktopRow({
   item: UpdateItem;
   state?: RowState;
   selected?: boolean;
+  opening?: boolean;
   onToggle?: (uuid: string) => void;
   onOpen: (uuid: string) => void;
   onUpdate?: (item: UpdateItem) => void;
@@ -444,7 +452,7 @@ function DesktopRow({
       </div>
       <div className={cn("flex flex-1 items-center gap-2.5 min-w-0", dim)}>
         <ScriptAvatar name={item.name} iconUrl={item.iconUrl} />
-        <ScriptName name={item.name} onClick={() => onOpen(item.uuid)} />
+        <ScriptName name={item.name} loading={opening} onClick={() => onOpen(item.uuid)} />
         <StatusBadge enabled={item.enabled} />
       </div>
       <div className={cn(COL.version, dim)}>
@@ -493,6 +501,7 @@ function DesktopTable({ view }: { view: BatchUpdateViewProps }) {
           item={item}
           state={view.rowStates[item.uuid]}
           selected={view.selected.has(item.uuid)}
+          opening={view.opening.has(item.uuid)}
           onToggle={view.onToggle}
           onOpen={view.onOpen}
           onUpdate={view.onUpdate}
@@ -525,6 +534,7 @@ function DesktopIgnored({ view }: { view: BatchUpdateViewProps }) {
               item={item}
               state={view.rowStates[item.uuid]}
               ignoredRow
+              opening={view.opening.has(item.uuid)}
               onOpen={view.onOpen}
               onRestore={view.onRestore}
             />

@@ -66,6 +66,9 @@ export function useBatchUpdate(): BatchUpdateViewProps {
   const [recordExpired, setRecordExpired] = useState(false);
   // 已播完退场动画、等待下一次全量刷新兜底的行
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  // 正在打开更新详情页的行；ref 与 state 同步，前者用于同步挡住连点，后者驱动行内转圈
+  const [opening, setOpening] = useState<Set<string>>(() => new Set());
+  const openingRef = useRef<Set<string>>(new Set());
 
   const loadingRef = useRef(false);
   // 标记本次检查由用户主动发起（点击「检查更新」），用于在检查完成后弹出反馈 toast
@@ -127,6 +130,12 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     deferredReloadRef.current = null;
     applyReload(deferred.finished);
   }, [applyReload]);
+
+  const markOpening = useCallback((uuid: string, busy: boolean) => {
+    if (busy) openingRef.current.add(uuid);
+    else openingRef.current.delete(uuid);
+    setOpening(new Set(openingRef.current));
+  }, []);
 
   const commitRows = useCallback((mutate: (draft: Record<string, RowState>) => void) => {
     const next = { ...rowStatesRef.current };
@@ -345,9 +354,28 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     });
   }, [updates, cancelAutoClose]);
 
-  const onOpen = useCallback((uuid: string) => {
-    void requestOpenUpdatePageByUUID(uuid);
-  }, []);
+  /**
+   * 打开更新详情：服务端要先备好待安装代码才会开出安装页，这段等待期间必须挡住重复点击，
+   * 否则连点几下就会开出好几个安装标签页。
+   */
+  const onOpen = useCallback(
+    (uuid: string) => {
+      if (openingRef.current.has(uuid)) return;
+      cancelAutoClose();
+      markOpening(uuid, true);
+      void (async () => {
+        try {
+          if (!(await requestOpenUpdatePageByUUID(uuid))) notify.error(t("install:updatepage.open_failed"));
+        } catch (e) {
+          // 消息通道本身失败（Service Worker 未就绪等）也要落到同一条反馈上，不能让这行一直转圈
+          notify.error(`${t("install:updatepage.open_failed")}: ${e instanceof Error ? e.message : String(e)}`);
+        } finally {
+          markOpening(uuid, false);
+        }
+      })();
+    },
+    [cancelAutoClose, markOpening, t]
+  );
 
   const onOpenScriptList = useCallback(() => {
     void openInCurrentTab(SCRIPT_LIST_URL);
@@ -364,6 +392,7 @@ export function useBatchUpdate(): BatchUpdateViewProps {
     autoClose: autoCloseState.seconds,
     autoCloseCancelled: autoCloseState.cancelled,
     rowStates,
+    opening,
     batchProgress,
     recordExpired,
     onToggle,

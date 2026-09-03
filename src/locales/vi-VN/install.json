@@ -128,7 +128,8 @@
     "batch_done": "Đã cập nhật {{count}} tập lệnh",
     "batch_done_partial": "Đã cập nhật {{updated}}, {{failed}} thất bại",
     "view_updated_scripts": "Xem tập lệnh đã cập nhật",
-    "record_expired": "Dữ liệu cập nhật đã hết hiệu lực. Vui lòng kiểm tra cập nhật lại."
+    "record_expired": "Dữ liệu cập nhật đã hết hiệu lực. Vui lòng kiểm tra cập nhật lại.",
+    "open_failed": "Không mở được chi tiết cập nhật. Vui lòng thử lại."
   },
   "importpage": {
     "title": "Nhập dữ liệu",
