@@ -420,6 +420,32 @@ describe.concurrent("GM xmlHttpRequest", () => {
       });
     });
   });
+  it.concurrent("upload progress", async () => {
+    const body = "hello upload body";
+    const bodySize = new TextEncoder().encode(body).length;
+    const onUploadProgress = vitest.fn();
+    const onUploadLoad = vitest.fn();
+    const onUploadLoadEnd = vitest.fn();
+    await new Promise<void>((resolve) => {
+      gmApi.GM_xmlhttpRequest({
+        method: "POST",
+        url: "https://www.example.com/upload",
+        data: body,
+        upload: {
+          onprogress: onUploadProgress,
+          onload: onUploadLoad,
+          onloadend: onUploadLoadEnd,
+        },
+        onloadend: () => resolve(),
+      });
+    });
+    expect(onUploadProgress).toBeCalled();
+    const lastProgress = onUploadProgress.mock.calls[onUploadProgress.mock.calls.length - 1][0];
+    expect(lastProgress.loaded).toBe(bodySize);
+    expect(lastProgress.total).toBe(bodySize);
+    expect(onUploadLoad).toBeCalledTimes(1);
+    expect(onUploadLoadEnd).toBeCalledTimes(1);
+  });
 });
 
 describe("GM download", () => {
