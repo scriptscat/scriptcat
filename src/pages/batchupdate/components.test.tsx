@@ -39,6 +39,7 @@ function mkView(p: Partial<BatchUpdateViewProps> = {}): BatchUpdateViewProps {
     autoClose: null,
     autoCloseCancelled: false,
     rowStates: {},
+    opening: new Set(),
     batchProgress: null,
     recordExpired: false,
     onToggle: () => {},
@@ -356,5 +357,34 @@ describe("批量更新 全部恢复并更新的确认", () => {
     renderDesktop({ ignored: [mkItem({ uuid: "i1", ignored: true })] });
     expect(screen.getByText(t("install:updatepage.restore"))).toBeTruthy();
     expect(screen.getByTestId("ignored-restore-all")).toHaveTextContent(t("install:updatepage.restore_all"));
+  });
+});
+
+describe("批量更新 打开更新详情进行中", () => {
+  it("桌面行在打开期间转圈并拒绝再次点击", () => {
+    const onOpen = vi.fn();
+    renderDesktop({ updates: [mkItem()], opening: new Set(["u1"]), onOpen });
+
+    const name = screen.getByTestId("script-name");
+    expect(name).toHaveAttribute("aria-busy", "true");
+    expect(name.querySelector(".animate-spin")).toBeTruthy();
+
+    fireEvent.click(name);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("未在打开时点击脚本名进入更新详情", () => {
+    const onOpen = vi.fn();
+    renderDesktop({ updates: [mkItem()], opening: new Set(), onOpen });
+
+    fireEvent.click(screen.getByTestId("script-name"));
+
+    expect(onOpen).toHaveBeenCalledWith("u1");
+  });
+
+  it("移动卡片在打开期间同样标记为进行中", () => {
+    renderMobile({ updates: [mkItem()], opening: new Set(["u1"]) });
+
+    expect(screen.getByTestId("script-name")).toHaveAttribute("aria-busy", "true");
   });
 });

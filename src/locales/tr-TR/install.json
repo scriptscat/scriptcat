@@ -128,7 +128,8 @@
     "batch_done": "{{count}} betik güncellendi",
     "batch_done_partial": "{{updated}} güncellendi, {{failed}} başarısız",
     "view_updated_scripts": "Güncellenen betikleri gör",
-    "record_expired": "Güncelleme verileri geçersiz oldu. Lütfen güncellemeleri yeniden denetleyin."
+    "record_expired": "Güncelleme verileri geçersiz oldu. Lütfen güncellemeleri yeniden denetleyin.",
+    "open_failed": "Güncelleme ayrıntıları açılamadı. Lütfen yeniden deneyin."
   },
   "importpage": {
     "title": "Veri İçe Aktarma",

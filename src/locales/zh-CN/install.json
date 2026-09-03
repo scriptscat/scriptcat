@@ -128,7 +128,8 @@
     "batch_done": "已更新 {{count}} 个",
     "batch_done_partial": "已更新 {{updated}} 个，{{failed}} 个失败",
     "view_updated_scripts": "查看更新的脚本",
-    "record_expired": "更新数据已过期，请重新检查更新"
+    "record_expired": "更新数据已过期，请重新检查更新",
+    "open_failed": "打开更新详情失败，请重试"
   },
   "importpage": {
     "title": "数据导入",

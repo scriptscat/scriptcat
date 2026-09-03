@@ -128,7 +128,8 @@
     "batch_done": "{{count}} Skripte aktualisiert",
     "batch_done_partial": "{{updated}} aktualisiert, {{failed}} fehlgeschlagen",
     "view_updated_scripts": "Aktualisierte Skripte anzeigen",
-    "record_expired": "Die Update-Daten sind abgelaufen. Bitte erneut nach Updates suchen."
+    "record_expired": "Die Update-Daten sind abgelaufen. Bitte erneut nach Updates suchen.",
+    "open_failed": "Update-Details konnten nicht geöffnet werden. Bitte erneut versuchen."
   },
   "importpage": {
     "title": "Datenimport",

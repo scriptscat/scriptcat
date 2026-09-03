@@ -1169,8 +1169,19 @@ export class ScriptService {
     update: boolean,
     logger?: Logger
   ) {
+    return this.prepareUpdateOrInstallPage(uuid, await fetchScriptBody(url), url, options, update, logger);
+  }
+
+  /** 已经拿到脚本代码之后的处理：静默更新判定 + 写入待安装的临时代码，由调用方决定是否打开安装页 */
+  async prepareUpdateOrInstallPage(
+    uuid: string,
+    code: string,
+    url: string,
+    options: { source: InstallSource; byWebRequest?: boolean },
+    update: boolean,
+    logger?: Logger
+  ) {
     const upsertBy = options.source;
-    const code = await fetchScriptBody(url);
     if (update) {
       try {
         const { oldScript, script } = await prepareScriptByCode(code, url, uuid);
@@ -1221,8 +1232,11 @@ export class ScriptService {
     return 1;
   }
 
-  // 打开更新窗口
-  public async openUpdatePage(script: Script, source: "user" | "system") {
+  /**
+   * 打开更新窗口。cachedNewCode 是检查阶段已经拉到的新版代码，命中时直接复用。
+   * @returns 是否已处理（打开了安装页或完成了静默更新）
+   */
+  public async openUpdatePage(script: Script, source: "user" | "system", cachedNewCode?: string) {
     const { uuid, name, downloadUrl, checkUpdateUrl } = script;
     const logger = this.logger.with({
       uuid,
@@ -1232,12 +1246,16 @@ export class ScriptService {
     });
     const url = downloadUrl || checkUpdateUrl!;
     try {
-      const ret = await this.openUpdateOrInstallPage(uuid, url, { source }, true, logger);
-      if (ret === 2) return; // slience update
+      const ret = cachedNewCode
+        ? await this.prepareUpdateOrInstallPage(uuid, cachedNewCode, url, { source }, true, logger)
+        : await this.openUpdateOrInstallPage(uuid, url, { source }, true, logger);
+      if (ret === 2) return true; // slience update
       // 打开安装页面
       openInCurrentTab(`/src/install.html?uuid=${uuid}`);
+      return true;
     } catch (e) {
       logger.error("fetch script info failed", Logger.E(e));
+      return false;
     }
   }
 
@@ -1766,12 +1784,12 @@ export class ScriptService {
 
   async openUpdatePageByUUID(uuid: string) {
     const source = "user"; // TBC
-    const oldScript = await this.scriptDAO.get(uuid);
-    if (!oldScript || oldScript.uuid !== uuid) return;
-    const { name, downloadUrl, checkUpdateUrl } = oldScript;
-    //@ts-ignore
-    const script = { uuid, name, downloadUrl, checkUpdateUrl } as Script;
-    await this.openUpdatePage(script, source);
+    const script = await this.scriptDAO.get(uuid);
+    if (!script || script.uuid !== uuid) return false;
+    // 检查记录里已经带着这次要装的新版代码：复用它既省掉一次让用户干等的网络往返，
+    // 也保证打开的正是列表上展示的那一版
+    const cachedNewCode = this.scriptUpdateCheck.cacheFull?.list?.find((entry) => entry.uuid === uuid)?.newCode;
+    return await this.openUpdatePage(script, source, cachedNewCode || undefined);
   }
 
   init() {

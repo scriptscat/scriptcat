@@ -128,7 +128,8 @@
     "batch_done": "{{count}}개를 업데이트했습니다",
     "batch_done_partial": "{{updated}}개 업데이트, {{failed}}개 실패",
     "view_updated_scripts": "업데이트된 스크립트 보기",
-    "record_expired": "업데이트 데이터가 만료되었습니다. 업데이트를 다시 확인하세요"
+    "record_expired": "업데이트 데이터가 만료되었습니다. 업데이트를 다시 확인하세요",
+    "open_failed": "업데이트 상세 정보를 열지 못했습니다. 다시 시도하세요"
   },
   "importpage": {
     "title": "데이터 가져오기",

@@ -128,7 +128,8 @@
     "batch_done": "{{count}} 件を更新しました",
     "batch_done_partial": "{{updated}} 件を更新、{{failed}} 件が失敗",
     "view_updated_scripts": "更新したスクリプトを表示",
-    "record_expired": "更新データの有効期限が切れました。もう一度更新を確認してください"
+    "record_expired": "更新データの有効期限が切れました。もう一度更新を確認してください",
+    "open_failed": "更新の詳細を開けませんでした。もう一度お試しください"
   },
   "importpage": {
     "title": "データインポート",

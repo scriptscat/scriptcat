@@ -128,7 +128,8 @@
     "batch_done": "Updated {{count}} scripts",
     "batch_done_partial": "Updated {{updated}}, {{failed}} failed",
     "view_updated_scripts": "View updated scripts",
-    "record_expired": "Update data has expired. Please check for updates again."
+    "record_expired": "Update data has expired. Please check for updates again.",
+    "open_failed": "Failed to open update details. Please try again."
   },
   "importpage": {
     "title": "Data Import",
