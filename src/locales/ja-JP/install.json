@@ -132,7 +132,19 @@
     "batch_done_partial": "{{updated}} 件を更新、{{failed}} 件が失敗",
     "view_updated_scripts": "更新したスクリプトを表示",
     "record_expired": "更新データの有効期限が切れました。もう一度更新を確認してください",
-    "open_failed": "更新の詳細を開けませんでした。もう一度お試しください"
+    "open_failed": "更新の詳細を開けませんでした。もう一度お試しください",
+    "loading_list": "更新リストを読み込み中",
+    "load_failed_title": "更新記録の読み込みに失敗しました",
+    "load_failed_desc": "バックグラウンドから今回のチェック結果を読み取れませんでした。再試行してください。",
+    "script_list": "スクリプト一覧",
+    "check_busy": "更新確認を実行中です。しばらくお待ちください",
+    "check_skipped": "結果はまだ新しいため、再チェックは行いませんでした",
+    "check_failed": "更新の確認に失敗しました。しばらくしてから再試行してください",
+    "row_ignoring": "無視中",
+    "row_ignored": "v{{version}} を無視しました",
+    "row_ignore_failed": "無視に失敗しました",
+    "batch_interrupted": "{{count}} 件を更新しました。残りはチェック結果の失効により中止されました",
+    "silent_updated": "v{{version}} にサイレント更新しました（確認不要）"
   },
   "importpage": {
     "title": "データインポート",

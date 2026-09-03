@@ -132,7 +132,19 @@
     "batch_done_partial": "已更新 {{updated}} 個，{{failed}} 個失敗",
     "view_updated_scripts": "檢視已更新的腳本",
     "record_expired": "更新資料已過期，請重新檢查更新",
-    "open_failed": "開啟更新詳情失敗，請重試"
+    "open_failed": "開啟更新詳情失敗，請重試",
+    "loading_list": "正在載入更新列表",
+    "load_failed_title": "更新記錄載入失敗",
+    "load_failed_desc": "無法從背景讀取本次檢查結果，請重試。",
+    "script_list": "腳本列表",
+    "check_busy": "正在檢查更新，請稍候",
+    "check_skipped": "檢查結果仍是最新的，未重新檢查",
+    "check_failed": "檢查更新失敗，請稍後重試",
+    "row_ignoring": "忽略中",
+    "row_ignored": "已忽略 v{{version}}",
+    "row_ignore_failed": "忽略失敗",
+    "batch_interrupted": "已更新 {{count}} 個，其餘因檢查結果失效中止",
+    "silent_updated": "已靜默更新到 v{{version}}，無需確認"
   },
   "importpage": {
     "title": "資料匯入",

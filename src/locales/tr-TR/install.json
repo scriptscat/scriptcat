@@ -132,7 +132,19 @@
     "batch_done_partial": "{{updated}} güncellendi, {{failed}} başarısız",
     "view_updated_scripts": "Güncellenen betikleri gör",
     "record_expired": "Güncelleme verileri geçersiz oldu. Lütfen güncellemeleri yeniden denetleyin.",
-    "open_failed": "Güncelleme ayrıntıları açılamadı. Lütfen yeniden deneyin."
+    "open_failed": "Güncelleme ayrıntıları açılamadı. Lütfen yeniden deneyin.",
+    "loading_list": "Güncelleme listesi yükleniyor",
+    "load_failed_title": "Güncelleme kayıtları yüklenemedi",
+    "load_failed_desc": "Kontrol sonucu arka plandan okunamadı. Lütfen tekrar deneyin.",
+    "script_list": "Betik listesi",
+    "check_busy": "Zaten bir güncelleme kontrolü çalışıyor",
+    "check_skipped": "Sonuçlar hâlâ güncel, yeniden kontrol edilmedi",
+    "check_failed": "Güncelleme kontrolü başarısız oldu, lütfen daha sonra tekrar deneyin",
+    "row_ignoring": "Yok sayılıyor…",
+    "row_ignored": "v{{version}} yok sayıldı",
+    "row_ignore_failed": "Yok sayma başarısız",
+    "batch_interrupted": "{{count}} güncellendi, kontrol sonucu geçersizleştiği için kalanlar durduruldu",
+    "silent_updated": "Sessizce v{{version}} sürümüne güncellendi, onay gerekmiyor"
   },
   "importpage": {
     "title": "Veri İçe Aktarma",

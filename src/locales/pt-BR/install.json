@@ -132,7 +132,19 @@
     "batch_done_partial": "{{updated}} atualizados, {{failed}} com falha",
     "view_updated_scripts": "Ver scripts atualizados",
     "record_expired": "Os dados de atualização expiraram. Verifique as atualizações novamente.",
-    "open_failed": "Falha ao abrir os detalhes da atualização. Tente novamente."
+    "open_failed": "Falha ao abrir os detalhes da atualização. Tente novamente.",
+    "loading_list": "Carregando lista de atualizações",
+    "load_failed_title": "Falha ao carregar os registros de atualização",
+    "load_failed_desc": "Não foi possível ler o resultado da verificação em segundo plano. Tente novamente.",
+    "script_list": "Lista de scripts",
+    "check_busy": "Já existe uma verificação de atualizações em andamento",
+    "check_skipped": "Os resultados ainda estão atualizados, nenhuma nova verificação foi feita",
+    "check_failed": "Falha ao verificar atualizações, tente novamente mais tarde",
+    "row_ignoring": "Ignorando…",
+    "row_ignored": "v{{version}} ignorada",
+    "row_ignore_failed": "Falha ao ignorar",
+    "batch_interrupted": "{{count}} atualizado(s), o restante foi interrompido porque o resultado da verificação expirou",
+    "silent_updated": "Atualizado silenciosamente para v{{version}}, sem necessidade de confirmação"
   },
   "importpage": {
     "title": "Importação de dados",

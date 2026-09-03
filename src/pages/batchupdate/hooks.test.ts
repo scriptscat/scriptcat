@@ -6,20 +6,27 @@ import type {
   TBatchUpdateRecord,
   TBatchUpdateRecordObject,
   TBatchUpdateResult,
+  TCheckScriptUpdateResult,
+  TOpenUpdatePageResult,
 } from "@App/app/service/service_worker/types";
 import type * as Utils from "@App/pkg/utils/utils";
 
 // useBatchUpdate 通过消息总线订阅检查状态、拉取记录并发起动作；这里整体打桩，
 // 只验证「用户主动点检查更新 → 完成后弹 toast」的反馈逻辑。
+const freshResult: TCheckScriptUpdateResult = { ok: true, targetSites: [], fresh: true, checktime: 200 };
+
 const h = vi.hoisted(() => ({
   record: { checktime: 0, list: [] } as TBatchUpdateRecordObject,
   handlers: {} as Record<string, (msg: unknown) => void>,
   getBatchUpdateRecordLite: vi.fn(),
   fetchCheckUpdateStatus: vi.fn(() => Promise.resolve()),
   sendUpdatePageOpened: vi.fn(() => Promise.resolve()),
-  requestCheckScriptUpdate: vi.fn(() => Promise.resolve()),
+  requestCheckScriptUpdate: vi.fn(
+    (): Promise<TCheckScriptUpdateResult> =>
+      Promise.resolve({ ok: true, targetSites: [], fresh: true, checktime: 200 })
+  ),
   requestBatchUpdateListAction: vi.fn((): Promise<TBatchUpdateResult | undefined> => Promise.resolve(undefined)),
-  requestOpenUpdatePageByUUID: vi.fn(() => Promise.resolve(true)),
+  requestOpenUpdatePageByUUID: vi.fn((): Promise<TOpenUpdatePageResult> => Promise.resolve("opened")),
   toastSuccess: vi.fn(),
   toastWarning: vi.fn(),
   toastError: vi.fn(),
@@ -377,9 +384,9 @@ describe("批量更新 Hook useBatchUpdate 查看更新的脚本", () => {
 
 describe("批量更新 Hook useBatchUpdate 打开更新详情", () => {
   it("打开过程中标记该行为进行中，重复点击不再重复发起", async () => {
-    let resolveOpen!: (value: boolean) => void;
+    let resolveOpen!: (value: TOpenUpdatePageResult) => void;
     h.requestOpenUpdatePageByUUID.mockImplementationOnce(
-      () => new Promise<boolean>((resolve) => (resolveOpen = resolve))
+      () => new Promise<TOpenUpdatePageResult>((resolve) => (resolveOpen = resolve))
     );
     const { result } = await setup([mkRecord("a")]);
 
@@ -393,13 +400,13 @@ describe("批量更新 Hook useBatchUpdate 打开更新详情", () => {
     });
     expect(h.requestOpenUpdatePageByUUID).toHaveBeenCalledTimes(1);
 
-    await act(async () => resolveOpen(true));
+    await act(async () => resolveOpen("opened"));
 
     expect(result.current.opening.has("a")).toBe(false);
   });
 
   it("打开失败时提示用户并解除进行中标记", async () => {
-    h.requestOpenUpdatePageByUUID.mockResolvedValueOnce(false);
+    h.requestOpenUpdatePageByUUID.mockResolvedValueOnce("failed");
     const { result } = await setup([mkRecord("a")]);
 
     await act(async () => result.current.onOpen("a"));
@@ -419,6 +426,17 @@ describe("批量更新 Hook useBatchUpdate 打开更新详情", () => {
     expect(result.current.opening.has("a")).toBe(false);
   });
 
+  it("服务端判定可静默更新时给出成功反馈，而不是转一圈什么都没发生", async () => {
+    h.requestOpenUpdatePageByUUID.mockResolvedValueOnce("silent");
+    const { result } = await setup([mkRecord("a")]);
+
+    await act(async () => result.current.onOpen("a"));
+
+    expect(h.toastError).not.toHaveBeenCalled();
+    expect(h.toastSuccess).toHaveBeenCalledWith(t("install:updatepage.silent_updated", { version: "1.1.0" }));
+    expect(result.current.rowStates.a.phase).toBe("success");
+  });
+
   it("点开更新详情算显式操作，停掉自动关闭倒计时", async () => {
     window.history.replaceState({}, "", "/?autoclose=30");
     const { result } = await setup([mkRecord("a")]);
@@ -428,5 +446,152 @@ describe("批量更新 Hook useBatchUpdate 打开更新详情", () => {
     expect(result.current.autoClose).toBeNull();
     expect(result.current.autoCloseCancelled).toBe(true);
     window.history.replaceState({}, "", "/");
+  });
+});
+
+describe("批量更新 Hook useBatchUpdate 记录加载失败", () => {
+  it("取数失败时给出错误终态，而不是渲染成「所有脚本均为最新」", async () => {
+    h.getBatchUpdateRecordLite.mockRejectedValueOnce(new Error("message channel closed"));
+
+    const { result } = renderHook(() => useBatchUpdate());
+    await act(async () => {});
+
+    await waitFor(() => expect(result.current.loadError).toBe("message channel closed"));
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("重试加载成功后清除错误态", async () => {
+    h.getBatchUpdateRecordLite.mockRejectedValueOnce(new Error("boom"));
+    const { result } = renderHook(() => useBatchUpdate());
+    await act(async () => {});
+    await waitFor(() => expect(result.current.loadError).toBe("boom"));
+
+    h.record = { checktime: 200, list: [mkRecord("a")] };
+    await act(async () => result.current.onRetryLoad());
+
+    expect(result.current.loadError).toBeNull();
+    expect(result.current.updates).toHaveLength(1);
+  });
+});
+
+describe("批量更新 Hook useBatchUpdate 主动检查的空窗期", () => {
+  it("点击后立刻进入检查中，不等服务端广播回来", async () => {
+    let finishCheck!: (value: TCheckScriptUpdateResult) => void;
+    h.requestCheckScriptUpdate.mockImplementationOnce(
+      () => new Promise<TCheckScriptUpdateResult>((resolve) => (finishCheck = resolve))
+    );
+    const { result } = await setup([mkRecord("a")]);
+
+    act(() => result.current.onCheckNow());
+
+    expect(result.current.checking).toBe(true);
+
+    await act(async () => finishCheck(freshResult));
+  });
+
+  it("服务端回报正忙时提示用户并解除本地检查中状态", async () => {
+    h.requestCheckScriptUpdate.mockResolvedValueOnce({ ok: false, reason: "busy", err: "checkScriptUpdate is busy" });
+    const { result } = await setup([mkRecord("a")]);
+
+    await act(async () => result.current.onCheckNow());
+
+    await waitFor(() => expect(h.toastWarning).toHaveBeenCalledWith(t("install:updatepage.check_busy")));
+    expect(result.current.checking).toBe(false);
+  });
+
+  it("检查请求本身报错时给出失败反馈，并解除本地检查中状态", async () => {
+    h.requestCheckScriptUpdate.mockRejectedValueOnce(new Error("channel closed"));
+    const { result } = await setup([mkRecord("a")]);
+
+    await act(async () => result.current.onCheckNow());
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(expect.stringContaining(t("install:updatepage.check_failed")))
+    );
+    expect(h.toastError.mock.calls[0][0]).toContain("channel closed");
+    expect(result.current.checking).toBe(false);
+  });
+
+  it("结果够新被跳过时告知用户，且不再在下次后台检查完成时冒出用户没点过的 toast", async () => {
+    h.requestCheckScriptUpdate.mockResolvedValueOnce({ ...freshResult, fresh: false });
+    const { result } = await setup([mkRecord("a")]);
+
+    await act(async () => result.current.onCheckNow());
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith(t("install:updatepage.check_skipped")));
+    expect(result.current.checking).toBe(false);
+
+    h.toastSuccess.mockClear();
+    await runCheck([mkRecord("a")]);
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe("批量更新 Hook useBatchUpdate 忽略更新", () => {
+  it("忽略时行内先进入进行中，服务端确认后落到已忽略", async () => {
+    let resolveIgnore!: (value: TBatchUpdateResult) => void;
+    h.requestBatchUpdateListAction.mockImplementationOnce(
+      () => new Promise<TBatchUpdateResult>((resolve) => (resolveIgnore = resolve))
+    );
+    const { result } = await setup([mkRecord("a")]);
+
+    act(() => result.current.onIgnore(result.current.updates[0]));
+
+    expect(result.current.rowStates.a).toEqual({ phase: "working", kind: "ignore" });
+
+    await act(async () => resolveIgnore(okItem("a")));
+
+    // 退场与摘除的时序由更新路径的用例覆盖，这里只认「忽略走的是同一套阶段」
+    expect(result.current.rowStates.a).toEqual({ phase: "success", kind: "ignore" });
+  });
+
+  it("忽略失败时行停在失败态并保留重试入口，而不是无声无息", async () => {
+    h.requestBatchUpdateListAction.mockResolvedValueOnce({
+      ok: true,
+      items: [{ uuid: "a", success: false, error: "script not found" }],
+    });
+    const { result } = await setup([mkRecord("a")]);
+
+    await act(async () => result.current.onIgnore(result.current.updates[0]));
+
+    expect(result.current.rowStates.a).toEqual({ phase: "fail", kind: "ignore", error: "script not found" });
+    expect(result.current.updates).toHaveLength(1);
+  });
+});
+
+describe("批量更新 Hook useBatchUpdate 批量互斥与中断", () => {
+  it("批量进行中不接受第二次批量，避免两条进度互相覆盖", async () => {
+    let resolveFirst!: (value: TBatchUpdateResult) => void;
+    h.requestBatchUpdateListAction.mockImplementationOnce(
+      () => new Promise<TBatchUpdateResult>((resolve) => (resolveFirst = resolve))
+    );
+    const { result } = await setup([mkRecord("a"), mkRecord("b")]);
+
+    act(() => result.current.onToggle("a"));
+    act(() => result.current.onUpdateSelected());
+    expect(result.current.batchBusy).toBe(true);
+
+    act(() => result.current.onToggle("b"));
+    act(() => result.current.onUpdateSelected());
+
+    expect(h.requestBatchUpdateListAction).toHaveBeenCalledTimes(1);
+    expect(result.current.batchProgress).toEqual({ done: 0, total: 1, failed: 0, finished: false });
+
+    await act(async () => resolveFirst(okItem("a")));
+    await waitFor(() => expect(result.current.batchBusy).toBe(false), { timeout: 3000 });
+  });
+
+  it("批量被记录失效中断时保留已完成的条数，不把汇总抹掉", async () => {
+    h.requestBatchUpdateListAction
+      .mockResolvedValueOnce(okItem("a"))
+      .mockResolvedValueOnce({ ok: false, reason: "record_expired", items: [] });
+    const { result } = await setup([mkRecord("a"), mkRecord("b")]);
+
+    act(() => result.current.onToggleAll());
+    await act(async () => result.current.onUpdateSelected());
+
+    expect(result.current.recordExpired).toBe(true);
+    expect(result.current.batchProgress).toEqual({ done: 1, total: 2, failed: 0, finished: true, interrupted: true });
+    expect(result.current.rowStates.b).toBeUndefined();
   });
 });

@@ -132,7 +132,19 @@
     "batch_done_partial": "Updated {{updated}}, {{failed}} failed",
     "view_updated_scripts": "View updated scripts",
     "record_expired": "Update data has expired. Please check for updates again.",
-    "open_failed": "Failed to open update details. Please try again."
+    "open_failed": "Failed to open update details. Please try again.",
+    "loading_list": "Loading update list",
+    "load_failed_title": "Failed to load update records",
+    "load_failed_desc": "Could not read the check result from the background. Please try again.",
+    "script_list": "Script list",
+    "check_busy": "An update check is already running",
+    "check_skipped": "Results are still fresh, no new check was run",
+    "check_failed": "Update check failed, please try again later",
+    "row_ignoring": "Ignoring…",
+    "row_ignored": "Ignored v{{version}}",
+    "row_ignore_failed": "Ignore failed",
+    "batch_interrupted": "Updated {{count}}, the rest stopped because the check result expired",
+    "silent_updated": "Silently updated to v{{version}}, no confirmation needed"
   },
   "importpage": {
     "title": "Data Import",
