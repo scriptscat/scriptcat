@@ -35,6 +35,9 @@
   "code_expand": "Ausklappen",
   "loading_title": "Skript wird geladen",
   "loading_desc": "Skriptinhalt wird von der Quelle heruntergeladen und ausgewertet",
+  "loading_title_update": "Update-Details werden vorbereitet",
+  "loading_desc_prepare": "Der vorbereitete Skriptinhalt wird gelesen",
+  "loading_desc_prepare_update": "Die heruntergeladene neue Version wird gelesen und mit der aktuellen verglichen",
   "error_retry": "Erneut versuchen",
   "error_invalid_desc": "Es fehlt ein gültiger Installationsquellen-Parameter, das Skript kann nicht geladen werden.",
   "context_install": "Skript installieren",
@@ -234,5 +237,9 @@
   "script_info_load_failed": "Skript-Informationen laden fehlgeschlagen!",
   "btn_restore": "Wiederherstellen",
   "btn_restore_update": "Wiederherstellen und aktualisieren",
-  "in_trash_hint": "Dieses Skript befindet sich im Papierkorb. Die Installation stellt es wieder her und behält die vorhandenen Daten."
+  "in_trash_hint": "Dieses Skript befindet sich im Papierkorb. Die Installation stellt es wieder her und behält die vorhandenen Daten.",
+  "expired_title": "Update-Inhalt ist abgelaufen",
+  "expired_desc": "Der für dieses Update vorbereitete Code wurde bereinigt. Bitte erneut nach Updates suchen.",
+  "expired_recheck": "Erneut nach Updates suchen",
+  "code_loading": "Code wird geladen"
 }

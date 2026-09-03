@@ -35,6 +35,9 @@
   "code_expand": "展開",
   "loading_title": "正在載入腳本",
   "loading_desc": "正在從來源下載並解析腳本內容",
+  "loading_title_update": "正在準備更新詳情",
+  "loading_desc_prepare": "正在讀取已備好的腳本內容",
+  "loading_desc_prepare_update": "正在讀取已下載的新版本並與目前版本比對",
   "error_retry": "重試",
   "error_invalid_desc": "缺少有效的安裝來源參數,無法載入腳本。",
   "context_install": "腳本安裝",
@@ -234,5 +237,9 @@
   "script_info_load_failed": "腳本資訊載入失敗！",
   "btn_restore": "還原",
   "btn_restore_update": "還原並更新",
-  "in_trash_hint": "此腳本在回收筒中，安裝將還原它並保留原有資料"
+  "in_trash_hint": "此腳本在回收筒中，安裝將還原它並保留原有資料",
+  "expired_title": "更新內容已過期",
+  "expired_desc": "這次更新準備好的程式碼已被清理，需要重新檢查一次更新。",
+  "expired_recheck": "重新檢查更新",
+  "code_loading": "正在載入程式碼"
 }

@@ -35,6 +35,9 @@
   "code_expand": "展开",
   "loading_title": "正在加载脚本",
   "loading_desc": "正在从来源下载并解析脚本内容",
+  "loading_title_update": "正在准备更新详情",
+  "loading_desc_prepare": "正在读取已备好的脚本内容",
+  "loading_desc_prepare_update": "正在读取已下载的新版本并与当前版本比对",
   "error_retry": "重试",
   "error_invalid_desc": "缺少有效的安装来源参数,无法加载脚本。",
   "context_install": "脚本安装",
@@ -234,5 +237,9 @@
   "script_info_load_failed": "脚本信息加载失败！",
   "btn_restore": "还原",
   "btn_restore_update": "还原并更新",
-  "in_trash_hint": "此脚本在回收站中,安装将还原它并保留原有数据"
+  "in_trash_hint": "此脚本在回收站中,安装将还原它并保留原有数据",
+  "expired_title": "更新内容已过期",
+  "expired_desc": "这次更新准备好的代码已被清理，需要重新检查一次更新。",
+  "expired_recheck": "重新检查更新",
+  "code_loading": "正在加载代码"
 }

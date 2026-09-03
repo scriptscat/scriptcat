@@ -35,6 +35,9 @@
   "code_expand": "Expand",
   "loading_title": "Loading script",
   "loading_desc": "Downloading and parsing the script content from the source",
+  "loading_title_update": "Preparing update details",
+  "loading_desc_prepare": "Reading the prepared script content",
+  "loading_desc_prepare_update": "Reading the downloaded new version and comparing it with the current one",
   "error_retry": "Retry",
   "error_invalid_desc": "A valid install source parameter is missing, so the script cannot be loaded.",
   "context_install": "Install Script",
@@ -234,5 +237,9 @@
   "script_info_load_failed": "Failed to load script information",
   "btn_restore": "Restore Script",
   "btn_restore_update": "Restore and Update Script",
-  "in_trash_hint": "This script is in Trash. Installing will restore it and keep its existing data."
+  "in_trash_hint": "This script is in Trash. Installing will restore it and keep its existing data.",
+  "expired_title": "Update content has expired",
+  "expired_desc": "The code prepared for this update has been cleaned up. Please check for updates again.",
+  "expired_recheck": "Check for updates again",
+  "code_loading": "Loading code"
 }

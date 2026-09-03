@@ -2,6 +2,19 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CodeXml, Copy, Check, ChevronDown, ChevronRight } from "lucide-react";
 import CodeEditor from "@App/pages/components/CodeEditor";
+import { Skeleton } from "@App/pages/components/ui/skeleton";
+import { cn } from "@App/pkg/utils/cn";
+
+/** 代码形态的骨架：缩进与行宽错落，读起来像代码而不是一堆等长灰条 */
+const CODE_SKELETON_LINES = [
+  "w-[58%]",
+  "ml-4 w-[74%]",
+  "ml-4 w-[46%]",
+  "ml-8 w-[66%]",
+  "ml-4 w-[38%]",
+  "w-[52%]",
+  "ml-4 w-[62%]",
+];
 
 export interface CodePreviewProps {
   code: string;
@@ -22,6 +35,7 @@ export function CodePreview({
   const { t } = useTranslation(["install", "common", "editor"]);
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [copied, setCopied] = useState(false);
+  const [editorReady, setEditorReady] = useState(false);
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
   // diffCode 语义:""=无 diff(普通只读预览),有值=内联 diff;切勿传 undefined(表示不加载)
@@ -69,13 +83,30 @@ export function CodePreview({
         </div>
       </div>
       {!collapsed && (
-        <CodeEditor
-          id="install-code-preview"
-          code={code}
-          diffCode={diffCode}
-          editable={false}
-          className="h-[340px] w-full"
-        />
+        <div className="relative h-[340px] w-full">
+          {!editorReady && (
+            // 编辑器实例要等偏好设置读出来才创建，这段时间这里本来是一块纯空白，看着像加载失败
+            <div
+              data-testid="code-skeleton"
+              role="status"
+              aria-busy="true"
+              aria-label={t("install:code_loading")}
+              className="absolute inset-0 flex flex-col gap-2.5 p-3"
+            >
+              {CODE_SKELETON_LINES.map((line, i) => (
+                <Skeleton key={i} className={cn("h-3", line)} />
+              ))}
+            </div>
+          )}
+          <CodeEditor
+            id="install-code-preview"
+            code={code}
+            diffCode={diffCode}
+            editable={false}
+            onEditorMount={() => setEditorReady(true)}
+            className="h-full w-full"
+          />
+        </div>
       )}
     </section>
   );

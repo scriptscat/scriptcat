@@ -35,6 +35,9 @@
   "code_expand": "Genişlet",
   "loading_title": "Betik yükleniyor",
   "loading_desc": "Betik içeriği kaynaktan indiriliyor ve ayrıştırılıyor",
+  "loading_title_update": "Güncelleme ayrıntıları hazırlanıyor",
+  "loading_desc_prepare": "Hazırlanmış betik içeriği okunuyor",
+  "loading_desc_prepare_update": "İndirilen yeni sürüm okunuyor ve mevcut sürümle karşılaştırılıyor",
   "error_retry": "Yeniden dene",
   "error_invalid_desc": "Geçerli bir yükleme kaynağı parametresi eksik, bu nedenle betik yüklenemiyor.",
   "context_install": "Betik Yükle",
@@ -234,5 +237,9 @@
   "script_info_load_failed": "Betik bilgileri yüklenemedi",
   "btn_restore": "Betik Geri Yükle",
   "btn_restore_update": "Betik Geri Yükle ve Güncelle",
-  "in_trash_hint": "Bu betik çöp kutusunda; yüklemek onu geri yükleyecek ve mevcut verilerini koruyacaktır"
+  "in_trash_hint": "Bu betik çöp kutusunda; yüklemek onu geri yükleyecek ve mevcut verilerini koruyacaktır",
+  "expired_title": "Güncelleme içeriğinin süresi doldu",
+  "expired_desc": "Bu güncelleme için hazırlanan kod temizlendi. Lütfen güncellemeleri yeniden denetleyin.",
+  "expired_recheck": "Güncellemeleri yeniden denetle",
+  "code_loading": "Kod yükleniyor"
 }

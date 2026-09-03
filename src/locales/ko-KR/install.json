@@ -35,6 +35,9 @@
   "code_expand": "펼치기",
   "loading_title": "스크립트 불러오는 중",
   "loading_desc": "소스에서 스크립트 내용을 다운로드하고 분석하고 있습니다",
+  "loading_title_update": "업데이트 세부 정보를 준비하는 중",
+  "loading_desc_prepare": "준비된 스크립트 내용을 읽는 중",
+  "loading_desc_prepare_update": "내려받은 새 버전을 읽어 현재 버전과 비교하는 중",
   "error_retry": "다시 시도",
   "error_invalid_desc": "유효한 설치 소스 매개변수가 없어 스크립트를 불러올 수 없습니다.",
   "context_install": "스크립트 설치",
@@ -234,5 +237,9 @@
   "script_info_load_failed": "스크립트 정보를 불러오지 못했습니다",
   "btn_restore": "스크립트 복원",
   "btn_restore_update": "스크립트 복원 및 업데이트",
-  "in_trash_hint": "이 스크립트는 휴지통에 있습니다. 설치하면 스크립트를 복원하고 기존 데이터를 유지합니다."
+  "in_trash_hint": "이 스크립트는 휴지통에 있습니다. 설치하면 스크립트를 복원하고 기존 데이터를 유지합니다.",
+  "expired_title": "업데이트 내용이 만료되었습니다",
+  "expired_desc": "이번 업데이트를 위해 준비한 코드가 정리되었습니다. 업데이트를 다시 확인해 주세요.",
+  "expired_recheck": "업데이트 다시 확인",
+  "code_loading": "코드를 불러오는 중"
 }

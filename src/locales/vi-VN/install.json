@@ -35,6 +35,9 @@
   "code_expand": "Mở rộng",
   "loading_title": "Đang tải script",
   "loading_desc": "Đang tải xuống và phân tích nội dung script từ nguồn",
+  "loading_title_update": "Đang chuẩn bị chi tiết cập nhật",
+  "loading_desc_prepare": "Đang đọc nội dung tập lệnh đã chuẩn bị",
+  "loading_desc_prepare_update": "Đang đọc phiên bản mới đã tải và so sánh với phiên bản hiện tại",
   "error_retry": "Thử lại",
   "error_invalid_desc": "Thiếu tham số nguồn cài đặt hợp lệ nên không thể tải script.",
   "context_install": "Cài đặt script",
@@ -234,5 +237,9 @@
   "script_info_load_failed": "Tải thông tin script thất bại",
   "btn_restore": "Khôi phục script",
   "btn_restore_update": "Khôi phục và cập nhật script",
-  "in_trash_hint": "Script này đang ở trong thùng rác, cài đặt sẽ khôi phục nó và giữ nguyên dữ liệu hiện có"
+  "in_trash_hint": "Script này đang ở trong thùng rác, cài đặt sẽ khôi phục nó và giữ nguyên dữ liệu hiện có",
+  "expired_title": "Nội dung cập nhật đã hết hạn",
+  "expired_desc": "Mã đã chuẩn bị cho lần cập nhật này đã bị dọn dẹp. Vui lòng kiểm tra cập nhật lại.",
+  "expired_recheck": "Kiểm tra cập nhật lại",
+  "code_loading": "Đang tải mã"
 }
