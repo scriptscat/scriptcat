@@ -25,7 +25,7 @@ test.describe("独立扩展页面加载冒烟", () => {
     const page = await context.newPage();
     const errors = collectPageErrors(page);
 
-    await page.goto(`chrome-extension://${extensionId}/src/batchupdate.html?site=example.com&autoclose=30`, {
+    await page.goto(`chrome-extension://${extensionId}/src/batchupdate.html?site=example.com`, {
       waitUntil: "domcontentloaded",
     });
 

@@ -36,8 +36,6 @@ function mkView(p: Partial<BatchUpdateViewProps> = {}): BatchUpdateViewProps {
     checking: false,
     loading: false,
     selected: new Set(),
-    autoClose: null,
-    autoCloseCancelled: false,
     rowStates: {},
     batchProgress: null,
     recordExpired: false,
@@ -50,7 +48,6 @@ function mkView(p: Partial<BatchUpdateViewProps> = {}): BatchUpdateViewProps {
     onIgnoreSelected: () => {},
     onRestoreAll: () => {},
     onCheckNow: () => {},
-    onCancelAutoClose: () => {},
     onOpen: () => {},
     onOpenScriptList: () => {},
     ...p,
@@ -277,44 +274,6 @@ describe("批量更新 更新数据过期提示", () => {
   it("移动视图同样提示重新检查", () => {
     renderMobile({ updates: [mkItem()], recordExpired: true });
     expect(screen.getByTestId("record-expired")).toHaveTextContent(t("install:updatepage.record_expired"));
-  });
-});
-
-describe("批量更新 自动关闭药丸", () => {
-  it("倒计时中可点击取消", () => {
-    const onCancelAutoClose = vi.fn();
-    renderDesktop({ autoClose: 12, onCancelAutoClose });
-    const chip = screen.getByTestId("auto-close-chip");
-    expect(chip.tagName).toBe("BUTTON");
-    expect(chip).toHaveAttribute("data-state", "counting");
-    expect(chip).toHaveTextContent(t("install:updatepage.auto_close_cancel_hint"));
-    fireEvent.click(chip);
-    expect(onCancelAutoClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("已取消时切成不可点击的已取消态", () => {
-    renderDesktop({ autoClose: null, autoCloseCancelled: true });
-    const chip = screen.getByTestId("auto-close-chip");
-    expect(chip.tagName).not.toBe("BUTTON");
-    expect(chip).toHaveAttribute("data-state", "cancelled");
-    expect(chip).toHaveTextContent(t("install:updatepage.auto_close_cancelled"));
-  });
-
-  it("未要求自动关闭时不显示药丸", () => {
-    renderDesktop({ autoClose: null, autoCloseCancelled: false });
-    expect(screen.queryByTestId("auto-close-chip")).toBeNull();
-  });
-
-  it("移动视图的药丸同样可点击取消", () => {
-    const onCancelAutoClose = vi.fn();
-    renderMobile({ updates: [mkItem()], autoClose: 2, onCancelAutoClose });
-    fireEvent.click(screen.getByTestId("auto-close-chip"));
-    expect(onCancelAutoClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("移动视图在已取消后仍显示已取消态", () => {
-    renderMobile({ updates: [mkItem()], autoClose: null, autoCloseCancelled: true });
-    expect(screen.getByTestId("auto-close-chip")).toHaveAttribute("data-state", "cancelled");
   });
 });
 
