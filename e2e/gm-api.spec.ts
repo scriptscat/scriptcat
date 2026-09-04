@@ -70,7 +70,7 @@ function failedCaseNames(summary: SCTestSummary): string[] {
 
 type SCTestBrowserApi = {
   skip(reason: string): never;
-  create(options: { name: string; reporter: string }): {
+  create(options: { name: string; reporter: string; framePolicy?: "top" | "all" }): {
     describe(name: string, register: () => void): void;
     check(
       category: string,
@@ -713,6 +713,8 @@ test.describe("GM API", () => {
           panelRoot instanceof ShadowRoot && Boolean(panelRoot.querySelector('[data-sctest="diagnostic-table"]')),
         adoptedStyleSheets:
           panel?.getRootNode() instanceof ShadowRoot ? panel.getRootNode().adoptedStyleSheets.length : 0,
+        statusInHeader: Boolean(panel?.querySelector('.sc-head [data-sctest="status-pill"]')),
+        emptyState: Boolean(panel?.querySelector('[data-sctest="empty-state"]')),
         summary,
       };
     });
@@ -723,6 +725,8 @@ test.describe("GM API", () => {
       top: "12px",
       diagnosticTable: true,
       adoptedStyleSheets: 1,
+      statusInHeader: true,
+      emptyState: true,
     });
     expect(result.summary).toMatchObject({
       protocol: "sctest/v1",
@@ -765,6 +769,16 @@ test.describe("GM API", () => {
     expect(await visibleCases()).toEqual([expect.stringContaining("manual case")]);
     await host.locator('[data-sctest="filter-all"]').click();
     expect(await visibleCases()).toHaveLength(6);
+
+    const passingCase = host.locator('[data-sctest="case-row"]').filter({ hasText: "passing case" });
+    const passingDetail = passingCase.locator('xpath=following-sibling::*[1][@data-sctest="diagnostic-detail"]');
+    await expect(passingDetail).toBeHidden();
+    await passingCase.locator('[data-sctest="toggle-detail"]').click();
+    await expect(passingDetail).toBeVisible();
+    await host.locator('[data-sctest="search"] input').fill("not-found-in-report");
+    await expect(host.locator('[data-sctest="empty-state"]')).toBeVisible();
+    await host.locator('[data-sctest="empty-reset"]').click();
+    await expect(host.locator('[data-sctest="empty-state"]')).toBeHidden();
 
     const suiteGroupHidden = () =>
       host.locator('[data-sctest="suite-row"]').evaluate((row) => (row.nextElementSibling as HTMLElement).hidden);
@@ -815,6 +829,9 @@ test.describe("GM API", () => {
       status: "PASS",
       manualVerdict: "PASS",
     });
+    await expect(host.locator('[data-sctest="suite-stat"]')).toContainText("自动失败 1 · 人工已确认");
+    await expect(host.locator('[data-sctest="suite-stat"]')).toHaveAttribute("data-failed", "1");
+    await expect(host.locator('[data-sctest="suite-stat"]')).not.toHaveAttribute("data-manual", "1");
 
     const panel = host.locator(".sc-panel");
     const grip = host.locator('[data-sctest="drag-handle"]');

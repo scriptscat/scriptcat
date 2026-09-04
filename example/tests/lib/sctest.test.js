@@ -742,6 +742,31 @@ vdescribe("PanelReporter", () => {
     vexpect(root.querySelector(".sc-meta").textContent).toContain("http://localhost:3000/");
   });
 
+  vit("默认只在顶层 frame 挂载面板,all 策略允许 iframe 显示", () => {
+    document.getElementById("sctest-panel-host")?.remove();
+    const originalTop = window.top;
+    Object.defineProperty(window, "top", { configurable: true, value: {} });
+    try {
+      const iframeReporters = SCTest.__buildReporters(
+        { reporter: "panel" },
+        "page",
+        { name: "iframe", context: "page", suites: [], environment: {}, runnable: false }
+      );
+      vexpect(iframeReporters).toHaveLength(2);
+      vexpect(document.getElementById("sctest-panel-host")).toBe(null);
+    } finally {
+      Object.defineProperty(window, "top", { configurable: true, value: originalTop });
+    }
+
+    const allFrameReporters = SCTest.__buildReporters(
+      { reporter: "panel", framePolicy: "all" },
+      "page",
+      { name: "all frames", context: "page", suites: [], environment: {}, runnable: false }
+    );
+    vexpect(allFrameReporters).toHaveLength(2);
+    vexpect(document.getElementById("sctest-panel-host")).not.toBe(null);
+  });
+
   vit("自定义 report session 更新人工结果后移除裁决按钮并刷新同一条记录", () => {
     const session = SCTest.createReportSession({ name: "session panel", reporter: "panel" });
     session.start();
@@ -884,6 +909,29 @@ vdescribe("PanelReporter", () => {
     vexpect(root.querySelector('[data-sctest="footer-note"]').textContent).toMatch(/expected.*actual/i);
     vexpect(root.querySelector('[data-sctest="manual-pass"]').getAttribute("aria-label")).toBe("人工确认通过");
     vexpect(root.querySelector('[data-sctest="manual-fail"]').getAttribute("aria-label")).toBe("人工确认失败");
+  });
+
+  vit("失败详情默认展开,通过详情可按 expected/actual/detail 搜索并手动展开", async () => {
+    const { describe: d, check, run } = SCTest.create({ name: "progressive diagnostics", reporter: "panel" });
+    d("诊断", () => {
+      check("诊断", "通过项", () => true, "unused", "unused", "通过说明");
+      check("诊断", "失败项", () => false, "expected needle", "actual needle", "detail needle");
+    });
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    const rows = root.querySelectorAll('[data-sctest="case-row"]');
+    vexpect(rows[0].querySelector('[data-sctest="toggle-detail"]').getAttribute("aria-expanded")).toBe("false");
+    vexpect(rows[1].querySelector('[data-sctest="toggle-detail"]').getAttribute("aria-expanded")).toBe("true");
+    const search = root.querySelector('[data-sctest="search"] input');
+    search.value = "detail needle";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    vexpect(rows[0].hidden).toBe(true);
+    vexpect(rows[1].hidden).toBe(false);
+    search.value = "";
+    search.dispatchEvent(new Event("input", { bubbles: true }));
+    rows[0].querySelector('[data-sctest="toggle-detail"]').click();
+    vexpect(rows[0].nextElementSibling.hidden).toBe(false);
   });
 
   vit("进度条位于统计 chips 上方,图标使用 Lucide SVG 而不是字符", async () => {

@@ -286,7 +286,7 @@
   }
 
   function overallStatus(counts) {
-    return counts.FAIL ? STATUS.FAIL : counts.WARN ? STATUS.WARN : counts.MANUAL ? STATUS.MANUAL : STATUS.PASS;
+    return counts.FAIL ? STATUS.FAIL : counts.MANUAL ? STATUS.MANUAL : counts.WARN ? STATUS.WARN : STATUS.PASS;
   }
 
   function createEnvironment(context) {
@@ -311,6 +311,17 @@
       if (manager !== UNAVAILABLE) environment.manager = String(manager);
     }
     return environment;
+  }
+
+  function isTopLevelFrame() {
+    if (typeof window === "undefined") return true;
+    var currentWindow = read(function () {
+      return window;
+    });
+    var topWindow = read(function () {
+      return window.top;
+    });
+    return currentWindow !== UNAVAILABLE && topWindow !== UNAVAILABLE && currentWindow === topWindow;
   }
 
   function createSummary(name, context, suites, startedAt, environment) {
@@ -683,13 +694,17 @@
     var name = opts.name || "未命名报告";
     var context = opts.context || detectContext(currentMetaStr());
     var environment = createEnvironment(context);
-    var reporters = global.SCTest.__buildReporters({ reporter: opts.reporter || "console" }, context, {
-      name: name,
-      context: context,
-      suites: [],
-      environment: environment,
-      runnable: false,
-    });
+    var reporters = global.SCTest.__buildReporters(
+      { reporter: opts.reporter || "console", framePolicy: opts.framePolicy || "top" },
+      context,
+      {
+        name: name,
+        context: context,
+        suites: [],
+        environment: environment,
+        runnable: false,
+      }
+    );
     var cases = [];
     var startedAt = now();
     var started = false;
@@ -921,9 +936,10 @@
     "--sc-muted-bg:#0e202b;--sc-border:#315264;--sc-primary:#72daf9;--sc-success:#65e6ad;",
     "--sc-success-fg:#071c12;--sc-success-bg:#65e6ad;--sc-destructive:#ff7888;",
     "--sc-destructive-fg:#2a060b;--sc-destructive-bg:#ff7888;--sc-warning-bg:#ffc766;--sc-warning-fg:#291700;",
-    "--sc-manual-bg:#6b4b1f;--sc-manual-fg:#ffe0a0}",
+    "--sc-manual-bg:#6b4b1f;--sc-manual-fg:#ffe0a0;--sc-control:#142f3e;--sc-control-hover:#1d4558;",
+    "--sc-control-border:#426579;--sc-divider:#203d4c;--sc-detail-bg:#0e202b;--sc-detail-fg:#c3d6df}",
     ".sc-panel{position:fixed;top:12px;right:12px;bottom:auto;width:min(920px,calc(100vw - 24px));",
-    "max-height:calc(100vh - 24px);display:flex;flex-direction:column;overflow:hidden;",
+    "max-height:calc(100dvh - 24px);display:flex;flex-direction:column;overflow:hidden;",
     "border:1px solid var(--sc-border);border-radius:12px;background:var(--sc-bg);color:var(--sc-fg);",
     'box-shadow:0 18px 60px rgba(0,0,0,.42);font:13px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;z-index:2147483647}',
     "[hidden]{display:none!important}",
@@ -934,18 +950,18 @@
     ".sc-title-wrap{display:flex;min-width:0;flex:1;flex-direction:column;gap:2px}",
     ".sc-title{font-weight:750;letter-spacing:.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
     ".sc-meta{font-size:11px;color:var(--sc-muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-    ".sc-btn{display:inline-flex;cursor:pointer;align-items:center;justify-content:center;gap:5px;border:1px solid #426579;background:#142f3e;color:var(--sc-fg);",
-    "border-radius:7px;padding:6px 9px;font-size:11px;font-family:inherit}",
-    ".sc-btn:hover{background:#1d4558}",
+    ".sc-btn{display:inline-flex;min-height:30px;cursor:pointer;align-items:center;justify-content:center;gap:5px;border:1px solid var(--sc-control-border);background:var(--sc-control);color:var(--sc-fg);",
+    "border-radius:7px;padding:5px 9px;font-size:11px;font-family:inherit;transition:background .15s,border-color .15s,transform .15s}",
+    ".sc-btn:hover{background:var(--sc-control-hover);border-color:var(--sc-primary)}.sc-btn:active{transform:translateY(1px)}",
     ".sc-btn:focus-visible,.sc-segment:focus-visible,.sc-search input:focus-visible{outline:2px solid var(--sc-primary);outline-offset:2px}",
-    ".sc-icon-btn{display:inline-flex;width:24px;height:24px;align-items:center;justify-content:center;border:0;padding:0}",
+    ".sc-icon-btn{display:inline-flex;width:30px;height:30px;min-height:30px;align-items:center;justify-content:center;border:0;padding:0}",
     ".sc-btn:disabled{cursor:wait;opacity:.55}",
     ".sc-icon{display:inline-flex;flex:none;align-items:center;justify-content:center;line-height:0}",
-    ".sc-btn-primary{background:#1d637d;border-color:#72daf9;color:#eaf3f8}",
-    ".sc-sum{padding:11px 14px;border-bottom:1px solid #203d4c;background:var(--sc-bg);",
+    ".sc-btn-primary{background:#1d637d;border-color:var(--sc-primary);color:#eaf3f8}.sc-btn-primary:hover{background:#287b99}",
+    ".sc-sum{padding:11px 14px;border-bottom:1px solid var(--sc-divider);background:var(--sc-bg);",
     "display:flex;flex-direction:column;gap:10px}",
     ".sc-chips{display:flex;gap:6px;align-items:center;flex-wrap:wrap}",
-    ".sc-status-row,.sc-run-row,.sc-toolbar{display:flex;align-items:center;gap:8px}",
+    ".sc-status-row,.sc-run-row,.sc-toolbar{display:flex;align-items:center;gap:8px}.sc-status-header{flex:none}",
     ".sc-spacer{flex:1}",
     ".sc-status{display:inline-flex;align-items:center;gap:5px;border-radius:9999px;padding:3px 10px;font-weight:600}",
     ".sc-status-pass{background:var(--sc-success-bg);color:var(--sc-success-fg)}",
@@ -959,49 +975,52 @@
     ".sc-chip-warn{background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
     ".sc-chip-info,.sc-chip-skip{background:#315264;color:#d9e6ec}",
     ".sc-chip-manual{background:var(--sc-manual-bg);color:var(--sc-manual-fg)}",
-    ".sc-progress{height:6px;border-radius:9999px;background:#315264;overflow:hidden;display:flex}",
+    ".sc-progress{height:6px;border-radius:9999px;background:#315264;overflow:hidden;display:flex;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}",
     ".sc-progress i{display:block;height:6px}",
-    ".sc-diagnostic-hint{padding:9px 14px;color:#a9c0cc;background:#0e202b;border-bottom:1px solid #203d4c;font-size:11px}",
-    ".sc-toolbar{padding:8px 14px;border-bottom:1px solid #203d4c;background:var(--sc-bg)}",
-    ".sc-segments{display:flex;gap:2px;padding:2px;border-radius:6px;background:#0e202b;overflow:auto}",
+    ".sc-diagnostic-hint{padding:9px 14px;color:#a9c0cc;background:var(--sc-detail-bg);border-bottom:1px solid var(--sc-divider);font-size:11px}",
+    ".sc-toolbar{padding:8px 14px;border-bottom:1px solid var(--sc-divider);background:var(--sc-bg);flex-wrap:wrap}",
+    ".sc-segments{display:flex;min-width:0;gap:2px;padding:2px;border-radius:6px;background:var(--sc-detail-bg);overflow:auto}",
     ".sc-segment{cursor:pointer;border:0;border-radius:4px;padding:3px 10px;background:transparent;color:var(--sc-muted);font:inherit;font-size:11px;white-space:nowrap}",
-    ".sc-segment[data-active='1']{background:#142f3e;color:var(--sc-fg);font-weight:600}",
-    ".sc-search{display:flex;min-width:0;flex:1;align-items:center;gap:6px;border:1px solid #426579;border-radius:7px;padding:4px 8px;background:#142f3e;color:var(--sc-muted)}",
+    ".sc-segment[data-active='1']{background:var(--sc-control);color:var(--sc-fg);font-weight:600}",
+    ".sc-search{display:flex;min-width:160px;flex:1;align-items:center;gap:6px;border:1px solid var(--sc-control-border);border-radius:7px;padding:4px 8px;background:var(--sc-control);color:var(--sc-muted)}",
     ".sc-search input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--sc-fg);font:inherit;font-size:11px}",
-    ".sc-body{max-height:calc(100vh - 265px);overflow:auto;flex:1;background:var(--sc-bg)}",
+    ".sc-body{max-height:calc(100dvh - 265px);overflow:auto;flex:1;background:var(--sc-bg)}",
     ".sc-table-head{display:grid;grid-template-columns:58px minmax(0,23%) minmax(0,17%) minmax(0,17%) minmax(0,1fr);",
-    "position:sticky;top:0;z-index:2;padding:8px 9px;color:var(--sc-primary);background:var(--sc-card);border-bottom:1px solid #203d4c;font-size:11px;font-weight:700}",
+    "position:sticky;top:0;z-index:2;padding:8px 9px;color:var(--sc-primary);background:var(--sc-card);border-bottom:1px solid var(--sc-divider);font-size:11px;font-weight:700}",
     ".sc-table-head span{min-width:0;overflow-wrap:anywhere}",
     ".sc-suite{display:flex;align-items:center;gap:7px;padding:9px 14px;background:var(--sc-muted-bg);",
-    "border-top:1px solid #203d4c;color:var(--sc-primary);font-weight:750;cursor:pointer}",
+    "border-top:1px solid var(--sc-divider);color:var(--sc-primary);font-weight:750;cursor:pointer;transition:background .15s}",
+    ".sc-suite:hover{background:#122d3a}.sc-suite:focus-visible{outline:2px solid var(--sc-primary);outline-offset:-2px}",
     ".sc-suite .sc-suite-name{flex:1}",
     ".sc-suite-stat{border-radius:9999px;padding:2px 8px;background:var(--sc-success-bg);color:var(--sc-success-fg);font-size:11px;font-weight:500}",
     ".sc-suite-stat[data-failed='1']{background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
     ".sc-suite-stat[data-manual='1']{display:inline-flex;align-items:center;gap:4px;background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
-    ".sc-case{display:flex;align-items:center;gap:8px;padding:8px 14px 6px 34px;background:var(--sc-bg)}",
+    ".sc-case{display:flex;align-items:center;gap:8px;padding:8px 14px 6px 34px;background:var(--sc-bg);border-left:2px solid transparent;transition:background .15s}",
+    ".sc-case:hover{background:#0e202b}.sc-case>b{color:var(--sc-primary);font-size:13px;font-weight:700}.sc-case-toggle{flex:none;width:22px;height:22px;min-height:22px;border:0;border-radius:5px;padding:0;background:transparent;color:var(--sc-muted);cursor:pointer}.sc-case-toggle:hover{background:var(--sc-control);color:var(--sc-fg)}",
     ".sc-case span{flex:1}",
     ".sc-case-label{min-width:0;display:flex;flex-direction:column;gap:2px}",
     ".sc-case-category{color:var(--sc-muted);font-size:10px;font-weight:400}",
     ".sc-case-status{font-size:10px;font-style:normal;font-weight:700}",
-    ".sc-case-manual{background:#352c1e}",
-    ".sc-manual-pass{width:22px;height:22px;padding:0;border-color:#65e6ad;background:#1d4938;color:#65e6ad}",
-    ".sc-manual-fail{width:22px;height:22px;padding:0;border-color:#ff7888;background:#54252c;color:#ff7888}",
+    ".sc-case-manual{background:#352c1e;border-left-color:var(--sc-warning-bg)}",
+    ".sc-manual-pass{width:30px;height:30px;min-height:30px;padding:0;border-color:var(--sc-success);background:#1d4938;color:var(--sc-success)}",
+    ".sc-manual-fail{width:30px;height:30px;min-height:30px;padding:0;border-color:var(--sc-destructive);background:#54252c;color:var(--sc-destructive)}",
     ".sc-dur{font-size:11px;color:var(--sc-muted)}",
     ".sc-detail{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content minmax(0,1fr);gap:5px 10px;margin:0 14px 8px 34px;padding:8px 10px;border-radius:6px;border-left:2px solid var(--sc-border);",
-    "background:var(--sc-muted-bg);color:#c3d6df;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;overflow-wrap:anywhere}",
+    "background:var(--sc-detail-bg);color:var(--sc-detail-fg);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;overflow-wrap:anywhere}",
     ".sc-detail-field{display:contents}.sc-detail-key{color:var(--sc-primary);font-family:system-ui,sans-serif;font-weight:700}.sc-detail-value{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere}",
     ".sc-detail-wide{grid-column:1/-1}.sc-hint{display:flex;gap:6px;margin:0 14px 8px 34px;padding:7px 10px;border-radius:6px;background:var(--sc-muted-bg);",
     "color:var(--sc-muted);font-size:11px}",
-    ".sc-params{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid #203d4c}",
+    ".sc-params{display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--sc-divider)}",
     ".sc-params-label{font-weight:600}",
     ".sc-field{display:flex;min-width:0;flex:1;align-items:center;gap:6px;color:var(--sc-muted);white-space:nowrap}",
     ".sc-field-compact{flex:0 0 108px}",
     ".sc-params input{min-width:0;flex:1;border:1px solid var(--sc-border);border-radius:6px;padding:3px 8px;",
-    "background:#142f3e;color:var(--sc-fg);font-family:'JetBrains Mono',monospace;font-size:11px}",
-    ".sc-foot{display:flex;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid #203d4c;background:var(--sc-muted-bg)}",
-    ".sc-foot .sc-sumline{flex:1;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--sc-muted)}",
-    ".sc-foot-note{color:var(--sc-muted);font-size:10px;white-space:nowrap}",
-    "@media (max-width:720px){.sc-panel{top:8px;right:8px;width:calc(100vw - 16px);max-height:calc(100vh - 16px)}.sc-toolbar{flex-wrap:wrap}.sc-search{flex-basis:100%}.sc-table-head{grid-template-columns:48px minmax(0,1fr) minmax(0,1fr)}.sc-foot-note{display:none}}",
+    "background:var(--sc-control);color:var(--sc-fg);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}",
+    ".sc-empty{display:flex;min-height:120px;align-items:center;justify-content:center;flex-direction:column;gap:9px;padding:24px;color:var(--sc-muted);text-align:center}.sc-empty .sc-btn{font-size:11px}",
+    ".sc-foot{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid var(--sc-divider);background:var(--sc-muted-bg)}",
+    ".sc-foot .sc-sumline{min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.5;color:var(--sc-muted);overflow-wrap:anywhere}",
+    ".sc-foot-note{grid-column:1/-1;color:var(--sc-muted);font-size:10px;overflow-wrap:anywhere}.sc-foot-actions{display:flex;gap:6px;align-items:center}",
+    "@media (max-width:720px){.sc-panel{top:8px;right:8px;width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}.sc-head{display:grid;grid-template-columns:24px minmax(0,1fr) 66px 66px 30px;align-items:center;gap:8px}.sc-grip{grid-column:1;grid-row:1}.sc-title-wrap{grid-column:2/6;grid-row:1;order:initial;flex-basis:auto}.sc-status-header{grid-column:1/3;grid-row:2;order:initial}.sc-head .sc-btn{grid-row:2;order:initial}.sc-head .sc-btn:not(.sc-icon-btn):not(.sc-min-btn){grid-column:3}.sc-head .sc-btn.sc-min-btn{grid-column:4}.sc-head .sc-btn.sc-close-btn{grid-column:5}.sc-toolbar{align-items:stretch}.sc-segments{max-width:100%;flex-basis:100%}.sc-search{flex-basis:100%;min-height:30px}.sc-table-head{grid-template-columns:48px minmax(0,1fr)}.sc-table-head span:nth-child(n+3){display:none}.sc-detail{grid-template-columns:max-content minmax(0,1fr)}.sc-detail-wide{grid-column:1/-1}.sc-foot{grid-template-columns:1fr}.sc-foot-actions{grid-column:1/-1}.sc-foot-actions .sc-btn{flex:1}.sc-foot-note{grid-column:1/-1}}",
   ].join("");
 
   // Constructable stylesheet 通过 CSSOM 安装到 Shadow Root，不属于页面的 inline <style>，
@@ -1039,7 +1058,7 @@
     panel.className = "sc-panel";
     root.appendChild(panel);
 
-    var state = { pass: 0, fail: 0, warn: 0, info: 0, skip: 0, manual: 0, total: 0, durationMs: 0 };
+    var state = { pass: 0, fail: 0, warn: 0, info: 0, skip: 0, manual: 0, total: 0, durationMs: 0, complete: false };
     var caseNodes = {};
     var suiteNodes = {};
     var activeFilter = "all";
@@ -1167,6 +1186,11 @@
     titleWrap.appendChild(title);
     titleWrap.appendChild(meta);
     head.appendChild(titleWrap);
+    var statusPill = el("span", "sc-status sc-status-pass sc-status-header", "等待运行");
+    statusPill.setAttribute("data-sctest", "status-pill");
+    statusPill.setAttribute("role", "status");
+    statusPill.setAttribute("aria-live", "polite");
+    head.appendChild(statusPill);
     var rerunBtn = el("button", "sc-btn");
     setIconLabel(rerunBtn, "rotate-cw", "重跑", 13);
     rerunBtn.title = "重新运行";
@@ -1175,7 +1199,7 @@
       if (typeof runInfo.onRerun === "function") runInfo.onRerun();
     });
     head.appendChild(rerunBtn);
-    var minBtn = el("button", "sc-btn");
+    var minBtn = el("button", "sc-btn sc-min-btn");
     setIconLabel(minBtn, "minus", "收起", 13);
     minBtn.title = "最小化";
     minBtn.setAttribute("aria-label", "最小化");
@@ -1184,7 +1208,7 @@
       setIconLabel(minBtn, "minus", panel.dataset.min === "1" ? "展开" : "收起", 13);
     });
     head.appendChild(minBtn);
-    var closeBtn = el("button", "sc-btn sc-icon-btn");
+    var closeBtn = el("button", "sc-btn sc-icon-btn sc-close-btn");
     closeBtn.appendChild(icon("x", 14));
     closeBtn.title = "关闭";
     closeBtn.setAttribute("aria-label", "关闭");
@@ -1197,13 +1221,8 @@
     // 概览
     var sum = el("div", "sc-sum");
     var statusRow = el("div", "sc-status-row");
-    var statusPill = el("span", "sc-status sc-status-pass", "等待运行");
-    statusPill.setAttribute("data-sctest", "status-pill");
-    statusPill.setAttribute("role", "status");
-    statusPill.setAttribute("aria-live", "polite");
     var duration = el("span", "sc-dur", "0ms");
     duration.setAttribute("data-sctest", "duration");
-    statusRow.appendChild(statusPill);
     statusRow.appendChild(el("span", "sc-spacer"));
     statusRow.appendChild(icon("timer", 13));
     statusRow.appendChild(duration);
@@ -1393,6 +1412,12 @@
       diagnosticTable.appendChild(column);
     });
     body.appendChild(diagnosticTable);
+    var emptyState = el("div", "sc-empty", "没有符合当前筛选的结果");
+    emptyState.setAttribute("data-sctest", "empty-state");
+    var emptyReset = el("button", "sc-btn", "清除筛选");
+    emptyReset.setAttribute("data-sctest", "empty-reset");
+    emptyState.appendChild(emptyReset);
+    body.appendChild(emptyState);
     panel.appendChild(body);
 
     var foot = el("div", "sc-foot");
@@ -1404,14 +1429,16 @@
     footerNote.setAttribute("data-sctest", "footer-note");
     footerNote.title = "Console、Shadow DOM Panel、GM_log 和 JSON 使用同一份结果记录";
     foot.appendChild(footerNote);
+    var footActions = el("div", "sc-foot-actions");
     var copyBtn = el("button", "sc-btn", "复制报告");
     copyBtn.insertBefore(icon("clipboard-copy", 12), copyBtn.firstChild);
     copyBtn.setAttribute("data-sctest", "footer-copy-report");
-    foot.appendChild(copyBtn);
+    footActions.appendChild(copyBtn);
     var jsonBtn = el("button", "sc-btn", "JSON");
     jsonBtn.insertBefore(icon("braces", 12), jsonBtn.firstChild);
     jsonBtn.setAttribute("data-sctest", "export-json");
-    foot.appendChild(jsonBtn);
+    footActions.appendChild(jsonBtn);
+    foot.appendChild(footActions);
     panel.appendChild(foot);
 
     function reportText() {
@@ -1525,6 +1552,9 @@
     jsonBtn.addEventListener("click", function () {
       return copyWithFeedback(jsonBtn, stringifyReport(reportJson(), 2), "braces", "JSON");
     });
+    emptyReset.addEventListener("click", function () {
+      resetBtn.click();
+    });
 
     grip.addEventListener("mousedown", function (event) {
       if (event.button !== 0) return;
@@ -1550,6 +1580,7 @@
 
     function applyFilters() {
       var query = search.value.trim().toLowerCase();
+      var visibleCases = 0;
       Object.keys(caseNodes).forEach(function (key) {
         var node = caseNodes[key];
         var statusOk =
@@ -1557,9 +1588,10 @@
           node.status === activeFilter ||
           (activeFilter === "skip" && node.status === STATUS.SKIP) ||
           (activeFilter === "manual" && node.status === STATUS.MANUAL);
-        var textOk = !query || key.toLowerCase().indexOf(query) !== -1;
+        var textOk = !query || node.searchText.indexOf(query) !== -1;
         node.row.hidden = !(statusOk && textOk);
-        if (node.detail) node.detail.hidden = node.row.hidden;
+        if (!node.row.hidden) visibleCases++;
+        if (node.detail) node.detail.hidden = node.row.hidden || !node.detailExpanded;
         if (node.hint) node.hint.hidden = node.row.hidden;
       });
       Object.keys(suiteNodes).forEach(function (name) {
@@ -1570,6 +1602,7 @@
         suiteNode.row.hidden = !hasVisibleCase;
         suiteNode.group.hidden = suiteNode.collapsed || !hasVisibleCase;
       });
+      emptyState.hidden = visibleCases !== 0;
     }
 
     [
@@ -1622,6 +1655,15 @@
       applyFilters();
     });
 
+    function updateDetailToggle(node) {
+      if (!node.detailToggle) return;
+      node.detailToggle.textContent = "";
+      node.detailToggle.appendChild(icon(node.detailExpanded ? "chevron-down" : "chevron-right", 12));
+      node.detailToggle.setAttribute("aria-expanded", node.detailExpanded ? "true" : "false");
+      node.detailToggle.title = node.detailExpanded ? "收起诊断详情" : "展开诊断详情";
+      node.detailToggle.setAttribute("aria-label", node.detailExpanded ? "收起诊断详情" : "展开诊断详情");
+    }
+
     function recount() {
       setIconLabel(chipPass, "check", "PASS " + state.pass, 11);
       setIconLabel(chipFail, "x", "FAIL " + state.fail, 11);
@@ -1638,26 +1680,40 @@
       barSkip.style.width = (state.skip / total) * 100 + "%";
       barManual.style.width = (state.manual / total) * 100 + "%";
       statusPill.className =
-        "sc-status " +
+        "sc-status sc-status-header " +
         (state.fail
           ? "sc-status-fail"
-          : state.warn
-            ? "sc-status-warn"
-            : state.manual
-              ? "sc-status-manual"
-              : "sc-status-pass");
+          : state.manual
+            ? "sc-status-manual"
+            : state.warn
+              ? "sc-status-warn"
+              : state.complete && state.skip
+                ? "sc-status-info"
+                : "sc-status-pass");
       setIconLabel(
         statusPill,
-        state.fail ? "circle-x" : state.warn ? "info" : state.manual ? "hand" : "check",
+        state.fail
+          ? "circle-x"
+          : state.manual
+            ? "hand"
+            : state.warn
+              ? "info"
+              : state.complete && state.skip
+                ? "minus"
+                : "check",
         state.fail
           ? state.fail + " 项失败"
-          : state.warn
-            ? state.warn + " 项警告"
-            : state.manual
-              ? state.manual + " 项待人工确认"
-              : state.total && !state.skip && !state.manual
-                ? "全部通过"
-                : "运行中",
+          : state.manual
+            ? state.manual + " 项待人工确认"
+            : state.warn
+              ? state.warn + " 项警告"
+              : !state.total
+                ? "等待运行"
+                : state.complete && state.skip
+                  ? "已完成 · " + state.skip + " 项跳过"
+                  : state.complete
+                    ? "全部通过"
+                    : "运行中",
         13
       );
       duration.textContent = state.durationMs + "ms";
@@ -1665,23 +1721,17 @@
       sumLine.textContent =
         "总测试数: " +
         state.total +
-        "  PASS: " +
+        " · 通过: " +
         state.pass +
-        "  通过: " +
-        state.pass +
-        "  FAIL: " +
+        " · 失败: " +
         state.fail +
-        "  失败: " +
-        state.fail +
-        "  WARN: " +
+        " · 警告: " +
         state.warn +
-        "  INFO: " +
+        " · 信息: " +
         state.info +
-        "  SKIP: " +
+        " · 跳过: " +
         state.skip +
-        "  跳过: " +
-        state.skip +
-        "  MANUAL: " +
+        " · 人工: " +
         state.manual;
       Object.keys(suiteNodes).forEach(function (name) {
         var suiteNode = suiteNodes[name];
@@ -1699,7 +1749,21 @@
           var manualPending = Object.keys(caseNodes).filter(function (key) {
             return caseNodes[key].suite === name && caseNodes[key].status === STATUS.MANUAL;
           }).length;
-          setIconLabel(suiteNode.stat, "hand", "人工待确认 " + manualPending + " / " + suiteNode.manualTotal, 10);
+          var manualFailed = Object.keys(caseNodes).filter(function (key) {
+            var result = caseNodes[key].result || {};
+            return caseNodes[key].suite === name && caseNodes[key].status === STATUS.FAIL && result.manualVerdict === STATUS.FAIL;
+          }).length;
+          suiteNode.stat.dataset.manual = manualPending ? "1" : "0";
+          suiteNode.stat.dataset.failed = manualFailed || failed ? "1" : "0";
+          if (manualFailed) {
+            setIconLabel(suiteNode.stat, "x", "人工失败 " + manualFailed + " / " + suiteNode.manualTotal, 10);
+          } else if (manualPending) {
+            setIconLabel(suiteNode.stat, "hand", "待人工 " + manualPending + " / " + suiteNode.manualTotal, 10);
+          } else if (failed) {
+            setIconLabel(suiteNode.stat, "x", "自动失败 " + failed + " · 人工已确认", 10);
+          } else {
+            setIconLabel(suiteNode.stat, "check", "已确认 " + suiteNode.manualTotal + " / " + suiteNode.manualTotal, 10);
+          }
         } else {
           suiteNode.stat.textContent = passed + " / " + suiteTotal;
           suiteNode.stat.dataset.failed = failed ? "1" : "0";
@@ -1720,6 +1784,9 @@
         : 0;
       var row = el("div", "sc-suite");
       row.setAttribute("data-sctest", "suite-row");
+      row.setAttribute("role", "button");
+      row.setAttribute("tabindex", "0");
+      row.setAttribute("aria-expanded", "true");
       var chevron = el("span", "sc-icon");
       chevron.appendChild(icon("chevron-down", 13));
       var label = el("span", "sc-suite-name", name);
@@ -1735,11 +1802,19 @@
       body.appendChild(row);
       var group = el("div");
       body.appendChild(group);
-      row.addEventListener("click", function () {
+      function toggleSuite() {
         suiteNodes[name].collapsed = !suiteNodes[name].collapsed;
         group.hidden = suiteNodes[name].collapsed;
+        row.setAttribute("aria-expanded", group.hidden ? "false" : "true");
         chevron.textContent = "";
         chevron.appendChild(icon(group.hidden ? "chevron-right" : "chevron-down", 13));
+      }
+      row.addEventListener("click", toggleSuite);
+      row.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggleSuite();
+        }
       });
       suiteNodes[name] = {
         row: row,
@@ -1760,12 +1835,15 @@
             ? "x"
             : c.status === STATUS.MANUAL
               ? "hand"
-              : "info";
+              : c.status === STATUS.SKIP
+                ? "minus"
+                : "info";
       node.icon.textContent = "";
       node.icon.appendChild(icon(statusIcon, 13));
       node.statusLabel.textContent = c.status;
       node.statusLabel.className = "sc-case-status sc-status-" + c.status.toLowerCase();
       node.dur.textContent = c.status === STATUS.MANUAL ? "人工" : c.durationMs + "ms";
+      updateDetailToggle(node);
     }
 
     // 每条结果都显示诊断字段，保持附件中的“实际/预期/说明”阅读顺序；
@@ -1797,6 +1875,8 @@
       if (c.error) addField("错误", c.error, "error-value", true);
       node.row.parentNode.insertBefore(detail, node.row.nextSibling);
       node.detail = detail;
+      updateDetailToggle(node);
+      detail.hidden = node.row.hidden || !node.detailExpanded;
     }
 
     function removeManualControls(node) {
@@ -1862,15 +1942,18 @@
     return {
       panelRoot: root,
       onStart: function () {
+        state.complete = false;
         state.total = (runInfo.suites || []).reduce(function (n, s) {
           return n + s.cases.length;
         }, 0);
         recount();
       },
       onCase: function (c) {
+        state.complete = false;
         var key = c.suite + "//" + c.name;
         var existing = caseNodes[key];
         if (existing) {
+          var previousStatus = existing.status;
           if (existing.status === STATUS.PASS) state.pass--;
           else if (existing.status === STATUS.FAIL) state.fail--;
           else if (existing.status === STATUS.WARN) state.warn--;
@@ -1879,6 +1962,17 @@
           else if (existing.status === STATUS.MANUAL) state.manual--;
           existing.status = c.status;
           existing.result = c;
+          existing.searchText = [c.suite, c.category, c.name, c.expected, c.actual, c.detail, c.error, c.hint]
+            .map(function (value) {
+              return value == null ? "" : stringify(value);
+            })
+            .join(" ")
+            .toLowerCase();
+          if (c.status === STATUS.FAIL || c.status === STATUS.WARN || c.status === STATUS.MANUAL) {
+            existing.detailExpanded = true;
+          } else if (previousStatus !== c.status) {
+            existing.detailExpanded = false;
+          }
           applyStatus(c, existing);
           renderDetail(existing, c);
           syncManualControls(existing, c);
@@ -1895,12 +1989,21 @@
         var row = el("div", "sc-case" + (c.status === STATUS.MANUAL ? " sc-case-manual" : ""));
         row.setAttribute("data-sctest", "case-row");
         var caseIcon = el("b", null, ICONS[c.status] || "○");
+        var detailToggle = el("button", "sc-case-toggle");
+        detailToggle.setAttribute("data-sctest", "toggle-detail");
+        detailToggle.addEventListener("click", function (event) {
+          event.stopPropagation();
+          node.detailExpanded = !node.detailExpanded;
+          updateDetailToggle(node);
+          applyFilters();
+        });
         var label = el("span", "sc-case-label");
         label.appendChild(el("span", null, c.name));
         label.appendChild(el("small", "sc-case-category", c.category || c.suite));
         var statusLabel = el("strong", "sc-case-status", c.status);
         var dur = el("i", "sc-dur", c.status === STATUS.MANUAL ? "人工" : c.durationMs + "ms");
         row.appendChild(caseIcon);
+        row.appendChild(detailToggle);
         row.appendChild(label);
         row.appendChild(statusLabel);
         row.appendChild(dur);
@@ -1915,6 +2018,9 @@
           result: c,
           detail: null,
           hint: null,
+          detailToggle: detailToggle,
+          detailExpanded: c.status === STATUS.FAIL || c.status === STATUS.WARN || c.status === STATUS.MANUAL,
+          searchText: "",
           manualPass: null,
           manualFail: null,
         };
@@ -1933,6 +2039,12 @@
         } else if (c.status === STATUS.MANUAL) {
           state.manual++;
         }
+        node.searchText = [c.suite, c.category, c.name, c.expected, c.actual, c.detail, c.error, c.hint]
+          .map(function (value) {
+            return value == null ? "" : stringify(value);
+          })
+          .join(" ")
+          .toLowerCase();
         renderDetail(node, c);
 
         if (c.status === STATUS.MANUAL) {
@@ -1951,6 +2063,7 @@
       },
       onEnd: function (summary) {
         latestSummary = summary;
+        state.complete = true;
         state.total = summary.total;
         state.durationMs = summary.durationMs;
         recount();
@@ -1965,11 +2078,16 @@
 
     var wantPanel = mode === "panel" || (mode === "auto" && context === "page");
     var wantLog = mode === "log" || (mode === "auto" && context !== "page");
+    var framePolicy = opts.framePolicy || "top";
 
     if (wantPanel) {
-      var panel = createPanelReporter(runInfo);
-      if (panel) reporters.push(panel);
-      else wantLog = true;
+      if (framePolicy === "all" || isTopLevelFrame()) {
+        var panel = createPanelReporter(runInfo);
+        if (panel) reporters.push(panel);
+        else wantLog = true;
+      } else {
+        wantLog = true;
+      }
     }
     if (wantLog) reporters.push(createLogReporter());
     return reporters;
