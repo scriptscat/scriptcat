@@ -781,6 +781,7 @@ vdescribe("PanelReporter", () => {
     vexpect(root.querySelectorAll('[data-sctest="manual-pass"]')).toHaveLength(0);
     vexpect(root.querySelectorAll('[data-sctest="manual-fail"]')).toHaveLength(0);
     vexpect(root.querySelector('[data-sctest="case-row"]').textContent).toContain("PASS");
+    session.finish();
   });
 
   vit("没有重跑回调的自定义 report session 不显示无效的运行全部按钮", () => {
@@ -790,6 +791,7 @@ vdescribe("PanelReporter", () => {
     const root = document.getElementById("sctest-panel-host").shadowRoot;
     vexpect(root.querySelector('[data-sctest="run-all"]').hidden).toBe(true);
     vexpect(root.querySelector('[data-sctest="queue-chip"]').hidden).toBe(true);
+    session.finish();
   });
 
   vit("面板控件提供可访问名称,空筛选状态可被辅助技术感知", async () => {
@@ -799,6 +801,8 @@ vdescribe("PanelReporter", () => {
 
     const root = document.getElementById("sctest-panel-host").shadowRoot;
     vexpect(root.querySelector(".sc-panel").getAttribute("role")).toBe("region");
+    vexpect(root.querySelector('[data-sctest="duration"]').getAttribute("role")).toBe("timer");
+    vexpect(root.querySelector('[data-sctest="duration"]').getAttribute("aria-label")).toBe("运行耗时");
     vexpect(root.querySelector('[data-sctest="search"] input').getAttribute("aria-label")).toBe("筛选用例");
     vexpect(root.querySelector('[data-sctest="collapse-all"]').getAttribute("aria-label")).toBe("全部折叠");
     vexpect(root.querySelector('[data-sctest="empty-state"]').getAttribute("role")).toBe("status");
@@ -820,6 +824,17 @@ vdescribe("PanelReporter", () => {
     const root = document.getElementById("sctest-panel-host").shadowRoot;
     vexpect(root.querySelector('[data-sctest="total-chip"]').textContent).toContain("共 1");
     vexpect(root.querySelector('[data-sctest="summary-line"]').textContent).toContain("总测试数: 1");
+    session.finish();
+  });
+
+  vit("面板用稳定可读的格式显示长耗时", () => {
+    const session = SCTest.createReportSession({ name: "duration format", reporter: "panel" });
+    session.start();
+    session.record({ category: "运行", name: "耗时项", status: "PASS", durationMs: 12345 });
+    session.finish();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    vexpect(root.querySelector('[data-sctest="case-row"] .sc-dur').textContent).toBe("12.3 s");
   });
 
   vit("面板渲染出每条用例与汇总行", async () => {
@@ -991,6 +1006,37 @@ vdescribe("PanelReporter", () => {
     vexpect(root.querySelector('[data-sctest="progress-pass"]')).not.toBe(null);
     vexpect(root.querySelector('[data-sctest="progress-fail"]')).not.toBe(null);
     vexpect(root.querySelector('[data-sctest="progress-skip"]')).not.toBe(null);
+  });
+
+  vit("状态 chip 的计数独立渲染,完成进度条填满且分段不收缩", async () => {
+    const { describe: d, check, note, run } = SCTest.create({ name: "stable metrics", reporter: "panel" });
+    d("混合组", () => {
+      check("诊断", "通过", () => true, "yes", "yes", "通过");
+      check("诊断", "警告", () => false, "yes", "no", "可选", { onFail: "WARN" });
+      note("诊断", "信息", "observed", "observed", "观察");
+    });
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    vexpect(root.querySelectorAll('[data-sctest="counters"] .sc-chip-count')).toHaveLength(7);
+    vexpect(root.querySelector('[data-sctest="counters"] .sc-chip-pass .sc-chip-count').textContent).toBe("1");
+    const segments = [...root.querySelectorAll('[data-sctest="progress"] i')];
+    const totalWidth = segments.reduce((sum, segment) => sum + parseFloat(segment.style.width || "0"), 0);
+    vexpect(totalWidth).toBeCloseTo(100, 5);
+    vexpect(segments.every((segment) => segment.style.flex.startsWith("0 0 "))).toBe(true);
+  });
+
+  vit("结果状态使用一致的 badge 外观,footer summary 与操作保持同一行", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "consistent layout", reporter: "panel" });
+    d("组", () => i("通过", () => e(true).toBe(true)));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    vexpect(root.querySelector('[data-sctest="case-row"] .sc-case-status').classList.contains("sc-status-pass")).toBe(true);
+    const summary = root.querySelector('[data-sctest="summary-line"]');
+    const actions = root.querySelector('[data-sctest="footer"] .sc-foot-actions');
+    vexpect(summary.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    vexpect(actions.compareDocumentPosition(root.querySelector('[data-sctest="footer-note"]')) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 
   vit("运行全部会重新执行自动 suite,完成后按钮恢复可用", async () => {

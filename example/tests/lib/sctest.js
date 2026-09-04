@@ -272,6 +272,14 @@
     return typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
   }
 
+  function formatDuration(durationMs) {
+    var value = Number(durationMs);
+    if (!isFinite(value) || value < 0) return "—";
+    if (value < 1000) return Math.round(value) + " ms";
+    if (value < 60000) return (value / 1000).toFixed(1).replace(/\.0$/, "") + " s";
+    return Math.floor(value / 60000) + "m " + Math.floor((value % 60000) / 1000) + "s";
+  }
+
   function normalizeStatus(status) {
     var normalized = String(status || "").toUpperCase();
     return STATUS[normalized] || STATUS.FAIL;
@@ -598,6 +606,9 @@
 
     async function rerunSuites(reporters, onlySuiteName, includeAutoSuites) {
       var startedAt = now();
+      reporters.forEach(function (r) {
+        if (r.onStart) r.onStart(runInfo);
+      });
       for (var i = 0; i < suites.length; i++) {
         var suite = suites[i];
         if (!includeAutoSuites && suite.auto) continue;
@@ -880,6 +891,7 @@
     var lastSuite = null;
     return {
       onStart: function (info) {
+        lastSuite = null;
         console.log("%c=== " + info.name + " 测试开始 (" + info.context + ") ===", "color: blue; font-weight: bold;");
       },
       onCase: function (c) {
@@ -969,14 +981,15 @@
     ".sc-status-warn{background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
     ".sc-status-info,.sc-status-skip{background:#315264;color:#d9e6ec}",
     ".sc-status-manual{background:var(--sc-manual-bg);color:var(--sc-manual-fg)}",
-    ".sc-chip{display:inline-flex;align-items:center;gap:4px;border-radius:9999px;padding:3px 9px;font-size:11px;font-weight:500}",
+    ".sc-chip{display:inline-flex;align-items:center;gap:4px;border-radius:9999px;padding:3px 9px;font-size:11px;font-weight:500;white-space:nowrap}",
+    ".sc-chip-count{min-width:1ch;text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}",
     ".sc-chip-pass{background:var(--sc-success-bg);color:var(--sc-success-fg)}",
     ".sc-chip-fail{background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
     ".sc-chip-warn{background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
     ".sc-chip-info,.sc-chip-skip{background:#315264;color:#d9e6ec}",
     ".sc-chip-manual{background:var(--sc-manual-bg);color:var(--sc-manual-fg)}",
     ".sc-progress{height:6px;border-radius:9999px;background:#315264;overflow:hidden;display:flex;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}",
-    ".sc-progress i{display:block;height:6px}",
+    ".sc-progress i{display:block;height:6px;flex:0 0 auto}",
     ".sc-diagnostic-hint{padding:9px 14px;color:#a9c0cc;background:var(--sc-detail-bg);border-bottom:1px solid var(--sc-divider);font-size:11px}",
     ".sc-toolbar{padding:8px 14px;border-bottom:1px solid var(--sc-divider);background:var(--sc-bg);flex-wrap:wrap}",
     ".sc-segments{display:flex;min-width:0;gap:2px;padding:2px;border-radius:6px;background:var(--sc-detail-bg);overflow:auto}",
@@ -1000,7 +1013,7 @@
     ".sc-case span{flex:1}",
     ".sc-case-label{min-width:0;display:flex;flex-direction:column;gap:2px}",
     ".sc-case-category{color:var(--sc-muted);font-size:10px;font-weight:400}",
-    ".sc-case-status{font-size:10px;font-style:normal;font-weight:700}",
+    ".sc-case-status{display:inline-flex;min-width:3.8em;align-items:center;justify-content:center;border:1px solid transparent;border-radius:9999px;padding:2px 7px;font-size:10px;font-style:normal;font-weight:700;letter-spacing:.01em;line-height:1.1}",
     ".sc-case-manual{background:#352c1e;border-left-color:var(--sc-warning-bg)}",
     ".sc-manual-pass{width:30px;height:30px;min-height:30px;padding:0;border-color:var(--sc-success);background:#1d4938;color:var(--sc-success)}",
     ".sc-manual-fail{width:30px;height:30px;min-height:30px;padding:0;border-color:var(--sc-destructive);background:#54252c;color:var(--sc-destructive)}",
@@ -1017,10 +1030,11 @@
     ".sc-params input{min-width:0;flex:1;border:1px solid var(--sc-border);border-radius:6px;padding:3px 8px;",
     "background:var(--sc-control);color:var(--sc-fg);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}",
     ".sc-empty{display:flex;min-height:120px;align-items:center;justify-content:center;flex-direction:column;gap:9px;padding:24px;color:var(--sc-muted);text-align:center}.sc-empty .sc-btn{font-size:11px}",
-    ".sc-foot{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid var(--sc-divider);background:var(--sc-muted-bg)}",
-    ".sc-foot .sc-sumline{min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.5;color:var(--sc-muted);overflow-wrap:anywhere}",
-    ".sc-foot-note{grid-column:1/-1;color:var(--sc-muted);font-size:10px;overflow-wrap:anywhere}.sc-foot-actions{display:flex;gap:6px;align-items:center}",
-    "@media (max-width:720px){.sc-panel{top:8px;right:8px;width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}.sc-head{display:grid;grid-template-columns:24px minmax(0,1fr) 66px 66px 30px;align-items:center;gap:8px}.sc-grip{grid-column:1;grid-row:1}.sc-title-wrap{grid-column:2/6;grid-row:1;order:initial;flex-basis:auto}.sc-status-header{grid-column:1/3;grid-row:2;order:initial}.sc-head .sc-btn{grid-row:2;order:initial}.sc-head .sc-btn:not(.sc-icon-btn):not(.sc-min-btn){grid-column:3}.sc-head .sc-btn.sc-min-btn{grid-column:4}.sc-head .sc-btn.sc-close-btn{grid-column:5}.sc-toolbar{align-items:stretch}.sc-segments{max-width:100%;flex-basis:100%}.sc-search{flex-basis:100%;min-height:30px}.sc-table-head{grid-template-columns:48px minmax(0,1fr)}.sc-table-head span:nth-child(n+3){display:none}.sc-detail{grid-template-columns:max-content minmax(0,1fr)}.sc-detail-wide{grid-column:1/-1}.sc-foot{grid-template-columns:1fr}.sc-foot-actions{grid-column:1/-1}.sc-foot-actions .sc-btn{flex:1}.sc-foot-note{grid-column:1/-1}}",
+    ".sc-summary-bottom{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.sc-summary-bottom .sc-chips{min-width:0;flex:1 1 auto}.sc-summary-bottom .sc-run-row{flex:0 0 auto}",
+    ".sc-foot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:9px 14px;border-top:1px solid var(--sc-divider);background:var(--sc-muted-bg)}",
+    ".sc-foot .sc-sumline{min-width:0;flex:1 1 360px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.5;color:var(--sc-muted);overflow-wrap:anywhere}",
+    ".sc-foot-note{flex:1 0 100%;color:var(--sc-muted);font-size:10px;overflow-wrap:anywhere}.sc-foot-actions{display:flex;gap:6px;align-items:center;flex:0 0 auto}",
+    "@media (max-width:720px){.sc-panel{top:8px;right:8px;width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}.sc-head{display:grid;grid-template-columns:24px minmax(0,1fr) 66px 66px 30px;align-items:center;gap:8px}.sc-grip{grid-column:1;grid-row:1}.sc-title-wrap{grid-column:2/6;grid-row:1;order:initial;flex-basis:auto}.sc-status-header{grid-column:1/3;grid-row:2;order:initial}.sc-head .sc-btn{grid-row:2;order:initial}.sc-head .sc-btn:not(.sc-icon-btn):not(.sc-min-btn){grid-column:3}.sc-head .sc-btn.sc-min-btn{grid-column:4}.sc-head .sc-btn.sc-close-btn{grid-column:5}.sc-toolbar{align-items:stretch}.sc-segments{max-width:100%;flex-basis:100%}.sc-search{flex-basis:100%;min-height:30px}.sc-table-head{grid-template-columns:48px minmax(0,1fr)}.sc-table-head span:nth-child(n+3){display:none}.sc-detail{grid-template-columns:max-content minmax(0,1fr)}.sc-detail-wide{grid-column:1/-1}.sc-summary-bottom{align-items:stretch}.sc-summary-bottom .sc-chips{flex-basis:100%}.sc-summary-bottom .sc-run-row{flex:1 0 100%}.sc-foot .sc-sumline{flex-basis:100%}.sc-foot-actions{flex:1 0 100%}.sc-foot-actions .sc-btn{flex:1}}",
   ].join("");
 
   // Constructable stylesheet 通过 CSSOM 安装到 Shadow Root，不属于页面的 inline <style>，
@@ -1045,7 +1059,10 @@
     if (typeof document === "undefined" || !document.documentElement) return null;
 
     var host = document.getElementById("sctest-panel-host");
-    if (host) host.remove();
+    if (host) {
+      if (typeof host.__sctestStopTimer === "function") host.__sctestStopTimer();
+      host.remove();
+    }
     host = document.createElement("div");
     host.id = "sctest-panel-host";
     host.style.all = "unset";
@@ -1170,6 +1187,13 @@
       node.appendChild(document.createTextNode(text));
     }
 
+    function setChipCount(node, iconName, label, count, size) {
+      node.textContent = "";
+      node.appendChild(icon(iconName, size));
+      node.appendChild(document.createTextNode(label + " "));
+      node.appendChild(el("span", "sc-chip-count", String(count)));
+    }
+
     // 头部
     var head = el("div", "sc-head");
     var grip = icon("grip-vertical", 14);
@@ -1215,6 +1239,7 @@
     closeBtn.title = "关闭";
     closeBtn.setAttribute("aria-label", "关闭");
     closeBtn.addEventListener("click", function () {
+      stopTimer();
       host.remove();
     });
     head.appendChild(closeBtn);
@@ -1223,32 +1248,30 @@
     // 概览
     var sum = el("div", "sc-sum");
     var statusRow = el("div", "sc-status-row");
-    var duration = el("span", "sc-dur", "0ms");
+    var duration = el("span", "sc-dur", "0 ms");
     duration.setAttribute("data-sctest", "duration");
+    duration.setAttribute("role", "timer");
+    duration.setAttribute("aria-label", "运行耗时");
     statusRow.appendChild(el("span", "sc-spacer"));
     statusRow.appendChild(icon("timer", 13));
     statusRow.appendChild(duration);
     sum.appendChild(statusRow);
     var chips = el("div", "sc-chips");
-    var chipPass = el("span", "sc-chip sc-chip-pass", "PASS 0");
-    var chipFail = el("span", "sc-chip sc-chip-fail", "FAIL 0");
-    var chipWarn = el("span", "sc-chip sc-chip-warn", "WARN 0");
-    var chipInfo = el("span", "sc-chip sc-chip-info", "INFO 0");
-    var chipSkip = el("span", "sc-chip sc-chip-skip", "SKIP 0");
-    var chipManual = el("span", "sc-chip sc-chip-manual", "MANUAL 0");
-    var chipTotal = el("span", "sc-chip sc-chip-skip", "共 0");
+    var chipPass = el("span", "sc-chip sc-chip-pass");
+    var chipFail = el("span", "sc-chip sc-chip-fail");
+    var chipWarn = el("span", "sc-chip sc-chip-warn");
+    var chipInfo = el("span", "sc-chip sc-chip-info");
+    var chipSkip = el("span", "sc-chip sc-chip-skip");
+    var chipManual = el("span", "sc-chip sc-chip-manual");
+    var chipTotal = el("span", "sc-chip sc-chip-skip");
     chipTotal.setAttribute("data-sctest", "total-chip");
-    [
-      [chipPass, "check"],
-      [chipFail, "x"],
-      [chipWarn, "info"],
-      [chipInfo, "info"],
-      [chipSkip, "minus"],
-      [chipManual, "hand"],
-      [chipTotal, "hash"],
-    ].forEach(function (entry) {
-      entry[0].insertBefore(icon(entry[1], 11), entry[0].firstChild);
-    });
+    setChipCount(chipPass, "check", "PASS", 0, 11);
+    setChipCount(chipFail, "x", "FAIL", 0, 11);
+    setChipCount(chipWarn, "info", "WARN", 0, 11);
+    setChipCount(chipInfo, "info", "INFO", 0, 11);
+    setChipCount(chipSkip, "minus", "SKIP", 0, 11);
+    setChipCount(chipManual, "hand", "MANUAL", 0, 11);
+    setChipCount(chipTotal, "hash", "共", 0, 11);
     chips.setAttribute("data-sctest", "counters");
     chips.appendChild(chipPass);
     chips.appendChild(chipFail);
@@ -1284,7 +1307,9 @@
     progress.appendChild(barSkip);
     progress.appendChild(barManual);
     sum.appendChild(progress);
-    sum.appendChild(chips);
+    var summaryBottom = el("div", "sc-summary-bottom");
+    summaryBottom.appendChild(chips);
+    sum.appendChild(summaryBottom);
     panel.appendChild(sum);
     var diagnosticHint = el(
       "div",
@@ -1309,8 +1334,8 @@
     resetBtn.setAttribute("data-sctest", "reset");
     resetBtn.title = "重置筛选和折叠状态";
     resetBtn.setAttribute("aria-label", "重置筛选和折叠状态");
-    var queueChip = el("span", "sc-chip sc-chip-skip", "待跑 " + manualSuites.length);
-    queueChip.insertBefore(icon("list-todo", 11), queueChip.firstChild);
+    var queueChip = el("span", "sc-chip sc-chip-skip");
+    setChipCount(queueChip, "list-todo", "待跑", manualSuites.length, 11);
     queueChip.setAttribute("data-sctest", "queue-chip");
     if (runInfo.runnable === false) {
       runAllBtn.hidden = true;
@@ -1320,7 +1345,7 @@
     runRow.appendChild(resetBtn);
     runRow.appendChild(el("span", "sc-spacer"));
     runRow.appendChild(queueChip);
-    sum.appendChild(runRow);
+    summaryBottom.appendChild(runRow);
     runAllBtn.addEventListener("click", function () {
       runAllBtn.disabled = true;
       Promise.resolve(typeof runInfo.onRerun === "function" ? runInfo.onRerun() : null).finally(function () {
@@ -1444,7 +1469,7 @@
     jsonBtn.insertBefore(icon("braces", 12), jsonBtn.firstChild);
     jsonBtn.setAttribute("data-sctest", "export-json");
     footActions.appendChild(jsonBtn);
-    foot.appendChild(footActions);
+    foot.insertBefore(footActions, footerNote);
     panel.appendChild(foot);
 
     function reportText() {
@@ -1671,21 +1696,60 @@
       node.detailToggle.setAttribute("aria-label", node.detailExpanded ? "收起诊断详情" : "展开诊断详情");
     }
 
+    var timerId = null;
+    var timerStartedAt = 0;
+
+    function stopTimer() {
+      if (timerId !== null && typeof clearInterval === "function") clearInterval(timerId);
+      timerId = null;
+    }
+
+    function startTimer() {
+      stopTimer();
+      timerStartedAt = now();
+      state.durationMs = 0;
+      duration.textContent = formatDuration(state.durationMs);
+      if (typeof setInterval === "function") {
+        timerId = setInterval(function () {
+          state.durationMs = Math.max(0, Math.round(now() - timerStartedAt));
+          duration.textContent = formatDuration(state.durationMs);
+        }, 100);
+      }
+    }
+
+    host.__sctestStopTimer = stopTimer;
+
+    function updateProgress() {
+      var values = [state.pass, state.fail, state.warn, state.info, state.skip, state.manual];
+      var total = state.total;
+      var completed = values.reduce(function (sum, value) {
+        return sum + value;
+      }, 0);
+      var lastNonZero = -1;
+      values.forEach(function (value, index) {
+        if (value > 0) lastNonZero = index;
+      });
+      var remaining = 100;
+      var bars = [barPass, barFail, barWarn, barInfo, barSkip, barManual];
+      bars.forEach(function (bar, index) {
+        var percent = total > 0 ? (values[index] / total) * 100 : 0;
+        if (completed >= total && total > 0 && index === lastNonZero) percent = remaining;
+        percent = Math.max(0, Math.min(remaining, percent));
+        bar.style.width = percent + "%";
+        bar.style.flex = "0 0 " + percent + "%";
+        remaining -= percent;
+      });
+    }
+
     function recount() {
-      setIconLabel(chipPass, "check", "PASS " + state.pass, 11);
-      setIconLabel(chipFail, "x", "FAIL " + state.fail, 11);
-      setIconLabel(chipWarn, "info", "WARN " + state.warn, 11);
-      setIconLabel(chipInfo, "info", "INFO " + state.info, 11);
-      setIconLabel(chipSkip, "minus", "SKIP " + state.skip, 11);
-      setIconLabel(chipManual, "hand", "MANUAL " + state.manual, 11);
-      setIconLabel(chipTotal, "hash", "共 " + state.total, 11);
-      var total = state.total || 1;
-      barPass.style.width = (state.pass / total) * 100 + "%";
-      barFail.style.width = (state.fail / total) * 100 + "%";
-      barWarn.style.width = (state.warn / total) * 100 + "%";
-      barInfo.style.width = (state.info / total) * 100 + "%";
-      barSkip.style.width = (state.skip / total) * 100 + "%";
-      barManual.style.width = (state.manual / total) * 100 + "%";
+      setChipCount(chipPass, "check", "PASS", state.pass, 11);
+      setChipCount(chipFail, "x", "FAIL", state.fail, 11);
+      setChipCount(chipWarn, "info", "WARN", state.warn, 11);
+      setChipCount(chipInfo, "info", "INFO", state.info, 11);
+      setChipCount(chipSkip, "minus", "SKIP", state.skip, 11);
+      setChipCount(chipManual, "hand", "MANUAL", state.manual, 11);
+      setChipCount(chipTotal, "hash", "共", state.total, 11);
+      updateProgress();
       statusPill.className =
         "sc-status sc-status-header " +
         (state.fail
@@ -1723,8 +1787,8 @@
                     : "运行中",
         13
       );
-      duration.textContent = state.durationMs + "ms";
-      setIconLabel(queueChip, "list-todo", "待跑 " + state.skip, 11);
+      duration.textContent = formatDuration(state.durationMs);
+      setChipCount(queueChip, "list-todo", "待跑", state.skip, 11);
       sumLine.textContent =
         "总测试数: " +
         state.total +
@@ -1849,7 +1913,7 @@
       node.icon.appendChild(icon(statusIcon, 13));
       node.statusLabel.textContent = c.status;
       node.statusLabel.className = "sc-case-status sc-status-" + c.status.toLowerCase();
-      node.dur.textContent = c.status === STATUS.MANUAL ? "人工" : c.durationMs + "ms";
+      node.dur.textContent = c.status === STATUS.MANUAL ? "人工" : formatDuration(c.durationMs);
       updateDetailToggle(node);
     }
 
@@ -1949,6 +2013,7 @@
     return {
       panelRoot: root,
       onStart: function () {
+        startTimer();
         state.complete = false;
         state.total = (runInfo.suites || []).reduce(function (n, s) {
           return n + s.cases.length;
@@ -2008,7 +2073,7 @@
         label.appendChild(el("span", null, c.name));
         label.appendChild(el("small", "sc-case-category", c.category || c.suite));
         var statusLabel = el("strong", "sc-case-status", c.status);
-        var dur = el("i", "sc-dur", c.status === STATUS.MANUAL ? "人工" : c.durationMs + "ms");
+        var dur = el("i", "sc-dur", c.status === STATUS.MANUAL ? "人工" : formatDuration(c.durationMs));
         row.appendChild(caseIcon);
         row.appendChild(detailToggle);
         row.appendChild(label);
@@ -2070,6 +2135,7 @@
         recount();
       },
       onEnd: function (summary) {
+        stopTimer();
         latestSummary = summary;
         state.complete = true;
         state.total = summary.total;
