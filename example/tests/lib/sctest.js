@@ -996,7 +996,7 @@
     ".sc-suite-stat[data-failed='1']{background:var(--sc-destructive-bg);color:var(--sc-destructive-fg)}",
     ".sc-suite-stat[data-manual='1']{display:inline-flex;align-items:center;gap:4px;background:var(--sc-warning-bg);color:var(--sc-warning-fg)}",
     ".sc-case{display:flex;align-items:center;gap:8px;padding:8px 14px 6px 34px;background:var(--sc-bg);border-left:2px solid transparent;transition:background .15s}",
-    ".sc-case:hover{background:#0e202b}.sc-case>b{color:var(--sc-primary);font-size:13px;font-weight:700}.sc-case-toggle{flex:none;width:22px;height:22px;min-height:22px;border:0;border-radius:5px;padding:0;background:transparent;color:var(--sc-muted);cursor:pointer}.sc-case-toggle:hover{background:var(--sc-control);color:var(--sc-fg)}",
+    ".sc-case:hover{background:#0e202b}.sc-case>b{color:var(--sc-primary);font-size:13px;font-weight:700}.sc-case-toggle{flex:none;width:22px;height:22px;min-height:22px;border:0;border-radius:5px;padding:0;background:transparent;color:var(--sc-muted);cursor:pointer}.sc-case-toggle:hover{background:var(--sc-control);color:var(--sc-fg)}.sc-case-toggle:focus-visible{outline:2px solid var(--sc-primary);outline-offset:1px}",
     ".sc-case span{flex:1}",
     ".sc-case-label{min-width:0;display:flex;flex-direction:column;gap:2px}",
     ".sc-case-category{color:var(--sc-muted);font-size:10px;font-weight:400}",
@@ -1056,6 +1056,8 @@
 
     var panel = document.createElement("div");
     panel.className = "sc-panel";
+    panel.setAttribute("role", "region");
+    panel.setAttribute("aria-label", "SCTest 诊断报告");
     root.appendChild(panel);
 
     var state = { pass: 0, fail: 0, warn: 0, info: 0, skip: 0, manual: 0, total: 0, durationMs: 0, complete: false };
@@ -1387,6 +1389,7 @@
     searchWrap.appendChild(icon("search", 12));
     var search = document.createElement("input");
     search.placeholder = "筛选用例…";
+    search.setAttribute("aria-label", "筛选用例");
     searchWrap.appendChild(search);
     var toolbarCopy = el("button", "sc-btn");
     setIconLabel(toolbarCopy, "copy", "复制 JSON", 13);
@@ -1395,6 +1398,7 @@
     var collapseAll = el("button", "sc-btn sc-icon-btn");
     collapseAll.appendChild(icon("chevrons-down-up", 13));
     collapseAll.title = "全部折叠";
+    collapseAll.setAttribute("aria-label", "全部折叠");
     collapseAll.setAttribute("data-sctest", "collapse-all");
     toolbar.appendChild(segments);
     toolbar.appendChild(searchWrap);
@@ -1414,6 +1418,8 @@
     body.appendChild(diagnosticTable);
     var emptyState = el("div", "sc-empty", "没有符合当前筛选的结果");
     emptyState.setAttribute("data-sctest", "empty-state");
+    emptyState.setAttribute("role", "status");
+    emptyState.setAttribute("aria-live", "polite");
     var emptyReset = el("button", "sc-btn", "清除筛选");
     emptyReset.setAttribute("data-sctest", "empty-reset");
     emptyState.appendChild(emptyReset);
@@ -1642,6 +1648,7 @@
         suiteNodes[name].chevron.appendChild(icon(shouldCollapse ? "chevron-right" : "chevron-down", 13));
       });
       collapseAll.title = shouldCollapse ? "全部展开" : "全部折叠";
+      collapseAll.setAttribute("aria-label", shouldCollapse ? "全部展开" : "全部折叠");
       applyFilters();
     });
     resetBtn.addEventListener("click", function () {
@@ -2025,6 +2032,7 @@
           manualFail: null,
         };
         caseNodes[key] = node;
+        state.total = Math.max(state.total, Object.keys(caseNodes).length);
 
         if (c.status === STATUS.FAIL) {
           state.fail++;

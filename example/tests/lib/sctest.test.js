@@ -792,6 +792,36 @@ vdescribe("PanelReporter", () => {
     vexpect(root.querySelector('[data-sctest="queue-chip"]').hidden).toBe(true);
   });
 
+  vit("面板控件提供可访问名称,空筛选状态可被辅助技术感知", async () => {
+    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "accessibility", reporter: "panel" });
+    d("组", () => i("通过", () => e(true).toBe(true)));
+    await run();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    vexpect(root.querySelector(".sc-panel").getAttribute("role")).toBe("region");
+    vexpect(root.querySelector('[data-sctest="search"] input').getAttribute("aria-label")).toBe("筛选用例");
+    vexpect(root.querySelector('[data-sctest="collapse-all"]').getAttribute("aria-label")).toBe("全部折叠");
+    vexpect(root.querySelector('[data-sctest="empty-state"]').getAttribute("role")).toBe("status");
+    vexpect(root.querySelector('[data-sctest="empty-state"]').getAttribute("aria-live")).toBe("polite");
+
+    const toggle = root.querySelector('[data-sctest="toggle-detail"]');
+    vexpect(toggle.getAttribute("aria-expanded")).toBe("false");
+    toggle.click();
+    vexpect(toggle.getAttribute("aria-expanded")).toBe("true");
+    root.querySelector('[data-sctest="collapse-all"]').click();
+    vexpect(root.querySelector('[data-sctest="collapse-all"]').getAttribute("aria-label")).toBe("全部展开");
+  });
+
+  vit("自定义 report session 在结束前也显示已记录结果数量", () => {
+    const session = SCTest.createReportSession({ name: "live session", reporter: "panel" });
+    session.start();
+    session.record({ category: "运行", name: "第一项", status: "PASS" });
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    vexpect(root.querySelector('[data-sctest="total-chip"]').textContent).toContain("共 1");
+    vexpect(root.querySelector('[data-sctest="summary-line"]').textContent).toContain("总测试数: 1");
+  });
+
   vit("面板渲染出每条用例与汇总行", async () => {
     const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
     d("组一", () => {
