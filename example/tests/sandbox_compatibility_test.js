@@ -4,9 +4,8 @@
 // @version      1.0.0
 // @description  检查 window、this、globalThis、宿主函数/访问器、事件与 GM API 是否符合 Tampermonkey 沙盒预期
 // @author       ScriptCat sandbox audit
-// @match        https://*/*?test_sandbox
+// @match        https://*/*?test_sandbox_compatibility_sc
 // @run-at       document-start
-// @sandbox      JavaScript
 // @grant        unsafeWindow
 // @grant        GM.info
 // @grant        GM_getValue
@@ -91,12 +90,33 @@ let observedThis = this;
     }
   };
 
+  const randkey = `_${Math.random().toString(36).substring(3, 8)}`;
+  console.log("randkey is " + randkey);
+  let randKeyHook = "";
+  try {
+    document.documentElement.appendChild(document.createElement("script")).textContent = "var " + randkey + " = 1";
+  } catch (e) { randKeyHook = "dom error"; }
+  try {
+    document.documentElement.appendChild(document.createElement("script")).textContent = "document." + randkey + " = 1";
+  } catch (e) { randKeyHook = "dom error"; }
+
+  if (!randKeyHook) {
+    randKeyHook = document[randkey] === undefined ? "content" : "page";
+  }
+
+
+
+
+
   const formatValue = (value) => {
     if (value === UNAVAILABLE) return "<不可用>";
     if (value === sandboxWindow) return "sandbox window";
     if (value === sandboxGlobal) return "sandbox globalThis";
     if (value === sandboxSelf) return "sandbox self";
-    if (value === pageWindow) return "page unsafeWindow";
+    if (value === pageWindow) {
+      if (randKeyHook !== "dom error") return value[randkey] === 1 ? "page unsafeWindow" : "content unsafeWindow";
+      return "page unsafeWindow";
+    }
     if (value === undefined) return "undefined";
     if (value === null) return "null";
     if (typeof value === "string") return JSON.stringify(value);
@@ -247,14 +267,32 @@ let observedThis = this;
       "classic userscript 的顶层 this 应落在脚本沙盒；若这里失败，常见原因是被注入为 module/main world。"
     );
 
+
+    if (randKeyHook === "content") {
+
+      check(
+        "全局别名",
+        "@content-inject content is applied",
+        () => true,
+        "content unsafeWindow (VM); page unsafeWindow (TM)",
+        () => formatValue(unsafeWindow),
+        "VM完全支持; TM部份支持(FF)"
+      );
+    } else {
+      skip("全局别名", "@content-inject content 支持", "supports @content-inject content", "当前管理器未提供 @inject-into");
+
+    }
+
+
     const functionGlobal = read(() => nativeFunction("return this")());
     check(
       "全局别名",
       "Function(\"return this\")() === unsafeWindow",
       () => functionGlobal === unsafeWindow,
-      "page unsafeWindow",
+      "page unsafeWindow (TM) / content unsafeWindow (VM,SC)",
       () => formatValue(functionGlobal),
-      "验证脚本 realm 的函数构造器能把 this 指向 page window。",
+      "验证脚本 realm 的函数构造器能把 this 指向 page window。（Firefox content：[object Window]）",
+
         { onFail: "WARN", onError: "WARN", required: false }
     );
 
@@ -268,12 +306,23 @@ let observedThis = this;
         "全局别名",
         "window.eval(\"this\") === unsafeWindow",
         () => evalGlobal === unsafeWindow,
-        "page unsafeWindow",
+      "page unsafeWindow (TM) / content unsafeWindow (VM,SC)",
         () => formatValue(evalGlobal),
-        "eval 的 receiver/realm 应逃到页面全局。",
+        "eval 的 receiver/realm 应逃到页面全局。（Firefox content：[object Window]）",
         { onFail: "WARN", onError: "WARN", required: false }
       );
     }
+
+
+    check(
+      "全局别名",
+      "Function(\"return this\")() === window.eval(\"this\")",
+      () => functionGlobal === evalGlobal,
+      "true",
+      () => `${functionGlobal === evalGlobal}`,
+      "验证脚本 functionGlobal === evalGlobal。"
+    );
+
 
     const strictFunctionThis = read(() =>
       (function () {
@@ -342,6 +391,14 @@ let observedThis = this;
         () => formatValue(pageSelf),
         "page 侧自身别名的 sanity check。",
         { onFail: "WARN", onError: "WARN", required: false }
+      );
+      check(
+        "页面隔离",
+        "unsafeWindow.window === unsafeWindow.self",
+        () => read(() => pageWindow.window) === pageSelf,
+        "true",
+        () => `${read(() => pageWindow.window) === pageSelf}`,
+        "验证脚本 unsafeWindow.window === unsafeWindow.self。"
       );
       check(
         "页面隔离",
@@ -463,12 +520,14 @@ let observedThis = this;
     );
 
     const prototypeOfWindow = read(() => nativeGetPrototypeOf(sandboxWindow));
-    note(
+    check(
       "脚本 realm 内建",
       "window 的 prototype 形态",
-      "PR 的 PseudoWindow 路径为 null prototype；其他 TM 模式可为 Window prototype",
-      formatValue(prototypeOfWindow),
-      "prototype 形态是实现策略证据，不单独决定兼容性；真正关键的是 own descriptor 与身份/receiver 测试。"
+      () => `${formatValue(prototypeOfWindow)}` === "null",
+      "null",
+      () => formatValue(prototypeOfWindow),
+      "prototype 形态是实现策略证据，不单独决定兼容性；真正关键的是 own descriptor 与身份/receiver 测试。",
+      { onFail: "WARN", onError: "WARN", required: false }
     );
 
     // 5. 宿主属性与 descriptor：读取 getter 不应抛异常，关键函数要可以被抽出调用。
