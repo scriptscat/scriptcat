@@ -11,7 +11,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_info
-// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@479d31cc494f68a4e66a33a9c2c47cdb0e0bd428/example/tests/lib/sctest.js
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@e68d2f42b1340b476942d785c70c22b699698f0e/example/tests/lib/sctest.js
 // @connect      httpbingo.org
 // @connect      raw.githubusercontent.com
 // @connect      cdn.jsdelivr.net
