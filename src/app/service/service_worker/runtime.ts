@@ -1078,7 +1078,8 @@ export class RuntimeService {
       // 异常情况
       // 检查scriptcat-content和scriptcat-inject是否存在
       const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-inject"] });
-      if (res.length === 1) {
+      const contentScripts = await chrome.scripting.getRegisteredContentScripts({ ids: ["scriptcat-scripting"] });
+      if (res.length === 1 && contentScripts.length === 1) {
         return;
       }
       // scriptcat-content/scriptcat-inject不存在的情况

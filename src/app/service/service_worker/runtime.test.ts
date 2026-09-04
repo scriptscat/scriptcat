@@ -1,6 +1,6 @@
 import { initTestEnv } from "@Tests/utils";
 import { RuntimeService } from "./runtime";
-import { vi, describe, it, expect, beforeEach, type MockedFunction } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach, type MockedFunction } from "vitest";
 import { randomUUID } from "crypto";
 import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
 import {
@@ -1190,5 +1190,65 @@ describe("MQ 事件处理效果（enableScripts / deleteScripts / sortedScripts�
     expect((runtime as any).pageLoadCaches.has(uuid)).toBe(false);
     expect((runtime as any).codeCacheMap.has(uuid)).toBe(false);
     expect((runtime as any).cachedPatterns.has(uuid)).toBe(false);
+  });
+});
+
+describe("registerUserscripts 注册健康检查", () => {
+  let runtime: RuntimeService;
+  let originalScripting: unknown;
+
+  beforeEach(() => {
+    runtime = _createRuntimeContext().runtime;
+    originalScripting = (chrome as any).scripting;
+    (chrome as any).scripting = {
+      getRegisteredContentScripts: vi.fn().mockResolvedValue([{ id: "scriptcat-scripting" }]),
+      registerContentScripts: vi.fn().mockResolvedValue(undefined),
+      unregisterContentScripts: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.spyOn(chrome.userScripts as any, "getScripts").mockResolvedValue([{ id: "scriptcat-inject" }]);
+    vi.spyOn(chrome.userScripts, "register").mockResolvedValue(undefined);
+    vi.spyOn(chrome.userScripts, "resetWorldConfiguration").mockResolvedValue(undefined);
+    vi.spyOn(runtime, "unregisterUserscripts").mockResolvedValue(undefined);
+    vi.spyOn(runtime as any, "getParticularScriptList").mockResolvedValue([]);
+    vi.spyOn(runtime as any, "getContentAndInjectScript").mockResolvedValue({ content: [], inject: [] });
+    runtime.isUserScriptsAvailable = true;
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await runtime.unregisterUserscripts();
+    (chrome as any).scripting = originalScripting;
+  });
+
+  const primeRegisteredState = async () => {
+    await runtime.registerUserscripts();
+    vi.clearAllMocks();
+  };
+
+  it("已注册用户脚本但 scripting 广播者丢失时重新注册", async () => {
+    await primeRegisteredState();
+    (chrome as any).scripting.getRegisteredContentScripts.mockResolvedValue([]);
+
+    await runtime.registerUserscripts();
+
+    expect(chrome.userScripts.getScripts).toHaveBeenCalledWith({ ids: ["scriptcat-inject"] });
+    expect((chrome as any).scripting.getRegisteredContentScripts).toHaveBeenCalledWith({
+      ids: ["scriptcat-scripting"],
+    });
+    expect(runtime.unregisterUserscripts).toHaveBeenCalled();
+    expect(chrome.userScripts.register).toHaveBeenCalled();
+  });
+
+  it("用户脚本和 scripting 广播者都在时跳过重复注册", async () => {
+    await primeRegisteredState();
+
+    await runtime.registerUserscripts();
+
+    expect(chrome.userScripts.getScripts).toHaveBeenCalledWith({ ids: ["scriptcat-inject"] });
+    expect((chrome as any).scripting.getRegisteredContentScripts).toHaveBeenCalledWith({
+      ids: ["scriptcat-scripting"],
+    });
+    expect(runtime.unregisterUserscripts).not.toHaveBeenCalled();
+    expect(chrome.userScripts.register).not.toHaveBeenCalled();
   });
 });
