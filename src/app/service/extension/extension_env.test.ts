@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { extensionEnv, getExtensionUserAgentData } from "./extension_env";
+import { extensionEnv, getExtensionEnv, getExtensionUserAgentData } from "./extension_env";
 
 describe("extensionEnv 常量", () => {
   it("读取扩展上下文状态与 manifest 的 incognito 模式", () => {
@@ -9,6 +9,17 @@ describe("extensionEnv 常量", () => {
     expect(extensionEnv.incognitoMode).toBe(chrome.runtime.getManifest().incognito);
     // userAgentData 为可选字段，常量初始化时不应填充
     expect(extensionEnv.userAgentData).toBeUndefined();
+  });
+
+  it("chrome.extension 缺失时仍能初始化环境并默认非隐身", () => {
+    const originalExtension = (chrome as any).extension;
+    try {
+      delete (chrome as any).extension;
+      expect(() => getExtensionEnv()).not.toThrow();
+      expect(getExtensionEnv().inIncognitoContext).toBe(false);
+    } finally {
+      (chrome as any).extension = originalExtension;
+    }
   });
 });
 
