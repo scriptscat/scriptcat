@@ -303,7 +303,7 @@ describe("网络规则编辑抽屉", () => {
     }
   });
 
-  it("改写 Cookie 请求头在输入阶段就被拦下，保存不会发出任何请求", async () => {
+  it("改写 Cookie 请求头在输入阶段就被拦下，保存不会发出任何请求", { timeout: 1500 }, async () => {
     const client = clientFor(snapshot([]));
     renderPage(client);
     expect(await screen.findByText("还没有网络规则")).toBeInTheDocument();

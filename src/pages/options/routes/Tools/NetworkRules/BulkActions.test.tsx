@@ -151,7 +151,7 @@ describe("网络规则批量操作", () => {
     expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
   });
 
-  it("批量启用只处理当前停用的规则，含「所有网站」时仍需二次确认", async () => {
+  it("批量启用只处理当前停用的规则，含「所有网站」时仍需二次确认", { timeout: 1500 }, async () => {
     const client = clientFor([
       rule(1),
       rule(2, { enabled: false, condition: { urlFilter: "*" } }),
