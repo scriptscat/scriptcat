@@ -84,7 +84,7 @@ async function renderRows() {
 }
 
 describe("网络规则列表页的行渲染开销", () => {
-  it("首屏 20 行各渲染一次，不重复渲染", { timeout: 1500 }, async () => {
+  it("首屏 20 行各渲染一次，不重复渲染", async () => {
     await renderRows();
 
     expect(reads.count).toBe(PAGE_ROWS);

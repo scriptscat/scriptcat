@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
@@ -114,7 +114,6 @@ async function openRowMenu(row: HTMLElement) {
   const trigger = within(row).getByRole("button", { name: "更多操作" });
   fireEvent.pointerDown(trigger, { button: 0 });
   fireEvent.click(trigger);
-  await flush();
 }
 
 describe("网络规则列表页", () => {
@@ -139,9 +138,9 @@ describe("网络规则列表页", () => {
     fireEvent.keyDown(handle, { code: "ArrowUp" });
     fireEvent.keyDown(handle, { code: "ArrowUp" });
     fireEvent.keyDown(handle, { code: "Space" });
-    await flush();
-
-    expect(client.reorderRules).toHaveBeenCalledWith({ baseRevision: 3, order: ["r3", "r1", "r2"] });
+    await waitFor(() =>
+      expect(client.reorderRules).toHaveBeenCalledWith({ baseRevision: 3, order: ["r3", "r1", "r2"] })
+    );
     expect(rowNames()).toEqual(["规则 3", "规则 1", "规则 2"]);
   });
 
@@ -159,11 +158,11 @@ describe("网络规则列表页", () => {
     fireEvent.keyDown(handle, { code: "ArrowUp" });
     fireEvent.keyDown(handle, { code: "ArrowUp" });
     fireEvent.keyDown(handle, { code: "Space" });
-    await flush();
-
-    expect(client.reorderRules).toHaveBeenCalled();
-    expect(rowNames()).toEqual(["规则 1", "规则 2", "规则 3"]);
-    expect(notify.error).toHaveBeenCalledWith("顺序未能保存，已恢复原顺序。");
+    await waitFor(() => {
+      expect(client.reorderRules).toHaveBeenCalled();
+      expect(rowNames()).toEqual(["规则 1", "规则 2", "规则 3"]);
+      expect(notify.error).toHaveBeenCalledWith("顺序未能保存，已恢复原顺序。");
+    });
   });
 
   it("搜索时手柄置灰，但行菜单的置顶仍能跨页移动规则", async () => {
@@ -183,7 +182,7 @@ describe("网络规则列表页", () => {
 
     await openRowMenu(row);
     fireEvent.click(await screen.findByRole("menuitem", { name: "置顶" }));
-    await flush();
+    await waitFor(() => expect(client.reorderRules).toHaveBeenCalled());
 
     const order = vi.mocked(client.reorderRules).mock.calls[0][0].order;
     expect(order).toHaveLength(total);
@@ -215,7 +214,7 @@ describe("网络规则列表页", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "移到…" }));
     fireEvent.change(await screen.findByRole("spinbutton"), { target: { value: "3" } });
     fireEvent.click(screen.getByRole("button", { name: "移动" }));
-    await flush();
+    await waitFor(() => expect(client.reorderRules).toHaveBeenCalled());
 
     const order = vi.mocked(client.reorderRules).mock.calls[0][0].order;
     expect(order).toEqual(["r2", "r3", "r1", "r4"]);
@@ -253,8 +252,7 @@ describe("网络规则列表页", () => {
     expect(await screen.findByText("规则未能应用到浏览器")).toBeInTheDocument();
     expect(screen.getByText(/Rule limit exceeded/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "重试" }));
-    await flush();
-    expect(client.retryApply).toHaveBeenCalled();
+    await waitFor(() => expect(client.retryApply).toHaveBeenCalled());
   });
 });
 
@@ -270,25 +268,20 @@ const TEMPLATE_NAMES = [
 
 async function openCreateSheet() {
   fireEvent.click(screen.getByRole("button", { name: "新建规则" }));
-  await flush();
 }
 
 async function pickTemplate(name: string) {
   fireEvent.click(await screen.findByRole("button", { name: new RegExp(name) }));
-  await flush();
 }
 
 async function pickOption(comboboxName: string, optionText: string) {
   fireEvent.keyDown(screen.getByRole("combobox", { name: comboboxName }), { key: "Enter" });
-  await flush();
   fireEvent.click(await screen.findByRole("option", { name: optionText }));
-  await flush();
 }
 
 async function openRowAction(row: HTMLElement, item: string) {
   await openRowMenu(row);
   fireEvent.click(await screen.findByRole("menuitem", { name: item }));
-  await flush();
 }
 
 describe("网络规则编辑抽屉", () => {
@@ -303,7 +296,7 @@ describe("网络规则编辑抽屉", () => {
     }
   });
 
-  it("改写 Cookie 请求头在输入阶段就被拦下，保存不会发出任何请求", { timeout: 1500 }, async () => {
+  it("改写 Cookie 请求头在输入阶段就被拦下，保存不会发出任何请求", async () => {
     const client = clientFor(snapshot([]));
     renderPage(client);
     expect(await screen.findByText("还没有网络规则")).toBeInTheDocument();
@@ -316,8 +309,9 @@ describe("网络规则编辑抽屉", () => {
 
     // 黑名单说明常驻在这一栏，所以这里要认的是报错本身，而不是页面上出现了这几个字。
     expect(screen.getByRole("alert")).toHaveTextContent("会暴露或伪造调用者身份");
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    await flush();
+    const save = screen.getByRole("button", { name: "保存" });
+    expect(save).toBeDisabled();
+    fireEvent.click(save);
     expect(client.createRule).not.toHaveBeenCalled();
   });
 
@@ -341,22 +335,23 @@ describe("网络规则编辑抽屉", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "同时移除 X-Frame-Options" }));
     fireEvent.change(screen.getByLabelText("应用范围"), { target: { value: "github.com" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    await flush();
 
-    expect(client.createRule).toHaveBeenCalledWith(
-      expect.objectContaining({
-        condition: expect.objectContaining({ requestDomains: ["github.com"] }),
-        action: {
-          type: "removeResponseHeaders",
-          headers: [
-            "content-security-policy",
-            "content-security-policy-report-only",
-            "x-content-security-policy",
-            "x-webkit-csp",
-            "x-frame-options",
-          ],
-        },
-      })
+    await waitFor(() =>
+      expect(client.createRule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          condition: expect.objectContaining({ requestDomains: ["github.com"] }),
+          action: {
+            type: "removeResponseHeaders",
+            headers: [
+              "content-security-policy",
+              "content-security-policy-report-only",
+              "x-content-security-policy",
+              "x-webkit-csp",
+              "x-frame-options",
+            ],
+          },
+        })
+      )
     );
   });
 
@@ -370,7 +365,6 @@ describe("网络规则编辑抽屉", () => {
     expect(screen.queryByRole("button", { name: /屏蔽请求/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "更换类型" }));
-    await flush();
     for (const name of TEMPLATE_NAMES) {
       expect(screen.getByRole("button", { name: new RegExp(name) })).toBeInTheDocument();
     }
@@ -379,9 +373,10 @@ describe("网络规则编辑抽屉", () => {
     expect(screen.getByLabelText("应用范围")).toHaveValue("s1.example.com");
 
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    await flush();
-    expect(client.updateRule).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "r1", patch: expect.objectContaining({ action: { type: "block" } }) })
+    await waitFor(() =>
+      expect(client.updateRule).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "r1", patch: expect.objectContaining({ action: { type: "block" } }) })
+      )
     );
   });
 
@@ -400,7 +395,6 @@ describe("网络规则编辑抽屉", () => {
 
     expect(screen.getByText("每条规则请输入 1 至 100 个域名。")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    await flush();
     expect(client.createRule).not.toHaveBeenCalled();
   });
 
@@ -413,14 +407,14 @@ describe("网络规则编辑抽屉", () => {
     await pickTemplate("屏蔽请求");
     fireEvent.click(screen.getByRole("checkbox", { name: /所有网站/ }));
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
-    await flush();
 
     expect(client.createRule).not.toHaveBeenCalled();
-    expect(screen.getByText("影响所有网站？")).toBeInTheDocument();
+    expect(await screen.findByText("影响所有网站？")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "继续" }));
-    await flush();
-    expect(client.createRule).toHaveBeenCalledWith(
-      expect.objectContaining({ condition: expect.objectContaining({ urlFilter: "*" }) })
+    await waitFor(() =>
+      expect(client.createRule).toHaveBeenCalledWith(
+        expect.objectContaining({ condition: expect.objectContaining({ urlFilter: "*" }) })
+      )
     );
   });
 
@@ -434,8 +428,7 @@ describe("网络规则编辑抽屉", () => {
     expect(screen.getByText(/停用/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "删除规则" }));
-    await flush();
-    expect(client.deleteRules).toHaveBeenCalledWith({ baseRevision: 3, ids: ["r1"] });
+    await waitFor(() => expect(client.deleteRules).toHaveBeenCalledWith({ baseRevision: 3, ids: ["r1"] }));
   });
 });
 

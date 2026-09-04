@@ -99,7 +99,9 @@ export default defineConfig({
           exclude: BASE_EXCLUDE,
           ...sharedTest,
           pool: "vmThreads",
-          isolate: false,
+          // UI tests mock module-level clients and mutate the DOM; sharing vmThreads lets one file leak
+          // those mocks into another and makes the 850ms budget depend on file scheduling.
+          isolate: true,
           maxWorkers: "75%",
           testTimeout: 850,
           sequence: {
