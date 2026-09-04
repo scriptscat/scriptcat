@@ -5,7 +5,7 @@
 // @description  验证 GM_xmlhttpRequest 的 cookie 参数语义：脚本指定的名称完全覆盖，未指定的名称原样保留（含同名多值场景）
 // @match        https://mockhttp.org/*?GM_XHR_COOKIE_TEST_SC
 // @grant        GM_xmlhttpRequest
-// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@e68d2f42b1340b476942d785c70c22b699698f0e/example/tests/lib/sctest.js
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@b8c6d0839c75ee5e4e4276dd10e201011c445df8/example/tests/lib/sctest.js
 // @connect      mockhttp.org
 // @noframes
 // ==/UserScript==

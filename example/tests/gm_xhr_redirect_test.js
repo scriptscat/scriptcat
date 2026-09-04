@@ -6,7 +6,7 @@
 // @author       you
 // @match        *://*/*?GM_XHR_REDIRECT_TEST_SC
 // @grant        GM_xmlhttpRequest
-// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@e68d2f42b1340b476942d785c70c22b699698f0e/example/tests/lib/sctest.js
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@b8c6d0839c75ee5e4e4276dd10e201011c445df8/example/tests/lib/sctest.js
 // @connect      httpbingo.org
 // @noframes
 // ==/UserScript==
