@@ -106,6 +106,8 @@ function stubRowRects() {
 /** KeyboardSensor 的 keydown 监听器在 setTimeout 里挂载，激活后必须让出一次事件循环。 */
 async function flush() {
   await act(async () => {
+    // dnd-kit KeyboardSensor 在 setTimeout 中注册监听器，必须让出一次事件循环才能继续驱动键盘序列。
+    // eslint-disable-next-line scriptcat/no-test-fixed-sleep -- dnd-kit listener registration contract
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }

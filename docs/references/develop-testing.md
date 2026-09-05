@@ -7,6 +7,49 @@ This guide owns how contributors design, write, review, clean up, and run automa
 merely because it raises coverage: it must protect an observable contract, fail for a relevant regression, and
 cost less to understand and maintain than the confidence it provides.
 
+## Test-change route and evidence
+
+Before modifying a test, shared test helper, or runner configuration, classify the contract and boundary first:
+
+1. State the trigger, observable outcome, and plausible regression.
+2. Search nearby unit, component, service, E2E, and lint coverage before adding or deleting a case.
+3. Run the narrowest baseline or reproduce the failure under the same runner, reporter, coverage, shard, and worker
+   conditions that exposed it.
+4. Change one cause at a time, then run the focused test and the relevant broader combination.
+5. Report exact commands and distinguish a passed assertion from an unobserved channel or unverified negative.
+
+One passing run is evidence for that run only. Do not treat a timeout increase, retry, deleted assertion, or arbitrary
+sleep as a root-cause repair.
+
+### Observation rules for asynchronous tests
+
+The test must observe completion of the contract under test. A request being called proves that work started; it does
+not prove that state, persistence, rendering, or the user-visible result completed. Use the narrowest primitive that
+matches the boundary:
+
+- Use direct assertions for synchronous effects and one `act` for a Promise-driven React update.
+- Use `findBy*` for a single element that appears asynchronously. Do not wrap `getBy*` in `waitFor` for a lone
+  `toBeInTheDocument` assertion.
+- Use `waitFor` for genuinely open-ended async state, multiple related assertions, or a non-DOM boundary that has no
+  dedicated completion signal. Keep the callback observational: do not fire events or call `userEvent` inside it,
+  because retries repeat the interaction.
+- Use a real timer only when elapsed time is the contract or the only bounded closure window proves a negative result
+  (for example, an observer timeout, a runaway retry check, a browser event-loop yield, or a library timer). Add a
+  local ESLint disable comment stating that contract. A fixed delay used merely to make a test pass is a defect.
+
+The mechanical guards `scriptcat/no-test-waitfor-interaction`, `scriptcat/no-test-waitfor-query`, and
+`scriptcat/no-test-fixed-sleep` cover reliably recognizable forms in committed page tests and E2E specs. They do not
+prove mock fidelity, the sufficiency of a negative observation window, or that coverage was not weakened; those remain
+semantic review duties. Do not disable a whole directory to silence them.
+
+### UI and Playwright examples
+
+For a UI mutation, assert the returned state, rendered result, or persisted collaborator result after completion;
+`expect(client.update).toHaveBeenCalled()` alone only proves dispatch. For Playwright, a helper that saves an editor
+must wait for the save-specific success or failure signal produced by that operation. An arbitrary toast, an existing
+toast from an earlier action, or a page-shell anchor is not proof that the save completed. Keep real browser API,
+cross-context, and permission flows in E2E; do not replace them with mocks just to avoid waiting.
+
 ## Applicability gate — read this first
 
 Not every section below applies to every change. Before designing or reviewing tests, check which of these the
@@ -246,7 +289,9 @@ before/after in one environment with the JSON-report method below.
 - Co-locate `*.test.ts`/`*.test.tsx` next to source (or place in `tests`).
 - Use `describe.concurrent()` / `it.concurrent()` where independent.
 - Single file: `pnpm test -- --run path/to/file.test.ts`.
-- Playwright tests are `*.spec.ts` files in `e2e`; they run with one worker and retain failure artifacts. Run targeted tests while iterating, then run `pnpm run lint` plus the relevant full suite before a PR.
+- Playwright tests are `*.spec.ts` files in `e2e`; worker count, retries, and artifact settings come from
+  [`playwright.config.ts`](../../playwright.config.ts) and the CI matrix. Run targeted tests while iterating, then
+  run `pnpm run lint` plus the relevant full suite before a PR.
 
 ## Vitest Performance Hygiene
 

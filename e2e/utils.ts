@@ -144,34 +144,22 @@ async function focusMonacoEditor(page: Page): Promise<void> {
   await page.locator(".monaco-editor textarea.inputarea").focus();
 }
 
-async function waitForSavedScriptInList(context: BrowserContext, extensionId: string): Promise<void> {
-  const listPage = await openOptionsPage(context, extensionId);
-  try {
-    // new-ui 列表页加载完成的稳定信号（桌面工具栏搜索框 / 移动搜索栏）
-    await listPage
-      .getByTestId("script-search")
-      .or(listPage.getByTestId("mobile-search"))
-      .first()
-      .waitFor({ state: "visible", timeout: 30_000 });
-  } finally {
-    await listPage.close();
-  }
-}
-
-export async function saveCurrentEditor(context: BrowserContext, extensionId: string, page: Page): Promise<void> {
+export async function saveCurrentEditor(_context: BrowserContext, _extensionId: string, page: Page): Promise<void> {
   await focusMonacoEditor(page);
+  const successToast = page.locator("[data-sonner-toast]").filter({
+    hasText: /saved successfully|successfully created|保存成功|新建成功/i,
+  });
+  const previousSuccessCount = await successToast.count();
   await page.keyboard.press("ControlOrMeta+s");
 
-  // new-ui 保存成功为 sonner toast
-  const toastAppeared = await page
-    .locator("[data-sonner-toast]")
-    .first()
-    .waitFor({ timeout: 10_000 })
-    .then(() => true)
-    .catch(() => false);
-  if (toastAppeared) return;
-
-  await waitForSavedScriptInList(context, extensionId);
+  // 只有本次新增的成功通知能证明保存完成；旧通知、任意 toast 和列表页挂载都不能替代它。
+  await expect
+    .poll(() => successToast.count(), {
+      timeout: 10_000,
+      intervals: [100, 250, 500, 1_000],
+      message: "保存操作未产生成功通知，可能被错误通知或未完成状态掩盖",
+    })
+    .toBeGreaterThan(previousSuccessCount);
 }
 
 /** Install a script by injecting code into the Monaco editor and saving */

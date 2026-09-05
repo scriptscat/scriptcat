@@ -10,6 +10,7 @@ duplicating its rules.
 | Before you… | Read |
 | --- | --- |
 | write code | [`docs/develop.md`](docs/develop.md) |
+| modify tests, test helpers, or test runner configuration | [`docs/references/develop-testing.md`](docs/references/develop-testing.md) — apply the test-boundary, observation, and harness rules before editing |
 | review or report a branch/PR, or create/update a PR or publish its branch | [`docs/develop.md#revision-scope-and-publication-binding`](docs/develop.md#revision-scope-and-publication-binding) + [`docs/pull-request.md`](docs/pull-request.md) |
 | change a process/message/service/persistence boundary or add a subsystem | [`docs/architecture.md`](docs/architecture.md) + the relevant `docs/references/architecture-*.md` |
 | build or modify a page, dialog, or block | [`docs/design.md`](docs/design.md) — Core Constraints apply to every UI change |
@@ -48,6 +49,10 @@ downstream prose does not override it.
   Chinese or English titles. The two narrow, non-blanket exceptions are in
   [`docs/references/develop-testing.md`](docs/references/develop-testing.md#when-tdd-doesnt-apply); runner,
   mocks, and how to run tests are in [`docs/develop.md`](docs/develop.md).
+- **Test changes must follow the test route.** Before changing a test, shared test helper, or runner configuration,
+  identify the observable contract and test boundary, search existing coverage, capture a baseline or reproduction,
+  then make the smallest correction and rerun focused and relevant broader checks. A single passing run does not
+  establish a root-cause fix; report the trigger, evidence, and remaining uncertainty.
 - **SOLID, high cohesion, low coupling.** Match existing extension points: persistence uses the small
   `Repo<T>` / `DAO<T>` / `OPFSRepo` / custom-repo taxonomy, matching an existing entity with the same needs;
   messages use `Group.on(...)`; service constructor shapes differ by context and Agent subsystem; depend on

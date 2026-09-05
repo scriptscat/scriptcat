@@ -128,6 +128,7 @@ describe("网络规则拖拽可达性", () => {
 
     // KeyboardSensor 的 keydown 监听器在 setTimeout 里挂载，激活后必须让出一次事件循环。
     await act(async () => {
+      // eslint-disable-next-line scriptcat/no-test-fixed-sleep -- dnd-kit listener registration contract
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     fireEvent.keyDown(handle, { code: "ArrowUp" });

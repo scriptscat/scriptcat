@@ -9,6 +9,9 @@ import globals from "globals";
 import requireLastErrorCheck from "./eslint-rules/require-last-error-check.mjs";
 import noI18nDefaultValue from "./eslint-rules/no-i18n-default-value.mjs";
 import noRawColorClassname from "./eslint-rules/no-raw-color-classname.mjs";
+import noTestWaitForInteraction from "./eslint-rules/no-test-waitfor-interaction.mjs";
+import noTestWaitForQuery from "./eslint-rules/no-test-waitfor-query.mjs";
+import noTestFixedSleep from "./eslint-rules/no-test-fixed-sleep.mjs";
 
 export default [
   {
@@ -44,6 +47,9 @@ export default [
         rules: {
           "no-i18n-default-value": noI18nDefaultValue,
           "no-raw-color-classname": noRawColorClassname,
+          "no-test-waitfor-interaction": noTestWaitForInteraction,
+          "no-test-waitfor-query": noTestWaitForQuery,
+          "no-test-fixed-sleep": noTestFixedSleep,
         },
       },
     },
@@ -91,6 +97,15 @@ export default [
     files: ["e2e/**/*.ts"],
     rules: {
       "react-hooks/rules-of-hooks": "off",
+      "scriptcat/no-test-fixed-sleep": "error",
+    },
+  },
+  {
+    files: ["src/pages/**/*.test.{ts,tsx}"],
+    rules: {
+      "scriptcat/no-test-waitfor-interaction": "error",
+      "scriptcat/no-test-waitfor-query": "error",
+      "scriptcat/no-test-fixed-sleep": "error",
     },
   },
   {
