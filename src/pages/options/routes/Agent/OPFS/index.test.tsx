@@ -331,7 +331,7 @@ describe("AgentOPFS 页面", () => {
     expect(screen.queryByTestId("opfs-loading")).not.toBeInTheDocument();
     expect(screen.getByText("file1.txt")).toBeInTheDocument();
     releaseSecondList();
-    await waitFor(() => expect(screen.getByText("file1.txt")).toBeInTheDocument());
+    expect(await screen.findByText("file1.txt")).toBeInTheDocument();
   });
 
   it("移动端:页内工具行为图标按钮(无可见文案标签)+ 标题作为页内标题", async () => {

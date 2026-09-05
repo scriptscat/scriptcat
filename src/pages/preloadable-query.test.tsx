@@ -16,7 +16,9 @@ describe("useQuery error behavior", () => {
     const { result } = renderHook(() => query.useQuery("resources"));
 
     await waitFor(() => expect(result.current.isError).toBe(true));
-    await new Promise((r) => setTimeout(r, 100)); // give any runaway loop time to spin
+    // 负向回归需要让潜在的重试循环运行一个有限窗口；没有可等待的完成事件。
+    // eslint-disable-next-line scriptcat/no-test-fixed-sleep -- runaway retry observation window
+    await new Promise((r) => setTimeout(r, 100));
 
     expect(load.mock.calls.length).toBeLessThanOrEqual(2);
     expect(result.current.status).toBe("error");

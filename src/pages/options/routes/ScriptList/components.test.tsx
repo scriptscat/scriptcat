@@ -407,6 +407,8 @@ describe("ScheduleNextRun 定时脚本下次运行时间", () => {
     const trigger = screen.getByText("2026-06-25 08:00:00").closest('[data-slot="tooltip-trigger"]')!;
     await act(async () => {
       fireEvent.pointerMove(trigger, { pointerType: "mouse" });
+      // Radix Tooltip 的 delayDuration=0 仍通过真实 timer 刷新 Portal；这是该时序契约本身。
+      // eslint-disable-next-line scriptcat/no-test-fixed-sleep -- Radix Tooltip timer contract
       await new Promise((r) => setTimeout(r, 20));
     });
     // Tooltip 内容经 Portal 渲染，含完整文案与 cron 表达式（Radix 会额外渲染一份无障碍副本，故用 getAllByText）

@@ -606,6 +606,8 @@ test.describe("GM API", () => {
       const script = document.createElement("script");
       script.textContent = `window["${key}"] = true;`;
       document.head.appendChild(script);
+      // 页面脚本执行需要一次真实事件循环让步，才能观察 CSP 阻止后的最终状态。
+      // eslint-disable-next-line scriptcat/no-test-fixed-sleep -- page event-loop observation contract
       await new Promise((resolve) => setTimeout(resolve, 0));
       return Boolean((window as Record<string, unknown>)[key]);
     });

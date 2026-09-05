@@ -21,7 +21,7 @@ pnpm run coverage
 pnpm run typecheck        # tsc --noEmit
 
 pnpm run test:e2e:install # install Playwright Chromium (first run only)
-pnpm run test:e2e         # Playwright (e2e/*.spec.ts, 1 worker)
+pnpm run test:e2e         # Playwright (e2e/*.spec.ts; worker count comes from playwright.config.ts)
 pnpm run lint             # prettier --check + tsc --noEmit + check:i18n + check:issue-templates, then eslint
 pnpm run lint-fix         # prettier --write + tsc --noEmit + eslint --fix
 

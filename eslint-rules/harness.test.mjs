@@ -134,7 +134,133 @@ describe("harness lint 规则", () => {
     });
   });
 
-  describe("④ no-restricted-syntax：src/pages 禁用 forwardRef", () => {
+  describe("④ scriptcat/no-test-waitfor-interaction：waitFor 回调不得重复交互", () => {
+    const RULE = "scriptcat/no-test-waitfor-interaction";
+
+    it("拦截 fireEvent 及其导入别名", () => {
+      expect(
+        ruleIdsAt(
+          `import { fireEvent as fe, waitFor } from "@testing-library/react"; waitFor(() => fe.click(button));`,
+          "src/pages/example.test.tsx"
+        )
+      ).toContain(RULE);
+    });
+
+    it("拦截 userEvent 实例交互", () => {
+      expect(
+        ruleIdsAt(
+          `import userEvent from "@testing-library/user-event"; import { waitFor } from "@testing-library/react"; const user = userEvent.setup(); waitFor(() => user.click(button));`,
+          "src/pages/example.test.tsx"
+        )
+      ).toContain(RULE);
+    });
+
+    it("拦截 userEvent 导入别名实例交互", () => {
+      expect(
+        ruleIdsAt(
+          `import { userEvent as ue } from "@testing-library/user-event"; import { waitFor } from "@testing-library/react"; const u = ue.setup(); waitFor(() => u.type(input, "x"));`,
+          "src/pages/example.test.tsx"
+        )
+      ).toContain(RULE);
+    });
+
+    it("拦截 waitFor 导入别名", () => {
+      expect(
+        ruleIdsAt(
+          `import { fireEvent, waitFor as until } from "@testing-library/react"; until(() => fireEvent.click(button));`,
+          "src/pages/example.test.tsx"
+        )
+      ).toContain(RULE);
+    });
+
+    it("放行同名普通函数和被局部变量遮蔽的导入名", () => {
+      expect(
+        ruleIdsAt(
+          `function waitFor(callback) { callback(); } const fireEvent = { click() {} }; waitFor(() => fireEvent.click(button));`,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
+      expect(
+        ruleIdsAt(
+          `import { fireEvent as fe, waitFor } from "@testing-library/react"; function run(fe) { waitFor(() => fe.click(button)); }`,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
+
+      expect(
+        ruleIdsAt(
+          `import { fireEvent, waitFor } from "@testing-library/react"; fireEvent.click(button); waitFor(() => expect(screen.getByText("done")).toBeInTheDocument());`,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
+    });
+  });
+
+  describe("⑤ scriptcat/no-test-waitfor-query：存在性查询用 findBy", () => {
+    const RULE = "scriptcat/no-test-waitfor-query";
+
+    it("拦截仅包装 getBy 存在性断言的 waitFor", () => {
+      expect(
+        ruleIdsAt(
+          `import { waitFor } from "@testing-library/react"; waitFor(() => expect(screen.getByText("done")).toBeInTheDocument());`,
+          "src/pages/example.test.tsx"
+        )
+      ).toContain(RULE);
+    });
+
+    it("拦截 waitFor 导入别名并放行同名普通函数", () => {
+      expect(
+        ruleIdsAt(
+          `import { waitFor as until } from "@testing-library/react"; until(() => expect(screen.getByText("done")).toBeInTheDocument());`,
+          "src/pages/example.test.tsx"
+        )
+      ).toContain(RULE);
+      expect(
+        ruleIdsAt(
+          `function waitFor(callback) { callback(); } waitFor(() => expect(screen.getByText("done")).toBeInTheDocument());`,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
+    });
+
+    it("放行多断言和非存在性断言", () => {
+      expect(
+        ruleIdsAt(
+          `waitFor(() => { expect(screen.getByText("done")).toBeInTheDocument(); expect(api).toHaveBeenCalled(); });`,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
+      expect(
+        ruleIdsAt(`waitFor(() => expect(screen.getByRole("button")).toBeEnabled());`, "src/pages/example.test.tsx")
+      ).not.toContain(RULE);
+    });
+  });
+
+  describe("⑥ scriptcat/no-test-fixed-sleep：禁止无契约固定休眠", () => {
+    const RULE = "scriptcat/no-test-fixed-sleep";
+
+    it("拦截 Playwright waitForTimeout 和 timer Promise", () => {
+      expect(ruleIdsAt(`await page.waitForTimeout(500);`, "e2e/example.spec.ts")).toContain(RULE);
+      expect(
+        ruleIdsAt(`await new Promise((resolve) => setTimeout(resolve, 0));`, "src/pages/example.test.tsx")
+      ).toContain(RULE);
+      expect(
+        ruleIdsAt(`await new Promise((resolve) => setTimeout(() => resolve(), 0));`, "src/pages/example.test.tsx")
+      ).toContain(RULE);
+    });
+
+    it("放行带有逐处豁免注释的时序让步和其他 setTimeout", () => {
+      expect(
+        ruleIdsAt(
+          `// eslint-disable-next-line scriptcat/no-test-fixed-sleep -- listener registration contract\nawait new Promise((resolve) => setTimeout(resolve, 0));`,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
+      expect(ruleIdsAt(`setTimeout(tick, 10);`, "e2e/example.spec.ts")).not.toContain(RULE);
+    });
+  });
+
+  describe("⑦ no-restricted-syntax：src/pages 禁用 forwardRef", () => {
     const RULE = "no-restricted-syntax";
 
     it("拦截 ui 组件里的 forwardRef(...)", () => {

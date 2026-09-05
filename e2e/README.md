@@ -75,7 +75,10 @@ playwright config → fixture (launchPersistentContext, loads dist/ext)
 
 [`utils.ts`](./utils.ts) carries the page openers and script installer used by every track:
 `openOptionsPage`, `openPopupPage`, `openEditorPage`, `openAgentChatPage`, `openAgentProviderPage`,
-`saveCurrentEditor`, `installScriptByCode`, `runInlineTestScript`, and `autoApprovePermissions`.
+`saveCurrentEditor`, `installScriptByCode`, `runInlineTestScript`, and `autoApprovePermissions`. Save helpers
+default to the successful outcome; a test that intentionally rejects a script must pass
+`{ saveOutcome: "failure" }` so the helper waits for the matching save failure signal rather than accepting an
+unrelated notification.
 
 ### The two-phase launch
 
