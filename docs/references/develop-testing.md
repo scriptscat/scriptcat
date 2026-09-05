@@ -46,9 +46,11 @@ semantic review duties. Do not disable a whole directory to silence them.
 
 For a UI mutation, assert the returned state, rendered result, or persisted collaborator result after completion;
 `expect(client.update).toHaveBeenCalled()` alone only proves dispatch. For Playwright, a helper that saves an editor
-must wait for the save-specific success or failure signal produced by that operation. An arbitrary toast, an existing
-toast from an earlier action, or a page-shell anchor is not proof that the save completed. Keep real browser API,
-cross-context, and permission flows in E2E; do not replace them with mocks just to avoid waiting.
+must take an explicit success or failure expectation and wait for the matching, operation-specific signal. A negative
+case must request the failure contract; a helper that always waits for success turns a valid rejection into a harness
+failure. An arbitrary toast, an existing toast from an earlier action, or a page-shell anchor is not proof that the
+save completed. Keep real browser API, cross-context, and permission flows in E2E; do not replace them with mocks just
+to avoid waiting.
 
 ## Applicability gate — read this first
 

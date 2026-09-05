@@ -99,7 +99,7 @@ test.describe("UserConfig YAML prototype pollution (#1494)", () => {
     expect(before).toBeUndefined();
 
     // 尝试安装恶意脚本（parseUserConfig 应抛错并阻止安装）
-    await installScriptByCode(context, extensionId, evilCfg);
+    await installScriptByCode(context, extensionId, evilCfg, { saveOutcome: "failure" });
 
     const list = await openOptionsPage(context, extensionId);
     const evilInfo = await getScriptInfo(list, "UC Evil E2E");

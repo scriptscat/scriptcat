@@ -144,26 +144,46 @@ async function focusMonacoEditor(page: Page): Promise<void> {
   await page.locator(".monaco-editor textarea.inputarea").focus();
 }
 
-export async function saveCurrentEditor(_context: BrowserContext, _extensionId: string, page: Page): Promise<void> {
+export type SaveOutcome = "success" | "failure";
+
+const saveSuccessMessage =
+  /Saved successfully|successfully created|保存成功|新建成功|儲存成功|保存しました|作成に成功しました|저장되었습니다|새 스크립트가 생성되었습니다|Salvo com sucesso|Novo script criado com sucesso|Успешно сохранено|Создание успешно|Erfolgreich gespeichert|Erstellung erfolgreich|Başarıyla kaydedildi|Yeni betik başarıyla oluşturuldu|Đã lưu thành công|Script mới được tạo thành công/i;
+const saveFailureMessage =
+  /Save Failed|Speichern fehlgeschlagen|保存に失敗しました|저장에 실패했습니다|Falha ao salvar|Ошибка сохранения|Kaydetme Başarısız|Lưu thất bại|保存失败|儲存失敗/i;
+
+export async function saveCurrentEditor(
+  _context: BrowserContext,
+  _extensionId: string,
+  page: Page,
+  outcome: SaveOutcome = "success"
+): Promise<void> {
   await focusMonacoEditor(page);
-  const successToast = page.locator("[data-sonner-toast]").filter({
-    hasText: /saved successfully|successfully created|保存成功|新建成功/i,
-  });
-  const previousSuccessCount = await successToast.count();
+  const saveToast = page
+    .locator(`[data-sonner-toast][data-type="${outcome === "success" ? "success" : "error"}"]`)
+    .filter({
+      hasText: outcome === "success" ? saveSuccessMessage : saveFailureMessage,
+    });
+  const previousToastCount = await saveToast.count();
   await page.keyboard.press("ControlOrMeta+s");
 
-  // 只有本次新增的成功通知能证明保存完成；旧通知、任意 toast 和列表页挂载都不能替代它。
+  // 只有本次新增且与保存结果匹配的通知能证明保存完成；旧通知、任意 toast 和列表页挂载都不能替代它。
   await expect
-    .poll(() => successToast.count(), {
+    .poll(() => saveToast.count(), {
       timeout: 10_000,
       intervals: [100, 250, 500, 1_000],
-      message: "保存操作未产生成功通知，可能被错误通知或未完成状态掩盖",
+      message:
+        outcome === "success" ? "保存操作未产生成功通知，可能被错误通知或未完成状态掩盖" : "保存操作未产生失败通知",
     })
-    .toBeGreaterThan(previousSuccessCount);
+    .toBeGreaterThan(previousToastCount);
 }
 
 /** Install a script by injecting code into the Monaco editor and saving */
-export async function installScriptByCode(context: BrowserContext, extensionId: string, code: string): Promise<void> {
+export async function installScriptByCode(
+  context: BrowserContext,
+  extensionId: string,
+  code: string,
+  options: { saveOutcome?: SaveOutcome } = {}
+): Promise<void> {
   const page = await openEditorPage(context, extensionId);
   // Wait for Monaco editor DOM and default template content to be ready
   await focusMonacoEditor(page);
@@ -178,7 +198,7 @@ export async function installScriptByCode(context: BrowserContext, extensionId: 
     timeout: 5_000,
   });
   // Save
-  await saveCurrentEditor(context, extensionId, page);
+  await saveCurrentEditor(context, extensionId, page, options.saveOutcome);
   await page.close();
 }
 
