@@ -163,10 +163,11 @@ export async function saveCurrentEditor(
     .filter({
       hasText: outcome === "success" ? saveSuccessMessage : saveFailureMessage,
     });
-  const previousToastCount = await saveToast.count();
+  // 先关闭同类旧通知的观察窗口，避免它在保存期间自动卸载后与本次通知共用计数。
+  await expect.poll(() => saveToast.count(), { timeout: 5_000 }).toBe(0);
   await page.keyboard.press("ControlOrMeta+s");
 
-  // 只有本次新增且与保存结果匹配的通知能证明保存完成；旧通知、任意 toast 和列表页挂载都不能替代它。
+  // 只有保存后新出现且与结果匹配的通知能证明保存完成；任意 toast 和列表页挂载都不能替代它。
   await expect
     .poll(() => saveToast.count(), {
       timeout: 10_000,
@@ -174,7 +175,7 @@ export async function saveCurrentEditor(
       message:
         outcome === "success" ? "保存操作未产生成功通知，可能被错误通知或未完成状态掩盖" : "保存操作未产生失败通知",
     })
-    .toBeGreaterThan(previousToastCount);
+    .toBeGreaterThan(0);
 }
 
 /** Install a script by injecting code into the Monaco editor and saving */

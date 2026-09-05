@@ -41,9 +41,31 @@ export default {
     },
   },
   create(context) {
+    const waitForNames = new Set();
+    const sourceCode = context.sourceCode;
+
+    function isImportedWaitFor(node, name) {
+      let scope = sourceCode.getScope(node);
+      while (scope) {
+        const variable = scope.set.get(name);
+        if (variable)
+          return waitForNames.has(name) && variable.defs.some((definition) => definition.type === "ImportBinding");
+        scope = scope.upper;
+      }
+      return false;
+    }
+
     return {
+      ImportDeclaration(node) {
+        if (node.source.value !== "@testing-library/react") return;
+        for (const specifier of node.specifiers) {
+          if (specifier.type === "ImportSpecifier" && propertyName(specifier.imported) === "waitFor") {
+            waitForNames.add(specifier.local.name);
+          }
+        }
+      },
       CallExpression(node) {
-        if (propertyName(node.callee) !== "waitFor") return;
+        if (node.callee?.type !== "Identifier" || !isImportedWaitFor(node, node.callee.name)) return;
         const callback = node.arguments[0];
         if (!callback || (callback.type !== "ArrowFunctionExpression" && callback.type !== "FunctionExpression"))
           return;

@@ -42,6 +42,12 @@ The mechanical guards `scriptcat/no-test-waitfor-interaction`, `scriptcat/no-tes
 prove mock fidelity, the sufficiency of a negative observation window, or that coverage was not weakened; those remain
 semantic review duties. Do not disable a whole directory to silence them.
 
+The interaction and query guards follow actual Testing Library import bindings, including local aliases, and respect
+lexical shadowing; a same-named ordinary function or object is outside their contract. The sleep guard covers
+Playwright `waitForTimeout` and timer-backed `new Promise` forms, while finite observer timeouts remain valid only with
+a line-level disable comment that names the timeout contract. Scratch files remain excluded by the committed E2E
+configuration; inspect the effective ESLint configuration when a helper moves between tracks.
+
 ### UI and Playwright examples
 
 For a UI mutation, assert the returned state, rendered result, or persisted collaborator result after completion;

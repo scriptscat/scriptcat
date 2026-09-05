@@ -34,11 +34,29 @@ export default {
         const resolveNames = new Set();
         for (const param of executor.params) if (param.type === "Identifier") resolveNames.add(param.name);
         let hasTimer = false;
+
+        const callsResolver = (child) => {
+          if (!child || typeof child !== "object") return false;
+          if (child.type === "Identifier" && resolveNames.has(child.name)) return true;
+          if (
+            child.type === "CallExpression" &&
+            child.callee?.type === "Identifier" &&
+            resolveNames.has(child.callee.name)
+          )
+            return true;
+          return Object.entries(child).some(([key, value]) => {
+            if (key === "parent" || key === "loc" || key === "range" || key === "tokens" || key === "comments")
+              return false;
+            if (Array.isArray(value)) return value.some((item) => callsResolver(item));
+            return value && typeof value === "object" && value.type ? callsResolver(value) : false;
+          });
+        };
+
         const visit = (child, isRoot = false) => {
           if (!child || typeof child !== "object") return;
           if (child.type === "CallExpression" && propertyName(child.callee) === "setTimeout") {
             const callback = child.arguments[0];
-            if (callback?.type === "Identifier" && resolveNames.has(callback.name)) hasTimer = true;
+            if (callsResolver(callback)) hasTimer = true;
           }
           if (!isRoot && (child.type === "ArrowFunctionExpression" || child.type === "FunctionExpression")) return;
           for (const [key, value] of Object.entries(child)) {

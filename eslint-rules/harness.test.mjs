@@ -164,7 +164,29 @@ describe("harness lint 规则", () => {
       ).toContain(RULE);
     });
 
-    it("放行 waitFor 内的普通断言和回调外交互", () => {
+    it("拦截 waitFor 导入别名", () => {
+      expect(
+        ruleIdsAt(
+          `import { fireEvent, waitFor as until } from "@testing-library/react"; until(() => fireEvent.click(button));`,
+          "src/pages/example.test.tsx"
+        )
+      ).toContain(RULE);
+    });
+
+    it("放行同名普通函数和被局部变量遮蔽的导入名", () => {
+      expect(
+        ruleIdsAt(
+          `function waitFor(callback) { callback(); } const fireEvent = { click() {} }; waitFor(() => fireEvent.click(button));`,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
+      expect(
+        ruleIdsAt(
+          `import { fireEvent as fe, waitFor } from "@testing-library/react"; function run(fe) { waitFor(() => fe.click(button)); }`,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
+
       expect(
         ruleIdsAt(
           `import { fireEvent, waitFor } from "@testing-library/react"; fireEvent.click(button); waitFor(() => expect(screen.getByText("done")).toBeInTheDocument());`,
@@ -184,6 +206,21 @@ describe("harness lint 规则", () => {
           "src/pages/example.test.tsx"
         )
       ).toContain(RULE);
+    });
+
+    it("拦截 waitFor 导入别名并放行同名普通函数", () => {
+      expect(
+        ruleIdsAt(
+          `import { waitFor as until } from "@testing-library/react"; until(() => expect(screen.getByText("done")).toBeInTheDocument());`,
+          "src/pages/example.test.tsx"
+        )
+      ).toContain(RULE);
+      expect(
+        ruleIdsAt(
+          `function waitFor(callback) { callback(); } waitFor(() => expect(screen.getByText("done")).toBeInTheDocument());`,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
     });
 
     it("放行多断言和非存在性断言", () => {
@@ -206,6 +243,9 @@ describe("harness lint 规则", () => {
       expect(ruleIdsAt(`await page.waitForTimeout(500);`, "e2e/example.spec.ts")).toContain(RULE);
       expect(
         ruleIdsAt(`await new Promise((resolve) => setTimeout(resolve, 0));`, "src/pages/example.test.tsx")
+      ).toContain(RULE);
+      expect(
+        ruleIdsAt(`await new Promise((resolve) => setTimeout(() => resolve(), 0));`, "src/pages/example.test.tsx")
       ).toContain(RULE);
     });
 
