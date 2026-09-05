@@ -275,9 +275,18 @@
   function formatDuration(durationMs) {
     var value = Number(durationMs);
     if (!isFinite(value) || value < 0) return "—";
-    if (value < 1000) return Math.round(value) + " ms";
-    if (value < 60000) return (value / 1000).toFixed(1).replace(/\.0$/, "") + " s";
-    return Math.floor(value / 60000) + "m " + Math.floor((value % 60000) / 1000) + "s";
+    if (value < 1000) return String(Math.floor(value)).padStart(3, "0") + " ms";
+    if (value < 60000) {
+      var seconds = Math.floor(value / 1000);
+      var tenths = Math.floor((value % 1000) / 100);
+      return String(seconds).padStart(2, "0") + "." + tenths + " s";
+    }
+    return (
+      String(Math.floor(value / 60000)).padStart(2, "0") +
+      "m " +
+      String(Math.floor((value % 60000) / 1000)).padStart(2, "0") +
+      "s"
+    );
   }
 
   function normalizeStatus(status) {
@@ -1017,7 +1026,7 @@
     ".sc-case-manual{background:#352c1e;border-left-color:var(--sc-warning-bg)}",
     ".sc-manual-pass{width:30px;height:30px;min-height:30px;padding:0;border-color:var(--sc-success);background:#1d4938;color:var(--sc-success)}",
     ".sc-manual-fail{width:30px;height:30px;min-height:30px;padding:0;border-color:var(--sc-destructive);background:#54252c;color:var(--sc-destructive)}",
-    ".sc-dur{font-size:11px;color:var(--sc-muted)}",
+    ".sc-dur{display:inline-block;min-width:7ch;white-space:nowrap;text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;font-size:11px;color:var(--sc-muted)}",
     ".sc-detail{display:grid;grid-template-columns:max-content minmax(0,1fr) max-content minmax(0,1fr);gap:5px 10px;margin:0 14px 8px 34px;padding:8px 10px;border-radius:6px;border-left:2px solid var(--sc-border);",
     "background:var(--sc-detail-bg);color:var(--sc-detail-fg);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;overflow-wrap:anywhere}",
     ".sc-detail-field{display:contents}.sc-detail-key{color:var(--sc-primary);font-family:system-ui,sans-serif;font-weight:700}.sc-detail-value{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere}",
@@ -1248,7 +1257,7 @@
     // 概览
     var sum = el("div", "sc-sum");
     var statusRow = el("div", "sc-status-row");
-    var duration = el("span", "sc-dur", "0 ms");
+    var duration = el("span", "sc-dur", "000 ms");
     duration.setAttribute("data-sctest", "duration");
     duration.setAttribute("role", "timer");
     duration.setAttribute("aria-label", "运行耗时");

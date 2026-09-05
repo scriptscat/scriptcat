@@ -145,7 +145,7 @@ Console 的机器可读行以 `[SCTEST_RESULT] ` 开头，后面是 `protocol: "
 `WARN`、`INFO`、`SKIP` 和尚未裁决的 `MANUAL` 必须保留并展示。
 
 Panel 保留原有
-`sctest-panel-host`、CSP 防护、拖动、折叠、重跑和参数选择器，并提供标题栏总体状态、状态 chips、expected/actual/detail 诊断列、分类分组、状态筛选、搜索、复制文本和复制 JSON。chip 的计数使用等宽数字，状态 badge 与整体状态保持一致；运行中计时会实时更新，短耗时显示毫秒，较长耗时显示秒或分秒，避免原始数值跳动。失败、警告和待人工结果默认展开诊断；通过、信息和跳过结果默认收起，但可用每行的展开按钮查看。搜索会覆盖分类、名称、expected、actual、detail、error 和操作提示；没有命中时会给出可被辅助技术感知的清除筛选入口。搜索框、图标按钮、详情切换和空状态均提供可访问名称或 live region，复制优先使用 Clipboard API，失败时回退到 textarea，并在按钮上显示“已复制”或“复制失败”。
+`sctest-panel-host`、CSP 防护、拖动、折叠、重跑和参数选择器，并提供标题栏总体状态、状态 chips、expected/actual/detail 诊断列、分类分组、状态筛选、搜索、复制文本和复制 JSON。chip 的计数使用等宽数字，状态 badge 与整体状态保持一致；运行中计时会实时更新，显示固定宽度的毫秒、秒或分秒格式（例如 `35.7 s`、`36.0 s`、`36.1 s`），避免数值变化造成布局跳动。失败、警告和待人工结果默认展开诊断；通过、信息和跳过结果默认收起，但可用每行的展开按钮查看。搜索会覆盖分类、名称、expected、actual、detail、error 和操作提示；没有命中时会给出可被辅助技术感知的清除筛选入口。搜索框、图标按钮、详情切换和空状态均提供可访问名称或 live region，复制优先使用 Clipboard API，失败时回退到 textarea，并在按钮上显示“已复制”或“复制失败”。
 面板提示按 FAIL → WARN → INFO/SKIP → MANUAL 给出阅读顺序；MANUAL 使用独立的琥珀色状态和人工确认按钮，确认后同步更新面板、Console、`GM_log` 和 JSON。early-start 脚本应使用
 `{ reporter: "console" }`，避免 document-start 的 DOM 断言被面板初始化改变。
 JSON marker 与面板导出会安全处理不可用值、realm 对象、函数、`BigInt` 和循环引用，不让诊断输出反过来遮蔽原始结果。

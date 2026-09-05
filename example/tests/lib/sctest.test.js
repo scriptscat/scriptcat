@@ -830,11 +830,17 @@ vdescribe("PanelReporter", () => {
   vit("面板用稳定可读的格式显示长耗时", () => {
     const session = SCTest.createReportSession({ name: "duration format", reporter: "panel" });
     session.start();
-    session.record({ category: "运行", name: "耗时项", status: "PASS", durationMs: 12345 });
+    session.record({ category: "运行", name: "毫秒项", status: "PASS", durationMs: 35 });
+    session.record({ category: "运行", name: "秒项一", status: "PASS", durationMs: 35700 });
+    session.record({ category: "运行", name: "秒项二", status: "PASS", durationMs: 36000 });
+    session.record({ category: "运行", name: "秒项三", status: "PASS", durationMs: 36100 });
+    session.record({ category: "运行", name: "分秒项", status: "PASS", durationMs: 62000 });
     session.finish();
 
     const root = document.getElementById("sctest-panel-host").shadowRoot;
-    vexpect(root.querySelector('[data-sctest="case-row"] .sc-dur').textContent).toBe("12.3 s");
+    const durations = [...root.querySelectorAll('[data-sctest="case-row"] .sc-dur')].map((node) => node.textContent);
+    vexpect(durations).toEqual(["035 ms", "35.7 s", "36.0 s", "36.1 s", "01m 02s"]);
+    vexpect(new Set(durations.slice(1, 4).map((value) => value.length)).size).toBe(1);
   });
 
   vit("面板渲染出每条用例与汇总行", async () => {
