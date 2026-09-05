@@ -24,11 +24,12 @@
  *   - realmGlobal 与 hostWindow 可以是两个 realm；realm own descriptor 优先，host 只补齐。
  *   - 函数/访问器必须绑定正确 receiver；构造器和 interface 不可被 bind 剥掉 prototype/静态成员。
  *   - 每个脚本独立复制 descriptor；window/self/globalThis 始终回到当前 sandbox。
- *   - on* 属性用独立事件状态机模拟，函数替换不重复注册，this 指向 sandbox。
- *   - 内部 context 字段不可泄漏，console 与 page console 应尽量隔离。
+ *   - on* 属性用独立事件状态机模拟，函数替换不重复注册；PR/Vitest 预期 handler 的 this 指向 sandbox。
+ *     注意：本黑盒脚本目前的 observedThis 项只复核顶层 this，并没有在 handler 内重新采样 this。
+ *   - 内部 context 字段不可泄漏，console 与 unsafeWindow console 应尽量隔离。
  *
- * 这里明确申请了非 none 的 grant，并声明 @sandbox JavaScript；如果管理器仍把本脚本
- * 放在 page/main world，前面的隔离测试会直接报告 FAIL，而不是把 page world 当成成功。
+ * 这里明确申请了非 none 的 grant，并声明 @inject-into content；本脚本并没有声明 @sandbox JavaScript。
+ * ScriptCat/VM 的 content 注入可出现 content unsafeWindow，TM 等环境则可能显示 page unsafeWindow；以下以实际探针结果为准。
  */
 
 let observedThis = this;
@@ -69,6 +70,7 @@ let observedThis = this;
   const sandboxGlobal = read(() => globalThis);
   const sandboxWindow = read(() => window);
   const sandboxSelf = read(() => self);
+  // 变量名沿用 pageWindow；实际对象是当前 unsafeWindow，在 @inject-into content 下也可能是 content unsafeWindow。
   const pageWindow = read(() => (typeof unsafeWindow === "undefined" ? UNAVAILABLE : unsafeWindow));
   const gmObject = read(() => (typeof GM === "undefined" ? UNAVAILABLE : GM));
   const gmInfoObject = read(() => (typeof GM_info === "undefined" ? UNAVAILABLE : GM_info));
@@ -272,14 +274,14 @@ let observedThis = this;
 
       check(
         "全局别名",
-        "@content-inject content is applied",
+        "@inject-into content is applied",
         () => true,
         "content unsafeWindow (VM); page unsafeWindow (TM)",
         () => formatValue(unsafeWindow),
-        "VM完全支持; TM部份支持(FF)"
+        "按实际探针区分：VM/SC 的 content 注入可显示 content unsafeWindow；TM 等环境可能显示 page unsafeWindow。"
       );
     } else {
-      skip("全局别名", "@content-inject content 支持", "supports @content-inject content", "当前管理器未提供 @inject-into");
+      skip("全局别名", "@inject-into content 探针", "content unsafeWindow 或管理器等价行为", "当前探针未呈现 content 注入特征；可能是管理器忽略/不支持 @inject-into，或其隔离实现不同。");
 
     }
 
@@ -291,7 +293,7 @@ let observedThis = this;
       () => functionGlobal === unsafeWindow,
       "page unsafeWindow (TM) / content unsafeWindow (VM,SC)",
       () => formatValue(functionGlobal),
-      "验证脚本 realm 的函数构造器能把 this 指向 page window。（Firefox content：[object Window]）",
+      "验证 Function 构造器取得的全局对象是否等于当前 unsafeWindow；显示分类保留 page unsafeWindow (TM) / content unsafeWindow (VM,SC)。",
 
         { onFail: "WARN", onError: "WARN", required: false }
     );
@@ -308,7 +310,7 @@ let observedThis = this;
         () => evalGlobal === unsafeWindow,
       "page unsafeWindow (TM) / content unsafeWindow (VM,SC)",
         () => formatValue(evalGlobal),
-        "eval 的 receiver/realm 应逃到页面全局。（Firefox content：[object Window]）",
+        "验证 window.eval(\"this\") 的结果是否等于当前 unsafeWindow；显示分类保留 page unsafeWindow (TM) / content unsafeWindow (VM,SC)。",
         { onFail: "WARN", onError: "WARN", required: false }
       );
     }
@@ -338,13 +340,14 @@ let observedThis = this;
       "这是语言层 sanity check，用来区分脚本的顶层 this 与严格函数 this。"
     );
 
-    // 2. page window 隔离：@grant unsafeWindow 应明确产生 page/sandbox 两个对象。
+    // 2. sandbox / unsafeWindow 隔离：unsafeWindow 可能是 page unsafeWindow，也可能是 content unsafeWindow。
+    // 报告分类名“页面隔离”沿用原脚本；实际比较对象始终是当前 unsafeWindow。
     if (pageWindow === UNAVAILABLE) {
       skip(
         "页面隔离",
         "unsafeWindow 可用",
-        "存在 page window",
-        "当前管理器没有提供 unsafeWindow；无法验证 page 与 sandbox 的身份边界。"
+        "存在 page unsafeWindow / content unsafeWindow",
+        "当前管理器没有提供 unsafeWindow；无法验证 unsafeWindow 与 sandbox 的身份边界。"
       );
     } else {
       check(
@@ -359,17 +362,17 @@ let observedThis = this;
         "页面隔离",
         "globalThis !== unsafeWindow",
         () => sandboxGlobal !== pageWindow,
-        "不同于 page window",
+        "不同于 page unsafeWindow / content unsafeWindow",
         () => formatValue(sandboxGlobal),
-        "globalThis 不可回指页面全局。"
+        "globalThis 不应与当前 unsafeWindow 为同一 sandbox 对象。"
       );
       check(
         "页面隔离",
         "self !== unsafeWindow",
         () => sandboxSelf !== pageWindow,
-        "不同于 page window",
+        "不同于 page unsafeWindow / content unsafeWindow",
         () => formatValue(sandboxSelf),
-        "self 不可回指页面全局。"
+        "self 不应与当前 unsafeWindow 为同一 sandbox 对象。"
       );
 
       const pageSelf = read(() => pageWindow.self);
@@ -378,18 +381,18 @@ let observedThis = this;
         "页面隔离",
         "unsafeWindow.window === unsafeWindow",
         () => read(() => pageWindow.window) === pageWindow,
-        "page unsafeWindow",
+        "page unsafeWindow / content unsafeWindow",
         () => formatValue(read(() => pageWindow.window)),
-        "page 侧自身别名的 sanity check。",
+        "当前 unsafeWindow 自身别名的 sanity check；具体显示由 page/content 探针决定。",
         { onFail: "WARN", onError: "WARN", required: false }
       );
       check(
         "页面隔离",
         "unsafeWindow.self === unsafeWindow",
         () => pageSelf === pageWindow,
-        "page unsafeWindow",
+        "page unsafeWindow / content unsafeWindow",
         () => formatValue(pageSelf),
-        "page 侧自身别名的 sanity check。",
+        "当前 unsafeWindow 自身别名的 sanity check；具体显示由 page/content 探针决定。",
         { onFail: "WARN", onError: "WARN", required: false }
       );
       check(
@@ -404,13 +407,13 @@ let observedThis = this;
         "页面隔离",
         "unsafeWindow.globalThis === unsafeWindow",
         () => pageGlobalThis === pageWindow,
-        "page unsafeWindow",
+        "page unsafeWindow / content unsafeWindow",
         () => formatValue(pageGlobalThis),
-        "page 侧自身别名的 sanity check。",
+        "当前 unsafeWindow 自身别名的 sanity check；具体显示由 page/content 探针决定。",
         { onFail: "WARN", onError: "WARN", required: false }
       );
 
-      // 写入随机 own property，验证 sandbox 写入不会落到 page window。
+      // 写入随机 own property，验证 sandbox 写入不会落到当前 unsafeWindow（page/content 依实际环境）。
       const probeKey = `__tm_sandbox_audit_${Math.random().toString(36).slice(2)}`;
       const probeValue = `sandbox-only-${Date.now()}`;
       const pageHadKey = hasOwn(pageWindow, probeKey);
@@ -425,11 +428,11 @@ let observedThis = this;
         pageValueAfterWrite = read(() => pageWindow[probeKey]);
         check(
           "页面隔离",
-          "sandbox 普通属性写入不泄漏到 page",
+          "sandbox 普通属性写入不泄漏到 unsafeWindow",
           () => sandboxWriteResult === probeValue && pageValueAfterWrite !== probeValue,
-          `sandbox[${probeKey}] 可读，page 不可见`,
-          () => `sandbox=${formatValue(sandboxWriteResult)}, page=${formatValue(pageValueAfterWrite)}`,
-          "这是最直接的 page/sandbox 状态隔离测试。"
+          `sandbox[${probeKey}] 可读，unsafeWindow 不可见`,
+          () => `sandbox=${formatValue(sandboxWriteResult)}, unsafeWindow=${formatValue(pageValueAfterWrite)}`,
+          "这是最直接的 sandbox/unsafeWindow 状态隔离测试；unsafeWindow 可显示为 page 或 content。"
         );
       } finally {
         safe(() => delete sandboxWindow[probeKey]);
@@ -439,9 +442,9 @@ let observedThis = this;
       }
     }
 
-    // 3. top/parent/frames：顶层 frame 应折回 sandbox；iframe 的非自身引用允许保留。
+    // 3. top/parent/frames：当前 unsafeWindow 的自指 frame 应折回 sandbox；iframe 的非自身引用允许保留。
     if (pageWindow === UNAVAILABLE) {
-      skip("窗口层级别名", "top / parent / frames", "符合当前 frame 的层级语义", "缺少 unsafeWindow，无法判断当前 page frame。");
+      skip("窗口层级别名", "top / parent / frames", "符合当前 frame 的层级语义", "缺少 unsafeWindow，无法判断当前 host frame 的自指关系。");
     } else {
       for (const key of ["top", "parent", "frames"]) {
         const pageValue = read(() => pageWindow[key]);
@@ -759,11 +762,11 @@ let observedThis = this;
       );
       check(
         "on* 事件状态机",
-        `${eventProperty}: handler 的 this === sandbox window`,
+        `${eventProperty}: observedThis === sandbox window（当前采样为顶层 this）`,
         () => observedThis === sandboxWindow,
         "sandbox window",
         () => formatValue(observedThis),
-        "createEventProp 的 handleEvent 必须使用 fn.call(mySandbox, event)。"
+        "observedThis 只在脚本顶层赋值，handler 内没有更新；因此此项实际复核的是顶层 this，并不能单独证明 handler this。PR/Vitest 的目标仍是 handler this === sandbox。"
       );
       check(
         "on* 事件状态机",
@@ -842,15 +845,15 @@ let observedThis = this;
       const pageConsole = read(() => pageWindow.console);
       check(
         "能力边界",
-        "sandbox console 与 page console 分离",
+        "sandbox console 与 unsafeWindow console 分离",
         () => sandboxConsole !== UNAVAILABLE && sandboxConsole !== pageConsole,
-        "不同 console 对象（推荐）",
-        () => `sandbox=${formatValue(sandboxConsole)}, page=${formatValue(pageConsole)}`,
-        "PR #1706 从 ConsolePrototype/descriptor clone 建立沙盒 console；不同管理器可能共享 console，因此此项是警告级。",
+        "不同 console 对象（推荐；unsafeWindow 可为 page/content）",
+        () => `sandbox=${formatValue(sandboxConsole)}, unsafeWindow=${formatValue(pageConsole)}`,
+        "PR #1706 从 ConsolePrototype/descriptor clone 建立沙盒 console；这里比较的是当前 unsafeWindow 的 console（page/content 依探针），不同管理器可能共享，因此为警告级。",
         { onFail: "WARN", onError: "WARN", required: false }
       );
     } else {
-      skip("能力边界", "sandbox console 与 page console 分离", "不同 console 对象", "缺少 unsafeWindow。");
+      skip("能力边界", "sandbox console 与 unsafeWindow console 分离", "不同 console 对象", "缺少 unsafeWindow。");
     }
 
     const gmPairs = [
@@ -996,7 +999,7 @@ let observedThis = this;
             <div class="summary" id="summary"></div>
             <div class="hint">FAIL 表示核心沙盒不变量失败；WARN 多为管理器/浏览器差异或可选 API；SKIP 表示环境不提供该项目。请先看“页面隔离”和“全局别名”。</div>
             <table><thead><tr><th>状态</th><th>检查</th><th>实际</th><th>预期</th><th>说明</th></tr></thead><tbody id="rows"></tbody></table>
-            <div class="foot">模型：ScriptCat PR #1706 create_context.ts + Vitest；目标：兼容 Tampermonkey 非 none sandbox。</div>
+            <div class="foot">模型：ScriptCat PR #1706 create_context.ts + Vitest；page unsafeWindow / content unsafeWindow 按实际探针结果解释。</div>
           </div>
         </section>`;
 
