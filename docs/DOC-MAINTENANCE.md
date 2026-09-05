@@ -63,6 +63,16 @@ Every hit is a review-queue entry, not an automatic rewrite — confirm whether 
 correct (some are intentional non-negotiables) before loosening it, and confirm a downstream doc's exception
 survives when you touch the upstream rule it narrows.
 
+## Instruction budget
+
+Agent-facing instructions are loaded on every task, so each rule carries a standing cost and competes for
+attention with the rules already there. Before adding one, establish that it is not already derivable from a rule
+present in the doc set, that it states a principle rather than replaying one incident, and that it belongs to the
+doc that owns the subject rather than the doc most likely to be read. Prefer correcting or narrowing an existing
+rule to appending a new one, and prefer one rule stated once in its owning doc to the same rule restated for
+visibility — a rule that has to be repeated to be followed is usually stated in the wrong place. Deleting a rule
+that a later rule superseded is maintenance, not loss of coverage.
+
 ## Lint / config documentation depth
 
 When a doc describes an ESLint rule, tsconfig setting, or similar config-driven behavior, record the
