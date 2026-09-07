@@ -28,13 +28,70 @@ type GMApiMockServer = {
   close: () => Promise<void>;
 };
 
+type SCTestStatus = "PASS" | "FAIL" | "WARN" | "INFO" | "SKIP" | "MANUAL";
+
+type SCTestSummary = {
+  protocol: "sctest/v1";
+  name: string;
+  total: number;
+  passed: number;
+  failed: number;
+  warned: number;
+  info: number;
+  skipped: number;
+  manual: number;
+  counts: Record<SCTestStatus, number>;
+  overall: SCTestStatus;
+  environment: {
+    tool: string;
+    version: string;
+    time: string;
+    context: string;
+    url?: string;
+    manager?: string;
+  };
+  suites: Array<{
+    cases: Array<{
+      name: string;
+      status: SCTestStatus;
+      category: string;
+      expected: unknown;
+      actual: unknown;
+      detail: string;
+    }>;
+  }>;
+};
+
+function failedCaseNames(summary: SCTestSummary): string[] {
+  return summary.suites.flatMap((suite) =>
+    suite.cases.filter((item) => item.status === "FAIL").map((item) => `${item.category}: ${item.name}`)
+  );
+}
+
 type SCTestBrowserApi = {
   skip(reason: string): never;
-  create(options: { name: string; reporter: string }): {
+  create(options: { name: string; reporter: string; framePolicy?: "top" | "all" }): {
     describe(name: string, register: () => void): void;
+    check(
+      category: string,
+      name: string,
+      predicate: () => boolean | Promise<boolean>,
+      expected: unknown,
+      actual: unknown,
+      detail: string,
+      options?: {
+        onFail?: SCTestStatus;
+        onError?: SCTestStatus;
+        failDetail?: string;
+        errorDetail?: string;
+        required?: boolean;
+      }
+    ): void;
+    note(category: string, name: string, expected: unknown, actual: unknown, detail: string): void;
     it(name: string, run: () => void): void;
+    itManual(name: string, options?: { hint?: string }): void;
     expect(value: unknown): { toBe(expected: unknown): void };
-    run(): Promise<unknown>;
+    run(): Promise<SCTestSummary>;
   };
 };
 
@@ -505,7 +562,7 @@ async function runTestScript(
     // 所以点击后必须等**新的一次**汇总，不能沿用已有值。
     beforeCollect?: (page: Page) => Promise<void>;
   }
-): Promise<{ passed: number; failed: number; logs: string[] }> {
+): Promise<{ summary: SCTestSummary; logs: string[] }> {
   let code = fs.readFileSync(path.join(__dirname, `../example/tests/${scriptFile}`), "utf-8");
   code = patchScriptCode(code);
   if (options?.requireOrigin) code = patchRequireCode(code, options.requireOrigin);
@@ -517,21 +574,21 @@ async function runTestScript(
 
   const page = await context.newPage();
   const logs: string[] = [];
-  let passed = -1;
-  let failed = -1;
+  let summary: SCTestSummary | null = null;
 
-  // 「失败:」是汇总里最后一个被这里读取的计数行，用它计数即可判定又打完了一整组汇总。
   let summaryCount = 0;
 
   page.on("console", (msg) => {
     const text = msg.text();
     logs.push(text);
-    const passMatch = text.match(/(通过|Passed)[:：]\s*(\d+)/);
-    const failMatch = text.match(/(失败|Failed)[:：]\s*(\d+)/);
-    if (passMatch) passed = parseInt(passMatch[2], 10);
-    if (failMatch) {
-      failed = parseInt(failMatch[2], 10);
+    if (!text.startsWith("[SCTEST_RESULT] ")) return;
+    try {
+      const parsed = JSON.parse(text.slice("[SCTEST_RESULT] ".length)) as SCTestSummary;
+      if (parsed.protocol !== "sctest/v1") return;
+      summary = parsed;
       summaryCount++;
+    } catch {
+      // Keep collecting console output; the assertion below reports a missing valid summary.
     }
   });
 
@@ -553,13 +610,14 @@ async function runTestScript(
       .catch(() => undefined);
   } else {
     await expect
-      .poll(() => passed >= 0 && failed >= 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+      .poll(() => summary !== null, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
       .toBe(true)
       .catch(() => undefined);
   }
 
   await page.close();
-  return { passed, failed, logs };
+  expect(summary, `No valid SCTest summary found for ${scriptFile}:\n${logs.join("\n")}`).not.toBeNull();
+  return { summary: summary!, logs };
 }
 
 // 设计稿统一为“运行全部”入口；旧面板若仍提供 suite 专属按钮则优先使用。
@@ -629,24 +687,67 @@ test.describe("GM API", () => {
         reporter: "panel",
       });
       testRun.describe("suite", () => {
-        testRun.it("passing case", () => testRun.expect(1).toBe(1));
-        testRun.it("failing case", () => testRun.expect(1).toBe(2));
-        testRun.it("skipped case", () =>
-          (window as typeof window & { SCTest: SCTestBrowserApi }).SCTest.skip("unsupported")
+        testRun.check("自动断言", "passing case", () => true, true, true, "布尔 predicate 返回 true");
+        testRun.check("自动断言", "failing case", () => false, true, false, "布尔 predicate 返回 false");
+        testRun.check("诊断警告", "warning case", () => false, true, false, "非阻断条件", { onFail: "WARN" });
+        testRun.note("运行信息", "info case", "页面可见", "页面已加载", "记录环境观察，不产生自动断言");
+        testRun.check(
+          "环境限制",
+          "skipped case",
+          () => (window as typeof window & { SCTest: SCTestBrowserApi }).SCTest.skip("unsupported"),
+          "可执行",
+          "未执行",
+          "浏览器能力不可用时保留跳过原因"
         );
+        testRun.itManual("manual case", { hint: "确认人工可操作路径后裁决" });
       });
-      await testRun.run();
+      const summary = await testRun.run();
       const panel = document.getElementById("sctest-panel-host")?.shadowRoot?.querySelector<HTMLElement>(".sc-panel");
       const styles = panel && getComputedStyle(panel);
+      const panelRoot = panel?.getRootNode();
       return {
         position: styles?.position,
         width: styles?.width,
+        top: styles?.top,
+        diagnosticTable:
+          panelRoot instanceof ShadowRoot && Boolean(panelRoot.querySelector('[data-sctest="diagnostic-table"]')),
         adoptedStyleSheets:
           panel?.getRootNode() instanceof ShadowRoot ? panel.getRootNode().adoptedStyleSheets.length : 0,
+        statusInHeader: Boolean(panel?.querySelector('.sc-head [data-sctest="status-pill"]')),
+        emptyState: Boolean(panel?.querySelector('[data-sctest="empty-state"]')),
+        summary,
       };
     });
 
-    expect(result).toEqual({ position: "fixed", width: "440px", adoptedStyleSheets: 1 });
+    expect(result).toMatchObject({
+      position: "fixed",
+      width: "920px",
+      top: "12px",
+      diagnosticTable: true,
+      adoptedStyleSheets: 1,
+      statusInHeader: true,
+      emptyState: true,
+    });
+    expect(result.summary).toMatchObject({
+      protocol: "sctest/v1",
+      total: 6,
+      counts: { PASS: 1, FAIL: 1, WARN: 1, INFO: 1, SKIP: 1, MANUAL: 1 },
+      overall: "FAIL",
+      environment: { tool: "sctest", version: "1", context: "page" },
+    });
+    expect(result.summary.suites[0].cases).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "warning case", status: "WARN", expected: true, actual: false }),
+        expect.objectContaining({
+          name: "info case",
+          status: "INFO",
+          expected: "页面可见",
+          actual: "页面已加载",
+          detail: "记录环境观察，不产生自动断言",
+        }),
+        expect.objectContaining({ name: "manual case", status: "MANUAL" }),
+      ])
+    );
     expect(violations).toEqual([]);
 
     const host = page.locator("#sctest-panel-host");
@@ -658,10 +759,26 @@ test.describe("GM API", () => {
         );
     await host.locator('[data-sctest="filter-fail"]').click();
     expect(await visibleCases()).toEqual([expect.stringContaining("failing case")]);
+    await host.locator('[data-sctest="filter-warn"]').click();
+    expect(await visibleCases()).toEqual([expect.stringContaining("warning case")]);
+    await host.locator('[data-sctest="filter-info"]').click();
+    expect(await visibleCases()).toEqual([expect.stringContaining("info case")]);
     await host.locator('[data-sctest="filter-skip"]').click();
     expect(await visibleCases()).toEqual([expect.stringContaining("skipped case")]);
+    await host.locator('[data-sctest="filter-manual"]').click();
+    expect(await visibleCases()).toEqual([expect.stringContaining("manual case")]);
     await host.locator('[data-sctest="filter-all"]').click();
-    expect(await visibleCases()).toHaveLength(3);
+    expect(await visibleCases()).toHaveLength(6);
+
+    const passingCase = host.locator('[data-sctest="case-row"]').filter({ hasText: "passing case" });
+    const passingDetail = passingCase.locator('xpath=following-sibling::*[1][@data-sctest="diagnostic-detail"]');
+    await expect(passingDetail).toBeHidden();
+    await passingCase.locator('[data-sctest="toggle-detail"]').click();
+    await expect(passingDetail).toBeVisible();
+    await host.locator('[data-sctest="search"] input').fill("not-found-in-report");
+    await expect(host.locator('[data-sctest="empty-state"]')).toBeVisible();
+    await host.locator('[data-sctest="empty-reset"]').click();
+    await expect(host.locator('[data-sctest="empty-state"]')).toBeHidden();
 
     const suiteGroupHidden = () =>
       host.locator('[data-sctest="suite-row"]').evaluate((row) => (row.nextElementSibling as HTMLElement).hidden);
@@ -682,12 +799,39 @@ test.describe("GM API", () => {
       });
     });
     await host.locator('[data-sctest="export-json"]').click();
+    await expect(host.locator('[data-sctest="export-json"]')).toContainText("已复制");
     const copiedReport = await page.evaluate(
       () =>
-        JSON.parse((window as typeof window & { copiedJson: string }).copiedJson) as { name: string; cases: unknown[] }
+        JSON.parse((window as typeof window & { copiedJson: string }).copiedJson) as {
+          name: string;
+          protocol: string;
+          cases: unknown[];
+        }
     );
     expect(copiedReport.name).toBe("CSP panel");
-    expect(copiedReport.cases).toHaveLength(3);
+    expect(copiedReport.protocol).toBe("sctest/v1");
+    expect(copiedReport.cases).toHaveLength(6);
+
+    await host.locator('[data-sctest="manual-pass"]').click();
+    await expect
+      .poll(() => host.locator('[data-sctest="case-row"]').filter({ hasText: "manual case" }).textContent())
+      .toContain("PASS");
+    await host.locator('[data-sctest="export-json"]').click();
+    const settledReport = await page.evaluate(
+      () =>
+        JSON.parse((window as typeof window & { copiedJson: string }).copiedJson) as {
+          summary: { counts: SCTestSummary["counts"] };
+          cases: Array<{ name: string; status: SCTestStatus; manualVerdict: SCTestStatus | null }>;
+        }
+    );
+    expect(settledReport.summary.counts.MANUAL).toBe(0);
+    expect(settledReport.cases.find((item) => item.name === "manual case")).toMatchObject({
+      status: "PASS",
+      manualVerdict: "PASS",
+    });
+    await expect(host.locator('[data-sctest="suite-stat"]')).toContainText("自动失败 1 · 人工已确认");
+    await expect(host.locator('[data-sctest="suite-stat"]')).toHaveAttribute("data-failed", "1");
+    await expect(host.locator('[data-sctest="suite-stat"]')).not.toHaveAttribute("data-manual", "1");
 
     const panel = host.locator(".sc-panel");
     const grip = host.locator('[data-sctest="drag-handle"]');
@@ -706,7 +850,7 @@ test.describe("GM API", () => {
   });
 
   test("GM_ sync API tests (gm_api_sync_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(
+    const { summary, logs } = await runTestScript(
       context,
       extensionId,
       "gm_api_sync_test.js",
@@ -715,16 +859,16 @@ test.describe("GM API", () => {
       { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
-    console.log(`[gm_api_sync_test] passed=${passed}, failed=${failed}`);
-    if (failed !== 0) {
+    console.log(`[gm_api_sync_test]`, summary);
+    if (summary.failed !== 0) {
       console.log("[gm_api_sync_test] logs:", logs.join("\n"));
     }
-    expect(failed, "Some GM_ sync API tests failed").toBe(0);
-    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+    expect(summary.failed, "Some GM_ sync API tests failed").toBe(0);
+    expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
   test("GM.* async API tests (gm_api_async_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(
+    const { summary, logs } = await runTestScript(
       context,
       extensionId,
       "gm_api_async_test.js",
@@ -733,16 +877,16 @@ test.describe("GM API", () => {
       { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
-    console.log(`[gm_api_async_test] passed=${passed}, failed=${failed}`);
-    if (failed !== 0) {
+    console.log(`[gm_api_async_test]`, summary);
+    if (summary.failed !== 0) {
       console.log("[gm_api_async_test] logs:", logs.join("\n"));
     }
-    expect(failed, "Some GM.* async API tests failed").toBe(0);
-    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+    expect(summary.failed, "Some GM.* async API tests failed").toBe(0);
+    expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
   test("Content inject tests (inject_content_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(
+    const { summary, logs } = await runTestScript(
       context,
       extensionId,
       "inject_content_test.js",
@@ -751,16 +895,16 @@ test.describe("GM API", () => {
       { requireOrigin: gmApiMockServer.origin }
     );
 
-    console.log(`[inject_content_test] passed=${passed}, failed=${failed}`);
-    if (failed !== 0) {
+    console.log(`[inject_content_test]`, summary);
+    if (summary.failed !== 0) {
       console.log("[inject_content_test] logs:", logs.join("\n"));
     }
-    expect(failed, "Some content inject tests failed").toBe(0);
-    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+    expect(summary.failed, "Some content inject tests failed").toBe(0);
+    expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
   test("@early-start page world 脚本应在 CSP 页面的解析早期执行", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(
+    const { summary, logs } = await runTestScript(
       context,
       extensionId,
       "early_inject_page_test.js",
@@ -769,13 +913,13 @@ test.describe("GM API", () => {
       { requireOrigin: gmApiMockServer.origin }
     );
 
-    if (failed !== 0) console.log("[early_inject_page_test] logs:", logs.join("\n"));
-    expect(failed, "Some early page-world injection tests failed").toBe(0);
-    expect(passed, "No early page-world results found - script may not have run").toBeGreaterThan(0);
+    if (summary.failed !== 0) console.log("[early_inject_page_test] logs:", logs.join("\n"));
+    expect(summary.failed, "Some early page-world injection tests failed").toBe(0);
+    expect(summary.passed, "No early page-world results found - script may not have run").toBeGreaterThan(0);
   });
 
   test("@early-start content world 脚本应在 CSP 页面的解析早期执行", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(
+    const { summary, logs } = await runTestScript(
       context,
       extensionId,
       "early_inject_content_test.js",
@@ -784,13 +928,13 @@ test.describe("GM API", () => {
       { requireOrigin: gmApiMockServer.origin }
     );
 
-    if (failed !== 0) console.log("[early_inject_content_test] logs:", logs.join("\n"));
-    expect(failed, "Some early content-world injection tests failed").toBe(0);
-    expect(passed, "No early content-world results found - script may not have run").toBeGreaterThan(0);
+    if (summary.failed !== 0) console.log("[early_inject_content_test] logs:", logs.join("\n"));
+    expect(summary.failed, "Some early content-world injection tests failed").toBe(0);
+    expect(summary.passed, "No early content-world results found - script may not have run").toBeGreaterThan(0);
   });
 
   test("Unwrap scriptlet tests (unwrap_e2e_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(
+    const { summary, logs } = await runTestScript(
       context,
       extensionId,
       "unwrap_e2e_test.js",
@@ -799,16 +943,16 @@ test.describe("GM API", () => {
       { requireOrigin: gmApiMockServer.origin }
     );
 
-    console.log(`[unwrap_e2e_test] passed=${passed}, failed=${failed}`);
-    if (failed !== 0) {
+    console.log(`[unwrap_e2e_test]`, summary);
+    if (summary.failed !== 0) {
       console.log("[unwrap_e2e_test] logs:", logs.join("\n"));
     }
-    expect(failed, "Some unwrap scriptlet tests failed").toBe(0);
-    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+    expect(summary.failed, "Some unwrap scriptlet tests failed").toBe(0);
+    expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
   test("WindowMessage Transport Test (window_message_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(
+    const { summary, logs } = await runTestScript(
       context,
       extensionId,
       "window_message_test.js",
@@ -817,16 +961,16 @@ test.describe("GM API", () => {
       { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
-    console.log(`[window_message_test] passed=${passed}, failed=${failed}`);
-    if (failed !== 0) {
+    console.log(`[window_message_test]`, summary);
+    if (summary.failed !== 0) {
       console.log("[window_message_test] logs:", logs.join("\n"));
     }
-    expect(failed, "Some window message tests failed").toBe(0);
-    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+    expect(summary.failed, "Some window message tests failed").toBe(0);
+    expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
   test("Sandbox Test (sandbox_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(
+    const { summary, logs } = await runTestScript(
       context,
       extensionId,
       "sandbox_test.js",
@@ -835,16 +979,16 @@ test.describe("GM API", () => {
       { requireOrigin: gmApiMockServer.origin }
     );
 
-    console.log(`[sandbox_test] passed=${passed}, failed=${failed}`);
-    if (failed !== 0) {
+    console.log(`[sandbox_test]`, summary);
+    if (summary.failed !== 0) {
       console.log("[sandbox_test] logs:", logs.join("\n"));
     }
-    expect(failed, "Some sandbox tests failed").toBe(0);
-    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+    expect(summary.failed, "Some sandbox tests failed").toBe(0);
+    expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
   test("GM_xhr redirect tests (gm_xhr_redirect_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(
+    const { summary, logs } = await runTestScript(
       context,
       extensionId,
       "gm_xhr_redirect_test.js",
@@ -853,16 +997,16 @@ test.describe("GM API", () => {
       { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
-    console.log(`[gm_xhr_redirect_test] passed=${passed}, failed=${failed}`);
-    if (failed !== 0) {
+    console.log(`[gm_xhr_redirect_test]`, summary);
+    if (summary.failed !== 0) {
       console.log("[gm_xhr_redirect_test] logs:", logs.join("\n"));
     }
-    expect(failed, "Some GM_xhr redirect tests failed").toBe(0);
-    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+    expect(summary.failed, "Some GM_xhr redirect tests failed").toBe(0);
+    expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
   test("GM_xhr tests (gm_xhr_test.js)", async ({ context, extensionId }) => {
-    const { passed, failed, logs } = await runTestScript(
+    const { summary, logs } = await runTestScript(
       context,
       extensionId,
       "gm_xhr_test.js",
@@ -876,11 +1020,12 @@ test.describe("GM API", () => {
       }
     );
 
-    console.log(`[gm_xhr_test] passed=${passed}, failed=${failed}`);
-    if (failed !== 0) {
+    console.log(`[gm_xhr_test]`, summary);
+    if (summary.failed !== 0) {
+      console.log("[gm_xhr_test] failed cases:", failedCaseNames(summary));
       console.log("[gm_xhr_test] logs:", logs.join("\n"));
     }
-    expect(failed, "Some GM_xhr tests failed").toBe(0);
-    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+    expect(summary.failed, "Some GM_xhr tests failed").toBe(0);
+    expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 });
