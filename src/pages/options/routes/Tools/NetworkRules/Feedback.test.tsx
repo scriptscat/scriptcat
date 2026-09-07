@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
@@ -83,17 +83,10 @@ function renderPage(client: NetworkRuleClient) {
   );
 }
 
-async function flush() {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-}
-
 async function openRowMenu(row: HTMLElement) {
   const trigger = within(row).getByRole("button", { name: "更多操作" });
   fireEvent.pointerDown(trigger, { button: 0 });
   fireEvent.click(trigger);
-  await flush();
 }
 
 describe("网络规则的成败反馈", () => {
@@ -107,11 +100,12 @@ describe("网络规则的成败反馈", () => {
 
     await openRowMenu(screen.getAllByTestId("network-rule-row")[1]);
     fireEvent.click(await screen.findByRole("menuitem", { name: "置顶" }));
-    await flush();
 
-    expect(client.reorderRules).toHaveBeenCalled();
-    expect(notify.error).toHaveBeenCalledWith("规则已保存，但浏览器规则未能更新。");
-    expect(notify.success).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(client.reorderRules).toHaveBeenCalled();
+      expect(notify.error).toHaveBeenCalledWith("规则已保存，但浏览器规则未能更新。");
+      expect(notify.success).not.toHaveBeenCalled();
+    });
   });
 
   it("删除保存成功但浏览器未接受时只报失败，不同时弹成功", async () => {
@@ -124,13 +118,13 @@ describe("网络规则的成败反馈", () => {
 
     await openRowMenu(screen.getAllByTestId("network-rule-row")[0]);
     fireEvent.click(await screen.findByRole("menuitem", { name: "删除" }));
-    await flush();
-    fireEvent.click(screen.getByRole("button", { name: "删除规则" }));
-    await flush();
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "删除规则" }));
 
-    expect(client.deleteRules).toHaveBeenCalled();
-    expect(notify.error).toHaveBeenCalledWith("规则已保存，但浏览器规则未能更新。");
-    expect(notify.success).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(client.deleteRules).toHaveBeenCalled();
+      expect(notify.error).toHaveBeenCalledWith("规则已保存，但浏览器规则未能更新。");
+      expect(notify.success).not.toHaveBeenCalled();
+    });
   });
 });
 
