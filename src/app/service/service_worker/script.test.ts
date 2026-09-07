@@ -13,7 +13,8 @@ import { SystemConfig } from "@App/pkg/config/config";
 import EventEmitter from "eventemitter3";
 import type { ValueService } from "./value";
 import type { ResourceService } from "./resource";
-import type { TDeleteScript, TInstallScript } from "@App/app/service/queue";
+import type { TDeleteScript, TInstallScript, TSortedScript } from "@App/app/service/queue";
+import { CLOUD_SYNC_QUEUE_KEY } from "@App/app/service/queue";
 import { createMockOPFS } from "@App/app/repo/test-helpers";
 import type { Group } from "@Packages/message/server";
 import type { IMessageQueue } from "@Packages/message/message_queue";
@@ -21,6 +22,25 @@ import type { MessageSend } from "@Packages/message/types";
 import { ScriptClient } from "./client";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { BatchUpdateListActionCode } from "./types";
+import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import type * as ScriptUtils from "@App/pkg/utils/script";
+import type * as Utils from "@App/pkg/utils/utils";
+
+// 打开更新详情页会真的发网络请求并开标签页；这两处替换成可断言的桩
+const h = vi.hoisted(() => ({
+  fetchScriptBody: vi.fn(),
+  openInCurrentTab: vi.fn(),
+}));
+
+vi.mock("@App/pkg/utils/script", async (importOriginal) => ({
+  ...(await importOriginal<typeof ScriptUtils>()),
+  fetchScriptBody: h.fetchScriptBody,
+}));
+
+vi.mock("@App/pkg/utils/utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof Utils>()),
+  openInCurrentTab: h.openInCurrentTab,
+}));
 
 initTestEnv();
 
@@ -105,6 +125,140 @@ describe("ScriptService.purgeScripts —— 彻底删除", () => {
   it("回收站中不存在该脚本时应抛错", async () => {
     const { service } = buildService();
     await expect(service.purgeScripts(["nope"])).rejects.toThrow("trash scripts not found");
+  });
+});
+
+describe("ScriptService.sortScript", () => {
+  beforeEach(async () => {
+    await resetActiveScriptData();
+  });
+
+  it("拖动排序只更新位置变化的脚本并发布排序更新时间", async () => {
+    const { service, scriptDAO, mq } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "first", sort: 0, updatetime: 100 }));
+    await scriptDAO.save(makeScript({ uuid: "second", sort: 1, updatetime: 1_000 }));
+    const sorted: TSortedScript[][] = [];
+    mq.subscribe<TSortedScript[]>("sortedScripts", (value) => void sorted.push(value));
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+
+    try {
+      await service.sortScript({ before: ["first", "second"], after: ["second", "first"] });
+    } finally {
+      now.mockRestore();
+    }
+
+    await expect(scriptDAO.get("first")).resolves.toMatchObject({ sort: 1, updatetime: 100 });
+    await expect(scriptDAO.get("second")).resolves.toMatchObject({ sort: 0, updatetime: 1_000 });
+    expect(sorted[0]).toEqual([
+      { uuid: "second", sort: 0, sortUpdatetime: 1_000 },
+      { uuid: "first", sort: 1, sortUpdatetime: 1_000 },
+    ]);
+  });
+
+  it("拖动部分列表时不写入位置未变化的脚本", async () => {
+    const { service, scriptDAO } = buildService();
+    for (let index = 0; index < 4; index += 1) {
+      await scriptDAO.save(makeScript({ uuid: `script-${index}`, sort: index, updatetime: 100 + index }));
+    }
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+
+    try {
+      await service.sortScript({
+        before: ["script-0", "script-1", "script-2", "script-3"],
+        after: ["script-1", "script-0", "script-2", "script-3"],
+      });
+    } finally {
+      now.mockRestore();
+    }
+
+    await expect(scriptDAO.get("script-1")).resolves.toMatchObject({ sort: 0, updatetime: 101 });
+    await expect(scriptDAO.get("script-0")).resolves.toMatchObject({ sort: 1, updatetime: 100 });
+    await expect(scriptDAO.get("script-2")).resolves.toMatchObject({ sort: 2, updatetime: 102 });
+    await expect(scriptDAO.get("script-3")).resolves.toMatchObject({ sort: 3, updatetime: 103 });
+  });
+
+  it("全量同步进行时排序 mutation 不应穿插执行", async () => {
+    const { service, scriptDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "first", sort: 0 }));
+    await scriptDAO.save(makeScript({ uuid: "second", sort: 1 }));
+    const allSpy = vi.spyOn(scriptDAO, "all");
+    let releaseSync!: () => void;
+    const syncGate = new Promise<void>((resolve) => {
+      releaseSync = resolve;
+    });
+    const syncPromise = stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, () => syncGate);
+    let sortResolved = false;
+    const sortPromise = service.sortScript({ before: ["first", "second"], after: ["second", "first"] }).then(() => {
+      sortResolved = true;
+    });
+
+    await Promise.resolve();
+    expect(allSpy).not.toHaveBeenCalled();
+    expect(sortResolved).toBe(false);
+
+    releaseSync();
+    await Promise.all([syncPromise, sortPromise]);
+    expect(allSpy).toHaveBeenCalledTimes(1);
+    await expect(scriptDAO.get("second")).resolves.toMatchObject({ sort: 0 });
+  });
+});
+
+describe("ScriptService.getAllScripts", () => {
+  beforeEach(async () => {
+    await resetActiveScriptData();
+  });
+
+  it("规范化旧排序时只登记位置变化的脚本", async () => {
+    const { service, scriptDAO, mq } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "first", sort: -1, updatetime: 100 }));
+    await scriptDAO.save(makeScript({ uuid: "second", sort: 1, updatetime: 200 }));
+    const sorted: TSortedScript[][] = [];
+    mq.subscribe<TSortedScript[]>("sortedScripts", (value) => void sorted.push(value));
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+
+    try {
+      await service.getAllScripts();
+    } finally {
+      now.mockRestore();
+    }
+
+    await expect(scriptDAO.get("first")).resolves.toMatchObject({ sort: 0, updatetime: 100 });
+    await expect(scriptDAO.get("second")).resolves.toMatchObject({ sort: 1, updatetime: 200 });
+    expect(sorted[0]).toEqual([
+      { uuid: "first", sort: 0, sortUpdatetime: 1_000 },
+      { uuid: "second", sort: 1 },
+    ]);
+  });
+});
+
+describe("ScriptService.pinToTop", () => {
+  beforeEach(async () => {
+    await resetActiveScriptData();
+  });
+
+  it("置顶只更新位置变化的脚本并发布同一个排序更新时间", async () => {
+    const { service, scriptDAO, mq } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "first", sort: 0, updatetime: 100 }));
+    await scriptDAO.save(makeScript({ uuid: "second", sort: 1, updatetime: 200 }));
+    await scriptDAO.save(makeScript({ uuid: "third", sort: 2, updatetime: 300 }));
+    const sorted: TSortedScript[][] = [];
+    mq.subscribe<TSortedScript[]>("sortedScripts", (value) => void sorted.push(value));
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+
+    try {
+      await service.pinToTop(["second"]);
+    } finally {
+      now.mockRestore();
+    }
+
+    await expect(scriptDAO.get("first")).resolves.toMatchObject({ sort: 1, updatetime: 100 });
+    await expect(scriptDAO.get("second")).resolves.toMatchObject({ sort: 0, updatetime: 200 });
+    await expect(scriptDAO.get("third")).resolves.toMatchObject({ sort: 2, updatetime: 300 });
+    expect(sorted[0]).toEqual([
+      { uuid: "second", sort: 0, sortUpdatetime: 1_000 },
+      { uuid: "first", sort: 1, sortUpdatetime: 1_000 },
+      { uuid: "third", sort: 2 },
+    ]);
   });
 });
 
@@ -587,11 +741,11 @@ describe("ScriptClient 站点范围消息", () => {
     const sendMessage = vi.fn().mockResolvedValue({ data: true });
     const client = new ScriptClient({ sendMessage } as unknown as MessageSend);
 
-    await client.excludeFromMatch("script-uuid", "*://current.example/*");
+    await client.excludeFromMatch("script-uuid", "current.example", "https://current.example/page");
 
     expect(sendMessage).toHaveBeenCalledWith({
       action: "serviceWorker/script/excludeFromMatch",
-      data: { uuid: "script-uuid", matchPattern: "*://current.example/*" },
+      data: { uuid: "script-uuid", host: "current.example", url: "https://current.example/page" },
     });
   });
 });
@@ -650,51 +804,10 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
     );
   });
 
-  describe("excludeUrl - popup 排除/取消排除", () => {
-    it("取消最后一条排除后应保存空覆盖，而不是回落脚本自带的 exclude", async () => {
-      const script = createMockScript();
-      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
-
-      await scriptService.excludeUrl({ uuid: script.uuid, excludePattern: "*://ads.script.com/*", remove: true });
-
-      expect(savedSelfMetadata()).toEqual({ exclude: [] });
-    });
-
-    it("取消排除后仍有其他规则时应保存剩余规则", async () => {
-      const script = createMockScript({
-        selfMetadata: { exclude: ["*://ads.script.com/*", "*://user.com/*"] },
-      });
-      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
-
-      await scriptService.excludeUrl({ uuid: script.uuid, excludePattern: "*://user.com/*", remove: true });
-
-      expect(savedSelfMetadata()).toEqual({ exclude: ["*://ads.script.com/*"] });
-    });
-
-    it("排除新网站时应追加到覆盖中", async () => {
-      const script = createMockScript();
-      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
-
-      await scriptService.excludeUrl({ uuid: script.uuid, excludePattern: "*://user.com/*", remove: false });
-
-      expect(savedSelfMetadata()).toEqual({ exclude: ["*://ads.script.com/*", "*://user.com/*"] });
-    });
-
-    it("已有用户排除覆盖时新增排除应同时保留作者与用户规则", async () => {
-      const script = createMockScript({
-        selfMetadata: { exclude: ["*://user-blocked.example/*"] },
-      });
-      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
-
-      await scriptService.excludeUrl({ uuid: script.uuid, excludePattern: "*://new.example/*", remove: false });
-
-      expect(savedSelfMetadata()).toEqual({
-        exclude: ["*://ads.script.com/*", "*://user-blocked.example/*", "*://new.example/*"],
-      });
-    });
-  });
-
   describe("popup 站点范围快捷操作", () => {
+    const host = "current.example";
+    const url = "https://current.example/page";
+
     it("初始化时应注册排除已匹配站点操作", async () => {
       const alarmsDescriptor = Object.getOwnPropertyDescriptor(chrome, "alarms");
       Object.defineProperty(chrome, "alarms", {
@@ -758,17 +871,14 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
 
       const onlyRun = scriptService.onlyRunOnUrl({ uuid: stored.uuid, matchPattern: "*://current.example/*" });
       await firstUpdateStarted;
-      const exclude = scriptService.excludeFromMatch({ uuid: stored.uuid, matchPattern: "*://current.example/*" });
+      const exclude = scriptService.excludeFromMatch({ uuid: stored.uuid, host, url });
       await Promise.resolve();
       await Promise.resolve();
       releaseFirstUpdate();
       await Promise.all([onlyRun, exclude]);
 
-      expect(stored.selfMetadata).toEqual({
-        match: [],
-        include: [],
-        exclude: ["*://ads.script.com/*", "*://current.example/*"],
-      });
+      // 串行执行才能让 excludeFromMatch 看到 onlyRunOnUrl 写入的匹配覆盖并把它移出
+      expect(stored.selfMetadata).toEqual({ match: [], include: [] });
     });
 
     it("并发 onlyRunOnUrl 与 resetMatch 应串行执行并保留两次读改写", async () => {
@@ -876,85 +986,117 @@ describe("ScriptService selfMetadata 用户覆盖", () => {
       });
     });
 
-    it("排除已包含站点时应移出用户匹配并加入用户排除", async () => {
+    it("匹配中有当前站点的专属规则时应只移出匹配，不写入排除", async () => {
+      const script = createMockScript({
+        metadata: { match: ["*://current.example/*", "*://other.example/*"] },
+        selfMetadata: { exclude: ["*://blocked.example/*"] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.excludeFromMatch({ uuid: script.uuid, host, url });
+
+      // 移出匹配后脚本已不在本站生效，无需再写排除，用户的排除列表保持原样
+      expect(savedSelfMetadata()).toEqual({
+        match: ["*://other.example/*"],
+        exclude: ["*://blocked.example/*"],
+      });
+    });
+
+    it("同一站点的多条路径匹配应一并移出", async () => {
+      const script = createMockScript({
+        metadata: { match: ["https://current.example/a*", "http://current.example/b*", "*://other.example/*"] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.excludeFromMatch({ uuid: script.uuid, host, url });
+
+      expect(savedSelfMetadata()).toEqual({ match: ["*://other.example/*"] });
+    });
+
+    it("移出的是最后一条匹配时应保留显式空匹配覆盖", async () => {
+      const script = createMockScript({ metadata: { match: ["*://current.example/*"] } });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.excludeFromMatch({ uuid: script.uuid, host, url });
+
+      expect(savedSelfMetadata()).toEqual({ match: [] });
+    });
+
+    it("通配匹配移不掉当前站点时应回退为写入排除", async () => {
+      const script = createMockScript({ metadata: { match: ["*://*/*"] } });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.excludeFromMatch({ uuid: script.uuid, host, url });
+
+      // 通配匹配删不掉单一站点，只有排除能真正关掉；同时不该创建匹配覆盖
+      expect(savedSelfMetadata()).toEqual({ exclude: ["*://current.example/*"] });
+    });
+
+    it("不应移除通配子域匹配，改以排除关掉当前子域", async () => {
+      const script = createMockScript({ metadata: { match: ["*://*.example.com/*"] } });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      // 移除 *://*.example.com/* 会连兄弟子域一起关掉，超出「不在 www.example.com 执行」的范围
+      await scriptService.excludeFromMatch({
+        uuid: script.uuid,
+        host: "www.example.com",
+        url: "https://www.example.com/page",
+      });
+
+      expect(savedSelfMetadata()).toEqual({ exclude: ["*://www.example.com/*"] });
+    });
+
+    it("@include 仍命中当前站点时应在移出匹配后补写排除", async () => {
+      const script = createMockScript({
+        metadata: { match: ["*://current.example/*"], include: ["*://current.example/*"] },
+      });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.excludeFromMatch({ uuid: script.uuid, host, url });
+
+      expect(savedSelfMetadata()).toEqual({
+        match: [],
+        exclude: ["*://current.example/*"],
+      });
+    });
+
+    it("仅在当前站点执行后再关掉当前站点应清空匹配并撤销来源标记", async () => {
       const script = createMockScript({
         selfMetadata: {
-          match: ["*://allowed.example/*", "*://current.example/*"],
-          exclude: ["*://blocked.example/*"],
+          match: ["*://current.example/*"],
+          include: [],
+          [SELF_METADATA_ONLY_RUN_ON_URL]: ["*://current.example/*"],
         },
       });
       vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
 
-      await scriptService.excludeFromMatch({ uuid: script.uuid, matchPattern: "*://current.example/*" });
+      await scriptService.excludeFromMatch({ uuid: script.uuid, host, url });
 
-      // 作者 @exclude（ads.script.com）并入用户覆盖，避免用户覆盖整体替换作者规则
-      expect(savedSelfMetadata()).toEqual({
-        match: ["*://allowed.example/*"],
-        exclude: ["*://ads.script.com/*", "*://blocked.example/*", "*://current.example/*"],
-      });
+      expect(savedSelfMetadata()).toEqual({ match: [], include: [] });
     });
 
-    it("排除最后一个用户匹配时应保留显式空匹配覆盖", async () => {
-      const script = createMockScript({ selfMetadata: { match: ["*://current.example/*"] } });
-      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
-
-      await scriptService.excludeFromMatch({ uuid: script.uuid, matchPattern: "*://current.example/*" });
-
-      expect(savedSelfMetadata()).toEqual({
-        match: [],
-        exclude: ["*://ads.script.com/*", "*://current.example/*"],
-      });
-    });
-
-    it("没有用户匹配覆盖时排除站点不应创建匹配覆盖", async () => {
-      const script = createMockScript();
-      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
-
-      await scriptService.excludeFromMatch({ uuid: script.uuid, matchPattern: "*://current.example/*" });
-
-      expect(savedSelfMetadata()).toEqual({ exclude: ["*://ads.script.com/*", "*://current.example/*"] });
-    });
-
-    it("已有空匹配覆盖时排除站点应保留空覆盖", async () => {
-      const script = createMockScript({ selfMetadata: { match: [] } });
-      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
-
-      await scriptService.excludeFromMatch({ uuid: script.uuid, matchPattern: "*://current.example/*" });
-
-      expect(savedSelfMetadata()).toEqual({
-        match: [],
-        exclude: ["*://ads.script.com/*", "*://current.example/*"],
-      });
-    });
-
-    it("新增排除覆盖时应保留作者已有的排除规则", async () => {
+    it("写入排除时应同时保留作者与用户已有的排除规则", async () => {
       const script = createMockScript({
-        metadata: { exclude: ["*://author-blocked.example/*"] },
-        selfMetadata: { match: ["*://current.example/*"] },
+        metadata: { match: ["*://*/*"], exclude: ["*://author-blocked.example/*"] },
+        selfMetadata: { exclude: ["*://user-blocked.example/*"] },
       });
       vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
 
-      await scriptService.excludeFromMatch({ uuid: script.uuid, matchPattern: "*://current.example/*" });
+      await scriptService.excludeFromMatch({ uuid: script.uuid, host, url });
 
+      // 用户覆盖整体替换作者规则，因此写排除时须并入作者 @exclude，避免丢作者规则
       expect(savedSelfMetadata()).toEqual({
-        match: [],
-        exclude: ["*://author-blocked.example/*", "*://current.example/*"],
-      });
-    });
-
-    it("已有用户排除覆盖时排除站点应同时保留作者与用户排除规则", async () => {
-      const script = createMockScript({
-        metadata: { exclude: ["*://author-blocked.example/*"] },
-        selfMetadata: { match: ["*://current.example/*"], exclude: ["*://user-blocked.example/*"] },
-      });
-      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
-
-      await scriptService.excludeFromMatch({ uuid: script.uuid, matchPattern: "*://current.example/*" });
-
-      expect(savedSelfMetadata()).toEqual({
-        match: [],
         exclude: ["*://author-blocked.example/*", "*://user-blocked.example/*", "*://current.example/*"],
       });
+    });
+
+    it("当前站点本就不在匹配范围内时不应写入任何覆盖", async () => {
+      const script = createMockScript({ metadata: { match: ["*://other.example/*"] } });
+      vi.mocked(mockScriptDAO.get).mockResolvedValue(script);
+
+      await scriptService.excludeFromMatch({ uuid: script.uuid, host, url });
+
+      expect(mockScriptDAO.update).not.toHaveBeenCalled();
     });
   });
 
@@ -1308,5 +1450,161 @@ describe("ScriptService._checkScriptUpdate —— 检查期间脚本被更新", 
     await expect(service.checkScriptUpdate({ checkType: "user" })).resolves.toMatchObject({ ok: true });
     expect(service["scriptUpdateCheck"].cacheFull?.list?.find((e) => e.uuid === "u-changed")?.checkUpdate).toBe(false);
     expect(service["scriptUpdateCheck"].cacheFull?.list?.find((e) => e.uuid === "u-stable")?.checkUpdate).toBe(true);
+  });
+});
+
+describe("ScriptService.openUpdatePageByUUID —— 打开单条更新详情", () => {
+  const URL = "https://example.test/open.user.js";
+  const userscript = (version: string) =>
+    [
+      "// ==UserScript==",
+      "// @name        更新详情目标",
+      "// @namespace   scriptcat-test",
+      `// @version     ${version}`,
+      "// ==/UserScript==",
+      "console.log(1);",
+    ].join("\n");
+
+  const saveTarget = async (service: ScriptService, scriptDAO: ScriptDAO) => {
+    await scriptDAO.save(
+      makeScript({
+        uuid: "u-open",
+        name: "更新详情目标",
+        namespace: "scriptcat-test",
+        metadata: { name: ["更新详情目标"], namespace: ["scriptcat-test"], version: ["1.0.0"] },
+        downloadUrl: URL,
+        checkUpdateUrl: URL,
+        checkUpdate: true,
+      })
+    );
+    await service.scriptCodeDAO.save({ uuid: "u-open", code: userscript("1.0.0") });
+  };
+
+  const primeCache = (service: ScriptService, newCode: string) =>
+    service["scriptUpdateCheck"].setCacheFull({
+      checktime: Date.now(),
+      list: [
+        {
+          uuid: "u-open",
+          checkUpdate: true,
+          oldCode: userscript("1.0.0"),
+          newCode,
+          newMeta: { version: ["2.0.0"], connect: [] },
+          script: makeScript({ uuid: "u-open", name: "更新详情目标", namespace: "scriptcat-test" }),
+          codeSimilarity: 0.9,
+          sites: [],
+          withNewConnect: false,
+        },
+      ],
+    });
+
+  beforeEach(() => {
+    h.fetchScriptBody.mockReset();
+    h.openInCurrentTab.mockReset();
+  });
+
+  it("检查记录里已带新版代码时直接打开安装页,不再重新拉取脚本", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveTarget(service, scriptDAO);
+    primeCache(service, userscript("2.0.0"));
+
+    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe("opened");
+
+    expect(h.fetchScriptBody).not.toHaveBeenCalled();
+    expect(h.openInCurrentTab).toHaveBeenCalledWith("/src/install.html?uuid=u-open");
+  });
+
+  it("检查记录已失效时回退到网络拉取并照常打开安装页", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveTarget(service, scriptDAO);
+    h.fetchScriptBody.mockResolvedValue(userscript("2.0.0"));
+
+    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe("opened");
+
+    expect(h.fetchScriptBody).toHaveBeenCalledWith(URL);
+    expect(h.openInCurrentTab).toHaveBeenCalledWith("/src/install.html?uuid=u-open");
+  });
+
+  it("拉取失败时回报 failed,让更新页能给出失败反馈而不是一直转圈", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveTarget(service, scriptDAO);
+    h.fetchScriptBody.mockRejectedValue(new Error("network error"));
+
+    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe("failed");
+
+    expect(h.openInCurrentTab).not.toHaveBeenCalled();
+  });
+
+  it("脚本已不存在时回报 failed 而不是静默无反应", async () => {
+    const { service } = buildService();
+
+    await expect(service.openUpdatePageByUUID("missing")).resolves.toBe("failed");
+
+    expect(h.openInCurrentTab).not.toHaveBeenCalled();
+  });
+
+  it("命中静默更新时回报 silent:不开安装页,由调用方补一条反馈", async () => {
+    const { service, scriptDAO, systemConfig } = buildService();
+    await saveTarget(service, scriptDAO);
+    systemConfig.setSilenceUpdateScript(true);
+    primeCache(service, userscript("2.0.0"));
+
+    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe("silent");
+
+    // 静默更新是真的装了,只是页面上什么都不会发生
+    expect(h.openInCurrentTab).not.toHaveBeenCalled();
+    expect((await scriptDAO.get("u-open"))?.metadata.version?.[0]).toBe("2.0.0");
+  });
+});
+
+describe("ScriptService.batchUpdateListAction —— 忽略更新", () => {
+  const saveIgnoreTarget = (scriptDAO: ScriptDAO) =>
+    scriptDAO.save(
+      makeScript({
+        uuid: "u-ignore",
+        name: "忽略目标",
+        namespace: "scriptcat-test",
+        metadata: { name: ["忽略目标"], namespace: ["scriptcat-test"], version: ["1.0.0"] },
+      })
+    );
+
+  it("逐条回报忽略结果,页面据此收起该行", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveIgnoreTarget(scriptDAO);
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.IGNORE,
+      actionPayload: [{ uuid: "u-ignore", ignoreVersion: "2.0.0" }],
+    });
+
+    expect(res).toEqual({ ok: true, items: [{ uuid: "u-ignore", success: true }] });
+    expect((await scriptDAO.get("u-ignore"))?.ignoreVersion).toBe("2.0.0");
+  });
+
+  it("检查缓存已随 Service Worker 回收时,忽略照样生效并照常回报", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveIgnoreTarget(scriptDAO);
+    // 忽略写的是脚本自身的 ignoreVersion,与检查缓存无关
+    expect(service["scriptUpdateCheck"].cacheFull).toBeFalsy();
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.IGNORE,
+      actionPayload: [{ uuid: "u-ignore", ignoreVersion: "2.0.0" }],
+    });
+
+    expect(res).toEqual({ ok: true, items: [{ uuid: "u-ignore", success: true }] });
+    expect((await scriptDAO.get("u-ignore"))?.ignoreVersion).toBe("2.0.0");
+  });
+
+  it("脚本已不存在时该条回报失败,而不是静默当作成功", async () => {
+    const { service } = buildService();
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.IGNORE,
+      actionPayload: [{ uuid: "missing", ignoreVersion: "2.0.0" }],
+    });
+
+    expect(res?.ok).toBe(true);
+    expect(res?.items[0]).toMatchObject({ uuid: "missing", success: false });
   });
 });

@@ -7,12 +7,13 @@ import {
   getUserScriptRegister,
   compileInjectionCode,
   shouldAutoOpenChangelog,
+  scriptURLPatternResults,
 } from "./utils";
 import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 import type { ScriptMatchInfo } from "./types";
-import { extractUrlPatterns } from "@App/pkg/utils/url_matcher";
+import { extractUrlPatterns, RuleTypeBit } from "@App/pkg/utils/url_matcher";
 
 describe.concurrent("parseUrlSRI", () => {
   it.concurrent("should parse URL SRI", () => {
@@ -356,5 +357,26 @@ describe.concurrent("compileInjectionCode", () => {
     expect(result).toContain("return(async function(){");
     // 使用 compileInjectScript 包裹（window[flag] = function(){...}）
     expect(result).toContain("window['#-test-uuid']");
+  });
+});
+
+describe.concurrent("scriptURLPatternResults", () => {
+  const createScriptRes = (metadata: SCMetadata, selfMetadata?: SCMetadata) => ({
+    metadata: selfMetadata ? getCombinedMeta(metadata, selfMetadata) : metadata,
+    originalMetadata: metadata,
+    selfMetadata,
+  });
+
+  it.concurrent("无任何匹配规则的脚本应返回 null", () => {
+    expect(scriptURLPatternResults(createScriptRes({ name: ["no match"] }))).toBeNull();
+  });
+
+  it.concurrent("用户把匹配清空后应保留原始规则，使脚本仍能在 Popup 中被恢复", () => {
+    const result = scriptURLPatternResults(createScriptRes({ match: ["*://example.com/*"] }, { match: [] }));
+
+    // 生效规则不含任何 inclusion => 不匹配任何站点；
+    // 原始规则仍在 => Popup 仍以「未生效」列出该脚本，可点「允许在此执行」恢复
+    expect(result!.scriptUrlPatterns.some((rule) => rule.ruleType & RuleTypeBit.INCLUSION)).toBe(false);
+    expect(result!.originalUrlPatterns.map((rule) => rule.patternString)).toEqual(["*://example.com/*"]);
   });
 });

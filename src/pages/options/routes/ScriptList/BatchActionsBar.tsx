@@ -5,6 +5,8 @@ import SelectionBar, { SelectionBarButton } from "./SelectionBar";
 
 export interface BatchActionsBarProps {
   selectedCount: number;
+  allSelected: boolean;
+  onToggleSelectAll: () => void;
   onBatchEnable: () => void;
   onBatchDisable: () => void;
   onBatchExport: () => void;
@@ -16,6 +18,8 @@ export interface BatchActionsBarProps {
 
 export default function BatchActionsBar({
   selectedCount,
+  allSelected,
+  onToggleSelectAll,
   onBatchEnable,
   onBatchDisable,
   onBatchExport,
@@ -28,7 +32,12 @@ export default function BatchActionsBar({
   const [trashEnabled] = useSystemConfig("trash_enabled");
 
   return (
-    <SelectionBar selectedCount={selectedCount} onClose={onClose}>
+    <SelectionBar
+      selectedCount={selectedCount}
+      allSelected={allSelected}
+      onToggleSelectAll={onToggleSelectAll}
+      onClose={onClose}
+    >
       <SelectionBarButton color="primary" onClick={onBatchEnable}>
         {t("enable")}
       </SelectionBarButton>

@@ -2,9 +2,11 @@ import { test, expect } from "./fixtures";
 import type { BrowserContext, Page } from "@playwright/test";
 import { openEditorPage, openOptionsPage, saveCurrentEditor } from "./utils";
 
-// new-ui 脚本列表（shadcn 表格视图，桌面默认）：空状态 data-testid="script-list-empty"，
-// 每行启用开关为 Radix Switch(role=switch)，删除为行内 Trash2 图标 + Popconfirm
-// (确认按钮 data-testid="popconfirm-confirm")，搜索框 data-testid="script-search"。
+// new-ui 脚本列表（统一列表行，桌面默认）：空状态 data-testid="script-list-empty"，
+// 每行启用开关为 Radix Switch(role=switch)，搜索框 data-testid="script-search"。
+// 删除为行内 Trash2 图标 + AlertDialog 二次确认（确认按钮 data-slot="alert-dialog-action"）。
+// 行操作区在视口不窄于 1000px 时才摊开成按钮，窄于此宽度删除会收进「更多」菜单；
+// 本套件依赖 Playwright 默认的 1280 宽视口，改视口需同步调整下面的删除用例。
 
 /** 通过编辑器创建一个脚本，再打开脚本列表 */
 async function createScriptAndGoToList(context: BrowserContext, extensionId: string): Promise<Page> {
@@ -37,8 +39,8 @@ test.describe("脚本管理", () => {
     await expect(deleteBtn).toBeVisible({ timeout: 10_000 });
     await deleteBtn.click();
 
-    // Popconfirm 确认
-    await page.getByTestId("popconfirm-confirm").click();
+    // AlertDialog 二次确认
+    await page.locator('[data-slot="alert-dialog-action"]').click();
 
     // 删除后回到空状态
     await expect(page.getByTestId("script-list-empty")).toBeVisible({ timeout: 10_000 });
