@@ -163,6 +163,7 @@ i18next; extension strings in `src/assets/_locales/`. The current locale list is
 ## Security & Configuration Tips
 
 Do not commit secrets, local certificates, build output, coverage, Playwright reports, test results, or local `.env` changes.
+
 ## Commit & Pull Request Guidelines
 
 Commits must be single-purpose and **start with a gitmoji emoji** — use the actual emoji character, not the `:code:` text form, for example `git commit -m "🐛 fix template matching"` or `git commit -m "✨ add script filter"`. The leading emoji drives release changelog grouping (see the `release` skill), so pick the one that matches the change:
