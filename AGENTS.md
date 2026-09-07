@@ -11,7 +11,6 @@ duplicating its rules.
 | --- | --- |
 | write code | [`docs/develop.md`](docs/develop.md) |
 | run project commands | [`docs/develop.md`](docs/develop.md) |
-| recover from package-manager, dependency, or Playwright browser errors | [`docs/develop.md#environment-setup-and-recovery`](docs/develop.md#environment-setup-and-recovery) |
 | review code or a pull request | [`docs/develop.md`](docs/develop.md) + [`docs/pull-request.md`](docs/pull-request.md) for PR-body rules |
 | change a process/message/service/persistence boundary or add a subsystem | [`docs/architecture.md`](docs/architecture.md) + the relevant `docs/references/architecture-*.md` |
 | build or modify a page, dialog, or block | [`docs/design.md`](docs/design.md) — Core Constraints apply to every UI change |

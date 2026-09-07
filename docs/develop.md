@@ -21,7 +21,7 @@ pnpm run coverage
 pnpm run typecheck        # tsc --noEmit
 
 pnpm run test:e2e:install # install Playwright Chromium (first run only)
-pnpm run test:e2e         # Playwright (e2e/*.spec.ts, 1 worker)
+pnpm run test:e2e         # Playwright (e2e/*.spec.ts; worker count comes from playwright.config.ts)
 pnpm run lint             # prettier --check + tsc --noEmit + check:i18n + check:issue-templates, then eslint
 pnpm run lint-fix         # prettier --write + tsc --noEmit + eslint --fix
 
@@ -39,24 +39,6 @@ are staged, and also runs `pnpm run test:ci` when committing on `main` or `relea
 using it — including links already shipped in installed builds, which keep sending the old param name.
 
 After `pnpm run dev`, load `dist/ext` as an unpacked extension. The browser hot-reloads page changes, but edits to `manifest.json`, `service_worker`, `offscreen`, or `sandbox` require reloading the extension.
-
-### Environment Setup and Recovery
-
-Dependency installation and Playwright browser installation are separate prerequisites, not reasons to change
-product code:
-
-- If `pnpm` is unavailable, use the repository-declared package manager through Corepack when `corepack` is
-  available: run `corepack enable`, then `corepack install`, and verify with `pnpm --version`. If Corepack is also
-  unavailable or setup fails, report the command and error as an environment blocker; do not switch to npm/yarn.
-- Use `pnpm install` for missing, invalid, or stale Node dependencies. Follow the package manager declared by
-  this repository; do not switch to npm/yarn or manually add packages to repair a local setup. If `pnpm install`
-  changes `pnpm-lock.yaml`, stop and report the mismatch; do not commit that lockfile change as environment
-  recovery.
-- After dependencies are installed, use `pnpm run test:e2e:install` when an end-to-end test reports that
-  Playwright Chromium is missing or unusable. The command is safe to rerun.
-- Retry the original command after setup. If network, permission, or tool availability blocks setup, report the
-  exact command and relevant error as an environment blocker; do not alter the lockfile or hide the failure with
-  a workaround.
 
 ### External Access (`external_access/` subsystem)
 
@@ -197,5 +179,39 @@ Commits must be single-purpose and **start with a gitmoji emoji** — use the ac
 Work from a feature branch or fork and open PRs against `main`. Chinese PR titles are preferred for changelog generation.
 
 Use `.github/pull_request_template.md` as the starting point. It is intentionally lightweight for human-authored PRs; agents should preserve its checklist and expand `Description / 描述` only when useful. The detailed structure is defined in [`pull-request.md`](./pull-request.md). Keep exact commands and results in `验证`, describe UI evidence when the change is visual, and do not claim checks or evidence that did not happen.
+
+### Revision, Scope, and Publication Binding
+
+Before reviewing or reporting a branch or pull request, or creating/updating a pull request or pushing its
+branch, bind the artifact, revision, and scope to the current remote state:
+
+1. Identify the target. For a live pull request, read its metadata and record its repository, base branch, head
+   branch, and head SHA. If only a local branch or commit is available, record its SHA and label all results
+   local-only; do not call them final pull-request evidence.
+2. Fetch the current base and relevant head refs before choosing the parent or diff. For a new pull request,
+   fetch `origin/main` and branch from that ref. For an existing pull request, fetch the recorded head repository
+   and branch.
+3. Compare the local SHA used for review or publication with the live branch/PR head using `git rev-parse HEAD`,
+   `git ls-remote <head-remote> refs/heads/<head-branch>` when a remote head exists, and the live pull-request
+   metadata. A local `HEAD` or tracking ref is not evidence of the pull-request head. If any identity differs,
+   stop, rebind the worktree and diff, and rerun the review before continuing.
+4. For a live pull request, derive review conclusions and inclusion/exclusion claims from the live base-to-head
+   diff, including changed paths and patch content. Apply the final-diff rule in
+   [`pull-request.md#scope-claims-and-final-diff-evidence`](./pull-request.md#scope-claims-and-final-diff-evidence);
+   branch ancestry, intention, and an earlier local check are insufficient.
+5. Before publication, require `git status --short --branch`, a named non-detached branch, and `git rev-parse
+   HEAD`; re-read the remote head immediately before pushing. Push normally only when the expected head is
+   unchanged. Never overwrite an unexpected or unreviewed remote commit. If the user explicitly authorizes a
+   rewrite, bind the current remote head, use a lease-protected force update against that exact SHA, and verify
+   the remote ref after pushing.
+6. Before reporting results or changing pull-request metadata, re-read the live pull request and bind every claim
+   to its returned head SHA. Any new commit, force-push, rebase, base change, conflict resolution, or scope-claim
+   edit invalidates earlier evidence; rerun the affected review, checks, and final-diff audit.
+
+The same binding applies to the scope you declared for your own change. A commit's gitmoji type and title, and the
+task statement they serve, name a scope class; compare the final diff against that class before committing or
+pushing. Move anything outside it into its own commit with its own justification, or restate the scope. A
+production behavior change that arrives inside a test-cleanup or refactor commit is not reviewable as either, and
+stays unreviewable no matter how correct it is on its own.
 
 **Review policy**: review **all** modified files (including `.md`/`.json`); PR description is context only — judge from the diff. Verify every code path touched.
