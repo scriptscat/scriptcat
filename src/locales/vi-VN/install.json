@@ -35,6 +35,9 @@
   "code_expand": "Mở rộng",
   "loading_title": "Đang tải script",
   "loading_desc": "Đang tải xuống và phân tích nội dung script từ nguồn",
+  "loading_title_update": "Đang chuẩn bị chi tiết cập nhật",
+  "loading_desc_prepare": "Đang đọc nội dung tập lệnh đã chuẩn bị",
+  "loading_desc_prepare_update": "Đang đọc phiên bản mới đã tải và so sánh với phiên bản hiện tại",
   "error_retry": "Thử lại",
   "error_invalid_desc": "Thiếu tham số nguồn cài đặt hợp lệ nên không thể tải script.",
   "context_install": "Cài đặt script",
@@ -129,7 +132,19 @@
     "batch_done_partial": "Đã cập nhật {{updated}}, {{failed}} thất bại",
     "view_updated_scripts": "Xem tập lệnh đã cập nhật",
     "record_expired": "Dữ liệu cập nhật đã hết hiệu lực. Vui lòng kiểm tra cập nhật lại.",
-    "open_failed": "Không mở được chi tiết cập nhật. Vui lòng thử lại."
+    "open_failed": "Không mở được chi tiết cập nhật. Vui lòng thử lại.",
+    "loading_list": "Đang tải danh sách cập nhật",
+    "load_failed_title": "Không tải được bản ghi cập nhật",
+    "load_failed_desc": "Không đọc được kết quả kiểm tra từ nền. Vui lòng thử lại.",
+    "script_list": "Danh sách tập lệnh",
+    "check_busy": "Đang có một lượt kiểm tra cập nhật chạy rồi",
+    "check_skipped": "Kết quả vẫn còn mới, chưa kiểm tra lại",
+    "check_failed": "Kiểm tra cập nhật thất bại, vui lòng thử lại sau",
+    "row_ignoring": "Đang bỏ qua…",
+    "row_ignored": "Đã bỏ qua v{{version}}",
+    "row_ignore_failed": "Bỏ qua thất bại",
+    "batch_interrupted": "Đã cập nhật {{count}}, phần còn lại dừng vì kết quả kiểm tra đã hết hạn",
+    "silent_updated": "Đã cập nhật ngầm lên v{{version}}, không cần xác nhận"
   },
   "importpage": {
     "title": "Nhập dữ liệu",
@@ -234,5 +249,9 @@
   "script_info_load_failed": "Tải thông tin script thất bại",
   "btn_restore": "Khôi phục script",
   "btn_restore_update": "Khôi phục và cập nhật script",
-  "in_trash_hint": "Script này đang ở trong thùng rác, cài đặt sẽ khôi phục nó và giữ nguyên dữ liệu hiện có"
+  "in_trash_hint": "Script này đang ở trong thùng rác, cài đặt sẽ khôi phục nó và giữ nguyên dữ liệu hiện có",
+  "expired_title": "Nội dung cập nhật đã hết hạn",
+  "expired_desc": "Mã đã chuẩn bị cho lần cập nhật này đã bị dọn dẹp. Vui lòng kiểm tra cập nhật lại.",
+  "expired_recheck": "Kiểm tra cập nhật lại",
+  "code_loading": "Đang tải mã"
 }

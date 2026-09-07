@@ -105,8 +105,10 @@ export interface SkillInstallData {
 }
 
 export type InstallState =
-  | { status: "loading"; source?: string; bytesText?: string; percent?: number }
+  | { status: "loading"; source?: string; bytesText?: string; percent?: number; mode?: "install" | "update" }
   | { status: "invalid" }
+  // 待安装代码已被暂存清理回收：与一般加载失败区分开，重试同一段取数不可能成功
+  | { status: "expired" }
   | { status: "error"; message: string }
   | { status: "ready"; view: InstallView }
   | { status: "skill"; skill: SkillInstallData };
@@ -205,6 +207,8 @@ export interface UseInstallData {
   installSkill: () => Promise<void>;
   cancelSkill: () => void;
   retry: () => void;
+  /** 待安装代码已过期时的出口：请服务端重新检查该脚本的更新并重新备料 */
+  recheck: () => void;
   /** 失败后重放刚才那次安装动作(供内联错误条的重试按钮) */
   retryInstall: () => void;
 }
@@ -226,6 +230,8 @@ export function useInstallData(): UseInstallData {
   const skillDataRef = useRef<SkillInstallData | null>(null);
   const isUpdateRef = useRef(false);
   const lastInstallOptsRef = useRef<InstallOptions>({});
+  // 安装/决定这类会真正落地的提交是否在飞行中；ref 而非 state，重入判定要在同一个事件里立即生效
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -302,9 +308,20 @@ export function useInstallData(): UseInstallData {
           startKeepAlive(uuid);
           const cached = await scriptClient.getInstallInfo(uuid);
           const info = cached?.[1];
-          if (!info) throw new Error(t("install:script_info_load_failed"));
+          // 暂存条目/代码已被定时清理回收，是这条入口最常见的失败，单独落到过期终态
+          if (!info) {
+            if (!cancelled) setState({ status: "expired" });
+            return;
+          }
+          // 是安装还是更新此刻才确知；在此之前不猜，免得顶栏 chip 先闪一次错的上下文
+          if (!cancelled) {
+            setState((s) => (s.status === "loading" ? { ...s, mode: cached?.[0] ? "update" : "install" } : s));
+          }
           const code = await getTempCode(uuid);
-          if (code === undefined) throw new Error(t("install:script_info_load_failed"));
+          if (code === undefined) {
+            if (!cancelled) setState({ status: "expired" });
+            return;
+          }
           info.code = code;
           await loadFromInfo(info, !!cached?.[0], cached?.[2] || {});
         } else if (rawUrl) {
@@ -387,6 +404,9 @@ export function useInstallData(): UseInstallData {
     const action = actionRef.current;
     const info = infoRef.current;
     if (!action || !info) return;
+    // UI 的 disabled 只是第一道防线：下拉菜单项在 phase 翻转前已经展开时仍能被选中
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     lastInstallOptsRef.current = opts;
     setOutcome({ phase: "installing" });
     const name = i18nName(action);
@@ -434,6 +454,8 @@ export function useInstallData(): UseInstallData {
       if (closeAfterInstall) setTimeout(() => leaveInstallPage(), LEAVE_DELAY_MS);
     } catch (e) {
       setOutcome({ phase: "failed", message: (e as Error)?.message || String(e) });
+    } finally {
+      submittingRef.current = false;
     }
   }, []);
 
@@ -441,6 +463,10 @@ export function useInstallData(): UseInstallData {
   const rejectExternalAccess = useCallback(async () => {
     const info = infoRef.current;
     if (!info?.externalAccess) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    // 决定同样是一次跨进程往返，不置忙态的话按钮全程可点，连点会发出两次决定
+    setOutcome({ phase: "installing" });
     try {
       await externalAccessClient.decideOperation({ operationId: info.externalAccess.operationId, approved: false });
     } finally {
@@ -479,13 +505,19 @@ export function useInstallData(): UseInstallData {
     const action = actionRef.current;
     if (!handle || !info || !action) return;
     if (!watching) {
-      // 开启监听前先安装当前内容,再追踪后续变更(对照 v1.4 setupWatchFile)
+      if (submittingRef.current) return;
+      submittingRef.current = true;
+      // 开启监听前先安装当前内容,再追踪后续变更(对照 v1.4 setupWatchFile)。
+      // 这一步就是一次真正的安装，必须置忙态，否则连点会装两次
+      setOutcome({ phase: "installing" });
       try {
         await scriptClient.install({ script: action as Script, code: info.code });
         setOutcome({ phase: "idle" });
       } catch (e) {
         setOutcome({ phase: "failed", message: (e as Error)?.message || String(e) });
         return;
+      } finally {
+        submittingRef.current = false;
       }
       const ftInfo: FTInfo = {
         uuid: info.uuid,
@@ -537,6 +569,16 @@ export function useInstallData(): UseInstallData {
     setReloadKey((k) => k + 1);
   }, []);
 
+  /**
+   * 代码过期后的出口：让服务端重新检查这个脚本的更新并重新备料，
+   * 原地重试同一段取数只会再失败一次。
+   */
+  const recheck = useCallback(() => {
+    const uuid = new URLSearchParams(location.search).get("uuid");
+    if (uuid) void scriptClient.requestCheckUpdate(uuid);
+    leaveInstallPage();
+  }, []);
+
   // 重试要重放「刚才失败的那次动作」本身：沿用同一组安装选项，否则用户点重试会得到
   // 与他原本意图不同的结果(例如把「不关闭窗口」「不再检查更新」丢掉)。
   const retryInstall = useCallback(() => {
@@ -564,6 +606,7 @@ export function useInstallData(): UseInstallData {
     installSkill,
     cancelSkill,
     retry,
+    recheck,
     retryInstall,
   };
 }

@@ -35,6 +35,9 @@
   "code_expand": "Expandir",
   "loading_title": "Carregando script",
   "loading_desc": "Baixando e analisando o conteúdo da origem do script",
+  "loading_title_update": "Preparando os detalhes da atualização",
+  "loading_desc_prepare": "Lendo o conteúdo do script já preparado",
+  "loading_desc_prepare_update": "Lendo a nova versão baixada e comparando com a atual",
   "error_retry": "Tentar novamente",
   "error_invalid_desc": "Falta um parâmetro de origem de instalação válido, então o script não pode ser carregado.",
   "context_install": "Instalar script",
@@ -129,7 +132,19 @@
     "batch_done_partial": "{{updated}} atualizados, {{failed}} com falha",
     "view_updated_scripts": "Ver scripts atualizados",
     "record_expired": "Os dados de atualização expiraram. Verifique as atualizações novamente.",
-    "open_failed": "Falha ao abrir os detalhes da atualização. Tente novamente."
+    "open_failed": "Falha ao abrir os detalhes da atualização. Tente novamente.",
+    "loading_list": "Carregando lista de atualizações",
+    "load_failed_title": "Falha ao carregar os registros de atualização",
+    "load_failed_desc": "Não foi possível ler o resultado da verificação em segundo plano. Tente novamente.",
+    "script_list": "Lista de scripts",
+    "check_busy": "Já existe uma verificação de atualizações em andamento",
+    "check_skipped": "Os resultados ainda estão atualizados, nenhuma nova verificação foi feita",
+    "check_failed": "Falha ao verificar atualizações, tente novamente mais tarde",
+    "row_ignoring": "Ignorando…",
+    "row_ignored": "v{{version}} ignorada",
+    "row_ignore_failed": "Falha ao ignorar",
+    "batch_interrupted": "{{count}} atualizado(s), o restante foi interrompido porque o resultado da verificação expirou",
+    "silent_updated": "Atualizado silenciosamente para v{{version}}, sem necessidade de confirmação"
   },
   "importpage": {
     "title": "Importação de dados",
@@ -234,5 +249,9 @@
   "script_info_load_failed": "Falha ao carregar informações do script",
   "btn_restore": "Restaurar script",
   "btn_restore_update": "Restaurar e atualizar script",
-  "in_trash_hint": "Este script está na lixeira. Ao instalá-lo, ele será restaurado e seus dados existentes serão mantidos."
+  "in_trash_hint": "Este script está na lixeira. Ao instalá-lo, ele será restaurado e seus dados existentes serão mantidos.",
+  "expired_title": "O conteúdo da atualização expirou",
+  "expired_desc": "O código preparado para esta atualização foi removido. Verifique as atualizações novamente.",
+  "expired_recheck": "Verificar atualizações novamente",
+  "code_loading": "Carregando código"
 }
