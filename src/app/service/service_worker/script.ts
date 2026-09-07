@@ -1268,7 +1268,18 @@ export class ScriptService {
   async openBatchUpdatePage(opts: TOpenBatchUpdatePageOption) {
     const { q, dontCheckNow } = opts;
     const p = q ? `?${q}` : "";
-    await openInCurrentTab(`/src/batchupdate.html${p}`);
+    const pageUrl = chrome.runtime.getURL(`/src/batchupdate.html${p}`);
+    const pageBaseUrl = chrome.runtime.getURL("/src/batchupdate.html");
+    const existing = await chrome.tabs.query({ url: `${pageBaseUrl}*` });
+    const existingTab = existing.find((tab) => typeof tab.id === "number");
+    if (existingTab?.id !== undefined) {
+      await chrome.tabs.update(existingTab.id, { active: true });
+      if (typeof existingTab.windowId === "number") {
+        await chrome.windows.update(existingTab.windowId, { focused: true });
+      }
+    } else {
+      await openInCurrentTab(pageUrl);
+    }
     if (!dontCheckNow) {
       await this.checkScriptUpdate({ checkType: "user", noUpdateCheck: 10 * 60 * 1000 });
     }
