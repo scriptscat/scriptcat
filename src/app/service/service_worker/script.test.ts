@@ -23,6 +23,24 @@ import { ScriptClient } from "./client";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { BatchUpdateListActionCode } from "./types";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
+import type * as ScriptUtils from "@App/pkg/utils/script";
+import type * as Utils from "@App/pkg/utils/utils";
+
+// 打开更新详情页会真的发网络请求并开标签页；这两处替换成可断言的桩
+const h = vi.hoisted(() => ({
+  fetchScriptBody: vi.fn(),
+  openInCurrentTab: vi.fn(),
+}));
+
+vi.mock("@App/pkg/utils/script", async (importOriginal) => ({
+  ...(await importOriginal<typeof ScriptUtils>()),
+  fetchScriptBody: h.fetchScriptBody,
+}));
+
+vi.mock("@App/pkg/utils/utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof Utils>()),
+  openInCurrentTab: h.openInCurrentTab,
+}));
 
 initTestEnv();
 
@@ -1432,5 +1450,161 @@ describe("ScriptService._checkScriptUpdate —— 检查期间脚本被更新", 
     await expect(service.checkScriptUpdate({ checkType: "user" })).resolves.toMatchObject({ ok: true });
     expect(service["scriptUpdateCheck"].cacheFull?.list?.find((e) => e.uuid === "u-changed")?.checkUpdate).toBe(false);
     expect(service["scriptUpdateCheck"].cacheFull?.list?.find((e) => e.uuid === "u-stable")?.checkUpdate).toBe(true);
+  });
+});
+
+describe("ScriptService.openUpdatePageByUUID —— 打开单条更新详情", () => {
+  const URL = "https://example.test/open.user.js";
+  const userscript = (version: string) =>
+    [
+      "// ==UserScript==",
+      "// @name        更新详情目标",
+      "// @namespace   scriptcat-test",
+      `// @version     ${version}`,
+      "// ==/UserScript==",
+      "console.log(1);",
+    ].join("\n");
+
+  const saveTarget = async (service: ScriptService, scriptDAO: ScriptDAO) => {
+    await scriptDAO.save(
+      makeScript({
+        uuid: "u-open",
+        name: "更新详情目标",
+        namespace: "scriptcat-test",
+        metadata: { name: ["更新详情目标"], namespace: ["scriptcat-test"], version: ["1.0.0"] },
+        downloadUrl: URL,
+        checkUpdateUrl: URL,
+        checkUpdate: true,
+      })
+    );
+    await service.scriptCodeDAO.save({ uuid: "u-open", code: userscript("1.0.0") });
+  };
+
+  const primeCache = (service: ScriptService, newCode: string) =>
+    service["scriptUpdateCheck"].setCacheFull({
+      checktime: Date.now(),
+      list: [
+        {
+          uuid: "u-open",
+          checkUpdate: true,
+          oldCode: userscript("1.0.0"),
+          newCode,
+          newMeta: { version: ["2.0.0"], connect: [] },
+          script: makeScript({ uuid: "u-open", name: "更新详情目标", namespace: "scriptcat-test" }),
+          codeSimilarity: 0.9,
+          sites: [],
+          withNewConnect: false,
+        },
+      ],
+    });
+
+  beforeEach(() => {
+    h.fetchScriptBody.mockReset();
+    h.openInCurrentTab.mockReset();
+  });
+
+  it("检查记录里已带新版代码时直接打开安装页,不再重新拉取脚本", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveTarget(service, scriptDAO);
+    primeCache(service, userscript("2.0.0"));
+
+    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe("opened");
+
+    expect(h.fetchScriptBody).not.toHaveBeenCalled();
+    expect(h.openInCurrentTab).toHaveBeenCalledWith("/src/install.html?uuid=u-open");
+  });
+
+  it("检查记录已失效时回退到网络拉取并照常打开安装页", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveTarget(service, scriptDAO);
+    h.fetchScriptBody.mockResolvedValue(userscript("2.0.0"));
+
+    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe("opened");
+
+    expect(h.fetchScriptBody).toHaveBeenCalledWith(URL);
+    expect(h.openInCurrentTab).toHaveBeenCalledWith("/src/install.html?uuid=u-open");
+  });
+
+  it("拉取失败时回报 failed,让更新页能给出失败反馈而不是一直转圈", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveTarget(service, scriptDAO);
+    h.fetchScriptBody.mockRejectedValue(new Error("network error"));
+
+    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe("failed");
+
+    expect(h.openInCurrentTab).not.toHaveBeenCalled();
+  });
+
+  it("脚本已不存在时回报 failed 而不是静默无反应", async () => {
+    const { service } = buildService();
+
+    await expect(service.openUpdatePageByUUID("missing")).resolves.toBe("failed");
+
+    expect(h.openInCurrentTab).not.toHaveBeenCalled();
+  });
+
+  it("命中静默更新时回报 silent:不开安装页,由调用方补一条反馈", async () => {
+    const { service, scriptDAO, systemConfig } = buildService();
+    await saveTarget(service, scriptDAO);
+    systemConfig.setSilenceUpdateScript(true);
+    primeCache(service, userscript("2.0.0"));
+
+    await expect(service.openUpdatePageByUUID("u-open")).resolves.toBe("silent");
+
+    // 静默更新是真的装了,只是页面上什么都不会发生
+    expect(h.openInCurrentTab).not.toHaveBeenCalled();
+    expect((await scriptDAO.get("u-open"))?.metadata.version?.[0]).toBe("2.0.0");
+  });
+});
+
+describe("ScriptService.batchUpdateListAction —— 忽略更新", () => {
+  const saveIgnoreTarget = (scriptDAO: ScriptDAO) =>
+    scriptDAO.save(
+      makeScript({
+        uuid: "u-ignore",
+        name: "忽略目标",
+        namespace: "scriptcat-test",
+        metadata: { name: ["忽略目标"], namespace: ["scriptcat-test"], version: ["1.0.0"] },
+      })
+    );
+
+  it("逐条回报忽略结果,页面据此收起该行", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveIgnoreTarget(scriptDAO);
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.IGNORE,
+      actionPayload: [{ uuid: "u-ignore", ignoreVersion: "2.0.0" }],
+    });
+
+    expect(res).toEqual({ ok: true, items: [{ uuid: "u-ignore", success: true }] });
+    expect((await scriptDAO.get("u-ignore"))?.ignoreVersion).toBe("2.0.0");
+  });
+
+  it("检查缓存已随 Service Worker 回收时,忽略照样生效并照常回报", async () => {
+    const { service, scriptDAO } = buildService();
+    await saveIgnoreTarget(scriptDAO);
+    // 忽略写的是脚本自身的 ignoreVersion,与检查缓存无关
+    expect(service["scriptUpdateCheck"].cacheFull).toBeFalsy();
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.IGNORE,
+      actionPayload: [{ uuid: "u-ignore", ignoreVersion: "2.0.0" }],
+    });
+
+    expect(res).toEqual({ ok: true, items: [{ uuid: "u-ignore", success: true }] });
+    expect((await scriptDAO.get("u-ignore"))?.ignoreVersion).toBe("2.0.0");
+  });
+
+  it("脚本已不存在时该条回报失败,而不是静默当作成功", async () => {
+    const { service } = buildService();
+
+    const res = await service.batchUpdateListAction({
+      actionCode: BatchUpdateListActionCode.IGNORE,
+      actionPayload: [{ uuid: "missing", ignoreVersion: "2.0.0" }],
+    });
+
+    expect(res?.ok).toBe(true);
+    expect(res?.items[0]).toMatchObject({ uuid: "missing", success: false });
   });
 });

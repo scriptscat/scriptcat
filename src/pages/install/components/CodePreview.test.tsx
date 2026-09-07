@@ -5,6 +5,7 @@ import { initTestLanguage } from "@Tests/initTestLanguage";
 // Monaco 无法在 DOM 测试环境中渲染(需 worker),用轻量桩替换,仅暴露 props 供断言接线
 vi.mock("@App/pages/components/CodeEditor", () => import("@Tests/mocks/CodeEditor.tsx"));
 
+import { setEditorMounts } from "@Tests/mocks/CodeEditor";
 import { CodePreview } from "./CodePreview";
 
 const code = "// line1\nconst a = 1;\nconsole.log(a);";
@@ -57,5 +58,24 @@ describe("CodePreview 代码卡", () => {
     render(<CodePreview code={code} diffStat={{ added: 42, removed: 18 }} />);
     expect(screen.getByText("+42")).toBeInTheDocument();
     expect(screen.getByText("−18")).toBeInTheDocument();
+  });
+});
+
+describe("CodePreview 编辑器加载期的占位", () => {
+  afterEach(() => setEditorMounts(true));
+
+  it("编辑器实例就绪前渲染代码骨架,而不是一块看着像加载失败的空白", () => {
+    setEditorMounts(false);
+    render(<CodePreview code={code} />);
+
+    const skeleton = screen.getByTestId("code-skeleton");
+    expect(skeleton).toHaveAttribute("aria-busy", "true");
+    expect(skeleton.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(3);
+  });
+
+  it("编辑器挂载后收起骨架", () => {
+    render(<CodePreview code={code} />);
+
+    expect(screen.queryByTestId("code-skeleton")).not.toBeInTheDocument();
   });
 });
