@@ -61,7 +61,8 @@ test.describe("Options 各页加载冒烟", () => {
       await expect(route.anchor(page), `${route.name} (${route.path}) 未渲染稳定锚点`).toBeVisible({
         timeout: 20_000,
       });
-      // 给页面挂载副作用(数据加载/消息往返)一点时间触发可能的异常。
+      // 页面冒烟契约包含挂载后副作用的有限观察窗口；没有统一完成事件可等待。
+      // eslint-disable-next-line scriptcat/no-test-fixed-sleep -- finite post-mount error observation window
       await page.waitForTimeout(500);
     }
 

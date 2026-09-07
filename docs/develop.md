@@ -21,7 +21,7 @@ pnpm run coverage
 pnpm run typecheck        # tsc --noEmit
 
 pnpm run test:e2e:install # install Playwright Chromium (first run only)
-pnpm run test:e2e         # Playwright (e2e/*.spec.ts, 1 worker)
+pnpm run test:e2e         # Playwright (e2e/*.spec.ts; worker count comes from playwright.config.ts)
 pnpm run lint             # prettier --check + tsc --noEmit + check:i18n + check:issue-templates, then eslint
 pnpm run lint-fix         # prettier --write + tsc --noEmit + eslint --fix
 
@@ -207,5 +207,11 @@ branch, bind the artifact, revision, and scope to the current remote state:
 6. Before reporting results or changing pull-request metadata, re-read the live pull request and bind every claim
    to its returned head SHA. Any new commit, force-push, rebase, base change, conflict resolution, or scope-claim
    edit invalidates earlier evidence; rerun the affected review, checks, and final-diff audit.
+
+The same binding applies to the scope you declared for your own change. A commit's gitmoji type and title, and the
+task statement they serve, name a scope class; compare the final diff against that class before committing or
+pushing. Move anything outside it into its own commit with its own justification, or restate the scope. A
+production behavior change that arrives inside a test-cleanup or refactor commit is not reviewable as either, and
+stays unreviewable no matter how correct it is on its own.
 
 **Review policy**: review **all** modified files (including `.md`/`.json`); PR description is context only — judge from the diff. Verify every code path touched.

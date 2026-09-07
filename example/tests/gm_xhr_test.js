@@ -6,7 +6,7 @@
 // @author       you
 // @match        *://*/*?GM_XHR_TEST_SC
 // @grant        GM_xmlhttpRequest
-// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@762f83e9c1091ab4ebbb605f4efc4709b36f6476/example/tests/lib/sctest.js
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@b8c6d0839c75ee5e4e4276dd10e201011c445df8/example/tests/lib/sctest.js
 // @connect      httpbingo.org
 // @connect      nonexistent-domain-abcxyz.test
 // @connect      raw.githubusercontent.com
@@ -49,7 +49,7 @@ const enableTool = true;
   "use strict";
   if (!enableTool) return;
 
-  const { describe, it, expect, run } = SCTest.create({ name: "GM_xmlhttpRequest 完整测试" });
+  const { describe, check, expect, run } = SCTest.create({ name: "GM_xmlhttpRequest 完整测试" });
 
   // value type helper
   const typing = (x) => {
@@ -856,18 +856,14 @@ const enableTool = true;
         );
         expect(abort.events).toEqual(["onabort", "onloadend"]);
 
-        const nwError1 = await runCase(
-          {
-            url: `https://nonexistent-domain-abcxyz.test/abc.html`, // allowed domain
-          }
-        );
+        const nwError1 = await runCase({
+          url: `https://nonexistent-domain-abcxyz.test/abc.html`, // allowed domain
+        });
         expect(nwError1.events).toEqual(["onerror", "onloadend"]);
 
-        const nwError2 = await runCase(
-          {
-            url: `https://nonexistent-domain-abcxyz.reject/abc.html`, // disallowed domain
-          }
-        );
+        const nwError2 = await runCase({
+          url: `https://nonexistent-domain-abcxyz.reject/abc.html`, // disallowed domain
+        });
         expect(nwError2.events).toEqual(["onerror", "onloadend"]);
       },
     },
@@ -1367,16 +1363,18 @@ const enableTool = true;
         const resultList = [...resultSet];
         if (!fetch) {
           expect(progressCount >= 2).toBe(true);
-          expect(resultList).toEqual([
-            "onreadystatechange 1.000;r=missing;t=missing;x=missing",
-            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 3.200;r=missing;t=missing;x=missing",
-            "onprogress 3.200;r=missing;t=missing;x=missing",
-            isFirefox ? "" : "onprogress 4.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 4.200;r=<undefined>;t=string;x=XMLDocument",
-            "onload 4.200;r=<undefined>;t=string;x=XMLDocument",
-            "onloadend 4.200;r=<undefined>;t=string;x=XMLDocument",
-          ].filter(Boolean));
+          expect(resultList).toEqual(
+            [
+              "onreadystatechange 1.000;r=missing;t=missing;x=missing",
+              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 3.200;r=missing;t=missing;x=missing",
+              "onprogress 3.200;r=missing;t=missing;x=missing",
+              isFirefox ? "" : "onprogress 4.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 4.200;r=<undefined>;t=string;x=XMLDocument",
+              "onload 4.200;r=<undefined>;t=string;x=XMLDocument",
+              "onloadend 4.200;r=<undefined>;t=string;x=XMLDocument",
+            ].filter(Boolean)
+          );
         } else {
           expect(progressCount >= 2).toBe(true);
           expect(resultList).toEqual([
@@ -1423,16 +1421,18 @@ const enableTool = true;
         const resultList = [...resultSet];
         if (!fetch) {
           expect(progressCount >= 2).toBe(true);
-          expect(resultList).toEqual([
-            "onreadystatechange 1.000;r=missing;t=missing;x=missing",
-            "onreadystatechange 2.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 3.200;r=missing;t=missing;x=missing",
-            "onprogress 3.200;r=missing;t=missing;x=missing",
-            isFirefox ? "" : "onprogress 4.200;r=missing;t=missing;x=missing",
-            "onreadystatechange 4.200;r=object;t=string;x=XMLDocument",
-            "onload 4.200;r=object;t=string;x=XMLDocument",
-            "onloadend 4.200;r=object;t=string;x=XMLDocument",
-          ].filter(Boolean));
+          expect(resultList).toEqual(
+            [
+              "onreadystatechange 1.000;r=missing;t=missing;x=missing",
+              "onreadystatechange 2.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 3.200;r=missing;t=missing;x=missing",
+              "onprogress 3.200;r=missing;t=missing;x=missing",
+              isFirefox ? "" : "onprogress 4.200;r=missing;t=missing;x=missing",
+              "onreadystatechange 4.200;r=object;t=string;x=XMLDocument",
+              "onload 4.200;r=object;t=string;x=XMLDocument",
+              "onloadend 4.200;r=object;t=string;x=XMLDocument",
+            ].filter(Boolean)
+          );
         } else {
           expect(progressCount >= 2).toBe(true);
           expect(resultList).toEqual([
@@ -1477,7 +1477,9 @@ const enableTool = true;
         );
         const headers = resultHeaders;
         expect(headers.get("content-type")).toBe("application/json; charset=utf-8");
-        expect(headers.get("reporting-endpoints").replace(/context=[-+\w]+/, "context=eJzj4tD")).toBe('default="/_/TranslateApiHttp/web-reports?context=eJzj4tD"');
+        expect(headers.get("reporting-endpoints").replace(/context=[-+\w]+/, "context=eJzj4tD")).toBe(
+          'default="/_/TranslateApiHttp/web-reports?context=eJzj4tD"'
+        );
         expect(headers.get("cross-origin-opener-policy")).toBe("same-origin");
         expect(headers.get("content-encoding") !== "deflate").toBe(true);
       },
@@ -1516,7 +1518,9 @@ const enableTool = true;
         );
         const headers = resultHeaders;
         expect(headers.get("content-type")).toBe("application/json; charset=utf-8");
-        expect(headers.get("reporting-endpoints").replace(/context=[-+\w]+/, "context=eJzj4tD")).toBe('default="/_/TranslateApiHttp/web-reports?context=eJzj4tD"');
+        expect(headers.get("reporting-endpoints").replace(/context=[-+\w]+/, "context=eJzj4tD")).toBe(
+          'default="/_/TranslateApiHttp/web-reports?context=eJzj4tD"'
+        );
         expect(headers.get("cross-origin-opener-policy")).toBe("same-origin");
         expect(headers.get("content-encoding") === "deflate" || headers.get("content-encoding") === null).toBe(true);
       },
@@ -1586,7 +1590,14 @@ const enableTool = true;
   // 所以不随页面加载自动开跑，由面板的运行按钮触发。
   describe("GM_xmlhttpRequest", { auto: false }, () => {
     for (const t of tests) {
-      it(`${t.useFetch ? "[fetch]" : "[xhr]"} ${t.name}`, () => t.run(t.useFetch ? true : false));
+      check(
+        "自动断言",
+        `${t.useFetch ? "[fetch]" : "[xhr]"} ${t.name}`,
+        () => t.run(t.useFetch ? true : false),
+        null,
+        null,
+        null
+      );
     }
   });
 

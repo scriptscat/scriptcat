@@ -46,6 +46,8 @@ import {
   type TBatchUpdateRecord,
   type TBatchUpdateItemResult,
   type TBatchUpdateResult,
+  type TCheckScriptUpdateResult,
+  type TOpenUpdatePageResult,
 } from "./types";
 import { getSimilarityScore, ScriptUpdateCheck } from "./script_update_check";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
@@ -1169,8 +1171,19 @@ export class ScriptService {
     update: boolean,
     logger?: Logger
   ) {
+    return this.prepareUpdateOrInstallPage(uuid, await fetchScriptBody(url), url, options, update, logger);
+  }
+
+  /** 已经拿到脚本代码之后的处理：静默更新判定 + 写入待安装的临时代码，由调用方决定是否打开安装页 */
+  async prepareUpdateOrInstallPage(
+    uuid: string,
+    code: string,
+    url: string,
+    options: { source: InstallSource; byWebRequest?: boolean },
+    update: boolean,
+    logger?: Logger
+  ) {
     const upsertBy = options.source;
-    const code = await fetchScriptBody(url);
     if (update) {
       try {
         const { oldScript, script } = await prepareScriptByCode(code, url, uuid);
@@ -1221,8 +1234,15 @@ export class ScriptService {
     return 1;
   }
 
-  // 打开更新窗口
-  public async openUpdatePage(script: Script, source: "user" | "system") {
+  /**
+   * 打开更新窗口。cachedNewCode 是检查阶段已经拉到的新版代码，命中时直接复用。
+   * 静默更新与打开安装页必须让调用方能区分：前者页面上什么都不会发生，需要自己补一条反馈。
+   */
+  public async openUpdatePage(
+    script: Script,
+    source: "user" | "system",
+    cachedNewCode?: string
+  ): Promise<TOpenUpdatePageResult> {
     const { uuid, name, downloadUrl, checkUpdateUrl } = script;
     const logger = this.logger.with({
       uuid,
@@ -1232,12 +1252,16 @@ export class ScriptService {
     });
     const url = downloadUrl || checkUpdateUrl!;
     try {
-      const ret = await this.openUpdateOrInstallPage(uuid, url, { source }, true, logger);
-      if (ret === 2) return; // slience update
+      const ret = cachedNewCode
+        ? await this.prepareUpdateOrInstallPage(uuid, cachedNewCode, url, { source }, true, logger)
+        : await this.openUpdateOrInstallPage(uuid, url, { source }, true, logger);
+      if (ret === 2) return "silent";
       // 打开安装页面
       openInCurrentTab(`/src/install.html?uuid=${uuid}`);
+      return "opened";
     } catch (e) {
       logger.error("fetch script info failed", Logger.E(e));
+      return "failed";
     }
   }
 
@@ -1257,20 +1281,7 @@ export class ScriptService {
   }
 
   // 用于定时自动检查脚本更新
-  async _checkScriptUpdate(opts: TCheckScriptUpdateOption): Promise<
-    | {
-        ok: true;
-        targetSites: string[];
-        err?: undefined;
-        fresh: boolean;
-        checktime: number;
-      }
-    | {
-        ok: false;
-        targetSites?: undefined;
-        err?: string | Error;
-      }
-  > {
+  async _checkScriptUpdate(opts: TCheckScriptUpdateOption): Promise<TCheckScriptUpdateResult> {
     const executeSlienceUpdate = opts.checkType === "system" && (await this.systemConfig.getSilenceUpdateScript());
     const checkCycle = await this.systemConfig.getCheckScriptUpdateCycle();
     if (!checkCycle) {
@@ -1449,16 +1460,13 @@ export class ScriptService {
     };
   }
 
-  async checkScriptUpdate(opts: TCheckScriptUpdateOption) {
-    let res;
+  async checkScriptUpdate(opts: TCheckScriptUpdateOption): Promise<TCheckScriptUpdateResult> {
+    let res: TCheckScriptUpdateResult;
     if ((this.scriptUpdateCheck.state.status & UpdateStatusCode.CHECKING_UPDATE) === UpdateStatusCode.CHECKING_UPDATE) {
       res = {
         ok: false,
+        reason: "busy",
         err: "checkScriptUpdate is busy. Please try again later.",
-      } as {
-        ok: false;
-        targetSites?: undefined;
-        err?: string | Error;
       };
     } else if (this.scriptUpdateCheck.canSkipScriptUpdateCheck(opts)) {
       return {
@@ -1475,14 +1483,7 @@ export class ScriptService {
         res = await this._checkScriptUpdate(opts);
       } catch (e) {
         this.logger.error("check script updates failed", Logger.E(e));
-        res = {
-          ok: false,
-          err: e,
-        } as {
-          ok: false;
-          targetSites?: undefined;
-          err?: string | Error;
-        };
+        res = { ok: false, err: e as Error };
       }
       // clear CHECKING_UPDATE
       this.scriptUpdateCheck.state.status &= ~UpdateStatusCode.CHECKING_UPDATE;
@@ -1686,12 +1687,21 @@ export class ScriptService {
   async batchUpdateListAction(action: TBatchUpdateListAction) {
     if (action.actionCode === BatchUpdateListActionCode.IGNORE) {
       const map = new Map();
-      await Promise.allSettled(
-        action.actionPayload.map(async (script) => {
-          const { uuid, ignoreVersion } = script;
-          const updatedScript = await this.scriptDAO.update(uuid, { ignoreVersion });
-          if (!updatedScript || updatedScript.uuid !== uuid) return;
-          map.set(uuid, updatedScript);
+      // 逐条回报结果：忽略写的是脚本本身的 ignoreVersion，与检查缓存无关，
+      // 因此即使缓存已随 Service Worker 回收，忽略照样生效，页面据此收起该行
+      const items: TBatchUpdateItemResult[] = await Promise.all(
+        action.actionPayload.map(async ({ uuid, ignoreVersion }) => {
+          try {
+            const updatedScript = await this.scriptDAO.update(uuid, { ignoreVersion });
+            if (!updatedScript || updatedScript.uuid !== uuid) {
+              return { uuid, success: false, error: "script not found" };
+            }
+            map.set(uuid, updatedScript);
+            return { uuid, success: true };
+          } catch (e) {
+            this.logger.error("ignore script update failed", { uuid }, Logger.E(e));
+            return { uuid, success: false, error: e instanceof Error ? e.message : String(e) };
+          }
         })
       );
       if (this.scriptUpdateCheck.cacheFull) {
@@ -1705,6 +1715,7 @@ export class ScriptService {
         this.scriptUpdateCheck.setCacheFull(this.scriptUpdateCheck.cacheFull);
         this.scriptUpdateCheck.announceMessage({ refreshRecord: true });
       }
+      return { ok: true, items } satisfies TBatchUpdateResult;
     } else if (action.actionCode === BatchUpdateListActionCode.UPDATE) {
       const uuids = action.actionPayload.map((entry) => entry.uuid);
       const list = this.scriptUpdateCheck.cacheFull?.list;
@@ -1764,14 +1775,14 @@ export class ScriptService {
     }
   }
 
-  async openUpdatePageByUUID(uuid: string) {
+  async openUpdatePageByUUID(uuid: string): Promise<TOpenUpdatePageResult> {
     const source = "user"; // TBC
-    const oldScript = await this.scriptDAO.get(uuid);
-    if (!oldScript || oldScript.uuid !== uuid) return;
-    const { name, downloadUrl, checkUpdateUrl } = oldScript;
-    //@ts-ignore
-    const script = { uuid, name, downloadUrl, checkUpdateUrl } as Script;
-    await this.openUpdatePage(script, source);
+    const script = await this.scriptDAO.get(uuid);
+    if (!script || script.uuid !== uuid) return "failed";
+    // 检查记录里已经带着这次要装的新版代码：复用它既省掉一次让用户干等的网络往返，
+    // 也保证打开的正是列表上展示的那一版
+    const cachedNewCode = this.scriptUpdateCheck.cacheFull?.list?.find((entry) => entry.uuid === uuid)?.newCode;
+    return await this.openUpdatePage(script, source, cachedNewCode || undefined);
   }
 
   init() {

@@ -67,6 +67,8 @@ function createMockWSServer(): Promise<{
           }
         },
         waitForAction: (action: string, timeout = 10_000) =>
+          // 有限观察窗口：WebSocket action 可能永远不回传，超时用于清理监听器并传播失败。
+          // eslint-disable-next-line scriptcat/no-test-fixed-sleep -- WebSocket action observation timeout
           new Promise<unknown>((resolveAction, rejectAction) => {
             const timer = setTimeout(() => {
               const idx = messageListeners.indexOf(handler);
