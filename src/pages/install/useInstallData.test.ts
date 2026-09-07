@@ -997,7 +997,6 @@ describe("MCP 来源的安装请求", () => {
     expect(externalAccessClient.decideOperation as Mock).toHaveBeenCalledTimes(1);
   });
 
-
   it("rejectExternalAccess() 调用 externalAccessClient.decideOperation(approved:false)", async () => {
     window.history.replaceState({}, "", "/install.html?uuid=u-mcp");
     const info = mcpScriptInfo();

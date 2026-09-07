@@ -22,8 +22,7 @@ const h = vi.hoisted(() => ({
   fetchCheckUpdateStatus: vi.fn(() => Promise.resolve()),
   sendUpdatePageOpened: vi.fn(() => Promise.resolve()),
   requestCheckScriptUpdate: vi.fn(
-    (): Promise<TCheckScriptUpdateResult> =>
-      Promise.resolve({ ok: true, targetSites: [], fresh: true, checktime: 200 })
+    (): Promise<TCheckScriptUpdateResult> => Promise.resolve({ ok: true, targetSites: [], fresh: true, checktime: 200 })
   ),
   requestBatchUpdateListAction: vi.fn((): Promise<TBatchUpdateResult | undefined> => Promise.resolve(undefined)),
   requestOpenUpdatePageByUUID: vi.fn((): Promise<TOpenUpdatePageResult> => Promise.resolve("opened")),

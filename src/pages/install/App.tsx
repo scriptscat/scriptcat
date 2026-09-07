@@ -99,12 +99,7 @@ export default function App() {
 
   if (state.status === "loading") {
     return (
-      <InstallLoading
-        source={state.source}
-        bytesText={state.bytesText}
-        percent={state.percent}
-        mode={state.mode}
-      />
+      <InstallLoading source={state.source} bytesText={state.bytesText} percent={state.percent} mode={state.mode} />
     );
   }
   if (state.status === "expired") {

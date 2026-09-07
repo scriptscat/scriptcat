@@ -667,7 +667,12 @@ export function SkeletonBar({ className }: { className?: string }) {
 function SkeletonTable() {
   const { t } = useTranslation();
   return (
-    <div role="status" aria-busy="true" aria-label={t("install:updatepage.loading_list")} className="flex flex-col gap-4">
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={t("install:updatepage.loading_list")}
+      className="flex flex-col gap-4"
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <SkeletonBar className="size-4 rounded-md" />

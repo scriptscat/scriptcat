@@ -439,9 +439,7 @@ describe("批量更新 批量进行中互斥", () => {
 
     for (const box of screen.getAllByRole("checkbox")) expect(box).toBeDisabled();
     expect(screen.getByRole("button", { name: t("install:updatepage.ignore_selected") })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: t("install:updatepage.update_selected", { count: 1 }) })
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("install:updatepage.update_selected", { count: 1 }) })).toBeDisabled();
   });
 
   it("已忽略分组的全部恢复在批量进行中同样禁用", () => {
