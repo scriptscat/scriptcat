@@ -96,7 +96,7 @@ function MoreButton({ label, onClick }: { label: string; onClick: () => void }) 
 
 /**
  * 权限取值 chip 列表;桌面行与移动 Accordion 共用。
- * 全新安装按可见项 + 折叠的 +N 呈现;更新场景把新增与移除常驻在前,未变动项收进「未变动 N 项」。
+ * 全新安装按可见项 + 折叠的 +N 呈现;更新场景把新增与移除常驻在前,未变动项收进「未变动 N 项」的折叠桶。
  */
 export function PermissionChips({
   row,
@@ -124,8 +124,11 @@ export function PermissionChips({
   const { added, removed } = row.diff;
   const addedSet = new Set(added);
   const unchanged = row.values.filter((v) => !addedSet.has(v));
-  // 无任何变动时没有可钉住的内容,折叠桶会变成一个必须点开才能看到全部的空壳,故直接摊开
-  const showUnchanged = expanded || added.length + removed.length === 0;
+  const pinned = added.length + removed.length;
+  // 有增删时未变动项整体让位给折叠桶;一项没变时没有可钉住的内容,桶会变成必须点开才能看到全部的空壳,
+  // 故退回全新安装的 maxVisible 截断——否则几十条 @match 的脚本一更新就会整片摊开。
+  const visibleUnchanged = expanded ? unchanged : pinned > 0 ? [] : unchanged.slice(0, maxVisible);
+  const hidden = unchanged.length - visibleUnchanged.length;
 
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -135,10 +138,12 @@ export function PermissionChips({
       {removed.map((v) => (
         <Chip key={`-${v}`} value={v} row={row} change="removed" />
       ))}
-      {showUnchanged && unchanged.map((v) => <Chip key={v} value={v} row={row} change="unchanged" />)}
-      {!showUnchanged && unchanged.length > 0 && (
+      {visibleUnchanged.map((v) => (
+        <Chip key={v} value={v} row={row} change="unchanged" />
+      ))}
+      {hidden > 0 && (
         <MoreButton
-          label={t("install:perm_unchanged_more", { count: unchanged.length })}
+          label={pinned > 0 ? t("install:perm_unchanged_more", { count: hidden }) : `+${hidden}`}
           onClick={() => setExpanded(true)}
         />
       )}

@@ -123,3 +123,29 @@ describe("PermissionRow 更新差异态", () => {
     expect(within(row).getByText("a").closest("[data-chip]")).toHaveAttribute("data-change", "unchanged");
   });
 });
+
+describe("PermissionRow 零变动行的取值折叠", () => {
+  const manyUnchanged = {
+    kind: "match" as const,
+    risk: "normal" as const,
+    values: ["https://a.com/*", "https://b.com/*", "https://c.com/*", "https://d.com/*"],
+    sensitive: [],
+    diff: { added: [], removed: [] },
+  };
+
+  it("没有可钉住的增删时,取值仍按 maxVisible 折叠为 +N", () => {
+    render(<PermissionRow row={manyUnchanged} maxVisible={2} />);
+    const row = screen.getByTestId("permission-row");
+    expect(within(row).getByText("https://a.com/*")).toBeInTheDocument();
+    expect(within(row).queryByText("https://c.com/*")).not.toBeInTheDocument();
+    expect(within(row).getByTestId("permission-more")).toHaveTextContent("+2");
+  });
+
+  it("点开 +N 后其余取值可见", () => {
+    render(<PermissionRow row={manyUnchanged} maxVisible={2} />);
+    const row = screen.getByTestId("permission-row");
+    fireEvent.click(within(row).getByTestId("permission-more"));
+    expect(within(row).getByText("https://d.com/*")).toBeInTheDocument();
+    expect(within(row).queryByTestId("permission-more")).not.toBeInTheDocument();
+  });
+});

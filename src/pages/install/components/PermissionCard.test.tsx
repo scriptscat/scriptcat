@@ -165,6 +165,15 @@ describe("PermissionCard 更新零变化态", () => {
     expect(line).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("移动端点开零变化整卡后按高风险默认展开,与全新安装一致", () => {
+    mobile = true;
+    const sameDangerConnect: PermissionRow = { ...same("connect", ["*"]), risk: "danger" };
+    render(<PermissionCard rows={[sameDangerConnect, same("match", ["https://a.com/*"])]} baselineVersion="1.2.3" />);
+    fireEvent.click(screen.getByTestId("permission-card-collapsed"));
+    expect(screen.getByText("*")).toBeInTheDocument();
+    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+  });
+
   it("有变动时不折叠整卡", () => {
     const changedRow: PermissionRow = {
       kind: "connect",

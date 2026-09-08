@@ -7,10 +7,14 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@A
 import { isPermissionChanged, type PermissionRow as PermissionRowData } from "../permissions";
 import { PermissionRow, PermissionChips, PermissionDelta, NoChangeTag, KIND_META, RISK_STYLE } from "./PermissionRow";
 
-function MobilePermissions({ rows, isUpdate }: { rows: PermissionRowData[]; isUpdate: boolean }) {
+function MobilePermissions({ rows }: { rows: PermissionRowData[] }) {
   const { t } = useTranslation(["install", "common"]);
-  // 更新场景默认只展开有变动的类别,全新安装仍只展开高风险项
-  const defaultValue = rows.filter((r) => (isUpdate ? isPermissionChanged(r) : r.risk === "danger")).map((r) => r.kind);
+  // 有变动时默认只展开有变动的类别;全新安装、以及用户主动点开的零变化整卡都退回只展开高风险项,
+  // 否则零变化整卡展开后每一类都是收起的,「点开即得到全量清单」在移动端会落空。
+  const hasChanged = rows.some(isPermissionChanged);
+  const defaultValue = rows
+    .filter((r) => (hasChanged ? isPermissionChanged(r) : r.risk === "danger"))
+    .map((r) => r.kind);
 
   return (
     <Accordion type="multiple" defaultValue={defaultValue} className="px-1">
@@ -29,7 +33,7 @@ function MobilePermissions({ rows, isUpdate }: { rows: PermissionRowData[]; isUp
                   {row.values.length}
                 </span>
                 <PermissionDelta row={row} />
-                {isUpdate && !isPermissionChanged(row) && <NoChangeTag />}
+                {row.diff && !isPermissionChanged(row) && <NoChangeTag />}
               </span>
             </AccordionTrigger>
             <AccordionContent>
@@ -152,7 +156,7 @@ export function PermissionCard({ rows, baselineVersion }: { rows: PermissionRowD
         {rows.length === 0 ? (
           <p className="px-1 py-3 text-sm text-muted-foreground">{t("install:perm_card_empty")}</p>
         ) : isMobile ? (
-          <MobilePermissions rows={rows} isUpdate={isUpdate} />
+          <MobilePermissions rows={rows} />
         ) : (
           rows.map((row, i) => (
             <div key={row.kind} className={cn(i > 0 && "border-t border-border")}>
