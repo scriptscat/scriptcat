@@ -44,6 +44,19 @@ describe("sub_agent", () => {
     });
   });
 
+  it("should forward the invoking tool call's id as toolCallId", async () => {
+    const mockRunSubAgent = vi.fn().mockResolvedValue({ agentId: "id4", result: "ok" });
+    const { executor } = createSubAgentTool({ runSubAgent: mockRunSubAgent });
+
+    await executor.execute({ prompt: "Research X" }, undefined, "tool-call-42");
+    expect(mockRunSubAgent).toHaveBeenCalledWith({
+      prompt: "Research X",
+      description: "Sub-agent task",
+      type: undefined,
+      toolCallId: "tool-call-42",
+    });
+  });
+
   it("should throw if prompt is missing", async () => {
     const mockRunSubAgent = vi.fn();
     const { executor } = createSubAgentTool({ runSubAgent: mockRunSubAgent });
@@ -57,5 +70,25 @@ describe("sub_agent", () => {
     const { executor } = createSubAgentTool({ runSubAgent: mockRunSubAgent });
 
     await expect(executor.execute({ prompt: "fail" })).rejects.toThrow("Agent failed");
+  });
+
+  it("应把子代理 usage 暴露给父工具循环", async () => {
+    const mockRunSubAgent = vi.fn().mockResolvedValue({
+      agentId: "usage-child",
+      result: "done",
+      usage: { inputTokens: 100, outputTokens: 20 },
+      details: {
+        agentId: "usage-child",
+        description: "usage",
+        messages: [],
+        usage: { inputTokens: 100, outputTokens: 20 },
+      },
+    });
+    const { executor } = createSubAgentTool({ runSubAgent: mockRunSubAgent });
+
+    await expect(executor.execute({ prompt: "count usage" })).resolves.toMatchObject({
+      usage: { inputTokens: 100, outputTokens: 20 },
+      subAgentDetails: { usage: { inputTokens: 100, outputTokens: 20 } },
+    });
   });
 });

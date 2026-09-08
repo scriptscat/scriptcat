@@ -6,7 +6,7 @@ import type { Locator, Page } from "@playwright/test";
 // 这能廉价地兜住「页面挂载即抛错」一类缺陷(例如 getDefaultModelId 在全新安装无默认模型
 // 时用 doThrow 抛错导致模型服务/会话页卡死的回归)。
 const ROUTES: Array<{ path: string; name: string; anchor: (page: Page) => Locator }> = [
-  { path: "/", name: "脚本列表", anchor: (page) => page.getByTestId("view-toggle") },
+  { path: "/", name: "脚本列表", anchor: (page) => page.getByTestId("script-search") },
   { path: "/subscribe", name: "订阅列表", anchor: (page) => page.getByTestId("subscribe-page") },
   { path: "/logs", name: "日志页", anchor: (page) => page.getByTestId("level-chip-bar") },
   { path: "/tools", name: "工具页", anchor: (page) => page.getByTestId("tools_export") },
@@ -61,7 +61,8 @@ test.describe("Options 各页加载冒烟", () => {
       await expect(route.anchor(page), `${route.name} (${route.path}) 未渲染稳定锚点`).toBeVisible({
         timeout: 20_000,
       });
-      // 给页面挂载副作用(数据加载/消息往返)一点时间触发可能的异常。
+      // 页面冒烟契约包含挂载后副作用的有限观察窗口；没有统一完成事件可等待。
+      // eslint-disable-next-line scriptcat/no-test-fixed-sleep -- finite post-mount error observation window
       await page.waitForTimeout(500);
     }
 

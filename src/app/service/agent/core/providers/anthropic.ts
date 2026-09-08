@@ -1,6 +1,7 @@
 import type { ChatStreamEvent, ChatRequest, ContentBlock } from "../types";
 import type { AgentModelConfig } from "../types";
 import { isContentBlocks } from "../content_utils";
+import { getReservedOutputTokens } from "../model_context";
 import {
   generateAttachmentId,
   convertTextBlock,
@@ -117,13 +118,30 @@ export function buildAnthropicRequest(
     return { role: m.role, content: m.content };
   });
 
+  // 最后一条消息追加 cache_control：使本轮完整历史被缓存。
+  // 下一轮请求中该消息不再是最后一条，但 Anthropic 按前缀匹配复用已缓存部分，
+  // 只需为新增的增量消息计费，从而避免长 tool loop 下每轮都全量计费输入 token。
+  if (useCache && messages.length > 0) {
+    const lastMessage = messages[messages.length - 1];
+    const content: unknown = lastMessage.content;
+    if (Array.isArray(content) && content.length > 0) {
+      (content[content.length - 1] as Record<string, unknown>).cache_control = { type: "ephemeral" };
+    } else if (typeof content === "string" && content.length > 0) {
+      (lastMessage as { content: unknown }).content = [
+        { type: "text", text: content, cache_control: { type: "ephemeral" } },
+      ];
+    }
+  }
+
   const body: Record<string, unknown> = {
     model: config.model,
     messages,
     stream: true,
   };
 
-  body.max_tokens = config.maxTokens || 16384;
+  // 用归一化后的 getReservedOutputTokens 而不是 config.maxTokens || 16384：
+  // 负数在 JS 里是 truthy，会绕过 || 兜底原样发给 provider
+  body.max_tokens = getReservedOutputTokens(config) || 16384;
 
   if (systemMessages.length > 0) {
     const systemBlocks = systemMessages.map((m) => ({
@@ -186,6 +204,10 @@ export function parseAnthropicStream(
 
   // 跟踪图片块的累积 base64 数据
   let imageBlockData: { index: number; mediaType: string; base64Chunks: string[] } | null = null;
+
+  // 标记是否已发出终态事件（message_stop / message_delta 带 usage / error），
+  // 避免连接在收到终态帧前就断开时，调用方（LLMClient.callLLM）的外层 Promise 永远不 settle
+  let doneSent = false;
 
   const toolUseByIndex = new Map<number, { id: string }>();
 
@@ -288,6 +310,7 @@ export function parseAnthropicStream(
           case "message_delta": {
             // 消息结束，合并 message_start 的 input usage 和 message_delta 的 output usage
             if (json.usage) {
+              doneSent = true;
               onEvent({
                 type: "done",
                 usage: {
@@ -303,13 +326,19 @@ export function parseAnthropicStream(
           }
           case "message_stop": {
             toolUseByIndex.clear();
-            onEvent({ type: "done" });
+            doneSent = true;
+            onEvent({
+              type: "done",
+              usage: cachedUsage ? { ...cachedUsage, outputTokens: 0 } : undefined,
+            });
             return true;
           }
           case "error": {
+            doneSent = true;
             onEvent({
               type: "error",
               message: json.error?.message || "Anthropic API error",
+              usage: cachedUsage ? { ...cachedUsage, outputTokens: 0 } : undefined,
             });
             return true;
           }
@@ -319,8 +348,34 @@ export function parseAnthropicStream(
       }
       return false;
     },
-    (message) => onEvent({ type: "error", message })
-  );
+    (message) => {
+      doneSent = true;
+      onEvent({
+        type: "error",
+        message,
+        usage: cachedUsage ? { ...cachedUsage, outputTokens: 0 } : undefined,
+      });
+    }
+  )
+    .then(() => {
+      // 流正常结束（reader done）但没收到 message_stop / message_delta(usage) / error 终态帧，
+      // 必须补发终态事件，否则调用方的外层 Promise 会永远挂起
+      if (!signal.aborted && !doneSent) {
+        onEvent({
+          type: "error",
+          message: "Stream ended unexpectedly without a terminal frame",
+          usage: cachedUsage ? { ...cachedUsage, outputTokens: 0 } : undefined,
+        });
+      }
+    })
+    .catch((error) => {
+      // readSSEStream 只在 abort 时才 reject（见 content_utils.ts）；message_start 可能已经
+      // 带回了 input/cache usage，把它带在 abort 错误上，避免取消时把这部分已知花费从终态
+      // usage 里丢掉。outputTokens 在 message_delta 之前始终未知，记 0。
+      throw Object.assign(error instanceof Error ? error : new Error(String(error)), {
+        usage: cachedUsage ? { ...cachedUsage, outputTokens: 0 } : undefined,
+      });
+    });
 }
 
 // ---- LLMProvider 接口适配 ----

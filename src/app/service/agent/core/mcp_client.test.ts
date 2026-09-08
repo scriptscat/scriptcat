@@ -160,6 +160,52 @@ describe("MCPClient", () => {
     await expect(client.callTool("search")).rejects.toThrow("Tool failed");
   });
 
+  it("工具返回 structuredContent 时不应丢失结构化结果", async () => {
+    installServer({
+      "tools/call": (request) =>
+        jsonResponse(request.id, {
+          content: [{ type: "text", text: "Readable result" }],
+          structuredContent: { value: 42 },
+        }),
+    });
+    const client = new MCPClient(createConfig());
+    await client.initialize();
+
+    await expect(client.callTool("search")).resolves.toEqual({
+      content: [{ type: "text", text: "Readable result" }],
+      structuredContent: { value: 42 },
+    });
+  });
+
+  it("工具返回非文本错误内容时应保留诊断信息", async () => {
+    installServer({
+      "tools/call": (request) =>
+        jsonResponse(request.id, {
+          content: [{ type: "image", data: "base64", mimeType: "image/png" }],
+          isError: true,
+        }),
+    });
+    const client = new MCPClient(createConfig());
+    await client.initialize();
+
+    await expect(client.callTool("search")).rejects.toThrow('"mimeType":"image/png"');
+  });
+
+  it("仅由 structuredContent 携带错误详情时也应保留诊断信息", async () => {
+    installServer({
+      "tools/call": (request) =>
+        jsonResponse(request.id, {
+          content: [],
+          structuredContent: { error: "quota exceeded" },
+          isError: true,
+        }),
+    });
+    const client = new MCPClient(createConfig());
+    await client.initialize();
+
+    await expect(client.callTool("search")).rejects.toThrow('"quota exceeded"');
+  });
+
   it("可列出和读取资源", async () => {
     const client = new MCPClient(createConfig());
     await client.initialize();

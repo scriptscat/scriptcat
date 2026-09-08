@@ -100,7 +100,7 @@ export default class Runtime {
           },
         ],
         backScriptList: [],
-        isBlacklist: false,
+        pageStatus: "ok",
       };
     }
 

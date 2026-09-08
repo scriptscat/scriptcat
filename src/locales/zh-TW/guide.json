@@ -5,7 +5,7 @@
   "script_list_enable_title": "腳本開啟",
   "script_list_enable_content": "腳本需要開啟才能使用，頁面腳本安裝預設開啟，背景腳本安裝預設關閉",
   "script_list_action_title": "操作",
-  "script_list_action_content": "操作列可以進入腳本編輯、控制腳本的運行停止（背景腳本）、設定<Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link>，操作右側按鈕可開啟進階篩選與切換視圖模式",
+  "script_list_action_content": "操作區可以編輯腳本、執行與停止背景腳本和排程腳本、設定<Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link>，以及匯出與刪除腳本；視窗較窄時這些操作會收進「更多操作」選單。",
   "tools_backup_title": "備份",
   "tools_backup_content": "備份可以保存腳本，避免遺失。可以匯出腳本檔案到本機，也可以載入本機的腳本檔案。也可以備份到雲端，更加方便。從其他管理器遷移可參考<Link href=\"https://docs.scriptcat.org/docs/use/from-other/migrate-from-tampermonkey/\">遷移指南</Link>。",
   "setting_sync_title": "更新與同步",

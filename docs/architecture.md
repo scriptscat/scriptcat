@@ -288,7 +288,8 @@ premature abstraction.
   test-first principle and [develop-testing.md § When TDD doesn't apply](./references/develop-testing.md#when-tdd-doesnt-apply)
   for the narrow exceptions — this section only covers architecture-specific test mechanics, not the policy
   itself.
-- **E2E (Playwright).** `e2e/*.spec.ts`, one worker, real Chromium. `pnpm run test:e2e` (first run:
+- **E2E (Playwright).** `e2e/*.spec.ts`, real Chromium; worker count and retries come from
+  [`playwright.config.ts`](../playwright.config.ts). `pnpm run test:e2e` (first run:
   `pnpm run test:e2e:install`).
 - **Before a PR:** lint + the relevant suite — owned by [references/develop-testing.md](./references/develop-testing.md) → *Testing*.
 

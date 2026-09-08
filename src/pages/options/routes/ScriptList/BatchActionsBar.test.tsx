@@ -28,6 +28,8 @@ const renderBar = (over: Partial<React.ComponentProps<typeof BatchActionsBar>> =
       onBatchPinTop={noop}
       onBatchCheckUpdate={noop}
       onClose={noop}
+      allSelected={false}
+      onToggleSelectAll={noop}
       {...over}
     />
   );
@@ -81,5 +83,25 @@ describe("BatchActionsBar 批量删除二次确认", () => {
 
     expect(await screen.findByText(t("script:confirm_delete_scripts_content", { count: 3 }))).toBeInTheDocument();
     expect(screen.queryByText(t("script:confirm_delete_scripts_trash_content", { count: 3 }))).not.toBeInTheDocument();
+  });
+});
+
+describe("BatchActionsBar 全选入口", () => {
+  it("栏内提供三态全选框：未全选时为半选，全选后为选中", () => {
+    renderBar({ allSelected: false });
+    expect(screen.getByLabelText(t("script:select_all"))).toHaveAttribute("data-state", "indeterminate");
+
+    cleanup();
+    renderBar({ allSelected: true });
+    expect(screen.getByLabelText(t("script:select_all"))).toHaveAttribute("data-state", "checked");
+  });
+
+  it("点击全选框调用 onToggleSelectAll", () => {
+    const onToggleSelectAll = vi.fn();
+    renderBar({ onToggleSelectAll });
+
+    fireEvent.click(screen.getByLabelText(t("script:select_all")));
+
+    expect(onToggleSelectAll).toHaveBeenCalled();
   });
 });

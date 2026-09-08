@@ -2,6 +2,7 @@ import { createServer } from "http";
 import type { AddressInfo } from "net";
 import type { BrowserContext, Page } from "@playwright/test";
 import { testWithUserScripts as test, expect } from "./fixtures";
+import { openInstallPageInNewTab } from "./utils";
 
 const SUBSCRIBE_NAME = "E2E Subscribe Lifecycle";
 
@@ -29,10 +30,7 @@ document.documentElement.setAttribute(${JSON.stringify(marker)}, "true");
 }
 
 async function installSubscription(context: BrowserContext, extensionId: string, subscribeUrl: string): Promise<void> {
-  const page = await context.newPage();
-  await page.goto(`chrome-extension://${extensionId}/src/install.html?url=${subscribeUrl}`, {
-    waitUntil: "domcontentloaded",
-  });
+  const page = await openInstallPageInNewTab(context, extensionId, subscribeUrl);
   await expect(page.getByText(SUBSCRIBE_NAME).first()).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("install-primary")).toBeEnabled();
   await Promise.all([page.waitForEvent("close", { timeout: 10_000 }), page.getByTestId("install-primary").click()]);

@@ -31,7 +31,8 @@ const ASK_USER_TIMEOUT_MS = 5 * 60 * 1000;
 
 export function createAskUserTool(
   sendEvent: (event: ChatStreamEvent) => void,
-  resolvers: Map<string, (answer: string) => void>
+  resolvers: Map<string, (answer: string) => void>,
+  signal: AbortSignal = new AbortController().signal
 ): { definition: ToolDefinition; executor: ToolExecutor } {
   let askCounter = 0;
 
@@ -44,21 +45,34 @@ export function createAskUserTool(
 
       const askId = `ask_${Date.now()}_${++askCounter}`;
 
+      if (signal.aborted) return JSON.stringify({ answer: null, reason: "aborted" });
+
       // 通知 UI 显示提问
       sendEvent({ type: "ask_user", id: askId, question, options, multiple });
 
       // 等待用户回复
       return new Promise<string>((resolve) => {
-        const timer = setTimeout(() => {
-          resolvers.delete(askId);
-          resolve(JSON.stringify({ answer: null, reason: "timeout" }));
-        }, ASK_USER_TIMEOUT_MS);
-
-        resolvers.set(askId, (answer: string) => {
+        let settled = false;
+        const finish = (result: string, event: ChatStreamEvent) => {
+          if (settled) return;
+          settled = true;
           clearTimeout(timer);
+          signal.removeEventListener("abort", onAbort);
           resolvers.delete(askId);
-          resolve(JSON.stringify({ answer }));
+          sendEvent(event);
+          resolve(result);
+        };
+        const onAbort = () => {
+          finish(JSON.stringify({ answer: null, reason: "aborted" }), { type: "ask_user_expired", id: askId });
+        };
+        const timer = setTimeout(() => {
+          finish(JSON.stringify({ answer: null, reason: "timeout" }), { type: "ask_user_expired", id: askId });
+        }, ASK_USER_TIMEOUT_MS);
+        signal.addEventListener("abort", onAbort, { once: true });
+        resolvers.set(askId, (answer: string) => {
+          finish(JSON.stringify({ answer }), { type: "ask_user_resolved", id: askId });
         });
+        if (signal.aborted) onAbort();
       });
     },
   };
