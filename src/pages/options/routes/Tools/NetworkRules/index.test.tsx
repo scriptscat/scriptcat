@@ -172,12 +172,19 @@ describe("网络规则列表页", () => {
     const total = NETWORK_RULES_PAGE_SIZE + 1;
     const offPage = total - 1;
     const rules = Array.from({ length: total }, (_, index) => rule(index));
-    const client = clientFor(snapshot(rules));
+    const current = snapshot(rules);
+    let resolveState!: (value: NetworkRuleSnapshot) => void;
+    const stateReady = new Promise<NetworkRuleSnapshot>((resolve) => {
+      resolveState = resolve;
+    });
+    const client = clientFor(current, { getState: vi.fn(() => stateReady) });
     renderPage(client);
-    expect(await screen.findByText("规则 0")).toBeInTheDocument();
-    expect(screen.getAllByTestId("network-rule-row")).toHaveLength(NETWORK_RULES_PAGE_SIZE);
 
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: `规则 ${offPage}` } });
+    expect(screen.queryAllByTestId("network-rule-row")).toHaveLength(0);
+    resolveState(current);
+    expect(await screen.findByText(`规则 ${offPage}`)).toBeInTheDocument();
+
     const row = screen.getAllByTestId("network-rule-row")[0];
     expect(rowNames()).toEqual([`规则 ${offPage}`]);
     expect(within(row).getByRole("button", { name: new RegExp(`规则 ${offPage}`) })).toBeDisabled();
