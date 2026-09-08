@@ -182,7 +182,10 @@ describe("网络规则列表页", () => {
 
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: `规则 ${offPage}` } });
     expect(screen.queryAllByTestId("network-rule-row")).toHaveLength(0);
-    resolveState(current);
+    await act(async () => {
+      resolveState(current);
+      await stateReady;
+    });
     expect(await screen.findByText(`规则 ${offPage}`)).toBeInTheDocument();
 
     const row = screen.getAllByTestId("network-rule-row")[0];
