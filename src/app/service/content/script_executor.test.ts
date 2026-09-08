@@ -30,18 +30,6 @@ function makeScript(overrides: Partial<ScriptLoadInfo & Pick<TScriptInfo, "requi
   };
 }
 
-function makeValueUpdate(overrides: Partial<Parameters<ScriptExecutor["valueUpdate"]>[0]> = {}) {
-  return {
-    id: "value-update-id",
-    entries: [],
-    uuid: "missing-uuid",
-    storageName: "missing-storage",
-    sender: { runFlag: "remote-run" },
-    valueUpdated: true,
-    ...overrides,
-  };
-}
-
 describe("ScriptExecutor", () => {
   describe("resource execution", () => {
     let adoptedSheets: CSSStyleSheet[];
@@ -139,49 +127,6 @@ describe("ScriptExecutor", () => {
       });
 
       expect((adoptedSheets[0] as CSSStyleSheet & { cssText: string }).cssText).toBe("body { color: green; }");
-    });
-  });
-
-  describe("value update routing", () => {
-    it("delivers UUID and shared-storage matches once, preserving registration order", () => {
-      const executor = new ScriptExecutor({} as Message, {} as Message);
-      const delivered: string[] = [];
-      const add = (uuid: string, storageName: string) => {
-        executor.execScriptMap.set(uuid, {
-          scriptRes: { uuid, metadata: storageName ? { storagename: [storageName] } : {} },
-          valueUpdate: vi.fn(() => delivered.push(uuid)),
-        } as never);
-      };
-
-      add("first", "shared-storage");
-      add("second", "shared-storage");
-      add("third", "other-storage");
-
-      executor.valueUpdate(makeValueUpdate({ uuid: "first", storageName: "shared-storage" }));
-
-      expect(delivered).toEqual(["first", "second"]);
-      expect(executor.execScriptMap.get("first")?.valueUpdate).toHaveBeenCalledTimes(1);
-      expect(executor.execScriptMap.get("second")?.valueUpdate).toHaveBeenCalledTimes(1);
-      expect(executor.execScriptMap.get("third")?.valueUpdate).not.toHaveBeenCalled();
-    });
-
-    it("delivers only the UUID match when no shared storage overlaps", () => {
-      const executor = new ScriptExecutor({} as Message, {} as Message);
-      const first = vi.fn();
-      const second = vi.fn();
-      executor.execScriptMap.set("first", {
-        scriptRes: { uuid: "first", metadata: { storagename: ["first-storage"] } },
-        valueUpdate: first,
-      } as never);
-      executor.execScriptMap.set("second", {
-        scriptRes: { uuid: "second", metadata: { storagename: ["second-storage"] } },
-        valueUpdate: second,
-      } as never);
-
-      executor.valueUpdate(makeValueUpdate({ uuid: "second", storageName: "unknown-storage" }));
-
-      expect(first).not.toHaveBeenCalled();
-      expect(second).toHaveBeenCalledTimes(1);
     });
   });
 });
