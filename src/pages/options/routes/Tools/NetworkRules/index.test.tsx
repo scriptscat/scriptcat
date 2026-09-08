@@ -171,6 +171,7 @@ describe("网络规则列表页", () => {
     // 只有第二页存在时「跨页」才成立，刚好多出一条即可；多余的行只会让整页渲染更贵。
     const total = NETWORK_RULES_PAGE_SIZE + 1;
     const offPage = total - 1;
+    // eslint-disable-next-line scriptcat/no-test-large-boundary-fixture -- cross-page reorder boundary
     const rules = Array.from({ length: total }, (_, index) => rule(index));
     const current = snapshot(rules);
     let resolveState!: (value: NetworkRuleSnapshot) => void;

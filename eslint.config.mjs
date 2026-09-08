@@ -12,6 +12,7 @@ import noRawColorClassname from "./eslint-rules/no-raw-color-classname.mjs";
 import noTestWaitForInteraction from "./eslint-rules/no-test-waitfor-interaction.mjs";
 import noTestWaitForQuery from "./eslint-rules/no-test-waitfor-query.mjs";
 import noTestFixedSleep from "./eslint-rules/no-test-fixed-sleep.mjs";
+import noTestLargeBoundaryFixture from "./eslint-rules/no-test-large-boundary-fixture.mjs";
 
 export default [
   {
@@ -50,6 +51,7 @@ export default [
           "no-test-waitfor-interaction": noTestWaitForInteraction,
           "no-test-waitfor-query": noTestWaitForQuery,
           "no-test-fixed-sleep": noTestFixedSleep,
+          "no-test-large-boundary-fixture": noTestLargeBoundaryFixture,
         },
       },
     },
@@ -106,6 +108,8 @@ export default [
       "scriptcat/no-test-waitfor-interaction": "error",
       "scriptcat/no-test-waitfor-query": "error",
       "scriptcat/no-test-fixed-sleep": "error",
+      // 一页以上的合成夹具要逐处说明边界，避免 UI 测试无意中渲染整页数据。
+      "scriptcat/no-test-large-boundary-fixture": "error",
     },
   },
   {
