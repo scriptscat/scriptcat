@@ -9,6 +9,9 @@ import globals from "globals";
 import requireLastErrorCheck from "./eslint-rules/require-last-error-check.mjs";
 import noI18nDefaultValue from "./eslint-rules/no-i18n-default-value.mjs";
 import noRawColorClassname from "./eslint-rules/no-raw-color-classname.mjs";
+import noTestWaitForInteraction from "./eslint-rules/no-test-waitfor-interaction.mjs";
+import noTestWaitForQuery from "./eslint-rules/no-test-waitfor-query.mjs";
+import noTestFixedSleep from "./eslint-rules/no-test-fixed-sleep.mjs";
 
 export default [
   {
@@ -44,6 +47,9 @@ export default [
         rules: {
           "no-i18n-default-value": noI18nDefaultValue,
           "no-raw-color-classname": noRawColorClassname,
+          "no-test-waitfor-interaction": noTestWaitForInteraction,
+          "no-test-waitfor-query": noTestWaitForQuery,
+          "no-test-fixed-sleep": noTestFixedSleep,
         },
       },
     },
@@ -91,11 +97,46 @@ export default [
     files: ["e2e/**/*.ts"],
     rules: {
       "react-hooks/rules-of-hooks": "off",
+      "scriptcat/no-test-fixed-sleep": "error",
+    },
+  },
+  {
+    files: ["src/pages/**/*.test.{ts,tsx}"],
+    rules: {
+      "scriptcat/no-test-waitfor-interaction": "error",
+      "scriptcat/no-test-waitfor-query": "error",
+      "scriptcat/no-test-fixed-sleep": "error",
     },
   },
   {
     files: ["src/pages/components/ui/toast.ts"],
     rules: { "no-restricted-imports": "off" },
+  },
+  {
+    // 单测和 @playwright/test 跑在同一个进程里，而它有进程级单例守卫（被求值两次直接抛错）。
+    // e2e fixture 在模块顶层加载驱动，被单测引入后整个 vitest 套件会随 worker 线程调度随机崩
+    // （2026-08-21 v1.5.0-beta.2 打包即因此失败）。纯逻辑请放到不依赖驱动的模块再引，
+    // 例如 e2e/launch-args.ts。
+    files: ["tests/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@playwright/test",
+              message: "单测不能加载浏览器驱动，它是进程级单例；需要浏览器请写 e2e spec。",
+            },
+          ],
+          patterns: [
+            {
+              group: ["**/e2e/fixtures", "**/e2e/*-fixtures", "**/e2e/utils"],
+              message: "这些 e2e 模块在顶层加载 @playwright/test；把要测的纯逻辑抽到不依赖驱动的模块再引。",
+            },
+          ],
+        },
+      ],
+    },
   },
   {
     // 全局测试 setup 每个测试文件都要加载，引入重型模块会拖慢整个套件

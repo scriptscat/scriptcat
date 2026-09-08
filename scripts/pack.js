@@ -8,6 +8,7 @@ import packageInfo from "../package.json" with { type: "json" };
 import semver from "semver";
 import { toChromeVersion } from "./version.js";
 import { resolveAgentEnabled, createChromeManifest, createFirefoxManifest } from "./build-config.js";
+import { addDirectoryFilesToZips } from "./pack-files.mjs";
 
 // ============================================================================
 
@@ -40,12 +41,12 @@ if (version.prerelease.length) {
 }
 
 // 处理manifest version
-let str = (await fs.readFile("./src/manifest.json", { encoding: "utf8" })).toString();
-str = str.replace(/"version": "(.*?)"/, `"version": "${manifest.version}"`);
-await fs.writeFile("./src/manifest.json", str);
+let str = await fs.readFile("./src/manifest.json", { encoding: "utf8" });
+const nextManifestSource = str.replace(/"version": "(.*?)"/, `"version": "${manifest.version}"`);
+if (nextManifestSource !== str) await fs.writeFile("./src/manifest.json", nextManifestSource);
 
 // 处理configSystem version
-let configSystem = (await fs.readFile("./src/app/const.ts", { encoding: "utf8" })).toString();
+let configSystem = await fs.readFile("./src/app/const.ts", { encoding: "utf8" });
 // 如果是由github action的分支触发的构建,在版本中再加上commit id
 if (process.env.GITHUB_REF_TYPE === "branch") {
   configSystem = configSystem.replace(
@@ -75,33 +76,12 @@ const firefoxManifest = createFirefoxManifest(
 const chrome = new ZipWriter({ outputAs: "uint8array" });
 const firefox = new ZipWriter({ outputAs: "uint8array" });
 
-async function addDir(zip, localDir, toDir, filters) {
-  const sub = async (localDir, toDir) => {
-    const files = await fs.readdir(localDir);
-    for (const file of files) {
-      if (filters?.includes(file)) {
-        continue;
-      }
-      const localPath = `${localDir}/${file}`;
-      const toPath = `${toDir}${file}`;
-      const stats = await fs.stat(localPath);
-      if (stats.isDirectory()) {
-        await sub(localPath, `${toPath}/`);
-      } else {
-        await addZipFile(zip, toPath, await fs.readFile(localPath));
-      }
-    }
-  };
-  await sub(localDir, toDir);
-}
-
-await addZipFile(chrome, "manifest.json", JSON.stringify(chromeManifest));
-await addZipFile(firefox, "manifest.json", JSON.stringify(firefoxManifest));
-
 await Promise.all([
-  addDir(chrome, "./dist/ext", "", ["manifest.json"]),
-  addDir(firefox, "./dist/ext", "", ["manifest.json"]),
+  addZipFile(chrome, "manifest.json", JSON.stringify(chromeManifest)),
+  addZipFile(firefox, "manifest.json", JSON.stringify(firefoxManifest)),
 ]);
+
+await addDirectoryFilesToZips([chrome, firefox], "./dist/ext", "", ["manifest.json"], addZipFile);
 
 // 导出zip包
 await fs.writeFile(`./dist/${packageInfo.name}-v${packageInfo.version}-chrome.zip`, await chrome.close());

@@ -2,9 +2,9 @@ import type { MessageSend } from "@Packages/message/types";
 import type { SkillScriptRecord, JsonValue } from "./types";
 import type { ToolExecutor } from "./tool_registry";
 import { getSkillScriptBody } from "@App/pkg/utils/skill_script";
-import { executeSkillScript } from "@App/app/service/offscreen/client";
+import { executeSkillScript, stopScript } from "@App/app/service/offscreen/client";
 import { uuidv4 } from "@App/pkg/utils/uuid";
-import { withTimeout } from "@App/pkg/utils/with_timeout";
+import { createAbortError, throwIfAborted } from "./abort_utils";
 
 // Skill Script UUID 前缀，用于在 GM API 请求中识别 Skill Script
 export const SKILL_SCRIPT_UUID_PREFIX = "skillscript-";
@@ -40,7 +40,9 @@ export class SkillScriptExecutor implements ToolExecutor {
     private configValues?: Record<string, unknown>
   ) {}
 
-  async execute(args: Record<string, unknown>): Promise<JsonValue> {
+  async execute(args: Record<string, unknown>, signal?: AbortSignal): Promise<JsonValue> {
+    throwIfAborted(signal);
+
     // 根据 @param 定义做基本的类型转换
     const typedArgs: Record<string, unknown> = {};
     for (const param of this.record.params) {
@@ -57,10 +59,6 @@ export class SkillScriptExecutor implements ToolExecutor {
           typedArgs[param.name] = String(val);
       }
     }
-
-    // 在 service worker 端生成 UUID 并注册映射
-    const uuid = SKILL_SCRIPT_UUID_PREFIX + uuidv4();
-    skillScriptUuidMap.set(uuid, { name: this.record.name, grants: this.record.grants });
 
     // 加载 @require 资源内容
     let requires: Array<{ url: string; content: string }> | undefined;
@@ -80,22 +78,66 @@ export class SkillScriptExecutor implements ToolExecutor {
     const code = getSkillScriptBody(this.record.code);
     const timeoutMs = this.record.timeout ? this.record.timeout * 1000 : SKILL_SCRIPT_DEFAULT_TIMEOUT_MS;
     const timeoutSec = timeoutMs / 1000;
-    try {
-      const execPromise = executeSkillScript(this.sender, {
-        uuid,
-        code,
-        args: typedArgs,
-        grants: this.record.grants,
-        name: this.record.name,
-        requires,
-        configValues: this.configValues,
+    throwIfAborted(signal);
+
+    // 在 service worker 端生成 UUID 并注册映射
+    const uuid = SKILL_SCRIPT_UUID_PREFIX + uuidv4();
+    skillScriptUuidMap.set(uuid, { name: this.record.name, grants: this.record.grants });
+
+    const execPromise = executeSkillScript(this.sender, {
+      uuid,
+      code,
+      args: typedArgs,
+      grants: this.record.grants,
+      name: this.record.name,
+      requires,
+      configValues: this.configValues,
+    });
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let abortCleanup = () => {};
+    let stopped = false;
+    const stopExecution = async () => {
+      if (stopped) return;
+      stopped = true;
+      try {
+        await stopScript(this.sender, uuid);
+      } catch {
+        // 停止脚本失败不覆盖原始中止/超时错误
+      }
+    };
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        void stopExecution();
+        reject(
+          Object.assign(new Error(`SkillScript "${this.record.name}" timed out after ${timeoutSec}s`), {
+            errorCode: "tool_timeout",
+          })
+        );
+      }, timeoutMs);
+    });
+    const abortPromise =
+      signal &&
+      new Promise<never>((_, reject) => {
+        const onAbort = () => {
+          void stopExecution();
+          reject(createAbortError());
+        };
+        abortCleanup = () => signal.removeEventListener("abort", onAbort);
+        signal.addEventListener("abort", onAbort, { once: true });
+        if (signal.aborted) onAbort();
       });
-      return await withTimeout(execPromise, timeoutMs, () =>
-        Object.assign(new Error(`SkillScript "${this.record.name}" timed out after ${timeoutSec}s`), {
-          errorCode: "tool_timeout",
-        })
-      );
+
+    try {
+      const races: Promise<unknown>[] = [execPromise, timeoutPromise];
+      if (abortPromise) {
+        races.push(abortPromise);
+      }
+      const result = await Promise.race(races);
+      return result as JsonValue;
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+      abortCleanup();
       // 执行完毕后清理映射
       skillScriptUuidMap.delete(uuid);
     }

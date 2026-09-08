@@ -13,6 +13,7 @@ import { runScript, stopScript } from "../offscreen/client";
 import {
   buildScriptRunResourceBasic,
   compileInjectionCode,
+  getCombinedMeta,
   getUserScriptRegister,
   parseUrlSRI,
   scriptURLPatternResults,
@@ -52,12 +53,12 @@ import Logger from "@App/app/logger/logger";
 import type { GMInfoEnv, ValueUpdateDataEncoded } from "../content/types";
 import { initLocalesPromise, localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
-import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
+import { extractUrlPatterns, RuleType, RuleTypeBit, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 import type { CompiledResource, Resource, ResourceType } from "@App/app/repo/resource";
 import { CompiledResourceDAO, CompiledResourceNamespace } from "@App/app/repo/resource";
 import { setOnTabURLChanged } from "./url_monitor";
-import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
+import { scriptToMenu, type TPopupPageLoadInfo, type TPopupPageRestoreInfo } from "./popup_scriptmenu";
 import { getExtensionUserAgentData } from "../extension/extension_env";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
@@ -456,9 +457,9 @@ export class RuntimeService {
     // 安装，启用，或earlyStartScript的value更新
     const ret = await this.buildAndSaveCompiledResourceFromScript(script, true);
     if (!ret) {
-      // 空匹配覆盖（match 与 include 均为空）时脚本不再匹配任何站点。
-      // 内存 matcher 已由 applyScriptMatchInfo 清空，这里再清掉持久化的 CompiledResource
-      // 并注销浏览器旧注册，否则 SW 重启后 waitInit 会信任旧资源、让旧范围复活。
+      // 空匹配覆盖（match 与 include 均为空）时脚本不再匹配任何站点。内存 matcher 里只剩
+      // 供 Popup 恢复用的原始规则，这里再清掉持久化的 CompiledResource 并注销浏览器旧注册，
+      // 否则 SW 重启后 waitInit 会信任旧资源、让旧范围复活。
       await this.compiledResourceDAO.delete(script.uuid);
       await this.unregistryPageScripts([script.uuid]);
       return;
@@ -485,7 +486,10 @@ export class RuntimeService {
 
       // valueUpdate 消息用于 early script 的处理
       if (sendData.valueUpdated) {
-        if (script.status === SCRIPT_STATUS_ENABLE && isEarlyStartScript(script.metadata)) {
+        if (
+          script.status === SCRIPT_STATUS_ENABLE &&
+          isEarlyStartScript(getCombinedMeta(script.metadata, script.selfMetadata))
+        ) {
           // 如果是预加载脚本，需要更新脚本代码重新注册
           // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
           await this.updateResourceOnScriptChange(script);
@@ -530,6 +534,7 @@ export class RuntimeService {
     this.group.on("stopScript", this.stopScript.bind(this));
     this.group.on("runScript", this.runScript.bind(this));
     this.group.on("pageLoad", this.pageLoad.bind(this));
+    this.group.on("pageShow", this.pageShow.bind(this));
 
     // 监听脚本开启
     this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
@@ -854,6 +859,9 @@ export class RuntimeService {
     const resourceUrls = (script.metadata["require"] || []).map((res) => resources[res]?.url).filter((res) => res);
     const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
     if (!scriptMatchInfo) return undefined;
+    // 生效规则一条 inclusion 都不剩（用户把当前站点从匹配中移除后可能如此）时不能注册：
+    // getApiMatchesAndGlobs 对没有 match pattern 的规则集会退回 *://*/*，注册出去等于全站运行。
+    if (!scriptMatchInfo.scriptUrlPatterns.some((rule) => rule.ruleType & RuleTypeBit.INCLUSION)) return undefined;
 
     const res = getUserScriptRegister(scriptMatchInfo);
     const registerScript = res.registerScript;
@@ -898,15 +906,19 @@ export class RuntimeService {
 
   // 从CompiledResource中还原脚本代码
   async restoreJSCodeFromCompiledResource(script: Script, result: CompiledResource) {
+    // 用户在设置面板改运行时机只写 selfMetadata，脚本自带 metadata 不变，
+    // 所以编译分支必须按合并后的生效 metadata 选，否则重新注册会丢掉覆写（#1649）
+    const metadata = getCombinedMeta(script.metadata, script.selfMetadata);
+
     // 如果是 Scriptlet (unwrap) 脚本，需要另外的处理方式
-    if (isScriptletUnwrap(script.metadata)) {
+    if (isScriptletUnwrap(metadata)) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
       return compileScriptletCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
     }
 
     // 如果是预加载脚本，需要另外的处理方式
-    if (isEarlyStartScript(script.metadata)) {
+    if (isEarlyStartScript(metadata)) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
       return compileInjectionCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
@@ -927,7 +939,7 @@ export class RuntimeService {
         name: result.name,
         code: originalCode?.code || "",
         require,
-        isContextMenu: isContextMenuScript(script.metadata),
+        isContextMenu: isContextMenuScript(metadata),
       })
     );
   }
@@ -1074,7 +1086,8 @@ export class RuntimeService {
       // 异常情况
       // 检查scriptcat-content和scriptcat-inject是否存在
       const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-inject"] });
-      if (res.length === 1) {
+      const contentScripts = await chrome.scripting.getRegisteredContentScripts({ ids: ["scriptcat-scripting"] });
+      if (res.length === 1 && contentScripts.length === 1) {
         return;
       }
       // scriptcat-content/scriptcat-inject不存在的情况
@@ -1265,6 +1278,7 @@ export class RuntimeService {
     this.mq.emit<TPopupPageLoadInfo>("popupPageLoadUpdate", {
       tabId: tabId,
       frameId: frameId,
+      url: url,
       scriptmenus: res?.scriptmenus || [], // 对于 popup, resources那些不需要
     });
 
@@ -1281,6 +1295,22 @@ export class RuntimeService {
       return { ok: false };
     }
   }
+  /**
+   * bfcache 还原：文档连同里面已注入的脚本被整体恢复，content script 不会重新执行，
+   * 因此不会再走 pageLoad。这里只重新广播一次「本页扩展触及得到」，
+   * 绝不能顺带重放脚本——脚本本来就还在页面里跑着。
+   */
+  async pageShow(_: any, sender: IGetSender) {
+    const chromeSender = sender.getSender();
+    const url = chromeSender?.url;
+    if (!url) return;
+    this.mq.emit<TPopupPageRestoreInfo>("popupPageRestored", {
+      tabId: chromeSender.tab?.id || -1,
+      frameId: chromeSender.frameId,
+      url,
+    });
+  }
+
   private shouldSkipPageLoadScript(
     scriptRes: ScriptRunResource,
     frameId: number | undefined,

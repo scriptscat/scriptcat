@@ -2,9 +2,13 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
+import { Checkbox } from "@App/pages/components/ui/checkbox";
 
 export interface SelectionBarProps {
   selectedCount: number;
+  /** 当前可见项是否已全部选中；栏只在有选中项时展开，故未全选即半选 */
+  allSelected: boolean;
+  onToggleSelectAll: () => void;
   onClose: () => void;
   /** 栏中间的操作按钮，用 SelectionBarButton 渲染 */
   children: React.ReactNode;
@@ -14,7 +18,13 @@ export interface SelectionBarProps {
  * 多选态操作栏外壳：撑开时把同一 h-11 窗口内位于其下方的筛选行顶出可视区，
  * 因此调用方须把本组件与筛选行一起放进 `h-11 overflow-hidden` 的容器。
  */
-export default function SelectionBar({ selectedCount, onClose, children }: SelectionBarProps) {
+export default function SelectionBar({
+  selectedCount,
+  allSelected,
+  onToggleSelectAll,
+  onClose,
+  children,
+}: SelectionBarProps) {
   const { t } = useTranslation();
   const isOpen = selectedCount > 0;
   const [mounted, setMounted] = useState(false);
@@ -28,7 +38,10 @@ export default function SelectionBar({ selectedCount, onClose, children }: Selec
   return (
     <div
       className={cn(
-        "flex items-center overflow-hidden gap-3 px-6 shrink-0 bg-primary/[0.08] border-b border-primary/20",
+        "flex items-center overflow-hidden gap-3 px-6 shrink-0 bg-primary/[0.08]",
+        // 收起态不能带边框：本组件与筛选行同处一个 h-11 overflow-hidden 容器，
+        // 这 1px 会把筛选行整体下推 1px，使筛选行自己的底部分隔线被容器裁掉。
+        mounted && "border-b border-primary/20",
         !mounted ? "h-0" : isOpen ? "h-11 animate-expand-bar" : "h-11 animate-collapse-bar",
         mounted ? "visible" : "collapse"
       )}
@@ -36,6 +49,12 @@ export default function SelectionBar({ selectedCount, onClose, children }: Selec
         if (!isOpen) setMounted(false);
       }}
     >
+      <Checkbox
+        aria-label={t("script:select_all")}
+        checked={allSelected ? true : "indeterminate"}
+        onCheckedChange={onToggleSelectAll}
+      />
+
       <span className="text-[13px] font-medium text-primary">{t("batch_selected", { count: selectedCount })}</span>
 
       <div className="flex-1" />

@@ -152,7 +152,7 @@ type PendingSyncOp = { op: "delete"; syncDelete: boolean } | { op: "push" };
 `SynchronizeService` 使用 `SYNC_SERVICE_TASK_KEY = "cloud_sync_queue"` 串行化同步任务。以下入口都会进入同一队列：
 
 - 配置启用后触发的 `syncOnce()`。
-- 定时同步，Chrome alarm 名称为 `cloudSync`，周期为 60 分钟。
+- 定时同步，Chrome alarm 名称为 `cloudSync`，周期为 30 分钟。启用后闹钟是唯一的周期性入口：SW 冷启动只确保闹钟存在，不触发同步（否则同步频率会退化成 SW 冷启动频率，见 #1670）。
 - 非 sync 来源安装脚本后的 `scriptInstall()`。push 失败时按 `PushScriptPartialError` 只保留失败文件的旧 digest，已成功文件推进到云端最新值；部分成功还会登记 `pending_sync_ops` 的 push 意图（见上）。
 - 非 sync 来源删除脚本后的 `scriptsDelete()`。执行前写前登记删除意图，成功后清除。
 
@@ -254,6 +254,16 @@ type PendingSyncOp = { op: "delete"; syncDelete: boolean } | { op: "push" };
 ## status 合并
 
 `scriptcat-sync.json` 是 best-effort 状态同步，不是强事务。合并时遵守以下规则：
+
+拖动排序和置顶不修改脚本内容的 `updatetime`。位置实际变化的脚本会在本地
+`pending_sort_status` 中记录同一次操作的 `sort` 和 `sortUpdatetime`；位置未变化的脚本不写入。
+该 pending 状态保存在扩展本地存储中，Service Worker 重启后仍可继续同步，并且只有在
+`scriptcat-sync.json` 成功写入对应或更新的排序时钟后才清除。
+
+`scriptcat-sync.json` 中的 `sortUpdatetime` 是可选字段。存在该字段时，`enable` 继续由
+`updatetime` 决定，`sort` 则由 `sortUpdatetime` 决定，两个维度独立合并，避免一次启停覆盖
+另一台设备更新的顺序。旧文件双方都没有 `sortUpdatetime` 时，继续沿用整条 status 的
+`updatetime` LWW 规则；只有一侧具备新字段时，缺失侧以其 `updatetime` 作为排序时钟兼容读取。
 
 1. 本轮文件同步失败的 uuid 保留云端原 status。
 2. 本轮刚 pull 的脚本保留云端 status，避免刚按云端更新后又写回本地旧状态。
@@ -451,5 +461,8 @@ this.logger.warn("sync overwrite", { action: "overwrite", direction, uuid, name 
 14. push 部分失败（`.user.js` 成功、`.meta.json` 失败）后，用生产形态的安装消息（不带 `updatetime`）验证下一轮仍会补传 `.meta.json`。
 15. 删除部分失败（tombstone 未写 / `.meta.json` 残留）后，下一轮（含 SW 重启）自动完成剩余步骤；删除全失败后不得把脚本拉回本地。
 16. 源码未变但云端 `.meta.json` digest 变化时，必须读取采用而不是盖章跳过。
+17. 拖动排序不得修改脚本内容 `updatetime`，只为位置变化的脚本登记统一且单调推进的
+    `sortUpdatetime`；下一轮同步应让较新的本地排序覆盖旧云端排序，同时保留较新的启用状态。
+18. 排序 pending 在 Service Worker 重启后仍应存在；状态文件写入失败或某个 pending 尚未写入时不得误清。
 
 真实 provider 验证仍需要账号和夹具。不能把 unit test 或 mock response 结果宣称为真实云端验证。

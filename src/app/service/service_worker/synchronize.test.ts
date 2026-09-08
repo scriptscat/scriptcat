@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SynchronizeService } from "./synchronize";
 import { initTestEnv } from "@Tests/utils";
 import type FileSystem from "@Packages/filesystem/filesystem";
+import type { FileInfo } from "@Packages/filesystem/filesystem";
 import { FileSystemError } from "@Packages/filesystem/error";
 import type { CloudSyncConfig, SystemConfig } from "@App/pkg/config/config";
 import type { ScriptDAO } from "@App/app/repo/scripts";
@@ -622,6 +623,179 @@ describe("SynchronizeService", () => {
     expect(fs.open).toHaveBeenCalledTimes(2);
     const written = JSON.parse(writeMock.mock.calls[0][0] as string);
     expect(written.status.scripts["status-uuid"]).toEqual(localStatus);
+  });
+
+  it("排序待同步状态应独立覆盖旧排序且保留远端较新的启用状态", async () => {
+    const cloudStatus = { enable: false, sort: 8, updatetime: 300, sortUpdatetime: 100 };
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const syncFile = {
+      name: "scriptcat-sync.json",
+      path: "scriptcat-sync.json",
+      size: 1,
+      digest: "sync-digest",
+      createtime: 1,
+      updatetime: 1,
+    };
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([syncFile]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockResolvedValue(JSON.stringify({ version: "1.0.0", status: { scripts: { u1: cloudStatus } } })),
+      }),
+      create: vi.fn().mockResolvedValue({ write: writeMock }),
+    });
+    const scriptDAO = {
+      scriptCodeDAO: {},
+      all: vi
+        .fn()
+        .mockResolvedValue([
+          { uuid: "u1", name: "t", updatetime: 200, createtime: 1, status: 1, sort: 1, metadata: {} },
+        ]),
+      get: vi.fn().mockResolvedValue(undefined),
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+    const recordingService = new SynchronizeService(
+      {} as any,
+      {} as any,
+      { enableScript: vi.fn().mockResolvedValue(undefined) } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      scriptDAO as any
+    );
+    const now = vi.spyOn(Date, "now").mockReturnValue(200);
+    try {
+      await recordingService.scriptsSorted([{ uuid: "u1", sort: 1, sortUpdatetime: 200 }]);
+    } finally {
+      now.mockRestore();
+    }
+
+    // 用新实例模拟 MV3 Service Worker 被回收后重新启动。
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      { enableScript: vi.fn().mockResolvedValue(undefined) } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      scriptDAO as any
+    );
+    vi.spyOn(service, "pushScript").mockResolvedValue({});
+
+    await service.syncOnce(syncConfig, fs);
+
+    const written = JSON.parse(writeMock.mock.calls[0][0] as string);
+    expect(written.status.scripts.u1).toEqual({
+      enable: false,
+      sort: 1,
+      updatetime: 300,
+      sortUpdatetime: 200,
+    });
+    await expect((service as any).storage.get("pending_sort_status")).resolves.toEqual({});
+  });
+
+  it("脚本删除后不应永久保留无主的排序待同步状态", async () => {
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const syncFile = {
+      name: "scriptcat-sync.json",
+      path: "scriptcat-sync.json",
+      size: 1,
+      digest: "sync-digest",
+      createtime: 1,
+      updatetime: 1,
+    };
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([syncFile]),
+      open: vi.fn().mockResolvedValue({
+        read: vi.fn().mockResolvedValue(JSON.stringify({ version: "1.0.0", status: { scripts: {} } })),
+      }),
+      create: vi.fn().mockResolvedValue({ write: writeMock }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi.fn().mockResolvedValue([]),
+      } as any
+    );
+
+    await service.scriptsSorted([{ uuid: "deleted", sort: 0, sortUpdatetime: 200 }]);
+    await service.syncOnce(syncConfig, fs);
+
+    await expect((service as any).storage.get("pending_sort_status")).resolves.toEqual({});
+  });
+
+  it("失败脚本的同钟不同排序不得误清除排序待同步状态", async () => {
+    const writeMock = vi.fn().mockResolvedValue(undefined);
+    const syncFile = {
+      name: "scriptcat-sync.json",
+      path: "scriptcat-sync.json",
+      size: 1,
+      digest: "sync-digest",
+      createtime: 1,
+      updatetime: 1,
+    };
+    const fs = createFs({
+      list: vi.fn().mockResolvedValue([
+        {
+          name: "u1.meta.json",
+          path: "u1.meta.json",
+          size: 1,
+          digest: "meta-digest",
+          createtime: 1,
+          updatetime: 1,
+        },
+        syncFile,
+      ]),
+      open: vi.fn().mockImplementation(async (file: FileInfo) => ({
+        read: vi.fn().mockResolvedValue(
+          file.name === "u1.meta.json"
+            ? JSON.stringify({ uuid: "u1" })
+            : JSON.stringify({
+                version: "1.0.0",
+                status: { scripts: { u1: { enable: true, sort: 8, updatetime: 300, sortUpdatetime: 200 } } },
+              })
+        ),
+      })),
+      create: vi.fn().mockResolvedValue({ write: writeMock }),
+    });
+    const service = new SynchronizeService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        scriptCodeDAO: {},
+        all: vi
+          .fn()
+          .mockResolvedValue([
+            { uuid: "u1", name: "t", updatetime: 300, createtime: 1, status: 1, sort: 1, metadata: {} },
+          ]),
+      } as any
+    );
+    vi.spyOn(service, "pushScript").mockRejectedValue(new Error("push failed"));
+    const now = vi.spyOn(Date, "now").mockReturnValue(200);
+
+    try {
+      await service.scriptsSorted([{ uuid: "u1", sort: 1, sortUpdatetime: 200 }]);
+      await service.syncOnce(syncConfig, fs);
+    } finally {
+      now.mockRestore();
+    }
+
+    await expect((service as any).storage.get("pending_sort_status")).resolves.toEqual({
+      u1: { sort: 1, sortUpdatetime: 200 },
+    });
   });
 
   it("写回 scriptcat-sync.json 时远端已删除的 uuid 不应被复活", async () => {
@@ -2484,19 +2658,33 @@ console.log("ok");`
       });
     });
 
-    it("启动时配置已启用会同步一次并确保小时闹钟存在", async () => {
+    // MV3 的 SW 空闲即被回收，每次冷启动都会重跑 init 并用当前配置回调一次 watch。
+    // 若在这里同步，同步频率就退化成 SW 冷启动频率（#1670：实测每分钟一轮全量同步）。
+    it("启动时配置已启用只确保定时闹钟，不立即同步", async () => {
       const { service, buildFileSystem, syncOnce } = createService();
 
       service.cloudSyncConfigChange(syncConfig, undefined);
       await flushMicrotasks();
 
-      expect(buildFileSystem).toHaveBeenCalledTimes(1);
-      expect(syncOnce).toHaveBeenCalledTimes(1);
+      expect(buildFileSystem).not.toHaveBeenCalled();
+      expect(syncOnce).not.toHaveBeenCalled();
       expect(alarmGet).toHaveBeenCalledWith("cloudSync", expect.any(Function));
-      expect(alarmCreate).toHaveBeenCalledWith("cloudSync", { periodInMinutes: 60 }, expect.any(Function));
+      expect(alarmCreate).toHaveBeenCalledWith("cloudSync", { periodInMinutes: 30 }, expect.any(Function));
     });
 
-    it("从关闭到启用会同步一次并确保小时闹钟存在", async () => {
+    it("启动时已有旧周期的云同步闹钟会更新为 30 分钟", async () => {
+      alarmGet.mockImplementationOnce((_name, callback) =>
+        callback({ name: "cloudSync", periodInMinutes: 60 } as chrome.alarms.Alarm)
+      );
+      const { service } = createService();
+
+      service.cloudSyncConfigChange(syncConfig, undefined);
+      await flushMicrotasks();
+
+      expect(alarmCreate).toHaveBeenCalledWith("cloudSync", { periodInMinutes: 30 }, expect.any(Function));
+    });
+
+    it("从关闭到启用会同步一次并确保定时闹钟存在", async () => {
       const { service, buildFileSystem, syncOnce } = createService();
       const disabled = { ...syncConfig, enable: false };
 
@@ -2508,7 +2696,7 @@ console.log("ok");`
       expect(alarmGet).toHaveBeenCalledTimes(1);
     });
 
-    it("从启用到关闭只清除小时闹钟", async () => {
+    it("从启用到关闭只清除定时闹钟", async () => {
       const { service, buildFileSystem, syncOnce } = createService();
 
       service.cloudSyncConfigChange({ ...syncConfig, enable: false }, syncConfig);
@@ -2601,7 +2789,8 @@ console.log("ok");`
     process.on("unhandledRejection", unhandled);
 
     try {
-      service.cloudSyncConfigChange({ ...syncConfig, enable: true });
+      // 冷启动（无 previous）只建闹钟不同步，须由「关→开」这条仍会立即同步的路径触发 buildFileSystem
+      service.cloudSyncConfigChange({ ...syncConfig, enable: true }, { ...syncConfig, enable: false });
       await flushMicrotasks();
 
       expect(errorSpy).toHaveBeenCalledWith("cloud sync config change error", expect.anything());
