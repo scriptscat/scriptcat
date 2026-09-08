@@ -130,6 +130,8 @@ export class S3Client {
   private config: Required<Pick<S3ClientConfig, "region" | "credentials" | "forcePathStyle">>;
   private parsedEndpoint: URL;
   private customEndpoint: boolean;
+  /** endpoint 自带的路径前缀（如 Supabase 的 /storage/v1/s3），根路径时为空串 */
+  private basePath: string;
 
   constructor(config: S3ClientConfig) {
     this.config = {
@@ -151,6 +153,7 @@ export class S3Client {
     // 去除尾部斜杠
     endpoint = endpoint.replace(/\/+$/, "");
     this.parsedEndpoint = new URL(endpoint);
+    this.basePath = this.parsedEndpoint.pathname.replace(/\/+$/, "");
   }
 
   /** 获取请求的 Host */
@@ -163,30 +166,24 @@ export class S3Client {
     return `${bucket}.${hostWithPort}`;
   }
 
-  /** 获取签名用的 Canonical URI */
-  private getCanonicalUri(bucket: string, key?: string): string {
-    if (this.config.forcePathStyle) {
-      let uri = `/${awsUriEncode(bucket)}`;
-      if (key) uri += `/${awsUriEncode(key, false)}`;
-      return uri;
-    }
-    if (key) return `/${awsUriEncode(key, false)}`;
-    return "/";
+  /**
+   * 获取请求资源路径
+   * endpoint 自带的路径前缀（如 Supabase 的 /storage/v1/s3）必须保留，否则请求会打到服务的根路径上。
+   * 由 URL 解析出的前缀已完成百分号编码，直接拼接，不重复编码。
+   */
+  private getResourcePath(bucket: string, key?: string): string {
+    let path = this.basePath;
+    if (this.config.forcePathStyle) path += `/${awsUriEncode(bucket)}`;
+    if (key) path += `/${awsUriEncode(key, false)}`;
+    return path || "/";
   }
 
   /** 构建请求 URL */
   private buildUrl(bucket: string, key?: string, queryParams?: Record<string, string>): string {
     const proto = this.parsedEndpoint.protocol;
     const host = this.getHost(bucket);
-    let path: string;
-    if (this.config.forcePathStyle) {
-      path = `/${bucket}`;
-      if (key) path += `/${awsUriEncode(key, false)}`;
-    } else {
-      path = key ? `/${awsUriEncode(key, false)}` : "/";
-    }
 
-    let url = `${proto}//${host}${path}`;
+    let url = `${proto}//${host}${this.getResourcePath(bucket, key)}`;
     if (queryParams && Object.keys(queryParams).length > 0) {
       const qs = Object.entries(queryParams)
         .sort(([a], [b]) => a.localeCompare(b))
@@ -219,7 +216,7 @@ export class S3Client {
     headers["x-amz-content-sha256"] = payloadHash;
 
     // 构建 Canonical Request
-    const canonicalUri = this.getCanonicalUri(bucket, key);
+    const canonicalUri = this.getResourcePath(bucket, key);
     const canonicalQueryString = Object.entries(queryParams)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => `${awsUriEncode(k)}=${awsUriEncode(v)}`)
@@ -322,9 +319,9 @@ export class S3Client {
     return response;
   }
 
-  /** 获取 endpoint URL */
+  /** 获取 endpoint URL（含路径前缀） */
   getEndpointUrl(): string {
-    return this.parsedEndpoint.origin;
+    return this.parsedEndpoint.origin + this.basePath;
   }
 
   /** 是否使用了自定义 endpoint */
