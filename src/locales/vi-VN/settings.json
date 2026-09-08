@@ -72,8 +72,6 @@
   "popup_layout": "Bố cục cửa sổ bật lên",
   "compact_popup_layout": "Bố cục cửa sổ bật lên thu gọn",
   "compact_popup_layout_desc": "Giảm khoảng cách giữa các mục và hàng script trong cửa sổ bật lên",
-  "popup_site_scope_actions": "Thao tác phạm vi trang",
-  "popup_site_scope_actions_desc": "Hiển thị thao tác nhanh trong cửa sổ bật lên để giới hạn hoặc cho phép script trên trang hiện tại",
   "script_list_expand_count": "Số script hiển thị trong danh sách",
   "script_list_expand_count_desc": "Số script mở rộng trong mỗi mục của cửa sổ bật lên, phần còn lại sẽ thu gọn; đặt 0 thì hiển thị tất cả",
   "script_update_check_frequency": "Tần suất kiểm tra cập nhật tập lệnh",

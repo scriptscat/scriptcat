@@ -34,8 +34,17 @@ body:
       label: 兼容性 / 迁移 / 测试
       placeholder: |
         对旧版本数据的影响：
-        对 MV2/MV3、Firefox/Chrome/Edge/移动端的影响：
+        对 Firefox/Chrome/Edge/移动端的影响：
         是否需要 migration：
         测试与回归风险：
+    validations:
+      required: false
+
+  - type: input
+    id: scriptcat-version
+    attributes:
+      label: ScriptCat 版本
+      description: 从扩展内的反馈入口进入时会自动填充，与版本无关可留空。
+      placeholder: "例如：v1.4.0 / v1.4.0-beta"
     validations:
       required: false

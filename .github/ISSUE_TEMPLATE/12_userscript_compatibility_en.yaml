@@ -66,7 +66,7 @@ body:
     id: scriptcat-version
     attributes:
       label: ScriptCat Version
-      placeholder: "Example: v1.4.0 / v1.4.0-beta / Firefox MV2 v0.16.15"
+      placeholder: "Example: v1.4.0 / v1.4.0-beta"
     validations:
       required: true
 

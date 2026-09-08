@@ -20,7 +20,11 @@ vi.mock("@App/pages/store/features/script", async () => {
 });
 vi.mock("./Toolbar", () => ({ Toolbar: () => null }));
 vi.mock("./FilterBar", () => ({ default: () => null }));
-vi.mock("./BatchActionsBar", () => ({ default: () => null }));
+vi.mock("./BatchActionsBar", () => ({
+  default: ({ allSelected, onToggleSelectAll }: { allSelected: boolean; onToggleSelectAll: () => void }) => (
+    <button data-testid="batch-bar-select-all" data-all-selected={allSelected} onClick={onToggleSelectAll} />
+  ),
+}));
 
 import ScriptTable from "./ScriptTable";
 
@@ -43,9 +47,13 @@ const noop = () => {};
 const TableHarness = ({
   scriptList,
   initialSortState = { key: null, order: "asc" },
+  toggleSelectAll = noop,
+  selectedUuids = new Set<string>(),
 }: {
   scriptList: ScriptLoading[];
   initialSortState?: SortState;
+  toggleSelectAll?: () => void;
+  selectedUuids?: Set<string>;
 }) => {
   const [sortState, setSortState] = useState<SortState>(initialSortState);
   return (
@@ -55,7 +63,6 @@ const TableHarness = ({
       updateScripts={noop}
       handleDelete={noop}
       handleRunStop={() => Promise.resolve()}
-      setViewMode={noop}
       searchRequest={{ keyword: "", type: "auto" }}
       setSearchRequest={noop}
       totalCount={scriptList.length}
@@ -63,9 +70,9 @@ const TableHarness = ({
       filterItems={{ statusItems: [], typeItems: [], tagItems: [], sourceItems: [] }}
       selectedFilters={{ status: null, type: null, tags: null, source: null }}
       setSelectedFilters={noop}
-      selectedUuids={new Set()}
+      selectedUuids={selectedUuids}
       toggleSelect={noop}
-      toggleSelectAll={noop}
+      toggleSelectAll={toggleSelectAll}
       clearSelection={noop}
       onBatchEnable={noop}
       onBatchDisable={noop}
@@ -90,66 +97,87 @@ const renderTable = (scriptList: ScriptLoading[], initialSortState?: SortState) 
 const renderedOrder = () =>
   Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/script/editor/"]')).map((a) => a.textContent);
 
-describe("ScriptTable 列头点击排序", () => {
+// 表头随列表化移除后，排序的三态循环归 SortMenu 所有（见 SortMenu.test.tsx）；
+// 这里只覆盖 ScriptTable 自己的契约：给定排序状态时行的渲染顺序与拖拽可用性。
+describe("ScriptTable 按排序状态渲染", () => {
   // 自然顺序：B、A、C
   const list = [mk("b", "Banana", 30), mk("a", "Apple", 10), mk("c", "Cherry", 20)];
 
-  it("点击「名称」表头在 升序 → 降序 → 关闭 之间循环", () => {
+  it("未排序时保持拖拽得到的自然顺序", () => {
     renderTable(list);
-    expect(renderedOrder()).toEqual(["Banana", "Apple", "Cherry"]);
-
-    const nameHeader = screen.getByText(t("name")).closest("button")!;
-    fireEvent.click(nameHeader); // 升序
-    expect(renderedOrder()).toEqual(["Apple", "Banana", "Cherry"]);
-
-    fireEvent.click(nameHeader); // 降序
-    expect(renderedOrder()).toEqual(["Cherry", "Banana", "Apple"]);
-
-    fireEvent.click(nameHeader); // 关闭，回到自然顺序
     expect(renderedOrder()).toEqual(["Banana", "Apple", "Cherry"]);
   });
 
-  it("点击「最后更新」表头按更新时间升序排列", () => {
-    renderTable(list);
-    fireEvent.click(screen.getByText(t("logs:last_updated")).closest("button")!);
+  it("按名称升序与降序分别渲染对应顺序", () => {
+    renderTable(list, { key: "name", order: "asc" });
+    expect(renderedOrder()).toEqual(["Apple", "Banana", "Cherry"]);
+
+    cleanup();
+    renderTable(list, { key: "name", order: "desc" });
+    expect(renderedOrder()).toEqual(["Cherry", "Banana", "Apple"]);
+  });
+
+  it("按更新时间排序", () => {
+    renderTable(list, { key: "updatetime", order: "asc" });
     // updatetime: A=10, C=20, B=30
     expect(renderedOrder()).toEqual(["Apple", "Cherry", "Banana"]);
   });
 
-  it("从外部排序状态恢复上次的列排序", () => {
-    renderTable(list, { key: "updatetime", order: "desc" });
-    expect(renderedOrder()).toEqual(["Banana", "Cherry", "Apple"]);
-  });
-
-  it("排序激活时禁用手动拖拽（不再渲染可拖拽手柄）", () => {
+  it("排序激活时禁用手动拖拽，未排序时每行都有拖拽手柄", () => {
     renderTable(list);
-    // 未排序时每行都有可拖拽手柄
     expect(document.querySelectorAll(".cursor-grab").length).toBe(list.length);
 
-    fireEvent.click(screen.getByText(t("name")).closest("button")!);
+    cleanup();
+    renderTable(list, { key: "name", order: "asc" });
     expect(document.querySelectorAll(".cursor-grab").length).toBe(0);
   });
 });
 
-describe("ScriptTable 英文列头布局", () => {
-  it("状态列为 Status 文本和排序图标保留完整宽度", () => {
-    initTestLanguage("en-US");
-    renderTable([mk("a", "Apple", 10)]);
+describe("ScriptTable 全选入口", () => {
+  const twoScripts = [mk("a", "Apple", 10), mk("b", "Banana", 20)];
 
-    const statusColumn = document.querySelector('[data-tour="col-enable"]');
-    expect(statusColumn).toHaveClass("w-16");
+  it("列表顶部没有独立全选行，可见复选框只有每行一个", () => {
+    initTestLanguage("zh-CN");
+    // BatchActionsBar 已被替身取代，故此处若还出现全选框，就只可能来自列表自己渲染的独立全选行
+    renderWithRouterTooltip(<TableHarness scriptList={twoScripts} />);
+
+    expect(screen.queryByLabelText(t("script:select_all"))).toBeNull();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(twoScripts.length);
   });
 
-  it("状态列表头居中且开关列不额外偏移", () => {
+  it("全选状态与回调交给批量操作条", () => {
+    initTestLanguage("zh-CN");
+    const onToggleAll = vi.fn();
+    renderWithRouterTooltip(<TableHarness scriptList={twoScripts} toggleSelectAll={onToggleAll} />);
+
+    const slot = screen.getByTestId("batch-bar-select-all");
+    expect(slot).toHaveAttribute("data-all-selected", "false");
+    fireEvent.click(slot);
+    expect(onToggleAll).toHaveBeenCalled();
+  });
+
+  it("全部脚本被选中时批量操作条收到全选态", () => {
+    initTestLanguage("zh-CN");
+    renderWithRouterTooltip(
+      <TableHarness scriptList={twoScripts} selectedUuids={new Set(twoScripts.map((s) => s.uuid))} />
+    );
+
+    expect(screen.getByTestId("batch-bar-select-all")).toHaveAttribute("data-all-selected", "true");
+  });
+});
+
+describe("ScriptTable 新手引导锚点", () => {
+  it("表头移除后，引导锚点落在行内的开关与操作区上", () => {
     initTestLanguage("zh-CN");
     renderTable([mk("a", "Apple", 10)]);
 
-    expect(screen.getByText(t("script:script_list.sidebar.status")).closest("button")).toHaveClass("justify-center");
-    expect(document.querySelector('[data-tour="col-enable"]')).toHaveClass("text-center");
+    const enableAnchor = document.querySelector('[data-tour="row-enable"]');
+    const actionAnchor = document.querySelector('[data-tour="row-action"]');
 
-    const switchColumn = document.querySelector('[role="switch"]')!.parentElement;
-    expect(switchColumn).toHaveClass("w-16", "flex");
-    expect(switchColumn).not.toHaveClass("justify-center");
+    expect(enableAnchor).not.toBeNull();
+    expect(enableAnchor!.querySelector('[role="switch"]')).not.toBeNull();
+    expect(actionAnchor).not.toBeNull();
+    expect(actionAnchor!.querySelectorAll("button").length).toBeGreaterThan(0);
   });
 });
 

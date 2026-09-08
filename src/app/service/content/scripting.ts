@@ -148,6 +148,14 @@ export default class ScriptingRuntime {
 
   pageLoad() {
     const client = new RuntimeClient(this.senderToExt);
+    // bfcache 还原不会重新执行 content script，pageLoad 因此只发生一次；
+    // 但页面里的脚本仍在运行，需要补一次上报，否则 Popup 会误判本页没有脚本在跑。
+    // 只有顶层 frame 参与判定，子 frame 不必上报。
+    if (window.top === window) {
+      window.addEventListener("pageshow", (e) => {
+        if (e.persisted) client.pageShow();
+      });
+    }
     // 向service_worker请求脚本列表及环境信息
     client.pageLoad().then((o) => {
       if (!o.ok) return;

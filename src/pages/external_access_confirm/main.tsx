@@ -19,7 +19,7 @@ loggerCore.logger().debug("external_access_confirm page start");
 const Root = (
   <ThemeProvider>
     <App />
-    <Toaster />
+    <Toaster placement="decision" />
   </ThemeProvider>
 );
 
