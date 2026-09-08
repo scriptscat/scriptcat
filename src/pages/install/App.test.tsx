@@ -357,3 +357,32 @@ describe("Install App 权限卡的更新基线", () => {
     expect(screen.queryByText("权限变化")).not.toBeInTheDocument();
   });
 });
+
+describe("Install App 不再渲染安全警示条", () => {
+  it("全新安装页没有安全警示条", () => {
+    mockHook.mockReturnValue({ ...baseHook(), state: { status: "ready", view: readyView() } });
+    render(<App />);
+    expect(screen.queryByTestId("install-warning-title")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("install-warning-desc")).not.toBeInTheDocument();
+  });
+
+  it("声明了危险权限的更新页同样没有安全警示条", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      state: {
+        status: "ready",
+        view: readyView({
+          isUpdate: true,
+          version: { kind: "update", oldVersion: "1.2.3", newVersion: "2.3.1", changed: true },
+          antifeatures: ["ads"],
+          permissions: [
+            { kind: "connect", risk: "danger", values: ["*"], sensitive: [], diff: { added: [], removed: [] } },
+          ],
+        }),
+      },
+    });
+    render(<App />);
+    expect(screen.queryByTestId("install-warning-title")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("install-warning-risk")).not.toBeInTheDocument();
+  });
+});
