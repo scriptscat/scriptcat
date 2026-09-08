@@ -313,7 +313,9 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
 
   it.concurrent("match 覆盖清空的脚本不应被注册（空规则会被 UserScripts API 退回成全站匹配）", async () => {
     const { runtime } = createRuntimeTestContext();
-    (runtime as any).resource = { getScriptResourceValue: vi.fn().mockResolvedValue({}) };
+    (runtime as any).resource = {
+      getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
+    };
     const script = createMockScript({
       metadata: { match: ["https://www.example.com/*"] },
       selfMetadata: { match: [] },
