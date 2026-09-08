@@ -48,6 +48,7 @@ describe("Popup 数据预加载", () => {
     mocks.getPopupData.mockResolvedValue({
       pageStatus: "ok",
       scriptList: [script("disabled", false), script("enabled", true)],
+      optInScriptList: [],
       backScriptList: [],
     });
 

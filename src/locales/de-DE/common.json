@@ -59,6 +59,8 @@
   "edit": "Bearbeiten",
   "copy": "Kopieren",
   "exclude_off": "Ausschließen auf $0 zur Ausführung",
+  "include_on": "Ausführung auf $0 einschließen",
+  "include_off": "$0 von den erlaubten Websites entfernen",
   "only_on_site": "Nur auf $0 ausführen",
   "confirm_only_run_on_site": "Die bestehenden Website-Abgleichsregeln des Skripts werden gelöscht. Nur auf dieser Website ausführen?",
   "allow_on_site": "Ausführung auf $0 zulassen",

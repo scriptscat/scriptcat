@@ -42,6 +42,10 @@ class LocalMessageQueue implements IMessageQueue {
     this.events.emit(topic, message);
   }
 
+  async publishAndWait<T>(topic: string, message: NonNullable<T>) {
+    await Promise.all(this.events.listeners(topic).map((handler) => Promise.resolve(handler(message))));
+  }
+
   emit<T>(topic: string, message: NonNullable<T>) {
     this.events.emit(topic, message);
   }

@@ -11,6 +11,7 @@ import {
   type TPopupPageLoadInfo,
   type TPopupPageRestoreInfo,
 } from "./popup_scriptmenu";
+import { hasExactUserSiteAccess, isSiteAccessAllowed, isSiteAccessAllowedByAuthor, isSiteAccessOptIn } from "./utils";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL, SCRIPT_RUN_STATUS_RUNNING } from "@App/app/repo/scripts";
 import type {
   TDeleteScript,
@@ -384,6 +385,7 @@ export class PopupService {
       return {
         pageStatus,
         scriptList: [],
+        optInScriptList: [],
         backScriptList: await this.attachScriptDisplayInfo(await this.getScriptMenu(-1)),
       };
     }
@@ -402,6 +404,8 @@ export class PopupService {
     const runMap = new Map<string, ScriptMenu>(runScripts.map((script) => [script.uuid, script]));
     // 合并后结果
     const scriptMenuMap = new Map<string, ScriptMenu>();
+    const optInScriptList: ScriptMenu[] = [];
+    const optInScriptUuids = new Set<string>();
     // 合并数据
     for (let idx = 0, l = uuids.length; idx < l; idx++) {
       const uuid = uuids[idx];
@@ -426,19 +430,34 @@ export class PopupService {
         run.isEffective = o.effective!;
       }
       run.matchesTopFrame = true;
-      scriptMenuMap.set(uuid, run);
+      const siteAccessOptIn = isSiteAccessOptIn(script.metadata);
+      run.siteAccess = siteAccessOptIn ? "opt-in" : undefined;
+      run.siteAccessUser =
+        siteAccessOptIn && !isSiteAccessAllowedByAuthor(script, url) && hasExactUserSiteAccess(script, url);
+      if (siteAccessOptIn && !isSiteAccessAllowed(script, url)) {
+        run.isEffective = false;
+        optInScriptList.push(run);
+        optInScriptUuids.add(uuid);
+      } else {
+        scriptMenuMap.set(uuid, run);
+      }
     }
 
     await this.mergeSubFrameRunScripts(tabId, url, runScripts, scriptMenuMap);
-
     const scriptMenu = [...scriptMenuMap.values()];
     // 即时附加图标与本地化脚本名（仅写入响应，不回写 session 缓存，避免 icon64 等占用过大）
-    const [scriptListWithInfo, backScriptListWithInfo] = await Promise.all([
+    const [scriptListWithInfo, optInScriptListWithInfo, backScriptListWithInfo] = await Promise.all([
       this.attachScriptDisplayInfo(scriptMenu),
+      this.attachScriptDisplayInfo(optInScriptList),
       this.attachScriptDisplayInfo(backScriptList),
     ]);
     // 后台脚本只显示开启或者运行中的脚本
-    return { pageStatus, scriptList: scriptListWithInfo, backScriptList: backScriptListWithInfo };
+    return {
+      pageStatus,
+      scriptList: scriptListWithInfo,
+      optInScriptList: optInScriptListWithInfo,
+      backScriptList: backScriptListWithInfo,
+    };
   }
 
   /**

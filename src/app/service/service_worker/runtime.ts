@@ -14,7 +14,10 @@ import {
   buildScriptRunResourceBasic,
   compileInjectionCode,
   getCombinedMeta,
+  getOptInExecutionCondition,
   getUserScriptRegister,
+  isSiteAccessAllowed,
+  isSiteAccessOptIn,
   parseUrlSRI,
   scriptURLPatternResults,
   type RegisteredUserScriptWithJsCode,
@@ -33,16 +36,16 @@ import { UrlMatch } from "@App/pkg/utils/match";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
-import type { CompileScriptCodeResource } from "../content/utils";
 import {
   compileInjectScriptByFlag,
-  compileScriptCodeByResource,
   compileScriptletCode,
+  compileScriptCodeByResource,
   isContextMenuScript,
   isEarlyStartScript,
   isInjectIntoContent,
   isScriptletUnwrap,
   trimScriptInfo,
+  type CompileScriptCodeResource,
 } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
@@ -932,7 +935,6 @@ export class RuntimeService {
         require.push({ url: res.url, content: res.content });
       }
     }
-
     return compileInjectScriptByFlag(
       result.flag,
       compileScriptCodeByResource({
@@ -940,7 +942,9 @@ export class RuntimeService {
         code: originalCode?.code || "",
         require,
         isContextMenu: isContextMenuScript(metadata),
-      })
+      }),
+      false,
+      getOptInExecutionCondition(metadata, result.scriptUrlPatterns)
     );
   }
 
@@ -1343,7 +1347,12 @@ export class RuntimeService {
     // 代码/原始 metadata/userConfig/资源变化时，主要靠事件处理器（enable/install/delete）失效缓存。
     // 此缓存键只是低成本的兜底：用于 selfMetadata 修改 match/include/exclude 这类「合并后 metadata 变了
     // 但不一定 bump updatetime」的情况。
-    return `${status}:${type}:${updatetime || 0}~${JSON.stringify([metadata.match, metadata.include, metadata.exclude])}`;
+    return `${status}:${type}:${updatetime || 0}~${JSON.stringify([
+      metadata.match,
+      metadata.include,
+      metadata.exclude,
+      metadata["site-access"],
+    ])}`;
   }
 
   private getCodeCacheKey(script: Script) {
@@ -1537,6 +1546,8 @@ export class RuntimeService {
     for (let idx = 0, l = uuids.length; idx < l; idx++) {
       const script = scripts[idx];
       if (!script) continue;
+      // opt-in 脚本只有在用户通过 Popup 将当前网址加入白名单后才能执行。
+      if (isSiteAccessOptIn(script.metadata) && !isSiteAccessAllowed(script, url)) continue;
       const scriptRes = buildScriptRunResourceBasic(script);
       if (this.shouldSkipPageLoadScript(scriptRes, frameId, incognito)) continue;
 
