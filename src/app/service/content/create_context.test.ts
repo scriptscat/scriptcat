@@ -1,7 +1,8 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import type { TScriptInfo } from "@App/app/repo/scripts";
+import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { createContext, createProxyContext, shouldFnBind } from "./create_context";
+import { trimScriptInfo } from "./utils";
 
 const createScriptInfo = (metadata: Record<string, string[]> = {}): TScriptInfo =>
   ({
@@ -79,6 +80,48 @@ describe.concurrent("shouldFnBind", () => {
 });
 
 describe.concurrent("createContext", () => {
+  const resourceGrantChecks: Array<{
+    grant: string;
+    read: (context: ReturnType<typeof createContext>) => unknown;
+  }> = [
+    { grant: "GM_getResourceText", read: (context) => context.GM_getResourceText("asset") },
+    { grant: "GM.getResourceText", read: (context) => context.GM.getResourceText("asset") },
+    { grant: "GM_getResourceURL", read: (context) => context.GM_getResourceURL("asset") },
+    { grant: "GM.getResourceUrl", read: (context) => context.GM.getResourceUrl("asset") },
+    { grant: "GM.getResourceURL", read: (context) => context.GM_getResourceURL("asset") },
+    { grant: "GM_getResourceUrl", read: (context) => context.GM.getResourceUrl("asset") },
+  ];
+
+  it.concurrent.each(resourceGrantChecks)(
+    "injects a resource API for $grant after page trimming",
+    async ({ grant, read }) => {
+      const scriptInfo = createScriptInfo({ grant: [grant], resource: ["asset https://example.com/asset.txt"] });
+      scriptInfo.resource = {
+        asset: {
+          base64: "",
+          content: "resource content",
+          contentType: "text/plain",
+        },
+      };
+      const trimmed = trimScriptInfo(scriptInfo as unknown as ScriptLoadInfo);
+      const context = createContext(
+        trimmed,
+        { script: { name: "create-context-test" }, scriptMetaStr: "" },
+        "vitest",
+        undefined as any,
+        undefined as any,
+        new Set([grant])
+      );
+
+      const value = await read(context);
+      if (grant.includes("ResourceText")) {
+        expect(value).toBe("resource content");
+      } else {
+        expect(value).toMatch(/^data:text\/plain;base64,/);
+      }
+    }
+  );
+
   it.concurrent("按 @grant 注入 GM_ 与 GM.* 双命名空间，并忽略未知 grant", async () => {
     const context = createTestContext(["GM_getValue", "GM_setValue", "GM.cookie", "not_exist"]);
 

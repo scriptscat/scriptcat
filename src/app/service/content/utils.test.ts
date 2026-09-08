@@ -296,7 +296,14 @@ describe("utils", () => {
     const assetDeclaration = `${assetName} https://example.com/asset.bin`;
     const libraryUrl = "https://example.com/library.js";
     const styleUrl = "https://example.com/style.css";
-    const resourceGrants = ["GM_getResourceText", "GM_getResourceURL", "GM.getResourceText", "GM.getResourceUrl"];
+    const resourceGrants = [
+      "GM_getResourceText",
+      "GM.getResourceText",
+      "GM_getResourceURL",
+      "GM.getResourceUrl",
+      "GM.getResourceURL",
+      "GM_getResourceUrl",
+    ];
 
     const resource = (url: string, content: string) => ({
       url,
@@ -393,7 +400,13 @@ describe("utils", () => {
     });
 
     it.each(resourceGrants)("keeps @resource for %s", (grant) => {
-      const trimmed = trimScriptInfo(createScript({ grant: [grant], resource: [assetDeclaration] }, [assetName]));
+      const script = createScript({ grant: [grant], resource: [assetDeclaration] }, [assetName]);
+      script.resourceByType = {
+        require: {},
+        "require-css": {},
+        resource: { [assetName]: script.resource[assetName] },
+      };
+      const trimmed = trimScriptInfo(script);
 
       expect(Object.keys(trimmed.resource)).toEqual([assetName]);
     });

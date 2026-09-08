@@ -6,6 +6,7 @@ import { sourceMapTo } from "@App/pkg/utils/utils";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { embeddedPatternCheckerString, type EmbeddedURLRuleEntry, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseResourceDeclaration } from "@App/pkg/utils/resource";
+import { getGrantCandidates } from "./gm_api/grant";
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -325,10 +326,7 @@ const hasResourceGrant = (metadata: SCMetadata): boolean => {
   if (grants.has("none") && !isContextMenuScript(metadata)) {
     return false;
   }
-  if (isContextMenuScript(metadata)) {
-    grants.delete("none");
-  }
-  return [...grants].some((grant) => resourceGrantNames.has(grant));
+  return [...grants].some((grant) => getGrantCandidates(grant).some((candidate) => resourceGrantNames.has(candidate)));
 };
 
 export const getScriptFlag = (uuid: string) => {
