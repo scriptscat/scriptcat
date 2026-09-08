@@ -22,8 +22,7 @@ const h = vi.hoisted(() => ({
   fetchCheckUpdateStatus: vi.fn(() => Promise.resolve()),
   sendUpdatePageOpened: vi.fn(() => Promise.resolve()),
   requestCheckScriptUpdate: vi.fn(
-    (): Promise<TCheckScriptUpdateResult> =>
-      Promise.resolve({ ok: true, targetSites: [], fresh: true, checktime: 200 })
+    (): Promise<TCheckScriptUpdateResult> => Promise.resolve({ ok: true, targetSites: [], fresh: true, checktime: 200 })
   ),
   requestBatchUpdateListAction: vi.fn((): Promise<TBatchUpdateResult | undefined> => Promise.resolve(undefined)),
   requestOpenUpdatePageByUUID: vi.fn((): Promise<TOpenUpdatePageResult> => Promise.resolve("opened")),
@@ -313,22 +312,81 @@ describe("批量更新 Hook useBatchUpdate 批量进度", () => {
 });
 
 describe("批量更新 Hook useBatchUpdate 更新数据过期", () => {
-  it("服务端回报缓存失效时提示过期且不留下行状态", async () => {
-    h.requestBatchUpdateListAction.mockResolvedValueOnce({ ok: false, reason: "record_expired", items: [] });
+  /** 让下一次重新检查产出指定记录，模拟服务端重新检查后的新快照 */
+  function recheckYields(records: TBatchUpdateRecord[]) {
+    h.requestCheckScriptUpdate.mockImplementationOnce(() => {
+      h.record = { checktime: 400, list: records };
+      return Promise.resolve({ ...freshResult, checktime: 400 });
+    });
+  }
+
+  it("服务端回报缓存失效时自动重新检查一次并续做剩余更新", async () => {
+    h.requestBatchUpdateListAction
+      .mockResolvedValueOnce({ ok: false, reason: "record_expired", items: [] })
+      .mockResolvedValueOnce(okItem("a"));
     const { result } = await setup([mkRecord("a")]);
+    recheckYields([mkRecord("a")]);
 
     await act(async () => result.current.onUpdate(result.current.updates[0]));
 
-    expect(result.current.recordExpired).toBe(true);
+    await waitFor(() => expect(result.current.rowStates.a?.phase).toBe("success"));
+    expect(h.requestCheckScriptUpdate).toHaveBeenCalledWith({ checkType: "user" });
+    expect(h.requestBatchUpdateListAction).toHaveBeenCalledTimes(2);
+    expect(result.current.recordExpired).toBe(false);
+  });
+
+  it("重新检查后已不需要更新的条目静默出队，不计为失败", async () => {
+    h.requestBatchUpdateListAction.mockResolvedValueOnce({ ok: false, reason: "record_expired", items: [] });
+    const { result } = await setup([mkRecord("a")]);
+    recheckYields([]);
+
+    await act(async () => result.current.onUpdate(result.current.updates[0]));
+
+    await waitFor(() => expect(result.current.updates).toHaveLength(0));
+    expect(h.requestBatchUpdateListAction).toHaveBeenCalledTimes(1);
+    expect(result.current.recordExpired).toBe(false);
+    expect(result.current.rowStates.a).toBeUndefined();
+  });
+
+  it("批量更新中途失效时重新检查并接着推进剩余条目", async () => {
+    h.requestBatchUpdateListAction
+      .mockResolvedValueOnce(okItem("a"))
+      .mockResolvedValueOnce({ ok: false, reason: "record_expired", items: [] })
+      .mockResolvedValueOnce(okItem("b"));
+    const { result } = await setup([mkRecord("a"), mkRecord("b")]);
+    recheckYields([mkRecord("b")]);
+
+    act(() => result.current.onToggleAll());
+    await act(async () => result.current.onUpdateSelected());
+
+    await waitFor(() => expect(result.current.batchProgress?.finished).toBe(true), { timeout: 3000 });
+    expect(result.current.batchProgress).toEqual({ done: 2, total: 2, failed: 0, finished: true });
+    expect(h.toastSuccess).toHaveBeenCalledWith(t("install:updatepage.batch_done", { count: 2 }));
+    expect(result.current.recordExpired).toBe(false);
+  });
+
+  it("重新检查后仍然失效才提示过期且不留下行状态", async () => {
+    h.requestBatchUpdateListAction
+      .mockResolvedValueOnce({ ok: false, reason: "record_expired", items: [] })
+      .mockResolvedValueOnce({ ok: false, reason: "record_expired", items: [] });
+    const { result } = await setup([mkRecord("a")]);
+    recheckYields([mkRecord("a")]);
+
+    await act(async () => result.current.onUpdate(result.current.updates[0]));
+
+    await waitFor(() => expect(result.current.recordExpired).toBe(true));
     expect(result.current.rowStates.a).toBeUndefined();
     expect(result.current.updates).toHaveLength(1);
   });
 
   it("重新检查更新后清除过期提示", async () => {
-    h.requestBatchUpdateListAction.mockResolvedValueOnce({ ok: false, reason: "record_expired", items: [] });
+    h.requestBatchUpdateListAction
+      .mockResolvedValueOnce({ ok: false, reason: "record_expired", items: [] })
+      .mockResolvedValueOnce({ ok: false, reason: "record_expired", items: [] });
     const { result } = await setup([mkRecord("a")]);
+    recheckYields([mkRecord("a")]);
     await act(async () => result.current.onUpdate(result.current.updates[0]));
-    expect(result.current.recordExpired).toBe(true);
+    await waitFor(() => expect(result.current.recordExpired).toBe(true));
 
     act(() => result.current.onCheckNow());
 
@@ -336,39 +394,27 @@ describe("批量更新 Hook useBatchUpdate 更新数据过期", () => {
   });
 });
 
-describe("批量更新 Hook useBatchUpdate 自动关闭倒计时", () => {
-  it("点击取消后停表并进入已取消态", async () => {
-    window.history.replaceState({}, "", "/?autoclose=30");
-    const { result } = renderHook(() => useBatchUpdate());
-    await act(async () => {});
-    expect(result.current.autoClose).toBe(30);
+describe("批量更新 Hook useBatchUpdate 不再自动关闭页面", () => {
+  // 旧版本的更新页会在 autoclose 秒后自行关闭，用户读不完就没了(#1715)。
+  // 参数可能残留在被恢复的标签页里，因此这里断言的是「带着参数也不关」。
+  it("URL 仍带 autoclose 参数时也不会自行关闭", async () => {
+    const close = vi.spyOn(window, "close").mockImplementation(() => {});
+    vi.useFakeTimers();
+    window.history.replaceState({}, "", "/?autoclose=1");
+    try {
+      renderHook(() => useBatchUpdate());
+      await act(async () => {});
 
-    act(() => result.current.onCancelAutoClose());
+      await act(async () => {
+        vi.advanceTimersByTime(30_000);
+      });
 
-    expect(result.current.autoClose).toBeNull();
-    expect(result.current.autoCloseCancelled).toBe(true);
-    window.history.replaceState({}, "", "/");
-  });
-
-  it("勾选列表等隐式取消同样进入已取消态", async () => {
-    window.history.replaceState({}, "", "/?autoclose=30");
-    const { result } = await setup([mkRecord("a")]);
-
-    act(() => result.current.onToggle("a"));
-
-    expect(result.current.autoClose).toBeNull();
-    expect(result.current.autoCloseCancelled).toBe(true);
-    window.history.replaceState({}, "", "/");
-  });
-
-  it("URL 未要求自动关闭时不进入已取消态", async () => {
-    window.history.replaceState({}, "", "/");
-    const { result } = await setup([mkRecord("a")]);
-
-    act(() => result.current.onToggle("a"));
-
-    expect(result.current.autoClose).toBeNull();
-    expect(result.current.autoCloseCancelled).toBe(false);
+      expect(close).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+      window.history.replaceState({}, "", "/");
+      close.mockRestore();
+    }
   });
 });
 
@@ -435,17 +481,6 @@ describe("批量更新 Hook useBatchUpdate 打开更新详情", () => {
     expect(h.toastError).not.toHaveBeenCalled();
     expect(h.toastSuccess).toHaveBeenCalledWith(t("install:updatepage.silent_updated", { version: "1.1.0" }));
     expect(result.current.rowStates.a.phase).toBe("success");
-  });
-
-  it("点开更新详情算显式操作，停掉自动关闭倒计时", async () => {
-    window.history.replaceState({}, "", "/?autoclose=30");
-    const { result } = await setup([mkRecord("a")]);
-
-    await act(async () => result.current.onOpen("a"));
-
-    expect(result.current.autoClose).toBeNull();
-    expect(result.current.autoCloseCancelled).toBe(true);
-    window.history.replaceState({}, "", "/");
   });
 });
 
@@ -581,16 +616,17 @@ describe("批量更新 Hook useBatchUpdate 批量互斥与中断", () => {
     await waitFor(() => expect(result.current.batchBusy).toBe(false), { timeout: 3000 });
   });
 
-  it("批量被记录失效中断时保留已完成的条数，不把汇总抹掉", async () => {
+  it("重新检查后仍然失效而中断时保留已完成的条数，不把汇总抹掉", async () => {
     h.requestBatchUpdateListAction
       .mockResolvedValueOnce(okItem("a"))
+      .mockResolvedValueOnce({ ok: false, reason: "record_expired", items: [] })
       .mockResolvedValueOnce({ ok: false, reason: "record_expired", items: [] });
     const { result } = await setup([mkRecord("a"), mkRecord("b")]);
 
     act(() => result.current.onToggleAll());
     await act(async () => result.current.onUpdateSelected());
 
-    expect(result.current.recordExpired).toBe(true);
+    await waitFor(() => expect(result.current.recordExpired).toBe(true));
     expect(result.current.batchProgress).toEqual({ done: 1, total: 2, failed: 0, finished: true, interrupted: true });
     expect(result.current.rowStates.b).toBeUndefined();
   });

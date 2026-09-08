@@ -38,8 +38,6 @@ function mkView(p: Partial<BatchUpdateViewProps> = {}): BatchUpdateViewProps {
     loadError: null,
     batchBusy: false,
     selected: new Set(),
-    autoClose: null,
-    autoCloseCancelled: false,
     rowStates: {},
     opening: new Set(),
     batchProgress: null,
@@ -54,7 +52,6 @@ function mkView(p: Partial<BatchUpdateViewProps> = {}): BatchUpdateViewProps {
     onRestoreAll: () => {},
     onCheckNow: () => {},
     onRetryLoad: () => {},
-    onCancelAutoClose: () => {},
     onOpen: () => {},
     onOpenScriptList: () => {},
     ...p,
@@ -284,44 +281,6 @@ describe("批量更新 更新数据过期提示", () => {
   });
 });
 
-describe("批量更新 自动关闭药丸", () => {
-  it("倒计时中可点击取消", () => {
-    const onCancelAutoClose = vi.fn();
-    renderDesktop({ autoClose: 12, onCancelAutoClose });
-    const chip = screen.getByTestId("auto-close-chip");
-    expect(chip.tagName).toBe("BUTTON");
-    expect(chip).toHaveAttribute("data-state", "counting");
-    expect(chip).toHaveTextContent(t("install:updatepage.auto_close_cancel_hint"));
-    fireEvent.click(chip);
-    expect(onCancelAutoClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("已取消时切成不可点击的已取消态", () => {
-    renderDesktop({ autoClose: null, autoCloseCancelled: true });
-    const chip = screen.getByTestId("auto-close-chip");
-    expect(chip.tagName).not.toBe("BUTTON");
-    expect(chip).toHaveAttribute("data-state", "cancelled");
-    expect(chip).toHaveTextContent(t("install:updatepage.auto_close_cancelled"));
-  });
-
-  it("未要求自动关闭时不显示药丸", () => {
-    renderDesktop({ autoClose: null, autoCloseCancelled: false });
-    expect(screen.queryByTestId("auto-close-chip")).toBeNull();
-  });
-
-  it("移动视图的药丸同样可点击取消", () => {
-    const onCancelAutoClose = vi.fn();
-    renderMobile({ updates: [mkItem()], autoClose: 2, onCancelAutoClose });
-    fireEvent.click(screen.getByTestId("auto-close-chip"));
-    expect(onCancelAutoClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("移动视图在已取消后仍显示已取消态", () => {
-    renderMobile({ updates: [mkItem()], autoClose: null, autoCloseCancelled: true });
-    expect(screen.getByTestId("auto-close-chip")).toHaveAttribute("data-state", "cancelled");
-  });
-});
-
 describe("批量更新 全部恢复并更新的确认", () => {
   it("桌面视图点击后先确认，取消则不发起", () => {
     const onRestoreAll = vi.fn();
@@ -480,9 +439,7 @@ describe("批量更新 批量进行中互斥", () => {
 
     for (const box of screen.getAllByRole("checkbox")) expect(box).toBeDisabled();
     expect(screen.getByRole("button", { name: t("install:updatepage.ignore_selected") })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: t("install:updatepage.update_selected", { count: 1 }) })
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("install:updatepage.update_selected", { count: 1 }) })).toBeDisabled();
   });
 
   it("已忽略分组的全部恢复在批量进行中同样禁用", () => {

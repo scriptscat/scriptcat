@@ -11,7 +11,6 @@ import {
   PackageCheck,
   RefreshCw,
   ShieldAlert,
-  Timer,
   TriangleAlert,
   X,
 } from "lucide-react";
@@ -43,10 +42,6 @@ export interface BatchUpdateViewProps {
   /** 批量正在进行：期间禁止勾选与再次发起批量，避免两条进度互相覆盖 */
   batchBusy: boolean;
   selected: Set<string>;
-  /** 自动关闭剩余秒数；为 null 表示不再倒计时 */
-  autoClose: number | null;
-  /** 倒计时曾存在但已被取消（显式点击或隐式操作都算）；用于把药丸切成「已取消」而不是直接消失 */
-  autoCloseCancelled: boolean;
   /** 按 uuid 索引的行内更新状态；不在表内即为初始态 */
   rowStates: Record<string, RowState>;
   /** 正在打开更新详情页的脚本 uuid：服务端备代码期间行内转圈并挡住重复点击 */
@@ -66,7 +61,6 @@ export interface BatchUpdateViewProps {
   onCheckNow: () => void;
   /** 重新拉取更新记录（加载失败后的出口） */
   onRetryLoad: () => void;
-  onCancelAutoClose: () => void;
   /** 打开单个脚本的更新详情页 */
   onOpen: (uuid: string) => void;
   /** 打开 options 脚本列表，便于事后核对刚更新了哪些脚本 */
@@ -673,7 +667,12 @@ export function SkeletonBar({ className }: { className?: string }) {
 function SkeletonTable() {
   const { t } = useTranslation();
   return (
-    <div role="status" aria-busy="true" aria-label={t("install:updatepage.loading_list")} className="flex flex-col gap-4">
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={t("install:updatepage.loading_list")}
+      className="flex flex-col gap-4"
+    >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <SkeletonBar className="size-4 rounded-md" />
@@ -815,52 +814,6 @@ function HeaderStatus({ view }: { view: BatchUpdateViewProps }) {
   );
 }
 
-const CHIP = "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs";
-
-/**
- * 自动关闭倒计时小药丸：可点击刹车。
- * 倒计时结束前的最后几秒转警示色并轻微脉冲，避免"一晃神页面没了"；
- * 隐式取消（勾选/更新/忽略等）也会走到已取消态，不让取消这件事无声发生。
- */
-export function AutoCloseChip({
-  seconds,
-  cancelled,
-  onCancel,
-}: {
-  seconds: number | null;
-  cancelled: boolean;
-  onCancel: () => void;
-}) {
-  const { t } = useTranslation();
-  if (seconds === null) {
-    if (!cancelled) return null;
-    return (
-      <span data-testid="auto-close-chip" data-state="cancelled" className={cn(CHIP, "bg-muted text-muted-foreground")}>
-        <Timer className="size-3.5" />
-        {t("install:updatepage.auto_close_cancelled")}
-      </span>
-    );
-  }
-  const urgent = seconds <= 3;
-  return (
-    <button
-      type="button"
-      data-testid="auto-close-chip"
-      data-state="counting"
-      onClick={onCancel}
-      className={cn(
-        CHIP,
-        "group hover:bg-accent hover:text-accent-foreground",
-        urgent ? "bg-warning-bg text-warning-fg animate-pulse" : "bg-muted text-muted-foreground"
-      )}
-    >
-      <Timer className="size-3.5" />
-      <span className="group-hover:hidden">{t("install:updatepage.auto_close", { count: seconds })}</span>
-      <span className="hidden group-hover:inline">{t("install:updatepage.auto_close_cancel_hint")}</span>
-    </button>
-  );
-}
-
 /** 桌面端整页视图 */
 export function DesktopView({ view }: { view: BatchUpdateViewProps }) {
   const { t } = useTranslation();
@@ -883,11 +836,6 @@ export function DesktopView({ view }: { view: BatchUpdateViewProps }) {
             <RefreshCw className={cn(view.checking && "animate-spin")} />
             {t("install:updatepage.main_header")}
           </Button>
-          <AutoCloseChip
-            seconds={view.autoClose}
-            cancelled={view.autoCloseCancelled}
-            onCancel={view.onCancelAutoClose}
-          />
           <Button
             variant="ghost"
             size="icon-sm"
