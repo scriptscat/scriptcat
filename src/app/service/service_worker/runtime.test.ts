@@ -21,7 +21,7 @@ import type { ScriptDAO } from "@App/app/repo/scripts";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
 import { obtainBlackList } from "@App/pkg/utils/utils";
-import type { CompiledResource } from "@App/app/repo/resource";
+import type { CompiledResource, Resource } from "@App/app/repo/resource";
 
 initTestEnv();
 
@@ -829,6 +829,48 @@ describe("getPageLoadScriptCacheKey 页面加载缓存键生成", () => {
     const k1 = (runtime as any).getPageLoadScriptCacheKey(buildScriptRunResourceBasic(enabled));
     const k2 = (runtime as any).getPageLoadScriptCacheKey(buildScriptRunResourceBasic(disabled));
     expect(k1).not.toBe(k2);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("page-load resource cache", () => {
+  it("保留分类资源并在重建页面 payload 时保持 legacy resource 视图", () => {
+    const { runtime } = _createRuntimeContext();
+    const sharedKey = "https://example.com/shared";
+    const makeResource = (type: Resource["type"], content: string): Resource => ({
+      url: sharedKey,
+      content,
+      base64: "",
+      hash: { md5: "", sha1: "", sha256: "", sha384: "", sha512: "" },
+      type,
+      link: {},
+      contentType: "text/plain",
+      createtime: Date.now(),
+    });
+    const scriptRes = _createScriptRunResource(_createMockScript());
+    const cache = {
+      scriptCacheKey: "cache-key",
+      code: "console.log(1)",
+      scriptUrlPatterns: [],
+      originalUrlPatterns: null,
+      metadataStr: "",
+      userConfigStr: "",
+      userConfig: undefined,
+      resourceByType: {
+        require: { [sharedKey]: makeResource("require", "require content") },
+        "require-css": { [sharedKey]: makeResource("require-css", "css content") },
+        resource: { [sharedKey]: makeResource("resource", "resource content") },
+      },
+      localResources: [],
+    };
+
+    const pageInfo = (runtime as any).createPageLoadScriptInfo(scriptRes, cache);
+
+    expect(pageInfo.resourceByType.require[sharedKey].content).toBe("require content");
+    expect(pageInfo.resourceByType["require-css"][sharedKey].content).toBe("css content");
+    expect(pageInfo.resourceByType.resource[sharedKey].content).toBe("resource content");
+    expect(pageInfo.resource[sharedKey].content).toBe("resource content");
   });
 });
 
