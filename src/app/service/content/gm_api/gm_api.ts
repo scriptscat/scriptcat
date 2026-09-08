@@ -1590,6 +1590,14 @@ export default class GMApi extends GM_Base {
     return undefined;
   }
 
+  @GMContext.API({ depend: ["GM_getResourceURL"] })
+  public "GM.getResourceURL"(name: string, isBlobUrl?: boolean): Promise<string | undefined> {
+    return new Promise((resolve) => {
+      const ret = this.GM_getResourceURL(name, isBlobUrl);
+      resolve(ret);
+    });
+  }
+
   // GM_getResourceURL的异步版本，用来兼容GM.getResourceUrl
   @GMContext.API({ depend: ["GM_getResourceURL"] })
   public "GM.getResourceUrl"(name: string, isBlobUrl?: boolean): Promise<string | undefined> {

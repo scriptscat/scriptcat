@@ -88,7 +88,7 @@ describe.concurrent("createContext", () => {
     { grant: "GM.getResourceText", read: (context) => context.GM.getResourceText("asset") },
     { grant: "GM_getResourceURL", read: (context) => context.GM_getResourceURL("asset") },
     { grant: "GM.getResourceUrl", read: (context) => context.GM.getResourceUrl("asset") },
-    { grant: "GM.getResourceURL", read: (context) => context.GM_getResourceURL("asset") },
+    { grant: "GM.getResourceURL", read: (context) => context.GM.getResourceURL("asset") },
     { grant: "GM_getResourceUrl", read: (context) => context.GM.getResourceUrl("asset") },
   ];
 
