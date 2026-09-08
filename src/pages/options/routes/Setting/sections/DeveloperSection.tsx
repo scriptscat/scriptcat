@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@App/pages/components/
 import { useSystemConfig } from "../../../hooks/useSystemConfig";
 import { notify } from "@App/pages/components/ui/toast";
 import { DeveloperMonacoEditor } from "./DeveloperMonacoEditor";
+import { ScriptTemplateSettings } from "./ScriptTemplateSettings";
 import { DEFAULT_EDITOR_PREFERENCES, type EditorPreferences } from "@App/pkg/config/config";
 
 const JSCONFIG_DOC_URL = "https://code.visualstudio.com/docs/languages/jsconfig";
@@ -60,6 +61,7 @@ export function DeveloperSection({ register }: { register: (id: string) => (el: 
           <TabsTrigger value="eslint">{t("settings:eslint_rules")}</TabsTrigger>
           <TabsTrigger value="editor-config">{t("editor:editor_config")}</TabsTrigger>
           <TabsTrigger value="type-definition">{t("editor:editor_type_definition")}</TabsTrigger>
+          <TabsTrigger value="script-template">{t("settings:script_templates")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="eslint" className="mt-0 flex flex-col gap-3">
@@ -188,6 +190,10 @@ export function DeveloperSection({ register }: { register: (id: string) => (el: 
               setTypeDef(typeDraft);
             }}
           />
+        </TabsContent>
+
+        <TabsContent value="script-template" className="mt-0">
+          <ScriptTemplateSettings />
         </TabsContent>
       </Tabs>
     </SettingCard>

@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         New Userscript
+// @name         {{name}}
 // @namespace    https://docs.scriptcat.org/
 // @version      0.1.0
 // @description  try to take over the world!

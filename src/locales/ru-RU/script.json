@@ -41,6 +41,7 @@
   "cron_invalid_expr": "Неверное выражение cron",
   "background_script": "Фоновый скрипт",
   "scheduled_script": "Запланированный скрипт",
+  "normal_script": "Пользовательский скрипт",
   "next_run": "Следующий запуск",
   "background_script_tooltip": "Фоновый скрипт. После включения выполняется в фоне.",
   "scheduled_script_tooltip": "Скрипт по расписанию. Запускается автоматически в заданное время.",

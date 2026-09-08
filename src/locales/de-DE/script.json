@@ -41,6 +41,7 @@
   "cron_invalid_expr": "Ungültiger Cron-Ausdruck",
   "background_script": "Hintergrundskript",
   "scheduled_script": "Geplantes Skript",
+  "normal_script": "Benutzerskript",
   "next_run": "Nächste Ausführung",
   "background_script_tooltip": "Hintergrundskript. Läuft nach der Aktivierung im Hintergrund.",
   "scheduled_script_tooltip": "Geplantes Skript. Läuft automatisch zur konfigurierten Zeit.",
