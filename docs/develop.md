@@ -21,13 +21,19 @@ pnpm run coverage
 pnpm run typecheck        # tsc --noEmit
 
 pnpm run test:e2e:install # install Playwright Chromium (first run only)
-pnpm run test:e2e         # Playwright (e2e/*.spec.ts, 1 worker)
+pnpm run test:e2e         # Playwright (e2e/*.spec.ts; worker count comes from playwright.config.ts)
 pnpm run lint             # prettier --check + tsc --noEmit + check:i18n + check:issue-templates, then eslint
 pnpm run lint-fix         # prettier --write + tsc --noEmit + eslint --fix
 
 pnpm run check:i18n              # translation key parity (see docs/translation.md)
 pnpm run check:issue-templates   # .github/ISSUE_TEMPLATE schema, zh/en parity, issues/new prefill ids
 ```
+
+If a project command fails because a local prerequisite is missing, restore that prerequisite and retry the
+original command before reporting it blocked: use `pnpm install` for Node dependencies and
+`pnpm run test:e2e:install` for missing Playwright Chromium. If `pnpm` itself is unavailable, activate the
+repository-declared pnpm through Corepack when available. If setup cannot succeed or changes tracked files, report
+that blocker or mismatch instead of switching package managers or committing recovery changes.
 
 No standalone `format` script — formatting is part of `lint-fix` and runs through `prettier --write`. Husky
 pre-commit runs `prettier --check` and `pnpm run typecheck` plus ESLint for staged JS/TS files, runs
@@ -207,5 +213,11 @@ branch, bind the artifact, revision, and scope to the current remote state:
 6. Before reporting results or changing pull-request metadata, re-read the live pull request and bind every claim
    to its returned head SHA. Any new commit, force-push, rebase, base change, conflict resolution, or scope-claim
    edit invalidates earlier evidence; rerun the affected review, checks, and final-diff audit.
+
+The same binding applies to the scope you declared for your own change. A commit's gitmoji type and title, and the
+task statement they serve, name a scope class; compare the final diff against that class before committing or
+pushing. Move anything outside it into its own commit with its own justification, or restate the scope. A
+production behavior change that arrives inside a test-cleanup or refactor commit is not reviewable as either, and
+stays unreviewable no matter how correct it is on its own.
 
 **Review policy**: review **all** modified files (including `.md`/`.json`); PR description is context only — judge from the diff. Verify every code path touched.

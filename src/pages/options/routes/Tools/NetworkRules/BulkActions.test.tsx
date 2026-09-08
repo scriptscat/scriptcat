@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
@@ -80,12 +80,6 @@ function renderPage(client: NetworkRuleClient) {
   );
 }
 
-async function flush() {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-}
-
 // 行勾选框与翻页按钮都按 aria-label 取：整页 role 扫描要给每个同角色元素算一遍可访问名，
 // 20 行的表上单次 *ByRole 就要 20~70ms，够把这一文件顶出 ui 项目 850ms 的预算。
 function selectRow(name: string) {
@@ -107,10 +101,7 @@ function argsOf(mock: unknown) {
 }
 
 describe("网络规则批量操作", () => {
-  // 整页挂载 + 两次勾选 + 一次批量往返：本地 solo 覆盖率下 320ms，而 GitHub runner 约慢 2.5 倍，
-  // 本文件首例还要多付一次冷启动，850ms 的 ui 预算在 CI 上连挂两轮。给这一条单独放宽，
-  // 预算对其余用例保持不变。
-  it("未选中时没有操作栏，选中两行后批量停用只对这两条发出请求", { timeout: 1500 }, async () => {
+  it("未选中时没有操作栏，选中两行后批量停用只对这两条发出请求", async () => {
     const client = clientFor([rule(1), rule(2), rule(3)]);
     renderPage(client);
     expect(await screen.findByText("规则 1")).toBeInTheDocument();
@@ -121,11 +112,12 @@ describe("网络规则批量操作", () => {
     expect(within(bulkBar()).getByText("已选 2 条")).toBeInTheDocument();
 
     clickBulk("停用");
-    await flush();
 
-    // 一次用户操作只发一次请求：服务端在同一次写入里改完这两条。
-    expect(argsOf(client.setRulesEnabled)).toEqual([{ baseRevision: 3, ids: ["r1", "r3"], enabled: false }]);
-    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+    await waitFor(() => {
+      // 一次用户操作只发一次请求：服务端在同一次写入里改完这两条。
+      expect(argsOf(client.setRulesEnabled)).toEqual([{ baseRevision: 3, ids: ["r1", "r3"], enabled: false }]);
+      expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+    });
   });
 
   it("批量删除在确认前不动手，确认框提示可以改用停用", async () => {
@@ -136,19 +128,19 @@ describe("网络规则批量操作", () => {
     selectRow("规则 1");
     selectRow("规则 3");
     clickBulk("删除");
-    await flush();
 
     expect(client.deleteRules).not.toHaveBeenCalled();
-    const dialog = screen.getByRole("alertdialog");
+    const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).getByText("删除选中的 2 条规则？")).toBeInTheDocument();
     expect(within(dialog).getByText(/停用/)).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "删除规则" }));
-    await flush();
 
-    expect(argsOf(client.deleteRules)).toEqual([{ baseRevision: 3, ids: ["r1", "r3"] }]);
-    expect(screen.queryByText("规则 1")).not.toBeInTheDocument();
-    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(argsOf(client.deleteRules)).toEqual([{ baseRevision: 3, ids: ["r1", "r3"] }]);
+      expect(screen.queryByText("规则 1")).not.toBeInTheDocument();
+      expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+    });
   });
 
   it("批量启用只处理当前停用的规则，含「所有网站」时仍需二次确认", async () => {
@@ -164,13 +156,14 @@ describe("网络规则批量操作", () => {
     selectRow("规则 2");
     selectRow("规则 3");
     clickBulk("启用");
-    await flush();
 
     expect(client.setRulesEnabled).not.toHaveBeenCalled();
-    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "继续" }));
-    await flush();
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "继续" }));
 
-    expect(argsOf(client.setRulesEnabled)).toEqual([{ baseRevision: 3, ids: ["r2", "r3"], enabled: true }]);
+    await waitFor(() =>
+      expect(argsOf(client.setRulesEnabled)).toEqual([{ baseRevision: 3, ids: ["r2", "r3"], enabled: true }])
+    );
   });
 
   it("批量删除被拒绝时一条都没删，列表与选中项原样保留", async () => {
@@ -184,18 +177,19 @@ describe("网络规则批量操作", () => {
     selectRow("规则 2");
     selectRow("规则 3");
     clickBulk("删除");
-    await flush();
-    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "删除规则" }));
-    await flush();
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "删除规则" }));
 
     // 全体或全不：整批被拒绝时不能有任何一条已经消失。
-    expect(client.deleteRules).toHaveBeenCalledTimes(1);
-    for (const name of ["规则 1", "规则 2", "规则 3"]) {
-      expect(screen.getByText(name)).toBeInTheDocument();
-    }
-    expect(within(bulkBar()).getByText("已选 3 条")).toBeInTheDocument();
-    expect(notify.error).toHaveBeenCalledTimes(1);
-    expect(notify.success).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(client.deleteRules).toHaveBeenCalledTimes(1);
+      for (const name of ["规则 1", "规则 2", "规则 3"]) {
+        expect(screen.getByText(name)).toBeInTheDocument();
+      }
+      expect(within(bulkBar()).getByText("已选 3 条")).toBeInTheDocument();
+      expect(notify.error).toHaveBeenCalledTimes(1);
+      expect(notify.success).not.toHaveBeenCalled();
+    });
   });
 
   it("翻页会清空选择，操作栏随之消失", async () => {

@@ -1,6 +1,6 @@
 import { initTestEnv } from "@Tests/utils";
 import { RuntimeService } from "./runtime";
-import { vi, describe, it, expect, beforeEach, type MockedFunction } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach, type MockedFunction } from "vitest";
 import { randomUUID } from "crypto";
 import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
 import {
@@ -1190,5 +1190,145 @@ describe("MQ 事件处理效果（enableScripts / deleteScripts / sortedScripts�
     expect((runtime as any).pageLoadCaches.has(uuid)).toBe(false);
     expect((runtime as any).codeCacheMap.has(uuid)).toBe(false);
     expect((runtime as any).cachedPatterns.has(uuid)).toBe(false);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("restoreJSCodeFromCompiledResource 还原代码时的生效 metadata", () => {
+  // 设置面板改运行时机只写 selfMetadata，脚本自带 metadata 原封不动；
+  // 还原路径若只看自带 metadata，重新注册后用户覆写就会静默失效（#1649）。
+  const createContext = (script: Script) => {
+    const { runtime, mockScriptService } = _createRuntimeContext();
+    const scriptRes = _createScriptRunResource(script);
+    const compiledResource: CompiledResource = {
+      name: script.name,
+      flag: `#-${script.uuid}`,
+      uuid: script.uuid,
+      require: [],
+      matches: ["https://www.example.com/*"],
+      includeGlobs: [],
+      excludeMatches: [],
+      excludeGlobs: [],
+      allFrames: false,
+      world: "MAIN",
+      runAt: "document_idle",
+      scriptUrlPatterns: scriptURLPatternResults(scriptRes)!.scriptUrlPatterns,
+      originalUrlPatterns: null,
+    };
+    mockScriptService.buildScriptRunResource.mockResolvedValue(scriptRes);
+    (runtime as any).script = {
+      ...mockScriptService,
+      scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "console.log(1);" }) },
+    };
+    (runtime as any).resource = { resourceDAO: { get: vi.fn().mockResolvedValue(undefined) } };
+    return { runtime, compiledResource };
+  };
+
+  it("selfMetadata 覆写 run-at=context-menu 时，还原的代码应包裹 GM_registerMenuCommand", async () => {
+    const script = _createMockScript({
+      metadata: { match: ["https://www.example.com/*"], "run-at": ["document-idle"] },
+      selfMetadata: { "run-at": ["context-menu"] },
+    });
+    const { runtime, compiledResource } = createContext(script);
+
+    const code = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
+
+    expect(code).toContain("GM_registerMenuCommand");
+  });
+
+  it("selfMetadata 覆写为 early-start 时，还原的代码应走预注入编译", async () => {
+    const script = _createMockScript({
+      metadata: { match: ["https://www.example.com/*"], "run-at": ["document-idle"] },
+      selfMetadata: { "early-start": [""], "run-at": ["document-start"] },
+    });
+    const { runtime, compiledResource } = createContext(script);
+
+    const code = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
+
+    expect(code).toContain("performance.dispatchEvent");
+  });
+});
+
+describe("pushValueUpdate 判断是否需要为 early-start 脚本重新编译", () => {
+  // early-start 会把 GM 值编进预注入代码，值变了必须重编；
+  // 该脚本的 early-start 可能来自用户覆写，不能只看脚本自带 metadata。
+  it("selfMetadata 覆写为 early-start 的脚本，值更新后应重新编译注册", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createMockScript({
+      metadata: { match: ["https://www.example.com/*"], "run-at": ["document-idle"] },
+      selfMetadata: { "early-start": [""], "run-at": ["document-start"] },
+    });
+    const updateSpy = vi.spyOn(runtime, "updateResourceOnScriptChange").mockResolvedValue(undefined);
+
+    await runtime.pushValueUpdate(script, {
+      entries: [],
+      uuid: script.uuid,
+      storageName: "test-storage",
+      sender: { runFlag: "", tabId: -1 },
+      valueUpdated: true,
+    });
+
+    expect(updateSpy).toHaveBeenCalledWith(script);
+  });
+});
+
+describe("registerUserscripts 注册健康检查", () => {
+  let runtime: RuntimeService;
+  let originalScripting: unknown;
+
+  beforeEach(() => {
+    runtime = _createRuntimeContext().runtime;
+    originalScripting = (chrome as any).scripting;
+    (chrome as any).scripting = {
+      getRegisteredContentScripts: vi.fn().mockResolvedValue([{ id: "scriptcat-scripting" }]),
+      registerContentScripts: vi.fn().mockResolvedValue(undefined),
+      unregisterContentScripts: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.spyOn(chrome.userScripts as any, "getScripts").mockResolvedValue([{ id: "scriptcat-inject" }]);
+    vi.spyOn(chrome.userScripts, "register").mockResolvedValue(undefined);
+    vi.spyOn(chrome.userScripts, "resetWorldConfiguration").mockResolvedValue(undefined);
+    vi.spyOn(runtime, "unregisterUserscripts").mockResolvedValue(undefined);
+    vi.spyOn(runtime as any, "getParticularScriptList").mockResolvedValue([]);
+    vi.spyOn(runtime as any, "getContentAndInjectScript").mockResolvedValue({ content: [], inject: [] });
+    runtime.isUserScriptsAvailable = true;
+  });
+
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await runtime.unregisterUserscripts();
+    (chrome as any).scripting = originalScripting;
+  });
+
+  const primeRegisteredState = async () => {
+    await runtime.registerUserscripts();
+    vi.clearAllMocks();
+  };
+
+  it("已注册用户脚本但 scripting 广播者丢失时重新注册", async () => {
+    await primeRegisteredState();
+    (chrome as any).scripting.getRegisteredContentScripts.mockResolvedValue([]);
+
+    await runtime.registerUserscripts();
+
+    expect(chrome.userScripts.getScripts).toHaveBeenCalledWith({ ids: ["scriptcat-inject"] });
+    expect((chrome as any).scripting.getRegisteredContentScripts).toHaveBeenCalledWith({
+      ids: ["scriptcat-scripting"],
+    });
+    expect(runtime.unregisterUserscripts).toHaveBeenCalled();
+    expect(chrome.userScripts.register).toHaveBeenCalled();
+  });
+
+  it("用户脚本和 scripting 广播者都在时跳过重复注册", async () => {
+    await primeRegisteredState();
+
+    await runtime.registerUserscripts();
+
+    expect(chrome.userScripts.getScripts).toHaveBeenCalledWith({ ids: ["scriptcat-inject"] });
+    expect((chrome as any).scripting.getRegisteredContentScripts).toHaveBeenCalledWith({
+      ids: ["scriptcat-scripting"],
+    });
+    expect(runtime.unregisterUserscripts).not.toHaveBeenCalled();
+    expect(chrome.userScripts.register).not.toHaveBeenCalled();
   });
 });

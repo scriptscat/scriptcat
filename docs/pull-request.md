@@ -10,7 +10,9 @@ the change needs more context.
 
 Whatever headings you use, this guide's checklist and evidence expectations still apply — `## Summary` /
 `## Test plan` headings don't exempt a PR from them. Use the structure below; its sections are
-recommended, not all mandatory (see below for which ones).
+recommended, not all mandatory (see below for which ones). It is a list of things worth considering, not a form to
+complete: a section you have nothing load-bearing to put in is one to leave out, and a description longer than the
+diff it explains has usually stopped helping its reviewer.
 
 ## Recommended structure
 
@@ -74,7 +76,7 @@ For a material behavior, configuration, security, performance, compatibility, pe
 6. acceptance evidence; and
 7. the remaining limitation or risk.
 
-Keep this chain proportional. A confirmed one-line correction or a small documentation fix needs only the material parts; a non-trivial design choice should explain why doing nothing or a plausible smaller alternative was not selected and what would reopen the decision.
+Keep this chain proportional. A confirmed one-line correction or a small documentation fix needs only the relevant parts; a non-trivial design choice should explain why doing nothing or a plausible smaller alternative was not selected and what would reopen the decision.
 
 Keep these roles separate:
 
@@ -90,6 +92,12 @@ Consider risk for every material change. Use an explicit limitation or rollback 
 An agent must not present a change as review-ready when a material acceptance condition fails, a critical claim is unverified or contradicted, the diff exceeds the justified scope, required verification is missing without an adequate substitute, a known correctness/security/privacy/compatibility defect remains, or the description no longer matches the final patch. An explicitly requested draft or investigation may still be submitted when labeled as such. Report the blocker, the evidence, and the condition that would clear it.
 
 Verification claims bind to a revision or clearly identified worktree. If code, configuration, generated artifacts, or a decision-relevant description changes after a check, rerun every affected check before claiming readiness. A final commit SHA is sufficient identity for ordinary GitHub work; a cryptographic evidence ledger is not required by default.
+
+A check that does not reproduce its own result is not yet evidence. When a run is unstable — intermittent
+timeouts, order-dependent failures, an environment-blocked step — record what actually ran, which failures
+recurred and which did not, and how you separated them from the change under review. Report the residual
+uncertainty instead of resolving it in the change's favor: a green rerun does not retract a red run, and
+"unrelated to this change" is a claim that needs its own evidence rather than being the default reading.
 
 ### Scope claims and final-diff evidence
 

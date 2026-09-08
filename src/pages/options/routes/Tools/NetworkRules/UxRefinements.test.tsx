@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
@@ -78,21 +78,14 @@ function renderPage(client: NetworkRuleClient) {
   );
 }
 
-async function flush() {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-}
-
 describe("网络规则空态", () => {
   it("给出常用场景入口，点一下直接进到该场景的表单", async () => {
     renderPage(clientFor([]));
     expect(await screen.findByText("从一个常用场景开始，或自己新建一条")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "移除 CSP" }));
-    await flush();
 
-    const sheet = screen.getByRole("dialog");
+    const sheet = await screen.findByRole("dialog");
     // 直接落在第二步：场景徽标已经是「移除 CSP」，不需要用户再选一次。
     expect(within(sheet).getByText("更换类型")).toBeInTheDocument();
     expect(within(sheet).getByLabelText("应用范围")).toBeInTheDocument();
@@ -117,7 +110,7 @@ describe("网络规则编辑抽屉的「试一试」", () => {
   async function openTemplate(name: string) {
     renderPage(clientFor([]));
     fireEvent.click(await screen.findByRole("button", { name }));
-    await flush();
+    await screen.findByRole("dialog");
   }
 
   it("命中时说明会发生什么，而不只是「匹配」两个字", async () => {
@@ -141,8 +134,7 @@ describe("网络规则编辑抽屉的「试一试」", () => {
     const sheet = screen.getByRole("dialog");
     fireEvent.change(screen.getByLabelText("应用范围"), { target: { value: "example.com" } });
     fireEvent.click(within(sheet).getByRole("button", { name: "高级选项" }));
-    await flush();
-    fireEvent.click(within(sheet).getByRole("checkbox", { name: "图片" }));
+    fireEvent.click(await within(sheet).findByRole("checkbox", { name: "图片" }));
     fireEvent.change(screen.getByLabelText("试一试"), { target: { value: "https://example.com/page" } });
 
     expect(
@@ -155,16 +147,13 @@ describe("网络规则的请求头黑名单", () => {
   it("在输入之前就常驻说明哪些请求头不能改写", async () => {
     renderPage(clientFor([]));
     fireEvent.click(await screen.findByRole("button", { name: "自定义" }));
-    await flush();
 
     // 「自定义」默认动作是屏蔽请求，没有请求头可填，说明也就不该出现。
     expect(screen.queryByText(/不允许改写/)).not.toBeInTheDocument();
 
     // Radix Select 在 happy-dom 下靠键盘打开，与 index.test.tsx 的 pickOption 一致。
     fireEvent.keyDown(screen.getByRole("combobox", { name: "动作类型" }), { key: "Enter" });
-    await flush();
     fireEvent.click(await screen.findByRole("option", { name: "改请求头" }));
-    await flush();
 
     expect(screen.getByText("Cookie、Authorization、Host、Origin 不允许改写。")).toBeInTheDocument();
   });
