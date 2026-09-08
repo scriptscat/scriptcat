@@ -3,7 +3,15 @@ import { type Resource } from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Logger } from "@App/app/repo/logger";
 import { type Permission } from "@App/app/repo/permission";
-import type { InstallSource, ScriptMenu, ScriptMenuItem, TBatchUpdateListAction } from "./types";
+import type {
+  InstallSource,
+  ScriptMenu,
+  ScriptMenuItem,
+  TBatchUpdateListAction,
+  TCheckScriptUpdateResult,
+  TOpenUpdatePageResult,
+  TPopupPageStatus,
+} from "./types";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
@@ -34,6 +42,19 @@ import { type TSetValuesParams } from "./value";
 import type { LocalBackupExport } from "./synchronize";
 import type { ExternalAccessUIService } from "./external_access/service";
 import type { WSEnvelope } from "./external_access/types";
+import type {
+  NetworkRuleMutationResult,
+  NetworkRuleCreateInput,
+  NetworkRuleDeleteInput,
+  NetworkRuleEnabledInput,
+  NetworkRuleMasterEnabledInput,
+  NetworkRuleReorderInput,
+  NetworkRuleServiceError,
+  NetworkRuleSnapshot,
+  NetworkRuleUpdateInput,
+} from "./network_rule";
+
+export type { NetworkRuleServiceError } from "./network_rule";
 
 export class ServiceWorkerClient extends Client {
   constructor(msgSender: MessageSend) {
@@ -42,6 +63,98 @@ export class ServiceWorkerClient extends Client {
 
   preparationOffscreen(data: { verified: boolean }) {
     return this.do("preparationOffscreen", data);
+  }
+}
+
+export function parseNetworkRuleError(error: unknown): NetworkRuleServiceError {
+  const payload =
+    typeof error === "string"
+      ? (() => {
+          try {
+            return JSON.parse(error) as unknown;
+          } catch {
+            return undefined;
+          }
+        })()
+      : error;
+  if (payload && typeof payload === "object" && "code" in payload) {
+    const code = payload.code;
+    if (
+      code === "invalid_input" ||
+      code === "not_found" ||
+      code === "revision_conflict" ||
+      code === "storage_read_failed" ||
+      code === "storage_write_failed" ||
+      code === "unsupported_schema"
+    ) {
+      return payload as NetworkRuleServiceError;
+    }
+  }
+  return { code: "storage_write_failed" };
+}
+
+/**
+ * chrome.runtime.sendMessage 的响应通道在 service worker 处理耗时较长时可能被浏览器丢弃
+ * （例如用户填写表单期间 service worker 进入空闲状态）。此时请求本身可能已在后台成功执行，
+ * 只是响应没能送达，与服务端明确返回的失败无法用同一错误区分，因此单独抛出，交由调用方
+ * 通过重新拉取 state 来判断该次操作究竟是否已生效。
+ */
+export class NetworkRuleAmbiguousResponseError extends Error {
+  constructor() {
+    super("network rule response lost in transit");
+    this.name = "NetworkRuleAmbiguousResponseError";
+  }
+}
+
+export class NetworkRuleClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "serviceWorker/networkRule");
+  }
+
+  private async request<T>(action: string, data?: unknown): Promise<T> {
+    let result: T | undefined;
+    try {
+      result = await this.do<T>(action, data);
+    } catch (error) {
+      throw parseNetworkRuleError(error);
+    }
+    if (result === undefined) {
+      if (action === "getState") throw parseNetworkRuleError(undefined);
+      throw new NetworkRuleAmbiguousResponseError();
+    }
+    return result;
+  }
+
+  getState(): Promise<NetworkRuleSnapshot> {
+    return this.request<NetworkRuleSnapshot>("getState");
+  }
+
+  createRule(input: NetworkRuleCreateInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("createRule", input);
+  }
+
+  updateRule(input: NetworkRuleUpdateInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("updateRule", input);
+  }
+
+  deleteRules(input: NetworkRuleDeleteInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("deleteRules", input);
+  }
+
+  setRulesEnabled(input: NetworkRuleEnabledInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("setRulesEnabled", input);
+  }
+
+  setMasterEnabled(input: NetworkRuleMasterEnabledInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("setMasterEnabled", input);
+  }
+
+  reorderRules(input: NetworkRuleReorderInput): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("reorderRules", input);
+  }
+
+  retryApply(): Promise<NetworkRuleMutationResult> {
+    return this.request<NetworkRuleMutationResult>("retryApply");
   }
 }
 
@@ -101,10 +214,6 @@ export class ScriptClient extends Client {
     return this.doThrow("getScriptRunResourceByUUID", uuid);
   }
 
-  excludeUrl(uuid: string, excludePattern: string, remove: boolean) {
-    return this.do("excludeUrl", { uuid, excludePattern, remove });
-  }
-
   onlyRunOnUrl(uuid: string, matchPattern: string) {
     return this.do("onlyRunOnUrl", { uuid, matchPattern });
   }
@@ -113,8 +222,8 @@ export class ScriptClient extends Client {
     return this.do("allowUrl", { uuid, matchPattern, excludePattern });
   }
 
-  excludeFromMatch(uuid: string, matchPattern: string) {
-    return this.do("excludeFromMatch", { uuid, matchPattern });
+  excludeFromMatch(uuid: string, host: string, url: string) {
+    return this.do("excludeFromMatch", { uuid, host, url });
   }
 
   // 重置匹配项
@@ -172,7 +281,7 @@ export class ScriptClient extends Client {
   }
 
   async openUpdatePageByUUID(uuid: string) {
-    return this.do<void>("openUpdatePageByUUID", uuid);
+    return this.do<TOpenUpdatePageResult>("openUpdatePageByUUID", uuid);
   }
 
   async openBatchUpdatePage(opts: TOpenBatchUpdatePageOption) {
@@ -180,7 +289,7 @@ export class ScriptClient extends Client {
   }
 
   async checkScriptUpdate(opts: TCheckScriptUpdateOption) {
-    return this.do<void>("checkScriptUpdate", opts);
+    return this.do<TCheckScriptUpdateResult>("checkScriptUpdate", opts);
   }
 }
 
@@ -234,6 +343,11 @@ export class RuntimeClient extends Client {
     return this.doThrow("pageLoad");
   }
 
+  /** bfcache 还原上报：只告知本页仍在运行，不请求脚本 */
+  pageShow() {
+    return this.do("pageShow");
+  }
+
   scriptLoad(flag: string, uuid: string) {
     return this.do("scriptLoad", { flag, uuid });
   }
@@ -245,8 +359,8 @@ export type GetPopupDataReq = {
 };
 
 export type GetPopupDataRes = {
-  // 在黑名单
-  isBlacklist: boolean;
+  // 当前页状态：非 ok 时 scriptList 为空，由 Popup 说明原因
+  pageStatus: TPopupPageStatus;
   scriptList: ScriptMenu[];
   backScriptList: ScriptMenu[];
 };

@@ -255,6 +255,16 @@ type PendingSyncOp = { op: "delete"; syncDelete: boolean } | { op: "push" };
 
 `scriptcat-sync.json` 是 best-effort 状态同步，不是强事务。合并时遵守以下规则：
 
+拖动排序和置顶不修改脚本内容的 `updatetime`。位置实际变化的脚本会在本地
+`pending_sort_status` 中记录同一次操作的 `sort` 和 `sortUpdatetime`；位置未变化的脚本不写入。
+该 pending 状态保存在扩展本地存储中，Service Worker 重启后仍可继续同步，并且只有在
+`scriptcat-sync.json` 成功写入对应或更新的排序时钟后才清除。
+
+`scriptcat-sync.json` 中的 `sortUpdatetime` 是可选字段。存在该字段时，`enable` 继续由
+`updatetime` 决定，`sort` 则由 `sortUpdatetime` 决定，两个维度独立合并，避免一次启停覆盖
+另一台设备更新的顺序。旧文件双方都没有 `sortUpdatetime` 时，继续沿用整条 status 的
+`updatetime` LWW 规则；只有一侧具备新字段时，缺失侧以其 `updatetime` 作为排序时钟兼容读取。
+
 1. 本轮文件同步失败的 uuid 保留云端原 status。
 2. 本轮刚 pull 的脚本保留云端 status，避免刚按云端更新后又写回本地旧状态。
 3. 本地状态更新时间更新时，候选写回本地 status。
@@ -451,5 +461,8 @@ this.logger.warn("sync overwrite", { action: "overwrite", direction, uuid, name 
 14. push 部分失败（`.user.js` 成功、`.meta.json` 失败）后，用生产形态的安装消息（不带 `updatetime`）验证下一轮仍会补传 `.meta.json`。
 15. 删除部分失败（tombstone 未写 / `.meta.json` 残留）后，下一轮（含 SW 重启）自动完成剩余步骤；删除全失败后不得把脚本拉回本地。
 16. 源码未变但云端 `.meta.json` digest 变化时，必须读取采用而不是盖章跳过。
+17. 拖动排序不得修改脚本内容 `updatetime`，只为位置变化的脚本登记统一且单调推进的
+    `sortUpdatetime`；下一轮同步应让较新的本地排序覆盖旧云端排序，同时保留较新的启用状态。
+18. 排序 pending 在 Service Worker 重启后仍应存在；状态文件写入失败或某个 pending 尚未写入时不得误清。
 
 真实 provider 验证仍需要账号和夹具。不能把 unit test 或 mock response 结果宣称为真实云端验证。

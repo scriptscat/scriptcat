@@ -6,6 +6,7 @@ import ScriptEditor from "./routes/ScriptEditor";
 import Logger from "./routes/Logger";
 import Setting from "./routes/Setting";
 import Tools from "./routes/Tools";
+import NetworkRules from "./routes/Tools/NetworkRules";
 import AgentChat from "./routes/Agent/Chat";
 import AgentSkills from "./routes/Agent/Skills";
 import AgentProvider from "./routes/Agent/Provider";
@@ -96,6 +97,7 @@ const router = createHashRouter([
       { path: "logs", element: <Logger /> },
       { path: "logger", element: <Navigate to="/logs" replace /> },
       { path: "tools", element: <Tools /> },
+      { path: "tools/network-rules", element: <NetworkRules /> },
       { path: "settings", element: <Setting /> },
       { path: "setting", element: <Navigate to="/settings" replace /> },
       { path: "script/editor/:uuid?", element: <ScriptEditor /> },

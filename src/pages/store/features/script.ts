@@ -7,6 +7,7 @@ import {
   PopupClient,
   ResourceClient,
   RuntimeClient,
+  NetworkRuleClient,
   ScriptClient,
   SubscribeClient,
   SynchronizeClient,
@@ -27,6 +28,7 @@ export const synchronizeClient = new SynchronizeClient(message);
 export const agentClient = new AgentClient(message);
 export const logClient = new LogClient(message);
 export const externalAccessClient = new ExternalAccessClient(message);
+export const networkRuleClient = new NetworkRuleClient(message);
 
 export const fetchScriptList = async () => {
   return await scriptClient.getAllScripts();
@@ -81,7 +83,7 @@ export const requestOpenUpdatePageByUUID = async (uuid: string) => {
 
 export const requestOpenBatchUpdatePage = async (domain: string) => {
   return await scriptClient.openBatchUpdatePage({
-    q: `autoclose=-1${domain ? `&site=${domain}` : ""}`,
+    q: domain ? `site=${domain}` : "",
     dontCheckNow: false,
   } as TOpenBatchUpdatePageOption);
 };
