@@ -31,6 +31,7 @@ const grantValuePrompts = {
   GM_getResourceText: "Đọc nội dung văn bản của tài nguyên khai báo bằng @resource.",
   GM_getResourceURL: "Lấy URL của tài nguyên khai báo bằng @resource.",
   GM_cookie: "Truy cập Cookie API để đọc, ghi hoặc xóa cookie.",
+  GM_audio: "Điều khiển và theo dõi trạng thái tắt tiếng và phát âm thanh của tab trình duyệt hiện tại.",
   CAT_fetchBlob: "API nội bộ ScriptCat: đọc tài nguyên có thể truy cập từ phía tiện ích và trả về Blob.",
   CAT_fileStorage: "API ScriptCat: truy cập bộ nhớ tệp của script.",
   CAT_userConfig: "API ScriptCat: truy cập cấu hình người dùng của script.",

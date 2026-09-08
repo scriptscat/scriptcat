@@ -31,6 +31,7 @@ const grantValuePrompts = {
   GM_getResourceText: "讀取 @resource 宣告資源的文字內容。",
   GM_getResourceURL: "取得 @resource 宣告資源的 URL。",
   GM_cookie: "存取 Cookie API，用於讀取、寫入或刪除 Cookie。",
+  GM_audio: "控制並監聽目前瀏覽器分頁的靜音與音訊播放狀態。",
   CAT_fetchBlob: "ScriptCat 內部擴充 API：讀取擴充側可存取資源並回傳 Blob。",
   CAT_fileStorage: "ScriptCat 擴充 API：存取腳本檔案儲存能力。",
   CAT_userConfig: "ScriptCat 擴充 API：存取腳本使用者設定。",
