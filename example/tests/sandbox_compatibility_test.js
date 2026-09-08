@@ -38,10 +38,7 @@ let observedThis = this;
 (function (topLevelThis) {
   "use strict";
 
-  const { describe, check, note, run } = SCTest.create({
-    name: "沙盒全局相容性诊断器",
-    reporter: "console",
-  });
+  const { describe, check, note, run } = SCTest.create({ name: "沙盒全局相容性诊断器" });
   const { safe, read, UNAVAILABLE } = SCTest;
   const nativeObject = Object;
   const nativeFunction = Function;
