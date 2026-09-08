@@ -146,6 +146,16 @@ export function PermissionChips({
   );
 }
 
+/** 无变化标记;更新场景用来把「这一类你上次已经确认过」说出来 */
+export function NoChangeTag() {
+  const { t } = useTranslation(["install", "common"]);
+  return (
+    <span className="rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground">
+      {t("install:perm_no_change")}
+    </span>
+  );
+}
+
 /** 行头的变动计数;沿用代码卡 +N −M 的记号,无变动时不渲染 */
 export function PermissionDelta({ row }: { row: PermissionRowData }) {
   if (!isPermissionChanged(row)) return null;
@@ -173,6 +183,7 @@ export function PermissionRow({ row, maxVisible }: { row: PermissionRowData; max
           <span className="text-sm font-semibold text-foreground">{t(labelKey)}</span>
           <span className={cn("rounded-full px-2 text-[11px] font-semibold", style.count)}>{row.values.length}</span>
           <PermissionDelta row={row} />
+          {row.diff && !isPermissionChanged(row) && <NoChangeTag />}
           <span className="truncate text-xs text-muted-foreground">{t(summaryKey)}</span>
         </div>
         <PermissionChips row={row} maxVisible={maxVisible} />

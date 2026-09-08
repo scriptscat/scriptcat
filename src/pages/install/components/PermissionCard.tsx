@@ -5,17 +5,7 @@ import { cn } from "@App/pkg/utils/cn";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@App/pages/components/ui/accordion";
 import { isPermissionChanged, type PermissionRow as PermissionRowData } from "../permissions";
-import { PermissionRow, PermissionChips, PermissionDelta, KIND_META, RISK_STYLE } from "./PermissionRow";
-
-/** 无变化标记;更新场景用来把「这一类你上次已经确认过」说出来 */
-function NoChangeTag() {
-  const { t } = useTranslation(["install", "common"]);
-  return (
-    <span className="rounded-full bg-muted px-2 text-[11px] font-semibold text-muted-foreground">
-      {t("install:perm_no_change")}
-    </span>
-  );
-}
+import { PermissionRow, PermissionChips, PermissionDelta, NoChangeTag, KIND_META, RISK_STYLE } from "./PermissionRow";
 
 function MobilePermissions({ rows, isUpdate }: { rows: PermissionRowData[]; isUpdate: boolean }) {
   const { t } = useTranslation(["install", "common"]);
@@ -79,13 +69,59 @@ function CollapsedRow({ row }: { row: PermissionRowData }) {
   );
 }
 
+/**
+ * 权限一项没变时的整卡单行形态。
+ * 折叠的是注意力而不是信息:类别数与取值总数就在行上,点开即得到与全新安装一致的全量清单。
+ */
+function CollapsedCard({
+  rows,
+  baselineVersion,
+  onExpand,
+}: {
+  rows: PermissionRowData[];
+  baselineVersion: string;
+  onExpand: () => void;
+}) {
+  const { t } = useTranslation(["install", "common"]);
+  const total = rows.reduce((n, r) => n + r.values.length, 0);
+
+  return (
+    <section className="rounded-xl border border-border bg-card">
+      <button
+        type="button"
+        data-testid="permission-card-collapsed"
+        aria-label={t("install:perm_card_expand")}
+        onClick={onExpand}
+        className="flex w-full items-center gap-2.5 rounded-xl px-4 py-3.5 text-left hover:bg-muted"
+      >
+        <ShieldCheck className="size-[18px] shrink-0 text-primary" />
+        <span className="text-sm font-semibold text-foreground">{t("install:perm_card_title_short")}</span>
+        <NoChangeTag />
+        <span className="truncate text-xs text-muted-foreground">
+          {t("install:perm_card_same_as", { version: baselineVersion })}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {t("install:perm_card_summary", { kinds: rows.length, count: total })}
+        </span>
+        <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground" />
+      </button>
+    </section>
+  );
+}
+
 export function PermissionCard({ rows, baselineVersion }: { rows: PermissionRowData[]; baselineVersion?: string }) {
   const { t } = useTranslation(["install", "common"]);
   const isMobile = useIsMobile();
+  const [expanded, setExpanded] = useState(false);
   const isUpdate = baselineVersion !== undefined;
   const changed = rows.filter(isPermissionChanged);
   const added = changed.reduce((n, r) => n + r.diff!.added.length, 0);
   const removed = changed.reduce((n, r) => n + r.diff!.removed.length, 0);
+  const noChange = isUpdate && rows.length > 0 && changed.length === 0;
+
+  if (noChange && !expanded) {
+    return <CollapsedCard rows={rows} baselineVersion={baselineVersion} onExpand={() => setExpanded(true)} />;
+  }
 
   return (
     <section className="rounded-xl border border-border bg-card">
@@ -116,7 +152,12 @@ export function PermissionCard({ rows, baselineVersion }: { rows: PermissionRowD
         ) : (
           rows.map((row, i) => (
             <div key={row.kind} className={cn(i > 0 && "border-t border-border")}>
-              {isUpdate && !isPermissionChanged(row) ? <CollapsedRow row={row} /> : <PermissionRow row={row} />}
+              {/* 有变动时未变动的类别塌成单行让位;整卡零变化时用户是主动点开的,给全量 */}
+              {changed.length > 0 && !isPermissionChanged(row) ? (
+                <CollapsedRow row={row} />
+              ) : (
+                <PermissionRow row={row} />
+              )}
             </div>
           ))
         )}

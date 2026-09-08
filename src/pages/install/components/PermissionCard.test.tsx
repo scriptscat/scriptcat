@@ -108,3 +108,63 @@ describe("PermissionCard 更新差异态", () => {
     expect(screen.queryByTestId("permission-row-collapsed")).not.toBeInTheDocument();
   });
 });
+
+describe("PermissionCard 更新零变化态", () => {
+  const same = (kind: PermissionRow["kind"], values: string[]): PermissionRow => ({
+    kind,
+    risk: "normal",
+    values,
+    sensitive: [],
+    diff: { added: [], removed: [] },
+  });
+  const rows = [same("connect", ["api.a.com"]), same("match", ["https://a.com/*", "https://b.com/*"])];
+
+  it("零变化时整卡折叠为单行,四类取值都不在 DOM", () => {
+    render(<PermissionCard rows={rows} baselineVersion="1.2.3" />);
+    expect(screen.getByTestId("permission-card-collapsed")).toBeInTheDocument();
+    expect(screen.queryByText("api.a.com")).not.toBeInTheDocument();
+    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("permission-row")).toHaveLength(0);
+  });
+
+  it("折叠单行给出基线版本与类别数、取值总数", () => {
+    render(<PermissionCard rows={rows} baselineVersion="1.2.3" />);
+    const line = screen.getByTestId("permission-card-collapsed");
+    expect(within(line).getByText("与 1.2.3 相同")).toBeInTheDocument();
+    expect(within(line).getByText("2 类 3 项")).toBeInTheDocument();
+    expect(within(line).getByText("无变化")).toBeInTheDocument();
+  });
+
+  it("点开后四类全量呈现,每类标无变化", () => {
+    render(<PermissionCard rows={rows} baselineVersion="1.2.3" />);
+    fireEvent.click(screen.getByTestId("permission-card-collapsed"));
+    expect(screen.getAllByTestId("permission-row")).toHaveLength(2);
+    expect(screen.getByText("api.a.com")).toBeInTheDocument();
+    expect(screen.getByText("https://a.com/*")).toBeInTheDocument();
+    expect(screen.getAllByText("无变化")).toHaveLength(3);
+  });
+
+  it("有变动时不折叠整卡", () => {
+    const changedRow: PermissionRow = {
+      kind: "connect",
+      risk: "warn",
+      values: ["api.a.com"],
+      sensitive: [],
+      diff: { added: ["api.a.com"], removed: [] },
+    };
+    render(<PermissionCard rows={[changedRow]} baselineVersion="1.2.3" />);
+    expect(screen.queryByTestId("permission-card-collapsed")).not.toBeInTheDocument();
+  });
+
+  it("全新安装不折叠整卡", () => {
+    render(<PermissionCard rows={[match, connect]} />);
+    expect(screen.queryByTestId("permission-card-collapsed")).not.toBeInTheDocument();
+  });
+
+  it("移动端零变化同样折叠为单行", () => {
+    mobile = true;
+    render(<PermissionCard rows={rows} baselineVersion="1.2.3" />);
+    expect(screen.getByTestId("permission-card-collapsed")).toBeInTheDocument();
+    expect(screen.queryByText("api.a.com")).not.toBeInTheDocument();
+  });
+});
