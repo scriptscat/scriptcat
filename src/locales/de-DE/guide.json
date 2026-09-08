@@ -5,7 +5,7 @@
   "script_list_enable_title": "Skript-Aktivierung",
   "script_list_enable_content": "Skripte müssen aktiviert werden, um verwendet zu werden. Seitenskripte sind bei der Installation standardmäßig aktiviert, Hintergrundskripte sind bei der Installation standardmäßig deaktiviert",
   "script_list_action_title": "Aktion",
-  "script_list_action_content": "Die Bedienleiste ermöglicht den Zugriff auf die Skriptbearbeitung, die Steuerung der Skriptausführung und -beendigung (Hintergrundskripte) sowie auf die Einstellungen (siehe <Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link>). Über die Schaltflächen auf der rechten Seite können Sie auf erweiterte Filterfunktionen zugreifen und zwischen verschiedenen Ansichtsmodi wechseln.",
+  "script_list_action_content": "Im Aktionsbereich können Sie ein Skript bearbeiten, Hintergrundskripte und geplante Skripte ausführen und stoppen, die <Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link> festlegen sowie das Skript exportieren und löschen. In einem schmalen Fenster werden diese Aktionen im Menü „Weitere Aktionen“ zusammengefasst.",
   "tools_backup_title": "Backup",
   "tools_backup_content": "Backups können Skripte speichern und Verluste vermeiden. Sie können Skriptdateien lokal exportieren oder lokale Skriptdateien laden. Sie können auch in die Cloud sichern, was praktischer ist. Informationen zum Wechsel von einem anderen Manager findest du im <Link href=\"https://docs.scriptcat.org/docs/use/from-other/migrate-from-tampermonkey/\">Migrationsleitfaden</Link>.",
   "setting_sync_title": "Update und Synchronisation",

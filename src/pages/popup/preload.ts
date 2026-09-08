@@ -1,4 +1,5 @@
-import type { ScriptMenu } from "@App/app/service/service_worker/types";
+import type { ScriptMenu, TPopupPageStatus } from "@App/app/service/service_worker/types";
+import type { GetPopupDataRes } from "@App/app/service/service_worker/client";
 import { ExtVersion } from "@App/app/const";
 import { cacheInstance } from "@App/app/cache";
 import { sanitizeHTML } from "@App/pkg/utils/sanitize";
@@ -15,9 +16,10 @@ export type PopupInitialData = {
   isEnableScript: boolean;
   checkUpdate: { notice: string; version: string; isRead: boolean };
   menuExpandNum: number;
+  scriptListExpandNum: number;
   popupCompactLayout: boolean;
   defaultScriptProvider: ScriptProvider;
-  isBlacklist: boolean;
+  pageStatus: TPopupPageStatus;
   scriptList: ScriptMenu[];
   optInScriptList: ScriptMenu[];
   backScriptList: ScriptMenu[];
@@ -33,23 +35,26 @@ export const scriptListSorter = (a: ScriptMenu, b: ScriptMenu) =>
 const popupDataQuery = createPreloadableQuery<"popup", PopupInitialData>({
   key: (key) => key,
   load: async (_key, signal) => {
-    const [tab, isEnableScript, checkUpdate, menuExpandNum, popupCompactLayout, provider] = await Promise.all([
-      getCurrentTab(),
-      systemConfig.getEnableScript(),
-      systemConfig.getCheckUpdate({ sanitizeHTML }),
-      systemConfig.getMenuExpandNum(),
-      systemConfig.getPopupCompactLayout(),
-      cacheInstance.get<ScriptProvider>("default_script_provider"),
-    ]);
+    const [tab, isEnableScript, checkUpdate, menuExpandNum, scriptListExpandNum, popupCompactLayout, provider] =
+      await Promise.all([
+        getCurrentTab(),
+        systemConfig.getEnableScript(),
+        systemConfig.getCheckUpdate({ sanitizeHTML }),
+        systemConfig.getMenuExpandNum(),
+        systemConfig.getScriptListExpandNum(),
+        systemConfig.getPopupCompactLayout(),
+        cacheInstance.get<ScriptProvider>("default_script_provider"),
+      ]);
 
     if (signal.aborted) throw new DOMException("Popup preload aborted", "AbortError");
 
     const tabId = tab?.id ?? -1;
     const url = tab?.url ?? "";
-    const popupData =
+    // 取不到标签页（例如开发者工具窗口）时，同样按「脚本猫触及不到」处理
+    const popupData: GetPopupDataRes =
       tabId >= 0 && url
         ? await popupClient.getPopupData({ tabId, url })
-        : { isBlacklist: false, scriptList: [], optInScriptList: [], backScriptList: [] };
+        : { pageStatus: "restricted", scriptList: [], optInScriptList: [], backScriptList: [] };
 
     if (signal.aborted) throw new DOMException("Popup preload aborted", "AbortError");
 
@@ -59,9 +64,10 @@ const popupDataQuery = createPreloadableQuery<"popup", PopupInitialData>({
       isEnableScript,
       checkUpdate: checkUpdate ?? { notice: "", version: ExtVersion, isRead: false },
       menuExpandNum,
+      scriptListExpandNum,
       popupCompactLayout,
       defaultScriptProvider: provider ?? "scriptcat",
-      isBlacklist: popupData.isBlacklist,
+      pageStatus: popupData.pageStatus,
       scriptList: popupData.scriptList.sort(scriptListSorter),
       optInScriptList: popupData.optInScriptList.sort(scriptListSorter),
       backScriptList: popupData.backScriptList,

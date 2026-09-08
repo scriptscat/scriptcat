@@ -1,5 +1,6 @@
 export const BrowserNoSupport = new Error("browserNoSupport");
 import type { SCMetadata, Script, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
+import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { ScriptMatchInfo } from "./types";
 import {
@@ -202,12 +203,15 @@ export async function notificationsUpdate(
   }
 }
 
-export function getCombinedMeta(metaBase: SCMetadata, metaCustom: SCMetadata): SCMetadata {
+export function getCombinedMeta(metaBase: SCMetadata, metaCustom: SCMetadata | undefined): SCMetadata {
   const metaRet = { ...metaBase };
   if (!metaCustom) {
     return metaRet;
   }
   for (const key of Object.keys(metaCustom)) {
+    if (key === SELF_METADATA_ONLY_RUN_ON_URL) {
+      continue;
+    }
     const v = metaCustom[key];
     if (key === "site-access" && v) {
       metaRet[key] = [...new Set([...(metaRet[key] || []), ...v])];
@@ -351,7 +355,13 @@ export function scriptURLPatternResults(scriptRes: {
   const metaMatch = metadata.match;
   const metaInclude = metadata.include;
   const metaExclude = metadata.exclude;
-  if ((metaMatch?.length ?? 0) + (metaInclude?.length ?? 0) === 0) {
+  // 生效规则为空时仍要解析原始规则：用户把当前站点从匹配中移除后可能一条不剩，
+  // 此时脚本不匹配任何站点，但 Popup 要靠原始规则继续列出它（未生效），用户才有恢复入口。
+  // 只有连原始规则都没有的脚本才真的无从匹配。
+  if (
+    (metaMatch?.length ?? 0) + (metaInclude?.length ?? 0) === 0 &&
+    (originalMetadata.match?.length ?? 0) + (originalMetadata.include?.length ?? 0) === 0
+  ) {
     return null;
   }
 

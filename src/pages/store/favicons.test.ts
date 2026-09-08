@@ -4,7 +4,9 @@ import {
   parseFaviconsNew,
   fetchIconByService,
   fetchIconByDomain,
+  loadScriptFavicons,
 } from "@App/pages/store/favicons";
+import type { Script } from "@App/app/repo/scripts";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 describe("extractFaviconsDomain", () => {
@@ -172,7 +174,36 @@ describe("fetchIconByService", () => {
     ]);
   });
 
+  it("none 服务不应返回任何图标地址", async () => {
+    const result = await fetchIconByService("example.com", "none");
+    expect(result).toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   // local 服务的具体行为已在 fetchIconByDomain 测试中充分覆盖
+});
+
+describe("loadScriptFavicons", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("图标服务设为 none 时不产出图标，也不发起任何请求", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const scripts = [
+      { uuid: "uuid-1", metadata: { match: ["https://example.com/*"] } },
+      { uuid: "uuid-2", metadata: { match: ["https://another.com/*"] } },
+    ] as unknown as Script[];
+
+    const chunks = [];
+    for await (const chunk of loadScriptFavicons(scripts, "none")) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("fetchIconByDomain", () => {

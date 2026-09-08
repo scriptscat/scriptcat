@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { notify } from "@App/pages/components/ui/toast";
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_STATUS_DISABLE } from "@App/app/repo/scripts";
 import type { Subscribe } from "@App/app/repo/subscribe";
@@ -13,7 +12,7 @@ import { nextTimeDisplay } from "@App/pkg/utils/cron";
 import { prettyUrl } from "@App/pkg/utils/url-utils";
 import { formatBytes } from "@App/pkg/utils/utils";
 import { i18nName, i18nDescription } from "@App/locales/locales";
-import { scriptClient, subscribeClient, agentClient } from "@App/pages/store/features/script";
+import { scriptClient, subscribeClient, agentClient, externalAccessClient } from "@App/pages/store/features/script";
 import type { SkillConfigField } from "@App/app/service/agent/core/types";
 import { loadHandle } from "@App/pkg/utils/filehandle-db";
 import { startFileTrack, unmountFileTrack, type FTInfo } from "@App/pkg/utils/file-tracker";
@@ -53,6 +52,8 @@ export interface InstallView {
   diffStat?: DiffStat;
   /** 订阅安装时声明的脚本 URL 列表(@scriptURL) */
   subscribeScripts: string[];
+  /** 由 MCP 客户端请求安装时附加;非 MCP 来源为 undefined */
+  externalAccess?: ScriptInfo["externalAccess"];
 }
 
 /**
@@ -89,6 +90,7 @@ export function assembleInstallView(args: {
     oldCode,
     diffStat: oldCode !== undefined && oldCode !== code ? deriveDiffStat(oldCode, code) : undefined,
     subscribeScripts: scriptInfo.userSubscribe ? metadata.scripturl || [] : [],
+    externalAccess: scriptInfo.externalAccess,
   };
 }
 
@@ -103,11 +105,42 @@ export interface SkillInstallData {
 }
 
 export type InstallState =
-  | { status: "loading"; source?: string; bytesText?: string; percent?: number }
+  | { status: "loading"; source?: string; bytesText?: string; percent?: number; mode?: "install" | "update" }
   | { status: "invalid" }
+  // 待安装代码已被暂存清理回收：与一般加载失败区分开，重试同一段取数不可能成功
+  | { status: "expired" }
   | { status: "error"; message: string }
   | { status: "ready"; view: InstallView }
   | { status: "skill"; skill: SkillInstallData };
+
+/** 一次安装动作的结果，供主按钮的「✓ 已安装」与页面顶部的常驻成功条读取 */
+export interface InstallResult {
+  name: string;
+  version?: string;
+  /** 订阅与技能没有启用开关，此时为 undefined，成功条不展示启用状态 */
+  enabled?: boolean;
+  /** 可在编辑器中打开的脚本 uuid；订阅、技能，以及安装实际在服务端完成的外部接入都不提供 */
+  editorUuid?: string;
+  kind: "install" | "update" | "subscribe";
+  /** 本次安装后页面会淡出并自动关闭：此时不展示常驻成功条，只把按钮的 ✓ 亮完 */
+  closing: boolean;
+}
+
+/**
+ * 安装动作的就地反馈。确认用户「刚刚做的」同步动作要长在按钮和页面里，
+ * 而不是从屏幕角落飞出一张会自己消失的飘窗（#1669）。
+ */
+export type InstallOutcome =
+  | { phase: "idle" }
+  | { phase: "installing" }
+  | { phase: "installed"; result: InstallResult }
+  | { phase: "failed"; message: string };
+
+export interface InstallOptions {
+  closeAfterInstall?: boolean;
+  noMoreUpdates?: boolean;
+  rememberSession?: boolean;
+}
 
 const versionOf = (old: { metadata: { version?: string[] } } | undefined): string | null =>
   old ? (old.metadata.version?.[0] ?? "N/A") : null;
@@ -121,6 +154,30 @@ const buildScriptInfo = (uuid: string, code: string, url: string, metadata: SCMe
   source: "user",
 });
 
+// 安装成功后停留的时长：先让主按钮的「✓ 已安装」被真正看见、整页淡出走完，再离开。
+// 旧值 300ms 短于一次视觉确认所需，用户只会看到一道残影（#1669）。
+const LEAVE_DELAY_MS = 700;
+
+// 安装页可能是 ScriptCat 新建的独立标签，也可能由 declarativeNetRequest 接管用户原标签。
+// 前者由 chrome.tabs.create 创建且没有可返回的安装历史，后者才可能有上一页；
+// 因此只需用 history.length 区分返回与关闭，不要让入口标记承担第二种语义。
+// install()/close() 等可能在短时间内被重复触发(如用户连续点击、close 与 install 的
+// setTimeout 前后脚打到)，leaveInstallPageRunning 防止 back()/close() 被并发调用多次；
+// 推到 requestAnimationFrame 里执行，让触发它的那次交互(如按钮点击态)先完成一帧渲染。
+let leaveInstallPageRunning = false;
+const leaveInstallPage = () => {
+  if (leaveInstallPageRunning) return;
+  leaveInstallPageRunning = true;
+  requestAnimationFrame(() => {
+    leaveInstallPageRunning = false;
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.close();
+    }
+  });
+};
+
 let keepAliveTimer: ReturnType<typeof setInterval> | undefined;
 const startKeepAlive = (uuid: string) => {
   const tick = () => {
@@ -133,6 +190,8 @@ const startKeepAlive = (uuid: string) => {
 
 export interface UseInstallData {
   state: InstallState;
+  /** 安装动作自身的反馈阶段(加载态由 state 承载) */
+  outcome: InstallOutcome;
   enabled: boolean;
   setEnabled: (v: boolean) => void;
   localFile: boolean;
@@ -142,16 +201,22 @@ export interface UseInstallData {
   /** 最后一次因文件变更自动重装的本地化时间(未发生过则为 undefined) */
   lastSync?: string;
   toggleWatch: () => void | Promise<void>;
-  install: (opts?: { closeAfterInstall?: boolean; noMoreUpdates?: boolean }) => Promise<void>;
+  install: (opts?: InstallOptions) => Promise<void>;
   close: (opts?: { noMoreUpdates?: boolean }) => void;
+  rejectExternalAccess: () => Promise<void>;
   installSkill: () => Promise<void>;
   cancelSkill: () => void;
   retry: () => void;
+  /** 待安装代码已过期时的出口：请服务端重新检查该脚本的更新并重新备料 */
+  recheck: () => void;
+  /** 失败后重放刚才那次安装动作(供内联错误条的重试按钮) */
+  retryInstall: () => void;
 }
 
 export function useInstallData(): UseInstallData {
   const { t } = useTranslation(["install", "common"]);
   const [state, setState] = useState<InstallState>({ status: "loading" });
+  const [outcome, setOutcome] = useState<InstallOutcome>({ phase: "idle" });
   const [enabled, setEnabledState] = useState(false);
   const [localFile, setLocalFile] = useState(false);
   const [watching, setWatching] = useState(false);
@@ -162,6 +227,11 @@ export function useInstallData(): UseInstallData {
   const infoRef = useRef<ScriptInfo | null>(null);
   const handleRef = useRef<FileSystemFileHandle | null>(null);
   const skillUuidRef = useRef<string | null>(null);
+  const skillDataRef = useRef<SkillInstallData | null>(null);
+  const isUpdateRef = useRef(false);
+  const lastInstallOptsRef = useRef<InstallOptions>({});
+  // 安装/决定这类会真正落地的提交是否在飞行中；ref 而非 state，重入判定要在同一个事件里立即生效
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -206,6 +276,7 @@ export function useInstallData(): UseInstallData {
       if (cancelled) return;
       actionRef.current = action;
       infoRef.current = info;
+      isUpdateRef.current = oldVersion !== null;
       setEnabledState(action.status === SCRIPT_STATUS_ENABLE);
       setState({
         status: "ready",
@@ -221,20 +292,36 @@ export function useInstallData(): UseInstallData {
       });
     };
 
+    const enterSkillState = (data: SkillInstallData) => {
+      skillDataRef.current = data;
+      setState({ status: "skill", skill: data });
+    };
+
     void (async () => {
       try {
         if (skill) {
           skillUuidRef.current = skill;
           const data = await agentClient.getSkillInstallData(skill);
           if (cancelled) return;
-          setState({ status: "skill", skill: data });
+          enterSkillState(data);
         } else if (uuid) {
           startKeepAlive(uuid);
           const cached = await scriptClient.getInstallInfo(uuid);
           const info = cached?.[1];
-          if (!info) throw new Error(t("install:script_info_load_failed"));
+          // 暂存条目/代码已被定时清理回收，是这条入口最常见的失败，单独落到过期终态
+          if (!info) {
+            if (!cancelled) setState({ status: "expired" });
+            return;
+          }
+          // 是安装还是更新此刻才确知；在此之前不猜，免得顶栏 chip 先闪一次错的上下文
+          if (!cancelled) {
+            setState((s) => (s.status === "loading" ? { ...s, mode: cached?.[0] ? "update" : "install" } : s));
+          }
           const code = await getTempCode(uuid);
-          if (code === undefined) throw new Error(t("install:script_info_load_failed"));
+          if (code === undefined) {
+            if (!cancelled) setState({ status: "expired" });
+            return;
+          }
           info.code = code;
           await loadFromInfo(info, !!cached?.[0], cached?.[2] || {});
         } else if (rawUrl) {
@@ -245,7 +332,7 @@ export function useInstallData(): UseInstallData {
             skillUuidRef.current = uuid;
             const data = await agentClient.getSkillInstallData(uuid);
             if (cancelled) return;
-            setState({ status: "skill", skill: data });
+            enterSkillState(data);
             return;
           }
           let parsed: URL;
@@ -273,6 +360,8 @@ export function useInstallData(): UseInstallData {
           });
           const metadata = parseMetadata(code);
           if (!metadata) throw new Error(t("install:script_info_load_failed"));
+          // 直接 URL 入口保持普通脚本准备参数；网页来源身份匹配只由 UUID 暂存选项传递，
+          // 安装页离开方式统一由 history.length 决定，不要为此重新添加 query 标记。
           await loadFromInfo(buildScriptInfo(uuidv4(), code, parsed.href, metadata), false, {});
         } else if (fid) {
           const handle = await loadHandle(fid);
@@ -310,57 +399,105 @@ export function useInstallData(): UseInstallData {
     if (action) action.status = v ? SCRIPT_STATUS_ENABLE : SCRIPT_STATUS_DISABLE;
   }, []);
 
-  const install = useCallback(
-    async (opts: { closeAfterInstall?: boolean; noMoreUpdates?: boolean } = {}) => {
-      const { closeAfterInstall = true, noMoreUpdates = false } = opts;
-      const action = actionRef.current;
-      const info = infoRef.current;
-      if (!action || !info) return;
-      try {
-        if (info.userSubscribe) {
-          await subscribeClient.install(action as Subscribe);
-          notify.success(t("install:subscribe_success"));
-        } else {
-          const script = action as Script;
-          if (noMoreUpdates) script.checkUpdate = false;
-          if (script.ignoreVersion) script.ignoreVersion = "";
-          await scriptClient.install({ script, code: info.code });
-          notify.success(t("install:success"));
-        }
-        if (closeAfterInstall) setTimeout(() => window.close(), 300);
-      } catch (e) {
-        notify.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
+  const install = useCallback(async (opts: InstallOptions = {}) => {
+    const { closeAfterInstall = true, noMoreUpdates = false, rememberSession = false } = opts;
+    const action = actionRef.current;
+    const info = infoRef.current;
+    if (!action || !info) return;
+    // UI 的 disabled 只是第一道防线：下拉菜单项在 phase 翻转前已经展开时仍能被选中
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    lastInstallOptsRef.current = opts;
+    setOutcome({ phase: "installing" });
+    const name = i18nName(action);
+    const version = info.metadata.version?.[0];
+    const kind: InstallResult["kind"] = info.userSubscribe ? "subscribe" : isUpdateRef.current ? "update" : "install";
+    try {
+      if (info.externalAccess) {
+        // 外部接入请求的安装：页面只上报决定，实际安装由 ExternalAccessApprovalService.decide 在服务端完成
+        // （重新校验暂存代码哈希，防止请求与批准之间代码被篡改）——绝不在页面侧直接调用
+        // scriptClient.install()。rememberSession = 用户点了「本会话允许」（设计 §3 第三档）。
+        await externalAccessClient.decideOperation({
+          operationId: info.externalAccess.operationId,
+          approved: true,
+          enable: action.status === SCRIPT_STATUS_ENABLE,
+          rememberSession,
+        });
+        // 这类安装由 MCP 客户端发起、用户往往是被动被唤起的，必须留下一条读得完的成功条，
+        // 不能像用户主动点安装那样装完就关。安装在服务端完成，页面拿不到最终脚本 uuid。
+        setOutcome({
+          phase: "installed",
+          result: { name, version, enabled: action.status === SCRIPT_STATUS_ENABLE, kind, closing: false },
+        });
+        return;
       }
-    },
-    [t]
-  );
+      if (info.userSubscribe) {
+        await subscribeClient.install(action as Subscribe);
+        setOutcome({ phase: "installed", result: { name, version, kind, closing: closeAfterInstall } });
+      } else {
+        const script = action as Script;
+        if (noMoreUpdates) script.checkUpdate = false;
+        if (script.ignoreVersion) script.ignoreVersion = "";
+        await scriptClient.install({ script, code: info.code });
+        setOutcome({
+          phase: "installed",
+          result: {
+            name,
+            version,
+            enabled: script.status === SCRIPT_STATUS_ENABLE,
+            editorUuid: script.uuid,
+            kind,
+            closing: closeAfterInstall,
+          },
+        });
+      }
+      if (closeAfterInstall) setTimeout(() => leaveInstallPage(), LEAVE_DELAY_MS);
+    } catch (e) {
+      setOutcome({ phase: "failed", message: (e as Error)?.message || String(e) });
+    } finally {
+      submittingRef.current = false;
+    }
+  }, []);
+
+  // MCP 请求专属的拒绝动作：关闭窗口本身不算决定（待批操作会保持挂起直至过期），只有点击这个显式拒绝才算真正的拒绝。
+  const rejectExternalAccess = useCallback(async () => {
+    const info = infoRef.current;
+    if (!info?.externalAccess) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    // 决定同样是一次跨进程往返，不置忙态的话按钮全程可点，连点会发出两次决定
+    setOutcome({ phase: "installing" });
+    try {
+      await externalAccessClient.decideOperation({ operationId: info.externalAccess.operationId, approved: false });
+    } finally {
+      window.close();
+    }
+  }, []);
 
   const close = useCallback((opts?: { noMoreUpdates?: boolean }) => {
     const info = infoRef.current;
     if (opts?.noMoreUpdates && info && !info.userSubscribe) {
       void scriptClient.setCheckUpdateUrl(info.uuid, false);
     }
-    window.close();
+    leaveInstallPage();
   }, []);
 
   // 监听文件变更后自动重装,并刷新视图代码
-  const onWatchedCodeChanged = useCallback(
-    async (newCode: string) => {
-      const info = infoRef.current;
-      if (!info) return;
+  const onWatchedCodeChanged = useCallback(async (newCode: string) => {
+    const info = infoRef.current;
+    if (!info) return;
+    try {
+      const { script } = await prepareScriptByCode(newCode, info.url, (actionRef.current as Script)?.uuid, false);
+      await scriptClient.install({ script, code: newCode });
       info.code = newCode;
-      try {
-        const { script } = await prepareScriptByCode(newCode, info.url, (actionRef.current as Script)?.uuid, false);
-        actionRef.current = script;
-        await scriptClient.install({ script, code: newCode });
-        setLastSync(new Date().toLocaleTimeString());
-        setState((s) => (s.status === "ready" ? { status: "ready", view: { ...s.view, code: newCode } } : s));
-      } catch (e) {
-        notify.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
-      }
-    },
-    [t]
-  );
+      actionRef.current = script;
+      setLastSync(new Date().toLocaleTimeString());
+      setOutcome({ phase: "idle" });
+      setState((s) => (s.status === "ready" ? { status: "ready", view: { ...s.view, code: newCode } } : s));
+    } catch (e) {
+      setOutcome({ phase: "failed", message: (e as Error)?.message || String(e) });
+    }
+  }, []);
 
   const toggleWatch = useCallback(async () => {
     const handle = handleRef.current;
@@ -368,12 +505,19 @@ export function useInstallData(): UseInstallData {
     const action = actionRef.current;
     if (!handle || !info || !action) return;
     if (!watching) {
-      // 开启监听前先安装当前内容,再追踪后续变更(对照 v1.4 setupWatchFile)
+      if (submittingRef.current) return;
+      submittingRef.current = true;
+      // 开启监听前先安装当前内容,再追踪后续变更(对照 v1.4 setupWatchFile)。
+      // 这一步就是一次真正的安装，必须置忙态，否则连点会装两次
+      setOutcome({ phase: "installing" });
       try {
         await scriptClient.install({ script: action as Script, code: info.code });
+        setOutcome({ phase: "idle" });
       } catch (e) {
-        notify.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
+        setOutcome({ phase: "failed", message: (e as Error)?.message || String(e) });
         return;
+      } finally {
+        submittingRef.current = false;
       }
       const ftInfo: FTInfo = {
         uuid: info.uuid,
@@ -389,24 +533,34 @@ export function useInstallData(): UseInstallData {
       void unmountFileTrack(handle);
       setWatching(false);
     }
-  }, [watching, onWatchedCodeChanged, t]);
+  }, [watching, onWatchedCodeChanged]);
 
   const installSkill = useCallback(async () => {
     const uuid = skillUuidRef.current;
     if (!uuid) return;
+    setOutcome({ phase: "installing" });
     try {
       await agentClient.completeSkillInstall(uuid);
-      notify.success(t("install:success"));
-      setTimeout(() => window.close(), 300);
+      const skill = skillDataRef.current;
+      setOutcome({
+        phase: "installed",
+        result: {
+          name: skill?.metadata.name ?? "",
+          version: skill?.metadata.version,
+          kind: skill?.isUpdate ? "update" : "install",
+          closing: true,
+        },
+      });
+      setTimeout(() => leaveInstallPage(), LEAVE_DELAY_MS);
     } catch (e) {
-      notify.error(`${t("install:failed")}: ${(e as Error)?.message || String(e)}`);
+      setOutcome({ phase: "failed", message: (e as Error)?.message || String(e) });
     }
-  }, [t]);
+  }, []);
 
   const cancelSkill = useCallback(() => {
     const uuid = skillUuidRef.current;
     if (uuid) void agentClient.cancelSkillInstall(uuid);
-    window.close();
+    leaveInstallPage();
   }, []);
 
   // 重新触发加载(供加载失败后的重试按钮)
@@ -415,8 +569,30 @@ export function useInstallData(): UseInstallData {
     setReloadKey((k) => k + 1);
   }, []);
 
+  /**
+   * 代码过期后的出口：让服务端重新检查这个脚本的更新并重新备料，
+   * 原地重试同一段取数只会再失败一次。
+   */
+  const recheck = useCallback(() => {
+    const uuid = new URLSearchParams(location.search).get("uuid");
+    if (uuid) void scriptClient.requestCheckUpdate(uuid);
+    leaveInstallPage();
+  }, []);
+
+  // 重试要重放「刚才失败的那次动作」本身：沿用同一组安装选项，否则用户点重试会得到
+  // 与他原本意图不同的结果(例如把「不关闭窗口」「不再检查更新」丢掉)。
+  const retryInstall = useCallback(() => {
+    if (infoRef.current?.externalAccess) return;
+    if (skillUuidRef.current) {
+      void installSkill();
+      return;
+    }
+    void install(lastInstallOptsRef.current);
+  }, [install, installSkill]);
+
   return {
     state,
+    outcome,
     enabled,
     setEnabled,
     localFile,
@@ -426,8 +602,11 @@ export function useInstallData(): UseInstallData {
     toggleWatch,
     install,
     close,
+    rejectExternalAccess,
     installSkill,
     cancelSkill,
     retry,
+    recheck,
+    retryInstall,
   };
 }

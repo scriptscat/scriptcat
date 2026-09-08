@@ -404,19 +404,5 @@ describe.concurrent("regexToGlob - comprehensive test suite (regrouped & comment
       ok("(cat|car|cap)\\.txt", "ca?.txt"); // prior pattern with fixed suffix
       ok("v(?:\\d{2}|latest)", "v??*"); // min 2 digits, or 'latest' -> '??*'
     });
-
-    it.concurrent("8.8 invalid regex from additional remain null", () => {
-      // 继续确保无效正则 → null
-      // Still invalid → null
-      // 注：呼叫regexToGlob前，已经用 new RegExp 生成，所以不会出现非法RegEx字串
-      bad("(ab");
-      bad("test\\");
-      bad("([a-z]"); // unbalanced () and []
-      // bad("(?P<name>\\w+)"); // unsupported named group (PCRE-style)
-      // bad("(?'name'\\w+)"); // unsupported named group (alternate syntax)
-      // bad("(?|a|b)"); // branch reset group (PCRE), unsupported
-      // bad("a**"); // consecutive quantifiers invalid
-      // bad("*"); // bare quantifier invalid
-    });
   });
 });

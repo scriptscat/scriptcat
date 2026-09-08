@@ -609,8 +609,10 @@ function LabelQueryChip({
   onRemove: () => void;
 }) {
   const { t } = useTranslation();
-  const keys = Object.keys(labelsMap);
-  const values = Object.keys(labelsMap[query.key] || {});
+  const labelKeys = Object.keys(labelsMap);
+  const keys = query.key && !labelKeys.includes(query.key) ? [query.key, ...labelKeys] : labelKeys;
+  const labelValues = Object.keys(labelsMap[query.key] || {});
+  const values = query.value && !labelValues.includes(query.value) ? [query.value, ...labelValues] : labelValues;
   const selectCls = "h-6 border-0 bg-transparent px-1.5 font-mono text-xs shadow-none focus-visible:ring-0";
   return (
     <div className="inline-flex items-center gap-0.5 rounded-md border border-border bg-secondary/40 py-0.5 pl-1 pr-0.5">

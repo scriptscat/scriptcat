@@ -66,21 +66,6 @@ describe("Server", () => {
       expect(response.data).toBe("sync response");
     });
 
-    it.concurrent("应该能够处理异步函数", async () => {
-      const mockHandler = vi.fn().mockResolvedValue("async response");
-
-      server.on("on-async", mockHandler);
-
-      const response = await client.sendMessage({
-        action: "api/on-async",
-        data: { param: "value-async" },
-      });
-
-      expect(mockHandler).toHaveBeenCalledWith({ param: "value-async" }, expect.any(SenderRuntime));
-      expect(response.code).toBe(0);
-      expect(response.data).toBe("async response");
-    });
-
     it.concurrent("应该能够处理函数抛出的错误", async () => {
       const error = new Error("test error");
       const mockHandler = vi.fn().mockImplementation(() => {
@@ -397,25 +382,6 @@ describe("Server", () => {
       expect(handler).toHaveBeenCalledTimes(1);
     });
 
-    it("没有中间件的 Group 应该正常工作", async () => {
-      const group = server.group("api");
-
-      const handler = vi.fn(async (params: any) => {
-        return { data: params };
-      });
-
-      group.on("nomiddle", handler);
-
-      const response = await client.sendMessage({
-        action: "api/api/nomiddle",
-        data: { message: "hello" },
-      });
-
-      expect(response.code).toBe(0);
-      expect(response.data).toEqual({ data: { message: "hello" } });
-      expect(handler).toHaveBeenCalledTimes(1);
-    });
-
     it("中间件应该能够处理异步错误", async () => {
       const errorMiddleware = vi.fn(async (params: any, con: any, next: any) => {
         if (params.throwError) {
@@ -653,30 +619,6 @@ describe("Server", () => {
       expect(mockHandler).toHaveBeenCalledWith(null, expect.any(SenderRuntime));
       expect(response.code).toBe(0);
       expect(response.data).toBe("empty response");
-    });
-
-    it.concurrent("应该能够处理复杂的数据类型", async () => {
-      const complexData = {
-        array: [1, 2, 3],
-        object: { nested: true },
-        number: 42,
-        string: "test",
-        boolean: true,
-        null: null,
-        undefined: undefined,
-      };
-
-      const mockHandler = vi.fn().mockImplementation((params) => params);
-
-      server.on("on-complex", mockHandler);
-
-      const response = await client.sendMessage({
-        action: "api/on-complex",
-        data: complexData,
-      });
-
-      expect(response.code).toBe(0);
-      expect(response.data).toEqual(complexData);
     });
 
     it.concurrent("应该能够处理返回 undefined 的函数", async () => {

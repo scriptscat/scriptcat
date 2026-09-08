@@ -155,6 +155,18 @@ export const shouldFnBind = (f: any) => {
   return false;
 };
 
+// 判断是否为「需要 this 的方法」。沿用 shouldFnBind 的结构判定（有 prototype 即为 Class；
+// 小写字头才是可直接呼叫的方法，大写字头是 Node / NodeFilter 之类接口物件），但不做原生代码
+// toString 测试 —— 被扩展 Proxy 封装过的方法同样需要 bind。
+const isBindableMethod = (f: any) => {
+  if (typeof f !== "function") return false;
+  if ("prototype" in f) return false;
+  const { name } = f as typeof Function.prototype;
+  if (!name) return false;
+  const e = name.charCodeAt(0);
+  return e >= 97 && e <= 122 && !name.includes(" ");
+};
+
 type ForEachCallback<T> = (value: T, index: number, array: T[]) => void;
 
 // 取物件本身及所有父类(不包含Object)的PropertyDescriptor
@@ -183,57 +195,72 @@ const protoBaseDescs: Record<string, PropertyDescriptor> = Object.create(null);
 
 // 包含物件本身及所有父类(不包含Object)的PropertyDescriptor
 // 主要是找出哪些 function值， setter/getter 需要替换 global window
-getAllPropertyDescriptors(global, ([key, desc]) => {
-  if (!desc || descsCache.has(key) || typeof key !== "string") return;
+// bind 目标跟随该轮的根物件 root，因为两个根分属不同 realm，互相绑定会触发 brand check 失败
+const collectPropertyDescriptors = (root: any) =>
+  getAllPropertyDescriptors(root, ([key, desc]) => {
+    if (!desc || descsCache.has(key) || typeof key !== "string") return;
 
-  if (desc.writable) {
-    // 属性 value
+    if (desc.writable) {
+      // 属性 value
 
-    const value = desc.value;
+      const value = desc.value;
 
-    // 替换 function 的 this 为 实际的 global window
-    // 例：父类的 addEventListener
-    // 对于构造函数和类（有 prototype 属性），shouldFnBind 会返回 false，跳过绑定
-    // 因此被封装的属性，会略过封装层，继续向父类寻找原生属性
-    if (shouldFnBind(value)) {
-      const boundValue = value.bind(global);
-      overridedDescs[key] = {
-        ...desc,
-        value: boundValue,
-      };
-      descsCache.add(key); // 必须：子类属性覆盖父类属性
-    } else if (!(key in initOwnDescs) && !Object.hasOwn(global, key)) {
-      if (!protoBaseDescs[key]) {
-        if (typeof value === "function") {
-          const boundValue = value.bind(global);
-          protoBaseDescs[key] = {
+      // 替换 function 的 this 为 实际的 global window
+      // 例：父类的 addEventListener
+      // 对于构造函数和类（有 prototype 属性），shouldFnBind 会返回 false，跳过绑定
+      // 因此被封装的属性，会略过封装层，继续向父类寻找原生属性
+      if (shouldFnBind(value)) {
+        const boundValue = value.bind(root);
+        overridedDescs[key] = {
+          ...desc,
+          value: boundValue,
+        };
+        descsCache.add(key); // 必须：子类属性覆盖父类属性
+      } else if (!(key in initOwnDescs) && !Object.hasOwn(root, key)) {
+        if (!protoBaseDescs[key]) {
+          // 只有「需要 this 的方法」才 bind。接口物件（Node、NodeFilter、Event、XMLHttpRequest…）
+          // bind 之后会丢掉 prototype 和全部静态成员，Node.ELEMENT_NODE / NodeFilter.SHOW_TEXT
+          // 之类的常量全部变成 undefined，DOM 遍历会静默失效。
+          // Chrome 下 global 就是 window，这些键都在 initOwnDescs 里、走不到这一支；
+          // Firefox 的 Cu.Sandbox 没有这些自有属性，不加判断就会把接口物件剥成 length/name。
+          if (isBindableMethod(value)) {
+            protoBaseDescs[key] = {
+              ...desc,
+              value: value.bind(root),
+            };
+          } else {
+            protoBaseDescs[key] = { ...desc };
+          }
+        }
+      }
+    } else {
+      if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
+        // 替换 onxxxxx 事件赋值操作
+        // 例：(window.)onload, (window.)onerror
+        eventDescs[key] = desc;
+      } else {
+        if (desc.get || desc.set) {
+          // 替换 getter setter 的 this 为 实际的 global window
+          // 例：(window.)location, (window.)document
+          overridedDescs[key] = {
             ...desc,
-            value: boundValue,
+            get: desc?.get?.bind(root),
+            set: desc?.set?.bind(root),
           };
-        } else {
-          protoBaseDescs[key] = { ...desc };
+          descsCache.add(key); // 必须：子类属性覆盖父类属性
         }
       }
     }
-  } else {
-    if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
-      // 替换 onxxxxx 事件赋值操作
-      // 例：(window.)onload, (window.)onerror
-      eventDescs[key] = desc;
-    } else {
-      if (desc.get || desc.set) {
-        // 替换 getter setter 的 this 为 实际的 global window
-        // 例：(window.)location, (window.)document
-        overridedDescs[key] = {
-          ...desc,
-          get: desc?.get?.bind(global),
-          set: desc?.set?.bind(global),
-        };
-        descsCache.add(key); // 必须：子类属性覆盖父类属性
-      }
-    }
-  }
-});
+  });
+
+// 第一趟 globalThis：Firefox 的 content / USER_SCRIPT world 是独立 realm，JS 内置物件只有在这里
+// 才完整；经 Xray 看页面 window 的内置物件会被剥到只剩 length / name / prototype（Number.isNaN、
+// Math 的全部静态成员都会消失）。
+collectPropertyDescriptors(global);
+// 第二趟 window：同一个 sandbox 的原型链在 Xray window 处截断，够不到 EventTarget.prototype，
+// addEventListener / removeEventListener / dispatchEvent 只能由真实 window 的原型链补齐。
+// descsCache 先到先得，第一趟收下的键不会被覆盖；Chrome 下 window === globalThis，此趟全部跳过。
+window !== global && collectPropertyDescriptors(window);
 descsCache.clear(); // 内存释放
 
 // sharedInitCopy: 完全继承Window.prototype 及 自定义 OwnPropertyDescriptor
@@ -286,6 +313,12 @@ type GMWorldContext = typeof globalThis & Record<PropertyKey, any>;
 
 const isPrimitive = (x: any) => x !== Object(x);
 
+// 判断某个值是否为「本 realm 的 window」，即沙盒自引用应当改写成 mySandbox 的目标。
+// Chrome 的 USER_SCRIPT world 里 global 本身就是 Window（window === global），只有一个候选；
+// Firefox 的 content world 里 global 是 Cu.Sandbox、window 是页面 Window 的 Xray 包装，
+// 两者都要算，否则 window / self / top / parent 会指回页面而不是沙盒。
+const isRealmWindow = (o: any) => o === global || o === window;
+
 // 拦截上下文
 export const createProxyContext = <const Context extends GMWorldContext>(context: any): Context => {
   // let withContext: Context | undefined | { [key: string]: any } = undefined;
@@ -299,7 +332,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
   const createFuncWrapper = (f: () => any) => {
     return function (this: any) {
       const ret = f.call(global);
-      if (ret === global) return mySandbox;
+      if (isRealmWindow(ret)) return mySandbox;
       return ret;
     };
   };
@@ -358,8 +391,11 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
   }
 
   for (const key of ["window", "self", "globalThis", "top", "parent", "frames"]) {
-    const desc = ownDescs[key];
-    if (desc?.value === global) {
+    // Firefox 的 content world 里 window / self / top / parent 都不是 Cu.Sandbox 的自有属性，
+    // 结构反射也拿不到（Sandbox 的原型是一个原型为 null 的 Window 包装），沙盒因此完全没有这些键，
+    // with(this.$) 会穿透到外层直接解析到页面 window。按真实取值补出描述符，交给下面的自引用改写。
+    const desc = (ownDescs[key] ??= { value: (<any>window)[key], enumerable: true, configurable: true });
+    if (isRealmWindow(desc.value)) {
       // globalThis
       // 避免 self referencing, 改以 getter 形式
       desc.get = function () {
@@ -369,7 +405,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(context
       // 为了 value 转 getter/setter，必须删除 writable 和 value
       delete desc.writable;
       delete desc.value;
-    } else if (desc?.get) {
+    } else if (desc.get) {
       // 真实的 window 物件中部份属性(self, parent) 存在setter. 意义不明
       // 为避免做成混乱，ScriptCat脚本的沙盒不提供setter（即不能修改）
       // (像window.document, 能写 window.document = null 不会报错但赋值不变)

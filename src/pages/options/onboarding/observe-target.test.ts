@@ -28,6 +28,8 @@ describe("observeTarget", () => {
     const el = document.createElement("div");
     el.setAttribute("data-tour", "late");
     document.body.appendChild(el);
+    // 该测试验证 MutationObserver 超时窗口内的异步回调，而非任意 UI 状态。
+    // eslint-disable-next-line scriptcat/no-test-fixed-sleep -- observer timing contract
     await new Promise((r) => setTimeout(r, 50));
     expect(cb).toHaveBeenCalledWith(el);
   });
@@ -39,6 +41,8 @@ describe("observeTarget", () => {
     const el = document.createElement("div");
     el.setAttribute("data-tour", "cancelMe");
     document.body.appendChild(el);
+    // 该测试验证 stop 后观察窗口关闭，必须经过真实窗口才能证明没有回调。
+    // eslint-disable-next-line scriptcat/no-test-fixed-sleep -- observer cleanup timing contract
     await new Promise((r) => setTimeout(r, 50));
     expect(cb).not.toHaveBeenCalled();
   });
@@ -46,6 +50,8 @@ describe("observeTarget", () => {
   it("超时后应回调 null", async () => {
     const cb = vi.fn();
     observeTarget("never", cb, { timeout: 30 });
+    // 超时行为的契约就是在 timeout 后回调 null。
+    // eslint-disable-next-line scriptcat/no-test-fixed-sleep -- observer timeout contract
     await new Promise((r) => setTimeout(r, 80));
     expect(cb).toHaveBeenCalledWith(null);
   });

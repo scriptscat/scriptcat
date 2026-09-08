@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { beforeAll, describe, it, expect, vi, afterEach } from "vitest";
 import { act, render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { initTestLanguage } from "@Tests/initTestLanguage";
 
 const { create } = vi.hoisted(() => ({
   create: vi.fn(() =>
@@ -33,7 +34,13 @@ vi.mock("@Packages/filesystem/auth", () => ({
   ClearNetDiskToken: vi.fn(() => Promise.resolve()),
 }));
 
-const { get, set } = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
+const { get, set, isPermissionOk, isFirefoxMock } = vi.hoisted(() => ({
+  get: vi.fn(),
+  set: vi.fn(),
+  isPermissionOk: vi.fn((permission: string) => Promise.resolve(permission === "webRequestBlocking" ? null : false)),
+  // 默认沿用 jsdom 下的真实判断（非 Firefox），仅在需要测试 Firefox 专属开关的用例中临时改为 true
+  isFirefoxMock: vi.fn(() => false),
+}));
 vi.mock("@App/pages/store/global", () => ({
   systemConfig: { get, set },
   subscribeMessage: () => () => {},
@@ -42,10 +49,12 @@ vi.mock("@App/pages/store/global", () => ({
 // 后台权限检测在挂载时调用，固定返回 false 以免干扰存储配置测试
 vi.mock("@App/pkg/utils/utils", async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
-  return { ...actual, isPermissionOk: vi.fn(() => Promise.resolve(false)) };
+  return { ...actual, isPermissionOk, isFirefox: isFirefoxMock };
 });
 
 import { RuntimeSection } from "./RuntimeSection";
+
+beforeAll(() => initTestLanguage("en-US"));
 
 function mockStorage(over: Record<string, unknown> = {}) {
   get.mockImplementation((key: string) => {
@@ -59,9 +68,99 @@ afterEach(() => {
   cleanup();
   get.mockReset();
   set.mockReset();
+  isPermissionOk.mockReset();
+  isPermissionOk.mockImplementation((permission: string) =>
+    Promise.resolve(permission === "webRequestBlocking" ? null : false)
+  );
+  isFirefoxMock.mockReset();
+  isFirefoxMock.mockReturnValue(false);
   create.mockReset();
   create.mockResolvedValue({
     openDir: vi.fn(() => Promise.resolve({ getDirUrl: vi.fn(() => Promise.resolve("https://dir")) })),
+  });
+});
+
+describe("运行时分区-可选保活权限", () => {
+  it("非 Firefox 浏览器显示 Chrome 保活开关而不依赖 webRequestBlocking", async () => {
+    mockStorage();
+    render(<RuntimeSection register={() => () => {}} />);
+    await screen.findByTestId("cat_storage_save");
+    expect(screen.getByText("Keep Background and Scheduled Scripts Alive")).toBeInTheDocument();
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
+  });
+
+  it("非 Firefox 浏览器切换保活开关时保存配置", async () => {
+    mockStorage();
+    render(<RuntimeSection register={() => () => {}} />);
+    await screen.findByText("Keep Background and Scheduled Scripts Alive");
+
+    fireEvent.click(screen.getAllByRole("switch")[1]);
+
+    expect(set).toHaveBeenCalledWith("keep_ext_background_alive", true);
+  });
+
+  it("manifest 包含 webRequestBlocking 时显示开关并可请求权限", async () => {
+    isPermissionOk.mockImplementation((permission: string) =>
+      Promise.resolve(permission === "webRequestBlocking" ? false : false)
+    );
+    // isFirefox 判断结果在模块顶层被固化为常量，临时开启后需重置模块并重新导入才能生效
+    isFirefoxMock.mockReturnValue(true);
+    vi.resetModules();
+    const { RuntimeSection: RuntimeSectionOnFirefox } = await import("./RuntimeSection.js");
+    try {
+      const request = vi.spyOn(chrome.permissions, "request");
+      mockStorage();
+      render(<RuntimeSectionOnFirefox register={() => () => {}} />);
+      await screen.findByText("Keep Background and Scheduled Scripts Alive");
+      const toggle = screen.getAllByRole("switch").at(-1);
+      expect(toggle).toBeInTheDocument();
+
+      fireEvent.click(toggle!);
+
+      expect(request).toHaveBeenCalledWith({ permissions: ["webRequestBlocking"] }, expect.any(Function));
+    } finally {
+      isFirefoxMock.mockReturnValue(false);
+      vi.resetModules();
+    }
+  });
+
+  it("Firefox manifest 不包含 webRequestBlocking 时隐藏保活开关", async () => {
+    isPermissionOk.mockResolvedValue(null);
+    isFirefoxMock.mockReturnValue(true);
+    vi.resetModules();
+    const { RuntimeSection: RuntimeSectionOnFirefox } = await import("./RuntimeSection.js");
+    try {
+      mockStorage();
+      render(<RuntimeSectionOnFirefox register={() => () => {}} />);
+      await screen.findByTestId("cat_storage_save");
+
+      expect(screen.queryByText("Keep Background and Scheduled Scripts Alive")).not.toBeInTheDocument();
+    } finally {
+      isFirefoxMock.mockReturnValue(false);
+      vi.resetModules();
+    }
+  });
+
+  it("Firefox 关闭保活时关闭配置并移除可选权限", async () => {
+    isPermissionOk.mockResolvedValue(true);
+    isFirefoxMock.mockReturnValue(true);
+    get.mockImplementation((key: string) => {
+      if (key === "keep_ext_background_alive") return Promise.resolve(true);
+      return Promise.resolve({ status: "unset", filesystem: "webdav", params: {} });
+    });
+    vi.resetModules();
+    const { RuntimeSection: RuntimeSectionOnFirefox } = await import("./RuntimeSection.js");
+    try {
+      const remove = vi.spyOn(chrome.permissions, "remove");
+      render(<RuntimeSectionOnFirefox register={() => () => {}} />);
+      await screen.findByText("Keep Background and Scheduled Scripts Alive");
+      fireEvent.click(screen.getAllByRole("switch").at(-1)!);
+      expect(set).toHaveBeenCalledWith("keep_ext_background_alive", false);
+      expect(remove).toHaveBeenCalledWith({ permissions: ["webRequestBlocking"] }, expect.any(Function));
+    } finally {
+      isFirefoxMock.mockReturnValue(false);
+      vi.resetModules();
+    }
   });
 });
 

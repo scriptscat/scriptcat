@@ -19,7 +19,7 @@ loggerCore.logger().debug("install page start");
 const Root = (
   <ThemeProvider>
     <App />
-    <Toaster />
+    <Toaster placement="decision" />
   </ThemeProvider>
 );
 

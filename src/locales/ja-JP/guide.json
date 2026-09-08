@@ -5,7 +5,7 @@
   "script_list_enable_title": "スクリプト有効化",
   "script_list_enable_content": "スクリプトは有効にしないと使用できません。ページスクリプトはインストール時にデフォルトで有効、バックグラウンドスクリプトはインストール時にデフォルトで無効です",
   "script_list_action_title": "アクション",
-  "script_list_action_content": "操作バーでは、スクリプトの編集、制御スクリプトの実行と終了（バックグラウンドスクリプト）、および設定（<Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link> を参照）にアクセスできます。右側のボタンからは、高度なフィルタリングや表示モードの切り替えにアクセスできます。",
+  "script_list_action_content": "操作エリアでは、スクリプトの編集、バックグラウンドスクリプトとスケジュールスクリプトの実行と中止、<Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link> の設定、エクスポートと削除ができます。ウィンドウの幅が狭いときは、これらの操作が「その他の操作」メニューにまとめられます。",
   "tools_backup_title": "バックアップ",
   "tools_backup_content": "バックアップはスクリプトを保存し、紛失を避けることができます。スクリプトファイルをローカルにエクスポートしたり、ローカルのスクリプトファイルを読み込んだりできます。クラウドにバックアップすることもでき、より便利です。他のマネージャーからの移行は<Link href=\"https://docs.scriptcat.org/docs/use/from-other/migrate-from-tampermonkey/\">移行ガイド</Link>を参照してください。",
   "setting_sync_title": "更新と同期",

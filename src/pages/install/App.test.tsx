@@ -23,6 +23,8 @@ const baseHook = () => ({
   installSkill: vi.fn(),
   cancelSkill: vi.fn(),
   retry: vi.fn(),
+  outcome: { phase: "idle" as const },
+  retryInstall: vi.fn(),
 });
 
 const readyView = (over: Partial<InstallView> = {}): InstallView => ({
@@ -49,6 +51,38 @@ beforeEach(() => {
 beforeAll(() => initTestLanguage("zh-CN"));
 
 afterEach(cleanup);
+
+describe("Install App 防点击劫持:禁止在 iframe 中嵌入", () => {
+  const originalTop = window.top;
+  afterEach(() => {
+    Object.defineProperty(window, "top", { value: originalTop, configurable: true });
+  });
+
+  it("非顶层 frame 时渲染拦截提示,即使当前状态是 loading 也不渲染原状态", () => {
+    Object.defineProperty(window, "top", { value: { document: {} }, configurable: true });
+    mockHook.mockReturnValue({ ...baseHook(), state: { status: "loading" } });
+    render(<App />);
+    expect(screen.getByText("禁止内嵌访问")).toBeInTheDocument();
+    expect(screen.queryByText("正在加载脚本")).not.toBeInTheDocument();
+  });
+
+  it("非顶层 frame 时点击关闭按钮应调用 close", () => {
+    Object.defineProperty(window, "top", { value: { document: {} }, configurable: true });
+    const close = vi.fn();
+    mockHook.mockReturnValue({ ...baseHook(), close, state: { status: "ready", view: readyView() } });
+    render(<App />);
+    fireEvent.click(screen.getByText("关闭"));
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("顶层 frame 时正常渲染 ready 状态,不触发拦截", () => {
+    Object.defineProperty(window, "top", { value: window, configurable: true });
+    mockHook.mockReturnValue({ ...baseHook(), state: { status: "ready", view: readyView() } });
+    render(<App />);
+    expect(screen.queryByText("禁止内嵌访问")).not.toBeInTheDocument();
+    expect(screen.getByText("全网每日签到助手")).toBeInTheDocument();
+  });
+});
 
 describe("Install App 状态分流", () => {
   it("loading 状态渲染加载屏", () => {
@@ -107,6 +141,37 @@ describe("Install App 状态分流", () => {
     expect(screen.getByText("脚本更新")).toBeInTheDocument();
   });
 
+  it("外部接入触发的安装：顶栏上下文 chip 显示「外部接入 · 安装请求」", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      rejectExternalAccess: vi.fn(),
+      state: {
+        status: "ready",
+        view: readyView({ externalAccess: { operationId: "op-1", contentHash: "abcdef123456" } }),
+      },
+    });
+    render(<App />);
+    expect(screen.getByText("外部接入 · 安装请求")).toBeInTheDocument();
+  });
+
+  it("外部接入触发的更新：顶栏上下文 chip 显示「外部接入 · 更新请求」", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      rejectExternalAccess: vi.fn(),
+      state: {
+        status: "ready",
+        view: readyView({
+          isUpdate: true,
+          version: { kind: "update", oldVersion: "2.3.1", newVersion: "2.3.1", changed: false },
+          externalAccess: { operationId: "op-2", contentHash: "abcdef123456" },
+        }),
+      },
+    });
+    render(<App />);
+    expect(screen.getByText("外部接入 · 更新请求")).toBeInTheDocument();
+    expect(screen.queryByText("外部接入 · 安装请求")).not.toBeInTheDocument();
+  });
+
   it("skill 状态渲染技能安装视图", () => {
     mockHook.mockReturnValue({
       ...baseHook(),
@@ -162,5 +227,99 @@ describe("Install App 状态分流", () => {
     render(<App />);
     expect(screen.getByTestId("watching-banner")).toBeInTheDocument();
     expect(screen.getByTestId("install-primary")).toBeDisabled();
+  });
+});
+
+describe("Install App 安装反馈", () => {
+  const installedHook = (result: Record<string, unknown>, over: Record<string, unknown> = {}) => ({
+    ...baseHook(),
+    outcome: { phase: "installed" as const, result },
+    state: { status: "ready", view: readyView() },
+    ...over,
+  });
+
+  it("留在页面的成功路径渲染常驻成功条,主按钮转为已安装并禁用", () => {
+    mockHook.mockReturnValue(
+      installedHook({
+        name: "全网每日签到助手",
+        version: "2.3.1",
+        enabled: true,
+        editorUuid: "s-uuid",
+        kind: "install",
+        closing: false,
+      })
+    );
+    render(<App />);
+    const ribbon = screen.getByTestId("install-success-ribbon");
+    expect(ribbon).toHaveTextContent("已安装");
+    expect(ribbon).toHaveTextContent("全网每日签到助手");
+    expect(screen.getByTestId("install-success-open-editor")).toBeInTheDocument();
+    expect(screen.getByTestId("install-primary")).toBeDisabled();
+    expect(screen.getByTestId("install-primary")).toHaveTextContent("已安装");
+  });
+
+  it("装完就关的路径不渲染常驻成功条,整页进入淡出", () => {
+    mockHook.mockReturnValue(installedHook({ name: "脚本", kind: "install", closing: true }));
+    render(<App />);
+    expect(screen.queryByTestId("install-success-ribbon")).not.toBeInTheDocument();
+    expect(screen.getByTestId("install-layout").className).toContain("motion-safe:opacity-0");
+  });
+
+  it("成功条的关闭按钮触发离开安装页", () => {
+    const close = vi.fn();
+    mockHook.mockReturnValue(installedHook({ name: "脚本", kind: "install", closing: false }, { close }));
+    render(<App />);
+    fireEvent.click(screen.getByTestId("install-success-close"));
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("安装失败在操作栏上方渲染内联错误条,点击重试触发重装", () => {
+    const retryInstall = vi.fn();
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      retryInstall,
+      outcome: { phase: "failed" as const, message: "写入数据库失败" },
+      state: { status: "ready", view: readyView() },
+    });
+    render(<App />);
+    expect(screen.getByTestId("install-error-bar-message")).toHaveTextContent("写入数据库失败");
+    expect(screen.getByTestId("install-primary")).toHaveTextContent("重试安装");
+    fireEvent.click(screen.getByTestId("install-error-retry"));
+    expect(retryInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it("外部接入批准后同样给出常驻成功条,决策按钮锁住", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      rejectExternalAccess: vi.fn(),
+      outcome: { phase: "installed" as const, result: { name: "MCP 脚本", kind: "install", closing: false } },
+      state: {
+        status: "ready",
+        view: readyView({ externalAccess: { operationId: "op-1", contentHash: "abcdef123456" } }),
+      },
+    });
+    render(<App />);
+    expect(screen.getByTestId("install-success-ribbon")).toHaveTextContent("MCP 脚本");
+    expect(screen.getByTestId("external-access-reject")).toBeDisabled();
+  });
+
+  it("技能安装失败时错误条渲染在技能视图的操作栏上方", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      outcome: { phase: "failed" as const, message: "技能写入失败" },
+      state: {
+        status: "skill",
+        skill: {
+          skillMd: "# s",
+          metadata: { name: "我的技能" },
+          prompt: "提示词",
+          scripts: [],
+          references: [],
+          isUpdate: false,
+        },
+      },
+    });
+    render(<App />);
+    expect(screen.getByTestId("install-error-bar-message")).toHaveTextContent("技能写入失败");
   });
 });

@@ -3,7 +3,7 @@
 ## Five-context debug map
 
 A feature can break in any of ScriptCat's five isolated contexts. Match the symptom to where its logs live (deep
-model in [`ARCHITECTURE.md`](../architecture.md)):
+model in [`architecture.md`](../architecture.md)):
 
 | Symptom | Where to look |
 | --- | --- |
@@ -20,10 +20,12 @@ still a separate execution boundary on both browsers. See
 for the full picture.
 
 In a scratch script, capture the page console (`page.on("console", …)`), take screenshots
-(`await page.screenshot({ path: "test-results/verify/<scenario>/screenshots/…png" })`), and write any manual
-notes to `test-results/verify/<scenario>/`. Playwright's automatic failure artifacts also go under
-`test-results/` because [`playwright.config.ts`](../../playwright.config.ts) sets `outputDir: "test-results"`.
-The local default keeps Playwright video recording off; CI records retried failures only.
+(`await page.screenshot({ path: "e2e/scratch/<scenario>/screenshots/…png" })`), and write any manual notes to
+`e2e/scratch/<scenario>/`. Playwright's own failure artifacts land in `test-results/` for both
+[`playwright.config.ts`](../../playwright.config.ts) and
+[`playwright.scratch.config.ts`](../../playwright.scratch.config.ts), and every run wipes that directory,
+which is why your evidence belongs in the scenario directory instead. The local default keeps Playwright video recording
+off; CI records retried failures only.
 
 ## Key extension URLs
 

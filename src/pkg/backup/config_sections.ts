@@ -8,6 +8,7 @@ export type ConfigSection = { id: SectionId; group: "app" | "agent"; count: numb
 // 显式认领的 SystemConfig 键；未认领的落入 "other"（兜底，保证不漏键）
 const APPEARANCE_KEYS = new Set([
   "menu_expand_num",
+  "script_list_expand_num",
   "script_menu_display_type",
   "badge_number_type",
   "badge_background_color",

@@ -2,6 +2,7 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { isFirefox } from "@App/pkg/utils/utils";
 import { type FetchXHR } from "@App/pkg/utils/xhr/fetch_xhr";
 import { scXhrRequests } from "./gm_xhr";
+import { INTERNAL_DNR_PRIORITY } from "../dnr_rule_ids";
 
 const bFirefox = isFirefox();
 type TbgMarkerMapEntry = {
@@ -14,8 +15,8 @@ type TbgMarkerMapEntry = {
 const bgMarkerMap = new Map<string, TbgMarkerMapEntry>();
 export const normalizeBackgroundRequestUrl = (url: string) => {
   const u = new URL(url);
-  // input "https://user:passwd@httpbun.com/basic-auth/user/passwd?q=1&r=2"
-  // output "https://httpbun.com/basic-auth/user/passwd?q=1&r=2"
+  // input "https://user:passwd@httpbingo.org/basic-auth/user/passwd?q=1&r=2"
+  // output "https://httpbingo.org/basic-auth/user/passwd?q=1&r=2"
   return `${u.origin}${u.pathname}${u.search}`;
 };
 
@@ -169,7 +170,7 @@ export class ChromiumHeaderMarkerLinker implements GmXhrRequestLinker {
           },
         ] satisfies chrome.declarativeNetRequest.ModifyHeaderInfo[],
       },
-      priority: 1,
+      priority: INTERNAL_DNR_PRIORITY,
       condition: {
         resourceTypes: ["xmlhttprequest"],
         tabIds: [chrome.tabs.TAB_ID_NONE], // 只限于后台 service_worker / offscreen

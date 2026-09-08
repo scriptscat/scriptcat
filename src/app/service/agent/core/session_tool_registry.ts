@@ -85,7 +85,8 @@ export class SessionToolRegistry implements ToolExecutorLike {
   async execute(
     toolCalls: ToolCall[],
     scriptCallback?: ScriptToolCallback | null,
-    excludeTools?: Set<string>
+    excludeTools?: Set<string>,
+    signal?: AbortSignal
   ): Promise<ToolExecuteResult[]> {
     // 构建合并 Map：parent 在下、session 在上（session 覆盖 parent 同名工具）
     const merged = new Map<string, ToolEntry>();
@@ -95,6 +96,6 @@ export class SessionToolRegistry implements ToolExecutorLike {
     for (const [name, entry] of this.sessionTools) {
       merged.set(name, entry);
     }
-    return this.parent.executeTools(merged, toolCalls, scriptCallback, excludeTools);
+    return this.parent.executeTools(merged, toolCalls, scriptCallback, excludeTools, signal);
   }
 }

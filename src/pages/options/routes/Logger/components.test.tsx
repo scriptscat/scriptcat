@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
-import { Calendar, RefreshControl, TimeRangePicker } from "./components";
+import { Calendar, LabelFilterBar, RefreshControl, TimeRangePicker } from "./components";
 
 beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
@@ -87,5 +87,22 @@ describe("日期时间日历 Calendar", () => {
     expect(arg.getHours()).toBe(10);
     expect(arg.getMinutes()).toBe(32);
     expect(arg.getSeconds()).toBe(5);
+  });
+});
+
+describe("高级标签筛选条 LabelFilterBar", () => {
+  it("预设筛选不在当前日志候选项中时仍显示完整条件", () => {
+    render(
+      <LabelFilterBar
+        queries={[{ key: "component", condition: "=", value: "external-access" }]}
+        labelsMap={{}}
+        onChange={() => {}}
+        onAdd={() => {}}
+        onRemove={() => {}}
+      />
+    );
+
+    expect(screen.getByText("component")).toBeInTheDocument();
+    expect(screen.getByText("external-access")).toBeInTheDocument();
   });
 });

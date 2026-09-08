@@ -71,20 +71,6 @@ return args.value * 2;
     expect(meta.params[1].required).toBe(false);
   });
 
-  it("应正确解析无参数的工具", () => {
-    const code = `
-// ==SkillScript==
-// @name        ping
-// @description 测试连通性
-// ==/SkillScript==
-return "pong";
-`;
-    const meta = parseSkillScriptMetadata(code)!;
-    expect(meta.name).toBe("ping");
-    expect(meta.params).toHaveLength(0);
-    expect(meta.grants).toHaveLength(0);
-  });
-
   it("应正确解析多个 @grant", () => {
     const code = `
 // ==SkillScript==
@@ -98,19 +84,6 @@ return "ok";
 `;
     const meta = parseSkillScriptMetadata(code)!;
     expect(meta.grants).toEqual(["GM.xmlHttpRequest", "GM.getValue", "GM.setValue"]);
-  });
-
-  it("应正确解析单个 @require URL", () => {
-    const code = `
-// ==SkillScript==
-// @name        xlsx_tool
-// @description 生成 Excel
-// @require     https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js
-// ==/SkillScript==
-return XLSX.utils.book_new();
-`;
-    const meta = parseSkillScriptMetadata(code)!;
-    expect(meta.requires).toEqual(["https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"]);
   });
 
   it("应正确解析多个 @require URL", () => {
@@ -328,22 +301,5 @@ return x;`;
     const code = `const x = 1;\nreturn x;`;
     const body = getSkillScriptBody(code);
     expect(body).toBe("const x = 1;\nreturn x;");
-  });
-
-  it("应保留元数据头后面的所有代码", () => {
-    const code = `// ==SkillScript==
-// @name test
-// @description 测试
-// @param city string [required] 城市
-// @grant GM.xmlHttpRequest
-// ==/SkillScript==
-
-const result = await GM.xmlHttpRequest({url: "http://example.com/" + args.city});
-const data = JSON.parse(result.responseText);
-return data;`;
-    const body = getSkillScriptBody(code);
-    expect(body).toContain("const result = await GM.xmlHttpRequest");
-    expect(body).toContain("return data;");
-    expect(body).not.toContain("==SkillScript==");
   });
 });

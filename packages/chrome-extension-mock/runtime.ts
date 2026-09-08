@@ -101,7 +101,7 @@ export default class Runtime {
         ],
         optInScriptList: [],
         backScriptList: [],
-        isBlacklist: false,
+        pageStatus: "ok",
       };
     }
 

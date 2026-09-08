@@ -7,6 +7,30 @@ type Schema = Record<string, unknown>;
 
 type Callback<T> = (arg: T) => void;
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+/**
+ * 真实 chrome.storage.* 写入时会序列化，读回的对象与调用方不再共享引用，且对象键按字母序重排
+ * （已在真实 Chrome 中实测）。mock 若原样保存调用方的对象，就会让依赖键序或引用相等的比较在单测里
+ * 恒真、在浏览器里失败，属于整类盲区，因此这里复现序列化语义。
+ * 只递归普通对象与数组：Date、Map 等非普通对象的真实序列化损耗未实测，不在此处臆造。
+ */
+function serializeLikeChromeStorage<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(serializeLikeChromeStorage) as unknown as T;
+  if (isPlainObject(value)) {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(value).sort()) {
+      out[key] = serializeLikeChromeStorage(value[key]);
+    }
+    return out as unknown as T;
+  }
+  return value;
+}
+
 /**
  * Storage root with independent schemas per area (optional).
  * Usage:
@@ -141,7 +165,7 @@ class ChromeStorage<TSchema extends Schema = Schema> {
   set(items: Partial<TSchema>): Promise<void>;
   set(items: Partial<TSchema>, callback?: () => void): void | Promise<void> {
     const apply = () => {
-      Object.assign(this.data, items);
+      Object.assign(this.data, serializeLikeChromeStorage(items));
     };
 
     if (callback) {

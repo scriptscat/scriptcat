@@ -1209,6 +1209,53 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
   });
 });
 
+describe("@grant GM_download", () => {
+  it("空 url 应触发 onerror 而不是发起下载（GM_download）", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_download"];
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    script.code = `return new Promise((resolve) => {
+      let onloadCalled = false;
+      GM_download({
+        url: "",
+        name: "empty-url-test.bin",
+        onload: () => { onloadCalled = true; },
+        onerror: (e) => resolve({ onloadCalled, error: e && e.error }),
+      });
+      setTimeout(() => resolve({ onloadCalled, error: "TIMEOUT" }), 100);
+    })`;
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret.onloadCalled).toEqual(false);
+    expect(ret.error).toEqual("unknown");
+  });
+
+  it("空 url 应 reject（GM.download）", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM.download"];
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: undefined as any,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    script.code = `return GM.download({ url: "", name: "empty-url-test.bin" }).then(
+      () => ({ resolved: true }),
+      () => ({ resolved: false })
+    )`;
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+    const ret = await exec.exec();
+    expect(ret.resolved).toEqual(false);
+  });
+});
+
 describe("@grant CAT.agent.conversation", () => {
   it("CAT.agent.conversation 应该在沙盒中可访问", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;

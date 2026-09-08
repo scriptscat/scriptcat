@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import type { ScriptMenu, ScriptMenuItem, TPopupScript } from "@App/app/service/service_worker/types";
+import type { ScriptMenu, ScriptMenuItem, TPopupPageStatus, TPopupScript } from "@App/app/service/service_worker/types";
 import type { TDeleteScript, TEnableScript, TScriptRunStatus } from "@App/app/service/queue";
 import { popupClient, scriptClient, runtimeClient, requestOpenBatchUpdatePage } from "../store/features/script";
 import { subscribeMessage, systemConfig } from "../store/global";
@@ -75,8 +75,6 @@ function filterScripts(list: ScriptMenu[], query: string): ScriptMenu[] {
   return list.filter((s) => s.name.toLowerCase().includes(lower));
 }
 
-const EXPAND_LIMIT = 5;
-
 // ========== Hook ==========
 
 export function usePopupData() {
@@ -86,7 +84,7 @@ export function usePopupData() {
   const [scriptList, setScriptList] = useState<ScriptMenu[]>(initialData?.scriptList ?? []);
   const [optInScriptList, setOptInScriptList] = useState<ScriptMenu[]>(initialData?.optInScriptList ?? []);
   const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>(initialData?.backScriptList ?? []);
-  const [isBlacklist, setIsBlacklist] = useState(initialData?.isBlacklist ?? false);
+  const [pageStatus, setPageStatus] = useState<TPopupPageStatus>(initialData?.pageStatus ?? "ok");
   const [currentUrl, setCurrentUrl] = useState(initialData?.url ?? "");
   const [currentTabId, setCurrentTabId] = useState(initialData?.tabId ?? -1);
   const [searchQuery, setSearchQuery] = useState("");
@@ -99,6 +97,7 @@ export function usePopupData() {
   const [checkUpdateStatus, setCheckUpdateStatus] = useState(0); // 0=idle, 1=checking, 2=latest
   const [showAlert, setShowAlert] = useState(false);
   const [menuExpandNum, setMenuExpandNum] = useState(initialData?.menuExpandNum ?? 5);
+  const [scriptListExpandNum, setScriptListExpandNum] = useState(initialData?.scriptListExpandNum ?? 5);
   const [popupCompactLayout, setPopupCompactLayout] = useState(initialData?.popupCompactLayout ?? false);
   const [defaultScriptProvider, setDefaultScriptProvider] = useState<ScriptProvider>(
     initialData?.defaultScriptProvider ?? "scriptcat"
@@ -125,7 +124,7 @@ export function usePopupData() {
       setScriptList(res.scriptList);
       setOptInScriptList(res.optInScriptList);
       setBackScriptList(res.backScriptList);
-      setIsBlacklist(res.isBlacklist);
+      setPageStatus(res.pageStatus);
     } catch (e) {
       console.error("Failed to fetch popup data:", e);
     }
@@ -137,12 +136,13 @@ export function usePopupData() {
     setScriptList(initialData.scriptList);
     setOptInScriptList(initialData.optInScriptList);
     setBackScriptList(initialData.backScriptList);
-    setIsBlacklist(initialData.isBlacklist);
+    setPageStatus(initialData.pageStatus);
     setCurrentUrl(initialData.url);
     setCurrentTabId(initialData.tabId);
     setIsEnableScript(initialData.isEnableScript);
     setCheckUpdate(initialData.checkUpdate);
     setMenuExpandNum(initialData.menuExpandNum);
+    setScriptListExpandNum(initialData.scriptListExpandNum);
     setPopupCompactLayout(initialData.popupCompactLayout);
     setDefaultScriptProvider(initialData.defaultScriptProvider);
     setInitialized(true);
@@ -264,22 +264,61 @@ export function usePopupData() {
     window.close();
   }, []);
 
+  const handleOpenScriptSettings = useCallback(async (uuid: string) => {
+    await openInCurrentTab(`/src/options.html#/script/editor/${uuid}?view=setting`);
+    window.close();
+  }, []);
+
   const handleOpenUserConfig = useCallback(async (uuid: string) => {
     await openInCurrentTab(`/src/options.html#/?userConfig=${uuid}`);
     window.close();
   }, []);
 
-  const handleExcludeUrl = useCallback(async (uuid: string, isEffective: boolean) => {
-    const host = extractHost(stateRef.current.currentUrl);
-    if (!host) return;
-    try {
-      // isEffective=true → 排除（remove=false）; isEffective=false → 取消排除（remove=true）
-      await scriptClient.excludeUrl(uuid, `*://${host}/*`, !isEffective);
-      setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: !isEffective } : s)));
-    } catch (e) {
-      console.error("Failed to toggle exclude:", e);
-    }
-  }, []);
+  const handleOnlyRunOnUrl = useCallback(
+    async (uuid: string) => {
+      const host = extractHost(stateRef.current.currentUrl);
+      if (!host) return;
+      try {
+        await scriptClient.onlyRunOnUrl(uuid, `*://${host}/*`);
+        // 收窄后已创建 match 覆盖，后续排除必须进入 S3 语义。
+        setScriptList((prev) =>
+          prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: true, hasMatchOverride: true } : s))
+        );
+      } catch (e) {
+        showError(String(e));
+      }
+    },
+    [showError]
+  );
+
+  const handleExcludeFromMatch = useCallback(
+    async (uuid: string) => {
+      const { currentUrl } = stateRef.current;
+      const host = extractHost(currentUrl);
+      if (!host) return;
+      try {
+        await scriptClient.excludeFromMatch(uuid, host, currentUrl);
+        setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: false } : s)));
+      } catch (e) {
+        showError(String(e));
+      }
+    },
+    [showError]
+  );
+
+  const handleAllowUrl = useCallback(
+    async (uuid: string) => {
+      const host = extractHost(stateRef.current.currentUrl);
+      if (!host) return;
+      try {
+        await scriptClient.allowUrl(uuid, `*://${host}/*`, `*://${host}/*`);
+        setScriptList((prev) => prev.map((s) => (s.uuid === uuid ? { ...s, isEffective: true } : s)));
+      } catch (e) {
+        showError(String(e));
+      }
+    },
+    [showError]
+  );
 
   const handleIncludeUrl = useCallback(
     async (uuid: string) => {
@@ -405,24 +444,28 @@ export function usePopupData() {
   const filteredOptInScriptList = filterScripts(optInScriptList, searchQuery);
   const filteredBackScriptList = filterScripts(backScriptList, searchQuery);
   const totalScriptCount = scriptList.length + optInScriptList.length + backScriptList.length;
-  const showSearch = totalScriptCount > EXPAND_LIMIT;
+  // 设置项以 0 表示「不折叠」；负值（如导入的异常备份）同样按不折叠处理，避免负数 slice 从尾部截断
+  const expandThreshold = scriptListExpandNum > 0 ? scriptListExpandNum : 0;
+  const expandLimit = expandThreshold || Infinity;
+  // 不折叠时列表可能很长，搜索框反而更需要，故按阈值而非截断上限判断
+  const showSearch = totalScriptCount > expandThreshold;
 
-  const displayScriptList = expandedSections.current ? filteredScriptList : filteredScriptList.slice(0, EXPAND_LIMIT);
+  const displayScriptList = expandedSections.current ? filteredScriptList : filteredScriptList.slice(0, expandLimit);
   const remainingCurrentCount = filteredScriptList.length - displayScriptList.length;
   // 超过展示上限即可展开/收起：折叠时显示「显示更多」，展开时显示「收起」
-  const canExpandCurrent = filteredScriptList.length > EXPAND_LIMIT;
+  const canExpandCurrent = filteredScriptList.length > expandLimit;
 
   const displayOptInScriptList = expandedSections.optIn
     ? filteredOptInScriptList
-    : filteredOptInScriptList.slice(0, EXPAND_LIMIT);
+    : filteredOptInScriptList.slice(0, expandLimit);
   const remainingOptInCount = filteredOptInScriptList.length - displayOptInScriptList.length;
-  const canExpandOptIn = filteredOptInScriptList.length > EXPAND_LIMIT;
+  const canExpandOptIn = filteredOptInScriptList.length > expandLimit;
 
   const displayBackScriptList = expandedSections.background
     ? filteredBackScriptList
-    : filteredBackScriptList.slice(0, EXPAND_LIMIT);
+    : filteredBackScriptList.slice(0, expandLimit);
   const remainingBackCount = filteredBackScriptList.length - displayBackScriptList.length;
-  const canExpandBack = filteredBackScriptList.length > EXPAND_LIMIT;
+  const canExpandBack = filteredBackScriptList.length > expandLimit;
 
   const backRunningCount = backScriptList.filter((s) => s.runStatus === SCRIPT_RUN_STATUS_RUNNING).length;
   const enabledScriptCount = scriptList.filter((s) => s.enable).length;
@@ -437,7 +480,7 @@ export function usePopupData() {
 
   return {
     loading: !initialized && !popupData.isError,
-    isBlacklist,
+    pageStatus,
     host,
     scriptList: displayScriptList,
     optInScriptList: displayOptInScriptList,
@@ -466,10 +509,13 @@ export function usePopupData() {
     handleToggleScript,
     handleDeleteScript,
     handleOpenEditor,
+    handleOpenScriptSettings,
     handleOpenUserConfig,
-    handleExcludeUrl,
     handleIncludeUrl,
     handleRemoveIncludeUrl,
+    handleExcludeFromMatch,
+    handleOnlyRunOnUrl,
+    handleAllowUrl,
     handleMenuClick,
     handleRunScript,
     handleStopScript,
