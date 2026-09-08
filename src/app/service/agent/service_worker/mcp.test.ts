@@ -146,6 +146,153 @@ describe("MCPService", () => {
       await service.disconnectServer(server.id);
       expect(toolRegistry.getDefinitions().length).toBe(0);
     });
+
+    it("断开服务器应等待客户端关闭完成", async () => {
+      let releaseClose!: () => void;
+      const close = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseClose = resolve;
+          })
+      );
+      const baseFactory = createMockClientFactory();
+      const clientFactory: MCPClientFactory = (config) => {
+        const client = baseFactory(config);
+        client.close = close;
+        return client;
+      };
+      const repo = createMockRepo();
+      service = new MCPService(toolRegistry, { clientFactory, repo });
+      const server = (await service.handleMCPApi({
+        action: "addServer",
+        config: { name: "AsyncClose", url: "https://mcp.test.com", enabled: false },
+        scriptUuid: "test",
+      })) as any;
+      await service.connectServer(server.id);
+
+      let settled = false;
+      const disconnect = service.disconnectServer(server.id).then(() => {
+        settled = true;
+      });
+      await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+      expect(settled).toBe(false);
+
+      releaseClose();
+      await disconnect;
+      expect(settled).toBe(true);
+    });
+
+    it("列出工具失败时应关闭已初始化的客户端", async () => {
+      const close = vi.fn().mockResolvedValue(undefined);
+      const baseFactory = createMockClientFactory();
+      const clientFactory: MCPClientFactory = (config) => {
+        const client = baseFactory(config);
+        client.listTools = vi.fn().mockRejectedValue(new Error("list failed"));
+        client.close = close;
+        return client;
+      };
+      const repo = createMockRepo();
+      service = new MCPService(toolRegistry, { clientFactory, repo });
+      const server = (await service.handleMCPApi({
+        action: "addServer",
+        config: { name: "BrokenTools", url: "https://mcp.test.com", enabled: false },
+        scriptUuid: "test",
+      })) as any;
+
+      await expect(service.connectServer(server.id)).rejects.toThrow("list failed");
+      expect(close).toHaveBeenCalledOnce();
+      expect(toolRegistry.getDefinitions()).toHaveLength(0);
+    });
+
+    it("服务器名称变更后应重连并更新工具注册", async () => {
+      const close = vi.fn().mockResolvedValue(undefined);
+      const baseFactory = createMockClientFactory();
+      const clientFactory: MCPClientFactory = (config) => {
+        const client = baseFactory(config);
+        client.close = close;
+        return client;
+      };
+      const repo = createMockRepo();
+      service = new MCPService(toolRegistry, { clientFactory, repo });
+      const server = (await service.handleMCPApi({
+        action: "addServer",
+        config: { name: "Before", url: "https://before.example.com", enabled: true },
+        scriptUuid: "test",
+      })) as any;
+      expect(toolRegistry.getDefinitions()[0].name).toContain("before");
+
+      await service.handleMCPApi({
+        action: "updateServer",
+        id: server.id,
+        config: { name: "After", url: "https://after.example.com" },
+        scriptUuid: "test",
+      });
+
+      expect(close).toHaveBeenCalledOnce();
+      expect(toolRegistry.getDefinitions()).toHaveLength(1);
+      expect(toolRegistry.getDefinitions()[0].name).toContain("after");
+    });
+
+    it("名称清洗后相同的服务器仍应拥有独立工具名", async () => {
+      const first = (await service.handleMCPApi({
+        action: "addServer",
+        config: { name: "a-b", url: "https://first.example.com", enabled: false },
+        scriptUuid: "test",
+      })) as any;
+      const second = (await service.handleMCPApi({
+        action: "addServer",
+        config: { name: "a_b", url: "https://second.example.com", enabled: false },
+        scriptUuid: "test",
+      })) as any;
+
+      await service.connectServer(first.id);
+      await service.connectServer(second.id);
+
+      const names = toolRegistry.getDefinitions().map((definition) => definition.name);
+      expect(names).toHaveLength(2);
+      expect(new Set(names).size).toBe(2);
+
+      await service.disconnectServer(first.id);
+      expect(toolRegistry.getDefinitions()).toHaveLength(1);
+    });
+
+    it("并发连接同一服务器时应复用同一个连接操作", async () => {
+      const baseFactory = createMockClientFactory();
+      const clientFactory = vi.fn((config) => baseFactory(config));
+      const repo = createMockRepo();
+      service = new MCPService(toolRegistry, { clientFactory, repo });
+      const server = (await service.handleMCPApi({
+        action: "addServer",
+        config: { name: "Concurrent", url: "https://mcp.test.com", enabled: false },
+        scriptUuid: "test",
+      })) as any;
+
+      await Promise.all([service.connectServer(server.id), service.connectServer(server.id)]);
+
+      expect(clientFactory).toHaveBeenCalledOnce();
+      expect(toolRegistry.getDefinitions()).toHaveLength(1);
+    });
+
+    it("原始服务器 ID 不同时即使清洗结果相同也应保持工具名唯一", async () => {
+      const servers = new Map([
+        ["a-b", { id: "a-b", name: "same", url: "https://first.example.com", enabled: false }],
+        ["a_b", { id: "a_b", name: "same", url: "https://second.example.com", enabled: false }],
+      ]);
+      const repo = {
+        listServers: vi.fn(async () => [...servers.values()]),
+        getServer: vi.fn(async (id: string) => servers.get(id)),
+        saveServer: vi.fn(async (config: any) => servers.set(config.id, config)),
+        removeServer: vi.fn(async (id: string) => servers.delete(id)),
+      } as unknown as MCPServerRepo;
+      service = new MCPService(toolRegistry, { clientFactory: createMockClientFactory(), repo });
+
+      await service.connectServer("a-b");
+      await service.connectServer("a_b");
+
+      const names = toolRegistry.getDefinitions().map((definition) => definition.name);
+      expect(names).toHaveLength(2);
+      expect(new Set(names).size).toBe(2);
+    });
   });
 
   describe("handleMCPApi - listTools", () => {

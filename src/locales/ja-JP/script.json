@@ -111,5 +111,14 @@
   "trash_moved_batch": "{{count}} 件のスクリプトをゴミ箱に移動しました",
   "trash_undo": "元に戻す",
   "trash_undo_success": "復元しました",
-  "trash_undo_failed": "復元に失敗しました"
+  "trash_undo_failed": "復元に失敗しました",
+  "sort_by": "並び替え",
+  "sort_create_time": "追加日時",
+  "sort_default": "デフォルト",
+  "sort_ascending": "昇順",
+  "sort_descending": "降順",
+  "more_actions": "その他の操作",
+  "multi_select": "複数選択",
+  "site_count": "{{count}} サイト",
+  "select_all": "すべて選択"
 }

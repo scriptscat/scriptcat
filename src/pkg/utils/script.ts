@@ -178,7 +178,8 @@ export async function prepareScriptByCode(
   dao?: ScriptDAO,
   options?: {
     byEditor?: boolean; // 是否通过编辑器导入
-    byWebRequest?: boolean; // 是否通过网页连结安装或更新
+    // 仅控制网页来源脚本的身份匹配，不参与安装页 history.back()/window.close() 决策。
+    byWebRequest?: boolean;
   }
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string; oldInTrash?: boolean }> {
   dao = dao ?? new ScriptDAO();

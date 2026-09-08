@@ -150,7 +150,7 @@ describe("get_tab_content", () => {
     const raw = (await executor.execute({ tab_id: 1, prompt: "What is the price?" })) as string;
     const result = JSON.parse(raw);
 
-    expect(mockSummarize).toHaveBeenCalledWith(expect.any(String), "What is the price?");
+    expect(mockSummarize).toHaveBeenCalledWith(expect.any(String), "What is the price?", undefined);
     expect(result.content).toBe("Summarized content");
     expect(result.truncated).toBe(false);
   });

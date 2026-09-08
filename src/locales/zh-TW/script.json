@@ -111,5 +111,14 @@
   "trash_moved_batch": "已將 {{count}} 個腳本移入回收筒",
   "trash_undo": "復原",
   "trash_undo_success": "已還原",
-  "trash_undo_failed": "還原失敗"
+  "trash_undo_failed": "還原失敗",
+  "sort_by": "排序",
+  "sort_create_time": "新增時間",
+  "sort_default": "預設",
+  "sort_ascending": "升序",
+  "sort_descending": "降序",
+  "more_actions": "更多操作",
+  "multi_select": "多選",
+  "site_count": "{{count}} 個站點",
+  "select_all": "全選"
 }
