@@ -235,7 +235,10 @@ export default function App() {
         {view.isSubscribe ? (
           <SubscribeScripts scriptUrls={view.subscribeScripts} />
         ) : (
-          <PermissionCard rows={view.permissions} />
+          <PermissionCard
+            rows={view.permissions}
+            baselineVersion={view.version.kind === "update" ? view.version.oldVersion : undefined}
+          />
         )}
         <InstallWarning
           hasDangerPermission={view.permissions.some((p) => p.risk === "danger")}

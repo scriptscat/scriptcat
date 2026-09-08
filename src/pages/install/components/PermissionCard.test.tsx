@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
 let mobile = false;
@@ -45,5 +45,66 @@ describe("PermissionCard 权限卡", () => {
     expect(screen.getByText("*")).toBeInTheDocument();
     // normal(运行网站)默认折叠,其取值不在 DOM
     expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+  });
+});
+
+describe("PermissionCard 更新差异态", () => {
+  const changedConnect: PermissionRow = {
+    kind: "connect",
+    risk: "danger",
+    values: ["*", "api.a.com"],
+    sensitive: [],
+    diff: { added: ["*"], removed: ["old.a.com"] },
+  };
+  const sameMatch: PermissionRow = {
+    kind: "match",
+    risk: "normal",
+    values: ["https://a.com/*"],
+    sensitive: [],
+    diff: { added: [], removed: [] },
+  };
+
+  it("有变动时卡头显示变化标题、全卡增删计数与对比版本", () => {
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
+    expect(screen.getByText("权限变化")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-card-delta")).toHaveTextContent("+1");
+    expect(screen.getByTestId("permission-card-delta")).toHaveTextContent("−1");
+    expect(screen.getByText("对比已安装的 1.2.3")).toBeInTheDocument();
+  });
+
+  it("有变动的类别展开,无变动的类别塌成单行", () => {
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
+    expect(screen.getAllByTestId("permission-row")).toHaveLength(1);
+    const collapsed = screen.getByTestId("permission-row-collapsed");
+    expect(within(collapsed).getByText("运行网站")).toBeInTheDocument();
+    expect(within(collapsed).getByText("无变化")).toBeInTheDocument();
+    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+  });
+
+  it("点开塌行后该类别取值可见", () => {
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
+    fireEvent.click(screen.getByTestId("permission-row-collapsed"));
+    expect(screen.getByText("https://a.com/*")).toBeInTheDocument();
+    expect(screen.getAllByTestId("permission-row")).toHaveLength(2);
+  });
+
+  it("更新但一项未变时不显示变化标题与增删计数", () => {
+    render(<PermissionCard rows={[sameMatch]} baselineVersion="1.2.3" />);
+    expect(screen.queryByText("权限变化")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-card-delta")).not.toBeInTheDocument();
+  });
+
+  it("移动端默认展开有变动的类别,未变动的收起", () => {
+    mobile = true;
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
+    expect(screen.getByText("*")).toBeInTheDocument();
+    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+  });
+
+  it("全新安装(无 diff)卡头维持原样", () => {
+    render(<PermissionCard rows={[match, connect]} />);
+    expect(screen.getByText("此脚本将获得以下权限")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-card-delta")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-row-collapsed")).not.toBeInTheDocument();
   });
 });

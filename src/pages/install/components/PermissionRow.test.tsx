@@ -69,3 +69,57 @@ describe("PermissionRow 权限行", () => {
     expect(within(row).queryByTestId("permission-more")).not.toBeInTheDocument();
   });
 });
+
+describe("PermissionRow 更新差异态", () => {
+  const changed = {
+    kind: "connect" as const,
+    risk: "danger" as const,
+    values: ["*", "api.a.com", "api.b.com"],
+    sensitive: [],
+    diff: { added: ["*"], removed: ["old.a.com"] },
+  };
+
+  it("新增与移除的取值常驻可见,未变动的收进折叠桶", () => {
+    render(<PermissionRow row={changed} />);
+    const row = screen.getByTestId("permission-row");
+    expect(within(row).getByText("*")).toBeInTheDocument();
+    expect(within(row).getByText("old.a.com")).toBeInTheDocument();
+    expect(within(row).queryByText("api.a.com")).not.toBeInTheDocument();
+    expect(within(row).getByTestId("permission-more")).toHaveTextContent("未变动 2 项");
+  });
+
+  it("变动状态标在 chip 上,且新增/移除带可读状态文案而不只靠颜色", () => {
+    render(<PermissionRow row={changed} />);
+    const row = screen.getByTestId("permission-row");
+    expect(within(row).getByText("*").closest("[data-chip]")).toHaveAttribute("data-change", "added");
+    expect(within(row).getByText("old.a.com").closest("[data-chip]")).toHaveAttribute("data-change", "removed");
+    expect(within(row).getByText("新增")).toBeInTheDocument();
+    expect(within(row).getByText("已移除")).toBeInTheDocument();
+  });
+
+  it("展开折叠桶后未变动取值可见并标记为 unchanged", () => {
+    render(<PermissionRow row={changed} />);
+    const row = screen.getByTestId("permission-row");
+    fireEvent.click(within(row).getByTestId("permission-more"));
+    expect(within(row).getByText("api.a.com").closest("[data-chip]")).toHaveAttribute("data-change", "unchanged");
+    expect(within(row).queryByTestId("permission-more")).not.toBeInTheDocument();
+  });
+
+  it("行内变动计数按新增与移除分别呈现", () => {
+    render(<PermissionRow row={changed} />);
+    const row = screen.getByTestId("permission-row");
+    expect(within(row).getByTestId("permission-delta")).toHaveTextContent("+1");
+    expect(within(row).getByTestId("permission-delta")).toHaveTextContent("−1");
+  });
+
+  it("差异为空的行不渲染变动计数,取值全部按未变动呈现", () => {
+    render(
+      <PermissionRow
+        row={{ kind: "match", risk: "normal", values: ["a"], sensitive: [], diff: { added: [], removed: [] } }}
+      />
+    );
+    const row = screen.getByTestId("permission-row");
+    expect(within(row).queryByTestId("permission-delta")).not.toBeInTheDocument();
+    expect(within(row).getByText("a").closest("[data-chip]")).toHaveAttribute("data-change", "unchanged");
+  });
+});

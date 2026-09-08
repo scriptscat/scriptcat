@@ -323,3 +323,37 @@ describe("Install App 安装反馈", () => {
     expect(screen.getByTestId("install-error-bar-message")).toHaveTextContent("技能写入失败");
   });
 });
+
+describe("Install App 权限卡的更新基线", () => {
+  it("更新场景把已安装版本作为权限对比基线传给权限卡", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      state: {
+        status: "ready",
+        view: readyView({
+          isUpdate: true,
+          version: { kind: "update", oldVersion: "1.2.3", newVersion: "2.3.1", changed: true },
+          permissions: [
+            {
+              kind: "connect",
+              risk: "warn",
+              values: ["api.a.com"],
+              sensitive: [],
+              diff: { added: ["api.a.com"], removed: [] },
+            },
+          ],
+        }),
+      },
+    });
+    render(<App />);
+    expect(screen.getByText("对比已安装的 1.2.3")).toBeInTheDocument();
+    expect(screen.getByText("权限变化")).toBeInTheDocument();
+  });
+
+  it("全新安装不传基线,权限卡维持安装态卡头", () => {
+    mockHook.mockReturnValue({ ...baseHook(), state: { status: "ready", view: readyView() } });
+    render(<App />);
+    expect(screen.getByText("此脚本将获得以下权限")).toBeInTheDocument();
+    expect(screen.queryByText("权限变化")).not.toBeInTheDocument();
+  });
+});
