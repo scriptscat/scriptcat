@@ -18,6 +18,7 @@ in the change as a named, accepted deviation — never as compliance.
 | Before you… | Read |
 | --- | --- |
 | write code | [`docs/develop.md`](docs/develop.md) |
+| run project commands | [`docs/develop.md`](docs/develop.md) |
 | modify tests, test helpers, or test runner configuration | [`docs/references/develop-testing.md`](docs/references/develop-testing.md) — apply the test-boundary, observation, and harness rules before editing |
 | review or report a branch/PR, or create/update a PR or publish its branch | [`docs/develop.md#revision-scope-and-publication-binding`](docs/develop.md#revision-scope-and-publication-binding) + [`docs/pull-request.md`](docs/pull-request.md) |
 | change a process/message/service/persistence boundary or add a subsystem | [`docs/architecture.md`](docs/architecture.md) + the relevant `docs/references/architecture-*.md` |

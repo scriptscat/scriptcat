@@ -29,6 +29,12 @@ pnpm run check:i18n              # translation key parity (see docs/translation.
 pnpm run check:issue-templates   # .github/ISSUE_TEMPLATE schema, zh/en parity, issues/new prefill ids
 ```
 
+If a project command fails because a local prerequisite is missing, restore that prerequisite and retry the
+original command before reporting it blocked: use `pnpm install` for Node dependencies and
+`pnpm run test:e2e:install` for missing Playwright Chromium. If `pnpm` itself is unavailable, activate the
+repository-declared pnpm through Corepack when available. If setup cannot succeed or changes tracked files, report
+that blocker or mismatch instead of switching package managers or committing recovery changes.
+
 No standalone `format` script — formatting is part of `lint-fix` and runs through `prettier --write`. Husky
 pre-commit runs `prettier --check` and `pnpm run typecheck` plus ESLint for staged JS/TS files, runs
 `check:i18n` when locale files are staged and `check:issue-templates` when issue templates or `src/` TypeScript
