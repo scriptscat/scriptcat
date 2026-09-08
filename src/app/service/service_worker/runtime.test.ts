@@ -1261,12 +1261,16 @@ describe("pushValueUpdate 判断是否需要为 early-start 脚本重新编译",
     });
     const updateSpy = vi.spyOn(runtime, "updateResourceOnScriptChange").mockResolvedValue(undefined);
 
-    await runtime.pushValueUpdate(script, {
-      entries: [],
-      uuid: script.uuid,
+    await runtime.pushValueUpdate([script], {
       storageName: "test-storage",
-      sender: { runFlag: "", tabId: -1 },
-      valueUpdated: true,
+      storageChanges: [
+        {
+          valueChanges: [],
+          uuid: script.uuid,
+          storageName: "test-storage",
+          sender: { runFlag: "", tabId: -1 },
+        },
+      ],
     });
 
     expect(updateSpy).toHaveBeenCalledWith(script);

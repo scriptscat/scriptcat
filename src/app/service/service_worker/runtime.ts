@@ -50,7 +50,7 @@ import { type SystemConfig } from "@App/pkg/config/config";
 import { type ResourceService } from "./resource";
 import { type LocalStorageDAO } from "@App/app/repo/localStorage";
 import Logger from "@App/app/logger/logger";
-import type { GMInfoEnv, ValueUpdateDataEncoded } from "../content/types";
+import type { GMInfoEnv, ValueUpdateSendData } from "../content/types";
 import { initLocalesPromise, localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
 import { extractUrlPatterns, RuleType, RuleTypeBit, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
@@ -468,7 +468,7 @@ export class RuntimeService {
     await this.loadPageScript(script, apiScript!);
   }
 
-  public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded) {
+  public async pushValueUpdate(updatedScripts: Script[], sendData: ValueUpdateSendData) {
     try {
       // 前台腳本 （推送值到tab）
       await deliveryStorage!.set({
@@ -484,8 +484,8 @@ export class RuntimeService {
         await sendMessage(this.msgSender, "offscreen/runtime/valueUpdate", sendData);
       }
 
-      // valueUpdate 消息用于 early script 的处理
-      if (sendData.valueUpdated) {
+      // updatedScripts 为本批次有实际值变更的脚本，用于 early script 的处理
+      for (const script of updatedScripts) {
         if (
           script.status === SCRIPT_STATUS_ENABLE &&
           isEarlyStartScript(getCombinedMeta(script.metadata, script.selfMetadata))
@@ -496,11 +496,7 @@ export class RuntimeService {
         }
       }
     } catch (e) {
-      this.logger.error(
-        "push value update failed",
-        { uuid: script.uuid, storageName: sendData.storageName },
-        Logger.E(e)
-      );
+      this.logger.error("push value update failed", { storageName: sendData.storageName }, Logger.E(e));
     }
   }
 
