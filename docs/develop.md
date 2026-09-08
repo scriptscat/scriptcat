@@ -21,13 +21,19 @@ pnpm run coverage
 pnpm run typecheck        # tsc --noEmit
 
 pnpm run test:e2e:install # install Playwright Chromium (first run only)
-pnpm run test:e2e         # Playwright (e2e/*.spec.ts, 1 worker)
+pnpm run test:e2e         # Playwright (e2e/*.spec.ts; worker count comes from playwright.config.ts)
 pnpm run lint             # prettier --check + tsc --noEmit + check:i18n + check:issue-templates, then eslint
 pnpm run lint-fix         # prettier --write + tsc --noEmit + eslint --fix
 
 pnpm run check:i18n              # translation key parity (see docs/translation.md)
 pnpm run check:issue-templates   # .github/ISSUE_TEMPLATE schema, zh/en parity, issues/new prefill ids
 ```
+
+If a project command fails because a local prerequisite is missing, restore that prerequisite and retry the
+original command before reporting it blocked: use `pnpm install` for Node dependencies and
+`pnpm run test:e2e:install` for missing Playwright Chromium. If `pnpm` itself is unavailable, activate the
+repository-declared pnpm through Corepack when available. If setup cannot succeed or changes tracked files, report
+that blocker or mismatch instead of switching package managers or committing recovery changes.
 
 No standalone `format` script — formatting is part of `lint-fix` and runs through `prettier --write`. Husky
 pre-commit runs `prettier --check` and `pnpm run typecheck` plus ESLint for staged JS/TS files, runs
@@ -201,5 +207,39 @@ Commits must be single-purpose and **start with a gitmoji emoji** — use the ac
 Work from a feature branch or fork and open PRs against `main`. Chinese PR titles are preferred for changelog generation.
 
 Use `.github/pull_request_template.md` as the starting point. It is intentionally lightweight for human-authored PRs; agents should preserve its checklist and expand `Description / 描述` only when useful. The detailed structure is defined in [`pull-request.md`](./pull-request.md). Keep exact commands and results in `验证`, describe UI evidence when the change is visual, and do not claim checks or evidence that did not happen.
+
+### Revision, Scope, and Publication Binding
+
+Before reviewing or reporting a branch or pull request, or creating/updating a pull request or pushing its
+branch, bind the artifact, revision, and scope to the current remote state:
+
+1. Identify the target. For a live pull request, read its metadata and record its repository, base branch, head
+   branch, and head SHA. If only a local branch or commit is available, record its SHA and label all results
+   local-only; do not call them final pull-request evidence.
+2. Fetch the current base and relevant head refs before choosing the parent or diff. For a new pull request,
+   fetch `origin/main` and branch from that ref. For an existing pull request, fetch the recorded head repository
+   and branch.
+3. Compare the local SHA used for review or publication with the live branch/PR head using `git rev-parse HEAD`,
+   `git ls-remote <head-remote> refs/heads/<head-branch>` when a remote head exists, and the live pull-request
+   metadata. A local `HEAD` or tracking ref is not evidence of the pull-request head. If any identity differs,
+   stop, rebind the worktree and diff, and rerun the review before continuing.
+4. For a live pull request, derive review conclusions and inclusion/exclusion claims from the live base-to-head
+   diff, including changed paths and patch content. Apply the final-diff rule in
+   [`pull-request.md#scope-claims-and-final-diff-evidence`](./pull-request.md#scope-claims-and-final-diff-evidence);
+   branch ancestry, intention, and an earlier local check are insufficient.
+5. Before publication, require `git status --short --branch`, a named non-detached branch, and `git rev-parse
+   HEAD`; re-read the remote head immediately before pushing. Push normally only when the expected head is
+   unchanged. Never overwrite an unexpected or unreviewed remote commit. If the user explicitly authorizes a
+   rewrite, bind the current remote head, use a lease-protected force update against that exact SHA, and verify
+   the remote ref after pushing.
+6. Before reporting results or changing pull-request metadata, re-read the live pull request and bind every claim
+   to its returned head SHA. Any new commit, force-push, rebase, base change, conflict resolution, or scope-claim
+   edit invalidates earlier evidence; rerun the affected review, checks, and final-diff audit.
+
+The same binding applies to the scope you declared for your own change. A commit's gitmoji type and title, and the
+task statement they serve, name a scope class; compare the final diff against that class before committing or
+pushing. Move anything outside it into its own commit with its own justification, or restate the scope. A
+production behavior change that arrives inside a test-cleanup or refactor commit is not reviewable as either, and
+stays unreviewable no matter how correct it is on its own.
 
 **Review policy**: review **all** modified files (including `.md`/`.json`); PR description is context only — judge from the diff. Verify every code path touched.

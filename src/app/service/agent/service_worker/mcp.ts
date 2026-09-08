@@ -5,11 +5,12 @@ import { MCPServerRepo } from "@App/app/repo/mcp_server_repo";
 import type { ToolRegistry } from "@App/app/service/agent/core/tool_registry";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
-// 将服务器名和工具名合成为全局唯一的工具名
-function mcpToolName(serverName: string, toolName: string): string {
-  // 使用小写字母和下划线，避免特殊字符
+// 将服务器 ID、名称和工具名合成为全局唯一的工具名
+function mcpToolName(serverId: string, serverName: string, toolName: string): string {
+  // 名称仅用于可读性；服务器 ID 用码点编码，避免 `a-b` 与 `a_b` 之类的碰撞。
   const safeName = serverName.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase();
-  return `mcp_${safeName}_${toolName}`;
+  const encodedId = Array.from(serverId, (char) => char.codePointAt(0)!.toString(16)).join("_") || "empty";
+  return `mcp_${safeName}_${encodedId}_${toolName}`;
 }
 
 // MCPClient 工厂函数类型
@@ -24,6 +25,7 @@ export class MCPService {
   private clients = new Map<string, MCPClient>();
   // 记录每个服务器注册的工具名，便于注销
   private registeredTools = new Map<string, string[]>();
+  private connecting = new Map<string, Promise<MCPTool[]>>();
   private createClient: MCPClientFactory;
 
   constructor(
@@ -54,6 +56,19 @@ export class MCPService {
 
   // 连接服务器：创建 MCPClient，初始化，列出工具，注册到 ToolRegistry
   async connectServer(id: string): Promise<MCPTool[]> {
+    const pending = this.connecting.get(id);
+    if (pending) return pending;
+
+    const connection = this.connectServerInternal(id);
+    this.connecting.set(id, connection);
+    try {
+      return await connection;
+    } finally {
+      if (this.connecting.get(id) === connection) this.connecting.delete(id);
+    }
+  }
+
+  private async connectServerInternal(id: string): Promise<MCPTool[]> {
     const config = await this.repo.getServer(id);
     if (!config) {
       throw new Error(`MCP server "${id}" not found`);
@@ -65,27 +80,32 @@ export class MCPService {
     }
 
     const client = this.createClient(config);
-    await client.initialize();
+    try {
+      await client.initialize();
 
-    // 列出工具
-    const tools = await client.listTools();
-    this.clients.set(id, client);
+      // 列出工具
+      const tools = await client.listTools();
+      this.clients.set(id, client);
 
-    // 注册工具到 ToolRegistry
-    const toolNames: string[] = [];
-    for (const tool of tools) {
-      const name = mcpToolName(config.name, tool.name);
-      const definition: ToolDefinition = {
-        name,
-        description: `[MCP: ${config.name}] ${tool.description || tool.name}`,
-        parameters: tool.inputSchema,
-      };
-      this.toolRegistry.register("mcp", definition, new MCPToolExecutor(client, tool.name));
-      toolNames.push(name);
+      // 注册工具到 ToolRegistry
+      const toolNames: string[] = [];
+      for (const tool of tools) {
+        const name = mcpToolName(config.id, config.name, tool.name);
+        const definition: ToolDefinition = {
+          name,
+          description: `[MCP: ${config.name}] ${tool.description || tool.name}`,
+          parameters: tool.inputSchema,
+        };
+        this.toolRegistry.register("mcp", definition, new MCPToolExecutor(client, tool.name));
+        toolNames.push(name);
+      }
+      this.registeredTools.set(id, toolNames);
+
+      return tools;
+    } catch (error) {
+      await client.close().catch(() => {});
+      throw error;
     }
-    this.registeredTools.set(id, toolNames);
-
-    return tools;
   }
 
   // 确保服务器已连接（懒连接）
@@ -114,8 +134,11 @@ export class MCPService {
 
     const client = this.clients.get(id);
     if (client) {
-      client.close();
-      this.clients.delete(id);
+      try {
+        await client.close();
+      } finally {
+        this.clients.delete(id);
+      }
     }
   }
 
@@ -188,8 +211,14 @@ export class MCPService {
         };
         await this.repo.saveServer(updated);
 
+        // 已连接服务器的配置变更必须重连，否则工具仍使用旧的 URL/header/API key。
+        const wasConnected = this.clients.has(request.id);
+        if (wasConnected) {
+          await this.disconnectServer(request.id);
+        }
+
         // 处理 enabled 状态变更
-        if (updated.enabled && !this.clients.has(request.id)) {
+        if (updated.enabled) {
           try {
             await this.connectServer(request.id);
           } catch {

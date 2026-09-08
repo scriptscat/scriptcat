@@ -136,7 +136,7 @@ describe("构建配置 - 浏览器专用 manifest", () => {
     expect(result.incognito).toBe("spanning");
     expect(result).not.toHaveProperty("message_serialization");
     expect(result.browser_specific_settings.gecko.id).toBe("{firefox-id}");
-    expect(result.browser_specific_settings.gecko.strict_min_version).toBe("153");
+    expect(result.browser_specific_settings.gecko.strict_min_version).toBe("154.0");
     expect(result.commands).toEqual({ _execute_action: {} });
     expect(source.optional_permissions).toEqual(["background", "userScripts"]);
     expect(source.background).toHaveProperty("service_worker");

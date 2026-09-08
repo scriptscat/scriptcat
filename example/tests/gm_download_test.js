@@ -11,6 +11,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_info
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@b8c6d0839c75ee5e4e4276dd10e201011c445df8/example/tests/lib/sctest.js
 // @connect      httpbingo.org
 // @connect      raw.githubusercontent.com
 // @connect      cdn.jsdelivr.net
@@ -73,6 +74,7 @@ const enableTool = true;
 (function () {
   "use strict";
   if (!enableTool) return;
+  let reportSession = null;
 
   // ---------- Tiny DOM helper ----------
   function h(tag, props = {}, ...children) {
@@ -103,7 +105,9 @@ const enableTool = true;
     let p = "";
     try {
       p = (typeof GM_getValue === "function" ? GM_getValue("dl_prefix", "") : "") || "";
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     if (!p) p = "scriptcat-gmdl-tests/";
     if (!p.endsWith("/")) p += "/";
     return p;
@@ -111,12 +115,19 @@ const enableTool = true;
   function setPrefix(p) {
     try {
       if (typeof GM_setValue === "function") GM_setValue("dl_prefix", p);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // Each test gets a unique tail so re-runs don't collide unless we explicitly
   // want them to (the conflictAction "overwrite" test reuses a fixed name).
-  const RUN_TAG = Date.now().toString(36) + "-" + Math.floor(Math.random() * 36 ** 4).toString(36).padStart(4, "0");
+  const RUN_TAG =
+    Date.now().toString(36) +
+    "-" +
+    Math.floor(Math.random() * 36 ** 4)
+      .toString(36)
+      .padStart(4, "0");
   function nameFor(label, ext = "bin") {
     return getPrefix() + RUN_TAG + "-" + label.replace(/[^a-zA-Z0-9_-]+/g, "_") + "." + ext;
   }
@@ -124,12 +135,10 @@ const enableTool = true;
   // ---------- A small dataset built once, reused everywhere ----------
   // 1x1 transparent PNG (67 bytes).
   const PNG_BYTES = new Uint8Array([
-    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
-    0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-    0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00,
-    0x0a, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00,
-    0x00, 0x03, 0x01, 0x01, 0x00, 0xae, 0xb4, 0xfa, 0x77, 0x00, 0x00, 0x00,
-    0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0a, 0x49,
+    0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00, 0x00, 0x03, 0x01, 0x01, 0x00, 0xae, 0xb4, 0xfa, 0x77,
+    0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
   ]);
   const PNG_BLOB = new Blob([PNG_BYTES], { type: "image/png" });
   const TEXT_BLOB = new Blob(["hello from GM_download test harness"], { type: "text/plain" });
@@ -145,12 +154,18 @@ const enableTool = true;
     {
       id: "gmdl-test-panel",
       style: {
-        position: "fixed", bottom: "12px", right: "12px",
-        width: "520px", maxHeight: "78vh", overflow: "auto",
+        position: "fixed",
+        bottom: "12px",
+        right: "12px",
+        width: "520px",
+        maxHeight: "78vh",
+        overflow: "auto",
         zIndex: 2147483647,
-        background: "#111", color: "#f5f5f5",
+        background: "#111",
+        color: "#f5f5f5",
         font: "13px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-        borderRadius: "10px", boxShadow: "0 12px 30px rgba(0,0,0,.4)",
+        borderRadius: "10px",
+        boxShadow: "0 12px 30px rgba(0,0,0,.4)",
         border: "1px solid #333",
       },
     },
@@ -158,18 +173,41 @@ const enableTool = true;
       "div",
       {
         style: {
-          position: "sticky", top: 0, background: "#181818",
-          padding: "10px 12px", borderBottom: "1px solid #333",
-          display: "flex", alignItems: "center", gap: "8px",
+          position: "sticky",
+          top: 0,
+          background: "#181818",
+          padding: "10px 12px",
+          borderBottom: "1px solid #333",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
         },
       },
-      h("div", { style: { flex: "1 1 auto" } },
-        h("div", { style: { fontWeight: "600" } },
+      h(
+        "div",
+        { style: { flex: "1 1 auto" } },
+        h(
+          "div",
+          { style: { fontWeight: "600" } },
           `GM_download Test Harness ${(typeof GM_info === "object" && GM_info.script && GM_info.script.version) || ""}`
         ),
-        h("div", { style: { display: "flex", flexDirection: "row", gap: "10px", marginTop: "2px", opacity: .85, flexWrap: "wrap" } },
-          h("div", { style: { fontWeight: "400" } },
-            `${(typeof GM_info === "object" && GM_info.scriptHandler) || "?"} ${(typeof GM_info === "object" && GM_info.version) || ""}`),
+        h(
+          "div",
+          {
+            style: {
+              display: "flex",
+              flexDirection: "row",
+              gap: "10px",
+              marginTop: "2px",
+              opacity: 0.85,
+              flexWrap: "wrap",
+            },
+          },
+          h(
+            "div",
+            { style: { fontWeight: "400" } },
+            `${(typeof GM_info === "object" && GM_info.scriptHandler) || "?"} ${(typeof GM_info === "object" && GM_info.version) || ""}`
+          ),
           h("div", { id: "counts", style: { marginLeft: "auto" } }, "…")
         )
       ),
@@ -177,34 +215,69 @@ const enableTool = true;
       h("button", { id: "clear", style: btnStyle("#444") }, "Clear log")
     ),
 
-    h("div", { id: "status", style: { padding: "6px 12px", borderBottom: "1px solid #222", opacity: .9 } }, "Status: idle"),
+    h(
+      "div",
+      { id: "status", style: { padding: "6px 12px", borderBottom: "1px solid #222", opacity: 0.9 } },
+      "Status: idle"
+    ),
 
     // Settings strip.
-    h("div", { style: { padding: "6px 12px", borderBottom: "1px solid #222", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" } },
-      h("span", { style: { opacity: .8 } }, "Download prefix:"),
+    h(
+      "div",
+      {
+        style: {
+          padding: "6px 12px",
+          borderBottom: "1px solid #222",
+          display: "flex",
+          gap: "8px",
+          alignItems: "center",
+          flexWrap: "wrap",
+        },
+      },
+      h("span", { style: { opacity: 0.8 } }, "Download prefix:"),
       h("code", { id: "prefix", style: { background: "#222", padding: "2px 6px", borderRadius: "4px" } }, getPrefix()),
       h("button", { id: "setPrefix", style: btnStyle("#444") }, "Set prefix"),
-      h("span", { style: { opacity: .6, marginLeft: "auto", fontSize: "11.5px" } }, `RunTag: ${RUN_TAG}`)
+      h("span", { style: { opacity: 0.6, marginLeft: "auto", fontSize: "11.5px" } }, `RunTag: ${RUN_TAG}`)
     ),
 
     // Manual section.
-    h("details",
+    h(
+      "details",
       { id: "manualWrap", open: false, style: { padding: "0 12px 8px", borderBottom: "1px solid #222" } },
-      h("summary", { style: { padding: "6px 0", cursor: "pointer", userSelect: "none" } }, "Manual tests (require human)"),
-      h("div", { id: "manualHint", style: { fontSize: "12px", opacity: .75, margin: "4px 0 6px" } },
+      h(
+        "summary",
+        { style: { padding: "6px 0", cursor: "pointer", userSelect: "none" } },
+        "Manual tests (require human)"
+      ),
+      h(
+        "div",
+        { id: "manualHint", style: { fontSize: "12px", opacity: 0.75, margin: "4px 0 6px" } },
         "Each manual test waits for your verdict. Read the instructions in the log, perform the action, then click Mark Pass or Mark Fail. Skip ends the test without a verdict."
       ),
       h("div", { id: "manualButtons", style: { display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "4px" } })
     ),
 
     // Awaiting bar — shown only while a manual test is in flight.
-    h("div", { id: "awaitingWrap", style: { padding: "8px 12px", borderBottom: "1px solid #222", display: "none", background: "#1a1408" } },
-      h("div", { style: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" } },
-        h("div", { style: { flex: "1 1 auto" } },
+    h(
+      "div",
+      {
+        id: "awaitingWrap",
+        style: { padding: "8px 12px", borderBottom: "1px solid #222", display: "none", background: "#1a1408" },
+      },
+      h(
+        "div",
+        { style: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" } },
+        h(
+          "div",
+          { style: { flex: "1 1 auto" } },
           h("div", { style: { fontWeight: "600", color: "#fbbf24" } }, "⏳ Awaiting your action"),
-          h("div", { id: "awaitingLabel", style: { fontSize: "12px", opacity: .85, marginTop: "2px" } }, "")
+          h("div", { id: "awaitingLabel", style: { fontSize: "12px", opacity: 0.85, marginTop: "2px" } }, "")
         ),
-        h("div", { id: "awaitingTimer", style: { fontSize: "12px", opacity: .85, fontFamily: "ui-monospace, monospace" } }, ""),
+        h(
+          "div",
+          { id: "awaitingTimer", style: { fontSize: "12px", opacity: 0.85, fontFamily: "ui-monospace, monospace" } },
+          ""
+        ),
         // Optional in-flight action button (e.g. "🛑 Abort download"); tests register a handler via showAwaitingAction().
         h("button", { id: "awaitingAction", style: { ...btnStyle("#0ea5e9"), display: "none" } }, ""),
         h("button", { id: "awaitingPass", style: btnStyle("#16a34a") }, "✓ Mark Pass"),
@@ -214,22 +287,36 @@ const enableTool = true;
     ),
 
     // Queue.
-    h("details", { id: "queueWrap", open: false, style: { padding: "0 12px 6px", borderBottom: "1px solid #222" } },
+    h(
+      "details",
+      { id: "queueWrap", open: false, style: { padding: "0 12px 6px", borderBottom: "1px solid #222" } },
       h("summary", { style: { padding: "6px 0", cursor: "pointer", userSelect: "none" } }, "Pending auto tests"),
-      h("div", {
-        id: "queue",
-        style: {
-          fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
-          whiteSpace: "pre-wrap", opacity: .8,
+      h(
+        "div",
+        {
+          id: "queue",
+          style: {
+            fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
+            whiteSpace: "pre-wrap",
+            opacity: 0.8,
+          },
         },
-      }, "(none)")
+        "(none)"
+      )
     ),
 
     // Live progress for currently running test.
-    h("div", { id: "progressWrap", style: { padding: "6px 12px", borderBottom: "1px solid #222", display: "none" } },
-      h("div", { id: "progressLabel", style: { fontSize: "12px", opacity: .8, marginBottom: "4px" } }, ""),
-      h("div", { style: { background: "#222", height: "6px", borderRadius: "3px", overflow: "hidden" } },
-        h("div", { id: "progressBar", style: { background: "#2a6df1", height: "100%", width: "0%", transition: "width .15s" } })
+    h(
+      "div",
+      { id: "progressWrap", style: { padding: "6px 12px", borderBottom: "1px solid #222", display: "none" } },
+      h("div", { id: "progressLabel", style: { fontSize: "12px", opacity: 0.8, marginBottom: "4px" } }, ""),
+      h(
+        "div",
+        { style: { background: "#222", height: "6px", borderRadius: "3px", overflow: "hidden" } },
+        h("div", {
+          id: "progressBar",
+          style: { background: "#2a6df1", height: "100%", width: "0%", transition: "width .15s" },
+        })
       )
     ),
 
@@ -268,7 +355,7 @@ const enableTool = true;
 
   panel.querySelector("#clear").addEventListener("click", () => {
     $log.textContent = "";
-    state.pass = state.fail = state.skip = 0;
+    state.pass = state.fail = state.warn = state.info = state.skip = state.manual = 0;
     setCounts();
     setStatus("idle");
     setQueue([]);
@@ -292,24 +379,44 @@ const enableTool = true;
   }
 
   // ---------- Counters & status ----------
-  const state = { pass: 0, fail: 0, skip: 0 };
+  const state = { pass: 0, fail: 0, warn: 0, info: 0, skip: 0, manual: 0 };
   function setCounts() {
-    $counts.textContent = `✅ ${state.pass}  ❌ ${state.fail}  ⏭️ ${state.skip}`;
+    $counts.textContent = `PASS ${state.pass}  FAIL ${state.fail}  WARN ${state.warn}  INFO ${state.info}  SKIP ${state.skip}  MANUAL ${state.manual}`;
   }
   setCounts();
-  function setStatus(text) { $status.textContent = `Status: ${text}`; }
+  function setStatus(text) {
+    $status.textContent = `Status: ${text}`;
+  }
   function setQueue(items) {
     $queue.textContent = items.length ? items.map((t, i) => `${i + 1}. ${t}`).join("\n") : "(none)";
   }
-  function pass(msg) { state.pass++; setCounts(); logLine(`✅ ${escapeHtml(msg)}`); }
+  function pass(msg) {
+    state.pass++;
+    setCounts();
+    logLine(`✅ ${escapeHtml(msg)}`);
+  }
   function fail(msg, extra) {
-    state.fail++; setCounts();
+    state.fail++;
+    setCounts();
     logLine(
       `❌ ${escapeHtml(msg)}${extra ? `<pre style="white-space:pre-wrap;color:#bbb;margin:.5em 0 0">${escapeHtml(extra)}</pre>` : ""}`,
       "fail"
     );
   }
-  function skip(msg) { state.skip++; setCounts(); logLine(`⏭️ ${escapeHtml(msg)}`); }
+  function skip(msg) {
+    state.skip++;
+    setCounts();
+    logLine(`⏭️ ${escapeHtml(msg)}`);
+  }
+
+  function newReportSession() {
+    return SCTest.createReportSession({ name: "GM_download / GM.download", reporter: "panel" });
+  }
+
+  function reportVerdict(session, result, status, detail, name) {
+    if (!result) return session.record({ category: "GM_download", name, status, detail });
+    return session.update(result, status, { detail: detail || result.detail, manualVerdict: status });
+  }
 
   function showProgress(label) {
     $progressWrap.style.display = "";
@@ -332,9 +439,14 @@ const enableTool = true;
 
   // ---------- Assertion helpers ----------
   function assertEq(a, b, msg) {
-    if (a !== b) throw new Error(msg ? `${msg}: expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}` : `expected ${b}, got ${a}`);
+    if (a !== b)
+      throw new Error(
+        msg ? `${msg}: expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}` : `expected ${b}, got ${a}`
+      );
   }
-  function assertTrue(cond, msg) { if (!cond) throw new Error(msg || "assertTrue failed"); }
+  function assertTrue(cond, msg) {
+    if (!cond) throw new Error(msg || "assertTrue failed");
+  }
   function withTimeout(p, ms, label) {
     return new Promise((resolve, reject) => {
       let done = false;
@@ -343,8 +455,20 @@ const enableTool = true;
         done = true;
         reject(new Error(`timed out after ${ms}ms: ${label || ""}`));
       }, ms);
-      p.then((v) => { if (done) return; done = true; clearTimeout(t); resolve(v); },
-             (e) => { if (done) return; done = true; clearTimeout(t); reject(e); });
+      p.then(
+        (v) => {
+          if (done) return;
+          done = true;
+          clearTimeout(t);
+          resolve(v);
+        },
+        (e) => {
+          if (done) return;
+          done = true;
+          clearTimeout(t);
+          reject(e);
+        }
+      );
     });
   }
 
@@ -378,7 +502,10 @@ const enableTool = true;
     $awaitingWrap.style.display = "none";
     $awaitingLabel.innerHTML = "";
     $awaitingTimer.textContent = "";
-    if (_verdictTimerId) { clearInterval(_verdictTimerId); _verdictTimerId = null; }
+    if (_verdictTimerId) {
+      clearInterval(_verdictTimerId);
+      _verdictTimerId = null;
+    }
     // Tear down any registered action button so it doesn't leak into the next test.
     $awaitingAction.style.display = "none";
     $awaitingAction.textContent = "";
@@ -423,10 +550,13 @@ const enableTool = true;
     $awaitingAction.style.display = "";
     $awaitingAction.onclick = (ev) => {
       ev.preventDefault();
-      try { onClick(); } catch (e) { console.error("awaiting action handler threw:", e); }
+      try {
+        onClick();
+      } catch (e) {
+        console.error("awaiting action handler threw:", e);
+      }
     };
   }
-
 
   // ---------- GM_download wrappers ----------
 
@@ -443,31 +573,49 @@ const enableTool = true;
   function gmDownloadCb(details) {
     const progress = [];
     let resolve, reject;
-    const promise = new Promise((res, rej) => { resolve = res; reject = rej; });
+    const promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
     let saveCancelled = false;
     const opts = {
       ...details,
       onprogress(p) {
         progress.push(p);
-        try { details.onprogress && details.onprogress(p); } catch {}
+        try {
+          details.onprogress && details.onprogress(p);
+        } catch {}
         updateProgress(p.loaded ?? p.done ?? 0, p.total ?? p.totalSize ?? -1);
       },
       onload(data) {
-        try { details.onload && details.onload(data); } catch {}
+        try {
+          details.onload && details.onload(data);
+        } catch {}
         resolve({ kind: saveCancelled ? "save_cancelled" : "load", data });
       },
       onerror(err) {
-        try { details.onerror && details.onerror(err); } catch {}
+        try {
+          details.onerror && details.onerror(err);
+        } catch {}
         reject({ kind: "error", err });
       },
       ontimeout(err) {
-        try { details.ontimeout && details.ontimeout(err); } catch {}
+        try {
+          details.ontimeout && details.ontimeout(err);
+        } catch {}
         reject({ kind: "timeout", err });
       },
     };
     // GM_download returns { abort } in both TM and SC.
     const handle = GM_download(opts);
-    return { promise, handle, progress, _markSaveCancelled() { saveCancelled = true; } };
+    return {
+      promise,
+      handle,
+      progress,
+      _markSaveCancelled() {
+        saveCancelled = true;
+      },
+    };
   }
 
   /**
@@ -480,7 +628,9 @@ const enableTool = true;
       ...details,
       onprogress(p) {
         progress.push(p);
-        try { details.onprogress && details.onprogress(p); } catch {}
+        try {
+          details.onprogress && details.onprogress(p);
+        } catch {}
         updateProgress(p.loaded ?? p.done ?? 0, p.total ?? p.totalSize ?? -1);
       },
     };
@@ -492,8 +642,12 @@ const enableTool = true;
   // Each entry: { name, manual?: boolean, run: async () => void }
   const tests = [];
 
-  function autoTest(name, run) { tests.push({ name, manual: false, run }); }
-  function manualTest(name, run) { tests.push({ name, manual: true, run }); }
+  function autoTest(name, run) {
+    tests.push({ name, manual: false, run });
+  }
+  function manualTest(name, run) {
+    tests.push({ name, manual: true, run });
+  }
 
   // 1) sanity: APIs exist
   autoTest("APIs exist (GM_download / GM.download)", async () => {
@@ -506,18 +660,24 @@ const enableTool = true;
     const name = nameFor("string-form", "txt");
     const blobUrl = URL.createObjectURL(TEXT_BLOB);
     try {
-      const result = await withTimeout(new Promise((resolve, reject) => {
-        // String form has no callbacks, so we can only check that it does not throw
-        // synchronously and returns an object with abort(). The actual download is
-        // observed by the user.
-        let h;
-        try {
-          h = GM_download(blobUrl, name);
-        } catch (e) { return reject(e); }
-        assertTrue(h && typeof h.abort === "function", "handle.abort must be a function");
-        // Wait briefly to give the SW a chance to dispatch the download.
-        setTimeout(() => resolve({ handle: h }), 800);
-      }), 5000, "string-form");
+      const result = await withTimeout(
+        new Promise((resolve, reject) => {
+          // String form has no callbacks, so we can only check that it does not throw
+          // synchronously and returns an object with abort(). The actual download is
+          // observed by the user.
+          let h;
+          try {
+            h = GM_download(blobUrl, name);
+          } catch (e) {
+            return reject(e);
+          }
+          assertTrue(h && typeof h.abort === "function", "handle.abort must be a function");
+          // Wait briefly to give the SW a chance to dispatch the download.
+          setTimeout(() => resolve({ handle: h }), 800);
+        }),
+        5000,
+        "string-form"
+      );
       assertTrue(!!result, "completed");
     } finally {
       URL.revokeObjectURL(blobUrl);
@@ -590,19 +750,25 @@ const enableTool = true;
   autoTest("downloadMode 'native' — xhr fetch, onprogress fires", async () => {
     const name = nameFor("mode-native", "bin");
     const t0 = performance.now();
-    const r = await withTimeout(new Promise((resolve, reject) => {
-      const h = GM_download({
-        url: `${HB}/bytes/4096`,
-        name,
-        downloadMode: "native",
-        onprogress(p) { /* captured in wrapper too, but native mode emits >=1 */ },
-        onload: resolve,
-        onerror: reject,
-        ontimeout: reject,
-      });
-      // Don't keep the handle around — but ensure abort exists.
-      if (!h || typeof h.abort !== "function") reject(new Error("handle.abort missing"));
-    }), 20000, "native mode");
+    const r = await withTimeout(
+      new Promise((resolve, reject) => {
+        const h = GM_download({
+          url: `${HB}/bytes/4096`,
+          name,
+          downloadMode: "native",
+          onprogress(p) {
+            /* captured in wrapper too, but native mode emits >=1 */
+          },
+          onload: resolve,
+          onerror: reject,
+          ontimeout: reject,
+        });
+        // Don't keep the handle around — but ensure abort exists.
+        if (!h || typeof h.abort !== "function") reject(new Error("handle.abort missing"));
+      }),
+      20000,
+      "native mode"
+    );
     assertTrue(!!r, "onload received");
     // Sanity bound: 4KB shouldn't take 20s on any sane net.
     assertTrue(performance.now() - t0 < 20000, "completed in time");
@@ -611,16 +777,20 @@ const enableTool = true;
   // 9) browser mode — chrome.downloads only
   autoTest("downloadMode 'browser' — direct chrome.downloads", async () => {
     const name = nameFor("mode-browser", "bin");
-    const r = await withTimeout(new Promise((resolve, reject) => {
-      GM_download({
-        url: `${HB}/bytes/2048`,
-        name,
-        downloadMode: "browser",
-        onload: resolve,
-        onerror: reject,
-        ontimeout: reject,
-      });
-    }), 20000, "browser mode");
+    const r = await withTimeout(
+      new Promise((resolve, reject) => {
+        GM_download({
+          url: `${HB}/bytes/2048`,
+          name,
+          downloadMode: "browser",
+          onload: resolve,
+          onerror: reject,
+          ontimeout: reject,
+        });
+      }),
+      20000,
+      "browser mode"
+    );
     assertTrue(!!r, "onload received");
   });
 
@@ -628,16 +798,22 @@ const enableTool = true;
   autoTest("onprogress event shape (native mode)", async () => {
     const name = nameFor("progress-shape", "bin");
     const progresses = [];
-    await withTimeout(new Promise((resolve, reject) => {
-      GM_download({
-        url: `${HB}/bytes/1024`,
-        name,
-        downloadMode: "native",
-        onprogress(p) { progresses.push(p); },
-        onload: resolve,
-        onerror: reject,
-      });
-    }), 20000, "progress shape");
+    await withTimeout(
+      new Promise((resolve, reject) => {
+        GM_download({
+          url: `${HB}/bytes/1024`,
+          name,
+          downloadMode: "native",
+          onprogress(p) {
+            progresses.push(p);
+          },
+          onload: resolve,
+          onerror: reject,
+        });
+      }),
+      20000,
+      "progress shape"
+    );
     assertTrue(progresses.length > 0, "got at least one progress event");
     const last = progresses[progresses.length - 1];
     assertTrue("loaded" in last, "progress has loaded");
@@ -650,25 +826,33 @@ const enableTool = true;
     // Note: we intentionally do NOT include RUN_TAG so the second run targets
     // the same path. uniquify would otherwise produce filename(1), filename(2)...
     const fixedName = getPrefix() + "overwrite-target.txt";
-    const a = await withTimeout(new Promise((resolve, reject) => {
-      GM_download({
-        url: URL.createObjectURL(new Blob(["v1"])),
-        name: fixedName,
-        conflictAction: "overwrite",
-        onload: resolve,
-        onerror: reject,
-      });
-    }), 10000, "overwrite #1");
+    const a = await withTimeout(
+      new Promise((resolve, reject) => {
+        GM_download({
+          url: URL.createObjectURL(new Blob(["v1"])),
+          name: fixedName,
+          conflictAction: "overwrite",
+          onload: resolve,
+          onerror: reject,
+        });
+      }),
+      10000,
+      "overwrite #1"
+    );
     assertTrue(!!a, "first write succeeded");
-    const b = await withTimeout(new Promise((resolve, reject) => {
-      GM_download({
-        url: URL.createObjectURL(new Blob(["v2"])),
-        name: fixedName,
-        conflictAction: "overwrite",
-        onload: resolve,
-        onerror: reject,
-      });
-    }), 10000, "overwrite #2");
+    const b = await withTimeout(
+      new Promise((resolve, reject) => {
+        GM_download({
+          url: URL.createObjectURL(new Blob(["v2"])),
+          name: fixedName,
+          conflictAction: "overwrite",
+          onload: resolve,
+          onerror: reject,
+        });
+      }),
+      10000,
+      "overwrite #2"
+    );
     assertTrue(!!b, "second write succeeded (overwrite)");
     skip(`(visual check) ${fixedName} should now contain "v2"`);
   });
@@ -676,24 +860,32 @@ const enableTool = true;
   // 12) conflictAction "uniquify" — second download gets " (1)" suffix
   autoTest("conflictAction 'uniquify' — second write gets suffix", async () => {
     const fixedName = getPrefix() + "uniquify-target.txt";
-    await withTimeout(new Promise((resolve, reject) => {
-      GM_download({
-        url: URL.createObjectURL(new Blob(["v1"])),
-        name: fixedName,
-        conflictAction: "uniquify",
-        onload: resolve,
-        onerror: reject,
-      });
-    }), 10000, "uniquify #1");
-    await withTimeout(new Promise((resolve, reject) => {
-      GM_download({
-        url: URL.createObjectURL(new Blob(["v2"])),
-        name: fixedName,
-        conflictAction: "uniquify",
-        onload: resolve,
-        onerror: reject,
-      });
-    }), 10000, "uniquify #2");
+    await withTimeout(
+      new Promise((resolve, reject) => {
+        GM_download({
+          url: URL.createObjectURL(new Blob(["v1"])),
+          name: fixedName,
+          conflictAction: "uniquify",
+          onload: resolve,
+          onerror: reject,
+        });
+      }),
+      10000,
+      "uniquify #1"
+    );
+    await withTimeout(
+      new Promise((resolve, reject) => {
+        GM_download({
+          url: URL.createObjectURL(new Blob(["v2"])),
+          name: fixedName,
+          conflictAction: "uniquify",
+          onload: resolve,
+          onerror: reject,
+        });
+      }),
+      10000,
+      "uniquify #2"
+    );
     skip(`(visual check) you should see both uniquify-target.txt and uniquify-target (1).txt`);
   });
 
@@ -705,16 +897,20 @@ const enableTool = true;
     // on disk are not addressable. Cheap alternative: just verify the download
     // succeeded with custom headers attached and didn't error.
     const name = nameFor("headers-passthrough", "json");
-    const r = await withTimeout(new Promise((resolve, reject) => {
-      GM_download({
-        url: `${HB}/headers`,
-        name,
-        downloadMode: "native",
-        headers: { "X-Custom-Probe": "scriptcat-gmdl-test" },
-        onload: resolve,
-        onerror: reject,
-      });
-    }), 20000, "headers passthrough");
+    const r = await withTimeout(
+      new Promise((resolve, reject) => {
+        GM_download({
+          url: `${HB}/headers`,
+          name,
+          downloadMode: "native",
+          headers: { "X-Custom-Probe": "scriptcat-gmdl-test" },
+          onload: resolve,
+          onerror: reject,
+        });
+      }),
+      20000,
+      "headers passthrough"
+    );
     assertTrue(!!r, "onload received");
     skip(`(visual check) open ${name} — X-Custom-Probe should be echoed in the body`);
   });
@@ -722,13 +918,18 @@ const enableTool = true;
   // 14) abort() immediately — should not produce a file
   autoTest("abort() immediately — no onload, no onerror reached", async () => {
     const name = nameFor("abort-immediate", "bin");
-    let onloadCalled = false, onerrorCalled = false;
+    let onloadCalled = false,
+      onerrorCalled = false;
     const h = GM_download({
       url: `${HB}/bytes/65536`,
       name,
       downloadMode: "native",
-      onload() { onloadCalled = true; },
-      onerror() { onerrorCalled = true; },
+      onload() {
+        onloadCalled = true;
+      },
+      onerror() {
+        onerrorCalled = true;
+      },
     });
     h.abort();
     // Give the system 1.5s to (not) call any callbacks.
@@ -745,14 +946,18 @@ const enableTool = true;
   autoTest("abort() after onload — safe no-op", async () => {
     const name = nameFor("abort-after-load", "txt");
     let handle;
-    await withTimeout(new Promise((resolve, reject) => {
-      handle = GM_download({
-        url: URL.createObjectURL(TEXT_BLOB),
-        name,
-        onload: resolve,
-        onerror: reject,
-      });
-    }), 10000, "abort-after-load");
+    await withTimeout(
+      new Promise((resolve, reject) => {
+        handle = GM_download({
+          url: URL.createObjectURL(TEXT_BLOB),
+          name,
+          onload: resolve,
+          onerror: reject,
+        });
+      }),
+      10000,
+      "abort-after-load"
+    );
     try {
       handle.abort();
     } catch (e) {
@@ -770,8 +975,14 @@ const enableTool = true;
         url: "https://blocked-host-not-in-connect.example/",
         name,
         downloadMode: "native",
-        onload() { onloadCalled = true; resolve(); },
-        onerror(e) { errSeen = e || true; resolve(); },
+        onload() {
+          onloadCalled = true;
+          resolve();
+        },
+        onerror(e) {
+          errSeen = e || true;
+          resolve();
+        },
       });
       // Safety timeout
       setTimeout(resolve, 8000);
@@ -783,18 +994,28 @@ const enableTool = true;
   // 17) bad URL string — onerror or thrown
   autoTest("invalid URL — onerror (no crash)", async () => {
     const name = nameFor("bad-url", "bin");
-    let onloadCalled = false, errSeen = null, threw = null;
+    let onloadCalled = false,
+      errSeen = null,
+      threw = null;
     try {
       await new Promise((resolve) => {
         GM_download({
           url: "not-a-real-url://??",
           name,
-          onload() { onloadCalled = true; resolve(); },
-          onerror(e) { errSeen = e || true; resolve(); },
+          onload() {
+            onloadCalled = true;
+            resolve();
+          },
+          onerror(e) {
+            errSeen = e || true;
+            resolve();
+          },
         });
         setTimeout(resolve, 4000);
       });
-    } catch (e) { threw = e; }
+    } catch (e) {
+      threw = e;
+    }
     assertEq(onloadCalled, false, "onload must NOT fire on bad URL");
     assertTrue(errSeen != null || threw != null, "either onerror fires or it throws");
   });
@@ -802,18 +1023,28 @@ const enableTool = true;
   // 18) empty URL — should be rejected
   autoTest("empty URL — onerror or thrown", async () => {
     const name = nameFor("empty-url", "bin");
-    let onloadCalled = false, errSeen = null, threw = null;
+    let onloadCalled = false,
+      errSeen = null,
+      threw = null;
     try {
       await new Promise((resolve) => {
         GM_download({
           url: "",
           name,
-          onload() { onloadCalled = true; resolve(); },
-          onerror(e) { errSeen = e || true; resolve(); },
+          onload() {
+            onloadCalled = true;
+            resolve();
+          },
+          onerror(e) {
+            errSeen = e || true;
+            resolve();
+          },
         });
         setTimeout(resolve, 3000);
       });
-    } catch (e) { threw = e; }
+    } catch (e) {
+      threw = e;
+    }
     assertEq(onloadCalled, false, "onload must NOT fire on empty URL");
     assertTrue(errSeen != null || threw != null, "either onerror fires or it throws");
   });
@@ -821,14 +1052,18 @@ const enableTool = true;
   // 19) name with subdirectories — folder is created under Downloads/
   autoTest("name with subdirectories — nested folder created", async () => {
     const name = nameFor("nested/a/b/file", "txt");
-    const r = await withTimeout(new Promise((resolve, reject) => {
-      GM_download({
-        url: URL.createObjectURL(TEXT_BLOB),
-        name,
-        onload: resolve,
-        onerror: reject,
-      });
-    }), 10000, "nested name");
+    const r = await withTimeout(
+      new Promise((resolve, reject) => {
+        GM_download({
+          url: URL.createObjectURL(TEXT_BLOB),
+          name,
+          onload: resolve,
+          onerror: reject,
+        });
+      }),
+      10000,
+      "nested name"
+    );
     assertTrue(!!r, "onload received");
     skip(`(visual check) ${name} should exist with nested folders`);
   });
@@ -837,28 +1072,44 @@ const enableTool = true;
   autoTest("name with illegal characters — sanitized, no crash", async () => {
     // backend cleanFileName() replaces these. We don't know the exact
     // replacement but at least the download must succeed.
-    const rawName = getPrefix() + RUN_TAG + "-illegal<>:\"|?*-chars.txt";
-    const r = await withTimeout(new Promise((resolve, reject) => {
-      GM_download({
-        url: URL.createObjectURL(TEXT_BLOB),
-        name: rawName,
-        onload: resolve,
-        onerror: reject,
-      });
-    }), 10000, "illegal chars");
+    const rawName = getPrefix() + RUN_TAG + '-illegal<>:"|?*-chars.txt';
+    const r = await withTimeout(
+      new Promise((resolve, reject) => {
+        GM_download({
+          url: URL.createObjectURL(TEXT_BLOB),
+          name: rawName,
+          onload: resolve,
+          onerror: reject,
+        });
+      }),
+      10000,
+      "illegal chars"
+    );
     assertTrue(!!r, "onload received — name was sanitized");
   });
 
   // 21) GM.download rejection — invalid URL should reject the promise
   autoTest("GM.download promise rejects on invalid URL", async () => {
-    let rejected = null, resolved = null;
+    let rejected = null,
+      resolved = null;
     try {
       const p = GM.download({
         url: "https://blocked-host-not-in-connect-2.example/",
         name: nameFor("promise-reject", "bin"),
       });
       // Race with timeout
-      await withTimeout(p.then(v => { resolved = v; }, e => { rejected = e; }), 8000, "promise-reject");
+      await withTimeout(
+        p.then(
+          (v) => {
+            resolved = v;
+          },
+          (e) => {
+            rejected = e;
+          }
+        ),
+        8000,
+        "promise-reject"
+      );
     } catch (e) {
       // withTimeout firing is acceptable too — counts as "did not resolve"
       rejected = e;
@@ -891,16 +1142,25 @@ const enableTool = true;
       url: blobUrl,
       name,
       saveAs: true,
-      onload: (d) => { events.push(["onload", d]); logLine(`→ event: onload ${JSON.stringify(d)}`); },
-      onerror: (e) => { events.push(["onerror", e]); logLine(`→ event: onerror ${JSON.stringify(e)}`); },
+      onload: (d) => {
+        events.push(["onload", d]);
+        logLine(`→ event: onload ${JSON.stringify(d)}`);
+      },
+      onerror: (e) => {
+        events.push(["onerror", e]);
+        logLine(`→ event: onerror ${JSON.stringify(e)}`);
+      },
       onprogress: (p) => events.push(["onprogress", p]),
     });
     const v = await awaitVerdict("Save the file when the dialog appears, then click Mark Pass.", 180);
     URL.revokeObjectURL(blobUrl);
-    if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (events: ${events.map((e) => e[0]).join(", ") || "none"})`);
-    if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (events: ${events.map((e) => e[0]).join(", ") || "none"})`);
+    if (v.verdict === "skip")
+      throw new Error(`SKIP: ${v.reason || "no reason"} (events: ${events.map((e) => e[0]).join(", ") || "none"})`);
+    if (v.verdict === "fail")
+      throw new Error(`user said FAIL: ${v.reason} (events: ${events.map((e) => e[0]).join(", ") || "none"})`);
     // Pass — but if zero callbacks fired we want the human to see that too.
-    if (events.length === 0) logLine(`<b style="color:#fbbf24">note: no callbacks fired — Pass accepted but worth checking</b>`);
+    if (events.length === 0)
+      logLine(`<b style="color:#fbbf24">note: no callbacks fired — Pass accepted but worth checking</b>`);
   });
 
   manualTest("Cancel saveAs dialog — must NOT be onerror", async () => {
@@ -909,26 +1169,41 @@ const enableTool = true;
     logLine(`→ Expected: a <b>Save As</b> dialog appears. <b>Click Cancel.</b>`);
     logLine(`→ The contract: onload may fire (compat layer maps save_cancelled → onload),`);
     logLine(`&nbsp;&nbsp;&nbsp;but <b style="color:#f87171">onerror MUST NOT fire</b>.`);
-    let sawOnerror = false, sawOnload = false;
+    let sawOnerror = false,
+      sawOnload = false;
     const events = [];
     const blobUrl = URL.createObjectURL(TEXT_BLOB);
     GM_download({
       url: blobUrl,
       name,
       saveAs: true,
-      onload: (d) => { sawOnload = true; events.push("onload"); logLine(`→ event: onload ${JSON.stringify(d)}`); },
-      onerror: (e) => { sawOnerror = true; events.push("onerror"); logLine(`<b style="color:#f87171">→ event: onerror ${JSON.stringify(e)}</b>`); },
+      onload: (d) => {
+        sawOnload = true;
+        events.push("onload");
+        logLine(`→ event: onload ${JSON.stringify(d)}`);
+      },
+      onerror: (e) => {
+        sawOnerror = true;
+        events.push("onerror");
+        logLine(`<b style="color:#f87171">→ event: onerror ${JSON.stringify(e)}</b>`);
+      },
     });
     const v = await awaitVerdict(
       "When the Save As dialog appears, click <b>Cancel</b>. Watch the log: if you see <code>onerror</code>, click Mark Fail; otherwise Mark Pass.",
       180
     );
     URL.revokeObjectURL(blobUrl);
-    if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (sawOnload=${sawOnload}, sawOnerror=${sawOnerror})`);
-    if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (sawOnload=${sawOnload}, sawOnerror=${sawOnerror})`);
+    if (v.verdict === "skip")
+      throw new Error(`SKIP: ${v.reason || "no reason"} (sawOnload=${sawOnload}, sawOnerror=${sawOnerror})`);
+    if (v.verdict === "fail")
+      throw new Error(`user said FAIL: ${v.reason} (sawOnload=${sawOnload}, sawOnerror=${sawOnerror})`);
     // Verdict was pass — sanity-check it against what we actually observed.
-    if (sawOnerror) throw new Error("you marked Pass but onerror fired — that's the regression this test guards against");
-    if (!sawOnload && !sawOnerror) logLine(`<b style="color:#fbbf24">note: neither onload nor onerror fired — implementation may swallow the cancel silently</b>`);
+    if (sawOnerror)
+      throw new Error("you marked Pass but onerror fired — that's the regression this test guards against");
+    if (!sawOnload && !sawOnerror)
+      logLine(
+        `<b style="color:#fbbf24">note: neither onload nor onerror fired — implementation may swallow the cancel silently</b>`
+      );
   });
 
   // Note on cancel testing:
@@ -951,7 +1226,10 @@ const enableTool = true;
     logLine(`→ A 100 MB download (native mode) starts. Wait until you see <code>onprogress</code> events streaming.`);
     logLine(`→ Click the <b style="color:#0ea5e9">🛑 Abort download</b> button. Then Mark Pass.`);
     logLine(`→ Contract: after abort(), <b>no onload</b> and <b>no onerror</b> should fire.`);
-    let sawOnload = false, sawOnerror = false, lastProgress = null, abortCalledAt = 0;
+    let sawOnload = false,
+      sawOnerror = false,
+      lastProgress = null,
+      abortCalledAt = 0;
     const handle = GM_download({
       url,
       name,
@@ -960,20 +1238,32 @@ const enableTool = true;
         lastProgress = p;
         updateProgress(p.loaded ?? p.done ?? 0, p.total ?? p.totalSize ?? -1);
       },
-      onload: (d) => { sawOnload = true; logLine(`<b style="color:#f87171">→ event: onload AFTER ABORT — regression: ${JSON.stringify(d)}</b>`); },
+      onload: (d) => {
+        sawOnload = true;
+        logLine(`<b style="color:#f87171">→ event: onload AFTER ABORT — regression: ${JSON.stringify(d)}</b>`);
+      },
       onerror: (e) => {
         // Some implementations DO surface onerror on abort. We log it but don't fail on that alone.
         sawOnerror = true;
-        const sinceAbort = abortCalledAt ? `${(performance.now() - abortCalledAt) | 0}ms after abort()` : "BEFORE abort() — that's a different bug";
+        const sinceAbort = abortCalledAt
+          ? `${(performance.now() - abortCalledAt) | 0}ms after abort()`
+          : "BEFORE abort() — that's a different bug";
         logLine(`→ event: onerror (${sinceAbort}): ${JSON.stringify(e)}`);
       },
     });
     showProgress("downloading 100 MB (abort me)");
     showAwaitingAction("🛑 Abort download", () => {
-      if (abortCalledAt) { logLine("→ abort already requested"); return; }
+      if (abortCalledAt) {
+        logLine("→ abort already requested");
+        return;
+      }
       abortCalledAt = performance.now();
       logLine(`→ calling handle.abort()`);
-      try { handle.abort(); } catch (e) { logLine(`<b style="color:#f87171">abort threw: ${escapeHtml(String(e))}</b>`); }
+      try {
+        handle.abort();
+      } catch (e) {
+        logLine(`<b style="color:#f87171">abort threw: ${escapeHtml(String(e))}</b>`);
+      }
     });
     const v = await awaitVerdict(
       "Wait for progress events, click 🛑 Abort download, then Mark Pass. (Mark Fail if onload fires after abort.)",
@@ -983,44 +1273,64 @@ const enableTool = true;
     const ctx = `aborted=${!!abortCalledAt}, sawOnload=${sawOnload}, sawOnerror=${sawOnerror}, lastProgress=${lastProgress ? `${lastProgress.loaded}/${lastProgress.total}` : "none"}`;
     if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (${ctx})`);
     if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (${ctx})`);
-    if (!abortCalledAt) logLine(`<b style="color:#fbbf24">note: you marked Pass without clicking Abort — test was inconclusive</b>`);
+    if (!abortCalledAt)
+      logLine(`<b style="color:#fbbf24">note: you marked Pass without clicking Abort — test was inconclusive</b>`);
     // The strong invariant: no successful onload after the user asked for abort.
     if (sawOnload && abortCalledAt) throw new Error(`onload fired after abort — cancel was not honored (${ctx})`);
   });
 
-  manualTest("Cancel via chrome://downloads (browser mode) — must arrive as onload (save_cancelled), NOT onerror", async () => {
-    const name = nameFor("manual-cancel-inprogress-browser", "bin");
-    // browser mode hands the HTTP fetch to chrome.downloads itself, so the
-    // entry shows up in chrome://downloads with a real progress bar and a
-    // working Cancel button. 100 MB on plain HTTP from thinkbroadband gives
-    // a few seconds of real network time on most connections.
-    const url = `http://ipv4.download.thinkbroadband.com/100MB.zip?t=${Date.now()}`;
-    logLine(`▶ <b>Manual #3b</b>: <i>${escapeHtml(name)}</i>`);
-    logLine(`→ A 100 MB download (<b>browser mode</b>) starts — chrome://downloads will show it with a real progress bar.`);
-    logLine(`→ Open <code>chrome://downloads</code>, find the entry, click <b>Cancel</b>.`);
-    logLine(`→ Contract: SC treats user-cancel as <code>save_cancelled</code> and routes it to <b>onload</b>, NOT <code>onerror</code>.`);
-    let sawOnload = false, sawOnerror = false, onloadData = null;
-    GM_download({
-      url,
-      name,
-      downloadMode: "browser",
-      onprogress: (p) => updateProgress(p.loaded ?? p.done ?? 0, p.total ?? p.totalSize ?? -1),
-      onload: (d) => { sawOnload = true; onloadData = d; logLine(`→ event: onload ${JSON.stringify(d)}`); },
-      onerror: (e) => { sawOnerror = true; logLine(`<b style="color:#f87171">→ event: onerror ${JSON.stringify(e)}</b>`); },
-    });
-    showProgress("downloading 100 MB (cancel from chrome://downloads)");
-    const v = await awaitVerdict(
-      "Cancel the download from chrome://downloads, then Mark Pass if you saw onload (and no onerror).",
-      300
-    );
-    hideProgress();
-    const ctx = `sawOnload=${sawOnload}, sawOnerror=${sawOnerror}, onloadData=${JSON.stringify(onloadData)}`;
-    if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (${ctx})`);
-    if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (${ctx})`);
-    // The exact regression this guards: onerror on user-cancel is the bug evaluated above.
-    if (sawOnerror) throw new Error(`onerror fired on user-cancel — that's the save_cancelled regression (${ctx})`);
-    if (!sawOnload) logLine(`<b style="color:#fbbf24">note: neither onload nor onerror fired — did you actually cancel? Marking Pass anyway because user said so.</b>`);
-  });
+  manualTest(
+    "Cancel via chrome://downloads (browser mode) — must arrive as onload (save_cancelled), NOT onerror",
+    async () => {
+      const name = nameFor("manual-cancel-inprogress-browser", "bin");
+      // browser mode hands the HTTP fetch to chrome.downloads itself, so the
+      // entry shows up in chrome://downloads with a real progress bar and a
+      // working Cancel button. 100 MB on plain HTTP from thinkbroadband gives
+      // a few seconds of real network time on most connections.
+      const url = `http://ipv4.download.thinkbroadband.com/100MB.zip?t=${Date.now()}`;
+      logLine(`▶ <b>Manual #3b</b>: <i>${escapeHtml(name)}</i>`);
+      logLine(
+        `→ A 100 MB download (<b>browser mode</b>) starts — chrome://downloads will show it with a real progress bar.`
+      );
+      logLine(`→ Open <code>chrome://downloads</code>, find the entry, click <b>Cancel</b>.`);
+      logLine(
+        `→ Contract: SC treats user-cancel as <code>save_cancelled</code> and routes it to <b>onload</b>, NOT <code>onerror</code>.`
+      );
+      let sawOnload = false,
+        sawOnerror = false,
+        onloadData = null;
+      GM_download({
+        url,
+        name,
+        downloadMode: "browser",
+        onprogress: (p) => updateProgress(p.loaded ?? p.done ?? 0, p.total ?? p.totalSize ?? -1),
+        onload: (d) => {
+          sawOnload = true;
+          onloadData = d;
+          logLine(`→ event: onload ${JSON.stringify(d)}`);
+        },
+        onerror: (e) => {
+          sawOnerror = true;
+          logLine(`<b style="color:#f87171">→ event: onerror ${JSON.stringify(e)}</b>`);
+        },
+      });
+      showProgress("downloading 100 MB (cancel from chrome://downloads)");
+      const v = await awaitVerdict(
+        "Cancel the download from chrome://downloads, then Mark Pass if you saw onload (and no onerror).",
+        300
+      );
+      hideProgress();
+      const ctx = `sawOnload=${sawOnload}, sawOnerror=${sawOnerror}, onloadData=${JSON.stringify(onloadData)}`;
+      if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (${ctx})`);
+      if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (${ctx})`);
+      // The exact regression this guards: onerror on user-cancel is the bug evaluated above.
+      if (sawOnerror) throw new Error(`onerror fired on user-cancel — that's the save_cancelled regression (${ctx})`);
+      if (!sawOnload)
+        logLine(
+          `<b style="color:#fbbf24">note: neither onload nor onerror fired — did you actually cancel? Marking Pass anyway because user said so.</b>`
+        );
+    }
+  );
 
   manualTest("Verify last download wrote a real file (visual check)", async () => {
     const name = nameFor("manual-visual-check", "txt");
@@ -1033,34 +1343,51 @@ const enableTool = true;
     GM_download({
       url: blobUrl,
       name,
-      onload: () => { landed = true; logLine("→ event: onload — file should be on disk now."); },
-      onerror: (e) => { logLine(`<b style="color:#f87171">→ event: onerror ${JSON.stringify(e)}</b>`); },
+      onload: () => {
+        landed = true;
+        logLine("→ event: onload — file should be on disk now.");
+      },
+      onerror: (e) => {
+        logLine(`<b style="color:#f87171">→ event: onerror ${JSON.stringify(e)}</b>`);
+      },
     });
     const v = await awaitVerdict(`Open <code>${escapeHtml(name)}</code> and confirm the contents match.`, 240);
     URL.revokeObjectURL(blobUrl);
     if (v.verdict === "skip") throw new Error(`SKIP: ${v.reason || "no reason"} (landed=${landed})`);
     if (v.verdict === "fail") throw new Error(`user said FAIL: ${v.reason} (landed=${landed})`);
-    if (!landed) logLine(`<b style="color:#fbbf24">note: marked Pass but onload didn't fire — file presence is the source of truth here</b>`);
+    if (!landed)
+      logLine(
+        `<b style="color:#fbbf24">note: marked Pass but onload didn't fire — file presence is the source of truth here</b>`
+      );
   });
 
   // ---------- Runner ----------
-  async function runOne(t, idx, total) {
+  async function runOne(t, idx, total, session) {
     setStatus(`running (${idx + 1}/${total}): ${t.name}`);
     if (!t.manual) showProgress(t.name);
     const title = `• ${t.name}`;
+    const result = t.manual
+      ? session.manual("GM_download", t.name, "用户完成操作并作出裁决", "待人工确认", "操作说明见专用面板")
+      : null;
     const t0 = performance.now();
     try {
       logLine(`▶️ <b>${escapeHtml(t.name)}</b>`);
       await t.run();
-      pass(`${title} (${fmtMs(performance.now() - t0)})`);
+      const detail = `${title} (${fmtMs(performance.now() - t0)})`;
+      pass(detail);
+      reportVerdict(session, result, "PASS", detail, t.name);
     } catch (e) {
       const extra = e && e.stack ? e.stack : String(e);
-      const msg = String(e && e.message || e);
+      const msg = String((e && e.message) || e);
       if (msg.startsWith("SKIP:")) {
         // Soft outcome — count as skip, not as fail.
-        skip(`${title} (${fmtMs(performance.now() - t0)}) — ${msg.slice(5).trim()}`);
+        const detail = `${title} (${fmtMs(performance.now() - t0)}) — ${msg.slice(5).trim()}`;
+        skip(detail);
+        reportVerdict(session, result, "SKIP", detail, t.name);
       } else {
-        fail(`${title} (${fmtMs(performance.now() - t0)})`, extra);
+        const detail = `${title} (${fmtMs(performance.now() - t0)})`;
+        fail(detail, extra);
+        reportVerdict(session, result, "FAIL", `${detail}: ${msg}`, t.name);
       }
     } finally {
       hideProgress();
@@ -1072,25 +1399,38 @@ const enableTool = true;
   let running = false;
   function setAllButtonsDisabled(disabled) {
     panel.querySelector("#start").disabled = disabled;
-    $manualButtons.querySelectorAll("button").forEach((b) => { b.disabled = disabled; b.style.opacity = disabled ? "0.5" : "1"; });
+    $manualButtons.querySelectorAll("button").forEach((b) => {
+      b.disabled = disabled;
+      b.style.opacity = disabled ? "0.5" : "1";
+    });
   }
 
   async function runAuto() {
-    if (running) { logLine("<i>Already running — wait for the current suite to finish.</i>"); return; }
+    if (running) {
+      logLine("<i>Already running — wait for the current suite to finish.</i>");
+      return;
+    }
     running = true;
     setAllButtonsDisabled(true);
     try {
       const auto = tests.filter((t) => !t.manual);
+      reportSession = newReportSession();
+      reportSession.start();
       const names = auto.map((t) => t.name);
       setQueue(names.slice());
       logLine(`<b>Starting GM_download auto suite</b> — ${new Date().toLocaleString()} — runTag=${RUN_TAG}`);
-      logLine(`<i>Files will appear under <code>${escapeHtml(getPrefix())}</code> with prefix <code>${escapeHtml(RUN_TAG)}-</code></i>`);
+      logLine(
+        `<i>Files will appear under <code>${escapeHtml(getPrefix())}</code> with prefix <code>${escapeHtml(RUN_TAG)}-</code></i>`
+      );
       for (let i = 0; i < auto.length; i++) {
-        await runOne(auto[i], i, auto.length);
+        await runOne(auto[i], i, auto.length, reportSession);
         setQueue(names.slice(i + 1));
       }
       setStatus("done");
-      logLine(`<b>Done.</b> Summary — ✅ ${state.pass}  ❌ ${state.fail}  ⏭️ ${state.skip}`);
+      logLine(
+        `<b>Done.</b> Summary — PASS ${state.pass}  FAIL ${state.fail}  WARN ${state.warn}  INFO ${state.info}  SKIP ${state.skip}`
+      );
+      reportSession.finish();
     } finally {
       running = false;
       setAllButtonsDisabled(false);
@@ -1098,27 +1438,44 @@ const enableTool = true;
   }
 
   // Build manual buttons.
-  tests.filter((t) => t.manual).forEach((t) => {
-    const b = h("button",
-      { style: btnStyle("#7c3aed"),
-        onclick: async () => {
-          if (running) { logLine("<i>Another test is already running — wait for it to finish.</i>"); return; }
-          running = true;
-          setAllButtonsDisabled(true);
-          try { await runOne(t, 0, 1); }
-          finally {
-            running = false;
-            setAllButtonsDisabled(false);
-            setStatus("idle");
-          }
-        } },
-      t.name);
-    $manualButtons.appendChild(b);
-  });
+  tests
+    .filter((t) => t.manual)
+    .forEach((t) => {
+      const b = h(
+        "button",
+        {
+          style: btnStyle("#7c3aed"),
+          onclick: async () => {
+            if (running) {
+              logLine("<i>Another test is already running — wait for it to finish.</i>");
+              return;
+            }
+            running = true;
+            setAllButtonsDisabled(true);
+            reportSession = newReportSession();
+            reportSession.start();
+            try {
+              await runOne(t, 0, 1, reportSession);
+              reportSession.finish();
+            } finally {
+              running = false;
+              setAllButtonsDisabled(false);
+              setStatus("idle");
+            }
+          },
+        },
+        t.name
+      );
+      $manualButtons.appendChild(b);
+    });
 
   // ---------- Boot ----------
-  logLine(`<b>GM_download Test Harness</b> ready. Click <b>Run Auto</b> to run the auto suite, or open <i>Manual tests</i> for human-in-the-loop cases.`);
-  logLine(`<i>Manual tests use a verdict bar: read the instructions, do the action, then click <b>Mark Pass</b> / <b>Mark Fail</b> / <b>Skip</b>. A countdown auto-skips if you walk away.</i>`);
+  logLine(
+    `<b>GM_download Test Harness</b> ready. Click <b>Run Auto</b> to run the auto suite, or open <i>Manual tests</i> for human-in-the-loop cases.`
+  );
+  logLine(
+    `<i>Manual tests use a verdict bar: read the instructions, do the action, then click <b>Mark Pass</b> / <b>Mark Fail</b> / <b>Skip</b>. A countdown auto-skips if you walk away.</i>`
+  );
   logLine(`<i>Tip: change the prefix above if you want files in a different sub-folder.</i>`);
   setStatus("idle");
 

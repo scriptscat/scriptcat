@@ -853,8 +853,8 @@ declare namespace CATAgent {
     description: string;
     /** JSON Schema describing the tool parameters. */
     parameters: Record<string, unknown>;
-    /** Handler invoked when the LLM calls this tool. */
-    handler: (args: Record<string, unknown>) => Promise<unknown>;
+    /** Handler invoked when the LLM calls this tool. Stop work promptly when the batch signal is aborted. */
+    handler: (args: Record<string, unknown>, signal: AbortSignal) => Promise<unknown>;
   }
 
   /**
@@ -873,8 +873,6 @@ declare namespace CATAgent {
     system?: string;
     /** Model ID; uses the default model if omitted. */
     model?: string;
-    /** Max tool-calling loop iterations (default: 20). */
-    maxIterations?: number;
     /** Skills to load: `"auto"` loads all installed skills, or specify names. */
     skills?: "auto" | string[];
     /** Tools with inline handlers, available for the lifetime of this conversation. */
@@ -891,6 +889,8 @@ declare namespace CATAgent {
     ephemeral?: boolean;
     /** Enable prompt caching. Defaults to true. */
     cache?: boolean;
+    /** Keep the conversation running in the Service Worker after the page disconnects. */
+    background?: boolean;
   }
 
   /** Options for a single `chat()` / `chatStream()` call. */
@@ -942,9 +942,18 @@ declare namespace CATAgent {
     /** Tool calls made during this turn. */
     toolCalls?: ToolCallInfo[];
     /** Token usage. */
-    usage?: { inputTokens: number; outputTokens: number };
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationInputTokens?: number;
+      cacheReadInputTokens?: number;
+    };
+    /** Total response duration in ms. */
+    durationMs?: number;
     /** `true` when the reply was produced by a command handler, not the LLM. */
     command?: boolean;
+    /** Non-fatal warning about generated data loss (e.g. a generated image failed to save). */
+    warning?: string;
   }
 
   /** A single chunk emitted during streaming via `chatStream()`. */
@@ -953,26 +962,76 @@ declare namespace CATAgent {
      * Chunk type:
      * - `"content_delta"` — incremental text
      * - `"thinking_delta"` — incremental thinking/reasoning
-     * - `"tool_call"` — a tool call event
+     * - `"tool_call"` — a tool call event (start or argument delta)
+     * - `"tool_call_complete"` — a tool call finished executing, carries result/status/attachments
      * - `"content_block"` — a complete non-text content block
+     * - `"new_message"` — the current round ended, the next assistant message is about to start
+     * - `"system_warning"` — a non-fatal warning about generated data loss
      * - `"done"` — stream finished
      * - `"error"` — an error occurred
      */
-    type: "content_delta" | "thinking_delta" | "tool_call" | "content_block" | "done" | "error";
+    type:
+      | "content_delta"
+      | "thinking_delta"
+      | "tool_call"
+      | "tool_call_complete"
+      | "content_block"
+      | "new_message"
+      | "system_warning"
+      | "done"
+      | "error";
     /** Text delta (for content_delta / thinking_delta). */
     content?: string;
     /** Complete content block (for content_block). */
     block?: ContentBlock;
-    /** Tool call info (for tool_call). */
+    /** Tool call info (for tool_call / tool_call_complete). */
     toolCall?: ToolCallInfo;
     /** Token usage (for done). */
-    usage?: { inputTokens: number; outputTokens: number };
+    usage?: {
+      inputTokens: number;
+      outputTokens: number;
+      cacheCreationInputTokens?: number;
+      cacheReadInputTokens?: number;
+    };
+    /** Total response duration in ms. */
+    durationMs?: number;
     /** Error message (for error). */
     error?: string;
-    /** Error classification: `"rate_limit"` | `"auth"` | `"tool_timeout"` | `"max_iterations"` | `"api_error"` */
+    /** Error classification: `"rate_limit"` | `"auth"` | `"tool_timeout"` | `"context_too_large"` | `"api_error"` */
     errorCode?: string;
     /** `true` when the chunk was produced by a command handler. */
     command?: boolean;
+    /** Warning text (for `"system_warning"`). */
+    warning?: string;
+  }
+
+  /** Initial snapshot returned when attaching to a background conversation. */
+  interface SyncStreamChunk {
+    type: "sync";
+    /** Assistant output accumulated before attach(). */
+    streamingMessage?: {
+      content: string;
+      thinking?: string;
+      toolCalls: ToolCallInfo[];
+    };
+    /** Ask-user request when the conversation is waiting for input. */
+    pendingAskUser?: {
+      id: string;
+      question: string;
+      options?: string[];
+      optionValues?: string[];
+      multiple?: boolean;
+      allowCustom?: boolean;
+    };
+    /** Current task snapshot. */
+    tasks: Array<{
+      id: string;
+      subject: string;
+      status: "pending" | "in_progress" | "completed";
+      description?: string;
+    }>;
+    /** Final snapshot status emitted by attach(). */
+    status: "running" | "done" | "error";
   }
 
   // ---- Chat message ----
@@ -995,6 +1054,10 @@ declare namespace CATAgent {
     toolCallId?: string;
     /** Error message (if the turn errored). */
     error?: string;
+    /** Error classification code (for example, `context_too_large`). */
+    errorCode?: string;
+    /** Non-fatal warning associated with this message. */
+    warning?: string;
     /** Model ID used for this message. */
     modelId?: string;
     /** Token usage for this message. */
@@ -1035,6 +1098,9 @@ declare namespace CATAgent {
 
     /** Send a message and receive a streaming response. */
     chatStream(content: MessageContent, options?: ChatOptions): Promise<AsyncIterable<StreamChunk>>;
+
+    /** Attach to a background conversation and receive the sync snapshot plus stream events. */
+    attach(): Promise<AsyncIterable<StreamChunk | SyncStreamChunk>>;
 
     /** Get all messages in this conversation. */
     getMessages(): Promise<ChatMessage[]>;
@@ -1292,6 +1358,13 @@ declare namespace CATAgentTask {
   interface AgentTask {
     /** Task ID. */
     id: string;
+    /**
+     * Optimistic-concurrency version, returned by `get()`/`list()`. Pass the value you fetched back
+     * through `update()`/`remove()` so the system can detect the task was changed or recreated in between.
+     */
+    generation?: string;
+    /** Optimistic-concurrency revision counter, paired with `generation`. */
+    revision?: number;
     /** Task name. */
     name: string;
     /** Cron expression. */
@@ -1314,10 +1387,10 @@ declare namespace CATAgentTask {
     modelId?: string;
     /** Existing conversation ID to continue. */
     conversationId?: string;
+    /** Conversation generation captured when this task was bound to a conversation. */
+    conversationGeneration?: string;
     /** Skills to load. */
     skills?: "auto" | string[];
-    /** Max tool-calling iterations (default: 10). */
-    maxIterations?: number;
 
     // --- event mode fields ---
     /** UUID of the script that created this task. */
@@ -1370,11 +1443,18 @@ declare namespace CATAgentTask {
     /** Get a task by ID. */
     get(id: string): Promise<AgentTask | undefined>;
 
-    /** Update a task. */
+    /**
+     * Update a task. `task` must include the `generation`/`revision` returned by `get()`/`list()` —
+     * spread the fetched task before applying your changes. Throws if the task changed or was
+     * recreated since you fetched it.
+     */
     update(id: string, task: Partial<AgentTask>): Promise<AgentTask>;
 
-    /** Remove a task by ID. */
-    remove(id: string): Promise<boolean>;
+    /**
+     * Remove a task by ID. `task` must include the `generation`/`revision` returned by `get()`/`list()`,
+     * so a stale reference can't delete a task that was recreated with the same ID in the meantime.
+     */
+    remove(id: string, task: Pick<AgentTask, "generation" | "revision">): Promise<boolean>;
 
     /** Immediately trigger a task (regardless of cron schedule). */
     runNow(id: string): Promise<void>;
@@ -1480,7 +1560,7 @@ declare namespace CATAgentModel {
     /** User-defined display name (e.g. "GPT-4o", "Claude Sonnet"). */
     name: string;
     /** LLM provider. */
-    provider: "openai" | "anthropic";
+    provider: "openai" | "anthropic" | "zhipu";
     /** API base URL. */
     apiBaseUrl: string;
     /** Model identifier sent to the provider API. */
