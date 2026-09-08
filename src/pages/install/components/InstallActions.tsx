@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Download, Eye, EyeOff, History, Info, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, Download, Eye, EyeOff, History, Info, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@App/pages/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +18,8 @@ export interface InstallActionsProps {
   versionChanged?: boolean;
   isSubscribe: boolean;
   primaryDisabled?: boolean;
+  /** 安装动作的就地反馈阶段：主按钮在原地走完 安装中 → 已安装，失败则回到可重试 */
+  phase?: "idle" | "installing" | "installed" | "failed";
   localFile?: boolean;
   watching?: boolean;
   onInstall: (opts?: { closeAfterInstall?: boolean; noMoreUpdates?: boolean; rememberSession?: boolean }) => void;
@@ -76,6 +78,7 @@ export function InstallActions({
   versionChanged,
   isSubscribe,
   primaryDisabled,
+  phase = "idle",
   localFile,
   watching,
   onInstall,
@@ -86,16 +89,27 @@ export function InstallActions({
 }: InstallActionsProps) {
   const { t } = useTranslation(["install", "common", "editor", "external_access"]);
 
-  const primaryLabel = inTrash
+  // 安装已发出或已完成期间锁住所有会再次发起安装/决策的入口，避免重复提交
+  const busy = phase === "installing" || phase === "installed";
+  const idleLabel = inTrash
     ? versionChanged
       ? t("install:btn_restore_update")
       : t("install:btn_restore")
     : isUpdate
       ? t("install:update_script")
       : t("install:script");
+  const primaryLabel =
+    phase === "installing"
+      ? t("install:btn_installing")
+      : phase === "installed"
+        ? t("install:btn_installed")
+        : phase === "failed"
+          ? t("install:btn_retry_install")
+          : idleLabel;
   const noCloseLabel = isUpdate ? t("install:update_script_no_close") : t("install:script_no_close");
   const noMoreUpdateLabel = isUpdate ? t("install:update_script_no_more_update") : t("install:script_no_more_update");
-  const PrimaryIcon = isUpdate ? RefreshCw : Download;
+  const PrimaryIcon =
+    phase === "installing" ? Loader2 : phase === "installed" ? Check : isUpdate ? RefreshCw : Download;
 
   const note = watching
     ? t("install:action_note_watching")
@@ -123,6 +137,7 @@ export function InstallActions({
             data-testid="watch-toggle"
             variant={watching ? "default" : "outline"}
             title={t("editor:watch_file_description")}
+            disabled={busy}
             onClick={onToggleWatch}
             className="gap-1.5"
           >
@@ -135,7 +150,13 @@ export function InstallActions({
           // 「外部接入」触发：三档决策 拒绝 / 本会话允许 / 安装（设计 §3）。安装 = 下方 install-split
           // 主按钮；此处只补前两档，替换普通「关闭」——关闭窗口本身不算决定（op 挂起至 TTL/断开）。
           <>
-            <Button data-testid="external-access-reject" variant="outline" autoFocus onClick={onExternalAccessReject}>
+            <Button
+              data-testid="external-access-reject"
+              variant="outline"
+              autoFocus
+              disabled={busy}
+              onClick={onExternalAccessReject}
+            >
               {t("external_access:decision_reject")}
             </Button>
             {onExternalAccessSessionAllow && (
@@ -143,6 +164,7 @@ export function InstallActions({
                 data-testid="external-access-session-allow"
                 variant="secondary"
                 className="gap-1.5 font-medium text-primary"
+                disabled={busy}
                 onClick={onExternalAccessSessionAllow}
               >
                 <History className="size-4" />
@@ -175,18 +197,22 @@ export function InstallActions({
         <div className="flex">
           <Button
             data-testid="install-primary"
-            disabled={primaryDisabled}
+            disabled={primaryDisabled || busy}
             onClick={() => onInstall()}
-            className="gap-1.5 rounded-r-none"
+            className={cn(
+              "gap-1.5 rounded-r-none duration-350",
+              // 已安装态靠 ✓ 与绿色本身表达「完成」，禁用态的半透明会把这个信号糊掉
+              phase === "installed" && "bg-success text-success-foreground hover:bg-success disabled:opacity-100"
+            )}
           >
-            <PrimaryIcon className="size-4" />
+            <PrimaryIcon className={cn("size-4", phase === "installing" && "animate-spin")} />
             {primaryLabel}
           </Button>
           <MoreMenu
             testid="install-more"
             label={primaryLabel}
             variant="default"
-            disabled={primaryDisabled}
+            disabled={primaryDisabled || busy}
             triggerClassName={cn("rounded-l-none border-l border-primary-foreground/25")}
           >
             <DropdownMenuItem onSelect={() => onInstall({ closeAfterInstall: false })}>{noCloseLabel}</DropdownMenuItem>

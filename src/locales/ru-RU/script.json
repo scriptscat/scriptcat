@@ -111,5 +111,14 @@
   "trash_moved_batch": "В корзину перемещено скриптов: {{count}}",
   "trash_undo": "Отменить",
   "trash_undo_success": "Восстановлено",
-  "trash_undo_failed": "Не удалось восстановить"
+  "trash_undo_failed": "Не удалось восстановить",
+  "sort_by": "Сортировка",
+  "sort_create_time": "Время добавления",
+  "sort_default": "По умолчанию",
+  "sort_ascending": "По возрастанию",
+  "sort_descending": "По убыванию",
+  "more_actions": "Другие действия",
+  "multi_select": "Выбрать несколько",
+  "site_count": "{{count}} сайт(ов)",
+  "select_all": "Выбрать все"
 }

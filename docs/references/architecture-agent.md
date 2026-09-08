@@ -61,7 +61,7 @@ session ends — no explicit `unregister` loop is required.
 
 [`ToolLoopOrchestrator`](../../src/app/service/agent/service_worker/tool_loop_orchestrator.ts) drives one
 conversation turn: call the model, execute any tool calls the model requested, feed results back, and repeat
-until the model stops calling tools or `maxIterations` is hit. It depends on injected `callLLM` and
+until the model stops calling tools (or the user stops it via Loop Guard / cancellation). It depends on injected `callLLM` and
 `autoCompact` functions (rather than importing a concrete client) so tests can substitute spies.
 [`retry_utils.ts`](../../src/app/service/agent/service_worker/retry_utils.ts)'s `isRetryableError` matches an
 error message containing `429`, a `5xx` code, or a network-ish signal (`network`/`fetch`/`ECONNRESET`), then
