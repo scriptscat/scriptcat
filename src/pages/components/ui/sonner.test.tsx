@@ -20,13 +20,33 @@ describe("Toaster 容器", () => {
   it("桌面端应使用 bottom-right", () => {
     isMobile.mockReturnValue(false);
     render(<Toaster />);
-    expect(sonnerProps).toHaveBeenCalledWith(expect.objectContaining({ position: "bottom-right" }));
+    expect(sonnerProps).toHaveBeenCalledWith(
+      expect.objectContaining({ position: "bottom-right", offset: { bottom: 24, right: 24 } })
+    );
   });
 
   it("移动端应使用 top-center", () => {
     isMobile.mockReturnValue(true);
     render(<Toaster />);
     expect(sonnerProps).toHaveBeenCalledWith(expect.objectContaining({ position: "top-center" }));
+  });
+
+  it("决策页在桌面端应改用 top-center，避免压住吸底操作栏按钮", () => {
+    isMobile.mockReturnValue(false);
+    render(<Toaster placement="decision" />);
+    expect(sonnerProps).toHaveBeenCalledWith(expect.objectContaining({ position: "top-center", offset: { top: 24 } }));
+  });
+
+  it("决策页在移动端应与普通页一致，仍为 top-center", () => {
+    isMobile.mockReturnValue(true);
+    render(<Toaster placement="decision" />);
+    expect(sonnerProps).toHaveBeenCalledWith(expect.objectContaining({ position: "top-center", offset: { top: 12 } }));
+  });
+
+  it("placement 不应作为未知属性透传给 sonner", () => {
+    isMobile.mockReturnValue(false);
+    render(<Toaster placement="decision" />);
+    expect(sonnerProps.mock.calls.at(-1)![0].placement).toBeUndefined();
   });
 
   it("应去掉 richColors、开启 closeButton 与 visibleToasts=3", () => {

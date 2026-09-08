@@ -1,23 +1,17 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
-const { listTasksMock } = vi.hoisted(() => ({ listTasksMock: vi.fn() }));
+const { listTasksMock, agentTaskMock } = vi.hoisted(() => ({ listTasksMock: vi.fn(), agentTaskMock: vi.fn() }));
 
-vi.mock("@App/app/repo/agent_task", () => ({
-  AgentTaskRepo: class {
-    listTasks = listTasksMock;
-    saveTask = vi.fn();
-    removeTask = vi.fn();
-  },
-  AgentTaskRunRepo: class {
-    listRuns = vi.fn(async () => []);
-    clearRuns = vi.fn();
+vi.mock("@App/pages/store/features/script", () => ({
+  agentClient: {
+    listModels: vi.fn(async () => []),
+    agentTask: agentTaskMock,
   },
 }));
-vi.mock("@App/pages/store/features/script", () => ({ agentClient: { listModels: vi.fn(async () => []) } }));
 // DOM 测试环境默认未实现 matchMedia,useIsMobile 依赖它——默认桌面,移动用例单独覆盖
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: vi.fn(() => false) }));
 
@@ -33,13 +27,20 @@ const sampleTask = {
   prompt: "总结今天",
   createtime: 0,
   updatetime: 0,
+  generation: "generation-1",
+  revision: 1,
 };
 
 beforeAll(() => initTestLanguage("zh-CN"));
 
 beforeEach(() => {
   (useIsMobile as unknown as ReturnType<typeof vi.fn>).mockReturnValue(false);
+  listTasksMock.mockReset();
   listTasksMock.mockResolvedValue([sampleTask]);
+  agentTaskMock.mockReset();
+  agentTaskMock.mockImplementation(async (request: { action: string }) =>
+    request.action === "list" ? listTasksMock() : []
+  );
 });
 afterEach(() => cleanup());
 
@@ -77,5 +78,22 @@ describe("AgentTasks 页面", () => {
     // 移动端不渲染桌面 64px 页头(无图标块)与「文档」外框按钮,也不另起 52px AppBar
     expect(screen.queryByTestId("page-header-docs")).toBeNull();
     expect(screen.queryByTestId("tasks-mobile-bar")).toBeNull();
+  });
+
+  it("编辑发生 revision 冲突时应关闭绑定旧快照的弹窗并刷新任务", async () => {
+    agentTaskMock.mockImplementation(async (request: { action: string }) => {
+      if (request.action === "update") throw new Error("Task changed");
+      return request.action === "list" ? listTasksMock() : [];
+    });
+    render(<AgentTasks />);
+    await screen.findByText("每日总结");
+
+    fireEvent.pointerDown(screen.getByTestId("card-menu"), { button: 0 });
+    fireEvent.click(screen.getByTestId("card-menu-edit"));
+    fireEvent.change(await screen.findByTestId("task-name"), { target: { value: "新名称" } });
+    fireEvent.click(screen.getByTestId("task-submit"));
+
+    await waitFor(() => expect(screen.queryByTestId("task-submit")).toBeNull());
+    expect(listTasksMock).toHaveBeenCalledTimes(2);
   });
 });

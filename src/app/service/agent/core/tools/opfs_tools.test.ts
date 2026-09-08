@@ -270,6 +270,18 @@ describe("opfs_tools", () => {
         '".." is not allowed'
       );
     });
+
+    it("中止时不应写入文件", async () => {
+      const write = getTool("opfs_write");
+      const read = getTool("opfs_read");
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        write.executor.execute({ path: "cancelled.txt", content: "bad" }, controller.signal)
+      ).rejects.toThrow("Aborted");
+      await expect(read.executor.execute({ path: "cancelled.txt" })).rejects.toThrow();
+    });
   });
 
   describe("opfs_read 文本读取", () => {

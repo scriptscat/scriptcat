@@ -35,6 +35,9 @@ import { ExternalAccessController } from "@App/app/service/service_worker/extern
 import { ExternalAccessUIService } from "@App/app/service/service_worker/external_access/service";
 import { ExternalAccessConnectClient } from "@App/app/service/offscreen/client";
 import { hookFirefoxEventPageKeepAliveLoop, hookServiceWorkerKeepAliveLoop } from "../offscreen/keep_alive";
+import { NetworkRuleStateDAO } from "@App/app/repo/network_rule";
+import { NetworkRuleService } from "./network_rule";
+import { DeclarativeNetRequestUserRuleApplier, compileNetworkRules } from "./network_rule_compiler";
 
 // "直接允许" 写策略下 MCP 无需人工确认即执行了写操作，发系统通知让用户知晓（决策 #12 的知情兜底）。
 // kind=update 只由 scripts.edit.request 产生，故文案按「编辑」而非版本更新描述，避免被误读为例行升级。
@@ -149,6 +152,16 @@ export default class ServiceWorkerManager {
       faviconDAO
     );
     system.init();
+
+    const networkRule = new NetworkRuleService(
+      this.api.group("networkRule"),
+      this.mq,
+      new NetworkRuleStateDAO(),
+      compileNetworkRules,
+      new DeclarativeNetRequestUserRuleApplier()
+    );
+    networkRule.init();
+
     const agent = new AgentService(this.api.group("agent"), this.offscreenSend, resource);
     agent.init();
 
@@ -242,12 +255,11 @@ export default class ServiceWorkerManager {
           regularScriptUpdateCheck();
           break;
         case "cloudSync":
-          // 进行一次云同步
-          systemConfig.getCloudSync().then((config) => {
-            synchronize.buildFileSystem(config).then((fs) => {
-              synchronize.syncOnce(config, fs);
-            });
-          });
+          // 闹钟是启用之后唯一的周期性同步入口（冷启动不再同步），cloudSyncOnce 自带启用校验
+          // 与失败状态写入；连接失败必须在这里收住，否则每轮闹钟都留下一个未捕获 rejection
+          synchronize
+            .cloudSyncOnce()
+            .catch((e) => this.serviceLogger.error("cloud sync alarm failed", RuntimeLogger.E(e)));
           break;
         case "checkUpdate":
           // 检查扩展更新
@@ -433,9 +445,7 @@ export default class ServiceWorkerManager {
             // 如该网域没有任何有效脚本则忽略
             const domain = newDomain;
             const anyOpened = await script.openBatchUpdatePage({
-              // https://github.com/scriptscat/scriptcat/issues/1087
-              // 关于 autoclose，日后再检讨 UI/UX 设计
-              q: domain ? `autoclose=30&site=${domain}` : "autoclose=30",
+              q: domain ? `site=${domain}` : "",
               dontCheckNow: true,
             });
             if (anyOpened) {

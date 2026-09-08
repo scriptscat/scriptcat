@@ -58,7 +58,6 @@
   "stop": "Stoppen",
   "edit": "Bearbeiten",
   "copy": "Kopieren",
-  "exclude_on": "Wiederherstellen auf $0 zur Ausführung",
   "exclude_off": "Ausschließen auf $0 zur Ausführung",
   "only_on_site": "Nur auf $0 ausführen",
   "confirm_only_run_on_site": "Die bestehenden Website-Abgleichsregeln des Skripts werden gelöscht. Nur auf dieser Website ausführen?",

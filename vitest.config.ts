@@ -32,6 +32,7 @@ const ISOLATED = [
 ];
 
 const BASE_EXCLUDE = ["**/node_modules/**", "**/.claude/**", "**/.dev-kit/**", "e2e/**"];
+const SCRIPT_TESTS = ["scripts/**/*.test.js", "scripts/**/*.test.mjs"];
 
 // 页面层（React 渲染，含 .ts 的 renderHook 测试）用例的真实 solo 成本在覆盖率下可达 100–200ms，
 // 乘上 worker 并行负载后 340ms 预算必然偶发超时（本地满载观测峰值 ~630ms）；
@@ -62,10 +63,26 @@ export default defineConfig({
         plugins: [tplPlugin],
         test: {
           name: "fast",
-          exclude: [...BASE_EXCLUDE, ...ISOLATED, ...UI_TESTS],
+          exclude: [...BASE_EXCLUDE, ...ISOLATED, ...UI_TESTS, ...SCRIPT_TESTS],
           ...sharedTest,
           pool: "vmThreads",
           isolate: false,
+          maxWorkers: "75%",
+          testTimeout: 340,
+          sequence: {
+            groupOrder: 0,
+          },
+        },
+      },
+      {
+        resolve: { alias },
+        plugins: [tplPlugin],
+        test: {
+          name: "scripts",
+          include: SCRIPT_TESTS,
+          exclude: BASE_EXCLUDE,
+          environment: "node",
+          pool: "threads",
           maxWorkers: "75%",
           testTimeout: 340,
           sequence: {
