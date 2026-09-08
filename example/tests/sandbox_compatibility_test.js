@@ -15,6 +15,7 @@
 // @grant        GM.setValue
 // @grant        GM.deleteValue
 // @grant        window.onurlchange
+// @require      https://cdn.jsdelivr.net/gh/scriptscat/scriptcat@b8c6d0839c75ee5e4e4276dd10e201011c445df8/example/tests/lib/sctest.js
 // @inject-into  content
 // ==/UserScript==
 
@@ -37,7 +38,11 @@ let observedThis = this;
 (function (topLevelThis) {
   "use strict";
 
-  const UNAVAILABLE = Object.create(null);
+  const { describe, check, note, run } = SCTest.create({
+    name: "沙盒全局相容性诊断器",
+    reporter: "console",
+  });
+  const { safe, read, UNAVAILABLE } = SCTest;
   const nativeObject = Object;
   const nativeFunction = Function;
   const nativeReflect = Reflect;
@@ -45,19 +50,6 @@ let observedThis = this;
   const nativeGetOwnPropertyDescriptor = nativeObject.getOwnPropertyDescriptor;
   const nativeObjectToString = nativeObject.prototype.toString;
   const nativeHasOwnProperty = nativeObject.prototype.hasOwnProperty;
-
-  const safe = (fn) => {
-    try {
-      return { ok: true, value: fn() };
-    } catch (error) {
-      return { ok: false, error };
-    }
-  };
-
-  const read = (fn) => {
-    const result = safe(fn);
-    return result.ok ? result.value : UNAVAILABLE;
-  };
 
   const hasOwn = (object, key) => {
     try {
@@ -136,59 +128,16 @@ let observedThis = this;
     }
   };
 
-  const results = [];
-
-  const addResult = ({ category, name, status, expected, actual, detail, required = true }) => {
-    results.push({
-      category,
-      name,
-      status,
-      expected: expected || "",
-      actual: actual || "",
-      detail: detail || "",
-      required,
-    });
-  };
-
-  const check = (category, name, predicate, expected, actual, detail, options = {}) => {
-    try {
-      const passed = Boolean(predicate());
-      addResult({
-        category,
-        name,
-        status: passed ? "PASS" : options.onFail || "FAIL",
-        expected,
-        actual: typeof actual === "function" ? actual() : actual,
-        detail: passed ? detail || "符合预期" : options.failDetail || detail || "不符合预期",
-        required: options.required !== false,
-      });
-    } catch (error) {
-      addResult({
-        category,
-        name,
-        status: options.onError || options.onFail || "FAIL",
-        expected,
-        actual: `抛出 ${formatError(error)}`,
-        detail: options.errorDetail || "检测过程抛出异常",
-        required: options.required !== false,
-      });
-    }
-  };
-
   const skip = (category, name, expected, detail) => {
-    addResult({
+    check(
       category,
       name,
-      status: "SKIP",
+      () => SCTest.skip(detail),
       expected,
-      actual: "当前环境未提供",
+      "当前环境未提供",
       detail,
-      required: false,
-    });
-  };
-
-  const note = (category, name, expected, actual, detail) => {
-    addResult({ category, name, status: "INFO", expected, actual, detail, required: false });
+      { required: false }
+    );
   };
 
   const descriptorFromChain = (object, key) => {
@@ -223,18 +172,16 @@ let observedThis = this;
   };
 
   const runDiagnostics = () => {
-    results.length = 0;
-
     if (sandboxWindow === UNAVAILABLE || sandboxGlobal === UNAVAILABLE) {
-      addResult({
-        category: "启动",
-        name: "取得脚本全局对象",
-        status: "FAIL",
-        expected: "window 与 globalThis 可读",
-        actual: `window=${formatValue(sandboxWindow)}, globalThis=${formatValue(sandboxGlobal)}`,
-        detail: "当前上下文不像浏览器 userscript sandbox，后续检查只保留可执行项目。",
-      });
-      return results;
+      check(
+        "启动",
+        "取得脚本全局对象",
+        () => false,
+        "window 与 globalThis 可读",
+        () => `window=${formatValue(sandboxWindow)}, globalThis=${formatValue(sandboxGlobal)}`,
+        "当前上下文不像浏览器 userscript sandbox，后续检查只保留可执行项目。"
+      );
+      return;
     }
 
     // 1. 全局对象与别名：这是 PR #1706 及 TM 半沙盒兼容性的最核心不变量。
@@ -898,211 +845,10 @@ let observedThis = this;
       );
     }
 
-    return results;
   };
 
-  const summaryOf = (items) => {
-    const summary = { PASS: 0, FAIL: 0, WARN: 0, SKIP: 0, INFO: 0 };
-    for (const item of items) summary[item.status] = (summary[item.status] || 0) + 1;
-    summary.overall = summary.FAIL ? "FAIL" : summary.WARN ? "WARN" : "PASS";
-    return summary;
-  };
-
-  let currentResults = runDiagnostics();
-
-  const managerName = read(() => {
-    const info = gmObject !== UNAVAILABLE && gmObject.info ? gmObject.info : gmInfoObject;
-    return info && info.scriptHandler ? `${info.scriptHandler}${info.version ? ` ${info.version}` : ""}` : "未知管理器";
+  describe("沙盒全局相容性诊断", () => {
+    runDiagnostics();
   });
-
-  const pageUrl = read(() => sandboxWindow.location && sandboxWindow.location.href);
-
-  const renderValue = (value) => (value === undefined || value === null ? "" : String(value));
-
-  const makeReport = () => {
-    const summary = summaryOf(currentResults);
-    return JSON.stringify(
-      {
-        tool: "sandbox-global-compatibility-audit",
-        version: "1.0.0",
-        time: new Date().toISOString(),
-        url: pageUrl === UNAVAILABLE ? undefined : pageUrl,
-        manager: managerName === UNAVAILABLE ? undefined : managerName,
-        sandboxWindow: formatValue(sandboxWindow),
-        unsafeWindow: formatValue(pageWindow),
-        summary,
-        tests: currentResults,
-      },
-      null,
-      2
-    );
-  };
-
-  const logSummary = () => {
-    const logger = read(() => sandboxWindow.console) !== UNAVAILABLE ? sandboxWindow.console : console;
-    const summary = summaryOf(currentResults);
-    safe(() => logger.log(`[sandbox audit] ${summary.overall}`, summary));
-    safe(() => logger.table(currentResults.map(({ category, name, status, expected, actual }) => ({ category, name, status, expected, actual }))));
-  };
-
-  const mountPanel = () => {
-    const documentObject = read(() => document);
-    if (documentObject === UNAVAILABLE) return;
-
-    const attach = () => {
-      const documentElement = read(() => documentObject.documentElement);
-      if (!documentElement) return;
-
-      const host = documentObject.createElement("div");
-      host.id = "__tm_sandbox_global_audit__";
-      host.setAttribute("data-sandbox-audit", "true");
-      host.style.cssText = "all:initial;position:fixed;top:12px;right:12px;z-index:2147483647;";
-      documentElement.appendChild(host);
-
-      const root = typeof host.attachShadow === "function" ? host.attachShadow({ mode: "open" }) : host;
-      root.innerHTML = `
-        <style>
-          :host { all: initial; }
-          .audit { width: min(920px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: hidden; color: #eaf3f8; background: #0b1821; border: 1px solid #315264; border-radius: 12px; box-shadow: 0 18px 60px rgba(0,0,0,.42); font: 13px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-          .head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #315264; background: #102632; }
-          .title { flex: 1; min-width: 0; font-weight: 750; letter-spacing: .01em; }
-          .sub { margin-top: 2px; color: #8ea9b8; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-          button { border: 1px solid #426579; border-radius: 7px; padding: 6px 9px; color: #eaf3f8; background: #142f3e; cursor: pointer; }
-          button:hover { background: #1d4558; }
-          .body { max-height: calc(100vh - 82px); overflow: auto; }
-          .summary { display: flex; flex-wrap: wrap; gap: 7px; padding: 11px 14px; border-bottom: 1px solid #203d4c; }
-          .pill { padding: 4px 8px; border-radius: 999px; font-weight: 700; font-size: 11px; }
-          .overall-PASS, .status-PASS { color: #071c12; background: #65e6ad; }
-          .overall-WARN, .status-WARN { color: #291700; background: #ffc766; }
-          .overall-FAIL, .status-FAIL { color: #2a060b; background: #ff7888; }
-          .status-SKIP, .status-INFO { color: #d9e6ec; background: #315264; }
-          .hint { padding: 9px 14px; color: #a9c0cc; background: #0e202b; border-bottom: 1px solid #203d4c; }
-          table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-          th, td { padding: 8px 9px; border-bottom: 1px solid #203d4c; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-          th { position: sticky; top: 0; z-index: 1; color: #72daf9; background: #102632; font-size: 11px; }
-          th:nth-child(1) { width: 58px; } th:nth-child(2) { width: 23%; } th:nth-child(3), th:nth-child(4) { width: 17%; }
-          td:nth-child(1) { font-weight: 800; } td:nth-child(2) { color: #f2f8fb; } td:nth-child(3), td:nth-child(4) { color: #c3d6df; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
-          .category td { padding: 9px; color: #72daf9; background: #0e202b; font-weight: 750; }
-          .detail { display: block; margin-top: 3px; color: #8ea9b8; font-family: system-ui, sans-serif; font-size: 11px; }
-          .foot { padding: 9px 14px; color: #7795a5; font-size: 11px; border-top: 1px solid #203d4c; }
-          .hidden { display: none; }
-        </style>
-        <section class="audit" aria-label="沙盒全局相容性诊断器">
-          <header class="head">
-            <div class="title">沙盒全局相容性诊断器<div class="sub" id="sub"></div></div>
-            <span class="pill" id="overall"></span>
-            <button id="rerun" type="button">重跑</button>
-            <button id="copy" type="button">复制 JSON</button>
-            <button id="collapse" type="button">收起</button>
-          </header>
-          <div class="body" id="body">
-            <div class="summary" id="summary"></div>
-            <div class="hint">FAIL 表示核心沙盒不变量失败；WARN 多为管理器/浏览器差异或可选 API；SKIP 表示环境不提供该项目。请先看“页面隔离”和“全局别名”。</div>
-            <table><thead><tr><th>状态</th><th>检查</th><th>实际</th><th>预期</th><th>说明</th></tr></thead><tbody id="rows"></tbody></table>
-            <div class="foot">模型：ScriptCat PR #1706 create_context.ts + Vitest；page unsafeWindow / content unsafeWindow 按实际探针结果解释。</div>
-          </div>
-        </section>`;
-
-      const query = (selector) => root.querySelector(selector);
-      const sub = query("#sub");
-      const overall = query("#overall");
-      const summary = query("#summary");
-      const rows = query("#rows");
-      const body = query("#body");
-      const copyButton = query("#copy");
-      const rerunButton = query("#rerun");
-      const collapseButton = query("#collapse");
-
-      const render = () => {
-        const counts = summaryOf(currentResults);
-        sub.textContent = `${managerName === UNAVAILABLE ? "未知管理器" : managerName} · ${pageUrl === UNAVAILABLE ? "当前 URL 不可读" : pageUrl}`;
-        overall.textContent = counts.overall;
-        overall.className = `pill overall-${counts.overall}`;
-        summary.textContent = "";
-        for (const key of ["PASS", "FAIL", "WARN", "SKIP", "INFO"]) {
-          const pill = documentObject.createElement("span");
-          pill.className = `pill status-${key}`;
-          pill.textContent = `${key} ${counts[key] || 0}`;
-          summary.appendChild(pill);
-        }
-        rows.textContent = "";
-        let previousCategory = null;
-        for (const item of currentResults) {
-          if (item.category !== previousCategory) {
-            const categoryRow = documentObject.createElement("tr");
-            categoryRow.className = "category";
-            const categoryCell = documentObject.createElement("td");
-            categoryCell.colSpan = 5;
-            categoryCell.textContent = item.category;
-            categoryRow.appendChild(categoryCell);
-            rows.appendChild(categoryRow);
-            previousCategory = item.category;
-          }
-          const row = documentObject.createElement("tr");
-          const statusCell = documentObject.createElement("td");
-          statusCell.className = `status-${item.status}`;
-          statusCell.textContent = item.status;
-          const nameCell = documentObject.createElement("td");
-          nameCell.textContent = item.name;
-          const actualCell = documentObject.createElement("td");
-          actualCell.textContent = renderValue(item.actual);
-          const expectedCell = documentObject.createElement("td");
-          expectedCell.textContent = renderValue(item.expected);
-          const detailCell = documentObject.createElement("td");
-          detailCell.textContent = renderValue(item.detail);
-          row.append(statusCell, nameCell, actualCell, expectedCell, detailCell);
-          rows.appendChild(row);
-        }
-      };
-
-      const fallbackCopy = (text) => {
-        const textarea = documentObject.createElement("textarea");
-        textarea.value = text;
-        textarea.style.cssText = "position:fixed;left:-9999px;top:-9999px;";
-        documentElement.appendChild(textarea);
-        textarea.select();
-        const result = safe(() => documentObject.execCommand("copy"));
-        textarea.remove();
-        return result.ok && result.value !== false;
-      };
-
-      copyButton.addEventListener("click", () => {
-        const text = makeReport();
-        const clipboard = read(() => sandboxWindow.navigator && sandboxWindow.navigator.clipboard);
-        const writeResult = clipboard && typeof clipboard.writeText === "function" ? safe(() => clipboard.writeText(text)) : null;
-        if (writeResult && writeResult.ok && writeResult.value && typeof writeResult.value.then === "function") {
-          writeResult.value.then(() => {
-            copyButton.textContent = "已复制";
-            setTimeout(() => (copyButton.textContent = "复制 JSON"), 1200);
-          }).catch(() => {
-            copyButton.textContent = fallbackCopy(text) ? "已复制" : "复制失败";
-          });
-        } else {
-          copyButton.textContent = fallbackCopy(text) ? "已复制" : "复制失败";
-        }
-      });
-
-      rerunButton.addEventListener("click", () => {
-        currentResults = runDiagnostics();
-        render();
-        logSummary();
-      });
-
-      collapseButton.addEventListener("click", () => {
-        const collapsed = body.classList.toggle("hidden");
-        collapseButton.textContent = collapsed ? "展开" : "收起";
-      });
-
-      render();
-      logSummary();
-    };
-
-    if (documentObject.documentElement) {
-      attach();
-    } else {
-      documentObject.addEventListener("DOMContentLoaded", attach, { once: true });
-    }
-  };
-
-  mountPanel();
+  run();
 })(this);
