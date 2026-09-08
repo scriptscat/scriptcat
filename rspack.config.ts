@@ -64,6 +64,7 @@ export default {
     popup: `${src}/pages/popup/main.tsx`,
     options: `${src}/pages/options/main.tsx`,
     confirm: `${src}/pages/confirm/main.tsx`,
+    external_access_confirm: `${src}/pages/external_access_confirm/main.tsx`,
     batchupdate: `${src}/pages/batchupdate/main.tsx`,
     install: `${src}/pages/install/main.tsx`,
     import: `${src}/pages/import/main.tsx`,
@@ -202,6 +203,14 @@ export default {
       title: "ScriptCat",
       minify: true,
       chunks: ["confirm"],
+    }),
+    new rspack.HtmlRspackPlugin({
+      filename: `${dist}/ext/src/external_access_confirm.html`,
+      template: `${src}/pages/external_access_confirm.html`,
+      inject: "head",
+      title: "ScriptCat",
+      minify: true,
+      chunks: ["external_access_confirm"],
     }),
     new rspack.HtmlRspackPlugin({
       filename: `${dist}/ext/src/batchupdate.html`,

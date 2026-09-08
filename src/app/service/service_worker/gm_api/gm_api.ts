@@ -36,7 +36,7 @@ import type {
 } from "../types";
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
 import type { NotificationOptionCache } from "../utils";
-import { BrowserNoSupport, notificationsUpdate } from "../utils";
+import { BrowserNoSupport, getCombinedMeta, notificationsUpdate } from "../utils";
 import {
   getSkillScriptGrantsByUuid,
   getSkillScriptNameByUuid,
@@ -78,6 +78,7 @@ import { nextSessionRuleId, removeSessionRuleIdEntry } from "./dnr_id_controller
 import type { DownloadCallback } from "../download";
 import { detachDownloadCallback, startDownload } from "../download";
 import { isRequestInitiatorOriginMatched, gmXhrRequestLinker, type IWebRequestDetails } from "./mv3_utils";
+import { INTERNAL_DNR_PRIORITY } from "../dnr_rule_ids";
 
 let generatedUniqueMarkerIDs = "";
 let generatedUniqueMarkerIDWhen = "";
@@ -199,6 +200,41 @@ export const checkHasUnsafeHeaders = (key: string) => {
     return true;
   }
   return false;
+};
+
+/**
+ * 合并脚本自定义 cookie 与网站本身存储的 cookie，供 GM_xmlhttpRequest 非 anonymous 请求使用。
+ * TM兼容:
+ * - 某个 cookie 名称若未被脚本指定，保留浏览器该名称下原本的全部值（无论是 0 个、1 个还是多个，均不改动）。
+ * - 某个 cookie 名称若被脚本指定，则完全以脚本指定的值覆盖该名称浏览器已有的全部值；
+ *   脚本指定的值本身也可以是同名多值，一并保留、不做去重。
+ * @link https://github.com/Tampermonkey/tampermonkey/issues/2754 自定义 cookie 应覆盖同名的已有 cookie
+ * @link https://github.com/Tampermonkey/tampermonkey/issues/2829 覆盖逻辑不应截断其余的 cookie
+ */
+export const mergeCookieHeader = (
+  customCookie: string | undefined,
+  storedCookies: { name: string; value: string }[] | undefined
+): string => {
+  const customNames = new Set<string>();
+  const parts: string[] = [];
+  if (customCookie) {
+    for (const rawPart of customCookie.split(";")) {
+      const part = rawPart.trim();
+      if (!part) continue;
+      const name = part.split("=", 1)[0].trim();
+      if (!name) continue;
+      customNames.add(name);
+      parts.push(part);
+    }
+  }
+  if (storedCookies?.length) {
+    for (const { name, value } of storedCookies) {
+      if (!customNames.has(name)) {
+        parts.push(`${name}=${value}`);
+      }
+    }
+  }
+  return parts.join("; ");
 };
 
 export enum ConnectMatch {
@@ -379,6 +415,10 @@ export default class GMApi {
       script = await this.scriptDAO.get(data.uuid);
       if (!script) {
         throw new Error("script is not found");
+      }
+      // 设置面板改的运行时机等只写 selfMetadata，GM API 校验要看合并后的生效值（#1649）
+      if (script.selfMetadata) {
+        script = { ...script, metadata: getCombinedMeta(script.metadata, script.selfMetadata) };
       }
     }
     // 订阅脚本的 connect 使用订阅声明的 connect 覆盖脚本自身的
@@ -726,12 +766,7 @@ export default class GMApi {
         });
       }
     } else {
-      if (cookie) {
-        // 否则正常携带cookie header
-        headers["cookie"] = cookie;
-      }
-
-      // 追加该网站本身存储的cookie
+      // 该网站本身存储的cookie
       const tabId = sender.getExtMessageSender().tabId;
       let storeId: string | undefined;
       if (tabId !== -1 && typeof tabId === "number") {
@@ -749,11 +784,10 @@ export default class GMApi {
           partitionKey: stripUndefined(params.cookiePartition),
         })
       );
-      // 追加cookie
-      if (cookies?.length) {
-        const v = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-        const u = `${headers["cookie"] || ""}`.trim();
-        headers["cookie"] = u ? `${u}${!u.endsWith(";") ? "; " : " "}${v}` : v;
+      // 合并cookie：脚本自定义的cookie覆盖同名的已有cookie，不同名的cookie全部保留
+      const merged = mergeCookieHeader(cookie, cookies);
+      if (merged) {
+        headers["cookie"] = merged;
       }
     }
 
@@ -789,7 +823,7 @@ export default class GMApi {
           type: "modifyHeaders",
           requestHeaders: modifyReqHeaders,
         },
-        priority: 1,
+        priority: INTERNAL_DNR_PRIORITY,
         condition: {
           resourceTypes: ["xmlhttprequest"],
           urlFilter: params.url,

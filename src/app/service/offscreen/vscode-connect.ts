@@ -16,8 +16,8 @@ import { v5 as uuidv5 } from "uuid";
 
 const CONFIG = {
   CONNECT_TIMEOUT: 30_000,
-  BASE_RECONNECT_DELAY: 1000,
-  MAX_RECONNECT_DELAY: 10_000,
+  BASE_RECONNECT_DELAY: 2000,
+  MAX_RECONNECT_DELAY: 30_000,
   NAMESPACE: uuidv5.URL, // 缓存 UUID Namespace
 } as const;
 
@@ -204,7 +204,7 @@ export class VSCodeConnect {
       if (sessionEpoch !== this.epoch) return;
 
       this.reconnectTimer = null;
-      this.reconnectDelay = Math.min(this.reconnectDelay * 1.5, CONFIG.MAX_RECONNECT_DELAY);
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, CONFIG.MAX_RECONNECT_DELAY);
 
       this.connect(sessionEpoch);
     }, this.reconnectDelay);

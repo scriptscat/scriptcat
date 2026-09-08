@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { createMemoryRouter, RouterProvider } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
@@ -37,12 +38,6 @@ const script = {
   checktime: 0,
 } as unknown as Script;
 
-vi.mock("react-router-dom", () => ({
-  useNavigate: () => vi.fn(),
-  useParams: () => ({ uuid: script.uuid }),
-  useSearchParams: () => [new URLSearchParams()],
-}));
-
 vi.mock("@App/pages/options/routes/ScriptList/hooks", () => ({
   useScriptDataManagement: () => ({ scriptList: [script], setScriptList: vi.fn(), loadingList: false }),
 }));
@@ -65,12 +60,19 @@ vi.mock("./tabs/ResourcePane", () => ({
 }));
 vi.mock("./tabs/CodePane", () => ({
   CodePane: ({
+    onChange,
     onSave,
     tab,
   }: {
+    onChange: (code: string) => void;
     onSave: (script: Script, editor: { getValue: () => string }) => void;
     tab: { script: Script };
-  }) => <button data-testid="save" onClick={() => onSave(tab.script, { getValue: () => "updated code" })} />,
+  }) => (
+    <>
+      <button data-testid="change" onClick={() => onChange("changed code")} />
+      <button data-testid="save" onClick={() => onSave(tab.script, { getValue: () => "updated code" })} />
+    </>
+  ),
 }));
 vi.mock("./ScriptListPanel", () => ({ default: () => null }));
 vi.mock("./EditorTabs", () => ({ default: () => null }));
@@ -95,8 +97,8 @@ vi.mock("./tabs/StoragePane", () => ({
 }));
 vi.mock("@App/pages/components/ui/alert-dialog", () => ({
   AlertDialog: ({ children }: { children: React.ReactNode }) => children,
-  AlertDialogAction: ({ children }: { children: React.ReactNode }) => children,
-  AlertDialogCancel: ({ children }: { children: React.ReactNode }) => children,
+  AlertDialogAction: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
+  AlertDialogCancel: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
   AlertDialogContent: ({ children }: { children: React.ReactNode }) => children,
   AlertDialogDescription: ({ children }: { children: React.ReactNode }) => children,
   AlertDialogFooter: ({ children }: { children: React.ReactNode }) => children,
@@ -115,9 +117,16 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+const renderEditor = () => {
+  const router = createMemoryRouter([{ path: "/script/editor/:uuid", element: <ScriptEditor /> }], {
+    initialEntries: ["/script/editor/u1"],
+  });
+  return render(<RouterProvider router={router} />);
+};
+
 describe("ScriptEditor 延迟面板缓存", () => {
   it("保存成功后应使当前脚本的资源、设置与储存缓存失效", async () => {
-    render(<ScriptEditor />);
+    renderEditor();
     const save = await screen.findByTestId("save");
     await act(async () => fireEvent.click(save));
 
@@ -128,7 +137,7 @@ describe("ScriptEditor 延迟面板缓存", () => {
 
   it("保存失败时不应使资源缓存失效", async () => {
     saveScript.mockRejectedValue(new Error("boom"));
-    render(<ScriptEditor />);
+    renderEditor();
     const save = await screen.findByTestId("save");
     await act(async () => fireEvent.click(save));
 
@@ -139,12 +148,35 @@ describe("ScriptEditor 延迟面板缓存", () => {
   });
 
   it("悬浮储存标签时应以当前脚本 UUID 启动预加载", async () => {
-    render(<ScriptEditor />);
+    renderEditor();
     // 工具栏（preload-storage）先于脚本异步加载渲染；须等 tab 就绪（save 出现）后 activeUuid 才是 u1
     await screen.findByTestId("save");
 
     fireEvent.pointerEnter(await screen.findByTestId("preload-storage"));
 
     expect(preloadStoragePane).toHaveBeenCalledWith("u1");
+  });
+});
+
+describe("ScriptEditor 未保存导航保护", () => {
+  it("脚本有改动时应阻止页内导航，确认后才离开编辑器", async () => {
+    const router = createMemoryRouter(
+      [
+        { path: "/script/editor/:uuid", element: <ScriptEditor /> },
+        { path: "/settings", element: <div data-testid="settings-page" /> },
+      ],
+      { initialEntries: ["/script/editor/u1"] }
+    );
+    render(<RouterProvider router={router} />);
+
+    fireEvent.click(await screen.findByTestId("change"));
+    await act(async () => void router.navigate("/settings"));
+
+    expect(router.state.location.pathname).toBe("/script/editor/u1");
+    expect(screen.getByText("editor:script_modified_close_confirm")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("editor:confirm"));
+
+    expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
   });
 });

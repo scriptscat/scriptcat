@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@App/pages/components/ui/dropdown-menu";
 import { SearchInput } from "@App/pages/components/ui/search-input";
-import SubscribeCardGrid from "./SubscribeCardGrid";
+import SubscribeRowsMobile from "./SubscribeRowsMobile";
 
 export interface SubscribeListMobileProps {
   subscribeList: SubscribeLoading[];
@@ -94,7 +94,7 @@ function SubscribeListMobile({
         <MobileStatusFilter statusFilter={statusFilter} setStatusFilter={setStatusFilter} />
       </div>
 
-      <SubscribeCardGrid
+      <SubscribeRowsMobile
         subscribeList={subscribeList}
         loadingList={loadingList}
         updateSubscribes={updateSubscribes}

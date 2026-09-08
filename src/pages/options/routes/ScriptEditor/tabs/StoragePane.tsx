@@ -207,7 +207,7 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
 
   if (batch) {
     return (
-      <div className="h-full overflow-hidden p-6">
+      <div className="h-full overflow-hidden p-4 md:p-6">
         <div className="mx-auto flex h-full max-w-3xl flex-col gap-3">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-foreground">{t("editor:script_storage")}</span>
@@ -233,50 +233,51 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
   }
 
   return (
-    <div className="h-full overflow-y-auto scrollbar-custom px-8 py-5">
+    <div className="h-full overflow-y-auto scrollbar-custom px-4 py-4 md:px-8 md:py-5">
       <div className="flex flex-col gap-4">
-        {/* 工具栏：搜索 + 计数 + 批量编辑 + 添加 + 清空 */}
-        <div className="flex items-center gap-2.5">
+        {/* 工具栏：搜索 + 计数 + 批量编辑 + 添加 + 清空（移动端搜索独占一行，操作按钮换行） */}
+        <div className="flex flex-col gap-2.5 md:flex-row md:items-center">
           <SearchInput
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder={t("editor:search_storage")}
             aria-label={t("editor:search_storage")}
-            className="h-8 w-64"
+            className="h-8 w-full md:w-64"
             inputClassName="text-xs"
           />
-          <div className="flex-1" />
-          <span className="text-xs text-muted-foreground">{t("editor:record_count", { count: data.length })}</span>
-          <Button size="sm" variant="outline" onClick={enterBatch}>
-            <Braces className="size-3.5" />
-            {t("editor:batch_edit")}
-          </Button>
-          <Button size="sm" variant="outline" onClick={openAdd}>
-            <Plus className="size-3.5" />
-            {t("add")}
-          </Button>
-          <Popconfirm
-            description={t("editor:confirm_clear")}
-            destructive
-            confirmText={t("confirm")}
-            cancelText={t("editor:cancel")}
-            onConfirm={onClear}
-          >
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-              disabled={data.length === 0}
-            >
-              <Trash2 className="size-3.5" />
-              {t("clear")}
+          <div className="flex flex-wrap items-center gap-2.5 md:ml-auto">
+            <span className="text-xs text-muted-foreground">{t("editor:record_count", { count: data.length })}</span>
+            <Button size="sm" variant="outline" onClick={enterBatch}>
+              <Braces className="size-3.5" />
+              {t("editor:batch_edit")}
             </Button>
-          </Popconfirm>
+            <Button size="sm" variant="outline" onClick={openAdd}>
+              <Plus className="size-3.5" />
+              {t("add")}
+            </Button>
+            <Popconfirm
+              description={t("editor:confirm_clear")}
+              destructive
+              confirmText={t("confirm")}
+              cancelText={t("editor:cancel")}
+              onConfirm={onClear}
+            >
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                disabled={data.length === 0}
+              >
+                <Trash2 className="size-3.5" />
+                {t("clear")}
+              </Button>
+            </Popconfirm>
+          </div>
         </div>
 
-        {/* 表格 */}
+        {/* 表格：移动端每行竖排成卡片（列宽固定的表头在窄屏会互相重叠，故隐藏） */}
         <DataPanel>
-          <DataPanelHeader>
+          <DataPanelHeader className="hidden md:flex">
             <span className="w-44 shrink-0">{t("key")}</span>
             <span className="min-w-0 flex-1">{t("value")}</span>
             <span className="w-20 shrink-0">{t("type")}</span>
@@ -287,25 +288,28 @@ export default function StoragePane({ uuid }: StoragePaneProps) {
             <DataPanelEmpty>{t("no_data")}</DataPanelEmpty>
           ) : (
             filtered.map((r) => (
-              <DataPanelRow key={r.key}>
-                <span className="w-44 shrink-0 truncate font-mono text-foreground" title={r.key}>
+              <DataPanelRow key={r.key} className="flex-col items-stretch gap-1.5 md:flex-row md:items-center md:gap-3">
+                <span className="min-w-0 truncate font-mono text-foreground md:w-44 md:shrink-0" title={r.key}>
                   {r.key}
                 </span>
                 <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground" title={displayValue(r.value)}>
                   {displayValue(r.value)}
                 </span>
-                <span className="w-20 shrink-0">
-                  <TypeBadge value={r.value} />
-                </span>
-                <div className="flex w-16 shrink-0 items-center justify-end gap-1">
-                  <TooltipIconButton label={t("edit")} icon={Pencil} size="icon-xs" onClick={() => openEdit(r)} />
-                  <TooltipIconButton
-                    label={t("delete")}
-                    icon={Trash2}
-                    size="icon-xs"
-                    destructive
-                    onClick={() => onDelete(r.key)}
-                  />
+                {/* md:contents 让类型/操作在桌面端回到与表头对齐的独立列 */}
+                <div className="flex items-center justify-between gap-2 md:contents">
+                  <span className="md:w-20 md:shrink-0">
+                    <TypeBadge value={r.value} />
+                  </span>
+                  <div className="flex items-center justify-end gap-1 md:w-16 md:shrink-0">
+                    <TooltipIconButton label={t("edit")} icon={Pencil} size="icon-xs" onClick={() => openEdit(r)} />
+                    <TooltipIconButton
+                      label={t("delete")}
+                      icon={Trash2}
+                      size="icon-xs"
+                      destructive
+                      onClick={() => onDelete(r.key)}
+                    />
+                  </div>
                 </div>
               </DataPanelRow>
             ))

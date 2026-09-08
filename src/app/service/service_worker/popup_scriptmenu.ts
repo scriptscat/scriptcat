@@ -4,7 +4,10 @@ import type { Script } from "@App/app/repo/scripts";
 import { getIcon, getStorageName } from "@App/pkg/utils/utils";
 import { i18nName } from "@App/locales/locales";
 
-export type TPopupPageLoadInfo = { tabId: number; frameId?: number; scriptmenus: ScriptMenu[] };
+/** 一次页面载入/还原的来源标识；bfcache 还原只有这部分，没有脚本菜单可带。 */
+export type TPopupPageRestoreInfo = { tabId: number; frameId?: number; url: string };
+
+export type TPopupPageLoadInfo = TPopupPageRestoreInfo & { scriptmenus: ScriptMenu[] };
 
 // 将 Script 转为 ScriptMenu 并初始化其在该 tab 的菜单暂存（menus 空阵列、计数归零）。
 export const scriptToMenu = (script: Script): ScriptMenu => {
@@ -23,6 +26,7 @@ export const scriptToMenu = (script: Script): ScriptMenu => {
     runNumByIframe: 0,
     menus: [],
     isEffective: null,
+    hasMatchOverride: script.selfMetadata?.match !== undefined,
   };
 };
 

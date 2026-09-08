@@ -153,7 +153,7 @@ describe("VSCodeConnect", () => {
       (vscodeConnect as any).reconnectDelay = 5000;
       ws.simulateOpen();
 
-      expect((vscodeConnect as any).reconnectDelay).toBe(1000);
+      expect((vscodeConnect as any).reconnectDelay).toBe(2000);
     });
   });
 
@@ -302,7 +302,7 @@ describe("VSCodeConnect", () => {
       ws.simulateClose();
 
       // 在重连延迟后应创建新的 WebSocket
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(2000);
       expect(wsInstances).toHaveLength(2);
     });
 
@@ -315,23 +315,36 @@ describe("VSCodeConnect", () => {
       expect(wsInstances).toHaveLength(1);
     });
 
-    it("重连延迟应指数递增（最大 10 秒）", () => {
+    it("重连延迟应按 2 倍递增并限制在 30 秒", () => {
       const ws1 = triggerConnect({ reconnect: true });
       ws1.simulateClose();
 
-      // 第一次重连：1000ms
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(2000);
       expect(wsInstances).toHaveLength(2);
 
-      // 第二次：1500ms (1000 * 1.5)
       wsInstances[1].simulateClose();
-      vi.advanceTimersByTime(1500);
+      vi.advanceTimersByTime(3999);
+      expect(wsInstances).toHaveLength(2);
+      vi.advanceTimersByTime(1);
       expect(wsInstances).toHaveLength(3);
 
-      // 第三次：2250ms (1500 * 1.5)
       wsInstances[2].simulateClose();
-      vi.advanceTimersByTime(2250);
+      vi.advanceTimersByTime(8000);
       expect(wsInstances).toHaveLength(4);
+
+      wsInstances[3].simulateClose();
+      vi.advanceTimersByTime(16_000);
+      wsInstances[4].simulateClose();
+      vi.advanceTimersByTime(30_000);
+      wsInstances[5].simulateClose();
+      vi.advanceTimersByTime(30_000);
+      expect(wsInstances).toHaveLength(7);
+
+      wsInstances[6].simulateClose();
+      vi.advanceTimersByTime(29_999);
+      expect(wsInstances).toHaveLength(7);
+      vi.advanceTimersByTime(1);
+      expect(wsInstances).toHaveLength(8);
     });
 
     it("重连成功后应重置延迟", () => {
@@ -339,18 +352,18 @@ describe("VSCodeConnect", () => {
       ws1.simulateClose();
 
       // 第一次重连
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(2000);
       const ws2 = wsInstances[1];
       ws2.simulateOpen(); // 连接成功，重置延迟
 
-      expect((vscodeConnect as any).reconnectDelay).toBe(1000);
+      expect((vscodeConnect as any).reconnectDelay).toBe(2000);
     });
 
     it("错误后也应触发重连", () => {
       const ws = triggerConnect({ reconnect: true });
       ws.simulateError();
 
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(2000);
       expect(wsInstances).toHaveLength(2);
     });
 
@@ -360,7 +373,7 @@ describe("VSCodeConnect", () => {
       ws.simulateError();
       ws.simulateClose();
 
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(2000);
       // 只应有一次重连
       expect(wsInstances).toHaveLength(2);
     });
@@ -406,7 +419,7 @@ describe("VSCodeConnect", () => {
       triggerConnect({ url: "ws://new-url:8642", reconnect: true });
 
       // 等待旧的重连延迟，不应该使用旧 URL 重连
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(2000);
       // 第一次 triggerConnect 创建 ws1, 第二次 triggerConnect 创建 ws2
       // 不应创建第三个（旧的重连）
       expect(wsInstances).toHaveLength(2);
