@@ -162,8 +162,9 @@ describe("NetworkRuleService", () => {
     expect(reordered.outcome).toBe("applied");
     expect(reordered.state.order).toEqual([ids[1], ids[0]]);
     const compiled = applier.apply.mock.calls.at(-1)![0];
-    expect(compiled.map((item) => item.condition.requestDomains)).toEqual([["b.example.com"], ["a.example.com"]]);
-    expect(compiled[0].priority).toBeGreaterThan(compiled[1].priority!);
+    expect(compiled.map((item) => item.condition.requestDomains)).toEqual([["a.example.com", "b.example.com"]]);
+    expect(compiled).toHaveLength(1);
+    expect(compiled[0].priority).toBe(2);
   });
 
   it("批量删除三条只写一次 state、只更新一次动态规则，并同步移出顺序数组", async () => {
