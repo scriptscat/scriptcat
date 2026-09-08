@@ -88,6 +88,19 @@ describe("PermissionCard 更新差异态", () => {
     expect(screen.getAllByTestId("permission-row")).toHaveLength(2);
   });
 
+  it("塌行把自己声明为收起的展开控件", () => {
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
+    expect(screen.getByTestId("permission-row-collapsed")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("没有任何权限的更新沿用空态卡头与文案,不进入差异呈现", () => {
+    render(<PermissionCard rows={[]} baselineVersion="1.2.3" />);
+    expect(screen.getByText("此脚本不请求任何特殊权限")).toBeInTheDocument();
+    expect(screen.getByText("安装前请确认")).toBeInTheDocument();
+    expect(screen.queryByText("无变化")).not.toBeInTheDocument();
+    expect(screen.queryByText("对比已安装的 1.2.3")).not.toBeInTheDocument();
+  });
+
   it("更新但一项未变时不显示变化标题与增删计数", () => {
     render(<PermissionCard rows={[sameMatch]} baselineVersion="1.2.3" />);
     expect(screen.queryByText("权限变化")).not.toBeInTheDocument();
@@ -142,6 +155,14 @@ describe("PermissionCard 更新零变化态", () => {
     expect(screen.getByText("api.a.com")).toBeInTheDocument();
     expect(screen.getByText("https://a.com/*")).toBeInTheDocument();
     expect(screen.getAllByText("无变化")).toHaveLength(3);
+  });
+
+  it("折叠单行对辅助技术同样报出无变化与摘要,并声明自己是收起的展开控件", () => {
+    render(<PermissionCard rows={rows} baselineVersion="1.2.3" />);
+    const line = screen.getByTestId("permission-card-collapsed");
+    expect(line).toHaveAccessibleName(expect.stringContaining("无变化"));
+    expect(line).toHaveAccessibleName(expect.stringContaining("2 类 3 项"));
+    expect(line).toHaveAttribute("aria-expanded", "false");
   });
 
   it("有变动时不折叠整卡", () => {

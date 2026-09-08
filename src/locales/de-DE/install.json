@@ -23,7 +23,6 @@
   "perm_card_title_short": "Berechtigungen",
   "perm_card_same_as": "Identisch mit {{version}}",
   "perm_card_summary": "{{kinds}} Kategorien · {{count}} Einträge",
-  "perm_card_expand": "Berechtigungsdetails anzeigen",
   "perm_match_label": "Läuft auf",
   "perm_match_summary": "Das Skript läuft auf diesen Websites und verändert die Seiten",
   "perm_connect_label": "Cross-Origin-Zugriff",

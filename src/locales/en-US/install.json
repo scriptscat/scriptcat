@@ -23,7 +23,6 @@
   "perm_card_title_short": "Permissions",
   "perm_card_same_as": "Same as {{version}}",
   "perm_card_summary": "{{kinds}} categories · {{count}} items",
-  "perm_card_expand": "Show permission details",
   "perm_match_label": "Runs on",
   "perm_match_summary": "The script runs on these websites and modifies the pages",
   "perm_connect_label": "Cross-origin access",

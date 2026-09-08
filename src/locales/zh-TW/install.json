@@ -23,7 +23,6 @@
   "perm_card_title_short": "權限",
   "perm_card_same_as": "與 {{version}} 相同",
   "perm_card_summary": "{{kinds}} 類 {{count}} 項",
-  "perm_card_expand": "展開權限詳情",
   "perm_match_label": "執行網站",
   "perm_match_summary": "腳本會在這些網站上執行並修改頁面",
   "perm_connect_label": "跨域存取",

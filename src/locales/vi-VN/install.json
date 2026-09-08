@@ -23,7 +23,6 @@
   "perm_card_title_short": "Quyền",
   "perm_card_same_as": "Giống {{version}}",
   "perm_card_summary": "{{kinds}} nhóm · {{count}} mục",
-  "perm_card_expand": "Hiện chi tiết quyền",
   "perm_match_label": "Chạy trên",
   "perm_match_summary": "Script chạy trên các website này và thay đổi trang",
   "perm_connect_label": "Truy cập khác nguồn gốc",

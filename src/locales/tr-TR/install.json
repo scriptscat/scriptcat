@@ -23,7 +23,6 @@
   "perm_card_title_short": "İzinler",
   "perm_card_same_as": "{{version}} ile aynı",
   "perm_card_summary": "{{kinds}} kategori · {{count}} öğe",
-  "perm_card_expand": "İzin ayrıntılarını göster",
   "perm_match_label": "Çalıştırıldığı yer",
   "perm_match_summary": "Betik bu web sitelerinde çalışır ve sayfaları değiştirir",
   "perm_connect_label": "Kaynaklar arası erişim",

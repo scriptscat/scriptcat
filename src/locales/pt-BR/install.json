@@ -23,7 +23,6 @@
   "perm_card_title_short": "Permissões",
   "perm_card_same_as": "Iguais à {{version}}",
   "perm_card_summary": "{{kinds}} categorias · {{count}} itens",
-  "perm_card_expand": "Mostrar detalhes das permissões",
   "perm_match_label": "Executa em",
   "perm_match_summary": "O script é executado nestes sites e modifica as páginas",
   "perm_connect_label": "Acesso entre origens (CORS)",

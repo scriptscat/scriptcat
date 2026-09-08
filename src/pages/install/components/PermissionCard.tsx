@@ -55,6 +55,7 @@ function CollapsedRow({ row }: { row: PermissionRowData }) {
     <button
       type="button"
       data-testid="permission-row-collapsed"
+      aria-expanded={false}
       onClick={() => setOpen(true)}
       className="flex w-full items-center gap-2.5 rounded-lg px-1 py-2.5 text-left hover:bg-muted"
     >
@@ -87,10 +88,12 @@ function CollapsedCard({
 
   return (
     <section className="rounded-xl border border-border bg-card">
+      {/* 不加 aria-label:它会盖掉「无变化 / 与旧版相同 / N 类 M 项」这三段摘要,
+          令辅助技术只听到一句「展开」——折叠的就从注意力变成了信息 */}
       <button
         type="button"
         data-testid="permission-card-collapsed"
-        aria-label={t("install:perm_card_expand")}
+        aria-expanded={false}
         onClick={onExpand}
         className="flex w-full items-center gap-2.5 rounded-xl px-4 py-3.5 text-left hover:bg-muted"
       >
@@ -113,11 +116,12 @@ export function PermissionCard({ rows, baselineVersion }: { rows: PermissionRowD
   const { t } = useTranslation(["install", "common"]);
   const isMobile = useIsMobile();
   const [expanded, setExpanded] = useState(false);
-  const isUpdate = baselineVersion !== undefined;
+  // 一项权限都没有的更新无物可比,沿用全新安装的空态卡头与文案
+  const isUpdate = baselineVersion !== undefined && rows.length > 0;
   const changed = rows.filter(isPermissionChanged);
   const added = changed.reduce((n, r) => n + r.diff!.added.length, 0);
   const removed = changed.reduce((n, r) => n + r.diff!.removed.length, 0);
-  const noChange = isUpdate && rows.length > 0 && changed.length === 0;
+  const noChange = isUpdate && changed.length === 0;
 
   if (noChange && !expanded) {
     return <CollapsedCard rows={rows} baselineVersion={baselineVersion} onExpand={() => setExpanded(true)} />;

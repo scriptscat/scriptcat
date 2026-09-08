@@ -23,7 +23,6 @@
   "perm_card_title_short": "Разрешения",
   "perm_card_same_as": "Совпадают с {{version}}",
   "perm_card_summary": "Категорий: {{kinds}} · элементов: {{count}}",
-  "perm_card_expand": "Показать подробности разрешений",
   "perm_match_label": "Запускается на",
   "perm_match_summary": "Скрипт работает на этих сайтах и изменяет страницы",
   "perm_connect_label": "Кросс-доменный доступ",
