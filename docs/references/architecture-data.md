@@ -81,8 +81,7 @@ Names ending in `DAO` don't all share one base class — check which backend bef
 |---|---|---|
 | `TrashScriptDAO` | [`trash_script.ts`](../../src/app/repo/trash_script.ts) | Purpose-built for the trash/restore flow; doesn't extend `Repo<T>` or `DAO<T>` |
 
-This list is a snapshot — for the current exact set, run `git grep -n -E 'class [A-Za-z0-9_]*(DAO|Repo)' --
-src/app/repo`.
+Current exact set: `git grep -nE 'class [A-Za-z0-9_]*(DAO|Repo)' -- src/app/repo`.
 
 ### Adding an entity
 
@@ -106,6 +105,14 @@ export class MyEntityDAO extends Repo<MyEntity> {
 }
 ```
 
-Then create it in the manager (`enableCache()` if hot), and expose operations via `group.on(...)`. For `DAO<T>`
-or `OPFSRepo`, follow the nearest existing entity of that backend instead (e.g. `LoggerDAO` for Dexie,
-`AgentChatRepo`/`SkillRepo` for OPFS) — their construction and access patterns differ from `Repo<T>`.
+For `DAO<T>` or `OPFSRepo`, follow the nearest existing entity of that backend instead (e.g. `LoggerDAO` for
+Dexie, `AgentChatRepo`/`SkillRepo` for OPFS) — their construction and access patterns differ from `Repo<T>`.
+
+**Then pick an owner — "construct in the manager, expose via `group.on`" is one option, not the rule.** Route
+through a context composition root only when the entity is genuinely owned by it *and* has to be reachable over
+RPC — that's why `scriptDAO` is built in `ServiceWorkerManager`
+([`index.ts`](../../src/app/service/service_worker/index.ts)). Agent entities mostly aren't:
+`AgentModelService` falls back to `new AgentModelRepo()` internally when no repo is injected
+([`model_service.ts`](../../src/app/service/agent/service_worker/model_service.ts)), and `AgentChatRepo` is a
+module-level singleton (`export const agentChatRepo` in [`agent_chat.ts`](../../src/app/repo/agent_chat.ts))
+imported directly. Copy the ownership style of the nearest entity on the *same backend in the same subsystem*.

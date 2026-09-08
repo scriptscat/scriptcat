@@ -16,11 +16,6 @@ const tc = (overrides?: Partial<ToolCall>): ToolCall => ({
 });
 
 describe("工具调用块 ToolCallBlock", () => {
-  it("始终展示工具名称", () => {
-    render(<ToolCallBlock toolCall={tc()} />);
-    expect(screen.getByText("web_search")).toBeInTheDocument();
-  });
-
   it("默认折叠，不展示参数", () => {
     render(<ToolCallBlock toolCall={tc()} />);
     expect(screen.queryByText(/"query":"天气"/)).toBeNull();

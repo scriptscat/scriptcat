@@ -5,6 +5,9 @@ import { CloudBackupSection } from "./sections/CloudBackupSection";
 import { AutoBackupSection } from "./sections/AutoBackupSection";
 import { MigrationSection } from "./sections/MigrationSection";
 import { DevToolsSection } from "./sections/DevToolsSection";
+import { NetworkRulesSection } from "./sections/NetworkRulesSection";
+import { ExternalAccessSection } from "./sections/ExternalAccessSection";
+import { isFirefox } from "@App/pkg/utils/utils";
 import { useTranslation } from "react-i18next";
 
 export default function Tools() {
@@ -17,7 +20,9 @@ export default function Tools() {
           <CloudBackupSection register={register} />
           <AutoBackupSection register={register} />
           <MigrationSection register={register} />
+          <NetworkRulesSection register={register} />
           <DevToolsSection register={register} />
+          {!isFirefox() && <ExternalAccessSection register={register} />}
         </>
       )}
     </SettingsLayout>

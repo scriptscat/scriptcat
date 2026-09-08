@@ -9,12 +9,13 @@ export function loadCache(): Promise<Partial<Record<string, any>>> {
     return Promise.resolve(cache);
   }
   if (!loadCachePromise) {
-    loadCachePromise = new Promise<Partial<Record<string, any>>>((resolve) => {
+    loadCachePromise = new Promise<Partial<Record<string, any>>>((resolve, reject) => {
       chrome.storage.local.get((result: Partial<Record<string, any>> | undefined) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-          // 无视storage API错误，继续执行
+          loadCachePromise = undefined;
+          reject(new Error(lastError.message || "chrome.storage.local.get failed"));
+          return;
         }
         cache = result || {};
         loadCachePromise = undefined;
@@ -29,43 +30,38 @@ function saveCacheAndStorage<T>(key: string, value: T): Promise<T>;
 function saveCacheAndStorage<T>(items: Record<string, T>): Promise<void>;
 function saveCacheAndStorage<T>(keyOrItems: string | Record<string, T>, value?: T): Promise<T | void> {
   if (typeof keyOrItems === "string") {
-    return Promise.all([
-      loadCache().then((cache) => {
-        cache[keyOrItems] = value;
-      }),
-      new Promise<void>((resolve) => {
-        chrome.storage.local.set({ [keyOrItems]: value }, () => {
-          const lastError = chrome.runtime.lastError;
-          if (lastError) {
-            console.error("chrome.runtime.lastError in chrome.storage.local.set:", lastError);
-            // 无视storage API错误，继续执行
-          }
-          resolve();
-        });
-      }),
-    ]).then(() => value);
+    return new Promise<void>((resolve, reject) => {
+      chrome.storage.local.set({ [keyOrItems]: value }, () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          reject(new Error(lastError.message || "chrome.storage.local.set failed"));
+          return;
+        }
+        resolve();
+      });
+    }).then(async () => {
+      (await loadCache())[keyOrItems] = value;
+      return value as T;
+    });
   } else {
     const items = keyOrItems;
-    return Promise.all([
-      loadCache().then((cache) => {
-        Object.assign(cache, items);
-      }),
-      new Promise<void>((resolve) => {
-        chrome.storage.local.set(items, () => {
-          const lastError = chrome.runtime.lastError;
-          if (lastError) {
-            console.error("chrome.runtime.lastError in chrome.storage.local.set:", lastError);
-            // 无视storage API错误，继续执行
-          }
-          resolve();
-        });
-      }),
-    ]).then(() => undefined);
+    return new Promise<void>((resolve, reject) => {
+      chrome.storage.local.set(items, () => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          reject(new Error(lastError.message || "chrome.storage.local.set failed"));
+          return;
+        }
+        resolve();
+      });
+    }).then(async () => {
+      Object.assign(await loadCache(), items);
+    });
   }
 }
 
 function saveStorage<T>(key: string, value: T): Promise<T> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.set(
       {
         [key]: value,
@@ -73,8 +69,8 @@ function saveStorage<T>(key: string, value: T): Promise<T> {
       () => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.storage.local.set:", lastError);
-          // 无视storage API错误，继续执行
+          reject(new Error(lastError.message || "chrome.storage.local.set failed"));
+          return;
         }
         resolve(value);
       }
@@ -83,12 +79,12 @@ function saveStorage<T>(key: string, value: T): Promise<T> {
 }
 
 function saveStorageRecord(record: Partial<Record<string, any>>): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.set(record, () => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.storage.local.set:", lastError);
-        // 无视storage API错误，继续执行
+        reject(new Error(lastError.message || "chrome.storage.local.set failed"));
+        return;
       }
       resolve();
     });
@@ -105,12 +101,12 @@ function getCache(key: string): Promise<any> {
 }
 
 function getStorage(key: string): Promise<any> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.get(key, (result) => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-        // 无视storage API错误，继续执行
+        reject(new Error(lastError.message || "chrome.storage.local.get failed"));
+        return;
       }
       resolve(result[key]);
     });
@@ -118,12 +114,12 @@ function getStorage(key: string): Promise<any> {
 }
 
 function getStorageRecord(keys: string[]): Promise<Partial<Record<string, any>>> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     chrome.storage.local.get(keys, (result) => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-        // 无视storage API错误，继续执行
+        reject(new Error(lastError.message || "chrome.storage.local.get failed"));
+        return;
       }
       resolve(result);
     });
@@ -137,12 +133,12 @@ function deleteCache(key: string) {
 }
 
 function deleteStorage(key: string) {
-  return new Promise<void>((resolve) => {
+  return new Promise<void>((resolve, reject) => {
     chrome.storage.local.remove(key, () => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.storage.local.remove:", lastError);
-        // 无视storage API错误，继续执行
+        reject(new Error(lastError.message || "chrome.storage.local.remove failed"));
+        return;
       }
       resolve();
     });
@@ -150,20 +146,15 @@ function deleteStorage(key: string) {
 }
 
 export function deletesStorage(keys: string[]) {
-  return new Promise<void>((resolve) => {
+  return new Promise<void>((resolve, reject) => {
     chrome.storage.local.remove(keys, () => {
       const lastError = chrome.runtime.lastError;
       if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.storage.local.remove:", lastError);
-        // 无视storage API错误，继续执行
+        reject(new Error(lastError.message || "chrome.storage.local.remove failed"));
+        return;
       }
       resolve();
     });
-  }).catch(async () => {
-    // fallback
-    for (const key of keys) {
-      await deleteStorage(key);
-    }
   });
 }
 
@@ -213,12 +204,12 @@ export abstract class Repo<T> {
         });
       });
     }
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       chrome.storage.local.get(keys, (result) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-          // 无视storage API错误，继续执行
+          reject(new Error(lastError.message || "chrome.storage.local.get failed"));
+          return;
         }
         resolve(keys.map((key) => result[key] as T | undefined));
       });
@@ -240,12 +231,12 @@ export abstract class Repo<T> {
         return record;
       });
     }
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       chrome.storage.local.get(keys, (result) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-          // 无视storage API错误，继续执行
+          reject(new Error(lastError.message || "chrome.storage.local.get failed"));
+          return;
         }
         resolve(result as Partial<Record<string, T>>);
       });
@@ -275,12 +266,12 @@ export abstract class Repo<T> {
         });
       });
     }
-    return new Promise<T[]>((resolve) => {
+    return new Promise<T[]>((resolve, reject) => {
       chrome.storage.local.get((result: { [key: string]: T }) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
-          console.error("chrome.runtime.lastError in chrome.storage.local.get:", lastError);
-          // 无视storage API错误，继续执行
+          reject(new Error(lastError.message || "chrome.storage.local.get failed"));
+          return;
         }
         resolve(this.filter(result, filters));
       });
@@ -299,7 +290,7 @@ export abstract class Repo<T> {
   public delete(key: string): Promise<void> {
     key = this.joinKey(key);
     if (this.useCache) {
-      return Promise.all([deleteCache(key), deleteStorage(key)]).then(() => undefined);
+      return deleteStorage(key).then(() => deleteCache(key));
     }
     return deleteStorage(key);
   }
@@ -307,12 +298,13 @@ export abstract class Repo<T> {
   public deletes(keys: string[]): Promise<void> {
     keys = keys.map((key) => this.joinKey(key));
     if (this.useCache) {
-      return loadCache().then((cache) => {
-        for (const key of keys) {
-          delete cache[key];
-        }
-        return deletesStorage(keys);
-      });
+      return deletesStorage(keys)
+        .then(() => loadCache())
+        .then((cache) => {
+          for (const key of keys) {
+            delete cache[key];
+          }
+        });
     }
     return deletesStorage(keys);
   }

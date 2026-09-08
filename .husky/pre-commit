@@ -49,6 +49,24 @@ else
   rm -f "$i18n_files"
 fi
 
+# issue 模板或构造 issues/new 预填链接的源码有改动时，跑模板机械检查（YAML 合法性、
+# issue-form schema、中英文结构对齐、预填参数 id 是否仍然存在）。同样检查暂存快照而非工作区。
+issue_template_files=$(mktemp)
+git diff --cached --name-only -z --diff-filter=ACMRD -- \
+  ".github/ISSUE_TEMPLATE/*" "src/*.ts" "src/*.tsx" > "$issue_template_files"
+
+if [ -s "$issue_template_files" ]; then
+  rm -f "$issue_template_files"
+  snapshot_dir=$(mktemp -d)
+  node scripts/git-staged-snapshot.mjs "$(pwd)" "$snapshot_dir" \
+    && node scripts/check-issue-templates.mjs "--root=$snapshot_dir"
+  status=$?
+  rm -rf "$snapshot_dir"
+  [ $status -eq 0 ] || exit 1
+else
+  rm -f "$issue_template_files"
+fi
+
 # 在 main 或 release/* 分支上提交时额外跑测试
 branch=$(git rev-parse --abbrev-ref HEAD)
 if [ "$branch" = "main" ] || echo "$branch" | grep -q "^release/"; then

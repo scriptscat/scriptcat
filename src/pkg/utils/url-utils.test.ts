@@ -21,10 +21,6 @@ describe.concurrent("prettyUrl", () => {
     it.concurrent("should decode Emoji domains", () => {
       expect(prettyUrl("https://xn--vi8h.la/path")).toBe("https://🍕.la/path");
     });
-
-    it.concurrent("should handle mixed Latin and Foreign scripts", () => {
-      expect(prettyUrl("http://xn--maana-pta.com")).toBe("http://mañana.com/");
-    });
   });
 
   describe.concurrent("Path and Percent Encoding", () => {

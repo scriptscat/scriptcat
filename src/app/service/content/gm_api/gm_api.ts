@@ -993,6 +993,15 @@ export default class GMApi extends GM_Base {
     };
     const handle = async () => {
       const url = await urlPromiseLike;
+      if (!url) {
+        // TM 对空 url 会同步报错/触发 onerror，而非发起请求；
+        // new URL("", base) 不会抛错而是解析为当前页面地址，因此需在此显式拦截，避免误下载当前页面。
+        if (!aborted) {
+          details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError);
+          retPromiseReject?.(new Error("GM_download: url is empty"));
+        }
+        return;
+      }
       const downloadMode = details.downloadMode || "native"; // native = sc_default; browser = chrome api
       details.url = url;
       if (downloadMode === "browser" || url.startsWith("blob:")) {

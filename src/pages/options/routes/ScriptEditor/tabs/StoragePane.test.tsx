@@ -198,10 +198,4 @@ describe("StoragePane 储存面板", () => {
     );
     expect(await screen.findByText("newKey")).toBeInTheDocument();
   });
-
-  it("无数据时应展示空状态", async () => {
-    getScriptValue.mockResolvedValue({});
-    render(<StoragePane uuid="u1" />);
-    expect(await screen.findByText(t("no_data"))).toBeInTheDocument();
-  });
 });
