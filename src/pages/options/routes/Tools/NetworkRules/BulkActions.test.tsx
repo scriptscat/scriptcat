@@ -194,6 +194,7 @@ describe("网络规则批量操作", () => {
 
   it("翻页会清空选择，操作栏随之消失", async () => {
     // 刚好多出一条即可翻到第二页，多余的行只会让整表重渲染更贵。
+    // eslint-disable-next-line scriptcat/no-test-large-boundary-fixture -- pagination boundary
     const client = clientFor(Array.from({ length: NETWORK_RULES_PAGE_SIZE + 1 }, (_, index) => rule(index)));
     renderPage(client);
     expect(await screen.findByText("规则 0")).toBeInTheDocument();
