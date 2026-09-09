@@ -83,7 +83,7 @@
 | directory / path | `ディレクトリ` / `パス` | ファイルシステムを扱う開発機能では、現行の `ディレクトリ` を維持します。一般向け機能へ拡大する場合は別途確認します。 | `open_directory`, `open_backup_dir`, `script_operation_description`, `watch_file_description` |
 | panel / console | `パネル` / `コンソール` | `panel` は `パネル`、開発者ツールの console は `コンソール` とし、相互に置換しません。 | `background_script_description`, `build_success_message` |
 | check / confirm | `チェック` / `確認` | 更新確認の UI には両表現が現存します。新しい文言では周辺 UI に合わせ、統一はレビュー後に行います。 | `check_update`, `updatepage.main_header`, `updatepage.status_checking_updates` |
-| source | `ソース` / `インストール元` | 外部リソースや出所一般は `ソース`、導入元を明示する欄では `インストール元` を使用しています。 | `source`, `importpage.col_source`, `from_legitimate_sources_warning` |
+| source | `ソース` / `インストール元` | 外部リソースや出所一般は `ソース`、導入元を明示する欄では `インストール元` を使用しています。 | `source`, `importpage.col_source` |
 | query / filter | `検索` / `絞り込み` / `クエリ` | ログ検索 UI の操作名は `検索`、結果を条件で狭める説明は `絞り込み` を優先します。API や問い合わせ言語など技術文脈では `クエリ` を使用できます。 | `query`, `enter_filter_conditions`, `filtered_logs` |
 | match / exclude | `対象` / `除外`、ラベルでは `対象サイト（@match）` / `除外サイト（@exclude）` | ユーザー向け操作では現行の `対象` / `除外` を優先します。`@match` / `@exclude` は識別子として保持します。現行の `マッチ` 文言は後日レビュー対象です。 | `add_match`, `add_exclude`, `website_match`, `website_exclude`, `match` |
 | storage access / operation | `ストレージにアクセス` / `ストレージ` | 許可ダイアログは一般のファイルストレージへのアクセス確認であり、同期機能に限定しません。タイトルでは対象への `アクセス` を明確にし、説明文で具体的操作を補います。 | `script_operation_title`, `script_storage`, `storage_api` |
