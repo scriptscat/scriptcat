@@ -12,6 +12,9 @@ import type { ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import { RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
+const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
+const znRand = process.env.SC_ZN_RAND!;
+
 // 设置 console mock 来避免测试输出污染
 vi.spyOn(console, "error").mockImplementation(() => {});
 vi.spyOn(console, "log").mockImplementation(() => {});
@@ -249,7 +252,7 @@ describe("utils", () => {
       const code = "return arguments[0].value + arguments[1];";
       const func: ScriptFunc = compileScript(code);
 
-      const result = func({ value: 10 }, "test-script");
+      const result = func(fnStrIntegrity, {}, { value: 10 }, "test-script");
 
       expect(result).toBe("10test-script");
     });
@@ -265,8 +268,8 @@ describe("utils", () => {
       `;
       const func: ScriptFunc = compileScript(code);
 
-      const result1 = func({ value: 5, multiply: 3 }, "test");
-      const result2 = func({ value: 5 }, "fallback");
+      const result1 = func(fnStrIntegrity, {}, { value: 5, multiply: 3 }, "test");
+      const result2 = func(fnStrIntegrity, {}, { value: 5 }, "fallback");
 
       expect(result1).toBe(15);
       expect(result2).toBe("fallback");
@@ -280,7 +283,7 @@ describe("utils", () => {
       `;
       const func: ScriptFunc = compileScript(code);
 
-      const result = await func({ value: 5 }, "async-test");
+      const result = await func(fnStrIntegrity, {}, { value: 5 }, "async-test");
 
       expect(result).toBe(10);
     });
@@ -289,7 +292,13 @@ describe("utils", () => {
       const code = "throw new Error('Test error');";
       const func: ScriptFunc = compileScript(code);
 
-      expect(() => func({}, "error-test")).toThrow("Test error");
+      expect(() => func(fnStrIntegrity, {}, {}, "error-test")).toThrow("Test error");
+    });
+
+    it.concurrent("完整性标记不匹配时不应执行脚本", () => {
+      const func: ScriptFunc = compileScript("throw new Error('should not run');");
+
+      expect(func("invalid", {}, {}, "blocked")).toBeUndefined();
     });
   });
 
@@ -319,7 +328,9 @@ describe("utils", () => {
 
       const result = compileInjectScript(script, scriptCode);
 
-      expect(result).toBe(`window['inject-test-flag'] = function(){console.log('injected');}`);
+      expect(result).toBe(
+        `window['inject-test-flag'] = (function (k, fn, t, u, ...args) { if (t === k) { t = '${znRand}'; u[t] = fn; return u[t](...args, (u[t] = undefined)) } }).bind(null, '${fnStrIntegrity}', function(){console.log('injected');});`
+      );
     });
 
     it.concurrent("应该包含自动删除挂载函数的代码", () => {
@@ -331,7 +342,7 @@ describe("utils", () => {
       expect(result).toContain(`try{delete window['inject-test-flag']}catch(e){}`);
       expect(result).toContain("console.log('with auto delete');");
       expect(result).toBe(
-        `window['inject-test-flag'] = function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');}`
+        `window['inject-test-flag'] = (function (k, fn, t, u, ...args) { if (t === k) { t = '${znRand}'; u[t] = fn; return u[t](...args, (u[t] = undefined)) } }).bind(null, '${fnStrIntegrity}', function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');});`
       );
     });
 
@@ -342,7 +353,9 @@ describe("utils", () => {
       const result = compileInjectScript(script, scriptCode);
 
       expect(result).not.toContain("try{delete window");
-      expect(result).toBe(`window['inject-test-flag'] = function(){console.log('without auto delete');}`);
+      expect(result).toBe(
+        `window['inject-test-flag'] = (function (k, fn, t, u, ...args) { if (t === k) { t = '${znRand}'; u[t] = fn; return u[t](...args, (u[t] = undefined)) } }).bind(null, '${fnStrIntegrity}', function(){console.log('without auto delete');});`
+      );
     });
 
     it.concurrent("应该处理复杂的脚本代码", () => {

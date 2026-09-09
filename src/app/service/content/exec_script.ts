@@ -9,6 +9,8 @@ import { evaluateGMInfo } from "./gm_api/gm_info";
 import type { IGM_Base } from "./gm_api/gm_api";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 
+const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
+
 // 执行脚本,控制脚本执行与停止
 export default class ExecScript {
   scriptRes: TScriptInfo;
@@ -88,7 +90,7 @@ export default class ExecScript {
     this.logger.debug("script start");
     const sandboxContext = this.sandboxContext;
     this.execContext = sandboxContext ? createProxyContext(sandboxContext) : global; // this.$ 只能执行一次
-    return this.scriptFunc.call(this.execContext, this.named, this.scriptRes.name);
+    return this.scriptFunc(fnStrIntegrity, this.execContext, this.named, this.scriptRes.name);
   };
 
   // 早期启动的脚本，处理GM API
