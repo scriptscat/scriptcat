@@ -151,9 +151,9 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   const joinedCode = [
     "with(arguments[0]||this.$){",
     `${preCode}`,
-    "return(async function(){",
+    "this[arguments[0]='$$'+Date.now()/Math.random()]=async function(){",
     `${code}`,
-    "}).call(this);}",
+    "};return this[arguments[0]](this[arguments[0]]=arguments[0]=void 0);}",
   ]
     .filter(Boolean)
     .join("\n");
@@ -166,9 +166,8 @@ export function compileScript(code: string): ScriptFunc {
   const fn = <ScriptFunc>new Function(code);
   return function (k: any, fn: any, t: any, u: any, ...args: any[]) {
     if (t === k) {
-      t = `${znRand}`;
-      u[t] = fn;
-      return u[t](...args, (u[t] = undefined));
+      u[(t = `${znRand}`)] = fn;
+      return u[t](...args, (u[t] = t = undefined));
     }
   }.bind(null, lnStrIntegrity, fn);
 }
@@ -193,7 +192,7 @@ export function compileInjectScriptByFlag(
   autoDeleteMountFunction: boolean = false
 ): string {
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
-  return `window['${flag}'] = (function (k, fn, t, u, ...args) { if (t === k) { t = '${znRand}'; u[t] = fn; return u[t](...args, (u[t] = undefined)) } }).bind(null, '${lnStrIntegrity}', function(){${autoDeleteMountCode}${scriptCode}});`;
+  return `window['${flag}'] = (function (k, fn, t, u, ...args) { if (t === k) { u[t = '${znRand}'] = fn; return u[t](...args, (u[t] = t = undefined)) } }).bind(null, '${lnStrIntegrity}', function(){${autoDeleteMountCode}${scriptCode}});`;
 }
 
 /**
@@ -245,7 +244,7 @@ export function compilePreInjectScript(
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
   const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
   const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
-  return `window['${flag}'] = (function (k, fn, t, u, ...args) { if (t === k) { t = '${znRand}'; u[t] = fn; return u[t](...args, (u[t] = undefined)) } }).bind(null, '${lnStrIntegrity}', function(){${autoDeleteMountCode}${scriptCode}});
+  return `window['${flag}'] = (function (k, fn, t, u, ...args) { if (t === k) { u[t = '${znRand}'] = fn; return u[t](...args, (u[t] = t = undefined)) } }).bind(null, '${lnStrIntegrity}', function(){${autoDeleteMountCode}${scriptCode}});
 {
   let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
   c = typeof cloneInto === "function" ? cloneInto(o, performance) : o,

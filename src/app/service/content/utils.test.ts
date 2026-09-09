@@ -62,7 +62,8 @@ describe("utils", () => {
       expect(result).toContain("try {");
       expect(result).toContain("} catch (e) {");
       expect(result).toContain("with(arguments[0]||this.$)");
-      expect(result).toContain("return(async function(){");
+      expect(result).toContain("this[arguments[0]='$$'+Date.now()/Math.random()]=async function(){");
+      expect(result).toContain("return this[arguments[0]](this[arguments[0]]=arguments[0]=void 0);");
     });
 
     it.concurrent("应该处理自定义脚本代码参数", () => {
@@ -329,7 +330,7 @@ describe("utils", () => {
       const result = compileInjectScript(script, scriptCode);
 
       expect(result).toBe(
-        `window['inject-test-flag'] = (function (k, fn, t, u, ...args) { if (t === k) { t = '${znRand}'; u[t] = fn; return u[t](...args, (u[t] = undefined)) } }).bind(null, '${fnStrIntegrity}', function(){console.log('injected');});`
+        `window['inject-test-flag'] = (function (k, fn, t, u, ...args) { if (t === k) { u[t = '${znRand}'] = fn; return u[t](...args, (u[t] = t = undefined)) } }).bind(null, '${fnStrIntegrity}', function(){console.log('injected');});`
       );
     });
 
@@ -342,7 +343,7 @@ describe("utils", () => {
       expect(result).toContain(`try{delete window['inject-test-flag']}catch(e){}`);
       expect(result).toContain("console.log('with auto delete');");
       expect(result).toBe(
-        `window['inject-test-flag'] = (function (k, fn, t, u, ...args) { if (t === k) { t = '${znRand}'; u[t] = fn; return u[t](...args, (u[t] = undefined)) } }).bind(null, '${fnStrIntegrity}', function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');});`
+        `window['inject-test-flag'] = (function (k, fn, t, u, ...args) { if (t === k) { u[t = '${znRand}'] = fn; return u[t](...args, (u[t] = t = undefined)) } }).bind(null, '${fnStrIntegrity}', function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');});`
       );
     });
 
@@ -354,7 +355,7 @@ describe("utils", () => {
 
       expect(result).not.toContain("try{delete window");
       expect(result).toBe(
-        `window['inject-test-flag'] = (function (k, fn, t, u, ...args) { if (t === k) { t = '${znRand}'; u[t] = fn; return u[t](...args, (u[t] = undefined)) } }).bind(null, '${fnStrIntegrity}', function(){console.log('without auto delete');});`
+        `window['inject-test-flag'] = (function (k, fn, t, u, ...args) { if (t === k) { u[t = '${znRand}'] = fn; return u[t](...args, (u[t] = t = undefined)) } }).bind(null, '${fnStrIntegrity}', function(){console.log('without auto delete');});`
       );
     });
 
