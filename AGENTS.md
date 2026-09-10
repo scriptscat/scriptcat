@@ -65,7 +65,11 @@ downstream prose does not override it.
 - **Test changes must follow the test route.** Before changing a test, shared test helper, or runner configuration,
   identify the observable contract and test boundary, search existing coverage, capture a baseline or reproduction,
   then make the smallest correction and rerun focused and relevant broader checks. A single passing run does not
-  establish a root-cause fix; report the trigger, evidence, and remaining uncertainty.
+  establish a root-cause fix; report the trigger, evidence, and remaining uncertainty. Match async waits to the
+  contract: use one `act` for a resolved Promise-driven React update, `findBy*` only for genuinely asynchronous
+  element appearance, `waitFor` only for open-ended boundaries, and fake timers for production timer behavior;
+  never raise a timeout, add a fixed sleep, or weaken an assertion to hide worker contention. See
+  [`docs/references/develop-testing.md`](docs/references/develop-testing.md#observation-rules-for-asynchronous-tests).
 - **Shared E2E helpers must model both outcomes.** A helper that drives a save, install, or other mutation must make
   the expected success or failure explicit and wait for that operation's matching signal. Negative cases must opt into
   the failure contract; never make them pass by accepting an arbitrary toast, an old notification, or a page shell.
