@@ -1,5 +1,5 @@
 import { Repo } from "./repo";
-import type { Resource } from "./resource";
+import type { Resource, ResourceType } from "./resource";
 import type { SCMetadata } from "./metadata";
 import type { GMInfoEnv } from "../service/content/types";
 import type { URLRuleEntry } from "@App/pkg/utils/url_matcher";
@@ -95,12 +95,19 @@ export type ScriptAndCode = Script & ScriptCode;
 
 export type ValueStore = { [key: string]: any };
 
+export type ScriptResource = { [key: string]: { base64?: string } & Omit<Resource, "base64"> };
+
+export type ScriptResourceByType = Record<ResourceType, ScriptResource>;
+
+export type PageScriptResource = Record<string, { base64?: string; content: string; contentType: string }>;
+
 // 脚本运行时的资源,包含已经编译好的脚本与脚本需要的资源
 export interface ScriptRunResource extends Script {
   code: string; // 原始代码
   value: ValueStore;
   flag: string;
-  resource: { [key: string]: { base64?: string } & Omit<Resource, "base64"> }; // 资源列表,包含脚本需要的资源
+  resource: ScriptResource; // 资源列表,包含脚本需要的资源
+  resourceByType?: ScriptResourceByType;
   metadata: SCMetadata; // 经自定义覆盖的 Metadata
   originalMetadata: SCMetadata; // 原本的 Metadata （目前只需要 match, include, exclude）
 }
@@ -127,7 +134,8 @@ export type TScriptInfo = Override<
   ScriptLoadInfo,
   {
     originalMetadata?: Partial<Record<string, string[]>>;
-    resource: Record<string, { base64?: string; content: string; contentType: string }>;
+    resource: PageScriptResource;
+    requireCssResource?: PageScriptResource;
     code: "" | string;
     sort?: number;
     flag: string;

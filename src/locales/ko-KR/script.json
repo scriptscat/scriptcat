@@ -41,6 +41,7 @@
   "cron_invalid_expr": "잘못된 cron 표현식입니다",
   "background_script": "백그라운드 스크립트",
   "scheduled_script": "예약 스크립트",
+  "normal_script": "일반 스크립트",
   "next_run": "다음 실행",
   "background_script_tooltip": "백그라운드 스크립트입니다. 활성화하면 백그라운드에서 실행됩니다.",
   "scheduled_script_tooltip": "예약 스크립트입니다. 설정한 시간에 자동으로 실행됩니다.",

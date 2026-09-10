@@ -6,6 +6,7 @@ import type { IMessageQueue, TKeyValue } from "@Packages/message/message_queue";
 import { matchLanguage } from "@App/locales/locales";
 import { ExtVersion } from "@App/app/const";
 import defaultTypeDefinition from "@App/template/scriptcat.d.tpl";
+import type { ScriptTemplateOverrides } from "@App/pkg/utils/script_template";
 import { toCamelCase } from "../utils/utils";
 import EventEmitter from "eventemitter3";
 import { STORAGE_LOCAL_KEYS } from "./consts";
@@ -517,6 +518,15 @@ export class SystemConfig {
     this._set("editor_preferences", v);
   }
 
+  // 新建脚本模板：只存用户覆写过的类型，未覆写的由 resolveScriptTemplate 回落到内置默认模板（存 local，理由见 consts.ts）
+  getScriptTemplates() {
+    return this._get<ScriptTemplateOverrides>("script_templates", {});
+  }
+
+  setScriptTemplates(v: ScriptTemplateOverrides) {
+    this._set("script_templates", v);
+  }
+
   // 获取typescript类型定义
   getEditorTypeDefinition(): string {
     return localStorage.getItem("editor_type_definition") || defaultTypeDefinition;
@@ -761,14 +771,16 @@ let lazyScriptNamePrefix: string = "";
 let lazyScriptIndex = 0;
 
 // 新腳本自動改名
-export const lazyScriptName = (code: string) => {
+export const nextScriptName = () => {
   if (!lazyScriptNamePrefix) {
     // 使用執行時的亂數種子
     // prefix 為 A000 ~ ZZZZ
     lazyScriptNamePrefix = (((Math.random() * (1679615 - 466560 + 1)) | 0) + 466560).toString(36).toUpperCase();
   }
-  code = code.replace(/@name\s+(New Userscript)[\r\n]/g, (s, name) => {
-    return s.replace(name, `${name} ${lazyScriptNamePrefix}-${++lazyScriptIndex}`);
-  });
-  return code;
+  return `New Userscript ${lazyScriptNamePrefix}-${++lazyScriptIndex}`;
+};
+
+// 模板里写死 "New Userscript" 时（{{name}} 之前的写法）同样自动编号
+export const lazyScriptName = (code: string, name: string) => {
+  return code.replace(/@name\s+(New Userscript)[\r\n]/g, (s, matched) => s.replace(matched, name));
 };

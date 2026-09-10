@@ -260,7 +260,63 @@ describe("harness lint 规则", () => {
     });
   });
 
-  describe("⑦ no-restricted-syntax：src/pages 禁用 forwardRef", () => {
+  describe("⑦ scriptcat/no-test-large-boundary-fixture：大边界夹具必须显式说明", () => {
+    const RULE = "scriptcat/no-test-large-boundary-fixture";
+
+    it("拦截显式的一页以上分页边界写法及其 const 别名", () => {
+      expect(
+        ruleIdsAt(
+          `const total = NETWORK_RULES_PAGE_SIZE + 1; const rows = Array.from({ length: total }, makeRow);`,
+          "src/pages/example.test.tsx"
+        )
+      ).toContain(RULE);
+      expect(ruleIdsAt(`Array.from({ length: PAGE_ROWS + 1 }, makeRow);`, "src/pages/example.test.tsx")).toContain(
+        RULE
+      );
+    });
+
+    it("放行非边界夹具和非页面测试", () => {
+      expect(ruleIdsAt(`Array.from({ length: 20 }, makeRow);`, "src/pages/example.test.tsx")).not.toContain(RULE);
+      expect(ruleIdsAt(`Array.from({ length: PAGE_SIZE + 2 }, makeRow);`, "src/pages/example.test.tsx")).not.toContain(
+        RULE
+      );
+      expect(ruleIdsAt(`Array.from({ length: itemCount + 1 }, makeItem);`, "src/pages/example.test.tsx")).not.toContain(
+        RULE
+      );
+      expect(ruleIdsAt(`Array.from({ length: PAGE_SIZE + 1 }, makeRow);`, "src/pkg/example.test.ts")).not.toContain(
+        RULE
+      );
+    });
+
+    it("只追踪 const 的单级别名", () => {
+      expect(
+        ruleIdsAt(`let total = PAGE_SIZE + 1; Array.from({ length: total }, makeRow);`, "src/pages/example.test.tsx")
+      ).not.toContain(RULE);
+      expect(
+        ruleIdsAt(
+          `const total = PAGE_SIZE + 1; const count = total; Array.from({ length: count }, makeRow);`,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
+    });
+
+    it("放行词法遮蔽和逐处说明的边界夹具", () => {
+      expect(
+        ruleIdsAt(
+          `const Array = { from() {} }; Array.from({ length: PAGE_SIZE + 1 }, makeRow);`,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
+      expect(
+        ruleIdsAt(
+          `// eslint-disable-next-line scriptcat/no-test-large-boundary-fixture -- pagination boundary\nArray.from({ length: PAGE_SIZE + 1 }, makeRow);`,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
+    });
+  });
+
+  describe("⑧ no-restricted-syntax：src/pages 禁用 forwardRef", () => {
     const RULE = "no-restricted-syntax";
 
     it("拦截 ui 组件里的 forwardRef(...)", () => {

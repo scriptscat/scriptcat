@@ -41,6 +41,7 @@
   "cron_invalid_expr": "錯誤的排程表達式",
   "background_script": "背景腳本",
   "scheduled_script": "排程腳本",
+  "normal_script": "普通腳本",
   "next_run": "下次執行",
   "background_script_tooltip": "背景腳本，啟用後將在背景執行",
   "scheduled_script_tooltip": "排程腳本，將在設定的時間自動執行",

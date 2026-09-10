@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { NetworkRule, NetworkRuleState } from "@App/app/repo/network_rule";
+import type { NetworkRule, NetworkRuleCondition, NetworkRuleState } from "@App/app/repo/network_rule";
 import { compileNetworkRules, DeclarativeNetRequestUserRuleApplier } from "./network_rule_compiler";
 import {
   INSTALL_GUARD_RULE_ID_MAX,
@@ -22,12 +22,17 @@ type DnrMock = typeof chrome.declarativeNetRequest & {
 
 const dnr = chrome.declarativeNetRequest as DnrMock;
 
-function rule(id: string, action: NetworkRule["action"], enabled = true): NetworkRule {
+function rule(
+  id: string,
+  action: NetworkRule["action"],
+  enabled = true,
+  condition: NetworkRuleCondition = { requestDomains: [`${id}.example.com`] }
+): NetworkRule {
   return {
     id,
     name: id,
     enabled,
-    condition: { requestDomains: [`${id}.example.com`] },
+    condition,
     action,
     createdAt: 1,
     updatedAt: 1,
@@ -81,6 +86,249 @@ function requestPhase(rules: chrome.declarativeNetRequest.Rule[]): chrome.declar
 }
 
 describe("网络规则 DNR 编译与对账", () => {
+  it("相邻的纯响应头移除规则合并 requestDomains，并保留最高优先级", () => {
+    const compiled = compileNetworkRules(
+      state([
+        rule("a", { type: "removeResponseHeaders", headers: ["content-security-policy"] }),
+        rule("b", { type: "removeResponseHeaders", headers: ["content-security-policy"] }),
+      ])
+    );
+
+    expect(compiled).toHaveLength(1);
+    expect(compiled[0]).toMatchObject({
+      id: USER_RULE_ID_MIN,
+      priority: 2,
+      action: {
+        type: "modifyHeaders",
+        responseHeaders: [{ header: "content-security-policy", operation: "remove" }],
+      },
+      condition: {
+        requestDomains: ["a.example.com", "b.example.com"],
+      },
+    });
+  });
+
+  it("100 条单域名规则合并为一条，超过 100 个域名时按物理上限分块", () => {
+    const rules = Array.from({ length: 101 }, (_, index) =>
+      rule(`site-${String(index).padStart(3, "0")}`, {
+        type: "removeResponseHeaders",
+        headers: ["content-security-policy"],
+      })
+    );
+
+    const compiled = compileNetworkRules(state(rules));
+
+    expect(compiled).toHaveLength(2);
+    expect(compiled[0].condition.requestDomains).toHaveLength(100);
+    expect(compiled[1].condition.requestDomains).toEqual(["site-100.example.com"]);
+    expect(compiled.flatMap((item) => item.condition.requestDomains)).toEqual(
+      rules.map((item) => item.condition.requestDomains![0]).sort()
+    );
+    expect(compiled.map((item) => item.priority)).toEqual([101, 101]);
+    expect(compiled.map((item) => item.id)).toEqual([USER_RULE_ID_MIN, USER_RULE_ID_MIN + 1]);
+  });
+
+  it("合并前去重并消除已被父域覆盖的 requestDomains", () => {
+    const compiled = compileNetworkRules(
+      state([
+        rule("parent", { type: "removeResponseHeaders", headers: ["content-security-policy"] }, true, {
+          requestDomains: ["example.com", "foo.example.com", "badexample.com"],
+        }),
+        rule("child", { type: "removeResponseHeaders", headers: ["content-security-policy"] }, true, {
+          requestDomains: ["example.com", "bar.foo.example.com", "other.com"],
+        }),
+      ])
+    );
+
+    expect(compiled).toHaveLength(1);
+    expect(compiled[0].condition.requestDomains).toEqual(["badexample.com", "example.com", "other.com"]);
+  });
+
+  it("不把 IPv4-like 或 IPv6-like host 当作可做父域消除的 DNS domain", () => {
+    const compiled = compileNetworkRules(
+      state([
+        rule("ipv4-parent", { type: "removeResponseHeaders", headers: ["content-security-policy"] }, true, {
+          requestDomains: ["2.3.4"],
+        }),
+        rule("ipv4-child", { type: "removeResponseHeaders", headers: ["content-security-policy"] }, true, {
+          requestDomains: ["1.2.3.4"],
+        }),
+        rule("ipv6-parent", { type: "removeResponseHeaders", headers: ["content-security-policy"] }, true, {
+          requestDomains: ["[2001:db8::1]"],
+        }),
+        rule("ipv6-child", { type: "removeResponseHeaders", headers: ["content-security-policy"] }, true, {
+          requestDomains: ["[2001:db8::2]"],
+        }),
+      ])
+    );
+
+    expect(compiled.map((item) => item.condition.requestDomains)).toEqual([
+      ["1.2.3.4", "2.3.0.4", "[2001:db8::1]", "[2001:db8::2]"],
+    ]);
+  });
+
+  it("compiled condition 的 set-like array 顺序不同仍可合并", () => {
+    const compiled = compileNetworkRules(
+      state([
+        rule("a", { type: "removeResponseHeaders", headers: ["content-security-policy"] }, true, {
+          requestDomains: ["a.example.com"],
+          resourceTypes: ["script", "main_frame"],
+          requestMethods: ["post", "get"],
+        }),
+        rule("b", { type: "removeResponseHeaders", headers: ["content-security-policy"] }, true, {
+          requestDomains: ["b.example.com"],
+          resourceTypes: ["main_frame", "script"],
+          requestMethods: ["get", "post"],
+        }),
+      ])
+    );
+
+    expect(compiled).toHaveLength(1);
+    expect(compiled[0].condition.requestDomains).toEqual(["a.example.com", "b.example.com"]);
+  });
+
+  it.each([
+    [
+      "resourceTypes",
+      { requestDomains: ["a.example.com"], resourceTypes: ["main_frame"] },
+      { requestDomains: ["b.example.com"], resourceTypes: ["script"] },
+    ],
+    [
+      "requestMethods",
+      { requestDomains: ["a.example.com"], requestMethods: ["get"] },
+      { requestDomains: ["b.example.com"], requestMethods: ["post"] },
+    ],
+    [
+      "excludedRequestDomains",
+      { requestDomains: ["a.example.com"], excludedRequestDomains: ["cdn.example.com"] },
+      { requestDomains: ["b.example.com"], excludedRequestDomains: ["static.example.com"] },
+    ],
+    [
+      "urlFilter",
+      { requestDomains: ["a.example.com"], urlFilter: "*/a/*" },
+      { requestDomains: ["b.example.com"], urlFilter: "*/b/*" },
+    ],
+  ] as Array<[string, NetworkRuleCondition, NetworkRuleCondition]>)(
+    "除 requestDomains 外的 %s 差异是 barrier",
+    (_field, firstCondition, secondCondition) => {
+      const compiled = compileNetworkRules(
+        state([
+          rule(
+            "barrier-a",
+            { type: "removeResponseHeaders", headers: ["content-security-policy"] },
+            true,
+            firstCondition
+          ),
+          rule(
+            "barrier-b",
+            { type: "removeResponseHeaders", headers: ["content-security-policy"] },
+            true,
+            secondCondition
+          ),
+        ])
+      );
+
+      expect(compiled).toHaveLength(2);
+    }
+  );
+
+  it("不同的响应头移除 action 不合并", () => {
+    const compiled = compileNetworkRules(
+      state([
+        rule("csp", { type: "removeResponseHeaders", headers: ["content-security-policy"] }),
+        rule("csp-frame", {
+          type: "removeResponseHeaders",
+          headers: ["content-security-policy", "x-frame-options"],
+        }),
+      ])
+    );
+
+    expect(compiled).toHaveLength(2);
+  });
+
+  it("相同的响应头移除集合即使排列不同也可合并，并输出 canonical action", () => {
+    const compiled = compileNetworkRules(
+      state([
+        rule("a", { type: "removeResponseHeaders", headers: ["x-test", "content-security-policy"] }),
+        rule("b", { type: "removeResponseHeaders", headers: ["content-security-policy", "x-test"] }),
+      ])
+    );
+
+    expect(compiled).toHaveLength(1);
+    expect(compiled[0].action.responseHeaders).toEqual([
+      { header: "content-security-policy", operation: "remove" },
+      { header: "x-test", operation: "remove" },
+    ]);
+  });
+
+  it("active rule barrier 不能被跨越，但 disabled rule 不阻断合并", () => {
+    const baseRules = [
+      rule("first", { type: "removeResponseHeaders", headers: ["content-security-policy"] }),
+      rule("barrier", { type: "allow" }, false),
+      rule("last", { type: "removeResponseHeaders", headers: ["content-security-policy"] }),
+    ];
+
+    expect(compileNetworkRules(state(baseRules))).toHaveLength(1);
+
+    const enabledRules = baseRules.map((item) => (item.id === "barrier" ? { ...item, enabled: true } : item));
+    expect(compileNetworkRules(state(enabledRules))).toHaveLength(3);
+  });
+
+  it("没有 requestDomains 的规则不参与合并", () => {
+    const compiled = compileNetworkRules(
+      state([
+        rule("a", { type: "removeResponseHeaders", headers: ["content-security-policy"] }, true, {
+          urlFilter: "*/a/*",
+        }),
+        rule("b", { type: "removeResponseHeaders", headers: ["content-security-policy"] }, true, {
+          urlFilter: "*/b/*",
+        }),
+      ])
+    );
+
+    expect(compiled).toHaveLength(2);
+  });
+
+  it("空 requestDomains 也不参与合并", () => {
+    const compiled = compileNetworkRules(
+      state([
+        rule("a", { type: "removeResponseHeaders", headers: ["content-security-policy"] }, true, {
+          requestDomains: [],
+        }),
+        rule("b", { type: "removeResponseHeaders", headers: ["content-security-policy"] }, true, {
+          requestDomains: [],
+        }),
+      ])
+    );
+
+    expect(compiled).toHaveLength(2);
+  });
+
+  it("非纯响应头移除 action 不参与合并", () => {
+    const compiled = compileNetworkRules(
+      state([
+        rule("a", { type: "modifyResponseHeaders", headers: [{ header: "x-test", operation: "remove" }] }),
+        rule("b", { type: "modifyResponseHeaders", headers: [{ header: "x-test", operation: "remove" }] }),
+      ])
+    );
+
+    expect(compiled).toHaveLength(2);
+  });
+
+  it("编译 deterministic 且不 mutate source state", () => {
+    const input = state([
+      rule("a", { type: "removeResponseHeaders", headers: ["content-security-policy"] }),
+      rule("b", { type: "removeResponseHeaders", headers: ["content-security-policy"] }),
+    ]);
+    const original = structuredClone(input);
+
+    const first = compileNetworkRules(input);
+    const second = compileNetworkRules(input);
+
+    expect(first).toEqual(second);
+    expect(input).toEqual(original);
+  });
+
   it("一次应用把两条不同动作的规则编译成保留段内的两条 DNR 规则，回收段内陈旧 ID 并保留段外规则", async () => {
     dnr.resetMock();
     await chrome.declarativeNetRequest.updateDynamicRules({

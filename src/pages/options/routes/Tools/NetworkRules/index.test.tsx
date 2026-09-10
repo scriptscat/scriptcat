@@ -171,13 +171,24 @@ describe("网络规则列表页", () => {
     // 只有第二页存在时「跨页」才成立，刚好多出一条即可；多余的行只会让整页渲染更贵。
     const total = NETWORK_RULES_PAGE_SIZE + 1;
     const offPage = total - 1;
+    // eslint-disable-next-line scriptcat/no-test-large-boundary-fixture -- cross-page reorder boundary
     const rules = Array.from({ length: total }, (_, index) => rule(index));
-    const client = clientFor(snapshot(rules));
+    const current = snapshot(rules);
+    let resolveState!: (value: NetworkRuleSnapshot) => void;
+    const stateReady = new Promise<NetworkRuleSnapshot>((resolve) => {
+      resolveState = resolve;
+    });
+    const client = clientFor(current, { getState: vi.fn(() => stateReady) });
     renderPage(client);
-    expect(await screen.findByText("规则 0")).toBeInTheDocument();
-    expect(screen.getAllByTestId("network-rule-row")).toHaveLength(NETWORK_RULES_PAGE_SIZE);
 
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: `规则 ${offPage}` } });
+    expect(screen.queryAllByTestId("network-rule-row")).toHaveLength(0);
+    await act(async () => {
+      resolveState(current);
+      await stateReady;
+    });
+    expect(await screen.findByText(`规则 ${offPage}`)).toBeInTheDocument();
+
     const row = screen.getAllByTestId("network-rule-row")[0];
     expect(rowNames()).toEqual([`规则 ${offPage}`]);
     expect(within(row).getByRole("button", { name: new RegExp(`规则 ${offPage}`) })).toBeDisabled();
