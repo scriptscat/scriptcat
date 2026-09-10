@@ -319,6 +319,7 @@ export class ScriptService {
               values: [
                 "text/javascript*",
                 "application/javascript*",
+                "application/x-javascript*",
                 "text/html*",
                 "text/plain*",
                 "application/octet-stream*",
