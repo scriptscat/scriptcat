@@ -41,6 +41,7 @@
   "cron_invalid_expr": "Expressão cron inválida",
   "background_script": "Script em segundo plano",
   "scheduled_script": "Script agendado",
+  "normal_script": "Script de usuário",
   "next_run": "Próxima execução",
   "background_script_tooltip": "Script em segundo plano. É executado em segundo plano quando ativado.",
   "scheduled_script_tooltip": "Script agendado. Executa automaticamente no horário configurado.",

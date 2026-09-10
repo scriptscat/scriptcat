@@ -41,6 +41,7 @@
   "cron_invalid_expr": "Invalid cron expression",
   "background_script": "Background Script",
   "scheduled_script": "Scheduled Script",
+  "normal_script": "User Script",
   "next_run": "Next run",
   "background_script_tooltip": "Background script. Runs in the background once enabled.",
   "scheduled_script_tooltip": "Scheduled script. Runs automatically at the configured time.",

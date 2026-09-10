@@ -13,6 +13,7 @@ export type ScriptProvider = "scriptcat" | "greasyfork" | "openuserjs";
 export type PopupInitialData = {
   tabId: number;
   url: string;
+  title: string;
   isEnableScript: boolean;
   checkUpdate: { notice: string; version: string; isRead: boolean };
   menuExpandNum: number;
@@ -49,6 +50,7 @@ const popupDataQuery = createPreloadableQuery<"popup", PopupInitialData>({
 
     const tabId = tab?.id ?? -1;
     const url = tab?.url ?? "";
+    const title = tab?.title ?? "";
     // 取不到标签页（例如开发者工具窗口）时，同样按「脚本猫触及不到」处理
     const popupData: GetPopupDataRes =
       tabId >= 0 && url
@@ -60,6 +62,7 @@ const popupDataQuery = createPreloadableQuery<"popup", PopupInitialData>({
     return {
       tabId,
       url,
+      title,
       isEnableScript,
       checkUpdate: checkUpdate ?? { notice: "", version: ExtVersion, isRead: false },
       menuExpandNum,
