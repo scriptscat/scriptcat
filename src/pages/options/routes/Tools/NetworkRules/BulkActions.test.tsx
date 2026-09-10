@@ -90,11 +90,21 @@ async function renderPage(client: NetworkRuleClient) {
 // 行勾选框与翻页按钮都按 aria-label 取：整页 role 扫描要给每个同角色元素算一遍可访问名，
 // 20 行的表上单次 *ByRole 就要 20~70ms，够把这一文件顶出 ui 项目 850ms 的预算。
 function selectRow(name: string) {
-  fireEvent.click(screen.getByLabelText(`选择 ${name}`));
+  const checkbox = document.querySelector<HTMLElement>(`[aria-label="选择 ${name}"]`);
+  expect(checkbox).toBeInTheDocument();
+  fireEvent.click(checkbox!);
 }
 
+const bulkBarSelector = '[role="toolbar"][aria-label="批量操作"]';
+
 function bulkBar() {
-  return screen.getByRole("toolbar", { name: "批量操作" });
+  const element = document.querySelector<HTMLElement>(bulkBarSelector);
+  expect(element).toBeInTheDocument();
+  return element!;
+}
+
+function expectNoBulkBar() {
+  expect(document.querySelector(bulkBarSelector)).not.toBeInTheDocument();
 }
 
 function clickBulk(label: string) {
@@ -112,7 +122,7 @@ describe("网络规则批量操作", () => {
     const client = clientFor([rule(1), rule(2), rule(3)]);
     await renderPage(client);
     expect(screen.getByText("规则 1")).toBeInTheDocument();
-    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+    expectNoBulkBar();
 
     selectRow("规则 1");
     selectRow("规则 3");
@@ -123,7 +133,7 @@ describe("网络规则批量操作", () => {
 
     // 一次用户操作只发一次请求：服务端在同一次写入里改完这两条。
     expect(argsOf(client.setRulesEnabled)).toEqual([{ baseRevision: 3, ids: ["r1", "r3"], enabled: false }]);
-    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+    expectNoBulkBar();
   });
 
   it("批量删除在确认前不动手，确认框提示可以改用停用", async () => {
@@ -145,7 +155,7 @@ describe("网络规则批量操作", () => {
 
     expect(argsOf(client.deleteRules)).toEqual([{ baseRevision: 3, ids: ["r1", "r3"] }]);
     expect(screen.queryByText("规则 1")).not.toBeInTheDocument();
-    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+    expectNoBulkBar();
   });
 
   it("批量启用只处理当前停用的规则，含「所有网站」时仍需二次确认", async () => {
@@ -206,7 +216,7 @@ describe("网络规则批量操作", () => {
     expect(bulkBar()).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("下一页"));
-    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+    expectNoBulkBar();
   });
 
   it("改筛选会清空选择，操作栏随之消失", async () => {
@@ -220,6 +230,6 @@ describe("网络规则批量操作", () => {
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规则 1" } });
     // 选中的那行仍在筛选结果里，操作栏照样消失，说明清空来自筛选变化而不是该行被过滤掉。
     expect(screen.getByText("规则 1")).toBeInTheDocument();
-    expect(screen.queryByRole("toolbar")).not.toBeInTheDocument();
+    expectNoBulkBar();
   });
 });

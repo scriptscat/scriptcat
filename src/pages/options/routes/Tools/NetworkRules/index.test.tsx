@@ -115,7 +115,9 @@ function rowNames(): string[] {
 function stubRowRects() {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
     const row = this.closest("[data-testid='network-rule-row']") as HTMLElement | null;
-    const index = row ? screen.getAllByTestId("network-rule-row").indexOf(row) : -1;
+    // dnd-kit measures many descendants during one keyboard gesture; avoid an accessible-query tree walk per measurement.
+    const rows = document.querySelectorAll<HTMLElement>("[data-testid='network-rule-row']");
+    const index = row ? Array.from(rows).indexOf(row) : -1;
     const top = index < 0 ? 0 : index * 60;
     return {
       x: 0,
