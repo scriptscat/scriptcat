@@ -433,7 +433,6 @@ describe("utils", () => {
 
     it("keeps a resource grant in context-menu scripts after removing none", () => {
       const trimmed = trimScriptInfo(
-        
         createScript(
           {
             grant: ["none", "GM_getResourceText"],
@@ -677,9 +676,50 @@ describe("utils", () => {
       expect(targetWindow[script.flag]).toBe(generated);
     });
 
+    it.concurrent("应该处理复杂的脚本代码", () => {
+      const script = createMockScript({ flag: "complex-flag" });
+      const scriptCode = `
+        var x = 1;
+        function test() { return x + 1; }
+        console.log(test());
+      `;
+
+      const result = compileInjectScript(script, scriptCode, true);
+
+      expect(result).toContain("window['complex-flag']");
+      expect(result).toContain("var x = 1;");
+      expect(result).toContain("function test()");
+      expect(result).toContain("try{delete window['complex-flag']}catch(e){}");
+    });
+
+    it.concurrent("应该正确转义脚本标志名称", () => {
+      const script = createMockScript({ flag: "flag-with-special-chars_123" });
+      const scriptCode = "console.log('test');";
+
+      const result = compileInjectScript(script, scriptCode);
+
+      expect(result).toContain(`window['flag-with-special-chars_123']`);
+    });
+  });
+
+  describe("compilePreInjectScript", () => {
     it.concurrent("生成的预注入脚本应可执行并发出脚本加载事件", () => {
       const script: ScriptLoadInfo = {
-        ...createMockScript(),
+        uuid: "pre-inject-test-uuid",
+        name: "Pre Inject Test Script",
+        namespace: "pre.inject.test",
+        type: 1,
+        status: 1,
+        sort: 0,
+        runStatus: "complete",
+        createtime: Date.now(),
+        checktime: Date.now(),
+        code: "",
+        value: {},
+        flag: "pre-inject-test-flag",
+        resource: {},
+        metadata: {},
+        originalMetadata: {},
         metadataStr: "",
         userConfigStr: "",
       };
@@ -705,31 +745,6 @@ describe("utils", () => {
       expect(Reflect.ownKeys(context)).toEqual([]);
       expect(testPerformance.dispatchEvent).toHaveBeenCalledTimes(1);
       expect(testPerformance.addEventListener).not.toHaveBeenCalled();
-    });
-
-    it.concurrent("应该处理复杂的脚本代码", () => {
-      const script = createMockScript({ flag: "complex-flag" });
-      const scriptCode = `
-        var x = 1;
-        function test() { return x + 1; }
-        console.log(test());
-      `;
-
-      const result = compileInjectScript(script, scriptCode, true);
-
-      expect(result).toContain("window['complex-flag']");
-      expect(result).toContain("var x = 1;");
-      expect(result).toContain("function test()");
-      expect(result).toContain("try{delete window['complex-flag']}catch(e){}");
-    });
-
-    it.concurrent("应该正确转义脚本标志名称", () => {
-      const script = createMockScript({ flag: "flag-with-special-chars_123" });
-      const scriptCode = "console.log('test');";
-
-      const result = compileInjectScript(script, scriptCode);
-
-      expect(result).toContain(`window['flag-with-special-chars_123']`);
     });
   });
 
