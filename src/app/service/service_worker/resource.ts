@@ -2,7 +2,7 @@ import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
 import type { Resource, ResourceHash, ResourceType } from "@App/app/repo/resource";
 import { ResourceDAO } from "@App/app/repo/resource";
-import type { Script } from "@App/app/repo/scripts";
+import type { Script, ScriptResource, ScriptResourceByType } from "@App/app/repo/scripts";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import type { ResourceBackup } from "@App/pkg/backup/struct";
@@ -15,6 +15,7 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { blobToUint8Array } from "@App/pkg/utils/datatype";
 import { readRawContent } from "@App/pkg/utils/encoding";
 import { Semaphore, withTimeoutNotify } from "@App/pkg/utils/concurrency-control";
+import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 
 /**
  * 滑动窗口并发上限：同时"已启动、尚未归还槽位"的 fetch 数量。
@@ -105,12 +106,9 @@ export class ResourceService {
     return oldResource;
   }
 
-  public async getScriptResourceValue(script: Script): Promise<{ [key: string]: Resource }> {
-    const [require, require_css, resource] = await this.getResourceByTypes(script, [
-      "require",
-      "require-css",
-      "resource",
-    ]);
+  public async getScriptResourceValue(script: Script): Promise<ScriptResource> {
+    const resourceByType = await this.getScriptResourceValueByType(script);
+    const { require, "require-css": require_css, resource } = resourceByType;
     const ret = {
       ...require,
       ...require_css,
@@ -123,11 +121,20 @@ export class ResourceService {
       this.logger.warn("One or more properties are merged in ResourceService.getScriptResourceValue");
     }
 
+    return ret;
+  }
+
+  public async getScriptResourceValueByType(script: Script): Promise<ScriptResourceByType> {
+    const [require, require_css, resource] = await this.getResourceByTypes(script, [
+      "require",
+      "require-css",
+      "resource",
+    ]);
     return {
-      ...require,
-      ...require_css,
-      ...resource,
-    };
+      require,
+      "require-css": require_css,
+      resource,
+    } as ScriptResourceByType;
   }
 
   public getResourceByTypes(script: Script, types: ResourceType[]): Promise<Record<string, Resource>[]> {
@@ -144,10 +151,10 @@ export class ResourceService {
             let resourcePath: string;
             if (type === "resource") {
               // @resource xxx https://...
-              const split = mdValue.split(/\s+/);
-              if (split.length !== 2) return; // @resource 必须有 key 和 path. "xxx yyy zzz" 也不符合格式要求
-              resourceKey = split[0];
-              resourcePath = split[1].trim();
+              const declaration = parseResourceDeclaration(mdValue);
+              if (!declaration) return;
+              resourceKey = declaration.name;
+              resourcePath = declaration.url;
             } else {
               // require / require-css 的话，使用 url 作为 resourceKey
               resourceKey = mdValue;
@@ -189,15 +196,12 @@ export class ResourceService {
     const uuid = script.uuid;
     const metadata = script.metadata;
     const promises = types.map((type) => {
-      const promises = metadata[type]?.map(async (u) => {
+      const promises = metadata[type]?.map(async (value) => {
         let url = "";
         if (type === "resource") {
-          const split = u.split(/\s+/);
-          if (split.length === 2) {
-            url = split[1];
-          }
+          url = parseResourceDeclaration(value)?.url || "";
         } else {
-          url = u;
+          url = value;
         }
         if (url) {
           // 检查资源是否存在,如果不存在则重新加载
@@ -455,7 +459,7 @@ export class ResourceService {
     return await this.resourceDAO.save(res);
   }
 
-  requestGetScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
+  requestGetScriptResources(script: Script): Promise<ScriptResource> {
     return this.getScriptResourceValue(script);
   }
 
