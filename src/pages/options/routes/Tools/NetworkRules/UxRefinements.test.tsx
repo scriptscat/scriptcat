@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
@@ -70,13 +70,20 @@ function clientFor(rules: NetworkRule[], overrides: Partial<NetworkRuleClient> =
   } as unknown as NetworkRuleClient;
 }
 
-function renderPage(client: NetworkRuleClient) {
-  return renderWithRouter(
+async function settle() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+async function renderPage(client: NetworkRuleClient) {
+  renderWithRouter(
     <Routes>
       <Route path="/tools/network-rules" element={<NetworkRules client={client} />} />
     </Routes>,
     { initialEntries: ["/tools/network-rules"] }
   );
+  await settle();
 }
 
 function renderSheet(initialTemplate: "csp" | "block" | "custom") {
@@ -93,12 +100,12 @@ function renderSheet(initialTemplate: "csp" | "block" | "custom") {
 
 describe("网络规则空态", () => {
   it("给出常用场景入口，点一下直接进到该场景的表单", async () => {
-    renderPage(clientFor([]));
-    expect(await screen.findByText("从一个常用场景开始，或自己新建一条")).toBeInTheDocument();
+    await renderPage(clientFor([]));
+    expect(screen.getByText("从一个常用场景开始，或自己新建一条")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "移除 CSP" }));
 
-    const sheet = await screen.findByRole("dialog");
+    const sheet = screen.getByRole("dialog");
     // 直接落在第二步：场景徽标已经是「移除 CSP」，不需要用户再选一次。
     expect(within(sheet).getByText("更换类型")).toBeInTheDocument();
     expect(within(sheet).getByLabelText("应用范围")).toBeInTheDocument();
@@ -107,8 +114,8 @@ describe("网络规则空态", () => {
 
 describe("网络规则筛选横幅", () => {
   it("说明手柄为什么灰掉，而不只报匹配条数", async () => {
-    renderPage(clientFor([rule(1), rule(2)]));
-    expect(await screen.findByText("规则 1")).toBeInTheDocument();
+    await renderPage(clientFor([rule(1), rule(2)]));
+    expect(screen.getByText("规则 1")).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规则 1" } });
 
