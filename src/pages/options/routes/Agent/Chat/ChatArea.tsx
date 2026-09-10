@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { notify } from "@App/pages/components/ui/toast";
+import { agentClient } from "@App/pages/store/features/script";
 import { BookOpen, Bot, Server, ServerOff, TriangleAlert } from "lucide-react";
 import { Button } from "@App/pages/components/ui/button";
 import { StateScreen } from "@App/pages/components/ui/state-screen";
@@ -933,6 +934,8 @@ export default function ChatArea({
         backgroundEnabled={backgroundEnabled}
         onBackgroundEnabledChange={onBackgroundEnabledChange}
         hasPendingMessage={pendingMessageId !== null}
+        onOptimizePrompt={(prompt, modelId, requestId) => agentClient.optimizePrompt({ requestId, prompt, modelId })}
+        onCancelOptimizePrompt={(requestId) => agentClient.cancelPromptOptimization(requestId)}
       />
     </div>
   );

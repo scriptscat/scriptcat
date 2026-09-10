@@ -8,8 +8,10 @@ import {
   Eye,
   File as FileIcon,
   Image as ImageIcon,
+  Loader2,
   Paperclip,
   PlayCircle,
+  Sparkles,
   Square,
   Wrench,
   X,
@@ -208,6 +210,8 @@ export default function ChatInput({
   backgroundEnabled,
   onBackgroundEnabledChange,
   hasPendingMessage,
+  onOptimizePrompt,
+  onCancelOptimizePrompt,
 }: {
   models: AgentModelConfig[];
   selectedModelId: string;
@@ -224,6 +228,8 @@ export default function ChatInput({
   backgroundEnabled?: boolean;
   onBackgroundEnabledChange?: (enabled: boolean) => void;
   hasPendingMessage?: boolean;
+  onOptimizePrompt?: (prompt: string, modelId: string, requestId: string) => Promise<string>;
+  onCancelOptimizePrompt?: (requestId: string) => Promise<void> | void;
 }) {
   const { t } = useTranslation();
   const [input, setInput] = useState("");
@@ -231,8 +237,33 @@ export default function ChatInput({
   const [isDragging, setIsDragging] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
+  const [isOptimizing, setIsOptimizing] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const activeOptimizationIdRef = useRef<string | null>(null);
+  const cancelOptimizePromptRef = useRef(onCancelOptimizePrompt);
+  const shouldRestoreFocusRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    cancelOptimizePromptRef.current = onCancelOptimizePrompt;
+  }, [onCancelOptimizePrompt]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      const requestId = activeOptimizationIdRef.current;
+      if (requestId) void cancelOptimizePromptRef.current?.(requestId);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOptimizing && shouldRestoreFocusRef.current) {
+      shouldRestoreFocusRef.current = false;
+      textareaRef.current?.focus();
+    }
+  }, [isOptimizing]);
   // 卸载清理只能在 effect 里读到挂载时那次渲染捕获的 attachments（空数组），必须用 ref 跟踪最新值
   const attachmentsRef = useRef(attachments);
 
@@ -409,7 +440,38 @@ export default function ChatInput({
     e.target.value = "";
   };
 
-  const canSend = !!(input.trim() || attachments.length > 0) && !disabled && !hasPendingMessage && !isSending;
+  const handleOptimizePrompt = async () => {
+    const prompt = input.trim();
+    if (!prompt || !onOptimizePrompt || isOptimizing || disabled) return;
+
+    const requestId = crypto.randomUUID();
+    activeOptimizationIdRef.current = requestId;
+    setIsOptimizing(true);
+    try {
+      const optimized = await onOptimizePrompt(prompt, selectedModelId, requestId);
+      if (!mountedRef.current) return;
+      setInput(optimized);
+      shouldRestoreFocusRef.current = true;
+      notify.success(t("agent:chat_prompt_optimized"));
+    } catch (error) {
+      if (!mountedRef.current) return;
+      notify.error(
+        t("agent:chat_prompt_optimize_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        })
+      );
+    } finally {
+      if (activeOptimizationIdRef.current === requestId) activeOptimizationIdRef.current = null;
+      if (mountedRef.current) setIsOptimizing(false);
+    }
+  };
+
+  const canSend =
+    !!(input.trim() || attachments.length > 0) &&
+    !disabled &&
+    !hasPendingMessage &&
+    !isSending &&
+    !isOptimizing;
   const iconBtn =
     "size-7 max-md:size-11 rounded flex items-center justify-center bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
 
@@ -486,7 +548,7 @@ export default function ChatInput({
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 placeholder={t("agent:chat_input_placeholder")}
-                disabled={disabled}
+                disabled={disabled || isOptimizing}
                 rows={1}
                 className="w-full resize-none border-none outline-none bg-transparent text-sm text-foreground min-h-[24px] max-h-[200px] placeholder:text-muted-foreground"
               />
@@ -510,6 +572,28 @@ export default function ChatInput({
                 >
                   <Paperclip className="size-4" />
                 </button>
+                {onOptimizePrompt && (
+                  <button
+                    type="button"
+                    data-testid="chat-optimize-prompt"
+                    title={t(isOptimizing ? "agent:chat_prompt_optimizing" : "agent:chat_prompt_optimize")}
+                    aria-label={t(isOptimizing ? "agent:chat_prompt_optimizing" : "agent:chat_prompt_optimize")}
+                    onClick={() => void handleOptimizePrompt()}
+                    disabled={!input.trim() || isOptimizing || disabled}
+                    className={cn(
+                      iconBtn,
+                      input.trim() && !isOptimizing && !disabled && "text-primary hover:text-primary",
+                      (!input.trim() || isOptimizing || disabled) && "cursor-not-allowed opacity-40"
+                    )}
+                  >
+                    {isOptimizing ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
+                  </button>
+                )}
+                {isOptimizing && (
+                  <span role="status" aria-live="polite" className="sr-only">
+                    {t("agent:chat_prompt_optimizing")}
+                  </span>
+                )}
                 {onEnableToolsChange && (
                   <button
                     type="button"
