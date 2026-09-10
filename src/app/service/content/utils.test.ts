@@ -3,17 +3,33 @@ import {
   compileScriptCode,
   compileScript,
   compileInjectScript,
+  compilePreInjectScript,
   compileScriptletCode,
   isScriptletUnwrap,
   addStyle,
   addStyleSheet,
 } from "./utils";
-import type { ScriptRunResource } from "@App/app/repo/scripts";
+import type { ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import { RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
 const znRand = process.env.SC_ZN_RAND!;
+
+type GeneratedWindow = Record<string, unknown>;
+
+function executeGeneratedScript(
+  code: string,
+  targetWindow: GeneratedWindow,
+  testPerformance: Pick<Performance, "dispatchEvent" | "addEventListener"> = globalThis.performance
+) {
+  const execute = new Function("window", "performance", "CustomEvent", code) as (
+    window: GeneratedWindow,
+    performance: Pick<Performance, "dispatchEvent" | "addEventListener">,
+    customEvent: typeof CustomEvent
+  ) => void;
+  execute(targetWindow, testPerformance, globalThis.CustomEvent);
+}
 
 // 设置 console mock 来避免测试输出污染
 vi.spyOn(console, "error").mockImplementation(() => {});
@@ -330,7 +346,7 @@ describe("utils", () => {
       const result = compileInjectScript(script, scriptCode);
 
       expect(result).toBe(
-        `window['inject-test-flag'] = ((k, y, fn) => ((t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }))))('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){console.log('injected');});`
+        `window['inject-test-flag'] = ((k, y, fn) => ((t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }))('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){console.log('injected');});`
       );
     });
 
@@ -343,7 +359,7 @@ describe("utils", () => {
       expect(result).toContain(`try{delete window['inject-test-flag']}catch(e){}`);
       expect(result).toContain("console.log('with auto delete');");
       expect(result).toBe(
-        `window['inject-test-flag'] = ((k, y, fn) => ((t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }))))('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');});`
+        `window['inject-test-flag'] = ((k, y, fn) => ((t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }))('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');});`
       );
     });
 
@@ -355,8 +371,93 @@ describe("utils", () => {
 
       expect(result).not.toContain("try{delete window");
       expect(result).toBe(
-        `window['inject-test-flag'] = ((k, y, fn) => ((t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }))))('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){console.log('without auto delete');});`
+        `window['inject-test-flag'] = ((k, y, fn) => ((t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }))('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){console.log('without auto delete');});`
       );
+    });
+
+    it.concurrent("生成的注入脚本应在运行时传递上下文和参数，并清理临时挂载", () => {
+      const script = createMockScript();
+      const targetWindow: GeneratedWindow = {};
+      const context = {};
+      const named = { value: 42 };
+
+      executeGeneratedScript(
+        compileInjectScript(
+          script,
+          "return { thisValue: this, args: Array.from(arguments), contextKeys: Reflect.ownKeys(this) };"
+        ),
+        targetWindow
+      );
+
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      expect(generated(fnStrIntegrity, context, named, script.name)).toEqual({
+        thisValue: context,
+        args: [named, script.name],
+        contextKeys: [],
+      });
+      expect(Reflect.ownKeys(context)).toEqual([]);
+    });
+
+    it.concurrent("生成的注入脚本应拒绝错误的完整性标记", () => {
+      const script = createMockScript();
+      const targetWindow: GeneratedWindow = {};
+
+      executeGeneratedScript(compileInjectScript(script, "throw new Error('should not run');"), targetWindow);
+
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      expect(generated("invalid", {}, {}, "blocked")).toBeUndefined();
+    });
+
+    it.concurrent("生成的注入脚本应按选项自动删除挂载函数", () => {
+      const script = createMockScript();
+      const targetWindow: GeneratedWindow = {};
+
+      executeGeneratedScript(compileInjectScript(script, "return 'ran';", true), targetWindow);
+
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      expect(generated(fnStrIntegrity, {}, {}, script.name)).toBe("ran");
+      expect(targetWindow[script.flag]).toBeUndefined();
+    });
+
+    it.concurrent("生成的注入脚本默认应保留挂载函数", () => {
+      const script = createMockScript();
+      const targetWindow: GeneratedWindow = {};
+
+      executeGeneratedScript(compileInjectScript(script, "return 'ran';"), targetWindow);
+
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      expect(generated(fnStrIntegrity, {}, {}, script.name)).toBe("ran");
+      expect(targetWindow[script.flag]).toBe(generated);
+    });
+
+    it.concurrent("生成的预注入脚本应可执行并发出脚本加载事件", () => {
+      const script: ScriptLoadInfo = {
+        ...createMockScript(),
+        metadataStr: "",
+        userConfigStr: "",
+      };
+      const targetWindow: GeneratedWindow = {};
+      const testPerformance = {
+        dispatchEvent: vi.fn(() => false),
+        addEventListener: vi.fn(),
+      };
+
+      executeGeneratedScript(
+        compilePreInjectScript(script, "return { thisValue: this, args: Array.from(arguments) };"),
+        targetWindow,
+        testPerformance
+      );
+
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      const context = {};
+      const named = { value: 42 };
+      expect(generated(fnStrIntegrity, context, named, script.name)).toEqual({
+        thisValue: context,
+        args: [named, script.name],
+      });
+      expect(Reflect.ownKeys(context)).toEqual([]);
+      expect(testPerformance.dispatchEvent).toHaveBeenCalledTimes(1);
+      expect(testPerformance.addEventListener).not.toHaveBeenCalled();
     });
 
     it.concurrent("应该处理复杂的脚本代码", () => {

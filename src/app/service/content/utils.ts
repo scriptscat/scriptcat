@@ -165,7 +165,7 @@ const codeFunction = (code: string) => {
   // no usage of .call, .apply, or .bind
   // scoped variables -> not observable
   // u[y] -> no .call(u)
-  return `((k, y, fn) => ((t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }))))('${lnStrIntegrity}', '${znRand}' + Math.random(), function(){${code}})`;
+  return `((k, y, fn) => ((t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }))('${lnStrIntegrity}', '${znRand}' + Math.random(), function(){${code}})`;
 };
 
 const ZFunction = Function;
