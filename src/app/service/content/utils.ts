@@ -8,6 +8,9 @@ import { embeddedPatternCheckerString, type EmbeddedURLRuleEntry, type URLRuleEn
 import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 import { getGrantCandidates } from "./gm_api/grant";
 
+const lnStrIntegrity = process.env.SC_RANDOM_FNKEY;
+const znRand = process.env.SC_ZN_RAND;
+
 export type CompileScriptCodeResource = {
   name: string;
   code: string;
@@ -151,9 +154,9 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   const joinedCode = [
     "with(arguments[0]||this.$){",
     `${preCode}`,
-    "return(async function(){",
+    "this[arguments[0]='$$'+Date.now()/Math.random()]=async function(){",
     `${code}`,
-    "}).call(this);}",
+    "};return this[arguments[0]](...((delete this[arguments[0]]),[]));}",
   ]
     .filter(Boolean)
     .join("\n");
@@ -161,9 +164,26 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   return `${codeBody}${sourceMapTo(`${resource.name}.user.js`)}\n`;
 }
 
+const codeFunction = (code: string) => {
+  // no usage of .call, .apply, or .bind
+  // scoped variables -> not observable
+  // u[y] -> no .call(u)
+  return `((k, y, fn) => ((t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }))('${lnStrIntegrity}', '${znRand}' + Math.random(), function(){${code}})`;
+};
+
+const ZFunction = Function;
+
 // 通过脚本代码编译脚本函数
 export function compileScript(code: string): ScriptFunc {
-  return <ScriptFunc>new Function(code);
+  const fn = <ScriptFunc>new ZFunction(code);
+  const k = lnStrIntegrity;
+  const y = `${znRand}` + Math.random();
+  return (t: any, u: any, ...args: any[]) => {
+    if (t === k) {
+      u[y] = fn;
+      return u[y](...(delete u[y], args));
+    }
+  };
 }
 
 /**
@@ -186,7 +206,7 @@ export function compileInjectScriptByFlag(
   autoDeleteMountFunction: boolean = false
 ): string {
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
-  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
+  return `window['${flag}'] = ${codeFunction(`${autoDeleteMountCode}${scriptCode}`)};`;
 }
 
 /**
@@ -252,7 +272,7 @@ export function compilePreInjectScript(
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
   const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
   const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
-  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
+  return `window['${flag}'] = ${codeFunction(`${autoDeleteMountCode}${scriptCode}`)};
 {
   let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
   c = typeof cloneInto === "function" ? cloneInto(o, performance) : o,

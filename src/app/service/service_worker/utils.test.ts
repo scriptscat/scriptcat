@@ -354,7 +354,7 @@ describe.concurrent("compileInjectionCode", () => {
 
     // 包含沙箱封装
     expect(result).toContain("with(arguments[0]||this.$)");
-    expect(result).toContain("return(async function(){");
+    expect(result).toContain("this[arguments[0]='$$'+Date.now()/Math.random()]=async function(){");
     // 使用 compileInjectScript 包裹（window[flag] = function(){...}）
     expect(result).toContain("window['#-test-uuid']");
   });
