@@ -4,6 +4,7 @@ import type { Message } from "@Packages/message/types";
 import EventEmitter from "eventemitter3";
 import { GMContextApiGet } from "./gm_api/gm_context";
 import { protect } from "./gm_api/gm_context";
+import { getGrantCandidates } from "./gm_api/grant";
 import { isEarlyStartScript } from "./utils";
 import { ListenerManager } from "./listener_manager";
 import { createGMBase } from "./gm_api/gm_api";
@@ -84,12 +85,8 @@ export const createContext = (
     return true;
   };
   for (const grant of scriptGrants) {
-    // GM. 与 GM_ 都需要注入
-    __methodInject__(grant);
-    if (grant.startsWith("GM.")) {
-      __methodInject__(grant.replace("GM.", "GM_"));
-    } else if (grant.startsWith("GM_")) {
-      __methodInject__(grant.replace("GM_", "GM."));
+    for (const candidate of getGrantCandidates(grant)) {
+      __methodInject__(candidate);
     }
   }
   // 兼容GM.Cookie.*
