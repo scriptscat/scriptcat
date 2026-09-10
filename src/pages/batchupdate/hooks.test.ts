@@ -240,13 +240,19 @@ describe("批量更新 Hook useBatchUpdate 行级状态", () => {
     h.requestBatchUpdateListAction.mockResolvedValueOnce(okItem("a"));
     const { result } = await setup([mkRecord("a"), mkRecord("b")]);
 
-    await act(async () => result.current.onUpdate(result.current.updates[0]));
+    vi.useFakeTimers();
+    try {
+      await act(async () => result.current.onUpdate(result.current.updates[0]));
 
-    expect(result.current.rowStates.a.phase).toBe("success");
-    expect(result.current.updates.map((u) => u.uuid)).toEqual(["a", "b"]);
+      expect(result.current.rowStates.a.phase).toBe("success");
+      expect(result.current.updates.map((u) => u.uuid)).toEqual(["a", "b"]);
 
-    await waitFor(() => expect(result.current.rowStates.a?.phase).toBe("exiting"), { timeout: 3000 });
-    await waitFor(() => expect(result.current.updates.map((u) => u.uuid)).toEqual(["b"]), { timeout: 3000 });
+      await act(async () => vi.runAllTimersAsync());
+      expect(result.current.rowStates.a).toBeUndefined();
+      expect(result.current.updates.map((u) => u.uuid)).toEqual(["b"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -294,20 +300,26 @@ describe("批量更新 Hook useBatchUpdate 批量进度", () => {
     );
     const { result } = await setup([mkRecord("a"), mkRecord("b")]);
 
-    act(() => result.current.onUpdate(result.current.updates[0]));
+    vi.useFakeTimers();
+    try {
+      act(() => result.current.onUpdate(result.current.updates[0]));
 
-    // 服务端装完即广播刷新；此时页面仍在展示 a 的进行中状态，不能被全量刷新冲掉
-    h.record = { checktime: 300, list: [mkRecord("b")] };
-    await act(async () => h.handlers.onScriptUpdateCheck({ refreshRecord: true }));
+      // 服务端装完即广播刷新；此时页面仍在展示 a 的进行中状态，不能被全量刷新冲掉
+      h.record = { checktime: 300, list: [mkRecord("b")] };
+      await act(async () => h.handlers.onScriptUpdateCheck({ refreshRecord: true }));
 
-    expect(result.current.rowStates.a.phase).toBe("working");
-    expect(result.current.updates.map((u) => u.uuid)).toEqual(["a", "b"]);
+      expect(result.current.rowStates.a.phase).toBe("working");
+      expect(result.current.updates.map((u) => u.uuid)).toEqual(["a", "b"]);
 
-    await act(async () => resolveFirst(okItem("a")));
-    expect(result.current.rowStates.a.phase).toBe("success");
+      await act(async () => resolveFirst(okItem("a")));
+      expect(result.current.rowStates.a.phase).toBe("success");
 
-    // 行退场后才补做那次被推迟的全量刷新
-    await waitFor(() => expect(result.current.updates.map((u) => u.uuid)).toEqual(["b"]), { timeout: 3000 });
+      // 行退场后才补做那次被推迟的全量刷新
+      await act(async () => vi.runAllTimersAsync());
+      expect(result.current.updates.map((u) => u.uuid)).toEqual(["b"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
