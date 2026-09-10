@@ -153,7 +153,7 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
     `${preCode}`,
     "this[arguments[0]='$$'+Date.now()/Math.random()]=async function(){",
     `${code}`,
-    "};return this[arguments[0]](this[arguments[0]]=arguments[0]=void 0);}",
+    "};return this[arguments[0]](...((delete this[arguments[0]]),[]));}",
   ]
     .filter(Boolean)
     .join("\n");
@@ -162,11 +162,10 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
 }
 
 const codeFunction = (code: string) => {
-  // Symbol key -> non-enumerable
+  // no usage of .call, .apply, or .bind
   // scoped variables -> not observable
-  // u[t] -> no .call(u)
-  // bind -> no source code leak
-  return `((k, y, fn) => (function (t, u, ...args) { if (t === k) { u[t = y] = fn; return u[t](...args, (u[t] = t = undefined)) } })).bind(null))('${lnStrIntegrity}', Symbol.for('${znRand}'), function(){${code}})`;
+  // u[y] -> no .call(u)
+  return `((k, y, fn) => ((t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }))))('${lnStrIntegrity}', '${znRand}' + Math.random(), function(){${code}})`;
 };
 
 const ZFunction = Function;
@@ -175,13 +174,13 @@ const ZFunction = Function;
 export function compileScript(code: string): ScriptFunc {
   const fn = <ScriptFunc>new ZFunction(code);
   const k = lnStrIntegrity;
-  const y = Symbol.for(`${znRand}`);
-  return function (t: any, u: any, ...args: any[]) {
+  const y = `${znRand}` + Math.random();
+  return (t: any, u: any, ...args: any[]) => {
     if (t === k) {
-      u[(t = y)] = fn;
-      return u[t](...args, (u[t] = t = undefined));
+      u[y] = fn;
+      return u[y](...(delete u[y], args));
     }
-  }.bind(null);
+  };
 }
 
 /**
