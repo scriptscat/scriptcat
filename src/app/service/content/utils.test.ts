@@ -330,7 +330,7 @@ describe("utils", () => {
       const result = compileInjectScript(script, scriptCode);
 
       expect(result).toBe(
-        `window['inject-test-flag'] = (function (k, fn, t, u, ...args) { if (t === k) { u[t = '${znRand}'] = fn; return u[t](...args, (u[t] = t = undefined)) } }).bind(null, '${fnStrIntegrity}', function(){console.log('injected');});`
+        `window['inject-test-flag'] = ((k, y, fn) => (function (t, u, ...args) { if (t === k) { u[t = y] = fn; return u[t](...args, (u[t] = t = undefined)) } })).bind(null))('${fnStrIntegrity}', Symbol.for('${znRand}'), function(){console.log('injected');});`
       );
     });
 
@@ -343,7 +343,7 @@ describe("utils", () => {
       expect(result).toContain(`try{delete window['inject-test-flag']}catch(e){}`);
       expect(result).toContain("console.log('with auto delete');");
       expect(result).toBe(
-        `window['inject-test-flag'] = (function (k, fn, t, u, ...args) { if (t === k) { u[t = '${znRand}'] = fn; return u[t](...args, (u[t] = t = undefined)) } }).bind(null, '${fnStrIntegrity}', function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');});`
+        `window['inject-test-flag'] = ((k, y, fn) => (function (t, u, ...args) { if (t === k) { u[t = y] = fn; return u[t](...args, (u[t] = t = undefined)) } })).bind(null))('${fnStrIntegrity}', Symbol.for('${znRand}'), function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');});`
       );
     });
 
@@ -355,7 +355,7 @@ describe("utils", () => {
 
       expect(result).not.toContain("try{delete window");
       expect(result).toBe(
-        `window['inject-test-flag'] = (function (k, fn, t, u, ...args) { if (t === k) { u[t = '${znRand}'] = fn; return u[t](...args, (u[t] = t = undefined)) } }).bind(null, '${fnStrIntegrity}', function(){console.log('without auto delete');});`
+        `window['inject-test-flag'] = ((k, y, fn) => (function (t, u, ...args) { if (t === k) { u[t = y] = fn; return u[t](...args, (u[t] = t = undefined)) } })).bind(null))('${fnStrIntegrity}', Symbol.for('${znRand}'), function(){console.log('without auto delete');});`
       );
     });
 
