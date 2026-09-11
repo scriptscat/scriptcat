@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { GripVertical } from "lucide-react";
 import type { DragEndEvent } from "@dnd-kit/core";
@@ -37,6 +37,9 @@ const COL = {
   order: "w-[68px]",
   menu: "w-11",
 };
+const POINTER_SENSOR_OPTIONS = { activationConstraint: { distance: 3 } };
+const KEYBOARD_SENSOR_OPTIONS = { coordinateGetter: sortableKeyboardCoordinates };
+const DRAG_MODIFIERS = [restrictToVerticalAxis];
 
 export type RuleTableProps = RuleRowActions & {
   rules: NetworkRule[];
@@ -51,7 +54,7 @@ export type RuleTableProps = RuleRowActions & {
   onDragEnd: (activeId: string, overId: string) => void;
 };
 
-export default function RuleTable({
+const RuleTable = memo(function RuleTable({
   rules,
   positionOf,
   total,
@@ -66,69 +69,94 @@ export default function RuleTable({
 }: RuleTableProps) {
   const { t } = useTranslation();
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
+    useSensor(KeyboardSensor, KEYBOARD_SENSOR_OPTIONS)
   );
-  const ids = useMemo(() => rules.map((rule) => rule.id), [rules]);
+  // dnd-kit 会把 items 引用传给每一行；规则对象刷新但顺序不变时保留这份引用。
+  const idsKey = useMemo(() => JSON.stringify(rules.map((rule) => rule.id)), [rules]);
+  const ids = useMemo(() => JSON.parse(idsKey) as string[], [idsKey]);
   const labels = useRuleRowLabels();
   const a11y = useDragAccessibility(rules, positionOf, total);
   const allSelected = rules.length > 0 && rules.every((rule) => selected.has(rule.id));
   const someSelected = rules.some((rule) => selected.has(rule.id));
 
-  const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    if (over && active.id !== over.id) onDragEnd(`${active.id}`, `${over.id}`);
-  };
+  const handleDragEnd = useCallback(
+    ({ active, over }: DragEndEvent) => {
+      if (over && active.id !== over.id) onDragEnd(`${active.id}`, `${over.id}`);
+    },
+    [onDragEnd]
+  );
 
   return (
-    <DndContext
-      sensors={sensors}
-      onDragEnd={handleDragEnd}
-      collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis]}
-      accessibility={a11y}
-    >
-      <Table className="table-fixed">
-        <TableHeader>
-          <TableRow>
-            <TableHead className={COL.grip} />
-            <TableHead className={COL.select}>
-              <Checkbox
-                checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                aria-label={t("tools:network_rules_select_all")}
-                onCheckedChange={(checked) => onSelectPage(checked === true)}
-              />
-            </TableHead>
-            <TableHead className={COL.enable} />
-            <TableHead>{t("tools:network_rules_column_name")}</TableHead>
-            <TableHead className={COL.action}>{t("tools:network_rules_column_action")}</TableHead>
-            <TableHead className={COL.scope}>{t("tools:network_rules_column_scope")}</TableHead>
-            <TableHead className={COL.order}>{t("tools:network_rules_column_order")}</TableHead>
-            <TableHead className={COL.menu} />
-          </TableRow>
-        </TableHeader>
+    <Table className="table-fixed">
+      <TableHeader>
+        <TableRow>
+          <TableHead className={COL.grip} />
+          <TableHead className={COL.select}>
+            <Checkbox
+              checked={allSelected ? true : someSelected ? "indeterminate" : false}
+              aria-label={t("tools:network_rules_select_all")}
+              onCheckedChange={(checked) => onSelectPage(checked === true)}
+            />
+          </TableHead>
+          <TableHead className={COL.enable} />
+          <TableHead>{t("tools:network_rules_column_name")}</TableHead>
+          <TableHead className={COL.action}>{t("tools:network_rules_column_action")}</TableHead>
+          <TableHead className={COL.scope}>{t("tools:network_rules_column_scope")}</TableHead>
+          <TableHead className={COL.order}>{t("tools:network_rules_column_order")}</TableHead>
+          <TableHead className={COL.menu} />
+        </TableRow>
+      </TableHeader>
+      {dragDisabled ? (
         <TableBody>
-          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-            {rules.map((rule) => (
-              <SortableRuleRow
-                key={rule.id}
-                rule={rule}
-                position={positionOf(rule)}
-                total={total}
-                dragDisabled={dragDisabled}
-                busy={busy}
-                labels={labels}
-                selected={selected.has(rule.id)}
-                onSelect={onSelect}
-                onToggleEnabled={onToggleEnabled}
-                {...moveHandlers}
-              />
-            ))}
-          </SortableContext>
+          {rules.map((rule) => (
+            <RuleRow
+              key={rule.id}
+              rule={rule}
+              position={positionOf(rule)}
+              total={total}
+              dragDisabled
+              busy={busy}
+              labels={labels}
+              selected={selected.has(rule.id)}
+              onSelect={onSelect}
+              onToggleEnabled={onToggleEnabled}
+              {...moveHandlers}
+            />
+          ))}
         </TableBody>
-      </Table>
-    </DndContext>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          onDragEnd={handleDragEnd}
+          collisionDetection={closestCenter}
+          modifiers={DRAG_MODIFIERS}
+          accessibility={a11y}
+        >
+          <TableBody>
+            <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+              {rules.map((rule) => (
+                <SortableRuleRow
+                  key={rule.id}
+                  rule={rule}
+                  position={positionOf(rule)}
+                  total={total}
+                  dragDisabled={false}
+                  busy={busy}
+                  labels={labels}
+                  selected={selected.has(rule.id)}
+                  onSelect={onSelect}
+                  onToggleEnabled={onToggleEnabled}
+                  {...moveHandlers}
+                />
+              ))}
+            </SortableContext>
+          </TableBody>
+        </DndContext>
+      )}
+    </Table>
   );
-}
+});
 
 type RuleRowProps = RuleRowActions & {
   rule: NetworkRule;
@@ -142,34 +170,56 @@ type RuleRowProps = RuleRowActions & {
   onToggleEnabled: (rule: NetworkRule, enabled: boolean) => void;
 };
 
-/**
- * 只有拖拽接线留在外层：useSortable 订阅 dnd-kit 的 context，父级一重渲染 context 就换标识，
- * 整行连同 Radix 子树都会跟着重算，React.memo 包在外层也拦不住（已实测）。
- * 把真正花钱的单元格放进 memo 边界内，外层就只剩一个按钮和几个稳定的属性。
- */
-function SortableRuleRow({ rule, dragDisabled, labels, ...cellProps }: RuleRowProps) {
+type RuleRowDragProps = Pick<
+  ReturnType<typeof useSortable>,
+  "setNodeRef" | "setActivatorNodeRef" | "listeners" | "attributes" | "transform" | "transition" | "isDragging"
+>;
+
+const SortableRuleRow = memo(function SortableRuleRow({ rule, dragDisabled, labels, ...cellProps }: RuleRowProps) {
   const { setNodeRef, setActivatorNodeRef, listeners, attributes, transform, transition, isDragging } = useSortable({
     id: rule.id,
     disabled: dragDisabled,
   });
 
   return (
+    <RuleRow
+      rule={rule}
+      dragDisabled={dragDisabled}
+      labels={labels}
+      drag={{ setNodeRef, setActivatorNodeRef, listeners, attributes, transform, transition, isDragging }}
+      {...cellProps}
+    />
+  );
+});
+
+const RuleRow = memo(function RuleRow({
+  rule,
+  dragDisabled,
+  labels,
+  drag,
+  ...cellProps
+}: RuleRowProps & { drag?: RuleRowDragProps }) {
+  return (
     <TableRow
-      ref={setNodeRef}
+      ref={drag?.setNodeRef}
       data-testid="network-rule-row"
       data-state={cellProps.selected ? "selected" : undefined}
-      style={{ transform: CSS.Transform.toString(transform) ?? undefined, transition }}
-      className={cn(isDragging && "relative z-10 opacity-50", !rule.enabled && "opacity-60")}
+      style={
+        drag
+          ? { transform: CSS.Transform.toString(drag.transform) ?? undefined, transition: drag.transition }
+          : undefined
+      }
+      className={cn(drag?.isDragging && "relative z-10 opacity-50", !rule.enabled && "opacity-60")}
     >
       <TableCell className={COL.grip}>
         <button
           type="button"
-          ref={setActivatorNodeRef}
+          ref={drag?.setActivatorNodeRef}
           disabled={dragDisabled}
           aria-label={labels.dragHandle(rule.name)}
           className="flex cursor-grab touch-none items-center rounded-sm text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
-          {...attributes}
-          {...listeners}
+          {...drag?.attributes}
+          {...drag?.listeners}
         >
           <GripVertical className="size-4" />
         </button>
@@ -177,7 +227,7 @@ function SortableRuleRow({ rule, dragDisabled, labels, ...cellProps }: RuleRowPr
       <RuleRowCells rule={rule} labels={labels} {...cellProps} />
     </TableRow>
   );
-}
+});
 
 const RuleRowCells = memo(function RuleRowCells({
   rule,
@@ -223,3 +273,5 @@ const RuleRowCells = memo(function RuleRowCells({
     </>
   );
 });
+
+export default RuleTable;

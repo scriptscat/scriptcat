@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { GripVertical } from "lucide-react";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
@@ -26,6 +26,9 @@ import {
 
 // 长按手柄进入拖拽；delay 之内的移动仍按滚动处理。
 const LONG_PRESS = { delay: 300, tolerance: 8 };
+const POINTER_SENSOR_OPTIONS = { activationConstraint: LONG_PRESS };
+const KEYBOARD_SENSOR_OPTIONS = { coordinateGetter: sortableKeyboardCoordinates };
+const DRAG_MODIFIERS = [restrictToVerticalAxis];
 
 export type RuleCardsProps = RuleRowActions & {
   rules: NetworkRule[];
@@ -37,7 +40,7 @@ export type RuleCardsProps = RuleRowActions & {
   onDragEnd: (activeId: string, overId: string) => void;
 };
 
-export default function RuleCards({
+const RuleCards = memo(function RuleCards({
   rules,
   positionOf,
   total,
@@ -48,45 +51,66 @@ export default function RuleCards({
   ...moveHandlers
 }: RuleCardsProps) {
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: LONG_PRESS }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
+    useSensor(KeyboardSensor, KEYBOARD_SENSOR_OPTIONS)
   );
-  const ids = useMemo(() => rules.map((rule) => rule.id), [rules]);
+  // dnd-kit 会把 items 引用传给每一行；规则对象刷新但顺序不变时保留这份引用。
+  const idsKey = useMemo(() => JSON.stringify(rules.map((rule) => rule.id)), [rules]);
+  const ids = useMemo(() => JSON.parse(idsKey) as string[], [idsKey]);
   const labels = useRuleRowLabels();
   const a11y = useDragAccessibility(rules, positionOf, total);
 
-  const handleDragEnd = ({ active, over }: DragEndEvent) => {
-    if (over && active.id !== over.id) onDragEnd(`${active.id}`, `${over.id}`);
-  };
+  const handleDragEnd = useCallback(
+    ({ active, over }: DragEndEvent) => {
+      if (over && active.id !== over.id) onDragEnd(`${active.id}`, `${over.id}`);
+    },
+    [onDragEnd]
+  );
 
   return (
-    <DndContext
-      sensors={sensors}
-      onDragEnd={handleDragEnd}
-      collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis]}
-      accessibility={a11y}
-    >
-      <div className="flex flex-col gap-2">
-        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
-          {rules.map((rule) => (
-            <SortableRuleCard
-              key={rule.id}
-              rule={rule}
-              position={positionOf(rule)}
-              total={total}
-              dragDisabled={dragDisabled}
-              busy={busy}
-              labels={labels}
-              onToggleEnabled={onToggleEnabled}
-              {...moveHandlers}
-            />
-          ))}
-        </SortableContext>
-      </div>
-    </DndContext>
+    <div className="flex flex-col gap-2">
+      {dragDisabled ? (
+        rules.map((rule) => (
+          <RuleCard
+            key={rule.id}
+            rule={rule}
+            position={positionOf(rule)}
+            total={total}
+            dragDisabled
+            busy={busy}
+            labels={labels}
+            onToggleEnabled={onToggleEnabled}
+            {...moveHandlers}
+          />
+        ))
+      ) : (
+        <DndContext
+          sensors={sensors}
+          onDragEnd={handleDragEnd}
+          collisionDetection={closestCenter}
+          modifiers={DRAG_MODIFIERS}
+          accessibility={a11y}
+        >
+          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+            {rules.map((rule) => (
+              <SortableRuleCard
+                key={rule.id}
+                rule={rule}
+                position={positionOf(rule)}
+                total={total}
+                dragDisabled={false}
+                busy={busy}
+                labels={labels}
+                onToggleEnabled={onToggleEnabled}
+                {...moveHandlers}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      )}
+    </div>
   );
-}
+});
 
 type RuleCardProps = RuleRowActions & {
   rule: NetworkRule;
@@ -99,39 +123,66 @@ type RuleCardProps = RuleRowActions & {
 };
 
 /** 与 RuleTable 的行同理：只有拖拽接线留在外层，花钱的部分放进 memo 边界内。 */
-function SortableRuleCard({ rule, dragDisabled, labels, ...bodyProps }: RuleCardProps) {
+const SortableRuleCard = memo(function SortableRuleCard({ rule, dragDisabled, labels, ...bodyProps }: RuleCardProps) {
   const { setNodeRef, setActivatorNodeRef, listeners, attributes, transform, transition, isDragging } = useSortable({
     id: rule.id,
     disabled: dragDisabled,
   });
 
   return (
+    <RuleCard
+      rule={rule}
+      dragDisabled={dragDisabled}
+      labels={labels}
+      drag={{ setNodeRef, setActivatorNodeRef, listeners, attributes, transform, transition, isDragging }}
+      {...bodyProps}
+    />
+  );
+});
+
+type RuleCardDragProps = Pick<
+  ReturnType<typeof useSortable>,
+  "setNodeRef" | "setActivatorNodeRef" | "listeners" | "attributes" | "transform" | "transition" | "isDragging"
+>;
+
+const RuleCard = memo(function RuleCard({
+  rule,
+  dragDisabled,
+  labels,
+  drag,
+  ...bodyProps
+}: RuleCardProps & { drag?: RuleCardDragProps }) {
+  return (
     <div
-      ref={setNodeRef}
+      ref={drag?.setNodeRef}
       data-testid="network-rule-row"
-      style={{ transform: CSS.Transform.toString(transform) ?? undefined, transition }}
+      style={
+        drag
+          ? { transform: CSS.Transform.toString(drag.transform) ?? undefined, transition: drag.transition }
+          : undefined
+      }
       className={cn(
         "flex items-start gap-3 rounded-lg border border-border p-3",
-        isDragging && "relative z-10 opacity-50",
+        drag?.isDragging && "relative z-10 opacity-50",
         !rule.enabled && "opacity-60"
       )}
     >
       {/* touch-none 而不是 touch-manipulation：后者仍允许浏览器在拖拽途中把手势收回去做滚动。 */}
       <button
         type="button"
-        ref={setActivatorNodeRef}
+        ref={drag?.setActivatorNodeRef}
         disabled={dragDisabled}
         aria-label={labels.dragHandle(rule.name)}
         className="flex cursor-grab touch-none items-center py-1 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
-        {...attributes}
-        {...listeners}
+        {...drag?.attributes}
+        {...drag?.listeners}
       >
         <GripVertical className="size-4" />
       </button>
       <RuleCardBody rule={rule} labels={labels} {...bodyProps} />
     </div>
   );
-}
+});
 
 const RuleCardBody = memo(function RuleCardBody({
   rule,
@@ -164,3 +215,5 @@ const RuleCardBody = memo(function RuleCardBody({
     </div>
   );
 });
+
+export default RuleCards;
