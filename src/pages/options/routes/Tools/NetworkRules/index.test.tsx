@@ -388,6 +388,23 @@ describe("网络规则编辑抽屉", () => {
     );
   });
 
+  it("新建规则通过页面客户端提交 CSP 映射", async () => {
+    const client = clientFor(snapshot([]));
+    await renderPage(client);
+    openCreateSheet();
+    pickTemplate("移除 CSP");
+    fireEvent.change(screen.getByLabelText("应用范围"), { target: { value: "github.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+
+    await settle();
+    expect(client.createRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        condition: expect.objectContaining({ requestDomains: ["github.com"] }),
+        action: expect.objectContaining({ type: "removeResponseHeaders" }),
+      })
+    );
+  });
+
   it("编辑既有规则直接进入第二步，更换类型退回第一步并保留应用范围", async () => {
     const onSave = renderSheet({ rule: rule(1) });
     expect(screen.getByLabelText("应用范围")).toHaveValue("s1.example.com");

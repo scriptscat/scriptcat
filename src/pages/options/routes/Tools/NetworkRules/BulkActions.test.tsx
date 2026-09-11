@@ -95,7 +95,7 @@ function selectRow(name: string) {
   fireEvent.click(checkbox!);
 }
 
-const bulkBarSelector = '[role="toolbar"][aria-label="批量操作"]';
+const bulkBarSelector = '[role="toolbar"]';
 
 function bulkBar() {
   const element = document.querySelector<HTMLElement>(bulkBarSelector);
