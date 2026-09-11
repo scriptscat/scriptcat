@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from "vitest";
 
 // mock chrome.debugger 和 chrome.tabs
 const mockSendCommand = vi.fn();
@@ -53,11 +53,16 @@ function setupClickMocks(hitTestValue: string) {
 describe("agent_dom_cdp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
   });
+
+  afterEach(() => vi.useRealTimers());
 
   it("cdpClick 在元素未被遮挡时正常点击", async () => {
     setupClickMocks("hit");
-    const result = await cdpClick(999, "#btn");
+    const pending = cdpClick(999, "#btn");
+    await vi.advanceTimersByTimeAsync(500);
+    const result = await pending;
     expect(result.success).toBe(true);
     // 验证 dispatchMouseEvent 被调用（mousePressed + mouseReleased）
     const mouseEvents = mockSendCommand.mock.calls.filter((c: unknown[]) => c[1] === "Input.dispatchMouseEvent");

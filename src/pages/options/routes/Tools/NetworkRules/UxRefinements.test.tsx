@@ -1,14 +1,15 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
-import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
+import { renderWithRouter } from "@Tests/renderWithThemeRouter";
 import { cspRemovalAction, type NetworkRule, type NetworkRuleState } from "@App/app/repo/network_rule";
 import type { NetworkRuleClient } from "@App/app/service/service_worker/client";
 import type { NetworkRuleMutationResult } from "@App/app/service/service_worker/network_rule";
 
 import NetworkRules from ".";
+import RuleSheet from "./RuleSheet";
 import { stubNotify } from "./test-helpers";
 
 beforeAll(() => initTestLanguage("zh-CN"));
@@ -69,23 +70,42 @@ function clientFor(rules: NetworkRule[], overrides: Partial<NetworkRuleClient> =
   } as unknown as NetworkRuleClient;
 }
 
-function renderPage(client: NetworkRuleClient) {
-  return renderWithThemeRouter(
+async function settle() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
+async function renderPage(client: NetworkRuleClient) {
+  renderWithRouter(
     <Routes>
       <Route path="/tools/network-rules" element={<NetworkRules client={client} />} />
     </Routes>,
     { initialEntries: ["/tools/network-rules"] }
   );
+  await settle();
+}
+
+function renderSheet(initialTemplate: "csp" | "block" | "custom") {
+  render(
+    <RuleSheet
+      open
+      initialTemplate={initialTemplate}
+      saving={false}
+      onOpenChange={() => {}}
+      onSave={vi.fn().mockResolvedValue(true)}
+    />
+  );
 }
 
 describe("网络规则空态", () => {
   it("给出常用场景入口，点一下直接进到该场景的表单", async () => {
-    renderPage(clientFor([]));
-    expect(await screen.findByText("从一个常用场景开始，或自己新建一条")).toBeInTheDocument();
+    await renderPage(clientFor([]));
+    expect(screen.getByText("从一个常用场景开始，或自己新建一条")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "移除 CSP" }));
 
-    const sheet = await screen.findByRole("dialog");
+    const sheet = screen.getByRole("dialog");
     // 直接落在第二步：场景徽标已经是「移除 CSP」，不需要用户再选一次。
     expect(within(sheet).getByText("更换类型")).toBeInTheDocument();
     expect(within(sheet).getByLabelText("应用范围")).toBeInTheDocument();
@@ -94,8 +114,8 @@ describe("网络规则空态", () => {
 
 describe("网络规则筛选横幅", () => {
   it("说明手柄为什么灰掉，而不只报匹配条数", async () => {
-    renderPage(clientFor([rule(1), rule(2)]));
-    expect(await screen.findByText("规则 1")).toBeInTheDocument();
+    await renderPage(clientFor([rule(1), rule(2)]));
+    expect(screen.getByText("规则 1")).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规则 1" } });
 
@@ -106,35 +126,28 @@ describe("网络规则筛选横幅", () => {
 });
 
 describe("网络规则编辑抽屉的「试一试」", () => {
-  // 空态的场景入口直接落到第二步，正好省去先选模板这一步。
-  async function openTemplate(name: string) {
-    renderPage(clientFor([]));
-    fireEvent.click(await screen.findByRole("button", { name }));
-    await screen.findByRole("dialog");
-  }
-
-  it("命中时说明会发生什么，而不只是「匹配」两个字", async () => {
-    await openTemplate("移除 CSP");
+  it("命中时说明会发生什么，而不只是「匹配」两个字", () => {
+    renderSheet("csp");
     fireEvent.change(screen.getByLabelText("应用范围"), { target: { value: "example.com" } });
     fireEvent.change(screen.getByLabelText("试一试"), { target: { value: "https://example.com/page" } });
 
     expect(screen.getByText("匹配 · 将移除 4 个响应头")).toBeInTheDocument();
   });
 
-  it("屏蔽请求场景说明请求会被屏蔽", async () => {
-    await openTemplate("屏蔽请求");
+  it("屏蔽请求场景说明请求会被屏蔽", () => {
+    renderSheet("block");
     fireEvent.change(screen.getByLabelText("应用范围"), { target: { value: "example.com" } });
     fireEvent.change(screen.getByLabelText("试一试"), { target: { value: "https://example.com/page" } });
 
     expect(screen.getByText("匹配 · 将屏蔽该请求")).toBeInTheDocument();
   });
 
-  it("范围命中但资源类型不含主文档时，说明这次导航不会被规则作用", async () => {
-    await openTemplate("屏蔽请求");
+  it("范围命中但资源类型不含主文档时，说明这次导航不会被规则作用", () => {
+    renderSheet("block");
     const sheet = screen.getByRole("dialog");
     fireEvent.change(screen.getByLabelText("应用范围"), { target: { value: "example.com" } });
     fireEvent.click(within(sheet).getByRole("button", { name: "高级选项" }));
-    fireEvent.click(await within(sheet).findByRole("checkbox", { name: "图片" }));
+    fireEvent.click(within(sheet).getByRole("checkbox", { name: "图片" }));
     fireEvent.change(screen.getByLabelText("试一试"), { target: { value: "https://example.com/page" } });
 
     expect(
@@ -144,16 +157,15 @@ describe("网络规则编辑抽屉的「试一试」", () => {
 });
 
 describe("网络规则的请求头黑名单", () => {
-  it("在输入之前就常驻说明哪些请求头不能改写", async () => {
-    renderPage(clientFor([]));
-    fireEvent.click(await screen.findByRole("button", { name: "自定义" }));
+  it("在输入之前就常驻说明哪些请求头不能改写", () => {
+    renderSheet("custom");
 
     // 「自定义」默认动作是屏蔽请求，没有请求头可填，说明也就不该出现。
     expect(screen.queryByText(/不允许改写/)).not.toBeInTheDocument();
 
     // Radix Select 在 happy-dom 下靠键盘打开，与 index.test.tsx 的 pickOption 一致。
     fireEvent.keyDown(screen.getByRole("combobox", { name: "动作类型" }), { key: "Enter" });
-    fireEvent.click(await screen.findByRole("option", { name: "改请求头" }));
+    fireEvent.click(screen.getByRole("option", { name: "改请求头" }));
 
     expect(screen.getByText("Cookie、Authorization、Host、Origin 不允许改写。")).toBeInTheDocument();
   });

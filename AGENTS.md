@@ -65,7 +65,9 @@ downstream prose does not override it.
 - **Test changes must follow the test route.** Before changing a test, shared test helper, or runner configuration,
   identify the observable contract and test boundary, search existing coverage, capture a baseline or reproduction,
   then make the smallest correction and rerun focused and relevant broader checks. A single passing run does not
-  establish a root-cause fix; report the trigger, evidence, and remaining uncertainty.
+  establish a root-cause fix; report the trigger, evidence, and remaining uncertainty. Follow the asynchronous
+  observation and timing guidance in
+  [`docs/references/develop-testing.md`](docs/references/develop-testing.md#observation-rules-for-asynchronous-tests).
 - **Shared E2E helpers must model both outcomes.** A helper that drives a save, install, or other mutation must make
   the expected success or failure explicit and wait for that operation's matching signal. Negative cases must opt into
   the failure contract; never make them pass by accepting an arbitrary toast, an old notification, or a page shell.
@@ -74,6 +76,13 @@ downstream prose does not override it.
   explicit one-page-plus fixtures need a line-level `scriptcat/no-test-large-boundary-fixture` rationale; do not hide
   their cost by raising the test timeout. The detailed fixture and measurement rules live in
   [`docs/references/develop-testing.md`](docs/references/develop-testing.md#vitest-performance-hygiene).
+- **Dnd-kit list rendering must keep the drag boundary cheap.** Keep sensor options, modifiers, callbacks, and the
+  sortable item-list reference stable when their values are unchanged; render plain rows/cards while dragging is
+  disabled instead of mounting `DndContext`/`SortableContext`. Stabilize item identity with a collision-safe
+  representation, never delimiter-join IDs unless the ID contract forbids that delimiter, and use default shallow
+  memo comparison so rule fields and interaction state cannot be skipped. The Network Rules implementation is the
+  reference in `src/pages/options/routes/Tools/NetworkRules/RuleTable.tsx` and
+  `src/pages/options/routes/Tools/NetworkRules/RuleCards.tsx`.
 - **SOLID, high cohesion, low coupling.** Match existing extension points: persistence uses the small
   `Repo<T>` / `DAO<T>` / `OPFSRepo` / custom-repo taxonomy, matching an existing entity with the same needs;
   messages use `Group.on(...)`; service constructor shapes differ by context and Agent subsystem; depend on

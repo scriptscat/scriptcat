@@ -1,9 +1,9 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
-import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
+import { renderWithRouter } from "@Tests/renderWithThemeRouter";
 import { cspRemovalAction, type NetworkRule } from "@App/app/repo/network_rule";
 import type { NetworkRuleClient } from "@App/app/service/service_worker/client";
 import type { NetworkRuleSnapshot } from "@App/app/service/service_worker/network_rule";
@@ -70,7 +70,7 @@ function clientFor(rules: NetworkRule[]): NetworkRuleClient {
 }
 
 async function renderRows() {
-  renderWithThemeRouter(
+  renderWithRouter(
     <Routes>
       <Route
         path="/tools/network-rules"
@@ -79,7 +79,10 @@ async function renderRows() {
     </Routes>,
     { initialEntries: ["/tools/network-rules"] }
   );
-  expect(await screen.findByText("规则 0")).toBeInTheDocument();
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(screen.getByText("规则 0")).toBeInTheDocument();
   expect(screen.getAllByTestId("network-rule-row")).toHaveLength(PAGE_ROWS);
 }
 
