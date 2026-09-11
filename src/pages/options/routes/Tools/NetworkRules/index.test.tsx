@@ -296,7 +296,9 @@ describe("网络规则列表页", () => {
     expect(screen.getByText(/Rule limit exceeded/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "重试" }));
     await settle();
-    expect(client.retryApply).toHaveBeenCalled();
+    expect(client.retryApply).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("规则未能应用到浏览器")).not.toBeInTheDocument();
+    expect(screen.getByText("已生效")).toBeInTheDocument();
   });
 });
 
@@ -397,12 +399,22 @@ describe("网络规则编辑抽屉", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
     await settle();
-    expect(client.createRule).toHaveBeenCalledWith(
-      expect.objectContaining({
-        condition: expect.objectContaining({ requestDomains: ["github.com"] }),
-        action: expect.objectContaining({ type: "removeResponseHeaders" }),
-      })
-    );
+    expect(client.createRule).toHaveBeenCalledTimes(1);
+    expect(client.createRule).toHaveBeenCalledWith({
+      baseRevision: 3,
+      enabled: true,
+      name: "",
+      condition: { requestDomains: ["github.com"], resourceTypes: ["main_frame", "sub_frame"] },
+      action: {
+        type: "removeResponseHeaders",
+        headers: [
+          "content-security-policy",
+          "content-security-policy-report-only",
+          "x-content-security-policy",
+          "x-webkit-csp",
+        ],
+      },
+    });
   });
 
   it("编辑既有规则直接进入第二步，更换类型退回第一步并保留应用范围", async () => {
@@ -460,19 +472,25 @@ describe("网络规则编辑抽屉", () => {
     );
   });
 
-  it("编辑规则保存时通过页面客户端提交最新值", async () => {
+  it("编辑规则切换动作后通过页面客户端提交页面中的完整值", async () => {
     const client = clientFor(snapshot([rule(1)]));
     await renderPage(client);
     await openRowAction(screen.getAllByTestId("network-rule-row")[0], "编辑");
 
+    fireEvent.click(screen.getByRole("button", { name: "更换类型" }));
+    pickTemplate("屏蔽请求");
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await settle();
-    expect(client.updateRule).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: "r1",
-        patch: expect.objectContaining({ action: expect.objectContaining({ type: "removeResponseHeaders" }) }),
-      })
-    );
+    expect(client.updateRule).toHaveBeenCalledTimes(1);
+    expect(client.updateRule).toHaveBeenCalledWith({
+      baseRevision: 3,
+      id: "r1",
+      patch: {
+        name: "规则 1",
+        condition: { requestDomains: ["s1.example.com"] },
+        action: { type: "block" },
+      },
+    });
   });
 
   it("删除规则需确认，并提示可以改用停用", async () => {

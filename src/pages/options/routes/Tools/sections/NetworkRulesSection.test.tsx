@@ -155,7 +155,9 @@ describe("Tools 网络规则摘要卡", () => {
     expect(screen.getAllByTestId("network-rules-preview-row")).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "重试" }));
     await settle();
-    expect(retryApply).toHaveBeenCalled();
+    expect(retryApply).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("规则未能应用到浏览器")).not.toBeInTheDocument();
+    expect(screen.getByText("已生效")).toBeInTheDocument();
   });
 
   it("总开关关闭时规则保留并置灰", async () => {

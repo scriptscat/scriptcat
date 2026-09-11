@@ -126,7 +126,9 @@ describe("网络规则批量操作", () => {
 
     selectRow("规则 1");
     selectRow("规则 3");
-    expect(within(bulkBar()).getByText("已选 2 条")).toBeInTheDocument();
+    const toolbar = bulkBar();
+    expect(toolbar).toHaveAttribute("aria-label", "批量操作");
+    expect(within(toolbar).getByText("已选 2 条")).toBeInTheDocument();
 
     clickBulk("停用");
     await settle();
