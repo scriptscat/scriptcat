@@ -162,7 +162,7 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
 
       const initialTheme = resolveMonacoTheme(resolvedTheme);
       if (diffCode) {
-        edit = editor.createDiffEditor(container, {
+        const diffEditor = editor.createDiffEditor(container, {
           hideUnchangedRegions: { enabled: true },
           enableSplitViewResizing: false,
           renderSideBySide: false,
@@ -171,6 +171,7 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
           theme: initialTheme,
           ...commonEditorOptions,
         });
+        edit = diffEditor;
         // standalone model 不随 editor.dispose 自动清理，需手动跟踪并在 cleanup 释放
         originalModel = editor.createModel(diffCode, "javascript");
         modifiedModel = editor.createModel(code, "javascript");
@@ -180,6 +181,7 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
         });
         editorInstanceRef.current = edit;
         editorReadyRef.current = true;
+        onEditorMountRef.current?.(diffEditor.getModifiedEditor());
       } else {
         const standaloneEdit = editor.create(container, {
           language: "javascript",

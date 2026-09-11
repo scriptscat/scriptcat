@@ -43,6 +43,7 @@
   "code_copy": "Copy code",
   "code_collapse": "Collapse",
   "code_expand": "Expand",
+  "code_fullscreen": "View code full screen",
   "loading_title": "Loading script",
   "loading_desc": "Downloading and parsing the script content from the source",
   "loading_title_update": "Preparing update details",

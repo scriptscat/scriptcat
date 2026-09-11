@@ -15,10 +15,16 @@ const h = vi.hoisted(() => {
     removeDecorations: vi.fn(),
     createDecorationsCollection: vi.fn(),
   });
+  const diffModifiedEditor = makeEditor();
+  const diffEditor = {
+    ...makeEditor(),
+    getModifiedEditor: vi.fn(() => diffModifiedEditor),
+  };
   return {
     resolvedTheme: "light" as string,
     setTheme: vi.fn(),
-    createDiffEditor: vi.fn((_container?: unknown, _options?: any) => makeEditor()),
+    diffModifiedEditor,
+    createDiffEditor: vi.fn((_container?: unknown, _options?: any) => diffEditor),
     create: vi.fn((_container?: unknown, _options?: any) => makeEditor()),
     createModel: vi.fn(() => ({
       dispose: vi.fn(),
@@ -124,5 +130,17 @@ describe("CodeEditor 可访问性与主题", () => {
       rerender(<CodeEditor id="ed-diff" code="const a = 2;" diffCode="const a = 1;" />);
     });
     expect(h.setTheme).toHaveBeenCalledWith("dark");
+  });
+
+  it("diff 编辑器创建后也应回调 onEditorMount", async () => {
+    const onEditorMount = vi.fn();
+
+    await act(async () => {
+      render(
+        <CodeEditor id="ed-diff-mount" code="const a = 2;" diffCode="const a = 1;" onEditorMount={onEditorMount} />
+      );
+    });
+
+    await waitFor(() => expect(onEditorMount).toHaveBeenCalledWith(h.diffModifiedEditor));
   });
 });

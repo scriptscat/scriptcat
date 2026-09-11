@@ -43,6 +43,7 @@
   "code_copy": "コードをコピー",
   "code_collapse": "折りたたむ",
   "code_expand": "展開",
+  "code_fullscreen": "コードを全画面で表示",
   "loading_title": "スクリプトを読み込み中",
   "loading_desc": "ソースからスクリプトの内容をダウンロードして解析しています",
   "loading_title_update": "更新の詳細を準備中",

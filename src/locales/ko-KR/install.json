@@ -43,6 +43,7 @@
   "code_copy": "코드 복사",
   "code_collapse": "접기",
   "code_expand": "펼치기",
+  "code_fullscreen": "코드를 전체 화면으로 보기",
   "loading_title": "스크립트 불러오는 중",
   "loading_desc": "소스에서 스크립트 내용을 다운로드하고 분석하고 있습니다",
   "loading_title_update": "업데이트 세부 정보를 준비하는 중",
