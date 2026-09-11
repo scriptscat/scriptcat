@@ -971,19 +971,19 @@ test.describe("GM API", () => {
     expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
-  test("Sandbox Test (sandbox_test.js)", async ({ context, extensionId }) => {
+  test("Sandbox Test (sandbox_function_test.js)", async ({ context, extensionId }) => {
     const { summary, logs } = await runTestScript(
       context,
       extensionId,
-      "sandbox_test.js",
+      "sandbox_function_test.js",
       `${gmApiMockServer.cspOrigin}/?SANDBOX_TEST_SC`,
       8_000,
       { requireOrigin: gmApiMockServer.origin }
     );
 
-    console.log(`[sandbox_test]`, summary);
+    console.log(`[sandbox_function_test]`, summary);
     if (summary.failed !== 0) {
-      console.log("[sandbox_test] logs:", logs.join("\n"));
+      console.log("[sandbox_function_test] logs:", logs.join("\n"));
     }
     expect(summary.failed, "Some sandbox tests failed").toBe(0);
     expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
