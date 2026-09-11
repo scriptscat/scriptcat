@@ -247,7 +247,10 @@ describe("批量更新 Hook useBatchUpdate 行级状态", () => {
       expect(result.current.rowStates.a.phase).toBe("success");
       expect(result.current.updates.map((u) => u.uuid)).toEqual(["a", "b"]);
 
-      await act(async () => vi.runAllTimersAsync());
+      await act(async () => vi.advanceTimersByTimeAsync(450));
+      expect(result.current.rowStates.a?.phase).toBe("exiting");
+
+      await act(async () => vi.advanceTimersByTimeAsync(220));
       expect(result.current.rowStates.a).toBeUndefined();
       expect(result.current.updates.map((u) => u.uuid)).toEqual(["b"]);
     } finally {
