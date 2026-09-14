@@ -254,5 +254,13 @@
   "expired_title": "更新內容已過期",
   "expired_desc": "這次更新準備好的程式碼已被清理，需要重新檢查一次更新。",
   "expired_recheck": "重新檢查更新",
-  "code_loading": "正在載入程式碼"
+  "code_loading": "正在載入程式碼",
+  "compat_ineffective": "不生效",
+  "compat_tag_desc": "腳本貓不支援此宣告，安裝後會被忽略。",
+  "compat_grant_desc": "腳本貓尚未實作此 API，腳本呼叫時會出錯，依賴它的功能無法使用。",
+  "compat_jump": "跳至第 {{line}} 行",
+  "compat_docs": "相容性文件",
+  "compat_count": "{{count}} 項不生效",
+  "perm_other_label": "其他宣告",
+  "perm_other_summary": "已宣告，但腳本貓不會執行"
 }

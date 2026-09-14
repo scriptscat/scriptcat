@@ -254,5 +254,13 @@
   "expired_title": "Update content has expired",
   "expired_desc": "The code prepared for this update has been cleaned up. Please check for updates again.",
   "expired_recheck": "Check for updates again",
-  "code_loading": "Loading code"
+  "code_loading": "Loading code",
+  "compat_ineffective": "no effect",
+  "compat_tag_desc": "ScriptCat does not support this declaration; it is ignored after installation.",
+  "compat_grant_desc": "ScriptCat has not implemented this API; calls to it fail and features relying on it won't work.",
+  "compat_jump": "Go to line {{line}}",
+  "compat_docs": "Compatibility docs",
+  "compat_count": "{{count}} with no effect",
+  "perm_other_label": "Other declarations",
+  "perm_other_summary": "Declared by the script but not executed by ScriptCat"
 }

@@ -198,3 +198,78 @@ describe("PermissionCard 更新零变化态", () => {
     expect(screen.queryByText("api.a.com")).not.toBeInTheDocument();
   });
 });
+
+describe("PermissionCard 上的不生效标记", () => {
+  const rows: PermissionRow[] = [
+    { kind: "match", risk: "normal", values: ["*://a.com/*"], sensitive: [] },
+    { kind: "grant", risk: "warn", values: ["GM_setValue", "GM_audio"], sensitive: [] },
+  ];
+
+  it("卡头给出不生效项总数,权限与 GM 能力合并计数", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [{ tag: "sandbox", group: "other", line: 3 }] } }}
+      />
+    );
+    expect(screen.getByText("2 项不生效")).toBeInTheDocument();
+  });
+
+  it("归不到任何权限类别的指令单独成行,只在有内容时出现", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{ marks: { grants: new Map(), tags: [{ tag: "sandbox", group: "other", line: 3 }] } }}
+      />
+    );
+    const row = screen.getByTestId("permission-row-other");
+    expect(row).toHaveTextContent("其他声明");
+    expect(within(row).getByTestId("compat-chip")).toHaveTextContent("@sandbox");
+  });
+
+  it("没有不生效项时既无徽章也无其他声明行——全兼容的安装页一字不改", () => {
+    render(<PermissionCard rows={rows} compat={{ marks: { grants: new Map(), tags: [] } }} />);
+    expect(screen.queryByTestId("permission-row-other")).not.toBeInTheDocument();
+    expect(screen.queryByText(/项不生效/)).not.toBeInTheDocument();
+  });
+});
+
+describe("不生效标记与折叠形态的关系", () => {
+  const rows: PermissionRow[] = [
+    { kind: "grant", risk: "warn", values: ["GM_audio"], sensitive: [], diff: { added: [], removed: [] } },
+  ];
+
+  it("权限一项没变但有不生效项时整卡不塌——塌了这些标记就没人看得见", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        baselineVersion="1.0.0"
+        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [] } }}
+      />
+    );
+    expect(screen.queryByTestId("permission-card-collapsed")).not.toBeInTheDocument();
+    expect(screen.getByTestId("compat-chip")).toHaveTextContent("GM_audio");
+  });
+
+  it("没有不生效项时仍按原样塌成单行", () => {
+    render(<PermissionCard rows={rows} baselineVersion="1.0.0" compat={{ marks: { grants: new Map(), tags: [] } }} />);
+    expect(screen.getByTestId("permission-card-collapsed")).toBeInTheDocument();
+  });
+});
+
+describe("移动端的不生效标记", () => {
+  it("有不生效项的类别默认展开,否则标记藏在折叠面板里等于没做", () => {
+    mobile = true;
+    render(
+      <PermissionCard
+        rows={[
+          { kind: "match", risk: "normal", values: ["*://a.com/*"], sensitive: [] },
+          { kind: "grant", risk: "warn", values: ["GM_audio"], sensitive: [] },
+        ]}
+        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [] } }}
+      />
+    );
+    mobile = false;
+    expect(screen.getByTestId("compat-chip")).toBeVisible();
+  });
+});

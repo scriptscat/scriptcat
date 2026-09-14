@@ -25,6 +25,20 @@ const TAG_GROUP: Readonly<Record<string, IneffectiveTagGroup>> = {
   matchaboutblank: "match",
 };
 
+/** 传给权限行的兼容性标记与跳转入口 */
+export interface CompatView {
+  marks: CompatMarks;
+  /** 跳到代码预览的指定行；无预览可跳时不传 */
+  onJump?: (line: number) => void;
+}
+
+/** 该权限行要额外呈现的不生效指令（只有 match 组落在既有权限行上，其余归「其他指令」） */
+export const tagsForGroup = (marks: CompatMarks, group: IneffectiveTagGroup): IneffectiveTag[] =>
+  marks.tags.filter((tag) => tag.group === group);
+
+/** 不生效项总数，用于卡头徽章 */
+export const compatMarkCount = (marks: CompatMarks): number => marks.grants.size + marks.tags.length;
+
 /**
  * 派生安装页的兼容性标记：脚本写了、但脚本猫不会执行的指令与 GM 能力。
  * 判定是二元的（见 script_compat.ts），这里只负责定位与归组，不再分兼容程度。

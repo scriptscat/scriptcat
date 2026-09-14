@@ -7,6 +7,7 @@ vi.mock("./useInstallData", () => ({ useInstallData: vi.fn() }));
 // Monaco 编辑器无法在 DOM 测试环境中渲染(需 worker + ThemeProvider),用桩替换
 vi.mock("@App/pages/components/CodeEditor", () => import("@Tests/mocks/CodeEditor.tsx"));
 
+import { revealLine } from "@Tests/mocks/CodeEditor";
 import { useInstallData, type InstallView } from "./useInstallData";
 import App from "./App";
 
@@ -41,11 +42,13 @@ const readyView = (over: Partial<InstallView> = {}): InstallView => ({
   schedule: null,
   code: "// a\n// b",
   subscribeScripts: [],
+  compat: { grants: new Map(), tags: [] },
   ...over,
 });
 
 beforeEach(() => {
   mockMatchMedia();
+  revealLine.calls.length = 0;
 });
 
 beforeAll(() => initTestLanguage("zh-CN"));
@@ -384,5 +387,34 @@ describe("Install App 不再渲染安全警示条", () => {
     render(<App />);
     expect(screen.queryByTestId("install-warning-title")).not.toBeInTheDocument();
     expect(screen.queryByTestId("install-warning-risk")).not.toBeInTheDocument();
+  });
+});
+
+describe("安装页的不生效标记", () => {
+  it("把不受支持的 GM 能力标在权限行上，点击跳到代码对应行", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      state: {
+        status: "ready",
+        view: readyView({
+          permissions: [{ kind: "grant", risk: "warn", values: ["GM_setValue", "GM_audio"], sensitive: [] }],
+          code: "// ==UserScript==\n// @name X\n// @grant GM_audio\n// ==/UserScript==",
+          compat: { grants: new Map([["GM_audio", 3]]), tags: [] },
+        }),
+      },
+    });
+    render(<App />);
+
+    const chip = screen.getByTestId("compat-chip");
+    expect(chip).toHaveTextContent("GM_audio");
+    fireEvent.click(chip);
+    expect(revealLine.calls).toEqual([3]);
+  });
+
+  it("没有不生效项时权限区一字不改", () => {
+    mockHook.mockReturnValue({ ...baseHook(), state: { status: "ready", view: readyView() } });
+    render(<App />);
+    expect(screen.queryByTestId("compat-chip")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-row-other")).not.toBeInTheDocument();
   });
 });

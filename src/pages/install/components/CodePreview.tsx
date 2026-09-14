@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { CodeXml, Copy, Check, ChevronDown, ChevronRight } from "lucide-react";
-import CodeEditor from "@App/pages/components/CodeEditor";
+import CodeEditor, { type CodeEditorHandle } from "@App/pages/components/CodeEditor";
 import { Skeleton } from "@App/pages/components/ui/skeleton";
 import { cn } from "@App/pkg/utils/cn";
 
@@ -16,7 +16,13 @@ const CODE_SKELETON_LINES = [
   "ml-4 w-[62%]",
 ];
 
+export interface CodePreviewHandle {
+  /** 展开代码卡并滚动到指定行 */
+  jumpToLine: (line: number) => void;
+}
+
 export interface CodePreviewProps {
+  ref?: Ref<CodePreviewHandle>;
   code: string;
   /** 更新态的旧版本代码;与 code 不同则触发内联 diff,全新安装为 undefined */
   oldCode?: string;
@@ -26,6 +32,7 @@ export interface CodePreviewProps {
 }
 
 export function CodePreview({
+  ref,
   code,
   oldCode,
   language = "JavaScript",
@@ -36,6 +43,33 @@ export function CodePreview({
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [copied, setCopied] = useState(false);
   const [editorReady, setEditorReady] = useState(false);
+  const editorRef = useRef<CodeEditorHandle>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  // 折叠态下编辑器实例尚未创建，跳转请求先排队，等 onReady 再补上定位
+  const pendingLineRef = useRef<number | null>(null);
+
+  const revealLine = (line: number) => {
+    if (editorRef.current) editorRef.current.revealLine(line);
+    else pendingLineRef.current = line;
+  };
+
+  useImperativeHandle(ref, () => ({
+    jumpToLine: (line: number) => {
+      setCollapsed(false);
+      sectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+      if (editorReady) revealLine(line);
+      else pendingLineRef.current = line;
+    },
+  }));
+
+  const handleReady = () => {
+    setEditorReady(true);
+    const pending = pendingLineRef.current;
+    if (pending !== null) {
+      pendingLineRef.current = null;
+      revealLine(pending);
+    }
+  };
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
   // diffCode 语义:""=无 diff(普通只读预览),有值=内联 diff;切勿传 undefined(表示不加载)
@@ -48,7 +82,7 @@ export function CodePreview({
   };
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-card">
+    <section ref={sectionRef} className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
         <CodeXml className="size-4 text-fg-secondary" />
         <span className="text-sm font-semibold text-foreground">{t("editor:code")}</span>
@@ -99,11 +133,12 @@ export function CodePreview({
             </div>
           )}
           <CodeEditor
+            ref={editorRef}
             id="install-code-preview"
             code={code}
             diffCode={diffCode}
             editable={false}
-            onEditorMount={() => setEditorReady(true)}
+            onReady={handleReady}
             className="h-full w-full"
           />
         </div>

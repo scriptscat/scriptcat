@@ -1,11 +1,12 @@
+import { createRef, type ComponentRef } from "react";
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
 // Monaco 无法在 DOM 测试环境中渲染(需 worker),用轻量桩替换,仅暴露 props 供断言接线
 vi.mock("@App/pages/components/CodeEditor", () => import("@Tests/mocks/CodeEditor.tsx"));
 
-import { setEditorMounts } from "@Tests/mocks/CodeEditor";
+import { setEditorMounts, revealLine } from "@Tests/mocks/CodeEditor";
 import { CodePreview } from "./CodePreview";
 
 const code = "// line1\nconst a = 1;\nconsole.log(a);";
@@ -77,5 +78,39 @@ describe("CodePreview 编辑器加载期的占位", () => {
     render(<CodePreview code={code} />);
 
     expect(screen.queryByTestId("code-skeleton")).not.toBeInTheDocument();
+  });
+});
+
+describe("CodePreview 跳到指定行", () => {
+  afterEach(() => {
+    revealLine.calls.length = 0;
+    setEditorMounts(true);
+  });
+
+  it("跳转把编辑器定位到该行", async () => {
+    const ref = createRef<ComponentRef<typeof CodePreview>>();
+    render(<CodePreview ref={ref} code={code} />);
+    await act(async () => ref.current!.jumpToLine(2));
+    expect(revealLine.calls).toEqual([2]);
+  });
+
+  it("代码卡折叠时先展开再定位——移动端默认折叠，点了却什么都没发生说不过去", async () => {
+    const ref = createRef<ComponentRef<typeof CodePreview>>();
+    render(<CodePreview ref={ref} code={code} defaultCollapsed />);
+    expect(screen.queryByTestId("code-body")).not.toBeInTheDocument();
+    await act(async () => ref.current!.jumpToLine(3));
+    expect(screen.getByTestId("code-body")).toBeInTheDocument();
+    expect(revealLine.calls).toEqual([3]);
+  });
+
+  it("编辑器还没就绪时把定位排队，就绪后补上", async () => {
+    setEditorMounts(false);
+    const ref = createRef<ComponentRef<typeof CodePreview>>();
+    const { rerender } = render(<CodePreview ref={ref} code={code} />);
+    await act(async () => ref.current!.jumpToLine(2));
+    expect(revealLine.calls).toEqual([]);
+    setEditorMounts(true);
+    await act(async () => rerender(<CodePreview ref={ref} code={`${code}\n`} />));
+    expect(revealLine.calls).toEqual([2]);
   });
 });

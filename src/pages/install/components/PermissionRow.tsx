@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Globe, ArrowLeftRight, ChevronDown, KeyRound, Package, TriangleAlert, type LucideIcon } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
+import { tagsForGroup, type CompatView } from "../compat";
+import { CompatChip } from "./CompatChip";
 import {
   isPermissionChanged,
   type PermissionKind,
@@ -101,22 +103,38 @@ function MoreButton({ label, onClick }: { label: string; onClick: () => void }) 
 export function PermissionChips({
   row,
   maxVisible = DEFAULT_MAX_VISIBLE,
+  compat,
 }: {
   row: PermissionRowData;
   maxVisible?: number;
+  compat?: CompatView;
 }) {
   const { t } = useTranslation(["install", "common"]);
   const [expanded, setExpanded] = useState(false);
+
+  // 不受支持的 @grant 就地换成不生效标记；已被移除的取值不标——它已经不在新版本里了
+  const renderChip = (value: string, change?: ChangeState) => {
+    const line = row.kind === "grant" && change !== "removed" ? compat?.marks.grants.get(value) : undefined;
+    if (row.kind === "grant" && change !== "removed" && compat?.marks.grants.has(value)) {
+      return <CompatChip key={value} label={value} kind="grant" line={line} onJump={compat.onJump} />;
+    }
+    return <Chip key={change ? `${change}:${value}` : value} value={value} row={row} change={change} />;
+  };
+
+  // 权限卡里没有对应 chip 的不生效指令，追加到它本该影响的这一行
+  const appended = compat && row.kind === "match" ? tagsForGroup(compat.marks, "match") : [];
+  const appendedChips = appended.map((tag) => (
+    <CompatChip key={tag.tag} label={`@${tag.tag}`} kind="metadata" line={tag.line} onJump={compat?.onJump} />
+  ));
 
   if (!row.diff) {
     const visible = expanded ? row.values : row.values.slice(0, maxVisible);
     const hidden = row.values.length - visible.length;
     return (
       <div className="flex flex-wrap gap-1.5">
-        {visible.map((v) => (
-          <Chip key={v} value={v} row={row} />
-        ))}
+        {visible.map((v) => renderChip(v))}
         {hidden > 0 && <MoreButton label={`+${hidden}`} onClick={() => setExpanded(true)} />}
+        {appendedChips}
       </div>
     );
   }
@@ -132,21 +150,16 @@ export function PermissionChips({
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {added.map((v) => (
-        <Chip key={`+${v}`} value={v} row={row} change="added" />
-      ))}
-      {removed.map((v) => (
-        <Chip key={`-${v}`} value={v} row={row} change="removed" />
-      ))}
-      {visibleUnchanged.map((v) => (
-        <Chip key={v} value={v} row={row} change="unchanged" />
-      ))}
+      {added.map((v) => renderChip(v, "added"))}
+      {removed.map((v) => renderChip(v, "removed"))}
+      {visibleUnchanged.map((v) => renderChip(v, "unchanged"))}
       {hidden > 0 && (
         <MoreButton
           label={pinned > 0 ? t("install:perm_unchanged_more", { count: hidden }) : `+${hidden}`}
           onClick={() => setExpanded(true)}
         />
       )}
+      {appendedChips}
     </div>
   );
 }
@@ -173,7 +186,15 @@ export function PermissionDelta({ row }: { row: PermissionRowData }) {
   );
 }
 
-export function PermissionRow({ row, maxVisible }: { row: PermissionRowData; maxVisible?: number }) {
+export function PermissionRow({
+  row,
+  maxVisible,
+  compat,
+}: {
+  row: PermissionRowData;
+  maxVisible?: number;
+  compat?: CompatView;
+}) {
   const { t } = useTranslation(["install", "common"]);
   const { icon: Icon, labelKey, summaryKey } = KIND_META[row.kind];
   const style = RISK_STYLE[row.risk];
@@ -191,7 +212,7 @@ export function PermissionRow({ row, maxVisible }: { row: PermissionRowData; max
           {row.diff && !isPermissionChanged(row) && <NoChangeTag />}
           <span className="truncate text-xs text-muted-foreground">{t(summaryKey)}</span>
         </div>
-        <PermissionChips row={row} maxVisible={maxVisible} />
+        <PermissionChips row={row} maxVisible={maxVisible} compat={compat} />
       </div>
     </div>
   );

@@ -117,6 +117,24 @@ describe("assembleInstallView 组装安装视图", () => {
     expect(assembleInstallView(base).inTrash).toBe(false);
   });
 
+  it("组装时派生不生效标记，行号取自待安装代码", () => {
+    const metadata = { name: ["示例脚本"], version: ["2.3.1"], "exclude-match": ["*://a.com/*"], grant: ["GM_audio"] };
+    const code = `// ==UserScript==
+// @name 示例脚本
+// @exclude-match *://a.com/*
+// @grant GM_audio
+// ==/UserScript==`;
+    const view = assembleInstallView({
+      isUpdate: false,
+      scriptInfo: makeScriptInfo(metadata),
+      action: makeAction(metadata),
+      code,
+      oldVersion: null,
+    });
+    expect(view.compat.grants).toEqual(new Map([["GM_audio", 4]]));
+    expect(view.compat.tags).toEqual([{ tag: "exclude-match", group: "match", line: 3 }]);
+  });
+
   it("全新安装组装名称、来源、版本与权限", () => {
     const metadata = {
       name: ["示例脚本"],

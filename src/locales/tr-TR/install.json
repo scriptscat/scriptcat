@@ -254,5 +254,13 @@
   "expired_title": "Güncelleme içeriğinin süresi doldu",
   "expired_desc": "Bu güncelleme için hazırlanan kod temizlendi. Lütfen güncellemeleri yeniden denetleyin.",
   "expired_recheck": "Güncellemeleri yeniden denetle",
-  "code_loading": "Kod yükleniyor"
+  "code_loading": "Kod yükleniyor",
+  "compat_ineffective": "etkisiz",
+  "compat_tag_desc": "ScriptCat bu bildirimi desteklemiyor; kurulumdan sonra yok sayılır.",
+  "compat_grant_desc": "ScriptCat bu API'yi uygulamadı; betik çağırdığında hata verir ve buna dayanan özellikler çalışmaz.",
+  "compat_jump": "{{line}}. satıra git",
+  "compat_docs": "Uyumluluk belgeleri",
+  "compat_count": "{{count}} etkisiz",
+  "perm_other_label": "Diğer bildirimler",
+  "perm_other_summary": "Betikte bildirildi ancak ScriptCat tarafından çalıştırılmıyor"
 }
