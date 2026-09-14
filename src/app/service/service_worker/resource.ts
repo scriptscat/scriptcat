@@ -1,6 +1,16 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import type { Resource, ResourceHash, ResourceType } from "@App/app/repo/resource";
+import {
+  getResourceByteSize,
+  RESOURCE_CHUNK_BYTES,
+  RESOURCE_LIST_PAGE_SIZE,
+  type Resource,
+  type ResourceChunk,
+  type ResourceChunkRequest,
+  type ResourceHash,
+  type ResourceListPage,
+  type ResourceType,
+} from "@App/app/repo/resource";
 import { ResourceDAO } from "@App/app/repo/resource";
 import type { Script, ScriptResource, ScriptResourceByType } from "@App/app/repo/scripts";
 import { type IMessageQueue } from "@Packages/message/message_queue";
@@ -459,12 +469,63 @@ export class ResourceService {
     return await this.resourceDAO.save(res);
   }
 
-  requestGetScriptResources(script: Script): Promise<ScriptResource> {
-    return this.getScriptResourceValue(script);
+  async getScriptResourcePage(script: Script, offset = 0, limit = RESOURCE_LIST_PAGE_SIZE): Promise<ResourceListPage> {
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw new Error("resource list offset must be a non-negative integer");
+    }
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > RESOURCE_LIST_PAGE_SIZE) {
+      throw new Error(`resource list limit must be between 1 and ${RESOURCE_LIST_PAGE_SIZE}`);
+    }
+
+    const resources = await this.getScriptResourceValue(script);
+    const entries = Object.entries(resources);
+    const items = entries.slice(offset, offset + limit).map(([key, resource]) => ({
+      key,
+      url: resource.url,
+      type: resource.type,
+      contentType: resource.contentType,
+      byteSize: getResourceByteSize(resource),
+    }));
+    const nextOffset = offset + items.length < entries.length ? offset + items.length : undefined;
+    return { items, offset, limit, total: entries.length, nextOffset };
+  }
+
+  async getResourceChunk(params: ResourceChunkRequest): Promise<ResourceChunk> {
+    const { uuid, url, offset, length } = params;
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw new Error("resource chunk offset must be a non-negative integer");
+    }
+    if (!Number.isSafeInteger(length) || length < 1 || length > RESOURCE_CHUNK_BYTES) {
+      throw new Error(`resource chunk length must be between 1 and ${RESOURCE_CHUNK_BYTES}`);
+    }
+
+    const resource = await this.resourceDAO.get(url);
+    if (!resource || !resource.link[uuid]) {
+      throw new Error("resource not found");
+    }
+    const source = resource.base64
+      ? base64ToBlob(resource.base64)
+      : new Blob([resource.content], { type: resource.contentType });
+    const total = source.size;
+    const chunk = source.slice(offset, Math.min(offset + length, total), resource.contentType);
+    const dataUri = await blobToBase64(chunk);
+    const comma = dataUri.indexOf(",");
+    return {
+      url,
+      offset,
+      length: chunk.size,
+      total,
+      base64: comma === -1 ? dataUri : dataUri.slice(comma + 1),
+    };
+  }
+
+  requestGetScriptResources(params: { script: Script; offset?: number; limit?: number }): Promise<ResourceListPage> {
+    return this.getScriptResourcePage(params.script, params.offset, params.limit);
   }
 
   init() {
     this.group.on("getScriptResources", this.requestGetScriptResources.bind(this));
+    this.group.on("getResourceChunk", this.getResourceChunk.bind(this));
     this.group.on("deleteResource", this.deleteResource.bind(this));
 
     // 删除相关资源

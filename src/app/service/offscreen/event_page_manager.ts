@@ -12,6 +12,7 @@ import EventEmitter from "eventemitter3";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { ServiceWorkerClient } from "../service_worker/client";
 import { BackgroundEnvManagerBase } from "./base";
+import { assertStructuredMessageSize } from "@Packages/message/message_size";
 
 class InProcessMessageConnect implements MessageConnect {
   private messages = new EventEmitter<string, any>();
@@ -28,6 +29,7 @@ class InProcessMessageConnect implements MessageConnect {
 
   sendMessage(data: TMessage): void {
     if (!this.disconnected) {
+      assertStructuredMessageSize(data, "event-page.port.postMessage");
       this.peer?.messages.emit("message", data);
     }
   }
@@ -57,6 +59,7 @@ export class InProcessMessage implements Message, MessageSend {
   private events = new EventEmitter<string, any>();
 
   connect(data: TMessage): Promise<MessageConnect> {
+    assertStructuredMessageSize(data, "event-page.connect");
     const client = new InProcessMessageConnect();
     const server = new InProcessMessageConnect();
     client.peer = server;
@@ -68,6 +71,7 @@ export class InProcessMessage implements Message, MessageSend {
   }
 
   sendMessage<T = any>(data: TMessage): Promise<T> {
+    assertStructuredMessageSize(data, "event-page.sendMessage");
     return new Promise((resolve) => {
       this.events.emit("message", data, resolve, {} as RuntimeMessageSender);
     });

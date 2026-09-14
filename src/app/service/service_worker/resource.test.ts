@@ -412,6 +412,66 @@ describe("ResourceService - getResourceByTypes", () => {
   });
 });
 
+describe("ResourceService - resource list and chunks", () => {
+  let service: ResourceService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new ResourceService({} as Group, {} as IMessageQueue);
+  });
+
+  it("returns paged resource metadata without transferring content or base64", async () => {
+    const resource = { ...resourceModel("https://example.com/data.txt", "text"), content: "你好", base64: "" };
+    vi.spyOn(service, "getScriptResourceValue").mockResolvedValue({
+      alias: resource,
+    });
+
+    const page = await service.getScriptResourcePage(normalScript("script-page", {}), 0, 1);
+
+    expect(page).toEqual({
+      items: [
+        {
+          key: "alias",
+          url: resource.url,
+          type: resource.type,
+          contentType: resource.contentType,
+          byteSize: new TextEncoder().encode(resource.content).byteLength,
+        },
+      ],
+      offset: 0,
+      limit: 1,
+      total: 1,
+      nextOffset: undefined,
+    });
+    expect(page.items[0]).not.toHaveProperty("content");
+    expect(page.items[0]).not.toHaveProperty("base64");
+  });
+
+  it("returns a bounded UTF-8 byte range as raw base64", async () => {
+    const resource = { ...resourceModel("https://example.com/data.txt", "text"), content: "你好abc", base64: "" };
+    vi.spyOn(service.resourceDAO, "get").mockResolvedValue(resource);
+
+    const chunk = await service.getResourceChunk({
+      uuid: "old-script",
+      url: resource.url,
+      offset: 1,
+      length: 4,
+    });
+
+    expect(chunk).toMatchObject({ url: resource.url, offset: 1, length: 4, total: 9 });
+    expect([...Uint8Array.from(atob(chunk.base64), (char) => char.charCodeAt(0))]).toEqual([0xbd, 0xa0, 0xe5, 0xa5]);
+  });
+
+  it("does not expose chunks to a script that does not own the resource", async () => {
+    const resource = resourceModel("https://example.com/private.txt", "private");
+    vi.spyOn(service.resourceDAO, "get").mockResolvedValue(resource);
+
+    await expect(
+      service.getResourceChunk({ uuid: "other-script", url: resource.url, offset: 0, length: 1 })
+    ).rejects.toThrow("resource not found");
+  });
+});
+
 describe("ResourceService - updateResourceByTypes", () => {
   let service: ResourceService;
 

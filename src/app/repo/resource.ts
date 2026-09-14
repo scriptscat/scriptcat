@@ -16,6 +16,50 @@ export interface Resource {
   updatetime?: number;
 }
 
+export interface ResourceListItem {
+  key: string;
+  url: string;
+  type: ResourceType;
+  contentType: string;
+  byteSize: number;
+}
+
+export interface ResourceListPage {
+  items: ResourceListItem[];
+  offset: number;
+  limit: number;
+  total: number;
+  nextOffset?: number;
+}
+
+export interface ResourceChunkRequest {
+  uuid: string;
+  url: string;
+  offset: number;
+  length: number;
+}
+
+export interface ResourceChunk {
+  url: string;
+  offset: number;
+  length: number;
+  total: number;
+  /** Base64-encoded bytes without a data-URI prefix. */
+  base64: string;
+}
+
+export const RESOURCE_LIST_PAGE_SIZE = 100;
+export const RESOURCE_CHUNK_BYTES = 512 * 1024;
+
+export function getResourceByteSize(resource: { content: string; base64?: string }): number {
+  if (resource.base64) {
+    const comma = resource.base64.indexOf(",");
+    const encoded = comma === -1 ? resource.base64 : resource.base64.slice(comma + 1);
+    return atob(encoded).length;
+  }
+  return new TextEncoder().encode(resource.content).byteLength;
+}
+
 export interface ResourceHash {
   md5: string;
   sha1: string;

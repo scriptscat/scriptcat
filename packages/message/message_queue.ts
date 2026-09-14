@@ -2,6 +2,7 @@ import EventEmitter from "eventemitter3";
 import LoggerCore from "@App/app/logger/core";
 import { type TMessage } from "./types";
 import type { SystemConfigKey, SystemConfigValueType } from "@App/pkg/config/config";
+import { assertStructuredMessageSize, MessageSizeError } from "./message_size";
 
 export type TKeyValue<T extends SystemConfigKey> = {
   key: T;
@@ -79,12 +80,13 @@ export class MessageQueue implements IMessageQueue {
     // "Could not establish connection. Receiving end does not exist."——不接住就会变成
     // 未处理的 Promise rejection。publish 本身是"广播给任何在监听的人"，无人监听应静默忽略。
     const messageQueueLogger = LoggerCore.getInstance().logger({ service: "messageQueue" });
-    chrome.runtime
-      .sendMessage({
-        msgQueue: topic,
-        data: { action: "message", message },
-      })
-      .catch((e) => {
+    const outbound = {
+      msgQueue: topic,
+      data: { action: "message", message },
+    };
+    try {
+      assertStructuredMessageSize(outbound, "message-queue.publish");
+      chrome.runtime.sendMessage(outbound).catch((e) => {
         const msg = JSON.stringify(e?.message || e);
         if (msg.includes("Could not establish connection. Receiving end does not exist.")) {
           messageQueueLogger.debug("No target audience for .publish", { msg });
@@ -92,6 +94,13 @@ export class MessageQueue implements IMessageQueue {
           messageQueueLogger.error("Unable to execute runtime.sendMessage for .publish", { msg });
         }
       });
+    } catch (e) {
+      if (e instanceof MessageSizeError) {
+        messageQueueLogger.error("Unable to execute runtime.sendMessage for .publish", { error: e.message });
+      } else {
+        throw e;
+      }
+    }
     this.EE.emit(topic, message);
     //@ts-ignore
     messageQueueLogger.trace("publish", { topic, message });

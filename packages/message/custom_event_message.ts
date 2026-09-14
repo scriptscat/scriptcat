@@ -13,6 +13,7 @@ import {
 } from "@Packages/message/common";
 import { ReadyWrap } from "@App/pkg/utils/ready-wrap";
 import type { ScriptEnvTag } from "@Packages/message/consts";
+import { assertStructuredMessageSize } from "./message_size";
 
 // 避免页面载入后改动 Map.prototype 导致消息传递失败
 const relatedTargetMapMethods = {
@@ -133,6 +134,7 @@ export class CustomEventMessage implements Message {
 
   nativeSend(detail: any) {
     if (!this.readyWrap.isReady) throw new Error("custom_event_message is not ready.");
+    assertStructuredMessageSize(detail, "CustomEvent.detail");
     pageDispatchCustomEvent(this.sendFlag, detail);
   }
 

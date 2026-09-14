@@ -1,6 +1,7 @@
 import EventEmitter from "eventemitter3";
 import type { Message, MessageConnect, MessageSend, RuntimeMessageSender, TMessage, TMessageCommAction } from "./types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { assertStructuredMessageSize } from "./message_size";
 
 const listenerMgr = new EventEmitter<string, any>(); // 单一管理器
 
@@ -9,6 +10,7 @@ export class ExtensionMessage implements Message {
 
   connect(data: TMessage): Promise<MessageConnect> {
     return new Promise((resolve) => {
+      assertStructuredMessageSize(data, "chrome.runtime.connect");
       const con = chrome.runtime.connect();
       con.postMessage(data);
       resolve(new ExtensionMessageConnect(con));
@@ -18,6 +20,7 @@ export class ExtensionMessage implements Message {
   // 发送消息 注意不进行回调的内存泄漏
   sendMessage<T = any>(data: TMessage): Promise<T> {
     return new Promise((resolve: ((value: T) => void) | null) => {
+      assertStructuredMessageSize(data, "chrome.runtime.sendMessage");
       chrome.runtime.sendMessage(data, (resp: T) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
@@ -188,6 +191,7 @@ export class ExtensionMessageConnect implements MessageConnect {
       // 無法 sendMessage 不应该屏蔽错误
       throw new Error("Attempted to sendMessage on a disconnected port.");
     }
+    assertStructuredMessageSize(data, "chrome.runtime.Port.postMessage");
     this.con.postMessage(data);
   }
 
@@ -242,6 +246,7 @@ export class ExtensionContentMessageSend implements MessageSend {
 
   sendMessage<T = any>(data: TMessage): Promise<T> {
     return new Promise((resolve) => {
+      assertStructuredMessageSize(data, "chrome.tabs.sendMessage");
       if (!this.options?.documentId && !this.options?.frameId) {
         // 发送给指定的tab
         chrome.tabs.sendMessage(this.tabId, data, (resp: T) => {
@@ -267,6 +272,7 @@ export class ExtensionContentMessageSend implements MessageSend {
 
   connect(data: TMessage): Promise<MessageConnect> {
     return new Promise((resolve) => {
+      assertStructuredMessageSize(data, "chrome.tabs.connect");
       const con = chrome.tabs.connect(this.tabId, this.options);
       con.postMessage(data);
       resolve(new ExtensionMessageConnect(con));

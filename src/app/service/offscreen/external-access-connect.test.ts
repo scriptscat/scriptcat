@@ -405,6 +405,31 @@ describe("ExternalAccessConnect", () => {
       (externalAccessConnect as any).sendEnvelope({ jsonrpc: "2.0", id: "r1", result: {} });
       expect(ws.sentMessages.length).toBe(0);
     });
+
+    it("出站 WebSocket frame 超过协议上限时被丢弃", async () => {
+      const ws = await completeSessionHandshake();
+      const sentCount = ws.sentMessages.length;
+      (externalAccessConnect as any).sendEnvelope({
+        jsonrpc: "2.0",
+        id: "too-large",
+        result: { source: "x".repeat(LIMITS.maxFrameBytes) },
+      });
+
+      expect(ws.sentMessages.length).toBe(sentCount);
+    });
+
+    it("入站 WebSocket frame 超过协议上限时关闭连接", async () => {
+      const ws = await completeSessionHandshake();
+      const closeSpy = vi.spyOn(ws, "close");
+      ws.simulateMessage({
+        jsonrpc: "2.0",
+        method: "scripts.list",
+        params: { input: "x".repeat(LIMITS.maxFrameBytes) },
+      });
+
+      await Promise.resolve();
+      expect(closeSpy).toHaveBeenCalled();
+    });
   });
 
   // ────────────────────────────────────────────────
