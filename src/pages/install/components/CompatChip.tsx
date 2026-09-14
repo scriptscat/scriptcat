@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Ban, ExternalLink } from "lucide-react";
 import { DocumentationSite } from "@App/app/const";
 import { localePath } from "@App/locales/locales";
 import { Popover, PopoverAnchor, PopoverContent } from "@App/pages/components/ui/popover";
+import { useHoverMenu } from "@App/pages/components/ui/use-hover-menu";
 
 export type CompatChipKind = "metadata" | "grant";
+
+// 同一时刻只开一枚浮层：标记 chip 常常并排，浮层有 288px 宽，两枚同时开会互相盖住。
+// 悬停切换时旧浮层要等关闭延迟才收，靠这里立刻收掉。
+let closeActivePopover: (() => void) | null = null;
 
 const DOC_PATH: Record<CompatChipKind, string> = {
   metadata: "/docs/dev/meta",
@@ -34,21 +39,35 @@ export function CompatChip({
   onJump?: (line: number) => void;
 }) {
   const { t } = useTranslation(["install", "common"]);
-  const [open, setOpen] = useState(false);
+  // 浮层里有文档链接，必须把浮层本体也纳入悬停范围：只盯 chip 的话鼠标一移向链接浮层就关了
+  const { rootProps, hoverProps, contentProps, close } = useHoverMenu(150);
   const canJump = line !== undefined && !!onJump;
+  // close 来自 useHoverMenu 的 useCallback([])，恒定，故清理只在卸载时发生
+  useEffect(
+    () => () => {
+      if (closeActivePopover === close) closeActivePopover = null;
+    },
+    [close]
+  );
+
+  const openPopover = () => {
+    if (closeActivePopover && closeActivePopover !== close) closeActivePopover();
+    closeActivePopover = close;
+    hoverProps.onMouseEnter();
+  };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover {...rootProps}>
       <PopoverAnchor asChild>
         <button
           type="button"
           data-testid="compat-chip"
           data-line={line}
           aria-label={`${label} · ${t("install:compat_ineffective")}`}
-          onMouseEnter={() => setOpen(true)}
-          onMouseLeave={() => setOpen(false)}
-          onFocus={() => setOpen(true)}
-          onBlur={() => setOpen(false)}
+          {...hoverProps}
+          onMouseEnter={openPopover}
+          onFocus={openPopover}
+          onBlur={hoverProps.onMouseLeave}
           onClick={() => canJump && onJump(line)}
           className="inline-flex max-w-full items-center gap-1 rounded-md border border-dashed border-warning-fg bg-warning-bg px-2 py-0.5 font-mono text-xs text-warning-fg hover:bg-warning-bg/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
@@ -56,13 +75,7 @@ export function CompatChip({
           <span className="min-w-0 break-all">{label}</span>
         </button>
       </PopoverAnchor>
-      <PopoverContent
-        data-testid="compat-popover"
-        side="top"
-        align="start"
-        className="w-72 p-3"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
+      <PopoverContent {...contentProps} data-testid="compat-popover" side="top" align="start" className="w-72 p-3">
         <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
           <Ban className="size-3.5 shrink-0 text-warning-fg" aria-hidden="true" />
           <span className="font-mono">{label}</span>
@@ -80,6 +93,7 @@ export function CompatChip({
             href={`${DocumentationSite}${localePath}${DOC_PATH[kind]}`}
             target="_blank"
             rel="noreferrer"
+            onClick={close}
             className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary"
           >
             {t("install:compat_docs")}
