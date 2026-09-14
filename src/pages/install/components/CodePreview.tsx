@@ -138,7 +138,7 @@ export function CodePreview({
           data-testid="code-fullscreen-dialog"
           aria-describedby={undefined}
           closeLabel={t("common:close")}
-          className="left-0 top-0 flex h-dvh w-dvw max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 bg-background p-0 sm:rounded-none [&>button]:size-11 md:[&>button]:size-8"
+          className="left-0 top-0 flex h-dvh w-dvw max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 bg-background p-0 sm:rounded-none [&>button]:top-1.5 [&>button]:size-11 md:[&>button]:top-3 md:[&>button]:size-8"
         >
           <div className="flex min-h-14 shrink-0 items-center gap-2 border-b border-border px-4 py-1.5 pr-16">
             <CodeXml aria-hidden="true" className="size-4 text-fg-secondary" />
