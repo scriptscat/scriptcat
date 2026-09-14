@@ -75,13 +75,17 @@ async function settle() {
   });
 }
 
-async function renderPage(client: NetworkRuleClient) {
+async function renderPage(client: NetworkRuleClient, options: { disableDrag?: boolean } = {}) {
   renderWithRouter(
     <Routes>
       <Route path="/tools/network-rules" element={<NetworkRules client={client} />} />
     </Routes>,
     { initialEntries: ["/tools/network-rules"] }
   );
+  if (options.disableDrag) {
+    // 只验证菜单/抽屉行为的用例不需要 dnd-kit；筛选全部规则仍保留完整列表语义。
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规则" } });
+  }
   await settle();
 }
 
@@ -249,7 +253,7 @@ describe("网络规则列表页", () => {
   it("行菜单可以把规则移到指定位置", async () => {
     // 目标位次落在中间，才和「置顶／置底」区分开；四行就够摆出这样一个位次。
     const client = clientFor(snapshot([rule(1), rule(2), rule(3), rule(4)]));
-    await renderPage(client);
+    await renderPage(client, { disableDrag: true });
     expect(screen.getByText("规则 1")).toBeInTheDocument();
 
     await openRowMenu(screen.getAllByTestId("network-rule-row")[0]);
@@ -474,7 +478,7 @@ describe("网络规则编辑抽屉", () => {
 
   it("编辑规则切换动作后通过页面客户端提交页面中的完整值", async () => {
     const client = clientFor(snapshot([rule(1)]));
-    await renderPage(client);
+    await renderPage(client, { disableDrag: true });
     await openRowAction(screen.getAllByTestId("network-rule-row")[0], "编辑");
 
     fireEvent.click(screen.getByRole("button", { name: "更换类型" }));

@@ -87,6 +87,8 @@ async function renderPage(client: NetworkRuleClient) {
     </Routes>,
     { initialEntries: ["/tools/network-rules"] }
   );
+  // 成败反馈只观察菜单动作与提示，不验证拖拽；加载期间筛选全部规则可跳过 dnd-kit 初始化。
+  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规则" } });
   await settle();
 }
 

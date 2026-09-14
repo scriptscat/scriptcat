@@ -84,6 +84,8 @@ async function renderPage(client: NetworkRuleClient) {
     </Routes>,
     { initialEntries: ["/tools/network-rules"] }
   );
+  // 批量操作不验证拖拽；加载期间先筛选出全部规则，避免每个用例都挂载 dnd-kit，分页边界仍保持不变。
+  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规则" } });
   await settle();
 }
 
