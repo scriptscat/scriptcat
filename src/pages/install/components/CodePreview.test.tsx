@@ -63,6 +63,21 @@ describe("CodePreview 代码卡", () => {
 
     const dialog = screen.getByTestId("code-fullscreen-dialog");
     expect(dialog).toHaveClass("left-0", "top-0", "h-dvh", "w-dvw", "max-w-none");
+    expect(within(dialog).getByRole("button", { name: "关闭" })).toHaveClass(
+      "rounded-md",
+      "flex",
+      "items-center",
+      "justify-center",
+      "text-muted-foreground",
+      "opacity-100",
+      "hover:bg-muted",
+      "hover:text-foreground",
+      "focus:ring-0",
+      "focus:ring-offset-0",
+      "focus-visible:outline-none",
+      "focus-visible:ring-2",
+      "focus-visible:ring-ring/50"
+    );
     expect(within(dialog).getByTestId("code-body")).toHaveAttribute("data-code", code);
 
     fireEvent.click(screen.getByRole("button", { name: "关闭" }));

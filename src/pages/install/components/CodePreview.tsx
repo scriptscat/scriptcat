@@ -138,6 +138,7 @@ export function CodePreview({
           data-testid="code-fullscreen-dialog"
           aria-describedby={undefined}
           closeLabel={t("common:close")}
+          closeClassName="flex items-center justify-center rounded-md text-muted-foreground opacity-100 transition-colors hover:bg-muted hover:text-foreground focus:ring-0 focus:ring-offset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-0"
           className="left-0 top-0 flex h-dvh w-dvw max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-0 bg-background p-0 sm:rounded-none [&>button]:top-1.5 [&>button]:size-11 md:[&>button]:top-3 md:[&>button]:size-8"
         >
           <div className="flex min-h-14 shrink-0 items-center gap-2 border-b border-border px-4 py-1.5 pr-16">
