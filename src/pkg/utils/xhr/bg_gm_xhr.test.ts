@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MessageConnect } from "@Packages/message/types";
 import { BgGMXhr } from "./bg_gm_xhr";
+import { dataEncode } from "./xhr_data";
 
 class FakeXMLHttpRequest {
   static instances: FakeXMLHttpRequest[] = [];
@@ -113,6 +114,19 @@ describe("BgGMXhr 的 upload 事件转发", () => {
     const xhr = await createXhr(false, data as GMSend.XHRDetails["data"]);
 
     expect(ArrayBuffer.isView(xhr.sentData)).toBe(true);
+  });
+
+  it("带偏移量的 typed-array view 只应发送 view 范围内的字节", async () => {
+    const source = new Int16Array([0x0102, 0x0304, 0x0506]);
+    const subview = source.subarray(1, 2);
+    const encoded = await dataEncode(subview);
+    const xhr = await createXhr(false, encoded as GMSend.XHRDetails["data"]);
+
+    expect(xhr.sentData).toBeInstanceOf(Int16Array);
+    const sent = xhr.sentData as Int16Array;
+    expect(new Uint8Array(sent.buffer, sent.byteOffset, sent.byteLength)).toEqual(
+      new Uint8Array(subview.buffer, subview.byteOffset, subview.byteLength)
+    );
   });
 
   it("details.hasUpload 为假时，不应为 xhr.upload 绑定任何事件监听器（避免为未使用该功能的请求触发 CORS 预检）", async () => {

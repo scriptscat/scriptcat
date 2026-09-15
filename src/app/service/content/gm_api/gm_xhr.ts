@@ -195,6 +195,7 @@ export function GM_xmlhttpRequest(
   isDownload: boolean = false
 ) {
   let reqDone = false;
+  let abortRequested = false;
   // 一旦 upload 阶段以 error/abort/timeout 结束，整个请求已注定以同样的结果结束（原生实现此时
   // readyState 已为 DONE，再调用 abort() 不会产生新事件）。置位后，返回的 abort() 变为空操作，
   // 让真实的主 onerror/ontimeout/onabort 消息自然到达，而不是被本地合成的 AbortError 抢先覆盖。
@@ -253,9 +254,31 @@ export function GM_xmlhttpRequest(
   if (details.nocache) {
     param.headers["Cache-Control"] = "no-cache";
   }
-  let connect: MessageConnect | null;
+  let connect: MessageConnect | null = null;
   const responseTypeOriginal = details.responseType?.toLocaleLowerCase() || "";
   let doAbort: ((o: TXhrCallBackArg) => void) | null = null;
+  const abortData: TXhrCallBackArg = {
+    finalUrl: "",
+    readyState: ReadyStateCode.UNSENT,
+    status: 0,
+    statusText: "",
+    responseHeaders: "",
+    error: "aborted",
+    useFetch: false,
+    eventType: "abort",
+    ok: false,
+    contentType: "",
+  };
+  const abort = () => {
+    if (suppressSyntheticAbort || reqDone) return;
+
+    abortRequested = true;
+    if (connect) {
+      connect.disconnect(true); // 断开连结(容忍已断开)
+      connect = null;
+    }
+    doAbort?.(abortData);
+  };
   (async () => {
     const [urlResolved, dataResolved] = await Promise.all([urlPromiseLike, dataPromise]);
     const u = new URL(urlResolved, window.location.href);
@@ -330,6 +353,7 @@ export function GM_xmlhttpRequest(
     let allowResponse = false; // readyState 未达至 4 (DONE) 时，不提供 response, responseText, responseXML
 
     let errorOccur: string | null = null;
+    let terminalData: TXhrCallBackArg | null = null;
     let response: unknown = null;
     let responseText: string | undefined | false = "";
     let responseXML: unknown = null;
@@ -607,19 +631,21 @@ export function GM_xmlhttpRequest(
     doAbort = (data: TXhrCallBackArg) => {
       if (!reqDone) {
         errorOccur = "AbortError";
+        terminalData = data;
+        reqDone = true;
         // canHaveUploadLifecycle 为 false 时（GET/HEAD、无请求体、或走 fetch 传输）根本不存在原生
         // upload 阶段，不应触发任何 upload.* 回调；只有真正可能产生 upload 阶段的请求才需要处理
         if (canHaveUploadLifecycle) {
           const uploadWasDone = uploadDone;
           if (!uploadWasDone) {
-            // 对齐原生 XHR abort() 语义：upload 尚未完成时，先补发 upload 的 abort；
-            // 若已收到进度事件，则沿用最后一次真实进度数据
+            // 对齐原生 XHR abort() 语义：upload 尚未完成时，先以 0/0/false 补发 upload 的 abort；
+            // abort 产生的是新的终止事件，不应把此前的进度当作终态进度
             uploadDone = true;
             const uploadEventData = {
               ...data,
-              lengthComputable: lastUploadEventData?.lengthComputable ?? false,
-              loaded: lastUploadEventData?.loaded ?? 0,
-              total: lastUploadEventData?.total ?? 0,
+              lengthComputable: false,
+              loaded: 0,
+              total: 0,
             };
             invokeUploadHandler(details.upload?.onabort, makeProgressCallbackParam(uploadEventData));
             fireUploadLoadEnd(uploadEventData);
@@ -630,7 +656,6 @@ export function GM_xmlhttpRequest(
           }
         }
         details.onabort?.(makeXHRCallbackParam?.(data) ?? {});
-        reqDone = true;
         // 不要进行 refCleanup ！要等待最后的 onloadend
         // refCleanup?.();
         // doAbort 不是由通讯管控 onloadend. 需要手动处理. 排程在下一个 microTask 避免影响 Abort 流程
@@ -640,7 +665,13 @@ export function GM_xmlhttpRequest(
     };
 
     connect.onDisconnect((isSelfDisconnected) => {
-      if (isSelfDisconnected || reqDone) return;
+      if (isSelfDisconnected) return;
+      if (reqDone) {
+        if (!loadendCalled && terminalData) {
+          Promise.resolve({ ...terminalData, type: "loadend" }).then(doLoadEnd);
+        }
+        return;
+      }
 
       const data: TXhrCallBackArg = {
         finalUrl: "",
@@ -655,6 +686,8 @@ export function GM_xmlhttpRequest(
         contentType: "",
       };
       errorOccur = data.error ?? "Connection disconnected";
+      terminalData = data;
+      reqDone = true;
 
       if (canHaveUploadLifecycle) {
         const uploadEventData = {
@@ -665,7 +698,7 @@ export function GM_xmlhttpRequest(
         };
         if (!uploadDone) {
           uploadDone = true;
-          invokeUploadHandler(details.upload?.onabort, makeProgressCallbackParam(uploadEventData));
+          invokeUploadHandler(details.upload?.onerror, makeProgressCallbackParam(uploadEventData));
         }
         fireUploadLoadEnd(uploadEventData);
       }
@@ -674,7 +707,6 @@ export function GM_xmlhttpRequest(
         ...(makeXHRCallbackParam?.(data) ?? {}),
         error: errorOccur,
       } as GMXHRResponseTypeWithError);
-      reqDone = true;
       Promise.resolve({ ...data, type: "loadend" }).then(doLoadEnd);
     });
 
@@ -703,23 +735,30 @@ export function GM_xmlhttpRequest(
             message,
           });
           if (!reqDone) {
+            const errorData = {
+              error: message,
+              responseHeaders: "",
+              readyState: ReadyStateCode.UNSENT,
+              status: 0,
+              statusText: "",
+              finalUrl: "",
+              useFetch: false,
+              eventType: "error",
+              ok: false,
+              contentType: "",
+            } satisfies TXhrCallBackArg;
             errorOccur = message;
+            terminalData = errorData;
+            reqDone = true;
             details.onerror?.({
               readyState: ReadyStateCode.DONE,
               error: message,
             });
-            reqDone = true;
             // 不要进行 refCleanup ！要等待最后的 onloadend
             // refCleanup?.();
 
             // 此错误多为 API 非正常执行，估计不会有 loadend 触发。见 Aborted 处理
-            Promise.resolve({
-              error: "loadend",
-              responseHeaders: "",
-              readyState: 0,
-              status: 0,
-              statusText: "",
-            } as TXhrCallBackArg).then(doLoadEnd);
+            Promise.resolve({ ...errorData, type: "loadend" }).then(doLoadEnd);
           }
           return;
         }
@@ -823,8 +862,9 @@ export function GM_xmlhttpRequest(
           case "ontimeout":
             if (!reqDone) {
               errorOccur = "TimeoutError";
-              details.ontimeout?.(makeXHRCallbackParam?.(data) ?? {});
+              terminalData = data;
               reqDone = true;
+              details.ontimeout?.(makeXHRCallbackParam?.(data) ?? {});
               // 不要进行 refCleanup ！要等待最后的 onloadend
               // refCleanup?.();
             }
@@ -833,8 +873,9 @@ export function GM_xmlhttpRequest(
             if (!reqDone) {
               data.error ||= "Unknown Error";
               errorOccur = data.error;
-              details.onerror?.((makeXHRCallbackParam?.(data) ?? {}) as GMXHRResponseTypeWithError);
+              terminalData = data;
               reqDone = true;
+              details.onerror?.((makeXHRCallbackParam?.(data) ?? {}) as GMXHRResponseTypeWithError);
               // 不要进行 refCleanup ！要等待最后的 onloadend
               // refCleanup?.();
             }
@@ -894,32 +935,8 @@ export function GM_xmlhttpRequest(
     };
 
     connect?.onMessage((msgData) => onMessageHandler?.(msgData));
+    if (abortRequested) abort();
   })();
   // 由于需要同步返回一个abort，但是一些操作是异步的，所以需要在这里处理
-  return {
-    retPromise,
-    abort: () => {
-      if (suppressSyntheticAbort) {
-        // upload 阶段已以 error/abort/timeout 结束，整个请求已注定失败：保持通道开启，
-        // 让真实的主 onerror/ontimeout/onabort 消息自然到达并驱动正确的回调
-        return;
-      }
-      if (connect) {
-        connect.disconnect(true); // 断开连结(容忍已断开)
-        connect = null;
-      }
-      if (doAbort && !reqDone && (details.onabort || uploadHasHandlers)) {
-        // https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/abort
-        // When a request is aborted, its readyState is changed to XMLHttpRequest.UNSENT (0) and the request's status code is set to 0.
-        doAbort?.({
-          error: "aborted",
-          responseHeaders: "",
-          readyState: 0,
-          status: 0,
-          statusText: "",
-        } as TXhrCallBackArg);
-        reqDone = true;
-      }
-    },
-  };
+  return { retPromise, abort };
 }

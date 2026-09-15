@@ -138,6 +138,8 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     const onprogress = vi.fn();
     const details = {
       url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
       upload: { onprogress },
     } as unknown as GMTypes.XHRDetails;
 
@@ -186,6 +188,8 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
       const handler = vi.fn();
       const details = {
         url: "https://example.com/upload",
+        method: "POST",
+        data: "payload",
         upload: { [uploadHandlerName]: handler },
       } as unknown as GMTypes.XHRDetails;
 
@@ -280,17 +284,18 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
 
   it("远端连接在终态消息前断开时，应以错误结算请求并结束 upload 生命周期", async () => {
     const { api, getDisconnectHandler } = createFakeApi();
-    const onerror = vi.fn();
-    const onloadend = vi.fn();
-    const onUploadAbort = vi.fn();
-    const onUploadLoadEnd = vi.fn();
+    const order: string[] = [];
+    const onerror = vi.fn(() => order.push("main-error"));
+    const onloadend = vi.fn(() => order.push("main-loadend"));
+    const onUploadError = vi.fn(() => order.push("upload-error"));
+    const onUploadLoadEnd = vi.fn(() => order.push("upload-loadend"));
     const details = {
       url: "https://example.com/upload",
       method: "POST",
       data: "payload",
       onerror,
       onloadend,
-      upload: { onabort: onUploadAbort, onloadend: onUploadLoadEnd },
+      upload: { onerror: onUploadError, onloadend: onUploadLoadEnd },
     } as unknown as GMTypes.XHRDetails;
 
     const { retPromise } = GM_xmlhttpRequest(api, details, true);
@@ -304,9 +309,102 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
 
     expect(onerror).toHaveBeenCalledTimes(1);
     expect(onloadend).toHaveBeenCalledTimes(1);
-    expect(onUploadAbort).toHaveBeenCalledTimes(1);
+    expect(onUploadError).toHaveBeenCalledTimes(1);
     expect(onUploadLoadEnd).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(["upload-error", "upload-loadend", "main-error", "main-loadend"]);
     await expect(rejection).resolves.toBe("Connection disconnected");
+  });
+
+  it.each([
+    ["onerror", "onerror", "NetworkError"],
+    ["ontimeout", "ontimeout", "TimeoutError"],
+  ])(
+    "远端连接在主请求 %s 后断开时，应补发缺失的 onloadend 并结算 Promise",
+    async (action, handlerName, expectedError) => {
+      const { api, getMessageHandler, getDisconnectHandler } = createFakeApi();
+      const mainHandler = vi.fn();
+      const onloadend = vi.fn();
+      const details = {
+        url: "https://example.com/upload",
+        method: "POST",
+        data: "payload",
+        [handlerName]: mainHandler,
+        onloadend,
+      } as unknown as GMTypes.XHRDetails;
+
+      const { retPromise } = GM_xmlhttpRequest(api, details, true);
+      const rejection = retPromise!.catch((reason) => reason);
+      await waitTick();
+      const messageHandler = getMessageHandler();
+      const disconnectHandler = getDisconnectHandler();
+      expect(messageHandler).toBeTypeOf("function");
+      expect(disconnectHandler).toBeTypeOf("function");
+
+      messageHandler!({
+        action,
+        data: {
+          finalUrl: "",
+          readyState: 4,
+          status: 0,
+          statusText: "",
+          responseHeaders: "",
+          useFetch: false,
+          eventType: action.slice(2),
+          ok: false,
+          contentType: "",
+          error: action === "onerror" ? expectedError : undefined,
+        },
+      });
+      await waitTick();
+
+      disconnectHandler!(false);
+      await waitTick();
+
+      expect(mainHandler).toHaveBeenCalledTimes(1);
+      expect(onloadend).toHaveBeenCalledTimes(1);
+      await expect(rejection).resolves.toBe(expectedError);
+    }
+  );
+
+  it("主请求 onerror 回调内同步调用 abort() 时，不应重复触发主 onabort", async () => {
+    const { api, getMessageHandler } = createFakeApi();
+    const onerror = vi.fn();
+    const onabort = vi.fn();
+    const requestRef: { current?: ReturnType<typeof GM_xmlhttpRequest> } = {};
+    const details = {
+      url: "https://example.com/upload",
+      onerror: () => {
+        onerror();
+        requestRef.current?.abort();
+      },
+      onabort,
+      onloadend: vi.fn(),
+    } as unknown as GMTypes.XHRDetails;
+
+    requestRef.current = GM_xmlhttpRequest(api, details, false);
+    await waitTick();
+    const messageHandler = getMessageHandler();
+    expect(messageHandler).toBeTypeOf("function");
+
+    messageHandler!({
+      action: "onerror",
+      data: {
+        finalUrl: "",
+        readyState: 4,
+        status: 0,
+        statusText: "",
+        responseHeaders: "",
+        useFetch: false,
+        eventType: "error",
+        ok: false,
+        contentType: "",
+        error: "NetworkError",
+      },
+    });
+    await waitTick();
+
+    expect(onerror).toHaveBeenCalledTimes(1);
+    expect(onabort).not.toHaveBeenCalled();
   });
 
   it("调用返回的 abort() 时，若 upload 阶段尚未完成（POST 带请求体），应先补发 details.upload.onabort 与 onloadend", async () => {
@@ -501,7 +599,7 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     expect(onUploadLoadEnd).toHaveBeenCalledTimes(1);
   });
 
-  it("在 upload.onload 回调内同步调用 abort() 且 onloadend 消息因通道断开而丢失时，兜底补发的 onloadend 应携带真实的已传输数据", async () => {
+  it("在 upload.onload 回调内同步调用 abort() 时，兜底补发的 onloadend 应携带真实的已传输数据", async () => {
     const { api, getMessageHandler } = createFakeApi();
     const onUploadLoadEnd = vi.fn();
     const requestRef: { current?: ReturnType<typeof GM_xmlhttpRequest> } = {};
@@ -520,7 +618,7 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     const messageHandler = getMessageHandler();
 
     // 真实的 onuploadload 消息（携带真实进度数据）；其回调内同步调用 abort()，
-    // 通道随即断开，真正的 onuploadloadend 消息不会再被处理——由 abort() 兜底补发
+    // 由 abort() 兜底补发尚未到达的 onuploadloadend
     messageHandler!({
       action: "onuploadload",
       data: {
@@ -641,7 +739,7 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     }
   });
 
-  it("收到 upload 进度后调用 abort()，补发的 upload.onabort / onloadend 应携带最后一次进度数据", async () => {
+  it("收到 upload 进度后调用 abort()，补发的 upload.onabort / onloadend 应携带终止事件的 0/0/false", async () => {
     const { api, getMessageHandler } = createFakeApi();
     const onUploadAbort = vi.fn();
     const onUploadLoadEnd = vi.fn();
@@ -688,9 +786,9 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
       expect(arg.readyState).toBe(0);
       expect(arg.status).toBe(0);
       expect(arg.error).toBe("aborted");
-      expect(arg.loaded).toBe(5 * 1024 * 1024);
-      expect(arg.total).toBe(10 * 1024 * 1024);
-      expect(arg.lengthComputable).toBe(true);
+      expect(arg.loaded).toBe(0);
+      expect(arg.total).toBe(0);
+      expect(arg.lengthComputable).toBe(false);
     }
   });
 
@@ -716,6 +814,42 @@ describe("GM_xmlhttpRequest 的 upload 事件派发", () => {
     await waitTick();
 
     expect(order).toEqual(["upload-abort", "upload-loadend", "main-abort", "main-loadend"]);
+  });
+
+  it("在连接建立前调用 abort() 时，也应结束 upload 与主请求生命周期", async () => {
+    const { api } = createFakeApi();
+    const order: string[] = [];
+    const details = {
+      url: "https://example.com/upload",
+      method: "POST",
+      data: "payload",
+      onabort: () => order.push("main-abort"),
+      onloadend: () => order.push("main-loadend"),
+      upload: {
+        onabort: () => order.push("upload-abort"),
+        onloadend: () => order.push("upload-loadend"),
+      },
+    } as unknown as GMTypes.XHRDetails;
+
+    const { abort } = GM_xmlhttpRequest(api, details, false);
+    abort();
+    await waitTick(4);
+
+    expect(order).toEqual(["upload-abort", "upload-loadend", "main-abort", "main-loadend"]);
+  });
+
+  it("Promise 请求即使没有回调，调用 abort() 后也应拒绝并结算", async () => {
+    const { api } = createFakeApi();
+    const { retPromise, abort } = GM_xmlhttpRequest(
+      api,
+      { url: "https://example.com/upload", method: "POST", data: "payload" } as GMTypes.XHRDetails,
+      true
+    );
+
+    await waitTick();
+    abort();
+
+    await expect(retPromise).rejects.toBe("AbortError");
   });
 
   it("upload 回调为非函数真值时，不应视为已注册 upload 回调（不启用 upload 监听，避免额外 CORS 预检与运行时报错）", async () => {
