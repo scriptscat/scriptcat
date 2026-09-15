@@ -41,6 +41,7 @@
   "cron_invalid_expr": "Biểu thức cron không hợp lệ",
   "background_script": "Script nền",
   "scheduled_script": "Script hẹn giờ",
+  "normal_script": "Script người dùng",
   "next_run": "Lần chạy tiếp theo",
   "background_script_tooltip": "Script nền. Chạy trong nền sau khi được bật.",
   "scheduled_script_tooltip": "Script hẹn giờ. Tự động chạy vào thời điểm đã cấu hình.",

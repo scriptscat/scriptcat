@@ -41,6 +41,7 @@
   "cron_invalid_expr": "不正な cron 式です",
   "background_script": "バックグラウンドスクリプト",
   "scheduled_script": "スケジュールスクリプト",
+  "normal_script": "ユーザースクリプト",
   "next_run": "次回実行",
   "background_script_tooltip": "バックグラウンドスクリプト。有効にするとバックグラウンドで実行されます。",
   "scheduled_script_tooltip": "スケジュールスクリプト。設定した時刻に自動的に実行されます。",

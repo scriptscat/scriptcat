@@ -69,6 +69,11 @@ downstream prose does not override it.
 - **Shared E2E helpers must model both outcomes.** A helper that drives a save, install, or other mutation must make
   the expected success or failure explicit and wait for that operation's matching signal. Negative cases must opt into
   the failure contract; never make them pass by accepting an arbitrary toast, an old notification, or a page shell.
+- **Performance-sensitive UI fixtures must stay bounded.** Use the smallest synthetic fixture that crosses the
+  required boundary; for filtering or pagination, do not eagerly render unrelated rows before the trigger. Obvious
+  explicit one-page-plus fixtures need a line-level `scriptcat/no-test-large-boundary-fixture` rationale; do not hide
+  their cost by raising the test timeout. The detailed fixture and measurement rules live in
+  [`docs/references/develop-testing.md`](docs/references/develop-testing.md#vitest-performance-hygiene).
 - **SOLID, high cohesion, low coupling.** Match existing extension points: persistence uses the small
   `Repo<T>` / `DAO<T>` / `OPFSRepo` / custom-repo taxonomy, matching an existing entity with the same needs;
   messages use `Group.on(...)`; service constructor shapes differ by context and Agent subsystem; depend on

@@ -41,6 +41,7 @@
   "cron_invalid_expr": "错误的定时表达式",
   "background_script": "后台脚本",
   "scheduled_script": "定时脚本",
+  "normal_script": "普通脚本",
   "next_run": "下次运行",
   "background_script_tooltip": "后台脚本，启用后将在后台运行",
   "scheduled_script_tooltip": "定时脚本，将在设定的时间自动运行",

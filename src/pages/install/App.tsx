@@ -10,7 +10,6 @@ import { SubscribeScripts } from "./components/SubscribeScripts";
 import { SkillInstallView } from "./components/SkillInstallView";
 import { CodePreview } from "./components/CodePreview";
 import { InstallActions } from "./components/InstallActions";
-import { InstallWarning } from "./components/InstallWarning";
 import { InstallLoading, InstallError, InstallExpired } from "./components/InstallStates";
 import { WatchingBanner } from "./components/WatchingBanner";
 import { ExternalAccessBanner } from "./components/ExternalAccessBanner";
@@ -235,12 +234,11 @@ export default function App() {
         {view.isSubscribe ? (
           <SubscribeScripts scriptUrls={view.subscribeScripts} />
         ) : (
-          <PermissionCard rows={view.permissions} />
+          <PermissionCard
+            rows={view.permissions}
+            baselineVersion={view.version.kind === "update" ? view.version.oldVersion : undefined}
+          />
         )}
-        <InstallWarning
-          hasDangerPermission={view.permissions.some((p) => p.risk === "danger")}
-          hasAntifeature={view.antifeatures.length > 0}
-        />
         <CodePreview code={view.code} oldCode={view.oldCode} diffStat={view.diffStat} defaultCollapsed={isMobile} />
       </InstallLayout>
       <BackgroundPrompt
