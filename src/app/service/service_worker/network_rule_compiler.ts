@@ -4,8 +4,145 @@ import type {
   NetworkRuleCondition,
   NetworkRuleState,
 } from "@App/app/repo/network_rule";
-import { NETWORK_RULE_RESOURCE_TYPES } from "@App/pkg/utils/network_rule_condition";
+import {
+  MAX_RULE_DOMAINS,
+  NETWORK_RULE_RESOURCE_TYPES,
+  normalizeRuleDomain,
+} from "@App/pkg/utils/network_rule_condition";
 import { USER_RULE_ID_MIN, isUserRuleId } from "./dnr_rule_ids";
+
+type CompiledCandidate = {
+  priority: number;
+  sourceActionType: NetworkRuleAction["type"];
+  action: chrome.declarativeNetRequest.RuleAction;
+  condition: chrome.declarativeNetRequest.RuleCondition;
+};
+
+const SET_LIKE_CONDITION_KEYS = new Set([
+  "excludedInitiatorDomains",
+  "excludedRequestDomains",
+  "initiatorDomains",
+  "requestDomains",
+  "requestMethods",
+  "resourceTypes",
+]);
+
+function stableSerialize(value: unknown): string {
+  return JSON.stringify(canonicalize(value));
+}
+
+function canonicalize(value: unknown, key?: string): unknown {
+  if (Array.isArray(value)) {
+    const items = value.map((item) => canonicalize(item));
+    if (!SET_LIKE_CONDITION_KEYS.has(key ?? "")) return items;
+    return [...new Map(items.map((item) => [stableSerialize(item), item])).values()].sort((left, right) =>
+      stableSerialize(left).localeCompare(stableSerialize(right))
+    );
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, item]) => item !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([entryKey, item]) => [entryKey, canonicalize(item, entryKey)])
+    );
+  }
+  return value;
+}
+
+function canonicalizeRemoveAction(action: chrome.declarativeNetRequest.RuleAction) {
+  if (action.type !== "modifyHeaders" || !action.responseHeaders) return action;
+  return {
+    type: action.type,
+    responseHeaders: action.responseHeaders
+      .map(({ header }) => ({
+        header: header.toLowerCase(),
+        operation: "remove" as chrome.declarativeNetRequest.HeaderOperation,
+      }))
+      .sort((left, right) => left.header.localeCompare(right.header)),
+  };
+}
+
+function isPureResponseHeaderRemoval(candidate: CompiledCandidate): boolean {
+  if (candidate.sourceActionType !== "removeResponseHeaders" || candidate.action.type !== "modifyHeaders") {
+    return false;
+  }
+  const responseHeaders = candidate.action.responseHeaders;
+  return (
+    responseHeaders !== undefined &&
+    responseHeaders.length > 0 &&
+    responseHeaders.every((header) => header.operation === "remove")
+  );
+}
+
+function getMergeSignature(candidate: CompiledCandidate): string | undefined {
+  if (!isPureResponseHeaderRemoval(candidate) || !candidate.condition.requestDomains?.length) return undefined;
+  const { requestDomains: _requestDomains, ...conditionWithoutDomains } = candidate.condition;
+  return stableSerialize({
+    action: canonicalizeRemoveAction(candidate.action),
+    condition: conditionWithoutDomains,
+  });
+}
+
+function minimizeRequestDomains(domains: string[]): string[] {
+  const normalized = [...new Set(domains.map((domain) => normalizeRuleDomain(domain)))].sort();
+  return normalized.filter(
+    (domain) =>
+      !normalized.some(
+        (parent) =>
+          parent !== domain && !isIpLikeDomain(domain) && !isIpLikeDomain(parent) && domain.endsWith(`.${parent}`)
+      )
+  );
+}
+
+function isIpLikeDomain(domain: string): boolean {
+  return domain.startsWith("[") || domain.split(".").every((label) => /^\d+$/.test(label));
+}
+
+function compactRun(run: CompiledCandidate[]): CompiledCandidate[] {
+  if (run.length < 2) return run;
+  const first = run[0];
+  const domains = minimizeRequestDomains(run.flatMap((candidate) => candidate.condition.requestDomains ?? []));
+  const action = canonicalizeRemoveAction(first.action);
+  const compacted: CompiledCandidate[] = [];
+  for (let start = 0; start < domains.length; start += MAX_RULE_DOMAINS) {
+    compacted.push({
+      ...first,
+      action,
+      condition: {
+        ...first.condition,
+        requestDomains: domains.slice(start, start + MAX_RULE_DOMAINS),
+      },
+    });
+  }
+  return compacted;
+}
+
+function compactEligibleRuns(candidates: CompiledCandidate[]): CompiledCandidate[] {
+  const compacted: CompiledCandidate[] = [];
+  let run: CompiledCandidate[] = [];
+  let signature: string | undefined;
+
+  const flush = () => {
+    compacted.push(...compactRun(run));
+    run = [];
+    signature = undefined;
+  };
+
+  for (const candidate of candidates) {
+    const candidateSignature = getMergeSignature(candidate);
+    if (candidateSignature === undefined) {
+      flush();
+      compacted.push(candidate);
+      continue;
+    }
+    if (signature !== candidateSignature) flush();
+    signature = candidateSignature;
+    run.push(candidate);
+  }
+  flush();
+  return compacted;
+}
 
 function compileCondition(condition: NetworkRuleCondition): chrome.declarativeNetRequest.RuleCondition {
   const compiled: chrome.declarativeNetRequest.RuleCondition = {};
@@ -65,25 +202,34 @@ function compileAction(action: NetworkRuleAction): chrome.declarativeNetRequest.
   }
 }
 
-/**
- * 一条用户规则编译成一条 DNR 规则：ID 按位次从保留段顺序分配，priority 由位次倒序映射，
- * 因此列表第一行拿到最高优先级，且用户段整体严格低于 INTERNAL_DNR_PRIORITY。
- */
-export function compileNetworkRules(state: NetworkRuleState): chrome.declarativeNetRequest.Rule[] {
-  if (!state.masterEnabled) return [];
+function compileLogicalCandidates(state: NetworkRuleState): CompiledCandidate[] {
   const byId = new Map<string, NetworkRule>(state.rules.map((rule) => [rule.id, rule]));
-  const compiled: chrome.declarativeNetRequest.Rule[] = [];
+  const candidates: CompiledCandidate[] = [];
   state.order.forEach((ruleId, index) => {
     const rule = byId.get(ruleId);
     if (!rule?.enabled) return;
-    compiled.push({
-      id: USER_RULE_ID_MIN + compiled.length,
+    candidates.push({
       priority: state.order.length - index,
+      sourceActionType: rule.action.type,
       action: compileAction(rule.action),
       condition: compileCondition(rule.condition),
     });
   });
-  return compiled;
+  return candidates;
+}
+
+/**
+ * 编译保留用户规则的 priority 顺序，再只压缩 active priority sequence 中连续的纯响应头移除规则。
+ * 物理 ID 按压缩后的顺序从保留段分配，因此 user-facing logical rule state 完全不变。
+ */
+export function compileNetworkRules(state: NetworkRuleState): chrome.declarativeNetRequest.Rule[] {
+  if (!state.masterEnabled) return [];
+  return compactEligibleRuns(compileLogicalCandidates(state)).map((candidate, index) => ({
+    id: USER_RULE_ID_MIN + index,
+    priority: candidate.priority,
+    action: candidate.action,
+    condition: candidate.condition,
+  }));
 }
 
 export interface NetworkRuleApplier {
