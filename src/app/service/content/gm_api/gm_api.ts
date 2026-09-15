@@ -1558,7 +1558,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public GM_getResourceText(name: string): string | undefined {
-    const r = this.scriptRes?.resource?.[name];
+    const r = (this.scriptRes?.resourceByType?.resource ?? this.scriptRes?.resource)?.[name];
     if (r) {
       return r.content;
     }
@@ -1576,7 +1576,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public GM_getResourceURL(name: string, isBlobUrl?: boolean): string | undefined {
-    const r = this.scriptRes?.resource?.[name];
+    const r = (this.scriptRes?.resourceByType?.resource ?? this.scriptRes?.resource)?.[name];
     if (r) {
       let base64 = r.base64;
       if (!base64) {
@@ -1589,6 +1589,14 @@ export default class GMApi extends GM_Base {
       return base64;
     }
     return undefined;
+  }
+
+  @GMContext.API({ depend: ["GM_getResourceURL"] })
+  public "GM.getResourceURL"(name: string, isBlobUrl?: boolean): Promise<string | undefined> {
+    return new Promise((resolve) => {
+      const ret = this.GM_getResourceURL(name, isBlobUrl);
+      resolve(ret);
+    });
   }
 
   // GM_getResourceURL的异步版本，用来兼容GM.getResourceUrl

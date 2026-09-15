@@ -90,6 +90,9 @@ detail matters:
 - `scriptcat/no-raw-color-classname` (`src/pages/**/*.tsx`) — bans raw palette/hex colors in `className`
   (`bg-white`, `text-gray-500`, `dark:bg-gray-800`, `bg-[#fff]`); use design tokens (`bg-background`/
   `text-foreground`/…) so light & dark both work.
+- `scriptcat/no-test-large-boundary-fixture` (`src/pages/**/*.test.{ts,tsx}`) — requires a line-level rationale for
+  explicit `PAGE_SIZE + 1`/`PAGE_ROWS + 1`-style `Array.from({ length: ... })` fixtures, so pagination and filtering
+  tests keep their boundary explicit; render cost remains a semantic test-review concern.
 
 Three conventions are enforced via built-in rules in `eslint.config.mjs`: `no-restricted-imports` bans
 `@radix-ui/react-*` single packages (use the merged `radix-ui`) and the `sonner` `toast` export (use `notify`);
@@ -97,9 +100,9 @@ Three conventions are enforced via built-in rules in `eslint.config.mjs`: `no-re
 file-scoped `no-restricted-imports` on `tests/vitest.setup.ts` bans `./utils` / `@App/app/service*` /
 `@App/pages/store*` so global test setup stays lightweight (as a per-file rule replacement it also drops the
 sonner/radix restriction there — the file imports neither).
-`eslint-rules/harness.test.mjs` covers exactly four of these: `no-i18n-default-value`, `no-raw-color-classname`,
-the `radix-ui` pattern of `no-restricted-imports`, and `no-restricted-syntax` — not `require-last-error-check`,
-not the `sonner` pattern of `no-restricted-imports`, and not the `tests/vitest.setup.ts` scope.
+`eslint-rules/harness.test.mjs` covers every custom rule except `require-last-error-check`, plus the Radix import
+pattern and the `forwardRef` restriction — not the `sonner` pattern of `no-restricted-imports`, the
+`tests/vitest.setup.ts` scope, or the type-aware rules.
 
 `src/pages/components/ui/toast.ts` turns `no-restricted-imports` **entirely off** (`eslint.config.mjs`), but
 only the `sonner` half of that is intentional: this is the one place in `src/pages/**` allowed to import
