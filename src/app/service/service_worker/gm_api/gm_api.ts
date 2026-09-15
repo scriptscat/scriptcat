@@ -512,7 +512,7 @@ export default class GMApi {
       this.warnedFirstPartyDomainScriptUuids.add(request.script.uuid);
       this.logger.warn(
         isFirefox()
-          ? "GM_cookie firstPartyDomain is Firefox-specific and may behave differently in other browsers."
+          ? "GM_cookie firstPartyDomain is supported by Firefox and will be passed to the Firefox cookies API; other browsers may behave differently."
           : "GM_cookie firstPartyDomain is only supported by Firefox and is ignored in this browser.",
         { uuid: request.uuid, name: request.script.name, component: "GM_cookie" }
       );
