@@ -1022,7 +1022,7 @@ export default class GMApi extends GM_Base {
     // browser 与 native 两条路径最终都经由后台 GM_download 回传同一组消息（onload/save_cancelled/
     // onerror），此处共用同一份处理逻辑；releaseResources 仅 native 路径需要，browser 路径不传。
     const handleDownloadMessage = (data: { action?: string; data?: any }, releaseResources?: () => void) => {
-      if (terminal) return;
+      if (terminal || aborted) return;
       switch (data.action) {
         case "onload":
         case "save_cancelled": // saveAs cancelled by user，TM 视为下载成功
@@ -1223,17 +1223,34 @@ export default class GMApi extends GM_Base {
             }
 
             connect = con;
-            connect.onMessage((data) => handleDownloadMessage(data, releaseResources));
+            try {
+              connect.onMessage((data) => handleDownloadMessage(data, releaseResources));
 
-            // 后台主动断连（例如 SW 重启、扩展更新）也释放 URL，避免长尾泄漏。
-            // releaseResources 通过 released 标志位幂等，与 onMessage 内部的释放调用顺序无关。
-            connect.onDisconnect(() => {
-              if (aborted) {
-                releaseResources();
-                return;
+              // 后台主动断连（例如 SW 重启、扩展更新）也释放 URL，避免长尾泄漏。
+              // releaseResources 通过 released 标志位幂等，与 onMessage 内部的释放调用顺序无关。
+              connect.onDisconnect(() => {
+                if (aborted) {
+                  releaseResources();
+                  return;
+                }
+                handleDownloadMessage({ action: "onerror" }, releaseResources);
+              });
+            } catch (e) {
+              releaseResources();
+              try {
+                con.disconnect(true);
+              } catch {
+                // 连接已经断开时无需重复处理。
               }
-              handleDownloadMessage({ action: "onerror" }, releaseResources);
-            });
+              if (!aborted) {
+                terminal = true;
+                withLoadEnd(
+                  () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
+                  { error: "unknown" },
+                  () => retPromiseReject?.(e instanceof Error ? e : new Error("GM_download connect ERROR"))
+                );
+              }
+            }
           },
           onload: () => {
             // details.onload?.(makeCallbackParam({}))
@@ -1309,7 +1326,15 @@ export default class GMApi extends GM_Base {
         nativeAbort = abort;
       }
     };
-    handle().catch(console.error);
+    handle().catch((error: unknown) => {
+      if (terminal || aborted) return;
+      terminal = true;
+      withLoadEnd(
+        () => details.onerror?.(makeCallbackParam({ error: "unknown" }) as GMTypes.DownloadError),
+        { error: "unknown" },
+        () => retPromiseReject?.(error instanceof Error ? error : new Error("GM_download ERROR"))
+      );
+    });
 
     return {
       retPromise,

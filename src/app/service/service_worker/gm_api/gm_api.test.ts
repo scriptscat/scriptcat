@@ -9,7 +9,7 @@ import GMApi, {
 } from "./gm_api";
 import { PermissionVerifyApiGet, type ConfirmParam } from "../permission_verify";
 import type { GMApiRequest } from "../types";
-import { detachDownloadCallback, startDownload } from "../download";
+import { detachDownloadCallback, startDownload, type DownloadCallback } from "../download";
 // 触发所有 GM API 装饰器注册（与 gm_api.ts 中的 import 保持同步）
 import "./gm_api";
 
@@ -352,6 +352,7 @@ describe.concurrent("native GM_download 的 @connect 校验（verifyXhrConnect �
 describe("browser GM_download 的连接竞态", () => {
   it("后台连接在 startDownload 返回 ID 前断开时，应取消迟到的浏览器下载", async () => {
     let disconnectHandler: (() => void) | undefined;
+    let downloadCallback: ((o: DownloadCallback) => any) | undefined;
     const conn = {
       onDisconnect(handler: () => void) {
         disconnectHandler = handler;
@@ -368,7 +369,8 @@ describe("browser GM_download 的连接竞态", () => {
     } as unknown as IGetSender;
     const request = makeReq({ url: "blob:https://scriptcat.test/late", downloadMode: "browser" });
     const cancel = vi.spyOn(chrome.downloads, "cancel");
-    vi.mocked(startDownload).mockImplementationOnce(async () => {
+    vi.mocked(startDownload).mockImplementationOnce(async (_options, callback) => {
+      downloadCallback = callback ?? undefined;
       disconnectHandler?.();
       return 42;
     });
@@ -377,6 +379,8 @@ describe("browser GM_download 的连接竞态", () => {
 
     expect(cancel).toHaveBeenCalledWith(42, expect.any(Function));
     expect(detachDownloadCallback).toHaveBeenCalledWith(42);
+    downloadCallback?.({ downloadId: 42, state: "complete", loaded: 1, total: 1 });
+    expect(conn.sendMessage).not.toHaveBeenCalled();
     cancel.mockRestore();
   });
 });
