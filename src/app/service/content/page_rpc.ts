@@ -35,7 +35,7 @@ const INTERNAL_APIS_BY_GRANT: Readonly<Record<string, readonly string[]>> = {
   CAT_fileStorage: ["CAT_fetchBlob", "CAT_createBlobUrl"],
   GM_xmlhttpRequest: ["CAT_createBlobUrl", "CAT_fetchBlob", "CAT_fetchDocument"],
   "GM.xmlhttpRequest": ["CAT_createBlobUrl", "CAT_fetchBlob", "CAT_fetchDocument"],
-  "GM.xmlHttpRequest": ["CAT_createBlobUrl", "CAT_fetchBlob", "CAT_fetchDocument"],
+  "GM.xmlHttpRequest": ["GM_xmlhttpRequest", "CAT_createBlobUrl", "CAT_fetchBlob", "CAT_fetchDocument"],
 };
 
 // ScriptingRuntime does not load the GM implementation module, so mirror its small dependency graph here.

@@ -24,6 +24,12 @@ describe("page GM RPC", () => {
     expect(allowed).toEqual(expect.arrayContaining(["GM.openInTab", "GM_openInTab", "GM_closeInTab"]));
   });
 
+  it("allows the internal request name used by the GM.xmlHttpRequest wrapper", () => {
+    const allowed = getPageRpcAllowedAPIs(["GM.xmlHttpRequest"]);
+
+    expect(allowed).toContain("GM_xmlhttpRequest");
+  });
+
   it("accepts a request for the active execution binding and clones parameters", () => {
     const registry = new PageRpcRegistry();
     const handle = registry.register("script-a", "it", ["GM_getValue"], undefined, "canonical-run");
