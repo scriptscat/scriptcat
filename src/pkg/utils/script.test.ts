@@ -739,11 +739,11 @@ console.log(1);
 
   it("逐条给出指令名、取值与 1 起算的全文行号", () => {
     expect(parseMetadataLines(code)).toEqual([
-      { tag: "name", value: "示例", line: 3 },
-      { tag: "namespace", value: "https://example.com", line: 4 },
-      { tag: "match", value: "*://example.com/*", line: 5 },
-      { tag: "exclude-match", value: "*://live.example.com/*", line: 6 },
-      { tag: "grant", value: "GM_setValue", line: 7 },
+      { tag: "name", name: "name", value: "示例", line: 3 },
+      { tag: "namespace", name: "namespace", value: "https://example.com", line: 4 },
+      { tag: "match", name: "match", value: "*://example.com/*", line: 5 },
+      { tag: "exclude-match", name: "exclude-match", value: "*://live.example.com/*", line: 6 },
+      { tag: "grant", name: "grant", value: "GM_setValue", line: 7 },
     ]);
   });
 
@@ -753,6 +753,8 @@ console.log(1);
 // @MATCH *://a.com/*
 // ==/UserScript==`);
     expect(lines.map((l) => l.tag)).toEqual(["name", "match"]);
+    // 呈现给用户时要用作者的原始写法
+    expect(lines.map((l) => l.name)).toEqual(["Name", "MATCH"]);
   });
 
   it("同名指令重复出现时逐条保留，不合并", () => {
@@ -775,7 +777,7 @@ console.log(1);
 // ==UserScript==
 // @name Y
 // ==/UserScript==`);
-    expect(lines).toEqual([{ tag: "name", value: "X", line: 2 }]);
+    expect(lines).toEqual([{ tag: "name", name: "name", value: "X", line: 2 }]);
   });
 
   it("区块未闭合时不产出任何指令——与 parseMetadata 一致", () => {

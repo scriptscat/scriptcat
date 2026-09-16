@@ -24,6 +24,8 @@ const META_LINE = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/gm;
 export interface MetadataLine {
   /** 小写归一后的指令名，与 parseMetadata 的取键一致 */
   tag: string;
+  /** 作者的原始写法，仅供呈现 */
+  name: string;
   value: string;
   /** 1 起算的全文行号 */
   line: number;
@@ -56,7 +58,7 @@ export function parseMetadataLines(code: string): MetadataLine[] {
       if (code.charCodeAt(i) === 10) line += 1;
     }
     scanned = absolute;
-    lines.push({ tag: m[1].toLowerCase(), value: m[2]?.trim() ?? "", line });
+    lines.push({ tag: m[1].toLowerCase(), name: m[1], value: m[2]?.trim() ?? "", line });
   }
   return lines;
 }

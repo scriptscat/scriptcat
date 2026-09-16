@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Globe, ArrowLeftRight, ChevronDown, KeyRound, Package, TriangleAlert, type LucideIcon } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { isScriptCatOnlyGrant } from "@App/pkg/utils/script_compat";
-import type { CompatView } from "../compat";
+import { tagsForGroup, type CompatView } from "../compat";
+import { catApiDocHref, metadataDocHref } from "../compat_docs";
 import { CompatChip, ScriptCatOnlyBadge } from "./CompatChip";
 import {
   isPermissionChanged,
@@ -81,7 +82,7 @@ function Chip({ value, row, change }: { value: string; row: PermissionRowData; c
       {isSensitive && change !== "removed" && <TriangleAlert className="size-3 shrink-0" />}
       {change && <span className="sr-only">{t(CHANGE_LABEL_KEY[change])}</span>}
       <span className="min-w-0 break-all">{value}</span>
-      {isScriptCatOnly && <ScriptCatOnlyBadge />}
+      {isScriptCatOnly && <ScriptCatOnlyBadge docHref={catApiDocHref(value)} />}
     </span>
   );
 }
@@ -116,14 +117,41 @@ export function PermissionChips({
   const { t } = useTranslation(["install", "common"]);
   const [expanded, setExpanded] = useState(false);
 
-  // 不受支持的 @grant 就地换成不生效标记；已被移除的取值不标——它已经不在新版本里了
+  // 不受支持的 @grant、解析不出规则的 @match 就地换成不生效标记；已被移除的取值不标——它已经不在新版本里了
   const renderChip = (value: string, change?: ChangeState) => {
-    const line = row.kind === "grant" && change !== "removed" ? compat?.marks.grants.get(value) : undefined;
-    if (row.kind === "grant" && change !== "removed" && compat?.marks.grants.has(value)) {
-      return <CompatChip key={value} label={value} kind="grant" line={line} onJump={compat.onJump} />;
+    if (compat && change !== "removed") {
+      if (row.kind === "grant" && compat.marks.grants.has(value)) {
+        return (
+          <CompatChip
+            key={value}
+            label={value}
+            kind="grant"
+            line={compat.marks.grants.get(value)}
+            onJump={compat.onJump}
+          />
+        );
+      }
+      if (row.kind === "match" && compat.marks.matches.has(value)) {
+        return (
+          <CompatChip
+            key={value}
+            label={value}
+            kind="value"
+            line={compat.marks.matches.get(value)}
+            onJump={compat.onJump}
+            docHref={metadataDocHref("match")}
+          />
+        );
+      }
     }
     return <Chip key={change ? `${change}:${value}` : value} value={value} row={row} change={change} />;
   };
+
+  // 权限卡里没有对应 chip 的不生效指令，追加到它本该影响的这一行
+  const appended = compat && row.kind === "match" ? tagsForGroup(compat.marks, "match") : [];
+  const appendedChips = appended.map((tag) => (
+    <CompatChip key={tag.tag} label={`@${tag.tag}`} kind="metadata" line={tag.line} onJump={compat?.onJump} />
+  ));
 
   if (!row.diff) {
     const visible = expanded ? row.values : row.values.slice(0, maxVisible);
@@ -132,6 +160,7 @@ export function PermissionChips({
       <div className="flex flex-wrap gap-1.5">
         {visible.map((v) => renderChip(v))}
         {hidden > 0 && <MoreButton label={`+${hidden}`} onClick={() => setExpanded(true)} />}
+        {appendedChips}
       </div>
     );
   }
@@ -156,6 +185,7 @@ export function PermissionChips({
           onClick={() => setExpanded(true)}
         />
       )}
+      {appendedChips}
     </div>
   );
 }

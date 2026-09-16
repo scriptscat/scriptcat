@@ -1,8 +1,6 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Ban, ExternalLink } from "lucide-react";
-import { DocumentationSite } from "@App/app/const";
-import { localePath } from "@App/locales/locales";
 import { Popover, PopoverAnchor, PopoverContent } from "@App/pages/components/ui/popover";
 import { useHoverMenu } from "@App/pages/components/ui/use-hover-menu";
 
@@ -11,12 +9,6 @@ export type CompatChipKind = "metadata" | "value" | "grant";
 // 同一时刻只开一枚浮层：标记 chip 常常并排，浮层有 288px 宽，两枚同时开会互相盖住。
 // 悬停切换时旧浮层要等关闭延迟才收，靠这里立刻收掉。
 let closeActivePopover: (() => void) | null = null;
-
-const DOC_PATH: Record<CompatChipKind, string> = {
-  metadata: "/docs/dev/meta",
-  value: "/docs/dev/meta",
-  grant: "/docs/dev/api",
-};
 
 const DESC_KEY: Record<CompatChipKind, string> = {
   metadata: "install:compat_tag_desc",
@@ -34,11 +26,14 @@ export function CompatChip({
   kind,
   line,
   onJump,
+  docHref,
 }: {
   label: string;
   kind: CompatChipKind;
   line?: number;
   onJump?: (line: number) => void;
+  /** 文档里有对应说明时才传（见 compat_docs.ts） */
+  docHref?: string;
 }) {
   const { t } = useTranslation(["install", "common"]);
   // 浮层里有文档链接，必须把浮层本体也纳入悬停范围：只盯 chip 的话鼠标一移向链接浮层就关了
@@ -90,17 +85,19 @@ export function CompatChip({
               {t("install:compat_jump", { line })}
             </span>
           )}
-          <a
-            data-testid="compat-docs"
-            href={`${DocumentationSite}${localePath}${DOC_PATH[kind]}`}
-            target="_blank"
-            rel="noreferrer"
-            onClick={close}
-            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary"
-          >
-            {t("install:compat_docs")}
-            <ExternalLink className="size-3" aria-hidden="true" />
-          </a>
+          {docHref && (
+            <a
+              data-testid="compat-docs"
+              href={docHref}
+              target="_blank"
+              rel="noreferrer"
+              onClick={close}
+              className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary"
+            >
+              {t("install:compat_docs")}
+              <ExternalLink className="size-3" aria-hidden="true" />
+            </a>
+          )}
         </div>
       </PopoverContent>
     </Popover>
@@ -108,14 +105,26 @@ export function CompatChip({
 }
 
 /** 在脚本猫里生效、换到别的脚本管理器就不生效的指令或 API */
-export function ScriptCatOnlyBadge() {
+export function ScriptCatOnlyBadge({ docHref }: { docHref?: string }) {
   const { t } = useTranslation(["install", "common"]);
+  const className = "shrink-0 rounded bg-primary-light px-1 font-sans text-[10px] font-medium text-primary";
+  if (!docHref) {
+    return (
+      <span data-testid="scriptcat-only" className={className}>
+        {t("install:compat_scriptcat_only")}
+      </span>
+    );
+  }
   return (
-    <span
+    <a
       data-testid="scriptcat-only"
-      className="shrink-0 rounded bg-primary-light px-1 font-sans text-[10px] font-medium text-primary"
+      href={docHref}
+      target="_blank"
+      rel="noreferrer"
+      title={t("install:compat_docs")}
+      className={`${className} hover:underline`}
     >
       {t("install:compat_scriptcat_only")}
-    </span>
+    </a>
   );
 }

@@ -52,7 +52,14 @@ describe("CompatChip 不生效标记", () => {
   it("鼠标从 chip 移到浮层上不会关闭——否则浮层里的文档链接永远点不到", async () => {
     vi.useFakeTimers();
     try {
-      render(<CompatChip label="@sandbox" kind="metadata" line={3} />);
+      render(
+        <CompatChip
+          label="@run-at document-weird"
+          kind="value"
+          line={3}
+          docHref="https://docs.scriptcat.org/docs/dev/meta#run-at"
+        />
+      );
       fireEvent.mouseEnter(screen.getByTestId("compat-chip"));
       const popover = screen.getByTestId("compat-popover");
       fireEvent.mouseEnter(popover);
@@ -97,14 +104,24 @@ describe("CompatChip 不生效标记", () => {
     expect(screen.queryByText(/跳到第/)).not.toBeInTheDocument();
   });
 
-  it("浮层提供兼容性文档链接,元数据与 GM 能力各自指向对应文档页", () => {
-    const { unmount } = render(<CompatChip label="@sandbox" kind="metadata" />);
+  it("给了文档地址时浮层链过去，文案说明是描述文档", () => {
+    render(
+      <CompatChip
+        label="@run-at document-weird"
+        kind="value"
+        docHref="https://docs.scriptcat.org/docs/dev/meta#run-at"
+      />
+    );
     fireEvent.mouseEnter(screen.getByTestId("compat-chip"));
-    expect(screen.getByTestId("compat-docs")).toHaveAttribute("href", expect.stringContaining("/docs/dev/meta"));
-    unmount();
+    const link = screen.getByTestId("compat-docs");
+    expect(link).toHaveAttribute("href", "https://docs.scriptcat.org/docs/dev/meta#run-at");
+    expect(link).toHaveTextContent("描述文档");
+  });
+
+  it("文档里没有对应说明时不给链接", () => {
     render(<CompatChip label="GM_audio" kind="grant" />);
     fireEvent.mouseEnter(screen.getByTestId("compat-chip"));
-    expect(screen.getByTestId("compat-docs")).toHaveAttribute("href", expect.stringContaining("/docs/dev/api"));
+    expect(screen.queryByTestId("compat-docs")).not.toBeInTheDocument();
   });
 });
 

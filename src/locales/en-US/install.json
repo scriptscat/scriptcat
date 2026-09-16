@@ -260,7 +260,7 @@
   "compat_value_desc": "ScriptCat does not support this value; the declaration won't take effect as written.",
   "compat_grant_desc": "ScriptCat has not implemented this API; calls to it fail and features relying on it won't work.",
   "compat_jump": "Go to line {{line}}",
-  "compat_docs": "Compatibility docs",
+  "compat_docs": "Metadata docs",
   "compat_count": "{{count}} with no effect",
   "compat_scriptcat_only": "ScriptCat only",
   "perm_other_label": "Other declarations",

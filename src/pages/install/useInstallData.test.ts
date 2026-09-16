@@ -132,7 +132,7 @@ describe("assembleInstallView 组装安装视图", () => {
       oldVersion: null,
     });
     expect(view.compat.grants).toEqual(new Map([["GM_audio", 4]]));
-    expect(view.compat.tags).toEqual([{ tag: "exclude-match", line: 3 }]);
+    expect(view.compat.tags).toEqual([{ tag: "exclude-match", group: "match", line: 3 }]);
     expect(view.compat.scriptcatOnlyTags).toEqual([]);
   });
 

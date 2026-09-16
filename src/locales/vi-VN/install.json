@@ -260,7 +260,7 @@
   "compat_value_desc": "ScriptCat không hỗ trợ giá trị này; khai báo sẽ không có hiệu lực như đã viết.",
   "compat_grant_desc": "ScriptCat chưa triển khai API này; script gọi đến sẽ báo lỗi và các tính năng phụ thuộc vào nó sẽ không hoạt động.",
   "compat_jump": "Đến dòng {{line}}",
-  "compat_docs": "Tài liệu tương thích",
+  "compat_docs": "Tài liệu metadata",
   "compat_count": "{{count}} mục không có tác dụng",
   "compat_scriptcat_only": "Chỉ ScriptCat",
   "perm_other_label": "Khai báo khác",

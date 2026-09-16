@@ -260,7 +260,7 @@
   "compat_value_desc": "ScriptCat はこの値に対応していないため、宣言は記述どおりには機能しません。",
   "compat_grant_desc": "ScriptCat はこの API を実装していないため、スクリプトから呼び出すとエラーになり、これに依存する機能は動作しません。",
   "compat_jump": "{{line}} 行目へ移動",
-  "compat_docs": "互換性ドキュメント",
+  "compat_docs": "メタデータのドキュメント",
   "compat_count": "無効な項目 {{count}} 件",
   "compat_scriptcat_only": "ScriptCat 専用",
   "perm_other_label": "その他の宣言",

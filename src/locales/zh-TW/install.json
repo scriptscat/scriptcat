@@ -260,7 +260,7 @@
   "compat_value_desc": "腳本貓不支援此取值，這項宣告不會照寫法生效。",
   "compat_grant_desc": "腳本貓尚未實作此 API，腳本呼叫時會出錯，依賴它的功能無法使用。",
   "compat_jump": "跳至第 {{line}} 行",
-  "compat_docs": "相容性文件",
+  "compat_docs": "描述文件",
   "compat_count": "{{count}} 項不生效",
   "compat_scriptcat_only": "僅限腳本貓",
   "perm_other_label": "其他宣告",

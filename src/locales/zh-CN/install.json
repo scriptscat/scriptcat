@@ -260,7 +260,7 @@
   "compat_value_desc": "脚本猫不支持这个取值，该声明不会按写法生效。",
   "compat_grant_desc": "脚本猫未实现该 API，脚本调用时会报错，依赖它的功能不可用。",
   "compat_jump": "跳到第 {{line}} 行",
-  "compat_docs": "兼容性文档",
+  "compat_docs": "描述文档",
   "compat_count": "{{count}} 项不生效",
   "compat_scriptcat_only": "仅限脚本猫",
   "perm_other_label": "其他声明",

@@ -260,7 +260,7 @@
   "compat_value_desc": "ScriptCat unterstützt diesen Wert nicht; die Deklaration wirkt nicht wie angegeben.",
   "compat_grant_desc": "ScriptCat implementiert diese API nicht; Aufrufe schlagen fehl und darauf aufbauende Funktionen arbeiten nicht.",
   "compat_jump": "Zu Zeile {{line}} springen",
-  "compat_docs": "Kompatibilitätsdokumentation",
+  "compat_docs": "Metadaten-Dokumentation",
   "compat_count": "{{count}} ohne Wirkung",
   "compat_scriptcat_only": "nur ScriptCat",
   "perm_other_label": "Weitere Deklarationen",

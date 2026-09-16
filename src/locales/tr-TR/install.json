@@ -260,7 +260,7 @@
   "compat_value_desc": "ScriptCat bu değeri desteklemiyor; bildirim yazıldığı gibi uygulanmaz.",
   "compat_grant_desc": "ScriptCat bu API'yi uygulamadı; betik çağırdığında hata verir ve buna dayanan özellikler çalışmaz.",
   "compat_jump": "{{line}}. satıra git",
-  "compat_docs": "Uyumluluk belgeleri",
+  "compat_docs": "Meta veri belgeleri",
   "compat_count": "{{count}} etkisiz",
   "compat_scriptcat_only": "Yalnızca ScriptCat",
   "perm_other_label": "Diğer bildirimler",

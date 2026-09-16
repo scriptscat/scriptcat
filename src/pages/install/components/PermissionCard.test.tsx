@@ -210,14 +210,19 @@ describe("PermissionCard 上的不生效标记", () => {
       <PermissionCard
         rows={rows}
         compat={{
-          marks: { grants: new Map([["GM_audio", 9]]), tags: [{ tag: "sandbox", line: 3 }], scriptcatOnlyTags: [] },
+          marks: {
+            grants: new Map([["GM_audio", 9]]),
+            tags: [{ tag: "sandbox", group: "other", line: 3 }],
+            matches: new Map(),
+            scriptcatOnlyTags: [],
+          },
         }}
       />
     );
     expect(screen.getByText("2 项不生效")).toBeInTheDocument();
   });
 
-  it("不生效的指令统一落在其他声明行,不按指令名猜它属于哪个权限类别", () => {
+  it("归不到任何权限类别的指令单独成行,只在有内容时出现", () => {
     render(
       <PermissionCard
         rows={rows}
@@ -225,9 +230,10 @@ describe("PermissionCard 上的不生效标记", () => {
           marks: {
             grants: new Map(),
             tags: [
-              { tag: "exclude-match", line: 3 },
-              { tag: "sandbox", line: 4 },
+              { tag: "top-level-await", group: "other", line: 3 },
+              { tag: "sandbox", group: "other", line: 4 },
             ],
+            matches: new Map(),
             scriptcatOnlyTags: [],
           },
         }}
@@ -239,12 +245,17 @@ describe("PermissionCard 上的不生效标记", () => {
       within(row)
         .getAllByTestId("compat-chip")
         .map((chip) => chip.textContent)
-    ).toEqual(["@exclude-match", "@sandbox"]);
+    ).toEqual(["@top-level-await", "@sandbox"]);
     expect(screen.getAllByTestId("compat-chip")).toHaveLength(2);
   });
 
   it("没有不生效项时既无徽章也无其他声明行——全兼容的安装页一字不改", () => {
-    render(<PermissionCard rows={rows} compat={{ marks: { grants: new Map(), tags: [], scriptcatOnlyTags: [] } }} />);
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{ marks: { grants: new Map(), tags: [], matches: new Map(), scriptcatOnlyTags: [] } }}
+      />
+    );
     expect(screen.queryByTestId("permission-row-other")).not.toBeInTheDocument();
     expect(screen.queryByText(/项不生效/)).not.toBeInTheDocument();
   });
@@ -260,7 +271,8 @@ describe("PermissionCard 其他声明行的取值与脚本猫独有指令", () =
         compat={{
           marks: {
             grants: new Map(),
-            tags: [{ tag: "run-at", value: "document-weird", line: 3 }],
+            tags: [{ tag: "run-at", value: "document-weird", group: "other", line: 3 }],
+            matches: new Map(),
             scriptcatOnlyTags: [],
           },
         }}
@@ -271,11 +283,67 @@ describe("PermissionCard 其他声明行的取值与脚本猫独有指令", () =
     );
   });
 
+  it("取值类标记的浮层链到文档里该指令的小节，不支持的指令本身不给链接", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{
+          marks: {
+            grants: new Map(),
+            matches: new Map(),
+            tags: [
+              { tag: "run-at", value: "document-weird", group: "other", line: 3 },
+              { tag: "sandbox", group: "other", line: 4 },
+            ],
+            scriptcatOnlyTags: [],
+          },
+        }}
+      />
+    );
+    const [value, unsupported] = within(screen.getByTestId("permission-row-other")).getAllByTestId("compat-chip");
+    fireEvent.mouseEnter(value);
+    expect(screen.getByTestId("compat-docs")).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/docs\/dev\/meta#run-at$/)
+    );
+    expect(screen.getByTestId("compat-docs")).toHaveTextContent("描述文档");
+    fireEvent.mouseEnter(unsupported);
+    expect(screen.queryByTestId("compat-docs")).not.toBeInTheDocument();
+  });
+
+  it("脚本猫独有的指令标签链到文档对应小节", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{
+          marks: {
+            grants: new Map(),
+            matches: new Map(),
+            tags: [],
+            scriptcatOnlyTags: [{ tag: "storageName", line: 4 }],
+          },
+        }}
+      />
+    );
+    expect(screen.getByText("@storageName")).toBeInTheDocument();
+    expect(screen.getByTestId("scriptcat-only")).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/docs\/dev\/meta#storagename-$/)
+    );
+  });
+
   it("脚本猫独有的指令带仅限脚本猫标签，不算进不生效计数", () => {
     render(
       <PermissionCard
         rows={rows}
-        compat={{ marks: { grants: new Map(), tags: [], scriptcatOnlyTags: [{ tag: "early-start", line: 4 }] } }}
+        compat={{
+          marks: {
+            grants: new Map(),
+            tags: [],
+            matches: new Map(),
+            scriptcatOnlyTags: [{ tag: "early-start", line: 4 }],
+          },
+        }}
       />
     );
     const row = screen.getByTestId("permission-row-other");
@@ -296,7 +364,7 @@ describe("不生效标记与折叠形态的关系", () => {
       <PermissionCard
         rows={rows}
         baselineVersion="1.0.0"
-        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [], scriptcatOnlyTags: [] } }}
+        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [], matches: new Map(), scriptcatOnlyTags: [] } }}
       />
     );
     expect(screen.queryByTestId("permission-card-collapsed")).not.toBeInTheDocument();
@@ -308,7 +376,7 @@ describe("不生效标记与折叠形态的关系", () => {
       <PermissionCard
         rows={rows}
         baselineVersion="1.0.0"
-        compat={{ marks: { grants: new Map(), tags: [], scriptcatOnlyTags: [] } }}
+        compat={{ marks: { grants: new Map(), tags: [], matches: new Map(), scriptcatOnlyTags: [] } }}
       />
     );
     expect(screen.getByTestId("permission-card-collapsed")).toBeInTheDocument();
@@ -324,7 +392,28 @@ describe("移动端的不生效标记", () => {
           { kind: "match", risk: "normal", values: ["*://a.com/*"], sensitive: [] },
           { kind: "grant", risk: "warn", values: ["GM_audio"], sensitive: [] },
         ]}
-        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [], scriptcatOnlyTags: [] } }}
+        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [], matches: new Map(), scriptcatOnlyTags: [] } }}
+      />
+    );
+    mobile = false;
+    expect(screen.getByTestId("compat-chip")).toBeVisible();
+  });
+});
+
+describe("移动端运行网站行的不生效标记", () => {
+  it("运行网站行挂了不生效标记时默认展开", () => {
+    mobile = true;
+    render(
+      <PermissionCard
+        rows={[{ kind: "match", risk: "normal", values: ["*://a.com/*"], sensitive: [] }]}
+        compat={{
+          marks: {
+            grants: new Map(),
+            matches: new Map(),
+            tags: [{ tag: "exclude-match", group: "match", line: 3 }],
+            scriptcatOnlyTags: [],
+          },
+        }}
       />
     );
     mobile = false;

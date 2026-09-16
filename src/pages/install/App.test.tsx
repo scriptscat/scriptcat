@@ -42,7 +42,7 @@ const readyView = (over: Partial<InstallView> = {}): InstallView => ({
   schedule: null,
   code: "// a\n// b",
   subscribeScripts: [],
-  compat: { grants: new Map(), tags: [], scriptcatOnlyTags: [] },
+  compat: { grants: new Map(), tags: [], matches: new Map(), scriptcatOnlyTags: [] },
   ...over,
 });
 
@@ -399,7 +399,7 @@ describe("安装页的不生效标记", () => {
         view: readyView({
           permissions: [{ kind: "grant", risk: "warn", values: ["GM_setValue", "GM_audio"], sensitive: [] }],
           code: "// ==UserScript==\n// @name X\n// @grant GM_audio\n// ==/UserScript==",
-          compat: { grants: new Map([["GM_audio", 3]]), tags: [], scriptcatOnlyTags: [] },
+          compat: { grants: new Map([["GM_audio", 3]]), tags: [], matches: new Map(), scriptcatOnlyTags: [] },
         }),
       },
     });

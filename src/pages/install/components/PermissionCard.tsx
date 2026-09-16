@@ -4,7 +4,8 @@ import { ChevronDown, FileCode2, ShieldCheck } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@App/pages/components/ui/accordion";
-import { compatMarkCount, type CompatView } from "../compat";
+import { compatMarkCount, tagsForGroup, type CompatView } from "../compat";
+import { metadataDocHref } from "../compat_docs";
 import { CompatChip, ScriptCatOnlyBadge } from "./CompatChip";
 import { isPermissionChanged, type PermissionRow as PermissionRowData } from "../permissions";
 import { PermissionRow, PermissionChips, PermissionDelta, NoChangeTag, KIND_META, RISK_STYLE } from "./PermissionRow";
@@ -14,8 +15,14 @@ function MobilePermissions({ rows, compat }: { rows: PermissionRowData[]; compat
   // 有变动时默认只展开有变动的类别;全新安装、以及用户主动点开的零变化整卡都退回只展开高风险项,
   // 否则零变化整卡展开后每一类都是收起的,「点开即得到全量清单」在移动端会落空。
   const hasChanged = rows.some(isPermissionChanged);
-  const isMarked = (row: PermissionRowData) =>
-    row.kind === "grant" && row.values.some((v) => compat?.marks.grants.has(v));
+  const isMarked = (row: PermissionRowData) => {
+    if (!compat) return false;
+    const { marks } = compat;
+    if (row.kind === "grant") return row.values.some((v) => marks.grants.has(v));
+    if (row.kind === "match")
+      return row.values.some((v) => marks.matches.has(v)) || tagsForGroup(marks, "match").length > 0;
+    return false;
+  };
   const defaultValue = rows
     .filter((r) => isMarked(r) || (hasChanged ? isPermissionChanged(r) : r.risk === "danger"))
     .map((r) => r.kind);
@@ -121,13 +128,14 @@ function CollapsedCard({
 }
 
 /**
- * 与别家脚本管理器行为不同的元数据声明：脚本猫不会执行的指令或取值(@exclude-match、@run-at document-weird)，
+ * 归不到任何权限类别、且与别家脚本管理器行为不同的元数据声明：脚本猫不会执行的指令或取值(@sandbox、@run-at document-weird)，
  * 以及只有脚本猫认的指令(@early-start、@background)。
  * 它们不是权限,但同样是「脚本写了、脚本猫不会执行」,与权限行同列才对得起读者的一次扫视。
  */
 function OtherDirectivesRow({ compat }: { compat: CompatView }) {
   const { t } = useTranslation(["install", "common"]);
-  const { tags, scriptcatOnlyTags } = compat.marks;
+  const { scriptcatOnlyTags } = compat.marks;
+  const tags = tagsForGroup(compat.marks, "other");
   if (!tags.length && !scriptcatOnlyTags.length) return null;
 
   return (
@@ -148,6 +156,7 @@ function OtherDirectivesRow({ compat }: { compat: CompatView }) {
               kind={tag.value === undefined ? "metadata" : "value"}
               line={tag.line}
               onJump={compat.onJump}
+              docHref={tag.value === undefined ? undefined : metadataDocHref(tag.tag)}
             />
           ))}
           {scriptcatOnlyTags.map((tag) => (
@@ -157,7 +166,7 @@ function OtherDirectivesRow({ compat }: { compat: CompatView }) {
               className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-xs text-fg-secondary"
             >
               <span className="min-w-0 break-all">{`@${tag.tag}`}</span>
-              <ScriptCatOnlyBadge />
+              <ScriptCatOnlyBadge docHref={metadataDocHref(tag.tag)} />
             </span>
           ))}
         </div>
@@ -211,7 +220,7 @@ export function PermissionCard({
         {compatCount > 0 && (
           <span
             data-testid="permission-card-compat"
-            className="rounded-full bg-warning-bg px-2 text-[11px] font-semibold text-warning-fg"
+            className="shrink-0 whitespace-nowrap rounded-full bg-warning-bg px-2 text-[11px] font-semibold text-warning-fg"
           >
             {t("install:compat_count", { count: compatCount })}
           </span>

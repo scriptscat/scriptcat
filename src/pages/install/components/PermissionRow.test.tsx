@@ -152,8 +152,14 @@ describe("PermissionRow 零变动行的取值折叠", () => {
 });
 
 describe("PermissionRow 上的不生效标记", () => {
-  const compat = (over: Partial<{ grants: Map<string, number | undefined>; tags: IneffectiveTag[] }> = {}) => ({
-    marks: { grants: new Map(), tags: [], scriptcatOnlyTags: [], ...over },
+  const compat = (
+    over: Partial<{
+      grants: Map<string, number | undefined>;
+      matches: Map<string, number | undefined>;
+      tags: IneffectiveTag[];
+    }> = {}
+  ) => ({
+    marks: { grants: new Map(), tags: [], matches: new Map(), scriptcatOnlyTags: [], ...over },
   });
 
   it("不受支持的 GM 能力就地换成不生效标记，其余 chip 不变", () => {
@@ -170,14 +176,42 @@ describe("PermissionRow 上的不生效标记", () => {
     expect(screen.getByText("GM_setValue").closest('[data-testid="compat-chip"]')).toBeNull();
   });
 
-  it("不生效的元数据指令不挂到权限行上", () => {
+  it("不生效的匹配类指令追加到运行网站行——它本该影响的就是这一行", () => {
     render(
       <PermissionRow
         row={{ kind: "match", risk: "normal", values: ["*://a.com/*"], sensitive: [] }}
-        compat={compat({ tags: [{ tag: "exclude-match", line: 7 }] })}
+        compat={compat({ tags: [{ tag: "exclude-match", group: "match", line: 7 }] })}
+      />
+    );
+    expect(screen.getByTestId("compat-chip")).toHaveTextContent("@exclude-match");
+  });
+
+  it("其他类别的行不会被别的组的标记污染", () => {
+    render(
+      <PermissionRow
+        row={{ kind: "connect", risk: "warn", values: ["api.a.com"], sensitive: [] }}
+        compat={compat({ tags: [{ tag: "sandbox", group: "other", line: 3 }] })}
       />
     );
     expect(screen.queryByTestId("compat-chip")).not.toBeInTheDocument();
+  });
+
+  it("解析不出规则的 @match 取值就地换成不生效标记，并链到文档的 match 小节", () => {
+    render(
+      <PermissionRow
+        row={{ kind: "match", risk: "normal", values: ["*://a.com/*", "hello-world^^"], sensitive: [] }}
+        compat={compat({ matches: new Map([["hello-world^^", 4]]) })}
+      />
+    );
+    const marks = screen.getAllByTestId("compat-chip");
+    expect(marks).toHaveLength(1);
+    expect(marks[0]).toHaveTextContent("hello-world^^");
+    expect(screen.getAllByText("hello-world^^")).toHaveLength(1);
+    fireEvent.mouseEnter(marks[0]);
+    expect(screen.getByTestId("compat-docs")).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/docs\/dev\/meta#match$/)
+    );
   });
 
   it("更新态里被移除的能力不标记——它已经不在新版本里了", () => {
@@ -230,5 +264,20 @@ describe("PermissionRow 上的仅限脚本猫标记", () => {
       />
     );
     expect(screen.queryByTestId("scriptcat-only")).not.toBeInTheDocument();
+  });
+});
+
+describe("仅限脚本猫标签的文档链接", () => {
+  it("文档里有对应小节的 CAT 能力，标签链到该小节", () => {
+    render(<PermissionRow row={{ kind: "grant", risk: "warn", values: ["CAT_fileStorage"], sensitive: [] }} />);
+    expect(screen.getByTestId("scriptcat-only")).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/docs\/dev\/cat-api#cat_filestorage$/)
+    );
+  });
+
+  it("文档里没有说明的 CAT 能力只标不链——点过去找不到比不给链接更糟", () => {
+    render(<PermissionRow row={{ kind: "grant", risk: "warn", values: ["CAT_createBlobUrl"], sensitive: [] }} />);
+    expect(screen.getByTestId("scriptcat-only")).not.toHaveAttribute("href");
   });
 });
