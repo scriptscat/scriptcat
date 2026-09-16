@@ -4,7 +4,7 @@ import { ChevronDown, FileCode2, ShieldCheck } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@App/pages/components/ui/accordion";
-import { compatMarkCount, tagsForGroup, type CompatView } from "../compat";
+import { compatMarkCount, rowHasCompatMarks, tagsForGroup, type CompatView } from "../compat";
 import { metadataDocHref } from "../compat_docs";
 import { CompatChip, ScriptCatOnlyBadge } from "./CompatChip";
 import { isPermissionChanged, type PermissionRow as PermissionRowData } from "../permissions";
@@ -15,14 +15,7 @@ function MobilePermissions({ rows, compat }: { rows: PermissionRowData[]; compat
   // 有变动时默认只展开有变动的类别;全新安装、以及用户主动点开的零变化整卡都退回只展开高风险项,
   // 否则零变化整卡展开后每一类都是收起的,「点开即得到全量清单」在移动端会落空。
   const hasChanged = rows.some(isPermissionChanged);
-  const isMarked = (row: PermissionRowData) => {
-    if (!compat) return false;
-    const { marks } = compat;
-    if (row.kind === "grant") return row.values.some((v) => marks.grants.has(v));
-    if (row.kind === "match")
-      return row.values.some((v) => marks.matches.has(v)) || tagsForGroup(marks, "match").length > 0;
-    return false;
-  };
+  const isMarked = (row: PermissionRowData) => !!compat && rowHasCompatMarks(compat.marks, row);
   const defaultValue = rows
     .filter((r) => isMarked(r) || (hasChanged ? isPermissionChanged(r) : r.risk === "danger"))
     .map((r) => r.kind);
@@ -237,8 +230,9 @@ export function PermissionCard({
         ) : (
           rows.map((row, i) => (
             <div key={row.kind} className={cn(i > 0 && "border-t border-border")}>
-              {/* 有变动时未变动的类别塌成单行让位;整卡零变化时用户是主动点开的,给全量 */}
-              {changed.length > 0 && !isPermissionChanged(row) ? (
+              {/* 有变动时未变动的类别塌成单行让位;整卡零变化时用户是主动点开的,给全量。
+                  带不生效标记的类别不塌:标记是这次才出现的新信息 */}
+              {changed.length > 0 && !isPermissionChanged(row) && !(compat && rowHasCompatMarks(compat.marks, row)) ? (
                 <CollapsedRow row={row} compat={compat} />
               ) : (
                 <PermissionRow row={row} compat={compat} />

@@ -383,6 +383,29 @@ describe("不生效标记与折叠形态的关系", () => {
   });
 });
 
+describe("有变动时未变动类别的塌行与不生效标记", () => {
+  it("未变动但带不生效标记的类别不塌成单行", () => {
+    render(
+      <PermissionCard
+        rows={[
+          {
+            kind: "match",
+            risk: "normal",
+            values: ["*://a.com/*"],
+            sensitive: [],
+            diff: { added: ["*://a.com/*"], removed: [] },
+          },
+          { kind: "grant", risk: "warn", values: ["GM_audio"], sensitive: [], diff: { added: [], removed: [] } },
+        ]}
+        baselineVersion="1.0.0"
+        compat={{ marks: { grants: new Map([["GM_audio", 9]]), matches: new Map(), tags: [], scriptcatOnlyTags: [] } }}
+      />
+    );
+    expect(screen.queryByTestId("permission-row-collapsed")).not.toBeInTheDocument();
+    expect(screen.getByTestId("compat-chip")).toHaveTextContent("GM_audio");
+  });
+});
+
 describe("移动端的不生效标记", () => {
   it("有不生效项的类别默认展开,否则标记藏在折叠面板里等于没做", () => {
     mobile = true;

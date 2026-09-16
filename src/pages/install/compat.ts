@@ -1,4 +1,5 @@
 import type { SCMetadata } from "@App/app/repo/metadata";
+import type { PermissionKind, PermissionRow } from "./permissions";
 import { parseMetadataLines, type MetadataLine } from "@App/pkg/utils/script";
 import {
   SCRIPTCAT_ONLY_METADATA_TAGS,
@@ -53,6 +54,15 @@ export interface CompatView {
 /** 该权限行要额外呈现的不生效指令（只有 match 组落在既有权限行上，其余归「其他声明」） */
 export const tagsForGroup = (marks: CompatMarks, group: IneffectiveTagGroup): IneffectiveTag[] =>
   marks.tags.filter((tag) => tag.group === group);
+
+/** 该取值在这一类权限行里是否带不生效标记 */
+export const isMarkedValue = (marks: CompatMarks, kind: PermissionKind, value: string): boolean =>
+  (kind === "grant" && marks.grants.has(value)) || (kind === "match" && marks.matches.has(value));
+
+/** 该权限行是否带不生效标记（含追加到这一行的指令）；带标记的行不能被折叠藏起来 */
+export const rowHasCompatMarks = (marks: CompatMarks, row: PermissionRow): boolean =>
+  row.values.some((value) => isMarkedValue(marks, row.kind, value)) ||
+  (row.kind === "match" && tagsForGroup(marks, "match").length > 0);
 
 /** 不生效项总数，用于卡头徽章 */
 export const compatMarkCount = (marks: CompatMarks): number =>

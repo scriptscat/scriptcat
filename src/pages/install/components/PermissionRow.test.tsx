@@ -281,3 +281,65 @@ describe("仅限脚本猫标签的文档链接", () => {
     expect(screen.getByTestId("scriptcat-only")).not.toHaveAttribute("href");
   });
 });
+
+describe("不生效标记不会被折叠藏起来", () => {
+  const marks = (grants: [string, number][]) => ({
+    marks: { grants: new Map(grants), matches: new Map(), tags: [], scriptcatOnlyTags: [] },
+  });
+
+  it("取值超过 maxVisible 时，排在后面的不生效能力仍然可见", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: ["GM_setValue", "GM_getValue", "GM_log", "GM_audio"],
+          sensitive: [],
+        }}
+        maxVisible={2}
+        compat={marks([["GM_audio", 9]])}
+      />
+    );
+    const row = screen.getByTestId("permission-row");
+    expect(within(row).getByTestId("compat-chip")).toHaveTextContent("GM_audio");
+    expect(within(row).queryByText("GM_log")).not.toBeInTheDocument();
+    expect(within(row).getByTestId("permission-more")).toHaveTextContent("+1");
+  });
+
+  it("更新态里属于未变动的不生效能力不收进折叠桶", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: ["GM_getValue", "GM_setValue", "GM_audio"],
+          sensitive: [],
+          diff: { added: ["GM_getValue"], removed: [] },
+        }}
+        compat={marks([["GM_audio", 9]])}
+      />
+    );
+    const row = screen.getByTestId("permission-row");
+    expect(within(row).getByTestId("compat-chip")).toHaveTextContent("GM_audio");
+    expect(within(row).queryByText("GM_setValue")).not.toBeInTheDocument();
+    expect(within(row).getByTestId("permission-more")).toHaveTextContent("未变动 1 项");
+  });
+
+  it("零变动行超过 maxVisible 时，不生效能力同样可见", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: ["GM_setValue", "GM_getValue", "GM_audio"],
+          sensitive: [],
+          diff: { added: [], removed: [] },
+        }}
+        maxVisible={1}
+        compat={marks([["GM_audio", 9]])}
+      />
+    );
+    expect(screen.getByTestId("compat-chip")).toHaveTextContent("GM_audio");
+    expect(screen.getByTestId("permission-more")).toHaveTextContent("+1");
+  });
+});

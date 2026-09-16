@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Globe, ArrowLeftRight, ChevronDown, KeyRound, Package, TriangleAlert, type LucideIcon } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { isScriptCatOnlyGrant } from "@App/pkg/utils/script_compat";
-import { tagsForGroup, type CompatView } from "../compat";
+import { isMarkedValue, tagsForGroup, type CompatView } from "../compat";
 import { catApiDocHref, metadataDocHref } from "../compat_docs";
 import { CompatChip, ScriptCatOnlyBadge } from "./CompatChip";
 import {
@@ -153,8 +153,12 @@ export function PermissionChips({
     <CompatChip key={tag.tag} label={`@${tag.tag}`} kind="metadata" line={tag.line} onJump={compat?.onJump} />
   ));
 
+  // 带不生效标记的取值不参与截断与折叠，否则标记会藏在「+N」后面
+  const marked = (value: string) => !!compat && isMarkedValue(compat.marks, row.kind, value);
+  const truncate = (values: string[]) => values.filter((v, i) => i < maxVisible || marked(v));
+
   if (!row.diff) {
-    const visible = expanded ? row.values : row.values.slice(0, maxVisible);
+    const visible = expanded ? row.values : truncate(row.values);
     const hidden = row.values.length - visible.length;
     return (
       <div className="flex flex-wrap gap-1.5">
@@ -171,7 +175,7 @@ export function PermissionChips({
   const pinned = added.length + removed.length;
   // 有增删时未变动项整体让位给折叠桶;一项没变时没有可钉住的内容,桶会变成必须点开才能看到全部的空壳,
   // 故退回全新安装的 maxVisible 截断——否则几十条 @match 的脚本一更新就会整片摊开。
-  const visibleUnchanged = expanded ? unchanged : pinned > 0 ? [] : unchanged.slice(0, maxVisible);
+  const visibleUnchanged = expanded ? unchanged : pinned > 0 ? unchanged.filter(marked) : truncate(unchanged);
   const hidden = unchanged.length - visibleUnchanged.length;
 
   return (
