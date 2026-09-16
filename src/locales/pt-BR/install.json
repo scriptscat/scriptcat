@@ -257,11 +257,12 @@
   "code_loading": "Carregando código",
   "compat_ineffective": "sem efeito",
   "compat_tag_desc": "O ScriptCat não oferece suporte a esta declaração; ela é ignorada após a instalação.",
+  "compat_value_desc": "O ScriptCat não oferece suporte a este valor; a declaração não terá o efeito escrito.",
   "compat_grant_desc": "O ScriptCat não implementou esta API; as chamadas falham e os recursos que dependem dela não funcionam.",
   "compat_jump": "Ir para a linha {{line}}",
   "compat_docs": "Documentação de compatibilidade",
   "compat_count": "{{count}} sem efeito",
   "compat_scriptcat_only": "Somente ScriptCat",
   "perm_other_label": "Outras declarações",
-  "perm_other_summary": "Declarado pelo script, mas não executado pelo ScriptCat"
+  "perm_other_summary": "Comportamento diferente de outros gerenciadores de scripts"
 }

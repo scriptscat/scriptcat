@@ -133,6 +133,7 @@ describe("assembleInstallView 组装安装视图", () => {
     });
     expect(view.compat.grants).toEqual(new Map([["GM_audio", 4]]));
     expect(view.compat.tags).toEqual([{ tag: "exclude-match", line: 3 }]);
+    expect(view.compat.scriptcatOnlyTags).toEqual([]);
   });
 
   it("全新安装组装名称、来源、版本与权限", () => {

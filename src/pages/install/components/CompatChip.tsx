@@ -6,7 +6,7 @@ import { localePath } from "@App/locales/locales";
 import { Popover, PopoverAnchor, PopoverContent } from "@App/pages/components/ui/popover";
 import { useHoverMenu } from "@App/pages/components/ui/use-hover-menu";
 
-export type CompatChipKind = "metadata" | "grant";
+export type CompatChipKind = "metadata" | "value" | "grant";
 
 // 同一时刻只开一枚浮层：标记 chip 常常并排，浮层有 288px 宽，两枚同时开会互相盖住。
 // 悬停切换时旧浮层要等关闭延迟才收，靠这里立刻收掉。
@@ -14,11 +14,13 @@ let closeActivePopover: (() => void) | null = null;
 
 const DOC_PATH: Record<CompatChipKind, string> = {
   metadata: "/docs/dev/meta",
+  value: "/docs/dev/meta",
   grant: "/docs/dev/api",
 };
 
 const DESC_KEY: Record<CompatChipKind, string> = {
   metadata: "install:compat_tag_desc",
+  value: "install:compat_value_desc",
   grant: "install:compat_grant_desc",
 };
 
@@ -102,5 +104,18 @@ export function CompatChip({
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** 在脚本猫里生效、换到别的脚本管理器就不生效的指令或 API */
+export function ScriptCatOnlyBadge() {
+  const { t } = useTranslation(["install", "common"]);
+  return (
+    <span
+      data-testid="scriptcat-only"
+      className="shrink-0 rounded bg-primary-light px-1 font-sans text-[10px] font-medium text-primary"
+    >
+      {t("install:compat_scriptcat_only")}
+    </span>
   );
 }

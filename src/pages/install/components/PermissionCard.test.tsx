@@ -209,7 +209,9 @@ describe("PermissionCard 上的不生效标记", () => {
     render(
       <PermissionCard
         rows={rows}
-        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [{ tag: "sandbox", line: 3 }] } }}
+        compat={{
+          marks: { grants: new Map([["GM_audio", 9]]), tags: [{ tag: "sandbox", line: 3 }], scriptcatOnlyTags: [] },
+        }}
       />
     );
     expect(screen.getByText("2 项不生效")).toBeInTheDocument();
@@ -226,6 +228,7 @@ describe("PermissionCard 上的不生效标记", () => {
               { tag: "exclude-match", line: 3 },
               { tag: "sandbox", line: 4 },
             ],
+            scriptcatOnlyTags: [],
           },
         }}
       />
@@ -241,9 +244,45 @@ describe("PermissionCard 上的不生效标记", () => {
   });
 
   it("没有不生效项时既无徽章也无其他声明行——全兼容的安装页一字不改", () => {
-    render(<PermissionCard rows={rows} compat={{ marks: { grants: new Map(), tags: [] } }} />);
+    render(<PermissionCard rows={rows} compat={{ marks: { grants: new Map(), tags: [], scriptcatOnlyTags: [] } }} />);
     expect(screen.queryByTestId("permission-row-other")).not.toBeInTheDocument();
     expect(screen.queryByText(/项不生效/)).not.toBeInTheDocument();
+  });
+});
+
+describe("PermissionCard 其他声明行的取值与脚本猫独有指令", () => {
+  const rows: PermissionRow[] = [{ kind: "match", risk: "normal", values: ["*://a.com/*"], sensitive: [] }];
+
+  it("不认得的取值连同取值一起标为不生效", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{
+          marks: {
+            grants: new Map(),
+            tags: [{ tag: "run-at", value: "document-weird", line: 3 }],
+            scriptcatOnlyTags: [],
+          },
+        }}
+      />
+    );
+    expect(within(screen.getByTestId("permission-row-other")).getByTestId("compat-chip")).toHaveTextContent(
+      "@run-at document-weird"
+    );
+  });
+
+  it("脚本猫独有的指令带仅限脚本猫标签，不算进不生效计数", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{ marks: { grants: new Map(), tags: [], scriptcatOnlyTags: [{ tag: "early-start", line: 4 }] } }}
+      />
+    );
+    const row = screen.getByTestId("permission-row-other");
+    const chip = within(row).getByText("@early-start").closest("[data-chip]")!;
+    expect(within(chip as HTMLElement).getByTestId("scriptcat-only")).toHaveTextContent("仅限脚本猫");
+    expect(within(row).queryByTestId("compat-chip")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-card-compat")).not.toBeInTheDocument();
   });
 });
 
@@ -257,7 +296,7 @@ describe("不生效标记与折叠形态的关系", () => {
       <PermissionCard
         rows={rows}
         baselineVersion="1.0.0"
-        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [] } }}
+        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [], scriptcatOnlyTags: [] } }}
       />
     );
     expect(screen.queryByTestId("permission-card-collapsed")).not.toBeInTheDocument();
@@ -265,7 +304,13 @@ describe("不生效标记与折叠形态的关系", () => {
   });
 
   it("没有不生效项时仍按原样塌成单行", () => {
-    render(<PermissionCard rows={rows} baselineVersion="1.0.0" compat={{ marks: { grants: new Map(), tags: [] } }} />);
+    render(
+      <PermissionCard
+        rows={rows}
+        baselineVersion="1.0.0"
+        compat={{ marks: { grants: new Map(), tags: [], scriptcatOnlyTags: [] } }}
+      />
+    );
     expect(screen.getByTestId("permission-card-collapsed")).toBeInTheDocument();
   });
 });
@@ -279,7 +324,7 @@ describe("移动端的不生效标记", () => {
           { kind: "match", risk: "normal", values: ["*://a.com/*"], sensitive: [] },
           { kind: "grant", risk: "warn", values: ["GM_audio"], sensitive: [] },
         ]}
-        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [] } }}
+        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [], scriptcatOnlyTags: [] } }}
       />
     );
     mobile = false;

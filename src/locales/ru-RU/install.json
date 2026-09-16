@@ -257,11 +257,12 @@
   "code_loading": "Загрузка кода",
   "compat_ineffective": "не действует",
   "compat_tag_desc": "ScriptCat не поддерживает это объявление — после установки оно игнорируется.",
+  "compat_value_desc": "ScriptCat не поддерживает это значение — объявление не сработает так, как написано.",
   "compat_grant_desc": "ScriptCat не реализует этот API: вызов из скрипта завершится ошибкой, а зависящие от него функции работать не будут.",
   "compat_jump": "Перейти к строке {{line}}",
   "compat_docs": "Документация по совместимости",
   "compat_count": "Не действует: {{count}}",
   "compat_scriptcat_only": "только ScriptCat",
   "perm_other_label": "Прочие объявления",
-  "perm_other_summary": "Объявлено скриптом, но ScriptCat это не выполняет"
+  "perm_other_summary": "Работает не так, как в других менеджерах скриптов"
 }

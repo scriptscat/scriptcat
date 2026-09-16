@@ -1,4 +1,6 @@
+import type { SCMetadata } from "@App/app/repo/metadata";
 import { getGrantCandidates } from "@App/app/service/content/gm_api/grant";
+import { extractUrlPatterns } from "./url_matcher";
 
 /**
  * 脚本猫的兼容性支持表：安装页与编辑器共用的唯一判定来源。
@@ -6,6 +8,7 @@ import { getGrantCandidates } from "@App/app/service/content/gm_api/grant";
  * 判定是二元的——指令/能力要么被脚本猫消费，要么写了也不会生效，没有中间档。
  * 表外即「不生效」，因此收录标准是「脚本猫会消费它」或「脚本猫不消费但它也不改变脚本运行行为」；
  * 只有会改变别家管理器下脚本行为、而脚本猫没实现的指令才刻意留在表外（如 @exclude-match）。
+ * 取值同理：取值有限的指令只认白名单里的取值，运行时对不认得的取值会静默回退。
  */
 
 // name/description/antifeature 可带 `:<locale>` 后缀取本地化值（src/locales/locales.ts），
@@ -107,10 +110,68 @@ const INFORMATIONAL_TAGS = [
 // 订阅脚本的 metadata 里会出现这个键，必须视为支持，否则安装页会把它标成不生效。
 export const SYNTHETIC_METADATA_TAGS: ReadonlySet<string> = new Set(["usersubscribe"]);
 
+export const CONSUMED_METADATA_TAGS: ReadonlySet<string> = new Set(CONSUMED_TAGS);
+
 export const SUPPORTED_METADATA_TAGS: ReadonlySet<string> = new Set([...CONSUMED_TAGS, ...INFORMATIONAL_TAGS]);
 
 export const isSupportedMetadataTag = (tag: string): boolean =>
   SUPPORTED_METADATA_TAGS.has(resolveMetadataTagBase(tag));
+
+// 脚本猫独有、别家管理器不认的指令。script_compat.test.ts 对照 eslint-plugin-userscripts 收录的别家指令守卫
+export const SCRIPTCAT_ONLY_METADATA_TAGS: ReadonlySet<string> = new Set([
+  "require-css",
+  "early-start",
+  "background",
+  "crontab",
+  "storagename",
+  "cloudcat",
+  "cloudserver",
+  "exportvalue",
+  "exportcookie",
+  "scripturl",
+]);
+
+// 运行时按 metadata[tag][0] 与这些取值逐字比较，其余取值（含大小写不同）都会回退到默认行为：
+// run-at → getRunAt / isContextMenuScript / script_executor；run-in → runtime.ts；
+// inject-into → isInjectIntoContent，page 即默认行为；unwrap / early-start → metadataBlankOrTrue。
+// false 与不写的效果一致，写出来也符合作者本意，不算不生效。
+const BLANK_OR_BOOLEAN = new Set(["", "true", "false"]);
+const SUPPORTED_TAG_VALUES: Readonly<Record<string, ReadonlySet<string>>> = {
+  "run-at": new Set(["document-start", "document-body", "document-end", "document-idle", "context-menu"]),
+  "run-in": new Set(["all", "normal-tabs", "incognito-tabs"]),
+  "inject-into": new Set(["page", "content"]),
+  unwrap: BLANK_OR_BOOLEAN,
+  "early-start": BLANK_OR_BOOLEAN,
+};
+
+export const VALUE_CONSTRAINED_TAGS: readonly string[] = Object.keys(SUPPORTED_TAG_VALUES);
+
+export interface IneffectiveMetadataValue {
+  tag: string;
+  /** 在 metadata[tag] 中的下标，用于回找代码行 */
+  index: number;
+  value: string;
+}
+
+/** 受支持指令里不会按写法生效的取值：不在白名单内、运行时只读第一个而被忽略的后续取值、解析不出规则的 @match */
+export function ineffectiveMetadataValues(metadata: SCMetadata): IneffectiveMetadataValue[] {
+  const result: IneffectiveMetadataValue[] = [];
+  for (const [tag, allowed] of Object.entries(SUPPORTED_TAG_VALUES)) {
+    (metadata[tag] || []).forEach((value, index) => {
+      const effective =
+        index === 0 &&
+        allowed.has(value) &&
+        // early-start 只在 document-start 下接管注入（isEarlyStartScript）
+        (tag !== "early-start" || metadata["run-at"]?.[0] === "document-start");
+      if (!effective) result.push({ tag, index, value });
+    });
+  }
+  // @match 写法开放，交给运行时同一个解析器判：解析不出规则的会被静默丢弃（@include/@exclude 总能退化成 glob）
+  (metadata.match || []).forEach((value, index) => {
+    if (!extractUrlPatterns([`@match ${value}`]).length) result.push({ tag: "match", index, value });
+  });
+  return result;
+}
 
 // 不经 GMContext 注册表、由沙盒上下文直接提供或无需授权的能力：
 // unsafeWindow 与 GM_info 恒定注入（src/app/service/content/create_context.ts、exec_script.ts），

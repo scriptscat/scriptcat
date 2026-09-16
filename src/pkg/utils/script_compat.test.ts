@@ -2,12 +2,17 @@ import { describe, it, expect } from "vitest";
 import "@App/app/service/content/gm_api/gm_api";
 import { GMContextApiNames } from "@App/app/service/content/gm_api/gm_context";
 import { compatMap as eslintHeaderCompatMap } from "@Packages/eslint/compat-headers";
+import { compatMap as upstreamHeaderCompatMap } from "eslint-plugin-userscripts/dist/data/compat-headers.js";
 import {
+  CONSUMED_METADATA_TAGS,
   CONTEXT_PROVIDED_GRANTS,
+  SCRIPTCAT_ONLY_METADATA_TAGS,
+  VALUE_CONSTRAINED_TAGS,
   SUPPORTED_GRANTS,
   SUPPORTED_METADATA_TAGS,
   SYNTHETIC_METADATA_TAGS,
   isSupportedGrant,
+  ineffectiveMetadataValues,
   isScriptCatOnlyGrant,
   isSupportedMetadataTag,
   resolveMetadataTagBase,
@@ -81,6 +86,98 @@ describe("GM 能力支持判定", () => {
     for (const grant of ["GM_audio", "GM_webRequest", "GM_addScript", "GM_createObjectURL"]) {
       expect(isSupportedGrant(grant), grant).toBe(false);
     }
+  });
+});
+
+describe("元数据取值支持判定", () => {
+  it("取值在脚本猫认得的范围内时不报", () => {
+    expect(
+      ineffectiveMetadataValues({
+        "run-at": ["document-start"],
+        "run-in": ["incognito-tabs"],
+        "inject-into": ["content"],
+        "early-start": [""],
+        unwrap: ["true"],
+      })
+    ).toEqual([]);
+    for (const runAt of ["document-body", "document-end", "document-idle", "context-menu"]) {
+      expect(ineffectiveMetadataValues({ "run-at": [runAt] }), runAt).toEqual([]);
+    }
+  });
+
+  it("取值不在白名单内一律报出，不需要事先登记——运行时对不认识的取值会静默回退", () => {
+    expect(
+      ineffectiveMetadataValues({
+        "run-at": ["document-weird"],
+        "run-in": ["container-id-2"],
+        "inject-into": ["auto"],
+        unwrap: ["yes"],
+      })
+    ).toEqual([
+      { tag: "run-at", index: 0, value: "document-weird" },
+      { tag: "run-in", index: 0, value: "container-id-2" },
+      { tag: "inject-into", index: 0, value: "auto" },
+      { tag: "unwrap", index: 0, value: "yes" },
+    ]);
+  });
+
+  it("取值大小写敏感，与运行时的比较方式一致", () => {
+    expect(ineffectiveMetadataValues({ "run-at": ["Document-Start"] })).toEqual([
+      { tag: "run-at", index: 0, value: "Document-Start" },
+    ]);
+  });
+
+  it("运行时只读第一个取值的指令，后续取值报为不生效", () => {
+    expect(ineffectiveMetadataValues({ "run-in": ["normal-tabs", "incognito-tabs"] })).toEqual([
+      { tag: "run-in", index: 1, value: "incognito-tabs" },
+    ]);
+  });
+
+  it("@early-start 只在 @run-at document-start 下生效", () => {
+    expect(ineffectiveMetadataValues({ "early-start": [""] })).toEqual([{ tag: "early-start", index: 0, value: "" }]);
+    expect(ineffectiveMetadataValues({ "early-start": [""], "run-at": ["document-start"] })).toEqual([]);
+  });
+
+  it("运行时解析不出匹配规则的 @match 报为不生效，能解析的（含兼容 TM 的简写）不报", () => {
+    expect(
+      ineffectiveMetadataValues({
+        match: ["*://a.com/*", "www.youtube.com/*", "*", "hello-world^^", ""],
+      })
+    ).toEqual([
+      { tag: "match", index: 3, value: "hello-world^^" },
+      { tag: "match", index: 4, value: "" },
+    ]);
+  });
+
+  it("不限取值的指令不做取值判定", () => {
+    expect(ineffectiveMetadataValues({ include: ["anything"], namespace: ["x"], noframes: ["whatever"] })).toEqual([]);
+  });
+
+  it("有取值约束的指令都是脚本猫会消费的指令", () => {
+    expect(VALUE_CONSTRAINED_TAGS.filter((tag) => !CONSUMED_METADATA_TAGS.has(tag))).toEqual([]);
+  });
+});
+
+describe("仅限脚本猫的元数据指令", () => {
+  // 只对照会被消费的指令：信息类（如 @definition）在脚本猫里同样不起作用，标「仅限脚本猫」会误导
+  it("与 eslint-plugin-userscripts 收录的别家指令对照：脚本猫会消费、别家都没有的，就是脚本猫独有的", () => {
+    const upstream = new Set(
+      [
+        ...Object.keys(upstreamHeaderCompatMap.unlocalized),
+        ...Object.keys(upstreamHeaderCompatMap.nonFunctional),
+        ...Object.keys(upstreamHeaderCompatMap.localized),
+      ].map((key) => key.toLowerCase())
+    );
+    const expected = [...CONSUMED_METADATA_TAGS].filter(
+      (tag) => !upstream.has(tag) && !SYNTHETIC_METADATA_TAGS.has(tag)
+    );
+    expect([...SCRIPTCAT_ONLY_METADATA_TAGS].sort()).toEqual(expected.sort());
+  });
+
+  it("包含 @early-start 与 @background，不包含通用指令", () => {
+    expect(SCRIPTCAT_ONLY_METADATA_TAGS.has("early-start")).toBe(true);
+    expect(SCRIPTCAT_ONLY_METADATA_TAGS.has("background")).toBe(true);
+    expect(SCRIPTCAT_ONLY_METADATA_TAGS.has("match")).toBe(false);
   });
 });
 

@@ -153,7 +153,7 @@ describe("PermissionRow 零变动行的取值折叠", () => {
 
 describe("PermissionRow 上的不生效标记", () => {
   const compat = (over: Partial<{ grants: Map<string, number | undefined>; tags: IneffectiveTag[] }> = {}) => ({
-    marks: { grants: new Map(), tags: [], ...over },
+    marks: { grants: new Map(), tags: [], scriptcatOnlyTags: [], ...over },
   });
 
   it("不受支持的 GM 能力就地换成不生效标记，其余 chip 不变", () => {

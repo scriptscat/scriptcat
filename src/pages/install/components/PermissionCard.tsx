@@ -5,7 +5,7 @@ import { cn } from "@App/pkg/utils/cn";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@App/pages/components/ui/accordion";
 import { compatMarkCount, type CompatView } from "../compat";
-import { CompatChip } from "./CompatChip";
+import { CompatChip, ScriptCatOnlyBadge } from "./CompatChip";
 import { isPermissionChanged, type PermissionRow as PermissionRowData } from "../permissions";
 import { PermissionRow, PermissionChips, PermissionDelta, NoChangeTag, KIND_META, RISK_STYLE } from "./PermissionRow";
 
@@ -121,13 +121,14 @@ function CollapsedCard({
 }
 
 /**
- * 不生效的元数据指令(@exclude-match、@sandbox 等)。
+ * 与别家脚本管理器行为不同的元数据声明：脚本猫不会执行的指令或取值(@exclude-match、@run-at document-weird)，
+ * 以及只有脚本猫认的指令(@early-start、@background)。
  * 它们不是权限,但同样是「脚本写了、脚本猫不会执行」,与权限行同列才对得起读者的一次扫视。
  */
 function OtherDirectivesRow({ compat }: { compat: CompatView }) {
   const { t } = useTranslation(["install", "common"]);
-  const { tags } = compat.marks;
-  if (!tags.length) return null;
+  const { tags, scriptcatOnlyTags } = compat.marks;
+  if (!tags.length && !scriptcatOnlyTags.length) return null;
 
   return (
     <div data-testid="permission-row-other" className="flex gap-3 border-t border-border px-1 py-3">
@@ -141,7 +142,23 @@ function OtherDirectivesRow({ compat }: { compat: CompatView }) {
         </div>
         <div className="flex flex-wrap gap-1.5">
           {tags.map((tag) => (
-            <CompatChip key={tag.tag} label={`@${tag.tag}`} kind="metadata" line={tag.line} onJump={compat.onJump} />
+            <CompatChip
+              key={tag.value === undefined ? tag.tag : `${tag.tag}:${tag.line}:${tag.value}`}
+              label={tag.value ? `@${tag.tag} ${tag.value}` : `@${tag.tag}`}
+              kind={tag.value === undefined ? "metadata" : "value"}
+              line={tag.line}
+              onJump={compat.onJump}
+            />
+          ))}
+          {scriptcatOnlyTags.map((tag) => (
+            <span
+              key={tag.tag}
+              data-chip
+              className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-xs text-fg-secondary"
+            >
+              <span className="min-w-0 break-all">{`@${tag.tag}`}</span>
+              <ScriptCatOnlyBadge />
+            </span>
           ))}
         </div>
       </div>

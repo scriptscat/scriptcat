@@ -257,11 +257,12 @@
   "code_loading": "Kod yükleniyor",
   "compat_ineffective": "etkisiz",
   "compat_tag_desc": "ScriptCat bu bildirimi desteklemiyor; kurulumdan sonra yok sayılır.",
+  "compat_value_desc": "ScriptCat bu değeri desteklemiyor; bildirim yazıldığı gibi uygulanmaz.",
   "compat_grant_desc": "ScriptCat bu API'yi uygulamadı; betik çağırdığında hata verir ve buna dayanan özellikler çalışmaz.",
   "compat_jump": "{{line}}. satıra git",
   "compat_docs": "Uyumluluk belgeleri",
   "compat_count": "{{count}} etkisiz",
   "compat_scriptcat_only": "Yalnızca ScriptCat",
   "perm_other_label": "Diğer bildirimler",
-  "perm_other_summary": "Betikte bildirildi ancak ScriptCat tarafından çalıştırılmıyor"
+  "perm_other_summary": "Diğer betik yöneticilerinden farklı davranır"
 }

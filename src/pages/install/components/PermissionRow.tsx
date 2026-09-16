@@ -4,7 +4,7 @@ import { Globe, ArrowLeftRight, ChevronDown, KeyRound, Package, TriangleAlert, t
 import { cn } from "@App/pkg/utils/cn";
 import { isScriptCatOnlyGrant } from "@App/pkg/utils/script_compat";
 import type { CompatView } from "../compat";
-import { CompatChip } from "./CompatChip";
+import { CompatChip, ScriptCatOnlyBadge } from "./CompatChip";
 import {
   isPermissionChanged,
   type PermissionKind,
@@ -81,14 +81,7 @@ function Chip({ value, row, change }: { value: string; row: PermissionRowData; c
       {isSensitive && change !== "removed" && <TriangleAlert className="size-3 shrink-0" />}
       {change && <span className="sr-only">{t(CHANGE_LABEL_KEY[change])}</span>}
       <span className="min-w-0 break-all">{value}</span>
-      {isScriptCatOnly && (
-        <span
-          data-testid="scriptcat-only"
-          className="shrink-0 rounded bg-primary-light px-1 font-sans text-[10px] font-medium text-primary"
-        >
-          {t("install:compat_scriptcat_only")}
-        </span>
-      )}
+      {isScriptCatOnly && <ScriptCatOnlyBadge />}
     </span>
   );
 }

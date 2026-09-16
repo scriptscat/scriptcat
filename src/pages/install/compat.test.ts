@@ -16,7 +16,7 @@ const build = (header: string) => {
 describe("安装页兼容性标记", () => {
   it("全部受支持时不产生任何标记", () => {
     const { code, metadata } = build(`// @name X\n// @match *://a.com/*\n// @grant GM_setValue\n`);
-    expect(deriveCompatMarks(metadata, code)).toEqual({ grants: new Map(), tags: [] });
+    expect(deriveCompatMarks(metadata, code)).toEqual({ grants: new Map(), tags: [], scriptcatOnlyTags: [] });
   });
 
   it("标出脚本猫未实现的 @grant，并给出所在行", () => {
@@ -58,5 +58,40 @@ describe("安装页兼容性标记", () => {
   it("标记顺序跟随代码出现顺序，便于与代码对读", () => {
     const { code, metadata } = build(`// @name X\n// @top-level-await\n// @sandbox raw\n`);
     expect(deriveCompatMarks(metadata, code).tags.map((t) => t.tag)).toEqual(["top-level-await", "sandbox"]);
+  });
+
+  it("受支持的指令写了不认得的取值，连同取值一起标出并定位到那一行", () => {
+    const { code, metadata } = build(`// @name X\n// @run-at document-weird\n// @inject-into auto\n`);
+    expect(deriveCompatMarks(metadata, code).tags).toEqual([
+      { tag: "run-at", value: "document-weird", line: 3 },
+      { tag: "inject-into", value: "auto", line: 4 },
+    ]);
+  });
+
+  it("只读第一个取值的指令，后续取值定位到各自所在的行", () => {
+    const { code, metadata } = build(`// @name X\n// @run-in normal-tabs\n// @run-in incognito-tabs\n`);
+    expect(deriveCompatMarks(metadata, code).tags).toEqual([{ tag: "run-in", value: "incognito-tabs", line: 4 }]);
+  });
+
+  it("标出脚本猫独有的指令，按代码顺序给出行号", () => {
+    const { code, metadata } = build(`// @name X\n// @background\n// @run-at document-start\n// @early-start\n`);
+    const marks = deriveCompatMarks(metadata, code);
+    expect(marks.scriptcatOnlyTags).toEqual([
+      { tag: "background", line: 3 },
+      { tag: "early-start", line: 5 },
+    ]);
+    expect(marks.tags).toEqual([]);
+  });
+
+  it("解析不出规则的 @match 标出取值与行号", () => {
+    const { code, metadata } = build(`// @name X\n// @match *://a.com/*\n// @match hello-world^^\n`);
+    expect(deriveCompatMarks(metadata, code).tags).toEqual([{ tag: "match", value: "hello-world^^", line: 4 }]);
+  });
+
+  it("脚本猫独有的指令写了也不生效时只按不生效标一次", () => {
+    const { code, metadata } = build(`// @name X\n// @early-start\n`);
+    const marks = deriveCompatMarks(metadata, code);
+    expect(marks.tags).toEqual([{ tag: "early-start", value: "", line: 3 }]);
+    expect(marks.scriptcatOnlyTags).toEqual([]);
   });
 });

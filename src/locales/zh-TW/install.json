@@ -257,11 +257,12 @@
   "code_loading": "正在載入程式碼",
   "compat_ineffective": "不生效",
   "compat_tag_desc": "腳本貓不支援此宣告，安裝後會被忽略。",
+  "compat_value_desc": "腳本貓不支援此取值，這項宣告不會照寫法生效。",
   "compat_grant_desc": "腳本貓尚未實作此 API，腳本呼叫時會出錯，依賴它的功能無法使用。",
   "compat_jump": "跳至第 {{line}} 行",
   "compat_docs": "相容性文件",
   "compat_count": "{{count}} 項不生效",
   "compat_scriptcat_only": "僅限腳本貓",
   "perm_other_label": "其他宣告",
-  "perm_other_summary": "已宣告，但腳本貓不會執行"
+  "perm_other_summary": "相容性與其他腳本管理器不同"
 }

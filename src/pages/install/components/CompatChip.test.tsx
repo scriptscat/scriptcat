@@ -26,6 +26,12 @@ describe("CompatChip 不生效标记", () => {
     expect(screen.getByText("脚本猫不支持该声明，安装后会被忽略。")).toBeInTheDocument();
   });
 
+  it("鼠标移入弹出说明：不认得的取值说清声明不会按写法生效", () => {
+    render(<CompatChip label="@run-at document-weird" kind="value" line={4} />);
+    fireEvent.mouseEnter(screen.getByTestId("compat-chip"));
+    expect(screen.getByText("脚本猫不支持这个取值，该声明不会按写法生效。")).toBeInTheDocument();
+  });
+
   it("移出后收起说明", async () => {
     vi.useFakeTimers();
     try {
