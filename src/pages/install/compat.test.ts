@@ -110,4 +110,9 @@ describe("安装页兼容性标记", () => {
     expect(marks.tags).toEqual([{ tag: "early-start", value: "", group: "other", line: 3 }]);
     expect(marks.scriptcatOnlyTags).toEqual([]);
   });
+
+  it("归行名单只收 Tampermonkey / Violentmonkey 的指令，别家的不生效指令落在其他组", () => {
+    const { code, metadata } = build(`// @name X\n// @matchAboutBlank true\n`);
+    expect(deriveCompatMarks(metadata, code).tags).toEqual([{ tag: "matchAboutBlank", group: "other", line: 3 }]);
+  });
 });

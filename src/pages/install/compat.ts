@@ -38,9 +38,9 @@ export interface CompatMarks {
 
 // 已知会影响「运行网站」的指令挂到那一行，读者才能就地判断后果。这里只决定摆放位置，
 // 不决定支不支持（那由 script_compat.ts 的支持表判定）：不在表里的不生效指令一律落在「其他声明」，不会漏标。
+// 只收 Tampermonkey / Violentmonkey 现行文档里的指令，别家特有的与旧写法不收。
 const TAG_GROUP: Readonly<Record<string, IneffectiveTagGroup>> = {
   "exclude-match": "match",
-  matchaboutblank: "match",
 };
 
 /** 传给权限行的兼容性标记与跳转入口 */
