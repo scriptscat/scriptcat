@@ -7,6 +7,7 @@ import { initEnvInfo, ScriptExecutor } from "./script_executor";
 
 const styleUrl = "https://example.com/style.css";
 const secondStyleUrl = "https://example.com/second-style.css";
+const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
 
 function makeScript(overrides: Partial<ScriptLoadInfo & Pick<TScriptInfo, "requireCssResource">> = {}): ScriptLoadInfo {
   return {
@@ -96,6 +97,57 @@ describe("ScriptExecutor", () => {
 
     expect(exec.scriptRes.executionHandle).toBe("page-binding");
     expect(exec.scriptRes.executionEnvTag).toBe("it");
+  });
+
+  it("ignores a counterfeit mount and keeps listening for the genuine wrapper", () => {
+    const script = makeScript({ flag: "executor-counterfeit-flag" });
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    const attackerTarget = vi.fn();
+    const attacker = new Proxy(attackerTarget, {
+      getOwnPropertyDescriptor(target, property) {
+        if (property === fnStrIntegrity) {
+          return { configurable: true, enumerable: false, value: true, writable: true };
+        }
+        return Object.getOwnPropertyDescriptor(target, property);
+      },
+    });
+    const genuine = vi.fn();
+    const pageWindow = window as unknown as Record<string, unknown>;
+    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
+
+    try {
+      executor.startScripts([script], initEnvInfo);
+      pageWindow[script.flag] = attacker;
+
+      expect(attackerTarget).not.toHaveBeenCalled();
+
+      pageWindow[script.flag] = genuine;
+
+      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
+    } finally {
+      delete pageWindow[script.flag];
+    }
+  });
+
+  it("rejects a counterfeit early-start wrapper before execution", () => {
+    const script = makeScript({ flag: "executor-counterfeit-early-flag" });
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    const attacker = vi.fn();
+    const genuine = vi.fn();
+    const pageWindow = window as unknown as Record<string, unknown>;
+    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
+
+    try {
+      pageWindow[script.flag] = attacker;
+      executor.execEarlyScript(script.flag, script, initEnvInfo);
+      expect(attacker).not.toHaveBeenCalled();
+
+      pageWindow[script.flag] = genuine;
+      executor.execEarlyScript(script.flag, script, initEnvInfo);
+      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
+    } finally {
+      delete pageWindow[script.flag];
+    }
   });
 
   describe("resource execution", () => {

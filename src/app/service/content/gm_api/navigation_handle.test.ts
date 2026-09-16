@@ -94,6 +94,23 @@ describe("attachNavigateHandler", () => {
     expect(ev.url).toBe("https://example.com/new");
   });
 
+  it("dispatchEvent 的 bind 屬性被改寫時仍能派發事件", async () => {
+    const mock = createMockWin("https://example.com/");
+    Object.defineProperty(mock.win.dispatchEvent, "bind", {
+      configurable: true,
+      value: () => {
+        throw new Error("poisoned bind");
+      },
+    });
+
+    attachNavigateHandler(mock.win);
+    mock.fireNavigate("https://example.com/new");
+
+    await vi.waitFor(() => {
+      expect(mock.dispatched).toHaveLength(1);
+    });
+  });
+
   it("URL 未变化时不应派发事件", async () => {
     const mock = createMockWin("https://example.com/");
     attachNavigateHandler(mock.win);

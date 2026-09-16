@@ -138,6 +138,8 @@ export default {
     new rspack.DefinePlugin({
       "process.env.VI_TESTING": "'false'",
       "process.env.SC_RANDOM_KEY": `'${uuidv4()}'`,
+      "process.env.SC_RANDOM_FNKEY": `'${uuidv4()}'`,
+      "process.env.SC_ZN_RAND": `'$${uuidv4()}'`,
       "process.env.SC_DISABLE_AGENT": `'${enableAgent ? "false" : "true"}'`,
     }),
     new rspack.CopyRspackPlugin({

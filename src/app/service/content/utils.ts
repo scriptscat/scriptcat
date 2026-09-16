@@ -8,6 +8,9 @@ import { embeddedPatternCheckerString, type EmbeddedURLRuleEntry, type URLRuleEn
 import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 import { getGrantCandidates } from "./gm_api/grant";
 
+const lnStrIntegrity = process.env.SC_RANDOM_FNKEY;
+const znRand = process.env.SC_ZN_RAND;
+
 export type CompileScriptCodeResource = {
   name: string;
   code: string;
@@ -141,7 +144,7 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   // arguments = [named: Object, scriptName: string]
   // 使用sandboxContext时，arguments[0]为undefined, this.$则为一次性Proxy变量，用于全域拦截context
   // 非沙盒环境时，先读取 arguments[0]，因此不会读取页面环境的 this.$
-  // 在UserScripts API中，由于执行不是在物件导向里呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
+  // 临时方法调用保留 userscript 的 this，避免在页面解析可变的 call/apply/bind。
 
   if (resource.isContextMenu) {
     // 脚本体整体延后到菜单回调里执行，它自己的 GM_registerMenuCommand 也随之推迟到点击后才注册
@@ -151,9 +154,9 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   const joinedCode = [
     "with(arguments[0]||this.$){",
     `${preCode}`,
-    "return(async function(){",
+    "this[arguments[0]='$$'+Date.now()/Math.random()]=async function(){",
     `${code}`,
-    "}).call(this);}",
+    "};return this[arguments[0]](...((delete this[arguments[0]]),[]));}",
   ]
     .filter(Boolean)
     .join("\n");
@@ -161,9 +164,27 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   return `${codeBody}${sourceMapTo(`${resource.name}.user.js`)}\n`;
 }
 
+const codeFunction = (code: string) => {
+  // 临时方法调用不依赖页面改写的 call、apply、bind。
+  return `((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${lnStrIntegrity}', '${znRand}' + Math.random(), function(){${code}})`;
+};
+
+const mountCodeFunction = (flag: string, code: string) =>
+  `((w, k, fn) => { const d = Object.getOwnPropertyDescriptor(w, k); if (d?.set) { w[k] = fn; } else { let mounted = true; Object.defineProperty(w, k, { configurable: false, enumerable: false, get() { if (!mounted) return undefined; mounted = false; return fn; } }); } })(window, '${flag}', ${codeFunction(code)})`;
+
+const ZFunction = Function;
+
 // 通过脚本代码编译脚本函数
 export function compileScript(code: string): ScriptFunc {
-  return <ScriptFunc>new Function(code);
+  const fn = <ScriptFunc>new ZFunction(code);
+  const k = lnStrIntegrity;
+  const y = `${znRand}` + Math.random();
+  return (t: any, u: any, ...args: any[]) => {
+    if (t === k) {
+      u[y] = fn;
+      return u[y](...(delete u[y], args));
+    }
+  };
 }
 
 /**
@@ -186,7 +207,7 @@ export function compileInjectScriptByFlag(
   autoDeleteMountFunction: boolean = false
 ): string {
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
-  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
+  return `${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`)};`;
 }
 
 /**
@@ -259,7 +280,7 @@ export function compilePreInjectScript(
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
   const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
   const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
-  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
+  return `${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`)};
 {
   let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
   c = typeof cloneInto === "function" ? cloneInto(o, performance) : o,
@@ -344,16 +365,30 @@ export const getScriptFlag = (uuid: string) => {
 
 // 监听属性设置
 export function definePropertyListener<T>(obj: any, prop: string, listener: (val: T) => void) {
-  if (obj[prop] !== undefined) {
-    listener(obj[prop]);
-    delete obj[prop];
+  const sameProperty = (left: PropertyDescriptor | undefined, right: PropertyDescriptor | undefined) =>
+    left?.configurable === right?.configurable &&
+    left?.enumerable === right?.enumerable &&
+    left?.value === right?.value &&
+    left?.get === right?.get &&
+    left?.set === right?.set;
+  const current = obj[prop];
+  if (current !== undefined) {
+    const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
+    listener(current);
+    if (sameProperty(descriptor, Object.getOwnPropertyDescriptor(obj, prop)) && descriptor?.configurable) {
+      delete obj[prop];
+    }
     return;
   }
+  const setter = (val: T) => {
+    listener(val);
+    const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
+    if (descriptor?.configurable && descriptor.set === setter) {
+      delete obj[prop];
+    }
+  };
   Object.defineProperty(obj, prop, {
     configurable: true,
-    set: (val: any) => {
-      delete obj[prop]; // 删除 property setter
-      listener(val);
-    },
+    set: setter,
   });
 }

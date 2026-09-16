@@ -938,6 +938,25 @@ describe("createProxyContext: deterministic realm contract", () => {
     expect(third).toHaveBeenCalledTimes(1);
   });
 
+  it("事件 callback 的 call 屬性被頁面改寫時仍保留 sandbox this", () => {
+    const fixture = createSplitRealmRoots();
+    const sandbox = createProxyContext(Object.create(null), fixture.roots);
+    const handler = vi.fn(function (this: unknown) {
+      expect(this).toBe(sandbox);
+    });
+    Object.defineProperty(handler, "call", {
+      configurable: true,
+      value: () => {
+        throw new Error("poisoned call");
+      },
+    });
+
+    sandbox.onload = handler;
+    fixture.hostWindow.dispatchEvent(new fixture.TestEvent("load"));
+
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
   it("split realm 下 self/window/globalThis 寫入都留在當前 sandbox", () => {
     const fixture = createSplitRealmRoots();
     const sandbox = createProxyContext(Object.create(null), fixture.roots);

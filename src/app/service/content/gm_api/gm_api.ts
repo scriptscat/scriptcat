@@ -1321,7 +1321,7 @@ export default class GMApi extends GM_Base {
     gmApi.sendMessage("GM_notification", [customClone(data), notificationId]).then((id) => {
       if (!gmApi.EE) return;
       if (create) {
-        create.apply({ id }, [id]);
+        Native.apply(create, { id }, [id]);
       }
       if (typeof data.tag === "string") {
         notificationTagMap.set(data.tag, id);
@@ -1358,8 +1358,8 @@ export default class GMApi extends GM_Base {
               title: data.title,
               url: data.url,
             };
-            click && click.apply({ id }, [clickEvent]);
-            done && done.apply({ id }, []);
+            click && Native.apply(click, { id }, [clickEvent]);
+            done && Native.apply(done, { id }, []);
 
             if (!isPreventDefault) {
               if (typeof data.url === "string") {
@@ -1372,7 +1372,7 @@ export default class GMApi extends GM_Base {
             break;
           }
           case "close": {
-            done && done.apply({ id }, [resp.params.byUser]);
+            done && Native.apply(done, { id }, [resp.params.byUser]);
             clearNotificationIdMap();
             gmApi.EE.removeAllListeners("GM_notification:" + gmApi.eventId);
             break;

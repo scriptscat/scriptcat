@@ -9,7 +9,9 @@ import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageAddEventListener, pageDispatchEvent } from "@Packages/message/common";
 import { isUrlExcluded } from "@App/pkg/utils/match";
 import type { ScriptEnvTag } from "@Packages/message/consts";
-import { localizeObject } from "./global";
+import { localizeObject, Native } from "./global";
+
+const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
 
 export type ExecScriptEntry = {
   scriptLoadInfo: TScriptInfo;
@@ -61,6 +63,7 @@ export class ScriptExecutor {
   }
 
   startScripts(scripts: TScriptInfo[], envInfo: GMInfoEnv) {
+    const pageWindow = window as unknown as Record<string, unknown>;
     const loadExec = (script: TScriptInfo, scriptFunc: any) => {
       this.execScriptEntry({
         scriptLoadInfo: script,
@@ -90,9 +93,22 @@ export class ScriptExecutor {
           }
         }
       }
-      definePropertyListener(window, flag, (val: ScriptFunc) => {
-        loadExec(script, val);
-      });
+      const listenForScript = () => {
+        definePropertyListener(window, flag, (val: ScriptFunc) => {
+          const descriptor =
+            typeof val === "function" ? Native.objectGetOwnPropertyDescriptor(val, fnStrIntegrity) : undefined;
+          if (descriptor?.value !== true || descriptor.configurable || descriptor.writable) {
+            const mountDescriptor = Native.objectGetOwnPropertyDescriptor(pageWindow, flag);
+            if (mountDescriptor?.configurable) {
+              delete pageWindow[flag];
+              listenForScript();
+            }
+            return;
+          }
+          loadExec(script, val);
+        });
+      };
+      listenForScript();
     });
   }
 
@@ -153,7 +169,10 @@ export class ScriptExecutor {
   }
 
   execEarlyScript(flag: string, scriptInfo: TScriptInfo, envInfo: GMInfoEnv) {
-    const scriptFunc = (window as any)[flag] as ScriptFunc;
+    const scriptFunc = (window as unknown as Record<string, unknown>)[flag] as ScriptFunc;
+    const descriptor =
+      typeof scriptFunc === "function" ? Native.objectGetOwnPropertyDescriptor(scriptFunc, fnStrIntegrity) : undefined;
+    if (descriptor?.value !== true || descriptor.configurable || descriptor.writable) return;
     this.execScriptEntry({
       scriptLoadInfo: scriptInfo,
       scriptFunc: scriptFunc,

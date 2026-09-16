@@ -358,9 +358,9 @@ describe.concurrent("compileInjectionCode", () => {
 
     // 包含沙箱封装
     expect(result).toContain("with(arguments[0]||this.$)");
-    expect(result).toContain("return(async function(){");
-    // 使用 compileInjectScript 包裹（window[flag] = function(){...}）
-    expect(result).toContain("window['#-test-uuid']");
+    expect(result).toContain("this[arguments[0]='$$'+Date.now()/Math.random()]=async function(){");
+    // 使用 compileInjectScript 包裹并挂载脚本标志
+    expect(result).toContain("window, '#-test-uuid'");
   });
 
   it.concurrent("预注入脚本在派发事件前执行精确 URL 规则", () => {

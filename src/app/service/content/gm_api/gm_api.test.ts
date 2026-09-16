@@ -82,8 +82,8 @@ describe("early-start page RPC", () => {
       envInfo,
     });
 
-    exec.scriptFunc = function (this: any) {
-      return this.GM.setValue("a", 123);
+    exec.scriptFunc = function (_token: string, context: any) {
+      return context.GM.setValue("a", 123);
     } as unknown as ScriptFunc;
     const result = exec.exec();
     await Promise.resolve();

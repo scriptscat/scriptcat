@@ -4,6 +4,11 @@ import { connect, sendMessage } from "./client";
 import { ExtensionMessageConnect } from "./extension_message";
 import Logger from "@App/app/logger/logger";
 
+const nativeReflectApply = Reflect.apply;
+const nativeFunctionBind = Function.prototype.bind;
+const bindNative = <T extends (...args: any[]) => any>(fn: T, receiver: any): T =>
+  nativeReflectApply(nativeFunctionBind, fn, [receiver]) as T;
+
 export const enum GetSenderType {
   CONNECT = 1,
   EXTCONNECT = 1 | 2,
@@ -300,10 +305,10 @@ export function forwardMessage(
     const fromConnect: MessageConnect | undefined = fromCon.getConnect();
     if (fromConnect) {
       const toCon: MessageConnect = await connect(senderTo, `${prefix}/${path}`, params);
-      fromConnect.onMessage(toCon.sendMessage.bind(toCon));
-      toCon.onMessage(fromConnect.sendMessage.bind(fromConnect));
-      fromConnect.onDisconnect(toCon.disconnect.bind(toCon));
-      toCon.onDisconnect(fromConnect.disconnect.bind(fromConnect));
+      fromConnect.onMessage(bindNative(toCon.sendMessage, toCon));
+      toCon.onMessage(bindNative(fromConnect.sendMessage, fromConnect));
+      fromConnect.onDisconnect(bindNative(toCon.disconnect, toCon));
+      toCon.onDisconnect(bindNative(fromConnect.disconnect, fromConnect));
       return undefined;
     } else {
       return sendMessage(senderTo, prefix + "/" + path, params);

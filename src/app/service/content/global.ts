@@ -3,16 +3,31 @@ const unsupportedAPI = () => {
   throw "unsupportedAPI";
 };
 
+// 在页面或用户脚本替换调用内建函数前完成捕获。
+export const nativeReflectApply = Reflect.apply;
+const nativeFunctionBind = Function.prototype.bind;
+
+export const nativeApply = (fn: (...args: any[]) => any, receiver: any, args: any[]) =>
+  nativeReflectApply(fn, receiver, args);
+export const nativeCall = (fn: (...args: any[]) => any, receiver: any, ...args: any[]) =>
+  nativeReflectApply(fn, receiver, args);
+export const nativeBind = (fn: (...args: any[]) => any, receiver: any, ...args: any[]) =>
+  nativeReflectApply(nativeFunctionBind, fn, [receiver, ...args]);
+
 export const Native = {
+  apply: nativeApply,
+  call: nativeCall,
+  bind: nativeBind,
+  reflectApply: nativeReflectApply,
   structuredClone: typeof structuredClone === "function" ? structuredClone : unsupportedAPI,
-  jsonStringify: JSON.stringify.bind(JSON),
-  jsonParse: JSON.parse.bind(JSON),
+  jsonStringify: nativeBind(JSON.stringify, JSON),
+  jsonParse: nativeBind(JSON.parse, JSON),
   createElement: Document.prototype.createElement,
   ownFragment: new DocumentFragment(),
-  objectCreate: Object.create.bind(Object),
-  objectGetOwnPropertyDescriptors: Object.getOwnPropertyDescriptors.bind(Object),
-  objectGetOwnPropertyDescriptor: Object.getOwnPropertyDescriptor.bind(Object),
-  objectGetPrototypeOf: Object.getPrototypeOf.bind(Object),
+  objectCreate: nativeBind(Object.create, Object),
+  objectGetOwnPropertyDescriptors: nativeBind(Object.getOwnPropertyDescriptors, Object),
+  objectGetOwnPropertyDescriptor: nativeBind(Object.getOwnPropertyDescriptor, Object),
+  objectGetPrototypeOf: nativeBind(Object.getPrototypeOf, Object),
 } as const;
 
 export const customClone = (o: any) => {

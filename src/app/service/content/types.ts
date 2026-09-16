@@ -1,6 +1,6 @@
 import type { REncoded } from "@App/pkg/utils/message_value";
 
-export type ScriptFunc = (named: { [key: string]: any } | undefined, scriptName: string) => any;
+export type ScriptFunc = (s: string, ctx: any, named: { [key: string]: any } | undefined, scriptName: string) => any;
 
 // exec_script.ts
 

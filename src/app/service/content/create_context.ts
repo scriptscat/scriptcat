@@ -8,11 +8,10 @@ import { isEarlyStartScript } from "./utils";
 import { ListenerManager } from "./listener_manager";
 import { createGMBase } from "./gm_api/gm_api";
 import { attachNavigateHandler, type UrlChangeEvent } from "./gm_api/navigation_handle";
-
-const nativeReflectApply = Reflect.apply;
+import { Native } from "./global";
 
 const createCapability = (api: (...args: any[]) => any, receiver: object) => {
-  const capability = (...args: any[]) => nativeReflectApply(api, receiver, args);
+  const capability = (...args: any[]) => Native.reflectApply(api, receiver, args);
   Object.defineProperty(capability, "name", { configurable: true, value: `bound ${api.name}` });
   return capability;
 };
@@ -186,21 +185,19 @@ const isConstructorOrInterface = (value: unknown) => {
 };
 
 // 避免 host/Xray function 的 .bind lookup 不可靠
-const bindFn = Function.prototype.bind;
-
 const materializeDescriptor = (descriptor: PropertyDescriptor, receiver: DescriptorOwner): PropertyDescriptor => {
   if ("value" in descriptor) {
     if (typeof descriptor.value !== "function" || isConstructorOrInterface(descriptor.value)) return descriptor;
     return {
       ...descriptor,
-      value: nativeReflectApply(bindFn, descriptor.value, [receiver]),
+      value: Native.bind(descriptor.value, receiver),
     };
   }
   if (!descriptor.get && !descriptor.set) return descriptor;
   return {
     ...descriptor,
-    get: descriptor.get ? nativeReflectApply(bindFn, descriptor.get, [receiver]) : undefined,
-    set: descriptor.set ? nativeReflectApply(bindFn, descriptor.set, [receiver]) : undefined,
+    get: descriptor.get ? Native.bind(descriptor.get, receiver) : undefined,
+    set: descriptor.set ? Native.bind(descriptor.set, receiver) : undefined,
   };
 };
 
@@ -371,8 +368,8 @@ export const createProxyContext = <const Context extends GMWorldContext>(
 
   // mySandbox: ScriptCat各脚本独自使用
   let mySandbox: typeof sharedInitCopy | undefined = undefined;
-  const hostAddEventListener = roots.hostWindow.addEventListener.bind(roots.hostWindow);
-  const hostRemoveEventListener = roots.hostWindow.removeEventListener.bind(roots.hostWindow);
+  const hostAddEventListener = Native.bind(roots.hostWindow.addEventListener, roots.hostWindow);
+  const hostRemoveEventListener = Native.bind(roots.hostWindow.removeEventListener, roots.hostWindow);
 
   // 用 eventHandling 机制模拟 onxxxxxxx 事件设置
   // 监听事件实际上的方法是eventObject.handleEvent
@@ -387,7 +384,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
           hostRemoveEventListener(eventName, eventObject);
           this.fn = null;
         } else {
-          fn.call(mySandbox, event);
+          Native.call(fn, mySandbox, event);
         }
       },
     };
@@ -525,7 +522,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
     const handle = function (this: Window & Record<string, any>, e: UrlChangeEvent) {
       this.onurlchange?.(e);
     } as EventListener;
-    (<EventTarget>roots.hostWindow).addEventListener("urlchange", handle.bind(mySandbox), false);
+    (<EventTarget>roots.hostWindow).addEventListener("urlchange", Native.bind(handle, mySandbox), false);
   }
 
   // 从网页 console 隔离出来的沙盒 console

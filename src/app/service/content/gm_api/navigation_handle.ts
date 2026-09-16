@@ -19,7 +19,7 @@ const getPropGetter = <T>(obj: T, key: keyof T) => {
   // 避免直接 obj[key] 读取。或会被 hack
   for (let t = obj; t; t = Native.objectGetPrototypeOf(t)) {
     const pd = Native.objectGetOwnPropertyDescriptor(t, key);
-    if (pd) return pd.get?.bind(obj);
+    if (pd) return pd.get ? Native.bind(pd.get, obj) : undefined;
   }
 };
 
@@ -33,7 +33,7 @@ export const attachNavigateHandler = (win: Window & { navigation: EventTarget })
   // 以 location.href 判断避免 replaceState/pushState 重复执行重复触发
   const loc = win.location;
   const getUrl = getPropGetter(loc, "href");
-  const dispatch = win.dispatchEvent.bind(win);
+  const dispatch = Native.bind(win.dispatchEvent, win);
   let lastUrl = getUrl?.();
   let callSeq = 0;
   const handler = async (ev: Event): Promise<void> => {
