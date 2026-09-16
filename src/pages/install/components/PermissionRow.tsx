@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Globe, ArrowLeftRight, ChevronDown, KeyRound, Package, TriangleAlert, type LucideIcon } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
-import { tagsForGroup, type CompatView } from "../compat";
+import type { CompatView } from "../compat";
 import { CompatChip } from "./CompatChip";
 import {
   isPermissionChanged,
@@ -121,12 +121,6 @@ export function PermissionChips({
     return <Chip key={change ? `${change}:${value}` : value} value={value} row={row} change={change} />;
   };
 
-  // 权限卡里没有对应 chip 的不生效指令，追加到它本该影响的这一行
-  const appended = compat && row.kind === "match" ? tagsForGroup(compat.marks, "match") : [];
-  const appendedChips = appended.map((tag) => (
-    <CompatChip key={tag.tag} label={`@${tag.tag}`} kind="metadata" line={tag.line} onJump={compat?.onJump} />
-  ));
-
   if (!row.diff) {
     const visible = expanded ? row.values : row.values.slice(0, maxVisible);
     const hidden = row.values.length - visible.length;
@@ -134,7 +128,6 @@ export function PermissionChips({
       <div className="flex flex-wrap gap-1.5">
         {visible.map((v) => renderChip(v))}
         {hidden > 0 && <MoreButton label={`+${hidden}`} onClick={() => setExpanded(true)} />}
-        {appendedChips}
       </div>
     );
   }
@@ -159,7 +152,6 @@ export function PermissionChips({
           onClick={() => setExpanded(true)}
         />
       )}
-      {appendedChips}
     </div>
   );
 }

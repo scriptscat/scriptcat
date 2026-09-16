@@ -170,21 +170,11 @@ describe("PermissionRow 上的不生效标记", () => {
     expect(screen.getByText("GM_setValue").closest('[data-testid="compat-chip"]')).toBeNull();
   });
 
-  it("不生效的匹配类指令追加到运行网站行——它本该影响的就是这一行", () => {
+  it("不生效的元数据指令不挂到权限行上", () => {
     render(
       <PermissionRow
         row={{ kind: "match", risk: "normal", values: ["*://a.com/*"], sensitive: [] }}
-        compat={compat({ tags: [{ tag: "exclude-match", group: "match", line: 7 }] })}
-      />
-    );
-    expect(screen.getByTestId("compat-chip")).toHaveTextContent("@exclude-match");
-  });
-
-  it("其他类别的行不会被别的组的标记污染", () => {
-    render(
-      <PermissionRow
-        row={{ kind: "connect", risk: "warn", values: ["api.a.com"], sensitive: [] }}
-        compat={compat({ tags: [{ tag: "sandbox", group: "other", line: 3 }] })}
+        compat={compat({ tags: [{ tag: "exclude-match", line: 7 }] })}
       />
     );
     expect(screen.queryByTestId("compat-chip")).not.toBeInTheDocument();

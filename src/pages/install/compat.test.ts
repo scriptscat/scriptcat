@@ -30,28 +30,28 @@ describe("安装页兼容性标记", () => {
     expect(deriveCompatMarks(metadata, code).grants.size).toBe(0);
   });
 
-  it("标出不生效的元数据指令，@exclude-match 归到运行网站一行", () => {
+  it("标出不生效的元数据指令，并给出所在行", () => {
     const { code, metadata } = build(`// @name X\n// @match *://a.com/*\n// @exclude-match *://b.com/*\n`);
-    expect(deriveCompatMarks(metadata, code).tags).toEqual([{ tag: "exclude-match", group: "match", line: 4 }]);
+    expect(deriveCompatMarks(metadata, code).tags).toEqual([{ tag: "exclude-match", line: 4 }]);
   });
 
-  it("归不到任何权限类别的指令落在「其他指令」组", () => {
-    const { code, metadata } = build(`// @name X\n// @sandbox raw\n// @top-level-await\n`);
+  it("支持表之外的指令一律标出，不需要事先登记——别家以后新增的指令也不会漏", () => {
+    const { code, metadata } = build(`// @name X\n// @match-website-only a.com\n// @sandbox raw\n`);
     expect(deriveCompatMarks(metadata, code).tags).toEqual([
-      { tag: "sandbox", group: "other", line: 3 },
-      { tag: "top-level-await", group: "other", line: 4 },
+      { tag: "match-website-only", line: 3 },
+      { tag: "sandbox", line: 4 },
     ]);
   });
 
   it("同一指令写了多行只标一枚，行号取第一次出现处", () => {
     const { code, metadata } = build(`// @name X\n// @sandbox a\n// @sandbox b\n`);
-    expect(deriveCompatMarks(metadata, code).tags).toEqual([{ tag: "sandbox", group: "other", line: 3 }]);
+    expect(deriveCompatMarks(metadata, code).tags).toEqual([{ tag: "sandbox", line: 3 }]);
   });
 
   it("代码里定位不到时仍然成条，只是没有行号——诊断不能因为缺位置而消失", () => {
     const metadata: SCMetadata = { name: ["X"], sandbox: ["raw"], grant: ["GM_audio"] };
     const marks = deriveCompatMarks(metadata, "");
-    expect(marks.tags).toEqual([{ tag: "sandbox", group: "other", line: undefined }]);
+    expect(marks.tags).toEqual([{ tag: "sandbox", line: undefined }]);
     expect(marks.grants).toEqual(new Map([["GM_audio", undefined]]));
   });
 

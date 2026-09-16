@@ -209,22 +209,35 @@ describe("PermissionCard 上的不生效标记", () => {
     render(
       <PermissionCard
         rows={rows}
-        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [{ tag: "sandbox", group: "other", line: 3 }] } }}
+        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [{ tag: "sandbox", line: 3 }] } }}
       />
     );
     expect(screen.getByText("2 项不生效")).toBeInTheDocument();
   });
 
-  it("归不到任何权限类别的指令单独成行,只在有内容时出现", () => {
+  it("不生效的指令统一落在其他声明行,不按指令名猜它属于哪个权限类别", () => {
     render(
       <PermissionCard
         rows={rows}
-        compat={{ marks: { grants: new Map(), tags: [{ tag: "sandbox", group: "other", line: 3 }] } }}
+        compat={{
+          marks: {
+            grants: new Map(),
+            tags: [
+              { tag: "exclude-match", line: 3 },
+              { tag: "sandbox", line: 4 },
+            ],
+          },
+        }}
       />
     );
     const row = screen.getByTestId("permission-row-other");
     expect(row).toHaveTextContent("其他声明");
-    expect(within(row).getByTestId("compat-chip")).toHaveTextContent("@sandbox");
+    expect(
+      within(row)
+        .getAllByTestId("compat-chip")
+        .map((chip) => chip.textContent)
+    ).toEqual(["@exclude-match", "@sandbox"]);
+    expect(screen.getAllByTestId("compat-chip")).toHaveLength(2);
   });
 
   it("没有不生效项时既无徽章也无其他声明行——全兼容的安装页一字不改", () => {

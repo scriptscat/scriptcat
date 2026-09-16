@@ -4,7 +4,7 @@ import { ChevronDown, FileCode2, ShieldCheck } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@App/pages/components/ui/accordion";
-import { compatMarkCount, tagsForGroup, type CompatView } from "../compat";
+import { compatMarkCount, type CompatView } from "../compat";
 import { CompatChip } from "./CompatChip";
 import { isPermissionChanged, type PermissionRow as PermissionRowData } from "../permissions";
 import { PermissionRow, PermissionChips, PermissionDelta, NoChangeTag, KIND_META, RISK_STYLE } from "./PermissionRow";
@@ -15,8 +15,7 @@ function MobilePermissions({ rows, compat }: { rows: PermissionRowData[]; compat
   // 否则零变化整卡展开后每一类都是收起的,「点开即得到全量清单」在移动端会落空。
   const hasChanged = rows.some(isPermissionChanged);
   const isMarked = (row: PermissionRowData) =>
-    (row.kind === "grant" && row.values.some((v) => compat?.marks.grants.has(v))) ||
-    (row.kind === "match" && tagsForGroup(compat?.marks ?? { grants: new Map(), tags: [] }, "match").length > 0);
+    row.kind === "grant" && row.values.some((v) => compat?.marks.grants.has(v));
   const defaultValue = rows
     .filter((r) => isMarked(r) || (hasChanged ? isPermissionChanged(r) : r.risk === "danger"))
     .map((r) => r.kind);
@@ -122,12 +121,12 @@ function CollapsedCard({
 }
 
 /**
- * 归不到任何权限类别的不生效指令(@sandbox、@top-level-await 等)。
+ * 不生效的元数据指令(@exclude-match、@sandbox 等)。
  * 它们不是权限,但同样是「脚本写了、脚本猫不会执行」,与权限行同列才对得起读者的一次扫视。
  */
 function OtherDirectivesRow({ compat }: { compat: CompatView }) {
   const { t } = useTranslation(["install", "common"]);
-  const tags = tagsForGroup(compat.marks, "other");
+  const { tags } = compat.marks;
   if (!tags.length) return null;
 
   return (

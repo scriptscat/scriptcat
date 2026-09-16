@@ -2,28 +2,18 @@ import type { SCMetadata } from "@App/app/repo/metadata";
 import { parseMetadataLines } from "@App/pkg/utils/script";
 import { isSupportedGrant, isSupportedMetadataTag, resolveMetadataTagBase } from "@App/pkg/utils/script_compat";
 
-/** 不生效的指令挂到权限卡的哪一行呈现 */
-export type IneffectiveTagGroup = "match" | "other";
-
 export interface IneffectiveTag {
   /** 小写归一后的指令名，不含 @ */
   tag: string;
-  group: IneffectiveTagGroup;
   line: number | undefined;
 }
 
 export interface CompatMarks {
   /** 不生效的 @grant → 所在行号；键与权限卡 GM 能力行的 chip 取值一致，直接按名字打标 */
   grants: Map<string, number | undefined>;
-  /** 不生效的元数据指令；权限卡里没有对应 chip，按 group 追加呈现 */
+  /** 不生效的元数据指令；权限卡里没有对应 chip，统一落在「其他声明」行 */
   tags: IneffectiveTag[];
 }
-
-// 不生效的指令归到「它本该影响什么」那一行，读者才能就地判断后果；归不到的落在「其他指令」。
-const TAG_GROUP: Readonly<Record<string, IneffectiveTagGroup>> = {
-  "exclude-match": "match",
-  matchaboutblank: "match",
-};
 
 /** 传给权限行的兼容性标记与跳转入口 */
 export interface CompatView {
@@ -32,16 +22,13 @@ export interface CompatView {
   onJump?: (line: number) => void;
 }
 
-/** 该权限行要额外呈现的不生效指令（只有 match 组落在既有权限行上，其余归「其他指令」） */
-export const tagsForGroup = (marks: CompatMarks, group: IneffectiveTagGroup): IneffectiveTag[] =>
-  marks.tags.filter((tag) => tag.group === group);
-
 /** 不生效项总数，用于卡头徽章 */
 export const compatMarkCount = (marks: CompatMarks): number => marks.grants.size + marks.tags.length;
 
 /**
  * 派生安装页的兼容性标记：脚本写了、但脚本猫不会执行的指令与 GM 能力。
- * 判定是二元的（见 script_compat.ts），这里只负责定位与归组，不再分兼容程度。
+ * 判定是二元的（见 script_compat.ts），这里只负责定位，不再分兼容程度。
+ * 表外的指令不按名字猜它会影响哪一类权限：那需要一份不支持指令的清单，而别家新增的指令永远追不上。
  */
 export function deriveCompatMarks(metadata: SCMetadata, code: string): CompatMarks {
   const lines = parseMetadataLines(code);
@@ -70,7 +57,7 @@ export function deriveCompatMarks(metadata: SCMetadata, code: string): CompatMar
     const tag = resolveMetadataTagBase(rawTag);
     if (seen.has(tag) || isSupportedMetadataTag(tag)) continue;
     seen.add(tag);
-    tags.push({ tag, group: TAG_GROUP[tag] ?? "other", line: firstLineOf.get(`@${tag}`) });
+    tags.push({ tag, line: firstLineOf.get(`@${tag}`) });
   }
 
   return { grants, tags };
