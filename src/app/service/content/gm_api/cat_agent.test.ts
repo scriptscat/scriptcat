@@ -65,6 +65,16 @@ function createInstance(
 }
 
 describe("ConversationInstance 命令机制", () => {
+  it("不会把通用 GM 传输能力作为实例属性暴露", () => {
+    const { instance } = createInstance();
+    const ownNames = Object.getOwnPropertyNames(instance);
+
+    expect(ownNames).not.toContain("gmSendMessage");
+    expect(ownNames).not.toContain("gmConnect");
+    expect(ownNames).not.toContain("conv");
+    expect(ownNames).not.toContain("scriptUuid");
+  });
+
   it("内置 /new 命令清空消息历史", async () => {
     const { instance, gmSendMessage } = createInstance();
 

@@ -1,4 +1,10 @@
-import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, ScriptMenu } from "./types";
+import type {
+  EmitEventRequest,
+  ScriptLoadInfo,
+  ScriptMatchInfo,
+  ScriptMenu,
+  ServiceWorkerExecutionBinding,
+} from "./types";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { Group, IGetSender } from "@Packages/message/server";
 import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
@@ -60,6 +66,7 @@ import { CompiledResourceDAO, CompiledResourceNamespace } from "@App/app/repo/re
 import { setOnTabURLChanged } from "./url_monitor";
 import { scriptToMenu, type TPopupPageLoadInfo, type TPopupPageRestoreInfo } from "./popup_scriptmenu";
 import { getExtensionUserAgentData } from "../extension/extension_env";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
@@ -134,9 +141,65 @@ export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
   private gmApi?: GMApi;
+  private readonly pageExecutionBindings = new Map<string, ServiceWorkerExecutionBinding>();
 
   getGMApi(): GMApi | undefined {
     return this.gmApi;
+  }
+
+  private revokePageBindings(sender: IGetSender): void {
+    const source = sender.getSender();
+    const tabId = source?.tab?.id;
+    const frameId = source?.frameId;
+    const documentId = source?.documentId;
+    for (const [handle, binding] of this.pageExecutionBindings) {
+      if (
+        binding.tabId === tabId &&
+        binding.frameId === frameId &&
+        (documentId === undefined || binding.documentId === documentId)
+      ) {
+        this.pageExecutionBindings.delete(handle);
+      }
+    }
+  }
+
+  revokePageBindingsForTab(tabId: number): void {
+    for (const [handle, binding] of this.pageExecutionBindings) {
+      if (binding.tabId === tabId) this.pageExecutionBindings.delete(handle);
+    }
+  }
+
+  private revokePageBindingsForScript(uuid: string): void {
+    for (const [handle, binding] of this.pageExecutionBindings) {
+      if (binding.uuid === uuid) this.pageExecutionBindings.delete(handle);
+    }
+  }
+
+  private issuePageBinding(uuid: string, envTag: "it" | "ct", sender: IGetSender): ServiceWorkerExecutionBinding {
+    const source = sender.getSender();
+    const tabId = source?.tab?.id;
+    if (typeof tabId !== "number") throw new Error("page execution binding requires a tab");
+    const handle = uuidv4();
+    const binding = {
+      handle,
+      uuid,
+      envTag,
+      runFlag: uuidv4(),
+      tabId,
+      frameId: source?.frameId,
+      documentId: source?.documentId,
+    } satisfies ServiceWorkerExecutionBinding;
+    this.pageExecutionBindings.set(handle, binding);
+    return binding;
+  }
+
+  resolvePageExecutionBinding(handle: string, sender: IGetSender): ServiceWorkerExecutionBinding | undefined {
+    const binding = this.pageExecutionBindings.get(handle);
+    const source = sender.getSender();
+    if (!binding || !source?.tab || source.tab.id !== binding.tabId || source.frameId !== binding.frameId)
+      return undefined;
+    if (binding.documentId !== undefined && source.documentId !== binding.documentId) return undefined;
+    return binding;
   }
 
   private readonly disabledMatcherTaskKey = `runtime_disabled_matcher:${Math.random()}`;
@@ -527,7 +590,8 @@ export class RuntimeService {
       this.msgSender,
       this.mq,
       this.value,
-      new GMExternalDependencies(this)
+      new GMExternalDependencies(this),
+      this.resolvePageExecutionBinding.bind(this)
     );
     permission.init();
     this.gmApi.start();
@@ -548,6 +612,7 @@ export class RuntimeService {
 
       const unregisterUuids = [] as string[];
       for (const { uuid, enable } of data) {
+        this.revokePageBindingsForScript(uuid);
         const script = await this.scriptDAO.get(uuid);
         if (!script) {
           this.logger.error("script enable failed, script not found", {
@@ -582,6 +647,7 @@ export class RuntimeService {
     // 监听脚本安装
     this.mq.subscribe<TInstallScript>("installScript", async (data) => {
       const uuid = data.script.uuid;
+      this.revokePageBindingsForScript(uuid);
       this.invalidateDisabledMatcher();
       this.deleteScriptRuntimeCache(uuid);
 
@@ -620,6 +686,7 @@ export class RuntimeService {
       const unregisterUuids = [] as string[];
       this.updateSorter((next) => {
         for (const { uuid } of data) {
+          this.revokePageBindingsForScript(uuid);
           unregisterUuids.push(uuid);
           this.deleteScriptRuntimeCache(uuid);
           this.deleteScriptSort(next, uuid);
@@ -844,6 +911,7 @@ export class RuntimeService {
 
   // 取消脚本注册
   async unregisterUserscripts() {
+    this.pageExecutionBindings.clear();
     // 检查 registered 避免重复操作增加系统开支
     // 已成功注册(true)或是未知有无注册(null)的情况下执行
     if (runtimeGlobal.registerState !== RuntimeRegisterCode.UNREGISTER_DONE) {
@@ -1286,11 +1354,22 @@ export class RuntimeService {
     });
 
     if (res) {
+      this.revokePageBindings(sender);
+      const prepareScripts = (scripts: TScriptInfo[], envTag: "it" | "ct") =>
+        scripts.map((script) => {
+          const binding = this.issuePageBinding(script.uuid, envTag, sender);
+          return {
+            ...script,
+            executionHandle: binding.handle,
+            executionEnvTag: envTag,
+            executionRunFlag: binding.runFlag,
+          };
+        });
       // 返回脚本资料，在页面加载
       return {
         ok: true,
-        injectScriptList: res.injectScriptList,
-        contentScriptList: res.contentScriptList,
+        injectScriptList: prepareScripts(res.injectScriptList, "it"),
+        contentScriptList: prepareScripts(res.contentScriptList, "ct"),
         envInfo: res.envInfo,
       };
     } else {

@@ -17,8 +17,20 @@ interface GMBaseContext {
 
 // 内部 listener 计数器
 let listenerCounter = 0;
-// listener id → { eventName, callback } 映射，供 removeListener 使用
-const listenerMap = new Map<number, { eventName: string; callback: (...args: any[]) => void }>();
+type ListenerRecord = { id: number; eventName: string; callback: (...args: any[]) => void };
+const listenerMaps = new WeakMap<object, ListenerRecord[]>();
+const nativeReflectApply = Reflect.apply;
+const weakMapGet = WeakMap.prototype.get;
+const weakMapSet = WeakMap.prototype.set;
+
+const getListenerRecords = (owner: object): ListenerRecord[] => {
+  let records = nativeReflectApply(weakMapGet, listenerMaps, [owner]);
+  if (!records) {
+    records = [];
+    nativeReflectApply(weakMapSet, listenerMaps, [owner, records]);
+  }
+  return records;
+};
 
 // CAT.agent.task API，注入到脚本上下文
 export default class CATAgentTaskApi {
@@ -112,7 +124,8 @@ export default class CATAgentTaskApi {
     };
 
     ctx.EE.on(eventName, wrappedCallback);
-    listenerMap.set(listenerId, { eventName, callback: wrappedCallback });
+    const records = getListenerRecords(ctx);
+    records[records.length] = { id: listenerId, eventName, callback: wrappedCallback };
 
     return listenerId;
   }
@@ -122,10 +135,19 @@ export default class CATAgentTaskApi {
     const ctx = this as unknown as GMBaseContext;
     if (!ctx.EE) return;
 
-    const entry = listenerMap.get(listenerId);
-    if (entry) {
+    const records = getListenerRecords(ctx);
+    let index = -1;
+    for (let i = 0; i < records.length; i += 1) {
+      if (records[i]?.id === listenerId) {
+        index = i;
+        break;
+      }
+    }
+    if (index >= 0) {
+      const entry = records[index];
+      for (let i = index + 1; i < records.length; i += 1) records[i - 1] = records[i];
+      records.length -= 1;
       ctx.EE.off(entry.eventName, entry.callback);
-      listenerMap.delete(listenerId);
     }
   }
 }

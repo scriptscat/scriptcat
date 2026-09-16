@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   isBase64,
   parseUrlSRI,
@@ -6,14 +6,16 @@ import {
   selfMetadataUpdate,
   getUserScriptRegister,
   compileInjectionCode,
+  parseScriptLoadInfo,
   shouldAutoOpenChangelog,
   scriptURLPatternResults,
 } from "./utils";
-import type { SCMetadata, Script, ScriptRunResource } from "@App/app/repo/scripts";
+import type { SCMetadata, ScriptLoadInfo, Script } from "@App/app/repo/scripts";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { SCRIPT_TYPE_NORMAL, SCRIPT_STATUS_ENABLE, SCRIPT_RUN_STATUS_COMPLETE } from "@App/app/repo/scripts";
 import type { ScriptMatchInfo } from "./types";
 import { extractUrlPatterns, RuleTypeBit } from "@App/pkg/utils/url_matcher";
+import { compilePreInjectScript } from "../content/utils";
 
 describe.concurrent("parseUrlSRI", () => {
   it.concurrent("should parse URL SRI", () => {
@@ -311,7 +313,7 @@ describe.concurrent("getUserScriptRegister", () => {
 });
 
 describe.concurrent("compileInjectionCode", () => {
-  const createMockScriptRes = (overrides: Partial<ScriptRunResource> = {}): ScriptRunResource => ({
+  const createMockScriptRes = (overrides: Partial<ScriptLoadInfo> = {}): ScriptLoadInfo => ({
     uuid: "test-uuid",
     name: "Test Script",
     namespace: "test.namespace",
@@ -327,6 +329,8 @@ describe.concurrent("compileInjectionCode", () => {
     resource: {},
     metadata: {},
     originalMetadata: {},
+    metadataStr: "",
+    userConfigStr: "",
     ...overrides,
   });
 
@@ -357,6 +361,29 @@ describe.concurrent("compileInjectionCode", () => {
     expect(result).toContain("return(async function(){");
     // 使用 compileInjectScript 包裹（window[flag] = function(){...}）
     expect(result).toContain("window['#-test-uuid']");
+  });
+
+  it.concurrent("预注入脚本在派发事件前执行精确 URL 规则", () => {
+    const scriptRes = createMockScriptRes({
+      metadata: { "early-start": [""], "run-at": ["document-start"] },
+      scriptUrlPatterns: extractUrlPatterns(["@include /example\\.com/"]),
+    });
+    const result = compilePreInjectScript(parseScriptLoadInfo(scriptRes, scriptRes.scriptUrlPatterns ?? []), "", false);
+    const dispatchEvent = vi.fn(() => true);
+    const performance = { dispatchEvent, addEventListener: vi.fn() };
+    const customEvent = class {
+      constructor(
+        readonly type: string,
+        readonly init: unknown
+      ) {}
+    };
+    const run = new Function("window", "performance", "CustomEvent", "location", result);
+
+    run(Object.create(null), performance, customEvent, { href: "https://other.example/" });
+    expect(dispatchEvent).not.toHaveBeenCalled();
+
+    run(Object.create(null), performance, customEvent, { href: "https://example.com/" });
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
   });
 });
 

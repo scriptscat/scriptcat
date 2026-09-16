@@ -30,8 +30,8 @@ export const initEnvInfo: GMInfoEnv = {
 
 // 脚本执行器
 export class ScriptExecutor {
-  earlyScriptFlag: Set<string> = new Set();
-  execScriptMap: Map<string, ExecScript> = new Map();
+  private readonly earlyScriptFlags: string[] = [];
+  private readonly execScripts: Array<{ uuid: string; exec: ExecScript }> = [];
 
   constructor(
     private msg: Message,
@@ -40,18 +40,22 @@ export class ScriptExecutor {
 
   emitEvent(data: EmitEventRequest) {
     // 转发给脚本
-    const exec = this.execScriptMap.get(data.uuid);
-    if (exec) {
-      exec.emitEvent(data.event, data.eventId, data.data);
+    for (let i = 0; i < this.execScripts.length; i += 1) {
+      const entry = this.execScripts[i];
+      if (entry?.uuid === data.uuid) {
+        entry.exec.emitEvent(data.event, data.eventId, data.data);
+        return;
+      }
     }
   }
 
   valueUpdate(data: ValueUpdateDataEncoded) {
     // runtime/valueUpdate
     const { uuid, storageName } = data;
-    for (const val of this.execScriptMap.values()) {
-      if (val.scriptRes.uuid === uuid || getStorageName(val.scriptRes) === storageName) {
-        val.valueUpdate(data);
+    for (let i = 0; i < this.execScripts.length; i += 1) {
+      const exec = this.execScripts[i]?.exec;
+      if (exec && (exec.scriptRes.uuid === uuid || getStorageName(exec.scriptRes) === storageName)) {
+        exec.valueUpdate(data);
       }
     }
   }
@@ -69,11 +73,19 @@ export class ScriptExecutor {
     scripts.forEach((script) => {
       const flag = script.flag;
       // 如果是EarlyScriptFlag，处理沙盒环境
-      if (this.earlyScriptFlag.has(flag)) {
-        for (const val of this.execScriptMap.values()) {
-          if (val.scriptRes.flag === flag) {
+      let isEarlyScript = false;
+      for (let i = 0; i < this.earlyScriptFlags.length; i += 1) {
+        if (this.earlyScriptFlags[i] === flag) {
+          isEarlyScript = true;
+          break;
+        }
+      }
+      if (isEarlyScript) {
+        for (let i = 0; i < this.execScripts.length; i += 1) {
+          const exec = this.execScripts[i]?.exec;
+          if (exec?.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
-            val.updateEarlyScriptGMInfo(envInfo);
+            exec.updateEarlyScriptGMInfo(envInfo, script);
             return;
           }
         }
@@ -96,10 +108,16 @@ export class ScriptExecutor {
         scriptInfo: ScriptLoadInfo;
       };
       const scriptFlag = detail?.scriptFlag;
-      if (typeof scriptFlag === "string") {
+      const scriptInfo = detail?.scriptInfo;
+      if (
+        typeof scriptFlag === "string" &&
+        scriptInfo &&
+        typeof scriptInfo === "object" &&
+        scriptInfo.flag === scriptFlag
+      ) {
         ev.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
         // 检查是否有 urlPattern，有则执行匹配再决定是否略过注入
-        if (detail.scriptInfo.scriptUrlPatterns) {
+        if (scriptInfo.scriptUrlPatterns) {
           // 以 REGEX 情况为例
           //   "@include /REGEX/" 的情况下，MV3 UserScripts API 基础匹配范围扩大，会比实际需要的广阔，然后在 earlyScript 把不符合 REGEX 的除去
           //   (All @include = false -> 除去)
@@ -109,7 +127,7 @@ export class ScriptExecutor {
           //   (Any @exclude = true -> 除去)
           // 注：如果一早已被除排，根本不会被 MV3 UserScripts API 注入。所以只考虑排除「多余的匹配」。（略过注入）
           try {
-            if (isUrlExcluded(window.location.href, detail.scriptInfo.scriptUrlPatterns)) {
+            if (isUrlExcluded(window.location.href, scriptInfo.scriptUrlPatterns)) {
               // 「多余的匹配」-> 略过注入
               return;
             }
@@ -117,7 +135,14 @@ export class ScriptExecutor {
             console.warn("Unexpected match error", e);
           }
         }
-        this.execEarlyScript(scriptFlag, detail.scriptInfo, envInfo);
+        let alreadyExecuted = false;
+        for (let i = 0; i < this.earlyScriptFlags.length; i += 1) {
+          if (this.earlyScriptFlags[i] === scriptFlag) {
+            alreadyExecuted = true;
+            break;
+          }
+        }
+        if (!alreadyExecuted) this.execEarlyScript(scriptFlag, scriptInfo, envInfo);
       }
     };
     pageAddEventListener(scriptLoadCompleteEvtName, scriptLoadCompleteHandler);
@@ -135,7 +160,7 @@ export class ScriptExecutor {
       scriptFlag: flag,
       envInfo: envInfo,
     });
-    this.earlyScriptFlag.add(flag);
+    this.earlyScriptFlags[this.earlyScriptFlags.length] = flag;
   }
 
   execScriptEntry(scriptEntry: ExecScriptEntry) {
@@ -150,7 +175,15 @@ export class ScriptExecutor {
       code: scriptFunc,
       envInfo,
     });
-    this.execScriptMap.set(scriptLoadInfo.uuid, execScript);
+    let replaced = false;
+    for (let i = 0; i < this.execScripts.length; i += 1) {
+      if (this.execScripts[i]?.uuid === scriptLoadInfo.uuid) {
+        this.execScripts[i] = { uuid: scriptLoadInfo.uuid, exec: execScript };
+        replaced = true;
+        break;
+      }
+    }
+    if (!replaced) this.execScripts[this.execScripts.length] = { uuid: scriptLoadInfo.uuid, exec: execScript };
     const metadata = scriptLoadInfo.metadata || {};
     const resource = scriptLoadInfo.requireCssResource ?? scriptLoadInfo.resource;
     // 注入css

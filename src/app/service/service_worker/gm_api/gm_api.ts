@@ -33,6 +33,7 @@ import type {
   MessageRequest,
   NotificationMessageOption,
   GMApiRequest,
+  ServiceWorkerExecutionBinding,
 } from "../types";
 import type { TScriptMenuRegister, TScriptMenuUnregister } from "../../queue";
 import type { NotificationOptionCache } from "../utils";
@@ -361,7 +362,11 @@ export default class GMApi {
     private msgSender: MessageSend,
     private mq: IMessageQueue,
     private value: ValueService,
-    private gmExternalDependencies: IGMExternalDependencies
+    private gmExternalDependencies: IGMExternalDependencies,
+    private readonly resolvePageExecutionBinding?: (
+      handle: string,
+      sender: IGetSender
+    ) => ServiceWorkerExecutionBinding | undefined
   ) {
     this.logger = LoggerCore.logger().with({ service: "runtime/gm_api" });
   }
@@ -374,6 +379,27 @@ export default class GMApi {
   // sendMessage from Content Script, etc
   async handlerRequest(data: MessageRequest, sender: IGetSender) {
     this.logger.trace("GM API request", { api: data.api, uuid: data.uuid, param: data.params });
+    const source = sender.getSender();
+    const isPageRequest = typeof source?.tab?.id === "number";
+    if (isPageRequest && !data.executionHandle) {
+      throw new Error("page execution binding is required");
+    }
+    if (data.executionHandle) {
+      if (data.version !== undefined && data.version !== 1) {
+        throw new Error("unsupported page execution binding version");
+      }
+      if (data.handle !== undefined && data.handle !== data.executionHandle) {
+        throw new Error("page execution binding is invalid");
+      }
+      const binding = this.resolvePageExecutionBinding?.(data.executionHandle, sender);
+      if (!binding || (data.uuid && data.uuid !== binding.uuid)) {
+        throw new Error("page execution binding is invalid");
+      }
+      if (data.envTag !== undefined && data.envTag !== binding.envTag) {
+        throw new Error("page execution binding is invalid");
+      }
+      data = { ...data, uuid: binding.uuid, runFlag: binding.runFlag };
+    }
     const api = PermissionVerifyApiGet(data.api);
     if (!api) {
       throw new Error("gm api is not found");

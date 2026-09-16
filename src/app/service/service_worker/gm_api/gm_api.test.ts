@@ -124,6 +124,36 @@ describe.concurrent("GM API 注册完整性", () => {
   });
 });
 
+describe("page execution binding gate", () => {
+  it("rejects a page-originated request that has no binding handle", async () => {
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab });
+
+    await expect(
+      api.handlerRequest({ uuid: "script-a", api: "GM_getTab", params: [], runFlag: "forged" }, sender)
+    ).rejects.toThrow("page execution binding is required");
+  });
+
+  it("rejects an unknown page binding before parsing or invoking a GM API", async () => {
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    const resolveBinding = vi.fn().mockReturnValue(undefined);
+    Object.defineProperty(api, "resolvePageExecutionBinding", { configurable: true, value: resolveBinding });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab });
+
+    await expect(
+      api.handlerRequest(
+        { uuid: "script-a", api: "GM_getTab", params: [], runFlag: "forged", executionHandle: "missing" },
+        sender
+      )
+    ).rejects.toThrow("page execution binding is invalid");
+    expect(resolveBinding).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("window.focus", () => {
   it("应同时激活标签页并将其所在窗口置于前台", async () => {
     const tabsUpdate = vi.fn().mockResolvedValue(undefined);

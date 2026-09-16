@@ -3,7 +3,7 @@ import ExecScript from "../exec_script";
 import type { ScriptLoadInfo } from "@App/app/service/service_worker/types";
 import type { GMInfoEnv, ScriptFunc } from "../types";
 import { compileScript, compileScriptCode } from "../utils";
-import type { Message } from "@Packages/message/types";
+import type { Message, MessageConnect } from "@Packages/message/types";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { ScriptRunResource } from "@App/app/repo/scripts";
@@ -31,6 +31,86 @@ const envInfo: GMInfoEnv = {
   },
   isIncognito: false,
 };
+
+describe("early-start page RPC", () => {
+  it("waits for the page binding before opening a long-lived connection", async () => {
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const connection = {} as MessageConnect;
+    const connectMessage = vi.fn().mockResolvedValue(connection);
+    const script = {
+      ...scriptRes,
+      uuid: "early-start-script",
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+    } as ScriptLoadInfo;
+    const api = new GMApi("scripting", { connect: connectMessage } as unknown as Message, {} as Message, script);
+    Object.defineProperty(api, "loadScriptPromise", { configurable: true, value: ready, writable: true });
+
+    const pending = api.connect("GM_xmlhttpRequest", []);
+    expect(connectMessage).not.toHaveBeenCalled();
+
+    release();
+    await expect(pending).resolves.toBe(connection);
+    expect(connectMessage).toHaveBeenCalledWith({
+      action: "scripting/runtime/gmApi",
+      data: expect.objectContaining({
+        api: "GM_xmlhttpRequest",
+        handle: "page-binding",
+        envTag: "it",
+      }),
+    });
+  });
+
+  it("uses the authoritative run flag for early-start async value acknowledgments", async () => {
+    const script = {
+      ...scriptRes,
+      uuid: "early-start-value-script",
+      metadata: { grant: ["GM.setValue"], "early-start": [""], "run-at": ["document-start"] },
+      executionHandle: undefined,
+      executionEnvTag: undefined,
+      executionRunFlag: undefined,
+    } as ScriptLoadInfo;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: { sendMessage: mockSendMessage } as unknown as Message,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+
+    exec.scriptFunc = function (this: any) {
+      return this.GM.setValue("a", 123);
+    } as unknown as ScriptFunc;
+    const result = exec.exec();
+    await Promise.resolve();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+
+    exec.updateEarlyScriptGMInfo(envInfo, {
+      ...script,
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+      executionRunFlag: "canonical-run",
+    });
+    await Promise.resolve();
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+
+    const request = mockSendMessage.mock.calls[0][0].data;
+    exec.valueUpdate({
+      id: request.params[0],
+      entries: [["a", encodeRValue(123), encodeRValue(undefined)]],
+      uuid: script.uuid,
+      storageName: script.uuid,
+      sender: { runFlag: "canonical-run", tabId: -2 },
+      valueUpdated: true,
+    });
+
+    await expect(result).resolves.toBeUndefined();
+  });
+});
 
 const makeResource = (url: string, content: string, type: "require" | "require-css" | "resource") => ({
   url,
@@ -1137,6 +1217,9 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValue", "GM_setValue", "GM_addValueChangeListener"];
     script.metadata.storageName = ["testStorage"];
+    script.executionHandle = "page-binding";
+    script.executionEnvTag = "it";
+    script.executionRunFlag = "canonical-run";
     script.code = `
     return new Promise(resolve=>{
       GM_addValueChangeListener("param1", (name, oldValue, newValue, remote)=>{
@@ -1210,6 +1293,27 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     });
     const ret2 = await retPromise;
     expect(ret2).toEqual({ name: "param2", oldValue: undefined, newValue: 456, remote: true });
+  });
+
+  it.concurrent("value change listeners receive snapshots instead of the cached object", () => {
+    const script = Object.assign({ uuid: uuidv4() }, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_getValue", "GM_addValueChangeListener"];
+    script.value = {};
+    const api = new GMApi("test", {} as Message, {} as Message, script);
+    api.GM_addValueChangeListener("snapshot", (_name, _oldValue, newValue) => {
+      const snapshot = newValue as { nested: { value: number } };
+      snapshot.nested.value = 99;
+    });
+
+    api.valueUpdate({
+      entries: [["snapshot", encodeRValue({ nested: { value: 1 } }), encodeRValue(undefined)]],
+      uuid: script.uuid,
+      storageName: script.uuid,
+      sender: { runFlag: "remote", tabId: -2 },
+      valueUpdated: true,
+    });
+
+    expect(api.GM_getValue("snapshot")).toEqual({ nested: { value: 1 } });
   });
   it.concurrent("异步GM.setValue，等待回调", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;

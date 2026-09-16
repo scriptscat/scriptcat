@@ -7,6 +7,8 @@ import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
 import type { ValueUpdateDataEncoded } from "./types";
+import { getPageRpcAllowedAPIs, PageRpcRegistry, validatePageGMRequest } from "./page_rpc";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 
 const PageOrContent = {
   PAGE: 1,
@@ -23,7 +25,8 @@ const deliveryStorage = chrome.storage.local; // 日后再处理
 
 // scripting页的处理
 export default class ScriptingRuntime {
-  private activeStorageNames: Map<string, PageOrContent> | null = null;
+  private activeStorageNames = new Map<string, PageOrContent>();
+  private readonly pageRpc = new PageRpcRegistry();
   constructor(
     // 监听来自service_worker的消息
     private readonly extServer: Server,
@@ -74,10 +77,7 @@ export default class ScriptingRuntime {
       const record = changes["valueUpdateDelivery"];
       if (record?.newValue) {
         const sendData = (record.newValue as { sendData: ValueUpdateDataEncoded }).sendData;
-        const activeOn =
-          this.activeStorageNames === null
-            ? PageOrContent.PAGE_AND_CONTENT
-            : this.activeStorageNames.get(sendData.storageName);
+        const activeOn = this.activeStorageNames.get(sendData.storageName);
         if (activeOn) {
           // 转发给 content 和 inject
           this.broadcastToPage("runtime/valueUpdate", sendData, activeOn);
@@ -142,6 +142,16 @@ export default class ScriptingRuntime {
             break;
         }
         return false;
+      },
+      (data) => {
+        const request = validatePageGMRequest(data, this.pageRpc);
+        return {
+          uuid: request.uuid,
+          api: request.api,
+          params: [...request.params],
+          runFlag: request.runFlag,
+          executionHandle: request.handle,
+        };
       }
     );
   }
@@ -160,26 +170,41 @@ export default class ScriptingRuntime {
     client.pageLoad().then((o) => {
       if (!o.ok) return;
       const { injectScriptList, contentScriptList, envInfo } = o;
+      this.pageRpc.revokeAll();
+      const prepareScripts = (scripts: typeof injectScriptList, envTag: "it" | "ct") =>
+        scripts.map((script) => {
+          const allowedAPIs = getPageRpcAllowedAPIs(script.metadata.grant || []);
+          const executionRunFlag = script.executionRunFlag || uuidv4();
+          const executionHandle =
+            script.executionHandle ||
+            this.pageRpc.register(script.uuid, envTag, allowedAPIs, undefined, executionRunFlag);
+          if (script.executionHandle) {
+            this.pageRpc.register(script.uuid, envTag, allowedAPIs, script.executionHandle, executionRunFlag);
+          }
+          return { ...script, executionHandle, executionEnvTag: envTag, executionRunFlag };
+        });
+      const preparedInjectScriptList = prepareScripts(injectScriptList, "it");
+      const preparedContentScriptList = prepareScripts(contentScriptList, "ct");
       const pairs = {} as Record<string, PageOrContent>;
-      for (const script of injectScriptList) {
+      for (const script of preparedInjectScriptList) {
         pairs[getStorageName(script)] |= PageOrContent.PAGE;
       }
-      for (const script of contentScriptList) {
+      for (const script of preparedContentScriptList) {
         pairs[getStorageName(script)] |= PageOrContent.CONTENT;
       }
       this.activeStorageNames = new Map(Object.entries(pairs));
 
       // 向页面 发送脚本列表及环境信息
-      if (contentScriptList.length) {
+      if (preparedContentScriptList.length) {
         const contentClient = new Client(this.senderToContent, "content");
         // 根据@inject-into content过滤脚本
-        contentClient.do("pageLoad", { scripts: contentScriptList, envInfo });
+        contentClient.do("pageLoad", { scripts: preparedContentScriptList, envInfo });
       }
 
-      if (injectScriptList.length) {
+      if (preparedInjectScriptList.length) {
         const injectClient = new Client(this.senderToInject, "inject");
         // 根据@inject-into content过滤脚本
-        injectClient.do("pageLoad", { scripts: injectScriptList, envInfo });
+        injectClient.do("pageLoad", { scripts: preparedInjectScriptList, envInfo });
       }
     });
   }

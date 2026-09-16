@@ -293,7 +293,8 @@ export function forwardMessage(
   path: string,
   receiverFrom: Server,
   senderTo: MessageSend,
-  middleware?: ApiFunctionSync
+  middleware?: ApiFunctionSync,
+  transform?: (params: any, con: IGetSender) => any
 ) {
   const handler = async (params: any, fromCon: IGetSender): Promise<any> => {
     const fromConnect: MessageConnect | undefined = fromCon.getConnect();
@@ -308,7 +309,7 @@ export function forwardMessage(
       return sendMessage(senderTo, prefix + "/" + path, params);
     }
   };
-  receiverFrom.on(path, (params, sender) => {
+  const process = (params: any, sender: IGetSender) => {
     if (middleware) {
       // 此处是为了处理CustomEventMessage的同步消息情况
       const resp = middleware(params, sender) as any;
@@ -324,5 +325,12 @@ export function forwardMessage(
       }
     }
     return handler(params, sender);
+  };
+  receiverFrom.on(path, (params, sender) => {
+    if (!transform) return process(params, sender);
+    const transformed = transform(params, sender);
+    return transformed instanceof Promise
+      ? transformed.then((data) => process(data, sender))
+      : process(transformed, sender);
   });
 }

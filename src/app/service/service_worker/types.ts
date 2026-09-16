@@ -46,6 +46,23 @@ export type MessageRequest<T = any[]> = {
   api: string;
   runFlag: string;
   params: T;
+  /** 页面执行环境绑定的能力句柄；后台脚本不携带此字段。 */
+  executionHandle?: string;
+  /** 页面 GM RPC 的版本和请求关联字段。 */
+  version?: 1;
+  requestId?: string;
+  handle?: string;
+  envTag?: "it" | "ct";
+};
+
+export type ServiceWorkerExecutionBinding = {
+  handle: string;
+  uuid: string;
+  envTag: "it" | "ct";
+  runFlag: string;
+  tabId: number;
+  frameId?: number;
+  documentId?: string;
 };
 
 export type GMApiRequest<T = any> = MessageRequest<T> & {

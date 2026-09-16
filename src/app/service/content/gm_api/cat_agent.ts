@@ -19,6 +19,8 @@ import type {
 } from "@App/app/service/agent/core/types";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
 
+const nativeReflectApply = Reflect.apply;
+
 export type ConversationStreamChunk =
   | StreamChunk
   | {
@@ -81,13 +83,31 @@ function resolveToolCall(
 
 // 对话实例，暴露给用户脚本
 // 导出供测试使用
+type ConversationPrivateState = {
+  conv: Conversation;
+  gmSendMessage: (api: string, params: any[]) => Promise<any>;
+  gmConnect: (api: string, params: any[]) => Promise<MessageConnect>;
+  scriptUuid: string;
+  commandHandlers: Map<string, CommandHandler>;
+  cache?: boolean;
+  systemPrompt?: string;
+  background: boolean;
+};
+
+const conversationStates = new WeakMap<ConversationInstance, ConversationPrivateState>();
+const weakMapGet = WeakMap.prototype.get;
+const weakMapSet = WeakMap.prototype.set;
+
+const getConversationState = (instance: ConversationInstance): ConversationPrivateState => {
+  const state = nativeReflectApply(weakMapGet, conversationStates, [instance]);
+  if (!state) throw new Error("conversation instance is invalid");
+  return state;
+};
+
 export class ConversationInstance {
   public toolHandlers: Map<string, ToolHandler> = new Map();
   public toolDefs: ToolDefinition[] = [];
-  private commandHandlers: Map<string, CommandHandler> = new Map();
   public ephemeral: boolean;
-  private cache?: boolean;
-  private systemPrompt?: string;
   public messageHistory: Array<{
     role: MessageRole;
     content: MessageContent;
@@ -95,13 +115,11 @@ export class ConversationInstance {
     toolCalls?: ToolCall[];
   }> = [];
 
-  private background: boolean;
-
   constructor(
-    private conv: Conversation,
-    private gmSendMessage: (api: string, params: any[]) => Promise<any>,
-    private gmConnect: (api: string, params: any[]) => Promise<MessageConnect>,
-    private scriptUuid: string,
+    conv: Conversation,
+    gmSendMessage: (api: string, params: any[]) => Promise<any>,
+    gmConnect: (api: string, params: any[]) => Promise<MessageConnect>,
+    scriptUuid: string,
     initialTools?: ConversationCreateOptions["tools"],
     commands?: Record<string, CommandHandler>,
     ephemeral?: boolean,
@@ -109,10 +127,18 @@ export class ConversationInstance {
     cache?: boolean,
     background?: boolean
   ) {
+    const state: ConversationPrivateState = {
+      conv,
+      gmSendMessage,
+      gmConnect,
+      scriptUuid,
+      commandHandlers: new Map(),
+      cache,
+      systemPrompt: system,
+      background: background || false,
+    };
+    nativeReflectApply(weakMapSet, conversationStates, [this, state]);
     this.ephemeral = ephemeral || false;
-    this.background = background || false;
-    this.cache = cache;
-    this.systemPrompt = system;
     if (initialTools) {
       for (const tool of initialTools) {
         this.toolHandlers.set(tool.name, tool.handler);
@@ -121,7 +147,7 @@ export class ConversationInstance {
     }
 
     // 注册内置 /new 命令
-    this.commandHandlers.set("/new", async () => {
+    state.commandHandlers.set("/new", async () => {
       await this.clear();
       return "对话已清空";
     });
@@ -129,21 +155,21 @@ export class ConversationInstance {
     // 用户传入的 commands 覆盖内置命令
     if (commands) {
       for (const [name, handler] of Object.entries(commands)) {
-        this.commandHandlers.set(name, handler);
+        state.commandHandlers.set(name, handler);
       }
     }
   }
 
   get id() {
-    return this.conv.id;
+    return getConversationState(this).conv.id;
   }
 
   get title() {
-    return this.conv.title;
+    return getConversationState(this).conv.title;
   }
 
   get modelId() {
-    return this.conv.modelId;
+    return getConversationState(this).conv.modelId;
   }
 
   // 发送消息并获取回复（内置 tool calling 循环）
@@ -154,6 +180,7 @@ export class ConversationInstance {
     if (cmdResult !== undefined) return cmdResult;
 
     const { toolDefs, handlers } = this.mergeTools(options?.tools);
+    const state = getConversationState(this);
 
     // ephemeral 模式：追加 user message 到内存历史
     if (this.ephemeral) {
@@ -162,27 +189,27 @@ export class ConversationInstance {
 
     // 通过 GM API connect 建立流式连接
     const connectParams: Record<string, unknown> = {
-      conversationId: this.conv.id,
-      generation: this.conv.generation,
+      conversationId: state.conv.id,
+      generation: state.conv.generation,
       message: content,
       tools: toolDefs.length > 0 ? toolDefs : undefined,
-      scriptUuid: this.scriptUuid,
+      scriptUuid: state.scriptUuid,
     };
 
-    if (this.cache !== undefined) {
-      connectParams.cache = this.cache;
+    if (state.cache !== undefined) {
+      connectParams.cache = state.cache;
     }
-    if (this.background) {
+    if (state.background) {
       connectParams.background = true;
     }
     if (this.ephemeral) {
       connectParams.ephemeral = true;
       connectParams.messages = this.messageHistory;
-      connectParams.system = this.systemPrompt;
-      connectParams.modelId = this.conv.modelId;
+      connectParams.system = state.systemPrompt;
+      connectParams.modelId = state.conv.modelId;
     }
 
-    const conn = await this.gmConnect("CAT_agentConversationChat", [connectParams]);
+    const conn = await state.gmConnect("CAT_agentConversationChat", [connectParams]);
 
     const reply = await this.processChat(conn, handlers);
 
@@ -221,6 +248,7 @@ export class ConversationInstance {
     }
 
     const { toolDefs, handlers } = this.mergeTools(options?.tools);
+    const state = getConversationState(this);
 
     // ephemeral 模式：追加 user message 到内存历史
     if (this.ephemeral) {
@@ -228,27 +256,27 @@ export class ConversationInstance {
     }
 
     const connectParams: Record<string, unknown> = {
-      conversationId: this.conv.id,
-      generation: this.conv.generation,
+      conversationId: state.conv.id,
+      generation: state.conv.generation,
       message: content,
       tools: toolDefs.length > 0 ? toolDefs : undefined,
-      scriptUuid: this.scriptUuid,
+      scriptUuid: state.scriptUuid,
     };
 
-    if (this.cache !== undefined) {
-      connectParams.cache = this.cache;
+    if (state.cache !== undefined) {
+      connectParams.cache = state.cache;
     }
-    if (this.background) {
+    if (state.background) {
       connectParams.background = true;
     }
     if (this.ephemeral) {
       connectParams.ephemeral = true;
       connectParams.messages = this.messageHistory;
-      connectParams.system = this.systemPrompt;
-      connectParams.modelId = this.conv.modelId;
+      connectParams.system = state.systemPrompt;
+      connectParams.modelId = state.conv.modelId;
     }
 
-    const conn = await this.gmConnect("CAT_agentConversationChat", [connectParams]);
+    const conn = await state.gmConnect("CAT_agentConversationChat", [connectParams]);
 
     // chat 连接不会收到 sync 事件（sync 快照仅由 attach 的 SW 端发出），
     // 公开签名与 scriptcat.d.ts 保持一致：chatStream 只产出 StreamChunk
@@ -274,7 +302,7 @@ export class ConversationInstance {
     const parsed = this.parseCommand(content);
     if (!parsed) return undefined;
 
-    const handler = this.commandHandlers.get(parsed.name);
+    const handler = getConversationState(this).commandHandlers.get(parsed.name);
     if (!handler) return undefined;
 
     const result = await handler(parsed.args, this);
@@ -302,11 +330,12 @@ export class ConversationInstance {
 
   // 获取对话历史
   async getMessages(): Promise<ChatMessage[]> {
+    const state = getConversationState(this);
     if (this.ephemeral) {
       // ephemeral 模式：从内存历史转换为 ChatMessage 格式
       return this.messageHistory.map((msg, idx) => ({
         id: `ephemeral-${idx}`,
-        conversationId: this.conv.id,
+        conversationId: state.conv.id,
         role: msg.role,
         content: msg.content,
         toolCallId: msg.toolCallId,
@@ -314,12 +343,12 @@ export class ConversationInstance {
         createtime: Date.now(),
       }));
     }
-    const messages = await this.gmSendMessage("CAT_agentConversation", [
+    const messages = await state.gmSendMessage("CAT_agentConversation", [
       {
         action: "getMessages",
-        conversationId: this.conv.id,
-        generation: this.conv.generation,
-        scriptUuid: this.scriptUuid,
+        conversationId: state.conv.id,
+        generation: state.conv.generation,
+        scriptUuid: state.scriptUuid,
       } as ConversationApiRequest,
     ]);
     return messages || [];
@@ -331,32 +360,35 @@ export class ConversationInstance {
       this.messageHistory = [];
       return;
     }
-    await this.gmSendMessage("CAT_agentConversation", [
+    const state = getConversationState(this);
+    await state.gmSendMessage("CAT_agentConversation", [
       {
         action: "clearMessages",
-        conversationId: this.conv.id,
-        generation: this.conv.generation,
-        scriptUuid: this.scriptUuid,
+        conversationId: state.conv.id,
+        generation: state.conv.generation,
+        scriptUuid: state.scriptUuid,
       } as ConversationApiRequest,
     ]);
   }
 
   // 持久化对话
   async save(): Promise<void> {
-    await this.gmSendMessage("CAT_agentConversation", [
+    const state = getConversationState(this);
+    await state.gmSendMessage("CAT_agentConversation", [
       {
         action: "save",
-        conversationId: this.conv.id,
-        generation: this.conv.generation,
-        scriptUuid: this.scriptUuid,
+        conversationId: state.conv.id,
+        generation: state.conv.generation,
+        scriptUuid: state.scriptUuid,
       } as ConversationApiRequest,
     ]);
   }
 
   // 附加到后台运行中的会话，返回流式事件（首个 chunk 为 sync 快照）
   async attach(): Promise<AsyncIterable<ConversationStreamChunk>> {
-    const conn = await this.gmConnect("CAT_agentAttachToConversation", [
-      { conversationId: this.conv.id, generation: this.conv.generation, scriptUuid: this.scriptUuid },
+    const state = getConversationState(this);
+    const conn = await state.gmConnect("CAT_agentAttachToConversation", [
+      { conversationId: state.conv.id, generation: state.conv.generation, scriptUuid: state.scriptUuid },
     ]);
     return this.processStream(conn, new Map());
   }
@@ -895,8 +927,8 @@ function buildInstance(
 ): ConversationInstance {
   return new ConversationInstance(
     conv,
-    ctx.sendMessage.bind(ctx),
-    ctx.connect.bind(ctx),
+    (api, params) => nativeReflectApply(ctx.sendMessage, ctx, [api, params]),
+    (api, params) => nativeReflectApply(ctx.connect, ctx, [api, params]),
     ctx.scriptRes?.uuid || "",
     options?.tools,
     options?.commands,

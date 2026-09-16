@@ -12,6 +12,7 @@ import type {
   MessageRequest,
 } from "@App/app/service/service_worker/types";
 import { base64ToBlob, randNum, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import LoggerCore from "@App/app/logger/core";
 import EventEmitter from "eventemitter3";
 import GMContext from "./gm_context";
@@ -59,7 +60,21 @@ let valChangeCounterId = 0;
 
 let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
 
-const valueChangePromiseMap = new Map<string, any>();
+const valueChangePromiseMap: Record<string, () => void> = Object.create(null);
+
+const notificationTagMaps = new WeakMap<object, Map<string, string>>();
+const nativeReflectApply = Reflect.apply;
+const weakMapGet = WeakMap.prototype.get;
+const weakMapSet = WeakMap.prototype.set;
+
+const getNotificationTagMap = (owner: object): Map<string, string> => {
+  let map = nativeReflectApply(weakMapGet, notificationTagMaps, [owner]);
+  if (!map) {
+    map = new Map();
+    nativeReflectApply(weakMapSet, notificationTagMaps, [owner, map]);
+  }
+  return map;
+};
 
 const execEnvInit = (execEnv: GMApi) => {
   if (!execEnv.contentEnvKey) {
@@ -138,12 +153,21 @@ class GM_Base implements IGM_Base {
     }
     let ret;
     try {
-      ret = await sendMessage(this.message, `${this.prefix}/runtime/gmApi`, {
+      const request = {
         uuid: this.scriptRes.uuid,
         api,
         params,
         runFlag: this.runFlag,
-      } as MessageRequest);
+        ...(this.scriptRes.executionHandle && this.scriptRes.executionEnvTag
+          ? {
+              version: 1 as const,
+              requestId: uuidv4(),
+              handle: this.scriptRes.executionHandle,
+              envTag: this.scriptRes.executionEnvTag,
+            }
+          : {}),
+      } as MessageRequest;
+      ret = await sendMessage(this.message, `${this.prefix}/runtime/gmApi`, request);
     } catch (e: any) {
       if (`${e?.message || e}`.includes("Extension context invalidated.")) {
         this.setInvalidContext(); // 之后不再进行 sendMessage 跟 EE操作
@@ -157,14 +181,27 @@ class GM_Base implements IGM_Base {
 
   // 长连接使用,connect只用于接受消息,不发送消息
   @GMContext.protected()
-  public connect(api: string, params: any[]) {
+  public async connect(api: string, params: any[]) {
     if (!this.message || !this.scriptRes) return new Promise<MessageConnect>(() => {});
-    return connect(this.message, `${this.prefix}/runtime/gmApi`, {
+    if (this.loadScriptPromise) {
+      await this.loadScriptPromise;
+    }
+    if (!this.message || !this.scriptRes) return new Promise<MessageConnect>(() => {});
+    const request = {
       uuid: this.scriptRes.uuid,
       api,
       params,
       runFlag: this.runFlag,
-    } as MessageRequest);
+      ...(this.scriptRes.executionHandle && this.scriptRes.executionEnvTag
+        ? {
+            version: 1 as const,
+            requestId: uuidv4(),
+            handle: this.scriptRes.executionHandle,
+            envTag: this.scriptRes.executionEnvTag,
+          }
+        : {}),
+    } as MessageRequest;
+    return connect(this.message, `${this.prefix}/runtime/gmApi`, request);
   }
 
   @GMContext.protected()
@@ -176,9 +213,9 @@ class GM_Base implements IGM_Base {
       const valueStore = scriptRes.value;
       const remote = sender.runFlag !== this.runFlag;
       if (!remote && id) {
-        const fn = valueChangePromiseMap.get(id);
+        const fn = valueChangePromiseMap[id];
         if (fn) {
-          valueChangePromiseMap.delete(id);
+          delete valueChangePromiseMap[id];
           fn();
         }
       }
@@ -195,7 +232,9 @@ class GM_Base implements IGM_Base {
           } else {
             valueStore[key] = value;
           }
-          this.valueChangeListener.execute(key, oldValue, value, remote, sender.tabId);
+          const listenerValue = value && typeof value === "object" ? customClone(value) : value;
+          const listenerOldValue = oldValue && typeof oldValue === "object" ? customClone(oldValue) : oldValue;
+          this.valueChangeListener.execute(key, listenerOldValue, listenerValue, remote, sender.tabId);
         }
       }
     }
@@ -210,11 +249,6 @@ class GM_Base implements IGM_Base {
 
 // GMApi 定义 外部用API函数。不使用@protected
 export default class GMApi extends GM_Base {
-  /**
-   * <tag, notificationId>
-   */
-  notificationTagMap?: Map<string, string>;
-
   constructor(
     public prefix: string,
     public message: Message,
@@ -232,7 +266,6 @@ export default class GMApi extends GM_Base {
         scriptRes,
         valueChangeListener,
         EE,
-        notificationTagMap: new Map(),
         eventId: 0,
         setInvalidContext() {
           if (invalid) return;
@@ -290,7 +323,7 @@ export default class GMApi extends GM_Base {
     }
     const id = `${valChangeRandomId}::${++valChangeCounterId}`;
     if (promise) {
-      valueChangePromiseMap.set(id, promise);
+      valueChangePromiseMap[id] = promise;
     }
     if (value === undefined) {
       delete a.scriptRes.value[key];
@@ -320,7 +353,7 @@ export default class GMApi extends GM_Base {
     }
     const id = `${valChangeRandomId}::${++valChangeCounterId}`;
     if (promise) {
-      valueChangePromiseMap.set(id, promise);
+      valueChangePromiseMap[id] = promise;
     }
     const valueStore = a.scriptRes.value;
     const keyValuePairs = [] as [string, REncoded<unknown>][];
@@ -1243,7 +1276,7 @@ export default class GMApi extends GM_Base {
     onclick?: GMTypes.NotificationOnClick
   ): Promise<void> {
     if (gmApi.isInvalidContext()) return Promise.resolve();
-    const notificationTagMap: Map<string, string> = gmApi.notificationTagMap || (gmApi.notificationTagMap = new Map());
+    const notificationTagMap = getNotificationTagMap(gmApi);
     gmApi.eventId += 1;
     let data: GMTypes.NotificationDetails;
     if (typeof detail === "string") {

@@ -1,17 +1,17 @@
 import type { ApiParam, ApiValue } from "../types";
 
-const apis: Map<string, ApiValue[]> = new Map();
+const apis: Record<string, ApiValue[]> = Object.create(null);
 
 export function GMContextApiGet(name: string): ApiValue[] | undefined {
   // 回传 Api 列表
-  return apis.get(name);
+  return apis[name];
 }
 
 function GMContextApiSet(grant: string, fnKey: string, api: any, param: ApiParam): void {
   // 一个 @grant 可以扩充多个 API 函数
-  let m: ApiValue[] | undefined = apis.get(grant);
-  if (!m) apis.set(grant, (m = []));
-  m.push({ fnKey, api, param });
+  let m: ApiValue[] | undefined = apis[grant];
+  if (!m) apis[grant] = m = [];
+  m[m.length] = { fnKey, api, param };
 }
 
 export const protect: { [key: string]: any } = {};

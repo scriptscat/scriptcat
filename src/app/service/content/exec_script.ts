@@ -92,7 +92,15 @@ export default class ExecScript {
   };
 
   // 早期启动的脚本，处理GM API
-  updateEarlyScriptGMInfo(envInfo: GMInfoEnv) {
+  updateEarlyScriptGMInfo(envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) {
+    if (scriptInfo?.executionHandle && scriptInfo.executionEnvTag) {
+      this.scriptRes.executionHandle = scriptInfo.executionHandle;
+      this.scriptRes.executionEnvTag = scriptInfo.executionEnvTag;
+      this.scriptRes.executionRunFlag = scriptInfo.executionRunFlag;
+      if (this.sandboxContext && scriptInfo.executionRunFlag) {
+        this.sandboxContext.runFlag = scriptInfo.executionRunFlag;
+      }
+    }
     let GM_info;
     if (this.sandboxContext) {
       // 触发loadScriptResolve

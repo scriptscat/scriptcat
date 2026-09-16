@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { createContext, createProxyContext, shouldFnBind, type RealmRoots } from "./create_context";
+import { GMContextApiGet } from "./gm_api/gm_context";
 import { trimScriptInfo } from "./utils";
 
 type AnyRecord = Record<PropertyKey, any>;
@@ -304,6 +305,39 @@ describe("shouldFnBind", () => {
 });
 
 describe("createContext: capability and lifecycle contract", () => {
+  it("uses the service-worker execution run flag for value acknowledgments", () => {
+    const script = {
+      ...createScriptInfo({ grant: ["GM_getValue"] }),
+      executionRunFlag: "canonical-run",
+    } as TScriptInfo;
+    const context = createContext(
+      script,
+      { script: { name: "create-context-test" }, scriptMetaStr: "" },
+      "vitest",
+      undefined as any,
+      undefined as any,
+      new Set(["GM_getValue"])
+    );
+
+    expect((context as unknown as { runFlag: string }).runFlag).toBe("canonical-run");
+  });
+
+  it("installs capabilities without looking up a page-patchable Function.prototype.bind", () => {
+    const apiValues = GMContextApiGet("GM_getValue")!;
+    const originalApi = apiValues[0].api;
+    const replacement = function (this: unknown, key: string, fallback?: unknown) {
+      return fallback;
+    };
+    Object.defineProperty(replacement, "bind", { configurable: true, value: undefined });
+    apiValues[0].api = replacement;
+    try {
+      const context = createTestContext(["GM_getValue"]);
+      expect(context.GM_getValue("key", "fallback")).toBe("fallback");
+    } finally {
+      apiValues[0].api = originalApi;
+    }
+  });
+
   const resourceGrantChecks: Array<{
     grant: string;
     read: (context: ReturnType<typeof createContext>) => unknown;

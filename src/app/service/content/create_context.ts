@@ -9,6 +9,14 @@ import { ListenerManager } from "./listener_manager";
 import { createGMBase } from "./gm_api/gm_api";
 import { attachNavigateHandler, type UrlChangeEvent } from "./gm_api/navigation_handle";
 
+const nativeReflectApply = Reflect.apply;
+
+const createCapability = (api: (...args: any[]) => any, receiver: object) => {
+  const capability = (...args: any[]) => nativeReflectApply(api, receiver, args);
+  Object.defineProperty(capability, "name", { configurable: true, value: `bound ${api.name}` });
+  return capability;
+};
+
 // 不要使用 {}, 改使用 Object.create(null) - 避免在页面生成沙盒时，受到 Object.prototype 被注入的影响
 
 // 构建沙盒上下文
@@ -41,7 +49,7 @@ export const createContext = (
     scriptRes,
     valueChangeListener,
     EE,
-    runFlag: uuidv4(),
+    runFlag: scriptRes.executionRunFlag || uuidv4(),
     eventId: 10000,
     GM: GM,
     GM_info: GMInfo,
@@ -73,7 +81,7 @@ export const createContext = (
     if (grantSet.has(grant)) return true; // 重复的@grant，略过 (返回 true 表示 @grant 存在)
     grantSet.add(grant);
     for (const { fnKey, api, param } of s) {
-      grantedAPIs[fnKey] = api.bind(context);
+      grantedAPIs[fnKey] = createCapability(api, context);
       const depend = param?.depend;
       if (depend) {
         for (const grant of depend) {
@@ -185,14 +193,14 @@ const materializeDescriptor = (descriptor: PropertyDescriptor, receiver: Descrip
     if (typeof descriptor.value !== "function" || isConstructorOrInterface(descriptor.value)) return descriptor;
     return {
       ...descriptor,
-      value: bindFn.call(descriptor.value, receiver),
+      value: nativeReflectApply(bindFn, descriptor.value, [receiver]),
     };
   }
   if (!descriptor.get && !descriptor.set) return descriptor;
   return {
     ...descriptor,
-    get: descriptor.get ? bindFn.call(descriptor.get, receiver) : undefined,
-    set: descriptor.set ? bindFn.call(descriptor.set, receiver) : undefined,
+    get: descriptor.get ? nativeReflectApply(bindFn, descriptor.get, [receiver]) : undefined,
+    set: descriptor.set ? nativeReflectApply(bindFn, descriptor.set, [receiver]) : undefined,
   };
 };
 

@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
+import type { GMInfoEnv } from "./types";
 import { initEnvInfo, ScriptExecutor } from "./script_executor";
 
 const styleUrl = "https://example.com/style.css";
@@ -31,6 +32,72 @@ function makeScript(overrides: Partial<ScriptLoadInfo & Pick<TScriptInfo, "requi
 }
 
 describe("ScriptExecutor", () => {
+  it("does not resolve page-patchable Map methods for execution bookkeeping", () => {
+    const originalSet = Map.prototype.set;
+    const originalGet = Map.prototype.get;
+    const originalValues = Map.prototype.values;
+    const receivers: Map<unknown, unknown>[] = [];
+    Map.prototype.set = function (key, value) {
+      receivers.push(this);
+      return originalSet.call(this, key, value);
+    };
+    Map.prototype.get = function (key) {
+      receivers.push(this);
+      return originalGet.call(this, key);
+    };
+    Map.prototype.values = function () {
+      receivers.push(this);
+      return originalValues.call(this);
+    };
+    try {
+      const executor = new ScriptExecutor({} as Message, {} as Message);
+      executor.execScriptEntry({
+        scriptLoadInfo: makeScript(),
+        scriptFlag: "executor-test-flag",
+        envInfo: initEnvInfo,
+        scriptFunc: () => undefined,
+      });
+      expect(receivers).toHaveLength(0);
+    } finally {
+      Map.prototype.set = originalSet;
+      Map.prototype.get = originalGet;
+      Map.prototype.values = originalValues;
+    }
+  });
+
+  it("attaches the page execution binding when an early-start script is reconciled", () => {
+    const initial = makeScript({ metadata: { "early-start": [""], "run-at": ["document-start"] } });
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+
+    executor.execScriptEntry({
+      scriptLoadInfo: initial,
+      scriptFlag: initial.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: () => undefined,
+    });
+
+    const exec = (
+      executor as unknown as {
+        execScripts: Array<{
+          exec: {
+            scriptRes: TScriptInfo;
+            updateEarlyScriptGMInfo: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => void;
+          };
+        }>;
+      }
+    ).execScripts[0].exec;
+    expect(exec.scriptRes.executionHandle).toBeUndefined();
+
+    exec.updateEarlyScriptGMInfo(initEnvInfo, {
+      ...initial,
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+    });
+
+    expect(exec.scriptRes.executionHandle).toBe("page-binding");
+    expect(exec.scriptRes.executionEnvTag).toBe("it");
+  });
+
   describe("resource execution", () => {
     let adoptedSheets: CSSStyleSheet[];
 

@@ -3,6 +3,7 @@ import type { Resource, ResourceType } from "./resource";
 import type { SCMetadata } from "./metadata";
 import type { GMInfoEnv } from "../service/content/types";
 import type { URLRuleEntry } from "@App/pkg/utils/url_matcher";
+import type { ScriptEnvTag } from "@Packages/message/consts";
 
 // 脚本模型
 export type SCRIPT_TYPE = 1 | 2 | 3;
@@ -110,6 +111,12 @@ export interface ScriptRunResource extends Script {
   resourceByType?: ScriptResourceByType;
   metadata: SCMetadata; // 经自定义覆盖的 Metadata
   originalMetadata: SCMetadata; // 原本的 Metadata （目前只需要 match, include, exclude）
+  /** 页面执行环境绑定的能力句柄。 */
+  executionHandle?: string;
+  /** 执行脚本所在的页面环境。 */
+  executionEnvTag?: ScriptEnvTag;
+  /** 页面执行绑定使用的值更新关联标识。 */
+  executionRunFlag?: string;
 }
 
 /**

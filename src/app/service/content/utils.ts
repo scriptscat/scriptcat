@@ -232,6 +232,9 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   delete scriptInfo.runStatus; // 前台脚本不用
   delete scriptInfo.type; // 脚本类型总是普通脚本
   delete scriptInfo.status; // 脚本状态总是启用
+  delete scriptInfo.executionHandle;
+  delete scriptInfo.executionEnvTag;
+  delete scriptInfo.executionRunFlag;
   // --- 处理 scriptInfo ---
   return scriptInfo;
 };
@@ -249,6 +252,10 @@ export function compilePreInjectScript(
   const flag = `${script.flag}`;
   const scriptInfo = trimScriptInfo(script);
   const scriptInfoJSON = `${JSON.stringify(scriptInfo)}`;
+  const scriptUrlPatterns = script.scriptUrlPatterns?.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+  const urlCondition = scriptUrlPatterns
+    ? embeddedPatternCheckerString("location.href", JSON.stringify(scriptUrlPatterns))
+    : "true";
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
   const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
   const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
@@ -256,7 +263,7 @@ export function compilePreInjectScript(
 {
   let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
   c = typeof cloneInto === "function" ? cloneInto(o, performance) : o,
-  f = () => performance.dispatchEvent(new CustomEvent('${evScriptLoad}', c)),
+  f = () => ${urlCondition} && performance.dispatchEvent(new CustomEvent('${evScriptLoad}', c)),
   needWait = f();
   if (needWait) performance.addEventListener('${evEnvLoad}', f, { once: true });
 }

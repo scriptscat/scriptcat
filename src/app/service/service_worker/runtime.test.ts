@@ -1109,6 +1109,59 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
       url: "https://www.example.com/page",
     });
   });
+
+  it("为每个页面文档签发绑定，并拒绝跨标签页、跨 frame 和旧文档复用", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({ uuid: "bound-script", metadata: { grant: ["GM_getTab"] } })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [script],
+      contentScriptList: [],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+
+    const rawSender = {
+      url: "https://www.example.com/page",
+      frameId: 0,
+      documentId: "doc-a",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender;
+    const sender = new SenderRuntime(rawSender);
+    const first = await runtime.pageLoad(undefined, sender);
+    const firstHandle = first.ok ? first.injectScriptList[0].executionHandle : undefined;
+    const firstRunFlag = first.ok ? first.injectScriptList[0].executionRunFlag : undefined;
+    expect(firstHandle).toEqual(expect.any(String));
+    expect(firstRunFlag).toEqual(expect.any(String));
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, sender)).toMatchObject({
+      uuid: "bound-script",
+      envTag: "it",
+      tabId: 41,
+      frameId: 0,
+      documentId: "doc-a",
+    });
+
+    const otherTab = new SenderRuntime({ ...rawSender, tab: { ...rawSender.tab, id: 42 } as chrome.tabs.Tab });
+    const otherFrame = new SenderRuntime({ ...rawSender, frameId: 1 });
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, otherTab)).toBeUndefined();
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, otherFrame)).toBeUndefined();
+
+    const secondSender = new SenderRuntime({ ...rawSender, documentId: "doc-b" });
+    const second = await runtime.pageLoad(undefined, secondSender);
+    const secondHandle = second.ok ? second.injectScriptList[0].executionHandle : undefined;
+    const secondRunFlag = second.ok ? second.injectScriptList[0].executionRunFlag : undefined;
+    expect(secondHandle).toEqual(expect.any(String));
+    expect(secondRunFlag).toEqual(expect.any(String));
+    expect(secondHandle).not.toBe(firstHandle);
+    expect(secondRunFlag).not.toBe(firstRunFlag);
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, sender)).toBeDefined();
+    expect(runtime.resolvePageExecutionBinding(secondHandle!, secondSender)).toBeDefined();
+
+    runtime.revokePageBindingsForTab(41);
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, sender)).toBeUndefined();
+    expect(runtime.resolvePageExecutionBinding(secondHandle!, secondSender)).toBeUndefined();
+  });
 });
 
 describe("sandbox verified 初始化重放", () => {

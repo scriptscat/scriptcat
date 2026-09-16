@@ -509,13 +509,13 @@ export function GM_xmlhttpRequest(
         finalResultBuffers = null;
         finalResultText = null;
         const xhrResponse = makeXHRCallbackParam?.(data) ?? {};
-        details.onloadend?.(xhrResponse);
         if (errorOccur === null) {
           retPromiseResolve?.(xhrResponse);
         } else {
           retPromiseReject?.(errorOccur);
         }
         refCleanup?.();
+        details.onloadend?.(xhrResponse);
       }
     };
     doAbort = (data: TXhrCallBackArg) => {
