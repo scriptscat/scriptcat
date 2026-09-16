@@ -43,6 +43,7 @@
   "code_copy": "复制代码",
   "code_collapse": "折叠",
   "code_expand": "展开",
+  "code_fullscreen": "全屏查看代码",
   "loading_title": "正在加载脚本",
   "loading_desc": "正在从来源下载并解析脚本内容",
   "loading_title_update": "正在准备更新详情",
