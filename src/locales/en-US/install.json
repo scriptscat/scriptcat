@@ -261,6 +261,7 @@
   "compat_jump": "Go to line {{line}}",
   "compat_docs": "Compatibility docs",
   "compat_count": "{{count}} with no effect",
+  "compat_scriptcat_only": "ScriptCat only",
   "perm_other_label": "Other declarations",
   "perm_other_summary": "Declared by the script but not executed by ScriptCat"
 }

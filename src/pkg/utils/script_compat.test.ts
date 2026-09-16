@@ -8,6 +8,7 @@ import {
   SUPPORTED_METADATA_TAGS,
   SYNTHETIC_METADATA_TAGS,
   isSupportedGrant,
+  isScriptCatOnlyGrant,
   isSupportedMetadataTag,
   resolveMetadataTagBase,
 } from "./script_compat";
@@ -79,6 +80,20 @@ describe("GM 能力支持判定", () => {
   it("脚本猫未实现的 GM API 视为不支持", () => {
     for (const grant of ["GM_audio", "GM_webRequest", "GM_addScript", "GM_createObjectURL"]) {
       expect(isSupportedGrant(grant), grant).toBe(false);
+    }
+  });
+});
+
+describe("仅限脚本猫的 GM 能力判定", () => {
+  it("CAT_ 与 CAT. 命名空间下的已实现能力仅限脚本猫", () => {
+    for (const grant of ["CAT_fileStorage", "CAT_userConfig", "CAT.agent.dom"]) {
+      expect(isScriptCatOnlyGrant(grant), grant).toBe(true);
+    }
+  });
+
+  it("通用 GM 能力、上下文能力与脚本猫未实现的 CAT 名字都不算", () => {
+    for (const grant of ["GM_setValue", "GM.xmlHttpRequest", "unsafeWindow", "window.close", "CAT_notExist"]) {
+      expect(isScriptCatOnlyGrant(grant), grant).toBe(false);
     }
   });
 });

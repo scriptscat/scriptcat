@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Globe, ArrowLeftRight, ChevronDown, KeyRound, Package, TriangleAlert, type LucideIcon } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
+import { isScriptCatOnlyGrant } from "@App/pkg/utils/script_compat";
 import type { CompatView } from "../compat";
 import { CompatChip } from "./CompatChip";
 import {
@@ -53,6 +54,8 @@ const CHANGE_LABEL_KEY: Record<ChangeState, string> = {
 function Chip({ value, row, change }: { value: string; row: PermissionRowData; change?: ChangeState }) {
   const { t } = useTranslation(["install", "common"]);
   const isSensitive = row.sensitive.includes(value);
+  // 装在脚本猫里能用，但换到别的脚本管理器就不行了；已移除的取值不再属于新版本，不标
+  const isScriptCatOnly = row.kind === "grant" && change !== "removed" && isScriptCatOnlyGrant(value);
   const base = isSensitive ? "border border-warning-fg bg-muted text-warning-fg" : RISK_STYLE[row.risk].chip;
 
   // 变动状态只用字重、描边与 +/− 记号表达,底色继续留给风险等级——
@@ -78,6 +81,14 @@ function Chip({ value, row, change }: { value: string; row: PermissionRowData; c
       {isSensitive && change !== "removed" && <TriangleAlert className="size-3 shrink-0" />}
       {change && <span className="sr-only">{t(CHANGE_LABEL_KEY[change])}</span>}
       <span className="min-w-0 break-all">{value}</span>
+      {isScriptCatOnly && (
+        <span
+          data-testid="scriptcat-only"
+          className="shrink-0 rounded bg-primary-light px-1 font-sans text-[10px] font-medium text-primary"
+        >
+          {t("install:compat_scriptcat_only")}
+        </span>
+      )}
     </span>
   );
 }

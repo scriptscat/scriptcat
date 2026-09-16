@@ -261,6 +261,7 @@
   "compat_jump": "Перейти к строке {{line}}",
   "compat_docs": "Документация по совместимости",
   "compat_count": "Не действует: {{count}}",
+  "compat_scriptcat_only": "только ScriptCat",
   "perm_other_label": "Прочие объявления",
   "perm_other_summary": "Объявлено скриптом, но ScriptCat это не выполняет"
 }

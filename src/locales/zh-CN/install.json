@@ -261,6 +261,7 @@
   "compat_jump": "跳到第 {{line}} 行",
   "compat_docs": "兼容性文档",
   "compat_count": "{{count}} 项不生效",
+  "compat_scriptcat_only": "仅限脚本猫",
   "perm_other_label": "其他声明",
   "perm_other_summary": "已声明，但脚本猫不会执行"
 }

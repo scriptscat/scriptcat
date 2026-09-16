@@ -206,3 +206,6 @@ export const SUPPORTED_GRANTS: ReadonlySet<string> = new Set([...REGISTERED_GRAN
 // 与运行时同一套候选规则：@grant GM.foo 与 GM_foo 互认（src/app/service/content/gm_api/grant.ts）
 export const isSupportedGrant = (grant: string): boolean =>
   getGrantCandidates(grant).some((candidate) => SUPPORTED_GRANTS.has(candidate));
+
+// CAT_ / CAT. 是脚本猫自有的 API 命名空间，其他脚本管理器没有这些能力
+export const isScriptCatOnlyGrant = (grant: string): boolean => /^CAT[_.]/.test(grant) && isSupportedGrant(grant);

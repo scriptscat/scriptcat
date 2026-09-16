@@ -196,3 +196,39 @@ describe("PermissionRow 上的不生效标记", () => {
     expect(screen.queryByTestId("compat-chip")).not.toBeInTheDocument();
   });
 });
+
+describe("PermissionRow 上的仅限脚本猫标记", () => {
+  it("CAT_ 与 CAT. 能力标出仅限脚本猫，通用 GM 能力不标", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: ["GM_setValue", "CAT_fileStorage", "CAT.agent.dom"],
+          sensitive: [],
+        }}
+      />
+    );
+    const row = screen.getByTestId("permission-row");
+    expect(within(row).getAllByTestId("scriptcat-only")).toHaveLength(2);
+    expect(
+      within(screen.getByText("CAT_fileStorage").closest("[data-chip]")!).getByText("仅限脚本猫")
+    ).toBeInTheDocument();
+    expect(within(screen.getByText("GM_setValue").closest("[data-chip]")!).queryByTestId("scriptcat-only")).toBeNull();
+  });
+
+  it("更新态里被移除的 CAT 能力不标——它已经不在新版本里了", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: ["GM_setValue"],
+          sensitive: [],
+          diff: { added: [], removed: ["CAT_fileStorage"] },
+        }}
+      />
+    );
+    expect(screen.queryByTestId("scriptcat-only")).not.toBeInTheDocument();
+  });
+});

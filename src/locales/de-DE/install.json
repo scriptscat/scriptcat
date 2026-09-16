@@ -261,6 +261,7 @@
   "compat_jump": "Zu Zeile {{line}} springen",
   "compat_docs": "Kompatibilitätsdokumentation",
   "compat_count": "{{count}} ohne Wirkung",
+  "compat_scriptcat_only": "nur ScriptCat",
   "perm_other_label": "Weitere Deklarationen",
   "perm_other_summary": "Vom Skript deklariert, wird von ScriptCat aber nicht ausgeführt"
 }
