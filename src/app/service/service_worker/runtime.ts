@@ -144,7 +144,7 @@ export class RuntimeService {
   private readonly pageExecutionBindings = new Map<string, ServiceWorkerExecutionBinding>();
   private readonly userScriptConnections = new Map<
     string,
-    { connection: MessageConnect; tabId: number; frameId?: number; documentId?: string }
+    { connection: MessageConnect; handles: Set<string>; tabId: number; frameId?: number; documentId?: string }
   >();
 
   getGMApi(): GMApi | undefined {
@@ -185,18 +185,45 @@ export class RuntimeService {
   }
 
   /** Register the native USER_SCRIPT channel used for private bootstrap and callbacks. */
-  registerUserScriptConnection(_: unknown, sender: IGetSender): boolean {
-    if (!sender.isType(GetSenderType.EXTCONNECT)) return false;
+  registerUserScriptConnection(data: unknown, sender: IGetSender): boolean {
+    if (!sender.isType(GetSenderType.EXTCONNECT) || sender.getConnectOrigin?.() !== "userScript") return false;
+    if (data === null || typeof data !== "object") return false;
+    const handshake = data as { world?: unknown; executionHandles?: unknown };
+    if (
+      Object.keys(data).length !== 2 ||
+      handshake.world !== "USER_SCRIPT" ||
+      !Array.isArray(handshake.executionHandles) ||
+      handshake.executionHandles.length === 0 ||
+      handshake.executionHandles.length > 256 ||
+      handshake.executionHandles.some(
+        (handle) => typeof handle !== "string" || handle.length === 0 || handle.length > 256
+      )
+    ) {
+      return false;
+    }
     const source = sender.getSender();
     const connection = sender.getConnect();
     const tabId = source?.tab?.id;
     if (!source || typeof tabId !== "number" || !connection) return false;
+    const handles = new Set(handshake.executionHandles as string[]);
+    for (const handle of handles) {
+      const binding = this.pageExecutionBindings.get(handle);
+      if (
+        !binding ||
+        binding.envTag !== "ct" ||
+        binding.tabId !== tabId ||
+        binding.frameId !== source.frameId ||
+        binding.documentId !== source.documentId
+      ) {
+        return false;
+      }
+    }
     const frameId = source.frameId;
     const documentId = source.documentId;
     const key = this.userScriptConnectionKey(tabId, frameId, documentId);
     const previous = this.userScriptConnections.get(key);
     if (previous) previous.connection.disconnect(true);
-    const entry = { connection, tabId, frameId, documentId };
+    const entry = { connection, handles, tabId, frameId, documentId };
     this.userScriptConnections.set(key, entry);
     connection.onDisconnect(() => {
       if (this.userScriptConnections.get(key)?.connection === connection) this.userScriptConnections.delete(key);
@@ -214,6 +241,19 @@ export class RuntimeService {
       ) {
         continue;
       }
+      const bindingMatches = [...this.pageExecutionBindings.values()].some(
+        (binding) =>
+          entry.handles.has(binding.handle) &&
+          ((action === "runtime/emitEvent" &&
+            typeof data === "object" &&
+            data !== null &&
+            (data as { uuid?: unknown }).uuid === binding.uuid) ||
+            (action === "runtime/valueUpdate" &&
+              typeof data === "object" &&
+              data !== null &&
+              (data as { storageName?: unknown }).storageName === binding.storageName))
+      );
+      if (!bindingMatches) continue;
       try {
         entry.connection.sendMessage({ action: `content/${action}`, data });
       } catch {
@@ -228,7 +268,12 @@ export class RuntimeService {
     }
   }
 
-  private issuePageBinding(uuid: string, envTag: "it" | "ct", sender: IGetSender): ServiceWorkerExecutionBinding {
+  private issuePageBinding(
+    uuid: string,
+    envTag: "it" | "ct",
+    storageName: string,
+    sender: IGetSender
+  ): ServiceWorkerExecutionBinding {
     const source = sender.getSender();
     const tabId = source?.tab?.id;
     if (typeof tabId !== "number") throw new Error("page execution binding requires a tab");
@@ -241,6 +286,8 @@ export class RuntimeService {
       tabId,
       frameId: source?.frameId,
       documentId: source?.documentId,
+      storageName,
+      requestIds: new Set<string>(),
     } satisfies ServiceWorkerExecutionBinding;
     this.pageExecutionBindings.set(handle, binding);
     return binding;
@@ -1419,7 +1466,7 @@ export class RuntimeService {
       this.revokePageBindings(sender, data?.envTag);
       const prepareScripts = (scripts: TScriptInfo[], envTag: "it" | "ct") =>
         scripts.map((script) => {
-          const binding = this.issuePageBinding(script.uuid, envTag, sender);
+          const binding = this.issuePageBinding(script.uuid, envTag, getStorageName(script), sender);
           return {
             ...script,
             executionHandle: binding.handle,

@@ -1,0 +1,42 @@
+import { describe, expect, it, vi } from "vitest";
+import type { Message, MessageConnect, TMessage } from "@Packages/message/types";
+import { connectUserScriptChannel } from "./user_script_connection";
+
+const makeConnection = (): MessageConnect => ({
+  onMessage: vi.fn(),
+  sendMessage: vi.fn(),
+  disconnect: vi.fn(),
+  onDisconnect: vi.fn(),
+});
+
+describe("connectUserScriptChannel", () => {
+  it("enables the native listener before opening the USER_SCRIPT port", async () => {
+    const connection = makeConnection();
+    const order: string[] = [];
+    const message = {
+      sendMessage: vi.fn(async (packet: TMessage) => {
+        order.push(`send:${(packet as { type?: string }).type}`);
+        return true;
+      }),
+      connect: vi.fn(async (packet: TMessage) => {
+        order.push(`connect:${packet.action}`);
+        return connection;
+      }),
+    } as unknown as Message;
+
+    await connectUserScriptChannel(message, ["handle-a"], vi.fn());
+
+    expect(order).toEqual(["send:userScripts.LISTEN_CONNECTIONS", "connect:serviceWorker/runtime/registerUserScript"]);
+    expect(connection.onMessage).toHaveBeenCalledOnce();
+  });
+
+  it("does not open a port when the browser cannot enable USER_SCRIPT listeners", async () => {
+    const message = {
+      sendMessage: vi.fn().mockResolvedValue(false),
+      connect: vi.fn(),
+    } as unknown as Message;
+
+    await expect(connectUserScriptChannel(message, ["handle-a"], vi.fn())).resolves.toBeUndefined();
+    expect(message.connect).not.toHaveBeenCalled();
+  });
+});

@@ -170,6 +170,15 @@ export class ScriptExecutor {
   }
 
   execEarlyScript(flag: string, scriptInfo: TScriptInfo, envInfo: GMInfoEnv) {
+    const expectedUuid = flag.startsWith("#-") ? flag.slice(2) : undefined;
+    if (
+      (expectedUuid && scriptInfo.uuid !== expectedUuid) ||
+      scriptInfo.executionHandle !== undefined ||
+      scriptInfo.executionEnvTag !== undefined ||
+      scriptInfo.executionRunFlag !== undefined
+    ) {
+      return;
+    }
     const scriptFunc = (window as unknown as Record<string, unknown>)[flag] as ScriptFunc;
     const descriptor =
       typeof scriptFunc === "function" ? Native.objectGetOwnPropertyDescriptor(scriptFunc, fnStrIntegrity) : undefined;

@@ -20,7 +20,7 @@ import type { ResourceService } from "./resource";
 import type { ScriptDAO } from "@App/app/repo/scripts";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
-import { obtainBlackList } from "@App/pkg/utils/utils";
+import { getStorageName, obtainBlackList } from "@App/pkg/utils/utils";
 import type { CompiledResource, Resource } from "@App/app/repo/resource";
 
 initTestEnv();
@@ -1218,6 +1218,72 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
 
     expect(injectLoad.ok).toBe(true);
     expect(runtime.resolvePageExecutionBinding(contentHandle!, sender)).toBeDefined();
+  });
+});
+
+describe("USER_SCRIPT native callbacks", () => {
+  it("只向当前文档中声明了对应脚本或 storageName 的连接投递更新", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({ uuid: "content-script", metadata: { match: ["https://www.example.com/*"] } })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [],
+      contentScriptList: [script],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+
+    const rawSender = {
+      url: "https://www.example.com/page",
+      frameId: 0,
+      documentId: "doc-a",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender;
+    const sendMessage = vi.fn();
+    const connection = {
+      onMessage: vi.fn(),
+      sendMessage,
+      disconnect: vi.fn(),
+      onDisconnect: vi.fn(),
+    } as unknown as MessageConnect;
+    const connectionSender = {
+      getType: () => 3,
+      isType: () => true,
+      getSender: () => rawSender,
+      getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-a" }),
+      getConnect: () => connection,
+      getConnectOrigin: () => "userScript" as const,
+    };
+
+    await runtime.pageLoad({ envTag: "ct" }, new SenderRuntime(rawSender));
+    const contentBindings = [...(runtime as any).pageExecutionBindings.values()] as Array<{ handle: string }>;
+    const handles = contentBindings.map(({ handle }) => handle);
+    expect(handles).toHaveLength(1);
+    expect(
+      runtime.registerUserScriptConnection(
+        { world: "USER_SCRIPT", executionHandles: handles },
+        { ...connectionSender, getConnectOrigin: () => "extension" as const }
+      )
+    ).toBe(false);
+    expect(runtime.registerUserScriptConnection({ world: "USER_SCRIPT" }, connectionSender)).toBe(false);
+    expect(
+      runtime.registerUserScriptConnection({ world: "USER_SCRIPT", executionHandles: handles }, connectionSender)
+    ).toBe(true);
+
+    const sendUserScriptMessage = (runtime as any).sendUserScriptMessage.bind(runtime);
+    sendUserScriptMessage(undefined, "runtime/valueUpdate", {
+      uuid: "other-script",
+      storageName: getStorageName(script),
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+
+    sendMessage.mockClear();
+    sendUserScriptMessage(undefined, "runtime/valueUpdate", {
+      uuid: "content-script",
+      storageName: "unrelated-storage",
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });
 

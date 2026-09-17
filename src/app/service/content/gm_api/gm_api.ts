@@ -129,7 +129,7 @@ class GM_Base implements IGM_Base {
 
   constructor(options: any = null, obj: any = null) {
     if (obj !== integrity) throw new TypeError("Illegal invocation");
-    Object.assign(this, options);
+    Native.objectAssign(this, options);
   }
 
   @GMContext.protected()
@@ -254,7 +254,8 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   emitEvent(event: string, eventId: string, data: any) {
     if (!this.EE) return;
-    this.EE.emit(`${event}:${eventId}`, data);
+    const callbackData = data && typeof data === "object" ? customClone(data) : data;
+    this.EE.emit(`${event}:${eventId}`, callbackData);
   }
 }
 

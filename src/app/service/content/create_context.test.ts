@@ -338,6 +338,22 @@ describe("createContext: capability and lifecycle contract", () => {
     }
   });
 
+  it("uses captured object operations when page code replaces assign and keys", () => {
+    const assign = vi.spyOn(Object, "assign").mockImplementation(() => {
+      throw new Error("page replacement");
+    });
+    const keys = vi.spyOn(Object, "keys").mockImplementation(() => {
+      throw new Error("page replacement");
+    });
+    try {
+      const context = createTestContext(["GM_getValue"]);
+      expect(context.GM_getValue("foo", "fallback")).toBe("bar");
+    } finally {
+      assign.mockRestore();
+      keys.mockRestore();
+    }
+  });
+
   const resourceGrantChecks: Array<{
     grant: string;
     read: (context: ReturnType<typeof createContext>) => unknown;
@@ -486,6 +502,23 @@ describe("createContext: capability and lifecycle contract", () => {
 
     update("remote-2", "again", 8);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("事件回调收到独立快照，不能改写传输中的事件数据", () => {
+    const context = createTestContext(["CAT.agent.task"]);
+    let observed: { nested: { value: number } } | undefined;
+    const received = vi.fn((data: { nested: { value: number } }) => {
+      observed = { nested: { value: data.nested.value } };
+      data.nested.value = 99;
+    });
+
+    context.CAT.agent.task.addListener("task-a", received);
+    const eventData = { nested: { value: 1 } };
+    context.emitEvent("agentTask", "task-a", eventData);
+
+    expect(received).toHaveBeenCalledTimes(1);
+    expect(observed).toEqual({ nested: { value: 1 } });
+    expect(eventData).toEqual({ nested: { value: 1 } });
   });
 });
 

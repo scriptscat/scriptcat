@@ -12,7 +12,7 @@ import { Native } from "./global";
 
 const createCapability = (api: (...args: any[]) => any, receiver: object) => {
   const capability = (...args: any[]) => Native.reflectApply(api, receiver, args);
-  Object.defineProperty(capability, "name", { configurable: true, value: `bound ${api.name}` });
+  Native.objectDefineProperty(capability, "name", { configurable: true, value: `bound ${api.name}` });
   return capability;
 };
 
@@ -39,7 +39,7 @@ export const createContext = (
     });
   }
   let invalid = false;
-  const GM = Object.create(null);
+  const GM = Native.objectCreate(null);
   GM.info = GMInfo;
   const context = createGMBase({
     prefix: envPrefix,
@@ -52,8 +52,8 @@ export const createContext = (
     eventId: 10000,
     GM: GM,
     GM_info: GMInfo,
-    window: Object.create(null),
-    grantSet: new Set(),
+    window: Native.objectCreate(null),
+    grantSet: new Native.Set(),
     loadScriptPromise,
     loadScriptResolve,
     setInvalidContext() {
@@ -72,7 +72,7 @@ export const createContext = (
       return invalid;
     },
   });
-  const grantedAPIs: { [key: string]: any } = Object.create(null);
+  const grantedAPIs: { [key: string]: any } = Native.objectCreate(null);
   const __methodInject__ = (grant: string): boolean => {
     const grantSet: Set<string> = context.grantSet;
     const s = GMContextApiGet(grant);
@@ -96,7 +96,7 @@ export const createContext = (
     }
   }
   // 兼容GM.Cookie.*
-  for (const fnKey of Object.keys(grantedAPIs)) {
+  for (const fnKey of Native.objectKeys(grantedAPIs)) {
     const fnKeyArray = fnKey.split(".");
     const m = fnKeyArray.length;
     let g = context;
@@ -104,7 +104,7 @@ export const createContext = (
     for (let i = 0; i < m; i++) {
       const part = fnKeyArray[i];
       s += `${i ? "." : ""}${part}`;
-      g = g[part] || (g[part] = grantedAPIs[s] || Object.create(null));
+      g = g[part] || (g[part] = grantedAPIs[s] || Native.objectCreate(null));
     }
   }
   context.unsafeWindow = window;
@@ -168,8 +168,8 @@ const getAllPropertyDescriptors = (
   callback: (key: string | symbol, descriptor: PropertyDescriptor) => void
 ) => {
   while (obj && obj !== Object) {
-    const descs = Object.getOwnPropertyDescriptors(obj);
-    for (const key of Reflect.ownKeys(descs)) {
+    const descs = Native.objectGetOwnPropertyDescriptors(obj);
+    for (const key of Native.reflectOwnKeys(descs)) {
       callback(key, descs[key as keyof typeof descs]);
     }
     obj = Object.getPrototypeOf(obj);
@@ -214,25 +214,25 @@ export type RealmRoots = {
 const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSnapshot => {
   // 在 CacheSet 加入的 propKeys 将会在 mySandbox 实装阶段时设置。
   // 先处理的 descriptor 覆盖后续父类。
-  const descsCache: Set<string | symbol> = new Set(["eval", "window", "self", "globalThis", "top", "parent"]);
+  const descsCache: Set<string | symbol> = new Native.Set(["eval", "window", "self", "globalThis", "top", "parent"]);
 
   // realmGlobal own descriptor 优先，hostWindow descriptor 只补足 host 成员。
-  const initOwnDescs = Object.getOwnPropertyDescriptors(realmGlobal);
+  const initOwnDescs = Native.objectGetOwnPropertyDescriptors(realmGlobal);
 
   // overriddenDescs 将以物件 OwnPropertyDescriptor 方式进行物件属性修改。
   // 覆盖原有的 OwnPropertyDescriptor 定义或父类的 PropertyDescriptor 定义。
-  const overriddenDescs: DescriptorMap = Object.create(null);
+  const overriddenDescs: DescriptorMap = Native.objectCreate(null);
 
   // 记录原生 onxxxxx 的 property key。
-  const eventKeys = new Set<string>();
+  const eventKeys = new Native.Set<string>();
 
   // 在 USE_PSEUDO_WINDOW 情况下，由于没有类的 prototype，父类的成员要手动传下去。
-  const protoBaseDescs: DescriptorMap = Object.create(null);
+  const protoBaseDescs: DescriptorMap = Native.objectCreate(null);
 
   const collectRealmDescriptors = () => {
     // 只读取 realmGlobal own descriptors，避免混合 Firefox 的两个 realm。
-    const descriptors = Object.getOwnPropertyDescriptors(realmGlobal);
-    for (const key of Object.keys(descriptors)) {
+    const descriptors = Native.objectGetOwnPropertyDescriptors(realmGlobal);
+    for (const key of Native.objectKeys(descriptors)) {
       const desc = descriptors[key];
       if (descsCache.has(key)) continue;
       descsCache.add(key); // realm own descriptors take precedence over host descriptors
@@ -278,7 +278,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
         if (shouldFnBind(desc.value)) {
           overriddenDescs[key] = materializeDescriptor(desc, hostWindow);
           descsCache.add(key);
-        } else if (!(key in initOwnDescs) && !Object.hasOwn(realmGlobal, key) && !protoBaseDescs[key]) {
+        } else if (!(key in initOwnDescs) && !Native.objectHasOwn(realmGlobal, key) && !protoBaseDescs[key]) {
           protoBaseDescs[key] = materializeDescriptor(desc, hostWindow);
         }
         return;
@@ -330,13 +330,13 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
   });
 
   const sharedInitCopy = USE_PSEUDO_WINDOW
-    ? Object.create(null, {
+    ? Native.objectCreate(null, {
         ...protoBaseDescs, // 较快的 @unwrap 注入时有机会改变 EventTarget.prototype
-        ...Object.getOwnPropertyDescriptors(PseudoWindowPrototype),
+        ...Native.objectGetOwnPropertyDescriptors(PseudoWindowPrototype),
         ...initOwnDescs,
         ...overriddenDescs,
       })
-    : Object.create(Object.getPrototypeOf(realmGlobal), {
+    : Native.objectCreate(Native.objectGetPrototypeOf(realmGlobal), {
         ...initOwnDescs,
         ...overriddenDescs,
       });
@@ -347,7 +347,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
 const defaultGlobalSnapshot = createGlobalSnapshot({ realmGlobal: global, hostWindow: window });
 
 // 把沙盒的 console 和网页的 console 隔离
-const initConsoleDescs = Object.getOwnPropertyDescriptors(console);
+const initConsoleDescs = Native.objectGetOwnPropertyDescriptors(console);
 const ConsolePrototype = Object.getPrototypeOf(console);
 
 type GMWorldContext = typeof globalThis & Record<PropertyKey, any>;
@@ -364,7 +364,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
 
   const { sharedInitCopy, eventKeys } =
     roots.realmGlobal === global && roots.hostWindow === window ? defaultGlobalSnapshot : createGlobalSnapshot(roots);
-  const ownDescs = Object.getOwnPropertyDescriptors(sharedInitCopy);
+  const ownDescs = Native.objectGetOwnPropertyDescriptors(sharedInitCopy);
 
   // mySandbox: ScriptCat各脚本独自使用
   let mySandbox: typeof sharedInitCopy | undefined = undefined;
@@ -436,7 +436,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
   }
   for (const key of ["top", "parent", "frames"]) {
     const descriptor = ownDescs[key];
-    const hostValue = Reflect.get(roots.hostWindow, key, roots.hostWindow);
+    const hostValue = Native.reflectGet(roots.hostWindow, key, roots.hostWindow);
     if (hostValue === undefined && !descriptor) continue;
 
     ownDescs[key] = {
@@ -444,7 +444,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
       configurable: true,
       enumerable: descriptor?.enumerable ?? true,
       get() {
-        const value = Reflect.get(roots.hostWindow, key, roots.hostWindow);
+        const value = Native.reflectGet(roots.hostWindow, key, roots.hostWindow);
         return value === roots.hostWindow || value === roots.realmGlobal ? mySandbox : value;
       },
       set: undefined,
@@ -477,16 +477,15 @@ export const createProxyContext = <const Context extends GMWorldContext>(
       get() {
         return currentValue;
       },
-      set(nv) {
-        if (typeof nv !== "function") nv = null;
-        currentValue = nv;
+      set(nv: unknown) {
+        currentValue = typeof nv === "function" ? (nv as (this: GlobalEventHandlers, ev: UrlChangeEvent) => any) : null;
         return true;
       },
     };
   }
 
   // 把初始Copy加上特殊变量后，生成一份新Copy
-  mySandbox = Object.create(Object.getPrototypeOf(sharedInitCopy), ownDescs) as typeof globalThis &
+  mySandbox = Native.objectCreate(Native.objectGetPrototypeOf(sharedInitCopy), ownDescs) as typeof globalThis &
     Record<PropertyKey, any>;
 
   // 处理特殊关键字，不能穿越出沙盒，也不能被外部修改
@@ -498,7 +497,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
 
   // 把 GM Api (或其他全域API) 复制到 脚本window
   // 请手动检查避开key，防止与window的属性setter有冲突 或 属性名重复
-  for (const key of Object.keys(context)) {
+  for (const key of Native.objectKeys(context)) {
     if (key in protect || key === "window") continue;
     mySandbox[key] = context[key]; // window以外
   }
@@ -526,7 +525,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
   }
 
   // 从网页 console 隔离出来的沙盒 console
-  mySandbox.console = Object.create(ConsolePrototype, initConsoleDescs);
+  mySandbox.console = Native.objectCreate(ConsolePrototype, initConsoleDescs);
 
   return mySandbox;
 };

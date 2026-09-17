@@ -168,6 +168,23 @@ describe("ScriptExecutor", () => {
     }
   });
 
+  it("rejects early metadata that retargets the flag or carries a page binding", () => {
+    const script = makeScript({ flag: "#-executor-test-uuid" });
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    const genuine = vi.fn();
+    const pageWindow = window as unknown as Record<string, unknown>;
+    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
+
+    try {
+      pageWindow[script.flag] = genuine;
+      executor.execEarlyScript(script.flag, { ...script, uuid: "other-script" }, initEnvInfo);
+      executor.execEarlyScript(script.flag, { ...script, executionHandle: "other-binding" }, initEnvInfo);
+      expect(genuine).not.toHaveBeenCalled();
+    } finally {
+      delete pageWindow[script.flag];
+    }
+  });
+
   describe("resource execution", () => {
     let adoptedSheets: CSSStyleSheet[];
 

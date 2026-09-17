@@ -20,6 +20,7 @@ export interface IGetSender {
   getSender(): RuntimeMessageSender | undefined;
   getExtMessageSender(): ExtMessageSender;
   getConnect(): MessageConnect | undefined;
+  getConnectOrigin?(): "extension" | "userScript" | undefined;
 }
 
 export class SenderConnect {
@@ -70,6 +71,10 @@ export class SenderConnect {
   getConnect(): MessageConnect {
     return this.sender;
   }
+
+  getConnectOrigin(): "extension" | "userScript" | undefined {
+    return this.sender instanceof ExtensionMessageConnect ? this.sender.getOrigin() : undefined;
+  }
 }
 
 export class SenderRuntime {
@@ -110,6 +115,10 @@ export class SenderRuntime {
   }
 
   getConnect(): undefined {
+    return undefined;
+  }
+
+  getConnectOrigin(): undefined {
     return undefined;
   }
 }

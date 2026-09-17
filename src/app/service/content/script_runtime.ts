@@ -75,12 +75,15 @@ export class ScriptRuntime {
     });
   }
 
-  async loadPage() {
+  async loadPage(beforeStart?: (scripts: TScriptInfo[]) => void | Promise<void>) {
     const client = new RuntimeClient(this.msg);
     const result = await client.pageLoad(this.scripEnvTag);
     if (!result.ok) return;
     const scripts = this.scripEnvTag === "ct" ? result.contentScriptList : result.injectScriptList;
-    if (scripts.length) this.startScripts(scripts, result.envInfo);
+    if (scripts.length) {
+      await beforeStart?.(scripts);
+      this.startScripts(scripts, result.envInfo);
+    }
   }
 
   init() {

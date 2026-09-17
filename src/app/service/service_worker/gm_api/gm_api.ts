@@ -395,6 +395,13 @@ export default class GMApi {
       if (!binding || (data.uuid && data.uuid !== binding.uuid)) {
         throw new Error("page execution binding is invalid");
       }
+      if (typeof data.requestId !== "string" || !data.requestId || data.requestId.length > 256) {
+        throw new Error("page RPC requestId is invalid");
+      }
+      if (binding.requestIds.has(data.requestId)) {
+        throw new Error("page RPC requestId was already used");
+      }
+      binding.requestIds.add(data.requestId);
       if (data.envTag !== undefined && data.envTag !== binding.envTag) {
         throw new Error("page execution binding is invalid");
       }

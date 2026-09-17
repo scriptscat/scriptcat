@@ -15,6 +15,8 @@ export const nativeBind = (fn: (...args: any[]) => any, receiver: any, ...args: 
   nativeReflectApply(nativeFunctionBind, fn, [receiver, ...args]);
 
 export const Native = {
+  Set,
+  Map,
   apply: nativeApply,
   call: nativeCall,
   bind: nativeBind,
@@ -25,9 +27,15 @@ export const Native = {
   createElement: Document.prototype.createElement,
   ownFragment: new DocumentFragment(),
   objectCreate: nativeBind(Object.create, Object),
+  objectAssign: nativeBind(Object.assign, Object),
+  objectKeys: nativeBind(Object.keys, Object),
+  objectHasOwn: nativeBind(Object.hasOwn, Object),
+  objectDefineProperty: nativeBind(Object.defineProperty, Object),
   objectGetOwnPropertyDescriptors: nativeBind(Object.getOwnPropertyDescriptors, Object),
   objectGetOwnPropertyDescriptor: nativeBind(Object.getOwnPropertyDescriptor, Object),
   objectGetPrototypeOf: nativeBind(Object.getPrototypeOf, Object),
+  reflectOwnKeys: nativeBind(Reflect.ownKeys, Reflect),
+  reflectGet: nativeBind(Reflect.get, Reflect),
 } as const;
 
 export const customClone = (o: any) => {

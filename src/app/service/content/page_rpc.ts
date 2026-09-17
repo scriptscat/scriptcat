@@ -3,6 +3,7 @@ import type { ScriptEnvTag } from "@Packages/message/consts";
 import { getGrantCandidates } from "./gm_api/grant";
 
 export const PAGE_RPC_VERSION = 1 as const;
+const MAX_REQUEST_ID_LENGTH = 256;
 const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
 
 export type PageExecutionBinding = {
@@ -132,6 +133,39 @@ const cloneParams = (params: unknown): readonly unknown[] => {
   }
 };
 
+const validateOperationParams = (api: string, params: readonly unknown[]): void => {
+  switch (api) {
+    case "CAT_fetchBlob":
+      if (params.length !== 1 || typeof params[0] !== "string") {
+        throw new PageRpcError("CAT_fetchBlob expects a URL string");
+      }
+      return;
+    case "CAT_createBlobUrl":
+      if (params.length !== 1 || params[0] === null || typeof params[0] !== "object") {
+        throw new PageRpcError("CAT_createBlobUrl expects one Blob value");
+      }
+      return;
+    case "CAT_fetchDocument":
+      if (params.length !== 2 || typeof params[0] !== "string" || typeof params[1] !== "boolean") {
+        throw new PageRpcError("CAT_fetchDocument expects a URL and content flag");
+      }
+      return;
+    case "CAT_agentOPFS":
+      if (
+        params.length !== 1 ||
+        params[0] === null ||
+        typeof params[0] !== "object" ||
+        Array.isArray(params[0]) ||
+        typeof (params[0] as { action?: unknown }).action !== "string"
+      ) {
+        throw new PageRpcError("CAT_agentOPFS expects an operation object");
+      }
+      return;
+    default:
+      return;
+  }
+};
+
 export class PageRpcRegistry {
   private readonly bindings = new Map<string, PageExecutionBinding>();
 
@@ -158,12 +192,11 @@ export class PageRpcRegistry {
   }
 
   revoke(handle: string): void {
-    const binding = this.bindings.get(handle);
-    if (binding) binding.active = false;
+    this.bindings.delete(handle);
   }
 
   revokeAll(): void {
-    for (const binding of this.bindings.values()) binding.active = false;
+    this.bindings.clear();
   }
 
   resolve(handle: string, api: string): PageExecutionBinding {
@@ -176,11 +209,6 @@ export class PageRpcRegistry {
   consumeRequestId(binding: PageExecutionBinding, requestId: string): void {
     if (binding.requestIds.has(requestId)) throw new PageRpcError("page RPC requestId was already used");
     binding.requestIds.add(requestId);
-    // Keep a bounded replay window for long-lived documents.
-    if (binding.requestIds.size > 4096) {
-      const oldest = binding.requestIds.values().next().value;
-      if (oldest) binding.requestIds.delete(oldest);
-    }
   }
 }
 
@@ -209,13 +237,16 @@ export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry)
   const params = ownData(value, "params");
 
   if (version !== PAGE_RPC_VERSION) throw new PageRpcError("unsupported page RPC version");
-  if (typeof requestId !== "string" || !requestId) throw new PageRpcError("page RPC requestId is invalid");
+  if (typeof requestId !== "string" || !requestId || requestId.length > MAX_REQUEST_ID_LENGTH) {
+    throw new PageRpcError("page RPC requestId is invalid");
+  }
   if (typeof handle !== "string" || typeof api !== "string") {
     throw new PageRpcError("page RPC identity fields are invalid");
   }
 
   const binding = registry.resolve(handle, api);
   const clonedParams = cloneParams(params);
+  validateOperationParams(api, clonedParams);
   registry.consumeRequestId(binding, requestId);
   return {
     version: PAGE_RPC_VERSION,

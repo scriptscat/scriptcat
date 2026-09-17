@@ -131,4 +131,20 @@ describe("page GM RPC", () => {
       )
     ).toThrow(PageRpcError);
   });
+
+  it("rejects malformed parameters for privileged helper operations", () => {
+    const registry = new PageRpcRegistry();
+    const handle = registry.register("script-a", "it", ["CAT_fetchBlob"]);
+
+    expect(() =>
+      validatePageGMRequest({ version: 1, requestId: "a", handle, api: "CAT_fetchBlob", params: [42] }, registry)
+    ).toThrow("CAT_fetchBlob expects a URL string");
+
+    expect(
+      validatePageGMRequest(
+        { version: 1, requestId: "a", handle, api: "CAT_fetchBlob", params: ["https://example.com/file"] },
+        registry
+      ).params
+    ).toEqual(["https://example.com/file"]);
+  });
 });

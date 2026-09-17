@@ -152,6 +152,51 @@ describe("page execution binding gate", () => {
     ).rejects.toThrow("page execution binding is invalid");
     expect(resolveBinding).toHaveBeenCalledTimes(1);
   });
+
+  it("rejects a replayed page request id before invoking the GM API", async () => {
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    Object.defineProperty(api, "permissionVerify", {
+      configurable: true,
+      value: { verify: vi.fn().mockResolvedValue(undefined) },
+    });
+    Object.defineProperty(api, "parseRequest", {
+      configurable: true,
+      value: vi.fn().mockResolvedValue({
+        uuid: "script-a",
+        api: "GM_log",
+        params: ["hello"],
+        script: { uuid: "script-a", name: "script-a" },
+      }),
+    });
+    const binding = {
+      handle: "handle-a",
+      uuid: "script-a",
+      envTag: "it" as const,
+      runFlag: "run-a",
+      tabId: 42,
+      frameId: 0,
+      requestIds: new Set<string>(),
+    };
+    Object.defineProperty(api, "resolvePageExecutionBinding", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(binding),
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
+
+    const request = {
+      uuid: "script-a",
+      api: "GM_log",
+      params: ["hello"],
+      runFlag: "forged",
+      executionHandle: "handle-a",
+      requestId: "request-a",
+      version: 1 as const,
+    };
+    await expect(api.handlerRequest(request, sender)).resolves.toBe(true);
+    await expect(api.handlerRequest(request, sender)).rejects.toThrow("page RPC requestId was already used");
+  });
 });
 
 describe("window.focus", () => {

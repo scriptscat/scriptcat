@@ -9,6 +9,7 @@ import { getEventFlag } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { type TExtensionEnv } from "./app/service/extension/extension_env";
+import { connectUserScriptChannel } from "./app/service/content/user_script_connection";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
@@ -38,17 +39,17 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   runtime.init();
   // Keep a native port for callbacks and value updates. The page-observable event
   // channel remains limited to the synchronous DOM helper.
-  void chrome.runtime.sendMessage({ type: "userScripts.LISTEN_CONNECTIONS" });
-  void msg
-    .connect({ action: "serviceWorker/runtime/registerUserScript", data: { world: "USER_SCRIPT" } })
-    .then((connection) => {
-      connection.onMessage((packet) => {
+  void runtime.loadPage(async (scripts) => {
+    await connectUserScriptChannel(
+      msg,
+      scripts.map((script) => script.executionHandle).filter((handle): handle is string => Boolean(handle)),
+      (_connection, packet) => {
         if (packet.action === "content/runtime/valueUpdate") {
           scriptExecutor.valueUpdate(packet.data as any);
         } else if (packet.action === "content/runtime/emitEvent") {
           scriptExecutor.emitEvent(packet.data as any);
         }
-      });
-    });
-  void runtime.loadPage();
+      }
+    );
+  });
 });

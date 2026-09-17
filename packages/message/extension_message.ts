@@ -50,7 +50,7 @@ export class ExtensionMessage implements Message {
         if (port !== null) {
           myPort = null;
           port.onMessage.removeListener(handler);
-          callback(msg, new ExtensionMessageConnect(port));
+          callback(msg, new ExtensionMessageConnect(port, "extension"));
         }
       };
       myPort.onMessage.addListener(handler);
@@ -71,7 +71,7 @@ export class ExtensionMessage implements Message {
               if (port !== null) {
                 myPort = null;
                 port.onMessage.removeListener(handler);
-                callback(msg, new ExtensionMessageConnect(port));
+                callback(msg, new ExtensionMessageConnect(port, "userScript"));
               }
             };
             myPort.onMessage.addListener(handler);
@@ -130,12 +130,18 @@ export class ExtensionMessage implements Message {
           // 监听用户脚本的消息
           chrome.runtime.onUserScriptMessage.addListener((msg: TMessage, sender, sendResponse) => {
             const lastError = chrome.runtime.lastError;
-            if (typeof msg.action !== "string") return;
             if (lastError) {
               console.error("chrome.runtime.lastError in chrome.runtime.onUserScriptMessage:", lastError);
               // 消息API发生错误因此不继续执行
               return false;
             }
+            if ((msg as any)?.type === "userScripts.LISTEN_CONNECTIONS" && this.backgroundPrimary) {
+              this.tryEnableUserScriptConnectionListener();
+              this.tryEnableUserScriptMessageListener();
+              sendResponse(true);
+              return false;
+            }
+            if (typeof msg.action !== "string") return;
             return callback(msg, sendResponse, sender);
           });
           addUserScriptMessageListener = null;
@@ -160,7 +166,10 @@ export class ExtensionMessageConnect implements MessageConnect {
   private con: chrome.runtime.Port | null;
   private isSelfDisconnected = false;
 
-  constructor(con: chrome.runtime.Port) {
+  constructor(
+    con: chrome.runtime.Port,
+    private readonly origin: "extension" | "userScript" = "extension"
+  ) {
     this.con = con; // 强引用
     const handler = (msg: TMessage, _con: chrome.runtime.Port) => {
       listenerMgr.emit(`onMessage:${this.listenerId}`, msg);
@@ -229,6 +238,10 @@ export class ExtensionMessageConnect implements MessageConnect {
     }
     return this.con;
   }
+
+  getOrigin(): "extension" | "userScript" {
+    return this.origin;
+  }
 }
 
 export class ExtensionContentMessageSend implements MessageSend {
@@ -269,7 +282,7 @@ export class ExtensionContentMessageSend implements MessageSend {
     return new Promise((resolve) => {
       const con = chrome.tabs.connect(this.tabId, this.options);
       con.postMessage(data);
-      resolve(new ExtensionMessageConnect(con));
+      resolve(new ExtensionMessageConnect(con, "extension"));
     });
   }
 }

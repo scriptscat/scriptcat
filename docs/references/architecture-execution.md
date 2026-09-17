@@ -28,8 +28,8 @@ Key points:
   view of globals — not the raw page scope. It is a compatibility projection rather than a security membrane.
 - Context and script name are passed as **unnamed `arguments`** (`arguments[0]`, `arguments[1]`) so user code
   can't shadow them by declaring variables of the same name.
-- `.call(this)` preserves `this` because `chrome.userScripts` invokes the function free-standing (an arrow
-  function would capture the wrong `this`).
+- The wrapper installs the body as a temporary method and removes it in the same expression. This preserves the
+  userscript `this` without resolving mutable page `call`, `apply`, or `bind` properties.
 
 ### Path A — Page scripts → `chrome.userScripts`
 
