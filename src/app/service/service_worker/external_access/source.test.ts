@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sliceLines, grepLines, applyTextEdits, MAX_GREP_RESULT_BYTES } from "./source";
+import { sliceLines, grepLines, applyTextEdits } from "./source";
 import { ExternalAccessBridgeError } from "./errors";
 
 describe("sliceLines（scripts.source.get 的行开窗，1-based 闭区间）", () => {
@@ -134,17 +134,6 @@ describe("grepLines（scripts.source.grep 的逐行匹配，不复用 stringMatc
     expect(result.matches).toHaveLength(3);
     expect(result.totalMatches).toBe(10);
     expect(result.truncated).toBe(true);
-  });
-
-  it("匹配结果总字节数受上限约束，超长命中不会在 service worker 中累积", () => {
-    const result = grepLines(`hit ${"x".repeat(MAX_GREP_RESULT_BYTES)}`, "hit");
-
-    expect(result.totalMatches).toBe(1);
-    expect(result.matches).toEqual([]);
-    expect(result.truncated).toBe(true);
-    expect(new TextEncoder().encode(JSON.stringify(result.matches)).byteLength).toBeLessThanOrEqual(
-      MAX_GREP_RESULT_BYTES
-    );
   });
 
   it("未触发 maxMatches 截断时 truncated 为 false", () => {

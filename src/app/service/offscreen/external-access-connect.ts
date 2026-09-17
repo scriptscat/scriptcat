@@ -250,16 +250,6 @@ export class ExternalAccessConnect {
   private async handleMessage(ev: MessageEvent, sessionEpoch: number): Promise<void> {
     if (sessionEpoch !== this.epoch) return;
 
-    const inboundBytes = typeof ev.data === "string" ? new TextEncoder().encode(ev.data).byteLength : undefined;
-    if (inboundBytes === undefined || inboundBytes > LIMITS.maxFrameBytes) {
-      this.logger.warn("Dropped inbound WebSocket frame over limit", {
-        bytes: inboundBytes,
-        limit: LIMITS.maxFrameBytes,
-      });
-      this.ws?.close();
-      return;
-    }
-
     let envelope: WSEnvelope;
     try {
       envelope = decodeWireEnvelope(ev.data as string);
@@ -366,17 +356,7 @@ export class ExternalAccessConnect {
 
   private rawSend(envelope: WSEnvelope): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      const frame = JSON.stringify(envelope);
-      const bytes = new TextEncoder().encode(frame).byteLength;
-      if (bytes > LIMITS.maxFrameBytes) {
-        this.logger.warn("Dropped outbound WebSocket frame over limit", {
-          method: envelope.method,
-          bytes,
-          limit: LIMITS.maxFrameBytes,
-        });
-        return;
-      }
-      this.ws.send(frame);
+      this.ws.send(JSON.stringify(envelope));
     }
   }
 

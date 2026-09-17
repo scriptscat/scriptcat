@@ -8,10 +8,6 @@ import type { ScriptSource, ScriptSourceGrepMatch, ScriptSourceGrepResult } from
 // slice (design §4.1), not the underlying file, so a line window can be pulled out of an
 // oversized script while a full read keeps behaving exactly as before.
 export const MAX_SOURCE_BYTES = 2 * 1024 * 1024;
-// Keep grep responses well below the WebSocket frame cap after JSON-RPC envelopes and UTF-8
-// encoding are added. A bounded result also prevents a set of long matching lines from building
-// an unbounded response in the service worker.
-export const MAX_GREP_RESULT_BYTES = 512 * 1024;
 
 export interface SlicedLines {
   code: string;
@@ -132,10 +128,6 @@ export interface GrepLinesResult {
   totalLines: number;
 }
 
-function serializedBytes(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value)).byteLength;
-}
-
 // Compiling the user's pattern is itself a validation step, so acceptance-time checking and the
 // actual scan share it rather than each spelling out their own try/catch.
 function compileGrepPattern(query: string, mode: "text" | "regex", ignoreCase: boolean): RegExp | undefined {
@@ -202,7 +194,6 @@ export function grepLines(
   const totalLines = lines.length;
   const matches: ScriptSourceGrepMatch[] = [];
   let totalMatches = 0;
-  let resultTruncated = false;
   const skippedLongLines = 0;
   const startedAt = clock();
 
@@ -220,27 +211,16 @@ export function grepLines(
 
     totalMatches++;
     if (matches.length < maxMatches) {
-      const match = {
+      matches.push({
         lineNumber: i + 1,
         line,
         before: lines.slice(Math.max(0, i - contextLines), i),
         after: lines.slice(i + 1, i + 1 + contextLines),
-      };
-      if (serializedBytes([...matches, match]) <= MAX_GREP_RESULT_BYTES) {
-        matches.push(match);
-      } else {
-        resultTruncated = true;
-      }
+      });
     }
   }
 
-  return {
-    matches,
-    totalMatches,
-    truncated: resultTruncated || totalMatches > matches.length,
-    skippedLongLines,
-    totalLines,
-  };
+  return { matches, totalMatches, truncated: totalMatches > matches.length, skippedLongLines, totalLines };
 }
 
 /**
@@ -260,30 +240,19 @@ export async function grepScriptSource(
   const scriptCode = await scriptCodeDAO.get(uuid);
   if (!scriptCode) throw new ExternalAccessBridgeError("NOT_FOUND", "script source not found");
 
-  const grepResult = grepLines(scriptCode.code, query, options);
-  const result: ScriptSourceGrepResult = {
+  const result = grepLines(scriptCode.code, query, options);
+  return {
     uuid: script.uuid,
     name: script.name,
     version: script.metadata.version?.[0],
-    matches: grepResult.matches,
-    totalMatches: grepResult.totalMatches,
-    truncated: grepResult.truncated,
-    skippedLongLines: grepResult.skippedLongLines,
-    totalLines: grepResult.totalLines,
+    matches: result.matches,
+    totalMatches: result.totalMatches,
+    truncated: result.truncated,
+    skippedLongLines: result.skippedLongLines,
+    totalLines: result.totalLines,
     sha256: sha256OfText(scriptCode.code),
     contentTrust: "untrusted-user-script-source",
   };
-  if (serializedBytes(result) <= MAX_GREP_RESULT_BYTES) return result;
-
-  const matches = [...result.matches];
-  while (matches.length > 0 && serializedBytes({ ...result, matches }) > MAX_GREP_RESULT_BYTES) {
-    matches.pop();
-  }
-  const bounded = { ...result, matches, truncated: true };
-  if (serializedBytes(bounded) > MAX_GREP_RESULT_BYTES) {
-    throw new ExternalAccessBridgeError("PAYLOAD_TOO_LARGE", "grep result exceeds 512 KiB");
-  }
-  return bounded;
 }
 
 export interface TextEdit {
