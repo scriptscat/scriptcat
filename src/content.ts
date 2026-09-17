@@ -32,7 +32,7 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
 
   const server = new Server("content", msg);
   const domServer = new Server("content", domMsg);
-  const scriptExecutor = new ScriptExecutor(msg, domContentMsg);
+  const scriptExecutor = new ScriptExecutor(msg, domContentMsg, "serviceWorker");
   const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, extensionEnv);
   runtime.contentInit(domServer, domMsg);
   runtime.init();

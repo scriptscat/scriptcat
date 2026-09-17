@@ -37,7 +37,8 @@ export class ScriptExecutor {
 
   constructor(
     private msg: Message,
-    private contentMsg: Message // 用于 content <-> content/inject 通讯
+    private contentMsg: Message, // 用于 content <-> content/inject 通讯
+    private readonly envPrefix = "scripting"
   ) {}
 
   emitEvent(data: EmitEventRequest) {
@@ -188,7 +189,7 @@ export class ScriptExecutor {
     const scriptLoadInfo = localizeObject(scriptEntry.scriptLoadInfo);
 
     const execScript = new ExecScript(scriptLoadInfo, {
-      envPrefix: "scripting",
+      envPrefix: this.envPrefix,
       message: this.msg,
       contentMsg: this.contentMsg,
       code: scriptFunc,

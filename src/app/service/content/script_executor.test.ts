@@ -33,6 +33,28 @@ function makeScript(overrides: Partial<ScriptLoadInfo & Pick<TScriptInfo, "requi
 }
 
 describe("ScriptExecutor", () => {
+  it("uses the configured transport prefix for USER_SCRIPT GM calls", () => {
+    const sendMessage = vi.fn().mockResolvedValue(undefined);
+    const script = makeScript({ metadata: { grant: ["GM_log"] } });
+    const executor = new ScriptExecutor(
+      { sendMessage } as unknown as Message,
+      {} as Message,
+      "serviceWorker"
+    );
+
+    executor.execScriptEntry({
+      scriptLoadInfo: script,
+      scriptFlag: script.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: (_token: string, context: any) => context.GM_log("transport prefix"),
+    });
+
+    expect(sendMessage).toHaveBeenCalledWith({
+      action: "serviceWorker/runtime/gmApi",
+      data: expect.objectContaining({ api: "GM_log" }),
+    });
+  });
+
   it("does not resolve page-patchable Map methods for execution bookkeeping", () => {
     const originalSet = Map.prototype.set;
     const originalGet = Map.prototype.get;
