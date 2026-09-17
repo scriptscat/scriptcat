@@ -40,8 +40,6 @@ describe("page GM RPC", () => {
         version: 1,
         requestId: "request-a",
         handle,
-        uuid: "script-a",
-        envTag: "it",
         api: "GM_getValue",
         params: [params],
       },
@@ -52,16 +50,19 @@ describe("page GM RPC", () => {
       version: 1,
       requestId: "request-a",
       handle,
-      uuid: "script-a",
-      envTag: "it",
       api: "GM_getValue",
       params: [params],
+      uuid: "script-a",
+      envTag: "it",
       runFlag: "canonical-run",
     });
     expect(request.params[0]).not.toBe(params);
+    expect(() =>
+      validatePageGMRequest({ version: 1, requestId: "request-a", handle, api: "GM_getValue", params: [] }, registry)
+    ).toThrow("already used");
   });
 
-  it("rejects an unknown, stale, or mismatched execution binding", () => {
+  it("rejects an unknown or stale execution binding and supplies canonical identity", () => {
     const registry = new PageRpcRegistry();
     const handle = registry.register("script-a", "it", ["GM_getValue"]);
 
@@ -71,8 +72,6 @@ describe("page GM RPC", () => {
           version: 1,
           requestId: "a",
           handle: "missing",
-          uuid: "script-a",
-          envTag: "it",
           api: "GM_getValue",
           params: [],
         },
@@ -82,24 +81,22 @@ describe("page GM RPC", () => {
 
     registry.revoke(handle);
     expect(() =>
-      validatePageGMRequest(
-        { version: 1, requestId: "b", handle, uuid: "script-a", envTag: "it", api: "GM_getValue", params: [] },
-        registry
-      )
+      validatePageGMRequest({ version: 1, requestId: "b", handle, api: "GM_getValue", params: [] }, registry)
     ).toThrow(PageRpcError);
 
     const activeHandle = registry.register("script-a", "it", ["GM_getValue"]);
+    expect(
+      validatePageGMRequest(
+        { version: 1, requestId: "c", handle: activeHandle, api: "GM_getValue", params: [] },
+        registry
+      )
+    ).toMatchObject({
+      uuid: "script-a",
+      envTag: "it",
+    });
     expect(() =>
       validatePageGMRequest(
-        {
-          version: 1,
-          requestId: "c",
-          handle: activeHandle,
-          uuid: "script-b",
-          envTag: "it",
-          api: "GM_getValue",
-          params: [],
-        },
+        { version: 1, requestId: "d", handle: activeHandle, uuid: "script-b", api: "GM_getValue", params: [] },
         registry
       )
     ).toThrow(PageRpcError);
@@ -112,8 +109,6 @@ describe("page GM RPC", () => {
       version: 1,
       requestId: "a",
       handle,
-      uuid: "script-a",
-      envTag: "it",
       api: "GM_getValue",
       params: [],
     };
@@ -121,10 +116,7 @@ describe("page GM RPC", () => {
 
     expect(() => validatePageGMRequest(accessorRequest, registry)).toThrow(PageRpcError);
     expect(() =>
-      validatePageGMRequest(
-        { version: 1, requestId: "b", handle, uuid: "script-a", envTag: "it", api: "GM_setValue", params: [] },
-        registry
-      )
+      validatePageGMRequest({ version: 1, requestId: "b", handle, api: "GM_setValue", params: [] }, registry)
     ).toThrow(PageRpcError);
     expect(() =>
       validatePageGMRequest(
@@ -132,8 +124,6 @@ describe("page GM RPC", () => {
           version: 1,
           requestId: "c",
           handle,
-          uuid: "script-a",
-          envTag: "it",
           api: "GM_getValue",
           params: [() => undefined],
         },

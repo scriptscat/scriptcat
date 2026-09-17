@@ -7,12 +7,15 @@ across contexts to a privileged handler, then streams the result back. The imple
 
 - **Content side** ([`src/app/service/content/gm_api/`](../../src/app/service/content/gm_api)) — what runs *near*
   the userscript. Synchronous-feeling APIs (`GM_getValue`, `GM_log`) and the client half of async ones
-  (`GM_xmlhttpRequest`, `GM_setValue`). Built on `GM_Base`, which owns the messaging plumbing.
+  (`GM_xmlhttpRequest`, `GM_setValue`). Built on `GM_Base`, which owns the request facade. `USER_SCRIPT` calls use
+  the native extension channel; the DOM helper remains a narrow synchronous `CustomEventMessage` path.
 - **Service-worker side** ([`src/app/service/service_worker/gm_api/`](../../src/app/service/service_worker/gm_api))
   — the privileged half: permission verification, cross-origin requests, DNR rule building.
 - **Offscreen side** ([`src/app/service/offscreen/gm_api.ts`](../../src/app/service/offscreen/gm_api.ts)) —
   DOM-dependent operations for background scripts (page-context XHR, `window.open`, clipboard).
-- **Values** flow through `ValueService` and are broadcast so every tab running the same script sees updates.
+- **Values** flow through `ValueService`. MAIN updates use the scripting broadcast, while USER_SCRIPT updates are
+  delivered over the native per-document callback port so privileged packets do not cross the page-observable DOM
+  channel.
 
 ### Registration: the `@GMContext.API` decorator
 

@@ -9,7 +9,6 @@ import type {
   SWScriptMenuItemOption,
   TScriptMenuItemID,
   TScriptMenuItemKey,
-  MessageRequest,
 } from "@App/app/service/service_worker/types";
 import { base64ToBlob, randNum, randomMessageFlag, strToBase64 } from "@App/pkg/utils/utils";
 import { uuidv4 } from "@App/pkg/utils/uuid";
@@ -151,22 +150,33 @@ class GM_Base implements IGM_Base {
     if (this.loadScriptPromise) {
       await this.loadScriptPromise;
     }
+    // USER_SCRIPT has DOM and fetch access in its own realm. Keep these helper
+    // operations local instead of sending an internal CAT operation to the SW,
+    // where only the isolated scripting broker has an implementation.
+    if (this.scriptRes.executionEnvTag === ScriptEnvTag.content) {
+      if (api === "CAT_fetchBlob") return fetch(`${params[0]}`).then((response) => response.blob());
+      if (api === "CAT_createBlobUrl") {
+        if (typeof URL.createObjectURL !== "function") throw new Error("Blob URLs are unavailable in USER_SCRIPT");
+        return URL.createObjectURL(params[0] as Blob);
+      }
+    }
     let ret;
     try {
-      const request = {
-        uuid: this.scriptRes.uuid,
-        api,
-        params,
-        runFlag: this.runFlag,
-        ...(this.scriptRes.executionHandle && this.scriptRes.executionEnvTag
-          ? {
-              version: 1 as const,
-              requestId: uuidv4(),
-              handle: this.scriptRes.executionHandle,
-              envTag: this.scriptRes.executionEnvTag,
-            }
-          : {}),
-      } as MessageRequest;
+      const request = this.scriptRes.executionHandle
+        ? {
+            version: 1 as const,
+            requestId: uuidv4(),
+            handle: this.scriptRes.executionHandle,
+            ...(this.scriptRes.executionEnvTag === "ct" ? { executionHandle: this.scriptRes.executionHandle } : {}),
+            api,
+            params,
+          }
+        : {
+            uuid: this.scriptRes.uuid,
+            api,
+            params,
+            runFlag: this.runFlag,
+          };
       ret = await sendMessage(this.message, `${this.prefix}/runtime/gmApi`, request);
     } catch (e: any) {
       if (`${e?.message || e}`.includes("Extension context invalidated.")) {
@@ -187,20 +197,21 @@ class GM_Base implements IGM_Base {
       await this.loadScriptPromise;
     }
     if (!this.message || !this.scriptRes) return new Promise<MessageConnect>(() => {});
-    const request = {
-      uuid: this.scriptRes.uuid,
-      api,
-      params,
-      runFlag: this.runFlag,
-      ...(this.scriptRes.executionHandle && this.scriptRes.executionEnvTag
-        ? {
-            version: 1 as const,
-            requestId: uuidv4(),
-            handle: this.scriptRes.executionHandle,
-            envTag: this.scriptRes.executionEnvTag,
-          }
-        : {}),
-    } as MessageRequest;
+    const request = this.scriptRes.executionHandle
+      ? {
+          version: 1 as const,
+          requestId: uuidv4(),
+          handle: this.scriptRes.executionHandle,
+          ...(this.scriptRes.executionEnvTag === "ct" ? { executionHandle: this.scriptRes.executionHandle } : {}),
+          api,
+          params,
+        }
+      : {
+          uuid: this.scriptRes.uuid,
+          api,
+          params,
+          runFlag: this.runFlag,
+        };
     return connect(this.message, `${this.prefix}/runtime/gmApi`, request);
   }
 
@@ -576,6 +587,17 @@ export default class GMApi extends GM_Base {
   public async CAT_fetchDocument(url: string): Promise<Document | undefined> {
     // 上下文已失效时直接返回，避免访问已释放的 message 造成异常
     if (this.isInvalidContext()) return undefined;
+
+    if (this.scriptRes?.executionEnvTag === ScriptEnvTag.content) {
+      return new Promise((resolve) => {
+        const xhr = new XMLHttpRequest();
+        xhr.responseType = "document";
+        xhr.open("GET", url);
+        xhr.onloadend = () => resolve((xhr.response as Document | null) || undefined);
+        xhr.onerror = () => resolve(undefined);
+        xhr.send();
+      });
+    }
 
     const message = this.message as CustomEventMessage | null;
     const isContentEnv = !!message && message.envTag === ScriptEnvTag.content;

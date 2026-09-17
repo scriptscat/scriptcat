@@ -86,7 +86,7 @@ Each context is a separate bundle (see [Build pipeline & manifest](./references/
 | Context | Entry | Realm / capabilities | Bootstraps |
 |---|---|---|---|
 | **Service Worker** | [`src/service_worker.ts`](../src/service_worker.ts) | No DOM. Owns `chrome.*` privileged APIs, storage, permissions, routing. | `ExtensionMessage(true)` → `Server("serviceWorker")` + `MessageQueue` → `ServiceWorkerManager` |
-| **Content** | [`src/content.ts`](../src/content.ts) | Isolated content-script world. Bridges SW and the page. | `CustomEventMessage` channel to inject + `Server("content")` → `ScriptRuntime` |
+| **Content** | [`src/content.ts`](../src/content.ts) | `USER_SCRIPT` world. Uses a native extension channel for bootstrap, GM RPC, value updates, and callbacks; retains a narrow DOM channel for synchronous node helpers. | `ExtensionMessage` + native callback port → `Server("content")` → `ScriptRuntime`; `CustomEventMessage` only for DOM handles |
 | **Inject** | [`src/inject.ts`](../src/inject.ts) | Page (`MAIN`) world. Has `unsafeWindow`; runs page userscripts. | `CustomEventMessage` to content + `Server("inject")` |
 | **Offscreen** | [`src/offscreen.ts`](../src/offscreen.ts) | DOM-capable background page (Blobs, clipboard, DOM scraping, local storage). | `ExtensionMessage()` + `WindowMessage(window, sandbox)` → `OffscreenManager` |
 | **Sandbox** | [`src/sandbox.ts`](../src/sandbox.ts) | `sandbox`ed iframe inside offscreen. Evaluates background/scheduled scripts; runs cron. | `WindowMessage(window, parent)` + `Server("sandbox")` → `SandboxManager` |

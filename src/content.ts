@@ -1,5 +1,6 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
+import { ExtensionMessage } from "@Packages/message/extension_message";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import { ScriptExecutor } from "./app/service/content/script_executor";
@@ -14,7 +15,11 @@ const messageFlag = process.env.SC_RANDOM_KEY!;
 getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => {
   const scriptEnvTag = ScriptEnvTag.content;
 
-  const msg: Message = new CustomEventMessage(eventFlag, false, scriptEnvTag);
+  // USER_SCRIPT has a native extension messaging channel. Keep the DOM channel only
+  // for the synchronous element helper, whose node references must remain in this realm.
+  const msg: Message = new ExtensionMessage(false);
+  const domMsg = new CustomEventMessage(eventFlag, false, scriptEnvTag);
+  const domContentMsg = new CustomEventMessage(eventFlag, true, scriptEnvTag);
 
   // 初始化日志组件
   const logger = new LoggerCore({
@@ -26,8 +31,24 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   logger.logger().debug("content start");
 
   const server = new Server("content", msg);
-  const scriptExecutor = new ScriptExecutor(msg, new CustomEventMessage(eventFlag, true, scriptEnvTag));
+  const domServer = new Server("content", domMsg);
+  const scriptExecutor = new ScriptExecutor(msg, domContentMsg);
   const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, extensionEnv);
-  runtime.contentInit();
+  runtime.contentInit(domServer, domMsg);
   runtime.init();
+  // Keep a native port for callbacks and value updates. The page-observable event
+  // channel remains limited to the synchronous DOM helper.
+  void chrome.runtime.sendMessage({ type: "userScripts.LISTEN_CONNECTIONS" });
+  void msg
+    .connect({ action: "serviceWorker/runtime/registerUserScript", data: { world: "USER_SCRIPT" } })
+    .then((connection) => {
+      connection.onMessage((packet) => {
+        if (packet.action === "content/runtime/valueUpdate") {
+          scriptExecutor.valueUpdate(packet.data as any);
+        } else if (packet.action === "content/runtime/emitEvent") {
+          scriptExecutor.emitEvent(packet.data as any);
+        }
+      });
+    });
+  void runtime.loadPage();
 });

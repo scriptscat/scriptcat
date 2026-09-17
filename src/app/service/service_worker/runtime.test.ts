@@ -1162,6 +1162,63 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
     expect(runtime.resolvePageExecutionBinding(firstHandle!, sender)).toBeUndefined();
     expect(runtime.resolvePageExecutionBinding(secondHandle!, secondSender)).toBeUndefined();
   });
+
+  it("content USER_SCRIPT 的 pageLoad 只轮换 content 绑定", async () => {
+    const { runtime } = _createRuntimeContext();
+    const inject = _createScriptRunResource(_createMockScript({ uuid: "inject-script" }));
+    const content = _createScriptRunResource(_createMockScript({ uuid: "content-script" }));
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [inject],
+      contentScriptList: [content],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+    const sender = new SenderRuntime({
+      url: "https://www.example.com/page",
+      frameId: 0,
+      documentId: "doc-a",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+
+    const first = await runtime.pageLoad(undefined, sender);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const injectHandle = first.injectScriptList[0].executionHandle;
+    const contentLoad = await runtime.pageLoad({ envTag: "ct" }, sender);
+
+    expect(contentLoad.ok).toBe(true);
+    if (!contentLoad.ok) return;
+    expect(contentLoad.injectScriptList).toEqual([]);
+    expect(contentLoad.contentScriptList[0].executionHandle).toEqual(expect.any(String));
+    expect(runtime.resolvePageExecutionBinding(injectHandle!, sender)).toBeDefined();
+  });
+
+  it("isolated scripting 的 pageLoad 不会撤销已建立的 content 绑定", async () => {
+    const { runtime } = _createRuntimeContext();
+    const inject = _createScriptRunResource(_createMockScript({ uuid: "inject-script" }));
+    const content = _createScriptRunResource(_createMockScript({ uuid: "content-script" }));
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [inject],
+      contentScriptList: [content],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+    const sender = new SenderRuntime({
+      url: "https://www.example.com/page",
+      frameId: 0,
+      documentId: "doc-a",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+
+    const contentLoad = await runtime.pageLoad({ envTag: "ct" }, sender);
+    expect(contentLoad.ok).toBe(true);
+    if (!contentLoad.ok) return;
+    const contentHandle = contentLoad.contentScriptList[0].executionHandle;
+    const injectLoad = await runtime.pageLoad({ envTag: "it" }, sender);
+
+    expect(injectLoad.ok).toBe(true);
+    expect(runtime.resolvePageExecutionBinding(contentHandle!, sender)).toBeDefined();
+  });
 });
 
 describe("sandbox verified 初始化重放", () => {

@@ -8,6 +8,7 @@ import type { ScriptEnvTag } from "@Packages/message/consts";
 import { onInjectPageLoaded } from "./external";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { type TExtensionEnv } from "../extension/extension_env";
+import { RuntimeClient } from "../service_worker/client";
 
 export class ScriptRuntime {
   constructor(
@@ -19,11 +20,22 @@ export class ScriptRuntime {
   ) {}
 
   // content环境的特殊初始化
-  contentInit() {
-    this.server.on("runtime/addElement", (data: { params: [number | null, string, Record<string, any> | null] }) => {
+  contentInit(domServer: Server = this.server, domMsg: CustomEventMessage = this.msg as CustomEventMessage) {
+    domServer.on("runtime/addElement", (data: { params: [number | null, string, Record<string, any> | null] }) => {
+      if (!data || !Array.isArray(data.params) || data.params.length !== 3) return undefined;
       const [parentNodeId, tagName, tmpAttr] = data.params;
 
-      const msg = this.msg as CustomEventMessage;
+      if (
+        (parentNodeId !== null && (!Number.isInteger(parentNodeId) || parentNodeId <= 0)) ||
+        typeof tagName !== "string" ||
+        tagName.length === 0 ||
+        tagName.length > 128 ||
+        (tmpAttr !== null && (typeof tmpAttr !== "object" || Array.isArray(tmpAttr)))
+      ) {
+        return undefined;
+      }
+
+      const msg = domMsg;
 
       // 取回 parentNode（如果存在）
       let parentNode: Node | undefined;
@@ -33,7 +45,16 @@ export class ScriptRuntime {
 
       // 创建元素并设置属性
       const el = <Element>document.createElement(tagName);
-      const attr = tmpAttr ? { ...tmpAttr } : {};
+      const attr: Record<string, string> = Object.create(null);
+      if (tmpAttr) {
+        for (const key of Object.keys(tmpAttr)) {
+          const descriptor = Object.getOwnPropertyDescriptor(tmpAttr, key);
+          if (!descriptor || !("value" in descriptor)) return undefined;
+          const value = descriptor.value;
+          if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") return undefined;
+          attr[key] = String(value);
+        }
+      }
       let textContent = "";
       if (attr.textContent) {
         textContent = attr.textContent;
@@ -52,6 +73,14 @@ export class ScriptRuntime {
       const nodeId = msg.sendRelatedTarget(el);
       return nodeId;
     });
+  }
+
+  async loadPage() {
+    const client = new RuntimeClient(this.msg);
+    const result = await client.pageLoad(this.scripEnvTag);
+    if (!result.ok) return;
+    const scripts = this.scripEnvTag === "ct" ? result.contentScriptList : result.injectScriptList;
+    if (scripts.length) this.startScripts(scripts, result.envInfo);
   }
 
   init() {

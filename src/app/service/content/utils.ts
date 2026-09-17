@@ -8,6 +8,26 @@ import { embeddedPatternCheckerString, type EmbeddedURLRuleEntry, type URLRuleEn
 import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 import { getGrantCandidates } from "./gm_api/grant";
 
+const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
+const nativeJSONStringify = JSON.stringify.bind(JSON);
+const nativeJSONParse = JSON.parse.bind(JSON);
+
+const cloneTransportValue = (value: any) => {
+  if (value === null || typeof value !== "object") return value;
+  if (nativeStructuredClone) {
+    try {
+      return nativeStructuredClone(value);
+    } catch {
+      // Fall through for objects such as proxies that structuredClone rejects.
+    }
+  }
+  try {
+    return nativeJSONParse(nativeJSONStringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
 const lnStrIntegrity = process.env.SC_RANDOM_FNKEY;
 const znRand = process.env.SC_ZN_RAND;
 
@@ -237,7 +257,18 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   }
   // --- 处理 resource ---
   // --- 处理 scriptInfo ---
-  const scriptInfo = { ...script, resource, requireCssResource, code: "" } as TScriptInfo;
+  const metadata = Object.fromEntries(
+    Object.entries(script.metadata).map(([key, values]) => [key, Array.isArray(values) ? [...values] : values])
+  );
+  const scriptInfo = {
+    ...script,
+    metadata,
+    value: cloneTransportValue(script.value) ?? {},
+    config: script.config === undefined ? undefined : cloneTransportValue(script.config),
+    resource,
+    requireCssResource,
+    code: "",
+  } as TScriptInfo;
   // 删除其他不需要注入的 script 信息
   delete scriptInfo.originalMetadata;
   delete scriptInfo.selfMetadata;
@@ -282,9 +313,12 @@ export function compilePreInjectScript(
   const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
   return `${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`)};
 {
-  let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
-  c = typeof cloneInto === "function" ? cloneInto(o, performance) : o,
-  f = () => ${urlCondition} && performance.dispatchEvent(new CustomEvent('${evScriptLoad}', c)),
+  let f = () => {
+    if (!(${urlCondition})) return false;
+    const o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
+      c = typeof cloneInto === "function" ? cloneInto(o, performance) : o;
+    return performance.dispatchEvent(new CustomEvent('${evScriptLoad}', c));
+  },
   needWait = f();
   if (needWait) performance.addEventListener('${evEnvLoad}', f, { once: true });
 }

@@ -24,8 +24,8 @@ go through a controlled context object instead of the page's real globals:
 Key points:
 
 - `with(arguments[0]||this.$)` makes every bare identifier resolve against the GM context first. The context is
-  a `Proxy` that intercepts reads, so the script sees `unsafeWindow`, the granted `GM_*` functions, and a
-  controlled view of globals — not the raw page scope.
+  a descriptor-based pseudo-window that projects `unsafeWindow`, the granted `GM_*` functions, and a controlled
+  view of globals — not the raw page scope. It is a compatibility projection rather than a security membrane.
 - Context and script name are passed as **unnamed `arguments`** (`arguments[0]`, `arguments[1]`) so user code
   can't shadow them by declaring variables of the same name.
 - `.call(this)` preserves `this` because `chrome.userScripts` invokes the function free-standing (an arrow
@@ -38,7 +38,9 @@ patterns and registers the compiled payload (the `scripting` bundle) with `chrom
 `MAIN` or `USER_SCRIPT` world as required. At document time the content/inject pair
 ([`script_runtime.ts`](../../src/app/service/content/script_runtime.ts),
 [`exec_script.ts`](../../src/app/service/content/exec_script.ts)) evaluates the compiled function with the GM
-context.
+context. The `USER_SCRIPT` content path obtains its matched scripts directly from the service worker over
+`ExtensionMessage`; the isolated `scripting` bundle keeps the page-observable event bridge for `MAIN` execution and
+the synchronous DOM helper only.
 
 ### Path B — Background scripts → Offscreen → Sandbox
 

@@ -6,8 +6,8 @@ import type {
   ServiceWorkerExecutionBinding,
 } from "./types";
 import type { IMessageQueue } from "@Packages/message/message_queue";
-import type { Group, IGetSender } from "@Packages/message/server";
-import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
+import { GetSenderType, type Group, type IGetSender } from "@Packages/message/server";
+import type { ExtMessageSender, MessageConnect, MessageSend } from "@Packages/message/types";
 import type { TClientPageLoadInfo } from "@App/app/repo/scripts";
 import type { Script, ScriptDAO, ScriptRunResource, ScriptSite, TScriptInfo, UserConfig } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
@@ -142,12 +142,16 @@ export class RuntimeService {
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
   private gmApi?: GMApi;
   private readonly pageExecutionBindings = new Map<string, ServiceWorkerExecutionBinding>();
+  private readonly userScriptConnections = new Map<
+    string,
+    { connection: MessageConnect; tabId: number; frameId?: number; documentId?: string }
+  >();
 
   getGMApi(): GMApi | undefined {
     return this.gmApi;
   }
 
-  private revokePageBindings(sender: IGetSender): void {
+  private revokePageBindings(sender: IGetSender, envTag?: "it" | "ct"): void {
     const source = sender.getSender();
     const tabId = source?.tab?.id;
     const frameId = source?.frameId;
@@ -156,6 +160,7 @@ export class RuntimeService {
       if (
         binding.tabId === tabId &&
         binding.frameId === frameId &&
+        (envTag === undefined || binding.envTag === envTag) &&
         (documentId === undefined || binding.documentId === documentId)
       ) {
         this.pageExecutionBindings.delete(handle);
@@ -166,6 +171,54 @@ export class RuntimeService {
   revokePageBindingsForTab(tabId: number): void {
     for (const [handle, binding] of this.pageExecutionBindings) {
       if (binding.tabId === tabId) this.pageExecutionBindings.delete(handle);
+    }
+    for (const [key, entry] of this.userScriptConnections) {
+      if (entry.tabId === tabId) {
+        entry.connection.disconnect(true);
+        this.userScriptConnections.delete(key);
+      }
+    }
+  }
+
+  private userScriptConnectionKey(tabId: number, frameId?: number, documentId?: string): string {
+    return `${tabId}:${frameId ?? -1}:${documentId ?? ""}`;
+  }
+
+  /** Register the native USER_SCRIPT channel used for private bootstrap and callbacks. */
+  registerUserScriptConnection(_: unknown, sender: IGetSender): boolean {
+    if (!sender.isType(GetSenderType.EXTCONNECT)) return false;
+    const source = sender.getSender();
+    const connection = sender.getConnect();
+    const tabId = source?.tab?.id;
+    if (!source || typeof tabId !== "number" || !connection) return false;
+    const frameId = source.frameId;
+    const documentId = source.documentId;
+    const key = this.userScriptConnectionKey(tabId, frameId, documentId);
+    const previous = this.userScriptConnections.get(key);
+    if (previous) previous.connection.disconnect(true);
+    const entry = { connection, tabId, frameId, documentId };
+    this.userScriptConnections.set(key, entry);
+    connection.onDisconnect(() => {
+      if (this.userScriptConnections.get(key)?.connection === connection) this.userScriptConnections.delete(key);
+    });
+    return true;
+  }
+
+  private sendUserScriptMessage(to: ExtMessageSender | undefined, action: string, data: unknown): void {
+    for (const [key, entry] of this.userScriptConnections) {
+      if (
+        to &&
+        (entry.tabId !== to.tabId ||
+          (to.frameId !== undefined && entry.frameId !== to.frameId) ||
+          (to.documentId !== undefined && entry.documentId !== to.documentId))
+      ) {
+        continue;
+      }
+      try {
+        entry.connection.sendMessage({ action: `content/${action}`, data });
+      } catch {
+        this.userScriptConnections.delete(key);
+      }
     }
   }
 
@@ -541,6 +594,9 @@ export class RuntimeService {
           sendData,
         },
       });
+      // USER_SCRIPT cannot observe the scripting world's page broadcast. Deliver the
+      // same encoded DTO over its native extension connection instead.
+      this.sendUserScriptMessage(undefined, "runtime/valueUpdate", sendData);
 
       // 後台腳本
       if (bgScriptStorageNames.has(sendData.storageName)) {
@@ -600,6 +656,7 @@ export class RuntimeService {
     this.group.on("runScript", this.runScript.bind(this));
     this.group.on("pageLoad", this.pageLoad.bind(this));
     this.group.on("pageShow", this.pageShow.bind(this));
+    this.group.on("registerUserScript", this.registerUserScriptConnection.bind(this));
 
     // 监听脚本开启
     this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
@@ -912,6 +969,10 @@ export class RuntimeService {
   // 取消脚本注册
   async unregisterUserscripts() {
     this.pageExecutionBindings.clear();
+    for (const [key, entry] of this.userScriptConnections) {
+      entry.connection.disconnect(true);
+      this.userScriptConnections.delete(key);
+    }
     // 检查 registered 避免重复操作增加系统开支
     // 已成功注册(true)或是未知有无注册(null)的情况下执行
     if (runtimeGlobal.registerState !== RuntimeRegisterCode.UNREGISTER_DONE) {
@@ -1228,6 +1289,7 @@ export class RuntimeService {
       // 如果是-1, 代表给offscreen发送消息
       return sendMessage(this.msgSender, "offscreen/runtime/emitEvent", req);
     }
+    this.sendUserScriptMessage(to, "runtime/emitEvent", req);
     return sendMessage(
       new ExtensionContentMessageSend(to.tabId, {
         documentId: to.documentId,
@@ -1334,7 +1396,7 @@ export class RuntimeService {
     }
   }
 
-  async pageLoad(_: any, sender: IGetSender): Promise<TClientPageLoadInfo> {
+  async pageLoad(data: { envTag?: "it" | "ct" } | undefined, sender: IGetSender): Promise<TClientPageLoadInfo> {
     const chromeSender = sender.getSender();
     const url = chromeSender?.url;
     if (!url) {
@@ -1354,7 +1416,7 @@ export class RuntimeService {
     });
 
     if (res) {
-      this.revokePageBindings(sender);
+      this.revokePageBindings(sender, data?.envTag);
       const prepareScripts = (scripts: TScriptInfo[], envTag: "it" | "ct") =>
         scripts.map((script) => {
           const binding = this.issuePageBinding(script.uuid, envTag, sender);
@@ -1368,8 +1430,8 @@ export class RuntimeService {
       // 返回脚本资料，在页面加载
       return {
         ok: true,
-        injectScriptList: prepareScripts(res.injectScriptList, "it"),
-        contentScriptList: prepareScripts(res.contentScriptList, "ct"),
+        injectScriptList: data?.envTag === "ct" ? [] : prepareScripts(res.injectScriptList, "it"),
+        contentScriptList: data?.envTag === "it" ? [] : prepareScripts(res.contentScriptList, "ct"),
         envInfo: res.envInfo,
       };
     } else {

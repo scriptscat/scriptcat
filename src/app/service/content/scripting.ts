@@ -54,12 +54,12 @@ export default class ScriptingRuntime {
 
   init() {
     this.extServer.on("runtime/emitEvent", (data) => {
-      // 转发给inject和content
-      return this.broadcastToPage("runtime/emitEvent", data);
+      // USER_SCRIPT receives private callbacks over its native extension port.
+      return this.broadcastToPage("runtime/emitEvent", data, PageOrContent.PAGE);
     });
     this.extServer.on("runtime/valueUpdate", (data) => {
-      // 转发给inject和content
-      return this.broadcastToPage("runtime/valueUpdate", data);
+      // USER_SCRIPT receives private updates over its native extension port.
+      return this.broadcastToPage("runtime/valueUpdate", data, PageOrContent.PAGE);
     });
     this.server.on("logger", (data: Logger) => {
       LoggerCore.logger().log(data.level, data.message, data.label);
@@ -80,7 +80,7 @@ export default class ScriptingRuntime {
         const activeOn = this.activeStorageNames.get(sendData.storageName);
         if (activeOn) {
           // 转发给 content 和 inject
-          this.broadcastToPage("runtime/valueUpdate", sendData, activeOn);
+          this.broadcastToPage("runtime/valueUpdate", sendData, (activeOn & PageOrContent.PAGE) as PageOrContent);
         }
       }
     });
@@ -91,7 +91,7 @@ export default class ScriptingRuntime {
       "runtime/gmApi",
       this.server,
       this.senderToExt,
-      (data: { api: string; params: any; uuid: string }) => {
+      (data: { api: string; params: any }) => {
         // 拦截关注的 API，未命中则返回 false 交由默认转发处理
         switch (data.api) {
           case "CAT_createBlobUrl": {
@@ -151,6 +151,10 @@ export default class ScriptingRuntime {
           params: [...request.params],
           runFlag: request.runFlag,
           executionHandle: request.handle,
+          version: 1 as const,
+          requestId: request.requestId,
+          handle: request.handle,
+          envTag: request.envTag,
         };
       }
     );
@@ -167,7 +171,7 @@ export default class ScriptingRuntime {
       });
     }
     // 向service_worker请求脚本列表及环境信息
-    client.pageLoad().then((o) => {
+    client.pageLoad("it").then((o) => {
       if (!o.ok) return;
       const { injectScriptList, contentScriptList, envInfo } = o;
       this.pageRpc.revokeAll();
@@ -195,12 +199,6 @@ export default class ScriptingRuntime {
       this.activeStorageNames = new Map(Object.entries(pairs));
 
       // 向页面 发送脚本列表及环境信息
-      if (preparedContentScriptList.length) {
-        const contentClient = new Client(this.senderToContent, "content");
-        // 根据@inject-into content过滤脚本
-        contentClient.do("pageLoad", { scripts: preparedContentScriptList, envInfo });
-      }
-
       if (preparedInjectScriptList.length) {
         const injectClient = new Client(this.senderToInject, "inject");
         // 根据@inject-into content过滤脚本

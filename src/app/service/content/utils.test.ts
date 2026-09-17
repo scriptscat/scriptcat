@@ -501,6 +501,19 @@ describe("utils", () => {
         contentType: "text/plain",
       });
     });
+
+    it("copies public values and metadata before crossing the page boundary", () => {
+      const script = createScript({ grant: ["GM_getValue"] }, []);
+      script.value = { nested: { count: 1 } };
+      script.metadata.grant!.push("GM_setValue");
+
+      const trimmed = trimScriptInfo(script);
+      (trimmed.value.nested as { count: number }).count = 9;
+      trimmed.metadata.grant!.push("GM_deleteValue");
+
+      expect(script.value.nested).toEqual({ count: 1 });
+      expect(script.metadata.grant).toEqual(["GM_getValue", "GM_setValue"]);
+    });
   });
 
   describe("compileScript", () => {

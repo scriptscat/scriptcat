@@ -12,17 +12,28 @@ export type PageExecutionBinding = {
   readonly allowedAPIs: ReadonlySet<string>;
   readonly runFlag: string;
   active: boolean;
+  requestIds: Set<string>;
 };
 
 export type PageGMRequest = {
   readonly version: typeof PAGE_RPC_VERSION;
   readonly requestId: string;
   readonly handle: string;
-  readonly uuid: string;
-  readonly envTag: ScriptEnvTag;
   readonly api: string;
   readonly params: readonly unknown[];
+  /** Canonical identity filled by the isolated broker after handle resolution. */
+  readonly uuid: string;
+  readonly envTag: ScriptEnvTag;
   readonly runFlag: string;
+};
+
+/** The untrusted packet accepted from a MAIN-world script. */
+export type PageGMRequestPacket = {
+  readonly version: typeof PAGE_RPC_VERSION;
+  readonly requestId: string;
+  readonly handle: string;
+  readonly api: string;
+  readonly params: readonly unknown[];
 };
 
 const INTERNAL_APIS_BY_GRANT: Readonly<Record<string, readonly string[]>> = {
@@ -141,6 +152,7 @@ export class PageRpcRegistry {
       allowedAPIs: new Set(allowedAPIs),
       runFlag,
       active: true,
+      requestIds: new Set(),
     });
     return handle;
   }
@@ -154,18 +166,25 @@ export class PageRpcRegistry {
     for (const binding of this.bindings.values()) binding.active = false;
   }
 
-  resolve(handle: string, uuid: string, envTag: ScriptEnvTag, api: string): PageExecutionBinding {
+  resolve(handle: string, api: string): PageExecutionBinding {
     const binding = this.bindings.get(handle);
     if (!binding?.active) throw new PageRpcError("page execution binding is inactive");
-    if (binding.uuid !== uuid || binding.envTag !== envTag) {
-      throw new PageRpcError("page execution binding does not match the request");
-    }
     if (!binding.allowedAPIs.has(api)) throw new PageRpcError("API is not granted to this execution");
     return binding;
   }
+
+  consumeRequestId(binding: PageExecutionBinding, requestId: string): void {
+    if (binding.requestIds.has(requestId)) throw new PageRpcError("page RPC requestId was already used");
+    binding.requestIds.add(requestId);
+    // Keep a bounded replay window for long-lived documents.
+    if (binding.requestIds.size > 4096) {
+      const oldest = binding.requestIds.values().next().value;
+      if (oldest) binding.requestIds.delete(oldest);
+    }
+  }
 }
 
-const REQUEST_KEYS = ["version", "requestId", "handle", "uuid", "envTag", "api", "params", "runFlag"] as const;
+const REQUEST_KEYS = ["version", "requestId", "handle", "api", "params"] as const;
 
 export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry): PageGMRequest => {
   if (value === null || typeof value !== "object") throw new PageRpcError("page RPC request must be an object");
@@ -176,9 +195,8 @@ export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry)
   } catch {
     throw new PageRpcError("page RPC request cannot be inspected");
   }
-  const hasRunFlag = keys.includes("runFlag");
   if (
-    keys.length !== REQUEST_KEYS.length - (hasRunFlag ? 0 : 1) ||
+    keys.length !== REQUEST_KEYS.length ||
     keys.some((key) => typeof key !== "string" || !REQUEST_KEYS.includes(key as never))
   ) {
     throw new PageRpcError("page RPC request has unexpected fields");
@@ -187,31 +205,26 @@ export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry)
   const version = ownData(value, "version");
   const requestId = ownData(value, "requestId");
   const handle = ownData(value, "handle");
-  const uuid = ownData(value, "uuid");
-  const envTag = ownData(value, "envTag");
   const api = ownData(value, "api");
   const params = ownData(value, "params");
-  const suppliedRunFlag = keys.includes("runFlag") ? ownData(value, "runFlag") : undefined;
 
   if (version !== PAGE_RPC_VERSION) throw new PageRpcError("unsupported page RPC version");
   if (typeof requestId !== "string" || !requestId) throw new PageRpcError("page RPC requestId is invalid");
-  if (typeof handle !== "string" || typeof uuid !== "string" || typeof envTag !== "string" || typeof api !== "string") {
+  if (typeof handle !== "string" || typeof api !== "string") {
     throw new PageRpcError("page RPC identity fields are invalid");
   }
-  if (envTag !== "it" && envTag !== "ct") throw new PageRpcError("page RPC environment is invalid");
-  if (suppliedRunFlag !== undefined && typeof suppliedRunFlag !== "string") {
-    throw new PageRpcError("page RPC runFlag is invalid");
-  }
 
-  const binding = registry.resolve(handle, uuid, envTag, api);
+  const binding = registry.resolve(handle, api);
+  const clonedParams = cloneParams(params);
+  registry.consumeRequestId(binding, requestId);
   return {
     version: PAGE_RPC_VERSION,
     requestId,
     handle,
-    uuid,
-    envTag,
     api,
-    params: cloneParams(params),
+    params: clonedParams,
+    uuid: binding.uuid,
+    envTag: binding.envTag,
     runFlag: binding.runFlag,
   };
 };

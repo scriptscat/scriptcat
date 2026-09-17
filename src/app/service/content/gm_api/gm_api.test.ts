@@ -59,7 +59,8 @@ describe("early-start page RPC", () => {
       data: expect.objectContaining({
         api: "GM_xmlhttpRequest",
         handle: "page-binding",
-        envTag: "it",
+        version: 1,
+        requestId: expect.any(String),
       }),
     });
   });

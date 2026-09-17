@@ -339,8 +339,8 @@ export class RuntimeClient extends Client {
     return this.do("stopScript", uuid);
   }
 
-  pageLoad(): Promise<TClientPageLoadInfo> {
-    return this.doThrow("pageLoad");
+  pageLoad(envTag?: "it" | "ct"): Promise<TClientPageLoadInfo> {
+    return this.doThrow("pageLoad", envTag ? { envTag } : undefined);
   }
 
   /** bfcache 还原上报：只告知本页仍在运行，不请求脚本 */
