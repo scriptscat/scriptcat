@@ -1,22 +1,30 @@
 import type { ApiParam, ApiValue } from "../types";
 import { Native } from "../global";
 
-const apis: Record<string, ApiValue[]> = Object.create(null);
+const apiRegistry: Record<string, ApiValue[]> = Native.objectCreate(null);
+const apis = {
+  get: (name: string) => apiRegistry[name],
+  set: (name: string, values: ApiValue[]) => {
+    apiRegistry[name] = values;
+  },
+  keys: () => Native.objectKeys(apiRegistry),
+};
 
 export function GMContextApiGet(name: string): ApiValue[] | undefined {
   // 回传 Api 列表
-  return apis[name];
+  return apis.get(name);
 }
 
-// 注册表由装饰器在模块载入时填充，供安装页的支持表守卫枚举全部能力。
+// 已注册的全部 @grant 名。注册表由装饰器在模块载入时填充，无法静态推导，
+// 供 script_compat.ts 的静态支持表做一致性守卫（新增 GM API 若漏进表会被测出来）。
 export function GMContextApiNames(): string[] {
-  return Native.objectKeys(apis);
+  return [...apis.keys()];
 }
 
 function GMContextApiSet(grant: string, fnKey: string, api: any, param: ApiParam): void {
   // 一个 @grant 可以扩充多个 API 函数
-  let m: ApiValue[] | undefined = apis[grant];
-  if (!m) apis[grant] = m = [];
+  let m: ApiValue[] | undefined = apis.get(grant);
+  if (!m) apis.set(grant, (m = []));
   m[m.length] = { fnKey, api, param };
 }
 
