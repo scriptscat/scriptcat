@@ -24,6 +24,34 @@ const nativeWeakMapGet = WeakMap.prototype.get;
 const nativeWeakMapSet = WeakMap.prototype.set;
 const nativeWeakMapHas = WeakMap.prototype.has;
 const nativeWeakMapDelete = WeakMap.prototype.delete;
+const nativeObjectFreeze = Object.freeze;
+
+// Keep the captured methods on private subclasses. Instances can then be created
+// without reassigning every method, while the subclass prototypes remain outside
+// the page's mutable built-in prototypes.
+const NativeSetConstructor = class<T> extends nativeSetConstructor<T> {};
+NativeSetConstructor.prototype.add = nativeSetAdd;
+NativeSetConstructor.prototype.has = nativeSetHas;
+NativeSetConstructor.prototype.delete = nativeSetDelete;
+NativeSetConstructor.prototype.clear = nativeSetClear;
+NativeSetConstructor.prototype.forEach = nativeSetForEach;
+nativeObjectFreeze(NativeSetConstructor.prototype);
+
+const NativeMapConstructor = class<K, V> extends nativeMapConstructor<K, V> {};
+NativeMapConstructor.prototype.get = nativeMapGet;
+NativeMapConstructor.prototype.set = nativeMapSet;
+NativeMapConstructor.prototype.has = nativeMapHas;
+NativeMapConstructor.prototype.delete = nativeMapDelete;
+NativeMapConstructor.prototype.clear = nativeMapClear;
+NativeMapConstructor.prototype.forEach = nativeMapForEach;
+nativeObjectFreeze(NativeMapConstructor.prototype);
+
+const NativeWeakMapConstructor = class<K extends object, V> extends nativeWeakMapConstructor<K, V> {};
+NativeWeakMapConstructor.prototype.get = nativeWeakMapGet;
+NativeWeakMapConstructor.prototype.set = nativeWeakMapSet;
+NativeWeakMapConstructor.prototype.has = nativeWeakMapHas;
+NativeWeakMapConstructor.prototype.delete = nativeWeakMapDelete;
+nativeObjectFreeze(NativeWeakMapConstructor.prototype);
 
 const nativeFunctionApply = nativeReflectApply(nativeFunctionBind, Function.prototype.apply, [
   Function.prototype.apply,
@@ -62,12 +90,7 @@ type SafeWeakMap<K extends object, V> = WeakMap<K, V> & {
 };
 
 const createNativeSet = <T>(values?: readonly T[] | Set<T> | null): SafeSet<T> => {
-  const set = new nativeSetConstructor<T>() as SafeSet<T>;
-  set.add = nativeSetAdd as SafeSet<T>["add"];
-  set.has = nativeSetHas as SafeSet<T>["has"];
-  set.delete = nativeSetDelete as SafeSet<T>["delete"];
-  set.clear = nativeSetClear as SafeSet<T>["clear"];
-  set.forEach = nativeSetForEach as SafeSet<T>["forEach"];
+  const set = new NativeSetConstructor<T>() as SafeSet<T>;
   if (Array.isArray(values)) {
     for (let i = 0; i < values.length; i += 1) set.add(values[i]);
   } else if (values) {
@@ -77,29 +100,17 @@ const createNativeSet = <T>(values?: readonly T[] | Set<T> | null): SafeSet<T> =
 };
 
 const createNativeMap = <K, V>(): SafeMap<K, V> => {
-  const map = new nativeMapConstructor<K, V>() as SafeMap<K, V>;
-  map.get = nativeMapGet as SafeMap<K, V>["get"];
-  map.set = nativeMapSet as SafeMap<K, V>["set"];
-  map.has = nativeMapHas as SafeMap<K, V>["has"];
-  map.delete = nativeMapDelete as SafeMap<K, V>["delete"];
-  map.clear = nativeMapClear as SafeMap<K, V>["clear"];
-  map.forEach = nativeMapForEach as SafeMap<K, V>["forEach"];
-  return map;
+  return new NativeMapConstructor<K, V>() as SafeMap<K, V>;
 };
 
 const createNativeWeakMap = <K extends object, V>(): SafeWeakMap<K, V> => {
-  const map = new nativeWeakMapConstructor<K, V>() as SafeWeakMap<K, V>;
-  map.get = nativeWeakMapGet as SafeWeakMap<K, V>["get"];
-  map.set = nativeWeakMapSet as SafeWeakMap<K, V>["set"];
-  map.has = nativeWeakMapHas as SafeWeakMap<K, V>["has"];
-  map.delete = nativeWeakMapDelete as SafeWeakMap<K, V>["delete"];
-  return map;
+  return new NativeWeakMapConstructor<K, V>() as SafeWeakMap<K, V>;
 };
 
 export const Native = {
-  Set: nativeSetConstructor,
-  Map: nativeMapConstructor,
-  WeakMap: nativeWeakMapConstructor,
+  Set: NativeSetConstructor,
+  Map: NativeMapConstructor,
+  WeakMap: NativeWeakMapConstructor,
   apply: nativeApply,
   call: nativeCall,
   bind: nativeBind,

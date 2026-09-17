@@ -4,6 +4,7 @@ import { encodeRValue } from "@App/pkg/utils/message_value";
 import { createContext, createProxyContext, shouldFnBind, type RealmRoots } from "./create_context";
 import { GMContextApiGet } from "./gm_api/gm_context";
 import { trimScriptInfo } from "./utils";
+import { Native } from "./global";
 
 type AnyRecord = Record<PropertyKey, any>;
 
@@ -305,6 +306,22 @@ describe("shouldFnBind", () => {
 });
 
 describe("createContext: capability and lifecycle contract", () => {
+  it("creates collection instances from frozen captured-method subclasses", () => {
+    const set = Native.createSet(["grant"]);
+    const map = Native.createMap<string, number>();
+    const weakMap = Native.createWeakMap<object, number>();
+
+    expect(set).toBeInstanceOf(Native.Set);
+    expect(map).toBeInstanceOf(Native.Map);
+    expect(weakMap).toBeInstanceOf(Native.WeakMap);
+    expect(Object.hasOwn(Object.getPrototypeOf(set), "add")).toBe(true);
+    expect(Object.hasOwn(Object.getPrototypeOf(map), "get")).toBe(true);
+    expect(Object.hasOwn(Object.getPrototypeOf(weakMap), "get")).toBe(true);
+    expect(Object.isFrozen(Object.getPrototypeOf(set))).toBe(true);
+    expect(Object.isFrozen(Object.getPrototypeOf(map))).toBe(true);
+    expect(Object.isFrozen(Object.getPrototypeOf(weakMap))).toBe(true);
+  });
+
   it("keeps grant construction on captured Set and iterator intrinsics", () => {
     const NativeSet = Set;
     const nativeArrayIterator = Array.prototype[Symbol.iterator];
