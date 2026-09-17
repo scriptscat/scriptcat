@@ -158,6 +158,8 @@ export type TClientPageLoadInfo =
       injectScriptList: TScriptInfo[];
       contentScriptList: TScriptInfo[];
       envInfo: GMInfoEnv;
+      /** One-use token that lets the USER_SCRIPT world request its private bootstrap. */
+      userScriptBootstrapToken?: string;
     }
   | { ok: false };
 

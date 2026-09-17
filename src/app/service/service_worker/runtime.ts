@@ -40,6 +40,7 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
 import type { CompileScriptCodeResource } from "../content/utils";
+import { getExtensionOrigin, getPageRpcAllowedAPIs, type ExtensionOrigin } from "../content/page_rpc";
 import {
   compileInjectScriptByFlag,
   compileScriptCodeByResource,
@@ -146,6 +147,17 @@ export class RuntimeService {
     string,
     { connection: MessageConnect; handles: Set<string>; tabId: number; frameId?: number; documentId?: string }
   >();
+  private readonly userScriptBootstraps = new Map<
+    string,
+    {
+      scripts: TScriptInfo[];
+      envInfo: GMInfoEnv;
+      extensionOrigin?: ExtensionOrigin;
+      tabId: number;
+      frameId?: number;
+      documentId?: string;
+    }
+  >();
 
   getGMApi(): GMApi | undefined {
     return this.gmApi;
@@ -160,10 +172,27 @@ export class RuntimeService {
       if (
         binding.tabId === tabId &&
         binding.frameId === frameId &&
-        (envTag === undefined || binding.envTag === envTag) &&
+        (envTag === undefined || binding.envTag === envTag || (envTag === "it" && binding.envTag === "ct")) &&
         (documentId === undefined || binding.documentId === documentId)
       ) {
         this.pageExecutionBindings.delete(handle);
+      }
+    }
+    if (envTag === "it") {
+      for (const [key, entry] of this.userScriptConnections) {
+        if (
+          entry.tabId === tabId &&
+          entry.frameId === frameId &&
+          (documentId === undefined || entry.documentId === documentId)
+        ) {
+          entry.connection.disconnect(true);
+          this.userScriptConnections.delete(key);
+        }
+      }
+    }
+    if (envTag !== "ct") {
+      for (const [token, bootstrap] of this.userScriptBootstraps) {
+        if (bootstrap.tabId === tabId && bootstrap.frameId === frameId) this.userScriptBootstraps.delete(token);
       }
     }
   }
@@ -178,6 +207,9 @@ export class RuntimeService {
         this.userScriptConnections.delete(key);
       }
     }
+    for (const [token, bootstrap] of this.userScriptBootstraps) {
+      if (bootstrap.tabId === tabId) this.userScriptBootstraps.delete(token);
+    }
   }
 
   private userScriptConnectionKey(tabId: number, frameId?: number, documentId?: string): string {
@@ -188,16 +220,13 @@ export class RuntimeService {
   registerUserScriptConnection(data: unknown, sender: IGetSender): boolean {
     if (!sender.isType(GetSenderType.EXTCONNECT) || sender.getConnectOrigin?.() !== "userScript") return false;
     if (data === null || typeof data !== "object") return false;
-    const handshake = data as { world?: unknown; executionHandles?: unknown };
+    const handshake = data as { world?: unknown; bootstrapToken?: unknown };
     if (
       Object.keys(data).length !== 2 ||
       handshake.world !== "USER_SCRIPT" ||
-      !Array.isArray(handshake.executionHandles) ||
-      handshake.executionHandles.length === 0 ||
-      handshake.executionHandles.length > 256 ||
-      handshake.executionHandles.some(
-        (handle) => typeof handle !== "string" || handle.length === 0 || handle.length > 256
-      )
+      typeof handshake.bootstrapToken !== "string" ||
+      handshake.bootstrapToken.length === 0 ||
+      handshake.bootstrapToken.length > 256
     ) {
       return false;
     }
@@ -205,8 +234,19 @@ export class RuntimeService {
     const connection = sender.getConnect();
     const tabId = source?.tab?.id;
     if (!source || typeof tabId !== "number" || !connection) return false;
-    const handles = new Set(handshake.executionHandles as string[]);
-    for (const handle of handles) {
+    const bootstrap = this.userScriptBootstraps.get(handshake.bootstrapToken);
+    if (
+      !bootstrap ||
+      bootstrap.tabId !== tabId ||
+      bootstrap.frameId !== source.frameId ||
+      bootstrap.documentId !== source.documentId
+    ) {
+      return false;
+    }
+    const handles = new Set<string>();
+    for (const script of bootstrap.scripts) {
+      const handle = script.executionHandle;
+      if (typeof handle !== "string" || handle.length === 0 || handle.length > 256) return false;
       const binding = this.pageExecutionBindings.get(handle);
       if (
         !binding ||
@@ -217,7 +257,10 @@ export class RuntimeService {
       ) {
         return false;
       }
+      handles.add(handle);
     }
+    if (handles.size === 0) return false;
+    this.userScriptBootstraps.delete(handshake.bootstrapToken);
     const frameId = source.frameId;
     const documentId = source.documentId;
     const key = this.userScriptConnectionKey(tabId, frameId, documentId);
@@ -227,6 +270,31 @@ export class RuntimeService {
     this.userScriptConnections.set(key, entry);
     connection.onDisconnect(() => {
       if (this.userScriptConnections.get(key)?.connection === connection) this.userScriptConnections.delete(key);
+    });
+    let bootstrapped = false;
+    connection.onMessage((packet) => {
+      if (
+        bootstrapped ||
+        packet === null ||
+        typeof packet !== "object" ||
+        Object.keys(packet).length !== 1 ||
+        packet.action !== "userScript/bootstrap"
+      ) {
+        return;
+      }
+      bootstrapped = true;
+      try {
+        connection.sendMessage({
+          action: "content/pageLoad",
+          data: {
+            scripts: bootstrap.scripts,
+            envInfo: bootstrap.envInfo,
+            extensionOrigin: bootstrap.extensionOrigin,
+          },
+        });
+      } catch {
+        this.userScriptConnections.delete(key);
+      }
     });
     return true;
   }
@@ -266,12 +334,16 @@ export class RuntimeService {
     for (const [handle, binding] of this.pageExecutionBindings) {
       if (binding.uuid === uuid) this.pageExecutionBindings.delete(handle);
     }
+    for (const [token, bootstrap] of this.userScriptBootstraps) {
+      if (bootstrap.scripts.some((script) => script.uuid === uuid)) this.userScriptBootstraps.delete(token);
+    }
   }
 
   private issuePageBinding(
     uuid: string,
     envTag: "it" | "ct",
     storageName: string,
+    allowedAPIs: readonly string[],
     sender: IGetSender
   ): ServiceWorkerExecutionBinding {
     const source = sender.getSender();
@@ -287,6 +359,7 @@ export class RuntimeService {
       frameId: source?.frameId,
       documentId: source?.documentId,
       storageName,
+      allowedAPIs: new Set(allowedAPIs),
       requestIds: new Set<string>(),
     } satisfies ServiceWorkerExecutionBinding;
     this.pageExecutionBindings.set(handle, binding);
@@ -1444,6 +1517,7 @@ export class RuntimeService {
   }
 
   async pageLoad(data: { envTag?: "it" | "ct" } | undefined, sender: IGetSender): Promise<TClientPageLoadInfo> {
+    if (sender.getConnectOrigin?.() === "userScript") return { ok: false };
     const chromeSender = sender.getSender();
     const url = chromeSender?.url;
     if (!url) {
@@ -1455,6 +1529,10 @@ export class RuntimeService {
     const incognito = chromeSender.tab?.incognito ?? false;
     const res = await this.getScriptsForTab({ url, tabId, frameId, incognito });
 
+    // Retire bindings even when the new URL has no matching scripts. This closes
+    // the reuse window on browsers that do not provide documentId.
+    this.revokePageBindings(sender, data?.envTag);
+
     this.mq.emit<TPopupPageLoadInfo>("popupPageLoadUpdate", {
       tabId: tabId,
       frameId: frameId,
@@ -1463,10 +1541,15 @@ export class RuntimeService {
     });
 
     if (res) {
-      this.revokePageBindings(sender, data?.envTag);
       const prepareScripts = (scripts: TScriptInfo[], envTag: "it" | "ct") =>
         scripts.map((script) => {
-          const binding = this.issuePageBinding(script.uuid, envTag, getStorageName(script), sender);
+          const binding = this.issuePageBinding(
+            script.uuid,
+            envTag,
+            getStorageName(script),
+            getPageRpcAllowedAPIs(script.metadata.grant || []),
+            sender
+          );
           return {
             ...script,
             executionHandle: binding.handle,
@@ -1474,12 +1557,27 @@ export class RuntimeService {
             executionRunFlag: binding.runFlag,
           };
         });
+      const injectScriptList = data?.envTag === "ct" ? [] : prepareScripts(res.injectScriptList, "it");
+      const contentScriptList = prepareScripts(res.contentScriptList, "ct");
+      let userScriptBootstrapToken: string | undefined;
+      if (data?.envTag === "it" && contentScriptList.length > 0) {
+        userScriptBootstrapToken = uuidv4();
+        this.userScriptBootstraps.set(userScriptBootstrapToken, {
+          scripts: contentScriptList,
+          envInfo: res.envInfo,
+          extensionOrigin: getExtensionOrigin(),
+          tabId,
+          frameId,
+          documentId: chromeSender.documentId,
+        });
+      }
       // 返回脚本资料，在页面加载
       return {
         ok: true,
-        injectScriptList: data?.envTag === "ct" ? [] : prepareScripts(res.injectScriptList, "it"),
-        contentScriptList: data?.envTag === "it" ? [] : prepareScripts(res.contentScriptList, "ct"),
+        injectScriptList,
+        contentScriptList: data?.envTag === "it" ? [] : contentScriptList,
         envInfo: res.envInfo,
+        userScriptBootstrapToken,
       };
     } else {
       // 没有脚本资料，不需要加载

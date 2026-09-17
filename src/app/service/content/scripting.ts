@@ -7,7 +7,7 @@ import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
 import type { ValueUpdateDataEncoded } from "./types";
-import { getPageRpcAllowedAPIs, PageRpcRegistry, validatePageGMRequest } from "./page_rpc";
+import { getExtensionOrigin, getPageRpcAllowedAPIs, PageRpcRegistry, validatePageGMRequest } from "./page_rpc";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
 const PageOrContent = {
@@ -173,7 +173,7 @@ export default class ScriptingRuntime {
     // 向service_worker请求脚本列表及环境信息
     client.pageLoad("it").then((o) => {
       if (!o.ok) return;
-      const { injectScriptList, contentScriptList, envInfo } = o;
+      const { injectScriptList, envInfo, userScriptBootstrapToken } = o;
       this.pageRpc.revokeAll();
       const prepareScripts = (scripts: typeof injectScriptList, envTag: "it" | "ct") =>
         scripts.map((script) => {
@@ -188,15 +188,20 @@ export default class ScriptingRuntime {
           return { ...script, executionHandle, executionEnvTag: envTag, executionRunFlag };
         });
       const preparedInjectScriptList = prepareScripts(injectScriptList, "it");
-      const preparedContentScriptList = prepareScripts(contentScriptList, "ct");
       const pairs = {} as Record<string, PageOrContent>;
       for (const script of preparedInjectScriptList) {
         pairs[getStorageName(script)] |= PageOrContent.PAGE;
       }
-      for (const script of preparedContentScriptList) {
-        pairs[getStorageName(script)] |= PageOrContent.CONTENT;
-      }
       this.activeStorageNames = new Map(Object.entries(pairs));
+
+      if (typeof userScriptBootstrapToken === "string" && userScriptBootstrapToken.length > 0) {
+        const contentClient = new Client(this.senderToContent, "content");
+        contentClient.do("pageLoad", {
+          bootstrapToken: userScriptBootstrapToken,
+          envInfo,
+          extensionOrigin: getExtensionOrigin(),
+        });
+      }
 
       // 向页面 发送脚本列表及环境信息
       if (preparedInjectScriptList.length) {

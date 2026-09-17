@@ -305,6 +305,49 @@ describe("shouldFnBind", () => {
 });
 
 describe("createContext: capability and lifecycle contract", () => {
+  it("keeps grant construction on captured Set and iterator intrinsics", () => {
+    const NativeSet = Set;
+    const nativeArrayIterator = Array.prototype[Symbol.iterator];
+    const nativeSetIterator = Set.prototype[Symbol.iterator];
+    const grants = new NativeSet<string>();
+    NativeSet.prototype.add.call(grants, "GM_getValue");
+    const poisonedIterator = function () {
+      let first = true;
+      return {
+        next() {
+          if (!first) return { value: undefined, done: true };
+          first = false;
+          return { value: "GM_cookie", done: false };
+        },
+      };
+    };
+    try {
+      Object.defineProperty(Array.prototype, Symbol.iterator, { configurable: true, value: poisonedIterator });
+      Object.defineProperty(NativeSet.prototype, Symbol.iterator, { configurable: true, value: poisonedIterator });
+      (globalThis as typeof globalThis & { Set: typeof Set }).Set = class PoisonedSet {
+        constructor() {
+          throw new Error("page replaced Set");
+        }
+      } as unknown as typeof Set;
+
+      const context = createContext(
+        createScriptInfo({ grant: ["GM_getValue"] }),
+        { script: { name: "create-context-test" }, scriptMetaStr: "" },
+        "vitest",
+        undefined as any,
+        undefined as any,
+        grants
+      );
+
+      expect(context.GM_getValue).toBeTypeOf("function");
+      expect(context.GM_cookie).toBeUndefined();
+    } finally {
+      Object.defineProperty(Array.prototype, Symbol.iterator, { configurable: true, value: nativeArrayIterator });
+      Object.defineProperty(NativeSet.prototype, Symbol.iterator, { configurable: true, value: nativeSetIterator });
+      (globalThis as typeof globalThis & { Set: typeof Set }).Set = NativeSet;
+    }
+  });
+
   it("uses the service-worker execution run flag for value acknowledgments", () => {
     const script = {
       ...createScriptInfo({ grant: ["GM_getValue"] }),

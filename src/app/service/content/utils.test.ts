@@ -792,6 +792,46 @@ describe("utils", () => {
       expect(testPerformance.dispatchEvent).toHaveBeenCalledTimes(1);
       expect(testPerformance.addEventListener).not.toHaveBeenCalled();
     });
+
+    it.concurrent("does not mount a regex-excluded early-start script", () => {
+      const script: ScriptLoadInfo = {
+        uuid: "pre-inject-excluded-uuid",
+        name: "Pre Inject Excluded Script",
+        namespace: "pre.inject.excluded",
+        type: 1,
+        status: 1,
+        sort: 0,
+        runStatus: "complete",
+        createtime: Date.now(),
+        checktime: Date.now(),
+        code: "",
+        value: {},
+        flag: "pre-inject-excluded-flag",
+        resource: {},
+        metadata: {},
+        originalMetadata: {},
+        metadataStr: "",
+        userConfigStr: "",
+        scriptUrlPatterns: [
+          {
+            ruleType: RuleType.REGEX_INCLUDE,
+            ruleContent: ["allowed", ""],
+            ruleTag: "include",
+            patternString: "/allowed/",
+          },
+        ],
+      };
+      const targetWindow: GeneratedWindow = {};
+      const testPerformance = {
+        dispatchEvent: vi.fn(() => false),
+        addEventListener: vi.fn(),
+      };
+
+      executeGeneratedScript(compilePreInjectScript(script, "return undefined;"), targetWindow, testPerformance);
+
+      expect(targetWindow[script.flag]).toBeUndefined();
+      expect(testPerformance.dispatchEvent).not.toHaveBeenCalled();
+    });
   });
 
   describe("addStyle", () => {

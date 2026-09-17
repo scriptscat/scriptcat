@@ -1077,6 +1077,16 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
     },
   });
 
+  it("拒绝 USER_SCRIPT 来源直接请求页面脚本清单", async () => {
+    const { runtime } = _createRuntimeContext();
+    const getScriptsForTab = vi.spyOn(runtime, "getScriptsForTab");
+
+    const result = await runtime.pageLoad(undefined, new SenderRuntime(createSender(false), "userScript"));
+
+    expect(result).toEqual({ ok: false });
+    expect(getScriptsForTab).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["普通", false],
     ["隐身", true],
@@ -1193,7 +1203,7 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
     expect(runtime.resolvePageExecutionBinding(injectHandle!, sender)).toBeDefined();
   });
 
-  it("isolated scripting 的 pageLoad 不会撤销已建立的 content 绑定", async () => {
+  it("isolated scripting 的 pageLoad 会撤销上一轮 content 绑定", async () => {
     const { runtime } = _createRuntimeContext();
     const inject = _createScriptRunResource(_createMockScript({ uuid: "inject-script" }));
     const content = _createScriptRunResource(_createMockScript({ uuid: "content-script" }));
@@ -1217,7 +1227,34 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
     const injectLoad = await runtime.pageLoad({ envTag: "it" }, sender);
 
     expect(injectLoad.ok).toBe(true);
-    expect(runtime.resolvePageExecutionBinding(contentHandle!, sender)).toBeDefined();
+    expect(runtime.resolvePageExecutionBinding(contentHandle!, sender)).toBeUndefined();
+  });
+
+  it("没有匹配脚本时也会撤销当前页面的旧绑定", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(_createMockScript({ uuid: "stale-script" }));
+    const getScriptsForTab = vi.spyOn(runtime, "getScriptsForTab");
+    getScriptsForTab.mockResolvedValueOnce({
+      injectScriptList: [script],
+      contentScriptList: [],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+    getScriptsForTab.mockResolvedValueOnce(null);
+    const sender = new SenderRuntime({
+      url: "https://www.example.com/page",
+      frameId: 0,
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+
+    const first = await runtime.pageLoad(undefined, sender);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const handle = first.injectScriptList[0].executionHandle;
+    expect(runtime.resolvePageExecutionBinding(handle!, sender)).toBeDefined();
+
+    await runtime.pageLoad(undefined, sender);
+    expect(runtime.resolvePageExecutionBinding(handle!, sender)).toBeUndefined();
   });
 });
 
@@ -1241,8 +1278,9 @@ describe("USER_SCRIPT native callbacks", () => {
       tab: { id: 41, incognito: false } as chrome.tabs.Tab,
     } as chrome.runtime.MessageSender;
     const sendMessage = vi.fn();
+    const onMessage = vi.fn();
     const connection = {
-      onMessage: vi.fn(),
+      onMessage,
       sendMessage,
       disconnect: vi.fn(),
       onDisconnect: vi.fn(),
@@ -1256,22 +1294,31 @@ describe("USER_SCRIPT native callbacks", () => {
       getConnectOrigin: () => "userScript" as const,
     };
 
-    await runtime.pageLoad({ envTag: "ct" }, new SenderRuntime(rawSender));
+    const pageLoad = await runtime.pageLoad({ envTag: "it" }, new SenderRuntime(rawSender));
     const contentBindings = [...(runtime as any).pageExecutionBindings.values()] as Array<{ handle: string }>;
     const handles = contentBindings.map(({ handle }) => handle);
     expect(handles).toHaveLength(1);
+    expect(pageLoad.ok && pageLoad.userScriptBootstrapToken).toEqual(expect.any(String));
+    const bootstrapToken = pageLoad.ok ? pageLoad.userScriptBootstrapToken : undefined;
     expect(
       runtime.registerUserScriptConnection(
-        { world: "USER_SCRIPT", executionHandles: handles },
+        { world: "USER_SCRIPT", bootstrapToken },
         { ...connectionSender, getConnectOrigin: () => "extension" as const }
       )
     ).toBe(false);
     expect(runtime.registerUserScriptConnection({ world: "USER_SCRIPT" }, connectionSender)).toBe(false);
-    expect(
-      runtime.registerUserScriptConnection({ world: "USER_SCRIPT", executionHandles: handles }, connectionSender)
-    ).toBe(true);
+    expect(runtime.registerUserScriptConnection({ world: "USER_SCRIPT", bootstrapToken }, connectionSender)).toBe(true);
+    const bootstrapHandler = onMessage.mock.calls[0]?.[0] as ((packet: TMessage) => void) | undefined;
+    bootstrapHandler?.({ action: "userScript/bootstrap" });
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "content/pageLoad",
+        data: expect.objectContaining({ scripts: expect.any(Array) }),
+      })
+    );
 
     const sendUserScriptMessage = (runtime as any).sendUserScriptMessage.bind(runtime);
+    sendMessage.mockClear();
     sendUserScriptMessage(undefined, "runtime/valueUpdate", {
       uuid: "other-script",
       storageName: getStorageName(script),

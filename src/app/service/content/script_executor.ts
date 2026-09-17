@@ -74,7 +74,8 @@ export class ScriptExecutor {
       });
     };
     // 监听脚本加载
-    scripts.forEach((script) => {
+    for (let scriptIndex = 0; scriptIndex < scripts.length; scriptIndex += 1) {
+      const script = scripts[scriptIndex];
       const flag = script.flag;
       // 如果是EarlyScriptFlag，处理沙盒环境
       let isEarlyScript = false;
@@ -110,7 +111,7 @@ export class ScriptExecutor {
         });
       };
       listenForScript();
-    });
+    }
   }
 
   checkEarlyStartScript(scriptEnvTag: ScriptEnvTag, envInfo: GMInfoEnv) {
@@ -217,7 +218,9 @@ export class ScriptExecutor {
     const resource = scriptLoadInfo.requireCssResource ?? scriptLoadInfo.resource;
     // 注入css
     if (metadata["require-css"] && resource) {
-      for (const val of metadata["require-css"]) {
+      const requireCss = metadata["require-css"];
+      for (let i = 0; i < requireCss.length; i += 1) {
+        const val = requireCss[i];
         const res = resource[val];
         if (res) {
           addStyleSheet(res.content);

@@ -311,10 +311,14 @@ export function compilePreInjectScript(
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
   const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
   const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
-  return `${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`)};
-{
-  let f = () => {
+  return `{
+  let mounted = false,
+    f = () => {
     if (!(${urlCondition})) return false;
+    if (!mounted) {
+      ${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`)};
+      mounted = true;
+    }
     const o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
       c = typeof cloneInto === "function" ? cloneInto(o, performance) : o;
     return performance.dispatchEvent(new CustomEvent('${evScriptLoad}', c));

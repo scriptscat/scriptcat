@@ -4,7 +4,71 @@ import { getGrantCandidates } from "./gm_api/grant";
 
 export const PAGE_RPC_VERSION = 1 as const;
 const MAX_REQUEST_ID_LENGTH = 256;
+const MAX_REQUEST_IDS_PER_BINDING = 4096;
 const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
+const EXTENSION_PROTOCOLS = new Set(["chrome-extension:", "moz-extension:"]);
+
+export type ExtensionOrigin = Pick<URL, "protocol" | "hostname" | "port">;
+
+export const getExtensionOrigin = (): ExtensionOrigin | undefined => {
+  if (typeof chrome === "undefined" || typeof chrome.runtime?.getURL !== "function") return undefined;
+  try {
+    const url = new URL(chrome.runtime.getURL("/"));
+    if (!EXTENSION_PROTOCOLS.has(url.protocol) || !url.hostname) return undefined;
+    return { protocol: url.protocol, hostname: url.hostname, port: url.port };
+  } catch {
+    // Ignore malformed runtime metadata and reject the URL below.
+  }
+  return undefined;
+};
+
+let configuredExtensionOrigin: ExtensionOrigin | undefined;
+
+export const setPageRpcExtensionOrigin = (value: unknown): void => {
+  if (value === null || typeof value !== "object") {
+    configuredExtensionOrigin = undefined;
+    return;
+  }
+  try {
+    const read = (key: keyof ExtensionOrigin): unknown => {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      return descriptor && "value" in descriptor ? descriptor.value : undefined;
+    };
+    const protocol = read("protocol");
+    const hostname = read("hostname");
+    const port = read("port");
+    if (
+      (protocol !== "chrome-extension:" && protocol !== "moz-extension:") ||
+      typeof hostname !== "string" ||
+      hostname.length === 0 ||
+      typeof port !== "string"
+    ) {
+      configuredExtensionOrigin = undefined;
+      return;
+    }
+    configuredExtensionOrigin = { protocol, hostname, port };
+  } catch {
+    configuredExtensionOrigin = undefined;
+  }
+};
+
+export const isExtensionBlobUrl = (value: unknown): value is string => {
+  if (typeof value !== "string") return false;
+  const extensionOrigin = configuredExtensionOrigin || getExtensionOrigin();
+  if (!extensionOrigin) return false;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "blob:") return false;
+    const creatorOrigin = new URL(value.slice("blob:".length));
+    return (
+      creatorOrigin.protocol === extensionOrigin.protocol &&
+      creatorOrigin.hostname === extensionOrigin.hostname &&
+      creatorOrigin.port === extensionOrigin.port
+    );
+  } catch {
+    return false;
+  }
+};
 
 export type PageExecutionBinding = {
   readonly handle: string;
@@ -45,17 +109,26 @@ const INTERNAL_APIS_BY_GRANT: Readonly<Record<string, readonly string[]>> = {
   "CAT.agent.skills": ["CAT_agentSkills"],
   "CAT.agent.task": ["CAT_agentTask"],
   CAT_fileStorage: ["CAT_fetchBlob", "CAT_createBlobUrl"],
-  GM_xmlhttpRequest: ["CAT_createBlobUrl", "CAT_fetchBlob", "CAT_fetchDocument"],
-  "GM.xmlhttpRequest": ["CAT_createBlobUrl", "CAT_fetchBlob", "CAT_fetchDocument"],
-  "GM.xmlHttpRequest": ["GM_xmlhttpRequest", "CAT_createBlobUrl", "CAT_fetchBlob", "CAT_fetchDocument"],
+  "GM.xmlHttpRequest": ["GM_xmlhttpRequest"],
 };
 
 // ScriptingRuntime does not load the GM implementation module, so mirror its small dependency graph here.
 const API_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {
   "GM.getValues": ["GM_getValues"],
+  "GM.cookie": ["GM.cookie.set", "GM.cookie.list", "GM.cookie.delete"],
+  GM_cookie: ["GM_cookie.set", "GM_cookie.list", "GM_cookie.delete"],
+  "GM.setValue": ["GM_setValue"],
+  "GM.setValues": ["GM_setValues"],
+  "GM.listValues": ["GM_listValues"],
+  "GM.download": ["GM_download"],
+  "GM.notification": ["GM_notification"],
   "GM.addValueChangeListener": ["GM_addValueChangeListener"],
   "GM.removeValueChangeListener": ["GM_removeValueChangeListener"],
   "GM.log": ["GM_log"],
+  "GM.deleteValue": ["GM_setValue"],
+  GM_deleteValue: ["GM_setValue"],
+  "GM.deleteValues": ["GM_setValues"],
+  GM_deleteValues: ["GM_setValues"],
   "GM.registerMenuCommand": ["GM_registerMenuCommand"],
   CAT_registerMenuInput: ["GM_registerMenuCommand"],
   "GM.addStyle": ["GM_addStyle"],
@@ -74,6 +147,7 @@ const API_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {
 };
 
 export const getPageRpcAllowedAPIs = (grants: readonly string[]): string[] => {
+  if (grants.some((grant) => grant === "none")) return [];
   const allowed = new Set<string>();
   const visited = new Set<string>();
   const visitGrant = (grant: string): void => {
@@ -136,8 +210,8 @@ const cloneParams = (params: unknown): readonly unknown[] => {
 const validateOperationParams = (api: string, params: readonly unknown[]): void => {
   switch (api) {
     case "CAT_fetchBlob":
-      if (params.length !== 1 || typeof params[0] !== "string") {
-        throw new PageRpcError("CAT_fetchBlob expects a URL string");
+      if (params.length !== 1 || !isExtensionBlobUrl(params[0])) {
+        throw new PageRpcError("CAT_fetchBlob expects an extension blob URL");
       }
       return;
     case "CAT_createBlobUrl":
@@ -209,6 +283,11 @@ export class PageRpcRegistry {
   consumeRequestId(binding: PageExecutionBinding, requestId: string): void {
     if (binding.requestIds.has(requestId)) throw new PageRpcError("page RPC requestId was already used");
     binding.requestIds.add(requestId);
+    while (binding.requestIds.size > MAX_REQUEST_IDS_PER_BINDING) {
+      const oldest = binding.requestIds.values().next().value as string | undefined;
+      if (oldest === undefined) break;
+      binding.requestIds.delete(oldest);
+    }
   }
 }
 

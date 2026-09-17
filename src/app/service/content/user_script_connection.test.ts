@@ -24,10 +24,11 @@ describe("connectUserScriptChannel", () => {
       }),
     } as unknown as Message;
 
-    await connectUserScriptChannel(message, ["handle-a"], vi.fn());
+    await connectUserScriptChannel(message, "bootstrap-token", vi.fn());
 
     expect(order).toEqual(["send:userScripts.LISTEN_CONNECTIONS", "connect:serviceWorker/runtime/registerUserScript"]);
     expect(connection.onMessage).toHaveBeenCalledOnce();
+    expect(connection.sendMessage).toHaveBeenCalledWith({ action: "userScript/bootstrap" });
   });
 
   it("does not open a port when the browser cannot enable USER_SCRIPT listeners", async () => {
@@ -36,7 +37,7 @@ describe("connectUserScriptChannel", () => {
       connect: vi.fn(),
     } as unknown as Message;
 
-    await expect(connectUserScriptChannel(message, ["handle-a"], vi.fn())).resolves.toBeUndefined();
+    await expect(connectUserScriptChannel(message, "bootstrap-token", vi.fn())).resolves.toBeUndefined();
     expect(message.connect).not.toHaveBeenCalled();
   });
 });

@@ -8,15 +8,16 @@ type UserScriptPacketHandler = (connection: MessageConnect, packet: TMessage) =>
  */
 export async function connectUserScriptChannel(
   message: Message,
-  executionHandles: readonly string[],
+  bootstrapToken: string,
   onPacket: UserScriptPacketHandler
 ): Promise<MessageConnect | undefined> {
   const enabled = await message.sendMessage<boolean>({ type: "userScripts.LISTEN_CONNECTIONS" } as unknown as TMessage);
   if (enabled === false) return undefined;
   const connection = await message.connect({
     action: "serviceWorker/runtime/registerUserScript",
-    data: { world: "USER_SCRIPT", executionHandles },
+    data: { world: "USER_SCRIPT", bootstrapToken },
   });
   connection.onMessage((packet) => onPacket(connection, packet));
+  connection.sendMessage({ action: "userScript/bootstrap" });
   return connection;
 }

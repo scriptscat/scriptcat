@@ -28,12 +28,14 @@ export type TMessageCommCode<T = any> = {
 export type TMessage<T = any> = TMessagQueueUnit<T> | TMessageCommAction<T> | TMessageCommCode<T>;
 
 export type RuntimeMessageSender = chrome.runtime.MessageSender;
+export type MessageOrigin = "extension" | "userScript";
 
 export type OnConnectCallback = (data: TMessage, con: MessageConnect) => void;
 export type OnMessageCallback = (
   data: TMessage,
   sendResponse: (data: any) => void,
-  sender: RuntimeMessageSender
+  sender: RuntimeMessageSender,
+  origin?: MessageOrigin
 ) => boolean | void;
 
 export interface Message {

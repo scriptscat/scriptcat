@@ -51,12 +51,12 @@ export default class ExecScript {
     } else {
       this.scriptFunc = code;
     }
-    const grantSet = new Native.Set(scriptRes.metadata.grant || []);
+    const grantSet = Native.createSet(scriptRes.metadata.grant || []);
     if (isContextMenuScript(scriptRes.metadata)) {
-      grantSet.add("GM_registerMenuCommand");
-      grantSet.delete("none");
+      Native.setAdd(grantSet, "GM_registerMenuCommand");
+      Native.setDelete(grantSet, "none");
     }
-    if (grantSet.has("none")) {
+    if (Native.setHas(grantSet, "none")) {
       // 不注入任何GM api
       // ScriptCat行为：GM.info 和 GM_info 同时注入
       // 在不改变 Context 的情况下，以 named 传入多个全域变量

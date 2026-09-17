@@ -6,6 +6,16 @@ const unsupportedAPI = () => {
 // 在页面或用户脚本替换调用内建函数前完成捕获。
 export const nativeReflectApply = Reflect.apply;
 const nativeFunctionBind = Function.prototype.bind;
+const nativeSetConstructor = Set;
+const nativeSetAdd = Set.prototype.add;
+const nativeSetHas = Set.prototype.has;
+const nativeSetDelete = Set.prototype.delete;
+const nativeSetClear = Set.prototype.clear;
+const nativeSetForEach = Set.prototype.forEach;
+const nativeMapConstructor = Map;
+const nativeWeakMapConstructor = WeakMap;
+const nativeWeakMapGet = WeakMap.prototype.get;
+const nativeWeakMapSet = WeakMap.prototype.set;
 
 export const nativeApply = (fn: (...args: any[]) => any, receiver: any, args: any[]) =>
   nativeReflectApply(fn, receiver, args);
@@ -14,9 +24,20 @@ export const nativeCall = (fn: (...args: any[]) => any, receiver: any, ...args: 
 export const nativeBind = (fn: (...args: any[]) => any, receiver: any, ...args: any[]) =>
   nativeReflectApply(nativeFunctionBind, fn, [receiver, ...args]);
 
+const createNativeSet = <T>(values?: readonly T[]): Set<T> => {
+  const set = new nativeSetConstructor<T>();
+  if (values) {
+    for (let i = 0; i < values.length; i += 1) nativeReflectApply(nativeSetAdd, set, [values[i]]);
+  }
+  return set;
+};
+
+const createNativeWeakMap = <K extends object, V>(): WeakMap<K, V> => new nativeWeakMapConstructor<K, V>();
+
 export const Native = {
-  Set,
-  Map,
+  Set: nativeSetConstructor,
+  Map: nativeMapConstructor,
+  WeakMap: nativeWeakMapConstructor,
   apply: nativeApply,
   call: nativeCall,
   bind: nativeBind,
@@ -36,6 +57,18 @@ export const Native = {
   objectGetPrototypeOf: nativeBind(Object.getPrototypeOf, Object),
   reflectOwnKeys: nativeBind(Reflect.ownKeys, Reflect),
   reflectGet: nativeBind(Reflect.get, Reflect),
+  setAdd: (set: Set<unknown>, value: unknown) => nativeReflectApply(nativeSetAdd, set, [value]),
+  setHas: (set: Set<unknown>, value: unknown) => nativeReflectApply(nativeSetHas, set, [value]),
+  setDelete: (set: Set<unknown>, value: unknown) => nativeReflectApply(nativeSetDelete, set, [value]),
+  setClear: (set: Set<unknown>) => nativeReflectApply(nativeSetClear, set, []),
+  setForEach: (set: Set<unknown>, callback: (value: unknown, value2: unknown, set: Set<unknown>) => void) =>
+    nativeReflectApply(nativeSetForEach, set, [callback]),
+  createSet: createNativeSet,
+  weakMapGet: <K extends object, V>(map: WeakMap<K, V>, key: K) =>
+    nativeReflectApply(nativeWeakMapGet, map, [key]) as V | undefined,
+  weakMapSet: <K extends object, V>(map: WeakMap<K, V>, key: K, value: V) =>
+    nativeReflectApply(nativeWeakMapSet, map, [key, value]) as WeakMap<K, V>,
+  createWeakMap: createNativeWeakMap,
 } as const;
 
 export const customClone = (o: any) => {

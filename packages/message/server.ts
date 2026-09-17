@@ -1,4 +1,12 @@
-import type { RuntimeMessageSender, MessageConnect, ExtMessageSender, Message, TMessage, MessageSend } from "./types";
+import type {
+  RuntimeMessageSender,
+  MessageConnect,
+  ExtMessageSender,
+  Message,
+  MessageOrigin,
+  TMessage,
+  MessageSend,
+} from "./types";
 import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "./client";
 import { ExtensionMessageConnect } from "./extension_message";
@@ -20,7 +28,7 @@ export interface IGetSender {
   getSender(): RuntimeMessageSender | undefined;
   getExtMessageSender(): ExtMessageSender;
   getConnect(): MessageConnect | undefined;
-  getConnectOrigin?(): "extension" | "userScript" | undefined;
+  getConnectOrigin?(): MessageOrigin | undefined;
 }
 
 export class SenderConnect {
@@ -79,7 +87,10 @@ export class SenderConnect {
 
 export class SenderRuntime {
   private readonly mType;
-  constructor(private sender: RuntimeMessageSender) {
+  constructor(
+    private sender: RuntimeMessageSender,
+    private readonly origin?: MessageOrigin
+  ) {
     this.mType = GetSenderType.RUNTIME;
   }
 
@@ -118,8 +129,8 @@ export class SenderRuntime {
     return undefined;
   }
 
-  getConnectOrigin(): undefined {
-    return undefined;
+  getConnectOrigin(): MessageOrigin | undefined {
+    return this.origin;
   }
 }
 
@@ -146,7 +157,7 @@ export class Server {
   private logger = LoggerCore.getInstance().logger({ service: "messageServer" });
 
   constructor(
-    prefix: string,
+    private readonly prefix: string,
     msgReceiver: Message | Message[],
     private enableConnect: boolean = true
   ) {
@@ -156,8 +167,8 @@ export class Server {
         msg.onConnect((msg: TMessage, con: MessageConnect) => {
           if (typeof msg.action !== "string") return;
           this.logger.trace("server onConnect", { msg });
-          if (msg.action?.startsWith(prefix)) {
-            return this.connectHandle(msg.action.slice(prefix.length + 1), msg.data, con);
+          if (msg.action?.startsWith(this.prefix)) {
+            return this.connectHandle(msg.action.slice(this.prefix.length + 1), msg.data, con);
           }
           return false;
         });
@@ -165,11 +176,11 @@ export class Server {
     }
 
     msgReceiverList.forEach((msg) => {
-      msg.onMessage((msg: TMessage, sendResponse, sender) => {
+      msg.onMessage((msg: TMessage, sendResponse, sender, origin) => {
         if (typeof msg.action !== "string") return;
         this.logger.trace("server onMessage", { msg: msg as any });
-        if (msg.action?.startsWith(prefix)) {
-          return this.messageHandle(msg.action.slice(prefix.length + 1), msg.data, sendResponse, sender);
+        if (msg.action?.startsWith(this.prefix)) {
+          return this.messageHandle(msg.action.slice(this.prefix.length + 1), msg.data, sendResponse, sender, origin);
         }
       });
       return false;
@@ -185,9 +196,15 @@ export class Server {
   }
 
   private connectHandle(msg: string, params: any, con: MessageConnect) {
+    const sender = new SenderConnect(con);
+    if (!this.isUserScriptActionAllowed(msg, sender.getConnectOrigin(), true)) {
+      con.sendMessage({ code: -1, message: "userScript action is not allowed" });
+      con.disconnect(true);
+      return true;
+    }
     const func = this.apiFunctionMap.get(msg);
     if (func) {
-      const ret = func(params, new SenderConnect(con));
+      const ret = func(params, sender);
       if (ret) {
         if (ret instanceof Promise) {
           ret
@@ -211,12 +228,18 @@ export class Server {
     action: string,
     params: any,
     sendResponse: (response: any) => void,
-    sender: RuntimeMessageSender
+    sender: RuntimeMessageSender,
+    origin?: MessageOrigin
   ) {
+    if (!this.isUserScriptActionAllowed(action, origin, false)) {
+      sendResponse({ code: -1, message: "userScript action is not allowed" });
+      this.logger.warn("userScript action rejected", { action });
+      return;
+    }
     const func = this.apiFunctionMap.get(action);
     if (func) {
       try {
-        const ret = func(params, new SenderRuntime(sender));
+        const ret = func(params, new SenderRuntime(sender, origin));
         if (ret instanceof Promise) {
           ret
             .then((data) => {
@@ -242,6 +265,13 @@ export class Server {
       sendResponse({ code: -1, message: "no such api " + action });
       this.logger.error("no such api", { action: action });
     }
+  }
+
+  private isUserScriptActionAllowed(action: string, origin: MessageOrigin | undefined, isConnect: boolean): boolean {
+    if (this.prefix !== "serviceWorker" || origin !== "userScript") return true;
+    return isConnect
+      ? action === "runtime/registerUserScript" || action === "runtime/gmApi"
+      : action === "runtime/gmApi";
   }
 }
 
@@ -323,7 +353,7 @@ export function forwardMessage(
       return sendMessage(senderTo, prefix + "/" + path, params);
     }
   };
-  const process = (params: any, sender: IGetSender) => {
+  const processTransformed = (params: any, sender: IGetSender) => {
     if (middleware) {
       // 此处是为了处理CustomEventMessage的同步消息情况
       const resp = middleware(params, sender) as any;
@@ -340,11 +370,12 @@ export function forwardMessage(
     }
     return handler(params, sender);
   };
-  receiverFrom.on(path, (params, sender) => {
-    if (!transform) return process(params, sender);
+  const process = (params: any, sender: IGetSender) => {
+    if (!transform) return processTransformed(params, sender);
     const transformed = transform(params, sender);
     return transformed instanceof Promise
-      ? transformed.then((data) => process(data, sender))
-      : process(transformed, sender);
-  });
+      ? transformed.then((data) => processTransformed(data, sender))
+      : processTransformed(transformed, sender);
+  };
+  receiverFrom.on(path, process);
 }

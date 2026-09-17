@@ -141,6 +141,8 @@ const cleanupOnAPIError = (requestId: string) => {
   headersSettled(markerID); // 处理完毕
 };
 
+const MAX_PAGE_RPC_REQUEST_IDS = 4096;
+
 // GMExternalDependencies接口定义
 // 为了支持外部依赖注入，方便测试和扩展
 interface IGMExternalDependencies {
@@ -395,6 +397,9 @@ export default class GMApi {
       if (!binding || (data.uuid && data.uuid !== binding.uuid)) {
         throw new Error("page execution binding is invalid");
       }
+      if (!binding.allowedAPIs.has(data.api)) {
+        throw new Error("API is not granted to this execution");
+      }
       if (typeof data.requestId !== "string" || !data.requestId || data.requestId.length > 256) {
         throw new Error("page RPC requestId is invalid");
       }
@@ -402,6 +407,11 @@ export default class GMApi {
         throw new Error("page RPC requestId was already used");
       }
       binding.requestIds.add(data.requestId);
+      while (binding.requestIds.size > MAX_PAGE_RPC_REQUEST_IDS) {
+        const oldest = binding.requestIds.values().next().value as string | undefined;
+        if (oldest === undefined) break;
+        binding.requestIds.delete(oldest);
+      }
       if (data.envTag !== undefined && data.envTag !== binding.envTag) {
         throw new Error("page execution binding is invalid");
       }

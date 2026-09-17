@@ -10,6 +10,9 @@ import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { type TExtensionEnv } from "./app/service/extension/extension_env";
 import { connectUserScriptChannel } from "./app/service/content/user_script_connection";
+import type { TScriptInfo } from "./app/repo/scripts";
+import type { GMInfoEnv } from "./app/service/content/types";
+import { setPageRpcExtensionOrigin, type ExtensionOrigin } from "./app/service/content/page_rpc";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
@@ -36,20 +39,45 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   const scriptExecutor = new ScriptExecutor(msg, domContentMsg, "serviceWorker");
   const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, extensionEnv);
   runtime.contentInit(domServer, domMsg);
-  runtime.init();
-  // Keep a native port for callbacks and value updates. The page-observable event
-  // channel remains limited to the synchronous DOM helper.
-  void runtime.loadPage(async (scripts) => {
-    await connectUserScriptChannel(
-      msg,
-      scripts.map((script) => script.executionHandle).filter((handle): handle is string => Boolean(handle)),
-      (_connection, packet) => {
-        if (packet.action === "content/runtime/valueUpdate") {
+  domServer.on(
+    "pageLoad",
+    (data: { bootstrapToken?: unknown; envInfo?: GMInfoEnv; extensionOrigin?: ExtensionOrigin }) => {
+      if (typeof data?.bootstrapToken !== "string" || data.bootstrapToken.length === 0) return;
+      void connectUserScriptChannel(msg, data.bootstrapToken, (_connection, packet) => {
+        if (packet.action === "content/pageLoad") {
+          const packetData = packet.data as {
+            scripts?: TScriptInfo[];
+            envInfo?: GMInfoEnv;
+            extensionOrigin?: ExtensionOrigin;
+          };
+          if (
+            !packetData ||
+            !Array.isArray(packetData.scripts) ||
+            packetData.scripts.length === 0 ||
+            !packetData.envInfo
+          ) {
+            return;
+          }
+          for (let i = 0; i < packetData.scripts.length; i += 1) {
+            const script = packetData.scripts[i];
+            if (
+              !script ||
+              typeof script !== "object" ||
+              script.executionEnvTag !== scriptEnvTag ||
+              typeof script.executionHandle !== "string"
+            ) {
+              return;
+            }
+          }
+          setPageRpcExtensionOrigin(packetData.extensionOrigin);
+          runtime.startScripts(packetData.scripts, packetData.envInfo);
+        } else if (packet.action === "content/runtime/valueUpdate") {
           scriptExecutor.valueUpdate(packet.data as any);
         } else if (packet.action === "content/runtime/emitEvent") {
           scriptExecutor.emitEvent(packet.data as any);
         }
-      }
-    );
-  });
+      });
+    }
+  );
+  runtime.init();
 });

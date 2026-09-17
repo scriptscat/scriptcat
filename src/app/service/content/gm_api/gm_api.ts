@@ -19,6 +19,7 @@ import { type ScriptRunResource } from "@App/app/repo/scripts";
 import type { ValueUpdateDataEncoded } from "../types";
 import { connect, sendMessage } from "@Packages/message/client";
 import { ScriptEnvTag } from "@Packages/message/consts";
+import { isExtensionBlobUrl } from "../page_rpc";
 import { getStorageName } from "@App/pkg/utils/utils";
 import { ListenerManager } from "../listener_manager";
 import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
@@ -61,16 +62,13 @@ let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
 
 const valueChangePromiseMap: Record<string, () => void> = Object.create(null);
 
-const notificationTagMaps = new WeakMap<object, Map<string, string>>();
-const nativeReflectApply = Reflect.apply;
-const weakMapGet = WeakMap.prototype.get;
-const weakMapSet = WeakMap.prototype.set;
+const notificationTagMaps = Native.createWeakMap<object, Map<string, string>>();
 
 const getNotificationTagMap = (owner: object): Map<string, string> => {
-  let map = nativeReflectApply(weakMapGet, notificationTagMaps, [owner]);
+  let map = Native.weakMapGet(notificationTagMaps, owner);
   if (!map) {
-    map = new Map();
-    nativeReflectApply(weakMapSet, notificationTagMaps, [owner, map]);
+    map = new Native.Map<string, string>();
+    Native.weakMapSet(notificationTagMaps, owner, map);
   }
   return map;
 };
@@ -78,7 +76,7 @@ const getNotificationTagMap = (owner: object): Map<string, string> => {
 const execEnvInit = (execEnv: GMApi) => {
   if (!execEnv.contentEnvKey) {
     execEnv.contentEnvKey = randomMessageFlag(); // 不重复识别字串。用于区分 mainframe subframe 等执行环境
-    execEnv.menuKeyRegistered = new Set();
+    execEnv.menuKeyRegistered = Native.createSet();
     execEnv.menuIdCounter = 0;
     execEnv.regMenuCounter = 0;
   }
@@ -154,7 +152,10 @@ class GM_Base implements IGM_Base {
     // operations local instead of sending an internal CAT operation to the SW,
     // where only the isolated scripting broker has an implementation.
     if (this.scriptRes.executionEnvTag === ScriptEnvTag.content) {
-      if (api === "CAT_fetchBlob") return fetch(`${params[0]}`).then((response) => response.blob());
+      if (api === "CAT_fetchBlob") {
+        if (!isExtensionBlobUrl(params[0])) throw new Error("CAT_fetchBlob expects an extension blob URL");
+        return fetch(params[0]).then((response) => response.blob());
+      }
       if (api === "CAT_createBlobUrl") {
         if (typeof URL.createObjectURL !== "function") throw new Error("Blob URLs are unavailable in USER_SCRIPT");
         return URL.createObjectURL(params[0] as Blob);

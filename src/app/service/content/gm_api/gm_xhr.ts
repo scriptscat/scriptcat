@@ -127,9 +127,15 @@ const getMimeType = (contentType: string) => {
   return mime;
 };
 
-const docParseTypes = new Set(["application/xhtml+xml", "application/xml", "image/svg+xml", "text/html", "text/xml"]);
+const docParseTypes = Native.createSet([
+  "application/xhtml+xml",
+  "application/xml",
+  "image/svg+xml",
+  "text/html",
+  "text/xml",
+]);
 
-const retStateFnMap = new WeakMap<ThisType<GMXHRResponseType>, RetStateFnRecord>();
+const retStateFnMap = Native.createWeakMap<object, RetStateFnRecord>();
 
 interface RetStateFnRecord {
   getResponseText(): string | undefined;
@@ -142,7 +148,7 @@ interface RetStateFnRecord {
 const xhrResponseGetters = {
   response: {
     get() {
-      const retTemp = retStateFnMap.get(this);
+      const retTemp = Native.weakMapGet(retStateFnMap, this);
       return retTemp?.getResponse();
     },
     enumerable: false,
@@ -150,7 +156,7 @@ const xhrResponseGetters = {
   },
   responseXML: {
     get() {
-      const retTemp = retStateFnMap.get(this);
+      const retTemp = Native.weakMapGet(retStateFnMap, this);
       return retTemp?.getResponseXML();
     },
     enumerable: false,
@@ -158,7 +164,7 @@ const xhrResponseGetters = {
   },
   responseText: {
     get() {
-      const retTemp = retStateFnMap.get(this);
+      const retTemp = Native.weakMapGet(retStateFnMap, this);
       return retTemp?.getResponseText();
     },
     enumerable: false,
@@ -429,7 +435,7 @@ export function GM_xmlhttpRequest(
       const retParamObject: GMXHRResponseType = Native.objectCreate(null, descriptors);
       // 外部没引用 retParamObject 时，retTemp 会被自动GC
       const retTemp = makeRetTemp(contentType);
-      retStateFnMap.set(retParamObject, retTemp);
+      Native.weakMapSet(retStateFnMap, retParamObject, retTemp);
       return retParamObject;
     };
 

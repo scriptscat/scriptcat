@@ -153,6 +153,46 @@ describe("page execution binding gate", () => {
     expect(resolveBinding).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects a page API that is outside the binding capability set", async () => {
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    const parseRequest = vi.fn();
+    Object.defineProperty(api, "parseRequest", { configurable: true, value: parseRequest });
+    const binding = {
+      handle: "handle-a",
+      uuid: "script-a",
+      envTag: "it" as const,
+      runFlag: "run-a",
+      tabId: 42,
+      frameId: 0,
+      allowedAPIs: new Set(["GM_getTab"]),
+      requestIds: new Set<string>(),
+    };
+    Object.defineProperty(api, "resolvePageExecutionBinding", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(binding),
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
+
+    await expect(
+      api.handlerRequest(
+        {
+          uuid: "script-a",
+          api: "GM_log",
+          params: ["hello"],
+          runFlag: "forged",
+          executionHandle: "handle-a",
+          requestId: "request-a",
+          version: 1,
+        },
+        sender
+      )
+    ).rejects.toThrow("API is not granted to this execution");
+    expect(parseRequest).not.toHaveBeenCalled();
+    expect(binding.requestIds.size).toBe(0);
+  });
+
   it("rejects a replayed page request id before invoking the GM API", async () => {
     const api = Object.create(GMApi.prototype) as GMApi;
     Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
@@ -176,6 +216,7 @@ describe("page execution binding gate", () => {
       runFlag: "run-a",
       tabId: 42,
       frameId: 0,
+      allowedAPIs: new Set(["GM_log"]),
       requestIds: new Set<string>(),
     };
     Object.defineProperty(api, "resolvePageExecutionBinding", {

@@ -1,24 +1,42 @@
 import EventEmitter from "eventemitter3";
-import type { Message, MessageConnect, MessageSend, RuntimeMessageSender, TMessage, TMessageCommAction } from "./types";
+import type {
+  Message,
+  MessageConnect,
+  MessageSend,
+  RuntimeMessageSender,
+  MessageOrigin,
+  TMessage,
+  TMessageCommAction,
+} from "./types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
 const listenerMgr = new EventEmitter<string, any>(); // 单一管理器
+const runtimeApi = typeof chrome === "undefined" ? undefined : chrome.runtime;
+const nativeRuntimeConnect =
+  typeof runtimeApi?.connect === "function" ? runtimeApi.connect.bind(runtimeApi) : undefined;
+const nativeRuntimeSendMessage =
+  typeof runtimeApi?.sendMessage === "function" ? runtimeApi.sendMessage.bind(runtimeApi) : undefined;
 
 export class ExtensionMessage implements Message {
   constructor(private backgroundPrimary = false) {}
 
   connect(data: TMessage): Promise<MessageConnect> {
     return new Promise((resolve) => {
-      const con = chrome.runtime.connect();
-      con.postMessage(data);
-      resolve(new ExtensionMessageConnect(con));
+      if (!nativeRuntimeConnect) throw new Error("chrome.runtime.connect is unavailable");
+      const con = nativeRuntimeConnect();
+      const connection = new ExtensionMessageConnect(con);
+      connection.sendMessage(data);
+      resolve(connection);
     });
   }
 
   // 发送消息 注意不进行回调的内存泄漏
   sendMessage<T = any>(data: TMessage): Promise<T> {
     return new Promise((resolve: ((value: T) => void) | null) => {
-      chrome.runtime.sendMessage(data, (resp: T) => {
+      if (!nativeRuntimeSendMessage) {
+        throw new Error("chrome.runtime.sendMessage is unavailable");
+      }
+      nativeRuntimeSendMessage(data, (resp: T) => {
         const lastError = chrome.runtime.lastError;
         if (lastError) {
           console.error("chrome.runtime.lastError in chrome.runtime.sendMessage:", lastError);
@@ -38,23 +56,25 @@ export class ExtensionMessage implements Message {
   };
 
   onConnect(callback: (data: TMessage, con: MessageConnect) => void) {
-    chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
-      let myPort: chrome.runtime.Port | null = port;
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.runtime.onConnect", lastError);
-        // 消息API发生错误因此不继续执行
-      }
-      const handler = (msg: TMessage) => {
-        const port = myPort;
-        if (port !== null) {
-          myPort = null;
-          port.onMessage.removeListener(handler);
-          callback(msg, new ExtensionMessageConnect(port, "extension"));
+    if (typeof chrome.runtime?.onConnect?.addListener === "function") {
+      chrome.runtime.onConnect.addListener((port: chrome.runtime.Port) => {
+        let myPort: chrome.runtime.Port | null = port;
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.runtime.onConnect", lastError);
+          // 消息API发生错误因此不继续执行
         }
-      };
-      myPort.onMessage.addListener(handler);
-    });
+        const handler = (msg: TMessage) => {
+          const port = myPort;
+          if (port !== null) {
+            myPort = null;
+            port.onMessage.removeListener(handler);
+            callback(msg, new ExtensionMessageConnect(port, "extension"));
+          }
+        };
+        myPort.onMessage.addListener(handler);
+      });
+    }
 
     if (this.backgroundPrimary) {
       let addUserScriptConnectionListener: (() => void) | null = () => {
@@ -97,32 +117,35 @@ export class ExtensionMessage implements Message {
     callback: (
       data: TMessageCommAction,
       sendResponse: (data: any) => void,
-      sender: RuntimeMessageSender
+      sender: RuntimeMessageSender,
+      origin?: MessageOrigin
     ) => boolean | void
   ): void {
-    chrome.runtime.onMessage.addListener((msg: TMessage, sender, sendResponse) => {
-      const lastError = chrome.runtime.lastError;
-      if (lastError) {
-        console.error("chrome.runtime.lastError in chrome.runtime.onMessage:", lastError);
-        // 消息API发生错误因此不继续执行
-        return false;
-      }
-      if ((msg as any)?.type === "userScripts.LISTEN_CONNECTIONS" && this.backgroundPrimary) {
-        if (
-          typeof chrome.runtime.onUserScriptConnect?.addListener === "function" &&
-          typeof chrome.runtime.onUserScriptMessage?.addListener === "function"
-        ) {
-          this.tryEnableUserScriptConnectionListener();
-          this.tryEnableUserScriptMessageListener();
-          sendResponse(true);
-        } else {
-          sendResponse(false);
+    if (typeof chrome.runtime?.onMessage?.addListener === "function") {
+      chrome.runtime.onMessage.addListener((msg: TMessage, sender, sendResponse) => {
+        const lastError = chrome.runtime.lastError;
+        if (lastError) {
+          console.error("chrome.runtime.lastError in chrome.runtime.onMessage:", lastError);
+          // 消息API发生错误因此不继续执行
+          return false;
         }
-        return false;
-      }
-      if (typeof msg.action !== "string") return;
-      return callback(msg, sendResponse, sender);
-    });
+        if ((msg as any)?.type === "userScripts.LISTEN_CONNECTIONS" && this.backgroundPrimary) {
+          if (
+            typeof chrome.runtime.onUserScriptConnect?.addListener === "function" &&
+            typeof chrome.runtime.onUserScriptMessage?.addListener === "function"
+          ) {
+            this.tryEnableUserScriptConnectionListener();
+            this.tryEnableUserScriptMessageListener();
+            sendResponse(true);
+          } else {
+            sendResponse(false);
+          }
+          return false;
+        }
+        if (typeof msg.action !== "string") return;
+        return callback(msg, sendResponse, sender, "extension");
+      });
+    }
 
     if (this.backgroundPrimary) {
       let addUserScriptMessageListener: (() => void) | null = () => {
@@ -142,7 +165,7 @@ export class ExtensionMessage implements Message {
               return false;
             }
             if (typeof msg.action !== "string") return;
-            return callback(msg, sendResponse, sender);
+            return callback(msg, sendResponse, sender, "userScript");
           });
           addUserScriptMessageListener = null;
         } catch {
@@ -164,6 +187,7 @@ export class ExtensionMessage implements Message {
 export class ExtensionMessageConnect implements MessageConnect {
   private readonly listenerId = `${uuidv4()}`; // 使用 uuidv4 确保唯一
   private con: chrome.runtime.Port | null;
+  private readonly postMessage: (data: TMessage) => void;
   private isSelfDisconnected = false;
 
   constructor(
@@ -171,6 +195,8 @@ export class ExtensionMessageConnect implements MessageConnect {
     private readonly origin: "extension" | "userScript" = "extension"
   ) {
     this.con = con; // 强引用
+    if (typeof con.postMessage !== "function") throw new TypeError("Invalid runtime port");
+    this.postMessage = con.postMessage.bind(con);
     const handler = (msg: TMessage, _con: chrome.runtime.Port) => {
       listenerMgr.emit(`onMessage:${this.listenerId}`, msg);
     };
@@ -197,7 +223,7 @@ export class ExtensionMessageConnect implements MessageConnect {
       // 無法 sendMessage 不应该屏蔽错误
       throw new Error("Attempted to sendMessage on a disconnected port.");
     }
-    this.con.postMessage(data);
+    this.postMessage(data);
   }
 
   onMessage(callback: (data: TMessage) => void) {

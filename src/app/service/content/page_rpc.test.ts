@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { getPageRpcAllowedAPIs, PageRpcError, PageRpcRegistry, validatePageGMRequest } from "./page_rpc";
+import {
+  getPageRpcAllowedAPIs,
+  setPageRpcExtensionOrigin,
+  isExtensionBlobUrl,
+  PageRpcError,
+  PageRpcRegistry,
+  validatePageGMRequest,
+} from "./page_rpc";
 
 describe("page GM RPC", () => {
   it("expands only the helper operations reachable from an explicit public grant", () => {
@@ -12,9 +19,10 @@ describe("page GM RPC", () => {
         "CAT_fetchBlob",
         "GM_xmlhttpRequest",
         "GM.xmlhttpRequest",
-        "CAT_fetchDocument",
       ])
     );
+    expect(allowed).not.toContain("CAT_fetchDocument");
+    expect(allowed).not.toContain("CAT_createBlobUrl");
     expect(allowed).not.toContain("CAT_agentSkills");
   });
 
@@ -24,10 +32,59 @@ describe("page GM RPC", () => {
     expect(allowed).toEqual(expect.arrayContaining(["GM.openInTab", "GM_openInTab", "GM_closeInTab"]));
   });
 
+  it("includes storage APIs used by delete wrappers", () => {
+    expect(getPageRpcAllowedAPIs(["GM_deleteValue"])).toEqual(
+      expect.arrayContaining(["GM_deleteValue", "GM_setValue"])
+    );
+    expect(getPageRpcAllowedAPIs(["GM.deleteValues"])).toEqual(
+      expect.arrayContaining(["GM.deleteValues", "GM_setValues"])
+    );
+  });
+
+  it("includes the nested cookie methods exposed by both cookie grant spellings", () => {
+    expect(getPageRpcAllowedAPIs(["GM.cookie"])).toEqual(
+      expect.arrayContaining(["GM.cookie.set", "GM.cookie.list", "GM.cookie.delete"])
+    );
+    expect(getPageRpcAllowedAPIs(["GM_cookie"])).toEqual(
+      expect.arrayContaining(["GM_cookie.set", "GM_cookie.list", "GM_cookie.delete"])
+    );
+  });
+
+  it("does not create a GM capability set for a none grant", () => {
+    expect(getPageRpcAllowedAPIs(["none", "GM_getValue", "CAT.agent.dom"])).toEqual([]);
+  });
+
   it("allows the internal request name used by the GM.xmlHttpRequest wrapper", () => {
     const allowed = getPageRpcAllowedAPIs(["GM.xmlHttpRequest"]);
 
     expect(allowed).toContain("GM_xmlhttpRequest");
+    expect(allowed).not.toContain("CAT_fetchBlob");
+    expect(allowed).not.toContain("CAT_fetchDocument");
+    expect(allowed).not.toContain("CAT_createBlobUrl");
+  });
+
+  it("rejects direct internal fetch helpers from a GM XHR binding", () => {
+    const registry = new PageRpcRegistry();
+    const handle = registry.register("script-a", "it", getPageRpcAllowedAPIs(["GM_xmlhttpRequest"]));
+
+    expect(() =>
+      validatePageGMRequest(
+        { version: 1, requestId: "fetch", handle, api: "CAT_fetchBlob", params: ["https://example.com/file"] },
+        registry
+      )
+    ).toThrow("API is not granted");
+    expect(() =>
+      validatePageGMRequest(
+        {
+          version: 1,
+          requestId: "document",
+          handle,
+          api: "CAT_fetchDocument",
+          params: ["https://example.com/file", false],
+        },
+        registry
+      )
+    ).toThrow("API is not granted");
   });
 
   it("accepts a request for the active execution binding and clones parameters", () => {
@@ -138,13 +195,51 @@ describe("page GM RPC", () => {
 
     expect(() =>
       validatePageGMRequest({ version: 1, requestId: "a", handle, api: "CAT_fetchBlob", params: [42] }, registry)
-    ).toThrow("CAT_fetchBlob expects a URL string");
+    ).toThrow("CAT_fetchBlob expects an extension blob URL");
+
+    expect(isExtensionBlobUrl("https://example.com/file")).toBe(false);
+    const extensionBlobUrl = `blob:${chrome.runtime.getURL("/").replace(/\/$/, "")}/internal`;
+    expect(isExtensionBlobUrl(extensionBlobUrl)).toBe(true);
 
     expect(
       validatePageGMRequest(
-        { version: 1, requestId: "a", handle, api: "CAT_fetchBlob", params: ["https://example.com/file"] },
+        { version: 1, requestId: "b", handle, api: "CAT_fetchBlob", params: [extensionBlobUrl] },
         registry
       ).params
-    ).toEqual(["https://example.com/file"]);
+    ).toEqual([extensionBlobUrl]);
+    expect(isExtensionBlobUrl("blob:https://example.com/internal")).toBe(false);
+    expect(isExtensionBlobUrl("blob:chrome-extension://other/internal")).toBe(false);
+  });
+
+  it("validates extension blobs in USER_SCRIPT when runtime.getURL is unavailable", () => {
+    const runtime = chrome.runtime as unknown as { getURL?: typeof chrome.runtime.getURL };
+    const getURL = runtime.getURL;
+    const extensionBlobUrl = `blob:chrome-extension://${chrome.runtime.id}/internal`;
+    try {
+      runtime.getURL = undefined;
+      setPageRpcExtensionOrigin({ protocol: "chrome-extension:", hostname: chrome.runtime.id, port: "" });
+      expect(isExtensionBlobUrl(extensionBlobUrl)).toBe(true);
+      expect(isExtensionBlobUrl("blob:https://example.com/internal")).toBe(false);
+    } finally {
+      runtime.getURL = getURL;
+      setPageRpcExtensionOrigin(undefined);
+    }
+  });
+
+  it("bounds the replay window for each execution binding", () => {
+    const registry = new PageRpcRegistry();
+    const handle = registry.register("script-a", "it", ["GM_getValue"]);
+
+    for (let index = 0; index <= 4096; index += 1) {
+      validatePageGMRequest(
+        { version: 1, requestId: `request-${index}`, handle, api: "GM_getValue", params: [] },
+        registry
+      );
+    }
+
+    // The oldest ID leaves the bounded replay window once newer requests arrive.
+    expect(() =>
+      validatePageGMRequest({ version: 1, requestId: "request-0", handle, api: "GM_getValue", params: [] }, registry)
+    ).not.toThrow();
   });
 });
