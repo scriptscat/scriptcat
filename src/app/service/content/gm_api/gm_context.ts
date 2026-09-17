@@ -1,10 +1,16 @@
 import type { ApiParam, ApiValue } from "../types";
+import { Native } from "../global";
 
 const apis: Record<string, ApiValue[]> = Object.create(null);
 
 export function GMContextApiGet(name: string): ApiValue[] | undefined {
   // 回传 Api 列表
   return apis[name];
+}
+
+// 注册表由装饰器在模块载入时填充，供安装页的支持表守卫枚举全部能力。
+export function GMContextApiNames(): string[] {
+  return Native.objectKeys(apis);
 }
 
 function GMContextApiSet(grant: string, fnKey: string, api: any, param: ApiParam): void {
