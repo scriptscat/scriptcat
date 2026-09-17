@@ -1,12 +1,12 @@
-import { useMemo, useState } from "react";
+import { useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 import { useTranslation } from "react-i18next";
 import { CodeXml, Copy, Check, ChevronDown, ChevronRight, Maximize2 } from "lucide-react";
-import CodeEditor from "@App/pages/components/CodeEditor";
+import CodeEditor, { type CodeEditorHandle } from "@App/pages/components/CodeEditor";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@App/pages/components/ui/dialog";
 import { Skeleton } from "@App/pages/components/ui/skeleton";
 import { cn } from "@App/pkg/utils/cn";
 
-/** 代码形态的骨架：缩进与行宽错落，读起来像代码而不是一堆等长灰条 */
+/** 代码形态的骨架：缩进与行宽错落，读起来像代码而不是一堆灰条 */
 const CODE_SKELETON_LINES = [
   "w-[58%]",
   "ml-4 w-[74%]",
@@ -17,7 +17,13 @@ const CODE_SKELETON_LINES = [
   "ml-4 w-[62%]",
 ];
 
+export interface CodePreviewHandle {
+  /** 展开代码卡并滚动到指定行 */
+  jumpToLine: (line: number) => void;
+}
+
 export interface CodePreviewProps {
+  ref?: Ref<CodePreviewHandle>;
   code: string;
   /** 更新态的旧版本代码;与 code 不同则触发内联 diff,全新安装为 undefined */
   oldCode?: string;
@@ -27,6 +33,7 @@ export interface CodePreviewProps {
 }
 
 export function CodePreview({
+  ref,
   code,
   oldCode,
   language = "JavaScript",
@@ -38,6 +45,33 @@ export function CodePreview({
   const [copied, setCopied] = useState(false);
   const [editorReady, setEditorReady] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const editorRef = useRef<CodeEditorHandle>(null);
+  const sectionRef = useRef<HTMLElement>(null);
+  // 折叠态下编辑器实例尚未创建，跳转请求先排队，等 onReady 再补上定位
+  const pendingLineRef = useRef<number | null>(null);
+
+  const revealLine = (line: number) => {
+    if (editorRef.current) editorRef.current.revealLine(line);
+    else pendingLineRef.current = line;
+  };
+
+  useImperativeHandle(ref, () => ({
+    jumpToLine: (line: number) => {
+      setCollapsed(false);
+      sectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+      if (editorReady) revealLine(line);
+      else pendingLineRef.current = line;
+    },
+  }));
+
+  const handleReady = () => {
+    setEditorReady(true);
+    const pending = pendingLineRef.current;
+    if (pending !== null) {
+      pendingLineRef.current = null;
+      revealLine(pending);
+    }
+  };
 
   const lineCount = useMemo(() => code.split("\n").length, [code]);
   // diffCode 语义:""=无 diff(普通只读预览),有值=内联 diff;切勿传 undefined(表示不加载)
@@ -56,16 +90,18 @@ export function CodePreview({
 
   const codeEditor = (id: string) => (
     <CodeEditor
+      ref={editorRef}
       id={id}
       code={code}
       diffCode={diffCode}
       editable={false}
-      onEditorMount={() => setEditorReady(true)}
+      onReady={handleReady}
       className="h-full w-full"
     />
   );
 
   const editorSkeleton = (
+    // 编辑器实例要等偏好设置读出来才创建，这段时间这里本来是一块纯空白，看着像加载失败
     <div
       data-testid="code-skeleton"
       role="status"
@@ -81,7 +117,7 @@ export function CodePreview({
 
   return (
     <Dialog open={fullscreen} onOpenChange={setFullscreenMode}>
-      <section className="rounded-xl border border-border bg-card">
+      <section ref={sectionRef} className="rounded-xl border border-border bg-card">
         <div className="flex items-center gap-2 border-b border-border px-4 py-1.5">
           <CodeXml className="size-4 text-fg-secondary" />
           <span className="text-sm font-semibold text-foreground">{t("editor:code")}</span>

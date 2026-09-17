@@ -255,5 +255,15 @@
   "expired_title": "Nội dung cập nhật đã hết hạn",
   "expired_desc": "Mã đã chuẩn bị cho lần cập nhật này đã bị dọn dẹp. Vui lòng kiểm tra cập nhật lại.",
   "expired_recheck": "Kiểm tra cập nhật lại",
-  "code_loading": "Đang tải mã"
+  "code_loading": "Đang tải mã",
+  "compat_ineffective": "không có tác dụng",
+  "compat_tag_desc": "ScriptCat không hỗ trợ khai báo này; nó sẽ bị bỏ qua sau khi cài đặt.",
+  "compat_value_desc": "ScriptCat không hỗ trợ giá trị này; khai báo sẽ không có hiệu lực như đã viết.",
+  "compat_grant_desc": "ScriptCat chưa triển khai API này; script gọi đến sẽ báo lỗi và các tính năng phụ thuộc vào nó sẽ không hoạt động.",
+  "compat_jump": "Đến dòng {{line}}",
+  "compat_docs": "Tài liệu metadata",
+  "compat_count": "{{count}} mục không có tác dụng",
+  "compat_scriptcat_only": "Chỉ ScriptCat",
+  "perm_other_label": "Khai báo khác",
+  "perm_other_summary": "Hoạt động khác với các trình quản lý script khác"
 }

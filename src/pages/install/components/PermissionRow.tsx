@@ -2,6 +2,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Globe, ArrowLeftRight, ChevronDown, KeyRound, Package, TriangleAlert, type LucideIcon } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
+import { isScriptCatOnlyGrant } from "@App/pkg/utils/script_compat";
+import { isMarkedValue, type CompatView } from "../compat";
+import { catApiDocHref, metadataDocHref } from "../compat_docs";
+import { CompatChip, ScriptCatOnlyBadge } from "./CompatChip";
 import {
   isPermissionChanged,
   type PermissionKind,
@@ -51,6 +55,8 @@ const CHANGE_LABEL_KEY: Record<ChangeState, string> = {
 function Chip({ value, row, change }: { value: string; row: PermissionRowData; change?: ChangeState }) {
   const { t } = useTranslation(["install", "common"]);
   const isSensitive = row.sensitive.includes(value);
+  // 装在脚本猫里能用，但换到别的脚本管理器就不行了；已移除的取值不再属于新版本，不标
+  const isScriptCatOnly = row.kind === "grant" && change !== "removed" && isScriptCatOnlyGrant(value);
   const base = isSensitive ? "border border-warning-fg bg-muted text-warning-fg" : RISK_STYLE[row.risk].chip;
 
   // 变动状态只用字重、描边与 +/− 记号表达,底色继续留给风险等级——
@@ -76,6 +82,7 @@ function Chip({ value, row, change }: { value: string; row: PermissionRowData; c
       {isSensitive && change !== "removed" && <TriangleAlert className="size-3 shrink-0" />}
       {change && <span className="sr-only">{t(CHANGE_LABEL_KEY[change])}</span>}
       <span className="min-w-0 break-all">{value}</span>
+      {isScriptCatOnly && <ScriptCatOnlyBadge docHref={catApiDocHref(value)} />}
     </span>
   );
 }
@@ -101,21 +108,55 @@ function MoreButton({ label, onClick }: { label: string; onClick: () => void }) 
 export function PermissionChips({
   row,
   maxVisible = DEFAULT_MAX_VISIBLE,
+  compat,
 }: {
   row: PermissionRowData;
   maxVisible?: number;
+  compat?: CompatView;
 }) {
   const { t } = useTranslation(["install", "common"]);
   const [expanded, setExpanded] = useState(false);
 
+  // 不受支持的 @grant、解析不出规则的 @match 就地换成不生效标记；已被移除的取值不标——它已经不在新版本里了
+  const renderChip = (value: string, change?: ChangeState) => {
+    if (compat && change !== "removed") {
+      if (row.kind === "grant" && compat.marks.grants.has(value)) {
+        return (
+          <CompatChip
+            key={value}
+            label={value}
+            kind="grant"
+            line={compat.marks.grants.get(value)}
+            onJump={compat.onJump}
+          />
+        );
+      }
+      if (row.kind === "match" && compat.marks.matches.has(value)) {
+        return (
+          <CompatChip
+            key={value}
+            label={value}
+            kind="value"
+            line={compat.marks.matches.get(value)}
+            onJump={compat.onJump}
+            docHref={metadataDocHref("match")}
+          />
+        );
+      }
+    }
+    return <Chip key={change ? `${change}:${value}` : value} value={value} row={row} change={change} />;
+  };
+
+  // 带不生效标记的取值不参与截断与折叠，否则标记会藏在「+N」后面
+  const marked = (value: string) => !!compat && isMarkedValue(compat.marks, row.kind, value);
+  const truncate = (values: string[]) => values.filter((v, i) => i < maxVisible || marked(v));
+
   if (!row.diff) {
-    const visible = expanded ? row.values : row.values.slice(0, maxVisible);
+    const visible = expanded ? row.values : truncate(row.values);
     const hidden = row.values.length - visible.length;
     return (
       <div className="flex flex-wrap gap-1.5">
-        {visible.map((v) => (
-          <Chip key={v} value={v} row={row} />
-        ))}
+        {visible.map((v) => renderChip(v))}
         {hidden > 0 && <MoreButton label={`+${hidden}`} onClick={() => setExpanded(true)} />}
       </div>
     );
@@ -127,20 +168,14 @@ export function PermissionChips({
   const pinned = added.length + removed.length;
   // 有增删时未变动项整体让位给折叠桶;一项没变时没有可钉住的内容,桶会变成必须点开才能看到全部的空壳,
   // 故退回全新安装的 maxVisible 截断——否则几十条 @match 的脚本一更新就会整片摊开。
-  const visibleUnchanged = expanded ? unchanged : pinned > 0 ? [] : unchanged.slice(0, maxVisible);
+  const visibleUnchanged = expanded ? unchanged : pinned > 0 ? unchanged.filter(marked) : truncate(unchanged);
   const hidden = unchanged.length - visibleUnchanged.length;
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {added.map((v) => (
-        <Chip key={`+${v}`} value={v} row={row} change="added" />
-      ))}
-      {removed.map((v) => (
-        <Chip key={`-${v}`} value={v} row={row} change="removed" />
-      ))}
-      {visibleUnchanged.map((v) => (
-        <Chip key={v} value={v} row={row} change="unchanged" />
-      ))}
+      {added.map((v) => renderChip(v, "added"))}
+      {removed.map((v) => renderChip(v, "removed"))}
+      {visibleUnchanged.map((v) => renderChip(v, "unchanged"))}
       {hidden > 0 && (
         <MoreButton
           label={pinned > 0 ? t("install:perm_unchanged_more", { count: hidden }) : `+${hidden}`}
@@ -173,7 +208,15 @@ export function PermissionDelta({ row }: { row: PermissionRowData }) {
   );
 }
 
-export function PermissionRow({ row, maxVisible }: { row: PermissionRowData; maxVisible?: number }) {
+export function PermissionRow({
+  row,
+  maxVisible,
+  compat,
+}: {
+  row: PermissionRowData;
+  maxVisible?: number;
+  compat?: CompatView;
+}) {
   const { t } = useTranslation(["install", "common"]);
   const { icon: Icon, labelKey, summaryKey } = KIND_META[row.kind];
   const style = RISK_STYLE[row.risk];
@@ -191,7 +234,7 @@ export function PermissionRow({ row, maxVisible }: { row: PermissionRowData; max
           {row.diff && !isPermissionChanged(row) && <NoChangeTag />}
           <span className="truncate text-xs text-muted-foreground">{t(summaryKey)}</span>
         </div>
-        <PermissionChips row={row} maxVisible={maxVisible} />
+        <PermissionChips row={row} maxVisible={maxVisible} compat={compat} />
       </div>
     </div>
   );

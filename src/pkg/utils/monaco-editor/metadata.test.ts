@@ -5,7 +5,6 @@ import {
   getMetadataAlignmentBlocks,
   getUndefinedMetadataTagMatches,
   isKnownMetadataTag,
-  resolveMetadataTagBase,
 } from "./metadata";
 
 // 与 utils.test.ts 相同风格的简单 Monaco Editor 模型 mock
@@ -60,17 +59,7 @@ describe("getMetadataAlignmentBlocks", () => {
   });
 });
 
-describe("resolveMetadataTagBase / isKnownMetadataTag", () => {
-  it("本地化标签（name:<locale>）应解析为对应的基础标签", () => {
-    expect(resolveMetadataTagBase("name:zh-CN")).toBe("name");
-    expect(resolveMetadataTagBase("description:en")).toBe("description");
-  });
-
-  it("非本地化标签保持原样（小写化）", () => {
-    expect(resolveMetadataTagBase("Grant")).toBe("grant");
-    expect(resolveMetadataTagBase("run-at")).toBe("run-at");
-  });
-
+describe("isKnownMetadataTag", () => {
   it("已知的本地化标签应视为已定义", () => {
     expect(isKnownMetadataTag("name:zh-CN", knownTags)).toBe(true);
     expect(isKnownMetadataTag("description:ja", knownTags)).toBe(true);
