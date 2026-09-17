@@ -1,4 +1,4 @@
-import { customClone, Native } from "../global";
+import { customClone, nativeApply, Native } from "../global";
 import type { Message, MessageConnect } from "@Packages/message/types";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type {
@@ -1345,7 +1345,7 @@ export default class GMApi extends GM_Base {
     gmApi.sendMessage("GM_notification", [customClone(data), notificationId]).then((id) => {
       if (!gmApi.EE) return;
       if (create) {
-        Native.apply(create, { id }, [id]);
+        nativeApply(create, { id }, [id]);
       }
       if (typeof data.tag === "string") {
         notificationTagMap.set(data.tag, id);
@@ -1382,8 +1382,8 @@ export default class GMApi extends GM_Base {
               title: data.title,
               url: data.url,
             };
-            click && Native.apply(click, { id }, [clickEvent]);
-            done && Native.apply(done, { id }, []);
+            click && nativeApply(click, { id }, [clickEvent]);
+            done && nativeApply(done, { id }, []);
 
             if (!isPreventDefault) {
               if (typeof data.url === "string") {
@@ -1396,7 +1396,7 @@ export default class GMApi extends GM_Base {
             break;
           }
           case "close": {
-            done && Native.apply(done, { id }, [resp.params.byUser]);
+            done && nativeApply(done, { id }, [resp.params.byUser]);
             clearNotificationIdMap();
             gmApi.EE.removeAllListeners("GM_notification:" + gmApi.eventId);
             break;

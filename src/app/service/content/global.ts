@@ -32,10 +32,8 @@ const nativeFunctionCall = nativeReflectApply(nativeFunctionBind, Function.proto
   Function.prototype.call,
 ]) as (fn: (...args: any[]) => any, receiver: any, ...args: any[]) => any;
 
-export const nativeApply = (fn: (...args: any[]) => any, receiver: any, args: any[]) =>
-  nativeFunctionApply(fn, receiver, args);
-export const nativeCall = (fn: (...args: any[]) => any, receiver: any, ...args: any[]) =>
-  nativeFunctionCall(fn, receiver, ...args);
+export const nativeApply = nativeFunctionApply;
+export const nativeCall = nativeFunctionCall;
 export const nativeBind = (fn: (...args: any[]) => any, receiver: any, ...args: any[]) =>
   nativeFunctionCall(nativeFunctionBind, fn, receiver, ...args);
 

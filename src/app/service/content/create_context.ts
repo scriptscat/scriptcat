@@ -8,7 +8,7 @@ import { isEarlyStartScript } from "./utils";
 import { ListenerManager } from "./listener_manager";
 import { createGMBase } from "./gm_api/gm_api";
 import { attachNavigateHandler, type UrlChangeEvent } from "./gm_api/navigation_handle";
-import { Native } from "./global";
+import { nativeCall, Native } from "./global";
 
 const createCapability = (api: (...args: any[]) => any, receiver: object) => {
   const capability = Native.bind(api, receiver);
@@ -393,7 +393,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
           hostRemoveEventListener(eventName, eventObject);
           this.fn = null;
         } else {
-          Native.call(fn, mySandbox, event);
+          nativeCall(fn, mySandbox, event);
         }
       },
     };
