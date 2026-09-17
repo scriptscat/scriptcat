@@ -9,7 +9,7 @@ import type {
 import type EventEmitter from "eventemitter3";
 import { Native } from "../global";
 
-// 运行时 this 是 GM_Base 实例
+// API 显式接收 GM_Base 上下文。
 interface GMBaseContext {
   sendMessage: (api: string, params: unknown[]) => Promise<unknown>;
   scriptRes?: { uuid: string };
@@ -43,11 +43,11 @@ export default class CATAgentTaskApi {
 
   @GMContext.API({ follow: "CAT.agent.task" })
   public "CAT.agent.task.create"(
+    ctx: GMBaseContext,
     options:
       | Omit<InternalAgentTask, "id" | "createtime" | "updatetime" | "nextruntime">
       | Omit<EventAgentTask, "id" | "createtime" | "updatetime" | "nextruntime" | "sourceScriptUuid">
   ): Promise<AgentTask> {
-    const ctx = this as unknown as GMBaseContext;
     // event 模式：自动注入 sourceScriptUuid（脚本无需手动传入）
     const task =
       options.mode === "event" ? { ...options, sourceScriptUuid: ctx.scriptRes?.uuid || "" } : { ...options };
@@ -60,14 +60,12 @@ export default class CATAgentTaskApi {
   }
 
   @GMContext.API({ follow: "CAT.agent.task" })
-  public "CAT.agent.task.list"(): Promise<AgentTask[]> {
-    const ctx = this as unknown as GMBaseContext;
+  public "CAT.agent.task.list"(ctx: GMBaseContext): Promise<AgentTask[]> {
     return ctx.sendMessage("CAT_agentTask", [{ action: "list" } as AgentTaskApiRequest]) as Promise<AgentTask[]>;
   }
 
   @GMContext.API({ follow: "CAT.agent.task" })
-  public "CAT.agent.task.get"(id: string): Promise<AgentTask | undefined> {
-    const ctx = this as unknown as GMBaseContext;
+  public "CAT.agent.task.get"(ctx: GMBaseContext, id: string): Promise<AgentTask | undefined> {
     return ctx.sendMessage("CAT_agentTask", [{ action: "get", id } as AgentTaskApiRequest]) as Promise<
       AgentTask | undefined
     >;
@@ -76,8 +74,7 @@ export default class CATAgentTaskApi {
   // task 必须携带 get()/list() 返回的 generation/revision（乐观并发版本号），
   // 否则服务端无法区分"修改的是当前这个任务"还是"ID 被删除重建后的另一个任务"
   @GMContext.API({ follow: "CAT.agent.task" })
-  public "CAT.agent.task.update"(id: string, task: Partial<AgentTask>): Promise<AgentTask> {
-    const ctx = this as unknown as GMBaseContext;
+  public "CAT.agent.task.update"(ctx: GMBaseContext, id: string, task: Partial<AgentTask>): Promise<AgentTask> {
     if (task.generation === undefined || task.revision === undefined) {
       throw new Error(
         "CAT.agent.task.update: task must include the generation/revision returned by CAT.agent.task.get() or list() — spread the fetched task before applying changes."
@@ -89,8 +86,11 @@ export default class CATAgentTaskApi {
   }
 
   @GMContext.API({ follow: "CAT.agent.task" })
-  public "CAT.agent.task.remove"(id: string, task: Pick<AgentTask, "generation" | "revision">): Promise<boolean> {
-    const ctx = this as unknown as GMBaseContext;
+  public "CAT.agent.task.remove"(
+    ctx: GMBaseContext,
+    id: string,
+    task: Pick<AgentTask, "generation" | "revision">
+  ): Promise<boolean> {
     if (task?.generation === undefined || task?.revision === undefined) {
       throw new Error(
         "CAT.agent.task.remove: task must include the generation/revision returned by CAT.agent.task.get() or list()."
@@ -102,16 +102,18 @@ export default class CATAgentTaskApi {
   }
 
   @GMContext.API({ follow: "CAT.agent.task" })
-  public "CAT.agent.task.runNow"(id: string): Promise<void> {
-    const ctx = this as unknown as GMBaseContext;
+  public "CAT.agent.task.runNow"(ctx: GMBaseContext, id: string): Promise<void> {
     return ctx.sendMessage("CAT_agentTask", [{ action: "runNow", id } as AgentTaskApiRequest]) as Promise<void>;
   }
 
   // 监听任务触发事件
   // 利用 EE.on("agentTask:{taskId}", callback) 注册监听
   @GMContext.API({ follow: "CAT.agent.task" })
-  public "CAT.agent.task.addListener"(taskId: string, callback: (trigger: AgentTaskTrigger) => void): number {
-    const ctx = this as unknown as GMBaseContext;
+  public "CAT.agent.task.addListener"(
+    ctx: GMBaseContext,
+    taskId: string,
+    callback: (trigger: AgentTaskTrigger) => void
+  ): number {
     if (!ctx.EE) return 0;
 
     const listenerId = ++listenerCounter;
@@ -129,8 +131,7 @@ export default class CATAgentTaskApi {
   }
 
   @GMContext.API({ follow: "CAT.agent.task" })
-  public "CAT.agent.task.removeListener"(listenerId: number): void {
-    const ctx = this as unknown as GMBaseContext;
+  public "CAT.agent.task.removeListener"(ctx: GMBaseContext, listenerId: number): void {
     if (!ctx.EE) return;
 
     const records = getListenerRecords(ctx);

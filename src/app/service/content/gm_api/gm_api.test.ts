@@ -140,10 +140,10 @@ describe("GM Resource API", () => {
     } as unknown as ScriptRunResource;
     const api = new GMApi("test", {} as Message, {} as Message, script);
 
-    expect(api.GM_getResourceText(name)).toBe("declared resource");
-    expect(api.GM_getResourceURL(name)).toContain("ZGVjbGFyZWQgcmVzb3VyY2U=");
-    expect(await api["GM.getResourceText"](name)).toBe("declared resource");
-    expect(await api["GM.getResourceUrl"](name)).toContain("ZGVjbGFyZWQgcmVzb3VyY2U=");
+    expect(api.GM_getResourceText(api, name)).toBe("declared resource");
+    expect(api.GM_getResourceURL(api, name)).toContain("ZGVjbGFyZWQgcmVzb3VyY2U=");
+    expect(await api["GM.getResourceText"](api, name)).toBe("declared resource");
+    expect(await api["GM.getResourceUrl"](api, name)).toContain("ZGVjbGFyZWQgcmVzb3VyY2U=");
 
     const legacyScript = {
       ...script,
@@ -152,7 +152,7 @@ describe("GM Resource API", () => {
     } as unknown as ScriptRunResource;
     const legacyApi = new GMApi("test", {} as Message, {} as Message, legacyScript);
 
-    expect(legacyApi.GM_getResourceText(name)).toBe("legacy resource");
+    expect(legacyApi.GM_getResourceText(legacyApi, name)).toBe("legacy resource");
   });
 });
 
@@ -198,23 +198,23 @@ describe.concurrent("@grant GM", () => {
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     // getValue
-    expect(ret.GM_getValue?.name).toEqual("bound GM_getValue");
+    expect(ret.GM_getValue?.name).toEqual("GM_getValue");
     // getTab / getTabs / saveTab
-    expect(ret.GM_getTab?.name).toEqual("bound GM_getTab");
-    expect(ret.GM_getTabs?.name).toEqual("bound GM_getTabs");
-    expect(ret.GM_saveTab?.name).toEqual("bound GM_saveTab");
+    expect(ret.GM_getTab?.name).toEqual("GM_getTab");
+    expect(ret.GM_getTabs?.name).toEqual("GM_getTabs");
+    expect(ret.GM_saveTab?.name).toEqual("GM_saveTab");
     // cookie
-    expect(ret.GM_cookie?.name).toEqual("bound GM_cookie");
-    expect(ret["GM_cookie.list"]?.name).toEqual("bound GM_cookie.list");
+    expect(ret.GM_cookie?.name).toEqual("GM_cookie");
+    expect(ret["GM_cookie.list"]?.name).toEqual("GM_cookie.list");
     // GM_与GM.应该都在
-    expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
-    expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
-    expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
-    expect(ret["GM.openInTab"]?.name).toEqual("bound GM.openInTab");
-    expect(ret["GM_log"]?.name).toEqual("bound GM_log");
-    expect(ret["GM.log"]?.name).toEqual("bound GM.log");
-    expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
-    expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
+    expect(ret["GM_addElement"]?.name).toEqual("GM_addElement");
+    expect(ret["GM.addElement"]?.name).toEqual("GM.addElement");
+    expect(ret["GM_openInTab"]?.name).toEqual("GM_openInTab");
+    expect(ret["GM.openInTab"]?.name).toEqual("GM.openInTab");
+    expect(ret["GM_log"]?.name).toEqual("GM_log");
+    expect(ret["GM.log"]?.name).toEqual("GM.log");
+    expect(ret["GM_notification"]?.name).toEqual("GM_notification");
+    expect(ret["GM.notification"]?.name).toEqual("GM.notification");
     // 没有grant应返回 nil
     expect(ret["GM_xmlhttpRequest"]?.name).toEqual("nil");
     expect(ret["GM.xmlhttpRequest"]?.name).toEqual("nil");
@@ -260,23 +260,23 @@ describe.concurrent("@grant GM", () => {
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = await exec.exec();
     // getValue
-    expect(ret["GM.getValue"]?.name).toEqual("bound GM.getValue");
+    expect(ret["GM.getValue"]?.name).toEqual("GM.getValue");
     // getTab / getTabs / saveTab
-    expect(ret["GM.getTab"]?.name).toEqual("bound GM.getTab");
-    expect(ret["GM.getTabs"]?.name).toEqual("bound GM.getTabs");
-    expect(ret["GM.saveTab"]?.name).toEqual("bound GM.saveTab");
+    expect(ret["GM.getTab"]?.name).toEqual("GM.getTab");
+    expect(ret["GM.getTabs"]?.name).toEqual("GM.getTabs");
+    expect(ret["GM.saveTab"]?.name).toEqual("GM.saveTab");
     // cookie
-    expect(ret["GM.cookie"]?.name).toEqual("bound GM.cookie");
-    expect(ret["GM.cookie"]?.list?.name).toEqual("bound GM.cookie.list");
+    expect(ret["GM.cookie"]?.name).toEqual("GM.cookie");
+    expect(ret["GM.cookie"]?.list?.name).toEqual("GM.cookie.list");
     // GM_与GM.应该都在
-    expect(ret["GM_addElement"]?.name).toEqual("bound GM_addElement");
-    expect(ret["GM.addElement"]?.name).toEqual("bound GM.addElement");
-    expect(ret["GM_openInTab"]?.name).toEqual("bound GM_openInTab");
-    expect(ret["GM.openInTab"]?.name).toEqual("bound GM.openInTab");
-    expect(ret["GM_log"]?.name).toEqual("bound GM_log");
-    expect(ret["GM.log"]?.name).toEqual("bound GM.log");
-    expect(ret["GM_notification"]?.name).toEqual("bound GM_notification");
-    expect(ret["GM.notification"]?.name).toEqual("bound GM.notification");
+    expect(ret["GM_addElement"]?.name).toEqual("GM_addElement");
+    expect(ret["GM.addElement"]?.name).toEqual("GM.addElement");
+    expect(ret["GM_openInTab"]?.name).toEqual("GM_openInTab");
+    expect(ret["GM.openInTab"]?.name).toEqual("GM.openInTab");
+    expect(ret["GM_log"]?.name).toEqual("GM_log");
+    expect(ret["GM.log"]?.name).toEqual("GM.log");
+    expect(ret["GM_notification"]?.name).toEqual("GM_notification");
+    expect(ret["GM.notification"]?.name).toEqual("GM.notification");
     // 没有grant应返回 nil
     expect(ret["GM_xmlhttpRequest"]?.name).toEqual("nil");
     expect(ret["GM.xmlhttpRequest"]?.name).toEqual("nil");
@@ -1301,7 +1301,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     script.metadata.grant = ["GM_getValue", "GM_addValueChangeListener"];
     script.value = {};
     const api = new GMApi("test", {} as Message, {} as Message, script);
-    api.GM_addValueChangeListener("snapshot", (_name, _oldValue, newValue) => {
+    api.GM_addValueChangeListener(api, "snapshot", (_name, _oldValue, newValue) => {
       const snapshot = newValue as { nested: { value: number } };
       snapshot.nested.value = 99;
     });
@@ -1314,7 +1314,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       valueUpdated: true,
     });
 
-    expect(api.GM_getValue("snapshot")).toEqual({ nested: { value: 1 } });
+    expect(api.GM_getValue(api, "snapshot")).toEqual({ nested: { value: 1 } });
   });
   it.concurrent("异步GM.setValue，等待回调", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;

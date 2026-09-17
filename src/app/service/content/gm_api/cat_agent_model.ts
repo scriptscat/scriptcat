@@ -1,7 +1,7 @@
 import type { AgentModelSafeConfig, ModelApiRequest } from "@App/app/service/agent/core/types";
 import GMContext from "./gm_context";
 
-// 运行时 this 是 GM_Base 实例
+// API 显式接收 GM_Base 上下文。
 interface GMBaseContext {
   sendMessage: (
     api: string,
@@ -22,28 +22,28 @@ export default class CATAgentModelApi {
   @GMContext.protected()
   protected scriptRes?: { uuid: string };
 
-  @GMContext.API({ follow: "CAT.agent.model", bind: false })
+  @GMContext.API({ follow: "CAT.agent.model" })
   public "CAT.agent.model.list"(ctx: GMBaseContext): Promise<AgentModelSafeConfig[]> {
     return ctx.sendMessage("CAT_agentModel", [
       { action: "list", scriptUuid: ctx.scriptRes?.uuid || "" } as ModelApiRequest,
     ]) as Promise<AgentModelSafeConfig[]>;
   }
 
-  @GMContext.API({ follow: "CAT.agent.model", bind: false })
+  @GMContext.API({ follow: "CAT.agent.model" })
   public "CAT.agent.model.get"(ctx: GMBaseContext, id: string): Promise<AgentModelSafeConfig | null> {
     return ctx.sendMessage("CAT_agentModel", [
       { action: "get", id, scriptUuid: ctx.scriptRes?.uuid || "" } as ModelApiRequest,
     ]) as Promise<AgentModelSafeConfig | null>;
   }
 
-  @GMContext.API({ follow: "CAT.agent.model", bind: false })
+  @GMContext.API({ follow: "CAT.agent.model" })
   public "CAT.agent.model.getDefault"(ctx: GMBaseContext): Promise<string> {
     return ctx.sendMessage("CAT_agentModel", [
       { action: "getDefault", scriptUuid: ctx.scriptRes?.uuid || "" } as ModelApiRequest,
     ]) as Promise<string>;
   }
 
-  @GMContext.API({ follow: "CAT.agent.model", bind: false })
+  @GMContext.API({ follow: "CAT.agent.model" })
   public "CAT.agent.model.getSummary"(ctx: GMBaseContext): Promise<string> {
     return ctx.sendMessage("CAT_agentModel", [
       { action: "getSummary", scriptUuid: ctx.scriptRes?.uuid || "" } as ModelApiRequest,

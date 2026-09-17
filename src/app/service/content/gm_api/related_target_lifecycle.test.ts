@@ -50,19 +50,19 @@ describe("relatedTarget lifecycle across content runtime callers", () => {
     const parent = document.createElement("section");
 
     try {
-      const style = api.GM_addStyle("body { color: red; }");
+      const style = api.GM_addStyle(api, "body { color: red; }");
       expect(style?.tagName).toBe("STYLE");
       expect(style?.textContent).toBe("body { color: red; }");
       expect(sender.relatedTarget).toHaveProperty("size", 0);
       expect(receiver.relatedTarget).toHaveProperty("size", 0);
 
-      const child = api.GM_addElement(parent, "span", { id: "child" });
+      const child = api.GM_addElement(api, parent, "span", { id: "child" });
       expect(child?.parentNode).toBe(parent);
       expect(child?.id).toBe("child");
       expect(sender.relatedTarget).toHaveProperty("size", 0);
       expect(receiver.relatedTarget).toHaveProperty("size", 0);
 
-      const root = api.GM_addElement("div", { id: "root" });
+      const root = api.GM_addElement(api, "div", { id: "root" });
       expect(root?.tagName).toBe("DIV");
       expect(root?.id).toBe("root");
       expect(sender.relatedTarget).toHaveProperty("size", 0);

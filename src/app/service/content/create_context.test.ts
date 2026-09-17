@@ -385,7 +385,7 @@ describe("createContext: capability and lifecycle contract", () => {
   it("installs capabilities without looking up a page-patchable Function.prototype.bind", () => {
     const apiValues = GMContextApiGet("GM_getValue")!;
     const originalApi = apiValues[0].api;
-    const replacement = function (this: unknown, key: string, fallback?: unknown) {
+    const replacement = function (_ctx: unknown, key: string, fallback?: unknown) {
       return fallback;
     };
     Object.defineProperty(replacement, "bind", { configurable: true, value: undefined });

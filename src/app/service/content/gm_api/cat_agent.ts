@@ -908,15 +908,14 @@ export class ConversationInstance {
   }
 }
 
-// 运行时 this 是 GM_Base 实例，定义其实际拥有的字段类型
+// API 显式接收 GM_Base 上下文。
 interface GMBaseContext {
   sendMessage: (api: string, params: unknown[]) => Promise<unknown>;
   connect: (api: string, params: unknown[]) => Promise<MessageConnect>;
   scriptRes?: { uuid: string };
 }
 
-// 构建 ConversationInstance，独立函数避免 this 绑定问题
-// （装饰器方法运行时 this 是 GM_Base 实例，不是 CATAgentApi）
+// 构建 ConversationInstance，保留 GM_Base 的消息上下文。
 function buildInstance(
   ctx: GMBaseContext,
   conv: Conversation,
@@ -953,7 +952,10 @@ export default class CATAgentApi {
 
   // CAT.agent.conversation.create()
   @GMContext.API({ follow: "CAT.agent.conversation" })
-  public "CAT.agent.conversation.create"(options: ConversationCreateOptions = {}): Promise<ConversationInstance> {
+  public "CAT.agent.conversation.create"(
+    ctx: GMBaseContext,
+    options: ConversationCreateOptions = {}
+  ): Promise<ConversationInstance> {
     return (async () => {
       if (options.ephemeral) {
         // ephemeral 模式：不发请求到 SW，直接在脚本端构造
@@ -965,26 +967,26 @@ export default class CATAgentApi {
           createtime: Date.now(),
           updatetime: Date.now(),
         };
-        return buildInstance(this as unknown as GMBaseContext, conv, options);
+        return buildInstance(ctx as unknown as GMBaseContext, conv, options);
       }
 
       const { tools: _tools, ephemeral: _ephemeral, ...serverOptions } = options;
-      const conv = (await this.sendMessage("CAT_agentConversation", [
-        { action: "create", options: serverOptions, scriptUuid: this.scriptRes?.uuid || "" } as ConversationApiRequest,
+      const conv = (await ctx.sendMessage("CAT_agentConversation", [
+        { action: "create", options: serverOptions, scriptUuid: ctx.scriptRes?.uuid || "" } as ConversationApiRequest,
       ])) as Conversation;
-      return buildInstance(this as unknown as GMBaseContext, conv, options);
+      return buildInstance(ctx as unknown as GMBaseContext, conv, options);
     })();
   }
 
   // CAT.agent.conversation.get()
   @GMContext.API({ follow: "CAT.agent.conversation" })
-  public "CAT.agent.conversation.get"(id: string): Promise<ConversationInstance | null> {
+  public "CAT.agent.conversation.get"(ctx: GMBaseContext, id: string): Promise<ConversationInstance | null> {
     return (async () => {
-      const conv = (await this.sendMessage("CAT_agentConversation", [
-        { action: "get", id, scriptUuid: this.scriptRes?.uuid || "" } as ConversationApiRequest,
+      const conv = (await ctx.sendMessage("CAT_agentConversation", [
+        { action: "get", id, scriptUuid: ctx.scriptRes?.uuid || "" } as ConversationApiRequest,
       ])) as Conversation | null;
       if (!conv) return null;
-      return buildInstance(this as unknown as GMBaseContext, conv);
+      return buildInstance(ctx as unknown as GMBaseContext, conv);
     })();
   }
 }

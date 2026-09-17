@@ -1,7 +1,7 @@
 import type { OPFSApiRequest } from "@App/app/service/agent/core/types";
 import GMContext from "./gm_context";
 
-// 运行时 this 是 GM_Base 实例
+// API 显式接收 GM_Base 上下文。
 interface GMBaseContext {
   sendMessage: (api: string, params: any[]) => Promise<any>;
   scriptRes?: { uuid: string };
@@ -16,7 +16,7 @@ export default class CATAgentOPFSApi {
   @GMContext.protected()
   protected scriptRes?: { uuid: string };
 
-  @GMContext.API({ follow: "CAT.agent.opfs", bind: false })
+  @GMContext.API({ follow: "CAT.agent.opfs" })
   public "CAT.agent.opfs.write"(
     ctx: GMBaseContext,
     path: string,
@@ -27,7 +27,7 @@ export default class CATAgentOPFSApi {
     ]) as Promise<{ path: string; size: number }>;
   }
 
-  @GMContext.API({ follow: "CAT.agent.opfs", bind: false })
+  @GMContext.API({ follow: "CAT.agent.opfs" })
   public async "CAT.agent.opfs.read"(
     ctx: GMBaseContext,
     path: string,
@@ -44,7 +44,7 @@ export default class CATAgentOPFSApi {
     return result;
   }
 
-  @GMContext.API({ follow: "CAT.agent.opfs", bind: false })
+  @GMContext.API({ follow: "CAT.agent.opfs" })
   public "CAT.agent.opfs.list"(
     ctx: GMBaseContext,
     path?: string
@@ -54,7 +54,7 @@ export default class CATAgentOPFSApi {
     ]) as Promise<Array<{ name: string; type: string; size?: number }>>;
   }
 
-  @GMContext.API({ follow: "CAT.agent.opfs", bind: false })
+  @GMContext.API({ follow: "CAT.agent.opfs" })
   public async "CAT.agent.opfs.readAttachment"(
     ctx: GMBaseContext,
     id: string
@@ -70,7 +70,7 @@ export default class CATAgentOPFSApi {
     return result;
   }
 
-  @GMContext.API({ follow: "CAT.agent.opfs", bind: false })
+  @GMContext.API({ follow: "CAT.agent.opfs" })
   public "CAT.agent.opfs.delete"(ctx: GMBaseContext, path: string): Promise<{ success: true }> {
     return ctx.sendMessage("CAT_agentOPFS", [
       { action: "delete", path, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,

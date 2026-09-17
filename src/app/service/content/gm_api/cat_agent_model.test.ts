@@ -15,7 +15,6 @@ describe.concurrent("CATAgentModelApi", () => {
     expect(fnKeys).toContain("CAT.agent.model.list");
     expect(fnKeys).toContain("CAT.agent.model.get");
     expect(fnKeys).toContain("CAT.agent.model.getDefault");
-    expect(apis!.every((api) => api.param.bind === false)).toBe(true);
   });
 
   it.concurrent("list 方法调用 sendMessage 并传递正确的请求", async () => {
