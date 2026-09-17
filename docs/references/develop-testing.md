@@ -21,6 +21,13 @@ Before modifying a test, shared test helper, or runner configuration, classify t
 One passing run is evidence for that run only. Do not treat a timeout increase, retry, deleted assertion, or arbitrary
 sleep as a root-cause repair.
 
+For a timing cleanup, first classify the cost as contract-required elapsed time, async query polling, fixture/render
+work, or worker contention. Preserve `findBy*` when the element's appearance is the boundary; replace it with one
+`act` plus a direct assertion only when the test owns the already-resolved Promise or completion signal. For a
+production timer, use fake timers to advance the real configured duration and keep the state-transition assertions;
+do not shorten the production delay, replace the assertion with a weaker signal, or raise the test timeout to make the
+report green.
+
 ### Observation rules for asynchronous tests
 
 The test must observe completion of the contract under test. A request being called proves that work started; it does
