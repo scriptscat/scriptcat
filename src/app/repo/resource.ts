@@ -49,7 +49,7 @@ export interface ResourceChunk {
 }
 
 export const RESOURCE_LIST_PAGE_SIZE = 100;
-export const RESOURCE_CHUNK_BYTES = 512 * 1024;
+export const RESOURCE_CHUNK_BYTES = 16 * 1024 * 1024;
 
 export function getResourceByteSize(resource: { content: string; base64?: string }): number {
   if (resource.base64) {
