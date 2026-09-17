@@ -148,7 +148,7 @@ interface RetStateFnRecord {
 const xhrResponseGetters = {
   response: {
     get() {
-      const retTemp = Native.weakMapGet(retStateFnMap, this);
+      const retTemp = retStateFnMap.get(this);
       return retTemp?.getResponse();
     },
     enumerable: false,
@@ -156,7 +156,7 @@ const xhrResponseGetters = {
   },
   responseXML: {
     get() {
-      const retTemp = Native.weakMapGet(retStateFnMap, this);
+      const retTemp = retStateFnMap.get(this);
       return retTemp?.getResponseXML();
     },
     enumerable: false,
@@ -164,7 +164,7 @@ const xhrResponseGetters = {
   },
   responseText: {
     get() {
-      const retTemp = Native.weakMapGet(retStateFnMap, this);
+      const retTemp = retStateFnMap.get(this);
       return retTemp?.getResponseText();
     },
     enumerable: false,
@@ -435,7 +435,7 @@ export function GM_xmlhttpRequest(
       const retParamObject: GMXHRResponseType = Native.objectCreate(null, descriptors);
       // 外部没引用 retParamObject 时，retTemp 会被自动GC
       const retTemp = makeRetTemp(contentType);
-      Native.weakMapSet(retStateFnMap, retParamObject, retTemp);
+      retStateFnMap.set(retParamObject, retTemp);
       return retParamObject;
     };
 

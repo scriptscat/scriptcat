@@ -18,8 +18,7 @@ import type {
   MessageContent,
 } from "@App/app/service/agent/core/types";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
-
-const nativeReflectApply = Reflect.apply;
+import { Native } from "../global";
 
 export type ConversationStreamChunk =
   | StreamChunk
@@ -94,12 +93,10 @@ type ConversationPrivateState = {
   background: boolean;
 };
 
-const conversationStates = new WeakMap<ConversationInstance, ConversationPrivateState>();
-const weakMapGet = WeakMap.prototype.get;
-const weakMapSet = WeakMap.prototype.set;
+const conversationStates = Native.createWeakMap<ConversationInstance, ConversationPrivateState>();
 
 const getConversationState = (instance: ConversationInstance): ConversationPrivateState => {
-  const state = nativeReflectApply(weakMapGet, conversationStates, [instance]);
+  const state = conversationStates.get(instance);
   if (!state) throw new Error("conversation instance is invalid");
   return state;
 };
@@ -137,7 +134,7 @@ export class ConversationInstance {
       systemPrompt: system,
       background: background || false,
     };
-    nativeReflectApply(weakMapSet, conversationStates, [this, state]);
+    conversationStates.set(this, state);
     this.ephemeral = ephemeral || false;
     if (initialTools) {
       for (const tool of initialTools) {
@@ -925,10 +922,12 @@ function buildInstance(
   conv: Conversation,
   options?: ConversationCreateOptions
 ): ConversationInstance {
+  const sendMessage = Native.bind(ctx.sendMessage, ctx);
+  const connect = Native.bind(ctx.connect, ctx);
   return new ConversationInstance(
     conv,
-    (api, params) => nativeReflectApply(ctx.sendMessage, ctx, [api, params]),
-    (api, params) => nativeReflectApply(ctx.connect, ctx, [api, params]),
+    sendMessage,
+    connect,
     ctx.scriptRes?.uuid || "",
     options?.tools,
     options?.commands,

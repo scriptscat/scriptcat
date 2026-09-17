@@ -7,6 +7,7 @@ import type {
   EventAgentTask,
 } from "@App/app/service/agent/core/types";
 import type EventEmitter from "eventemitter3";
+import { Native } from "../global";
 
 // 运行时 this 是 GM_Base 实例
 interface GMBaseContext {
@@ -18,16 +19,13 @@ interface GMBaseContext {
 // 内部 listener 计数器
 let listenerCounter = 0;
 type ListenerRecord = { id: number; eventName: string; callback: (...args: any[]) => void };
-const listenerMaps = new WeakMap<object, ListenerRecord[]>();
-const nativeReflectApply = Reflect.apply;
-const weakMapGet = WeakMap.prototype.get;
-const weakMapSet = WeakMap.prototype.set;
+const listenerMaps = Native.createWeakMap<object, ListenerRecord[]>();
 
 const getListenerRecords = (owner: object): ListenerRecord[] => {
-  let records = nativeReflectApply(weakMapGet, listenerMaps, [owner]);
+  let records = listenerMaps.get(owner);
   if (!records) {
     records = [];
-    nativeReflectApply(weakMapSet, listenerMaps, [owner, records]);
+    listenerMaps.set(owner, records);
   }
   return records;
 };

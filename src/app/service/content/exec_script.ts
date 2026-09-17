@@ -53,10 +53,10 @@ export default class ExecScript {
     }
     const grantSet = Native.createSet(scriptRes.metadata.grant || []);
     if (isContextMenuScript(scriptRes.metadata)) {
-      Native.setAdd(grantSet, "GM_registerMenuCommand");
-      Native.setDelete(grantSet, "none");
+      grantSet.add("GM_registerMenuCommand");
+      grantSet.delete("none");
     }
-    if (Native.setHas(grantSet, "none")) {
+    if (grantSet.has("none")) {
       // 不注入任何GM api
       // ScriptCat行为：GM.info 和 GM_info 同时注入
       // 在不改变 Context 的情况下，以 named 传入多个全域变量

@@ -13,26 +13,90 @@ const nativeSetDelete = Set.prototype.delete;
 const nativeSetClear = Set.prototype.clear;
 const nativeSetForEach = Set.prototype.forEach;
 const nativeMapConstructor = Map;
+const nativeMapGet = Map.prototype.get;
+const nativeMapSet = Map.prototype.set;
+const nativeMapHas = Map.prototype.has;
+const nativeMapDelete = Map.prototype.delete;
+const nativeMapClear = Map.prototype.clear;
+const nativeMapForEach = Map.prototype.forEach;
 const nativeWeakMapConstructor = WeakMap;
 const nativeWeakMapGet = WeakMap.prototype.get;
 const nativeWeakMapSet = WeakMap.prototype.set;
+const nativeWeakMapHas = WeakMap.prototype.has;
+const nativeWeakMapDelete = WeakMap.prototype.delete;
+
+const nativeFunctionApply = nativeReflectApply(nativeFunctionBind, Function.prototype.apply, [
+  Function.prototype.apply,
+]) as (fn: (...args: any[]) => any, receiver: any, args: any[]) => any;
+const nativeFunctionCall = nativeReflectApply(nativeFunctionBind, Function.prototype.call, [
+  Function.prototype.call,
+]) as (fn: (...args: any[]) => any, receiver: any, ...args: any[]) => any;
 
 export const nativeApply = (fn: (...args: any[]) => any, receiver: any, args: any[]) =>
-  nativeReflectApply(fn, receiver, args);
+  nativeFunctionApply(fn, receiver, args);
 export const nativeCall = (fn: (...args: any[]) => any, receiver: any, ...args: any[]) =>
-  nativeReflectApply(fn, receiver, args);
+  nativeFunctionCall(fn, receiver, ...args);
 export const nativeBind = (fn: (...args: any[]) => any, receiver: any, ...args: any[]) =>
-  nativeReflectApply(nativeFunctionBind, fn, [receiver, ...args]);
+  nativeFunctionCall(nativeFunctionBind, fn, receiver, ...args);
 
-const createNativeSet = <T>(values?: readonly T[]): Set<T> => {
-  const set = new nativeSetConstructor<T>();
-  if (values) {
-    for (let i = 0; i < values.length; i += 1) nativeReflectApply(nativeSetAdd, set, [values[i]]);
+type SafeSet<T> = Set<T> & {
+  add: Set<T>["add"];
+  has: Set<T>["has"];
+  delete: Set<T>["delete"];
+  clear: Set<T>["clear"];
+  forEach: Set<T>["forEach"];
+};
+
+type SafeMap<K, V> = Map<K, V> & {
+  get: Map<K, V>["get"];
+  set: Map<K, V>["set"];
+  has: Map<K, V>["has"];
+  delete: Map<K, V>["delete"];
+  clear: Map<K, V>["clear"];
+  forEach: Map<K, V>["forEach"];
+};
+
+type SafeWeakMap<K extends object, V> = WeakMap<K, V> & {
+  get: WeakMap<K, V>["get"];
+  set: WeakMap<K, V>["set"];
+  has: WeakMap<K, V>["has"];
+  delete: WeakMap<K, V>["delete"];
+};
+
+const createNativeSet = <T>(values?: readonly T[] | Set<T> | null): SafeSet<T> => {
+  const set = new nativeSetConstructor<T>() as SafeSet<T>;
+  set.add = nativeSetAdd as SafeSet<T>["add"];
+  set.has = nativeSetHas as SafeSet<T>["has"];
+  set.delete = nativeSetDelete as SafeSet<T>["delete"];
+  set.clear = nativeSetClear as SafeSet<T>["clear"];
+  set.forEach = nativeSetForEach as SafeSet<T>["forEach"];
+  if (Array.isArray(values)) {
+    for (let i = 0; i < values.length; i += 1) set.add(values[i]);
+  } else if (values) {
+    nativeReflectApply(nativeSetForEach, values, [(value: T) => set.add(value)]);
   }
   return set;
 };
 
-const createNativeWeakMap = <K extends object, V>(): WeakMap<K, V> => new nativeWeakMapConstructor<K, V>();
+const createNativeMap = <K, V>(): SafeMap<K, V> => {
+  const map = new nativeMapConstructor<K, V>() as SafeMap<K, V>;
+  map.get = nativeMapGet as SafeMap<K, V>["get"];
+  map.set = nativeMapSet as SafeMap<K, V>["set"];
+  map.has = nativeMapHas as SafeMap<K, V>["has"];
+  map.delete = nativeMapDelete as SafeMap<K, V>["delete"];
+  map.clear = nativeMapClear as SafeMap<K, V>["clear"];
+  map.forEach = nativeMapForEach as SafeMap<K, V>["forEach"];
+  return map;
+};
+
+const createNativeWeakMap = <K extends object, V>(): SafeWeakMap<K, V> => {
+  const map = new nativeWeakMapConstructor<K, V>() as SafeWeakMap<K, V>;
+  map.get = nativeWeakMapGet as SafeWeakMap<K, V>["get"];
+  map.set = nativeWeakMapSet as SafeWeakMap<K, V>["set"];
+  map.has = nativeWeakMapHas as SafeWeakMap<K, V>["has"];
+  map.delete = nativeWeakMapDelete as SafeWeakMap<K, V>["delete"];
+  return map;
+};
 
 export const Native = {
   Set: nativeSetConstructor,
@@ -57,17 +121,8 @@ export const Native = {
   objectGetPrototypeOf: nativeBind(Object.getPrototypeOf, Object),
   reflectOwnKeys: nativeBind(Reflect.ownKeys, Reflect),
   reflectGet: nativeBind(Reflect.get, Reflect),
-  setAdd: (set: Set<unknown>, value: unknown) => nativeReflectApply(nativeSetAdd, set, [value]),
-  setHas: (set: Set<unknown>, value: unknown) => nativeReflectApply(nativeSetHas, set, [value]),
-  setDelete: (set: Set<unknown>, value: unknown) => nativeReflectApply(nativeSetDelete, set, [value]),
-  setClear: (set: Set<unknown>) => nativeReflectApply(nativeSetClear, set, []),
-  setForEach: (set: Set<unknown>, callback: (value: unknown, value2: unknown, set: Set<unknown>) => void) =>
-    nativeReflectApply(nativeSetForEach, set, [callback]),
   createSet: createNativeSet,
-  weakMapGet: <K extends object, V>(map: WeakMap<K, V>, key: K) =>
-    nativeReflectApply(nativeWeakMapGet, map, [key]) as V | undefined,
-  weakMapSet: <K extends object, V>(map: WeakMap<K, V>, key: K, value: V) =>
-    nativeReflectApply(nativeWeakMapSet, map, [key, value]) as WeakMap<K, V>,
+  createMap: createNativeMap,
   createWeakMap: createNativeWeakMap,
 } as const;
 

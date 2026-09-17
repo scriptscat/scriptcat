@@ -11,8 +11,9 @@ import { attachNavigateHandler, type UrlChangeEvent } from "./gm_api/navigation_
 import { Native } from "./global";
 
 const createCapability = (api: (...args: any[]) => any, receiver: object) => {
-  const capability = (...args: any[]) => Native.reflectApply(api, receiver, args);
+  const capability = Native.bind(api, receiver);
   Native.objectDefineProperty(capability, "name", { configurable: true, value: `bound ${api.name}` });
+  Native.objectDefineProperty(capability, "length", { configurable: true, value: 0 });
   return capability;
 };
 
@@ -27,6 +28,7 @@ export const createContext = (
   contentMsg: Message,
   scriptGrants: Set<string>
 ) => {
+  const scriptGrantSet = Native.createSet(scriptGrants);
   // 按照GMApi构建
   const valueChangeListener = new ListenerManager<GMTypes.ValueChangeListener>();
   const EE = new EventEmitter<string, any>();
@@ -77,8 +79,8 @@ export const createContext = (
     const grantSet: Set<string> = context.grantSet;
     const s = GMContextApiGet(grant);
     if (!s) return false; // @grant 的定义未实现，略过 (返回 false 表示 @grant 不存在)
-    if (Native.setHas(grantSet, grant)) return true; // 重复的@grant，略过 (返回 true 表示 @grant 存在)
-    Native.setAdd(grantSet, grant);
+    if (grantSet.has(grant)) return true; // 重复的@grant，略过 (返回 true 表示 @grant 存在)
+    grantSet.add(grant);
     for (let i = 0; i < s.length; i += 1) {
       const { fnKey, api, param } = s[i];
       grantedAPIs[fnKey] = createCapability(api, context);
@@ -89,7 +91,7 @@ export const createContext = (
     }
     return true;
   };
-  Native.setForEach(scriptGrants, (grant) => {
+  scriptGrantSet.forEach((grant) => {
     const candidates = getGrantCandidates(String(grant));
     for (let i = 0; i < candidates.length; i += 1) {
       const candidate = candidates[i];
@@ -111,7 +113,7 @@ export const createContext = (
     }
   }
   context.unsafeWindow = window;
-  if (Native.setHas(scriptGrants, "window.onurlchange") && context.onurlchange === undefined) {
+  if (scriptGrantSet.has("window.onurlchange") && context.onurlchange === undefined) {
     context.onurlchange = null;
     attachNavigateHandler(window as any);
   }
@@ -241,8 +243,8 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
     for (let i = 0; i < keys.length; i += 1) {
       const key = keys[i];
       const desc = descriptors[key];
-      if (Native.setHas(descsCache, key)) continue;
-      Native.setAdd(descsCache, key); // realm own descriptors take precedence over host descriptors
+      if (descsCache.has(key)) continue;
+      descsCache.add(key); // realm own descriptors take precedence over host descriptors
 
       if ("value" in desc) {
         // 替换 function 的 this 为实际的 realm global。
@@ -255,7 +257,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
       if (desc.configurable && desc.get && desc.set && desc.enumerable && key.startsWith("on")) {
         // 替换 onxxxxx 事件赋值操作。
         // 例：(window.)onload, (window.)onerror。
-        Native.setAdd(eventKeys, key);
+        eventKeys.add(key);
         continue;
       }
       if (desc.get || desc.set) {
@@ -275,16 +277,16 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
       if (desc.configurable && desc.get && desc.set && key.startsWith("on")) {
         // 替换 onxxxxx 事件赋值操作。
         // 例：(window.)onload, (window.)onerror。
-        Native.setAdd(eventKeys, key);
+        eventKeys.add(key);
         return;
       }
-      if (Native.setHas(descsCache, key)) return;
+      if (descsCache.has(key)) return;
 
       if ("value" in desc) {
         // 替换 function 的 this 为实际的 host window。
         if (shouldFnBind(desc.value)) {
           overriddenDescs[key] = materializeDescriptor(desc, hostWindow);
-          Native.setAdd(descsCache, key);
+          descsCache.add(key);
         } else if (!(key in initOwnDescs) && !Native.objectHasOwn(realmGlobal, key) && !protoBaseDescs[key]) {
           protoBaseDescs[key] = materializeDescriptor(desc, hostWindow);
         }
@@ -294,7 +296,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
         // 替换 getter setter 的 this 为实际的 host window。
         // 例：(window.)location, (window.)document。
         overriddenDescs[key] = materializeDescriptor(desc, hostWindow);
-        Native.setAdd(descsCache, key);
+        descsCache.add(key);
       }
     });
   };
@@ -303,7 +305,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
   collectRealmDescriptors();
   // 第二趟 hostWindow：补齐 Firefox split-realm 的 host 成员。
   collectHostWindowDescriptors();
-  Native.setClear(descsCache); // 内存释放
+  descsCache.clear(); // 内存释放
 
   // sharedInitCopy: 完全继承Window.prototype 及 自定义 OwnPropertyDescriptor
   // OwnPropertyDescriptor定义 为 原OwnPropertyDescriptor定义 (DragEvent, MouseEvent, RegExp, EventTarget, JSON等)
@@ -424,7 +426,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
   };
 
   const eventKeyList: string[] = [];
-  Native.setForEach(eventKeys, (key) => {
+  eventKeys.forEach((key) => {
     eventKeyList[eventKeyList.length] = String(key);
   });
   for (let i = 0; i < eventKeyList.length; i += 1) {

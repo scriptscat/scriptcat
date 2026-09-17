@@ -65,10 +65,10 @@ const valueChangePromiseMap: Record<string, () => void> = Object.create(null);
 const notificationTagMaps = Native.createWeakMap<object, Map<string, string>>();
 
 const getNotificationTagMap = (owner: object): Map<string, string> => {
-  let map = Native.weakMapGet(notificationTagMaps, owner);
+  let map = notificationTagMaps.get(owner);
   if (!map) {
-    map = new Native.Map<string, string>();
-    Native.weakMapSet(notificationTagMaps, owner, map);
+    map = Native.createMap<string, string>();
+    notificationTagMaps.set(owner, map);
   }
   return map;
 };
