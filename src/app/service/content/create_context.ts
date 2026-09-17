@@ -10,9 +10,12 @@ import { createGMBase } from "./gm_api/gm_api";
 import { attachNavigateHandler, type UrlChangeEvent } from "./gm_api/navigation_handle";
 import { nativeCall, Native } from "./global";
 
-const createCapability = (api: (...args: any[]) => any, receiver: object) => {
-  const capability = Native.bind(api, receiver);
-  Native.objectDefineProperty(capability, "name", { configurable: true, value: `bound ${api.name}` });
+const createCapability = (api: (...args: any[]) => any, receiver: object, bind = true) => {
+  const capability = bind ? Native.bind(api, receiver) : (...args: any[]) => api(receiver, ...args);
+  Native.objectDefineProperty(capability, "name", {
+    configurable: true,
+    value: `${bind ? "bound " : ""}${api.name}`,
+  });
   Native.objectDefineProperty(capability, "length", { configurable: true, value: 0 });
   return capability;
 };
@@ -83,7 +86,7 @@ export const createContext = (
     grantSet.add(grant);
     for (let i = 0; i < s.length; i += 1) {
       const { fnKey, api, param } = s[i];
-      grantedAPIs[fnKey] = createCapability(api, context);
+      grantedAPIs[fnKey] = createCapability(api, context, param?.bind !== false);
       const depend = param?.depend;
       if (depend) {
         for (let j = 0; j < depend.length; j += 1) __methodInject__(depend[j]);

@@ -16,20 +16,23 @@ export default class CATAgentOPFSApi {
   @GMContext.protected()
   protected scriptRes?: { uuid: string };
 
-  @GMContext.API({ follow: "CAT.agent.opfs" })
-  public "CAT.agent.opfs.write"(path: string, content: string | Blob): Promise<{ path: string; size: number }> {
-    const ctx = this as unknown as GMBaseContext;
+  @GMContext.API({ follow: "CAT.agent.opfs", bind: false })
+  public "CAT.agent.opfs.write"(
+    ctx: GMBaseContext,
+    path: string,
+    content: string | Blob
+  ): Promise<{ path: string; size: number }> {
     return ctx.sendMessage("CAT_agentOPFS", [
       { action: "write", path, content, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,
     ]) as Promise<{ path: string; size: number }>;
   }
 
-  @GMContext.API({ follow: "CAT.agent.opfs" })
+  @GMContext.API({ follow: "CAT.agent.opfs", bind: false })
   public async "CAT.agent.opfs.read"(
+    ctx: GMBaseContext,
     path: string,
     format?: "text" | "blob"
   ): Promise<{ path: string; content?: string; data?: Blob; size: number; mimeType?: string }> {
-    const ctx = this as unknown as GMBaseContext;
     const result = await ctx.sendMessage("CAT_agentOPFS", [
       { action: "read", path, format, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,
     ]);
@@ -41,19 +44,21 @@ export default class CATAgentOPFSApi {
     return result;
   }
 
-  @GMContext.API({ follow: "CAT.agent.opfs" })
-  public "CAT.agent.opfs.list"(path?: string): Promise<Array<{ name: string; type: string; size?: number }>> {
-    const ctx = this as unknown as GMBaseContext;
+  @GMContext.API({ follow: "CAT.agent.opfs", bind: false })
+  public "CAT.agent.opfs.list"(
+    ctx: GMBaseContext,
+    path?: string
+  ): Promise<Array<{ name: string; type: string; size?: number }>> {
     return ctx.sendMessage("CAT_agentOPFS", [
       { action: "list", path, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,
     ]) as Promise<Array<{ name: string; type: string; size?: number }>>;
   }
 
-  @GMContext.API({ follow: "CAT.agent.opfs" })
+  @GMContext.API({ follow: "CAT.agent.opfs", bind: false })
   public async "CAT.agent.opfs.readAttachment"(
+    ctx: GMBaseContext,
     id: string
   ): Promise<{ id: string; data: Blob; size: number; mimeType?: string }> {
-    const ctx = this as unknown as GMBaseContext;
     const result = await ctx.sendMessage("CAT_agentOPFS", [
       { action: "readAttachment", id, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,
     ]);
@@ -65,9 +70,8 @@ export default class CATAgentOPFSApi {
     return result;
   }
 
-  @GMContext.API({ follow: "CAT.agent.opfs" })
-  public "CAT.agent.opfs.delete"(path: string): Promise<{ success: true }> {
-    const ctx = this as unknown as GMBaseContext;
+  @GMContext.API({ follow: "CAT.agent.opfs", bind: false })
+  public "CAT.agent.opfs.delete"(ctx: GMBaseContext, path: string): Promise<{ success: true }> {
     return ctx.sendMessage("CAT_agentOPFS", [
       { action: "delete", path, scriptUuid: ctx.scriptRes?.uuid || "" } as OPFSApiRequest,
     ]) as Promise<{ success: true }>;

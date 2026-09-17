@@ -38,6 +38,8 @@ export interface ApiParam {
   follow?: string;
   depend?: string[];
   alias?: string;
+  /** API receives its GM context as the first argument instead of via `this`. */
+  bind?: boolean;
 }
 
 export interface ApiValue {

@@ -22,33 +22,29 @@ export default class CATAgentModelApi {
   @GMContext.protected()
   protected scriptRes?: { uuid: string };
 
-  @GMContext.API({ follow: "CAT.agent.model" })
-  public "CAT.agent.model.list"(): Promise<AgentModelSafeConfig[]> {
-    const ctx = this as unknown as GMBaseContext;
+  @GMContext.API({ follow: "CAT.agent.model", bind: false })
+  public "CAT.agent.model.list"(ctx: GMBaseContext): Promise<AgentModelSafeConfig[]> {
     return ctx.sendMessage("CAT_agentModel", [
       { action: "list", scriptUuid: ctx.scriptRes?.uuid || "" } as ModelApiRequest,
     ]) as Promise<AgentModelSafeConfig[]>;
   }
 
-  @GMContext.API({ follow: "CAT.agent.model" })
-  public "CAT.agent.model.get"(id: string): Promise<AgentModelSafeConfig | null> {
-    const ctx = this as unknown as GMBaseContext;
+  @GMContext.API({ follow: "CAT.agent.model", bind: false })
+  public "CAT.agent.model.get"(ctx: GMBaseContext, id: string): Promise<AgentModelSafeConfig | null> {
     return ctx.sendMessage("CAT_agentModel", [
       { action: "get", id, scriptUuid: ctx.scriptRes?.uuid || "" } as ModelApiRequest,
     ]) as Promise<AgentModelSafeConfig | null>;
   }
 
-  @GMContext.API({ follow: "CAT.agent.model" })
-  public "CAT.agent.model.getDefault"(): Promise<string> {
-    const ctx = this as unknown as GMBaseContext;
+  @GMContext.API({ follow: "CAT.agent.model", bind: false })
+  public "CAT.agent.model.getDefault"(ctx: GMBaseContext): Promise<string> {
     return ctx.sendMessage("CAT_agentModel", [
       { action: "getDefault", scriptUuid: ctx.scriptRes?.uuid || "" } as ModelApiRequest,
     ]) as Promise<string>;
   }
 
-  @GMContext.API({ follow: "CAT.agent.model" })
-  public "CAT.agent.model.getSummary"(): Promise<string> {
-    const ctx = this as unknown as GMBaseContext;
+  @GMContext.API({ follow: "CAT.agent.model", bind: false })
+  public "CAT.agent.model.getSummary"(ctx: GMBaseContext): Promise<string> {
     return ctx.sendMessage("CAT_agentModel", [
       { action: "getSummary", scriptUuid: ctx.scriptRes?.uuid || "" } as ModelApiRequest,
     ]) as Promise<string>;
