@@ -5,7 +5,6 @@ import type { MessageSend } from "@Packages/message/types";
 import { ExternalAccessConnectRelayClient } from "../service_worker/client";
 import { CRYPTO, LIMITS } from "../service_worker/external_access/generated/protocol.generated";
 import { decodeWireEnvelope } from "../service_worker/external_access/protocol-wire";
-import { utf8ByteLength } from "@Packages/message/message_size";
 import type {
   AuthChallengePayload,
   AuthMode,
@@ -251,9 +250,10 @@ export class ExternalAccessConnect {
   private async handleMessage(ev: MessageEvent, sessionEpoch: number): Promise<void> {
     if (sessionEpoch !== this.epoch) return;
 
-    if (typeof ev.data !== "string" || utf8ByteLength(ev.data) > LIMITS.maxFrameBytes) {
+    const inboundBytes = typeof ev.data === "string" ? new TextEncoder().encode(ev.data).byteLength : undefined;
+    if (inboundBytes === undefined || inboundBytes > LIMITS.maxFrameBytes) {
       this.logger.warn("Dropped inbound WebSocket frame over limit", {
-        bytes: typeof ev.data === "string" ? utf8ByteLength(ev.data) : undefined,
+        bytes: inboundBytes,
         limit: LIMITS.maxFrameBytes,
       });
       this.ws?.close();
@@ -367,7 +367,7 @@ export class ExternalAccessConnect {
   private rawSend(envelope: WSEnvelope): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       const frame = JSON.stringify(envelope);
-      const bytes = utf8ByteLength(frame);
+      const bytes = new TextEncoder().encode(frame).byteLength;
       if (bytes > LIMITS.maxFrameBytes) {
         this.logger.warn("Dropped outbound WebSocket frame over limit", {
           method: envelope.method,

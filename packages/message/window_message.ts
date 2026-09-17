@@ -8,7 +8,6 @@ import type {
 } from "./types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import EventEmitter from "eventemitter3";
-import { assertStructuredMessageSize } from "./message_size";
 
 const listenerMgr = new EventEmitter<string, any>(); // 单一管理器
 
@@ -22,7 +21,6 @@ class WindowPostMessage implements PostMessage {
   constructor(private target: Window) {}
 
   postMessage<T = any>(message: T): void {
-    assertStructuredMessageSize(message, "window.postMessage");
     this.target.postMessage(message, "*");
   }
 }
@@ -119,7 +117,6 @@ export class WindowMessage implements Message {
         type: "connect",
         data,
       };
-      assertStructuredMessageSize(body, "window.postMessage");
       const target = this.getTarget();
       target.postMessage(body, "*");
       // 使用 WindowPostMessage 包装，确保后续 sendMessage 也带 "*" targetOrigin
@@ -143,7 +140,6 @@ export class WindowMessage implements Message {
         type: "sendMessage",
         data,
       };
-      assertStructuredMessageSize(body, "window.postMessage");
       const eventId = `response:${messageId}`;
       this.EE.addListener(eventId, (body: WindowMessageBody<TMessage>) => {
         this.EE.removeAllListeners(eventId);
@@ -196,7 +192,6 @@ export class WindowMessageConnect implements MessageConnect {
       type: "connectMessage",
       data,
     };
-    assertStructuredMessageSize(body, "window.postMessage");
     this.target.postMessage(body);
   }
 
@@ -279,7 +274,6 @@ export class ServiceWorkerMessageSend implements Message {
             type: "respMessage",
             data: resp,
           };
-          assertStructuredMessageSize(body, "serviceWorker.postMessage");
           source.postMessage(body);
         },
         {} as RuntimeMessageSender
@@ -312,7 +306,6 @@ export class ServiceWorkerMessageSend implements Message {
       type: "connect",
       data,
     };
-    assertStructuredMessageSize(body, "serviceWorker.postMessage");
     this.target!.postMessage(body);
     return new WindowMessageConnect(body.messageId, this.EE, this.target!);
   }
@@ -327,7 +320,6 @@ export class ServiceWorkerMessageSend implements Message {
         type: "sendMessage",
         data,
       };
-      assertStructuredMessageSize(body, "serviceWorker.postMessage");
       const eventId = `response:${messageId}`;
       this.EE.addListener(eventId, (body: WindowMessageBody<TMessage>) => {
         this.EE.removeAllListeners(eventId);
@@ -371,11 +363,7 @@ export class ServiceWorkerClientMessage implements Message {
       this.EE.emit(
         "message",
         data.data,
-        (resp: any) => {
-          const body: WindowMessageBody = { messageId: data.messageId, type: "respMessage", data: resp };
-          assertStructuredMessageSize(body, "serviceWorker.postMessage");
-          source.postMessage(body);
-        },
+        (resp: any) => source.postMessage({ messageId: data.messageId, type: "respMessage", data: resp }),
         {} as RuntimeMessageSender
       );
     } else if (data.type === "connect" && source) {
@@ -398,7 +386,6 @@ export class ServiceWorkerClientMessage implements Message {
   }
 
   private postToServiceWorker(message: any) {
-    assertStructuredMessageSize(message, "serviceWorker.postMessage");
     if (this.sw) {
       this.sw.postMessage(message);
     } else {

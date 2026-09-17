@@ -3,7 +3,6 @@ import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "./client";
 import { ExtensionMessageConnect } from "./extension_message";
 import Logger from "@App/app/logger/logger";
-import { assertStructuredMessageSize, MessageSizeError } from "./message_size";
 
 export const enum GetSenderType {
   CONNECT = 1,
@@ -171,17 +170,6 @@ export class Server {
     this.apiFunctionMap.set(name, func);
   }
 
-  private sendConnectResponse(con: MessageConnect, response: TMessage, action: string) {
-    try {
-      assertStructuredMessageSize(response, `message-server/${action}`);
-      con.sendMessage(response);
-    } catch (e) {
-      if (!(e instanceof MessageSizeError)) throw e;
-      this.logger.error("message-server response exceeded transport limit", Logger.E(e));
-      con.sendMessage({ code: -1, message: e.message });
-    }
-  }
-
   private connectHandle(msg: string, params: any, con: MessageConnect) {
     const func = this.apiFunctionMap.get(msg);
     if (func) {
@@ -190,15 +178,15 @@ export class Server {
         if (ret instanceof Promise) {
           ret
             .then((data) => {
-              data && this.sendConnectResponse(con, { code: 0, data }, msg);
+              data && con.sendMessage({ code: 0, data });
             })
             .catch((e: Error) => {
-              this.sendConnectResponse(con, { code: -1, message: formatErrorToClient(e) }, msg);
+              con.sendMessage({ code: -1, message: formatErrorToClient(e) });
               this.logger.error("connectHandle error", Logger.E(e));
             });
           return true;
         } else {
-          this.sendConnectResponse(con, { code: 0, data: ret }, msg);
+          con.sendMessage({ code: 0, data: ret });
         }
       }
       return true;
@@ -212,16 +200,6 @@ export class Server {
     sender: RuntimeMessageSender
   ) {
     const func = this.apiFunctionMap.get(action);
-    const respond = (response: any) => {
-      try {
-        assertStructuredMessageSize(response, `message-server/${action}`);
-        sendResponse(response);
-      } catch (e) {
-        if (!(e instanceof MessageSizeError)) throw e;
-        this.logger.error("message-server response exceeded transport limit", Logger.E(e));
-        sendResponse({ code: -1, message: e.message });
-      }
-    };
     if (func) {
       try {
         const ret = func(params, new SenderRuntime(sender));
@@ -229,25 +207,25 @@ export class Server {
           ret
             .then((data) => {
               try {
-                respond({ code: 0, data });
+                sendResponse({ code: 0, data });
               } catch (e: any) {
                 this.logger.error("sendResponse error", Logger.E(e));
               }
             })
             .catch((e: Error) => {
-              respond({ code: -1, message: formatErrorToClient(e) });
+              sendResponse({ code: -1, message: formatErrorToClient(e) });
               this.logger.error("messageHandle error", Logger.E(e));
             });
           return true;
         } else {
-          respond({ code: 0, data: ret });
+          sendResponse({ code: 0, data: ret });
         }
       } catch (e: any) {
-        respond({ code: -1, message: formatErrorToClient(e) });
+        sendResponse({ code: -1, message: formatErrorToClient(e) });
         this.logger.error("messageHandle error", Logger.E(e));
       }
     } else {
-      respond({ code: -1, message: "no such api " + action });
+      sendResponse({ code: -1, message: "no such api " + action });
       this.logger.error("no such api", { action: action });
     }
   }

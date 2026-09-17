@@ -3,7 +3,6 @@ import { GetSenderType, SenderConnect, SenderRuntime, Server, type IGetSender } 
 import { CustomEventMessage } from "./custom_event_message";
 import type { MessageConnect, RuntimeMessageSender } from "./types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
-import { MAX_EXTENSION_MESSAGE_BYTES } from "./message_size";
 
 let inboundMessage: CustomEventMessage;
 let outboundMessage: CustomEventMessage;
@@ -459,18 +458,6 @@ describe("Server", () => {
         "level2-after",
         "level1-after",
       ]);
-    });
-
-    it("过大的响应不会再次触发传输异常，而会返回有界诊断", async () => {
-      server.on("oversized-response", () => "x".repeat(MAX_EXTENSION_MESSAGE_BYTES));
-
-      const response = await client.sendMessage({
-        action: "api/oversized-response",
-        data: {},
-      });
-
-      expect(response.code).toBe(-1);
-      expect(response.message).toContain("message-server/oversized-response message exceeds limit");
     });
   });
 
