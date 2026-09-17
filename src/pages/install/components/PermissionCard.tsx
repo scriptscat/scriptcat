@@ -4,7 +4,7 @@ import { ChevronDown, FileCode2, ShieldCheck } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@App/pages/components/ui/accordion";
-import { compatMarkCount, rowHasCompatMarks, tagsForGroup, type CompatView } from "../compat";
+import { compatMarkCount, rowHasCompatMarks, type CompatView } from "../compat";
 import { metadataDocHref } from "../compat_docs";
 import { CompatChip, ScriptCatOnlyBadge } from "./CompatChip";
 import { isPermissionChanged, type PermissionRow as PermissionRowData } from "../permissions";
@@ -121,14 +121,14 @@ function CollapsedCard({
 }
 
 /**
- * 归不到任何权限类别、且与别家脚本管理器行为不同的元数据声明：脚本猫不会执行的指令或取值(@sandbox、@run-at document-weird)，
+ * 归不到任何权限类别的元数据声明：脚本猫不会执行的指令或取值(@sandbox、@run-at document-weird)，
  * 以及只有脚本猫认的指令(@early-start、@background)。
  * 它们不是权限,但同样是「脚本写了、脚本猫不会执行」,与权限行同列才对得起读者的一次扫视。
  */
 function OtherDirectivesRow({ compat }: { compat: CompatView }) {
   const { t } = useTranslation(["install", "common"]);
   const { scriptcatOnlyTags } = compat.marks;
-  const tags = tagsForGroup(compat.marks, "other");
+  const tags = compat.marks.tags;
   if (!tags.length && !scriptcatOnlyTags.length) return null;
 
   return (

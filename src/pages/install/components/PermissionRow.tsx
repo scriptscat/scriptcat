@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Globe, ArrowLeftRight, ChevronDown, KeyRound, Package, TriangleAlert, type LucideIcon } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { isScriptCatOnlyGrant } from "@App/pkg/utils/script_compat";
-import { isMarkedValue, tagsForGroup, type CompatView } from "../compat";
+import { isMarkedValue, type CompatView } from "../compat";
 import { catApiDocHref, metadataDocHref } from "../compat_docs";
 import { CompatChip, ScriptCatOnlyBadge } from "./CompatChip";
 import {
@@ -147,12 +147,6 @@ export function PermissionChips({
     return <Chip key={change ? `${change}:${value}` : value} value={value} row={row} change={change} />;
   };
 
-  // 权限卡里没有对应 chip 的不生效指令，追加到它本该影响的这一行
-  const appended = compat && row.kind === "match" ? tagsForGroup(compat.marks, "match") : [];
-  const appendedChips = appended.map((tag) => (
-    <CompatChip key={tag.tag} label={`@${tag.tag}`} kind="metadata" line={tag.line} onJump={compat?.onJump} />
-  ));
-
   // 带不生效标记的取值不参与截断与折叠，否则标记会藏在「+N」后面
   const marked = (value: string) => !!compat && isMarkedValue(compat.marks, row.kind, value);
   const truncate = (values: string[]) => values.filter((v, i) => i < maxVisible || marked(v));
@@ -164,7 +158,6 @@ export function PermissionChips({
       <div className="flex flex-wrap gap-1.5">
         {visible.map((v) => renderChip(v))}
         {hidden > 0 && <MoreButton label={`+${hidden}`} onClick={() => setExpanded(true)} />}
-        {appendedChips}
       </div>
     );
   }
@@ -189,7 +182,6 @@ export function PermissionChips({
           onClick={() => setExpanded(true)}
         />
       )}
-      {appendedChips}
     </div>
   );
 }

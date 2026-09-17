@@ -9,15 +9,12 @@ import {
   resolveMetadataTagBase,
 } from "@App/pkg/utils/script_compat";
 
-/** 不生效的指令挂到权限卡的哪一行呈现 */
-export type IneffectiveTagGroup = "match" | "other";
-
+/** 不生效的指令；统一在「其他声明」行呈现 */
 export interface IneffectiveTag {
   /** 作者写的指令名，不含 @ */
   tag: string;
   /** 指令本身受支持、只是取值不生效时给出该取值 */
   value?: string;
-  group: IneffectiveTagGroup;
   line: number | undefined;
 }
 
@@ -31,18 +28,11 @@ export interface CompatMarks {
   grants: Map<string, number | undefined>;
   /** 解析不出规则的 @match 取值 → 所在行号；运行网站行按取值就地打标 */
   matches: Map<string, number | undefined>;
-  /** 不生效的元数据指令；权限卡里没有对应 chip，按 group 追加呈现 */
+  /** 不生效的元数据指令；权限卡里没有对应 chip，统一落在「其他声明」行 */
   tags: IneffectiveTag[];
   /** 脚本猫独有的指令；在脚本猫里生效，换到别的管理器不生效 */
   scriptcatOnlyTags: ScriptCatOnlyTag[];
 }
-
-// 已知会影响「运行网站」的指令挂到那一行，读者才能就地判断后果。这里只决定摆放位置，
-// 不决定支不支持（那由 script_compat.ts 的支持表判定）：不在表里的不生效指令一律落在「其他声明」，不会漏标。
-// 只收 Tampermonkey / Violentmonkey 现行文档里的指令，别家特有的与旧写法不收。
-const TAG_GROUP: Readonly<Record<string, IneffectiveTagGroup>> = {
-  "exclude-match": "match",
-};
 
 /** 传给权限行的兼容性标记与跳转入口 */
 export interface CompatView {
@@ -51,18 +41,13 @@ export interface CompatView {
   onJump?: (line: number) => void;
 }
 
-/** 该权限行要额外呈现的不生效指令（只有 match 组落在既有权限行上，其余归「其他声明」） */
-export const tagsForGroup = (marks: CompatMarks, group: IneffectiveTagGroup): IneffectiveTag[] =>
-  marks.tags.filter((tag) => tag.group === group);
-
 /** 该取值在这一类权限行里是否带不生效标记 */
 export const isMarkedValue = (marks: CompatMarks, kind: PermissionKind, value: string): boolean =>
   (kind === "grant" && marks.grants.has(value)) || (kind === "match" && marks.matches.has(value));
 
-/** 该权限行是否带不生效标记（含追加到这一行的指令）；带标记的行不能被折叠藏起来 */
+/** 该权限行是否带不生效标记；带标记的行不能被折叠藏起来 */
 export const rowHasCompatMarks = (marks: CompatMarks, row: PermissionRow): boolean =>
-  row.values.some((value) => isMarkedValue(marks, row.kind, value)) ||
-  (row.kind === "match" && tagsForGroup(marks, "match").length > 0);
+  row.values.some((value) => isMarkedValue(marks, row.kind, value));
 
 /** 不生效项总数，用于卡头徽章 */
 export const compatMarkCount = (marks: CompatMarks): number =>
@@ -70,7 +55,7 @@ export const compatMarkCount = (marks: CompatMarks): number =>
 
 /**
  * 派生安装页的兼容性标记：脚本写了、但脚本猫不会执行的指令与 GM 能力。
- * 判定是二元的（见 script_compat.ts），这里只负责定位与归组，不再分兼容程度。
+ * 判定是二元的（见 script_compat.ts）：认识且支持的才不标，其余一律不生效，不再分「知道但不支持」的中间档。
  */
 export function deriveCompatMarks(metadata: SCMetadata, code: string): CompatMarks {
   const lines = parseMetadataLines(code);
@@ -110,7 +95,7 @@ export function deriveCompatMarks(metadata: SCMetadata, code: string): CompatMar
     if (seen.has(tag)) continue;
     seen.add(tag);
     if (!isSupportedMetadataTag(tag)) {
-      tags.push({ tag: nameOf(tag), group: TAG_GROUP[tag] ?? "other", line: lineOf(tag) });
+      tags.push({ tag: nameOf(tag), line: lineOf(tag) });
     } else if (SCRIPTCAT_ONLY_METADATA_TAGS.has(tag)) {
       scriptcatOnlyTags.push({ tag: nameOf(tag), line: lineOf(tag) });
     }
@@ -122,7 +107,7 @@ export function deriveCompatMarks(metadata: SCMetadata, code: string): CompatMar
     if (tag === "match") {
       if (!matches.has(value)) matches.set(value, line);
     } else {
-      tags.push({ tag: nameOf(tag), value, group: "other", line });
+      tags.push({ tag: nameOf(tag), value, line });
     }
   }
   tags.sort(byLine);

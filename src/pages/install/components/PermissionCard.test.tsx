@@ -212,7 +212,7 @@ describe("PermissionCard 上的不生效标记", () => {
         compat={{
           marks: {
             grants: new Map([["GM_audio", 9]]),
-            tags: [{ tag: "sandbox", group: "other", line: 3 }],
+            tags: [{ tag: "sandbox", line: 3 }],
             matches: new Map(),
             scriptcatOnlyTags: [],
           },
@@ -230,8 +230,8 @@ describe("PermissionCard 上的不生效标记", () => {
           marks: {
             grants: new Map(),
             tags: [
-              { tag: "top-level-await", group: "other", line: 3 },
-              { tag: "sandbox", group: "other", line: 4 },
+              { tag: "top-level-await", line: 3 },
+              { tag: "sandbox", line: 4 },
             ],
             matches: new Map(),
             scriptcatOnlyTags: [],
@@ -271,7 +271,7 @@ describe("PermissionCard 其他声明行的取值与脚本猫独有指令", () =
         compat={{
           marks: {
             grants: new Map(),
-            tags: [{ tag: "run-at", value: "document-weird", group: "other", line: 3 }],
+            tags: [{ tag: "run-at", value: "document-weird", line: 3 }],
             matches: new Map(),
             scriptcatOnlyTags: [],
           },
@@ -292,8 +292,8 @@ describe("PermissionCard 其他声明行的取值与脚本猫独有指令", () =
             grants: new Map(),
             matches: new Map(),
             tags: [
-              { tag: "run-at", value: "document-weird", group: "other", line: 3 },
-              { tag: "sandbox", group: "other", line: 4 },
+              { tag: "run-at", value: "document-weird", line: 3 },
+              { tag: "sandbox", line: 4 },
             ],
             scriptcatOnlyTags: [],
           },
@@ -432,8 +432,8 @@ describe("移动端运行网站行的不生效标记", () => {
         compat={{
           marks: {
             grants: new Map(),
-            matches: new Map(),
-            tags: [{ tag: "exclude-match", group: "match", line: 3 }],
+            matches: new Map([["*://a.com/*", 3]]),
+            tags: [],
             scriptcatOnlyTags: [],
           },
         }}
