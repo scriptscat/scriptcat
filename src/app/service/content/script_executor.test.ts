@@ -36,11 +36,7 @@ describe("ScriptExecutor", () => {
   it("uses the configured transport prefix for USER_SCRIPT GM calls", () => {
     const sendMessage = vi.fn().mockResolvedValue(undefined);
     const script = makeScript({ metadata: { grant: ["GM_log"] } });
-    const executor = new ScriptExecutor(
-      { sendMessage } as unknown as Message,
-      {} as Message,
-      "serviceWorker"
-    );
+    const executor = new ScriptExecutor({ sendMessage } as unknown as Message, {} as Message, "serviceWorker");
 
     executor.execScriptEntry({
       scriptLoadInfo: script,
