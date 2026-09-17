@@ -1,4 +1,5 @@
 import type { editor } from "monaco-editor";
+import { resolveMetadataTagBase } from "@App/pkg/utils/script_compat";
 
 export type MetadataAlignmentLine = {
   lineNumber: number;
@@ -32,9 +33,6 @@ export const metadataLineStartPattern = /^\s*\/\/[ \t]*@/;
 export const userscriptHeaderPattern = /^\s*\/\/[ \t]*==UserScript==[ \t]*$/;
 export const userscriptEndPattern = /^\s*\/\/[ \t]*==\/UserScript==[ \t]*$/;
 const metadataAlignmentPattern = /^(\s*\/\/[ \t]*@)(\S+)([ \t]+)(.*)$/;
-// ScriptCat 运行时消费 `name:<locale>`/`description:<locale>` (src/locales/locales.ts) 等本地化标签，
-// 它们是合法标签而非拼写错误，需与其余标签区分开来单独判断。
-const localeSuffixedMetadataTagPattern = /^(name|description):(.+)$/;
 
 export const getMetadataAlignmentLine = (lineNumber: number, lineText: string): MetadataAlignmentLine | null => {
   const match = metadataAlignmentPattern.exec(lineText);
@@ -92,12 +90,6 @@ export const isMetadataAlignmentBlockAligned = (block: MetadataAlignmentBlock) =
   if (block.lines.length < 2) return true;
   const firstValueColumn = block.lines[0].valueColumn;
   return block.lines.every((line) => line.valueColumn === firstValueColumn);
-};
-
-export const resolveMetadataTagBase = (tag: string): string => {
-  const normalizedTag = tag.toLowerCase();
-  const localeMatch = localeSuffixedMetadataTagPattern.exec(normalizedTag);
-  return localeMatch ? localeMatch[1] : normalizedTag;
 };
 
 export const isKnownMetadataTag = (tag: string, knownTags: ReadonlySet<string>): boolean =>

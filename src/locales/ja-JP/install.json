@@ -255,5 +255,15 @@
   "expired_title": "更新内容の有効期限が切れました",
   "expired_desc": "この更新のために用意されたコードは削除されました。もう一度更新を確認してください。",
   "expired_recheck": "更新を再確認",
-  "code_loading": "コードを読み込み中"
+  "code_loading": "コードを読み込み中",
+  "compat_ineffective": "無効",
+  "compat_tag_desc": "ScriptCat はこの宣言に対応していないため、インストール後は無視されます。",
+  "compat_value_desc": "ScriptCat はこの値に対応していないため、宣言は記述どおりには機能しません。",
+  "compat_grant_desc": "ScriptCat はこの API を実装していないため、スクリプトから呼び出すとエラーになり、これに依存する機能は動作しません。",
+  "compat_jump": "{{line}} 行目へ移動",
+  "compat_docs": "メタデータのドキュメント",
+  "compat_count": "無効な項目 {{count}} 件",
+  "compat_scriptcat_only": "ScriptCat 専用",
+  "perm_other_label": "その他の宣言",
+  "perm_other_summary": "他のスクリプトマネージャーとは互換性が異なります"
 }

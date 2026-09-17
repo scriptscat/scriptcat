@@ -5,6 +5,8 @@ import { render, cleanup, act, waitFor } from "@testing-library/react";
 // 用 hoisted 持有可在测试内变更的主题与 monaco 桩，供被提升的 vi.mock 工厂引用
 const h = vi.hoisted(() => {
   const makeEditor = () => ({
+    revealLineInCenter: vi.fn(),
+    setSelection: vi.fn(),
     setModel: vi.fn(),
     setValue: vi.fn(),
     updateOptions: vi.fn(),
@@ -15,16 +17,13 @@ const h = vi.hoisted(() => {
     removeDecorations: vi.fn(),
     createDecorationsCollection: vi.fn(),
   });
-  const diffModifiedEditor = makeEditor();
-  const diffEditor = {
-    ...makeEditor(),
-    getModifiedEditor: vi.fn(() => diffModifiedEditor),
-  };
   return {
     resolvedTheme: "light" as string,
     setTheme: vi.fn(),
-    diffModifiedEditor,
-    createDiffEditor: vi.fn((_container?: unknown, _options?: any) => diffEditor),
+    createDiffEditor: vi.fn((_container?: unknown, _options?: any) => {
+      const modified = makeEditor();
+      return { ...makeEditor(), getModifiedEditor: () => modified, __modified: modified };
+    }),
     create: vi.fn((_container?: unknown, _options?: any) => makeEditor()),
     createModel: vi.fn(() => ({
       dispose: vi.fn(),
@@ -42,7 +41,14 @@ vi.mock("monaco-editor", () => ({
     setTheme: h.setTheme,
     setModelMarkers: vi.fn(),
   },
-  Range: class {},
+  Range: class {
+    constructor(
+      public startLineNumber: number,
+      public startColumn: number,
+      public endLineNumber: number,
+      public endColumn: number
+    ) {}
+  },
 }));
 vi.mock("./theme", () => ({ resolveMonacoTheme: (t: string) => t }));
 vi.mock("@App/pkg/utils/monaco-editor", () => ({
@@ -131,16 +137,41 @@ describe("CodeEditor 可访问性与主题", () => {
     });
     expect(h.setTheme).toHaveBeenCalledWith("dark");
   });
+});
 
-  it("diff 编辑器创建后也应回调 onEditorMount", async () => {
-    const onEditorMount = vi.fn();
+describe("CodeEditor 就绪信号与定位", () => {
+  it("内联 diff 也报告就绪——否则加载占位会一直留在无障碍树里说「正在加载」", async () => {
+    const onReady = vi.fn();
+    render(<CodeEditor id="ed-ready-diff" code="const a = 2;" diffCode="const a = 1;" onReady={onReady} />);
+    await waitFor(() => expect(onReady).toHaveBeenCalled());
+  });
 
+  it("普通编辑器同样报告就绪", async () => {
+    const onReady = vi.fn();
     await act(async () => {
-      render(
-        <CodeEditor id="ed-diff-mount" code="const a = 2;" diffCode="const a = 1;" onEditorMount={onEditorMount} />
-      );
+      render(<CodeEditor id="ed-ready-plain" code="const a = 1;" diffCode="" onReady={onReady} />);
     });
+    await waitFor(() => expect(onReady).toHaveBeenCalled());
+  });
 
-    await waitFor(() => expect(onEditorMount).toHaveBeenCalledWith(h.diffModifiedEditor));
+  it("revealLine 在普通编辑器上滚动并选中整行", async () => {
+    const ref = createRef<ComponentRef<typeof CodeEditor>>();
+    await act(async () => {
+      render(<CodeEditor ref={ref} id="ed-reveal" code={"a\nb\nc"} diffCode="" />);
+    });
+    await waitFor(() => expect(h.create).toHaveBeenCalled());
+    act(() => ref.current?.revealLine(2));
+    const instance = h.create.mock.results[0].value;
+    expect(instance.revealLineInCenter).toHaveBeenCalledWith(2);
+    expect(instance.setSelection).toHaveBeenCalled();
+  });
+
+  it("revealLine 在 diff 预览里定位到修改侧——诊断说的是新版本的那一行", async () => {
+    const ref = createRef<ComponentRef<typeof CodeEditor>>();
+    render(<CodeEditor ref={ref} id="ed-reveal-diff" code={"a\nb"} diffCode={"a"} />);
+    await waitFor(() => expect(h.createDiffEditor).toHaveBeenCalled());
+    act(() => ref.current?.revealLine(2));
+    const modified = (h.createDiffEditor.mock.results[0].value as any).__modified;
+    expect(modified.revealLineInCenter).toHaveBeenCalledWith(2);
   });
 });
