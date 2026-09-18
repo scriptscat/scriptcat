@@ -735,6 +735,8 @@ declare namespace GMTypes {
       totalSize: number;
     }>;
     ontimeout?: (arg1?: any) => void;
+    /** Fires after onload/onerror/ontimeout, once the download has finished either way. */
+    onloadend?: Listener<object>;
   }
 
   interface NotificationThis extends NotificationDetails {
