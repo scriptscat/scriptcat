@@ -461,7 +461,7 @@ export default function AgentOPFS() {
             })}
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="overflow-auto rounded-xl border border-border bg-card">
             <div className="flex items-center border-b border-border bg-muted/50 text-xs font-semibold text-muted-foreground">
               <span className="flex-1 px-3.5 py-2.5">{t("agent:opfs_name")}</span>
               <span className="w-[140px] px-3.5 py-2.5">{t("agent:opfs_type")}</span>

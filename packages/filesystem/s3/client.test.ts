@@ -62,6 +62,15 @@ describe("S3Client", () => {
       expect(client.getEndpointUrl()).toBe("https://minio.example.com");
     });
 
+    it("应当保留 endpoint 中的路径前缀", () => {
+      const client = new S3Client({
+        ...defaultConfig,
+        endpoint: "https://abcdefg.supabase.co/storage/v1/s3",
+      });
+
+      expect(client.getEndpointUrl()).toBe("https://abcdefg.supabase.co/storage/v1/s3");
+    });
+
     it("应当支持 http:// 协议的 endpoint", () => {
       const client = new S3Client({
         ...defaultConfig,
@@ -278,6 +287,71 @@ describe("S3Client", () => {
 
       const [url] = fetchSpy.mock.calls[0];
       expect(url).toBe("https://s3.us-west-2.amazonaws.com/my-bucket");
+    });
+
+    it("应当在 endpoint 带路径前缀时把前缀带进 path-style 请求 URL", async () => {
+      const prefixClient = new S3Client({
+        ...defaultConfig,
+        endpoint: "https://abcdefg.supabase.co/storage/v1/s3",
+      });
+      fetchSpy.mockResolvedValue(new Response("", { status: 200 }));
+
+      await prefixClient.request("GET", "my-bucket", "folder/file.txt");
+
+      const [url] = fetchSpy.mock.calls[0];
+      expect(url).toBe("https://abcdefg.supabase.co/storage/v1/s3/my-bucket/folder/file.txt");
+    });
+
+    it("应当在 endpoint 带路径前缀时把前缀带进 virtual-hosted 请求 URL", async () => {
+      const prefixClient = new S3Client({
+        ...defaultConfig,
+        endpoint: "https://s3.example.com/gateway",
+        forcePathStyle: false,
+      });
+      fetchSpy.mockResolvedValue(new Response("", { status: 200 }));
+
+      await prefixClient.request("GET", "my-bucket", "file.txt");
+
+      const [url] = fetchSpy.mock.calls[0];
+      expect(url).toBe("https://my-bucket.s3.example.com/gateway/file.txt");
+    });
+
+    it("应当在 endpoint 带路径前缀时把前缀纳入签名的 canonical URI", async () => {
+      // 两个 client 的绝对请求路径完全相同（/storage/v1/s3/my-bucket/file.txt），
+      // 只有 endpoint 前缀与 bucket/key 的切分位置不同；签名只取决于绝对路径，因此必须一致。
+      const viaEndpointPrefix = new S3Client({
+        ...defaultConfig,
+        endpoint: "https://abcdefg.supabase.co/storage/v1/s3",
+      });
+      const viaBucketPath = new S3Client({
+        ...defaultConfig,
+        endpoint: "https://abcdefg.supabase.co/storage/v1",
+      });
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      fetchSpy.mockResolvedValue(new Response("", { status: 200 }));
+
+      await viaEndpointPrefix.request("GET", "my-bucket", "file.txt");
+      await viaBucketPath.request("GET", "s3", "my-bucket/file.txt");
+      vi.useRealTimers();
+
+      const [url1, options1] = fetchSpy.mock.calls[0];
+      const [url2, options2] = fetchSpy.mock.calls[1];
+      expect(url1).toBe(url2);
+      expect(options1.headers["authorization"]).toBe(options2.headers["authorization"]);
+    });
+
+    it("应当忽略 endpoint 路径前缀末尾的斜杠", async () => {
+      const prefixClient = new S3Client({
+        ...defaultConfig,
+        endpoint: "https://abcdefg.supabase.co/storage/v1/s3/",
+      });
+      fetchSpy.mockResolvedValue(new Response("", { status: 200 }));
+
+      await prefixClient.request("HEAD", "my-bucket");
+
+      const [url] = fetchSpy.mock.calls[0];
+      expect(url).toBe("https://abcdefg.supabase.co/storage/v1/s3/my-bucket");
     });
 
     it("应当正确处理包含特殊字符的 key", async () => {

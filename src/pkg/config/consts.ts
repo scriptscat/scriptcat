@@ -16,4 +16,7 @@ export const STORAGE_LOCAL_KEYS: Set<string> = new Set([
   "external_access_source_read_policy", // 外部接入 · 源码读取策略（设备相关）
   "external_access_pairing", // 外部接入长期共享密钥 K + 客户端身份（含密钥，绝不跨设备同步）
   "keep_ext_background_alive", // Chrome service worker 和 offscreen 保活开关
+  // 新建脚本模板：用户手写的代码，三份合计很容易超过 chrome.storage.sync 单项 8KB 配额，
+  // 而 ChromeStorage.set 不检查 lastError，超额会静默丢失
+  "script_templates",
 ]);
