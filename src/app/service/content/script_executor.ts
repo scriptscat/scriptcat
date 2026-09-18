@@ -32,8 +32,8 @@ export const initEnvInfo: GMInfoEnv = {
 
 // 脚本执行器
 export class ScriptExecutor {
-  private readonly earlyScriptFlags = Native.createSet<string>();
-  private readonly execScripts = Native.createMap<string, ExecScript>();
+  private readonly earlyScriptFlags = new Native.Set<string>();
+  private readonly execScripts = new Native.Map<string, ExecScript>();
 
   constructor(
     private msg: Message,

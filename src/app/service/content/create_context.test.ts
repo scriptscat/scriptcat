@@ -307,9 +307,9 @@ describe("shouldFnBind", () => {
 
 describe("createContext: capability and lifecycle contract", () => {
   it("creates collection instances from frozen captured-method subclasses", () => {
-    const set = Native.createSet(["grant"]);
-    const map = Native.createMap<string, number>();
-    const weakMap = Native.createWeakMap<object, number>();
+    const set = new Native.Set(["grant"]);
+    const map = new Native.Map<string, number>();
+    const weakMap = new Native.WeakMap<object, number>();
 
     expect(set).toBeInstanceOf(Native.Set);
     expect(map).toBeInstanceOf(Native.Map);

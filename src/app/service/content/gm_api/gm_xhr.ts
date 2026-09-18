@@ -127,7 +127,7 @@ const getMimeType = (contentType: string) => {
   return mime;
 };
 
-const docParseTypes = Native.createSet([
+const docParseTypes = new Native.Set([
   "application/xhtml+xml",
   "application/xml",
   "image/svg+xml",
@@ -135,7 +135,7 @@ const docParseTypes = Native.createSet([
   "text/xml",
 ]);
 
-const retStateFnMap = Native.createWeakMap<object, RetStateFnRecord>();
+const retStateFnMap = new Native.WeakMap<object, RetStateFnRecord>();
 
 const invokeXHRCallback = (name: string, callback: ((value: any) => void) | undefined, value: any) => {
   if (!callback) return;

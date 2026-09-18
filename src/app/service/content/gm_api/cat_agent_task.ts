@@ -19,12 +19,12 @@ interface GMBaseContext {
 // 内部 listener 计数器
 let listenerCounter = 0;
 type ListenerRecord = { id: number; eventName: string; callback: (...args: any[]) => void };
-const listenerMaps = Native.createWeakMap<object, Map<number, ListenerRecord>>();
+const listenerMaps = new Native.WeakMap<object, Map<number, ListenerRecord>>();
 
 const getListenerRecords = (owner: object): Map<number, ListenerRecord> => {
   let records = listenerMaps.get(owner);
   if (!records) {
-    records = Native.createMap<number, ListenerRecord>();
+    records = new Native.Map<number, ListenerRecord>();
     listenerMaps.set(owner, records);
   }
   return records;

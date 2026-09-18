@@ -53,7 +53,7 @@ export const createContext = (
   contentMsg: Message,
   scriptGrants: Set<string>
 ) => {
-  const scriptGrantSet = Native.createSet(scriptGrants);
+  const scriptGrantSet = new Native.Set(scriptGrants);
   // 按照GMApi构建
   const valueChangeListener = new ListenerManager<GMTypes.ValueChangeListener>();
   const EE = new EventEmitter<string, any>();
@@ -80,7 +80,7 @@ export const createContext = (
     GM: GM,
     GM_info: GMInfo,
     window: Native.objectCreate(null),
-    grantSet: Native.createSet<string>(),
+    grantSet: new Native.Set<string>(),
     loadScriptPromise,
     loadScriptResolve,
     setInvalidContext() {
@@ -246,7 +246,7 @@ export type RealmRoots = {
 const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSnapshot => {
   // 在 CacheSet 加入的 propKeys 将会在 mySandbox 实装阶段时设置。
   // 先处理的 descriptor 覆盖后续父类。
-  const descsCache: Set<string | symbol> = Native.createSet(["eval", "window", "self", "globalThis", "top", "parent"]);
+  const descsCache: Set<string | symbol> = new Native.Set(["eval", "window", "self", "globalThis", "top", "parent"]);
 
   // realmGlobal own descriptor 优先，hostWindow descriptor 只补足 host 成员。
   const initOwnDescs = Native.objectGetOwnPropertyDescriptors(realmGlobal);
@@ -256,7 +256,7 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
   const overriddenDescs: DescriptorMap = Native.objectCreate(null);
 
   // 记录原生 onxxxxx 的 property key。
-  const eventKeys = Native.createSet<string>();
+  const eventKeys = new Native.Set<string>();
 
   // 在 USE_PSEUDO_WINDOW 情况下，由于没有类的 prototype，父类的成员要手动传下去。
   const protoBaseDescs: DescriptorMap = Native.objectCreate(null);

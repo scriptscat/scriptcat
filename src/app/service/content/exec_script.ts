@@ -51,7 +51,7 @@ export default class ExecScript {
     } else {
       this.scriptFunc = code;
     }
-    const grantSet = Native.createSet(scriptRes.metadata.grant || []);
+    const grantSet = new Native.Set(scriptRes.metadata.grant || []);
     if (isContextMenuScript(scriptRes.metadata)) {
       grantSet.add("GM_registerMenuCommand");
       grantSet.delete("none");

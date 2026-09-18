@@ -62,12 +62,12 @@ let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
 
 const valueChangePromiseMap: Record<string, () => void> = Object.create(null);
 
-const notificationTagMaps = Native.createWeakMap<object, Map<string, string>>();
+const notificationTagMaps = new Native.WeakMap<object, Map<string, string>>();
 
 const getNotificationTagMap = (owner: object): Map<string, string> => {
   let map = notificationTagMaps.get(owner);
   if (!map) {
-    map = Native.createMap<string, string>();
+    map = new Native.Map<string, string>();
     notificationTagMaps.set(owner, map);
   }
   return map;
@@ -76,7 +76,7 @@ const getNotificationTagMap = (owner: object): Map<string, string> => {
 const execEnvInit = (execEnv: GMApi) => {
   if (!execEnv.contentEnvKey) {
     execEnv.contentEnvKey = randomMessageFlag(); // 不重复识别字串。用于区分 mainframe subframe 等执行环境
-    execEnv.menuKeyRegistered = Native.createSet();
+    execEnv.menuKeyRegistered = new Native.Set();
     execEnv.menuIdCounter = 0;
     execEnv.regMenuCounter = 0;
   }

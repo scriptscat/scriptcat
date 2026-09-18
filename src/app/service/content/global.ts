@@ -29,7 +29,18 @@ const nativeObjectFreeze = Object.freeze;
 // Keep the captured methods on private subclasses. Instances can then be created
 // without reassigning every method, while the subclass prototypes remain outside
 // the page's mutable built-in prototypes.
-const NativeSetConstructor = class<T> extends nativeSetConstructor<T> {};
+const NativeSetConstructor = class<T> extends nativeSetConstructor<T> {
+  constructor(values?: readonly T[] | Set<T> | null) {
+    super();
+    if (Array.isArray(values)) {
+      for (let i = 0; i < values.length; i += 1) {
+        nativeReflectApply(nativeSetAdd, this, [values[i]]);
+      }
+    } else if (values) {
+      nativeReflectApply(nativeSetForEach, values, [(value: T) => nativeReflectApply(nativeSetAdd, this, [value])]);
+    }
+  }
+};
 NativeSetConstructor.prototype.add = nativeSetAdd;
 NativeSetConstructor.prototype.has = nativeSetHas;
 NativeSetConstructor.prototype.delete = nativeSetDelete;
@@ -65,54 +76,10 @@ export const nativeCall = nativeFunctionCall;
 export const nativeBind = (fn: (...args: any[]) => any, receiver: any, ...args: any[]) =>
   nativeFunctionCall(nativeFunctionBind, fn, receiver, ...args);
 
-type SafeSet<T> = Set<T> & {
-  add: Set<T>["add"];
-  has: Set<T>["has"];
-  delete: Set<T>["delete"];
-  clear: Set<T>["clear"];
-  forEach: Set<T>["forEach"];
-};
-
-type SafeMap<K, V> = Map<K, V> & {
-  get: Map<K, V>["get"];
-  set: Map<K, V>["set"];
-  has: Map<K, V>["has"];
-  delete: Map<K, V>["delete"];
-  clear: Map<K, V>["clear"];
-  forEach: Map<K, V>["forEach"];
-};
-
-type SafeWeakMap<K extends object, V> = WeakMap<K, V> & {
-  get: WeakMap<K, V>["get"];
-  set: WeakMap<K, V>["set"];
-  has: WeakMap<K, V>["has"];
-  delete: WeakMap<K, V>["delete"];
-};
-
-const createNativeSet = <T>(values?: readonly T[] | Set<T> | null): SafeSet<T> => {
-  const set = new NativeSetConstructor<T>() as SafeSet<T>;
-  if (Array.isArray(values)) {
-    for (let i = 0; i < values.length; i += 1) set.add(values[i]);
-  } else if (values) {
-    nativeReflectApply(nativeSetForEach, values, [(value: T) => set.add(value)]);
-  }
-  return set;
-};
-
-const createNativeMap = <K, V>(): SafeMap<K, V> => {
-  return new NativeMapConstructor<K, V>() as SafeMap<K, V>;
-};
-
-const createNativeWeakMap = <K extends object, V>(): SafeWeakMap<K, V> => {
-  return new NativeWeakMapConstructor<K, V>() as SafeWeakMap<K, V>;
-};
-
 export const Native = {
   Set: NativeSetConstructor,
   Map: NativeMapConstructor,
   WeakMap: NativeWeakMapConstructor,
-  apply: nativeApply,
-  call: nativeCall,
   bind: nativeBind,
   reflectApply: nativeReflectApply,
   structuredClone: typeof structuredClone === "function" ? structuredClone : unsupportedAPI,
@@ -130,9 +97,6 @@ export const Native = {
   objectGetPrototypeOf: nativeBind(Object.getPrototypeOf, Object),
   reflectOwnKeys: nativeBind(Reflect.ownKeys, Reflect),
   reflectGet: nativeBind(Reflect.get, Reflect),
-  createSet: createNativeSet,
-  createMap: createNativeMap,
-  createWeakMap: createNativeWeakMap,
 } as const;
 
 export const customClone = (o: any) => {
