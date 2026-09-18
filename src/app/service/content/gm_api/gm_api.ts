@@ -60,6 +60,19 @@ let valChangeCounterId = 0;
 
 let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
 
+const copyOwnEnumerableDataProperties = (value: object): Record<string, unknown> => {
+  const result = Native.objectCreate(null) as Record<string, unknown>;
+  const keys = Native.reflectOwnKeys(value);
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    if (typeof key !== "string") continue;
+    const descriptor = Native.objectGetOwnPropertyDescriptor(value, key);
+    if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) continue;
+    result[key] = descriptor.value;
+  }
+  return result;
+};
+
 // 回调表不暴露 Map 原型，避免页面改写 Map 方法后影响值更新确认。
 const valueChangePromiseMap: Record<string, () => void> = Object.create(null);
 
@@ -777,15 +790,7 @@ export default class GMApi extends GM_Base {
     if (typeof options_or_accessKey === "string") {
       options = { accessKey: options_or_accessKey };
     } else if (optionObject) {
-      const safeOptions = Native.objectCreate(null) as Record<string, unknown>;
-      const keys = Native.reflectOwnKeys(options_or_accessKey);
-      for (let index = 0; index < keys.length; index += 1) {
-        const key = keys[index];
-        if (typeof key !== "string") continue;
-        const descriptor = Native.objectGetOwnPropertyDescriptor(options_or_accessKey, key);
-        if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) continue;
-        safeOptions[key] = descriptor.value;
-      }
+      const safeOptions = copyOwnEnumerableDataProperties(options_or_accessKey as object);
       optionId = safeOptions.id as string | number | undefined;
       optionIndividual = safeOptions.individual as boolean | undefined;
       // id不直接储存在options (id 影响 groupKey 操作)
@@ -1512,7 +1517,7 @@ export default class GMApi extends GM_Base {
     if (typeof param === "boolean") {
       option.active = !param; // Greasemonkey 3.x loadInBackground
     } else if (param) {
-      option = { ...param } as GMTypes.OpenTabOptions;
+      option = copyOwnEnumerableDataProperties(param) as GMTypes.OpenTabOptions;
     }
     if (typeof option.active !== "boolean" && typeof option.loadInBackground === "boolean") {
       // TM 同时兼容 active 和 loadInBackground ( active 优先 )

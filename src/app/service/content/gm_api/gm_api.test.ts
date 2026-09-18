@@ -1493,6 +1493,25 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
   });
 });
 
+describe("GM_openInTab DTO", () => {
+  it("does not execute accessor options", () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_openInTab"];
+    const getter = vi.fn(() => "forged");
+    const options = { active: true } as Record<string, unknown>;
+    Object.defineProperty(options, "secret", { enumerable: true, configurable: true, get: getter });
+    const sendMessage = vi.fn().mockResolvedValue(1);
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script);
+
+    api.GM_openInTab(api, "https://example.com", options as never);
+
+    expect(getter).not.toHaveBeenCalled();
+    const sentOptions = sendMessage.mock.calls[0][0].data.params[1];
+    expect(sentOptions.active).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(sentOptions, "secret")).toBeUndefined();
+  });
+});
+
 describe("@grant GM_download", () => {
   it("空 url 应触发 onerror 而不是发起下载（GM_download）", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
