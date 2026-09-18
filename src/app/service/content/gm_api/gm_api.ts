@@ -459,7 +459,7 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public GM_listValues(ctx: GMApi): string[] {
     if (!ctx.scriptRes) return [];
-    const keys = Object.keys(ctx.scriptRes.value);
+    const keys = Native.objectKeys(ctx.scriptRes.value);
     return keys;
   }
 
@@ -468,7 +468,7 @@ export default class GMApi extends GM_Base {
     // Asynchronous wrapper for GM_listValues to support GM.listValues
     return new Promise((resolve) => {
       if (!ctx.scriptRes) return resolve([]);
-      const keys = Object.keys(ctx.scriptRes.value);
+      const keys = Native.objectKeys(ctx.scriptRes.value);
       resolve(keys);
     });
   }
@@ -488,8 +488,8 @@ export default class GMApi extends GM_Base {
       // Returns all values
       return customClone(ctx.scriptRes.value)!;
     }
-    const result: TGMKeyValue = {};
-    if (Array.isArray(keysOrDefaults)) {
+    const result: TGMKeyValue = Native.objectCreate(null);
+    if (Native.arrayIsArray(keysOrDefaults)) {
       // 键名数组
       // Handle array of keys (e.g., ['foo', 'bar'])
       for (let index = 0; index < keysOrDefaults.length; index++) {
@@ -500,15 +500,15 @@ export default class GMApi extends GM_Base {
           if (value && typeof value === "object") {
             value = customClone(value)!;
           }
-          result[key] = value;
+          setOwnValue(result, key, value);
         }
       }
     } else {
       // 对象 键: 默认值
       // Handle object with default values (e.g., { foo: 1, bar: 2, baz: 3 })
-      for (const key of Object.keys(keysOrDefaults)) {
+      for (const key of Native.objectKeys(keysOrDefaults)) {
         const defaultValue = keysOrDefaults[key];
-        result[key] = _GM_getValue(ctx, key, defaultValue);
+        setOwnValue(result, key, _GM_getValue(ctx, key, defaultValue));
       }
     }
     return result;
@@ -538,7 +538,7 @@ export default class GMApi extends GM_Base {
   @GMContext.API()
   public GM_deleteValues(ctx: GMApi, keys: string[]) {
     if (!ctx.scriptRes) return;
-    if (!Array.isArray(keys)) {
+    if (!Native.arrayIsArray(keys)) {
       console.warn("GM_deleteValues: keys must be string[]");
       return;
     }
@@ -554,7 +554,7 @@ export default class GMApi extends GM_Base {
   public "GM.deleteValues"(ctx: GMApi, keys: string[]): Promise<void> {
     if (!ctx.scriptRes) return new Promise<void>(() => {});
     return new Promise((resolve) => {
-      if (!Array.isArray(keys)) {
+      if (!Native.arrayIsArray(keys)) {
         throw new Error("GM.deleteValues: keys must be string[]");
       } else {
         const req = {} as Record<string, undefined>;

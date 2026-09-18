@@ -769,6 +769,30 @@ describe.concurrent("GM_value", () => {
     expect(api.GM_getValue(api, "leaked")).toBeUndefined();
   });
 
+  it("returns __proto__ as an own key without changing the result prototype", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue", "GM_getValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const stored = { leaked: "secret" };
+
+    api.GM_setValue(api, "__proto__", stored);
+
+    const selected = api.GM_getValues(api, ["__proto__"]);
+    const defaults = Object.create(null) as Record<string, unknown>;
+    defaults.__proto__ = "fallback";
+    const withDefaults = api.GM_getValues(api, defaults);
+
+    expect(Object.getPrototypeOf(selected)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(selected, "__proto__")).toBe(true);
+    expect(selected.__proto__).toEqual(stored);
+    expect(Object.getPrototypeOf(withDefaults)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(withDefaults, "__proto__")).toBe(true);
+    expect(withDefaults.__proto__).toEqual(stored);
+  });
+
   it.concurrent("GM_setValue", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValue", "GM_setValue"];
