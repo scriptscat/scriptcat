@@ -1421,6 +1421,33 @@ describe("USER_SCRIPT native callbacks", () => {
     });
     expect(sendMessage).not.toHaveBeenCalled();
 
+    const reconnect = runtime.reconnectUserScript(
+      { reconnectToken: bootstrapToken },
+      {
+        getType: () => 4,
+        isType: (type: number) => type === 4,
+        getSender: () => rawSender,
+        getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-a" }),
+        getConnect: () => undefined,
+        getConnectOrigin: () => "userScript" as const,
+      }
+    );
+    expect(reconnect).toEqual({ bootstrapToken: expect.any(String) });
+    expect((runtime as any).userScriptBootstraps.size).toBe(1);
+    expect(
+      runtime.reconnectUserScript(
+        { reconnectToken: bootstrapToken },
+        {
+          getType: () => 4,
+          isType: (type: number) => type === 4,
+          getSender: () => rawSender,
+          getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-a" }),
+          getConnect: () => undefined,
+          getConnectOrigin: () => "userScript" as const,
+        }
+      )
+    ).toBeUndefined();
+
     (runtime as any).revokePageBindingsForScript("content-script");
     expect(connection.disconnect).toHaveBeenCalledWith(true);
     expect((runtime as any).userScriptConnections.size).toBe(0);

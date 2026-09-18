@@ -269,11 +269,11 @@ export class Server {
   }
 
   private isUserScriptActionAllowed(action: string, origin: MessageOrigin | undefined, isConnect: boolean): boolean {
-    // USER_SCRIPT 只应取得注册握手和 GM RPC；其他 serviceWorker API 仍只接受扩展通道。
+    // USER_SCRIPT 只应取得注册握手、断线重连和 GM RPC；其他 serviceWorker API 仍只接受扩展通道。
     if (this.prefix !== "serviceWorker" || origin !== "userScript") return true;
     return isConnect
       ? action === "runtime/registerUserScript" || action === "runtime/gmApi"
-      : action === "runtime/gmApi";
+      : action === "runtime/gmApi" || action === "runtime/reconnectUserScript";
   }
 }
 

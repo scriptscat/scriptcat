@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Message, MessageConnect, TMessage } from "@Packages/message/types";
-import { connectUserScriptChannel } from "./user_script_connection";
+import { connectUserScriptChannel, requestUserScriptReconnect } from "./user_script_connection";
 
 const makeConnection = (): MessageConnect => ({
   onMessage: vi.fn(),
@@ -39,5 +39,38 @@ describe("connectUserScriptChannel", () => {
 
     await expect(connectUserScriptChannel(message, "bootstrap-token", vi.fn())).resolves.toBeUndefined();
     expect(message.connect).not.toHaveBeenCalled();
+  });
+
+  it("reports remote disconnects so the caller can reconnect natively", async () => {
+    const connection = makeConnection();
+    const onDisconnect = vi.fn();
+    const message = {
+      sendMessage: vi.fn().mockResolvedValue(true),
+      connect: vi.fn().mockResolvedValue(connection),
+    } as unknown as Message;
+
+    await connectUserScriptChannel(message, "bootstrap-token", vi.fn(), onDisconnect);
+
+    expect(connection.onDisconnect).toHaveBeenCalledOnce();
+    const disconnectHandler = (connection.onDisconnect as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      isSelfDisconnected: boolean
+    ) => void;
+    disconnectHandler(false);
+    expect(onDisconnect).toHaveBeenCalledWith(false);
+  });
+
+  it("accepts only a valid native reconnect token response", async () => {
+    const message = {
+      sendMessage: vi.fn().mockResolvedValue({ code: 0, data: { bootstrapToken: "next-token" } }),
+    } as unknown as Message;
+
+    await expect(requestUserScriptReconnect(message, "current-token")).resolves.toBe("next-token");
+    expect(message.sendMessage).toHaveBeenCalledWith({
+      action: "serviceWorker/runtime/reconnectUserScript",
+      data: { reconnectToken: "current-token" },
+    });
+
+    (message.sendMessage as ReturnType<typeof vi.fn>).mockResolvedValue({ code: 0, data: {} });
+    await expect(requestUserScriptReconnect(message, "current-token")).resolves.toBeUndefined();
   });
 });

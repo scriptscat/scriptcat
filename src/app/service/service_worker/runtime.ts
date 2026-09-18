@@ -131,6 +131,16 @@ export type TScriptsForTab = {
   scriptmenus: ScriptMenu[];
 } | null;
 
+type UserScriptSession = {
+  scripts: TScriptInfo[];
+  envInfo: GMInfoEnv;
+  extensionOrigin?: ExtensionOrigin;
+  reconnectToken: string;
+  tabId: number;
+  frameId?: number;
+  documentId?: string;
+};
+
 const bgScriptStorageNames = new Set<string>();
 
 // For Firefox, StorageArea.setAccessLevel is not implemented.
@@ -149,17 +159,9 @@ export class RuntimeService {
     string,
     { connection: MessageConnect; handles: Set<string>; tabId: number; frameId?: number; documentId?: string }
   >();
-  private readonly userScriptBootstraps = new Map<
-    string,
-    {
-      scripts: TScriptInfo[];
-      envInfo: GMInfoEnv;
-      extensionOrigin?: ExtensionOrigin;
-      tabId: number;
-      frameId?: number;
-      documentId?: string;
-    }
-  >();
+  private readonly userScriptBootstraps = new Map<string, UserScriptSession>();
+  // 连接断开后保留当前文档的已验证资料，供 USER_SCRIPT 通过原生消息重连；导航或脚本撤销会同步清除。
+  private readonly userScriptSessions = new Map<string, UserScriptSession>();
   // Only the newest load for a tab/frame/environment may issue bindings; navigation can resolve old requests late.
   private readonly pageLoadSequences = new Map<string, number>();
 
@@ -192,6 +194,7 @@ export class RuntimeService {
         ) {
           entry.connection.disconnect(true);
           this.userScriptConnections.delete(key);
+          this.userScriptSessions.delete(key);
         }
       }
     }
@@ -210,10 +213,14 @@ export class RuntimeService {
       if (entry.tabId === tabId) {
         entry.connection.disconnect(true);
         this.userScriptConnections.delete(key);
+        this.userScriptSessions.delete(key);
       }
     }
     for (const [token, bootstrap] of this.userScriptBootstraps) {
       if (bootstrap.tabId === tabId) this.userScriptBootstraps.delete(token);
+    }
+    for (const [key, session] of this.userScriptSessions) {
+      if (session.tabId === tabId) this.userScriptSessions.delete(key);
     }
     const prefix = `${tabId}:`;
     for (const key of this.pageLoadSequences.keys()) {
@@ -279,10 +286,11 @@ export class RuntimeService {
       handles.add(handle);
     }
     if (handles.size === 0) return false;
-    this.userScriptBootstraps.delete(handshake.bootstrapToken);
     const frameId = source.frameId;
     const documentId = source.documentId;
     const key = this.userScriptConnectionKey(tabId, frameId, documentId);
+    this.userScriptSessions.set(key, bootstrap);
+    this.userScriptBootstraps.delete(handshake.bootstrapToken);
     const previous = this.userScriptConnections.get(key);
     if (previous) previous.connection.disconnect(true);
     const entry = { connection, handles, tabId, frameId, documentId };
@@ -309,6 +317,7 @@ export class RuntimeService {
             scripts: bootstrap.scripts,
             envInfo: bootstrap.envInfo,
             extensionOrigin: bootstrap.extensionOrigin,
+            reconnectToken: bootstrap.reconnectToken,
           },
         });
       } catch {
@@ -316,6 +325,56 @@ export class RuntimeService {
       }
     });
     return true;
+  }
+
+  reconnectUserScript(data: unknown, sender: IGetSender): { bootstrapToken: string } | undefined {
+    if (!sender.isType(GetSenderType.RUNTIME) || sender.getConnectOrigin?.() !== "userScript") {
+      return undefined;
+    }
+    if (
+      data === null ||
+      typeof data !== "object" ||
+      Object.keys(data).length !== 1 ||
+      typeof (data as { reconnectToken?: unknown }).reconnectToken !== "string" ||
+      (data as { reconnectToken: string }).reconnectToken.length === 0 ||
+      (data as { reconnectToken: string }).reconnectToken.length > 256
+    ) {
+      return undefined;
+    }
+    const source = sender.getSender();
+    const tabId = source?.tab?.id;
+    if (!source || typeof tabId !== "number") return undefined;
+    const key = this.userScriptConnectionKey(tabId, source.frameId, source.documentId);
+    const session = this.userScriptSessions.get(key);
+    if (!session || (data as { reconnectToken: string }).reconnectToken !== session.reconnectToken) return undefined;
+    for (const script of session.scripts) {
+      const handle = script.executionHandle;
+      const binding = typeof handle === "string" ? this.pageExecutionBindings.get(handle) : undefined;
+      if (
+        !binding ||
+        binding.envTag !== "ct" ||
+        binding.tabId !== tabId ||
+        binding.frameId !== source.frameId ||
+        binding.documentId !== source.documentId
+      ) {
+        this.userScriptSessions.delete(key);
+        return undefined;
+      }
+    }
+    const bootstrapToken = uuidv4();
+    const nextSession = { ...session, reconnectToken: uuidv4() };
+    for (const [token, bootstrap] of this.userScriptBootstraps) {
+      if (
+        bootstrap.tabId === session.tabId &&
+        bootstrap.frameId === session.frameId &&
+        bootstrap.documentId === session.documentId
+      ) {
+        this.userScriptBootstraps.delete(token);
+      }
+    }
+    this.userScriptSessions.set(key, nextSession);
+    this.userScriptBootstraps.set(bootstrapToken, nextSession);
+    return { bootstrapToken };
   }
 
   private sendUserScriptMessage(to: ExtMessageSender | undefined, action: string, data: unknown): void {
@@ -371,6 +430,9 @@ export class RuntimeService {
     }
     for (const [token, bootstrap] of this.userScriptBootstraps) {
       if (bootstrap.scripts.some((script) => script.uuid === uuid)) this.userScriptBootstraps.delete(token);
+    }
+    for (const [key, session] of this.userScriptSessions) {
+      if (session.scripts.some((script) => script.uuid === uuid)) this.userScriptSessions.delete(key);
     }
   }
 
@@ -822,6 +884,7 @@ export class RuntimeService {
     this.group.on("pageLoad", this.pageLoad.bind(this));
     this.group.on("pageShow", this.pageShow.bind(this));
     this.group.on("registerUserScript", this.registerUserScriptConnection.bind(this));
+    this.group.on("reconnectUserScript", this.reconnectUserScript.bind(this));
 
     // 监听脚本开启
     this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
@@ -1134,6 +1197,7 @@ export class RuntimeService {
   // 取消脚本注册
   async unregisterUserscripts() {
     this.pageExecutionBindings.clear();
+    this.userScriptSessions.clear();
     for (const [key, entry] of this.userScriptConnections) {
       entry.connection.disconnect(true);
       this.userScriptConnections.delete(key);
@@ -1615,6 +1679,7 @@ export class RuntimeService {
           scripts: contentScriptList,
           envInfo: res.envInfo,
           extensionOrigin: getExtensionOrigin(),
+          reconnectToken: userScriptBootstrapToken,
           tabId,
           frameId,
           documentId: chromeSender.documentId,

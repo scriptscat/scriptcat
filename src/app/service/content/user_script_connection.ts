@@ -1,6 +1,12 @@
 import type { Message, MessageConnect, TMessage } from "@Packages/message/types";
 
 type UserScriptPacketHandler = (connection: MessageConnect, packet: TMessage) => void;
+type UserScriptDisconnectHandler = (isSelfDisconnected: boolean) => void;
+
+type UserScriptReconnectResponse = {
+  code?: unknown;
+  data?: unknown;
+};
 
 /**
  * 先让 service worker 开启 USER_SCRIPT 监听，再建立连接；浏览器可能立即投递端口，
@@ -9,7 +15,8 @@ type UserScriptPacketHandler = (connection: MessageConnect, packet: TMessage) =>
 export async function connectUserScriptChannel(
   message: Message,
   bootstrapToken: string,
-  onPacket: UserScriptPacketHandler
+  onPacket: UserScriptPacketHandler,
+  onDisconnect?: UserScriptDisconnectHandler
 ): Promise<MessageConnect | undefined> {
   const enabled = await message.sendMessage<boolean>({ type: "userScripts.LISTEN_CONNECTIONS" } as unknown as TMessage);
   if (enabled === false) return undefined;
@@ -18,6 +25,20 @@ export async function connectUserScriptChannel(
     data: { world: "USER_SCRIPT", bootstrapToken },
   });
   connection.onMessage((packet) => onPacket(connection, packet));
+  if (onDisconnect) connection.onDisconnect(onDisconnect);
   connection.sendMessage({ action: "userScript/bootstrap" });
   return connection;
+}
+
+export async function requestUserScriptReconnect(
+  message: Message,
+  reconnectToken: string
+): Promise<string | undefined> {
+  const response = await message.sendMessage<UserScriptReconnectResponse>({
+    action: "serviceWorker/runtime/reconnectUserScript",
+    data: { reconnectToken },
+  });
+  if (response?.code !== 0 || response.data === null || typeof response.data !== "object") return undefined;
+  const token = (response.data as { bootstrapToken?: unknown }).bootstrapToken;
+  return typeof token === "string" && token.length > 0 && token.length <= 256 ? token : undefined;
 }

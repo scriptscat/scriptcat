@@ -639,6 +639,25 @@ describe("Server", () => {
       expect(handler).toHaveBeenCalledWith({ api: "GM_log" }, expect.any(SenderRuntime));
       expect(sendResponse).toHaveBeenCalledWith({ code: 0, data: "ok" });
     });
+
+    it("allows the native USER_SCRIPT reconnect request", () => {
+      const serviceWorkerServer = new Server("serviceWorker", inboundMessage);
+      const handler = vi.fn().mockReturnValue({ bootstrapToken: "next-token" });
+      serviceWorkerServer.on("runtime/reconnectUserScript", handler);
+      const sendResponse = vi.fn();
+      const sender = {} as RuntimeMessageSender;
+
+      (serviceWorkerServer as any).messageHandle(
+        "runtime/reconnectUserScript",
+        undefined,
+        sendResponse,
+        sender,
+        "userScript"
+      );
+
+      expect(handler).toHaveBeenCalledWith(undefined, expect.any(SenderRuntime));
+      expect(sendResponse).toHaveBeenCalledWith({ code: 0, data: { bootstrapToken: "next-token" } });
+    });
   });
 
   describe("Connect 功能测试", () => {

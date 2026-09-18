@@ -4,12 +4,12 @@ import { ExtensionMessage } from "@Packages/message/extension_message";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
 import { ScriptExecutor } from "./app/service/content/script_executor";
-import type { Message } from "@Packages/message/types";
+import type { Message, MessageConnect, TMessage } from "@Packages/message/types";
 import { getEventFlag } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { type TExtensionEnv } from "./app/service/extension/extension_env";
-import { connectUserScriptChannel } from "./app/service/content/user_script_connection";
+import { connectUserScriptChannel, requestUserScriptReconnect } from "./app/service/content/user_script_connection";
 import type { TScriptInfo } from "./app/repo/scripts";
 import type { GMInfoEnv } from "./app/service/content/types";
 import { setPageRpcExtensionOrigin, type ExtensionOrigin } from "./app/service/content/page_rpc";
@@ -39,44 +39,64 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   const scriptExecutor = new ScriptExecutor(msg, domContentMsg, "serviceWorker");
   const runtime = new ScriptRuntime(scriptEnvTag, server, msg, scriptExecutor, extensionEnv);
   runtime.contentInit(domServer, domMsg);
+  let reconnecting = false;
+  let reconnectToken: string | undefined;
+  const handleUserScriptPacket = (_connection: MessageConnect, packet: TMessage) => {
+    if (packet.action === "content/pageLoad") {
+      const packetData = packet.data as {
+        scripts?: TScriptInfo[];
+        envInfo?: GMInfoEnv;
+        extensionOrigin?: ExtensionOrigin;
+        reconnectToken?: unknown;
+      };
+      if (!packetData || !Array.isArray(packetData.scripts) || packetData.scripts.length === 0 || !packetData.envInfo) {
+        return;
+      }
+      for (let i = 0; i < packetData.scripts.length; i += 1) {
+        const script = packetData.scripts[i];
+        if (
+          !script ||
+          typeof script !== "object" ||
+          script.executionEnvTag !== scriptEnvTag ||
+          typeof script.executionHandle !== "string"
+        ) {
+          return;
+        }
+      }
+      if (typeof packetData.reconnectToken === "string" && packetData.reconnectToken.length > 0) {
+        reconnectToken = packetData.reconnectToken;
+      }
+      setPageRpcExtensionOrigin(packetData.extensionOrigin);
+      runtime.startScripts(packetData.scripts, packetData.envInfo);
+    } else if (packet.action === "content/runtime/valueUpdate") {
+      scriptExecutor.valueUpdate(packet.data as any);
+    } else if (packet.action === "content/runtime/emitEvent") {
+      scriptExecutor.emitEvent(packet.data as any);
+    }
+  };
+  const openUserScriptChannel = async (bootstrapToken: string): Promise<void> => {
+    try {
+      await connectUserScriptChannel(msg, bootstrapToken, handleUserScriptPacket, (isSelfDisconnected) => {
+        if (isSelfDisconnected || reconnecting) return;
+        if (!reconnectToken) return;
+        reconnecting = true;
+        void requestUserScriptReconnect(msg, reconnectToken)
+          .then((nextToken) => (nextToken ? openUserScriptChannel(nextToken) : undefined))
+          .catch((error) => logger.logger().debug("USER_SCRIPT reconnect failed", { error: String(error) }))
+          .finally(() => {
+            reconnecting = false;
+          });
+      });
+    } catch (error) {
+      logger.logger().debug("USER_SCRIPT channel failed", { error: String(error) });
+    }
+  };
   domServer.on(
     "pageLoad",
     (data: { bootstrapToken?: unknown; envInfo?: GMInfoEnv; extensionOrigin?: ExtensionOrigin }) => {
       if (typeof data?.bootstrapToken !== "string" || data.bootstrapToken.length === 0) return;
-      void connectUserScriptChannel(msg, data.bootstrapToken, (_connection, packet) => {
-        if (packet.action === "content/pageLoad") {
-          const packetData = packet.data as {
-            scripts?: TScriptInfo[];
-            envInfo?: GMInfoEnv;
-            extensionOrigin?: ExtensionOrigin;
-          };
-          if (
-            !packetData ||
-            !Array.isArray(packetData.scripts) ||
-            packetData.scripts.length === 0 ||
-            !packetData.envInfo
-          ) {
-            return;
-          }
-          for (let i = 0; i < packetData.scripts.length; i += 1) {
-            const script = packetData.scripts[i];
-            if (
-              !script ||
-              typeof script !== "object" ||
-              script.executionEnvTag !== scriptEnvTag ||
-              typeof script.executionHandle !== "string"
-            ) {
-              return;
-            }
-          }
-          setPageRpcExtensionOrigin(packetData.extensionOrigin);
-          runtime.startScripts(packetData.scripts, packetData.envInfo);
-        } else if (packet.action === "content/runtime/valueUpdate") {
-          scriptExecutor.valueUpdate(packet.data as any);
-        } else if (packet.action === "content/runtime/emitEvent") {
-          scriptExecutor.emitEvent(packet.data as any);
-        }
-      });
+      reconnectToken = data.bootstrapToken;
+      void openUserScriptChannel(data.bootstrapToken);
     }
   );
   runtime.init();
