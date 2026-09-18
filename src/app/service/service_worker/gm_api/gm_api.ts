@@ -406,12 +406,10 @@ export default class GMApi {
       if (binding.requestIds.has(data.requestId)) {
         throw new Error("page RPC requestId was already used");
       }
-      binding.requestIds.add(data.requestId);
-      while (binding.requestIds.size > MAX_PAGE_RPC_REQUEST_IDS) {
-        const oldest = binding.requestIds.values().next().value as string | undefined;
-        if (oldest === undefined) break;
-        binding.requestIds.delete(oldest);
+      if (binding.requestIds.size >= MAX_PAGE_RPC_REQUEST_IDS) {
+        throw new Error("page RPC requestId replay window is exhausted");
       }
+      binding.requestIds.add(data.requestId);
       if (data.envTag !== undefined && data.envTag !== binding.envTag) {
         throw new Error("page execution binding is invalid");
       }

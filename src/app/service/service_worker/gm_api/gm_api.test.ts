@@ -331,6 +331,86 @@ describe("page execution binding gate", () => {
     await expect(api.handlerRequest(request, sender)).resolves.toBe(true);
     await expect(api.handlerRequest(request, sender)).rejects.toThrow("page RPC requestId was already used");
   });
+
+  it("keeps the page RPC replay window closed after the request-id cap", async () => {
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    Object.defineProperty(api, "permissionVerify", {
+      configurable: true,
+      value: { verify: vi.fn().mockResolvedValue(undefined) },
+    });
+    Object.defineProperty(api, "parseRequest", {
+      configurable: true,
+      value: vi.fn().mockResolvedValue({
+        uuid: "script-a",
+        api: "GM_log",
+        params: ["hello"],
+        script: { uuid: "script-a", name: "script-a" },
+      }),
+    });
+    const binding = {
+      handle: "handle-a",
+      uuid: "script-a",
+      envTag: "it" as const,
+      runFlag: "run-a",
+      tabId: 42,
+      frameId: 0,
+      allowedAPIs: new Set(["GM_log"]),
+      requestIds: new Set<string>(),
+    };
+    Object.defineProperty(api, "resolvePageExecutionBinding", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(binding),
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
+
+    for (let index = 0; index < 4096; index += 1) {
+      await expect(
+        api.handlerRequest(
+          {
+            uuid: "script-a",
+            api: "GM_log",
+            params: ["hello"],
+            runFlag: "forged",
+            executionHandle: "handle-a",
+            requestId: `request-${index}`,
+            version: 1,
+          },
+          sender
+        )
+      ).resolves.toBe(true);
+    }
+
+    await expect(
+      api.handlerRequest(
+        {
+          uuid: "script-a",
+          api: "GM_log",
+          params: ["hello"],
+          runFlag: "forged",
+          executionHandle: "handle-a",
+          requestId: "request-4096",
+          version: 1,
+        },
+        sender
+      )
+    ).rejects.toThrow("page RPC requestId replay window is exhausted");
+    await expect(
+      api.handlerRequest(
+        {
+          uuid: "script-a",
+          api: "GM_log",
+          params: ["hello"],
+          runFlag: "forged",
+          executionHandle: "handle-a",
+          requestId: "request-0",
+          version: 1,
+        },
+        sender
+      )
+    ).rejects.toThrow("page RPC requestId was already used");
+  });
 });
 
 describe("window.focus", () => {
