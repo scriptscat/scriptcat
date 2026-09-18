@@ -21,7 +21,7 @@ import type { ScriptDAO } from "@App/app/repo/scripts";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
 import { obtainBlackList } from "@App/pkg/utils/utils";
-import type { CompiledResource } from "@App/app/repo/resource";
+import type { CompiledResource, Resource } from "@App/app/repo/resource";
 
 initTestEnv();
 
@@ -313,7 +313,9 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
 
   it.concurrent("match 覆盖清空的脚本不应被注册（空规则会被 UserScripts API 退回成全站匹配）", async () => {
     const { runtime } = createRuntimeTestContext();
-    (runtime as any).resource = { getScriptResourceValue: vi.fn().mockResolvedValue({}) };
+    (runtime as any).resource = {
+      getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
+    };
     const script = createMockScript({
       metadata: { match: ["https://www.example.com/*"] },
       selfMetadata: { match: [] },
@@ -532,6 +534,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
 
       const mockResourceService = {
         getScriptResourceValue: vi.fn().mockResolvedValue({}),
+        getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
       };
 
       const mockValueService = {
@@ -831,6 +834,48 @@ describe("getPageLoadScriptCacheKey 页面加载缓存键生成", () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+describe("page-load resource cache", () => {
+  it("保留分类资源并在重建页面 payload 时保持 legacy resource 视图", () => {
+    const { runtime } = _createRuntimeContext();
+    const sharedKey = "https://example.com/shared";
+    const makeResource = (type: Resource["type"], content: string): Resource => ({
+      url: sharedKey,
+      content,
+      base64: "",
+      hash: { md5: "", sha1: "", sha256: "", sha384: "", sha512: "" },
+      type,
+      link: {},
+      contentType: "text/plain",
+      createtime: Date.now(),
+    });
+    const scriptRes = _createScriptRunResource(_createMockScript());
+    const cache = {
+      scriptCacheKey: "cache-key",
+      code: "console.log(1)",
+      scriptUrlPatterns: [],
+      originalUrlPatterns: null,
+      metadataStr: "",
+      userConfigStr: "",
+      userConfig: undefined,
+      resourceByType: {
+        require: { [sharedKey]: makeResource("require", "require content") },
+        "require-css": { [sharedKey]: makeResource("require-css", "css content") },
+        resource: { [sharedKey]: makeResource("resource", "resource content") },
+      },
+      localResources: [],
+    };
+
+    const pageInfo = (runtime as any).createPageLoadScriptInfo(scriptRes, cache);
+
+    expect(pageInfo.resourceByType.require[sharedKey].content).toBe("require content");
+    expect(pageInfo.resourceByType["require-css"][sharedKey].content).toBe("css content");
+    expect(pageInfo.resourceByType.resource[sharedKey].content).toBe("resource content");
+    expect(pageInfo.resource[sharedKey].content).toBe("resource content");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 describe("getScriptsForTab 附加边界场景", () => {
   const pageUrl = "https://www.example.com/path";
 
@@ -870,7 +915,10 @@ describe("getScriptsForTab 附加边界场景", () => {
       save: vi.fn().mockResolvedValue(undefined),
     };
     const mockScriptCodeDAO = { get: vi.fn().mockResolvedValue({ code: "// test" }) };
-    const mockResourceService = { getScriptResourceValue: vi.fn().mockResolvedValue({}) };
+    const mockResourceService = {
+      getScriptResourceValue: vi.fn().mockResolvedValue({}),
+      getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
+    };
     const mockValueService = { getScriptValue: vi.fn().mockResolvedValue({}) };
 
     (mockScriptDAO as any).gets = vi.fn().mockResolvedValue([script]);

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
 let mobile = false;
@@ -45,5 +45,401 @@ describe("PermissionCard 权限卡", () => {
     expect(screen.getByText("*")).toBeInTheDocument();
     // normal(运行网站)默认折叠,其取值不在 DOM
     expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+  });
+});
+
+describe("PermissionCard 更新差异态", () => {
+  const changedConnect: PermissionRow = {
+    kind: "connect",
+    risk: "danger",
+    values: ["*", "api.a.com"],
+    sensitive: [],
+    diff: { added: ["*"], removed: ["old.a.com"] },
+  };
+  const sameMatch: PermissionRow = {
+    kind: "match",
+    risk: "normal",
+    values: ["https://a.com/*"],
+    sensitive: [],
+    diff: { added: [], removed: [] },
+  };
+
+  it("有变动时卡头显示变化标题、全卡增删计数与对比版本", () => {
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
+    expect(screen.getByText("权限变化")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-card-delta")).toHaveTextContent("+1");
+    expect(screen.getByTestId("permission-card-delta")).toHaveTextContent("−1");
+    expect(screen.getByText("对比已安装的 1.2.3")).toBeInTheDocument();
+  });
+
+  it("有变动的类别展开,无变动的类别塌成单行", () => {
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
+    expect(screen.getAllByTestId("permission-row")).toHaveLength(1);
+    const collapsed = screen.getByTestId("permission-row-collapsed");
+    expect(within(collapsed).getByText("运行网站")).toBeInTheDocument();
+    expect(within(collapsed).getByText("无变化")).toBeInTheDocument();
+    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+  });
+
+  it("点开塌行后该类别取值可见", () => {
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
+    fireEvent.click(screen.getByTestId("permission-row-collapsed"));
+    expect(screen.getByText("https://a.com/*")).toBeInTheDocument();
+    expect(screen.getAllByTestId("permission-row")).toHaveLength(2);
+  });
+
+  it("塌行把自己声明为收起的展开控件", () => {
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
+    expect(screen.getByTestId("permission-row-collapsed")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("没有任何权限的更新沿用空态卡头与文案,不进入差异呈现", () => {
+    render(<PermissionCard rows={[]} baselineVersion="1.2.3" />);
+    expect(screen.getByText("此脚本不请求任何特殊权限")).toBeInTheDocument();
+    expect(screen.getByText("安装前请确认")).toBeInTheDocument();
+    expect(screen.queryByText("无变化")).not.toBeInTheDocument();
+    expect(screen.queryByText("对比已安装的 1.2.3")).not.toBeInTheDocument();
+  });
+
+  it("更新但一项未变时不显示变化标题与增删计数", () => {
+    render(<PermissionCard rows={[sameMatch]} baselineVersion="1.2.3" />);
+    expect(screen.queryByText("权限变化")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-card-delta")).not.toBeInTheDocument();
+  });
+
+  it("移动端默认展开有变动的类别,未变动的收起", () => {
+    mobile = true;
+    render(<PermissionCard rows={[changedConnect, sameMatch]} baselineVersion="1.2.3" />);
+    expect(screen.getByText("*")).toBeInTheDocument();
+    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+  });
+
+  it("全新安装(无 diff)卡头维持原样", () => {
+    render(<PermissionCard rows={[match, connect]} />);
+    expect(screen.getByText("此脚本将获得以下权限")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-card-delta")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-row-collapsed")).not.toBeInTheDocument();
+  });
+});
+
+describe("PermissionCard 更新零变化态", () => {
+  const same = (kind: PermissionRow["kind"], values: string[]): PermissionRow => ({
+    kind,
+    risk: "normal",
+    values,
+    sensitive: [],
+    diff: { added: [], removed: [] },
+  });
+  const rows = [same("connect", ["api.a.com"]), same("match", ["https://a.com/*", "https://b.com/*"])];
+
+  it("零变化时整卡折叠为单行,四类取值都不在 DOM", () => {
+    render(<PermissionCard rows={rows} baselineVersion="1.2.3" />);
+    expect(screen.getByTestId("permission-card-collapsed")).toBeInTheDocument();
+    expect(screen.queryByText("api.a.com")).not.toBeInTheDocument();
+    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId("permission-row")).toHaveLength(0);
+  });
+
+  it("折叠单行给出基线版本与类别数、取值总数", () => {
+    render(<PermissionCard rows={rows} baselineVersion="1.2.3" />);
+    const line = screen.getByTestId("permission-card-collapsed");
+    expect(within(line).getByText("与 1.2.3 相同")).toBeInTheDocument();
+    expect(within(line).getByText("2 类 3 项")).toBeInTheDocument();
+    expect(within(line).getByText("无变化")).toBeInTheDocument();
+  });
+
+  it("点开后四类全量呈现,每类标无变化", () => {
+    render(<PermissionCard rows={rows} baselineVersion="1.2.3" />);
+    fireEvent.click(screen.getByTestId("permission-card-collapsed"));
+    expect(screen.getAllByTestId("permission-row")).toHaveLength(2);
+    expect(screen.getByText("api.a.com")).toBeInTheDocument();
+    expect(screen.getByText("https://a.com/*")).toBeInTheDocument();
+    expect(screen.getAllByText("无变化")).toHaveLength(3);
+  });
+
+  it("折叠单行对辅助技术同样报出无变化与摘要,并声明自己是收起的展开控件", () => {
+    render(<PermissionCard rows={rows} baselineVersion="1.2.3" />);
+    const line = screen.getByTestId("permission-card-collapsed");
+    expect(line).toHaveAccessibleName(expect.stringContaining("无变化"));
+    expect(line).toHaveAccessibleName(expect.stringContaining("2 类 3 项"));
+    expect(line).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("移动端点开零变化整卡后按高风险默认展开,与全新安装一致", () => {
+    mobile = true;
+    const sameDangerConnect: PermissionRow = { ...same("connect", ["*"]), risk: "danger" };
+    render(<PermissionCard rows={[sameDangerConnect, same("match", ["https://a.com/*"])]} baselineVersion="1.2.3" />);
+    fireEvent.click(screen.getByTestId("permission-card-collapsed"));
+    expect(screen.getByText("*")).toBeInTheDocument();
+    expect(screen.queryByText("https://a.com/*")).not.toBeInTheDocument();
+  });
+
+  it("有变动时不折叠整卡", () => {
+    const changedRow: PermissionRow = {
+      kind: "connect",
+      risk: "warn",
+      values: ["api.a.com"],
+      sensitive: [],
+      diff: { added: ["api.a.com"], removed: [] },
+    };
+    render(<PermissionCard rows={[changedRow]} baselineVersion="1.2.3" />);
+    expect(screen.queryByTestId("permission-card-collapsed")).not.toBeInTheDocument();
+  });
+
+  it("全新安装不折叠整卡", () => {
+    render(<PermissionCard rows={[match, connect]} />);
+    expect(screen.queryByTestId("permission-card-collapsed")).not.toBeInTheDocument();
+  });
+
+  it("移动端零变化同样折叠为单行", () => {
+    mobile = true;
+    render(<PermissionCard rows={rows} baselineVersion="1.2.3" />);
+    expect(screen.getByTestId("permission-card-collapsed")).toBeInTheDocument();
+    expect(screen.queryByText("api.a.com")).not.toBeInTheDocument();
+  });
+});
+
+describe("PermissionCard 上的不生效标记", () => {
+  const rows: PermissionRow[] = [
+    { kind: "match", risk: "normal", values: ["*://a.com/*"], sensitive: [] },
+    { kind: "grant", risk: "warn", values: ["GM_setValue", "GM_audio"], sensitive: [] },
+  ];
+
+  it("卡头给出不生效项总数,权限与 GM 能力合并计数", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{
+          marks: {
+            grants: new Map([["GM_audio", 9]]),
+            tags: [{ tag: "sandbox", line: 3 }],
+            matches: new Map(),
+            scriptcatOnlyTags: [],
+          },
+        }}
+      />
+    );
+    expect(screen.getByText("2 项不生效")).toBeInTheDocument();
+  });
+
+  it("归不到任何权限类别的指令单独成行,只在有内容时出现", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{
+          marks: {
+            grants: new Map(),
+            tags: [
+              { tag: "top-level-await", line: 3 },
+              { tag: "sandbox", line: 4 },
+            ],
+            matches: new Map(),
+            scriptcatOnlyTags: [],
+          },
+        }}
+      />
+    );
+    const row = screen.getByTestId("permission-row-other");
+    expect(row).toHaveTextContent("其他声明");
+    expect(
+      within(row)
+        .getAllByTestId("compat-chip")
+        .map((chip) => chip.textContent)
+    ).toEqual(["@top-level-await", "@sandbox"]);
+    expect(screen.getAllByTestId("compat-chip")).toHaveLength(2);
+  });
+
+  it("没有不生效项时既无徽章也无其他声明行——全兼容的安装页一字不改", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{ marks: { grants: new Map(), tags: [], matches: new Map(), scriptcatOnlyTags: [] } }}
+      />
+    );
+    expect(screen.queryByTestId("permission-row-other")).not.toBeInTheDocument();
+    expect(screen.queryByText(/项不生效/)).not.toBeInTheDocument();
+  });
+});
+
+describe("PermissionCard 其他声明行的取值与脚本猫独有指令", () => {
+  const rows: PermissionRow[] = [{ kind: "match", risk: "normal", values: ["*://a.com/*"], sensitive: [] }];
+
+  it("不认得的取值连同取值一起标为不生效", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{
+          marks: {
+            grants: new Map(),
+            tags: [{ tag: "run-at", value: "document-weird", line: 3 }],
+            matches: new Map(),
+            scriptcatOnlyTags: [],
+          },
+        }}
+      />
+    );
+    expect(within(screen.getByTestId("permission-row-other")).getByTestId("compat-chip")).toHaveTextContent(
+      "@run-at document-weird"
+    );
+  });
+
+  it("取值类标记的浮层链到文档里该指令的小节，不支持的指令本身不给链接", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{
+          marks: {
+            grants: new Map(),
+            matches: new Map(),
+            tags: [
+              { tag: "run-at", value: "document-weird", line: 3 },
+              { tag: "sandbox", line: 4 },
+            ],
+            scriptcatOnlyTags: [],
+          },
+        }}
+      />
+    );
+    const [value, unsupported] = within(screen.getByTestId("permission-row-other")).getAllByTestId("compat-chip");
+    fireEvent.mouseEnter(value);
+    expect(screen.getByTestId("compat-docs")).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/docs\/dev\/meta#run-at$/)
+    );
+    expect(screen.getByTestId("compat-docs")).toHaveTextContent("描述文档");
+    fireEvent.mouseEnter(unsupported);
+    expect(screen.queryByTestId("compat-docs")).not.toBeInTheDocument();
+  });
+
+  it("脚本猫独有的指令标签链到文档对应小节", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{
+          marks: {
+            grants: new Map(),
+            matches: new Map(),
+            tags: [],
+            scriptcatOnlyTags: [{ tag: "storageName", line: 4 }],
+          },
+        }}
+      />
+    );
+    expect(screen.getByText("@storageName")).toBeInTheDocument();
+    expect(screen.getByTestId("scriptcat-only")).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/docs\/dev\/meta#storagename-$/)
+    );
+  });
+
+  it("脚本猫独有的指令带仅限脚本猫标签，不算进不生效计数", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        compat={{
+          marks: {
+            grants: new Map(),
+            tags: [],
+            matches: new Map(),
+            scriptcatOnlyTags: [{ tag: "early-start", line: 4 }],
+          },
+        }}
+      />
+    );
+    const row = screen.getByTestId("permission-row-other");
+    const chip = within(row).getByText("@early-start").closest("[data-chip]")!;
+    expect(within(chip as HTMLElement).getByTestId("scriptcat-only")).toHaveTextContent("仅限脚本猫");
+    expect(within(row).queryByTestId("compat-chip")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-card-compat")).not.toBeInTheDocument();
+  });
+});
+
+describe("不生效标记与折叠形态的关系", () => {
+  const rows: PermissionRow[] = [
+    { kind: "grant", risk: "warn", values: ["GM_audio"], sensitive: [], diff: { added: [], removed: [] } },
+  ];
+
+  it("权限一项没变但有不生效项时整卡不塌——塌了这些标记就没人看得见", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        baselineVersion="1.0.0"
+        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [], matches: new Map(), scriptcatOnlyTags: [] } }}
+      />
+    );
+    expect(screen.queryByTestId("permission-card-collapsed")).not.toBeInTheDocument();
+    expect(screen.getByTestId("compat-chip")).toHaveTextContent("GM_audio");
+  });
+
+  it("没有不生效项时仍按原样塌成单行", () => {
+    render(
+      <PermissionCard
+        rows={rows}
+        baselineVersion="1.0.0"
+        compat={{ marks: { grants: new Map(), tags: [], matches: new Map(), scriptcatOnlyTags: [] } }}
+      />
+    );
+    expect(screen.getByTestId("permission-card-collapsed")).toBeInTheDocument();
+  });
+});
+
+describe("有变动时未变动类别的塌行与不生效标记", () => {
+  it("未变动但带不生效标记的类别不塌成单行", () => {
+    render(
+      <PermissionCard
+        rows={[
+          {
+            kind: "match",
+            risk: "normal",
+            values: ["*://a.com/*"],
+            sensitive: [],
+            diff: { added: ["*://a.com/*"], removed: [] },
+          },
+          { kind: "grant", risk: "warn", values: ["GM_audio"], sensitive: [], diff: { added: [], removed: [] } },
+        ]}
+        baselineVersion="1.0.0"
+        compat={{ marks: { grants: new Map([["GM_audio", 9]]), matches: new Map(), tags: [], scriptcatOnlyTags: [] } }}
+      />
+    );
+    expect(screen.queryByTestId("permission-row-collapsed")).not.toBeInTheDocument();
+    expect(screen.getByTestId("compat-chip")).toHaveTextContent("GM_audio");
+  });
+});
+
+describe("移动端的不生效标记", () => {
+  it("有不生效项的类别默认展开,否则标记藏在折叠面板里等于没做", () => {
+    mobile = true;
+    render(
+      <PermissionCard
+        rows={[
+          { kind: "match", risk: "normal", values: ["*://a.com/*"], sensitive: [] },
+          { kind: "grant", risk: "warn", values: ["GM_audio"], sensitive: [] },
+        ]}
+        compat={{ marks: { grants: new Map([["GM_audio", 9]]), tags: [], matches: new Map(), scriptcatOnlyTags: [] } }}
+      />
+    );
+    mobile = false;
+    expect(screen.getByTestId("compat-chip")).toBeVisible();
+  });
+});
+
+describe("移动端运行网站行的不生效标记", () => {
+  it("运行网站行挂了不生效标记时默认展开", () => {
+    mobile = true;
+    render(
+      <PermissionCard
+        rows={[{ kind: "match", risk: "normal", values: ["*://a.com/*"], sensitive: [] }]}
+        compat={{
+          marks: {
+            grants: new Map(),
+            matches: new Map([["*://a.com/*", 3]]),
+            tags: [],
+            scriptcatOnlyTags: [],
+          },
+        }}
+      />
+    );
+    mobile = false;
+    expect(screen.getByTestId("compat-chip")).toBeVisible();
   });
 });

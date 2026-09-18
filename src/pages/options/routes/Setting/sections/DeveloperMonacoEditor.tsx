@@ -5,7 +5,7 @@ import { resolveMonacoTheme } from "@App/pages/components/CodeEditor/theme";
 import { registerEditor } from "@App/pkg/utils/monaco-editor";
 import { cn } from "@App/pkg/utils/cn";
 
-type DeveloperMonacoLanguage = "json" | "typescript";
+type DeveloperMonacoLanguage = "json" | "typescript" | "javascript";
 
 type DeveloperMonacoEditorProps = {
   id: string;
