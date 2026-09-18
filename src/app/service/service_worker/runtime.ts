@@ -1533,7 +1533,7 @@ export class RuntimeService {
       // 异常加载
       return { ok: false };
     }
-    const tabId = chromeSender.tab?.id || -1;
+    const tabId = chromeSender.tab?.id ?? -1;
     const frameId = chromeSender.frameId;
     const incognito = chromeSender.tab?.incognito ?? false;
     const res = await this.getScriptsForTab({ url, tabId, frameId, incognito });
@@ -1602,7 +1602,7 @@ export class RuntimeService {
     const url = chromeSender?.url;
     if (!url) return;
     this.mq.emit<TPopupPageRestoreInfo>("popupPageRestored", {
-      tabId: chromeSender.tab?.id || -1,
+      tabId: chromeSender.tab?.id ?? -1,
       frameId: chromeSender.frameId,
       url,
     });

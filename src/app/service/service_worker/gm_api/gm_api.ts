@@ -641,7 +641,7 @@ export default class GMApi {
     const keyValuePairs = [[key, encodeRValue(value)]] as TKeyValuePair[];
     const valueSender = {
       runFlag: request.runFlag,
-      tabId: sender.getSender()?.tab?.id || -1,
+      tabId: sender.getSender()?.tab?.id ?? -1,
     };
     await this.value.setValues({ uuid: request.script.uuid, id, keyValuePairs, isReplace: false, valueSender });
   }
@@ -654,7 +654,7 @@ export default class GMApi {
     const [id, keyValuePairs] = request.params;
     const valueSender = {
       runFlag: request.runFlag,
-      tabId: sender.getSender()?.tab?.id || -1,
+      tabId: sender.getSender()?.tab?.id ?? -1,
     };
     await this.value.setValues({ uuid: request.script.uuid, id, keyValuePairs, isReplace: false, valueSender });
   }
@@ -1176,7 +1176,7 @@ export default class GMApi {
       key,
       name,
       options,
-      tabId: sender.getSender()?.tab?.id || -1,
+      tabId: sender.getSender()?.tab?.id ?? -1,
       frameId: sender.getSender()?.frameId,
       documentId: sender.getSender()?.documentId,
     });
@@ -1189,7 +1189,7 @@ export default class GMApi {
     this.mq.emit<TScriptMenuUnregister>("unregisterMenuCommand", {
       uuid: request.script.uuid,
       key,
-      tabId: sender.getSender()?.tab?.id || -1,
+      tabId: sender.getSender()?.tab?.id ?? -1,
       frameId: sender.getSender()?.frameId,
       documentId: sender.getSender()?.documentId,
     });

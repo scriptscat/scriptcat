@@ -1104,6 +1104,30 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
     });
   });
 
+  it("preserves tab ID zero for page matching and BFCache reporting", async () => {
+    const { runtime, mockGroup } = _createRuntimeContext();
+    const getScriptsForTab = vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue(null);
+    const sender = new SenderRuntime({
+      ...createSender(false),
+      tab: { ...(createSender(false).tab as chrome.tabs.Tab), id: 0 } as chrome.tabs.Tab,
+    });
+
+    await runtime.pageLoad(undefined, sender);
+    await runtime.pageShow(undefined, sender);
+
+    expect(getScriptsForTab).toHaveBeenCalledWith({
+      url: "https://www.example.com/page",
+      tabId: 0,
+      frameId: 0,
+      incognito: false,
+    });
+    expect(mockGroup.emit).toHaveBeenCalledWith("popupPageRestored", {
+      tabId: 0,
+      frameId: 0,
+      url: "https://www.example.com/page",
+    });
+  });
+
   // bfcache 还原不会重新注入 content script，页面里的脚本却还活着；
   // 这条上报只用来重新确认「本页扩展触及得到」，绝不能顺带重放脚本。
   it("bfcache 还原上报只广播 popupPageRestored，不重新下发脚本", async () => {

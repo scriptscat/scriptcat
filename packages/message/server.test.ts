@@ -532,6 +532,23 @@ describe("Server", () => {
       expect(extSender.documentId).toBe("doc-123");
     });
 
+    it("应该保留有效的零标签页和窗口编号", () => {
+      let capturedSender: IGetSender;
+
+      server.on("on-zero-ids", (_params, sender) => {
+        capturedSender = sender;
+      });
+
+      const mockSender: RuntimeMessageSender = {
+        tab: { id: 0, windowId: 0 },
+        frameId: 0,
+      } as RuntimeMessageSender;
+
+      (server as any).messageHandle("on-zero-ids", {}, vi.fn(), mockSender);
+
+      expect(capturedSender!.getExtMessageSender()).toMatchObject({ tabId: 0, windowId: 0, frameId: 0 });
+    });
+
     it("应该把扩展消息来源传给 SenderRuntime", () => {
       let capturedOrigin: string | undefined;
       server.on("on-origin", (_params, sender) => {
