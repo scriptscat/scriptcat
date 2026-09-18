@@ -194,6 +194,20 @@ describe("ScriptRuntime inject page bootstrap", () => {
     expect(envInfo).toEqual(pageLoad.envInfo);
   });
 
+  it("does not execute the same native bootstrap twice after a USER_SCRIPT reconnect", () => {
+    const { handlers, server } = makeServer();
+    const executor = makeExecutor();
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    runtime.init();
+
+    const first = makePageLoad();
+    const replay = makePageLoad();
+    handlers.get("pageLoad")?.(first);
+    handlers.get("pageLoad")?.(replay);
+
+    expect(executor.startScripts).toHaveBeenCalledOnce();
+  });
+
   it("keeps the content pageLoad path on the native payload", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();

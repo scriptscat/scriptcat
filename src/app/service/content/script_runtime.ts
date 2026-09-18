@@ -168,6 +168,9 @@ const cloneInjectPageLoad = (data: unknown): { scripts: TScriptInfo[]; envInfo: 
 };
 
 export class ScriptRuntime {
+  // USER_SCRIPT 重连会重放同一份 bootstrap；按服务端签发的句柄去重，导航换文档时句柄也会随之更换。
+  private readonly startedScriptKeys = new Native.Set<string>();
+
   constructor(
     private readonly scripEnvTag: ScriptEnvTag,
     private readonly server: Server,
@@ -287,7 +290,19 @@ export class ScriptRuntime {
   }
 
   startScripts(scripts: TScriptInfo[], envInfo: GMInfoEnv) {
-    this.scriptExecutor.startScripts(scripts, envInfo);
+    if (scripts.length === 0) {
+      this.scriptExecutor.startScripts(scripts, envInfo);
+      return;
+    }
+    const freshScripts: TScriptInfo[] = [];
+    for (let index = 0; index < scripts.length; index += 1) {
+      const script = scripts[index];
+      const key = script.executionHandle || `${this.scripEnvTag}:${script.uuid}`;
+      if (this.startedScriptKeys.has(key)) continue;
+      this.startedScriptKeys.add(key);
+      freshScripts.push(script);
+    }
+    if (freshScripts.length > 0) this.scriptExecutor.startScripts(freshScripts, envInfo);
   }
 
   externalMessage() {
