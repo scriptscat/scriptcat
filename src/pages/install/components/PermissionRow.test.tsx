@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach } from "vitest";
 import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
+import type { IneffectiveTag } from "../compat";
 import { PermissionRow } from "./PermissionRow";
 
 beforeAll(() => initTestLanguage("zh-CN"));
@@ -147,5 +148,188 @@ describe("PermissionRow 零变动行的取值折叠", () => {
     fireEvent.click(within(row).getByTestId("permission-more"));
     expect(within(row).getByText("https://d.com/*")).toBeInTheDocument();
     expect(within(row).queryByTestId("permission-more")).not.toBeInTheDocument();
+  });
+});
+
+describe("PermissionRow 上的不生效标记", () => {
+  const compat = (
+    over: Partial<{
+      grants: Map<string, number | undefined>;
+      matches: Map<string, number | undefined>;
+      tags: IneffectiveTag[];
+    }> = {}
+  ) => ({
+    marks: { grants: new Map(), tags: [], matches: new Map(), scriptcatOnlyTags: [], ...over },
+  });
+
+  it("不受支持的 GM 能力就地换成不生效标记，其余 chip 不变", () => {
+    render(
+      <PermissionRow
+        row={{ kind: "grant", risk: "warn", values: ["GM_setValue", "GM_audio"], sensitive: [] }}
+        compat={compat({ grants: new Map([["GM_audio", 9]]) })}
+      />
+    );
+    const marks = screen.getAllByTestId("compat-chip");
+    expect(marks).toHaveLength(1);
+    expect(marks[0]).toHaveTextContent("GM_audio");
+    expect(screen.getByText("GM_setValue")).toBeInTheDocument();
+    expect(screen.getByText("GM_setValue").closest('[data-testid="compat-chip"]')).toBeNull();
+  });
+
+  it("不生效的指令不在权限行上呈现——它们统一归「其他声明」行", () => {
+    render(
+      <PermissionRow
+        row={{ kind: "connect", risk: "warn", values: ["api.a.com"], sensitive: [] }}
+        compat={compat({ tags: [{ tag: "sandbox", line: 3 }] })}
+      />
+    );
+    expect(screen.queryByTestId("compat-chip")).not.toBeInTheDocument();
+  });
+
+  it("解析不出规则的 @match 取值就地换成不生效标记，并链到文档的 match 小节", () => {
+    render(
+      <PermissionRow
+        row={{ kind: "match", risk: "normal", values: ["*://a.com/*", "hello-world^^"], sensitive: [] }}
+        compat={compat({ matches: new Map([["hello-world^^", 4]]) })}
+      />
+    );
+    const marks = screen.getAllByTestId("compat-chip");
+    expect(marks).toHaveLength(1);
+    expect(marks[0]).toHaveTextContent("hello-world^^");
+    expect(screen.getAllByText("hello-world^^")).toHaveLength(1);
+    fireEvent.mouseEnter(marks[0]);
+    expect(screen.getByTestId("compat-docs")).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/docs\/dev\/meta#match$/)
+    );
+  });
+
+  it("更新态里被移除的能力不标记——它已经不在新版本里了", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: ["GM_setValue"],
+          sensitive: [],
+          diff: { added: [], removed: ["GM_audio"] },
+        }}
+        compat={compat({ grants: new Map([["GM_audio", 9]]) })}
+      />
+    );
+    expect(screen.queryByTestId("compat-chip")).not.toBeInTheDocument();
+  });
+});
+
+describe("PermissionRow 上的仅限脚本猫标记", () => {
+  it("CAT_ 与 CAT. 能力标出仅限脚本猫，通用 GM 能力不标", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: ["GM_setValue", "CAT_fileStorage", "CAT.agent.dom"],
+          sensitive: [],
+        }}
+      />
+    );
+    const row = screen.getByTestId("permission-row");
+    expect(within(row).getAllByTestId("scriptcat-only")).toHaveLength(2);
+    expect(
+      within(screen.getByText("CAT_fileStorage").closest("[data-chip]")!).getByText("仅限脚本猫")
+    ).toBeInTheDocument();
+    expect(within(screen.getByText("GM_setValue").closest("[data-chip]")!).queryByTestId("scriptcat-only")).toBeNull();
+  });
+
+  it("更新态里被移除的 CAT 能力不标——它已经不在新版本里了", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: ["GM_setValue"],
+          sensitive: [],
+          diff: { added: [], removed: ["CAT_fileStorage"] },
+        }}
+      />
+    );
+    expect(screen.queryByTestId("scriptcat-only")).not.toBeInTheDocument();
+  });
+});
+
+describe("仅限脚本猫标签的文档链接", () => {
+  it("文档里有对应小节的 CAT 能力，标签链到该小节", () => {
+    render(<PermissionRow row={{ kind: "grant", risk: "warn", values: ["CAT_fileStorage"], sensitive: [] }} />);
+    expect(screen.getByTestId("scriptcat-only")).toHaveAttribute(
+      "href",
+      expect.stringMatching(/\/docs\/dev\/cat-api#cat_filestorage$/)
+    );
+  });
+
+  it("文档里没有说明的 CAT 能力只标不链——点过去找不到比不给链接更糟", () => {
+    render(<PermissionRow row={{ kind: "grant", risk: "warn", values: ["CAT_createBlobUrl"], sensitive: [] }} />);
+    expect(screen.getByTestId("scriptcat-only")).not.toHaveAttribute("href");
+  });
+});
+
+describe("不生效标记不会被折叠藏起来", () => {
+  const marks = (grants: [string, number][]) => ({
+    marks: { grants: new Map(grants), matches: new Map(), tags: [], scriptcatOnlyTags: [] },
+  });
+
+  it("取值超过 maxVisible 时，排在后面的不生效能力仍然可见", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: ["GM_setValue", "GM_getValue", "GM_log", "GM_audio"],
+          sensitive: [],
+        }}
+        maxVisible={2}
+        compat={marks([["GM_audio", 9]])}
+      />
+    );
+    const row = screen.getByTestId("permission-row");
+    expect(within(row).getByTestId("compat-chip")).toHaveTextContent("GM_audio");
+    expect(within(row).queryByText("GM_log")).not.toBeInTheDocument();
+    expect(within(row).getByTestId("permission-more")).toHaveTextContent("+1");
+  });
+
+  it("更新态里属于未变动的不生效能力不收进折叠桶", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: ["GM_getValue", "GM_setValue", "GM_audio"],
+          sensitive: [],
+          diff: { added: ["GM_getValue"], removed: [] },
+        }}
+        compat={marks([["GM_audio", 9]])}
+      />
+    );
+    const row = screen.getByTestId("permission-row");
+    expect(within(row).getByTestId("compat-chip")).toHaveTextContent("GM_audio");
+    expect(within(row).queryByText("GM_setValue")).not.toBeInTheDocument();
+    expect(within(row).getByTestId("permission-more")).toHaveTextContent("未变动 1 项");
+  });
+
+  it("零变动行超过 maxVisible 时，不生效能力同样可见", () => {
+    render(
+      <PermissionRow
+        row={{
+          kind: "grant",
+          risk: "warn",
+          values: ["GM_setValue", "GM_getValue", "GM_audio"],
+          sensitive: [],
+          diff: { added: [], removed: [] },
+        }}
+        maxVisible={1}
+        compat={marks([["GM_audio", 9]])}
+      />
+    );
+    expect(screen.getByTestId("compat-chip")).toHaveTextContent("GM_audio");
+    expect(screen.getByTestId("permission-more")).toHaveTextContent("+1");
   });
 });

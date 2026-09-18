@@ -1,11 +1,12 @@
+import { createRef, type ComponentRef } from "react";
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act, within, waitFor } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 
 // Monaco 无法在 DOM 测试环境中渲染(需 worker),用轻量桩替换,仅暴露 props 供断言接线
 vi.mock("@App/pages/components/CodeEditor", () => import("@Tests/mocks/CodeEditor.tsx"));
 
-import { setEditorMounts } from "@Tests/mocks/CodeEditor";
+import { setEditorMounts, revealLine } from "@Tests/mocks/CodeEditor";
 import { CodePreview } from "./CodePreview";
 
 const code = "// line1\nconst a = 1;\nconsole.log(a);";
@@ -54,6 +55,76 @@ describe("CodePreview 代码卡", () => {
     expect(writeText).toHaveBeenCalledWith(code);
   });
 
+  it("点击全页面查看后在占满视口的对话框中查看代码,并可退出", () => {
+    render(<CodePreview code={code} />);
+
+    const fullscreenButton = screen.getByTestId("code-fullscreen");
+    expect(fullscreenButton).toHaveAttribute("aria-label", "全屏查看代码");
+    fireEvent.click(fullscreenButton);
+
+    const dialog = screen.getByTestId("code-fullscreen-dialog");
+    expect(dialog).toHaveClass("left-0", "top-0", "h-dvh", "w-dvw", "max-w-none");
+    expect(within(dialog).getByRole("button", { name: "关闭" })).toHaveClass(
+      "rounded-md",
+      "flex",
+      "items-center",
+      "justify-center",
+      "text-muted-foreground",
+      "opacity-100",
+      "hover:bg-muted",
+      "hover:text-foreground",
+      "focus:ring-0",
+      "focus:ring-offset-0",
+      "focus-visible:outline-none",
+      "focus-visible:ring-2",
+      "focus-visible:ring-ring/50"
+    );
+    expect(within(dialog).getByTestId("code-body")).toHaveAttribute("data-code", code);
+
+    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+    expect(screen.queryByTestId("code-fullscreen-dialog")).not.toBeInTheDocument();
+    expect(screen.getByTestId("code-body")).toHaveAttribute("data-id", "install-code-preview");
+  });
+
+  it("更新态可在全屏预览中查看代码并隐藏加载骨架", () => {
+    const oldCode = "// old\nconst a = 0;";
+    render(<CodePreview code={code} oldCode={oldCode} />);
+
+    fireEvent.click(screen.getByTestId("code-fullscreen"));
+
+    const dialog = screen.getByTestId("code-fullscreen-dialog");
+    expect(within(dialog).getByTestId("code-body")).toHaveAttribute("data-diff", oldCode);
+    expect(within(dialog).queryByTestId("code-skeleton")).not.toBeInTheDocument();
+  });
+
+  it("按 Escape 关闭全屏并将焦点还给触发按钮", async () => {
+    render(<CodePreview code={code} />);
+
+    const fullscreenButton = screen.getByTestId("code-fullscreen");
+    fullscreenButton.focus();
+    fireEvent.click(fullscreenButton);
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-labelledby");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("code-fullscreen-dialog")).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(fullscreenButton);
+    });
+  });
+
+  it("默认折叠时仍可从全屏按钮打开代码", () => {
+    render(<CodePreview code={code} defaultCollapsed />);
+
+    expect(screen.queryByTestId("code-body")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("code-fullscreen"));
+
+    expect(within(screen.getByTestId("code-fullscreen-dialog")).getByTestId("code-body")).toHaveAttribute(
+      "data-code",
+      code
+    );
+  });
+
   it("提供 diff 统计时渲染 +N 与 −N", () => {
     render(<CodePreview code={code} diffStat={{ added: 42, removed: 18 }} />);
     expect(screen.getByText("+42")).toBeInTheDocument();
@@ -77,5 +148,39 @@ describe("CodePreview 编辑器加载期的占位", () => {
     render(<CodePreview code={code} />);
 
     expect(screen.queryByTestId("code-skeleton")).not.toBeInTheDocument();
+  });
+});
+
+describe("CodePreview 跳到指定行", () => {
+  afterEach(() => {
+    revealLine.calls.length = 0;
+    setEditorMounts(true);
+  });
+
+  it("跳转把编辑器定位到该行", async () => {
+    const ref = createRef<ComponentRef<typeof CodePreview>>();
+    render(<CodePreview ref={ref} code={code} />);
+    await act(async () => ref.current!.jumpToLine(2));
+    expect(revealLine.calls).toEqual([2]);
+  });
+
+  it("代码卡折叠时先展开再定位——移动端默认折叠，点了却什么都没发生说不过去", async () => {
+    const ref = createRef<ComponentRef<typeof CodePreview>>();
+    render(<CodePreview ref={ref} code={code} defaultCollapsed />);
+    expect(screen.queryByTestId("code-body")).not.toBeInTheDocument();
+    await act(async () => ref.current!.jumpToLine(3));
+    expect(screen.getByTestId("code-body")).toBeInTheDocument();
+    expect(revealLine.calls).toEqual([3]);
+  });
+
+  it("编辑器还没就绪时把定位排队，就绪后补上", async () => {
+    setEditorMounts(false);
+    const ref = createRef<ComponentRef<typeof CodePreview>>();
+    const { rerender } = render(<CodePreview ref={ref} code={code} />);
+    await act(async () => ref.current!.jumpToLine(2));
+    expect(revealLine.calls).toEqual([]);
+    setEditorMounts(true);
+    await act(async () => rerender(<CodePreview ref={ref} code={`${code}\n`} />));
+    expect(revealLine.calls).toEqual([2]);
   });
 });

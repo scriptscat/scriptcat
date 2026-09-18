@@ -7,15 +7,25 @@ import { clearModelEslintFixes, getModelEslintFixKey } from "@App/pkg/utils/mona
 import { useTheme } from "@App/pages/components/theme-provider";
 import { resolveMonacoTheme } from "./theme";
 
+export interface CodeEditorHandle {
+  /** 普通编辑器实例；diff 预览没有可编辑实例，为 undefined */
+  editor: editor.IStandaloneCodeEditor | undefined;
+  /** 滚动到指定行并选中整行；diff 预览定位到修改侧 */
+  revealLine: (line: number) => void;
+}
+
 type Props = {
-  ref?: Ref<{ editor: editor.IStandaloneCodeEditor | undefined }>;
+  ref?: Ref<CodeEditorHandle>;
   className?: string;
   diffCode?: string; // 代码加载是异步的：undefined=不确定(不加载)，""=无 diff，有值=diff
   editable?: boolean;
   id: string;
   code?: string;
   onChange?: (code: string) => void;
+  /** 普通编辑器实例就绪；diff 预览没有可编辑实例，不会触发 */
   onEditorMount?: (editor: editor.IStandaloneCodeEditor) => void;
+  /** 编辑器已创建（含 diff 预览）；用于收起加载占位 */
+  onReady?: () => void;
 };
 
 type TMarker = {
@@ -44,7 +54,7 @@ function toMonacoEditorPreferenceOptions(
   } satisfies editor.IEditorOptions;
 }
 
-function CodeEditor({ id, className, code, diffCode, editable, onChange, onEditorMount, ref }: Props) {
+function CodeEditor({ id, className, code, diffCode, editable, onChange, onEditorMount, onReady, ref }: Props) {
   const [monacoEditor, setEditor] = useState<editor.IStandaloneCodeEditor>();
   const editorInstanceRef = useRef<editor.IStandaloneCodeEditor | editor.IStandaloneDiffEditor | undefined>(undefined);
   // 普通 editor 与 diff editor 都会置位，供主题切换 effect 判断实例是否就绪
@@ -58,14 +68,27 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
   // 用 ref 保存最新回调，避免 stale closure 同时不让创建 effect 重跑
   const onChangeRef = useRef(onChange);
   const onEditorMountRef = useRef(onEditorMount);
+  const onReadyRef = useRef(onReady);
   // ref 赋值须在创建 effect 之前，确保 mount 时创建 effect 同步读到最新 onEditorMount
   useEffect(() => {
     onChangeRef.current = onChange;
     onEditorMountRef.current = onEditorMount;
+    onReadyRef.current = onReady;
   });
 
   const divRef = useRef<HTMLDivElement>(null);
-  useImperativeHandle(ref, () => ({ editor: monacoEditor }));
+  useImperativeHandle(ref, () => ({
+    editor: monacoEditor,
+    revealLine: (line: number) => {
+      const instance = editorInstanceRef.current;
+      if (!instance) return;
+      // diff 预览的行号说的是新版本，定位到修改侧
+      const target = "getModifiedEditor" in instance ? instance.getModifiedEditor() : instance;
+      target.revealLineInCenter(line);
+      const maxColumn = target.getModel()?.getLineMaxColumn(line) ?? 1;
+      target.setSelection(new Range(line, 1, line, maxColumn));
+    },
+  }));
 
   // 注册 monaco 全局环境（只需执行一次）
   useEffect(() => {
@@ -180,6 +203,7 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
         });
         editorInstanceRef.current = edit;
         editorReadyRef.current = true;
+        onReadyRef.current?.();
       } else {
         const standaloneEdit = editor.create(container, {
           language: "javascript",
@@ -199,6 +223,7 @@ function CodeEditor({ id, className, code, diffCode, editable, onChange, onEdito
         editorInstanceRef.current = standaloneEdit;
         editorReadyRef.current = true;
         onEditorMountRef.current?.(standaloneEdit);
+        onReadyRef.current?.();
       }
     });
 

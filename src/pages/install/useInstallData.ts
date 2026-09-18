@@ -29,6 +29,7 @@ import {
   type ScheduleInfo,
   type DiffStat,
 } from "./model";
+import { deriveCompatMarks, type CompatMarks } from "./compat";
 
 export interface InstallView {
   isUpdate: boolean;
@@ -54,6 +55,8 @@ export interface InstallView {
   subscribeScripts: string[];
   /** 由 MCP 客户端请求安装时附加;非 MCP 来源为 undefined */
   externalAccess?: ScriptInfo["externalAccess"];
+  /** 写了但脚本猫不会执行的指令与 GM 能力,就近标在权限行上 */
+  compat: CompatMarks;
 }
 
 /**
@@ -93,6 +96,7 @@ export function assembleInstallView(args: {
     diffStat: oldCode !== undefined && oldCode !== code ? deriveDiffStat(oldCode, code) : undefined,
     subscribeScripts: scriptInfo.userSubscribe ? metadata.scripturl || [] : [],
     externalAccess: scriptInfo.externalAccess,
+    compat: deriveCompatMarks(metadata, code),
   };
 }
 
