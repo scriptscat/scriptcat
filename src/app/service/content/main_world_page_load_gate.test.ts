@@ -29,7 +29,8 @@ describe("createMainWorldPageLoadGate", () => {
 
   it("releases one queued payload only when native transport is unavailable", async () => {
     const receivePageLoad = vi.fn();
-    const gate = createMainWorldPageLoadGate(async () => false, receivePageLoad);
+    const requestFallbackPageLoad = vi.fn();
+    const gate = createMainWorldPageLoadGate(async () => false, receivePageLoad, requestFallbackPageLoad);
     const first = { source: "page" };
     const second = { source: "page-after-fallback" };
 
@@ -38,10 +39,21 @@ describe("createMainWorldPageLoadGate", () => {
     await Promise.resolve();
 
     expect(receivePageLoad).toHaveBeenCalledWith(first);
+    expect(requestFallbackPageLoad).toHaveBeenCalledOnce();
 
     gate.onPageLoad(second);
     expect(receivePageLoad).toHaveBeenLastCalledWith(second);
     expect(receivePageLoad).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not request a page-visible fallback after native transport succeeds", async () => {
+    const requestFallbackPageLoad = vi.fn();
+    const gate = createMainWorldPageLoadGate(async () => true, vi.fn(), requestFallbackPageLoad);
+
+    gate.onBootstrap("bootstrap-token");
+    await Promise.resolve();
+
+    expect(requestFallbackPageLoad).not.toHaveBeenCalled();
   });
 
   it("does not reopen or fall back after the native channel has been selected", async () => {

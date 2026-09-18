@@ -2,12 +2,13 @@ import { Client, sendMessage } from "@Packages/message/client";
 import { type CustomEventMessage } from "@Packages/message/custom_event_message";
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
+import type { TScriptInfo } from "@App/app/repo/scripts";
 import type { SerializedDocumentResponse } from "./gm_api/gm_xhr";
 import { RuntimeClient } from "../service_worker/client";
 import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
-import type { ValueUpdateDataEncoded } from "./types";
+import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
 import { getExtensionOrigin, getPageRpcAllowedAPIs, PageRpcRegistry, validatePageGMRequest } from "./page_rpc";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
@@ -40,6 +41,8 @@ const deliveryStorage = chrome.storage.local; // 日后再处理
 export default class ScriptingRuntime {
   // 只记录当前页面仍有脚本使用的 storageName，storage 广播不应唤醒无关脚本。
   private activeStorageNames = new Map<string, PageOrContent>();
+  // MAIN world 的完整脚本资料只在原生通道失败时才走页面桥；原生成功时由 service worker 直接投递。
+  private fallbackInjectPageLoad?: { scripts: TScriptInfo[]; envInfo: GMInfoEnv };
   // 页面请求必须先在此注册句柄，再由 transform 解析为隔离 broker 可接受的身份。
   private readonly pageRpc = new PageRpcRegistry();
   constructor(
@@ -75,6 +78,12 @@ export default class ScriptingRuntime {
     this.extServer.on("runtime/valueUpdate", (data) => {
       // USER_SCRIPT 的私有值更新通过原生扩展端口投递。
       return this.broadcastToPage("runtime/valueUpdate", data, PageOrContent.PAGE);
+    });
+    this.server.on("pageLoadFallback", () => {
+      const pageLoad = this.fallbackInjectPageLoad;
+      if (!pageLoad) return undefined;
+      this.fallbackInjectPageLoad = undefined;
+      return new Client(this.senderToInject, "inject").do("pageLoad", pageLoad);
     });
     this.server.on("logger", (data: Logger) => {
       LoggerCore.logger().log(data.level, data.message, data.label);
@@ -223,15 +232,9 @@ export default class ScriptingRuntime {
       }
 
       if (typeof userScriptInjectBootstrapToken === "string" && userScriptInjectBootstrapToken.length > 0) {
+        this.fallbackInjectPageLoad = { scripts: preparedInjectScriptList, envInfo };
         const injectClient = new Client(this.senderToInject, "inject");
         injectClient.do("bootstrap", { bootstrapToken: userScriptInjectBootstrapToken });
-      }
-
-      // 向页面 发送脚本列表及环境信息
-      if (preparedInjectScriptList.length) {
-        const injectClient = new Client(this.senderToInject, "inject");
-        // 根据@inject-into content过滤脚本
-        injectClient.do("pageLoad", { scripts: preparedInjectScriptList, envInfo });
       }
     });
   }

@@ -37,39 +37,60 @@ describe("ScriptingRuntime page bootstrap", () => {
     const senderToExt = makeSender();
     const senderToContent = makeSender();
     const senderToInject = makeSender();
+    const handlers = new Map<string, (data: unknown) => unknown>();
+    const server = {
+      on: vi.fn((action: string, handler: (data: unknown) => unknown) => handlers.set(action, handler)),
+    };
+    const extServer = { on: vi.fn() };
+    const storageLocal = chrome.storage.local as unknown as {
+      onChanged?: { addListener: (listener: (changes: unknown) => void) => void };
+    };
+    const originalOnChanged = storageLocal.onChanged;
+    storageLocal.onChanged = { addListener: vi.fn() };
     const runtime = new ScriptingRuntime(
-      {} as Server,
-      {} as Server,
+      extServer as unknown as Server,
+      server as unknown as Server,
       senderToExt as unknown as MessageSend,
       senderToContent as any,
       senderToInject as any
     );
 
-    runtime.pageLoad();
-    await Promise.resolve();
-    await Promise.resolve();
+    try {
+      runtime.init();
+      runtime.pageLoad();
+      await Promise.resolve();
+      await Promise.resolve();
 
-    expect(pageLoad).toHaveBeenCalledWith("it");
-    expect(senderToContent.sendMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: "content/pageLoad",
-        data: expect.objectContaining({
-          bootstrapToken: "bootstrap-token",
-          extensionOrigin: {
-            protocol: "chrome-extension:",
-            hostname: chrome.runtime.id,
-            port: "",
-          },
-        }),
-      })
-    );
-    expect(senderToInject.sendMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: "inject/bootstrap",
-        data: { bootstrapToken: "inject-bootstrap-token" },
-      })
-    );
-    expect(senderToInject.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ action: "inject/pageLoad" }));
+      expect(pageLoad).toHaveBeenCalledWith("it");
+      expect(senderToContent.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "content/pageLoad",
+          data: expect.objectContaining({
+            bootstrapToken: "bootstrap-token",
+            extensionOrigin: {
+              protocol: "chrome-extension:",
+              hostname: chrome.runtime.id,
+              port: "",
+            },
+          }),
+        })
+      );
+      expect(senderToInject.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "inject/bootstrap",
+          data: { bootstrapToken: "inject-bootstrap-token" },
+        })
+      );
+      expect(senderToInject.sendMessage).not.toHaveBeenCalledWith(
+        expect.objectContaining({ action: "inject/pageLoad" })
+      );
+
+      handlers.get("pageLoadFallback")?.({});
+      await Promise.resolve();
+      expect(senderToInject.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ action: "inject/pageLoad" }));
+    } finally {
+      storageLocal.onChanged = originalOnChanged;
+    }
   });
 
   it("serializes CAT_fetchDocument responses instead of returning a live document reference", () => {

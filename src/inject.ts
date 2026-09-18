@@ -4,6 +4,7 @@ import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { PageMessage } from "@Packages/message/page_message";
 import { ExtensionMessage, hasNativeRuntimeChannel } from "@Packages/message/extension_message";
 import { Server } from "@Packages/message/server";
+import { Client } from "@Packages/message/client";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
 import { getEventFlag } from "@Packages/message/common";
@@ -91,13 +92,24 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   };
 
   if (pageServer) {
-    const pageLoadGate = createMainWorldPageLoadGate(openNativeChannel, (data) => runtime.receivePageLoad(data));
+    const pageLoadGate = createMainWorldPageLoadGate(
+      openNativeChannel,
+      (data) => runtime.receivePageLoad(data),
+      () => {
+        void new Client(pageMsg, "scripting").do("pageLoadFallback");
+      }
+    );
     pageServer.on("bootstrap", (data: { bootstrapToken?: unknown }) => {
       if (typeof data?.bootstrapToken !== "string" || data.bootstrapToken.length === 0) return;
       reconnectToken = data.bootstrapToken;
       pageLoadGate.onBootstrap(data.bootstrapToken);
     });
     pageServer.on("pageLoad", pageLoadGate.onPageLoad);
+  } else {
+    // 没有原生 runtime 通道时，bootstrap 只作为页面桥上的兼容握手，随后请求完整 pageLoad。
+    server.on("bootstrap", () => {
+      void new Client(pageMsg, "scripting").do("pageLoadFallback");
+    });
   }
   runtime.init();
 

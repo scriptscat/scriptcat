@@ -7,7 +7,8 @@ export type MainWorldPageLoadGate = {
 
 export const createMainWorldPageLoadGate = (
   openNativeChannel: (bootstrapToken: string) => Promise<boolean>,
-  receivePageLoad: (data: unknown) => void
+  receivePageLoad: (data: unknown) => void,
+  requestFallbackPageLoad: () => void = () => undefined
 ): MainWorldPageLoadGate => {
   let state: MainWorldPageLoadGateState = "waiting";
   let pendingPageLoad: unknown;
@@ -16,6 +17,7 @@ export const createMainWorldPageLoadGate = (
   const finishOpening = (connected: boolean): void => {
     if (state !== "opening") return;
     state = connected ? "native" : "fallback";
+    if (state === "fallback") requestFallbackPageLoad();
     if (state === "fallback" && hasPendingPageLoad) {
       receivePageLoad(pendingPageLoad);
     }
