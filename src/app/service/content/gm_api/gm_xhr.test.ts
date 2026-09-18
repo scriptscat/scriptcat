@@ -16,6 +16,7 @@ describe("GM_xmlhttpRequest callback cleanup", () => {
       onDisconnect: vi.fn(),
     };
     const onloadend = vi.fn();
+    const onload = vi.fn();
     const api = {
       isInvalidContext: () => false,
       connect: vi.fn().mockResolvedValue(connection),
@@ -28,6 +29,7 @@ describe("GM_xmlhttpRequest callback cleanup", () => {
         onerror: () => {
           throw new Error("user callback failed");
         },
+        onload,
         onloadend,
       },
       true
@@ -52,6 +54,21 @@ describe("GM_xmlhttpRequest callback cleanup", () => {
     });
     onMessage({
       code: 0,
+      action: "onload",
+      data: {
+        finalUrl: "https://example.com/data",
+        readyState: 4,
+        status: 500,
+        statusText: "",
+        responseHeaders: "",
+        useFetch: false,
+        eventType: "onload",
+        ok: false,
+        contentType: "text/plain",
+      },
+    });
+    onMessage({
+      code: 0,
       action: "onloadend",
       data: {
         finalUrl: "https://example.com/data",
@@ -63,6 +80,56 @@ describe("GM_xmlhttpRequest callback cleanup", () => {
         eventType: "onloadend",
         ok: false,
         contentType: "text/plain",
+      },
+    });
+
+    await expect(request.retPromise).rejects.toBe("network");
+    expect(connection.disconnect).toHaveBeenCalledWith(true);
+    expect(onload).not.toHaveBeenCalled();
+    expect(onloadend).toHaveBeenCalledTimes(1);
+  });
+
+  it("synthesizes loadend when an error has no terminal broker event", async () => {
+    let onMessage!: (message: any) => void;
+    const connection = {
+      onMessage: vi.fn((callback: (message: any) => void) => {
+        onMessage = callback;
+      }),
+      disconnect: vi.fn(),
+      sendMessage: vi.fn(),
+      onDisconnect: vi.fn(),
+    };
+    const onloadend = vi.fn();
+    const api = {
+      isInvalidContext: () => false,
+      connect: vi.fn().mockResolvedValue(connection),
+      sendMessage: vi.fn(),
+    };
+    const request = GM_xmlhttpRequest(
+      api as any,
+      {
+        url: "https://example.com/data",
+        onerror: vi.fn(),
+        onloadend,
+      },
+      true
+    );
+
+    await vi.waitFor(() => expect(onMessage).toBeTypeOf("function"));
+    onMessage({
+      code: 0,
+      action: "onerror",
+      data: {
+        finalUrl: "https://example.com/data",
+        readyState: 4,
+        status: 500,
+        statusText: "",
+        responseHeaders: "",
+        useFetch: false,
+        eventType: "onerror",
+        ok: false,
+        contentType: "text/plain",
+        error: "network",
       },
     });
 

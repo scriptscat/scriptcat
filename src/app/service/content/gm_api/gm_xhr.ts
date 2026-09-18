@@ -539,6 +539,7 @@ export function GM_xmlhttpRequest(
     };
     let makeXHRCallbackParam: typeof makeXHRCallbackParam_ | null = makeXHRCallbackParam_;
     let loadendCalled = false;
+    let loadCalled = false;
     const doLoadEnd = (data: TXhrCallBackArg) => {
       if (!loadendCalled) {
         loadendCalled = true;
@@ -689,6 +690,8 @@ export function GM_xmlhttpRequest(
             break;
           }
           case "onload":
+            if (loadCalled || reqDone) break;
+            loadCalled = true;
             invokeXHRCallback("onload", details.onload, makeXHRCallbackParam?.(data) ?? {});
             break;
           case "onloadend": {
@@ -744,8 +747,8 @@ export function GM_xmlhttpRequest(
                 details.onerror,
                 (makeXHRCallbackParam?.(data) ?? {}) as GMXHRResponseTypeWithError
               );
-              // 不要进行 refCleanup ！要等待最后的 onloadend
-              // refCleanup?.();
+              // 错误消息可能没有对应的 onloadend，补发一次以收尾并释放连接。
+              scheduleSyntheticLoadEnd();
             }
             break;
           case "onabort":
