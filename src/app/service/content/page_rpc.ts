@@ -6,6 +6,7 @@ export const PAGE_RPC_VERSION = 1 as const;
 const MAX_REQUEST_ID_LENGTH = 256;
 const MAX_REQUEST_IDS_PER_BINDING = 4096;
 const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
+const nativeObjectToString = Object.prototype.toString;
 const EXTENSION_PROTOCOLS = new Set(["chrome-extension:", "moz-extension:"]);
 
 export type ExtensionOrigin = Pick<URL, "protocol" | "hostname" | "port">;
@@ -182,6 +183,9 @@ const ownData = (value: object, key: PropertyKey): unknown => {
 const assertDataOnly = (value: unknown, seen: Set<object>): void => {
   // 先检查自有数据描述符，再做 structuredClone；这样页面 getter/Proxy 不会在 broker 中执行。
   if (value === null || typeof value !== "object") return;
+  // Blob 的内部槽由浏览器管理，不能把其 symbol/accessor 细节当作 DTO 字段遍历。
+  if (typeof Blob === "function" && (value instanceof Blob || nativeObjectToString.call(value) === "[object Blob]"))
+    return;
   if (seen.has(value)) return;
   seen.add(value);
 
@@ -218,7 +222,11 @@ const validateOperationParams = (api: string, params: readonly unknown[]): void 
       }
       return;
     case "CAT_createBlobUrl":
-      if (params.length !== 1 || params[0] === null || typeof params[0] !== "object") {
+      if (
+        params.length !== 1 ||
+        typeof Blob !== "function" ||
+        (!(params[0] instanceof Blob) && nativeObjectToString.call(params[0]) !== "[object Blob]")
+      ) {
         throw new PageRpcError("CAT_createBlobUrl expects one Blob value");
       }
       return;

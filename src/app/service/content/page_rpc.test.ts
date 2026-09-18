@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Blob as NodeBlob } from "node:buffer";
 import {
   getPageRpcAllowedAPIs,
   setPageRpcExtensionOrigin,
@@ -209,6 +210,28 @@ describe("page GM RPC", () => {
     ).toEqual([extensionBlobUrl]);
     expect(isExtensionBlobUrl("blob:https://example.com/internal")).toBe(false);
     expect(isExtensionBlobUrl("blob:chrome-extension://other/internal")).toBe(false);
+  });
+
+  it("requires a Blob for CAT_createBlobUrl after parameter cloning", () => {
+    const registry = new PageRpcRegistry();
+    const handle = registry.register("script-a", "it", ["CAT_createBlobUrl"]);
+
+    expect(() =>
+      validatePageGMRequest(
+        { version: 1, requestId: "object", handle, api: "CAT_createBlobUrl", params: [{}] },
+        registry
+      )
+    ).toThrow("CAT_createBlobUrl expects one Blob value");
+
+    const blob = new NodeBlob(["payload"], { type: "text/plain" });
+    expect(Object.prototype.toString.call(blob)).toBe("[object Blob]");
+    expect(Object.prototype.toString.call(structuredClone(blob))).toBe("[object Blob]");
+    const request = validatePageGMRequest(
+      { version: 1, requestId: "blob", handle, api: "CAT_createBlobUrl", params: [blob] },
+      registry
+    );
+    expect(Object.prototype.toString.call(request.params[0])).toBe("[object Blob]");
+    expect(request.params[0]).not.toBe(blob);
   });
 
   it("validates extension blobs in USER_SCRIPT when runtime.getURL is unavailable", () => {
