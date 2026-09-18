@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { act, render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { ModelFormDialog } from "./ModelFormDialog";
 import { getDefaultBaseUrl } from "./provider_api";
 
 beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
+
+async function settle() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
 
 function setup(props: Record<string, unknown> = {}) {
   const onSubmit = vi.fn();
@@ -33,11 +39,12 @@ describe("ModelFormDialog 模型表单弹窗", () => {
     // 拉取可用模型列表 -> 填充下拉选项（异步，需等待 state 更新后再展开下拉）
     fireEvent.click(screen.getByTestId("model-fetch"));
     expect(onFetchModels).toHaveBeenCalled();
+    await settle();
     // 用键盘展开 Radix Select(测试环境下 pointerDown 不触发其打开)，再选择拉取到的模型
     const trigger = screen.getByTestId("model-id");
     trigger.focus();
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
-    fireEvent.click(await screen.findByTestId("model-option-gpt-4o"));
+    fireEvent.click(screen.getByTestId("model-option-gpt-4o"));
     fireEvent.click(screen.getByTestId("model-submit"));
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: "My GPT", model: "gpt-4o" }));
   });
