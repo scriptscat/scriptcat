@@ -160,6 +160,8 @@ export class RuntimeService {
       documentId?: string;
     }
   >();
+  // Only the newest load for a tab/frame/environment may issue bindings; navigation can resolve old requests late.
+  private readonly pageLoadSequences = new Map<string, number>();
 
   getGMApi(): GMApi | undefined {
     return this.gmApi;
@@ -213,6 +215,19 @@ export class RuntimeService {
     for (const [token, bootstrap] of this.userScriptBootstraps) {
       if (bootstrap.tabId === tabId) this.userScriptBootstraps.delete(token);
     }
+    const prefix = `${tabId}:`;
+    for (const key of this.pageLoadSequences.keys()) {
+      if (key.startsWith(prefix)) this.pageLoadSequences.delete(key);
+    }
+  }
+
+  private beginPageLoadSequence(sender: IGetSender, envTag: "it" | "ct" | undefined): [string, number] | undefined {
+    const tabId = sender.getSender()?.tab?.id;
+    if (typeof tabId !== "number") return undefined;
+    const key = `${tabId}:${sender.getSender()?.frameId ?? -1}:${envTag ?? "it"}`;
+    const sequence = (this.pageLoadSequences.get(key) ?? 0) + 1;
+    this.pageLoadSequences.set(key, sequence);
+    return [key, sequence];
   }
 
   private userScriptConnectionKey(tabId: number, frameId?: number, documentId?: string): string {
@@ -1536,7 +1551,11 @@ export class RuntimeService {
     const tabId = chromeSender.tab?.id ?? -1;
     const frameId = chromeSender.frameId;
     const incognito = chromeSender.tab?.incognito ?? false;
+    const pageLoadSequence = this.beginPageLoadSequence(sender, data?.envTag);
     const res = await this.getScriptsForTab({ url, tabId, frameId, incognito });
+    if (pageLoadSequence && this.pageLoadSequences.get(pageLoadSequence[0]) !== pageLoadSequence[1]) {
+      return { ok: false };
+    }
 
     // 即使新 URL 没有匹配脚本也要退休旧绑定，关闭不提供 documentId 的浏览器复用窗口。
     this.revokePageBindings(sender, data?.envTag);

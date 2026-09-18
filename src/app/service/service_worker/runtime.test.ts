@@ -1128,6 +1128,40 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
     });
   });
 
+  it("discards an older same-frame pageLoad response that resolves after a newer one", async () => {
+    const { runtime } = _createRuntimeContext();
+    const firstScript = _createScriptRunResource(_createMockScript({ uuid: "first-page-load" }));
+    const secondScript = _createScriptRunResource(_createMockScript({ uuid: "second-page-load" }));
+    const loadResult = (script: ScriptRunResource) =>
+      ({
+        injectScriptList: [script],
+        contentScriptList: [],
+        envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+        scriptmenus: [],
+      }) as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>;
+    let resolveFirst!: (result: Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>) => void;
+    let resolveSecond!: (result: Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>) => void;
+    vi.spyOn(runtime, "getScriptsForTab")
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveSecond = resolve)));
+    const sender = new SenderRuntime({
+      url: "https://www.example.com/page",
+      frameId: 0,
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+
+    const firstLoad = runtime.pageLoad(undefined, sender);
+    const secondLoad = runtime.pageLoad(undefined, sender);
+    resolveSecond(loadResult(secondScript));
+    const second = await secondLoad;
+    expect(second.ok).toBe(true);
+    const secondHandle = second.ok ? second.injectScriptList[0].executionHandle : undefined;
+
+    resolveFirst(loadResult(firstScript));
+    await expect(firstLoad).resolves.toEqual({ ok: false });
+    expect(runtime.resolvePageExecutionBinding(secondHandle!, sender)).toBeDefined();
+  });
+
   // bfcache 还原不会重新注入 content script，页面里的脚本却还活着；
   // 这条上报只用来重新确认「本页扩展触及得到」，绝不能顺带重放脚本。
   it("bfcache 还原上报只广播 popupPageRestored，不重新下发脚本", async () => {
