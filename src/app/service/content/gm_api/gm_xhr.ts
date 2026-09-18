@@ -207,11 +207,20 @@ export function GM_xmlhttpRequest(
   const urlPromiseLike = typeof details.url === "object" ? convObjectToURL(details.url) : details.url;
   const dataPromise = dataEncode(details.data);
   const headers = details.headers;
+  let requestHeaders: Record<string, string> | undefined;
+  let requestCookie = details.cookie;
   if (headers) {
-    for (const key of Object.keys(headers)) {
+    requestHeaders = Native.objectCreate(null) as Record<string, string>;
+    const keys = Native.reflectOwnKeys(headers);
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      if (typeof key !== "string") continue;
+      const descriptor = Native.objectGetOwnPropertyDescriptor(headers, key);
+      if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) continue;
       if (key.toLowerCase() === "cookie") {
-        details.cookie = headers[key];
-        delete headers[key];
+        requestCookie = descriptor.value as string;
+      } else {
+        requestHeaders[key] = descriptor.value as string;
       }
     }
   }
@@ -224,8 +233,8 @@ export function GM_xmlhttpRequest(
     method: details.method,
     timeout: details.timeout,
     url: "",
-    headers: details.headers,
-    cookie: details.cookie,
+    headers: requestHeaders,
+    cookie: requestCookie,
     responseType: details.responseType,
     overrideMimeType: details.overrideMimeType,
     anonymous: details.anonymous,

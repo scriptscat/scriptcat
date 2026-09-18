@@ -209,4 +209,27 @@ describe("GM_xmlhttpRequest callback cleanup", () => {
     expect(onerror).toHaveBeenCalledTimes(1);
     expect(onloadend).toHaveBeenCalledTimes(1);
   });
+
+  it("does not execute accessor headers while preparing the request", async () => {
+    const getter = vi.fn(() => "forged");
+    const headers = {} as Record<string, string>;
+    Object.defineProperty(headers, "X-Hostile", { enumerable: true, configurable: true, get: getter });
+    const connection = {
+      onMessage: vi.fn(),
+      disconnect: vi.fn(),
+      sendMessage: vi.fn(),
+      onDisconnect: vi.fn(),
+    };
+    const api = {
+      isInvalidContext: () => false,
+      connect: vi.fn().mockResolvedValue(connection),
+      sendMessage: vi.fn(),
+    };
+    const request = GM_xmlhttpRequest(api as any, { url: "https://example.com/data", headers }, false);
+
+    await vi.waitFor(() => expect(api.connect).toHaveBeenCalled());
+    expect(getter).not.toHaveBeenCalled();
+    expect(Object.getOwnPropertyDescriptor(api.connect.mock.calls[0][1][0].headers, "X-Hostile")).toBeUndefined();
+    request.abort();
+  });
 });
