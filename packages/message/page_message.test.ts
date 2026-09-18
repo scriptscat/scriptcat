@@ -67,4 +67,61 @@ describe("PageMessage", () => {
     expect(target.handlers.size).toBe(handlerCount - 1);
     inject.dispose();
   });
+
+  it("ignores envelopes with accessor fields without executing the accessor", () => {
+    const target = createWindow();
+    const inject = new PageMessage("page-message-test", "inject", target);
+    const received = vi.fn();
+    inject.onMessage(received);
+    const envelope: Record<string, unknown> = {
+      channel: "page-message-test",
+      source: "scripting",
+      target: "inject",
+      messageId: "hostile",
+      type: "sendMessage",
+      data: { action: "inject/ping" },
+    };
+    let accessed = false;
+    Object.defineProperty(envelope, "data", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        accessed = true;
+        throw new Error("page getter executed");
+      },
+    });
+
+    const handler = [...target.handlers][0];
+    expect(() => handler({ source: target, data: envelope } as unknown as MessageEvent)).not.toThrow();
+    expect(accessed).toBe(false);
+    expect(received).not.toHaveBeenCalled();
+    inject.dispose();
+  });
+
+  it("ignores proxy envelopes whose own-key inspection is hostile", () => {
+    const target = createWindow();
+    const inject = new PageMessage("page-message-test", "inject", target);
+    const received = vi.fn();
+    inject.onMessage(received);
+    const envelope = new Proxy(
+      {
+        channel: "page-message-test",
+        source: "scripting",
+        target: "inject",
+        messageId: "hostile",
+        type: "sendMessage",
+        data: { action: "inject/ping" },
+      },
+      {
+        ownKeys() {
+          throw new Error("page proxy executed");
+        },
+      }
+    );
+
+    const handler = [...target.handlers][0];
+    expect(() => handler({ source: target, data: envelope } as unknown as MessageEvent)).not.toThrow();
+    expect(received).not.toHaveBeenCalled();
+    inject.dispose();
+  });
 });

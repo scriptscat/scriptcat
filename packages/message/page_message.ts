@@ -30,6 +30,69 @@ const bindNative = <T extends (...args: any[]) => any>(fn: T, receiver: any): T 
 
 const listenerMgr = new EventEmitter<string, any>();
 
+const nativeReflectOwnKeys = Reflect.ownKeys;
+const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+const PAGE_MESSAGE_KEYS = ["channel", "source", "target", "messageId", "type", "data"] as const;
+
+const parsePageMessageBody = (value: unknown): PageMessageBody | undefined => {
+  if (value === null || typeof value !== "object") return undefined;
+
+  let keys: (string | symbol)[];
+  try {
+    keys = nativeReflectOwnKeys(value);
+  } catch {
+    return undefined;
+  }
+  if (keys.length !== PAGE_MESSAGE_KEYS.length) return undefined;
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    let known = false;
+    if (typeof key === "string") {
+      for (let expectedIndex = 0; expectedIndex < PAGE_MESSAGE_KEYS.length; expectedIndex += 1) {
+        if (PAGE_MESSAGE_KEYS[expectedIndex] === key) {
+          known = true;
+          break;
+        }
+      }
+    }
+    if (!known) {
+      return undefined;
+    }
+  }
+
+  let fields: PropertyDescriptor[];
+  try {
+    fields = [];
+    for (let index = 0; index < PAGE_MESSAGE_KEYS.length; index += 1) {
+      const descriptor = nativeObjectGetOwnPropertyDescriptor(value, PAGE_MESSAGE_KEYS[index]);
+      if (!descriptor || !("value" in descriptor)) return undefined;
+      fields[fields.length] = descriptor;
+    }
+  } catch {
+    return undefined;
+  }
+  const channel = fields[0].value;
+  const source = fields[1].value;
+  const target = fields[2].value;
+  const messageId = fields[3].value;
+  const type = fields[4].value;
+  const data = fields[5].value;
+  if (
+    typeof channel !== "string" ||
+    (source !== "scripting" && source !== "inject") ||
+    (target !== "scripting" && target !== "inject") ||
+    typeof messageId !== "string" ||
+    (type !== "sendMessage" &&
+      type !== "respMessage" &&
+      type !== "connect" &&
+      type !== "disconnect" &&
+      type !== "connectMessage")
+  ) {
+    return undefined;
+  }
+  return { channel, source, target, messageId, type, data } as PageMessageBody;
+};
+
 const otherRole = (role: PageMessageRole): PageMessageRole => (role === "scripting" ? "inject" : "scripting");
 
 class PageMessageConnect implements MessageConnect {
@@ -120,14 +183,13 @@ export class PageMessage implements Message {
     this.targetRole = otherRole(role);
     this.messageHandler = (event: MessageEvent) => {
       if (event.source !== null && event.source !== sourceWindow) return;
-      const body = event.data as Partial<PageMessageBody> | null;
+      const body = parsePageMessageBody(event.data);
       if (
         !body ||
         body.channel !== this.channel ||
         body.target !== this.role ||
         body.source !== this.targetRole ||
-        typeof body.messageId !== "string" ||
-        typeof body.type !== "string"
+        typeof body.messageId !== "string"
       ) {
         return;
       }
