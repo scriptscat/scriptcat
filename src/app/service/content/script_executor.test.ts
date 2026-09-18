@@ -4,6 +4,9 @@ import type { ScriptLoadInfo } from "../service_worker/types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import type { GMInfoEnv } from "./types";
 import { initEnvInfo, ScriptExecutor } from "./script_executor";
+import { compilePreInjectScript, preInjectScriptInfoKey } from "./utils";
+import { DefinedFlags } from "../service_worker/runtime.consts";
+import { pageDispatchEvent } from "@Packages/message/common";
 
 const styleUrl = "https://example.com/style.css";
 const secondStyleUrl = "https://example.com/second-style.css";
@@ -166,11 +169,12 @@ describe("ScriptExecutor", () => {
 
     try {
       pageWindow[script.flag] = attacker;
-      executor.execEarlyScript(script.flag, script, initEnvInfo);
+      executor.execEarlyScript(script.flag, initEnvInfo);
       expect(attacker).not.toHaveBeenCalled();
 
       pageWindow[script.flag] = genuine;
-      executor.execEarlyScript(script.flag, script, initEnvInfo);
+      Object.defineProperty(genuine, preInjectScriptInfoKey, { value: JSON.stringify(script) });
+      executor.execEarlyScript(script.flag, initEnvInfo);
       expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
     } finally {
       delete pageWindow[script.flag];
@@ -180,15 +184,90 @@ describe("ScriptExecutor", () => {
   it("rejects early metadata that retargets the flag or carries a page binding", () => {
     const script = makeScript({ flag: "#-executor-test-uuid" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
-    const genuine = vi.fn();
+    const wrongUuid = vi.fn();
+    const bound = vi.fn();
     const pageWindow = window as unknown as Record<string, unknown>;
-    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
+    Object.defineProperty(wrongUuid, fnStrIntegrity, { value: true });
+    Object.defineProperty(wrongUuid, preInjectScriptInfoKey, {
+      value: JSON.stringify({ ...script, uuid: "other-script" }),
+    });
+    Object.defineProperty(bound, fnStrIntegrity, { value: true });
+    Object.defineProperty(bound, preInjectScriptInfoKey, {
+      value: JSON.stringify({ ...script, executionHandle: "other-binding" }),
+    });
 
     try {
-      pageWindow[script.flag] = genuine;
-      executor.execEarlyScript(script.flag, { ...script, uuid: "other-script" }, initEnvInfo);
-      executor.execEarlyScript(script.flag, { ...script, executionHandle: "other-binding" }, initEnvInfo);
-      expect(genuine).not.toHaveBeenCalled();
+      pageWindow[script.flag] = wrongUuid;
+      executor.execEarlyScript(script.flag, initEnvInfo);
+      expect(wrongUuid).not.toHaveBeenCalled();
+
+      pageWindow[script.flag] = bound;
+      executor.execEarlyScript(script.flag, initEnvInfo);
+      expect(bound).not.toHaveBeenCalled();
+    } finally {
+      delete pageWindow[script.flag];
+    }
+  });
+
+  it("rejects same-UUID early metadata mutations", () => {
+    const script = makeScript({
+      uuid: "executor-early-authenticated-uuid",
+      flag: "#-executor-early-authenticated-uuid",
+      metadata: { grant: ["GM_getValue", "GM_getResourceText"], resource: ["canonical https://example.com/canonical"] },
+      resource: {
+        canonical: {
+          url: "https://example.com/canonical",
+          content: "canonical",
+          base64: "",
+          hash: { md5: "", sha1: "", sha256: "", sha384: "", sha512: "" },
+          type: "resource",
+          link: {},
+          contentType: "text/plain",
+          createtime: Date.now(),
+        },
+      },
+    });
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    const pageWindow = window as unknown as Record<string, unknown>;
+    const performance = { dispatchEvent: vi.fn(() => false), addEventListener: vi.fn() };
+    const generated = new Function("window", "performance", "CustomEvent", compilePreInjectScript(script, ""));
+
+    try {
+      generated(pageWindow, performance, CustomEvent);
+      const forged = {
+        ...script,
+        metadata: { grant: ["GM_setValue"] },
+        resource: { forged: { content: "forged", contentType: "text/plain" } },
+      } as TScriptInfo;
+
+      executor.checkEarlyStartScript("it", initEnvInfo);
+      const hostileDetail = {};
+      const flagGetter = vi.fn(() => script.flag);
+      Object.defineProperty(hostileDetail, "scriptFlag", { get: flagGetter });
+      pageDispatchEvent(
+        new CustomEvent(`evt${process.env.SC_RANDOM_KEY}.it${DefinedFlags.scriptLoadComplete}`, {
+          detail: hostileDetail,
+          cancelable: true,
+        })
+      );
+      expect(flagGetter).not.toHaveBeenCalled();
+
+      pageDispatchEvent(
+        new CustomEvent(`evt${process.env.SC_RANDOM_KEY}.it${DefinedFlags.scriptLoadComplete}`, {
+          detail: { scriptFlag: script.flag, scriptInfo: forged },
+          cancelable: true,
+        })
+      );
+
+      const exec = (
+        executor as unknown as {
+          execScripts: Map<string, { scriptRes: TScriptInfo }>;
+        }
+      ).execScripts.get(script.uuid);
+      expect(exec?.scriptRes.metadata).toEqual(script.metadata);
+      expect(exec?.scriptRes.resource).toEqual({
+        canonical: { base64: "", content: "canonical", contentType: "text/plain" },
+      });
     } finally {
       delete pageWindow[script.flag];
     }

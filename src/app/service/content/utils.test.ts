@@ -8,6 +8,7 @@ import {
   isScriptletUnwrap,
   addStyle,
   addStyleSheet,
+  preInjectScriptInfoKey,
   trimScriptInfo,
 } from "./utils";
 import type { SCMetadata, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
@@ -782,6 +783,11 @@ describe("utils", () => {
       );
 
       const generated = targetWindow[script.flag] as ScriptFunc;
+      expect(Object.getOwnPropertyDescriptor(generated, preInjectScriptInfoKey)).toMatchObject({
+        configurable: false,
+        writable: false,
+        value: expect.any(String),
+      });
       const context = {};
       const named = { value: 42 };
       expect(generated(fnStrIntegrity, context, named, script.name)).toEqual({
@@ -825,8 +831,7 @@ describe("utils", () => {
 
       executeGeneratedScript(compilePreInjectScript(script, "return undefined;"), {}, testPerformance);
 
-      expect(detail?.scriptInfo.value).toEqual({});
-      expect(detail?.scriptInfo.config).toBeUndefined();
+      expect(detail).toEqual({ scriptFlag: script.flag });
     });
 
     it.concurrent("does not mount a regex-excluded early-start script", () => {

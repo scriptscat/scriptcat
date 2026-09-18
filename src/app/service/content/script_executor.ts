@@ -3,13 +3,13 @@ import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
 import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
-import { addStyleSheet, definePropertyListener, waitBody } from "./utils";
-import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
+import { addStyleSheet, definePropertyListener, preInjectScriptInfoKey, waitBody } from "./utils";
+import type { TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageAddEventListener, pageDispatchEvent } from "@Packages/message/common";
 import { isUrlExcluded } from "@App/pkg/utils/match";
 import type { ScriptEnvTag } from "@Packages/message/consts";
-import { localizeObject, Native } from "./global";
+import { customClone, localizeObject, Native } from "./global";
 
 // 与编译器相同的构建级标记，用来拒绝页面伪造的脚本挂载函数。
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
@@ -110,39 +110,18 @@ export class ScriptExecutor {
     // 监听 脚本加载
     // 适用于此「通知环境加载完成」代码执行后的脚本加载
     const scriptLoadCompleteHandler: EventListener = (ev: Event) => {
-      const detail = (ev as CustomEvent).detail as {
-        scriptFlag: string;
-        scriptInfo: ScriptLoadInfo;
-      };
-      const scriptFlag = detail?.scriptFlag;
-      const scriptInfo = detail?.scriptInfo;
-      if (
-        typeof scriptFlag === "string" &&
-        scriptInfo &&
-        typeof scriptInfo === "object" &&
-        scriptInfo.flag === scriptFlag
-      ) {
-        ev.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
-        // 检查是否有 urlPattern，有则执行匹配再决定是否略过注入
-        if (scriptInfo.scriptUrlPatterns) {
-          // 以 REGEX 情况为例
-          //   "@include /REGEX/" 的情况下，MV3 UserScripts API 基础匹配范围扩大，会比实际需要的广阔，然后在 earlyScript 把不符合 REGEX 的除去
-          //   (All @include = false -> 除去)
-          //   注：如果 @include 混合了 regex 跟 一般的，即使 regex 的 @include 不匹对当前网址，但匹对了一般 @include 也视为有效
-          //       相反如果 @include 混合了 regex 跟 一般的，regex 的 @include 匹对了即可
-          //   "@exclude /REGEX/" 的情况下，MV3 UserScripts API 基础匹配范围不会扩大，然后在 earlyScript 把符合 REGEX 的匹配除去
-          //   (Any @exclude = true -> 除去)
-          // 注：如果一早已被除排，根本不会被 MV3 UserScripts API 注入。所以只考虑排除「多余的匹配」。（略过注入）
-          try {
-            if (isUrlExcluded(window.location.href, scriptInfo.scriptUrlPatterns)) {
-              // 「多余的匹配」-> 略过注入
-              return;
-            }
-          } catch (e) {
-            console.warn("Unexpected match error", e);
-          }
-        }
-        if (!this.earlyScriptFlags.has(scriptFlag)) this.execEarlyScript(scriptFlag, scriptInfo, envInfo);
+      let scriptFlag: unknown;
+      try {
+        const detail = (ev as CustomEvent).detail;
+        if (!detail || typeof detail !== "object") return;
+        const flagDescriptor = Native.objectGetOwnPropertyDescriptor(detail, "scriptFlag");
+        if (!flagDescriptor || !("value" in flagDescriptor)) return;
+        scriptFlag = flagDescriptor.value;
+      } catch {
+        return;
+      }
+      if (typeof scriptFlag === "string" && !this.earlyScriptFlags.has(scriptFlag)) {
+        if (this.execEarlyScript(scriptFlag, envInfo)) ev.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
       }
     };
     pageAddEventListener(scriptLoadCompleteEvtName, scriptLoadCompleteHandler);
@@ -152,21 +131,43 @@ export class ScriptExecutor {
     pageDispatchEvent(ev);
   }
 
-  execEarlyScript(flag: string, scriptInfo: TScriptInfo, envInfo: GMInfoEnv) {
+  execEarlyScript(flag: string, envInfo: GMInfoEnv) {
+    const scriptFunc = (window as unknown as Record<string, unknown>)[flag] as ScriptFunc;
+    const descriptor =
+      typeof scriptFunc === "function" ? Native.objectGetOwnPropertyDescriptor(scriptFunc, fnStrIntegrity) : undefined;
+    if (descriptor?.value !== true || descriptor.configurable || descriptor.writable) return;
+    // 事件在页面可见，只用预注入函数上的不可改写清单作为脚本资料来源。
+    const scriptInfoDescriptor =
+      typeof scriptFunc === "function"
+        ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptInfoKey)
+        : undefined;
+    if (!scriptInfoDescriptor || scriptInfoDescriptor.configurable || scriptInfoDescriptor.writable) return;
+    const scriptInfoJSON = scriptInfoDescriptor.value;
+    if (typeof scriptInfoJSON !== "string") return;
+    let scriptInfo: TScriptInfo | undefined;
+    try {
+      scriptInfo = customClone(Native.jsonParse(scriptInfoJSON)) as TScriptInfo | undefined;
+    } catch {
+      return;
+    }
+    if (!scriptInfo || scriptInfo.flag !== flag) return;
     const expectedUuid = flag.startsWith("#-") ? flag.slice(2) : undefined;
-    // early-start 事件来自页面，需同时确认脚本身份和未绑定状态，避免旧事件重放到新文档。
+    if (expectedUuid && scriptInfo.uuid !== expectedUuid) return;
     if (
-      (expectedUuid && scriptInfo.uuid !== expectedUuid) ||
       scriptInfo.executionHandle !== undefined ||
       scriptInfo.executionEnvTag !== undefined ||
       scriptInfo.executionRunFlag !== undefined
     ) {
       return;
     }
-    const scriptFunc = (window as unknown as Record<string, unknown>)[flag] as ScriptFunc;
-    const descriptor =
-      typeof scriptFunc === "function" ? Native.objectGetOwnPropertyDescriptor(scriptFunc, fnStrIntegrity) : undefined;
-    if (descriptor?.value !== true || descriptor.configurable || descriptor.writable) return;
+    // MV3 对正则匹配会放宽注入范围，必须用编译器绑定的模式在当前页面再确认一次。
+    if (scriptInfo.scriptUrlPatterns) {
+      try {
+        if (isUrlExcluded(window.location.href, scriptInfo.scriptUrlPatterns)) return;
+      } catch (e) {
+        console.warn("Unexpected match error", e);
+      }
+    }
     this.execScriptEntry({
       scriptLoadInfo: scriptInfo,
       scriptFunc: scriptFunc,
@@ -174,6 +175,7 @@ export class ScriptExecutor {
       envInfo: envInfo,
     });
     this.earlyScriptFlags.add(flag);
+    return true;
   }
 
   execScriptEntry(scriptEntry: ExecScriptEntry) {
