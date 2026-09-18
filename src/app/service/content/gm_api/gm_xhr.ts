@@ -189,6 +189,7 @@ export function GM_xmlhttpRequest(
   isDownload: boolean = false
 ) {
   let reqDone = false;
+  let abortRequested = false;
   if (a.isInvalidContext()) {
     return {
       retPromise: requirePromise ? Promise.reject("GM_xmlhttpRequest: Invalid Context") : null,
@@ -743,11 +744,21 @@ export function GM_xmlhttpRequest(
     };
 
     connect?.onMessage((msgData) => onMessageHandler?.(msgData));
+    if (abortRequested && !reqDone) {
+      doAbort?.({
+        error: "aborted",
+        responseHeaders: "",
+        readyState: 0,
+        status: 0,
+        statusText: "",
+      } as TXhrCallBackArg);
+    }
   })();
   // 由于需要同步返回一个abort，但是一些操作是异步的，所以需要在这里处理
   return {
     retPromise,
     abort: () => {
+      abortRequested = true;
       if (connect) {
         connect.disconnect(true); // 断开连结(容忍已断开)
         connect = null;
