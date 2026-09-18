@@ -551,6 +551,39 @@ describe.concurrent("GM_menu", () => {
     expect(await retPromise).toEqual(123);
   });
 
+  it.concurrent("注册菜单不会执行选项 getter", async () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_registerMenuCommand"];
+    script.code = `
+      let getterCalls = 0;
+      const options = { accessKey: "s" };
+      Object.defineProperty(options, "secret", { enumerable: true, get() { getterCalls += 1; return "forged"; } });
+      GM_registerMenuCommand("safe", () => {}, options);
+      return getterCalls;
+    `;
+    const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const mockMessage = { sendMessage: mockSendMessage } as unknown as Message;
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message: mockMessage,
+      contentMsg: undefined as any,
+      code: nilFn,
+      envInfo,
+    });
+    exec.scriptFunc = compileScript(compileScriptCode(script));
+
+    await expect(exec.exec()).resolves.toBe(0);
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          api: "GM_registerMenuCommand",
+          params: [expect.any(String), "safe", expect.objectContaining({ accessKey: "s" })],
+        }),
+      })
+    );
+    expect(mockSendMessage.mock.calls[0][0].data.params[2]).not.toHaveProperty("secret");
+  });
+
   it.concurrent("取消注册菜单", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_registerMenuCommand", "GM_unregisterMenuCommand"];

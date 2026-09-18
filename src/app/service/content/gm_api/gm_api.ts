@@ -770,15 +770,33 @@ export default class GMApi extends GM_Base {
       listener = undefined;
     }
     // 浅拷贝避免修改/共用参数
-    const options: SWScriptMenuItemOption = (
-      typeof options_or_accessKey === "string"
-        ? { accessKey: options_or_accessKey }
-        : options_or_accessKey
-          ? { ...options_or_accessKey, id: undefined, individual: undefined } // id不直接储存在options (id 影响 groupKey 操作)
-          : {}
-    ) as ScriptMenuItemOption;
+    const optionObject = typeof options_or_accessKey === "object" && options_or_accessKey !== null;
+    let options: SWScriptMenuItemOption;
+    let optionId: string | number | undefined;
+    let optionIndividual: boolean | undefined;
+    if (typeof options_or_accessKey === "string") {
+      options = { accessKey: options_or_accessKey };
+    } else if (optionObject) {
+      const safeOptions = Native.objectCreate(null) as Record<string, unknown>;
+      const keys = Native.reflectOwnKeys(options_or_accessKey);
+      for (let index = 0; index < keys.length; index += 1) {
+        const key = keys[index];
+        if (typeof key !== "string") continue;
+        const descriptor = Native.objectGetOwnPropertyDescriptor(options_or_accessKey, key);
+        if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) continue;
+        safeOptions[key] = descriptor.value;
+      }
+      optionId = safeOptions.id as string | number | undefined;
+      optionIndividual = safeOptions.individual as boolean | undefined;
+      // id不直接储存在options (id 影响 groupKey 操作)
+      safeOptions.id = undefined;
+      safeOptions.individual = undefined;
+      options = safeOptions as SWScriptMenuItemOption;
+    } else {
+      options = {};
+    }
     const isSeparator = !listener && !name;
-    let isIndividual = typeof options_or_accessKey === "object" ? options_or_accessKey.individual : undefined;
+    let isIndividual = optionObject ? optionIndividual : undefined;
     if (isIndividual === undefined && isSeparator) {
       isIndividual = true;
     }
@@ -797,8 +815,7 @@ export default class GMApi extends GM_Base {
     } else {
       options.mSeparator = false;
     }
-    let providedId: string | number | undefined =
-      typeof options_or_accessKey === "object" ? options_or_accessKey.id : undefined;
+    let providedId: string | number | undefined = optionObject ? optionId : undefined;
     if (providedId === undefined) providedId = ctx.menuIdCounter! += 1; // 如无指定，使用累计器id
     const ret = providedId! as TScriptMenuItemID;
     providedId = `t${providedId!}`; // 见 TScriptMenuItemID 注释
