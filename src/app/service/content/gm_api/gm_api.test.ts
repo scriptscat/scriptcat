@@ -962,6 +962,30 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(script.value).toEqual({ valid: 1 });
   });
 
+  it("GM_setValues does not trust a hooked Array.prototype.push for transport", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_setValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const originalPush = Array.prototype.push;
+    Array.prototype.push = function (...items: unknown[]): number {
+      return originalPush.call(this, ...items, ["injected", encodeRValue("forged")]);
+    };
+
+    try {
+      api.GM_setValues(api, { valid: 1 });
+    } finally {
+      Array.prototype.push = originalPush;
+    }
+
+    expect(script.value).toEqual({ valid: 1 });
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), [["valid", [0, 1]]]] }) })
+    );
+  });
+
   it("拒绝可执行值，且不会把函数写入本地存储或传输层", () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_setValue"];

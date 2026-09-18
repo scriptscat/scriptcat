@@ -382,7 +382,7 @@ export default class GMApi extends GM_Base {
       if (typeof key !== "string") continue;
       const descriptor = Native.objectGetOwnPropertyDescriptor(values, key);
       if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) continue;
-      valueEntries.push([key, descriptor.value]);
+      valueEntries[valueEntries.length] = [key, descriptor.value];
     }
     for (let index = 0; index < valueEntries.length; index += 1) {
       const [key, value] = valueEntries[index];
@@ -402,7 +402,7 @@ export default class GMApi extends GM_Base {
         valueStore[key] = value_;
       }
       // 避免undefined 等空值流失，先进行映射处理
-      keyValuePairs.push([key, encodeRValue(value_)]);
+      keyValuePairs[keyValuePairs.length] = [key, encodeRValue(value_)];
     }
     a.sendMessage("GM_setValues", [id, keyValuePairs]);
     return id;
