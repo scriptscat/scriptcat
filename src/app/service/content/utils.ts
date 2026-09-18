@@ -281,6 +281,17 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
 };
 
 /**
+ * 预注入事件会经过页面可观察的 performance 通道；不要把用户值或配置放进它的 detail。
+ * 资源仍需在脚本最早执行时可用，后续 pageLoad 会补回权威的值与配置。
+ */
+export const trimPreInjectScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
+  const scriptInfo = trimScriptInfo(script);
+  scriptInfo.value = {};
+  scriptInfo.config = undefined;
+  return scriptInfo;
+};
+
+/**
  * 将脚本函数编译为预注入脚本代码
  */
 export function compilePreInjectScript(
@@ -291,7 +302,7 @@ export function compilePreInjectScript(
   const scriptEnvTag = isInjectIntoContent(script.metadata) ? ScriptEnvTag.content : ScriptEnvTag.inject;
   const eventNamePrefix = `evt${process.env.SC_RANDOM_KEY}.${scriptEnvTag}`; // 仅用于early-start初始化
   const flag = `${script.flag}`;
-  const scriptInfo = trimScriptInfo(script);
+  const scriptInfo = trimPreInjectScriptInfo(script);
   const scriptInfoJSON = `${JSON.stringify(scriptInfo)}`;
   const scriptUrlPatterns = script.scriptUrlPatterns?.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
   const urlCondition = scriptUrlPatterns

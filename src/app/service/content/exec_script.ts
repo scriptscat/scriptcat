@@ -96,6 +96,14 @@ export default class ExecScript {
 
   // 早期启动的脚本，处理GM API
   updateEarlyScriptGMInfo(envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) {
+    if (scriptInfo) {
+      // 预注入事件可被页面观察，只携带空的用户值和配置；pageLoad 到达后再补回权威副本。
+      this.scriptRes.value = scriptInfo.value;
+      this.scriptRes.config = scriptInfo.config;
+      this.scriptRes.metadata = scriptInfo.metadata;
+      this.scriptRes.resource = scriptInfo.resource;
+      this.scriptRes.requireCssResource = scriptInfo.requireCssResource;
+    }
     if (scriptInfo?.executionHandle && scriptInfo.executionEnvTag) {
       // early-start 先执行后取得绑定；此处补写同一绑定，使后续 RPC 与首次注册一致。
       this.scriptRes.executionHandle = scriptInfo.executionHandle;

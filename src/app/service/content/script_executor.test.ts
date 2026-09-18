@@ -110,12 +110,20 @@ describe("ScriptExecutor", () => {
 
     exec.updateEarlyScriptGMInfo(initEnvInfo, {
       ...initial,
+      value: { secret: "authoritative-value" },
+      config: {
+        private: { secret: { title: "Private", description: "", index: 0, default: "authoritative" } },
+      },
       executionHandle: "page-binding",
       executionEnvTag: "it",
     });
 
     expect(exec.scriptRes.executionHandle).toBe("page-binding");
     expect(exec.scriptRes.executionEnvTag).toBe("it");
+    expect(exec.scriptRes.value).toEqual({ secret: "authoritative-value" });
+    expect(exec.scriptRes.config).toEqual({
+      private: { secret: { title: "Private", description: "", index: 0, default: "authoritative" } },
+    });
   });
 
   it("ignores a counterfeit mount and keeps listening for the genuine wrapper", () => {

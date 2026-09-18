@@ -793,6 +793,42 @@ describe("utils", () => {
       expect(testPerformance.addEventListener).not.toHaveBeenCalled();
     });
 
+    it.concurrent("does not expose stored values or user config in the observable preload event", () => {
+      const script: ScriptLoadInfo = {
+        uuid: "pre-inject-private-uuid",
+        name: "Pre Inject Private Script",
+        namespace: "pre.inject.private",
+        type: 1,
+        status: 1,
+        sort: 0,
+        runStatus: "complete",
+        createtime: Date.now(),
+        checktime: Date.now(),
+        code: "",
+        value: { secret: "stored-value" },
+        config: { private: { secret: { title: "Private", description: "", index: 0, default: "secret" } } },
+        flag: "pre-inject-private-flag",
+        resource: {},
+        metadata: {},
+        originalMetadata: {},
+        metadataStr: "",
+        userConfigStr: "",
+      };
+      let detail: Record<string, any> | undefined;
+      const testPerformance = {
+        dispatchEvent: vi.fn((event: Event) => {
+          detail = (event as CustomEvent).detail;
+          return false;
+        }),
+        addEventListener: vi.fn(),
+      };
+
+      executeGeneratedScript(compilePreInjectScript(script, "return undefined;"), {}, testPerformance);
+
+      expect(detail?.scriptInfo.value).toEqual({});
+      expect(detail?.scriptInfo.config).toBeUndefined();
+    });
+
     it.concurrent("does not mount a regex-excluded early-start script", () => {
       const script: ScriptLoadInfo = {
         uuid: "pre-inject-excluded-uuid",
