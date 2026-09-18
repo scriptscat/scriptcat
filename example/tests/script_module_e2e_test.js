@@ -31,16 +31,26 @@ const __sc_module_e2e_marker = true;
     failed: 0,
     total: 0,
   };
+  const cases = [];
 
   async function test(name, fn) {
     testResults.total++;
     try {
       await fn();
       testResults.passed++;
+      cases.push({ name, status: "PASS", category: "@script-module", expected: true, actual: true, detail: "" });
       console.log("%c✓ " + name, "color: green;");
       return true;
     } catch (error) {
       testResults.failed++;
+      cases.push({
+        name,
+        status: "FAIL",
+        category: "@script-module",
+        expected: true,
+        actual: false,
+        detail: String(error),
+      });
       console.error("%c✗ " + name, "color: red;", error);
       return false;
     }
@@ -88,4 +98,22 @@ const __sc_module_e2e_marker = true;
   console.log("总测试数: " + testResults.total);
   console.log("%c通过: " + testResults.passed, "color: green; font-weight: bold;");
   console.log("%c失败: " + testResults.failed, "color: red; font-weight: bold;");
+  console.log(
+    "[SCTEST_RESULT] " +
+      JSON.stringify({
+        protocol: "sctest/v1",
+        name: "@script-module E2E Test",
+        total: testResults.total,
+        passed: testResults.passed,
+        failed: testResults.failed,
+        warned: 0,
+        info: 0,
+        skipped: 0,
+        manual: 0,
+        counts: { PASS: testResults.passed, FAIL: testResults.failed, WARN: 0, INFO: 0, SKIP: 0, MANUAL: 0 },
+        overall: testResults.failed === 0 ? "PASS" : "FAIL",
+        environment: { tool: "script-module-e2e", version: "1.0.0", time: new Date().toISOString(), context: "page" },
+        suites: [{ name: "@script-module", cases }],
+      })
+  );
 })();

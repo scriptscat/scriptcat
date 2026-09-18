@@ -966,7 +966,7 @@ test.describe("GM API", () => {
   test("@script-module tests (script_module_e2e_test.js)", async ({ context, extensionId }) => {
     // @script-module 以 <script type="module"> 直接注入页面 DOM，会受页面自身 CSP 限制
     // （见 PR 描述的限制3），因此使用无 CSP 头的普通 mock 站点，而非 cspOrigin。
-    const { passed, failed, logs } = await runTestScript(
+    const { summary, logs } = await runTestScript(
       context,
       extensionId,
       "script_module_e2e_test.js",
@@ -974,12 +974,12 @@ test.describe("GM API", () => {
       60_000
     );
 
-    console.log(`[script_module_e2e_test] passed=${passed}, failed=${failed}`);
-    if (failed !== 0) {
+    console.log(`[script_module_e2e_test] passed=${summary.passed}, failed=${summary.failed}`);
+    if (summary.failed !== 0) {
       console.log("[script_module_e2e_test] logs:", logs.join("\n"));
     }
-    expect(failed, "Some @script-module tests failed").toBe(0);
-    expect(passed, "No test results found - script may not have run").toBeGreaterThan(0);
+    expect(summary.failed, "Some @script-module tests failed").toBe(0);
+    expect(summary.passed, "No test results found - script may not have run").toBeGreaterThan(0);
   });
 
   test("WindowMessage Transport Test (window_message_test.js)", async ({ context, extensionId }) => {
