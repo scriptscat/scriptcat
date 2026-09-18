@@ -19,6 +19,7 @@ const lnStrIntegrity = process.env.SC_RANDOM_FNKEY;
 const znRand = process.env.SC_ZN_RAND;
 export const preInjectScriptInfoKey = `${lnStrIntegrity}:scriptInfo`;
 export const preInjectScriptDocumentUrlKey = `${lnStrIntegrity}:documentUrl`;
+export const preInjectScriptDocumentIdKey = `${lnStrIntegrity}:documentId`;
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -173,7 +174,12 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   return `${codeBody}${sourceMapTo(`${resource.name}.user.js`)}\n`;
 }
 
-const codeFunction = (code: string, scriptInfoJSON?: string, documentUrlExpression?: string) => {
+const codeFunction = (
+  code: string,
+  scriptInfoJSON?: string,
+  documentUrlExpression?: string,
+  documentIdExpression?: string
+) => {
   // 临时方法调用不依赖页面改写的 call、apply、bind；完整性标记也阻止页面直接调用包装器。
   const infoProperty =
     scriptInfoJSON === undefined
@@ -181,14 +187,24 @@ const codeFunction = (code: string, scriptInfoJSON?: string, documentUrlExpressi
       : ` Object.defineProperty(f, '${preInjectScriptInfoKey}', { value: ${JSON.stringify(scriptInfoJSON)} }); Object.defineProperty(f, 'name', { configurable: false, value: ${JSON.stringify(scriptInfoJSON)} });${
           documentUrlExpression === undefined
             ? ""
-            : ` Object.defineProperty(f, '${preInjectScriptDocumentUrlKey}', { value: ${documentUrlExpression} });`
+            : ` Object.defineProperty(f, '${preInjectScriptDocumentUrlKey}', { value: ${documentUrlExpression} });${
+                documentIdExpression === undefined
+                  ? ""
+                  : ` Object.defineProperty(f, '${preInjectScriptDocumentIdKey}', { value: ${documentIdExpression} });`
+              }`
         }`;
   return `((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true });${infoProperty} return f; })('${lnStrIntegrity}', '${znRand}' + Math.random(), function(){${code}})`;
 };
 
 // 有 setter 时沿用页面属性语义；否则用不可配置的一次性 getter，避免挂载函数被页面再次取走。
-const mountCodeFunction = (flag: string, code: string, scriptInfoJSON?: string, documentUrlExpression?: string) =>
-  `((w, k, fn) => { const d = Object.getOwnPropertyDescriptor(w, k); if (d?.set) { w[k] = fn; } else { let mounted = true; Object.defineProperty(w, k, { configurable: false, enumerable: false, get() { if (!mounted) return undefined; mounted = false; return fn; } }); } })(window, '${flag}', ${codeFunction(code, scriptInfoJSON, documentUrlExpression)})`;
+const mountCodeFunction = (
+  flag: string,
+  code: string,
+  scriptInfoJSON?: string,
+  documentUrlExpression?: string,
+  documentIdExpression?: string
+) =>
+  `((w, k, fn) => { const d = Object.getOwnPropertyDescriptor(w, k); if (d?.set) { w[k] = fn; } else { let mounted = true; Object.defineProperty(w, k, { configurable: false, enumerable: false, get() { if (!mounted) return undefined; mounted = false; return fn; } }); } })(window, '${flag}', ${codeFunction(code, scriptInfoJSON, documentUrlExpression, documentIdExpression)})`;
 
 const ZFunction = Function;
 
@@ -319,6 +335,7 @@ export function compilePreInjectScript(
     ? embeddedPatternCheckerString("location.href", JSON.stringify(scriptUrlPatterns))
     : "true";
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
+  const documentIdExpression = `(()=>{const k='${preInjectScriptDocumentIdKey}',d=Object.getOwnPropertyDescriptor(window,k);if(d&&'value'in d&&typeof d.value==='string')return d.value;const v=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);Object.defineProperty(window,k,{configurable:false,writable:false,value:v});return v})()`;
   const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
   const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
   return `{
@@ -326,7 +343,7 @@ export function compilePreInjectScript(
     f = () => {
     if (!(${urlCondition})) return false;
     if (!mounted) {
-      ${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`, scriptInfoJSON, "location.href")};
+      ${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`, scriptInfoJSON, "location.href", documentIdExpression)};
       mounted = true;
     }
     const o = { cancelable: true, detail: { scriptFlag: '${flag}' } },

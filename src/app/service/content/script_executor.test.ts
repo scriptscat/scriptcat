@@ -4,13 +4,28 @@ import type { ScriptLoadInfo } from "../service_worker/types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import type { GMInfoEnv } from "./types";
 import { initEnvInfo, ScriptExecutor } from "./script_executor";
-import { compilePreInjectScript, preInjectScriptDocumentUrlKey, preInjectScriptInfoKey } from "./utils";
+import {
+  compilePreInjectScript,
+  preInjectScriptDocumentIdKey,
+  preInjectScriptDocumentUrlKey,
+  preInjectScriptInfoKey,
+} from "./utils";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageDispatchEvent } from "@Packages/message/common";
 
 const styleUrl = "https://example.com/style.css";
 const secondStyleUrl = "https://example.com/second-style.css";
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
+
+beforeEach(() => {
+  if (!Object.prototype.hasOwnProperty.call(window, preInjectScriptDocumentIdKey)) {
+    Object.defineProperty(window, preInjectScriptDocumentIdKey, {
+      configurable: false,
+      writable: false,
+      value: "script-executor-test-document",
+    });
+  }
+});
 
 function makeScript(overrides: Partial<ScriptLoadInfo & Pick<TScriptInfo, "requireCssResource">> = {}): ScriptLoadInfo {
   return {
@@ -175,6 +190,7 @@ describe("ScriptExecutor", () => {
       pageWindow[script.flag] = genuine;
       Object.defineProperty(genuine, preInjectScriptInfoKey, { value: JSON.stringify(script) });
       Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: window.location.href });
+      Object.defineProperty(genuine, preInjectScriptDocumentIdKey, { value: "script-executor-test-document" });
       executor.execEarlyScript(script.flag, initEnvInfo);
       expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
     } finally {
@@ -274,20 +290,24 @@ describe("ScriptExecutor", () => {
     }
   });
 
-  it("rejects an early-start wrapper mounted for a different document URL", () => {
+  it("accepts an early-start wrapper after a same-document URL change", () => {
     const script = makeScript({ uuid: "executor-early-document-uuid", flag: "#-executor-early-document-uuid" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
     const genuine = vi.fn();
     const pageWindow = window as unknown as Record<string, unknown>;
+    const initialUrl = window.location.href;
     Object.defineProperty(genuine, fnStrIntegrity, { value: true });
     Object.defineProperty(genuine, preInjectScriptInfoKey, { value: JSON.stringify(script) });
-    Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: `${window.location.href}#stale` });
+    Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: initialUrl });
+    Object.defineProperty(genuine, preInjectScriptDocumentIdKey, { value: "script-executor-test-document" });
 
     try {
+      window.history.pushState({}, "", `${initialUrl}#same-document-change`);
       pageWindow[script.flag] = genuine;
       executor.execEarlyScript(script.flag, initEnvInfo);
-      expect(genuine).not.toHaveBeenCalled();
+      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
     } finally {
+      window.history.replaceState({}, "", initialUrl);
       delete pageWindow[script.flag];
     }
   });
@@ -299,6 +319,7 @@ describe("ScriptExecutor", () => {
     const pageWindow = window as unknown as Record<string, unknown>;
     Object.defineProperty(genuine, fnStrIntegrity, { value: true });
     Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: window.location.href });
+    Object.defineProperty(genuine, preInjectScriptDocumentIdKey, { value: "script-executor-test-document" });
     Object.defineProperty(genuine, "name", { configurable: false, value: JSON.stringify(script) });
 
     try {

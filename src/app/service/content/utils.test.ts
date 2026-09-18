@@ -8,6 +8,7 @@ import {
   isScriptletUnwrap,
   addStyle,
   addStyleSheet,
+  preInjectScriptDocumentIdKey,
   preInjectScriptDocumentUrlKey,
   preInjectScriptInfoKey,
   trimScriptInfo,
@@ -793,6 +794,11 @@ describe("utils", () => {
         configurable: false,
         writable: false,
         value: window.location.href,
+      });
+      expect(Object.getOwnPropertyDescriptor(generated, preInjectScriptDocumentIdKey)).toMatchObject({
+        configurable: false,
+        writable: false,
+        value: expect.any(String),
       });
       const context = {};
       const named = { value: 42 };

@@ -6,6 +6,7 @@ import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import {
   addStyleSheet,
   definePropertyListener,
+  preInjectScriptDocumentIdKey,
   preInjectScriptDocumentUrlKey,
   preInjectScriptInfoKey,
   waitBody,
@@ -148,7 +149,8 @@ export class ScriptExecutor {
         ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptInfoKey)
         : undefined;
     if (scriptInfoDescriptor?.configurable || scriptInfoDescriptor?.writable) return;
-    // 隔离环境可能在页面导航后才取回预注入函数，必须拒绝挂载于旧 URL 的函数。
+    // The wrapper is installed on this document's window. Same-document history changes must not invalidate it;
+    // a full navigation creates a new window and cannot retain the old function.
     const documentUrlDescriptor =
       typeof scriptFunc === "function"
         ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptDocumentUrlKey)
@@ -157,8 +159,24 @@ export class ScriptExecutor {
       !documentUrlDescriptor ||
       documentUrlDescriptor.configurable ||
       documentUrlDescriptor.writable ||
-      typeof documentUrlDescriptor.value !== "string" ||
-      documentUrlDescriptor.value !== window.location.href
+      typeof documentUrlDescriptor.value !== "string"
+    ) {
+      return;
+    }
+    const documentIdDescriptor =
+      typeof scriptFunc === "function"
+        ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptDocumentIdKey)
+        : undefined;
+    const currentDocumentIdDescriptor = Native.objectGetOwnPropertyDescriptor(window, preInjectScriptDocumentIdKey);
+    if (
+      !documentIdDescriptor ||
+      documentIdDescriptor.configurable ||
+      documentIdDescriptor.writable ||
+      typeof documentIdDescriptor.value !== "string" ||
+      !currentDocumentIdDescriptor ||
+      currentDocumentIdDescriptor.configurable ||
+      currentDocumentIdDescriptor.writable ||
+      currentDocumentIdDescriptor.value !== documentIdDescriptor.value
     ) {
       return;
     }
