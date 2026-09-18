@@ -945,6 +945,21 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     );
   });
 
+  it("拒绝可执行值，且不会把函数写入本地存储或传输层", () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_setValue"];
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const executable = () => "secret";
+
+    api.GM_setValue(api, "executable", executable);
+
+    expect(script.value.executable).toBeUndefined();
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "executable"] }) })
+    );
+  });
+
   it.concurrent("GM_setValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValues", "GM_setValues"];

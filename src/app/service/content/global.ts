@@ -102,9 +102,9 @@ export const Native = {
 } as const;
 
 export const customClone = (o: any) => {
-  // 非对象类型直接返回（包含 Symbol、undefined、基本类型等）
+  // 非对象类型直接返回（包含 Symbol、undefined、基本类型等）；函数不可跨边界传输。
   // 接受参数：阵列、物件、null
-  if (typeof o !== "object") return o;
+  if (o === null || typeof o !== "object") return typeof o === "function" ? undefined : o;
 
   // 先验证自有字段都是数据描述符，避免 JSON fallback 执行页面 getter 或 Proxy trap。
   const seen = new Native.WeakMap<object, true>();
@@ -126,7 +126,10 @@ export const customClone = (o: any) => {
         return false;
       }
       if (!descriptor || !("value" in descriptor)) return false;
-      if (descriptor.value !== null && typeof descriptor.value === "object" && !isDataOnly(descriptor.value)) {
+      if (
+        typeof descriptor.value === "function" ||
+        (descriptor.value !== null && typeof descriptor.value === "object" && !isDataOnly(descriptor.value))
+      ) {
         return false;
       }
     }

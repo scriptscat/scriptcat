@@ -347,8 +347,8 @@ export default class GMApi extends GM_Base {
       delete a.scriptRes.value[key];
       a.sendMessage("GM_setValue", [id, key]);
     } else {
-      // 对object的value进行一次转化
-      if (value && typeof value === "object") {
+      // 对对象或函数值进行一次转化
+      if (value !== null && (typeof value === "object" || typeof value === "function")) {
         value = customClone(value);
       }
       // customClone 可能返回 undefined
@@ -380,8 +380,8 @@ export default class GMApi extends GM_Base {
       if (value_ === undefined) {
         if (valueStore[key]) delete valueStore[key];
       } else {
-        // 对object的value进行一次转化
-        if (value_ && typeof value_ === "object") {
+        // 对对象或函数值进行一次转化
+        if (value_ !== null && (typeof value_ === "object" || typeof value_ === "function")) {
           value_ = customClone(value_);
         }
         // customClone 可能返回 undefined
