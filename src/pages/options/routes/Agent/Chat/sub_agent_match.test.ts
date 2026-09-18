@@ -88,6 +88,42 @@ describe("getSubAgentForToolCall", () => {
     });
   });
 
+  describe("路径 0：显式 toolCallId 匹配（并发 agent 调用）", () => {
+    it("两个并行 agent 调用各自匹配到自己的子代理，不会都指向同一个", () => {
+      const saA = makeSA({ agentId: "agent-a", toolCallId: "tc-a", isRunning: true });
+      const saB = makeSA({ agentId: "agent-b", toolCallId: "tc-b", isRunning: true });
+      const subAgents = new Map([
+        ["agent-a", saA],
+        ["agent-b", saB],
+      ]);
+
+      // 两个工具调用均无 result（仍在流式中），仅凭各自的 toolCallId 区分
+      const tcA = { id: "tc-a", name: "agent" };
+      const tcB = { id: "tc-b", name: "agent" };
+
+      expect(getSubAgentForToolCall(tcA, subAgents)).toBe(saA);
+      expect(getSubAgentForToolCall(tcB, subAgents)).toBe(saB);
+    });
+
+    it("其中一个子代理率先启动运行时，另一个仍未产生事件的调用不会被误配给它", () => {
+      // 只有 agent-a 已经开始运行（订阅到了流式事件），agent-b 对应的子代理事件尚未到达。
+      const saA = makeSA({ agentId: "agent-a", toolCallId: "tc-a", isRunning: true });
+      const subAgents = new Map([["agent-a", saA]]);
+
+      const tcB = { id: "tc-b", name: "agent" };
+      // 旧实现会把"唯一运行中的子代理"错误地匹配给 tcB；toolCallId 已知时必须拒绝匹配。
+      expect(getSubAgentForToolCall(tcB, subAgents)).toBeUndefined();
+    });
+
+    it("toolCallId 已知但尚未匹配到任何子代理时，不回退到 result/arguments 之外的猜测", () => {
+      const saA = makeSA({ agentId: "agent-a", toolCallId: "tc-a", isRunning: false });
+      const subAgents = new Map([["agent-a", saA]]);
+
+      const tcB = { id: "tc-b", name: "agent" };
+      expect(getSubAgentForToolCall(tcB, subAgents)).toBeUndefined();
+    });
+  });
+
   describe("路径 2：回退到持久化 subAgentDetails", () => {
     it("无流式 subAgents 时从 subAgentDetails 构建状态", () => {
       const result = getSubAgentForToolCall({
@@ -165,7 +201,8 @@ describe("getSubAgentForToolCall", () => {
       let mergedTc = merged.find((m) => m.role === "assistant")!.toolCalls![0];
       expect(getSubAgentForToolCall(mergedTc, subAgents)).toBeUndefined();
 
-      const sa = makeSA({ agentId: "sa-1", isRunning: true });
+      // 真实流程中，子代理事件从第一次到达起就带着发起它的 toolCallId（见 chat_service.ts 的 subSendEvent）
+      const sa = makeSA({ agentId: "sa-1", toolCallId: "tc-agent", isRunning: true });
       subAgents.set("sa-1", sa);
       merged = mergeToolResults(streamingMessages);
       mergedTc = merged.find((m) => m.role === "assistant")!.toolCalls![0];

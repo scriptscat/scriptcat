@@ -1,4 +1,4 @@
-import { expect, type BrowserContext, type Page } from "@playwright/test";
+import { expect, type BrowserContext, type Frame, type Page } from "@playwright/test";
 
 /**
  * Auto-approve permission confirm dialogs opened by the extension.
@@ -7,11 +7,12 @@ import { expect, type BrowserContext, type Page } from "@playwright/test";
  * then click "allow". Selectors are data-testid based, so they are language-agnostic.
  */
 export function autoApprovePermissions(context: BrowserContext): void {
-  context.on("page", async (page) => {
-    const url = page.url();
-    if (!url.includes("confirm.html")) return;
+  const attachedPages = new WeakSet<Page>();
+  const attach = (page: Page) => {
+    if (attachedPages.has(page)) return;
+    attachedPages.add(page);
 
-    try {
+    const approve = async () => {
       await page.waitForLoadState("domcontentloaded");
       const request = page.getByTestId("confirm-request");
       const allow = page.getByTestId("confirm-allow");
@@ -29,10 +30,27 @@ export function autoApprovePermissions(context: BrowserContext): void {
         await allow.first().click();
       }
       console.log("[autoApprove] Permission approved on confirm page");
-    } catch (e) {
-      console.log("[autoApprove] Failed to approve:", e);
+    };
+
+    const handleApprovalError = (error: unknown) => {
+      console.log("[autoApprove] Failed to approve:", error);
+    };
+
+    const handleNavigation = (frame: Frame) => {
+      if (frame !== page.mainFrame() || !frame.url().includes("confirm.html")) return;
+      page.off("framenavigated", handleNavigation);
+      void approve().catch(handleApprovalError);
+    };
+
+    page.on("framenavigated", handleNavigation);
+    if (page.url().includes("confirm.html")) {
+      page.off("framenavigated", handleNavigation);
+      void approve().catch(handleApprovalError);
     }
-  });
+  };
+
+  for (const page of context.pages()) attach(page);
+  context.on("page", attach);
 }
 
 /** Run inline script code on the target page and collect console results */
@@ -86,6 +104,30 @@ export async function openPopupPage(context: BrowserContext, extensionId: string
   return page;
 }
 
+/**
+ * 以扩展新建独立标签的方式打开安装页(生产路径:ScriptService.openInstallPageByUrl → chrome.tabs.create)。
+ *
+ * 不能用 context.newPage() + goto:那会先停在 about:blank 再导航,给标签留下两条历史。
+ * 安装页靠 history.length 区分「独立新标签(关闭自己)」与「被 DNR 接管的用户标签(返回上一页)」,
+ * 于是安装完成后走 history.back() 退回 about:blank,标签永远不关,等 close 事件的用例只能超时。
+ */
+export async function openInstallPageInNewTab(
+  context: BrowserContext,
+  extensionId: string,
+  targetUrl: string
+): Promise<Page> {
+  let [sw] = context.serviceWorkers();
+  if (!sw) sw = await context.waitForEvent("serviceworker", { timeout: 14_000 });
+  const opened = context.waitForEvent("page");
+  await sw.evaluate(
+    (url) => chrome.tabs.create({ url }),
+    `chrome-extension://${extensionId}/src/install.html?url=${targetUrl}`
+  );
+  const page = await opened;
+  await page.waitForLoadState("domcontentloaded");
+  return page;
+}
+
 /** Open the script editor page */
 export async function openEditorPage(context: BrowserContext, extensionId: string, params?: string): Promise<Page> {
   const page = await context.newPage();
@@ -102,38 +144,47 @@ async function focusMonacoEditor(page: Page): Promise<void> {
   await page.locator(".monaco-editor textarea.inputarea").focus();
 }
 
-async function waitForSavedScriptInList(context: BrowserContext, extensionId: string): Promise<void> {
-  const listPage = await openOptionsPage(context, extensionId);
-  try {
-    // new-ui 列表页加载完成的稳定信号（桌面工具栏 view-toggle / 移动搜索栏）
-    await listPage
-      .getByTestId("view-toggle")
-      .or(listPage.getByTestId("mobile-search"))
-      .first()
-      .waitFor({ state: "visible", timeout: 30_000 });
-  } finally {
-    await listPage.close();
-  }
-}
+export type SaveOutcome = "success" | "failure";
 
-export async function saveCurrentEditor(context: BrowserContext, extensionId: string, page: Page): Promise<void> {
+const saveSuccessMessage =
+  /Saved successfully|successfully created|保存成功|新建成功|儲存成功|保存しました|作成に成功しました|저장되었습니다|새 스크립트가 생성되었습니다|Salvo com sucesso|Novo script criado com sucesso|Успешно сохранено|Создание успешно|Erfolgreich gespeichert|Erstellung erfolgreich|Başarıyla kaydedildi|Yeni betik başarıyla oluşturuldu|Đã lưu thành công|Script mới được tạo thành công/i;
+const saveFailureMessage =
+  /Save Failed|Speichern fehlgeschlagen|保存に失敗しました|저장에 실패했습니다|Falha ao salvar|Ошибка сохранения|Kaydetme Başarısız|Lưu thất bại|保存失败|儲存失敗/i;
+
+export async function saveCurrentEditor(
+  _context: BrowserContext,
+  _extensionId: string,
+  page: Page,
+  outcome: SaveOutcome = "success"
+): Promise<void> {
   await focusMonacoEditor(page);
+  const saveToast = page
+    .locator(`[data-sonner-toast][data-type="${outcome === "success" ? "success" : "error"}"]`)
+    .filter({
+      hasText: outcome === "success" ? saveSuccessMessage : saveFailureMessage,
+    });
+  // 先关闭同类旧通知的观察窗口，避免它在保存期间自动卸载后与本次通知共用计数。
+  await expect.poll(() => saveToast.count(), { timeout: 5_000 }).toBe(0);
   await page.keyboard.press("ControlOrMeta+s");
 
-  // new-ui 保存成功为 sonner toast
-  const toastAppeared = await page
-    .locator("[data-sonner-toast]")
-    .first()
-    .waitFor({ timeout: 10_000 })
-    .then(() => true)
-    .catch(() => false);
-  if (toastAppeared) return;
-
-  await waitForSavedScriptInList(context, extensionId);
+  // 只有保存后新出现且与结果匹配的通知能证明保存完成；任意 toast 和列表页挂载都不能替代它。
+  await expect
+    .poll(() => saveToast.count(), {
+      timeout: 10_000,
+      intervals: [100, 250, 500, 1_000],
+      message:
+        outcome === "success" ? "保存操作未产生成功通知，可能被错误通知或未完成状态掩盖" : "保存操作未产生失败通知",
+    })
+    .toBeGreaterThan(0);
 }
 
 /** Install a script by injecting code into the Monaco editor and saving */
-export async function installScriptByCode(context: BrowserContext, extensionId: string, code: string): Promise<void> {
+export async function installScriptByCode(
+  context: BrowserContext,
+  extensionId: string,
+  code: string,
+  options: { saveOutcome?: SaveOutcome } = {}
+): Promise<void> {
   const page = await openEditorPage(context, extensionId);
   // Wait for Monaco editor DOM and default template content to be ready
   await focusMonacoEditor(page);
@@ -148,7 +199,7 @@ export async function installScriptByCode(context: BrowserContext, extensionId: 
     timeout: 5_000,
   });
   // Save
-  await saveCurrentEditor(context, extensionId, page);
+  await saveCurrentEditor(context, extensionId, page, options.saveOutcome);
   await page.close();
 }
 

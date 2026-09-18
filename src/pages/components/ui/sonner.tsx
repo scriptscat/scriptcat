@@ -4,19 +4,32 @@ import { useTheme } from "@App/pages/components/theme-provider";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
 /**
- * 全局 toast 容器。基于 sonner，跟随项目主题与设计令牌。
- * 桌面右下角、移动顶部居中；业务侧统一用 `notify`（@App/pages/components/ui/toast）触发。
+ * 页面版式，决定桌面端 toast 的落点。
+ * - `default`：普通滚动页（options / popup / import / batchupdate 等），桌面端右下角。
+ * - `decision`：install / confirm / external_access_confirm 这类「吸底操作栏 + 按钮右对齐」的决策页。
+ *   右下角飘窗必然压住「安装 / 关闭 / 拒绝 / 允许」等操作按钮，故桌面端改为顶部居中，与移动端一致。
  */
-export function Toaster({ ...props }: ToasterProps) {
+export type ToasterPlacement = "default" | "decision";
+
+export interface ScriptCatToasterProps extends ToasterProps {
+  placement?: ToasterPlacement;
+}
+
+/**
+ * 全局 toast 容器。基于 sonner，跟随项目主题与设计令牌。
+ * 移动端始终顶部居中，桌面端落点见 `placement`；业务侧统一用 `notify`（@App/pages/components/ui/toast）触发。
+ */
+export function Toaster({ placement = "default", ...props }: ScriptCatToasterProps) {
   const { resolvedTheme } = useTheme();
   const isMobile = useIsMobile();
+  const topCentered = isMobile || placement === "decision";
 
   return (
     <Sonner
       theme={resolvedTheme}
       className="toaster group"
-      position={isMobile ? "top-center" : "bottom-right"}
-      offset={isMobile ? { top: 12 } : { bottom: 24, right: 24 }}
+      position={topCentered ? "top-center" : "bottom-right"}
+      offset={topCentered ? { top: isMobile ? 12 : 24 } : { bottom: 24, right: 24 }}
       mobileOffset={{ top: 12, left: 12, right: 12 }}
       visibleToasts={3}
       gap={12}

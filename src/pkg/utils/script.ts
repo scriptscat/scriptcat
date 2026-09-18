@@ -21,6 +21,48 @@ import { readRawContent } from "@App/pkg/utils/encoding";
 const HEADER_BLOCK = /\/\/[ \t]*==User(Script|Subscribe)==([\s\S]+?)\/\/[ \t]*==\/User\1==/m;
 const META_LINE = /\/\/[ \t]*@(\S+)[ \t]*(.*)$/gm;
 
+export interface MetadataLine {
+  /** 小写归一后的指令名，与 parseMetadata 的取键一致 */
+  tag: string;
+  /** 作者的原始写法，仅供呈现 */
+  name: string;
+  value: string;
+  /** 1 起算的全文行号 */
+  line: number;
+}
+
+const HEADER_OPEN = /^\/\/[ \t]*==User(?:Script|Subscribe)==/;
+
+/**
+ * 带位置的元数据解析：与 parseMetadata 共用 HEADER_BLOCK / META_LINE，
+ * 保证诊断看到的指令集合与运行时实际解析出的完全一致（否则会对着一条运行时根本没读到的行报警）。
+ * parseMetadata 按指令名聚合取值、丢弃位置，这里逐条保留顺序与行号。
+ */
+export function parseMetadataLines(code: string): MetadataLine[] {
+  const block = HEADER_BLOCK.exec(code);
+  if (!block) return [];
+  const headerContent = block[2];
+  const open = HEADER_OPEN.exec(block[0]);
+  if (!open) return [];
+  const headerStart = block.index + open[0].length;
+
+  const lines: MetadataLine[] = [];
+  // META_LINE 的匹配按位置递增，逐段累计换行数即可，无需为每条指令从头数
+  let scanned = 0;
+  let line = 1;
+  let m: RegExpExecArray | null;
+  META_LINE.lastIndex = 0;
+  while ((m = META_LINE.exec(headerContent)) !== null) {
+    const absolute = headerStart + m.index;
+    for (let i = scanned; i < absolute; i++) {
+      if (code.charCodeAt(i) === 10) line += 1;
+    }
+    scanned = absolute;
+    lines.push({ tag: m[1].toLowerCase(), name: m[1], value: m[2]?.trim() ?? "", line });
+  }
+  return lines;
+}
+
 // 从脚本代码抽出Metadata
 export function parseMetadata(code: string): SCMetadata | null {
   let isSubscribe = false;
@@ -178,7 +220,8 @@ export async function prepareScriptByCode(
   dao?: ScriptDAO,
   options?: {
     byEditor?: boolean; // 是否通过编辑器导入
-    byWebRequest?: boolean; // 是否通过网页连结安装或更新
+    // 仅控制网页来源脚本的身份匹配，不参与安装页 history.back()/window.close() 决策。
+    byWebRequest?: boolean;
   }
 ): Promise<{ script: Script; oldScript?: Script; oldScriptCode?: string; oldInTrash?: boolean }> {
   dao = dao ?? new ScriptDAO();

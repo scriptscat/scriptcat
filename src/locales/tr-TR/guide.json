@@ -5,7 +5,7 @@
   "script_list_enable_title": "Betikleri Etkinleştir",
   "script_list_enable_content": "Betiklerin kullanılabilmesi için etkinleştirilmesi gerekir. Sayfa betikleri yüklendiğinde varsayılan olarak etkinleştirilir, Arka Plan Betikleri ise varsayılan olarak devre dışı bırakılır.",
   "script_list_action_title": "İşlemler",
-  "script_list_action_content": "İşlem çubuğu; betiği düzenleme, betiği çalıştırma ve durdurma (Arka Plan Betikleri) ile ayarlara (<Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">Kullanıcı Yapılandırması</Link>) erişim sağlar. Sağ taraftaki düğmeler gelişmiş filtreleme seçeneklerine ve görünüm modları arasında geçiş yapmanıza olanak tanır.",
+  "script_list_action_content": "İşlem alanı; betiği düzenleme, arka plan ve zamanlanmış betikleri çalıştırma ve durdurma, <Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">Kullanıcı Yapılandırması</Link> ayarlama, dışa aktarma ve silme işlemlerini sağlar. Pencere dar olduğunda bu işlemler “Diğer işlemler” menüsünde toplanır.",
   "tools_backup_title": "Yedekleme",
   "tools_backup_content": "Yedekleme, betiklerinizi kaybetmemeniz için yedek oluşturmanızı sağlar. Betik dosyalarını bilgisayarınıza dışa aktarabilir veya bilgisayarınızdan içe aktarabilirsiniz. Ayrıca daha fazla kolaylık için buluta da yedekleyebilirsiniz. Başka bir betik yöneticisinden mi geçiyorsunuz? <Link href=\"https://docs.scriptcat.org/en/docs/use/from-other/migrate-from-tampermonkey/\">geçiş kılavuzu</Link>na göz atın.",
   "setting_sync_title": "Güncelleme ve Senkronizasyon",

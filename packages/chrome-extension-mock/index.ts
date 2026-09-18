@@ -11,6 +11,7 @@ import Permissions from "./permissions";
 import Extension from "./extension";
 import MockUserScripts from "./user_scripts";
 import Action from "./action";
+import WebNavigation from "./web_navigation";
 
 const chromeMock = {
   tabs: new MockTab(),
@@ -26,8 +27,11 @@ const chromeMock = {
   extension: new Extension(),
   userScripts: new MockUserScripts(),
   action: new Action(),
+  webNavigation: new WebNavigation(),
   init() {
     this.downloads.reset();
+    this.permissions.reset();
+    this.webRequest.reset();
   },
 };
 

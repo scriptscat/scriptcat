@@ -1,0 +1,981 @@
+name: Sync_DeepWiki
+
+on:
+  schedule:
+    - cron: "17 3 */3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-deepwiki
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync DeepWiki context
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Prepare embedded DeepWiki implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "DEEPWIKI_RAW_DIR=$RUNNER_TEMP/deepwiki-raw" >> "$GITHUB_ENV"
+          echo "DEEPWIKI_GENERATED_DIR=$RUNNER_TEMP/deepwiki-generated" >> "$GITHUB_ENV"
+          echo "DEEPWIKI_REPOSITORY_FILES=$RUNNER_TEMP/deepwiki-repository-files.json" >> "$GITHUB_ENV"
+          echo "DEEPWIKI_VALIDATION=$RUNNER_TEMP/deepwiki-validation.json" >> "$GITHUB_ENV"
+          echo "DEEPWIKI_DECISION=$RUNNER_TEMP/deepwiki-decision.json" >> "$GITHUB_ENV"
+          echo "DEEPWIKI_REPORT=$RUNNER_TEMP/deepwiki-report.json" >> "$GITHUB_ENV"
+
+          program="$RUNNER_TEMP/deepwiki-sync.mjs"
+          cat >"$program" <<'NODE'
+          import { appendFile, mkdtemp, mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+          import path from "node:path";
+          import process from "node:process";
+
+          const ENDPOINT = "https://mcp.deepwiki.com/mcp";
+          const OUTPUT = path.resolve(process.env.DEEPWIKI_OUTPUT ?? ".deepwiki");
+          const EXPECTED_TOOLS = ["read_wiki_structure", "read_wiki_contents"];
+          const PAGE_HEADER = /^# Page: (.+?)\r?$/gm;
+          const PAGE_NUMBER = /^(\d+(?:\.\d+)*)$/;
+          const REPOSITORY_PATH = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/;
+
+          let summaryWritten = false;
+
+          function pageSlug(title) {
+            const slug = title
+              .normalize("NFKD")
+              .toLowerCase()
+              .replace(/[^\p{Letter}\p{Number}]+/gu, "-")
+              .replace(/^-+|-+$/g, "");
+            return slug || "page";
+          }
+
+          function pageFilename(number, title) {
+            return `${number.replaceAll(".", "-")}-${pageSlug(title)}.md`;
+          }
+
+          function failWithProblems(prefix, problems) {
+            if (problems.length === 0) return;
+            throw new Error(`${prefix}:\n- ${problems.join("\n- ")}`);
+          }
+
+          function parseWikiStructure(structure) {
+            const entries = [];
+            const numbers = new Set();
+            const titles = new Set();
+            const problems = [];
+
+            for (const line of structure.split(/\r?\n/)) {
+              const match = line.match(/^\s*-\s+(\d+(?:\.\d+)*)\s+(.+?)\s*$/);
+              if (!match) {
+                if (/^\s*[-*+]\s+/.test(line)) problems.push(`malformed structure entry: ${line.trim()}`);
+                continue;
+              }
+
+              const [, number, title] = match;
+              if (numbers.has(number)) problems.push(`duplicate structure page number: ${number}`);
+              if (titles.has(title)) problems.push(`duplicate structure page title: ${title}`);
+              numbers.add(number);
+              titles.add(title);
+              entries.push({ number, title, filename: pageFilename(number, title) });
+            }
+
+            if (entries.length === 0) problems.push("structure contains no numbered pages");
+            failWithProblems("DeepWiki structure validation failed", problems);
+            return entries;
+          }
+
+          function parseWikiPages(contents) {
+            const headers = [...contents.matchAll(PAGE_HEADER)];
+            const problems = [];
+            if (headers.length === 0) problems.push("contents contains no '# Page:' sections");
+            const titles = new Set();
+            const pages = [];
+
+            for (const [index, header] of headers.entries()) {
+              const title = header[1].trim();
+              if (!title) problems.push(`contents page ${index + 1} has an empty title`);
+              if (titles.has(title)) problems.push(`duplicate contents page title: ${title}`);
+              titles.add(title);
+              const start = header.index + header[0].length;
+              const end = headers[index + 1]?.index ?? contents.length;
+              const body = contents
+                .slice(start, end)
+                .replace(/^\r?\n+/, "")
+                .trim();
+              if (!body) problems.push(`contents page is empty: ${title || `(page ${index + 1})`}`);
+              pages.push({ title, body });
+            }
+
+            failWithProblems("DeepWiki contents validation failed", problems);
+            return pages;
+          }
+
+          function resolveRepositoryPath(source, repositoryFiles) {
+            if (!repositoryFiles || repositoryFiles.has(source)) return source;
+
+            const extensionMatch = source.match(/(\.[^/.]+)$/);
+            const extension = extensionMatch?.[1] ?? "";
+            const stem = extension ? source.slice(0, -extension.length) : source;
+            const candidates = [];
+            if (stem.endsWith("/index")) candidates.push(`${stem.slice(0, -"/index".length)}${extension}`);
+            if (extension) candidates.push(stem);
+
+            for (const file of repositoryFiles) {
+              const fileExtension = file.match(/(\.[^/.]+)$/)?.[1] ?? "";
+              const fileStem = fileExtension ? file.slice(0, -fileExtension.length) : file;
+              if (fileStem === stem || (stem.endsWith("/index") && fileStem === stem.slice(0, -"/index".length))) {
+                candidates.push(file);
+              }
+            }
+            return candidates.find((candidate) => repositoryFiles.has(candidate)) ?? source;
+          }
+
+          function rewriteSourceReferences(line, repositoryFiles) {
+            return line.replace(/\[\[?([^\]\n]+?)\]\]?\(\)/g, (match, rawLabel) => {
+              const label = rawLabel.trim();
+              const lineMatch = label.match(/^(.+?):([\d,\-\s]+)$/);
+              const source = resolveRepositoryPath((lineMatch?.[1] ?? label).trim(), repositoryFiles);
+              if (!REPOSITORY_PATH.test(source)) return match;
+
+              const lineRange = lineMatch?.[2].trim();
+              const fragment = lineRange && /^\d+(?:-\d+)?$/.test(lineRange)
+                ? `#L${lineRange.replace("-", "-L")}`
+                : "";
+              const resolvedLabel = lineMatch ? `${source}:${lineRange}` : source;
+              return `[${resolvedLabel}](../${source}${fragment})`;
+            });
+          }
+
+          function rewriteTarget(target, pageByNumber) {
+            const hash = target.indexOf("#");
+            const pathname = hash === -1 ? target : target.slice(0, hash);
+            const fragment = hash === -1 ? "" : target.slice(hash);
+            const pageNumber = pathname || (fragment.startsWith("#") ? fragment.slice(1) : "");
+
+            if (PAGE_NUMBER.test(pageNumber) && pageByNumber.has(pageNumber)) {
+              return `./${pageByNumber.get(pageNumber)}${pathname ? fragment : ""}`;
+            }
+
+            if (
+              pathname === "" ||
+              pathname.startsWith("./") ||
+              pathname.startsWith("../") ||
+              pathname.startsWith("/") ||
+              /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(pathname)
+            ) {
+              return target;
+            }
+
+            if (PAGE_NUMBER.test(pathname)) return target;
+            if (REPOSITORY_PATH.test(pathname)) return `../${pathname}${fragment}`;
+            return target;
+          }
+
+          function pageTargetFromLabel(label, pageByNumber, pageByTitle) {
+            const parenthesized = label.match(/\((\d+(?:\.\d+)?)\)/);
+            const prefixed = label.match(/^\s*(\d+(?:\.\d+)?)(?:\.|\s)/);
+            const number = parenthesized?.[1] ?? prefixed?.[1];
+            if (number && pageByNumber.has(number)) return `./${pageByNumber.get(number)}`;
+            return pageByTitle?.has(label.trim()) ? `./${pageByTitle.get(label.trim())}` : null;
+          }
+
+          function mapMarkdownLines(markdown, transform) {
+            let fence = null;
+            return markdown
+              .split("\n")
+              .map((line) => {
+                const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
+                if (fence) {
+                  if (fenceMatch && fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) {
+                    fence = null;
+                  }
+                  return line;
+                }
+                if (fenceMatch) {
+                  fence = fenceMatch[1];
+                  return line;
+                }
+                return transform(line);
+              })
+              .join("\n");
+          }
+
+          function rewriteMarkdownLinks(markdown, pageByNumber, pageByTitle, repositoryFiles) {
+            return mapMarkdownLines(markdown, (line) => {
+              const withSources = rewriteSourceReferences(line, repositoryFiles);
+              return withSources.replace(/\[([^\]\n]+)\]\(([^)\n]*)\)/g, (match, label, destination) => {
+                if (!destination) {
+                  const pageTarget = pageTargetFromLabel(label, pageByNumber, pageByTitle);
+                  return pageTarget ? `[${label}](${pageTarget})` : match;
+                }
+                const destinationMatch = destination.match(/^(\S+)([\s\S]*)$/);
+                if (!destinationMatch) return match;
+                const [, target, suffix] = destinationMatch;
+                return `[${label}](${rewriteTarget(target, pageByNumber)}${suffix})`;
+              });
+            });
+          }
+
+          function markdownLinks(markdown) {
+            const links = [];
+            mapMarkdownLines(markdown, (line) => {
+              for (const match of line.matchAll(/\[[^\]\n]+\]\(([^)\n]*)\)/g)) {
+                const destination = match[1].trim();
+                links.push(destination ? destination.split(/\s+/, 1)[0] : "");
+              }
+              return line;
+            });
+            return links;
+          }
+
+          function stripFragment(target) {
+            return target.split(/[?#]/, 1)[0];
+          }
+
+          function buildSnapshot(structure, contents, repositoryFiles) {
+            const responseProblems = [];
+            let entries = [];
+            let pages = [];
+            try {
+              entries = parseWikiStructure(structure);
+            } catch (error) {
+              responseProblems.push(error.message ?? String(error));
+            }
+            try {
+              pages = parseWikiPages(contents);
+            } catch (error) {
+              responseProblems.push(error.message ?? String(error));
+            }
+            failWithProblems("DeepWiki response validation failed", responseProblems);
+
+            const pageByTitle = new Map(pages.map((page) => [page.title, page]));
+            const pageByNumber = new Map(entries.map((entry) => [entry.number, entry.filename]));
+            const pageFilenameByTitle = new Map(entries.map((entry) => [entry.title, entry.filename]));
+            const structureTitles = new Set(entries.map((entry) => entry.title));
+            const contentTitles = new Set(pages.map((page) => page.title));
+
+            const unknownPages = pages.filter((page) => !structureTitles.has(page.title));
+            const missingPages = entries.filter((entry) => !contentTitles.has(entry.title));
+            if (unknownPages.length > 0) {
+              responseProblems.push(`contents pages absent from structure: ${unknownPages.map((page) => page.title).join(", ")}`);
+            }
+            if (pages.length !== entries.length) {
+              responseProblems.push(`structure/content page count mismatch: ${entries.length} structure entries, ${pages.length} contents pages`);
+            }
+            if (missingPages.length > 0) {
+              responseProblems.push(`contents pages missing from structure: ${missingPages.map((entry) => entry.title).join(", ")}`);
+            }
+            failWithProblems("DeepWiki response validation failed", responseProblems);
+
+            const files = new Map();
+            for (const entry of entries) {
+              const page = pageByTitle.get(entry.title);
+              files.set(
+                entry.filename,
+                `${rewriteMarkdownLinks(page.body, pageByNumber, pageFilenameByTitle, repositoryFiles).trim()}\n`
+              );
+            }
+
+            const index = [
+              "# DeepWiki context",
+              "",
+              "Generated from the public DeepWiki MCP server. Use the smallest relevant page; current repository code and owned documentation remain authoritative.",
+              "",
+            ];
+            for (const entry of entries) {
+              const depth = entry.number.split(".").length - 1;
+              index.push(`${"  ".repeat(depth)}- [${entry.number} ${entry.title}](./${entry.filename})`);
+            }
+            files.set("index.md", `${index.join("\n")}\n`);
+            return { entries, pages, files };
+          }
+
+          async function collectRepositoryFiles(directory, root = directory, files = new Set()) {
+            for (const entry of await readdir(directory, { withFileTypes: true })) {
+              if ([".deepwiki", ".git", "node_modules"].includes(entry.name)) continue;
+              const absolute = path.join(directory, entry.name);
+              if (entry.isDirectory()) await collectRepositoryFiles(absolute, root, files);
+              else if (entry.isFile()) files.add(path.relative(root, absolute).split(path.sep).join("/"));
+            }
+            return files;
+          }
+
+          async function inspectSnapshot(files, entries, pages, repositoryFiles, repositoryRoot) {
+            const problems = [];
+            const warnings = [];
+            const sourceCache = new Map();
+            const expectedFiles = entries.map(({ filename }) => filename);
+            const expectedIndexTargets = expectedFiles.map((filename) => `./${filename}`);
+            const writtenFiles = [...files.keys()].filter((filename) => filename !== "index.md");
+            const indexedFiles = markdownLinks(files.get("index.md") ?? "").filter((target) => target.startsWith("./"));
+            const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+            const check = (name, passed) => {
+              if (!passed) problems.push(name);
+            };
+
+            check("snapshot has a non-empty index.md", Boolean(files.get("index.md")?.trim()));
+            check("structure entries match written page files", same([...expectedFiles].sort(), [...writtenFiles].sort()));
+            check("structure entries match index page links", same(expectedIndexTargets, indexedFiles));
+            check("written page files are unique", new Set(writtenFiles).size === writtenFiles.length);
+
+            const expectedIndexLines = entries.map(({ number, title, filename }) => {
+              const depth = number.split(".").length - 1;
+              return `${"  ".repeat(depth)}- [${number} ${title}](./${filename})`;
+            });
+            const actualIndexLines = (files.get("index.md") ?? "")
+              .split(/\r?\n/)
+              .filter((line) => /^\s*- \[[^\n]+\]\(\.\/[^\n]+\)$/.test(line));
+            check("index labels and hierarchy match the structure", same(expectedIndexLines, actualIndexLines));
+
+            const pageTitles = new Map(pages.map((page) => [page.title, page]));
+            for (const entry of entries) {
+              const content = files.get(entry.filename);
+              const title = content?.match(/^# ([^\r\n]+)$/m)?.[1]?.trim();
+              if (!content) problems.push(`${entry.filename}: missing generated page`);
+              else if (!title) problems.push(`${entry.filename}: missing page title heading`);
+              else if (title !== entry.title) problems.push(`${entry.filename}: title heading does not match structure`);
+              if (!pageTitles.has(entry.title)) problems.push(`${entry.filename}: missing source contents page`);
+            }
+
+            for (const [filename, content] of files) {
+              for (const target of markdownLinks(content)) {
+                if (!target) {
+                  problems.push(`${filename}: empty link destination`);
+                  continue;
+                }
+                if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(target)) continue;
+                if (target.startsWith("#")) {
+                  if (PAGE_NUMBER.test(target.slice(1))) problems.push(`${filename}: unresolved DeepWiki page reference ${target}`);
+                  continue;
+                }
+                const targetPath = stripFragment(target);
+                if (target.startsWith("./")) {
+                  if (!files.has(path.posix.normalize(targetPath.slice(2)))) problems.push(`${filename}: missing .deepwiki target ${target}`);
+                  continue;
+                }
+                if (!target.startsWith("../")) {
+                  problems.push(`${filename}: invalid link destination ${target}`);
+                  continue;
+                }
+
+                const resolved = path.resolve(path.dirname(path.join(".deepwiki", filename)), targetPath);
+                const relative = path.relative(repositoryRoot, resolved).split(path.sep).join("/");
+                if (relative.startsWith("..") || path.isAbsolute(relative)) {
+                  problems.push(`${filename}: repository target escapes the root ${target}`);
+                  continue;
+                }
+                if (!repositoryFiles.has(relative)) {
+                  problems.push(`${filename}: missing repository target ${target}`);
+                  continue;
+                }
+
+                const fragment = target.match(/#L(\d+)(?:-L(\d+))?$/);
+                if (!fragment) continue;
+                const start = Number(fragment[1]);
+                const end = Number(fragment[2] ?? fragment[1]);
+                if (start < 1 || end < start) {
+                  problems.push(`${filename}: invalid repository line fragment ${target}`);
+                  continue;
+                }
+                let source = sourceCache.get(relative);
+                if (!sourceCache.has(relative)) {
+                  try {
+                    source = await readFile(path.join(repositoryRoot, relative), "utf8");
+                    sourceCache.set(relative, source);
+                  } catch (error) {
+                    problems.push(`${filename}: cannot read repository target ${target}: ${error.message}`);
+                    continue;
+                  }
+                }
+                const lineCount = source.split(/\r?\n/).length;
+                if (end > lineCount) warnings.push(`${filename}: repository line fragment exceeds current file length ${target}`);
+              }
+            }
+
+            return { problems, warnings, writtenFiles, indexedFiles };
+          }
+
+          async function writeSnapshot(files, outputDirectory) {
+            const parent = path.dirname(outputDirectory);
+            await mkdir(parent, { recursive: true });
+            const transaction = await mkdtemp(path.join(parent, `${path.basename(outputDirectory)}.transaction-`));
+            const staged = path.join(transaction, "new");
+            const backup = path.join(transaction, "old");
+            await mkdir(staged, { recursive: true });
+
+            try {
+              for (const [filename, content] of files) {
+                const destination = path.join(staged, filename);
+                await mkdir(path.dirname(destination), { recursive: true });
+                await writeFile(destination, content, "utf8");
+              }
+              let hadPrevious = false;
+              try {
+                await rename(outputDirectory, backup);
+                hadPrevious = true;
+              } catch (error) {
+                if (error.code !== "ENOENT") throw error;
+              }
+              try {
+                await rename(staged, outputDirectory);
+              } catch (error) {
+                if (hadPrevious) await rename(backup, outputDirectory);
+                throw error;
+              }
+              if (hadPrevious) await rm(backup, { recursive: true, force: true });
+            } finally {
+              await rm(transaction, { recursive: true, force: true });
+            }
+          }
+
+          async function readSnapshot(outputDirectory) {
+            const files = new Map();
+            for (const filename of await readdir(outputDirectory)) {
+              if (!filename.endsWith(".md")) continue;
+              files.set(filename, await readFile(path.join(outputDirectory, filename), "utf8"));
+            }
+            return files;
+          }
+
+          async function snapshotMatches(expectedFiles, outputDirectory) {
+            let directoryEntries;
+            try {
+              directoryEntries = await readdir(outputDirectory, { withFileTypes: true });
+            } catch (error) {
+              if (error.code === "ENOENT") return false;
+              throw error;
+            }
+            if (directoryEntries.some((entry) => !entry.isFile() || !entry.name.endsWith(".md"))) return false;
+
+            const currentNames = directoryEntries.map((entry) => entry.name).sort();
+            const expectedNames = [...expectedFiles.keys()].sort();
+            if (JSON.stringify(currentNames) !== JSON.stringify(expectedNames)) return false;
+
+            for (const [filename, expectedContent] of expectedFiles) {
+              if ((await readFile(path.join(outputDirectory, filename), "utf8")) !== expectedContent) return false;
+            }
+            return true;
+          }
+
+          function snapshotReport(entries, pages, files, repository, changed) {
+            return {
+              endpoint: ENDPOINT,
+              repository,
+              changed,
+              structureEntries: entries,
+              contentPageTitles: pages.map((page) => page.title),
+              writtenPageFiles: entries.map((entry) => entry.filename).filter((filename) => files.has(filename)),
+              indexPageFiles: markdownLinks(files.get("index.md") ?? "").filter((target) => target.startsWith("./")),
+            };
+          }
+
+          async function writeReport(report) {
+            const reportPath = process.env.DEEPWIKI_REPORT;
+            if (!reportPath) return;
+            await mkdir(path.dirname(path.resolve(reportPath)), { recursive: true });
+            await writeFile(path.resolve(reportPath), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+          }
+
+          async function setOutput(name, value) {
+            const outputPath = process.env.GITHUB_OUTPUT;
+            if (!outputPath) return;
+            await appendFile(outputPath, `${name}=${value}\n`);
+          }
+
+          function parseRpcResponse(body) {
+            const payloads = body
+              .split(/\r?\n/)
+              .filter((line) => line.startsWith("data:"))
+              .map((line) => line.slice("data:".length).trim())
+              .filter(Boolean);
+            const messages = payloads.length > 0 ? payloads : [body.trim()];
+            for (const payload of messages) {
+              if (!payload) continue;
+              const message = JSON.parse(payload);
+              if (message.error) throw new Error(`MCP error ${message.error.code}: ${message.error.message}`);
+              if (message.result) return message.result;
+            }
+            throw new Error("MCP response did not contain a JSON-RPC result");
+          }
+
+          async function mcpRequest(endpoint, request, session) {
+            const headers = {
+              Accept: "application/json, text/event-stream",
+              "Content-Type": "application/json",
+              "Mcp-Method": request.method,
+            };
+            if (session.id) headers["Mcp-Session-Id"] = session.id;
+            if (session.protocolVersion) headers["Mcp-Protocol-Version"] = session.protocolVersion;
+            if (request.method === "tools/call" && request.params?.name) headers["Mcp-Name"] = request.params.name;
+            const response = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(request) });
+            const sessionId = response.headers.get("mcp-session-id");
+            if (sessionId) session.id = sessionId;
+            if (!response.ok) throw new Error(`MCP HTTP ${response.status}: ${await response.text()}`);
+            return parseRpcResponse(await response.text());
+          }
+
+          async function mcpNotification(endpoint, notification, session) {
+            const headers = {
+              Accept: "application/json, text/event-stream",
+              "Content-Type": "application/json",
+              "Mcp-Method": notification.method,
+            };
+            if (session.id) headers["Mcp-Session-Id"] = session.id;
+            if (session.protocolVersion) headers["Mcp-Protocol-Version"] = session.protocolVersion;
+            const response = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(notification) });
+            if (!response.ok) throw new Error(`MCP notification HTTP ${response.status}: ${await response.text()}`);
+          }
+
+          function resultText(result, toolName) {
+            if (result.isError) {
+              const detail = result.content?.find((item) => item.type === "text")?.text ?? "unknown tool error";
+              throw new Error(`${toolName} returned an MCP tool error: ${detail}`);
+            }
+            const text = result.structuredContent?.result ?? result.content?.find((item) => item.type === "text")?.text;
+            if (typeof text !== "string" || !text.trim()) throw new Error(`${toolName} returned empty content`);
+            return text;
+          }
+
+          async function fetchWiki(repository) {
+            const session = {};
+            const initialized = await mcpRequest(
+              ENDPOINT,
+              {
+                jsonrpc: "2.0",
+                id: 1,
+                method: "initialize",
+                params: {
+                  protocolVersion: "2025-03-26",
+                  capabilities: {},
+                  clientInfo: { name: "scriptcat-deepwiki-sync", version: "1.0.0" },
+                },
+              },
+              session
+            );
+            if (!initialized.serverInfo?.name) throw new Error("MCP initialize response is missing serverInfo");
+            if (!initialized.protocolVersion) throw new Error("MCP initialize response is missing protocolVersion");
+            session.protocolVersion = initialized.protocolVersion;
+            await mcpNotification(ENDPOINT, { jsonrpc: "2.0", method: "notifications/initialized", params: {} }, session);
+
+            const tools = await mcpRequest(ENDPOINT, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }, session);
+            const availableTools = new Set(tools.tools?.map((tool) => tool.name));
+            const missingTools = EXPECTED_TOOLS.filter((tool) => !availableTools.has(tool));
+            failWithProblems("MCP tool discovery failed", missingTools.map((tool) => `missing tool ${tool}`));
+
+            const problems = [];
+            const textResults = [];
+            for (const [index, toolName] of EXPECTED_TOOLS.entries()) {
+              try {
+                const result = await mcpRequest(
+                  ENDPOINT,
+                  {
+                    jsonrpc: "2.0",
+                    id: index + 3,
+                    method: "tools/call",
+                    params: { name: toolName, arguments: { repoName: repository } },
+                  },
+                  session
+                );
+                textResults[index] = resultText(result, toolName);
+              } catch (error) {
+                problems.push(`${toolName}: ${error.message ?? error}`);
+              }
+            }
+            failWithProblems("MCP tool responses failed", problems);
+            return { structure: textResults[0], contents: textResults[1] };
+          }
+
+          async function loadWiki(repository) {
+            const cacheDirectory = process.env.DEEPWIKI_CACHE_DIR;
+            if (!cacheDirectory) return fetchWiki(repository);
+            return {
+              structure: await readFile(path.join(cacheDirectory, "structure.md"), "utf8"),
+              contents: await readFile(path.join(cacheDirectory, "contents.md"), "utf8"),
+            };
+          }
+
+          async function appendSummary(title, lines) {
+            const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+            if (!summaryPath) return;
+            await appendFile(summaryPath, `${[title, "", ...lines].join("\n")}\n`);
+            summaryWritten = true;
+          }
+
+          const RAW_DIR = path.resolve(process.env.DEEPWIKI_RAW_DIR ?? ".deepwiki-raw");
+          const GENERATED_DIR = path.resolve(process.env.DEEPWIKI_GENERATED_DIR ?? ".deepwiki-generated");
+          const REPOSITORY_FILES = path.resolve(process.env.DEEPWIKI_REPOSITORY_FILES ?? ".deepwiki-repository-files.json");
+          const VALIDATION_FILE = path.resolve(process.env.DEEPWIKI_VALIDATION ?? ".deepwiki-validation.json");
+          const DECISION_FILE = path.resolve(process.env.DEEPWIKI_DECISION ?? ".deepwiki-decision.json");
+
+          function repositoryName() {
+            const repository = process.env.GITHUB_REPOSITORY;
+            if (!repository) throw new Error("GITHUB_REPOSITORY is missing");
+            return repository;
+          }
+
+          async function writeJson(filename, value) {
+            await mkdir(path.dirname(filename), { recursive: true });
+            await writeFile(filename, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+          }
+
+          async function writeRepositoryFiles(files, repositoryRoot) {
+            await writeJson(REPOSITORY_FILES, {
+              version: 1,
+              root: path.resolve(repositoryRoot),
+              revision: process.env.GITHUB_SHA ?? null,
+              files: [...files],
+            });
+          }
+
+          async function loadRepositoryFiles(repositoryRoot) {
+            let inventory;
+            try {
+              inventory = JSON.parse(await readFile(REPOSITORY_FILES, "utf8"));
+            } catch (error) {
+              throw new Error(`cannot load repository file inventory ${REPOSITORY_FILES}: ${error.message}`);
+            }
+            if (
+              inventory?.version !== 1 ||
+              inventory.root !== path.resolve(repositoryRoot) ||
+              inventory.revision !== (process.env.GITHUB_SHA ?? null) ||
+              !Array.isArray(inventory.files) ||
+              new Set(inventory.files).size !== inventory.files.length ||
+              inventory.files.some(
+                (file) =>
+                  typeof file !== "string" ||
+                  !file ||
+                  path.isAbsolute(file) ||
+                  file === ".." ||
+                  file.startsWith("../") ||
+                  path.posix.normalize(file) !== file
+              )
+            ) {
+              throw new Error(`repository file inventory is malformed: ${REPOSITORY_FILES}`);
+            }
+            return new Set(inventory.files);
+          }
+
+          async function fetchCommand() {
+            const repository = repositoryName();
+            const { structure, contents } = await loadWiki(repository);
+            await mkdir(RAW_DIR, { recursive: true });
+            await writeFile(path.join(RAW_DIR, "structure.md"), structure, "utf8");
+            await writeFile(path.join(RAW_DIR, "contents.md"), contents, "utf8");
+            await appendSummary("## DeepWiki fetch", [
+              "- Status: passed",
+              `- read_wiki_structure response bytes: ${Buffer.byteLength(structure, "utf8")}`,
+              `- read_wiki_contents response bytes: ${Buffer.byteLength(contents, "utf8")}`,
+              `- Raw responses saved under: ${RAW_DIR}`,
+            ]);
+            console.log(`DeepWiki responses saved to ${RAW_DIR}.`);
+          }
+
+          async function analyzeCommand() {
+            const repository = repositoryName();
+            const repositoryRoot = process.cwd();
+            const repositoryFiles = await collectRepositoryFiles(repositoryRoot);
+            await writeRepositoryFiles(repositoryFiles, repositoryRoot);
+            const structure = await readFile(path.join(RAW_DIR, "structure.md"), "utf8");
+            const contents = await readFile(path.join(RAW_DIR, "contents.md"), "utf8");
+            const { entries, pages, files } = buildSnapshot(structure, contents, repositoryFiles);
+            await writeSnapshot(files, GENERATED_DIR);
+            await appendSummary("## DeepWiki analyze and split", [
+              "- Status: passed",
+              `- Structure pages: ${entries.length}`,
+              `- Contents pages: ${pages.length}`,
+              `- Generated Markdown files: ${files.size}`,
+              `- Repository file inventory: ${repositoryFiles.size} files saved once for later steps`,
+              `- Generated snapshot staged at: ${GENERATED_DIR}`,
+            ]);
+            console.log(`DeepWiki response analyzed and split into ${files.size} files.`);
+          }
+
+          async function validateCommand() {
+            const repository = repositoryName();
+            const repositoryRoot = process.cwd();
+            const repositoryFiles = await loadRepositoryFiles(repositoryRoot);
+            const structure = await readFile(path.join(RAW_DIR, "structure.md"), "utf8");
+            const contents = await readFile(path.join(RAW_DIR, "contents.md"), "utf8");
+            const entries = parseWikiStructure(structure);
+            const pages = parseWikiPages(contents);
+            const files = await readSnapshot(GENERATED_DIR);
+            const validation = await inspectSnapshot(files, entries, pages, repositoryFiles, repositoryRoot);
+            await writeJson(VALIDATION_FILE, {
+              structureEntries: entries,
+              contentPageTitles: pages.map((page) => page.title),
+              writtenPageFiles: validation.writtenFiles,
+              indexPageFiles: validation.indexedFiles,
+              warnings: validation.warnings,
+              problems: validation.problems,
+            });
+
+            const summary = [
+              `- Status: ${validation.problems.length === 0 ? "passed" : "failed"}`,
+              `- Structure pages: ${entries.length}`,
+              `- Contents pages: ${pages.length}`,
+              `- Generated page files: ${validation.writtenFiles.length}`,
+              `- Repository file inventory: ${repositoryFiles.size} files reused from ${REPOSITORY_FILES}`,
+              `- Problems found: ${validation.problems.length}`,
+              `- Warnings found: ${validation.warnings.length}`,
+            ];
+            if (validation.warnings.length > 0) summary.push("", "### Warnings", "", ...validation.warnings.map((warning) => `- ${warning}`));
+            if (validation.problems.length > 0) summary.push("", "### Problems", "", ...validation.problems.map((problem) => `- ${problem}`));
+            await appendSummary("## DeepWiki validate", summary);
+            failWithProblems("DeepWiki generated snapshot validation failed", validation.problems);
+            console.log(`DeepWiki generated snapshot validated with ${validation.warnings.length} warning(s).`);
+          }
+
+          async function compareCommand() {
+            const repository = repositoryName();
+            const validation = JSON.parse(await readFile(VALIDATION_FILE, "utf8"));
+            const files = await readSnapshot(GENERATED_DIR);
+            const changed = !(await snapshotMatches(files, OUTPUT));
+            const pages = validation.contentPageTitles.map((title) => ({ title }));
+            await writeJson(DECISION_FILE, { changed });
+            await writeReport(snapshotReport(validation.structureEntries, pages, files, repository, changed));
+            await setOutput("changed", String(changed));
+            await appendSummary("## DeepWiki compare", [
+              `- Candidate Markdown files: ${files.size}`,
+              `- Snapshot changed: ${changed ? "yes" : "no"}`,
+              changed ? "- Write and commit steps remain enabled." : "- Write, reread, commit, and push steps skipped.",
+            ]);
+            if (!changed) {
+              await appendSummary("## DeepWiki write", ["- Status: skipped; snapshot is unchanged."]);
+              await appendSummary("## DeepWiki commit", ["- Status: skipped; snapshot is unchanged."]);
+            }
+            console.log(`DeepWiki snapshot comparison: changed=${changed}.`);
+          }
+
+          async function writeCommand() {
+            const repository = repositoryName();
+            const decision = JSON.parse(await readFile(DECISION_FILE, "utf8"));
+            if (!decision.changed) {
+              await appendSummary("## DeepWiki write", ["- Status: skipped; snapshot is unchanged."]);
+              return;
+            }
+
+            const repositoryRoot = process.cwd();
+            const repositoryFiles = await loadRepositoryFiles(repositoryRoot);
+            const validation = JSON.parse(await readFile(VALIDATION_FILE, "utf8"));
+            const entries = validation.structureEntries;
+            const pages = validation.contentPageTitles.map((title) => ({ title }));
+            const files = await readSnapshot(GENERATED_DIR);
+            await writeSnapshot(files, OUTPUT);
+            const writtenSnapshot = await readSnapshot(OUTPUT);
+            const afterWrite = await inspectSnapshot(writtenSnapshot, entries, pages, repositoryFiles, repositoryRoot);
+            const summary = [
+              `- Status: ${afterWrite.problems.length === 0 ? "passed" : "failed"}`,
+              `- Files written: ${writtenSnapshot.size}`,
+              `- Problems found: ${afterWrite.problems.length}`,
+              `- Warnings found: ${afterWrite.warnings.length}`,
+            ];
+            if (afterWrite.warnings.length > 0) summary.push("", "### Warnings", "", ...afterWrite.warnings.map((warning) => `- ${warning}`));
+            if (afterWrite.problems.length > 0) summary.push("", "### Problems", "", ...afterWrite.problems.map((problem) => `- ${problem}`));
+            await appendSummary("## DeepWiki write", summary);
+            failWithProblems("DeepWiki written snapshot validation failed", afterWrite.problems);
+            await writeReport(snapshotReport(entries, pages, writtenSnapshot, repository, true));
+            console.log(`DeepWiki snapshot written to ${OUTPUT} (${writtenSnapshot.size} files).`);
+          }
+
+          async function commandMain(command) {
+            if (command === "fetch") return fetchCommand();
+            if (command === "analyze") return analyzeCommand();
+            if (command === "validate") return validateCommand();
+            if (command === "compare") return compareCommand();
+            if (command === "write") return writeCommand();
+            throw new Error(`Unknown DeepWiki command: ${command}`);
+          }
+
+          const command = process.argv[2];
+          commandMain(command).catch(async (error) => {
+            if (!summaryWritten) {
+              try {
+                await appendSummary(`## DeepWiki ${command ?? "step"} failed`, ["- Problems found before normal step summary:", "", "```text", error.message ?? String(error), "```"]);
+              } catch (summaryError) {
+                console.error(`Unable to write GitHub step summary: ${summaryError.message}`);
+              }
+            }
+            console.error(error instanceof Error ? error.message : error);
+            process.exitCode = 1;
+          });
+          NODE
+          check_log="$RUNNER_TEMP/deepwiki-prepare.log"
+          set +e
+          node --check "$program" >"$check_log" 2>&1
+          check_exit=$?
+          set -e
+          cat "$check_log"
+          if [ "$check_exit" -ne 0 ]; then
+            {
+              echo "## DeepWiki prepare"
+              echo
+              echo "- Status: failed (exit $check_exit)"
+              echo
+              echo '```text'
+              cat "$check_log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$check_exit"
+          fi
+          {
+            echo "## DeepWiki prepare"
+            echo
+            echo "- Status: passed"
+            echo "- Embedded implementation: $program"
+            echo "- Execution is split into fetch, analyze/split, validate, compare, and write steps."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fetch DeepWiki MCP responses
+        shell: bash
+        run: |
+          set -euo pipefail
+          step_log="$RUNNER_TEMP/deepwiki-fetch.log"
+          set +e
+          node "$RUNNER_TEMP/deepwiki-sync.mjs" fetch >"$step_log" 2>&1
+          step_exit=$?
+          set -e
+          cat "$step_log"
+          if [ "$step_exit" -ne 0 ]; then
+            {
+              echo "## DeepWiki fetch"
+              echo
+              echo "- Status: failed (exit $step_exit)"
+              echo
+              echo '```text'
+              cat "$step_log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$step_exit"
+          fi
+
+      - name: Analyze and split DeepWiki response
+        shell: bash
+        run: |
+          set -euo pipefail
+          step_log="$RUNNER_TEMP/deepwiki-analyze.log"
+          set +e
+          node "$RUNNER_TEMP/deepwiki-sync.mjs" analyze >"$step_log" 2>&1
+          step_exit=$?
+          set -e
+          cat "$step_log"
+          if [ "$step_exit" -ne 0 ]; then
+            {
+              echo "## DeepWiki analyze and split"
+              echo
+              echo "- Status: failed (exit $step_exit)"
+              echo
+              echo '```text'
+              cat "$step_log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$step_exit"
+          fi
+
+      - name: Validate generated DeepWiki snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          step_log="$RUNNER_TEMP/deepwiki-validate.log"
+          set +e
+          node "$RUNNER_TEMP/deepwiki-sync.mjs" validate >"$step_log" 2>&1
+          step_exit=$?
+          set -e
+          cat "$step_log"
+          if [ "$step_exit" -ne 0 ]; then
+            {
+              echo "## DeepWiki validate"
+              echo
+              echo "- Status: failed (exit $step_exit)"
+              echo
+              echo '```text'
+              cat "$step_log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$step_exit"
+          fi
+
+      - name: Compare DeepWiki snapshot
+        id: compare
+        shell: bash
+        run: |
+          set -euo pipefail
+          step_log="$RUNNER_TEMP/deepwiki-compare.log"
+          set +e
+          node "$RUNNER_TEMP/deepwiki-sync.mjs" compare >"$step_log" 2>&1
+          step_exit=$?
+          set -e
+          cat "$step_log"
+          if [ "$step_exit" -ne 0 ]; then
+            {
+              echo "## DeepWiki compare"
+              echo
+              echo "- Status: failed (exit $step_exit)"
+              echo
+              echo '```text'
+              cat "$step_log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$step_exit"
+          fi
+
+      - name: Write changed DeepWiki snapshot
+        if: steps.compare.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          step_log="$RUNNER_TEMP/deepwiki-write.log"
+          set +e
+          node "$RUNNER_TEMP/deepwiki-sync.mjs" write >"$step_log" 2>&1
+          step_exit=$?
+          set -e
+          cat "$step_log"
+          if [ "$step_exit" -ne 0 ]; then
+            {
+              echo "## DeepWiki write"
+              echo
+              echo "- Status: failed (exit $step_exit)"
+              echo
+              echo '```text'
+              cat "$step_log"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$step_exit"
+          fi
+
+      - name: Commit refreshed snapshot
+        if: steps.compare.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git add -A -- .deepwiki
+          if git diff --cached --quiet; then
+            echo "DeepWiki snapshot is unchanged."
+            {
+              echo "## DeepWiki commit"
+              echo
+              echo "- Status: skipped; Git tree is unchanged."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "📄 refresh DeepWiki snapshot"
+          git push origin HEAD:main
+          {
+            echo "## DeepWiki commit"
+            echo
+            echo "- Status: passed"
+            echo "- Refreshed snapshot committed and pushed to main."
+          } >> "$GITHUB_STEP_SUMMARY"

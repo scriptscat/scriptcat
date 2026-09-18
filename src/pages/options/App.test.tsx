@@ -67,4 +67,17 @@ describe("Layout 外壳响应式", () => {
     expect(container.querySelector("aside")).not.toBeNull();
     expect(queryByTestId("bottom-tab-bar")).toBeNull();
   });
+
+  // 100vh 在带可收起工具栏/软键盘的移动浏览器上等于「大视口」，外壳会比当前可见区域更高，
+  // 底部 Tab 栏被挤到可视区外且文档本身不可滚动（issue #1555）；动态视口单位才跟随可见高度。
+  it.each([
+    ["移动端", true],
+    ["桌面端", false],
+  ])("%s 外壳高度使用动态视口单位而非 100vh", (_label, isMobile) => {
+    mockedUseIsMobile.mockReturnValue(isMobile);
+    const { container } = renderLayout();
+    const shell = container.querySelector("div")!;
+    expect(shell.className).toContain("h-dvh");
+    expect(shell.className).not.toContain("h-screen");
+  });
 });

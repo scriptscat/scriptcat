@@ -28,8 +28,7 @@ uniformly:
 | `AgentDomService` | `dom.ts` (+ `dom_cdp.ts` helpers) | Page automation — see below for the default-vs-trusted split. |
 | `AgentOPFSService` | `opfs_service.ts` | Serves `CAT.agent.opfs` requests from both content scripts (no Blob support) and offscreen (Blob support), dispatched on whether the caller has a `sender`. |
 
-(Class names verified via `git grep -n "export class" -- src/app/service/agent/service_worker/` — re-run that
-before relying on a name here, since these are exactly the kind of detail that drifts.)
+Current set: `git grep -n "export class" -- src/app/service/agent/service_worker/`.
 
 Message actions are namespaced under the `agent` group (`this.api.group("agent")`), the same RPC pattern
 `architecture.md` describes for other services — the difference here is internal composition, not the wiring
@@ -62,14 +61,13 @@ session ends — no explicit `unregister` loop is required.
 
 [`ToolLoopOrchestrator`](../../src/app/service/agent/service_worker/tool_loop_orchestrator.ts) drives one
 conversation turn: call the model, execute any tool calls the model requested, feed results back, and repeat
-until the model stops calling tools or `maxIterations` is hit. It depends on injected `callLLM` and
+until the model stops calling tools (or the user stops it via Loop Guard / cancellation). It depends on injected `callLLM` and
 `autoCompact` functions (rather than importing a concrete client) so tests can substitute spies.
 [`retry_utils.ts`](../../src/app/service/agent/service_worker/retry_utils.ts)'s `isRetryableError` matches an
 error message containing `429`, a `5xx` code, or a network-ish signal (`network`/`fetch`/`ECONNRESET`), then
-excludes it if the message also matches `400`, `401`, `403`, or `404` — it does not blanket-exclude every 4xx
-status, just those four specific codes (other 4xx codes simply don't match the retry-trigger pattern in
-practice unless their message happens to contain one of the trigger substrings). `withRetry` then applies
-exponential backoff, aborting immediately if the caller's `AbortSignal` fires. Context-window overflow triggers auto-compaction
+excludes it if the message also matches `400`, `401`, `403`, or `404` — those four codes specifically, not
+every 4xx. `withRetry` then applies exponential backoff, aborting immediately if the caller's `AbortSignal`
+fires. Context-window overflow triggers auto-compaction
 (`compact_service.ts` / `core/compact_prompt.ts`) before the loop continues. Provider-specific request/response
 shaping lives under `core/providers/` (`anthropic.ts`, `openai.ts`, `registry.ts`), keeping the orchestrator
 provider-agnostic.
@@ -136,15 +134,13 @@ The Agent subsystem does not use one persistence pattern; pick by data shape, ma
 
 ## Tests
 
-Test file names in `service_worker/` don't all mirror their source file 1:1 — some group by behavior instead
-(e.g. `background.test.ts` covers `background_session_manager.ts`, `retry.test.ts` covers `retry_utils.ts`,
-`autocompact.test.ts` covers the compaction trigger path). At the time of writing, `agent.ts`, `task_service.ts`,
-`compact_service.ts`, and `model_service.ts` don't have an obviously corresponding test file by name — don't
-infer full coverage from this table; run `git ls-tree --name-only HEAD src/app/service/agent/service_worker/ |
-grep test` for the current test inventory and compare it against the source list above before relying on
-either "it's tested" or "it's untested." `core/` follows the same co-located `*.test.ts` convention and the
-same caveat applies. Vitest conventions generally: see
-[`../references/develop-testing.md`](./develop-testing.md).
+Test file names in `service_worker/` don't all mirror their source 1:1 — some group by behavior instead
+(`background.test.ts` covers `background_session_manager.ts`, `retry.test.ts` covers `retry_utils.ts`,
+`autocompact.test.ts` covers the compaction trigger path), so a missing `<source>.test.ts` isn't proof of a
+coverage gap either way. Current inventory:
+`git ls-tree --name-only HEAD src/app/service/agent/service_worker/ | grep test`. `core/` follows the same
+co-located `*.test.ts` convention. Vitest conventions generally:
+[`develop-testing.md`](./develop-testing.md).
 
 ## Extending the Agent subsystem
 

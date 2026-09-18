@@ -5,7 +5,7 @@
   "script_list_enable_title": "Enable Scripts",
   "script_list_enable_content": "Scripts need to be enabled to be used. Page scripts are enabled by default upon installation, while background scripts are disabled by default.",
   "script_list_action_title": "Action",
-  "script_list_action_content": "The operation bar allows access to script editing, control script execution and termination (background scripts), and settings (see <Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link>). The buttons on the right allow access to advanced filtering and toggling view modes.",
+  "script_list_action_content": "The action area lets you edit a script, run or stop background and scheduled scripts, set its <Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link>, and export or delete it. In a narrow window these actions collapse into the “More actions” menu.",
   "tools_backup_title": "Backup",
   "tools_backup_content": "Backup allows you to save scripts to avoid loss. You can export script files to your local machine or load script files from your local machine. You can also back up to the cloud for added convenience. Migrating from another manager? See the <Link href=\"https://docs.scriptcat.org/en/docs/use/from-other/migrate-from-tampermonkey/\">migration guide</Link>.",
   "setting_sync_title": "Update and Sync",

@@ -36,4 +36,42 @@ describe("InstallLayout 安装页外壳", () => {
     const bar = screen.getByTestId("action-bar");
     expect(within(bar).getByText("do-update").closest("button")).toBeInTheDocument();
   });
+
+  it("ribbon 挂在顶栏与滚动区之间,不随正文滚走", () => {
+    render(
+      <InstallLayout title="脚本安装" actions={<button>{"install"}</button>} ribbon={<div>{"成功条"}</div>}>
+        <div>{"x"}</div>
+      </InstallLayout>
+    );
+    const ribbon = screen.getByText("成功条");
+    expect(ribbon).toBeInTheDocument();
+    expect(within(screen.getByTestId("content-area")).queryByText("成功条")).not.toBeInTheDocument();
+  });
+
+  it("alert 渲染在吸底操作栏内、按钮行之上", () => {
+    render(
+      <InstallLayout title="脚本安装" actions={<button>{"install"}</button>} alert={<div>{"错误条"}</div>}>
+        <div>{"x"}</div>
+      </InstallLayout>
+    );
+    const bar = screen.getByTestId("action-bar");
+    expect(within(bar).getByText("错误条")).toBeInTheDocument();
+  });
+
+  it("closing 时整页淡出,并让「减少动态效果」用户直接跳过动画", () => {
+    const { rerender } = render(
+      <InstallLayout title="脚本安装" actions={<button>{"install"}</button>}>
+        <div>{"x"}</div>
+      </InstallLayout>
+    );
+    const shell = screen.getByTestId("install-layout");
+    expect(shell.className).not.toContain("opacity-0");
+
+    rerender(
+      <InstallLayout title="脚本安装" actions={<button>{"install"}</button>} closing>
+        <div>{"x"}</div>
+      </InstallLayout>
+    );
+    expect(shell.className).toContain("motion-safe:opacity-0");
+  });
 });

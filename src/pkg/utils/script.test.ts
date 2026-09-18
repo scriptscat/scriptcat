@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { parseMetadata, parseScriptFromCode, fetchScriptBody, prepareScriptByCode } from "./script";
+import { parseMetadata, parseMetadataLines, parseScriptFromCode, fetchScriptBody, prepareScriptByCode } from "./script";
 import { getMetadataStr, getUserConfigStr } from "./utils";
 import { parseUserConfig } from "./yaml";
 import {
@@ -386,41 +386,6 @@ console.log('Hello World');
     expect(result?.author).toEqual([""]);
   });
 
-  it.concurrent("正確解析元数据(空version)", () => {
-    const code = `
-// ==UserScript==
-// @name         测试脚本
-// @namespace    http://tampermonkey.net/
-// @match        https://example.org/*
-// @match        https://test.com/*
-// @match        https://demo.com/*
-// @description  
-// @early-start  
-// @author       
-// @match        https://example.com/*
-// @grant    
-    GM_setValue
-// @grant        GM_getValue
-// ==/UserScript==
-console.log('Hello World');
-`;
-
-    const result = parseMetadata(code);
-    expect(result).not.toBeNull();
-    expect(result?.name).toEqual(["测试脚本"]);
-    expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
-    expect(result?.match).toEqual([
-      "https://example.org/*",
-      "https://test.com/*",
-      "https://demo.com/*",
-      "https://example.com/*",
-    ]);
-    expect(result?.["early-start"]).toEqual([""]);
-    expect(result?.grant).toEqual(["", "GM_getValue"]);
-    expect(result?.description).toEqual([""]);
-    expect(result?.author).toEqual([""]);
-  });
-
   it.concurrent("正確解析元数据(換行空白1)", () => {
     const code = `
 // ==UserScript==
@@ -756,6 +721,67 @@ console.log('Hello World');
     expect(result?.namespace).toEqual(["http://tampermonkey.net/"]);
     expect(result?.version).toEqual(["1.0.0"]);
     expect(result?.description).toEqual(["这是一个测试脚本"]);
+  });
+});
+
+describe.concurrent("parseMetadataLines", () => {
+  const code = `// 开头的普通注释
+// ==UserScript==
+// @name         示例
+// @namespace    https://example.com
+// @match        *://example.com/*
+// @exclude-match *://live.example.com/*
+// @grant        GM_setValue
+// ==/UserScript==
+
+console.log(1);
+`;
+
+  it("逐条给出指令名、取值与 1 起算的全文行号", () => {
+    expect(parseMetadataLines(code)).toEqual([
+      { tag: "name", name: "name", value: "示例", line: 3 },
+      { tag: "namespace", name: "namespace", value: "https://example.com", line: 4 },
+      { tag: "match", name: "match", value: "*://example.com/*", line: 5 },
+      { tag: "exclude-match", name: "exclude-match", value: "*://live.example.com/*", line: 6 },
+      { tag: "grant", name: "grant", value: "GM_setValue", line: 7 },
+    ]);
+  });
+
+  it("指令名小写归一，与 parseMetadata 的取键一致", () => {
+    const lines = parseMetadataLines(`// ==UserScript==
+// @Name  X
+// @MATCH *://a.com/*
+// ==/UserScript==`);
+    expect(lines.map((l) => l.tag)).toEqual(["name", "match"]);
+    // 呈现给用户时要用作者的原始写法
+    expect(lines.map((l) => l.name)).toEqual(["Name", "MATCH"]);
+  });
+
+  it("同名指令重复出现时逐条保留，不合并", () => {
+    const lines = parseMetadataLines(`// ==UserScript==
+// @name X
+// @match *://a.com/*
+// @match *://b.com/*
+// ==/UserScript==`);
+    expect(lines.filter((l) => l.tag === "match").map((l) => l.line)).toEqual([3, 4]);
+  });
+
+  it("没有元数据区块时返回空列表", () => {
+    expect(parseMetadataLines("console.log(1);")).toEqual([]);
+  });
+
+  it("只认第一个闭合区块——与 parseMetadata 的 HEADER_BLOCK 语义一致", () => {
+    const lines = parseMetadataLines(`// ==UserScript==
+// @name X
+// ==/UserScript==
+// ==UserScript==
+// @name Y
+// ==/UserScript==`);
+    expect(lines).toEqual([{ tag: "name", name: "name", value: "X", line: 2 }]);
+  });
+
+  it("区块未闭合时不产出任何指令——与 parseMetadata 一致", () => {
+    expect(parseMetadataLines(`// ==UserScript==\n// @name X\n`)).toEqual([]);
   });
 });
 

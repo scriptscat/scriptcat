@@ -5,7 +5,6 @@ export interface SubAgentTypeConfig {
   description: string; // 英文，写入 agent tool 描述供 LLM 选择
   allowedTools?: string[]; // 白名单模式（优先于 excludeTools）
   excludeTools?: string[]; // 黑名单模式
-  maxIterations: number;
   timeoutMs: number;
   systemPromptAddition: string; // 注入 sub-agent system prompt 的角色说明
 }
@@ -30,7 +29,6 @@ export const SUB_AGENT_TYPES: Record<string, SubAgentTypeConfig> = {
       "opfs_list",
       "opfs_delete",
     ],
-    maxIterations: 20,
     timeoutMs: 600_000,
     systemPromptAddition: `## Role: Researcher
 
@@ -65,7 +63,6 @@ You are a research-focused sub-agent. Your job is to search, fetch, read, and su
       "opfs_list",
       "opfs_delete",
     ],
-    maxIterations: 30,
     timeoutMs: 600_000,
     systemPromptAddition: `## Role: Page Operator
 
@@ -86,7 +83,6 @@ You are a page interaction sub-agent. Your job is to navigate web pages, interac
     name: "general",
     description: "All tools, general-purpose",
     excludeTools: ["ask_user", "agent"],
-    maxIterations: 30,
     timeoutMs: 600_000,
     systemPromptAddition: `## Role: General Sub-Agent
 

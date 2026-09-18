@@ -28,7 +28,6 @@ import CloudScriptPlan from "@App/pages/components/CloudScriptPlan";
 
 import ScriptTable from "./ScriptTable";
 import type { ScriptTableProps } from "./ScriptTable";
-import ScriptCard from "./ScriptCard";
 import { SearchFilter, type SearchFilterRequest } from "./SearchFilter";
 import { type TSelectFilter, useScriptDataManagement, useScriptFilters, useTrashCount } from "./hooks";
 import type { FilterBarProps } from "./FilterBar";
@@ -41,12 +40,7 @@ import { notify } from "@App/pages/components/ui/toast";
 import { useUserConfigPreload } from "./preload";
 import { reindexScriptList } from "./sort";
 import type { SortState } from "./sort";
-import {
-  type ScriptListPreferences,
-  type ScriptListViewMode,
-  readScriptListPreferences,
-  writeScriptListPreferences,
-} from "./preferences";
+import { type ScriptListPreferences, readScriptListPreferences, writeScriptListPreferences } from "./preferences";
 import { useOnboardingDemoActive } from "@App/pages/options/onboarding/OnboardingProvider";
 import { getDemoScripts } from "@App/pages/options/onboarding/demo-scripts";
 
@@ -62,17 +56,12 @@ type BatchProps = Pick<
   "onBatchEnable" | "onBatchDisable" | "onBatchExport" | "onBatchDelete" | "onBatchPinTop" | "onBatchCheckUpdate"
 >;
 
-type ContentProps = { viewMode: ScriptListViewMode } & ScriptTableProps & FilterBarProps & SelectionProps & BatchProps;
+type ContentProps = ScriptTableProps & FilterBarProps & SelectionProps & BatchProps;
 
 /**
  * 子组件: 内容区域（memo 防止弹窗状态引起列表重绘）
  */
-const MainContent = memo(({ viewMode, ...rest }: ContentProps) => {
-  if (viewMode === "card") {
-    return <ScriptCard {...rest} />;
-  }
-  return <ScriptTable {...rest} />;
-});
+const MainContent = memo((props: ContentProps) => <ScriptTable {...props} />);
 MainContent.displayName = "MainContent";
 
 function PreloadedUserConfigPanel({ script, onClose }: { script: Script; onClose: () => void }) {
@@ -105,7 +94,7 @@ export default function ScriptList() {
   const { t } = useTranslation();
   const [preferences, setPreferences] = useState<ScriptListPreferences>(readScriptListPreferences);
   // 1. UI 状态
-  const { viewMode, selectedFilters, searchRequest, sortState } = preferences;
+  const { selectedFilters, searchRequest, sortState } = preferences;
 
   const updatePreferences = useCallback((updater: (prev: ScriptListPreferences) => ScriptListPreferences) => {
     setPreferences((prev) => {
@@ -125,12 +114,6 @@ export default function ScriptList() {
   const demoActive = useOnboardingDemoActive();
   const demoScripts = useMemo(() => getDemoScripts(t), [t]);
   const displayScripts = demoActive ? demoScripts : filterScriptList;
-
-  // 3. 持久化视图切换
-  const handleSetViewMode = useCallback(
-    (mode: ScriptListViewMode) => updatePreferences((prev) => ({ ...prev, viewMode: mode })),
-    [updatePreferences]
-  );
 
   const handleSetSelectedFilters = useCallback(
     (updater: SetStateAction<TSelectFilter>) => {
@@ -456,6 +439,14 @@ export default function ScriptList() {
           filterItems={filterItems}
           selectedFilters={selectedFilters}
           setSelectedFilters={handleSetSelectedFilters}
+          selectedUuids={selectedUuids}
+          toggleSelect={toggleSelect}
+          toggleSelectAll={toggleSelectAll}
+          clearSelection={clearSelection}
+          onBatchEnable={handleBatchEnable}
+          onBatchDisable={handleBatchDisable}
+          onBatchExport={handleBatchExport}
+          onBatchDelete={handleBatchDelete}
         />
         {userConfigDialog}
         {cloudDialog}
@@ -470,13 +461,11 @@ export default function ScriptList() {
       ) : (
         <MainContent
           leading={showTrashTab ? tabs : undefined}
-          viewMode={viewMode}
           scriptList={displayScripts}
           loadingList={loadingList}
           updateScripts={updateScripts}
           handleDelete={handleDelete}
           handleRunStop={handleRunStop}
-          setViewMode={handleSetViewMode}
           searchRequest={searchRequest}
           setSearchRequest={handleSetSearchRequest}
           totalCount={demoActive ? demoScripts.length : scriptList.length}

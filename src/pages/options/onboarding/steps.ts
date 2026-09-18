@@ -19,7 +19,7 @@ export const DESKTOP_STEPS: TourStep[] = [
   },
   {
     id: "enable",
-    target: "col-enable",
+    target: "row-enable",
     route: "/",
     titleKey: "guide:script_list_enable_title",
     contentKey: "guide:script_list_enable_content",
@@ -27,7 +27,7 @@ export const DESKTOP_STEPS: TourStep[] = [
   },
   {
     id: "action",
-    target: "col-action",
+    target: "row-action",
     route: "/",
     titleKey: "guide:script_list_action_title",
     contentKey: "guide:script_list_action_content",
@@ -54,7 +54,7 @@ export const DESKTOP_STEPS: TourStep[] = [
 export const MOBILE_STEPS: TourStep[] = [
   {
     id: "installed",
-    target: "m-card-list",
+    target: "m-script-list",
     titleKey: "guide:installed_scripts_title",
     contentKey: "guide:installed_scripts",
     placement: "bottom",

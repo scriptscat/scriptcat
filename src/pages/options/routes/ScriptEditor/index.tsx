@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useBlocker, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { editor } from "monaco-editor";
 import type { Script } from "@App/app/repo/scripts";
@@ -118,13 +118,15 @@ export default function ScriptEditor() {
           return;
         }
         const code = await loadScriptCode(uuid);
-        dispatch({ type: "open", tab: { uuid, script, code, subView: "code", isChanged: false } });
+        const requestedView = searchParams.get("view");
+        const subView: SubView = requestedView === "setting" ? "setting" : "code";
+        dispatch({ type: "open", tab: { uuid, script, code, subView, isChanged: false } });
       } else {
         const tab = await emptyScript(template || "", target);
         dispatch({ type: "open", tab });
       }
     },
-    [t]
+    [searchParams, t]
   );
 
   // 初始化：列表就绪后根据 URL uuid 打开
@@ -168,6 +170,12 @@ export default function ScriptEditor() {
 
   // 离开未保存提醒
   const anyChanged = state.tabs.some((x) => x.isChanged);
+  const navigationBlocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      anyChanged &&
+      currentLocation.pathname.startsWith("/script/editor") &&
+      !nextLocation.pathname.startsWith("/script/editor")
+  );
   useEffect(() => {
     if (!anyChanged) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -176,6 +184,14 @@ export default function ScriptEditor() {
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [anyChanged]);
+
+  useEffect(() => {
+    if (navigationBlocker.state !== "blocked") return;
+    void confirm({ title: t("editor:script_modified_close_confirm"), destructive: true }).then((ok) => {
+      if (ok) navigationBlocker.proceed();
+      else navigationBlocker.reset();
+    });
+  }, [confirm, navigationBlocker, t]);
 
   const subView = activeTab?.subView ?? "code";
   // 仅后台/定时脚本可运行；普通脚本隐藏「运行」入口（与脚本列表/弹窗一致）

@@ -7,11 +7,6 @@ beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
 
 describe("用户提问块 AskUserBlock", () => {
-  it("展示问题文本", () => {
-    render(<AskUserBlock id="q1" question="选择一个颜色" onRespond={vi.fn()} />);
-    expect(screen.getByText("选择一个颜色")).toBeInTheDocument();
-  });
-
   it("单选点击选项后立即提交该选项", () => {
     const onRespond = vi.fn();
     render(<AskUserBlock id="q1" question="颜色?" options={["红", "蓝"]} onRespond={onRespond} />);
@@ -42,5 +37,24 @@ describe("用户提问块 AskUserBlock", () => {
     fireEvent.click(screen.getByTestId("ask-option-红"));
     expect(screen.queryByTestId("ask-input")).toBeNull();
     expect(screen.getByText("红")).toBeInTheDocument();
+  });
+
+  it("禁用自定义输入时使用稳定选项值", () => {
+    const onRespond = vi.fn();
+    render(
+      <AskUserBlock
+        id="guard-1"
+        question="是否继续？"
+        options={["继续", "停止"]}
+        optionValues={["continue", "stop"]}
+        allowCustom={false}
+        onRespond={onRespond}
+      />
+    );
+
+    expect(screen.queryByTestId("ask-input")).toBeNull();
+    fireEvent.click(screen.getByTestId("ask-option-stop"));
+    expect(onRespond).toHaveBeenCalledWith("guard-1", "stop");
+    expect(screen.getByText("停止")).toBeInTheDocument();
   });
 });

@@ -63,18 +63,32 @@ export default class CATAgentTaskApi {
     >;
   }
 
+  // task 必须携带 get()/list() 返回的 generation/revision（乐观并发版本号），
+  // 否则服务端无法区分"修改的是当前这个任务"还是"ID 被删除重建后的另一个任务"
   @GMContext.API({ follow: "CAT.agent.task" })
   public "CAT.agent.task.update"(id: string, task: Partial<AgentTask>): Promise<AgentTask> {
     const ctx = this as unknown as GMBaseContext;
+    if (task.generation === undefined || task.revision === undefined) {
+      throw new Error(
+        "CAT.agent.task.update: task must include the generation/revision returned by CAT.agent.task.get() or list() — spread the fetched task before applying changes."
+      );
+    }
     return ctx.sendMessage("CAT_agentTask", [
-      { action: "update", id, task } as AgentTaskApiRequest,
+      { action: "update", id, generation: task.generation, revision: task.revision, task } as AgentTaskApiRequest,
     ]) as Promise<AgentTask>;
   }
 
   @GMContext.API({ follow: "CAT.agent.task" })
-  public "CAT.agent.task.remove"(id: string): Promise<boolean> {
+  public "CAT.agent.task.remove"(id: string, task: Pick<AgentTask, "generation" | "revision">): Promise<boolean> {
     const ctx = this as unknown as GMBaseContext;
-    return ctx.sendMessage("CAT_agentTask", [{ action: "delete", id } as AgentTaskApiRequest]) as Promise<boolean>;
+    if (task?.generation === undefined || task?.revision === undefined) {
+      throw new Error(
+        "CAT.agent.task.remove: task must include the generation/revision returned by CAT.agent.task.get() or list()."
+      );
+    }
+    return ctx.sendMessage("CAT_agentTask", [
+      { action: "delete", id, generation: task.generation, revision: task.revision } as AgentTaskApiRequest,
+    ]) as Promise<boolean>;
   }
 
   @GMContext.API({ follow: "CAT.agent.task" })

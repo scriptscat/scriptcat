@@ -2,17 +2,19 @@ import type { Script } from "@App/app/repo/scripts";
 import {
   AgentClient,
   LogClient,
+  ExternalAccessClient,
   PermissionClient,
   PopupClient,
   ResourceClient,
   RuntimeClient,
+  NetworkRuleClient,
   ScriptClient,
   SubscribeClient,
   SynchronizeClient,
   ValueClient,
 } from "@App/app/service/service_worker/client";
 import { message } from "../global";
-import type { TBatchUpdateListAction } from "@App/app/service/service_worker/types";
+import type { TBatchUpdateListAction, TBatchUpdateResult } from "@App/app/service/service_worker/types";
 import type { TOpenBatchUpdatePageOption, TCheckScriptUpdateOption } from "@App/app/service/service_worker/script";
 
 export const scriptClient = new ScriptClient(message);
@@ -25,6 +27,8 @@ export const resourceClient = new ResourceClient(message);
 export const synchronizeClient = new SynchronizeClient(message);
 export const agentClient = new AgentClient(message);
 export const logClient = new LogClient(message);
+export const externalAccessClient = new ExternalAccessClient(message);
+export const networkRuleClient = new NetworkRuleClient(message);
 
 export const fetchScriptList = async () => {
   return await scriptClient.getAllScripts();
@@ -66,7 +70,10 @@ export const requestFilterResult = async (req: { value: string }) => {
   return await scriptClient.getFilterResult(req);
 };
 
-export const requestBatchUpdateListAction = async (action: TBatchUpdateListAction) => {
+// 只有 UPDATE 动作会回报执行结果；IGNORE 动作无返回值
+export const requestBatchUpdateListAction = async (
+  action: TBatchUpdateListAction
+): Promise<TBatchUpdateResult | undefined> => {
   return await scriptClient.batchUpdateListAction(action);
 };
 
@@ -76,7 +83,7 @@ export const requestOpenUpdatePageByUUID = async (uuid: string) => {
 
 export const requestOpenBatchUpdatePage = async (domain: string) => {
   return await scriptClient.openBatchUpdatePage({
-    q: `autoclose=-1${domain ? `&site=${domain}` : ""}`,
+    q: domain ? `site=${domain}` : "",
     dontCheckNow: false,
   } as TOpenBatchUpdatePageOption);
 };

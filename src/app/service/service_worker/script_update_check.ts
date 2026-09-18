@@ -57,6 +57,9 @@ class ScriptUpdateCheck {
   public setCacheFull(recordObject: TBatchUpdateRecordObject | null) {
     const list = recordObject?.list;
     list?.sort((a, b) => {
+      // 检查期间被改动的脚本只保留 checkUpdate:false 标记,没有可展示的 script 快照。
+      // 这类标记仍需进入缓存以表达「已检查」,但不能参与脚本排序。
+      if (!a.script || !b.script) return a.script ? -1 : b.script ? 1 : 0;
       if (a.script!.status === 1 && b.script!.status === 2) return -1;
       if (a.script!.status === 2 && b.script!.status === 1) return 1;
       return a.script!.sort! - b.script!.sort!;

@@ -147,8 +147,8 @@ describe("guessMimeType", () => {
     expect(guessMimeType("style.css")).toBe("text/css");
     expect(guessMimeType("data.xml")).toBe("text/xml");
     expect(guessMimeType("data.json")).toBe("application/json");
-    expect(guessMimeType("app.js")).toBe("application/javascript");
-    expect(guessMimeType("lib.mjs")).toBe("application/javascript");
+    expect(guessMimeType("app.js")).toBe("text/javascript");
+    expect(guessMimeType("lib.mjs")).toBe("text/javascript");
   });
 
   it("常见二进制扩展名返回正确 MIME", () => {
@@ -269,6 +269,18 @@ describe("opfs_tools", () => {
       await expect(write.executor.execute({ path: "../escape.txt", content: "bad" })).rejects.toThrow(
         '".." is not allowed'
       );
+    });
+
+    it("中止时不应写入文件", async () => {
+      const write = getTool("opfs_write");
+      const read = getTool("opfs_read");
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        write.executor.execute({ path: "cancelled.txt", content: "bad" }, controller.signal)
+      ).rejects.toThrow("Aborted");
+      await expect(read.executor.execute({ path: "cancelled.txt" })).rejects.toThrow();
     });
   });
 

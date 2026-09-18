@@ -17,7 +17,7 @@ import {
 import SubscribeTable from "./SubscribeTable";
 import SubscribeListMobile from "./SubscribeListMobile";
 import { useSubscribeDataManagement } from "./hooks";
-import { filterAndSortSubscribes, type SubscribeSort, type SubscribeSortField } from "./filter";
+import { filterAndSortSubscribes, type SubscribeSort } from "./filter";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 
 /**
@@ -66,15 +66,6 @@ export default function SubscribeList() {
     [subscribeList, statusFilter, searchKeyword, sort]
   );
 
-  // 点击表头切换排序：升序 → 降序 → 取消
-  const handleSort = useCallback((field: SubscribeSortField) => {
-    setSort((prev) => {
-      if (!prev || prev.field !== field) return { field, order: "asc" };
-      if (prev.order === "asc") return { field, order: "desc" };
-      return null;
-    });
-  }, []);
-
   // 删除二次确认（删除订阅会一并删除其安装的脚本）
   const [pendingDeleteUrl, setPendingDeleteUrl] = useState<string | null>(null);
 
@@ -120,7 +111,7 @@ export default function SubscribeList() {
           setSearchKeyword={setSearchKeyword}
           totalCount={subscribeList.length}
           sort={sort}
-          onSort={handleSort}
+          setSort={setSort}
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
         />

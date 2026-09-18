@@ -14,23 +14,23 @@ const runExample = new Function("GM_log", "GM_xmlhttpRequest", source) as (
 ) => Promise<void>;
 
 describe("定时脚本示例", () => {
-  it("定时请求 httpbun 并记录响应 URL", async () => {
+  it("定时请求 httpbingo 并记录响应 URL", async () => {
     const log = vi.fn();
     let requestDetails: RequestDetails | undefined;
     const result = runExample(log, (details) => {
       requestDetails = details;
     });
 
-    expect(requestDetails?.url).toBe("https://httpbun.com/get");
+    expect(requestDetails?.url).toBe("https://httpbingo.org/get");
 
     requestDetails?.onload({
       status: 200,
       response: {
-        url: "https://httpbun.com/get",
+        url: "https://httpbingo.org/get",
       },
     });
 
     await expect(result).resolves.toBeUndefined();
-    expect(log).toHaveBeenCalledWith("定时请求成功：\nhttps://httpbun.com/get");
+    expect(log).toHaveBeenCalledWith("定时请求成功：\nhttps://httpbingo.org/get");
   });
 });

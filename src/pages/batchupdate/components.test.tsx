@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { cleanup, screen, within, fireEvent } from "@testing-library/react";
+import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithTooltip } from "@Tests/renderWithTooltip";
 import { DesktopView } from "./components";
@@ -34,8 +35,13 @@ function mkView(p: Partial<BatchUpdateViewProps> = {}): BatchUpdateViewProps {
     checktime: 0,
     checking: false,
     loading: false,
+    loadError: null,
+    batchBusy: false,
     selected: new Set(),
-    autoClose: null,
+    rowStates: {},
+    opening: new Set(),
+    batchProgress: null,
+    recordExpired: false,
     onToggle: () => {},
     onToggleAll: () => {},
     onUpdate: () => {},
@@ -45,7 +51,9 @@ function mkView(p: Partial<BatchUpdateViewProps> = {}): BatchUpdateViewProps {
     onIgnoreSelected: () => {},
     onRestoreAll: () => {},
     onCheckNow: () => {},
+    onRetryLoad: () => {},
     onOpen: () => {},
+    onOpenScriptList: () => {},
     ...p,
   };
 }
@@ -133,7 +141,7 @@ describe("批量更新移动视图 已忽略分组折叠态", () => {
     expect(screen.queryByTestId("ignored-restore-all")).toBeNull();
   });
 
-  it("展开后显示全部恢复按钮且可触发恢复", () => {
+  it("展开后显示全部恢复按钮且确认后才触发恢复", () => {
     const onRestoreAll = vi.fn();
     renderMobile({
       updates: [mkItem()],
@@ -141,9 +149,350 @@ describe("批量更新移动视图 已忽略分组折叠态", () => {
       onRestoreAll,
     });
     fireEvent.click(screen.getByTestId("ignored-toggle"));
-    const restore = screen.getByTestId("ignored-restore-all");
-    fireEvent.click(restore);
+    fireEvent.click(screen.getByTestId("ignored-restore-all"));
+    fireEvent.click(screen.getByTestId("popconfirm-confirm"));
     expect(onRestoreAll).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("ignored-expand-hint")).toBeNull();
+  });
+});
+
+describe("批量更新行内状态 桌面视图", () => {
+  it("更新中的行显示转圈与「更新中」，并在行底给出扫光条", () => {
+    renderDesktop({ updates: [mkItem()], rowStates: { u1: { phase: "working" } } });
+    const status = screen.getByTestId("row-status-u1");
+    expect(status).toHaveAttribute("data-phase", "working");
+    expect(status).toHaveTextContent(t("install:updatepage.row_updating"));
+    expect(screen.queryByText(t("install:updatepage.update"))).toBeNull();
+    expect(document.querySelector(".animate-indeterminate-bar")).toBeTruthy();
+  });
+
+  it("排队中的行显示「排队中」且不再提供更新入口", () => {
+    renderDesktop({ updates: [mkItem()], rowStates: { u1: { phase: "queued" } } });
+    const status = screen.getByTestId("row-status-u1");
+    expect(status).toHaveAttribute("data-phase", "queued");
+    expect(status).toHaveTextContent(t("install:updatepage.row_queued"));
+  });
+
+  it("成功的行展示已更新到的版本号", () => {
+    renderDesktop({ updates: [mkItem({ newVersion: "2.10.0" })], rowStates: { u1: { phase: "success" } } });
+    const status = screen.getByTestId("row-status-u1");
+    expect(status).toHaveAttribute("data-phase", "success");
+    expect(status).toHaveTextContent(t("install:updatepage.row_updated", { version: "2.10.0" }));
+  });
+
+  it("失败的行留在原地并可点重试", () => {
+    const onUpdate = vi.fn();
+    renderDesktop({
+      updates: [mkItem()],
+      rowStates: { u1: { phase: "fail", error: "下载新版本失败" } },
+      onUpdate,
+    });
+    const status = screen.getByTestId("row-status-u1");
+    expect(status).toHaveAttribute("data-phase", "fail");
+    expect(status).toHaveTextContent(t("install:updatepage.row_failed"));
+    fireEvent.click(screen.getByTestId("row-retry-u1"));
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("初始态的行仍是常规的更新/忽略入口", () => {
+    renderDesktop({ updates: [mkItem()] });
+    expect(screen.getByTestId("row-status-u1")).toHaveAttribute("data-phase", "idle");
+    expect(screen.getByText(t("install:updatepage.update"))).toBeTruthy();
+  });
+});
+
+describe("批量更新行内状态 移动视图", () => {
+  it("更新中的卡片显示「更新中」并给出扫光条", () => {
+    renderMobile({ updates: [mkItem()], rowStates: { u1: { phase: "working" } } });
+    const status = screen.getByTestId("row-status-u1");
+    expect(status).toHaveAttribute("data-phase", "working");
+    expect(status).toHaveTextContent(t("install:updatepage.row_updating"));
+    expect(document.querySelector(".animate-indeterminate-bar")).toBeTruthy();
+  });
+
+  it("失败的卡片可点重试", () => {
+    const onUpdate = vi.fn();
+    renderMobile({ updates: [mkItem()], rowStates: { u1: { phase: "fail", error: "boom" } }, onUpdate });
+    fireEvent.click(screen.getByTestId("row-retry-u1"));
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("成功的卡片展示已更新到的版本号", () => {
+    renderMobile({ updates: [mkItem({ newVersion: "3.0.1" })], rowStates: { u1: { phase: "success" } } });
+    expect(screen.getByTestId("row-status-u1")).toHaveTextContent(
+      t("install:updatepage.row_updated", { version: "3.0.1" })
+    );
+  });
+});
+
+describe("批量更新汇总条", () => {
+  it("推进中显示已完成/总数与确定性进度", () => {
+    renderDesktop({ updates: [mkItem()], batchProgress: { done: 2, total: 4, failed: 0, finished: false } });
+    const summary = screen.getByTestId("batch-summary");
+    expect(summary).toHaveTextContent(t("install:updatepage.batch_progress", { done: 2, total: 4 }));
+    expect(summary.querySelector('[role="progressbar"]')).toHaveAttribute("aria-valuenow", "2");
+    expect(screen.queryByTestId("batch-open-scripts")).toBeNull();
+  });
+
+  it("结束后汇总成功与失败数量", () => {
+    renderDesktop({ updates: [mkItem()], batchProgress: { done: 4, total: 4, failed: 1, finished: true } });
+    expect(screen.getByTestId("batch-summary")).toHaveTextContent(
+      t("install:updatepage.batch_done_partial", { updated: 3, failed: 1 })
+    );
+  });
+
+  it("结束后提供查看更新脚本的入口", () => {
+    const onOpenScriptList = vi.fn();
+    renderDesktop({
+      updates: [mkItem()],
+      batchProgress: { done: 2, total: 2, failed: 0, finished: true },
+      onOpenScriptList,
+    });
+    const entry = screen.getByTestId("batch-open-scripts");
+    expect(entry).toHaveTextContent(t("install:updatepage.view_updated_scripts"));
+    fireEvent.click(entry);
+    expect(onOpenScriptList).toHaveBeenCalledTimes(1);
+  });
+
+  it("移动视图同样展示汇总条与查看入口", () => {
+    const onOpenScriptList = vi.fn();
+    renderMobile({
+      updates: [mkItem()],
+      batchProgress: { done: 2, total: 2, failed: 0, finished: true },
+      onOpenScriptList,
+    });
+    expect(screen.getByTestId("batch-summary")).toHaveTextContent(t("install:updatepage.batch_done", { count: 2 }));
+    fireEvent.click(screen.getByTestId("batch-open-scripts"));
+    expect(onOpenScriptList).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("批量更新 更新数据过期提示", () => {
+  it("桌面视图提示重新检查并把检查按钮切成高亮样式", () => {
+    renderDesktop({ updates: [mkItem()], recordExpired: true });
+    expect(screen.getByTestId("record-expired")).toHaveTextContent(t("install:updatepage.record_expired"));
+    const recheck = screen.getByText(t("install:updatepage.main_header")).closest("button");
+    expect(recheck).toHaveAttribute("data-variant", "default");
+  });
+
+  it("移动视图同样提示重新检查", () => {
+    renderMobile({ updates: [mkItem()], recordExpired: true });
+    expect(screen.getByTestId("record-expired")).toHaveTextContent(t("install:updatepage.record_expired"));
+  });
+});
+
+describe("批量更新 全部恢复并更新的确认", () => {
+  it("桌面视图点击后先确认，取消则不发起", () => {
+    const onRestoreAll = vi.fn();
+    renderDesktop({ ignored: [mkItem({ uuid: "i1", ignored: true })], onRestoreAll });
+    fireEvent.click(screen.getByTestId("ignored-restore-all"));
+    expect(screen.getByText(t("install:updatepage.restore_all_confirm", { count: 1 }))).toBeTruthy();
+    expect(onRestoreAll).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText(t("cancel")));
+    expect(onRestoreAll).not.toHaveBeenCalled();
+  });
+
+  it("确认弹窗点出新增 @connect 的后果", () => {
+    renderDesktop({
+      ignored: [
+        mkItem({ uuid: "i1", ignored: true, withNewConnect: true, newConnects: ["api.example.com"] }),
+        mkItem({ uuid: "i2", ignored: true }),
+      ],
+    });
+    fireEvent.click(screen.getByTestId("ignored-restore-all"));
+    const expected = `${t("install:updatepage.restore_all_confirm", { count: 2 })} ${t(
+      "install:updatepage.restore_all_confirm_connect",
+      { count: 1 }
+    )}`;
+    expect(screen.getByText(expected)).toBeTruthy();
+  });
+
+  it("确认后才发起全部恢复并更新", () => {
+    const onRestoreAll = vi.fn();
+    renderDesktop({ ignored: [mkItem({ uuid: "i1", ignored: true })], onRestoreAll });
+    fireEvent.click(screen.getByTestId("ignored-restore-all"));
+    fireEvent.click(screen.getByTestId("popconfirm-confirm"));
+    expect(onRestoreAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("单行与批量的动词一致，都是「恢复并更新」语义", () => {
+    renderDesktop({ ignored: [mkItem({ uuid: "i1", ignored: true })] });
+    expect(screen.getByText(t("install:updatepage.restore"))).toBeTruthy();
+    expect(screen.getByTestId("ignored-restore-all")).toHaveTextContent(t("install:updatepage.restore_all"));
+  });
+});
+
+describe("批量更新 打开更新详情进行中", () => {
+  it("桌面行在打开期间转圈并拒绝再次点击", () => {
+    const onOpen = vi.fn();
+    renderDesktop({ updates: [mkItem()], opening: new Set(["u1"]), onOpen });
+
+    const name = screen.getByTestId("script-name-u1");
+    expect(name).toHaveAttribute("aria-busy", "true");
+    expect(name.querySelector(".animate-spin")).toBeTruthy();
+
+    fireEvent.click(name);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("打开期间用 aria-disabled 而不是 disabled，保住 tooltip 与键盘焦点", () => {
+    renderDesktop({ updates: [mkItem()], opening: new Set(["u1"]) });
+
+    const name = screen.getByTestId("script-name-u1");
+    expect(name).toHaveAttribute("aria-disabled", "true");
+    expect(name).not.toBeDisabled();
+  });
+
+  it("未在打开时点击脚本名进入更新详情", () => {
+    const onOpen = vi.fn();
+    renderDesktop({ updates: [mkItem()], opening: new Set(), onOpen });
+
+    fireEvent.click(screen.getByTestId("script-name-u1"));
+
+    expect(onOpen).toHaveBeenCalledWith("u1");
+  });
+
+  it("移动卡片在打开期间同样标记为进行中", () => {
+    renderMobile({ updates: [mkItem()], opening: new Set(["u1"]) });
+
+    expect(screen.getByTestId("script-name-u1")).toHaveAttribute("aria-busy", "true");
+  });
+});
+
+describe("批量更新 骨架屏几何与无障碍", () => {
+  it("桌面骨架同时占住工具条，避免数据到达时整表下移", () => {
+    renderDesktop({ loading: true });
+
+    const skeleton = screen.getByRole("status", { name: t("install:updatepage.loading_list") });
+    expect(skeleton).toHaveAttribute("aria-busy", "true");
+    // 工具条占位（复选框 + 计数 + 两个按钮）与表格骨架同时在场
+    expect(within(skeleton).getByTestId("update-skeleton")).toBeTruthy();
+    expect(skeleton.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(24);
+  });
+
+  it("移动骨架把滚动区外的顶部选择栏与底部操作栏一并占住", () => {
+    const { container } = renderMobile({ loading: true });
+
+    expect(screen.getByTestId("update-skeleton")).toHaveAttribute("aria-busy", "true");
+    // 真实态里这两条在滚动区之外，只给列表画骨架挡不住上下挤压
+    expect(container.querySelector(".h-11 [data-slot='skeleton']")).toBeTruthy();
+    expect(container.querySelector(".border-t [data-slot='skeleton']")).toBeTruthy();
+  });
+});
+
+describe("批量更新 记录加载失败", () => {
+  it("桌面渲染错误终态而不是「所有脚本均为最新」", () => {
+    renderDesktop({ loadError: "message channel closed", updates: [], ignored: [] });
+
+    expect(screen.getByTestId("update-load-error")).toBeTruthy();
+    expect(screen.getByTestId("update-load-error-detail")).toHaveTextContent("message channel closed");
+    expect(screen.queryByTestId("update-empty")).toBeNull();
+    expect(screen.queryByTestId("update-skeleton")).toBeNull();
+  });
+
+  it("重试按钮触发重新加载", () => {
+    const onRetryLoad = vi.fn();
+    renderDesktop({ loadError: "boom", onRetryLoad });
+
+    fireEvent.click(screen.getByTestId("load-error-retry"));
+
+    expect(onRetryLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it("移动端同样落到错误终态", () => {
+    renderMobile({ loadError: "boom", updates: [], ignored: [] });
+
+    expect(screen.getByTestId("update-load-error")).toBeTruthy();
+    expect(screen.queryByTestId("update-empty")).toBeNull();
+  });
+});
+
+describe("批量更新 空态下重新检查", () => {
+  it("检查过一次之后再检查，空态原地保留而不是闪回骨架", () => {
+    renderDesktop({ checking: true, checktime: 1_700_000_000_000, updates: [], ignored: [] });
+
+    expect(screen.getByTestId("update-empty")).toBeTruthy();
+    expect(screen.queryByTestId("update-skeleton")).toBeNull();
+    expect(screen.getByTestId("empty-recheck")).toBeDisabled();
+  });
+});
+
+describe("批量更新 结果失效提示", () => {
+  it("提示条可被读屏播报并自带重新检查入口", () => {
+    const onCheckNow = vi.fn();
+    renderDesktop({ recordExpired: true, onCheckNow });
+
+    expect(screen.getByTestId("record-expired")).toHaveAttribute("role", "alert");
+    fireEvent.click(screen.getByTestId("record-expired-recheck"));
+    expect(onCheckNow).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("批量更新 批量进行中互斥", () => {
+  it("桌面批量进行中禁用勾选与两个批量按钮", () => {
+    renderDesktop({
+      updates: [mkItem(), mkItem({ uuid: "u2" })],
+      selected: new Set(["u1"]),
+      batchBusy: true,
+      batchProgress: { done: 1, total: 2, failed: 0, finished: false },
+    });
+
+    for (const box of screen.getAllByRole("checkbox")) expect(box).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("install:updatepage.ignore_selected") })).toBeDisabled();
+    expect(screen.getByRole("button", { name: t("install:updatepage.update_selected", { count: 1 }) })).toBeDisabled();
+  });
+
+  it("已忽略分组的全部恢复在批量进行中同样禁用", () => {
+    renderDesktop({ ignored: [mkItem({ ignored: true })], batchBusy: true });
+
+    expect(screen.getByTestId("ignored-restore-all")).toBeDisabled();
+  });
+});
+
+describe("批量更新 忽略的行内状态", () => {
+  it("忽略中的行显示「忽略中」而不是「更新中」", () => {
+    renderDesktop({ updates: [mkItem()], rowStates: { u1: { phase: "working", kind: "ignore" } } });
+
+    const status = screen.getByTestId("row-status-u1");
+    expect(status).toHaveAttribute("data-kind", "ignore");
+    expect(status).toHaveTextContent(t("install:updatepage.row_ignoring"));
+  });
+
+  it("忽略成功的行展示已忽略的版本号", () => {
+    renderDesktop({ updates: [mkItem()], rowStates: { u1: { phase: "success", kind: "ignore" } } });
+
+    expect(screen.getByTestId("row-status-u1")).toHaveTextContent(
+      t("install:updatepage.row_ignored", { version: "1.1.0" })
+    );
+  });
+
+  it("忽略失败后点重试重放的是忽略，而不是改成安装", () => {
+    const onIgnore = vi.fn();
+    const onUpdate = vi.fn();
+    renderDesktop({
+      updates: [mkItem()],
+      rowStates: { u1: { phase: "fail", kind: "ignore", error: "boom" } },
+      onIgnore,
+      onUpdate,
+    });
+
+    fireEvent.click(screen.getByTestId("row-retry-u1"));
+
+    expect(onIgnore).toHaveBeenCalledTimes(1);
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("批量更新 批量中断汇总", () => {
+  it("中断时如实汇报已完成条数，并保留查看入口", () => {
+    renderDesktop({
+      recordExpired: true,
+      batchProgress: { done: 1, total: 3, failed: 0, finished: true, interrupted: true },
+    });
+
+    expect(screen.getByTestId("batch-summary")).toHaveTextContent(
+      t("install:updatepage.batch_interrupted", { count: 1 })
+    );
+    expect(screen.getByTestId("batch-open-scripts")).toBeTruthy();
   });
 });
