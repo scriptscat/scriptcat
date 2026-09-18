@@ -70,4 +70,34 @@ describe("GM_xmlhttpRequest callback cleanup", () => {
     expect(connection.disconnect).toHaveBeenCalledWith(true);
     expect(onloadend).toHaveBeenCalledTimes(1);
   });
+
+  it("aborts and releases the connection even without an onabort callback", async () => {
+    const connection = {
+      onMessage: vi.fn(),
+      disconnect: vi.fn(),
+      sendMessage: vi.fn(),
+      onDisconnect: vi.fn(),
+    };
+    const onloadend = vi.fn();
+    const api = {
+      isInvalidContext: () => false,
+      connect: vi.fn().mockResolvedValue(connection),
+      sendMessage: vi.fn(),
+    };
+    const request = GM_xmlhttpRequest(
+      api as any,
+      {
+        url: "https://example.com/data",
+        onloadend,
+      },
+      true
+    );
+
+    await vi.waitFor(() => expect(connection.onMessage).toHaveBeenCalled());
+    request.abort();
+
+    await expect(request.retPromise).rejects.toBe("AbortError");
+    expect(connection.disconnect).toHaveBeenCalledWith(true);
+    await vi.waitFor(() => expect(onloadend).toHaveBeenCalledTimes(1));
+  });
 });

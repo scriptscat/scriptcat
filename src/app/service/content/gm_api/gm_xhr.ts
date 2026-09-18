@@ -752,7 +752,7 @@ export function GM_xmlhttpRequest(
         connect.disconnect(true); // 断开连结(容忍已断开)
         connect = null;
       }
-      if (doAbort && details.onabort && !reqDone) {
+      if (doAbort && !reqDone) {
         // https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/abort
         // When a request is aborted, its readyState is changed to XMLHttpRequest.UNSENT (0) and the request's status code is set to 0.
         doAbort?.({
