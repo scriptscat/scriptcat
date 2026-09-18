@@ -327,9 +327,14 @@ describe("page execution binding gate", () => {
       executionHandle: "handle-a",
       requestId: "request-a",
       version: 1 as const,
+      envTag: "ct" as const,
     };
-    await expect(api.handlerRequest(request, sender)).resolves.toBe(true);
-    await expect(api.handlerRequest(request, sender)).rejects.toThrow("page RPC requestId was already used");
+    await expect(api.handlerRequest(request, sender)).rejects.toThrow("page execution binding is invalid");
+    expect(binding.requestIds).toHaveLength(0);
+
+    const validRequest = { ...request, envTag: "it" as const };
+    await expect(api.handlerRequest(validRequest, sender)).resolves.toBe(true);
+    await expect(api.handlerRequest(validRequest, sender)).rejects.toThrow("page RPC requestId was already used");
   });
 
   it("keeps the page RPC replay window closed after the request-id cap", async () => {

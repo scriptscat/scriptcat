@@ -400,6 +400,9 @@ export default class GMApi {
       if (!binding.allowedAPIs.has(data.api)) {
         throw new Error("API is not granted to this execution");
       }
+      if (data.envTag !== undefined && data.envTag !== binding.envTag) {
+        throw new Error("page execution binding is invalid");
+      }
       if (typeof data.requestId !== "string" || !data.requestId || data.requestId.length > 256) {
         throw new Error("page RPC requestId is invalid");
       }
@@ -410,9 +413,6 @@ export default class GMApi {
         throw new Error("page RPC requestId replay window is exhausted");
       }
       binding.requestIds.add(data.requestId);
-      if (data.envTag !== undefined && data.envTag !== binding.envTag) {
-        throw new Error("page execution binding is invalid");
-      }
       data = { ...data, uuid: binding.uuid, runFlag: binding.runFlag };
     }
     const api = PermissionVerifyApiGet(data.api);
