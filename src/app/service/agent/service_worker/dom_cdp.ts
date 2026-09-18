@@ -23,6 +23,25 @@ type MonitorSession = {
 };
 
 const activeMonitors = new Map<number, MonitorSession>();
+const monitorOperationQueues = new Map<number, Promise<void>>();
+
+async function withMonitorOperation<T>(tabId: number, operation: () => Promise<T>): Promise<T> {
+  const previous = monitorOperationQueues.get(tabId) || Promise.resolve();
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  monitorOperationQueues.set(tabId, current);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (monitorOperationQueues.get(tabId) === current) {
+      monitorOperationQueues.delete(tabId);
+    }
+  }
+}
 
 // 生命周期管理：attach → 执行 → detach
 // 如果该 tabId 已有活跃的 monitor（已 attach），则复用连接，不做 attach/detach
@@ -240,14 +259,18 @@ export async function cdpScreenshot(tabId: number, options?: ScreenshotOptions):
 // ---- 页面监控（startMonitor / stopMonitor） ----
 
 // 启动页面监控：attach debugger，纯 CDP 事件监听（dialog + DOM 变化），零注入
-export async function cdpStartMonitor(tabId: number, ownerScriptUuid?: string): Promise<void> {
+export function cdpStartMonitor(tabId: number, ownerScriptUuid?: string): Promise<void> {
+  return withMonitorOperation(tabId, () => startMonitor(tabId, ownerScriptUuid));
+}
+
+async function startMonitor(tabId: number, ownerScriptUuid?: string): Promise<void> {
   // 如果已有 monitor，先停止
   const current = activeMonitors.get(tabId);
   if (current) {
     if (current.ownerScriptUuid !== ownerScriptUuid) {
       throw new Error("Monitor belongs to another script");
     }
-    await cdpStopMonitor(tabId, ownerScriptUuid);
+    await stopMonitor(tabId, ownerScriptUuid);
   }
 
   const dialogs: Array<{ type: string; message: string }> = [];
@@ -323,7 +346,11 @@ function stripHtmlTags(html: string): string {
 }
 
 // 停止监控：纯 CDP 解析新增节点 → 收集结果 → detach
-export async function cdpStopMonitor(tabId: number, ownerScriptUuid?: string): Promise<MonitorResult> {
+export function cdpStopMonitor(tabId: number, ownerScriptUuid?: string): Promise<MonitorResult> {
+  return withMonitorOperation(tabId, () => stopMonitor(tabId, ownerScriptUuid));
+}
+
+async function stopMonitor(tabId: number, ownerScriptUuid?: string): Promise<MonitorResult> {
   const monitor = activeMonitors.get(tabId);
   if (monitor && monitor.ownerScriptUuid !== ownerScriptUuid) {
     throw new Error("Monitor belongs to another script");

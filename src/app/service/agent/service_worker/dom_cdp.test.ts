@@ -103,6 +103,19 @@ describe("agent_dom_cdp", () => {
     await cdpStopMonitor(999, "script-a");
   });
 
+  it("并发重启同一标签页的监控不会泄漏旧监听器", async () => {
+    mockTabsGet.mockResolvedValue({ url: "https://example.com" });
+    mockSendCommand.mockResolvedValue({ root: { nodeId: 1 } });
+
+    await Promise.all([cdpStartMonitor(997, "script-a"), cdpStartMonitor(997, "script-a")]);
+    await cdpStopMonitor(997, "script-a");
+
+    expect(mockAttach).toHaveBeenCalledTimes(2);
+    expect(mockDetach).toHaveBeenCalledTimes(2);
+    expect(chrome.debugger.onEvent.addListener as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(2);
+    expect(chrome.debugger.onEvent.removeListener as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(2);
+  });
+
   it("页面监控的结果不能被其他脚本读取或停止", async () => {
     mockTabsGet.mockResolvedValue({ url: "https://example.com" });
     mockSendCommand.mockResolvedValue({ root: { nodeId: 1 } });
