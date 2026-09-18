@@ -1315,6 +1315,7 @@ describe("pushValueUpdate 判断是否需要为 early-start 脚本重新编译",
       storageName: "test-storage",
       sender: { runFlag: "", tabId: -1 },
       valueUpdated: true,
+      updatetime: Date.now(),
     });
 
     expect(updateSpy).toHaveBeenCalledWith(script);
