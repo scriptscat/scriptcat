@@ -1,12 +1,11 @@
 import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
-import { createContext, createProxyContext } from "./create_context";
+import { createContext, createProxyContext, type ScriptContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import { compileScript, isContextMenuScript } from "./utils";
 import type { Message } from "@Packages/message/types";
 import type { ValueUpdateDataEncoded } from "./types";
 import { evaluateGMInfo } from "./gm_api/gm_info";
-import type { IGM_Base } from "./gm_api/gm_api";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import { Native } from "./global";
 
@@ -23,7 +22,7 @@ export default class ExecScript {
 
   // proxyContext: typeof globalThis;
 
-  sandboxContext?: IGM_Base & { [key: string]: any };
+  sandboxContext?: ScriptContext;
 
   named?: { [key: string]: any };
 
@@ -103,13 +102,13 @@ export default class ExecScript {
       this.scriptRes.executionEnvTag = scriptInfo.executionEnvTag;
       this.scriptRes.executionRunFlag = scriptInfo.executionRunFlag;
       if (this.sandboxContext && scriptInfo.executionRunFlag) {
-        this.sandboxContext.runFlag = scriptInfo.executionRunFlag;
+        this.sandboxContext.setExecutionRunFlag(scriptInfo.executionRunFlag);
       }
     }
     let GM_info;
     if (this.sandboxContext) {
       // 触发loadScriptResolve
-      this.sandboxContext["loadScriptResolve"]?.();
+      this.sandboxContext.resolveLoadScript();
       GM_info = this.execContext["GM_info"];
     } else {
       GM_info = this.named?.GM_info;

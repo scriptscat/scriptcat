@@ -6,7 +6,7 @@ import { GMContextApiGet, protect } from "./gm_api/gm_context";
 import { getGrantCandidates } from "./gm_api/grant";
 import { isEarlyStartScript } from "./utils";
 import { ListenerManager } from "./listener_manager";
-import { createGMBase } from "./gm_api/gm_api";
+import { createGMBase, type IGM_Base } from "./gm_api/gm_api";
 import { attachNavigateHandler, type UrlChangeEvent } from "./gm_api/navigation_handle";
 import { nativeCall, Native } from "./global";
 
@@ -43,6 +43,18 @@ const createCapability = (api: (...args: any[]) => any, receiver: object) => {
 };
 
 // 不要使用 {}, 改使用 Object.create(null) - 避免在页面生成沙盒时，受到 Object.prototype 被注入的影响
+
+export type ScriptContext = IGM_Base & {
+  [key: string]: any;
+  setExecutionRunFlag(runFlag: string): void;
+  resolveLoadScript(): void;
+};
+
+type InternalScriptContext = IGM_Base & {
+  [key: string]: any;
+  runFlag: string;
+  loadScriptResolve?: () => void;
+};
 
 // 构建沙盒上下文
 export const createContext = (
@@ -99,7 +111,47 @@ export const createContext = (
     isInvalidContext() {
       return invalid;
     },
+  }) as unknown as InternalScriptContext;
+  const publicContext = Native.objectCreate(null) as ScriptContext;
+  publicContext.GM = GM;
+  publicContext.GM_info = GMInfo;
+  publicContext.window = Native.objectCreate(null);
+  publicContext.unsafeWindow = window;
+
+  // 生命周期方法只供隔离执行器使用，不进入脚本可枚举的 facade。
+  Native.objectDefineProperty(publicContext, "valueUpdate", {
+    configurable: false,
+    enumerable: false,
+    value: (data: any) => context.valueUpdate(data),
   });
+  Native.objectDefineProperty(publicContext, "emitEvent", {
+    configurable: false,
+    enumerable: false,
+    value: (event: string, eventId: string, data: any) => context.emitEvent(event, eventId, data),
+  });
+  Native.objectDefineProperty(publicContext, "setInvalidContext", {
+    configurable: false,
+    enumerable: false,
+    value: () => context.setInvalidContext(),
+  });
+  Native.objectDefineProperty(publicContext, "isInvalidContext", {
+    configurable: false,
+    enumerable: false,
+    value: () => context.isInvalidContext(),
+  });
+  Native.objectDefineProperty(publicContext, "setExecutionRunFlag", {
+    configurable: false,
+    enumerable: false,
+    value: (runFlag: string) => {
+      context.runFlag = runFlag;
+    },
+  });
+  Native.objectDefineProperty(publicContext, "resolveLoadScript", {
+    configurable: false,
+    enumerable: false,
+    value: () => context.loadScriptResolve?.(),
+  });
+
   const grantedAPIs: { [key: string]: any } = Native.objectCreate(null);
   const __methodInject__ = (grant: string): boolean => {
     const grantSet: Set<string> = context.grantSet;
@@ -131,7 +183,7 @@ export const createContext = (
     const fnKey = grantedKeys[i];
     const fnKeyArray = fnKey.split(".");
     const m = fnKeyArray.length;
-    let g = context;
+    let g = publicContext;
     let s = "";
     for (let i = 0; i < m; i++) {
       const part = fnKeyArray[i];
@@ -139,12 +191,11 @@ export const createContext = (
       g = g[part] || (g[part] = grantedAPIs[s] || Native.objectCreate(null));
     }
   }
-  context.unsafeWindow = window;
   if (scriptGrantSet.has("window.onurlchange") && context.onurlchange === undefined) {
-    context.onurlchange = null;
+    publicContext.onurlchange = null;
     attachNavigateHandler(window as any);
   }
-  return context;
+  return publicContext;
 };
 
 const noEval = false;

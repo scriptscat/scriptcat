@@ -306,6 +306,16 @@ describe("shouldFnBind", () => {
 });
 
 describe("createContext: capability and lifecycle contract", () => {
+  it("does not expose broker state on the script-facing context", () => {
+    const context = createTestContext(["GM_getValue"]);
+
+    expect(context).not.toHaveProperty("message");
+    expect(context).not.toHaveProperty("scriptRes");
+    expect(context).not.toHaveProperty("valueChangeListener");
+    expect(context).not.toHaveProperty("EE");
+    expect(context).not.toHaveProperty("grantSet");
+  });
+
   it("creates collection instances from frozen captured-method subclasses", () => {
     const set = new Native.Set(["grant"]);
     const map = new Native.Map<string, number>();
@@ -365,21 +375,29 @@ describe("createContext: capability and lifecycle contract", () => {
     }
   });
 
-  it("uses the service-worker execution run flag for value acknowledgments", () => {
+  it("uses the service-worker execution run flag for value acknowledgments", async () => {
     const script = {
-      ...createScriptInfo({ grant: ["GM_getValue"] }),
+      ...createScriptInfo({ grant: ["GM_setValue"] }),
       executionRunFlag: "canonical-run",
     } as TScriptInfo;
+    const message = {
+      sendMessage: vi.fn().mockResolvedValue({ code: 0, data: "bar" }),
+    };
     const context = createContext(
       script,
       { script: { name: "create-context-test" }, scriptMetaStr: "" },
       "vitest",
+      message as any,
       undefined as any,
-      undefined as any,
-      new Set(["GM_getValue"])
+      new Set(["GM_setValue"])
     );
 
-    expect((context as unknown as { runFlag: string }).runFlag).toBe("canonical-run");
+    context.GM_setValue("foo", "next");
+    expect(message.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ runFlag: "canonical-run" }),
+      })
+    );
   });
 
   it("installs capabilities without looking up a page-patchable Function.prototype.bind", () => {
@@ -465,9 +483,6 @@ describe("createContext: capability and lifecycle contract", () => {
     expect(context.GM_cookie.list).toBeTypeOf("function");
     expect(context.GM_cookie.delete).toBeTypeOf("function");
     expect(context.not_exist).toBeUndefined();
-    expect(context.grantSet.has("not_exist")).toBe(false);
-    expect(context.grantSet.has("GM_getValue")).toBe(true);
-    expect(context.grantSet.has("GM.getValue")).toBe(true);
   });
 
   it.each(["GM.cookie", "GM_cookie"] as const)("雙向注入 cookie API：輸入 %s 時兩種公開形狀都可用", (grant) => {
@@ -481,8 +496,6 @@ describe("createContext: capability and lifecycle contract", () => {
     expect(context.GM_cookie.set).toBeTypeOf("function");
     expect(context.GM_cookie.list).toBeTypeOf("function");
     expect(context.GM_cookie.delete).toBeTypeOf("function");
-    expect(context.grantSet.has("GM.cookie")).toBe(true);
-    expect(context.grantSet.has("GM_cookie")).toBe(true);
   });
 
   it("將 window grant 留在 context.window，投影時才暴露到 sandbox", () => {
@@ -509,8 +522,7 @@ describe("createContext: capability and lifecycle contract", () => {
 
     await Promise.resolve();
     expect(loaded).toBe(false);
-    const loadScriptResolve = (context as unknown as AnyRecord).loadScriptResolve as () => void;
-    loadScriptResolve();
+    context.resolveLoadScript();
     await loadedPromise;
     expect(loaded).toBe(true);
   });
@@ -549,16 +561,10 @@ describe("createContext: capability and lifecycle contract", () => {
     update("remote-1", "next", 7);
     expect(listener).toHaveBeenCalledWith("foo", "bar", "next", true, 7);
 
-    const contextValues = context as unknown as AnyRecord;
-    const runFlag = contextValues.runFlag;
     context.setInvalidContext();
     context.setInvalidContext();
 
     expect(context.isInvalidContext()).toBe(true);
-    expect(contextValues.runFlag).not.toBe(runFlag);
-    expect(contextValues.runFlag).toContain("(invalid)");
-    expect(contextValues.message).toBeNull();
-    expect(contextValues.scriptRes).toBeNull();
 
     update("remote-2", "again", 8);
     expect(listener).toHaveBeenCalledTimes(1);

@@ -1249,7 +1249,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       entries: [["param1", encodeRValue(123), encodeRValue(undefined)]],
       uuid: script.uuid,
       storageName: script.uuid,
-      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+      sender: { runFlag: script.executionRunFlag, tabId: -2 },
       valueUpdated: true,
     });
     const ret = await retPromise;
@@ -1350,7 +1350,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       entries: [["a", encodeRValue(123), encodeRValue(undefined)]],
       uuid: script.uuid,
       storageName: script.uuid,
-      sender: { runFlag: exec.sandboxContext!.runFlag, tabId: -2 },
+      sender: { runFlag: actualCall.data.runFlag, tabId: -2 },
       valueUpdated: true,
     });
 
