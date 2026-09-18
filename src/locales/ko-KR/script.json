@@ -41,6 +41,7 @@
   "cron_invalid_expr": "잘못된 cron 표현식입니다",
   "background_script": "백그라운드 스크립트",
   "scheduled_script": "예약 스크립트",
+  "normal_script": "일반 스크립트",
   "next_run": "다음 실행",
   "background_script_tooltip": "백그라운드 스크립트입니다. 활성화하면 백그라운드에서 실행됩니다.",
   "scheduled_script_tooltip": "예약 스크립트입니다. 설정한 시간에 자동으로 실행됩니다.",
@@ -111,5 +112,14 @@
   "trash_moved_batch": "스크립트 {{count}}개를 휴지통으로 이동했습니다",
   "trash_undo": "실행 취소",
   "trash_undo_success": "복원되었습니다",
-  "trash_undo_failed": "복원에 실패했습니다"
+  "trash_undo_failed": "복원에 실패했습니다",
+  "sort_by": "정렬",
+  "sort_create_time": "추가 시간",
+  "sort_default": "기본",
+  "sort_ascending": "오름차순",
+  "sort_descending": "내림차순",
+  "more_actions": "추가 작업",
+  "multi_select": "다중 선택",
+  "site_count": "{{count}}개 사이트",
+  "select_all": "전체 선택"
 }

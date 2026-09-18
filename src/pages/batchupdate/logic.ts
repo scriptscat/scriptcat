@@ -23,6 +23,36 @@ export interface UpdateItem {
   siteMatch: boolean;
 }
 
+/**
+ * 单行的更新进程状态。
+ * queued → working → success → exiting（退场动画结束即从列表移除）；
+ * fail 停在原地，保留失败原因供用户重试。
+ */
+export type RowPhase = "queued" | "working" | "success" | "exiting" | "fail";
+
+export interface RowState {
+  phase: RowPhase;
+  /** 该行正在执行的动作；缺省即更新。忽略走同一套阶段，只是文案不同 */
+  kind?: "update" | "ignore";
+  /** phase 为 fail 时的失败原因，可能为空串（服务端未给出可读信息） */
+  error?: string;
+}
+
+/** 批量操作的进度；单行更新不产生批量进度 */
+export interface BatchProgress {
+  done: number;
+  total: number;
+  failed: number;
+  finished: boolean;
+  /** 因检查结果失效而提前中止：已完成的条数仍然有效，需要如实汇报而不是抹掉 */
+  interrupted?: boolean;
+}
+
+/** 行处于进行中（不可再次触发更新）的阶段 */
+export function isRowInFlight(state: RowState | undefined): boolean {
+  return state !== undefined && state.phase !== "fail";
+}
+
 /** 从 metadata 提取脚本图标 URL（与脚本列表 ScriptIcon 取值规则一致） */
 function pickIconUrl(metadata: SCMetadata): string {
   const [url] = metadata.icon || metadata.iconurl || metadata.icon64 || metadata.icon64url || [];

@@ -125,7 +125,9 @@ describe.concurrent("encoding", () => {
     });
   });
 
-  describe.concurrent("readBlobContent", () => {
+  // Legacy detection is CPU-bound (chardet) and coverage instrumentation magnifies
+  // event-loop contention; keep the whole fallback group on one worker.
+  describe.sequential("readBlobContent", () => {
     it.concurrent("returns empty string for empty Blob", async () => {
       await expect(readRawContent(new Blob([]), null)).resolves.toBe("");
     });

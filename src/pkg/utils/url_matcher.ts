@@ -230,6 +230,16 @@ export const extractUrlPatterns = (lines: string[]): URLRuleEntry[] => {
   return rules;
 };
 
+/**
+ * 取 @match pattern 归一化后的网域部分：具体网域返回该网域，`*.example.com` 返回 `.example.com`，
+ * `*` 返回空字串，不是 match pattern 则返回 null。
+ * 用于判断一条 @match 是否只服务于某个具体网域（== host 时才是）。
+ */
+export const getMatchPatternHost = (pattern: string): string | null => {
+  const [rule] = extractUrlPatterns([`@match ${pattern}`]);
+  return rule ? (rule.ruleContent as string[])[1] : null;
+};
+
 export const toUniquePatternStrings = (x: URLRuleEntry[]) => {
   return [...new Set<string>(x.map((e: URLRuleEntry) => e.patternString))];
 };

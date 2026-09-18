@@ -27,6 +27,10 @@ export interface EditorMenuProps {
   onRun: () => void;
   onCommand: (cmd: EditorCommand) => void;
   onSettings: () => void;
+  /** 脚本列表当前是否收起，决定「视图」里那条命令的措辞 */
+  scriptListCollapsed?: boolean;
+  /** 仅桌面端提供：移动端没有脚本列表面板，不传则整个「视图」分组不渲染 */
+  onToggleScriptList?: () => void;
   /** 桌面端用 hover 展开（受控菜单）；移动端用点按展开（非受控菜单，默认） */
   hover?: boolean;
   align?: "start" | "end";
@@ -49,6 +53,8 @@ export default function EditorMenu(props: EditorMenuProps) {
     onRun,
     onCommand,
     onSettings,
+    scriptListCollapsed,
+    onToggleScriptList,
     hover = false,
     align = "start",
     triggerIcon,
@@ -149,6 +155,19 @@ export default function EditorMenu(props: EditorMenuProps) {
             </DropdownMenuItem>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+
+        {/* 视图（仅桌面端：移动端没有脚本列表面板） */}
+        {onToggleScriptList && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>{t("editor:view")}</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="w-52" {...hoverOnly}>
+              <DropdownMenuItem {...itemProps(onToggleScriptList)}>
+                {scriptListCollapsed ? t("editor:editor.show_script_list") : t("editor:editor.hide_script_list")}
+                <DropdownMenuShortcut>{formatShortcut(["mod", "B"], mac)}</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        )}
 
         {/* 运行（仅后台/定时脚本，普通脚本无运行入口） */}
         {canRun && (

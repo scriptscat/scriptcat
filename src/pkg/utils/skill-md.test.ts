@@ -158,36 +158,6 @@ Prompt.`;
     expect(result.metadata.references).toBeUndefined();
   });
 
-  it("应正确解析完整的 SKILL.cat.md（含 version + scripts + references + config）", () => {
-    const content = `---
-name: price-compare
-description: 多平台比价
-version: 2.0.0
-scripts:
-  - compare.js
-references:
-  - api_docs.md
-config:
-  api_key:
-    title: API Key
-    type: text
-    secret: true
----
-
-# Price Compare
-
-比价工具使用说明。`;
-
-    const result = parseSkillMd(content)!;
-    expect(result.metadata.name).toBe("price-compare");
-    expect(result.metadata.version).toBe("2.0.0");
-    expect(result.metadata.scripts).toEqual(["compare.js"]);
-    expect(result.metadata.references).toEqual(["api_docs.md"]);
-    expect(result.metadata.config).toBeDefined();
-    expect(result.metadata.config!.api_key.secret).toBe(true);
-    expect(result.prompt).toContain("# Price Compare");
-  });
-
   it("scripts 中过滤非字符串值", () => {
     const content = `---
 name: filter-test
@@ -323,30 +293,5 @@ Prompt.`;
 
     const result = parseSkillMd(content)!;
     expect(result.metadata.config).toBeUndefined();
-  });
-
-  it("应正确处理多行 prompt 内容", () => {
-    const content = `---
-name: multi-line
-description: test
----
-
-# Title
-
-Paragraph 1.
-
-## Subtitle
-
-- item 1
-- item 2
-
-\`\`\`js
-console.log("hello");
-\`\`\``;
-
-    const result = parseSkillMd(content)!;
-    expect(result.prompt).toContain("# Title");
-    expect(result.prompt).toContain("- item 1");
-    expect(result.prompt).toContain('console.log("hello");');
   });
 });

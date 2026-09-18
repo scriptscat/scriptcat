@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { mkdirSync, writeFileSync, rmSync, copyFileSync, symlinkSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
@@ -6,6 +6,16 @@ import os from "node:os";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { runCheck } from "./check-i18n.mjs";
+
+const { transpileModule } = vi.hoisted(() => ({ transpileModule: vi.fn() }));
+vi.mock("typescript", async () => {
+  const actual = await vi.importActual("typescript");
+  transpileModule.mockImplementation(actual.default.transpileModule);
+  return {
+    ...actual,
+    default: { ...actual.default, transpileModule },
+  };
+});
 
 const SCRIPTS_DIR = path.dirname(fileURLToPath(import.meta.url));
 
@@ -98,6 +108,15 @@ describe("check-i18n 机械完整性检查", () => {
   });
 
   describe("0. src/locales/locales.ts 与磁盘目录的双向一致性", () => {
+    it("符号链接到 locale 目录时仍应参与一致性检查", () => {
+      const root = makeFixtureRoot();
+      symlinkSync(path.join(root, "src/locales/zh-CN"), path.join(root, "src/locales/linked-locale"), "dir");
+
+      const { hasError, problems } = runCheck(root);
+      expect(hasError).toBe(true);
+      expect(messages(problems).some((m) => m.includes('import * as X from "./linked-locale"'))).toBe(true);
+    });
+
     it("存在完整 locale 目录但未在 locales.ts 中 import，应报错而非放行", () => {
       const root = makeFixtureRoot();
       mkdirSync(path.join(root, "src/locales/ja-JP"), { recursive: true });
@@ -203,6 +222,12 @@ describe("check-i18n 机械完整性检查", () => {
       const { hasError, problems } = runCheck(root);
       expect(hasError).toBe(true);
       expect(messages(problems).some((m) => m.includes("failed to parse"))).toBe(true);
+    });
+
+    it("TS 语法诊断应复用 AST 解析，不应为同一文件执行编译", () => {
+      transpileModule.mockClear();
+      expect(runCheck(makeFixtureRoot()).hasError).toBe(false);
+      expect(transpileModule).not.toHaveBeenCalled();
     });
   });
 

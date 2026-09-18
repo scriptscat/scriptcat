@@ -19,6 +19,20 @@ function Page() {
 }
 ```
 
+### Viewport height & on-screen keyboard
+
+Page shells are height-locked to the viewport (`TopBar + scroll container + ActionBar`), so they must use the
+**dynamic** viewport units — `h-dvh` / `min-h-dvh`, never `h-screen` / `100vh`. `vh` resolves against the
+*large* viewport (browser UI retracted), so on Android — Firefox, Edge, Kiwi alike — a `100vh` shell is taller
+than the visible area while the toolbar is showing, and because the shell scrolls internally the document
+itself can't scroll, leaving `BottomTabBar` / ActionBar unreachable below the fold (issue #1555).
+
+The full-page entries (`options` / `install` / `import` / `batchupdate` / `confirm`) additionally declare
+`interactive-widget=resizes-content` in their `<meta name="viewport">`: the default `resizes-visual` shrinks
+only the visual viewport when the on-screen keyboard opens, leaving a `dvh` shell (and the editor toolbar under
+it) hidden behind the keyboard. `resizes-content` shrinks the layout viewport instead, so the shell reflows
+above the keyboard. `popup.html` is excluded — it is a fixed-size panel that scrolls as a whole.
+
 ### Desktop ↔ mobile transforms
 
 | Desktop (≥768px) | Mobile (<768px) |
@@ -73,7 +87,7 @@ both before treating it as settled if either changes.
 ### How to add motion that stays friendly
 
 - **Fast and light:** enter/leave in `150–250ms`, `ease-out`; the built-in collapse/progress animations use `200ms ease-out`.
-- **Hover/focus via CSS pseudo-classes, not React state** (`hover:bg-primary-background/90`, `focus-visible:ring-ring/50`) — a `DEVELOP.md` rule.
+- **Hover/focus via CSS pseudo-classes, not React state** (`hover:bg-primary-background/90`, `focus-visible:ring-ring/50`) — a [`develop.md` § UI](../develop.md#ui) rule.
 - **Enter/leave via Radix `data-state`** — don't hand-roll show/hide with `setTimeout`.
 - **Prefer `transition-colors` over `transition-all`:** animate only what should move, avoiding layout thrash and wasted work.
 - **Reuse existing utilities;** don't inline `@keyframes` in a component. New animation → add an `@utility` in `src/index.css` so it's globally reusable.

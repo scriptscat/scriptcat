@@ -3,7 +3,7 @@ import { changeLanguage } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import type { Script } from "@App/app/repo/scripts";
 import type { ScriptMenu } from "./types";
-import { applyScriptDisplayInfo } from "./popup_scriptmenu";
+import { applyScriptDisplayInfo, scriptToMenu } from "./popup_scriptmenu";
 
 const makeMenu = (over: Partial<ScriptMenu> = {}): ScriptMenu => ({
   uuid: "u1",
@@ -16,6 +16,7 @@ const makeMenu = (over: Partial<ScriptMenu> = {}): ScriptMenu => ({
   runNumByIframe: 0,
   menus: [],
   isEffective: null,
+  hasMatchOverride: false,
   ...over,
 });
 
@@ -23,6 +24,24 @@ const makeMenu = (over: Partial<ScriptMenu> = {}): ScriptMenu => ({
 // 因此本地化名键存为 name:zh-cn 而非 name:zh-CN。
 const makeScript = (metadata: Record<string, string[]>, name = "Raw Name"): Script =>
   ({ name, metadata }) as unknown as Script;
+
+describe("scriptToMenu Script 转 ScriptMenu", () => {
+  it("无 selfMetadata.match 覆盖时 hasMatchOverride 应为 false", () => {
+    expect(scriptToMenu(makeScript({})).hasMatchOverride).toBe(false);
+  });
+
+  it("存在 selfMetadata.match 覆盖时 hasMatchOverride 应为 true", () => {
+    const script = makeScript({});
+    script.selfMetadata = { match: ["*://example.com/*"] };
+    expect(scriptToMenu(script).hasMatchOverride).toBe(true);
+  });
+
+  it("selfMetadata.match 为空数组时（显式空覆盖）hasMatchOverride 应为 true", () => {
+    const script = makeScript({});
+    script.selfMetadata = { match: [] };
+    expect(scriptToMenu(script).hasMatchOverride).toBe(true);
+  });
+});
 
 describe("applyScriptDisplayInfo Popup 展示信息补充", () => {
   beforeAll(() => initTestLanguage("zh-CN"));

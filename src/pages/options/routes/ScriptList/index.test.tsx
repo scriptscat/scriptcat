@@ -87,20 +87,18 @@ vi.mock("./ScriptTable", () => ({
       <button onClick={() => props.handleDelete(testScript)}>{"trigger-delete"}</button>
       <button onClick={() => props.toggleSelect("u1")}>{"trigger-select"}</button>
       <button onClick={() => props.onBatchDelete()}>{"trigger-batch-delete"}</button>
-      <button onClick={() => props.setViewMode("card")}>{"trigger-view-mode"}</button>
       <button onClick={() => props.setSearchRequest({ keyword: "helper", type: "name" })}>{"trigger-search"}</button>
       <button onClick={() => props.setSelectedFilters((prev) => ({ ...prev, status: 1 }))}>{"trigger-filter"}</button>
       <button onClick={() => props.setSortState(() => ({ key: "name", order: "asc" }))}>{"trigger-sort"}</button>
     </>
   ),
 }));
-vi.mock("./ScriptCard", () => ({ default: () => null }));
 vi.mock("./ScriptListMobile", () => ({ default: () => null }));
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: () => false }));
 
 import ScriptList from "./index";
 import { invalidateUserConfig, preloadUserConfig } from "./preload";
-import { SCRIPT_LIST_PREFERENCES_KEY, SCRIPT_LIST_VIEW_MODE_KEY } from "./preferences";
+import { SCRIPT_LIST_PREFERENCES_KEY } from "./preferences";
 import { notify } from "@App/pages/components/ui/toast";
 
 beforeAll(() => initTestLanguage("zh-CN"));
@@ -112,7 +110,6 @@ beforeEach(() => {
   getScriptValue.mockReset();
   getScriptValue.mockResolvedValue({});
   localStorage.removeItem(SCRIPT_LIST_PREFERENCES_KEY);
-  localStorage.removeItem(SCRIPT_LIST_VIEW_MODE_KEY);
   vi.clearAllMocks();
   get.mockImplementation((key: string) => Promise.resolve(key === "trash_enabled" ? true : 30));
 });
@@ -249,17 +246,14 @@ describe("脚本列表用户配置弹窗", () => {
 });
 
 describe("脚本列表偏好持久化", () => {
-  it("更改视图、搜索、筛选与列排序后写入 localStorage", () => {
+  it("更改搜索、筛选与排序后写入 localStorage，且不再写入视图模式", () => {
     render(<ScriptList />, { wrapper: MemoryRouter });
 
     fireEvent.click(screen.getByText("trigger-search"));
     fireEvent.click(screen.getByText("trigger-filter"));
     fireEvent.click(screen.getByText("trigger-sort"));
-    fireEvent.click(screen.getByText("trigger-view-mode"));
 
-    expect(localStorage.getItem(SCRIPT_LIST_VIEW_MODE_KEY)).toBe("card");
     expect(JSON.parse(localStorage.getItem(SCRIPT_LIST_PREFERENCES_KEY) || "{}")).toEqual({
-      viewMode: "card",
       selectedFilters: { status: 1, type: null, tags: null, source: null },
       searchRequest: { keyword: "helper", type: "name" },
       sortState: { key: "name", order: "asc" },

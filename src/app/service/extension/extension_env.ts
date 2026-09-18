@@ -1,13 +1,17 @@
 export type TExtensionEnv = {
   inIncognitoContext: boolean;
+  incognitoMode?: chrome.runtime.ManifestV3["incognito"];
   userAgentData?: GMUserAgentData | null;
 };
 
 type GMUserAgentData = typeof GM_info.userAgentData;
 
-export const extensionEnv: TExtensionEnv = {
-  inIncognitoContext: chrome.extension.inIncognitoContext,
-} satisfies TExtensionEnv;
+export const getExtensionEnv = (): TExtensionEnv => ({
+  inIncognitoContext: chrome.extension?.inIncognitoContext ?? false,
+  incognitoMode: chrome.runtime.getManifest().incognito,
+});
+
+export const extensionEnv: TExtensionEnv = getExtensionEnv();
 
 export const getExtensionUserAgentData = async (): Promise<GMUserAgentData | null> => {
   // @ts-ignore

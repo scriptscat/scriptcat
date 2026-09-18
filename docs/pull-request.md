@@ -10,7 +10,9 @@ the change needs more context.
 
 Whatever headings you use, this guide's checklist and evidence expectations still apply — `## Summary` /
 `## Test plan` headings don't exempt a PR from them. Use the structure below; its sections are
-recommended, not all mandatory (see below for which ones).
+recommended, not all mandatory (see below for which ones). It is a list of things worth considering, not a form to
+complete: a section you have nothing load-bearing to put in is one to leave out, and a description longer than the
+diff it explains has usually stopped helping its reviewer.
 
 ## Recommended structure
 
@@ -59,6 +61,76 @@ For a normal feature or behavior change, use the following sections when they ar
 `Checklist`、`背景`、`本次改动` and `验证` are the recommended core for a normal feature or behavior change, not mandatory headings for every PR. Add `实现考虑` for meaningful design or concurrency implications; add `已知限制` and `建议审查重点` when reviewers need explicit boundaries or risk areas. `参考` and `关联` are optional.
 
 Small documentation, dependency, or CI changes may use a shorter description and omit sections that do not apply, but must still explain what changed and what was checked. For visual changes, retain the template's screenshot section and provide the relevant evidence. Never claim a test, review, screenshot, or recording that did not happen. Leave `Code reviewed by human` unchecked unless a human has actually reviewed the PR — the same applies to any other checklist item: leave it unchecked (without rewording it) whether the work wasn't done or doesn't apply. If an item doesn't apply to this PR, add a brief `N/A — <why>` note below the checklist, so reviewers can tell "not applicable" from "not done" — an unchecked box alone doesn't distinguish the two.
+
+The brief `N/A` note above is only for an inapplicable PR checklist item. Test dimensions remain applicability-gated by [the testing guide](./references/develop-testing.md) and are omitted when they do not apply; do not add a formal applicability table or proof packet to a PR.
+
+## Decision, evidence, and readiness
+
+For a material behavior, configuration, security, performance, compatibility, persistence, migration, release, or refactor change, write enough context for a reviewer to reconstruct:
+
+1. the problem or requirement;
+2. the affected scope and consequence;
+3. the evidence that the premise is real;
+4. why action is justified;
+5. the selected remedy and material trade-off;
+6. acceptance evidence; and
+7. the remaining limitation or risk.
+
+Keep this chain proportional. A confirmed one-line correction or a small documentation fix needs only the relevant parts; a non-trivial design choice should explain why doing nothing or a plausible smaller alternative was not selected and what would reopen the decision.
+
+Keep these roles separate:
+
+- maintainer direction authorizes execution within the requested scope;
+- an issue, PR description, or discussion supplies stated intent and scope context;
+- source inspection, tests, browser runs, and integrations provide observations;
+- a specification, compatibility contract, security policy, accepted test oracle, or maintainer decision owns normative correctness.
+
+An issue or PR does not by itself prove that a bug exists, that a remedy is necessary, that a change is correct, or that external publication or residual-risk acceptance is authorized.
+
+Consider risk for every material change. Use an explicit limitation or rollback paragraph when the change affects shared APIs, persistence, permissions, security/privacy, browser compatibility, cross-context messaging, asynchronous lifecycle, or release/build behavior. Identify residual risk and the decision owner; do not claim that a significant residual risk has been accepted without that owner's decision.
+
+An agent must not present a change as review-ready when a material acceptance condition fails, a critical claim is unverified or contradicted, the diff exceeds the justified scope, required verification is missing without an adequate substitute, a known correctness/security/privacy/compatibility defect remains, or the description no longer matches the final patch. An explicitly requested draft or investigation may still be submitted when labeled as such. Report the blocker, the evidence, and the condition that would clear it.
+
+Verification claims bind to a revision or clearly identified worktree. If code, configuration, generated artifacts, or a decision-relevant description changes after a check, rerun every affected check before claiming readiness. A final commit SHA is sufficient identity for ordinary GitHub work; a cryptographic evidence ledger is not required by default.
+
+A check that does not reproduce its own result is not yet evidence. When a run is unstable — intermittent
+timeouts, order-dependent failures, an environment-blocked step — record what actually ran, which failures
+recurred and which did not, and how you separated them from the change under review. Report the residual
+uncertainty instead of resolving it in the change's favor: a green rerun does not retract a red run, and
+"unrelated to this change" is a claim that needs its own evidence rather than being the default reading.
+
+### Scope claims and final-diff evidence
+
+Claims that a pull request includes only a named scope or excludes another change are evidence-bearing. Before
+writing or retaining one:
+
+1. Bind the live pull request base and head SHAs.
+2. Inspect `git diff <base-sha>...<head-sha>`, including changed paths and patch content, against the stated
+   inclusion or exclusion set. Branch ancestry, commit intention, and an earlier local checkout do not prove
+   the claim.
+3. Record the exact base/head pair and the check in `验证`. If no observable diff can prove the claim, omit it or
+   label it unverified.
+
+Any new commit, force-push, rebase, base change, conflict resolution, or scope-claim edit invalidates earlier
+scope evidence. Recompute the final diff and re-read the live pull request before publishing or reporting the
+claim.
+
+## Evidence triggered by changed contract
+
+Activate only the rows touched by the actual change; mixed changes use their union.
+
+| Changed contract | Extra evidence to expect |
+| --- | --- |
+| Bug fix | Before reproducer, expected behavior, regression test or justified manual evidence, and the same reproducer after the fix |
+| New behavior | User/system need, observable acceptance criteria, and compatibility/scope boundaries |
+| Refactor | Concrete structural problem and evidence that behavior/public contracts are preserved |
+| Performance/resource | Baseline, workload, environment, method, before/after result, and accepted correctness/complexity trade-off |
+| Security/privacy/permissions | Protected boundary, threat or failure mode, safe verification, residual risk, and private reporting when appropriate |
+| Dependency/build/configuration | Compatibility or lifecycle reason, version/platform scope, lock/generated rationale, and build verification |
+| Documentation/tests only | The authoritative behavior or decision being corrected or preserved; verify claims, links, or tests without inventing runtime evidence |
+| Generated/mechanical | Source input, tool/command, reason for regeneration, and evidence that unrelated semantic edits were not mixed in |
+| Persistence/migration/release | Compatibility and data scope, ordering/irreversibility, rollback/restore path, and rehearsal or invariant evidence where safe |
+| Async/concurrency/stateful UI | Duplicate in-flight work, stale or late results, cancellation/retry, cleanup, and identity or generation ordering where applicable |
 
 ## Review-oriented content
 

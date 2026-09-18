@@ -2,7 +2,7 @@
 
 ## The Service Layer
 
-`src/app/service/` holds two kinds of things, not one uniform pattern:
+`src/app/service/` holds three kinds of things, not one uniform pattern:
 
 - **Context services** — `content/`, `offscreen/`, `sandbox/`, `service_worker/` — split by the runtime context
   they execute in. Shared or externally-owned collaborators (other services, the message `Group`, DAOs another
@@ -13,20 +13,18 @@
   called by the content entry point before `init()`), and Agent code has its own equivalents (see
   [`architecture-agent.md`](./architecture-agent.md)). Check the specific file, don't assume `init()` is the
   only place registration happens.
-- **Cross-cutting subsystems** — `agent/` (see [`architecture-agent.md`](./architecture-agent.md); spans all
-  five contexts rather than living in one) and `extension/` (extension-wide environment helpers, e.g.
-  `extension_env.ts`) — plus `queue.ts` (shared `MessageQueue` **payload/type** definitions, e.g.
-  `TInstallScript`, `TDeleteScript` — not the `MessageQueue` implementation itself, which lives in
-  [`packages/message/message_queue.ts`](../../packages/message/message_queue.ts) and is instantiated by the
-  contexts that actually need pub/sub — currently Service Worker
-  ([`src/service_worker.ts`](../../src/service_worker.ts)), Offscreen
-  ([`src/app/service/offscreen/base.ts`](../../src/app/service/offscreen/base.ts)), and UI pages subscribing
-  to broadcasts ([`src/pages/store/global.ts`](../../src/pages/store/global.ts)) — not content, inject, or
-  sandbox, which don't instantiate it. Run
-  `git grep -n -E 'new MessageQueue\s*\(' -- src packages | grep -vE '\.(test|spec)\.[cm]?[jt]sx?:'` for
-  the current set rather than trusting this list to stay exhaustive — a plain `"new MessageQueue"` search also
-  matches `new MessageQueueGroup(...)` in `packages/message/message_queue.ts` and every test file that
-  constructs its own instance, neither of which are production instantiation sites.
+- **Cross-cutting subsystems** — `agent/` (spans all five contexts rather than living in one; see
+  [`architecture-agent.md`](./architecture-agent.md)) and `extension/` (extension-wide environment helpers,
+  e.g. `extension_env.ts`).
+- **`queue.ts`** — shared `MessageQueue` **payload/type** definitions (`TInstallScript`, `TDeleteScript`, …),
+  *not* the `MessageQueue` implementation, which lives in
+  [`packages/message/message_queue.ts`](../../packages/message/message_queue.ts). Only the contexts that need
+  pub/sub instantiate one: Service Worker ([`src/service_worker.ts`](../../src/service_worker.ts)), Offscreen
+  ([`src/app/service/offscreen/base.ts`](../../src/app/service/offscreen/base.ts)), and UI pages subscribing to
+  broadcasts ([`src/pages/store/global.ts`](../../src/pages/store/global.ts)) — content, inject, and sandbox
+  don't. For the current set:
+  `git grep -nE 'new MessageQueue\s*\(' -- src packages | grep -vE '\.(test|spec)\.[cm]?[jt]sx?:'`
+  (the `grep -v` drops test-local instances; the `\s*\(` keeps `new MessageQueueGroup(...)` out).
 
 ```
 src/app/service/
@@ -71,30 +69,22 @@ class ScriptService {
 }
 ```
 
-That's a trimmed illustration, not a literal copy of `script.ts` — don't infer an exact handler count from it
-(counts drift; check `git grep -c "this.group.on" src/app/service/service_worker/script.ts` for the current
-one) or assume the constructor body is empty.
+The snippet is trimmed: real constructors also `new` things internally and do setup work.
 
-**Don't over-read the constructor as "never `new` internally, constructor never does work."** Several services
-break both of those:
+- [`ScriptService`](../../src/app/service/service_worker/script.ts) — alongside the injected `scriptDAO`, it
+  self-constructs `ScriptCodeDAO`, `LocalStorageDAO`, `CompiledResourceDAO`, `TrashScriptDAO`, and
+  `SubscribeDAO` as field initializers; the constructor body sets up a logger, enables caching on two of those
+  DAOs, and builds a `ScriptUpdateCheck` helper.
+- [`ResourceService`](../../src/app/service/service_worker/resource.ts) — self-constructs `ResourceDAO`;
+  logger + `enableCache()` in the constructor body.
+- [`SubscribeService`](../../src/app/service/service_worker/subscribe.ts) — self-constructs `SubscribeDAO`
+  *and* `ScriptDAO`, alongside injected `Group`, `mq`, and `ScriptService`.
 
-- [`ScriptService`](../../src/app/service/service_worker/script.ts) itself: alongside the injected
-  `scriptDAO`, it self-constructs `ScriptCodeDAO`, `LocalStorageDAO`, `CompiledResourceDAO`, `TrashScriptDAO`,
-  and `SubscribeDAO` as field initializers, and its real constructor body sets up a logger, enables caching on
-  two of those DAOs, and builds a `ScriptUpdateCheck` helper.
-- [`ResourceService`](../../src/app/service/service_worker/resource.ts) constructs its own `ResourceDAO` as a
-  field initializer and does real setup in the constructor body (logger, `enableCache()`).
-- [`SubscribeService`](../../src/app/service/service_worker/subscribe.ts) self-constructs `SubscribeDAO` *and*
-  `ScriptDAO` as field initializers, alongside constructor-injecting `Group`, `mq`, and `ScriptService`.
-
-**There is no "shared DAO type ⇒ same instance" invariant to rely on.** `ScriptService` builds its own
-`SubscribeDAO`; `SubscribeService` builds a *separate* `SubscribeDAO` instance, and its own `ScriptDAO` rather
-than reusing the `scriptDAO` the manager passes to `ScriptService`/`RuntimeService`/`PopupService`. The
-existing choices are case-by-case, not governed by one rule — don't assume either "always inject" or "always
-self-construct." When you're deciding for a new service, weigh cache ownership (does another service need the
-same in-memory cache state?), lifetime (does it need to outlive this service?), and test substitution (does a
-test need to swap it for a fake?) — but that's design guidance for your decision, not a documented reason
-behind each existing instance; check the nearest existing service for the pattern it actually uses.
+**Same DAO type does not imply the same instance.** `ScriptService` and `SubscribeService` each build their own
+`SubscribeDAO`, and `SubscribeService` builds its own `ScriptDAO` instead of reusing the one the manager passes
+to `ScriptService`/`RuntimeService`/`PopupService`. Deciding for a new service, weigh cache ownership (does
+another service need the same in-memory cache state?), lifetime, and test substitution — then copy what the
+nearest existing service actually does.
 
 **`MockMessage` is not an `IMessageQueue` substitute.** It implements the lower-level `Message` transport
 (used to build a `Server`/`Group` for RPC in tests, e.g. `new Server("test", new MockMessage(...))`); the
@@ -140,17 +130,12 @@ it mirrors `ServiceWorkerManager`.
 
 ### Agent composition is different — by design
 
-Context services take *shared* collaborators through the constructor and register handlers through an explicit
-lifecycle method (the DI pattern above — commonly `init()`, sometimes another one like content's
-`contentInit()`), but the exact dependency set — and whether a service also self-constructs a local
-DAO/helper — varies per service (see the `ResourceService`/`SubscribeService` examples above); "`Group` +
-`IMessageQueue` + DAOs" is shorthand for "shared collaborators come in via constructor," not a fixed parameter
-list or a ban on any internal construction. The Agent subsystem's sub-services (`ChatService`, `AgentTaskService`, `SkillService`,
-`AgentModelService`, `MCPService`, etc. — see [`architecture-agent.md`](./architecture-agent.md)) are composed
-by `AgentService` instead of each independently owning a `Group`, and each takes only the narrower interface
-it actually needs (e.g. `AgentModelService` takes a `Group` and its own `AgentModelRepo`; `SubAgentService`
-takes a small `SubAgentOrchestrator` interface). When adding to the Agent subsystem, follow the pattern of the
-nearest existing sub-service rather than a context service's constructor shape.
+The Agent subsystem's sub-services (`ChatService`, `AgentTaskService`, `SkillService`, `AgentModelService`,
+`MCPService`, … — see [`architecture-agent.md`](./architecture-agent.md)) are composed by `AgentService`
+instead of each independently owning a `Group`, and each takes only the narrower interface it actually needs
+(e.g. `AgentModelService` takes a `Group` and its own `AgentModelRepo`; `SubAgentService` takes a small
+`SubAgentOrchestrator` interface). When adding to the Agent subsystem, follow the nearest existing sub-service
+rather than a context service's constructor shape.
 
 ## Adding a service
 

@@ -97,7 +97,7 @@ jobs:
         run: >
           pnpm exec vitest run
           --coverage
-          --silent
+          --silent=passed-only
           --reporter=blob
           --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
 
@@ -158,6 +158,7 @@ jobs:
           pnpm exec vitest
           --merge-reports
           --coverage
+          --silent=passed-only
           --reporter=default
           --reporter.default.summary=false
 

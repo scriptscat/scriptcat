@@ -61,7 +61,6 @@ vi.mock("./ScriptTable", () => ({
     </>
   ),
 }));
-vi.mock("./ScriptCard", () => ({ default: () => null }));
 vi.mock("./ScriptListMobile", () => ({ default: () => null }));
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: () => false }));
 

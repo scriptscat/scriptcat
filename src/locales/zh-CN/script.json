@@ -41,6 +41,7 @@
   "cron_invalid_expr": "错误的定时表达式",
   "background_script": "后台脚本",
   "scheduled_script": "定时脚本",
+  "normal_script": "普通脚本",
   "next_run": "下次运行",
   "background_script_tooltip": "后台脚本，启用后将在后台运行",
   "scheduled_script_tooltip": "定时脚本，将在设定的时间自动运行",
@@ -111,5 +112,14 @@
   "trash_moved_batch": "已将 {{count}} 个脚本移入回收站",
   "trash_undo": "撤销",
   "trash_undo_success": "已还原",
-  "trash_undo_failed": "还原失败"
+  "trash_undo_failed": "还原失败",
+  "sort_by": "排序",
+  "sort_create_time": "添加时间",
+  "sort_default": "默认",
+  "sort_ascending": "升序",
+  "sort_descending": "降序",
+  "more_actions": "更多操作",
+  "multi_select": "多选",
+  "site_count": "{{count}} 个站点",
+  "select_all": "全选"
 }

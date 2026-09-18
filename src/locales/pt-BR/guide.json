@@ -5,7 +5,7 @@
   "script_list_enable_title": "Ativar scripts",
   "script_list_enable_content": "Os scripts precisam ser ativados para serem usados. Os scripts de página são ativados por padrão na instalação, enquanto os scripts em segundo plano são desativados por padrão.",
   "script_list_action_title": "Ação",
-  "script_list_action_content": "A barra de operação permite acesso à edição de scripts, controle de execução e término de scripts (scripts em segundo plano) e configurações (consulte <Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link>). Os botões à direita permitem acesso à filtragem avançada e à alternância de modos de visualização.",
+  "script_list_action_content": "A área de ações permite editar o script, executar e parar scripts em segundo plano e agendados, definir a <Link href=\"https://docs.scriptcat.org/en/docs/dev/config/\">UserConfig</Link> e exportar ou excluir o script. Em janelas estreitas, essas ações são agrupadas no menu “Mais ações”.",
   "tools_backup_title": "Backup",
   "tools_backup_content": "O backup permite que você salve scripts para evitar perdas. Você pode exportar arquivos de script para sua máquina local ou carregar arquivos de script de sua máquina local. Você também pode fazer backup na nuvem para maior conveniência. Migrando de outro gerenciador? Consulte o <Link href=\"https://docs.scriptcat.org/en/docs/use/from-other/migrate-from-tampermonkey/\">guia de migração</Link>.",
   "setting_sync_title": "Atualização e sincronização",

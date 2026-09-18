@@ -13,6 +13,7 @@ import { runScript, stopScript } from "../offscreen/client";
 import {
   buildScriptRunResourceBasic,
   compileInjectionCode,
+  getCombinedMeta,
   getUserScriptRegister,
   parseUrlSRI,
   scriptURLPatternResults,
@@ -52,12 +53,12 @@ import Logger from "@App/app/logger/logger";
 import type { GMInfoEnv, ValueUpdateDataEncoded } from "../content/types";
 import { initLocalesPromise, localePath } from "@App/locales/locales";
 import { DocumentationSite } from "@App/app/const";
-import { extractUrlPatterns, RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
+import { extractUrlPatterns, RuleType, RuleTypeBit, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseUserConfig } from "@App/pkg/utils/yaml";
 import type { CompiledResource, Resource, ResourceType } from "@App/app/repo/resource";
 import { CompiledResourceDAO, CompiledResourceNamespace } from "@App/app/repo/resource";
 import { setOnTabURLChanged } from "./url_monitor";
-import { scriptToMenu, type TPopupPageLoadInfo } from "./popup_scriptmenu";
+import { scriptToMenu, type TPopupPageLoadInfo, type TPopupPageRestoreInfo } from "./popup_scriptmenu";
 import { getExtensionUserAgentData } from "../extension/extension_env";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
@@ -79,6 +80,7 @@ type TCodeCache = {
 };
 
 type TRuntimeResource = { base64?: string } & Omit<Resource, "base64">;
+type TRuntimeResourceByType = Record<ResourceType, Record<string, TRuntimeResource>>;
 
 type TLocalResourceCache = {
   resourceKey: string;
@@ -95,7 +97,7 @@ type TPageLoadScriptCache = {
   metadataStr: string;
   userConfigStr: string;
   userConfig: UserConfig | undefined;
-  resource: Record<string, TRuntimeResource>;
+  resourceByType: TRuntimeResourceByType;
   localResources: TLocalResourceCache[];
 };
 
@@ -111,6 +113,7 @@ export type TTabInfo = {
   url: string;
   tabId: number | undefined;
   frameId: number | undefined;
+  incognito?: boolean;
 };
 
 export type TScriptsForTab = {
@@ -142,6 +145,7 @@ export class RuntimeService {
   private sorter: Record<string, number> = {};
   private readonly codeCacheMap = new Map<string, TCodeCache>();
   private readonly pageLoadCaches = new Map<string, TPageLoadScriptCache>();
+  private sandboxInitializationReplayed = false;
   private readonly cachedPatterns = new Map<
     string,
     { scriptUrlPatterns: URLRuleEntry[]; originalUrlPatterns: URLRuleEntry[] }
@@ -453,7 +457,14 @@ export class RuntimeService {
     }
     // 安装，启用，或earlyStartScript的value更新
     const ret = await this.buildAndSaveCompiledResourceFromScript(script, true);
-    if (!ret) return;
+    if (!ret) {
+      // 空匹配覆盖（match 与 include 均为空）时脚本不再匹配任何站点。内存 matcher 里只剩
+      // 供 Popup 恢复用的原始规则，这里再清掉持久化的 CompiledResource 并注销浏览器旧注册，
+      // 否则 SW 重启后 waitInit 会信任旧资源、让旧范围复活。
+      await this.compiledResourceDAO.delete(script.uuid);
+      await this.unregistryPageScripts([script.uuid]);
+      return;
+    }
     const { apiScript } = ret;
     await this.loadPageScript(script, apiScript!);
   }
@@ -476,7 +487,10 @@ export class RuntimeService {
 
       // valueUpdate 消息用于 early script 的处理
       if (sendData.valueUpdated) {
-        if (script.status === SCRIPT_STATUS_ENABLE && isEarlyStartScript(script.metadata)) {
+        if (
+          script.status === SCRIPT_STATUS_ENABLE &&
+          isEarlyStartScript(getCombinedMeta(script.metadata, script.selfMetadata))
+        ) {
           // 如果是预加载脚本，需要更新脚本代码重新注册
           // scriptMatchInfo 里的 value 改变 => compileInjectionCode -> injectionCode 改变
           await this.updateResourceOnScriptChange(script);
@@ -521,6 +535,7 @@ export class RuntimeService {
     this.group.on("stopScript", this.stopScript.bind(this));
     this.group.on("runScript", this.runScript.bind(this));
     this.group.on("pageLoad", this.pageLoad.bind(this));
+    this.group.on("pageShow", this.pageShow.bind(this));
 
     // 监听脚本开启
     this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
@@ -624,31 +639,8 @@ export class RuntimeService {
       });
     });
 
-    // 监听offscreen环境初始化, 初始化完成后, 再将后台脚本运行起来
-    this.mq.subscribe("preparationOffscreen", () => {
-      this.scriptDAO.all().then((list) => {
-        const res = [];
-        for (const script of list) {
-          if (script.type === SCRIPT_TYPE_NORMAL) {
-            continue;
-          }
-          bgScriptStorageNames.add(getStorageName(script));
-          res.push({
-            uuid: script.uuid,
-            enable: script.status === SCRIPT_STATUS_ENABLE,
-          });
-        }
-        if (res.length > 0) {
-          this.mq.publish<TEnableScript[]>("enableScripts", res);
-        }
-      });
-      this.systemConfig.getLanguage().then((lng: string) => {
-        this.mq.publish("setSandboxLanguage", lng);
-      });
-      this.systemConfig.addListener("language", (lng) => {
-        this.mq.publish("setSandboxLanguage", lng);
-      });
-    });
+    // 只有 sandbox 自己确认通道已就绪后才发送初始化状态；fallback 仅解除父层等待，不能承载消息。
+    this.mq.subscribe("preparationOffscreen", this.handlePreparationOffscreen.bind(this));
 
     if (chrome.extension.inIncognitoContext) {
       this.systemConfig.addListener("enable_script_incognito", async (enable) => {
@@ -864,10 +856,15 @@ export class RuntimeService {
 
   async buildAndSaveCompiledResourceFromScript(script: Script, withCode: boolean = false) {
     const scriptRes = withCode ? await this.script.buildScriptRunResource(script) : buildScriptRunResourceBasic(script);
-    const resources = withCode ? scriptRes.resource : await this.resource.getScriptResourceValue(scriptRes);
+    const resources = withCode
+      ? scriptRes.resourceByType?.require || scriptRes.resource
+      : (await this.resource.getScriptResourceValueByType(scriptRes)).require;
     const resourceUrls = (script.metadata["require"] || []).map((res) => resources[res]?.url).filter((res) => res);
     const scriptMatchInfo = await this.applyScriptMatchInfo(scriptRes);
     if (!scriptMatchInfo) return undefined;
+    // 生效规则一条 inclusion 都不剩（用户把当前站点从匹配中移除后可能如此）时不能注册：
+    // getApiMatchesAndGlobs 对没有 match pattern 的规则集会退回 *://*/*，注册出去等于全站运行。
+    if (!scriptMatchInfo.scriptUrlPatterns.some((rule) => rule.ruleType & RuleTypeBit.INCLUSION)) return undefined;
 
     const res = getUserScriptRegister(scriptMatchInfo);
     const registerScript = res.registerScript;
@@ -912,15 +909,19 @@ export class RuntimeService {
 
   // 从CompiledResource中还原脚本代码
   async restoreJSCodeFromCompiledResource(script: Script, result: CompiledResource) {
+    // 用户在设置面板改运行时机只写 selfMetadata，脚本自带 metadata 不变，
+    // 所以编译分支必须按合并后的生效 metadata 选，否则重新注册会丢掉覆写（#1649）
+    const metadata = getCombinedMeta(script.metadata, script.selfMetadata);
+
     // 如果是 Scriptlet (unwrap) 脚本，需要另外的处理方式
-    if (isScriptletUnwrap(script.metadata)) {
+    if (isScriptletUnwrap(metadata)) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
       return compileScriptletCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
     }
 
     // 如果是预加载脚本，需要另外的处理方式
-    if (isEarlyStartScript(script.metadata)) {
+    if (isEarlyStartScript(metadata)) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
       return compileInjectionCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
@@ -941,7 +942,7 @@ export class RuntimeService {
         name: result.name,
         code: originalCode?.code || "",
         require,
-        isContextMenu: isContextMenuScript(script.metadata),
+        isContextMenu: isContextMenuScript(metadata),
       })
     );
   }
@@ -1088,7 +1089,8 @@ export class RuntimeService {
       // 异常情况
       // 检查scriptcat-content和scriptcat-inject是否存在
       const res = await chrome.userScripts.getScripts({ ids: ["scriptcat-inject"] });
-      if (res.length === 1) {
+      const contentScripts = await chrome.scripting.getRegisteredContentScripts({ ids: ["scriptcat-scripting"] });
+      if (res.length === 1 && contentScripts.length === 1) {
         return;
       }
       // scriptcat-content/scriptcat-inject不存在的情况
@@ -1273,11 +1275,13 @@ export class RuntimeService {
     }
     const tabId = chromeSender.tab?.id || -1;
     const frameId = chromeSender.frameId;
-    const res = await this.getScriptsForTab({ url, tabId, frameId });
+    const incognito = chromeSender.tab?.incognito ?? false;
+    const res = await this.getScriptsForTab({ url, tabId, frameId, incognito });
 
     this.mq.emit<TPopupPageLoadInfo>("popupPageLoadUpdate", {
       tabId: tabId,
       frameId: frameId,
+      url: url,
       scriptmenus: res?.scriptmenus || [], // 对于 popup, resources那些不需要
     });
 
@@ -1294,7 +1298,27 @@ export class RuntimeService {
       return { ok: false };
     }
   }
-  private shouldSkipPageLoadScript(scriptRes: ScriptRunResource, frameId: number | undefined) {
+  /**
+   * bfcache 还原：文档连同里面已注入的脚本被整体恢复，content script 不会重新执行，
+   * 因此不会再走 pageLoad。这里只重新广播一次「本页扩展触及得到」，
+   * 绝不能顺带重放脚本——脚本本来就还在页面里跑着。
+   */
+  async pageShow(_: any, sender: IGetSender) {
+    const chromeSender = sender.getSender();
+    const url = chromeSender?.url;
+    if (!url) return;
+    this.mq.emit<TPopupPageRestoreInfo>("popupPageRestored", {
+      tabId: chromeSender.tab?.id || -1,
+      frameId: chromeSender.frameId,
+      url,
+    });
+  }
+
+  private shouldSkipPageLoadScript(
+    scriptRes: ScriptRunResource,
+    frameId: number | undefined,
+    incognito: boolean = false
+  ) {
     // 判断脚本是否开启
     if (scriptRes.status === SCRIPT_STATUS_DISABLE) {
       return true;
@@ -1304,7 +1328,7 @@ export class RuntimeService {
       const runIn = scriptRes.metadata["run-in"][0];
       if (runIn !== "all") {
         // 判断插件运行环境
-        const contextType = chrome.extension.inIncognitoContext ? "incognito-tabs" : "normal-tabs";
+        const contextType = incognito ? "incognito-tabs" : "normal-tabs";
         if (runIn !== contextType) {
           return true;
         }
@@ -1357,16 +1381,34 @@ export class RuntimeService {
     return ret;
   }
 
-  private getLocalResourceCacheList(resource: Record<string, TRuntimeResource>) {
+  private cloneRuntimeResourceByType(resourceByType: TRuntimeResourceByType): TRuntimeResourceByType {
+    return {
+      require: this.cloneRuntimeResource(resourceByType.require),
+      "require-css": this.cloneRuntimeResource(resourceByType["require-css"]),
+      resource: this.cloneRuntimeResource(resourceByType.resource),
+    };
+  }
+
+  private mergeRuntimeResourceByType(resourceByType: TRuntimeResourceByType) {
+    return {
+      ...resourceByType.require,
+      ...resourceByType["require-css"],
+      ...resourceByType.resource,
+    };
+  }
+
+  private getLocalResourceCacheList(resourceByType: TRuntimeResourceByType) {
     const localResources: TLocalResourceCache[] = [];
-    for (const [resourceKey, res] of Object.entries(resource)) {
-      if (res.url.startsWith("file:///")) {
-        localResources.push({
-          resourceKey,
-          url: res.url,
-          type: res.type,
-          sha512: res.hash?.sha512,
-        });
+    for (const type of ["require", "require-css", "resource"] as const) {
+      for (const [resourceKey, res] of Object.entries(resourceByType[type])) {
+        if (res.url.startsWith("file:///")) {
+          localResources.push({
+            resourceKey,
+            url: res.url,
+            type,
+            sha512: res.hash?.sha512,
+          });
+        }
       }
     }
     return localResources;
@@ -1377,8 +1419,8 @@ export class RuntimeService {
     compiledResource: CompiledResource,
     scriptCacheKey: string
   ): Promise<TPageLoadScriptCache | undefined> {
-    const [resource, codeInfo] = await Promise.all([
-      this.resource.getScriptResourceValue(scriptRes) as Promise<Record<string, TRuntimeResource>>,
+    const [resourceByType, codeInfo] = await Promise.all([
+      this.resource.getScriptResourceValueByType(scriptRes) as Promise<TRuntimeResourceByType>,
       this.getScriptInfoForCode(scriptRes),
     ]);
     if (!codeInfo) return undefined;
@@ -1396,19 +1438,21 @@ export class RuntimeService {
       metadataStr: codeInfo.metadataStr,
       userConfigStr: codeInfo.userConfigStr,
       userConfig: codeInfo.userConfig,
-      resource: this.cloneRuntimeResource(resource),
-      localResources: this.getLocalResourceCacheList(resource),
+      resourceByType: this.cloneRuntimeResourceByType(resourceByType),
+      localResources: this.getLocalResourceCacheList(resourceByType),
     };
   }
 
   private createPageLoadScriptInfo(scriptRes: ScriptRunResource, cache: TPageLoadScriptCache) {
+    const resourceByType = this.cloneRuntimeResourceByType(cache.resourceByType);
     return {
       ...scriptRes,
       scriptUrlPatterns: cache.scriptUrlPatterns,
       originalUrlPatterns: cache.originalUrlPatterns === null ? cache.scriptUrlPatterns : cache.originalUrlPatterns,
       code: cache.code,
       value: {},
-      resource: this.cloneRuntimeResource(cache.resource),
+      resource: this.mergeRuntimeResourceByType(resourceByType),
+      resourceByType,
       metadataStr: cache.metadataStr,
       userConfigStr: cache.userConfigStr,
       userConfig: cache.userConfig,
@@ -1429,7 +1473,7 @@ export class RuntimeService {
   }
 
   // 每次页面加载都重新拉取 file:/// 本地资源；sha512 未变则跳过。
-  // 注意：发现变化时会就地更新共享的 pageLoadCaches 缓存对象（cache.resource / localResource.sha512），
+  // 注意：发现变化时会就地更新共享的 pageLoadCaches 缓存对象（cache.resourceByType / localResource.sha512），
   // 使后续加载直接复用最新内容。重复写入的是同一次拉取的结果，幂等。
   private async refreshLocalResourcesForPageLoad(
     enableScriptList: (ScriptLoadInfo & { scriptUrlPatterns: URLRuleEntry[] })[],
@@ -1459,7 +1503,10 @@ export class RuntimeService {
                 nextResource.base64 = undefined;
               }
               localResource.sha512 = updatedResource.hash?.sha512;
-              cache.resource[localResource.resourceKey] = nextResource;
+              cache.resourceByType[localResource.type][localResource.resourceKey] = nextResource;
+              if (scriptRes.resourceByType) {
+                scriptRes.resourceByType[localResource.type][localResource.resourceKey] = { ...nextResource };
+              }
               scriptRes.resource[localResource.resourceKey] = { ...nextResource };
               resourceUpdated = true;
             } catch (e) {
@@ -1480,8 +1527,12 @@ export class RuntimeService {
     return scriptsWithUpdatedResources;
   }
 
-  async getScriptsForTab({ url, frameId }: TTabInfo): Promise<TScriptsForTab> {
+  async getScriptsForTab({ url, frameId, incognito = false }: TTabInfo): Promise<TScriptsForTab> {
     if (!this.isLoadScripts) {
+      return null;
+    }
+    // Firefox spanning 的 event page 是共享的，必须使用消息发送方的 tab.incognito 额外执行隐身总开关。
+    if (incognito && !(await this.systemConfig.getEnableScriptIncognito())) {
       return null;
     }
 
@@ -1513,7 +1564,7 @@ export class RuntimeService {
       const script = scripts[idx];
       if (!script) continue;
       const scriptRes = buildScriptRunResourceBasic(script);
-      if (this.shouldSkipPageLoadScript(scriptRes, frameId)) continue;
+      if (this.shouldSkipPageLoadScript(scriptRes, frameId, incognito)) continue;
 
       const scriptCacheKey = this.getPageLoadScriptCacheKey(scriptRes);
       const cached = this.pageLoadCaches.get(script.uuid);
@@ -1624,11 +1675,34 @@ export class RuntimeService {
       contentScriptList: contentScriptList,
       envInfo: {
         sandboxMode: "raw",
-        isIncognito: chrome.extension?.inIncognitoContext ?? undefined,
+        isIncognito: incognito,
         userAgentData: this.userAgentData ?? undefined,
       } as GMInfoEnv,
       scriptmenus,
     } satisfies TScriptsForTab;
+  }
+
+  private async handlePreparationOffscreen(data: { verified: boolean }) {
+    if (!data.verified || this.sandboxInitializationReplayed) return;
+    this.sandboxInitializationReplayed = true;
+
+    const [list, language] = await Promise.all([this.scriptDAO.all(), this.systemConfig.getLanguage()]);
+    const scripts: TEnableScript[] = [];
+    for (const script of list) {
+      if (script.type === SCRIPT_TYPE_NORMAL) continue;
+      bgScriptStorageNames.add(getStorageName(script));
+      scripts.push({
+        uuid: script.uuid,
+        enable: script.status === SCRIPT_STATUS_ENABLE,
+      });
+    }
+    if (scripts.length > 0) {
+      this.mq.publish<TEnableScript[]>("enableScripts", scripts);
+    }
+    this.mq.publish("setSandboxLanguage", language);
+    this.systemConfig.addListener("language", (lng) => {
+      this.mq.publish("setSandboxLanguage", lng);
+    });
   }
 
   // 停止脚本
@@ -1681,6 +1755,10 @@ export class RuntimeService {
   async applyScriptMatchInfo(scriptRes: ScriptRunResource) {
     const o = scriptURLPatternResults(scriptRes);
     if (!o) {
+      const { uuid } = scriptRes;
+      this.scriptMatchEnable.clearRules(uuid);
+      this.scriptMatchEnable.clearRules(this.getOriginalMatchUuid(uuid));
+      this.cachedPatterns.delete(uuid);
       return undefined;
     }
     // 构建脚本匹配信息

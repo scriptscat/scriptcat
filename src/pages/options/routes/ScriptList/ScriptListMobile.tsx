@@ -1,12 +1,16 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CheckSquare } from "lucide-react";
+import { Popconfirm } from "@App/pages/components/ui/popconfirm";
+import { useSystemConfig } from "@App/pages/options/hooks/useSystemConfig";
+import { MobileBatchBar, MobileBatchBarButton, MobileSelectionHeader } from "@App/pages/components/ui/mobile-list";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import type { SearchFilterRequest } from "./SearchFilter";
 import type { FilterBarProps } from "./FilterBar";
 import FilterBar from "./FilterBar";
 import { MobileSearchBar } from "./MobileSearchBar";
-import ScriptCardGrid from "./ScriptCardGrid";
-import TrashCardGrid from "./TrashCardGrid";
+import ScriptRowsMobile from "./ScriptRowsMobile";
+import TrashListMobile from "./TrashListMobile";
 import { useTrashCount } from "./hooks";
 
 export interface ScriptListMobileProps extends FilterBarProps {
@@ -18,6 +22,14 @@ export interface ScriptListMobileProps extends FilterBarProps {
   searchRequest: SearchFilterRequest;
   setSearchRequest: (req: SearchFilterRequest) => void;
   scriptListSortOrderMove: (params: { active: string; over: string }) => void;
+  selectedUuids: Set<string>;
+  toggleSelect: (uuid: string) => void;
+  toggleSelectAll: () => void;
+  clearSelection: () => void;
+  onBatchEnable: () => void;
+  onBatchDisable: () => void;
+  onBatchExport: () => void;
+  onBatchDelete: () => void;
 }
 
 function ScriptListMobile({
@@ -32,8 +44,32 @@ function ScriptListMobile({
   filterItems,
   selectedFilters,
   setSelectedFilters,
+  selectedUuids,
+  toggleSelect,
+  toggleSelectAll,
+  clearSelection,
+  onBatchEnable,
+  onBatchDisable,
+  onBatchExport,
+  onBatchDelete,
 }: ScriptListMobileProps) {
   const { t } = useTranslation();
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [trashEnabled] = useSystemConfig("trash_enabled");
+
+  const exitSelection = useCallback(() => {
+    setSelectionMode(false);
+    clearSelection();
+  }, [clearSelection]);
+
+  // 长按进入多选：先亮起模式，再把被长按的那一行选上
+  const enterSelectionWith = useCallback(
+    (uuid: string) => {
+      setSelectionMode(true);
+      if (!selectedUuids.has(uuid)) toggleSelect(uuid);
+    },
+    [selectedUuids, toggleSelect]
+  );
   const [activeTab, setActiveTab] = useState<"installed" | "trash">("installed");
   const [trashSearchRequest, setTrashSearchRequest] = useState<SearchFilterRequest>({ keyword: "", type: "auto" });
   const isTrash = activeTab === "trash";
@@ -47,6 +83,53 @@ function ScriptListMobile({
   if (lastShowTrashTab !== showTrashTab) {
     setLastShowTrashTab(showTrashTab);
     if (!showTrashTab && activeTab === "trash") setActiveTab("installed");
+  }
+
+  // 列表在多选期间被清空（删除完/筛选变化）时退回普通视图，否则只剩一条批量操作条悬在空屏上
+  if (selectionMode && !isTrash && scriptList.length > 0) {
+    return (
+      <div className="flex flex-col h-full">
+        <MobileSelectionHeader
+          selectedCount={selectedUuids.size}
+          allSelected={scriptList.length > 0 && selectedUuids.size === scriptList.length}
+          onCancel={exitSelection}
+          onToggleSelectAll={toggleSelectAll}
+        />
+        <ScriptRowsMobile
+          scriptList={scriptList}
+          loadingList={loadingList}
+          updateScripts={updateScripts}
+          handleDelete={handleDelete}
+          handleRunStop={handleRunStop}
+          scriptListSortOrderMove={scriptListSortOrderMove}
+          selectionMode
+          selectedUuids={selectedUuids}
+          toggleSelect={toggleSelect}
+          onEnterSelectionMode={enterSelectionWith}
+        />
+        <MobileBatchBar>
+          <MobileBatchBarButton onClick={onBatchEnable}>{t("enable")}</MobileBatchBarButton>
+          <MobileBatchBarButton onClick={onBatchDisable}>{t("disable")}</MobileBatchBarButton>
+          <MobileBatchBarButton onClick={onBatchExport}>{t("export")}</MobileBatchBarButton>
+          <Popconfirm
+            description={
+              (trashEnabled ?? true)
+                ? t("script:confirm_delete_scripts_trash_content", { count: selectedUuids.size })
+                : t("script:confirm_delete_scripts_content", { count: selectedUuids.size })
+            }
+            destructive
+            confirmText={t("delete")}
+            cancelText={t("editor:cancel")}
+            onConfirm={() => {
+              onBatchDelete();
+              exitSelection();
+            }}
+          >
+            <MobileBatchBarButton destructive>{t("delete")}</MobileBatchBarButton>
+          </Popconfirm>
+        </MobileBatchBar>
+      </div>
+    );
   }
 
   return (
@@ -79,13 +162,29 @@ function ScriptListMobile({
           </div>
         </div>
       )}
-      <MobileSearchBar
-        searchRequest={isTrash ? trashSearchRequest : searchRequest}
-        setSearchRequest={isTrash ? setTrashSearchRequest : setSearchRequest}
-        placeholder={isTrash ? t("script:trash_search_placeholder") : undefined}
-      />
+      <div className="flex items-center gap-2 pr-4 shrink-0">
+        <div className="min-w-0 flex-1">
+          <MobileSearchBar
+            searchRequest={isTrash ? trashSearchRequest : searchRequest}
+            setSearchRequest={isTrash ? setTrashSearchRequest : setSearchRequest}
+            placeholder={isTrash ? t("script:trash_search_placeholder") : undefined}
+          />
+        </div>
+        {/* 长按不可发现，多选必须另有一个看得见的门（规格决策 7） */}
+        {!isTrash && (
+          <button
+            type="button"
+            onClick={() => setSelectionMode(true)}
+            disabled={scriptList.length === 0}
+            className="flex shrink-0 items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground disabled:opacity-40"
+          >
+            <CheckSquare className="w-3 h-3" />
+            {t("script:multi_select")}
+          </button>
+        )}
+      </div>
       {isTrash ? (
-        <TrashCardGrid keyword={trashSearchRequest.keyword} onCountChange={setTrashCount} />
+        <TrashListMobile keyword={trashSearchRequest.keyword} onCountChange={setTrashCount} />
       ) : (
         <>
           <FilterBar
@@ -93,13 +192,17 @@ function ScriptListMobile({
             selectedFilters={selectedFilters}
             setSelectedFilters={setSelectedFilters}
           />
-          <ScriptCardGrid
+          <ScriptRowsMobile
             scriptList={scriptList}
             loadingList={loadingList}
             updateScripts={updateScripts}
             handleDelete={handleDelete}
             handleRunStop={handleRunStop}
             scriptListSortOrderMove={scriptListSortOrderMove}
+            selectionMode={false}
+            selectedUuids={selectedUuids}
+            toggleSelect={toggleSelect}
+            onEnterSelectionMode={enterSelectionWith}
           />
         </>
       )}

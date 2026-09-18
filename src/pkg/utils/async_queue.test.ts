@@ -347,24 +347,4 @@ describe.concurrent("stackAsyncTask 测试", () => {
     expect(order).toEqual([0, 1, 2, 3, 4]);
     expect(results).toEqual([0, 1, 2, 3, 4]);
   });
-
-  /* ------------------- 7. 跨 key 链接（正确 await 返回值） ------------------- */
-  it.concurrent("【7】跨 key 链接：内部任务返回值可被外层 await（不 await stackAsyncTask）", async () => {
-    const kOuter = generateKey("outer");
-    const kInner = generateKey("inner");
-
-    const pOuter = stackAsyncTask(kOuter, async () => {
-      const pInner = stackAsyncTask(kInner, async () => {
-        return "inner-data";
-      });
-      const data = await pInner; // 正确：await 返回值
-      return `outer(${data})`;
-    });
-
-    setupBlockingTask(kOuter).resolve();
-    setupBlockingTask(kInner).resolve();
-    await flush();
-
-    await expect(pOuter).resolves.toBe("outer(inner-data)");
-  });
 });

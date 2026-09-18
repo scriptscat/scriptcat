@@ -5,7 +5,7 @@
   "script_list_enable_title": "Bật script",
   "script_list_enable_content": "Script cần được bật để sử dụng. Script trang được bật theo mặc định khi cài đặt, trong khi script nền bị tắt theo mặc định.",
   "script_list_action_title": "Thao tác",
-  "script_list_action_content": "Thanh thao tác cho phép truy cập vào chức năng chỉnh sửa tập lệnh, kiểm soát việc thực thi và kết thúc tập lệnh (tập lệnh nền) và cài đặt (xem <Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link>). Các nút bên phải cho phép truy cập vào chức năng lọc nâng cao và chuyển đổi chế độ xem.",
+  "script_list_action_content": "Vùng thao tác cho phép sửa script, chạy và dừng script nền và script hẹn giờ, đặt <Link href=\"https://docs.scriptcat.org/docs/dev/config/\">UserConfig</Link>, cũng như xuất và xóa script. Khi cửa sổ hẹp, các thao tác này được gom vào menu “Thao tác khác”.",
   "tools_backup_title": "Sao lưu",
   "tools_backup_content": "Sao lưu cho phép bạn lưu script để tránh mất mát. Bạn có thể xuất tệp script sang máy cục bộ hoặc tải tệp script từ máy cục bộ của mình. Bạn cũng có thể sao lưu lên đám mây để thuận tiện hơn. Để di chuyển từ trình quản lý khác, xem <Link href=\"https://docs.scriptcat.org/docs/use/from-other/migrate-from-tampermonkey/\">hướng dẫn di chuyển</Link>.",
   "setting_sync_title": "Cập nhật và đồng bộ",

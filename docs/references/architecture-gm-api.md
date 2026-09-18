@@ -67,10 +67,10 @@ work.
    `@PermissionVerify.API(...)`.
 4. If it needs DOM, route through the offscreen GM API instead:
    [`src/app/service/offscreen/gm_api.ts`](../../src/app/service/offscreen/gm_api.ts).
-5. Register the `@grant` so the linter and the context builder recognize it — the grant/compat map lives in
-   [`packages/eslint/compat-grant.js`](../../packages/eslint/compat-grant.js) (not just "the `eslint` package"
-   generally; that package also ships unrelated compat tables like `compat-headers.js`, and
-   `linter-config.ts` holds the ESLint `rules`/`globals`/`env` config, no grant data).
+5. Register the `@grant` so the linter and the context builder recognize it. The grant/compat map is
+   specifically [`packages/eslint/compat-grant.js`](../../packages/eslint/compat-grant.js) — not that package's
+   other tables (`compat-headers.js`, or `linter-config.ts`, which holds `rules`/`globals`/`env` and no grant
+   data).
 
 ### Agent/CAT API is the same recipe with dotted grants
 

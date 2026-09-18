@@ -41,6 +41,7 @@
   "cron_invalid_expr": "Invalid cron expression",
   "background_script": "Background Script",
   "scheduled_script": "Scheduled Script",
+  "normal_script": "User Script",
   "next_run": "Next run",
   "background_script_tooltip": "Background script. Runs in the background once enabled.",
   "scheduled_script_tooltip": "Scheduled script. Runs automatically at the configured time.",
@@ -111,5 +112,14 @@
   "trash_moved_batch": "Moved {{count}} scripts to Trash",
   "trash_undo": "Undo",
   "trash_undo_success": "Restored",
-  "trash_undo_failed": "Restore failed"
+  "trash_undo_failed": "Restore failed",
+  "sort_by": "Sort",
+  "sort_create_time": "Added time",
+  "sort_default": "Default",
+  "sort_ascending": "Ascending",
+  "sort_descending": "Descending",
+  "more_actions": "More actions",
+  "multi_select": "Select multiple",
+  "site_count": "{{count}} site(s)",
+  "select_all": "Select all"
 }

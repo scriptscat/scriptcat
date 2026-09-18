@@ -2,8 +2,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Sparkles,
+  Check,
   ChevronDown,
   ChevronRight,
+  Loader2,
   Wrench,
   SlidersHorizontal,
   FileText,
@@ -24,6 +26,12 @@ export interface SkillInstallViewProps {
   references: Array<{ name: string; content: string }>;
   isUpdate: boolean;
   installUrl?: string;
+  /** 安装动作的就地反馈阶段，与脚本安装页共用同一套按钮状态机 */
+  phase?: "idle" | "installing" | "installed" | "failed";
+  /** 安装完成且即将自动关闭：整页淡出 */
+  closing?: boolean;
+  /** 吸底操作栏上方的内联失败条 */
+  alert?: React.ReactNode;
   onInstall: () => void;
   onCancel: () => void;
 }
@@ -62,6 +70,9 @@ export function SkillInstallView({
   references,
   isUpdate,
   installUrl,
+  phase = "idle",
+  closing,
+  alert,
   onInstall,
   onCancel,
 }: SkillInstallViewProps) {
@@ -69,12 +80,25 @@ export function SkillInstallView({
   const [promptExpanded, setPromptExpanded] = useState(false);
   const title = isUpdate ? t("install:context_skill_update") : t("install:context_skill_install");
   const configEntries = Object.entries(metadata.config || {});
+  const busy = phase === "installing" || phase === "installed";
+  const installLabel =
+    phase === "installing"
+      ? t("install:btn_installing")
+      : phase === "installed"
+        ? t("install:btn_installed")
+        : phase === "failed"
+          ? t("install:btn_retry_install")
+          : isUpdate
+            ? t("install:skill_update")
+            : t("install:skill_install");
 
   return (
     <InstallLayout
       title={title}
       titleIcon={Sparkles}
       titleTone="skill"
+      alert={alert}
+      closing={closing}
       actions={
         <div className="flex w-full flex-wrap items-center gap-3">
           <p className="min-w-0 flex-1 text-xs text-muted-foreground">{t("install:skill_warning")}</p>
@@ -84,10 +108,16 @@ export function SkillInstallView({
             </Button>
             <Button
               data-testid="skill-install"
-              className="bg-skill text-skill-foreground hover:bg-skill/90"
+              disabled={busy}
+              className={cn(
+                "gap-1.5 bg-skill text-skill-foreground duration-350 hover:bg-skill/90",
+                phase === "installed" && "bg-success text-success-foreground hover:bg-success disabled:opacity-100"
+              )}
               onClick={onInstall}
             >
-              {isUpdate ? t("install:skill_update") : t("install:skill_install")}
+              {phase === "installing" && <Loader2 className="size-4 animate-spin" />}
+              {phase === "installed" && <Check className="size-4" />}
+              {installLabel}
             </Button>
           </div>
         </div>

@@ -188,7 +188,7 @@ export function ImportLayout({
   children: ReactNode;
 }) {
   return (
-    <div data-testid="import-layout" className="flex h-screen flex-col bg-background text-foreground">
+    <div data-testid="import-layout" className="flex h-dvh flex-col bg-background text-foreground">
       <header
         data-testid="top-bar"
         className="sticky top-0 z-10 flex h-[52px] shrink-0 items-center gap-3 border-b border-border bg-card/95 px-6 backdrop-blur"

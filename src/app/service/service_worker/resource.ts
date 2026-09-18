@@ -1,8 +1,18 @@
 import LoggerCore from "@App/app/logger/core";
 import Logger from "@App/app/logger/logger";
-import type { Resource, ResourceHash, ResourceType } from "@App/app/repo/resource";
+import {
+  getResourceByteSize,
+  RESOURCE_CHUNK_BYTES,
+  RESOURCE_LIST_PAGE_SIZE,
+  type Resource,
+  type ResourceChunk,
+  type ResourceChunkRequest,
+  type ResourceHash,
+  type ResourceListPage,
+  type ResourceType,
+} from "@App/app/repo/resource";
 import { ResourceDAO } from "@App/app/repo/resource";
-import type { Script } from "@App/app/repo/scripts";
+import type { Script, ScriptResource, ScriptResourceByType } from "@App/app/repo/scripts";
 import { type IMessageQueue } from "@Packages/message/message_queue";
 import { type Group } from "@Packages/message/server";
 import type { ResourceBackup } from "@App/pkg/backup/struct";
@@ -15,6 +25,7 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { blobToUint8Array } from "@App/pkg/utils/datatype";
 import { readRawContent } from "@App/pkg/utils/encoding";
 import { Semaphore, withTimeoutNotify } from "@App/pkg/utils/concurrency-control";
+import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 
 /**
  * 滑动窗口并发上限：同时"已启动、尚未归还槽位"的 fetch 数量。
@@ -105,12 +116,9 @@ export class ResourceService {
     return oldResource;
   }
 
-  public async getScriptResourceValue(script: Script): Promise<{ [key: string]: Resource }> {
-    const [require, require_css, resource] = await this.getResourceByTypes(script, [
-      "require",
-      "require-css",
-      "resource",
-    ]);
+  public async getScriptResourceValue(script: Script): Promise<ScriptResource> {
+    const resourceByType = await this.getScriptResourceValueByType(script);
+    const { require, "require-css": require_css, resource } = resourceByType;
     const ret = {
       ...require,
       ...require_css,
@@ -123,11 +131,20 @@ export class ResourceService {
       this.logger.warn("One or more properties are merged in ResourceService.getScriptResourceValue");
     }
 
+    return ret;
+  }
+
+  public async getScriptResourceValueByType(script: Script): Promise<ScriptResourceByType> {
+    const [require, require_css, resource] = await this.getResourceByTypes(script, [
+      "require",
+      "require-css",
+      "resource",
+    ]);
     return {
-      ...require,
-      ...require_css,
-      ...resource,
-    };
+      require,
+      "require-css": require_css,
+      resource,
+    } as ScriptResourceByType;
   }
 
   public getResourceByTypes(script: Script, types: ResourceType[]): Promise<Record<string, Resource>[]> {
@@ -144,10 +161,10 @@ export class ResourceService {
             let resourcePath: string;
             if (type === "resource") {
               // @resource xxx https://...
-              const split = mdValue.split(/\s+/);
-              if (split.length !== 2) return; // @resource 必须有 key 和 path. "xxx yyy zzz" 也不符合格式要求
-              resourceKey = split[0];
-              resourcePath = split[1].trim();
+              const declaration = parseResourceDeclaration(mdValue);
+              if (!declaration) return;
+              resourceKey = declaration.name;
+              resourcePath = declaration.url;
             } else {
               // require / require-css 的话，使用 url 作为 resourceKey
               resourceKey = mdValue;
@@ -189,15 +206,12 @@ export class ResourceService {
     const uuid = script.uuid;
     const metadata = script.metadata;
     const promises = types.map((type) => {
-      const promises = metadata[type]?.map(async (u) => {
+      const promises = metadata[type]?.map(async (value) => {
         let url = "";
         if (type === "resource") {
-          const split = u.split(/\s+/);
-          if (split.length === 2) {
-            url = split[1];
-          }
+          url = parseResourceDeclaration(value)?.url || "";
         } else {
-          url = u;
+          url = value;
         }
         if (url) {
           // 检查资源是否存在,如果不存在则重新加载
@@ -455,12 +469,63 @@ export class ResourceService {
     return await this.resourceDAO.save(res);
   }
 
-  requestGetScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
-    return this.getScriptResourceValue(script);
+  async getScriptResourcePage(script: Script, offset = 0, limit = RESOURCE_LIST_PAGE_SIZE): Promise<ResourceListPage> {
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw new Error("resource list offset must be a non-negative integer");
+    }
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > RESOURCE_LIST_PAGE_SIZE) {
+      throw new Error(`resource list limit must be between 1 and ${RESOURCE_LIST_PAGE_SIZE}`);
+    }
+
+    const resources = await this.getScriptResourceValue(script);
+    const entries = Object.entries(resources);
+    const items = entries.slice(offset, offset + limit).map(([key, resource]) => ({
+      key,
+      url: resource.url,
+      type: resource.type,
+      contentType: resource.contentType,
+      byteSize: getResourceByteSize(resource),
+    }));
+    const nextOffset = offset + items.length < entries.length ? offset + items.length : undefined;
+    return { items, offset, limit, total: entries.length, nextOffset };
+  }
+
+  async getResourceChunk(params: ResourceChunkRequest): Promise<ResourceChunk> {
+    const { uuid, url, offset, length } = params;
+    if (!Number.isSafeInteger(offset) || offset < 0) {
+      throw new Error("resource chunk offset must be a non-negative integer");
+    }
+    if (!Number.isSafeInteger(length) || length < 1 || length > RESOURCE_CHUNK_BYTES) {
+      throw new Error(`resource chunk length must be between 1 and ${RESOURCE_CHUNK_BYTES}`);
+    }
+
+    const resource = await this.resourceDAO.get(url);
+    if (!resource || !resource.link[uuid]) {
+      throw new Error("resource not found");
+    }
+    const source = resource.base64
+      ? base64ToBlob(resource.base64)
+      : new Blob([resource.content], { type: resource.contentType });
+    const total = source.size;
+    const chunk = source.slice(offset, Math.min(offset + length, total), resource.contentType);
+    const dataUri = await blobToBase64(chunk);
+    const comma = dataUri.indexOf(",");
+    return {
+      url,
+      offset,
+      length: chunk.size,
+      total,
+      base64: comma === -1 ? dataUri : dataUri.slice(comma + 1),
+    };
+  }
+
+  requestGetScriptResources(params: { script: Script; offset?: number; limit?: number }): Promise<ResourceListPage> {
+    return this.getScriptResourcePage(params.script, params.offset, params.limit);
   }
 
   init() {
     this.group.on("getScriptResources", this.requestGetScriptResources.bind(this));
+    this.group.on("getResourceChunk", this.getResourceChunk.bind(this));
     this.group.on("deleteResource", this.deleteResource.bind(this));
 
     // 删除相关资源

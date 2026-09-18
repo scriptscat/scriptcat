@@ -116,23 +116,6 @@ test.describe("GM_xmlhttpRequest site-access & DNR marker (#1477)", () => {
     await server.close();
   });
 
-  test("声明 @connect 的跨域 GET 请求成功", async ({ context, extensionId }) => {
-    const code = xhrScript({
-      name: "XHR connect ok",
-      matchHost: "sitea.test",
-      connect: ["xhrtarget.test"],
-      url: server.url("xhrtarget.test", "/xhr"),
-      port: server.port,
-    });
-    await installScriptByCode(context, extensionId, code);
-
-    const { data, logs } = await runXhr(context, server.url("sitea.test", "/page"));
-    expect(data.phase, `期望 load，实际: ${JSON.stringify(data)}\n${logs.join("\n")}`).toBe("load");
-    expect(data.status).toBe(200);
-    expect(data.ok).toBe(true);
-    expect(data.method).toBe("GET");
-  });
-
   test("自定义请求头透传到服务器，x-sc-request-marker 标记头被 DNR 剥离", async ({ context, extensionId }) => {
     const code = xhrScript({
       name: "XHR header marker",
@@ -147,6 +130,8 @@ test.describe("GM_xmlhttpRequest site-access & DNR marker (#1477)", () => {
     const { data } = await runXhr(context, server.url("sitea.test", "/page"));
     expect(data.phase).toBe("load");
     expect(data.status).toBe(200);
+    expect(data.ok).toBe(true);
+    expect(data.method).toBe("GET");
 
     // 以服务器实际收到的请求为准（DNR 在网络层剥离标记头）
     const xhrReq = server.requestLog.find((r) => r.pathname === "/xhr");

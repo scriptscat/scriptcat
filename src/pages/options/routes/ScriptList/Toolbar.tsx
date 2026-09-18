@@ -1,4 +1,4 @@
-import { Table2, LayoutGrid, ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { cn } from "@App/pkg/utils/cn";
@@ -11,6 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@App/pages/components/ui/dropdown-menu";
 import { SearchInput } from "@App/pages/components/ui/search-input";
+import { SortMenu } from "./SortMenu";
+import type { SortKey, SortState } from "./sort";
 
 // 搜索范围：auto = 名称 + 代码
 const scopeOptions: {
@@ -31,53 +33,33 @@ function scopeLabelOf(type: SearchFilterRequest["type"], t: TFunction): string {
   return (scopeOptions.find((o) => o.type === type) ?? scopeOptions[0]).label(t);
 }
 
-// ========== 视图切换按钮 ==========
-function ViewToggleButton({
-  active,
-  onClick,
-  label,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={active}
-      className={cn(
-        "flex items-center justify-center px-2.5 h-full transition-colors",
-        active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/50"
-      )}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
-
 export interface ToolbarProps {
   totalCount: number;
-  viewMode: "table" | "card";
-  setViewMode: (mode: "table" | "card") => void;
+  sortState: SortState;
+  setSortState: (next: SortState) => void;
   searchRequest: SearchFilterRequest;
   setSearchRequest: (req: SearchFilterRequest) => void;
   /** 顶栏最左侧的内容；传入时取代「标题 + 数量」（回收站 tab 引入后由 tabs 占据该槽位） */
   leading?: React.ReactNode;
 }
 
-/**
- * 脚本列表顶栏：标题+数量（或 leading 槽位）、搜索框、视图切换、新建脚本。
- * 表格视图与卡片视图共用本组件，仅 viewMode 决定激活态，避免两份顶栏代码分叉
- * （此前卡片视图的顶栏漏掉了「新建脚本」按钮即源于此类重复）。
- */
-export function Toolbar({ totalCount, viewMode, setViewMode, searchRequest, setSearchRequest, leading }: ToolbarProps) {
+/** 脚本列表顶栏：标题+数量（或 leading 槽位）、搜索框、排序、新建脚本。 */
+export function Toolbar({
+  totalCount,
+  sortState,
+  setSortState,
+  searchRequest,
+  setSearchRequest,
+  leading,
+}: ToolbarProps) {
   const { t } = useTranslation();
+  const sortOptions: { key: SortKey; label: string }[] = [
+    { key: "status", label: t("script:script_list.sidebar.status") },
+    { key: "name", label: t("name") },
+    { key: "updatetime", label: t("logs:last_updated") },
+  ];
   return (
-    <div className="flex items-center gap-4 h-14 px-6 shrink-0 border-b border-border bg-card">
+    <div className="flex items-center gap-4 h-14 px-6 shrink-0 bg-card">
       {leading ?? (
         // 标题 + 数量
         <div className="flex items-center gap-2 shrink-0">
@@ -132,15 +114,8 @@ export function Toolbar({ totalCount, viewMode, setViewMode, searchRequest, setS
         }
       />
 
-      {/* 视图切换 */}
-      <div data-testid="view-toggle" className="flex items-center border border-border rounded-lg h-8 overflow-hidden">
-        <ViewToggleButton active={viewMode === "table"} onClick={() => setViewMode("table")} label="Table view">
-          <Table2 className="w-4 h-4" />
-        </ViewToggleButton>
-        <ViewToggleButton active={viewMode === "card"} onClick={() => setViewMode("card")} label="Card view">
-          <LayoutGrid className="w-4 h-4" />
-        </ViewToggleButton>
-      </div>
+      {/* 排序（表头消失后的排序入口） */}
+      <SortMenu options={sortOptions} value={sortState} onChange={setSortState} />
 
       {/* 新建脚本 */}
       <CreateScriptMenu />

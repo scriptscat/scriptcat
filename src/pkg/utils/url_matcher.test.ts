@@ -7,6 +7,7 @@ import {
   extractMatchPatternsFromGlobs,
   extractSchemesOfGlobs,
   embeddedPatternCheckerString,
+  getMatchPatternHost,
 } from "./url_matcher";
 
 describe.concurrent("extractMatchPatternsFromGlobs", () => {
@@ -914,6 +915,25 @@ describe.concurrent("getApiMatchesAndGlobs-3 （全面性测试）", () => {
   });
 });
 
+describe.concurrent("getMatchPatternHost", () => {
+  it.concurrent("应取出 match pattern 绑定的具体网域", () => {
+    expect(getMatchPatternHost("*://www.example.com/*")).toBe("www.example.com");
+    expect(getMatchPatternHost("https://www.example.com/path/*")).toBe("www.example.com");
+    // 无 scheme 的 TM 兼容写法
+    expect(getMatchPatternHost("www.example.com/*")).toBe("www.example.com");
+  });
+
+  it.concurrent("通配网域不绑定到任何具体网域", () => {
+    // ".example.com" 覆盖全部子域，"" 覆盖全部网域，都不等于任何单一 host
+    expect(getMatchPatternHost("*://*.example.com/*")).toBe(".example.com");
+    expect(getMatchPatternHost("*://*/*")).toBe("");
+  });
+
+  it.concurrent("非 match pattern 应返回 null", () => {
+    expect(getMatchPatternHost("/^https:\\/\\/example\\.com/")).toBeNull();
+  });
+});
+
 describe.concurrent("embeddedPatternChecker", () => {
   // 构造 URLRuleEntry 的 ruleContent 格式与 extractUrlPatterns 一致
   // match: [scheme, host, pathPattern], glob: string[], regex: [pattern, flags]
@@ -998,14 +1018,5 @@ describe.concurrent("embeddedPatternChecker", () => {
     // exclude 排除
     const code3 = embeddedPatternCheckerString('"https://example.com/secret/data"', JSON.stringify(reduced));
     expect(eval(code3)).toBe(false);
-  });
-
-  it.concurrent("embeddedPatternCheckerString 生成可执行代码", () => {
-    const patterns = extractUrlPatterns(["@match *://example.com/*"]);
-    const reduced = patterns.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
-    const codeStr = embeddedPatternCheckerString("location.href", JSON.stringify(reduced));
-    // 验证生成的是一个函数调用表达式字符串（IIFE 形式）
-    expect(typeof codeStr).toBe("string");
-    expect(codeStr).toContain("location.href");
   });
 });

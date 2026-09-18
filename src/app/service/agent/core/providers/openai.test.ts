@@ -95,6 +95,28 @@ describe("buildOpenAIRequest", () => {
     expect(body.stream).toBe(true);
     expect(body.stream_options).toEqual({ include_usage: true });
   });
+
+  it("未建模音频能力时应稳定使用 OPFS 文本引用而不内联二进制", () => {
+    const { init } = buildOpenAIRequest(
+      config,
+      {
+        conversationId: "c1",
+        modelId: "test",
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "audio", attachmentId: "shared.wav", mimeType: "audio/wav", name: "sample.wav" }],
+          },
+        ],
+      },
+      () => "data:audio/wav;base64,AAAA"
+    );
+
+    const body = JSON.parse(init.body as string);
+    expect(body.messages[0].content).toEqual([
+      { type: "text", text: "[Audio: sample.wav, OPFS path: uploads/shared.wav]" },
+    ]);
+  });
 });
 
 // 辅助函数：创建 mock ReadableStreamDefaultReader
@@ -157,7 +179,7 @@ describe("parseOpenAIStream", () => {
 
   it("应正确处理 usage 信息", async () => {
     const reader = createMockReader([
-      'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"hi"},"finish_reason":"stop"}]}\n\n',
       'data: {"usage":{"prompt_tokens":10,"completion_tokens":5}}\n\n',
     ]);
 
@@ -175,7 +197,7 @@ describe("parseOpenAIStream", () => {
 
   it("应正确处理含 cached_tokens 的 usage 信息", async () => {
     const reader = createMockReader([
-      'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"hi"},"finish_reason":"stop"}]}\n\n',
       'data: {"usage":{"prompt_tokens":100,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":80}}}\n\n',
     ]);
 
@@ -204,6 +226,21 @@ describe("parseOpenAIStream", () => {
     if (events[0].type === "error") {
       expect(events[0].message).toBe("Rate limit exceeded");
     }
+  });
+
+  it("已知 usage 后收到 API 错误帧时应把用量保留在终态事件", async () => {
+    const reader = createMockReader([
+      'data: {"usage":{"prompt_tokens":12,"completion_tokens":4}}\n\n',
+      'data: {"error":{"message":"Rate limit exceeded"}}\n\n',
+    ]);
+    const events: ChatStreamEvent[] = [];
+
+    await parseOpenAIStream(reader, (event) => events.push(event), new AbortController().signal);
+
+    expect(events.at(-1)).toMatchObject({
+      type: "error",
+      usage: { inputTokens: 12, outputTokens: 4 },
+    });
   });
 
   it("应忽略无 choices 的事件", async () => {
@@ -238,16 +275,44 @@ describe("parseOpenAIStream", () => {
     expect(events[0]).toEqual({ type: "content_delta", delta: "ok" });
   });
 
-  it("signal 已中止时应停止读取", async () => {
+  it("signal 已中止时应停止读取并 reject，而不是静默 resolve（否则外层 callLLM 永远挂起）", async () => {
     const controller = new AbortController();
     controller.abort();
 
     const reader = createMockReader(['data: {"choices":[{"delta":{"content":"hello"}}]}\n\n']);
 
     const events: ChatStreamEvent[] = [];
-    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+    await expect(parseOpenAIStream(reader, (e) => events.push(e), controller.signal)).rejects.toThrow("Aborted");
 
     expect(events).toHaveLength(0);
+  });
+
+  it("abort 前已经收到过 usage chunk 时，reject 的错误应携带这部分已知 usage", async () => {
+    const controller = new AbortController();
+    const encoder = new TextEncoder();
+    let index = 0;
+    const chunks = [
+      'data: {"choices":[{"delta":{"content":"hi"}}],"usage":{"prompt_tokens":10,"completion_tokens":3}}\n\n',
+    ];
+    const reader = {
+      read: async () => {
+        if (index < chunks.length) {
+          return { done: false, value: encoder.encode(chunks[index++]) };
+        }
+        // 第一个带 usage 的 chunk 读取完毕后才 abort，模拟"取消发生在已经拿到部分 usage 之后"
+        controller.abort();
+        throw new Error("Aborted");
+      },
+      cancel: async () => {},
+      closed: Promise.resolve(undefined),
+      releaseLock: () => {},
+    } as any;
+
+    const events: ChatStreamEvent[] = [];
+    await expect(parseOpenAIStream(reader, (e) => events.push(e), controller.signal)).rejects.toMatchObject({
+      message: "Aborted",
+      usage: { inputTokens: 10, outputTokens: 3 },
+    });
   });
 
   it("读取错误时应发送 error 事件", async () => {
@@ -272,7 +337,7 @@ describe("parseOpenAIStream", () => {
     }
   });
 
-  it("读取错误但 signal 已中止时不应发送 error 事件", async () => {
+  it("读取错误但 signal 已中止时应 reject 而不是发送 error 事件", async () => {
     const controller = new AbortController();
     const reader = {
       read: async () => {
@@ -285,7 +350,7 @@ describe("parseOpenAIStream", () => {
     } as any;
 
     const events: ChatStreamEvent[] = [];
-    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+    await expect(parseOpenAIStream(reader, (e) => events.push(e), controller.signal)).rejects.toThrow("Aborted");
 
     expect(events).toHaveLength(0);
   });
@@ -429,6 +494,22 @@ describe("parseOpenAIStream", () => {
     if (events[2].type === "done") {
       expect(events[2].usage).toEqual({ inputTokens: 50, outputTokens: 2 });
     }
+  });
+
+  it("EOF 前从未见过 finish_reason 时不应当作成功完成——网络中断和正常结束无法区分", async () => {
+    // 只有内容 delta，没有任何 chunk 带 finish_reason，也没有 [DONE]：模拟网络中断
+    const reader = createMockReader([
+      'data: {"choices":[{"delta":{"content":"部分"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"回答"}}]}\n\n',
+    ]);
+
+    const events: ChatStreamEvent[] = [];
+    const controller = new AbortController();
+
+    await parseOpenAIStream(reader, (e) => events.push(e), controller.signal);
+
+    expect(events).toHaveLength(3);
+    expect(events[2].type).toBe("error");
   });
 
   it("应解析单个 chunk 内的 <think>...</think> 标签", async () => {

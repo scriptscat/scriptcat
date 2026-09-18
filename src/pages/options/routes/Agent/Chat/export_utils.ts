@@ -1,6 +1,16 @@
 import type { Conversation, ChatMessage, ToolCall, SubAgentDetails } from "@App/app/service/agent/core/types";
-import { getTextContent } from "@App/app/service/agent/core/content_utils";
 import { mergeToolResults } from "./chat_utils";
+
+function renderContent(content: ChatMessage["content"]): string {
+  if (typeof content === "string") return content;
+  return content
+    .map((block) =>
+      block.type === "text"
+        ? block.text
+        : `[${block.type}: uploads/${block.attachmentId}${block.name ? ` (${block.name})` : ""}]`
+    )
+    .join("\n");
+}
 
 /** 格式化时间戳 */
 function formatDate(ts: number): string {
@@ -53,7 +63,7 @@ function renderSubAgent(details: SubAgentDetails, indent = ""): string {
     }
     if (msg.content) {
       lines.push("");
-      lines.push(`${indent}${msg.content}`);
+      lines.push(`${indent}${renderContent(msg.content)}`);
     }
     for (const tc of msg.toolCalls) {
       lines.push("");
@@ -89,7 +99,7 @@ function renderMessageContent(msg: ChatMessage): string {
     }
   }
 
-  const text = getTextContent(msg.content);
+  const text = renderContent(msg.content);
   if (text) {
     parts.push(text);
   }
@@ -120,7 +130,7 @@ export function exportToMarkdown(conversation: Conversation, messages: ChatMessa
     if (msg.role === "system") {
       lines.push("### 🔧 System");
       lines.push("");
-      lines.push(getTextContent(msg.content));
+      lines.push(renderContent(msg.content));
       lines.push("");
       lines.push("---");
       lines.push("");

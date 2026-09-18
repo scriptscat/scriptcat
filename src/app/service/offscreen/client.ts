@@ -3,13 +3,27 @@ import type { SCRIPT_RUN_STATUS, ScriptRunResource } from "@App/app/repo/scripts
 import { Client, sendMessage } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import { type VSCodeConnectParam } from "./vscode-connect";
+import { type ExternalAccessConnectParam } from "./external-access-connect";
+import type { WSEnvelope } from "../service_worker/external_access/types";
 
 export function preparationSandbox(windowMessage: WindowMessage) {
   return sendMessage(windowMessage, "offscreen/preparationSandbox");
 }
 
+// sandbox 自身对通道做的一次连通性自检结果（只有 sandbox 自己知道它何时就绪、何时做完这次自检，
+// 因此由 sandbox 主动上报，而不是由父层去 ping sandbox）
+export type SandboxChannelHealth = { ok: true; roundTripMs: number } | { ok: false; error: string };
+
+export function reportSandboxChannelHealth(windowMessage: WindowMessage, health: SandboxChannelHealth) {
+  return sendMessage(windowMessage, "offscreen/reportSandboxChannelHealth", health);
+}
+
 export function getExtensionEnv(windowMessage: WindowMessage) {
   return sendMessage(windowMessage, "offscreen/getExtensionEnv", { requireUAD: true });
+}
+
+export function keepAlive(windowMessage: WindowMessage, val: boolean) {
+  return sendMessage(windowMessage, "offscreen/keepAlive", val);
 }
 
 // 代理发送消息到ServiceWorker
@@ -103,5 +117,26 @@ export class VscodeConnectClient extends Client {
 
   connect(params: VSCodeConnectParam): Promise<void> {
     return this.do("connect", params);
+  }
+}
+
+// SW → offscreen driver for the MCP WS transport. ExternalAccessController uses it to open/close the socket
+// and to hand the offscreen ExternalAccessConnect outbound JSON-RPC messages
+// to write onto the wire.
+export class ExternalAccessConnectClient extends Client {
+  constructor(msgSender: MessageSend) {
+    super(msgSender, "offscreen/externalAccessConnect");
+  }
+
+  connect(params: ExternalAccessConnectParam): Promise<void> {
+    return this.do("connect", params);
+  }
+
+  disconnect(): Promise<void> {
+    return this.do("disconnect");
+  }
+
+  send(envelope: WSEnvelope): Promise<void> {
+    return this.do("send", envelope);
   }
 }
