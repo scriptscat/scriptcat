@@ -9,8 +9,7 @@ type ExecuteScriptTarget = (typeof EXECUTE_SCRIPT_TARGETS)[number];
 
 function createExecuteScriptDefinition(allowedTargets: ExecuteScriptTarget[]): ToolDefinition {
   const targetDescriptions: Record<ExecuteScriptTarget, string> = {
-    page:
-      "'page' runs in a browser tab (MAIN world) with full DOM access, shares page JS variables and globals, and cannot access extension blob URLs. chrome.scripting.executeScript has no cancellation API: on timeout/stop this tool stops waiting and returns an error, but the injected page code keeps running to completion in the tab. Avoid long-running or blocking code with target='page'.",
+    page: "'page' runs in a browser tab (MAIN world) with full DOM access, shares page JS variables and globals, and cannot access extension blob URLs. chrome.scripting.executeScript has no cancellation API: on timeout/stop this tool stops waiting and returns an error, but the injected page code keeps running to completion in the tab. Avoid long-running or blocking code with target='page'.",
     sandbox:
       "'sandbox' runs in an isolated computation environment without DOM access and is genuinely cancelled on timeout/stop.",
   };
