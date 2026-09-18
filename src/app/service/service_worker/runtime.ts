@@ -334,9 +334,10 @@ export class RuntimeService {
         continue;
       }
       let bindingMatches = false;
-      for (const binding of this.pageExecutionBindings.values()) {
+      for (const handle of entry.handles) {
+        const binding = this.pageExecutionBindings.get(handle);
         if (
-          entry.handles.has(binding.handle) &&
+          binding &&
           ((targetUuid !== undefined && targetUuid === binding.uuid) ||
             (targetStorageName !== undefined && targetStorageName === binding.storageName))
         ) {
