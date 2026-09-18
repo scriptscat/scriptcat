@@ -3,7 +3,13 @@ import { getStorageName } from "@App/pkg/utils/utils";
 import type { EmitEventRequest } from "../service_worker/types";
 import ExecScript from "./exec_script";
 import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
-import { addStyleSheet, definePropertyListener, preInjectScriptInfoKey, waitBody } from "./utils";
+import {
+  addStyleSheet,
+  definePropertyListener,
+  preInjectScriptDocumentUrlKey,
+  preInjectScriptInfoKey,
+  waitBody,
+} from "./utils";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageAddEventListener, pageDispatchEvent } from "@Packages/message/common";
@@ -142,6 +148,20 @@ export class ScriptExecutor {
         ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptInfoKey)
         : undefined;
     if (scriptInfoDescriptor?.configurable || scriptInfoDescriptor?.writable) return;
+    // 隔离环境可能在页面导航后才取回预注入函数，必须拒绝挂载于旧 URL 的函数。
+    const documentUrlDescriptor =
+      typeof scriptFunc === "function"
+        ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptDocumentUrlKey)
+        : undefined;
+    if (
+      !documentUrlDescriptor ||
+      documentUrlDescriptor.configurable ||
+      documentUrlDescriptor.writable ||
+      typeof documentUrlDescriptor.value !== "string" ||
+      documentUrlDescriptor.value !== window.location.href
+    ) {
+      return;
+    }
     const scriptInfoJSON =
       typeof scriptInfoDescriptor?.value === "string"
         ? scriptInfoDescriptor.value

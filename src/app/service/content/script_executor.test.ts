@@ -4,7 +4,7 @@ import type { ScriptLoadInfo } from "../service_worker/types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import type { GMInfoEnv } from "./types";
 import { initEnvInfo, ScriptExecutor } from "./script_executor";
-import { compilePreInjectScript, preInjectScriptInfoKey } from "./utils";
+import { compilePreInjectScript, preInjectScriptDocumentUrlKey, preInjectScriptInfoKey } from "./utils";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageDispatchEvent } from "@Packages/message/common";
 
@@ -174,6 +174,7 @@ describe("ScriptExecutor", () => {
 
       pageWindow[script.flag] = genuine;
       Object.defineProperty(genuine, preInjectScriptInfoKey, { value: JSON.stringify(script) });
+      Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: window.location.href });
       executor.execEarlyScript(script.flag, initEnvInfo);
       expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
     } finally {
@@ -273,12 +274,31 @@ describe("ScriptExecutor", () => {
     }
   });
 
+  it("rejects an early-start wrapper mounted for a different document URL", () => {
+    const script = makeScript({ uuid: "executor-early-document-uuid", flag: "#-executor-early-document-uuid" });
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    const genuine = vi.fn();
+    const pageWindow = window as unknown as Record<string, unknown>;
+    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
+    Object.defineProperty(genuine, preInjectScriptInfoKey, { value: JSON.stringify(script) });
+    Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: `${window.location.href}#stale` });
+
+    try {
+      pageWindow[script.flag] = genuine;
+      executor.execEarlyScript(script.flag, initEnvInfo);
+      expect(genuine).not.toHaveBeenCalled();
+    } finally {
+      delete pageWindow[script.flag];
+    }
+  });
+
   it("accepts the immutable early manifest through the wrapper name fallback", () => {
     const script = makeScript({ uuid: "executor-early-name-uuid", flag: "#-executor-early-name-uuid" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
     const genuine = vi.fn();
     const pageWindow = window as unknown as Record<string, unknown>;
     Object.defineProperty(genuine, fnStrIntegrity, { value: true });
+    Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: window.location.href });
     Object.defineProperty(genuine, "name", { configurable: false, value: JSON.stringify(script) });
 
     try {
