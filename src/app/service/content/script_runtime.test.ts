@@ -219,4 +219,54 @@ describe("ScriptRuntime inject page bootstrap", () => {
 
     expect(executor.startScripts).toHaveBeenCalledWith(pageLoad.scripts, pageLoad.envInfo);
   });
+
+  it("rejects content pageLoad accessors before starting scripts", () => {
+    const { handlers, server } = makeServer();
+    const executor = makeExecutor();
+    const runtime = new ScriptRuntime("ct", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    runtime.init();
+
+    const pageLoad = {
+      scripts: [
+        {
+          uuid: "content-script",
+          name: "Content script",
+          flag: "content-script-flag",
+          code: "",
+          metadata: { grant: [] },
+          resource: {},
+          value: {},
+          executionHandle: "content-binding",
+          executionEnvTag: "ct",
+          executionRunFlag: "content-run",
+        },
+      ],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+    };
+    const scripts = pageLoad.scripts;
+    const getter = vi.fn(() => scripts);
+    Object.defineProperty(pageLoad, "scripts", { configurable: true, enumerable: true, get: getter });
+
+    handlers.get("pageLoad")?.(pageLoad);
+
+    expect(getter).not.toHaveBeenCalled();
+    expect(executor.startScripts).not.toHaveBeenCalled();
+  });
+
+  it("rejects content callback DTO accessors before dispatch", () => {
+    const { handlers, server } = makeServer();
+    const executor = makeExecutor();
+    const runtime = new ScriptRuntime("ct", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    runtime.init();
+
+    const eventData = { uuid: "script", event: "menuClick", eventId: "1", data: { value: 1 } };
+    const eventPayload = eventData.data;
+    const getter = vi.fn(() => eventPayload);
+    Object.defineProperty(eventData, "data", { configurable: true, enumerable: true, get: getter });
+
+    handlers.get("runtime/emitEvent")?.(eventData);
+
+    expect(getter).not.toHaveBeenCalled();
+    expect(executor.emitEvent).not.toHaveBeenCalled();
+  });
 });

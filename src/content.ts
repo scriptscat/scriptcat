@@ -10,9 +10,8 @@ import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { type TExtensionEnv } from "./app/service/extension/extension_env";
 import { connectUserScriptChannel, requestUserScriptReconnect } from "./app/service/content/user_script_connection";
-import type { TScriptInfo } from "./app/repo/scripts";
 import type { GMInfoEnv } from "./app/service/content/types";
-import { setPageRpcExtensionOrigin, type ExtensionOrigin } from "./app/service/content/page_rpc";
+import type { ExtensionOrigin } from "./app/service/content/page_rpc";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
@@ -43,35 +42,12 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   let reconnectToken: string | undefined;
   const handleUserScriptPacket = (_connection: MessageConnect, packet: TMessage) => {
     if (packet.action === "content/pageLoad") {
-      const packetData = packet.data as {
-        scripts?: TScriptInfo[];
-        envInfo?: GMInfoEnv;
-        extensionOrigin?: ExtensionOrigin;
-        reconnectToken?: unknown;
-      };
-      if (!packetData || !Array.isArray(packetData.scripts) || packetData.scripts.length === 0 || !packetData.envInfo) {
-        return;
-      }
-      for (let i = 0; i < packetData.scripts.length; i += 1) {
-        const script = packetData.scripts[i];
-        if (
-          !script ||
-          typeof script !== "object" ||
-          script.executionEnvTag !== scriptEnvTag ||
-          typeof script.executionHandle !== "string"
-        ) {
-          return;
-        }
-      }
-      if (typeof packetData.reconnectToken === "string" && packetData.reconnectToken.length > 0) {
-        reconnectToken = packetData.reconnectToken;
-      }
-      setPageRpcExtensionOrigin(packetData.extensionOrigin);
-      runtime.startScripts(packetData.scripts, packetData.envInfo);
+      const nextToken = runtime.receivePageLoad(packet.data);
+      if (nextToken) reconnectToken = nextToken;
     } else if (packet.action === "content/runtime/valueUpdate") {
-      scriptExecutor.valueUpdate(packet.data as any);
+      runtime.receiveValueUpdate(packet.data);
     } else if (packet.action === "content/runtime/emitEvent") {
-      scriptExecutor.emitEvent(packet.data as any);
+      runtime.receiveEmitEvent(packet.data);
     }
   };
   const openUserScriptChannel = async (bootstrapToken: string): Promise<void> => {

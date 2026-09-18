@@ -10,6 +10,7 @@ import type { CustomEventMessage } from "@Packages/message/custom_event_message"
 import { type TExtensionEnv } from "../extension/extension_env";
 import { RuntimeClient } from "../service_worker/client";
 import { customClone, Native } from "./global";
+import { setPageRpcExtensionOrigin, type ExtensionOrigin } from "./page_rpc";
 
 const MAX_EXECUTION_TOKEN_LENGTH = 256;
 
@@ -45,7 +46,7 @@ const isPageResourceMap = (value: unknown): boolean => {
   return true;
 };
 
-const isInjectScriptInfo = (value: unknown): value is TScriptInfo => {
+const isPageScriptInfo = (value: unknown, envTag: "it" | "ct"): value is TScriptInfo => {
   if (!isRecord(value)) return false;
   if (
     typeof value.uuid !== "string" ||
@@ -59,7 +60,7 @@ const isInjectScriptInfo = (value: unknown): value is TScriptInfo => {
     !isPageResourceMap(value.resource) ||
     (value.requireCssResource !== undefined && !isPageResourceMap(value.requireCssResource)) ||
     !isExecutionToken(value.executionHandle) ||
-    value.executionEnvTag !== "it" ||
+    value.executionEnvTag !== envTag ||
     !isExecutionToken(value.executionRunFlag)
   ) {
     return false;
@@ -157,30 +158,57 @@ type InjectPageLoadData = {
   reconnectToken?: string;
 };
 
-const cloneInjectPageLoad = (data: unknown): InjectPageLoadData | undefined => {
+type PageLoadData = InjectPageLoadData & {
+  extensionOrigin?: ExtensionOrigin;
+};
+
+const isExtensionOrigin = (value: unknown): value is ExtensionOrigin => {
+  if (!isRecord(value) || !hasOnlyKeys(value, ["protocol", "hostname", "port"])) return false;
+  return (
+    (value.protocol === "chrome-extension:" || value.protocol === "moz-extension:") &&
+    typeof value.hostname === "string" &&
+    value.hostname.length > 0 &&
+    typeof value.port === "string"
+  );
+};
+
+const clonePageLoad = (
+  data: unknown,
+  envTag: "it" | "ct",
+  allowEmpty: boolean,
+  allowExtensionOrigin: boolean
+): PageLoadData | undefined => {
   const cloned = customClone(data);
   if (
     !isRecord(cloned) ||
-    !hasOnlyKeys(cloned, ["scripts", "envInfo"], ["reconnectToken"]) ||
+    !hasOnlyKeys(
+      cloned,
+      ["scripts", "envInfo"],
+      ["reconnectToken", ...(allowExtensionOrigin ? ["extensionOrigin"] : [])]
+    ) ||
     (cloned.reconnectToken !== undefined && !isExecutionToken(cloned.reconnectToken))
   )
     return undefined;
   if (!Native.objectHasOwn(cloned, "scripts") || !Native.objectHasOwn(cloned, "envInfo")) return undefined;
-  if (!Native.arrayIsArray(cloned.scripts) || cloned.scripts.length === 0) return undefined;
+  if (!Native.arrayIsArray(cloned.scripts) || (!allowEmpty && cloned.scripts.length === 0)) return undefined;
   for (let index = 0; index < cloned.scripts.length; index += 1) {
-    if (!isInjectScriptInfo(cloned.scripts[index])) return undefined;
+    if (!isPageScriptInfo(cloned.scripts[index], envTag)) return undefined;
   }
   if (!isRecord(cloned.envInfo)) return undefined;
   if (cloned.envInfo.sandboxMode !== "raw" || typeof cloned.envInfo.isIncognito !== "boolean") {
     return undefined;
   }
   if (cloned.envInfo.userAgentData !== undefined && !isRecord(cloned.envInfo.userAgentData)) return undefined;
+  if (cloned.extensionOrigin !== undefined && !isExtensionOrigin(cloned.extensionOrigin)) return undefined;
   return {
     scripts: cloned.scripts,
     envInfo: cloned.envInfo as unknown as GMInfoEnv,
     reconnectToken: cloned.reconnectToken as string | undefined,
+    extensionOrigin: cloned.extensionOrigin as ExtensionOrigin | undefined,
   };
 };
+
+const cloneInjectPageLoad = (data: unknown): InjectPageLoadData | undefined => clonePageLoad(data, "it", false, false);
 
 export class ScriptRuntime {
   // USER_SCRIPT 重连会重放同一份 bootstrap；按服务端签发的句柄去重，导航换文档时句柄也会随之更换。
@@ -309,33 +337,23 @@ export class ScriptRuntime {
       this.startScripts(safeData.scripts, safeData.envInfo);
       return safeData.reconnectToken;
     }
-    if (!isRecord(data) || !Native.objectHasOwn(data, "scripts") || !Native.objectHasOwn(data, "envInfo"))
-      return undefined;
-    const scripts = data.scripts;
-    const envInfo = data.envInfo;
-    if (!Native.arrayIsArray(scripts) || !isRecord(envInfo)) return undefined;
-    this.startScripts(scripts as TScriptInfo[], envInfo as unknown as GMInfoEnv);
-    return undefined;
+    const safeData = clonePageLoad(data, "ct", true, true);
+    if (!safeData) return undefined;
+    setPageRpcExtensionOrigin(safeData.extensionOrigin);
+    this.startScripts(safeData.scripts, safeData.envInfo);
+    return safeData.reconnectToken;
   }
 
   receiveEmitEvent(data: unknown): void {
-    if (this.scripEnvTag === "it") {
-      const safeData = cloneInjectEmitEvent(data);
-      if (!safeData) return;
-      this.scriptExecutor.emitEvent(safeData);
-      return;
-    }
-    this.scriptExecutor.emitEvent(data as EmitEventRequest);
+    const safeData = cloneInjectEmitEvent(data);
+    if (!safeData) return;
+    this.scriptExecutor.emitEvent(safeData);
   }
 
   receiveValueUpdate(data: unknown): void {
-    if (this.scripEnvTag === "it") {
-      const safeData = cloneInjectValueUpdate(data);
-      if (!safeData) return;
-      this.scriptExecutor.valueUpdate(safeData);
-      return;
-    }
-    this.scriptExecutor.valueUpdate(data as ValueUpdateDataEncoded);
+    const safeData = cloneInjectValueUpdate(data);
+    if (!safeData) return;
+    this.scriptExecutor.valueUpdate(safeData);
   }
 
   externalMessage(messagePrefix = "scripting", message: Message = this.msg) {
