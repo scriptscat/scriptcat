@@ -90,14 +90,16 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
     }
   };
 
-  pageServer?.on("bootstrap", (data: { bootstrapToken?: unknown }) => {
-    if (typeof data?.bootstrapToken !== "string" || data.bootstrapToken.length === 0) return;
-    reconnectToken = data.bootstrapToken;
-    void openNativeChannel(data.bootstrapToken);
-  });
-  pageServer?.on("pageLoad", (data) => {
-    runtime.receivePageLoad(data);
-  });
+  if (pageServer) {
+    pageServer.on("bootstrap", (data: { bootstrapToken?: unknown }) => {
+      if (typeof data?.bootstrapToken !== "string" || data.bootstrapToken.length === 0) return;
+      reconnectToken = data.bootstrapToken;
+      void openNativeChannel(data.bootstrapToken);
+    });
+    pageServer.on("pageLoad", (data) => {
+      runtime.receivePageLoad(data);
+    });
+  }
   runtime.init();
 
   // inject环境，直接判断白名单，注入对外接口

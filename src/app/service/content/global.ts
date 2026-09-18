@@ -30,6 +30,8 @@ const nativeObjectFreeze = Object.freeze;
 const nativeReflectOwnKeys = Reflect.ownKeys;
 const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const hasNativeStructuredClone = typeof structuredClone === "function";
+const nativeDocumentCreateElement = typeof Document === "undefined" ? undefined : Document.prototype.createElement;
+const nativeOwnFragment = typeof DocumentFragment === "undefined" ? undefined : new DocumentFragment();
 
 // Keep the captured methods on private subclasses. Instances can then be created
 // without reassigning every method, while the subclass prototypes remain outside
@@ -90,8 +92,8 @@ export const Native = {
   structuredClone: typeof structuredClone === "function" ? structuredClone : unsupportedAPI,
   jsonStringify: nativeBind(JSON.stringify, JSON),
   jsonParse: nativeBind(JSON.parse, JSON),
-  createElement: Document.prototype.createElement,
-  ownFragment: new DocumentFragment(),
+  createElement: nativeDocumentCreateElement,
+  ownFragment: nativeOwnFragment,
   objectCreate: nativeBind(Object.create, Object),
   objectAssign: nativeBind(Object.assign, Object),
   arrayIsArray: nativeArrayIsArray,

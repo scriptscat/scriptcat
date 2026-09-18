@@ -274,6 +274,8 @@ export class ScriptRuntime {
     this.server.on("pageLoad", (data: { scripts: TScriptInfo[]; envInfo: GMInfoEnv }) => {
       this.receivePageLoad(data);
     });
+    // Older MAIN worlds may receive a forward-compatible native bootstrap token but cannot open a runtime port.
+    this.server.on("bootstrap", () => undefined);
 
     // 用于 early-start 的扩充参数
     const { inIncognitoContext } = this.extensionEnv || {};
