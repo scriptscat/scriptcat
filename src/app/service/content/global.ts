@@ -94,6 +94,7 @@ export const Native = {
   ownFragment: new DocumentFragment(),
   objectCreate: nativeBind(Object.create, Object),
   objectAssign: nativeBind(Object.assign, Object),
+  arrayIsArray: nativeArrayIsArray,
   objectKeys: nativeBind(Object.keys, Object),
   objectHasOwn: nativeBind(Object.hasOwn, Object),
   objectDefineProperty: nativeBind(Object.defineProperty, Object),

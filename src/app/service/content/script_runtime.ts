@@ -9,7 +9,84 @@ import { onInjectPageLoaded } from "./external";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { type TExtensionEnv } from "../extension/extension_env";
 import { RuntimeClient } from "../service_worker/client";
-import { customClone } from "./global";
+import { customClone, Native } from "./global";
+
+const MAX_EXECUTION_TOKEN_LENGTH = 256;
+
+// Inject pageLoad crosses the page-visible bridge, so only a cloned DTO with a current broker binding may reach the executor.
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  if (value === null || typeof value !== "object" || Native.arrayIsArray(value)) return false;
+  const prototype = Native.objectGetPrototypeOf(value);
+  return prototype === null || Native.objectGetPrototypeOf(prototype) === null;
+};
+
+const isStringArray = (value: unknown): value is string[] => {
+  if (!Native.arrayIsArray(value)) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    if (typeof value[index] !== "string") return false;
+  }
+  return true;
+};
+
+const isExecutionToken = (value: unknown): value is string =>
+  typeof value === "string" && value.length > 0 && value.length <= MAX_EXECUTION_TOKEN_LENGTH;
+
+const isPageResourceMap = (value: unknown): boolean => {
+  if (!isRecord(value)) return false;
+  const keys = Native.objectKeys(value);
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    const resource = value[key];
+    if (!isRecord(resource) || typeof resource.content !== "string" || typeof resource.contentType !== "string") {
+      return false;
+    }
+    if (resource.base64 !== undefined && typeof resource.base64 !== "string") return false;
+  }
+  return true;
+};
+
+const isInjectScriptInfo = (value: unknown): value is TScriptInfo => {
+  if (!isRecord(value)) return false;
+  if (
+    typeof value.uuid !== "string" ||
+    value.uuid.length === 0 ||
+    typeof value.name !== "string" ||
+    typeof value.flag !== "string" ||
+    value.flag.length === 0 ||
+    typeof value.code !== "string" ||
+    !isRecord(value.metadata) ||
+    !isRecord(value.value) ||
+    !isPageResourceMap(value.resource) ||
+    (value.requireCssResource !== undefined && !isPageResourceMap(value.requireCssResource)) ||
+    !isExecutionToken(value.executionHandle) ||
+    value.executionEnvTag !== "it" ||
+    !isExecutionToken(value.executionRunFlag)
+  ) {
+    return false;
+  }
+  const metadataKeys = Native.objectKeys(value.metadata);
+  for (let index = 0; index < metadataKeys.length; index += 1) {
+    const key = metadataKeys[index];
+    if (!isStringArray(value.metadata[key])) return false;
+  }
+  return true;
+};
+
+const cloneInjectPageLoad = (data: unknown): { scripts: TScriptInfo[]; envInfo: GMInfoEnv } | undefined => {
+  const cloned = customClone(data);
+  if (!isRecord(cloned) || Native.objectKeys(cloned).length !== 2) return undefined;
+  if (!Native.objectHasOwn(cloned, "scripts") || !Native.objectHasOwn(cloned, "envInfo")) return undefined;
+  if (!Native.arrayIsArray(cloned.scripts) || cloned.scripts.length === 0) return undefined;
+  for (let index = 0; index < cloned.scripts.length; index += 1) {
+    if (!isInjectScriptInfo(cloned.scripts[index])) return undefined;
+  }
+  if (!isRecord(cloned.envInfo)) return undefined;
+  if (cloned.envInfo.sandboxMode !== "raw" || typeof cloned.envInfo.isIncognito !== "boolean") {
+    return undefined;
+  }
+  if (cloned.envInfo.userAgentData !== undefined && !isRecord(cloned.envInfo.userAgentData)) return undefined;
+  return { scripts: cloned.scripts, envInfo: cloned.envInfo as unknown as GMInfoEnv };
+};
 
 export class ScriptRuntime {
   constructor(
@@ -99,7 +176,13 @@ export class ScriptRuntime {
     });
 
     this.server.on("pageLoad", (data: { scripts: TScriptInfo[]; envInfo: GMInfoEnv }) => {
-      // 监听事件
+      if (this.scripEnvTag === "it") {
+        const safeData = cloneInjectPageLoad(data);
+        if (!safeData) return;
+        this.startScripts(safeData.scripts, safeData.envInfo);
+        return;
+      }
+      // content/native channels already carry the service-worker response directly.
       this.startScripts(data.scripts, data.envInfo);
     });
 
