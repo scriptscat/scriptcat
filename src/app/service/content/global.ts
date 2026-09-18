@@ -119,6 +119,31 @@ export const customClone = (o: any) => {
   const isDataOnly = (value: object): boolean => {
     if (seen.has(value)) return true;
     seen.set(value, true);
+
+    // Map/Set 条目不在自有属性中，必须先检查，避免 structuredClone 遍历时触发嵌套访问器。
+    try {
+      let valid = true;
+      nativeReflectApply(nativeMapForEach, value as Map<unknown, unknown>, [
+        (key: unknown, entry: unknown) => {
+          if (valid && (!isDataOnlyValue(key) || !isDataOnlyValue(entry))) valid = false;
+        },
+      ]);
+      return valid;
+    } catch {
+      // 不是 Map，继续检查普通自有属性。
+    }
+    try {
+      let valid = true;
+      nativeReflectApply(nativeSetForEach, value as Set<unknown>, [
+        (entry: unknown) => {
+          if (valid && !isDataOnlyValue(entry)) valid = false;
+        },
+      ]);
+      return valid;
+    } catch {
+      // 不是 Set，继续检查普通自有属性。
+    }
+
     let keys: PropertyKey[];
     try {
       keys = nativeReflectOwnKeys(value);
@@ -142,6 +167,10 @@ export const customClone = (o: any) => {
       }
     }
     return true;
+  };
+  const isDataOnlyValue = (value: unknown): boolean => {
+    if (value === null || typeof value !== "object") return true;
+    return isDataOnly(value);
   };
   if (!isDataOnly(o)) return undefined;
 

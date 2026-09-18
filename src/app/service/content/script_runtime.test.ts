@@ -134,6 +134,50 @@ describe("ScriptRuntime inject page bootstrap", () => {
     expect(executor.emitEvent).not.toHaveBeenCalled();
   });
 
+  it("rejects accessors nested in collection callback payloads", () => {
+    const { handlers, server } = makeServer();
+    const executor = makeExecutor();
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    runtime.init();
+
+    const getter = vi.fn(() => "secret");
+    const nested = {} as Record<string, unknown>;
+    Object.defineProperty(nested, "value", { configurable: true, enumerable: true, get: getter });
+    const eventData = {
+      uuid: "script",
+      event: "menuClick",
+      eventId: "1",
+      data: new Map([["nested", nested]]),
+    };
+
+    handlers.get("runtime/emitEvent")?.(eventData);
+
+    expect(getter).not.toHaveBeenCalled();
+    expect(executor.emitEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects accessors nested in set callback payloads", () => {
+    const { handlers, server } = makeServer();
+    const executor = makeExecutor();
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    runtime.init();
+
+    const getter = vi.fn(() => "secret");
+    const nested = {} as Record<string, unknown>;
+    Object.defineProperty(nested, "value", { configurable: true, enumerable: true, get: getter });
+    const eventData = {
+      uuid: "script",
+      event: "menuClick",
+      eventId: "1",
+      data: new Set([nested]),
+    };
+
+    handlers.get("runtime/emitEvent")?.(eventData);
+
+    expect(getter).not.toHaveBeenCalled();
+    expect(executor.emitEvent).not.toHaveBeenCalled();
+  });
+
   it("clones valid callback and value-update DTOs before dispatch", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
