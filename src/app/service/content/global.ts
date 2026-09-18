@@ -102,9 +102,11 @@ export const Native = {
 } as const;
 
 export const customClone = (o: any) => {
-  // 非对象类型直接返回（包含 Symbol、undefined、基本类型等）；函数不可跨边界传输。
+  // 非对象类型直接返回（包含 undefined、基本类型等）；函数和 Symbol 不可跨边界传输。
   // 接受参数：阵列、物件、null
-  if (o === null || typeof o !== "object") return typeof o === "function" ? undefined : o;
+  if (o === null || typeof o !== "object") {
+    return typeof o === "function" || typeof o === "symbol" ? undefined : o;
+  }
 
   // 先验证自有字段都是数据描述符，避免 JSON fallback 执行页面 getter 或 Proxy trap。
   const seen = new Native.WeakMap<object, true>();

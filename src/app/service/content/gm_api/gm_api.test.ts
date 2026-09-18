@@ -960,6 +960,20 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     );
   });
 
+  it("拒绝 Symbol 值，避免把不可结构化克隆的数据写入本地存储", () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_setValue"];
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    api.GM_setValue(api, "symbol", Symbol("secret"));
+
+    expect(script.value.symbol).toBeUndefined();
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "symbol"] }) })
+    );
+  });
+
   it.concurrent("GM_setValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValues", "GM_setValues"];
