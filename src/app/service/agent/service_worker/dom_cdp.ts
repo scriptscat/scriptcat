@@ -16,6 +16,7 @@ type CapturedNode = {
 };
 
 type MonitorSession = {
+  ownerScriptUuid?: string;
   dialogs: Array<{ type: string; message: string }>;
   capturedNodes: CapturedNode[]; // 从事件中直接提取的节点信息
   listener: MonitorEventListener;
@@ -239,10 +240,14 @@ export async function cdpScreenshot(tabId: number, options?: ScreenshotOptions):
 // ---- 页面监控（startMonitor / stopMonitor） ----
 
 // 启动页面监控：attach debugger，纯 CDP 事件监听（dialog + DOM 变化），零注入
-export async function cdpStartMonitor(tabId: number): Promise<void> {
+export async function cdpStartMonitor(tabId: number, ownerScriptUuid?: string): Promise<void> {
   // 如果已有 monitor，先停止
-  if (activeMonitors.has(tabId)) {
-    await cdpStopMonitor(tabId);
+  const current = activeMonitors.get(tabId);
+  if (current) {
+    if (current.ownerScriptUuid !== ownerScriptUuid) {
+      throw new Error("Monitor belongs to another script");
+    }
+    await cdpStopMonitor(tabId, ownerScriptUuid);
   }
 
   const dialogs: Array<{ type: string; message: string }> = [];
@@ -292,13 +297,16 @@ export async function cdpStartMonitor(tabId: number): Promise<void> {
   };
   chrome.debugger.onEvent.addListener(listener);
 
-  activeMonitors.set(tabId, { dialogs, capturedNodes, listener });
+  activeMonitors.set(tabId, { ownerScriptUuid, dialogs, capturedNodes, listener });
 }
 
 // 轻量查询当前 monitor 状态（不停止监控）
-export function cdpPeekMonitor(tabId: number): { hasChanges: boolean; dialogCount: number; nodeCount: number } {
+export function cdpPeekMonitor(
+  tabId: number,
+  ownerScriptUuid?: string
+): { hasChanges: boolean; dialogCount: number; nodeCount: number } {
   const monitor = activeMonitors.get(tabId);
-  if (!monitor) {
+  if (!monitor || monitor.ownerScriptUuid !== ownerScriptUuid) {
     return { hasChanges: false, dialogCount: 0, nodeCount: 0 };
   }
   const dialogCount = monitor.dialogs.length;
@@ -315,8 +323,11 @@ function stripHtmlTags(html: string): string {
 }
 
 // 停止监控：纯 CDP 解析新增节点 → 收集结果 → detach
-export async function cdpStopMonitor(tabId: number): Promise<MonitorResult> {
+export async function cdpStopMonitor(tabId: number, ownerScriptUuid?: string): Promise<MonitorResult> {
   const monitor = activeMonitors.get(tabId);
+  if (monitor && monitor.ownerScriptUuid !== ownerScriptUuid) {
+    throw new Error("Monitor belongs to another script");
+  }
   const result: MonitorResult = {
     dialogs: monitor?.dialogs || [],
     addedNodes: [],
