@@ -42,7 +42,9 @@ import {
   isEarlyStartScript,
   isInjectIntoContent,
   isScriptletUnwrap,
+  isScriptModule,
   trimScriptInfo,
+  wrapScriptModuleCode,
 } from "../content/utils";
 import LoggerCore from "@App/app/logger/core";
 import PermissionVerify from "./permission_verify";
@@ -936,11 +938,16 @@ export class RuntimeService {
       }
     }
 
+    let code = originalCode?.code || "";
+    if (isScriptModule(script.metadata)) {
+      code = wrapScriptModuleCode(code, result.name);
+    }
+
     return compileInjectScriptByFlag(
       result.flag,
       compileScriptCodeByResource({
         name: result.name,
-        code: originalCode?.code || "",
+        code,
         require,
         isContextMenu: isContextMenuScript(metadata),
       })
