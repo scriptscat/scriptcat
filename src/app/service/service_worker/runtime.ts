@@ -300,6 +300,10 @@ export class RuntimeService {
   }
 
   private sendUserScriptMessage(to: ExtMessageSender | undefined, action: string, data: unknown): void {
+    const dataRecord =
+      typeof data === "object" && data !== null ? (data as { uuid?: unknown; storageName?: unknown }) : undefined;
+    const targetUuid = action === "runtime/emitEvent" ? dataRecord?.uuid : undefined;
+    const targetStorageName = action === "runtime/valueUpdate" ? dataRecord?.storageName : undefined;
     for (const [key, entry] of this.userScriptConnections) {
       if (
         to &&
@@ -309,18 +313,17 @@ export class RuntimeService {
       ) {
         continue;
       }
-      const bindingMatches = [...this.pageExecutionBindings.values()].some(
-        (binding) =>
+      let bindingMatches = false;
+      for (const binding of this.pageExecutionBindings.values()) {
+        if (
           entry.handles.has(binding.handle) &&
-          ((action === "runtime/emitEvent" &&
-            typeof data === "object" &&
-            data !== null &&
-            (data as { uuid?: unknown }).uuid === binding.uuid) ||
-            (action === "runtime/valueUpdate" &&
-              typeof data === "object" &&
-              data !== null &&
-              (data as { storageName?: unknown }).storageName === binding.storageName))
-      );
+          ((targetUuid !== undefined && targetUuid === binding.uuid) ||
+            (targetStorageName !== undefined && targetStorageName === binding.storageName))
+        ) {
+          bindingMatches = true;
+          break;
+        }
+      }
       if (!bindingMatches) continue;
       try {
         entry.connection.sendMessage({ action: `content/${action}`, data });

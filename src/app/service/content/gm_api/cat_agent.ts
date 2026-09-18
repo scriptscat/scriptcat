@@ -93,15 +93,9 @@ type ConversationPrivateState = {
   background: boolean;
 };
 
-const conversationStates = Native.createWeakMap<ConversationInstance, ConversationPrivateState>();
-
-const getConversationState = (instance: ConversationInstance): ConversationPrivateState => {
-  const state = conversationStates.get(instance);
-  if (!state) throw new Error("conversation instance is invalid");
-  return state;
-};
-
 export class ConversationInstance {
+  #state: ConversationPrivateState;
+
   public toolHandlers: Map<string, ToolHandler> = new Map();
   public toolDefs: ToolDefinition[] = [];
   public ephemeral: boolean;
@@ -134,7 +128,7 @@ export class ConversationInstance {
       systemPrompt: system,
       background: background || false,
     };
-    conversationStates.set(this, state);
+    this.#state = state;
     this.ephemeral = ephemeral || false;
     if (initialTools) {
       for (const tool of initialTools) {
@@ -158,15 +152,15 @@ export class ConversationInstance {
   }
 
   get id() {
-    return getConversationState(this).conv.id;
+    return this.#state.conv.id;
   }
 
   get title() {
-    return getConversationState(this).conv.title;
+    return this.#state.conv.title;
   }
 
   get modelId() {
-    return getConversationState(this).conv.modelId;
+    return this.#state.conv.modelId;
   }
 
   // 发送消息并获取回复（内置 tool calling 循环）
@@ -177,7 +171,7 @@ export class ConversationInstance {
     if (cmdResult !== undefined) return cmdResult;
 
     const { toolDefs, handlers } = this.mergeTools(options?.tools);
-    const state = getConversationState(this);
+    const state = this.#state;
 
     // ephemeral 模式：追加 user message 到内存历史
     if (this.ephemeral) {
@@ -245,7 +239,7 @@ export class ConversationInstance {
     }
 
     const { toolDefs, handlers } = this.mergeTools(options?.tools);
-    const state = getConversationState(this);
+    const state = this.#state;
 
     // ephemeral 模式：追加 user message 到内存历史
     if (this.ephemeral) {
@@ -299,7 +293,7 @@ export class ConversationInstance {
     const parsed = this.parseCommand(content);
     if (!parsed) return undefined;
 
-    const handler = getConversationState(this).commandHandlers.get(parsed.name);
+    const handler = this.#state.commandHandlers.get(parsed.name);
     if (!handler) return undefined;
 
     const result = await handler(parsed.args, this);
@@ -327,7 +321,7 @@ export class ConversationInstance {
 
   // 获取对话历史
   async getMessages(): Promise<ChatMessage[]> {
-    const state = getConversationState(this);
+    const state = this.#state;
     if (this.ephemeral) {
       // ephemeral 模式：从内存历史转换为 ChatMessage 格式
       return this.messageHistory.map((msg, idx) => ({
@@ -357,7 +351,7 @@ export class ConversationInstance {
       this.messageHistory = [];
       return;
     }
-    const state = getConversationState(this);
+    const state = this.#state;
     await state.gmSendMessage("CAT_agentConversation", [
       {
         action: "clearMessages",
@@ -370,7 +364,7 @@ export class ConversationInstance {
 
   // 持久化对话
   async save(): Promise<void> {
-    const state = getConversationState(this);
+    const state = this.#state;
     await state.gmSendMessage("CAT_agentConversation", [
       {
         action: "save",
@@ -383,7 +377,7 @@ export class ConversationInstance {
 
   // 附加到后台运行中的会话，返回流式事件（首个 chunk 为 sync 快照）
   async attach(): Promise<AsyncIterable<ConversationStreamChunk>> {
-    const state = getConversationState(this);
+    const state = this.#state;
     const conn = await state.gmConnect("CAT_agentAttachToConversation", [
       { conversationId: state.conv.id, generation: state.conv.generation, scriptUuid: state.scriptUuid },
     ]);

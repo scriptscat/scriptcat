@@ -370,12 +370,13 @@ export function forwardMessage(
     }
     return handler(params, sender);
   };
-  const process = (params: any, sender: IGetSender) => {
-    if (!transform) return processTransformed(params, sender);
-    const transformed = transform(params, sender);
-    return transformed instanceof Promise
-      ? transformed.then((data) => processTransformed(data, sender))
-      : processTransformed(transformed, sender);
-  };
+  const process = transform
+    ? (params: any, sender: IGetSender) => {
+        const transformed = transform(params, sender);
+        return transformed instanceof Promise
+          ? transformed.then((data) => processTransformed(data, sender))
+          : processTransformed(transformed, sender);
+      }
+    : processTransformed;
   receiverFrom.on(path, process);
 }

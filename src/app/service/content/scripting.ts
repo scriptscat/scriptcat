@@ -148,7 +148,7 @@ export default class ScriptingRuntime {
         return {
           uuid: request.uuid,
           api: request.api,
-          params: [...request.params],
+          params: request.params,
           runFlag: request.runFlag,
           executionHandle: request.handle,
           version: 1 as const,

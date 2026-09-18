@@ -12,7 +12,28 @@ import { nativeCall, Native } from "./global";
 
 const createCapability = (api: (...args: any[]) => any, receiver: object) => {
   // 由闭包提供上下文，脚本侧只传 API 自身的参数。
-  const capability = (...args: any[]) => api(receiver, ...args);
+  /* eslint-disable prefer-rest-params -- 以固定参数转发保留调用参数数量，避免每次调用创建 rest 数组。 */
+  const capability = function (this: unknown) {
+    switch (arguments.length) {
+      case 0:
+        return api(receiver);
+      case 1:
+        return api(receiver, arguments[0]);
+      case 2:
+        return api(receiver, arguments[0], arguments[1]);
+      case 3:
+        return api(receiver, arguments[0], arguments[1], arguments[2]);
+      case 4:
+        return api(receiver, arguments[0], arguments[1], arguments[2], arguments[3]);
+      default: {
+        const args = new Array(arguments.length + 1);
+        args[0] = receiver;
+        for (let i = 0; i < arguments.length; i += 1) args[i + 1] = arguments[i];
+        return Native.reflectApply(api, undefined, args);
+      }
+    }
+  };
+  /* eslint-enable prefer-rest-params */
   Native.objectDefineProperty(capability, "name", {
     configurable: true,
     value: api.name,

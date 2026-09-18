@@ -32,8 +32,8 @@ export const initEnvInfo: GMInfoEnv = {
 
 // 脚本执行器
 export class ScriptExecutor {
-  private readonly earlyScriptFlags: string[] = [];
-  private readonly execScripts: Array<{ uuid: string; exec: ExecScript }> = [];
+  private readonly earlyScriptFlags = Native.createSet<string>();
+  private readonly execScripts = Native.createMap<string, ExecScript>();
 
   constructor(
     private msg: Message,
@@ -43,24 +43,17 @@ export class ScriptExecutor {
 
   emitEvent(data: EmitEventRequest) {
     // 转发给脚本
-    for (let i = 0; i < this.execScripts.length; i += 1) {
-      const entry = this.execScripts[i];
-      if (entry?.uuid === data.uuid) {
-        entry.exec.emitEvent(data.event, data.eventId, data.data);
-        return;
-      }
-    }
+    this.execScripts.get(data.uuid)?.emitEvent(data.event, data.eventId, data.data);
   }
 
   valueUpdate(data: ValueUpdateDataEncoded) {
     // runtime/valueUpdate
     const { uuid, storageName } = data;
-    for (let i = 0; i < this.execScripts.length; i += 1) {
-      const exec = this.execScripts[i]?.exec;
-      if (exec && (exec.scriptRes.uuid === uuid || getStorageName(exec.scriptRes) === storageName)) {
+    this.execScripts.forEach((exec) => {
+      if (exec.scriptRes.uuid === uuid || getStorageName(exec.scriptRes) === storageName) {
         exec.valueUpdate(data);
       }
-    }
+    });
   }
 
   startScripts(scripts: TScriptInfo[], envInfo: GMInfoEnv) {
@@ -78,22 +71,16 @@ export class ScriptExecutor {
       const script = scripts[scriptIndex];
       const flag = script.flag;
       // 如果是EarlyScriptFlag，处理沙盒环境
-      let isEarlyScript = false;
-      for (let i = 0; i < this.earlyScriptFlags.length; i += 1) {
-        if (this.earlyScriptFlags[i] === flag) {
-          isEarlyScript = true;
-          break;
-        }
-      }
-      if (isEarlyScript) {
-        for (let i = 0; i < this.execScripts.length; i += 1) {
-          const exec = this.execScripts[i]?.exec;
-          if (exec?.scriptRes.flag === flag) {
+      if (this.earlyScriptFlags.has(flag)) {
+        let updated = false;
+        this.execScripts.forEach((exec) => {
+          if (!updated && exec.scriptRes.flag === flag) {
             // 处理早期脚本的沙盒环境
             exec.updateEarlyScriptGMInfo(envInfo, script);
-            return;
+            updated = true;
           }
-        }
+        });
+        if (updated) return;
       }
       const listenForScript = () => {
         definePropertyListener(window, flag, (val: ScriptFunc) => {
@@ -153,14 +140,7 @@ export class ScriptExecutor {
             console.warn("Unexpected match error", e);
           }
         }
-        let alreadyExecuted = false;
-        for (let i = 0; i < this.earlyScriptFlags.length; i += 1) {
-          if (this.earlyScriptFlags[i] === scriptFlag) {
-            alreadyExecuted = true;
-            break;
-          }
-        }
-        if (!alreadyExecuted) this.execEarlyScript(scriptFlag, scriptInfo, envInfo);
+        if (!this.earlyScriptFlags.has(scriptFlag)) this.execEarlyScript(scriptFlag, scriptInfo, envInfo);
       }
     };
     pageAddEventListener(scriptLoadCompleteEvtName, scriptLoadCompleteHandler);
@@ -190,7 +170,7 @@ export class ScriptExecutor {
       scriptFlag: flag,
       envInfo: envInfo,
     });
-    this.earlyScriptFlags[this.earlyScriptFlags.length] = flag;
+    this.earlyScriptFlags.add(flag);
   }
 
   execScriptEntry(scriptEntry: ExecScriptEntry) {
@@ -205,15 +185,7 @@ export class ScriptExecutor {
       code: scriptFunc,
       envInfo,
     });
-    let replaced = false;
-    for (let i = 0; i < this.execScripts.length; i += 1) {
-      if (this.execScripts[i]?.uuid === scriptLoadInfo.uuid) {
-        this.execScripts[i] = { uuid: scriptLoadInfo.uuid, exec: execScript };
-        replaced = true;
-        break;
-      }
-    }
-    if (!replaced) this.execScripts[this.execScripts.length] = { uuid: scriptLoadInfo.uuid, exec: execScript };
+    this.execScripts.set(scriptLoadInfo.uuid, execScript);
     const metadata = scriptLoadInfo.metadata || {};
     const resource = scriptLoadInfo.requireCssResource ?? scriptLoadInfo.resource;
     // 注入css

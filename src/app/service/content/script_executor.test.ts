@@ -97,14 +97,15 @@ describe("ScriptExecutor", () => {
 
     const exec = (
       executor as unknown as {
-        execScripts: Array<{
-          exec: {
+        execScripts: Map<
+          string,
+          {
             scriptRes: TScriptInfo;
             updateEarlyScriptGMInfo: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => void;
-          };
-        }>;
+          }
+        >;
       }
-    ).execScripts[0].exec;
+    ).execScripts.get(initial.uuid)!;
     expect(exec.scriptRes.executionHandle).toBeUndefined();
 
     exec.updateEarlyScriptGMInfo(initEnvInfo, {

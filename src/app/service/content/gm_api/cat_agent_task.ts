@@ -19,12 +19,12 @@ interface GMBaseContext {
 // 内部 listener 计数器
 let listenerCounter = 0;
 type ListenerRecord = { id: number; eventName: string; callback: (...args: any[]) => void };
-const listenerMaps = Native.createWeakMap<object, ListenerRecord[]>();
+const listenerMaps = Native.createWeakMap<object, Map<number, ListenerRecord>>();
 
-const getListenerRecords = (owner: object): ListenerRecord[] => {
+const getListenerRecords = (owner: object): Map<number, ListenerRecord> => {
   let records = listenerMaps.get(owner);
   if (!records) {
-    records = [];
+    records = Native.createMap<number, ListenerRecord>();
     listenerMaps.set(owner, records);
   }
   return records;
@@ -124,8 +124,7 @@ export default class CATAgentTaskApi {
     };
 
     ctx.EE.on(eventName, wrappedCallback);
-    const records = getListenerRecords(ctx);
-    records[records.length] = { id: listenerId, eventName, callback: wrappedCallback };
+    getListenerRecords(ctx).set(listenerId, { id: listenerId, eventName, callback: wrappedCallback });
 
     return listenerId;
   }
@@ -135,17 +134,9 @@ export default class CATAgentTaskApi {
     if (!ctx.EE) return;
 
     const records = getListenerRecords(ctx);
-    let index = -1;
-    for (let i = 0; i < records.length; i += 1) {
-      if (records[i]?.id === listenerId) {
-        index = i;
-        break;
-      }
-    }
-    if (index >= 0) {
-      const entry = records[index];
-      for (let i = index + 1; i < records.length; i += 1) records[i - 1] = records[i];
-      records.length -= 1;
+    const entry = records.get(listenerId);
+    if (entry) {
+      records.delete(listenerId);
       ctx.EE.off(entry.eventName, entry.callback);
     }
   }
