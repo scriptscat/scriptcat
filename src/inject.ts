@@ -2,7 +2,7 @@ import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { PageMessage } from "@Packages/message/page_message";
-import { ExtensionMessage } from "@Packages/message/extension_message";
+import { ExtensionMessage, hasNativeRuntimeChannel } from "@Packages/message/extension_message";
 import { Server } from "@Packages/message/server";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
@@ -12,6 +12,7 @@ import { ScriptEnvTag } from "@Packages/message/consts";
 import { type TExtensionEnv } from "./app/service/extension/extension_env";
 import { connectUserScriptChannel, requestUserScriptReconnect } from "./app/service/content/user_script_connection";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
+import { createMainWorldPageLoadGate } from "./app/service/content/main_world_page_load_gate";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
@@ -21,10 +22,7 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   const pageMsg: Message = new PageMessage(eventFlag, "inject");
   const nativeMsg: Message = new ExtensionMessage(false);
   // 特权 GM RPC 使用浏览器标记的 USER_SCRIPT 来源；页面桥只保留 bootstrap 与 DOM 引用辅助。
-  const canUseNativeChannel =
-    typeof chrome !== "undefined" &&
-    typeof chrome.runtime?.connect === "function" &&
-    typeof chrome.runtime?.sendMessage === "function";
+  const canUseNativeChannel = hasNativeRuntimeChannel;
   const msg: Message = canUseNativeChannel ? nativeMsg : pageMsg;
 
   // 初始化日志组件
@@ -60,8 +58,8 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
     }
   };
 
-  const openNativeChannel = async (bootstrapToken: string): Promise<void> => {
-    if (openingNative || nativeConnection) return;
+  const openNativeChannel = async (bootstrapToken: string): Promise<boolean> => {
+    if (openingNative || nativeConnection) return Boolean(nativeConnection);
     openingNative = true;
     let connection: MessageConnect | undefined;
     try {
@@ -83,22 +81,23 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
         "MAIN"
       );
       nativeConnection = connection;
+      return connection !== undefined;
     } catch (error) {
       logger.logger().debug("MAIN USER_SCRIPT channel failed", { error: String(error) });
+      return false;
     } finally {
       openingNative = false;
     }
   };
 
   if (pageServer) {
+    const pageLoadGate = createMainWorldPageLoadGate(openNativeChannel, (data) => runtime.receivePageLoad(data));
     pageServer.on("bootstrap", (data: { bootstrapToken?: unknown }) => {
       if (typeof data?.bootstrapToken !== "string" || data.bootstrapToken.length === 0) return;
       reconnectToken = data.bootstrapToken;
-      void openNativeChannel(data.bootstrapToken);
+      pageLoadGate.onBootstrap(data.bootstrapToken);
     });
-    pageServer.on("pageLoad", (data) => {
-      runtime.receivePageLoad(data);
-    });
+    pageServer.on("pageLoad", pageLoadGate.onPageLoad);
   }
   runtime.init();
 
