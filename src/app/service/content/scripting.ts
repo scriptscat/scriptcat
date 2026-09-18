@@ -39,7 +39,9 @@ export default class ScriptingRuntime {
     // 发送给 content的消息接口
     private readonly senderToContent: CustomEventMessage,
     // 发送给inject的消息接口
-    private readonly senderToInject: CustomEventMessage
+    private readonly senderToInject: MessageSend,
+    // 仅用于同步 DOM 节点引用；异步脚本 RPC 使用 senderToInject 的结构化消息。
+    private readonly domSenderToInject: CustomEventMessage
   ) {}
 
   // 广播消息给 content 和 inject
@@ -115,7 +117,7 @@ export default class ScriptingRuntime {
           case "CAT_fetchDocument": {
             const [url, isContent] = data.params;
             // 根据来源选择不同的消息桥（content / inject）
-            let msg: CustomEventMessage | null = isContent ? this.senderToContent : this.senderToInject;
+            let msg: CustomEventMessage | null = isContent ? this.senderToContent : this.domSenderToInject;
             return new Promise((resolve) => {
               const xhr = new XMLHttpRequest();
               xhr.responseType = "document";

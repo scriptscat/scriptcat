@@ -601,7 +601,8 @@ export default class GMApi extends GM_Base {
     // 上下文已失效时直接返回，避免访问已释放的 message 造成异常
     if (ctx.isInvalidContext()) return undefined;
 
-    if (ctx.scriptRes?.executionEnvTag === ScriptEnvTag.content) {
+    const isContentEnv = ctx.scriptRes?.executionEnvTag === ScriptEnvTag.content;
+    if (isContentEnv) {
       // USER_SCRIPT 可直接在 content realm 创建 Document；跨到 scripting 只会丢失节点引用。
       return new Promise((resolve) => {
         const xhr = new XMLHttpRequest();
@@ -613,8 +614,6 @@ export default class GMApi extends GM_Base {
       });
     }
 
-    const message = ctx.message as CustomEventMessage | null;
-    const isContentEnv = !!message && message.envTag === ScriptEnvTag.content;
     return urlToDocumentInContentPage(ctx, url, isContentEnv);
   }
 

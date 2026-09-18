@@ -3,6 +3,7 @@ import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import type { Message } from "@Packages/message/types";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
+import { PageMessage } from "@Packages/message/page_message";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { Server } from "@Packages/message/server";
 import ScriptingRuntime from "./app/service/content/scripting";
@@ -24,7 +25,8 @@ negotiateEventFlag(messageFlag, extensionEnv, 2, (eventFlag) => {
   logger.logger().debug("scripting start");
 
   const contentMsg = new CustomEventMessage(eventFlag, true, ScriptEnvTag.content);
-  const injectMsg = new CustomEventMessage(eventFlag, true, ScriptEnvTag.inject);
+  const injectMsg = new PageMessage(eventFlag, "scripting");
+  const domInjectMsg = new CustomEventMessage(eventFlag, true, ScriptEnvTag.inject);
 
   const server = new Server("scripting", [contentMsg, injectMsg]);
 
@@ -33,7 +35,7 @@ negotiateEventFlag(messageFlag, extensionEnv, 2, (eventFlag) => {
   const extServer = new Server("scripting", extMsgComm, false);
   // scriptExecutor的消息接口
   // 初始化运行环境
-  const runtime = new ScriptingRuntime(extServer, server, extMsgComm, contentMsg, injectMsg);
+  const runtime = new ScriptingRuntime(extServer, server, extMsgComm, contentMsg, injectMsg, domInjectMsg);
   runtime.init();
   // 页面加载，注入脚本
   runtime.pageLoad();

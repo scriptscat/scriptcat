@@ -41,6 +41,7 @@ describe("ScriptingRuntime page bootstrap", () => {
       {} as Server,
       senderToExt as unknown as MessageSend,
       senderToContent as any,
+      senderToInject as any,
       senderToInject as any
     );
 

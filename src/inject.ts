@@ -1,6 +1,7 @@
 import LoggerCore from "./app/logger/core";
 import MessageWriter from "./app/logger/message_writer";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
+import { PageMessage } from "@Packages/message/page_message";
 import { Server } from "@Packages/message/server";
 import { ScriptExecutor } from "./app/service/content/script_executor";
 import type { Message } from "@Packages/message/types";
@@ -14,7 +15,7 @@ const messageFlag = process.env.SC_RANDOM_KEY!;
 getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => {
   const scriptEnvTag = ScriptEnvTag.inject;
 
-  const msg: Message = new CustomEventMessage(eventFlag, false, scriptEnvTag);
+  const msg: Message = new PageMessage(eventFlag, "inject");
 
   // 初始化日志组件
   const logger = new LoggerCore({
