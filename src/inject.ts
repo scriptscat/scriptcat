@@ -17,6 +17,8 @@ import { createMainWorldPageLoadGate } from "./app/service/content/main_world_pa
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
+const NATIVE_BOOTSTRAP_TIMEOUT_MS = 1000;
+
 getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => {
   const scriptEnvTag = ScriptEnvTag.inject;
 
@@ -46,10 +48,27 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   let reconnecting = false;
   let openingNative = false;
   let nativeConnection: MessageConnect | undefined;
+  let pendingNativeReady:
+    | {
+        resolve: (connected: boolean) => void;
+        timer: ReturnType<typeof setTimeout>;
+      }
+    | undefined;
   let reconnectToken: string | undefined;
+
+  const settleNativeReady = (connected: boolean): void => {
+    const pending = pendingNativeReady;
+    if (!pending) return;
+    pendingNativeReady = undefined;
+    clearTimeout(pending.timer);
+    pending.resolve(connected);
+  };
 
   const handleNativePacket = (_connection: MessageConnect, packet: TMessage) => {
     if (packet.action === "inject/pageLoad") {
+      if (!pendingNativeReady) return;
+      nativeConnection = _connection;
+      settleNativeReady(true);
       const nextToken = runtime.receivePageLoad(packet.data);
       if (nextToken) reconnectToken = nextToken;
     } else if (packet.action === "inject/runtime/valueUpdate") {
@@ -62,14 +81,26 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   const openNativeChannel = async (bootstrapToken: string): Promise<boolean> => {
     if (openingNative || nativeConnection) return Boolean(nativeConnection);
     openingNative = true;
-    let connection: MessageConnect | undefined;
-    try {
-      connection = await connectUserScriptChannel(
+    return new Promise<boolean>((resolve) => {
+      const timer = setTimeout(() => {
+        const connection = nativeConnection;
+        nativeConnection = undefined;
+        settleNativeReady(false);
+        try {
+          connection?.disconnect(true);
+        } catch (error) {
+          logger.logger().debug("MAIN USER_SCRIPT channel cleanup failed", { error: String(error) });
+        }
+      }, NATIVE_BOOTSTRAP_TIMEOUT_MS);
+      pendingNativeReady = { resolve, timer };
+
+      void connectUserScriptChannel(
         nativeMsg,
         bootstrapToken,
         handleNativePacket,
         (isSelfDisconnected) => {
-          if (nativeConnection === connection) nativeConnection = undefined;
+          nativeConnection = undefined;
+          settleNativeReady(false);
           if (isSelfDisconnected || reconnecting || !reconnectToken) return;
           reconnecting = true;
           void requestUserScriptReconnect(nativeMsg, reconnectToken)
@@ -80,15 +111,26 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
             });
         },
         "MAIN"
-      );
-      nativeConnection = connection;
-      return connection !== undefined;
-    } catch (error) {
-      logger.logger().debug("MAIN USER_SCRIPT channel failed", { error: String(error) });
-      return false;
-    } finally {
-      openingNative = false;
-    }
+      )
+        .then((connection) => {
+          if (!connection) {
+            settleNativeReady(false);
+            return;
+          }
+          if (pendingNativeReady || nativeConnection === connection) {
+            nativeConnection = connection;
+            return;
+          }
+          connection.disconnect(true);
+        })
+        .catch((error) => {
+          logger.logger().debug("MAIN USER_SCRIPT channel failed", { error: String(error) });
+          settleNativeReady(false);
+        })
+        .finally(() => {
+          openingNative = false;
+        });
+    });
   };
 
   if (pageServer) {
