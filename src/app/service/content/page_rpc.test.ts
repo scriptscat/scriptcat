@@ -68,6 +68,20 @@ describe("page GM RPC", () => {
     expect(allowed!).toEqual([]);
   });
 
+  it("does not let a hooked String.prototype.slice enlarge grant aliases", () => {
+    const originalSlice = String.prototype.slice;
+    String.prototype.slice = (() => "xmlhttpRequest") as typeof String.prototype.slice;
+    let allowed: string[];
+    try {
+      allowed = getPageRpcAllowedAPIs(["GM.getValue"]);
+    } finally {
+      String.prototype.slice = originalSlice;
+    }
+
+    expect(allowed!).toContain("GM_getValue");
+    expect(allowed!).not.toContain("GM_xmlhttpRequest");
+  });
+
   it("allows the internal request name used by the GM.xmlHttpRequest wrapper", () => {
     const allowed = getPageRpcAllowedAPIs(["GM.xmlHttpRequest"]);
 
