@@ -371,14 +371,12 @@ export class PageRpcRegistry {
   }
 
   consumeRequestId(binding: PageExecutionBinding, requestId: string): void {
-    // requestId 只在每个绑定内去重，并保留有限窗口，避免页面长期占用内存。
+    // requestId 在每个绑定内只接受一次；达到上限后拒绝新请求，不能遗忘旧 ID 让请求重放。
     if (binding.requestIds.has(requestId)) throw new PageRpcError("page RPC requestId was already used");
-    binding.requestIds.add(requestId);
-    while (binding.requestIds.size > MAX_REQUEST_IDS_PER_BINDING) {
-      const oldest = binding.requestIds.values().next().value as string | undefined;
-      if (oldest === undefined) break;
-      binding.requestIds.delete(oldest);
+    if (binding.requestIds.size >= MAX_REQUEST_IDS_PER_BINDING) {
+      throw new PageRpcError("page RPC requestId replay window is exhausted");
     }
+    binding.requestIds.add(requestId);
   }
 }
 
