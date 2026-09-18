@@ -6,41 +6,51 @@ import { initTestLanguage } from "@Tests/initTestLanguage";
 import { renderWithTooltip as render } from "@Tests/renderWithTooltip";
 
 // 资源数据走后台消息，统一打桩；用 hoisted 以便在 vi.mock 工厂内引用
-const { fetchScript, getScriptResources, deleteResource } = vi.hoisted(() => ({
+const { fetchScript, getScriptResources, getResourceChunk, deleteResource } = vi.hoisted(() => ({
   fetchScript: vi.fn(),
   getScriptResources: vi.fn(),
+  getResourceChunk: vi.fn(),
   deleteResource: vi.fn(),
 }));
 vi.mock("@App/pages/store/features/script", () => ({
   fetchScript,
-  resourceClient: { getScriptResources, deleteResource },
+  resourceClient: { getScriptResources, getResourceChunk, deleteResource },
 }));
 
 import ResourcePane, { invalidateResourcePane, usePreloadResourcePane } from "./ResourcePane";
 
-const sampleResources = () => ({
-  "https://cdn.test/jquery.min.js": {
+const sampleResources = () => [
+  {
+    key: "https://cdn.test/jquery.min.js",
     url: "https://cdn.test/jquery.min.js",
     type: "require",
     contentType: "application/javascript",
-    content: "var a=1;",
-    base64: "",
+    byteSize: 8,
   },
-  "https://cdn.test/theme.css": {
+  {
+    key: "https://cdn.test/theme.css",
     url: "https://cdn.test/theme.css",
     type: "resource",
     contentType: "text/css",
-    content: "body{}",
-    base64: "",
+    byteSize: 6,
   },
-});
+];
+
+const samplePage = () => ({ items: sampleResources(), offset: 0, limit: 100, total: 2 });
 
 beforeAll(() => initTestLanguage("zh-CN"));
 
 beforeEach(() => {
   vi.clearAllMocks();
   fetchScript.mockResolvedValue({ uuid: "u1", name: "脚本A" });
-  getScriptResources.mockResolvedValue(sampleResources());
+  getScriptResources.mockResolvedValue(samplePage());
+  getResourceChunk.mockResolvedValue({
+    url: "https://cdn.test/jquery.min.js",
+    offset: 0,
+    length: 8,
+    total: 8,
+    base64: "dmFyIGE9MTs=",
+  });
   deleteResource.mockResolvedValue(undefined);
 });
 afterEach(() => {
@@ -57,6 +67,82 @@ describe("ResourcePane 资源面板", () => {
     expect(screen.getByText("@require")).toBeInTheDocument();
     expect(screen.getByText("@resource")).toBeInTheDocument();
     expect(screen.getByText("application/javascript")).toBeInTheDocument();
+  });
+
+  it("下载应按元数据请求脚本绑定的资源块", async () => {
+    const downloadSpy = vi.spyOn(chrome.downloads, "download").mockResolvedValue(undefined);
+    render(<ResourcePane uuid="u1" />);
+    await screen.findByText("jquery.min.js");
+
+    fireEvent.click(screen.getAllByLabelText(t("download"))[0]);
+
+    await waitFor(() =>
+      expect(getResourceChunk).toHaveBeenCalledWith({
+        uuid: "u1",
+        url: "https://cdn.test/jquery.min.js",
+        offset: 0,
+        length: 8,
+      })
+    );
+    expect(downloadSpy).toHaveBeenCalledWith(expect.objectContaining({ filename: "jquery.min.js", saveAs: true }));
+  });
+
+  it("资源大于单块时应按 offset 续取并拼回完整内容", async () => {
+    // 服务端按块回传，客户端必须用 chunk.length 推进 offset，否则下载到的文件会截断或重复
+    getResourceChunk.mockImplementation(({ offset }: { offset: number }) =>
+      Promise.resolve({
+        url: "https://cdn.test/jquery.min.js",
+        offset,
+        length: 4,
+        total: 8,
+        base64: offset === 0 ? "dmFyIA==" : "YT0xOw==",
+      })
+    );
+    vi.spyOn(chrome.downloads, "download").mockResolvedValue(undefined);
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:resource-pane");
+    render(<ResourcePane uuid="u1" />);
+    await screen.findByText("jquery.min.js");
+
+    fireEvent.click(screen.getAllByLabelText(t("download"))[0]);
+
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+    expect(getResourceChunk.mock.calls.map(([params]) => params.offset)).toEqual([0, 4]);
+    const blobs = createObjectURL.mock.calls
+      .map(([value]) => value)
+      .filter((value): value is Blob => value instanceof Blob);
+    expect(blobs).toHaveLength(1);
+    await expect(blobs[0].text()).resolves.toBe("var a=1;");
+  });
+
+  it("资源块与列表元数据不一致时应报错且不触发下载", async () => {
+    getResourceChunk.mockResolvedValue({
+      url: "https://cdn.test/jquery.min.js",
+      offset: 0,
+      length: 4,
+      total: 4, // 与列表里的 byteSize: 8 不一致，说明资源在两次请求之间被改写
+      base64: "dmFyIA==",
+    });
+    const downloadSpy = vi.spyOn(chrome.downloads, "download").mockResolvedValue(undefined);
+    const toastError = vi.spyOn(notify, "error");
+    render(<ResourcePane uuid="u1" />);
+    await screen.findByText("jquery.min.js");
+
+    fireEvent.click(screen.getAllByLabelText(t("download"))[0]);
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled());
+    expect(downloadSpy).not.toHaveBeenCalled();
+  });
+
+  it("列表分页应按 nextOffset 续取并合并展示", async () => {
+    getScriptResources
+      .mockResolvedValueOnce({ items: [sampleResources()[0]], offset: 0, limit: 1, total: 2, nextOffset: 1 })
+      .mockResolvedValueOnce({ items: [sampleResources()[1]], offset: 1, limit: 1, total: 2 });
+
+    render(<ResourcePane uuid="u1" />);
+
+    expect(await screen.findByText("jquery.min.js")).toBeInTheDocument();
+    expect(await screen.findByText("theme.css")).toBeInTheDocument();
+    expect(getScriptResources.mock.calls.map(([, offset]) => offset)).toEqual([0, 1]);
   });
 
   it("行内删除应二次确认后才调用 deleteResource 并移除该行", async () => {
@@ -90,7 +176,7 @@ describe("ResourcePane 资源面板", () => {
   });
 
   it("无资源时应展示空状态", async () => {
-    getScriptResources.mockResolvedValue({});
+    getScriptResources.mockResolvedValue({ items: [], offset: 0, limit: 100, total: 0 });
     render(<ResourcePane uuid="u1" />);
     expect(await screen.findByText(t("no_data"))).toBeInTheDocument();
   });
@@ -108,7 +194,7 @@ describe("ResourcePane 资源面板", () => {
   it("缓存失效后应重新加载同一脚本的资源", async () => {
     render(<ResourcePane uuid="u1" />);
     await screen.findByText("jquery.min.js");
-    getScriptResources.mockResolvedValue({});
+    getScriptResources.mockResolvedValue({ items: [], offset: 0, limit: 100, total: 0 });
 
     invalidateResourcePane("u1");
 
@@ -154,10 +240,10 @@ describe("ResourcePane 资源面板", () => {
   });
 
   it("预加载取消不应展示错误", async () => {
-    let resolveFirst!: (resources: ReturnType<typeof sampleResources>) => void;
+    let resolveFirst!: (resources: ReturnType<typeof samplePage>) => void;
     getScriptResources
       .mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
-      .mockResolvedValueOnce(sampleResources());
+      .mockResolvedValueOnce(samplePage());
     const toastError = vi.spyOn(notify, "error");
 
     const { rerender } = renderHook(({ uuid }) => usePreloadResourcePane(uuid), {
@@ -166,7 +252,7 @@ describe("ResourcePane 资源面板", () => {
     await waitFor(() => expect(getScriptResources).toHaveBeenCalledTimes(1));
     rerender({ uuid: "u2" });
     await waitFor(() => expect(getScriptResources).toHaveBeenCalledTimes(2));
-    await act(async () => resolveFirst(sampleResources()));
+    await act(async () => resolveFirst(samplePage()));
 
     expect(toastError).not.toHaveBeenCalled();
   });
@@ -175,7 +261,7 @@ describe("ResourcePane 资源面板", () => {
     const preloader = renderHook(() => usePreloadResourcePane("u1"));
     await waitFor(() => expect(getScriptResources).toHaveBeenCalledTimes(1));
     preloader.unmount();
-    getScriptResources.mockResolvedValue({});
+    getScriptResources.mockResolvedValue({ items: [], offset: 0, limit: 100, total: 0 });
 
     render(<ResourcePane uuid="u1" />);
 

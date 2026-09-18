@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { act, render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { t } from "@App/locales/locales";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import MessageToolbar, { type MessageToolbarProps } from "./MessageToolbar";
 
 beforeAll(() => initTestLanguage("zh-CN"));
 afterEach(() => cleanup());
+
+async function settle() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
 
 const baseProps = (over?: Partial<MessageToolbarProps>): MessageToolbarProps => ({
   toolCallCount: 0,
@@ -31,7 +37,10 @@ describe("消息工具栏 MessageToolbar", () => {
     render(<MessageToolbar {...baseProps({ onDelete })} />);
     fireEvent.click(screen.getByTestId("toolbar-delete"));
     expect(onDelete).not.toHaveBeenCalled();
-    fireEvent.click(await screen.findByText(t("common:confirm"), { selector: "button" }));
+    await settle();
+    const confirm = screen.getByTestId("popconfirm-confirm");
+    expect(confirm).toHaveTextContent(t("common:confirm"));
+    fireEvent.click(confirm);
     expect(onDelete).toHaveBeenCalledOnce();
   });
 

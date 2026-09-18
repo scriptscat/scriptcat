@@ -246,33 +246,47 @@ describe("ToolLoopOrchestrator 循环检测升级（loop-guard escalation）", (
     // 持久化重试退避 200ms + 400ms，放宽超时
     { timeout: 3000 },
     async () => {
-      chatRepo.appendMessage.mockRejectedValue(new Error("disk full"));
-      callLLM.mockResolvedValue({
-        content: "回复",
-        contentBlocks: [{ type: "image", attachmentId: "img_lost.png", mimeType: "image/png" }],
-        usage: { inputTokens: 3, outputTokens: 2 },
-      } as LLMCallResult);
+      vi.useFakeTimers();
+      try {
+        chatRepo.appendMessage.mockRejectedValue(new Error("disk full"));
+        callLLM.mockResolvedValue({
+          content: "回复",
+          contentBlocks: [{ type: "image", attachmentId: "img_lost.png", mimeType: "image/png" }],
+          usage: { inputTokens: 3, outputTokens: 2 },
+        } as LLMCallResult);
 
-      await orchestrator.callLLMWithToolLoop(baseParams());
+        const pending = orchestrator.callLLMWithToolLoop(baseParams());
+        await vi.runAllTimersAsync();
+        await pending;
 
-      const terminal = sendEvent.mock.calls.map((c) => c[0]).find((e) => e.type === "error");
-      expect(terminal?.errorCode).toBe("persist_failed");
-      expect(chatRepo.deleteAttachment).toHaveBeenCalledWith("img_lost.png");
+        const terminal = sendEvent.mock.calls.map((c) => c[0]).find((e) => e.type === "error");
+        expect(terminal?.errorCode).toBe("persist_failed");
+        expect(chatRepo.deleteAttachment).toHaveBeenCalledWith("img_lost.png");
+      } finally {
+        vi.useRealTimers();
+      }
     }
   );
 
   it("最终回复持久化报错且确认读也失败时，不应删除可能已被消息引用的生成附件", { timeout: 3000 }, async () => {
-    chatRepo.appendMessage.mockRejectedValue(new Error("ambiguous close failure"));
-    chatRepo.getMessageSnapshot.mockRejectedValue(new Error("confirmation read failed"));
-    callLLM.mockResolvedValue({
-      content: "回复",
-      contentBlocks: [{ type: "image", attachmentId: "img_maybe_committed.png", mimeType: "image/png" }],
-      usage: { inputTokens: 3, outputTokens: 2 },
-    } as LLMCallResult);
+    vi.useFakeTimers();
+    try {
+      chatRepo.appendMessage.mockRejectedValue(new Error("ambiguous close failure"));
+      chatRepo.getMessageSnapshot.mockRejectedValue(new Error("confirmation read failed"));
+      callLLM.mockResolvedValue({
+        content: "回复",
+        contentBlocks: [{ type: "image", attachmentId: "img_maybe_committed.png", mimeType: "image/png" }],
+        usage: { inputTokens: 3, outputTokens: 2 },
+      } as LLMCallResult);
 
-    await orchestrator.callLLMWithToolLoop(baseParams());
+      const pending = orchestrator.callLLMWithToolLoop(baseParams());
+      await vi.runAllTimersAsync();
+      await pending;
 
-    expect(chatRepo.deleteAttachment).not.toHaveBeenCalledWith("img_maybe_committed.png");
+      expect(chatRepo.deleteAttachment).not.toHaveBeenCalledWith("img_maybe_committed.png");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("工具结果持久化期间被取消时应立即终态化，而不是带着已取消的信号进入下一轮", async () => {
