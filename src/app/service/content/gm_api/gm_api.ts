@@ -905,16 +905,24 @@ export default class GMApi extends GM_Base {
     }
 
     // 控制传送参数，避免参数出现 non-json-selizable
-    const attrsCT = {} as Record<string, string | number>;
-    const setAttr = {} as Record<string, any>;
-    for (const [key, value] of Object.entries(attrs as Record<string, any>)) {
-      if (typeof value === "string" || typeof value === "number") {
-        // 数字不是标准的 attribute value type, 但常见于实际使用
-        attrsCT[key] = value;
-      } else {
-        // property setter for non attribute (e.g. Function, Symbol, boolean, etc)
-        // Function, Symbol 无法跨环境传递
-        setAttr[key] = value;
+    const attrsCT = Native.objectCreate(null) as Record<string, string | number>;
+    const setAttr = Native.objectCreate(null) as Record<string, any>;
+    if (attrs !== null) {
+      const keys = Native.reflectOwnKeys(attrs);
+      for (let index = 0; index < keys.length; index += 1) {
+        const key = keys[index];
+        if (typeof key !== "string") continue;
+        const descriptor = Native.objectGetOwnPropertyDescriptor(attrs, key);
+        if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) continue;
+        const value = descriptor.value;
+        if (typeof value === "string" || typeof value === "number") {
+          // 数字不是标准的 attribute value type, 但常见于实际使用
+          attrsCT[key] = value;
+        } else {
+          // property setter for non attribute (e.g. Function, Symbol, boolean, etc)
+          // Function, Symbol 无法跨环境传递
+          setAttr[key] = value;
+        }
       }
     }
 

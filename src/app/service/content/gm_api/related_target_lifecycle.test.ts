@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
@@ -67,6 +67,23 @@ describe("relatedTarget lifecycle across content runtime callers", () => {
       expect(root?.id).toBe("root");
       expect(sender.relatedTarget).toHaveProperty("size", 0);
       expect(receiver.relatedTarget).toHaveProperty("size", 0);
+    } finally {
+      sender.relatedTarget.clear();
+      receiver.relatedTarget.clear();
+    }
+  });
+
+  it("skips accessor attributes without executing their getter", () => {
+    const { api, sender, receiver } = createApiWithContentRuntime();
+    const getter = vi.fn(() => "forged");
+    const attrs = { id: "safe" } as Record<string, string>;
+    Object.defineProperty(attrs, "secret", { enumerable: true, configurable: true, get: getter });
+
+    try {
+      const element = api.GM_addElement(api, "div", attrs);
+      expect(element?.id).toBe("safe");
+      expect(element).not.toHaveProperty("secret");
+      expect(getter).not.toHaveBeenCalled();
     } finally {
       sender.relatedTarget.clear();
       receiver.relatedTarget.clear();
