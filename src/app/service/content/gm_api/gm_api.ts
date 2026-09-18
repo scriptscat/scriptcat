@@ -1384,7 +1384,7 @@ export default class GMApi extends GM_Base {
           break;
       }
     } else {
-      data = Object.assign({}, detail);
+      data = copyOwnEnumerableDataProperties(detail) as GMTypes.NotificationDetails;
       data.ondone = data.ondone || <GMTypes.NotificationOnDone>ondone;
     }
     let click: GMTypes.NotificationOnClick;
