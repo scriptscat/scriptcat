@@ -129,4 +129,27 @@ describe("GM_xmlhttpRequest callback cleanup", () => {
     expect(connection.disconnect).toHaveBeenCalledWith(true);
     await vi.waitFor(() => expect(onloadend).toHaveBeenCalledTimes(1));
   });
+
+  it("settles the request when connection setup rejects", async () => {
+    const onerror = vi.fn();
+    const onloadend = vi.fn();
+    const api = {
+      isInvalidContext: () => false,
+      connect: vi.fn().mockRejectedValue(new Error("connection failed")),
+      sendMessage: vi.fn(),
+    };
+    const request = GM_xmlhttpRequest(
+      api as any,
+      {
+        url: "https://example.com/data",
+        onerror,
+        onloadend,
+      },
+      true
+    );
+
+    await expect(request.retPromise).rejects.toBe("connection failed");
+    expect(onerror).toHaveBeenCalledTimes(1);
+    expect(onloadend).toHaveBeenCalledTimes(1);
+  });
 });
