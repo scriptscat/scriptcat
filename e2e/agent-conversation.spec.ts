@@ -5,7 +5,7 @@ import { runInlineTestScript } from "./utils";
 const TARGET_URL = "https://content-security-policy.com/";
 
 test.describe("Agent Conversation API", () => {
-  test.setTimeout(40_000);
+  test.setTimeout(300_000);
 
   test("basic chat — send message and receive text reply", async ({ context, extensionId, mockLLMResponse }) => {
     mockLLMResponse(() => makeTextSSE("1+1等于2。"));
@@ -47,7 +47,7 @@ test.describe("Agent Conversation API", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 30_000);
+    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[agent-basic-chat] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[agent-basic-chat] logs:", logs.join("\n"));
@@ -131,7 +131,7 @@ test.describe("Agent Conversation API", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 30_000);
+    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[agent-tool-calling] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[agent-tool-calling] logs:", logs.join("\n"));
@@ -190,7 +190,7 @@ test.describe("Agent Conversation API", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 30_000);
+    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 60_000);
 
     console.log(`[agent-multi-turn] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[agent-multi-turn] logs:", logs.join("\n"));

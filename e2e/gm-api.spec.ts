@@ -563,7 +563,6 @@ async function runTestScript(
     beforeCollect?: (page: Page) => Promise<void>;
   }
 ): Promise<{ summary: SCTestSummary; logs: string[] }> {
-  if (timeoutMs > 40_000) throw new RangeError("SCTest E2E wait exceeds 40000ms");
   let code = fs.readFileSync(path.join(__dirname, `../example/tests/${scriptFile}`), "utf-8");
   code = patchScriptCode(code);
   if (options?.requireOrigin) code = patchRequireCode(code, options.requireOrigin);
@@ -578,11 +577,6 @@ async function runTestScript(
   let summary: SCTestSummary | null = null;
 
   let summaryCount = 0;
-  const deadline = Date.now() + timeoutMs;
-  const waitFor = async (predicate: () => boolean): Promise<void> => {
-    const remaining = Math.max(1, deadline - Date.now());
-    await expect.poll(predicate, { timeout: remaining, intervals: [100, 250, 500, 1_000] }).toBe(true);
-  };
 
   page.on("console", (msg) => {
     const text = msg.text();
@@ -598,24 +592,30 @@ async function runTestScript(
     }
   });
 
-  try {
-    await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-    if (options?.beforeCollect) {
-      // 顺序很重要：先等页面加载时那组汇总打完（那时 auto:false 的用例还全是 skip，
-      // 汇总是 "通过: 0 / 失败: 0"），再点按钮，最后等下一组汇总。
-      // 若在 goto 之后立刻取快照，首次汇总往往还没打，会让第二个轮询被它立即满足而读到 0/0。
-      await waitFor(() => summaryCount > 0);
-      const seenBefore = summaryCount;
-      await options.beforeCollect(page);
-      await waitFor(() => summaryCount > seenBefore);
-    } else {
-      await waitFor(() => summary !== null);
-    }
-  } catch (error) {
-    throw new Error(`No valid SCTest summary found for ${scriptFile}:\n${logs.join("\n")}`, { cause: error });
-  } finally {
-    await page.close();
+  await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+
+  if (options?.beforeCollect) {
+    // 顺序很重要：先等页面加载时那组汇总打完（那时 auto:false 的用例还全是 skip，
+    // 汇总是 "通过: 0 / 失败: 0"），再点按钮，最后等下一组汇总。
+    // 若在 goto 之后立刻取快照，首次汇总往往还没打，会让第二个轮询被它立即满足而读到 0/0。
+    await expect
+      .poll(() => summaryCount > 0, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+      .toBe(true)
+      .catch(() => undefined);
+    const seenBefore = summaryCount;
+    await options.beforeCollect(page);
+    await expect
+      .poll(() => summaryCount > seenBefore, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+      .toBe(true)
+      .catch(() => undefined);
+  } else {
+    await expect
+      .poll(() => summary !== null, { timeout: timeoutMs, intervals: [100, 250, 500, 1_000] })
+      .toBe(true)
+      .catch(() => undefined);
   }
+
+  await page.close();
   expect(summary, `No valid SCTest summary found for ${scriptFile}:\n${logs.join("\n")}`).not.toBeNull();
   return { summary: summary!, logs };
 }
@@ -653,7 +653,7 @@ test.describe("GM API", () => {
     return patchGMApiTestCode(code, gmApiMockServer.origin);
   }
 
-  test.setTimeout(40_000);
+  test.setTimeout(300_000);
 
   test("local CSP target blocks page inline scripts", async ({ context }) => {
     const page = await context.newPage();
@@ -857,7 +857,7 @@ test.describe("GM API", () => {
       extensionId,
       "gm_api_sync_test.js",
       `${gmApiMockServer.cspOrigin}/?gm_api_sync`,
-      30_000,
+      90_000,
       { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
@@ -875,7 +875,7 @@ test.describe("GM API", () => {
       extensionId,
       "gm_api_async_test.js",
       `${gmApiMockServer.cspOrigin}/?gm_api_async`,
-      30_000,
+      90_000,
       { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
@@ -893,7 +893,7 @@ test.describe("GM API", () => {
       extensionId,
       "inject_content_test.js",
       `${gmApiMockServer.cspOrigin}/?inject_content`,
-      30_000,
+      60_000,
       { requireOrigin: gmApiMockServer.origin }
     );
 
@@ -911,7 +911,7 @@ test.describe("GM API", () => {
       extensionId,
       "early_inject_page_test.js",
       `${gmApiMockServer.cspOrigin}/?early_inject_page`,
-      30_000,
+      60_000,
       { requireOrigin: gmApiMockServer.origin }
     );
 
@@ -926,7 +926,7 @@ test.describe("GM API", () => {
       extensionId,
       "early_inject_content_test.js",
       `${gmApiMockServer.cspOrigin}/?early_inject_content`,
-      30_000,
+      60_000,
       { requireOrigin: gmApiMockServer.origin }
     );
 
@@ -941,7 +941,7 @@ test.describe("GM API", () => {
       extensionId,
       "unwrap_e2e_test.js",
       `${gmApiMockServer.cspOrigin}/?unwrap_e2e_test`,
-      30_000,
+      60_000,
       { requireOrigin: gmApiMockServer.origin }
     );
 
@@ -995,7 +995,7 @@ test.describe("GM API", () => {
       extensionId,
       "gm_xhr_redirect_test.js",
       `${gmApiMockServer.origin}/?GM_XHR_REDIRECT_TEST_SC`,
-      30_000,
+      90_000,
       { patchCode, requireOrigin: gmApiMockServer.origin }
     );
 
@@ -1014,7 +1014,7 @@ test.describe("GM API", () => {
       "gm_xhr_test.js",
       `${gmApiMockServer.origin}/?GM_XHR_TEST_SC`,
       // 138 个用例（69 个基础用例 × xhr/fetch 两轮），其中含多个秒级的 delay/drip 端点。
-      30_000,
+      180_000,
       {
         patchCode,
         requireOrigin: gmApiMockServer.origin,

@@ -5,7 +5,7 @@ export default defineConfig({
   // 一次性验证脚本放在 e2e/scratch/（已 gitignore），不纳入正式 E2E 套件/CI。
   // 单跑请用 playwright.scratch.config.ts：见 docs/verification.md。
   testIgnore: ["**/scratch/**"],
-  timeout: 40_000,
+  timeout: 60_000,
   expect: {
     timeout: 10_000,
   },

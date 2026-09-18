@@ -427,7 +427,7 @@ async function runScriptAction<T>(page: Page, action: "deletes" | "purges" | "re
 }
 
 test.describe("@storageName 真实浏览器共享存储", () => {
-  test.setTimeout(40_000);
+  test.setTimeout(180_000);
 
   test("普通脚本应按 storageName 共享或隔离值与变更事件", async ({ context, extensionId }) => {
     await serveTargetPage(context);

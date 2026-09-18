@@ -46,28 +46,21 @@ async function runXhr(
     }
   });
 
-  try {
-    await page.goto(targetPageUrl, { waitUntil: "domcontentloaded" });
-    const firstAttemptTimeout = Math.max(1_000, Math.floor(timeoutMs / 2));
-    try {
-      await expect
-        .poll(() => Boolean(resolved), { timeout: firstAttemptTimeout, intervals: [100, 250, 500] })
-        .toBe(true);
-    } catch (error) {
-      if (resolved) throw error;
-      try {
-        await page.reload({ waitUntil: "domcontentloaded" });
-        await expect
-          .poll(() => Boolean(resolved), { timeout: firstAttemptTimeout, intervals: [100, 250, 500] })
-          .toBe(true);
-      } catch (retryError) {
-        throw new Error(`no sentinel from ${targetPageUrl}\nlogs:\n${logs.join("\n")}`, { cause: retryError });
-      }
-    }
-    return { data: resolved!, logs };
-  } finally {
-    await page.close();
-  }
+  await page.goto(targetPageUrl, { waitUntil: "domcontentloaded" });
+  await expect
+    .poll(
+      async () => {
+        if (resolved) return true;
+        await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+        return !!resolved;
+      },
+      { timeout: timeoutMs, intervals: [500, 1_000, 1_500] }
+    )
+    .toBe(true)
+    .catch(() => undefined);
+  await page.close();
+  if (!resolved) throw new Error(`no sentinel from ${targetPageUrl}\nlogs:\n${logs.join("\n")}`);
+  return { data: resolved, logs };
 }
 
 function xhrScript(opts: {

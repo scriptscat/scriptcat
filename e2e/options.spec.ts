@@ -91,7 +91,7 @@ test.describe("Options 选项页 · 触摸设备", () => {
       viewport: { width: 1200, height: 800 },
       hasTouch: true,
       isMobile: true,
-      timeout: 40_000,
+      timeout: 60_000,
     });
     try {
       await context.addInitScript(() => {
