@@ -378,7 +378,7 @@ export default class GMApi extends GM_Base {
     for (const [key, value] of Object.entries(values)) {
       let value_ = value;
       if (value_ === undefined) {
-        if (valueStore[key]) delete valueStore[key];
+        if (Native.objectHasOwn(valueStore, key)) delete valueStore[key];
       } else {
         // 对对象或函数值进行一次转化
         if (

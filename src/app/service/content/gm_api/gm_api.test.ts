@@ -974,6 +974,19 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     );
   });
 
+  it("GM_setValues deletes existing falsy values when given undefined", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_setValues"] },
+      value: { zero: 0, no: false, empty: "", nil: null },
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+
+    api.GM_setValues(api, { zero: undefined, no: undefined, empty: undefined, nil: undefined });
+
+    expect(script.value).toEqual({});
+  });
+
   it.concurrent("GM_setValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValues", "GM_setValues"];
