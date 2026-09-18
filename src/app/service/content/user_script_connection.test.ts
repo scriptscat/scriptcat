@@ -31,7 +31,7 @@ describe("connectUserScriptChannel", () => {
     expect(connection.sendMessage).toHaveBeenCalledWith({ action: "userScript/bootstrap" });
   });
 
-  it("preserves the MAIN world identity when opening the inject port", async () => {
+  it("uses the constrained extension transport for the MAIN world port", async () => {
     const connection = makeConnection();
     const message = {
       sendMessage: vi.fn().mockResolvedValue(true),
@@ -42,7 +42,7 @@ describe("connectUserScriptChannel", () => {
 
     expect(message.connect).toHaveBeenCalledWith({
       action: "serviceWorker/runtime/registerUserScript",
-      data: { world: "MAIN", bootstrapToken: "inject-bootstrap" },
+      data: { world: "MAIN", bootstrapToken: "inject-bootstrap", transport: "extension" },
     });
   });
 
@@ -73,6 +73,21 @@ describe("connectUserScriptChannel", () => {
       data: { world: "USER_SCRIPT", bootstrapToken: "bootstrap-token", transport: "extension" },
     });
     expect(connection.sendMessage).toHaveBeenCalledWith({ action: "userScript/bootstrap" });
+  });
+
+  it("uses the extension fallback when listener capability probing has no response", async () => {
+    const connection = makeConnection();
+    const message = {
+      sendMessage: vi.fn().mockResolvedValue(undefined),
+      connect: vi.fn().mockResolvedValue(connection),
+    } as unknown as Message;
+
+    await connectUserScriptChannel(message, "bootstrap-token", vi.fn(), undefined, "MAIN");
+
+    expect(message.connect).toHaveBeenCalledWith({
+      action: "serviceWorker/runtime/registerUserScript",
+      data: { world: "MAIN", bootstrapToken: "bootstrap-token", transport: "extension" },
+    });
   });
 
   it("reports remote disconnects so the caller can reconnect natively", async () => {
