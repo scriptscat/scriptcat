@@ -86,6 +86,21 @@ describe("page GM RPC", () => {
     expect(getPageRpcAllowedAPIs(["constructor", "toString"])).toEqual(["constructor", "toString"]);
   });
 
+  it("does not let a hooked Array.prototype.push enlarge the capability result", () => {
+    const originalPush = Array.prototype.push;
+    Array.prototype.push = function (...items: unknown[]): number {
+      return originalPush.call(this, ...items, "GM_xmlhttpRequest");
+    };
+    let allowed: string[];
+    try {
+      allowed = getPageRpcAllowedAPIs(["GM_getValue"]);
+    } finally {
+      Array.prototype.push = originalPush;
+    }
+
+    expect(allowed!).not.toContain("GM_xmlhttpRequest");
+  });
+
   it("allows the internal request name used by the GM.xmlHttpRequest wrapper", () => {
     const allowed = getPageRpcAllowedAPIs(["GM.xmlHttpRequest"]);
 

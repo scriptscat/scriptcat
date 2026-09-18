@@ -12,6 +12,7 @@ const nativeSetHas = Set.prototype.has;
 const nativeSetDelete = Set.prototype.delete;
 const nativeSetClear = Set.prototype.clear;
 const nativeSetForEach = Set.prototype.forEach;
+const nativeArrayIsArray = Array.isArray;
 const nativeMapConstructor = Map;
 const nativeMapGet = Map.prototype.get;
 const nativeMapSet = Map.prototype.set;
@@ -36,7 +37,7 @@ const NativeSetConstructor = class<T> extends nativeSetConstructor<T> {
   constructor(values?: readonly T[] | Set<T> | null) {
     // 不把 values 传给 Set 构造器：它会读取 values 的 @@iterator，而页面可改写该方法。
     super();
-    if (Array.isArray(values)) {
+    if (nativeArrayIsArray(values)) {
       for (let i = 0; i < values.length; i += 1) this.add(values[i]);
     } else if (values) {
       nativeReflectApply(nativeSetForEach, values, [(value: T) => this.add(value)]);

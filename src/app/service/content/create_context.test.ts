@@ -334,6 +334,7 @@ describe("createContext: capability and lifecycle contract", () => {
 
   it("keeps grant construction on captured Set and iterator intrinsics", () => {
     const NativeSet = Set;
+    const nativeArrayIsArray = Array.isArray;
     const nativeArrayIterator = Array.prototype[Symbol.iterator];
     const nativeSetIterator = Set.prototype[Symbol.iterator];
     const grants = new NativeSet<string>();
@@ -349,6 +350,7 @@ describe("createContext: capability and lifecycle contract", () => {
       };
     };
     try {
+      Array.isArray = (() => false) as unknown as typeof Array.isArray;
       Object.defineProperty(Array.prototype, Symbol.iterator, { configurable: true, value: poisonedIterator });
       Object.defineProperty(NativeSet.prototype, Symbol.iterator, { configurable: true, value: poisonedIterator });
       (globalThis as typeof globalThis & { Set: typeof Set }).Set = class PoisonedSet {
@@ -356,6 +358,9 @@ describe("createContext: capability and lifecycle contract", () => {
           throw new Error("page replaced Set");
         }
       } as unknown as typeof Set;
+
+      const arrayBackedSet = new Native.Set(["GM_getValue"]);
+      expect(arrayBackedSet.has("GM_getValue")).toBe(true);
 
       const context = createContext(
         createScriptInfo({ grant: ["GM_getValue"] }),
@@ -369,6 +374,7 @@ describe("createContext: capability and lifecycle contract", () => {
       expect(context.GM_getValue).toBeTypeOf("function");
       expect(context.GM_cookie).toBeUndefined();
     } finally {
+      Array.isArray = nativeArrayIsArray;
       Object.defineProperty(Array.prototype, Symbol.iterator, { configurable: true, value: nativeArrayIterator });
       Object.defineProperty(NativeSet.prototype, Symbol.iterator, { configurable: true, value: nativeSetIterator });
       (globalThis as typeof globalThis & { Set: typeof Set }).Set = NativeSet;

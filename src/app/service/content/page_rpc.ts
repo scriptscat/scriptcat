@@ -162,7 +162,9 @@ export const getPageRpcAllowedAPIs = (grants: readonly string[]): string[] => {
   const allowed = new Native.Set<string>();
   const visited = new Native.Set<string>();
   const visitGrant = (grant: string): void => {
-    for (const candidate of getGrantCandidates(grant)) {
+    const candidates = getGrantCandidates(grant);
+    for (let index = 0; index < candidates.length; index += 1) {
+      const candidate = candidates[index];
       if (visited.has(candidate)) continue;
       visited.add(candidate);
       allowed.add(candidate);
@@ -178,7 +180,9 @@ export const getPageRpcAllowedAPIs = (grants: readonly string[]): string[] => {
   };
   for (let index = 0; index < grants.length; index += 1) visitGrant(grants[index]);
   const result: string[] = [];
-  allowed.forEach((value) => result.push(value));
+  allowed.forEach((value) => {
+    result[result.length] = value;
+  });
   return result;
 };
 
