@@ -11,6 +11,8 @@ import type {
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
 const listenerMgr = new EventEmitter<string, any>(); // 单一管理器
+// 这些引用必须在页面或 USER_SCRIPT 世界有机会改写 chrome.runtime 方法前捕获，
+// 否则消息边界会再次查找页面可变的属性。
 const runtimeApi = typeof chrome === "undefined" ? undefined : chrome.runtime;
 const nativeRuntimeConnect =
   typeof runtimeApi?.connect === "function" ? runtimeApi.connect.bind(runtimeApi) : undefined;
@@ -192,10 +194,12 @@ export class ExtensionMessageConnect implements MessageConnect {
 
   constructor(
     con: chrome.runtime.Port,
+    // 来源只记录浏览器原生通道的来源，供服务端区分 USER_SCRIPT 与扩展内部消息。
     private readonly origin: "extension" | "userScript" = "extension"
   ) {
     this.con = con; // 强引用
     if (typeof con.postMessage !== "function") throw new TypeError("Invalid runtime port");
+    // Port 的原型可能被页面改写；后续发送固定使用构造时取得的绑定方法。
     this.postMessage = con.postMessage.bind(con);
     const handler = (msg: TMessage, _con: chrome.runtime.Port) => {
       listenerMgr.emit(`onMessage:${this.listenerId}`, msg);

@@ -13,6 +13,7 @@ const nativeJSONStringify = JSON.stringify.bind(JSON);
 const nativeJSONParse = JSON.parse.bind(JSON);
 
 const cloneTransportValue = (value: any) => {
+  // USER_SCRIPT 只能接收数据副本；先去掉 Proxy、getter 和原型引用，避免把页面对象带过边界。
   if (value === null || typeof value !== "object") return value;
   if (nativeStructuredClone) {
     try {
@@ -28,6 +29,7 @@ const cloneTransportValue = (value: any) => {
   }
 };
 
+// 与 rspack 注入的构建级密钥配对；页面只能看到包装函数，拿不到正确的调用标记。
 const lnStrIntegrity = process.env.SC_RANDOM_FNKEY;
 const znRand = process.env.SC_ZN_RAND;
 
@@ -185,10 +187,11 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
 }
 
 const codeFunction = (code: string) => {
-  // 临时方法调用不依赖页面改写的 call、apply、bind。
+  // 临时方法调用不依赖页面改写的 call、apply、bind；完整性标记也阻止页面直接调用包装器。
   return `((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${lnStrIntegrity}', '${znRand}' + Math.random(), function(){${code}})`;
 };
 
+// 有 setter 时沿用页面属性语义；否则用不可配置的一次性 getter，避免挂载函数被页面再次取走。
 const mountCodeFunction = (flag: string, code: string) =>
   `((w, k, fn) => { const d = Object.getOwnPropertyDescriptor(w, k); if (d?.set) { w[k] = fn; } else { let mounted = true; Object.defineProperty(w, k, { configurable: false, enumerable: false, get() { if (!mounted) return undefined; mounted = false; return fn; } }); } })(window, '${flag}', ${codeFunction(code)})`;
 
@@ -286,6 +289,7 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   delete scriptInfo.status; // 脚本状态总是启用
   delete scriptInfo.executionHandle;
   delete scriptInfo.executionEnvTag;
+  // 这些绑定令牌只在隔离 broker 内有效，不能随脚本资料暴露给页面或 USER_SCRIPT。
   delete scriptInfo.executionRunFlag;
   // --- 处理 scriptInfo ---
   return scriptInfo;
@@ -413,6 +417,7 @@ export function definePropertyListener<T>(obj: any, prop: string, listener: (val
   if (current !== undefined) {
     const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
     listener(current);
+    // 页面可能在回调里替换属性；只有描述符仍是原来的才可以清理自身监听器。
     if (sameProperty(descriptor, Object.getOwnPropertyDescriptor(obj, prop)) && descriptor?.configurable) {
       delete obj[prop];
     }
@@ -421,6 +426,7 @@ export function definePropertyListener<T>(obj: any, prop: string, listener: (val
   const setter = (val: T) => {
     listener(val);
     const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
+    // 不删除页面后来安装的 setter，只删除本函数仍拥有的那一个。
     if (descriptor?.configurable && descriptor.set === setter) {
       delete obj[prop];
     }

@@ -14,6 +14,7 @@ import Logger from "@App/app/logger/logger";
 
 const nativeReflectApply = Reflect.apply;
 const nativeFunctionBind = Function.prototype.bind;
+// 转发监听器会跨 context 保存一段时间，绑定时固定原生 bind，避免页面改写原型。
 const bindNative = <T extends (...args: any[]) => any>(fn: T, receiver: any): T =>
   nativeReflectApply(nativeFunctionBind, fn, [receiver]) as T;
 
@@ -268,6 +269,7 @@ export class Server {
   }
 
   private isUserScriptActionAllowed(action: string, origin: MessageOrigin | undefined, isConnect: boolean): boolean {
+    // USER_SCRIPT 只应取得注册握手和 GM RPC；其他 serviceWorker API 仍只接受扩展通道。
     if (this.prefix !== "serviceWorker" || origin !== "userScript") return true;
     return isConnect
       ? action === "runtime/registerUserScript" || action === "runtime/gmApi"
@@ -372,6 +374,7 @@ export function forwardMessage(
   };
   const process = transform
     ? (params: any, sender: IGetSender) => {
+        // 转换先于中间件和转发执行，使跨世界输入只在一个受控位置完成校验/复制。
         const transformed = transform(params, sender);
         return transformed instanceof Promise
           ? transformed.then((data) => processTransformed(data, sender))

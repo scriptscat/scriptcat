@@ -31,6 +31,7 @@ const nativeObjectFreeze = Object.freeze;
 // the page's mutable built-in prototypes.
 const NativeSetConstructor = class<T> extends nativeSetConstructor<T> {
   constructor(values?: readonly T[] | Set<T> | null) {
+    // 不把 values 传给 Set 构造器：它会读取 values 的 @@iterator，而页面可改写该方法。
     super();
     if (Array.isArray(values)) {
       for (let i = 0; i < values.length; i += 1) this.add(values[i]);

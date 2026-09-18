@@ -25,7 +25,9 @@ const deliveryStorage = chrome.storage.local; // 日后再处理
 
 // scripting页的处理
 export default class ScriptingRuntime {
+  // 只记录当前页面仍有脚本使用的 storageName，storage 广播不应唤醒无关脚本。
   private activeStorageNames = new Map<string, PageOrContent>();
+  // 页面请求必须先在此注册句柄，再由 transform 解析为隔离 broker 可接受的身份。
   private readonly pageRpc = new PageRpcRegistry();
   constructor(
     // 监听来自service_worker的消息
@@ -54,11 +56,11 @@ export default class ScriptingRuntime {
 
   init() {
     this.extServer.on("runtime/emitEvent", (data) => {
-      // USER_SCRIPT receives private callbacks over its native extension port.
+      // USER_SCRIPT 的私有回调通过原生扩展端口投递。
       return this.broadcastToPage("runtime/emitEvent", data, PageOrContent.PAGE);
     });
     this.extServer.on("runtime/valueUpdate", (data) => {
-      // USER_SCRIPT receives private updates over its native extension port.
+      // USER_SCRIPT 的私有值更新通过原生扩展端口投递。
       return this.broadcastToPage("runtime/valueUpdate", data, PageOrContent.PAGE);
     });
     this.server.on("logger", (data: Logger) => {
@@ -144,6 +146,7 @@ export default class ScriptingRuntime {
         return false;
       },
       (data) => {
+        // 所有来自页面的 GM RPC 都在转发前完成字段、句柄、授权和参数复制检查。
         const request = validatePageGMRequest(data, this.pageRpc);
         return {
           uuid: request.uuid,
@@ -174,6 +177,7 @@ export default class ScriptingRuntime {
     client.pageLoad("it").then((o) => {
       if (!o.ok) return;
       const { injectScriptList, envInfo, userScriptBootstrapToken } = o;
+      // 每次页面加载都废弃旧句柄，避免无 documentId 的浏览器复用上一文档的授权。
       this.pageRpc.revokeAll();
       const prepareScripts = (scripts: typeof injectScriptList, envTag: "it" | "ct") =>
         scripts.map((script) => {
@@ -183,6 +187,7 @@ export default class ScriptingRuntime {
             script.executionHandle ||
             this.pageRpc.register(script.uuid, envTag, allowedAPIs, undefined, executionRunFlag);
           if (script.executionHandle) {
+            // service worker 已签发的句柄要在本页 registry 中恢复，保持跨 context 身份一致。
             this.pageRpc.register(script.uuid, envTag, allowedAPIs, script.executionHandle, executionRunFlag);
           }
           return { ...script, executionHandle, executionEnvTag: envTag, executionRunFlag };

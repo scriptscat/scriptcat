@@ -20,6 +20,7 @@ interface GMBaseContext {
 let listenerCounter = 0;
 type ListenerRecord = { id: number; eventName: string; callback: (...args: any[]) => void };
 const listenerMaps = new Native.WeakMap<object, Map<number, ListenerRecord>>();
+// 监听记录按 GM context 隔离；WeakMap 让脚本结束后不会因监听表反向持有 context。
 
 const getListenerRecords = (owner: object): Map<number, ListenerRecord> => {
   let records = listenerMaps.get(owner);
@@ -136,6 +137,7 @@ export default class CATAgentTaskApi {
     const records = getListenerRecords(ctx);
     const entry = records.get(listenerId);
     if (entry) {
+      // 记录事件名和包装回调后可直接移除，不必扫描所有任务监听器。
       records.delete(listenerId);
       ctx.EE.off(entry.eventName, entry.callback);
     }

@@ -10,6 +10,7 @@ import type { IGM_Base } from "./gm_api/gm_api";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import { Native } from "./global";
 
+// 编译函数只在收到本次构建的密钥时执行，避免页面直接复用包装器。
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
 
 // 执行脚本,控制脚本执行与停止
@@ -97,6 +98,7 @@ export default class ExecScript {
   // 早期启动的脚本，处理GM API
   updateEarlyScriptGMInfo(envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) {
     if (scriptInfo?.executionHandle && scriptInfo.executionEnvTag) {
+      // early-start 先执行后取得绑定；此处补写同一绑定，使后续 RPC 与首次注册一致。
       this.scriptRes.executionHandle = scriptInfo.executionHandle;
       this.scriptRes.executionEnvTag = scriptInfo.executionEnvTag;
       this.scriptRes.executionRunFlag = scriptInfo.executionRunFlag;

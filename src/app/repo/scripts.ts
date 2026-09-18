@@ -158,7 +158,7 @@ export type TClientPageLoadInfo =
       injectScriptList: TScriptInfo[];
       contentScriptList: TScriptInfo[];
       envInfo: GMInfoEnv;
-      /** One-use token that lets the USER_SCRIPT world request its private bootstrap. */
+      /** 一次性令牌，供 USER_SCRIPT world 请求私有 bootstrap。 */
       userScriptBootstrapToken?: string;
     }
   | { ok: false };

@@ -60,8 +60,10 @@ let valChangeCounterId = 0;
 
 let valChangeRandomId = `${randNum(8e11, 2e12).toString(36)}`;
 
+// 回调表不暴露 Map 原型，避免页面改写 Map 方法后影响值更新确认。
 const valueChangePromiseMap: Record<string, () => void> = Object.create(null);
 
+// 通知 ID 只属于对应 GM context；WeakMap 不让脚本结束后残留监听状态。
 const notificationTagMaps = new Native.WeakMap<object, Map<string, string>>();
 
 const getNotificationTagMap = (owner: object): Map<string, string> => {
@@ -148,9 +150,8 @@ class GM_Base implements IGM_Base {
     if (this.loadScriptPromise) {
       await this.loadScriptPromise;
     }
-    // USER_SCRIPT has DOM and fetch access in its own realm. Keep these helper
-    // operations local instead of sending an internal CAT operation to the SW,
-    // where only the isolated scripting broker has an implementation.
+    // USER_SCRIPT 自己的 realm 已有 DOM 与 fetch；这些辅助操作必须留在本地，
+    // 不能改走只有隔离 broker 才实现的内部 CAT service worker 请求。
     if (this.scriptRes.executionEnvTag === ScriptEnvTag.content) {
       if (api === "CAT_fetchBlob") {
         if (!isExtensionBlobUrl(params[0])) throw new Error("CAT_fetchBlob expects an extension blob URL");
@@ -163,6 +164,7 @@ class GM_Base implements IGM_Base {
     }
     let ret;
     try {
+      // 有页面句柄时走版本化 RPC；后台脚本和未迁移上下文继续使用旧请求形状。
       const request = this.scriptRes.executionHandle
         ? {
             version: 1 as const,
@@ -198,6 +200,7 @@ class GM_Base implements IGM_Base {
       await this.loadScriptPromise;
     }
     if (!this.message || !this.scriptRes) return new Promise<MessageConnect>(() => {});
+    // 长连接也必须携带同一页面句柄，否则 broker 无法把连接绑定回脚本和文档。
     const request = this.scriptRes.executionHandle
       ? {
           version: 1 as const,
@@ -244,6 +247,7 @@ class GM_Base implements IGM_Base {
           } else {
             valueStore[key] = value;
           }
+          // 监听器属于脚本，传副本避免回调修改 GM 存储或跨 context 共享对象。
           const listenerValue = value && typeof value === "object" ? customClone(value) : value;
           const listenerOldValue = oldValue && typeof oldValue === "object" ? customClone(oldValue) : oldValue;
           this.valueChangeListener.execute(key, listenerOldValue, listenerValue, remote, sender.tabId);
@@ -255,6 +259,7 @@ class GM_Base implements IGM_Base {
   @GMContext.protected()
   emitEvent(event: string, eventId: string, data: any) {
     if (!this.EE) return;
+    // 事件回调同样不能拿到 broker 内部对象的可变引用。
     const callbackData = data && typeof data === "object" ? customClone(data) : data;
     this.EE.emit(`${event}:${eventId}`, callbackData);
   }
@@ -597,6 +602,7 @@ export default class GMApi extends GM_Base {
     if (ctx.isInvalidContext()) return undefined;
 
     if (ctx.scriptRes?.executionEnvTag === ScriptEnvTag.content) {
+      // USER_SCRIPT 可直接在 content realm 创建 Document；跨到 scripting 只会丢失节点引用。
       return new Promise((resolve) => {
         const xhr = new XMLHttpRequest();
         xhr.responseType = "document";

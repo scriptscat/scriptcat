@@ -19,8 +19,8 @@ const messageFlag = process.env.SC_RANDOM_KEY!;
 getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | undefined) => {
   const scriptEnvTag = ScriptEnvTag.content;
 
-  // USER_SCRIPT has a native extension messaging channel. Keep the DOM channel only
-  // for the synchronous element helper, whose node references must remain in this realm.
+  // USER_SCRIPT 使用浏览器原生扩展通道；DOM 通道只保留同步元素辅助 API，
+  // 因为节点引用必须留在当前 content realm。
   const msg: Message = new ExtensionMessage(false);
   const domMsg = new CustomEventMessage(eventFlag, false, scriptEnvTag);
   const domContentMsg = new CustomEventMessage(eventFlag, true, scriptEnvTag);

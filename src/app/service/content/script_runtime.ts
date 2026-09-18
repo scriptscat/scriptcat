@@ -25,6 +25,7 @@ export class ScriptRuntime {
       if (!data || !Array.isArray(data.params) || data.params.length !== 3) return undefined;
       const [parentNodeId, tagName, tmpAttr] = data.params;
 
+      // 此请求来自页面事件，只接受可验证的节点编号、标签名和扁平属性，避免把对象行为带入 DOM 操作。
       if (
         (parentNodeId !== null && (!Number.isInteger(parentNodeId) || parentNodeId <= 0)) ||
         typeof tagName !== "string" ||

@@ -142,7 +142,9 @@ export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
   private gmApi?: GMApi;
+  // 句柄绑定到 tab/frame/document；页面导航、脚本变更或窗口关闭时必须整体撤销。
   private readonly pageExecutionBindings = new Map<string, ServiceWorkerExecutionBinding>();
+  // USER_SCRIPT 连接只保存它获准使用的 content-world 句柄，回调按句柄再做一次归属匹配。
   private readonly userScriptConnections = new Map<
     string,
     { connection: MessageConnect; handles: Set<string>; tabId: number; frameId?: number; documentId?: string }
@@ -164,6 +166,7 @@ export class RuntimeService {
   }
 
   private revokePageBindings(sender: IGetSender, envTag?: "it" | "ct"): void {
+    // documentId 缺失时仍按 tab/frame 退休旧绑定，避免新页面继承上一文档的授权。
     const source = sender.getSender();
     const tabId = source?.tab?.id;
     const frameId = source?.frameId;
@@ -218,6 +221,7 @@ export class RuntimeService {
 
   /** Register the native USER_SCRIPT channel used for private bootstrap and callbacks. */
   registerUserScriptConnection(data: unknown, sender: IGetSender): boolean {
+    // bootstrap token 只允许对应 tab/frame/document 使用一次，并且必须覆盖本次下发的全部句柄。
     if (!sender.isType(GetSenderType.EXTCONNECT) || sender.getConnectOrigin?.() !== "userScript") return false;
     if (data === null || typeof data !== "object") return false;
     const handshake = data as { world?: unknown; bootstrapToken?: unknown };
@@ -304,6 +308,7 @@ export class RuntimeService {
       typeof data === "object" && data !== null ? (data as { uuid?: unknown; storageName?: unknown }) : undefined;
     const targetUuid = action === "runtime/emitEvent" ? dataRecord?.uuid : undefined;
     const targetStorageName = action === "runtime/valueUpdate" ? dataRecord?.storageName : undefined;
+    // 先按页面定位，再按句柄对应的脚本或 storageName 过滤，避免跨脚本广播私有回调。
     for (const [key, entry] of this.userScriptConnections) {
       if (
         to &&
@@ -352,6 +357,7 @@ export class RuntimeService {
     const source = sender.getSender();
     const tabId = source?.tab?.id;
     if (typeof tabId !== "number") throw new Error("page execution binding requires a tab");
+    // 每次 pageLoad 都签发新句柄和 runFlag；它们共同绑定当前文档的授权生命周期。
     const handle = uuidv4();
     const binding = {
       handle,
@@ -717,8 +723,7 @@ export class RuntimeService {
           sendData,
         },
       });
-      // USER_SCRIPT cannot observe the scripting world's page broadcast. Deliver the
-      // same encoded DTO over its native extension connection instead.
+      // USER_SCRIPT 看不到 scripting world 的页面广播，改经原生扩展连接投递同一份编码 DTO。
       this.sendUserScriptMessage(undefined, "runtime/valueUpdate", sendData);
 
       // 後台腳本
@@ -1520,6 +1525,7 @@ export class RuntimeService {
   }
 
   async pageLoad(data: { envTag?: "it" | "ct" } | undefined, sender: IGetSender): Promise<TClientPageLoadInfo> {
+    // USER_SCRIPT 只能通过一次性 bootstrap 获取 content-world 资料，不能自行请求 pageLoad。
     if (sender.getConnectOrigin?.() === "userScript") return { ok: false };
     const chromeSender = sender.getSender();
     const url = chromeSender?.url;
@@ -1532,8 +1538,7 @@ export class RuntimeService {
     const incognito = chromeSender.tab?.incognito ?? false;
     const res = await this.getScriptsForTab({ url, tabId, frameId, incognito });
 
-    // Retire bindings even when the new URL has no matching scripts. This closes
-    // the reuse window on browsers that do not provide documentId.
+    // 即使新 URL 没有匹配脚本也要退休旧绑定，关闭不提供 documentId 的浏览器复用窗口。
     this.revokePageBindings(sender, data?.envTag);
 
     this.mq.emit<TPopupPageLoadInfo>("popupPageLoadUpdate", {

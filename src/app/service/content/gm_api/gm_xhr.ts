@@ -142,8 +142,7 @@ const invokeXHRCallback = (name: string, callback: ((value: any) => void) | unde
   try {
     callback(value);
   } catch (error) {
-    // User callback failures are reported without rejecting the internal
-    // message queue or interrupting request settlement.
+    // 用户回调异常只记录，不得拒绝内部消息队列或打断请求收尾。
     LoggerCore.logger().error("GM_xmlhttpRequest callback failed", { name, ...Logger.E(error) });
   }
 };
@@ -537,6 +536,7 @@ export function GM_xmlhttpRequest(
       }
     };
     const scheduleSyntheticLoadEnd = () => {
+      // abort/error/timeout 可能没有 broker 的 onloadend，补发一次以释放连接和引用。
       Promise.resolve({
         error: "loadend",
         responseHeaders: "",
@@ -549,8 +549,7 @@ export function GM_xmlhttpRequest(
       if (!reqDone) {
         errorOccur = "AbortError";
         reqDone = true;
-        // Mark the request settled before user code runs. A throwing abort
-        // callback must not leave the broker connection and loadend cleanup pending.
+        // 先标记完成再调用用户代码；回调抛错也不能留下未收尾的连接。
         invokeXHRCallback("onabort", details.onabort, makeXHRCallbackParam?.(data) ?? {});
         // 不要进行 refCleanup ！要等待最后的 onloadend
         // refCleanup?.();

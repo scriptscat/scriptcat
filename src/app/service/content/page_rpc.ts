@@ -22,6 +22,7 @@ export const getExtensionOrigin = (): ExtensionOrigin | undefined => {
   return undefined;
 };
 
+// USER_SCRIPT 的 blob URL 必须回指当前扩展 origin，origin 由隔离 context 提供并缓存。
 let configuredExtensionOrigin: ExtensionOrigin | undefined;
 
 export const setPageRpcExtensionOrigin = (value: unknown): void => {
@@ -92,7 +93,7 @@ export type PageGMRequest = {
   readonly runFlag: string;
 };
 
-/** The untrusted packet accepted from a MAIN-world script. */
+/** MAIN world 脚本可提交的不可信数据包。 */
 export type PageGMRequestPacket = {
   readonly version: typeof PAGE_RPC_VERSION;
   readonly requestId: string;
@@ -112,7 +113,7 @@ const INTERNAL_APIS_BY_GRANT: Readonly<Record<string, readonly string[]>> = {
   "GM.xmlHttpRequest": ["GM_xmlhttpRequest"],
 };
 
-// ScriptingRuntime does not load the GM implementation module, so mirror its small dependency graph here.
+// ScriptingRuntime 不加载 GM 实现模块，因此在此镜像一份精简依赖图。
 const API_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {
   "GM.getValues": ["GM_getValues"],
   "GM.cookie": ["GM.cookie.set", "GM.cookie.list", "GM.cookie.delete"],
@@ -179,6 +180,7 @@ const ownData = (value: object, key: PropertyKey): unknown => {
 };
 
 const assertDataOnly = (value: unknown, seen: Set<object>): void => {
+  // 先检查自有数据描述符，再做 structuredClone；这样页面 getter/Proxy 不会在 broker 中执行。
   if (value === null || typeof value !== "object") return;
   if (seen.has(value)) return;
   seen.add(value);
@@ -197,6 +199,7 @@ const assertDataOnly = (value: unknown, seen: Set<object>): void => {
 };
 
 const cloneParams = (params: unknown): readonly unknown[] => {
+  // 复制发生在交给 service worker 之前，后续 broker 只处理隔离后的普通值。
   if (!Array.isArray(params)) throw new PageRpcError("page RPC params must be an array");
   assertDataOnly(params, new Set());
   if (!nativeStructuredClone) throw new PageRpcError("structured clone is unavailable");
@@ -281,6 +284,7 @@ export class PageRpcRegistry {
   }
 
   consumeRequestId(binding: PageExecutionBinding, requestId: string): void {
+    // requestId 只在每个绑定内去重，并保留有限窗口，避免页面长期占用内存。
     if (binding.requestIds.has(requestId)) throw new PageRpcError("page RPC requestId was already used");
     binding.requestIds.add(requestId);
     while (binding.requestIds.size > MAX_REQUEST_IDS_PER_BINDING) {
@@ -324,6 +328,7 @@ export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry)
   }
 
   const binding = registry.resolve(handle, api);
+  // resolve 同时执行句柄、授权和活跃状态检查；不要把页面传来的 api 直接转发给后端。
   const clonedParams = cloneParams(params);
   validateOperationParams(api, clonedParams);
   registry.consumeRequestId(binding, requestId);

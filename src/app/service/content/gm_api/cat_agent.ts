@@ -94,6 +94,7 @@ type ConversationPrivateState = {
 };
 
 export class ConversationInstance {
+  // 私有状态包含跨 context 的发送函数；用 private field 隐藏它，避免脚本读取或替换传输入口。
   #state: ConversationPrivateState;
 
   public toolHandlers: Map<string, ToolHandler> = new Map();

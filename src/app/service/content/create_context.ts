@@ -53,6 +53,7 @@ export const createContext = (
   contentMsg: Message,
   scriptGrants: Set<string>
 ) => {
+  // 复制授权集合并使用捕获的 Set 实现，避免页面改写迭代器后影响 API 注入。
   const scriptGrantSet = new Native.Set(scriptGrants);
   // 按照GMApi构建
   const valueChangeListener = new ListenerManager<GMTypes.ValueChangeListener>();
@@ -116,6 +117,7 @@ export const createContext = (
     }
     return true;
   };
+  // 只能调用捕获的 forEach；此处不依赖页面提供的 Set iterator。
   scriptGrantSet.forEach((grant) => {
     const candidates = getGrantCandidates(String(grant));
     for (let i = 0; i < candidates.length; i += 1) {
@@ -450,6 +452,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
     };
   };
 
+  // 事件键只需传入沙盒属性；先用捕获的 forEach 转成数组，避免跨 realm 读取 iterator。
   const eventKeyList: string[] = [];
   eventKeys.forEach((key) => {
     eventKeyList[eventKeyList.length] = String(key);

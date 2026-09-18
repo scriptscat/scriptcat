@@ -11,6 +11,7 @@ export class ListenerManager<T extends (key: string, ...args: any[]) => void> {
   }
 
   public execute(key: string, ...args: T extends (key: string, ...a: infer A) => any ? A : never): void {
+    // handler 可能在执行期间移除自身；按当前下标复查 id，避免跳过紧邻监听器。
     for (let i = 0; i < this.listeners.length; ) {
       const listener = this.listeners[i];
       if (listener?.key !== key) {

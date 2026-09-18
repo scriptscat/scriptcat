@@ -65,7 +65,7 @@ export type ServiceWorkerExecutionBinding = {
   documentId?: string;
   /** 用于只向运行该脚本的文档投递值更新的存储命名空间。 */
   storageName: string;
-  /** Capability names accepted by the isolated GM API broker for this page execution. */
+  /** 隔离 GM API broker 为本次页面执行接受的能力名称。 */
   allowedAPIs: ReadonlySet<string>;
   /** 已接受的页面请求 ID；绑定销毁时一并释放，确保绑定存续期间拒绝重放。 */
   requestIds: Set<string>;

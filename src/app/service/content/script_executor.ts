@@ -11,6 +11,7 @@ import { isUrlExcluded } from "@App/pkg/utils/match";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 import { localizeObject, Native } from "./global";
 
+// 与编译器相同的构建级标记，用来拒绝页面伪造的脚本挂载函数。
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
 
 export type ExecScriptEntry = {
@@ -84,6 +85,7 @@ export class ScriptExecutor {
       }
       const listenForScript = () => {
         definePropertyListener(window, flag, (val: ScriptFunc) => {
+          // 只有扩展生成且不可改写的完整性标记才算有效挂载，页面自建同名函数必须忽略。
           const descriptor =
             typeof val === "function" ? Native.objectGetOwnPropertyDescriptor(val, fnStrIntegrity) : undefined;
           if (descriptor?.value !== true || descriptor.configurable || descriptor.writable) {
@@ -152,6 +154,7 @@ export class ScriptExecutor {
 
   execEarlyScript(flag: string, scriptInfo: TScriptInfo, envInfo: GMInfoEnv) {
     const expectedUuid = flag.startsWith("#-") ? flag.slice(2) : undefined;
+    // early-start 事件来自页面，需同时确认脚本身份和未绑定状态，避免旧事件重放到新文档。
     if (
       (expectedUuid && scriptInfo.uuid !== expectedUuid) ||
       scriptInfo.executionHandle !== undefined ||
