@@ -7,6 +7,7 @@ type UserScriptReconnectResponse = {
   code?: unknown;
   data?: unknown;
 };
+type UserScriptWorld = "USER_SCRIPT" | "MAIN";
 
 /**
  * 先让 service worker 开启 USER_SCRIPT 监听，再建立连接；浏览器可能立即投递端口，
@@ -16,13 +17,14 @@ export async function connectUserScriptChannel(
   message: Message,
   bootstrapToken: string,
   onPacket: UserScriptPacketHandler,
-  onDisconnect?: UserScriptDisconnectHandler
+  onDisconnect?: UserScriptDisconnectHandler,
+  world: UserScriptWorld = "USER_SCRIPT"
 ): Promise<MessageConnect | undefined> {
   const enabled = await message.sendMessage<boolean>({ type: "userScripts.LISTEN_CONNECTIONS" } as unknown as TMessage);
   if (enabled === false) return undefined;
   const connection = await message.connect({
     action: "serviceWorker/runtime/registerUserScript",
-    data: { world: "USER_SCRIPT", bootstrapToken },
+    data: { world, bootstrapToken },
   });
   connection.onMessage((packet) => onPacket(connection, packet));
   if (onDisconnect) connection.onDisconnect(onDisconnect);

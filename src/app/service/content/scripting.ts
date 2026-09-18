@@ -178,7 +178,7 @@ export default class ScriptingRuntime {
     // 向service_worker请求脚本列表及环境信息
     client.pageLoad("it").then((o) => {
       if (!o.ok) return;
-      const { injectScriptList, envInfo, userScriptBootstrapToken } = o;
+      const { injectScriptList, envInfo, userScriptBootstrapToken, userScriptInjectBootstrapToken } = o;
       // 每次页面加载都废弃旧句柄，避免无 documentId 的浏览器复用上一文档的授权。
       this.pageRpc.revokeAll();
       const prepareScripts = (scripts: typeof injectScriptList, envTag: "it" | "ct") =>
@@ -208,6 +208,11 @@ export default class ScriptingRuntime {
           envInfo,
           extensionOrigin: getExtensionOrigin(),
         });
+      }
+
+      if (typeof userScriptInjectBootstrapToken === "string" && userScriptInjectBootstrapToken.length > 0) {
+        const injectClient = new Client(this.senderToInject, "inject");
+        injectClient.do("bootstrap", { bootstrapToken: userScriptInjectBootstrapToken });
       }
 
       // 向页面 发送脚本列表及环境信息

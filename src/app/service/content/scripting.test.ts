@@ -32,6 +32,7 @@ describe("ScriptingRuntime page bootstrap", () => {
       contentScriptList: [makeScript("content-script")],
       envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
       userScriptBootstrapToken: "bootstrap-token",
+      userScriptInjectBootstrapToken: "inject-bootstrap-token",
     } as TClientPageLoadInfo);
     const senderToExt = makeSender();
     const senderToContent = makeSender();
@@ -61,6 +62,12 @@ describe("ScriptingRuntime page bootstrap", () => {
             port: "",
           },
         }),
+      })
+    );
+    expect(senderToInject.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "inject/bootstrap",
+        data: { bootstrapToken: "inject-bootstrap-token" },
       })
     );
     expect(senderToInject.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ action: "inject/pageLoad" }));

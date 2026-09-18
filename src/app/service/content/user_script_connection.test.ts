@@ -31,6 +31,21 @@ describe("connectUserScriptChannel", () => {
     expect(connection.sendMessage).toHaveBeenCalledWith({ action: "userScript/bootstrap" });
   });
 
+  it("preserves the MAIN world identity when opening the inject port", async () => {
+    const connection = makeConnection();
+    const message = {
+      sendMessage: vi.fn().mockResolvedValue(true),
+      connect: vi.fn().mockResolvedValue(connection),
+    } as unknown as Message;
+
+    await connectUserScriptChannel(message, "inject-bootstrap", vi.fn(), undefined, "MAIN");
+
+    expect(message.connect).toHaveBeenCalledWith({
+      action: "serviceWorker/runtime/registerUserScript",
+      data: { world: "MAIN", bootstrapToken: "inject-bootstrap" },
+    });
+  });
+
   it("does not open a port when the browser cannot enable USER_SCRIPT listeners", async () => {
     const message = {
       sendMessage: vi.fn().mockResolvedValue(false),

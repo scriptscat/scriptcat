@@ -151,9 +151,20 @@ const cloneInjectEmitEvent = (data: unknown): EmitEventRequest | undefined => {
   return cloned as unknown as EmitEventRequest;
 };
 
-const cloneInjectPageLoad = (data: unknown): { scripts: TScriptInfo[]; envInfo: GMInfoEnv } | undefined => {
+type InjectPageLoadData = {
+  scripts: TScriptInfo[];
+  envInfo: GMInfoEnv;
+  reconnectToken?: string;
+};
+
+const cloneInjectPageLoad = (data: unknown): InjectPageLoadData | undefined => {
   const cloned = customClone(data);
-  if (!isRecord(cloned) || Native.objectKeys(cloned).length !== 2) return undefined;
+  if (
+    !isRecord(cloned) ||
+    !hasOnlyKeys(cloned, ["scripts", "envInfo"], ["reconnectToken"]) ||
+    (cloned.reconnectToken !== undefined && !isExecutionToken(cloned.reconnectToken))
+  )
+    return undefined;
   if (!Native.objectHasOwn(cloned, "scripts") || !Native.objectHasOwn(cloned, "envInfo")) return undefined;
   if (!Native.arrayIsArray(cloned.scripts) || cloned.scripts.length === 0) return undefined;
   for (let index = 0; index < cloned.scripts.length; index += 1) {
@@ -164,7 +175,11 @@ const cloneInjectPageLoad = (data: unknown): { scripts: TScriptInfo[]; envInfo: 
     return undefined;
   }
   if (cloned.envInfo.userAgentData !== undefined && !isRecord(cloned.envInfo.userAgentData)) return undefined;
-  return { scripts: cloned.scripts, envInfo: cloned.envInfo as unknown as GMInfoEnv };
+  return {
+    scripts: cloned.scripts,
+    envInfo: cloned.envInfo as unknown as GMInfoEnv,
+    reconnectToken: cloned.reconnectToken as string | undefined,
+  };
 };
 
 export class ScriptRuntime {
@@ -250,34 +265,14 @@ export class ScriptRuntime {
 
   init() {
     this.server.on("runtime/emitEvent", (data: EmitEventRequest) => {
-      // 转发给脚本
-      if (this.scripEnvTag === "it") {
-        const safeData = cloneInjectEmitEvent(data);
-        if (!safeData) return;
-        this.scriptExecutor.emitEvent(safeData);
-        return;
-      }
-      this.scriptExecutor.emitEvent(data);
+      this.receiveEmitEvent(data);
     });
     this.server.on("runtime/valueUpdate", (data: ValueUpdateDataEncoded) => {
-      if (this.scripEnvTag === "it") {
-        const safeData = cloneInjectValueUpdate(data);
-        if (!safeData) return;
-        this.scriptExecutor.valueUpdate(safeData);
-        return;
-      }
-      this.scriptExecutor.valueUpdate(data);
+      this.receiveValueUpdate(data);
     });
 
     this.server.on("pageLoad", (data: { scripts: TScriptInfo[]; envInfo: GMInfoEnv }) => {
-      if (this.scripEnvTag === "it") {
-        const safeData = cloneInjectPageLoad(data);
-        if (!safeData) return;
-        this.startScripts(safeData.scripts, safeData.envInfo);
-        return;
-      }
-      // content/native channels already carry the service-worker response directly.
-      this.startScripts(data.scripts, data.envInfo);
+      this.receivePageLoad(data);
     });
 
     // 用于 early-start 的扩充参数
@@ -305,7 +300,43 @@ export class ScriptRuntime {
     if (freshScripts.length > 0) this.scriptExecutor.startScripts(freshScripts, envInfo);
   }
 
-  externalMessage() {
-    onInjectPageLoaded(this.msg);
+  receivePageLoad(data: unknown): string | undefined {
+    if (this.scripEnvTag === "it") {
+      const safeData = cloneInjectPageLoad(data);
+      if (!safeData) return undefined;
+      this.startScripts(safeData.scripts, safeData.envInfo);
+      return safeData.reconnectToken;
+    }
+    if (!isRecord(data) || !Native.objectHasOwn(data, "scripts") || !Native.objectHasOwn(data, "envInfo"))
+      return undefined;
+    const scripts = data.scripts;
+    const envInfo = data.envInfo;
+    if (!Native.arrayIsArray(scripts) || !isRecord(envInfo)) return undefined;
+    this.startScripts(scripts as TScriptInfo[], envInfo as unknown as GMInfoEnv);
+    return undefined;
+  }
+
+  receiveEmitEvent(data: unknown): void {
+    if (this.scripEnvTag === "it") {
+      const safeData = cloneInjectEmitEvent(data);
+      if (!safeData) return;
+      this.scriptExecutor.emitEvent(safeData);
+      return;
+    }
+    this.scriptExecutor.emitEvent(data as EmitEventRequest);
+  }
+
+  receiveValueUpdate(data: unknown): void {
+    if (this.scripEnvTag === "it") {
+      const safeData = cloneInjectValueUpdate(data);
+      if (!safeData) return;
+      this.scriptExecutor.valueUpdate(safeData);
+      return;
+    }
+    this.scriptExecutor.valueUpdate(data as ValueUpdateDataEncoded);
+  }
+
+  externalMessage(messagePrefix = "scripting", message: Message = this.msg) {
+    onInjectPageLoaded(message, messagePrefix);
   }
 }

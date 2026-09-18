@@ -136,6 +136,7 @@ type UserScriptSession = {
   envInfo: GMInfoEnv;
   extensionOrigin?: ExtensionOrigin;
   reconnectToken: string;
+  envTag: "it" | "ct";
   tabId: number;
   frameId?: number;
   documentId?: string;
@@ -154,10 +155,17 @@ export class RuntimeService {
   private gmApi?: GMApi;
   // 句柄绑定到 tab/frame/document；页面导航、脚本变更或窗口关闭时必须整体撤销。
   private readonly pageExecutionBindings = new Map<string, ServiceWorkerExecutionBinding>();
-  // USER_SCRIPT 连接只保存它获准使用的 content-world 句柄，回调按句柄再做一次归属匹配。
+  // 原生 page/content 端口只保留各自签发的句柄，回调发送前再按该集合过滤一次。
   private readonly userScriptConnections = new Map<
     string,
-    { connection: MessageConnect; handles: Set<string>; tabId: number; frameId?: number; documentId?: string }
+    {
+      connection: MessageConnect;
+      handles: Set<string>;
+      envTag: "it" | "ct";
+      tabId: number;
+      frameId?: number;
+      documentId?: string;
+    }
   >();
   private readonly userScriptBootstraps = new Map<string, UserScriptSession>();
   // 连接断开后保留当前文档的已验证资料，供 USER_SCRIPT 通过原生消息重连；导航或脚本撤销会同步清除。
@@ -237,8 +245,13 @@ export class RuntimeService {
     return [key, sequence];
   }
 
-  private userScriptConnectionKey(tabId: number, frameId?: number, documentId?: string): string {
-    return `${tabId}:${frameId ?? -1}:${documentId ?? ""}`;
+  private userScriptConnectionKey(
+    tabId: number,
+    frameId: number | undefined,
+    documentId: string | undefined,
+    envTag: "it" | "ct"
+  ): string {
+    return `${tabId}:${frameId ?? -1}:${documentId ?? ""}:${envTag}`;
   }
 
   /** Register the native USER_SCRIPT channel used for private bootstrap and callbacks. */
@@ -249,7 +262,6 @@ export class RuntimeService {
     const handshake = data as { world?: unknown; bootstrapToken?: unknown };
     if (
       Object.keys(data).length !== 2 ||
-      handshake.world !== "USER_SCRIPT" ||
       typeof handshake.bootstrapToken !== "string" ||
       handshake.bootstrapToken.length === 0 ||
       handshake.bootstrapToken.length > 256
@@ -269,6 +281,9 @@ export class RuntimeService {
     ) {
       return false;
     }
+    // bootstrap 令牌决定唯一可消费这些句柄的 world，调用方不能借握手字段改投其他环境。
+    const expectedWorld = bootstrap.envTag === "it" ? "MAIN" : "USER_SCRIPT";
+    if (handshake.world !== expectedWorld) return false;
     const handles = new Set<string>();
     for (const script of bootstrap.scripts) {
       const handle = script.executionHandle;
@@ -276,7 +291,7 @@ export class RuntimeService {
       const binding = this.pageExecutionBindings.get(handle);
       if (
         !binding ||
-        binding.envTag !== "ct" ||
+        binding.envTag !== bootstrap.envTag ||
         binding.tabId !== tabId ||
         binding.frameId !== source.frameId ||
         binding.documentId !== source.documentId
@@ -288,12 +303,12 @@ export class RuntimeService {
     if (handles.size === 0) return false;
     const frameId = source.frameId;
     const documentId = source.documentId;
-    const key = this.userScriptConnectionKey(tabId, frameId, documentId);
+    const key = this.userScriptConnectionKey(tabId, frameId, documentId, bootstrap.envTag);
     this.userScriptSessions.set(key, bootstrap);
     this.userScriptBootstraps.delete(handshake.bootstrapToken);
     const previous = this.userScriptConnections.get(key);
     if (previous) previous.connection.disconnect(true);
-    const entry = { connection, handles, tabId, frameId, documentId };
+    const entry = { connection, handles, envTag: bootstrap.envTag, tabId, frameId, documentId };
     this.userScriptConnections.set(key, entry);
     connection.onDisconnect(() => {
       if (this.userScriptConnections.get(key)?.connection === connection) this.userScriptConnections.delete(key);
@@ -311,14 +326,15 @@ export class RuntimeService {
       }
       bootstrapped = true;
       try {
+        const pageLoadData = {
+          scripts: bootstrap.scripts,
+          envInfo: bootstrap.envInfo,
+          reconnectToken: bootstrap.reconnectToken,
+          ...(bootstrap.envTag === "ct" ? { extensionOrigin: bootstrap.extensionOrigin } : {}),
+        };
         connection.sendMessage({
-          action: "content/pageLoad",
-          data: {
-            scripts: bootstrap.scripts,
-            envInfo: bootstrap.envInfo,
-            extensionOrigin: bootstrap.extensionOrigin,
-            reconnectToken: bootstrap.reconnectToken,
-          },
+          action: `${bootstrap.envTag === "it" ? "inject" : "content"}/pageLoad`,
+          data: pageLoadData,
         });
       } catch {
         this.userScriptConnections.delete(key);
@@ -344,15 +360,27 @@ export class RuntimeService {
     const source = sender.getSender();
     const tabId = source?.tab?.id;
     if (!source || typeof tabId !== "number") return undefined;
-    const key = this.userScriptConnectionKey(tabId, source.frameId, source.documentId);
-    const session = this.userScriptSessions.get(key);
-    if (!session || (data as { reconnectToken: string }).reconnectToken !== session.reconnectToken) return undefined;
+    let key: string | undefined;
+    let session: UserScriptSession | undefined;
+    for (const [candidateKey, candidateSession] of this.userScriptSessions) {
+      if (
+        candidateSession.tabId === tabId &&
+        candidateSession.frameId === source.frameId &&
+        candidateSession.documentId === source.documentId &&
+        candidateSession.reconnectToken === (data as { reconnectToken: string }).reconnectToken
+      ) {
+        key = candidateKey;
+        session = candidateSession;
+        break;
+      }
+    }
+    if (!key || !session) return undefined;
     for (const script of session.scripts) {
       const handle = script.executionHandle;
       const binding = typeof handle === "string" ? this.pageExecutionBindings.get(handle) : undefined;
       if (
         !binding ||
-        binding.envTag !== "ct" ||
+        binding.envTag !== session.envTag ||
         binding.tabId !== tabId ||
         binding.frameId !== source.frameId ||
         binding.documentId !== source.documentId
@@ -406,7 +434,7 @@ export class RuntimeService {
       }
       if (!bindingMatches) continue;
       try {
-        entry.connection.sendMessage({ action: `content/${action}`, data });
+        entry.connection.sendMessage({ action: `${entry.envTag === "it" ? "inject" : "content"}/${action}`, data });
       } catch {
         this.userScriptConnections.delete(key);
       }
@@ -1673,17 +1701,25 @@ export class RuntimeService {
       const injectScriptList = data?.envTag === "ct" ? [] : prepareScripts(res.injectScriptList, "it");
       const contentScriptList = prepareScripts(res.contentScriptList, "ct");
       let userScriptBootstrapToken: string | undefined;
-      if (data?.envTag === "it" && contentScriptList.length > 0) {
-        userScriptBootstrapToken = uuidv4();
-        this.userScriptBootstraps.set(userScriptBootstrapToken, {
-          scripts: contentScriptList,
-          envInfo: res.envInfo,
-          extensionOrigin: getExtensionOrigin(),
-          reconnectToken: userScriptBootstrapToken,
-          tabId,
-          frameId,
-          documentId: chromeSender.documentId,
-        });
+      let userScriptInjectBootstrapToken: string | undefined;
+      if (data?.envTag === "it") {
+        const createBootstrap = (scripts: TScriptInfo[], envTag: "it" | "ct"): string | undefined => {
+          if (scripts.length === 0) return undefined;
+          const token = uuidv4();
+          this.userScriptBootstraps.set(token, {
+            scripts,
+            envInfo: res.envInfo,
+            extensionOrigin: getExtensionOrigin(),
+            reconnectToken: token,
+            envTag,
+            tabId,
+            frameId,
+            documentId: chromeSender.documentId,
+          });
+          return token;
+        };
+        userScriptInjectBootstrapToken = createBootstrap(injectScriptList, "it");
+        userScriptBootstrapToken = createBootstrap(contentScriptList, "ct");
       }
       // 返回脚本资料，在页面加载
       return {
@@ -1692,6 +1728,7 @@ export class RuntimeService {
         contentScriptList: data?.envTag === "it" ? [] : contentScriptList,
         envInfo: res.envInfo,
         userScriptBootstrapToken,
+        userScriptInjectBootstrapToken,
       };
     } else {
       // 没有脚本资料，不需要加载
