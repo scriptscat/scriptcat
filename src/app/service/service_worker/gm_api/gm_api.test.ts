@@ -10,6 +10,10 @@ import GMApi, {
 import { PermissionVerifyApiGet, type ConfirmParam } from "../permission_verify";
 import type { GMApiRequest } from "../types";
 import GMAgentApi from "./gm_agent";
+import GMAgentDomApi from "./gm_agent_dom";
+import GMAgentModelApi from "./gm_agent_model";
+import GMAgentOPFSApi from "./gm_agent_opfs";
+import GMAgentSkillsApi from "./gm_agent_skills";
 // 触发所有 GM API 装饰器注册（与 gm_api.ts 中的 import 保持同步）
 import "./gm_api";
 
@@ -170,6 +174,46 @@ describe("CAT.agent.conversation identity binding", () => {
       expect.objectContaining({ conversationId: "conv-1", scriptUuid: "script-authenticated" }),
       sender
     );
+  });
+});
+
+describe("CAT agent identity binding", () => {
+  it("overrides forged nested scriptUuid values for every agent service boundary", async () => {
+    const handleDomApi = vi.fn().mockResolvedValue(undefined);
+    const handleModelApi = vi.fn().mockResolvedValue(undefined);
+    const handleSkillsApi = vi.fn().mockResolvedValue(undefined);
+    const handleOPFSApi = vi.fn().mockResolvedValue(undefined);
+    const api = {
+      agentService: { handleDomApi, handleModelApi, handleSkillsApi, handleOPFSApi },
+    } as unknown as GMApi;
+    const script = { uuid: "script-authenticated" };
+    const sender = makeSender();
+
+    await GMAgentDomApi.prototype.CAT_agentDom.call(
+      api,
+      { params: [{ action: "listTabs", scriptUuid: "forged" }], script } as unknown as GMApiRequest,
+      sender
+    );
+    await GMAgentModelApi.prototype.CAT_agentModel.call(
+      api,
+      { params: [{ action: "list", scriptUuid: "forged" }], script } as unknown as GMApiRequest,
+      sender
+    );
+    await GMAgentSkillsApi.prototype.CAT_agentSkills.call(
+      api,
+      { params: [{ action: "list", scriptUuid: "forged" }], script } as unknown as GMApiRequest,
+      sender
+    );
+    await GMAgentOPFSApi.prototype.CAT_agentOPFS.call(
+      api,
+      { params: [{ action: "list", scriptUuid: "forged" }], script } as unknown as GMApiRequest,
+      sender
+    );
+
+    expect(handleDomApi).toHaveBeenCalledWith({ action: "listTabs", scriptUuid: "script-authenticated" });
+    expect(handleModelApi).toHaveBeenCalledWith({ action: "list", scriptUuid: "script-authenticated" });
+    expect(handleSkillsApi).toHaveBeenCalledWith({ action: "list", scriptUuid: "script-authenticated" });
+    expect(handleOPFSApi).toHaveBeenCalledWith({ action: "list", scriptUuid: "script-authenticated" }, sender);
   });
 });
 

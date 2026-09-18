@@ -50,7 +50,7 @@ class GMAgentOPFSApi {
     if (!this.agentService) {
       throw new Error("AgentService is not available");
     }
-    return this.agentService.handleOPFSApi(request.params[0], sender);
+    return this.agentService.handleOPFSApi({ ...request.params[0], scriptUuid: request.script.uuid }, sender);
   }
 }
 
