@@ -599,7 +599,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
   const contextKeys = Native.objectKeys(context);
   for (let i = 0; i < contextKeys.length; i += 1) {
     const key = contextKeys[i];
-    if (key in protect || key === "window") continue;
+    if (Native.objectHasOwn(protect, key) || key === "window") continue;
     mySandbox[key] = context[key]; // window以外
   }
 

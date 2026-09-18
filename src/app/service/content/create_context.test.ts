@@ -316,6 +316,23 @@ describe("createContext: capability and lifecycle contract", () => {
     expect(context).not.toHaveProperty("grantSet");
   });
 
+  it("does not let page prototype pollution hide granted APIs", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(Object.prototype, "GM_getValue");
+    try {
+      Object.defineProperty(Object.prototype, "GM_getValue", {
+        configurable: true,
+        value: true,
+      });
+
+      const context = createTestContext(["GM_getValue"]);
+
+      expect(context.GM_getValue).toBeTypeOf("function");
+    } finally {
+      if (descriptor) Object.defineProperty(Object.prototype, "GM_getValue", descriptor);
+      else Reflect.deleteProperty(Object.prototype, "GM_getValue");
+    }
+  });
+
   it("creates collection instances from frozen captured-method subclasses", () => {
     const set = new Native.Set(["grant"]);
     const map = new Native.Map<string, number>();

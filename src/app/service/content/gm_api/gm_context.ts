@@ -28,7 +28,7 @@ function GMContextApiSet(grant: string, fnKey: string, api: any, param: ApiParam
   m[m.length] = { fnKey, api, param };
 }
 
-export const protect: { [key: string]: any } = {};
+export const protect: { [key: string]: any } = Native.objectCreate(null);
 
 export default class GMContext {
   public static protected(value: any = undefined) {
