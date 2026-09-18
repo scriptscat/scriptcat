@@ -9,7 +9,7 @@ import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageAddEventListener, pageDispatchEvent } from "@Packages/message/common";
 import { isUrlExcluded } from "@App/pkg/utils/match";
 import type { ScriptEnvTag } from "@Packages/message/consts";
-import { customClone, localizeObject, Native } from "./global";
+import { localizeObject, Native } from "./global";
 
 // 与编译器相同的构建级标记，用来拒绝页面伪造的脚本挂载函数。
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
@@ -141,12 +141,17 @@ export class ScriptExecutor {
       typeof scriptFunc === "function"
         ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptInfoKey)
         : undefined;
-    if (!scriptInfoDescriptor || scriptInfoDescriptor.configurable || scriptInfoDescriptor.writable) return;
-    const scriptInfoJSON = scriptInfoDescriptor.value;
+    if (scriptInfoDescriptor?.configurable || scriptInfoDescriptor?.writable) return;
+    const scriptInfoJSON =
+      typeof scriptInfoDescriptor?.value === "string"
+        ? scriptInfoDescriptor.value
+        : typeof scriptFunc.name === "string"
+          ? scriptFunc.name
+          : undefined;
     if (typeof scriptInfoJSON !== "string") return;
     let scriptInfo: TScriptInfo | undefined;
     try {
-      scriptInfo = customClone(Native.jsonParse(scriptInfoJSON)) as TScriptInfo | undefined;
+      scriptInfo = Native.jsonParse(scriptInfoJSON) as TScriptInfo | undefined;
     } catch {
       return;
     }

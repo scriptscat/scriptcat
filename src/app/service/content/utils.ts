@@ -177,7 +177,7 @@ const codeFunction = (code: string, scriptInfoJSON?: string) => {
   const infoProperty =
     scriptInfoJSON === undefined
       ? ""
-      : ` Object.defineProperty(f, '${preInjectScriptInfoKey}', { value: ${JSON.stringify(scriptInfoJSON)} });`;
+      : ` Object.defineProperty(f, '${preInjectScriptInfoKey}', { value: ${JSON.stringify(scriptInfoJSON)} }); Object.defineProperty(f, 'name', { configurable: false, value: ${JSON.stringify(scriptInfoJSON)} });`;
   return `((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true });${infoProperty} return f; })('${lnStrIntegrity}', '${znRand}' + Math.random(), function(){${code}})`;
 };
 

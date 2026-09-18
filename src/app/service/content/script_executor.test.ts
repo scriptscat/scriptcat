@@ -273,6 +273,23 @@ describe("ScriptExecutor", () => {
     }
   });
 
+  it("accepts the immutable early manifest through the wrapper name fallback", () => {
+    const script = makeScript({ uuid: "executor-early-name-uuid", flag: "#-executor-early-name-uuid" });
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    const genuine = vi.fn();
+    const pageWindow = window as unknown as Record<string, unknown>;
+    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
+    Object.defineProperty(genuine, "name", { configurable: false, value: JSON.stringify(script) });
+
+    try {
+      pageWindow[script.flag] = genuine;
+      executor.execEarlyScript(script.flag, initEnvInfo);
+      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
+    } finally {
+      delete pageWindow[script.flag];
+    }
+  });
+
   it("continues loading later scripts after reconciling an early-start entry", () => {
     const early = makeScript({
       uuid: "early-script",
