@@ -32,6 +32,60 @@ export type WindowMessageBody<T = any> = {
   data: T | null; // 消息数据
 };
 
+const nativeReflectOwnKeys = Reflect.ownKeys;
+const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+const WINDOW_MESSAGE_KEYS = ["messageId", "type", "data"] as const;
+
+const parseWindowMessageBody = (value: unknown): WindowMessageBody | undefined => {
+  if (value === null || typeof value !== "object") return undefined;
+
+  let keys: (string | symbol)[];
+  try {
+    keys = nativeReflectOwnKeys(value);
+  } catch {
+    return undefined;
+  }
+  if (keys.length !== WINDOW_MESSAGE_KEYS.length) return undefined;
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    let known = false;
+    if (typeof key === "string") {
+      for (let expectedIndex = 0; expectedIndex < WINDOW_MESSAGE_KEYS.length; expectedIndex += 1) {
+        if (WINDOW_MESSAGE_KEYS[expectedIndex] === key) {
+          known = true;
+          break;
+        }
+      }
+    }
+    if (!known) return undefined;
+  }
+
+  let fields: PropertyDescriptor[];
+  try {
+    fields = [];
+    for (let index = 0; index < WINDOW_MESSAGE_KEYS.length; index += 1) {
+      const descriptor = nativeObjectGetOwnPropertyDescriptor(value, WINDOW_MESSAGE_KEYS[index]);
+      if (!descriptor || !("value" in descriptor)) return undefined;
+      fields[fields.length] = descriptor;
+    }
+  } catch {
+    return undefined;
+  }
+  const messageId = fields[0].value;
+  const type = fields[1].value;
+  if (
+    typeof messageId !== "string" ||
+    (type !== "sendMessage" &&
+      type !== "respMessage" &&
+      type !== "connect" &&
+      type !== "disconnect" &&
+      type !== "connectMessage")
+  ) {
+    return undefined;
+  }
+  return { messageId, type, data: fields[2].value } as WindowMessageBody;
+};
+
 export class WindowMessage implements Message {
   EE = new EventEmitter<string, any>();
 
@@ -78,6 +132,9 @@ export class WindowMessage implements Message {
   }
 
   messageHandle(data: WindowMessageBody, target: PostMessage) {
+    const safeData = parseWindowMessageBody(data);
+    if (!safeData) return;
+    data = safeData;
     // 处理消息
     if (data.type === "sendMessage") {
       // 接收到消息
@@ -257,6 +314,9 @@ export class ServiceWorkerMessageSend implements Message {
   }
 
   messageHandle(data: WindowMessageBody, source?: PostMessage) {
+    const safeData = parseWindowMessageBody(data);
+    if (!safeData) return;
+    data = safeData;
     // 处理消息
     if (data.type === "sendMessage" && source) {
       // 接收到来自offscreen的请求消息
@@ -358,6 +418,9 @@ export class ServiceWorkerClientMessage implements Message {
   }
 
   messageHandle(data: WindowMessageBody, source?: PostMessage) {
+    const safeData = parseWindowMessageBody(data);
+    if (!safeData) return;
+    data = safeData;
     // 只处理响应类消息,请求类消息由WindowMessage处理
     if (data.type === "sendMessage" && source) {
       this.EE.emit(

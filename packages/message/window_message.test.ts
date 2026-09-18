@@ -210,6 +210,63 @@ describe("WindowMessage.connect", () => {
   });
 });
 
+describe("WindowMessage envelope validation", () => {
+  it("ignores accessor envelopes without executing their getters", () => {
+    let messageHandler: ((event: MessageEvent) => void) | undefined;
+    const sourceWindow = {
+      addEventListener: vi.fn((_event: string, handler: (event: MessageEvent) => void) => {
+        messageHandler = handler;
+      }),
+    } as unknown as Window;
+    const targetWindow = {} as unknown as Window;
+    const windowMessage = new WindowMessage(sourceWindow, targetWindow);
+    const received = vi.fn();
+    windowMessage.onMessage(received);
+    const envelope: Record<string, unknown> = {
+      messageId: "hostile",
+      type: "sendMessage",
+      data: { action: "offscreen/ping" },
+    };
+    let accessed = false;
+    Object.defineProperty(envelope, "data", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        accessed = true;
+        throw new Error("page getter executed");
+      },
+    });
+
+    expect(() => messageHandler!({ source: targetWindow, data: envelope } as unknown as MessageEvent)).not.toThrow();
+    expect(accessed).toBe(false);
+    expect(received).not.toHaveBeenCalled();
+  });
+
+  it("ignores proxy envelopes whose own-key inspection throws", () => {
+    let messageHandler: ((event: MessageEvent) => void) | undefined;
+    const sourceWindow = {
+      addEventListener: vi.fn((_event: string, handler: (event: MessageEvent) => void) => {
+        messageHandler = handler;
+      }),
+    } as unknown as Window;
+    const targetWindow = {} as unknown as Window;
+    const windowMessage = new WindowMessage(sourceWindow, targetWindow);
+    const received = vi.fn();
+    windowMessage.onMessage(received);
+    const envelope = new Proxy(
+      { messageId: "hostile", type: "sendMessage", data: { action: "offscreen/ping" } },
+      {
+        ownKeys() {
+          throw new Error("page proxy executed");
+        },
+      }
+    );
+
+    expect(() => messageHandler!({ source: targetWindow, data: envelope } as unknown as MessageEvent)).not.toThrow();
+    expect(received).not.toHaveBeenCalled();
+  });
+});
+
 // 单测重点：target 支持传入惰性求值函数，避免在 Firefox sandbox iframe 尚处于初始 about:blank
 // 阶段就缓存 contentWindow 快照——导航到真正的 sandbox 页面后，浏览器是否仍保证该快照与
 // 事件的 e.source 全等属于实现细节，不可依赖；每次发送/比对都应重新读取当前值。
