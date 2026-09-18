@@ -6,6 +6,8 @@ import { compileScript, compileScriptCode } from "../utils";
 import type { Message } from "@Packages/message/types";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import type { ScriptRunResource } from "@App/app/repo/scripts";
+import GMApi from "./gm_api";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
@@ -29,6 +31,49 @@ const envInfo: GMInfoEnv = {
   },
   isIncognito: false,
 };
+
+const makeResource = (url: string, content: string, type: "require" | "require-css" | "resource") => ({
+  url,
+  content,
+  base64: "",
+  hash: { md5: "", sha1: "", sha256: "", sha384: "", sha512: "" },
+  type,
+  link: {},
+  contentType: "text/plain",
+  createtime: Date.now(),
+});
+
+describe("GM Resource API", () => {
+  it("只从 resourceByType.resource 读取资源，并保留旧 payload fallback", async () => {
+    const name = "shared-name";
+    const script = {
+      ...scriptRes,
+      uuid: "gm-resource-category-test",
+      value: {},
+      resource: { [name]: makeResource("https://example.com/lib.js", "require content", "require") },
+      resourceByType: {
+        require: { [name]: makeResource("https://example.com/lib.js", "require content", "require") },
+        "require-css": {},
+        resource: { [name]: makeResource("https://example.com/data.txt", "declared resource", "resource") },
+      },
+    } as unknown as ScriptRunResource;
+    const api = new GMApi("test", {} as Message, {} as Message, script);
+
+    expect(api.GM_getResourceText(name)).toBe("declared resource");
+    expect(api.GM_getResourceURL(name)).toContain("ZGVjbGFyZWQgcmVzb3VyY2U=");
+    expect(await api["GM.getResourceText"](name)).toBe("declared resource");
+    expect(await api["GM.getResourceUrl"](name)).toContain("ZGVjbGFyZWQgcmVzb3VyY2U=");
+
+    const legacyScript = {
+      ...script,
+      resourceByType: undefined,
+      resource: { [name]: makeResource("https://example.com/data.txt", "legacy resource", "resource") },
+    } as unknown as ScriptRunResource;
+    const legacyApi = new GMApi("test", {} as Message, {} as Message, legacyScript);
+
+    expect(legacyApi.GM_getResourceText(name)).toBe("legacy resource");
+  });
+});
 
 describe.concurrent("@grant GM", () => {
   it.concurrent("GM_", async () => {

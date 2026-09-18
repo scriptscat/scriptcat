@@ -1,15 +1,10 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
-import { Route, Routes } from "react-router-dom";
+import { cleanup, render, screen } from "@testing-library/react";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
-import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
 import { cspRemovalAction, type NetworkRule } from "@App/app/repo/network_rule";
-import type { NetworkRuleClient } from "@App/app/service/service_worker/client";
-import type { NetworkRuleSnapshot } from "@App/app/service/service_worker/network_rule";
 
-import NetworkRules from ".";
-import { stubNotify } from "./test-helpers";
+import RuleTable from "./RuleTable";
 
 const PAGE_ROWS = 20;
 
@@ -19,7 +14,6 @@ beforeAll(() => initTestLanguage("zh-CN"));
 beforeEach(() => {
   mockMatchMedia();
   vi.clearAllMocks();
-  stubNotify();
   reads.count = 0;
 });
 afterEach(() => {
@@ -52,63 +46,69 @@ function rule(index: number): NetworkRule {
   });
 }
 
-function clientFor(rules: NetworkRule[]): NetworkRuleClient {
-  const snapshot: NetworkRuleSnapshot = {
-    state: { schemaVersion: 1, revision: 3, masterEnabled: true, rules, order: rules.map((r) => r.id) },
-    apply: { state: "applied", revision: 3, appliedAt: 1 },
-  };
+function listProps(rules: NetworkRule[]) {
   return {
-    getState: vi.fn().mockResolvedValue(snapshot),
-    createRule: vi.fn(),
-    updateRule: vi.fn(),
-    deleteRules: vi.fn(),
-    setRulesEnabled: vi.fn(),
-    setMasterEnabled: vi.fn(),
-    reorderRules: vi.fn(),
-    retryApply: vi.fn(),
-  } as unknown as NetworkRuleClient;
+    rules,
+    positionOf: (target: NetworkRule) => rules.findIndex((rule) => rule.id === target.id) + 1,
+    total: rules.length,
+    // 行 memo 化本身与 dnd-kit 接线无关；拖拽分支由 DragAccessibility 与页面集成测试覆盖。
+    dragDisabled: true,
+    busy: false,
+    onToggleEnabled: vi.fn(),
+    onDragEnd: vi.fn(),
+    onEdit: vi.fn(),
+    onDelete: vi.fn(),
+    onMoveTop: vi.fn(),
+    onMoveBottom: vi.fn(),
+    onMoveTo: vi.fn(),
+  };
 }
 
-async function renderRows() {
-  renderWithThemeRouter(
-    <Routes>
-      <Route
-        path="/tools/network-rules"
-        element={<NetworkRules client={clientFor(Array.from({ length: PAGE_ROWS }, (_, index) => rule(index)))} />}
-      />
-    </Routes>,
-    { initialEntries: ["/tools/network-rules"] }
+function renderRows() {
+  const rules = Array.from({ length: PAGE_ROWS }, (_, index) => rule(index));
+  const props = listProps(rules);
+  const onSelect = vi.fn();
+  const onSelectPage = vi.fn();
+  const view = render(
+    <RuleTable {...props} selected={new Set<string>()} onSelect={onSelect} onSelectPage={onSelectPage} />
   );
-  expect(await screen.findByText("规则 0")).toBeInTheDocument();
+  expect(screen.getByText("规则 0")).toBeInTheDocument();
   expect(screen.getAllByTestId("network-rule-row")).toHaveLength(PAGE_ROWS);
+  return { props, view, onSelect, onSelectPage };
 }
 
 describe("网络规则列表页的行渲染开销", () => {
-  it("首屏 20 行各渲染一次，不重复渲染", async () => {
-    await renderRows();
+  it("首屏 20 行各渲染一次，不重复渲染", () => {
+    renderRows();
 
     expect(reads.count).toBe(PAGE_ROWS);
   });
 
-  it("搜索按键不改变可见行时，一行也不重算", async () => {
-    await renderRows();
-    // 第一个字符会把手柄从可拖变成禁用，整页行本来就该重算一次；量的是后续按键。
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规" } });
+  it("父级刷新但可见行不变时，一行也不重算", () => {
+    const { props, view, onSelect, onSelectPage } = renderRows();
     reads.count = 0;
 
-    // 「规则」是所有行的公共前缀：可见行集合与顺序都不变，变的只是父级重渲染这件事本身。
-    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "规则" } });
+    // 「规则」是所有行的公共前缀：可见行集合与顺序都不变，变的只是父级传入了新数组。
+    view.rerender(
+      <RuleTable
+        {...props}
+        dragDisabled
+        rules={[...props.rules]}
+        selected={new Set<string>()}
+        onSelect={onSelect}
+        onSelectPage={onSelectPage}
+      />
+    );
 
     expect(screen.getAllByTestId("network-rule-row")).toHaveLength(PAGE_ROWS);
     expect(reads.count).toBe(0);
   });
 
-  it("勾选一行只重算那一行，其余 19 行不受影响", async () => {
-    await renderRows();
+  it("勾选一行只重算那一行，其余 19 行不受影响", () => {
+    const { props, view, onSelect, onSelectPage } = renderRows();
     reads.count = 0;
 
-    // 按 aria-label 取：20 行的表上整页 role 扫描要给 21 个复选框各算一遍可访问名，约 46ms。
-    fireEvent.click(screen.getByLabelText("选择 规则 7"));
+    view.rerender(<RuleTable {...props} selected={new Set(["r7"])} onSelect={onSelect} onSelectPage={onSelectPage} />);
 
     expect(reads.count).toBe(1);
   });

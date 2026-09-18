@@ -18,7 +18,7 @@ import { loadHandle } from "@App/pkg/utils/filehandle-db";
 import { startFileTrack, unmountFileTrack, type FTInfo } from "@App/pkg/utils/file-tracker";
 import { TempStorageDAO } from "@App/app/repo/tempStorage";
 import { EnableAgent } from "@App/app/const";
-import { derivePermissions, type PermissionRow } from "./permissions";
+import { derivePermissions, derivePermissionDiff, type PermissionRow } from "./permissions";
 import {
   deriveVersion,
   deriveAntifeatures,
@@ -29,6 +29,7 @@ import {
   type ScheduleInfo,
   type DiffStat,
 } from "./model";
+import { deriveCompatMarks, type CompatMarks } from "./compat";
 
 export interface InstallView {
   isUpdate: boolean;
@@ -54,6 +55,8 @@ export interface InstallView {
   subscribeScripts: string[];
   /** 由 MCP 客户端请求安装时附加;非 MCP 来源为 undefined */
   externalAccess?: ScriptInfo["externalAccess"];
+  /** 写了但脚本猫不会执行的指令与 GM 能力,就近标在权限行上 */
+  compat: CompatMarks;
 }
 
 /**
@@ -68,8 +71,10 @@ export function assembleInstallView(args: {
   code: string;
   oldVersion: string | null;
   oldCode?: string;
+  /** 已安装脚本的元数据,作为权限差异的基线;全新安装与订阅为 undefined */
+  oldMetadata?: SCMetadata;
 }): InstallView {
-  const { isUpdate, inTrash, scriptInfo, action, code, oldVersion, oldCode } = args;
+  const { isUpdate, inTrash, scriptInfo, action, code, oldVersion, oldCode, oldMetadata } = args;
   const metadata = scriptInfo.metadata;
   const schedule = deriveScheduleInfo(metadata);
   return {
@@ -82,7 +87,7 @@ export function assembleInstallView(args: {
     source: prettyUrl(scriptInfo.url),
     description: i18nDescription(action),
     version: deriveVersion(metadata.version?.[0], oldVersion),
-    permissions: derivePermissions(metadata),
+    permissions: oldMetadata ? derivePermissionDiff(oldMetadata, metadata) : derivePermissions(metadata),
     antifeatures: deriveAntifeatures(metadata),
     schedule,
     scheduleNextRun: schedule?.kind === "cron" ? nextTimeDisplay(schedule.expression) : undefined,
@@ -91,6 +96,7 @@ export function assembleInstallView(args: {
     diffStat: oldCode !== undefined && oldCode !== code ? deriveDiffStat(oldCode, code) : undefined,
     subscribeScripts: scriptInfo.userSubscribe ? metadata.scripturl || [] : [],
     externalAccess: scriptInfo.externalAccess,
+    compat: deriveCompatMarks(metadata, code),
   };
 }
 
@@ -253,6 +259,7 @@ export function useInstallData(): UseInstallData {
       let action: Script | Subscribe;
       let oldVersion: string | null;
       let oldCode: string | undefined;
+      let oldMetadata: SCMetadata | undefined;
       let inTrash = false;
       if (info.userSubscribe) {
         const p = await prepareSubscribeByCode(code, info.url);
@@ -271,6 +278,7 @@ export function useInstallData(): UseInstallData {
         action = p.script;
         oldVersion = versionOf(p.oldScript);
         oldCode = p.oldScriptCode;
+        oldMetadata = p.oldScript?.metadata;
         inTrash = p.oldInTrash === true;
       }
       if (cancelled) return;
@@ -288,6 +296,7 @@ export function useInstallData(): UseInstallData {
           code,
           oldVersion,
           oldCode,
+          oldMetadata,
         }),
       });
     };
