@@ -656,94 +656,96 @@ export default function NetworkRules({ client: injectedClient }: { client?: Netw
         )}
       </div>
 
-      <MoveToDialog
-        key={movingRule?.id ?? "none"}
-        rule={movingRule}
-        total={order.length}
-        currentPosition={movingRule ? order.indexOf(movingRule.id) + 1 : 1}
-        onClose={() => setMovingRule(undefined)}
-        onSubmit={(position) => {
-          const rule = movingRule;
-          setMovingRule(undefined);
-          if (rule) moveTo(rule, position - 1);
-        }}
-      />
+      {movingRule && (
+        <MoveToDialog
+          key={movingRule.id}
+          rule={movingRule}
+          total={order.length}
+          currentPosition={order.indexOf(movingRule.id) + 1}
+          onClose={() => setMovingRule(undefined)}
+          onSubmit={(position) => {
+            const rule = movingRule;
+            setMovingRule(undefined);
+            if (rule) moveTo(rule, position - 1);
+          }}
+        />
+      )}
 
-      <MatchTestDialog
-        key={matchTestOpen ? "match-open" : "match-closed"}
-        open={matchTestOpen}
-        rules={rules}
-        paused={paused}
-        onOpenChange={setMatchTestOpen}
-      />
+      {matchTestOpen && <MatchTestDialog open rules={rules} paused={paused} onOpenChange={setMatchTestOpen} />}
 
-      <RuleSheet
-        key={`${editingRule?.id ?? "new"}-${sheetTemplate ?? "pick"}-${sheetOpen ? "open" : "closed"}`}
-        open={sheetOpen}
-        rule={editingRule}
-        initialTemplate={sheetTemplate}
-        saving={busy === "sheet"}
-        onOpenChange={(next) => {
-          if (busy === "sheet") return;
-          setSheetOpen(next);
-          if (!next) {
-            setEditingRule(undefined);
-            setSheetTemplate(undefined);
-          }
-        }}
-        onSave={saveRule}
-      />
+      {sheetOpen && (
+        <RuleSheet
+          key={`${editingRule?.id ?? "new"}-${sheetTemplate ?? "pick"}`}
+          open
+          rule={editingRule}
+          initialTemplate={sheetTemplate}
+          saving={busy === "sheet"}
+          onOpenChange={(next) => {
+            if (busy === "sheet") return;
+            setSheetOpen(next);
+            if (!next) {
+              setEditingRule(undefined);
+              setSheetTemplate(undefined);
+            }
+          }}
+          onSave={saveRule}
+        />
+      )}
 
-      <AlertDialog open={confirmDelete !== undefined} onOpenChange={(open) => !open && setConfirmDelete(undefined)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirmDelete && confirmDelete.length > 1
-                ? t("tools:network_rules_confirm_bulk_delete_title", { count: confirmDelete.length })
-                : t("tools:network_rules_confirm_delete_title")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>{t("tools:network_rules_confirm_delete_description")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmDelete(undefined)}>
-              {t("tools:network_rules_cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                const rules = confirmDelete;
-                setConfirmDelete(undefined);
-                if (rules) void deleteRules(rules);
-              }}
-            >
-              {t("tools:network_rules_confirm_delete_action")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {confirmDelete && (
+        <AlertDialog open onOpenChange={(open) => !open && setConfirmDelete(undefined)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {confirmDelete.length > 1
+                  ? t("tools:network_rules_confirm_bulk_delete_title", { count: confirmDelete.length })
+                  : t("tools:network_rules_confirm_delete_title")}
+              </AlertDialogTitle>
+              <AlertDialogDescription>{t("tools:network_rules_confirm_delete_description")}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmDelete(undefined)}>
+                {t("tools:network_rules_cancel")}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  const rules = confirmDelete;
+                  setConfirmDelete(undefined);
+                  void deleteRules(rules);
+                }}
+              >
+                {t("tools:network_rules_confirm_delete_action")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
-      <AlertDialog open={confirmAllSites !== undefined} onOpenChange={(open) => !open && setConfirmAllSites(undefined)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("tools:network_rules_confirm_all_sites_title")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("tools:network_rules_confirm_all_sites_description")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setConfirmAllSites(undefined)}>
-              {t("tools:network_rules_cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                const pending = confirmAllSites;
-                setConfirmAllSites(undefined);
-                pending?.run();
-              }}
-            >
-              {t("tools:network_rules_confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {confirmAllSites && (
+        <AlertDialog open onOpenChange={(open) => !open && setConfirmAllSites(undefined)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("tools:network_rules_confirm_all_sites_title")}</AlertDialogTitle>
+              <AlertDialogDescription>{t("tools:network_rules_confirm_all_sites_description")}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmAllSites(undefined)}>
+                {t("tools:network_rules_cancel")}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  const pending = confirmAllSites;
+                  setConfirmAllSites(undefined);
+                  pending.run();
+                }}
+              >
+                {t("tools:network_rules_confirm")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }

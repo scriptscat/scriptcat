@@ -13,11 +13,11 @@ import {
   getUndefinedMetadataTagMatches,
   isMetadataAlignmentBlockAligned,
   metadataHoverPattern,
-  resolveMetadataTagBase,
   type MetadataAlignmentBlock,
   type MetadataAlignmentLine,
   type MetadataBlockRange,
 } from "./metadata";
+import { resolveMetadataTagBase, SUPPORTED_METADATA_TAGS } from "@App/pkg/utils/script_compat";
 
 interface ILinterWorker extends Worker {
   myLinterHook: EventEmitter<string, any>;
@@ -59,14 +59,12 @@ const configuredLanguagePromise = systemConfig.getLanguage();
 let currentEditorLang: EditorLangEntry;
 type EditorLangEntryPrompt = typeof currentEditorLang.prompt;
 let promptByMetadataTag: EditorLangEntryPrompt;
-let knownMetadataTagSet: ReadonlySet<string>;
 
 const loadEditorLangEntry = (languageCode: EditorLangCode) => {
   currentEditorLang = asEditorLangEntry(languageCode);
   promptByMetadataTag = Object.fromEntries(
     Object.entries(currentEditorLang.prompt).map(([metadataTag, prompt]) => [metadataTag.toLowerCase(), prompt])
   ) as typeof currentEditorLang.prompt;
-  knownMetadataTagSet = new Set(Object.keys(promptByMetadataTag));
 };
 
 loadEditorLangEntry("en-US");
@@ -660,7 +658,7 @@ const getUndefinedMetadataTagMarkers = (
   model: editor.ITextModel,
   blocks: MetadataAlignmentBlock[]
 ): editor.IMarkerData[] =>
-  getUndefinedMetadataTagMatches(model, blocks, knownMetadataTagSet).map((match) => ({
+  getUndefinedMetadataTagMatches(model, blocks, SUPPORTED_METADATA_TAGS).map((match) => ({
     severity: MarkerSeverity.Warning,
     message: currentEditorLang.undefinedPrompt,
     source: scriptcatMarkerOwner,

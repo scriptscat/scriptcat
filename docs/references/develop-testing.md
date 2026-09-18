@@ -21,6 +21,13 @@ Before modifying a test, shared test helper, or runner configuration, classify t
 One passing run is evidence for that run only. Do not treat a timeout increase, retry, deleted assertion, or arbitrary
 sleep as a root-cause repair.
 
+For a timing cleanup, first classify the cost as contract-required elapsed time, async query polling, fixture/render
+work, or worker contention. Preserve `findBy*` when the element's appearance is the boundary; replace it with one
+`act` plus a direct assertion only when the test owns the already-resolved Promise or completion signal. For a
+production timer, use fake timers to advance the real configured duration and keep the state-transition assertions;
+do not shorten the production delay, replace the assertion with a weaker signal, or raise the test timeout to make the
+report green.
+
 ### Observation rules for asynchronous tests
 
 The test must observe completion of the contract under test. A request being called proves that work started; it does
@@ -38,9 +45,12 @@ matches the boundary:
   local ESLint disable comment stating that contract. A fixed delay used merely to make a test pass is a defect.
 
 The mechanical guards `scriptcat/no-test-waitfor-interaction`, `scriptcat/no-test-waitfor-query`, and
-`scriptcat/no-test-fixed-sleep` cover reliably recognizable forms in committed page tests and E2E specs. They do not
-prove mock fidelity, the sufficiency of a negative observation window, or that coverage was not weakened; those remain
-semantic review duties. Do not disable a whole directory to silence them.
+`scriptcat/no-test-fixed-sleep` cover reliably recognizable forms in committed page tests and E2E specs.
+`scriptcat/no-test-large-boundary-fixture` marks explicit `PAGE_SIZE + 1`/`PAGE_ROWS + 1`-style `Array.from({ length:
+... })` fixtures in page tests so their boundary is explicit. These guards do not prove mock fidelity, the sufficiency
+of a negative observation window, that a fixture is cheap, or that coverage was not weakened; those remain semantic
+review duties. The boundary guard intentionally does not inspect helper-generated arrays, other constructors, render
+order, or actual elapsed time. Do not disable a whole directory to silence them.
 
 The interaction and query guards follow actual Testing Library import bindings, including local aliases, and respect
 lexical shadowing; a same-named ordinary function or object is outside their contract. The sleep guard covers
@@ -165,6 +175,11 @@ deterministic while preserving the production path under test.
 - Fixtures should be small enough that the meaningful difference is visible. Builders are useful when defaults
   are stable and scenarios override only relevant fields; avoid builders that hide the input responsible for a
   regression.
+- For a paginated or filtered UI, use the smallest fixture that crosses the required page boundary. If the behavior
+  starts with a filter, do not resolve an oversized initial state just to reach the filter control; gate the state at
+  the test boundary, trigger the filter, and assert both that irrelevant rows were not eagerly rendered and that the
+  matching result appears. The `scriptcat/no-test-large-boundary-fixture` lint rule requires a line-level rationale
+  for explicit one-page-plus synthetic arrays; the rationale does not replace the behavioral assertions.
 
 ## When TDD doesn't apply
 
