@@ -156,7 +156,9 @@ const API_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {
 };
 
 export const getPageRpcAllowedAPIs = (grants: readonly string[]): string[] => {
-  if (grants.some((grant) => grant === "none")) return [];
+  for (let index = 0; index < grants.length; index += 1) {
+    if (grants[index] === "none") return [];
+  }
   const allowed = new Native.Set<string>();
   const visited = new Native.Set<string>();
   const visitGrant = (grant: string): void => {
@@ -168,7 +170,7 @@ export const getPageRpcAllowedAPIs = (grants: readonly string[]): string[] => {
       for (const dependency of API_DEPENDENCIES[candidate] || []) visitGrant(dependency);
     }
   };
-  for (const grant of grants) visitGrant(grant);
+  for (let index = 0; index < grants.length; index += 1) visitGrant(grants[index]);
   const result: string[] = [];
   allowed.forEach((value) => result.push(value));
   return result;

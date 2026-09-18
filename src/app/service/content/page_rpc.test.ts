@@ -55,6 +55,19 @@ describe("page GM RPC", () => {
     expect(getPageRpcAllowedAPIs(["none", "GM_getValue", "CAT.agent.dom"])).toEqual([]);
   });
 
+  it("honors a none grant when Array.prototype.some is hooked", () => {
+    const originalSome = Array.prototype.some;
+    Array.prototype.some = (() => false) as typeof Array.prototype.some;
+    let allowed: string[];
+    try {
+      allowed = getPageRpcAllowedAPIs(["none", "GM_getValue"]);
+    } finally {
+      Array.prototype.some = originalSome;
+    }
+
+    expect(allowed!).toEqual([]);
+  });
+
   it("allows the internal request name used by the GM.xmlHttpRequest wrapper", () => {
     const allowed = getPageRpcAllowedAPIs(["GM.xmlHttpRequest"]);
 
