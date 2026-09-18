@@ -9,6 +9,7 @@ import GMApi, {
 } from "./gm_api";
 import { PermissionVerifyApiGet, type ConfirmParam } from "../permission_verify";
 import type { GMApiRequest } from "../types";
+import GMAgentApi from "./gm_agent";
 // 触发所有 GM API 装饰器注册（与 gm_api.ts 中的 import 保持同步）
 import "./gm_api";
 
@@ -121,6 +122,54 @@ describe.concurrent("GM API 注册完整性", () => {
     for (const name of agentApis) {
       expect(PermissionVerifyApiGet(name), `${name} 应已注册`).toBeDefined();
     }
+  });
+});
+
+describe("CAT.agent.conversation identity binding", () => {
+  it("overrides a forged payload owner with the authenticated script", async () => {
+    const handleConversationApi = vi.fn().mockResolvedValue(null);
+    const api = { agentService: { handleConversationApi } } as unknown as GMApi;
+    const request = {
+      params: [{ action: "get", id: "conv-1", scriptUuid: "forged" }],
+      script: { uuid: "script-authenticated" },
+    } as unknown as GMApiRequest;
+
+    await GMAgentApi.prototype.CAT_agentConversation.call(api, request, makeSender());
+
+    expect(handleConversationApi).toHaveBeenCalledWith({
+      action: "get",
+      id: "conv-1",
+      scriptUuid: "script-authenticated",
+    });
+  });
+
+  it("binds streaming chat and background attach to the authenticated script", async () => {
+    const handleConversationChatFromGmApi = vi.fn().mockResolvedValue(undefined);
+    const handleAttachToConversationFromGmApi = vi.fn().mockResolvedValue(undefined);
+    const api = {
+      agentService: { handleConversationChatFromGmApi, handleAttachToConversationFromGmApi },
+    } as unknown as GMApi;
+    const chatRequest = {
+      params: [{ conversationId: "conv-1", message: "hi", scriptUuid: "forged" }],
+      script: { uuid: "script-authenticated" },
+    } as unknown as GMApiRequest;
+    const attachRequest = {
+      params: [{ conversationId: "conv-1", generation: "gen-1", scriptUuid: "forged" }],
+      script: { uuid: "script-authenticated" },
+    } as unknown as GMApiRequest;
+    const sender = makeSender();
+
+    await GMAgentApi.prototype.CAT_agentConversationChat.call(api, chatRequest, sender);
+    await GMAgentApi.prototype.CAT_agentAttachToConversation.call(api, attachRequest, sender);
+
+    expect(handleConversationChatFromGmApi).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: "conv-1", scriptUuid: "script-authenticated" }),
+      sender
+    );
+    expect(handleAttachToConversationFromGmApi).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: "conv-1", scriptUuid: "script-authenticated" }),
+      sender
+    );
   });
 });
 

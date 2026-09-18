@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createTestService, makeSkillRecord, makeSkillScriptRecord, makeTextResponse } from "./test-helpers";
+import {
+  createMockSender,
+  createTestService,
+  makeSkillRecord,
+  makeSkillScriptRecord,
+  makeTextResponse,
+} from "./test-helpers";
 
 // ---- handleConversationChat skipSaveUserMessage（重新生成 bug 修复验证）----
 
@@ -206,6 +212,83 @@ describe("handleConversationChat skipSaveUserMessage", () => {
   });
 });
 
+describe("CAT.agent.conversation owner isolation", () => {
+  it("creates a persisted conversation bound to the requesting script", async () => {
+    const { service, mockRepo } = createTestService();
+
+    await (service as any).handleConversationApi({
+      action: "create",
+      options: { model: "test-openai" },
+      scriptUuid: "script-a",
+    });
+
+    expect(mockRepo.createConversation).toHaveBeenCalledWith(expect.objectContaining({ ownerScriptUuid: "script-a" }));
+  });
+
+  it("does not expose an owned or legacy conversation to another script", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([
+      { id: "owned", title: "Owned", modelId: "test-openai", ownerScriptUuid: "script-a" },
+      { id: "legacy", title: "Legacy", modelId: "test-openai" },
+    ]);
+
+    await expect(
+      (service as any).handleConversationApi({ action: "get", id: "owned", scriptUuid: "script-b" })
+    ).resolves.toBeNull();
+    await expect(
+      (service as any).handleConversationApi({ action: "get", id: "legacy", scriptUuid: "script-a" })
+    ).resolves.toBeNull();
+    await expect(
+      (service as any).handleConversationApi({ action: "get", id: "owned", scriptUuid: "script-a" })
+    ).resolves.toMatchObject({ id: "owned" });
+  });
+
+  it("rejects every script mutation before it reaches message or conversation storage", async () => {
+    const { service, mockRepo } = createTestService();
+    mockRepo.listConversations.mockResolvedValue([
+      { id: "owned", title: "Owned", modelId: "test-openai", ownerScriptUuid: "script-a" },
+    ]);
+    const requests = [
+      { action: "getMessages", conversationId: "owned" },
+      { action: "save", conversationId: "owned" },
+      { action: "clearMessages", conversationId: "owned" },
+      { action: "deleteMessages", conversationId: "owned", messageIds: [] },
+      { action: "delete", conversationId: "owned", generation: "gen" },
+    ];
+
+    for (const request of requests) {
+      await expect((service as any).handleConversationApi({ ...request, scriptUuid: "script-b" })).rejects.toThrow(
+        "Conversation not found"
+      );
+    }
+
+    expect(mockRepo.getMessageSnapshot).not.toHaveBeenCalled();
+    expect(mockRepo.saveMessages).not.toHaveBeenCalled();
+    expect(mockRepo.deleteConversation).not.toHaveBeenCalled();
+  });
+
+  it("rejects a foreign script's chat before loading history or calling the model", async () => {
+    const { service, mockRepo } = createTestService();
+    const { sender, sentMessages } = createMockSender();
+    mockRepo.listConversations.mockResolvedValue([
+      { id: "owned", title: "Owned", modelId: "test-openai", ownerScriptUuid: "script-a" },
+    ]);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    await (service as any).handleConversationChat(
+      { conversationId: "owned", message: "secret", scriptUuid: "script-b" },
+      sender
+    );
+
+    expect(sentMessages.map((message) => message.data)).toContainEqual(
+      expect.objectContaining({ type: "error", message: "Conversation not found" })
+    );
+    expect(mockRepo.getMessages).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+});
+
 describe("userscript 会话工具隔离", () => {
   it("携带 scriptUuid 时不注册无法交互的 ask_user 工具", async () => {
     const { service } = createTestService();
@@ -394,6 +477,7 @@ describe("handleConversationChat 场景补充", () => {
       id: "conv-1",
       title: "Test",
       modelId: "test-openai",
+      ownerScriptUuid: "script-1",
       generation: "gen-b",
       createtime: Date.now(),
       updatetime: Date.now(),

@@ -22,6 +22,8 @@ export type MessageContent = string | ContentBlock[];
 
 export type Conversation = {
   id: string;
+  /** ScriptCat API owner; absent on conversations created by the extension UI or older records. */
+  ownerScriptUuid?: string;
   /** Immutable identity for this incarnation of an ID. Filled when legacy records are loaded. */
   generation?: string;
   /** Optimistic-concurrency version. Filled when legacy records are loaded. */
@@ -735,5 +737,6 @@ export type ConversationApiRequest =
       generation?: string;
       messageIds: string[];
       preserveAttachmentIds?: string[];
+      scriptUuid?: string;
     }
-  | { action: "delete"; conversationId: string; generation: string; revision?: number };
+  | { action: "delete"; conversationId: string; generation: string; revision?: number; scriptUuid?: string };
