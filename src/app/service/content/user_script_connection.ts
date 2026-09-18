@@ -21,11 +21,17 @@ export async function connectUserScriptChannel(
   world: UserScriptWorld = "USER_SCRIPT"
 ): Promise<MessageConnect | undefined> {
   const enabled = await message.sendMessage<boolean>({ type: "userScripts.LISTEN_CONNECTIONS" } as unknown as TMessage);
-  if (enabled === false) return undefined;
-  const connection = await message.connect({
-    action: "serviceWorker/runtime/registerUserScript",
-    data: { world, bootstrapToken },
-  });
+  let connection: MessageConnect;
+  try {
+    // 缺少专用 USER_SCRIPT 监听器时仍使用扩展原生端口；服务端会用文档绑定的令牌限制该降级路径。
+    connection = await message.connect({
+      action: "serviceWorker/runtime/registerUserScript",
+      data: enabled === false ? { world, bootstrapToken, transport: "extension" } : { world, bootstrapToken },
+    });
+  } catch (error) {
+    if (enabled !== false) throw error;
+    return undefined;
+  }
   connection.onMessage((packet) => onPacket(connection, packet));
   if (onDisconnect) connection.onDisconnect(onDisconnect);
   connection.sendMessage({ action: "userScript/bootstrap" });

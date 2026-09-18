@@ -46,14 +46,33 @@ describe("connectUserScriptChannel", () => {
     });
   });
 
-  it("does not open a port when the browser cannot enable USER_SCRIPT listeners", async () => {
+  it("returns no channel when the browser cannot enable any runtime port", async () => {
     const message = {
       sendMessage: vi.fn().mockResolvedValue(false),
-      connect: vi.fn(),
+      connect: vi.fn().mockRejectedValue(new Error("runtime.connect is unavailable")),
     } as unknown as Message;
 
     await expect(connectUserScriptChannel(message, "bootstrap-token", vi.fn())).resolves.toBeUndefined();
-    expect(message.connect).not.toHaveBeenCalled();
+    expect(message.connect).toHaveBeenCalledWith({
+      action: "serviceWorker/runtime/registerUserScript",
+      data: { world: "USER_SCRIPT", bootstrapToken: "bootstrap-token", transport: "extension" },
+    });
+  });
+
+  it("uses a constrained extension-port fallback when dedicated listeners are unavailable", async () => {
+    const connection = makeConnection();
+    const message = {
+      sendMessage: vi.fn().mockResolvedValue(false),
+      connect: vi.fn().mockResolvedValue(connection),
+    } as unknown as Message;
+
+    await connectUserScriptChannel(message, "bootstrap-token", vi.fn());
+
+    expect(message.connect).toHaveBeenCalledWith({
+      action: "serviceWorker/runtime/registerUserScript",
+      data: { world: "USER_SCRIPT", bootstrapToken: "bootstrap-token", transport: "extension" },
+    });
+    expect(connection.sendMessage).toHaveBeenCalledWith({ action: "userScript/bootstrap" });
   });
 
   it("reports remote disconnects so the caller can reconnect natively", async () => {

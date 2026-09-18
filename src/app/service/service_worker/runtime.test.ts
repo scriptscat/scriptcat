@@ -1563,8 +1563,19 @@ describe("USER_SCRIPT native callbacks", () => {
         { ...connectionSender, getConnectOrigin: () => "extension" as const }
       )
     ).toBe(false);
+    expect(
+      runtime.registerUserScriptConnection(
+        { world: "USER_SCRIPT", bootstrapToken, transport: "extension" },
+        connectionSender
+      )
+    ).toBe(false);
+    expect(
+      runtime.registerUserScriptConnection(
+        { world: "USER_SCRIPT", bootstrapToken, transport: "extension" },
+        { ...connectionSender, getConnectOrigin: () => "extension" as const }
+      )
+    ).toBe(true);
     expect(runtime.registerUserScriptConnection({ world: "USER_SCRIPT" }, connectionSender)).toBe(false);
-    expect(runtime.registerUserScriptConnection({ world: "USER_SCRIPT", bootstrapToken }, connectionSender)).toBe(true);
     const bootstrapHandler = onMessage.mock.calls[0]?.[0] as ((packet: TMessage) => void) | undefined;
     bootstrapHandler?.({ action: "userScript/bootstrap" });
     expect(sendMessage).toHaveBeenCalledWith(
@@ -1597,7 +1608,7 @@ describe("USER_SCRIPT native callbacks", () => {
         getSender: () => rawSender,
         getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-a" }),
         getConnect: () => undefined,
-        getConnectOrigin: () => "userScript" as const,
+        getConnectOrigin: () => "extension" as const,
       }
     );
     expect(reconnect).toEqual({ bootstrapToken: expect.any(String) });

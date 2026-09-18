@@ -86,7 +86,7 @@ Each context is a separate bundle (see [Build pipeline & manifest](./references/
 | Context | Entry | Realm / capabilities | Bootstraps |
 |---|---|---|---|
 | **Service Worker** | [`src/service_worker.ts`](../src/service_worker.ts) | No DOM. Owns `chrome.*` privileged APIs, storage, permissions, routing. | `ExtensionMessage(true)` → `Server("serviceWorker")` + `MessageQueue` → `ServiceWorkerManager` |
-| **Content** | [`src/content.ts`](../src/content.ts) | `USER_SCRIPT` world. Uses a native extension channel for bootstrap, GM RPC, value updates, and callbacks; retains a narrow DOM channel for synchronous node helpers. | `ExtensionMessage` + native callback port → `Server("content")` → `ScriptRuntime`; `CustomEventMessage` only for DOM handles |
+| **Content** | [`src/content.ts`](../src/content.ts) | `USER_SCRIPT` world. Uses a native extension channel for bootstrap, GM RPC, value updates, and callbacks; dedicated USER_SCRIPT listeners are preferred, with a token-bound regular port fallback when they cannot be registered. Retains a narrow DOM channel for synchronous node helpers. | `ExtensionMessage` + native callback port → `Server("content")` → `ScriptRuntime`; `CustomEventMessage` only for DOM handles |
 | **Inject** | [`src/inject.ts`](../src/inject.ts) | Page (`MAIN`) world. Has `unsafeWindow`; runs page userscripts. | `CustomEventMessage` to content + `Server("inject")` |
 | **Offscreen** | [`src/offscreen.ts`](../src/offscreen.ts) | DOM-capable background page (Blobs, clipboard, DOM scraping, local storage). | `ExtensionMessage()` + `WindowMessage(window, sandbox)` → `OffscreenManager` |
 | **Sandbox** | [`src/sandbox.ts`](../src/sandbox.ts) | `sandbox`ed iframe inside offscreen. Evaluates background/scheduled scripts; runs cron. | `WindowMessage(window, parent)` + `Server("sandbox")` → `SandboxManager` |
@@ -167,7 +167,7 @@ communication styles** over **several transports**.
 
 | Class | File | Connects | Underlying API |
 |---|---|---|---|
-| `ExtensionMessage` | [`extension_message.ts`](../packages/message/extension_message.ts) | SW ↔ Content / Inject / Offscreen | `chrome.runtime.sendMessage` / `onConnect` (+ `onUserScript*` on Firefox) |
+| `ExtensionMessage` | [`extension_message.ts`](../packages/message/extension_message.ts) | SW ↔ Content / Inject / Offscreen | `chrome.runtime.sendMessage` / `onConnect` (+ `onUserScript*` on Firefox; token-bound regular-port fallback when dedicated listeners are unavailable) |
 | `CustomEventMessage` | [`custom_event_message.ts`](../packages/message/custom_event_message.ts) | Content ↔ Inject | DOM `CustomEvent` dispatch (bypasses page tampering) |
 | `WindowMessage` | [`window_message.ts`](../packages/message/window_message.ts) | Offscreen ↔ Sandbox | `window.postMessage` |
 | `ServiceWorkerMessageSend` | [`window_message.ts`](../packages/message/window_message.ts) | SW → Offscreen (Chrome) | `clients.matchAll()` + `postMessage` |

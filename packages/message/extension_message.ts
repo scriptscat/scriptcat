@@ -21,6 +21,9 @@ const nativeRuntimeSendMessage =
 export const hasNativeRuntimeChannel = nativeRuntimeConnect !== undefined && nativeRuntimeSendMessage !== undefined;
 
 export class ExtensionMessage implements Message {
+  private userScriptConnectionListenerReady = false;
+  private userScriptMessageListenerReady = false;
+
   constructor(private backgroundPrimary = false) {}
 
   connect(data: TMessage): Promise<MessageConnect> {
@@ -100,14 +103,17 @@ export class ExtensionMessage implements Message {
             myPort.onMessage.addListener(handler);
           });
           addUserScriptConnectionListener = null;
+          this.userScriptConnectionListenerReady = true;
         } catch {
-          // do nothing
+          this.userScriptConnectionListenerReady = false;
         }
       };
       // Firefox 需要先得到 userScripts 权限才能进行 onUserScriptConnect 的监听
       this.tryEnableUserScriptConnectionListener = () => {
         if (typeof chrome.runtime.onUserScriptConnect?.addListener === "function") {
           addUserScriptConnectionListener && addUserScriptConnectionListener();
+        } else {
+          this.userScriptConnectionListenerReady = false;
         }
       };
       // Chrome 在初始化时就能监听
@@ -139,7 +145,7 @@ export class ExtensionMessage implements Message {
           ) {
             this.tryEnableUserScriptConnectionListener();
             this.tryEnableUserScriptMessageListener();
-            sendResponse(true);
+            sendResponse(this.userScriptConnectionListenerReady && this.userScriptMessageListenerReady);
           } else {
             sendResponse(false);
           }
@@ -164,21 +170,24 @@ export class ExtensionMessage implements Message {
             if ((msg as any)?.type === "userScripts.LISTEN_CONNECTIONS" && this.backgroundPrimary) {
               this.tryEnableUserScriptConnectionListener();
               this.tryEnableUserScriptMessageListener();
-              sendResponse(true);
+              sendResponse(this.userScriptConnectionListenerReady && this.userScriptMessageListenerReady);
               return false;
             }
             if (typeof msg.action !== "string") return;
             return callback(msg, sendResponse, sender, "userScript");
           });
           addUserScriptMessageListener = null;
+          this.userScriptMessageListenerReady = true;
         } catch {
-          // do nothing
+          this.userScriptMessageListenerReady = false;
         }
       };
       // Firefox 需要先得到 userScripts 权限才能进行 onUserScriptMessage 的监听
       this.tryEnableUserScriptMessageListener = () => {
         if (typeof chrome.runtime.onUserScriptMessage?.addListener === "function") {
           addUserScriptMessageListener && addUserScriptMessageListener();
+        } else {
+          this.userScriptMessageListenerReady = false;
         }
       };
       // Chrome 在初始化时就能监听

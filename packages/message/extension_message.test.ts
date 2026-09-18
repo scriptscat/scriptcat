@@ -2,6 +2,45 @@ import { describe, expect, it, vi } from "vitest";
 import { ExtensionContentMessageSend, ExtensionMessage, ExtensionMessageConnect } from "./extension_message";
 
 describe("ExtensionMessage USER_SCRIPT compatibility", () => {
+  it("reports a failed dedicated listener registration so USER_SCRIPT can use the regular-port fallback", () => {
+    const runtime = chrome.runtime as unknown as {
+      onUserScriptConnect?: { addListener: (callback: (...args: any[]) => void) => void };
+      onUserScriptMessage?: { addListener: (callback: (...args: any[]) => void) => void };
+      messageListener?: Array<(message: any, sender: any, sendResponse: (response: any) => void) => void>;
+      connectListener?: Array<(port: chrome.runtime.Port) => void>;
+    };
+    const originalConnect = runtime.onUserScriptConnect;
+    const originalMessage = runtime.onUserScriptMessage;
+    const initialMessageListenerCount = runtime.messageListener?.length ?? 0;
+    const initialConnectListenerCount = runtime.connectListener?.length ?? 0;
+    try {
+      runtime.onUserScriptConnect = {
+        addListener: () => {
+          throw new Error("userScripts permission unavailable");
+        },
+      };
+      runtime.onUserScriptMessage = {
+        addListener: () => {
+          throw new Error("userScripts permission unavailable");
+        },
+      };
+      const message = new ExtensionMessage(true);
+      message.onConnect(() => undefined);
+      message.onMessage(() => undefined);
+
+      const response = vi.fn();
+      const listeners = runtime.messageListener ?? [];
+      listeners.at(-1)?.({ type: "userScripts.LISTEN_CONNECTIONS" }, {}, response);
+
+      expect(response).toHaveBeenCalledWith(false);
+    } finally {
+      if (runtime.messageListener) runtime.messageListener.length = initialMessageListenerCount;
+      if (runtime.connectListener) runtime.connectListener.length = initialConnectListenerCount;
+      runtime.onUserScriptConnect = originalConnect;
+      runtime.onUserScriptMessage = originalMessage;
+    }
+  });
+
   it("does not require unavailable runtime event listeners", () => {
     const runtime = chrome.runtime as unknown as {
       onConnect?: typeof chrome.runtime.onConnect;

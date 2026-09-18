@@ -141,7 +141,9 @@ type UserScriptSession = {
   tabId: number;
   frameId?: number;
   documentId?: string;
+  transport: "userScript" | "extension";
 };
+type UserScriptBootstrap = Omit<UserScriptSession, "transport">;
 
 const bgScriptStorageNames = new Set<string>();
 
@@ -168,7 +170,7 @@ export class RuntimeService {
       documentId?: string;
     }
   >();
-  private readonly userScriptBootstraps = new Map<string, UserScriptSession>();
+  private readonly userScriptBootstraps = new Map<string, UserScriptBootstrap>();
   // 连接断开后保留当前文档的已验证资料，供 USER_SCRIPT 通过原生消息重连；导航或脚本撤销会同步清除。
   private readonly userScriptSessions = new Map<string, UserScriptSession>();
   // Only the newest load for a tab/frame/environment may issue bindings; navigation can resolve old requests late.
@@ -252,14 +254,17 @@ export class RuntimeService {
     return `${tabId}:${frameId ?? -1}:${documentId ?? ""}:${envTag}`;
   }
 
-  /** Register the native USER_SCRIPT channel used for private bootstrap and callbacks. */
+  /** Register the native USER_SCRIPT channel used for private bootstrap and callbacks; fallback ports remain token-bound. */
   registerUserScriptConnection(data: unknown, sender: IGetSender): boolean {
     // bootstrap token 只允许对应 tab/frame/document 使用一次；documentId 缺失时以 URL 作为文档身份，并且必须覆盖本次下发的全部句柄。
-    if (!sender.isType(GetSenderType.EXTCONNECT) || sender.getConnectOrigin?.() !== "userScript") return false;
+    if (!sender.isType(GetSenderType.EXTCONNECT)) return false;
     if (data === null || typeof data !== "object") return false;
-    const handshake = data as { world?: unknown; bootstrapToken?: unknown };
+    const handshake = data as { world?: unknown; bootstrapToken?: unknown; transport?: unknown };
+    const origin = sender.getConnectOrigin?.();
+    const isExtensionFallback = origin === "extension" && handshake.transport === "extension";
+    if (origin === "userScript" ? handshake.transport !== undefined : !isExtensionFallback) return false;
     if (
-      Object.keys(data).length !== 2 ||
+      Object.keys(data).length !== (isExtensionFallback ? 3 : 2) ||
       typeof handshake.bootstrapToken !== "string" ||
       handshake.bootstrapToken.length === 0 ||
       handshake.bootstrapToken.length > 256
@@ -304,7 +309,8 @@ export class RuntimeService {
     const frameId = source.frameId;
     const documentId = source.documentId;
     const key = this.userScriptConnectionKey(tabId, frameId, documentId, bootstrap.envTag);
-    this.userScriptSessions.set(key, bootstrap);
+    const session = { ...bootstrap, transport: isExtensionFallback ? ("extension" as const) : ("userScript" as const) };
+    this.userScriptSessions.set(key, session);
     this.userScriptBootstraps.delete(handshake.bootstrapToken);
     const previous = this.userScriptConnections.get(key);
     if (previous) previous.connection.disconnect(true);
@@ -344,7 +350,7 @@ export class RuntimeService {
   }
 
   reconnectUserScript(data: unknown, sender: IGetSender): { bootstrapToken: string } | undefined {
-    if (!sender.isType(GetSenderType.RUNTIME) || sender.getConnectOrigin?.() !== "userScript") {
+    if (!sender.isType(GetSenderType.RUNTIME)) {
       return undefined;
     }
     if (
@@ -377,6 +383,7 @@ export class RuntimeService {
       }
     }
     if (!key || !session) return undefined;
+    if (sender.getConnectOrigin?.() !== session.transport) return undefined;
     for (const script of session.scripts) {
       const handle = script.executionHandle;
       const binding = typeof handle === "string" ? this.pageExecutionBindings.get(handle) : undefined;
