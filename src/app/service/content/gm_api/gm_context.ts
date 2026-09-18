@@ -7,6 +7,12 @@ export function GMContextApiGet(name: string): ApiValue[] | undefined {
   return apis.get(name);
 }
 
+// 已注册的全部 @grant 名。注册表由装饰器在模块载入时填充，无法静态推导，
+// 供 script_compat.ts 的静态支持表做一致性守卫（新增 GM API 若漏进表会被测出来）。
+export function GMContextApiNames(): string[] {
+  return [...apis.keys()];
+}
+
 function GMContextApiSet(grant: string, fnKey: string, api: any, param: ApiParam): void {
   // 一个 @grant 可以扩充多个 API 函数
   let m: ApiValue[] | undefined = apis.get(grant);

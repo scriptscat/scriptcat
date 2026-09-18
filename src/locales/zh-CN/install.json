@@ -43,6 +43,7 @@
   "code_copy": "复制代码",
   "code_collapse": "折叠",
   "code_expand": "展开",
+  "code_fullscreen": "全屏查看代码",
   "loading_title": "正在加载脚本",
   "loading_desc": "正在从来源下载并解析脚本内容",
   "loading_title_update": "正在准备更新详情",
@@ -254,5 +255,15 @@
   "expired_title": "更新内容已过期",
   "expired_desc": "这次更新准备好的代码已被清理，需要重新检查一次更新。",
   "expired_recheck": "重新检查更新",
-  "code_loading": "正在加载代码"
+  "code_loading": "正在加载代码",
+  "compat_ineffective": "不生效",
+  "compat_tag_desc": "脚本猫不支持该声明，安装后会被忽略。",
+  "compat_value_desc": "脚本猫不支持这个取值，该声明不会按写法生效。",
+  "compat_grant_desc": "脚本猫未实现该 API，脚本调用时会报错，依赖它的功能不可用。",
+  "compat_jump": "跳到第 {{line}} 行",
+  "compat_docs": "描述文档",
+  "compat_count": "{{count}} 项不生效",
+  "compat_scriptcat_only": "仅限脚本猫",
+  "perm_other_label": "其他声明",
+  "perm_other_summary": "兼容性与其他脚本管理器不同"
 }

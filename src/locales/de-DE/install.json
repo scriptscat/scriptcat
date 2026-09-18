@@ -43,6 +43,7 @@
   "code_copy": "Code kopieren",
   "code_collapse": "Einklappen",
   "code_expand": "Ausklappen",
+  "code_fullscreen": "Code im Vollbild anzeigen",
   "loading_title": "Skript wird geladen",
   "loading_desc": "Skriptinhalt wird von der Quelle heruntergeladen und ausgewertet",
   "loading_title_update": "Update-Details werden vorbereitet",
@@ -254,5 +255,15 @@
   "expired_title": "Update-Inhalt ist abgelaufen",
   "expired_desc": "Der für dieses Update vorbereitete Code wurde bereinigt. Bitte erneut nach Updates suchen.",
   "expired_recheck": "Erneut nach Updates suchen",
-  "code_loading": "Code wird geladen"
+  "code_loading": "Code wird geladen",
+  "compat_ineffective": "ohne Wirkung",
+  "compat_tag_desc": "ScriptCat unterstützt diese Deklaration nicht; sie wird nach der Installation ignoriert.",
+  "compat_value_desc": "ScriptCat unterstützt diesen Wert nicht; die Deklaration wirkt nicht wie angegeben.",
+  "compat_grant_desc": "ScriptCat implementiert diese API nicht; Aufrufe schlagen fehl und darauf aufbauende Funktionen arbeiten nicht.",
+  "compat_jump": "Zu Zeile {{line}} springen",
+  "compat_docs": "Metadaten-Dokumentation",
+  "compat_count": "{{count}} ohne Wirkung",
+  "compat_scriptcat_only": "nur ScriptCat",
+  "perm_other_label": "Weitere Deklarationen",
+  "perm_other_summary": "Verhält sich anders als in anderen Skriptmanagern"
 }

@@ -43,6 +43,7 @@
   "code_copy": "코드 복사",
   "code_collapse": "접기",
   "code_expand": "펼치기",
+  "code_fullscreen": "코드를 전체 화면으로 보기",
   "loading_title": "스크립트 불러오는 중",
   "loading_desc": "소스에서 스크립트 내용을 다운로드하고 분석하고 있습니다",
   "loading_title_update": "업데이트 세부 정보를 준비하는 중",
@@ -254,5 +255,15 @@
   "expired_title": "업데이트 내용이 만료되었습니다",
   "expired_desc": "이번 업데이트를 위해 준비한 코드가 정리되었습니다. 업데이트를 다시 확인해 주세요.",
   "expired_recheck": "업데이트 다시 확인",
-  "code_loading": "코드를 불러오는 중"
+  "code_loading": "코드를 불러오는 중",
+  "compat_ineffective": "적용되지 않음",
+  "compat_tag_desc": "ScriptCat은 이 선언을 지원하지 않으므로 설치 후 무시됩니다.",
+  "compat_value_desc": "ScriptCat은 이 값을 지원하지 않으므로 선언이 작성한 대로 적용되지 않습니다.",
+  "compat_grant_desc": "ScriptCat은 이 API를 구현하지 않았습니다. 스크립트에서 호출하면 오류가 발생하고 이에 의존하는 기능은 동작하지 않습니다.",
+  "compat_jump": "{{line}}번째 줄로 이동",
+  "compat_docs": "메타데이터 문서",
+  "compat_count": "적용되지 않는 항목 {{count}}개",
+  "compat_scriptcat_only": "ScriptCat 전용",
+  "perm_other_label": "기타 선언",
+  "perm_other_summary": "다른 스크립트 관리자와 호환성이 다릅니다"
 }
