@@ -137,6 +137,7 @@ type UserScriptSession = {
   extensionOrigin?: ExtensionOrigin;
   reconnectToken: string;
   envTag: "it" | "ct";
+  url: string;
   tabId: number;
   frameId?: number;
   documentId?: string;
@@ -256,7 +257,7 @@ export class RuntimeService {
 
   /** Register the native USER_SCRIPT channel used for private bootstrap and callbacks. */
   registerUserScriptConnection(data: unknown, sender: IGetSender): boolean {
-    // bootstrap token 只允许对应 tab/frame/document 使用一次，并且必须覆盖本次下发的全部句柄。
+    // bootstrap token 只允许对应 tab/frame/document 使用一次；documentId 缺失时以 URL 作为文档身份，并且必须覆盖本次下发的全部句柄。
     if (!sender.isType(GetSenderType.EXTCONNECT) || sender.getConnectOrigin?.() !== "userScript") return false;
     if (data === null || typeof data !== "object") return false;
     const handshake = data as { world?: unknown; bootstrapToken?: unknown };
@@ -277,7 +278,9 @@ export class RuntimeService {
       !bootstrap ||
       bootstrap.tabId !== tabId ||
       bootstrap.frameId !== source.frameId ||
-      bootstrap.documentId !== source.documentId
+      bootstrap.documentId !== source.documentId ||
+      (bootstrap.documentId === undefined &&
+        (typeof source.url !== "string" || source.url.length === 0 || bootstrap.url !== source.url))
     ) {
       return false;
     }
@@ -367,6 +370,8 @@ export class RuntimeService {
         candidateSession.tabId === tabId &&
         candidateSession.frameId === source.frameId &&
         candidateSession.documentId === source.documentId &&
+        (candidateSession.documentId !== undefined ||
+          (typeof source.url === "string" && source.url.length > 0 && candidateSession.url === source.url)) &&
         candidateSession.reconnectToken === (data as { reconnectToken: string }).reconnectToken
       ) {
         key = candidateKey;
@@ -1712,6 +1717,7 @@ export class RuntimeService {
             extensionOrigin: getExtensionOrigin(),
             reconnectToken: token,
             envTag,
+            url,
             tabId,
             frameId,
             documentId: chromeSender.documentId,

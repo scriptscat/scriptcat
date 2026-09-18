@@ -1348,6 +1348,59 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
 });
 
 describe("USER_SCRIPT native callbacks", () => {
+  it("rejects bootstrap and reconnect tokens from a different URL when documentId is missing", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({ uuid: "url-bound-user-script", metadata: { match: ["https://www.example.com/*"] } })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [script],
+      contentScriptList: [],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+
+    const originalSender = {
+      url: "https://www.example.com/page",
+      frameId: 0,
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender;
+    const connection = {
+      onMessage: vi.fn(),
+      sendMessage: vi.fn(),
+      disconnect: vi.fn(),
+      onDisconnect: vi.fn(),
+    } as unknown as MessageConnect;
+    const bootstrapSender = {
+      getType: () => 3,
+      isType: (type: number) => type === 3,
+      getSender: () => originalSender,
+      getExtMessageSender: () => ({ tabId: 41, frameId: 0 }),
+      getConnect: () => connection,
+      getConnectOrigin: () => "userScript" as const,
+    };
+    const pageLoad = await runtime.pageLoad({ envTag: "it" }, new SenderRuntime(originalSender));
+    const bootstrapToken = pageLoad.ok ? pageLoad.userScriptInjectBootstrapToken : undefined;
+    expect(bootstrapToken).toEqual(expect.any(String));
+
+    const navigatedSender = {
+      ...bootstrapSender,
+      getSender: () => ({ ...originalSender, url: "https://www.example.com/next" }),
+    };
+    expect(runtime.registerUserScriptConnection({ world: "MAIN", bootstrapToken }, navigatedSender)).toBe(false);
+    expect(
+      runtime.reconnectUserScript(
+        { reconnectToken: bootstrapToken },
+        {
+          ...navigatedSender,
+          getType: () => 4,
+          isType: (type: number) => type === 4,
+          getConnect: () => undefined,
+        }
+      )
+    ).toBeUndefined();
+  });
+
   it("issues a separate MAIN bootstrap and routes its private callbacks over the native port", async () => {
     const { runtime } = _createRuntimeContext();
     const script = _createScriptRunResource(
