@@ -1223,12 +1223,43 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
     expect(secondRunFlag).toEqual(expect.any(String));
     expect(secondHandle).not.toBe(firstHandle);
     expect(secondRunFlag).not.toBe(firstRunFlag);
-    expect(runtime.resolvePageExecutionBinding(firstHandle!, sender)).toBeDefined();
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, sender)).toBeUndefined();
     expect(runtime.resolvePageExecutionBinding(secondHandle!, secondSender)).toBeDefined();
 
     runtime.revokePageBindingsForTab(41);
     expect(runtime.resolvePageExecutionBinding(firstHandle!, sender)).toBeUndefined();
     expect(runtime.resolvePageExecutionBinding(secondHandle!, secondSender)).toBeUndefined();
+  });
+
+  it("新文档加载时撤销上一文档的执行绑定", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(_createMockScript({ uuid: "navigation-bound-script" }));
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [script],
+      contentScriptList: [],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+    const firstRawSender = {
+      url: "https://www.example.com/first",
+      frameId: 0,
+      documentId: "doc-first",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender;
+    const firstSender = new SenderRuntime(firstRawSender);
+    const firstLoad = await runtime.pageLoad(undefined, firstSender);
+    expect(firstLoad.ok).toBe(true);
+    if (!firstLoad.ok) return;
+    const firstHandle = firstLoad.injectScriptList[0].executionHandle;
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, firstSender)).toBeDefined();
+
+    const secondRawSender = { ...firstRawSender, url: "https://www.example.com/second", documentId: "doc-second" };
+    const secondSender = new SenderRuntime(secondRawSender);
+    const secondLoad = await runtime.pageLoad(undefined, secondSender);
+    expect(secondLoad.ok).toBe(true);
+    if (!secondLoad.ok) return;
+
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, firstSender)).toBeUndefined();
   });
 
   it("rejects a stale URL when the browser omits documentId", async () => {

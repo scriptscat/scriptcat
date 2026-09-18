@@ -179,32 +179,29 @@ export class RuntimeService {
   }
 
   private revokePageBindings(sender: IGetSender, envTag?: "it" | "ct"): void {
-    // documentId 缺失时仍按 tab/frame 退休旧绑定，避免新页面继承上一文档的授权。
+    // pageLoad 是文档切换信号；按 tab/frame 退休旧句柄，避免旧文档继续使用上一页的权限。
     const source = sender.getSender();
     const tabId = source?.tab?.id;
     const frameId = source?.frameId;
-    const documentId = source?.documentId;
     for (const [handle, binding] of this.pageExecutionBindings) {
       if (
         binding.tabId === tabId &&
         binding.frameId === frameId &&
-        (envTag === undefined || binding.envTag === envTag || (envTag === "it" && binding.envTag === "ct")) &&
-        (documentId === undefined || binding.documentId === documentId)
+        (envTag === undefined || binding.envTag === envTag || (envTag === "it" && binding.envTag === "ct"))
       ) {
         this.pageExecutionBindings.delete(handle);
       }
     }
     if (envTag === "it") {
       for (const [key, entry] of this.userScriptConnections) {
-        if (
-          entry.tabId === tabId &&
-          entry.frameId === frameId &&
-          (documentId === undefined || entry.documentId === documentId)
-        ) {
+        if (entry.tabId === tabId && entry.frameId === frameId) {
           entry.connection.disconnect(true);
           this.userScriptConnections.delete(key);
           this.userScriptSessions.delete(key);
         }
+      }
+      for (const [key, session] of this.userScriptSessions) {
+        if (session.tabId === tabId && session.frameId === frameId) this.userScriptSessions.delete(key);
       }
     }
     if (envTag !== "ct") {
