@@ -166,8 +166,14 @@ export const getPageRpcAllowedAPIs = (grants: readonly string[]): string[] => {
       if (visited.has(candidate)) continue;
       visited.add(candidate);
       allowed.add(candidate);
-      for (const api of INTERNAL_APIS_BY_GRANT[candidate] || []) allowed.add(api);
-      for (const dependency of API_DEPENDENCIES[candidate] || []) visitGrant(dependency);
+      if (Native.objectHasOwn(INTERNAL_APIS_BY_GRANT, candidate)) {
+        const internalAPIs = INTERNAL_APIS_BY_GRANT[candidate];
+        for (let index = 0; index < internalAPIs.length; index += 1) allowed.add(internalAPIs[index]);
+      }
+      if (Native.objectHasOwn(API_DEPENDENCIES, candidate)) {
+        const dependencies = API_DEPENDENCIES[candidate];
+        for (let index = 0; index < dependencies.length; index += 1) visitGrant(dependencies[index]);
+      }
     }
   };
   for (let index = 0; index < grants.length; index += 1) visitGrant(grants[index]);

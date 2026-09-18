@@ -82,6 +82,10 @@ describe("page GM RPC", () => {
     expect(allowed!).not.toContain("GM_xmlhttpRequest");
   });
 
+  it("ignores inherited capability-map properties for unknown grant names", () => {
+    expect(getPageRpcAllowedAPIs(["constructor", "toString"])).toEqual(["constructor", "toString"]);
+  });
+
   it("allows the internal request name used by the GM.xmlHttpRequest wrapper", () => {
     const allowed = getPageRpcAllowedAPIs(["GM.xmlHttpRequest"]);
 
