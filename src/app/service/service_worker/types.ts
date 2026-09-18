@@ -60,6 +60,8 @@ export type ServiceWorkerExecutionBinding = {
   uuid: string;
   envTag: "it" | "ct";
   runFlag: string;
+  /** The URL observed when this execution binding was issued. */
+  url: string;
   tabId: number;
   frameId?: number;
   documentId?: string;

@@ -371,7 +371,10 @@ export class RuntimeService {
   ): ServiceWorkerExecutionBinding {
     const source = sender.getSender();
     const tabId = source?.tab?.id;
-    if (typeof tabId !== "number") throw new Error("page execution binding requires a tab");
+    const url = source?.url;
+    if (typeof tabId !== "number" || typeof url !== "string" || url.length === 0) {
+      throw new Error("page execution binding requires a tab and URL");
+    }
     // 每次 pageLoad 都签发新句柄和 runFlag；它们共同绑定当前文档的授权生命周期。
     const handle = uuidv4();
     const binding = {
@@ -379,6 +382,7 @@ export class RuntimeService {
       uuid,
       envTag,
       runFlag: uuidv4(),
+      url,
       tabId,
       frameId: source?.frameId,
       documentId: source?.documentId,
@@ -393,7 +397,13 @@ export class RuntimeService {
   resolvePageExecutionBinding(handle: string, sender: IGetSender): ServiceWorkerExecutionBinding | undefined {
     const binding = this.pageExecutionBindings.get(handle);
     const source = sender.getSender();
-    if (!binding || !source?.tab || source.tab.id !== binding.tabId || source.frameId !== binding.frameId)
+    if (
+      !binding ||
+      !source?.tab ||
+      source.tab.id !== binding.tabId ||
+      source.frameId !== binding.frameId ||
+      (binding.documentId === undefined && source.url !== binding.url)
+    )
       return undefined;
     if (binding.documentId !== undefined && source.documentId !== binding.documentId) return undefined;
     return binding;

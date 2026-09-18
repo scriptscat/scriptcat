@@ -1231,6 +1231,37 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
     expect(runtime.resolvePageExecutionBinding(secondHandle!, secondSender)).toBeUndefined();
   });
 
+  it("rejects a stale URL when the browser omits documentId", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({ uuid: "url-bound-script", metadata: { grant: ["GM_getTab"] } })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [script],
+      contentScriptList: [],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+    const initialSender = new SenderRuntime({
+      url: "https://www.example.com/page",
+      frameId: 0,
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+
+    const load = await runtime.pageLoad(undefined, initialSender);
+    expect(load.ok).toBe(true);
+    if (!load.ok) return;
+    const handle = load.injectScriptList[0].executionHandle;
+    expect(runtime.resolvePageExecutionBinding(handle!, initialSender)).toBeDefined();
+
+    const navigatedSender = new SenderRuntime({
+      url: "https://www.example.com/next",
+      frameId: 0,
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+    expect(runtime.resolvePageExecutionBinding(handle!, navigatedSender)).toBeUndefined();
+  });
+
   it("content USER_SCRIPT 的 pageLoad 只轮换 content 绑定", async () => {
     const { runtime } = _createRuntimeContext();
     const inject = _createScriptRunResource(_createMockScript({ uuid: "inject-script" }));
