@@ -236,6 +236,51 @@ describe("page GM RPC", () => {
     ).toThrow(PageRpcError);
   });
 
+  it("rejects accessors nested in collection RPC parameters", () => {
+    const registry = new PageRpcRegistry();
+    const handle = registry.register("script-a", "it", ["GM_getValue"]);
+    const getter = vi.fn(() => "secret");
+    const nested = {} as Record<string, unknown>;
+    Object.defineProperty(nested, "value", { configurable: true, enumerable: true, get: getter });
+
+    expect(() =>
+      validatePageGMRequest(
+        { version: 1, requestId: "collection", handle, api: "GM_getValue", params: [new Map([["nested", nested]])] },
+        registry
+      )
+    ).toThrow(PageRpcError);
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it("rejects accessors nested in set RPC parameters", () => {
+    const registry = new PageRpcRegistry();
+    const handle = registry.register("script-a", "it", ["GM_getValue"]);
+    const getter = vi.fn(() => "secret");
+    const nested = {} as Record<string, unknown>;
+    Object.defineProperty(nested, "value", { configurable: true, enumerable: true, get: getter });
+
+    expect(() =>
+      validatePageGMRequest(
+        { version: 1, requestId: "set", handle, api: "GM_getValue", params: [new Set([nested])] },
+        registry
+      )
+    ).toThrow(PageRpcError);
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it("does not execute a Symbol.toStringTag accessor while validating RPC values", () => {
+    const registry = new PageRpcRegistry();
+    const handle = registry.register("script-a", "it", ["GM_getValue"]);
+    const getter = vi.fn(() => "Blob");
+    const nested = Object.create(null) as Record<PropertyKey, unknown>;
+    Object.defineProperty(nested, Symbol.toStringTag, { configurable: true, get: getter });
+
+    expect(() =>
+      validatePageGMRequest({ version: 1, requestId: "tag", handle, api: "GM_getValue", params: [nested] }, registry)
+    ).toThrow(PageRpcError);
+    expect(getter).not.toHaveBeenCalled();
+  });
+
   it("keeps validation on captured intrinsics after page prototype hooks", () => {
     const registry = new PageRpcRegistry();
     const handle = registry.register("script-a", "it", ["GM_getValue"]);

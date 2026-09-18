@@ -8,6 +8,8 @@ const MAX_REQUEST_ID_LENGTH = 256;
 const MAX_REQUEST_IDS_PER_BINDING = 4096;
 const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
 const nativeObjectToString = Object.prototype.toString;
+const nativeMapForEach = Map.prototype.forEach;
+const nativeSetForEach = Set.prototype.forEach;
 const EXTENSION_PROTOCOLS = new Native.Set(["chrome-extension:", "moz-extension:"]);
 const nativeReflectOwnKeys = Native.reflectOwnKeys;
 const nativeObjectGetOwnPropertyDescriptor = Native.objectGetOwnPropertyDescriptor;
@@ -201,13 +203,69 @@ const ownData = (value: object, key: PropertyKey): unknown => {
   return descriptor.value;
 };
 
+const isBlobLike = (value: object): boolean => {
+  let current: object | null = value;
+  while (current !== null) {
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = nativeObjectGetOwnPropertyDescriptor(current, Symbol.toStringTag);
+    } catch {
+      throw new PageRpcError("page RPC value cannot be inspected");
+    }
+    if (descriptor) {
+      if (!("value" in descriptor)) throw new PageRpcError("page RPC values cannot contain accessor properties");
+      return descriptor.value === "Blob";
+    }
+    try {
+      current = Native.objectGetPrototypeOf(current);
+    } catch {
+      throw new PageRpcError("page RPC value cannot be inspected");
+    }
+  }
+  return false;
+};
+
 const assertDataOnly = (value: unknown, seen: Set<object>): void => {
   // 先检查自有数据描述符，再做 structuredClone；这样页面 getter/Proxy 不会在 broker 中执行。
   if (value === null || typeof value !== "object") return;
-  // Blob 的内部槽由浏览器管理，不能把其 symbol/accessor 细节当作 DTO 字段遍历。
-  if (nativeBlob && (value instanceof nativeBlob || nativeObjectToString.call(value) === "[object Blob]")) return;
   if (seen.has(value)) return;
   seen.add(value);
+
+  // Blob 的内部槽由浏览器管理；只检查可由页面添加的字符串属性，忽略其内部 symbol 属性。
+  if (nativeBlob && (value instanceof nativeBlob || isBlobLike(value))) {
+    let keys: (string | symbol)[];
+    try {
+      keys = nativeReflectOwnKeys(value);
+    } catch {
+      throw new PageRpcError("page RPC value cannot be inspected");
+    }
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      if (typeof key === "string") assertDataOnly(ownData(value, key), seen);
+    }
+    return;
+  }
+
+  // Map/Set 条目不在自有属性中，必须先检查，避免 structuredClone 遍历时触发嵌套访问器。
+  try {
+    nativeReflectApply(nativeMapForEach, value as Map<unknown, unknown>, [
+      (key: unknown, entry: unknown) => {
+        assertDataOnly(key, seen);
+        assertDataOnly(entry, seen);
+      },
+    ]);
+    return;
+  } catch (error) {
+    if (error instanceof PageRpcError) throw error;
+    // 不是 Map，继续检查普通自有属性。
+  }
+  try {
+    nativeReflectApply(nativeSetForEach, value as Set<unknown>, [(entry: unknown) => assertDataOnly(entry, seen)]);
+    return;
+  } catch (error) {
+    if (error instanceof PageRpcError) throw error;
+    // 不是 Set，继续检查普通自有属性。
+  }
 
   let keys: (string | symbol)[];
   try {
