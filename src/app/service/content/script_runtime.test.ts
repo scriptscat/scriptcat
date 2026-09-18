@@ -118,6 +118,48 @@ describe("ScriptRuntime inject page bootstrap", () => {
     expect(executor.startScripts).not.toHaveBeenCalled();
   });
 
+  it("rejects callback DTO accessors before entering the script context", () => {
+    const { handlers, server } = makeServer();
+    const executor = makeExecutor();
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    runtime.init();
+
+    const eventData = { uuid: "script", event: "menuClick", eventId: "1", data: { value: 1 } };
+    const getter = vi.fn(() => eventData.data);
+    Object.defineProperty(eventData, "data", { configurable: true, enumerable: true, get: getter });
+
+    handlers.get("runtime/emitEvent")?.(eventData);
+
+    expect(getter).not.toHaveBeenCalled();
+    expect(executor.emitEvent).not.toHaveBeenCalled();
+  });
+
+  it("clones valid callback and value-update DTOs before dispatch", () => {
+    const { handlers, server } = makeServer();
+    const executor = makeExecutor();
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    runtime.init();
+
+    const eventData = { uuid: "script", event: "menuClick", eventId: "1", data: { value: 1 } };
+    const valueData = {
+      uuid: "script",
+      storageName: "script",
+      entries: [["key", [0, { value: 1 }], [2]]],
+      sender: { runFlag: "run", tabId: 3 },
+      valueUpdated: true,
+    };
+
+    handlers.get("runtime/emitEvent")?.(eventData);
+    handlers.get("runtime/valueUpdate")?.(valueData);
+
+    expect(executor.emitEvent).toHaveBeenCalledOnce();
+    expect(executor.valueUpdate).toHaveBeenCalledOnce();
+    expect(executor.emitEvent.mock.calls[0][0]).not.toBe(eventData);
+    expect(executor.valueUpdate.mock.calls[0][0]).not.toBe(valueData);
+    expect(executor.emitEvent.mock.calls[0][0]).toEqual(eventData);
+    expect(executor.valueUpdate.mock.calls[0][0]).toEqual(valueData);
+  });
+
   it("rejects inject scripts without the current execution binding", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();

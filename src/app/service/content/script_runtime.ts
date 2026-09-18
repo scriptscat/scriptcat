@@ -72,6 +72,85 @@ const isInjectScriptInfo = (value: unknown): value is TScriptInfo => {
   return true;
 };
 
+const hasOnlyKeys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
+  const keys = Native.objectKeys(value);
+  for (let index = 0; index < required.length; index += 1) {
+    if (!Native.objectHasOwn(value, required[index])) return false;
+  }
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    let known = false;
+    for (let keyIndex = 0; keyIndex < required.length; keyIndex += 1) {
+      if (required[keyIndex] === key) {
+        known = true;
+        break;
+      }
+    }
+    if (!known) {
+      for (let keyIndex = 0; keyIndex < optional.length; keyIndex += 1) {
+        if (optional[keyIndex] === key) {
+          known = true;
+          break;
+        }
+      }
+    }
+    if (!known) return false;
+  }
+  return true;
+};
+
+const isEncodedValue = (value: unknown): boolean => {
+  if (!Native.arrayIsArray(value)) return false;
+  if (value.length === 1) return value[0] === 1 || value[0] === 2;
+  return value.length === 2 && value[0] === 0;
+};
+
+const cloneInjectValueUpdate = (data: unknown): ValueUpdateDataEncoded | undefined => {
+  const cloned = customClone(data);
+  if (
+    !isRecord(cloned) ||
+    !hasOnlyKeys(cloned, ["entries", "uuid", "storageName", "sender", "valueUpdated"], ["id"]) ||
+    (cloned.id !== undefined && (typeof cloned.id !== "string" || cloned.id.length > MAX_EXECUTION_TOKEN_LENGTH)) ||
+    typeof cloned.uuid !== "string" ||
+    typeof cloned.storageName !== "string" ||
+    typeof cloned.valueUpdated !== "boolean" ||
+    !isRecord(cloned.sender) ||
+    !hasOnlyKeys(cloned.sender, ["runFlag"], ["tabId"]) ||
+    typeof cloned.sender.runFlag !== "string" ||
+    (cloned.sender.tabId !== undefined && typeof cloned.sender.tabId !== "number") ||
+    !Native.arrayIsArray(cloned.entries)
+  ) {
+    return undefined;
+  }
+  for (let index = 0; index < cloned.entries.length; index += 1) {
+    const entry = cloned.entries[index];
+    if (
+      !Native.arrayIsArray(entry) ||
+      entry.length !== 3 ||
+      typeof entry[0] !== "string" ||
+      !isEncodedValue(entry[1]) ||
+      !isEncodedValue(entry[2])
+    ) {
+      return undefined;
+    }
+  }
+  return cloned as unknown as ValueUpdateDataEncoded;
+};
+
+const cloneInjectEmitEvent = (data: unknown): EmitEventRequest | undefined => {
+  const cloned = customClone(data);
+  if (
+    !isRecord(cloned) ||
+    !hasOnlyKeys(cloned, ["uuid", "event", "eventId"], ["data"]) ||
+    typeof cloned.uuid !== "string" ||
+    typeof cloned.event !== "string" ||
+    typeof cloned.eventId !== "string"
+  ) {
+    return undefined;
+  }
+  return cloned as unknown as EmitEventRequest;
+};
+
 const cloneInjectPageLoad = (data: unknown): { scripts: TScriptInfo[]; envInfo: GMInfoEnv } | undefined => {
   const cloned = customClone(data);
   if (!isRecord(cloned) || Native.objectKeys(cloned).length !== 2) return undefined;
@@ -169,9 +248,21 @@ export class ScriptRuntime {
   init() {
     this.server.on("runtime/emitEvent", (data: EmitEventRequest) => {
       // 转发给脚本
+      if (this.scripEnvTag === "it") {
+        const safeData = cloneInjectEmitEvent(data);
+        if (!safeData) return;
+        this.scriptExecutor.emitEvent(safeData);
+        return;
+      }
       this.scriptExecutor.emitEvent(data);
     });
     this.server.on("runtime/valueUpdate", (data: ValueUpdateDataEncoded) => {
+      if (this.scripEnvTag === "it") {
+        const safeData = cloneInjectValueUpdate(data);
+        if (!safeData) return;
+        this.scriptExecutor.valueUpdate(safeData);
+        return;
+      }
       this.scriptExecutor.valueUpdate(data);
     });
 
