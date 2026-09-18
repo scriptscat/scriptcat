@@ -3,7 +3,7 @@ import type { MessageSend } from "@Packages/message/types";
 import type { TClientPageLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import type { Server } from "@Packages/message/server";
 import { RuntimeClient } from "../service_worker/client";
-import ScriptingRuntime from "./scripting";
+import ScriptingRuntime, { serializeDocumentResponse } from "./scripting";
 
 const makeSender = () => ({
   sendMessage: vi.fn().mockResolvedValue({ code: 0, data: undefined }),
@@ -42,7 +42,6 @@ describe("ScriptingRuntime page bootstrap", () => {
       {} as Server,
       senderToExt as unknown as MessageSend,
       senderToContent as any,
-      senderToInject as any,
       senderToInject as any
     );
 
@@ -71,5 +70,13 @@ describe("ScriptingRuntime page bootstrap", () => {
       })
     );
     expect(senderToInject.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ action: "inject/pageLoad" }));
+  });
+
+  it("serializes CAT_fetchDocument responses instead of returning a live document reference", () => {
+    const document = new DOMParser().parseFromString("<html><body><main>ok</main></body></html>", "text/html");
+    expect(serializeDocumentResponse(document, "text/html")).toEqual({
+      text: expect.stringContaining("<main>ok</main>"),
+      contentType: "text/html",
+    });
   });
 });

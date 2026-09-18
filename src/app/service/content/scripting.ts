@@ -2,6 +2,7 @@ import { Client, sendMessage } from "@Packages/message/client";
 import { type CustomEventMessage } from "@Packages/message/custom_event_message";
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
+import type { SerializedDocumentResponse } from "./gm_api/gm_xhr";
 import { RuntimeClient } from "../service_worker/client";
 import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
@@ -17,6 +18,18 @@ const PageOrContent = {
 } as const;
 
 type PageOrContent = ValueOf<typeof PageOrContent>;
+
+export const serializeDocumentResponse = (
+  response: Document | null,
+  contentType: string
+): SerializedDocumentResponse | undefined => {
+  if (!response) return undefined;
+  try {
+    return { text: new XMLSerializer().serializeToString(response), contentType };
+  } catch {
+    return undefined;
+  }
+};
 
 // For Firefox, StorageArea.setAccessLevel is not implemented.
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
@@ -39,9 +52,7 @@ export default class ScriptingRuntime {
     // 发送给 content的消息接口
     private readonly senderToContent: CustomEventMessage,
     // 发送给inject的消息接口
-    private readonly senderToInject: MessageSend,
-    // 仅用于同步 DOM 节点引用；异步脚本 RPC 使用 senderToInject 的结构化消息。
-    private readonly domSenderToInject: CustomEventMessage
+    private readonly senderToInject: MessageSend
   ) {}
 
   // 广播消息给 content 和 inject
@@ -115,18 +126,19 @@ export default class ScriptingRuntime {
             return false; // 继续转发到 SW
           }
           case "CAT_fetchDocument": {
-            const [url, isContent] = data.params;
-            // 根据来源选择不同的消息桥（content / inject）
-            let msg: CustomEventMessage | null = isContent ? this.senderToContent : this.domSenderToInject;
             return new Promise((resolve) => {
               const xhr = new XMLHttpRequest();
               xhr.responseType = "document";
-              xhr.open("GET", url);
-              xhr.onloadend = function () {
-                const nodeId = msg!.sendRelatedTarget(this.response);
-                resolve(nodeId);
-                msg = null;
+              xhr.open("GET", data.params[0]);
+              xhr.onloadend = () => {
+                resolve(
+                  serializeDocumentResponse(
+                    xhr.response as Document | null,
+                    xhr.getResponseHeader("Content-Type") || ""
+                  )
+                );
               };
+              xhr.onerror = () => resolve(undefined);
               xhr.send();
             });
           }

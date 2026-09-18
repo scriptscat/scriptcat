@@ -26,7 +26,6 @@ negotiateEventFlag(messageFlag, extensionEnv, 2, (eventFlag) => {
 
   const contentMsg = new CustomEventMessage(eventFlag, true, ScriptEnvTag.content);
   const injectMsg = new PageMessage(eventFlag, "scripting");
-  const domInjectMsg = new CustomEventMessage(eventFlag, true, ScriptEnvTag.inject);
 
   const server = new Server("scripting", [contentMsg, injectMsg]);
 
@@ -35,7 +34,7 @@ negotiateEventFlag(messageFlag, extensionEnv, 2, (eventFlag) => {
   const extServer = new Server("scripting", extMsgComm, false);
   // scriptExecutor的消息接口
   // 初始化运行环境
-  const runtime = new ScriptingRuntime(extServer, server, extMsgComm, contentMsg, injectMsg, domInjectMsg);
+  const runtime = new ScriptingRuntime(extServer, server, extMsgComm, contentMsg, injectMsg);
   runtime.init();
   // 页面加载，注入脚本
   runtime.pageLoad();

@@ -8,6 +8,7 @@ import { encodeRValue } from "@App/pkg/utils/message_value";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { ScriptRunResource } from "@App/app/repo/scripts";
 import GMApi from "./gm_api";
+import { parseSerializedDocumentResponse } from "./gm_xhr";
 const nilFn: ScriptFunc = () => {};
 
 const scriptRes = {
@@ -110,6 +111,52 @@ describe("early-start page RPC", () => {
     });
 
     await expect(result).resolves.toBeUndefined();
+  });
+});
+
+describe("CAT_fetchDocument", () => {
+  it("rebuilds documents from a data-only response instead of a relatedTarget reference", async () => {
+    const script = Object.assign({}, scriptRes, {
+      executionEnvTag: "it",
+      metadata: { grant: ["CAT_fetchDocument"] },
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({
+      code: 0,
+      data: {
+        text: '<!doctype html><html><body><main data-source="serialized">ok</main></body></html>',
+        contentType: "text/html",
+      },
+    });
+    const api = new GMApi("scripting", { sendMessage } as unknown as Message, {} as Message, script);
+
+    const document = await api.CAT_fetchDocument(api, "https://example.test/document");
+
+    expect(document?.querySelector("main")?.getAttribute("data-source")).toBe("serialized");
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "scripting/runtime/gmApi",
+        data: expect.objectContaining({ api: "CAT_fetchDocument", params: ["https://example.test/document", false] }),
+      })
+    );
+  });
+
+  it("does not execute accessors in a forged serialized response", () => {
+    const getter = vi.fn(() => "secret");
+    const data = { contentType: "text/html" } as Record<string, unknown>;
+    Object.defineProperty(data, "text", { configurable: true, enumerable: true, get: getter });
+
+    expect(parseSerializedDocumentResponse(data)).toBeUndefined();
+    expect(getter).not.toHaveBeenCalled();
+
+    const proxy = new Proxy(
+      { text: "<html />", contentType: "text/html" },
+      {
+        getOwnPropertyDescriptor: () => {
+          throw new Error("proxy trap");
+        },
+      }
+    );
+    expect(parseSerializedDocumentResponse(proxy)).toBeUndefined();
   });
 });
 

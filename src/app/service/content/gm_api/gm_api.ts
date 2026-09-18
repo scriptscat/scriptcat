@@ -25,7 +25,7 @@ import { ListenerManager } from "../listener_manager";
 import { decodeRValue, encodeRValue, type REncoded } from "@App/pkg/utils/message_value";
 import { type TGMKeyValue } from "@App/app/repo/value";
 import type { ContextType } from "./gm_xhr";
-import { convObjectToURL, GM_xmlhttpRequest, toBlobURL, urlToDocumentInContentPage } from "./gm_xhr";
+import { convObjectToURL, GM_xmlhttpRequest, parseSerializedDocumentResponse, toBlobURL } from "./gm_xhr";
 // 导入 CAT Agent API 以触发装饰器注册
 // 注意：不能使用 import "./cat_agent"，sideEffects 配置会导致 tree-shaking 移除纯副作用导入
 import CATAgentApi from "./cat_agent";
@@ -650,7 +650,7 @@ export default class GMApi extends GM_Base {
       });
     }
 
-    return urlToDocumentInContentPage(ctx, url, isContentEnv);
+    return parseSerializedDocumentResponse(await ctx.sendMessage("CAT_fetchDocument", [`${url}`, isContentEnv]));
   }
 
   static _GM_cookie(

@@ -1,5 +1,4 @@
 import { Native } from "../global";
-import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type GMApi from "./gm_api";
 import { dataEncode } from "@App/pkg/utils/xhr/xhr_data";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
@@ -113,10 +112,33 @@ export const convObjectToURL = async (object: string | URL | Blob | File | undef
   return url;
 };
 
-export const urlToDocumentInContentPage = async (a: GMApi, url: string, isContent: boolean) => {
-  // url (e.g. blob url) -> XMLHttpRequest (CONTENT) -> Document (CONTENT)
-  const nodeId = await a.sendMessage("CAT_fetchDocument", [`${url}`, isContent]);
-  return (<CustomEventMessage>a.message).getAndDelRelatedTarget(nodeId) as Document;
+export type SerializedDocumentResponse = {
+  text: string;
+  contentType: string;
+};
+
+const readDataProperty = (value: object, key: string): unknown => {
+  try {
+    const descriptor = Native.objectGetOwnPropertyDescriptor(value, key);
+    return descriptor && "value" in descriptor ? descriptor.value : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+export const parseSerializedDocumentResponse = (value: unknown): Document | undefined => {
+  if (value === null || typeof value !== "object") return undefined;
+  const text = readDataProperty(value, "text");
+  const contentType = readDataProperty(value, "contentType");
+  if (typeof text !== "string" || typeof contentType !== "string") return undefined;
+
+  const mime = getMimeType(contentType);
+  const parseType = docParseTypes.has(mime) ? (mime as DOMParserSupportedType) : "text/xml";
+  try {
+    return new DOMParser().parseFromString(text, parseType);
+  } catch {
+    return undefined;
+  }
 };
 
 const getMimeType = (contentType: string) => {
