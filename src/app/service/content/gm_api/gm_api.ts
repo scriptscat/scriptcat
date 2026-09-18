@@ -375,7 +375,17 @@ export default class GMApi extends GM_Base {
     }
     const valueStore = a.scriptRes.value;
     const keyValuePairs = [] as [string, REncoded<unknown>][];
-    for (const [key, value] of Object.entries(values)) {
+    const valueEntries: [string, unknown][] = [];
+    const valueKeys = Native.reflectOwnKeys(values);
+    for (let index = 0; index < valueKeys.length; index += 1) {
+      const key = valueKeys[index];
+      if (typeof key !== "string") continue;
+      const descriptor = Native.objectGetOwnPropertyDescriptor(values, key);
+      if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) continue;
+      valueEntries.push([key, descriptor.value]);
+    }
+    for (let index = 0; index < valueEntries.length; index += 1) {
+      const [key, value] = valueEntries[index];
       let value_ = value;
       if (value_ === undefined) {
         if (Native.objectHasOwn(valueStore, key)) delete valueStore[key];

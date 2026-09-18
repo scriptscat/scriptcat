@@ -945,6 +945,23 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     );
   });
 
+  it("GM_setValues skips accessor fields without invoking them", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_setValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const getter = vi.fn(() => "secret");
+    const payload = { valid: 1 } as Record<string, unknown>;
+    Object.defineProperty(payload, "secret", { configurable: true, enumerable: true, get: getter });
+
+    api.GM_setValues(api, payload);
+
+    expect(getter).not.toHaveBeenCalled();
+    expect(script.value).toEqual({ valid: 1 });
+  });
+
   it("拒绝可执行值，且不会把函数写入本地存储或传输层", () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_setValue"];
