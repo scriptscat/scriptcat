@@ -740,7 +740,7 @@ describe.concurrent("GM_value", () => {
         action: "scripting/runtime/gmApi",
         data: {
           api: "GM_setValue",
-          params: [expect.any(String), "proxy-key", {}], // Proxy 会被转换为空对象
+          params: [expect.any(String), "proxy-key"], // Proxy 无法通过 data-only clone，按删除处理
           runFlag: expect.any(String),
           uuid: undefined,
         },
@@ -764,7 +764,7 @@ describe.concurrent("GM_value", () => {
     expect(ret).toEqual({
       ret1: 123,
       ret2: 456,
-      ret3: {},
+      ret3: undefined,
       ret4: undefined,
     });
   });
@@ -927,6 +927,24 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     });
   });
 
+  it("拒绝带 getter 的值，且不会在克隆时执行 getter", () => {
+    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    script.metadata.grant = ["GM_setValue"];
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const getter = vi.fn(() => "secret");
+    const payload = {} as Record<string, unknown>;
+    Object.defineProperty(payload, "secret", { configurable: true, enumerable: true, get: getter });
+
+    api.GM_setValue(api, "hostile", payload);
+
+    expect(getter).not.toHaveBeenCalled();
+    expect(script.value.hostile).toBeUndefined();
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ params: [expect.any(String), "hostile"] }) })
+    );
+  });
+
   it.concurrent("GM_setValues", async () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_getValues", "GM_setValues"];
@@ -1020,7 +1038,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
             // event id
             expect.stringMatching(/^.+::\d+$/),
             // the object payload
-            [["proxy-key", encodeRValue({})]],
+            [["proxy-key", encodeRValue(undefined)]],
           ],
           runFlag: expect.any(String),
           uuid: undefined,
@@ -1055,7 +1073,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     expect(ret).toEqual({
       ret1: { a: 123, b: 456, c: "789" },
       ret2: { b: 456 },
-      ret3: { "proxy-key": {} },
+      ret3: { "proxy-key": undefined },
       ret4: { window: undefined },
     });
   });

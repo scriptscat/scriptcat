@@ -25,6 +25,9 @@ const nativeWeakMapSet = WeakMap.prototype.set;
 const nativeWeakMapHas = WeakMap.prototype.has;
 const nativeWeakMapDelete = WeakMap.prototype.delete;
 const nativeObjectFreeze = Object.freeze;
+const nativeReflectOwnKeys = Reflect.ownKeys;
+const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+const hasNativeStructuredClone = typeof structuredClone === "function";
 
 // Keep the captured methods on private subclasses. Instances can then be created
 // without reassigning every method, while the subclass prototypes remain outside
@@ -103,17 +106,46 @@ export const customClone = (o: any) => {
   // 接受参数：阵列、物件、null
   if (typeof o !== "object") return o;
 
-  try {
-    // 优先使用 structuredClone，支持大多数可克隆对象
-    return Native.structuredClone(o);
-  } catch {
-    // 例如：被 Proxy 包装的对象（如 Vue 等框架处理过的 reactive 对象）
-    // structuredClone 可能会失败，忽略错误继续尝试其他方式
+  // 先验证自有字段都是数据描述符，避免 JSON fallback 执行页面 getter 或 Proxy trap。
+  const seen = new Native.WeakMap<object, true>();
+  const isDataOnly = (value: object): boolean => {
+    if (seen.has(value)) return true;
+    seen.set(value, true);
+    let keys: PropertyKey[];
+    try {
+      keys = nativeReflectOwnKeys(value);
+    } catch {
+      return false;
+    }
+    for (const key of keys) {
+      if (typeof key === "symbol") return false;
+      let descriptor: PropertyDescriptor | undefined;
+      try {
+        descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
+      } catch {
+        return false;
+      }
+      if (!descriptor || !("value" in descriptor)) return false;
+      if (descriptor.value !== null && typeof descriptor.value === "object" && !isDataOnly(descriptor.value)) {
+        return false;
+      }
+    }
+    return true;
+  };
+  if (!isDataOnly(o)) return undefined;
+
+  if (hasNativeStructuredClone) {
+    try {
+      // 优先使用 structuredClone，支持大多数可克隆对象
+      return Native.structuredClone(o);
+    } catch {
+      // structuredClone 拒绝的值不再退回会执行 getter 的 JSON 序列化。
+      return undefined;
+    }
   }
 
   try {
-    // 退而求其次，使用 JSON 序列化方式进行深拷贝
-    // 仅适用于可被 JSON 表示的普通对象
+    // 旧浏览器没有 structuredClone 时，只复制已验证的数据属性。
     return Native.jsonParse(Native.jsonStringify(o));
   } catch {
     // 序列化失败，忽略错误

@@ -7,26 +7,11 @@ import { ScriptEnvTag } from "@Packages/message/consts";
 import { embeddedPatternCheckerString, type EmbeddedURLRuleEntry, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 import { getGrantCandidates } from "./gm_api/grant";
-
-const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
-const nativeJSONStringify = JSON.stringify.bind(JSON);
-const nativeJSONParse = JSON.parse.bind(JSON);
+import { customClone } from "./global";
 
 const cloneTransportValue = (value: any) => {
-  // USER_SCRIPT 只能接收数据副本；先去掉 Proxy、getter 和原型引用，避免把页面对象带过边界。
-  if (value === null || typeof value !== "object") return value;
-  if (nativeStructuredClone) {
-    try {
-      return nativeStructuredClone(value);
-    } catch {
-      // Fall through for objects such as proxies that structuredClone rejects.
-    }
-  }
-  try {
-    return nativeJSONParse(nativeJSONStringify(value));
-  } catch {
-    return undefined;
-  }
+  // USER_SCRIPT 只能接收数据副本；共享 customClone 的 data-only 检查，避免 getter/Proxy 进入页面资料。
+  return customClone(value);
 };
 
 // 与 rspack 注入的构建级密钥配对；页面只能看到包装函数，拿不到正确的调用标记。
