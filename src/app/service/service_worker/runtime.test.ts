@@ -1420,6 +1420,10 @@ describe("USER_SCRIPT native callbacks", () => {
       storageName: "unrelated-storage",
     });
     expect(sendMessage).not.toHaveBeenCalled();
+
+    (runtime as any).revokePageBindingsForScript("content-script");
+    expect(connection.disconnect).toHaveBeenCalledWith(true);
+    expect((runtime as any).userScriptConnections.size).toBe(0);
   });
 });
 

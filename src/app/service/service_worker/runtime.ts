@@ -358,6 +358,17 @@ export class RuntimeService {
     for (const [handle, binding] of this.pageExecutionBindings) {
       if (binding.uuid === uuid) this.pageExecutionBindings.delete(handle);
     }
+    for (const [key, entry] of this.userScriptConnections) {
+      // 脚本撤销后同步裁剪句柄集；没有任何有效句柄的端口必须关闭，避免残留授权接收器。
+      for (const handle of entry.handles) {
+        const binding = this.pageExecutionBindings.get(handle);
+        if (!binding || binding.uuid === uuid) entry.handles.delete(handle);
+      }
+      if (entry.handles.size === 0) {
+        entry.connection.disconnect(true);
+        this.userScriptConnections.delete(key);
+      }
+    }
     for (const [token, bootstrap] of this.userScriptBootstraps) {
       if (bootstrap.scripts.some((script) => script.uuid === uuid)) this.userScriptBootstraps.delete(token);
     }
