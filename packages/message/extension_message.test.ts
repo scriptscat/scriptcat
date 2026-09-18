@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ExtensionMessage, ExtensionMessageConnect } from "./extension_message";
+import { ExtensionContentMessageSend, ExtensionMessage, ExtensionMessageConnect } from "./extension_message";
 
 describe("ExtensionMessage USER_SCRIPT compatibility", () => {
   it("does not require unavailable runtime event listeners", () => {
@@ -63,5 +63,22 @@ describe("ExtensionMessage USER_SCRIPT compatibility", () => {
 
     expect(nativePostMessage).toHaveBeenCalledWith({ action: "native" });
     connection.disconnect(true);
+  });
+
+  it("preserves an explicit main-frame target when frameId is zero", async () => {
+    const sendMessage = vi
+      .spyOn(chrome.tabs, "sendMessage")
+      .mockImplementation((_tabId, _message, optionsOrCallback, callback) => {
+        const responseCallback = typeof optionsOrCallback === "function" ? optionsOrCallback : callback;
+        responseCallback?.({ success: true });
+        return Promise.resolve({ success: true });
+      });
+    try {
+      await new ExtensionContentMessageSend(7, { frameId: 0 }).sendMessage({ action: "private" });
+
+      expect(sendMessage).toHaveBeenCalledWith(7, { action: "private" }, { frameId: 0 }, expect.any(Function));
+    } finally {
+      sendMessage.mockRestore();
+    }
   });
 });
