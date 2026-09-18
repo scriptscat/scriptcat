@@ -36,7 +36,7 @@ const nativeReflectOwnKeys = Reflect.ownKeys;
 const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const WINDOW_MESSAGE_KEYS = ["messageId", "type", "data"] as const;
 
-const parseWindowMessageBody = (value: unknown): WindowMessageBody | undefined => {
+export const parseWindowMessageBody = (value: unknown): WindowMessageBody | undefined => {
   if (value === null || typeof value !== "object") return undefined;
 
   let keys: (string | symbol)[];

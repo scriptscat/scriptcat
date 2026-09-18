@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CustomEventMessage } from "./custom_event_message";
 import { createMouseEvent, pageDispatchEvent } from "@Packages/message/common";
 
@@ -17,6 +17,30 @@ function createMessagePair() {
 }
 
 describe("CustomEventMessage relatedTarget lifecycle", () => {
+  it("ignores accessor envelopes without executing their getters", () => {
+    const receiver = new CustomEventMessage(`custom-event-message-test-${++flagCounter}`, true, "");
+    const received = vi.fn();
+    receiver.onMessage(received);
+    const envelope: Record<string, unknown> = {
+      messageId: "hostile",
+      type: "sendMessage",
+      data: { action: "custom-event-message-test/hostile" },
+    };
+    let accessed = false;
+    Object.defineProperty(envelope, "data", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        accessed = true;
+        throw new Error("page getter executed");
+      },
+    });
+
+    expect(() => receiver.messageHandle(envelope as any, { postMessage: vi.fn() })).not.toThrow();
+    expect(accessed).toBe(false);
+    expect(received).not.toHaveBeenCalled();
+  });
+
   it("stores a received target on the receiving message until it is consumed", () => {
     const { sender, receiver } = createMessagePair();
     const target = document.createElement("div");
