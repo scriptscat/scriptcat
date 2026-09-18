@@ -25,9 +25,9 @@ describe("安装页兼容性标记", () => {
   });
 
   it("标出脚本猫未实现的 @grant，并给出所在行", () => {
-    const { code, metadata } = build(`// @name X\n// @grant GM_setValue\n// @grant GM_audio\n`);
+    const { code, metadata } = build(`// @name X\n// @grant GM_setValue\n// @grant GM_webRequest\n`);
     const marks = deriveCompatMarks(metadata, code);
-    expect(marks.grants).toEqual(new Map([["GM_audio", 4]]));
+    expect(marks.grants).toEqual(new Map([["GM_webRequest", 4]]));
   });
 
   it("@grant none 不是能力请求，不标记", () => {
@@ -56,10 +56,10 @@ describe("安装页兼容性标记", () => {
   });
 
   it("代码里定位不到时仍然成条，只是没有行号——诊断不能因为缺位置而消失", () => {
-    const metadata: SCMetadata = { name: ["X"], sandbox: ["raw"], grant: ["GM_audio"] };
+    const metadata: SCMetadata = { name: ["X"], sandbox: ["raw"], grant: ["GM_webRequest"] };
     const marks = deriveCompatMarks(metadata, "");
     expect(marks.tags).toEqual([{ tag: "sandbox", line: undefined }]);
-    expect(marks.grants).toEqual(new Map([["GM_audio", undefined]]));
+    expect(marks.grants).toEqual(new Map([["GM_webRequest", undefined]]));
   });
 
   it("标记顺序跟随代码出现顺序，便于与代码对读", () => {
