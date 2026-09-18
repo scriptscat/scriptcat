@@ -337,7 +337,7 @@ describe("page execution binding gate", () => {
     await expect(api.handlerRequest(validRequest, sender)).rejects.toThrow("page RPC requestId was already used");
   });
 
-  it("keeps the page RPC replay window closed after the request-id cap", async () => {
+  it("accepts more than 4096 page RPC requests while still rejecting replay", async () => {
     const api = Object.create(GMApi.prototype) as GMApi;
     Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
     Object.defineProperty(api, "permissionVerify", {
@@ -400,7 +400,7 @@ describe("page execution binding gate", () => {
         },
         sender
       )
-    ).rejects.toThrow("page RPC requestId replay window is exhausted");
+    ).resolves.toBe(true);
     await expect(
       api.handlerRequest(
         {

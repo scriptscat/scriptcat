@@ -141,8 +141,6 @@ const cleanupOnAPIError = (requestId: string) => {
   headersSettled(markerID); // 处理完毕
 };
 
-const MAX_PAGE_RPC_REQUEST_IDS = 4096;
-
 // GMExternalDependencies接口定义
 // 为了支持外部依赖注入，方便测试和扩展
 interface IGMExternalDependencies {
@@ -408,9 +406,6 @@ export default class GMApi {
       }
       if (binding.requestIds.has(data.requestId)) {
         throw new Error("page RPC requestId was already used");
-      }
-      if (binding.requestIds.size >= MAX_PAGE_RPC_REQUEST_IDS) {
-        throw new Error("page RPC requestId replay window is exhausted");
       }
       binding.requestIds.add(data.requestId);
       data = { ...data, uuid: binding.uuid, runFlag: binding.runFlag };

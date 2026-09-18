@@ -363,7 +363,7 @@ describe("page GM RPC", () => {
     }
   });
 
-  it("fails closed when the replay window reaches its bound", () => {
+  it("accepts more than 4096 requests while still rejecting replay", () => {
     const registry = new PageRpcRegistry();
     const handle = registry.register("script-a", "it", ["GM_getValue"]);
 
@@ -374,9 +374,9 @@ describe("page GM RPC", () => {
       );
     }
 
-    expect(() =>
+    expect(
       validatePageGMRequest({ version: 1, requestId: "request-4096", handle, api: "GM_getValue", params: [] }, registry)
-    ).toThrow("replay window is exhausted");
+    ).toMatchObject({ requestId: "request-4096" });
     expect(() =>
       validatePageGMRequest({ version: 1, requestId: "request-0", handle, api: "GM_getValue", params: [] }, registry)
     ).toThrow("already used");

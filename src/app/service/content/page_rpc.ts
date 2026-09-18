@@ -5,7 +5,6 @@ import { Native, nativeReflectApply } from "./global";
 
 export const PAGE_RPC_VERSION = 1 as const;
 const MAX_REQUEST_ID_LENGTH = 256;
-const MAX_REQUEST_IDS_PER_BINDING = 4096;
 const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
 const nativeObjectToString = Object.prototype.toString;
 const nativeMapForEach = Map.prototype.forEach;
@@ -371,11 +370,8 @@ export class PageRpcRegistry {
   }
 
   consumeRequestId(binding: PageExecutionBinding, requestId: string): void {
-    // requestId 在每个绑定内只接受一次；达到上限后拒绝新请求，不能遗忘旧 ID 让请求重放。
+    // requestId 在每个绑定内只接受一次；绑定销毁时一并释放，避免重放而不截断长时间运行的脚本。
     if (binding.requestIds.has(requestId)) throw new PageRpcError("page RPC requestId was already used");
-    if (binding.requestIds.size >= MAX_REQUEST_IDS_PER_BINDING) {
-      throw new PageRpcError("page RPC requestId replay window is exhausted");
-    }
     binding.requestIds.add(requestId);
   }
 }
