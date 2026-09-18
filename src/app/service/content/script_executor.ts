@@ -81,7 +81,7 @@ export class ScriptExecutor {
             updated = true;
           }
         });
-        if (updated) return;
+        if (updated) continue;
       }
       const listenForScript = () => {
         definePropertyListener(window, flag, (val: ScriptFunc) => {

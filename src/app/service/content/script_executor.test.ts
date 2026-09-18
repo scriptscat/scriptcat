@@ -186,6 +186,42 @@ describe("ScriptExecutor", () => {
     }
   });
 
+  it("continues loading later scripts after reconciling an early-start entry", () => {
+    const early = makeScript({
+      uuid: "early-script",
+      flag: "executor-early-batch",
+      metadata: { "early-start": [""], "run-at": ["document-start"] },
+    });
+    const later = makeScript({ uuid: "later-script", flag: "executor-later-batch" });
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    executor.execScriptEntry({
+      scriptLoadInfo: early,
+      scriptFlag: early.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: () => undefined,
+    });
+
+    const internal = executor as unknown as {
+      earlyScriptFlags: Set<string>;
+      execScripts: Map<string, { updateEarlyScriptGMInfo: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => void }>;
+    };
+    internal.earlyScriptFlags.add(early.flag);
+    const updateEarlyScriptGMInfo = vi.spyOn(internal.execScripts.get(early.uuid)!, "updateEarlyScriptGMInfo");
+    const genuine = vi.fn();
+    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
+    const pageWindow = window as unknown as Record<string, unknown>;
+
+    try {
+      executor.startScripts([early, later], initEnvInfo);
+      pageWindow[later.flag] = genuine;
+
+      expect(updateEarlyScriptGMInfo).toHaveBeenCalledWith(initEnvInfo, early);
+      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, later.name);
+    } finally {
+      delete pageWindow[later.flag];
+    }
+  });
+
   describe("resource execution", () => {
     let adoptedSheets: CSSStyleSheet[];
 
