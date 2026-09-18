@@ -640,6 +640,8 @@ export type MCPApiRequest =
 /** 定时任务基础字段（两种模式共用） */
 type AgentTaskBase = {
   id: string;
+  /** ScriptCat API owner; absent on tasks created by the extension UI or older records. */
+  ownerScriptUuid?: string;
   /** Immutable identity for this incarnation of the task ID. */
   generation?: string;
   /** Optimistic-concurrency version. */

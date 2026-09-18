@@ -352,8 +352,8 @@ export class AgentService {
   }
 
   // 处理定时任务 API 请求，供 GMApi 调用
-  async handleAgentTaskApi(params: AgentTaskApiRequest) {
-    return this.agentTaskService.handleAgentTask(params);
+  async handleAgentTaskApi(params: AgentTaskApiRequest, ownerScriptUuid?: string) {
+    return this.agentTaskService.handleAgentTask(params, ownerScriptUuid);
   }
 
   // 处理 CAT.agent.model API 请求，委托给 AgentModelService
