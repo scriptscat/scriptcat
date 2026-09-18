@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Blob as NodeBlob } from "node:buffer";
 import {
   getPageRpcAllowedAPIs,
@@ -188,6 +188,29 @@ describe("page GM RPC", () => {
         registry
       )
     ).toThrow(PageRpcError);
+  });
+
+  it("keeps validation on captured intrinsics after page prototype hooks", () => {
+    const registry = new PageRpcRegistry();
+    const handle = registry.register("script-a", "it", ["GM_getValue"]);
+    const ownKeysSpy = vi.spyOn(Reflect, "ownKeys").mockImplementation(() => {
+      throw new Error("page hook");
+    });
+    const descriptorSpy = vi.spyOn(Object, "getOwnPropertyDescriptor").mockImplementation(() => {
+      throw new Error("page hook");
+    });
+
+    let result: ReturnType<typeof validatePageGMRequest> | undefined;
+    try {
+      result = validatePageGMRequest(
+        { version: 1, requestId: "hooked", handle, api: "GM_getValue", params: [] },
+        registry
+      );
+    } finally {
+      ownKeysSpy.mockRestore();
+      descriptorSpy.mockRestore();
+    }
+    expect(result).toMatchObject({ uuid: "script-a", envTag: "it" });
   });
 
   it("rejects malformed parameters for privileged helper operations", () => {

@@ -1,20 +1,27 @@
 import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 import { getGrantCandidates } from "./gm_api/grant";
+import { Native, nativeReflectApply } from "./global";
 
 export const PAGE_RPC_VERSION = 1 as const;
 const MAX_REQUEST_ID_LENGTH = 256;
 const MAX_REQUEST_IDS_PER_BINDING = 4096;
 const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
 const nativeObjectToString = Object.prototype.toString;
-const EXTENSION_PROTOCOLS = new Set(["chrome-extension:", "moz-extension:"]);
+const EXTENSION_PROTOCOLS = new Native.Set(["chrome-extension:", "moz-extension:"]);
+const nativeReflectOwnKeys = Native.reflectOwnKeys;
+const nativeObjectGetOwnPropertyDescriptor = Native.objectGetOwnPropertyDescriptor;
+const nativeArrayIsArray = Array.isArray;
+const nativeURL = URL;
+const nativeBlob = typeof Blob === "function" ? Blob : undefined;
+const nativeStringSlice = String.prototype.slice;
 
 export type ExtensionOrigin = Pick<URL, "protocol" | "hostname" | "port">;
 
 export const getExtensionOrigin = (): ExtensionOrigin | undefined => {
   if (typeof chrome === "undefined" || typeof chrome.runtime?.getURL !== "function") return undefined;
   try {
-    const url = new URL(chrome.runtime.getURL("/"));
+    const url = new nativeURL(chrome.runtime.getURL("/"));
     if (!EXTENSION_PROTOCOLS.has(url.protocol) || !url.hostname) return undefined;
     return { protocol: url.protocol, hostname: url.hostname, port: url.port };
   } catch {
@@ -33,7 +40,7 @@ export const setPageRpcExtensionOrigin = (value: unknown): void => {
   }
   try {
     const read = (key: keyof ExtensionOrigin): unknown => {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
       return descriptor && "value" in descriptor ? descriptor.value : undefined;
     };
     const protocol = read("protocol");
@@ -59,9 +66,9 @@ export const isExtensionBlobUrl = (value: unknown): value is string => {
   const extensionOrigin = configuredExtensionOrigin || getExtensionOrigin();
   if (!extensionOrigin) return false;
   try {
-    const url = new URL(value);
+    const url = new nativeURL(value);
     if (url.protocol !== "blob:") return false;
-    const creatorOrigin = new URL(value.slice("blob:".length));
+    const creatorOrigin = new nativeURL(nativeReflectApply(nativeStringSlice, value, ["blob:".length]));
     return (
       creatorOrigin.protocol === extensionOrigin.protocol &&
       creatorOrigin.hostname === extensionOrigin.hostname &&
@@ -150,8 +157,8 @@ const API_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {
 
 export const getPageRpcAllowedAPIs = (grants: readonly string[]): string[] => {
   if (grants.some((grant) => grant === "none")) return [];
-  const allowed = new Set<string>();
-  const visited = new Set<string>();
+  const allowed = new Native.Set<string>();
+  const visited = new Native.Set<string>();
   const visitGrant = (grant: string): void => {
     for (const candidate of getGrantCandidates(grant)) {
       if (visited.has(candidate)) continue;
@@ -162,7 +169,9 @@ export const getPageRpcAllowedAPIs = (grants: readonly string[]): string[] => {
     }
   };
   for (const grant of grants) visitGrant(grant);
-  return [...allowed];
+  const result: string[] = [];
+  allowed.forEach((value) => result.push(value));
+  return result;
 };
 
 export class PageRpcError extends Error {
@@ -173,7 +182,7 @@ export class PageRpcError extends Error {
 }
 
 const ownData = (value: object, key: PropertyKey): unknown => {
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
   if (!descriptor || !("value" in descriptor)) {
     throw new PageRpcError(`page RPC field ${String(key)} must be a data property`);
   }
@@ -191,7 +200,7 @@ const assertDataOnly = (value: unknown, seen: Set<object>): void => {
 
   let keys: (string | symbol)[];
   try {
-    keys = Reflect.ownKeys(value);
+    keys = nativeReflectOwnKeys(value);
   } catch {
     throw new PageRpcError("page RPC value cannot be inspected");
   }
@@ -204,8 +213,8 @@ const assertDataOnly = (value: unknown, seen: Set<object>): void => {
 
 const cloneParams = (params: unknown): readonly unknown[] => {
   // 复制发生在交给 service worker 之前，后续 broker 只处理隔离后的普通值。
-  if (!Array.isArray(params)) throw new PageRpcError("page RPC params must be an array");
-  assertDataOnly(params, new Set());
+  if (!nativeArrayIsArray(params)) throw new PageRpcError("page RPC params must be an array");
+  assertDataOnly(params, new Native.Set());
   if (!nativeStructuredClone) throw new PageRpcError("structured clone is unavailable");
   try {
     return nativeStructuredClone(params) as readonly unknown[];
@@ -224,8 +233,8 @@ const validateOperationParams = (api: string, params: readonly unknown[]): void 
     case "CAT_createBlobUrl":
       if (
         params.length !== 1 ||
-        typeof Blob !== "function" ||
-        (!(params[0] instanceof Blob) && nativeObjectToString.call(params[0]) !== "[object Blob]")
+        !nativeBlob ||
+        (!(params[0] instanceof nativeBlob) && nativeObjectToString.call(params[0]) !== "[object Blob]")
       ) {
         throw new PageRpcError("CAT_createBlobUrl expects one Blob value");
       }
@@ -240,7 +249,7 @@ const validateOperationParams = (api: string, params: readonly unknown[]): void 
         params.length !== 1 ||
         params[0] === null ||
         typeof params[0] !== "object" ||
-        Array.isArray(params[0]) ||
+        nativeArrayIsArray(params[0]) ||
         typeof (params[0] as { action?: unknown }).action !== "string"
       ) {
         throw new PageRpcError("CAT_agentOPFS expects an operation object");
@@ -252,7 +261,7 @@ const validateOperationParams = (api: string, params: readonly unknown[]): void 
 };
 
 export class PageRpcRegistry {
-  private readonly bindings = new Map<string, PageExecutionBinding>();
+  private readonly bindings = new Native.Map<string, PageExecutionBinding>();
 
   register(
     uuid: string,
@@ -268,10 +277,10 @@ export class PageRpcRegistry {
       handle,
       uuid,
       envTag,
-      allowedAPIs: new Set(allowedAPIs),
+      allowedAPIs: new Native.Set(allowedAPIs),
       runFlag,
       active: true,
-      requestIds: new Set(),
+      requestIds: new Native.Set(),
     });
     return handle;
   }
@@ -310,15 +319,26 @@ export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry)
 
   let keys: (string | symbol)[];
   try {
-    keys = Reflect.ownKeys(value);
+    keys = nativeReflectOwnKeys(value);
   } catch {
     throw new PageRpcError("page RPC request cannot be inspected");
   }
-  if (
-    keys.length !== REQUEST_KEYS.length ||
-    keys.some((key) => typeof key !== "string" || !REQUEST_KEYS.includes(key as never))
-  ) {
+  if (keys.length !== REQUEST_KEYS.length) {
     throw new PageRpcError("page RPC request has unexpected fields");
+  }
+  for (const key of keys) {
+    let knownKey = false;
+    if (typeof key === "string") {
+      for (const expected of REQUEST_KEYS) {
+        if (expected === key) {
+          knownKey = true;
+          break;
+        }
+      }
+    }
+    if (!knownKey) {
+      throw new PageRpcError("page RPC request has unexpected fields");
+    }
   }
 
   const version = ownData(value, "version");
