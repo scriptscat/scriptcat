@@ -337,7 +337,7 @@ describe("page execution binding gate", () => {
     await expect(api.handlerRequest(validRequest, sender)).rejects.toThrow("page RPC requestId was already used");
   });
 
-  it("accepts more than 4096 page RPC requests while still rejecting replay", async () => {
+  it("accepts a unique request when replay state is full while still rejecting replay", async () => {
     const api = Object.create(GMApi.prototype) as GMApi;
     Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
     Object.defineProperty(api, "permissionVerify", {
@@ -353,6 +353,9 @@ describe("page execution binding gate", () => {
         script: { uuid: "script-a", name: "script-a" },
       }),
     });
+    const requestIds = new Set<string>(["request-0"]);
+    // 直接模拟满集合，验证唯一 ID 仍可用且重放仍被拒绝，避免 CI 发送数千个请求。
+    Object.defineProperty(requestIds, "size", { configurable: true, value: 4096 });
     const binding = {
       handle: "handle-a",
       uuid: "script-a",
@@ -361,7 +364,7 @@ describe("page execution binding gate", () => {
       tabId: 42,
       frameId: 0,
       allowedAPIs: new Set(["GM_log"]),
-      requestIds: new Set<string>(),
+      requestIds,
     };
     Object.defineProperty(api, "resolvePageExecutionBinding", {
       configurable: true,
@@ -369,23 +372,6 @@ describe("page execution binding gate", () => {
     });
     const sender = makeSender();
     sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
-
-    for (let index = 0; index < 4096; index += 1) {
-      await expect(
-        api.handlerRequest(
-          {
-            uuid: "script-a",
-            api: "GM_log",
-            params: ["hello"],
-            runFlag: "forged",
-            executionHandle: "handle-a",
-            requestId: `request-${index}`,
-            version: 1,
-          },
-          sender
-        )
-      ).resolves.toBe(true);
-    }
 
     await expect(
       api.handlerRequest(
@@ -395,7 +381,7 @@ describe("page execution binding gate", () => {
           params: ["hello"],
           runFlag: "forged",
           executionHandle: "handle-a",
-          requestId: "request-4096",
+          requestId: "request-4097",
           version: 1,
         },
         sender

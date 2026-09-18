@@ -24,6 +24,7 @@
     "test:e2e:install": "pnpm exec playwright install chromium",
     "test:e2e": "pnpm exec playwright test",
     "test:e2e:ui": "pnpm exec playwright test --ui",
+    "check:e2e-budgets": "node ./scripts/check-e2e-budgets.mjs",
     "validate:yaml": "node ./scripts/validate-yaml.mjs",
     "validate:yaml:all": "node ./scripts/validate-yaml.mjs --all",
     "check:i18n": "node ./scripts/check-i18n.mjs",

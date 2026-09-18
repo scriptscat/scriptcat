@@ -363,20 +363,19 @@ describe("page GM RPC", () => {
     }
   });
 
-  it("accepts more than 4096 requests while still rejecting replay", () => {
+  it("accepts a unique request when replay state is full while still rejecting replay", () => {
     const registry = new PageRpcRegistry();
     const handle = registry.register("script-a", "it", ["GM_getValue"]);
+    const binding = registry.resolve(handle, "GM_getValue");
 
-    for (let index = 0; index < 4096; index += 1) {
-      validatePageGMRequest(
-        { version: 1, requestId: `request-${index}`, handle, api: "GM_getValue", params: [] },
-        registry
-      );
-    }
+    // 请求 ID 必须严格只消费一次，与集合已保存的条目数量无关。
+    // 直接模拟满集合，避免 CI 为构造状态发送数千个请求。
+    Object.defineProperty(binding.requestIds, "size", { configurable: true, value: 4096 });
+    binding.requestIds.add("request-0");
 
     expect(
-      validatePageGMRequest({ version: 1, requestId: "request-4096", handle, api: "GM_getValue", params: [] }, registry)
-    ).toMatchObject({ requestId: "request-4096" });
+      validatePageGMRequest({ version: 1, requestId: "request-4097", handle, api: "GM_getValue", params: [] }, registry)
+    ).toMatchObject({ requestId: "request-4097" });
     expect(() =>
       validatePageGMRequest({ version: 1, requestId: "request-0", handle, api: "GM_getValue", params: [] }, registry)
     ).toThrow("already used");

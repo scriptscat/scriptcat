@@ -30,7 +30,7 @@ async function waitForHit(server: MockServer, pathname: string, timeoutMs = 15_0
 
 /**
  * 打开目标页面并等待脚本输出哨兵 JSON 行。脚本注入相对安装存在异步窗口，
- * 因此在拿不到结果时重新加载页面重试。
+ * 因此只允许一次显式重载；轮询本身保持无副作用，避免重复导航放大等待时间。
  */
 async function runAndCapture(
   context: BrowserContext,
@@ -53,22 +53,28 @@ async function runAndCapture(
     }
   });
 
-  await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-  await expect
-    .poll(
-      async () => {
-        if (resolved) return true;
-        // 脚本可能尚未注册完成，重载重试
-        await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
-        return !!resolved;
-      },
-      { timeout: timeoutMs, intervals: [500, 1_000, 2_000] }
-    )
-    .toBe(true)
-    .catch(() => undefined);
-  await page.close();
-  if (!resolved) throw new Error(`no sentinel captured from ${targetUrl}\nlogs:\n${logs.join("\n")}`);
-  return { data: resolved, logs };
+  try {
+    await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+    const firstAttemptTimeout = Math.max(1_000, Math.floor(timeoutMs / 2));
+    try {
+      await expect
+        .poll(() => Boolean(resolved), { timeout: firstAttemptTimeout, intervals: [100, 250, 500] })
+        .toBe(true);
+    } catch (error) {
+      if (resolved) throw error;
+      try {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await expect
+          .poll(() => Boolean(resolved), { timeout: firstAttemptTimeout, intervals: [100, 250, 500] })
+          .toBe(true);
+      } catch (retryError) {
+        throw new Error(`no sentinel captured from ${targetUrl}\nlogs:\n${logs.join("\n")}`, { cause: retryError });
+      }
+    }
+    return { data: resolved!, logs };
+  } finally {
+    await page.close();
+  }
 }
 
 function selfTestScript(opts: {

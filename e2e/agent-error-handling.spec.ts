@@ -5,7 +5,7 @@ import { runInlineTestScript } from "./utils";
 const TARGET_URL = "https://content-security-policy.com/";
 
 test.describe("Agent Error Handling", () => {
-  test.setTimeout(300_000);
+  test.setTimeout(40_000);
 
   test("LLM returns 500 then retries and succeeds", async ({ context, extensionId, mockLLMResponse }) => {
     let callCount = 0;
@@ -79,7 +79,7 @@ test.describe("Agent Error Handling", () => {
 })();
 `;
 
-    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 90_000);
+    const { passed, failed, logs } = await runInlineTestScript(context, extensionId, code, TARGET_URL, 30_000);
 
     console.log(`[error-retry] passed=${passed}, failed=${failed}`);
     if (failed !== 0) console.log("[error-retry] logs:", logs.join("\n"));

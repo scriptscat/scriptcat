@@ -211,6 +211,9 @@ jobs:
       - name: Install dependencies
         run: pnpm i --frozen-lockfile
 
+      - name: Check E2E test budgets
+        run: pnpm run check:e2e-budgets
+
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@v6
