@@ -35,6 +35,44 @@ afterEach(() => {
 });
 
 describe("Server", () => {
+  it("ignores message envelopes with accessor actions without executing the accessor", () => {
+    const handler = vi.fn();
+    server.on("on-hostile", handler);
+    const message: Record<string, unknown> = { data: {} };
+    let accessed = false;
+    Object.defineProperty(message, "action", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        accessed = true;
+        throw new Error("page getter executed");
+      },
+    });
+
+    expect(() => inboundMessage.EE.emit("message", message, vi.fn(), {})).not.toThrow();
+    expect(accessed).toBe(false);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("ignores message envelopes with accessor data without executing the accessor", () => {
+    const handler = vi.fn();
+    server.on("on-hostile-data", handler);
+    const message: Record<string, unknown> = { action: "api/on-hostile-data" };
+    let accessed = false;
+    Object.defineProperty(message, "data", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        accessed = true;
+        throw new Error("page getter executed");
+      },
+    });
+
+    expect(() => inboundMessage.EE.emit("message", message, vi.fn(), {})).not.toThrow();
+    expect(accessed).toBe(false);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it("应该在消息和长连接转发中都应用参数转换", async () => {
     const transformed: unknown[] = [];
     const targetFlag = `${uuidv4()}::target`;

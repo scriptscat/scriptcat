@@ -14,9 +14,27 @@ import Logger from "@App/app/logger/logger";
 
 const nativeReflectApply = Reflect.apply;
 const nativeFunctionBind = Function.prototype.bind;
+const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 // 转发监听器会跨 context 保存一段时间，绑定时固定原生 bind，避免页面改写原型。
 const bindNative = <T extends (...args: any[]) => any>(fn: T, receiver: any): T =>
   nativeReflectApply(nativeFunctionBind, fn, [receiver]) as T;
+
+type ParsedServerMessage = { action: string; data?: unknown };
+
+const parseServerMessage = (value: unknown): ParsedServerMessage | undefined => {
+  if (value === null || typeof value !== "object") return undefined;
+  try {
+    const actionDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "action");
+    if (!actionDescriptor || !("value" in actionDescriptor) || typeof actionDescriptor.value !== "string") {
+      return undefined;
+    }
+    const dataDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "data");
+    if (dataDescriptor && !("value" in dataDescriptor)) return undefined;
+    return { action: actionDescriptor.value, data: dataDescriptor?.value };
+  } catch {
+    return undefined;
+  }
+};
 
 export const enum GetSenderType {
   CONNECT = 1,
@@ -166,10 +184,11 @@ export class Server {
     if (this.enableConnect) {
       msgReceiverList.forEach((msg) => {
         msg.onConnect((msg: TMessage, con: MessageConnect) => {
-          if (typeof msg.action !== "string") return;
-          this.logger.trace("server onConnect", { msg });
-          if (msg.action?.startsWith(this.prefix)) {
-            return this.connectHandle(msg.action.slice(this.prefix.length + 1), msg.data, con);
+          const parsed = parseServerMessage(msg);
+          if (!parsed) return;
+          this.logger.trace("server onConnect", { action: parsed.action });
+          if (parsed.action.startsWith(this.prefix)) {
+            return this.connectHandle(parsed.action.slice(this.prefix.length + 1), parsed.data, con);
           }
           return false;
         });
@@ -178,10 +197,17 @@ export class Server {
 
     msgReceiverList.forEach((msg) => {
       msg.onMessage((msg: TMessage, sendResponse, sender, origin) => {
-        if (typeof msg.action !== "string") return;
-        this.logger.trace("server onMessage", { msg: msg as any });
-        if (msg.action?.startsWith(this.prefix)) {
-          return this.messageHandle(msg.action.slice(this.prefix.length + 1), msg.data, sendResponse, sender, origin);
+        const parsed = parseServerMessage(msg);
+        if (!parsed) return;
+        this.logger.trace("server onMessage", { action: parsed.action });
+        if (parsed.action.startsWith(this.prefix)) {
+          return this.messageHandle(
+            parsed.action.slice(this.prefix.length + 1),
+            parsed.data,
+            sendResponse,
+            sender,
+            origin
+          );
         }
       });
       return false;
