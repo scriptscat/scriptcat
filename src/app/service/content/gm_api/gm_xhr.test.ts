@@ -152,4 +152,29 @@ describe("GM_xmlhttpRequest callback cleanup", () => {
     expect(onerror).toHaveBeenCalledTimes(1);
     expect(onloadend).toHaveBeenCalledTimes(1);
   });
+
+  it("settles the request when data encoding rejects before connection setup", async () => {
+    const onerror = vi.fn();
+    const onloadend = vi.fn();
+    const api = {
+      isInvalidContext: () => false,
+      connect: vi.fn(),
+      sendMessage: vi.fn(),
+    };
+    const request = GM_xmlhttpRequest(
+      api as any,
+      {
+        url: "https://example.com/data",
+        data: Promise.reject(new Error("data failed")) as unknown as GMTypes.XHRDetails["data"],
+        onerror,
+        onloadend,
+      },
+      true
+    );
+
+    await expect(request.retPromise).rejects.toBe("data failed");
+    expect(api.connect).not.toHaveBeenCalled();
+    expect(onerror).toHaveBeenCalledTimes(1);
+    expect(onloadend).toHaveBeenCalledTimes(1);
+  });
 });

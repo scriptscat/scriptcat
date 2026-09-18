@@ -764,7 +764,15 @@ export function GM_xmlhttpRequest(
         statusText: "",
       } as TXhrCallBackArg);
     }
-  })();
+  })().catch((error) => {
+    if (reqDone) return;
+    reqDone = true;
+    const message = error instanceof Error ? error.message : `${error}`;
+    const response = { readyState: ReadyStateCode.DONE, error: message };
+    invokeXHRCallback("onerror", details.onerror, response);
+    retPromiseReject?.(message);
+    invokeXHRCallback("onloadend", details.onloadend, response);
+  });
   // 由于需要同步返回一个abort，但是一些操作是异步的，所以需要在这里处理
   return {
     retPromise,
