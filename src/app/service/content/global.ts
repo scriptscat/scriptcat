@@ -12,6 +12,7 @@ const nativeSetHas = Set.prototype.has;
 const nativeSetDelete = Set.prototype.delete;
 const nativeSetClear = Set.prototype.clear;
 const nativeSetForEach = Set.prototype.forEach;
+const nativeSetValues = Set.prototype.values;
 const nativeArrayIsArray = Array.isArray;
 const nativeMapConstructor = Map;
 const nativeMapGet = Map.prototype.get;
@@ -49,6 +50,7 @@ NativeSetConstructor.prototype.has = nativeSetHas;
 NativeSetConstructor.prototype.delete = nativeSetDelete;
 NativeSetConstructor.prototype.clear = nativeSetClear;
 NativeSetConstructor.prototype.forEach = nativeSetForEach;
+NativeSetConstructor.prototype.values = nativeSetValues;
 nativeObjectFreeze(NativeSetConstructor.prototype);
 
 const NativeMapConstructor = class<K, V> extends nativeMapConstructor<K, V> {};

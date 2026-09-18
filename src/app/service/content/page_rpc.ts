@@ -205,8 +205,7 @@ const assertDataOnly = (value: unknown, seen: Set<object>): void => {
   // 先检查自有数据描述符，再做 structuredClone；这样页面 getter/Proxy 不会在 broker 中执行。
   if (value === null || typeof value !== "object") return;
   // Blob 的内部槽由浏览器管理，不能把其 symbol/accessor 细节当作 DTO 字段遍历。
-  if (typeof Blob === "function" && (value instanceof Blob || nativeObjectToString.call(value) === "[object Blob]"))
-    return;
+  if (nativeBlob && (value instanceof nativeBlob || nativeObjectToString.call(value) === "[object Blob]")) return;
   if (seen.has(value)) return;
   seen.add(value);
 
@@ -216,7 +215,8 @@ const assertDataOnly = (value: unknown, seen: Set<object>): void => {
   } catch {
     throw new PageRpcError("page RPC value cannot be inspected");
   }
-  for (const key of keys) {
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
     if (typeof key === "symbol") throw new PageRpcError("page RPC values cannot contain symbol properties");
     const child = ownData(value, key);
     assertDataOnly(child, seen);
@@ -338,10 +338,12 @@ export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry)
   if (keys.length !== REQUEST_KEYS.length) {
     throw new PageRpcError("page RPC request has unexpected fields");
   }
-  for (const key of keys) {
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
     let knownKey = false;
     if (typeof key === "string") {
-      for (const expected of REQUEST_KEYS) {
+      for (let expectedIndex = 0; expectedIndex < REQUEST_KEYS.length; expectedIndex += 1) {
+        const expected = REQUEST_KEYS[expectedIndex];
         if (expected === key) {
           knownKey = true;
           break;
