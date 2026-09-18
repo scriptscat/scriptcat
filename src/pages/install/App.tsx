@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Download, RefreshCw, Rss, HardDrive, RotateCcw, PlugZap } from "lucide-react";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
@@ -8,7 +8,7 @@ import { ScriptIdentity } from "./components/ScriptIdentity";
 import { PermissionCard } from "./components/PermissionCard";
 import { SubscribeScripts } from "./components/SubscribeScripts";
 import { SkillInstallView } from "./components/SkillInstallView";
-import { CodePreview } from "./components/CodePreview";
+import { CodePreview, type CodePreviewHandle } from "./components/CodePreview";
 import { InstallActions } from "./components/InstallActions";
 import { InstallLoading, InstallError, InstallExpired } from "./components/InstallStates";
 import { WatchingBanner } from "./components/WatchingBanner";
@@ -52,6 +52,7 @@ export default function App() {
     retryInstall,
   } = useInstallData();
   const [bgPrompt, setBgPrompt] = useState<{ scriptType: string; permission: PromptPermission } | null>(null);
+  const codePreviewRef = useRef<CodePreviewHandle>(null);
   const installed = outcome.phase === "installed" ? outcome.result : null;
   const externalAccessFailure = state.status === "ready" && !!state.view.externalAccess;
   const errorBar =
@@ -237,9 +238,16 @@ export default function App() {
           <PermissionCard
             rows={view.permissions}
             baselineVersion={view.version.kind === "update" ? view.version.oldVersion : undefined}
+            compat={{ marks: view.compat, onJump: (line) => codePreviewRef.current?.jumpToLine(line) }}
           />
         )}
-        <CodePreview code={view.code} oldCode={view.oldCode} diffStat={view.diffStat} defaultCollapsed={isMobile} />
+        <CodePreview
+          ref={codePreviewRef}
+          code={view.code}
+          oldCode={view.oldCode}
+          diffStat={view.diffStat}
+          defaultCollapsed={isMobile}
+        />
       </InstallLayout>
       <BackgroundPrompt
         open={!!bgPrompt}

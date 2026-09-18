@@ -1,19 +1,23 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ShieldCheck } from "lucide-react";
+import { ChevronDown, FileCode2, ShieldCheck } from "lucide-react";
 import { cn } from "@App/pkg/utils/cn";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@App/pages/components/ui/accordion";
+import { compatMarkCount, rowHasCompatMarks, type CompatView } from "../compat";
+import { metadataDocHref } from "../compat_docs";
+import { CompatChip, ScriptCatOnlyBadge } from "./CompatChip";
 import { isPermissionChanged, type PermissionRow as PermissionRowData } from "../permissions";
 import { PermissionRow, PermissionChips, PermissionDelta, NoChangeTag, KIND_META, RISK_STYLE } from "./PermissionRow";
 
-function MobilePermissions({ rows }: { rows: PermissionRowData[] }) {
+function MobilePermissions({ rows, compat }: { rows: PermissionRowData[]; compat?: CompatView }) {
   const { t } = useTranslation(["install", "common"]);
   // 有变动时默认只展开有变动的类别;全新安装、以及用户主动点开的零变化整卡都退回只展开高风险项,
   // 否则零变化整卡展开后每一类都是收起的,「点开即得到全量清单」在移动端会落空。
   const hasChanged = rows.some(isPermissionChanged);
+  const isMarked = (row: PermissionRowData) => !!compat && rowHasCompatMarks(compat.marks, row);
   const defaultValue = rows
-    .filter((r) => (hasChanged ? isPermissionChanged(r) : r.risk === "danger"))
+    .filter((r) => isMarked(r) || (hasChanged ? isPermissionChanged(r) : r.risk === "danger"))
     .map((r) => r.kind);
 
   return (
@@ -37,7 +41,7 @@ function MobilePermissions({ rows }: { rows: PermissionRowData[] }) {
               </span>
             </AccordionTrigger>
             <AccordionContent>
-              <PermissionChips row={row} />
+              <PermissionChips row={row} compat={compat} />
             </AccordionContent>
           </AccordionItem>
         );
@@ -47,13 +51,13 @@ function MobilePermissions({ rows }: { rows: PermissionRowData[] }) {
 }
 
 /** 未变动类别的单行形态:名称、计数与「无变化」,点开即还原成完整权限行 */
-function CollapsedRow({ row }: { row: PermissionRowData }) {
+function CollapsedRow({ row, compat }: { row: PermissionRowData; compat?: CompatView }) {
   const { t } = useTranslation(["install", "common"]);
   const [open, setOpen] = useState(false);
   const { icon: Icon, labelKey } = KIND_META[row.kind];
   const style = RISK_STYLE[row.risk];
 
-  if (open) return <PermissionRow row={row} />;
+  if (open) return <PermissionRow row={row} compat={compat} />;
 
   return (
     <button
@@ -116,7 +120,63 @@ function CollapsedCard({
   );
 }
 
-export function PermissionCard({ rows, baselineVersion }: { rows: PermissionRowData[]; baselineVersion?: string }) {
+/**
+ * 归不到任何权限类别的元数据声明：脚本猫不会执行的指令或取值(@sandbox、@run-at document-weird)，
+ * 以及只有脚本猫认的指令(@early-start、@background)。
+ * 它们不是权限,但同样是「脚本写了、脚本猫不会执行」,与权限行同列才对得起读者的一次扫视。
+ */
+function OtherDirectivesRow({ compat }: { compat: CompatView }) {
+  const { t } = useTranslation(["install", "common"]);
+  const { scriptcatOnlyTags } = compat.marks;
+  const tags = compat.marks.tags;
+  if (!tags.length && !scriptcatOnlyTags.length) return null;
+
+  return (
+    <div data-testid="permission-row-other" className="flex gap-3 border-t border-border px-1 py-3">
+      <div className="flex size-[34px] shrink-0 items-center justify-center rounded-lg bg-muted text-fg-secondary">
+        <FileCode2 className="size-[18px]" />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">{t("install:perm_other_label")}</span>
+          <span className="truncate text-xs text-muted-foreground">{t("install:perm_other_summary")}</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {tags.map((tag) => (
+            <CompatChip
+              key={tag.value === undefined ? tag.tag : `${tag.tag}:${tag.line}:${tag.value}`}
+              label={tag.value ? `@${tag.tag} ${tag.value}` : `@${tag.tag}`}
+              kind={tag.value === undefined ? "metadata" : "value"}
+              line={tag.line}
+              onJump={compat.onJump}
+              docHref={tag.value === undefined ? undefined : metadataDocHref(tag.tag)}
+            />
+          ))}
+          {scriptcatOnlyTags.map((tag) => (
+            <span
+              key={tag.tag}
+              data-chip
+              className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-xs text-fg-secondary"
+            >
+              <span className="min-w-0 break-all">{`@${tag.tag}`}</span>
+              <ScriptCatOnlyBadge docHref={metadataDocHref(tag.tag)} />
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function PermissionCard({
+  rows,
+  baselineVersion,
+  compat,
+}: {
+  rows: PermissionRowData[];
+  baselineVersion?: string;
+  compat?: CompatView;
+}) {
   const { t } = useTranslation(["install", "common"]);
   const isMobile = useIsMobile();
   const [expanded, setExpanded] = useState(false);
@@ -126,8 +186,10 @@ export function PermissionCard({ rows, baselineVersion }: { rows: PermissionRowD
   const added = changed.reduce((n, r) => n + r.diff!.added.length, 0);
   const removed = changed.reduce((n, r) => n + r.diff!.removed.length, 0);
   const noChange = isUpdate && changed.length === 0;
+  const compatCount = compat ? compatMarkCount(compat.marks) : 0;
 
-  if (noChange && !expanded) {
+  // 有不生效项时不塌：折叠的是「上次已确认过的权限」，而标记是这次才出现的新信息
+  if (noChange && !expanded && compatCount === 0) {
     return <CollapsedCard rows={rows} baselineVersion={baselineVersion} onExpand={() => setExpanded(true)} />;
   }
 
@@ -148,6 +210,14 @@ export function PermissionCard({ rows, baselineVersion }: { rows: PermissionRowD
           </span>
         )}
         {isUpdate && !changed.length && <NoChangeTag />}
+        {compatCount > 0 && (
+          <span
+            data-testid="permission-card-compat"
+            className="shrink-0 whitespace-nowrap rounded-full bg-warning-bg px-2 text-[11px] font-semibold text-warning-fg"
+          >
+            {t("install:compat_count", { count: compatCount })}
+          </span>
+        )}
         <span className="ml-auto text-xs text-muted-foreground">
           {isUpdate ? t("install:perm_card_compare", { version: baselineVersion }) : t("install:perm_card_hint")}
         </span>
@@ -156,19 +226,21 @@ export function PermissionCard({ rows, baselineVersion }: { rows: PermissionRowD
         {rows.length === 0 ? (
           <p className="px-1 py-3 text-sm text-muted-foreground">{t("install:perm_card_empty")}</p>
         ) : isMobile ? (
-          <MobilePermissions rows={rows} />
+          <MobilePermissions rows={rows} compat={compat} />
         ) : (
           rows.map((row, i) => (
             <div key={row.kind} className={cn(i > 0 && "border-t border-border")}>
-              {/* 有变动时未变动的类别塌成单行让位;整卡零变化时用户是主动点开的,给全量 */}
-              {changed.length > 0 && !isPermissionChanged(row) ? (
-                <CollapsedRow row={row} />
+              {/* 有变动时未变动的类别塌成单行让位;整卡零变化时用户是主动点开的,给全量。
+                  带不生效标记的类别不塌:标记是这次才出现的新信息 */}
+              {changed.length > 0 && !isPermissionChanged(row) && !(compat && rowHasCompatMarks(compat.marks, row)) ? (
+                <CollapsedRow row={row} compat={compat} />
               ) : (
-                <PermissionRow row={row} />
+                <PermissionRow row={row} compat={compat} />
               )}
             </div>
           ))
         )}
+        {compat && <OtherDirectivesRow compat={compat} />}
       </div>
     </section>
   );

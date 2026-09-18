@@ -1,9 +1,9 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { Route, Routes } from "react-router-dom";
 import { initTestLanguage } from "@Tests/initTestLanguage";
 import { mockMatchMedia } from "@Tests/mockMatchMedia";
-import { renderWithThemeRouter } from "@Tests/renderWithThemeRouter";
+import { renderWithRouter } from "@Tests/renderWithThemeRouter";
 import { cspRemovalAction, type NetworkRule } from "@App/app/repo/network_rule";
 import type { NetworkRuleClient } from "@App/app/service/service_worker/client";
 import type { NetworkRuleSnapshot } from "@App/app/service/service_worker/network_rule";
@@ -39,12 +39,12 @@ function rule(id: string, name: string, action: NetworkRule["action"]): NetworkR
   };
 }
 
-function renderPage(rules: NetworkRule[]) {
+async function renderPage(rules: NetworkRule[]) {
   const snapshot: NetworkRuleSnapshot = {
     state: { schemaVersion: 1, revision: 3, masterEnabled: true, rules, order: rules.map((r) => r.id) },
     apply: { state: "applied", revision: 3, appliedAt: 1 },
   };
-  renderWithThemeRouter(
+  renderWithRouter(
     <Routes>
       <Route
         path="/tools/network-rules"
@@ -55,6 +55,9 @@ function renderPage(rules: NetworkRule[]) {
     </Routes>,
     { initialEntries: ["/tools/network-rules"] }
   );
+  await act(async () => {
+    await Promise.resolve();
+  });
 }
 
 /** 模板卡的图标片是按钮的第一个子元素，颜色只落在它身上，标题与描述用的是通用文字色。 */
@@ -76,7 +79,7 @@ describe("网络规则的动作配色", () => {
   });
 
   it("列表页的动作徽标按动作类型上色，而不是一律中性", async () => {
-    renderPage([
+    await renderPage([
       rule("r1", "移除 CSP", cspRemovalAction()),
       rule("r2", "屏蔽上报", { type: "block" }),
       rule("r3", "改 UA", {
@@ -85,7 +88,7 @@ describe("网络规则的动作配色", () => {
       }),
     ]);
 
-    expect((await screen.findByText("移除响应头")).className).toContain(ACTION_TONES.removeResponseHeaders);
+    expect(screen.getByText("移除响应头").className).toContain(ACTION_TONES.removeResponseHeaders);
     expect(screen.getByText("屏蔽").className).toContain(ACTION_TONES.block);
     expect(screen.getByText("改请求头").className).toContain(ACTION_TONES.modifyRequestHeaders);
     expect(screen.getByText("屏蔽").className).not.toContain("bg-secondary");
