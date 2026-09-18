@@ -6,7 +6,7 @@ import type { IMessageQueue } from "@Packages/message/message_queue";
 import { parseUrlSRI } from "./utils";
 import type { Script } from "@App/app/repo/scripts";
 import { SCRIPT_RUN_STATUS_COMPLETE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
-import type { Resource } from "@App/app/repo/resource";
+import { RESOURCE_CHUNK_BYTES, RESOURCE_LIST_PAGE_SIZE, type Resource } from "@App/app/repo/resource";
 
 initTestEnv();
 
@@ -412,6 +412,15 @@ describe("ResourceService - getResourceByTypes", () => {
   });
 });
 
+// 生产环境的 base64 是 blobToBase64 产出的 data URI，resourceModel 的 btoa(content) 不是这种形式
+function dataUriResource(): Resource {
+  return {
+    ...resourceModel("https://example.com/logo.png", ""),
+    contentType: "image/png",
+    base64: "data:image/png;base64,iVBORw0KGgr/AQ==",
+  };
+}
+
 describe("ResourceService - resource list and chunks", () => {
   let service: ResourceService;
 
@@ -460,6 +469,64 @@ describe("ResourceService - resource list and chunks", () => {
 
     expect(chunk).toMatchObject({ url: resource.url, offset: 1, length: 4, total: 9 });
     expect([...Uint8Array.from(atob(chunk.base64), (char) => char.charCodeAt(0))]).toEqual([0xbd, 0xa0, 0xe5, 0xa5]);
+  });
+
+  it("measures byteSize by decoded bytes, not by the encoded data-URI string", async () => {
+    vi.spyOn(service, "getScriptResourceValue").mockResolvedValue({ logo: dataUriResource() });
+
+    const page = await service.getScriptResourcePage(normalScript("script-binary", {}), 0, 1);
+
+    expect(page.items[0]).toMatchObject({ key: "logo", contentType: "image/png", byteSize: 10 });
+  });
+
+  it("slices a data-URI base64 resource by decoded byte offsets", async () => {
+    const resource = dataUriResource();
+    vi.spyOn(service.resourceDAO, "get").mockResolvedValue(resource);
+
+    const chunk = await service.getResourceChunk({ uuid: "old-script", url: resource.url, offset: 2, length: 4 });
+
+    expect(chunk).toMatchObject({ offset: 2, length: 4, total: 10, base64: "TkcNCg==" });
+  });
+
+  it("keeps advancing nextOffset until the last page", async () => {
+    const first = { ...resourceModel("https://example.com/a.txt", "a"), base64: "" };
+    const second = { ...resourceModel("https://example.com/b.txt", "b"), base64: "" };
+    vi.spyOn(service, "getScriptResourceValue").mockResolvedValue({ a: first, b: second });
+    const script = normalScript("script-pages", {});
+
+    const page0 = await service.getScriptResourcePage(script, 0, 1);
+    const page1 = await service.getScriptResourcePage(script, page0.nextOffset!, 1);
+
+    expect(page0).toMatchObject({ offset: 0, total: 2, nextOffset: 1 });
+    expect(page0.items.map((item) => item.url)).toEqual([first.url]);
+    expect(page1).toMatchObject({ offset: 1, total: 2, nextOffset: undefined });
+    expect(page1.items.map((item) => item.url)).toEqual([second.url]);
+  });
+
+  it("accepts the exact page-size limit and rejects a larger one", async () => {
+    vi.spyOn(service, "getScriptResourceValue").mockResolvedValue({});
+    const script = normalScript("script-limit", {});
+
+    await expect(service.getScriptResourcePage(script, 0, RESOURCE_LIST_PAGE_SIZE)).resolves.toMatchObject({
+      limit: RESOURCE_LIST_PAGE_SIZE,
+    });
+    await expect(service.getScriptResourcePage(script, 0, RESOURCE_LIST_PAGE_SIZE + 1)).rejects.toThrow(
+      /resource list limit must be between/
+    );
+  });
+
+  it("accepts the exact chunk-size limit and rejects a larger one", async () => {
+    const resource = { ...resourceModel("https://example.com/data.txt", "data"), base64: "" };
+    vi.spyOn(service.resourceDAO, "get").mockResolvedValue(resource);
+    const request = { uuid: "old-script", url: resource.url, offset: 0 };
+
+    await expect(service.getResourceChunk({ ...request, length: RESOURCE_CHUNK_BYTES })).resolves.toMatchObject({
+      length: 4,
+      total: 4,
+    });
+    await expect(service.getResourceChunk({ ...request, length: RESOURCE_CHUNK_BYTES + 1 })).rejects.toThrow(
+      /resource chunk length must be between/
+    );
   });
 
   it("does not expose chunks to a script that does not own the resource", async () => {
