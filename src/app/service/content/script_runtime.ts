@@ -9,6 +9,7 @@ import { onInjectPageLoaded } from "./external";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { type TExtensionEnv } from "../extension/extension_env";
 import { RuntimeClient } from "../service_worker/client";
+import { customClone } from "./global";
 
 export class ScriptRuntime {
   constructor(
@@ -22,8 +23,9 @@ export class ScriptRuntime {
   // content环境的特殊初始化
   contentInit(domServer: Server = this.server, domMsg: CustomEventMessage = this.msg as CustomEventMessage) {
     domServer.on("runtime/addElement", (data: { params: [number | null, string, Record<string, any> | null] }) => {
-      if (!data || !Array.isArray(data.params) || data.params.length !== 3) return undefined;
-      const [parentNodeId, tagName, tmpAttr] = data.params;
+      const safeData = customClone(data) as typeof data | undefined;
+      if (!safeData || !Array.isArray(safeData.params) || safeData.params.length !== 3) return undefined;
+      const [parentNodeId, tagName, tmpAttr] = safeData.params;
 
       // 此请求来自页面事件，只接受可验证的节点编号、标签名和扁平属性，避免把对象行为带入 DOM 操作。
       if (
