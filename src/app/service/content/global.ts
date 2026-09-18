@@ -33,11 +33,9 @@ const NativeSetConstructor = class<T> extends nativeSetConstructor<T> {
   constructor(values?: readonly T[] | Set<T> | null) {
     super();
     if (Array.isArray(values)) {
-      for (let i = 0; i < values.length; i += 1) {
-        nativeReflectApply(nativeSetAdd, this, [values[i]]);
-      }
+      for (let i = 0; i < values.length; i += 1) this.add(values[i]);
     } else if (values) {
-      nativeReflectApply(nativeSetForEach, values, [(value: T) => nativeReflectApply(nativeSetAdd, this, [value])]);
+      nativeReflectApply(nativeSetForEach, values, [(value: T) => this.add(value)]);
     }
   }
 };
