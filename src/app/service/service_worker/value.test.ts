@@ -100,6 +100,27 @@ describe("ValueService - setValue 方法测试", () => {
     vi.restoreAllMocks();
   });
 
+  it("persists __proto__ as an own value key without polluting inherited values", async () => {
+    const mockScript = createMockScript();
+    const stored = { leaked: "secret" };
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue(undefined);
+    vi.mocked(mockValueDAO.save).mockResolvedValue({} as any);
+
+    await valueService.setValues({
+      uuid: mockScript.uuid,
+      keyValuePairs: [["__proto__", encodeRValue(stored)]],
+      valueSender: createMockValueSender(),
+      isReplace: false,
+    });
+
+    const savedData = vi.mocked(mockValueDAO.save).mock.calls[0][1].data;
+    expect(Object.prototype.hasOwnProperty.call(savedData, "__proto__")).toBe(true);
+    expect(Object.getPrototypeOf(savedData)).toBe(Object.prototype);
+    expect(savedData.__proto__).toEqual(stored);
+    expect((savedData as Record<string, unknown>).leaked).toBeUndefined();
+  });
+
   it("应该成功设置新脚本的值", async () => {
     // 准备测试数据
     const mockScript = createMockScript();

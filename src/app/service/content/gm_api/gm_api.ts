@@ -76,6 +76,15 @@ const copyOwnEnumerableDataProperties = (value: object): Record<string, unknown>
 // 回调表不暴露 Map 原型，避免页面改写 Map 方法后影响值更新确认。
 const valueChangePromiseMap: Record<string, () => void> = Object.create(null);
 
+const setOwnValue = (store: Record<string, any>, key: string, value: any): void => {
+  Native.objectDefineProperty(store, key, {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value,
+  });
+};
+
 // 通知 ID 只属于对应 GM context；WeakMap 不让脚本结束后残留监听状态。
 const notificationTagMaps = new Native.WeakMap<object, Map<string, string>>();
 
@@ -254,11 +263,11 @@ class GM_Base implements IGM_Base {
           const oldValue = decodeRValue(rTyped2);
           // 触发,并更新值
           if (value === undefined) {
-            if (valueStore[key] !== undefined) {
+            if (Native.objectHasOwn(valueStore, key)) {
               delete valueStore[key];
             }
           } else {
-            valueStore[key] = value;
+            setOwnValue(valueStore, key, value);
           }
           // 监听器属于脚本，传副本避免回调修改 GM 存储或跨 context 共享对象。
           const listenerValue = value && typeof value === "object" ? customClone(value) : value;
@@ -319,7 +328,7 @@ export default class GMApi extends GM_Base {
 
   static _GM_getValue(a: GMApi, key: string, defaultValue?: any) {
     if (!a.scriptRes) return undefined;
-    const ret = a.scriptRes.value[key];
+    const ret = Native.objectHasOwn(a.scriptRes.value, key) ? a.scriptRes.value[key] : undefined;
     if (ret !== undefined) {
       if (ret && typeof ret === "object") {
         return customClone(ret)!;
@@ -365,7 +374,7 @@ export default class GMApi extends GM_Base {
         value = customClone(value);
       }
       // customClone 可能返回 undefined
-      a.scriptRes.value[key] = value;
+      setOwnValue(a.scriptRes.value, key, value);
       if (value === undefined) {
         a.sendMessage("GM_setValue", [id, key]);
       } else {
@@ -412,7 +421,7 @@ export default class GMApi extends GM_Base {
           value_ = customClone(value_);
         }
         // customClone 可能返回 undefined
-        valueStore[key] = value_;
+        setOwnValue(valueStore, key, value_);
       }
       // 避免undefined 等空值流失，先进行映射处理
       keyValuePairs[keyValuePairs.length] = [key, encodeRValue(value_)];
@@ -485,7 +494,7 @@ export default class GMApi extends GM_Base {
       // Handle array of keys (e.g., ['foo', 'bar'])
       for (let index = 0; index < keysOrDefaults.length; index++) {
         const key = keysOrDefaults[index];
-        if (key in ctx.scriptRes.value) {
+        if (Native.objectHasOwn(ctx.scriptRes.value, key)) {
           // 对object的value进行一次转化
           let value = ctx.scriptRes.value[key];
           if (value && typeof value === "object") {

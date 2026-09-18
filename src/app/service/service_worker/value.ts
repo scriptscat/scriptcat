@@ -15,6 +15,15 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import type { TKeyValuePair } from "@App/pkg/utils/message_value";
 import { decodeRValue, R_UNDEFINED, encodeRValue } from "@App/pkg/utils/message_value";
 
+const setOwnValue = (store: Record<string, any>, key: string, value: any): void => {
+  Object.defineProperty(store, key, {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value,
+  });
+};
+
 export type TSetValuesParams = {
   uuid: string;
   id?: string;
@@ -107,7 +116,7 @@ export class ValueService {
         for (const [key, rTyped1] of keyValuePairs) {
           const value = decodeRValue(rTyped1);
           if (value !== undefined) {
-            dataModel[key] = value;
+            setOwnValue(dataModel, key, value);
             entries.push([key, rTyped1, R_UNDEFINED]);
           }
         }
@@ -134,7 +143,7 @@ export class ValueService {
           if (value === undefined) {
             delete dataModel[key];
           } else {
-            dataModel[key] = value;
+            setOwnValue(dataModel, key, value);
           }
           const rTyped2 = encodeRValue(oldValue);
           entries.push([key, rTyped1, rTyped2]);
