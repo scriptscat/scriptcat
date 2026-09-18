@@ -32,6 +32,7 @@ const grantValuePrompts = {
   GM_getResourceText: "@resource で宣言されたリソースのテキスト内容を読み取ります。",
   GM_getResourceURL: "@resource で宣言されたリソースの URL を取得します。",
   GM_cookie: "Cookie API にアクセスし、Cookie の読み取り、書き込み、削除を行います。",
+  GM_audio: "現在のブラウザータブのミュート状態と音声再生状態を制御・監視します。",
   CAT_fetchBlob: "ScriptCat 内部 API: 拡張機能側でアクセス可能なリソースを読み取り Blob を返します。",
   CAT_fileStorage: "ScriptCat API: スクリプトのファイルストレージへアクセスします。",
   CAT_userConfig: "ScriptCat API: スクリプトのユーザー設定へアクセスします。",

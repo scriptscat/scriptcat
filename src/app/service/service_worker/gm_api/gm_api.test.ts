@@ -5,12 +5,22 @@ import GMApi, {
   ConnectMatch,
   getConnectMatched,
   getExtensionSiteAccessOriginPattern,
+  MockGMExternalDependencies,
   mergeCookieHeader,
 } from "./gm_api";
 import { PermissionVerifyApiGet, type ConfirmParam } from "../permission_verify";
-import type { GMApiRequest } from "../types";
+import { SystemConfig } from "@App/pkg/config/config";
+import PermissionVerify from "../permission_verify";
+import { Server } from "@Packages/message/server";
+import { MockMessage } from "@Packages/message/mock_message";
+import { MessageQueue } from "@Packages/message/message_queue";
+import EventEmitter from "eventemitter3";
+import { initTestEnv } from "@Tests/utils";
 // 触发所有 GM API 装饰器注册（与 gm_api.ts 中的 import 保持同步）
 import "./gm_api";
+import { type GMApiRequest } from "../types";
+
+initTestEnv();
 
 // 小工具：建立假的 IGetSender
 const makeSender = (url?: string): IGetSender => ({
@@ -336,5 +346,57 @@ describe.concurrent("native GM_download 的 @connect 校验（verifyXhrConnect �
     // 与 native GM_download 的软确认形成对比，锁定 softConnect 分叉
     const req = makeReq({ url: "https://not-connected.com/api", connect: ["example.com"] });
     await expect(xhrConfirm(req, makeConnSender(), makeGmApi())).rejects.toThrow(/not a part of the @connect list/);
+  });
+});
+
+function createGMApi(): GMApi {
+  const ee = new EventEmitter<string, any>();
+  const message = new MockMessage(ee);
+  const messageQueue = new MessageQueue();
+  const systemConfig = new SystemConfig(messageQueue);
+  const server = new Server("serviceWorker", message);
+  const permissionVerify = new PermissionVerify(server.group("permissionVerify"), messageQueue);
+  return new GMApi(
+    systemConfig,
+    permissionVerify,
+    server.group("runtime"),
+    message,
+    messageQueue,
+    {} as any,
+    new MockGMExternalDependencies()
+  );
+}
+
+const makeAudioSender = (tabId: number): IGetSender => ({
+  getSender: () => ({}),
+  getType: () => 0,
+  isType: () => false,
+  getExtMessageSender: () => ({ tabId }) as ExtMessageSender,
+  getConnect: () => undefined,
+});
+
+describe("GM_audio getState", () => {
+  it("tab 未静音时不应返回 muteReason（即使 mutedInfo.reason 仍带有上次静音/取消静音的原因）", async () => {
+    const gmApi = createGMApi();
+    (chrome.tabs as any).get = vi.fn().mockResolvedValueOnce({
+      mutedInfo: { muted: false, reason: "extension" },
+      audible: true,
+    } as chrome.tabs.Tab);
+
+    const state = await gmApi.GM_audio({ params: ["getState"] } as any, makeAudioSender(1));
+
+    expect(state).toEqual({ isMuted: false, isAudible: true });
+  });
+
+  it("tab 静音时应返回 muteReason", async () => {
+    const gmApi = createGMApi();
+    (chrome.tabs as any).get = vi.fn().mockResolvedValueOnce({
+      mutedInfo: { muted: true, reason: "user" },
+      audible: false,
+    } as chrome.tabs.Tab);
+
+    const state = await gmApi.GM_audio({ params: ["getState"] } as any, makeAudioSender(1));
+
+    expect(state).toEqual({ isMuted: true, muteReason: "user", isAudible: false });
   });
 });
