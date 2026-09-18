@@ -1516,6 +1516,118 @@ describe("USER_SCRIPT native callbacks", () => {
     });
   });
 
+  it("queues USER_SCRIPT value updates until a reconnect finishes its bootstrap", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({ uuid: "queued-content-script", metadata: { match: ["https://www.example.com/*"] } })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [],
+      contentScriptList: [script],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+
+    const rawSender = {
+      url: "https://www.example.com/page",
+      frameId: 0,
+      documentId: "doc-a",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender;
+    const makeConnection = () =>
+      ({
+        onMessage: vi.fn(),
+        sendMessage: vi.fn(),
+        disconnect: vi.fn(),
+        onDisconnect: vi.fn(),
+      }) as unknown as MessageConnect;
+    const firstConnection = makeConnection();
+    const sender = {
+      getType: () => 3,
+      isType: () => true,
+      getSender: () => rawSender,
+      getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-a" }),
+      getConnect: () => firstConnection,
+      getConnectOrigin: () => "userScript" as const,
+    };
+    const pageLoad = await runtime.pageLoad({ envTag: "it" }, new SenderRuntime(rawSender));
+    const contentBootstrapToken = pageLoad.ok ? pageLoad.userScriptBootstrapToken : undefined;
+    expect(contentBootstrapToken).toEqual(expect.any(String));
+    expect(
+      runtime.registerUserScriptConnection({ world: "USER_SCRIPT", bootstrapToken: contentBootstrapToken }, sender)
+    ).toBe(true);
+
+    const update = {
+      uuid: script.uuid,
+      storageName: getStorageName(script),
+      entries: [["beforeReconnect", [0, "new"], [0, "old"]]],
+      sender: { runFlag: "remote", tabId: 42 },
+      valueUpdated: true,
+    };
+    (runtime as any).sendUserScriptMessage(undefined, "runtime/valueUpdate", update);
+    expect(firstConnection.sendMessage).not.toHaveBeenCalled();
+
+    const firstBootstrapHandler = (firstConnection.onMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      packet: TMessage
+    ) => void;
+    firstBootstrapHandler({ action: "userScript/bootstrap" });
+    expect(firstConnection.sendMessage).toHaveBeenCalledTimes(2);
+    expect(firstConnection.sendMessage).toHaveBeenLastCalledWith({
+      action: "content/runtime/valueUpdate",
+      data: update,
+    });
+
+    const disconnectHandler = (firstConnection.onDisconnect as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      isSelfDisconnected: boolean
+    ) => void;
+    disconnectHandler(false);
+    (runtime as any).sendUserScriptMessage(undefined, "runtime/valueUpdate", {
+      ...update,
+      entries: [["afterReconnect", [0, "next"], [0, "old-next"]]],
+    });
+    (runtime as any).sendUserScriptMessage(undefined, "runtime/valueUpdate", {
+      ...update,
+      entries: [["afterReconnectAgain", [0, "latest"], [0, "old-latest"]]],
+    });
+    const reconnect = runtime.reconnectUserScript(
+      { reconnectToken: contentBootstrapToken },
+      {
+        getType: () => 4,
+        isType: (type: number) => type === 4,
+        getSender: () => rawSender,
+        getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-a" }),
+        getConnect: () => undefined,
+        getConnectOrigin: () => "userScript" as const,
+      }
+    );
+    expect(reconnect).toEqual({ bootstrapToken: expect.any(String) });
+
+    const secondConnection = makeConnection();
+    expect(
+      runtime.registerUserScriptConnection(
+        { world: "USER_SCRIPT", bootstrapToken: reconnect?.bootstrapToken },
+        { ...sender, getConnect: () => secondConnection }
+      )
+    ).toBe(true);
+    const secondBootstrapHandler = (secondConnection.onMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      packet: TMessage
+    ) => void;
+    secondBootstrapHandler({ action: "userScript/bootstrap" });
+
+    expect(secondConnection.sendMessage).toHaveBeenCalledTimes(2);
+    expect(secondConnection.sendMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        action: "content/runtime/valueUpdate",
+        data: expect.objectContaining({
+          entries: [
+            ["afterReconnect", [0, "next"], [0, "old-next"]],
+            ["afterReconnectAgain", [0, "latest"], [0, "old-latest"]],
+          ],
+        }),
+      })
+    );
+  });
+
   it("只向当前文档中声明了对应脚本或 storageName 的连接投递更新", async () => {
     const { runtime } = _createRuntimeContext();
     const script = _createScriptRunResource(

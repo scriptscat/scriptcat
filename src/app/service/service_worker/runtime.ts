@@ -142,6 +142,8 @@ type UserScriptSession = {
   frameId?: number;
   documentId?: string;
   transport: "userScript" | "extension";
+  // 断线窗口内按 storageName 合并值更新，重连握手完成后再投递。
+  pendingValueUpdates: Map<string, ValueUpdateDataEncoded>;
 };
 type UserScriptBootstrap = Omit<UserScriptSession, "transport">;
 
@@ -168,10 +170,11 @@ export class RuntimeService {
       tabId: number;
       frameId?: number;
       documentId?: string;
+      ready: boolean;
     }
   >();
   private readonly userScriptBootstraps = new Map<string, UserScriptBootstrap>();
-  // 连接断开后保留当前文档的已验证资料，供 USER_SCRIPT 通过原生消息重连；导航或脚本撤销会同步清除。
+  // 连接断开后保留当前文档的已验证资料与待投递值更新，供 USER_SCRIPT 通过原生消息重连；导航或脚本撤销会同步清除。
   private readonly userScriptSessions = new Map<string, UserScriptSession>();
   // Only the newest load for a tab/frame/environment may issue bindings; navigation can resolve old requests late.
   private readonly pageLoadSequences = new Map<string, number>();
@@ -314,7 +317,7 @@ export class RuntimeService {
     this.userScriptBootstraps.delete(handshake.bootstrapToken);
     const previous = this.userScriptConnections.get(key);
     if (previous) previous.connection.disconnect(true);
-    const entry = { connection, handles, envTag: bootstrap.envTag, tabId, frameId, documentId };
+    const entry = { connection, handles, envTag: bootstrap.envTag, tabId, frameId, documentId, ready: false };
     this.userScriptConnections.set(key, entry);
     connection.onDisconnect(() => {
       if (this.userScriptConnections.get(key)?.connection === connection) this.userScriptConnections.delete(key);
@@ -342,6 +345,8 @@ export class RuntimeService {
           action: `${bootstrap.envTag === "it" ? "inject" : "content"}/pageLoad`,
           data: pageLoadData,
         });
+        entry.ready = true;
+        this.flushPendingUserScriptValueUpdates(key, entry);
       } catch {
         this.userScriptConnections.delete(key);
       }
@@ -414,11 +419,57 @@ export class RuntimeService {
     return { bootstrapToken };
   }
 
+  private queuePendingUserScriptValueUpdate(key: string, data: ValueUpdateDataEncoded): void {
+    const session = this.userScriptSessions.get(key);
+    if (!session) return;
+    const previous = session.pendingValueUpdates.get(data.storageName);
+    if (!previous) {
+      session.pendingValueUpdates.set(data.storageName, data);
+      return;
+    }
+    const entries: ValueUpdateDataEncoded["entries"] = previous.entries.map((entry) => [entry[0], entry[1], entry[2]]);
+    const entryIndexes = new Map<string, number>();
+    for (let index = 0; index < entries.length; index += 1) entryIndexes.set(entries[index][0], index);
+    for (const entry of data.entries) {
+      const index = entryIndexes.get(entry[0]);
+      if (index === undefined) {
+        entryIndexes.set(entry[0], entries.length);
+        entries.push([entry[0], entry[1], entry[2]]);
+      } else {
+        entries[index] = [entry[0], entry[1], entries[index][2]];
+      }
+    }
+    session.pendingValueUpdates.set(data.storageName, {
+      ...data,
+      entries,
+      valueUpdated: previous.valueUpdated || data.valueUpdated,
+    });
+  }
+
+  private flushPendingUserScriptValueUpdates(
+    key: string,
+    entry: { connection: MessageConnect; envTag: "it" | "ct" }
+  ): void {
+    const session = this.userScriptSessions.get(key);
+    if (!session) return;
+    for (const [storageName, data] of session.pendingValueUpdates) {
+      entry.connection.sendMessage({
+        action: `${entry.envTag === "it" ? "inject" : "content"}/runtime/valueUpdate`,
+        data,
+      });
+      session.pendingValueUpdates.delete(storageName);
+    }
+  }
+
   private sendUserScriptMessage(to: ExtMessageSender | undefined, action: string, data: unknown): void {
     const dataRecord =
       typeof data === "object" && data !== null ? (data as { uuid?: unknown; storageName?: unknown }) : undefined;
     const targetUuid = action === "runtime/emitEvent" ? dataRecord?.uuid : undefined;
     const targetStorageName = action === "runtime/valueUpdate" ? dataRecord?.storageName : undefined;
+    const valueUpdate =
+      action === "runtime/valueUpdate" && typeof dataRecord?.storageName === "string"
+        ? (data as ValueUpdateDataEncoded)
+        : undefined;
     // 先按页面定位，再按句柄对应的脚本或 storageName 过滤，避免跨脚本广播私有回调。
     for (const [key, entry] of this.userScriptConnections) {
       if (
@@ -442,11 +493,42 @@ export class RuntimeService {
         }
       }
       if (!bindingMatches) continue;
+      if (!entry.ready) {
+        if (valueUpdate) this.queuePendingUserScriptValueUpdate(key, valueUpdate);
+        continue;
+      }
       try {
         entry.connection.sendMessage({ action: `${entry.envTag === "it" ? "inject" : "content"}/${action}`, data });
       } catch {
         this.userScriptConnections.delete(key);
+        if (valueUpdate) this.queuePendingUserScriptValueUpdate(key, valueUpdate);
       }
+    }
+    if (!valueUpdate) return;
+    for (const [key, session] of this.userScriptSessions) {
+      if (this.userScriptConnections.has(key)) continue;
+      if (
+        to &&
+        (session.tabId !== to.tabId ||
+          (to.frameId !== undefined && session.frameId !== to.frameId) ||
+          (to.documentId !== undefined && session.documentId !== to.documentId))
+      ) {
+        continue;
+      }
+      let bindingMatches = false;
+      for (const script of session.scripts) {
+        const handle = script.executionHandle;
+        const binding = typeof handle === "string" ? this.pageExecutionBindings.get(handle) : undefined;
+        if (
+          binding &&
+          ((targetUuid !== undefined && targetUuid === binding.uuid) ||
+            (targetStorageName !== undefined && targetStorageName === binding.storageName))
+        ) {
+          bindingMatches = true;
+          break;
+        }
+      }
+      if (bindingMatches) this.queuePendingUserScriptValueUpdate(key, valueUpdate);
     }
   }
 
@@ -1725,6 +1807,7 @@ export class RuntimeService {
             tabId,
             frameId,
             documentId: chromeSender.documentId,
+            pendingValueUpdates: new Map(),
           });
           return token;
         };
