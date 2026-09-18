@@ -97,10 +97,10 @@ export class ConversationInstance {
   // 私有状态包含跨 context 的发送函数；用 private field 隐藏它，避免脚本读取或替换传输入口。
   #state: ConversationPrivateState;
 
-  public toolHandlers: Map<string, ToolHandler> = new Map();
-  public toolDefs: ToolDefinition[] = [];
-  public ephemeral: boolean;
-  public messageHistory: Array<{
+  #toolHandlers: Map<string, ToolHandler> = new Map();
+  #toolDefs: ToolDefinition[] = [];
+  #ephemeral: boolean;
+  #messageHistory: Array<{
     role: MessageRole;
     content: MessageContent;
     toolCallId?: string;
@@ -130,11 +130,11 @@ export class ConversationInstance {
       background: background || false,
     };
     this.#state = state;
-    this.ephemeral = ephemeral || false;
+    this.#ephemeral = ephemeral || false;
     if (initialTools) {
       for (const tool of initialTools) {
-        this.toolHandlers.set(tool.name, tool.handler);
-        this.toolDefs.push({ name: tool.name, description: tool.description, parameters: tool.parameters });
+        this.#toolHandlers.set(tool.name, tool.handler);
+        this.#toolDefs.push({ name: tool.name, description: tool.description, parameters: tool.parameters });
       }
     }
 
@@ -175,8 +175,8 @@ export class ConversationInstance {
     const state = this.#state;
 
     // ephemeral 模式：追加 user message 到内存历史
-    if (this.ephemeral) {
-      this.messageHistory.push({ role: "user", content });
+    if (this.#ephemeral) {
+      this.#messageHistory.push({ role: "user", content });
     }
 
     // 通过 GM API connect 建立流式连接
@@ -194,9 +194,9 @@ export class ConversationInstance {
     if (state.background) {
       connectParams.background = true;
     }
-    if (this.ephemeral) {
+    if (this.#ephemeral) {
       connectParams.ephemeral = true;
-      connectParams.messages = this.messageHistory;
+      connectParams.messages = this.#messageHistory;
       connectParams.system = state.systemPrompt;
       connectParams.modelId = state.conv.modelId;
     }
@@ -207,8 +207,8 @@ export class ConversationInstance {
 
     // ephemeral 模式：中间轮次（带 tool calls）已在 processChat 内按 new_message 边界追加到内存历史，
     // 这里只需追加不含 tool calls 的最终回复（done 事件保证到达时已无待处理的 tool calls）。
-    if (this.ephemeral) {
-      this.messageHistory.push({ role: "assistant", content: reply.content });
+    if (this.#ephemeral) {
+      this.#messageHistory.push({ role: "assistant", content: reply.content });
     }
 
     return reply;
@@ -243,8 +243,8 @@ export class ConversationInstance {
     const state = this.#state;
 
     // ephemeral 模式：追加 user message 到内存历史
-    if (this.ephemeral) {
-      this.messageHistory.push({ role: "user", content });
+    if (this.#ephemeral) {
+      this.#messageHistory.push({ role: "user", content });
     }
 
     const connectParams: Record<string, unknown> = {
@@ -261,9 +261,9 @@ export class ConversationInstance {
     if (state.background) {
       connectParams.background = true;
     }
-    if (this.ephemeral) {
+    if (this.#ephemeral) {
       connectParams.ephemeral = true;
-      connectParams.messages = this.messageHistory;
+      connectParams.messages = this.#messageHistory;
       connectParams.system = state.systemPrompt;
       connectParams.modelId = state.conv.modelId;
     }
@@ -273,7 +273,7 @@ export class ConversationInstance {
     // chat 连接不会收到 sync 事件（sync 快照仅由 attach 的 SW 端发出），
     // 公开签名与 scriptcat.d.ts 保持一致：chatStream 只产出 StreamChunk
     // ephemeral 模式：包装 stream 以收集 assistant 消息到内存历史
-    if (this.ephemeral) {
+    if (this.#ephemeral) {
       return this.processStreamEphemeral(conn, handlers) as AsyncIterable<StreamChunk>;
     }
 
@@ -304,8 +304,8 @@ export class ConversationInstance {
 
   // 合并实例级别和调用级别的工具定义（调用级同名工具同时替换 schema 与 handler）
   protected mergeTools(callTools?: ChatOptions["tools"]) {
-    const toolDefs: ToolDefinition[] = [...this.toolDefs];
-    const handlers = new Map<string, ToolHandler>(this.toolHandlers);
+    const toolDefs: ToolDefinition[] = [...this.#toolDefs];
+    const handlers = new Map<string, ToolHandler>(this.#toolHandlers);
     for (const tool of callTools || []) {
       const definition = {
         name: tool.name,
@@ -323,9 +323,9 @@ export class ConversationInstance {
   // 获取对话历史
   async getMessages(): Promise<ChatMessage[]> {
     const state = this.#state;
-    if (this.ephemeral) {
+    if (this.#ephemeral) {
       // ephemeral 模式：从内存历史转换为 ChatMessage 格式
-      return this.messageHistory.map((msg, idx) => ({
+      return this.#messageHistory.map((msg, idx) => ({
         id: `ephemeral-${idx}`,
         conversationId: state.conv.id,
         role: msg.role,
@@ -348,8 +348,8 @@ export class ConversationInstance {
 
   // 清空对话消息历史
   async clear(): Promise<void> {
-    if (this.ephemeral) {
-      this.messageHistory = [];
+    if (this.#ephemeral) {
+      this.#messageHistory = [];
       return;
     }
     const state = this.#state;
@@ -405,15 +405,15 @@ export class ConversationInstance {
         const finalContent = buildContent(content, blocks);
         const round = ordered.map(cloneToolCall);
         aggregate.push(...round);
-        if (this.ephemeral && record && (content || blocks.length || round.length)) {
-          this.messageHistory.push({
+        if (this.#ephemeral && record && (content || blocks.length || round.length)) {
+          this.#messageHistory.push({
             role: "assistant",
             content: finalContent,
             toolCalls: round.length ? round : undefined,
           });
           for (const toolCall of round) {
             if (toolCall.result !== undefined) {
-              this.messageHistory.push({
+              this.#messageHistory.push({
                 role: "tool",
                 content: toolCall.result,
                 toolCallId: toolCall.id,
@@ -799,13 +799,13 @@ export class ConversationInstance {
             result: JSON.stringify({ error: "Tool call cancelled: stream ended before it completed" }),
           });
         });
-        this.messageHistory.push({
+        this.#messageHistory.push({
           role: "assistant",
           content: buildContent(text, blocks),
           toolCalls: finalized.length ? finalized : undefined,
         });
         for (const toolCall of finalized) {
-          this.messageHistory.push({
+          this.#messageHistory.push({
             role: "tool",
             content: toolCall.result!,
             toolCallId: toolCall.id,
