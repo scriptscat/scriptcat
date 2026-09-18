@@ -467,11 +467,7 @@ export default function ChatInput({
   };
 
   const canSend =
-    !!(input.trim() || attachments.length > 0) &&
-    !disabled &&
-    !hasPendingMessage &&
-    !isSending &&
-    !isOptimizing;
+    !!(input.trim() || attachments.length > 0) && !disabled && !hasPendingMessage && !isSending && !isOptimizing;
   const iconBtn =
     "size-7 max-md:size-11 rounded flex items-center justify-center bg-transparent border-none cursor-pointer text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
 
