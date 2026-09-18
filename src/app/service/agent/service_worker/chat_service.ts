@@ -32,6 +32,8 @@ import { createTaskTools } from "@App/app/service/agent/core/tools/task_tools";
 import { createAskUserTool } from "@App/app/service/agent/core/tools/ask_user";
 import { createSubAgentTool } from "@App/app/service/agent/core/tools/sub_agent";
 import { createExecuteScriptTool } from "@App/app/service/agent/core/tools/execute_script";
+import { bindToolToAssignedTab, createFormFieldTools } from "@App/app/service/agent/core/tools/form_fields";
+import { createPageExtractorTabTools } from "@App/app/service/agent/core/tools/page_extractor_tools";
 import { resolveSubAgentType } from "@App/app/service/agent/core/sub_agent_types";
 import { classifyErrorCode } from "./retry_utils";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
@@ -1099,6 +1101,7 @@ export class ChatService {
 
           // 为子代理创建完全独立的工具注册表（共享全局只读 parent，session 工具独立创建）
           const childRegistry = new SessionToolRegistry(this.toolRegistry);
+          let cleanupChildResources: (() => Promise<void>) | undefined;
 
           const subSendEvent = (evt: ChatStreamEvent) =>
             sendEvent({
@@ -1117,8 +1120,43 @@ export class ChatService {
             childRegistry.register("session", t.definition, t.executor);
           }
 
-          const childExecTool = createExecuteScriptTool(this.executeScriptDeps);
-          childRegistry.register("session", childExecTool.definition, childExecTool.executor);
+          if (typeConfig.name === "form_filler") {
+            if (options.tabId === undefined) {
+              throw new Error("form_filler requires a target tab_id");
+            }
+            for (const toolName of ["get_tab_content", "activate_tab"]) {
+              const inheritedTool = this.toolRegistry.getTools().get(toolName);
+              if (!inheritedTool) {
+                throw new Error(`Required form_filler tool is not registered: ${toolName}`);
+              }
+              const boundTool = bindToolToAssignedTab(inheritedTool, options.tabId);
+              childRegistry.register("session", boundTool.definition, boundTool.executor);
+            }
+            for (const tool of createFormFieldTools(this.executeScriptDeps, options.tabId)) {
+              childRegistry.register("session", tool.definition, tool.executor);
+            }
+          } else if (typeConfig.name === "page_extractor") {
+            const requiredTools = ["open_tab", "get_tab_content", "close_tab"] as const;
+            const entries = requiredTools.map((toolName) => {
+              const entry = this.toolRegistry.getTools().get(toolName);
+              if (!entry) throw new Error(`Required page_extractor tool is not registered: ${toolName}`);
+              return entry;
+            });
+            const scopedTools = createPageExtractorTabTools({
+              openTab: entries[0],
+              readTab: entries[1],
+              closeTab: entries[2],
+            });
+            for (const tool of scopedTools.tools) {
+              childRegistry.register("session", tool.definition, tool.executor);
+            }
+            cleanupChildResources = scopedTools.cleanup;
+          } else {
+            const childExecTool = createExecuteScriptTool(this.executeScriptDeps, {
+              allowedTargets: typeConfig.executeScriptTargets,
+            });
+            childRegistry.register("session", childExecTool.definition, childExecTool.executor);
+          }
 
           // general 类型：独立的 skill meta-tools（load_skill / execute_skill_script / read_reference）
           let skillPromptSuffix = "";
@@ -1130,7 +1168,7 @@ export class ChatService {
             }
           }
 
-          return this.subAgentService.runSubAgent({
+          const run = this.subAgentService.runSubAgent({
             options: { ...options, description: options.description || "Sub-agent task" },
             agentId,
             model,
@@ -1140,6 +1178,7 @@ export class ChatService {
             skillPromptSuffix,
             sendEvent: subSendEvent,
           });
+          return cleanupChildResources ? run.finally(cleanupChildResources) : run;
         },
       });
       sessionRegistry.register("session", subAgentTool.definition, subAgentTool.executor);

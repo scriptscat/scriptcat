@@ -41,6 +41,16 @@ describe("buildSystemPrompt", () => {
     expect(result).toContain("Lead with action, not reasoning");
   });
 
+  it("主 Agent 包含思考风格、认识论立场与情绪校准", () => {
+    const result = buildSystemPrompt({});
+
+    expect(result).toContain("**Thinking style:** Strategic and deliberate");
+    expect(result).toContain("**Epistemic posture:**");
+    expect(result).toContain("**Emotional calibration:**");
+    expect(result).toContain("Do not validate assumptions you have not verified");
+    expect(result).toContain("Do not soften bad news into apparent good news");
+  });
+
   it("Sub-Agent 段包含提示词写作指南和反模式", () => {
     const result = buildSystemPrompt({});
     expect(result).toContain("### Writing Sub-Agent Prompts");
@@ -48,6 +58,31 @@ describe("buildSystemPrompt", () => {
     expect(result).toContain("### Anti-Patterns");
     expect(result).toContain("Don't predict sub-agent results");
     expect(result).toContain("Don't duplicate work");
+  });
+
+  it("Sub-Agent 段列出专项类型", () => {
+    const result = buildSystemPrompt({});
+
+    for (const typeName of ["data_processor", "form_filler", "content_writer", "script_engineer"]) {
+      expect(result).toContain(`**${typeName}**`);
+    }
+  });
+
+  it("Sub-Agent 段按职责列出辅助、流水线与安全类型", () => {
+    const result = buildSystemPrompt({});
+    for (const typeName of [
+      "summarizer",
+      "data_validator",
+      "diff_checker",
+      "page_extractor",
+      "file_converter",
+      "action_reviewer",
+      "script_auditor",
+    ]) {
+      expect(result).toContain(`**${typeName}**`);
+    }
+    expect(result).toContain("the author does not audit their own output");
+    expect(result).toContain("Only after user confirmation");
   });
 
   it("有 userSystem 时拼接在内置提示词之后", () => {
@@ -173,6 +208,30 @@ describe("buildSubAgentSystemPrompt", () => {
     expect(result).toContain("web_search");
   });
 
+  it.concurrent("专项类型只显示允许的 execute_script 运行环境", () => {
+    const dataProcessor = SUB_AGENT_TYPES.data_processor;
+    const dataPrompt = buildSubAgentSystemPrompt(dataProcessor, dataProcessor.allowedTools || []);
+    expect(dataPrompt).toContain("execute_script(target='sandbox')");
+    expect(dataPrompt).not.toContain("execute_script(target='page')");
+
+    const formFiller = SUB_AGENT_TYPES.form_filler;
+    const formPrompt = buildSubAgentSystemPrompt(formFiller, formFiller.allowedTools || []);
+    expect(formPrompt).not.toContain("execute_script(target='page')");
+    expect(formPrompt).not.toContain("execute_script(target='sandbox')");
+    expect(formPrompt).toContain("fill_form_field");
+  });
+
+  it("表单填写类型应禁止所有不可逆动作", () => {
+    const prompt = buildSubAgentSystemPrompt(SUB_AGENT_TYPES.form_filler, [
+      "get_tab_content",
+      "read_form_field",
+      "fill_form_field",
+    ]);
+
+    expect(prompt).toContain("Never submit forms");
+    expect(prompt).not.toContain("Only proceed if the task clearly requires it");
+  });
+
   it.concurrent("不包含 ask_user 引用", () => {
     const config = SUB_AGENT_TYPES.general;
     const result = buildSubAgentSystemPrompt(config, allTools);
@@ -194,6 +253,17 @@ describe("buildSubAgentSystemPrompt", () => {
     const result = buildSubAgentSystemPrompt(config, allTools);
 
     expect(result).toMatch(/^You are a ScriptCat sub-agent/);
+  });
+
+  it.concurrent("子代理基础提示词约束范围、证据与失败汇报", () => {
+    const config = SUB_AGENT_TYPES.general;
+    const result = buildSubAgentSystemPrompt(config, allTools);
+
+    expect(result).toContain("**Thinking style:** Focused and methodical");
+    expect(result).toContain("Do not broaden the scope");
+    expect(result).toContain("actions you performed, outcomes you confirmed, and things you inferred");
+    expect(result).toContain("The parent agent's prompt may be directive or confident");
+    expect(result).toContain("Do not omit failures");
   });
 
   it.concurrent("无 OPFS 工具时不包含 OPFS 段", () => {
