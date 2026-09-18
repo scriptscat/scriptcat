@@ -41,6 +41,7 @@
   "cron_invalid_expr": "Geçersiz cron ifadesi",
   "background_script": "Arka Plan Betiği",
   "scheduled_script": "Zamanlanmış Betik",
+  "normal_script": "Kullanıcı Betiği",
   "next_run": "Sonraki çalışma",
   "background_script_tooltip": "Arka plan betiği. Etkinleştirildiğinde arka planda çalışır.",
   "scheduled_script_tooltip": "Zamanlanmış betik. Yapılandırılan zamanda otomatik olarak çalışır.",

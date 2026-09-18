@@ -117,6 +117,25 @@ describe("assembleInstallView 组装安装视图", () => {
     expect(assembleInstallView(base).inTrash).toBe(false);
   });
 
+  it("组装时派生不生效标记，行号取自待安装代码", () => {
+    const metadata = { name: ["示例脚本"], version: ["2.3.1"], "exclude-match": ["*://a.com/*"], grant: ["GM_audio"] };
+    const code = `// ==UserScript==
+// @name 示例脚本
+// @exclude-match *://a.com/*
+// @grant GM_audio
+// ==/UserScript==`;
+    const view = assembleInstallView({
+      isUpdate: false,
+      scriptInfo: makeScriptInfo(metadata),
+      action: makeAction(metadata),
+      code,
+      oldVersion: null,
+    });
+    expect(view.compat.grants).toEqual(new Map([["GM_audio", 4]]));
+    expect(view.compat.tags).toEqual([{ tag: "exclude-match", line: 3 }]);
+    expect(view.compat.scriptcatOnlyTags).toEqual([]);
+  });
+
   it("全新安装组装名称、来源、版本与权限", () => {
     const metadata = {
       name: ["示例脚本"],
@@ -282,6 +301,42 @@ describe("useInstallData 数据流编排", () => {
     if (state.status !== "ready") throw new Error("not ready");
     expect(state.view.isUpdate).toBe(true);
     expect(state.view.oldCode).toBe("// old code");
+  });
+
+  it("uuid 更新时以已安装脚本的 metadata 为基线派生权限差异", async () => {
+    window.history.replaceState({}, "", "/install.html?uuid=u1");
+    const metadata = { name: ["示例脚本"], version: ["2.0.0"], connect: ["api.e.com", "cdn.e.com"] };
+    const oldMetadata = { name: ["示例脚本"], version: ["1.0.0"], connect: ["api.e.com"] };
+    const info: ScriptInfo = {
+      url: "https://e.com/x.user.js",
+      code: "",
+      uuid: "u1",
+      userSubscribe: false,
+      metadata,
+      source: "user",
+    };
+    (scriptClient.getInstallInfo as Mock).mockResolvedValue([true, info, {}]);
+    (getTempCode as Mock).mockResolvedValue("// new code");
+    (prepareScriptByCode as Mock).mockResolvedValue({
+      script: { name: "示例脚本", metadata, status: SCRIPT_STATUS_ENABLE } as unknown as Script,
+      oldScript: { metadata: oldMetadata } as unknown as Script,
+      oldScriptCode: "// old code",
+    });
+
+    const { result } = renderHook(() => useInstallData());
+    await waitFor(() => expect(result.current.state.status).toBe("ready"));
+    const state = result.current.state;
+    if (state.status !== "ready") throw new Error("not ready");
+    const connect = state.view.permissions.find((r) => r.kind === "connect")!;
+    expect(connect.diff).toEqual({ added: ["cdn.e.com"], removed: [] });
+  });
+
+  it("全新安装时权限行不携带差异", async () => {
+    const result = await setupReady();
+    const state = result.current.state;
+    if (state.status !== "ready") throw new Error("not ready");
+    expect(state.view.isUpdate).toBe(false);
+    expect(state.view.permissions.every((r) => r.diff === undefined)).toBe(true);
   });
 
   describe("安装成功后离开安装页:独立新标签应关闭,网页链接接管的原标签应返回上一页", () => {

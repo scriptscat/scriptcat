@@ -7,6 +7,7 @@ vi.mock("./useInstallData", () => ({ useInstallData: vi.fn() }));
 // Monaco 编辑器无法在 DOM 测试环境中渲染(需 worker + ThemeProvider),用桩替换
 vi.mock("@App/pages/components/CodeEditor", () => import("@Tests/mocks/CodeEditor.tsx"));
 
+import { revealLine } from "@Tests/mocks/CodeEditor";
 import { useInstallData, type InstallView } from "./useInstallData";
 import App from "./App";
 
@@ -41,11 +42,13 @@ const readyView = (over: Partial<InstallView> = {}): InstallView => ({
   schedule: null,
   code: "// a\n// b",
   subscribeScripts: [],
+  compat: { grants: new Map(), tags: [], matches: new Map(), scriptcatOnlyTags: [] },
   ...over,
 });
 
 beforeEach(() => {
   mockMatchMedia();
+  revealLine.calls.length = 0;
 });
 
 beforeAll(() => initTestLanguage("zh-CN"));
@@ -321,5 +324,97 @@ describe("Install App 安装反馈", () => {
     });
     render(<App />);
     expect(screen.getByTestId("install-error-bar-message")).toHaveTextContent("技能写入失败");
+  });
+});
+
+describe("Install App 权限卡的更新基线", () => {
+  it("更新场景把已安装版本作为权限对比基线传给权限卡", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      state: {
+        status: "ready",
+        view: readyView({
+          isUpdate: true,
+          version: { kind: "update", oldVersion: "1.2.3", newVersion: "2.3.1", changed: true },
+          permissions: [
+            {
+              kind: "connect",
+              risk: "warn",
+              values: ["api.a.com"],
+              sensitive: [],
+              diff: { added: ["api.a.com"], removed: [] },
+            },
+          ],
+        }),
+      },
+    });
+    render(<App />);
+    expect(screen.getByText("对比已安装的 1.2.3")).toBeInTheDocument();
+    expect(screen.getByText("权限变化")).toBeInTheDocument();
+  });
+
+  it("全新安装不传基线,权限卡维持安装态卡头", () => {
+    mockHook.mockReturnValue({ ...baseHook(), state: { status: "ready", view: readyView() } });
+    render(<App />);
+    expect(screen.getByText("此脚本将获得以下权限")).toBeInTheDocument();
+    expect(screen.queryByText("权限变化")).not.toBeInTheDocument();
+  });
+});
+
+describe("Install App 不再渲染安全警示条", () => {
+  it("全新安装页没有安全警示条", () => {
+    mockHook.mockReturnValue({ ...baseHook(), state: { status: "ready", view: readyView() } });
+    render(<App />);
+    expect(screen.queryByTestId("install-warning-title")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("install-warning-desc")).not.toBeInTheDocument();
+  });
+
+  it("声明了危险权限的更新页同样没有安全警示条", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      state: {
+        status: "ready",
+        view: readyView({
+          isUpdate: true,
+          version: { kind: "update", oldVersion: "1.2.3", newVersion: "2.3.1", changed: true },
+          antifeatures: ["ads"],
+          permissions: [
+            { kind: "connect", risk: "danger", values: ["*"], sensitive: [], diff: { added: [], removed: [] } },
+          ],
+        }),
+      },
+    });
+    render(<App />);
+    expect(screen.queryByTestId("install-warning-title")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("install-warning-risk")).not.toBeInTheDocument();
+  });
+});
+
+describe("安装页的不生效标记", () => {
+  it("把不受支持的 GM 能力标在权限行上，点击跳到代码对应行", () => {
+    mockHook.mockReturnValue({
+      ...baseHook(),
+      state: {
+        status: "ready",
+        view: readyView({
+          permissions: [{ kind: "grant", risk: "warn", values: ["GM_setValue", "GM_audio"], sensitive: [] }],
+          code: "// ==UserScript==\n// @name X\n// @grant GM_audio\n// ==/UserScript==",
+          compat: { grants: new Map([["GM_audio", 3]]), tags: [], matches: new Map(), scriptcatOnlyTags: [] },
+        }),
+      },
+    });
+    render(<App />);
+
+    const chip = screen.getByTestId("compat-chip");
+    expect(chip).toHaveTextContent("GM_audio");
+    fireEvent.click(chip);
+    expect(revealLine.calls).toEqual([3]);
+  });
+
+  it("没有不生效项时权限区一字不改", () => {
+    mockHook.mockReturnValue({ ...baseHook(), state: { status: "ready", view: readyView() } });
+    render(<App />);
+    expect(screen.queryByTestId("compat-chip")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-row-other")).not.toBeInTheDocument();
   });
 });

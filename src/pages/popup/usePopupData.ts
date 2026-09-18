@@ -85,6 +85,7 @@ export function usePopupData() {
   const [backScriptList, setBackScriptList] = useState<ScriptMenu[]>(initialData?.backScriptList ?? []);
   const [pageStatus, setPageStatus] = useState<TPopupPageStatus>(initialData?.pageStatus ?? "ok");
   const [currentUrl, setCurrentUrl] = useState(initialData?.url ?? "");
+  const [currentTitle, setCurrentTitle] = useState(initialData?.title ?? "");
   const [currentTabId, setCurrentTabId] = useState(initialData?.tabId ?? -1);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSections, setExpandedSections] = useState({ current: false, background: false });
@@ -103,10 +104,10 @@ export function usePopupData() {
   );
 
   // ref 保存最新值，避免 async 回调中的闭包过期。ref 只在 effect 中写入，渲染期不触碰。
-  const stateRef = useRef({ currentUrl, currentTabId });
+  const stateRef = useRef({ currentUrl, currentTitle, currentTabId });
   useEffect(() => {
-    stateRef.current = { currentUrl, currentTabId };
-  }, [currentUrl, currentTabId]);
+    stateRef.current = { currentUrl, currentTitle, currentTabId };
+  }, [currentUrl, currentTitle, currentTabId]);
 
   // 显示错误消息，3秒后自动清除
   const showError = useCallback((msg: string) => {
@@ -134,6 +135,7 @@ export function usePopupData() {
     setBackScriptList(initialData.backScriptList);
     setPageStatus(initialData.pageStatus);
     setCurrentUrl(initialData.url);
+    setCurrentTitle(initialData.title);
     setCurrentTabId(initialData.tabId);
     setIsEnableScript(initialData.isEnableScript);
     setCheckUpdate(initialData.checkUpdate);
@@ -341,7 +343,8 @@ export function usePopupData() {
   }, []);
 
   const handleCreateScript = useCallback(async () => {
-    await chrome.storage.local.set({ activeTabUrl: { url: stateRef.current.currentUrl } });
+    const { currentUrl, currentTitle } = stateRef.current;
+    await chrome.storage.local.set({ activeTabUrl: { url: currentUrl, title: currentTitle } });
     // 使用 openInCurrentTab 而非 window.open，避免 Edge Android 等移动端打开异常（#686）
     void openInCurrentTab("/src/options.html#/script/editor?target=initial");
   }, []);
