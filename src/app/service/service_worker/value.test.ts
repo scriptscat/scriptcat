@@ -121,6 +121,30 @@ describe("ValueService - setValue 方法测试", () => {
     expect((savedData as Record<string, unknown>).leaked).toBeUndefined();
   });
 
+  it("does not let a bound config key change the returned value object's prototype", async () => {
+    const mockScript = createMockScript({
+      config: {
+        settings: {
+          setting: {
+            bind: "$__proto__",
+            default: { polluted: true },
+            index: 0,
+          },
+        },
+      } as any,
+    });
+    const stored = {};
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue({ data: stored } as any);
+
+    const values = await valueService.getScriptValue(mockScript);
+
+    expect(Object.getPrototypeOf(values)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(values, "__proto__")).toBe(true);
+    expect(values.__proto__).toBeUndefined();
+    expect((values as Record<string, unknown>).polluted).toBeUndefined();
+  });
+
   it("应该成功设置新脚本的值", async () => {
     // 准备测试数据
     const mockScript = createMockScript();

@@ -50,10 +50,12 @@ export class ValueService {
   }
 
   async getScriptValueDetails(script: Script) {
-    let data: { [key: string]: any } = {};
+    const data: { [key: string]: any } = Object.create(null);
     const ret = await this.valueDAO.get(getStorageName(script));
     if (ret) {
-      data = ret.data;
+      for (const key of Object.keys(ret.data)) {
+        setOwnValue(data, key, ret.data[key]);
+      }
     }
     const newValues = data;
     // 和userconfig组装
@@ -71,10 +73,13 @@ export class ValueService {
           // 动态变量
           if (tab[key].bind) {
             const bindKey = tab[key].bind!.substring(1);
-            newValues[bindKey] = data[bindKey] === undefined ? undefined : data[bindKey];
+            setOwnValue(newValues, bindKey, data[bindKey] === undefined ? undefined : data[bindKey]);
           }
-          newValues[`${tabKey}.${key}`] =
-            data[`${tabKey}.${key}`] === undefined ? tab[key].default : data[`${tabKey}.${key}`];
+          setOwnValue(
+            newValues,
+            `${tabKey}.${key}`,
+            data[`${tabKey}.${key}`] === undefined ? tab[key].default : data[`${tabKey}.${key}`]
+          );
         }
       }
     }
