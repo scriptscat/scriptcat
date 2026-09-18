@@ -177,4 +177,36 @@ describe("GM_xmlhttpRequest callback cleanup", () => {
     expect(onerror).toHaveBeenCalledTimes(1);
     expect(onloadend).toHaveBeenCalledTimes(1);
   });
+
+  it("disconnects an established connection when listener setup throws", async () => {
+    const onerror = vi.fn();
+    const onloadend = vi.fn();
+    const connection = {
+      onMessage: vi.fn(() => {
+        throw new Error("listener setup failed");
+      }),
+      disconnect: vi.fn(),
+      sendMessage: vi.fn(),
+      onDisconnect: vi.fn(),
+    };
+    const api = {
+      isInvalidContext: () => false,
+      connect: vi.fn().mockResolvedValue(connection),
+      sendMessage: vi.fn(),
+    };
+    const request = GM_xmlhttpRequest(
+      api as any,
+      {
+        url: "https://example.com/data",
+        onerror,
+        onloadend,
+      },
+      true
+    );
+
+    await expect(request.retPromise).rejects.toBe("listener setup failed");
+    expect(connection.disconnect).toHaveBeenCalledWith(true);
+    expect(onerror).toHaveBeenCalledTimes(1);
+    expect(onloadend).toHaveBeenCalledTimes(1);
+  });
 });

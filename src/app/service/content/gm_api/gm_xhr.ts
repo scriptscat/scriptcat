@@ -765,6 +765,9 @@ export function GM_xmlhttpRequest(
       } as TXhrCallBackArg);
     }
   })().catch((error) => {
+    const pendingConnection = connect;
+    connect = null;
+    pendingConnection?.disconnect(true);
     if (reqDone) return;
     reqDone = true;
     const message = error instanceof Error ? error.message : `${error}`;
