@@ -471,12 +471,18 @@ describe("ResourceService - resource list and chunks", () => {
     expect([...Uint8Array.from(atob(chunk.base64), (char) => char.charCodeAt(0))]).toEqual([0xbd, 0xa0, 0xe5, 0xa5]);
   });
 
-  it("measures byteSize by decoded bytes, not by the encoded data-URI string", async () => {
+  it("measures data-URI byteSize without decoding the full resource", async () => {
     vi.spyOn(service, "getScriptResourceValue").mockResolvedValue({ logo: dataUriResource() });
+    const decode = vi.spyOn(globalThis, "atob");
 
-    const page = await service.getScriptResourcePage(normalScript("script-binary", {}), 0, 1);
+    try {
+      const page = await service.getScriptResourcePage(normalScript("script-binary", {}), 0, 1);
 
-    expect(page.items[0]).toMatchObject({ key: "logo", contentType: "image/png", byteSize: 10 });
+      expect(page.items[0]).toMatchObject({ key: "logo", contentType: "image/png", byteSize: 10 });
+      expect(decode).not.toHaveBeenCalled();
+    } finally {
+      decode.mockRestore();
+    }
   });
 
   it("slices a data-URI base64 resource by decoded byte offsets", async () => {
@@ -486,6 +492,30 @@ describe("ResourceService - resource list and chunks", () => {
     const chunk = await service.getResourceChunk({ uuid: "old-script", url: resource.url, offset: 2, length: 4 });
 
     expect(chunk).toMatchObject({ offset: 2, length: 4, total: 10, base64: "TkcNCg==" });
+  });
+
+  it("decodes only the base64 range needed for a partial chunk", async () => {
+    const sourceBytes = Uint8Array.from({ length: 25 }, (_, index) => index);
+    const sourceBinary = String.fromCharCode(...sourceBytes);
+    const encoded = btoa(sourceBinary);
+    const resource = { ...dataUriResource(), base64: `data:image/png;base64,${encoded}` };
+    vi.spyOn(service.resourceDAO, "get").mockResolvedValue(resource);
+    const decode = vi.spyOn(globalThis, "atob");
+
+    try {
+      const chunk = await service.getResourceChunk({ uuid: "old-script", url: resource.url, offset: 22, length: 3 });
+
+      expect(chunk).toMatchObject({
+        offset: 22,
+        length: 3,
+        total: sourceBytes.length,
+        base64: btoa(sourceBinary.slice(22, 25)),
+      });
+      expect(decode).toHaveBeenCalledWith(encoded.slice(28, 36));
+      expect(decode).not.toHaveBeenCalledWith(encoded);
+    } finally {
+      decode.mockRestore();
+    }
   });
 
   it("keeps advancing nextOffset until the last page", async () => {

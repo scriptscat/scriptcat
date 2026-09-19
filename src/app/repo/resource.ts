@@ -53,9 +53,11 @@ export const RESOURCE_CHUNK_BYTES = 16 * 1024 * 1024;
 
 export function getResourceByteSize(resource: { content: string; base64?: string }): number {
   if (resource.base64) {
-    const comma = resource.base64.indexOf(",");
-    const encoded = comma === -1 ? resource.base64 : resource.base64.slice(comma + 1);
-    return atob(encoded).length;
+    const base64 = resource.base64;
+    const comma = base64.indexOf(",");
+    const encodedLength = base64.length - (comma === -1 ? 0 : comma + 1);
+    const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+    return Math.floor((encodedLength * 3) / 4) - padding;
   }
   return new TextEncoder().encode(resource.content).byteLength;
 }
