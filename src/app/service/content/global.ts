@@ -1,15 +1,10 @@
 // 避免在全局页面环境中，内置处理函数被篡改或重写
-const unsupportedAPI = () => {
-  throw "unsupportedAPI";
-};
 
 // 在页面或用户脚本替换调用内建函数前完成捕获。
 export const nativeReflectApply = Reflect.apply;
 const nativeFunctionBind = Function.prototype.bind;
-const hasNativeStructuredClone = typeof structuredClone === "function";
-const nativeStructuredClone = hasNativeStructuredClone
-  ? nativeReflectApply(nativeFunctionBind, structuredClone, [globalThis])
-  : unsupportedAPI;
+// structuredClone 不用 bind globalThis; nativeStructuredClone 在初期化時捕获。
+const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
 const nativeSetConstructor = Set;
 const nativeSetAdd = Set.prototype.add;
 const nativeSetHas = Set.prototype.has;
@@ -177,10 +172,10 @@ export const customClone = (o: any) => {
   };
   if (!isDataOnly(o)) return undefined;
 
-  if (hasNativeStructuredClone) {
+  if (nativeStructuredClone) {
     try {
       // 优先使用 structuredClone，支持大多数可克隆对象
-      return Native.structuredClone(o);
+      return nativeStructuredClone(o);
     } catch {
       // structuredClone 拒绝的值不再退回会执行 getter 的 JSON 序列化。
       return undefined;
