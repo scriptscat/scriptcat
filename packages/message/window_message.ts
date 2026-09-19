@@ -38,76 +38,32 @@ const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 export const parseWindowMessageBody = (value: unknown): WindowMessageBody | undefined => {
   if (value === null || typeof value !== "object") return undefined;
 
-  let messageId: unknown;
-  let type: unknown;
-  let data: unknown;
   try {
-    const keys = nativeReflectOwnKeys(value);
-    if (keys.length !== 3) return undefined;
-    // 项目内消息按该字面量顺序构造；保留乱序校验作为兼容路径。
-    if (keys[0] === "messageId" && keys[1] === "type" && keys[2] === "data") {
-      const messageIdDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "messageId");
-      const typeDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "type");
-      const dataDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "data");
-      if (
-        !messageIdDescriptor ||
-        !("value" in messageIdDescriptor) ||
-        !typeDescriptor ||
-        !("value" in typeDescriptor) ||
-        !dataDescriptor ||
-        !("value" in dataDescriptor)
-      ) {
-        return undefined;
-      }
-      messageId = messageIdDescriptor.value;
-      type = typeDescriptor.value;
-      data = dataDescriptor.value;
-    } else {
-      let seen = 0;
-      for (let index = 0; index < 3; index += 1) {
-        const key = keys[index];
-        switch (key) {
-          case "messageId": {
-            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
-            if (!descriptor || !("value" in descriptor)) return undefined;
-            messageId = descriptor.value;
-            seen |= 1;
-            break;
-          }
-          case "type": {
-            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
-            if (!descriptor || !("value" in descriptor)) return undefined;
-            type = descriptor.value;
-            seen |= 2;
-            break;
-          }
-          case "data": {
-            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
-            if (!descriptor || !("value" in descriptor)) return undefined;
-            data = descriptor.value;
-            seen |= 4;
-            break;
-          }
-          default:
-            return undefined;
-        }
-      }
-      if (seen !== 7) return undefined;
+    if (nativeReflectOwnKeys(value).length !== 3) return undefined;
+
+    const messageId = nativeObjectGetOwnPropertyDescriptor(value, "messageId");
+    const type = nativeObjectGetOwnPropertyDescriptor(value, "type");
+    const data = nativeObjectGetOwnPropertyDescriptor(value, "data");
+    if (!messageId || !("value" in messageId) || !type || !("value" in type) || !data || !("value" in data)) {
+      return undefined;
     }
+
+    const messageType = type.value;
+    if (
+      typeof messageId.value !== "string" ||
+      (messageType !== "sendMessage" &&
+        messageType !== "respMessage" &&
+        messageType !== "connect" &&
+        messageType !== "disconnect" &&
+        messageType !== "connectMessage")
+    ) {
+      return undefined;
+    }
+
+    return { messageId: messageId.value, type: messageType, data: data.value } as WindowMessageBody;
   } catch {
     return undefined;
   }
-  if (
-    typeof messageId !== "string" ||
-    (type !== "sendMessage" &&
-      type !== "respMessage" &&
-      type !== "connect" &&
-      type !== "disconnect" &&
-      type !== "connectMessage")
-  ) {
-    return undefined;
-  }
-  return { messageId, type, data } as WindowMessageBody;
 };
 
 export class WindowMessage implements Message {

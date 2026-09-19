@@ -36,122 +36,58 @@ const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
 const parsePageMessageBody = (value: unknown): PageMessageBody | undefined => {
   if (value === null || typeof value !== "object") return undefined;
 
-  let channel: unknown;
-  let source: unknown;
-  let target: unknown;
-  let messageId: unknown;
-  let type: unknown;
-  let data: unknown;
   try {
-    const keys = nativeReflectOwnKeys(value);
-    if (keys.length !== 6) return undefined;
-    // sendEnvelope 按该字面量顺序构造；保留乱序校验作为兼容路径。
+    if (nativeReflectOwnKeys(value).length !== 6) return undefined;
+
+    const channel = nativeObjectGetOwnPropertyDescriptor(value, "channel");
+    const source = nativeObjectGetOwnPropertyDescriptor(value, "source");
+    const target = nativeObjectGetOwnPropertyDescriptor(value, "target");
+    const messageId = nativeObjectGetOwnPropertyDescriptor(value, "messageId");
+    const type = nativeObjectGetOwnPropertyDescriptor(value, "type");
+    const data = nativeObjectGetOwnPropertyDescriptor(value, "data");
     if (
-      keys[0] === "channel" &&
-      keys[1] === "source" &&
-      keys[2] === "target" &&
-      keys[3] === "messageId" &&
-      keys[4] === "type" &&
-      keys[5] === "data"
+      !channel ||
+      !("value" in channel) ||
+      !source ||
+      !("value" in source) ||
+      !target ||
+      !("value" in target) ||
+      !messageId ||
+      !("value" in messageId) ||
+      !type ||
+      !("value" in type) ||
+      !data ||
+      !("value" in data)
     ) {
-      const channelDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "channel");
-      const sourceDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "source");
-      const targetDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "target");
-      const messageIdDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "messageId");
-      const typeDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "type");
-      const dataDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "data");
-      if (
-        !channelDescriptor ||
-        !("value" in channelDescriptor) ||
-        !sourceDescriptor ||
-        !("value" in sourceDescriptor) ||
-        !targetDescriptor ||
-        !("value" in targetDescriptor) ||
-        !messageIdDescriptor ||
-        !("value" in messageIdDescriptor) ||
-        !typeDescriptor ||
-        !("value" in typeDescriptor) ||
-        !dataDescriptor ||
-        !("value" in dataDescriptor)
-      ) {
-        return undefined;
-      }
-      channel = channelDescriptor.value;
-      source = sourceDescriptor.value;
-      target = targetDescriptor.value;
-      messageId = messageIdDescriptor.value;
-      type = typeDescriptor.value;
-      data = dataDescriptor.value;
-    } else {
-      let seen = 0;
-      for (let index = 0; index < 6; index += 1) {
-        const key = keys[index];
-        switch (key) {
-          case "channel": {
-            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
-            if (!descriptor || !("value" in descriptor)) return undefined;
-            channel = descriptor.value;
-            seen |= 1;
-            break;
-          }
-          case "source": {
-            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
-            if (!descriptor || !("value" in descriptor)) return undefined;
-            source = descriptor.value;
-            seen |= 2;
-            break;
-          }
-          case "target": {
-            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
-            if (!descriptor || !("value" in descriptor)) return undefined;
-            target = descriptor.value;
-            seen |= 4;
-            break;
-          }
-          case "messageId": {
-            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
-            if (!descriptor || !("value" in descriptor)) return undefined;
-            messageId = descriptor.value;
-            seen |= 8;
-            break;
-          }
-          case "type": {
-            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
-            if (!descriptor || !("value" in descriptor)) return undefined;
-            type = descriptor.value;
-            seen |= 16;
-            break;
-          }
-          case "data": {
-            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
-            if (!descriptor || !("value" in descriptor)) return undefined;
-            data = descriptor.value;
-            seen |= 32;
-            break;
-          }
-          default:
-            return undefined;
-        }
-      }
-      if (seen !== 63) return undefined;
+      return undefined;
     }
+
+    const messageType = type.value;
+    if (
+      typeof channel.value !== "string" ||
+      (source.value !== "scripting" && source.value !== "inject") ||
+      (target.value !== "scripting" && target.value !== "inject") ||
+      typeof messageId.value !== "string" ||
+      (messageType !== "sendMessage" &&
+        messageType !== "respMessage" &&
+        messageType !== "connect" &&
+        messageType !== "disconnect" &&
+        messageType !== "connectMessage")
+    ) {
+      return undefined;
+    }
+
+    return {
+      channel: channel.value,
+      source: source.value,
+      target: target.value,
+      messageId: messageId.value,
+      type: messageType,
+      data: data.value,
+    } as PageMessageBody;
   } catch {
     return undefined;
   }
-  if (
-    typeof channel !== "string" ||
-    (source !== "scripting" && source !== "inject") ||
-    (target !== "scripting" && target !== "inject") ||
-    typeof messageId !== "string" ||
-    (type !== "sendMessage" &&
-      type !== "respMessage" &&
-      type !== "connect" &&
-      type !== "disconnect" &&
-      type !== "connectMessage")
-  ) {
-    return undefined;
-  }
-  return { channel, source, target, messageId, type, data } as PageMessageBody;
 };
 
 const otherRole = (role: PageMessageRole): PageMessageRole => (role === "scripting" ? "inject" : "scripting");
