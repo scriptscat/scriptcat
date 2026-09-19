@@ -32,51 +32,112 @@ const listenerMgr = new EventEmitter<string, any>();
 
 const nativeReflectOwnKeys = Reflect.ownKeys;
 const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-const PAGE_MESSAGE_KEYS = ["channel", "source", "target", "messageId", "type", "data"] as const;
 
 const parsePageMessageBody = (value: unknown): PageMessageBody | undefined => {
   if (value === null || typeof value !== "object") return undefined;
 
-  let keys: (string | symbol)[];
+  let channel: unknown;
+  let source: unknown;
+  let target: unknown;
+  let messageId: unknown;
+  let type: unknown;
+  let data: unknown;
   try {
-    keys = nativeReflectOwnKeys(value);
-  } catch {
-    return undefined;
-  }
-  if (keys.length !== PAGE_MESSAGE_KEYS.length) return undefined;
-  for (let index = 0; index < keys.length; index += 1) {
-    const key = keys[index];
-    let known = false;
-    if (typeof key === "string") {
-      for (let expectedIndex = 0; expectedIndex < PAGE_MESSAGE_KEYS.length; expectedIndex += 1) {
-        if (PAGE_MESSAGE_KEYS[expectedIndex] === key) {
-          known = true;
-          break;
+    const keys = nativeReflectOwnKeys(value);
+    if (keys.length !== 6) return undefined;
+    // sendEnvelope 按该字面量顺序构造；保留乱序校验作为兼容路径。
+    if (
+      keys[0] === "channel" &&
+      keys[1] === "source" &&
+      keys[2] === "target" &&
+      keys[3] === "messageId" &&
+      keys[4] === "type" &&
+      keys[5] === "data"
+    ) {
+      const channelDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "channel");
+      const sourceDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "source");
+      const targetDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "target");
+      const messageIdDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "messageId");
+      const typeDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "type");
+      const dataDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "data");
+      if (
+        !channelDescriptor ||
+        !("value" in channelDescriptor) ||
+        !sourceDescriptor ||
+        !("value" in sourceDescriptor) ||
+        !targetDescriptor ||
+        !("value" in targetDescriptor) ||
+        !messageIdDescriptor ||
+        !("value" in messageIdDescriptor) ||
+        !typeDescriptor ||
+        !("value" in typeDescriptor) ||
+        !dataDescriptor ||
+        !("value" in dataDescriptor)
+      ) {
+        return undefined;
+      }
+      channel = channelDescriptor.value;
+      source = sourceDescriptor.value;
+      target = targetDescriptor.value;
+      messageId = messageIdDescriptor.value;
+      type = typeDescriptor.value;
+      data = dataDescriptor.value;
+    } else {
+      let seen = 0;
+      for (let index = 0; index < 6; index += 1) {
+        const key = keys[index];
+        switch (key) {
+          case "channel": {
+            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
+            if (!descriptor || !("value" in descriptor)) return undefined;
+            channel = descriptor.value;
+            seen |= 1;
+            break;
+          }
+          case "source": {
+            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
+            if (!descriptor || !("value" in descriptor)) return undefined;
+            source = descriptor.value;
+            seen |= 2;
+            break;
+          }
+          case "target": {
+            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
+            if (!descriptor || !("value" in descriptor)) return undefined;
+            target = descriptor.value;
+            seen |= 4;
+            break;
+          }
+          case "messageId": {
+            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
+            if (!descriptor || !("value" in descriptor)) return undefined;
+            messageId = descriptor.value;
+            seen |= 8;
+            break;
+          }
+          case "type": {
+            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
+            if (!descriptor || !("value" in descriptor)) return undefined;
+            type = descriptor.value;
+            seen |= 16;
+            break;
+          }
+          case "data": {
+            const descriptor = nativeObjectGetOwnPropertyDescriptor(value, key);
+            if (!descriptor || !("value" in descriptor)) return undefined;
+            data = descriptor.value;
+            seen |= 32;
+            break;
+          }
+          default:
+            return undefined;
         }
       }
-    }
-    if (!known) {
-      return undefined;
-    }
-  }
-
-  let fields: PropertyDescriptor[];
-  try {
-    fields = [];
-    for (let index = 0; index < PAGE_MESSAGE_KEYS.length; index += 1) {
-      const descriptor = nativeObjectGetOwnPropertyDescriptor(value, PAGE_MESSAGE_KEYS[index]);
-      if (!descriptor || !("value" in descriptor)) return undefined;
-      fields[fields.length] = descriptor;
+      if (seen !== 63) return undefined;
     }
   } catch {
     return undefined;
   }
-  const channel = fields[0].value;
-  const source = fields[1].value;
-  const target = fields[2].value;
-  const messageId = fields[3].value;
-  const type = fields[4].value;
-  const data = fields[5].value;
   if (
     typeof channel !== "string" ||
     (source !== "scripting" && source !== "inject") ||
