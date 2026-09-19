@@ -124,4 +124,35 @@ describe("PageMessage", () => {
     expect(received).not.toHaveBeenCalled();
     inject.dispose();
   });
+
+  it("keeps page connections working when the page patches Function.prototype.bind", async () => {
+    const target = createWindow();
+    const scripting = new PageMessage("page-message-test", "scripting", target);
+    const originalBind = Function.prototype.bind;
+    let connection: Awaited<ReturnType<typeof scripting.connect>> | undefined;
+
+    try {
+      let connectionPromise: ReturnType<typeof scripting.connect> | undefined;
+      try {
+        Function.prototype.bind = (() => {
+          throw new Error("patched bind");
+        }) as typeof Function.prototype.bind;
+        connectionPromise = scripting.connect({ action: "inject/connect" });
+      } finally {
+        Function.prototype.bind = originalBind;
+      }
+
+      connection = await connectionPromise!;
+      connection.sendMessage({ action: "inject/message" });
+
+      expect(target.postMessage).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ type: "connectMessage", data: { action: "inject/message" } }),
+        "*"
+      );
+    } finally {
+      connection?.disconnect(true);
+      scripting.dispose();
+    }
+  });
 });

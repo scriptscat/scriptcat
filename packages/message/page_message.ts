@@ -169,6 +169,9 @@ export class PageMessage implements Message {
   private readonly postMessage: (message: unknown, targetOrigin: string) => void;
   private readonly messageHandler: (event: MessageEvent) => void;
   private readonly targetRole: PageMessageRole;
+  private sendEnvelopeBound:
+    | ((target: PageMessageRole, body: Omit<PageMessageBody, "channel" | "source" | "target">) => void)
+    | undefined;
 
   constructor(
     private readonly channel: string,
@@ -181,16 +184,10 @@ export class PageMessage implements Message {
     this.messageHandler = (event: MessageEvent) => {
       if (event.source !== null && event.source !== sourceWindow) return;
       const body = parsePageMessageBody(event.data);
-      if (
-        !body ||
-        body.channel !== this.channel ||
-        body.target !== this.role ||
-        body.source !== this.targetRole ||
-        typeof body.messageId !== "string"
-      ) {
+      if (!body || body.channel !== this.channel || body.target !== this.role || body.source !== this.targetRole) {
         return;
       }
-      this.messageHandle(body as PageMessageBody);
+      this.messageHandle(body);
     };
     sourceWindow.addEventListener("message", this.messageHandler);
   }
@@ -205,6 +202,10 @@ export class PageMessage implements Message {
       } satisfies PageMessageBody,
       "*"
     );
+  }
+
+  private getSendEnvelopeBound() {
+    return (this.sendEnvelopeBound ??= bindNative(this.sendEnvelope, this));
   }
 
   private messageHandle(body: PageMessageBody): void {
@@ -227,7 +228,7 @@ export class PageMessage implements Message {
       this.EE.emit(
         "connect",
         body.data,
-        new PageMessageConnect(body.messageId, body.source, this.sendEnvelope.bind(this), this.EE)
+        new PageMessageConnect(body.messageId, body.source, this.getSendEnvelopeBound(), this.EE)
       );
     } else if (body.type === "disconnect") {
       this.EE.emit(`disconnect:${body.messageId}`);
@@ -247,7 +248,7 @@ export class PageMessage implements Message {
   connect(data: TMessage): Promise<MessageConnect> {
     const messageId = uuidv4();
     this.sendEnvelope(this.targetRole, { messageId, type: "connect", data });
-    return Promise.resolve(new PageMessageConnect(messageId, this.targetRole, this.sendEnvelope.bind(this), this.EE));
+    return Promise.resolve(new PageMessageConnect(messageId, this.targetRole, this.getSendEnvelopeBound(), this.EE));
   }
 
   sendMessage<T = any>(data: TMessage): Promise<T> {
