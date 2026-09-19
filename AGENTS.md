@@ -232,6 +232,13 @@ Service Worker (src/service_worker.ts)
 > SW → Offscreen uses `ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage`) on Chrome and
 > `EventPageOffscreenManager` on Firefox MV3; Offscreen replies to SW over `ExtensionMessage`. `WindowMessage`
 > is the Offscreen ↔ Sandbox channel.
+>
+> USER_SCRIPT content and MAIN inject runtimes normally use native extension channels directly to the SW.
+> The `scripting` bundle is a document-start extension content script registered per matching frame. It runs a
+> page-bridge runtime and is a supporting per-document helper rather than a separate service/background context in
+> this five-context model. Those bridges carry the content bootstrap handoff, MAIN bootstrap/fallback and runtime update packets,
+> synchronous DOM handles, and the whitelisted `external.Scriptcat` API. When MAIN GM RPC falls back through
+> `PageMessage`, the scripting runtime validates its execution handle and grant before forwarding it to the SW.
 
 - **Service Worker** — central hub for script CRUD, Chrome APIs, permission verification, resource caching, and message routing.
 - **Content** — bridges SW and inject script.
@@ -244,9 +251,13 @@ Sandbox.
 
 ### Message Passing (`packages/message/`)
 
-`ExtensionMessage` (chrome.runtime — SW ↔ Content / Inject / Offscreen), `WindowMessage` (postMessage — Offscreen ↔
-Sandbox), `ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage` — SW → Offscreen on Chrome),
-`CustomEventMessage` (CustomEvent — Content ↔ Inject), and `MessageQueue` (cross-context broadcast).
+`ExtensionMessage` (chrome.runtime — SW ↔ Content / Inject / Offscreen), `PageMessage` (`window.postMessage` —
+scripting ↔ Inject page bridge, including validated MAIN RPC fallback), `CustomEventMessage` (CustomEvent —
+bootstrap handoff and DOM handles),
+`WindowMessage` (`postMessage` — Offscreen ↔ Sandbox), `ServiceWorkerMessageSend` (`clients.matchAll()` +
+`postMessage` — SW → Offscreen on Chrome), and `MessageQueue` (cross-context broadcast). Page-visible bridges do
+not establish an authenticated extension origin; MAIN requests relayed through `PageMessage` must pass the
+`PageRpcRegistry` checks before forwarding.
 
 ### Service & Data Layers
 

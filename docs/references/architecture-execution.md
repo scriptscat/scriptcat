@@ -39,8 +39,13 @@ patterns and registers the compiled payload (the `scripting` bundle) with `chrom
 ([`script_runtime.ts`](../../src/app/service/content/script_runtime.ts),
 [`exec_script.ts`](../../src/app/service/content/exec_script.ts)) evaluates the compiled function with the GM
 context. The `USER_SCRIPT` content path obtains its matched scripts directly from the service worker over
-`ExtensionMessage`; the isolated `scripting` bundle keeps the page-observable event bridge for `MAIN` execution and
-the synchronous DOM helper only.
+`ExtensionMessage` after a bootstrap-token handoff. The MAIN `inject` path uses a native extension port for GM RPC
+when available; `PageMessage` carries page-visible bootstrap/fallback traffic, MAIN event/value updates, the
+whitelisted `external.Scriptcat` API, and the MAIN GM RPC fallback through the `scripting` bundle. That fallback
+is checked against the current `PageRpcRegistry` execution handle and grant before it is forwarded to the service
+worker. `CustomEventMessage` carries the content bootstrap handoff and synchronous DOM references. Neither
+page-visible bridge establishes an authenticated extension origin, so consumers must validate its payloads before
+acting on them.
 
 ### Path B — Background scripts → Offscreen → Sandbox
 

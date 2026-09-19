@@ -85,4 +85,6 @@ traditional GM API: `@GMContext.API` on the content side
 [`compat-grant.js`](../../packages/eslint/compat-grant.js). What differs is the naming and transport
 shape — the grant is dotted (`CAT.agent.conversation`) and bound with `follow:` rather than `alias:`, the SW
 handlers set `dotAlias: false`, and conversation chat streams over `connect()` instead of `sendMessage`. Copy
-the nearest existing `CAT.agent.*` method rather than a `GM_*` one.
+the nearest existing `CAT.agent.*` method rather than a `GM_*` one. The service-worker handlers derive the script
+identity from `request.script.uuid`, then the Agent services enforce persisted resource ownership; see
+[`architecture-agent.md`](./architecture-agent.md#userscript-resource-ownership) for the scope and legacy rules.
