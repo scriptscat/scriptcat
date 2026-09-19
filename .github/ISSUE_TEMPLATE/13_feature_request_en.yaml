@@ -17,11 +17,11 @@ body:
     attributes:
       label: Pre-check
       options:
-        - label: I have searched existing issues and confirmed this is not a duplicate feature request.
+        - label: I have searched existing issues and confirmed that this is not a duplicate feature request.
           required: true
-        - label: I have confirmed, where possible, that this feature is still not available in the latest stable or beta version.
+        - label: Where possible, I have checked the latest stable or beta version and confirmed that this feature is still unavailable.
           required: true
-        - label: I have confirmed this is a request for a new or improved feature, not a bug report about an existing feature.
+        - label: I have confirmed that this is a request for a new or improved feature, not a bug report about an existing feature.
           required: true
 
   - type: textarea
