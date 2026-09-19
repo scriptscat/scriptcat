@@ -6,6 +6,10 @@ const unsupportedAPI = () => {
 // 在页面或用户脚本替换调用内建函数前完成捕获。
 export const nativeReflectApply = Reflect.apply;
 const nativeFunctionBind = Function.prototype.bind;
+const hasNativeStructuredClone = typeof structuredClone === "function";
+const nativeStructuredClone = hasNativeStructuredClone
+  ? nativeReflectApply(nativeFunctionBind, structuredClone, [globalThis])
+  : unsupportedAPI;
 const nativeSetConstructor = Set;
 const nativeSetAdd = Set.prototype.add;
 const nativeSetHas = Set.prototype.has;
@@ -29,7 +33,6 @@ const nativeWeakMapDelete = WeakMap.prototype.delete;
 const nativeObjectFreeze = Object.freeze;
 const nativeReflectOwnKeys = Reflect.ownKeys;
 const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
-const hasNativeStructuredClone = typeof structuredClone === "function";
 const nativeDocumentCreateElement = typeof Document === "undefined" ? undefined : Document.prototype.createElement;
 const nativeOwnFragment = typeof DocumentFragment === "undefined" ? undefined : new DocumentFragment();
 
@@ -89,7 +92,7 @@ export const Native = {
   WeakMap: NativeWeakMapConstructor,
   bind: nativeBind,
   reflectApply: nativeReflectApply,
-  structuredClone: typeof structuredClone === "function" ? structuredClone : unsupportedAPI,
+  structuredClone: nativeStructuredClone,
   jsonStringify: nativeBind(JSON.stringify, JSON),
   jsonParse: nativeBind(JSON.parse, JSON),
   createElement: nativeDocumentCreateElement,

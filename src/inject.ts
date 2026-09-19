@@ -147,14 +147,14 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
       pageLoadGate.onBootstrap(data.bootstrapToken);
     });
     pageServer.on("pageLoad", pageLoadGate.onPageLoad);
-  } else {
+  }
+  runtime.init();
+  if (!pageServer) {
     // 没有原生 runtime 通道时，bootstrap 只作为页面桥上的兼容握手，随后请求完整 pageLoad。
     server.on("bootstrap", () => {
       void new Client(pageMsg, "scripting").do("pageLoadFallback");
     });
   }
-  runtime.init();
-
   // inject环境，直接判断白名单，注入对外接口
   runtime.externalMessage("scripting", pageMsg);
 });
