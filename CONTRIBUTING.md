@@ -88,7 +88,7 @@ If you want to run ScriptCat locally, you can use the following commands:
 
 ```bash
 pnpm run dev
-# Please note that for unknown reasons, if you need to use incognito windows, you need to use the following command for development
+# Development build without source maps
 pnpm run dev:noMap
 ```
 

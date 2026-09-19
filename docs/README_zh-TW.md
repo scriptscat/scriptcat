@@ -25,9 +25,8 @@ ScriptCat
 
 ## 關於 ScriptCat
 
-ScriptCat 是一款基於 Tampermonkey 設計理念的強大使用者腳本管理器，完全相容 Tampermonkey 腳本。  
-它不僅支援傳統使用者腳本，還創新實作了背景腳本執行框架，並擁有豐富的 API 擴充能力，使腳本能完成更強大的功能。  
-內建優秀的程式碼編輯器，具備智慧補全與語法檢查，讓腳本開發更加高效與順暢。
+ScriptCat 是一款參考 Tampermonkey 設計理念的使用者腳本管理器，也提供具備擴充 API 的背景腳本執行框架。
+內建程式碼編輯器支援智慧補全與語法檢查，讓腳本開發更有效率。
 
 **如果你覺得 ScriptCat 很有用，歡迎幫我們點一顆 Star ⭐ 這是對我們最好的支持！**
 
@@ -40,7 +39,7 @@ ScriptCat 是一款基於 Tampermonkey 設計理念的強大使用者腳本管�
 
 ### 🔧 強大功能
 
-- **完整 Tampermonkey 相容性**：可無縫遷移現有 Tampermonkey 腳本，零學習成本
+- **Tampermonkey 腳本支援**：相容性取決於腳本使用的 API 和中繼資料，部分腳本可能需要調整
 - **背景腳本**：創新的背景執行機制，使腳本可持續運作，不受頁面限制
 - **排程腳本**：支援定時執行的任務，如自動簽到、定時提醒等
 - **豐富 API**：提供比 Tampermonkey 更強大的 API，解鎖更多可能性
@@ -81,8 +80,7 @@ ScriptCat 是一款基於 Tampermonkey 設計理念的強大使用者腳本管�
 
 1. **從腳本市場取得**：前往 [ScriptCat 腳本站](https://scriptcat.org/zh-TW/search) 或其他使用者腳本市場
 2. **背景腳本區**：體驗獨特的 [背景腳本](https://scriptcat.org/zh-TW/search?script_type=3)
-3. **相容性**：支援多數 Tampermonkey 腳本，可直接安裝。若遇到不相容腳本，歡迎至  
-   [issues](https://github.com/scriptscat/scriptcat/issues) 回報給我們。
+3. **相容性**：相容性取決於腳本使用的 API 和中繼資料。若腳本無法執行，歡迎至 [issues](https://github.com/scriptscat/scriptcat/issues) 回報給我們。
 
 #### 開發腳本
 

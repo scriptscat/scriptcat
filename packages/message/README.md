@@ -1,12 +1,13 @@
 # 消息
 
-跨 context（service_worker / content / inject / offscreen / sandbox）消息交互的抽象层。按调用形态选择传输方式：
+跨 context（service_worker / content / inject / offscreen / sandbox）消息交互的抽象层，也包含与
+`scripting` 页面桥接辅助脚本的消息。按调用形态选择传输方式：
 
 - **单次 request/reply**（调用一次拿一次结果，例如大多数 GM API、扩展页面对 service_worker 的一次性调用）——
   使用 `sendMessage`（`Server`/`Group`/`Client` 的 RPC 封装）。
 - **流式/进度/长响应，或需要持续双向交换**（例如需要分块返回大响应的 GM API、需要多次调用/多次结果的场景）——
   使用 `connect()`（`MessageConnect`）建立持久连接。
-- **广播**（service_worker/offscreen 触发的状态变化需要通知所有页面）——使用 `MessageQueue` 的
+- **广播**（service_worker/offscreen 的状态变化需要通知已实例化 `MessageQueue` 并订阅对应 topic 的上下文）——使用 `MessageQueue` 的
   `publish`/`subscribe`，而不是上面两种点对点方式。
 
 Service Worker → Offscreen 在 Chrome 与 Firefox 上走不同路径（Chrome 使用

@@ -40,9 +40,9 @@ don't bulk-load `.deepwiki/`. Treat it as background only: current code and the 
 
 ## Project Overview
 
-ScriptCat is a Manifest V3 browser extension for Tampermonkey-compatible user scripts, built with TypeScript,
+ScriptCat is a Manifest V3 browser extension for userscripts inspired by Tampermonkey, built with TypeScript,
 React 19, and Rspack. **pnpm** is required by `preinstall`. The presentation layer (`src/pages/`) uses shadcn/ui
-and Tailwind CSS v4 (migrated from Arco Design + UnoCSS).
+and Tailwind CSS v4.
 
 ## Engineering Principles
 
@@ -68,14 +68,6 @@ downstream prose does not override it.
   establish a root-cause fix; report the trigger, evidence, and remaining uncertainty. Follow the asynchronous
   observation and timing guidance in
   [`docs/references/develop-testing.md`](docs/references/develop-testing.md#observation-rules-for-asynchronous-tests).
-- **Shared E2E helpers must model both outcomes.** A helper that drives a save, install, or other mutation must make
-  the expected success or failure explicit and wait for that operation's matching signal. Negative cases must opt into
-  the failure contract; never make them pass by accepting an arbitrary toast, an old notification, or a page shell.
-- **Performance-sensitive UI fixtures must stay bounded.** Use the smallest synthetic fixture that crosses the
-  required boundary; for filtering or pagination, do not eagerly render unrelated rows before the trigger. Obvious
-  explicit one-page-plus fixtures need a line-level `scriptcat/no-test-large-boundary-fixture` rationale; do not hide
-  their cost by raising the test timeout. The detailed fixture and measurement rules live in
-  [`docs/references/develop-testing.md`](docs/references/develop-testing.md#vitest-performance-hygiene).
 - **Dnd-kit list rendering must keep the drag boundary cheap.** Keep sensor options, modifiers, callbacks, and the
   sortable item-list reference stable when their values are unchanged; render plain rows/cards while dragging is
   disabled instead of mounting `DndContext`/`SortableContext`. Stabilize item identity with a collision-safe

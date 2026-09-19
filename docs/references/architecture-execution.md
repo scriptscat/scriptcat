@@ -33,9 +33,10 @@ Key points:
 
 ### Path A — Page scripts → `chrome.userScripts`
 
-Normal userscripts run in the page. The SW builds a `RegisteredUserScript` from the script's `@match`/`@include`
-patterns and registers the compiled payload (the `scripting` bundle) with `chrome.userScripts.register`, in the
-`MAIN` or `USER_SCRIPT` world as required. At document time the content/inject pair
+The SW compiles enabled userscripts and registers each payload through `chrome.userScripts` with its match, world,
+and run-time settings. It also registers the `inject.js` and `content.js` runners there for the `MAIN` and
+`USER_SCRIPT` paths. Separately, `scripting.js` is registered through `chrome.scripting` as a document-start
+content script that supplies the page bridge. At document time the content/inject pair
 ([`script_runtime.ts`](../../src/app/service/content/script_runtime.ts),
 [`exec_script.ts`](../../src/app/service/content/exec_script.ts)) evaluates the compiled function with the GM
 context. The `USER_SCRIPT` content path obtains its matched scripts directly from the service worker over

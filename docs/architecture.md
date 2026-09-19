@@ -101,8 +101,10 @@ Each context is a separate bundle (see [Build pipeline & manifest](./references/
 | **Offscreen** | [`src/offscreen.ts`](../src/offscreen.ts) | DOM-capable background page (Blobs, clipboard, DOM scraping, local storage). | `ExtensionMessage()` + `WindowMessage(window, sandbox)` → `OffscreenManager` |
 | **Sandbox** | [`src/sandbox.ts`](../src/sandbox.ts) | `sandbox`ed iframe inside offscreen. Evaluates background/scheduled scripts; runs cron. | `WindowMessage(window, parent)` + `Server("sandbox")` → `SandboxManager` |
 
-There is also a sixth bundle, [`src/scripting.ts`](../src/scripting.ts), injected via `chrome.userScripts` /
-`chrome.scripting` to carry the compiled page-script payload (see [Script execution](./references/architecture-execution.md)).
+The [`scripting` bundle](../src/scripting.ts) is a document-start content script registered through
+`chrome.scripting`; it supplies the per-document page bridge. Compiled userscript payloads and the `inject.js` /
+`content.js` runners are registered separately through `chrome.userScripts` (see
+[Script execution](./references/architecture-execution.md)).
 
 ### Service-worker bootstrap
 

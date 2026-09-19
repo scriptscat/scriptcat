@@ -26,11 +26,9 @@ ScriptCat
 
 ## About ScriptCat
 
-ScriptCat is a powerful userscript manager based on Tampermonkey's design philosophy, fully compatible with Tampermonkey
-scripts. It not only supports traditional userscripts but also innovatively implements a background script execution
-framework with rich API extensions, enabling scripts to accomplish more powerful functions. It features an excellent
-built-in code editor with intelligent completion and syntax checking, making script development more efficient and
-smooth.
+ScriptCat is a userscript manager inspired by Tampermonkey. It adds a background script execution framework with
+extended APIs. Its built-in code editor provides intelligent completion and syntax checking to make script development
+more efficient.
 
 **If you find it useful, please give us a Star ⭐ This is the greatest support for us!**
 
@@ -43,7 +41,7 @@ smooth.
 
 ### 🔧 Powerful Functions
 
-- **Full Tampermonkey Compatibility**: Seamlessly migrate existing Tampermonkey scripts with zero learning curve
+- **Tampermonkey Script Support**: Compatibility depends on a script's APIs and metadata; some may need adjustments
 - **Background Scripts**: Innovative background execution mechanism, keeping scripts running continuously without page
   limitations
 - **Scheduled Scripts**: Support timed execution tasks for auto check-ins, scheduled reminders, and more
@@ -87,8 +85,8 @@ If you cannot access extension stores, download the latest ZIP package from
 1. **Get from Script Markets**: Visit [ScriptCat Script Store](https://scriptcat.org/en/search) or other userscript
    markets
 2. **Background Scripts Zone**: Experience unique [Background Scripts](https://scriptcat.org/en/search?script_type=3)
-3. **Compatibility**: Supports most Tampermonkey scripts, can be installed directly. If you encounter incompatible
-   scripts, please report them to us through [issues](https://github.com/scriptscat/scriptcat/issues).
+3. **Compatibility**: Compatibility depends on each script's APIs and metadata. If a script does not run, report it
+   through [issues](https://github.com/scriptscat/scriptcat/issues).
 
 #### Developing Scripts
 

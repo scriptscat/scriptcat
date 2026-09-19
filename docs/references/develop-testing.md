@@ -334,16 +334,7 @@ before/after in one environment with the JSON-report method below.
     pay for a full accessibility-tree `*ByRole` scan when the role itself is not the behavior under test.
   - Accessibility coverage must not be weakened for speed. When role/ARIA derivation is the contract, assert the
     resulting `role` / `aria-*` attribute directly (or use the semantic query in a small, focused component test).
-- Choose the narrowest async primitive that matches the production boundary:
-  - If an event handler calls the observed mock synchronously, assert immediately; `waitFor` only adds polling.
-  - For an element that appears after an effect or request, use `findBy*` instead of wrapping `screen.getBy*` in
-    `waitFor`.
-  - When a resolved Promise drives React state, locate the control first, trigger it inside one
-    `await act(async () => ...)`, then assert directly. Do not put a `findBy*` query inside `act`.
-  - Keep `waitFor` for genuinely open-ended async boundaries (deferred effects, externally controlled Promises,
-    Portal mounting). Keep its callback cheap and scoped, and combine related assertions into one polling loop.
-- Avoid real sleeps in unit tests. Use fake timers for timer behavior; a short real delay is acceptable only when
-  the delay itself is the regression guard (for example, proving a rejected load does not start a runaway loop).
+- Select waits according to the [asynchronous observation rules](#observation-rules-for-asynchronous-tests).
 - Match test concurrency to the workload:
   - Use `describe.concurrent()` / `it.concurrent()` only when cases can make useful progress without blocking the
     same worker. Synchronous CPU-heavy work such as parsing, encoding, compression, and large fixture loops still

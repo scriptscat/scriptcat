@@ -72,7 +72,7 @@
 
 | 개념 | 사용할 수 있는 표현 | 선택 기준 | 예시 key |
 | --- | --- | --- | --- |
-| source | `출처`, `설치 출처`, `구독 출처`, `소스 코드` | origin/provenance는 `출처`, code는 `소스 코드`를 사용합니다. | `source`, `col_source`, `prompt.source` |
+| source | `출처`, `설치 출처`, `구독 출처`, `소스 코드` | origin/provenance는 `출처`, code는 `소스 코드`를 사용합니다. | `source`, `col_source` |
 | local / cloud | `로컬` / `클라우드` | 데이터 위치, 백업 위치, 동기화 대상을 설명합니다. | `local`, `cloud`, `backup_to` |
 | storage | `저장소`, `저장 공간` | 기능 이름과 짧은 레이블은 `저장소`, 공간을 설명하는 문장은 `저장 공간`을 사용할 수 있습니다. | `script_storage`, `storage_error` |
 | panel / console | `패널` / `콘솔` | ScriptCat 조작 UI는 `패널`, 개발자 도구 출력은 `콘솔`을 사용합니다. | `background_script_description`, `build_success_message` |
@@ -149,7 +149,7 @@
 | `인증` / 권한 허용 | authorization을 authentication으로 오역할 수 있음 | 권한 결정은 `권한 허용`·`권한 요청`, 계정 검증만 `인증` | `auth_duration`, `loading_confirm` |
 | 일반 스크립트 / 유저스크립트 | 제품 유형과 일반 생태계 용어가 섞일 수 있음 | 제품 유형은 `일반 스크립트`, 일반 개념은 `유저스크립트` | `create_user_script`, `thisIsAUserScript` |
 | 예약 스크립트 / crontab script | 유형 이름과 문법 이름이 섞일 수 있음 | 유형은 `예약 스크립트`, 문법은 `cron 표현식` | `only_background_scheduled_can_run` |
-| `소스` / `출처` | origin과 source code가 혼동될 수 있음 | origin은 `출처`, code는 `소스 코드` | `common:source`, `prompt.source` |
+| `소스` / `출처` | origin과 source code가 혼동될 수 있음 | origin은 `출처`, code는 `소스 코드` | `common:source`, `editor:source` |
 | `Skill` / `스킬` | 동일한 기능 이름이 혼용될 수 있음 | 일반 UI는 `스킬`, 정확한 식별자는 원문 유지 | `import_skill`, `skills_title` |
 | 브라우저 탭 | bare `전체`가 무엇을 뜻하는지 불명확할 수 있음 | `모든 탭`, `일반 탭`, `시크릿 탭` | `script_run_env.*` |
 | clear / reset | 데이터 비우기와 기본값 초기화가 혼동될 수 있음 | `비우기`·`지우기`와 `초기화`를 구분 | `clear_success`, `reset` |
