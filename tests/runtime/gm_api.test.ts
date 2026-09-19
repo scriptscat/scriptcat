@@ -146,7 +146,7 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
     });
     const onload = vitest.fn();
     await new Promise((resolve) => {
-      gmApi.GM_xmlhttpRequest({
+      gmApi.GM_xmlhttpRequest(gmApi, {
         url: testUrl,
         onload: (res) => {
           resolve(true);
@@ -169,7 +169,7 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
     });
     const onload = vitest.fn();
     await new Promise((resolve) => {
-      gmApi.GM_xmlhttpRequest({
+      gmApi.GM_xmlhttpRequest(gmApi, {
         fetch: true,
         url: testUrl,
         onload: (res) => {
@@ -209,7 +209,7 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
     });
     const onload = vitest.fn();
     await new Promise((resolve) => {
-      gmApi.GM_xmlhttpRequest({
+      gmApi.GM_xmlhttpRequest(gmApi, {
         url: testUrl,
         responseType: "blob",
         onload: (res) => {
@@ -250,7 +250,7 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
     const fn1 = vitest.fn();
     const fn2 = vitest.fn();
     await new Promise((resolve) => {
-      gmApi.GM_xmlhttpRequest({
+      gmApi.GM_xmlhttpRequest(gmApi, {
         fetch: true,
         responseType: "blob",
         url: "https://mock-xmlhttprequest.test/",
@@ -288,7 +288,7 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
     const fn1 = vitest.fn();
     const fn2 = vitest.fn();
     await new Promise((resolve) => {
-      gmApi.GM_xmlhttpRequest({
+      gmApi.GM_xmlhttpRequest(gmApi, {
         url: testUrl,
         responseType: "json",
         onload: (res) => {
@@ -319,7 +319,7 @@ describe.concurrent("测试GMApi环境 - XHR", async () => {
     const fn1 = vitest.fn();
     const fn2 = vitest.fn();
     await new Promise((resolve) => {
-      gmApi.GM_xmlhttpRequest({
+      gmApi.GM_xmlhttpRequest(gmApi, {
         fetch: true,
         url: testUrl,
         responseType: "json",
@@ -346,7 +346,7 @@ describe.concurrent("GM xmlHttpRequest", () => {
   });
   it.concurrent("get", () => {
     return new Promise<void>((resolve) => {
-      gmApi.GM_xmlhttpRequest({
+      gmApi.GM_xmlhttpRequest(gmApi, {
         url: "https://www.example.com",
         onreadystatechange: (resp) => {
           if (resp.readyState === 4 && resp.status === 200) {
@@ -361,7 +361,7 @@ describe.concurrent("GM xmlHttpRequest", () => {
   // xml原版是没有responseText的,但是tampermonkey有,恶心的兼容性
   it.concurrent("json", async () => {
     await new Promise<void>((resolve) => {
-      gmApi.GM_xmlhttpRequest({
+      gmApi.GM_xmlhttpRequest(gmApi, {
         url: "https://example.com/json",
         method: "GET",
         responseType: "json",
@@ -375,7 +375,7 @@ describe.concurrent("GM xmlHttpRequest", () => {
     });
     // bad json
     await new Promise<void>((resolve) => {
-      gmApi.GM_xmlhttpRequest({
+      gmApi.GM_xmlhttpRequest(gmApi, {
         url: "https://www.example.com/",
         method: "GET",
         responseType: "json",
@@ -389,7 +389,7 @@ describe.concurrent("GM xmlHttpRequest", () => {
   });
   it.concurrent("header", async () => {
     await new Promise<void>((resolve) => {
-      gmApi.GM_xmlhttpRequest({
+      gmApi.GM_xmlhttpRequest(gmApi, {
         url: "https://www.example.com/header",
         method: "GET",
         headers: {
@@ -409,7 +409,7 @@ describe.concurrent("GM xmlHttpRequest", () => {
   });
   it.concurrent("404", async () => {
     await new Promise<void>((resolve) => {
-      gmApi.GM_xmlhttpRequest({
+      gmApi.GM_xmlhttpRequest(gmApi, {
         url: "https://www.example.com/notexist",
         method: "GET",
         onload: (resp) => {
@@ -441,7 +441,7 @@ describe("GM download", () => {
 
     const onprogress = vitest.fn();
     await new Promise<void>((resolve) => {
-      gmApi.GM_download({
+      gmApi.GM_download(gmApi, {
         url: "https://download.test/",
         name: "example.txt",
         onprogress: onprogress,

@@ -65,6 +65,33 @@ function createInstance(
 }
 
 describe("ConversationInstance 命令机制", () => {
+  it("不会把通用 GM 传输能力作为实例属性暴露", () => {
+    const { instance } = createInstance();
+    const ownNames = Object.getOwnPropertyNames(instance);
+
+    expect(ownNames).not.toContain("gmSendMessage");
+    expect(ownNames).not.toContain("gmConnect");
+    expect(ownNames).not.toContain("conv");
+    expect(ownNames).not.toContain("scriptUuid");
+    expect(ownNames).not.toContain("toolHandlers");
+    expect(ownNames).not.toContain("toolDefs");
+    expect(ownNames).not.toContain("messageHistory");
+  });
+
+  it("does not let public mutation replace private conversation state", async () => {
+    const { instance } = createEphemeralInstance();
+    const exposed = instance as unknown as Record<string, unknown>;
+    exposed.messageHistory = [{ role: "user", content: "forged" }];
+    exposed.toolHandlers = new Map([["forged", vi.fn()]]);
+    exposed.toolDefs = [{ name: "forged", description: "forged", parameters: {} }];
+
+    await instance.chat("real");
+
+    const messages = await instance.getMessages();
+    expect(messages[0]).toMatchObject({ role: "user", content: "real" });
+    expect(messages).not.toContainEqual({ role: "user", content: "forged" });
+  });
+
   it("内置 /new 命令清空消息历史", async () => {
     const { instance, gmSendMessage } = createInstance();
 

@@ -7,6 +7,19 @@ import { ScriptEnvTag } from "@Packages/message/consts";
 import { embeddedPatternCheckerString, type EmbeddedURLRuleEntry, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 import { getGrantCandidates } from "./gm_api/grant";
+import { customClone } from "./global";
+
+const cloneTransportValue = (value: any) => {
+  // USER_SCRIPT 只能接收数据副本；共享 customClone 的 data-only 检查，避免 getter/Proxy 进入页面资料。
+  return customClone(value);
+};
+
+// 与 rspack 注入的构建级密钥配对；页面只能看到包装函数，拿不到正确的调用标记。
+const lnStrIntegrity = process.env.SC_RANDOM_FNKEY;
+const znRand = process.env.SC_ZN_RAND;
+export const preInjectScriptInfoKey = `${lnStrIntegrity}:scriptInfo`;
+export const preInjectScriptDocumentUrlKey = `${lnStrIntegrity}:documentUrl`;
+export const preInjectScriptDocumentIdKey = `${lnStrIntegrity}:documentId`;
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -141,7 +154,7 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   // arguments = [named: Object, scriptName: string]
   // 使用sandboxContext时，arguments[0]为undefined, this.$则为一次性Proxy变量，用于全域拦截context
   // 非沙盒环境时，先读取 arguments[0]，因此不会读取页面环境的 this.$
-  // 在UserScripts API中，由于执行不是在物件导向里呼叫，使用arrow function的话会把this改变。须使用 .call(this) [ 或 .bind(this)() ]
+  // 临时方法调用保留 userscript 的 this，避免在页面解析可变的 call/apply/bind。
 
   if (resource.isContextMenu) {
     // 脚本体整体延后到菜单回调里执行，它自己的 GM_registerMenuCommand 也随之推迟到点击后才注册
@@ -151,9 +164,9 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   const joinedCode = [
     "with(arguments[0]||this.$){",
     `${preCode}`,
-    "return(async function(){",
+    "this[arguments[0]='$$'+Date.now()/Math.random()]=async function(){",
     `${code}`,
-    "}).call(this);}",
+    "};return this[arguments[0]](...((delete this[arguments[0]]),[]));}",
   ]
     .filter(Boolean)
     .join("\n");
@@ -161,9 +174,51 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   return `${codeBody}${sourceMapTo(`${resource.name}.user.js`)}\n`;
 }
 
+const codeFunction = (
+  code: string,
+  scriptInfoJSON?: string,
+  documentUrlExpression?: string,
+  documentIdExpression?: string
+) => {
+  // 临时方法调用不依赖页面改写的 call、apply、bind；完整性标记也阻止页面直接调用包装器。
+  const infoProperty =
+    scriptInfoJSON === undefined
+      ? ""
+      : ` Object.defineProperty(f, '${preInjectScriptInfoKey}', { value: ${JSON.stringify(scriptInfoJSON)} }); Object.defineProperty(f, 'name', { configurable: false, value: ${JSON.stringify(scriptInfoJSON)} });${
+          documentUrlExpression === undefined
+            ? ""
+            : ` Object.defineProperty(f, '${preInjectScriptDocumentUrlKey}', { value: ${documentUrlExpression} });${
+                documentIdExpression === undefined
+                  ? ""
+                  : ` Object.defineProperty(f, '${preInjectScriptDocumentIdKey}', { value: ${documentIdExpression} });`
+              }`
+        }`;
+  return `((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true });${infoProperty} return f; })('${lnStrIntegrity}', '${znRand}' + Math.random(), function(){${code}})`;
+};
+
+// 有 setter 时沿用页面属性语义；否则用不可配置的一次性 getter，避免挂载函数被页面再次取走。
+const mountCodeFunction = (
+  flag: string,
+  code: string,
+  scriptInfoJSON?: string,
+  documentUrlExpression?: string,
+  documentIdExpression?: string
+) =>
+  `((w, k, fn) => { const d = Object.getOwnPropertyDescriptor(w, k); if (d?.set) { w[k] = fn; } else { let mounted = true; Object.defineProperty(w, k, { configurable: false, enumerable: false, get() { if (!mounted) return undefined; mounted = false; return fn; } }); } })(window, '${flag}', ${codeFunction(code, scriptInfoJSON, documentUrlExpression, documentIdExpression)})`;
+
+const ZFunction = Function;
+
 // 通过脚本代码编译脚本函数
 export function compileScript(code: string): ScriptFunc {
-  return <ScriptFunc>new Function(code);
+  const fn = <ScriptFunc>new ZFunction(code);
+  const k = lnStrIntegrity;
+  const y = `${znRand}` + Math.random();
+  return (t: any, u: any, ...args: any[]) => {
+    if (t === k) {
+      u[y] = fn;
+      return u[y](...(delete u[y], args));
+    }
+  };
 }
 
 /**
@@ -186,7 +241,7 @@ export function compileInjectScriptByFlag(
   autoDeleteMountFunction: boolean = false
 ): string {
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
-  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}}`;
+  return `${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`)};`;
 }
 
 /**
@@ -216,7 +271,18 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   }
   // --- 处理 resource ---
   // --- 处理 scriptInfo ---
-  const scriptInfo = { ...script, resource, requireCssResource, code: "" } as TScriptInfo;
+  const metadata = Object.fromEntries(
+    Object.entries(script.metadata).map(([key, values]) => [key, Array.isArray(values) ? [...values] : values])
+  );
+  const scriptInfo = {
+    ...script,
+    metadata,
+    value: cloneTransportValue(script.value) ?? {},
+    config: script.config === undefined ? undefined : cloneTransportValue(script.config),
+    resource,
+    requireCssResource,
+    code: "",
+  } as TScriptInfo;
   // 删除其他不需要注入的 script 信息
   delete scriptInfo.originalMetadata;
   delete scriptInfo.selfMetadata;
@@ -232,7 +298,22 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   delete scriptInfo.runStatus; // 前台脚本不用
   delete scriptInfo.type; // 脚本类型总是普通脚本
   delete scriptInfo.status; // 脚本状态总是启用
+  delete scriptInfo.executionHandle;
+  delete scriptInfo.executionEnvTag;
+  // 这些绑定令牌只在隔离 broker 内有效，不能随脚本资料暴露给页面或 USER_SCRIPT。
+  delete scriptInfo.executionRunFlag;
   // --- 处理 scriptInfo ---
+  return scriptInfo;
+};
+
+/**
+ * 预注入事件会经过页面可观察的 performance 通道；不要把用户值或配置放进它的 detail。
+ * 资源仍需在脚本最早执行时可用，后续 pageLoad 会补回权威的值与配置。
+ */
+export const trimPreInjectScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
+  const scriptInfo = trimScriptInfo(script);
+  scriptInfo.value = {};
+  scriptInfo.config = undefined;
   return scriptInfo;
 };
 
@@ -247,16 +328,28 @@ export function compilePreInjectScript(
   const scriptEnvTag = isInjectIntoContent(script.metadata) ? ScriptEnvTag.content : ScriptEnvTag.inject;
   const eventNamePrefix = `evt${process.env.SC_RANDOM_KEY}.${scriptEnvTag}`; // 仅用于early-start初始化
   const flag = `${script.flag}`;
-  const scriptInfo = trimScriptInfo(script);
+  const scriptInfo = trimPreInjectScriptInfo(script);
   const scriptInfoJSON = `${JSON.stringify(scriptInfo)}`;
+  const scriptUrlPatterns = script.scriptUrlPatterns?.map(({ ruleType, ruleContent }) => ({ ruleType, ruleContent }));
+  const urlCondition = scriptUrlPatterns
+    ? embeddedPatternCheckerString("location.href", JSON.stringify(scriptUrlPatterns))
+    : "true";
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
+  const documentIdExpression = `(()=>{const k='${preInjectScriptDocumentIdKey}',d=Object.getOwnPropertyDescriptor(window,k);if(d&&'value'in d&&typeof d.value==='string')return d.value;const v=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);Object.defineProperty(window,k,{configurable:false,writable:false,value:v});return v})()`;
   const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
   const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
-  return `window['${flag}'] = function(){${autoDeleteMountCode}${scriptCode}};
-{
-  let o = { cancelable: true, detail: { scriptFlag: '${flag}', scriptInfo: (${scriptInfoJSON}) } },
-  c = typeof cloneInto === "function" ? cloneInto(o, performance) : o,
-  f = () => performance.dispatchEvent(new CustomEvent('${evScriptLoad}', c)),
+  return `{
+  let mounted = false,
+    f = () => {
+    if (!(${urlCondition})) return false;
+    if (!mounted) {
+      ${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`, scriptInfoJSON, "location.href", documentIdExpression)};
+      mounted = true;
+    }
+    const o = { cancelable: true, detail: { scriptFlag: '${flag}' } },
+      c = typeof cloneInto === "function" ? cloneInto(o, performance) : o;
+    return performance.dispatchEvent(new CustomEvent('${evScriptLoad}', c));
+  },
   needWait = f();
   if (needWait) performance.addEventListener('${evEnvLoad}', f, { once: true });
 }
@@ -337,16 +430,32 @@ export const getScriptFlag = (uuid: string) => {
 
 // 监听属性设置
 export function definePropertyListener<T>(obj: any, prop: string, listener: (val: T) => void) {
-  if (obj[prop] !== undefined) {
-    listener(obj[prop]);
-    delete obj[prop];
+  const sameProperty = (left: PropertyDescriptor | undefined, right: PropertyDescriptor | undefined) =>
+    left?.configurable === right?.configurable &&
+    left?.enumerable === right?.enumerable &&
+    left?.value === right?.value &&
+    left?.get === right?.get &&
+    left?.set === right?.set;
+  const current = obj[prop];
+  if (current !== undefined) {
+    const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
+    listener(current);
+    // 页面可能在回调里替换属性；只有描述符仍是原来的才可以清理自身监听器。
+    if (sameProperty(descriptor, Object.getOwnPropertyDescriptor(obj, prop)) && descriptor?.configurable) {
+      delete obj[prop];
+    }
     return;
   }
+  const setter = (val: T) => {
+    listener(val);
+    const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
+    // 不删除页面后来安装的 setter，只删除本函数仍拥有的那一个。
+    if (descriptor?.configurable && descriptor.set === setter) {
+      delete obj[prop];
+    }
+  };
   Object.defineProperty(obj, prop, {
     configurable: true,
-    set: (val: any) => {
-      delete obj[prop]; // 删除 property setter
-      listener(val);
-    },
+    set: setter,
   });
 }

@@ -15,6 +15,15 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import type { TKeyValuePair } from "@App/pkg/utils/message_value";
 import { decodeRValue, R_UNDEFINED, encodeRValue } from "@App/pkg/utils/message_value";
 
+const setOwnValue = (store: Record<string, any>, key: string, value: any): void => {
+  Object.defineProperty(store, key, {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value,
+  });
+};
+
 export type TSetValuesParams = {
   uuid: string;
   id?: string;
@@ -41,10 +50,12 @@ export class ValueService {
   }
 
   async getScriptValueDetails(script: Script) {
-    let data: { [key: string]: any } = {};
+    const data: { [key: string]: any } = Object.create(null);
     const ret = await this.valueDAO.get(getStorageName(script));
     if (ret) {
-      data = ret.data;
+      for (const key of Object.keys(ret.data)) {
+        setOwnValue(data, key, ret.data[key]);
+      }
     }
     const newValues = data;
     // 和userconfig组装
@@ -62,10 +73,13 @@ export class ValueService {
           // 动态变量
           if (tab[key].bind) {
             const bindKey = tab[key].bind!.substring(1);
-            newValues[bindKey] = data[bindKey] === undefined ? undefined : data[bindKey];
+            setOwnValue(newValues, bindKey, data[bindKey] === undefined ? undefined : data[bindKey]);
           }
-          newValues[`${tabKey}.${key}`] =
-            data[`${tabKey}.${key}`] === undefined ? tab[key].default : data[`${tabKey}.${key}`];
+          setOwnValue(
+            newValues,
+            `${tabKey}.${key}`,
+            data[`${tabKey}.${key}`] === undefined ? tab[key].default : data[`${tabKey}.${key}`]
+          );
         }
       }
     }
@@ -107,7 +121,7 @@ export class ValueService {
         for (const [key, rTyped1] of keyValuePairs) {
           const value = decodeRValue(rTyped1);
           if (value !== undefined) {
-            dataModel[key] = value;
+            setOwnValue(dataModel, key, value);
             entries.push([key, rTyped1, R_UNDEFINED]);
           }
         }
@@ -134,7 +148,7 @@ export class ValueService {
           if (value === undefined) {
             delete dataModel[key];
           } else {
-            dataModel[key] = value;
+            setOwnValue(dataModel, key, value);
           }
           const rTyped2 = encodeRValue(oldValue);
           entries.push([key, rTyped1, rTyped2]);

@@ -1,13 +1,16 @@
 import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
-import { createContext, createProxyContext } from "./create_context";
+import { createContext, createProxyContext, type ScriptContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import { compileScript, isContextMenuScript } from "./utils";
 import type { Message } from "@Packages/message/types";
 import type { ValueUpdateDataEncoded } from "./types";
 import { evaluateGMInfo } from "./gm_api/gm_info";
-import type { IGM_Base } from "./gm_api/gm_api";
 import type { TScriptInfo } from "@App/app/repo/scripts";
+import { Native } from "./global";
+
+// 编译函数只在收到本次构建的密钥时执行，避免页面直接复用包装器。
+const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
 
 // 执行脚本,控制脚本执行与停止
 export default class ExecScript {
@@ -19,7 +22,7 @@ export default class ExecScript {
 
   // proxyContext: typeof globalThis;
 
-  sandboxContext?: IGM_Base & { [key: string]: any };
+  sandboxContext?: ScriptContext;
 
   named?: { [key: string]: any };
 
@@ -48,7 +51,7 @@ export default class ExecScript {
     } else {
       this.scriptFunc = code;
     }
-    const grantSet = new Set(scriptRes.metadata.grant || []);
+    const grantSet = new Native.Set(scriptRes.metadata.grant || []);
     if (isContextMenuScript(scriptRes.metadata)) {
       grantSet.add("GM_registerMenuCommand");
       grantSet.delete("none");
@@ -57,14 +60,14 @@ export default class ExecScript {
       // 不注入任何GM api
       // ScriptCat行为：GM.info 和 GM_info 同时注入
       // 在不改变 Context 的情况下，以 named 传入多个全域变量
-      const GM = Object.create(null);
+      const GM = Native.objectCreate(null);
       GM.info = GM_info;
       this.named = { GM, GM_info };
     } else {
       // 构建脚本GM上下文
       this.sandboxContext = createContext(scriptRes, GM_info, envPrefix, message, contentMsg, grantSet);
       if (globalInjection) {
-        Object.assign(this.sandboxContext, globalInjection);
+        Native.objectAssign(this.sandboxContext, globalInjection);
       }
     }
   }
@@ -88,15 +91,32 @@ export default class ExecScript {
     this.logger.debug("script start");
     const sandboxContext = this.sandboxContext;
     this.execContext = sandboxContext ? createProxyContext(sandboxContext) : global; // this.$ 只能执行一次
-    return this.scriptFunc.call(this.execContext, this.named, this.scriptRes.name);
+    return this.scriptFunc(fnStrIntegrity, this.execContext, this.named, this.scriptRes.name);
   };
 
   // 早期启动的脚本，处理GM API
-  updateEarlyScriptGMInfo(envInfo: GMInfoEnv) {
+  updateEarlyScriptGMInfo(envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) {
+    if (scriptInfo) {
+      // 预注入事件可被页面观察，只携带空的用户值和配置；pageLoad 到达后再补回权威副本。
+      this.scriptRes.value = scriptInfo.value;
+      this.scriptRes.config = scriptInfo.config;
+      this.scriptRes.metadata = scriptInfo.metadata;
+      this.scriptRes.resource = scriptInfo.resource;
+      this.scriptRes.requireCssResource = scriptInfo.requireCssResource;
+    }
+    if (scriptInfo?.executionHandle && scriptInfo.executionEnvTag) {
+      // early-start 先执行后取得绑定；此处补写同一绑定，使后续 RPC 与首次注册一致。
+      this.scriptRes.executionHandle = scriptInfo.executionHandle;
+      this.scriptRes.executionEnvTag = scriptInfo.executionEnvTag;
+      this.scriptRes.executionRunFlag = scriptInfo.executionRunFlag;
+      if (this.sandboxContext && scriptInfo.executionRunFlag) {
+        this.sandboxContext.setExecutionRunFlag(scriptInfo.executionRunFlag);
+      }
+    }
     let GM_info;
     if (this.sandboxContext) {
       // 触发loadScriptResolve
-      this.sandboxContext["loadScriptResolve"]?.();
+      this.sandboxContext.resolveLoadScript();
       GM_info = this.execContext["GM_info"];
     } else {
       GM_info = this.named?.GM_info;

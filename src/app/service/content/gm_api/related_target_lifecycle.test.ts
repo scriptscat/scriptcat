@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ScriptEnvTag } from "@Packages/message/consts";
 import { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { Server } from "@Packages/message/server";
@@ -50,23 +50,40 @@ describe("relatedTarget lifecycle across content runtime callers", () => {
     const parent = document.createElement("section");
 
     try {
-      const style = api.GM_addStyle("body { color: red; }");
+      const style = api.GM_addStyle(api, "body { color: red; }");
       expect(style?.tagName).toBe("STYLE");
       expect(style?.textContent).toBe("body { color: red; }");
       expect(sender.relatedTarget).toHaveProperty("size", 0);
       expect(receiver.relatedTarget).toHaveProperty("size", 0);
 
-      const child = api.GM_addElement(parent, "span", { id: "child" });
+      const child = api.GM_addElement(api, parent, "span", { id: "child" });
       expect(child?.parentNode).toBe(parent);
       expect(child?.id).toBe("child");
       expect(sender.relatedTarget).toHaveProperty("size", 0);
       expect(receiver.relatedTarget).toHaveProperty("size", 0);
 
-      const root = api.GM_addElement("div", { id: "root" });
+      const root = api.GM_addElement(api, "div", { id: "root" });
       expect(root?.tagName).toBe("DIV");
       expect(root?.id).toBe("root");
       expect(sender.relatedTarget).toHaveProperty("size", 0);
       expect(receiver.relatedTarget).toHaveProperty("size", 0);
+    } finally {
+      sender.relatedTarget.clear();
+      receiver.relatedTarget.clear();
+    }
+  });
+
+  it("skips accessor attributes without executing their getter", () => {
+    const { api, sender, receiver } = createApiWithContentRuntime();
+    const getter = vi.fn(() => "forged");
+    const attrs = { id: "safe" } as Record<string, string>;
+    Object.defineProperty(attrs, "secret", { enumerable: true, configurable: true, get: getter });
+
+    try {
+      const element = api.GM_addElement(api, "div", attrs);
+      expect(element?.id).toBe("safe");
+      expect(element).not.toHaveProperty("secret");
+      expect(getter).not.toHaveBeenCalled();
     } finally {
       sender.relatedTarget.clear();
       receiver.relatedTarget.clear();

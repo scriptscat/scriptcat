@@ -1,8 +1,40 @@
-import type { RuntimeMessageSender, MessageConnect, ExtMessageSender, Message, TMessage, MessageSend } from "./types";
+import type {
+  RuntimeMessageSender,
+  MessageConnect,
+  ExtMessageSender,
+  Message,
+  MessageOrigin,
+  TMessage,
+  MessageSend,
+} from "./types";
 import LoggerCore from "@App/app/logger/core";
 import { connect, sendMessage } from "./client";
 import { ExtensionMessageConnect } from "./extension_message";
 import Logger from "@App/app/logger/logger";
+
+const nativeReflectApply = Reflect.apply;
+const nativeFunctionBind = Function.prototype.bind;
+const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+// 转发监听器会跨 context 保存一段时间，绑定时固定原生 bind，避免页面改写原型。
+const bindNative = <T extends (...args: any[]) => any>(fn: T, receiver: any): T =>
+  nativeReflectApply(nativeFunctionBind, fn, [receiver]) as T;
+
+type ParsedServerMessage = { action: string; data?: unknown };
+
+const parseServerMessage = (value: unknown): ParsedServerMessage | undefined => {
+  if (value === null || typeof value !== "object") return undefined;
+  try {
+    const actionDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "action");
+    if (!actionDescriptor || !("value" in actionDescriptor) || typeof actionDescriptor.value !== "string") {
+      return undefined;
+    }
+    const dataDescriptor = nativeObjectGetOwnPropertyDescriptor(value, "data");
+    if (dataDescriptor && !("value" in dataDescriptor)) return undefined;
+    return { action: actionDescriptor.value, data: dataDescriptor?.value };
+  } catch {
+    return undefined;
+  }
+};
 
 export const enum GetSenderType {
   CONNECT = 1,
@@ -15,6 +47,7 @@ export interface IGetSender {
   getSender(): RuntimeMessageSender | undefined;
   getExtMessageSender(): ExtMessageSender;
   getConnect(): MessageConnect | undefined;
+  getConnectOrigin?(): MessageOrigin | undefined;
 }
 
 export class SenderConnect {
@@ -47,8 +80,8 @@ export class SenderConnect {
     if (this.sender instanceof ExtensionMessageConnect) {
       const con = this.sender.getPort();
       return {
-        windowId: con.sender?.tab?.windowId || -1, // -1表示后台脚本
-        tabId: con.sender?.tab?.id || -1, // -1表示后台脚本
+        windowId: con.sender?.tab?.windowId ?? -1, // -1表示后台脚本
+        tabId: con.sender?.tab?.id ?? -1, // -1表示后台脚本
         frameId: con.sender?.frameId,
         documentId: con.sender?.documentId,
       };
@@ -65,11 +98,18 @@ export class SenderConnect {
   getConnect(): MessageConnect {
     return this.sender;
   }
+
+  getConnectOrigin(): "extension" | "userScript" | undefined {
+    return this.sender instanceof ExtensionMessageConnect ? this.sender.getOrigin() : undefined;
+  }
 }
 
 export class SenderRuntime {
   private readonly mType;
-  constructor(private sender: RuntimeMessageSender) {
+  constructor(
+    private sender: RuntimeMessageSender,
+    private readonly origin?: MessageOrigin
+  ) {
     this.mType = GetSenderType.RUNTIME;
   }
 
@@ -97,8 +137,8 @@ export class SenderRuntime {
       };
     }
     return {
-      windowId: sender.tab?.windowId || -1, // -1表示后台脚本
-      tabId: sender.tab?.id || -1, // -1表示后台脚本
+      windowId: sender.tab?.windowId ?? -1, // -1表示后台脚本
+      tabId: sender.tab?.id ?? -1, // -1表示后台脚本
       frameId: sender.frameId,
       documentId: sender.documentId,
     };
@@ -106,6 +146,10 @@ export class SenderRuntime {
 
   getConnect(): undefined {
     return undefined;
+  }
+
+  getConnectOrigin(): MessageOrigin | undefined {
+    return this.origin;
   }
 }
 
@@ -132,7 +176,7 @@ export class Server {
   private logger = LoggerCore.getInstance().logger({ service: "messageServer" });
 
   constructor(
-    prefix: string,
+    private readonly prefix: string,
     msgReceiver: Message | Message[],
     private enableConnect: boolean = true
   ) {
@@ -140,10 +184,11 @@ export class Server {
     if (this.enableConnect) {
       msgReceiverList.forEach((msg) => {
         msg.onConnect((msg: TMessage, con: MessageConnect) => {
-          if (typeof msg.action !== "string") return;
-          this.logger.trace("server onConnect", { msg });
-          if (msg.action?.startsWith(prefix)) {
-            return this.connectHandle(msg.action.slice(prefix.length + 1), msg.data, con);
+          const parsed = parseServerMessage(msg);
+          if (!parsed) return;
+          this.logger.trace("server onConnect", { action: parsed.action });
+          if (parsed.action.startsWith(this.prefix)) {
+            return this.connectHandle(parsed.action.slice(this.prefix.length + 1), parsed.data, con);
           }
           return false;
         });
@@ -151,11 +196,18 @@ export class Server {
     }
 
     msgReceiverList.forEach((msg) => {
-      msg.onMessage((msg: TMessage, sendResponse, sender) => {
-        if (typeof msg.action !== "string") return;
-        this.logger.trace("server onMessage", { msg: msg as any });
-        if (msg.action?.startsWith(prefix)) {
-          return this.messageHandle(msg.action.slice(prefix.length + 1), msg.data, sendResponse, sender);
+      msg.onMessage((msg: TMessage, sendResponse, sender, origin) => {
+        const parsed = parseServerMessage(msg);
+        if (!parsed) return;
+        this.logger.trace("server onMessage", { action: parsed.action });
+        if (parsed.action.startsWith(this.prefix)) {
+          return this.messageHandle(
+            parsed.action.slice(this.prefix.length + 1),
+            parsed.data,
+            sendResponse,
+            sender,
+            origin
+          );
         }
       });
       return false;
@@ -171,9 +223,15 @@ export class Server {
   }
 
   private connectHandle(msg: string, params: any, con: MessageConnect) {
+    const sender = new SenderConnect(con);
+    if (!this.isUserScriptActionAllowed(msg, sender.getConnectOrigin(), true)) {
+      con.sendMessage({ code: -1, message: "userScript action is not allowed" });
+      con.disconnect(true);
+      return true;
+    }
     const func = this.apiFunctionMap.get(msg);
     if (func) {
-      const ret = func(params, new SenderConnect(con));
+      const ret = func(params, sender);
       if (ret) {
         if (ret instanceof Promise) {
           ret
@@ -197,12 +255,18 @@ export class Server {
     action: string,
     params: any,
     sendResponse: (response: any) => void,
-    sender: RuntimeMessageSender
+    sender: RuntimeMessageSender,
+    origin?: MessageOrigin
   ) {
+    if (!this.isUserScriptActionAllowed(action, origin, false)) {
+      sendResponse({ code: -1, message: "userScript action is not allowed" });
+      this.logger.warn("userScript action rejected", { action });
+      return;
+    }
     const func = this.apiFunctionMap.get(action);
     if (func) {
       try {
-        const ret = func(params, new SenderRuntime(sender));
+        const ret = func(params, new SenderRuntime(sender, origin));
         if (ret instanceof Promise) {
           ret
             .then((data) => {
@@ -228,6 +292,14 @@ export class Server {
       sendResponse({ code: -1, message: "no such api " + action });
       this.logger.error("no such api", { action: action });
     }
+  }
+
+  private isUserScriptActionAllowed(action: string, origin: MessageOrigin | undefined, isConnect: boolean): boolean {
+    // USER_SCRIPT 只应取得注册握手、断线重连和 GM RPC；其他 serviceWorker API 仍只接受扩展通道。
+    if (this.prefix !== "serviceWorker" || origin !== "userScript") return true;
+    return isConnect
+      ? action === "runtime/registerUserScript" || action === "runtime/gmApi"
+      : action === "runtime/gmApi" || action === "runtime/reconnectUserScript";
   }
 }
 
@@ -293,22 +365,23 @@ export function forwardMessage(
   path: string,
   receiverFrom: Server,
   senderTo: MessageSend,
-  middleware?: ApiFunctionSync
+  middleware?: ApiFunctionSync,
+  transform?: (params: any, con: IGetSender) => any
 ) {
   const handler = async (params: any, fromCon: IGetSender): Promise<any> => {
     const fromConnect: MessageConnect | undefined = fromCon.getConnect();
     if (fromConnect) {
       const toCon: MessageConnect = await connect(senderTo, `${prefix}/${path}`, params);
-      fromConnect.onMessage(toCon.sendMessage.bind(toCon));
-      toCon.onMessage(fromConnect.sendMessage.bind(fromConnect));
-      fromConnect.onDisconnect(toCon.disconnect.bind(toCon));
-      toCon.onDisconnect(fromConnect.disconnect.bind(fromConnect));
+      fromConnect.onMessage(bindNative(toCon.sendMessage, toCon));
+      toCon.onMessage(bindNative(fromConnect.sendMessage, fromConnect));
+      fromConnect.onDisconnect(bindNative(toCon.disconnect, toCon));
+      toCon.onDisconnect(bindNative(fromConnect.disconnect, fromConnect));
       return undefined;
     } else {
       return sendMessage(senderTo, prefix + "/" + path, params);
     }
   };
-  receiverFrom.on(path, (params, sender) => {
+  const processTransformed = (params: any, sender: IGetSender) => {
     if (middleware) {
       // 此处是为了处理CustomEventMessage的同步消息情况
       const resp = middleware(params, sender) as any;
@@ -324,5 +397,15 @@ export function forwardMessage(
       }
     }
     return handler(params, sender);
-  });
+  };
+  const process = transform
+    ? (params: any, sender: IGetSender) => {
+        // 转换先于中间件和转发执行，使跨世界输入只在一个受控位置完成校验/复制。
+        const transformed = transform(params, sender);
+        return transformed instanceof Promise
+          ? transformed.then((data) => processTransformed(data, sender))
+          : processTransformed(transformed, sender);
+      }
+    : processTransformed;
+  receiverFrom.on(path, process);
 }

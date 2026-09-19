@@ -348,8 +348,9 @@ export class RuntimeClient extends Client {
     return this.do("stopScript", uuid);
   }
 
-  pageLoad(): Promise<TClientPageLoadInfo> {
-    return this.doThrow("pageLoad");
+  // envTag 让 service worker 区分主世界请求与 content-world bootstrap，分别签发/回收句柄。
+  pageLoad(envTag?: "it" | "ct"): Promise<TClientPageLoadInfo> {
+    return this.doThrow("pageLoad", envTag ? { envTag } : undefined);
   }
 
   /** bfcache 还原上报：只告知本页仍在运行，不请求脚本 */

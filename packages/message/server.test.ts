@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi, afterEach } from "vitest";
-import { GetSenderType, SenderConnect, SenderRuntime, Server, type IGetSender } from "./server";
+import { forwardMessage, GetSenderType, SenderConnect, SenderRuntime, Server, type IGetSender } from "./server";
 import { CustomEventMessage } from "./custom_event_message";
 import type { MessageConnect, RuntimeMessageSender } from "./types";
 import { uuidv4 } from "@App/pkg/utils/uuid";
@@ -35,6 +35,87 @@ afterEach(() => {
 });
 
 describe("Server", () => {
+  it("ignores message envelopes with accessor actions without executing the accessor", () => {
+    const handler = vi.fn();
+    server.on("on-hostile", handler);
+    const message: Record<string, unknown> = { data: {} };
+    let accessed = false;
+    Object.defineProperty(message, "action", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        accessed = true;
+        throw new Error("page getter executed");
+      },
+    });
+
+    expect(() => inboundMessage.EE.emit("message", message, vi.fn(), {})).not.toThrow();
+    expect(accessed).toBe(false);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("ignores message envelopes with accessor data without executing the accessor", () => {
+    const handler = vi.fn();
+    server.on("on-hostile-data", handler);
+    const message: Record<string, unknown> = { action: "api/on-hostile-data" };
+    let accessed = false;
+    Object.defineProperty(message, "data", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        accessed = true;
+        throw new Error("page getter executed");
+      },
+    });
+
+    expect(() => inboundMessage.EE.emit("message", message, vi.fn(), {})).not.toThrow();
+    expect(accessed).toBe(false);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("应该在消息和长连接转发中都应用参数转换", async () => {
+    const transformed: unknown[] = [];
+    const targetFlag = `${uuidv4()}::target`;
+    const targetInbound = new CustomEventMessage(targetFlag, true);
+    const targetOutbound = new CustomEventMessage(targetFlag, false);
+    const targetServer = new Server("service", targetInbound);
+    targetServer.on("stream", (params) => {
+      transformed.push(params);
+      return "connected";
+    });
+    targetServer.on("call", (params) => {
+      transformed.push(params);
+      return "called";
+    });
+
+    const sourceFlag = `${uuidv4()}::source`;
+    const sourceInbound = new CustomEventMessage(sourceFlag, true);
+    const sourceOutbound = new CustomEventMessage(sourceFlag, false);
+    const sourceServer = new Server("source", sourceInbound);
+    const targetSender = {
+      sendMessage: (data: any) => targetOutbound.sendMessage(data),
+      connect: (data: any) => targetOutbound.connect(data),
+    };
+    forwardMessage("service", "stream", sourceServer, targetSender, undefined, (params) => ({
+      ...params,
+      transformed: true,
+    }));
+    forwardMessage("service", "call", sourceServer, targetSender, undefined, (params) => ({
+      ...params,
+      transformed: true,
+    }));
+
+    const stream = await sourceOutbound.connect({ action: "source/stream", data: { value: 1 } });
+    const response = await sourceOutbound.sendMessage({ action: "source/call", data: { value: 2 } });
+
+    expect(response.data).toBe("called");
+    expect(transformed).toEqual([
+      { value: 1, transformed: true },
+      { value: 2, transformed: true },
+    ]);
+    stream.disconnect(true);
+  });
+
   describe("基本功能测试 1", () => {
     it.concurrent("应该能够注册和调用 API", async () => {
       const mockHandler = vi.fn().mockResolvedValue("test response");
@@ -489,6 +570,36 @@ describe("Server", () => {
       expect(extSender.documentId).toBe("doc-123");
     });
 
+    it("应该保留有效的零标签页和窗口编号", () => {
+      let capturedSender: IGetSender;
+
+      server.on("on-zero-ids", (_params, sender) => {
+        capturedSender = sender;
+      });
+
+      const mockSender: RuntimeMessageSender = {
+        tab: { id: 0, windowId: 0 },
+        frameId: 0,
+      } as RuntimeMessageSender;
+
+      (server as any).messageHandle("on-zero-ids", {}, vi.fn(), mockSender);
+
+      expect(capturedSender!.getExtMessageSender()).toMatchObject({ tabId: 0, windowId: 0, frameId: 0 });
+    });
+
+    it("应该把扩展消息来源传给 SenderRuntime", () => {
+      let capturedOrigin: string | undefined;
+      server.on("on-origin", (_params, sender) => {
+        capturedOrigin = sender.getConnectOrigin?.();
+      });
+
+      const sendResponse = vi.fn();
+      const mockSender = { tab: { id: 123 } } as RuntimeMessageSender;
+      (server as any).messageHandle("on-origin", {}, sendResponse, mockSender, "userScript");
+
+      expect(capturedOrigin).toBe("userScript");
+    });
+
     it.concurrent("应该为没有 tab 的 sender 返回 -1 tabId", async () => {
       let capturedSender: IGetSender;
 
@@ -531,6 +642,59 @@ describe("Server", () => {
       expect(extEmpty.tabId).toBe(-1);
       expect(extEmpty.frameId).toBeUndefined();
       expect(extEmpty.documentId).toBeUndefined();
+    });
+  });
+
+  describe("USER_SCRIPT action boundary", () => {
+    it("rejects privileged service worker actions before dispatch", () => {
+      const serviceWorkerServer = new Server("serviceWorker", inboundMessage);
+      const handler = vi.fn();
+      serviceWorkerServer.on("script/getAllScripts", handler);
+      const sendResponse = vi.fn();
+      const sender = {} as RuntimeMessageSender;
+
+      (serviceWorkerServer as any).messageHandle("script/getAllScripts", {}, sendResponse, sender, "userScript");
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(sendResponse).toHaveBeenCalledWith({ code: -1, message: "userScript action is not allowed" });
+    });
+
+    it("allows only the USER_SCRIPT GM API message", () => {
+      const serviceWorkerServer = new Server("serviceWorker", inboundMessage);
+      const handler = vi.fn().mockReturnValue("ok");
+      serviceWorkerServer.on("runtime/gmApi", handler);
+      const sendResponse = vi.fn();
+      const sender = {} as RuntimeMessageSender;
+
+      (serviceWorkerServer as any).messageHandle(
+        "runtime/gmApi",
+        { api: "GM_log" },
+        sendResponse,
+        sender,
+        "userScript"
+      );
+
+      expect(handler).toHaveBeenCalledWith({ api: "GM_log" }, expect.any(SenderRuntime));
+      expect(sendResponse).toHaveBeenCalledWith({ code: 0, data: "ok" });
+    });
+
+    it("allows the native USER_SCRIPT reconnect request", () => {
+      const serviceWorkerServer = new Server("serviceWorker", inboundMessage);
+      const handler = vi.fn().mockReturnValue({ bootstrapToken: "next-token" });
+      serviceWorkerServer.on("runtime/reconnectUserScript", handler);
+      const sendResponse = vi.fn();
+      const sender = {} as RuntimeMessageSender;
+
+      (serviceWorkerServer as any).messageHandle(
+        "runtime/reconnectUserScript",
+        undefined,
+        sendResponse,
+        sender,
+        "userScript"
+      );
+
+      expect(handler).toHaveBeenCalledWith(undefined, expect.any(SenderRuntime));
+      expect(sendResponse).toHaveBeenCalledWith({ code: 0, data: { bootstrapToken: "next-token" } });
     });
   });
 

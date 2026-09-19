@@ -20,7 +20,7 @@ import type { ResourceService } from "./resource";
 import type { ScriptDAO } from "@App/app/repo/scripts";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
-import { obtainBlackList } from "@App/pkg/utils/utils";
+import { getStorageName, obtainBlackList } from "@App/pkg/utils/utils";
 import type { CompiledResource, Resource } from "@App/app/repo/resource";
 
 initTestEnv();
@@ -1077,6 +1077,16 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
     },
   });
 
+  it("拒绝 USER_SCRIPT 来源直接请求页面脚本清单", async () => {
+    const { runtime } = _createRuntimeContext();
+    const getScriptsForTab = vi.spyOn(runtime, "getScriptsForTab");
+
+    const result = await runtime.pageLoad(undefined, new SenderRuntime(createSender(false), "userScript"));
+
+    expect(result).toEqual({ ok: false });
+    expect(getScriptsForTab).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["普通", false],
     ["隐身", true],
@@ -1094,6 +1104,64 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
     });
   });
 
+  it("preserves tab ID zero for page matching and BFCache reporting", async () => {
+    const { runtime, mockGroup } = _createRuntimeContext();
+    const getScriptsForTab = vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue(null);
+    const sender = new SenderRuntime({
+      ...createSender(false),
+      tab: { ...(createSender(false).tab as chrome.tabs.Tab), id: 0 } as chrome.tabs.Tab,
+    });
+
+    await runtime.pageLoad(undefined, sender);
+    await runtime.pageShow(undefined, sender);
+
+    expect(getScriptsForTab).toHaveBeenCalledWith({
+      url: "https://www.example.com/page",
+      tabId: 0,
+      frameId: 0,
+      incognito: false,
+    });
+    expect(mockGroup.emit).toHaveBeenCalledWith("popupPageRestored", {
+      tabId: 0,
+      frameId: 0,
+      url: "https://www.example.com/page",
+    });
+  });
+
+  it("discards an older same-frame pageLoad response that resolves after a newer one", async () => {
+    const { runtime } = _createRuntimeContext();
+    const firstScript = _createScriptRunResource(_createMockScript({ uuid: "first-page-load" }));
+    const secondScript = _createScriptRunResource(_createMockScript({ uuid: "second-page-load" }));
+    const loadResult = (script: ScriptRunResource) =>
+      ({
+        injectScriptList: [script],
+        contentScriptList: [],
+        envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+        scriptmenus: [],
+      }) as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>;
+    let resolveFirst!: (result: Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>) => void;
+    let resolveSecond!: (result: Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>) => void;
+    vi.spyOn(runtime, "getScriptsForTab")
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve)))
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveSecond = resolve)));
+    const sender = new SenderRuntime({
+      url: "https://www.example.com/page",
+      frameId: 0,
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+
+    const firstLoad = runtime.pageLoad(undefined, sender);
+    const secondLoad = runtime.pageLoad(undefined, sender);
+    resolveSecond(loadResult(secondScript));
+    const second = await secondLoad;
+    expect(second.ok).toBe(true);
+    const secondHandle = second.ok ? second.injectScriptList[0].executionHandle : undefined;
+
+    resolveFirst(loadResult(firstScript));
+    await expect(firstLoad).resolves.toEqual({ ok: false });
+    expect(runtime.resolvePageExecutionBinding(secondHandle!, sender)).toBeDefined();
+  });
+
   // bfcache 还原不会重新注入 content script，页面里的脚本却还活着；
   // 这条上报只用来重新确认「本页扩展触及得到」，绝不能顺带重放脚本。
   it("bfcache 还原上报只广播 popupPageRestored，不重新下发脚本", async () => {
@@ -1108,6 +1176,572 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
       frameId: 0,
       url: "https://www.example.com/page",
     });
+  });
+
+  it("为每个页面文档签发绑定，并拒绝跨标签页、跨 frame 和旧文档复用", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({ uuid: "bound-script", metadata: { grant: ["GM_getTab"] } })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [script],
+      contentScriptList: [],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+
+    const rawSender = {
+      url: "https://www.example.com/page",
+      frameId: 0,
+      documentId: "doc-a",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender;
+    const sender = new SenderRuntime(rawSender);
+    const first = await runtime.pageLoad(undefined, sender);
+    const firstHandle = first.ok ? first.injectScriptList[0].executionHandle : undefined;
+    const firstRunFlag = first.ok ? first.injectScriptList[0].executionRunFlag : undefined;
+    expect(firstHandle).toEqual(expect.any(String));
+    expect(firstRunFlag).toEqual(expect.any(String));
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, sender)).toMatchObject({
+      uuid: "bound-script",
+      envTag: "it",
+      tabId: 41,
+      frameId: 0,
+      documentId: "doc-a",
+    });
+
+    const otherTab = new SenderRuntime({ ...rawSender, tab: { ...rawSender.tab, id: 42 } as chrome.tabs.Tab });
+    const otherFrame = new SenderRuntime({ ...rawSender, frameId: 1 });
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, otherTab)).toBeUndefined();
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, otherFrame)).toBeUndefined();
+
+    const secondSender = new SenderRuntime({ ...rawSender, documentId: "doc-b" });
+    const second = await runtime.pageLoad(undefined, secondSender);
+    const secondHandle = second.ok ? second.injectScriptList[0].executionHandle : undefined;
+    const secondRunFlag = second.ok ? second.injectScriptList[0].executionRunFlag : undefined;
+    expect(secondHandle).toEqual(expect.any(String));
+    expect(secondRunFlag).toEqual(expect.any(String));
+    expect(secondHandle).not.toBe(firstHandle);
+    expect(secondRunFlag).not.toBe(firstRunFlag);
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, sender)).toBeUndefined();
+    expect(runtime.resolvePageExecutionBinding(secondHandle!, secondSender)).toBeDefined();
+
+    runtime.revokePageBindingsForTab(41);
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, sender)).toBeUndefined();
+    expect(runtime.resolvePageExecutionBinding(secondHandle!, secondSender)).toBeUndefined();
+  });
+
+  it("新文档加载时撤销上一文档的执行绑定", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(_createMockScript({ uuid: "navigation-bound-script" }));
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [script],
+      contentScriptList: [],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+    const firstRawSender = {
+      url: "https://www.example.com/first",
+      frameId: 0,
+      documentId: "doc-first",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender;
+    const firstSender = new SenderRuntime(firstRawSender);
+    const firstLoad = await runtime.pageLoad(undefined, firstSender);
+    expect(firstLoad.ok).toBe(true);
+    if (!firstLoad.ok) return;
+    const firstHandle = firstLoad.injectScriptList[0].executionHandle;
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, firstSender)).toBeDefined();
+
+    const secondRawSender = { ...firstRawSender, url: "https://www.example.com/second", documentId: "doc-second" };
+    const secondSender = new SenderRuntime(secondRawSender);
+    const secondLoad = await runtime.pageLoad(undefined, secondSender);
+    expect(secondLoad.ok).toBe(true);
+    if (!secondLoad.ok) return;
+
+    expect(runtime.resolvePageExecutionBinding(firstHandle!, firstSender)).toBeUndefined();
+  });
+
+  it("rejects a stale URL when the browser omits documentId", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({ uuid: "url-bound-script", metadata: { grant: ["GM_getTab"] } })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [script],
+      contentScriptList: [],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+    const initialSender = new SenderRuntime({
+      url: "https://www.example.com/page",
+      frameId: 0,
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+
+    const load = await runtime.pageLoad(undefined, initialSender);
+    expect(load.ok).toBe(true);
+    if (!load.ok) return;
+    const handle = load.injectScriptList[0].executionHandle;
+    expect(runtime.resolvePageExecutionBinding(handle!, initialSender)).toBeDefined();
+
+    const navigatedSender = new SenderRuntime({
+      url: "https://www.example.com/next",
+      frameId: 0,
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+    expect(runtime.resolvePageExecutionBinding(handle!, navigatedSender)).toBeUndefined();
+  });
+
+  it("content USER_SCRIPT 的 pageLoad 只轮换 content 绑定", async () => {
+    const { runtime } = _createRuntimeContext();
+    const inject = _createScriptRunResource(_createMockScript({ uuid: "inject-script" }));
+    const content = _createScriptRunResource(_createMockScript({ uuid: "content-script" }));
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [inject],
+      contentScriptList: [content],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+    const sender = new SenderRuntime({
+      url: "https://www.example.com/page",
+      frameId: 0,
+      documentId: "doc-a",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+
+    const first = await runtime.pageLoad(undefined, sender);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const injectHandle = first.injectScriptList[0].executionHandle;
+    const contentLoad = await runtime.pageLoad({ envTag: "ct" }, sender);
+
+    expect(contentLoad.ok).toBe(true);
+    if (!contentLoad.ok) return;
+    expect(contentLoad.injectScriptList).toEqual([]);
+    expect(contentLoad.contentScriptList[0].executionHandle).toEqual(expect.any(String));
+    expect(runtime.resolvePageExecutionBinding(injectHandle!, sender)).toBeDefined();
+  });
+
+  it("isolated scripting 的 pageLoad 会撤销上一轮 content 绑定", async () => {
+    const { runtime } = _createRuntimeContext();
+    const inject = _createScriptRunResource(_createMockScript({ uuid: "inject-script" }));
+    const content = _createScriptRunResource(_createMockScript({ uuid: "content-script" }));
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [inject],
+      contentScriptList: [content],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+    const sender = new SenderRuntime({
+      url: "https://www.example.com/page",
+      frameId: 0,
+      documentId: "doc-a",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+
+    const contentLoad = await runtime.pageLoad({ envTag: "ct" }, sender);
+    expect(contentLoad.ok).toBe(true);
+    if (!contentLoad.ok) return;
+    const contentHandle = contentLoad.contentScriptList[0].executionHandle;
+    const injectLoad = await runtime.pageLoad({ envTag: "it" }, sender);
+
+    expect(injectLoad.ok).toBe(true);
+    expect(runtime.resolvePageExecutionBinding(contentHandle!, sender)).toBeUndefined();
+  });
+
+  it("没有匹配脚本时也会撤销当前页面的旧绑定", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(_createMockScript({ uuid: "stale-script" }));
+    const getScriptsForTab = vi.spyOn(runtime, "getScriptsForTab");
+    getScriptsForTab.mockResolvedValueOnce({
+      injectScriptList: [script],
+      contentScriptList: [],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+    getScriptsForTab.mockResolvedValueOnce(null);
+    const sender = new SenderRuntime({
+      url: "https://www.example.com/page",
+      frameId: 0,
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+
+    const first = await runtime.pageLoad(undefined, sender);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    const handle = first.injectScriptList[0].executionHandle;
+    expect(runtime.resolvePageExecutionBinding(handle!, sender)).toBeDefined();
+
+    await runtime.pageLoad(undefined, sender);
+    expect(runtime.resolvePageExecutionBinding(handle!, sender)).toBeUndefined();
+  });
+});
+
+describe("USER_SCRIPT native callbacks", () => {
+  it("rejects bootstrap and reconnect tokens from a different URL when documentId is missing", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({ uuid: "url-bound-user-script", metadata: { match: ["https://www.example.com/*"] } })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [script],
+      contentScriptList: [],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+
+    const originalSender = {
+      url: "https://www.example.com/page",
+      frameId: 0,
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender;
+    const connection = {
+      onMessage: vi.fn(),
+      sendMessage: vi.fn(),
+      disconnect: vi.fn(),
+      onDisconnect: vi.fn(),
+    } as unknown as MessageConnect;
+    const bootstrapSender = {
+      getType: () => 3,
+      isType: (type: number) => type === 3,
+      getSender: () => originalSender,
+      getExtMessageSender: () => ({ tabId: 41, frameId: 0 }),
+      getConnect: () => connection,
+      getConnectOrigin: () => "userScript" as const,
+    };
+    const pageLoad = await runtime.pageLoad({ envTag: "it" }, new SenderRuntime(originalSender));
+    const bootstrapToken = pageLoad.ok ? pageLoad.userScriptInjectBootstrapToken : undefined;
+    expect(bootstrapToken).toEqual(expect.any(String));
+
+    const navigatedSender = {
+      ...bootstrapSender,
+      getSender: () => ({ ...originalSender, url: "https://www.example.com/next" }),
+    };
+    expect(runtime.registerUserScriptConnection({ world: "MAIN", bootstrapToken }, navigatedSender)).toBe(false);
+    expect(
+      runtime.reconnectUserScript(
+        { reconnectToken: bootstrapToken },
+        {
+          ...navigatedSender,
+          getType: () => 4,
+          isType: (type: number) => type === 4,
+          getConnect: () => undefined,
+        }
+      )
+    ).toBeUndefined();
+  });
+
+  it("issues a separate MAIN bootstrap and routes its private callbacks over the native port", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({ uuid: "inject-script", metadata: { match: ["https://www.example.com/*"] } })
+    );
+    const contentScript = _createScriptRunResource(
+      _createMockScript({ uuid: "content-script", metadata: { match: ["https://www.example.com/*"] } })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [script],
+      contentScriptList: [contentScript],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+
+    const rawSender = {
+      url: "https://www.example.com/page",
+      frameId: 0,
+      documentId: "doc-main",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender;
+    const sendMessage = vi.fn();
+    const connection = {
+      onMessage: vi.fn(),
+      sendMessage,
+      disconnect: vi.fn(),
+      onDisconnect: vi.fn(),
+    } as unknown as MessageConnect;
+    const connectionSender = {
+      getType: () => 3,
+      isType: () => true,
+      getSender: () => rawSender,
+      getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-main" }),
+      getConnect: () => connection,
+      getConnectOrigin: () => "userScript" as const,
+    };
+
+    const pageLoad = await runtime.pageLoad({ envTag: "it" }, new SenderRuntime(rawSender));
+    expect(pageLoad.ok && pageLoad.userScriptInjectBootstrapToken).toEqual(expect.any(String));
+    const bootstrapToken = pageLoad.ok ? pageLoad.userScriptInjectBootstrapToken : undefined;
+    expect(runtime.registerUserScriptConnection({ world: "USER_SCRIPT", bootstrapToken }, connectionSender)).toBe(
+      false
+    );
+    expect(runtime.registerUserScriptConnection({ world: "MAIN", bootstrapToken }, connectionSender)).toBe(true);
+
+    const contentConnection = {
+      onMessage: vi.fn(),
+      sendMessage: vi.fn(),
+      disconnect: vi.fn(),
+      onDisconnect: vi.fn(),
+    } as unknown as MessageConnect;
+    const contentSender = { ...connectionSender, getConnect: () => contentConnection };
+    const contentBootstrapToken = pageLoad.ok ? pageLoad.userScriptBootstrapToken : undefined;
+    expect(
+      runtime.registerUserScriptConnection(
+        { world: "USER_SCRIPT", bootstrapToken: contentBootstrapToken },
+        contentSender
+      )
+    ).toBe(true);
+    expect((runtime as any).userScriptConnections.size).toBe(2);
+
+    const bootstrapHandler = (connection.onMessage as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ((packet: TMessage) => void)
+      | undefined;
+    bootstrapHandler?.({ action: "userScript/bootstrap" });
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "inject/pageLoad",
+        data: expect.objectContaining({ scripts: expect.any(Array) }),
+      })
+    );
+
+    sendMessage.mockClear();
+    (runtime as any).sendUserScriptMessage(undefined, "runtime/emitEvent", {
+      uuid: "inject-script",
+      event: "click",
+      eventId: "1",
+    });
+    expect(sendMessage).toHaveBeenCalledWith({
+      action: "inject/runtime/emitEvent",
+      data: { uuid: "inject-script", event: "click", eventId: "1" },
+    });
+  });
+
+  it("queues USER_SCRIPT value updates until a reconnect finishes its bootstrap", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({ uuid: "queued-content-script", metadata: { match: ["https://www.example.com/*"] } })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [],
+      contentScriptList: [script],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+
+    const rawSender = {
+      url: "https://www.example.com/page",
+      frameId: 0,
+      documentId: "doc-a",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender;
+    const makeConnection = () =>
+      ({
+        onMessage: vi.fn(),
+        sendMessage: vi.fn(),
+        disconnect: vi.fn(),
+        onDisconnect: vi.fn(),
+      }) as unknown as MessageConnect;
+    const firstConnection = makeConnection();
+    const sender = {
+      getType: () => 3,
+      isType: () => true,
+      getSender: () => rawSender,
+      getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-a" }),
+      getConnect: () => firstConnection,
+      getConnectOrigin: () => "userScript" as const,
+    };
+    const pageLoad = await runtime.pageLoad({ envTag: "it" }, new SenderRuntime(rawSender));
+    const contentBootstrapToken = pageLoad.ok ? pageLoad.userScriptBootstrapToken : undefined;
+    expect(contentBootstrapToken).toEqual(expect.any(String));
+    expect(
+      runtime.registerUserScriptConnection({ world: "USER_SCRIPT", bootstrapToken: contentBootstrapToken }, sender)
+    ).toBe(true);
+
+    const update = {
+      uuid: script.uuid,
+      storageName: getStorageName(script),
+      entries: [["beforeReconnect", [0, "new"], [0, "old"]]],
+      sender: { runFlag: "remote", tabId: 42 },
+      valueUpdated: true,
+    };
+    (runtime as any).sendUserScriptMessage(undefined, "runtime/valueUpdate", update);
+    expect(firstConnection.sendMessage).not.toHaveBeenCalled();
+
+    const firstBootstrapHandler = (firstConnection.onMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      packet: TMessage
+    ) => void;
+    firstBootstrapHandler({ action: "userScript/bootstrap" });
+    expect(firstConnection.sendMessage).toHaveBeenCalledTimes(2);
+    expect(firstConnection.sendMessage).toHaveBeenLastCalledWith({
+      action: "content/runtime/valueUpdate",
+      data: update,
+    });
+
+    const disconnectHandler = (firstConnection.onDisconnect as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      isSelfDisconnected: boolean
+    ) => void;
+    disconnectHandler(false);
+    (runtime as any).sendUserScriptMessage(undefined, "runtime/valueUpdate", {
+      ...update,
+      entries: [["afterReconnect", [0, "next"], [0, "old-next"]]],
+    });
+    (runtime as any).sendUserScriptMessage(undefined, "runtime/valueUpdate", {
+      ...update,
+      entries: [["afterReconnectAgain", [0, "latest"], [0, "old-latest"]]],
+    });
+    const reconnect = runtime.reconnectUserScript(
+      { reconnectToken: contentBootstrapToken },
+      {
+        getType: () => 4,
+        isType: (type: number) => type === 4,
+        getSender: () => rawSender,
+        getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-a" }),
+        getConnect: () => undefined,
+        getConnectOrigin: () => "userScript" as const,
+      }
+    );
+    expect(reconnect).toEqual({ bootstrapToken: expect.any(String) });
+
+    const secondConnection = makeConnection();
+    expect(
+      runtime.registerUserScriptConnection(
+        { world: "USER_SCRIPT", bootstrapToken: reconnect?.bootstrapToken },
+        { ...sender, getConnect: () => secondConnection }
+      )
+    ).toBe(true);
+    const secondBootstrapHandler = (secondConnection.onMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as (
+      packet: TMessage
+    ) => void;
+    secondBootstrapHandler({ action: "userScript/bootstrap" });
+
+    expect(secondConnection.sendMessage).toHaveBeenCalledTimes(2);
+    expect(secondConnection.sendMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        action: "content/runtime/valueUpdate",
+        data: expect.objectContaining({
+          entries: [
+            ["afterReconnect", [0, "next"], [0, "old-next"]],
+            ["afterReconnectAgain", [0, "latest"], [0, "old-latest"]],
+          ],
+        }),
+      })
+    );
+  });
+
+  it("只向当前文档中声明了对应脚本或 storageName 的连接投递更新", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({ uuid: "content-script", metadata: { match: ["https://www.example.com/*"] } })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [],
+      contentScriptList: [script],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+
+    const rawSender = {
+      url: "https://www.example.com/page",
+      frameId: 0,
+      documentId: "doc-a",
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender;
+    const sendMessage = vi.fn();
+    const onMessage = vi.fn();
+    const connection = {
+      onMessage,
+      sendMessage,
+      disconnect: vi.fn(),
+      onDisconnect: vi.fn(),
+    } as unknown as MessageConnect;
+    const connectionSender = {
+      getType: () => 3,
+      isType: () => true,
+      getSender: () => rawSender,
+      getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-a" }),
+      getConnect: () => connection,
+      getConnectOrigin: () => "userScript" as const,
+    };
+
+    const pageLoad = await runtime.pageLoad({ envTag: "it" }, new SenderRuntime(rawSender));
+    const contentBindings = [...(runtime as any).pageExecutionBindings.values()] as Array<{ handle: string }>;
+    const handles = contentBindings.map(({ handle }) => handle);
+    expect(handles).toHaveLength(1);
+    expect(pageLoad.ok && pageLoad.userScriptBootstrapToken).toEqual(expect.any(String));
+    const bootstrapToken = pageLoad.ok ? pageLoad.userScriptBootstrapToken : undefined;
+    expect(
+      runtime.registerUserScriptConnection(
+        { world: "USER_SCRIPT", bootstrapToken },
+        { ...connectionSender, getConnectOrigin: () => "extension" as const }
+      )
+    ).toBe(false);
+    expect(
+      runtime.registerUserScriptConnection(
+        { world: "USER_SCRIPT", bootstrapToken, transport: "extension" },
+        connectionSender
+      )
+    ).toBe(false);
+    expect(
+      runtime.registerUserScriptConnection(
+        { world: "USER_SCRIPT", bootstrapToken, transport: "extension" },
+        { ...connectionSender, getConnectOrigin: () => "extension" as const }
+      )
+    ).toBe(true);
+    expect(runtime.registerUserScriptConnection({ world: "USER_SCRIPT" }, connectionSender)).toBe(false);
+    const bootstrapHandler = onMessage.mock.calls[0]?.[0] as ((packet: TMessage) => void) | undefined;
+    bootstrapHandler?.({ action: "userScript/bootstrap" });
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "content/pageLoad",
+        data: expect.objectContaining({ scripts: expect.any(Array) }),
+      })
+    );
+
+    const sendUserScriptMessage = (runtime as any).sendUserScriptMessage.bind(runtime);
+    sendMessage.mockClear();
+    sendUserScriptMessage(undefined, "runtime/valueUpdate", {
+      uuid: "other-script",
+      storageName: getStorageName(script),
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+
+    sendMessage.mockClear();
+    sendUserScriptMessage(undefined, "runtime/valueUpdate", {
+      uuid: "content-script",
+      storageName: "unrelated-storage",
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    const reconnect = runtime.reconnectUserScript(
+      { reconnectToken: bootstrapToken },
+      {
+        getType: () => 4,
+        isType: (type: number) => type === 4,
+        getSender: () => rawSender,
+        getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-a" }),
+        getConnect: () => undefined,
+        getConnectOrigin: () => "extension" as const,
+      }
+    );
+    expect(reconnect).toEqual({ bootstrapToken: expect.any(String) });
+    expect((runtime as any).userScriptBootstraps.size).toBe(1);
+    expect(
+      runtime.reconnectUserScript(
+        { reconnectToken: bootstrapToken },
+        {
+          getType: () => 4,
+          isType: (type: number) => type === 4,
+          getSender: () => rawSender,
+          getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-a" }),
+          getConnect: () => undefined,
+          getConnectOrigin: () => "userScript" as const,
+        }
+      )
+    ).toBeUndefined();
+
+    (runtime as any).revokePageBindingsForScript("content-script");
+    expect(connection.disconnect).toHaveBeenCalledWith(true);
+    expect((runtime as any).userScriptConnections.size).toBe(0);
   });
 });
 

@@ -46,6 +46,31 @@ export type MessageRequest<T = any[]> = {
   api: string;
   runFlag: string;
   params: T;
+  /** 页面执行环境绑定的能力句柄；后台脚本不携带此字段。 */
+  executionHandle?: string;
+  /** 页面 GM RPC 的版本和请求关联字段。 */
+  version?: 1;
+  requestId?: string;
+  handle?: string;
+  envTag?: "it" | "ct";
+};
+
+export type ServiceWorkerExecutionBinding = {
+  handle: string;
+  uuid: string;
+  envTag: "it" | "ct";
+  runFlag: string;
+  /** The URL observed when this execution binding was issued. */
+  url: string;
+  tabId: number;
+  frameId?: number;
+  documentId?: string;
+  /** 用于只向运行该脚本的文档投递值更新的存储命名空间。 */
+  storageName: string;
+  /** 隔离 GM API broker 为本次页面执行接受的能力名称。 */
+  allowedAPIs: ReadonlySet<string>;
+  /** 已接受的页面请求 ID；绑定销毁时一并释放，确保绑定存续期间拒绝重放。 */
+  requestIds: Set<string>;
 };
 
 export type GMApiRequest<T = any> = MessageRequest<T> & {

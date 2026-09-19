@@ -1,7 +1,13 @@
-import type { EmitEventRequest, ScriptLoadInfo, ScriptMatchInfo, ScriptMenu } from "./types";
+import type {
+  EmitEventRequest,
+  ScriptLoadInfo,
+  ScriptMatchInfo,
+  ScriptMenu,
+  ServiceWorkerExecutionBinding,
+} from "./types";
 import type { IMessageQueue } from "@Packages/message/message_queue";
-import type { Group, IGetSender } from "@Packages/message/server";
-import type { ExtMessageSender, MessageSend } from "@Packages/message/types";
+import { GetSenderType, type Group, type IGetSender } from "@Packages/message/server";
+import type { ExtMessageSender, MessageConnect, MessageSend } from "@Packages/message/types";
 import type { TClientPageLoadInfo } from "@App/app/repo/scripts";
 import type { Script, ScriptDAO, ScriptRunResource, ScriptSite, TScriptInfo, UserConfig } from "@App/app/repo/scripts";
 import { SCRIPT_STATUS_DISABLE, SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
@@ -34,6 +40,7 @@ import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import { ExtensionContentMessageSend } from "@Packages/message/extension_message";
 import { sendMessage } from "@Packages/message/client";
 import type { CompileScriptCodeResource } from "../content/utils";
+import { getExtensionOrigin, getPageRpcAllowedAPIs, type ExtensionOrigin } from "../content/page_rpc";
 import {
   compileInjectScriptByFlag,
   compileScriptCodeByResource,
@@ -60,6 +67,7 @@ import { CompiledResourceDAO, CompiledResourceNamespace } from "@App/app/repo/re
 import { setOnTabURLChanged } from "./url_monitor";
 import { scriptToMenu, type TPopupPageLoadInfo, type TPopupPageRestoreInfo } from "./popup_scriptmenu";
 import { getExtensionUserAgentData } from "../extension/extension_env";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 
 const ORIGINAL_URLMATCH_SUFFIX = "{ORIGINAL}"; // 用于标记原始URLPatterns的后缀
 
@@ -123,6 +131,22 @@ export type TScriptsForTab = {
   scriptmenus: ScriptMenu[];
 } | null;
 
+type UserScriptSession = {
+  scripts: TScriptInfo[];
+  envInfo: GMInfoEnv;
+  extensionOrigin?: ExtensionOrigin;
+  reconnectToken: string;
+  envTag: "it" | "ct";
+  url: string;
+  tabId: number;
+  frameId?: number;
+  documentId?: string;
+  transport: "userScript" | "extension";
+  // 断线窗口内按 storageName 合并值更新，重连握手完成后再投递。
+  pendingValueUpdates: Map<string, ValueUpdateDataEncoded>;
+};
+type UserScriptBootstrap = Omit<UserScriptSession, "transport">;
+
 const bgScriptStorageNames = new Set<string>();
 
 // For Firefox, StorageArea.setAccessLevel is not implemented.
@@ -134,9 +158,448 @@ export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
   private gmApi?: GMApi;
+  // 句柄绑定到 tab/frame/document；页面导航、脚本变更或窗口关闭时必须整体撤销。
+  private readonly pageExecutionBindings = new Map<string, ServiceWorkerExecutionBinding>();
+  // 原生 page/content 端口只保留各自签发的句柄，回调发送前再按该集合过滤一次。
+  private readonly userScriptConnections = new Map<
+    string,
+    {
+      connection: MessageConnect;
+      handles: Set<string>;
+      envTag: "it" | "ct";
+      tabId: number;
+      frameId?: number;
+      documentId?: string;
+      ready: boolean;
+    }
+  >();
+  private readonly userScriptBootstraps = new Map<string, UserScriptBootstrap>();
+  // 连接断开后保留当前文档的已验证资料与待投递值更新，供 USER_SCRIPT 通过原生消息重连；导航或脚本撤销会同步清除。
+  private readonly userScriptSessions = new Map<string, UserScriptSession>();
+  // Only the newest load for a tab/frame/environment may issue bindings; navigation can resolve old requests late.
+  private readonly pageLoadSequences = new Map<string, number>();
 
   getGMApi(): GMApi | undefined {
     return this.gmApi;
+  }
+
+  private revokePageBindings(sender: IGetSender, envTag?: "it" | "ct"): void {
+    // pageLoad 是文档切换信号；按 tab/frame 退休旧句柄，避免旧文档继续使用上一页的权限。
+    const source = sender.getSender();
+    const tabId = source?.tab?.id;
+    const frameId = source?.frameId;
+    for (const [handle, binding] of this.pageExecutionBindings) {
+      if (
+        binding.tabId === tabId &&
+        binding.frameId === frameId &&
+        (envTag === undefined || binding.envTag === envTag || (envTag === "it" && binding.envTag === "ct"))
+      ) {
+        this.pageExecutionBindings.delete(handle);
+      }
+    }
+    if (envTag === "it") {
+      for (const [key, entry] of this.userScriptConnections) {
+        if (entry.tabId === tabId && entry.frameId === frameId) {
+          entry.connection.disconnect(true);
+          this.userScriptConnections.delete(key);
+          this.userScriptSessions.delete(key);
+        }
+      }
+      for (const [key, session] of this.userScriptSessions) {
+        if (session.tabId === tabId && session.frameId === frameId) this.userScriptSessions.delete(key);
+      }
+    }
+    if (envTag !== "ct") {
+      for (const [token, bootstrap] of this.userScriptBootstraps) {
+        if (bootstrap.tabId === tabId && bootstrap.frameId === frameId) this.userScriptBootstraps.delete(token);
+      }
+    }
+  }
+
+  revokePageBindingsForTab(tabId: number): void {
+    for (const [handle, binding] of this.pageExecutionBindings) {
+      if (binding.tabId === tabId) this.pageExecutionBindings.delete(handle);
+    }
+    for (const [key, entry] of this.userScriptConnections) {
+      if (entry.tabId === tabId) {
+        entry.connection.disconnect(true);
+        this.userScriptConnections.delete(key);
+        this.userScriptSessions.delete(key);
+      }
+    }
+    for (const [token, bootstrap] of this.userScriptBootstraps) {
+      if (bootstrap.tabId === tabId) this.userScriptBootstraps.delete(token);
+    }
+    for (const [key, session] of this.userScriptSessions) {
+      if (session.tabId === tabId) this.userScriptSessions.delete(key);
+    }
+    const prefix = `${tabId}:`;
+    for (const key of this.pageLoadSequences.keys()) {
+      if (key.startsWith(prefix)) this.pageLoadSequences.delete(key);
+    }
+  }
+
+  private beginPageLoadSequence(sender: IGetSender, envTag: "it" | "ct" | undefined): [string, number] | undefined {
+    const tabId = sender.getSender()?.tab?.id;
+    if (typeof tabId !== "number") return undefined;
+    const key = `${tabId}:${sender.getSender()?.frameId ?? -1}:${envTag ?? "it"}`;
+    const sequence = (this.pageLoadSequences.get(key) ?? 0) + 1;
+    this.pageLoadSequences.set(key, sequence);
+    return [key, sequence];
+  }
+
+  private userScriptConnectionKey(
+    tabId: number,
+    frameId: number | undefined,
+    documentId: string | undefined,
+    envTag: "it" | "ct"
+  ): string {
+    return `${tabId}:${frameId ?? -1}:${documentId ?? ""}:${envTag}`;
+  }
+
+  /** Register the native USER_SCRIPT channel used for private bootstrap and callbacks; fallback ports remain token-bound. */
+  registerUserScriptConnection(data: unknown, sender: IGetSender): boolean {
+    // bootstrap token 只允许对应 tab/frame/document 使用一次；documentId 缺失时以 URL 作为文档身份，并且必须覆盖本次下发的全部句柄。
+    if (!sender.isType(GetSenderType.EXTCONNECT)) return false;
+    if (data === null || typeof data !== "object") return false;
+    const handshake = data as { world?: unknown; bootstrapToken?: unknown; transport?: unknown };
+    const origin = sender.getConnectOrigin?.();
+    const isExtensionFallback = origin === "extension" && handshake.transport === "extension";
+    if (origin === "userScript" ? handshake.transport !== undefined : !isExtensionFallback) return false;
+    if (
+      Object.keys(data).length !== (isExtensionFallback ? 3 : 2) ||
+      typeof handshake.bootstrapToken !== "string" ||
+      handshake.bootstrapToken.length === 0 ||
+      handshake.bootstrapToken.length > 256
+    ) {
+      return false;
+    }
+    const source = sender.getSender();
+    const connection = sender.getConnect();
+    const tabId = source?.tab?.id;
+    if (!source || typeof tabId !== "number" || !connection) return false;
+    const bootstrap = this.userScriptBootstraps.get(handshake.bootstrapToken);
+    if (
+      !bootstrap ||
+      bootstrap.tabId !== tabId ||
+      bootstrap.frameId !== source.frameId ||
+      bootstrap.documentId !== source.documentId ||
+      (bootstrap.documentId === undefined &&
+        (typeof source.url !== "string" || source.url.length === 0 || bootstrap.url !== source.url))
+    ) {
+      return false;
+    }
+    // bootstrap 令牌决定唯一可消费这些句柄的 world，调用方不能借握手字段改投其他环境。
+    const expectedWorld = bootstrap.envTag === "it" ? "MAIN" : "USER_SCRIPT";
+    if (handshake.world !== expectedWorld) return false;
+    const handles = new Set<string>();
+    for (const script of bootstrap.scripts) {
+      const handle = script.executionHandle;
+      if (typeof handle !== "string" || handle.length === 0 || handle.length > 256) return false;
+      const binding = this.pageExecutionBindings.get(handle);
+      if (
+        !binding ||
+        binding.envTag !== bootstrap.envTag ||
+        binding.tabId !== tabId ||
+        binding.frameId !== source.frameId ||
+        binding.documentId !== source.documentId
+      ) {
+        return false;
+      }
+      handles.add(handle);
+    }
+    if (handles.size === 0) return false;
+    const frameId = source.frameId;
+    const documentId = source.documentId;
+    const key = this.userScriptConnectionKey(tabId, frameId, documentId, bootstrap.envTag);
+    const session = { ...bootstrap, transport: isExtensionFallback ? ("extension" as const) : ("userScript" as const) };
+    this.userScriptSessions.set(key, session);
+    this.userScriptBootstraps.delete(handshake.bootstrapToken);
+    const previous = this.userScriptConnections.get(key);
+    if (previous) previous.connection.disconnect(true);
+    const entry = { connection, handles, envTag: bootstrap.envTag, tabId, frameId, documentId, ready: false };
+    this.userScriptConnections.set(key, entry);
+    connection.onDisconnect(() => {
+      if (this.userScriptConnections.get(key)?.connection === connection) this.userScriptConnections.delete(key);
+    });
+    let bootstrapped = false;
+    connection.onMessage((packet) => {
+      if (
+        bootstrapped ||
+        packet === null ||
+        typeof packet !== "object" ||
+        Object.keys(packet).length !== 1 ||
+        packet.action !== "userScript/bootstrap"
+      ) {
+        return;
+      }
+      bootstrapped = true;
+      try {
+        const pageLoadData = {
+          scripts: bootstrap.scripts,
+          envInfo: bootstrap.envInfo,
+          reconnectToken: bootstrap.reconnectToken,
+          ...(bootstrap.envTag === "ct" ? { extensionOrigin: bootstrap.extensionOrigin } : {}),
+        };
+        connection.sendMessage({
+          action: `${bootstrap.envTag === "it" ? "inject" : "content"}/pageLoad`,
+          data: pageLoadData,
+        });
+        entry.ready = true;
+        this.flushPendingUserScriptValueUpdates(key, entry);
+      } catch {
+        this.userScriptConnections.delete(key);
+      }
+    });
+    return true;
+  }
+
+  reconnectUserScript(data: unknown, sender: IGetSender): { bootstrapToken: string } | undefined {
+    if (!sender.isType(GetSenderType.RUNTIME)) {
+      return undefined;
+    }
+    if (
+      data === null ||
+      typeof data !== "object" ||
+      Object.keys(data).length !== 1 ||
+      typeof (data as { reconnectToken?: unknown }).reconnectToken !== "string" ||
+      (data as { reconnectToken: string }).reconnectToken.length === 0 ||
+      (data as { reconnectToken: string }).reconnectToken.length > 256
+    ) {
+      return undefined;
+    }
+    const source = sender.getSender();
+    const tabId = source?.tab?.id;
+    if (!source || typeof tabId !== "number") return undefined;
+    let key: string | undefined;
+    let session: UserScriptSession | undefined;
+    for (const [candidateKey, candidateSession] of this.userScriptSessions) {
+      if (
+        candidateSession.tabId === tabId &&
+        candidateSession.frameId === source.frameId &&
+        candidateSession.documentId === source.documentId &&
+        (candidateSession.documentId !== undefined ||
+          (typeof source.url === "string" && source.url.length > 0 && candidateSession.url === source.url)) &&
+        candidateSession.reconnectToken === (data as { reconnectToken: string }).reconnectToken
+      ) {
+        key = candidateKey;
+        session = candidateSession;
+        break;
+      }
+    }
+    if (!key || !session) return undefined;
+    if (sender.getConnectOrigin?.() !== session.transport) return undefined;
+    for (const script of session.scripts) {
+      const handle = script.executionHandle;
+      const binding = typeof handle === "string" ? this.pageExecutionBindings.get(handle) : undefined;
+      if (
+        !binding ||
+        binding.envTag !== session.envTag ||
+        binding.tabId !== tabId ||
+        binding.frameId !== source.frameId ||
+        binding.documentId !== source.documentId
+      ) {
+        this.userScriptSessions.delete(key);
+        return undefined;
+      }
+    }
+    const bootstrapToken = uuidv4();
+    const nextSession = { ...session, reconnectToken: uuidv4() };
+    for (const [token, bootstrap] of this.userScriptBootstraps) {
+      if (
+        bootstrap.tabId === session.tabId &&
+        bootstrap.frameId === session.frameId &&
+        bootstrap.documentId === session.documentId
+      ) {
+        this.userScriptBootstraps.delete(token);
+      }
+    }
+    this.userScriptSessions.set(key, nextSession);
+    this.userScriptBootstraps.set(bootstrapToken, nextSession);
+    return { bootstrapToken };
+  }
+
+  private queuePendingUserScriptValueUpdate(key: string, data: ValueUpdateDataEncoded): void {
+    const session = this.userScriptSessions.get(key);
+    if (!session) return;
+    const previous = session.pendingValueUpdates.get(data.storageName);
+    if (!previous) {
+      session.pendingValueUpdates.set(data.storageName, data);
+      return;
+    }
+    const entries: ValueUpdateDataEncoded["entries"] = previous.entries.map((entry) => [entry[0], entry[1], entry[2]]);
+    const entryIndexes = new Map<string, number>();
+    for (let index = 0; index < entries.length; index += 1) entryIndexes.set(entries[index][0], index);
+    for (const entry of data.entries) {
+      const index = entryIndexes.get(entry[0]);
+      if (index === undefined) {
+        entryIndexes.set(entry[0], entries.length);
+        entries.push([entry[0], entry[1], entry[2]]);
+      } else {
+        entries[index] = [entry[0], entry[1], entries[index][2]];
+      }
+    }
+    session.pendingValueUpdates.set(data.storageName, {
+      ...data,
+      entries,
+      valueUpdated: previous.valueUpdated || data.valueUpdated,
+    });
+  }
+
+  private flushPendingUserScriptValueUpdates(
+    key: string,
+    entry: { connection: MessageConnect; envTag: "it" | "ct" }
+  ): void {
+    const session = this.userScriptSessions.get(key);
+    if (!session) return;
+    for (const [storageName, data] of session.pendingValueUpdates) {
+      entry.connection.sendMessage({
+        action: `${entry.envTag === "it" ? "inject" : "content"}/runtime/valueUpdate`,
+        data,
+      });
+      session.pendingValueUpdates.delete(storageName);
+    }
+  }
+
+  private sendUserScriptMessage(to: ExtMessageSender | undefined, action: string, data: unknown): void {
+    const dataRecord =
+      typeof data === "object" && data !== null ? (data as { uuid?: unknown; storageName?: unknown }) : undefined;
+    const targetUuid = action === "runtime/emitEvent" ? dataRecord?.uuid : undefined;
+    const targetStorageName = action === "runtime/valueUpdate" ? dataRecord?.storageName : undefined;
+    const valueUpdate =
+      action === "runtime/valueUpdate" && typeof dataRecord?.storageName === "string"
+        ? (data as ValueUpdateDataEncoded)
+        : undefined;
+    // 先按页面定位，再按句柄对应的脚本或 storageName 过滤，避免跨脚本广播私有回调。
+    for (const [key, entry] of this.userScriptConnections) {
+      if (
+        to &&
+        (entry.tabId !== to.tabId ||
+          (to.frameId !== undefined && entry.frameId !== to.frameId) ||
+          (to.documentId !== undefined && entry.documentId !== to.documentId))
+      ) {
+        continue;
+      }
+      let bindingMatches = false;
+      for (const handle of entry.handles) {
+        const binding = this.pageExecutionBindings.get(handle);
+        if (
+          binding &&
+          ((targetUuid !== undefined && targetUuid === binding.uuid) ||
+            (targetStorageName !== undefined && targetStorageName === binding.storageName))
+        ) {
+          bindingMatches = true;
+          break;
+        }
+      }
+      if (!bindingMatches) continue;
+      if (!entry.ready) {
+        if (valueUpdate) this.queuePendingUserScriptValueUpdate(key, valueUpdate);
+        continue;
+      }
+      try {
+        entry.connection.sendMessage({ action: `${entry.envTag === "it" ? "inject" : "content"}/${action}`, data });
+      } catch {
+        this.userScriptConnections.delete(key);
+        if (valueUpdate) this.queuePendingUserScriptValueUpdate(key, valueUpdate);
+      }
+    }
+    if (!valueUpdate) return;
+    for (const [key, session] of this.userScriptSessions) {
+      if (this.userScriptConnections.has(key)) continue;
+      if (
+        to &&
+        (session.tabId !== to.tabId ||
+          (to.frameId !== undefined && session.frameId !== to.frameId) ||
+          (to.documentId !== undefined && session.documentId !== to.documentId))
+      ) {
+        continue;
+      }
+      let bindingMatches = false;
+      for (const script of session.scripts) {
+        const handle = script.executionHandle;
+        const binding = typeof handle === "string" ? this.pageExecutionBindings.get(handle) : undefined;
+        if (
+          binding &&
+          ((targetUuid !== undefined && targetUuid === binding.uuid) ||
+            (targetStorageName !== undefined && targetStorageName === binding.storageName))
+        ) {
+          bindingMatches = true;
+          break;
+        }
+      }
+      if (bindingMatches) this.queuePendingUserScriptValueUpdate(key, valueUpdate);
+    }
+  }
+
+  private revokePageBindingsForScript(uuid: string): void {
+    for (const [handle, binding] of this.pageExecutionBindings) {
+      if (binding.uuid === uuid) this.pageExecutionBindings.delete(handle);
+    }
+    for (const [key, entry] of this.userScriptConnections) {
+      // 脚本撤销后同步裁剪句柄集；没有任何有效句柄的端口必须关闭，避免残留授权接收器。
+      for (const handle of entry.handles) {
+        const binding = this.pageExecutionBindings.get(handle);
+        if (!binding || binding.uuid === uuid) entry.handles.delete(handle);
+      }
+      if (entry.handles.size === 0) {
+        entry.connection.disconnect(true);
+        this.userScriptConnections.delete(key);
+      }
+    }
+    for (const [token, bootstrap] of this.userScriptBootstraps) {
+      if (bootstrap.scripts.some((script) => script.uuid === uuid)) this.userScriptBootstraps.delete(token);
+    }
+    for (const [key, session] of this.userScriptSessions) {
+      if (session.scripts.some((script) => script.uuid === uuid)) this.userScriptSessions.delete(key);
+    }
+  }
+
+  private issuePageBinding(
+    uuid: string,
+    envTag: "it" | "ct",
+    storageName: string,
+    allowedAPIs: readonly string[],
+    sender: IGetSender
+  ): ServiceWorkerExecutionBinding {
+    const source = sender.getSender();
+    const tabId = source?.tab?.id;
+    const url = source?.url;
+    if (typeof tabId !== "number" || typeof url !== "string" || url.length === 0) {
+      throw new Error("page execution binding requires a tab and URL");
+    }
+    // 每次 pageLoad 都签发新句柄和 runFlag；它们共同绑定当前文档的授权生命周期。
+    const handle = uuidv4();
+    const binding = {
+      handle,
+      uuid,
+      envTag,
+      runFlag: uuidv4(),
+      url,
+      tabId,
+      frameId: source?.frameId,
+      documentId: source?.documentId,
+      storageName,
+      allowedAPIs: new Set(allowedAPIs),
+      requestIds: new Set<string>(),
+    } satisfies ServiceWorkerExecutionBinding;
+    this.pageExecutionBindings.set(handle, binding);
+    return binding;
+  }
+
+  resolvePageExecutionBinding(handle: string, sender: IGetSender): ServiceWorkerExecutionBinding | undefined {
+    const binding = this.pageExecutionBindings.get(handle);
+    const source = sender.getSender();
+    if (
+      !binding ||
+      !source?.tab ||
+      source.tab.id !== binding.tabId ||
+      source.frameId !== binding.frameId ||
+      (binding.documentId === undefined && source.url !== binding.url)
+    )
+      return undefined;
+    if (binding.documentId !== undefined && source.documentId !== binding.documentId) return undefined;
+    return binding;
   }
 
   private readonly disabledMatcherTaskKey = `runtime_disabled_matcher:${Math.random()}`;
@@ -478,6 +941,8 @@ export class RuntimeService {
           sendData,
         },
       });
+      // USER_SCRIPT 看不到 scripting world 的页面广播，改经原生扩展连接投递同一份编码 DTO。
+      this.sendUserScriptMessage(undefined, "runtime/valueUpdate", sendData);
 
       // 後台腳本
       if (bgScriptStorageNames.has(sendData.storageName)) {
@@ -527,7 +992,8 @@ export class RuntimeService {
       this.msgSender,
       this.mq,
       this.value,
-      new GMExternalDependencies(this)
+      new GMExternalDependencies(this),
+      this.resolvePageExecutionBinding.bind(this)
     );
     permission.init();
     this.gmApi.start();
@@ -536,6 +1002,8 @@ export class RuntimeService {
     this.group.on("runScript", this.runScript.bind(this));
     this.group.on("pageLoad", this.pageLoad.bind(this));
     this.group.on("pageShow", this.pageShow.bind(this));
+    this.group.on("registerUserScript", this.registerUserScriptConnection.bind(this));
+    this.group.on("reconnectUserScript", this.reconnectUserScript.bind(this));
 
     // 监听脚本开启
     this.mq.subscribe<TEnableScript[]>("enableScripts", async (data) => {
@@ -548,6 +1016,7 @@ export class RuntimeService {
 
       const unregisterUuids = [] as string[];
       for (const { uuid, enable } of data) {
+        this.revokePageBindingsForScript(uuid);
         const script = await this.scriptDAO.get(uuid);
         if (!script) {
           this.logger.error("script enable failed, script not found", {
@@ -582,6 +1051,7 @@ export class RuntimeService {
     // 监听脚本安装
     this.mq.subscribe<TInstallScript>("installScript", async (data) => {
       const uuid = data.script.uuid;
+      this.revokePageBindingsForScript(uuid);
       this.invalidateDisabledMatcher();
       this.deleteScriptRuntimeCache(uuid);
 
@@ -620,6 +1090,7 @@ export class RuntimeService {
       const unregisterUuids = [] as string[];
       this.updateSorter((next) => {
         for (const { uuid } of data) {
+          this.revokePageBindingsForScript(uuid);
           unregisterUuids.push(uuid);
           this.deleteScriptRuntimeCache(uuid);
           this.deleteScriptSort(next, uuid);
@@ -844,6 +1315,12 @@ export class RuntimeService {
 
   // 取消脚本注册
   async unregisterUserscripts() {
+    this.pageExecutionBindings.clear();
+    this.userScriptSessions.clear();
+    for (const [key, entry] of this.userScriptConnections) {
+      entry.connection.disconnect(true);
+      this.userScriptConnections.delete(key);
+    }
     // 检查 registered 避免重复操作增加系统开支
     // 已成功注册(true)或是未知有无注册(null)的情况下执行
     if (runtimeGlobal.registerState !== RuntimeRegisterCode.UNREGISTER_DONE) {
@@ -1160,6 +1637,7 @@ export class RuntimeService {
       // 如果是-1, 代表给offscreen发送消息
       return sendMessage(this.msgSender, "offscreen/runtime/emitEvent", req);
     }
+    this.sendUserScriptMessage(to, "runtime/emitEvent", req);
     return sendMessage(
       new ExtensionContentMessageSend(to.tabId, {
         documentId: to.documentId,
@@ -1266,17 +1744,26 @@ export class RuntimeService {
     }
   }
 
-  async pageLoad(_: any, sender: IGetSender): Promise<TClientPageLoadInfo> {
+  async pageLoad(data: { envTag?: "it" | "ct" } | undefined, sender: IGetSender): Promise<TClientPageLoadInfo> {
+    // USER_SCRIPT 只能通过一次性 bootstrap 获取 content-world 资料，不能自行请求 pageLoad。
+    if (sender.getConnectOrigin?.() === "userScript") return { ok: false };
     const chromeSender = sender.getSender();
     const url = chromeSender?.url;
     if (!url) {
       // 异常加载
       return { ok: false };
     }
-    const tabId = chromeSender.tab?.id || -1;
+    const tabId = chromeSender.tab?.id ?? -1;
     const frameId = chromeSender.frameId;
     const incognito = chromeSender.tab?.incognito ?? false;
+    const pageLoadSequence = this.beginPageLoadSequence(sender, data?.envTag);
     const res = await this.getScriptsForTab({ url, tabId, frameId, incognito });
+    if (pageLoadSequence && this.pageLoadSequences.get(pageLoadSequence[0]) !== pageLoadSequence[1]) {
+      return { ok: false };
+    }
+
+    // 即使新 URL 没有匹配脚本也要退休旧绑定，关闭不提供 documentId 的浏览器复用窗口。
+    this.revokePageBindings(sender, data?.envTag);
 
     this.mq.emit<TPopupPageLoadInfo>("popupPageLoadUpdate", {
       tabId: tabId,
@@ -1286,12 +1773,55 @@ export class RuntimeService {
     });
 
     if (res) {
+      const prepareScripts = (scripts: TScriptInfo[], envTag: "it" | "ct") =>
+        scripts.map((script) => {
+          const binding = this.issuePageBinding(
+            script.uuid,
+            envTag,
+            getStorageName(script),
+            getPageRpcAllowedAPIs(script.metadata.grant || []),
+            sender
+          );
+          return {
+            ...script,
+            executionHandle: binding.handle,
+            executionEnvTag: envTag,
+            executionRunFlag: binding.runFlag,
+          };
+        });
+      const injectScriptList = data?.envTag === "ct" ? [] : prepareScripts(res.injectScriptList, "it");
+      const contentScriptList = prepareScripts(res.contentScriptList, "ct");
+      let userScriptBootstrapToken: string | undefined;
+      let userScriptInjectBootstrapToken: string | undefined;
+      if (data?.envTag === "it") {
+        const createBootstrap = (scripts: TScriptInfo[], envTag: "it" | "ct"): string | undefined => {
+          if (scripts.length === 0) return undefined;
+          const token = uuidv4();
+          this.userScriptBootstraps.set(token, {
+            scripts,
+            envInfo: res.envInfo,
+            extensionOrigin: getExtensionOrigin(),
+            reconnectToken: token,
+            envTag,
+            url,
+            tabId,
+            frameId,
+            documentId: chromeSender.documentId,
+            pendingValueUpdates: new Map(),
+          });
+          return token;
+        };
+        userScriptInjectBootstrapToken = createBootstrap(injectScriptList, "it");
+        userScriptBootstrapToken = createBootstrap(contentScriptList, "ct");
+      }
       // 返回脚本资料，在页面加载
       return {
         ok: true,
-        injectScriptList: res.injectScriptList,
-        contentScriptList: res.contentScriptList,
+        injectScriptList,
+        contentScriptList: data?.envTag === "it" ? [] : contentScriptList,
         envInfo: res.envInfo,
+        userScriptBootstrapToken,
+        userScriptInjectBootstrapToken,
       };
     } else {
       // 没有脚本资料，不需要加载
@@ -1308,7 +1838,7 @@ export class RuntimeService {
     const url = chromeSender?.url;
     if (!url) return;
     this.mq.emit<TPopupPageRestoreInfo>("popupPageRestored", {
-      tabId: chromeSender.tab?.id || -1,
+      tabId: chromeSender.tab?.id ?? -1,
       frameId: chromeSender.frameId,
       url,
     });

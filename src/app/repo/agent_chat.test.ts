@@ -157,6 +157,44 @@ describe("AgentChatRepo 附件存储", () => {
     expect(result).toBeInstanceOf(Blob);
   });
 
+  it("附件读取权限只授予拥有引用该附件的脚本会话", async () => {
+    const conversation = await repo.createConversation({
+      id: "conv-script-attachment",
+      ownerScriptUuid: "script-a",
+      title: "Script",
+      modelId: "m1",
+      createtime: 1,
+      updatetime: 1,
+    });
+    await repo.saveMessages(
+      conversation.id,
+      [
+        {
+          id: "message-script-attachment",
+          conversationId: conversation.id,
+          role: "user",
+          content: [{ type: "image", attachmentId: "script-image", mimeType: "image/png" }],
+          ownedAttachmentIds: ["script-image"],
+          createtime: 1,
+        },
+        {
+          id: "message-borrowed-attachment",
+          conversationId: conversation.id,
+          role: "user",
+          content: [{ type: "image", attachmentId: "borrowed-image", mimeType: "image/png" }],
+          createtime: 2,
+        },
+      ],
+      undefined,
+      { generation: conversation.generation! }
+    );
+
+    await expect(repo.isAttachmentAccessibleToScript("script-image", "script-a")).resolves.toBe(true);
+    await expect(repo.isAttachmentAccessibleToScript("borrowed-image", "script-a")).resolves.toBe(false);
+    await expect(repo.isAttachmentAccessibleToScript("script-image", "script-b")).resolves.toBe(false);
+    await expect(repo.isAttachmentAccessibleToScript("unreferenced", "script-a")).resolves.toBe(false);
+  });
+
   it("getAttachment 不存在的附件应返回 null", async () => {
     const result = await repo.getAttachment("nonexistent");
 

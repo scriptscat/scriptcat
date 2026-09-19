@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { createContext, createProxyContext, shouldFnBind, type RealmRoots } from "./create_context";
+import { GMContextApiGet } from "./gm_api/gm_context";
 import { trimScriptInfo } from "./utils";
+import { Native } from "./global";
 
 type AnyRecord = Record<PropertyKey, any>;
 
@@ -304,6 +306,155 @@ describe("shouldFnBind", () => {
 });
 
 describe("createContext: capability and lifecycle contract", () => {
+  it("does not expose broker state on the script-facing context", () => {
+    const context = createTestContext(["GM_getValue"]);
+
+    expect(context).not.toHaveProperty("message");
+    expect(context).not.toHaveProperty("scriptRes");
+    expect(context).not.toHaveProperty("valueChangeListener");
+    expect(context).not.toHaveProperty("EE");
+    expect(context).not.toHaveProperty("grantSet");
+  });
+
+  it("does not let page prototype pollution hide granted APIs", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(Object.prototype, "GM_getValue");
+    try {
+      Object.defineProperty(Object.prototype, "GM_getValue", {
+        configurable: true,
+        value: true,
+      });
+
+      const context = createTestContext(["GM_getValue"]);
+
+      expect(context.GM_getValue).toBeTypeOf("function");
+    } finally {
+      if (descriptor) Object.defineProperty(Object.prototype, "GM_getValue", descriptor);
+      else Reflect.deleteProperty(Object.prototype, "GM_getValue");
+    }
+  });
+
+  it("creates collection instances from frozen captured-method subclasses", () => {
+    const set = new Native.Set(["grant"]);
+    const map = new Native.Map<string, number>();
+    const weakMap = new Native.WeakMap<object, number>();
+
+    expect(set).toBeInstanceOf(Native.Set);
+    expect(map).toBeInstanceOf(Native.Map);
+    expect(weakMap).toBeInstanceOf(Native.WeakMap);
+    expect(Object.hasOwn(Object.getPrototypeOf(set), "add")).toBe(true);
+    expect(Object.hasOwn(Object.getPrototypeOf(map), "get")).toBe(true);
+    expect(Object.hasOwn(Object.getPrototypeOf(weakMap), "get")).toBe(true);
+    expect(Object.isFrozen(Object.getPrototypeOf(set))).toBe(true);
+    expect(Object.isFrozen(Object.getPrototypeOf(map))).toBe(true);
+    expect(Object.isFrozen(Object.getPrototypeOf(weakMap))).toBe(true);
+  });
+
+  it("keeps grant construction on captured Set and iterator intrinsics", () => {
+    const NativeSet = Set;
+    const nativeArrayIsArray = Array.isArray;
+    const nativeArrayIterator = Array.prototype[Symbol.iterator];
+    const nativeSetIterator = Set.prototype[Symbol.iterator];
+    const grants = new NativeSet<string>();
+    NativeSet.prototype.add.call(grants, "GM_getValue");
+    const poisonedIterator = function () {
+      let first = true;
+      return {
+        next() {
+          if (!first) return { value: undefined, done: true };
+          first = false;
+          return { value: "GM_cookie", done: false };
+        },
+      };
+    };
+    try {
+      Array.isArray = (() => false) as unknown as typeof Array.isArray;
+      Object.defineProperty(Array.prototype, Symbol.iterator, { configurable: true, value: poisonedIterator });
+      Object.defineProperty(NativeSet.prototype, Symbol.iterator, { configurable: true, value: poisonedIterator });
+      (globalThis as typeof globalThis & { Set: typeof Set }).Set = class PoisonedSet {
+        constructor() {
+          throw new Error("page replaced Set");
+        }
+      } as unknown as typeof Set;
+
+      const arrayBackedSet = new Native.Set(["GM_getValue"]);
+      expect(arrayBackedSet.has("GM_getValue")).toBe(true);
+
+      const context = createContext(
+        createScriptInfo({ grant: ["GM_getValue"] }),
+        { script: { name: "create-context-test" }, scriptMetaStr: "" },
+        "vitest",
+        undefined as any,
+        undefined as any,
+        grants
+      );
+
+      expect(context.GM_getValue).toBeTypeOf("function");
+      expect(context.GM_cookie).toBeUndefined();
+    } finally {
+      Array.isArray = nativeArrayIsArray;
+      Object.defineProperty(Array.prototype, Symbol.iterator, { configurable: true, value: nativeArrayIterator });
+      Object.defineProperty(NativeSet.prototype, Symbol.iterator, { configurable: true, value: nativeSetIterator });
+      (globalThis as typeof globalThis & { Set: typeof Set }).Set = NativeSet;
+    }
+  });
+
+  it("uses the service-worker execution run flag for value acknowledgments", async () => {
+    const script = {
+      ...createScriptInfo({ grant: ["GM_setValue"] }),
+      executionRunFlag: "canonical-run",
+    } as TScriptInfo;
+    const message = {
+      sendMessage: vi.fn().mockResolvedValue({ code: 0, data: "bar" }),
+    };
+    const context = createContext(
+      script,
+      { script: { name: "create-context-test" }, scriptMetaStr: "" },
+      "vitest",
+      message as any,
+      undefined as any,
+      new Set(["GM_setValue"])
+    );
+
+    context.GM_setValue("foo", "next");
+    expect(message.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ runFlag: "canonical-run" }),
+      })
+    );
+  });
+
+  it("installs capabilities without looking up a page-patchable Function.prototype.bind", () => {
+    const apiValues = GMContextApiGet("GM_getValue")!;
+    const originalApi = apiValues[0].api;
+    const replacement = function (_ctx: unknown, key: string, fallback?: unknown) {
+      return fallback;
+    };
+    Object.defineProperty(replacement, "bind", { configurable: true, value: undefined });
+    apiValues[0].api = replacement;
+    try {
+      const context = createTestContext(["GM_getValue"]);
+      expect(context.GM_getValue("key", "fallback")).toBe("fallback");
+    } finally {
+      apiValues[0].api = originalApi;
+    }
+  });
+
+  it("uses captured object operations when page code replaces assign and keys", () => {
+    const assign = vi.spyOn(Object, "assign").mockImplementation(() => {
+      throw new Error("page replacement");
+    });
+    const keys = vi.spyOn(Object, "keys").mockImplementation(() => {
+      throw new Error("page replacement");
+    });
+    try {
+      const context = createTestContext(["GM_getValue"]);
+      expect(context.GM_getValue("foo", "fallback")).toBe("bar");
+    } finally {
+      assign.mockRestore();
+      keys.mockRestore();
+    }
+  });
+
   const resourceGrantChecks: Array<{
     grant: string;
     read: (context: ReturnType<typeof createContext>) => unknown;
@@ -355,9 +506,6 @@ describe("createContext: capability and lifecycle contract", () => {
     expect(context.GM_cookie.list).toBeTypeOf("function");
     expect(context.GM_cookie.delete).toBeTypeOf("function");
     expect(context.not_exist).toBeUndefined();
-    expect(context.grantSet.has("not_exist")).toBe(false);
-    expect(context.grantSet.has("GM_getValue")).toBe(true);
-    expect(context.grantSet.has("GM.getValue")).toBe(true);
   });
 
   it.each(["GM.cookie", "GM_cookie"] as const)("雙向注入 cookie API：輸入 %s 時兩種公開形狀都可用", (grant) => {
@@ -371,8 +519,6 @@ describe("createContext: capability and lifecycle contract", () => {
     expect(context.GM_cookie.set).toBeTypeOf("function");
     expect(context.GM_cookie.list).toBeTypeOf("function");
     expect(context.GM_cookie.delete).toBeTypeOf("function");
-    expect(context.grantSet.has("GM.cookie")).toBe(true);
-    expect(context.grantSet.has("GM_cookie")).toBe(true);
   });
 
   it("將 window grant 留在 context.window，投影時才暴露到 sandbox", () => {
@@ -399,8 +545,7 @@ describe("createContext: capability and lifecycle contract", () => {
 
     await Promise.resolve();
     expect(loaded).toBe(false);
-    const loadScriptResolve = (context as unknown as AnyRecord).loadScriptResolve as () => void;
-    loadScriptResolve();
+    context.resolveLoadScript();
     await loadedPromise;
     expect(loaded).toBe(true);
   });
@@ -439,19 +584,30 @@ describe("createContext: capability and lifecycle contract", () => {
     update("remote-1", "next", 7);
     expect(listener).toHaveBeenCalledWith("foo", "bar", "next", true, 7);
 
-    const contextValues = context as unknown as AnyRecord;
-    const runFlag = contextValues.runFlag;
     context.setInvalidContext();
     context.setInvalidContext();
 
     expect(context.isInvalidContext()).toBe(true);
-    expect(contextValues.runFlag).not.toBe(runFlag);
-    expect(contextValues.runFlag).toContain("(invalid)");
-    expect(contextValues.message).toBeNull();
-    expect(contextValues.scriptRes).toBeNull();
 
     update("remote-2", "again", 8);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("事件回调收到独立快照，不能改写传输中的事件数据", () => {
+    const context = createTestContext(["CAT.agent.task"]);
+    let observed: { nested: { value: number } } | undefined;
+    const received = vi.fn((data: { nested: { value: number } }) => {
+      observed = { nested: { value: data.nested.value } };
+      data.nested.value = 99;
+    });
+
+    context.CAT.agent.task.addListener("task-a", received);
+    const eventData = { nested: { value: 1 } };
+    context.emitEvent("agentTask", "task-a", eventData);
+
+    expect(received).toHaveBeenCalledTimes(1);
+    expect(observed).toEqual({ nested: { value: 1 } });
+    expect(eventData).toEqual({ nested: { value: 1 } });
   });
 });
 
@@ -902,6 +1058,25 @@ describe("createProxyContext: deterministic realm contract", () => {
     expect(fixture.eventTarget.listenerCount("load")).toBe(0);
     fixture.hostWindow.dispatchEvent(new fixture.TestEvent("load"));
     expect(third).toHaveBeenCalledTimes(1);
+  });
+
+  it("事件 callback 的 call 屬性被頁面改寫時仍保留 sandbox this", () => {
+    const fixture = createSplitRealmRoots();
+    const sandbox = createProxyContext(Object.create(null), fixture.roots);
+    const handler = vi.fn(function (this: unknown) {
+      expect(this).toBe(sandbox);
+    });
+    Object.defineProperty(handler, "call", {
+      configurable: true,
+      value: () => {
+        throw new Error("poisoned call");
+      },
+    });
+
+    sandbox.onload = handler;
+    fixture.hostWindow.dispatchEvent(new fixture.TestEvent("load"));
+
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 
   it("split realm 下 self/window/globalThis 寫入都留在當前 sandbox", () => {

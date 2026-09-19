@@ -45,6 +45,8 @@ const sharedTest = {
   env: {
     VI_TESTING: "true",
     SC_RANDOM_KEY: "005a7deb-3a6e-4337-83ea-b9626c02ea38",
+    SC_RANDOM_FNKEY: "843078d2-403b-4ec0-a6e0-358488e135ec",
+    SC_ZN_RAND: "4622da29-026c-47d1-a8f8-ee52bad37129",
   },
 };
 

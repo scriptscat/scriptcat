@@ -68,6 +68,22 @@ describe.concurrent("GM_info", () => {
     expect(ret.GM_info.script.version).toEqual("1.0.0");
     expect(ret._this).not.toEqual(global);
   });
+
+  it.concurrent("does not resolve a mutable script function call property", async () => {
+    const { exec } = makeExec("return this;");
+    const scriptFunc = function (_token: string, context: unknown) {
+      return context;
+    } as ScriptFunc & { call?: unknown };
+    Object.defineProperty(scriptFunc, "call", {
+      configurable: true,
+      value: () => {
+        throw new Error("poisoned call");
+      },
+    });
+    exec.scriptFunc = scriptFunc;
+
+    expect(await exec.exec()).toBe(exec.execContext);
+  });
 });
 
 describe.concurrent("unsafeWindow", () => {

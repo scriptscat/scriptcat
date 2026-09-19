@@ -24,12 +24,12 @@ go through a controlled context object instead of the page's real globals:
 Key points:
 
 - `with(arguments[0]||this.$)` makes every bare identifier resolve against the GM context first. The context is
-  a `Proxy` that intercepts reads, so the script sees `unsafeWindow`, the granted `GM_*` functions, and a
-  controlled view of globals — not the raw page scope.
+  a descriptor-based pseudo-window that projects `unsafeWindow`, the granted `GM_*` functions, and a controlled
+  view of globals — not the raw page scope. It is a compatibility projection rather than a security membrane.
 - Context and script name are passed as **unnamed `arguments`** (`arguments[0]`, `arguments[1]`) so user code
   can't shadow them by declaring variables of the same name.
-- `.call(this)` preserves `this` because `chrome.userScripts` invokes the function free-standing (an arrow
-  function would capture the wrong `this`).
+- The wrapper installs the body as a temporary method and removes it in the same expression. This preserves the
+  userscript `this` without resolving mutable page `call`, `apply`, or `bind` properties.
 
 ### Path A — Page scripts → `chrome.userScripts`
 
@@ -38,7 +38,14 @@ patterns and registers the compiled payload (the `scripting` bundle) with `chrom
 `MAIN` or `USER_SCRIPT` world as required. At document time the content/inject pair
 ([`script_runtime.ts`](../../src/app/service/content/script_runtime.ts),
 [`exec_script.ts`](../../src/app/service/content/exec_script.ts)) evaluates the compiled function with the GM
-context.
+context. The `USER_SCRIPT` content path obtains its matched scripts directly from the service worker over
+`ExtensionMessage` after a bootstrap-token handoff. The MAIN `inject` path uses a native extension port for GM RPC
+when available; `PageMessage` carries page-visible bootstrap/fallback traffic, MAIN event/value updates, the
+whitelisted `external.Scriptcat` API, and the MAIN GM RPC fallback through the `scripting` bundle. That fallback
+is checked against the current `PageRpcRegistry` execution handle and grant before it is forwarded to the service
+worker. `CustomEventMessage` carries the content bootstrap handoff and synchronous DOM references. Neither
+page-visible bridge establishes an authenticated extension origin, so consumers must validate its payloads before
+acting on them.
 
 ### Path B — Background scripts → Offscreen → Sandbox
 

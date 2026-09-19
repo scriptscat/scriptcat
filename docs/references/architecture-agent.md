@@ -98,6 +98,34 @@ The Agent subsystem does not use one persistence pattern; pick by data shape, ma
   attachments), `AgentTaskRunRepo` (task run history), `SkillRepo` (skill `.md`/script bundles).
 - `MCPServerRepo` (`Repo<T>`) — MCP server configs.
 
+## Userscript resource ownership
+
+The `CAT.agent.*` APIs are granted per script, but a grant alone does not decide which persisted resources that
+script can access. The service-worker GM handlers take the caller identity from `request.script.uuid` and pass it
+to the Agent services; they do not use a caller-supplied `scriptUuid` as the authority.
+
+- **Conversations** created by a script persist `ownerScriptUuid`. Script reads, chats, attaches, and mutations
+  check that owner. UI and legacy conversations without an owner remain available to the extension UI but are not
+  visible to script callers. Ephemeral chats are not persisted conversations.
+- **Tasks** created by a script persist `ownerScriptUuid`; script list/get/update/delete/enable/run/history
+  operations are scoped to that owner. For compatibility, a legacy event task without an owner remains visible
+  only to the script named by `sourceScriptUuid`.
+- **DOM monitors** are scoped to the script UUID supplied by the service-worker GM handler and to the tab. A
+  script caller cannot peek, stop, or replace a monitor owned by another script.
+- **Attachments** live in the shared OPFS workspace and do not carry owner metadata themselves. Before
+  `CAT.agent.opfs.readAttachment` returns a file, `AgentChatRepo` verifies that a persisted message references
+  it from a conversation owned by the calling script. A guessed ID or a reference borrowed from another script's
+  conversation is insufficient.
+
+The checks are implemented in [`gm_agent.ts`](../../src/app/service/service_worker/gm_api/gm_agent.ts),
+[`gm_agent_dom.ts`](../../src/app/service/service_worker/gm_api/gm_agent_dom.ts),
+[`gm_agent_task.ts`](../../src/app/service/service_worker/gm_api/gm_agent_task.ts),
+[`chat_service.ts`](../../src/app/service/agent/service_worker/chat_service.ts),
+[`task_service.ts`](../../src/app/service/agent/service_worker/task_service.ts),
+[`background_session_manager.ts`](../../src/app/service/agent/service_worker/background_session_manager.ts),
+[`opfs_service.ts`](../../src/app/service/agent/service_worker/opfs_service.ts), and
+[`dom_cdp.ts`](../../src/app/service/agent/service_worker/dom_cdp.ts).
+
 ## Page / offscreen / sandbox delegation and permission boundaries
 
 - **Content (`src/app/service/content/gm_api/cat_agent.ts`)** exposes the `CAT.agent.*` API to user scripts —
@@ -120,7 +148,8 @@ The Agent subsystem does not use one persistence pattern; pick by data shape, ma
     uses CDP; a background (non-active) tab tries CDP first and falls back to `chrome.tabs.captureVisibleTab`
     on failure; an active tab with no selector uses `chrome.tabs.captureVisibleTab` directly.
   - **Tab monitoring** (`startMonitor`/`stopMonitor`/`peekMonitor`) is unconditionally CDP-based — there is no
-    non-CDP path for it at all.
+    non-CDP path for it at all. A monitor is scoped to its tab and initiating script; other scripts cannot
+    inspect, stop, or replace it.
 
   CDP attaches the debugger to a tab and carries the extra permission/user-visible-banner implications that
   come with `chrome.debugger`; how often that applies depends on which action you're looking at, not a single

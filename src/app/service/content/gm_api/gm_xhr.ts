@@ -1,11 +1,11 @@
 import { Native } from "../global";
-import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type GMApi from "./gm_api";
 import { dataEncode } from "@App/pkg/utils/xhr/xhr_data";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
 import { base64ToUint8, concatUint8 } from "@App/pkg/utils/datatype";
 import { stackAsyncTask } from "@App/pkg/utils/async_queue";
 import LoggerCore from "@App/app/logger/core";
+import Logger from "@App/app/logger/logger";
 
 const ChunkResponseCode = {
   NONE: 0,
@@ -112,10 +112,33 @@ export const convObjectToURL = async (object: string | URL | Blob | File | undef
   return url;
 };
 
-export const urlToDocumentInContentPage = async (a: GMApi, url: string, isContent: boolean) => {
-  // url (e.g. blob url) -> XMLHttpRequest (CONTENT) -> Document (CONTENT)
-  const nodeId = await a.sendMessage("CAT_fetchDocument", [`${url}`, isContent]);
-  return (<CustomEventMessage>a.message).getAndDelRelatedTarget(nodeId) as Document;
+export type SerializedDocumentResponse = {
+  text: string;
+  contentType: string;
+};
+
+const readDataProperty = (value: object, key: string): unknown => {
+  try {
+    const descriptor = Native.objectGetOwnPropertyDescriptor(value, key);
+    return descriptor && "value" in descriptor ? descriptor.value : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+export const parseSerializedDocumentResponse = (value: unknown): Document | undefined => {
+  if (value === null || typeof value !== "object") return undefined;
+  const text = readDataProperty(value, "text");
+  const contentType = readDataProperty(value, "contentType");
+  if (typeof text !== "string" || typeof contentType !== "string") return undefined;
+
+  const mime = getMimeType(contentType);
+  const parseType = docParseTypes.has(mime) ? (mime as DOMParserSupportedType) : "text/xml";
+  try {
+    return new DOMParser().parseFromString(text, parseType);
+  } catch {
+    return undefined;
+  }
 };
 
 const getMimeType = (contentType: string) => {
@@ -126,9 +149,25 @@ const getMimeType = (contentType: string) => {
   return mime;
 };
 
-const docParseTypes = new Set(["application/xhtml+xml", "application/xml", "image/svg+xml", "text/html", "text/xml"]);
+const docParseTypes = new Native.Set([
+  "application/xhtml+xml",
+  "application/xml",
+  "image/svg+xml",
+  "text/html",
+  "text/xml",
+]);
 
-const retStateFnMap = new WeakMap<ThisType<GMXHRResponseType>, RetStateFnRecord>();
+const retStateFnMap = new Native.WeakMap<object, RetStateFnRecord>();
+
+const invokeXHRCallback = (name: string, callback: ((value: any) => void) | undefined, value: any) => {
+  if (!callback) return;
+  try {
+    callback(value);
+  } catch (error) {
+    // 用户回调异常只记录，不得拒绝内部消息队列或打断请求收尾。
+    LoggerCore.logger().error("GM_xmlhttpRequest callback failed", { name, ...Logger.E(error) });
+  }
+};
 
 interface RetStateFnRecord {
   getResponseText(): string | undefined;
@@ -172,14 +211,15 @@ export function GM_xmlhttpRequest(
   isDownload: boolean = false
 ) {
   let reqDone = false;
+  let abortRequested = false;
   if (a.isInvalidContext()) {
     return {
       retPromise: requirePromise ? Promise.reject("GM_xmlhttpRequest: Invalid Context") : null,
       abort: () => {},
     };
   }
-  let retPromiseResolve: (value: unknown) => void | undefined;
-  let retPromiseReject: (reason?: any) => void | undefined;
+  let retPromiseResolve: ((value: unknown) => void) | undefined;
+  let retPromiseReject: ((reason?: any) => void) | undefined;
   const retPromise = requirePromise
     ? new Promise((resolve, reject) => {
         retPromiseResolve = resolve;
@@ -189,11 +229,20 @@ export function GM_xmlhttpRequest(
   const urlPromiseLike = typeof details.url === "object" ? convObjectToURL(details.url) : details.url;
   const dataPromise = dataEncode(details.data);
   const headers = details.headers;
+  let requestHeaders: Record<string, string> | undefined;
+  let requestCookie = details.cookie;
   if (headers) {
-    for (const key of Object.keys(headers)) {
+    requestHeaders = Native.objectCreate(null) as Record<string, string>;
+    const keys = Native.reflectOwnKeys(headers);
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      if (typeof key !== "string") continue;
+      const descriptor = Native.objectGetOwnPropertyDescriptor(headers, key);
+      if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) continue;
       if (key.toLowerCase() === "cookie") {
-        details.cookie = headers[key];
-        delete headers[key];
+        requestCookie = descriptor.value as string;
+      } else {
+        requestHeaders[key] = descriptor.value as string;
       }
     }
   }
@@ -206,8 +255,8 @@ export function GM_xmlhttpRequest(
     method: details.method,
     timeout: details.timeout,
     url: "",
-    headers: details.headers,
-    cookie: details.cookie,
+    headers: requestHeaders,
+    cookie: requestCookie,
     responseType: details.responseType,
     overrideMimeType: details.overrideMimeType,
     anonymous: details.anonymous,
@@ -260,19 +309,30 @@ export function GM_xmlhttpRequest(
       }
     }
     // 发送信息
-    let connectMessage: Promise<MessageConnect>;
-    if (isDownload) {
-      // 如果是下载，带上 downloadMode 参数，呼叫 SW 的 GM_download
-      // 在 SW 中处理，实际使用 GM_xmlhttpRequest 进行下载
-      const method = param.method === "POST" ? "POST" : "GET";
-      const downloadParam: GMTypes.DownloadDetails<string> = { ...param, method, downloadMode: "native", name: "" };
-      connectMessage = a.connect("GM_download", [downloadParam]);
-    } else {
-      // 一般 GM_xmlhttpRequest，呼叫 SW 的 GM_xmlhttpRequest
-      connectMessage = a.connect("GM_xmlhttpRequest", [param]);
+    try {
+      let connectMessage: Promise<MessageConnect>;
+      if (isDownload) {
+        // 如果是下载，带上 downloadMode 参数，呼叫 SW 的 GM_download
+        // 在 SW 中处理，实际使用 GM_xmlhttpRequest 进行下载
+        const method = param.method === "POST" ? "POST" : "GET";
+        const downloadParam: GMTypes.DownloadDetails<string> = { ...param, method, downloadMode: "native", name: "" };
+        connectMessage = a.connect("GM_download", [downloadParam]);
+      } else {
+        // 一般 GM_xmlhttpRequest，呼叫 SW 的 GM_xmlhttpRequest
+        connectMessage = a.connect("GM_xmlhttpRequest", [param]);
+      }
+      param = null; // GC
+      connect = await connectMessage;
+    } catch (error) {
+      param = null;
+      const message = error instanceof Error ? error.message : `${error}`;
+      reqDone = true;
+      const response = { readyState: ReadyStateCode.DONE, error: message };
+      invokeXHRCallback("onerror", details.onerror, response);
+      retPromiseReject?.(message);
+      invokeXHRCallback("onloadend", details.onloadend, response);
+      return;
     }
-    param = null; // GC
-    connect = await connectMessage;
 
     const resultTexts = [] as string[]; // 函数参考清掉后，变数会被GC
     const resultBuffers = [] as Uint8Array<ArrayBuffer>[]; // 函数参考清掉后，变数会被GC
@@ -501,6 +561,7 @@ export function GM_xmlhttpRequest(
     };
     let makeXHRCallbackParam: typeof makeXHRCallbackParam_ | null = makeXHRCallbackParam_;
     let loadendCalled = false;
+    let loadCalled = false;
     const doLoadEnd = (data: TXhrCallBackArg) => {
       if (!loadendCalled) {
         loadendCalled = true;
@@ -509,24 +570,35 @@ export function GM_xmlhttpRequest(
         finalResultBuffers = null;
         finalResultText = null;
         const xhrResponse = makeXHRCallbackParam?.(data) ?? {};
-        details.onloadend?.(xhrResponse);
         if (errorOccur === null) {
           retPromiseResolve?.(xhrResponse);
         } else {
           retPromiseReject?.(errorOccur);
         }
         refCleanup?.();
+        invokeXHRCallback("onloadend", details.onloadend, xhrResponse);
       }
+    };
+    const scheduleSyntheticLoadEnd = () => {
+      // abort/error/timeout 可能没有 broker 的 onloadend，补发一次以释放连接和引用。
+      Promise.resolve({
+        error: "loadend",
+        responseHeaders: "",
+        readyState: 0,
+        status: 0,
+        statusText: "",
+      } as TXhrCallBackArg).then(doLoadEnd);
     };
     doAbort = (data: TXhrCallBackArg) => {
       if (!reqDone) {
         errorOccur = "AbortError";
-        details.onabort?.(makeXHRCallbackParam?.(data) ?? {});
         reqDone = true;
+        // 先标记完成再调用用户代码；回调抛错也不能留下未收尾的连接。
+        invokeXHRCallback("onabort", details.onabort, makeXHRCallbackParam?.(data) ?? {});
         // 不要进行 refCleanup ！要等待最后的 onloadend
         // refCleanup?.();
         // doAbort 不是由通讯管控 onloadend. 需要手动处理. 排程在下一个 microTask 避免影响 Abort 流程
-        Promise.resolve({ ...data, type: "loadend" }).then(doLoadEnd);
+        scheduleSyntheticLoadEnd();
       }
       doAbort = null;
     };
@@ -557,22 +629,16 @@ export function GM_xmlhttpRequest(
           });
           if (!reqDone) {
             errorOccur = message;
-            details.onerror?.({
+            reqDone = true;
+            invokeXHRCallback("onerror", details.onerror, {
               readyState: ReadyStateCode.DONE,
               error: message,
             });
-            reqDone = true;
             // 不要进行 refCleanup ！要等待最后的 onloadend
             // refCleanup?.();
 
             // 此错误多为 API 非正常执行，估计不会有 loadend 触发。见 Aborted 处理
-            Promise.resolve({
-              error: "loadend",
-              responseHeaders: "",
-              readyState: 0,
-              status: 0,
-              statusText: "",
-            } as TXhrCallBackArg).then(doLoadEnd);
+            scheduleSyntheticLoadEnd();
           }
           return;
         }
@@ -646,14 +712,16 @@ export function GM_xmlhttpRequest(
             break;
           }
           case "onload":
-            details.onload?.(makeXHRCallbackParam?.(data) ?? {});
+            if (loadCalled || reqDone) break;
+            loadCalled = true;
+            invokeXHRCallback("onload", details.onload, makeXHRCallbackParam?.(data) ?? {});
             break;
           case "onloadend": {
             doLoadEnd(data);
             break;
           }
           case "onloadstart":
-            details.onloadstart?.(makeXHRCallbackParam?.(data) ?? {});
+            invokeXHRCallback("onloadstart", details.onloadstart, makeXHRCallbackParam?.(data) ?? {});
             break;
           case "onprogress": {
             if (details.onprogress) {
@@ -665,7 +733,7 @@ export function GM_xmlhttpRequest(
                 done: data.loaded,
                 totalSize: data.total,
               };
-              details.onprogress?.(res);
+              invokeXHRCallback("onprogress", details.onprogress, res);
             }
             break;
           }
@@ -678,14 +746,15 @@ export function GM_xmlhttpRequest(
               // readable stream 的 controller 可以释放
               controller = undefined; // GC用
             }
-            details.onreadystatechange?.(makeXHRCallbackParam?.(data) ?? {});
+            invokeXHRCallback("onreadystatechange", details.onreadystatechange, makeXHRCallbackParam?.(data) ?? {});
             break;
           }
           case "ontimeout":
             if (!reqDone) {
               errorOccur = "TimeoutError";
-              details.ontimeout?.(makeXHRCallbackParam?.(data) ?? {});
               reqDone = true;
+              invokeXHRCallback("ontimeout", details.ontimeout, makeXHRCallbackParam?.(data) ?? {});
+              scheduleSyntheticLoadEnd();
               // 不要进行 refCleanup ！要等待最后的 onloadend
               // refCleanup?.();
             }
@@ -694,10 +763,14 @@ export function GM_xmlhttpRequest(
             if (!reqDone) {
               data.error ||= "Unknown Error";
               errorOccur = data.error;
-              details.onerror?.((makeXHRCallbackParam?.(data) ?? {}) as GMXHRResponseTypeWithError);
               reqDone = true;
-              // 不要进行 refCleanup ！要等待最后的 onloadend
-              // refCleanup?.();
+              invokeXHRCallback(
+                "onerror",
+                details.onerror,
+                (makeXHRCallbackParam?.(data) ?? {}) as GMXHRResponseTypeWithError
+              );
+              // 错误消息可能没有对应的 onloadend，补发一次以收尾并释放连接。
+              scheduleSyntheticLoadEnd();
             }
             break;
           case "onabort":
@@ -716,16 +789,37 @@ export function GM_xmlhttpRequest(
     };
 
     connect?.onMessage((msgData) => onMessageHandler?.(msgData));
-  })();
+    if (abortRequested && !reqDone) {
+      doAbort?.({
+        error: "aborted",
+        responseHeaders: "",
+        readyState: 0,
+        status: 0,
+        statusText: "",
+      } as TXhrCallBackArg);
+    }
+  })().catch((error) => {
+    const pendingConnection = connect;
+    connect = null;
+    pendingConnection?.disconnect(true);
+    if (reqDone) return;
+    reqDone = true;
+    const message = error instanceof Error ? error.message : `${error}`;
+    const response = { readyState: ReadyStateCode.DONE, error: message };
+    invokeXHRCallback("onerror", details.onerror, response);
+    retPromiseReject?.(message);
+    invokeXHRCallback("onloadend", details.onloadend, response);
+  });
   // 由于需要同步返回一个abort，但是一些操作是异步的，所以需要在这里处理
   return {
     retPromise,
     abort: () => {
+      abortRequested = true;
       if (connect) {
         connect.disconnect(true); // 断开连结(容忍已断开)
         connect = null;
       }
-      if (doAbort && details.onabort && !reqDone) {
+      if (doAbort && !reqDone) {
         // https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/abort
         // When a request is aborted, its readyState is changed to XMLHttpRequest.UNSENT (0) and the request's status code is set to 0.
         doAbort?.({

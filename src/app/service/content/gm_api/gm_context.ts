@@ -1,6 +1,14 @@
 import type { ApiParam, ApiValue } from "../types";
+import { Native } from "../global";
 
-const apis: Map<string, ApiValue[]> = new Map();
+const apiRegistry: Record<string, ApiValue[]> = Native.objectCreate(null);
+const apis = {
+  get: (name: string) => apiRegistry[name],
+  set: (name: string, values: ApiValue[]) => {
+    apiRegistry[name] = values;
+  },
+  keys: () => Native.objectKeys(apiRegistry),
+};
 
 export function GMContextApiGet(name: string): ApiValue[] | undefined {
   // 回传 Api 列表
@@ -17,10 +25,10 @@ function GMContextApiSet(grant: string, fnKey: string, api: any, param: ApiParam
   // 一个 @grant 可以扩充多个 API 函数
   let m: ApiValue[] | undefined = apis.get(grant);
   if (!m) apis.set(grant, (m = []));
-  m.push({ fnKey, api, param });
+  m[m.length] = { fnKey, api, param };
 }
 
-export const protect: { [key: string]: any } = {};
+export const protect: { [key: string]: any } = Native.objectCreate(null);
 
 export default class GMContext {
   public static protected(value: any = undefined) {
