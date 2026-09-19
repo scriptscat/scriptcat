@@ -17,7 +17,11 @@ body:
     attributes:
       label: Pre-check
       options:
-        - label: I have searched existing issues, and confirmed the problem still happens on the latest stable or beta version where possible.
+        - label: I have searched existing issues and confirmed this is not a duplicate.
+          required: true
+        - label: I have confirmed, where possible, that the problem still occurs in the latest stable or beta version.
+          required: true
+        - label: I have confirmed this is an issue with ScriptCat itself, rather than a userscript compatibility issue in which the script works correctly in Tampermonkey or Violentmonkey.
           required: true
 
   - type: textarea

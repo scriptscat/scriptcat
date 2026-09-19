@@ -19,6 +19,10 @@ body:
       options:
         - label: I have searched existing issues and confirmed this is not a duplicate feature request.
           required: true
+        - label: I have confirmed, where possible, that this feature is still not available in the latest stable or beta version.
+          required: true
+        - label: I have confirmed this is a request for a new or improved feature, not a bug report about an existing feature.
+          required: true
 
   - type: textarea
     id: problem
