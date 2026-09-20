@@ -5,12 +5,10 @@ import {
   compileInjectScript,
   compilePreInjectScript,
   compileScriptletCode,
+  trimPreInjectScriptInfo,
   isScriptletUnwrap,
   addStyle,
   addStyleSheet,
-  preInjectScriptDocumentIdKey,
-  preInjectScriptDocumentUrlKey,
-  preInjectScriptInfoKey,
   trimScriptInfo,
 } from "./utils";
 import type { SCMetadata, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
@@ -18,21 +16,25 @@ import type { ScriptFunc } from "./types";
 import { RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
-const znRand = process.env.SC_ZN_RAND!;
 
 type GeneratedWindow = Record<string, unknown>;
 
 function executeGeneratedScript(
   code: string,
   targetWindow: GeneratedWindow,
-  testPerformance: Pick<Performance, "dispatchEvent" | "addEventListener"> = globalThis.performance
+  testPerformance: Pick<Performance, "dispatchEvent" | "addEventListener"> = {
+    dispatchEvent: () => true,
+    addEventListener: () => undefined,
+  } as unknown as Performance,
+  pageObject: typeof Object = Object
 ) {
-  const execute = new Function("window", "performance", "CustomEvent", code) as (
+  const execute = new Function("window", "performance", "CustomEvent", "Object", code) as (
     window: GeneratedWindow,
     performance: Pick<Performance, "dispatchEvent" | "addEventListener">,
-    customEvent: typeof CustomEvent
+    customEvent: typeof CustomEvent,
+    pageObject: typeof Object
   ) => void;
-  execute(targetWindow, testPerformance, globalThis.CustomEvent);
+  execute(targetWindow, testPerformance, globalThis.CustomEvent, pageObject);
 }
 
 // 设置 console mock 来避免测试输出污染
@@ -434,6 +436,46 @@ describe("utils", () => {
       expect(Object.keys(trimmed.resource)).toEqual([assetName]);
     });
 
+    it("keeps declared resources in the wrapper closure and only exposes the flag in the event", () => {
+      const script = createScript(
+        {
+          grant: ["GM_getResourceText"],
+          resource: [assetDeclaration],
+          "require-css": [styleUrl],
+        },
+        [assetName, styleUrl]
+      );
+      script.userConfig = {
+        General: { privateKey: { title: "Private", description: "", value: "secret", index: 0 } },
+      };
+      script.userConfigStr = "private setting";
+      const trimmed = trimPreInjectScriptInfo(script);
+      const targetWindow: GeneratedWindow = {};
+      const eventDetails: unknown[] = [];
+      const testPerformance = {
+        dispatchEvent: (event: Event) => {
+          eventDetails.push((event as CustomEvent).detail);
+          return false;
+        },
+        addEventListener: () => undefined,
+      };
+
+      executeGeneratedScript(compilePreInjectScript(script, "return undefined;"), targetWindow, testPerformance);
+
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      const manifest = JSON.parse(generated(fnStrIntegrity, null, globalThis.document, script.name) as string);
+      expect(trimmed.resource).toMatchObject({ [assetName]: { content: expect.any(String) } });
+      expect(trimmed.requireCssResource).toMatchObject({ [styleUrl]: { content: "body { color: red; }" } });
+      expect(trimmed.value).toEqual({});
+      expect(trimmed.userConfig).toBeUndefined();
+      expect(trimmed.userConfigStr).toBe("");
+      expect(eventDetails).toEqual([{ scriptFlag: script.flag }]);
+      expect(manifest.resource).toMatchObject({ [assetName]: { content: expect.any(String) } });
+      expect(manifest.requireCssResource).toMatchObject({ [styleUrl]: { content: "body { color: red; }" } });
+      expect(manifest.userConfig).toBeUndefined();
+      expect(manifest.userConfigStr).toBe("");
+    });
+
     it("keeps a resource grant in context-menu scripts after removing none", () => {
       const trimmed = trimScriptInfo(
         createScript(
@@ -640,9 +682,10 @@ describe("utils", () => {
 
       const result = compileInjectScript(script, scriptCode);
 
-      expect(result).toBe(
-        `((w, k, fn) => { const d = Object.getOwnPropertyDescriptor(w, k); if (d?.set) { w[k] = fn; } else { let mounted = true; Object.defineProperty(w, k, { configurable: false, enumerable: false, get() { if (!mounted) return undefined; mounted = false; return fn; } }); } })(window, 'inject-test-flag', ((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){console.log('injected');}));`
-      );
+      expect(result).toContain('window["inject-test-flag"] =');
+      expect(result).not.toContain("Object.defineProperty");
+      expect(result).not.toContain("Object.getOwnPropertyDescriptor");
+      expect(result).toContain("function(){console.log('injected');}");
     });
 
     it.concurrent("应该包含自动删除挂载函数的代码", () => {
@@ -651,10 +694,10 @@ describe("utils", () => {
 
       const result = compileInjectScript(script, scriptCode, true);
 
-      expect(result).toContain(`try{delete window['inject-test-flag']}catch(e){}`);
+      expect(result).toContain(`try{delete window["inject-test-flag"]}catch(e){}`);
       expect(result).toContain("console.log('with auto delete');");
-      expect(result).toBe(
-        `((w, k, fn) => { const d = Object.getOwnPropertyDescriptor(w, k); if (d?.set) { w[k] = fn; } else { let mounted = true; Object.defineProperty(w, k, { configurable: false, enumerable: false, get() { if (!mounted) return undefined; mounted = false; return fn; } }); } })(window, 'inject-test-flag', ((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');}));`
+      expect(result).toContain(
+        "function(){try{delete window[\"inject-test-flag\"]}catch(e){}console.log('with auto delete');}"
       );
     });
 
@@ -665,9 +708,7 @@ describe("utils", () => {
       const result = compileInjectScript(script, scriptCode);
 
       expect(result).not.toContain("try{delete window");
-      expect(result).toBe(
-        `((w, k, fn) => { const d = Object.getOwnPropertyDescriptor(w, k); if (d?.set) { w[k] = fn; } else { let mounted = true; Object.defineProperty(w, k, { configurable: false, enumerable: false, get() { if (!mounted) return undefined; mounted = false; return fn; } }); } })(window, 'inject-test-flag', ((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){console.log('without auto delete');}));`
-      );
+      expect(result).toContain("function(){console.log('without auto delete');}");
     });
 
     it.concurrent("生成的注入脚本应在运行时传递上下文和参数，并清理临时挂载", () => {
@@ -685,6 +726,11 @@ describe("utils", () => {
       );
 
       const generated = targetWindow[script.flag] as ScriptFunc;
+      expect(JSON.parse(generated(fnStrIntegrity, null, globalThis.document, script.name) as string)).toMatchObject({
+        uuid: script.uuid,
+        flag: script.flag,
+        scriptRevision: expect.any(String),
+      });
       expect(generated(fnStrIntegrity, context, named, script.name)).toEqual({
         thisValue: context,
         args: [named, script.name],
@@ -711,7 +757,7 @@ describe("utils", () => {
 
       const generated = targetWindow[script.flag] as ScriptFunc;
       expect(generated(fnStrIntegrity, {}, {}, script.name)).toBe("ran");
-      expect(targetWindow[script.flag]).toBeUndefined();
+      expect(Object.getOwnPropertyDescriptor(targetWindow, script.flag)).toBeUndefined();
     });
 
     it.concurrent("生成的注入脚本默认应保留挂载函数", () => {
@@ -721,8 +767,61 @@ describe("utils", () => {
       executeGeneratedScript(compileInjectScript(script, "return 'ran';"), targetWindow);
 
       const generated = targetWindow[script.flag] as ScriptFunc;
+      expect(targetWindow[script.flag]).toBe(generated);
       expect(generated(fnStrIntegrity, {}, {}, script.name)).toBe("ran");
-      expect(targetWindow[script.flag]).toBeUndefined();
+      expect(Object.getOwnPropertyDescriptor(targetWindow, script.flag)).toMatchObject({
+        configurable: true,
+        value: generated,
+      });
+    });
+
+    it.concurrent("mounted wrappers are repeatably readable without page-visible metadata properties", () => {
+      const script = createMockScript();
+      const targetWindow: GeneratedWindow = {};
+
+      executeGeneratedScript(compileInjectScript(script, "return 'ran';"), targetWindow);
+
+      const firstRead = targetWindow[script.flag] as ScriptFunc;
+      const secondRead = targetWindow[script.flag] as ScriptFunc;
+      expect(secondRead).toBe(firstRead);
+      expect(Reflect.ownKeys(firstRead)).toEqual(["length", "name"]);
+      expect(firstRead.name).not.toContain(script.uuid);
+    });
+
+    it.concurrent("generated page code mounts without page Object methods", () => {
+      const script = createMockScript();
+      const targetWindow: GeneratedWindow = {};
+      const blocked = () => {
+        throw new Error("page Object method should not be used");
+      };
+      const pageObject = new Proxy(Object, {
+        get(target, property, receiver) {
+          if (property === "defineProperty" || property === "getOwnPropertyDescriptor") return blocked;
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      expect(() =>
+        executeGeneratedScript(compileInjectScript(script, "return 'ran';"), targetWindow, undefined, pageObject)
+      ).not.toThrow();
+      expect(targetWindow[script.flag]).toBeTypeOf("function");
+    });
+
+    it.concurrent("a non-configurable existing flag leaves its property unchanged", () => {
+      const script = createMockScript();
+      const targetWindow: GeneratedWindow = {};
+      Object.defineProperty(targetWindow, script.flag, {
+        configurable: false,
+        value: "page-owned",
+        writable: false,
+      });
+
+      expect(() => executeGeneratedScript(compileInjectScript(script, "return 'ran';"), targetWindow)).not.toThrow();
+      expect(Object.getOwnPropertyDescriptor(targetWindow, script.flag)).toMatchObject({
+        configurable: false,
+        value: "page-owned",
+        writable: false,
+      });
     });
 
     it.concurrent("应该处理复杂的脚本代码", () => {
@@ -735,10 +834,10 @@ describe("utils", () => {
 
       const result = compileInjectScript(script, scriptCode, true);
 
-      expect(result).toContain("window['complex-flag']");
+      expect(result).toContain('window["complex-flag"]');
       expect(result).toContain("var x = 1;");
       expect(result).toContain("function test()");
-      expect(result).toContain("try{delete window['complex-flag']}catch(e){}");
+      expect(result).toContain('try{delete window["complex-flag"]}catch(e){}');
     });
 
     it.concurrent("应该正确转义脚本标志名称", () => {
@@ -747,12 +846,12 @@ describe("utils", () => {
 
       const result = compileInjectScript(script, scriptCode);
 
-      expect(result).toContain(`'flag-with-special-chars_123'`);
+      expect(result).toContain(`"flag-with-special-chars_123"`);
     });
   });
 
   describe("compilePreInjectScript", () => {
-    it.concurrent("生成的预注入脚本应可执行并发出脚本加载事件", () => {
+    it.concurrent("预注入代码挂载脚本包装器并保留私有清单", () => {
       const script: ScriptLoadInfo = {
         uuid: "pre-inject-test-uuid",
         name: "Pre Inject Test Script",
@@ -773,32 +872,19 @@ describe("utils", () => {
         userConfigStr: "",
       };
       const targetWindow: GeneratedWindow = {};
-      const testPerformance = {
-        dispatchEvent: vi.fn(() => false),
-        addEventListener: vi.fn(),
-      };
 
       executeGeneratedScript(
         compilePreInjectScript(script, "return { thisValue: this, args: Array.from(arguments) };"),
-        targetWindow,
-        testPerformance
+        targetWindow
       );
 
       const generated = targetWindow[script.flag] as ScriptFunc;
-      expect(Object.getOwnPropertyDescriptor(generated, preInjectScriptInfoKey)).toMatchObject({
-        configurable: false,
-        writable: false,
-        value: expect.any(String),
-      });
-      expect(Object.getOwnPropertyDescriptor(generated, preInjectScriptDocumentUrlKey)).toMatchObject({
-        configurable: false,
-        writable: false,
-        value: window.location.href,
-      });
-      expect(Object.getOwnPropertyDescriptor(generated, preInjectScriptDocumentIdKey)).toMatchObject({
-        configurable: false,
-        writable: false,
-        value: expect.any(String),
+      expect(generated.name).not.toBe(JSON.stringify(script));
+      expect(Reflect.ownKeys(generated)).toEqual(["length", "name"]);
+      expect(JSON.parse(generated(fnStrIntegrity, null, globalThis.document, script.name) as string)).toMatchObject({
+        uuid: script.uuid,
+        flag: script.flag,
+        scriptRevision: expect.any(String),
       });
       const context = {};
       const named = { value: 42 };
@@ -807,11 +893,55 @@ describe("utils", () => {
         args: [named, script.name],
       });
       expect(Reflect.ownKeys(context)).toEqual([]);
-      expect(testPerformance.dispatchEvent).toHaveBeenCalledTimes(1);
-      expect(testPerformance.addEventListener).not.toHaveBeenCalled();
     });
 
-    it.concurrent("does not expose stored values or user config in the observable preload event", () => {
+    it.concurrent("pre-injected page code does not use page Object descriptor methods", () => {
+      const script: ScriptLoadInfo = {
+        uuid: "pre-inject-intrinsics-uuid",
+        name: "Pre Inject Intrinsics Test",
+        namespace: "pre.inject.intrinsics",
+        type: 1,
+        status: 1,
+        sort: 0,
+        runStatus: "complete",
+        createtime: Date.now(),
+        checktime: Date.now(),
+        code: "",
+        value: {},
+        flag: "pre-inject-intrinsics-flag",
+        resource: {},
+        metadata: {},
+        originalMetadata: {},
+        metadataStr: "",
+        userConfigStr: "",
+      };
+      const targetWindow: GeneratedWindow = {};
+      const blocked = () => {
+        throw new Error("page Object method should not be used");
+      };
+      const pageObject = new Proxy(Object, {
+        get(target, property, receiver) {
+          if (property === "defineProperty" || property === "getOwnPropertyDescriptor") return blocked;
+          return Reflect.get(target, property, receiver);
+        },
+      });
+      const testPerformance = {
+        dispatchEvent: () => true,
+        addEventListener: () => undefined,
+      } as unknown as Performance;
+
+      expect(() =>
+        executeGeneratedScript(
+          compilePreInjectScript(script as unknown as ScriptLoadInfo, "return undefined;"),
+          targetWindow,
+          testPerformance,
+          pageObject
+        )
+      ).not.toThrow();
+      expect(targetWindow[script.flag]).toBeTypeOf("function");
+    });
+
+    it.concurrent("does not embed stored values or user config in the preload manifest", () => {
       const script: ScriptLoadInfo = {
         uuid: "pre-inject-private-uuid",
         name: "Pre Inject Private Script",
@@ -832,18 +962,18 @@ describe("utils", () => {
         metadataStr: "",
         userConfigStr: "",
       };
-      let detail: Record<string, any> | undefined;
-      const testPerformance = {
-        dispatchEvent: vi.fn((event: Event) => {
-          detail = (event as CustomEvent).detail;
-          return false;
-        }),
-        addEventListener: vi.fn(),
-      };
+      const targetWindow: GeneratedWindow = {};
+      executeGeneratedScript(compilePreInjectScript(script, "return undefined;"), targetWindow);
 
-      executeGeneratedScript(compilePreInjectScript(script, "return undefined;"), {}, testPerformance);
-
-      expect(detail).toEqual({ scriptFlag: script.flag });
+      const generated = targetWindow[script.flag] as ScriptFunc;
+      const manifest = JSON.parse(generated(fnStrIntegrity, null, globalThis.document, script.name) as string);
+      expect(manifest).toMatchObject({
+        uuid: script.uuid,
+        flag: script.flag,
+        scriptRevision: expect.any(String),
+      });
+      expect(manifest.value).toEqual({});
+      expect(Object.prototype.hasOwnProperty.call(manifest, "config")).toBe(false);
     });
 
     it.concurrent("does not mount a regex-excluded early-start script", () => {
@@ -875,15 +1005,10 @@ describe("utils", () => {
         ],
       };
       const targetWindow: GeneratedWindow = {};
-      const testPerformance = {
-        dispatchEvent: vi.fn(() => false),
-        addEventListener: vi.fn(),
-      };
 
-      executeGeneratedScript(compilePreInjectScript(script, "return undefined;"), targetWindow, testPerformance);
+      executeGeneratedScript(compilePreInjectScript(script, "return undefined;"), targetWindow);
 
       expect(targetWindow[script.flag]).toBeUndefined();
-      expect(testPerformance.dispatchEvent).not.toHaveBeenCalled();
     });
   });
 

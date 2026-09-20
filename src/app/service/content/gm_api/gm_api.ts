@@ -85,6 +85,16 @@ const setOwnValue = (store: Record<string, any>, key: string, value: any): void 
   });
 };
 
+const appendOwnArrayValue = <T>(array: T[], value: T): void => {
+  // An inherited numeric setter can observe or drop an ordinary array index assignment.
+  Native.objectDefineProperty(array, array.length, {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value,
+  });
+};
+
 // 通知 ID 只属于对应 GM context；WeakMap 不让脚本结束后残留监听状态。
 const notificationTagMaps = new Native.WeakMap<object, Map<string, string>>();
 
@@ -172,6 +182,7 @@ class GM_Base implements IGM_Base {
     if (this.loadScriptPromise) {
       await this.loadScriptPromise;
     }
+    if (!this.message || !this.scriptRes) return;
     // USER_SCRIPT 自己的 realm 已有 DOM 与 fetch；这些辅助操作必须留在本地，
     // 不能改走只有隔离 broker 才实现的内部 CAT service worker 请求。
     if (this.scriptRes.executionEnvTag === ScriptEnvTag.content) {
@@ -404,7 +415,7 @@ export default class GMApi extends GM_Base {
       if (typeof key !== "string") continue;
       const descriptor = Native.objectGetOwnPropertyDescriptor(values, key);
       if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) continue;
-      valueEntries[valueEntries.length] = [key, descriptor.value];
+      appendOwnArrayValue(valueEntries, [key, descriptor.value]);
     }
     for (let index = 0; index < valueEntries.length; index += 1) {
       const [key, value] = valueEntries[index];
@@ -424,7 +435,7 @@ export default class GMApi extends GM_Base {
         setOwnValue(valueStore, key, value_);
       }
       // 避免undefined 等空值流失，先进行映射处理
-      keyValuePairs[keyValuePairs.length] = [key, encodeRValue(value_)];
+      appendOwnArrayValue(keyValuePairs, [key, encodeRValue(value_)]);
     }
     a.sendMessage("GM_setValues", [id, keyValuePairs]);
     return id;
@@ -500,7 +511,7 @@ export default class GMApi extends GM_Base {
           if (value && typeof value === "object") {
             value = customClone(value)!;
           }
-          setOwnValue(result, key, value);
+          result[key] = value;
         }
       }
     } else {
@@ -508,7 +519,7 @@ export default class GMApi extends GM_Base {
       // Handle object with default values (e.g., { foo: 1, bar: 2, baz: 3 })
       for (const key of Native.objectKeys(keysOrDefaults)) {
         const defaultValue = keysOrDefaults[key];
-        setOwnValue(result, key, _GM_getValue(ctx, key, defaultValue));
+        result[key] = _GM_getValue(ctx, key, defaultValue);
       }
     }
     return result;
@@ -542,7 +553,7 @@ export default class GMApi extends GM_Base {
       console.warn("GM_deleteValues: keys must be string[]");
       return;
     }
-    const req = {} as Record<string, undefined>;
+    const req = Native.objectCreate(null) as Record<string, undefined>;
     for (const key of keys) {
       req[key] = undefined;
     }
@@ -557,7 +568,7 @@ export default class GMApi extends GM_Base {
       if (!Native.arrayIsArray(keys)) {
         throw new Error("GM.deleteValues: keys must be string[]");
       } else {
-        const req = {} as Record<string, undefined>;
+        const req = Native.objectCreate(null) as Record<string, undefined>;
         for (const key of keys) {
           req[key] = undefined;
         }
@@ -1698,6 +1709,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public GM_getResourceText(ctx: GMApi, name: string): string | undefined {
+    if (!ctx.scriptRes) return undefined;
     const r = (ctx.scriptRes?.resourceByType?.resource ?? ctx.scriptRes?.resource)?.[name];
     if (r) {
       return r.content;
@@ -1716,6 +1728,7 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public GM_getResourceURL(ctx: GMApi, name: string, isBlobUrl?: boolean): string | undefined {
+    if (!ctx.scriptRes) return undefined;
     const r = (ctx.scriptRes?.resourceByType?.resource ?? ctx.scriptRes?.resource)?.[name];
     if (r) {
       let base64 = r.base64;

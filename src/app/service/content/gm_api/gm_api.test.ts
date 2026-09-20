@@ -71,9 +71,9 @@ describe("early-start page RPC", () => {
       ...scriptRes,
       uuid: "early-start-value-script",
       metadata: { grant: ["GM.setValue"], "early-start": [""], "run-at": ["document-start"] },
-      executionHandle: undefined,
-      executionEnvTag: undefined,
-      executionRunFlag: undefined,
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+      executionRunFlag: "canonical-run",
     } as ScriptLoadInfo;
     const mockSendMessage = vi.fn().mockResolvedValue({ code: 0 });
     const exec = new ExecScript(script, {
@@ -89,16 +89,8 @@ describe("early-start page RPC", () => {
     } as unknown as ScriptFunc;
     const result = exec.exec();
     await Promise.resolve();
-    expect(mockSendMessage).not.toHaveBeenCalled();
-
-    exec.updateEarlyScriptGMInfo(envInfo, {
-      ...script,
-      executionHandle: "page-binding",
-      executionEnvTag: "it",
-      executionRunFlag: "canonical-run",
-    });
-    await Promise.resolve();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    expect(mockSendMessage.mock.calls[0][0].data).toMatchObject({ handle: "page-binding", api: "GM_setValue" });
 
     const request = mockSendMessage.mock.calls[0][0].data;
     exec.valueUpdate({
@@ -111,6 +103,58 @@ describe("early-start page RPC", () => {
     });
 
     await expect(result).resolves.toBeUndefined();
+  });
+
+  it("preserves synchronous DOM and resource access before an early script receives a page binding", async () => {
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const script = {
+      ...scriptRes,
+      uuid: "early-start-sync-script",
+      metadata: {
+        grant: ["GM_addStyle", "GM_addElement", "GM_getResourceText", "GM_getResourceURL"],
+        "early-start": [""],
+        "run-at": ["document-start"],
+      },
+      resource: {
+        asset: {
+          url: "https://example.test/asset.txt",
+          content: "private resource",
+          base64: "",
+          type: "resource",
+          link: {},
+          contentType: "text/plain",
+          createtime: 1,
+          hash: { md5: "", sha1: "", sha256: "", sha384: "", sha512: "" },
+        },
+      },
+    } as unknown as ScriptLoadInfo;
+    const element = document.createElement("style");
+    const contentMsg = {
+      syncSendMessage: vi.fn().mockReturnValue({ code: 0, data: 1 }),
+      getAndDelRelatedTarget: vi.fn().mockReturnValue(element),
+      sendRelatedTarget: vi.fn().mockReturnValue(2),
+    };
+    const api = new GMApi("scripting", {} as Message, contentMsg as unknown as Message, script);
+    Object.defineProperty(api, "loadScriptPromise", { configurable: true, value: ready, writable: true });
+
+    expect(api.GM_addStyle(api, "body { color: red; }")).toBe(element);
+    expect(api.GM_addElement(api, "div", {})).toBe(element);
+    expect(api.GM_getResourceText(api, "asset")).toBe("private resource");
+    expect(api.GM_getResourceURL(api, "asset")).toContain("data:text/plain;base64,");
+    const stylePromise = api["GM.addStyle"](api, "body { color: red; }");
+    const elementPromise = api["GM.addElement"](api, "div", {});
+    const resourcePromise = api["GM.getResourceText"](api, "asset");
+    const resourceUrlPromise = api["GM.getResourceURL"](api, "asset");
+    await expect(stylePromise).resolves.toBe(element);
+    await expect(elementPromise).resolves.toBe(element);
+    await expect(resourcePromise).resolves.toBe("private resource");
+    await expect(resourceUrlPromise).resolves.toContain("data:text/plain;base64,");
+    expect(contentMsg.syncSendMessage).toHaveBeenCalledTimes(4);
+
+    release();
   });
 });
 
@@ -528,6 +572,9 @@ describe.concurrent("early-script", () => {
     script.metadata["early-start"] = [""];
     script.metadata["run-at"] = ["document-start"];
     script.metadata["grant"] = ["CAT_scriptLoaded"];
+    script.executionHandle = "page-binding";
+    script.executionEnvTag = "it";
+    script.executionRunFlag = "canonical-run";
     script.code = `return CAT_scriptLoaded().then(()=>123);`;
     const exec = new ExecScript(script, {
       envPrefix: "scripting",
@@ -537,10 +584,7 @@ describe.concurrent("early-script", () => {
       envInfo,
     });
     exec.scriptFunc = compileScript(compileScriptCode(script));
-    const ret = exec.exec();
-    // 触发envInfo
-    exec.updateEarlyScriptGMInfo(envInfo);
-    expect(await ret).toEqual(123);
+    expect(await exec.exec()).toEqual(123);
   });
 });
 
@@ -769,6 +813,23 @@ describe.concurrent("GM_value", () => {
     expect(api.GM_getValue(api, "leaked")).toBeUndefined();
   });
 
+  it("stores __proto__ safely when the script value store has no prototype", () => {
+    const value = Object.create(null) as Record<string, unknown>;
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue"] },
+      value,
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const stored = { value: "safe" };
+
+    api.GM_setValue(api, "__proto__", stored);
+
+    expect(Object.getPrototypeOf(script.value)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(script.value, "__proto__")).toBe(true);
+    expect(api.GM_getValue(api, "__proto__")).toEqual(stored);
+  });
+
   it("returns __proto__ as an own key without changing the result prototype", () => {
     const script = Object.assign({}, scriptRes, {
       metadata: { grant: ["GM_getValue", "GM_setValue", "GM_getValues"] },
@@ -791,6 +852,36 @@ describe.concurrent("GM_value", () => {
     expect(Object.getPrototypeOf(withDefaults)).toBeNull();
     expect(Object.prototype.hasOwnProperty.call(withDefaults, "__proto__")).toBe(true);
     expect(withDefaults.__proto__).toEqual(stored);
+  });
+
+  it("deletes __proto__ through both GM.deleteValues APIs", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_setValue", "GM_deleteValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    const deleteApis = [
+      () => api.GM_deleteValues(api, ["__proto__"]),
+      () => {
+        void api["GM.deleteValues"](api, ["__proto__"]);
+      },
+    ];
+
+    for (const deleteValues of deleteApis) {
+      api.GM_setValue(api, "__proto__", "stored");
+      expect(Object.prototype.hasOwnProperty.call(script.value, "__proto__")).toBe(true);
+      const callIndex = sendMessage.mock.calls.length;
+
+      deleteValues();
+
+      expect(Object.prototype.hasOwnProperty.call(script.value, "__proto__")).toBe(false);
+      expect(sendMessage.mock.calls[callIndex][0]).toEqual(
+        expect.objectContaining({
+          data: expect.objectContaining({ params: [expect.any(String), [["__proto__", encodeRValue(undefined)]]] }),
+        })
+      );
+    }
   });
 
   it.concurrent("GM_setValue", async () => {
@@ -1081,6 +1172,52 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
     expect(getter).not.toHaveBeenCalled();
     expect(script.value).toEqual({ valid: 1 });
+  });
+
+  it("does not leak or drop values through an inherited numeric setter", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_setValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    let sentMessage: unknown;
+    let leakedPrivateValue = false;
+    const api = new GMApi(
+      "test",
+      {
+        sendMessage(message: unknown) {
+          sentMessage = message;
+          return Promise.resolve({ code: 0 });
+        },
+      } as unknown as Message,
+      {} as Message,
+      script as any
+    );
+    const originalIndexDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, "0");
+
+    try {
+      Object.defineProperty(Object.prototype, "0", {
+        configurable: true,
+        set(value: unknown) {
+          if (Array.isArray(value) && value[0] === "private-key" && value[1] === "private-value") {
+            leakedPrivateValue = true;
+          }
+        },
+      });
+      api.GM_setValues(api, { "private-key": "private-value" });
+    } finally {
+      if (originalIndexDescriptor) Object.defineProperty(Object.prototype, "0", originalIndexDescriptor);
+      else delete (Object.prototype as Record<string, unknown>)["0"];
+    }
+
+    expect(leakedPrivateValue).toBe(false);
+    expect(script.value).toEqual({ "private-key": "private-value" });
+    expect(sentMessage).toMatchObject({
+      action: "test/runtime/gmApi",
+      data: {
+        api: "GM_setValues",
+        params: [expect.any(String), [["private-key", encodeRValue("private-value")]]],
+      },
+    });
   });
 
   it("GM_setValues does not trust a hooked Array.prototype.push for transport", () => {

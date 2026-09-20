@@ -1,24 +1,17 @@
-import { Client, sendMessage } from "@Packages/message/client";
+import { Client } from "@Packages/message/client";
 import { type CustomEventMessage } from "@Packages/message/custom_event_message";
 import { forwardMessage, type Server } from "@Packages/message/server";
 import type { MessageSend } from "@Packages/message/types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import type { SerializedDocumentResponse } from "./gm_api/gm_xhr";
 import { RuntimeClient } from "../service_worker/client";
-import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
-import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
+import type { GMInfoEnv } from "./types";
 import { getExtensionOrigin, getPageRpcAllowedAPIs, PageRpcRegistry, validatePageGMRequest } from "./page_rpc";
 import { uuidv4 } from "@App/pkg/utils/uuid";
-
-const PageOrContent = {
-  PAGE: 1,
-  CONTENT: 2,
-  PAGE_AND_CONTENT: 3,
-} as const;
-
-type PageOrContent = ValueOf<typeof PageOrContent>;
+import { isContextMenuScript } from "./utils";
 
 export const serializeDocumentResponse = (
   response: Document | null,
@@ -32,22 +25,13 @@ export const serializeDocumentResponse = (
   }
 };
 
-// For Firefox, StorageArea.setAccessLevel is not implemented.
-// See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
-// const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
-const deliveryStorage = chrome.storage.local; // 日后再处理
-
 // scripting页的处理
 export default class ScriptingRuntime {
-  // 只记录当前页面仍有脚本使用的 storageName，storage 广播不应唤醒无关脚本。
-  private activeStorageNames = new Map<string, PageOrContent>();
-  // MAIN world 的完整脚本资料只在原生通道失败时才走页面桥；原生成功时由 service worker 直接投递。
+  // The page-visible fallback can start only MAIN scripts without GM capabilities.
   private fallbackInjectPageLoad?: { scripts: TScriptInfo[]; envInfo: GMInfoEnv };
   // 页面请求必须先在此注册句柄，再由 transform 解析为隔离 broker 可接受的身份。
   private readonly pageRpc = new PageRpcRegistry();
   constructor(
-    // 监听来自service_worker的消息
-    private readonly extServer: Server,
     // 监听来自inject的消息
     private readonly server: Server,
     // 发送给扩展service_worker的通信接口
@@ -58,55 +42,14 @@ export default class ScriptingRuntime {
     private readonly senderToInject: MessageSend
   ) {}
 
-  // 广播消息给 content 和 inject
-  broadcastToPage(
-    action: string,
-    data?: any,
-    activeOn: PageOrContent = (PageOrContent.PAGE | PageOrContent.CONTENT) as PageOrContent
-  ): Promise<undefined> {
-    return Promise.all([
-      activeOn & PageOrContent.CONTENT && sendMessage(this.senderToContent, "content/" + action, data),
-      activeOn & PageOrContent.PAGE && sendMessage(this.senderToInject, "inject/" + action, data),
-    ]).then(() => undefined);
-  }
-
   init() {
-    this.extServer.on("runtime/emitEvent", (data) => {
-      // USER_SCRIPT 的私有回调通过原生扩展端口投递。
-      return this.broadcastToPage("runtime/emitEvent", data, PageOrContent.PAGE);
-    });
-    this.extServer.on("runtime/valueUpdate", (data) => {
-      // USER_SCRIPT 的私有值更新通过原生扩展端口投递。
-      return this.broadcastToPage("runtime/valueUpdate", data, PageOrContent.PAGE);
-    });
     this.server.on("pageLoadFallback", () => {
       const pageLoad = this.fallbackInjectPageLoad;
       if (!pageLoad) return undefined;
-      this.fallbackInjectPageLoad = undefined;
-      return new Client(this.senderToInject, "inject").do("pageLoad", pageLoad);
+      return new Client(this.senderToInject, "inject").do("pageLoadFallback", pageLoad);
     });
     this.server.on("logger", (data: Logger) => {
       LoggerCore.logger().log(data.level, data.message, data.label);
-    });
-
-    // ================================
-    // 来自 service_worker 的投递：storage 广播（类似 UDP）
-    // ================================
-
-    // 接收 service_worker 的 chrome.storage.local 值改变通知 （一对多广播）
-    // 类似 UDP 原理，service_worker 不会有任何「等待处理」
-    // 由于 changes 会包括新旧值 (Chrome: JSON serialization, Firefox: Structured Clone)
-    // 因此需要注意资讯量不要过大导致 onChanged 的触发过慢
-    deliveryStorage.onChanged.addListener((changes) => {
-      const record = changes["valueUpdateDelivery"];
-      if (record?.newValue) {
-        const sendData = (record.newValue as { sendData: ValueUpdateDataEncoded }).sendData;
-        const activeOn = this.activeStorageNames.get(sendData.storageName);
-        if (activeOn) {
-          // 转发给 content 和 inject
-          this.broadcastToPage("runtime/valueUpdate", sendData, (activeOn & PageOrContent.PAGE) as PageOrContent);
-        }
-      }
     });
 
     forwardMessage("serviceWorker", "script/isInstalled", this.server, this.senderToExt);
@@ -216,11 +159,6 @@ export default class ScriptingRuntime {
           return { ...script, executionHandle, executionEnvTag: envTag, executionRunFlag };
         });
       const preparedInjectScriptList = prepareScripts(injectScriptList, "it");
-      const pairs = {} as Record<string, PageOrContent>;
-      for (const script of preparedInjectScriptList) {
-        pairs[getStorageName(script)] |= PageOrContent.PAGE;
-      }
-      this.activeStorageNames = new Map(Object.entries(pairs));
 
       if (typeof userScriptBootstrapToken === "string" && userScriptBootstrapToken.length > 0) {
         const contentClient = new Client(this.senderToContent, "content");
@@ -232,7 +170,27 @@ export default class ScriptingRuntime {
       }
 
       if (typeof userScriptInjectBootstrapToken === "string" && userScriptInjectBootstrapToken.length > 0) {
-        this.fallbackInjectPageLoad = { scripts: preparedInjectScriptList, envInfo };
+        const fallbackScripts: TScriptInfo[] = [];
+        for (const script of preparedInjectScriptList) {
+          const grants = script.metadata.grant || [];
+          if (grants.some((grant) => grant !== "none") || isContextMenuScript(script.metadata)) continue;
+          const {
+            executionHandle: _executionHandle,
+            executionEnvTag: _executionEnvTag,
+            executionRunFlag: _executionRunFlag,
+            ...fallbackScript
+          } = {
+            ...script,
+            value: {},
+            config: undefined,
+            userConfig: undefined,
+            userConfigStr: "",
+            resource: {},
+            requireCssResource: {},
+          };
+          fallbackScripts.push(fallbackScript);
+        }
+        this.fallbackInjectPageLoad = { scripts: fallbackScripts, envInfo };
         const injectClient = new Client(this.senderToInject, "inject");
         injectClient.do("bootstrap", { bootstrapToken: userScriptInjectBootstrapToken });
       }

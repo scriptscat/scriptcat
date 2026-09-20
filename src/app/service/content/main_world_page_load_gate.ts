@@ -1,28 +1,21 @@
-type MainWorldPageLoadGateState = "waiting" | "opening" | "native" | "fallback";
+type MainWorldPageLoadGateState = "waiting" | "opening" | "native" | "fallback" | "fallback-loaded";
 
 export type MainWorldPageLoadGate = {
   onBootstrap: (bootstrapToken: string) => void;
-  onPageLoad: (data: unknown) => void;
+  onFallbackPageLoad: (data: unknown) => void;
 };
 
 export const createMainWorldPageLoadGate = (
   openNativeChannel: (bootstrapToken: string) => Promise<boolean>,
-  receivePageLoad: (data: unknown) => void,
-  requestFallbackPageLoad: () => void = () => undefined
+  requestFallbackPageLoad: () => void = () => undefined,
+  receiveFallbackPageLoad: (data: unknown) => void = () => undefined
 ): MainWorldPageLoadGate => {
   let state: MainWorldPageLoadGateState = "waiting";
-  let pendingPageLoad: unknown;
-  let hasPendingPageLoad = false;
 
   const finishOpening = (connected: boolean): void => {
     if (state !== "opening") return;
     state = connected ? "native" : "fallback";
-    if (state === "fallback") requestFallbackPageLoad();
-    if (state === "fallback" && hasPendingPageLoad) {
-      receivePageLoad(pendingPageLoad);
-    }
-    pendingPageLoad = undefined;
-    hasPendingPageLoad = false;
+    if (!connected) requestFallbackPageLoad();
   };
 
   return {
@@ -31,14 +24,10 @@ export const createMainWorldPageLoadGate = (
       state = "opening";
       void openNativeChannel(bootstrapToken).then(finishOpening, () => finishOpening(false));
     },
-    onPageLoad(data) {
-      if (state === "fallback") {
-        receivePageLoad(data);
-        return;
-      }
-      if (state === "native") return;
-      pendingPageLoad = data;
-      hasPendingPageLoad = true;
+    onFallbackPageLoad(data) {
+      if (state !== "fallback") return;
+      state = "fallback-loaded";
+      receiveFallbackPageLoad(data);
     },
   };
 };

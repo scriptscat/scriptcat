@@ -79,6 +79,7 @@ export type CompiledResource = {
   name: string;
   flag: string;
   uuid: string;
+  scriptRevision: string;
   require: string[]; // 仅存储url，节省空间
   matches: string[]; // primary
   includeGlobs: string[]; // includeGlobs applied after matches
@@ -108,7 +109,7 @@ export class ResourceDAO extends Repo<Resource> {
 }
 
 // CompiledResource结构变更时，建议修改 CompiledResourceNamespace 以删除旧Cache
-export const CompiledResourceNamespace = "57d79c56-231a-42d3-b6e3-d2004ba0866f";
+export const CompiledResourceNamespace = "eca769f5-22d3-46d5-8ed0-1b10d10e8e44";
 
 export class CompiledResourceDAO extends Repo<CompiledResource> {
   constructor() {

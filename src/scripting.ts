@@ -29,12 +29,9 @@ negotiateEventFlag(messageFlag, extensionEnv, 2, (eventFlag) => {
 
   const server = new Server("scripting", [contentMsg, injectMsg]);
 
-  // Opera中没有chrome.runtime.onConnect，并且content也不需要chrome.runtime.onConnect
-  // 所以不需要处理连接，设置为false
-  const extServer = new Server("scripting", extMsgComm, false);
   // scriptExecutor的消息接口
   // 初始化运行环境
-  const runtime = new ScriptingRuntime(extServer, server, extMsgComm, contentMsg, injectMsg);
+  const runtime = new ScriptingRuntime(server, extMsgComm, contentMsg, injectMsg);
   runtime.init();
   // 页面加载，注入脚本
   runtime.pageLoad();

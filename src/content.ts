@@ -8,10 +8,10 @@ import type { Message, MessageConnect, TMessage } from "@Packages/message/types"
 import { getEventFlag } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
-import { type TExtensionEnv } from "./app/service/extension/extension_env";
 import { connectUserScriptChannel, requestUserScriptReconnect } from "./app/service/content/user_script_connection";
 import type { GMInfoEnv } from "./app/service/content/types";
 import type { ExtensionOrigin } from "./app/service/content/page_rpc";
+import { type TExtensionEnv } from "./app/service/extension/extension_env";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
