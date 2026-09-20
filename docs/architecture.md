@@ -82,9 +82,10 @@ to the Service Worker through native extension channels on the preferred path. T
 document-start extension content script registered per matching frame; it runs a page-bridge runtime and is a
 supporting per-document helper rather than a separate service/background context in this five-context model.
 `CustomEventMessage` carries the content bootstrap
-handoff and synchronous DOM handles; `PageMessage` carries MAIN bootstrap/fallback traffic, runtime event/value
-updates, and the whitelisted `external.Scriptcat` API. When MAIN GM RPC uses the page bridge fallback, the scripting
-runtime validates the execution handle and grant before forwarding it to the Service Worker; the page bridge
+handoff and synchronous DOM handles; `PageMessage` carries MAIN bootstrap traffic, the restricted fallback used
+when a native channel is unavailable, and the whitelisted `external.Scriptcat` API. MAIN runtime events and value updates
+use the native extension channel when available. When MAIN GM RPC uses the page bridge fallback, the scripting
+runtime validates its execution handle and grant before forwarding it to the Service Worker; the page bridge
 itself is not an authenticated extension origin.
 
 ---
@@ -180,7 +181,7 @@ communication styles** over **several transports**.
 | Class | File | Connects | Underlying API |
 |---|---|---|---|
 | `ExtensionMessage` | [`extension_message.ts`](../packages/message/extension_message.ts) | SW ↔ Content / Inject / Offscreen | `chrome.runtime.sendMessage` / `onConnect`; browser-identified USER_SCRIPT messages are action-gated, and regular-port fallbacks are token-bound |
-| `PageMessage` | [`page_message.ts`](../packages/message/page_message.ts) | `scripting` ↔ Inject | `window.postMessage`; page-visible MAIN bootstrap/fallback, runtime updates, whitelisted external API, and GM RPC fallback validated by `PageRpcRegistry` |
+| `PageMessage` | [`page_message.ts`](../packages/message/page_message.ts) | `scripting` ↔ Inject | `window.postMessage`; page-visible MAIN bootstrap, restricted fallback, whitelisted external API, and GM RPC fallback validated by `PageRpcRegistry` |
 | `CustomEventMessage` | [`custom_event_message.ts`](../packages/message/custom_event_message.ts) | Content ↔ `scripting` page helper | DOM `CustomEvent`; bootstrap handoff and synchronous DOM references, not privileged GM RPC |
 | `WindowMessage` | [`window_message.ts`](../packages/message/window_message.ts) | Offscreen ↔ Sandbox | `window.postMessage` |
 | `ServiceWorkerMessageSend` | [`window_message.ts`](../packages/message/window_message.ts) | SW → Offscreen (Chrome) | `clients.matchAll()` + `postMessage` |
