@@ -86,7 +86,7 @@
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.11",
     "acorn": "^8.16.0",
-    "concurrently": "^10.0.3",
+    "concurrently": "^10.0.5",
     "cross-env": "^10.1.0",
     "crx": "^5.0.1",
     "eslint": "^9.39.5",
@@ -112,18 +112,6 @@
     "ws": "^8.21.0"
   },
   "packageManager": "pnpm@10.34.1",
-  "pnpm": {
-    "overrides": {
-      "brace-expansion@1": "^1.1.18",
-      "brace-expansion@2": "^2.1.4",
-      "js-yaml@4": "^4.3.2",
-      "hono": "^4.13.5",
-      "browserslist": "^4.28.7",
-      "baseline-browser-mapping": "^2.11.0",
-      "@humanfs/node": "^0.16.8",
-      "qs": "^6.16.0"
-    }
-  },
   "sideEffects": [
     "**/*.css",
     "**/*.scss",
