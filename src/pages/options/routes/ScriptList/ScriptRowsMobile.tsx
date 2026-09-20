@@ -90,7 +90,7 @@ function DragHandle() {
   if (!sortable) return null;
   const { setActivatorNodeRef, listeners } = sortable;
   return (
-    <span ref={setActivatorNodeRef} {...listeners} className="flex size-5 items-center justify-center">
+    <span ref={setActivatorNodeRef} {...listeners} className="flex size-5 touch-none items-center justify-center">
       <GripVertical className="size-4 text-muted-foreground" />
     </span>
   );
