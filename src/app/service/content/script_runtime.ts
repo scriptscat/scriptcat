@@ -7,12 +7,10 @@ import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 import { onInjectPageLoaded } from "./external";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
+import { type TExtensionEnv } from "../extension/extension_env";
 import { RuntimeClient } from "../service_worker/client";
 import { customClone, Native } from "./global";
 import { setPageRpcExtensionOrigin, type ExtensionOrigin } from "./page_rpc";
-import { isContextMenuScript } from "./utils";
-import { getScriptRevision } from "@App/app/repo/scripts";
-import { type TExtensionEnv } from "../extension/extension_env";
 
 const MAX_EXECUTION_TOKEN_LENGTH = 256;
 
@@ -48,34 +46,22 @@ const isPageResourceMap = (value: unknown): boolean => {
   return true;
 };
 
-const isPageScriptInfo = (
-  value: unknown,
-  envTag: "it" | "ct",
-  requireExecutionBinding = true
-): value is TScriptInfo => {
+const isPageScriptInfo = (value: unknown, envTag: "it" | "ct"): value is TScriptInfo => {
   if (!isRecord(value)) return false;
-  const hasExecutionBinding =
-    Native.objectHasOwn(value, "executionHandle") ||
-    Native.objectHasOwn(value, "executionEnvTag") ||
-    Native.objectHasOwn(value, "executionRunFlag");
   if (
     typeof value.uuid !== "string" ||
     value.uuid.length === 0 ||
     typeof value.name !== "string" ||
     typeof value.flag !== "string" ||
     value.flag.length === 0 ||
-    typeof value.scriptRevision !== "string" ||
-    value.scriptRevision.length === 0 ||
     typeof value.code !== "string" ||
     !isRecord(value.metadata) ||
     !isRecord(value.value) ||
     !isPageResourceMap(value.resource) ||
     (value.requireCssResource !== undefined && !isPageResourceMap(value.requireCssResource)) ||
-    (requireExecutionBinding &&
-      (!isExecutionToken(value.executionHandle) ||
-        value.executionEnvTag !== envTag ||
-        !isExecutionToken(value.executionRunFlag))) ||
-    (!requireExecutionBinding && hasExecutionBinding)
+    !isExecutionToken(value.executionHandle) ||
+    value.executionEnvTag !== envTag ||
+    !isExecutionToken(value.executionRunFlag)
   ) {
     return false;
   }
@@ -170,7 +156,6 @@ type InjectPageLoadData = {
   scripts: TScriptInfo[];
   envInfo: GMInfoEnv;
   reconnectToken?: string;
-  purpose?: "reconcile";
 };
 
 type PageLoadData = InjectPageLoadData & {
@@ -190,45 +175,24 @@ const isExtensionOrigin = (value: unknown): value is ExtensionOrigin => {
 const clonePageLoad = (
   data: unknown,
   envTag: "it" | "ct",
-  options: {
-    allowEmpty?: boolean;
-    allowExtensionOrigin?: boolean;
-    requireExecutionBinding?: boolean;
-    allowReconciliation?: boolean;
-  } = {}
+  allowEmpty: boolean,
+  allowExtensionOrigin: boolean
 ): PageLoadData | undefined => {
-  const {
-    allowEmpty = false,
-    allowExtensionOrigin = false,
-    requireExecutionBinding = true,
-    allowReconciliation = false,
-  } = options;
   const cloned = customClone(data);
   if (
     !isRecord(cloned) ||
     !hasOnlyKeys(
       cloned,
       ["scripts", "envInfo"],
-      [
-        "reconnectToken",
-        ...(allowExtensionOrigin ? ["extensionOrigin"] : []),
-        ...(allowReconciliation ? ["purpose"] : []),
-      ]
+      ["reconnectToken", ...(allowExtensionOrigin ? ["extensionOrigin"] : [])]
     ) ||
     (cloned.reconnectToken !== undefined && !isExecutionToken(cloned.reconnectToken))
   )
     return undefined;
   if (!Native.objectHasOwn(cloned, "scripts") || !Native.objectHasOwn(cloned, "envInfo")) return undefined;
-  if (!Native.arrayIsArray(cloned.scripts)) return undefined;
-  if (
-    (cloned.scripts.length === 0 && (!allowEmpty || (allowReconciliation && cloned.purpose !== "reconcile"))) ||
-    (cloned.purpose !== undefined &&
-      (!allowReconciliation || cloned.purpose !== "reconcile" || envTag !== "it" || cloned.scripts.length !== 0))
-  ) {
-    return undefined;
-  }
+  if (!Native.arrayIsArray(cloned.scripts) || (!allowEmpty && cloned.scripts.length === 0)) return undefined;
   for (let index = 0; index < cloned.scripts.length; index += 1) {
-    if (!isPageScriptInfo(cloned.scripts[index], envTag, requireExecutionBinding)) return undefined;
+    if (!isPageScriptInfo(cloned.scripts[index], envTag)) return undefined;
   }
   if (!isRecord(cloned.envInfo)) return undefined;
   if (cloned.envInfo.sandboxMode !== "raw" || typeof cloned.envInfo.isIncognito !== "boolean") {
@@ -240,55 +204,22 @@ const clonePageLoad = (
     scripts: cloned.scripts,
     envInfo: cloned.envInfo as unknown as GMInfoEnv,
     reconnectToken: cloned.reconnectToken as string | undefined,
-    purpose: cloned.purpose as "reconcile" | undefined,
     extensionOrigin: cloned.extensionOrigin as ExtensionOrigin | undefined,
   };
 };
 
-const cloneNativeInjectPageLoad = (data: unknown): InjectPageLoadData | undefined =>
-  clonePageLoad(data, "it", { allowEmpty: true, allowReconciliation: true });
-
-const cloneFallbackInjectPageLoad = (data: unknown): InjectPageLoadData | undefined => {
-  const pageLoad = clonePageLoad(data, "it", { requireExecutionBinding: false });
-  if (!pageLoad) return undefined;
-  for (let index = 0; index < pageLoad.scripts.length; index += 1) {
-    const script = pageLoad.scripts[index];
-    const grants = script.metadata.grant || [];
-    let hasPrivilegedGrant = false;
-    for (let grantIndex = 0; grantIndex < grants.length; grantIndex += 1) {
-      if (grants[grantIndex] !== "none") {
-        hasPrivilegedGrant = true;
-        break;
-      }
-    }
-    if (
-      hasPrivilegedGrant ||
-      isContextMenuScript(script.metadata) ||
-      script.code !== "" ||
-      Native.objectKeys(script.value).length !== 0 ||
-      Native.objectKeys(script.resource).length !== 0 ||
-      (script.requireCssResource !== undefined && Native.objectKeys(script.requireCssResource).length !== 0) ||
-      script.config !== undefined ||
-      script.userConfig !== undefined ||
-      script.userConfigStr !== ""
-    ) {
-      return undefined;
-    }
-  }
-  return { scripts: pageLoad.scripts, envInfo: pageLoad.envInfo };
-};
+const cloneInjectPageLoad = (data: unknown): InjectPageLoadData | undefined => clonePageLoad(data, "it", false, false);
 
 export class ScriptRuntime {
-  // 原生 bootstrap 按脚本修订版去重；fallback 使用独立集合，确保后续仍能绑定原生权限。
+  // USER_SCRIPT 重连会重放同一份 bootstrap；按服务端签发的句柄去重，导航换文档时句柄也会随之更换。
   private readonly startedScriptKeys = new Native.Set<string>();
-  private readonly fallbackScriptKeys = new Native.Set<string>();
 
   constructor(
     private readonly scripEnvTag: ScriptEnvTag,
     private readonly server: Server,
     private readonly msg: Message,
     private readonly scriptExecutor: ScriptExecutor,
-    private readonly extensionEnv?: TExtensionEnv
+    private readonly extensionEnv: TExtensionEnv | undefined
   ) {}
 
   // content环境的特殊初始化
@@ -371,16 +302,15 @@ export class ScriptRuntime {
     this.server.on("pageLoad", (data: { scripts: TScriptInfo[]; envInfo: GMInfoEnv }) => {
       this.receivePageLoad(data);
     });
-    this.server.on("pageLoadFallback", (data: unknown) => {
-      this.receiveFallbackPageLoad(data);
-    });
     // Older MAIN worlds may receive a forward-compatible native bootstrap token but cannot open a runtime port.
     this.server.on("bootstrap", () => undefined);
 
+    // 用于 early-start 的扩充参数
+    const { inIncognitoContext } = this.extensionEnv || {};
     const initialEnvInfo = { ...initEnvInfo };
-    if (typeof this.extensionEnv?.inIncognitoContext === "boolean") {
-      initialEnvInfo.isIncognito = this.extensionEnv.inIncognitoContext;
-    }
+    if (typeof inIncognitoContext === "boolean") initialEnvInfo.isIncognito = inIncognitoContext;
+
+    // 检查early-start的脚本
     this.scriptExecutor.checkEarlyStartScript(this.scripEnvTag, initialEnvInfo);
   }
 
@@ -392,7 +322,7 @@ export class ScriptRuntime {
     const freshScripts: TScriptInfo[] = [];
     for (let index = 0; index < scripts.length; index += 1) {
       const script = scripts[index];
-      const key = this.getScriptStartKey(script);
+      const key = script.executionHandle || `${this.scripEnvTag}:${script.uuid}`;
       if (this.startedScriptKeys.has(key)) continue;
       this.startedScriptKeys.add(key);
       freshScripts.push(script);
@@ -400,47 +330,18 @@ export class ScriptRuntime {
     if (freshScripts.length > 0) this.scriptExecutor.startScripts(freshScripts, envInfo);
   }
 
-  private getScriptStartKey(script: TScriptInfo) {
-    return Native.jsonStringify([this.scripEnvTag, script.uuid, script.scriptRevision ?? getScriptRevision(script)]);
-  }
-
   receivePageLoad(data: unknown): string | undefined {
     if (this.scripEnvTag === "it") {
-      const safeData = clonePageLoad(data, "it");
+      const safeData = cloneInjectPageLoad(data);
       if (!safeData) return undefined;
       this.startScripts(safeData.scripts, safeData.envInfo);
       return safeData.reconnectToken;
     }
-    const safeData = clonePageLoad(data, "ct", { allowEmpty: true, allowExtensionOrigin: true });
+    const safeData = clonePageLoad(data, "ct", true, true);
     if (!safeData) return undefined;
     setPageRpcExtensionOrigin(safeData.extensionOrigin);
     this.startScripts(safeData.scripts, safeData.envInfo);
     return safeData.reconnectToken;
-  }
-
-  receiveNativePageLoad(data: unknown): string | undefined {
-    if (this.scripEnvTag !== "it") return undefined;
-    const safeData = cloneNativeInjectPageLoad(data);
-    if (!safeData) return undefined;
-    this.startScripts(safeData.scripts, safeData.envInfo);
-    return safeData.reconnectToken;
-  }
-
-  receiveFallbackPageLoad(data: unknown): void {
-    if (this.scripEnvTag !== "it") return;
-    const safeData = cloneFallbackInjectPageLoad(data);
-    if (!safeData) return;
-    const freshScripts: TScriptInfo[] = [];
-    for (let index = 0; index < safeData.scripts.length; index += 1) {
-      const script = safeData.scripts[index];
-      const key = this.getScriptStartKey(script);
-      if (this.fallbackScriptKeys.has(key)) continue;
-      this.fallbackScriptKeys.add(key);
-      freshScripts.push(script);
-    }
-    if (freshScripts.length > 0) {
-      this.scriptExecutor.startScripts(freshScripts, safeData.envInfo, { reconcileEarlyScripts: false });
-    }
   }
 
   receiveEmitEvent(data: unknown): void {

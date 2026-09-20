@@ -6,16 +6,20 @@ import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import {
   addStyleSheet,
   definePropertyListener,
-  getCompiledScriptMetadata,
-  isEarlyStartScript,
+  preInjectScriptDocumentIdKey,
+  preInjectScriptDocumentUrlKey,
+  preInjectScriptInfoKey,
   waitBody,
 } from "./utils";
-import { isUrlExcluded } from "@App/pkg/utils/match";
-import { getScriptRevision, type TScriptInfo } from "@App/app/repo/scripts";
+import type { TScriptInfo } from "@App/app/repo/scripts";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageAddEventListener, pageDispatchEvent } from "@Packages/message/common";
+import { isUrlExcluded } from "@App/pkg/utils/match";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 import { localizeObject, Native } from "./global";
+
+// 与编译器相同的构建级标记，用来拒绝页面伪造的脚本挂载函数。
+const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
 
 export type ExecScriptEntry = {
   scriptLoadInfo: TScriptInfo;
@@ -37,7 +41,6 @@ export const initEnvInfo: GMInfoEnv = {
 // 脚本执行器
 export class ScriptExecutor {
   private readonly earlyScriptFlags = new Native.Set<string>();
-  private readonly rejectedEarlyScriptFlags = new Native.Set<string>();
   private readonly execScripts = new Native.Map<string, ExecScript>();
 
   constructor(
@@ -48,41 +51,22 @@ export class ScriptExecutor {
 
   emitEvent(data: EmitEventRequest) {
     // 转发给脚本
-    const exec = this.execScripts.get(data.uuid);
-    if (exec && (!this.earlyScriptFlags.has(exec.scriptRes.flag) || exec.scriptRes.executionHandle)) {
-      exec.emitEvent(data.event, data.eventId, data.data);
-    }
+    this.execScripts.get(data.uuid)?.emitEvent(data.event, data.eventId, data.data);
   }
 
   valueUpdate(data: ValueUpdateDataEncoded) {
     // runtime/valueUpdate
     const { uuid, storageName } = data;
     this.execScripts.forEach((exec) => {
-      if (this.earlyScriptFlags.has(exec.scriptRes.flag) && !exec.scriptRes.executionHandle) return;
       if (exec.scriptRes.uuid === uuid || getStorageName(exec.scriptRes) === storageName) {
         exec.valueUpdate(data);
       }
     });
   }
 
-  startScripts(scripts: TScriptInfo[], envInfo: GMInfoEnv, options: { reconcileEarlyScripts?: boolean } = {}) {
+  startScripts(scripts: TScriptInfo[], envInfo: GMInfoEnv) {
     const pageWindow = window as unknown as Record<string, unknown>;
-    if (options.reconcileEarlyScripts !== false) {
-      this.execScripts.forEach((exec) => {
-        const flag = exec.scriptRes.flag;
-        if (!this.earlyScriptFlags.has(flag)) return;
-        const currentScript = scripts.find((script) => script.uuid === exec.scriptRes.uuid && script.flag === flag);
-        if (currentScript && exec.updateScriptInfo(envInfo, currentScript)) return;
-        exec.invalidateEarlyScript();
-        this.rejectedEarlyScriptFlags.add(flag);
-        this.execScripts.delete(exec.scriptRes.uuid);
-        this.earlyScriptFlags.delete(flag);
-      });
-    }
     const loadExec = (script: TScriptInfo, scriptFunc: any) => {
-      if (isEarlyStartScript(script.metadata || {})) {
-        this.earlyScriptFlags.add(script.flag);
-      }
       this.execScriptEntry({
         scriptLoadInfo: script,
         scriptFlag: script.flag,
@@ -90,49 +74,33 @@ export class ScriptExecutor {
         envInfo: envInfo,
       });
     };
-    // Reconcile pre-injected wrappers with page-load's current revision before attaching APIs.
     // 监听脚本加载
     for (let scriptIndex = 0; scriptIndex < scripts.length; scriptIndex += 1) {
       const script = scripts[scriptIndex];
       const flag = script.flag;
-      if (this.earlyScriptFlags.has(flag)) continue;
-      const existingExec = this.execScripts.get(script.uuid);
-      if (existingExec) {
-        if (existingExec.updateScriptInfo(envInfo, script)) continue;
-        this.execScripts.delete(script.uuid);
+      // 如果是EarlyScriptFlag，处理沙盒环境
+      if (this.earlyScriptFlags.has(flag)) {
+        let updated = false;
+        this.execScripts.forEach((exec) => {
+          if (!updated && exec.scriptRes.flag === flag) {
+            // 处理早期脚本的沙盒环境
+            exec.updateEarlyScriptGMInfo(envInfo, script);
+            updated = true;
+          }
+        });
+        if (updated) continue;
       }
       const listenForScript = () => {
         definePropertyListener(window, flag, (val: ScriptFunc) => {
-          const rejectMount = () => {
+          // 只有扩展生成且不可改写的完整性标记才算有效挂载，页面自建同名函数必须忽略。
+          const descriptor =
+            typeof val === "function" ? Native.objectGetOwnPropertyDescriptor(val, fnStrIntegrity) : undefined;
+          if (descriptor?.value !== true || descriptor.configurable || descriptor.writable) {
             const mountDescriptor = Native.objectGetOwnPropertyDescriptor(pageWindow, flag);
             if (mountDescriptor?.configurable) {
               delete pageWindow[flag];
               listenForScript();
             }
-          };
-          const metadataJSON = getCompiledScriptMetadata(val);
-          if (metadataJSON === undefined) {
-            rejectMount();
-            return;
-          }
-          let metadata: { uuid?: unknown; flag?: unknown; scriptRevision?: unknown };
-          try {
-            metadata = Native.jsonParse(metadataJSON) as {
-              uuid?: unknown;
-              flag?: unknown;
-              scriptRevision?: unknown;
-            };
-          } catch {
-            rejectMount();
-            return;
-          }
-          if (
-            !metadata ||
-            metadata.uuid !== script.uuid ||
-            metadata.flag !== flag ||
-            metadata.scriptRevision !== (script.scriptRevision ?? getScriptRevision(script))
-          ) {
-            rejectMount();
             return;
           }
           loadExec(script, val);
@@ -143,9 +111,11 @@ export class ScriptExecutor {
   }
 
   checkEarlyStartScript(scriptEnvTag: ScriptEnvTag, envInfo: GMInfoEnv) {
-    const eventNamePrefix = `evt${process.env.SC_RANDOM_KEY}.${scriptEnvTag}`;
+    const eventNamePrefix = `evt${process.env.SC_RANDOM_KEY}.${scriptEnvTag}`; // 仅用于early-start初始化
     const scriptLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
     const envLoadCompleteEvtName = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
+    // 监听 脚本加载
+    // 适用于此「通知环境加载完成」代码执行后的脚本加载
     const scriptLoadCompleteHandler: EventListener = (ev: Event) => {
       let scriptFlag: unknown;
       try {
@@ -157,57 +127,95 @@ export class ScriptExecutor {
       } catch {
         return;
       }
-      if (
-        typeof scriptFlag === "string" &&
-        !this.earlyScriptFlags.has(scriptFlag) &&
-        !this.rejectedEarlyScriptFlags.has(scriptFlag)
-      ) {
-        if (this.execEarlyScript(scriptFlag, envInfo)) ev.preventDefault();
+      if (typeof scriptFlag === "string" && !this.earlyScriptFlags.has(scriptFlag)) {
+        if (this.execEarlyScript(scriptFlag, envInfo)) ev.preventDefault(); // dispatchEvent 会回传 false -> 分离环境也能得知环境加载代码已执行
       }
     };
     pageAddEventListener(scriptLoadCompleteEvtName, scriptLoadCompleteHandler);
-    pageDispatchEvent(new CustomEvent(envLoadCompleteEvtName));
+    // 通知 环境 加载完成
+    // 适用于此「通知环境加载完成」代码执行前的脚本加载
+    const ev = new CustomEvent(envLoadCompleteEvtName);
+    pageDispatchEvent(ev);
   }
 
   execEarlyScript(flag: string, envInfo: GMInfoEnv) {
-    if (this.rejectedEarlyScriptFlags.has(flag)) return;
-    const mountDescriptor = Native.objectGetOwnPropertyDescriptor(window, flag);
-    const scriptFunc = mountDescriptor && "value" in mountDescriptor ? mountDescriptor.value : undefined;
-    const scriptInfoJSON = getCompiledScriptMetadata(scriptFunc);
-    if (scriptInfoJSON === undefined) return;
-    let scriptInfo: TScriptInfo;
+    const scriptFunc = (window as unknown as Record<string, unknown>)[flag] as ScriptFunc;
+    const descriptor =
+      typeof scriptFunc === "function" ? Native.objectGetOwnPropertyDescriptor(scriptFunc, fnStrIntegrity) : undefined;
+    if (descriptor?.value !== true || descriptor.configurable || descriptor.writable) return;
+    // 事件在页面可见，只用预注入函数上的不可改写清单作为脚本资料来源。
+    const scriptInfoDescriptor =
+      typeof scriptFunc === "function"
+        ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptInfoKey)
+        : undefined;
+    if (scriptInfoDescriptor?.configurable || scriptInfoDescriptor?.writable) return;
+    // The wrapper is installed on this document's window. Same-document history changes must not invalidate it;
+    // a full navigation creates a new window and cannot retain the old function.
+    const documentUrlDescriptor =
+      typeof scriptFunc === "function"
+        ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptDocumentUrlKey)
+        : undefined;
+    if (
+      !documentUrlDescriptor ||
+      documentUrlDescriptor.configurable ||
+      documentUrlDescriptor.writable ||
+      typeof documentUrlDescriptor.value !== "string"
+    ) {
+      return;
+    }
+    const documentIdDescriptor =
+      typeof scriptFunc === "function"
+        ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptDocumentIdKey)
+        : undefined;
+    const currentDocumentIdDescriptor = Native.objectGetOwnPropertyDescriptor(window, preInjectScriptDocumentIdKey);
+    if (
+      !documentIdDescriptor ||
+      documentIdDescriptor.configurable ||
+      documentIdDescriptor.writable ||
+      typeof documentIdDescriptor.value !== "string" ||
+      !currentDocumentIdDescriptor ||
+      currentDocumentIdDescriptor.configurable ||
+      currentDocumentIdDescriptor.writable ||
+      currentDocumentIdDescriptor.value !== documentIdDescriptor.value
+    ) {
+      return;
+    }
+    const scriptInfoJSON =
+      typeof scriptInfoDescriptor?.value === "string"
+        ? scriptInfoDescriptor.value
+        : typeof scriptFunc.name === "string"
+          ? scriptFunc.name
+          : undefined;
+    if (typeof scriptInfoJSON !== "string") return;
+    let scriptInfo: TScriptInfo | undefined;
     try {
-      scriptInfo = Native.jsonParse(scriptInfoJSON) as TScriptInfo;
+      scriptInfo = Native.jsonParse(scriptInfoJSON) as TScriptInfo | undefined;
     } catch {
       return;
     }
+    if (!scriptInfo || scriptInfo.flag !== flag) return;
+    const expectedUuid = flag.startsWith("#-") ? flag.slice(2) : undefined;
+    if (expectedUuid && scriptInfo.uuid !== expectedUuid) return;
     if (
-      !scriptInfo ||
-      scriptInfo.flag !== flag ||
-      typeof scriptInfo.uuid !== "string" ||
-      scriptInfo.uuid.length === 0 ||
-      typeof scriptInfo.scriptRevision !== "string" ||
-      scriptInfo.scriptRevision.length === 0 ||
-      (flag.startsWith("#-") && scriptInfo.uuid !== flag.slice(2)) ||
       scriptInfo.executionHandle !== undefined ||
       scriptInfo.executionEnvTag !== undefined ||
       scriptInfo.executionRunFlag !== undefined
     ) {
       return;
     }
+    // MV3 对正则匹配会放宽注入范围，必须用编译器绑定的模式在当前页面再确认一次。
     if (scriptInfo.scriptUrlPatterns) {
       try {
         if (isUrlExcluded(window.location.href, scriptInfo.scriptUrlPatterns)) return;
-      } catch (error) {
-        console.warn("Unexpected match error", error);
+      } catch (e) {
+        console.warn("Unexpected match error", e);
       }
     }
-    // The current revision arrives with pageLoad, so a stale early body can affect the page before reconciliation.
     this.execScriptEntry({
       scriptLoadInfo: scriptInfo,
-      scriptFunc: scriptFunc as ScriptFunc,
+      scriptFunc: scriptFunc,
       scriptFlag: flag,
-      envInfo,
+      envInfo: envInfo,
     });
     this.earlyScriptFlags.add(flag);
     return true;

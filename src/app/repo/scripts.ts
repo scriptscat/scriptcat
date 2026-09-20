@@ -88,11 +88,6 @@ export interface ScriptCode {
   code: string; // 脚本执行代码
 }
 
-/** Stable fallback for wrappers outside the persisted registration path. */
-export function getScriptRevision(script: Pick<Script, "uuid" | "createtime" | "updatetime">): string {
-  return `${script.uuid}:${script.createtime}:${script.updatetime || 0}`;
-}
-
 export interface ScriptSite {
   [uuid: string]: string[] | undefined;
 }
@@ -112,8 +107,6 @@ export interface ScriptRunResource extends Script {
   code: string; // 原始代码
   value: ValueStore;
   flag: string;
-  /** Compiled wrapper revision; persistent registrations replace the source fallback. */
-  scriptRevision?: string;
   resource: ScriptResource; // 资源列表,包含脚本需要的资源
   resourceByType?: ScriptResourceByType;
   metadata: SCMetadata; // 经自定义覆盖的 Metadata
@@ -167,7 +160,7 @@ export type TClientPageLoadInfo =
       envInfo: GMInfoEnv;
       /** 一次性令牌，供 USER_SCRIPT world 请求私有 bootstrap。 */
       userScriptBootstrapToken?: string;
-      /** 一次性令牌，供 MAIN world 的 inject 环境请求脚本资料或空列表协调。 */
+      /** 一次性令牌，供 MAIN world 的 inject 环境请求私有 bootstrap。 */
       userScriptInjectBootstrapToken?: string;
     }
   | { ok: false };

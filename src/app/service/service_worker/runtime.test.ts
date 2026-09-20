@@ -2,7 +2,7 @@ import { initTestEnv } from "@Tests/utils";
 import { RuntimeService } from "./runtime";
 import { vi, describe, it, expect, beforeEach, afterEach, type MockedFunction } from "vitest";
 import { randomUUID } from "crypto";
-import type { Script, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
+import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
 import {
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
@@ -22,7 +22,6 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
 import { getStorageName, obtainBlackList } from "@App/pkg/utils/utils";
 import type { CompiledResource, Resource } from "@App/app/repo/resource";
-import type { URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
 initTestEnv();
 
@@ -325,35 +324,6 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     expect(await runtime.buildAndSaveCompiledResourceFromScript(script)).toBeUndefined();
   });
 
-  it.concurrent("重新编译脚本前清空其页面加载运行时缓存", async () => {
-    const { runtime } = createRuntimeTestContext();
-    const script = createMockScript();
-    const caches = runtime as unknown as {
-      pageLoadCaches: Map<string, object>;
-      codeCacheMap: Map<string, object>;
-      cachedPatterns: Map<string, object>;
-    };
-    caches.pageLoadCaches.set(script.uuid, {});
-    caches.codeCacheMap.set(script.uuid, {});
-    caches.cachedPatterns.set(script.uuid, {});
-    const build = vi.spyOn(runtime, "buildAndSaveCompiledResourceFromScript").mockImplementation(async () => {
-      expect(caches.pageLoadCaches.has(script.uuid)).toBe(false);
-      expect(caches.codeCacheMap.has(script.uuid)).toBe(false);
-      expect(caches.cachedPatterns.has(script.uuid)).toBe(false);
-      return {
-        compiledResource: {} as CompiledResource,
-        jsCode: "",
-        apiScript: {} as chrome.userScripts.RegisteredUserScript,
-      };
-    });
-    const load = vi.spyOn(runtime, "loadPageScript").mockResolvedValue(undefined);
-
-    await runtime.updateResourceOnScriptChange(script);
-
-    expect(build).toHaveBeenCalledWith(script, true);
-    expect(load).toHaveBeenCalled();
-  });
-
   it.concurrent("空匹配覆盖时应删除持久化 CompiledResource 并注销旧注册", async () => {
     const { runtime, mockScriptService } = createRuntimeTestContext();
     const script = createMockScript({
@@ -540,7 +510,6 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
         name: script.name,
         flag: "",
         uuid: script.uuid,
-        scriptRevision: "compiled-revision",
         require: [],
         matches: ["https://www.example.com/*"],
         includeGlobs: [],
@@ -603,7 +572,6 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       expect(mockScriptCodeDAO.get).toHaveBeenCalledWith(script.uuid);
       expect(mockValueService.getScriptValue).toHaveBeenCalledTimes(1);
       expect(result!.injectScriptList.length + result!.contentScriptList.length).toBe(1);
-      expect([...result!.injectScriptList, ...result!.contentScriptList][0].scriptRevision).toBe("compiled-revision");
     });
 
     it("第二次请求命中缓存，不再调用 compiledResourceDAO，但每次都重新加载 value", async () => {
@@ -883,7 +851,6 @@ describe("page-load resource cache", () => {
     const scriptRes = _createScriptRunResource(_createMockScript());
     const cache = {
       scriptCacheKey: "cache-key",
-      scriptRevision: "cached-revision",
       code: "console.log(1)",
       scriptUrlPatterns: [],
       originalUrlPatterns: null,
@@ -904,77 +871,6 @@ describe("page-load resource cache", () => {
     expect(pageInfo.resourceByType["require-css"][sharedKey].content).toBe("css content");
     expect(pageInfo.resourceByType.resource[sharedKey].content).toBe("resource content");
     expect(pageInfo.resource[sharedKey].content).toBe("resource content");
-    expect(pageInfo.scriptRevision).toBe("cached-revision");
-  });
-
-  it("rotates and persists the wrapper revision when a local resource changes", async () => {
-    const { runtime } = _createRuntimeContext();
-    const uuid = "local-resource-revision-script";
-    const url = "file:///tmp/required.js";
-    const makeResource = (content: string, sha512: string): Resource => ({
-      url,
-      content,
-      base64: "",
-      hash: { md5: "", sha1: "", sha256: "", sha384: "", sha512 },
-      type: "require",
-      link: { [uuid]: true },
-      contentType: "text/javascript",
-      createtime: Date.now(),
-    });
-    const previousResource = makeResource("old library", "old-hash");
-    const nextResource = makeResource("new library", "new-hash");
-    const scriptRes = {
-      ..._createScriptRunResource(_createMockScript({ uuid })),
-      scriptRevision: "old-revision",
-      resource: { [url]: previousResource },
-      resourceByType: {
-        require: { [url]: previousResource },
-        "require-css": {},
-        resource: {},
-      },
-      scriptUrlPatterns: [],
-    } as unknown as ScriptLoadInfo & { scriptUrlPatterns: URLRuleEntry[] };
-    const cache = {
-      scriptCacheKey: "cache-key",
-      scriptRevision: "old-revision",
-      scriptUrlPatterns: [],
-      originalUrlPatterns: null,
-      code: "console.log('script')",
-      metadataStr: "",
-      userConfigStr: "",
-      userConfig: undefined,
-      resourceByType: {
-        require: { [url]: previousResource },
-        "require-css": {},
-        resource: {},
-      },
-      localResources: [{ resourceKey: url, url, type: "require" as const, sha512: "old-hash" }],
-    };
-    const compiledResource = { uuid, scriptRevision: "old-revision" } as CompiledResource;
-    const save = vi.fn().mockResolvedValue(undefined);
-    runtime.compiledResourceDAO = {
-      get: vi.fn().mockResolvedValue(compiledResource),
-      save,
-    } as unknown as typeof runtime.compiledResourceDAO;
-    (runtime as any).resource = {
-      getResourceModel: vi.fn().mockResolvedValue(previousResource),
-      updateResource: vi.fn().mockResolvedValue(nextResource),
-    };
-    (runtime as any).pageLoadCaches.set(uuid, cache);
-    vi.spyOn(chrome.userScripts, "getScripts").mockImplementation(async () => [
-      { id: uuid, js: [{ code: "old wrapper" }] } as chrome.userScripts.RegisteredUserScript,
-    ]);
-    vi.spyOn(chrome.userScripts, "update").mockResolvedValue(undefined);
-
-    const failedUserScriptUpdates = new Set<string>();
-    await (runtime as any).refreshLocalResourcesForPageLoad([scriptRes], failedUserScriptUpdates);
-    const refreshedCache = (runtime as any).pageLoadCaches.get(uuid);
-
-    expect(failedUserScriptUpdates.has(uuid)).toBe(false);
-    expect(scriptRes.scriptRevision).not.toBe("old-revision");
-    expect(refreshedCache.scriptRevision).toBe(scriptRes.scriptRevision);
-    expect(refreshedCache.resourceByType.require[url].content).toBe("new library");
-    expect(save).toHaveBeenCalledWith({ ...compiledResource, scriptRevision: scriptRes.scriptRevision });
   });
 });
 
@@ -1001,7 +897,6 @@ describe("getScriptsForTab 附加边界场景", () => {
       name: script.name,
       flag: "",
       uuid: script.uuid,
-      scriptRevision: "compiled-revision",
       require: [],
       matches: ["https://www.example.com/*"],
       includeGlobs: [],
@@ -1043,183 +938,6 @@ describe("getScriptsForTab 附加边界场景", () => {
       mockSystemConfig,
     };
   };
-
-  it("retries after the browser registration lookup and update fail", async () => {
-    const { runtime, script, scriptRes } = createFullContext();
-    await runtime.applyScriptMatchInfo(scriptRes);
-    runtime.isUserScriptsAvailable = true;
-    const registeredScript = {
-      id: script.uuid,
-      js: [{ code: "updated wrapper" }],
-      matches: ["https://www.example.com/*"],
-    } as chrome.userScripts.RegisteredUserScript;
-    vi.spyOn(chrome.userScripts, "getScripts")
-      .mockClear()
-      .mockImplementationOnce(async () => {
-        throw new Error("temporary registration lookup failure");
-      })
-      .mockImplementation(async () => [{ id: script.uuid } as chrome.userScripts.RegisteredUserScript]);
-    const update = vi
-      .spyOn(chrome.userScripts, "update")
-      .mockClear()
-      .mockRejectedValueOnce(new Error("temporary registration failure"))
-      .mockResolvedValue(undefined);
-
-    await runtime.loadPageScript(script, registeredScript);
-    expect(update).not.toHaveBeenCalled();
-    expect((runtime as any).pendingUserScriptUpdates.has(script.uuid)).toBe(true);
-
-    const blockedResult = await runtime.getScriptsForTab({ url: pageUrl, tabId: 12, frameId: 0 });
-
-    expect(blockedResult).toBeNull();
-    const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: 12, frameId: 0 });
-    expect(update).toHaveBeenCalledTimes(2);
-    expect(result?.injectScriptList).toHaveLength(1);
-    expect(result?.injectScriptList[0].scriptRevision).toBe("compiled-revision");
-    expect((runtime as any).pendingUserScriptUpdates.has(script.uuid)).toBe(false);
-  });
-
-  it("retries local-resource wrapper registration after the browser update fails", async () => {
-    const requiredUrl = "file:///tmp/page-load-required.js";
-    const { runtime, script, scriptRes } = createFullContext({
-      metadata: { match: ["https://www.example.com/*"], require: [requiredUrl] },
-    });
-    await runtime.applyScriptMatchInfo(scriptRes);
-    runtime.isUserScriptsAvailable = true;
-    const makeResource = (content: string, sha512: string): Resource => ({
-      url: requiredUrl,
-      content,
-      base64: "",
-      hash: { md5: "", sha1: "", sha256: "", sha384: "", sha512 },
-      type: "require",
-      link: { [script.uuid]: true },
-      contentType: "text/javascript",
-      createtime: Date.now(),
-    });
-    const oldResource = makeResource("old library", "old-hash");
-    const newResource = makeResource("new library", "new-hash");
-    let resourceVersion = oldResource;
-    (runtime as any).resource = {
-      getScriptResourceValueByType: vi.fn().mockResolvedValue({
-        require: { [requiredUrl]: oldResource },
-        "require-css": {},
-        resource: {},
-      }),
-      getResourceModel: vi.fn().mockResolvedValue(oldResource),
-      updateResource: vi.fn().mockImplementation(async () => resourceVersion),
-    };
-    vi.spyOn(chrome.userScripts, "getScripts").mockImplementation(async () => [
-      { id: script.uuid, js: [{ code: "old wrapper" }] } as chrome.userScripts.RegisteredUserScript,
-    ]);
-    const update = vi
-      .spyOn(chrome.userScripts, "update")
-      .mockClear()
-      .mockRejectedValueOnce(new Error("temporary registration failure"))
-      .mockResolvedValue(undefined);
-
-    await runtime.getScriptsForTab({ url: pageUrl, tabId: 12, frameId: 0 });
-    resourceVersion = newResource;
-    const blockedResult = await runtime.getScriptsForTab({ url: pageUrl, tabId: 12, frameId: 0 });
-    expect((runtime as any).pageLoadCaches.get(script.uuid).localResources[0].sha512).toBe("old-hash");
-    expect(blockedResult).toBeNull();
-    const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: 12, frameId: 0 });
-
-    expect(update).toHaveBeenCalledTimes(2);
-    expect(result?.injectScriptList).toHaveLength(1);
-    expect(result?.injectScriptList[0].scriptRevision).toBe(
-      (runtime as any).pageLoadCaches.get(script.uuid).scriptRevision
-    );
-    expect((runtime as any).pendingUserScriptUpdates.has(script.uuid)).toBe(false);
-  });
-
-  it("does not advance local-resource revision when registered-script lookup fails", async () => {
-    const requiredUrl = "file:///tmp/page-load-required.js";
-    const { runtime, script, scriptRes, mockCompiledResourceDAO } = createFullContext({
-      metadata: { match: ["https://www.example.com/*"], require: [requiredUrl] },
-    });
-    await runtime.applyScriptMatchInfo(scriptRes);
-    runtime.isUserScriptsAvailable = true;
-    const makeResource = (content: string, sha512: string): Resource => ({
-      url: requiredUrl,
-      content,
-      base64: "",
-      hash: { md5: "", sha1: "", sha256: "", sha384: "", sha512 },
-      type: "require",
-      link: { [script.uuid]: true },
-      contentType: "text/javascript",
-      createtime: Date.now(),
-    });
-    const oldResource = makeResource("old library", "old-hash");
-    const newResource = makeResource("new library", "new-hash");
-    let resourceVersion = oldResource;
-    (runtime as any).resource = {
-      getScriptResourceValueByType: vi.fn().mockResolvedValue({
-        require: { [requiredUrl]: oldResource },
-        "require-css": {},
-        resource: {},
-      }),
-      getResourceModel: vi.fn().mockResolvedValue(oldResource),
-      updateResource: vi.fn().mockImplementation(async () => resourceVersion),
-    };
-    const getScripts = vi
-      .spyOn(chrome.userScripts, "getScripts")
-      .mockClear()
-      .mockRejectedValueOnce(new Error("temporary registration lookup failure"));
-    const update = vi.spyOn(chrome.userScripts, "update").mockClear().mockResolvedValue(undefined);
-
-    await runtime.getScriptsForTab({ url: pageUrl, tabId: 12, frameId: 0 });
-    resourceVersion = newResource;
-    const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: 12, frameId: 0 });
-
-    expect(result).toBeNull();
-    expect(getScripts).toHaveBeenCalledTimes(1);
-    expect(update).not.toHaveBeenCalled();
-    expect(mockCompiledResourceDAO.save).not.toHaveBeenCalled();
-    expect((runtime as any).pageLoadCaches.get(script.uuid).localResources[0].sha512).toBe("old-hash");
-  });
-
-  it("does not advance local-resource revision when saving it fails", async () => {
-    const requiredUrl = "file:///tmp/page-load-required.js";
-    const { runtime, script, scriptRes, mockCompiledResourceDAO } = createFullContext({
-      metadata: { match: ["https://www.example.com/*"], require: [requiredUrl] },
-    });
-    await runtime.applyScriptMatchInfo(scriptRes);
-    runtime.isUserScriptsAvailable = true;
-    const makeResource = (content: string, sha512: string): Resource => ({
-      url: requiredUrl,
-      content,
-      base64: "",
-      hash: { md5: "", sha1: "", sha256: "", sha384: "", sha512 },
-      type: "require",
-      link: { [script.uuid]: true },
-      contentType: "text/javascript",
-      createtime: Date.now(),
-    });
-    const oldResource = makeResource("old library", "old-hash");
-    const newResource = makeResource("new library", "new-hash");
-    let resourceVersion = oldResource;
-    (runtime as any).resource = {
-      getScriptResourceValueByType: vi.fn().mockResolvedValue({
-        require: { [requiredUrl]: oldResource },
-        "require-css": {},
-        resource: {},
-      }),
-      getResourceModel: vi.fn().mockResolvedValue(oldResource),
-      updateResource: vi.fn().mockImplementation(async () => resourceVersion),
-    };
-    vi.spyOn(chrome.userScripts, "getScripts").mockImplementation(async () => [
-      { id: script.uuid, js: [{ code: "old wrapper" }] } as chrome.userScripts.RegisteredUserScript,
-    ]);
-    vi.spyOn(chrome.userScripts, "update").mockClear().mockResolvedValue(undefined);
-    mockCompiledResourceDAO.save.mockRejectedValueOnce(new Error("temporary compiled resource save failure"));
-
-    await runtime.getScriptsForTab({ url: pageUrl, tabId: 12, frameId: 0 });
-    resourceVersion = newResource;
-    const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: 12, frameId: 0 });
-
-    expect(result).toBeNull();
-    expect((runtime as any).pageLoadCaches.get(script.uuid).localResources[0].sha512).toBe("old-hash");
-  });
 
   it("isLoadScripts 为 false 时直接返回 null，不查匹配器", async () => {
     const { runtime, scriptRes } = createFullContext();
@@ -1661,96 +1379,6 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
 });
 
 describe("USER_SCRIPT native callbacks", () => {
-  it("issues a document-bound MAIN reconciliation bootstrap when no inject scripts match", async () => {
-    const { runtime } = _createRuntimeContext();
-    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue(null);
-
-    const rawSender = {
-      url: "https://www.example.com/page",
-      frameId: 0,
-      documentId: "doc-main",
-      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
-    } as chrome.runtime.MessageSender;
-    const pageLoad = await runtime.pageLoad({ envTag: "it" }, new SenderRuntime(rawSender));
-    expect(pageLoad.ok).toBe(true);
-    if (!pageLoad.ok) return;
-    expect(pageLoad.injectScriptList).toEqual([]);
-    expect(pageLoad.contentScriptList).toEqual([]);
-    expect(pageLoad.userScriptInjectBootstrapToken).toEqual(expect.any(String));
-
-    const connection = {
-      onMessage: vi.fn(),
-      sendMessage: vi.fn(),
-      disconnect: vi.fn(),
-      onDisconnect: vi.fn(),
-    } as unknown as MessageConnect;
-    const makeConnectionSender = (source: chrome.runtime.MessageSender) => ({
-      getType: () => 3,
-      isType: (type: number) => type === 3,
-      getSender: () => source,
-      getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: source.documentId }),
-      getConnect: () => connection,
-      getConnectOrigin: () => "userScript" as const,
-    });
-
-    expect(
-      runtime.registerUserScriptConnection(
-        { world: "MAIN", bootstrapToken: pageLoad.userScriptInjectBootstrapToken },
-        makeConnectionSender({ ...rawSender, documentId: "doc-other" })
-      )
-    ).toBe(false);
-    expect(
-      runtime.registerUserScriptConnection(
-        { world: "USER_SCRIPT", bootstrapToken: pageLoad.userScriptInjectBootstrapToken },
-        makeConnectionSender(rawSender)
-      )
-    ).toBe(false);
-    expect(
-      runtime.registerUserScriptConnection(
-        { world: "MAIN", bootstrapToken: pageLoad.userScriptInjectBootstrapToken },
-        makeConnectionSender(rawSender)
-      )
-    ).toBe(true);
-    expect(
-      runtime.registerUserScriptConnection(
-        { world: "MAIN", bootstrapToken: pageLoad.userScriptInjectBootstrapToken },
-        makeConnectionSender(rawSender)
-      )
-    ).toBe(false);
-
-    const onMessage = (connection.onMessage as ReturnType<typeof vi.fn>).mock.calls[0][0] as (packet: unknown) => void;
-    onMessage({ action: "userScript/bootstrap" });
-    expect(connection.sendMessage).toHaveBeenCalledWith({
-      action: "inject/pageLoad",
-      data: expect.objectContaining({ scripts: [], purpose: "reconcile" }),
-    });
-  });
-
-  it("issues an empty MAIN reconciliation bootstrap when only content scripts match", async () => {
-    const { runtime } = _createRuntimeContext();
-    const contentScript = _createScriptRunResource(
-      _createMockScript({ uuid: "content-only-script", metadata: { match: ["https://www.example.com/*"] } })
-    );
-    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
-      injectScriptList: [],
-      contentScriptList: [contentScript],
-      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
-      scriptmenus: [],
-    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
-    const rawSender = {
-      url: "https://www.example.com/page",
-      frameId: 0,
-      documentId: "doc-main",
-      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
-    } as chrome.runtime.MessageSender;
-
-    const pageLoad = await runtime.pageLoad({ envTag: "it" }, new SenderRuntime(rawSender));
-
-    expect(pageLoad.ok).toBe(true);
-    expect(pageLoad.ok && pageLoad.userScriptInjectBootstrapToken).toEqual(expect.any(String));
-    expect(pageLoad.ok && pageLoad.userScriptBootstrapToken).toEqual(expect.any(String));
-  });
-
   it("rejects bootstrap and reconnect tokens from a different URL when documentId is missing", async () => {
     const { runtime } = _createRuntimeContext();
     const script = _createScriptRunResource(
@@ -2259,7 +1887,6 @@ describe("restoreJSCodeFromCompiledResource 还原代码时的生效 metadata", 
       name: script.name,
       flag: `#-${script.uuid}`,
       uuid: script.uuid,
-      scriptRevision: "compiled-revision",
       require: [],
       matches: ["https://www.example.com/*"],
       includeGlobs: [],
@@ -2271,8 +1898,6 @@ describe("restoreJSCodeFromCompiledResource 还原代码时的生效 metadata", 
       scriptUrlPatterns: scriptURLPatternResults(scriptRes)!.scriptUrlPatterns,
       originalUrlPatterns: null,
     };
-    scriptRes.flag = compiledResource.flag;
-    scriptRes.scriptRevision = compiledResource.scriptRevision;
     mockScriptService.buildScriptRunResource.mockResolvedValue(scriptRes);
     (runtime as any).script = {
       ...mockScriptService,
@@ -2292,8 +1917,6 @@ describe("restoreJSCodeFromCompiledResource 还原代码时的生效 metadata", 
     const code = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
 
     expect(code).toContain("GM_registerMenuCommand");
-    expect(compiledResource.scriptRevision).not.toBe("compiled-revision");
-    expect(code).toContain(`\\"scriptRevision\\":\\"${compiledResource.scriptRevision}\\"`);
   });
 
   it("selfMetadata 覆写为 early-start 时，还原的代码应走预注入编译", async () => {
@@ -2305,63 +1928,7 @@ describe("restoreJSCodeFromCompiledResource 还原代码时的生效 metadata", 
 
     const code = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
 
-    expect(code).toContain('window["#-');
     expect(code).toContain("performance.dispatchEvent");
-    expect(code).toContain("detail: { scriptFlag:");
-    expect(code).not.toContain("executionHandle");
-    expect(compiledResource.scriptRevision).not.toBe("compiled-revision");
-    expect(code).toContain(`\\"scriptRevision\\":\\"${compiledResource.scriptRevision}\\"`);
-  });
-
-  it("rotates the wrapper revision when userscript code changes", async () => {
-    const script = _createMockScript({
-      metadata: { match: ["https://www.example.com/*"], "run-at": ["document-idle"] },
-    });
-    const { runtime, compiledResource } = createContext(script);
-
-    const firstCode = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
-    const firstRevision = compiledResource.scriptRevision;
-    (runtime as any).pageLoadCaches.set(script.uuid, { scriptRevision: firstRevision });
-    (runtime as any).codeCacheMap.set(script.uuid, { cacheKey: "stale" });
-    (runtime as any).cachedPatterns.set(script.uuid, { scriptUrlPatterns: [] });
-    (runtime as any).script.scriptCodeDAO.get.mockResolvedValue({ code: "console.log(2);" });
-
-    const updatedCode = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
-
-    expect(compiledResource.scriptRevision).not.toBe(firstRevision);
-    expect(updatedCode).toContain(`\\"scriptRevision\\":\\"${compiledResource.scriptRevision}\\"`);
-    expect(updatedCode).not.toContain(`\\"scriptRevision\\":\\"${firstRevision}\\"`);
-    expect(updatedCode).not.toBe(firstCode);
-    expect((runtime as any).pageLoadCaches.has(script.uuid)).toBe(false);
-    expect((runtime as any).codeCacheMap.has(script.uuid)).toBe(false);
-    expect((runtime as any).cachedPatterns.has(script.uuid)).toBe(false);
-  });
-
-  it("rotates the wrapper revision when required resource contents change", async () => {
-    const requiredUrl = "https://example.com/required.js";
-    const script = _createMockScript({
-      metadata: {
-        match: ["https://www.example.com/*"],
-        require: [requiredUrl],
-      },
-    });
-    const { runtime, compiledResource } = createContext(script);
-    compiledResource.require = [requiredUrl];
-    const requiredResource = { url: requiredUrl, content: "window.__requiredValue = 1;" };
-    (runtime as any).resource.resourceDAO.get.mockResolvedValue(requiredResource);
-
-    const firstCode = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
-    const firstRevision = compiledResource.scriptRevision;
-    (runtime as any).resource.resourceDAO.get.mockResolvedValue({
-      ...requiredResource,
-      content: "window.__requiredValue = 2;",
-    });
-
-    const updatedCode = await runtime.restoreJSCodeFromCompiledResource(script, compiledResource);
-
-    expect(compiledResource.scriptRevision).not.toBe(firstRevision);
-    expect(updatedCode).not.toBe(firstCode);
-    expect(updatedCode).toContain(`\\"scriptRevision\\":\\"${compiledResource.scriptRevision}\\"`);
   });
 });
 

@@ -1,11 +1,5 @@
 export const BrowserNoSupport = new Error("browserNoSupport");
-import {
-  getScriptRevision,
-  type SCMetadata,
-  type Script,
-  type ScriptLoadInfo,
-  type ScriptRunResource,
-} from "@App/app/repo/scripts";
+import type { SCMetadata, Script, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
 import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
 import type { ScriptMatchInfo } from "./types";
@@ -253,7 +247,6 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
 
 export function buildScriptRunResourceBasic(script: Script): ScriptRunResource {
   const ret: ScriptRunResource = { ...script } as ScriptRunResource;
-  ret.scriptRevision = getScriptRevision(script);
   // 自定义配置
   const { match, include, exclude } = ret.metadata;
   ret.originalMetadata = { match, include, exclude }; // 目前只需要 match, include, exclude

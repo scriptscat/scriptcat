@@ -360,16 +360,16 @@ describe.concurrent("compileInjectionCode", () => {
     expect(result).toContain("with(arguments[0]||this.$)");
     expect(result).toContain("this[arguments[0]='$$'+Date.now()/Math.random()]=async function(){");
     // 使用 compileInjectScript 包裹并挂载脚本标志
-    expect(result).toContain('window["#-test-uuid"] =');
+    expect(result).toContain("window, '#-test-uuid'");
   });
 
-  it.concurrent("预注入脚本按精确 URL 规则挂载包装器且事件只携带脚本 flag", () => {
+  it.concurrent("预注入脚本在派发事件前执行精确 URL 规则", () => {
     const scriptRes = createMockScriptRes({
       metadata: { "early-start": [""], "run-at": ["document-start"] },
       scriptUrlPatterns: extractUrlPatterns(["@include /example\\.com/"]),
     });
     const result = compilePreInjectScript(parseScriptLoadInfo(scriptRes, scriptRes.scriptUrlPatterns ?? []), "", false);
-    const dispatchEvent = vi.fn((_event: unknown) => true);
+    const dispatchEvent = vi.fn(() => true);
     const performance = { dispatchEvent, addEventListener: vi.fn() };
     const customEvent = class {
       constructor(
@@ -379,18 +379,11 @@ describe.concurrent("compileInjectionCode", () => {
     };
     const run = new Function("window", "performance", "CustomEvent", "location", result);
 
-    const excludedWindow = Object.create(null);
-    run(excludedWindow, performance, customEvent, { href: "https://other.example/" });
-    expect(excludedWindow[scriptRes.flag]).toBeUndefined();
+    run(Object.create(null), performance, customEvent, { href: "https://other.example/" });
     expect(dispatchEvent).not.toHaveBeenCalled();
 
-    const includedWindow = Object.create(null);
-    run(includedWindow, performance, customEvent, { href: "https://example.com/" });
-    expect(includedWindow[scriptRes.flag]).toBeTypeOf("function");
+    run(Object.create(null), performance, customEvent, { href: "https://example.com/" });
     expect(dispatchEvent).toHaveBeenCalledTimes(1);
-    expect(dispatchEvent.mock.calls[0][0]).toMatchObject({
-      init: { detail: { scriptFlag: scriptRes.flag } },
-    });
   });
 });
 

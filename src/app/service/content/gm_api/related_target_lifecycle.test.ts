@@ -14,7 +14,13 @@ function createApiWithContentRuntime() {
   const sender = new CustomEventMessage(eventFlag, false, "");
   const receiver = new CustomEventMessage(eventFlag, true, "");
   const server = new Server("content", receiver);
-  const runtime = new ScriptRuntime(ScriptEnvTag.content, server, receiver, new ScriptExecutor(receiver, receiver));
+  const runtime = new ScriptRuntime(
+    ScriptEnvTag.content,
+    server,
+    receiver,
+    new ScriptExecutor(receiver, receiver),
+    undefined
+  );
   runtime.contentInit();
 
   const scriptRes: ScriptRunResource = {

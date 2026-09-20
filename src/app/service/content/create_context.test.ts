@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { encodeRValue } from "@App/pkg/utils/message_value";
 import { createContext, createProxyContext, shouldFnBind, type RealmRoots } from "./create_context";
@@ -307,65 +306,6 @@ describe("shouldFnBind", () => {
 });
 
 describe("createContext: capability and lifecycle contract", () => {
-  it("does not use the page String constructor to reinterpret trusted grants", () => {
-    const script = createScriptInfo({ grant: ["GM_setValue"] });
-    const grants = new Set(["GM_setValue"]);
-    const OriginalString = globalThis.String;
-    let context: ReturnType<typeof createContext> | undefined;
-
-    try {
-      globalThis.String = ((value: unknown) =>
-        value === "GM_setValue" ? "GM_getValue" : OriginalString(value)) as typeof String;
-      context = createContext(
-        script,
-        { script: { name: "create-context-test" }, scriptMetaStr: "" },
-        "vitest",
-        undefined as any,
-        undefined as any,
-        grants
-      );
-    } finally {
-      globalThis.String = OriginalString;
-    }
-
-    expect(context?.GM_setValue).toBeTypeOf("function");
-    expect(context?.GM_getValue).toBeUndefined();
-  });
-
-  it("preserves public GM API arity after hiding the internal context parameter", () => {
-    const context = createTestContext(["GM_getValue", "GM_setValue"]);
-
-    expect(context.GM_getValue.length).toBe(2);
-    expect(context.GM_setValue.length).toBe(2);
-  });
-
-  it("keeps lifecycle methods locked and out of the script sandbox projection", () => {
-    const context = createTestContext([]);
-    const sandbox = createProxyContext(context, createSplitRealmRoots().roots);
-    const internalMethods = [
-      "valueUpdate",
-      "emitEvent",
-      "setInvalidContext",
-      "isInvalidContext",
-      "setExecutionRunFlag",
-      "resolveLoadScript",
-    ];
-
-    for (const key of internalMethods) {
-      const descriptor = Object.getOwnPropertyDescriptor(context, key);
-      expect(descriptor).toMatchObject({
-        configurable: false,
-        enumerable: false,
-        writable: false,
-        value: expect.any(Function),
-      });
-      expect(Object.keys(context)).not.toContain(key);
-      expect(Reflect.set(context, key, () => undefined)).toBe(false);
-      expect(Reflect.deleteProperty(context, key)).toBe(false);
-      expect(Object.prototype.hasOwnProperty.call(sandbox, key)).toBe(false);
-    }
-  });
-
   it("does not expose broker state on the script-facing context", () => {
     const context = createTestContext(["GM_getValue"]);
 
@@ -497,66 +437,6 @@ describe("createContext: capability and lifecycle contract", () => {
     } finally {
       apiValues[0].api = originalApi;
     }
-  });
-
-  it("does not expose the private context through a page-replaced Array on long API calls", () => {
-    const OriginalArray = globalThis.Array;
-    const originalIndexDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, "0");
-    let sentMessage: unknown;
-    const message = {
-      sendMessage(data: unknown) {
-        sentMessage = data;
-        return Promise.resolve({});
-      },
-    };
-    const context = createContext(
-      createScriptInfo({ grant: ["GM_log"] }),
-      { script: { name: "create-context-test" }, scriptMetaStr: "" },
-      "vitest",
-      message as unknown as Message,
-      undefined as unknown as Message,
-      new Set(["GM_log"])
-    );
-    let constructionCount = 0;
-    let leakedValue: unknown;
-    const PoisonedArray = new Proxy(OriginalArray, {
-      construct(target, args) {
-        constructionCount += 1;
-        const array = Reflect.construct(target, args) as unknown[];
-        return new Proxy(array, {
-          set(targetArray, key, value, receiver) {
-            if (key === "0") {
-              leakedValue = (value as { scriptRes?: { value?: unknown } }).scriptRes?.value;
-            }
-            return Reflect.set(targetArray, key, value, receiver);
-          },
-        });
-      },
-    });
-
-    try {
-      Object.defineProperty(Object.prototype, "0", {
-        configurable: true,
-        set(value: unknown) {
-          if (value && typeof value === "object" && "scriptRes" in value) {
-            leakedValue = (value as { scriptRes?: { value?: unknown } }).scriptRes?.value;
-          }
-        },
-      });
-      globalThis.Array = PoisonedArray;
-      context.GM_log("page controlled", "info", "one", "two", "three");
-    } finally {
-      globalThis.Array = OriginalArray;
-      if (originalIndexDescriptor) Object.defineProperty(Object.prototype, "0", originalIndexDescriptor);
-      else delete (Object.prototype as Record<string, unknown>)["0"];
-    }
-
-    expect(constructionCount).toBe(0);
-    expect(leakedValue).toBeUndefined();
-    expect(sentMessage).toMatchObject({
-      action: "vitest/runtime/gmApi",
-      data: { api: "GM_log", params: ["page controlled", "info", ["one", "two", "three"]] },
-    });
   });
 
   it("uses captured object operations when page code replaces assign and keys", () => {
@@ -853,42 +733,6 @@ describe.sequential("createProxyContext: module default split roots", () => {
 });
 
 describe("createProxyContext: deterministic realm contract", () => {
-  it("does not call the page String constructor while copying event properties", () => {
-    const fixture = createSplitRealmRoots();
-    const originalString = globalThis.String;
-    let caughtError: unknown;
-    try {
-      globalThis.String = (() => {
-        throw new Error("page replaced String");
-      }) as unknown as typeof String;
-      createProxyContext(Object.create(null), fixture.roots);
-    } catch (error) {
-      caughtError = error;
-    } finally {
-      globalThis.String = originalString;
-    }
-
-    expect(caughtError).toBeUndefined();
-  });
-
-  it("uses captured Object.defineProperty after the page replaces it", () => {
-    const fixture = createSplitRealmRoots();
-    const nativeDefineProperty = Object.defineProperty;
-    let caughtError: unknown;
-    try {
-      Object.defineProperty = (() => {
-        throw new Error("page replaced Object.defineProperty");
-      }) as typeof Object.defineProperty;
-      createProxyContext(Object.create(null), fixture.roots);
-    } catch (error) {
-      caughtError = error;
-    } finally {
-      Object.defineProperty = nativeDefineProperty;
-    }
-
-    expect(caughtError).toBeUndefined();
-  });
-
   it("固定 window/self/globalThis，並把每次 sandbox 的寫入隔離", () => {
     const first = createProxyFixture({ GM_getValue: vi.fn() });
     const second = createProxyFixture({ GM_getValue: vi.fn() });

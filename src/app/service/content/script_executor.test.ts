@@ -2,15 +2,31 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import type { Message } from "@Packages/message/types";
 import type { ScriptLoadInfo } from "../service_worker/types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
+import type { GMInfoEnv } from "./types";
 import { initEnvInfo, ScriptExecutor } from "./script_executor";
-import ExecScript from "./exec_script";
-import { compileInjectScript, compilePreInjectScript, compileScriptCode } from "./utils";
+import {
+  compilePreInjectScript,
+  preInjectScriptDocumentIdKey,
+  preInjectScriptDocumentUrlKey,
+  preInjectScriptInfoKey,
+} from "./utils";
+import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageDispatchEvent } from "@Packages/message/common";
-import { ScriptEnvTag } from "@Packages/message/consts";
-import { encodeRValue } from "@App/pkg/utils/message_value";
 
 const styleUrl = "https://example.com/style.css";
 const secondStyleUrl = "https://example.com/second-style.css";
+const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
+
+beforeEach(() => {
+  if (!Object.prototype.hasOwnProperty.call(window, preInjectScriptDocumentIdKey)) {
+    Object.defineProperty(window, preInjectScriptDocumentIdKey, {
+      configurable: false,
+      writable: false,
+      value: "script-executor-test-document",
+    });
+  }
+});
+
 function makeScript(overrides: Partial<ScriptLoadInfo & Pick<TScriptInfo, "requireCssResource">> = {}): ScriptLoadInfo {
   return {
     uuid: "executor-test-uuid",
@@ -25,7 +41,6 @@ function makeScript(overrides: Partial<ScriptLoadInfo & Pick<TScriptInfo, "requi
     code: "",
     value: {},
     flag: "executor-test-flag",
-    scriptRevision: "executor-test-revision",
     resource: {},
     metadata: {},
     originalMetadata: {},
@@ -87,501 +102,266 @@ describe("ScriptExecutor", () => {
     }
   });
 
+  it("attaches the page execution binding when an early-start script is reconciled", () => {
+    const initial = makeScript({ metadata: { "early-start": [""], "run-at": ["document-start"] } });
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+
+    executor.execScriptEntry({
+      scriptLoadInfo: initial,
+      scriptFlag: initial.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: () => undefined,
+    });
+
+    const exec = (
+      executor as unknown as {
+        execScripts: Map<
+          string,
+          {
+            scriptRes: TScriptInfo;
+            updateEarlyScriptGMInfo: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => void;
+          }
+        >;
+      }
+    ).execScripts.get(initial.uuid)!;
+    expect(exec.scriptRes.executionHandle).toBeUndefined();
+
+    exec.updateEarlyScriptGMInfo(initEnvInfo, {
+      ...initial,
+      value: { secret: "authoritative-value" },
+      config: {
+        private: { secret: { title: "Private", description: "", index: 0, default: "authoritative" } },
+      },
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+    });
+
+    expect(exec.scriptRes.executionHandle).toBe("page-binding");
+    expect(exec.scriptRes.executionEnvTag).toBe("it");
+    expect(exec.scriptRes.value).toEqual({ secret: "authoritative-value" });
+    expect(exec.scriptRes.config).toEqual({
+      private: { secret: { title: "Private", description: "", index: 0, default: "authoritative" } },
+    });
+  });
+
   it("ignores a counterfeit mount and keeps listening for the genuine wrapper", () => {
     const script = makeScript({ flag: "executor-counterfeit-flag" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
-    const generatedWindow: Record<string, unknown> = {};
-    const runGenerated = new Function(
-      "window",
-      "performance",
-      "CustomEvent",
-      compileInjectScript(script, "window.__genuineMountRan = true;")
-    );
-    runGenerated(generatedWindow, performance, CustomEvent);
-    const genuine = generatedWindow[script.flag];
-    const attacker = vi.fn();
+    const attackerTarget = vi.fn();
+    const attacker = new Proxy(attackerTarget, {
+      getOwnPropertyDescriptor(target, property) {
+        if (property === fnStrIntegrity) {
+          return { configurable: true, enumerable: false, value: true, writable: true };
+        }
+        return Object.getOwnPropertyDescriptor(target, property);
+      },
+    });
+    const genuine = vi.fn();
     const pageWindow = window as unknown as Record<string, unknown>;
+    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
 
     try {
       executor.startScripts([script], initEnvInfo);
       pageWindow[script.flag] = attacker;
 
-      expect(attacker).not.toHaveBeenCalled();
-      expect(generatedWindow.__genuineMountRan).toBeUndefined();
+      expect(attackerTarget).not.toHaveBeenCalled();
 
       pageWindow[script.flag] = genuine;
 
-      expect(generatedWindow.__genuineMountRan).toBe(true);
+      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
     } finally {
       delete pageWindow[script.flag];
     }
   });
 
-  it("rejects a genuine wrapper relayed from another script flag", () => {
-    const sourceScript = makeScript({ uuid: "source-script", flag: "executor-source-flag" });
-    const targetScript = makeScript({ uuid: "target-script", flag: "executor-target-flag" });
+  it("rejects a counterfeit early-start wrapper before execution", () => {
+    const script = makeScript({ flag: "executor-counterfeit-early-flag" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
-    const generatedWindow: Record<string, unknown> = {};
-    const runGenerated = new Function(
-      "window",
-      "performance",
-      "CustomEvent",
-      compileInjectScript(sourceScript, "return 'source';")
-    );
+    const attacker = vi.fn();
+    const genuine = vi.fn();
     const pageWindow = window as unknown as Record<string, unknown>;
+    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
 
     try {
-      runGenerated(generatedWindow, performance, CustomEvent);
-      const relayed = generatedWindow[sourceScript.flag];
-      executor.startScripts([targetScript], initEnvInfo);
-      pageWindow[targetScript.flag] = relayed;
+      pageWindow[script.flag] = attacker;
+      executor.execEarlyScript(script.flag, initEnvInfo);
+      expect(attacker).not.toHaveBeenCalled();
 
-      expect(
-        (
-          executor as unknown as {
-            execScripts: Map<string, unknown>;
-          }
-        ).execScripts.has(targetScript.uuid)
-      ).toBe(false);
-    } finally {
-      delete pageWindow[sourceScript.flag];
-      delete pageWindow[targetScript.flag];
-    }
-  });
-
-  it("rejects a same-source wrapper created with a page-chosen call token", () => {
-    const script = makeScript({ flag: "executor-forged-token-flag" });
-    const executor = new ScriptExecutor({} as Message, {} as Message);
-    const source = compileInjectScript(script, "window.__forgedRan = true;");
-    const token = JSON.stringify(process.env.SC_RANDOM_FNKEY!);
-    const counterfeitSource = source.replace(`})(${token},`, `})("page-chosen-token",`);
-    const runCounterfeit = new Function("window", "performance", "CustomEvent", counterfeitSource);
-    const counterfeitWindow: Record<string, unknown> = {};
-    const pageWindow = window as unknown as Record<string, unknown>;
-
-    expect(counterfeitSource).not.toBe(source);
-
-    try {
-      runCounterfeit(counterfeitWindow, performance, CustomEvent);
-      executor.startScripts([script], initEnvInfo);
-      pageWindow[script.flag] = counterfeitWindow[script.flag];
-
-      expect(pageWindow.__forgedRan).toBeUndefined();
-
-      const genuineWindow: Record<string, unknown> = {};
-      const runGenuine = new Function("window", "performance", "CustomEvent", source);
-      runGenuine(genuineWindow, performance, CustomEvent);
-      pageWindow[script.flag] = genuineWindow[script.flag];
-      expect(genuineWindow.__forgedRan).toBe(true);
+      pageWindow[script.flag] = genuine;
+      Object.defineProperty(genuine, preInjectScriptInfoKey, { value: JSON.stringify(script) });
+      Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: window.location.href });
+      Object.defineProperty(genuine, preInjectScriptDocumentIdKey, { value: "script-executor-test-document" });
+      executor.execEarlyScript(script.flag, initEnvInfo);
+      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
     } finally {
       delete pageWindow[script.flag];
     }
   });
 
-  it("rejects a pre-injected wrapper captured from a different document", () => {
-    const script = makeScript({ flag: "executor-cross-document-flag" });
+  it("rejects early metadata that retargets the flag or carries a page binding", () => {
+    const script = makeScript({ flag: "#-executor-test-uuid" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
-    const sourceWindow: Record<string, unknown> = {};
-    const sourceDocument = {};
-    const runGenerated = new Function(
-      "window",
-      "performance",
-      "CustomEvent",
-      "document",
-      compilePreInjectScript(script, "window.__relayedEarlyRan = true;")
-    );
+    const wrongUuid = vi.fn();
+    const bound = vi.fn();
     const pageWindow = window as unknown as Record<string, unknown>;
+    Object.defineProperty(wrongUuid, fnStrIntegrity, { value: true });
+    Object.defineProperty(wrongUuid, preInjectScriptInfoKey, {
+      value: JSON.stringify({ ...script, uuid: "other-script" }),
+    });
+    Object.defineProperty(bound, fnStrIntegrity, { value: true });
+    Object.defineProperty(bound, preInjectScriptInfoKey, {
+      value: JSON.stringify({ ...script, executionHandle: "other-binding" }),
+    });
 
     try {
-      runGenerated(
-        sourceWindow,
-        { dispatchEvent: () => true, addEventListener: () => undefined },
-        CustomEvent,
-        sourceDocument
-      );
-      pageWindow[script.flag] = sourceWindow[script.flag];
+      pageWindow[script.flag] = wrongUuid;
+      executor.execEarlyScript(script.flag, initEnvInfo);
+      expect(wrongUuid).not.toHaveBeenCalled();
 
-      executor.startScripts([script], initEnvInfo);
-
-      expect(
-        (
-          executor as unknown as {
-            execScripts: Map<string, unknown>;
-          }
-        ).execScripts.has(script.uuid)
-      ).toBe(false);
-      expect(sourceWindow.__relayedEarlyRan).toBeUndefined();
+      pageWindow[script.flag] = bound;
+      executor.execEarlyScript(script.flag, initEnvInfo);
+      expect(bound).not.toHaveBeenCalled();
     } finally {
       delete pageWindow[script.flag];
     }
   });
 
-  it("executes early-start code before page-load while its GM calls wait for the trusted binding", async () => {
+  it("rejects same-UUID early metadata mutations", () => {
     const script = makeScript({
-      uuid: "executor-early-start-uuid",
-      flag: "executor-early-start-flag",
-      metadata: { grant: ["GM_log"], "early-start": [""], "run-at": ["document-start"] },
-      userConfig: {
-        General: { privateKey: { title: "Private", description: "", value: "secret", index: 0 } },
+      uuid: "executor-early-authenticated-uuid",
+      flag: "#-executor-early-authenticated-uuid",
+      metadata: { grant: ["GM_getValue", "GM_getResourceText"], resource: ["canonical https://example.com/canonical"] },
+      resource: {
+        canonical: {
+          url: "https://example.com/canonical",
+          content: "canonical",
+          base64: "",
+          hash: { md5: "", sha1: "", sha256: "", sha384: "", sha512: "" },
+          type: "resource",
+          link: {},
+          contentType: "text/plain",
+          createtime: Date.now(),
+        },
       },
-      userConfigStr: "private settings",
     });
-    const sendMessage = vi.fn().mockResolvedValue({ data: undefined });
-    const executor = new ScriptExecutor({ sendMessage } as unknown as Message, {} as Message);
-    const pageWindow = window as unknown as Record<string, unknown>;
-    const generated = new Function(
-      "window",
-      "performance",
-      "CustomEvent",
-      compilePreInjectScript(
-        script,
-        compileScriptCode(
-          script,
-          'unsafeWindow.__earlyStartRan = true; unsafeWindow.__earlyStartInfo = GM_info; GM_log("early start");'
-        )
-      )
-    );
-    const testPerformance = { dispatchEvent: () => true, addEventListener: () => undefined };
-    const valueUpdate = vi.spyOn(ExecScript.prototype, "valueUpdate");
-
-    try {
-      generated(pageWindow, testPerformance, CustomEvent);
-      expect(pageWindow.__earlyStartRan).toBeUndefined();
-      executor.checkEarlyStartScript(ScriptEnvTag.inject, initEnvInfo);
-      pageDispatchEvent(
-        new CustomEvent(`evt${process.env.SC_RANDOM_KEY}.it.slc`, {
-          cancelable: true,
-          detail: { scriptFlag: script.flag },
-        })
-      );
-      expect(pageWindow.__earlyStartRan).toBe(true);
-      expect((pageWindow.__earlyStartInfo as { userConfig?: unknown }).userConfig).toBeUndefined();
-      expect((pageWindow.__earlyStartInfo as { userConfigStr?: string }).userConfigStr).toBe("");
-      expect(sendMessage).not.toHaveBeenCalled();
-      executor.valueUpdate({
-        entries: [["key", encodeRValue("early update"), encodeRValue(undefined)]],
-        uuid: script.uuid,
-        storageName: script.uuid,
-        sender: { runFlag: "untrusted-run-flag", tabId: -2 },
-        valueUpdated: true,
-      });
-      expect(valueUpdate).not.toHaveBeenCalled();
-
-      executor.startScripts(
-        [
-          {
-            ...script,
-            executionHandle: "trusted-page-binding",
-            executionEnvTag: "it",
-            executionRunFlag: "trusted-run-flag",
-            userConfig: {
-              General: { privateKey: { title: "Private", description: "", value: "current", index: 0 } },
-            },
-            userConfigStr: "current settings",
-          } as unknown as TScriptInfo,
-        ],
-        initEnvInfo
-      );
-      expect(pageWindow.__earlyStartRan).toBe(true);
-      expect((pageWindow.__earlyStartInfo as { userConfig?: unknown }).userConfig).toMatchObject({
-        General: { privateKey: { value: "current" } },
-      });
-      expect((pageWindow.__earlyStartInfo as { userConfigStr?: string }).userConfigStr).toBe("current settings");
-      expect(
-        (
-          executor as unknown as {
-            execScripts: Map<string, { scriptRes: TScriptInfo }>;
-          }
-        ).execScripts.get(script.uuid)?.scriptRes.executionHandle
-      ).toBe("trusted-page-binding");
-      executor.valueUpdate({
-        entries: [["key", encodeRValue("trusted update"), encodeRValue(undefined)]],
-        uuid: script.uuid,
-        storageName: script.uuid,
-        sender: { runFlag: "untrusted-run-flag", tabId: -2 },
-        valueUpdated: true,
-      });
-      expect(valueUpdate).toHaveBeenCalledTimes(1);
-      await vi.waitFor(() =>
-        expect(sendMessage).toHaveBeenCalledWith({
-          action: "scripting/runtime/gmApi",
-          data: expect.objectContaining({
-            version: 1,
-            handle: "trusted-page-binding",
-            api: "GM_log",
-          }),
-        })
-      );
-    } finally {
-      valueUpdate.mockRestore();
-      delete pageWindow[script.flag];
-      delete pageWindow.__earlyStartInfo;
-      delete pageWindow.__earlyStartRan;
-    }
-  });
-
-  it("does not execute an unprivileged fallback wrapper again when native binding arrives", () => {
-    const fallbackScript = makeScript({
-      uuid: "executor-fallback-native-uuid",
-      flag: "executor-fallback-native-flag",
-      metadata: { grant: ["none"] },
-      userConfigStr: "",
-    });
-    const nativeScript = {
-      ...fallbackScript,
-      userConfigStr: "trusted native config",
-      executionHandle: "native-fallback-binding",
-      executionEnvTag: "it",
-      executionRunFlag: "native-fallback-run",
-    } as unknown as TScriptInfo;
     const executor = new ScriptExecutor({} as Message, {} as Message);
     const pageWindow = window as unknown as Record<string, unknown>;
-    const generated = new Function(
-      "window",
-      "performance",
-      "CustomEvent",
-      compileInjectScript(fallbackScript, "window.__fallbackNativeRuns = (window.__fallbackNativeRuns || 0) + 1;")
-    );
+    const performance = { dispatchEvent: vi.fn(() => false), addEventListener: vi.fn() };
+    const generated = new Function("window", "performance", "CustomEvent", compilePreInjectScript(script, ""));
 
     try {
-      executor.startScripts([fallbackScript as unknown as TScriptInfo], initEnvInfo, { reconcileEarlyScripts: false });
       generated(pageWindow, performance, CustomEvent);
-      expect(pageWindow.__fallbackNativeRuns).toBe(1);
+      const forged = {
+        ...script,
+        metadata: { grant: ["GM_setValue"] },
+        resource: { forged: { content: "forged", contentType: "text/plain" } },
+      } as TScriptInfo;
 
-      executor.startScripts([nativeScript], initEnvInfo);
-
-      expect(pageWindow.__fallbackNativeRuns).toBe(1);
-      const existingExec = (executor as unknown as { execScripts: Map<string, ExecScript> }).execScripts.get(
-        fallbackScript.uuid
-      );
-      expect(existingExec?.scriptRes.executionHandle).toBe("native-fallback-binding");
-      expect(existingExec?.named?.GM_info.userConfigStr).toBe("trusted native config");
-    } finally {
-      delete pageWindow[fallbackScript.flag];
-      delete pageWindow.__fallbackNativeRuns;
-    }
-  });
-
-  it("does not replay an early-start wrapper absent from the trusted page-load list", () => {
-    const script = makeScript({
-      uuid: "executor-removed-early-uuid",
-      flag: "executor-removed-early-flag",
-      metadata: { grant: ["GM_log"], "early-start": [""], "run-at": ["document-start"] },
-    });
-    const sendMessage = vi.fn().mockResolvedValue(undefined);
-    const executor = new ScriptExecutor({ sendMessage } as unknown as Message, {} as Message);
-    const execScriptEntry = vi.spyOn(executor, "execScriptEntry");
-    const pageWindow = window as unknown as Record<string, unknown>;
-    const generated = new Function(
-      "window",
-      "performance",
-      "CustomEvent",
-      compilePreInjectScript(script, 'window.__removedEarlyRan = true; GM_log("removed early start");')
-    );
-
-    try {
-      generated(pageWindow, { dispatchEvent: () => true, addEventListener: () => undefined }, CustomEvent);
-      executor.checkEarlyStartScript(ScriptEnvTag.inject, initEnvInfo);
+      executor.checkEarlyStartScript("it", initEnvInfo);
+      const hostileDetail = {};
+      const flagGetter = vi.fn(() => script.flag);
+      Object.defineProperty(hostileDetail, "scriptFlag", { get: flagGetter });
       pageDispatchEvent(
-        new CustomEvent(`evt${process.env.SC_RANDOM_KEY}.it.slc`, {
+        new CustomEvent(`evt${process.env.SC_RANDOM_KEY}.it${DefinedFlags.scriptLoadComplete}`, {
+          detail: hostileDetail,
           cancelable: true,
-          detail: { scriptFlag: script.flag },
         })
       );
-      expect(execScriptEntry).toHaveBeenCalledTimes(1);
+      expect(flagGetter).not.toHaveBeenCalled();
 
-      executor.startScripts([], initEnvInfo);
       pageDispatchEvent(
-        new CustomEvent(`evt${process.env.SC_RANDOM_KEY}.it.slc`, {
+        new CustomEvent(`evt${process.env.SC_RANDOM_KEY}.it${DefinedFlags.scriptLoadComplete}`, {
+          detail: { scriptFlag: script.flag, scriptInfo: forged },
           cancelable: true,
-          detail: { scriptFlag: script.flag },
         })
       );
 
-      expect(sendMessage).not.toHaveBeenCalled();
-      expect(execScriptEntry).toHaveBeenCalledTimes(1);
-      expect(
-        (
-          executor as unknown as {
-            execScripts: Map<string, unknown>;
-          }
-        ).execScripts.has(script.uuid)
-      ).toBe(false);
+      const exec = (
+        executor as unknown as {
+          execScripts: Map<string, { scriptRes: TScriptInfo }>;
+        }
+      ).execScripts.get(script.uuid);
+      expect(exec?.scriptRes.metadata).toEqual(script.metadata);
+      expect(exec?.scriptRes.resource).toEqual({
+        canonical: { base64: "", content: "canonical", contentType: "text/plain" },
+      });
     } finally {
-      execScriptEntry.mockRestore();
       delete pageWindow[script.flag];
-      delete pageWindow.__removedEarlyRan;
     }
   });
 
-  it("does not reconcile early-start contexts against page-visible fallback scripts", () => {
-    const earlyScript = makeScript({
-      uuid: "executor-fallback-early-uuid",
-      flag: "executor-fallback-early-flag",
-      metadata: { grant: ["GM_log"], "early-start": [""], "run-at": ["document-start"] },
-    });
-    const fallbackScript = makeScript({
-      uuid: "executor-fallback-safe-uuid",
-      flag: "executor-fallback-safe-flag",
-      metadata: { grant: ["none"] },
-    }) as unknown as TScriptInfo;
+  it("accepts an early-start wrapper after a same-document URL change", () => {
+    const script = makeScript({ uuid: "executor-early-document-uuid", flag: "#-executor-early-document-uuid" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
+    const genuine = vi.fn();
     const pageWindow = window as unknown as Record<string, unknown>;
-    const generated = new Function(
-      "window",
-      "performance",
-      "CustomEvent",
-      compilePreInjectScript(earlyScript, "window.__fallbackEarlyRan = true;")
-    );
+    const initialUrl = window.location.href;
+    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
+    Object.defineProperty(genuine, preInjectScriptInfoKey, { value: JSON.stringify(script) });
+    Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: initialUrl });
+    Object.defineProperty(genuine, preInjectScriptDocumentIdKey, { value: "script-executor-test-document" });
 
     try {
-      generated(pageWindow, { dispatchEvent: () => true, addEventListener: () => undefined }, CustomEvent);
-      executor.checkEarlyStartScript(ScriptEnvTag.inject, initEnvInfo);
-      pageDispatchEvent(
-        new CustomEvent(`evt${process.env.SC_RANDOM_KEY}.it.slc`, {
-          cancelable: true,
-          detail: { scriptFlag: earlyScript.flag },
-        })
-      );
-      const execScripts = (executor as unknown as { execScripts: Map<string, ExecScript> }).execScripts;
-      const earlyExec = execScripts.get(earlyScript.uuid);
-      expect(earlyExec).toBeDefined();
-
-      executor.startScripts([fallbackScript], initEnvInfo, { reconcileEarlyScripts: false });
-
-      expect(execScripts.get(earlyScript.uuid)).toBe(earlyExec);
-      expect(pageWindow.__fallbackEarlyRan).toBe(true);
+      window.history.pushState({}, "", `${initialUrl}#same-document-change`);
+      pageWindow[script.flag] = genuine;
+      executor.execEarlyScript(script.flag, initEnvInfo);
+      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
     } finally {
-      delete pageWindow[earlyScript.flag];
-      delete pageWindow[fallbackScript.flag];
-      delete pageWindow.__fallbackEarlyRan;
+      window.history.replaceState({}, "", initialUrl);
+      delete pageWindow[script.flag];
     }
   });
 
-  it("invalidates early-start code whose revision differs from page-load before releasing GM calls", async () => {
-    const staleScript = makeScript({
-      uuid: "executor-stale-early-uuid",
-      flag: "executor-stale-early-flag",
-      scriptRevision: "revision-old",
-      metadata: { grant: ["GM_log"], "early-start": [""], "run-at": ["document-start"] },
-    });
-    const currentScript = { ...staleScript, scriptRevision: "revision-current" };
-    const sendMessage = vi.fn().mockResolvedValue(undefined);
-    const executor = new ScriptExecutor({ sendMessage } as unknown as Message, {} as Message);
-    const execScriptEntry = vi.spyOn(executor, "execScriptEntry");
-    const pageWindow = window as unknown as Record<string, unknown>;
-    const generated = new Function(
-      "window",
-      "performance",
-      "CustomEvent",
-      compilePreInjectScript(staleScript, 'window.__staleEarlyRan = true; GM_log("stale early start");')
-    );
-
-    try {
-      generated(pageWindow, { dispatchEvent: () => true, addEventListener: () => undefined }, CustomEvent);
-      executor.checkEarlyStartScript(ScriptEnvTag.inject, initEnvInfo);
-      pageDispatchEvent(
-        new CustomEvent(`evt${process.env.SC_RANDOM_KEY}.it.slc`, {
-          cancelable: true,
-          detail: { scriptFlag: staleScript.flag },
-        })
-      );
-      expect(execScriptEntry).toHaveBeenCalledTimes(1);
-      expect(sendMessage).not.toHaveBeenCalled();
-
-      executor.startScripts(
-        [
-          {
-            ...currentScript,
-            executionHandle: "current-binding",
-            executionEnvTag: "it",
-            executionRunFlag: "current-run-flag",
-          } as unknown as TScriptInfo,
-        ],
-        initEnvInfo
-      );
-      await Promise.resolve();
-      pageDispatchEvent(
-        new CustomEvent(`evt${process.env.SC_RANDOM_KEY}.it.slc`, {
-          cancelable: true,
-          detail: { scriptFlag: staleScript.flag },
-        })
-      );
-
-      expect(pageWindow.__staleEarlyRan).toBe(true);
-      expect(execScriptEntry).toHaveBeenCalledTimes(1);
-      expect(sendMessage).not.toHaveBeenCalled();
-      expect(
-        (
-          executor as unknown as {
-            execScripts: Map<string, unknown>;
-          }
-        ).execScripts.has(staleScript.uuid)
-      ).toBe(false);
-    } finally {
-      execScriptEntry.mockRestore();
-      delete pageWindow[staleScript.flag];
-      delete pageWindow.__staleEarlyRan;
-    }
-  });
-
-  it("rejects an older wrapper for the same UUID and flag", () => {
-    const staleScript = makeScript({
-      uuid: "executor-stale-revision-uuid",
-      flag: "executor-stale-revision-flag",
-      scriptRevision: "revision-old",
-    });
-    const currentScript = { ...staleScript, scriptRevision: "revision-current" };
+  it("accepts the immutable early manifest through the wrapper name fallback", () => {
+    const script = makeScript({ uuid: "executor-early-name-uuid", flag: "#-executor-early-name-uuid" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
+    const genuine = vi.fn();
     const pageWindow = window as unknown as Record<string, unknown>;
-    const staleWindow: Record<string, unknown> = {};
-    const currentWindow: Record<string, unknown> = {};
-    const runStale = new Function(
-      "window",
-      "performance",
-      "CustomEvent",
-      compileInjectScript(staleScript, "window.__staleRan = true;")
-    );
-    const runCurrent = new Function(
-      "window",
-      "performance",
-      "CustomEvent",
-      compileInjectScript(currentScript, "window.__currentRan = true;")
-    );
+    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
+    Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: window.location.href });
+    Object.defineProperty(genuine, preInjectScriptDocumentIdKey, { value: "script-executor-test-document" });
+    Object.defineProperty(genuine, "name", { configurable: false, value: JSON.stringify(script) });
 
     try {
-      runStale(staleWindow, performance, CustomEvent);
-      executor.startScripts([currentScript], initEnvInfo);
-      pageWindow[currentScript.flag] = staleWindow[currentScript.flag];
-      expect(pageWindow.__staleRan).toBeUndefined();
-
-      runCurrent(currentWindow, performance, CustomEvent);
-      pageWindow[currentScript.flag] = currentWindow[currentScript.flag];
-      expect(currentWindow.__currentRan).toBe(true);
+      pageWindow[script.flag] = genuine;
+      executor.execEarlyScript(script.flag, initEnvInfo);
+      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
     } finally {
-      delete pageWindow[currentScript.flag];
+      delete pageWindow[script.flag];
     }
   });
 
-  it("continues loading later scripts after a matching script is mounted", () => {
-    const first = makeScript({ uuid: "first-script", flag: "executor-first-batch" });
+  it("continues loading later scripts after reconciling an early-start entry", () => {
+    const early = makeScript({
+      uuid: "early-script",
+      flag: "executor-early-batch",
+      metadata: { "early-start": [""], "run-at": ["document-start"] },
+    });
     const later = makeScript({ uuid: "later-script", flag: "executor-later-batch" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
-    const generatedWindow: Record<string, unknown> = {};
-    const runGenerated = new Function(
-      "window",
-      "performance",
-      "CustomEvent",
-      compileInjectScript(later, "window.__laterRan = true;")
-    );
-    runGenerated(generatedWindow, performance, CustomEvent);
+    executor.execScriptEntry({
+      scriptLoadInfo: early,
+      scriptFlag: early.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: () => undefined,
+    });
+
+    const internal = executor as unknown as {
+      earlyScriptFlags: Set<string>;
+      execScripts: Map<string, { updateEarlyScriptGMInfo: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => void }>;
+    };
+    internal.earlyScriptFlags.add(early.flag);
+    const updateEarlyScriptGMInfo = vi.spyOn(internal.execScripts.get(early.uuid)!, "updateEarlyScriptGMInfo");
+    const genuine = vi.fn();
+    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
     const pageWindow = window as unknown as Record<string, unknown>;
 
     try {
-      executor.startScripts([first, later], initEnvInfo);
-      pageWindow[later.flag] = generatedWindow[later.flag];
+      executor.startScripts([early, later], initEnvInfo);
+      pageWindow[later.flag] = genuine;
 
-      expect(generatedWindow.__laterRan).toBe(true);
+      expect(updateEarlyScriptGMInfo).toHaveBeenCalledWith(initEnvInfo, early);
+      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, later.name);
     } finally {
       delete pageWindow[later.flag];
     }

@@ -3,8 +3,6 @@
 // 在页面或用户脚本替换调用内建函数前完成捕获。
 export const nativeReflectApply = Reflect.apply;
 const nativeFunctionBind = Function.prototype.bind;
-const nativeFunctionToString = Function.prototype.toString;
-const nativeDocument = typeof document === "undefined" ? undefined : document;
 // structuredClone 不用 bind globalThis; nativeStructuredClone 在初期化時捕获。
 const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
 const nativeSetConstructor = Set;
@@ -89,8 +87,6 @@ export const Native = {
   WeakMap: NativeWeakMapConstructor,
   bind: nativeBind,
   reflectApply: nativeReflectApply,
-  functionToString: (fn: object) => nativeReflectApply(nativeFunctionToString, fn, []) as string,
-  document: nativeDocument,
   structuredClone: nativeStructuredClone,
   jsonStringify: nativeBind(JSON.stringify, JSON),
   jsonParse: nativeBind(JSON.parse, JSON),

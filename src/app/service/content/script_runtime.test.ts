@@ -13,7 +13,7 @@ describe("ScriptRuntime DOM bridge", () => {
         handler = callback;
       }),
     } as unknown as Server;
-    const runtime = new ScriptRuntime("ct", server, {} as Message, {} as any);
+    const runtime = new ScriptRuntime("ct", server, {} as Message, {} as any, undefined);
     runtime.contentInit(server, {} as CustomEventMessage);
 
     const getter = vi.fn(() => "secret");
@@ -35,7 +35,7 @@ describe("ScriptRuntime DOM bridge", () => {
         handler = callback;
       }),
     } as unknown as Server;
-    const runtime = new ScriptRuntime("ct", server, {} as Message, {} as any);
+    const runtime = new ScriptRuntime("ct", server, {} as Message, {} as any, undefined);
     runtime.contentInit(server, domMessage);
 
     const result = handler?.({ params: [null, "div", { id: "safe", textContent: "hello" }] });
@@ -72,7 +72,6 @@ describe("ScriptRuntime inject page bootstrap", () => {
         uuid: "inject-script",
         name: "Inject script",
         flag: "inject-script-flag",
-        scriptRevision: "inject-script-revision",
         code: "",
         metadata: { grant: [] },
         resource: {},
@@ -88,7 +87,7 @@ describe("ScriptRuntime inject page bootstrap", () => {
   it("rejects pageLoad payloads with accessors before starting scripts", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
     runtime.init();
 
     const pageLoad = makePageLoad();
@@ -105,7 +104,7 @@ describe("ScriptRuntime inject page bootstrap", () => {
   it("rejects pageLoad payloads whose own-key enumeration throws", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
     runtime.init();
 
     const pageLoad = new Proxy(makePageLoad(), {
@@ -119,54 +118,10 @@ describe("ScriptRuntime inject page bootstrap", () => {
     expect(executor.startScripts).not.toHaveBeenCalled();
   });
 
-  it("rejects pageLoad scripts without a current revision", () => {
-    const { handlers, server } = makeServer();
-    const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
-    runtime.init();
-    const pageLoad = makePageLoad();
-    delete (pageLoad.scripts[0] as { scriptRevision?: string }).scriptRevision;
-
-    handlers.get("pageLoad")?.(pageLoad);
-
-    expect(executor.startScripts).not.toHaveBeenCalled();
-  });
-
-  it("accepts only unprivileged MAIN scripts without fallback bridge credentials", () => {
-    const { handlers, server } = makeServer();
-    const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
-    runtime.init();
-
-    const fallbackPageLoad = makePageLoad();
-    const fallbackScript = fallbackPageLoad.scripts[0] as Record<string, any>;
-
-    handlers.get("pageLoadFallback")?.(fallbackPageLoad);
-    expect(executor.startScripts).not.toHaveBeenCalled();
-
-    delete fallbackScript.executionHandle;
-    delete fallbackScript.executionEnvTag;
-    delete fallbackScript.executionRunFlag;
-    fallbackScript.metadata.grant = ["none"];
-    fallbackScript.value = {};
-    fallbackScript.resource = {};
-    fallbackScript.userConfigStr = "";
-
-    handlers.get("pageLoadFallback")?.(fallbackPageLoad);
-    expect(executor.startScripts).toHaveBeenCalledWith(fallbackPageLoad.scripts, fallbackPageLoad.envInfo, {
-      reconcileEarlyScripts: false,
-    });
-    (executor.startScripts as ReturnType<typeof vi.fn>).mockClear();
-
-    fallbackScript.metadata.grant = ["GM_getValue"];
-    handlers.get("pageLoadFallback")?.(fallbackPageLoad);
-    expect(executor.startScripts).not.toHaveBeenCalled();
-  });
-
   it("rejects callback DTO accessors before entering the script context", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
     runtime.init();
 
     const eventData = { uuid: "script", event: "menuClick", eventId: "1", data: { value: 1 } };
@@ -182,7 +137,7 @@ describe("ScriptRuntime inject page bootstrap", () => {
   it("rejects accessors nested in collection callback payloads", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
     runtime.init();
 
     const getter = vi.fn(() => "secret");
@@ -204,7 +159,7 @@ describe("ScriptRuntime inject page bootstrap", () => {
   it("rejects accessors nested in set callback payloads", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
     runtime.init();
 
     const getter = vi.fn(() => "secret");
@@ -226,7 +181,7 @@ describe("ScriptRuntime inject page bootstrap", () => {
   it("clones valid callback and value-update DTOs before dispatch", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
     runtime.init();
 
     const eventData = { uuid: "script", event: "menuClick", eventId: "1", data: { value: 1 } };
@@ -252,7 +207,7 @@ describe("ScriptRuntime inject page bootstrap", () => {
   it("rejects inject scripts without the current execution binding", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
     runtime.init();
 
     const pageLoad = makePageLoad();
@@ -266,7 +221,7 @@ describe("ScriptRuntime inject page bootstrap", () => {
   it("starts scripts only after validating and cloning the execution binding", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
     runtime.init();
 
     const pageLoad = makePageLoad();
@@ -283,73 +238,10 @@ describe("ScriptRuntime inject page bootstrap", () => {
     expect(envInfo).toEqual(pageLoad.envInfo);
   });
 
-  it("rejects empty inject pageLoads from the page-visible runtime server", () => {
-    const { handlers, server } = makeServer();
-    const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
-    runtime.init();
-    const pageLoad = {
-      scripts: [],
-      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
-    };
-
-    handlers.get("pageLoad")?.(pageLoad);
-    expect(executor.startScripts).not.toHaveBeenCalled();
-
-    handlers.get("pageLoad")?.({ ...pageLoad, purpose: "reconcile" });
-    handlers.get("pageLoadFallback")?.(pageLoad);
-    handlers.get("pageLoadFallback")?.({ ...pageLoad, purpose: "reconcile" });
-
-    expect(executor.startScripts).not.toHaveBeenCalled();
-  });
-
-  it("accepts empty inject reconciliation from the authenticated native pageLoad handler", () => {
-    const { server } = makeServer();
-    const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
-    runtime.init();
-    const pageLoad = {
-      scripts: [],
-      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
-      purpose: "reconcile" as const,
-    };
-
-    runtime.receiveNativePageLoad(pageLoad);
-
-    expect(executor.startScripts).toHaveBeenCalledOnce();
-    expect(executor.startScripts).toHaveBeenCalledWith(pageLoad.scripts, pageLoad.envInfo);
-  });
-
-  it("rejects a reconciliation marker that carries executable scripts", () => {
-    const { handlers, server } = makeServer();
-    const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
-    runtime.init();
-
-    handlers.get("pageLoad")?.({ ...makePageLoad(), purpose: "reconcile" });
-
-    expect(executor.startScripts).not.toHaveBeenCalled();
-  });
-
-  it("rejects native reconciliation metadata from the page-visible fallback", () => {
-    const { handlers, server } = makeServer();
-    const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
-    runtime.init();
-
-    handlers.get("pageLoadFallback")?.({
-      scripts: [],
-      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
-      purpose: "reconcile",
-    });
-
-    expect(executor.startScripts).not.toHaveBeenCalled();
-  });
-
   it("does not execute the same native bootstrap twice after a USER_SCRIPT reconnect", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
     runtime.init();
 
     const first = makePageLoad();
@@ -360,38 +252,10 @@ describe("ScriptRuntime inject page bootstrap", () => {
     expect(executor.startScripts).toHaveBeenCalledOnce();
   });
 
-  it("forwards the native bootstrap after starting page-visible fallback scripts", () => {
-    const { handlers, server } = makeServer();
-    const executor = makeExecutor();
-    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor);
-    runtime.init();
-
-    const fallbackPageLoad = makePageLoad();
-    const fallbackScript = fallbackPageLoad.scripts[0] as Record<string, any>;
-    delete fallbackScript.executionHandle;
-    delete fallbackScript.executionEnvTag;
-    delete fallbackScript.executionRunFlag;
-    fallbackScript.metadata.grant = ["none"];
-    fallbackScript.userConfigStr = "";
-    handlers.get("pageLoadFallback")?.(fallbackPageLoad);
-
-    const nativePageLoad = makePageLoad();
-    handlers.get("pageLoad")?.(nativePageLoad);
-
-    expect(executor.startScripts).toHaveBeenCalledTimes(2);
-    expect(executor.startScripts).toHaveBeenNthCalledWith(
-      1,
-      expect.arrayContaining([expect.objectContaining({ uuid: "inject-script" })]),
-      fallbackPageLoad.envInfo,
-      { reconcileEarlyScripts: false }
-    );
-    expect(executor.startScripts).toHaveBeenNthCalledWith(2, nativePageLoad.scripts, nativePageLoad.envInfo);
-  });
-
   it("keeps the content pageLoad path on the native payload", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
-    const runtime = new ScriptRuntime("ct", server, {} as Message, executor as unknown as ScriptExecutor);
+    const runtime = new ScriptRuntime("ct", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
     runtime.init();
 
     const pageLoad = { scripts: [], envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false } };
@@ -403,7 +267,7 @@ describe("ScriptRuntime inject page bootstrap", () => {
   it("rejects content pageLoad accessors before starting scripts", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
-    const runtime = new ScriptRuntime("ct", server, {} as Message, executor as unknown as ScriptExecutor);
+    const runtime = new ScriptRuntime("ct", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
     runtime.init();
 
     const pageLoad = {
@@ -436,7 +300,7 @@ describe("ScriptRuntime inject page bootstrap", () => {
   it("rejects content callback DTO accessors before dispatch", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
-    const runtime = new ScriptRuntime("ct", server, {} as Message, executor as unknown as ScriptExecutor);
+    const runtime = new ScriptRuntime("ct", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
     runtime.init();
 
     const eventData = { uuid: "script", event: "menuClick", eventId: "1", data: { value: 1 } };

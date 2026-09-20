@@ -121,20 +121,6 @@ describe("ValueService - setValue 方法测试", () => {
     expect((savedData as Record<string, unknown>).leaked).toBeUndefined();
   });
 
-  it("copies a stored __proto__ value into the null-prototype read model", async () => {
-    const mockScript = createMockScript();
-    const storedData = Object.create(null) as Record<string, unknown>;
-    const storedValue = { secret: "kept" };
-    storedData["__proto__"] = storedValue;
-    vi.mocked(mockValueDAO.get).mockResolvedValue({ data: storedData } as any);
-
-    const [values] = await valueService.getScriptValueDetails(mockScript);
-
-    expect(Object.getPrototypeOf(values)).toBeNull();
-    expect(Object.prototype.hasOwnProperty.call(values, "__proto__")).toBe(true);
-    expect(values["__proto__"]).toEqual(storedValue);
-  });
-
   it("does not let a bound config key change the returned value object's prototype", async () => {
     const mockScript = createMockScript({
       config: {

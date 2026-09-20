@@ -10,10 +10,10 @@ import type { Message } from "@Packages/message/types";
 import { getEventFlag } from "@Packages/message/common";
 import { ScriptRuntime } from "./app/service/content/script_runtime";
 import { ScriptEnvTag } from "@Packages/message/consts";
+import { type TExtensionEnv } from "./app/service/extension/extension_env";
 import { connectUserScriptChannel, requestUserScriptReconnect } from "./app/service/content/user_script_connection";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
 import { createMainWorldPageLoadGate } from "./app/service/content/main_world_page_load_gate";
-import { type TExtensionEnv } from "./app/service/extension/extension_env";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
@@ -69,7 +69,7 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
       if (!pendingNativeReady) return;
       nativeConnection = _connection;
       settleNativeReady(true);
-      const nextToken = runtime.receiveNativePageLoad(packet.data);
+      const nextToken = runtime.receivePageLoad(packet.data);
       if (nextToken) reconnectToken = nextToken;
     } else if (packet.action === "inject/runtime/valueUpdate") {
       runtime.receiveValueUpdate(packet.data);
@@ -136,17 +136,17 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   if (pageServer) {
     const pageLoadGate = createMainWorldPageLoadGate(
       openNativeChannel,
+      (data) => runtime.receivePageLoad(data),
       () => {
         void new Client(pageMsg, "scripting").do("pageLoadFallback");
-      },
-      (data) => runtime.receiveFallbackPageLoad(data)
+      }
     );
     pageServer.on("bootstrap", (data: { bootstrapToken?: unknown }) => {
       if (typeof data?.bootstrapToken !== "string" || data.bootstrapToken.length === 0) return;
       reconnectToken = data.bootstrapToken;
       pageLoadGate.onBootstrap(data.bootstrapToken);
     });
-    pageServer.on("pageLoadFallback", pageLoadGate.onFallbackPageLoad);
+    pageServer.on("pageLoad", pageLoadGate.onPageLoad);
   }
   runtime.init();
   if (!pageServer) {

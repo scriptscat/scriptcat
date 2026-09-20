@@ -26,9 +26,7 @@ const createCapability = (api: (...args: any[]) => any, receiver: object) => {
       case 4:
         return api(receiver, arguments[0], arguments[1], arguments[2], arguments[3]);
       default: {
-        // A null-prototype array-like avoids page-controlled Array constructors and index setters.
-        const args = Native.objectCreate(null) as { length: number; [index: number]: unknown };
-        args.length = arguments.length + 1;
+        const args = new Array(arguments.length + 1);
         args[0] = receiver;
         for (let i = 0; i < arguments.length; i += 1) args[i + 1] = arguments[i];
         return Native.reflectApply(api, undefined, args);
@@ -40,10 +38,7 @@ const createCapability = (api: (...args: any[]) => any, receiver: object) => {
     configurable: true,
     value: api.name,
   });
-  Native.objectDefineProperty(capability, "length", {
-    configurable: true,
-    value: api.length > 1 ? api.length - 1 : 0,
-  });
+  Native.objectDefineProperty(capability, "length", { configurable: true, value: 0 });
   return capability;
 };
 
@@ -104,8 +99,6 @@ export const createContext = (
     setInvalidContext() {
       if (invalid) return;
       invalid = true;
-      this.loadScriptResolve?.();
-      this.loadScriptResolve = undefined;
       this.valueChangeListener.clear();
       this.EE.removeAllListeners();
       this.runFlag = `${uuidv4()}(invalid)`; // 更改 uuid 防止 runFlag 相关操作
@@ -178,8 +171,7 @@ export const createContext = (
   };
   // 只能调用捕获的 forEach；此处不依赖页面提供的 Set iterator。
   scriptGrantSet.forEach((grant) => {
-    if (typeof grant !== "string") return;
-    const candidates = getGrantCandidates(grant);
+    const candidates = getGrantCandidates(String(grant));
     for (let i = 0; i < candidates.length; i += 1) {
       const candidate = candidates[i];
       __methodInject__(candidate);
@@ -403,20 +395,20 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
 
   class PseudoWindow {}
   const PseudoWindowPrototype = PseudoWindow.prototype;
-  Native.objectDefineProperty(PseudoWindowPrototype, Symbol.toStringTag, {
+  Object.defineProperty(PseudoWindowPrototype, Symbol.toStringTag, {
     //@ts-ignore
     value: hostWindow[Symbol.toStringTag],
     writable: false,
     enumerable: false,
     configurable: true,
   });
-  Native.objectDefineProperty(PseudoWindowPrototype, "constructor", {
+  Object.defineProperty(PseudoWindowPrototype, "constructor", {
     value: hostWindow.constructor,
     writable: false,
     enumerable: false,
     configurable: true,
   });
-  Native.objectDefineProperty(PseudoWindowPrototype, "__proto__", {
+  Object.defineProperty(PseudoWindowPrototype, "__proto__", {
     //@ts-ignore
     value: hostWindow.__proto__,
     writable: false,
@@ -514,7 +506,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
   // 事件键只需传入沙盒属性；先用捕获的 forEach 转成数组，避免跨 realm 读取 iterator。
   const eventKeyList: string[] = [];
   eventKeys.forEach((key) => {
-    eventKeyList[eventKeyList.length] = key;
+    eventKeyList[eventKeyList.length] = String(key);
   });
   for (let i = 0; i < eventKeyList.length; i += 1) {
     const key = eventKeyList[i];
