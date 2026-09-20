@@ -1107,38 +1107,6 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
     );
   });
 
-  it("GM_setValues avoids inherited numeric setters for its entry arrays", () => {
-    const script = Object.assign({}, scriptRes, {
-      metadata: { grant: ["GM_setValues"] },
-      value: {},
-    }) as ScriptLoadInfo;
-    const api = new GMApi("test", {} as Message, {} as Message, script as unknown as ScriptRunResource);
-    let sentParams: unknown[] | undefined;
-    api.sendMessage = (_name: string, params: any[]) => {
-      sentParams = params;
-      return Promise.resolve(undefined);
-    };
-    const defineProperty = Object.defineProperty;
-    const previousIndexDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, "0");
-    let setterCalls = 0;
-
-    defineProperty(Array.prototype, "0", {
-      configurable: true,
-      set() {
-        setterCalls += 1;
-      },
-    });
-    try {
-      api.GM_setValues(api, { valid: 1 });
-    } finally {
-      if (previousIndexDescriptor) defineProperty(Array.prototype, "0", previousIndexDescriptor);
-      else Reflect.deleteProperty(Array.prototype, "0");
-    }
-
-    expect(setterCalls).toBe(0);
-    expect(sentParams).toEqual([expect.any(String), [["valid", [0, 1]]]]);
-  });
-
   it("拒绝可执行值，且不会把函数写入本地存储或传输层", () => {
     const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
     script.metadata.grant = ["GM_setValue"];
@@ -1610,6 +1578,40 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 
     const ret = await retPromise;
     expect(ret).toEqual(123);
+  });
+});
+
+describe("GM_value hostile intrinsics", () => {
+  it("GM_setValues avoids inherited numeric setters for its entry arrays", () => {
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_setValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const api = new GMApi("test", {} as Message, {} as Message, script as unknown as ScriptRunResource);
+    let sentParams: unknown[] | undefined;
+    api.sendMessage = (_name: string, params: any[]) => {
+      sentParams = params;
+      return Promise.resolve(undefined);
+    };
+    const defineProperty = Object.defineProperty;
+    const previousIndexDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, "0");
+    let setterCalls = 0;
+
+    defineProperty(Array.prototype, "0", {
+      configurable: true,
+      set() {
+        setterCalls += 1;
+      },
+    });
+    try {
+      api.GM_setValues(api, { valid: 1 });
+    } finally {
+      if (previousIndexDescriptor) defineProperty(Array.prototype, "0", previousIndexDescriptor);
+      else Reflect.deleteProperty(Array.prototype, "0");
+    }
+
+    expect(setterCalls).toBe(0);
+    expect(sentParams).toEqual([expect.any(String), [["valid", [0, 1]]]]);
   });
 });
 

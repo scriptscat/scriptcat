@@ -397,17 +397,20 @@ export default class GMApi extends GM_Base {
     }
     const valueStore = a.scriptRes.value;
     const keyValuePairs = [] as [string, REncoded<unknown>][];
-    // Arbitrary positions stay off Array.prototype; the message payload still needs a true array.
-    const valueEntries = Native.objectCreate(null) as { length: number; [index: number]: [string, unknown] };
-    valueEntries.length = 0;
+    // Snapshot descriptors before cloning nested values, whose Proxy traps may mutate the input.
+    const valueEntries: [string, unknown][] = [];
     const valueKeys = Native.reflectOwnKeys(values);
     for (let index = 0; index < valueKeys.length; index += 1) {
       const key = valueKeys[index];
       if (typeof key !== "string") continue;
       const descriptor = Native.objectGetOwnPropertyDescriptor(values, key);
       if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) continue;
-      valueEntries[valueEntries.length] = [key, descriptor.value];
-      valueEntries.length += 1;
+      Native.objectDefineProperty(valueEntries, valueEntries.length, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: [key, descriptor.value],
+      });
     }
     for (let index = 0; index < valueEntries.length; index += 1) {
       const [key, value] = valueEntries[index];
