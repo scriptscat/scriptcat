@@ -14,7 +14,11 @@ const syntaxOnlyConfig = config.filter((entry) => !entry?.languageOptions?.parse
 
 const linter = new Linter({ configType: "flat" });
 
-/** 在指定文件路径下 lint 一段代码，返回非致命诊断的 ruleId 列表；解析失败直接抛出。 */
+/**
+ * 用真实 ESLint flat config 检查虚拟文件，返回非致命诊断的 ruleId 列表。
+ * `filename` 决定配置作用域；解析失败会抛出异常，避免无效夹具伪装成规则放行。
+ * Vitest 用例用 `ruleCountAt({ code, filename, ruleId })` 断言命中数量，并先合并同名虚拟文件的代码片段。
+ */
 function ruleIdsAt({ code, filename }) {
   const messages = linter.verify(code, syntaxOnlyConfig, { filename });
   const fatal = messages.find((m) => m.fatal);
