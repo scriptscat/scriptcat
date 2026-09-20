@@ -312,7 +312,7 @@ describe("ScriptExecutor", () => {
     }
   });
 
-  it("accepts the immutable early manifest through the wrapper name fallback", () => {
+  it("rejects an early manifest carried only by Function.name, without the info descriptor", () => {
     const script = makeScript({ uuid: "executor-early-name-uuid", flag: "#-executor-early-name-uuid" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
     const genuine = vi.fn();
@@ -320,12 +320,13 @@ describe("ScriptExecutor", () => {
     Object.defineProperty(genuine, fnStrIntegrity, { value: true });
     Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: window.location.href });
     Object.defineProperty(genuine, preInjectScriptDocumentIdKey, { value: "script-executor-test-document" });
+    // Function.name 不再是脚本资料的合法来源；只有 preInjectScriptInfoKey 描述符才算数。
     Object.defineProperty(genuine, "name", { configurable: false, value: JSON.stringify(script) });
 
     try {
       pageWindow[script.flag] = genuine;
       executor.execEarlyScript(script.flag, initEnvInfo);
-      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
+      expect(genuine).not.toHaveBeenCalled();
     } finally {
       delete pageWindow[script.flag];
     }

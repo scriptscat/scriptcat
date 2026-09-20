@@ -641,7 +641,7 @@ describe("utils", () => {
       const result = compileInjectScript(script, scriptCode);
 
       expect(result).toBe(
-        `((w, k, fn) => { const d = Object.getOwnPropertyDescriptor(w, k); if (d?.set) { w[k] = fn; } else { let mounted = true; Object.defineProperty(w, k, { configurable: false, enumerable: false, get() { if (!mounted) return undefined; mounted = false; return fn; } }); } })(window, 'inject-test-flag', ((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){console.log('injected');}));`
+        `window['inject-test-flag'] = ((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){console.log('injected');});`
       );
     });
 
@@ -654,7 +654,7 @@ describe("utils", () => {
       expect(result).toContain(`try{delete window['inject-test-flag']}catch(e){}`);
       expect(result).toContain("console.log('with auto delete');");
       expect(result).toBe(
-        `((w, k, fn) => { const d = Object.getOwnPropertyDescriptor(w, k); if (d?.set) { w[k] = fn; } else { let mounted = true; Object.defineProperty(w, k, { configurable: false, enumerable: false, get() { if (!mounted) return undefined; mounted = false; return fn; } }); } })(window, 'inject-test-flag', ((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');}));`
+        `window['inject-test-flag'] = ((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');});`
       );
     });
 
@@ -666,7 +666,7 @@ describe("utils", () => {
 
       expect(result).not.toContain("try{delete window");
       expect(result).toBe(
-        `((w, k, fn) => { const d = Object.getOwnPropertyDescriptor(w, k); if (d?.set) { w[k] = fn; } else { let mounted = true; Object.defineProperty(w, k, { configurable: false, enumerable: false, get() { if (!mounted) return undefined; mounted = false; return fn; } }); } })(window, 'inject-test-flag', ((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){console.log('without auto delete');}));`
+        `window['inject-test-flag'] = ((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){console.log('without auto delete');});`
       );
     });
 
@@ -711,6 +711,8 @@ describe("utils", () => {
 
       const generated = targetWindow[script.flag] as ScriptFunc;
       expect(generated(fnStrIntegrity, {}, {}, script.name)).toBe("ran");
+      // 属性描述符本身必须消失，而不只是读到 undefined 的值。
+      expect(Object.getOwnPropertyDescriptor(targetWindow, script.flag)).toBeUndefined();
       expect(targetWindow[script.flag]).toBeUndefined();
     });
 
@@ -722,7 +724,8 @@ describe("utils", () => {
 
       const generated = targetWindow[script.flag] as ScriptFunc;
       expect(generated(fnStrIntegrity, {}, {}, script.name)).toBe("ran");
-      expect(targetWindow[script.flag]).toBeUndefined();
+      // 未开启自动删除时，挂载函数应可重复读取，不因读取一次而被消费。
+      expect(targetWindow[script.flag]).toBe(generated);
     });
 
     it.concurrent("应该处理复杂的脚本代码", () => {

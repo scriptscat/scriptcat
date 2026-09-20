@@ -38,7 +38,8 @@ const createCapability = (api: (...args: any[]) => any, receiver: object) => {
     configurable: true,
     value: api.name,
   });
-  Native.objectDefineProperty(capability, "length", { configurable: true, value: 0 });
+  // capability 以 `function (this: unknown) {...}` 声明，没有具名形参，
+  // 原生 .length 已经是 0，不需要再显式改写。
   return capability;
 };
 

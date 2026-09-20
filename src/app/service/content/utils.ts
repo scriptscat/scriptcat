@@ -7,7 +7,7 @@ import { ScriptEnvTag } from "@Packages/message/consts";
 import { embeddedPatternCheckerString, type EmbeddedURLRuleEntry, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 import { getGrantCandidates } from "./gm_api/grant";
-import { customClone } from "./global";
+import { customClone, Native } from "./global";
 
 const cloneTransportValue = (value: any) => {
   // USER_SCRIPT 只能接收数据副本；共享 customClone 的 data-only 检查，避免 getter/Proxy 进入页面资料。
@@ -184,7 +184,7 @@ const codeFunction = (
   const infoProperty =
     scriptInfoJSON === undefined
       ? ""
-      : ` Object.defineProperty(f, '${preInjectScriptInfoKey}', { value: ${JSON.stringify(scriptInfoJSON)} }); Object.defineProperty(f, 'name', { configurable: false, value: ${JSON.stringify(scriptInfoJSON)} });${
+      : ` Object.defineProperty(f, '${preInjectScriptInfoKey}', { value: ${JSON.stringify(scriptInfoJSON)} });${
           documentUrlExpression === undefined
             ? ""
             : ` Object.defineProperty(f, '${preInjectScriptDocumentUrlKey}', { value: ${documentUrlExpression} });${
@@ -196,15 +196,15 @@ const codeFunction = (
   return `((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true });${infoProperty} return f; })('${lnStrIntegrity}', '${znRand}' + Math.random(), function(){${code}})`;
 };
 
-// 有 setter 时沿用页面属性语义；否则用不可配置的一次性 getter，避免挂载函数被页面再次取走。
+// 挂载为普通可配置属性：赋值天然兼容页面已安装的 setter，也保留旧版可重复读取/可删除的生命周期语义。
+// 真正的调用鉴权由包装函数自身的完整性标记完成，不依赖这里的属性描述符。
 const mountCodeFunction = (
   flag: string,
   code: string,
   scriptInfoJSON?: string,
   documentUrlExpression?: string,
   documentIdExpression?: string
-) =>
-  `((w, k, fn) => { const d = Object.getOwnPropertyDescriptor(w, k); if (d?.set) { w[k] = fn; } else { let mounted = true; Object.defineProperty(w, k, { configurable: false, enumerable: false, get() { if (!mounted) return undefined; mounted = false; return fn; } }); } })(window, '${flag}', ${codeFunction(code, scriptInfoJSON, documentUrlExpression, documentIdExpression)})`;
+) => `window['${flag}'] = ${codeFunction(code, scriptInfoJSON, documentUrlExpression, documentIdExpression)}`;
 
 const ZFunction = Function;
 
@@ -438,23 +438,23 @@ export function definePropertyListener<T>(obj: any, prop: string, listener: (val
     left?.set === right?.set;
   const current = obj[prop];
   if (current !== undefined) {
-    const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
+    const descriptor = Native.objectGetOwnPropertyDescriptor(obj, prop);
     listener(current);
     // 页面可能在回调里替换属性；只有描述符仍是原来的才可以清理自身监听器。
-    if (sameProperty(descriptor, Object.getOwnPropertyDescriptor(obj, prop)) && descriptor?.configurable) {
+    if (sameProperty(descriptor, Native.objectGetOwnPropertyDescriptor(obj, prop)) && descriptor?.configurable) {
       delete obj[prop];
     }
     return;
   }
   const setter = (val: T) => {
     listener(val);
-    const descriptor = Object.getOwnPropertyDescriptor(obj, prop);
+    const descriptor = Native.objectGetOwnPropertyDescriptor(obj, prop);
     // 不删除页面后来安装的 setter，只删除本函数仍拥有的那一个。
     if (descriptor?.configurable && descriptor.set === setter) {
       delete obj[prop];
     }
   };
-  Object.defineProperty(obj, prop, {
+  Native.objectDefineProperty(obj, prop, {
     configurable: true,
     set: setter,
   });

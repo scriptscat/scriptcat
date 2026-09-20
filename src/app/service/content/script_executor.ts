@@ -180,13 +180,8 @@ export class ScriptExecutor {
     ) {
       return;
     }
-    const scriptInfoJSON =
-      typeof scriptInfoDescriptor?.value === "string"
-        ? scriptInfoDescriptor.value
-        : typeof scriptFunc.name === "string"
-          ? scriptFunc.name
-          : undefined;
-    if (typeof scriptInfoJSON !== "string") return;
+    if (typeof scriptInfoDescriptor?.value !== "string") return;
+    const scriptInfoJSON = scriptInfoDescriptor.value;
     let scriptInfo: TScriptInfo | undefined;
     try {
       scriptInfo = Native.jsonParse(scriptInfoJSON) as TScriptInfo | undefined;
