@@ -397,7 +397,9 @@ export default class GMApi extends GM_Base {
     }
     const valueStore = a.scriptRes.value;
     const keyValuePairs = [] as [string, REncoded<unknown>][];
-    const valueEntries: [string, unknown][] = [];
+    // Arbitrary positions stay off Array.prototype; the message payload still needs a true array.
+    const valueEntries = Native.objectCreate(null) as { length: number; [index: number]: [string, unknown] };
+    valueEntries.length = 0;
     const valueKeys = Native.reflectOwnKeys(values);
     for (let index = 0; index < valueKeys.length; index += 1) {
       const key = valueKeys[index];
@@ -405,6 +407,7 @@ export default class GMApi extends GM_Base {
       const descriptor = Native.objectGetOwnPropertyDescriptor(values, key);
       if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) continue;
       valueEntries[valueEntries.length] = [key, descriptor.value];
+      valueEntries.length += 1;
     }
     for (let index = 0; index < valueEntries.length; index += 1) {
       const [key, value] = valueEntries[index];
@@ -424,7 +427,13 @@ export default class GMApi extends GM_Base {
         setOwnValue(valueStore, key, value_);
       }
       // 避免undefined 等空值流失，先进行映射处理
-      keyValuePairs[keyValuePairs.length] = [key, encodeRValue(value_)];
+      // Keep this a real array for transport while avoiding inherited index setters.
+      Native.objectDefineProperty(keyValuePairs, keyValuePairs.length, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: [key, encodeRValue(value_)],
+      });
     }
     a.sendMessage("GM_setValues", [id, keyValuePairs]);
     return id;

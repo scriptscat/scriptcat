@@ -26,9 +26,11 @@ const createCapability = (api: (...args: any[]) => any, receiver: object) => {
       case 4:
         return api(receiver, arguments[0], arguments[1], arguments[2], arguments[3]);
       default: {
-        const args = new Array(arguments.length + 1);
+        // Reflect.apply accepts an array-like object; a null prototype avoids inherited index setters.
+        const args = Native.objectCreate(null) as { length: number; [index: number]: unknown };
         args[0] = receiver;
         for (let i = 0; i < arguments.length; i += 1) args[i + 1] = arguments[i];
+        args.length = arguments.length + 1;
         return Native.reflectApply(api, undefined, args);
       }
     }
@@ -38,8 +40,10 @@ const createCapability = (api: (...args: any[]) => any, receiver: object) => {
     configurable: true,
     value: api.name,
   });
-  // capability 以 `function (this: unknown) {...}` 声明，没有具名形参，
-  // 原生 .length 已经是 0，不需要再显式改写。
+  Native.objectDefineProperty(capability, "length", {
+    configurable: true,
+    value: api.length > 1 ? api.length - 1 : 0,
+  });
   return capability;
 };
 
@@ -172,7 +176,8 @@ export const createContext = (
   };
   // 只能调用捕获的 forEach；此处不依赖页面提供的 Set iterator。
   scriptGrantSet.forEach((grant) => {
-    const candidates = getGrantCandidates(String(grant));
+    if (typeof grant !== "string") return;
+    const candidates = getGrantCandidates(grant);
     for (let i = 0; i < candidates.length; i += 1) {
       const candidate = candidates[i];
       __methodInject__(candidate);
@@ -396,20 +401,20 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
 
   class PseudoWindow {}
   const PseudoWindowPrototype = PseudoWindow.prototype;
-  Object.defineProperty(PseudoWindowPrototype, Symbol.toStringTag, {
+  Native.objectDefineProperty(PseudoWindowPrototype, Symbol.toStringTag, {
     //@ts-ignore
     value: hostWindow[Symbol.toStringTag],
     writable: false,
     enumerable: false,
     configurable: true,
   });
-  Object.defineProperty(PseudoWindowPrototype, "constructor", {
+  Native.objectDefineProperty(PseudoWindowPrototype, "constructor", {
     value: hostWindow.constructor,
     writable: false,
     enumerable: false,
     configurable: true,
   });
-  Object.defineProperty(PseudoWindowPrototype, "__proto__", {
+  Native.objectDefineProperty(PseudoWindowPrototype, "__proto__", {
     //@ts-ignore
     value: hostWindow.__proto__,
     writable: false,
@@ -436,7 +441,7 @@ const defaultGlobalSnapshot = createGlobalSnapshot({ realmGlobal: global, hostWi
 
 // 把沙盒的 console 和网页的 console 隔离
 const initConsoleDescs = Native.objectGetOwnPropertyDescriptors(console);
-const ConsolePrototype = Object.getPrototypeOf(console);
+const ConsolePrototype = Native.objectGetPrototypeOf(console);
 
 type GMWorldContext = typeof globalThis & Record<PropertyKey, any>;
 
@@ -452,7 +457,11 @@ export const createProxyContext = <const Context extends GMWorldContext>(
 
   const { sharedInitCopy, eventKeys } =
     roots.realmGlobal === global && roots.hostWindow === window ? defaultGlobalSnapshot : createGlobalSnapshot(roots);
-  const ownDescs = Native.objectGetOwnPropertyDescriptors(sharedInitCopy);
+  // Descriptor maps receive page-controlled event names, so keep lookups and writes out of Object.prototype.
+  const ownDescs = Native.objectAssign(
+    Native.objectCreate(null),
+    Native.objectGetOwnPropertyDescriptors(sharedInitCopy)
+  ) as Record<PropertyKey, PropertyDescriptor>;
 
   // mySandbox: ScriptCat各脚本独自使用
   let mySandbox: typeof sharedInitCopy | undefined = undefined;
@@ -504,19 +513,19 @@ export const createProxyContext = <const Context extends GMWorldContext>(
     };
   };
 
-  // 事件键只需传入沙盒属性；先用捕获的 forEach 转成数组，避免跨 realm 读取 iterator。
-  const eventKeyList: string[] = [];
   eventKeys.forEach((key) => {
-    eventKeyList[eventKeyList.length] = String(key);
-  });
-  for (let i = 0; i < eventKeyList.length; i += 1) {
-    const key = eventKeyList[i];
     const eventSetterGetter = createEventProp(key);
-    ownDescs[key] = {
-      ...ownDescs[key],
-      ...eventSetterGetter,
-    };
-  }
+    const ownDescriptor = Native.objectGetOwnPropertyDescriptor(ownDescs, key)?.value as PropertyDescriptor | undefined;
+    Native.objectDefineProperty(ownDescs, key, {
+      configurable: true,
+      enumerable: true,
+      writable: true,
+      value: {
+        ...ownDescriptor,
+        ...eventSetterGetter,
+      },
+    });
+  });
 
   // split realm 下 hostWindow 可能经由 realmGlobal.window 暴露；这些别名必须始终留在当前 sandbox 内。
   const sandboxAliases = ["window", "self", "globalThis"];

@@ -398,6 +398,67 @@ describe("createContext: capability and lifecycle contract", () => {
     }
   });
 
+  it("ignores non-string grants without coercing them", () => {
+    const coerceGrant = vi.fn(() => "GM_getValue");
+    const grant = { [Symbol.toPrimitive]: coerceGrant };
+    const context = createTestContext([grant] as unknown as string[]);
+
+    expect(context.GM_getValue).toBeUndefined();
+    expect(coerceGrant).not.toHaveBeenCalled();
+  });
+
+  it("keeps long capability calls safe from inherited numeric setters and preserves visible arity", () => {
+    const apiValues = GMContextApiGet("GM_getValue")!;
+    const originalApi = apiValues[0].api;
+    let receiver: unknown;
+    const api = function longArgumentProbe(
+      apiContext: unknown,
+      first: number,
+      second: number,
+      third: number,
+      fourth: number,
+      fifth: number,
+      sixth: number,
+      seventh: number
+    ) {
+      receiver = apiContext;
+      return [first, second, third, fourth, fifth, sixth, seventh];
+    };
+    const defineProperty = Object.defineProperty;
+    const previousIndexDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, "0");
+    let setterCalls = 0;
+    let result: unknown;
+    let context: ReturnType<typeof createContext> | undefined;
+    let capability: ((...args: number[]) => unknown) | undefined;
+    let setterInstalled = false;
+
+    apiValues[0].api = api;
+    try {
+      context = createTestContext(["GM_getValue"]);
+      capability = context.GM_getValue;
+      defineProperty(Array.prototype, "0", {
+        configurable: true,
+        set() {
+          setterCalls += 1;
+        },
+      });
+      setterInstalled = true;
+      result = capability!(1, 2, 3, 4, 5, 6, 7);
+    } finally {
+      if (setterInstalled) {
+        if (previousIndexDescriptor) defineProperty(Array.prototype, "0", previousIndexDescriptor);
+        else Reflect.deleteProperty(Array.prototype, "0");
+      }
+      apiValues[0].api = originalApi;
+    }
+
+    expect(capability!.length).toBe(7);
+    expect(setterCalls).toBe(0);
+    expect(receiver).toBeTypeOf("object");
+    expect(receiver).not.toBe(context);
+    expect(result).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
   it("uses the service-worker execution run flag for value acknowledgments", async () => {
     const script = {
       ...createScriptInfo({ grant: ["GM_setValue"] }),
@@ -733,6 +794,23 @@ describe.sequential("createProxyContext: module default split roots", () => {
 });
 
 describe("createProxyContext: deterministic realm contract", () => {
+  it("uses the captured descriptor intrinsic when building the pseudo-window", () => {
+    const fixture = createSplitRealmRoots();
+    const defineProperty = Object.defineProperty;
+    let sandbox: ReturnType<typeof createProxyContext> | undefined;
+
+    Object.defineProperty = (() => {
+      throw new Error("page replaced Object.defineProperty");
+    }) as typeof Object.defineProperty;
+    try {
+      sandbox = createProxyContext(Object.create(null), fixture.roots);
+    } finally {
+      Object.defineProperty = defineProperty;
+    }
+
+    expect(sandbox).toBeDefined();
+  });
+
   it("固定 window/self/globalThis，並把每次 sandbox 的寫入隔離", () => {
     const first = createProxyFixture({ GM_getValue: vi.fn() });
     const second = createProxyFixture({ GM_getValue: vi.fn() });
@@ -920,6 +998,43 @@ describe("createProxyContext: deterministic realm contract", () => {
 
     expect(handler).toHaveBeenCalledTimes(1);
     expect(fixture.eventTarget.listenerCount("message")).toBe(0);
+  });
+
+  it("creates event descriptors without invoking inherited setters", () => {
+    const fixture = createSplitRealmRoots();
+    const defineProperty = Object.defineProperty;
+    const previousEventDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, "onmessage");
+    const previousIndexDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, "0");
+    let setterCalls = 0;
+    let sandbox: ReturnType<typeof createProxyContext> | undefined;
+
+    defineProperty(Array.prototype, "0", {
+      configurable: true,
+      set() {
+        setterCalls += 1;
+      },
+    });
+    defineProperty(Object.prototype, "onmessage", {
+      configurable: true,
+      set() {
+        setterCalls += 1;
+      },
+    });
+    try {
+      sandbox = createProxyContext(Object.create(null), fixture.roots);
+    } finally {
+      if (previousEventDescriptor) defineProperty(Object.prototype, "onmessage", previousEventDescriptor);
+      else Reflect.deleteProperty(Object.prototype, "onmessage");
+      if (previousIndexDescriptor) defineProperty(Array.prototype, "0", previousIndexDescriptor);
+      else Reflect.deleteProperty(Array.prototype, "0");
+    }
+
+    const handler = vi.fn();
+    sandbox!.onmessage = handler;
+    fixture.hostWindow.dispatchEvent(new fixture.TestEvent("message"));
+
+    expect(setterCalls).toBe(0);
+    expect(handler).toHaveBeenCalledTimes(1);
   });
 
   it("host prototype accessor 以最近 descriptor 為準，不被 parent descriptor 覆寫", () => {
