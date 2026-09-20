@@ -40,13 +40,17 @@ describe("harness lint 规则", () => {
     });
 
     it("拦截 i18n.t / i18next.t 的 defaultValue", () => {
-      expect(ruleIdsAt(`i18n.t("k", { defaultValue: "x" });`, "src/pages/foo.tsx")).toContain(RULE);
-      expect(ruleIdsAt(`i18next.t("k", { defaultValue: "x" });`, "src/pages/foo.tsx")).toContain(RULE);
+      const ids = ruleIdsAt(
+        `i18n.t("k", { defaultValue: "x" }); i18next.t("k", { defaultValue: "x" });`,
+        "src/pages/foo.tsx"
+      );
+      expect(ids.filter((id) => id === RULE)).toHaveLength(2);
     });
 
     it("放行不带 defaultValue 的 t() 调用", () => {
-      expect(ruleIdsAt(`const x = t("ns:a.b");`, "src/pages/foo.tsx")).not.toContain(RULE);
-      expect(ruleIdsAt(`const x = t("ns:a.b", { count: 1 });`, "src/pages/foo.tsx")).not.toContain(RULE);
+      expect(
+        ruleIdsAt(`const x = t("ns:a.b"); const y = t("ns:a.b", { count: 1 });`, "src/pages/foo.tsx")
+      ).not.toContain(RULE);
     });
 
     it("不误伤组件的 defaultValue 属性（如 <Tabs defaultValue>）", () => {
@@ -58,8 +62,11 @@ describe("harness lint 规则", () => {
     });
 
     it("拦截可选链 / computed 成员调用中的 defaultValue", () => {
-      expect(ruleIdsAt(`i18n?.t("k", { defaultValue: "x" });`, "src/pages/foo.tsx")).toContain(RULE);
-      expect(ruleIdsAt(`i18next["t"]("k", { defaultValue: "x" });`, "src/pages/foo.tsx")).toContain(RULE);
+      const ids = ruleIdsAt(
+        `i18n?.t("k", { defaultValue: "x" }); i18next["t"]("k", { defaultValue: "x" });`,
+        "src/pages/foo.tsx"
+      );
+      expect(ids.filter((id) => id === RULE)).toHaveLength(2);
     });
 
     it("拦截 computed defaultValue key", () => {
@@ -106,10 +113,10 @@ describe("harness lint 规则", () => {
 
     it("放行设计令牌 bg-background / text-foreground / bg-card", () => {
       expect(
-        ruleIdsAt(`const e = <div className="bg-background text-foreground border-border" />;`, "src/pages/foo.tsx")
-      ).not.toContain(RULE);
-      expect(
-        ruleIdsAt(`const e = <div className={cn("bg-card", "text-muted-foreground")} />;`, "src/pages/foo.tsx")
+        ruleIdsAt(
+          `const e = <div className="bg-background text-foreground border-border" />; const f = <div className={cn("bg-card", "text-muted-foreground")} />;`,
+          "src/pages/foo.tsx"
+        )
       ).not.toContain(RULE);
     });
 
@@ -118,15 +125,19 @@ describe("harness lint 规则", () => {
     });
 
     it("拦截非灰阶 Tailwind 色板（text-red-500 / bg-blue-600）", () => {
-      expect(ruleIdsAt(`const e = <div className="text-red-500" />;`, "src/pages/foo.tsx")).toContain(RULE);
-      expect(ruleIdsAt(`const e = <div className="bg-blue-600" />;`, "src/pages/foo.tsx")).toContain(RULE);
+      const ids = ruleIdsAt(
+        `const e = <div className="text-red-500" />; const f = <div className="bg-blue-600" />;`,
+        "src/pages/foo.tsx"
+      );
+      expect(ids.filter((id) => id === RULE)).toHaveLength(2);
     });
 
     it("拦截带变体和 opacity 后缀的原始色板", () => {
-      expect(ruleIdsAt(`const e = <div className="hover:text-red-500/80" />;`, "src/pages/foo.tsx")).toContain(RULE);
-      expect(ruleIdsAt(`const e = <div className="dark:focus:border-emerald-400" />;`, "src/pages/foo.tsx")).toContain(
-        RULE
+      const ids = ruleIdsAt(
+        `const e = <div className="hover:text-red-500/80" />; const f = <div className="dark:focus:border-emerald-400" />;`,
+        "src/pages/foo.tsx"
       );
+      expect(ids.filter((id) => id === RULE)).toHaveLength(2);
     });
 
     it("拦截 cn() 内的非灰阶原始颜色", () => {
@@ -211,29 +222,30 @@ describe("harness lint 规则", () => {
     });
 
     it("拦截 waitFor 导入别名并放行同名普通函数", () => {
-      expect(
-        ruleIdsAt(
-          `import { waitFor as until } from "@testing-library/react"; until(() => expect(screen.getByText("done")).toBeInTheDocument());`,
-          "src/pages/example.test.tsx"
-        )
-      ).toContain(RULE);
-      expect(
-        ruleIdsAt(
-          `function waitFor(callback) { callback(); } waitFor(() => expect(screen.getByText("done")).toBeInTheDocument());`,
-          "src/pages/example.test.tsx"
-        )
-      ).not.toContain(RULE);
+      const ids = ruleIdsAt(
+        `
+          import { waitFor, waitFor as until } from "@testing-library/react";
+          until(() => expect(screen.getByText("done")).toBeInTheDocument());
+
+          function localCase() {
+            function waitFor(callback) { callback(); }
+            waitFor(() => expect(screen.getByText("done")).toBeInTheDocument());
+          }
+        `,
+        "src/pages/example.test.tsx"
+      );
+      expect(ids.filter((id) => id === RULE)).toHaveLength(1);
     });
 
     it("放行多断言和非存在性断言", () => {
       expect(
         ruleIdsAt(
-          `waitFor(() => { expect(screen.getByText("done")).toBeInTheDocument(); expect(api).toHaveBeenCalled(); });`,
+          `
+            waitFor(() => { expect(screen.getByText("done")).toBeInTheDocument(); expect(api).toHaveBeenCalled(); });
+            waitFor(() => expect(screen.getByRole("button")).toBeEnabled());
+          `,
           "src/pages/example.test.tsx"
         )
-      ).not.toContain(RULE);
-      expect(
-        ruleIdsAt(`waitFor(() => expect(screen.getByRole("button")).toBeEnabled());`, "src/pages/example.test.tsx")
       ).not.toContain(RULE);
     });
   });
@@ -243,12 +255,11 @@ describe("harness lint 规则", () => {
 
     it("拦截 Playwright waitForTimeout 和 timer Promise", () => {
       expect(ruleIdsAt(`await page.waitForTimeout(500);`, "e2e/example.spec.ts")).toContain(RULE);
-      expect(
-        ruleIdsAt(`await new Promise((resolve) => setTimeout(resolve, 0));`, "src/pages/example.test.tsx")
-      ).toContain(RULE);
-      expect(
-        ruleIdsAt(`await new Promise((resolve) => setTimeout(() => resolve(), 0));`, "src/pages/example.test.tsx")
-      ).toContain(RULE);
+      const ids = ruleIdsAt(
+        `await new Promise((resolve) => setTimeout(resolve, 0)); await new Promise((resolve) => setTimeout(() => resolve(), 0));`,
+        "src/pages/example.test.tsx"
+      );
+      expect(ids.filter((id) => id === RULE)).toHaveLength(2);
     });
 
     it("放行带有逐处豁免注释的时序让步和其他 setTimeout", () => {
@@ -266,25 +277,28 @@ describe("harness lint 规则", () => {
     const RULE = "scriptcat/no-test-large-boundary-fixture";
 
     it("拦截显式的一页以上分页边界写法及其 const 别名", () => {
-      expect(
-        ruleIdsAt(
-          `const total = NETWORK_RULES_PAGE_SIZE + 1; const rows = Array.from({ length: total }, makeRow);`,
-          "src/pages/example.test.tsx"
-        )
-      ).toContain(RULE);
-      expect(ruleIdsAt(`Array.from({ length: PAGE_ROWS + 1 }, makeRow);`, "src/pages/example.test.tsx")).toContain(
-        RULE
+      const ids = ruleIdsAt(
+        `
+          const total = NETWORK_RULES_PAGE_SIZE + 1;
+          const rows = Array.from({ length: total }, makeRow);
+          Array.from({ length: PAGE_ROWS + 1 }, makeRow);
+        `,
+        "src/pages/example.test.tsx"
       );
+      expect(ids.filter((id) => id === RULE)).toHaveLength(2);
     });
 
     it("放行非边界夹具和非页面测试", () => {
-      expect(ruleIdsAt(`Array.from({ length: 20 }, makeRow);`, "src/pages/example.test.tsx")).not.toContain(RULE);
-      expect(ruleIdsAt(`Array.from({ length: PAGE_SIZE + 2 }, makeRow);`, "src/pages/example.test.tsx")).not.toContain(
-        RULE
-      );
-      expect(ruleIdsAt(`Array.from({ length: itemCount + 1 }, makeItem);`, "src/pages/example.test.tsx")).not.toContain(
-        RULE
-      );
+      expect(
+        ruleIdsAt(
+          `
+            Array.from({ length: 20 }, makeRow);
+            Array.from({ length: PAGE_SIZE + 2 }, makeRow);
+            Array.from({ length: itemCount + 1 }, makeItem);
+          `,
+          "src/pages/example.test.tsx"
+        )
+      ).not.toContain(RULE);
       expect(ruleIdsAt(`Array.from({ length: PAGE_SIZE + 1 }, makeRow);`, "src/pkg/example.test.ts")).not.toContain(
         RULE
       );
@@ -292,11 +306,15 @@ describe("harness lint 规则", () => {
 
     it("只追踪 const 的单级别名", () => {
       expect(
-        ruleIdsAt(`let total = PAGE_SIZE + 1; Array.from({ length: total }, makeRow);`, "src/pages/example.test.tsx")
-      ).not.toContain(RULE);
-      expect(
         ruleIdsAt(
-          `const total = PAGE_SIZE + 1; const count = total; Array.from({ length: count }, makeRow);`,
+          `
+            let total = PAGE_SIZE + 1;
+            Array.from({ length: total }, makeRow);
+
+            const aliasedTotal = PAGE_SIZE + 1;
+            const count = aliasedTotal;
+            Array.from({ length: count }, makeRow);
+          `,
           "src/pages/example.test.tsx"
         )
       ).not.toContain(RULE);
@@ -305,13 +323,13 @@ describe("harness lint 规则", () => {
     it("放行词法遮蔽和逐处说明的边界夹具", () => {
       expect(
         ruleIdsAt(
-          `const Array = { from() {} }; Array.from({ length: PAGE_SIZE + 1 }, makeRow);`,
-          "src/pages/example.test.tsx"
-        )
-      ).not.toContain(RULE);
-      expect(
-        ruleIdsAt(
-          `// eslint-disable-next-line scriptcat/no-test-large-boundary-fixture -- pagination boundary\nArray.from({ length: PAGE_SIZE + 1 }, makeRow);`,
+          `
+            const Array = { from() {} };
+            Array.from({ length: PAGE_SIZE + 1 }, makeRow);
+
+            // eslint-disable-next-line scriptcat/no-test-large-boundary-fixture -- pagination boundary
+            Array.from({ length: PAGE_SIZE + 1 }, makeRow);
+          `,
           "src/pages/example.test.tsx"
         )
       ).not.toContain(RULE);
