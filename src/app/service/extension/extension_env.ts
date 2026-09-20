@@ -22,12 +22,13 @@ export type NavigatorWithUserAgentData = Navigator & {
     brands: { brand: string; version: string }[];
     mobile: boolean;
     platform: string;
+    getHighEntropyValues?: (hints: string[]) => Promise<{ fullVersionList?: { brand: string; version: string }[] }>;
   };
 };
 
 type ClientHintsArch = {
-  architecture: "x86" | "arm" | "mips";
   bitness: "32" | "64";
+  architecture: "x86" | "arm" | "mips";
 };
 
 const PLATFORM_OS_NAME: Record<string, string> = {
@@ -43,14 +44,32 @@ const PLATFORM_OS_NAME: Record<string, string> = {
 // Chromium 与 Firefox 暴露的架构名称不同；此处归一化 x86/ARM。MIPS 项兼容 Tampermonkey，UA-CH 未定义 MIPS token。
 // 未列出的架构（如 riscv64、ppc64、s390x、sparc64、noarch）不推断 UA-CH 值，因此同时省略 architecture 和 bitness。
 const PLATFORM_ARCH: Partial<Record<string, ClientHintsArch>> = {
-  "x86-32": { architecture: "x86", bitness: "32" },
-  "x86-64": { architecture: "x86", bitness: "64" },
-  arm: { architecture: "arm", bitness: "32" },
-  arm64: { architecture: "arm", bitness: "64" },
-  aarch64: { architecture: "arm", bitness: "64" },
-  mips: { architecture: "mips", bitness: "32" },
-  mips64: { architecture: "mips", bitness: "64" },
+  "x86-32": { bitness: "32", architecture: "x86" },
+  "x86-64": { bitness: "64", architecture: "x86" },
+  arm: { bitness: "32", architecture: "arm" },
+  arm64: { bitness: "64", architecture: "arm" },
+  aarch64: { bitness: "64", architecture: "arm" },
+  mips: { bitness: "32", architecture: "mips" },
+  mips64: { bitness: "64", architecture: "mips" },
 };
+
+/**
+ * Tampermonkey 在 Chromium 上把 `getHighEntropyValues(["fullVersionList"])` 的结果当作 `brands` 输出，
+ * 而非标准低熵 `navigator.userAgentData.brands`（仅主版本号）。不支持或被策略拒绝时静默回退到低熵值，
+ * 这是能力探测而非错误吞没。
+ */
+async function highEntropyBrands(
+  userAgentData: NonNullable<NavigatorWithUserAgentData["userAgentData"]>
+): Promise<{ brand: string; version: string }[]> {
+  if (!userAgentData.getHighEntropyValues) return userAgentData.brands;
+  try {
+    const { fullVersionList } = await userAgentData.getHighEntropyValues(["fullVersionList"]);
+    return fullVersionList?.length ? fullVersionList : userAgentData.brands;
+  } catch (error) {
+    console.warn(error);
+    return userAgentData.brands;
+  }
+}
 
 export const getExtensionEnv = (): TExtensionEnv => ({
   inIncognitoContext: chrome.extension?.inIncognitoContext ?? false,
@@ -79,7 +98,7 @@ export const getExtensionUserAgentData = async (): Promise<GMUserAgentData | nul
   let resultData: GMUserAgentData;
   if (userAgentData) {
     resultData = {
-      brands: userAgentData.brands,
+      brands: await highEntropyBrands(userAgentData),
       mobile: userAgentData.mobile,
       platform: userAgentData.platform,
     } satisfies GMUserAgentData;

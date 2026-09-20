@@ -138,6 +138,58 @@ describe("getExtensionUserAgentData", () => {
     expect(result).toEqual({ brands: [], mobile: false, platform: "Linux" });
   });
 
+  it("uses getHighEntropyValues fullVersionList as brands when available", async () => {
+    const getHighEntropyValues = vi
+      .fn()
+      .mockResolvedValue({ fullVersionList: [{ brand: "Chromium", version: "129.0.6668.100" }] });
+    setNavigatorUserAgentData({
+      brands: [{ brand: "Chromium", version: "129" }],
+      mobile: false,
+      platform: "macOS",
+      getHighEntropyValues,
+    });
+
+    const result = await getExtensionUserAgentData();
+    expect(getHighEntropyValues).toHaveBeenCalledWith(["fullVersionList"]);
+    expect(result?.brands).toEqual([{ brand: "Chromium", version: "129.0.6668.100" }]);
+  });
+
+  it("falls back to low-entropy brands when getHighEntropyValues rejects", async () => {
+    const getHighEntropyValues = vi.fn().mockRejectedValue(new Error("policy denied"));
+    setNavigatorUserAgentData({
+      brands: [{ brand: "Chromium", version: "129" }],
+      mobile: false,
+      platform: "macOS",
+      getHighEntropyValues,
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await getExtensionUserAgentData();
+    expect(result?.brands).toEqual([{ brand: "Chromium", version: "129" }]);
+    expect(warnSpy).toHaveBeenCalled();
+  });
+
+  it("falls back to low-entropy brands when fullVersionList is empty", async () => {
+    const getHighEntropyValues = vi.fn().mockResolvedValue({ fullVersionList: [] });
+    setNavigatorUserAgentData({
+      brands: [{ brand: "Chromium", version: "129" }],
+      mobile: false,
+      platform: "macOS",
+      getHighEntropyValues,
+    });
+
+    const result = await getExtensionUserAgentData();
+    expect(result?.brands).toEqual([{ brand: "Chromium", version: "129" }]);
+  });
+
+  it("orders synthesized fields as brands, mobile, platform, bitness, architecture", async () => {
+    setNavigatorUserAgentData({ brands: [], mobile: false, platform: "macOS" });
+    setPlatformInfo({ os: "mac", arch: "arm64" });
+
+    const result = await getExtensionUserAgentData();
+    expect(Object.keys(result!)).toEqual(["brands", "mobile", "platform", "bitness", "architecture"]);
+  });
+
   it("keeps Chromium userAgentData authoritative when Firefox browser info exists", async () => {
     setNavigatorUserAgentData({ brands: [{ brand: "Chromium", version: "120" }], mobile: false, platform: "Linux" });
     setBrowserInfo(firefoxInfo);
