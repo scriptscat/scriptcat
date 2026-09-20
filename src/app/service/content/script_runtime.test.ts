@@ -66,7 +66,7 @@ describe("ScriptRuntime inject page bootstrap", () => {
     valueUpdate: vi.fn(),
   });
 
-  const makePageLoad = () => ({
+  const makePageLoad = (scriptOverrides: Record<string, unknown> = {}) => ({
     scripts: [
       {
         uuid: "inject-script",
@@ -79,6 +79,7 @@ describe("ScriptRuntime inject page bootstrap", () => {
         executionHandle: "page-binding",
         executionEnvTag: "it",
         executionRunFlag: "page-run",
+        ...scriptOverrides,
       },
     ],
     envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
@@ -236,6 +237,37 @@ describe("ScriptRuntime inject page bootstrap", () => {
       executionRunFlag: "page-run",
     });
     expect(envInfo).toEqual(pageLoad.envInfo);
+  });
+
+  it("passes privileged fallback script data through to the executor", () => {
+    const { handlers, server } = makeServer();
+    const executor = makeExecutor();
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    runtime.init();
+
+    const pageLoad = makePageLoad({
+      metadata: { grant: ["GM_getValue", "GM_setValue"] },
+      value: { stored: "existing-value" },
+      config: { enabled: true },
+      userConfig: { profile: "custom" },
+      userConfigStr: '{"profile":"custom"}',
+      resource: { text: { content: "resource-data", contentType: "text/plain" } },
+      requireCssResource: { style: { content: ".target { color: red; }", contentType: "text/css" } },
+    });
+
+    handlers.get("pageLoad")?.(pageLoad);
+
+    expect(executor.startScripts).toHaveBeenCalledOnce();
+    const [scripts] = executor.startScripts.mock.calls[0];
+    expect(scripts[0]).toMatchObject({
+      metadata: { grant: ["GM_getValue", "GM_setValue"] },
+      value: { stored: "existing-value" },
+      config: { enabled: true },
+      userConfig: { profile: "custom" },
+      userConfigStr: '{"profile":"custom"}',
+      resource: { text: { content: "resource-data", contentType: "text/plain" } },
+      requireCssResource: { style: { content: ".target { color: red; }", contentType: "text/css" } },
+    });
   });
 
   it("does not execute the same native bootstrap twice after a USER_SCRIPT reconnect", () => {

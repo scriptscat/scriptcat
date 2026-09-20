@@ -26,11 +26,26 @@ describe("ScriptingRuntime page bootstrap", () => {
   });
 
   it("requests the combined page list so USER_SCRIPT content receives its bootstrap", async () => {
+    const injectScript = {
+      ...makeScript("inject-script"),
+      name: "Inject script",
+      metadata: { grant: ["GM_getValue", "GM_setValue"] },
+      code: "document.documentElement.dataset.ran = 'yes'",
+      value: { stored: "existing-value" },
+      config: { enabled: true },
+      userConfig: { profile: "custom" },
+      userConfigStr: '{"profile":"custom"}',
+      resource: { text: { content: "resource-data", contentType: "text/plain" } },
+      requireCssResource: { style: { content: ".target { color: red; }", contentType: "text/css" } },
+      executionHandle: "inject-execution-handle",
+      executionRunFlag: "inject-run-flag",
+    } as unknown as TScriptInfo;
+    const envInfo = { userAgentData: {}, sandboxMode: "raw", isIncognito: false } as const;
     const pageLoad = vi.spyOn(RuntimeClient.prototype, "pageLoad").mockResolvedValue({
       ok: true,
-      injectScriptList: [makeScript("inject-script")],
+      injectScriptList: [injectScript],
       contentScriptList: [makeScript("content-script")],
-      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      envInfo,
       userScriptBootstrapToken: "bootstrap-token",
       userScriptInjectBootstrapToken: "inject-bootstrap-token",
     } as TClientPageLoadInfo);
@@ -87,7 +102,13 @@ describe("ScriptingRuntime page bootstrap", () => {
 
       handlers.get("pageLoadFallback")?.({});
       await Promise.resolve();
-      expect(senderToInject.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ action: "inject/pageLoad" }));
+      const fallbackPageLoad = senderToInject.sendMessage.mock.calls.find(
+        ([message]) => message.action === "inject/pageLoad"
+      )?.[0];
+      expect(fallbackPageLoad?.data).toEqual({
+        scripts: [{ ...injectScript, executionEnvTag: "it" }],
+        envInfo,
+      });
     } finally {
       storageLocal.onChanged = originalOnChanged;
     }
