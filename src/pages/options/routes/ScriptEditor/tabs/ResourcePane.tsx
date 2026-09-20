@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { notify } from "@App/pages/components/ui/toast";
-import type { Resource } from "@App/app/repo/resource";
+import { RESOURCE_CHUNK_BYTES, RESOURCE_LIST_PAGE_SIZE, type ResourceListItem } from "@App/app/repo/resource";
 import { fetchScript, resourceClient } from "@App/pages/store/features/script";
-import { base64ToBlob, formatBytes, makeBlobURL } from "@App/pkg/utils/utils";
+import { formatBytes, makeBlobURL } from "@App/pkg/utils/utils";
 import { Badge } from "@App/pages/components/ui/badge";
 import { Button } from "@App/pages/components/ui/button";
 import { DataPanel, DataPanelEmpty, DataPanelHeader, DataPanelRow } from "@App/pages/components/ui/data-panel";
@@ -13,7 +13,7 @@ import { SearchInput } from "@App/pages/components/ui/search-input";
 import { TooltipIconButton } from "@App/pages/components/ui/tooltip-icon-button";
 import { createPreloadableQuery } from "@App/pages/preloadable-query";
 
-type ResItem = Resource & { key: string };
+type ResItem = ResourceListItem;
 
 // 资源类型 -> 展示用的元数据标记
 const TYPE_BADGE: Record<string, string> = {
@@ -31,13 +31,17 @@ const resourcePaneQuery = createPreloadableQuery<string, ResItem[]>({
 
     if (signal.aborted || !script) return [];
 
-    const res = await resourceClient.getScriptResources(script);
-
-    if (signal.aborted) {
-      throw new DOMException("ResourcePane preload aborted", "AbortError");
+    const items: ResItem[] = [];
+    let offset = 0;
+    for (;;) {
+      if (signal.aborted) {
+        throw new DOMException("ResourcePane preload aborted", "AbortError");
+      }
+      const page = await resourceClient.getScriptResources(script, offset, RESOURCE_LIST_PAGE_SIZE);
+      items.push(...page.items);
+      if (page.nextOffset === undefined) return items;
+      offset = page.nextOffset;
     }
-
-    return Object.keys(res).map((k) => ({ ...res[k], key: k }));
   },
 });
 
@@ -61,18 +65,6 @@ export function usePreloadResourcePane(uuid?: string) {
   }, [uuid, t]);
 }
 
-// 估算资源字节大小：优先用文本内容，其次用 base64 解码后的长度
-function resourceByteSize(r: Resource): number {
-  if (r.content) return new Blob([r.content]).size;
-  if (r.base64) {
-    const idx = r.base64.indexOf(",");
-    const b64 = idx >= 0 ? r.base64.slice(idx + 1) : r.base64;
-    const pad = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
-    return Math.max(0, Math.floor((b64.length * 3) / 4) - pad);
-  }
-  return 0;
-}
-
 function fileName(url: string): string {
   return url.split("/").pop() || url;
 }
@@ -92,14 +84,14 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
     return kw ? list.filter((r) => r.key.toLowerCase().includes(kw)) : list;
   }, [list, keyword]);
 
-  const totalBytes = useMemo(() => list.reduce((s, r) => s + resourceByteSize(r), 0), [list]);
+  const totalBytes = useMemo(() => list.reduce((s, r) => s + r.byteSize, 0), [list]);
 
   const onDelete = useCallback(
-    (url: string) => {
+    (resource: ResItem) => {
       resourceClient
-        .deleteResource(url)
+        .deleteResource(resource.url)
         .then(() => {
-          resources.setData((prev) => (prev ?? EMPTY_RESOURCES).filter((r) => r.key !== url));
+          resources.setData((prev) => (prev ?? EMPTY_RESOURCES).filter((r) => r.key !== resource.key));
           notify.success(t("delete_success"));
         })
         .catch((e) => notify.error(`${t("editor:delete_failed")}: ${e.message}`));
@@ -108,7 +100,7 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
   );
 
   const onClear = useCallback(() => {
-    const urls = list.map((r) => r.key);
+    const urls = list.map((r) => r.url);
     Promise.all(urls.map((u) => resourceClient.deleteResource(u)))
       .then(() => {
         resources.setData([]);
@@ -117,10 +109,38 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
       .catch((e) => notify.error(`${t("editor:delete_failed")}: ${e.message}`));
   }, [list, resources, t]);
 
-  const onDownload = useCallback((r: ResItem) => {
-    const url = makeBlobURL({ blob: base64ToBlob(r.base64), persistence: false }) as string;
-    void chrome.downloads.download({ url, saveAs: true, filename: fileName(r.key) });
-  }, []);
+  const onDownload = useCallback(
+    (r: ResItem) => {
+      void (async () => {
+        const chunks: ArrayBuffer[] = [];
+        let offset = 0;
+        while (offset < r.byteSize) {
+          const chunk = await resourceClient.getResourceChunk({
+            uuid,
+            url: r.url,
+            offset,
+            length: Math.min(RESOURCE_CHUNK_BYTES, r.byteSize - offset),
+          });
+          if (chunk.offset !== offset || chunk.total !== r.byteSize || chunk.length === 0) {
+            throw new Error("resource chunk response is inconsistent");
+          }
+          const binary = atob(chunk.base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let index = 0; index < binary.length; index += 1) {
+            bytes[index] = binary.charCodeAt(index);
+          }
+          chunks.push(bytes.buffer as ArrayBuffer);
+          offset += chunk.length;
+        }
+        const url = await makeBlobURL({
+          blob: new Blob(chunks, { type: r.contentType }),
+          persistence: false,
+        });
+        await chrome.downloads.download({ url: url as string, saveAs: true, filename: fileName(r.key) });
+      })().catch((e) => notify.error(`${t("script:operation_failed")}: ${e.message}`));
+    },
+    [t, uuid]
+  );
 
   return (
     <div className="h-full overflow-y-auto scrollbar-custom px-4 py-4 md:px-8 md:py-5">
@@ -189,9 +209,7 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
                 </span>
                 {/* md:contents 让大小/操作在桌面端回到与表头对齐的独立列 */}
                 <div className="flex items-center justify-between gap-2 md:contents">
-                  <span className="font-mono text-muted-foreground md:w-20 md:shrink-0">
-                    {formatBytes(resourceByteSize(r))}
-                  </span>
+                  <span className="font-mono text-muted-foreground md:w-20 md:shrink-0">{formatBytes(r.byteSize)}</span>
                   <div className="flex items-center justify-end gap-1 md:w-16 md:shrink-0">
                     <TooltipIconButton
                       label={t("download")}
@@ -205,7 +223,7 @@ export default function ResourcePane({ uuid }: ResourcePaneProps) {
                       confirmText={t("delete")}
                       cancelText={t("editor:cancel")}
                       side="left"
-                      onConfirm={() => onDelete(r.key)}
+                      onConfirm={() => onDelete(r)}
                     >
                       <TooltipIconButton label={t("delete")} icon={Trash2} size="icon-xs" destructive />
                     </Popconfirm>

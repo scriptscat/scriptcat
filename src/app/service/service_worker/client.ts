@@ -1,5 +1,10 @@
 import type { Script, ScriptCode, ScriptRunResource, TClientPageLoadInfo } from "@App/app/repo/scripts";
-import { type Resource } from "@App/app/repo/resource";
+import {
+  RESOURCE_LIST_PAGE_SIZE,
+  type ResourceChunk,
+  type ResourceChunkRequest,
+  type ResourceListPage,
+} from "@App/app/repo/resource";
 import { type Subscribe } from "@App/app/repo/subscribe";
 import { type Logger } from "@App/app/repo/logger";
 import { type Permission } from "@App/app/repo/permission";
@@ -298,8 +303,12 @@ export class ResourceClient extends Client {
     super(msgSender, "serviceWorker/resource");
   }
 
-  getScriptResources(script: Script): Promise<{ [key: string]: Resource }> {
-    return this.doThrow("getScriptResources", script);
+  getScriptResources(script: Script, offset = 0, limit = RESOURCE_LIST_PAGE_SIZE): Promise<ResourceListPage> {
+    return this.doThrow("getScriptResources", { script, offset, limit });
+  }
+
+  getResourceChunk(params: ResourceChunkRequest): Promise<ResourceChunk> {
+    return this.doThrow("getResourceChunk", params);
   }
 
   deleteResource(url: string) {
