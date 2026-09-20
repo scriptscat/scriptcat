@@ -26,8 +26,8 @@ export type NavigatorWithUserAgentData = Navigator & {
 };
 
 type ClientHintsArch = {
-  architecture: string;
-  bitness: string;
+  architecture: "x86" | "arm" | "mips";
+  bitness: "32" | "64";
 };
 
 const PLATFORM_OS_NAME: Record<string, string> = {
