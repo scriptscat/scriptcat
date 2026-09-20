@@ -8,9 +8,6 @@ import {
   isScriptletUnwrap,
   addStyle,
   addStyleSheet,
-  preInjectScriptDocumentIdKey,
-  preInjectScriptDocumentUrlKey,
-  preInjectScriptInfoKey,
   trimScriptInfo,
 } from "./utils";
 import type { SCMetadata, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
@@ -18,7 +15,6 @@ import type { ScriptFunc } from "./types";
 import { RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
-const znRand = process.env.SC_ZN_RAND!;
 
 type GeneratedWindow = Record<string, unknown>;
 
@@ -640,9 +636,10 @@ describe("utils", () => {
 
       const result = compileInjectScript(script, scriptCode);
 
-      expect(result).toBe(
-        `window['inject-test-flag'] = ((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){console.log('injected');});`
-      );
+      expect(result).toContain("window['inject-test-flag'] =");
+      expect(result).toContain("if (t === k)");
+      expect(result).toContain("function(){console.log('injected');}");
+      expect(result).not.toContain("Object.defineProperty(f, k");
     });
 
     it.concurrent("应该包含自动删除挂载函数的代码", () => {
@@ -653,9 +650,11 @@ describe("utils", () => {
 
       expect(result).toContain(`try{delete window['inject-test-flag']}catch(e){}`);
       expect(result).toContain("console.log('with auto delete');");
-      expect(result).toBe(
-        `window['inject-test-flag'] = ((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');});`
+      expect(result).toContain("try{delete window['inject-test-flag']}catch(e){}");
+      expect(result).toContain(
+        "function(){try{delete window['inject-test-flag']}catch(e){}console.log('with auto delete');}"
       );
+      expect(result).not.toContain("Object.defineProperty(f, k");
     });
 
     it.concurrent("默认情况下不应该包含自动删除代码", () => {
@@ -665,9 +664,8 @@ describe("utils", () => {
       const result = compileInjectScript(script, scriptCode);
 
       expect(result).not.toContain("try{delete window");
-      expect(result).toBe(
-        `window['inject-test-flag'] = ((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true }); return f; })('${fnStrIntegrity}', '${znRand}' + Math.random(), function(){console.log('without auto delete');});`
-      );
+      expect(result).toContain("function(){console.log('without auto delete');}");
+      expect(result).not.toContain("Object.defineProperty(f, k");
     });
 
     it.concurrent("生成的注入脚本应在运行时传递上下文和参数，并清理临时挂载", () => {
@@ -788,21 +786,8 @@ describe("utils", () => {
       );
 
       const generated = targetWindow[script.flag] as ScriptFunc;
-      expect(Object.getOwnPropertyDescriptor(generated, preInjectScriptInfoKey)).toMatchObject({
-        configurable: false,
-        writable: false,
-        value: expect.any(String),
-      });
-      expect(Object.getOwnPropertyDescriptor(generated, preInjectScriptDocumentUrlKey)).toMatchObject({
-        configurable: false,
-        writable: false,
-        value: window.location.href,
-      });
-      expect(Object.getOwnPropertyDescriptor(generated, preInjectScriptDocumentIdKey)).toMatchObject({
-        configurable: false,
-        writable: false,
-        value: expect.any(String),
-      });
+      expect(Reflect.ownKeys(generated)).not.toContain(fnStrIntegrity);
+      expect(Reflect.ownKeys(targetWindow)).toEqual([script.flag]);
       const context = {};
       const named = { value: 42 };
       expect(generated(fnStrIntegrity, context, named, script.name)).toEqual({

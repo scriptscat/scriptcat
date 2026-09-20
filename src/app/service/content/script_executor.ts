@@ -6,9 +6,8 @@ import type { GMInfoEnv, ScriptFunc, ValueUpdateDataEncoded } from "./types";
 import {
   addStyleSheet,
   definePropertyListener,
-  preInjectScriptDocumentIdKey,
-  preInjectScriptDocumentUrlKey,
-  preInjectScriptInfoKey,
+  getCompiledScriptMetadata,
+  isEarlyStartScript,
   waitBody,
 } from "./utils";
 import type { TScriptInfo } from "@App/app/repo/scripts";
@@ -17,9 +16,6 @@ import { pageAddEventListener, pageDispatchEvent } from "@Packages/message/commo
 import { isUrlExcluded } from "@App/pkg/utils/match";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 import { localizeObject, Native } from "./global";
-
-// 与编译器相同的构建级标记，用来拒绝页面伪造的脚本挂载函数。
-const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
 
 export type ExecScriptEntry = {
   scriptLoadInfo: TScriptInfo;
@@ -92,10 +88,14 @@ export class ScriptExecutor {
       }
       const listenForScript = () => {
         definePropertyListener(window, flag, (val: ScriptFunc) => {
-          // 只有扩展生成且不可改写的完整性标记才算有效挂载，页面自建同名函数必须忽略。
-          const descriptor =
-            typeof val === "function" ? Native.objectGetOwnPropertyDescriptor(val, fnStrIntegrity) : undefined;
-          if (descriptor?.value !== true || descriptor.configurable || descriptor.writable) {
+          const metadataJSON = getCompiledScriptMetadata(val);
+          let metadata: { uuid?: unknown; flag?: unknown } | undefined;
+          try {
+            metadata = metadataJSON === undefined ? undefined : (Native.jsonParse(metadataJSON) as typeof metadata);
+          } catch {
+            metadata = undefined;
+          }
+          if (!metadata || metadata.uuid !== script.uuid || metadata.flag !== flag) {
             const mountDescriptor = Native.objectGetOwnPropertyDescriptor(pageWindow, flag);
             if (mountDescriptor?.configurable) {
               delete pageWindow[flag];
@@ -139,58 +139,27 @@ export class ScriptExecutor {
   }
 
   execEarlyScript(flag: string, envInfo: GMInfoEnv) {
-    const scriptFunc = (window as unknown as Record<string, unknown>)[flag] as ScriptFunc;
-    const descriptor =
-      typeof scriptFunc === "function" ? Native.objectGetOwnPropertyDescriptor(scriptFunc, fnStrIntegrity) : undefined;
-    if (descriptor?.value !== true || descriptor.configurable || descriptor.writable) return;
-    // 事件在页面可见，只用预注入函数上的不可改写清单作为脚本资料来源。
-    const scriptInfoDescriptor =
-      typeof scriptFunc === "function"
-        ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptInfoKey)
-        : undefined;
-    if (scriptInfoDescriptor?.configurable || scriptInfoDescriptor?.writable) return;
-    // The wrapper is installed on this document's window. Same-document history changes must not invalidate it;
-    // a full navigation creates a new window and cannot retain the old function.
-    const documentUrlDescriptor =
-      typeof scriptFunc === "function"
-        ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptDocumentUrlKey)
-        : undefined;
-    if (
-      !documentUrlDescriptor ||
-      documentUrlDescriptor.configurable ||
-      documentUrlDescriptor.writable ||
-      typeof documentUrlDescriptor.value !== "string"
-    ) {
-      return;
-    }
-    const documentIdDescriptor =
-      typeof scriptFunc === "function"
-        ? Native.objectGetOwnPropertyDescriptor(scriptFunc, preInjectScriptDocumentIdKey)
-        : undefined;
-    const currentDocumentIdDescriptor = Native.objectGetOwnPropertyDescriptor(window, preInjectScriptDocumentIdKey);
-    if (
-      !documentIdDescriptor ||
-      documentIdDescriptor.configurable ||
-      documentIdDescriptor.writable ||
-      typeof documentIdDescriptor.value !== "string" ||
-      !currentDocumentIdDescriptor ||
-      currentDocumentIdDescriptor.configurable ||
-      currentDocumentIdDescriptor.writable ||
-      currentDocumentIdDescriptor.value !== documentIdDescriptor.value
-    ) {
-      return;
-    }
-    if (typeof scriptInfoDescriptor?.value !== "string") return;
-    const scriptInfoJSON = scriptInfoDescriptor.value;
+    const mountDescriptor = Native.objectGetOwnPropertyDescriptor(window, flag);
+    const scriptFunc =
+      mountDescriptor && "value" in mountDescriptor ? (mountDescriptor.value as ScriptFunc) : undefined;
+    const scriptInfoJSON = getCompiledScriptMetadata(scriptFunc);
+    if (scriptInfoJSON === undefined) return;
     let scriptInfo: TScriptInfo | undefined;
     try {
       scriptInfo = Native.jsonParse(scriptInfoJSON) as TScriptInfo | undefined;
     } catch {
       return;
     }
-    if (!scriptInfo || scriptInfo.flag !== flag) return;
-    const expectedUuid = flag.startsWith("#-") ? flag.slice(2) : undefined;
-    if (expectedUuid && scriptInfo.uuid !== expectedUuid) return;
+    if (
+      !scriptInfo ||
+      scriptInfo.flag !== flag ||
+      typeof scriptInfo.uuid !== "string" ||
+      !scriptInfo.uuid ||
+      (flag.startsWith("#-") && scriptInfo.uuid !== flag.slice(2)) ||
+      !isEarlyStartScript(scriptInfo.metadata || {})
+    ) {
+      return;
+    }
     if (
       scriptInfo.executionHandle !== undefined ||
       scriptInfo.executionEnvTag !== undefined ||

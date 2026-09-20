@@ -1420,7 +1420,9 @@ export class RuntimeService {
         code: originalCode?.code || "",
         require,
         isContextMenu: isContextMenuScript(metadata),
-      })
+      }),
+      false,
+      result.uuid
     );
   }
 

@@ -14,12 +14,28 @@ const cloneTransportValue = (value: any) => {
   return customClone(value);
 };
 
-// 与 rspack 注入的构建级密钥配对；页面只能看到包装函数，拿不到正确的调用标记。
+// The generated wrapper keeps this build token in its closure for trusted execution and inspection.
 const lnStrIntegrity = process.env.SC_RANDOM_FNKEY;
 const znRand = process.env.SC_ZN_RAND;
-export const preInjectScriptInfoKey = `${lnStrIntegrity}:scriptInfo`;
-export const preInjectScriptDocumentUrlKey = `${lnStrIntegrity}:documentUrl`;
-export const preInjectScriptDocumentIdKey = `${lnStrIntegrity}:documentId`;
+
+// Keep this source in sync with the emitted closure; captured native toString checks it before inspection.
+const generatedScriptFunctionSource =
+  "(t, u, ...args) => { if (t === k) { if (u === null) { if (args[0] === d) return m; return } u[y] = fn; return u[y](...((delete u[y]), args)) } }";
+
+export function getCompiledScriptMetadata(scriptFunc: unknown): string | undefined {
+  try {
+    if (typeof scriptFunc !== "function" || Native.functionToString(scriptFunc) !== generatedScriptFunctionSource) {
+      return undefined;
+    }
+    const metadata = Native.document
+      ? Native.reflectApply(scriptFunc, undefined, [lnStrIntegrity, null, Native.document])
+      : undefined;
+    return typeof metadata === "string" ? metadata : undefined;
+  } catch {
+    // A revoked page Proxy can throw during native source inspection; it is not a compiled wrapper.
+    return undefined;
+  }
+}
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -174,37 +190,12 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
   return `${codeBody}${sourceMapTo(`${resource.name}.user.js`)}\n`;
 }
 
-const codeFunction = (
-  code: string,
-  scriptInfoJSON?: string,
-  documentUrlExpression?: string,
-  documentIdExpression?: string
-) => {
-  // 临时方法调用不依赖页面改写的 call、apply、bind；完整性标记也阻止页面直接调用包装器。
-  const infoProperty =
-    scriptInfoJSON === undefined
-      ? ""
-      : ` Object.defineProperty(f, '${preInjectScriptInfoKey}', { value: ${JSON.stringify(scriptInfoJSON)} });${
-          documentUrlExpression === undefined
-            ? ""
-            : ` Object.defineProperty(f, '${preInjectScriptDocumentUrlKey}', { value: ${documentUrlExpression} });${
-                documentIdExpression === undefined
-                  ? ""
-                  : ` Object.defineProperty(f, '${preInjectScriptDocumentIdKey}', { value: ${documentIdExpression} });`
-              }`
-        }`;
-  return `((k, y, fn) => { const f = (t, u, ...args) => { if (t === k) { u[y] = fn; return u[y](...((delete u[y]), args)) } }; Object.defineProperty(f, k, { value: true });${infoProperty} return f; })('${lnStrIntegrity}', '${znRand}' + Math.random(), function(){${code}})`;
-};
+const codeFunction = (code: string, scriptInfoJSON: string) =>
+  `((k, y, m, fn, d) => { const f = ${generatedScriptFunctionSource}; return f; })(${JSON.stringify(lnStrIntegrity)}, ${JSON.stringify(znRand)} + Math.random(), ${JSON.stringify(scriptInfoJSON)}, function(){${code}}, document)`;
 
-// 挂载为普通可配置属性：赋值天然兼容页面已安装的 setter，也保留旧版可重复读取/可删除的生命周期语义。
-// 真正的调用鉴权由包装函数自身的完整性标记完成，不依赖这里的属性描述符。
-const mountCodeFunction = (
-  flag: string,
-  code: string,
-  scriptInfoJSON?: string,
-  documentUrlExpression?: string,
-  documentIdExpression?: string
-) => `window['${flag}'] = ${codeFunction(code, scriptInfoJSON, documentUrlExpression, documentIdExpression)}`;
+// ScriptExecutor authenticates the wrapper closure before passing it a GM context.
+const mountCodeFunction = (flag: string, code: string, scriptInfoJSON: string) =>
+  `window['${flag}'] = ${codeFunction(code, scriptInfoJSON)}`;
 
 const ZFunction = Function;
 
@@ -232,16 +223,18 @@ export function compileInjectScript(
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  return compileInjectScriptByFlag(script.flag, scriptCode, autoDeleteMountFunction);
+  return compileInjectScriptByFlag(script.flag, scriptCode, autoDeleteMountFunction, script.uuid);
 }
 
 export function compileInjectScriptByFlag(
   flag: string,
   scriptCode: string,
-  autoDeleteMountFunction: boolean = false
+  autoDeleteMountFunction: boolean = false,
+  scriptUuid?: string
 ): string {
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
-  return `${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`)};`;
+  const uuid = scriptUuid ?? (flag.startsWith("#-") ? flag.slice(2) : undefined);
+  return `${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`, JSON.stringify({ uuid, flag }))};`;
 }
 
 /**
@@ -335,7 +328,6 @@ export function compilePreInjectScript(
     ? embeddedPatternCheckerString("location.href", JSON.stringify(scriptUrlPatterns))
     : "true";
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
-  const documentIdExpression = `(()=>{const k='${preInjectScriptDocumentIdKey}',d=Object.getOwnPropertyDescriptor(window,k);if(d&&'value'in d&&typeof d.value==='string')return d.value;const v=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);Object.defineProperty(window,k,{configurable:false,writable:false,value:v});return v})()`;
   const evScriptLoad = `${eventNamePrefix}${DefinedFlags.scriptLoadComplete}`;
   const evEnvLoad = `${eventNamePrefix}${DefinedFlags.envLoadComplete}`;
   return `{
@@ -343,7 +335,7 @@ export function compilePreInjectScript(
     f = () => {
     if (!(${urlCondition})) return false;
     if (!mounted) {
-      ${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`, scriptInfoJSON, "location.href", documentIdExpression)};
+      ${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`, scriptInfoJSON)};
       mounted = true;
     }
     const o = { cancelable: true, detail: { scriptFlag: '${flag}' } },

@@ -4,28 +4,13 @@ import type { ScriptLoadInfo } from "../service_worker/types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import type { GMInfoEnv } from "./types";
 import { initEnvInfo, ScriptExecutor } from "./script_executor";
-import {
-  compilePreInjectScript,
-  preInjectScriptDocumentIdKey,
-  preInjectScriptDocumentUrlKey,
-  preInjectScriptInfoKey,
-} from "./utils";
+import { compileInjectScript, compilePreInjectScript } from "./utils";
 import { DefinedFlags } from "../service_worker/runtime.consts";
 import { pageDispatchEvent } from "@Packages/message/common";
 
 const styleUrl = "https://example.com/style.css";
 const secondStyleUrl = "https://example.com/second-style.css";
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
-
-beforeEach(() => {
-  if (!Object.prototype.hasOwnProperty.call(window, preInjectScriptDocumentIdKey)) {
-    Object.defineProperty(window, preInjectScriptDocumentIdKey, {
-      configurable: false,
-      writable: false,
-      value: "script-executor-test-document",
-    });
-  }
-});
 
 function makeScript(overrides: Partial<ScriptLoadInfo & Pick<TScriptInfo, "requireCssResource">> = {}): ScriptLoadInfo {
   return {
@@ -48,6 +33,34 @@ function makeScript(overrides: Partial<ScriptLoadInfo & Pick<TScriptInfo, "requi
     userConfigStr: "",
     ...overrides,
   };
+}
+
+function mountInjectScript(script: ScriptLoadInfo, code: string) {
+  const execute = new Function("window", compileInjectScript(script, code)) as (target: Window) => void;
+  execute(window);
+}
+
+function mountPreInjectScript(script: ScriptLoadInfo) {
+  const performance = { dispatchEvent: vi.fn(() => false), addEventListener: vi.fn() };
+  const execute = new Function("window", "performance", "CustomEvent", compilePreInjectScript(script, "")) as (
+    target: Window,
+    perf: typeof performance,
+    customEvent: typeof CustomEvent
+  ) => void;
+  execute(window, performance, CustomEvent);
+  return performance;
+}
+
+function attachLegacyPreInjectMetadata(scriptFunc: (...args: unknown[]) => unknown, scriptInfo: TScriptInfo) {
+  const documentId = "script-executor-test-document";
+  const documentIdKey = `${fnStrIntegrity}:documentId`;
+  if (!Object.prototype.hasOwnProperty.call(window, documentIdKey)) {
+    Object.defineProperty(window, documentIdKey, { configurable: false, writable: false, value: documentId });
+  }
+  Object.defineProperty(scriptFunc, fnStrIntegrity, { value: true });
+  Object.defineProperty(scriptFunc, `${fnStrIntegrity}:scriptInfo`, { value: JSON.stringify(scriptInfo) });
+  Object.defineProperty(scriptFunc, `${fnStrIntegrity}:documentUrl`, { value: window.location.href });
+  Object.defineProperty(scriptFunc, documentIdKey, { value: documentId });
 }
 
 describe("ScriptExecutor", () => {
@@ -144,57 +157,106 @@ describe("ScriptExecutor", () => {
     });
   });
 
-  it("ignores a counterfeit mount and keeps listening for the genuine wrapper", () => {
+  it("ignores a counterfeit mount with a copied marker and keeps listening for the genuine wrapper", () => {
     const script = makeScript({ flag: "executor-counterfeit-flag" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
-    const attackerTarget = vi.fn();
-    const attacker = new Proxy(attackerTarget, {
-      getOwnPropertyDescriptor(target, property) {
-        if (property === fnStrIntegrity) {
-          return { configurable: true, enumerable: false, value: true, writable: true };
-        }
-        return Object.getOwnPropertyDescriptor(target, property);
-      },
-    });
-    const genuine = vi.fn();
     const pageWindow = window as unknown as Record<string, unknown>;
-    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
+    const attacker = vi.fn((_token: string, context: unknown) => {
+      Reflect.set(pageWindow, "__capturedExecutionContext", context);
+    });
+    Object.defineProperty(attacker, fnStrIntegrity, { value: true });
 
     try {
       executor.startScripts([script], initEnvInfo);
       pageWindow[script.flag] = attacker;
 
-      expect(attackerTarget).not.toHaveBeenCalled();
+      expect(attacker).not.toHaveBeenCalled();
+      expect(pageWindow.__capturedExecutionContext).toBeUndefined();
 
-      pageWindow[script.flag] = genuine;
-
-      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
+      mountInjectScript(script, "window.__genuineWrapperExecuted = true;");
+      expect(pageWindow.__genuineWrapperExecuted).toBe(true);
+      expect(attacker).not.toHaveBeenCalled();
     } finally {
       delete pageWindow[script.flag];
+      delete pageWindow.__capturedExecutionContext;
+      delete pageWindow.__genuineWrapperExecuted;
     }
   });
 
   it("rejects a counterfeit early-start wrapper before execution", () => {
-    const script = makeScript({ flag: "executor-counterfeit-early-flag" });
+    const script = makeScript({
+      uuid: "executor-counterfeit-early-uuid",
+      flag: "#-executor-counterfeit-early-uuid",
+      metadata: { "early-start": [""], "run-at": ["document-start"] },
+    });
     const executor = new ScriptExecutor({} as Message, {} as Message);
     const attacker = vi.fn();
-    const genuine = vi.fn();
     const pageWindow = window as unknown as Record<string, unknown>;
-    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
 
     try {
       pageWindow[script.flag] = attacker;
       executor.execEarlyScript(script.flag, initEnvInfo);
       expect(attacker).not.toHaveBeenCalled();
 
-      pageWindow[script.flag] = genuine;
-      Object.defineProperty(genuine, preInjectScriptInfoKey, { value: JSON.stringify(script) });
-      Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: window.location.href });
-      Object.defineProperty(genuine, preInjectScriptDocumentIdKey, { value: "script-executor-test-document" });
-      executor.execEarlyScript(script.flag, initEnvInfo);
-      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
+      mountPreInjectScript(script);
+      expect(executor.execEarlyScript(script.flag, initEnvInfo)).toBe(true);
     } finally {
       delete pageWindow[script.flag];
+    }
+  });
+
+  it("rejects page-copied early-start metadata on a counterfeit function", () => {
+    const script = makeScript({
+      uuid: "executor-forged-early-uuid",
+      flag: "#-executor-forged-early-uuid",
+      metadata: { "early-start": [""], "run-at": ["document-start"] },
+    });
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    const counterfeit = vi.fn();
+    attachLegacyPreInjectMetadata(counterfeit, script);
+
+    try {
+      (window as unknown as Record<string, unknown>)[script.flag] = counterfeit;
+      expect(executor.execEarlyScript(script.flag, initEnvInfo)).toBeUndefined();
+      expect(counterfeit).not.toHaveBeenCalled();
+    } finally {
+      delete (window as unknown as Record<string, unknown>)[script.flag];
+    }
+  });
+
+  it("uses captured function source inspection when the page replaces toString", () => {
+    const script = makeScript({ flag: "executor-spoofed-to-string-flag" });
+    const targetWindow: Record<string, unknown> = {};
+    const execute = new Function("window", compileInjectScript(script, "")) as (
+      target: Record<string, unknown>
+    ) => void;
+    execute(targetWindow);
+    const genuineSource = Function.prototype.toString.call(targetWindow[script.flag]);
+    const attacker = vi.fn((token: string, target: unknown, marker: unknown) => {
+      if (token === fnStrIntegrity && target === null && marker === document) {
+        return JSON.stringify({ uuid: script.uuid, flag: script.flag });
+      }
+      Reflect.set(targetWindow, "__capturedExecutionContext", target);
+    });
+    Object.defineProperty(attacker, fnStrIntegrity, { value: true });
+    const originalToString = Function.prototype.toString;
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    const pageWindow = window as unknown as Record<string, unknown>;
+
+    try {
+      Function.prototype.toString = function () {
+        return genuineSource;
+      };
+      executor.startScripts([script], initEnvInfo);
+      pageWindow[script.flag] = attacker;
+
+      expect(attacker).not.toHaveBeenCalled();
+      expect(targetWindow.__capturedExecutionContext).toBeUndefined();
+    } finally {
+      Function.prototype.toString = originalToString;
+      delete pageWindow[script.flag];
+      delete targetWindow[script.flag];
+      delete targetWindow.__capturedExecutionContext;
     }
   });
 
@@ -204,14 +266,8 @@ describe("ScriptExecutor", () => {
     const wrongUuid = vi.fn();
     const bound = vi.fn();
     const pageWindow = window as unknown as Record<string, unknown>;
-    Object.defineProperty(wrongUuid, fnStrIntegrity, { value: true });
-    Object.defineProperty(wrongUuid, preInjectScriptInfoKey, {
-      value: JSON.stringify({ ...script, uuid: "other-script" }),
-    });
-    Object.defineProperty(bound, fnStrIntegrity, { value: true });
-    Object.defineProperty(bound, preInjectScriptInfoKey, {
-      value: JSON.stringify({ ...script, executionHandle: "other-binding" }),
-    });
+    attachLegacyPreInjectMetadata(wrongUuid, { ...script, uuid: "other-script" } as TScriptInfo);
+    attachLegacyPreInjectMetadata(bound, { ...script, executionHandle: "other-binding" } as TScriptInfo);
 
     try {
       pageWindow[script.flag] = wrongUuid;
@@ -230,7 +286,12 @@ describe("ScriptExecutor", () => {
     const script = makeScript({
       uuid: "executor-early-authenticated-uuid",
       flag: "#-executor-early-authenticated-uuid",
-      metadata: { grant: ["GM_getValue", "GM_getResourceText"], resource: ["canonical https://example.com/canonical"] },
+      metadata: {
+        grant: ["GM_getValue", "GM_getResourceText"],
+        resource: ["canonical https://example.com/canonical"],
+        "early-start": [""],
+        "run-at": ["document-start"],
+      },
       resource: {
         canonical: {
           url: "https://example.com/canonical",
@@ -291,43 +352,21 @@ describe("ScriptExecutor", () => {
   });
 
   it("accepts an early-start wrapper after a same-document URL change", () => {
-    const script = makeScript({ uuid: "executor-early-document-uuid", flag: "#-executor-early-document-uuid" });
+    const script = makeScript({
+      uuid: "executor-early-document-uuid",
+      flag: "#-executor-early-document-uuid",
+      metadata: { "early-start": [""], "run-at": ["document-start"] },
+    });
     const executor = new ScriptExecutor({} as Message, {} as Message);
-    const genuine = vi.fn();
     const pageWindow = window as unknown as Record<string, unknown>;
     const initialUrl = window.location.href;
-    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
-    Object.defineProperty(genuine, preInjectScriptInfoKey, { value: JSON.stringify(script) });
-    Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: initialUrl });
-    Object.defineProperty(genuine, preInjectScriptDocumentIdKey, { value: "script-executor-test-document" });
 
     try {
       window.history.pushState({}, "", `${initialUrl}#same-document-change`);
-      pageWindow[script.flag] = genuine;
-      executor.execEarlyScript(script.flag, initEnvInfo);
-      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, script.name);
+      mountPreInjectScript(script);
+      expect(executor.execEarlyScript(script.flag, initEnvInfo)).toBe(true);
     } finally {
       window.history.replaceState({}, "", initialUrl);
-      delete pageWindow[script.flag];
-    }
-  });
-
-  it("rejects an early manifest carried only by Function.name, without the info descriptor", () => {
-    const script = makeScript({ uuid: "executor-early-name-uuid", flag: "#-executor-early-name-uuid" });
-    const executor = new ScriptExecutor({} as Message, {} as Message);
-    const genuine = vi.fn();
-    const pageWindow = window as unknown as Record<string, unknown>;
-    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
-    Object.defineProperty(genuine, preInjectScriptDocumentUrlKey, { value: window.location.href });
-    Object.defineProperty(genuine, preInjectScriptDocumentIdKey, { value: "script-executor-test-document" });
-    // Function.name 不再是脚本资料的合法来源；只有 preInjectScriptInfoKey 描述符才算数。
-    Object.defineProperty(genuine, "name", { configurable: false, value: JSON.stringify(script) });
-
-    try {
-      pageWindow[script.flag] = genuine;
-      executor.execEarlyScript(script.flag, initEnvInfo);
-      expect(genuine).not.toHaveBeenCalled();
-    } finally {
       delete pageWindow[script.flag];
     }
   });
@@ -353,16 +392,14 @@ describe("ScriptExecutor", () => {
     };
     internal.earlyScriptFlags.add(early.flag);
     const updateEarlyScriptGMInfo = vi.spyOn(internal.execScripts.get(early.uuid)!, "updateEarlyScriptGMInfo");
-    const genuine = vi.fn();
-    Object.defineProperty(genuine, fnStrIntegrity, { value: true });
     const pageWindow = window as unknown as Record<string, unknown>;
 
     try {
       executor.startScripts([early, later], initEnvInfo);
-      pageWindow[later.flag] = genuine;
+      mountInjectScript(later, "");
 
       expect(updateEarlyScriptGMInfo).toHaveBeenCalledWith(initEnvInfo, early);
-      expect(genuine).toHaveBeenCalledWith(fnStrIntegrity, expect.anything(), undefined, later.name);
+      expect(internal.execScripts.has(later.uuid)).toBe(true);
     } finally {
       delete pageWindow[later.flag];
     }
