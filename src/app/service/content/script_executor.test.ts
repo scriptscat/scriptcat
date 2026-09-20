@@ -205,6 +205,71 @@ describe("ScriptExecutor", () => {
     }
   });
 
+  it("rejects an own toString spoof that impersonates the generated wrapper", () => {
+    const script = makeScript({
+      uuid: "executor-own-to-string-uuid",
+      flag: "#-executor-own-to-string-uuid",
+      metadata: { "early-start": [""], "run-at": ["document-start"] },
+    });
+    const pageWindow = window as unknown as Record<string, unknown>;
+    mountPreInjectScript(script);
+    const genuineSource = Function.prototype.toString.call(pageWindow[script.flag]);
+    const attacker = vi.fn((token: string, context: unknown, marker: unknown) => {
+      if (context === null && marker === document) return JSON.stringify(script);
+      Reflect.set(pageWindow, "__capturedExecutionContext", context);
+      return undefined;
+    });
+    Object.defineProperty(attacker, "toString", { value: () => genuineSource });
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+
+    try {
+      pageWindow[script.flag] = attacker;
+
+      expect(executor.execEarlyScript(script.flag, initEnvInfo)).toBeUndefined();
+      expect(attacker).not.toHaveBeenCalled();
+      expect(pageWindow.__capturedExecutionContext).toBeUndefined();
+    } finally {
+      delete pageWindow[script.flag];
+      delete pageWindow.__capturedExecutionContext;
+    }
+  });
+
+  it("uses captured function source inspection when the page replaces toString", () => {
+    const script = makeScript({ flag: "executor-spoofed-to-string-flag" });
+    const targetWindow: Record<string, unknown> = {};
+    const execute = new Function("window", compileInjectScript(script, "")) as (
+      target: Record<string, unknown>
+    ) => void;
+    execute(targetWindow);
+    const genuineSource = Function.prototype.toString.call(targetWindow[script.flag]);
+    const attacker = vi.fn((token: string, target: unknown, marker: unknown) => {
+      if (token === fnStrIntegrity && target === null && marker === document) {
+        return JSON.stringify({ uuid: script.uuid, flag: script.flag });
+      }
+      Reflect.set(targetWindow, "__capturedExecutionContext", target);
+    });
+    Object.defineProperty(attacker, fnStrIntegrity, { value: true });
+    const originalToString = Function.prototype.toString;
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    const pageWindow = window as unknown as Record<string, unknown>;
+
+    try {
+      Function.prototype.toString = function () {
+        return genuineSource;
+      };
+      executor.startScripts([script], initEnvInfo);
+      pageWindow[script.flag] = attacker;
+
+      expect(attacker).not.toHaveBeenCalled();
+      expect(targetWindow.__capturedExecutionContext).toBeUndefined();
+    } finally {
+      Function.prototype.toString = originalToString;
+      delete pageWindow[script.flag];
+      delete targetWindow[script.flag];
+      delete targetWindow.__capturedExecutionContext;
+    }
+  });
+
   it("rejects page-copied early-start metadata on a counterfeit function", () => {
     const script = makeScript({
       uuid: "executor-forged-early-uuid",
