@@ -228,10 +228,9 @@ Service Worker (src/service_worker.ts)
 > USER_SCRIPT content and MAIN inject runtimes normally use native extension channels directly to the SW.
 > The `scripting` bundle is a document-start extension content script registered per matching frame. It runs a
 > page-bridge runtime and is a supporting per-document helper rather than a separate service/background context in
-> this five-context model. `CustomEventMessage` carries the content bootstrap handoff and synchronous DOM handles.
-> `PageMessage` carries MAIN bootstrap/fallback traffic and the whitelisted `external.Scriptcat` API; supported MAIN
-> runtime updates use the native extension channel. When MAIN GM RPC falls back through `PageMessage`, the scripting
-> runtime validates its execution handle and grant before forwarding it to the SW.
+> this five-context model. Those bridges carry the content bootstrap handoff, MAIN bootstrap/fallback and runtime update packets,
+> synchronous DOM handles, and the whitelisted `external.Scriptcat` API. When MAIN GM RPC falls back through
+> `PageMessage`, the scripting runtime validates its execution handle and grant before forwarding it to the SW.
 
 - **Service Worker** — central hub for script CRUD, Chrome APIs, permission verification, resource caching, and message routing.
 - **Content** — bridges SW and inject script.

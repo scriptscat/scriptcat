@@ -41,32 +41,12 @@ content script that supplies the page bridge. At document time the content/injec
 [`exec_script.ts`](../../src/app/service/content/exec_script.ts)) evaluates the compiled function with the GM
 context. The `USER_SCRIPT` content path obtains its matched scripts directly from the service worker over
 `ExtensionMessage` after a bootstrap-token handoff. The MAIN `inject` path uses a native extension port for GM RPC
-when available. `PageMessage` carries page-visible bootstrap traffic, the whitelisted `external.Scriptcat` API,
-and a restricted MAIN fallback used only when native channel setup is unavailable or fails. That fallback can start
-only scripts without GM grants or private values, configuration, or resources. Supported MAIN execution handles, GM RPC,
-events, and value updates use the native extension channel; the compatibility page-bridge RPC path validates its
-execution handle and grant before forwarding. The restricted fallback does not establish an authenticated
-extension origin, so it must reject privileged scripts and execution bindings. `CustomEventMessage` carries the
-content bootstrap handoff and synchronous DOM references. Neither page-visible bridge establishes an
-authenticated extension origin, so consumers must validate its payloads before acting on them.
-
-After the MAIN page-load gate selects the restricted fallback, it ignores later page-visible bootstrap events. A
-previously established native port can still reconnect through its separate disconnect handler. If that reconnect
-delivers a native `pageLoad` after a matching fallback execution has started, the same UUID, flag, and compiled
-revision let the executor add the trusted binding without running the script body again.
-
-MAIN `@early-start` scripts retain upstream's synchronous execution before `pageLoad`. The page event supplies only
-the script flag; the executor accepts the generated wrapper only when its captured source, closure manifest, and
-document match. The closure-private preinject manifest omits stored values and user configuration while retaining
-declared resources; the page event exposes only the flag. Brokered GM calls wait for a matching UUID, flag, and
-compiled revision from `pageLoad`; `ScriptExecutor` drops value/event packets that reach it for an early script before
-that binding is installed instead of queuing them. For a registered user-script session, the service worker
-separately buffers matching value updates while its connection is not ready and flushes them after sending
-`pageLoad`. Empty-script reconciliation is accepted only by the authenticated native page-load handler; page-visible
-fallback scripts do not reconcile or invalidate early state. Synchronous DOM helpers and resource getters retain
-their early-start behavior before that binding arrives. If a registration is stale, disabled, or removed, its body
-and declared resource reads may already have affected the page before this check; invalidation cannot undo those
-page effects.
+when available; `PageMessage` carries page-visible bootstrap/fallback traffic, MAIN event/value updates, the
+whitelisted `external.Scriptcat` API, and the MAIN GM RPC fallback through the `scripting` bundle. That fallback
+is checked against the current `PageRpcRegistry` execution handle and grant before it is forwarded to the service
+worker. `CustomEventMessage` carries the content bootstrap handoff and synchronous DOM references. Neither
+page-visible bridge establishes an authenticated extension origin, so consumers must validate its payloads before
+acting on them.
 
 ### Path B — Background scripts → Offscreen → Sandbox
 

@@ -22,4 +22,4 @@ document），细节见
   重连/状态恢复，而不是假定连接一直存活——这不是禁止在 service_worker 上使用 `connect`，只是需要为其生命周期设计容错。
 - USER_SCRIPT content 和 MAIN inject 优先使用 `ExtensionMessage` 原生扩展通道；服务端区分浏览器提供的 USER_SCRIPT 来源，并把 MAIN 或专用监听器不可用时的普通端口绑定到文档 bootstrap token。
 - `Server("serviceWorker")` 对浏览器标记的 `userScript` 来源仅允许 `connect()` 使用 `runtime/registerUserScript` 或 `runtime/gmApi`，仅允许 `sendMessage()` 使用 `runtime/gmApi` 或 `runtime/reconnectUserScript`；普通 extension 端口不带该来源标记，USER_SCRIPT / MAIN 的注册回退路径会在 `runtime/registerUserScript` 握手中校验文档 bootstrap token。
-- `CustomEventMessage` 和 `PageMessage` 是页面可见的桥：前者承载 content bootstrap 交接与同步 DOM 节点引用，后者承载 MAIN bootstrap/fallback、白名单 `external.Scriptcat` API，以及经 `scripting` 中转的 GM RPC fallback。受支持的 MAIN 运行时事件和值更新通过原生扩展通道传输。它们不提供已认证的扩展来源；`PageMessage` 的 GM RPC 在转发前必须通过 `PageRpcRegistry` 的执行句柄与 grant 校验。
+- `CustomEventMessage` 和 `PageMessage` 是页面可见的桥：前者承载 content bootstrap 交接与同步 DOM 节点引用，后者承载 MAIN bootstrap/fallback、事件/值更新、白名单 `external.Scriptcat` API，以及经 `scripting` 中转的 GM RPC fallback。它们不提供已认证的扩展来源；`PageMessage` 的 GM RPC 在转发前必须通过 `PageRpcRegistry` 的执行句柄与 grant 校验。
