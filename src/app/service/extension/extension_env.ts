@@ -17,7 +17,7 @@ export type RuntimeWithBrowserInfo = typeof chrome.runtime & {
   getBrowserInfo?: () => Promise<BrowserInfo>;
 };
 
-type NavigatorWithUserAgentData = Navigator & {
+export type NavigatorWithUserAgentData = Navigator & {
   userAgentData?: {
     brands: { brand: string; version: string }[];
     mobile: boolean;
@@ -83,10 +83,7 @@ export const getExtensionUserAgentData = async (): Promise<GMUserAgentData | nul
       mobile: userAgentData.mobile,
       platform: userAgentData.platform,
     } satisfies GMUserAgentData;
-  } else {
-    if (!runtime.getBrowserInfo) {
-      return null;
-    }
+  } else if (runtime.getBrowserInfo) {
     try {
       const browserInfo = await runtime.getBrowserInfo();
       resultData = {
@@ -101,6 +98,8 @@ export const getExtensionUserAgentData = async (): Promise<GMUserAgentData | nul
       console.warn(error);
       return null;
     }
+  } else {
+    return null;
   }
 
   const architecture = platformInfo && PLATFORM_ARCH[platformInfo.arch];

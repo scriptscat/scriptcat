@@ -1,14 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { extensionEnv, getExtensionEnv, getExtensionUserAgentData } from "./extension_env";
-import type { BrowserInfo, RuntimeWithBrowserInfo } from "./extension_env";
-
-type NavigatorWithUserAgentData = Navigator & {
-  userAgentData?: {
-    brands: { brand: string; version: string }[];
-    mobile: boolean;
-    platform: string;
-  };
-};
+import type { BrowserInfo, NavigatorWithUserAgentData, RuntimeWithBrowserInfo } from "./extension_env";
 
 type PlatformInfoFixture = {
   os: string;
@@ -199,6 +191,15 @@ describe("getExtensionUserAgentData", () => {
       architecture: "arm",
       bitness: "64",
     });
+  });
+
+  it("没有 chrome.runtime.getPlatformInfo 时 Firefox 分支只返回基础字段", async () => {
+    setNavigatorUserAgentData(undefined);
+    setBrowserInfo(firefoxInfo);
+    Object.defineProperty(chrome.runtime, "getPlatformInfo", { configurable: true, value: undefined });
+
+    const result = await getExtensionUserAgentData();
+    expect(result).toEqual({ brands: [{ brand: "Firefox", version: "156.0" }], mobile: false });
   });
 
   it("continues with Firefox low-entropy fields when getPlatformInfo rejects", async () => {
