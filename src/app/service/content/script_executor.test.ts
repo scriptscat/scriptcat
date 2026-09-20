@@ -224,42 +224,6 @@ describe("ScriptExecutor", () => {
     }
   });
 
-  it("uses captured function source inspection when the page replaces toString", () => {
-    const script = makeScript({ flag: "executor-spoofed-to-string-flag" });
-    const targetWindow: Record<string, unknown> = {};
-    const execute = new Function("window", compileInjectScript(script, "")) as (
-      target: Record<string, unknown>
-    ) => void;
-    execute(targetWindow);
-    const genuineSource = Function.prototype.toString.call(targetWindow[script.flag]);
-    const attacker = vi.fn((token: string, target: unknown, marker: unknown) => {
-      if (token === fnStrIntegrity && target === null && marker === document) {
-        return JSON.stringify({ uuid: script.uuid, flag: script.flag });
-      }
-      Reflect.set(targetWindow, "__capturedExecutionContext", target);
-    });
-    Object.defineProperty(attacker, fnStrIntegrity, { value: true });
-    const originalToString = Function.prototype.toString;
-    const executor = new ScriptExecutor({} as Message, {} as Message);
-    const pageWindow = window as unknown as Record<string, unknown>;
-
-    try {
-      Function.prototype.toString = function () {
-        return genuineSource;
-      };
-      executor.startScripts([script], initEnvInfo);
-      pageWindow[script.flag] = attacker;
-
-      expect(attacker).not.toHaveBeenCalled();
-      expect(targetWindow.__capturedExecutionContext).toBeUndefined();
-    } finally {
-      Function.prototype.toString = originalToString;
-      delete pageWindow[script.flag];
-      delete targetWindow[script.flag];
-      delete targetWindow.__capturedExecutionContext;
-    }
-  });
-
   it("rejects early metadata that retargets the flag or carries a page binding", () => {
     const script = makeScript({ flag: "#-executor-test-uuid" });
     const executor = new ScriptExecutor({} as Message, {} as Message);

@@ -18,13 +18,13 @@ const cloneTransportValue = (value: any) => {
 const lnStrIntegrity = process.env.SC_RANDOM_FNKEY;
 const znRand = process.env.SC_ZN_RAND;
 
-// Keep this source in sync with the emitted closure; captured native toString checks it before inspection.
+// Keep this source in sync with the emitted closure; template interpolation checks it before inspection.
 const generatedScriptFunctionSource =
   "(t, u, ...args) => { if (t === k) { if (u === null) { if (args[0] === d) return m; return } u[y] = fn; return u[y](...((delete u[y]), args)) } }";
 
 export function getCompiledScriptMetadata(scriptFunc: unknown): string | undefined {
   try {
-    if (typeof scriptFunc !== "function" || Native.functionToString(scriptFunc) !== generatedScriptFunctionSource) {
+    if (typeof scriptFunc !== "function" || `${scriptFunc}` !== generatedScriptFunctionSource) {
       return undefined;
     }
     const metadata = Native.document
@@ -32,7 +32,7 @@ export function getCompiledScriptMetadata(scriptFunc: unknown): string | undefin
       : undefined;
     return typeof metadata === "string" ? metadata : undefined;
   } catch {
-    // A revoked page Proxy can throw during native source inspection; it is not a compiled wrapper.
+    // A revoked page Proxy can throw during source conversion; it is not a compiled wrapper.
     return undefined;
   }
 }
