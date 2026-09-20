@@ -1124,6 +1124,37 @@ vdescribe("PanelReporter", () => {
     vexpect(JSON.parse(writeText.mock.calls[0][0]).cases[0].status).toBe("PASS");
   });
 
+  vit("报告按钮复制每条用例的耗时,零耗时保留且人工结果继续标记人工", () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const session = SCTest.createReportSession({ name: "demo", reporter: "panel" });
+    [
+      { name: "通过", status: "PASS", durationMs: 35700, expected: 1, actual: 2, detail: "检查详情" },
+      { name: "失败", status: "FAIL", durationMs: 125 },
+      { name: "警告", status: "WARN", durationMs: 1250 },
+      { name: "信息", status: "INFO", durationMs: 62000 },
+      { name: "跳过", status: "SKIP", durationMs: 0 },
+      { name: "人工", status: "MANUAL", durationMs: 35700 },
+    ].forEach((result) => session.record({ suite: "测试组", category: "测试组", ...result }));
+    session.record({ suite: "重跑组", category: "重跑组", name: "最新结果", status: "PASS", durationMs: 0 });
+    session.record({ suite: "重跑组", category: "重跑组", name: "最新结果", status: "PASS", durationMs: 3500 });
+    session.finish();
+
+    const root = document.getElementById("sctest-panel-host").shadowRoot;
+    root.querySelector('[data-sctest="footer-copy-report"]').click();
+
+    vexpect(writeText).toHaveBeenCalledOnce();
+    const report = writeText.mock.calls[0][0];
+    vexpect(report).toContain("✓ [PASS] 测试组 › 通过 (35.7 s) — expected=1; actual=2; detail=检查详情");
+    vexpect(report).toContain("✗ [FAIL] 测试组 › 失败 (125 ms)");
+    vexpect(report).toContain("△ [WARN] 测试组 › 警告 (01.2 s)");
+    vexpect(report).toContain("ⓘ [INFO] 测试组 › 信息 (01m 02s)");
+    vexpect(report).toContain("○ [SKIP] 测试组 › 跳过 (000 ms)");
+    vexpect(report).toContain("✋ [MANUAL] 测试组 › 人工 (人工)");
+    vexpect(report).toContain("✓ [PASS] 重跑组 › 最新结果 (03.5 s)");
+    vexpect(report).not.toContain("✓ [PASS] 重跑组 › 最新结果 (000 ms)");
+  });
+
   vit("单组和全部收缩都能再次点击展开", async () => {
     const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
     d("组", () => i("用例", () => e(1).toBe(1)));
@@ -1146,13 +1177,20 @@ vdescribe("PanelReporter", () => {
   vit("JSON 按钮复制结构化报告而不是触发文件下载", async () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
-    const { describe: d, it: i, expect: e, run } = SCTest.create({ name: "demo", reporter: "panel" });
-    d("组", () => i("通过项", () => e(1).toBe(1)));
-    await run();
+    const session = SCTest.createReportSession({ name: "demo", reporter: "panel" });
+    session.record({ suite: "组", category: "组", name: "通过项", status: "PASS", durationMs: 12 });
+    const result = session.record({ suite: "组", category: "组", name: "通过项", status: "PASS", durationMs: 35700 });
+    session.finish();
 
     document.getElementById("sctest-panel-host").shadowRoot.querySelector('[data-sctest="export-json"]').click();
     vexpect(writeText).toHaveBeenCalledOnce();
-    vexpect(JSON.parse(writeText.mock.calls[0][0])).toMatchObject({ name: "demo", context: "page" });
+    const report = JSON.parse(writeText.mock.calls[0][0]);
+    vexpect(result.durationMs).toBe(35700);
+    vexpect(report).toMatchObject({ name: "demo", context: "page", cases: [{ durationMs: 35700 }] });
+    vexpect(report.cases).toHaveLength(1);
+    vexpect(typeof report.summary.durationMs).toBe("number");
+    vexpect(Number.isFinite(report.summary.durationMs)).toBe(true);
+    vexpect(report.summary.durationMs).toBeGreaterThanOrEqual(0);
   });
 
   vit("拖动手柄会更新面板固定位置", async () => {
