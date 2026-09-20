@@ -176,20 +176,22 @@ describe("harness lint 规则", () => {
     it("放行同名普通函数和被局部变量遮蔽的导入名", () => {
       expect(
         ruleIdsAt(
-          `function waitFor(callback) { callback(); } const fireEvent = { click() {} }; waitFor(() => fireEvent.click(button));`,
-          "src/pages/example.test.tsx"
-        )
-      ).not.toContain(RULE);
-      expect(
-        ruleIdsAt(
-          `import { fireEvent as fe, waitFor } from "@testing-library/react"; function run(fe) { waitFor(() => fe.click(button)); }`,
-          "src/pages/example.test.tsx"
-        )
-      ).not.toContain(RULE);
+          `
+            import { fireEvent, fireEvent as fe, waitFor } from "@testing-library/react";
 
-      expect(
-        ruleIdsAt(
-          `import { fireEvent, waitFor } from "@testing-library/react"; fireEvent.click(button); waitFor(() => expect(screen.getByText("done")).toBeInTheDocument());`,
+            function localCase() {
+              function waitFor(callback) { callback(); }
+              const fireEvent = { click() {} };
+              waitFor(() => fireEvent.click(button));
+            }
+
+            function run(fe) {
+              waitFor(() => fe.click(button));
+            }
+
+            fireEvent.click(button);
+            waitFor(() => expect(screen.getByText("done")).toBeInTheDocument());
+          `,
           "src/pages/example.test.tsx"
         )
       ).not.toContain(RULE);
