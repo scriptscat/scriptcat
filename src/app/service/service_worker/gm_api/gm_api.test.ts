@@ -347,22 +347,23 @@ describe("page execution binding gate", () => {
     await expect(api.handlerRequest(validRequest, sender)).rejects.toThrow("page RPC sequence was already used");
   });
 
-  it("rejects sequences outside the replay window before invoking the GM API", async () => {
+  it("accepts a large forward sequence gap on a fresh binding and still rejects its replay", async () => {
+    // broker-only 请求（如 CAT_createBlobUrl）会消耗上下文序列号但从不到达 SW，
+    // 因此合法的 SW 端请求可能一次性领先超过 4096；该跳跃必须被接受，
+    // 但接受后的重复提交仍须被拒绝为 replay。
     const api = Object.create(GMApi.prototype) as GMApi;
     Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
     Object.defineProperty(api, "permissionVerify", {
       configurable: true,
       value: { verify: vi.fn().mockResolvedValue(undefined) },
     });
-    Object.defineProperty(api, "parseRequest", {
-      configurable: true,
-      value: vi.fn().mockResolvedValue({
-        uuid: "script-a",
-        api: "GM_log",
-        params: ["hello"],
-        script: { uuid: "script-a", name: "script-a" },
-      }),
+    const parseRequest = vi.fn().mockResolvedValue({
+      uuid: "script-a",
+      api: "GM_log",
+      params: ["hello"],
+      script: { uuid: "script-a", name: "script-a" },
     });
+    Object.defineProperty(api, "parseRequest", { configurable: true, value: parseRequest });
     const binding = {
       handle: "handle-a",
       uuid: "script-a",
@@ -380,22 +381,74 @@ describe("page execution binding gate", () => {
     const sender = makeSender();
     sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
 
-    await expect(
-      api.handlerRequest(
-        {
-          uuid: "script-a",
-          api: "GM_log",
-          params: ["hello"],
-          runFlag: "forged",
-          executionHandle: "handle-a",
-          requestId: "request-4097",
-          version: 2,
-          sequence: REQUEST_SEQUENCE_WINDOW_SIZE + 1,
-        },
-        sender
-      )
-    ).rejects.toThrow("replay window");
-    expect(api.parseRequest).not.toHaveBeenCalled();
+    const request = {
+      uuid: "script-a",
+      api: "GM_log",
+      params: ["hello"],
+      runFlag: "forged",
+      executionHandle: "handle-a",
+      requestId: "request-4097",
+      version: 2 as const,
+      sequence: REQUEST_SEQUENCE_WINDOW_SIZE + 1,
+      envTag: "it" as const,
+    };
+
+    await expect(api.handlerRequest(request, sender)).resolves.toBe(true);
+    expect(parseRequest).toHaveBeenCalledTimes(1);
+
+    await expect(api.handlerRequest(request, sender)).rejects.toThrow("page RPC sequence was already used");
+    expect(parseRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a too-old sequence at the SW boundary once the binding advances a full window", async () => {
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    Object.defineProperty(api, "permissionVerify", {
+      configurable: true,
+      value: { verify: vi.fn().mockResolvedValue(undefined) },
+    });
+    const parseRequest = vi.fn().mockResolvedValue({
+      uuid: "script-a",
+      api: "GM_log",
+      params: ["hello"],
+      script: { uuid: "script-a", name: "script-a" },
+    });
+    Object.defineProperty(api, "parseRequest", { configurable: true, value: parseRequest });
+    const binding = {
+      handle: "handle-a",
+      uuid: "script-a",
+      envTag: "it" as const,
+      runFlag: "run-a",
+      tabId: 42,
+      frameId: 0,
+      allowedAPIs: new Set(["GM_log"]),
+      requestSequenceWindow: new RequestSequenceWindow(),
+    };
+    Object.defineProperty(api, "resolvePageExecutionBinding", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(binding),
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
+
+    const makeRequest = (sequence: number) => ({
+      uuid: "script-a",
+      api: "GM_log",
+      params: ["hello"],
+      runFlag: "forged",
+      executionHandle: "handle-a",
+      requestId: `request-${sequence}`,
+      version: 2 as const,
+      sequence,
+      envTag: "it" as const,
+    });
+
+    await expect(api.handlerRequest(makeRequest(1), sender)).resolves.toBe(true);
+    await expect(api.handlerRequest(makeRequest(REQUEST_SEQUENCE_WINDOW_SIZE + 1), sender)).resolves.toBe(true);
+    expect(parseRequest).toHaveBeenCalledTimes(2);
+
+    await expect(api.handlerRequest(makeRequest(1), sender)).rejects.toThrow("replay window");
+    expect(parseRequest).toHaveBeenCalledTimes(2);
   });
 });
 
