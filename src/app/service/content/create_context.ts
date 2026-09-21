@@ -518,15 +518,13 @@ export const createProxyContext = <const Context extends GMWorldContext>(
   eventKeys.forEach((key) => {
     const eventSetterGetter = createEventProp(key);
     const ownDescriptor = Native.objectGetOwnPropertyDescriptor(ownDescs, key)?.value as PropertyDescriptor | undefined;
-    Native.objectDefineProperty(ownDescs, key, {
-      configurable: true,
-      enumerable: true,
-      writable: true,
-      value: {
-        ...ownDescriptor,
-        ...eventSetterGetter,
-      },
-    });
+    // ownDescs 是 Native.objectCreate(null) 建出的纯字典，这里写入的每个 key 也都是普通可写
+    // 数据属性（由前面的 objectAssign 建立），不存在继承 setter 的风险，直接赋值即可等价于
+    // defineProperty 显式声明的 configurable/enumerable/writable:true。
+    ownDescs[key] = {
+      ...ownDescriptor,
+      ...eventSetterGetter,
+    };
   });
 
   // split realm 下 hostWindow 可能经由 realmGlobal.window 暴露；这些别名必须始终留在当前 sandbox 内。

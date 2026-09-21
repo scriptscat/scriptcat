@@ -1054,6 +1054,30 @@ describe("createProxyContext: deterministic realm contract", () => {
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
+  it("event descriptor 直接赋值到 ownDescs 后消费出的最终 descriptor 形状保持不变", () => {
+    // ownDescs 的 event-entry 写入从 Native.objectDefineProperty 改成直接赋值后，
+    // Object.create(proto, ownDescs) 消费出的最终 accessor descriptor 必须逐位一致——
+    // on* key 从未进入 overriddenDescs/protoBaseDescs（只被记录进 eventKeys），所以
+    // ownDescs[key] 在这个 forEach 之前本来就是 undefined，{...undefined, ...eventSetterGetter}
+    // 只剩 get/set 两个字段，configurable/enumerable 沿用 Object.create 对省略字段的默认值 false。
+    // 这个形状在改动前后必须完全一致。
+    const fixture = createSplitRealmRoots();
+    const sandbox = createProxyContext(Object.create(null), fixture.roots);
+
+    const descriptor = Object.getOwnPropertyDescriptor(sandbox, "onload");
+
+    expect(descriptor).toMatchObject({ configurable: false, enumerable: false });
+    expect(typeof descriptor?.get).toBe("function");
+    expect(typeof descriptor?.set).toBe("function");
+    expect(descriptor).not.toHaveProperty("value");
+    expect(descriptor).not.toHaveProperty("writable");
+    // get/set 必须是 createEventProp 生成的 sandbox 专属实现，不是原始 host getter/setter。
+    const handler = vi.fn();
+    sandbox.onload = handler;
+    fixture.hostWindow.dispatchEvent(new fixture.TestEvent("load"));
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
   it("host prototype accessor 以最近 descriptor 為準，不被 parent descriptor 覆寫", () => {
     const fixture = createSplitRealmRoots();
     const parentPrototype = Object.create(null) as AnyRecord;
