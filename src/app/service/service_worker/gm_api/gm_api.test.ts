@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { type IGetSender } from "@Packages/message/server";
 import { type ExtMessageSender } from "@Packages/message/types";
+import { RequestSequenceWindow, REQUEST_SEQUENCE_WINDOW_SIZE } from "@Packages/message/request_sequence_window";
 import GMApi, {
   ConnectMatch,
   getConnectMatched,
@@ -239,7 +240,16 @@ describe("page execution binding gate", () => {
 
     await expect(
       api.handlerRequest(
-        { uuid: "script-a", api: "GM_getTab", params: [], runFlag: "forged", executionHandle: "missing" },
+        {
+          uuid: "script-a",
+          api: "GM_getTab",
+          params: [],
+          runFlag: "forged",
+          executionHandle: "missing",
+          version: 2,
+          requestId: "request-a",
+          sequence: 1,
+        },
         sender
       )
     ).rejects.toThrow("page execution binding is invalid");
@@ -259,7 +269,7 @@ describe("page execution binding gate", () => {
       tabId: 42,
       frameId: 0,
       allowedAPIs: new Set(["GM_getTab"]),
-      requestIds: new Set<string>(),
+      requestSequenceWindow: new RequestSequenceWindow(),
     };
     Object.defineProperty(api, "resolvePageExecutionBinding", {
       configurable: true,
@@ -277,16 +287,16 @@ describe("page execution binding gate", () => {
           runFlag: "forged",
           executionHandle: "handle-a",
           requestId: "request-a",
-          version: 1,
+          version: 2,
+          sequence: 1,
         },
         sender
       )
     ).rejects.toThrow("API is not granted to this execution");
     expect(parseRequest).not.toHaveBeenCalled();
-    expect(binding.requestIds.size).toBe(0);
   });
 
-  it("rejects a replayed page request id before invoking the GM API", async () => {
+  it("rejects a replayed page sequence before invoking the GM API", async () => {
     const api = Object.create(GMApi.prototype) as GMApi;
     Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
     Object.defineProperty(api, "permissionVerify", {
@@ -310,7 +320,7 @@ describe("page execution binding gate", () => {
       tabId: 42,
       frameId: 0,
       allowedAPIs: new Set(["GM_log"]),
-      requestIds: new Set<string>(),
+      requestSequenceWindow: new RequestSequenceWindow(),
     };
     Object.defineProperty(api, "resolvePageExecutionBinding", {
       configurable: true,
@@ -326,18 +336,18 @@ describe("page execution binding gate", () => {
       runFlag: "forged",
       executionHandle: "handle-a",
       requestId: "request-a",
-      version: 1 as const,
+      version: 2 as const,
+      sequence: 1,
       envTag: "ct" as const,
     };
     await expect(api.handlerRequest(request, sender)).rejects.toThrow("page execution binding is invalid");
-    expect(binding.requestIds).toHaveLength(0);
 
     const validRequest = { ...request, envTag: "it" as const };
     await expect(api.handlerRequest(validRequest, sender)).resolves.toBe(true);
-    await expect(api.handlerRequest(validRequest, sender)).rejects.toThrow("page RPC requestId was already used");
+    await expect(api.handlerRequest(validRequest, sender)).rejects.toThrow("page RPC sequence was already used");
   });
 
-  it("accepts a unique request when replay state is full while still rejecting replay", async () => {
+  it("rejects sequences outside the replay window before invoking the GM API", async () => {
     const api = Object.create(GMApi.prototype) as GMApi;
     Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
     Object.defineProperty(api, "permissionVerify", {
@@ -353,9 +363,6 @@ describe("page execution binding gate", () => {
         script: { uuid: "script-a", name: "script-a" },
       }),
     });
-    const requestIds = new Set<string>(["request-0"]);
-    // 直接模拟满集合，验证唯一 ID 仍可用且重放仍被拒绝，避免 CI 发送数千个请求。
-    Object.defineProperty(requestIds, "size", { configurable: true, value: 4096 });
     const binding = {
       handle: "handle-a",
       uuid: "script-a",
@@ -364,7 +371,7 @@ describe("page execution binding gate", () => {
       tabId: 42,
       frameId: 0,
       allowedAPIs: new Set(["GM_log"]),
-      requestIds,
+      requestSequenceWindow: new RequestSequenceWindow(),
     };
     Object.defineProperty(api, "resolvePageExecutionBinding", {
       configurable: true,
@@ -382,25 +389,13 @@ describe("page execution binding gate", () => {
           runFlag: "forged",
           executionHandle: "handle-a",
           requestId: "request-4097",
-          version: 1,
+          version: 2,
+          sequence: REQUEST_SEQUENCE_WINDOW_SIZE + 1,
         },
         sender
       )
-    ).resolves.toBe(true);
-    await expect(
-      api.handlerRequest(
-        {
-          uuid: "script-a",
-          api: "GM_log",
-          params: ["hello"],
-          runFlag: "forged",
-          executionHandle: "handle-a",
-          requestId: "request-0",
-          version: 1,
-        },
-        sender
-      )
-    ).rejects.toThrow("page RPC requestId was already used");
+    ).rejects.toThrow("replay window");
+    expect(api.parseRequest).not.toHaveBeenCalled();
   });
 });
 

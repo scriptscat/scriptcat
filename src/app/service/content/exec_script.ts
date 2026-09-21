@@ -7,7 +7,7 @@ import type { Message } from "@Packages/message/types";
 import type { ValueUpdateDataEncoded } from "./types";
 import { evaluateGMInfo } from "./gm_api/gm_info";
 import type { TScriptInfo } from "@App/app/repo/scripts";
-import { Native } from "./global";
+import { Native, nativeCall } from "./global";
 
 // 编译函数只在收到本次构建的密钥时执行，避免页面直接复用包装器。
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
@@ -47,7 +47,7 @@ export default class ExecScript {
     const GM_info = evaluateGMInfo(envInfo, scriptRes);
     // 构建脚本资源
     if (typeof code === "string") {
-      this.scriptFunc = compileScript(code);
+      this.scriptFunc = compileScript(code, true);
     } else {
       this.scriptFunc = code;
     }
@@ -91,7 +91,7 @@ export default class ExecScript {
     this.logger.debug("script start");
     const sandboxContext = this.sandboxContext;
     this.execContext = sandboxContext ? createProxyContext(sandboxContext) : global; // this.$ 只能执行一次
-    return this.scriptFunc(fnStrIntegrity, this.execContext, this.named, this.scriptRes.name);
+    return this.scriptFunc(fnStrIntegrity, this.execContext, this.named, this.scriptRes.name, nativeCall);
   };
 
   reconcileEarlyScript(envInfo: GMInfoEnv, scriptInfo?: TScriptInfo): boolean {

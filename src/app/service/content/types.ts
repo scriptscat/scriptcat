@@ -1,6 +1,12 @@
 import type { REncoded } from "@App/pkg/utils/message_value";
 
-export type ScriptFunc = (s: string, ctx: any, named: { [key: string]: any } | undefined, scriptName: string) => any;
+export type ScriptFunc = (
+  s: string,
+  ctx: any,
+  named: { [key: string]: any } | undefined,
+  scriptName: string,
+  call?: (fn: (...args: any[]) => any, receiver: any, ...args: any[]) => any
+) => any;
 
 // exec_script.ts
 
@@ -36,7 +42,7 @@ export type ValueUpdateDataEncoded = {
 
 export interface ApiParam {
   follow?: string;
-  depend?: string[];
+  depend?: readonly string[];
   alias?: string;
 }
 

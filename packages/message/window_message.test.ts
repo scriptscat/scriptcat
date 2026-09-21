@@ -3,6 +3,7 @@ import {
   ServiceWorkerMessageSend,
   ServiceWorkerClientMessage,
   WindowMessage,
+  parseWindowMessageBody,
   type WindowMessageBody,
 } from "./window_message";
 import { Server } from "./server";
@@ -44,6 +45,21 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   delete (self as any).clients;
+});
+
+describe("parseWindowMessageBody", () => {
+  it("rejects proxies that report unexpected own keys", () => {
+    const value = new Proxy(
+      { messageId: "message", type: "sendMessage", data: { action: "test" } },
+      {
+        ownKeys() {
+          return ["other-1", "other-2", "other-3"];
+        },
+      }
+    );
+
+    expect(parseWindowMessageBody(value)).toBeUndefined();
+  });
 });
 
 describe("ServiceWorkerMessageSend", () => {

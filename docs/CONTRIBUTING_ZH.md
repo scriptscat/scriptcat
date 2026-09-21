@@ -96,7 +96,7 @@ ScriptCat 的页面开发使用了以下技术：
 
 ```bash
 pnpm run dev
-# 不生成 source map 的开发构建
+# 请注意，由于未知原因，如果你需要使用隐身窗口，你需要使用下面的命令进行开发
 pnpm run dev:noMap
 ```
 

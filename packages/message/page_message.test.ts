@@ -125,6 +125,33 @@ describe("PageMessage", () => {
     inject.dispose();
   });
 
+  it("rejects proxies that report unexpected own keys", () => {
+    const target = createWindow();
+    const inject = new PageMessage("page-message-test", "inject", target);
+    const received = vi.fn();
+    inject.onMessage(received);
+    const envelope = new Proxy(
+      {
+        channel: "page-message-test",
+        source: "scripting",
+        target: "inject",
+        messageId: "hostile",
+        type: "sendMessage",
+        data: { action: "inject/ping" },
+      },
+      {
+        ownKeys() {
+          return ["other-1", "other-2", "other-3", "other-4", "other-5", "other-6"];
+        },
+      }
+    );
+
+    const handler = [...target.handlers][0];
+    expect(() => handler({ source: target, data: envelope } as unknown as MessageEvent)).not.toThrow();
+    expect(received).not.toHaveBeenCalled();
+    inject.dispose();
+  });
+
   it("keeps page connections working when the page patches Function.prototype.bind", async () => {
     const target = createWindow();
     const scripting = new PageMessage("page-message-test", "scripting", target);

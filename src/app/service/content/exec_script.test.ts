@@ -32,7 +32,7 @@ function makeScript(overrides: Partial<ScriptLoadInfo> = {}): ScriptLoadInfo {
 
 function setExecCode(exec: ExecScript, script: ScriptLoadInfo, code: string): void {
   script.code = code;
-  exec.scriptFunc = compileScript(compileScriptCode(script));
+  exec.scriptFunc = compileScript(compileScriptCode(script), true);
 }
 
 function makeExec(code: string, grant?: string[]): { exec: ExecScript; script: ScriptLoadInfo } {

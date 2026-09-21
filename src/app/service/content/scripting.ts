@@ -9,7 +9,13 @@ import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
 import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
-import { getExtensionOrigin, getPageRpcAllowedAPIs, PageRpcRegistry, validatePageGMRequest } from "./page_rpc";
+import {
+  getExtensionOrigin,
+  getPageRpcAllowedAPIs,
+  PAGE_RPC_VERSION,
+  PageRpcRegistry,
+  validatePageGMRequest,
+} from "./page_rpc";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
 const PageOrContent = {
@@ -177,8 +183,9 @@ export default class ScriptingRuntime {
           params: request.params,
           runFlag: request.runFlag,
           executionHandle: request.handle,
-          version: 1 as const,
+          version: PAGE_RPC_VERSION,
           requestId: request.requestId,
+          sequence: request.sequence,
           handle: request.handle,
           envTag: request.envTag,
         };

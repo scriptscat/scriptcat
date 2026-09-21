@@ -159,16 +159,6 @@ const docParseTypes = new Native.Set([
 
 const retStateFnMap = new Native.WeakMap<object, RetStateFnRecord>();
 
-const invokeXHRCallback = (name: string, callback: ((value: any) => void) | undefined, value: any) => {
-  if (!callback) return;
-  try {
-    callback(value);
-  } catch (error) {
-    // 用户回调异常只记录，不得拒绝内部消息队列或打断请求收尾。
-    LoggerCore.logger().error("GM_xmlhttpRequest callback failed", { name, ...Logger.E(error) });
-  }
-};
-
 interface RetStateFnRecord {
   getResponseText(): string | undefined;
   getResponseXML(): Document | null | undefined;
@@ -210,6 +200,16 @@ export function GM_xmlhttpRequest(
   requirePromise: boolean,
   isDownload: boolean = false
 ) {
+  const invokeCallback = (name: string, callback: ((value: any) => void) | undefined, value: any) => {
+    if (!callback) return;
+    try {
+      callback(value);
+    } catch (error) {
+      // User callback failures are reported without rejecting the internal
+      // message queue or interrupting request settlement.
+      LoggerCore.logger().error("GM_xmlhttpRequest callback failed", { name, ...Logger.E(error) });
+    }
+  };
   let reqDone = false;
   let abortRequested = false;
   if (a.isInvalidContext()) {
@@ -328,9 +328,9 @@ export function GM_xmlhttpRequest(
       const message = error instanceof Error ? error.message : `${error}`;
       reqDone = true;
       const response = { readyState: ReadyStateCode.DONE, error: message };
-      invokeXHRCallback("onerror", details.onerror, response);
+      invokeCallback("onerror", details.onerror, response);
       retPromiseReject?.(message);
-      invokeXHRCallback("onloadend", details.onloadend, response);
+      invokeCallback("onloadend", details.onloadend, response);
       return;
     }
 
@@ -576,7 +576,7 @@ export function GM_xmlhttpRequest(
           retPromiseReject?.(errorOccur);
         }
         refCleanup?.();
-        invokeXHRCallback("onloadend", details.onloadend, xhrResponse);
+        invokeCallback("onloadend", details.onloadend, xhrResponse);
       }
     };
     const scheduleSyntheticLoadEnd = () => {
@@ -594,7 +594,7 @@ export function GM_xmlhttpRequest(
         errorOccur = "AbortError";
         reqDone = true;
         // 先标记完成再调用用户代码；回调抛错也不能留下未收尾的连接。
-        invokeXHRCallback("onabort", details.onabort, makeXHRCallbackParam?.(data) ?? {});
+        invokeCallback("onabort", details.onabort, makeXHRCallbackParam?.(data) ?? {});
         // 不要进行 refCleanup ！要等待最后的 onloadend
         // refCleanup?.();
         // doAbort 不是由通讯管控 onloadend. 需要手动处理. 排程在下一个 microTask 避免影响 Abort 流程
@@ -630,7 +630,7 @@ export function GM_xmlhttpRequest(
           if (!reqDone) {
             errorOccur = message;
             reqDone = true;
-            invokeXHRCallback("onerror", details.onerror, {
+            invokeCallback("onerror", details.onerror, {
               readyState: ReadyStateCode.DONE,
               error: message,
             });
@@ -714,14 +714,14 @@ export function GM_xmlhttpRequest(
           case "onload":
             if (loadCalled || reqDone) break;
             loadCalled = true;
-            invokeXHRCallback("onload", details.onload, makeXHRCallbackParam?.(data) ?? {});
+            invokeCallback("onload", details.onload, makeXHRCallbackParam?.(data) ?? {});
             break;
           case "onloadend": {
             doLoadEnd(data);
             break;
           }
           case "onloadstart":
-            invokeXHRCallback("onloadstart", details.onloadstart, makeXHRCallbackParam?.(data) ?? {});
+            invokeCallback("onloadstart", details.onloadstart, makeXHRCallbackParam?.(data) ?? {});
             break;
           case "onprogress": {
             if (details.onprogress) {
@@ -733,7 +733,7 @@ export function GM_xmlhttpRequest(
                 done: data.loaded,
                 totalSize: data.total,
               };
-              invokeXHRCallback("onprogress", details.onprogress, res);
+              invokeCallback("onprogress", details.onprogress, res);
             }
             break;
           }
@@ -746,14 +746,14 @@ export function GM_xmlhttpRequest(
               // readable stream 的 controller 可以释放
               controller = undefined; // GC用
             }
-            invokeXHRCallback("onreadystatechange", details.onreadystatechange, makeXHRCallbackParam?.(data) ?? {});
+            invokeCallback("onreadystatechange", details.onreadystatechange, makeXHRCallbackParam?.(data) ?? {});
             break;
           }
           case "ontimeout":
             if (!reqDone) {
               errorOccur = "TimeoutError";
               reqDone = true;
-              invokeXHRCallback("ontimeout", details.ontimeout, makeXHRCallbackParam?.(data) ?? {});
+              invokeCallback("ontimeout", details.ontimeout, makeXHRCallbackParam?.(data) ?? {});
               scheduleSyntheticLoadEnd();
               // 不要进行 refCleanup ！要等待最后的 onloadend
               // refCleanup?.();
@@ -764,7 +764,7 @@ export function GM_xmlhttpRequest(
               data.error ||= "Unknown Error";
               errorOccur = data.error;
               reqDone = true;
-              invokeXHRCallback(
+              invokeCallback(
                 "onerror",
                 details.onerror,
                 (makeXHRCallbackParam?.(data) ?? {}) as GMXHRResponseTypeWithError
@@ -806,9 +806,9 @@ export function GM_xmlhttpRequest(
     reqDone = true;
     const message = error instanceof Error ? error.message : `${error}`;
     const response = { readyState: ReadyStateCode.DONE, error: message };
-    invokeXHRCallback("onerror", details.onerror, response);
+    invokeCallback("onerror", details.onerror, response);
     retPromiseReject?.(message);
-    invokeXHRCallback("onloadend", details.onloadend, response);
+    invokeCallback("onloadend", details.onloadend, response);
   });
   // 由于需要同步返回一个abort，但是一些操作是异步的，所以需要在这里处理
   return {

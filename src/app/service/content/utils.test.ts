@@ -13,6 +13,7 @@ import {
 } from "./utils";
 import type { SCMetadata, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
+import { nativeCall } from "./global";
 import { RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
@@ -79,8 +80,9 @@ describe("utils", () => {
       expect(result).toContain("try {");
       expect(result).toContain("} catch (e) {");
       expect(result).toContain("with(arguments[0]||this.$)");
-      expect(result).toContain("this[arguments[0]='$$'+Date.now()/Math.random()]=async function(){");
-      expect(result).toContain("return this[arguments[0]](...((delete this[arguments[0]]),[]));");
+      expect(result).toContain("return async function(){console.log('hello world');}");
+      expect(result).not.toContain("Math.random()");
+      expect(result).not.toContain("Date.now()");
     });
 
     it.concurrent("应该处理自定义脚本代码参数", () => {
@@ -636,7 +638,7 @@ describe("utils", () => {
         },
         metadata: { require: ["library"] },
       });
-      const func = compileScript(compileScriptCode(script));
+      const func = compileScript(compileScriptCode(script), true);
       const originalCall = Function.prototype.call;
       const originalApply = Function.prototype.apply;
       const originalBind = Function.prototype.bind;
@@ -689,6 +691,32 @@ describe("utils", () => {
       expect(result).not.toContain("Object.defineProperty(f, k");
     });
 
+    it("runs the async script body on its context without temporary context properties", async () => {
+      const script = createMockScript({ code: "return { context: this, argumentCount: arguments.length };" });
+      const mutations: PropertyKey[] = [];
+      const context = new Proxy(Object.create(null), {
+        get(target, key, receiver) {
+          if (key === "$") return {};
+          return Reflect.get(target, key, receiver);
+        },
+        set(target, key, value, receiver) {
+          mutations.push(key);
+          return Reflect.set(target, key, value, receiver);
+        },
+        deleteProperty(target, key) {
+          mutations.push(key);
+          return Reflect.deleteProperty(target, key);
+        },
+      });
+      const func = compileScript(compileScriptCode(script), true);
+
+      await expect(func(fnStrIntegrity, context, undefined, script.name)).resolves.toEqual({
+        context,
+        argumentCount: 0,
+      });
+      expect(mutations).toEqual([]);
+    });
+
     it.concurrent("生成的注入脚本应在运行时传递上下文和参数，并清理临时挂载", () => {
       const script = createMockScript();
       const targetWindow: GeneratedWindow = {};
@@ -704,7 +732,7 @@ describe("utils", () => {
       );
 
       const generated = targetWindow[script.flag] as ScriptFunc;
-      expect(generated(fnStrIntegrity, context, named, script.name)).toEqual({
+      expect(generated(fnStrIntegrity, context, named, script.name, nativeCall)).toEqual({
         thisValue: context,
         args: [named, script.name],
         contextKeys: [],
@@ -729,7 +757,7 @@ describe("utils", () => {
       executeGeneratedScript(compileInjectScript(script, "return 'ran';", true), targetWindow);
 
       const generated = targetWindow[script.flag] as ScriptFunc;
-      expect(generated(fnStrIntegrity, {}, {}, script.name)).toBe("ran");
+      expect(generated(fnStrIntegrity, {}, {}, script.name, nativeCall)).toBe("ran");
       // 属性描述符本身必须消失，而不只是读到 undefined 的值。
       expect(Object.getOwnPropertyDescriptor(targetWindow, script.flag)).toBeUndefined();
       expect(targetWindow[script.flag]).toBeUndefined();
@@ -742,7 +770,7 @@ describe("utils", () => {
       executeGeneratedScript(compileInjectScript(script, "return 'ran';"), targetWindow);
 
       const generated = targetWindow[script.flag] as ScriptFunc;
-      expect(generated(fnStrIntegrity, {}, {}, script.name)).toBe("ran");
+      expect(generated(fnStrIntegrity, {}, {}, script.name, nativeCall)).toBe("ran");
       // 未开启自动删除时，挂载函数应可重复读取，不因读取一次而被消费。
       expect(targetWindow[script.flag]).toBe(generated);
     });
@@ -811,7 +839,7 @@ describe("utils", () => {
       expect(Reflect.ownKeys(targetWindow)).toEqual([script.flag]);
       const context = {};
       const named = { value: 42 };
-      expect(generated(fnStrIntegrity, context, named, script.name)).toEqual({
+      expect(generated(fnStrIntegrity, context, named, script.name, nativeCall)).toEqual({
         thisValue: context,
         args: [named, script.name],
       });

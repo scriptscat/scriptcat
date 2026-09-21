@@ -32,12 +32,24 @@ const listenerMgr = new EventEmitter<string, any>();
 
 const nativeReflectOwnKeys = Reflect.ownKeys;
 const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+const PAGE_MESSAGE_KEYS = ["channel", "source", "target", "messageId", "type", "data"] as const;
 
 const parsePageMessageBody = (value: unknown): PageMessageBody | undefined => {
   if (value === null || typeof value !== "object") return undefined;
 
   try {
-    if (nativeReflectOwnKeys(value).length !== 6) return undefined;
+    const keys = nativeReflectOwnKeys(value);
+    if (keys.length !== PAGE_MESSAGE_KEYS.length) return undefined;
+    for (let index = 0; index < keys.length; index += 1) {
+      let known = false;
+      for (let expectedIndex = 0; expectedIndex < PAGE_MESSAGE_KEYS.length; expectedIndex += 1) {
+        if (keys[index] === PAGE_MESSAGE_KEYS[expectedIndex]) {
+          known = true;
+          break;
+        }
+      }
+      if (!known) return undefined;
+    }
 
     const channel = nativeObjectGetOwnPropertyDescriptor(value, "channel");
     const source = nativeObjectGetOwnPropertyDescriptor(value, "source");
@@ -169,9 +181,6 @@ export class PageMessage implements Message {
   private readonly postMessage: (message: unknown, targetOrigin: string) => void;
   private readonly messageHandler: (event: MessageEvent) => void;
   private readonly targetRole: PageMessageRole;
-  private sendEnvelopeBound:
-    | ((target: PageMessageRole, body: Omit<PageMessageBody, "channel" | "source" | "target">) => void)
-    | undefined;
 
   constructor(
     private readonly channel: string,
@@ -204,10 +213,6 @@ export class PageMessage implements Message {
     );
   }
 
-  private getSendEnvelopeBound() {
-    return (this.sendEnvelopeBound ??= bindNative(this.sendEnvelope, this));
-  }
-
   private messageHandle(body: PageMessageBody): void {
     if (body.type === "sendMessage") {
       this.EE.emit(
@@ -228,7 +233,7 @@ export class PageMessage implements Message {
       this.EE.emit(
         "connect",
         body.data,
-        new PageMessageConnect(body.messageId, body.source, this.getSendEnvelopeBound(), this.EE)
+        new PageMessageConnect(body.messageId, body.source, bindNative(this.sendEnvelope, this), this.EE)
       );
     } else if (body.type === "disconnect") {
       this.EE.emit(`disconnect:${body.messageId}`);
@@ -248,7 +253,9 @@ export class PageMessage implements Message {
   connect(data: TMessage): Promise<MessageConnect> {
     const messageId = uuidv4();
     this.sendEnvelope(this.targetRole, { messageId, type: "connect", data });
-    return Promise.resolve(new PageMessageConnect(messageId, this.targetRole, this.getSendEnvelopeBound(), this.EE));
+    return Promise.resolve(
+      new PageMessageConnect(messageId, this.targetRole, bindNative(this.sendEnvelope, this), this.EE)
+    );
   }
 
   sendMessage<T = any>(data: TMessage): Promise<T> {

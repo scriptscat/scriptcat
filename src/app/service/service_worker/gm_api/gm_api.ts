@@ -385,7 +385,7 @@ export default class GMApi {
       throw new Error("page execution binding is required");
     }
     if (data.executionHandle) {
-      if (data.version !== undefined && data.version !== 1) {
+      if (data.version !== 2) {
         throw new Error("unsupported page execution binding version");
       }
       if (data.handle !== undefined && data.handle !== data.executionHandle) {
@@ -404,10 +404,11 @@ export default class GMApi {
       if (typeof data.requestId !== "string" || !data.requestId || data.requestId.length > 256) {
         throw new Error("page RPC requestId is invalid");
       }
-      if (binding.requestIds.has(data.requestId)) {
-        throw new Error("page RPC requestId was already used");
+      try {
+        binding.requestSequenceWindow.consume(data.sequence);
+      } catch (error) {
+        throw new Error(error instanceof Error ? error.message : "page RPC sequence is invalid");
       }
-      binding.requestIds.add(data.requestId);
       data = { ...data, uuid: binding.uuid, runFlag: binding.runFlag };
     }
     const api = PermissionVerifyApiGet(data.api);

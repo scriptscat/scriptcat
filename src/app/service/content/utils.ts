@@ -7,7 +7,7 @@ import { ScriptEnvTag } from "@Packages/message/consts";
 import { embeddedPatternCheckerString, type EmbeddedURLRuleEntry, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 import { getGrantCandidates } from "./gm_api/grant";
-import { customClone, Native } from "./global";
+import { customClone, Native, nativeCall } from "./global";
 
 const cloneTransportValue = (value: any) => {
   // USER_SCRIPT 只能接收数据副本；共享 customClone 的 data-only 检查，避免 getter/Proxy 进入页面资料。
@@ -16,11 +16,10 @@ const cloneTransportValue = (value: any) => {
 
 // The generated wrapper keeps this build token in its closure for trusted execution and inspection.
 const lnStrIntegrity = process.env.SC_RANDOM_FNKEY;
-const znRand = process.env.SC_ZN_RAND;
 
-// Keep this source in sync with the emitted closure; captured native toString checks it before inspection.
+// Verify the page-visible candidate's native source before passing it the private build token.
 const generatedScriptFunctionSource =
-  "(t, u, ...args) => { if (t === k) { if (u === null) { if (args[0] === d) return m; return } u[y] = fn; return u[y](...((delete u[y]), args)) } }";
+  "(t, u, ...args) => { if (t === k) { if (u === null) { if (args[0] === d) return m; return } const call = args[2]; if (typeof call !== 'function') return; args.length = 2; const script = call(fn, u, args[0], args[1]); return typeof script === 'function' ? call(script, u) : script } }";
 
 export function getCompiledScriptMetadata(scriptFunc: unknown): string | undefined {
   try {
@@ -177,13 +176,7 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
     code = `GM_registerMenuCommand((${JSON.stringify(resource.name)}), ()=>{\n${code}\n}, {nested:false});\n`;
   }
 
-  const joinedCode = [
-    "with(arguments[0]||this.$){",
-    `${preCode}`,
-    "this[arguments[0]='$$'+Date.now()/Math.random()]=async function(){",
-    `${code}`,
-    "};return this[arguments[0]](...((delete this[arguments[0]]),[]));}",
-  ]
+  const joinedCode = ["with(arguments[0]||this.$){", `${preCode}`, `return async function(){${code}};}`]
     .filter(Boolean)
     .join("\n");
   const codeBody = addTryCatch(joinedCode);
@@ -191,7 +184,7 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
 }
 
 const codeFunction = (code: string, scriptInfoJSON: string) =>
-  `((k, y, m, fn, d) => { const f = ${generatedScriptFunctionSource}; return f; })(${JSON.stringify(lnStrIntegrity)}, ${JSON.stringify(znRand)} + Math.random(), ${JSON.stringify(scriptInfoJSON)}, function(){${code}}, document)`;
+  `((k, m, fn, d) => { const f = ${generatedScriptFunctionSource}; return f; })(${JSON.stringify(lnStrIntegrity)}, ${JSON.stringify(scriptInfoJSON)}, function(){${code}}, document)`;
 
 // ScriptExecutor authenticates the wrapper closure before passing it a GM context.
 const mountCodeFunction = (flag: string, code: string, scriptInfoJSON: string) =>
@@ -200,14 +193,14 @@ const mountCodeFunction = (flag: string, code: string, scriptInfoJSON: string) =
 const ZFunction = Function;
 
 // 通过脚本代码编译脚本函数
-export function compileScript(code: string): ScriptFunc {
+export function compileScript(code: string, invokeReturnedFunction: boolean = false): ScriptFunc {
   const fn = <ScriptFunc>new ZFunction(code);
   const k = lnStrIntegrity;
-  const y = `${znRand}` + Math.random();
   return (t: any, u: any, ...args: any[]) => {
     if (t === k) {
-      u[y] = fn;
-      return u[y](...(delete u[y], args));
+      if (args[2] === nativeCall) args.length = 2;
+      const result = nativeCall(fn, u, args[0], args[1]);
+      return invokeReturnedFunction && typeof result === "function" ? nativeCall(result, u) : result;
     }
   };
 }

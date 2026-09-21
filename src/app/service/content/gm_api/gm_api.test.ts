@@ -34,6 +34,29 @@ const envInfo: GMInfoEnv = {
 };
 
 describe("early-start page RPC", () => {
+  it("assigns a monotonic sequence to each page GM request and connection", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
+    const connectMessage = vi.fn().mockResolvedValue({} as MessageConnect);
+    const script = {
+      ...scriptRes,
+      uuid: "sequenced-page-script",
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+    } as ScriptLoadInfo;
+    const api = new GMApi(
+      "scripting",
+      { sendMessage, connect: connectMessage } as unknown as Message,
+      {} as Message,
+      script
+    );
+
+    await api.sendMessage("GM_log", ["first"]);
+    await api.connect("GM_xmlhttpRequest", []);
+
+    expect(sendMessage.mock.calls[0][0].data).toMatchObject({ version: 2, sequence: 1 });
+    expect(connectMessage.mock.calls[0][0].data).toMatchObject({ version: 2, sequence: 2 });
+  });
+
   it("waits for the page binding before opening a long-lived connection", async () => {
     let release!: () => void;
     const ready = new Promise<void>((resolve) => {
@@ -60,8 +83,9 @@ describe("early-start page RPC", () => {
       data: expect.objectContaining({
         api: "GM_xmlhttpRequest",
         handle: "page-binding",
-        version: 1,
+        version: 2,
         requestId: expect.any(String),
+        sequence: 1,
       }),
     });
   });
@@ -273,7 +297,7 @@ describe.concurrent("@grant GM", () => {
       ["GM_xmlhttpRequest"]: this.GM_xmlhttpRequest || function nil(){},
       ["GM.xmlhttpRequest"]: this.GM.xmlhttpRequest || function nil(){},
     }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     // getValue
     expect(ret.GM_getValue?.name).toEqual("GM_getValue");
@@ -335,7 +359,7 @@ describe.concurrent("@grant GM", () => {
       ["GM_xmlhttpRequest"]: this.GM_xmlhttpRequest || function nil(){},
       ["GM.xmlhttpRequest"]: this.GM.xmlhttpRequest || function nil(){},
     }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     // getValue
     expect(ret["GM.getValue"]?.name).toEqual("GM.getValue");
@@ -373,7 +397,7 @@ describe.concurrent("window.*", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual(expect.any(Function));
   });
@@ -392,7 +416,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual("ok");
   });
@@ -408,7 +432,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual("ok!");
   });
@@ -425,7 +449,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual("test1-test2-test3");
   });
@@ -446,7 +470,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual("test5-test2-test3-test1"); // TM也没有sort
   });
@@ -463,7 +487,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual("test1-test2-test3");
   });
@@ -484,7 +508,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual("test5-test2-test3-test1"); // TM也没有sort
   });
@@ -501,14 +525,14 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.test1).toEqual("23");
     expect(ret.test2).toEqual(45);
     expect(ret.test3).toEqual("67");
     // object default
     script.code = `return GM_getValues({test4: "default",test2:123});`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret2 = await exec.exec();
     expect(ret2.test1).toBeUndefined();
     expect(ret2.test2).toEqual(45);
@@ -527,7 +551,7 @@ describe.concurrent("GM Api", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.test1).toEqual("23");
     expect(ret.test2).toEqual(45);
@@ -549,7 +573,7 @@ describe.concurrent("early-script", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     // 抛出错误
     await expect(exec.exec()).rejects.toThrowError();
   });
@@ -567,7 +591,7 @@ describe.concurrent("early-script", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = exec.exec();
     // 触发envInfo
     expect(
@@ -601,7 +625,7 @@ describe.concurrent("GM_menu", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const retPromise = exec.exec();
 
     // 验证 sendMessage 是否被调用
@@ -656,7 +680,7 @@ describe.concurrent("GM_menu", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
 
     await expect(exec.exec()).resolves.toBe(0);
     expect(mockSendMessage).toHaveBeenCalledWith(
@@ -689,7 +713,7 @@ describe.concurrent("GM_menu", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = exec.exec();
     // 验证 sendMessage 是否被调用
     expect(mockSendMessage).toHaveBeenCalled();
@@ -716,7 +740,7 @@ describe.concurrent("GM_menu", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const retPromise = exec.exec();
 
     // 验证 sendMessage 是否被调用
@@ -784,7 +808,7 @@ describe.concurrent("GM_menu", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual({ id1: "abc", id2: "abc", id3: 1, id4: 2, id5: "3", id6: 3, id7: 3, id8: 4 });
   });
@@ -859,7 +883,7 @@ describe.concurrent("GM_value", () => {
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
@@ -994,7 +1018,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
@@ -1215,7 +1239,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
@@ -1343,7 +1367,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
@@ -1417,7 +1441,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
 
     expect(mockSendMessage).toHaveBeenCalled();
@@ -1501,7 +1525,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
     // 模拟值变化
@@ -1540,7 +1564,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     // remote = true
     const retPromise = exec.exec();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
@@ -1592,7 +1616,7 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
       code: nilFn,
       envInfo,
     });
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const retPromise = exec.exec();
 
     await Promise.resolve(); // 等待一轮微任务，让GM.setValue执行
@@ -1714,7 +1738,7 @@ describe("@grant GM_download", () => {
       });
       setTimeout(() => resolve({ onloadCalled, error: "TIMEOUT" }), 100);
     })`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.onloadCalled).toEqual(false);
     expect(ret.error).toEqual("unknown");
@@ -1734,7 +1758,7 @@ describe("@grant GM_download", () => {
       () => ({ resolved: true }),
       () => ({ resolved: false })
     )`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.resolved).toEqual(false);
   });
@@ -1756,7 +1780,7 @@ describe("@grant CAT.agent.conversation", () => {
       create: typeof CAT.agent.conversation.create,
       get: typeof CAT.agent.conversation.get,
     }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.CAT).toEqual("object");
     expect(ret.create).toEqual("function");
@@ -1788,7 +1812,7 @@ describe("@grant CAT.agent.dom", () => {
       scroll: typeof CAT.agent.dom.scroll,
       waitFor: typeof CAT.agent.dom.waitFor,
     }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.CAT).toEqual("object");
     expect(ret.agent).toEqual("object");
@@ -1819,7 +1843,7 @@ describe("@grant CAT.agent.dom", () => {
       envInfo,
     });
     script.code = `return CAT.agent.dom.readPage({ tabId: 1, mode: "summary", maxLength: 2000 });`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret).toEqual({ title: "Test", url: "https://example.com" });
     expect(mockSendMessage).toHaveBeenCalledWith(
@@ -1850,7 +1874,7 @@ describe("@grant CAT.agent.dom", () => {
       envInfo,
     });
     script.code = `return { hasCat: typeof CAT !== "undefined" && CAT?.agent?.dom?.readPage !== undefined }`;
-    exec.scriptFunc = compileScript(compileScriptCode(script));
+    exec.scriptFunc = compileScript(compileScriptCode(script), true);
     const ret = await exec.exec();
     expect(ret.hasCat).toEqual(false);
   });

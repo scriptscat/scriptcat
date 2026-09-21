@@ -6,6 +6,7 @@ import type {
   ServiceWorkerExecutionBinding,
 } from "./types";
 import type { IMessageQueue } from "@Packages/message/message_queue";
+import { RequestSequenceWindow } from "@Packages/message/request_sequence_window";
 import { GetSenderType, type Group, type IGetSender } from "@Packages/message/server";
 import type { ExtMessageSender, MessageConnect, MessageSend } from "@Packages/message/types";
 import type { TClientPageLoadInfo } from "@App/app/repo/scripts";
@@ -581,7 +582,7 @@ export class RuntimeService {
       documentId: source?.documentId,
       storageName,
       allowedAPIs: new Set(allowedAPIs),
-      requestIds: new Set<string>(),
+      requestSequenceWindow: new RequestSequenceWindow(),
     } satisfies ServiceWorkerExecutionBinding;
     this.pageExecutionBindings.set(handle, binding);
     return binding;

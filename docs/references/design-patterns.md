@@ -147,7 +147,7 @@ A loading state is not one thing — and a centered spinner is the *last* resort
 
 Practical rules:
 
-- **Never freeze and never wait silently.** A region that is loading must show a skeleton, spinner, or bar — never a blank or stale frame with no signal ([Core Constraints](../design.md#core-constraints-non-negotiable)).
+- **Never freeze and never wait silently.** A region that is loading must show a skeleton, spinner, or bar — never a blank or stale frame with no signal (Constraint 8).
 - **Don't fake determinism.** Use the determinate progress bar only when the percent/bytes are actually known; otherwise use an indeterminate fill or a skeleton.
 - **One indicator per wait.** Don't stack a full-page spinner over content that is already skeletoned, or two bars for one fetch.
 - **The spinner is always `Loader2` + `animate-spin`** (`text-primary` when it should read as active), sized to context — `size-3.5`/`size-4` inline, `size-12` full-page ([motion](#motion)).
@@ -175,7 +175,7 @@ Consistent words are part of a consistent UI.
 
 ### Interactive states
 
-[UI guidelines](../develop.md#ui) cover hover/focus (CSS pseudo-classes, never React state). For completeness every interactive control also needs:
+[Core Constraints](../design.md#core-constraints-non-negotiable) covers hover/focus (CSS pseudo-classes, never React state). For completeness every interactive control also needs:
 
 - **Disabled:** the shadcn primitives already apply `disabled:opacity-50 disabled:pointer-events-none` — reuse them; don't hand-roll a greyed-out look. A disabled control still needs a reason nearby (helper text/tooltip) if it's non-obvious.
 - **Active / pressed:** rely on the primitive's built-in `active:`; add `active:` utilities only for custom controls.

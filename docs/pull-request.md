@@ -132,6 +132,17 @@ Activate only the rows touched by the actual change; mixed changes use their uni
 | Persistence/migration/release | Compatibility and data scope, ordering/irreversibility, rollback/restore path, and rehearsal or invariant evidence where safe |
 | Async/concurrency/stateful UI | Duplicate in-flight work, stale or late results, cancellation/retry, cleanup, and identity or generation ordering where applicable |
 
+## Review-oriented content
+
+For non-trivial changes, make the description useful for review:
+
+- `背景` explains the problem, compatibility gap, or maintenance need.
+- `本次改动` summarizes user-visible behavior and important implementation changes.
+- `实现考虑` records design decisions, invariants, lifecycle behavior, races, or compatibility choices.
+- `已知限制` records unsupported cases, explicit scope boundaries, and follow-up work.
+- `建议审查重点` lists concrete behaviors or risks reviewers should verify.
+- `验证` lists exact commands and concise results, including known warnings or why a check was not run.
+
 ## Documentation-only PRs
 
 For a PR that only changes Markdown, `验证` should reflect what a doc change actually needs, not an unrelated

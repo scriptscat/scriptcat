@@ -1,5 +1,6 @@
 import type { Script, SCRIPT_RUN_STATUS, ScriptLoadInfo } from "@App/app/repo/scripts";
 import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
+import type { RequestSequenceWindow } from "@Packages/message/request_sequence_window";
 import { type IGetSender } from "@Packages/message/server";
 
 /** 脚本安装来源 */
@@ -49,8 +50,9 @@ export type MessageRequest<T = any[]> = {
   /** 页面执行环境绑定的能力句柄；后台脚本不携带此字段。 */
   executionHandle?: string;
   /** 页面 GM RPC 的版本和请求关联字段。 */
-  version?: 1;
+  version?: 2;
   requestId?: string;
+  sequence?: number;
   handle?: string;
   envTag?: "it" | "ct";
 };
@@ -69,8 +71,8 @@ export type ServiceWorkerExecutionBinding = {
   storageName: string;
   /** 隔离 GM API broker 为本次页面执行接受的能力名称。 */
   allowedAPIs: ReadonlySet<string>;
-  /** 已接受的页面请求 ID；绑定销毁时一并释放，确保绑定存续期间拒绝重放。 */
-  requestIds: Set<string>;
+  /** 固定大小的序列位图拒绝绑定生命周期内的重放。 */
+  requestSequenceWindow: RequestSequenceWindow;
 };
 
 export type GMApiRequest<T = any> = MessageRequest<T> & {

@@ -40,9 +40,9 @@ don't bulk-load `.deepwiki/`. Treat it as background only: current code and the 
 
 ## Project Overview
 
-ScriptCat is a Manifest V3 browser extension for userscripts inspired by Tampermonkey, built with TypeScript,
+ScriptCat is a Manifest V3 browser extension for Tampermonkey-compatible user scripts, built with TypeScript,
 React 19, and Rspack. **pnpm** is required by `preinstall`. The presentation layer (`src/pages/`) uses shadcn/ui
-and Tailwind CSS v4.
+and Tailwind CSS v4 (migrated from Arco Design + UnoCSS).
 
 ## Engineering Principles
 
@@ -68,6 +68,14 @@ downstream prose does not override it.
   establish a root-cause fix; report the trigger, evidence, and remaining uncertainty. Follow the asynchronous
   observation and timing guidance in
   [`docs/references/develop-testing.md`](docs/references/develop-testing.md#observation-rules-for-asynchronous-tests).
+- **Shared E2E helpers must model both outcomes.** A helper that drives a save, install, or other mutation must make
+  the expected success or failure explicit and wait for that operation's matching signal. Negative cases must opt into
+  the failure contract; never make them pass by accepting an arbitrary toast, an old notification, or a page shell.
+- **Performance-sensitive UI fixtures must stay bounded.** Use the smallest synthetic fixture that crosses the
+  required boundary; for filtering or pagination, do not eagerly render unrelated rows before the trigger. Obvious
+  explicit one-page-plus fixtures need a line-level `scriptcat/no-test-large-boundary-fixture` rationale; do not hide
+  their cost by raising the test timeout. The detailed fixture and measurement rules live in
+  [`docs/references/develop-testing.md`](docs/references/develop-testing.md#vitest-performance-hygiene).
 - **Dnd-kit list rendering must keep the drag boundary cheap.** Keep sensor options, modifiers, callbacks, and the
   sortable item-list reference stable when their values are unchanged; render plain rows/cards while dragging is
   disabled instead of mounting `DndContext`/`SortableContext`. Stabilize item identity with a collision-safe
@@ -224,13 +232,6 @@ Service Worker (src/service_worker.ts)
 > SW → Offscreen uses `ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage`) on Chrome and
 > `EventPageOffscreenManager` on Firefox MV3; Offscreen replies to SW over `ExtensionMessage`. `WindowMessage`
 > is the Offscreen ↔ Sandbox channel.
->
-> USER_SCRIPT content and MAIN inject runtimes normally use native extension channels directly to the SW.
-> The `scripting` bundle is a document-start extension content script registered per matching frame. It runs a
-> page-bridge runtime and is a supporting per-document helper rather than a separate service/background context in
-> this five-context model. Those bridges carry the content bootstrap handoff, MAIN bootstrap/fallback and runtime update packets,
-> synchronous DOM handles, and the whitelisted `external.Scriptcat` API. When MAIN GM RPC falls back through
-> `PageMessage`, the scripting runtime validates its execution handle and grant before forwarding it to the SW.
 
 - **Service Worker** — central hub for script CRUD, Chrome APIs, permission verification, resource caching, and message routing.
 - **Content** — bridges SW and inject script.
@@ -243,13 +244,9 @@ Sandbox.
 
 ### Message Passing (`packages/message/`)
 
-`ExtensionMessage` (chrome.runtime — SW ↔ Content / Inject / Offscreen), `PageMessage` (`window.postMessage` —
-scripting ↔ Inject page bridge, including validated MAIN RPC fallback), `CustomEventMessage` (CustomEvent —
-bootstrap handoff and DOM handles),
-`WindowMessage` (`postMessage` — Offscreen ↔ Sandbox), `ServiceWorkerMessageSend` (`clients.matchAll()` +
-`postMessage` — SW → Offscreen on Chrome), and `MessageQueue` (cross-context broadcast). Page-visible bridges do
-not establish an authenticated extension origin; MAIN requests relayed through `PageMessage` must pass the
-`PageRpcRegistry` checks before forwarding.
+`ExtensionMessage` (chrome.runtime — SW ↔ Content / Inject / Offscreen), `WindowMessage` (postMessage — Offscreen ↔
+Sandbox), `ServiceWorkerMessageSend` (`clients.matchAll()` + `postMessage` — SW → Offscreen on Chrome),
+`CustomEventMessage` (CustomEvent — Content ↔ Inject), and `MessageQueue` (cross-context broadcast).
 
 ### Service & Data Layers
 

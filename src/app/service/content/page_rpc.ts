@@ -1,9 +1,11 @@
 import { uuidv4 } from "@App/pkg/utils/uuid";
+import { RequestSequenceWindow } from "@Packages/message/request_sequence_window";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 import { getGrantCandidates } from "./gm_api/grant";
+import { getPageRpcDependencies, INTERNAL_APIS_BY_GRANT } from "./gm_api/api_dependencies";
 import { Native, nativeReflectApply } from "./global";
 
-export const PAGE_RPC_VERSION = 1 as const;
+export const PAGE_RPC_VERSION = 2 as const;
 const MAX_REQUEST_ID_LENGTH = 256;
 const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
 const nativeObjectToString = Object.prototype.toString;
@@ -86,13 +88,13 @@ export type PageExecutionBinding = {
   readonly envTag: ScriptEnvTag;
   readonly allowedAPIs: ReadonlySet<string>;
   readonly runFlag: string;
-  active: boolean;
-  requestIds: Set<string>;
+  requestSequenceWindow: RequestSequenceWindow;
 };
 
 export type PageGMRequest = {
   readonly version: typeof PAGE_RPC_VERSION;
   readonly requestId: string;
+  readonly sequence: number;
   readonly handle: string;
   readonly api: string;
   readonly params: readonly unknown[];
@@ -106,54 +108,10 @@ export type PageGMRequest = {
 export type PageGMRequestPacket = {
   readonly version: typeof PAGE_RPC_VERSION;
   readonly requestId: string;
+  readonly sequence: number;
   readonly handle: string;
   readonly api: string;
   readonly params: readonly unknown[];
-};
-
-const INTERNAL_APIS_BY_GRANT: Readonly<Record<string, readonly string[]>> = {
-  "CAT.agent.conversation": ["CAT_agentConversation", "CAT_agentConversationChat", "CAT_agentAttachToConversation"],
-  "CAT.agent.dom": ["CAT_agentDom"],
-  "CAT.agent.model": ["CAT_agentModel"],
-  "CAT.agent.opfs": ["CAT_agentOPFS", "CAT_fetchBlob"],
-  "CAT.agent.skills": ["CAT_agentSkills"],
-  "CAT.agent.task": ["CAT_agentTask"],
-  CAT_fileStorage: ["CAT_fetchBlob", "CAT_createBlobUrl"],
-  "GM.xmlHttpRequest": ["GM_xmlhttpRequest"],
-};
-
-// ScriptingRuntime 不加载 GM 实现模块，因此在此镜像一份精简依赖图。
-const API_DEPENDENCIES: Readonly<Record<string, readonly string[]>> = {
-  "GM.getValues": ["GM_getValues"],
-  "GM.cookie": ["GM.cookie.set", "GM.cookie.list", "GM.cookie.delete"],
-  GM_cookie: ["GM_cookie.set", "GM_cookie.list", "GM_cookie.delete"],
-  "GM.setValue": ["GM_setValue"],
-  "GM.setValues": ["GM_setValues"],
-  "GM.listValues": ["GM_listValues"],
-  "GM.download": ["GM_download"],
-  "GM.notification": ["GM_notification"],
-  "GM.addValueChangeListener": ["GM_addValueChangeListener"],
-  "GM.removeValueChangeListener": ["GM_removeValueChangeListener"],
-  "GM.log": ["GM_log"],
-  "GM.deleteValue": ["GM_setValue"],
-  GM_deleteValue: ["GM_setValue"],
-  "GM.deleteValues": ["GM_setValues"],
-  GM_deleteValues: ["GM_setValues"],
-  "GM.registerMenuCommand": ["GM_registerMenuCommand"],
-  CAT_registerMenuInput: ["GM_registerMenuCommand"],
-  "GM.addStyle": ["GM_addStyle"],
-  "GM.addElement": ["GM_addElement"],
-  "GM.unregisterMenuCommand": ["GM_unregisterMenuCommand"],
-  CAT_unregisterMenuInput: ["GM_unregisterMenuCommand"],
-  CAT_fileStorage: ["CAT_fetchBlob"],
-  "GM.openInTab": ["GM_openInTab", "GM_closeInTab"],
-  "GM.getTab": ["GM_getTab"],
-  "GM.saveTab": ["GM_saveTab"],
-  "GM.getTabs": ["GM_getTabs"],
-  "GM.setClipboard": ["GM_setClipboard"],
-  "GM.getResourceText": ["GM_getResourceText"],
-  "GM.getResourceURL": ["GM_getResourceURL"],
-  "GM.getResourceUrl": ["GM_getResourceURL"],
 };
 
 export const getPageRpcAllowedAPIs = (grants: readonly string[]): string[] => {
@@ -173,10 +131,8 @@ export const getPageRpcAllowedAPIs = (grants: readonly string[]): string[] => {
         const internalAPIs = INTERNAL_APIS_BY_GRANT[candidate];
         for (let index = 0; index < internalAPIs.length; index += 1) allowed.add(internalAPIs[index]);
       }
-      if (Native.objectHasOwn(API_DEPENDENCIES, candidate)) {
-        const dependencies = API_DEPENDENCIES[candidate];
-        for (let index = 0; index < dependencies.length; index += 1) visitGrant(dependencies[index]);
-      }
+      const dependencies = getPageRpcDependencies(candidate);
+      for (let index = 0; index < dependencies.length; index += 1) visitGrant(dependencies[index]);
     }
   };
   for (let index = 0; index < grants.length; index += 1) visitGrant(grants[index]);
@@ -348,8 +304,7 @@ export class PageRpcRegistry {
       envTag,
       allowedAPIs: new Native.Set(allowedAPIs),
       runFlag,
-      active: true,
-      requestIds: new Native.Set(),
+      requestSequenceWindow: new RequestSequenceWindow(),
     });
     return handle;
   }
@@ -364,19 +319,21 @@ export class PageRpcRegistry {
 
   resolve(handle: string, api: string): PageExecutionBinding {
     const binding = this.bindings.get(handle);
-    if (!binding?.active) throw new PageRpcError("page execution binding is inactive");
+    if (!binding) throw new PageRpcError("page execution binding is inactive");
     if (!binding.allowedAPIs.has(api)) throw new PageRpcError("API is not granted to this execution");
     return binding;
   }
 
-  consumeRequestId(binding: PageExecutionBinding, requestId: string): void {
-    // requestId 在每个绑定内只接受一次；绑定销毁时一并释放，避免重放而不截断长时间运行的脚本。
-    if (binding.requestIds.has(requestId)) throw new PageRpcError("page RPC requestId was already used");
-    binding.requestIds.add(requestId);
+  consumeRequestSequence(binding: PageExecutionBinding, sequence: number): void {
+    try {
+      binding.requestSequenceWindow.consume(sequence);
+    } catch (error) {
+      throw new PageRpcError(error instanceof Error ? error.message : "page RPC sequence is invalid");
+    }
   }
 }
 
-const REQUEST_KEYS = ["version", "requestId", "handle", "api", "params"] as const;
+const REQUEST_KEYS = ["version", "requestId", "sequence", "handle", "api", "params"] as const;
 
 export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry): PageGMRequest => {
   if (value === null || typeof value !== "object") throw new PageRpcError("page RPC request must be an object");
@@ -409,6 +366,7 @@ export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry)
 
   const version = ownData(value, "version");
   const requestId = ownData(value, "requestId");
+  const sequence = ownData(value, "sequence");
   const handle = ownData(value, "handle");
   const api = ownData(value, "api");
   const params = ownData(value, "params");
@@ -417,18 +375,22 @@ export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry)
   if (typeof requestId !== "string" || !requestId || requestId.length > MAX_REQUEST_ID_LENGTH) {
     throw new PageRpcError("page RPC requestId is invalid");
   }
+  if (typeof sequence !== "number" || !Number.isSafeInteger(sequence) || sequence < 1) {
+    throw new PageRpcError("page RPC sequence is invalid");
+  }
   if (typeof handle !== "string" || typeof api !== "string") {
     throw new PageRpcError("page RPC identity fields are invalid");
   }
 
   const binding = registry.resolve(handle, api);
-  // resolve 同时执行句柄、授权和活跃状态检查；不要把页面传来的 api 直接转发给后端。
+  // resolve 同时执行句柄和授权检查；不要把页面传来的 api 直接转发给后端。
   const clonedParams = cloneParams(params);
   validateOperationParams(api, clonedParams);
-  registry.consumeRequestId(binding, requestId);
+  registry.consumeRequestSequence(binding, sequence);
   return {
     version: PAGE_RPC_VERSION,
     requestId,
+    sequence,
     handle,
     api,
     params: clonedParams,

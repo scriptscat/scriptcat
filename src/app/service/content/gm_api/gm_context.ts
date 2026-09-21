@@ -1,5 +1,6 @@
 import type { ApiParam, ApiValue } from "../types";
 import { Native } from "../global";
+import { getApiDependencies } from "./api_dependencies";
 
 const apiRegistry: Record<string, ApiValue[]> = Native.objectCreate(null);
 const apis = {
@@ -42,15 +43,16 @@ export default class GMContext {
   public static API(param: ApiParam = {}) {
     return (target: any, propertyName: string, descriptor: PropertyDescriptor) => {
       const key = propertyName;
-      let { follow } = param;
-      const { alias } = param;
+      const apiParam = { ...param, depend: param.depend ?? getApiDependencies(key) };
+      let { follow } = apiParam;
+      const { alias } = apiParam;
       if (!follow) {
         follow = key; // follow 是实际 @grant 的权限；使用follow时，不要使用alias以避免混乱
       }
-      GMContextApiSet(follow, key, descriptor.value, param);
+      GMContextApiSet(follow, key, descriptor.value, apiParam);
       if (alias) {
         // 追加别名呼叫（参数和回传完全一致，为 GM_xxx 与 GM.xxx 等问题设计）
-        GMContextApiSet(alias, alias, descriptor.value, param);
+        GMContextApiSet(alias, alias, descriptor.value, apiParam);
       }
     };
   }

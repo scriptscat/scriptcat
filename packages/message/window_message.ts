@@ -34,12 +34,24 @@ export type WindowMessageBody<T = any> = {
 
 const nativeReflectOwnKeys = Reflect.ownKeys;
 const nativeObjectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+const WINDOW_MESSAGE_KEYS = ["messageId", "type", "data"] as const;
 
 export const parseWindowMessageBody = (value: unknown): WindowMessageBody | undefined => {
   if (value === null || typeof value !== "object") return undefined;
 
   try {
-    if (nativeReflectOwnKeys(value).length !== 3) return undefined;
+    const keys = nativeReflectOwnKeys(value);
+    if (keys.length !== WINDOW_MESSAGE_KEYS.length) return undefined;
+    for (let index = 0; index < keys.length; index += 1) {
+      let known = false;
+      for (let expectedIndex = 0; expectedIndex < WINDOW_MESSAGE_KEYS.length; expectedIndex += 1) {
+        if (keys[index] === WINDOW_MESSAGE_KEYS[expectedIndex]) {
+          known = true;
+          break;
+        }
+      }
+      if (!known) return undefined;
+    }
 
     const messageId = nativeObjectGetOwnPropertyDescriptor(value, "messageId");
     const type = nativeObjectGetOwnPropertyDescriptor(value, "type");
