@@ -5,10 +5,7 @@ export const nativeReflectApply = Reflect.apply;
 const nativeFunctionBind = Function.prototype.bind;
 // Wrapper inspection runs after page scripts can replace both values.
 const nativeDocument = typeof document === "undefined" ? undefined : document;
-const hasNativeStructuredClone = typeof structuredClone === "function";
-const nativeStructuredClone = hasNativeStructuredClone
-  ? nativeReflectApply(nativeFunctionBind, structuredClone, [globalThis])
-  : undefined;
+const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
 const nativeSetConstructor = Set;
 const nativeSetAdd = Set.prototype.add;
 const nativeSetHas = Set.prototype.has;
@@ -177,7 +174,7 @@ export const customClone = (o: any) => {
   };
   if (!isDataOnly(o)) return undefined;
 
-  if (hasNativeStructuredClone) {
+  if (nativeStructuredClone) {
     try {
       // 优先使用 structuredClone，支持大多数可克隆对象
       return nativeStructuredClone(o);
