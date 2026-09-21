@@ -4,7 +4,6 @@
 export const nativeReflectApply = Reflect.apply;
 const nativeFunctionBind = Function.prototype.bind;
 // Wrapper inspection runs after page scripts can replace both values.
-const nativeFunctionToString = Function.prototype.toString;
 const nativeDocument = typeof document === "undefined" ? undefined : document;
 const hasNativeStructuredClone = typeof structuredClone === "function";
 const nativeStructuredClone = hasNativeStructuredClone
@@ -92,7 +91,6 @@ export const Native = {
   WeakMap: NativeWeakMapConstructor,
   bind: nativeBind,
   reflectApply: nativeReflectApply,
-  functionToString: (fn: object) => nativeReflectApply(nativeFunctionToString, fn, []) as string,
   document: nativeDocument,
   structuredClone: nativeStructuredClone,
   jsonStringify: nativeBind(JSON.stringify, JSON),
