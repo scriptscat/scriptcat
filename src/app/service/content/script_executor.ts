@@ -70,22 +70,24 @@ export class ScriptExecutor {
         envInfo: envInfo,
       });
     };
+    this.execScripts.forEach((exec, uuid) => {
+      const earlyScript = exec.scriptRes;
+      if (!this.earlyScriptFlags.has(earlyScript.flag)) return;
+      let authoritativeScript: TScriptInfo | undefined;
+      for (let scriptIndex = 0; scriptIndex < scripts.length; scriptIndex += 1) {
+        const script = scripts[scriptIndex];
+        if (script.uuid === uuid && script.flag === earlyScript.flag) {
+          authoritativeScript = script;
+          break;
+        }
+      }
+      if (!exec.reconcileEarlyScript(envInfo, authoritativeScript)) this.execScripts.delete(uuid);
+    });
     // 监听脚本加载
     for (let scriptIndex = 0; scriptIndex < scripts.length; scriptIndex += 1) {
       const script = scripts[scriptIndex];
       const flag = script.flag;
-      // 如果是EarlyScriptFlag，处理沙盒环境
-      if (this.earlyScriptFlags.has(flag)) {
-        let updated = false;
-        this.execScripts.forEach((exec) => {
-          if (!updated && exec.scriptRes.flag === flag) {
-            // 处理早期脚本的沙盒环境
-            exec.updateEarlyScriptGMInfo(envInfo, script);
-            updated = true;
-          }
-        });
-        if (updated) continue;
-      }
+      if (this.earlyScriptFlags.has(flag)) continue;
       const listenForScript = () => {
         definePropertyListener(window, flag, (val: ScriptFunc) => {
           const metadataJSON = getCompiledScriptMetadata(val);

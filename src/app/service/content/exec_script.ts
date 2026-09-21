@@ -94,36 +94,49 @@ export default class ExecScript {
     return this.scriptFunc(fnStrIntegrity, this.execContext, this.named, this.scriptRes.name);
   };
 
-  // 早期启动的脚本，处理GM API
-  updateEarlyScriptGMInfo(envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) {
-    if (scriptInfo) {
-      // 预注入事件可被页面观察，只携带空的用户值和配置；pageLoad 到达后再补回权威副本。
-      this.scriptRes.value = scriptInfo.value;
-      this.scriptRes.config = scriptInfo.config;
-      this.scriptRes.metadata = scriptInfo.metadata;
-      this.scriptRes.resource = scriptInfo.resource;
-      this.scriptRes.requireCssResource = scriptInfo.requireCssResource;
+  reconcileEarlyScript(envInfo: GMInfoEnv, scriptInfo?: TScriptInfo): boolean {
+    const current = this.scriptRes;
+    const grants = current.metadata.grant || [];
+    const incomingGrants = scriptInfo?.metadata.grant || [];
+    const needsBinding =
+      isContextMenuScript(current.metadata) ||
+      isContextMenuScript(scriptInfo?.metadata || {}) ||
+      grants.some((grant) => grant !== "none") ||
+      incomingGrants.some((grant) => grant !== "none");
+    const hasBindingData =
+      scriptInfo?.executionHandle !== undefined ||
+      scriptInfo?.executionEnvTag !== undefined ||
+      scriptInfo?.executionRunFlag !== undefined;
+    const hasValidBinding =
+      typeof scriptInfo?.executionHandle === "string" &&
+      scriptInfo.executionHandle.length > 0 &&
+      (scriptInfo.executionEnvTag === "it" || scriptInfo.executionEnvTag === "ct") &&
+      typeof scriptInfo.executionRunFlag === "string" &&
+      scriptInfo.executionRunFlag.length > 0;
+
+    if (
+      !scriptInfo ||
+      scriptInfo.uuid !== current.uuid ||
+      scriptInfo.flag !== current.flag ||
+      typeof current.scriptRevision !== "string" ||
+      scriptInfo.scriptRevision !== current.scriptRevision ||
+      (hasBindingData && !hasValidBinding) ||
+      (needsBinding && !hasValidBinding)
+    ) {
+      this.sandboxContext?.setInvalidContext();
+      return false;
     }
-    if (scriptInfo?.executionHandle && scriptInfo.executionEnvTag) {
-      // early-start 先执行后取得绑定；此处补写同一绑定，使后续 RPC 与首次注册一致。
-      this.scriptRes.executionHandle = scriptInfo.executionHandle;
-      this.scriptRes.executionEnvTag = scriptInfo.executionEnvTag;
-      this.scriptRes.executionRunFlag = scriptInfo.executionRunFlag;
-      if (this.sandboxContext && scriptInfo.executionRunFlag) {
-        this.sandboxContext.setExecutionRunFlag(scriptInfo.executionRunFlag);
-      }
-    }
-    let GM_info;
+
+    Native.objectAssign(current, scriptInfo);
+    const updatedGMInfo = evaluateGMInfo(envInfo, current);
+    const gmInfo = this.sandboxContext ? this.execContext["GM_info"] : this.named?.GM_info;
+    if (gmInfo) Native.objectAssign(gmInfo, updatedGMInfo);
+
     if (this.sandboxContext) {
-      // 触发loadScriptResolve
+      if (hasValidBinding) this.sandboxContext.setExecutionRunFlag(scriptInfo.executionRunFlag!);
       this.sandboxContext.resolveLoadScript();
-      GM_info = this.execContext["GM_info"];
-    } else {
-      GM_info = this.named?.GM_info;
     }
-    GM_info.isIncognito = envInfo.isIncognito;
-    GM_info.sandboxMode = envInfo.sandboxMode;
-    GM_info.userAgentData = envInfo.userAgentData;
+    return true;
   }
 
   stop() {

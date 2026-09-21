@@ -104,6 +104,8 @@ export const createContext = (
     setInvalidContext() {
       if (invalid) return;
       invalid = true;
+      this.loadScriptResolve?.();
+      this.loadScriptResolve = undefined;
       this.valueChangeListener.clear();
       this.EE.removeAllListeners();
       this.runFlag = `${uuidv4()}(invalid)`; // 更改 uuid 防止 runFlag 相关操作

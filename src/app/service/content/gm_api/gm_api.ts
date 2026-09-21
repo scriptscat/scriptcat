@@ -76,6 +76,14 @@ const copyOwnEnumerableDataProperties = (value: object): Record<string, unknown>
 // 回调表不暴露 Map 原型，避免页面改写 Map 方法后影响值更新确认。
 const valueChangePromiseMap: Record<string, () => void> = Object.create(null);
 
+const resolveValueChangePromise = (id: unknown) => {
+  if (typeof id !== "string") return;
+  const resolve = valueChangePromiseMap[id];
+  if (!resolve) return;
+  delete valueChangePromiseMap[id];
+  resolve();
+};
+
 const setOwnValue = (store: Record<string, any>, key: string, value: any): void => {
   Native.objectDefineProperty(store, key, {
     configurable: true,
@@ -168,9 +176,20 @@ class GM_Base implements IGM_Base {
   // 单次回调使用
   @GMContext.protected()
   public async sendMessage(api: string, params: any[]) {
+    const cancelValueWrite = () => {
+      if (api === "GM_setValue" || api === "GM_setValues") resolveValueChangePromise(params[0]);
+    };
+    if (this.isInvalidContext()) {
+      cancelValueWrite();
+      return;
+    }
     if (!this.message || !this.scriptRes) return;
     if (this.loadScriptPromise) {
       await this.loadScriptPromise;
+    }
+    if (this.isInvalidContext() || !this.message || !this.scriptRes) {
+      cancelValueWrite();
+      return;
     }
     // USER_SCRIPT 自己的 realm 已有 DOM 与 fetch；这些辅助操作必须留在本地，
     // 不能改走只有隔离 broker 才实现的内部 CAT service worker 请求。
@@ -206,6 +225,7 @@ class GM_Base implements IGM_Base {
     } catch (e: any) {
       if (`${e?.message || e}`.includes("Extension context invalidated.")) {
         this.setInvalidContext(); // 之后不再进行 sendMessage 跟 EE操作
+        cancelValueWrite();
         console.error(e);
       } else {
         throw e;
@@ -217,10 +237,12 @@ class GM_Base implements IGM_Base {
   // 长连接使用,connect只用于接受消息,不发送消息
   @GMContext.protected()
   public async connect(api: string, params: any[]) {
+    if (this.isInvalidContext()) throw new Error("Invalid Context");
     if (!this.message || !this.scriptRes) return new Promise<MessageConnect>(() => {});
     if (this.loadScriptPromise) {
       await this.loadScriptPromise;
     }
+    if (this.isInvalidContext()) throw new Error("Invalid Context");
     if (!this.message || !this.scriptRes) return new Promise<MessageConnect>(() => {});
     // 长连接也必须携带同一页面句柄，否则 broker 无法把连接绑定回脚本和文档。
     const request = this.scriptRes.executionHandle
@@ -250,11 +272,7 @@ class GM_Base implements IGM_Base {
       const valueStore = scriptRes.value;
       const remote = sender.runFlag !== this.runFlag;
       if (!remote && id) {
-        const fn = valueChangePromiseMap[id];
-        if (fn) {
-          delete valueChangePromiseMap[id];
-          fn();
-        }
+        resolveValueChangePromise(id);
       }
       if (valueUpdated) {
         const valueChanges = entries;
@@ -355,7 +373,10 @@ export default class GMApi extends GM_Base {
 
   static _GM_setValue(a: GMApi, promise: any, key: string, value: any) {
     key = `${key}`;
-    if (!a.scriptRes) return;
+    if (!a.scriptRes) {
+      promise?.();
+      return;
+    }
     if (valChangeCounterId > 1e8) {
       // 防止 valChangeCounterId 过大导致无法正常工作
       valChangeCounterId = 0;
@@ -385,7 +406,10 @@ export default class GMApi extends GM_Base {
   }
 
   static _GM_setValues(a: GMApi, promise: any, values: TGMKeyValue) {
-    if (!a.scriptRes) return;
+    if (!a.scriptRes) {
+      promise?.();
+      return;
+    }
     if (valChangeCounterId > 1e8) {
       // 防止 valChangeCounterId 过大导致无法正常工作
       valChangeCounterId = 0;
@@ -529,7 +553,9 @@ export default class GMApi extends GM_Base {
   // Asynchronous wrapper for GM.getValues
   @GMContext.API({ depend: ["GM_getValues"] })
   public "GM.getValues"(ctx: GMApi, keysOrDefaults: TGMKeyValue | string[] | null | undefined): Promise<TGMKeyValue> {
-    if (!ctx.scriptRes) return new Promise<TGMKeyValue>(() => {});
+    if (!ctx.scriptRes) {
+      return ctx.isInvalidContext() ? Promise.resolve({}) : new Promise<TGMKeyValue>(() => {});
+    }
     return new Promise((resolve) => {
       const ret = GMApi.prototype.GM_getValues(ctx, keysOrDefaults);
       resolve(ret);
@@ -538,7 +564,9 @@ export default class GMApi extends GM_Base {
 
   @GMContext.API()
   public "GM.setValues"(ctx: GMApi, values: { [key: string]: any }): Promise<void> {
-    if (!ctx.scriptRes) return new Promise<void>(() => {});
+    if (!ctx.scriptRes) {
+      return ctx.isInvalidContext() ? Promise.resolve() : new Promise<void>(() => {});
+    }
     return new Promise((resolve) => {
       if (!values || typeof values !== "object") {
         throw new Error("GM.setValues: values must be an object");
@@ -564,7 +592,9 @@ export default class GMApi extends GM_Base {
   // Asynchronous wrapper for GM.deleteValues
   @GMContext.API()
   public "GM.deleteValues"(ctx: GMApi, keys: string[]): Promise<void> {
-    if (!ctx.scriptRes) return new Promise<void>(() => {});
+    if (!ctx.scriptRes) {
+      return ctx.isInvalidContext() ? Promise.resolve() : new Promise<void>(() => {});
+    }
     return new Promise((resolve) => {
       if (!Native.arrayIsArray(keys)) {
         throw new Error("GM.deleteValues: keys must be string[]");

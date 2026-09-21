@@ -269,6 +269,7 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   );
   const scriptInfo = {
     ...script,
+    scriptRevision: `${script.uuid}:${script.createtime}:${script.updatetime || 0}`,
     metadata,
     value: cloneTransportValue(script.value) ?? {},
     config: script.config === undefined ? undefined : cloneTransportValue(script.config),
@@ -307,6 +308,8 @@ export const trimPreInjectScriptInfo = (script: ScriptLoadInfo): TScriptInfo => 
   const scriptInfo = trimScriptInfo(script);
   scriptInfo.value = {};
   scriptInfo.config = undefined;
+  scriptInfo.userConfig = undefined;
+  scriptInfo.userConfigStr = "";
   return scriptInfo;
 };
 

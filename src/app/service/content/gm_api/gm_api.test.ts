@@ -66,10 +66,38 @@ describe("early-start page RPC", () => {
     });
   });
 
+  it("cancels a waiting long-lived connection when its context is invalidated", async () => {
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const connectMessage = vi.fn();
+    const script = {
+      ...scriptRes,
+      uuid: "early-start-invalidated-connection",
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+    } as ScriptLoadInfo;
+    const api = new GMApi("scripting", { connect: connectMessage } as unknown as Message, {} as Message, script);
+    Object.defineProperty(api, "loadScriptPromise", { configurable: true, value: ready, writable: true });
+    let rejected = false;
+
+    const pending = api.connect("GM_xmlhttpRequest", []).catch((error: unknown) => {
+      rejected = error instanceof Error && error.message === "Invalid Context";
+    });
+    api.setInvalidContext();
+    release();
+    await vi.waitFor(() => expect(rejected).toBe(true), { timeout: 100 });
+    await pending;
+
+    expect(connectMessage).not.toHaveBeenCalled();
+  });
+
   it("uses the authoritative run flag for early-start async value acknowledgments", async () => {
     const script = {
       ...scriptRes,
       uuid: "early-start-value-script",
+      scriptRevision: "early-start-value-script:1:0",
       metadata: { grant: ["GM.setValue"], "early-start": [""], "run-at": ["document-start"] },
       executionHandle: undefined,
       executionEnvTag: undefined,
@@ -91,12 +119,15 @@ describe("early-start page RPC", () => {
     await Promise.resolve();
     expect(mockSendMessage).not.toHaveBeenCalled();
 
-    exec.updateEarlyScriptGMInfo(envInfo, {
-      ...script,
-      executionHandle: "page-binding",
-      executionEnvTag: "it",
-      executionRunFlag: "canonical-run",
-    });
+    expect(
+      exec.reconcileEarlyScript(envInfo, {
+        ...script,
+        scriptRevision: "early-start-value-script:1:0",
+        executionHandle: "page-binding",
+        executionEnvTag: "it",
+        executionRunFlag: "canonical-run",
+      } as any)
+    ).toBe(true);
     await Promise.resolve();
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
 
@@ -523,7 +554,7 @@ describe.concurrent("early-script", () => {
     await expect(exec.exec()).rejects.toThrowError();
   });
   it.concurrent("成功", async () => {
-    const script = Object.assign({}, scriptRes) as ScriptLoadInfo;
+    const script = Object.assign({}, scriptRes, { scriptRevision: "script-uuid:1:0" }) as ScriptLoadInfo;
     script.metadata = {};
     script.metadata["early-start"] = [""];
     script.metadata["run-at"] = ["document-start"];
@@ -539,7 +570,15 @@ describe.concurrent("early-script", () => {
     exec.scriptFunc = compileScript(compileScriptCode(script));
     const ret = exec.exec();
     // 触发envInfo
-    exec.updateEarlyScriptGMInfo(envInfo);
+    expect(
+      exec.reconcileEarlyScript(envInfo, {
+        ...script,
+        scriptRevision: "script-uuid:1:0",
+        executionHandle: "page-binding",
+        executionEnvTag: "it",
+        executionRunFlag: "page-run",
+      } as any)
+    ).toBe(true);
     expect(await ret).toEqual(123);
   });
 });

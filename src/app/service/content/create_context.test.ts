@@ -611,6 +611,23 @@ describe("createContext: capability and lifecycle contract", () => {
     expect(loaded).toBe(true);
   });
 
+  it("失效 early-start context 時取消 loadScript 等待", async () => {
+    const context = createTestContext(["CAT_scriptLoaded"], {
+      "early-start": [""],
+      "run-at": ["document-start"],
+    });
+    let loaded = false;
+    const loadedPromise = context.CAT_scriptLoaded().then(() => {
+      loaded = true;
+    });
+
+    context.setInvalidContext();
+    await Promise.resolve();
+
+    expect(loaded).toBe(true);
+    await loadedPromise;
+  });
+
   it("非 early-start 不建立多餘的等待點", () => {
     const context = createTestContext(["CAT_scriptLoaded"], { "run-at": ["document-end"] });
     const contextValues = context as unknown as AnyRecord;

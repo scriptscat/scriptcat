@@ -9,6 +9,7 @@ import {
   addStyle,
   addStyleSheet,
   trimScriptInfo,
+  trimPreInjectScriptInfo,
 } from "./utils";
 import type { SCMetadata, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
@@ -512,6 +513,26 @@ describe("utils", () => {
 
       expect(script.value.nested).toEqual({ count: 1 });
       expect(script.metadata.grant).toEqual(["GM_getValue", "GM_setValue"]);
+    });
+
+    it("binds a source revision and redacts user state from the early wrapper", () => {
+      const script = createScript({ grant: ["GM_getValue"] }, []);
+      script.uuid = "revision-script";
+      script.createtime = 123;
+      script.updatetime = 456;
+      script.value = { secret: "value" };
+      script.config = { private: { secret: { title: "Private", description: "", index: 0, default: "config" } } };
+      script.userConfig = {
+        private: { secret: { title: "Private", description: "", index: 0, default: "user config" } },
+      };
+      script.userConfigStr = '{"secret":"user config"}';
+
+      const trimmed = trimScriptInfo(script);
+      const preInject = trimPreInjectScriptInfo(script);
+
+      expect(trimmed.scriptRevision).toBe("revision-script:123:456");
+      expect(preInject).toMatchObject({ value: {}, config: undefined, userConfig: undefined, userConfigStr: "" });
+      expect(JSON.stringify(preInject)).not.toContain("secret");
     });
   });
 

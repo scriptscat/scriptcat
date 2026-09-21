@@ -146,6 +146,7 @@ export type TScriptInfo = Override<
     code: "" | string;
     sort?: number;
     flag: string;
+    scriptRevision?: string;
     runStatus?: SCRIPT_RUN_STATUS;
     type?: SCRIPT_TYPE;
     status?: SCRIPT_STATUS;

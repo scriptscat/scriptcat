@@ -51,6 +51,8 @@ const isPageScriptInfo = (value: unknown, envTag: "it" | "ct"): value is TScript
   if (
     typeof value.uuid !== "string" ||
     value.uuid.length === 0 ||
+    typeof value.scriptRevision !== "string" ||
+    value.scriptRevision.length === 0 ||
     typeof value.name !== "string" ||
     typeof value.flag !== "string" ||
     value.flag.length === 0 ||

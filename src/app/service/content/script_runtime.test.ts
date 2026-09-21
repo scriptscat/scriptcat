@@ -70,6 +70,7 @@ describe("ScriptRuntime inject page bootstrap", () => {
     scripts: [
       {
         uuid: "inject-script",
+        scriptRevision: "inject-script:1:0",
         name: "Inject script",
         flag: "inject-script-flag",
         code: "",
@@ -98,6 +99,20 @@ describe("ScriptRuntime inject page bootstrap", () => {
     handlers.get("pageLoad")?.(pageLoad);
 
     expect(getter).not.toHaveBeenCalled();
+    expect(executor.startScripts).not.toHaveBeenCalled();
+  });
+
+  it("rejects pageLoad scripts without a source revision", () => {
+    const { handlers, server } = makeServer();
+    const executor = makeExecutor();
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    runtime.init();
+
+    const pageLoad = makePageLoad();
+    delete (pageLoad.scripts[0] as { scriptRevision?: string }).scriptRevision;
+
+    handlers.get("pageLoad")?.(pageLoad);
+
     expect(executor.startScripts).not.toHaveBeenCalled();
   });
 

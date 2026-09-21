@@ -116,7 +116,10 @@ describe("ScriptExecutor", () => {
   });
 
   it("attaches the page execution binding when an early-start script is reconciled", () => {
-    const initial = makeScript({ metadata: { "early-start": [""], "run-at": ["document-start"] } });
+    const initial = {
+      ...makeScript({ metadata: { "early-start": [""], "run-at": ["document-start"] } }),
+      scriptRevision: "executor-test-uuid:1:0",
+    } as TScriptInfo;
     const executor = new ScriptExecutor({} as Message, {} as Message);
 
     executor.execScriptEntry({
@@ -132,29 +135,180 @@ describe("ScriptExecutor", () => {
           string,
           {
             scriptRes: TScriptInfo;
-            updateEarlyScriptGMInfo: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => void;
+            reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean;
+            execContext: any;
           }
         >;
       }
     ).execScripts.get(initial.uuid)!;
     expect(exec.scriptRes.executionHandle).toBeUndefined();
+    const gmInfo = exec.execContext.GM_info;
 
-    exec.updateEarlyScriptGMInfo(initEnvInfo, {
-      ...initial,
-      value: { secret: "authoritative-value" },
-      config: {
-        private: { secret: { title: "Private", description: "", index: 0, default: "authoritative" } },
-      },
-      executionHandle: "page-binding",
-      executionEnvTag: "it",
-    });
+    expect(
+      exec.reconcileEarlyScript(initEnvInfo, {
+        ...initial,
+        value: { secret: "authoritative-value" },
+        config: {
+          private: { secret: { title: "Private", description: "", index: 0, default: "authoritative" } },
+        },
+        userConfig: {
+          account: { profile: { title: "Profile", description: "", index: 0, default: "authoritative" } },
+        },
+        userConfigStr: '{"profile":"authoritative"}',
+        executionHandle: "page-binding",
+        executionEnvTag: "it",
+        executionRunFlag: "page-run",
+      })
+    ).toBe(true);
 
     expect(exec.scriptRes.executionHandle).toBe("page-binding");
     expect(exec.scriptRes.executionEnvTag).toBe("it");
+    expect(exec.scriptRes.executionRunFlag).toBe("page-run");
     expect(exec.scriptRes.value).toEqual({ secret: "authoritative-value" });
     expect(exec.scriptRes.config).toEqual({
       private: { secret: { title: "Private", description: "", index: 0, default: "authoritative" } },
     });
+    expect(exec.scriptRes.userConfig).toEqual({
+      account: { profile: { title: "Profile", description: "", index: 0, default: "authoritative" } },
+    });
+    expect(exec.scriptRes.userConfigStr).toBe('{"profile":"authoritative"}');
+    expect(exec.execContext.GM_info).toMatchObject({
+      userConfig: {
+        account: { profile: { title: "Profile", description: "", index: 0, default: "authoritative" } },
+      },
+      userConfigStr: '{"profile":"authoritative"}',
+      isIncognito: false,
+      sandboxMode: "raw",
+    });
+    expect(exec.execContext.GM_info).toBe(gmInfo);
+  });
+
+  it("rejects a different early-start revision and cancels its pending GM work", async () => {
+    const initial = {
+      ...makeScript({
+        uuid: "early-revision-mismatch",
+        flag: "early-revision-mismatch-flag",
+        createtime: 1,
+        updatetime: 2,
+        metadata: { grant: ["CAT_scriptLoaded", "GM.setValue"], "early-start": [""], "run-at": ["document-start"] },
+      }),
+      scriptRevision: "early-revision-mismatch:1:2",
+    } as TScriptInfo;
+    const authoritative = {
+      ...initial,
+      scriptRevision: "early-revision-mismatch:1:3",
+      executionHandle: "current-binding",
+      executionEnvTag: "it",
+      executionRunFlag: "current-run",
+    } as TScriptInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const executor = new ScriptExecutor({ sendMessage } as unknown as Message, {} as Message);
+    let loadPromise: Promise<void> | undefined;
+    let setValuePromise: Promise<void> | undefined;
+    executor.execScriptEntry({
+      scriptLoadInfo: initial,
+      scriptFlag: initial.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: (_token: string, context: any) => {
+        loadPromise = context.CAT_scriptLoaded();
+        setValuePromise = context.GM.setValue("key", "value");
+      },
+    });
+    const internal = executor as unknown as {
+      earlyScriptFlags: Set<string>;
+      execScripts: Map<string, { sandboxContext?: { isInvalidContext(): boolean } }>;
+    };
+    internal.earlyScriptFlags.add(initial.flag);
+
+    executor.startScripts([authoritative], initEnvInfo);
+
+    expect(internal.execScripts.has(initial.uuid)).toBe(false);
+    expect(sendMessage).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(loadPromise).resolves.toBeUndefined(), { timeout: 100 });
+    await vi.waitFor(() => expect(setValuePromise).resolves.toBeUndefined(), { timeout: 100 });
+  });
+
+  it("invalidates early-start scripts omitted from an authoritative pageLoad", () => {
+    const early = {
+      ...makeScript({
+        uuid: "early-omitted-script",
+        flag: "early-omitted-flag",
+        metadata: { grant: ["GM_log"], "early-start": [""], "run-at": ["document-start"] },
+      }),
+      scriptRevision: "early-omitted-script:1:0",
+    } as TScriptInfo;
+    const other = {
+      ...makeScript({ uuid: "current-script", flag: "current-script-flag" }),
+      scriptRevision: "current-script:1:0",
+      executionHandle: "current-binding",
+      executionEnvTag: "it",
+      executionRunFlag: "current-run",
+    } as TScriptInfo;
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    executor.execScriptEntry({
+      scriptLoadInfo: early,
+      scriptFlag: early.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: () => undefined,
+    });
+    const internal = executor as unknown as {
+      earlyScriptFlags: Set<string>;
+      execScripts: Map<
+        string,
+        {
+          sandboxContext?: { isInvalidContext(): boolean };
+          emitEvent(event: string, eventId: string, data: unknown): void;
+          valueUpdate(data: unknown): void;
+        }
+      >;
+    };
+    internal.earlyScriptFlags.add(early.flag);
+    const earlyExec = internal.execScripts.get(early.uuid)!;
+    const emitEvent = vi.spyOn(earlyExec, "emitEvent");
+    const valueUpdate = vi.spyOn(earlyExec, "valueUpdate");
+
+    try {
+      executor.startScripts([other], initEnvInfo);
+      executor.emitEvent({ uuid: early.uuid, event: "menuClick", eventId: "menu-id" } as any);
+      executor.valueUpdate({ uuid: early.uuid, storageName: "", entries: [], sender: { runFlag: "other" } } as any);
+
+      expect(earlyExec.sandboxContext?.isInvalidContext()).toBe(true);
+      expect(internal.execScripts.has(early.uuid)).toBe(false);
+      expect(emitEvent).not.toHaveBeenCalled();
+      expect(valueUpdate).not.toHaveBeenCalled();
+    } finally {
+      delete (window as unknown as Record<string, unknown>)[other.flag];
+    }
+  });
+
+  it("requires a binding before reconciling an early script with GM grants", () => {
+    const initial = {
+      ...makeScript({
+        uuid: "early-unbound-script",
+        flag: "early-unbound-flag",
+        metadata: { grant: ["GM_log"], "early-start": [""], "run-at": ["document-start"] },
+      }),
+      scriptRevision: "early-unbound-script:1:0",
+    } as TScriptInfo;
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    executor.execScriptEntry({
+      scriptLoadInfo: initial,
+      scriptFlag: initial.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: () => undefined,
+    });
+    const internal = executor as unknown as {
+      earlyScriptFlags: Set<string>;
+      execScripts: Map<string, { sandboxContext?: { isInvalidContext(): boolean } }>;
+    };
+    internal.earlyScriptFlags.add(initial.flag);
+    const earlyExec = internal.execScripts.get(initial.uuid)!;
+    const current = { ...initial } as TScriptInfo;
+
+    executor.startScripts([current], initEnvInfo);
+
+    expect(earlyExec.sandboxContext?.isInvalidContext()).toBe(true);
+    expect(internal.execScripts.has(initial.uuid)).toBe(false);
   });
 
   it("ignores a counterfeit mount with a copied marker and keeps listening for the genuine wrapper", () => {
@@ -401,11 +555,14 @@ describe("ScriptExecutor", () => {
   });
 
   it("continues loading later scripts after reconciling an early-start entry", () => {
-    const early = makeScript({
-      uuid: "early-script",
-      flag: "executor-early-batch",
-      metadata: { "early-start": [""], "run-at": ["document-start"] },
-    });
+    const early = {
+      ...makeScript({
+        uuid: "early-script",
+        flag: "executor-early-batch",
+        metadata: { "early-start": [""], "run-at": ["document-start"] },
+      }),
+      scriptRevision: "early-script:1:0",
+    } as TScriptInfo;
     const later = makeScript({ uuid: "later-script", flag: "executor-later-batch" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
     executor.execScriptEntry({
@@ -417,17 +574,17 @@ describe("ScriptExecutor", () => {
 
     const internal = executor as unknown as {
       earlyScriptFlags: Set<string>;
-      execScripts: Map<string, { updateEarlyScriptGMInfo: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => void }>;
+      execScripts: Map<string, { reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean }>;
     };
     internal.earlyScriptFlags.add(early.flag);
-    const updateEarlyScriptGMInfo = vi.spyOn(internal.execScripts.get(early.uuid)!, "updateEarlyScriptGMInfo");
+    const reconcileEarlyScript = vi.spyOn(internal.execScripts.get(early.uuid)!, "reconcileEarlyScript");
     const pageWindow = window as unknown as Record<string, unknown>;
 
     try {
       executor.startScripts([early, later], initEnvInfo);
       mountInjectScript(later, "");
 
-      expect(updateEarlyScriptGMInfo).toHaveBeenCalledWith(initEnvInfo, early);
+      expect(reconcileEarlyScript).toHaveBeenCalledWith(initEnvInfo, early);
       expect(internal.execScripts.has(later.uuid)).toBe(true);
     } finally {
       delete pageWindow[later.flag];
