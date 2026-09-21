@@ -372,6 +372,19 @@ export function isContextMenuScript(metadata: SCMetadata): boolean {
   return metadata["run-at"]?.[0] === "context-menu";
 }
 
+/**
+ * 唯一的 raw metadata → effective execution grants 转换。ExecScript facade、SW page execution
+ * binding 与 content fallback PageRpcRegistry 必须共用此结果，否则三处 capability policy 会 drift。
+ */
+export function getEffectiveScriptGrants(metadata: SCMetadata): string[] {
+  const grants = new Native.Set(metadata.grant || []);
+  if (isContextMenuScript(metadata)) {
+    grants.delete("none");
+    grants.add("GM_registerMenuCommand");
+  }
+  return [...grants];
+}
+
 export function isEarlyStartScript(metadata: SCMetadata): boolean {
   return metadataBlankOrTrue(metadata, "early-start") && metadata["run-at"]?.[0] === "document-start";
 }

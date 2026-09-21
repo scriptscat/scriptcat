@@ -582,3 +582,23 @@ return [str.match(reg), RegExp.$1];`);
     expect(ret2.onblur).toBeNull();
   });
 });
+
+describe("getEffectiveScriptGrants consumer (P1-2)", () => {
+  it("context-menu + grant none builds a sandbox with GM_registerMenuCommand instead of the bare GM.info branch", () => {
+    const script = makeScript({
+      metadata: { grant: ["none"], "run-at": ["context-menu"], version: ["1.0.0"] },
+    });
+    const message = {} as Message;
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message,
+      contentMsg: message,
+      code: nilFn,
+      envInfo,
+    });
+
+    // 只有当 effective grants 内含 GM_registerMenuCommand 且不再是纯 "none" 时才会走 sandboxContext 分支。
+    expect(exec.sandboxContext).not.toBeUndefined();
+    expect(exec.named).toBeUndefined();
+  });
+});

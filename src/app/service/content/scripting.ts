@@ -16,6 +16,7 @@ import {
   PageRpcRegistry,
   validatePageGMRequest,
 } from "./page_rpc";
+import { getEffectiveScriptGrants } from "./utils";
 import { uuidv4 } from "@App/pkg/utils/uuid";
 
 const PageOrContent = {
@@ -211,7 +212,7 @@ export default class ScriptingRuntime {
       this.pageRpc.revokeAll();
       const prepareScripts = (scripts: typeof injectScriptList, envTag: "it" | "ct") =>
         scripts.map((script) => {
-          const allowedAPIs = getPageRpcAllowedAPIs(script.metadata.grant || []);
+          const allowedAPIs = getPageRpcAllowedAPIs(getEffectiveScriptGrants(script.metadata));
           const executionRunFlag = script.executionRunFlag || uuidv4();
           const executionHandle =
             script.executionHandle ||

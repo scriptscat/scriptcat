@@ -2,7 +2,7 @@ import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
 import { createContext, createProxyContext, type ScriptContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
-import { compileScript, isContextMenuScript } from "./utils";
+import { compileScript, getEffectiveScriptGrants, isContextMenuScript } from "./utils";
 import type { Message } from "@Packages/message/types";
 import type { ValueUpdateDataEncoded } from "./types";
 import { evaluateGMInfo } from "./gm_api/gm_info";
@@ -51,11 +51,7 @@ export default class ExecScript {
     } else {
       this.scriptFunc = code;
     }
-    const grantSet = new Native.Set(scriptRes.metadata.grant || []);
-    if (isContextMenuScript(scriptRes.metadata)) {
-      grantSet.add("GM_registerMenuCommand");
-      grantSet.delete("none");
-    }
+    const grantSet = new Native.Set(getEffectiveScriptGrants(scriptRes.metadata));
     if (grantSet.has("none")) {
       // 不注入任何GM api
       // ScriptCat行为：GM.info 和 GM_info 同时注入

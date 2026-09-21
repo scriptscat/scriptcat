@@ -1599,6 +1599,72 @@ describe("pageLoad 按消息发送方标签页区分隐身上下文", () => {
   });
 });
 
+describe("page execution binding effective grants (P1-2)", () => {
+  // issuePageBinding() must compute allowedAPIs from the same effective-grant policy as
+  // ExecScript and the content fallback PageRpcRegistry, not raw metadata.grant. Otherwise a
+  // context-menu script with `@grant none` can register its menu command locally but the SW
+  // binding rejects the resulting GM_registerMenuCommand page RPC call.
+  it("SW Test A (it): context-menu + grant none allows GM_registerMenuCommand, denies GM_setValue", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({
+        metadata: { match: ["https://www.example.com/*"], grant: ["none"], "run-at": ["context-menu"] },
+      })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [script],
+      contentScriptList: [],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+    const sender = new SenderRuntime({
+      url: "https://www.example.com/page",
+      frameId: 0,
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+
+    const pageLoad = await runtime.pageLoad({ envTag: "it" }, sender);
+    expect(pageLoad.ok).toBe(true);
+    if (!pageLoad.ok) return;
+    const handle = pageLoad.injectScriptList[0].executionHandle;
+    expect(handle).toEqual(expect.any(String));
+
+    const binding = runtime.resolvePageExecutionBinding(handle!, sender);
+    expect(binding?.allowedAPIs.has("GM_registerMenuCommand")).toBe(true);
+    expect(binding?.allowedAPIs.has("GM_setValue")).toBe(false);
+  });
+
+  it("SW Test B (ct): context-menu + grant none allows GM_registerMenuCommand, denies GM_setValue", async () => {
+    const { runtime } = _createRuntimeContext();
+    const script = _createScriptRunResource(
+      _createMockScript({
+        metadata: { match: ["https://www.example.com/*"], grant: ["none"], "run-at": ["context-menu"] },
+      })
+    );
+    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
+      injectScriptList: [],
+      contentScriptList: [script],
+      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
+      scriptmenus: [],
+    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
+    const sender = new SenderRuntime({
+      url: "https://www.example.com/page",
+      frameId: 0,
+      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
+    } as chrome.runtime.MessageSender);
+
+    const pageLoad = await runtime.pageLoad({ envTag: "ct" }, sender);
+    expect(pageLoad.ok).toBe(true);
+    if (!pageLoad.ok) return;
+    const handle = pageLoad.contentScriptList[0].executionHandle;
+    expect(handle).toEqual(expect.any(String));
+
+    const binding = runtime.resolvePageExecutionBinding(handle!, sender);
+    expect(binding?.allowedAPIs.has("GM_registerMenuCommand")).toBe(true);
+    expect(binding?.allowedAPIs.has("GM_setValue")).toBe(false);
+  });
+});
+
 describe("USER_SCRIPT native callbacks", () => {
   it("rejects bootstrap and reconnect tokens from a different URL when documentId is missing", async () => {
     const { runtime } = _createRuntimeContext();

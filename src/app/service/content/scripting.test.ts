@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import type { MessageSend } from "@Packages/message/types";
 import type { TClientPageLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
-import type { Server } from "@Packages/message/server";
+import type { IGetSender, Server } from "@Packages/message/server";
 import { RuntimeClient } from "../service_worker/client";
 import ScriptingRuntime, { serializeDocumentResponse } from "./scripting";
 
@@ -109,6 +109,99 @@ describe("ScriptingRuntime page bootstrap", () => {
         scripts: [{ ...injectScript, executionEnvTag: "it" }],
         envInfo,
       });
+    } finally {
+      storageLocal.onChanged = originalOnChanged;
+    }
+  });
+
+  it("P1-2: fallback PageRpcRegistry grants context-menu GM_registerMenuCommand and still denies GM_setValue", async () => {
+    const contextMenuScript = {
+      ...makeScript("context-menu-script"),
+      name: "Context menu script",
+      metadata: { grant: ["none"], "run-at": ["context-menu"] },
+      executionHandle: undefined,
+      executionRunFlag: undefined,
+    } as unknown as TScriptInfo;
+    const envInfo = { userAgentData: {}, sandboxMode: "raw", isIncognito: false } as const;
+    vi.spyOn(RuntimeClient.prototype, "pageLoad").mockResolvedValue({
+      ok: true,
+      injectScriptList: [contextMenuScript],
+      contentScriptList: [],
+      envInfo,
+      userScriptBootstrapToken: undefined,
+      userScriptInjectBootstrapToken: "inject-bootstrap-token",
+    } as TClientPageLoadInfo);
+    const senderToExt = makeSender();
+    const senderToContent = makeSender();
+    const senderToInject = makeSender();
+    const handlers = new Map<string, (data: unknown, sender: IGetSender) => unknown>();
+    const server = {
+      on: vi.fn((action: string, handler: (data: unknown, sender: IGetSender) => unknown) =>
+        handlers.set(action, handler)
+      ),
+    };
+    const extServer = { on: vi.fn() };
+    const storageLocal = chrome.storage.local as unknown as {
+      onChanged?: { addListener: (listener: (changes: unknown) => void) => void };
+    };
+    const originalOnChanged = storageLocal.onChanged;
+    storageLocal.onChanged = { addListener: vi.fn() };
+    const runtime = new ScriptingRuntime(
+      extServer as unknown as Server,
+      server as unknown as Server,
+      senderToExt as unknown as MessageSend,
+      senderToContent as any,
+      senderToInject as any
+    );
+
+    try {
+      runtime.init();
+      runtime.pageLoad();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // 触发 fallback pageLoad 取得 registry 实际签发的 executionHandle。
+      handlers.get("pageLoadFallback")?.({}, undefined as unknown as IGetSender);
+      await Promise.resolve();
+      const fallbackPageLoad = senderToInject.sendMessage.mock.calls.find(
+        ([message]) => message.action === "inject/pageLoad"
+      )?.[0];
+      const executionHandle = fallbackPageLoad?.data.scripts[0].executionHandle;
+      expect(executionHandle).toEqual(expect.any(String));
+
+      const gmApiHandler = handlers.get("runtime/gmApi")!;
+      const noopSender = { getConnect: () => undefined } as unknown as IGetSender;
+
+      // 修正前：GM_registerMenuCommand 会被 fallback registry 以 raw metadata 拒绝（RED）。
+      await gmApiHandler(
+        {
+          version: 2,
+          requestId: "request-1",
+          sequence: 1,
+          handle: executionHandle,
+          api: "GM_registerMenuCommand",
+          params: [],
+        },
+        noopSender
+      );
+      expect(senderToExt.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ action: "serviceWorker/runtime/gmApi" })
+      );
+
+      // 同一 binding 不能借由 context-menu 隐式授权取得其他特权 API。
+      expect(() =>
+        gmApiHandler(
+          {
+            version: 2,
+            requestId: "request-2",
+            sequence: 2,
+            handle: executionHandle,
+            api: "GM_setValue",
+            params: ["a", 1],
+          },
+          noopSender
+        )
+      ).toThrow("API is not granted to this execution");
     } finally {
       storageLocal.onChanged = originalOnChanged;
     }

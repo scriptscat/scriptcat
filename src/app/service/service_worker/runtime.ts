@@ -54,6 +54,7 @@ import {
   compileInjectScriptByFlag,
   compileScriptCodeByResource,
   compileScriptletCode,
+  getEffectiveScriptGrants,
   isContextMenuScript,
   isEarlyStartScript,
   isInjectIntoContent,
@@ -1871,7 +1872,7 @@ export class RuntimeService {
             script.uuid,
             envTag,
             getStorageName(script),
-            getPageRpcAllowedAPIs(script.metadata.grant || []),
+            getPageRpcAllowedAPIs(getEffectiveScriptGrants(script.metadata)),
             sender
           );
           return {

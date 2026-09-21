@@ -10,11 +10,13 @@ import {
   addStyleSheet,
   trimScriptInfo,
   trimPreInjectScriptInfo,
+  getEffectiveScriptGrants,
 } from "./utils";
 import type { SCMetadata, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
 import { nativeCall } from "./global";
 import { RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
+import { getPageRpcAllowedAPIs } from "./page_rpc";
 
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
 
@@ -1255,5 +1257,45 @@ describe("utils", () => {
       // if 条件包裹
       expect(result).toMatch(/^if\(/);
     });
+  });
+});
+
+describe("getEffectiveScriptGrants (P1-2)", () => {
+  it("Case A: context-menu + grant none gains GM_registerMenuCommand and drops none", () => {
+    const metadata = { grant: ["none"], "run-at": ["context-menu"] } as unknown as SCMetadata;
+
+    const effective = getEffectiveScriptGrants(metadata);
+
+    expect(effective).toContain("GM_registerMenuCommand");
+    expect(effective).not.toContain("none");
+  });
+
+  it("Case B: a normal (non context-menu) grant none script stays capability-less", () => {
+    const metadata = { grant: ["none"], "run-at": ["document-end"] } as unknown as SCMetadata;
+
+    const effective = getEffectiveScriptGrants(metadata);
+
+    expect(effective).toEqual(["none"]);
+    expect(getPageRpcAllowedAPIs(effective)).toEqual([]);
+  });
+
+  it("Case C: context-menu with an existing privileged grant keeps both grants", () => {
+    const metadata = { grant: ["GM_setValue"], "run-at": ["context-menu"] } as unknown as SCMetadata;
+
+    const effective = getEffectiveScriptGrants(metadata);
+
+    expect(effective).toContain("GM_setValue");
+    expect(effective).toContain("GM_registerMenuCommand");
+  });
+
+  it("Case D: context-menu + grant none allows only the menu command, no privilege escalation", () => {
+    const metadata = { grant: ["none"], "run-at": ["context-menu"] } as unknown as SCMetadata;
+
+    const allowedAPIs = getPageRpcAllowedAPIs(getEffectiveScriptGrants(metadata));
+
+    expect(allowedAPIs).toContain("GM_registerMenuCommand");
+    expect(allowedAPIs).not.toContain("GM_setValue");
+    expect(allowedAPIs).not.toContain("GM_xmlhttpRequest");
+    expect(allowedAPIs.some((api) => api.startsWith("CAT_"))).toBe(false);
   });
 });
