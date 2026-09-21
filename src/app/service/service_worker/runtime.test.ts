@@ -321,7 +321,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       selfMetadata: { match: [] },
     });
 
-    expect(await runtime.buildAndSaveCompiledResourceFromScript(script)).toBeUndefined();
+    expect(await runtime.buildCompiledResourceFromScript(script)).toBeUndefined();
   });
 
   it.concurrent("空匹配覆盖时应删除持久化 CompiledResource 并注销旧注册", async () => {
@@ -342,6 +342,124 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     // 空覆盖 = 全站不匹配：旧 CompiledResource 与浏览器注册必须被清掉，否则 SW 重启后旧范围复活
     expect(deleteSpy).toHaveBeenCalledWith(script.uuid);
     expect(unregisterSpy).toHaveBeenCalledWith([script.uuid]);
+  });
+
+  it("compiled revision 应覆盖生成代码和有效执行元数据", async () => {
+    const { runtime, mockScriptService } = createRuntimeTestContext();
+    const script = createMockScript({ selfMetadata: { "run-at": ["document-start"] } });
+    const scriptRunResource = createScriptRunResource(script);
+    mockScriptService.buildScriptRunResource.mockResolvedValue(scriptRunResource);
+    (runtime as any).resource = {
+      getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
+    };
+    const first = await runtime.buildCompiledResourceFromScript(script, true);
+    const same = await runtime.buildCompiledResourceFromScript(script, true);
+    const changedOriginalMetadata = await runtime.buildCompiledResourceFromScript(
+      { ...script, metadata: { ...script.metadata, tag: ["updated"] } },
+      true
+    );
+    mockScriptService.buildScriptRunResource.mockResolvedValue({
+      ...scriptRunResource,
+      code: `${scriptRunResource.code}\n// changed source`,
+    });
+    const changed = await runtime.buildCompiledResourceFromScript(script, true);
+    mockScriptService.buildScriptRunResource.mockResolvedValue({
+      ...scriptRunResource,
+      metadata: { ...scriptRunResource.metadata, "run-at": ["document-end"] },
+    });
+    const changedMetadata = await runtime.buildCompiledResourceFromScript(script, true);
+    const requiredResource = (content: string): Resource => ({
+      url: "https://cdn.example.com/lib.js",
+      content,
+      base64: "",
+      hash: { md5: "", sha1: "", sha256: "", sha384: "", sha512: "" },
+      type: "require",
+      link: {},
+      contentType: "text/javascript",
+      createtime: 1,
+    });
+    const resourceRun = {
+      ...scriptRunResource,
+      resourceByType: {
+        require: { "https://cdn.example.com/lib.js": requiredResource("v1") },
+        "require-css": {},
+        resource: {},
+      },
+    } as ScriptRunResource;
+    mockScriptService.buildScriptRunResource.mockResolvedValue(resourceRun);
+    const firstResource = await runtime.buildCompiledResourceFromScript(script, true);
+    mockScriptService.buildScriptRunResource.mockResolvedValue({
+      ...resourceRun,
+      resourceByType: {
+        ...resourceRun.resourceByType,
+        require: { "https://cdn.example.com/lib.js": requiredResource("v2") },
+      },
+    });
+    const changedResource = await runtime.buildCompiledResourceFromScript(script, true);
+
+    expect(first?.compiledResource.scriptRevision).toMatch(/^[a-f0-9]{64}$/);
+    expect(same?.compiledResource.scriptRevision).toBe(first?.compiledResource.scriptRevision);
+    expect(changedOriginalMetadata?.compiledResource.scriptRevision).not.toBe(first?.compiledResource.scriptRevision);
+    expect(changed?.compiledResource.scriptRevision).not.toBe(first?.compiledResource.scriptRevision);
+    expect(changedMetadata?.compiledResource.scriptRevision).not.toBe(changed?.compiledResource.scriptRevision);
+    expect(changedResource?.compiledResource.scriptRevision).not.toBe(firstResource?.compiledResource.scriptRevision);
+  });
+
+  it("browser registration failure must not publish a newly compiled revision", async () => {
+    const { runtime, mockScriptService } = createRuntimeTestContext();
+    const script = createMockScript({ selfMetadata: { match: ["https://changed.example.com/*"] } });
+    const previousScript = { ...script, selfMetadata: undefined };
+    await runtime.applyScriptMatchInfo(createScriptRunResource(previousScript));
+    mockScriptService.buildScriptRunResource.mockResolvedValue(createScriptRunResource(script));
+    (runtime as any).isUserScriptsAvailable = true;
+    (runtime as any).resource = {
+      getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
+    };
+    vi.spyOn(chrome.userScripts, "getScripts").mockResolvedValue([{ id: script.uuid }] as any);
+    vi.spyOn(chrome.userScripts, "update").mockRejectedValue(new Error("registration failed"));
+    const saveSpy = vi.spyOn(runtime.compiledResourceDAO, "save").mockResolvedValue({} as CompiledResource);
+
+    await runtime.updateResourceOnScriptChange(script);
+
+    expect(saveSpy).not.toHaveBeenCalled();
+    expect(runtime.getPageScriptMatchingResultByUrl("https://www.example.com/").has(script.uuid)).toBe(false);
+    expect(runtime.getPageScriptMatchingResultByUrl("https://changed.example.com/").has(script.uuid)).toBe(true);
+  });
+
+  it("script updates should refresh URL matching before compiled registration work", async () => {
+    const { runtime, mockScriptService } = createRuntimeTestContext();
+    const script = createMockScript({ selfMetadata: { match: ["https://changed.example.com/*"] } });
+    const previousScript = { ...script, selfMetadata: undefined };
+    await runtime.applyScriptMatchInfo(createScriptRunResource(previousScript));
+    let resolveScriptRunResource!: (resource: ScriptRunResource) => void;
+    mockScriptService.buildScriptRunResource.mockReturnValue(
+      new Promise((resolve) => {
+        resolveScriptRunResource = resolve;
+      })
+    );
+
+    const update = runtime.updateResourceOnScriptChange(script);
+
+    expect(runtime.getPageScriptMatchingResultByUrl("https://changed.example.com/").has(script.uuid)).toBe(true);
+    resolveScriptRunResource(createScriptRunResource(script));
+    await update;
+  });
+
+  it("successful browser registration publishes the compiled revision afterward", async () => {
+    const { runtime, mockScriptService } = createRuntimeTestContext();
+    const script = createMockScript();
+    mockScriptService.buildScriptRunResource.mockResolvedValue(createScriptRunResource(script));
+    (runtime as any).isUserScriptsAvailable = true;
+    vi.spyOn(chrome.userScripts, "getScripts").mockResolvedValue([] as any);
+    const saveSpy = vi.spyOn(runtime.compiledResourceDAO, "save").mockResolvedValue({} as CompiledResource);
+    vi.spyOn(chrome.userScripts, "register").mockImplementation(async () => {
+      expect(saveSpy).not.toHaveBeenCalled();
+    });
+
+    await runtime.updateResourceOnScriptChange(script);
+
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+    expect(saveSpy.mock.calls[0][0].scriptRevision).toMatch(/^[a-f0-9]{64}$/);
   });
 
   describe.concurrent("includeDisabled 选项", () => {
@@ -510,6 +628,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
         name: script.name,
         flag: "",
         uuid: script.uuid,
+        scriptRevision: "0".repeat(64),
         require: [],
         matches: ["https://www.example.com/*"],
         includeGlobs: [],
@@ -598,6 +717,69 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
 
       await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
       expect(mockCompiledResourceDAO.gets).toHaveBeenCalledTimes(2);
+    });
+
+    it("本地资源注册失败时保留旧页面缓存", async () => {
+      const {
+        runtime,
+        script,
+        scriptRes,
+        compiledResource,
+        mockCompiledResourceDAO,
+        mockResourceService,
+        mockValueService,
+      } = createCacheTestContext();
+      script.metadata.require = ["file:///tmp/required.js"];
+      scriptRes.metadata.require = ["file:///tmp/required.js"];
+      await runtime.applyScriptMatchInfo(scriptRes);
+      mockValueService.getScriptValue.mockResolvedValue({ latest: "value" });
+      const oldResource = {
+        url: "file:///tmp/required.js",
+        content: "old resource",
+        base64: "",
+        hash: { sha512: "old hash" },
+        type: "require",
+        link: { [script.uuid]: true },
+        contentType: "text/javascript",
+        createtime: 1,
+      } as Resource;
+      const newResource = { ...oldResource, content: "new resource", hash: { sha512: "new hash" } } as Resource;
+      (mockResourceService.getScriptResourceValueByType as any).mockResolvedValue({
+        require: { [oldResource.url]: oldResource },
+        "require-css": {},
+        resource: {},
+      });
+      (mockResourceService as any).getResourceModel = vi.fn().mockResolvedValue(oldResource);
+      (mockResourceService as any).updateResource = vi.fn().mockResolvedValue(newResource);
+      mockCompiledResourceDAO.get.mockResolvedValue(compiledResource);
+      vi.spyOn(chrome.userScripts, "getScripts").mockResolvedValue([
+        { id: script.uuid, js: [{ code: "old wrapper" }] } as chrome.userScripts.RegisteredUserScript,
+      ] as any);
+      const browserUpdateSpy = vi
+        .spyOn(chrome.userScripts, "update")
+        .mockRejectedValue(new Error("registration failed"));
+
+      await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+
+      const cache = (runtime as any).pageLoadCaches.get(script.uuid);
+      expect(cache.resourceByType.require[oldResource.url].content).toBe("old resource");
+      expect(cache.localResources[0].sha512).toBe("old hash");
+
+      browserUpdateSpy.mockResolvedValue(undefined as any);
+      const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+
+      const updatedCache = (runtime as any).pageLoadCaches.get(script.uuid);
+      expect(updatedCache.resourceByType.require[oldResource.url].content).toBe("new resource");
+      expect(updatedCache.localResources[0].sha512).toBe("new hash");
+      expect(result!.injectScriptList[0].value).toEqual({ latest: "value" });
+      expect(browserUpdateSpy).toHaveBeenLastCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ js: [expect.objectContaining({ code: expect.stringContaining("new resource") })] }),
+        ])
+      );
+      expect(mockCompiledResourceDAO.save).toHaveBeenCalledWith(
+        expect.objectContaining({ scriptRevision: expect.not.stringMatching(/^0+$/) })
+      );
     });
   });
 
@@ -897,6 +1079,7 @@ describe("getScriptsForTab 附加边界场景", () => {
       name: script.name,
       flag: "",
       uuid: script.uuid,
+      scriptRevision: "0".repeat(64),
       require: [],
       matches: ["https://www.example.com/*"],
       includeGlobs: [],
@@ -1038,14 +1221,14 @@ describe("getScriptsForTab 附加边界场景", () => {
     expect(result?.envInfo.isIncognito).toBe(true);
   });
 
-  it("compiledResource 不存在时应调用 buildAndSaveCompiledResourceFromScript 重新构建", async () => {
+  it("compiledResource 不存在时应构建新的编译资源", async () => {
     const { runtime, scriptRes, compiledResource, mockCompiledResourceDAO } = createFullContext();
     await runtime.applyScriptMatchInfo(scriptRes);
 
-    // 让 gets 返回 undefined（缓存丢失），spy buildAndSave 使其返回新构建结果
+    // 让 gets 返回 undefined（缓存丢失），spy 编译器使其返回新构建结果
     mockCompiledResourceDAO.gets.mockResolvedValue([undefined]);
     const buildSpy = vi
-      .spyOn(runtime as any, "buildAndSaveCompiledResourceFromScript")
+      .spyOn(runtime as any, "buildCompiledResourceFromScript")
       .mockResolvedValue({ compiledResource });
 
     const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
@@ -1887,6 +2070,7 @@ describe("restoreJSCodeFromCompiledResource 还原代码时的生效 metadata", 
       name: script.name,
       flag: `#-${script.uuid}`,
       uuid: script.uuid,
+      scriptRevision: "0".repeat(64),
       require: [],
       matches: ["https://www.example.com/*"],
       includeGlobs: [],
@@ -1971,7 +2155,10 @@ describe("registerUserscripts 注册健康检查", () => {
     vi.spyOn(chrome.userScripts, "register").mockResolvedValue(undefined);
     vi.spyOn(chrome.userScripts, "resetWorldConfiguration").mockResolvedValue(undefined);
     vi.spyOn(runtime, "unregisterUserscripts").mockResolvedValue(undefined);
-    vi.spyOn(runtime as any, "getParticularScriptList").mockResolvedValue([]);
+    vi.spyOn(runtime as any, "getParticularScriptList").mockResolvedValue({
+      registerScripts: [],
+      compiledResourceCandidates: [],
+    });
     vi.spyOn(runtime as any, "getContentAndInjectScript").mockResolvedValue({ content: [], inject: [] });
     runtime.isUserScriptsAvailable = true;
   });
