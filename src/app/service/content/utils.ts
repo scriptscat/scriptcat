@@ -17,9 +17,23 @@ const cloneTransportValue = (value: any) => {
 // The generated wrapper keeps this build token in its closure for trusted execution and inspection.
 const lnStrIntegrity = process.env.SC_RANDOM_FNKEY;
 
-// Verify the page-visible candidate's native source before passing it the private build token.
+// Canonical MAIN-world wrapper protocol. This exact string is both what gets injected onto the
+// page (via codeFunction()) and what getCompiledScriptMetadata() diffs a page-visible candidate's
+// native toString() against — there is only one source string, never a separate handwritten
+// "expected" copy. Readable equivalent of the compact form below:
+//
+//   (t, u, ...a) => {
+//     if (t !== k) return;                          // reject without the private build token
+//     if (u === null) {                              // metadata inspection mode
+//       return a[0] === d ? m : undefined;            // only for the document captured at creation
+//     }
+//     const c = a[2];                                 // caller-supplied trusted call primitive
+//     if (typeof c !== "function") return;
+//     const s = c(fn, u, a[0], a[1]);                  // execute the compiled userscript
+//     return typeof s === "function" ? c(s, u) : s;    // run an async userscript's returned body
+//   }
 const generatedScriptFunctionSource =
-  "(t, u, ...args) => { if (t === k) { if (u === null) { if (args[0] === d) return m; return } const call = args[2]; if (typeof call !== 'function') return; args.length = 2; const script = call(fn, u, args[0], args[1]); return typeof script === 'function' ? call(script, u) : script } }";
+  "(t,u,...a)=>{if(t===k){if(u===null)return a[0]===d?m:void 0;const c=a[2];if(typeof c==='function'){const s=c(fn,u,a[0],a[1]);return typeof s==='function'?c(s,u):s}}}";
 
 export function getCompiledScriptMetadata(scriptFunc: unknown): string | undefined {
   try {
@@ -184,7 +198,7 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
 }
 
 const codeFunction = (code: string, scriptInfoJSON: string) =>
-  `((k, m, fn, d) => { const f = ${generatedScriptFunctionSource}; return f; })(${JSON.stringify(lnStrIntegrity)}, ${JSON.stringify(scriptInfoJSON)}, function(){${code}}, document)`;
+  `((k,m,fn,d)=>${generatedScriptFunctionSource})(${JSON.stringify(lnStrIntegrity)}, ${JSON.stringify(scriptInfoJSON)}, function(){${code}}, document)`;
 
 // ScriptExecutor authenticates the wrapper closure before passing it a GM context.
 const mountCodeFunction = (flag: string, code: string, scriptInfoJSON: string) =>

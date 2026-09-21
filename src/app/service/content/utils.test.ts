@@ -11,6 +11,7 @@ import {
   trimScriptInfo,
   trimPreInjectScriptInfo,
   getEffectiveScriptGrants,
+  getCompiledScriptMetadata,
 } from "./utils";
 import type { SCMetadata, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import type { ScriptFunc } from "./types";
@@ -669,7 +670,6 @@ describe("utils", () => {
       const result = compileInjectScript(script, scriptCode);
 
       expect(result).toContain("window['inject-test-flag'] =");
-      expect(result).toContain("if (t === k)");
       expect(result).toContain("function(){console.log('injected');}");
       expect(result).not.toContain("Object.defineProperty(f, k");
     });
@@ -807,6 +807,145 @@ describe("utils", () => {
       const result = compileInjectScript(script, scriptCode);
 
       expect(result).toContain(`'flag-with-special-chars_123'`);
+    });
+  });
+
+  describe("generated MAIN-world wrapper protocol (compaction)", () => {
+    const createMockScript = (overrides: Partial<ScriptRunResource> = {}): ScriptRunResource => ({
+      uuid: "compact-wrapper-uuid",
+      name: "Compact Wrapper Script",
+      namespace: "compact.test",
+      type: 1,
+      status: 1,
+      sort: 0,
+      runStatus: "complete",
+      createtime: Date.now(),
+      checktime: Date.now(),
+      code: "",
+      value: {},
+      flag: "compact-wrapper-flag",
+      resource: {},
+      metadata: {},
+      originalMetadata: {},
+      ...overrides,
+    });
+
+    // 编译并挂载到一个隔离的 targetWindow，取回真正生成的 wrapper function object。
+    const mountGeneratedWrapper = (
+      script: ScriptRunResource,
+      scriptCode: string,
+      autoDeleteMountFunction = false
+    ): ScriptFunc => {
+      const targetWindow: GeneratedWindow = {};
+      executeGeneratedScript(compileInjectScript(script, scriptCode, autoDeleteMountFunction), targetWindow);
+      return targetWindow[script.flag] as ScriptFunc;
+    };
+
+    // ScriptFunc 的类型签名固定为 4-5 个具名参数，但 metadata 模式和 hostile-input 场景故意只带
+    // 少数几个实际参数（正是 wrapper 用 rest 参数吸收的协议）。用 Reflect.apply 调用以测试真实的
+    // 运行时协议，而不被编译期签名约束。
+    const callGenerated = (fn: ScriptFunc, args: readonly unknown[]): unknown =>
+      Reflect.apply(fn as unknown as (...a: unknown[]) => unknown, undefined, args);
+
+    it("wrapper.length === 2：保留具名参数数量，避免未来体积优化悄悄改变可观察的函数行为", () => {
+      const generated = mountGeneratedWrapper(createMockScript(), "return 'ran';");
+      expect(generated.length).toBe(2);
+    });
+
+    it("错误的完整性标记不会执行已编译脚本，返回 undefined", () => {
+      const generated = mountGeneratedWrapper(createMockScript(), "throw new Error('must not run');");
+      expect(generated("wrong-token", {}, {}, "blocked")).toBeUndefined();
+    });
+
+    it("正确标记 + metadata 模式 + 捕获时的 document 应返回存储的 metadata", () => {
+      const script = createMockScript({ uuid: "metadata-success-uuid", flag: "metadata-success-flag" });
+      const generated = mountGeneratedWrapper(script, "return 'unused';");
+
+      const metadata = callGenerated(generated, [fnStrIntegrity, null, document]);
+
+      expect(metadata).toBe(JSON.stringify({ uuid: script.uuid, flag: script.flag }));
+    });
+
+    it("metadata 模式下换一个 document 必须返回 undefined（wrapper 绑定创建时捕获的 document）", () => {
+      const generated = mountGeneratedWrapper(createMockScript(), "return 'unused';");
+      const otherDocument = new DOMParser().parseFromString("<html></html>", "text/html");
+
+      expect(callGenerated(generated, [fnStrIntegrity, null, otherDocument])).toBeUndefined();
+    });
+
+    it("metadata 模式（无论查找成功或失败）绝不会 fall through 到脚本执行", () => {
+      const executed = vi.fn();
+      const targetWindow: GeneratedWindow = { __executed: executed };
+      executeGeneratedScript(compileInjectScript(createMockScript(), "window.__executed();"), targetWindow);
+      const generated = targetWindow["compact-wrapper-flag"] as ScriptFunc;
+      const otherDocument = new DOMParser().parseFromString("<html></html>", "text/html");
+
+      callGenerated(generated, [fnStrIntegrity, null, otherDocument]); // 查找失败（document 不匹配）
+      callGenerated(generated, [fnStrIntegrity, null, document]); // 查找成功（document 匹配）
+
+      expect(executed).not.toHaveBeenCalled();
+    });
+
+    it("execution 模式下无效的受信 call primitive（第五参数）不会执行脚本，返回 undefined", () => {
+      const generated = mountGeneratedWrapper(createMockScript(), "throw new Error('must not run');");
+
+      expect(generated(fnStrIntegrity, {}, {}, "name", undefined)).toBeUndefined();
+      expect(callGenerated(generated, [fnStrIntegrity, {}, {}, "name", "not-a-function"])).toBeUndefined();
+    });
+
+    it("已编译函数若返回另一个函数，该函数必须用同一个受信 call primitive 和同一 context 恰好调用一次", () => {
+      // 受信 call primitive 的真实实现（nativeCall）语义等同 Function.prototype.call：
+      // 用 thisArg 调用 fn。这里的 mock 复刻该语义，而不是单纯转发参数。
+      const calls: Array<{ fn: unknown; thisArg: unknown }> = [];
+      const trustedCall = (fn: (...args: unknown[]) => unknown, thisArg: unknown, ...args: unknown[]) => {
+        calls.push({ fn, thisArg });
+        return fn.apply(thisArg, args);
+      };
+      const context = { marker: "ctx" };
+      const script = createMockScript({ code: "return function(){ return this; };" });
+      const generated = mountGeneratedWrapper(script, script.code);
+
+      const result = generated(fnStrIntegrity, context, {}, script.name, trustedCall);
+
+      expect(result).toBe(context);
+      // trustedCall 必须被调用两次：一次执行已编译函数，一次调用其返回的函数，两次都用同一 context。
+      expect(calls).toHaveLength(2);
+      expect(calls[0].thisArg).toBe(context);
+      expect(calls[1].thisArg).toBe(context);
+    });
+
+    it("Reflect.ownKeys(generatedWrapper) 不会暴露 SC_RANDOM_FNKEY", () => {
+      const generated = mountGeneratedWrapper(createMockScript(), "return 'ran';");
+      const keys = Reflect.ownKeys(generated).map(String);
+      expect(keys.join(",")).not.toContain(fnStrIntegrity!);
+      expect(keys).not.toContain("k");
+    });
+
+    it("体积回归：生成的 wrapper 原生源码长度必须保持在压缩后的预算内", () => {
+      const generated = mountGeneratedWrapper(createMockScript(), "");
+      const source = Function.prototype.toString.call(generated);
+      expect(source.length).toBeLessThanOrEqual(180);
+    });
+
+    it("getCompiledScriptMetadata() 能识别真正挂载的 wrapper 并返回其 metadata", () => {
+      const script = createMockScript({ uuid: "gcsm-uuid", flag: "gcsm-flag" });
+      const generated = mountGeneratedWrapper(script, "return 'unused';");
+
+      expect(getCompiledScriptMetadata(generated)).toBe(JSON.stringify({ uuid: script.uuid, flag: script.flag }));
+    });
+
+    it("getCompiledScriptMetadata() 对非 wrapper 的函数返回 undefined", () => {
+      expect(getCompiledScriptMetadata(() => "not a wrapper")).toBeUndefined();
+      expect(getCompiledScriptMetadata(undefined)).toBeUndefined();
+    });
+
+    it("体积回归：外层生成工厂不应重新引入临时 wrapper 变量等多余脚手架", () => {
+      const script = createMockScript({ uuid: "factory-overhead-uuid", flag: "factory-overhead-flag" });
+      const mounted = compileInjectScript(script, "");
+
+      expect(mounted).not.toMatch(/const f = /);
+      expect(mounted).not.toContain("return f;");
+      expect(mounted).toContain("((k,m,fn,d)=>(t,u,...a)=>{");
     });
   });
 
