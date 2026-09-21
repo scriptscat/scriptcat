@@ -169,6 +169,94 @@ describe("early-start page RPC", () => {
   });
 });
 
+describe("page RPC executionHandle protocol (P1-1)", () => {
+  // MAIN world scripts (envTag "it") reach the SW over the same native page-bound transport as
+  // USER_SCRIPT (envTag "ct"). SW page execution validation requires `executionHandle` on every
+  // page-sourced version-2 request regardless of envTag; only the caller-side transport tag
+  // ("it" vs "ct") used to decide whether to attach it.
+  it("Unit A: sendMessage on a MAIN (it) binding includes executionHandle", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
+    const script = {
+      ...scriptRes,
+      uuid: "main-it-script",
+      executionHandle: "main-binding",
+      executionEnvTag: "it",
+    } as ScriptLoadInfo;
+    const api = new GMApi("scripting", { sendMessage } as unknown as Message, {} as Message, script);
+
+    await api.sendMessage("GM_setValue", ["a", 1]);
+
+    const data = sendMessage.mock.calls[0][0].data;
+    expect(data).toMatchObject({
+      version: 2,
+      handle: "main-binding",
+      executionHandle: "main-binding",
+      sequence: 1,
+      api: "GM_setValue",
+    });
+  });
+
+  it("Unit B: connect on a MAIN (it) binding includes executionHandle", async () => {
+    const connectMessage = vi.fn().mockResolvedValue({} as MessageConnect);
+    const script = {
+      ...scriptRes,
+      uuid: "main-it-connect-script",
+      executionHandle: "main-binding",
+      executionEnvTag: "it",
+    } as ScriptLoadInfo;
+    const api = new GMApi("scripting", { connect: connectMessage } as unknown as Message, {} as Message, script);
+
+    await api.connect("GM_xmlhttpRequest", []);
+
+    const data = connectMessage.mock.calls[0][0].data;
+    expect(data).toMatchObject({
+      version: 2,
+      handle: "main-binding",
+      executionHandle: "main-binding",
+      api: "GM_xmlhttpRequest",
+    });
+  });
+
+  it("Unit C: USER_SCRIPT (ct) binding still includes executionHandle (regression)", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
+    const script = {
+      ...scriptRes,
+      uuid: "ct-script",
+      executionHandle: "ct-binding",
+      executionEnvTag: "ct",
+    } as ScriptLoadInfo;
+    const api = new GMApi("scripting", { sendMessage } as unknown as Message, {} as Message, script);
+
+    await api.sendMessage("GM_setValue", ["a", 1]);
+
+    const data = sendMessage.mock.calls[0][0].data;
+    expect(data.handle).toBe("ct-binding");
+    expect(data.executionHandle).toBe("ct-binding");
+  });
+
+  it("Unit D: a request with no executionHandle keeps the legacy uuid/runFlag shape", async () => {
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
+    const script = {
+      ...scriptRes,
+      uuid: "legacy-script",
+      executionHandle: undefined,
+      executionEnvTag: undefined,
+    } as ScriptLoadInfo;
+    const api = new GMApi("scripting", { sendMessage } as unknown as Message, {} as Message, script);
+
+    await api.sendMessage("GM_setValue", ["a", 1]);
+
+    const data = sendMessage.mock.calls[0][0].data;
+    expect(data).toMatchObject({
+      uuid: "legacy-script",
+      api: "GM_setValue",
+      params: ["a", 1],
+    });
+    expect(data.version).toBeUndefined();
+    expect(data.executionHandle).toBeUndefined();
+  });
+});
+
 describe("CAT_fetchDocument", () => {
   it("rebuilds documents from a data-only response instead of a relatedTarget reference", async () => {
     const script = Object.assign({}, scriptRes, {

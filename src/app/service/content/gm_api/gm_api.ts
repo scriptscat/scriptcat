@@ -209,13 +209,14 @@ class GM_Base implements IGM_Base {
     let ret;
     try {
       // 有页面句柄时走版本化 RPC；后台脚本和未迁移上下文继续使用旧请求形状。
-      const request = this.scriptRes.executionHandle
+      const executionHandle = this.scriptRes.executionHandle;
+      const request = executionHandle
         ? {
             version: 2 as const,
             requestId: uuidv4(),
             sequence: ++this.pageRpcSequence,
-            handle: this.scriptRes.executionHandle,
-            ...(this.scriptRes.executionEnvTag === "ct" ? { executionHandle: this.scriptRes.executionHandle } : {}),
+            handle: executionHandle,
+            executionHandle,
             api,
             params,
           }
@@ -249,13 +250,14 @@ class GM_Base implements IGM_Base {
     if (this.isInvalidContext()) throw new Error("Invalid Context");
     if (!this.message || !this.scriptRes) return new Promise<MessageConnect>(() => {});
     // 长连接也必须携带同一页面句柄，否则 broker 无法把连接绑定回脚本和文档。
-    const request = this.scriptRes.executionHandle
+    const executionHandle = this.scriptRes.executionHandle;
+    const request = executionHandle
       ? {
           version: 2 as const,
           requestId: uuidv4(),
           sequence: ++this.pageRpcSequence,
-          handle: this.scriptRes.executionHandle,
-          ...(this.scriptRes.executionEnvTag === "ct" ? { executionHandle: this.scriptRes.executionHandle } : {}),
+          handle: executionHandle,
+          executionHandle,
           api,
           params,
         }
