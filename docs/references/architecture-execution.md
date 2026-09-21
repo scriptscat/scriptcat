@@ -10,26 +10,45 @@ There are three execution paths; all share one **compilation** step.
 go through a controlled context object instead of the page's real globals:
 
 ```ts
-// compileScriptCodeByResource(): the emitted wrapper
-[
-  "with(arguments[0]||this.$){",   // arguments[0] = the GM context (sandbox) / this.$ = one-shot Proxy
-  preCode,                          // @require dependencies, concatenated
-  "return(async function(){",       // async → user code may use top-level await
-  code,                             // the user's script body
-  "}).call(this);}",
-].join("\n");
-// then wrapped in try/catch and compiled with `new Function(code)`
+with (arguments[0] || this.$) { // arguments[0] = GM context; this.$ = one-shot Proxy
+  // @require dependencies, concatenated
+  return async function () {    // user code may use top-level await
+    // userscript body
+  };
+}
 ```
+
+The generated code is wrapped in `try/catch` and compiled with `new Function`. `compileScript()` invokes the
+returned async function with captured `nativeCall` (`Reflect.apply`), preserving userscript `this` without
+consulting page-modifiable `call`, `apply`, or `bind` properties.
 
 Key points:
 
 - `with(arguments[0]||this.$)` makes every bare identifier resolve against the GM context first. The context is
   a descriptor-based pseudo-window that projects `unsafeWindow`, the granted `GM_*` functions, and a controlled
   view of globals — not the raw page scope. It is a compatibility projection rather than a security membrane.
-- Context and script name are passed as **unnamed `arguments`** (`arguments[0]`, `arguments[1]`) so user code
-  can't shadow them by declaring variables of the same name.
-- The wrapper installs the body as a temporary method and removes it in the same expression. This preserves the
-  userscript `this` without resolving mutable page `call`, `apply`, or `bind` properties.
+- The code and script name are passed through unnamed `arguments` (`arguments[0]`, `arguments[1]`) so user code
+  cannot shadow them by declaring variables with the same names.
+
+### MAIN-world wrapper and early start
+
+The MAIN registration mounts the generated wrapper with an ordinary `window[flag] = wrapper` assignment.
+[`compilePreInjectScript()`](../../src/app/service/content/utils.ts) also dispatches a page-visible `performance`
+event whose detail contains the script flag. Page code can observe, replace, or delete these mounts and events;
+neither surface establishes an authenticated origin.
+
+Before execution, [`ScriptExecutor`](../../src/app/service/content/script_executor.ts) checks the candidate function
+with captured native `Function.prototype.toString` against the generated wrapper source, then passes its build token
+through the trusted invocation path to read closure-held metadata. It verifies that the metadata UUID and flag match
+the registered script before executing the wrapper. The wrapper mount and event do not grant GM capability.
+
+An early-start wrapper may run its page-side body before the authoritative page-load list arrives. Pre-inject
+metadata redacts `value`, `config`, `userConfig`, and `userConfigStr`; privileged requests that cross to the broker
+wait on the early context's load gate. Reconciliation requires the same UUID, flag, and compiled `scriptRevision`;
+scripts with grants or context-menu behavior also require a valid execution binding. On success, the executor
+refreshes script information and `GM_info` before resolving the load gate. A missing or stale script, or an invalid
+binding, invalidates the context and settles the pending load wait so waiting broker requests stop without being
+sent. Early contexts absent from the authoritative list are invalidated as well.
 
 ### Path A — Page scripts → `chrome.userScripts`
 
@@ -42,11 +61,15 @@ content script that supplies the page bridge. At document time the content/injec
 context. The `USER_SCRIPT` content path obtains its matched scripts directly from the service worker over
 `ExtensionMessage` after a bootstrap-token handoff. The MAIN `inject` path uses a native extension port for GM RPC
 when available; `PageMessage` carries page-visible bootstrap/fallback traffic, MAIN event/value updates, the
-whitelisted `external.Scriptcat` API, and the MAIN GM RPC fallback through the `scripting` bundle. That fallback
-is checked against the current `PageRpcRegistry` execution handle and grant before it is forwarded to the service
-worker. `CustomEventMessage` carries the content bootstrap handoff and synchronous DOM references. Neither
-page-visible bridge establishes an authenticated extension origin, so consumers must validate its payloads before
-acting on them.
+whitelisted `external.Scriptcat` API, and the MAIN GM RPC fallback through the `scripting` bundle. On a MAIN
+bootstrap fallback request, [`scripting.ts`](../../src/app/service/content/scripting.ts) forwards the prepared
+matching `injectScriptList` and environment information; it does not reduce execution to `@grant none` scripts.
+The GM RPC fallback validates the request shape, active execution handle, request sequence, and granted API in
+[`PageRpcRegistry`](../../src/app/service/content/page_rpc.ts) before forwarding it to the service worker. The
+handle identifies a binding but is not an authorization secret.
+`CustomEventMessage` carries the content bootstrap handoff and synchronous DOM references. Neither page-visible
+bridge establishes an authenticated extension origin, so consumers must validate its payloads before acting on
+them.
 
 ### Path B — Background scripts → Offscreen → Sandbox
 
