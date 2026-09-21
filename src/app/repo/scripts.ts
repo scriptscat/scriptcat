@@ -117,6 +117,8 @@ export interface ScriptRunResource extends Script {
   executionEnvTag?: ScriptEnvTag;
   /** 页面执行绑定使用的值更新关联标识。 */
   executionRunFlag?: string;
+  /** 与已注册 userscript wrapper 对应的编译 revision。 */
+  scriptRevision?: string;
 }
 
 /**

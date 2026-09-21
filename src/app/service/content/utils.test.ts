@@ -536,6 +536,13 @@ describe("utils", () => {
       expect(preInject).toMatchObject({ value: {}, config: undefined, userConfig: undefined, userConfigStr: "" });
       expect(JSON.stringify(preInject)).not.toContain("secret");
     });
+
+    it("preserves an explicitly supplied compiled revision", () => {
+      const script = createScript({ grant: ["GM_getValue"] }, []);
+      script.scriptRevision = "compiled-revision";
+
+      expect(trimScriptInfo(script).scriptRevision).toBe("compiled-revision");
+    });
   });
 
   describe("compileScript", () => {

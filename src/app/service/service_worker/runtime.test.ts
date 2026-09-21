@@ -346,7 +346,9 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
 
   it("compiled revision 应覆盖生成代码和有效执行元数据", async () => {
     const { runtime, mockScriptService } = createRuntimeTestContext();
-    const script = createMockScript({ selfMetadata: { "run-at": ["document-start"] } });
+    const script = createMockScript({
+      metadata: { match: ["https://www.example.com/*"], "run-at": ["document-start"], "early-start": [""] },
+    });
     const scriptRunResource = createScriptRunResource(script);
     mockScriptService.buildScriptRunResource.mockResolvedValue(scriptRunResource);
     (runtime as any).resource = {
@@ -398,6 +400,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     const changedResource = await runtime.buildCompiledResourceFromScript(script, true);
 
     expect(first?.compiledResource.scriptRevision).toMatch(/^[a-f0-9]{64}$/);
+    expect(first?.apiScript.js?.[0].code).toContain(first?.compiledResource.scriptRevision);
     expect(same?.compiledResource.scriptRevision).toBe(first?.compiledResource.scriptRevision);
     expect(changedOriginalMetadata?.compiledResource.scriptRevision).not.toBe(first?.compiledResource.scriptRevision);
     expect(changed?.compiledResource.scriptRevision).not.toBe(first?.compiledResource.scriptRevision);
@@ -410,6 +413,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     const script = createMockScript({ selfMetadata: { match: ["https://changed.example.com/*"] } });
     const previousScript = { ...script, selfMetadata: undefined };
     await runtime.applyScriptMatchInfo(createScriptRunResource(previousScript));
+    (runtime as any).pageLoadCaches.set(script.uuid, { scriptCacheKey: "stale" });
     mockScriptService.buildScriptRunResource.mockResolvedValue(createScriptRunResource(script));
     (runtime as any).isUserScriptsAvailable = true;
     (runtime as any).resource = {
@@ -422,6 +426,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     await runtime.updateResourceOnScriptChange(script);
 
     expect(saveSpy).not.toHaveBeenCalled();
+    expect((runtime as any).pageLoadCaches.has(script.uuid)).toBe(false);
     expect(runtime.getPageScriptMatchingResultByUrl("https://www.example.com/").has(script.uuid)).toBe(false);
     expect(runtime.getPageScriptMatchingResultByUrl("https://changed.example.com/").has(script.uuid)).toBe(true);
   });
@@ -665,6 +670,7 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       runtime.compiledResourceDAO = mockCompiledResourceDAO as any;
       (runtime as any).resource = mockResourceService;
       (runtime as any).value = mockValueService;
+      vi.spyOn(runtime, "buildCompiledResourceFromScript").mockResolvedValue({ compiledResource } as any);
 
       return {
         runtime,
@@ -779,6 +785,9 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       );
       expect(mockCompiledResourceDAO.save).toHaveBeenCalledWith(
         expect.objectContaining({ scriptRevision: expect.not.stringMatching(/^0+$/) })
+      );
+      expect(result!.injectScriptList[0].scriptRevision).toBe(
+        mockCompiledResourceDAO.save.mock.calls.at(-1)?.[0].scriptRevision
       );
     });
   });
@@ -1033,6 +1042,7 @@ describe("page-load resource cache", () => {
     const scriptRes = _createScriptRunResource(_createMockScript());
     const cache = {
       scriptCacheKey: "cache-key",
+      scriptRevision: "compiled-revision",
       code: "console.log(1)",
       scriptUrlPatterns: [],
       originalUrlPatterns: null,
@@ -1053,6 +1063,7 @@ describe("page-load resource cache", () => {
     expect(pageInfo.resourceByType["require-css"][sharedKey].content).toBe("css content");
     expect(pageInfo.resourceByType.resource[sharedKey].content).toBe("resource content");
     expect(pageInfo.resource[sharedKey].content).toBe("resource content");
+    expect(pageInfo.scriptRevision).toBe("compiled-revision");
   });
 });
 
@@ -1063,7 +1074,7 @@ describe("getScriptsForTab 附加边界场景", () => {
 
   /** 带完整 mock 的测试上下文，可按需覆盖各层依赖 */
   const createFullContext = (scriptOverrides: Partial<Script> = {}) => {
-    const { runtime, mockScriptDAO, mockSystemConfig } = _createRuntimeContext();
+    const { runtime, mockScriptDAO, mockScriptService, mockSystemConfig } = _createRuntimeContext();
 
     const script = _createMockScript({
       metadata: { match: ["https://www.example.com/*"] },
@@ -1109,11 +1120,13 @@ describe("getScriptsForTab 附加边界场景", () => {
     runtime.compiledResourceDAO = mockCompiledResourceDAO as any;
     (runtime as any).resource = mockResourceService;
     (runtime as any).value = mockValueService;
+    vi.spyOn(runtime, "buildCompiledResourceFromScript").mockResolvedValue({ compiledResource } as any);
 
     return {
       runtime,
       script,
       scriptRes,
+      mockScriptService,
       compiledResource,
       mockCompiledResourceDAO,
       mockScriptDAO,
@@ -1221,11 +1234,11 @@ describe("getScriptsForTab 附加边界场景", () => {
     expect(result?.envInfo.isIncognito).toBe(true);
   });
 
-  it("compiledResource 不存在时应构建新的编译资源", async () => {
+  it("compiledResource 不存在时不发布未注册的页面脚本", async () => {
     const { runtime, scriptRes, compiledResource, mockCompiledResourceDAO } = createFullContext();
     await runtime.applyScriptMatchInfo(scriptRes);
 
-    // 让 gets 返回 undefined（缓存丢失），spy 编译器使其返回新构建结果
+    // 没有已发布的 compiled revision 时，不能把未注册的候选版本作为权威脚本信息发送。
     mockCompiledResourceDAO.gets.mockResolvedValue([undefined]);
     const buildSpy = vi
       .spyOn(runtime as any, "buildCompiledResourceFromScript")
@@ -1233,8 +1246,33 @@ describe("getScriptsForTab 附加边界场景", () => {
 
     const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
 
-    expect(buildSpy).toHaveBeenCalledTimes(1);
-    expect(result).not.toBeNull();
+    expect(buildSpy).not.toHaveBeenCalled();
+    expect(result).toBeNull();
+  });
+
+  it("compiled revision 不匹配时不向页面发布当前脚本资料", async () => {
+    const { runtime, scriptRes, compiledResource } = createFullContext();
+    await runtime.applyScriptMatchInfo(scriptRes);
+    vi.spyOn(runtime, "buildCompiledResourceFromScript").mockResolvedValue({
+      compiledResource: { ...compiledResource, scriptRevision: "1".repeat(64) },
+    } as any);
+
+    const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+
+    expect(result).toBeNull();
+  });
+
+  it("页面脚本资料携带已注册的编译 revision", async () => {
+    const { runtime, script, scriptRes, mockScriptService, mockCompiledResourceDAO } = createFullContext();
+    await runtime.applyScriptMatchInfo(scriptRes);
+    (runtime as any).buildCompiledResourceFromScript.mockRestore();
+    mockScriptService.buildScriptRunResource.mockResolvedValue(scriptRes);
+    const registeredCandidate = await runtime.buildCompiledResourceFromScript(script, true);
+    mockCompiledResourceDAO.gets.mockResolvedValue([registeredCandidate!.compiledResource]);
+
+    const result = await runtime.getScriptsForTab({ url: pageUrl, tabId: undefined, frameId: undefined });
+
+    expect(result!.injectScriptList[0].scriptRevision).toBe(registeredCandidate!.compiledResource.scriptRevision);
   });
 });
 

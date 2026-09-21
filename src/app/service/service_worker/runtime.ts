@@ -109,6 +109,7 @@ type TLocalResourceCache = {
 
 type TPageLoadScriptCache = {
   scriptCacheKey: string;
+  scriptRevision: string;
   originalMetadata: SCMetadata;
   scriptUrlPatterns: URLRuleEntry[];
   originalUrlPatterns: URLRuleEntry[] | null;
@@ -929,6 +930,7 @@ export class RuntimeService {
     if (script.type !== SCRIPT_TYPE_NORMAL || script.status !== SCRIPT_STATUS_ENABLE) {
       throw new Error("Invalid Calling of updateResourceOnScriptChange");
     }
+    this.pageLoadCaches.delete(script.uuid);
     // 安装，启用，或earlyStartScript的value更新
     const scriptRes = buildScriptRunResourceBasic(script);
     const patterns = scriptURLPatternResults(scriptRes);
@@ -1383,6 +1385,8 @@ export class RuntimeService {
       return undefined;
     }
 
+    delete scriptRes.scriptRevision;
+
     if (!withCode) {
       const scriptCode = await this.script.scriptCodeDAO.get(script.uuid);
       scriptRes.code = scriptCode?.code || "";
@@ -1397,8 +1401,11 @@ export class RuntimeService {
       scriptMatchInfo.scriptUrlPatterns,
       script.metadata
     );
+    scriptRes.scriptRevision = scriptRevision;
     if (withCode) {
-      registerScript.js![0].code = jsCode = compiledCode;
+      registerScript.js![0].code = jsCode = isEarlyStartScript(scriptRes.metadata)
+        ? compileInjectionCode(scriptRes, scriptRes.code, scriptMatchInfo.scriptUrlPatterns)
+        : compiledCode;
     }
 
     const scriptUrlPatterns = scriptMatchInfo.scriptUrlPatterns;
@@ -1475,6 +1482,7 @@ export class RuntimeService {
     if (isEarlyStartScript(metadata)) {
       const scriptRes = await this.script.buildScriptRunResource(script);
       if (!scriptRes) return "";
+      scriptRes.scriptRevision = result.scriptRevision;
       return compileInjectionCode(scriptRes, scriptRes.code, result.scriptUrlPatterns);
     }
 
@@ -2047,6 +2055,7 @@ export class RuntimeService {
     });
     return {
       scriptCacheKey,
+      scriptRevision: compiledResource.scriptRevision,
       originalMetadata,
       scriptUrlPatterns,
       originalUrlPatterns,
@@ -2063,6 +2072,7 @@ export class RuntimeService {
     const resourceByType = this.cloneRuntimeResourceByType(cache.resourceByType);
     return {
       ...scriptRes,
+      scriptRevision: cache.scriptRevision,
       scriptUrlPatterns: cache.scriptUrlPatterns,
       originalUrlPatterns: cache.originalUrlPatterns === null ? cache.scriptUrlPatterns : cache.originalUrlPatterns,
       code: cache.code,
@@ -2144,6 +2154,15 @@ export class RuntimeService {
           })
         );
         if (resourceUpdated) {
+          delete candidate.scriptRevision;
+          const baseCode = compileInjectionCode(candidate, cache.code, candidate.scriptUrlPatterns);
+          cache.scriptRevision = this.getCompiledScriptRevision(
+            candidate,
+            baseCode,
+            candidate.scriptUrlPatterns,
+            cache.originalMetadata
+          );
+          candidate.scriptRevision = cache.scriptRevision;
           scriptsWithUpdatedResources.set(scriptRes.uuid, { scriptRes: candidate, cache });
         }
       })
@@ -2204,12 +2223,10 @@ export class RuntimeService {
       const compiledResources = await this.compiledResourceDAO.gets(cacheMisses.map((miss) => miss.script.uuid));
       await Promise.all(
         cacheMisses.map(async (miss, missIndex) => {
-          let compiledResource = compiledResources[missIndex];
-          if (!compiledResource?.scriptUrlPatterns?.length) {
-            const ret = await this.buildCompiledResourceFromScript(miss.script, false);
-            compiledResource = ret?.compiledResource;
-          }
-          if (!compiledResource?.scriptUrlPatterns?.length) return;
+          const compiledResource = compiledResources[missIndex];
+          if (!compiledResource?.scriptUrlPatterns?.length || !compiledResource.scriptRevision) return;
+          const candidate = await this.buildCompiledResourceFromScript(miss.script, true);
+          if (candidate?.compiledResource.scriptRevision !== compiledResource.scriptRevision) return;
           const cache = await this.buildPageLoadScriptCache(
             miss.scriptRes,
             compiledResource,
@@ -2275,12 +2292,7 @@ export class RuntimeService {
         try {
           const compiledResource = await this.compiledResourceDAO.get(uuid);
           if (compiledResource) {
-            compiledResource.scriptRevision = this.getCompiledScriptRevision(
-              candidate.scriptRes,
-              code,
-              candidate.scriptRes.scriptUrlPatterns,
-              candidate.cache.originalMetadata
-            );
+            compiledResource.scriptRevision = candidate.cache.scriptRevision;
             await this.compiledResourceDAO.save(compiledResource);
           }
         } catch (e) {
