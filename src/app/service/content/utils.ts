@@ -37,7 +37,7 @@ const generatedScriptFunctionSource =
 
 export function getCompiledScriptMetadata(scriptFunc: unknown): string | undefined {
   try {
-    if (typeof scriptFunc !== "function" || `${scriptFunc}` !== generatedScriptFunctionSource) {
+    if (typeof scriptFunc !== "function" || Native.functionToString(scriptFunc) !== generatedScriptFunctionSource) {
       return undefined;
     }
     const metadata = Native.document
