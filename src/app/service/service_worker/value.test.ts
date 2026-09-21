@@ -145,6 +145,64 @@ describe("ValueService - setValue 方法测试", () => {
     expect((values as Record<string, unknown>).polluted).toBeUndefined();
   });
 
+  it("getScriptValueDetails 直接赋值到 data/newValues 时不会触发 Object.prototype 上的继承 setter", async () => {
+    // data/newValues 是同一个 Object.create(null) 建出的纯字典，setOwnValue 改成直接赋值后，
+    // 即使 Object.prototype 被投毒了同名 setter，无论是复制 ret.data 还是写入 config 绑定的默认值，
+    // 都必须落在自有属性上，不会被继承 setter 拦截。
+    const mockScript = createMockScript({
+      config: {
+        settings: {
+          bound: {
+            bind: "$poisonedBindKey",
+            default: "bound-default",
+            index: 0,
+          },
+          poisonedConfigKey: {
+            default: "config-default",
+            index: 1,
+          },
+        },
+      } as any,
+    });
+    vi.mocked(mockScriptDAO.get).mockResolvedValue(mockScript);
+    vi.mocked(mockValueDAO.get).mockResolvedValue({ data: { poisonedDataKey: "persisted-value" } } as any);
+
+    // 每个 config 条目都会触发两次写入：bind 目标 key（若有）和 `${tabKey}.${key}`，
+    // 两者都要投毒验证。
+    const poisonedKeys = ["poisonedDataKey", "poisonedBindKey", "settings.bound", "settings.poisonedConfigKey"];
+    const previousDescriptors = poisonedKeys.map(
+      (key) => [key, Object.getOwnPropertyDescriptor(Object.prototype, key)] as const
+    );
+    let setterCalls = 0;
+    for (const [key] of previousDescriptors) {
+      Object.defineProperty(Object.prototype, key, {
+        configurable: true,
+        set() {
+          setterCalls += 1;
+        },
+      });
+    }
+    let values: Record<string, unknown>;
+    try {
+      values = await valueService.getScriptValue(mockScript);
+    } finally {
+      for (const [key, descriptor] of previousDescriptors) {
+        if (descriptor) Object.defineProperty(Object.prototype, key, descriptor);
+        else Reflect.deleteProperty(Object.prototype, key);
+      }
+    }
+
+    expect(setterCalls).toBe(0);
+    expect(Object.getPrototypeOf(values)).toBeNull();
+    expect(values.poisonedDataKey).toBe("persisted-value");
+    // bind 目标只是把 data[bindKey] 原样搬过来；data 里没有这个 key，所以是 undefined。
+    expect(Object.prototype.hasOwnProperty.call(values, "poisonedBindKey")).toBe(true);
+    expect(values.poisonedBindKey).toBeUndefined();
+    // `${tabKey}.${key}` 在 data 里缺失时落回 config 声明的 default。
+    expect(values["settings.bound"]).toBe("bound-default");
+    expect(values["settings.poisonedConfigKey"]).toBe("config-default");
+  });
+
   it("应该成功设置新脚本的值", async () => {
     // 准备测试数据
     const mockScript = createMockScript();

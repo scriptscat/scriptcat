@@ -50,11 +50,13 @@ export class ValueService {
   }
 
   async getScriptValueDetails(script: Script) {
+    // data/newValues 是同一个 Object.create(null) 建出的纯字典，没有可被继承 setter 或
+    // __proto__ 劫持的原型，逐键直接赋值即可，不需要 setOwnValue 的 defineProperty。
     const data: { [key: string]: any } = Object.create(null);
     const ret = await this.valueDAO.get(getStorageName(script));
     if (ret) {
       for (const key of Object.keys(ret.data)) {
-        setOwnValue(data, key, ret.data[key]);
+        data[key] = ret.data[key];
       }
     }
     const newValues = data;
@@ -73,13 +75,10 @@ export class ValueService {
           // 动态变量
           if (tab[key].bind) {
             const bindKey = tab[key].bind!.substring(1);
-            setOwnValue(newValues, bindKey, data[bindKey] === undefined ? undefined : data[bindKey]);
+            newValues[bindKey] = data[bindKey] === undefined ? undefined : data[bindKey];
           }
-          setOwnValue(
-            newValues,
-            `${tabKey}.${key}`,
-            data[`${tabKey}.${key}`] === undefined ? tab[key].default : data[`${tabKey}.${key}`]
-          );
+          newValues[`${tabKey}.${key}`] =
+            data[`${tabKey}.${key}`] === undefined ? tab[key].default : data[`${tabKey}.${key}`];
         }
       }
     }
