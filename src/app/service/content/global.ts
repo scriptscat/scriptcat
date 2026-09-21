@@ -80,8 +80,10 @@ const nativeFunctionCall = nativeReflectApply(nativeFunctionBind, Function.proto
 
 export const nativeApply = nativeFunctionApply;
 export const nativeCall = nativeFunctionCall;
-export const nativeBind = (fn: (...args: any[]) => any, receiver: any, ...args: any[]) =>
-  nativeFunctionCall(nativeFunctionBind, fn, receiver, ...args);
+// Reflect.apply 把 [receiver] 当作 array-like 消费，不读取其 @@iterator，
+// 因此页面篡改 Array.prototype[Symbol.iterator] 不会影响绑定过程。
+export const nativeBind = (fn: (...args: any[]) => any, receiver: any) =>
+  nativeReflectApply(nativeFunctionBind, fn, [receiver]);
 
 export const Native = {
   Set: NativeSetConstructor,
