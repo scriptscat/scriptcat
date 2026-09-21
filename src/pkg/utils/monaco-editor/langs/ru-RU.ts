@@ -52,6 +52,7 @@ export default {
   replaceMatchTldWildcardWithInclude: "Заменить TLD wildcard @match на @include {0}",
   replaceIncludeWithMatch: "Заменить @include на @match {0}",
   grantConflict: "@grant none нельзя использовать вместе с GM API. Удалите none или все GM API.",
+  unsupportedGrant: "@grant {0} не поддерживается ScriptCat и не будет работать.",
   grantValuePrompts,
   prompt: {
     name: "Имя скрипта",

@@ -10,7 +10,9 @@ import {
   contentChangeCanAffectMetadataMarkers,
   getMetadataAlignmentBlocks,
   getMetadataAlignmentTargetColumn,
+  getMetadataValueToken,
   getUndefinedMetadataTagMatches,
+  getUnsupportedGrantMatches,
   isMetadataAlignmentBlockAligned,
   metadataHoverPattern,
   type MetadataAlignmentBlock,
@@ -115,6 +117,7 @@ const scriptcatReplaceMatchTldWildcardRuleId = "scriptcat/replace-match-tld-wild
 const scriptcatReplaceIncludeWithMatchRuleId = "scriptcat/replace-include-with-match";
 const scriptcatGrantNoneConflictRuleId = "scriptcat/grant-none-conflict";
 const scriptcatUndefinedMetadataTagRuleId = "scriptcat/undefined-metadata-tag";
+const scriptcatUnsupportedGrantRuleId = "scriptcat/unsupported-grant";
 const quickfixKind = "quickfix";
 const noop = () => {};
 const metadataFixPattern = /^(\s*\/\/[ \t]*@)(connect|match|include)([ \t]+)(\S+)(.*)$/i;
@@ -168,8 +171,6 @@ const getGrantValueHoverPrompt = (lineText: string, column: number) => {
 
   return `\`${grantValue}\`<br>${prompt}`;
 };
-
-const getMetadataValueToken = (value: string) => /^\S+/.exec(value)?.[0] || "";
 
 const createTextEditAction = (
   model: editor.ITextModel,
@@ -669,6 +670,18 @@ const getUndefinedMetadataTagMarkers = (
     endColumn: match.endColumn,
   }));
 
+const getUnsupportedGrantMarkers = (blocks: MetadataAlignmentBlock[]): editor.IMarkerData[] =>
+  getUnsupportedGrantMatches(blocks).map((match) => ({
+    severity: MarkerSeverity.Warning,
+    message: currentEditorLang.unsupportedGrant.replace("{0}", match.grant),
+    source: scriptcatMarkerOwner,
+    code: scriptcatUnsupportedGrantRuleId,
+    startLineNumber: match.lineNumber,
+    startColumn: match.startColumn,
+    endLineNumber: match.lineNumber,
+    endColumn: match.endColumn,
+  }));
+
 const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
   if (model.getLanguageId() !== "javascript") {
     editor.setModelMarkers(model, scriptcatMarkerOwner, []);
@@ -687,6 +700,7 @@ const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
   const markers: editor.IMarkerData[] = [];
   markers.push(...getGrantNoneConflictMarkers(metadataBlocks));
   markers.push(...getUndefinedMetadataTagMarkers(model, metadataBlocks));
+  markers.push(...getUnsupportedGrantMarkers(metadataBlocks));
 
   for (const block of metadataBlocks) {
     if (isMetadataAlignmentBlockAligned(block)) continue;

@@ -1,5 +1,5 @@
 import type { editor } from "monaco-editor";
-import { resolveMetadataTagBase } from "@App/pkg/utils/script_compat";
+import { isSupportedGrant, resolveMetadataTagBase } from "@App/pkg/utils/script_compat";
 
 export type MetadataAlignmentLine = {
   lineNumber: number;
@@ -26,6 +26,13 @@ export type UndefinedMetadataTagMatch = {
   lineNumber: number;
   startColumn: number;
   endColumn: number;
+};
+
+export type UnsupportedGrantMatch = {
+  lineNumber: number;
+  startColumn: number;
+  endColumn: number;
+  grant: string;
 };
 
 export const metadataHoverPattern = /^(\s*\/\/[ \t]*@)(\S+)([ \t]*)(.*)$/;
@@ -115,6 +122,31 @@ export const getUndefinedMetadataTagMatches = (
         lineNumber,
         startColumn: prefix.length + 1,
         endColumn: prefix.length + tag.length + 1,
+      });
+    }
+  }
+
+  return matches;
+};
+
+export const getMetadataValueToken = (value: string): string => /^\S+/.exec(value)?.[0] || "";
+
+/** 只看已识别的 metadata 区块里的 @grant 行，取值判定复用运行时同一套 isSupportedGrant */
+export const getUnsupportedGrantMatches = (blocks: MetadataAlignmentBlock[]): UnsupportedGrantMatch[] => {
+  const matches: UnsupportedGrantMatch[] = [];
+
+  for (const block of blocks) {
+    for (const line of block.lines) {
+      if (line.tag.toLowerCase() !== "grant") continue;
+
+      const grant = getMetadataValueToken(line.value);
+      if (!grant || isSupportedGrant(grant)) continue;
+
+      matches.push({
+        lineNumber: line.lineNumber,
+        startColumn: line.valueColumn + 1,
+        endColumn: line.valueColumn + 1 + grant.length,
+        grant,
       });
     }
   }

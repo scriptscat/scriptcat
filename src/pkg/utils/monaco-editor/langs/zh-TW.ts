@@ -52,6 +52,7 @@ export default {
   replaceMatchTldWildcardWithInclude: "將 @match 頂級網域萬用字元改為 @include {0}",
   replaceIncludeWithMatch: "將 @include 改為 @match {0}",
   grantConflict: "@grant none 不能和 GM API 同時使用；請移除 none 或所有 GM API。",
+  unsupportedGrant: "@grant {0} 不受 ScriptCat 支援，不會生效。",
   grantValuePrompts,
   prompt: {
     name: "腳本名稱",
