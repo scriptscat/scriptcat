@@ -170,19 +170,25 @@ describe("early-start page RPC", () => {
 });
 
 describe("page RPC executionHandle protocol (P1-1)", () => {
-  // MAIN world scripts (envTag "it") reach the SW over the same native page-bound transport as
-  // USER_SCRIPT (envTag "ct"). SW page execution validation requires `executionHandle` on every
-  // page-sourced version-2 request regardless of envTag; only the caller-side transport tag
-  // ("it" vs "ct") used to decide whether to attach it.
-  it("Unit A: sendMessage on a MAIN (it) binding includes executionHandle", async () => {
+  // Whether executionHandle belongs on the wire depends on the transport, not on envTag:
+  // - prefix "serviceWorker" means this hop goes straight to the SW (MAIN native, or USER_SCRIPT,
+  //   which is always native) — the SW's page execution validation requires executionHandle on
+  //   every such request.
+  // - prefix "scripting" means this hop goes through the content-script fallback PageRpcRegistry
+  //   (MAIN world when the native channel is unavailable). That broker's validatePageGMRequest()
+  //   accepts a strict 6-field packet (version, requestId, sequence, handle, api, params) and
+  //   throws "page RPC request has unexpected fields" on anything extra, so the page-side packet
+  //   must NOT carry executionHandle — the broker resolves `handle` itself and attaches the
+  //   canonical executionHandle only when it re-forwards the request to the SW.
+  it("Unit A: sendMessage over the native SW transport (MAIN, it) includes executionHandle", async () => {
     const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
     const script = {
       ...scriptRes,
-      uuid: "main-it-script",
+      uuid: "main-native-script",
       executionHandle: "main-binding",
       executionEnvTag: "it",
     } as ScriptLoadInfo;
-    const api = new GMApi("scripting", { sendMessage } as unknown as Message, {} as Message, script);
+    const api = new GMApi("serviceWorker", { sendMessage } as unknown as Message, {} as Message, script);
 
     await api.sendMessage("GM_setValue", ["a", 1]);
 
@@ -196,15 +202,15 @@ describe("page RPC executionHandle protocol (P1-1)", () => {
     });
   });
 
-  it("Unit B: connect on a MAIN (it) binding includes executionHandle", async () => {
+  it("Unit B: connect over the native SW transport (MAIN, it) includes executionHandle", async () => {
     const connectMessage = vi.fn().mockResolvedValue({} as MessageConnect);
     const script = {
       ...scriptRes,
-      uuid: "main-it-connect-script",
+      uuid: "main-native-connect-script",
       executionHandle: "main-binding",
       executionEnvTag: "it",
     } as ScriptLoadInfo;
-    const api = new GMApi("scripting", { connect: connectMessage } as unknown as Message, {} as Message, script);
+    const api = new GMApi("serviceWorker", { connect: connectMessage } as unknown as Message, {} as Message, script);
 
     await api.connect("GM_xmlhttpRequest", []);
 
@@ -217,7 +223,7 @@ describe("page RPC executionHandle protocol (P1-1)", () => {
     });
   });
 
-  it("Unit C: USER_SCRIPT (ct) binding still includes executionHandle (regression)", async () => {
+  it("Unit C: USER_SCRIPT (ct) is always native and still includes executionHandle (regression)", async () => {
     const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
     const script = {
       ...scriptRes,
@@ -225,7 +231,7 @@ describe("page RPC executionHandle protocol (P1-1)", () => {
       executionHandle: "ct-binding",
       executionEnvTag: "ct",
     } as ScriptLoadInfo;
-    const api = new GMApi("scripting", { sendMessage } as unknown as Message, {} as Message, script);
+    const api = new GMApi("serviceWorker", { sendMessage } as unknown as Message, {} as Message, script);
 
     await api.sendMessage("GM_setValue", ["a", 1]);
 
@@ -242,7 +248,7 @@ describe("page RPC executionHandle protocol (P1-1)", () => {
       executionHandle: undefined,
       executionEnvTag: undefined,
     } as ScriptLoadInfo;
-    const api = new GMApi("scripting", { sendMessage } as unknown as Message, {} as Message, script);
+    const api = new GMApi("serviceWorker", { sendMessage } as unknown as Message, {} as Message, script);
 
     await api.sendMessage("GM_setValue", ["a", 1]);
 
@@ -253,6 +259,45 @@ describe("page RPC executionHandle protocol (P1-1)", () => {
       params: ["a", 1],
     });
     expect(data.version).toBeUndefined();
+    expect(data.executionHandle).toBeUndefined();
+  });
+
+  it("Unit E: sendMessage over the MAIN fallback transport (prefix scripting) omits executionHandle", async () => {
+    // Regression guard: the fallback PageRpcRegistry's validatePageGMRequest() rejects any packet
+    // whose own-key count differs from the strict 6-field schema, so a stray executionHandle here
+    // would break every MAIN-world fallback GM call (this broke CI when it regressed).
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
+    const script = {
+      ...scriptRes,
+      uuid: "main-fallback-script",
+      executionHandle: "main-binding",
+      executionEnvTag: "it",
+    } as ScriptLoadInfo;
+    const api = new GMApi("scripting", { sendMessage } as unknown as Message, {} as Message, script);
+
+    await api.sendMessage("GM_setValue", ["a", 1]);
+
+    const data = sendMessage.mock.calls[0][0].data;
+    expect(Reflect.ownKeys(data)).toEqual(["version", "requestId", "sequence", "handle", "api", "params"]);
+    expect(data.handle).toBe("main-binding");
+    expect(data.executionHandle).toBeUndefined();
+  });
+
+  it("Unit F: connect over the MAIN fallback transport (prefix scripting) omits executionHandle", async () => {
+    const connectMessage = vi.fn().mockResolvedValue({} as MessageConnect);
+    const script = {
+      ...scriptRes,
+      uuid: "main-fallback-connect-script",
+      executionHandle: "main-binding",
+      executionEnvTag: "it",
+    } as ScriptLoadInfo;
+    const api = new GMApi("scripting", { connect: connectMessage } as unknown as Message, {} as Message, script);
+
+    await api.connect("GM_xmlhttpRequest", []);
+
+    const data = connectMessage.mock.calls[0][0].data;
+    expect(Reflect.ownKeys(data)).toEqual(["version", "requestId", "sequence", "handle", "api", "params"]);
+    expect(data.handle).toBe("main-binding");
     expect(data.executionHandle).toBeUndefined();
   });
 });

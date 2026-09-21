@@ -184,8 +184,12 @@ describe("ScriptingRuntime page bootstrap", () => {
         },
         noopSender
       );
+      // broker 转发给 SW 前才补上 canonical executionHandle；页面原始 packet 里没有这个字段。
       expect(senderToExt.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ action: "serviceWorker/runtime/gmApi" })
+        expect.objectContaining({
+          action: "serviceWorker/runtime/gmApi",
+          data: expect.objectContaining({ handle: executionHandle, executionHandle }),
+        })
       );
 
       // 同一 binding 不能借由 context-menu 隐式授权取得其他特权 API。

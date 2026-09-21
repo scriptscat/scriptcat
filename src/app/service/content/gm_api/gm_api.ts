@@ -209,14 +209,19 @@ class GM_Base implements IGM_Base {
     let ret;
     try {
       // 有页面句柄时走版本化 RPC；后台脚本和未迁移上下文继续使用旧请求形状。
+      // executionHandle 只在直连 Service Worker 时附带；MAIN fallback 经 scripting.ts 的
+      // PageRpcRegistry 转发，其 validatePageGMRequest() 是严格 schema，页面自带的
+      // executionHandle 会被判定为多余字段而拒绝——canonical executionHandle 由该 broker
+      // 校验句柄后自行补上，不能由页面预先带上。
       const executionHandle = this.scriptRes.executionHandle;
+      const directServiceWorker = this.prefix === "serviceWorker";
       const request = executionHandle
         ? {
             version: 2 as const,
             requestId: uuidv4(),
             sequence: ++this.pageRpcSequence,
             handle: executionHandle,
-            executionHandle,
+            ...(directServiceWorker ? { executionHandle } : {}),
             api,
             params,
           }
@@ -250,14 +255,16 @@ class GM_Base implements IGM_Base {
     if (this.isInvalidContext()) throw new Error("Invalid Context");
     if (!this.message || !this.scriptRes) return new Promise<MessageConnect>(() => {});
     // 长连接也必须携带同一页面句柄，否则 broker 无法把连接绑定回脚本和文档。
+    // executionHandle 只在直连 Service Worker 时附带，理由同 sendMessage()。
     const executionHandle = this.scriptRes.executionHandle;
+    const directServiceWorker = this.prefix === "serviceWorker";
     const request = executionHandle
       ? {
           version: 2 as const,
           requestId: uuidv4(),
           sequence: ++this.pageRpcSequence,
           handle: executionHandle,
-          executionHandle,
+          ...(directServiceWorker ? { executionHandle } : {}),
           api,
           params,
         }
