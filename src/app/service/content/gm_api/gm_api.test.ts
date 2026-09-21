@@ -1778,6 +1778,44 @@ return { value1, value2, value3, values1,values2, allValues1, allValues2, value4
 });
 
 describe("GM_value hostile intrinsics", () => {
+  it("GM_getValues 直接赋值到 result 时不会触发 Object.prototype 上的继承 setter", () => {
+    // result 是 Native.objectCreate(null) 建出的纯字典，setOwnValue 改成直接赋值后，
+    // 即使 Object.prototype 被投毒了同名 setter，写入也必须落在 result 的自有属性上，
+    // 不会被继承 setter 拦截——这正是 result 在数组路径和默认值路径都保持空原型的原因。
+    const script = Object.assign({}, scriptRes, {
+      metadata: { grant: ["GM_getValue", "GM_setValue", "GM_getValues"] },
+      value: {},
+    }) as ScriptLoadInfo;
+    const sendMessage = vi.fn().mockResolvedValue({ code: 0 });
+    const api = new GMApi("test", { sendMessage } as unknown as Message, {} as Message, script as any);
+    api.GM_setValue(api, "poisonedKey", "own-value");
+
+    const previousDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, "poisonedKey");
+    let setterCalls = 0;
+    Object.defineProperty(Object.prototype, "poisonedKey", {
+      configurable: true,
+      set() {
+        setterCalls += 1;
+      },
+    });
+    let selected: Record<string, unknown>;
+    let withDefault: Record<string, unknown>;
+    try {
+      selected = api.GM_getValues(api, ["poisonedKey"]);
+      withDefault = api.GM_getValues(api, { poisonedKey: "fallback" });
+    } finally {
+      if (previousDescriptor) Object.defineProperty(Object.prototype, "poisonedKey", previousDescriptor);
+      else Reflect.deleteProperty(Object.prototype, "poisonedKey");
+    }
+
+    expect(setterCalls).toBe(0);
+    expect(Object.getPrototypeOf(selected!)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(selected!, "poisonedKey")).toBe(true);
+    expect(selected!.poisonedKey).toBe("own-value");
+    expect(Object.getPrototypeOf(withDefault!)).toBeNull();
+    expect(withDefault!.poisonedKey).toBe("own-value");
+  });
+
   it("GM_setValues avoids inherited numeric setters for its entry arrays", () => {
     const script = Object.assign({}, scriptRes, {
       metadata: { grant: ["GM_setValues"] },

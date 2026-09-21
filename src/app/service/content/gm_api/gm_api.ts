@@ -538,6 +538,8 @@ export default class GMApi extends GM_Base {
       // Returns all values
       return customClone(ctx.scriptRes.value)!;
     }
+    // result 是 Native.objectCreate(null) 建出的纯字典，没有可被继承 setter 或 __proto__
+    // 劫持的原型，直接赋值即可，不需要逐键 defineProperty。
     const result: TGMKeyValue = Native.objectCreate(null);
     if (Native.arrayIsArray(keysOrDefaults)) {
       // 键名数组
@@ -550,7 +552,7 @@ export default class GMApi extends GM_Base {
           if (value && typeof value === "object") {
             value = customClone(value)!;
           }
-          setOwnValue(result, key, value);
+          result[key] = value;
         }
       }
     } else {
@@ -558,7 +560,7 @@ export default class GMApi extends GM_Base {
       // Handle object with default values (e.g., { foo: 1, bar: 2, baz: 3 })
       for (const key of Native.objectKeys(keysOrDefaults)) {
         const defaultValue = keysOrDefaults[key];
-        setOwnValue(result, key, _GM_getValue(ctx, key, defaultValue));
+        result[key] = _GM_getValue(ctx, key, defaultValue);
       }
     }
     return result;
