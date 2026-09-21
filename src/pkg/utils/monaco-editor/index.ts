@@ -8,6 +8,7 @@ import { deferred } from "../utils";
 import { type EslintFix, getModelEslintFixKey } from "./eslintFixCache";
 import {
   contentChangeCanAffectMetadataMarkers,
+  getDuplicateResourceNameMatches,
   getMetadataAlignmentBlocks,
   getMetadataAlignmentTargetColumn,
   getUndefinedMetadataTagMatches,
@@ -115,6 +116,7 @@ const scriptcatReplaceMatchTldWildcardRuleId = "scriptcat/replace-match-tld-wild
 const scriptcatReplaceIncludeWithMatchRuleId = "scriptcat/replace-include-with-match";
 const scriptcatGrantNoneConflictRuleId = "scriptcat/grant-none-conflict";
 const scriptcatUndefinedMetadataTagRuleId = "scriptcat/undefined-metadata-tag";
+const scriptcatDuplicateResourceNameRuleId = "scriptcat/duplicate-resource-name";
 const quickfixKind = "quickfix";
 const noop = () => {};
 const metadataFixPattern = /^(\s*\/\/[ \t]*@)(connect|match|include)([ \t]+)(\S+)(.*)$/i;
@@ -669,6 +671,18 @@ const getUndefinedMetadataTagMarkers = (
     endColumn: match.endColumn,
   }));
 
+const getDuplicateResourceNameMarkers = (blocks: MetadataAlignmentBlock[]): editor.IMarkerData[] =>
+  getDuplicateResourceNameMatches(blocks).map((match) => ({
+    severity: MarkerSeverity.Warning,
+    message: currentEditorLang.duplicateResourceName.replace("{0}", match.name),
+    source: scriptcatMarkerOwner,
+    code: scriptcatDuplicateResourceNameRuleId,
+    startLineNumber: match.lineNumber,
+    startColumn: match.startColumn,
+    endLineNumber: match.lineNumber,
+    endColumn: match.endColumn,
+  }));
+
 const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
   if (model.getLanguageId() !== "javascript") {
     editor.setModelMarkers(model, scriptcatMarkerOwner, []);
@@ -687,6 +701,7 @@ const updateScriptcatMetadataMarkers = (model: editor.ITextModel) => {
   const markers: editor.IMarkerData[] = [];
   markers.push(...getGrantNoneConflictMarkers(metadataBlocks));
   markers.push(...getUndefinedMetadataTagMarkers(model, metadataBlocks));
+  markers.push(...getDuplicateResourceNameMarkers(metadataBlocks));
 
   for (const block of metadataBlocks) {
     if (isMetadataAlignmentBlockAligned(block)) continue;

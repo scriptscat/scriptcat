@@ -52,6 +52,7 @@ export default {
   replaceMatchTldWildcardWithInclude: "Заменить TLD wildcard @match на @include {0}",
   replaceIncludeWithMatch: "Заменить @include на @match {0}",
   grantConflict: "@grant none нельзя использовать вместе с GM API. Удалите none или все GM API.",
+  duplicateResourceName: 'Имя @resource "{0}" объявлено более одного раза.',
   grantValuePrompts,
   prompt: {
     name: "Имя скрипта",

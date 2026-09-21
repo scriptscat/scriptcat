@@ -52,6 +52,7 @@ export default {
   replaceMatchTldWildcardWithInclude: "Thay wildcard TLD @match bằng @include {0}",
   replaceIncludeWithMatch: "Thay @include bằng @match {0}",
   grantConflict: "@grant none không thể dùng cùng GM API. Hãy xóa none hoặc tất cả GM API.",
+  duplicateResourceName: 'Tên @resource "{0}" được khai báo nhiều hơn một lần.',
   grantValuePrompts,
   prompt: {
     name: "Tên script",

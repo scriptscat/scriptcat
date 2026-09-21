@@ -53,6 +53,7 @@ export default {
   replaceMatchTldWildcardWithInclude: "Substituir curinga de TLD em @match por @include {0}",
   replaceIncludeWithMatch: "Substituir @include por @match {0}",
   grantConflict: "@grant none não pode ser usado junto com GM APIs. Remova none ou todas as GM APIs.",
+  duplicateResourceName: 'O nome de @resource "{0}" foi declarado mais de uma vez.',
   grantValuePrompts,
   prompt: {
     name: "Nome do script",

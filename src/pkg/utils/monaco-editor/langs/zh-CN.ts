@@ -52,6 +52,7 @@ export default {
   replaceMatchTldWildcardWithInclude: "将 @match 顶级域名通配符改为 @include {0}",
   replaceIncludeWithMatch: "将 @include 改为 @match {0}",
   grantConflict: "@grant none 不能和 GM API 同时使用；请移除 none 或所有 GM API。",
+  duplicateResourceName: '@resource 名称 "{0}" 被重复声明。',
   grantValuePrompts,
   prompt: {
     name: "脚本名称",
