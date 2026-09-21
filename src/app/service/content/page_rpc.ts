@@ -1,12 +1,9 @@
-import { uuidv4 } from "@App/pkg/utils/uuid";
 import { RequestSequenceWindow } from "@Packages/message/request_sequence_window";
-import type { ScriptEnvTag } from "@Packages/message/consts";
 import { getGrantCandidates } from "./gm_api/grant";
 import { getPageRpcDependencies, INTERNAL_APIS_BY_GRANT } from "./gm_api/api_dependencies";
 import { Native, nativeReflectApply } from "./global";
 
 export const PAGE_RPC_VERSION = 2 as const;
-const MAX_REQUEST_ID_LENGTH = 256;
 const nativeStructuredClone = typeof structuredClone === "function" ? structuredClone : undefined;
 const nativeObjectToString = Object.prototype.toString;
 const nativeMapForEach = Map.prototype.forEach;
@@ -84,35 +81,20 @@ export const isExtensionBlobUrl = (value: unknown): value is string => {
 
 export type PageExecutionBinding = {
   readonly handle: string;
-  readonly uuid: string;
-  readonly envTag: ScriptEnvTag;
   readonly allowedAPIs: ReadonlySet<string>;
-  readonly runFlag: string;
   requestSequenceWindow: RequestSequenceWindow;
 };
 
+/** MAIN world 脚本可提交的不可信数据包；校验通过后原样转发，canonical 身份由 SW 依据 handle + 真实 sender 解析。 */
 export type PageGMRequest = {
   readonly version: typeof PAGE_RPC_VERSION;
-  readonly requestId: string;
   readonly sequence: number;
   readonly handle: string;
   readonly api: string;
   readonly params: readonly unknown[];
-  /** Canonical identity filled by the isolated broker after handle resolution. */
-  readonly uuid: string;
-  readonly envTag: ScriptEnvTag;
-  readonly runFlag: string;
 };
 
-/** MAIN world 脚本可提交的不可信数据包。 */
-export type PageGMRequestPacket = {
-  readonly version: typeof PAGE_RPC_VERSION;
-  readonly requestId: string;
-  readonly sequence: number;
-  readonly handle: string;
-  readonly api: string;
-  readonly params: readonly unknown[];
-};
+export type PageGMRequestPacket = PageGMRequest;
 
 export const getPageRpcAllowedAPIs = (grants: readonly string[]): string[] => {
   for (let index = 0; index < grants.length; index += 1) {
@@ -288,22 +270,13 @@ const validateOperationParams = (api: string, params: readonly unknown[]): void 
 export class PageRpcRegistry {
   private readonly bindings = new Native.Map<string, PageExecutionBinding>();
 
-  register(
-    uuid: string,
-    envTag: ScriptEnvTag,
-    allowedAPIs: readonly string[],
-    handle = uuidv4(),
-    runFlag = uuidv4()
-  ): string {
-    if (!uuid || !handle || this.bindings.has(handle)) {
+  register(handle: string, allowedAPIs: readonly string[]): string {
+    if (!handle || this.bindings.has(handle)) {
       throw new PageRpcError("invalid page execution binding");
     }
     this.bindings.set(handle, {
       handle,
-      uuid,
-      envTag,
       allowedAPIs: new Native.Set(allowedAPIs),
-      runFlag,
       requestSequenceWindow: new RequestSequenceWindow(),
     });
     return handle;
@@ -333,7 +306,7 @@ export class PageRpcRegistry {
   }
 }
 
-const REQUEST_KEYS = ["version", "requestId", "sequence", "handle", "api", "params"] as const;
+const REQUEST_KEYS = ["version", "sequence", "handle", "api", "params"] as const;
 
 export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry): PageGMRequest => {
   if (value === null || typeof value !== "object") throw new PageRpcError("page RPC request must be an object");
@@ -365,16 +338,12 @@ export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry)
   }
 
   const version = ownData(value, "version");
-  const requestId = ownData(value, "requestId");
   const sequence = ownData(value, "sequence");
   const handle = ownData(value, "handle");
   const api = ownData(value, "api");
   const params = ownData(value, "params");
 
   if (version !== PAGE_RPC_VERSION) throw new PageRpcError("unsupported page RPC version");
-  if (typeof requestId !== "string" || !requestId || requestId.length > MAX_REQUEST_ID_LENGTH) {
-    throw new PageRpcError("page RPC requestId is invalid");
-  }
   if (typeof sequence !== "number" || !Number.isSafeInteger(sequence) || sequence < 1) {
     throw new PageRpcError("page RPC sequence is invalid");
   }
@@ -389,13 +358,9 @@ export const validatePageGMRequest = (value: unknown, registry: PageRpcRegistry)
   registry.consumeRequestSequence(binding, sequence);
   return {
     version: PAGE_RPC_VERSION,
-    requestId,
     sequence,
     handle,
     api,
     params: clonedParams,
-    uuid: binding.uuid,
-    envTag: binding.envTag,
-    runFlag: binding.runFlag,
   };
 };

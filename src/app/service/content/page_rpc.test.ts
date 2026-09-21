@@ -112,31 +112,17 @@ describe("page GM RPC", () => {
 
   it("rejects direct internal fetch helpers from a GM XHR binding", () => {
     const registry = new PageRpcRegistry();
-    const handle = registry.register("script-a", "it", getPageRpcAllowedAPIs(["GM_xmlhttpRequest"]));
+    const handle = registry.register("handle-a", getPageRpcAllowedAPIs(["GM_xmlhttpRequest"]));
 
     expect(() =>
       validatePageGMRequest(
-        {
-          version: 2,
-          sequence: 1,
-          requestId: "fetch",
-          handle,
-          api: "CAT_fetchBlob",
-          params: ["https://example.com/file"],
-        },
+        { version: 2, sequence: 1, handle, api: "CAT_fetchBlob", params: ["https://example.com/file"] },
         registry
       )
     ).toThrow("API is not granted");
     expect(() =>
       validatePageGMRequest(
-        {
-          version: 2,
-          sequence: 1,
-          requestId: "document",
-          handle,
-          api: "CAT_fetchDocument",
-          params: ["https://example.com/file", false],
-        },
+        { version: 2, sequence: 1, handle, api: "CAT_fetchDocument", params: ["https://example.com/file", false] },
         registry
       )
     ).toThrow("API is not granted");
@@ -144,123 +130,73 @@ describe("page GM RPC", () => {
 
   it("accepts a request for the active execution binding and clones parameters", () => {
     const registry = new PageRpcRegistry();
-    const handle = registry.register("script-a", "it", ["GM_getValue"], undefined, "canonical-run");
+    const handle = registry.register("handle-a", ["GM_getValue"]);
     const params = { nested: { value: 1 } };
 
     const request = validatePageGMRequest(
-      {
-        version: 2,
-        sequence: 1,
-        requestId: "request-a",
-        handle,
-        api: "GM_getValue",
-        params: [params],
-      },
+      { version: 2, sequence: 1, handle, api: "GM_getValue", params: [params] },
       registry
     );
 
     expect(request).toEqual({
       version: 2,
       sequence: 1,
-      requestId: "request-a",
       handle,
       api: "GM_getValue",
       params: [params],
-      uuid: "script-a",
-      envTag: "it",
-      runFlag: "canonical-run",
     });
     expect(request.params[0]).not.toBe(params);
     expect(() =>
-      validatePageGMRequest(
-        { version: 2, sequence: 1, requestId: "request-a", handle, api: "GM_getValue", params: [] },
-        registry
-      )
+      validatePageGMRequest({ version: 2, sequence: 1, handle, api: "GM_getValue", params: [] }, registry)
     ).toThrow("already used");
   });
 
-  it("rejects an unknown or stale execution binding and supplies canonical identity", () => {
+  it("rejects an unknown or stale execution binding", () => {
     const registry = new PageRpcRegistry();
-    const handle = registry.register("script-a", "it", ["GM_getValue"]);
+    const handle = registry.register("handle-a", ["GM_getValue"]);
 
     expect(() =>
-      validatePageGMRequest(
-        {
-          version: 2,
-          sequence: 1,
-          requestId: "a",
-          handle: "missing",
-          api: "GM_getValue",
-          params: [],
-        },
-        registry
-      )
+      validatePageGMRequest({ version: 2, sequence: 1, handle: "missing", api: "GM_getValue", params: [] }, registry)
     ).toThrow(PageRpcError);
 
     registry.revoke(handle);
     expect(() =>
-      validatePageGMRequest(
-        { version: 2, sequence: 1, requestId: "b", handle, api: "GM_getValue", params: [] },
-        registry
-      )
+      validatePageGMRequest({ version: 2, sequence: 1, handle, api: "GM_getValue", params: [] }, registry)
     ).toThrow(PageRpcError);
 
-    const activeHandle = registry.register("script-a", "it", ["GM_getValue"]);
+    const activeHandle = registry.register("handle-b", ["GM_getValue"]);
     expect(
-      validatePageGMRequest(
-        { version: 2, sequence: 1, requestId: "c", handle: activeHandle, api: "GM_getValue", params: [] },
-        registry
-      )
-    ).toMatchObject({
-      uuid: "script-a",
-      envTag: "it",
-    });
+      validatePageGMRequest({ version: 2, sequence: 1, handle: activeHandle, api: "GM_getValue", params: [] }, registry)
+    ).toMatchObject({ handle: activeHandle });
+  });
+
+  it("rejects a packet that carries a page-supplied canonical identity field", () => {
+    // v2 wire 身份只允许 handle；页面附带 uuid/runFlag/envTag 等字段会被判定为多余字段而拒绝，
+    // canonical 身份只能由 SW 依据 handle + 真实 sender 解析出来。
+    const registry = new PageRpcRegistry();
+    const handle = registry.register("handle-a", ["GM_getValue"]);
+
     expect(() =>
       validatePageGMRequest(
-        {
-          version: 2,
-          sequence: 1,
-          requestId: "d",
-          handle: activeHandle,
-          uuid: "script-b",
-          api: "GM_getValue",
-          params: [],
-        },
+        { version: 2, sequence: 1, handle, uuid: "script-b", api: "GM_getValue", params: [] },
         registry
       )
-    ).toThrow(PageRpcError);
+    ).toThrow("unexpected fields");
   });
 
   it("rejects APIs outside the binding and packets with accessors or unsupported values", () => {
     const registry = new PageRpcRegistry();
-    const handle = registry.register("script-a", "it", ["GM_getValue"]);
-    const accessorRequest = {
-      version: 2,
-      sequence: 1,
-      requestId: "a",
-      handle,
-      api: "GM_getValue",
-      params: [],
-    };
+    const handle = registry.register("handle-a", ["GM_getValue"]);
+    const accessorRequest = { version: 2, sequence: 1, handle, api: "GM_getValue", params: [] };
     Object.defineProperty(accessorRequest, "api", { get: () => "GM_getValue" });
 
     expect(() => validatePageGMRequest(accessorRequest, registry)).toThrow(PageRpcError);
     expect(() =>
-      validatePageGMRequest(
-        { version: 2, sequence: 1, requestId: "b", handle, api: "GM_setValue", params: [] },
-        registry
-      )
+      validatePageGMRequest({ version: 2, sequence: 1, handle, api: "GM_setValue", params: [] }, registry)
     ).toThrow(PageRpcError);
     expect(() =>
       validatePageGMRequest(
-        {
-          version: 2,
-          sequence: 1,
-          requestId: "c",
-          handle,
-          api: "GM_getValue",
-          params: [() => undefined],
-        },
+        { version: 2, sequence: 1, handle, api: "GM_getValue", params: [() => undefined] },
         registry
       )
     ).toThrow(PageRpcError);
@@ -268,21 +204,14 @@ describe("page GM RPC", () => {
 
   it("rejects accessors nested in collection RPC parameters", () => {
     const registry = new PageRpcRegistry();
-    const handle = registry.register("script-a", "it", ["GM_getValue"]);
+    const handle = registry.register("handle-a", ["GM_getValue"]);
     const getter = vi.fn(() => "secret");
     const nested = {} as Record<string, unknown>;
     Object.defineProperty(nested, "value", { configurable: true, enumerable: true, get: getter });
 
     expect(() =>
       validatePageGMRequest(
-        {
-          version: 2,
-          sequence: 1,
-          requestId: "collection",
-          handle,
-          api: "GM_getValue",
-          params: [new Map([["nested", nested]])],
-        },
+        { version: 2, sequence: 1, handle, api: "GM_getValue", params: [new Map([["nested", nested]])] },
         registry
       )
     ).toThrow(PageRpcError);
@@ -291,14 +220,14 @@ describe("page GM RPC", () => {
 
   it("rejects accessors nested in set RPC parameters", () => {
     const registry = new PageRpcRegistry();
-    const handle = registry.register("script-a", "it", ["GM_getValue"]);
+    const handle = registry.register("handle-a", ["GM_getValue"]);
     const getter = vi.fn(() => "secret");
     const nested = {} as Record<string, unknown>;
     Object.defineProperty(nested, "value", { configurable: true, enumerable: true, get: getter });
 
     expect(() =>
       validatePageGMRequest(
-        { version: 2, sequence: 1, requestId: "set", handle, api: "GM_getValue", params: [new Set([nested])] },
+        { version: 2, sequence: 1, handle, api: "GM_getValue", params: [new Set([nested])] },
         registry
       )
     ).toThrow(PageRpcError);
@@ -307,23 +236,20 @@ describe("page GM RPC", () => {
 
   it("does not execute a Symbol.toStringTag accessor while validating RPC values", () => {
     const registry = new PageRpcRegistry();
-    const handle = registry.register("script-a", "it", ["GM_getValue"]);
+    const handle = registry.register("handle-a", ["GM_getValue"]);
     const getter = vi.fn(() => "Blob");
     const nested = Object.create(null) as Record<PropertyKey, unknown>;
     Object.defineProperty(nested, Symbol.toStringTag, { configurable: true, get: getter });
 
     expect(() =>
-      validatePageGMRequest(
-        { version: 2, sequence: 1, requestId: "tag", handle, api: "GM_getValue", params: [nested] },
-        registry
-      )
+      validatePageGMRequest({ version: 2, sequence: 1, handle, api: "GM_getValue", params: [nested] }, registry)
     ).toThrow(PageRpcError);
     expect(getter).not.toHaveBeenCalled();
   });
 
   it("keeps validation on captured intrinsics after page prototype hooks", () => {
     const registry = new PageRpcRegistry();
-    const handle = registry.register("script-a", "it", ["GM_getValue"]);
+    const handle = registry.register("handle-a", ["GM_getValue"]);
     const ownKeysSpy = vi.spyOn(Reflect, "ownKeys").mockImplementation(() => {
       throw new Error("page hook");
     });
@@ -333,26 +259,20 @@ describe("page GM RPC", () => {
 
     let result: ReturnType<typeof validatePageGMRequest> | undefined;
     try {
-      result = validatePageGMRequest(
-        { version: 2, sequence: 1, requestId: "hooked", handle, api: "GM_getValue", params: [] },
-        registry
-      );
+      result = validatePageGMRequest({ version: 2, sequence: 1, handle, api: "GM_getValue", params: [] }, registry);
     } finally {
       ownKeysSpy.mockRestore();
       descriptorSpy.mockRestore();
     }
-    expect(result).toMatchObject({ uuid: "script-a", envTag: "it" });
+    expect(result).toMatchObject({ handle });
   });
 
   it("rejects malformed parameters for privileged helper operations", () => {
     const registry = new PageRpcRegistry();
-    const handle = registry.register("script-a", "it", ["CAT_fetchBlob"]);
+    const handle = registry.register("handle-a", ["CAT_fetchBlob"]);
 
     expect(() =>
-      validatePageGMRequest(
-        { version: 2, sequence: 1, requestId: "a", handle, api: "CAT_fetchBlob", params: [42] },
-        registry
-      )
+      validatePageGMRequest({ version: 2, sequence: 1, handle, api: "CAT_fetchBlob", params: [42] }, registry)
     ).toThrow("CAT_fetchBlob expects an extension blob URL");
 
     expect(isExtensionBlobUrl("https://example.com/file")).toBe(false);
@@ -361,7 +281,7 @@ describe("page GM RPC", () => {
 
     expect(
       validatePageGMRequest(
-        { version: 2, sequence: 1, requestId: "b", handle, api: "CAT_fetchBlob", params: [extensionBlobUrl] },
+        { version: 2, sequence: 1, handle, api: "CAT_fetchBlob", params: [extensionBlobUrl] },
         registry
       ).params
     ).toEqual([extensionBlobUrl]);
@@ -371,20 +291,17 @@ describe("page GM RPC", () => {
 
   it("requires a Blob for CAT_createBlobUrl after parameter cloning", () => {
     const registry = new PageRpcRegistry();
-    const handle = registry.register("script-a", "it", ["CAT_createBlobUrl"]);
+    const handle = registry.register("handle-a", ["CAT_createBlobUrl"]);
 
     expect(() =>
-      validatePageGMRequest(
-        { version: 2, sequence: 1, requestId: "object", handle, api: "CAT_createBlobUrl", params: [{}] },
-        registry
-      )
+      validatePageGMRequest({ version: 2, sequence: 1, handle, api: "CAT_createBlobUrl", params: [{}] }, registry)
     ).toThrow("CAT_createBlobUrl expects one Blob value");
 
     const blob = new NodeBlob(["payload"], { type: "text/plain" });
     expect(Object.prototype.toString.call(blob)).toBe("[object Blob]");
     expect(Object.prototype.toString.call(structuredClone(blob))).toBe("[object Blob]");
     const request = validatePageGMRequest(
-      { version: 2, sequence: 1, requestId: "blob", handle, api: "CAT_createBlobUrl", params: [blob] },
+      { version: 2, sequence: 1, handle, api: "CAT_createBlobUrl", params: [blob] },
       registry
     );
     expect(Object.prototype.toString.call(request.params[0])).toBe("[object Blob]");
@@ -408,7 +325,7 @@ describe("page GM RPC", () => {
 
   it("rejects an old request sequence after the replay window advances", () => {
     const registry = new PageRpcRegistry();
-    const handle = registry.register("script-a", "it", ["GM_getValue"]);
+    const handle = registry.register("handle-a", ["GM_getValue"]);
     const binding = registry.resolve(handle, "GM_getValue");
 
     for (let sequence = 1; sequence <= 4097; sequence += 1) {
@@ -416,10 +333,7 @@ describe("page GM RPC", () => {
     }
 
     expect(() =>
-      validatePageGMRequest(
-        { version: 2, sequence: 1, requestId: "request-0", handle, api: "GM_getValue", params: [] },
-        registry
-      )
+      validatePageGMRequest({ version: 2, sequence: 1, handle, api: "GM_getValue", params: [] }, registry)
     ).toThrow("outside the replay window");
   });
 });

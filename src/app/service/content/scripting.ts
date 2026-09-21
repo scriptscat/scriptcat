@@ -17,7 +17,6 @@ import {
   validatePageGMRequest,
 } from "./page_rpc";
 import { getEffectiveScriptGrants } from "./utils";
-import { uuidv4 } from "@App/pkg/utils/uuid";
 
 const PageOrContent = {
   PAGE: 1,
@@ -176,19 +175,15 @@ export default class ScriptingRuntime {
         return false;
       },
       (data) => {
-        // 所有来自页面的 GM RPC 都在转发前完成字段、句柄、授权和参数复制检查。
+        // 所有来自页面的 GM RPC 都在转发前完成字段、句柄、授权和参数复制检查；
+        // wire 身份只带 handle，canonical uuid/runFlag/envTag 由 SW 依据 handle + 真实 sender 解析。
         const request = validatePageGMRequest(data, this.pageRpc);
         return {
-          uuid: request.uuid,
-          api: request.api,
-          params: request.params,
-          runFlag: request.runFlag,
-          executionHandle: request.handle,
           version: PAGE_RPC_VERSION,
-          requestId: request.requestId,
           sequence: request.sequence,
           handle: request.handle,
-          envTag: request.envTag,
+          api: request.api,
+          params: request.params,
         };
       }
     );
@@ -210,20 +205,24 @@ export default class ScriptingRuntime {
       const { injectScriptList, envInfo, userScriptBootstrapToken, userScriptInjectBootstrapToken } = o;
       // 每次页面加载都废弃旧句柄，避免无 documentId 的浏览器复用上一文档的授权。
       this.pageRpc.revokeAll();
-      const prepareScripts = (scripts: typeof injectScriptList, envTag: "it" | "ct") =>
-        scripts.map((script) => {
-          const allowedAPIs = getPageRpcAllowedAPIs(getEffectiveScriptGrants(script.metadata));
-          const executionRunFlag = script.executionRunFlag || uuidv4();
-          const executionHandle =
-            script.executionHandle ||
-            this.pageRpc.register(script.uuid, envTag, allowedAPIs, undefined, executionRunFlag);
-          if (script.executionHandle) {
-            // service worker 已签发的句柄要在本页 registry 中恢复，保持跨 context 身份一致。
-            this.pageRpc.register(script.uuid, envTag, allowedAPIs, script.executionHandle, executionRunFlag);
+      const prepareScripts = (scripts: typeof injectScriptList) => {
+        const prepared: typeof injectScriptList = [];
+        for (const script of scripts) {
+          const executionHandle = script.executionHandle;
+          if (!executionHandle) {
+            // v2 执行句柄必须由 service worker 签发；content 不再自行伪造替代句柄，
+            // 缺失时丢弃该脚本而不是让整个 pageLoad 失败。
+            console.warn(`ScriptCat: script ${script.uuid} has no authoritative execution handle, skipping`);
+            continue;
           }
-          return { ...script, executionHandle, executionEnvTag: envTag, executionRunFlag };
-        });
-      const preparedInjectScriptList = prepareScripts(injectScriptList, "it");
+          const allowedAPIs = getPageRpcAllowedAPIs(getEffectiveScriptGrants(script.metadata));
+          // service worker 已签发的句柄要在本页 registry 中恢复，保持跨 context 身份一致。
+          this.pageRpc.register(executionHandle, allowedAPIs);
+          prepared.push(script);
+        }
+        return prepared;
+      };
+      const preparedInjectScriptList = prepareScripts(injectScriptList);
       const pairs = {} as Record<string, PageOrContent>;
       for (const script of preparedInjectScriptList) {
         pairs[getStorageName(script)] |= PageOrContent.PAGE;

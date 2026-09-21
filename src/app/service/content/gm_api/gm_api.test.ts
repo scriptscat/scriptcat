@@ -84,7 +84,6 @@ describe("early-start page RPC", () => {
         api: "GM_xmlhttpRequest",
         handle: "page-binding",
         version: 2,
-        requestId: expect.any(String),
         sequence: 1,
       }),
     });
@@ -169,61 +168,53 @@ describe("early-start page RPC", () => {
   });
 });
 
-describe("page RPC executionHandle protocol (P1-1)", () => {
-  // Whether executionHandle belongs on the wire depends on the transport, not on envTag:
-  // - prefix "serviceWorker" means this hop goes straight to the SW (MAIN native, or USER_SCRIPT,
-  //   which is always native) — the SW's page execution validation requires executionHandle on
-  //   every such request.
-  // - prefix "scripting" means this hop goes through the content-script fallback PageRpcRegistry
-  //   (MAIN world when the native channel is unavailable). That broker's validatePageGMRequest()
-  //   accepts a strict 6-field packet (version, requestId, sequence, handle, api, params) and
-  //   throws "page RPC request has unexpected fields" on anything extra, so the page-side packet
-  //   must NOT carry executionHandle — the broker resolves `handle` itself and attaches the
-  //   canonical executionHandle only when it re-forwards the request to the SW.
-  it("Unit A: sendMessage over the native SW transport (MAIN, it) includes executionHandle", async () => {
+describe("page RPC v2 wire identity (Commit 3)", () => {
+  // Wire identity is `handle` only, on every transport: neither the native SW hop (prefix
+  // "serviceWorker" — MAIN native or USER_SCRIPT, which is always native) nor the MAIN fallback
+  // hop through the content-script PageRpcRegistry (prefix "scripting") may duplicate it as
+  // `executionHandle`, and neither may carry a page-supplied requestId/uuid/runFlag/envTag.
+  // Canonical identity is resolved solely from `handle` + the real sender, by the SW.
+  it.each([
+    ["serviceWorker" as const, "main-native-script", "main-binding"],
+    ["scripting" as const, "main-fallback-script", "main-binding"],
+  ])("sendMessage over the %s transport carries only the v2 handle", async (prefix, uuid, handle) => {
     const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
     const script = {
       ...scriptRes,
-      uuid: "main-native-script",
-      executionHandle: "main-binding",
+      uuid,
+      executionHandle: handle,
       executionEnvTag: "it",
     } as ScriptLoadInfo;
-    const api = new GMApi("serviceWorker", { sendMessage } as unknown as Message, {} as Message, script);
+    const api = new GMApi(prefix, { sendMessage } as unknown as Message, {} as Message, script);
 
     await api.sendMessage("GM_setValue", ["a", 1]);
 
     const data = sendMessage.mock.calls[0][0].data;
-    expect(data).toMatchObject({
-      version: 2,
-      handle: "main-binding",
-      executionHandle: "main-binding",
-      sequence: 1,
-      api: "GM_setValue",
-    });
+    expect(Reflect.ownKeys(data)).toEqual(["version", "sequence", "handle", "api", "params"]);
+    expect(data).toMatchObject({ version: 2, sequence: 1, handle, api: "GM_setValue" });
   });
 
-  it("Unit B: connect over the native SW transport (MAIN, it) includes executionHandle", async () => {
+  it.each([
+    ["serviceWorker" as const, "main-native-connect-script", "main-binding"],
+    ["scripting" as const, "main-fallback-connect-script", "main-binding"],
+  ])("connect over the %s transport carries only the v2 handle", async (prefix, uuid, handle) => {
     const connectMessage = vi.fn().mockResolvedValue({} as MessageConnect);
     const script = {
       ...scriptRes,
-      uuid: "main-native-connect-script",
-      executionHandle: "main-binding",
+      uuid,
+      executionHandle: handle,
       executionEnvTag: "it",
     } as ScriptLoadInfo;
-    const api = new GMApi("serviceWorker", { connect: connectMessage } as unknown as Message, {} as Message, script);
+    const api = new GMApi(prefix, { connect: connectMessage } as unknown as Message, {} as Message, script);
 
     await api.connect("GM_xmlhttpRequest", []);
 
     const data = connectMessage.mock.calls[0][0].data;
-    expect(data).toMatchObject({
-      version: 2,
-      handle: "main-binding",
-      executionHandle: "main-binding",
-      api: "GM_xmlhttpRequest",
-    });
+    expect(Reflect.ownKeys(data)).toEqual(["version", "sequence", "handle", "api", "params"]);
+    expect(data).toMatchObject({ version: 2, handle, api: "GM_xmlhttpRequest" });
   });
 
-  it("Unit C: USER_SCRIPT (ct) is always native and still includes executionHandle (regression)", async () => {
+  it("USER_SCRIPT (ct) is always native and still carries only the v2 handle (regression)", async () => {
     const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
     const script = {
       ...scriptRes,
@@ -237,10 +228,10 @@ describe("page RPC executionHandle protocol (P1-1)", () => {
 
     const data = sendMessage.mock.calls[0][0].data;
     expect(data.handle).toBe("ct-binding");
-    expect(data.executionHandle).toBe("ct-binding");
+    expect(Reflect.ownKeys(data)).toEqual(["version", "sequence", "handle", "api", "params"]);
   });
 
-  it("Unit D: a request with no executionHandle keeps the legacy uuid/runFlag shape", async () => {
+  it("a request with no executionHandle keeps the legacy uuid/runFlag shape", async () => {
     const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
     const script = {
       ...scriptRes,
@@ -259,46 +250,7 @@ describe("page RPC executionHandle protocol (P1-1)", () => {
       params: ["a", 1],
     });
     expect(data.version).toBeUndefined();
-    expect(data.executionHandle).toBeUndefined();
-  });
-
-  it("Unit E: sendMessage over the MAIN fallback transport (prefix scripting) omits executionHandle", async () => {
-    // Regression guard: the fallback PageRpcRegistry's validatePageGMRequest() rejects any packet
-    // whose own-key count differs from the strict 6-field schema, so a stray executionHandle here
-    // would break every MAIN-world fallback GM call (this broke CI when it regressed).
-    const sendMessage = vi.fn().mockResolvedValue({ code: 0, data: undefined });
-    const script = {
-      ...scriptRes,
-      uuid: "main-fallback-script",
-      executionHandle: "main-binding",
-      executionEnvTag: "it",
-    } as ScriptLoadInfo;
-    const api = new GMApi("scripting", { sendMessage } as unknown as Message, {} as Message, script);
-
-    await api.sendMessage("GM_setValue", ["a", 1]);
-
-    const data = sendMessage.mock.calls[0][0].data;
-    expect(Reflect.ownKeys(data)).toEqual(["version", "requestId", "sequence", "handle", "api", "params"]);
-    expect(data.handle).toBe("main-binding");
-    expect(data.executionHandle).toBeUndefined();
-  });
-
-  it("Unit F: connect over the MAIN fallback transport (prefix scripting) omits executionHandle", async () => {
-    const connectMessage = vi.fn().mockResolvedValue({} as MessageConnect);
-    const script = {
-      ...scriptRes,
-      uuid: "main-fallback-connect-script",
-      executionHandle: "main-binding",
-      executionEnvTag: "it",
-    } as ScriptLoadInfo;
-    const api = new GMApi("scripting", { connect: connectMessage } as unknown as Message, {} as Message, script);
-
-    await api.connect("GM_xmlhttpRequest", []);
-
-    const data = connectMessage.mock.calls[0][0].data;
-    expect(Reflect.ownKeys(data)).toEqual(["version", "requestId", "sequence", "handle", "api", "params"]);
-    expect(data.handle).toBe("main-binding");
-    expect(data.executionHandle).toBeUndefined();
+    expect(data.handle).toBeUndefined();
   });
 });
 

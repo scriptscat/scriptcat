@@ -106,7 +106,7 @@ describe("ScriptingRuntime page bootstrap", () => {
         ([message]) => message.action === "inject/pageLoad"
       )?.[0];
       expect(fallbackPageLoad?.data).toEqual({
-        scripts: [{ ...injectScript, executionEnvTag: "it" }],
+        scripts: [injectScript],
         envInfo,
       });
     } finally {
@@ -119,8 +119,9 @@ describe("ScriptingRuntime page bootstrap", () => {
       ...makeScript("context-menu-script"),
       name: "Context menu script",
       metadata: { grant: ["none"], "run-at": ["context-menu"] },
-      executionHandle: undefined,
-      executionRunFlag: undefined,
+      // v2 执行句柄必须由 service worker 签发；这里模拟 SW 已签发的 canonical 句柄。
+      executionHandle: "context-menu-handle",
+      executionRunFlag: "context-menu-run-flag",
     } as unknown as TScriptInfo;
     const envInfo = { userAgentData: {}, sandboxMode: "raw", isIncognito: false } as const;
     vi.spyOn(RuntimeClient.prototype, "pageLoad").mockResolvedValue({
@@ -160,14 +161,14 @@ describe("ScriptingRuntime page bootstrap", () => {
       await Promise.resolve();
       await Promise.resolve();
 
-      // 触发 fallback pageLoad 取得 registry 实际签发的 executionHandle。
+      // 触发 fallback pageLoad，在本页 registry 中恢复 SW 签发的 canonical executionHandle。
       handlers.get("pageLoadFallback")?.({}, undefined as unknown as IGetSender);
       await Promise.resolve();
       const fallbackPageLoad = senderToInject.sendMessage.mock.calls.find(
         ([message]) => message.action === "inject/pageLoad"
       )?.[0];
       const executionHandle = fallbackPageLoad?.data.scripts[0].executionHandle;
-      expect(executionHandle).toEqual(expect.any(String));
+      expect(executionHandle).toBe("context-menu-handle");
 
       const gmApiHandler = handlers.get("runtime/gmApi")!;
       const noopSender = { getConnect: () => undefined } as unknown as IGetSender;
@@ -176,7 +177,6 @@ describe("ScriptingRuntime page bootstrap", () => {
       await gmApiHandler(
         {
           version: 2,
-          requestId: "request-1",
           sequence: 1,
           handle: executionHandle,
           api: "GM_registerMenuCommand",
@@ -184,11 +184,11 @@ describe("ScriptingRuntime page bootstrap", () => {
         },
         noopSender
       );
-      // broker 转发给 SW 前才补上 canonical executionHandle；页面原始 packet 里没有这个字段。
+      // wire 身份只有 handle：不再重复携带 executionHandle，canonical uuid/runFlag 由 SW 解析。
       expect(senderToExt.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           action: "serviceWorker/runtime/gmApi",
-          data: expect.objectContaining({ handle: executionHandle, executionHandle }),
+          data: { version: 2, sequence: 1, handle: executionHandle, api: "GM_registerMenuCommand", params: [] },
         })
       );
 
@@ -197,7 +197,6 @@ describe("ScriptingRuntime page bootstrap", () => {
         gmApiHandler(
           {
             version: 2,
-            requestId: "request-2",
             sequence: 2,
             handle: executionHandle,
             api: "GM_setValue",
@@ -206,6 +205,71 @@ describe("ScriptingRuntime page bootstrap", () => {
           noopSender
         )
       ).toThrow("API is not granted to this execution");
+    } finally {
+      storageLocal.onChanged = originalOnChanged;
+    }
+  });
+
+  it("drops a script missing its authoritative execution handle and still delivers its siblings", async () => {
+    // v2 执行句柄必须由 service worker 签发；content 不再为缺失句柄的脚本伪造替代句柄，
+    // 该脚本应被丢弃，其余脚本仍正常送达，pageLoad 本身不应失败。
+    const missingHandleScript = {
+      ...makeScript("missing-handle-script"),
+      executionHandle: undefined,
+      executionRunFlag: undefined,
+    } as unknown as TScriptInfo;
+    const boundScript = {
+      ...makeScript("bound-script"),
+      executionHandle: "bound-handle",
+      executionRunFlag: "bound-run-flag",
+    } as unknown as TScriptInfo;
+    const envInfo = { userAgentData: {}, sandboxMode: "raw", isIncognito: false } as const;
+    vi.spyOn(RuntimeClient.prototype, "pageLoad").mockResolvedValue({
+      ok: true,
+      injectScriptList: [missingHandleScript, boundScript],
+      contentScriptList: [],
+      envInfo,
+      userScriptBootstrapToken: undefined,
+      userScriptInjectBootstrapToken: "inject-bootstrap-token",
+    } as TClientPageLoadInfo);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const senderToExt = makeSender();
+    const senderToContent = makeSender();
+    const senderToInject = makeSender();
+    const handlers = new Map<string, (data: unknown, sender: IGetSender) => unknown>();
+    const server = {
+      on: vi.fn((action: string, handler: (data: unknown, sender: IGetSender) => unknown) =>
+        handlers.set(action, handler)
+      ),
+    };
+    const extServer = { on: vi.fn() };
+    const storageLocal = chrome.storage.local as unknown as {
+      onChanged?: { addListener: (listener: (changes: unknown) => void) => void };
+    };
+    const originalOnChanged = storageLocal.onChanged;
+    storageLocal.onChanged = { addListener: vi.fn() };
+    const runtime = new ScriptingRuntime(
+      extServer as unknown as Server,
+      server as unknown as Server,
+      senderToExt as unknown as MessageSend,
+      senderToContent as any,
+      senderToInject as any
+    );
+
+    try {
+      runtime.init();
+      runtime.pageLoad();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      handlers.get("pageLoadFallback")?.({}, undefined as unknown as IGetSender);
+      await Promise.resolve();
+      const fallbackPageLoad = senderToInject.sendMessage.mock.calls.find(
+        ([message]) => message.action === "inject/pageLoad"
+      )?.[0];
+
+      expect(fallbackPageLoad?.data.scripts).toEqual([boundScript]);
+      expect(warn).toHaveBeenCalledTimes(1);
     } finally {
       storageLocal.onChanged = originalOnChanged;
     }

@@ -241,13 +241,12 @@ describe("page execution binding gate", () => {
     await expect(
       api.handlerRequest(
         {
-          uuid: "script-a",
+          uuid: "forged",
           api: "GM_getTab",
           params: [],
           runFlag: "forged",
-          executionHandle: "missing",
+          handle: "missing",
           version: 2,
-          requestId: "request-a",
           sequence: 1,
         },
         sender
@@ -281,12 +280,11 @@ describe("page execution binding gate", () => {
     await expect(
       api.handlerRequest(
         {
-          uuid: "script-a",
+          uuid: "forged",
           api: "GM_log",
           params: ["hello"],
           runFlag: "forged",
-          executionHandle: "handle-a",
-          requestId: "request-a",
+          handle: "handle-a",
           version: 2,
           sequence: 1,
         },
@@ -294,6 +292,56 @@ describe("page execution binding gate", () => {
       )
     ).rejects.toThrow("API is not granted to this execution");
     expect(parseRequest).not.toHaveBeenCalled();
+  });
+
+  it("resolves canonical identity from the binding and ignores a page-forged uuid/runFlag", async () => {
+    // wire 身份只有 handle；即使页面在直连 SW 的原生通道里伪造 uuid/runFlag，
+    // handlerRequest 也必须整体用 binding 的 canonical 值覆盖，而不是校验后放行伪造值。
+    const api = Object.create(GMApi.prototype) as GMApi;
+    Object.defineProperty(api, "logger", { configurable: true, value: { trace: vi.fn(), error: vi.fn() } });
+    Object.defineProperty(api, "permissionVerify", {
+      configurable: true,
+      value: { verify: vi.fn().mockResolvedValue(undefined) },
+    });
+    const parseRequest = vi.fn().mockResolvedValue({
+      uuid: "script-a",
+      api: "GM_log",
+      params: ["hello"],
+      script: { uuid: "script-a", name: "script-a" },
+    });
+    Object.defineProperty(api, "parseRequest", { configurable: true, value: parseRequest });
+    const binding = {
+      handle: "handle-a",
+      uuid: "script-a",
+      envTag: "it" as const,
+      runFlag: "run-a",
+      tabId: 42,
+      frameId: 0,
+      allowedAPIs: new Set(["GM_log"]),
+      requestSequenceWindow: new RequestSequenceWindow(),
+    };
+    Object.defineProperty(api, "resolvePageExecutionBinding", {
+      configurable: true,
+      value: vi.fn().mockReturnValue(binding),
+    });
+    const sender = makeSender();
+    sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
+
+    await expect(
+      api.handlerRequest(
+        {
+          uuid: "script-b",
+          api: "GM_log",
+          params: ["hello"],
+          runFlag: "forged",
+          handle: "handle-a",
+          version: 2,
+          sequence: 1,
+        },
+        sender
+      )
+    ).resolves.toBe(true);
+    expect(parseRequest).toHaveBeenCalledWith(expect.objectContaining({ uuid: "script-a", runFlag: "run-a" }));
   });
 
   it("rejects a replayed page sequence before invoking the GM API", async () => {
@@ -330,21 +378,16 @@ describe("page execution binding gate", () => {
     sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
 
     const request = {
-      uuid: "script-a",
+      uuid: "forged",
       api: "GM_log",
       params: ["hello"],
       runFlag: "forged",
-      executionHandle: "handle-a",
-      requestId: "request-a",
+      handle: "handle-a",
       version: 2 as const,
       sequence: 1,
-      envTag: "ct" as const,
     };
-    await expect(api.handlerRequest(request, sender)).rejects.toThrow("page execution binding is invalid");
-
-    const validRequest = { ...request, envTag: "it" as const };
-    await expect(api.handlerRequest(validRequest, sender)).resolves.toBe(true);
-    await expect(api.handlerRequest(validRequest, sender)).rejects.toThrow("page RPC sequence was already used");
+    await expect(api.handlerRequest(request, sender)).resolves.toBe(true);
+    await expect(api.handlerRequest(request, sender)).rejects.toThrow("page RPC sequence was already used");
   });
 
   it("accepts a large forward sequence gap on a fresh binding and still rejects its replay", async () => {
@@ -382,15 +425,13 @@ describe("page execution binding gate", () => {
     sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
 
     const request = {
-      uuid: "script-a",
+      uuid: "forged",
       api: "GM_log",
       params: ["hello"],
       runFlag: "forged",
-      executionHandle: "handle-a",
-      requestId: "request-4097",
+      handle: "handle-a",
       version: 2 as const,
       sequence: REQUEST_SEQUENCE_WINDOW_SIZE + 1,
-      envTag: "it" as const,
     };
 
     await expect(api.handlerRequest(request, sender)).resolves.toBe(true);
@@ -432,15 +473,13 @@ describe("page execution binding gate", () => {
     sender.getSender = () => ({ tab: { id: 42 } as chrome.tabs.Tab, frameId: 0 });
 
     const makeRequest = (sequence: number) => ({
-      uuid: "script-a",
+      uuid: "forged",
       api: "GM_log",
       params: ["hello"],
       runFlag: "forged",
-      executionHandle: "handle-a",
-      requestId: `request-${sequence}`,
+      handle: "handle-a",
       version: 2 as const,
       sequence,
-      envTag: "it" as const,
     });
 
     await expect(api.handlerRequest(makeRequest(1), sender)).resolves.toBe(true);

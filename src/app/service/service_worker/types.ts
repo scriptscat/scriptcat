@@ -47,14 +47,11 @@ export type MessageRequest<T = any[]> = {
   api: string;
   runFlag: string;
   params: T;
-  /** 页面执行环境绑定的能力句柄；后台脚本不携带此字段。 */
-  executionHandle?: string;
-  /** 页面 GM RPC 的版本和请求关联字段。 */
+  /** 页面 GM RPC v2 的版本和序列号；wire 身份只有 handle，canonical uuid/runFlag 由 SW 解析后回填。 */
   version?: 2;
-  requestId?: string;
   sequence?: number;
+  /** 页面执行环境绑定的能力句柄；后台脚本不携带此字段。 */
   handle?: string;
-  envTag?: "it" | "ct";
 };
 
 export type ServiceWorkerExecutionBinding = {

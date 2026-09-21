@@ -378,31 +378,23 @@ export default class GMApi {
   // PermissionVerify.API
   // sendMessage from Content Script, etc
   async handlerRequest(data: MessageRequest, sender: IGetSender) {
-    this.logger.trace("GM API request", { api: data.api, uuid: data.uuid, param: data.params });
     const source = sender.getSender();
     const isPageRequest = typeof source?.tab?.id === "number";
-    if (isPageRequest && !data.executionHandle) {
+    if (isPageRequest && !data.handle) {
       throw new Error("page execution binding is required");
     }
-    if (data.executionHandle) {
+    if (data.handle) {
       if (data.version !== 2) {
         throw new Error("unsupported page execution binding version");
       }
-      if (data.handle !== undefined && data.handle !== data.executionHandle) {
-        throw new Error("page execution binding is invalid");
-      }
-      const binding = this.resolvePageExecutionBinding?.(data.executionHandle, sender);
-      if (!binding || (data.uuid && data.uuid !== binding.uuid)) {
+      // wire 身份只有 handle：canonical uuid/runFlag 一律由 handle + 真实 sender 解析而来，
+      // 页面不能预先带上这些字段来冒充身份。
+      const binding = this.resolvePageExecutionBinding?.(data.handle, sender);
+      if (!binding) {
         throw new Error("page execution binding is invalid");
       }
       if (!binding.allowedAPIs.has(data.api)) {
         throw new Error("API is not granted to this execution");
-      }
-      if (data.envTag !== undefined && data.envTag !== binding.envTag) {
-        throw new Error("page execution binding is invalid");
-      }
-      if (typeof data.requestId !== "string" || !data.requestId || data.requestId.length > 256) {
-        throw new Error("page RPC requestId is invalid");
       }
       try {
         binding.requestSequenceWindow.consume(data.sequence);
@@ -411,6 +403,7 @@ export default class GMApi {
       }
       data = { ...data, uuid: binding.uuid, runFlag: binding.runFlag };
     }
+    this.logger.trace("GM API request", { api: data.api, uuid: data.uuid, param: data.params });
     const api = PermissionVerifyApiGet(data.api);
     if (!api) {
       throw new Error("gm api is not found");
