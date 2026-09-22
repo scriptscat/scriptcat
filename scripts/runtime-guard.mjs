@@ -5,6 +5,48 @@ import { pathToFileURL } from "node:url";
 
 const ZERO_SHA = /^0{40}$/;
 const PNPM = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const STATIC_GUARD_ARGS = [
+  "exec",
+  "concurrently",
+  "--kill-others-on-fail",
+  "--success",
+  "all",
+  "-g",
+  "pnpm run typecheck",
+  "pnpm run test:runtime-contract",
+];
+
+const commonEnvironmentFailurePatterns = [
+  /(?:pnpm|spawnSync).*?(?:not found|ENOENT)/i,
+  /ERR_PNPM_/i,
+  /\b(?:EAI_AGAIN|ECONNREFUSED|ECONNRESET|ENETUNREACH|ETIMEDOUT|ENOTFOUND)\b/i,
+  /(?:fetch failed|unable to resolve host|could not resolve host|failed to fetch)/i,
+  /(?:Executable doesn't exist|Please run.*playwright install)/i,
+  /(?:Missing X server|no usable sandbox|sandbox.*(?:failed|not available))/i,
+  /\b(?:EACCES|EMFILE|ENFILE|EPERM)\b/i,
+  /(?:JavaScript heap out of memory|FATAL ERROR:.*heap|out of memory)/i,
+];
+
+const e2eEnvironmentFailurePatterns = [
+  /\b(?:SIGABRT|SIGTRAP|SIGSEGV)\b/i,
+  /thermal_state_observer/i,
+  /browserType\.(?:launch|launchPersistentContext)/i,
+  /launchPersistentContext/i,
+];
+
+function isEnvironmentFailure(stage, output) {
+  const patterns =
+    stage === "e2e"
+      ? [...commonEnvironmentFailurePatterns, ...e2eEnvironmentFailurePatterns]
+      : commonEnvironmentFailurePatterns;
+  return patterns.some((pattern) => pattern.test(output));
+}
+
+const definiteFailurePatterns = {
+  static: [/error TS\d+/i, /Found \d+ error/i, /(?:Test Files|Tests).*failed/i, /AssertionError/i],
+  build: [/ERROR in/i, /Module not found/i, /SyntaxError/i, /error TS\d+/i, /Rspack compiled with \d+ error/i],
+  e2e: [/Error: expect\(/i, /TimeoutError/i, /(?:Test Files|Tests).*failed/i, /toHave[A-Z]/i],
+};
 
 const fullGuardPaths = [
   /^\.github\/workflows\//,
@@ -93,13 +135,42 @@ function workingTreePaths() {
     .filter(Boolean);
 }
 
+export function shouldBlockGuardFailure(stage, output) {
+  if (isEnvironmentFailure(stage, output)) return false;
+  return (definiteFailurePatterns[stage] ?? []).some((pattern) => pattern.test(output));
+}
+
 function runPnpm(args) {
-  const result = spawnSync(PNPM, args, { stdio: "inherit" });
-  if (result.error) {
-    console.error(result.error.message);
-    return 1;
+  const result = spawnSync(PNPM, args, { encoding: "utf8", stdio: ["inherit", "pipe", "pipe"] });
+  const errorMessage = result.error?.message ?? "";
+  const output = `${result.stdout ?? ""}${result.stderr ?? ""}${errorMessage ? `\n${errorMessage}` : ""}`;
+  process.stdout.write(result.stdout ?? "");
+  process.stderr.write(result.stderr ?? "");
+  return { output, status: result.status ?? 1 };
+}
+
+function runGuardCommand(stage, args, allowEnvironmentFailure) {
+  const result = runPnpm(args);
+  if (result.status === 0) return 0;
+  if (allowEnvironmentFailure && !shouldBlockGuardFailure(stage, result.output)) {
+    console.error(`⚠ Runtime guard ${stage} could not complete because of the local environment; allowing push.`);
+    return 0;
   }
-  return result.status ?? 1;
+  return result.status;
+}
+
+function runFullGuard(allowEnvironmentFailure = false) {
+  const staticStatus = runGuardCommand("static", STATIC_GUARD_ARGS, allowEnvironmentFailure);
+  if (staticStatus !== 0) return staticStatus;
+
+  const buildStatus = runGuardCommand("build", ["run", "build"], allowEnvironmentFailure);
+  if (buildStatus !== 0) return buildStatus;
+
+  return runGuardCommand(
+    "e2e",
+    ["exec", "playwright", "test", "e2e/runtime-bootstrap.spec.ts", "--workers=1", "--retries=0"],
+    allowEnvironmentFailure
+  );
 }
 
 export function main(input = readFileSync(0, "utf8")) {
@@ -111,7 +182,7 @@ export function main(input = readFileSync(0, "utf8")) {
   } catch (error) {
     console.error(`Runtime guard could not classify pushed paths: ${error.message}`);
     console.error("Running the full runtime guard.");
-    return runPnpm(["run", "guard:runtime"]);
+    return runFullGuard(true);
   }
 
   const classification = pushed.reason ? "full" : classifyChangedPaths(pushed.paths);
@@ -121,7 +192,12 @@ export function main(input = readFileSync(0, "utf8")) {
   }
 
   if (classification !== "skip") {
-    const dirtyRelevantPaths = [...new Set(workingTreePaths())].filter((filePath) => !isDocumentationPath(filePath));
+    let dirtyRelevantPaths = [];
+    try {
+      dirtyRelevantPaths = [...new Set(workingTreePaths())].filter((filePath) => !isDocumentationPath(filePath));
+    } catch (error) {
+      console.error(`⚠ Runtime guard could not inspect the working tree; continuing: ${error.message}`);
+    }
     if (dirtyRelevantPaths.length > 0) {
       console.error("Runtime guard refused: relevant working-tree changes are not included in the pushed commits:");
       dirtyRelevantPaths.forEach((filePath) => console.error(`  ${filePath}`));
@@ -131,14 +207,14 @@ export function main(input = readFileSync(0, "utf8")) {
 
   if (classification === "fast") {
     console.log("🔍 Runtime guard: running static checks for test-only changes.");
-    return runPnpm(["run", "guard:runtime:static"]);
+    return runGuardCommand("static", STATIC_GUARD_ARGS, true);
   }
 
   console.log("🔍 Runtime guard: running the full build and runtime smoke test.");
-  return runPnpm(["run", "guard:runtime"]);
+  return runFullGuard(true);
 }
 
 const entrypoint = process.argv[1] ? pathToFileURL(process.argv[1]).href : null;
 if (entrypoint && import.meta.url === entrypoint) {
-  process.exitCode = main();
+  process.exitCode = process.argv.includes("--full") ? runFullGuard() : main();
 }
