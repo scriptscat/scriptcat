@@ -650,18 +650,6 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       expect(blacklistResult2).toBe(true);
       expect(normalResult2).toBe(false);
     });
-
-    it.concurrent("Chromium 原生黑名单应过滤不支持的 scheme，但内部匹配规则保持不变", async () => {
-      const blacklistString = "*://www.blacklisted.com/*\nnotsupported://*/*";
-      mockSystemConfig.getBlacklist.mockReturnValue(blacklistString);
-      runtime.blacklist = obtainBlackList(blacklistString);
-
-      runtime.loadBlacklist();
-
-      expect(runtime.blackMatch?.rulesMap.get("BK")?.length || 0).toBe(2);
-      expect(runtime.blacklistExcludeMatches).toEqual(["*://www.blacklisted.com/*"]);
-      expect(runtime.isUrlBlacklist("notsupported://example/path")).toBe(true);
-    });
   });
 });
 
@@ -730,6 +718,19 @@ const _createRuntimeContext = () => {
   );
   return { runtime, mockSystemConfig, mockScriptService, mockScriptDAO, mockGroup };
 };
+
+describe("loadBlacklist 原生 match scheme 过滤", () => {
+  it("Chromium 原生黑名单应过滤不支持的 scheme，但内部匹配规则保持不变", () => {
+    const { runtime } = _createRuntimeContext();
+    runtime.blacklist = obtainBlackList("*://www.blacklisted.com/*\nnotsupported://*/*");
+
+    runtime.loadBlacklist();
+
+    expect(runtime.blackMatch?.rulesMap.get("BK")?.length || 0).toBe(2);
+    expect(runtime.blacklistExcludeMatches).toEqual(["*://www.blacklisted.com/*"]);
+    expect(runtime.isUrlBlacklist("notsupported://example/path")).toBe(true);
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 
