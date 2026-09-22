@@ -1360,7 +1360,7 @@ describe("getParticularScriptList 原生 match scheme 过滤", () => {
     mockScriptDAO.all.mockResolvedValue([script]);
     runtime.compiledResourceDAO = {
       get: vi.fn().mockResolvedValue(compiledResource),
-    } as any;
+    } as unknown as RuntimeService["compiledResourceDAO"];
     vi.spyOn(runtime, "restoreJSCodeFromCompiledResource").mockResolvedValue("console.log(1);");
 
     const list = await runtime.getParticularScriptList({ excludeMatches: [], excludeGlobs: [] });
@@ -1377,7 +1377,7 @@ describe("getParticularScriptList 原生 match scheme 过滤", () => {
     mockScriptDAO.all.mockResolvedValue([script]);
     runtime.compiledResourceDAO = {
       get: vi.fn().mockResolvedValue(compiledResource),
-    } as any;
+    } as unknown as RuntimeService["compiledResourceDAO"];
     vi.spyOn(runtime, "restoreJSCodeFromCompiledResource").mockResolvedValue("console.log(1);");
 
     const list = await runtime.getParticularScriptList({ excludeMatches: [], excludeGlobs: [] });
