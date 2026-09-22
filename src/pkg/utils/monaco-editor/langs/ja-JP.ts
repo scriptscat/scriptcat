@@ -53,6 +53,7 @@ export default {
   replaceMatchTldWildcardWithInclude: "@match の TLD ワイルドカードを @include {0} に置換",
   replaceIncludeWithMatch: "@include を @match {0} に置換",
   grantConflict: "@grant none は GM API と同時に使えません。none またはすべての GM API を削除してください。",
+  duplicateResourceName: '@resource 名 "{0}" が複数回宣言されています。',
   unsupportedGrant: "@grant {0} は ScriptCat では未対応のため、有効になりません。",
   grantValuePrompts,
   prompt: {

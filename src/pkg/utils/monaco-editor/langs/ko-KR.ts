@@ -52,6 +52,7 @@ export default {
   replaceMatchTldWildcardWithInclude: "@match 최상위 도메인 와일드카드를 @include {0}으로 바꾸기",
   replaceIncludeWithMatch: "@include를 @match {0}으로 바꾸기",
   grantConflict: "@grant none은 GM API와 함께 사용할 수 없습니다. none 또는 모든 GM API를 제거하세요.",
+  duplicateResourceName: '@resource 이름 "{0}"이(가) 여러 번 선언되었습니다.',
   unsupportedGrant: "@grant {0}은(는) ScriptCat에서 지원되지 않으며 적용되지 않습니다.",
   grantValuePrompts,
   prompt: {

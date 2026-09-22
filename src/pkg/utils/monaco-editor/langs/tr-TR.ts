@@ -53,6 +53,7 @@ export default {
   replaceMatchTldWildcardWithInclude: "@match TLD joker karakterini @include {0} ile değiştir",
   replaceIncludeWithMatch: "@include yerine @match {0} kullan",
   grantConflict: "@grant none, GM API'leriyle birlikte kullanılamaz. none değerini veya tüm GM API'lerini kaldırın.",
+  duplicateResourceName: '@resource adı "{0}" birden fazla kez tanımlanmış.',
   unsupportedGrant: "@grant {0}, ScriptCat tarafından desteklenmiyor ve etkisi olmayacak.",
   grantValuePrompts,
   prompt: {

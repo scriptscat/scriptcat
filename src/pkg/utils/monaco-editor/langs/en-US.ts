@@ -52,6 +52,7 @@ export default {
   replaceMatchTldWildcardWithInclude: "Replace @match TLD wildcard with @include {0}",
   replaceIncludeWithMatch: "Replace @include with @match {0}",
   grantConflict: "@grant none cannot be used with GM APIs. Remove none or all GM APIs.",
+  duplicateResourceName: '@resource name "{0}" is declared more than once.',
   unsupportedGrant: "@grant {0} is not supported by ScriptCat and will not take effect.",
   grantValuePrompts,
   prompt: {
