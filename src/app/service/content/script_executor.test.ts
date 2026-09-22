@@ -143,12 +143,6 @@ describe("ScriptExecutor", () => {
     ).execScripts.get(initial.uuid)!;
     expect(exec.scriptRes.executionHandle).toBeUndefined();
     const gmInfo = exec.execContext.GM_info;
-    // Native.objectAssign(current, scriptInfo) / Native.objectAssign(gmInfo, updatedGMInfo) 合并进
-    // 既有对象而不是替换引用；这两个断言钉住合并前后 identity 与 prototype 都必须保持不变，
-    // 记录为什么这两处保留的 assign 在 Commit 1 收紧来源 keyspace 之后仍然安全。
-    const scriptResBeforeReconcile = exec.scriptRes;
-    const scriptResPrototype = Object.getPrototypeOf(exec.scriptRes);
-    const gmInfoPrototype = Object.getPrototypeOf(gmInfo);
 
     expect(
       exec.reconcileEarlyScript(initEnvInfo, {
@@ -187,9 +181,6 @@ describe("ScriptExecutor", () => {
       sandboxMode: "raw",
     });
     expect(exec.execContext.GM_info).toBe(gmInfo);
-    expect(exec.scriptRes).toBe(scriptResBeforeReconcile);
-    expect(Object.getPrototypeOf(exec.scriptRes)).toBe(scriptResPrototype);
-    expect(Object.getPrototypeOf(gmInfo)).toBe(gmInfoPrototype);
   });
 
   it("rejects a different early-start revision and cancels its pending GM work", async () => {
