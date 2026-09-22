@@ -18,6 +18,7 @@ import type { ScriptFunc } from "./types";
 import { nativeCall } from "./global";
 import { RuleType, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { getPageRpcAllowedAPIs } from "./page_rpc";
+import { PAGE_LOAD_SCRIPT_OPTIONAL_KEYS, PAGE_LOAD_SCRIPT_REQUIRED_KEYS } from "./script_runtime";
 
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
 
@@ -545,6 +546,105 @@ describe("utils", () => {
       script.scriptRevision = "compiled-revision";
 
       expect(trimScriptInfo(script).scriptRevision).toBe("compiled-revision");
+    });
+  });
+
+  describe("trimScriptInfo page-load key contract (producer-drift guard)", () => {
+    // 尽可能填满生产者会实际产出的每一个字段（包含可选字段），这样任何遗漏进
+    // script_runtime.ts 的 PAGE_LOAD_SCRIPT_*_KEYS 允许清单的字段都会让本测试失败，
+    // 而不是让 isPageScriptInfo() 在生产环境里悄悄拒绝真实数据。
+    const producerCompleteScript = (): ScriptLoadInfo =>
+      ({
+        uuid: "producer-complete-uuid",
+        name: "Producer complete script",
+        namespace: "producer.test",
+        author: "author",
+        checkUpdate: true,
+        checkUpdateUrl: "https://example.com/update.json",
+        downloadUrl: "https://example.com/script.user.js",
+        metadata: { grant: ["GM_getValue"] },
+        selfMetadata: { grant: ["GM_getValue"] },
+        subscribeUrl: "https://example.com/subscribe.json",
+        config: { group: { title: "t", description: "", index: 0 } },
+        type: 1,
+        status: 1,
+        sort: 5,
+        runStatus: "complete",
+        error: "boom",
+        createtime: 111,
+        updatetime: 222,
+        checktime: 333,
+        lastruntime: 444,
+        nextruntime: 555,
+        ignoreVersion: "1.0.0",
+        code: "console.log(1)",
+        value: { stored: "value" },
+        flag: "producer-complete-flag",
+        resource: {},
+        resourceByType: { require: {}, "require-css": {}, resource: {} },
+        originalMetadata: { grant: ["GM_getValue"] },
+        originDomain: "example.com",
+        origin: "https://example.com/script.user.js",
+        scriptRevision: "producer-complete-revision",
+        metadataStr: "// ==UserScript==\n// ==/UserScript==",
+        userConfigStr: '{"group":{}}',
+        userConfig: { group: { field: "value" } },
+        scriptUrlPatterns: [],
+      }) as unknown as ScriptLoadInfo;
+
+    it("stays within the authoritative page-load required/optional keyspace after adding the execution binding", () => {
+      const trimmed = trimScriptInfo(producerCompleteScript());
+      const withBinding = {
+        ...trimmed,
+        executionHandle: "handle",
+        executionEnvTag: "it",
+        executionRunFlag: "run-flag",
+      };
+      const actualKeys = Object.keys(withBinding);
+      const allowedKeys = new Set<string>([...PAGE_LOAD_SCRIPT_REQUIRED_KEYS, ...PAGE_LOAD_SCRIPT_OPTIONAL_KEYS]);
+
+      for (const key of actualKeys) {
+        expect(allowedKeys.has(key), `unexpected page-load key: ${key}`).toBe(true);
+      }
+      for (const key of PAGE_LOAD_SCRIPT_REQUIRED_KEYS) {
+        expect(actualKeys, `missing required page-load key: ${key}`).toContain(key);
+      }
+    });
+
+    it("strips fields that must never reach the page-visible bridge", () => {
+      const trimmed = trimScriptInfo(producerCompleteScript()) as unknown as Record<string, unknown>;
+
+      for (const key of [
+        "originalMetadata",
+        "selfMetadata",
+        "lastruntime",
+        "nextruntime",
+        "ignoreVersion",
+        "sort",
+        "error",
+        "resourceByType",
+        "subscribeUrl",
+        "originDomain",
+        "origin",
+        "runStatus",
+        "type",
+        "status",
+        "executionHandle",
+        "executionEnvTag",
+        "executionRunFlag",
+      ]) {
+        expect(Object.hasOwn(trimmed, key), `${key} should have been stripped`).toBe(false);
+      }
+    });
+
+    it("keeps a legitimate optional own key whose value is undefined (config)", () => {
+      const script = producerCompleteScript();
+      script.config = undefined;
+
+      const trimmed = trimScriptInfo(script) as unknown as Record<string, unknown>;
+
+      expect(Object.hasOwn(trimmed, "config")).toBe(true);
+      expect(trimmed.config).toBeUndefined();
     });
   });
 

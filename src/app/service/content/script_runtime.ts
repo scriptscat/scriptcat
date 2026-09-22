@@ -46,8 +46,43 @@ const isPageResourceMap = (value: unknown): boolean => {
   return true;
 };
 
+// 页面加载脚本记录的顶层 key 契约：由 trimScriptInfo() 的实际产出 + pageLoad() 补回的三个
+// 执行绑定字段共同决定，不是从 TScriptInfo 类型反推——类型比实际页面加载表示宽得多。
+// 与生产者漂移的守护测试位于 utils.test.ts，本处的两个数组必须与之保持一致。
+export const PAGE_LOAD_SCRIPT_REQUIRED_KEYS = [
+  "uuid",
+  "scriptRevision",
+  "name",
+  "flag",
+  "code",
+  "metadata",
+  "resource",
+  "value",
+  "executionHandle",
+  "executionEnvTag",
+  "executionRunFlag",
+] as const;
+export const PAGE_LOAD_SCRIPT_OPTIONAL_KEYS = [
+  "namespace",
+  "author",
+  "checkUpdate",
+  "checkUpdateUrl",
+  "downloadUrl",
+  "config",
+  "createtime",
+  "updatetime",
+  "checktime",
+  "requireCssResource",
+  "metadataStr",
+  "userConfigStr",
+  "userConfig",
+  "scriptUrlPatterns",
+] as const;
+
 const isPageScriptInfo = (value: unknown, envTag: "it" | "ct"): value is TScriptInfo => {
-  if (!isRecord(value)) return false;
+  if (!isRecord(value) || !hasOnlyKeys(value, PAGE_LOAD_SCRIPT_REQUIRED_KEYS, PAGE_LOAD_SCRIPT_OPTIONAL_KEYS)) {
+    return false;
+  }
   if (
     typeof value.uuid !== "string" ||
     value.uuid.length === 0 ||

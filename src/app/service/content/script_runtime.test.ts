@@ -102,6 +102,41 @@ describe("ScriptRuntime inject page bootstrap", () => {
     expect(executor.startScripts).not.toHaveBeenCalled();
   });
 
+  it("rejects a page-load script carrying an own '__proto__' data property before starting scripts", () => {
+    // Object.assign(current, scriptInfo) 之后会在 reconcileEarlyScript() 里把这份数据合入一个
+    // 普通原型的对象；own "__proto__" 数据属性经由继承自 Object.prototype 的 setter 会真的改写
+    // current 的原型，而不只是多一个无害字段。必须在到达 startScripts 之前就被拒绝。
+    const { handlers, server } = makeServer();
+    const executor = makeExecutor();
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    runtime.init();
+
+    const pageLoad = makePageLoad();
+    Object.defineProperty(pageLoad.scripts[0], "__proto__", {
+      configurable: true,
+      enumerable: true,
+      value: { polluted: true },
+    });
+
+    handlers.get("pageLoad")?.(pageLoad);
+
+    expect(executor.startScripts).not.toHaveBeenCalled();
+  });
+
+  it("rejects a page-load script carrying an ordinary unknown field (exact-key validation, not a __proto__ blacklist)", () => {
+    const { handlers, server } = makeServer();
+    const executor = makeExecutor();
+    const runtime = new ScriptRuntime("it", server, {} as Message, executor as unknown as ScriptExecutor, undefined);
+    runtime.init();
+
+    const pageLoad = makePageLoad();
+    (pageLoad.scripts[0] as unknown as Record<string, unknown>).unexpectedField = "surprise";
+
+    handlers.get("pageLoad")?.(pageLoad);
+
+    expect(executor.startScripts).not.toHaveBeenCalled();
+  });
+
   it("rejects pageLoad scripts without a source revision", () => {
     const { handlers, server } = makeServer();
     const executor = makeExecutor();
