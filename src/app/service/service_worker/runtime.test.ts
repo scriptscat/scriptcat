@@ -2,7 +2,7 @@ import { initTestEnv } from "@Tests/utils";
 import { RuntimeService } from "./runtime";
 import { vi, describe, it, expect, beforeEach, afterEach, type MockedFunction } from "vitest";
 import { randomUUID } from "crypto";
-import type { Script, ScriptRunResource } from "@App/app/repo/scripts";
+import type { Script, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import {
   SCRIPT_STATUS_DISABLE,
   SCRIPT_STATUS_ENABLE,
@@ -11,7 +11,7 @@ import {
 } from "@App/app/repo/scripts";
 import { buildScriptRunResourceBasic, getCombinedMeta, scriptURLPatternResults } from "./utils";
 import type { SystemConfig } from "@App/pkg/config/config";
-import { SenderRuntime, type Group } from "@Packages/message/server";
+import { SenderRuntime, type Group, type Server } from "@Packages/message/server";
 import type { ServiceWorkerMessageSend, WindowMessageBody } from "@Packages/message/window_message";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import type { ValueService } from "./value";
@@ -22,6 +22,12 @@ import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
 import { obtainBlackList } from "@App/pkg/utils/utils";
 import type { CompiledResource, Resource } from "@App/app/repo/resource";
+import { trimScriptInfo } from "@App/app/service/content/utils";
+import { ScriptRuntime } from "@App/app/service/content/script_runtime";
+import type { ScriptExecutor } from "@App/app/service/content/script_executor";
+import { ScriptEnvTag } from "@Packages/message/consts";
+import type { Message } from "@Packages/message/types";
+import type { GMInfoEnv } from "@App/app/service/content/types";
 
 initTestEnv();
 
@@ -719,6 +725,19 @@ const _createRuntimeContext = () => {
   return { runtime, mockSystemConfig, mockScriptService, mockScriptDAO, mockGroup };
 };
 
+const _createPageLoadScriptInfo = (
+  runtime: RuntimeService,
+  scriptRes: ScriptRunResource,
+  cache: Record<string, unknown>
+) => {
+  const createPageLoadScriptInfo = (
+    runtime as unknown as {
+      createPageLoadScriptInfo: (scriptRes: ScriptRunResource, cache: Record<string, unknown>) => ScriptLoadInfo;
+    }
+  ).createPageLoadScriptInfo.bind(runtime);
+  return createPageLoadScriptInfo(scriptRes, cache);
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("shouldSkipPageLoadScript 页面脚本加载过滤规则", () => {
@@ -865,12 +884,95 @@ describe("page-load resource cache", () => {
       localResources: [],
     };
 
-    const pageInfo = (runtime as any).createPageLoadScriptInfo(scriptRes, cache);
+    const pageInfo = _createPageLoadScriptInfo(runtime, scriptRes, cache);
 
-    expect(pageInfo.resourceByType.require[sharedKey].content).toBe("require content");
-    expect(pageInfo.resourceByType["require-css"][sharedKey].content).toBe("css content");
-    expect(pageInfo.resourceByType.resource[sharedKey].content).toBe("resource content");
+    expect(pageInfo.resourceByType!.require[sharedKey].content).toBe("require content");
+    expect(pageInfo.resourceByType!["require-css"][sharedKey].content).toBe("css content");
+    expect(pageInfo.resourceByType!.resource[sharedKey].content).toBe("resource content");
     expect(pageInfo.resource[sharedKey].content).toBe("resource content");
+  });
+
+  it("keeps the service-worker page-load producer within the page bridge DTO", () => {
+    const { runtime } = _createRuntimeContext();
+    const scriptRes = _createScriptRunResource(_createMockScript());
+    const cache = {
+      scriptCacheKey: "cache-key",
+      code: "console.log(1)",
+      scriptUrlPatterns: [],
+      originalUrlPatterns: [],
+      metadataStr: "",
+      userConfigStr: "",
+      userConfig: undefined,
+      resourceByType: { require: {}, "require-css": {}, resource: {} },
+      localResources: [],
+    };
+
+    const pageInfo = _createPageLoadScriptInfo(runtime, scriptRes, cache);
+    const trimmed = trimScriptInfo(pageInfo as ScriptLoadInfo);
+
+    expect(Object.keys(trimmed).sort()).toEqual(
+      [
+        "checktime",
+        "code",
+        "createtime",
+        "flag",
+        "metadata",
+        "metadataStr",
+        "name",
+        "namespace",
+        "resource",
+        "requireCssResource",
+        "scriptUrlPatterns",
+        "userConfig",
+        "userConfigStr",
+        "uuid",
+        "value",
+      ].sort()
+    );
+  });
+
+  it("accepts the real page-load producer output and rejects an extra bridge field", () => {
+    const { runtime } = _createRuntimeContext();
+    const scriptRes = _createScriptRunResource(_createMockScript());
+    const pageInfo = _createPageLoadScriptInfo(runtime, scriptRes, {
+      scriptCacheKey: "cache-key",
+      code: "console.log(1)",
+      scriptUrlPatterns: [],
+      originalUrlPatterns: [],
+      metadataStr: "",
+      userConfigStr: "",
+      userConfig: undefined,
+      resourceByType: { require: {}, "require-css": {}, resource: {} },
+      localResources: [],
+    });
+    const producedScript = trimScriptInfo(pageInfo as ScriptLoadInfo);
+    const envInfo = { userAgentData: {}, sandboxMode: "raw", isIncognito: false } as GMInfoEnv;
+    const handlers = new Map<string, (data: unknown) => unknown>();
+    const server = {
+      on: (name: string, handler: (data: unknown) => unknown) => handlers.set(name, handler),
+    } as unknown as Server;
+    const startScripts = vi.fn();
+    const executor = {
+      checkEarlyStartScript: vi.fn(),
+      emitEvent: vi.fn(),
+      startScripts,
+      valueUpdate: vi.fn(),
+    } as unknown as ScriptExecutor;
+    const contentRuntime = new ScriptRuntime(ScriptEnvTag.inject, server, {} as Message, executor, undefined);
+    contentRuntime.init();
+
+    const pageLoad = handlers.get("pageLoad");
+    expect(pageLoad).toBeDefined();
+    pageLoad!({ scripts: [producedScript], envInfo });
+
+    expect(startScripts).toHaveBeenCalledWith([producedScript], envInfo);
+
+    pageLoad!({
+      scripts: [{ ...producedScript, originalUrlPatterns: [] }],
+      envInfo,
+    });
+
+    expect(startScripts).toHaveBeenCalledTimes(1);
   });
 });
 

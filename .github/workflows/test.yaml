@@ -172,6 +172,8 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     name: Run E2E tests (${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
+    needs: [lint, test-shards]
+    if: ${{ needs.lint.result == 'success' && needs.test-shards.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:

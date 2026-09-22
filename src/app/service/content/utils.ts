@@ -7,6 +7,7 @@ import { ScriptEnvTag } from "@Packages/message/consts";
 import { embeddedPatternCheckerString, type EmbeddedURLRuleEntry, type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import { parseResourceDeclaration } from "@App/pkg/utils/resource";
 import { getGrantCandidates } from "./gm_api/grant";
+import { pickPageLoadScriptFields } from "./page_load_contract";
 
 export type CompileScriptCodeResource = {
   name: string;
@@ -191,6 +192,8 @@ export function compileInjectScriptByFlag(
 
 /**
  * 脚本加载信息。（Inject/Content环境用，避免过多不必要信息公开，减少页面加载信息存储量）
+ * 旧版 trimScriptInfo() 使用 spread，会把 originalUrlPatterns 传到页面桥，导致脚本不启动。
+ * 新版 pickPageLoadScriptFields() 通过 allowlist 丢弃该内部字段，同时防止未来内部字段继续泄漏。
  */
 export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   // --- 处理 resource ---
@@ -215,25 +218,12 @@ export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
     }
   }
   // --- 处理 resource ---
-  // --- 处理 scriptInfo ---
-  const scriptInfo = { ...script, resource, requireCssResource, code: "" } as TScriptInfo;
-  // 删除其他不需要注入的 script 信息
-  delete scriptInfo.originalMetadata;
-  delete scriptInfo.selfMetadata;
-  delete scriptInfo.lastruntime;
-  delete scriptInfo.nextruntime;
-  delete scriptInfo.ignoreVersion; // UserScript 里面不需要知道用户有没有在更新时忽略
-  delete scriptInfo.sort; // UserScript 里面不需要知道用户如何 sort
-  delete scriptInfo.error;
-  delete scriptInfo.resourceByType;
-  delete scriptInfo.subscribeUrl; // UserScript 里面不需要知道用户从何处订阅
-  delete scriptInfo.originDomain; // 脚本来源域名
-  delete scriptInfo.origin; // 脚本来源
-  delete scriptInfo.runStatus; // 前台脚本不用
-  delete scriptInfo.type; // 脚本类型总是普通脚本
-  delete scriptInfo.status; // 脚本状态总是启用
-  // --- 处理 scriptInfo ---
-  return scriptInfo;
+  // pageLoad 跨上下文只允许显式列出的字段，新增内部字段不会自动进入页面桥。
+  return pickPageLoadScriptFields(script, {
+    resource,
+    requireCssResource,
+    code: "",
+  });
 };
 
 /**
