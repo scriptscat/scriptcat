@@ -1535,8 +1535,22 @@ export class ScriptService {
   }
 
   async getAllScripts() {
+    const scripts = await this.scriptDAO.all();
+    scripts.sort((a, b) => a.sort - b.sort);
+    if (scripts.some((script, index) => script.sort !== index)) {
+      // 只有归一化写入需要与同步中的排序应用串行；读取若也排进同步队列，
+      // 网盘推送慢或重试时页面会一直拿不到脚本列表
+      this.normalizeScriptSort().catch((e) => {
+        this.logger.error("normalize script sort error", Logger.E(e));
+      });
+    }
+    // 返回拷贝：DAO 可能返回缓存对象，提前改 sort 会让队列里的归一化读到已改的值而跳过写入
+    return scripts.map((script, index) => (script.sort === index ? script : { ...script, sort: index }));
+  }
+
+  private normalizeScriptSort() {
     return stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
-      // 获取数据并排序
+      // 队列里重新读取：排队期间同步可能已经改过排序
       const scripts = await this.scriptDAO.all();
       scripts.sort((a, b) => a.sort - b.sort);
       const batchUpdate: Record<string, Partial<Script>> = {};
@@ -1556,7 +1570,6 @@ export class ScriptService {
           scripts.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
         );
       }
-      return scripts;
     });
   }
 

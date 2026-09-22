@@ -149,14 +149,17 @@ type PendingSyncOp = { op: "delete"; syncDelete: boolean } | { op: "push" };
 
 ## 同步入口和队列
 
-`SynchronizeService` 使用 `SYNC_SERVICE_TASK_KEY = "cloud_sync_queue"` 串行化同步任务。以下入口都会进入同一队列：
+同步任务用 `CLOUD_SYNC_QUEUE_KEY = "cloud_sync_queue"`（`src/app/service/queue.ts`）串行化。以下入口都会进入同一队列：
 
 - 配置启用后触发的 `syncOnce()`。
 - 定时同步，Chrome alarm 名称为 `cloudSync`，周期为 30 分钟。启用后闹钟是唯一的周期性入口：SW 冷启动只确保闹钟存在，不触发同步（否则同步频率会退化成 SW 冷启动频率，见 #1670）。
 - 非 sync 来源安装脚本后的 `scriptInstall()`。push 失败时按 `PushScriptPartialError` 只保留失败文件的旧 digest，已成功文件推进到云端最新值；部分成功还会登记 `pending_sync_ops` 的 push 意图（见上）。
 - 非 sync 来源删除脚本后的 `scriptsDelete()`。执行前写前登记删除意图，成功后清除。
+- `ScriptService` 的本地排序写入：`sortScript()`、`pinToTop()`，以及 `getAllScripts()` 发现 `sort` 不连续时入队的归一化写入。
 
 串行队列很重要：安装、删除和定时同步都可能写同一批云端文件，如果并发执行，会扩大覆盖和 digest 污染风险。
+
+队列里的任务会等网络 I/O（整轮 `syncOnce` 更是占住队列直到全部文件完成），所以只有必须与同步互斥的写入才能入队。页面依赖的读取不得进入这条队列：`getAllScripts()` 曾整体入队，网盘推送慢或重试时脚本列表和编辑页会长时间空白。
 
 ## `syncOnceInternal()` 流程
 
