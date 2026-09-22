@@ -118,6 +118,7 @@
   "sort_default": "Padrão",
   "sort_ascending": "Crescente",
   "sort_descending": "Decrescente",
+  "sort_reset": "Redefinir ordenação",
   "more_actions": "Mais ações",
   "multi_select": "Selecionar vários",
   "site_count": "{{count}} site(s)",

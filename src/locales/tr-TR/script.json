@@ -118,6 +118,7 @@
   "sort_default": "Varsayılan",
   "sort_ascending": "Artan",
   "sort_descending": "Azalan",
+  "sort_reset": "Sıralamayı sıfırla",
   "more_actions": "Diğer işlemler",
   "multi_select": "Çoklu seçim",
   "site_count": "{{count}} site",

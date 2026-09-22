@@ -118,6 +118,7 @@
   "sort_default": "デフォルト",
   "sort_ascending": "昇順",
   "sort_descending": "降順",
+  "sort_reset": "並び替えをリセット",
   "more_actions": "その他の操作",
   "multi_select": "複数選択",
   "site_count": "{{count}} サイト",

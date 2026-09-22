@@ -118,6 +118,7 @@
   "sort_default": "默认",
   "sort_ascending": "升序",
   "sort_descending": "降序",
+  "sort_reset": "重置排序",
   "more_actions": "更多操作",
   "multi_select": "多选",
   "site_count": "{{count}} 个站点",

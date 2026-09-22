@@ -118,6 +118,7 @@
   "sort_default": "Mặc định",
   "sort_ascending": "Tăng dần",
   "sort_descending": "Giảm dần",
+  "sort_reset": "Đặt lại sắp xếp",
   "more_actions": "Thao tác khác",
   "multi_select": "Chọn nhiều",
   "site_count": "{{count}} trang",

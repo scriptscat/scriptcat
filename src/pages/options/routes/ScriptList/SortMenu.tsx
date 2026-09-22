@@ -1,4 +1,4 @@
-import { ArrowUpDown, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Check, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@App/pkg/utils/cn";
 import {
@@ -30,28 +30,54 @@ export function SortMenu<K extends string>({ options, value, onChange, className
   const { t } = useTranslation();
   const active = options.find((o) => o.key === value.key);
 
+  const reset = () => onChange({ key: null, order: "asc" });
+
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          data-testid="sort-menu"
-          className={cn(
-            "flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border px-2.5 text-[13px] text-foreground",
-            className
-          )}
-        >
-          <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
-          <span>{`${t("script:sort_by")}：${active ? active.label : t("script:sort_default")}`}</span>
-          <ChevronDown className="h-3 w-3 text-muted-foreground" />
-        </button>
-      </DropdownMenuTrigger>
+      {/* 排序状态会跨会话持久化，激活态必须一眼可辨：否则用户忘了排序开着，会误以为拖拽手柄消失是功能坏了（#1751） */}
+      <div
+        className={cn(
+          "flex h-8 shrink-0 items-stretch overflow-hidden rounded-md border text-[13px] transition-colors",
+          active ? "border-primary/40 bg-primary-light text-primary" : "border-border text-foreground",
+          className
+        )}
+      >
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            data-testid="sort-menu"
+            data-active={active ? "true" : undefined}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 transition-colors",
+              active ? "hover:bg-primary/10" : "hover:bg-accent"
+            )}
+          >
+            <ArrowUpDown className={cn("h-3.5 w-3.5", !active && "text-muted-foreground")} />
+            <span>{`${t("script:sort_by")}：${active ? active.label : t("script:sort_default")}`}</span>
+            {active &&
+              (value.order === "asc" ? (
+                <ArrowUp className="h-3.5 w-3.5" aria-label={t("script:sort_ascending")} />
+              ) : (
+                <ArrowDown className="h-3.5 w-3.5" aria-label={t("script:sort_descending")} />
+              ))}
+            <ChevronDown className={cn("h-3 w-3", !active && "text-muted-foreground")} />
+          </button>
+        </DropdownMenuTrigger>
+        {active && (
+          <button
+            type="button"
+            aria-label={t("script:sort_reset")}
+            title={t("script:sort_reset")}
+            onClick={reset}
+            className="flex items-center border-l border-primary/40 px-2 transition-colors hover:bg-primary/10"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
       <DropdownMenuContent align="end" className="w-40">
         {/* 三态循环要点两次才回得到自然顺序，给它一个一步可达的入口 */}
-        <DropdownMenuItem
-          onClick={() => onChange({ key: null, order: "asc" })}
-          className="flex items-center justify-between gap-2"
-        >
+        <DropdownMenuItem onClick={reset} className="flex items-center justify-between gap-2">
           <span>{t("script:sort_default")}</span>
           {value.key === null && <Check className="h-3.5 w-3.5 shrink-0" />}
         </DropdownMenuItem>
