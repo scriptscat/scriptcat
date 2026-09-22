@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
-import { cleanup, screen, fireEvent, render } from "@testing-library/react";
+import { act, cleanup, screen, fireEvent, render } from "@testing-library/react";
 import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { TooltipProvider } from "@App/pages/components/ui/tooltip";
@@ -9,6 +9,10 @@ import { renderWithRouterTooltip } from "@Tests/renderWithTooltip";
 import { SCRIPT_STATUS_ENABLE, SCRIPT_TYPE_NORMAL } from "@App/app/repo/scripts";
 import type { ScriptLoading } from "@App/pages/store/features/script";
 import type { SortState } from "./sort";
+import { semTime } from "@App/locales/relative-date";
+
+const notify = vi.hoisted(() => ({ info: vi.fn() }));
+vi.mock("@App/pages/components/ui/toast", () => ({ notify }));
 
 // 行内开关会触发后台消息，打桩；其余子组件（顶栏/筛选栏/批量栏）与排序无关，置空以隔离测试。
 vi.mock("@App/pages/store/features/script", async () => {
@@ -43,15 +47,18 @@ const mk = (uuid: string, name: string, updatetime: number): ScriptLoading =>
   }) as ScriptLoading;
 
 const noop = () => {};
+const noopAsync = () => Promise.resolve();
 
 const TableHarness = ({
   scriptList,
   initialSortState = { key: null, order: "asc" },
+  toggleSelect = noop,
   toggleSelectAll = noop,
   selectedUuids = new Set<string>(),
 }: {
   scriptList: ScriptLoading[];
   initialSortState?: SortState;
+  toggleSelect?: (uuid: string) => void;
   toggleSelectAll?: () => void;
   selectedUuids?: Set<string>;
 }) => {
@@ -62,7 +69,7 @@ const TableHarness = ({
       loadingList={false}
       updateScripts={noop}
       handleDelete={noop}
-      handleRunStop={() => Promise.resolve()}
+      handleRunStop={noopAsync}
       searchRequest={{ keyword: "", type: "auto" }}
       setSearchRequest={noop}
       totalCount={scriptList.length}
@@ -71,7 +78,7 @@ const TableHarness = ({
       selectedFilters={{ status: null, type: null, tags: null, source: null }}
       setSelectedFilters={noop}
       selectedUuids={selectedUuids}
-      toggleSelect={noop}
+      toggleSelect={toggleSelect}
       toggleSelectAll={toggleSelectAll}
       clearSelection={noop}
       onBatchEnable={noop}
@@ -130,6 +137,74 @@ describe("ScriptTable 按排序状态渲染", () => {
     cleanup();
     renderTable(list, { key: "name", order: "asc" });
     expect(document.querySelectorAll(".cursor-grab").length).toBe(0);
+  });
+});
+
+describe("ScriptTable 排序时的拖拽手柄", () => {
+  const list = [mk("b", "Banana", 30), mk("a", "Apple", 10), mk("c", "Cherry", 20)];
+  const lockedHandles = () => screen.queryAllByRole("button", { name: "按「名称」排序时不能拖拽" });
+
+  afterEach(() => notify.info.mockClear());
+
+  it("排序激活时每行保留一个锁定手柄并说明原因，而不是让手柄消失", () => {
+    renderTable(list, { key: "name", order: "asc" });
+    expect(lockedHandles()).toHaveLength(list.length);
+
+    cleanup();
+    renderTable(list);
+    expect(lockedHandles()).toHaveLength(0);
+  });
+
+  it("按下锁定手柄提示需切回默认顺序，点提示里的操作后恢复自然顺序与拖拽", () => {
+    renderTable(list, { key: "name", order: "asc" });
+
+    fireEvent.pointerDown(lockedHandles()[0]);
+
+    expect(notify.info).toHaveBeenCalledTimes(1);
+    const [title, opts] = notify.info.mock.calls[0];
+    expect(title).toBe("当前按「名称」排序，拖拽调整需切回默认顺序");
+    expect(opts.action.label).toBe("切回默认顺序");
+
+    act(() => opts.action.onClick());
+    expect(renderedOrder()).toEqual(["Banana", "Apple", "Cherry"]);
+    expect(lockedHandles()).toHaveLength(0);
+    expect(document.querySelectorAll(".cursor-grab").length).toBe(list.length);
+  });
+
+  it("键盘在锁定手柄上按回车或空格同样给出提示", () => {
+    renderTable(list, { key: "name", order: "asc" });
+
+    fireEvent.keyDown(lockedHandles()[0], { key: "Enter" });
+    fireEvent.keyDown(lockedHandles()[1], { key: " " });
+    fireEvent.keyDown(lockedHandles()[1], { key: "a" });
+
+    expect(notify.info).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("ScriptTable 排序依据在行内可见", () => {
+  // 两个时间须落在不同的相对时间文案里，才能各自定位到时间列
+  const recent = Date.now() - 2 * 60_000;
+  const list = [mk("a", "Apple", recent), mk("b", "Banana", Date.now() - 3 * 86_400_000)];
+  const timeOf = (updatetime: number) => screen.getByText(semTime(new Date(updatetime)));
+
+  it("按最后更新排序时强调时间列，其它排序或未排序时不强调", () => {
+    renderTable(list, { key: "updatetime", order: "desc" });
+    expect(timeOf(recent)).toHaveClass("text-foreground", "font-medium");
+
+    cleanup();
+    renderTable(list, { key: "name", order: "asc" });
+    expect(timeOf(recent)).not.toHaveClass("font-medium");
+    expect(timeOf(recent)).toHaveClass("text-muted-foreground");
+  });
+
+  it("脚本对象不变而排序切回默认时，行级 memo 不会残留强调", () => {
+    renderTable(list, { key: "updatetime", order: "desc" });
+    fireEvent.pointerDown(screen.getAllByRole("button", { name: "按「最后更新」排序时不能拖拽" })[0]);
+    act(() => notify.info.mock.calls[0][1].action.onClick());
+
+    expect(timeOf(recent)).not.toHaveClass("font-medium");
+    notify.info.mockClear();
   });
 });
 
@@ -203,5 +278,25 @@ describe("ScriptTable 行级 memo 不会展示过期数据", () => {
     );
     expect(screen.getByText(/v2\.0\.0/)).toBeInTheDocument();
     expect(screen.queryByText(/v1\.0\.0/)).toBeNull();
+  });
+
+  it("脚本对象不变但交互回调更新时，行应使用最新回调", () => {
+    const script = mk("a", "Apple", 10);
+    const firstSelect = vi.fn();
+    const latestSelect = vi.fn();
+    const view = (toggleSelect: (uuid: string) => void) => (
+      <MemoryRouter>
+        <TooltipProvider>
+          <TableHarness scriptList={[script]} toggleSelect={toggleSelect} />
+        </TooltipProvider>
+      </MemoryRouter>
+    );
+
+    const { rerender } = render(view(firstSelect));
+    rerender(view(latestSelect));
+    fireEvent.click(screen.getByRole("checkbox"));
+
+    expect(latestSelect).toHaveBeenCalledWith("a");
+    expect(firstSelect).not.toHaveBeenCalled();
   });
 });
