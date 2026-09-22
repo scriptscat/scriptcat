@@ -28,7 +28,7 @@ const sampleResources = () => [
     byteSize: 8,
   },
   {
-    key: "https://cdn.test/theme.css",
+    key: "ThemeStyles",
     url: "https://cdn.test/theme.css",
     type: "resource",
     contentType: "text/css",
@@ -60,13 +60,82 @@ afterEach(() => {
 });
 
 describe("ResourcePane 资源面板", () => {
-  it("应加载并展示资源（文件名 + 类型 + @require/@resource 徽标）", async () => {
+  it("应按资源类型展示主标识，并同时显示实际来源 URL", async () => {
     render(<ResourcePane uuid="u1" />);
     expect(await screen.findByText("jquery.min.js")).toBeInTheDocument();
-    expect(screen.getByText("theme.css")).toBeInTheDocument();
+    expect(screen.getByTitle("https://cdn.test/jquery.min.js")).toHaveTextContent("https://cdn.test/jquery.min.js");
+    expect(screen.getByText("ThemeStyles")).toBeInTheDocument();
+    expect(screen.getByTitle("https://cdn.test/theme.css")).toHaveTextContent("https://cdn.test/theme.css");
     expect(screen.getByText("@require")).toBeInTheDocument();
     expect(screen.getByText("@resource")).toBeInTheDocument();
     expect(screen.getByText("application/javascript")).toBeInTheDocument();
+  });
+
+  it("两个同名 require 文件应通过各自的完整来源 URL 区分", async () => {
+    const resources = [
+      {
+        ...sampleResources()[0],
+        key: "https://cdn.jsdelivr.net/gh/WhiteSevs/cover@abc123/index.js",
+        url: "https://cdn.jsdelivr.net/gh/WhiteSevs/cover@abc123/index.js",
+      },
+      {
+        ...sampleResources()[0],
+        key: "https://fastly.jsdelivr.net/npm/cover@1.2.3/index.js",
+        url: "https://fastly.jsdelivr.net/npm/cover@1.2.3/index.js",
+      },
+    ];
+    getScriptResources.mockResolvedValue({ items: resources, offset: 0, limit: 100, total: 2 });
+
+    render(<ResourcePane uuid="u1" />);
+
+    expect(await screen.findAllByText("index.js")).toHaveLength(2);
+    for (const resource of resources) {
+      expect(screen.getByTitle(resource.url)).toHaveTextContent(resource.url);
+    }
+  });
+
+  it("初始资源列表只加载元数据，点击 View 后才读取选中资源的缓存内容", async () => {
+    render(<ResourcePane uuid="u1" />);
+    await screen.findByText("jquery.min.js");
+
+    expect(getResourceChunk).not.toHaveBeenCalled();
+    fireEvent.click(screen.getAllByLabelText(t("editor:view_resource"))[0]);
+
+    expect(await screen.findByText("var a=1;")).toBeInTheDocument();
+    expect(getResourceChunk).toHaveBeenCalledWith({
+      uuid: "u1",
+      url: "https://cdn.test/jquery.min.js",
+      offset: 0,
+      length: 8,
+    });
+  });
+
+  it("搜索应匹配来源 URL", async () => {
+    const resources = [
+      {
+        ...sampleResources()[0],
+        key: "https://cdn.jsdelivr.net/gh/WhiteSevs/cover@abc123/index.js",
+        url: "https://cdn.jsdelivr.net/gh/WhiteSevs/cover@abc123/index.js",
+      },
+      sampleResources()[1],
+    ];
+    getScriptResources.mockResolvedValue({ items: resources, offset: 0, limit: 100, total: 2 });
+    render(<ResourcePane uuid="u1" />);
+    await screen.findByText("index.js");
+
+    fireEvent.change(screen.getByPlaceholderText(t("editor:search_resource")), { target: { value: "WhiteSevs" } });
+
+    expect(screen.getByText("index.js")).toBeInTheDocument();
+    expect(screen.queryByText("ThemeStyles")).toBeNull();
+  });
+
+  it("资源操作应提供可访问的 View、Download 和 Delete 名称", async () => {
+    render(<ResourcePane uuid="u1" />);
+    await screen.findByText("jquery.min.js");
+
+    expect(screen.getAllByLabelText(t("editor:view_resource"))).toHaveLength(2);
+    expect(screen.getAllByLabelText(t("download"))).toHaveLength(2);
+    expect(screen.getAllByLabelText(t("delete"))).toHaveLength(2);
   });
 
   it("下载应按元数据请求脚本绑定的资源块", async () => {
@@ -141,7 +210,7 @@ describe("ResourcePane 资源面板", () => {
     render(<ResourcePane uuid="u1" />);
 
     expect(await screen.findByText("jquery.min.js")).toBeInTheDocument();
-    expect(await screen.findByText("theme.css")).toBeInTheDocument();
+    expect(await screen.findByText("ThemeStyles")).toBeInTheDocument();
     expect(getScriptResources.mock.calls.map(([, offset]) => offset)).toEqual([0, 1]);
   });
 
@@ -167,12 +236,12 @@ describe("ResourcePane 资源面板", () => {
     expect(screen.getByText(t("no_data"))).toBeInTheDocument();
   });
 
-  it("搜索应按文件名过滤资源", async () => {
+  it("搜索应按资源名称过滤资源", async () => {
     render(<ResourcePane uuid="u1" />);
     await screen.findByText("jquery.min.js");
     fireEvent.change(screen.getByPlaceholderText(t("editor:search_resource")), { target: { value: "theme" } });
     expect(screen.queryByText("jquery.min.js")).toBeNull();
-    expect(screen.getByText("theme.css")).toBeInTheDocument();
+    expect(screen.getByText("ThemeStyles")).toBeInTheDocument();
   });
 
   it("无资源时应展示空状态", async () => {
