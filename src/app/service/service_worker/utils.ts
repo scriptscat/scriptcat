@@ -1,7 +1,7 @@
 export const BrowserNoSupport = new Error("browserNoSupport");
 import type { SCMetadata, Script, ScriptLoadInfo, ScriptRunResource } from "@App/app/repo/scripts";
 import { SELF_METADATA_ONLY_RUN_ON_URL } from "@App/app/repo/metadata";
-import { getMetadataStr, getUserConfigStr } from "@App/pkg/utils/utils";
+import { getMetadataStr, getUserConfigStr, isFirefox } from "@App/pkg/utils/utils";
 import type { ScriptMatchInfo } from "./types";
 import {
   compileInjectScript,
@@ -23,6 +23,18 @@ import {
 import { cacheInstance } from "@App/app/cache";
 
 export type RegisteredUserScriptWithJsCode = RequireField<chrome.userScripts.RegisteredUserScript, "js">;
+
+const CHROMIUM_USER_SCRIPT_MATCH_SCHEMES = new Set(["*", "http", "https", "file"]);
+
+export function filterUserScriptApiMatchPatterns(patterns: readonly string[]): string[] {
+  // Firefox 的 match-pattern scheme 集合与 Chromium 不同；这里只在已验证的 Chromium API 边界收紧。
+  if (isFirefox()) return [...patterns];
+  return patterns.filter((pattern) => {
+    if (pattern === "<all_urls>") return true;
+    const schemeEnd = pattern.indexOf("://");
+    return schemeEnd > 0 && CHROMIUM_USER_SCRIPT_MATCH_SCHEMES.has(pattern.substring(0, schemeEnd));
+  });
+}
 
 export function getRunAt(runAts: string[]): chrome.extensionTypes.RunAt {
   // 没有 run-at 时为 undefined. Fallback 至 document_idle
@@ -212,9 +224,10 @@ export function compileInjectionCode(
 // 构建userScript注册信息（忽略代码部份）
 export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
   const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMatchInfo.scriptUrlPatterns);
+  const apiMatches = filterUserScriptApiMatchPatterns(matches);
 
-  const excludeMatches = toUniquePatternStrings(
-    scriptMatchInfo.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE)
+  const excludeMatches = filterUserScriptApiMatchPatterns(
+    toUniquePatternStrings(scriptMatchInfo.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE))
   );
   const excludeGlobs = toUniquePatternStrings(
     scriptMatchInfo.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_EXCLUDE)
@@ -223,7 +236,7 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
   const registerScript: chrome.userScripts.RegisteredUserScript = {
     id: scriptMatchInfo.uuid,
     js: [{ code: "" }],
-    matches: matches, // primary
+    matches: apiMatches, // primary
     includeGlobs: includeGlobs, // includeGlobs applied after matches
     excludeMatches: excludeMatches,
     excludeGlobs: excludeGlobs,
