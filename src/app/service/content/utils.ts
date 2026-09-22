@@ -192,6 +192,8 @@ export function compileInjectScriptByFlag(
 
 /**
  * 脚本加载信息。（Inject/Content环境用，避免过多不必要信息公开，减少页面加载信息存储量）
+ * 旧版 trimScriptInfo() 使用 spread，会把 originalUrlPatterns 传到页面桥，导致脚本不启动。
+ * 新版 pickPageLoadScriptFields() 通过 allowlist 丢弃该内部字段，同时防止未来内部字段继续泄漏。
  */
 export const trimScriptInfo = (script: ScriptLoadInfo): TScriptInfo => {
   // --- 处理 resource ---
