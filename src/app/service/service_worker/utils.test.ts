@@ -308,6 +308,31 @@ describe.concurrent("getUserScriptRegister", () => {
     expect(result.registerScript.world).toBe("MAIN");
     expect(result.registerScript.runAt).toBe("document_end");
   });
+
+  it.concurrent("不应把 Chromium 不支持的 @match scheme 交给 userScripts 注册", () => {
+    const mockScriptMatchInfo: ScriptMatchInfo = {
+      uuid: "test-invalid-match-scheme",
+      name: "Invalid Match Scheme",
+      metadata: {},
+      scriptUrlPatterns: extractUrlPatterns([
+        "@match https://*/*",
+        "@match http://*/*",
+        "@match notsupported://*/*",
+      ]),
+      originalUrlPatterns: [],
+      namespace: "test",
+      type: 1,
+      status: 1,
+      sort: 0,
+      runStatus: "running",
+      createtime: Date.now(),
+      checktime: Date.now(),
+    };
+
+    const { registerScript } = getUserScriptRegister(mockScriptMatchInfo);
+
+    expect(registerScript.matches).toEqual(["https://*/*", "http://*/*"]);
+  });
 });
 
 describe.concurrent("compileInjectionCode", () => {
