@@ -87,6 +87,26 @@ describe("SettingsPane 基本信息", () => {
     await expect(preloadSettingsPane("u1")).rejects.toThrow("boom");
   });
 
+  it("数据返回前应显示加载状态而不是空白", async () => {
+    fetchScript.mockReturnValue(new Promise(() => {}));
+
+    render(<SettingsPane uuid="u1" />);
+
+    expect(await screen.findByRole("status", { name: t("loading") })).toBeInTheDocument();
+  });
+
+  it("读取失败时应显示错误详情，点击重试后重新加载", async () => {
+    fetchScript.mockRejectedValueOnce(new Error("boom"));
+
+    render(<SettingsPane uuid="u1" />);
+
+    expect(await screen.findByText(t("editor:settings_load_failed"))).toBeInTheDocument();
+    expect(screen.getByText("boom")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: t("editor:retry") }));
+    expect(await screen.findByText("alpha")).toBeInTheDocument();
+    expect(fetchScript).toHaveBeenCalledTimes(2);
+  });
+
   it("预加载后挂载应复用脚本与授权数据", async () => {
     await preloadSettingsPane("u1");
     render(<SettingsPane uuid="u1" />);

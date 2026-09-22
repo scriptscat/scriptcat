@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from "@App/pages/components/ui/alert-dialog";
 import { notify } from "@App/pages/components/ui/toast";
+import { LoadingState } from "@App/pages/components/ui/loading-state";
 import { useIsMobile } from "@App/pages/components/use-is-mobile";
 import { editorTabsReducer, initialEditorTabsState } from "./useEditorTabs";
 import { useActiveEditorFocus } from "./useActiveEditorFocus";
@@ -424,6 +425,8 @@ export default function ScriptEditor() {
   const editorArea = useMemo(
     () => (
       <div className="relative min-h-0 flex-1">
+        {/* 列表就绪前还打不开 URL 指定的脚本，编辑区不能留白 */}
+        {loadingList && state.tabs.length === 0 && <LoadingState label={t("loading")} className="h-full" />}
         {state.tabs.map((tab) => (
           <div
             key={tab.uuid}
@@ -459,7 +462,7 @@ export default function ScriptEditor() {
         )}
       </div>
     ),
-    [state.tabs, state.activeUuid, subView, activeTab, doSave, doSaveAs, doRun]
+    [loadingList, t, state.tabs, state.activeUuid, subView, activeTab, doSave, doSaveAs, doRun]
   );
 
   return (

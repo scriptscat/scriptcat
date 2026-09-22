@@ -61,6 +61,8 @@
   "bulk_status_new": "Mới",
   "bulk_status_duplicate": "Trùng lặp",
   "bulk_status_invalid": "Không hợp lệ",
+  "settings_load_failed": "Không thể tải cài đặt tập lệnh",
+  "retry": "Thử lại",
   "preview": "Xem trước",
   "status": "Trạng thái",
   "website_match": "Khớp trang web (@match)",

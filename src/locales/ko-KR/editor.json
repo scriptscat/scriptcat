@@ -61,6 +61,8 @@
   "bulk_status_new": "신규",
   "bulk_status_duplicate": "중복",
   "bulk_status_invalid": "잘못됨",
+  "settings_load_failed": "스크립트 설정을 불러오지 못했습니다",
+  "retry": "다시 시도",
   "preview": "미리보기",
   "status": "상태",
   "website_match": "웹사이트 매치(@match)",

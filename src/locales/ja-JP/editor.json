@@ -61,6 +61,8 @@
   "bulk_status_new": "新規",
   "bulk_status_duplicate": "重複",
   "bulk_status_invalid": "不正",
+  "settings_load_failed": "スクリプト設定を読み込めませんでした",
+  "retry": "再試行",
   "preview": "プレビュー",
   "status": "状態",
   "website_match": "ウェブサイトマッチ（@match）",

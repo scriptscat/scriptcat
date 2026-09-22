@@ -38,8 +38,14 @@ const script = {
   checktime: 0,
 } as unknown as Script;
 
+const scriptData = vi.hoisted(() => ({ loadingList: false }));
+
 vi.mock("@App/pages/options/routes/ScriptList/hooks", () => ({
-  useScriptDataManagement: () => ({ scriptList: [script], setScriptList: vi.fn(), loadingList: false }),
+  useScriptDataManagement: () => ({
+    scriptList: [script],
+    setScriptList: vi.fn(),
+    loadingList: scriptData.loadingList,
+  }),
 }));
 
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: () => false }));
@@ -115,6 +121,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  scriptData.loadingList = false;
 });
 
 const renderEditor = () => {
@@ -178,5 +185,15 @@ describe("ScriptEditor 未保存导航保护", () => {
     fireEvent.click(screen.getByText("editor:confirm"));
 
     expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
+  });
+});
+
+describe("ScriptEditor 脚本列表加载", () => {
+  it("列表未返回前编辑区应显示加载状态而不是空白", async () => {
+    scriptData.loadingList = true;
+    renderEditor();
+
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    expect(screen.queryByTestId("save")).not.toBeInTheDocument();
   });
 });

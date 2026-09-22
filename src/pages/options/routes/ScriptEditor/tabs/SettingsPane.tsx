@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Copy, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { Copy, Plus, RefreshCw, RotateCcw, Trash2, TriangleAlert, X } from "lucide-react";
 import type { Script } from "@App/app/repo/scripts";
 import type { Permission } from "@App/app/repo/permission";
 import { fetchScript, permissionClient, scriptClient } from "@App/pages/store/features/script";
@@ -10,6 +10,8 @@ import { isRegistrableMatchPattern } from "@App/pkg/utils/url_matcher";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { cn } from "@App/pkg/utils/cn";
 import { notify } from "@App/pages/components/ui/toast";
+import { LoadingState } from "@App/pages/components/ui/loading-state";
+import { StateScreen } from "@App/pages/components/ui/state-screen";
 import { Input } from "@App/pages/components/ui/input";
 import { Textarea } from "@App/pages/components/ui/textarea";
 import { Button } from "@App/pages/components/ui/button";
@@ -167,11 +169,35 @@ export interface SettingsPaneProps {
 }
 
 export default function SettingsPane({ uuid }: SettingsPaneProps) {
+  const { t } = useTranslation();
   const settings = settingsPaneQuery.useQuery(uuid);
 
   useEffect(() => () => invalidateSettingsPane(uuid), [uuid]);
 
-  if (!settings.data) return null;
+  if (settings.isError) {
+    const retry = () => {
+      // 失败会写回 snapshot 并重新渲染成本错误态，这里无需再处理
+      settings.reload().catch(() => undefined);
+    };
+    return (
+      <StateScreen
+        icon={TriangleAlert}
+        tone="error"
+        compact
+        title={t("editor:settings_load_failed")}
+        detail={settings.error instanceof Error ? settings.error.message : String(settings.error)}
+        action={
+          <Button onClick={retry}>
+            <RefreshCw />
+            {t("editor:retry")}
+          </Button>
+        }
+      />
+    );
+  }
+  // 脚本尚未保存时 data 为 null，没有可设置的内容
+  if (settings.data === null) return null;
+  if (!settings.data) return <LoadingState label={t("loading")} className="h-full" />;
   return <SettingsPaneContent key={uuid} uuid={uuid} data={settings.data} />;
 }
 

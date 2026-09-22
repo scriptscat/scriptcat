@@ -61,6 +61,8 @@
   "bulk_status_new": "Yeni",
   "bulk_status_duplicate": "Yinelenen",
   "bulk_status_invalid": "Geçersiz",
+  "settings_load_failed": "Betik ayarları yüklenemedi",
+  "retry": "Yeniden dene",
   "preview": "Önizleme",
   "status": "Durum",
   "website_match": "Web Sitesi Eşleşmesi (@match)",
