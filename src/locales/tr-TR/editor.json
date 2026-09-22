@@ -60,6 +60,7 @@
   "bulk_empty_preview": "Ayrıştırılan sonucu önizlemek için değerleri yapıştırın",
   "bulk_status_new": "Yeni",
   "bulk_status_duplicate": "Yinelenen",
+  "bulk_status_invalid": "Geçersiz",
   "preview": "Önizleme",
   "status": "Durum",
   "website_match": "Web Sitesi Eşleşmesi (@match)",

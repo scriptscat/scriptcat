@@ -60,6 +60,7 @@
   "bulk_empty_preview": "貼上內容後可預覽解析結果",
   "bulk_status_new": "新增",
   "bulk_status_duplicate": "重複",
+  "bulk_status_invalid": "無效",
   "preview": "預覽",
   "status": "狀態",
   "website_match": "網站符合(@match)",

@@ -270,6 +270,33 @@ describe("SettingsPane 网站匹配/排除", () => {
     ]);
   });
 
+  it("添加匹配时浏览器无法注册的规则应标为无效且不写入", async () => {
+    render(<SettingsPane uuid="u1" />);
+    await screen.findByText("*://script.com/*");
+
+    fireEvent.click(screen.getByText(t("editor:add_match"), { selector: "button" }));
+    fireEvent.change(screen.getByLabelText(t("editor:bulk_values")), {
+      target: {
+        value: `
+          edge://settings/*
+          example.com
+          www.youtube.com/*
+          https://ok.example.com/*
+        `,
+      },
+    });
+
+    expect(screen.getAllByText(t("editor:bulk_status_invalid"))).toHaveLength(2);
+    fireEvent.click(screen.getByText(t("confirm"), { selector: "button" }));
+
+    expect(resetMatch).toHaveBeenCalledWith("u1", [
+      "*://script.com/*",
+      "*://user.com/*",
+      "www.youtube.com/*",
+      "https://ok.example.com/*",
+    ]);
+  });
+
   it("添加排除应打开多行弹窗并去除空行与重复项后复用 resetExclude", async () => {
     render(<SettingsPane uuid="u1" />);
     await screen.findByText("*://exclude.com/*");

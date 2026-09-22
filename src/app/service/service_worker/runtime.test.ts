@@ -650,6 +650,16 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       expect(blacklistResult2).toBe(true);
       expect(normalResult2).toBe(false);
     });
+
+    it.concurrent("黑名单含浏览器不支持的 scheme 时不进入注册用的 excludeMatches，但仍参与黑名单判断", async () => {
+      const blacklistString = "edge://settings/*\n*://www.blacklisted.com/*";
+      mockSystemConfig.getBlacklist.mockReturnValue(blacklistString);
+      runtime.blacklist = obtainBlackList(blacklistString);
+      runtime.loadBlacklist();
+
+      expect(runtime.blacklistExcludeMatches).toEqual(["*://www.blacklisted.com/*"]);
+      expect(runtime.isUrlBlacklist("edge://settings/profiles")).toBe(true);
+    });
   });
 });
 

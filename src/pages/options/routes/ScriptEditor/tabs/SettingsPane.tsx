@@ -6,6 +6,7 @@ import { fetchScript, permissionClient, scriptClient } from "@App/pages/store/fe
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { parseTags } from "@App/app/repo/metadata";
+import { isRegistrableMatchPattern } from "@App/pkg/utils/url_matcher";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { cn } from "@App/pkg/utils/cn";
 import { notify } from "@App/pages/components/ui/toast";
@@ -58,7 +59,7 @@ const iconBtn = "rounded p-1 text-muted-foreground hover:bg-accent transition-co
 type BulkLine = {
   line: number;
   value: string;
-  status: "new" | "duplicate";
+  status: "new" | "duplicate" | "invalid";
 };
 
 type BulkParseResult = {
@@ -66,7 +67,17 @@ type BulkParseResult = {
   entries: string[];
 };
 
-const parseBulkValues = (input: string, existing: Iterable<string>): BulkParseResult => {
+const bulkStatusPill: Record<BulkLine["status"], string> = {
+  new: pillColor.yes,
+  duplicate: pillColor.script,
+  invalid: pillColor.no,
+};
+
+const parseBulkValues = (
+  input: string,
+  existing: Iterable<string>,
+  isValid: (value: string) => boolean = () => true
+): BulkParseResult => {
   const seen = new Set(existing);
   const lines: BulkLine[] = [];
 
@@ -77,6 +88,10 @@ const parseBulkValues = (input: string, existing: Iterable<string>): BulkParseRe
     }
     if (seen.has(value)) {
       lines.push({ line: index + 1, value, status: "duplicate" });
+      return;
+    }
+    if (!isValid(value)) {
+      lines.push({ line: index + 1, value, status: "invalid" });
       return;
     }
     seen.add(value);
@@ -274,7 +289,9 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
   };
   const bulkMatchParsed = parseBulkValues(
     bulkMatchValue,
-    bulkMatchKind === "match" ? matches : bulkMatchKind === "exclude" ? excludes : []
+    bulkMatchKind === "match" ? matches : bulkMatchKind === "exclude" ? excludes : [],
+    // exclude 允许 glob/正则且不支持的 scheme 注册时会被丢弃，只校验 match
+    bulkMatchKind === "match" ? isRegistrableMatchPattern : undefined
   );
   const submitBulkMatch = () => {
     if (!bulkMatchKind || bulkMatchParsed.entries.length === 0) return;
@@ -344,14 +361,18 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
         <DataPanelEmpty>{t("editor:bulk_empty_preview")}</DataPanelEmpty>
       ) : (
         parsed.lines.map((line) => (
-          <DataPanelRow key={`${line.line}:${line.value}`} className={line.status === "duplicate" ? "opacity-70" : ""}>
+          <DataPanelRow key={`${line.line}:${line.value}`} className={line.status === "new" ? "" : "opacity-70"}>
             <span className="w-10 shrink-0 text-muted-foreground">{line.line}</span>
             <span className="min-w-0 flex-1 truncate font-mono text-foreground" title={line.value}>
               {line.value}
             </span>
             <span className="w-24 shrink-0 text-right">
-              <span className={cn(pill, line.status === "new" ? pillColor.yes : pillColor.script)}>
-                {t(line.status === "new" ? "editor:bulk_status_new" : "editor:bulk_status_duplicate")}
+              <span className={cn(pill, bulkStatusPill[line.status])}>
+                {line.status === "new"
+                  ? t("editor:bulk_status_new")
+                  : line.status === "duplicate"
+                    ? t("editor:bulk_status_duplicate")
+                    : t("editor:bulk_status_invalid")}
               </span>
             </span>
           </DataPanelRow>

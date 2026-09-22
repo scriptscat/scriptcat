@@ -60,6 +60,7 @@
   "bulk_empty_preview": "Dán giá trị để xem trước kết quả phân tích",
   "bulk_status_new": "Mới",
   "bulk_status_duplicate": "Trùng lặp",
+  "bulk_status_invalid": "Không hợp lệ",
   "preview": "Xem trước",
   "status": "Trạng thái",
   "website_match": "Khớp trang web (@match)",

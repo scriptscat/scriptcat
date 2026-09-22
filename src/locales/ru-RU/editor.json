@@ -60,6 +60,7 @@
   "bulk_empty_preview": "Вставьте значения, чтобы посмотреть результат разбора",
   "bulk_status_new": "Новое",
   "bulk_status_duplicate": "Дубликат",
+  "bulk_status_invalid": "Недопустимо",
   "preview": "Предпросмотр",
   "status": "Статус",
   "website_match": "Совпадение сайта (@match)",

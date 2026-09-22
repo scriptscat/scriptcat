@@ -60,6 +60,7 @@
   "bulk_empty_preview": "Paste values to preview the parsed result",
   "bulk_status_new": "New",
   "bulk_status_duplicate": "Duplicate",
+  "bulk_status_invalid": "Invalid",
   "preview": "Preview",
   "status": "Status",
   "website_match": "Website Match (@match)",

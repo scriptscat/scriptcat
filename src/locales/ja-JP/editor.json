@@ -60,6 +60,7 @@
   "bulk_empty_preview": "値を貼り付けると解析結果をプレビューできます",
   "bulk_status_new": "新規",
   "bulk_status_duplicate": "重複",
+  "bulk_status_invalid": "不正",
   "preview": "プレビュー",
   "status": "状態",
   "website_match": "ウェブサイトマッチ（@match）",

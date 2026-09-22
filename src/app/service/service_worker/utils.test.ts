@@ -308,6 +308,22 @@ describe.concurrent("getUserScriptRegister", () => {
     expect(result.registerScript.world).toBe("MAIN");
     expect(result.registerScript.runAt).toBe("document_end");
   });
+
+  it.concurrent("excludeMatches 丢弃浏览器不支持的 scheme", () => {
+    const scriptMatchInfo = {
+      uuid: "exclude-scheme",
+      metadata: {},
+      scriptUrlPatterns: extractUrlPatterns([
+        "@match https://example.com/*",
+        "@exclude edge://settings/*",
+        "@exclude https://example.com/private/*",
+      ]),
+    } as unknown as ScriptMatchInfo;
+
+    const { registerScript } = getUserScriptRegister(scriptMatchInfo);
+
+    expect(registerScript.excludeMatches).toEqual(["https://example.com/private/*"]);
+  });
 });
 
 describe.concurrent("compileInjectionCode", () => {
