@@ -128,6 +128,12 @@ places, or they drift apart. To discover the current full set rather than relyin
 - [ ] New sections are inserted at owner-appropriate boundaries. Preserve existing logical blocks and their
       adjacent explanations; after insertion, recheck the surrounding order and links. Do not split a code block
       from its following explanation unless that boundary change is intentional and documented.
+- [ ] Added a routing-table row in `AGENTS.md` that gates a specific invocable action (a command, a publish
+      call, a destructive operation) → give that action a point-of-action checklist in its owning doc, next to
+      the mechanics it governs, not only a pointer back to the table —
+      [`develop.md#revision-scope-and-publication-binding`](./develop.md#revision-scope-and-publication-binding)
+      is the model. A table row read once at session start decays in salience by the time the action fires many
+      tool calls later; the owning doc's checklist, not the table entry, is what actually gates the action.
 
 ## Checklist 2 — Fact-check (when a doc states something concrete)
 
