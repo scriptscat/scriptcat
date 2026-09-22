@@ -3,7 +3,6 @@ import { uuidv4 } from "@App/pkg/utils/uuid";
 import type { MessageConnect } from "@Packages/message/types";
 import type {
   ChatReply,
-  ChatStreamEvent,
   CommandHandler,
   ContentBlock,
   Conversation,
@@ -19,6 +18,7 @@ import type {
 } from "@App/app/service/agent/core/types";
 import { getTextContent } from "@App/app/service/agent/core/content_utils";
 import { Native } from "../global";
+import { buildChatStreamError, cloneChatStreamEvent } from "./cat_stream_event";
 
 export type ConversationStreamChunk =
   | StreamChunk
@@ -474,7 +474,8 @@ export class ConversationInstance {
           return;
         }
         if (message.action !== "event") return;
-        const event: ChatStreamEvent = message.data;
+        const event = cloneChatStreamEvent(message.data);
+        if (!event) return;
         if ("subAgent" in event && event.subAgent) return;
         switch (event.type) {
           case "content_delta":
@@ -534,7 +535,7 @@ export class ConversationInstance {
           case "error":
             settled = true;
             abortBatches();
-            reject(Object.assign(new Error(event.message), event));
+            reject(buildChatStreamError(event));
             conn.disconnect();
             break;
         }
@@ -619,7 +620,8 @@ export class ConversationInstance {
         return;
       }
       if (message.action !== "event") return;
-      const event: ChatStreamEvent = message.data;
+      const event = cloneChatStreamEvent(message.data);
+      if (!event) return;
       if ("subAgent" in event && event.subAgent) return;
       switch (event.type) {
         case "sync":
@@ -716,7 +718,7 @@ export class ConversationInstance {
             usage: event.usage,
             durationMs: event.durationMs,
           });
-          error = Object.assign(new Error(event.message), event);
+          error = buildChatStreamError(event);
           done = true;
           abortBatches();
           conn.disconnect();
