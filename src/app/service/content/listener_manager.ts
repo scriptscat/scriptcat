@@ -1,45 +1,49 @@
-// 把 valueChangeListener 抽出来做一个高效执行的Class
-// 删除会较慢但执行会较快
-export class ListenerManager<T extends (key: string, ...args: any[]) => void> {
-  private counterId = 0;
-  private readonly listeners: Array<{ key: string; id: number; handler: T }> = [];
+import { Native } from "./global";
 
-  public add(key: string, handler: T): number {
+// 把 valueChangeListener 抽出来做一个高效执行的Class。
+// 固定为 GMTypes.ValueChangeListener 的实际调用形状（生产环境唯一调用点是
+// key/oldValue/newValue/remote/tabid 五参数），避免通用 rest/spread 依赖页面可篡改的
+// Array 迭代协议；存储改用捕获的 Native.Map，避免下标赋值触发继承的数字 setter。
+export class ListenerManager {
+  private counterId = 0;
+  private readonly buckets = new Native.Map<
+    string,
+    InstanceType<typeof Native.Map<number, GMTypes.ValueChangeListener>>
+  >();
+
+  public add(key: string, handler: GMTypes.ValueChangeListener): number {
     const id = ++this.counterId;
-    this.listeners[this.listeners.length] = { key, id, handler };
+    let bucket = this.buckets.get(key);
+    if (!bucket) {
+      bucket = new Native.Map<number, GMTypes.ValueChangeListener>();
+      this.buckets.set(key, bucket);
+    }
+    bucket.set(id, handler);
     return id;
   }
 
-  public execute(key: string, ...args: T extends (key: string, ...a: infer A) => any ? A : never): void {
-    // handler 可能在执行期间移除自身；按当前下标复查 id，避免跳过紧邻监听器。
-    for (let i = 0; i < this.listeners.length; ) {
-      const listener = this.listeners[i];
-      if (listener?.key !== key) {
-        i += 1;
-        continue;
-      }
-      const listenerId = listener.id;
-      listener.handler?.(key, ...args);
-      if (this.listeners[i]?.id === listenerId) i += 1;
-    }
+  public execute(key: string, oldValue: unknown, newValue: unknown, remote: boolean, tabid: number | undefined): void {
+    const bucket = this.buckets.get(key);
+    if (!bucket) return;
+    bucket.forEach((handler) => {
+      handler(key, oldValue, newValue, remote, tabid);
+    });
   }
 
   public remove(id: number | string): boolean {
     const idNum = +id || 0;
-    if (idNum > 0) {
-      for (let i = 0; i < this.listeners.length; i += 1) {
-        if (this.listeners[i]?.id !== idNum) continue;
-        for (let j = i + 1; j < this.listeners.length; j += 1) {
-          this.listeners[j - 1] = this.listeners[j];
-        }
-        this.listeners.length -= 1;
-        return true;
+    if (idNum <= 0) return false;
+    let removed = false;
+    this.buckets.forEach((bucket) => {
+      if (!removed && bucket.has(idNum)) {
+        bucket.delete(idNum);
+        removed = true;
       }
-    }
-    return false;
+    });
+    return removed;
   }
 
   public clear(): void {
-    this.listeners.length = 0;
+    this.buckets.clear();
   }
 }

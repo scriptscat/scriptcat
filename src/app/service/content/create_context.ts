@@ -73,7 +73,7 @@ export const createContext = (
   // 复制授权集合并使用捕获的 Set 实现，避免页面改写迭代器后影响 API 注入。
   const scriptGrantSet = new Native.Set(scriptGrants);
   // 按照GMApi构建
-  const valueChangeListener = new ListenerManager<GMTypes.ValueChangeListener>();
+  const valueChangeListener = new ListenerManager();
   const EE = new EventEmitter<string, any>();
   // 如果是preDocumentStart脚本，装载loadScriptPromise
   let loadScriptPromise: Promise<void> | undefined;

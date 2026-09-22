@@ -138,7 +138,7 @@ class GM_Base implements IGM_Base {
 
   // Extension Context 无效时释放 valueChangeListener
   @GMContext.protected()
-  protected valueChangeListener?: ListenerManager<GMTypes.ValueChangeListener>;
+  protected valueChangeListener?: ListenerManager;
 
   // Extension Context 无效时释放 EE
   @GMContext.protected()
@@ -319,7 +319,7 @@ export default class GMApi extends GM_Base {
     public scriptRes: ScriptRunResource
   ) {
     // testing only 仅供测试用
-    const valueChangeListener = new ListenerManager<GMTypes.ValueChangeListener>();
+    const valueChangeListener = new ListenerManager();
     const EE = new EventEmitter<string, any>();
     let invalid = false;
     super(
