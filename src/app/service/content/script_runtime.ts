@@ -3,6 +3,7 @@ import type { Message } from "@Packages/message/types";
 import { initEnvInfo, type ScriptExecutor } from "./script_executor";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import type { EmitEventRequest } from "../service_worker/types";
+import type { MainFallbackBatch } from "../service_worker/types";
 import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
 import type { ScriptEnvTag } from "@Packages/message/consts";
 import { onInjectPageLoaded } from "./external";
@@ -215,6 +216,7 @@ const cloneInjectPageLoad = (data: unknown): InjectPageLoadData | undefined => c
 export class ScriptRuntime {
   // USER_SCRIPT 重连会重放同一份 bootstrap；按服务端签发的句柄去重，导航换文档时句柄也会随之更换。
   private readonly startedScriptKeys = new Native.Set<string>();
+  private readonly consumedFallbackBatchIds = new Native.Set<number>();
 
   constructor(
     private readonly scripEnvTag: ScriptEnvTag,
@@ -356,6 +358,37 @@ export class ScriptRuntime {
     const safeData = cloneInjectValueUpdate(data);
     if (!safeData) return;
     this.scriptExecutor.valueUpdate(safeData);
+  }
+
+  receiveFallbackBatch(data: unknown): void {
+    const cloned = customClone(data);
+    if (!cloned || typeof cloned !== "object" || Array.isArray(cloned)) return;
+    const batch = cloned as Partial<MainFallbackBatch>;
+    if (
+      typeof batch.id !== "number" ||
+      !Number.isSafeInteger(batch.id) ||
+      batch.id < 1 ||
+      !Array.isArray(batch.valueUpdates) ||
+      !Array.isArray(batch.emitEvents) ||
+      this.consumedFallbackBatchIds.has(batch.id)
+    )
+      return;
+    // Consume before user callbacks. A callback is arbitrary user code and cannot roll back transport state.
+    this.consumedFallbackBatchIds.add(batch.id);
+    for (const valueUpdate of batch.valueUpdates) {
+      try {
+        this.receiveValueUpdate(valueUpdate);
+      } catch (error) {
+        console.error("ScriptCat: MAIN fallback value update failed", error);
+      }
+    }
+    for (const emitEvent of batch.emitEvents) {
+      try {
+        this.receiveEmitEvent(emitEvent);
+      } catch (error) {
+        console.error("ScriptCat: MAIN fallback event failed", error);
+      }
+    }
   }
 
   externalMessage(messagePrefix = "scripting", message: Message = this.msg) {

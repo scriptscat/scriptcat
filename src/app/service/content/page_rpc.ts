@@ -81,6 +81,9 @@ export const isExtensionBlobUrl = (value: unknown): value is string => {
 
 export type PageExecutionBinding = {
   readonly handle: string;
+  readonly uuid?: string;
+  readonly envTag?: "it" | "ct";
+  readonly runFlag?: string;
   readonly allowedAPIs: ReadonlySet<string>;
   requestSequenceWindow: RequestSequenceWindow;
 };
@@ -270,12 +273,32 @@ const validateOperationParams = (api: string, params: readonly unknown[]): void 
 export class PageRpcRegistry {
   private readonly bindings = new Native.Map<string, PageExecutionBinding>();
 
-  register(handle: string, allowedAPIs: readonly string[]): string {
+  register(handle: string, allowedAPIs: readonly string[]): string;
+  register(
+    uuid: string,
+    envTag: "it" | "ct",
+    allowedAPIs: readonly string[],
+    handle?: string,
+    runFlag?: string
+  ): string;
+  register(
+    first: string,
+    second: "it" | "ct" | readonly string[],
+    third?: readonly string[],
+    fourth?: string,
+    fifth?: string
+  ): string {
+    const legacy = Array.isArray(second);
+    const handle = legacy ? first : fourth || first;
+    const allowedAPIs = legacy ? second : third || [];
     if (!handle || this.bindings.has(handle)) {
       throw new PageRpcError("invalid page execution binding");
     }
     this.bindings.set(handle, {
       handle,
+      uuid: legacy ? undefined : first,
+      envTag: legacy ? undefined : (second as "it" | "ct"),
+      runFlag: legacy ? undefined : fifth,
       allowedAPIs: new Native.Set(allowedAPIs),
       requestSequenceWindow: new RequestSequenceWindow(),
     });

@@ -14,6 +14,8 @@ import { type TExtensionEnv } from "./app/service/extension/extension_env";
 import { connectUserScriptChannel, requestUserScriptReconnect } from "./app/service/content/user_script_connection";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
 import { createMainWorldPageLoadGate } from "./app/service/content/main_world_page_load_gate";
+import { MainRuntimeSend } from "./app/service/content/main_runtime_send";
+import type { MainFallbackBatch } from "./app/service/service_worker/types";
 
 const messageFlag = process.env.SC_RANDOM_KEY!;
 
@@ -27,6 +29,7 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   // 特权 GM RPC 使用浏览器标记的 USER_SCRIPT 来源；页面桥只保留 bootstrap 与 DOM 引用辅助。
   const canUseNativeChannel = hasNativeRuntimeChannel;
   const msg: Message = canUseNativeChannel ? nativeMsg : pageMsg;
+  const mainRuntimeSend = new MainRuntimeSend(nativeMsg, pageMsg);
 
   // 初始化日志组件
   const logger = new LoggerCore({
@@ -39,7 +42,7 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
 
   const server = new Server("inject", msg);
   const scriptExecutor = new ScriptExecutor(
-    msg,
+    mainRuntimeSend,
     new CustomEventMessage(eventFlag, true, ScriptEnvTag.content),
     canUseNativeChannel ? "serviceWorker" : "scripting"
   );
@@ -55,6 +58,21 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
       }
     | undefined;
   let reconnectToken: string | undefined;
+  let transportToken: string | undefined;
+
+  const consumeFallbackBatch = (batch: MainFallbackBatch): void => {
+    runtime.receiveFallbackBatch(batch);
+    if (transportToken) {
+      void new Client(pageMsg, "scripting")
+        .do<{ mode: "fallback"; batch?: MainFallbackBatch }>("advanceMainFallback", {
+          transportToken,
+          ackBatchId: batch.id,
+        })
+        .then((result) => {
+          if (result?.batch && result.batch.id !== batch.id) consumeFallbackBatch(result.batch);
+        });
+    }
+  };
 
   const settleNativeReady = (connected: boolean): void => {
     const pending = pendingNativeReady;
@@ -69,6 +87,7 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
       if (!pendingNativeReady) return;
       nativeConnection = _connection;
       settleNativeReady(true);
+      mainRuntimeSend.selectNative();
       const nextToken = runtime.receivePageLoad(packet.data);
       if (nextToken) reconnectToken = nextToken;
     } else if (packet.action === "inject/runtime/valueUpdate") {
@@ -136,23 +155,54 @@ getEventFlag(messageFlag, (eventFlag: string, extensionEnv: TExtensionEnv | unde
   if (pageServer) {
     const pageLoadGate = createMainWorldPageLoadGate(
       openNativeChannel,
-      (data) => runtime.receivePageLoad(data),
-      () => {
-        void new Client(pageMsg, "scripting").do("pageLoadFallback");
-      }
+      (data) => {
+        mainRuntimeSend.selectFallback();
+        runtime.receivePageLoad(data);
+        if (transportToken) {
+          void new Client(pageMsg, "scripting")
+            .do<{ mode: "fallback"; batch?: MainFallbackBatch }>("advanceMainFallback", {
+              transportToken,
+            })
+            .then((result) => {
+              if (result?.batch) consumeFallbackBatch(result.batch);
+            });
+        }
+      },
+      () =>
+        new Client(pageMsg, "scripting").do("resolveMainTransport", {
+          transportToken,
+        })
     );
     pageServer.on("bootstrap", (data: { bootstrapToken?: unknown }) => {
       if (typeof data?.bootstrapToken !== "string" || data.bootstrapToken.length === 0) return;
       reconnectToken = data.bootstrapToken;
+      transportToken = data.bootstrapToken;
       pageLoadGate.onBootstrap(data.bootstrapToken);
     });
     pageServer.on("pageLoad", pageLoadGate.onPageLoad);
+    pageServer.on("runtime/valueUpdate", (data) => runtime.receiveValueUpdate(data));
+    pageServer.on("runtime/emitEvent", (data) => runtime.receiveEmitEvent(data));
+    pageServer.on("fallbackBatch", (data) => {
+      if (data && typeof data === "object" && "id" in data) consumeFallbackBatch(data as MainFallbackBatch);
+    });
   }
   runtime.init();
   if (!pageServer) {
     // 没有原生 runtime 通道时，bootstrap 只作为页面桥上的兼容握手，随后请求完整 pageLoad。
-    server.on("bootstrap", () => {
-      void new Client(pageMsg, "scripting").do("pageLoadFallback");
+    server.on("bootstrap", (data: { bootstrapToken?: unknown }) => {
+      if (typeof data?.bootstrapToken !== "string") return;
+      transportToken = data.bootstrapToken;
+      void new Client(pageMsg, "scripting")
+        .do<{ pageLoad?: unknown; batch?: MainFallbackBatch }>("resolveMainTransport", {
+          transportToken,
+        })
+        .then((result) => {
+          if (result?.pageLoad) {
+            mainRuntimeSend.selectFallback();
+            runtime.receivePageLoad(result.pageLoad);
+          }
+          if (result?.batch) consumeFallbackBatch(result.batch);
+        });
     });
   }
   // inject环境，直接判断白名单，注入对外接口

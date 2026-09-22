@@ -1,10 +1,16 @@
 import type {
   EmitEventRequest,
+  MainDeliveryQueue,
+  MainFallbackBatch,
+  MainTransportRecord,
+  MainTransportResolution,
+  MainTransportLifecycleRequest,
   ScriptLoadInfo,
   ScriptMatchInfo,
   ScriptMenu,
   ServiceWorkerExecutionBinding,
 } from "./types";
+import { MainTransportJournal, type MainTransportJournalState } from "./main_transport_journal";
 import type { IMessageQueue } from "@Packages/message/message_queue";
 import { RequestSequenceWindow } from "@Packages/message/request_sequence_window";
 import { GetSenderType, type Group, type IGetSender } from "@Packages/message/server";
@@ -155,6 +161,7 @@ type UserScriptSession = {
   frameId?: number;
   documentId?: string;
   transport: "userScript" | "extension";
+  transportToken?: string;
   // 断线窗口内按 storageName 合并值更新，重连握手完成后再投递。
   pendingValueUpdates: Map<string, ValueUpdateDataEncoded>;
 };
@@ -164,9 +171,6 @@ const bgScriptStorageNames = new Set<string>();
 
 // For Firefox, StorageArea.setAccessLevel is not implemented.
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
-// const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
-const deliveryStorage = chrome.storage.local; // 日后再处理
-
 export class RuntimeService {
   scriptMatchEnable: UrlMatch<string> = new UrlMatch<string>();
   blackMatch: UrlMatch<string> = new UrlMatch<string>();
@@ -189,11 +193,249 @@ export class RuntimeService {
   private readonly userScriptBootstraps = new Map<string, UserScriptBootstrap>();
   // 连接断开后保留当前文档的已验证资料与待投递值更新，供 USER_SCRIPT 通过原生消息重连；导航或脚本撤销会同步清除。
   private readonly userScriptSessions = new Map<string, UserScriptSession>();
+  private readonly mainTransportRecords = new Map<string, MainTransportRecord>();
+  private readonly activeMainTransportByFrame = new Map<string, string>();
+  // Legacy unit tests and older callers may omit the token; only explicit-token generations
+  // belong to the restart journal so one test/runtime instance cannot inherit another's state.
+  private readonly journalTrackedTransportTokens = new Set<string>();
+  private readonly mainTransportJournal = new MainTransportJournal();
+  private readonly mainTransportHydrated: Promise<void>;
+  private mainTransportJournalHealthy = true;
   // Only the newest load for a tab/frame/environment may issue bindings; navigation can resolve old requests late.
   private readonly pageLoadSequences = new Map<string, number>();
 
+  constructor(
+    private systemConfig: SystemConfig,
+    private group: Group,
+    private msgSender: MessageSend,
+    mq: IMessageQueue,
+    private value: ValueService,
+    public script: ScriptService,
+    private resource: ResourceService,
+    private scriptDAO: ScriptDAO,
+    private localStorageDAO: LocalStorageDAO
+  ) {
+    this.logger = LoggerCore.logger({ component: "runtime" });
+    this.mainTransportHydrated = this.hydrateMainTransportJournal();
+
+    // 使用中间件
+    this.group = this.group.use(async (_, __, next) => {
+      if (typeof this.initReady !== "boolean") await this.initReady;
+      return next();
+    });
+    this.mq = mq.group("", async (_, __, next) => {
+      if (typeof this.initReady !== "boolean") await this.initReady;
+      return next();
+    });
+  }
+
   getGMApi(): GMApi | undefined {
     return this.gmApi;
+  }
+
+  private frameKey(tabId: number, frameId: number | undefined): string {
+    return `${tabId}:${frameId ?? -1}`;
+  }
+
+  private createMainDeliveryQueue(): MainDeliveryQueue {
+    return { pendingValueUpdates: new Map(), pendingEmitEvents: [] };
+  }
+
+  private serializeMainRecord(record: MainTransportRecord): Record<string, unknown> {
+    return {
+      ...record,
+      handles: [...record.handles],
+      delivery: {
+        pendingValueUpdates: [...record.delivery.pendingValueUpdates.entries()],
+        pendingEmitEvents: record.delivery.pendingEmitEvents,
+      },
+    };
+  }
+
+  private deserializeMainRecord(value: unknown): MainTransportRecord | undefined {
+    if (value === null || typeof value !== "object") return undefined;
+    const candidate = value as Partial<MainTransportRecord> & {
+      handles?: unknown;
+      delivery?: { pendingValueUpdates?: unknown; pendingEmitEvents?: unknown };
+    };
+    if (
+      typeof candidate.transportToken !== "string" ||
+      typeof candidate.tabId !== "number" ||
+      typeof candidate.url !== "string" ||
+      !Array.isArray(candidate.handles) ||
+      !["active", "provisional-dormant", "dormant"].includes(candidate.lifecycle || "") ||
+      !["preparing", "pending", "native", "fallback"].includes(candidate.mode || "") ||
+      !candidate.delivery ||
+      !Array.isArray(candidate.delivery.pendingValueUpdates) ||
+      !Array.isArray(candidate.delivery.pendingEmitEvents)
+    ) {
+      return undefined;
+    }
+    const pendingValueUpdates = new Map<string, ValueUpdateDataEncoded>();
+    for (const entry of candidate.delivery.pendingValueUpdates) {
+      if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== "string") return undefined;
+      pendingValueUpdates.set(entry[0], entry[1] as ValueUpdateDataEncoded);
+    }
+    return {
+      ...candidate,
+      handles: new Set(candidate.handles.filter((handle): handle is string => typeof handle === "string")),
+      delivery: { pendingValueUpdates, pendingEmitEvents: candidate.delivery.pendingEmitEvents as EmitEventRequest[] },
+    } as MainTransportRecord;
+  }
+
+  private serializeSession([key, session]: [string, UserScriptSession | UserScriptBootstrap]): Record<string, unknown> {
+    return {
+      key,
+      session: {
+        ...session,
+        transport: "transport" in session ? session.transport : "extension",
+        pendingValueUpdates: [...session.pendingValueUpdates.entries()],
+      },
+    };
+  }
+
+  private async hydrateMainTransportJournal(): Promise<void> {
+    try {
+      const state = await this.mainTransportJournal.hydrate();
+      for (const entry of state.records) {
+        const record = this.deserializeMainRecord(entry);
+        if (record) {
+          this.mainTransportRecords.set(record.transportToken, record);
+          this.journalTrackedTransportTokens.add(record.transportToken);
+        }
+      }
+      for (const entry of state.activeFrameIndex) {
+        if (Array.isArray(entry) && entry.length === 2) this.activeMainTransportByFrame.set(entry[0], entry[1]);
+      }
+      for (const entry of state.bindings) {
+        if (entry === null || typeof entry !== "object") continue;
+        const candidate = entry as { handle?: unknown; binding?: Record<string, unknown> };
+        const binding = candidate.binding;
+        if (
+          typeof candidate.handle !== "string" ||
+          !binding ||
+          typeof binding.uuid !== "string" ||
+          (binding.envTag !== "it" && binding.envTag !== "ct") ||
+          typeof binding.runFlag !== "string" ||
+          typeof binding.url !== "string" ||
+          typeof binding.tabId !== "number" ||
+          !binding.requestSequenceWindow
+        ) {
+          continue;
+        }
+        const requestSequenceWindow = RequestSequenceWindow.fromSnapshot(binding.requestSequenceWindow);
+        this.pageExecutionBindings.set(candidate.handle, {
+          ...(binding as unknown as ServiceWorkerExecutionBinding),
+          handle: candidate.handle,
+          allowedAPIs: new Set(
+            Array.isArray(binding.allowedAPIs)
+              ? binding.allowedAPIs.filter((api): api is string => typeof api === "string")
+              : []
+          ),
+          requestSequenceWindow,
+        });
+      }
+      const restoreSession = (
+        entry: unknown,
+        target: Map<string, UserScriptSession | UserScriptBootstrap>,
+        transport: "userScript" | "extension"
+      ) => {
+        if (entry === null || typeof entry !== "object") return;
+        const candidate = entry as { key?: unknown; session?: Record<string, unknown> };
+        if (typeof candidate.key !== "string" || !candidate.session) return;
+        const session = candidate.session;
+        if (
+          !Array.isArray(session.scripts) ||
+          !Array.isArray(session.pendingValueUpdates) ||
+          typeof session.reconnectToken !== "string" ||
+          (session.envTag !== "it" && session.envTag !== "ct") ||
+          typeof session.url !== "string" ||
+          typeof session.tabId !== "number"
+        )
+          return;
+        const pendingValueUpdates = new Map<string, ValueUpdateDataEncoded>();
+        for (const pending of session.pendingValueUpdates) {
+          if (Array.isArray(pending) && pending.length === 2 && typeof pending[0] === "string") {
+            pendingValueUpdates.set(pending[0], pending[1] as ValueUpdateDataEncoded);
+          }
+        }
+        const restored = {
+          ...(session as unknown as UserScriptSession),
+          pendingValueUpdates,
+          transport,
+        } as UserScriptSession | UserScriptBootstrap;
+        const token = session.transportToken;
+        if (typeof token === "string") this.journalTrackedTransportTokens.add(token);
+        target.set(candidate.key, restored);
+      };
+      for (const entry of state.bootstraps) {
+        restoreSession(entry, this.userScriptBootstraps, "extension");
+      }
+      for (const entry of state.sessions) {
+        restoreSession(entry, this.userScriptSessions, "userScript");
+      }
+    } catch (error) {
+      this.mainTransportJournalHealthy = false;
+      this.logger.error("MAIN transport journal hydration failed", Logger.E(error));
+    }
+  }
+
+  private async persistMainTransportJournal(): Promise<boolean> {
+    if (!this.mainTransportJournalHealthy) return false;
+    const bindings = [...this.pageExecutionBindings.entries()]
+      .filter(
+        ([, binding]) =>
+          binding.envTag === "it" &&
+          binding.transportToken &&
+          this.journalTrackedTransportTokens.has(binding.transportToken)
+      )
+      .map(([handle, binding]) => ({
+        handle,
+        binding: {
+          ...binding,
+          allowedAPIs: [...binding.allowedAPIs],
+          requestSequenceWindow: binding.requestSequenceWindow.snapshot(),
+        },
+      }));
+    const state: MainTransportJournalState = {
+      version: 1,
+      records: [...this.mainTransportRecords.values()]
+        .filter((record) => this.journalTrackedTransportTokens.has(record.transportToken))
+        .map((record) => this.serializeMainRecord(record)),
+      activeFrameIndex: [...this.activeMainTransportByFrame.entries()].filter(([, token]) =>
+        this.journalTrackedTransportTokens.has(token)
+      ),
+      bindings,
+      bootstraps: [...this.userScriptBootstraps.entries()]
+        .filter(
+          ([, bootstrap]) =>
+            bootstrap.envTag === "it" &&
+            bootstrap.transportToken &&
+            this.journalTrackedTransportTokens.has(bootstrap.transportToken)
+        )
+        .map(([key, session]) => this.serializeSession([key, session])),
+      sessions: [...this.userScriptSessions.entries()]
+        .filter(
+          ([, session]) =>
+            session.envTag === "it" &&
+            session.transportToken &&
+            this.journalTrackedTransportTokens.has(session.transportToken)
+        )
+        .map(([key, session]) => this.serializeSession([key, session])),
+    };
+    try {
+      await this.mainTransportJournal.write(state);
+      return true;
+    } catch (error) {
+      this.mainTransportJournalHealthy = false;
+      this.logger.error("MAIN transport journal persistence failed", Logger.E(error));
+      return false;
+    }
+  }
+
+  private async ensureMainTransportJournal(): Promise<boolean> {
+    await this.mainTransportHydrated;
+    return this.mainTransportJournalHealthy;
   }
 
   private revokePageBindings(sender: IGetSender, envTag?: "it" | "ct"): void {
@@ -229,7 +471,32 @@ export class RuntimeService {
     }
   }
 
+  private revokeContentBindingsForDocument(sender: IGetSender): void {
+    const source = sender.getSender();
+    const tabId = source?.tab?.id;
+    const frameId = source?.frameId;
+    for (const [handle, binding] of this.pageExecutionBindings) {
+      if (binding.envTag === "ct" && binding.tabId === tabId && binding.frameId === frameId) {
+        this.pageExecutionBindings.delete(handle);
+      }
+    }
+    for (const [key, entry] of this.userScriptConnections) {
+      if (entry.envTag === "ct" && entry.tabId === tabId && entry.frameId === frameId) {
+        entry.connection.disconnect(true);
+        this.userScriptConnections.delete(key);
+        this.userScriptSessions.delete(key);
+      }
+    }
+    for (const [key, session] of this.userScriptSessions) {
+      if (session.envTag === "ct" && session.tabId === tabId && session.frameId === frameId)
+        this.userScriptSessions.delete(key);
+    }
+  }
+
   revokePageBindingsForTab(tabId: number): void {
+    for (const [token, record] of this.mainTransportRecords) {
+      if (record.tabId === tabId) this.retireMainTransport(token);
+    }
     for (const [handle, binding] of this.pageExecutionBindings) {
       if (binding.tabId === tabId) this.pageExecutionBindings.delete(handle);
     }
@@ -250,6 +517,7 @@ export class RuntimeService {
     for (const key of this.pageLoadSequences.keys()) {
       if (key.startsWith(prefix)) this.pageLoadSequences.delete(key);
     }
+    void this.persistMainTransportJournal();
   }
 
   private beginPageLoadSequence(sender: IGetSender, envTag: "it" | "ct" | undefined): [string, number] | undefined {
@@ -265,8 +533,10 @@ export class RuntimeService {
     tabId: number,
     frameId: number | undefined,
     documentId: string | undefined,
-    envTag: "it" | "ct"
+    envTag: "it" | "ct",
+    transportToken?: string
   ): string {
+    if (envTag === "it" && transportToken) return `main:${transportToken}`;
     return `${tabId}:${frameId ?? -1}:${documentId ?? ""}:${envTag}`;
   }
 
@@ -315,18 +585,36 @@ export class RuntimeService {
         binding.envTag !== bootstrap.envTag ||
         binding.tabId !== tabId ||
         binding.frameId !== source.frameId ||
-        binding.documentId !== source.documentId
+        binding.documentId !== source.documentId ||
+        (bootstrap.envTag === "it" && binding.transportToken !== bootstrap.transportToken)
       ) {
         return false;
       }
       handles.add(handle);
     }
     if (handles.size === 0) return false;
+    const mainRecord =
+      bootstrap.envTag === "it" && bootstrap.transportToken
+        ? this.mainTransportRecords.get(bootstrap.transportToken)
+        : undefined;
+    if (
+      bootstrap.envTag === "it" &&
+      (!mainRecord || mainRecord.tabId !== tabId || mainRecord.frameId !== source.frameId)
+    ) {
+      return false;
+    }
     const frameId = source.frameId;
     const documentId = source.documentId;
-    const key = this.userScriptConnectionKey(tabId, frameId, documentId, bootstrap.envTag);
+    const key = this.userScriptConnectionKey(tabId, frameId, documentId, bootstrap.envTag, bootstrap.transportToken);
     const session = { ...bootstrap, transport: isExtensionFallback ? ("extension" as const) : ("userScript" as const) };
     this.userScriptSessions.set(key, session);
+    if (mainRecord) {
+      mainRecord.mode = "native";
+      mainRecord.bootstrapToken = handshake.bootstrapToken;
+      mainRecord.reconnectToken = bootstrap.reconnectToken;
+      mainRecord.handles = new Set(handles);
+      void this.persistMainTransportJournal();
+    }
     this.userScriptBootstraps.delete(handshake.bootstrapToken);
     const previous = this.userScriptConnections.get(key);
     if (previous) previous.connection.disconnect(true);
@@ -334,6 +622,7 @@ export class RuntimeService {
     this.userScriptConnections.set(key, entry);
     connection.onDisconnect(() => {
       if (this.userScriptConnections.get(key)?.connection === connection) this.userScriptConnections.delete(key);
+      void this.persistMainTransportJournal();
     });
     let bootstrapped = false;
     connection.onMessage((packet) => {
@@ -360,6 +649,17 @@ export class RuntimeService {
         });
         entry.ready = true;
         this.flushPendingUserScriptValueUpdates(key, entry);
+        if (mainRecord) {
+          for (const valueUpdate of mainRecord.delivery.pendingValueUpdates.values()) {
+            connection.sendMessage({ action: "inject/runtime/valueUpdate", data: valueUpdate });
+          }
+          mainRecord.delivery.pendingValueUpdates.clear();
+          for (const event of mainRecord.delivery.pendingEmitEvents) {
+            connection.sendMessage({ action: "inject/runtime/emitEvent", data: event });
+          }
+          mainRecord.delivery.pendingEmitEvents = [];
+          void this.persistMainTransportJournal();
+        }
       } catch {
         this.userScriptConnections.delete(key);
       }
@@ -429,6 +729,14 @@ export class RuntimeService {
     }
     this.userScriptSessions.set(key, nextSession);
     this.userScriptBootstraps.set(bootstrapToken, nextSession);
+    if (session.transportToken) {
+      const record = this.mainTransportRecords.get(session.transportToken);
+      if (record) {
+        record.reconnectToken = nextSession.reconnectToken;
+        record.bootstrapToken = bootstrapToken;
+        void this.persistMainTransportJournal();
+      }
+    }
     return { bootstrapToken };
   }
 
@@ -520,6 +828,7 @@ export class RuntimeService {
     if (!valueUpdate) return;
     for (const [key, session] of this.userScriptSessions) {
       if (this.userScriptConnections.has(key)) continue;
+      if (session.transportToken && this.mainTransportRecords.has(session.transportToken)) continue;
       if (
         to &&
         (session.tabId !== to.tabId ||
@@ -566,6 +875,12 @@ export class RuntimeService {
     for (const [key, session] of this.userScriptSessions) {
       if (session.scripts.some((script) => script.uuid === uuid)) this.userScriptSessions.delete(key);
     }
+    for (const [token, record] of this.mainTransportRecords) {
+      const handles = new Set([...record.handles].filter((handle) => this.pageExecutionBindings.has(handle)));
+      record.handles = handles;
+      if (record.scripts?.some((script) => script.uuid === uuid)) this.retireMainTransport(token);
+    }
+    void this.persistMainTransportJournal();
   }
 
   private issuePageBinding(
@@ -573,7 +888,8 @@ export class RuntimeService {
     envTag: "it" | "ct",
     storageName: string,
     allowedAPIs: readonly string[],
-    sender: IGetSender
+    sender: IGetSender,
+    transportToken?: string
   ): ServiceWorkerExecutionBinding {
     const source = sender.getSender();
     const tabId = source?.tab?.id;
@@ -592,6 +908,7 @@ export class RuntimeService {
       tabId,
       frameId: source?.frameId,
       documentId: source?.documentId,
+      transportToken,
       storageName,
       allowedAPIs: new Set(allowedAPIs),
       requestSequenceWindow: new RequestSequenceWindow(),
@@ -665,30 +982,6 @@ export class RuntimeService {
   initialCompiledResourcePromise: Promise<any> | undefined;
 
   compiledResourceDAO: CompiledResourceDAO = new CompiledResourceDAO();
-
-  constructor(
-    private systemConfig: SystemConfig,
-    private group: Group,
-    private msgSender: MessageSend,
-    mq: IMessageQueue,
-    private value: ValueService,
-    public script: ScriptService,
-    private resource: ResourceService,
-    private scriptDAO: ScriptDAO,
-    private localStorageDAO: LocalStorageDAO
-  ) {
-    this.logger = LoggerCore.logger({ component: "runtime" });
-
-    // 使用中间件
-    this.group = this.group.use(async (_, __, next) => {
-      if (typeof this.initReady !== "boolean") await this.initReady;
-      return next();
-    });
-    this.mq = mq.group("", async (_, __, next) => {
-      if (typeof this.initReady !== "boolean") await this.initReady;
-      return next();
-    });
-  }
 
   async initUserAgentData() {
     this.userAgentData = (await getExtensionUserAgentData()) || {};
@@ -961,15 +1254,27 @@ export class RuntimeService {
 
   public async pushValueUpdate(script: Script, sendData: ValueUpdateDataEncoded) {
     try {
-      // 前台腳本 （推送值到tab）
-      await deliveryStorage!.set({
-        valueUpdateDelivery: {
-          rId: `${Date.now()}.${Math.random()}`, // 用于区分不同的更新，确保 deliveryStorage.onChanged 必能触发
-          sendData,
-        },
-      });
+      if (!(await this.ensureMainTransportJournal())) return;
+      const queuedRecords = this.queueMainValueUpdate(script.uuid, sendData);
+      if (!(await this.persistMainTransportJournal())) {
+        for (const record of queuedRecords) this.retireMainTransport(record.transportToken);
+        return;
+      }
+      for (const record of queuedRecords) this.notifyMainFallback(record);
+
       // USER_SCRIPT 看不到 scripting world 的页面广播，改经原生扩展连接投递同一份编码 DTO。
       this.sendUserScriptMessage(undefined, "runtime/valueUpdate", sendData);
+
+      // Storage is a compatibility broadcast for content-world delivery only. MAIN routing above is authoritative
+      // and does not depend on this write succeeding.
+      void chrome.storage.local
+        .set({
+          valueUpdateDelivery: {
+            rId: `${Date.now()}.${Math.random()}`,
+            sendData,
+          },
+        })
+        .catch((error) => this.logger.debug("storage value-update compatibility broadcast failed", Logger.E(error)));
 
       // 後台腳本
       if (bgScriptStorageNames.has(sendData.storageName)) {
@@ -997,6 +1302,63 @@ export class RuntimeService {
     }
   }
 
+  private queueMainValueUpdate(uuid: string, data: ValueUpdateDataEncoded): MainTransportRecord[] {
+    const queuedRecords: MainTransportRecord[] = [];
+    for (const record of this.mainTransportRecords.values()) {
+      let matches = false;
+      for (const handle of record.handles) {
+        const binding = this.pageExecutionBindings.get(handle);
+        if (binding && binding.envTag === "it" && (binding.uuid === uuid || binding.storageName === data.storageName)) {
+          matches = true;
+          break;
+        }
+      }
+      if (!matches) continue;
+      if (
+        record.mode !== "native" ||
+        record.lifecycle !== "active" ||
+        !this.userScriptConnections.has(`main:${record.transportToken}`)
+      ) {
+        const previous = record.delivery.pendingValueUpdates.get(data.storageName);
+        if (!previous) {
+          record.delivery.pendingValueUpdates.set(data.storageName, data);
+        } else {
+          const entries = previous.entries.map((entry) => [
+            entry[0],
+            entry[1],
+            entry[2],
+          ]) as ValueUpdateDataEncoded["entries"];
+          const entryIndexes = new Map(entries.map((entry, index) => [entry[0], index]));
+          for (const entry of data.entries) {
+            const index = entryIndexes.get(entry[0]);
+            if (index === undefined) {
+              entryIndexes.set(entry[0], entries.length);
+              entries.push(entry);
+            } else {
+              entries[index] = [entry[0], entry[1], entries[index][2]];
+            }
+          }
+          record.delivery.pendingValueUpdates.set(data.storageName, {
+            ...data,
+            entries,
+            valueUpdated: previous.valueUpdated || data.valueUpdated,
+          });
+        }
+        queuedRecords.push(record);
+      }
+    }
+    return queuedRecords;
+  }
+
+  private notifyMainFallback(record: MainTransportRecord): void {
+    if (record.mode !== "fallback" || record.lifecycle !== "active") return;
+    void sendMessage(
+      new ExtensionContentMessageSend(record.tabId, { documentId: record.documentId, frameId: record.frameId }),
+      "scripting/runtime/pumpFallback",
+      { transportToken: record.transportToken }
+    ).catch((error) => this.logger.debug("MAIN fallback pump failed", Logger.E(error)));
+  }
+
   async setSessionAccessLevel() {
     try {
       // 让 scripting 存取 chrome.storage.session
@@ -1007,9 +1369,6 @@ export class RuntimeService {
   }
 
   init() {
-    if (deliveryStorage === chrome.storage.session) {
-      this.setSessionAccessLevel();
-    }
     // 启动gm api
     const permission = new PermissionVerify(this.group.group("permission"), this.mq);
     this.gmApi = new GMApi(
@@ -1029,6 +1388,9 @@ export class RuntimeService {
     this.group.on("runScript", this.runScript.bind(this));
     this.group.on("pageLoad", this.pageLoad.bind(this));
     this.group.on("pageShow", this.pageShow.bind(this));
+    this.group.on("resolveMainTransport", this.resolveMainTransport.bind(this));
+    this.group.on("advanceMainFallback", this.advanceMainFallback.bind(this));
+    this.group.on("mainTransportLifecycle", this.mainTransportLifecycle.bind(this));
     this.group.on("registerUserScript", this.registerUserScriptConnection.bind(this));
     this.group.on("reconnectUserScript", this.reconnectUserScript.bind(this));
 
@@ -1338,6 +1700,178 @@ export class RuntimeService {
 
   public isUrlBlacklist(url: string) {
     return this.blackMatch.urlMatch(url)[0] === "BK";
+  }
+
+  private retireMainTransport(transportToken: string): void {
+    const record = this.mainTransportRecords.get(transportToken);
+    if (!record) return;
+    const frameKey = this.frameKey(record.tabId, record.frameId);
+    if (this.activeMainTransportByFrame.get(frameKey) === transportToken)
+      this.activeMainTransportByFrame.delete(frameKey);
+    for (const [handle, binding] of this.pageExecutionBindings) {
+      if (binding.transportToken === transportToken) this.pageExecutionBindings.delete(handle);
+    }
+    for (const [key, entry] of this.userScriptConnections) {
+      if (key === `main:${transportToken}`) {
+        entry.connection.disconnect(true);
+        this.userScriptConnections.delete(key);
+      }
+    }
+    for (const [key, bootstrap] of this.userScriptBootstraps) {
+      if (bootstrap.transportToken === transportToken) this.userScriptBootstraps.delete(key);
+    }
+    for (const [key, session] of this.userScriptSessions) {
+      if (session.transportToken === transportToken) this.userScriptSessions.delete(key);
+    }
+    this.mainTransportRecords.delete(transportToken);
+  }
+
+  private reapProvisionalMainTransports(now = Date.now()): void {
+    for (const [token, record] of this.mainTransportRecords) {
+      if (
+        record.lifecycle === "provisional-dormant" &&
+        record.provisionalRetireAt !== undefined &&
+        record.provisionalRetireAt <= now
+      ) {
+        this.retireMainTransport(token);
+      }
+    }
+  }
+
+  private getMainTransportForSender(transportToken: string, sender: IGetSender): MainTransportRecord | undefined {
+    const record = this.mainTransportRecords.get(transportToken);
+    const source = sender.getSender();
+    if (!record || !source?.tab || source.tab.id !== record.tabId || source.frameId !== record.frameId)
+      return undefined;
+    if (record.documentId !== undefined && source.documentId !== record.documentId) return undefined;
+    if (record.documentId === undefined && source.url !== record.url) return undefined;
+    return record;
+  }
+
+  private fallbackResolution(record: MainTransportRecord, batch?: MainFallbackBatch): MainTransportResolution {
+    if (!record.scripts || !record.envInfo || !record.fallbackPhase) return { mode: "missing" };
+    return {
+      mode: "fallback",
+      phase: record.fallbackPhase,
+      transportToken: record.transportToken,
+      scripts: record.scripts,
+      envInfo: record.envInfo,
+      ...(batch ? { batch } : {}),
+    };
+  }
+
+  async resolveMainTransport(
+    data: { transportToken?: unknown; forceFallback?: unknown } | undefined,
+    sender: IGetSender
+  ): Promise<MainTransportResolution> {
+    if (!(await this.ensureMainTransportJournal())) return { mode: "missing" };
+    this.reapProvisionalMainTransports();
+    if (
+      !data ||
+      typeof data.transportToken !== "string" ||
+      data.transportToken.length === 0 ||
+      data.transportToken.length > 256
+    ) {
+      return { mode: "missing" };
+    }
+    const record = this.getMainTransportForSender(data.transportToken, sender);
+    if (!record) return { mode: "missing" };
+    if (record.mode === "native") return { mode: "native" };
+    if (record.mode === "preparing") return { mode: "preparing" };
+    if (record.mode === "pending") {
+      const forceFallback = data.forceFallback === true;
+      if (!forceFallback && (record.fallbackEligibleAt === undefined || record.fallbackEligibleAt > Date.now())) {
+        return { mode: "pending", retryAfterMs: Math.max(0, (record.fallbackEligibleAt ?? Date.now()) - Date.now()) };
+      }
+      record.mode = "fallback";
+      record.fallbackPhase = "activating";
+      record.fallbackProgressDeadlineAt = Date.now() + 5000;
+      record.nextBatchId = 1;
+      record.inFlightBatch = undefined;
+      if (!(await this.persistMainTransportJournal())) {
+        this.retireMainTransport(record.transportToken);
+        return { mode: "missing" };
+      }
+      return this.fallbackResolution(record);
+    }
+    return this.fallbackResolution(record);
+  }
+
+  async advanceMainFallback(
+    data: { transportToken?: unknown; ackBatchId?: unknown } | undefined,
+    sender: IGetSender
+  ): Promise<MainTransportResolution> {
+    if (!(await this.ensureMainTransportJournal())) return { mode: "missing" };
+    if (!data || typeof data.transportToken !== "string") return { mode: "missing" };
+    const record = this.getMainTransportForSender(data.transportToken, sender);
+    if (!record || record.mode !== "fallback" || !record.fallbackPhase) return { mode: "missing" };
+    if (data.ackBatchId !== undefined) {
+      if (typeof data.ackBatchId !== "number" || !Number.isSafeInteger(data.ackBatchId)) return { mode: "missing" };
+      if (record.inFlightBatch?.id === data.ackBatchId) record.inFlightBatch = undefined;
+    }
+    if (record.inFlightBatch) return this.fallbackResolution(record, record.inFlightBatch);
+    const valueUpdates = [...record.delivery.pendingValueUpdates.values()];
+    const emitEvents = record.delivery.pendingEmitEvents.splice(0);
+    for (const valueUpdate of valueUpdates) record.delivery.pendingValueUpdates.delete(valueUpdate.storageName);
+    if (valueUpdates.length === 0 && emitEvents.length === 0) {
+      record.fallbackPhase = "ready";
+      if (!(await this.persistMainTransportJournal())) {
+        this.retireMainTransport(record.transportToken);
+        return { mode: "missing" };
+      }
+      return this.fallbackResolution(record);
+    }
+    const batch: MainFallbackBatch = {
+      id: record.nextBatchId ?? 1,
+      valueUpdates,
+      emitEvents,
+    };
+    record.nextBatchId = batch.id + 1;
+    record.inFlightBatch = batch;
+    record.fallbackPhase = "catching-up";
+    if (!(await this.persistMainTransportJournal())) {
+      this.retireMainTransport(record.transportToken);
+      return { mode: "missing" };
+    }
+    return this.fallbackResolution(record, batch);
+  }
+
+  async mainTransportLifecycle(data: MainTransportLifecycleRequest | undefined, sender: IGetSender) {
+    if (!(await this.ensureMainTransportJournal())) return { ok: false as const };
+    if (
+      !data ||
+      typeof data.transportToken !== "string" ||
+      !Number.isSafeInteger(data.lifecycleSequence) ||
+      data.lifecycleSequence < 1 ||
+      (data.event !== "pagehide" && data.event !== "pageshow")
+    )
+      return { ok: false as const };
+    const record = this.getMainTransportForSender(data.transportToken, sender);
+    if (!record) return { ok: false as const };
+    if (data.lifecycleSequence <= record.lastLifecycleSequence) return { ok: true as const, stale: true as const };
+    record.lastLifecycleSequence = data.lifecycleSequence;
+    if (data.event === "pagehide") {
+      if (data.persisted === true) {
+        record.lifecycle = "dormant";
+        record.provisionalRetireAt = undefined;
+        if (
+          this.activeMainTransportByFrame.get(this.frameKey(record.tabId, record.frameId)) === record.transportToken
+        ) {
+          this.activeMainTransportByFrame.delete(this.frameKey(record.tabId, record.frameId));
+        }
+      } else {
+        this.retireMainTransport(record.transportToken);
+      }
+    } else if (data.persisted === true) {
+      record.lifecycle = "active";
+      record.provisionalRetireAt = undefined;
+      this.activeMainTransportByFrame.set(this.frameKey(record.tabId, record.frameId), record.transportToken);
+    }
+    if (!(await this.persistMainTransportJournal())) {
+      this.retireMainTransport(data.transportToken);
+      return { ok: false as const };
+    }
+    return { ok: true as const };
   }
 
   // 取消脚本注册
@@ -1729,17 +2263,51 @@ export class RuntimeService {
   }
 
   // 给指定脚本触发事件
-  emitEventToTab(to: ExtMessageSender, req: EmitEventRequest) {
+  async emitEventToTab(to: ExtMessageSender, req: EmitEventRequest) {
     if (to.tabId === -1) {
       // 如果是-1, 代表给offscreen发送消息
       return sendMessage(this.msgSender, "offscreen/runtime/emitEvent", req);
     }
+    let mainMatched = false;
+    const fallbackRecords: MainTransportRecord[] = [];
+    for (const record of this.mainTransportRecords.values()) {
+      if (
+        record.tabId !== to.tabId ||
+        (to.frameId !== undefined && record.frameId !== to.frameId) ||
+        (to.documentId !== undefined && record.documentId !== to.documentId)
+      )
+        continue;
+      const matches = [...record.handles].some((handle) => this.pageExecutionBindings.get(handle)?.uuid === req.uuid);
+      if (!matches) continue;
+      mainMatched = true;
+      if (
+        record.mode !== "native" ||
+        record.lifecycle !== "active" ||
+        !this.userScriptConnections.has(`main:${record.transportToken}`)
+      ) {
+        record.delivery.pendingEmitEvents.push(req);
+        fallbackRecords.push(record);
+      }
+    }
+    if (mainMatched) {
+      if (!(await this.persistMainTransportJournal())) {
+        for (const record of fallbackRecords) this.retireMainTransport(record.transportToken);
+        return undefined;
+      }
+      for (const record of fallbackRecords) this.notifyMainFallback(record);
+    }
     this.sendUserScriptMessage(to, "runtime/emitEvent", req);
+    const contentMatched = [...this.pageExecutionBindings.values()].some(
+      (binding) =>
+        binding.envTag === "ct" &&
+        binding.uuid === req.uuid &&
+        binding.tabId === to.tabId &&
+        (to.frameId === undefined || binding.frameId === to.frameId) &&
+        (to.documentId === undefined || binding.documentId === to.documentId)
+    );
+    if (!contentMatched && mainMatched) return Promise.resolve(undefined);
     return sendMessage(
-      new ExtensionContentMessageSend(to.tabId, {
-        documentId: to.documentId,
-        frameId: to.frameId,
-      }),
+      new ExtensionContentMessageSend(to.tabId, { documentId: to.documentId, frameId: to.frameId }),
       "scripting/runtime/emitEvent",
       req
     );
@@ -1841,7 +2409,10 @@ export class RuntimeService {
     }
   }
 
-  async pageLoad(data: { envTag?: "it" | "ct" } | undefined, sender: IGetSender): Promise<TClientPageLoadInfo> {
+  async pageLoad(
+    data: { envTag?: "it" | "ct"; mainTransportToken?: unknown } | undefined,
+    sender: IGetSender
+  ): Promise<TClientPageLoadInfo> {
     // USER_SCRIPT 只能通过一次性 bootstrap 获取 content-world 资料，不能自行请求 pageLoad。
     if (sender.getConnectOrigin?.() === "userScript") return { ok: false };
     const chromeSender = sender.getSender();
@@ -1853,14 +2424,77 @@ export class RuntimeService {
     const tabId = chromeSender.tab?.id ?? -1;
     const frameId = chromeSender.frameId;
     const incognito = chromeSender.tab?.incognito ?? false;
+    const isMain = data?.envTag === "it";
+    const suppliedMainTransportToken = isMain && typeof data?.mainTransportToken === "string";
+    const mainTransportToken = isMain
+      ? typeof data?.mainTransportToken === "string"
+        ? data.mainTransportToken
+        : uuidv4()
+      : undefined;
+    if (isMain) {
+      if (!mainTransportToken || mainTransportToken.length > 256 || !(await this.ensureMainTransportJournal()))
+        return { ok: false };
+      this.reapProvisionalMainTransports();
+      let record = this.mainTransportRecords.get(mainTransportToken);
+      if (record) {
+        if (
+          record.tabId !== tabId ||
+          record.frameId !== frameId ||
+          (record.documentId !== undefined && record.documentId !== chromeSender.documentId)
+        ) {
+          return { ok: false };
+        }
+      } else {
+        const frameKey = this.frameKey(tabId, frameId);
+        const previousToken = this.activeMainTransportByFrame.get(frameKey);
+        if (previousToken && previousToken !== mainTransportToken) {
+          const previous = this.mainTransportRecords.get(previousToken);
+          if (previous && previous.lifecycle === "active") {
+            previous.lifecycle = "provisional-dormant";
+            previous.provisionalRetireAt = Date.now() + 5000;
+          }
+        }
+        record = {
+          transportToken: mainTransportToken,
+          tabId,
+          frameId,
+          documentId: chromeSender.documentId,
+          url,
+          lifecycle: "active",
+          lastLifecycleSequence: 0,
+          handles: new Set(),
+          delivery: this.createMainDeliveryQueue(),
+          mode: "preparing",
+        };
+        this.mainTransportRecords.set(mainTransportToken, record);
+        this.activeMainTransportByFrame.set(frameKey, mainTransportToken);
+      }
+      if (suppliedMainTransportToken) this.journalTrackedTransportTokens.add(mainTransportToken);
+      if (!(await this.persistMainTransportJournal())) {
+        this.retireMainTransport(mainTransportToken);
+        return { ok: false };
+      }
+      if (record.mode !== "preparing" && record.scripts && record.envInfo) {
+        return {
+          ok: true,
+          injectScriptList: record.scripts as TScriptInfo[],
+          contentScriptList: [],
+          envInfo: record.envInfo,
+          userScriptInjectBootstrapToken: record.bootstrapToken || mainTransportToken,
+          mainTransportToken,
+          mainTransportFallbackRetryAfterMs: Math.max(0, (record.fallbackEligibleAt ?? Date.now()) - Date.now()),
+        };
+      }
+    }
     const pageLoadSequence = this.beginPageLoadSequence(sender, data?.envTag);
     const res = await this.getScriptsForTab({ url, tabId, frameId, incognito });
-    if (pageLoadSequence && this.pageLoadSequences.get(pageLoadSequence[0]) !== pageLoadSequence[1]) {
+    if (!isMain && pageLoadSequence && this.pageLoadSequences.get(pageLoadSequence[0]) !== pageLoadSequence[1]) {
       return { ok: false };
     }
 
-    // 即使新 URL 没有匹配脚本也要退休旧绑定，关闭不提供 documentId 的浏览器复用窗口。
-    this.revokePageBindings(sender, data?.envTag);
+    // MAIN generations coexist across BFCache; content-world loads retain their existing tab/frame retirement rule.
+    if (!isMain) this.revokePageBindings(sender, data?.envTag);
+    else this.revokeContentBindingsForDocument(sender);
 
     this.mq.emit<TPopupPageLoadInfo>("popupPageLoadUpdate", {
       tabId: tabId,
@@ -1870,6 +2504,7 @@ export class RuntimeService {
     });
 
     if (res) {
+      const transportToken = isMain ? mainTransportToken : undefined;
       const prepareScripts = (scripts: TScriptInfo[], envTag: "it" | "ct") =>
         scripts.map((script) => {
           const binding = this.issuePageBinding(
@@ -1877,7 +2512,8 @@ export class RuntimeService {
             envTag,
             getStorageName(script),
             getPageRpcAllowedAPIs(getEffectiveScriptGrants(script.metadata)),
-            sender
+            sender,
+            transportToken
           );
           return {
             ...script,
@@ -1893,23 +2529,41 @@ export class RuntimeService {
       if (data?.envTag === "it") {
         const createBootstrap = (scripts: TScriptInfo[], envTag: "it" | "ct"): string | undefined => {
           if (scripts.length === 0) return undefined;
-          const token = uuidv4();
+          const token = envTag === "it" && transportToken ? transportToken : uuidv4();
           this.userScriptBootstraps.set(token, {
             scripts,
             envInfo: res.envInfo,
             extensionOrigin: getExtensionOrigin(),
-            reconnectToken: token,
+            reconnectToken: envTag === "it" && transportToken ? uuidv4() : token,
             envTag,
             url,
             tabId,
             frameId,
             documentId: chromeSender.documentId,
+            transportToken: envTag === "it" ? transportToken : undefined,
             pendingValueUpdates: new Map(),
           });
           return token;
         };
         userScriptInjectBootstrapToken = createBootstrap(injectScriptList, "it");
         userScriptBootstrapToken = createBootstrap(contentScriptList, "ct");
+      }
+      if (isMain && mainTransportToken) {
+        const record = this.mainTransportRecords.get(mainTransportToken);
+        if (!record) return { ok: false };
+        record.mode = "pending";
+        record.scripts = injectScriptList;
+        record.envInfo = res.envInfo;
+        record.handles = new Set(
+          injectScriptList.map((script) => script.executionHandle).filter((handle): handle is string => !!handle)
+        );
+        record.bootstrapToken = mainTransportToken;
+        record.fallbackEligibleAt = Date.now() + 1000;
+        record.fallbackPhase = undefined;
+        if (!(await this.persistMainTransportJournal())) {
+          this.retireMainTransport(mainTransportToken);
+          return { ok: false };
+        }
       }
       // 返回脚本资料，在页面加载
       return {
@@ -1918,10 +2572,21 @@ export class RuntimeService {
         contentScriptList: data?.envTag === "it" ? [] : contentScriptList,
         envInfo: res.envInfo,
         userScriptBootstrapToken,
-        userScriptInjectBootstrapToken,
+        userScriptInjectBootstrapToken: isMain ? mainTransportToken : userScriptInjectBootstrapToken,
+        mainTransportToken,
+        mainTransportFallbackRetryAfterMs: isMain
+          ? Math.max(
+              0,
+              (this.mainTransportRecords.get(mainTransportToken!)?.fallbackEligibleAt ?? Date.now()) - Date.now()
+            )
+          : undefined,
       };
     } else {
       // 没有脚本资料，不需要加载
+      if (isMain && mainTransportToken) {
+        this.retireMainTransport(mainTransportToken);
+        await this.persistMainTransportJournal();
+      }
       return { ok: false };
     }
   }

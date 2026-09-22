@@ -1,7 +1,8 @@
-import type { Script, SCRIPT_RUN_STATUS, ScriptLoadInfo } from "@App/app/repo/scripts";
+import type { Script, SCRIPT_RUN_STATUS, ScriptLoadInfo, TScriptInfo } from "@App/app/repo/scripts";
 import { type URLRuleEntry } from "@App/pkg/utils/url_matcher";
 import type { RequestSequenceWindow } from "@Packages/message/request_sequence_window";
 import { type IGetSender } from "@Packages/message/server";
+import type { GMInfoEnv, ValueUpdateDataEncoded } from "../content/types";
 
 /** 脚本安装来源 */
 export type InstallSource = "user" | "system" | "sync" | "subscribe" | "vscode" | "external_access";
@@ -64,6 +65,8 @@ export type ServiceWorkerExecutionBinding = {
   tabId: number;
   frameId?: number;
   documentId?: string;
+  /** Stable identity for the MAIN document generation; absent for content-world bindings. */
+  transportToken?: string;
   /** 用于只向运行该脚本的文档投递值更新的存储命名空间。 */
   storageName: string;
   /** 隔离 GM API broker 为本次页面执行接受的能力名称。 */
@@ -71,6 +74,64 @@ export type ServiceWorkerExecutionBinding = {
   /** 固定大小的序列位图拒绝绑定生命周期内的重放。 */
   requestSequenceWindow: RequestSequenceWindow;
 };
+
+export type MainLifecycle = "active" | "provisional-dormant" | "dormant";
+export type MainTransportMode = "preparing" | "pending" | "native" | "fallback";
+export type MainFallbackPhase = "activating" | "ready" | "catching-up";
+
+export type MainDeliveryQueue = {
+  pendingValueUpdates: Map<string, ValueUpdateDataEncoded>;
+  pendingEmitEvents: EmitEventRequest[];
+};
+
+export type MainFallbackBatch = {
+  id: number;
+  valueUpdates: ValueUpdateDataEncoded[];
+  emitEvents: EmitEventRequest[];
+};
+
+export type MainTransportRecord = {
+  transportToken: string;
+  tabId: number;
+  frameId?: number;
+  documentId?: string;
+  url: string;
+  lifecycle: MainLifecycle;
+  lastLifecycleSequence: number;
+  provisionalRetireAt?: number;
+  handles: Set<string>;
+  delivery: MainDeliveryQueue;
+  mode: MainTransportMode;
+  fallbackEligibleAt?: number;
+  fallbackProgressDeadlineAt?: number;
+  fallbackPhase?: MainFallbackPhase;
+  nextBatchId?: number;
+  inFlightBatch?: MainFallbackBatch;
+  reconnectToken?: string;
+  bootstrapToken?: string;
+  scripts?: TScriptInfo[];
+  envInfo?: GMInfoEnv;
+};
+
+export type MainTransportLifecycleRequest = {
+  transportToken: string;
+  lifecycleSequence: number;
+  event: "pagehide" | "pageshow";
+  persisted?: boolean;
+};
+
+export type MainTransportResolution =
+  | { mode: "preparing" | "pending"; retryAfterMs?: number }
+  | { mode: "native" }
+  | {
+      mode: "fallback";
+      phase: MainFallbackPhase;
+      transportToken: string;
+      scripts: TScriptInfo[];
+      envInfo: GMInfoEnv;
+      batch?: MainFallbackBatch;
+    }
+  | { mode: "missing" };
 
 export type GMApiRequest<T = any> = MessageRequest<T> & {
   script: Script;

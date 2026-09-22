@@ -161,6 +161,10 @@ export type TClientPageLoadInfo =
       injectScriptList: TScriptInfo[];
       contentScriptList: TScriptInfo[];
       envInfo: GMInfoEnv;
+      /** Stable identity allocated before the MAIN page-load request. */
+      mainTransportToken?: string;
+      /** Delay before the SW may select the explicit fallback transport. */
+      mainTransportFallbackRetryAfterMs?: number;
       /** 一次性令牌，供 USER_SCRIPT world 请求私有 bootstrap。 */
       userScriptBootstrapToken?: string;
       /** 一次性令牌，供 MAIN world 的 inject 环境请求私有 bootstrap。 */

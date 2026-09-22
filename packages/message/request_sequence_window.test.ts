@@ -79,4 +79,20 @@ describe("RequestSequenceWindow", () => {
     expect(() => window.consume(0)).toThrow("sequence is invalid");
     expect(() => window.consume(Number.MAX_SAFE_INTEGER + 1)).toThrow("sequence is invalid");
   });
+
+  it("restores replay state without reopening an already consumed sequence", () => {
+    const original = new RequestSequenceWindow();
+    original.consume(10);
+    original.consume(12);
+
+    const restored = RequestSequenceWindow.fromSnapshot(original.snapshot());
+
+    expect(() => restored.consume(11)).not.toThrow();
+    expect(() => restored.consume(10)).toThrow("already used");
+    expect(() => restored.consume(12)).toThrow("already used");
+  });
+
+  it("rejects malformed persisted replay state", () => {
+    expect(() => RequestSequenceWindow.fromSnapshot({ highWater: 1, bitmap: [] })).toThrow("snapshot is invalid");
+  });
 });

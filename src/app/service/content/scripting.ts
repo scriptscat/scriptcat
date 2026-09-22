@@ -5,10 +5,10 @@ import type { MessageSend } from "@Packages/message/types";
 import type { TScriptInfo } from "@App/app/repo/scripts";
 import type { SerializedDocumentResponse } from "./gm_api/gm_xhr";
 import { RuntimeClient } from "../service_worker/client";
-import { getStorageName, makeBlobURL } from "@App/pkg/utils/utils";
+import { makeBlobURL } from "@App/pkg/utils/utils";
 import type { Logger } from "@App/app/repo/logger";
 import LoggerCore from "@App/app/logger/core";
-import type { GMInfoEnv, ValueUpdateDataEncoded } from "./types";
+import type { GMInfoEnv } from "./types";
 import {
   getExtensionOrigin,
   getPageRpcAllowedAPIs,
@@ -17,6 +17,7 @@ import {
   validatePageGMRequest,
 } from "./page_rpc";
 import { getEffectiveScriptGrants } from "./utils";
+import type { MainTransportResolution } from "../service_worker/types";
 
 const PageOrContent = {
   PAGE: 1,
@@ -38,17 +39,11 @@ export const serializeDocumentResponse = (
   }
 };
 
-// For Firefox, StorageArea.setAccessLevel is not implemented.
-// See https://bugzilla.mozilla.org/show_bug.cgi?id=1724754
-// const deliveryStorage = isFirefox() ? chrome.storage.local : chrome.storage.session;
-const deliveryStorage = chrome.storage.local; // 日后再处理
-
 // scripting页的处理
 export default class ScriptingRuntime {
-  // 只记录当前页面仍有脚本使用的 storageName，storage 广播不应唤醒无关脚本。
-  private activeStorageNames = new Map<string, PageOrContent>();
-  // MAIN world 的完整脚本资料只在原生通道失败时才走页面桥；原生成功时由 service worker 直接投递。
-  private fallbackInjectPageLoad?: { scripts: TScriptInfo[]; envInfo: GMInfoEnv };
+  private mainTransportToken?: string;
+  private mainFallbackActive = false;
+  private pendingLegacyFallback?: { scripts: TScriptInfo[]; envInfo: GMInfoEnv };
   // 页面请求必须先在此注册句柄，再由 transform 解析为隔离 broker 可接受的身份。
   private readonly pageRpc = new PageRpcRegistry();
   constructor(
@@ -77,42 +72,59 @@ export default class ScriptingRuntime {
   }
 
   init() {
-    this.extServer.on("runtime/emitEvent", (data) => {
-      // USER_SCRIPT 的私有回调通过原生扩展端口投递。
-      return this.broadcastToPage("runtime/emitEvent", data, PageOrContent.PAGE);
+    this.extServer.on("runtime/emitEvent", () => {
+      if (!this.mainFallbackActive) return undefined;
+      return this.deliverFallbackBatch();
     });
-    this.extServer.on("runtime/valueUpdate", (data) => {
-      // USER_SCRIPT 的私有值更新通过原生扩展端口投递。
-      return this.broadcastToPage("runtime/valueUpdate", data, PageOrContent.PAGE);
+    this.extServer.on("runtime/valueUpdate", () => {
+      if (!this.mainFallbackActive) return undefined;
+      return this.deliverFallbackBatch();
     });
+    this.extServer.on("runtime/pumpFallback", (data: { transportToken?: unknown }) => {
+      if (!this.mainFallbackActive || data?.transportToken !== this.mainTransportToken) return undefined;
+      return this.deliverFallbackBatch();
+    });
+    this.server.on("resolveMainTransport", async (data: { transportToken?: unknown }) => {
+      if (typeof data?.transportToken !== "string") return { mode: "missing" as const };
+      const resolution = await new RuntimeClient(this.senderToExt).resolveMainTransport({
+        transportToken: data.transportToken,
+        forceFallback: true,
+      });
+      return this.activateFallback(resolution);
+    });
+    this.server.on("advanceMainFallback", (data: { transportToken?: unknown; ackBatchId?: unknown }) =>
+      new RuntimeClient(this.senderToExt).advanceMainFallback({
+        transportToken: typeof data?.transportToken === "string" ? data.transportToken : "",
+        ...(typeof data?.ackBatchId === "number" ? { ackBatchId: data.ackBatchId } : {}),
+      })
+    );
+    // Kept only for older inject bundles; current MAIN selection uses resolveMainTransport and returns the
+    // authoritative payload in that response.
     this.server.on("pageLoadFallback", () => {
-      const pageLoad = this.fallbackInjectPageLoad;
-      if (!pageLoad) return undefined;
-      this.fallbackInjectPageLoad = undefined;
-      return new Client(this.senderToInject, "inject").do("pageLoad", pageLoad);
+      const fallback = this.pendingLegacyFallback;
+      if (!fallback) return undefined;
+      this.pageRpc.revokeAll();
+      const activeScripts: TScriptInfo[] = [];
+      for (const script of fallback.scripts) {
+        if (!script.executionHandle) {
+          console.warn(`ScriptCat: script ${script.uuid} has no authoritative execution handle, skipping`);
+          continue;
+        }
+        this.pageRpc.register(
+          script.uuid,
+          "it",
+          getPageRpcAllowedAPIs(getEffectiveScriptGrants(script.metadata)),
+          script.executionHandle,
+          script.executionRunFlag
+        );
+        activeScripts.push(script);
+      }
+      this.mainFallbackActive = true;
+      this.pendingLegacyFallback = undefined;
+      return new Client(this.senderToInject, "inject").do("pageLoad", { ...fallback, scripts: activeScripts });
     });
     this.server.on("logger", (data: Logger) => {
       LoggerCore.logger().log(data.level, data.message, data.label);
-    });
-
-    // ================================
-    // 来自 service_worker 的投递：storage 广播（类似 UDP）
-    // ================================
-
-    // 接收 service_worker 的 chrome.storage.local 值改变通知 （一对多广播）
-    // 类似 UDP 原理，service_worker 不会有任何「等待处理」
-    // 由于 changes 会包括新旧值 (Chrome: JSON serialization, Firefox: Structured Clone)
-    // 因此需要注意资讯量不要过大导致 onChanged 的触发过慢
-    deliveryStorage.onChanged.addListener((changes) => {
-      const record = changes["valueUpdateDelivery"];
-      if (record?.newValue) {
-        const sendData = (record.newValue as { sendData: ValueUpdateDataEncoded }).sendData;
-        const activeOn = this.activeStorageNames.get(sendData.storageName);
-        if (activeOn) {
-          // 转发给 content 和 inject
-          this.broadcastToPage("runtime/valueUpdate", sendData, (activeOn & PageOrContent.PAGE) as PageOrContent);
-        }
-      }
     });
 
     forwardMessage("serviceWorker", "script/isInstalled", this.server, this.senderToExt);
@@ -189,20 +201,73 @@ export default class ScriptingRuntime {
     );
   }
 
+  private activateFallback(resolution: MainTransportResolution): MainTransportResolution | Record<string, unknown> {
+    if (resolution.mode !== "fallback") return resolution;
+    this.pageRpc.revokeAll();
+    const activeScripts: TScriptInfo[] = [];
+    for (const script of resolution.scripts as TScriptInfo[]) {
+      const handle = script.executionHandle;
+      if (!handle) continue;
+      const allowedAPIs = getPageRpcAllowedAPIs(getEffectiveScriptGrants(script.metadata));
+      this.pageRpc.register(script.uuid, "it", allowedAPIs, handle, script.executionRunFlag);
+      activeScripts.push(script);
+    }
+    this.mainFallbackActive = true;
+    return {
+      ...resolution,
+      scripts: activeScripts,
+      pageLoad: { scripts: activeScripts, envInfo: resolution.envInfo, reconnectToken: undefined },
+    };
+  }
+
+  private async deliverFallbackBatch(): Promise<undefined> {
+    if (!this.mainFallbackActive || !this.mainTransportToken) return undefined;
+    const resolution = await new RuntimeClient(this.senderToExt).advanceMainFallback({
+      transportToken: this.mainTransportToken,
+    });
+    if (resolution.mode !== "fallback" || !resolution.batch) return undefined;
+    await sendMessage(this.senderToInject, "inject/fallbackBatch", resolution.batch);
+    return undefined;
+  }
+
   pageLoad() {
     const client = new RuntimeClient(this.senderToExt);
+    let lifecycleSequence = 0;
     // bfcache 还原不会重新执行 content script，pageLoad 因此只发生一次；
     // 但页面里的脚本仍在运行，需要补一次上报，否则 Popup 会误判本页没有脚本在跑。
     // 只有顶层 frame 参与判定，子 frame 不必上报。
     if (window.top === window) {
       window.addEventListener("pageshow", (e) => {
-        if (e.persisted) client.pageShow();
+        if (e.persisted && this.mainTransportToken) {
+          void client
+            .mainTransportLifecycle({
+              transportToken: this.mainTransportToken,
+              lifecycleSequence: ++lifecycleSequence,
+              event: "pageshow",
+              persisted: true,
+            })
+            .then(() => this.deliverFallbackBatch());
+          void client.pageShow();
+        }
+      });
+      window.addEventListener("pagehide", (e) => {
+        if (this.mainTransportToken) {
+          void client.mainTransportLifecycle({
+            transportToken: this.mainTransportToken,
+            lifecycleSequence: ++lifecycleSequence,
+            event: "pagehide",
+            persisted: e.persisted,
+          });
+        }
       });
     }
     // 向service_worker请求脚本列表及环境信息
-    client.pageLoad("it").then((o) => {
+    const pageLoadPromise = client.pageLoad("it");
+    this.mainTransportToken = client.mainTransportToken;
+    pageLoadPromise.then((o) => {
       if (!o.ok) return;
       const { injectScriptList, envInfo, userScriptBootstrapToken, userScriptInjectBootstrapToken } = o;
+      this.mainTransportToken = o.mainTransportToken || client.mainTransportToken;
       // 每次页面加载都废弃旧句柄，避免无 documentId 的浏览器复用上一文档的授权。
       this.pageRpc.revokeAll();
       const prepareScripts = (scripts: typeof injectScriptList) => {
@@ -223,12 +288,7 @@ export default class ScriptingRuntime {
         return prepared;
       };
       const preparedInjectScriptList = prepareScripts(injectScriptList);
-      const pairs = {} as Record<string, PageOrContent>;
-      for (const script of preparedInjectScriptList) {
-        pairs[getStorageName(script)] |= PageOrContent.PAGE;
-      }
-      this.activeStorageNames = new Map(Object.entries(pairs));
-
+      this.pendingLegacyFallback = { scripts: preparedInjectScriptList, envInfo };
       if (typeof userScriptBootstrapToken === "string" && userScriptBootstrapToken.length > 0) {
         const contentClient = new Client(this.senderToContent, "content");
         contentClient.do("pageLoad", {
@@ -239,7 +299,6 @@ export default class ScriptingRuntime {
       }
 
       if (typeof userScriptInjectBootstrapToken === "string" && userScriptInjectBootstrapToken.length > 0) {
-        this.fallbackInjectPageLoad = { scripts: preparedInjectScriptList, envInfo };
         const injectClient = new Client(this.senderToInject, "inject");
         injectClient.do("bootstrap", { bootstrapToken: userScriptInjectBootstrapToken });
       }

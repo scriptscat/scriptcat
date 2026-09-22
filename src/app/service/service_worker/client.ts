@@ -17,6 +17,8 @@ import type {
   TOpenUpdatePageResult,
   TPopupPageStatus,
 } from "./types";
+import type { MainTransportLifecycleRequest, MainTransportResolution } from "./types";
+import { uuidv4 } from "@App/pkg/utils/uuid";
 import { Client } from "@Packages/message/client";
 import type { MessageSend } from "@Packages/message/types";
 import type PermissionVerify from "./permission_verify";
@@ -336,6 +338,8 @@ export class ValueClient extends Client {
 }
 
 export class RuntimeClient extends Client {
+  mainTransportToken?: string;
+
   constructor(msgSender: MessageSend) {
     super(msgSender, "serviceWorker/runtime");
   }
@@ -350,7 +354,26 @@ export class RuntimeClient extends Client {
 
   // envTag 让 service worker 区分主世界请求与 content-world bootstrap，分别签发/回收句柄。
   pageLoad(envTag?: "it" | "ct"): Promise<TClientPageLoadInfo> {
-    return this.doThrow("pageLoad", envTag ? { envTag } : undefined);
+    if (envTag === "it" && !this.mainTransportToken) this.mainTransportToken = uuidv4();
+    const data =
+      envTag === "it" ? { envTag, mainTransportToken: this.mainTransportToken } : envTag ? { envTag } : undefined;
+    return this.doThrow("pageLoad", data);
+  }
+
+  resolveMainTransport(data: { transportToken: string; forceFallback?: boolean }): Promise<MainTransportResolution> {
+    return this.do<MainTransportResolution>("resolveMainTransport", data).then(
+      (result) => result || { mode: "missing" }
+    );
+  }
+
+  mainTransportLifecycle(data: MainTransportLifecycleRequest) {
+    return this.do("mainTransportLifecycle", data);
+  }
+
+  advanceMainFallback(data: { transportToken: string; ackBatchId?: number }) {
+    return this.do<MainTransportResolution>("advanceMainFallback", data).then(
+      (result) => result || { mode: "missing" as const }
+    );
   }
 
   /** bfcache 还原上报：只告知本页仍在运行，不请求脚本 */
