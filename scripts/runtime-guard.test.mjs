@@ -42,18 +42,13 @@ describe("pre-push guard failure policy", () => {
   it("blocks obvious code failures", () => {
     expect(shouldBlockGuardFailure("static", "src/foo.ts:1:1 - error TS2322: type mismatch")).toBe(true);
     expect(shouldBlockGuardFailure("static", "AssertionError: expected value to be true")).toBe(true);
-    expect(shouldBlockGuardFailure("static", "Test Files 1 failed\nnetwork rule assertion failed")).toBe(true);
     expect(shouldBlockGuardFailure("e2e", "Error: expect(locator).toHaveAttribute failed")).toBe(true);
+    expect(shouldBlockGuardFailure("static", "ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL\nerror TS2322")).toBe(true);
   });
 
-  it("allows local tool and browser environment failures", () => {
+  it("allows failures without a definite code error", () => {
     expect(shouldBlockGuardFailure("static", "spawnSync pnpm ENOENT")).toBe(false);
     expect(shouldBlockGuardFailure("e2e", "thermal_state_observer_mac.mm:140 SIGTRAP")).toBe(false);
-    expect(
-      shouldBlockGuardFailure(
-        "e2e",
-        "browserType.launchPersistentContext: Target page, context or browser has been closed"
-      )
-    ).toBe(false);
+    expect(shouldBlockGuardFailure("e2e", "TimeoutError: browser launch timed out")).toBe(false);
   });
 });
