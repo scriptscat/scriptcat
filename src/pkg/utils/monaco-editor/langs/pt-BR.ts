@@ -54,6 +54,7 @@ export default {
   replaceIncludeWithMatch: "Substituir @include por @match {0}",
   grantConflict: "@grant none não pode ser usado junto com GM APIs. Remova none ou todas as GM APIs.",
   duplicateResourceName: 'O nome de @resource "{0}" foi declarado mais de uma vez.',
+  unsupportedGrant: "@grant {0} não é suportado pelo ScriptCat e não terá efeito.",
   grantValuePrompts,
   prompt: {
     name: "Nome do script",

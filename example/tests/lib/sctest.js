@@ -1485,13 +1485,18 @@
       var lines = [sumLine.textContent];
       Object.keys(caseNodes).forEach(function (key) {
         var node = caseNodes[key];
+        var result = node.result;
+        var duration = result && result.status === STATUS.MANUAL ? "人工" : formatDuration(result && result.durationMs);
         lines.push(
           (ICONS[node.status] || "○") +
             " [" +
             node.status +
             "] " +
             key.replace("//", " › ") +
-            (node.result ? formatDetails(node.result) : "")
+            " (" +
+            duration +
+            ")" +
+            (result ? formatDetails(result) : "")
         );
       });
       return lines.join("\n");

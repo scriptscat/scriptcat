@@ -53,6 +53,7 @@ export default {
   replaceIncludeWithMatch: "将 @include 改为 @match {0}",
   grantConflict: "@grant none 不能和 GM API 同时使用；请移除 none 或所有 GM API。",
   duplicateResourceName: '@resource 名称 "{0}" 被重复声明。',
+  unsupportedGrant: "@grant {0} 不受 ScriptCat 支持，不会生效。",
   grantValuePrompts,
   prompt: {
     name: "脚本名称",
