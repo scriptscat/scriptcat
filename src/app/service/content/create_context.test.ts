@@ -289,6 +289,61 @@ const createTestContext = (grants: string[], metadata: Record<string, string[]> 
     new Set(grants)
   );
 
+describe("context 生命周期方法：构造与投影边界", () => {
+  it("继承的 Object.prototype.get 不应让 createContext 构造失败", () => {
+    // 描述符字面量 {configurable, enumerable, value} 是普通对象，会继承 Object.prototype。
+    // 若生命周期方法仍用 Native.objectDefineProperty(..., {value: ...}) 构造，
+    // 页面预先在 Object.prototype 上放置的 get/set 会让该字面量同时具备
+    // value 和 get，触发 "同时指定访问器与 value" 的 TypeError。
+    // 用不带任何 @grant 的 fixture，排除 capability name/length 描述符调用的干扰。
+    const originalDescriptor = Object.getOwnPropertyDescriptor(Object.prototype, "get");
+    let context: ReturnType<typeof createTestContext> | undefined;
+    let threw: unknown;
+    try {
+      Object.defineProperty(Object.prototype, "get", {
+        configurable: true,
+        value: () => undefined,
+      });
+      try {
+        context = createTestContext([]);
+      } catch (error) {
+        threw = error;
+      }
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(Object.prototype, "get", originalDescriptor);
+      } else {
+        delete (Object.prototype as AnyRecord).get;
+      }
+    }
+
+    expect(threw).toBeUndefined();
+    expect(context).toBeDefined();
+    expect(context!.valueUpdate).toBeTypeOf("function");
+  });
+
+  it("六个内部生命周期方法在 context 上可调用，但不投影到实际的脚本沙盒", () => {
+    const context = createTestContext(["GM_getValue"]);
+    const sandbox = createProxyContext(context, createSplitRealmRoots().roots);
+
+    expect(context.valueUpdate).toBeTypeOf("function");
+    expect(context.emitEvent).toBeTypeOf("function");
+    expect(context.setInvalidContext).toBeTypeOf("function");
+    expect(context.isInvalidContext).toBeTypeOf("function");
+    expect(context.setExecutionRunFlag).toBeTypeOf("function");
+    expect(context.resolveLoadScript).toBeTypeOf("function");
+
+    expect(sandbox.valueUpdate).toBeUndefined();
+    expect(sandbox.emitEvent).toBeUndefined();
+    expect(sandbox.setInvalidContext).toBeUndefined();
+    expect(sandbox.isInvalidContext).toBeUndefined();
+    expect(sandbox.setExecutionRunFlag).toBeUndefined();
+    expect(sandbox.resolveLoadScript).toBeUndefined();
+    // 已授权的 API 仍应正常投影，证明过滤只挡内部键。
+    expect(sandbox.GM_getValue).toBeTypeOf("function");
+  });
+});
+
 describe("shouldFnBind", () => {
   it("只把 native-like callable 視為需要 receiver binding", () => {
     expect(shouldFnBind(Object.prototype.valueOf)).toBe(true);

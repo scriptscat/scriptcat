@@ -61,6 +61,12 @@ type InternalScriptContext = IGM_Base & {
   loadScriptResolve?: () => void;
 };
 
+// context → mySandbox 投影时必须排除的内部键：四个已在 protect 中登记的 GM_Base
+// 生命周期成员，加上两个只存在于 facade、未登记在 protect 的早期启动钩子。
+// 供 createProxyContext 的投影过滤，以及 exec_script.ts 的 globalInjection 碰撞检查复用。
+export const isInternalContextKey = (key: string): boolean =>
+  key === "setExecutionRunFlag" || key === "resolveLoadScript" || Native.objectHasOwn(protect, key);
+
 // 构建沙盒上下文
 export const createContext = (
   scriptRes: TScriptInfo,
@@ -125,39 +131,19 @@ export const createContext = (
   publicContext.window = Native.objectCreate(null);
   publicContext.unsafeWindow = window;
 
-  // 生命周期方法只供隔离执行器使用，不进入脚本可枚举的 facade。
-  Native.objectDefineProperty(publicContext, "valueUpdate", {
-    configurable: false,
-    enumerable: false,
-    value: (data: any) => context.valueUpdate(data),
-  });
-  Native.objectDefineProperty(publicContext, "emitEvent", {
-    configurable: false,
-    enumerable: false,
-    value: (event: string, eventId: string, data: any) => context.emitEvent(event, eventId, data),
-  });
-  Native.objectDefineProperty(publicContext, "setInvalidContext", {
-    configurable: false,
-    enumerable: false,
-    value: () => context.setInvalidContext(),
-  });
-  Native.objectDefineProperty(publicContext, "isInvalidContext", {
-    configurable: false,
-    enumerable: false,
-    value: () => context.isInvalidContext(),
-  });
-  Native.objectDefineProperty(publicContext, "setExecutionRunFlag", {
-    configurable: false,
-    enumerable: false,
-    value: (runFlag: string) => {
-      context.runFlag = runFlag;
-    },
-  });
-  Native.objectDefineProperty(publicContext, "resolveLoadScript", {
-    configurable: false,
-    enumerable: false,
-    value: () => context.loadScriptResolve?.(),
-  });
+  // 生命周期方法只供隔离执行器使用；对脚本不可见由 createProxyContext 的显式
+  // isInternalContextKey 投影过滤保证，不依赖此处的描述符可枚举性——描述符字面量
+  // 会继承 Object.prototype，页面预先放置的 get/set 会让 defineProperty 抛错。
+  publicContext.valueUpdate = (data: any) => context.valueUpdate(data);
+  publicContext.emitEvent = (event: string, eventId: string, data: any) => context.emitEvent(event, eventId, data);
+  publicContext.setInvalidContext = () => context.setInvalidContext();
+  publicContext.isInvalidContext = () => context.isInvalidContext();
+  publicContext.setExecutionRunFlag = (runFlag: string) => {
+    context.runFlag = runFlag;
+  };
+  publicContext.resolveLoadScript = () => {
+    context.loadScriptResolve?.();
+  };
 
   const grantedAPIs: { [key: string]: any } = Native.objectCreate(null);
   const __methodInject__ = (grant: string): boolean => {
@@ -609,7 +595,7 @@ export const createProxyContext = <const Context extends GMWorldContext>(
   const contextKeys = Native.objectKeys(context);
   for (let i = 0; i < contextKeys.length; i += 1) {
     const key = contextKeys[i];
-    if (Native.objectHasOwn(protect, key) || key === "window") continue;
+    if (isInternalContextKey(key) || key === "window") continue;
     mySandbox[key] = context[key]; // window以外
   }
 

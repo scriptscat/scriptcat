@@ -1,6 +1,6 @@
 import LoggerCore from "@App/app/logger/core";
 import type Logger from "@App/app/logger/logger";
-import { createContext, createProxyContext, type ScriptContext } from "./create_context";
+import { createContext, createProxyContext, isInternalContextKey, type ScriptContext } from "./create_context";
 import type { GMInfoEnv, ScriptFunc } from "./types";
 import { compileScript, getEffectiveScriptGrants, isContextMenuScript } from "./utils";
 import type { Message } from "@Packages/message/types";
@@ -61,9 +61,25 @@ export default class ExecScript {
       this.named = { GM, GM_info };
     } else {
       // 构建脚本GM上下文
-      this.sandboxContext = createContext(scriptRes, GM_info, envPrefix, message, contentMsg, grantSet);
+      const sandboxContext = (this.sandboxContext = createContext(
+        scriptRes,
+        GM_info,
+        envPrefix,
+        message,
+        contentMsg,
+        grantSet
+      ));
       if (globalInjection) {
-        Native.objectAssign(this.sandboxContext, globalInjection);
+        // 可信扩展代码提供的 key 一般不会撞上内部生命周期键；一旦撞上说明调用方有 bug，
+        // 应立即失败而不是静默跳过——因此只在真正冲突时才拒绝，其余按原行为直接写入。
+        const keys = Native.objectKeys(globalInjection);
+        for (let i = 0; i < keys.length; i += 1) {
+          const key = keys[i];
+          if (isInternalContextKey(key) && Native.objectHasOwn(sandboxContext, key)) {
+            throw new TypeError(`globalInjection cannot overwrite internal context key: ${key}`);
+          }
+          sandboxContext[key] = globalInjection[key];
+        }
       }
     }
   }

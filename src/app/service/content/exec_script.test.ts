@@ -602,3 +602,61 @@ describe("getEffectiveScriptGrants consumer (P1-2)", () => {
     expect(exec.named).toBeUndefined();
   });
 });
+
+describe("globalInjection", () => {
+  it("接受合法的注入键，并投影到脚本沙盒", () => {
+    const script = makeScript({ metadata: { grant: ["GM_getValue"], version: ["1.0.0"] } });
+    const message = {} as Message;
+    const exec = new ExecScript(script, {
+      envPrefix: "scripting",
+      message,
+      contentMsg: message,
+      code: nilFn,
+      envInfo,
+      globalInjection: { customGlobal: () => "injected" },
+    });
+
+    expect(exec.sandboxContext).not.toBeUndefined();
+    expect((exec.sandboxContext as unknown as { customGlobal: () => string }).customGlobal()).toBe("injected");
+
+    exec.exec();
+    expect((exec.execContext as { customGlobal: () => string }).customGlobal()).toBe("injected");
+  });
+
+  it("撞上已存在的内部生命周期键时立即抛出 TypeError，而不是静默跳过", () => {
+    const script = makeScript({ metadata: { grant: ["GM_getValue"], version: ["1.0.0"] } });
+    const message = {} as Message;
+
+    expect(
+      () =>
+        new ExecScript(script, {
+          envPrefix: "scripting",
+          message,
+          contentMsg: message,
+          code: nilFn,
+          envInfo,
+          globalInjection: { setInvalidContext: () => undefined },
+        })
+    ).toThrow(TypeError);
+  });
+
+  it("使用 protect 登记但当前不在 facade 上的键时不抛错（保留原 Object.assign 行为）", () => {
+    // message/scriptRes/runFlag 等是 GM_Base 的 @protected 成员，但从不出现在
+    // createContext() 返回的 publicContext 自身键上；沿用旧 Object.assign 语义，
+    // 不能把这类不存在的键也当成"内部键碰撞"而新增拒绝。
+    const script = makeScript({ metadata: { grant: ["GM_getValue"], version: ["1.0.0"] } });
+    const message = {} as Message;
+
+    expect(
+      () =>
+        new ExecScript(script, {
+          envPrefix: "scripting",
+          message,
+          contentMsg: message,
+          code: nilFn,
+          envInfo,
+          globalInjection: { message: "not-a-real-message-object" },
+        })
+    ).not.toThrow();
+  });
+});
