@@ -13,7 +13,7 @@ import { runScript, stopScript } from "../offscreen/client";
 import {
   buildScriptRunResourceBasic,
   compileInjectionCode,
-  filterUserScriptApiMatchPatterns,
+  filterUserScriptApiPatternsByScheme,
   getCombinedMeta,
   getUserScriptRegister,
   parseUrlSRI,
@@ -835,7 +835,7 @@ export class RuntimeService {
         excludeGlobs.push(rule.patternString);
       }
     }
-    this.blacklistExcludeMatches = filterUserScriptApiMatchPatterns(excludeMatches);
+    this.blacklistExcludeMatches = filterUserScriptApiPatternsByScheme(excludeMatches);
     this.blacklistExcludeGlobs = excludeGlobs;
   }
 
@@ -975,12 +975,14 @@ export class RuntimeService {
           resultCode = await this.restoreJSCodeFromCompiledResource(script, result);
         }
         if (!resultCode) return undefined;
+        const matches = filterUserScriptApiPatternsByScheme(result.matches);
+        if (matches.length === 0) return undefined;
         const registerScript = {
           id: result.uuid,
           js: [{ code: resultCode }],
-          matches: filterUserScriptApiMatchPatterns(result.matches),
+          matches,
           includeGlobs: result.includeGlobs,
-          excludeMatches: filterUserScriptApiMatchPatterns([...result.excludeMatches, ...excludeMatches]),
+          excludeMatches: filterUserScriptApiPatternsByScheme([...result.excludeMatches, ...excludeMatches]),
           excludeGlobs: [...result.excludeGlobs, ...excludeGlobs],
           allFrames: result.allFrames,
           world: result.world,
