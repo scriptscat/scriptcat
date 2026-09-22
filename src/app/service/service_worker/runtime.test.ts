@@ -650,6 +650,18 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
       expect(blacklistResult2).toBe(true);
       expect(normalResult2).toBe(false);
     });
+
+    it.concurrent("Chromium 原生黑名单应过滤不支持的 scheme，但内部匹配规则保持不变", async () => {
+      const blacklistString = "*://www.blacklisted.com/*\nnotsupported://*/*";
+      mockSystemConfig.getBlacklist.mockReturnValue(blacklistString);
+      runtime.blacklist = obtainBlackList(blacklistString);
+
+      runtime.loadBlacklist();
+
+      expect(runtime.blackMatch?.rulesMap.get("BK")?.length || 0).toBe(2);
+      expect(runtime.blacklistExcludeMatches).toEqual(["*://www.blacklisted.com/*"]);
+      expect(runtime.isUrlBlacklist("notsupported://example/path")).toBe(true);
+    });
   });
 });
 
@@ -1318,6 +1330,59 @@ describe("pushValueUpdate 判断是否需要为 early-start 脚本重新编译",
     });
 
     expect(updateSpy).toHaveBeenCalledWith(script);
+  });
+});
+
+describe("getParticularScriptList 原生 match scheme 过滤", () => {
+  const createCompiledResource = (script: Script, matches: string[]): CompiledResource => {
+    const patterns = scriptURLPatternResults(_createScriptRunResource(script))!;
+    return {
+      name: script.name,
+      flag: "",
+      uuid: script.uuid,
+      require: [],
+      matches,
+      includeGlobs: [],
+      excludeMatches: ["notsupported://*/*"],
+      excludeGlobs: [],
+      allFrames: false,
+      world: "MAIN",
+      runAt: "",
+      scriptUrlPatterns: patterns.scriptUrlPatterns,
+      originalUrlPatterns: null,
+    };
+  };
+
+  it("旧缓存混有不支持 scheme 时只恢复有效的原生 match pattern", async () => {
+    const { runtime, mockScriptDAO } = _createRuntimeContext();
+    const script = _createMockScript();
+    const compiledResource = createCompiledResource(script, ["https://*/*", "notsupported://*/*"]);
+    mockScriptDAO.all.mockResolvedValue([script]);
+    runtime.compiledResourceDAO = {
+      get: vi.fn().mockResolvedValue(compiledResource),
+    } as any;
+    vi.spyOn(runtime, "restoreJSCodeFromCompiledResource").mockResolvedValue("console.log(1);");
+
+    const list = await runtime.getParticularScriptList({ excludeMatches: [], excludeGlobs: [] });
+
+    expect(list).toHaveLength(1);
+    expect(list[0].matches).toEqual(["https://*/*"]);
+    expect(list[0].excludeMatches).toEqual([]);
+  });
+
+  it("旧缓存没有任何 Chromium 可注册 scheme 时不创建原生注册项", async () => {
+    const { runtime, mockScriptDAO } = _createRuntimeContext();
+    const script = _createMockScript();
+    const compiledResource = createCompiledResource(script, ["notsupported://*/*"]);
+    mockScriptDAO.all.mockResolvedValue([script]);
+    runtime.compiledResourceDAO = {
+      get: vi.fn().mockResolvedValue(compiledResource),
+    } as any;
+    vi.spyOn(runtime, "restoreJSCodeFromCompiledResource").mockResolvedValue("console.log(1);");
+
+    const list = await runtime.getParticularScriptList({ excludeMatches: [], excludeGlobs: [] });
+
+    expect(list).toEqual([]);
   });
 });
 
