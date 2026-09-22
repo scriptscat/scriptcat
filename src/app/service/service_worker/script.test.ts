@@ -257,6 +257,30 @@ describe("ScriptService.getAllScripts", () => {
     await expect(scriptDAO.get("second")).resolves.toMatchObject({ sort: 1 });
   });
 
+  it("归一化任务排队期间重复读取只入队一次", async () => {
+    const { service, scriptDAO } = buildService();
+    await scriptDAO.save(makeScript({ uuid: "first", sort: 5 }));
+    await scriptDAO.save(makeScript({ uuid: "second", sort: 9 }));
+    const allSpy = vi.spyOn(scriptDAO, "all");
+    let releaseSync!: () => void;
+    const syncGate = new Promise<void>((resolve) => {
+      releaseSync = resolve;
+    });
+    const syncPromise = stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, () => syncGate);
+
+    await Promise.all([service.getAllScripts(), service.getAllScripts(), service.getAllScripts()]);
+    expect(allSpy).toHaveBeenCalledTimes(3);
+
+    releaseSync();
+    await syncPromise;
+    // 等归一化任务完成；若每次读取都重复入队，all() 会额外执行三次而不是一次。
+    await stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, () => undefined);
+
+    expect(allSpy).toHaveBeenCalledTimes(4);
+    await expect(scriptDAO.get("first")).resolves.toMatchObject({ sort: 0 });
+    await expect(scriptDAO.get("second")).resolves.toMatchObject({ sort: 1 });
+  });
+
   it("排序已连续时不入队归一化任务", async () => {
     const { service, scriptDAO, mq } = buildService();
     await scriptDAO.save(makeScript({ uuid: "first", sort: 0 }));
