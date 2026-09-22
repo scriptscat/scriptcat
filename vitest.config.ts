@@ -67,7 +67,7 @@ export default defineConfig({
           ...sharedTest,
           pool: "vmThreads",
           isolate: false,
-          maxWorkers: "75%",
+          maxWorkers: process.env.CI ? "75%" : 1,
           testTimeout: 340,
           sequence: {
             groupOrder: 0,
@@ -83,10 +83,10 @@ export default defineConfig({
           exclude: BASE_EXCLUDE,
           environment: "node",
           pool: "threads",
-          maxWorkers: "75%",
+          maxWorkers: process.env.CI ? "75%" : 1,
           testTimeout: 340,
           sequence: {
-            groupOrder: 0,
+            groupOrder: process.env.CI ? 0 : 1,
           },
         },
       },
@@ -102,10 +102,10 @@ export default defineConfig({
           isolate: false,
           // UI renders and V8 coverage are CPU-bound; leave headroom for the fast/scripts projects
           // so the fixed 850ms per-test budget measures the test rather than worker starvation.
-          maxWorkers: "50%",
+          maxWorkers: process.env.CI ? "50%" : 1,
           testTimeout: 850,
           sequence: {
-            groupOrder: 1,
+            groupOrder: process.env.CI ? 1 : 2,
           },
         },
       },
@@ -119,10 +119,10 @@ export default defineConfig({
           ...sharedTest,
           pool: "threads",
           isolate: true,
-          maxWorkers: "50%",
+          maxWorkers: process.env.CI ? "50%" : 1,
           testTimeout: 340,
           sequence: {
-            groupOrder: 1,
+            groupOrder: process.env.CI ? 1 : 3,
           },
         },
       },
