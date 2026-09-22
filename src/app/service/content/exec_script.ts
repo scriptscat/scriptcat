@@ -7,7 +7,7 @@ import type { Message } from "@Packages/message/types";
 import type { ValueUpdateDataEncoded } from "./types";
 import { evaluateGMInfo } from "./gm_api/gm_info";
 import type { TScriptInfo } from "@App/app/repo/scripts";
-import { Native, nativeCall } from "./global";
+import { installTrustedDataPropertiesStrict, Native, nativeCall, refreshExposedDataProperties } from "./global";
 
 // 编译函数只在收到本次构建的密钥时执行，避免页面直接复用包装器。
 const fnStrIntegrity = process.env.SC_RANDOM_FNKEY!;
@@ -139,10 +139,15 @@ export default class ExecScript {
       return false;
     }
 
-    Native.objectAssign(current, scriptInfo);
+    // current 是内部可信状态（this.scriptRes）：任何无法安全重定义的既有属性都说明契约被破坏，
+    // 直接失败，绝不调用继承的 setter 或触发 "__proto__" 的原型变更语义。
+    installTrustedDataPropertiesStrict(current, scriptInfo);
     const updatedGMInfo = evaluateGMInfo(envInfo, current);
     const gmInfo = this.sandboxContext ? this.execContext["GM_info"] : this.named?.GM_info;
-    if (gmInfo) Native.objectAssign(gmInfo, updatedGMInfo);
+    // gmInfo 是暴露给脚本的信息面：脚本可能已经在某个字段上安装了 non-configurable setter 来
+    // "锁死"它，这是脚本对自己信息面的合法操作，不能因此阻断内部权威状态的刷新——遇到这种字段
+    // 时跳过它，继续刷新其余字段，绝不调用该 setter。
+    if (gmInfo) refreshExposedDataProperties(gmInfo, updatedGMInfo);
 
     if (this.sandboxContext) {
       if (hasValidBinding) this.sandboxContext.setExecutionRunFlag(scriptInfo.executionRunFlag!);

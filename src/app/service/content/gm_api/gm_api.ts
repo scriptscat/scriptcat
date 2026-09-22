@@ -1,4 +1,4 @@
-import { customClone, nativeApply, Native } from "../global";
+import { customClone, installTrustedDataPropertiesStrict, nativeApply, Native } from "../global";
 import type { Message, MessageConnect } from "@Packages/message/types";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import type {
@@ -161,7 +161,9 @@ class GM_Base implements IGM_Base {
 
   constructor(options: any = null, obj: any = null) {
     if (obj !== integrity) throw new TypeError("Illegal invocation");
-    Native.objectAssign(this, options);
+    // options 是 createContext() 构造的内部纯数据初始化选项，this 是内部可信实例：
+    // 任何无法安全重定义的既有属性都说明契约被破坏，直接失败，绝不调用继承的 setter。
+    installTrustedDataPropertiesStrict(this, options);
   }
 
   @GMContext.protected()

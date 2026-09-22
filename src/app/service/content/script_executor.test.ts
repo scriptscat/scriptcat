@@ -183,6 +183,279 @@ describe("ScriptExecutor", () => {
     expect(exec.execContext.GM_info).toBe(gmInfo);
   });
 
+  it("early-start reconciliation installs new scriptRes fields without invoking an inherited setter", () => {
+    // Native.objectAssign(current, scriptInfo) 对每个 key 做普通 [[Set]]；current 自身没有
+    // executionHandle 这个 own key（它是本轮 reconcile 才第一次出现的字段），普通赋值会沿原型链
+    // 查找继承的 setter 并调用它。安全的安装原语必须绕开这一步，直接在 current 上定义 own
+    // data property。
+    const original = Object.getOwnPropertyDescriptor(Object.prototype, "executionHandle");
+    let setterCalls = 0;
+    Object.defineProperty(Object.prototype, "executionHandle", {
+      configurable: true,
+      set() {
+        setterCalls += 1;
+      },
+      get() {
+        return undefined;
+      },
+    });
+    try {
+      const initial = {
+        ...makeScript({
+          uuid: "inherited-setter-test-uuid",
+          flag: "inherited-setter-test-flag",
+          metadata: { "early-start": [""], "run-at": ["document-start"] },
+        }),
+        scriptRevision: "inherited-setter-test-uuid:1:0",
+      } as TScriptInfo;
+      const executor = new ScriptExecutor({} as Message, {} as Message);
+      executor.execScriptEntry({
+        scriptLoadInfo: initial,
+        scriptFlag: initial.flag,
+        envInfo: initEnvInfo,
+        scriptFunc: () => undefined,
+      });
+      const exec = (
+        executor as unknown as {
+          execScripts: Map<
+            string,
+            { scriptRes: TScriptInfo; reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean }
+          >;
+        }
+      ).execScripts.get(initial.uuid)!;
+
+      const ok = exec.reconcileEarlyScript(initEnvInfo, {
+        ...initial,
+        executionHandle: "page-binding",
+        executionEnvTag: "it",
+        executionRunFlag: "page-run",
+      });
+
+      expect(ok).toBe(true);
+      expect(setterCalls).toBe(0);
+      expect(Object.hasOwn(exec.scriptRes, "executionHandle")).toBe(true);
+      expect(exec.scriptRes.executionHandle).toBe("page-binding");
+    } finally {
+      if (original) {
+        Object.defineProperty(Object.prototype, "executionHandle", original);
+      } else {
+        delete (Object.prototype as any).executionHandle;
+      }
+    }
+  });
+
+  it("early-start reconciliation does not let an own '__proto__' data property on scriptInfo mutate scriptRes's prototype", () => {
+    // customClone/structuredClone 把 "__proto__" 当成普通字符串 key，不当成原型设置语法，
+    // 所以一份经由 pageLoad 传输的 scriptInfo 理论上仍可能带有一个 own enumerable 的
+    // "__proto__" 数据属性。Object.assign 对它做普通 [[Set]] 会触发 Object.prototype 上继承的
+    // __proto__ setter，真的改写 current 的原型；安全的安装原语必须把它当成普通数据字段。
+    const initial = {
+      ...makeScript({
+        uuid: "proto-key-test-uuid",
+        flag: "proto-key-test-flag",
+        metadata: { "early-start": [""], "run-at": ["document-start"] },
+      }),
+      scriptRevision: "proto-key-test-uuid:1:0",
+    } as TScriptInfo;
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    executor.execScriptEntry({
+      scriptLoadInfo: initial,
+      scriptFlag: initial.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: () => undefined,
+    });
+    const exec = (
+      executor as unknown as {
+        execScripts: Map<
+          string,
+          { scriptRes: TScriptInfo; reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean }
+        >;
+      }
+    ).execScripts.get(initial.uuid)!;
+    const originalPrototype = Object.getPrototypeOf(exec.scriptRes);
+
+    const forgedScriptInfo: Record<string, unknown> = {
+      ...initial,
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+      executionRunFlag: "page-run",
+    };
+    Object.defineProperty(forgedScriptInfo, "__proto__", {
+      configurable: true,
+      enumerable: true,
+      value: { forgedPrototype: true },
+    });
+
+    const ok = exec.reconcileEarlyScript(initEnvInfo, forgedScriptInfo as TScriptInfo);
+
+    expect(ok).toBe(true);
+    expect(Object.getPrototypeOf(exec.scriptRes)).toBe(originalPrototype);
+  });
+
+  it("early-start reconciliation never invokes a userscript-installed configurable setter on GM_info, and replaces it with authoritative data", () => {
+    const initial = {
+      ...makeScript({
+        uuid: "gminfo-setter-test-uuid",
+        flag: "gminfo-setter-test-flag",
+        metadata: { "early-start": [""], "run-at": ["document-start"] },
+      }),
+      scriptRevision: "gminfo-setter-test-uuid:1:0",
+    } as TScriptInfo;
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    executor.execScriptEntry({
+      scriptLoadInfo: initial,
+      scriptFlag: initial.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: () => undefined,
+    });
+    const exec = (
+      executor as unknown as {
+        execScripts: Map<
+          string,
+          {
+            scriptRes: TScriptInfo;
+            reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean;
+            execContext: any;
+          }
+        >;
+      }
+    ).execScripts.get(initial.uuid)!;
+    const gmInfo = exec.execContext.GM_info;
+
+    let setterCalls = 0;
+    Object.defineProperty(gmInfo, "sandboxMode", {
+      configurable: true,
+      enumerable: true,
+      set() {
+        setterCalls += 1;
+      },
+      get() {
+        return "script-installed";
+      },
+    });
+
+    const ok = exec.reconcileEarlyScript(initEnvInfo, {
+      ...initial,
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+      executionRunFlag: "page-run",
+    });
+
+    expect(ok).toBe(true);
+    expect(setterCalls).toBe(0);
+    expect(Object.getOwnPropertyDescriptor(gmInfo, "sandboxMode")).toMatchObject({ value: "raw", writable: true });
+    expect(gmInfo.sandboxMode).toBe("raw");
+  });
+
+  it("early-start reconciliation is not blocked by a non-configurable hostile GM_info accessor; the locked field is skipped but everything else still reconciles", () => {
+    const initial = {
+      ...makeScript({
+        uuid: "gminfo-nonconfigurable-test-uuid",
+        flag: "gminfo-nonconfigurable-test-flag",
+        metadata: { "early-start": [""], "run-at": ["document-start"] },
+      }),
+      scriptRevision: "gminfo-nonconfigurable-test-uuid:1:0",
+    } as TScriptInfo;
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    executor.execScriptEntry({
+      scriptLoadInfo: initial,
+      scriptFlag: initial.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: () => undefined,
+    });
+    const exec = (
+      executor as unknown as {
+        execScripts: Map<
+          string,
+          {
+            scriptRes: TScriptInfo;
+            reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean;
+            execContext: any;
+          }
+        >;
+      }
+    ).execScripts.get(initial.uuid)!;
+    const gmInfo = exec.execContext.GM_info;
+
+    let setterCalls = 0;
+    Object.defineProperty(gmInfo, "sandboxMode", {
+      configurable: false,
+      enumerable: true,
+      get() {
+        return "script-locked";
+      },
+      set() {
+        setterCalls += 1;
+        throw new Error("must never execute");
+      },
+    });
+
+    const ok = exec.reconcileEarlyScript(initEnvInfo, {
+      ...initial,
+      value: { secret: "authoritative-value" },
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+      executionRunFlag: "page-run",
+    });
+
+    // 内部权威状态（scriptRes、execution binding、load lifecycle）必须照常完全生效，
+    // 完全不受脚本锁死自己 GM_info 某个字段这件事影响。
+    expect(ok).toBe(true);
+    expect(setterCalls).toBe(0);
+    expect(exec.scriptRes.executionHandle).toBe("page-binding");
+    expect(exec.scriptRes.executionEnvTag).toBe("it");
+    expect(exec.scriptRes.executionRunFlag).toBe("page-run");
+    expect(exec.scriptRes.value).toEqual({ secret: "authoritative-value" });
+    // 被锁死的字段维持脚本自己安装的值——不是被静默改写，也不是抛错阻断了其余字段。
+    expect(gmInfo.sandboxMode).toBe("script-locked");
+    // 未被锁死的字段仍然正常刷新。
+    expect(gmInfo.isIncognito).toBe(false);
+  });
+
+  it("GM.info stays the same object as GM_info across early-start reconciliation", () => {
+    const initial = {
+      ...makeScript({
+        uuid: "gminfo-identity-test-uuid",
+        flag: "gminfo-identity-test-flag",
+        metadata: { "early-start": [""], "run-at": ["document-start"] },
+      }),
+      scriptRevision: "gminfo-identity-test-uuid:1:0",
+    } as TScriptInfo;
+    const executor = new ScriptExecutor({} as Message, {} as Message);
+    executor.execScriptEntry({
+      scriptLoadInfo: initial,
+      scriptFlag: initial.flag,
+      envInfo: initEnvInfo,
+      scriptFunc: () => undefined,
+    });
+    const exec = (
+      executor as unknown as {
+        execScripts: Map<
+          string,
+          {
+            scriptRes: TScriptInfo;
+            reconcileEarlyScript: (envInfo: GMInfoEnv, scriptInfo?: TScriptInfo) => boolean;
+            execContext: any;
+          }
+        >;
+      }
+    ).execScripts.get(initial.uuid)!;
+
+    const gmInfoBefore = exec.execContext.GM_info;
+    expect(exec.execContext.GM.info).toBe(gmInfoBefore);
+
+    const ok = exec.reconcileEarlyScript(initEnvInfo, {
+      ...initial,
+      executionHandle: "page-binding",
+      executionEnvTag: "it",
+      executionRunFlag: "page-run",
+    });
+
+    expect(ok).toBe(true);
+    expect(exec.execContext.GM_info).toBe(gmInfoBefore);
+    expect(exec.execContext.GM.info).toBe(gmInfoBefore);
+  });
+
   it("rejects a different early-start revision and cancels its pending GM work", async () => {
     const initial = {
       ...makeScript({

@@ -200,6 +200,125 @@ export const customClone = (o: any) => {
   return undefined;
 };
 
+// ============================================================================
+// 可信数据安装：替代特权状态回填场景下的 Object.assign
+// ============================================================================
+// Object.assign(target, source) 的 CopyDataProperties 语义会：读取 source 的每个 own
+// enumerable key（若该 key 是 accessor 则执行其 getter）；对 target 做普通 [[Set]]（若 target
+// 自身没有该 key 的 own 属性，会沿原型链查找继承的 setter 并调用它；若 key 恰好是
+// "__proto__"，继承自 Object.prototype 的 __proto__ setter 会真的改写 target 的原型）。
+// 这些都是"普通 JavaScript 赋值语义"的一部分，对不可信或半可信的对象生效时就是安全隐患——
+// 与调用哪一份 Object.assign 实现（是否被页面替换）无关，Native.objectAssign 只保护函数引用
+// 本身不被替换，不改变上述语义。
+//
+// installTrustedDataPropertiesStrict / refreshExposedDataProperties 是两个共享同一份
+// descriptor-safe 安装逻辑的具名策略，用于把一份"纯数据"来源的字段安装到目标对象上：
+//   - 只读取 source 的 own enumerable *data* descriptor（`"value" in descriptor`），
+//     从不读取/执行 accessor 的 getter；
+//   - 只用 Native.objectDefineProperty 直接在 target 上定义/更新 own data property，
+//     从不做普通 [[Set]]，因此不会触发 target 自身或继承的 setter，也不会触发
+//     Object.prototype.__proto__ 的原型变更语义（"__proto__" 会被当成普通字符串 key）。
+//
+// 这两个函数只服务于本仓库里"内部纯数据记录安装到内部/半内部对象"这一类场景（早期脚本
+// 状态回填、GM_Base 初始化、暴露给脚本的 GM_info 刷新），不是通用 Object.assign 替代品：
+// 按现有调用点的实际数据形状，只处理字符串 key（符号 key 会被跳过，与本文件另一处
+// copyOwnEnumerableDataProperties 风格的既有约定一致），调用方需自行保证 source 本身
+// 是内部可信的纯数据对象。
+const readOwnStringKeyedDataProperties = (source: object): Array<[string, unknown]> => {
+  const keys = nativeReflectOwnKeys(source);
+  const entries: Array<[string, unknown]> = [];
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    if (typeof key !== "string") continue;
+    const descriptor = nativeObjectGetOwnPropertyDescriptor(source, key);
+    if (!descriptor || !descriptor.enumerable) continue;
+    if (!("value" in descriptor)) {
+      // 这三个调用点的 source 约定为内部纯数据；accessor 说明该内部契约已被破坏，
+      // 不应该静默跳过（会丢字段）也不应该执行它（会把访问器当数据源信任）。
+      throw new TypeError(`installTrustedDataProperties: source has an accessor own property "${key}"`);
+    }
+    entries.push([key, descriptor.value]);
+  }
+  return entries;
+};
+
+// target 已有的 own 属性若是 non-configurable 且无法只更新 value（accessor，或
+// non-configurable 且不可写的 data property），说明这个 key 无法在不执行任何 setter/不改变
+// 语义的前提下安全安装：
+//   "throw" —— 内部可信目标（scriptRes、GM_Base）视为契约被破坏，直接失败，绝不调用 setter；
+//   "skip"  —— 面向脚本暴露的信息对象（GM_info）：脚本可能故意在自己的字段上放了
+//              non-configurable accessor 来"锁死"它，这是脚本对自己信息面的合法操作，
+//              不能因此阻断内部权威状态的回填——跳过这一个 key，绝不调用它的 setter，
+//              继续安装其余字段。
+// 传给 Object.defineProperty 的 descriptor 参数本身也是一个普通对象，会继承 Object.prototype；
+// 如果直接用对象字面量 {value} / {configurable, enumerable, writable, value} 构造它，页面/脚本
+// 预先在 Object.prototype 上放置的 get/set 会让这份字面量"看起来"同时具备 value 和继承来的
+// accessor，触发 "Invalid property descriptor: Cannot both specify accessors and a value or
+// writable attribute" TypeError——这与本文件其余 descriptor 构造已经统一采用的
+// `Native.objectCreate(null)` 惯例（见 create_context.ts 的 readonlyCompatDescriptor）是同一个
+// 问题、同一个修法：用 null 原型对象构造 descriptor，再用普通赋值填字段（null 原型没有任何
+// 继承 setter，普通赋值在它上面总是安全的）。
+const valueOnlyDescriptor = (value: unknown): PropertyDescriptor => {
+  const descriptor = Native.objectCreate(null) as PropertyDescriptor;
+  descriptor.value = value;
+  return descriptor;
+};
+
+const trustedDataDescriptor = (value: unknown): PropertyDescriptor => {
+  const descriptor = Native.objectCreate(null) as PropertyDescriptor;
+  descriptor.configurable = true;
+  descriptor.enumerable = true;
+  descriptor.writable = true;
+  descriptor.value = value;
+  return descriptor;
+};
+
+const installOwnDataProperty = (target: object, key: string, value: unknown, onBlocked: "throw" | "skip"): void => {
+  const existing = nativeObjectGetOwnPropertyDescriptor(target, key);
+  if (existing) {
+    if ("value" in existing && existing.writable) {
+      // 已有可写 own data property：只替换 value，保留其余 descriptor 标志（包括
+      // non-configurable，这在 spec 里对"仅更新 value"始终允许）。
+      Native.objectDefineProperty(target, key, valueOnlyDescriptor(value));
+      return;
+    }
+    if (!existing.configurable) {
+      if (onBlocked === "throw") {
+        throw new TypeError(`installTrustedDataProperties: target property is not redefinable: "${key}"`);
+      }
+      return;
+    }
+    // existing.configurable === true 时（accessor 或不可写 data property 均可能），
+    // 落到下面的分支，用普通 own data property 整体重新定义，替换掉原有的 accessor/属性。
+  }
+  Native.objectDefineProperty(target, key, trustedDataDescriptor(value));
+};
+
+/**
+ * 把 source 的字符串 key 纯数据字段安装到内部可信 target 上（如早期脚本状态回填、
+ * GM_Base 初始化）。target 上任何无法安全重定义的既有属性都会导致抛错，而不是静默跳过或
+ * 调用其 setter——这些 target 被视为内部状态，出现这种情况说明契约已被破坏。
+ */
+export const installTrustedDataPropertiesStrict = (target: object, source: object): void => {
+  const entries = readOwnStringKeyedDataProperties(source);
+  for (let index = 0; index < entries.length; index += 1) {
+    installOwnDataProperty(target, entries[index][0], entries[index][1], "throw");
+  }
+};
+
+/**
+ * 把 source 的字符串 key 纯数据字段刷新到暴露给脚本的信息对象上（如 GM_info）。
+ * 脚本可能已经在这个对象的某个字段上安装了 non-configurable accessor 来"锁死"它——
+ * 那是脚本对自己信息面的合法操作，这里会跳过该字段并继续刷新其余字段，绝不调用该 setter，
+ * 也绝不让它阻断调用方后续的权威状态回填。
+ */
+export const refreshExposedDataProperties = (target: object, source: object): void => {
+  const entries = readOwnStringKeyedDataProperties(source);
+  for (let index = 0; index < entries.length; index += 1) {
+    installOwnDataProperty(target, entries[index][0], entries[index][1], "skip");
+  }
+};
+
 /** is Firefox browser? */
 //@ts-ignore
 const bFirefox = typeof mozInnerScreenX === "number";
