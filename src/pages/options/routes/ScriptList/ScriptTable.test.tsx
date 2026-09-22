@@ -51,14 +51,14 @@ const noopAsync = () => Promise.resolve();
 
 const TableHarness = ({
   scriptList,
-  updateScripts = noop,
   initialSortState = { key: null, order: "asc" },
+  toggleSelect = noop,
   toggleSelectAll = noop,
   selectedUuids = new Set<string>(),
 }: {
   scriptList: ScriptLoading[];
-  updateScripts?: (uuids: string[], data: Partial<ScriptLoading>) => void;
   initialSortState?: SortState;
+  toggleSelect?: (uuid: string) => void;
   toggleSelectAll?: () => void;
   selectedUuids?: Set<string>;
 }) => {
@@ -67,7 +67,7 @@ const TableHarness = ({
     <ScriptTable
       scriptList={scriptList}
       loadingList={false}
-      updateScripts={updateScripts}
+      updateScripts={noop}
       handleDelete={noop}
       handleRunStop={noopAsync}
       searchRequest={{ keyword: "", type: "auto" }}
@@ -78,7 +78,7 @@ const TableHarness = ({
       selectedFilters={{ status: null, type: null, tags: null, source: null }}
       setSelectedFilters={noop}
       selectedUuids={selectedUuids}
-      toggleSelect={noop}
+      toggleSelect={toggleSelect}
       toggleSelectAll={toggleSelectAll}
       clearSelection={noop}
       onBatchEnable={noop}
@@ -282,21 +282,21 @@ describe("ScriptTable 行级 memo 不会展示过期数据", () => {
 
   it("脚本对象不变但交互回调更新时，行应使用最新回调", () => {
     const script = mk("a", "Apple", 10);
-    const firstUpdate = vi.fn();
-    const latestUpdate = vi.fn();
-    const view = (updateScripts: (uuids: string[], data: Partial<ScriptLoading>) => void) => (
+    const firstSelect = vi.fn();
+    const latestSelect = vi.fn();
+    const view = (toggleSelect: (uuid: string) => void) => (
       <MemoryRouter>
         <TooltipProvider>
-          <TableHarness scriptList={[script]} updateScripts={updateScripts} />
+          <TableHarness scriptList={[script]} toggleSelect={toggleSelect} />
         </TooltipProvider>
       </MemoryRouter>
     );
 
-    const { rerender } = render(view(firstUpdate));
-    rerender(view(latestUpdate));
-    fireEvent.click(screen.getByRole("switch"));
+    const { rerender } = render(view(firstSelect));
+    rerender(view(latestSelect));
+    fireEvent.click(screen.getByRole("checkbox"));
 
-    expect(latestUpdate).toHaveBeenCalledWith(["a"], { enableLoading: true });
-    expect(firstUpdate).not.toHaveBeenCalled();
+    expect(latestSelect).toHaveBeenCalledWith("a");
+    expect(firstSelect).not.toHaveBeenCalled();
   });
 });
