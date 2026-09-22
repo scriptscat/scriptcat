@@ -38,8 +38,20 @@ const script = {
   checktime: 0,
 } as unknown as Script;
 
+const scriptData = vi.hoisted(() => ({
+  loadingList: false,
+  scriptListError: undefined as unknown,
+  reloadScriptList: vi.fn(),
+}));
+
 vi.mock("@App/pages/options/routes/ScriptList/hooks", () => ({
-  useScriptDataManagement: () => ({ scriptList: [script], setScriptList: vi.fn(), loadingList: false }),
+  useScriptDataManagement: () => ({
+    scriptList: [script],
+    setScriptList: vi.fn(),
+    loadingList: scriptData.loadingList,
+    scriptListError: scriptData.scriptListError,
+    reloadScriptList: scriptData.reloadScriptList,
+  }),
 }));
 
 vi.mock("@App/pages/components/use-is-mobile", () => ({ useIsMobile: () => false }));
@@ -115,6 +127,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  scriptData.loadingList = false;
+  scriptData.scriptListError = undefined;
 });
 
 const renderEditor = () => {
@@ -178,5 +192,28 @@ describe("ScriptEditor 未保存导航保护", () => {
     fireEvent.click(screen.getByText("editor:confirm"));
 
     expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
+  });
+});
+
+describe("ScriptEditor 脚本列表加载", () => {
+  it("列表未返回前编辑区应显示加载状态而不是空白", async () => {
+    scriptData.loadingList = true;
+    renderEditor();
+
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    expect(screen.queryByTestId("save")).not.toBeInTheDocument();
+  });
+
+  it("列表读取失败时应显示错误并允许重试", async () => {
+    scriptData.loadingList = false;
+    scriptData.scriptListError = new Error("list failed");
+    renderEditor();
+
+    expect(await screen.findByText("list failed")).toBeInTheDocument();
+    expect(screen.queryByTestId("save")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "editor:retry" }));
+
+    expect(scriptData.reloadScriptList).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
-import { Copy, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { Copy, Plus, RefreshCw, RotateCcw, Trash2, TriangleAlert, X } from "lucide-react";
 import type { Script } from "@App/app/repo/scripts";
 import type { Permission } from "@App/app/repo/permission";
 import { fetchScript, permissionClient, scriptClient } from "@App/pages/store/features/script";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { parseTags } from "@App/app/repo/metadata";
+import { isRegistrableMatchPattern } from "@App/pkg/utils/url_matcher";
 import { formatUnixTime } from "@App/pkg/utils/day_format";
 import { cn } from "@App/pkg/utils/cn";
 import { notify } from "@App/pages/components/ui/toast";
+import { LoadingState } from "@App/pages/components/ui/loading-state";
+import { StateScreen } from "@App/pages/components/ui/state-screen";
 import { Input } from "@App/pages/components/ui/input";
 import { Textarea } from "@App/pages/components/ui/textarea";
 import { Button } from "@App/pages/components/ui/button";
@@ -58,7 +61,7 @@ const iconBtn = "rounded p-1 text-muted-foreground hover:bg-accent transition-co
 type BulkLine = {
   line: number;
   value: string;
-  status: "new" | "duplicate";
+  status: "new" | "duplicate" | "invalid";
 };
 
 type BulkParseResult = {
@@ -66,7 +69,17 @@ type BulkParseResult = {
   entries: string[];
 };
 
-const parseBulkValues = (input: string, existing: Iterable<string>): BulkParseResult => {
+const bulkStatusPill: Record<BulkLine["status"], string> = {
+  new: pillColor.yes,
+  duplicate: pillColor.script,
+  invalid: pillColor.no,
+};
+
+const parseBulkValues = (
+  input: string,
+  existing: Iterable<string>,
+  isValid: (value: string) => boolean = () => true
+): BulkParseResult => {
   const seen = new Set(existing);
   const lines: BulkLine[] = [];
 
@@ -77,6 +90,10 @@ const parseBulkValues = (input: string, existing: Iterable<string>): BulkParseRe
     }
     if (seen.has(value)) {
       lines.push({ line: index + 1, value, status: "duplicate" });
+      return;
+    }
+    if (!isValid(value)) {
+      lines.push({ line: index + 1, value, status: "invalid" });
       return;
     }
     seen.add(value);
@@ -152,11 +169,35 @@ export interface SettingsPaneProps {
 }
 
 export default function SettingsPane({ uuid }: SettingsPaneProps) {
+  const { t } = useTranslation();
   const settings = settingsPaneQuery.useQuery(uuid);
 
   useEffect(() => () => invalidateSettingsPane(uuid), [uuid]);
 
-  if (!settings.data) return null;
+  if (settings.isError) {
+    const retry = () => {
+      // 失败会写回 snapshot 并重新渲染成本错误态，这里无需再处理
+      settings.reload().catch(() => undefined);
+    };
+    return (
+      <StateScreen
+        icon={TriangleAlert}
+        tone="error"
+        compact
+        title={t("editor:settings_load_failed")}
+        detail={settings.error instanceof Error ? settings.error.message : String(settings.error)}
+        action={
+          <Button onClick={retry}>
+            <RefreshCw />
+            {t("editor:retry")}
+          </Button>
+        }
+      />
+    );
+  }
+  // 脚本尚未保存时 data 为 null，没有可设置的内容
+  if (settings.data === null) return null;
+  if (!settings.data) return <LoadingState label={t("loading")} className="h-full" />;
   return <SettingsPaneContent key={uuid} uuid={uuid} data={settings.data} />;
 }
 
@@ -274,7 +315,9 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
   };
   const bulkMatchParsed = parseBulkValues(
     bulkMatchValue,
-    bulkMatchKind === "match" ? matches : bulkMatchKind === "exclude" ? excludes : []
+    bulkMatchKind === "match" ? matches : bulkMatchKind === "exclude" ? excludes : [],
+    // exclude 允许 glob/正则且不支持的 scheme 注册时会被丢弃，只校验 match
+    bulkMatchKind === "match" ? isRegistrableMatchPattern : undefined
   );
   const submitBulkMatch = () => {
     if (!bulkMatchKind || bulkMatchParsed.entries.length === 0) return;
@@ -344,14 +387,18 @@ function SettingsPaneContent({ uuid, data }: SettingsPaneProps & { data: Setting
         <DataPanelEmpty>{t("editor:bulk_empty_preview")}</DataPanelEmpty>
       ) : (
         parsed.lines.map((line) => (
-          <DataPanelRow key={`${line.line}:${line.value}`} className={line.status === "duplicate" ? "opacity-70" : ""}>
+          <DataPanelRow key={`${line.line}:${line.value}`} className={line.status === "new" ? "" : "opacity-70"}>
             <span className="w-10 shrink-0 text-muted-foreground">{line.line}</span>
             <span className="min-w-0 flex-1 truncate font-mono text-foreground" title={line.value}>
               {line.value}
             </span>
             <span className="w-24 shrink-0 text-right">
-              <span className={cn(pill, line.status === "new" ? pillColor.yes : pillColor.script)}>
-                {t(line.status === "new" ? "editor:bulk_status_new" : "editor:bulk_status_duplicate")}
+              <span className={cn(pill, bulkStatusPill[line.status])}>
+                {line.status === "new"
+                  ? t("editor:bulk_status_new")
+                  : line.status === "duplicate"
+                    ? t("editor:bulk_status_duplicate")
+                    : t("editor:bulk_status_invalid")}
               </span>
             </span>
           </DataPanelRow>

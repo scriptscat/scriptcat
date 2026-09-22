@@ -95,6 +95,7 @@ export class ScriptService {
   trashScriptDAO: TrashScriptDAO = new TrashScriptDAO();
   subscribeDAO: SubscribeDAO = new SubscribeDAO();
   private readonly scriptUpdateCheck;
+  private normalizeScriptSortTask: Promise<void> | null = null;
 
   constructor(
     private readonly systemConfig: SystemConfig,
@@ -1535,8 +1536,20 @@ export class ScriptService {
   }
 
   async getAllScripts() {
-    return stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
-      // 获取数据并排序
+    const scripts = await this.scriptDAO.all();
+    scripts.sort((a, b) => a.sort - b.sort);
+    if (scripts.some((script, index) => script.sort !== index)) {
+      void this.normalizeScriptSort();
+    }
+    // 返回拷贝：DAO 可能返回缓存对象，提前改 sort 会让队列里的归一化读到已改的值而跳过写入
+    return scripts.map((script, index) => (script.sort === index ? script : { ...script, sort: index }));
+  }
+
+  private normalizeScriptSort() {
+    if (this.normalizeScriptSortTask) return this.normalizeScriptSortTask;
+
+    const task = stackAsyncTask(CLOUD_SYNC_QUEUE_KEY, async () => {
+      // 队列里重新读取：排队期间同步可能已经改过排序
       const scripts = await this.scriptDAO.all();
       scripts.sort((a, b) => a.sort - b.sort);
       const batchUpdate: Record<string, Partial<Script>> = {};
@@ -1556,8 +1569,15 @@ export class ScriptService {
           scripts.map(({ uuid, sort }) => ({ uuid, sort, ...(changed.has(uuid) ? { sortUpdatetime } : {}) }))
         );
       }
-      return scripts;
     });
+    this.normalizeScriptSortTask = task
+      .catch((e) => {
+        this.logger.error("normalize script sort error", Logger.E(e));
+      })
+      .finally(() => {
+        this.normalizeScriptSortTask = null;
+      });
+    return this.normalizeScriptSortTask;
   }
 
   async getScriptAndCode(uuid: string) {

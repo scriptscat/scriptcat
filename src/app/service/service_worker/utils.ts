@@ -16,6 +16,7 @@ import {
 import {
   extractUrlPatterns,
   getApiMatchesAndGlobs,
+  isApiSupportedMatchPattern,
   RuleType,
   toUniquePatternStrings,
   type URLRuleEntry,
@@ -215,7 +216,7 @@ export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
 
   const excludeMatches = toUniquePatternStrings(
     scriptMatchInfo.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE)
-  );
+  ).filter(isApiSupportedMatchPattern);
   const excludeGlobs = toUniquePatternStrings(
     scriptMatchInfo.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.GLOB_EXCLUDE)
   );

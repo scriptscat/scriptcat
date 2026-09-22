@@ -4,7 +4,8 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 // useTrashCount 存在的唯一意义：只订阅真正会改变回收站内容的事件（trashScripts/deleteScripts/
 // installScript），不能挂在 enableScripts/sortedScripts 上——那两个只是启用状态或拖拽顺序变化，
 // 回收站条目数并未改变，挂上去会导致每次拖动/切换启用都重拉一次回收站。
-const { requestTrashScripts } = vi.hoisted(() => ({
+const { fetchScriptList, requestTrashScripts } = vi.hoisted(() => ({
+  fetchScriptList: vi.fn(() => Promise.resolve([])),
   requestTrashScripts: vi.fn(() => Promise.resolve<{ uuid: string }[]>([])),
 }));
 
@@ -20,7 +21,7 @@ const { subscribeMessage, unsubscribeByTopic } = vi.hoisted(() => {
 
 vi.mock("@App/pages/store/features/script", () => ({
   fetchScript: vi.fn(),
-  fetchScriptList: vi.fn(),
+  fetchScriptList,
   requestTrashScripts,
 }));
 
@@ -37,7 +38,7 @@ vi.mock("@App/pages/store/global", () => ({
   subscribeMessage,
 }));
 
-import { useTrashCount } from "./hooks";
+import { useScriptDataManagement, useTrashCount } from "./hooks";
 
 // 捕获 subscribeMessage 各 topic 对应的 handler，供测试手动触发。
 function getHandler(topic: string): (msg: unknown) => void {
@@ -49,6 +50,27 @@ function getHandler(topic: string): (msg: unknown) => void {
 beforeEach(() => {
   vi.clearAllMocks();
   unsubscribeByTopic.clear();
+  fetchScriptList.mockReset();
+  fetchScriptList.mockResolvedValue([]);
+});
+
+describe("脚本列表数据 Hook useScriptDataManagement", () => {
+  it("读取失败时暴露错误，重试成功后退出错误态", async () => {
+    fetchScriptList.mockRejectedValueOnce(new Error("list failed")).mockResolvedValueOnce([]);
+    const { result } = renderHook(() => useScriptDataManagement());
+
+    await waitFor(() => expect(result.current.scriptListError).toBeInstanceOf(Error));
+    expect(result.current.loadingList).toBe(false);
+    expect((result.current.scriptListError as Error).message).toBe("list failed");
+
+    act(() => result.current.reloadScriptList());
+    expect(result.current.loadingList).toBe(true);
+    expect(result.current.scriptListError).toBeUndefined();
+
+    await waitFor(() => expect(result.current.loadingList).toBe(false));
+    expect(result.current.scriptListError).toBeUndefined();
+    expect(fetchScriptList).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("回收站计数 Hook useTrashCount", () => {
