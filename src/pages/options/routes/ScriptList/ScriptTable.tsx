@@ -31,6 +31,7 @@ import { EmptyState } from "@App/pages/components/ui/empty-state";
 import { LoadingState } from "@App/pages/components/ui/loading-state";
 import { cn } from "@App/pkg/utils/cn";
 import { i18nName } from "@App/locales/locales";
+import { notify } from "@App/pages/components/ui/toast";
 
 import {
   EnableSwitch,
@@ -45,7 +46,7 @@ import {
   ScriptRowActionSlots,
 } from "./components";
 import type { SearchFilterRequest } from "./SearchFilter";
-import { sortScriptList } from "./sort";
+import { scriptSortOptions, sortScriptList } from "./sort";
 import type { SortState } from "./sort";
 import FilterBar from "./FilterBar";
 import type { FilterBarProps } from "./FilterBar";
@@ -59,7 +60,17 @@ import { versionDisplay } from "@App/pages/utils";
 type DragHandleNode = React.ReactNode;
 const SortableDragCtx = createContext<DragHandleNode>(null);
 
-function DraggableRow({ id, disabled, children }: { id: string; disabled?: boolean; children: React.ReactNode }) {
+function DraggableRow({
+  id,
+  lockedHandle,
+  children,
+}: {
+  id: string;
+  /** 传入即表示拖拽被禁用，行内以它取代可拖拽的手柄 */
+  lockedHandle?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const disabled = lockedHandle !== undefined;
   const { setNodeRef, transform, transition, listeners, setActivatorNodeRef, isDragging, attributes } = useSortable({
     id,
     disabled,
@@ -70,8 +81,9 @@ function DraggableRow({ id, disabled, children }: { id: string; disabled?: boole
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : "auto",
   };
-  // 排序激活时禁用拖拽：ctx 置空，RowDragHandle 渲染不可拖拽的占位手柄
-  const handle = disabled ? null : (
+  const handle = disabled ? (
+    lockedHandle
+  ) : (
     <span ref={setActivatorNodeRef} {...listeners} className="cursor-grab opacity-0 group-hover/row:opacity-50">
       <GripVertical className="w-4 h-4 text-muted-foreground" />
     </span>
@@ -86,8 +98,33 @@ function DraggableRow({ id, disabled, children }: { id: string; disabled?: boole
 }
 
 function RowDragHandle() {
-  const handle = useContext(SortableDragCtx);
-  return handle ?? <GripVertical className="w-4 h-4 text-muted-foreground collapse" />;
+  return useContext(SortableDragCtx);
+}
+
+// 排序时手柄保留但锁定：直接隐藏会让人以为拖拽功能坏了（#1751）。
+// 按下即给出原因与切回默认顺序的出口；键盘用户按 Enter/空格得到同样的提示。
+function LockedDragHandle({ label, onAttempt }: { label: string; onAttempt: () => void }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-disabled="true"
+          aria-label={label}
+          onPointerDown={onAttempt}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
+            onAttempt();
+          }}
+          className="flex cursor-not-allowed opacity-0 transition-opacity group-hover/row:opacity-30 focus-visible:opacity-60"
+        >
+          <GripVertical className="w-4 h-4 text-muted-foreground" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 export interface ScriptTableProps extends FilterBarProps {
@@ -180,6 +217,18 @@ export default function ScriptTable({
 
   const a11y = useMemo(() => ({ container: document.body }), []);
 
+  const lockedHandle = useMemo(() => {
+    if (!isSorted) return undefined;
+    const field = scriptSortOptions(t).find((o) => o.key === sortState.key)?.label ?? "";
+    const onAttempt = () =>
+      // 固定 id：连按多次只刷新同一条提示，不会堆叠
+      notify.info(t("script:drag_locked_toast", { field }), {
+        id: "script-list-drag-locked",
+        action: { label: t("script:drag_locked_action"), onClick: () => setSortState({ key: null, order: "asc" }) },
+      });
+    return <LockedDragHandle label={t("script:drag_locked_by_sort", { field })} onAttempt={onAttempt} />;
+  }, [isSorted, sortState.key, setSortState, t]);
+
   const isAllSelected = scriptList.length > 0 && selectedUuids.size === scriptList.length;
 
   return (
@@ -237,10 +286,11 @@ export default function ScriptTable({
           >
             <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
               {displayList.map((script) => (
-                <DraggableRow key={script.uuid} id={script.uuid} disabled={isSorted}>
+                <DraggableRow key={script.uuid} id={script.uuid} lockedHandle={lockedHandle}>
                   <ScriptRow
                     script={script}
                     selected={selectedUuids.has(script.uuid)}
+                    emphasizeUpdateTime={sortState.key === "updatetime"}
                     onSelect={toggleSelect}
                     onEnable={handleEnable}
                     onDelete={handleDelete}
@@ -261,6 +311,8 @@ export default function ScriptTable({
 interface ScriptRowProps {
   script: ScriptLoading;
   selected: boolean;
+  /** 按「最后更新」排序时强调时间列，让排序依据在行内可见 */
+  emphasizeUpdateTime: boolean;
   onSelect: (uuid: string) => void;
   onEnable: (script: ScriptLoading, checked: boolean) => void;
   onDelete: (script: ScriptLoading) => void;
@@ -268,7 +320,16 @@ interface ScriptRowProps {
   navigate: ReturnType<typeof useNavigate>;
 }
 
-function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunStop, navigate }: ScriptRowProps) {
+function ScriptRowInner({
+  script,
+  selected,
+  emphasizeUpdateTime,
+  onSelect,
+  onEnable,
+  onDelete,
+  onRunStop,
+  navigate,
+}: ScriptRowProps) {
   const { t } = useTranslation();
   const isDisabled = script.status === SCRIPT_STATUS_DISABLE;
   const isBackground = script.type === SCRIPT_TYPE_BACKGROUND || script.type === SCRIPT_TYPE_CRONTAB;
@@ -334,7 +395,7 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
           )}
         </div>
         <div className="flex w-[92px] justify-end whitespace-nowrap">
-          <UpdateTimeCell script={script} />
+          <UpdateTimeCell script={script} emphasized={emphasizeUpdateTime} />
         </div>
       </ListRowTrailing>
 
@@ -350,7 +411,11 @@ function ScriptRowInner({ script, selected, onSelect, onEnable, onDelete, onRunS
 // 故直接按对象引用比较即可：既保留 memo 优化，又避免逐字段比较漏掉
 // name/metadata/selfMetadata/tag/config/source 等导致行展示过期数据。
 const ScriptRow = React.memo(ScriptRowInner, (prev, next) => {
-  return prev.script === next.script && prev.selected === next.selected;
+  return (
+    prev.script === next.script &&
+    prev.selected === next.selected &&
+    prev.emphasizeUpdateTime === next.emphasizeUpdateTime
+  );
 });
 
 // ========== 标签 ==========
