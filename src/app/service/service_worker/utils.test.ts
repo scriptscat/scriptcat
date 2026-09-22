@@ -314,11 +314,7 @@ describe.concurrent("getUserScriptRegister", () => {
       uuid: "test-invalid-match-scheme",
       name: "Invalid Match Scheme",
       metadata: {},
-      scriptUrlPatterns: extractUrlPatterns([
-        "@match https://*/*",
-        "@match http://*/*",
-        "@match notsupported://*/*",
-      ]),
+      scriptUrlPatterns: extractUrlPatterns(["@match https://*/*", "@match http://*/*", "@match notsupported://*/*"]),
       originalUrlPatterns: [],
       namespace: "test",
       type: 1,
@@ -332,6 +328,31 @@ describe.concurrent("getUserScriptRegister", () => {
     const { registerScript } = getUserScriptRegister(mockScriptMatchInfo);
 
     expect(registerScript.matches).toEqual(["https://*/*", "http://*/*"]);
+  });
+
+  it.concurrent("应同时过滤 Chromium 不支持的 exclude match scheme", () => {
+    const mockScriptMatchInfo: ScriptMatchInfo = {
+      uuid: "test-invalid-exclude-scheme",
+      name: "Invalid Exclude Scheme",
+      metadata: {},
+      scriptUrlPatterns: extractUrlPatterns([
+        "@match https://*/*",
+        "@exclude https://example.com/private/*",
+        "@exclude notsupported://*/*",
+      ]),
+      originalUrlPatterns: [],
+      namespace: "test",
+      type: 1,
+      status: 1,
+      sort: 0,
+      runStatus: "running",
+      createtime: Date.now(),
+      checktime: Date.now(),
+    };
+
+    const { registerScript } = getUserScriptRegister(mockScriptMatchInfo);
+
+    expect(registerScript.excludeMatches).toEqual(["https://example.com/private/*"]);
   });
 });
 
