@@ -230,18 +230,25 @@ export function compileInjectScript(
   scriptCode: string,
   autoDeleteMountFunction: boolean = false
 ): string {
-  return compileInjectScriptByFlag(script.flag, scriptCode, autoDeleteMountFunction, script.uuid);
+  return compileInjectScriptByFlag(
+    script.flag,
+    scriptCode,
+    autoDeleteMountFunction,
+    script.uuid,
+    script.scriptRevision
+  );
 }
 
 export function compileInjectScriptByFlag(
   flag: string,
   scriptCode: string,
   autoDeleteMountFunction: boolean = false,
-  scriptUuid?: string
+  scriptUuid?: string,
+  scriptRevision?: string
 ): string {
   const autoDeleteMountCode = autoDeleteMountFunction ? `try{delete window['${flag}']}catch(e){}` : "";
   const uuid = scriptUuid ?? (flag.startsWith("#-") ? flag.slice(2) : undefined);
-  return `${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`, JSON.stringify({ uuid, flag }))};`;
+  return `${mountCodeFunction(flag, `${autoDeleteMountCode}${scriptCode}`, JSON.stringify({ uuid, flag, scriptRevision }))};`;
 }
 
 /**

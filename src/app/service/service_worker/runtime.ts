@@ -1404,9 +1404,13 @@ export class RuntimeService {
     );
     scriptRes.scriptRevision = scriptRevision;
     if (withCode) {
-      registerScript.js![0].code = jsCode = isEarlyStartScript(scriptRes.metadata)
-        ? compileInjectionCode(scriptRes, scriptRes.code, scriptMatchInfo.scriptUrlPatterns)
-        : compiledCode;
+      // compiledCode（哈希输入）是在 scriptRevision 尚未写回前算的，不能直接拿去注册；
+      // 普通脚本和 early-start 脚本都要在这里补一次编译，让最终注册的 wrapper 带上刚算出的 revision。
+      registerScript.js![0].code = jsCode = compileInjectionCode(
+        scriptRes,
+        scriptRes.code,
+        scriptMatchInfo.scriptUrlPatterns
+      );
     }
 
     const scriptUrlPatterns = scriptMatchInfo.scriptUrlPatterns;

@@ -21,7 +21,7 @@ import type { ScriptDAO } from "@App/app/repo/scripts";
 import { LocalStorageDAO } from "@App/app/repo/localStorage";
 import type { MessageConnect, TMessage } from "@Packages/message/types";
 import { getStorageName, obtainBlackList } from "@App/pkg/utils/utils";
-import type { CompiledResource, Resource } from "@App/app/repo/resource";
+import { CompiledResourceNamespace, type CompiledResource, type Resource } from "@App/app/repo/resource";
 
 initTestEnv();
 
@@ -406,6 +406,23 @@ describe.concurrent("RuntimeService - getPageScriptMatchingResultByUrl 脚本匹
     expect(changed?.compiledResource.scriptRevision).not.toBe(first?.compiledResource.scriptRevision);
     expect(changedMetadata?.compiledResource.scriptRevision).not.toBe(changed?.compiledResource.scriptRevision);
     expect(changedResource?.compiledResource.scriptRevision).not.toBe(firstResource?.compiledResource.scriptRevision);
+  });
+
+  it("normal（非 early-start）脚本注册代码同样携带当前 compiled revision", async () => {
+    // 上面那个用例特意带 early-start metadata；早期路径已经会在拿到 revision 后重新编译一次，
+    // 因此不能覆盖普通脚本这条路径。这里用默认（无 early-start）fixture 单独验证。
+    const { runtime, mockScriptService } = createRuntimeTestContext();
+    const script = createMockScript();
+    const scriptRunResource = createScriptRunResource(script);
+    mockScriptService.buildScriptRunResource.mockResolvedValue(scriptRunResource);
+    (runtime as any).resource = {
+      getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
+    };
+
+    const candidate = await runtime.buildCompiledResourceFromScript(script, true);
+
+    expect(candidate?.compiledResource.scriptRevision).toMatch(/^[a-f0-9]{64}$/);
+    expect(candidate?.apiScript.js?.[0].code).toContain(candidate?.compiledResource.scriptRevision);
   });
 
   it("browser registration failure must not publish a newly compiled revision", async () => {
@@ -2240,6 +2257,91 @@ describe("pushValueUpdate 判断是否需要为 early-start 脚本重新编译",
     });
 
     expect(updateSpy).toHaveBeenCalledWith(script);
+  });
+});
+
+describe("waitInit CompiledResourceNamespace 迁移", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("命名空间不匹配时清理已启用普通脚本与共享注册资源，并让下次注册不再被判定为已完成", async () => {
+    const { runtime, mockScriptDAO } = _createRuntimeContext();
+    const localStorageDAO = (runtime as unknown as { localStorageDAO: LocalStorageDAO }).localStorageDAO;
+    // 审计头 601e5502 上实际持久化的旧 CompiledResourceNamespace 值；必须真的碰到这个历史值
+    // 才代表命中了迁移边界，而不是随便一个必然不相等的字符串——命名空间还没提升前，
+    // 这个值会与当前 CompiledResourceNamespace 相等，下面的清理断言会失败（RED）。
+    const previousNamespace = "9a12f3c8-1b72-4c8a-875c-8a941f44d9f1";
+    await localStorageDAO.saveValue("compiledResourceNamespace", previousNamespace);
+
+    const enabledScript = _createMockScript({ uuid: "legacy-normal-script" });
+    mockScriptDAO.all.mockResolvedValue([enabledScript]);
+    // waitInit() 会为「已启用普通脚本」预热 compiledResourceDAO 缓存未命中时的编译；
+    // 这里只需要它不因缺少 resource/script 依赖而抛出未处理的 rejection。
+    (runtime as unknown as { resource: { getScriptResourceValueByType: unknown } }).resource = {
+      getScriptResourceValueByType: vi.fn().mockResolvedValue({ require: {}, "require-css": {}, resource: {} }),
+    };
+    (runtime as unknown as { script: { scriptCodeDAO: { get: unknown } } }).script = {
+      scriptCodeDAO: { get: vi.fn().mockResolvedValue({ code: "" }) },
+    };
+
+    const unregistryPageScripts = vi.spyOn(runtime, "unregistryPageScripts").mockResolvedValue(undefined);
+    // 清理之后浏览器里不应再看到旧的 scriptcat-inject，下次 registerUserscripts() 才会真的重建。
+    vi.spyOn(chrome.userScripts as any, "getScripts").mockResolvedValue([]);
+
+    await runtime.waitInit();
+    await runtime.initialCompiledResourcePromise;
+
+    expect(unregistryPageScripts).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        "legacy-normal-script",
+        "scriptcat-early-start-flag",
+        "scriptcat-inject",
+        "scriptcat-content",
+      ]),
+      true
+    );
+    expect(await localStorageDAO.getValue("compiledResourceNamespace")).toBe(CompiledResourceNamespace);
+  });
+
+  it("清理完成后 registerUserscripts() 不会因为旧的已完成状态而跳过重建", async () => {
+    const { runtime, mockScriptDAO } = _createRuntimeContext();
+    const localStorageDAO = (runtime as unknown as { localStorageDAO: LocalStorageDAO }).localStorageDAO;
+    await localStorageDAO.saveValue("compiledResourceNamespace", "9a12f3c8-1b72-4c8a-875c-8a941f44d9f1");
+    mockScriptDAO.all.mockResolvedValue([]);
+
+    const originalScripting = (chrome as any).scripting;
+    (chrome as any).scripting = {
+      getRegisteredContentScripts: vi.fn().mockResolvedValue([{ id: "scriptcat-scripting" }]),
+      registerContentScripts: vi.fn().mockResolvedValue(undefined),
+      unregisterContentScripts: vi.fn().mockResolvedValue(undefined),
+    };
+    // waitInit() 清理之后，浏览器已不再持有旧的 scriptcat-inject。
+    vi.spyOn(chrome.userScripts as any, "getScripts").mockResolvedValue([]);
+    vi.spyOn(chrome.userScripts, "register").mockResolvedValue(undefined);
+    vi.spyOn(chrome.userScripts, "resetWorldConfiguration").mockResolvedValue(undefined);
+    vi.spyOn(runtime, "unregistryPageScripts").mockResolvedValue(undefined);
+    vi.spyOn(runtime, "unregisterUserscripts").mockResolvedValue(undefined);
+    vi.spyOn(runtime as any, "getParticularScriptList").mockResolvedValue({
+      registerScripts: [],
+      compiledResourceCandidates: [],
+    });
+    vi.spyOn(runtime as any, "getContentAndInjectScript").mockResolvedValue({ content: [], inject: [] });
+    runtime.isUserScriptsAvailable = true;
+
+    try {
+      await runtime.waitInit();
+      // getScripts 的调用记录只属于 waitInit() 的迁移判定；下面重新验证 registerUserscripts() 自己的行为。
+      (chrome.userScripts.getScripts as any).mockClear();
+      await runtime.registerUserscripts();
+
+      // 若 registerState 仍被当成 REGISTER_DONE，这里只会查询健康检查用的 getScripts /
+      // getRegisteredContentScripts 就直接返回，不会走到 unregisterUserscripts + register。
+      expect(runtime.unregisterUserscripts).toHaveBeenCalled();
+      expect(chrome.userScripts.register).toHaveBeenCalled();
+    } finally {
+      (chrome as any).scripting = originalScripting;
+    }
   });
 });
 

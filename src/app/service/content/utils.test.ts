@@ -873,6 +873,31 @@ describe("utils", () => {
       expect(callGenerated(generated, [fnStrIntegrity, null, otherDocument])).toBeUndefined();
     });
 
+    it("metadata 携带 scriptRevision 时同样换一个 document 必须返回 undefined——revision 相同不能替代 document 校验", () => {
+      const generated = mountGeneratedWrapper(
+        createMockScript({ scriptRevision: "same-revision-on-both-documents" }),
+        "return 'unused';"
+      );
+      const otherDocument = new DOMParser().parseFromString("<html></html>", "text/html");
+
+      expect(callGenerated(generated, [fnStrIntegrity, null, otherDocument])).toBeUndefined();
+    });
+
+    it("正确标记 + metadata 模式：script 带 scriptRevision 时它会出现在返回的 metadata 里", () => {
+      const script = createMockScript({
+        uuid: "metadata-revision-uuid",
+        flag: "metadata-revision-flag",
+        scriptRevision: "compiled-revision-abc",
+      });
+      const generated = mountGeneratedWrapper(script, "return 'unused';");
+
+      const metadata = callGenerated(generated, [fnStrIntegrity, null, document]);
+
+      expect(metadata).toBe(
+        JSON.stringify({ uuid: script.uuid, flag: script.flag, scriptRevision: script.scriptRevision })
+      );
+    });
+
     it("metadata 模式（无论查找成功或失败）绝不会 fall through 到脚本执行", () => {
       const executed = vi.fn();
       const targetWindow: GeneratedWindow = { __executed: executed };
