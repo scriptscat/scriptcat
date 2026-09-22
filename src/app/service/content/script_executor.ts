@@ -91,13 +91,22 @@ export class ScriptExecutor {
       const listenForScript = () => {
         definePropertyListener(window, flag, (val: ScriptFunc) => {
           const metadataJSON = getCompiledScriptMetadata(val);
-          let metadata: { uuid?: unknown; flag?: unknown } | undefined;
+          let metadata: { uuid?: unknown; flag?: unknown; scriptRevision?: unknown } | undefined;
           try {
             metadata = metadataJSON === undefined ? undefined : (Native.jsonParse(metadataJSON) as typeof metadata);
           } catch {
             metadata = undefined;
           }
-          if (!metadata || metadata.uuid !== script.uuid || metadata.flag !== flag) {
+          // wrapper 的编译 revision 必须和 SW 权威数据一致，否则可能是浏览器还没来得及用最新
+          // 代码重新注册留下的旧 wrapper——旧代码不能拿到当前的 ScriptInfo/权限状态执行。
+          if (
+            !metadata ||
+            metadata.uuid !== script.uuid ||
+            metadata.flag !== flag ||
+            typeof metadata.scriptRevision !== "string" ||
+            typeof script.scriptRevision !== "string" ||
+            metadata.scriptRevision !== script.scriptRevision
+          ) {
             const mountDescriptor = Native.objectGetOwnPropertyDescriptor(pageWindow, flag);
             if (mountDescriptor?.configurable) {
               delete pageWindow[flag];

@@ -312,7 +312,7 @@ describe("ScriptExecutor", () => {
   });
 
   it("ignores a counterfeit mount with a copied marker and keeps listening for the genuine wrapper", () => {
-    const script = makeScript({ flag: "executor-counterfeit-flag" });
+    const script = makeScript({ flag: "executor-counterfeit-flag", scriptRevision: "counterfeit-flag-revision" });
     const executor = new ScriptExecutor({} as Message, {} as Message);
     const pageWindow = window as unknown as Record<string, unknown>;
     const attacker = vi.fn((_token: string, context: unknown) => {
@@ -563,7 +563,11 @@ describe("ScriptExecutor", () => {
       }),
       scriptRevision: "early-script:1:0",
     } as TScriptInfo;
-    const later = makeScript({ uuid: "later-script", flag: "executor-later-batch" });
+    const later = makeScript({
+      uuid: "later-script",
+      flag: "executor-later-batch",
+      scriptRevision: "later-batch-revision",
+    });
     const executor = new ScriptExecutor({} as Message, {} as Message);
     executor.execScriptEntry({
       scriptLoadInfo: early,
@@ -589,6 +593,62 @@ describe("ScriptExecutor", () => {
     } finally {
       delete pageWindow[later.flag];
     }
+  });
+
+  describe("normal wrapper compiled-revision enforcement", () => {
+    it("rejects a genuine wrapper compiled for an older revision, then accepts a later genuine match", () => {
+      const authoritativeR1 = makeScript({
+        uuid: "revision-mismatch-uuid",
+        flag: "revision-mismatch-flag",
+        scriptRevision: "revision-r1",
+      });
+      const authoritativeR2 = { ...authoritativeR1, scriptRevision: "revision-r2" };
+      const executor = new ScriptExecutor({} as Message, {} as Message);
+      const pageWindow = window as unknown as Record<string, unknown>;
+      const internal = executor as unknown as { execScripts: Map<string, unknown> };
+
+      try {
+        // Service Worker 的权威数据已经是 R2；页面上真正挂载的 wrapper 却还带着编译时的 R1。
+        executor.startScripts([authoritativeR2], initEnvInfo);
+        mountInjectScript(authoritativeR1, "window.__r1Executed = true;");
+
+        expect(pageWindow.__r1Executed).toBeUndefined();
+        expect(internal.execScripts.has(authoritativeR1.uuid)).toBe(false);
+
+        // 拒绝之后仍继续监听；随后到来的真正 R2 wrapper 必须能正常执行。
+        mountInjectScript(authoritativeR2, "window.__r2Executed = true;");
+
+        expect(pageWindow.__r2Executed).toBe(true);
+        expect(internal.execScripts.has(authoritativeR2.uuid)).toBe(true);
+      } finally {
+        delete pageWindow[authoritativeR1.flag];
+        delete pageWindow.__r1Executed;
+        delete pageWindow.__r2Executed;
+      }
+    });
+
+    it("rejects a genuine wrapper compiled without any scriptRevision (legacy shape) against authoritative revision data", () => {
+      const legacyWrapperScript = makeScript({
+        uuid: "revisionless-uuid",
+        flag: "revisionless-flag",
+        // scriptRevision 故意不设置：模拟这次安全修复落地前就已注册、仍留在浏览器里的旧 wrapper。
+      });
+      const authoritative = { ...legacyWrapperScript, scriptRevision: "revision-r2" };
+      const executor = new ScriptExecutor({} as Message, {} as Message);
+      const pageWindow = window as unknown as Record<string, unknown>;
+      const internal = executor as unknown as { execScripts: Map<string, unknown> };
+
+      try {
+        executor.startScripts([authoritative], initEnvInfo);
+        mountInjectScript(legacyWrapperScript, "window.__legacyExecuted = true;");
+
+        expect(pageWindow.__legacyExecuted).toBeUndefined();
+        expect(internal.execScripts.has(legacyWrapperScript.uuid)).toBe(false);
+      } finally {
+        delete pageWindow[legacyWrapperScript.flag];
+        delete pageWindow.__legacyExecuted;
+      }
+    });
   });
 
   describe("resource execution", () => {
