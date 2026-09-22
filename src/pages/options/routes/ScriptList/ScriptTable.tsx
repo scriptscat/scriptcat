@@ -407,16 +407,9 @@ function ScriptRowInner({
   );
 }
 
-// store 对任一字段变更都会为该行生成新的 script 对象引用（未变更的行保持同引用），
-// 故直接按对象引用比较即可：既保留 memo 优化，又避免逐字段比较漏掉
-// name/metadata/selfMetadata/tag/config/source 等导致行展示过期数据。
-const ScriptRow = React.memo(ScriptRowInner, (prev, next) => {
-  return (
-    prev.script === next.script &&
-    prev.selected === next.selected &&
-    prev.emphasizeUpdateTime === next.emphasizeUpdateTime
-  );
-});
+// store 会保留未变更脚本的对象引用；其余交互回调和状态也必须参与浅比较，
+// 否则配置变化后行可能继续持有旧的 onDelete/onEnable/onRunStop 等闭包。
+const ScriptRow = React.memo(ScriptRowInner);
 
 // ========== 标签 ==========
 function TagBadges({ metadata, selfMetadata }: { metadata: SCMetadata; selfMetadata?: SCMetadata }) {
