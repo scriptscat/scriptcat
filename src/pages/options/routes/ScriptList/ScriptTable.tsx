@@ -60,20 +60,17 @@ import { versionDisplay } from "@App/pages/utils";
 type DragHandleNode = React.ReactNode;
 const SortableDragCtx = createContext<DragHandleNode>(null);
 
-function DraggableRow({
-  id,
-  lockedHandle,
-  children,
-}: {
-  id: string;
-  /** 传入即表示拖拽被禁用，行内以它取代可拖拽的手柄 */
-  lockedHandle?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  const disabled = lockedHandle !== undefined;
+function StaticRow({ handle, children }: { handle: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <SortableDragCtx.Provider value={handle}>
+      <div className="cursor-auto">{children}</div>
+    </SortableDragCtx.Provider>
+  );
+}
+
+function DraggableRow({ id, children }: { id: string; children: React.ReactNode }) {
   const { setNodeRef, transform, transition, listeners, setActivatorNodeRef, isDragging, attributes } = useSortable({
     id,
-    disabled,
   });
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform) ?? undefined,
@@ -81,9 +78,7 @@ function DraggableRow({
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : "auto",
   };
-  const handle = disabled ? (
-    lockedHandle
-  ) : (
+  const handle = (
     <span ref={setActivatorNodeRef} {...listeners} className="cursor-grab opacity-0 group-hover/row:opacity-50">
       <GripVertical className="w-4 h-4 text-muted-foreground" />
     </span>
@@ -275,33 +270,50 @@ export default function ScriptTable({
           <EmptyState data-testid="script-list-empty" title={t("no_scripts")} compact />
         )}
 
-        {/* 脚本行（带拖拽排序） */}
-        {!loadingList && displayList.length > 0 && (
-          <DndContext
-            sensors={sensors}
-            onDragEnd={handleDragEnd}
-            collisionDetection={closestCenter}
-            modifiers={[restrictToVerticalAxis]}
-            accessibility={a11y}
-          >
-            <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-              {displayList.map((script) => (
-                <DraggableRow key={script.uuid} id={script.uuid} lockedHandle={lockedHandle}>
-                  <ScriptRow
-                    script={script}
-                    selected={selectedUuids.has(script.uuid)}
-                    emphasizeUpdateTime={sortState.key === "updatetime"}
-                    onSelect={toggleSelect}
-                    onEnable={handleEnable}
-                    onDelete={handleDelete}
-                    onRunStop={handleRunStop}
-                    navigate={navigate}
-                  />
-                </DraggableRow>
-              ))}
-            </SortableContext>
-          </DndContext>
-        )}
+        {/* 脚本行：排序时只渲染普通行；默认顺序下才挂载 dnd-kit。 */}
+        {!loadingList &&
+          displayList.length > 0 &&
+          (isSorted ? (
+            displayList.map((script) => (
+              <StaticRow key={script.uuid} handle={lockedHandle}>
+                <ScriptRow
+                  script={script}
+                  selected={selectedUuids.has(script.uuid)}
+                  emphasizeUpdateTime={sortState.key === "updatetime"}
+                  onSelect={toggleSelect}
+                  onEnable={handleEnable}
+                  onDelete={handleDelete}
+                  onRunStop={handleRunStop}
+                  navigate={navigate}
+                />
+              </StaticRow>
+            ))
+          ) : (
+            <DndContext
+              sensors={sensors}
+              onDragEnd={handleDragEnd}
+              collisionDetection={closestCenter}
+              modifiers={[restrictToVerticalAxis]}
+              accessibility={a11y}
+            >
+              <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+                {displayList.map((script) => (
+                  <DraggableRow key={script.uuid} id={script.uuid}>
+                    <ScriptRow
+                      script={script}
+                      selected={selectedUuids.has(script.uuid)}
+                      emphasizeUpdateTime={false}
+                      onSelect={toggleSelect}
+                      onEnable={handleEnable}
+                      onDelete={handleDelete}
+                      onRunStop={handleRunStop}
+                      navigate={navigate}
+                    />
+                  </DraggableRow>
+                ))}
+              </SortableContext>
+            </DndContext>
+          ))}
       </div>
     </div>
   );
