@@ -6,4 +6,4 @@ if [ "$SKIP_RUNTIME_GUARD" = "1" ]; then
 fi
 
 echo "🔍 Running runtime guard before push..."
-exec pnpm run guard:runtime
+exec pnpm run guard:runtime:push
