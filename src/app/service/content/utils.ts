@@ -198,7 +198,7 @@ export function compileScriptCodeByResource(resource: CompileScriptCodeResource)
 }
 
 const codeFunction = (code: string, scriptInfoJSON: string) =>
-  `((k,m,fn,d)=>${generatedScriptFunctionSource})(${JSON.stringify(lnStrIntegrity)}, ${JSON.stringify(scriptInfoJSON)}, function(){${code}}, document)`;
+  `((d,k,m,fn)=>${generatedScriptFunctionSource})(document, ${JSON.stringify(lnStrIntegrity)}, ${JSON.stringify(scriptInfoJSON)}, function(){${code}})`;
 
 // ScriptExecutor authenticates the wrapper closure before passing it a GM context.
 const mountCodeFunction = (flag: string, code: string, scriptInfoJSON: string) =>

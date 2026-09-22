@@ -970,7 +970,7 @@ describe("utils", () => {
 
       expect(mounted).not.toMatch(/const f = /);
       expect(mounted).not.toContain("return f;");
-      expect(mounted).toContain("((k,m,fn,d)=>(t,u,...a)=>{");
+      expect(mounted).toContain("((d,k,m,fn)=>(t,u,...a)=>{");
     });
   });
 
