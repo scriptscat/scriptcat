@@ -14,12 +14,45 @@ const syntaxOnlyConfig = config.filter((entry) => !entry?.languageOptions?.parse
 
 const linter = new Linter({ configType: "flat" });
 
+const sourceFilenamePattern = /\.(?:[cm]?js|[jt]sx?)$/;
+
+const configuredRuleIds = new Set(syntaxOnlyConfig.flatMap((entry) => Object.keys(entry?.rules ?? {})));
+
+function assertFixtureCode(code) {
+  if (typeof code !== "string") {
+    throw new TypeError("code must be a string");
+  }
+}
+
+function assertFixtureFilename(filename) {
+  if (typeof filename !== "string") {
+    throw new TypeError("filename must be a string");
+  }
+
+  const trimmed = filename.trim();
+  if (trimmed !== filename || trimmed === "" || !sourceFilenamePattern.test(filename)) {
+    throw new TypeError(`filename must be a non-empty source filename: ${filename}`);
+  }
+}
+
+function assertRuleId(ruleId) {
+  if (typeof ruleId !== "string" || ruleId.trim() === "") {
+    throw new TypeError("ruleId must be a non-empty string");
+  }
+  if (!configuredRuleIds.has(ruleId)) {
+    throw new Error(`Unknown configured ruleId: ${ruleId}`);
+  }
+}
+
 /**
  * 用真实 ESLint flat config 检查虚拟文件，返回非致命诊断的 ruleId 列表。
  * `filename` 决定配置作用域；解析失败会抛出异常，避免无效夹具伪装成规则放行。
  * Vitest 用例用 `ruleCountAt({ code, filename, ruleId })` 断言命中数量，并先合并同名虚拟文件的代码片段。
  */
 function ruleIdsAt({ code, filename }) {
+  // 非法参数直接报错
+  assertFixtureCode(code);
+  assertFixtureFilename(filename);
   const messages = linter.verify(code, syntaxOnlyConfig, { filename });
   const fatal = messages.find((m) => m.fatal);
   if (fatal) {
@@ -30,6 +63,8 @@ function ruleIdsAt({ code, filename }) {
 
 /** 返回指定 ruleId 的诊断数量。 */
 function ruleCountAt({ code, filename, ruleId }) {
+  // 非法参数直接报错
+  assertRuleId(ruleId);
   return ruleIdsAt({ code, filename }).filter((id) => id === ruleId).length;
 }
 
