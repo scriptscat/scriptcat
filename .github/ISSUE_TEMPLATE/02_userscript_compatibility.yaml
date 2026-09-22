@@ -17,7 +17,11 @@ body:
     attributes:
       label: 提交前检查
       options:
-        - label: 我已经搜索过现有 issues，并确认问题与某个用户脚本或 userscript API 有关
+        - label: 我已搜索过现有 issues，并确认这不是重复问题。
+          required: true
+        - label: 在条件允许的情况下，我已尽量使用最新的 stable 或 beta 版本复现该问题，并确认问题仍然存在。
+          required: true
+        - label: 我已确认该问题与用户脚本或 userscript API 有关，而不是 ScriptCat 的通用界面、同步、安装或扩展行为问题。
           required: true
 
   - type: input

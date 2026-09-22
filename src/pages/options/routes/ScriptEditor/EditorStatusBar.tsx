@@ -13,12 +13,17 @@ const formatBytes = (bytes: number): string => {
 
 export default function EditorStatusBar({ status }: EditorStatusBarProps) {
   const { t } = useTranslation();
+
+  if (!status) return null;
+
   return (
     <div className="flex h-6 shrink-0 items-center justify-between border-t border-border bg-card px-3 text-[11px] text-muted-foreground">
       <div className="flex items-center gap-3">
-        {status && <span>{t("editor:line_col", { line: status.line, col: status.col })}</span>}
+        <span>{t("editor:line_col", { line: status.line, col: status.col })}</span>
       </div>
-      <div className="flex items-center gap-3">{status && <span>{formatBytes(status.size)}</span>}</div>
+      <div className="flex items-center gap-3">
+        <span>{formatBytes(status.size)}</span>
+      </div>
     </div>
   );
 }

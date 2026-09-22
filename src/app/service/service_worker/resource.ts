@@ -503,9 +503,30 @@ export class ResourceService {
     if (!resource || !resource.link[uuid]) {
       throw new Error("resource not found");
     }
-    const source = resource.base64
-      ? base64ToBlob(resource.base64)
-      : new Blob([resource.content], { type: resource.contentType });
+
+    if (resource.base64) {
+      const total = getResourceByteSize(resource);
+      const chunkLength = Math.min(length, Math.max(0, total - offset));
+      if (chunkLength === 0) {
+        return { url, offset, length: 0, total, base64: "" };
+      }
+
+      const comma = resource.base64.indexOf(",");
+      const prefixLength = comma === -1 ? 0 : comma + 1;
+      const alignedOffset = Math.floor(offset / 3) * 3;
+      const encodedStart = prefixLength + (alignedOffset / 3) * 4;
+      const encodedEnd = Math.min(prefixLength + Math.ceil((offset + chunkLength) / 3) * 4, resource.base64.length);
+      const bytes = atob(resource.base64.slice(encodedStart, encodedEnd));
+      return {
+        url,
+        offset,
+        length: chunkLength,
+        total,
+        base64: btoa(bytes.slice(offset - alignedOffset, offset - alignedOffset + chunkLength)),
+      };
+    }
+
+    const source = new Blob([resource.content], { type: resource.contentType });
     const total = source.size;
     const chunk = source.slice(offset, Math.min(offset + length, total), resource.contentType);
     const dataUri = await blobToBase64(chunk);
