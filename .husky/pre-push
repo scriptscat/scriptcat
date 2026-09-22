@@ -1,0 +1,9 @@
+#!/bin/sh
+
+if [ "$SKIP_RUNTIME_GUARD" = "1" ]; then
+  echo "⏭ SKIP_RUNTIME_GUARD=1, skipping runtime guard"
+  exit 0
+fi
+
+echo "🔍 Running runtime guard before push..."
+exec pnpm run guard:runtime

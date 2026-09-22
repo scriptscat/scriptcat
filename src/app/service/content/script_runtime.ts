@@ -8,6 +8,18 @@ import type { ScriptEnvTag } from "@Packages/message/consts";
 import { onInjectPageLoaded } from "./external";
 import type { CustomEventMessage } from "@Packages/message/custom_event_message";
 import { type TExtensionEnv } from "../extension/extension_env";
+import { hasValidPageLoadScriptShape } from "./page_load_contract";
+
+const hasValidPageLoadDataShape = (value: unknown): boolean => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  return (
+    Array.isArray(record.scripts) &&
+    record.scripts.every(hasValidPageLoadScriptShape) &&
+    record.envInfo !== null &&
+    typeof record.envInfo === "object"
+  );
+};
 
 export class ScriptRuntime {
   constructor(
@@ -64,7 +76,8 @@ export class ScriptRuntime {
     });
 
     this.server.on("pageLoad", (data: { scripts: TScriptInfo[]; envInfo: GMInfoEnv }) => {
-      // 监听事件
+      // Keep the existing transport value contract, while rejecting producer/consumer field drift before execution.
+      if (!hasValidPageLoadDataShape(data)) return;
       this.startScripts(data.scripts, data.envInfo);
     });
 
