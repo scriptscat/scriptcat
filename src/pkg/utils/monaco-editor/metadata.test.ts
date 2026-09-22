@@ -4,6 +4,7 @@ import {
   contentChangeCanAffectMetadataMarkers,
   getMetadataAlignmentBlocks,
   getUndefinedMetadataTagMatches,
+  getUnsupportedGrantMatches,
   isKnownMetadataTag,
 } from "./metadata";
 
@@ -95,6 +96,72 @@ describe("getUndefinedMetadataTagMatches", () => {
     const blocks = getMetadataAlignmentBlocks(model);
     const matches = getUndefinedMetadataTagMatches(model, blocks, knownTags);
     expect(matches).toEqual([{ lineNumber: 2, startColumn: 5, endColumn: 15 }]);
+  });
+});
+
+describe("getUnsupportedGrantMatches", () => {
+  it.each(["GM_webRequest", "GM_audio", "GM_addScript", "GM_createObjectURL"])(
+    "应标记脚本猫不支持的 @grant %s",
+    (grant) => {
+      const model = createMockModel(["// ==UserScript==", `// @grant ${grant}`, "// ==/UserScript=="]);
+      const blocks = getMetadataAlignmentBlocks(model);
+      const matches = getUnsupportedGrantMatches(blocks);
+      expect(matches).toHaveLength(1);
+      expect(matches[0].grant).toBe(grant);
+    }
+  );
+
+  it.each([
+    "GM_setValue",
+    "GM.setValue",
+    "GM_xmlhttpRequest",
+    "GM.xmlHttpRequest",
+    "CAT_fileStorage",
+    "unsafeWindow",
+    "GM_info",
+    "none",
+  ])("不应标记脚本猫支持的 @grant %s", (grant) => {
+    const model = createMockModel(["// ==UserScript==", `// @grant ${grant}`, "// ==/UserScript=="]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    expect(getUnsupportedGrantMatches(blocks)).toEqual([]);
+  });
+
+  it("应返回精确的列范围", () => {
+    const model = createMockModel(["// ==UserScript==", "// @grant GM_webRequest", "// ==/UserScript=="]);
+    const blocks = getMetadataAlignmentBlocks(model);
+    const matches = getUnsupportedGrantMatches(blocks);
+    expect(matches).toEqual([{ lineNumber: 2, startColumn: 11, endColumn: 24, grant: "GM_webRequest" }]);
+  });
+
+  it("将 @grant 改为受支持的取值后应不再标记", () => {
+    const before = createMockModel(["// ==UserScript==", "// @grant GM_webRequest", "// ==/UserScript=="]);
+    expect(getUnsupportedGrantMatches(getMetadataAlignmentBlocks(before))).toHaveLength(1);
+
+    const after = createMockModel(["// ==UserScript==", "// @grant GM_setValue", "// ==/UserScript=="]);
+    expect(getUnsupportedGrantMatches(getMetadataAlignmentBlocks(after))).toEqual([]);
+  });
+
+  it("删除该 metadata 行后应不再标记", () => {
+    const before = createMockModel(["// ==UserScript==", "// @grant GM_webRequest", "// ==/UserScript=="]);
+    expect(getUnsupportedGrantMatches(getMetadataAlignmentBlocks(before))).toHaveLength(1);
+
+    const after = createMockModel(["// ==UserScript==", "// ==/UserScript=="]);
+    expect(getUnsupportedGrantMatches(getMetadataAlignmentBlocks(after))).toEqual([]);
+  });
+
+  it("区块内新增一行不支持的 @grant 后应正确重新计算，不影响其它诊断", () => {
+    const before = createMockModel(["// ==UserScript==", "// @grant GM_setValue", "// ==/UserScript=="]);
+    expect(getUnsupportedGrantMatches(getMetadataAlignmentBlocks(before))).toEqual([]);
+
+    const after = createMockModel([
+      "// ==UserScript==",
+      "// @grant GM_setValue",
+      "// @grant GM_audio",
+      "// ==/UserScript==",
+    ]);
+    const matches = getUnsupportedGrantMatches(getMetadataAlignmentBlocks(after));
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ lineNumber: 3, grant: "GM_audio" });
   });
 });
 
