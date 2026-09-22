@@ -26,7 +26,7 @@ export type RegisteredUserScriptWithJsCode = RequireField<chrome.userScripts.Reg
 
 const CHROMIUM_USER_SCRIPT_MATCH_SCHEMES = new Set(["*", "http", "https", "file"]);
 
-export function filterUserScriptApiMatchPatterns(patterns: readonly string[]): string[] {
+export function filterUserScriptApiPatternsByScheme(patterns: readonly string[]): string[] {
   // Firefox 的 match-pattern scheme 集合与 Chromium 不同；这里只在已验证的 Chromium API 边界收紧。
   if (isFirefox()) return [...patterns];
   return patterns.filter((pattern) => {
@@ -224,9 +224,9 @@ export function compileInjectionCode(
 // 构建userScript注册信息（忽略代码部份）
 export function getUserScriptRegister(scriptMatchInfo: ScriptMatchInfo) {
   const { matches, includeGlobs } = getApiMatchesAndGlobs(scriptMatchInfo.scriptUrlPatterns);
-  const apiMatches = filterUserScriptApiMatchPatterns(matches);
+  const apiMatches = filterUserScriptApiPatternsByScheme(matches);
 
-  const excludeMatches = filterUserScriptApiMatchPatterns(
+  const excludeMatches = filterUserScriptApiPatternsByScheme(
     toUniquePatternStrings(scriptMatchInfo.scriptUrlPatterns.filter((e) => e.ruleType === RuleType.MATCH_EXCLUDE))
   );
   const excludeGlobs = toUniquePatternStrings(
