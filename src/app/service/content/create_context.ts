@@ -290,6 +290,17 @@ export type RealmRoots = {
   hostWindow: DescriptorOwner;
 };
 
+// sandbox 的实际原型固定为 null，因此三个 Window 兼容 own descriptor（constructor/__proto__/
+// toStringTag）都是只读、不可枚举、可 configure 的兼容语义，不是真正的沙盒行为。
+const readonlyCompatDescriptor = (value: unknown): PropertyDescriptor => {
+  const descriptor = Native.objectCreate(null) as PropertyDescriptor;
+  descriptor.value = value;
+  descriptor.writable = false;
+  descriptor.enumerable = false;
+  descriptor.configurable = true;
+  return descriptor;
+};
+
 const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSnapshot => {
   // 在 CacheSet 加入的 propKeys 将会在 mySandbox 实装阶段时设置。
   // 先处理的 descriptor 覆盖后续父类。
@@ -305,8 +316,11 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
   // 记录原生 onxxxxx 的 property key。
   const eventKeys = new Native.Set<string>();
 
-  // 在 USE_PSEUDO_WINDOW 情况下，由于没有类的 prototype，父类的成员要手动传下去。
+  // sandbox 没有真实 Window.prototype，因此祖先成员要手动传下去。
   const protoBaseDescs: DescriptorMap = Native.objectCreate(null);
+
+  // 用来装 constructor/__proto__/toStringTag 三个 Window 兼容 own descriptor。
+  const pseudoWindowDescs = Native.objectCreate(null) as Record<PropertyKey, PropertyDescriptor>;
 
   const collectRealmDescriptors = () => {
     // 只读取 realmGlobal own descriptors，避免混合 Firefox 的两个 realm。
@@ -384,43 +398,22 @@ const createGlobalSnapshot = ({ realmGlobal, hostWindow }: RealmRoots): GlobalSn
   //  + 覆盖定义 (document, location, setTimeout, setInterval, addEventListener 等)
   // sharedInitCopy: ScriptCat脚本共通使用
 
-  // PseudoWindow 没有真实 Window.prototype，因此祖先成员必须先手动复制到 sandbox own descriptors。
-  const USE_PSEUDO_WINDOW = true; // 日后或能设置使 ScriptCat的沙盒 window 能以 name / id 存取页面元素
+  // sandbox 的实际原型固定为 null（兼容 TM 沙盒），因此 toString.call/constructor/__proto__
+  // 这三个 Window 兼容语义改为直接作为 own descriptor 构造，而不是先建一个临时 class 的
+  // prototype 再把它的 descriptors 摊平进来。
+  // TS 把字面量 "constructor" 的下标存取解析成 Object 内建的 Function 型别成员，
+  // 因此用一个非字面量的 string 变量绕开，实际仍是普通的下标赋值。
+  const constructorKey: string = "constructor";
+  pseudoWindowDescs[constructorKey] = readonlyCompatDescriptor(hostWindow.constructor);
+  pseudoWindowDescs["__proto__"] = readonlyCompatDescriptor(Native.objectGetPrototypeOf(hostWindow));
+  pseudoWindowDescs[Symbol.toStringTag] = readonlyCompatDescriptor(hostWindow[Symbol.toStringTag]);
 
-  class PseudoWindow {}
-  const PseudoWindowPrototype = PseudoWindow.prototype;
-  Native.objectDefineProperty(PseudoWindowPrototype, Symbol.toStringTag, {
-    //@ts-ignore
-    value: hostWindow[Symbol.toStringTag],
-    writable: false,
-    enumerable: false,
-    configurable: true,
+  const sharedInitCopy = Native.objectCreate(null, {
+    ...protoBaseDescs, // 较快的 @unwrap 注入时有机会改变 EventTarget.prototype
+    ...pseudoWindowDescs,
+    ...initOwnDescs,
+    ...overriddenDescs,
   });
-  Native.objectDefineProperty(PseudoWindowPrototype, "constructor", {
-    value: hostWindow.constructor,
-    writable: false,
-    enumerable: false,
-    configurable: true,
-  });
-  Native.objectDefineProperty(PseudoWindowPrototype, "__proto__", {
-    //@ts-ignore
-    value: hostWindow.__proto__,
-    writable: false,
-    enumerable: false,
-    configurable: true,
-  });
-
-  const sharedInitCopy = USE_PSEUDO_WINDOW
-    ? Native.objectCreate(null, {
-        ...protoBaseDescs, // 较快的 @unwrap 注入时有机会改变 EventTarget.prototype
-        ...Native.objectGetOwnPropertyDescriptors(PseudoWindowPrototype),
-        ...initOwnDescs,
-        ...overriddenDescs,
-      })
-    : Native.objectCreate(Native.objectGetPrototypeOf(realmGlobal), {
-        ...initOwnDescs,
-        ...overriddenDescs,
-      });
 
   return { sharedInitCopy, eventKeys };
 };
@@ -577,9 +570,8 @@ export const createProxyContext = <const Context extends GMWorldContext>(
     };
   }
 
-  // 把初始Copy加上特殊变量后，生成一份新Copy
-  mySandbox = Native.objectCreate(Native.objectGetPrototypeOf(sharedInitCopy), ownDescs) as typeof globalThis &
-    Record<PropertyKey, any>;
+  // 把初始Copy加上特殊变量后，生成一份新Copy；sandbox 的实际原型固定为 null（兼容 TM 沙盒）。
+  mySandbox = Native.objectCreate(null, ownDescs) as typeof globalThis & Record<PropertyKey, any>;
 
   // 处理特殊关键字，不能穿越出沙盒，也不能被外部修改
   const moduleKeys = ["define", "module", "exports"];

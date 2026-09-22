@@ -1034,8 +1034,19 @@ describe("createProxyContext: deterministic realm contract", () => {
 
     expect(Object.prototype.toString.call(sandbox)).toBe("[object Window]");
     expect(sandbox.constructor).toBe(fixture.hostWindow.constructor);
-    expect(sandbox.__proto__).toBe(fixture.hostWindow.__proto__);
+    // 直接对照 hostWindow 的真实原型，而不是经由 legacy __proto__ getter 读出的值。
+    expect(sandbox.__proto__).toBe(Object.getPrototypeOf(fixture.hostWindow));
     expect(Object.getPrototypeOf(sandbox)).toBeNull();
+  });
+
+  it("pseudo-window 的三个兼容 own descriptor 都是只读、不可枚举、可 configure", () => {
+    const fixture = createSplitRealmRoots();
+    const sandbox = createProxyContext(Object.create(null), fixture.roots);
+    const expectedFlags = { writable: false, enumerable: false, configurable: true };
+
+    expect(Object.getOwnPropertyDescriptor(sandbox, "constructor")).toMatchObject(expectedFlags);
+    expect(Object.getOwnPropertyDescriptor(sandbox, "__proto__")).toMatchObject(expectedFlags);
+    expect(Object.getOwnPropertyDescriptor(sandbox, Symbol.toStringTag)).toMatchObject(expectedFlags);
   });
 
   it("抽出 host EventTarget 方法後仍可呼叫，且 listener 只觸發一次", () => {
