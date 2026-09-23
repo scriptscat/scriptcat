@@ -135,6 +135,11 @@ export default {
     ],
   },
   plugins: [
+    // 浏览器没有 Node 核心模块；运行时有原生 MessageChannel 时不会读取这个替代模块。
+    new rspack.NormalModuleReplacementPlugin(
+      /^node:worker_threads$/,
+      `${src}/pkg/utils/node-worker-threads-browser.ts`
+    ),
     new rspack.DefinePlugin({
       "process.env.VI_TESTING": "'false'",
       "process.env.SC_RANDOM_KEY": `'${uuidv4()}'`,

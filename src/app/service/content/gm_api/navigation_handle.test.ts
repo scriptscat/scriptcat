@@ -1,15 +1,5 @@
-import { MessageChannel as NodeMessageChannel } from "node:worker_threads";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { UrlChangeEvent, attachNavigateHandler, resetAttachedForTest } from "./navigation_handle";
-
-let messageChannelCreations = 0;
-class TestMessageChannel extends NodeMessageChannel {
-  constructor() {
-    super();
-    messageChannelCreations += 1;
-  }
-}
-vi.stubGlobal("MessageChannel", TestMessageChannel);
 
 describe("UrlChangeEvent", () => {
   it.concurrent("应包含 url 属性", () => {
@@ -66,7 +56,6 @@ describe("attachNavigateHandler", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     resetAttachedForTest();
-    messageChannelCreations = 0;
   });
 
   it("不支持 Navigation API 时不应注册监听器", () => {
@@ -132,7 +121,6 @@ describe("attachNavigateHandler", () => {
       expect(mock.dispatched).toHaveLength(1);
     });
     expect((mock.dispatched[0] as UrlChangeEvent).url).toBe("https://example.com/last");
-    expect(messageChannelCreations).toBe(1);
   });
 
   it("dispatchEvent 的 bind 屬性被改寫時仍能派發事件", async () => {

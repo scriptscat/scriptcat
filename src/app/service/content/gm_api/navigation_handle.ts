@@ -14,14 +14,15 @@ interface IDeferToNextTaskKernel {
   nextMarcoTask(): Promise<void>;
 }
 
-let m: IDeferToNextTaskKernel;
+let m: IDeferToNextTaskKernel | undefined;
 
 let attached = false;
 
 // 仅供测试使用，重置 attached 标记并释放复用的 MessageChannel
 export const resetAttachedForTest = () => {
   attached = false;
-  m.release();
+  m?.release();
+  m = undefined;
 };
 
 const getPropGetter = <T>(obj: T, key: keyof T) => {
@@ -45,7 +46,8 @@ export const attachNavigateHandler = (win: Window & { navigation: EventTarget })
   const dispatch = Native.bind(win.dispatchEvent, win);
   let lastUrl = getUrl?.();
   let callSeq = 0;
-  m = createDeferToNextTaskKernel();
+  const deferToNextTask = createDeferToNextTaskKernel();
+  m = deferToNextTask;
   const handler = async (ev: Event): Promise<void> => {
     callSeq = callSeq > 512 ? 1 : callSeq + 1;
     const seq = callSeq;
@@ -54,7 +56,7 @@ export const attachNavigateHandler = (win: Window & { navigation: EventTarget })
     if (destUrl !== newUrl && newUrl === lastUrl) {
       // 某些情况，location.href 未更新就触发了。复用一个私有 MessageChannel
       // 让出一个 task；同一轮内的重叠导航共享这次等待，再由 callSeq 丢弃旧 continuation。
-      await m.nextMarcoTask();
+      await deferToNextTask.nextMarcoTask();
       if (seq !== callSeq) return; // 等待时，或许已经触发了其他 navigate
       newUrl = getUrl?.(); // 再次取得当前 location.href
     }
