@@ -163,8 +163,6 @@ export type TClientPageLoadInfo =
       envInfo: GMInfoEnv;
       /** 一次性令牌，供 USER_SCRIPT world 请求私有 bootstrap。 */
       userScriptBootstrapToken?: string;
-      /** 一次性令牌，供 MAIN world 的 inject 环境请求私有 bootstrap。 */
-      userScriptInjectBootstrapToken?: string;
     }
   | { ok: false };
 

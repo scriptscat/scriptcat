@@ -302,9 +302,8 @@ export class RuntimeService {
     ) {
       return false;
     }
-    // bootstrap 令牌决定唯一可消费这些句柄的 world，调用方不能借握手字段改投其他环境。
-    const expectedWorld = bootstrap.envTag === "it" ? "MAIN" : "USER_SCRIPT";
-    if (handshake.world !== expectedWorld) return false;
+    // 原生 user-script session 只服务 USER_SCRIPT world；MAIN 统一走 keyed page bridge。
+    if (bootstrap.envTag !== "ct" || handshake.world !== "USER_SCRIPT") return false;
     const handles = new Set<string>();
     for (const script of bootstrap.scripts) {
       const handle = script.executionHandle;
@@ -352,10 +351,10 @@ export class RuntimeService {
           scripts: bootstrap.scripts,
           envInfo: bootstrap.envInfo,
           reconnectToken: bootstrap.reconnectToken,
-          ...(bootstrap.envTag === "ct" ? { extensionOrigin: bootstrap.extensionOrigin } : {}),
+          extensionOrigin: bootstrap.extensionOrigin,
         };
         connection.sendMessage({
-          action: `${bootstrap.envTag === "it" ? "inject" : "content"}/pageLoad`,
+          action: "content/pageLoad",
           data: pageLoadData,
         });
         entry.ready = true;
@@ -1889,27 +1888,21 @@ export class RuntimeService {
       const injectScriptList = data?.envTag === "ct" ? [] : prepareScripts(res.injectScriptList, "it");
       const contentScriptList = prepareScripts(res.contentScriptList, "ct");
       let userScriptBootstrapToken: string | undefined;
-      let userScriptInjectBootstrapToken: string | undefined;
-      if (data?.envTag === "it") {
-        const createBootstrap = (scripts: TScriptInfo[], envTag: "it" | "ct"): string | undefined => {
-          if (scripts.length === 0) return undefined;
-          const token = uuidv4();
-          this.userScriptBootstraps.set(token, {
-            scripts,
-            envInfo: res.envInfo,
-            extensionOrigin: getExtensionOrigin(),
-            reconnectToken: token,
-            envTag,
-            url,
-            tabId,
-            frameId,
-            documentId: chromeSender.documentId,
-            pendingValueUpdates: new Map(),
-          });
-          return token;
-        };
-        userScriptInjectBootstrapToken = createBootstrap(injectScriptList, "it");
-        userScriptBootstrapToken = createBootstrap(contentScriptList, "ct");
+      if (data?.envTag === "it" && contentScriptList.length > 0) {
+        const token = uuidv4();
+        this.userScriptBootstraps.set(token, {
+          scripts: contentScriptList,
+          envInfo: res.envInfo,
+          extensionOrigin: getExtensionOrigin(),
+          reconnectToken: token,
+          envTag: "ct",
+          url,
+          tabId,
+          frameId,
+          documentId: chromeSender.documentId,
+          pendingValueUpdates: new Map(),
+        });
+        userScriptBootstrapToken = token;
       }
       // 返回脚本资料，在页面加载
       return {
@@ -1918,7 +1911,6 @@ export class RuntimeService {
         contentScriptList: data?.envTag === "it" ? [] : contentScriptList,
         envInfo: res.envInfo,
         userScriptBootstrapToken,
-        userScriptInjectBootstrapToken,
       };
     } else {
       // 没有脚本资料，不需要加载

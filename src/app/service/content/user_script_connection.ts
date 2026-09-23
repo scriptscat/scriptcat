@@ -7,7 +7,6 @@ type UserScriptReconnectResponse = {
   code?: unknown;
   data?: unknown;
 };
-type UserScriptWorld = "USER_SCRIPT" | "MAIN";
 
 /**
  * 先让 service worker 开启 USER_SCRIPT 监听，再建立连接；浏览器可能立即投递端口，
@@ -17,17 +16,18 @@ export async function connectUserScriptChannel(
   message: Message,
   bootstrapToken: string,
   onPacket: UserScriptPacketHandler,
-  onDisconnect?: UserScriptDisconnectHandler,
-  world: UserScriptWorld = "USER_SCRIPT"
+  onDisconnect?: UserScriptDisconnectHandler
 ): Promise<MessageConnect | undefined> {
   const enabled = await message.sendMessage<boolean>({ type: "userScripts.LISTEN_CONNECTIONS" } as unknown as TMessage);
-  const useExtensionFallback = world === "MAIN" || enabled !== true;
+  const useExtensionFallback = enabled !== true;
   let connection: MessageConnect;
   try {
     // 缺少专用 USER_SCRIPT 监听器时仍使用扩展原生端口；服务端会用文档绑定的令牌限制该降级路径。
     connection = await message.connect({
       action: "serviceWorker/runtime/registerUserScript",
-      data: useExtensionFallback ? { world, bootstrapToken, transport: "extension" } : { world, bootstrapToken },
+      data: useExtensionFallback
+        ? { world: "USER_SCRIPT", bootstrapToken, transport: "extension" }
+        : { world: "USER_SCRIPT", bootstrapToken },
     });
   } catch (error) {
     if (!useExtensionFallback) throw error;

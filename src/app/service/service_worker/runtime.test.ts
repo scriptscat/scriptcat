@@ -1683,70 +1683,14 @@ describe("page execution binding effective grants (P1-2)", () => {
 });
 
 describe("USER_SCRIPT native callbacks", () => {
-  it("rejects bootstrap and reconnect tokens from a different URL when documentId is missing", async () => {
-    const { runtime } = _createRuntimeContext();
-    const script = _createScriptRunResource(
-      _createMockScript({ uuid: "url-bound-user-script", metadata: { match: ["https://www.example.com/*"] } })
-    );
-    vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
-      injectScriptList: [script],
-      contentScriptList: [],
-      envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
-      scriptmenus: [],
-    } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
-
-    const originalSender = {
-      url: "https://www.example.com/page",
-      frameId: 0,
-      tab: { id: 41, incognito: false } as chrome.tabs.Tab,
-    } as chrome.runtime.MessageSender;
-    const connection = {
-      onMessage: vi.fn(),
-      sendMessage: vi.fn(),
-      disconnect: vi.fn(),
-      onDisconnect: vi.fn(),
-    } as unknown as MessageConnect;
-    const bootstrapSender = {
-      getType: () => 3,
-      isType: (type: number) => type === 3,
-      getSender: () => originalSender,
-      getExtMessageSender: () => ({ tabId: 41, frameId: 0 }),
-      getConnect: () => connection,
-      getConnectOrigin: () => "userScript" as const,
-    };
-    const pageLoad = await runtime.pageLoad({ envTag: "it" }, new SenderRuntime(originalSender));
-    const bootstrapToken = pageLoad.ok ? pageLoad.userScriptInjectBootstrapToken : undefined;
-    expect(bootstrapToken).toEqual(expect.any(String));
-
-    const navigatedSender = {
-      ...bootstrapSender,
-      getSender: () => ({ ...originalSender, url: "https://www.example.com/next" }),
-    };
-    expect(runtime.registerUserScriptConnection({ world: "MAIN", bootstrapToken }, navigatedSender)).toBe(false);
-    expect(
-      runtime.reconnectUserScript(
-        { reconnectToken: bootstrapToken },
-        {
-          ...navigatedSender,
-          getType: () => 4,
-          isType: (type: number) => type === 4,
-          getConnect: () => undefined,
-        }
-      )
-    ).toBeUndefined();
-  });
-
-  it("issues a separate MAIN bootstrap and routes its private callbacks over the native port", async () => {
+  it("does not issue or accept a native MAIN bootstrap", async () => {
     const { runtime } = _createRuntimeContext();
     const script = _createScriptRunResource(
       _createMockScript({ uuid: "inject-script", metadata: { match: ["https://www.example.com/*"] } })
     );
-    const contentScript = _createScriptRunResource(
-      _createMockScript({ uuid: "content-script", metadata: { match: ["https://www.example.com/*"] } })
-    );
     vi.spyOn(runtime, "getScriptsForTab").mockResolvedValue({
       injectScriptList: [script],
-      contentScriptList: [contentScript],
+      contentScriptList: [],
       envInfo: { userAgentData: {}, sandboxMode: "raw", isIncognito: false },
       scriptmenus: [],
     } as unknown as Awaited<ReturnType<RuntimeService["getScriptsForTab"]>>);
@@ -1757,67 +1701,33 @@ describe("USER_SCRIPT native callbacks", () => {
       documentId: "doc-main",
       tab: { id: 41, incognito: false } as chrome.tabs.Tab,
     } as chrome.runtime.MessageSender;
-    const sendMessage = vi.fn();
-    const connection = {
-      onMessage: vi.fn(),
-      sendMessage,
-      disconnect: vi.fn(),
-      onDisconnect: vi.fn(),
-    } as unknown as MessageConnect;
-    const connectionSender = {
-      getType: () => 3,
-      isType: () => true,
-      getSender: () => rawSender,
-      getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-main" }),
-      getConnect: () => connection,
-      getConnectOrigin: () => "userScript" as const,
-    };
 
     const pageLoad = await runtime.pageLoad({ envTag: "it" }, new SenderRuntime(rawSender));
-    expect(pageLoad.ok && pageLoad.userScriptInjectBootstrapToken).toEqual(expect.any(String));
-    const bootstrapToken = pageLoad.ok ? pageLoad.userScriptInjectBootstrapToken : undefined;
-    expect(runtime.registerUserScriptConnection({ world: "USER_SCRIPT", bootstrapToken }, connectionSender)).toBe(
-      false
-    );
-    expect(runtime.registerUserScriptConnection({ world: "MAIN", bootstrapToken }, connectionSender)).toBe(true);
+    expect(pageLoad.ok).toBe(true);
+    if (!pageLoad.ok) return;
+    expect("userScriptInjectBootstrapToken" in pageLoad).toBe(false);
 
-    const contentConnection = {
+    const connection = {
       onMessage: vi.fn(),
       sendMessage: vi.fn(),
       disconnect: vi.fn(),
       onDisconnect: vi.fn(),
     } as unknown as MessageConnect;
-    const contentSender = { ...connectionSender, getConnect: () => contentConnection };
-    const contentBootstrapToken = pageLoad.ok ? pageLoad.userScriptBootstrapToken : undefined;
+    const sender = {
+      getType: () => 3,
+      isType: () => true,
+      getSender: () => rawSender,
+      getExtMessageSender: () => ({ tabId: 41, frameId: 0, documentId: "doc-main" }),
+      getConnect: () => connection,
+      getConnectOrigin: () => "extension" as const,
+    };
+
     expect(
       runtime.registerUserScriptConnection(
-        { world: "USER_SCRIPT", bootstrapToken: contentBootstrapToken },
-        contentSender
+        { world: "MAIN", bootstrapToken: "not-issued", transport: "extension" },
+        sender
       )
-    ).toBe(true);
-    expect((runtime as any).userScriptConnections.size).toBe(2);
-
-    const bootstrapHandler = (connection.onMessage as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-      | ((packet: TMessage) => void)
-      | undefined;
-    bootstrapHandler?.({ action: "userScript/bootstrap" });
-    expect(sendMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: "inject/pageLoad",
-        data: expect.objectContaining({ scripts: expect.any(Array) }),
-      })
-    );
-
-    sendMessage.mockClear();
-    (runtime as any).sendUserScriptMessage(undefined, "runtime/emitEvent", {
-      uuid: "inject-script",
-      event: "click",
-      eventId: "1",
-    });
-    expect(sendMessage).toHaveBeenCalledWith({
-      action: "inject/runtime/emitEvent",
-      data: { uuid: "inject-script", event: "click", eventId: "1" },
-    });
+    ).toBe(false);
   });
 
   it("queues USER_SCRIPT value updates until a reconnect finishes its bootstrap", async () => {
